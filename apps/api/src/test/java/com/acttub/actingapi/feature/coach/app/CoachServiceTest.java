@@ -100,6 +100,17 @@ class CoachServiceTest {
     }
 
     @Test
+    void failedAnalysisCannotStartOrResumeCoaching() {
+        when(sessions.getPracticeSessionStatus(USER_ID, PRACTICE_ID)).thenReturn("failed");
+        assertThatThrownBy(() -> service.start(USER_ID, new CoachStart(PRACTICE_ID, false), null))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("analysis is not settled");
+        verify(coach, never()).start(any(), any());
+        verify(sessions, never()).getOldestOpenCoachSession(any(), any());
+        verify(operations, never()).begin(any(), any(), any(), anyString(), anyString());
+    }
+
+    @Test
     void startResumeReturnsStoredConversationWithoutCallingEitherLlmOrCreatingOperation() {
         CoachSessionSnapshot session = snapshot("open", List.of(
                 new CoachTurnSnapshot("actor", "배우 말"),
@@ -113,7 +124,7 @@ class CoachServiceTest {
 
         verify(coach, never()).start(any(), any());
         verify(reports, never()).generateReport(any(), any(), any(),
-                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any());
+                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any(), any(), any());
         verify(operations, never()).begin(any(), any(), any(), anyString(), anyString());
     }
 
@@ -135,7 +146,7 @@ class CoachServiceTest {
 
         verify(coach, never()).start(any(), any());
         verify(reports, never()).generateReport(any(), any(), any(),
-                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any());
+                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any(), any(), any());
         verify(operations, never()).begin(any(), any(), any(), anyString(), anyString());
     }
 
@@ -153,7 +164,7 @@ class CoachServiceTest {
         service.confirm(USER_ID, new HandoffDecision(SESSION_ID, true, null), null);
 
         verify(reports, never()).generateReport(any(), any(), any(),
-                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any());
+                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any(), any(), any());
         verify(operations).complete(org.mockito.ArgumentMatchers.eq(CLAIM), any(JsonNode.class));
     }
 
@@ -165,7 +176,7 @@ class CoachServiceTest {
                 .thenReturn(source);
         when(sessions.getPracticeReportForHandoff(HANDOFF_ID)).thenReturn(null);
         when(reports.generateReport(any(), any(), any(),
-                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any()))
+                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any(), any(), any()))
                 .thenThrow(new ReportParseError("invalid report"));
 
         assertThatThrownBy(() -> service.confirm(
@@ -187,8 +198,8 @@ class CoachServiceTest {
                 org.mockito.ArgumentMatchers.isNull(),
                 any(Instant.class));
         order.verify(reports).generateReport(any(), any(), any(),
-                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any());
-        order.verify(operations).fail(CLAIM, "report_parse_error");
+                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any(), any(), any());
+        order.verify(operations).fail(CLAIM, "report_parse_error", "external");
     }
 
     /** 세션이 없으면 확정 저장이 예외를 던지고, 그것이 404 와 원장의 실패 표시로 옮겨진다. */
@@ -209,7 +220,7 @@ class CoachServiceTest {
                             .hasMessage("coach session not found");
                 });
 
-        verify(operations).fail(CLAIM, "session_not_found");
+        verify(operations).fail(CLAIM, "session_not_found", "expected");
     }
 
     @Test
@@ -218,7 +229,7 @@ class CoachServiceTest {
         CoachReply complete = new CoachReply("완료", "complete", handoff);
         CoachSessionSnapshot session = snapshot("open", List.of());
         when(reports.generateReport(any(), any(), any(),
-                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any()))
+                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any(), any(), any()))
                 .thenThrow(new ReportParseError("bad report"));
 
         stubStartContext();
@@ -241,7 +252,7 @@ class CoachServiceTest {
         assertReportParseError(() -> service.reply(
                 USER_ID, new ActorMessage(SESSION_ID, "그만"), null));
 
-        verify(operations, org.mockito.Mockito.times(2)).fail(CLAIM, "report_parse_error");
+        verify(operations, org.mockito.Mockito.times(2)).fail(CLAIM, "report_parse_error", "external");
     }
 
     @Test
@@ -265,7 +276,7 @@ class CoachServiceTest {
                             .hasMessage("session turns changed concurrently");
                 });
 
-        verify(operations).fail(CLAIM, "session_write_conflict");
+        verify(operations).fail(CLAIM, "session_write_conflict", "expected");
     }
 
     @Test
@@ -331,7 +342,7 @@ class CoachServiceTest {
         stubOwnedSession();
         when(coach.reply(any(), anyString(), any())).thenReturn(new CoachResult(answered, complete));
         when(reports.generateReport(any(), any(), any(),
-                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any()))
+                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any(), any(), any()))
                 .thenReturn(mapper.createObjectNode().put("report_type", "analysis"));
         when(ledger.completeCoachReplyOperation(
                 any(), any(), any(), any(), any(), any(), any(),
@@ -358,7 +369,7 @@ class CoachServiceTest {
         stubOwnedSession();
         when(coach.reply(any(), anyString(), any())).thenReturn(new CoachResult(answered, complete));
         when(reports.generateReport(any(), any(), any(),
-                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any()))
+                org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any(), any(), any()))
                 .thenReturn(mapper.createObjectNode().put("report_type", "analysis"));
         when(ledger.completeCoachReplyOperation(
                 any(), any(), any(), any(), any(), any(), any(),

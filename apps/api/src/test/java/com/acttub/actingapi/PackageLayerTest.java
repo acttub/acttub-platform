@@ -63,7 +63,10 @@ class PackageLayerTest {
             Map.entry("community", FOUR_LAYERS),
             Map.entry("report", FOUR_LAYERS),
             Map.entry("coach", FOUR_LAYERS),
-            Map.entry("analysis", FOUR_LAYERS),
+            // 분석의 Domain Model 은 받아쓴 대사를 문장으로 자르던 `TranscriptSegments` 하나였고,
+            // 받아쓰기를 걷어내면서(SOMA-490) 그 규칙이 함께 사라졌다. 관찰은 영상을 보는 모델이
+            // 통째로 내주는 것이라 우리가 걸 행위 규칙이 없다 — 남은 층이 셋이다.
+            Map.entry("analysis", Set.of("app", "adapter", "schema")),
             Map.entry("upload", FOUR_LAYERS),
             // 프로필의 Schema Entity 는 `auth/schema/UserEntity` 다 — `users` 행을 만드는 쪽이
             // 갖는다(SOMA-397 12단계). 프로필은 이미 있는 행을 고칠 뿐이라 층이 셋이다.

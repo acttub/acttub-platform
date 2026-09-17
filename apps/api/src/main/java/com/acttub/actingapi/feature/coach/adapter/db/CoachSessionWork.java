@@ -2,10 +2,12 @@ package com.acttub.actingapi.feature.coach.adapter.db;
 
 import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
 
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import com.acttub.actingapi.platform.ledger.ExternalOperationMonitoring;
 
 import com.acttub.actingapi.feature.coach.app.CoachSessionSnapshot;
 import com.acttub.actingapi.feature.coach.app.LookupError;
@@ -18,6 +20,7 @@ import com.acttub.actingapi.feature.coach.schema.CoachSessionEntity;
 import com.acttub.actingapi.feature.coach.schema.CoachTurnEntity;
 import com.acttub.actingapi.feature.coach.schema.CoachingHandoffEntity;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
+import com.acttub.actingapi.integration.observation.StoredObservationPack;
 import com.acttub.actingapi.platform.schema.SessionStatus;
 import com.acttub.actingapi.platform.schema.TurnRole;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -39,14 +42,16 @@ import org.springframework.stereotype.Component;
 public class CoachSessionWork {
 
     private final EntityManager entityManager;
+    private final ExternalOperationMonitoring monitoring;
     private final CoachSessionJpaRepository coachSessions;
     private final ObjectMapper objectMapper;
 
     public CoachSessionWork(
             EntityManager entityManager,
             CoachSessionJpaRepository coachSessions,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper, ExternalOperationMonitoring monitoring) {
         this.entityManager = entityManager;
+        this.monitoring = monitoring;
         this.coachSessions = coachSessions;
         this.objectMapper = objectMapper;
     }
@@ -62,10 +67,14 @@ public class CoachSessionWork {
                     cs.status AS coach_status,
                     cs.close_reason,
                     cs.conversation_summary,
+                    cs.coaching_state_json::text AS coaching_state_json,
+                    cs.state_revision,
+                    s.raw::text AS raw_json,
                     s.observations_json::text AS observations_json,
                     s.uncertainties_json::text AS uncertainties_json,
                     ps.id AS practice_session_id,
                     ps.user_id,
+                    ps.experience_version,
                     ps.situation,
                     ps.character_context,
                     ps.goal,
@@ -123,12 +132,15 @@ public class CoachSessionWork {
                 analysisHandoff,
                 row.status(),
                 row.closeReason() == null ? "" : row.closeReason(),
-                turns);
+                turns).withCoachingState(rows.getFirst().get("experience_version", String.class),
+                        ((Number) rows.getFirst().get("state_revision")).longValue(),
+                        parseJson(rows.getFirst().get("coaching_state_json", String.class)),
+                        row.status(), row.closeReason() == null ? "" : row.closeReason());
     }
 
     public void saveCoachSession(CoachSessionSnapshot session, OffsetDateTime now) {
         List<Tuple> statuses = list(entityManager.createNativeQuery("""
-                SELECT status AS status
+                SELECT status AS status, state_revision
                 FROM coach_sessions
                 WHERE id = :sessionId
                 FOR UPDATE
@@ -136,6 +148,11 @@ public class CoachSessionWork {
                 .setParameter("sessionId", session.sessionId()));
         if (statuses.isEmpty()) {
             throw new LookupError("session not found");
+        }
+
+        if (session.threeLayers() && session.stateRevision()
+                != ((Number) statuses.getFirst().get("state_revision")).longValue() + 1) {
+            throw new SessionWriteConflict("coaching state changed concurrently");
         }
 
         List<CoachTurnSnapshot> storedTurns = coachTurns(session.sessionId());
@@ -163,11 +180,27 @@ public class CoachSessionWork {
         }
         // turn INSERT가 session 상태 갱신보다 늦춰지지 않도록 현재 SQL 순서를 고정한다.
         entityManager.flush();
+        if (session.threeLayers()) {
+            int updated = entityManager.createNativeQuery("""
+                    UPDATE coach_sessions SET status = :status,
+                        close_reason = :reason, coaching_state_json = CAST(:state AS jsonb),
+                        state_revision = :revision, updated_at = :now
+                    WHERE id = :id AND state_revision = :baseRevision AND status = 'open'
+                    """)
+                    .setParameter("status", session.status())
+                    .setParameter("reason", session.closeReason().isBlank() ? null : session.closeReason())
+                    .setParameter("state", session.coachingState().toString())
+                    .setParameter("revision", session.stateRevision())
+                    .setParameter("baseRevision", session.stateRevision() - 1)
+                    .setParameter("now", now).setParameter("id", session.sessionId()).executeUpdate();
+            if (updated != 1) { throw new SessionWriteConflict("coaching state changed concurrently"); }
+        } else {
         coachSessions.updateState(
                 session.sessionId(),
                 sessionStatus(session.status()),
                 session.conversationSummary(),
                 now.toInstant());
+        }
     }
 
     public UUID findOldestOpenCoachSessionId(UUID userId, UUID practiceSessionId) {
@@ -206,6 +239,7 @@ public class CoachSessionWork {
                 SELECT
                     ps.id AS practice_session_id,
                     ps.user_id,
+                    ps.experience_version,
                     ps.situation,
                     ps.character_context,
                     ps.goal,
@@ -215,6 +249,7 @@ public class CoachSessionWork {
                     ps.upload_intent_id,
                     ui.duration_ms,
                     s.id AS summary_id,
+                    s.raw::text AS raw_json,
                     s.observations_json::text AS observations_json,
                     s.uncertainties_json::text AS uncertainties_json
                 FROM practice_sessions ps
@@ -230,12 +265,9 @@ public class CoachSessionWork {
             return null;
         }
         PracticeContextRow row = mapPracticeContextRow(rows.getFirst());
-        ObjectNode pack = null;
-        if (row.summaryId() != null) {
-            pack = objectMapper.createObjectNode();
-            pack.set("observations", row.observations());
-            pack.set("uncertainties", row.uncertainties());
-        }
+        JsonNode pack = row.summaryId() == null
+                ? null
+                : StoredObservationPack.read(row.raw(), row.observations(), row.uncertainties());
         List<String> transcripts = transcripts(practiceSessionId);
         JsonNode analysisHandoff = CoachBranch.isExpressionBlockage(row.blockageKind())
                 ? findConfirmedAnalysisHandoff(row.userId(), row.uploadIntentId())
@@ -253,7 +285,7 @@ public class CoachSessionWork {
                 row.subBranch(),
                 row.blockageDetail(),
                 transcripts,
-                analysisHandoff);
+                analysisHandoff, rows.getFirst().get("experience_version", String.class));
     }
 
     public boolean hasReportForPracticeSession(UUID practiceSessionId) {
@@ -281,12 +313,16 @@ public class CoachSessionWork {
     }
 
     public void addCoachSession(CoachSessionSnapshot session) {
-        entityManager.persist(new CoachSessionEntity(
+        CoachSessionEntity entity = new CoachSessionEntity(
                 session.sessionId(),
                 session.practiceSessionId(),
                 session.summaryId(),
                 sessionStatus(session.status()),
-                session.conversationSummary()));
+                session.conversationSummary());
+        if (session.threeLayers()) {
+            entity.structuredState(session.coachingState(), session.stateRevision(), session.closeReason());
+        }
+        entityManager.persist(entity);
         for (int index = 0; index < session.turns().size(); index++) {
             CoachTurnSnapshot turn = session.turns().get(index);
             entityManager.persist(new CoachTurnEntity(
@@ -328,7 +364,7 @@ public class CoachSessionWork {
                 .setParameter("coachSessionId", coachSessionId));
         HandoffRow handoff = latest.isEmpty() ? null : mapHandoff(latest.getFirst());
         String branchKind = handoff == null
-                ? CoachBranch.of(session.blockageKind())
+                ? (session.threeLayers() ? "coaching" : CoachBranch.of(session.blockageKind()))
                 : handoff.branchKind();
 
         HandoffRow analysis = null;
@@ -482,7 +518,8 @@ public class CoachSessionWork {
                     :now
                 )
                 """)
-                .setParameter("id", UUID.randomUUID())
+                .setParameter("id", "practice_note".equals(reportJson.path("report_type").asText())
+                        ? UUID.fromString(reportJson.path("note_id").asText()) : UUID.randomUUID())
                 .setParameter("practiceSessionId", practiceSessionId)
                 .setParameter("reportType", reportJson.path("report_type").asText())
                 .setParameter("reportJson", reportJson.toString())
@@ -496,26 +533,32 @@ public class CoachSessionWork {
             UUID leaseToken,
             JsonNode responsePayload,
             OffsetDateTime now) {
-        int finished = entityManager.createNativeQuery("""
-                UPDATE external_operations
-                SET status = 'succeeded',
-                    response_payload = CAST(:responsePayload AS jsonb),
-                    error_code = NULL,
-                    lease_token = NULL,
-                    lease_expires_at = NULL,
-                    updated_at = :now
-                WHERE id = :operationId
-                  AND status = 'running'
-                  AND lease_token = :leaseToken
-                """)
+        List<Tuple> finished = list(entityManager.createNativeQuery("""
+                WITH finished AS (
+                    UPDATE external_operations
+                    SET status = 'succeeded',
+                        response_payload = CAST(:responsePayload AS jsonb),
+                        error_code = NULL,
+                        lease_token = NULL,
+                        lease_expires_at = NULL,
+                        updated_at = :now
+                    WHERE id = :operationId
+                      AND status = 'running'
+                      AND lease_token = :leaseToken
+                    RETURNING kind, created_at
+                )
+                SELECT kind, created_at FROM finished
+                """, Tuple.class)
                 .setParameter("responsePayload", responsePayload.toString())
                 .setParameter("now", now)
                 .setParameter("operationId", operationId)
-                .setParameter("leaseToken", leaseToken)
-                .executeUpdate();
-        if (finished == 0) {
+                .setParameter("leaseToken", leaseToken));
+        if (finished.isEmpty()) {
             throw new LeaseOwnershipException("external operation lease is not owned");
         }
+        monitoring.terminal(new ExternalOperationMonitoring.Terminal(operationId,
+                finished.getFirst().get("kind", String.class), "succeeded", null,
+                finished.getFirst().get("created_at", Instant.class)));
     }
 
     private SessionRow mapSessionRow(Tuple row) {
@@ -524,6 +567,7 @@ public class CoachSessionWork {
                 row.get("coach_status", String.class),
                 row.get("close_reason", String.class),
                 row.get("conversation_summary", String.class),
+                parseJson(row.get("raw_json", String.class)),
                 parseJson(row.get("observations_json", String.class)),
                 parseJson(row.get("uncertainties_json", String.class)),
                 row.get("practice_session_id", UUID.class),
@@ -551,6 +595,7 @@ public class CoachSessionWork {
                 row.get("upload_intent_id", UUID.class),
                 row.get("duration_ms", Integer.class),
                 row.get("summary_id", UUID.class),
+                parseJson(row.get("raw_json", String.class)),
                 parseJson(row.get("observations_json", String.class)),
                 parseJson(row.get("uncertainties_json", String.class)));
     }
@@ -621,10 +666,7 @@ public class CoachSessionWork {
         if (row.summaryId() == null) {
             return null;
         }
-        ObjectNode pack = objectMapper.createObjectNode();
-        pack.set("observations", row.observations());
-        pack.set("uncertainties", row.uncertainties());
-        return pack;
+        return StoredObservationPack.read(row.raw(), row.observations(), row.uncertainties());
     }
 
     private ObjectNode emptyObservationPack() {
@@ -653,6 +695,7 @@ public class CoachSessionWork {
             String status,
             String closeReason,
             String conversationSummary,
+            JsonNode raw,
             JsonNode observations,
             JsonNode uncertainties,
             UUID practiceSessionId,
@@ -679,6 +722,7 @@ public class CoachSessionWork {
             UUID uploadIntentId,
             Integer durationMs,
             UUID summaryId,
+            JsonNode raw,
             JsonNode observations,
             JsonNode uncertainties) {
     }

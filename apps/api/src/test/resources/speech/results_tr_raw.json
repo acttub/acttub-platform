@@ -1,0 +1,1848 @@
+{
+  "0d965ac724f04d5d9411d7b3b76d8af3": {
+    "text": "하였던 특유의 이 시간에 그림을 그릴 생각을 다 하고. 여전히 좋은데 여전히 발전은 없다. 그림은 좀 팔렸어? 오랜만이다. 여전히 재수 없단 말이야. 그건 그렇고 너 그림 관련해서 표절 얘기 나오던데 뭐 한 마디도 안 하더라. 어 대응 안 해도 돼? 내가 훔쳤잖아. 네 그림. 아 또 그 얼굴이네. 사람 개무시하는 얼굴. 야 넌 뭐 그렇게 잘났냐? 어? 그래. 다 가지고 태어난 너한테는 이런 거 뭐 별거 아니겠지. 근데 사람 앞에서는 대놓고 그러지 말지 그랬냐. 죽어라 매달려서 아둥바둥 노력하는 사람 기운 빠지게. 그거 진짜 기분 더럽거든. 아니 그냥 궁금해서 그랬는데 과연 자기 걸 뺏겨도 똑같은 얼굴일까 하고. 근데 여전히 변함없는 네 얼굴 보니까 무슨 생각 드는 줄 아냐? 불쌍하더라. 네 인생이. 그렇게 모든 버리기 쉬운 만큼 네 인생도 별거 아닌 거 같으니까. 그렇게 살면은 뭐가 남냐? 네 인생에. 네 그림도 이제 보다 보니까 별로다. 텅 비어 있잖아.",
+    "finished": null,
+    "language_code": null,
+    "speaker_label": null,
+    "words": [
+      {
+        "word": "하였던",
+        "start_offset": "1s",
+        "end_offset": "1.400s"
+      },
+      {
+        "word": "특유의",
+        "start_offset": "1.400s",
+        "end_offset": "2.300s"
+      },
+      {
+        "word": "이",
+        "start_offset": "2.500s",
+        "end_offset": "2.600s"
+      },
+      {
+        "word": "시간에",
+        "start_offset": "2.600s",
+        "end_offset": "2.900s"
+      },
+      {
+        "word": "그림을",
+        "start_offset": "2.900s",
+        "end_offset": "3.200s"
+      },
+      {
+        "word": "그릴",
+        "start_offset": "3.200s",
+        "end_offset": "3.500s"
+      },
+      {
+        "word": "생각을",
+        "start_offset": "3.500s",
+        "end_offset": "3.700s"
+      },
+      {
+        "word": "다",
+        "start_offset": "3.700s",
+        "end_offset": "3.800s"
+      },
+      {
+        "word": "하고.",
+        "start_offset": "3.800s",
+        "end_offset": "4s"
+      },
+      {
+        "word": "여전히",
+        "start_offset": "5.400s",
+        "end_offset": "5.800s"
+      },
+      {
+        "word": "좋은데",
+        "start_offset": "5.800s",
+        "end_offset": "6.200s"
+      },
+      {
+        "word": "여전히",
+        "start_offset": "6.200s",
+        "end_offset": "6.500s"
+      },
+      {
+        "word": "발전은",
+        "start_offset": "7.500s",
+        "end_offset": "8.200s"
+      },
+      {
+        "word": "없다.",
+        "start_offset": "8.200s",
+        "end_offset": "8.200s"
+      },
+      {
+        "word": "그림은",
+        "start_offset": "11s",
+        "end_offset": "11.300s"
+      },
+      {
+        "word": "좀",
+        "start_offset": "11.400s",
+        "end_offset": "11.600s"
+      },
+      {
+        "word": "팔렸어?",
+        "start_offset": "11.600s",
+        "end_offset": "12s"
+      },
+      {
+        "word": "오랜만이다.",
+        "start_offset": "13.200s",
+        "end_offset": "13.600s"
+      },
+      {
+        "word": "여전히",
+        "start_offset": "17s",
+        "end_offset": "17.500s"
+      },
+      {
+        "word": "재수",
+        "start_offset": "17.500s",
+        "end_offset": "17.700s"
+      },
+      {
+        "word": "없단",
+        "start_offset": "17.700s",
+        "end_offset": "18s"
+      },
+      {
+        "word": "말이야.",
+        "start_offset": "18s",
+        "end_offset": "18.300s"
+      },
+      {
+        "word": "그건",
+        "start_offset": "20.900s",
+        "end_offset": "21.100s"
+      },
+      {
+        "word": "그렇고",
+        "start_offset": "21.100s",
+        "end_offset": "21.400s"
+      },
+      {
+        "word": "너",
+        "start_offset": "21.400s",
+        "end_offset": "21.700s"
+      },
+      {
+        "word": "그림",
+        "start_offset": "21.800s",
+        "end_offset": "22.100s"
+      },
+      {
+        "word": "관련해서",
+        "start_offset": "22.100s",
+        "end_offset": "22.800s"
+      },
+      {
+        "word": "표절",
+        "start_offset": "22.800s",
+        "end_offset": "23.100s"
+      },
+      {
+        "word": "얘기",
+        "start_offset": "23.100s",
+        "end_offset": "23.300s"
+      },
+      {
+        "word": "나오던데",
+        "start_offset": "23.300s",
+        "end_offset": "23.900s"
+      },
+      {
+        "word": "뭐",
+        "start_offset": "24.400s",
+        "end_offset": "24.500s"
+      },
+      {
+        "word": "한",
+        "start_offset": "24.500s",
+        "end_offset": "24.600s"
+      },
+      {
+        "word": "마디도",
+        "start_offset": "24.600s",
+        "end_offset": "25s"
+      },
+      {
+        "word": "안",
+        "start_offset": "25s",
+        "end_offset": "25.100s"
+      },
+      {
+        "word": "하더라.",
+        "start_offset": "25.100s",
+        "end_offset": "25.400s"
+      },
+      {
+        "word": "어",
+        "start_offset": "26.600s",
+        "end_offset": "26.700s"
+      },
+      {
+        "word": "대응",
+        "start_offset": "26.700s",
+        "end_offset": "27.100s"
+      },
+      {
+        "word": "안",
+        "start_offset": "27.100s",
+        "end_offset": "27.200s"
+      },
+      {
+        "word": "해도",
+        "start_offset": "27.200s",
+        "end_offset": "27.300s"
+      },
+      {
+        "word": "돼?",
+        "start_offset": "27.300s",
+        "end_offset": "27.500s"
+      },
+      {
+        "word": "내가",
+        "start_offset": "35.300s",
+        "end_offset": "35.600s"
+      },
+      {
+        "word": "훔쳤잖아.",
+        "start_offset": "35.600s",
+        "end_offset": "36.200s"
+      },
+      {
+        "word": "네",
+        "start_offset": "37.700s",
+        "end_offset": "37.800s"
+      },
+      {
+        "word": "그림.",
+        "start_offset": "37.800s",
+        "end_offset": "38.200s"
+      },
+      {
+        "word": "아",
+        "start_offset": "40.900s",
+        "end_offset": "41.500s"
+      },
+      {
+        "word": "또",
+        "start_offset": "41.500s",
+        "end_offset": "41.700s"
+      },
+      {
+        "word": "그",
+        "start_offset": "41.700s",
+        "end_offset": "41.900s"
+      },
+      {
+        "word": "얼굴이네.",
+        "start_offset": "41.900s",
+        "end_offset": "42.400s"
+      },
+      {
+        "word": "사람",
+        "start_offset": "42.400s",
+        "end_offset": "42.700s"
+      },
+      {
+        "word": "개무시하는",
+        "start_offset": "42.700s",
+        "end_offset": "43.300s"
+      },
+      {
+        "word": "얼굴.",
+        "start_offset": "43.300s",
+        "end_offset": "43.600s"
+      },
+      {
+        "word": "야",
+        "start_offset": "44.700s",
+        "end_offset": "44.900s"
+      },
+      {
+        "word": "넌",
+        "start_offset": "45.800s",
+        "end_offset": "45.900s"
+      },
+      {
+        "word": "뭐",
+        "start_offset": "45.900s",
+        "end_offset": "46.100s"
+      },
+      {
+        "word": "그렇게",
+        "start_offset": "46.100s",
+        "end_offset": "46.400s"
+      },
+      {
+        "word": "잘났냐?",
+        "start_offset": "46.400s",
+        "end_offset": "46.800s"
+      },
+      {
+        "word": "어?",
+        "start_offset": "47.800s",
+        "end_offset": "47.900s"
+      },
+      {
+        "word": "그래.",
+        "start_offset": "49.200s",
+        "end_offset": "49.400s"
+      },
+      {
+        "word": "다",
+        "start_offset": "50.600s",
+        "end_offset": "50.800s"
+      },
+      {
+        "word": "가지고",
+        "start_offset": "50.800s",
+        "end_offset": "51.100s"
+      },
+      {
+        "word": "태어난",
+        "start_offset": "51.100s",
+        "end_offset": "51.500s"
+      },
+      {
+        "word": "너한테는",
+        "start_offset": "51.500s",
+        "end_offset": "52s"
+      },
+      {
+        "word": "이런",
+        "start_offset": "52s",
+        "end_offset": "52.300s"
+      },
+      {
+        "word": "거",
+        "start_offset": "52.300s",
+        "end_offset": "52.400s"
+      },
+      {
+        "word": "뭐",
+        "start_offset": "52.400s",
+        "end_offset": "52.600s"
+      },
+      {
+        "word": "별거",
+        "start_offset": "52.600s",
+        "end_offset": "52.900s"
+      },
+      {
+        "word": "아니겠지.",
+        "start_offset": "52.900s",
+        "end_offset": "53.500s"
+      },
+      {
+        "word": "근데",
+        "start_offset": "53.500s",
+        "end_offset": "54.100s"
+      },
+      {
+        "word": "사람",
+        "start_offset": "55.400s",
+        "end_offset": "55.700s"
+      },
+      {
+        "word": "앞에서는",
+        "start_offset": "55.700s",
+        "end_offset": "56.100s"
+      },
+      {
+        "word": "대놓고",
+        "start_offset": "56.100s",
+        "end_offset": "56.500s"
+      },
+      {
+        "word": "그러지",
+        "start_offset": "56.500s",
+        "end_offset": "56.800s"
+      },
+      {
+        "word": "말지",
+        "start_offset": "56.800s",
+        "end_offset": "57.100s"
+      },
+      {
+        "word": "그랬냐.",
+        "start_offset": "57.100s",
+        "end_offset": "57.600s"
+      },
+      {
+        "word": "죽어라",
+        "start_offset": "58.700s",
+        "end_offset": "59.100s"
+      },
+      {
+        "word": "매달려서",
+        "start_offset": "59.100s",
+        "end_offset": "59.600s"
+      },
+      {
+        "word": "아둥바둥",
+        "start_offset": "59.600s",
+        "end_offset": "60.200s"
+      },
+      {
+        "word": "노력하는",
+        "start_offset": "60.200s",
+        "end_offset": "60.600s"
+      },
+      {
+        "word": "사람",
+        "start_offset": "60.600s",
+        "end_offset": "60.800s"
+      },
+      {
+        "word": "기운",
+        "start_offset": "60.800s",
+        "end_offset": "61.200s"
+      },
+      {
+        "word": "빠지게.",
+        "start_offset": "61.200s",
+        "end_offset": "61.700s"
+      },
+      {
+        "word": "그거",
+        "start_offset": "62.900s",
+        "end_offset": "63.100s"
+      },
+      {
+        "word": "진짜",
+        "start_offset": "64.800s",
+        "end_offset": "65.200s"
+      },
+      {
+        "word": "기분",
+        "start_offset": "65.200s",
+        "end_offset": "65.600s"
+      },
+      {
+        "word": "더럽거든.",
+        "start_offset": "65.600s",
+        "end_offset": "66.200s"
+      },
+      {
+        "word": "아니",
+        "start_offset": "72.100s",
+        "end_offset": "72.300s"
+      },
+      {
+        "word": "그냥",
+        "start_offset": "74s",
+        "end_offset": "74.200s"
+      },
+      {
+        "word": "궁금해서",
+        "start_offset": "74.200s",
+        "end_offset": "74.700s"
+      },
+      {
+        "word": "그랬는데",
+        "start_offset": "74.700s",
+        "end_offset": "75.100s"
+      },
+      {
+        "word": "과연",
+        "start_offset": "77.200s",
+        "end_offset": "77.400s"
+      },
+      {
+        "word": "자기",
+        "start_offset": "77.400s",
+        "end_offset": "77.700s"
+      },
+      {
+        "word": "걸",
+        "start_offset": "77.700s",
+        "end_offset": "77.900s"
+      },
+      {
+        "word": "뺏겨도",
+        "start_offset": "77.900s",
+        "end_offset": "78.300s"
+      },
+      {
+        "word": "똑같은",
+        "start_offset": "78.300s",
+        "end_offset": "78.900s"
+      },
+      {
+        "word": "얼굴일까",
+        "start_offset": "78.900s",
+        "end_offset": "79.600s"
+      },
+      {
+        "word": "하고.",
+        "start_offset": "79.600s",
+        "end_offset": "79.900s"
+      },
+      {
+        "word": "근데",
+        "start_offset": "83.400s",
+        "end_offset": "83.800s"
+      },
+      {
+        "word": "여전히",
+        "start_offset": "85.500s",
+        "end_offset": "85.800s"
+      },
+      {
+        "word": "변함없는",
+        "start_offset": "85.800s",
+        "end_offset": "86.400s"
+      },
+      {
+        "word": "네",
+        "start_offset": "86.400s",
+        "end_offset": "86.600s"
+      },
+      {
+        "word": "얼굴",
+        "start_offset": "86.600s",
+        "end_offset": "86.800s"
+      },
+      {
+        "word": "보니까",
+        "start_offset": "86.800s",
+        "end_offset": "87.300s"
+      },
+      {
+        "word": "무슨",
+        "start_offset": "88.200s",
+        "end_offset": "88.400s"
+      },
+      {
+        "word": "생각",
+        "start_offset": "88.400s",
+        "end_offset": "88.600s"
+      },
+      {
+        "word": "드는",
+        "start_offset": "88.600s",
+        "end_offset": "88.800s"
+      },
+      {
+        "word": "줄",
+        "start_offset": "88.800s",
+        "end_offset": "88.900s"
+      },
+      {
+        "word": "아냐?",
+        "start_offset": "88.900s",
+        "end_offset": "89.200s"
+      },
+      {
+        "word": "불쌍하더라.",
+        "start_offset": "93.800s",
+        "end_offset": "94.800s"
+      },
+      {
+        "word": "네",
+        "start_offset": "96.800s",
+        "end_offset": "97s"
+      },
+      {
+        "word": "인생이.",
+        "start_offset": "97s",
+        "end_offset": "97.500s"
+      },
+      {
+        "word": "그렇게",
+        "start_offset": "100s",
+        "end_offset": "100.300s"
+      },
+      {
+        "word": "모든",
+        "start_offset": "100.300s",
+        "end_offset": "100.800s"
+      },
+      {
+        "word": "버리기",
+        "start_offset": "100.800s",
+        "end_offset": "101.200s"
+      },
+      {
+        "word": "쉬운",
+        "start_offset": "101.200s",
+        "end_offset": "101.500s"
+      },
+      {
+        "word": "만큼",
+        "start_offset": "101.500s",
+        "end_offset": "101.900s"
+      },
+      {
+        "word": "네",
+        "start_offset": "102.900s",
+        "end_offset": "103.100s"
+      },
+      {
+        "word": "인생도",
+        "start_offset": "103.100s",
+        "end_offset": "103.500s"
+      },
+      {
+        "word": "별거",
+        "start_offset": "103.500s",
+        "end_offset": "103.900s"
+      },
+      {
+        "word": "아닌",
+        "start_offset": "103.900s",
+        "end_offset": "104.100s"
+      },
+      {
+        "word": "거",
+        "start_offset": "104.100s",
+        "end_offset": "104.200s"
+      },
+      {
+        "word": "같으니까.",
+        "start_offset": "104.200s",
+        "end_offset": "104.700s"
+      },
+      {
+        "word": "그렇게",
+        "start_offset": "109.100s",
+        "end_offset": "109.400s"
+      },
+      {
+        "word": "살면은",
+        "start_offset": "109.400s",
+        "end_offset": "110s"
+      },
+      {
+        "word": "뭐가",
+        "start_offset": "111.300s",
+        "end_offset": "111.600s"
+      },
+      {
+        "word": "남냐?",
+        "start_offset": "111.600s",
+        "end_offset": "112.100s"
+      },
+      {
+        "word": "네",
+        "start_offset": "112.400s",
+        "end_offset": "112.500s"
+      },
+      {
+        "word": "인생에.",
+        "start_offset": "112.500s",
+        "end_offset": "112.900s"
+      },
+      {
+        "word": "네",
+        "start_offset": "121.100s",
+        "end_offset": "121.200s"
+      },
+      {
+        "word": "그림도",
+        "start_offset": "121.200s",
+        "end_offset": "122s"
+      },
+      {
+        "word": "이제",
+        "start_offset": "122.700s",
+        "end_offset": "122.900s"
+      },
+      {
+        "word": "보다",
+        "start_offset": "122.900s",
+        "end_offset": "123.200s"
+      },
+      {
+        "word": "보니까",
+        "start_offset": "123.200s",
+        "end_offset": "123.700s"
+      },
+      {
+        "word": "별로다.",
+        "start_offset": "123.700s",
+        "end_offset": "124.400s"
+      },
+      {
+        "word": "텅",
+        "start_offset": "126.600s",
+        "end_offset": "126.800s"
+      },
+      {
+        "word": "비어",
+        "start_offset": "126.800s",
+        "end_offset": "127s"
+      },
+      {
+        "word": "있잖아.",
+        "start_offset": "127s",
+        "end_offset": "127.400s"
+      }
+    ]
+  },
+  "726f6f0ad85b4500a2596068583d06c4": {
+    "text": "원래 이 지구가 실력 순이 아니라 귀여움순으로 돌아가는 곳이다. 야 너 그거 알아? 돼지가 걔보다 훨씬 똑똑한 거? 그리고 문어는 막 도구도 쓸 줄 알고 이정수의 천재래. 한 뇌도 한 아홉 개 있다 그러던데. 근데 우리 걔네들 삼겹살로 구워 먹고 타코야키 만들어 먹잖아. 너 이거 왜 그럴 것 같아? 안 귀여워서 그래. 안 귀여워서. 근데 강아지나 고양이 봐 봐라. 요즘은 우리가 걔네들 완전 상전으로 모시잖아. 상전으로. 너 이건 또 왜 그럴 것 같아? 맞아. 네가 방금 생각한 그게 맞아. 어. 그래. 귀여워서 그래. 귀여워서. 야 얼마나 귀엽냐. 이 똥글똥글해 가지고 가만히 보고만 있어도 마음이 쭉쭉쭉쭉쭉 가잖아. 어? 뭐라도 하나 더 주고 싶고. 안 그래? 아 이 야 이거 안 믿네. 어? 야 이거 소름 돋는 역사라니까. 야 인간이 이 지구를 지배하기 시작했을 때부터 인간 눈에 안 귀엽고 사나운 애들 유효 이거 나발이고 그냥 다 뒈졌어. 근데 우리 주변에서 주로 얻어 먹고 있는 애들 있잖아. 걔네들 그 살벌한 생존 경쟁에서 그 귀여움 하나로 살아남은 최종 승리자들이라니까. 너 이거 몰랐지? 걔네들이 얼마나 무시무시한 애들인지. 야 내가 볼 때 인간 사회도 별 다를 바 없다. 이거지. 능력 지능 아 있으면 당연히 좋지. 당연히. 근데 아무리 생각해도 귀여운 게 최고야. 야 억울하면 너도 내일부터 좀 발랄하게 좀 살라. 어? 매사에 이렇게 야 하고 인상 쓰고 다니면 그 누가 좋아하겠어. 안 그래? 다 사람끼리 하는 일인데 마음이 먼저 통해야 되지 않겠냐. 마음이. 그리고 너도 생각보다 좀 귀여운 구석도 좀 있어. 어. 어우 야 억울해. 나 간다.",
+    "finished": null,
+    "language_code": null,
+    "speaker_label": null,
+    "words": [
+      {
+        "word": "원래",
+        "start_offset": "0.800s",
+        "end_offset": "1.300s"
+      },
+      {
+        "word": "이",
+        "start_offset": "1.300s",
+        "end_offset": "1.500s"
+      },
+      {
+        "word": "지구가",
+        "start_offset": "1.500s",
+        "end_offset": "2.200s"
+      },
+      {
+        "word": "실력",
+        "start_offset": "3s",
+        "end_offset": "3.400s"
+      },
+      {
+        "word": "순이",
+        "start_offset": "3.400s",
+        "end_offset": "3.700s"
+      },
+      {
+        "word": "아니라",
+        "start_offset": "3.700s",
+        "end_offset": "4.100s"
+      },
+      {
+        "word": "귀여움순으로",
+        "start_offset": "4.100s",
+        "end_offset": "5s"
+      },
+      {
+        "word": "돌아가는",
+        "start_offset": "5s",
+        "end_offset": "5.500s"
+      },
+      {
+        "word": "곳이다.",
+        "start_offset": "5.500s",
+        "end_offset": "6.400s"
+      },
+      {
+        "word": "야",
+        "start_offset": "9.800s",
+        "end_offset": "10.100s"
+      },
+      {
+        "word": "너",
+        "start_offset": "10.400s",
+        "end_offset": "10.500s"
+      },
+      {
+        "word": "그거",
+        "start_offset": "10.500s",
+        "end_offset": "10.700s"
+      },
+      {
+        "word": "알아?",
+        "start_offset": "10.700s",
+        "end_offset": "11s"
+      },
+      {
+        "word": "돼지가",
+        "start_offset": "11.800s",
+        "end_offset": "12.100s"
+      },
+      {
+        "word": "걔보다",
+        "start_offset": "12.100s",
+        "end_offset": "12.400s"
+      },
+      {
+        "word": "훨씬",
+        "start_offset": "12.400s",
+        "end_offset": "12.800s"
+      },
+      {
+        "word": "똑똑한",
+        "start_offset": "12.800s",
+        "end_offset": "13.200s"
+      },
+      {
+        "word": "거?",
+        "start_offset": "13.200s",
+        "end_offset": "13.300s"
+      },
+      {
+        "word": "그리고",
+        "start_offset": "14.500s",
+        "end_offset": "14.700s"
+      },
+      {
+        "word": "문어는",
+        "start_offset": "14.700s",
+        "end_offset": "15.200s"
+      },
+      {
+        "word": "막",
+        "start_offset": "15.200s",
+        "end_offset": "15.400s"
+      },
+      {
+        "word": "도구도",
+        "start_offset": "15.400s",
+        "end_offset": "15.800s"
+      },
+      {
+        "word": "쓸",
+        "start_offset": "15.800s",
+        "end_offset": "16s"
+      },
+      {
+        "word": "줄",
+        "start_offset": "16s",
+        "end_offset": "16.200s"
+      },
+      {
+        "word": "알고",
+        "start_offset": "16.200s",
+        "end_offset": "16.400s"
+      },
+      {
+        "word": "이정수의",
+        "start_offset": "16.400s",
+        "end_offset": "16.800s"
+      },
+      {
+        "word": "천재래.",
+        "start_offset": "16.800s",
+        "end_offset": "17.500s"
+      },
+      {
+        "word": "한",
+        "start_offset": "17.500s",
+        "end_offset": "18s"
+      },
+      {
+        "word": "뇌도",
+        "start_offset": "18.500s",
+        "end_offset": "19.200s"
+      },
+      {
+        "word": "한",
+        "start_offset": "19.300s",
+        "end_offset": "19.400s"
+      },
+      {
+        "word": "아홉",
+        "start_offset": "19.400s",
+        "end_offset": "19.600s"
+      },
+      {
+        "word": "개",
+        "start_offset": "19.600s",
+        "end_offset": "19.800s"
+      },
+      {
+        "word": "있다",
+        "start_offset": "19.800s",
+        "end_offset": "19.900s"
+      },
+      {
+        "word": "그러던데.",
+        "start_offset": "19.900s",
+        "end_offset": "20.500s"
+      },
+      {
+        "word": "근데",
+        "start_offset": "21.200s",
+        "end_offset": "21.500s"
+      },
+      {
+        "word": "우리",
+        "start_offset": "21.500s",
+        "end_offset": "21.700s"
+      },
+      {
+        "word": "걔네들",
+        "start_offset": "21.700s",
+        "end_offset": "22s"
+      },
+      {
+        "word": "삼겹살로",
+        "start_offset": "22s",
+        "end_offset": "22.500s"
+      },
+      {
+        "word": "구워",
+        "start_offset": "22.500s",
+        "end_offset": "22.800s"
+      },
+      {
+        "word": "먹고",
+        "start_offset": "22.800s",
+        "end_offset": "23s"
+      },
+      {
+        "word": "타코야키",
+        "start_offset": "23s",
+        "end_offset": "23.500s"
+      },
+      {
+        "word": "만들어",
+        "start_offset": "23.500s",
+        "end_offset": "23.800s"
+      },
+      {
+        "word": "먹잖아.",
+        "start_offset": "23.800s",
+        "end_offset": "24.200s"
+      },
+      {
+        "word": "너",
+        "start_offset": "24.700s",
+        "end_offset": "24.800s"
+      },
+      {
+        "word": "이거",
+        "start_offset": "24.800s",
+        "end_offset": "24.900s"
+      },
+      {
+        "word": "왜",
+        "start_offset": "24.900s",
+        "end_offset": "25s"
+      },
+      {
+        "word": "그럴",
+        "start_offset": "25s",
+        "end_offset": "25.200s"
+      },
+      {
+        "word": "것",
+        "start_offset": "25.200s",
+        "end_offset": "25.300s"
+      },
+      {
+        "word": "같아?",
+        "start_offset": "25.300s",
+        "end_offset": "25.600s"
+      },
+      {
+        "word": "안",
+        "start_offset": "27.600s",
+        "end_offset": "27.800s"
+      },
+      {
+        "word": "귀여워서",
+        "start_offset": "27.800s",
+        "end_offset": "28.200s"
+      },
+      {
+        "word": "그래.",
+        "start_offset": "28.200s",
+        "end_offset": "28.700s"
+      },
+      {
+        "word": "안",
+        "start_offset": "28.700s",
+        "end_offset": "28.800s"
+      },
+      {
+        "word": "귀여워서.",
+        "start_offset": "28.800s",
+        "end_offset": "29.600s"
+      },
+      {
+        "word": "근데",
+        "start_offset": "30.300s",
+        "end_offset": "30.600s"
+      },
+      {
+        "word": "강아지나",
+        "start_offset": "30.600s",
+        "end_offset": "31.100s"
+      },
+      {
+        "word": "고양이",
+        "start_offset": "31.100s",
+        "end_offset": "31.400s"
+      },
+      {
+        "word": "봐 봐라.",
+        "start_offset": "31.400s",
+        "end_offset": "32s"
+      },
+      {
+        "word": "요즘은",
+        "start_offset": "32.200s",
+        "end_offset": "32.500s"
+      },
+      {
+        "word": "우리가",
+        "start_offset": "32.500s",
+        "end_offset": "32.700s"
+      },
+      {
+        "word": "걔네들",
+        "start_offset": "32.700s",
+        "end_offset": "33.500s"
+      },
+      {
+        "word": "완전",
+        "start_offset": "33.700s",
+        "end_offset": "34.200s"
+      },
+      {
+        "word": "상전으로",
+        "start_offset": "34.200s",
+        "end_offset": "35s"
+      },
+      {
+        "word": "모시잖아.",
+        "start_offset": "35s",
+        "end_offset": "35.400s"
+      },
+      {
+        "word": "상전으로.",
+        "start_offset": "35.400s",
+        "end_offset": "35.900s"
+      },
+      {
+        "word": "너",
+        "start_offset": "36.600s",
+        "end_offset": "36.700s"
+      },
+      {
+        "word": "이건",
+        "start_offset": "36.700s",
+        "end_offset": "36.900s"
+      },
+      {
+        "word": "또",
+        "start_offset": "36.900s",
+        "end_offset": "37s"
+      },
+      {
+        "word": "왜",
+        "start_offset": "37s",
+        "end_offset": "37.100s"
+      },
+      {
+        "word": "그럴",
+        "start_offset": "37.100s",
+        "end_offset": "37.300s"
+      },
+      {
+        "word": "것",
+        "start_offset": "37.300s",
+        "end_offset": "37.400s"
+      },
+      {
+        "word": "같아?",
+        "start_offset": "37.400s",
+        "end_offset": "37.600s"
+      },
+      {
+        "word": "맞아.",
+        "start_offset": "39.300s",
+        "end_offset": "39.700s"
+      },
+      {
+        "word": "네가",
+        "start_offset": "39.700s",
+        "end_offset": "39.900s"
+      },
+      {
+        "word": "방금",
+        "start_offset": "39.900s",
+        "end_offset": "40.200s"
+      },
+      {
+        "word": "생각한",
+        "start_offset": "40.200s",
+        "end_offset": "40.400s"
+      },
+      {
+        "word": "그게",
+        "start_offset": "40.400s",
+        "end_offset": "40.600s"
+      },
+      {
+        "word": "맞아.",
+        "start_offset": "40.600s",
+        "end_offset": "41s"
+      },
+      {
+        "word": "어.",
+        "start_offset": "41.100s",
+        "end_offset": "41.300s"
+      },
+      {
+        "word": "그래.",
+        "start_offset": "42.800s",
+        "end_offset": "43.500s"
+      },
+      {
+        "word": "귀여워서",
+        "start_offset": "43.600s",
+        "end_offset": "44.100s"
+      },
+      {
+        "word": "그래.",
+        "start_offset": "44.100s",
+        "end_offset": "44.700s"
+      },
+      {
+        "word": "귀여워서.",
+        "start_offset": "44.700s",
+        "end_offset": "45.800s"
+      },
+      {
+        "word": "야",
+        "start_offset": "46s",
+        "end_offset": "46.400s"
+      },
+      {
+        "word": "얼마나",
+        "start_offset": "46.600s",
+        "end_offset": "47s"
+      },
+      {
+        "word": "귀엽냐.",
+        "start_offset": "47s",
+        "end_offset": "47.600s"
+      },
+      {
+        "word": "이",
+        "start_offset": "47.700s",
+        "end_offset": "47.900s"
+      },
+      {
+        "word": "똥글똥글해",
+        "start_offset": "47.900s",
+        "end_offset": "48.700s"
+      },
+      {
+        "word": "가지고",
+        "start_offset": "48.700s",
+        "end_offset": "49.100s"
+      },
+      {
+        "word": "가만히",
+        "start_offset": "49.100s",
+        "end_offset": "49.500s"
+      },
+      {
+        "word": "보고만",
+        "start_offset": "49.500s",
+        "end_offset": "49.900s"
+      },
+      {
+        "word": "있어도",
+        "start_offset": "49.900s",
+        "end_offset": "50.300s"
+      },
+      {
+        "word": "마음이",
+        "start_offset": "50.600s",
+        "end_offset": "51s"
+      },
+      {
+        "word": "쭉쭉쭉쭉쭉",
+        "start_offset": "51s",
+        "end_offset": "52.100s"
+      },
+      {
+        "word": "가잖아.",
+        "start_offset": "52.100s",
+        "end_offset": "52.500s"
+      },
+      {
+        "word": "어?",
+        "start_offset": "52.600s",
+        "end_offset": "52.700s"
+      },
+      {
+        "word": "뭐라도",
+        "start_offset": "52.800s",
+        "end_offset": "53.100s"
+      },
+      {
+        "word": "하나",
+        "start_offset": "53.100s",
+        "end_offset": "53.200s"
+      },
+      {
+        "word": "더",
+        "start_offset": "53.200s",
+        "end_offset": "53.300s"
+      },
+      {
+        "word": "주고",
+        "start_offset": "53.300s",
+        "end_offset": "53.500s"
+      },
+      {
+        "word": "싶고.",
+        "start_offset": "53.500s",
+        "end_offset": "53.900s"
+      },
+      {
+        "word": "안",
+        "start_offset": "53.900s",
+        "end_offset": "54.100s"
+      },
+      {
+        "word": "그래?",
+        "start_offset": "54.100s",
+        "end_offset": "54.300s"
+      },
+      {
+        "word": "아",
+        "start_offset": "56.500s",
+        "end_offset": "57.200s"
+      },
+      {
+        "word": "이",
+        "start_offset": "57.200s",
+        "end_offset": "57.400s"
+      },
+      {
+        "word": "야",
+        "start_offset": "57.700s",
+        "end_offset": "57.800s"
+      },
+      {
+        "word": "이거",
+        "start_offset": "57.800s",
+        "end_offset": "57.900s"
+      },
+      {
+        "word": "안",
+        "start_offset": "57.900s",
+        "end_offset": "58s"
+      },
+      {
+        "word": "믿네.",
+        "start_offset": "58s",
+        "end_offset": "58.700s"
+      },
+      {
+        "word": "어?",
+        "start_offset": "58.800s",
+        "end_offset": "59.100s"
+      },
+      {
+        "word": "야",
+        "start_offset": "59.500s",
+        "end_offset": "59.600s"
+      },
+      {
+        "word": "이거",
+        "start_offset": "59.600s",
+        "end_offset": "59.800s"
+      },
+      {
+        "word": "소름",
+        "start_offset": "59.800s",
+        "end_offset": "60s"
+      },
+      {
+        "word": "돋는",
+        "start_offset": "60s",
+        "end_offset": "60.300s"
+      },
+      {
+        "word": "역사라니까.",
+        "start_offset": "60.300s",
+        "end_offset": "61.200s"
+      },
+      {
+        "word": "야",
+        "start_offset": "61.700s",
+        "end_offset": "61.800s"
+      },
+      {
+        "word": "인간이",
+        "start_offset": "61.800s",
+        "end_offset": "62.800s"
+      },
+      {
+        "word": "이",
+        "start_offset": "63.100s",
+        "end_offset": "63.400s"
+      },
+      {
+        "word": "지구를",
+        "start_offset": "63.400s",
+        "end_offset": "63.900s"
+      },
+      {
+        "word": "지배하기",
+        "start_offset": "63.900s",
+        "end_offset": "64.400s"
+      },
+      {
+        "word": "시작했을",
+        "start_offset": "64.400s",
+        "end_offset": "64.900s"
+      },
+      {
+        "word": "때부터",
+        "start_offset": "64.900s",
+        "end_offset": "65.600s"
+      },
+      {
+        "word": "인간",
+        "start_offset": "65.900s",
+        "end_offset": "66.400s"
+      },
+      {
+        "word": "눈에",
+        "start_offset": "66.400s",
+        "end_offset": "66.800s"
+      },
+      {
+        "word": "안",
+        "start_offset": "66.800s",
+        "end_offset": "67.200s"
+      },
+      {
+        "word": "귀엽고",
+        "start_offset": "67.200s",
+        "end_offset": "67.600s"
+      },
+      {
+        "word": "사나운",
+        "start_offset": "67.600s",
+        "end_offset": "68s"
+      },
+      {
+        "word": "애들",
+        "start_offset": "68s",
+        "end_offset": "68.400s"
+      },
+      {
+        "word": "유효",
+        "start_offset": "68.900s",
+        "end_offset": "69.300s"
+      },
+      {
+        "word": "이거",
+        "start_offset": "69.300s",
+        "end_offset": "69.500s"
+      },
+      {
+        "word": "나발이고",
+        "start_offset": "69.500s",
+        "end_offset": "70s"
+      },
+      {
+        "word": "그냥",
+        "start_offset": "70s",
+        "end_offset": "70.400s"
+      },
+      {
+        "word": "다",
+        "start_offset": "70.400s",
+        "end_offset": "70.600s"
+      },
+      {
+        "word": "뒈졌어.",
+        "start_offset": "70.700s",
+        "end_offset": "71.600s"
+      },
+      {
+        "word": "근데",
+        "start_offset": "72.400s",
+        "end_offset": "72.700s"
+      },
+      {
+        "word": "우리",
+        "start_offset": "72.700s",
+        "end_offset": "72.900s"
+      },
+      {
+        "word": "주변에서",
+        "start_offset": "72.900s",
+        "end_offset": "73.400s"
+      },
+      {
+        "word": "주로",
+        "start_offset": "73.400s",
+        "end_offset": "73.700s"
+      },
+      {
+        "word": "얻어",
+        "start_offset": "73.700s",
+        "end_offset": "73.800s"
+      },
+      {
+        "word": "먹고",
+        "start_offset": "73.800s",
+        "end_offset": "74.100s"
+      },
+      {
+        "word": "있는",
+        "start_offset": "74.100s",
+        "end_offset": "74.300s"
+      },
+      {
+        "word": "애들",
+        "start_offset": "74.300s",
+        "end_offset": "74.400s"
+      },
+      {
+        "word": "있잖아.",
+        "start_offset": "74.400s",
+        "end_offset": "74.900s"
+      },
+      {
+        "word": "걔네들",
+        "start_offset": "75.600s",
+        "end_offset": "76.200s"
+      },
+      {
+        "word": "그",
+        "start_offset": "76.600s",
+        "end_offset": "76.800s"
+      },
+      {
+        "word": "살벌한",
+        "start_offset": "76.800s",
+        "end_offset": "77.300s"
+      },
+      {
+        "word": "생존",
+        "start_offset": "77.300s",
+        "end_offset": "77.600s"
+      },
+      {
+        "word": "경쟁에서",
+        "start_offset": "77.600s",
+        "end_offset": "78.400s"
+      },
+      {
+        "word": "그",
+        "start_offset": "78.900s",
+        "end_offset": "79.100s"
+      },
+      {
+        "word": "귀여움",
+        "start_offset": "79.100s",
+        "end_offset": "79.800s"
+      },
+      {
+        "word": "하나로",
+        "start_offset": "79.800s",
+        "end_offset": "80.100s"
+      },
+      {
+        "word": "살아남은",
+        "start_offset": "80.100s",
+        "end_offset": "80.600s"
+      },
+      {
+        "word": "최종",
+        "start_offset": "80.600s",
+        "end_offset": "80.900s"
+      },
+      {
+        "word": "승리자들이라니까.",
+        "start_offset": "80.900s",
+        "end_offset": "81.800s"
+      },
+      {
+        "word": "너",
+        "start_offset": "82.500s",
+        "end_offset": "82.600s"
+      },
+      {
+        "word": "이거",
+        "start_offset": "82.600s",
+        "end_offset": "82.800s"
+      },
+      {
+        "word": "몰랐지?",
+        "start_offset": "82.800s",
+        "end_offset": "83.400s"
+      },
+      {
+        "word": "걔네들이",
+        "start_offset": "83.600s",
+        "end_offset": "84s"
+      },
+      {
+        "word": "얼마나",
+        "start_offset": "84s",
+        "end_offset": "84.300s"
+      },
+      {
+        "word": "무시무시한",
+        "start_offset": "84.300s",
+        "end_offset": "84.800s"
+      },
+      {
+        "word": "애들인지.",
+        "start_offset": "84.800s",
+        "end_offset": "85.300s"
+      },
+      {
+        "word": "야",
+        "start_offset": "88.400s",
+        "end_offset": "88.600s"
+      },
+      {
+        "word": "내가",
+        "start_offset": "88.600s",
+        "end_offset": "88.800s"
+      },
+      {
+        "word": "볼",
+        "start_offset": "88.800s",
+        "end_offset": "89s"
+      },
+      {
+        "word": "때",
+        "start_offset": "89s",
+        "end_offset": "89.600s"
+      },
+      {
+        "word": "인간",
+        "start_offset": "90s",
+        "end_offset": "90.400s"
+      },
+      {
+        "word": "사회도",
+        "start_offset": "90.400s",
+        "end_offset": "90.700s"
+      },
+      {
+        "word": "별",
+        "start_offset": "90.700s",
+        "end_offset": "91s"
+      },
+      {
+        "word": "다를",
+        "start_offset": "91s",
+        "end_offset": "91.200s"
+      },
+      {
+        "word": "바",
+        "start_offset": "91.200s",
+        "end_offset": "91.300s"
+      },
+      {
+        "word": "없다.",
+        "start_offset": "91.300s",
+        "end_offset": "91.900s"
+      },
+      {
+        "word": "이거지.",
+        "start_offset": "91.900s",
+        "end_offset": "92.500s"
+      },
+      {
+        "word": "능력",
+        "start_offset": "94.400s",
+        "end_offset": "95s"
+      },
+      {
+        "word": "지능",
+        "start_offset": "95.700s",
+        "end_offset": "96.100s"
+      },
+      {
+        "word": "아",
+        "start_offset": "97.100s",
+        "end_offset": "97.200s"
+      },
+      {
+        "word": "있으면",
+        "start_offset": "97.200s",
+        "end_offset": "97.500s"
+      },
+      {
+        "word": "당연히",
+        "start_offset": "97.500s",
+        "end_offset": "97.800s"
+      },
+      {
+        "word": "좋지.",
+        "start_offset": "97.800s",
+        "end_offset": "98.200s"
+      },
+      {
+        "word": "당연히.",
+        "start_offset": "98.300s",
+        "end_offset": "98.700s"
+      },
+      {
+        "word": "근데",
+        "start_offset": "99.800s",
+        "end_offset": "100s"
+      },
+      {
+        "word": "아무리",
+        "start_offset": "100s",
+        "end_offset": "100.200s"
+      },
+      {
+        "word": "생각해도",
+        "start_offset": "100.200s",
+        "end_offset": "100.900s"
+      },
+      {
+        "word": "귀여운",
+        "start_offset": "103.300s",
+        "end_offset": "103.800s"
+      },
+      {
+        "word": "게",
+        "start_offset": "103.800s",
+        "end_offset": "104s"
+      },
+      {
+        "word": "최고야.",
+        "start_offset": "104s",
+        "end_offset": "104.600s"
+      },
+      {
+        "word": "야",
+        "start_offset": "107s",
+        "end_offset": "107.200s"
+      },
+      {
+        "word": "억울하면",
+        "start_offset": "107.200s",
+        "end_offset": "107.700s"
+      },
+      {
+        "word": "너도",
+        "start_offset": "107.700s",
+        "end_offset": "108s"
+      },
+      {
+        "word": "내일부터",
+        "start_offset": "108s",
+        "end_offset": "108.400s"
+      },
+      {
+        "word": "좀",
+        "start_offset": "108.400s",
+        "end_offset": "108.600s"
+      },
+      {
+        "word": "발랄하게",
+        "start_offset": "108.600s",
+        "end_offset": "109.100s"
+      },
+      {
+        "word": "좀",
+        "start_offset": "109.100s",
+        "end_offset": "109.300s"
+      },
+      {
+        "word": "살라.",
+        "start_offset": "109.300s",
+        "end_offset": "109.800s"
+      },
+      {
+        "word": "어?",
+        "start_offset": "109.900s",
+        "end_offset": "110.100s"
+      },
+      {
+        "word": "매사에",
+        "start_offset": "110.800s",
+        "end_offset": "111.200s"
+      },
+      {
+        "word": "이렇게",
+        "start_offset": "111.200s",
+        "end_offset": "111.500s"
+      },
+      {
+        "word": "야",
+        "start_offset": "111.500s",
+        "end_offset": "112s"
+      },
+      {
+        "word": "하고",
+        "start_offset": "112s",
+        "end_offset": "112.300s"
+      },
+      {
+        "word": "인상",
+        "start_offset": "112.300s",
+        "end_offset": "112.500s"
+      },
+      {
+        "word": "쓰고",
+        "start_offset": "112.500s",
+        "end_offset": "112.700s"
+      },
+      {
+        "word": "다니면",
+        "start_offset": "112.700s",
+        "end_offset": "113.200s"
+      },
+      {
+        "word": "그",
+        "start_offset": "113.300s",
+        "end_offset": "113.400s"
+      },
+      {
+        "word": "누가",
+        "start_offset": "113.400s",
+        "end_offset": "113.700s"
+      },
+      {
+        "word": "좋아하겠어.",
+        "start_offset": "113.700s",
+        "end_offset": "114.400s"
+      },
+      {
+        "word": "안",
+        "start_offset": "114.700s",
+        "end_offset": "114.800s"
+      },
+      {
+        "word": "그래?",
+        "start_offset": "114.800s",
+        "end_offset": "115.100s"
+      },
+      {
+        "word": "다",
+        "start_offset": "118.600s",
+        "end_offset": "118.900s"
+      },
+      {
+        "word": "사람끼리",
+        "start_offset": "118.900s",
+        "end_offset": "119.400s"
+      },
+      {
+        "word": "하는",
+        "start_offset": "119.400s",
+        "end_offset": "119.600s"
+      },
+      {
+        "word": "일인데",
+        "start_offset": "119.600s",
+        "end_offset": "120.500s"
+      },
+      {
+        "word": "마음이",
+        "start_offset": "121.700s",
+        "end_offset": "122.100s"
+      },
+      {
+        "word": "먼저",
+        "start_offset": "122.100s",
+        "end_offset": "122.400s"
+      },
+      {
+        "word": "통해야",
+        "start_offset": "122.400s",
+        "end_offset": "122.600s"
+      },
+      {
+        "word": "되지",
+        "start_offset": "122.600s",
+        "end_offset": "122.800s"
+      },
+      {
+        "word": "않겠냐.",
+        "start_offset": "122.800s",
+        "end_offset": "123.700s"
+      },
+      {
+        "word": "마음이.",
+        "start_offset": "124.600s",
+        "end_offset": "125.100s"
+      },
+      {
+        "word": "그리고",
+        "start_offset": "127.300s",
+        "end_offset": "127.500s"
+      },
+      {
+        "word": "너도",
+        "start_offset": "127.500s",
+        "end_offset": "128.100s"
+      },
+      {
+        "word": "생각보다",
+        "start_offset": "128.800s",
+        "end_offset": "129.300s"
+      },
+      {
+        "word": "좀",
+        "start_offset": "129.300s",
+        "end_offset": "130.100s"
+      },
+      {
+        "word": "귀여운",
+        "start_offset": "130.600s",
+        "end_offset": "130.900s"
+      },
+      {
+        "word": "구석도",
+        "start_offset": "130.900s",
+        "end_offset": "131.200s"
+      },
+      {
+        "word": "좀",
+        "start_offset": "131.200s",
+        "end_offset": "131.300s"
+      },
+      {
+        "word": "있어.",
+        "start_offset": "131.300s",
+        "end_offset": "131.800s"
+      },
+      {
+        "word": "어.",
+        "start_offset": "131.900s",
+        "end_offset": "132.100s"
+      },
+      {
+        "word": "어우",
+        "start_offset": "133.400s",
+        "end_offset": "133.800s"
+      },
+      {
+        "word": "야",
+        "start_offset": "133.800s",
+        "end_offset": "134s"
+      },
+      {
+        "word": "억울해.",
+        "start_offset": "134s",
+        "end_offset": "134.400s"
+      },
+      {
+        "word": "나",
+        "start_offset": "134.500s",
+        "end_offset": "134.600s"
+      },
+      {
+        "word": "간다.",
+        "start_offset": "134.600s",
+        "end_offset": "134.900s"
+      }
+    ]
+  }
+}

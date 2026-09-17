@@ -51,6 +51,6 @@ class MemoryExtractorTest {
     private static MemoryUpdateMaterial material() {
         return new MemoryUpdateMaterial(
                 UUID.randomUUID(), UUID.randomUUID(), "목표", "분석", "캐릭터 분석", null,
-                List.of(), List.of());
+                List.of(), List.of(), List.of());
     }
 }

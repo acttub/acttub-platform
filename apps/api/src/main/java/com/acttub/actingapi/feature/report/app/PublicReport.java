@@ -116,4 +116,81 @@ public final class PublicReport {
                     })
             String reason) {
     }
+    @Schema(name = "PracticeNoteRecordRef", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record PracticeNoteRecordRef(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String recordId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "1", exclusiveMinimum = false) int version,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "1", exclusiveMinimum = false) long durationMs) { }
+
+    @Schema(name = "PracticeNoteDirection", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record PracticeNoteDirection(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String text,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"actor_stated", "actor_selected", "coach_proposed"}) String origin) { }
+
+    @Schema(name = "PracticeNoteFocus", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record PracticeNoteFocus(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String label,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) Long startMs,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) Long endMs,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String quote) { }
+
+    @Schema(name = "PracticeNotePractice", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record PracticeNotePractice(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String proposalId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"proposed", "selected"}) String selection,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String instruction,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String comparison,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String keep) { }
+
+    @Schema(name = "PracticeNoteResult", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record PracticeNoteResult(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"closer", "further", "mixed", "same", "unclear"}) String direction,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String statement,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, _const = "actor_report") String basis) { }
+
+    @Schema(name = "PracticeNoteAttempt", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record PracticeNoteAttempt(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String attemptId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String proposalId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String instruction,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"unknown", "not_tried", "reported_tried"}) String execution,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) PracticeNoteResult result) { }
+
+    @Schema(name = "PracticeNoteEvidence", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record PracticeNoteEvidence(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String id,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"video_utterance", "video_observation", "record_limitation"}) String kind,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String text,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) Long startMs,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) Long endMs) { }
+
+    @Schema(name = "PublicPracticeNote", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record PublicPracticeNote(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, _const = "acttub.public_practice_note.v1") String schemaVersion,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, _const = "practice_note") String reportType,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String noteId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "1", exclusiveMinimum = false) int revision,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String title,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String summary,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"action", "observation", "record_only"}) String mode,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"actor_finished", "turn_budget", "interrupted", "system_failure"}) String endReason,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) PracticeNoteRecordRef recordRef,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"draft", "saved"}) String lifecycle,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) PracticeNoteDirection direction,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) PracticeNoteFocus focus,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String reading,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) PracticeNotePractice practice,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<PracticeNoteAttempt> attempts,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<String> openPoints,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<PracticeNoteEvidence> evidence) { }
+
+
 }

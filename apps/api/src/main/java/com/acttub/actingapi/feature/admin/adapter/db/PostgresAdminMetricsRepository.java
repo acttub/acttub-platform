@@ -5,8 +5,11 @@ import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminTurn;
@@ -78,7 +81,8 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                         row.get("goal", String.class),
                         row.get("object_key", String.class)))
                 .toList();
-        // Python도 세션마다 turns를 한 번씩 조회한다. 이번 이관에서는 그 N+1을 그대로 둔다.
+        Map<UUID, List<AdminTurn>> turnsBySession = turns(
+                rows.stream().map(SessionBaseRow::coachSessionId).toList());
         return rows.stream()
                 .map(row -> new SessionRow(
                         row.coachSessionId(),
@@ -88,26 +92,32 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                         row.situation(),
                         row.characterContext(),
                         row.goal(),
-                        turns(row.coachSessionId()),
+                        turnsBySession.getOrDefault(row.coachSessionId(), List.of()),
                         row.objectKey()))
                 .toList();
     }
 
-    private List<AdminTurn> turns(UUID coachSessionId) {
-        return list(entityManager.createNativeQuery("""
-                SELECT turn_index, role, text
+    private Map<UUID, List<AdminTurn>> turns(List<UUID> coachSessionIds) {
+        if (coachSessionIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, List<AdminTurn>> turnsBySession = new HashMap<>();
+        for (Tuple row : list(entityManager.createNativeQuery("""
+                SELECT session_id, turn_index, role, text
                 FROM coach_turns
-                WHERE session_id = :coachSessionId
-                ORDER BY turn_index
+                WHERE session_id IN (:coachSessionIds)
+                ORDER BY session_id, turn_index
                 """, Tuple.class)
-                .setParameter("coachSessionId", coachSessionId)).stream()
-                .map(row -> new AdminTurn(
+                .setParameter("coachSessionIds", coachSessionIds))) {
+            turnsBySession.computeIfAbsent(row.get("session_id", UUID.class), key -> new ArrayList<>())
+                .add(new AdminTurn(
                         row.get("turn_index", Integer.class),
                         row.get("role", String.class),
                         row.get("text", String.class) == null
                                 ? ""
-                                : row.get("text", String.class)))
-                .toList();
+                                : row.get("text", String.class)));
+        }
+        return turnsBySession;
     }
 
     private static String namedParameters(String prefix, int count) {

@@ -49,7 +49,7 @@ deploy/home/restore-db.sh --counts-sql | psql "$URL" -At -F $'\t' > source-count
 접속 경로를 확인한 뒤 운영 런북의 순서로 최종 덤프를 만든다.
 
 `api.env`의 `DATABASE_URL` 호스트는 `localhost`다(2026-09-03 확인). `127.0.0.1`로 돼 있으면 위 치환 문자열을
-그에 맞춘다.
+그에 맞춘다. 포트 포워딩 세션은 쓰지 않고 20분쯤 두면 끊긴다(`Exiting session`) — 덤프·재대조 직전에 다시 연다.
 
 `source-counts.tsv`는 "테이블<TAB>행 수"(`count(*)`, 통계 추정치가 아니다)이고, 복원 스크립트가 같은 SQL로 복원
 결과를 뽑아 `diff`한다. 그래서 "행 수 대조 일치"가 사람 눈이 아니라 exit code다.

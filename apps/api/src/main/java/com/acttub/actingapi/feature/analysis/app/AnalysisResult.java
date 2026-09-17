@@ -1,15 +1,10 @@
 package com.acttub.actingapi.feature.analysis.app;
 
-import java.util.List;
-
 import com.acttub.actingapi.integration.observation.ObservationPack;
 
-public record AnalysisResult(
-        ObservationPack observationPack,
-        boolean wasCompressed,
-        List<String> transcripts) {
-
-    public AnalysisResult {
-        transcripts = transcripts == null ? List.of() : List.copyOf(transcripts);
+public record AnalysisResult(ObservationPack observationPack, boolean wasCompressed, int durationMs,
+        com.fasterxml.jackson.databind.JsonNode videoRecord) {
+    public AnalysisResult(ObservationPack observationPack, boolean wasCompressed, int durationMs) {
+        this(observationPack, wasCompressed, durationMs, null);
     }
 }

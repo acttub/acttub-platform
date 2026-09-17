@@ -2,9 +2,11 @@ package com.acttub.actingapi.feature.report.adapter.db;
 
 import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
 
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
+import com.acttub.actingapi.platform.ledger.ExternalOperationMonitoring;
 
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -17,9 +19,11 @@ import org.springframework.stereotype.Component;
 public class ReportOperationWork {
 
     private final EntityManager entityManager;
+    private final ExternalOperationMonitoring monitoring;
 
-    public ReportOperationWork(EntityManager entityManager) {
+    public ReportOperationWork(EntityManager entityManager, ExternalOperationMonitoring monitoring) {
         this.entityManager = entityManager;
+        this.monitoring = monitoring;
     }
 
     /** 호출자가 연 트랜잭션에 참여한다. 내부 헬퍼에는 트랜잭션 경계를 두지 않는다. */
@@ -55,7 +59,8 @@ public class ReportOperationWork {
                 )
                 SELECT id FROM inserted
                 """, Tuple.class)
-                .setParameter("id", UUID.randomUUID())
+                .setParameter("id", "practice_note".equals(reportType)
+                        ? UUID.fromString(reportJson.path("note_id").asText()) : UUID.randomUUID())
                 .setParameter("practiceSessionId", practiceSessionId)
                 .setParameter("reportType", reportType)
                 .setParameter("reportJson", reportJson.toString())
@@ -65,26 +70,32 @@ public class ReportOperationWork {
             return false;
         }
 
-        int finished = entityManager.createNativeQuery("""
-                UPDATE external_operations
-                SET status = 'succeeded',
-                    response_payload = CAST(:responsePayload AS jsonb),
-                    error_code = NULL,
-                    lease_token = NULL,
-                    lease_expires_at = NULL,
-                    updated_at = :now
-                WHERE id = :operationId
-                  AND status = 'running'
-                  AND lease_token = :leaseToken
-                """)
+        List<Tuple> finished = list(entityManager.createNativeQuery("""
+                WITH finished AS (
+                    UPDATE external_operations
+                    SET status = 'succeeded',
+                        response_payload = CAST(:responsePayload AS jsonb),
+                        error_code = NULL,
+                        lease_token = NULL,
+                        lease_expires_at = NULL,
+                        updated_at = :now
+                    WHERE id = :operationId
+                      AND status = 'running'
+                      AND lease_token = :leaseToken
+                    RETURNING kind, created_at
+                )
+                SELECT kind, created_at FROM finished
+                """, Tuple.class)
                 .setParameter("responsePayload", responsePayload.toString())
                 .setParameter("now", now)
                 .setParameter("operationId", operationId)
-                .setParameter("leaseToken", leaseToken)
-                .executeUpdate();
-        if (finished == 0) {
+                .setParameter("leaseToken", leaseToken));
+        if (finished.isEmpty()) {
             throw new LeaseOwnershipException("external operation lease is not owned");
         }
+        monitoring.terminal(new ExternalOperationMonitoring.Terminal(operationId,
+                finished.getFirst().get("kind", String.class), "succeeded", null,
+                finished.getFirst().get("created_at", Instant.class)));
         return true;
     }
 }

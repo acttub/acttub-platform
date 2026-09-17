@@ -16,6 +16,8 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.coach.app.CoachOperationLedger;
 import com.acttub.actingapi.feature.report.app.ReportOperationLedger;
+import com.acttub.actingapi.platform.ledger.ExternalOperationExecution;
+import com.acttub.actingapi.platform.ledger.ExternalOperationMonitoring;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.acttub.actingapi.platform.ledger.SyncOperationBegin;
 import com.acttub.actingapi.platform.ledger.SyncOperationClaim;
@@ -55,6 +57,7 @@ public class SyncOperationService implements CoachOperationLedger, ReportOperati
     private static final Duration SYNC_OPERATION_LEASE = Duration.ofMinutes(15);
 
     private final EntityManager entityManager;
+    private final ExternalOperationMonitoring monitoring;
     private final ObjectMapper mapper;
     private final CanonicalJson canonical;
     private final ExternalOperationClaimer claimer;
@@ -67,8 +70,10 @@ public class SyncOperationService implements CoachOperationLedger, ReportOperati
             CanonicalJson canonical,
             ExternalOperationClaimer claimer,
             Clock clock,
-            PlatformTransactionManager transactionManager) {
+            PlatformTransactionManager transactionManager,
+            ExternalOperationMonitoring monitoring) {
         this.entityManager = entityManager;
+        this.monitoring = monitoring;
         this.mapper = mapper;
         this.canonical = canonical;
         this.claimer = claimer;
@@ -140,40 +145,57 @@ public class SyncOperationService implements CoachOperationLedger, ReportOperati
     }
 
     @Override
+    public ExternalOperationExecution execution(SyncOperationClaim claim) {
+        return monitoring.execution(claim.operationId(), claim.leaseToken());
+    }
+
+    @Override
     public void complete(SyncOperationClaim claim, JsonNode responsePayload) {
         OffsetDateTime now = clock.instant().atOffset(ZoneOffset.UTC);
         transaction.executeWithoutResult(status -> {
-            int finished = entityManager.createNativeQuery("""
-                    UPDATE external_operations
-                    SET status = 'succeeded',
-                        response_payload = CAST(:responsePayload AS jsonb),
-                        error_code = NULL,
-                        lease_token = NULL,
-                        lease_expires_at = NULL,
-                        updated_at = :now
-                    WHERE id = :operationId
-                      AND status = 'running'
-                      AND lease_token = :leaseToken
-                    """)
+            List<Tuple> finished = list(entityManager.createNativeQuery("""
+                    WITH finished AS (
+                        UPDATE external_operations
+                        SET status = 'succeeded',
+                            response_payload = CAST(:responsePayload AS jsonb),
+                            error_code = NULL,
+                            lease_token = NULL,
+                            lease_expires_at = NULL,
+                            updated_at = :now
+                        WHERE id = :operationId
+                          AND status = 'running'
+                          AND lease_token = :leaseToken
+                        RETURNING kind, created_at
+                    )
+                    SELECT kind, created_at FROM finished
+                    """, Tuple.class)
                     .setParameter("responsePayload", responsePayload.toString())
                     .setParameter("now", now)
                     .setParameter("operationId", claim.operationId())
-                    .setParameter("leaseToken", claim.leaseToken())
-                    .executeUpdate();
-            if (finished == 0) {
+                    .setParameter("leaseToken", claim.leaseToken()));
+            if (finished.isEmpty()) {
                 throw new LeaseOwnershipException("external operation lease is not owned");
             }
+            monitoring.terminal(new ExternalOperationMonitoring.Terminal(claim.operationId(),
+                    finished.getFirst().get("kind", String.class), "succeeded", null,
+                    finished.getFirst().get("created_at", Instant.class)));
         });
     }
 
     @Override
     public void fail(SyncOperationClaim claim, String errorCode) {
+        fail(claim, errorCode, null);
+    }
+
+    @Override
+    public void fail(SyncOperationClaim claim, String errorCode, String classification) {
         try {
             claimer.fail(
                     claim.operationId(),
                     claim.leaseToken(),
                     errorCode,
                     false,
+                    classification,
                     clock.instant());
         } catch (LeaseOwnershipException ignored) {
             // Python fail_sync_operation도 소유권 상실을 원래 예외보다 앞세우지 않는다.
@@ -202,7 +224,7 @@ public class SyncOperationService implements CoachOperationLedger, ReportOperati
             throw new IllegalStateException("practice session not found");
         }
         UUID operationId = UUID.randomUUID();
-        list(entityManager.createNativeQuery("""
+        List<Tuple> inserted = list(entityManager.createNativeQuery("""
                 WITH inserted AS (
                     INSERT INTO external_operations (
                         id, session_id, user_id, request_id, kind, request_fingerprint
@@ -222,6 +244,9 @@ public class SyncOperationService implements CoachOperationLedger, ReportOperati
                 .setParameter("requestId", requestId)
                 .setParameter("kind", kind)
                 .setParameter("requestFingerprint", requestFingerprint));
+        if (!inserted.isEmpty()) {
+            monitoring.accepted(kind);
+        }
         SyncOperationRow operation = find(userId, requestId);
         if (operation == null) {
             throw new IllegalStateException("external operation is missing");

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.Map;
 
 import com.acttub.actingapi.support.FrozenValue;
+import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
@@ -36,11 +37,13 @@ class ReportPromptSnapshotTest {
     @Test
     @DisplayName("분석 보고서 입력 JSON 의 들여쓰기와 한글 표기가 동결된 값과 같다")
     void analysisInputJsonMatchesFrozenIndentationAndKorean() throws Exception {
-        ReportEngine engine = new ReportEngine((instructions, input) -> null, MAPPER);
+        ReportEngine engine = new ReportEngine((instructions, input) -> null, MAPPER, new RecordingLlmTelemetry());
         JsonNode input = engine.buildReportInput(
                 "analysis",
                 MAPPER.readTree("""
-                    {"observations":[{"start_ms":0,"end_ms":100,"label":"멈춘다","confidence":0.9,"ignored":"x"}],
+                    {"scene_summary":"문 앞에서 돌아선 상대를 붙잡는다.",
+                     "observations":[{"start_ms":0,"end_ms":100,"what":"멈춘다","quote":"가지 마",
+                                      "dimension":"호흡","confidence":0.9,"ignored":"x"}],
                      "uncertainties":["얼굴은 안 보임"],"ignored":"x"}
                     """),
                 MAPPER.readTree("{\"blocked_point\":\"대사 의미\"}"),
@@ -55,7 +58,7 @@ class ReportPromptSnapshotTest {
     @Test
     @DisplayName("표현 보고서 입력 JSON 의 필드 순서와 null 표기가 동결된 값과 같다")
     void expressionInputJsonMatchesFrozenFieldOrderAndNull() throws Exception {
-        ReportEngine engine = new ReportEngine((instructions, input) -> null, MAPPER);
+        ReportEngine engine = new ReportEngine((instructions, input) -> null, MAPPER, new RecordingLlmTelemetry());
         JsonNode handoff = MAPPER.readTree("""
                 {"experiment":{"tested":true,"instruction":"한 번 멈춘다"},
                  "observed_change":"말이 선명해졌다"}

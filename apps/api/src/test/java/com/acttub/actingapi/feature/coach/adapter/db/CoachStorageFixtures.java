@@ -102,6 +102,14 @@ public final class CoachStorageFixtures {
         return new Practice(practiceSessionId, uploadId, userId);
     }
 
+    private static final String OBSERVATIONS =
+            "[{\"start_ms\":0,\"end_ms\":3210,\"what\":\"멈춘 뒤 말한다\","
+                    + "\"quote\":\"첫 대사\",\"dimension\":\"호흡\",\"confidence\":0.9}]";
+
+    private static final String OBSERVATION_PACK =
+            "{\"scene_summary\":\"여자가 문 앞에서 돌아선 상대를 붙잡는다.\",\"observations\":"
+                    + OBSERVATIONS + ",\"uncertainties\":[\"얼굴은 확인되지 않음\"]}";
+
     public UUID insertSummary(UUID practiceSessionId) {
         UUID summaryId = UUID.randomUUID();
         jdbc.update("""
@@ -114,12 +122,15 @@ public final class CoachStorageFixtures {
                     observations_json,
                     uncertainties_json
                 )
-                VALUES (?, ?, 'test-model', FALSE, '{}'::jsonb, ?::jsonb, ?::jsonb)
+                VALUES (?, ?, 'test-model', FALSE, ?::jsonb, ?::jsonb, ?::jsonb)
                 """,
                 summaryId,
                 practiceSessionId,
-                "[{\"evidence\":\"시선\"}]",
-                "[{\"question\":\"호흡\"}]");
+                // 코치가 읽는 것은 raw 다(SOMA-490) — 관찰을 걸러 다시 적은 칸이 아니라
+                // 영상을 본 모델이 낸 그대로여야 코치가 장면을 안다.
+                OBSERVATION_PACK,
+                OBSERVATIONS,
+                "[\"얼굴은 확인되지 않음\"]");
         return summaryId;
     }
 

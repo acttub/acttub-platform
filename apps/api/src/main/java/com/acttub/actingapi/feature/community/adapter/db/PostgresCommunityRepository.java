@@ -269,7 +269,7 @@ class PostgresCommunityRepository implements CommunityRepository {
     @Override
     public int likePost(UUID postId, UUID userId) {
         return required(transaction.execute(status -> {
-            requireVisiblePost(postId);
+            lockVisiblePost(postId);
             list(entityManager.createNativeQuery("""
                     WITH inserted AS (
                         INSERT INTO community_post_likes (id,post_id,user_id)
@@ -289,7 +289,7 @@ class PostgresCommunityRepository implements CommunityRepository {
     @Override
     public int unlikePost(UUID postId, UUID userId) {
         return required(transaction.execute(status -> {
-            requireVisiblePost(postId);
+            lockVisiblePost(postId);
             likes.deleteByPostAndUser(postId, userId);
             return resyncLikeCount(postId);
         }));
@@ -572,8 +572,9 @@ class PostgresCommunityRepository implements CommunityRepository {
                 : new OwnedPost(rows.getFirst().get("author_id", UUID.class));
     }
 
-    private void requireVisiblePost(UUID postId) {
-        if (!posts.existsByIdAndStatus(postId, ContentStatus.VISIBLE)) {
+    private void lockVisiblePost(UUID postId) {
+        // Serialize mutations before recounting so a waiting request sees the previous commit.
+        if (ownedPost(postId, true, true) == null) {
             throw new CommunityContentNotFound();
         }
     }

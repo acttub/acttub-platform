@@ -7,7 +7,7 @@ import jakarta.persistence.Converter;
  *
  * <p>{@code suspended} 는 없다. 계정을 정지시키는 경로가 코드 어디에도 없었고
  * (이 컬럼을 UPDATE 하는 곳은 탈퇴의 {@code deactivated} 하나뿐), 운영·dev 양쪽 0건을
- * 확인한 뒤 걷어냈다 (SOMA-462). 관리자 권한은 이 축이 아니라 {@code users.role} 이다.
+ * 확인한 뒤 걷어냈다 (SOMA-462). 관리자 인증은 별도 운영 토큰으로 판정한다.
  */
 public enum UserStatus implements PgEnum {
     ACTIVE("active"),

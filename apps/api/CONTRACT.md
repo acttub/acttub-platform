@@ -13,9 +13,34 @@
 > 이관 절차였기 때문이다(`SOMA-403` 6단계에서 폐기). 원문은
 > [docs/archive/soma287/SPEC.md](../../docs/archive/soma287/SPEC.md) 에 있다.
 
-**계약의 정본은 `apps/api/spec/openapi.json` 이다.** springdoc 이 만들고 `apps/web` 이 그것으로
-타입을 생성하므로(`pnpm --filter web generate:v2-schema`), 필드 하나·nullable 하나가 어긋나면
-프론트가 조용히 깨진다.
+**행동 계약은 이 문서와 대응하는 Java 테스트가 판정한다.** `spec/openapi.json`은 springdoc이
+만드는 요청·응답 스키마 산출물이자 웹 타입 생성원이다. 오류와 상태 전이 전체를 표현하지
+않으므로, 스키마가 같아도 행동 계약의 검증은 별도로 필요하다.
+
+## 계약 변경 절차
+
+API의 요청·응답·오류·상태 전이를 바꿀 때 아래 순서를 따른다.
+
+1. 변경할 행동 계약과 대응 테스트를 확인하고 백엔드 코드를 수정한다.
+2. `apps/api`에서 다음 명령으로 OpenAPI 스냅샷을 재생성한다.
+
+   ```sh
+   UPDATE_OPENAPI_SNAPSHOT=1 ./gradlew test --tests '*OpenApiSnapshotIT*'
+   ```
+
+   갱신 모드는 파일을 쓴 뒤 **의도적으로 실패**한다. 커밋된 자기 스냅샷과 비교하는 검사이므로
+   생성된 diff가 의도한 변경만 담는지 검토하고, 갱신 변수 없이 같은 테스트를 다시 실행한다.
+3. 루트에서 `pnpm --filter web generate:v2-schema`로 웹 타입을 생성한 뒤 웹 소비자를 수정한다.
+   `apps/web/src/lib/api/v2-schema.d.ts`는 생성 명령으로만 갱신한다. 생성 타입이 없는 모바일은
+   요청·응답 타입과 모든 호출부를 직접 검색해 호환성을 확인한다.
+4. 백엔드 코드 → OpenAPI → 웹 타입 → 웹 수정과 필요한 모바일 수정을 한 PR에 담는다.
+
+**호환 배포:** DB·API 축소는 **expand → compatible code → contract** 순서로 여러 배포에
+나누며, 소비 중인 컬럼·필드를 한 배포에서 제거하지 않는다. DB의 데이터 전환과 릴리스 순서는
+[DB와 배포 안전성](../../docs/BRANCHING-STRATEGY.md#db와-배포-안전성)을 따른다.
+
+**완료 기준:** 행동 계약 테스트와 갱신 변수 없는 스냅샷 검사가 통과했고, 생성물 diff 및
+웹·모바일의 모든 영향받는 소비자를 확인했다. 축소 변경은 구·신 버전의 호환 배포 순서가 정해졌다.
 
 ## 2. 기술 스택 (확정, 변경 금지)
 
@@ -30,7 +55,7 @@
 | 인증 | nimbus-jose-jwt + 커스텀 필터. Apple/Google 은 `JwtDecoder`(JWKS 캐시) |
 | S3 | AWS SDK v2 `S3Presigner` |
 | DB 버전 | dev·운영 홈서버와 테스트는 **Postgres 18** 계열로 맞춘다(`deploy/home/compose.yml`). PG18 은 NOT NULL 을 `pg_constraint` 로 물질화하는 등 카탈로그가 달라 16 에서 통과한 스키마 검증이 운영을 보증하지 않는다 |
-| 테스트 | JUnit 5 + Testcontainers(Postgres **18**) + MockMvc + **ArchUnit**(패키지 구조 검사, ADR-016). **버전을 BOM 에 맡기지 않고 고정**하고, 외부 DB 폴백 경로를 둔다(§8-4) |
+| 테스트 | JUnit 5 + Testcontainers + MockMvc + **ArchUnit**(패키지 구조 검사, ADR-016). Testcontainers 버전 고정과 DB 실행 조건은 §8-4를 따른다 |
 
 ## 4. datetime 포맷
 
@@ -53,8 +78,23 @@ Jackson 설정: `WRITE_DATES_AS_TIMESTAMPS=false`, `Instant` 또는 `OffsetDateT
 §5-2의 `EntityManager` native SQL로 구현한다. 서비스·Domain Model은 Spring Data interface,
 Schema Entity, JPA 타입을 알지 않는다.
 
-Schema Entity 26개가 모든 테이블을 매핑하고 `actor_memory_entries`·`push_tokens`도
-`ddl-auto: validate` 대상이다. 모든 운영 DB 접근은 Spring Data JPA와 `EntityManager`를 사용하며,
+Schema Entity는 활성 영속 경로를 매핑하고 `actor_memory_entries`·`push_tokens`도
+`ddl-auto: validate` 대상이다. 명시적으로 은퇴한 매핑은 아래 목록으로 한정하며,
+`EntityMappingIT`가 나머지 테이블·컬럼의 매핑과 검증 대상의 비공허성을 확인한다.
+
+- 구형 `reports`: 현재 `/v2/reports`와 연습 노트는 `practice_reports`를 사용한다.
+- `summaries.observation`·`summary`·`intent_alignment`·`key_moment`·`key_dimension`:
+  현재 분석 저장자와 관찰 소비자는 사용하지 않는다.
+- `practice_sessions.subtext`: 현재 입력·코칭에서 소비하지 않아 내부 전달도 종료했다.
+- `users.role`: 현재 관리자 인증은 별도 운영 토큰이며 사용자 역할 컬럼을 사용하지 않는다.
+
+이 목록의 DB 구조와 과거 값은 그대로 보존한다. 물리 축소는 호환 코드의 dev·운영 배포와
+실제 데이터·외부 소비·백업/복원 확인 후 별도 릴리스에서 진행한다. 동결 마이그레이션과
+fingerprint는 바꾸지 않으며 `LegacyStorageCompatibilityIT`가 현재 스키마의 과거 값 보존과
+구형 구조를 제거한 격리 테스트 DB의 기동·현재 기능을 검증한다. `transcripts`, 소비 중인
+관찰·대화 요약·종료 사유, 보존 정책이 미정인 메타데이터는 이 목록에 포함하지 않는다.
+
+모든 운영 DB 접근은 Spring Data JPA와 `EntityManager`를 사용하며,
 운영 `JdbcTemplate`·`NamedParameterJdbcTemplate`·`DataSource` 직접 접근은 없다. 테스트 fixture와
 JPA 밖 독립 검증에는 `JdbcTemplate`을 허용한다.
 
@@ -106,17 +146,18 @@ JSON 연산, 상관 서브쿼리 조건부 갱신은 Spring Data `save()`나 조
    Spring Data `save()` 는 `@Id` 가 non-null 이면 `merge()` 를 호출해 불필요한 SELECT 가
    붙는다. → 앱 생성 PK 는 `Persistable<UUID>` 구현(`AppGeneratedUuidEntity`), 그리고
    **INSERT 전 SELECT 가 없음을 검증**한다
-   (`src/test/java/com/acttub/actingapi/platform/schema/EntityMappingIT:allTwentyOneAppGeneratedIdsUsePersistOnSave`).
+   (`src/test/java/com/acttub/actingapi/platform/schema/EntityMappingIT:allActiveAppGeneratedIdsUsePersistOnSave`).
    push token은 `save()`하지 않고 native upsert의 `RETURNING`으로 DB 생성 ID를 받는다
    (`src/test/java/com/acttub/actingapi/platform/schema/EntityManagerNativeSqlIT:pushUpsertReturnsDatabaseGeneratedIdAndRebindsTheSameRow`).
 3. **`server_default` vs 앱 측 default 이원화.** JPA 에는 "앱 측 default" 개념이 없다. 필드
    초기화값을 주면 항상 INSERT 에 실려 `server_default` 가 발동하지 않는다. 컬럼별로 판정한다.
-   `''` 기본값 컬럼은 `coach_sessions.conversation_summary` 와 `reports.comparison` 둘이며
-   null 로 두면 NOT NULL 위반이다. `summaries.observations_json`/`.uncertainties_json` 도 같은
-   부류다.
-4. **JSONB 8개** — `summaries.observation`(NULL 허용)/`.raw`/`.observations_json`/
-   `.uncertainties_json`, `coaching_handoffs.handoff_json`, `practice_reports.report_json`,
-   `reports.biggest_problem`, `external_operations.response_payload`(NULL 허용).
+   활성 매핑의 `coach_sessions.conversation_summary`는 `''` 기본값이며
+   null 로 두면 NOT NULL 위반이다. `summaries.observations_json`/`.uncertainties_json`도
+   같은 부류다. 구형 `reports.comparison`의 DB 기본값도 그대로 보존한다.
+4. **활성 JSONB 매핑** — `summaries.raw`/`.observations_json`/`.uncertainties_json`,
+   `coaching_handoffs.handoff_json`, `practice_reports.report_json`,
+   `external_operations.response_payload`(NULL 허용). 구형 `summaries.observation`과
+   `reports.biggest_problem`은 DB에 보존하며 활성 매핑에서 제외한다.
    **JSON null(`'null'::jsonb`)과 SQL NULL 을 구분한다.** External Operation 신규 행의 아직 없는
    응답은 SQL NULL이고, claim·release·fail·resume·sweep가 이전 응답을 비우는 값은 Python
    SQLAlchemy JSONB `None`과 같은 JSON null이다. 완료 응답은 JSON 객체다.
@@ -156,6 +197,9 @@ JSON 연산, 상관 서브쿼리 조건부 갱신은 Spring Data `save()`나 조
 
 - **빈 DB**: V1 을 실행해 스키마를 재구축한다. 이것이 없으면 신규 환경·재해 복구가 불가능하다
 - **기존 DB(dev·운영)**: 같은 V1 버전으로 `baseline` 을 기록만 한다. DDL 은 실행하지 않는다
+
+애플리케이션의 `baseline-on-migrate`는 비활성으로 유지한다. 기존 DB의 최초 baseline은
+명시적인 배포 작업이며, 신규·재해복구 DB는 V1부터 마이그레이션을 적용한다.
 
 🔥 **V1 은 동결이다. 스키마 변경은 거기 있는 가장 큰 번호 다음으로 새 파일을 만든다.** 두 경로의 이력이 다르기
 때문이다 — dev·운영은 `<< Flyway Baseline >>`(type=BASELINE)이라 **checksum 이 없고**, 신규
@@ -199,6 +243,17 @@ JDBC URL·username·password 로 변환한다 — `platform/config/DatabaseUrl` 
 
 최대 시도 횟수는 3 이다. 구현은 `platform/operation/ExternalOperationClaimer` 와
 `feature/analysis/app/AnalysisWorker`, 실 DB 검증은 `ExternalOperationIT` 다.
+
+모니터링 메타데이터는 이 상태 전이 계약을 바꾸지 않는 nullable 확장이다. 마지막 실패 분류는
+`expected`·`external`·`unexpected`만 저장하며, 기존 행처럼 분류를 알 수 없으면 NULL을 유지한다.
+실패·재큐와 같은 트랜잭션에서 기록하고 재시도 소진까지 보존한다. 미분류를 새로운 도메인 실패
+종류나 Expected Rejection으로 바꾸지 않는다. 이전 앱으로 복구할 때 추가 컬럼을 삭제하지 않는다.
+
+실행 횟수와 종료 사건의 관측은 성공한 상태 전이의 커밋을 기준으로 한다. Lease 상실·중복 완료·
+롤백은 종료 횟수를 늘리지 않고, 도입 전에 끝난 실패를 재시작이나 집계 조회로 소급 통지하지 않는다.
+실패한 External Operation이 나중에 재개되면 새로운 종료 사건이 생길 수 있으므로 고유 접수 건수와
+종료 사건 수를 같은 값으로 취급하지 않는다. 실행·대기 시각을 확인할 수 없는 행에서는 영상 길이나
+기존 `updated_at` 차이로 처리 시간을 만들어내지 않는다.
 
 ### 5-8. 네이티브 SQL 작성 규칙 (실측)
 
@@ -363,6 +418,27 @@ POST /v2/consents        POST /v2/uploads/intents
 
 응답 쪽은 반대다 — 응답 컴포넌트는 **전부 닫혀 있다.**
 
+### 6-4. 관리용 모니터링 경로
+
+`MANAGEMENT_SERVER_PORT`의 기본값은 -1(리스너 비활성)이며, 별도 관리 포트를 켰을 때도
+`MONITORING_TOKEN`이 없거나 맞지 않으면 수집을 허용하지 않는다. 관리 토큰은 사용자 인증을
+대체하지 않으며, 일반 API 포트와 웹 프록시를 통해 관리 지표나 DB health를 읽을 수 없다.
+포트 판정에는 요청의 Host·Forwarded 헤더를 신뢰하지 않는다.
+
+관리 리스너는 인증된 `GET /actuator/prometheus`와 `GET /actuator/health/db`만 제공한다.
+기존 `/health`의 응답과 인증 규칙은 유지하고 DB 연결은 별도 관리 health에서 판정한다.
+관리 포트에서 비즈니스 API·OpenAPI·환경변수 조회를 제공하지 않는다.
+
+HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사용한다. 사용자·세션·External Operation
+식별자, 원문 URL, 요청 본문, 토큰은 label로 넣지 않는다. 코치·리포트의 진행 중 HTTP 시간은
+서버가 요청을 처리하기 시작한 때부터 응답 처리가 끝날 때까지이며, DB의 `running` 나이나 모델
+호출 시간과 구분한다. 관리 경로와 장시간 처리 경로는 일반 API 지연 집계에서 제외한다.
+
+오류 건수와 비율은 처음 관측된 라우트·상태 코드의 첫 요청 묶음도 집계해야 한다.
+상태 코드 갈래와 일반/장시간 처리 갈래로 나눈 HTTP 집계 계수를 요청 전에 0으로 준비하고,
+라우트별 응답시간 histogram과 구분한다. 상세 라우트의 첫 표본에만 `increase()`를 적용해
+새 오류가 사라지는 상태를 허용하지 않는다.
+
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 
 1. **좋아요 카운트는 재집계다**(`feature/community/adapter/db/PostgresCommunityRepository`).
@@ -375,6 +451,17 @@ POST /v2/consents        POST /v2/uploads/intents
 4. **`SKIP LOCKED` 는 현재 0건이다.** 경합 시 블로킹 대기 → 조건 재평가 실패 → 폴링 재시도
    구조다. 정확하지만 처리량이 낮다. 바꾸려면 두 방식을 **구분하는 테스트**를 먼저 세운다 —
    기존 테스트는 구분하지 못한다.
+
+### 7-1. 코칭 응답과 종료 (2026-09-10)
+
+- 요청·응답 DTO와 저장 스키마는 유지한다. 웹·모바일의 도움 버튼은 명확한 텍스트 요청을 준비하며 전송은 별도 동작이다.
+- `CoachPrompt:buildChat`은 1층 관찰 팩 전체(장면 요약·전체 흐름·소리 측정값·대사 인용·불확실성)·이전 분석 입력과 현재 세션의 대화 원문 전체를 전달한다. `CoachPrompt:select`의 공통 정책이 갈래별 질문 순서보다 우선한다.
+- 막힘을 건너뛴 `그 외`는 `coach-video-first-prompt.txt`를 사용한다. 장면 맥락이 모두 비어도 첫 1~2회 장면 질문이나 고정된 질문 구간을 붙이지 않는다. 시작·후속 응답·재생성 모두 같은 기본 코치를 쓰며, 명시적인 분석·표현 선택의 프롬프트와 기존 analysis handoff·report 계약은 유지한다.
+- `CoachResponsePolicy:failures`는 빈 응답, 화면에 그대로 노출될 Markdown 강조·제목·코드 기호와 `JSON need` 형태의 내부 형식 메모, 도움 요청 뒤 직전 응답의 완전 반복, 영어 대화에서 완전히 한국어로 돌아온 설명, 종료 요청·8번째 이후의 continue를 재생성 사유로 삼는다. 두 번 실패하면 확인하지 못한 결론을 만들지 않는 대체 응답을 사용한다.
+- 종료 시 생성 실패로 만든 handoff는 `completion_level=unavailable`이다. `ReportEngine:buildReportInput`은 이 상태를 두 갈래 모두에서 차단한다. 저장한 handoff로 다시 요청해도 모델을 호출하지 않는다.
+- `HandoffReadiness:hasEnoughAnswers`는 초기 폼 발화·종료어·명확한 도움 요청만인 발화를 내용이 확보된 답변에서 제외한다. 구체적인 문제 설명에 "모르겠어요"가 들어 있다는 이유만으로 제외하지 않는다.
+- 코칭은 `TextValidator:validateCoachTurn`으로 근거 설명용 어휘를 허용한다. 다른 표면은 기존 `validateTurn`과 `scanGeneratedStrings`를 유지한다.
+- 분석은 표면적인 뜻으로 충분한 장면에 숨은 심리를 강제하지 않는다. 모름 응답을 설명할 때도 새 관계 갈등·과거사·심리 원인을 추가하지 않으며, 불확실하다는 단서를 붙인 것만으로 근거 없는 해석을 허용하지 않는다.
 
 ## 8. 검증
 
@@ -396,29 +483,34 @@ Spring 은 DTO 반환 시 스키마가 강제된다. 응답 컴포넌트는 전�
 
 ### 8-4. Testcontainers ↔ 최신 Docker Engine — 반드시 필요한 설정
 
-Docker Desktop 4.78.0 / **Engine 29.5.3 / API 1.54** 에서, Testcontainers 는 기본 상태로
-`/info` 에 Status 400 을 받고 `Could not find a valid Docker environment` 로 실패한다. 소켓
-접근 자체는 되므로(`curl --unix-socket` 성공) 권한이 아니라 **API 버전 협상 실패**다.
+Docker API 버전 협상이 실패하면 소켓 접근이 가능해도 `/info`가 400으로 거부되고
+`Could not find a valid Docker environment`로 보일 수 있다.
 
-**`DOCKER_API_VERSION` 환경변수만으로는 풀리지 않는다.** docker-java 는 시스템 프로퍼티
-`api.version` 을 함께 본다. Gradle `Test` 태스크에 셋 다 준다:
+- Testcontainers 버전은 BOM에 맡기지 않고 [build.gradle.kts](build.gradle.kts)의
+  `extra["testcontainers.version"]`으로 고정한다.
+- Gradle `Test` 태스크는 `DOCKER_API_VERSION` 환경변수와 `api.version` 시스템 프로퍼티에
+  같은 값을 전달한다. 외부에서 환경변수를 지정했을 때도 둘을 동기화해야 docker-java가
+  기본 버전으로 접속하는 실패를 막는다. 기본값과 macOS 소켓 설정은 이 태스크에서 확인한다.
+- 테스트 DB는 [PostgresContainerSupport](src/test/java/com/acttub/actingapi/support/PostgresContainerSupport.java)의
+  Testcontainers가 띄운다. 이미지 메이저는 §2의 운영 DB와 맞춘다.
+- CI의 Docker 조건과 실행 범위는 [ci.yml](../../.github/workflows/ci.yml)의 `api` 잡에서 확인한다.
+  DB 연결 수와 테스트 격리는 `PostgresContainerSupport` 및 `src/test/resources/application.properties`를 함께 본다.
 
-```kotlin
-tasks.withType<Test>().configureEach {
-    if (System.getenv("DOCKER_API_VERSION") == null) {
-        environment("DOCKER_API_VERSION", "1.41")
-        systemProperty("api.version", "1.41")          // 이게 빠지면 실패한다
-    }
-    val socket = File(System.getProperty("user.home"), ".docker/run/docker.sock")
-    if (System.getenv("DOCKER_HOST") == null && socket.exists()) {
-        environment("DOCKER_HOST", "unix://${socket.absolutePath}")
-        environment("TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE", "/var/run/docker.sock")
-    }
-}
-```
+### 8-5. 영상만 올리는 새 코칭 계약 (SOMA-526)
 
-Testcontainers 버전은 BOM 에 맡기지 않고 고정한다(`extra["testcontainers.version"]`). 이미지는
-운영과 같은 **`postgres:18-alpine`** 이다.
+첫 질문 개정(SOMA-531): 기본 코치와 새 구조화 코치는 공통 `coach/coach-opening-policy.txt`를 사용한다.
+전체 흐름에서 중요한 지점을 고르고 답에 따라 살펴볼 기준이 달라지는 쉬운 질문 하나로 시작한다.
+기본 코치에 있던 질문 없는 관찰·해석 시작은 폐기한다. 근거가 있는 첫 응답은 질문 누락·중복과
+대표적인 모호한 해석 문구를 재생성 사유로 삼고, 새 경로는 근거 참조·focus 저장·즉시 종료도 검증한다.
+대사 인용 안의 물음표는 배우에게 묻는 질문 수에서 제외한다. 의미적 관련성과 선정의 적절성은
+자동 검사만으로 보장하지 않는다. 공개 JSON과 DB는 유지한다.
 
-CI 는 러너의 Docker 버전이 달라 동작이 갈릴 수 있다. `ci.yml` 에 Postgres 서비스가 있으므로,
-필요하면 그것을 외부 DB 로 쓰는 경로를 함께 둔다.
+2026-09-14의 2·3층 개정은 [대화와 촬영 노트](../../docs/design/COACHING-NOTE-V2.md)를 따른다.
+2층 내부 출력은 직전 답변 인용을 포함한 `acttub.layer2_turn.v2`이며 과제/실행 변경을 허용하지 않는다.
+서버는 현재 맥락·원문 대화·근거를 `acttub.coach_handoff.v2`로 전달하고 3층이 다음 촬영 제안 하나를 생성한다.
+요약은 확인된 배우 말·관찰의 발췌이고, 제안은 선택·실행으로 승격하지 않는다.
+공개 `PublicPracticeNote`와 저장 노트 v1의 필드는 유지한다. v1 handoff는 이전 프롬프트로 처리한다.
+
+`X-Acttub-Contract: three_layers_v1`과 서버 생성 플래그로 선택한 신규 연습은 [3층 계약](../../docs/ACTTUB-THREE-LAYERS.md)을 따른다. 기존 입력 갈래의 응답과 legacy 저장 행은 유지한다. 새 공개 타입은 `VideoRecordSummaryResponse`, `PublicPracticeNote`, handoff branch `coaching`이다. 이 타입을 지원하지 않는 클라이언트에는 목록 필터와 직접 접근 409를 적용한다.
+
+새 계약은 배우가 하지 않은 첫 발화를 만들지 않고, state/revision을 누적한다. 보고서 작성 여부나 턴 수를 배우의 실행·확인 증거로 쓰지 않는다. 새 노트는 handoff_confirmation 없이 생성된다. 모델 출력·참조 검증과 레코드 조회, 조립, 상태 전이의 단위 테스트에 더해 `CoachSessionRepositoryIT`에서 새 필드의 원자적 저장과 충돌을 확인한다.

@@ -2,146 +2,182 @@ package com.acttub.actingapi.feature.analysis.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
-import java.util.function.Supplier;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import com.acttub.actingapi.integration.observation.ObservationPack;
-import com.acttub.actingapi.platform.observability.FailureKind;
-import com.acttub.actingapi.support.RecordingFailureReporter;
+import com.acttub.actingapi.integration.observation.SpeechAnalysis;
+import com.acttub.actingapi.integration.llm.StructuredJson;
+import com.acttub.actingapi.platform.ledger.ExternalOperationExecution;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import com.acttub.actingapi.support.RecordingFailureReporter;
+import org.junit.jupiter.api.io.TempDir;
 
 class SummaryAnalyzerTest {
+
+    private static final java.util.UUID PRACTICE = java.util.UUID.randomUUID();
+    private static final java.util.UUID USER = java.util.UUID.randomUUID();
 
     @TempDir
     Path temporary;
 
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void threeLayerAnalysisObservesBothPortsEvenWhenSpeechFallsBack(boolean speechFails) throws Exception {
+        Path video = Files.writeString(temporary.resolve("record.mp4"), "video");
+        var record = (com.fasterxml.jackson.databind.node.ObjectNode)
+                StructuredJson.resource("/coaching/record.json");
+        var speech = new SpeechAnalysis("가지 마", 2.0, List.of(), List.of());
+        var reporter = new RecordingFailureReporter();
+        List<String> calls = new ArrayList<>();
+        var starts = new java.util.concurrent.atomic.AtomicInteger();
+        var analyzer = new SummaryAnalyzer((path, declared) -> 1000,
+                path -> { throw new AssertionError("legacy compression must not run"); },
+                (path, mime, actor, practiceId, actorId) -> { throw new AssertionError("legacy observation must not run"); },
+                (path, practiceId, actorId) -> {
+                    assertThat(calls).containsExactly("speech");
+                    if (speechFails) { throw new IllegalStateException("speech unavailable"); }
+                    return speech;
+                }, reporter,
+                (path, actor, practiceId, actorId, observedSpeech) -> {
+                    assertThat(calls).containsExactly("speech", "observation");
+                    assertThat(path).isEqualTo(video);
+                    assertThat(observedSpeech).isSameAs(speechFails ? null : speech);
+                    return record;
+                });
+        var context = new AnalysisContext(java.util.UUID.randomUUID(), PRACTICE, "take.mp4", "video/mp4",
+                "etag", 1000, "", "", "", "그 외", "", "three_layers_v1", USER);
+
+        try (var observation = new ExternalOperationExecution(context.operationId(),
+                () -> starts.incrementAndGet() == 1, calls::add, System::nanoTime)) {
+            assertThat(analyzer.analyze(video, context).videoRecord()).isSameAs(record);
+        }
+
+        assertThat(starts).hasValue(1);
+        assertThat(calls).containsExactly("speech", "observation");
+        assertThat(reporter.reports()).hasSize(speechFails ? 1 : 0);
+    }
+
     @Test
-    void resolvesDurationThenCompressesObservesAndOnlyThenTranscribes() throws Exception {
+    void observationAndSpeechOverlapForEveryBranchAndMergeIntoOnePack() throws Exception {
+        for (String kind : List.of("분석", "표현", "그 외")) {
+            Path video = Files.writeString(temporary.resolve("take.mp4"), "video");
+            Path compressed = Files.writeString(temporary.resolve("small.mp4"), "small");
+            var started = new CountDownLatch(2);
+            var speech = new SpeechAnalysis("가지 마", 2.0, List.of(), List.of());
+            var reporter = new RecordingFailureReporter();
+            var analyzer = new SummaryAnalyzer((path, declared) -> 1000, path -> compressed,
+                    (path, mime, actor, practiceId, actorId) -> {
+                        awaitBoth(started);
+                        assertThat(practiceId).isEqualTo(PRACTICE);
+                        assertThat(actorId).isEqualTo(USER);
+                        assertThat(path).isEqualTo(compressed);
+                        return new ObservationPack("장면", "0:01에 멈춘다", null, List.of(), List.of());
+                    }, (path, practiceId, actorId) -> {
+                        awaitBoth(started);
+                        assertThat(practiceId).isEqualTo(PRACTICE);
+                        assertThat(actorId).isEqualTo(USER);
+                        assertThat(path).isEqualTo(video).exists();
+                        return speech;
+                    }, reporter);
+
+            var result = analyzer.analyze(video, context(kind, 1000));
+
+            assertThat(result.observationPack().timeline()).isEqualTo("0:01에 멈춘다");
+            assertThat(result.observationPack().speech()).isSameAs(speech);
+            assertThat(result.durationMs()).isEqualTo(1000);
+            assertThat(result.wasCompressed()).isTrue();
+            assertThat(compressed).doesNotExist();
+            assertThat(video).exists();
+            assertThat(reporter.reports()).isEmpty();
+        }
+    }
+
+    /**
+     * 받아쓰기는 관찰을 인질로 잡지 않는다 — 새로 들인 층이 실패해도 배우는 코칭까지 간다.
+     * 실패는 삼키지 않고 리포터로 올라가야 운영에서 조용히 꺼진 것을 알아챈다.
+     */
+    @Test
+    void speechFailureKeepsTheAnalysisAndIsStillReported() throws Exception {
+        Path video = Files.writeString(temporary.resolve("take.mp4"), "video");
+        Path compressed = Files.writeString(temporary.resolve("small.mp4"), "small");
+        var reporter = new RecordingFailureReporter();
+        var analyzer = new SummaryAnalyzer((path, declared) -> 1000, path -> compressed,
+                (path, mime, actor, practiceId, actorId) -> new ObservationPack(
+                        "장면", "0:01에 멈춘다", null, List.of(), List.of()),
+                (path, practiceId, actorId) -> {
+                    throw new IllegalStateException("transcribe unavailable");
+                }, reporter);
+
+        var result = analyzer.analyze(video, context("분석", 1000));
+
+        assertThat(result.observationPack().speech()).isNull();
+        assertThat(result.observationPack().timeline()).isEqualTo("0:01에 멈춘다");
+        assertThat(result.observationPack().sceneSummary()).isEqualTo("장면");
+        assertThat(reporter.reports()).hasSize(1);
+    }
+
+    private static void awaitBoth(CountDownLatch started) {
+        started.countDown();
+        try {
+            assertThat(started.await(5, TimeUnit.SECONDS)).as("both calls overlap").isTrue();
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError(exception);
+        }
+    }
+
+    @Test
+    void resolvesDurationThenCompressesAndObserves() throws Exception {
         Path video = Files.writeString(temporary.resolve("take.mp4"), "video");
         Path compressed = Files.writeString(temporary.resolve("take.gemini.mp4"), "small");
-        Path audioDirectory = Files.createDirectory(temporary.resolve("audio"));
-        Path audio = Files.writeString(audioDirectory.resolve("audio.mp3"), "voice");
         List<String> order = new ArrayList<>();
 
         SummaryAnalyzer analyzer = new SummaryAnalyzer(
                 (path, declared) -> { order.add("duration"); return 3210; },
                 path -> { order.add("compress"); return compressed; },
-                (path, mime, actor) -> {
+                (path, mime, actor, practiceId, actorId) -> {
                     order.add("observe");
                     assertThat(path).isEqualTo(compressed);
                     assertThat(actor.durationMs()).isEqualTo(3210);
-                    return new ObservationPack(List.of(), List.of());
-                },
-                extractor(() -> { order.add("extract"); return audio; }),
-                (path, prompt) -> { order.add("transcribe"); return "하나. 둘!"; },
-                new RecordingFailureReporter());
+                    return new ObservationPack("장면 요약", List.of(), List.of());
+                }, (path, practiceId, actorId) -> null, new RecordingFailureReporter());
 
         AnalysisResult result = analyzer.analyze(video, context("분석", null));
 
-        assertThat(order).containsExactly(
-                "duration", "compress", "observe", "extract", "transcribe");
+        assertThat(order).containsExactly("duration", "compress", "observe");
         assertThat(result.wasCompressed()).isTrue();
-        assertThat(result.transcripts()).containsExactly("하나.", "둘!");
+        assertThat(result.observationPack().sceneSummary()).isEqualTo("장면 요약");
         assertThat(compressed).doesNotExist();
-        assertThat(audioDirectory).doesNotExist();
     }
 
-    /**
-     * 받아쓰기는 갈래로 갈리지 않는다 — 표현·그 외로 시작한 연습의 코치도 대사를 인용해
-     * 말해야 한다. 예전에는 "분석" 밖에서 받아쓰기를 건너뛰었다.
-     */
-    @ParameterizedTest
-    @ValueSource(strings = {"표현", "그 외"})
-    void transcribesRegardlessOfBlockageKind(String blockageKind) throws Exception {
-        Path video = Files.writeString(temporary.resolve("take.mp4"), "video");
-        Path audioDirectory = Files.createDirectory(temporary.resolve("audio"));
-        Path audio = Files.writeString(audioDirectory.resolve("audio.mp3"), "voice");
-        SummaryAnalyzer analyzer = new SummaryAnalyzer(
-                (path, declared) -> 1000,
-                path -> path,
-                (path, mime, actor) -> new ObservationPack(List.of(), List.of()),
-                extractor(() -> audio),
-                (path, prompt) -> "가지 마. 제발!",
-                new RecordingFailureReporter());
-
-        AnalysisResult result = analyzer.analyze(video, context(blockageKind, 1000));
-
-        assertThat(result.transcripts()).containsExactly("가지 마.", "제발!");
-        assertThat(audioDirectory).doesNotExist();
-    }
-
+    /** 압축이 원본을 그대로 돌려주면 지울 것이 없고, 압축했다고 말하지도 않는다. */
     @Test
-    void swallowsEveryTranscriptionFailureAndKeepsObservationResult() throws Exception {
+    void uncompressedVideoIsReportedAsSuchAndKept() throws Exception {
         Path video = Files.writeString(temporary.resolve("take.mp4"), "video");
-        Path audioDirectory = Files.createDirectory(temporary.resolve("broken-audio"));
-        Path audio = Files.writeString(audioDirectory.resolve("audio.mp3"), "voice");
-        IllegalStateException failure = new IllegalStateException("transcription down");
-        RecordingFailureReporter reporter = new RecordingFailureReporter();
+
         SummaryAnalyzer analyzer = new SummaryAnalyzer(
                 (path, declared) -> 1000,
                 path -> path,
-                (path, mime, actor) -> new ObservationPack(List.of(), List.of("불확실")),
-                extractor(() -> audio),
-                (path, prompt) -> { throw failure; },
-                reporter);
+                (path, mime, actor, practiceId, actorId) -> new ObservationPack("", List.of(), List.of("불확실")),
+                (path, practiceId, actorId) -> null, new RecordingFailureReporter());
 
-        AnalysisResult result = analyzer.analyze(video, context("분석", 1000));
+        AnalysisResult result = analyzer.analyze(video, context("표현", 1000));
 
+        assertThat(result.wasCompressed()).isFalse();
         assertThat(result.observationPack().uncertainties()).containsExactly("불확실");
-        assertThat(result.transcripts()).isEmpty();
-        assertThat(audioDirectory).doesNotExist();
-        assertThat(reporter.reports()).singleElement().satisfies(report -> {
-            assertThat(report.failure()).isSameAs(failure);
-            assertThat(report.kind()).isEqualTo(FailureKind.UNEXPECTED);
-            assertThat(report.context()).isEqualTo("SummaryAnalyzer.transcription");
-        });
-    }
-
-    /**
-     * ffmpeg 구현과 같은 계약의 시험용 추출기 — 낸 것을 돌려받으면 그것이 사는 임시 디렉토리를
-     * 통째로 거둔다. 위 단언들이 {@code audioDirectory} 의 소멸로 정리 여부를 판정하므로,
-     * 여기서 그 계약을 흉내 내지 않으면 그 단언이 뜻을 잃는다.
-     */
-    private static AudioExtractor extractor(Supplier<Path> audio) {
-        return new AudioExtractor() {
-
-            @Override
-            public Path extract(Path videoPath, long maximumDurationMs) {
-                return audio.get();
-            }
-
-            @Override
-            public void discard(Path audioPath) {
-                deleteTree(audioPath.getParent());
-            }
-        };
-    }
-
-    private static void deleteTree(Path directory) {
-        try (var paths = Files.walk(directory)) {
-            paths.sorted(Comparator.reverseOrder()).forEach(path -> {
-                try {
-                    Files.deleteIfExists(path);
-                } catch (IOException ignored) {
-                    // 정리 실패는 이 테스트의 관심사가 아니다.
-                }
-            });
-        } catch (IOException ignored) {
-            // 같은 이유.
-        }
+        assertThat(video).exists();
     }
 
     private static AnalysisContext context(String blockageKind, Integer durationMs) {
         return new AnalysisContext(
-                null, null, "users/u/uploads/take.mp4", "video/mp4", "etag",
-                durationMs, "상황", "인물", "목표", blockageKind, "세부");
+                null, PRACTICE, "users/u/uploads/take.mp4", "video/mp4", "etag",
+                durationMs, "상황", "인물", "목표", blockageKind, "세부", USER);
     }
 }

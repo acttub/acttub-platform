@@ -18,6 +18,7 @@ import { previewVideoSource } from '@/lib/preview-video';
 import { createOrReuseReport } from '@/lib/report-flow';
 import { palette } from '@/constants/palette';
 import { Markdown } from '@/components/markdown';
+import { PracticeNoteBody } from '@/components/practice-note';
 import { reportDisplay } from '@/lib/report-display';
 import { translate as t } from '@/lib/i18n';
 
@@ -145,7 +146,7 @@ export default function ReportScreen() {
       {report && report.report_type !== 'blocked' && display && practice && (
         <>
           <View style={styles.statusRow}>
-            <Text style={styles.confirmed}>{t('report.confirmed')}</Text>
+            <Text style={styles.confirmed}>{report.report_type === 'practice_note' ? '대화에서 남긴 연습 노트' : t('report.confirmed')}</Text>
             <SceneFoldLink
               open={sceneOpen}
               onToggle={() => setSceneOpen((was) => !was)}
@@ -162,10 +163,11 @@ export default function ReportScreen() {
             <View style={styles.heading}>
               <Text style={styles.title}>{display.title}</Text>
               <Text style={styles.subtitle}>
-                {t('report.goalQuote', { goal: practice.scene.goal })}
+                {report.report_type === 'practice_note' ? '' : t('report.goalQuote', { goal: practice.scene.goal })}
               </Text>
             </View>
 
+        {report.report_type === 'practice_note' ? <PracticeNoteBody note={report} /> : <>
             <Section label={t('report.secFound')}>
               <Markdown source={display.found} />
             </Section>
@@ -196,6 +198,8 @@ export default function ReportScreen() {
             <Section label={t('report.secNext')}>
               <Text style={styles.nextTake}>{display.next}</Text>
             </Section>
+
+        </>}
 
             {/* 긴 문구가 반쪽 버튼에서 줄바꿈으로 깨져서 세로로 쌓는다(SOMA-444). */}
             <View style={styles.buttonRow}>

@@ -95,7 +95,7 @@ export type CoachTurnResponse = {
   session_id: string;
   message: string | null;
   status: 'continue' | 'complete';
-  handoff: { id: string; branch_kind: 'analysis' | 'expression' } | null;
+  handoff: { id: string; branch_kind: 'analysis' | 'expression' | 'coaching' } | null;
   /** 대화가 정리돼 카드가 만들어졌으면 함께 온다. status==='complete' 여도 없을 수 있다. */
   report: PracticeReport | null;
   turns: CoachTurn[];
@@ -172,6 +172,41 @@ export type ExpressionReport = {
   source_handoff_ids: { analysis: string | null; expression: string };
 };
 
+export type PublicPracticeNote = {
+  schema_version: 'acttub.public_practice_note.v1';
+  report_type: 'practice_note';
+  note_id: string;
+  revision: number;
+  title: string;
+  summary: string | null;
+  mode: 'action' | 'observation' | 'record_only';
+  end_reason: 'actor_finished' | 'turn_budget' | 'interrupted' | 'system_failure';
+  lifecycle: 'draft' | 'saved';
+  record_ref: { record_id: string; version: number; duration_ms: number } | null;
+  direction: { text: string; origin: 'actor_stated' | 'actor_selected' | 'coach_proposed' } | null;
+  focus: { label: string; start_ms: number | null; end_ms: number | null; quote: string | null } | null;
+  reading: string | null;
+  practice: { proposal_id: string; selection: 'proposed' | 'selected'; instruction: string; comparison: string; keep: string | null } | null;
+  attempts: { attempt_id: string; proposal_id: string; instruction: string;
+    execution: 'unknown' | 'not_tried' | 'reported_tried';
+    result: { direction: 'closer' | 'further' | 'mixed' | 'same' | 'unclear'; statement: string; basis: 'actor_report' } | null }[];
+  open_points: string[];
+  evidence: { id: string; kind: 'video_utterance' | 'video_observation' | 'record_limitation'; text: string; start_ms: number | null; end_ms: number | null }[];
+};
+
+export type VideoRecordSummary = {
+  schema_version: 'acttub.video_record_summary.v1';
+  record_id: string;
+  record_version: number;
+  duration_ms: number;
+  status: 'ready' | 'partial';
+  processed_ranges: { start_ms: number; end_ms: number }[];
+  missing_ranges: { start_ms: number; end_ms: number }[];
+  observed_scene: string[];
+  spoken_content: string[];
+  limitations: { start_ms: number; end_ms: number; description: string }[];
+};
+
 export type BlockedReport = {
   report_type: 'blocked';
   reason:
@@ -179,8 +214,8 @@ export type BlockedReport = {
     | 'confirmed_expression_handoff_required';
 };
 
-export type PracticeReport = AnalysisReport | ExpressionReport | BlockedReport;
-export type SavedPracticeReport = AnalysisReport | ExpressionReport;
+export type PracticeReport = AnalysisReport | ExpressionReport | BlockedReport | PublicPracticeNote;
+export type SavedPracticeReport = AnalysisReport | ExpressionReport | PublicPracticeNote;
 
 export type CoachConfirmResponse = {
   session_id: string;
@@ -191,7 +226,7 @@ export type CoachConfirmResponse = {
 
 export type ReportRecord = {
   practice_session_id: string;
-  report_type: 'analysis' | 'expression';
+  report_type: 'analysis' | 'expression' | 'practice_note';
   title: string;
   created_at: string;
 };
@@ -293,7 +328,7 @@ export type PracticeSessionDetail = {
   created_at: string;
   updated_at: string;
   playback_url?: string;
-  summary?: SceneSummary | null;
+  summary?: SceneSummary | VideoRecordSummary | null;
   error_code?:
     | 'gemini_timeout'
     | 'gemini_parse_error'
@@ -732,6 +767,23 @@ export const api = {
     return request<void>('/v2/community/blocks', jsonInit({ user_id: userId }), {
       timeoutMs: 15_000,
     });
+  },
+
+  // 내 글·댓글 삭제 (SOMA-499, App Store 1.2) — 서버가 작성자만 지우게 막는다(남의 것은 403).
+  deleteCommunityPost(postId: string): Promise<void> {
+    return request<void>(
+      `/v2/community/posts/${encodeURIComponent(postId)}`,
+      { method: 'DELETE' },
+      { timeoutMs: 15_000 },
+    );
+  },
+
+  deleteCommunityComment(commentId: string): Promise<void> {
+    return request<void>(
+      `/v2/community/comments/${encodeURIComponent(commentId)}`,
+      { method: 'DELETE' },
+      { timeoutMs: 15_000 },
+    );
   },
 
   createCommunityComment(

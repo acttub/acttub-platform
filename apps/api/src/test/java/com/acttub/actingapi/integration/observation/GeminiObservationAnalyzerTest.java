@@ -14,10 +14,15 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.acttub.actingapi.platform.observability.FailureKind;
+import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.genai.types.Content;
+import com.google.genai.types.Candidate;
+import com.google.genai.types.GenerateContentResponse;
+import com.google.genai.types.GenerateContentResponseUsageMetadata;
+import com.acttub.actingapi.platform.observability.LlmTokens;
 import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.MediaResolution;
 import com.google.genai.types.ThinkingLevel;
@@ -27,6 +32,8 @@ import org.junit.jupiter.api.Test;
 class GeminiObservationAnalyzerTest {
 
     private static final String MODEL = "gemini-2.5-flash";
+    private static final java.util.UUID PRACTICE =
+            java.util.UUID.fromString("11112222-3333-4444-5555-666677778888");
     private static final ActorMaterial ACTOR = new ActorMaterial(
             "연습실",
             "햄릿",
@@ -41,11 +48,11 @@ class GeminiObservationAnalyzerTest {
     void generationRequestMatchesActingSummaryGolden() throws Exception {
         StubGateway gateway = new StubGateway();
         gateway.responses.add("{\"observations\":[],\"uncertainties\":[]}");
-        ObservationAnalyzer analyzer = new GeminiObservationAnalyzer(
-                gateway, mapper, MODEL, new RecordingFailureReporter());
+        ObservationAnalyzer analyzer = new GeminiObservationAnalyzer(gateway, mapper, MODEL, new RecordingFailureReporter(),
+                new RecordingLlmTelemetry());
 
         ObservationPack result = analyzer.analyze(
-                Path.of("/tmp/take.video"), "video/quicktime", ACTOR);
+                Path.of("/tmp/take.video"), "video/quicktime", ACTOR, PRACTICE);
 
         assertThat(result.observations()).isEmpty();
         assertThat(result.uncertainties()).isEmpty();
@@ -65,7 +72,7 @@ class GeminiObservationAnalyzerTest {
                 .contains(new ThinkingLevel(ThinkingLevel.Known.LOW));
         assertThat(config.responseMimeType()).contains("application/json");
         assertThat(sha256(config.systemInstruction().orElseThrow().text()))
-                .isEqualTo("b73330b8c3d7e3f37e1786d893837771e84de9b1adf54558bd18dd1d25ac2c95");
+                .isEqualTo("057da1b5b239b473bd317cdbe16f3163dcc025cb81e17c436215d410590012fd");
         assertThat(mapper.readTree(config.responseSchema().orElseThrow().toJson()))
                 .isEqualTo(observationSchema());
 
@@ -77,35 +84,39 @@ class GeminiObservationAnalyzerTest {
                 .contains("video/quicktime");
         assertThat(parts.get(1).text()).contains(ObservationPrompt.build(ACTOR));
         assertThat(sha256(parts.get(1).text().orElseThrow()))
-                .isEqualTo("57dfba033b9a3caa1b7bb6db09ec040015eee63c226028025d007472cfd45006");
+                .isEqualTo("50da18bef08d5e9eddf8f362e0117266acaa85e5204c910061b0e3a2e5783b04");
         assertThat(gateway.deletedNames).containsExactly("files/take");
     }
 
     @Test
-    void observationFilteringKeepsBoundaryValuesAndOnlyTheFirstThreeValidItems() {
+    void observationFilteringKeepsEveryValidItemIncludingBoundaryValues() {
         StubGateway gateway = new StubGateway();
         gateway.responses.add("""
                 {
+                  "timeline": "0:01에 시선이 흔들리며 말이 이어진다",
+                  "speech": {"transcript":"가지 마", "avg_syllables_per_sec":2.0,"pauses":[],"chunks":[]},
                   "observations": [
-                    {"start_ms":0,"end_ms":1,"label":"start-zero","confidence":0.1},
-                    {"start_ms":1,"end_ms":12000,"label":"end-duration","confidence":0.2},
-                    {"start_ms":5,"end_ms":5,"label":"equal","confidence":0.5},
-                    {"start_ms":-1,"end_ms":2,"label":"negative","confidence":0.6},
-                    {"start_ms":11999,"end_ms":12001,"label":"too-late","confidence":0.7},
-                    {"start_ms":2,"end_ms":3,"label":"third","confidence":0.3},
-                    {"start_ms":3,"end_ms":4,"label":"fourth","confidence":0.4}
+                    {"start_ms":0,"end_ms":1,"what":"start-zero","confidence":0.1},
+                    {"start_ms":1,"end_ms":12000,"what":"end-duration","confidence":0.2},
+                    {"start_ms":5,"end_ms":5,"what":"equal","confidence":0.5},
+                    {"start_ms":-1,"end_ms":2,"what":"negative","confidence":0.6},
+                    {"start_ms":11999,"end_ms":12001,"what":"too-late","confidence":0.7},
+                    {"start_ms":2,"end_ms":3,"what":"third","confidence":0.3},
+                    {"start_ms":3,"end_ms":4,"what":"fourth","confidence":0.4}
                   ],
                   "uncertainties": ["얼굴이 화면 밖"]
                 }
                 """);
 
         ObservationPack result = analyzer(gateway).analyze(
-                Path.of("/tmp/take.mp4"), "video/mp4", ACTOR);
+                Path.of("/tmp/take.mp4"), "video/mp4", ACTOR, PRACTICE);
 
         assertThat(result.observations())
-                .extracting(ObservationItem::label)
-                .containsExactly("start-zero", "end-duration", "third");
+                .extracting(ObservationItem::what)
+                .containsExactly("start-zero", "end-duration", "third", "fourth");
         assertThat(result.uncertainties()).containsExactly("얼굴이 화면 밖");
+        assertThat(result.timeline()).isEqualTo("0:01에 시선이 흔들리며 말이 이어진다");
+        assertThat(result.speech().transcript()).isEqualTo("가지 마");
     }
 
     @Test
@@ -113,14 +124,14 @@ class GeminiObservationAnalyzerTest {
         StubGateway gateway = new StubGateway();
         gateway.responses.add("not-json");
         gateway.responses.add("""
-                {"observations":[{"start_ms":0,"end_ms":1,"label":"두 번째","confidence":1.0}],
+                {"observations":[{"start_ms":0,"end_ms":1,"what":"두 번째","confidence":1.0}],
                  "uncertainties":[]}
                 """);
 
         ObservationPack result = analyzer(gateway).analyze(
-                Path.of("/tmp/take.mp4"), "video/mp4", ACTOR);
+                Path.of("/tmp/take.mp4"), "video/mp4", ACTOR, PRACTICE);
 
-        assertThat(result.observations()).extracting(ObservationItem::label)
+        assertThat(result.observations()).extracting(ObservationItem::what)
                 .containsExactly("두 번째");
         assertThat(gateway.generateCalls).isEqualTo(2);
     }
@@ -133,7 +144,7 @@ class GeminiObservationAnalyzerTest {
         gateway.responses.add("{\"observations\":[],\"uncertainties\":[]}");
 
         assertThatThrownBy(() -> analyzer(gateway).analyze(
-                Path.of("/tmp/take.mp4"), "video/mp4", ACTOR))
+                Path.of("/tmp/take.mp4"), "video/mp4", ACTOR, PRACTICE))
                 .isInstanceOf(SummaryParseError.class)
                 .hasMessageStartingWith("failed to parse after retry: ");
 
@@ -149,10 +160,10 @@ class GeminiObservationAnalyzerTest {
         RecordingFailureReporter reporter = new RecordingFailureReporter();
 
         ObservationPack result = new GeminiObservationAnalyzer(
-                gateway, mapper, MODEL, reporter).analyze(
-                Path.of("/tmp/take.mp4"), "video/mp4", ACTOR);
+                gateway, mapper, MODEL, reporter, new RecordingLlmTelemetry()).analyze(
+                Path.of("/tmp/take.mp4"), "video/mp4", ACTOR, PRACTICE);
 
-        assertThat(result).isEqualTo(new ObservationPack(List.of(), List.of()));
+        assertThat(result).isEqualTo(new ObservationPack("", List.of(), List.of()));
         assertThat(gateway.deletedNames).containsExactly("files/take");
         assertThat(reporter.reports()).singleElement().satisfies(report -> {
             assertThat(report.failure()).isSameAs(gateway.deleteFailure);
@@ -195,9 +206,10 @@ class GeminiObservationAnalyzerTest {
                 Duration.ofSeconds(2),
                 () -> 0L,
                 duration -> { },
-                new RecordingFailureReporter());
+                new RecordingFailureReporter(), new RecordingLlmTelemetry());
 
-        analyzer.analyze(Path.of("/tmp/take.mp4"), "video/mp4", ACTOR);
+        analyzer.analyze(
+                Path.of("/tmp/take.mp4"), "video/mp4", ACTOR, PRACTICE);
 
         assertThat(gateway.getCalls).isEqualTo(1);
         assertThat(gateway.contents.parts().orElseThrow().getFirst()
@@ -205,9 +217,85 @@ class GeminiObservationAnalyzerTest {
                 .contains("https://files.test/active");
     }
 
+    @Test
+    void retriesKeepEveryRawResponseAndItsTokens() {
+        var userId = java.util.UUID.randomUUID();
+        StubGateway gateway = new StubGateway();
+        gateway.responses.add("not-json");
+        gateway.responses.add("""
+                {"observations":[{"start_ms":0,"end_ms":1,"what":"멈춘다","confidence":1.0}],
+                 "uncertainties":[]}
+                """);
+        gateway.usage = GenerateContentResponseUsageMetadata.builder()
+                .promptTokenCount(100).candidatesTokenCount(20).thoughtsTokenCount(30)
+                .totalTokenCount(150).build();
+        var telemetry = new RecordingLlmTelemetry();
+
+        new GeminiObservationAnalyzer(gateway, mapper, MODEL, new RecordingFailureReporter(), telemetry)
+                .analyze(Path.of("take.mp4"), "video/mp4", ACTOR, PRACTICE, userId);
+
+        assertThat(telemetry.calls()).hasSize(2).allSatisfy(call -> {
+            assertThat(call.practiceSessionId()).isEqualTo(PRACTICE);
+            assertThat(call.userId()).isEqualTo(userId);
+            assertThat(call.model()).isEqualTo(MODEL);
+            assertThat(call.tokens()).isEqualTo(LlmTokens.of(100, 50, 150));
+            assertThat(call.took().isNegative()).isFalse();
+        });
+        assertThat(telemetry.calls().getFirst().output()).isEqualTo("not-json");
+        assertThat(telemetry.calls().getLast().output()).contains("멈춘다");
+        assertThat(telemetry.calls().getFirst().metadata()).containsEntry("attempt", "1");
+        assertThat(telemetry.calls().getLast().metadata()).containsEntry("attempt", "2");
+        assertThat(telemetry.scores()).extracting(score -> score.value()).containsExactly(1.0, 3.0);
+    }
+
+    @Test
+    void missingPracticeSkipsObservationAndScoresWithoutChangingTheResult() {
+        StubGateway gateway = new StubGateway();
+        gateway.responses.add("{\"observations\":[],\"uncertainties\":[]}");
+        var telemetry = new RecordingLlmTelemetry();
+
+        var result = new GeminiObservationAnalyzer(
+                gateway, mapper, MODEL, new RecordingFailureReporter(), telemetry)
+                .analyze(Path.of("take.mp4"), "video/mp4", ACTOR, null);
+
+        assertThat(result.observations()).isEmpty();
+        assertThat(gateway.generateCalls).isEqualTo(1);
+        assertThat(telemetry.calls()).isEmpty();
+        assertThat(telemetry.scores()).isEmpty();
+    }
+
+    @Test
+    void generationFailurePreservesTheCauseWithoutCopyingItsMessageToTelemetry() {
+        StubGateway gateway = new StubGateway();
+        gateway.generateFailure = new IllegalStateException("외부 오류에 섞인 민감값 표식");
+        var telemetry = new RecordingLlmTelemetry();
+
+        assertThatThrownBy(() -> new GeminiObservationAnalyzer(
+                gateway, mapper, MODEL, new RecordingFailureReporter(), telemetry)
+                .analyze(Path.of("take.mp4"), "video/mp4", ACTOR, PRACTICE))
+                .isSameAs(gateway.generateFailure);
+
+        assertThat(telemetry.calls()).singleElement().satisfies(call -> {
+            assertThat(call.errorMessage()).isEqualTo("IllegalStateException");
+            assertThat(call.tokens().isUnknown()).isTrue();
+        });
+        assertThat(gateway.deletedNames).containsExactly("files/take");
+    }
+
+    @Test
+    void absentUsageIsUnknownAndPartialUsageDoesNotInventTokenCounts() {
+        assertThat(GeminiUsage.tokens(GenerateContentResponse.fromJson("{}"))).isEqualTo(LlmTokens.unknown());
+        assertThat(GeminiUsage.tokens(GenerateContentResponse.fromJson(
+                "{\"usageMetadata\":{\"promptTokenCount\":0}}")))
+                .isEqualTo(LlmTokens.of(0, null, null));
+        assertThat(GeminiUsage.tokens(GenerateContentResponse.fromJson(
+                "{\"usageMetadata\":{\"candidatesTokenCount\":20}}")))
+                .isEqualTo(LlmTokens.of(null, 20, null));
+    }
+
     private ObservationAnalyzer analyzer(StubGateway gateway) {
-        return new GeminiObservationAnalyzer(
-                gateway, mapper, MODEL, new RecordingFailureReporter());
+        return new GeminiObservationAnalyzer(gateway, mapper, MODEL, new RecordingFailureReporter(),
+                new RecordingLlmTelemetry());
     }
 
     private JsonNode observationSchema() throws Exception {
@@ -237,6 +325,8 @@ class GeminiObservationAnalyzerTest {
         private int generateCalls;
         private RuntimeException deleteFailure;
         private int getCalls;
+        private RuntimeException generateFailure;
+        private GenerateContentResponseUsageMetadata usage;
 
         @Override
         public GeminiFile upload(Path path, String mimeType) {
@@ -261,7 +351,23 @@ class GeminiObservationAnalyzerTest {
             contents = requestedContents;
             config = requestedConfig;
             generateCalls++;
+            if (generateFailure != null) {
+                throw generateFailure;
+            }
             return responses.removeFirst();
+        }
+
+        @Override
+        public com.google.genai.types.GenerateContentResponse generateResponse(
+                String model, Content contents, GenerateContentConfig config) {
+            var response = GenerateContentResponse.builder()
+                    .candidates(List.of(Candidate.builder()
+                            .content(Content.fromParts(Part.fromText(generate(model, contents, config))))
+                            .build()));
+            if (usage != null) {
+                response.usageMetadata(usage);
+            }
+            return response.build();
         }
 
         @Override

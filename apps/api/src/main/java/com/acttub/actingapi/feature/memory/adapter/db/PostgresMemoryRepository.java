@@ -23,6 +23,7 @@ import com.acttub.actingapi.feature.memory.app.MemoryUpdateMaterial;
 import com.acttub.actingapi.feature.memory.domain.AgentMemoryWrites;
 import com.acttub.actingapi.feature.memory.schema.ActorMemoryEntryEntity;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
+import com.acttub.actingapi.integration.observation.StoredObservationPack;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.observability.FailureReporter;
@@ -210,7 +211,11 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
     private static final int EXCERPT_TURN_CHARS = 120;
 
     /**
-     * 같은 연습의 지난 대화와, 지난 연습에서 아직 안 해본 것.
+     * 이어지는 연습의 지난 대화와, 거기서 아직 안 해본 것.
+     *
+     * <p><b>어디까지가 "지난" 인가</b> — 같은 연습을 다시 연 경우와, 끝난 연습에서 이어서
+     * 시작해 한 묶음이 된 경우 둘뿐이다. 그 밖의 연습은 장면도 인물도 다르므로 아무리
+     * 최근이어도 남이다(SOMA-525).
      *
      * <p>지난 대화는 요약 칸이 아니라 <b>저장된 턴에서 발췌</b>한다. 요약 칸
      * ({@code conversation_summary})은 채우는 코드가 없어 늘 빈 값이었고, 그래서
@@ -263,36 +268,29 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
                     .map(row -> row.get("id", UUID.class))
                     .toList();
         }
-        if (closed.isEmpty()) {
-            // 새 영상으로 시작한 연습이다. 배우 입장에서 "이어하기" 는 같은 영상을
-            // 다시 여는 것보다 새 영상을 올리며 지난 대화가 이어지는 쪽이므로,
-            // 이 배우의 가장 최근 닫힌 대화를 대신 싣는다. 숨긴 연습은 뺀다 —
-            // 배우가 지운 연습의 대화가 되살아나면 안 된다.
-            closed = NativeTuples.list(entityManager.createNativeQuery("""
-                    SELECT coach.id
-                    FROM coach_sessions coach
-                    JOIN practice_sessions practice ON practice.id=coach.practice_session_id
-                    WHERE practice.user_id=:userId
-                      AND practice.hidden_at IS NULL
-                      AND coach.status='closed'
-                    ORDER BY coach.created_at DESC
-                    LIMIT 1
-                    """, Tuple.class)
-                    .setParameter("userId", userId)).stream()
-                    .map(row -> row.get("id", UUID.class))
-                    .toList();
-        }
+        // 여기서 더 찾지 않는다. 두 갈래 모두 비었다면 아무 연결 없이 새로 시작한 연습이고,
+        // 그 대화에 지난 이야기를 실을 근거가 없다 — SOMA-359 는 이 자리에서 배우의 가장
+        // 최근 닫힌 대화를 대신 실었는데, 장면도 인물도 다른 연습의 이야기가 섞여 코치가
+        // 첫 응답부터 상관없는 것을 물었다(SOMA-525).
         String excerpt = closed.isEmpty() ? null : conversationExcerpt(closed.getFirst());
-        // 가장 최근에 나온 카드. 이번 연습 것도 포함한다 — 같은 연습을 다시 열었다면
+        // 가장 최근에 나온 카드. 지난 대화와 같은 울타리 안에서 찾는다 — 이번 연습과 그
+        // 연습이 속한 이어하기 묶음. 이번 연습 것도 포함한다: 같은 연습을 다시 열었다면
         // 그때 만든 카드가 바로 "지난번에 해보기로 한 것" 이다.
         List<String> report = NativeTuples.list(entityManager.createNativeQuery("""
                 SELECT card.report_json::text AS report_json
-                FROM practice_reports card
-                JOIN practice_sessions practice ON practice.id=card.practice_session_id
-                WHERE practice.user_id=:userId AND practice.hidden_at IS NULL
+                FROM practice_sessions current
+                JOIN practice_sessions member
+                    ON member.id=current.id
+                    OR member.id=current.continued_from
+                    OR member.continued_from=current.continued_from
+                JOIN practice_reports card ON card.practice_session_id=member.id
+                WHERE current.id=:practiceSessionId
+                  AND member.user_id=:userId
+                  AND member.hidden_at IS NULL
                 ORDER BY card.created_at DESC
                 LIMIT 1
                 """, Tuple.class)
+                .setParameter("practiceSessionId", practiceSessionId)
                 .setParameter("userId", userId)).stream()
                 .map(row -> row.get("report_json", String.class))
                 .toList();
@@ -364,7 +362,8 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
         if (card == null) {
             return null;
         }
-        String title = card.path("title").asText("");
+        boolean practiceNote = "acttub.practice_note.v1".equals(card.path("schema_version").asText());
+        String title = practiceNote ? card.path("copy").path("title").asText("") : card.path("title").asText("");
         if (title.isBlank()) {
             return null;
         }
@@ -376,6 +375,11 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
                     .append(seoul.getDayOfMonth()).append(')');
         }
         line.append(": ").append(title);
+        if (practiceNote && card.path("practice").isObject()) {
+            line.append(" — ").append("selected".equals(card.path("practice").path("selection").asText()) ? "선택한 연습: " : "제안: ")
+                    .append(card.path("practice").path("instruction").path("text").asText());
+            return line.toString();
+        }
         JsonNode nextTake = card.path("next_take");
         if (nextTake.isObject() && nextTake.path("tested").isBoolean()
                 && !nextTake.path("tested").asBoolean()
@@ -428,6 +432,16 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
                 reportJson, "PostgresMemoryRepository.pendingTakesParse", operationId);
         if (root == null) {
             return List.of();
+        }
+        if ("acttub.practice_note.v1".equals(root.path("schema_version").asText())) {
+            JsonNode practice = root.path("practice");
+            if (!"selected".equals(practice.path("selection").asText())) return List.of();
+            JsonNode latest = null;
+            for (JsonNode attempt : root.path("attempts")) {
+                if (attempt.path("proposal_id").equals(practice.path("proposal_id"))) latest = attempt;
+            }
+            return latest != null && "not_tried".equals(latest.path("execution").asText())
+                    ? List.of(practice.path("instruction").path("text").asText()) : List.of();
         }
         List<String> takes = new ArrayList<>();
         JsonNode nextTake = root.get("next_take");
@@ -542,9 +556,12 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
     @Override
     public MemoryUpdateMaterial material(UUID practiceSessionId) {
         List<MemoryUpdateMaterial> sessions = NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT user_id,goal,blockage_kind,sub_branch,blockage_detail
-                FROM practice_sessions
-                WHERE id=:practiceSessionId AND hidden_at IS NULL
+                SELECT ps.user_id,ps.goal,ps.blockage_kind,ps.sub_branch,ps.blockage_detail,
+                    s.raw::text AS raw_json, s.observations_json::text AS observations_json,
+                    s.uncertainties_json::text AS uncertainties_json
+                FROM practice_sessions ps
+                LEFT JOIN summaries s ON s.session_id=ps.id
+                WHERE ps.id=:practiceSessionId AND ps.hidden_at IS NULL
                 """, Tuple.class)
                 .setParameter("practiceSessionId", practiceSessionId)).stream()
                 .map(row -> new MemoryUpdateMaterial(
@@ -555,7 +572,8 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
                         row.get("sub_branch", String.class),
                         row.get("blockage_detail", String.class),
                         List.of(),
-                        List.of()))
+                        List.of(),
+                        quotations(row)))
                 .toList();
         if (sessions.isEmpty()) {
             return null;
@@ -582,7 +600,30 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
         MemoryUpdateMaterial session = sessions.getFirst();
         return new MemoryUpdateMaterial(
                 session.userId(), practiceSessionId, session.goal(), session.blockageKind(),
-                session.subBranch(), session.blockageDetail(), transcripts, actorMessages);
+                session.subBranch(), session.blockageDetail(), transcripts, actorMessages, session.quotations());
+    }
+
+    private List<String> quotations(Tuple row) {
+        try {
+            JsonNode pack = StoredObservationPack.read(
+                    observationJson(row.get("raw_json", String.class)),
+                    observationJson(row.get("observations_json", String.class)),
+                    observationJson(row.get("uncertainties_json", String.class)));
+            List<String> quotes = new ArrayList<>();
+            for (JsonNode observation : pack.path("observations")) {
+                JsonNode quote = observation.path("quote");
+                if (quote.isTextual() && !quote.textValue().isBlank()) {
+                    quotes.add(quote.textValue());
+                }
+            }
+            return List.copyOf(quotes);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("stored observation JSON could not be parsed", exception);
+        }
+    }
+
+    private JsonNode observationJson(String value) throws JsonProcessingException {
+        return value == null ? null : mapper.readTree(value);
     }
 
     /** 셋 다 비어 있을 수 있다 — 첫 연습이 그렇다. */

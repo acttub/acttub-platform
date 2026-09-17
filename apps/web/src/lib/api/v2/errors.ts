@@ -74,5 +74,8 @@ export function isRateLimited(error: unknown): error is ApiError {
  * 그대로 그렸다.
  */
 export function errorMessage(cause: unknown, fallback: string): string {
+  if (cause instanceof ApiError && cause.code === "client_contract_required") {
+    return "새로고침하면 이 연습 노트를 열 수 있어요.";
+  }
   return cause instanceof Error && cause.message ? cause.message : fallback;
 }

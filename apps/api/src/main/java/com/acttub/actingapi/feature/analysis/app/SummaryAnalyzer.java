@@ -3,58 +3,78 @@ package com.acttub.actingapi.feature.analysis.app;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import com.acttub.actingapi.feature.analysis.domain.TranscriptSegments;
 import com.acttub.actingapi.integration.observation.ActorMaterial;
 import com.acttub.actingapi.integration.observation.ObservationAnalyzer;
 import com.acttub.actingapi.integration.observation.ObservationPack;
+import com.acttub.actingapi.integration.observation.SpeechAnalysis;
+import com.acttub.actingapi.integration.observation.SpeechAnalyzer;
 import com.acttub.actingapi.platform.observability.FailureContext;
+import com.acttub.actingapi.platform.ledger.ExternalOperationExecution;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 
-/** duration → 압축 → 관찰 → 받아쓰기 순서를 소유하는 분석 진입점. */
+/**
+ * AnalysisWorker의 분석 진입점. 영상 관찰과 원본 소리 계측을 병행해 한 팩으로 합친다.
+ */
 public final class SummaryAnalyzer implements AnalysisProcessor {
-    public static final long TRANSCRIPTION_MAX_DURATION_MS = 120_000L;
-    public static final String TRANSCRIPTION_SYSTEM_PROMPT = """
-            너는 연기 영상의 음성을 한국어로 받아쓴다.
-
-            - 실제로 들리는 발화만 적고, 해석·요약·화자 이름·행동 묘사를 넣지 않는다.
-            - 앞뒤 대사의 연결이 보이도록 모든 발화를 정확한 순서로 적는다.
-            - 대사 하나마다 줄을 바꾼다. 시각, 화자 표지, 글머리표는 붙이지 않는다.
-            - 알아듣지 못한 부분을 문맥으로 지어내지 않는다. 발화가 없거나 전혀 알아들을 수 없으면 빈 문자열을 낸다.""";
-
     private static final Logger LOGGER = Logger.getLogger(SummaryAnalyzer.class.getName());
-
     private final DurationResolver durationProbe;
     private final VideoCompressor compressor;
     private final ObservationAnalyzer observationAnalyzer;
-    private final AudioExtractor audioExtractor;
-    private final AudioTranscriber audioTranscriber;
+    private final SpeechAnalyzer speechAnalyzer;
     private final FailureReporter failureReporter;
+    private final com.acttub.actingapi.integration.observation.VideoRecordAnalyzer videoRecords;
 
     public SummaryAnalyzer(
             DurationResolver durationProbe,
             VideoCompressor compressor,
             ObservationAnalyzer observationAnalyzer,
-            AudioExtractor audioExtractor,
-            AudioTranscriber audioTranscriber,
+            SpeechAnalyzer speechAnalyzer,
             FailureReporter failureReporter) {
+        this(durationProbe, compressor, observationAnalyzer, speechAnalyzer, failureReporter, null);
+    }
+
+    public SummaryAnalyzer(DurationResolver durationProbe, VideoCompressor compressor,
+            ObservationAnalyzer observationAnalyzer, SpeechAnalyzer speechAnalyzer,
+            FailureReporter failureReporter,
+            com.acttub.actingapi.integration.observation.VideoRecordAnalyzer videoRecords) {
         this.durationProbe = durationProbe;
         this.compressor = compressor;
         this.observationAnalyzer = observationAnalyzer;
-        this.audioExtractor = audioExtractor;
-        this.audioTranscriber = audioTranscriber;
+        this.speechAnalyzer = speechAnalyzer;
         this.failureReporter = failureReporter;
+        this.videoRecords = videoRecords;
     }
 
     @Override
     public AnalysisResult analyze(Path videoPath, AnalysisContext context) {
         int durationMs = durationProbe.durationMs(videoPath, context.durationMs());
+        if ("three_layers_v1".equals(context.experienceVersion())) {
+            if (videoRecords == null) {
+                throw new IllegalStateException("full video record analyzer is not configured");
+            }
+            var actor = new ActorMaterial(context.situation(), context.characterContext(), context.goal(),
+                    context.blockageKind(), context.blockageDetail() == null ? "" : context.blockageDetail(), durationMs);
+            ExternalOperationExecution.externalCall("speech");
+            SpeechAnalysis speech = speech(videoPath, context);
+            ExternalOperationExecution.externalCall("observation");
+            var record = videoRecords.analyze(videoPath, actor, context.sessionId(), context.userId(), speech);
+            return new AnalysisResult(null, true, durationMs, record);
+        }
         Path sendPath = videoPath;
-        try {
+        // close가 음성 작업의 종료까지 기다려 워커가 원본을 먼저 지우지 않게 한다.
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            Runnable observeSpeech = ExternalOperationExecution.observeCall("speech");
+            var speech = CompletableFuture.supplyAsync(() -> {
+                observeSpeech.run();
+                return speech(videoPath, context);
+            }, executor);
             sendPath = compressor.compress(videoPath);
+            ExternalOperationExecution.externalCall("observation");
             ObservationPack observations = observationAnalyzer.analyze(
                     sendPath,
                     context.mimeType(),
@@ -64,9 +84,12 @@ public final class SummaryAnalyzer implements AnalysisProcessor {
                             context.goal(),
                             context.blockageKind(),
                             context.blockageDetail() == null ? "" : context.blockageDetail(),
-                            durationMs));
-            List<String> transcripts = transcribe(videoPath);
-            return new AnalysisResult(observations, !sendPath.equals(videoPath), transcripts);
+                            durationMs),
+                    context.sessionId(), context.userId());
+            ObservationPack pack = new ObservationPack(
+                    observations.sceneSummary(), observations.timeline(), speech.join(),
+                    observations.observations(), observations.uncertainties());
+            return new AnalysisResult(pack, !sendPath.equals(videoPath), durationMs);
         } finally {
             if (!sendPath.equals(videoPath)) {
                 try {
@@ -78,27 +101,14 @@ public final class SummaryAnalyzer implements AnalysisProcessor {
         }
     }
 
-    /**
-     * 갈래와 무관하게 받아쓴다. 세 갈래(분석·표현·그 외) 모두의 코치가 대사를 인용해 말해야
-     * 하므로 갈래로 가르던 조건을 없앴다. 실패는 삼키고 빈 목록을 낸다 — 받아쓰기가 없어도
-     * 분석은 성립한다.
-     */
-    private List<String> transcribe(Path videoPath) {
-        Path audioPath = null;
+    private SpeechAnalysis speech(Path videoPath, AnalysisContext context) {
         try {
-            audioPath = audioExtractor.extract(videoPath, TRANSCRIPTION_MAX_DURATION_MS);
-            return TranscriptSegments.fromText(audioTranscriber.transcribe(
-                    audioPath, TRANSCRIPTION_SYSTEM_PROMPT));
+            return speechAnalyzer.analyze(videoPath, context.sessionId(), context.userId());
         } catch (Exception exception) {
-            LOGGER.log(Level.WARNING, "transcription failed; continuing analysis", exception);
-            failureReporter.report(
-                    exception,
-                    new FailureContext("SummaryAnalyzer.transcription"));
-            return List.of();
-        } finally {
-            if (audioPath != null) {
-                audioExtractor.discard(audioPath);
-            }
+            LOGGER.log(Level.WARNING, "speech analysis failed: " + context.operationId(), exception);
+            failureReporter.report(exception,
+                    new FailureContext("SummaryAnalyzer.speech", context.operationId()));
+            return null;
         }
     }
 }

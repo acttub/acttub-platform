@@ -29,6 +29,49 @@ class AnalysisWorkerTest {
     private static final Instant NOW = Instant.parse("2026-08-12T00:00:00Z");
 
     @Test
+    void transcriptionFailureCompletesWithObservationAndReportsOriginalCause() {
+        FakeStore store = new FakeStore(context());
+        var failure = new SummaryParseError("transcription has no words");
+        RecordingFailureReporter reporter = new RecordingFailureReporter();
+        var observations = new ObservationPack("장면", "0:01에 말한다", null, List.of(), List.of());
+        var analyzer = new SummaryAnalyzer(
+                (path, declared) -> 1000, path -> path,
+                (path, mime, actor, practiceId, actorId) -> observations,
+                (path, practiceId, actorId) -> { throw failure; }, reporter);
+
+        assertThat(worker(store, analyzer, reporter).runOnce(NOW)).isTrue();
+
+        assertThat(store.transitions).containsExactly("claim", "complete");
+        assertThat(store.result.observationPack()).isEqualTo(observations);
+        assertThat(store.result.observationPack().speech()).isNull();
+        assertThat(reporter.reports()).singleElement().satisfies(report -> {
+            assertThat(report.failure()).isSameAs(failure);
+            assertThat(report.kind()).isEqualTo(FailureKind.EXTERNAL);
+            assertThat(report.context()).isEqualTo(
+                    "SummaryAnalyzer.speech operation_id=" + store.operationId);
+        });
+    }
+
+    @Test
+    void localAudioExtractionFailureIsUnexpectedAndStillCompletes() {
+        FakeStore store = new FakeStore(context());
+        var failure = new IllegalStateException("audio extraction failed", new java.io.IOException("ffmpeg absent"));
+        RecordingFailureReporter reporter = new RecordingFailureReporter();
+        var analyzer = new SummaryAnalyzer(
+                (path, declared) -> 1000, path -> path,
+                (path, mime, actor, practiceId, actorId) -> new ObservationPack("", List.of(), List.of()),
+                (path, practiceId, actorId) -> { throw failure; }, reporter);
+
+        worker(store, analyzer, reporter).runOnce(NOW);
+
+        assertThat(store.transitions).containsExactly("claim", "complete");
+        assertThat(reporter.reports()).singleElement().satisfies(report -> {
+            assertThat(report.failure()).isSameAs(failure);
+            assertThat(report.kind()).isEqualTo(FailureKind.UNEXPECTED);
+        });
+    }
+
+    @Test
     void externalFailuresFailOrReleaseAndAreReported() {
         assertReportedTransition(
                 new FileActiveTimeout("late"), "fail:gemini_timeout", FailureKind.EXTERNAL);
@@ -66,7 +109,7 @@ class AnalysisWorkerTest {
         AnalysisWorker worker = worker(
                 store,
                 (path, context) -> new AnalysisResult(
-                        new ObservationPack(List.of(), List.of()), false, List.of()),
+                        new ObservationPack("", List.of(), List.of()), false, 1000),
                 reporter);
 
         assertThat(worker.runOnce(NOW)).isTrue();
@@ -119,7 +162,7 @@ class AnalysisWorkerTest {
                 store,
                 new FakeStorage(),
                 (path, context) -> new AnalysisResult(
-                        new ObservationPack(List.of(), List.of()), false, List.of()),
+                        new ObservationPack("", List.of(), List.of()), false, 1000),
                 Clock.fixed(NOW, ZoneOffset.UTC),
                 Duration.ofSeconds(1800),
                 "gemini-2.5-flash",
@@ -170,7 +213,7 @@ class AnalysisWorkerTest {
 
         AnalysisContext nonVideo = new AnalysisContext(
                 UUID.randomUUID(), UUID.randomUUID(), "object.bin", "application/octet-stream",
-                "etag", 1, "s", "c", "g", "그 외", null);
+                "etag", 1, "s", "c", "g", "그 외", null, UUID.randomUUID());
         FakeStore invalid = new FakeStore(nonVideo);
         RecordingFailureReporter invalidReporter = new RecordingFailureReporter();
         assertThat(worker(invalid, (path, context) -> null, invalidReporter).runOnce(NOW)).isTrue();
@@ -241,14 +284,20 @@ class AnalysisWorkerTest {
         UUID operation = UUID.randomUUID();
         return new AnalysisContext(
                 operation, UUID.randomUUID(), "users/u/uploads/take.mp4", "video/mp4",
-                "etag", 1, "s", "c", "g", "분석", null);
+                "etag", 1, "s", "c", "g", "분석", null, UUID.randomUUID());
     }
 
     private static final class FakeStore implements AnalysisStore {
+        @Override
+        public com.acttub.actingapi.platform.ledger.ExternalOperationExecution execution(UUID operation, UUID token) {
+            return com.acttub.actingapi.platform.ledger.ExternalOperationExecution.unobserved();
+        }
+
         private UUID operationId;
         private final AnalysisContext context;
         private final List<String> transitions = new ArrayList<>();
         private RuntimeException completeFailure;
+        private AnalysisResult result;
         private RuntimeException failFailure;
         private RuntimeException releaseFailure;
         private List<String> expiredUploads = List.of();
@@ -269,19 +318,20 @@ class AnalysisWorkerTest {
         @Override
         public UUID complete(UUID operation, UUID token, AnalysisResult result, String model, Instant now) {
             transitions.add("complete");
+            this.result = result;
             if (completeFailure != null) throw completeFailure;
             return UUID.randomUUID();
         }
 
         @Override
-        public boolean fail(UUID operation, UUID token, String code, Instant now) {
+        public boolean fail(UUID operation, UUID token, String code, String classification, Instant now) {
             transitions.add("fail:" + code);
             if (failFailure != null) throw failFailure;
             return true;
         }
 
         @Override
-        public void release(UUID operation, UUID token, Instant now) {
+        public void release(UUID operation, UUID token, String classification, Instant now) {
             transitions.add("release");
             if (releaseFailure != null) throw releaseFailure;
         }

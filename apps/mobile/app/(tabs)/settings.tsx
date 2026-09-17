@@ -8,6 +8,7 @@ import {
   Text,
   TextInput,
   View,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -282,6 +283,28 @@ export default function SettingsScreen() {
             onPress={() => router.push('/memory')}
             accessibilityRole="button">
             <Text style={styles.memoryText}>{t('settings.memoryLink')}</Text>
+            <Text style={styles.memoryChevron}>›</Text>
+          </Pressable>
+
+          {/* 문의·신고 (SOMA-499, App Store 1.2 — 앱 안에서 부적절 활동을 신고할 창구) */}
+          <Text style={styles.sectionTitle}>{t('settings.contactSection')}</Text>
+          <Text style={styles.sectionHint}>{t('settings.contactHint')}</Text>
+          <Pressable
+            style={styles.memoryRow}
+            accessibilityRole="button"
+            onPress={async () => {
+              const url =
+                'mailto:acttub0527@gmail.com?subject=' +
+                encodeURIComponent('[Acttub] 문의·신고');
+              try {
+                const okToOpen = await Linking.canOpenURL(url);
+                if (okToOpen) await Linking.openURL(url);
+                else throw new Error('cannot open');
+              } catch {
+                void alert({ title: t('settings.contactMailFail'), message: 'acttub0527@gmail.com' });
+              }
+            }}>
+            <Text style={styles.memoryText}>{t('settings.contactAction')}</Text>
             <Text style={styles.memoryChevron}>›</Text>
           </Pressable>
 

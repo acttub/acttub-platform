@@ -122,6 +122,7 @@ function errorDetail(body: unknown): unknown {
 }
 
 export function friendlyError(status: number, body: unknown): string {
+  if (errorDetail(body) === 'client_contract_required') return '앱을 업데이트하면 이 연습 노트를 열 수 있어요.';
   switch (status) {
     case 401:
       return translate('errors.sessionExpired');
@@ -291,6 +292,7 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
     const composed = attemptSignal(options.signal, timeoutMs, clock);
     try {
       const headers = new Headers(init.headers);
+      headers.set('X-Acttub-Contract', 'three_layers_v1');
       if (options.auth !== false) {
         headers.set('X-Acttub-Consent-Entry', '1');
         const token = dependencies.getAccessToken();

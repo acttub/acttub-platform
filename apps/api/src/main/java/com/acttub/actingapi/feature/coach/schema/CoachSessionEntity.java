@@ -32,6 +32,21 @@ public class CoachSessionEntity {
     @Column(name = "conversation_summary", nullable = false)
     String conversationSummary = "";
 
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(name = "coaching_state_json", columnDefinition = "jsonb")
+    com.fasterxml.jackson.databind.JsonNode coachingState;
+
+    @Column(name = "state_revision", nullable = false)
+    long stateRevision;
+
+    public void structuredState(com.fasterxml.jackson.databind.JsonNode state, long revision, String reason) {
+        this.coachingState = state;
+        this.stateRevision = revision;
+        if (reason != null && !reason.isBlank()) {
+            this.closeReason = CloseReason.valueOf(reason.toUpperCase(java.util.Locale.ROOT));
+        }
+    }
+
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     Instant createdAt;
 

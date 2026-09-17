@@ -10,6 +10,8 @@ import java.util.Set;
 import com.acttub.actingapi.feature.coach.adapter.web.CoachDtos.CoachConfirmResponse;
 import com.acttub.actingapi.feature.coach.adapter.web.CoachDtos.CoachTurnResponse;
 import com.acttub.actingapi.feature.report.app.PublicReport.BlockedReport;
+import com.acttub.actingapi.feature.practice.adapter.web.PracticeSessionDtos.ObservationPackResponse;
+import com.acttub.actingapi.feature.practice.adapter.web.PracticeSessionDtos.VideoRecordSummaryResponse;
 import com.acttub.actingapi.feature.report.adapter.web.ReportDtos.ReportDetailResponse;
 import io.swagger.v3.core.converter.ModelConverter;
 import io.swagger.v3.core.converter.ModelConverters;
@@ -57,12 +59,15 @@ class PydanticOpenApiCustomizer {
             registerReferencedSchemas(schemas, CoachTurnResponse.class);
             registerReferencedSchemas(schemas, CoachConfirmResponse.class);
             registerReferencedSchemas(schemas, BlockedReport.class);
+            registerReferencedSchemas(schemas, ObservationPackResponse.class);
+            registerReferencedSchemas(schemas, VideoRecordSummaryResponse.class);
             applyFastApiValidationErrorShape(schemas);
             schemas.replaceAll(
                     (modelName, schema) -> normalize(schema, modelName));
             applyAdmissionsSchemaShape(schemas);
             applyReportSchemaShape(schemas);
             applyCoachSchemaShape(schemas);
+            applyPracticeSchemaShape(schemas);
         };
     }
 
@@ -316,6 +321,10 @@ class PydanticOpenApiCustomizer {
         setConst(schemas, "EffectiveExperiment", "tested", true);
         setConst(schemas, "ActorTraining", "tested", false);
         setConst(schemas, "BlockedReport", "report_type", "blocked");
+        // DTO의 @Schema false 기본값은 resolver에서 유실될 수 있어 새 계약의 포함 경계를 명시한다.
+        inclusiveMinimum(schemas, "PublicPracticeNote", "revision", 1);
+        inclusiveMinimum(schemas, "PracticeNoteRecordRef", "version", 1);
+        inclusiveMinimum(schemas, "PracticeNoteRecordRef", "duration_ms", 1);
 
         Schema<?> detail = schemas.get("ReportDetailResponse");
         if (detail != null && detail.getProperties() != null) {
@@ -325,9 +334,29 @@ class PydanticOpenApiCustomizer {
             analysis.set$ref("#/components/schemas/AnalysisReport");
             Schema<?> expression = new Schema<>();
             expression.set$ref("#/components/schemas/ExpressionReport");
-            report.setAnyOf(new ArrayList<>(List.of(analysis, expression)));
+            report.setAnyOf(new ArrayList<>(List.of(analysis, expression, reference("PublicPracticeNote"))));
             detail.getProperties().put("report", report);
             schemas.remove("JsonNode");
+        }
+    }
+
+    private static void inclusiveMinimum(Map<String, Schema> schemas, String component, String property, long value) {
+        Schema<?> owner = schemas.get(component);
+        if (owner == null || owner.getProperties() == null) return;
+        Schema<?> field = owner.getProperties().get(property);
+        if (field == null) return;
+        field.setExclusiveMinimum(null);
+        field.setExclusiveMinimumValue(null);
+        field.setMinimum(java.math.BigDecimal.valueOf(value));
+    }
+
+    private static void applyPracticeSchemaShape(Map<String, Schema> schemas) {
+        Schema<?> detail = schemas.get("PracticeSessionDetail");
+        if (detail != null && detail.getProperties() != null) {
+            ComposedSchema summary = new ComposedSchema();
+            summary.setAnyOf(new ArrayList<>(List.of(reference("ObservationPackResponse"),
+                    reference("VideoRecordSummaryResponse"), nullSchema())));
+            detail.getProperties().put("summary", summary);
         }
     }
 
@@ -352,6 +381,7 @@ class PydanticOpenApiCustomizer {
         alternatives.add(reference("AnalysisReport"));
         alternatives.add(reference("ExpressionReport"));
         alternatives.add(reference("BlockedReport"));
+        alternatives.add(reference("PublicPracticeNote"));
         if (nullable) {
             alternatives.add(nullSchema());
         }

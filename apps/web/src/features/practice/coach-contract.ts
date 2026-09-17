@@ -9,7 +9,6 @@ export type CoachStartResult = "waiting" | "failed" | "started";
 
 export type CoachStartCoordinator = {
   update: (status: PracticeSessionStatus) => Promise<CoachStartResult>;
-  startWithoutEvidence: () => Promise<CoachStartResult>;
 };
 
 export function createCoachStartCoordinator(
@@ -40,7 +39,6 @@ export function createCoachStartCoordinator(
       if (status === "analyzed") return startOnce();
       return Promise.resolve(status === "failed" ? "failed" : "waiting");
     },
-    startWithoutEvidence: startOnce,
   };
 }
 

@@ -102,6 +102,65 @@ class CoachSessionRepositoryIT {
     }
 
     @Test
+    void structuredStateAndHandoffAndNoteCommitTogetherWithoutBlanketConfirmation() {
+        UUID user = fixtures.insertUser();
+        var practice = fixtures.insertPractice(user);
+        jdbc.update("UPDATE practice_sessions SET experience_version = 'three_layers_v1' WHERE id = ?", practice.id());
+        UUID summary = fixtures.insertSummary(practice.id());
+        UUID session = UUID.randomUUID();
+        UUID lease = UUID.randomUUID();
+        UUID operation = fixtures.insertRunningCoachStartOperation(user, practice.id(), lease);
+        var mapper = com.acttub.actingapi.integration.llm.StructuredJson.MAPPER;
+        ObjectNode state = mapper.createObjectNode().put("revision", 1);
+        var snapshot = fixtures.newSnapshot(session, practice, summary,
+                List.of(new CoachTurnSnapshot("ai", "오늘 확인한 구간을 남길게요.")))
+                .withCoachingState("three_layers_v1", 1, state, "closed", "actor_finished");
+        UUID handoffId = UUID.randomUUID();
+        ObjectNode handoff = mapper.createObjectNode().put("schema_version", "acttub.coach_handoff.v1")
+                .put("session_id", session.toString()).put("state_revision", 1);
+        UUID noteId = UUID.randomUUID();
+        ObjectNode report = mapper.createObjectNode().put("schema_version", "acttub.practice_note.v1")
+                .put("report_type", "practice_note").put("note_id", noteId.toString());
+        ObjectNode payload = mapper.createObjectNode().put("status", "complete");
+        store.completeCoachStartOperation(operation, lease, snapshot, payload, handoffId, "coaching",
+                handoff, false, report, false, CoachStorageFixtures.NOW);
+        var loaded = store.getOwnedCoachSession(user, session).session();
+        assertThat(loaded.threeLayers()).isTrue();
+        assertThat(loaded.coachingState()).isEqualTo(state);
+        assertThat(loaded.stateRevision()).isEqualTo(1);
+        assertThat(loaded.closeReason()).isEqualTo("actor_finished");
+        assertThat(jdbc.queryForObject("SELECT state_revision FROM coaching_handoffs WHERE id = ?", Long.class, handoffId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT id FROM practice_reports WHERE source_handoff_id = ?", UUID.class, handoffId)).isEqualTo(noteId);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM handoff_confirmations WHERE coaching_handoff_id = ?", Integer.class, handoffId)).isZero();
+        assertThat(jdbc.queryForObject("SELECT response_payload::text FROM external_operations WHERE id = ?", String.class, operation)).contains("complete");
+    }
+
+    @Test
+    void structuredRevisionRejectsStaleWritesAndLostLeaseRollsBackState() {
+        UUID user = fixtures.insertUser();
+        var practice = fixtures.insertPractice(user);
+        jdbc.update("UPDATE practice_sessions SET experience_version = 'three_layers_v1' WHERE id = ?", practice.id());
+        UUID summary = fixtures.insertSummary(practice.id());
+        UUID session = UUID.randomUUID();
+        fixtures.insertCoachSession(session, practice.id(), summary, "open", CREATED_AT, List.of());
+        ObjectNode state = com.acttub.actingapi.integration.llm.StructuredJson.MAPPER.createObjectNode().put("revision", 1);
+        var next = fixtures.newSnapshot(session, practice, summary, List.of(new CoachTurnSnapshot("ai", "확인했어요.")))
+                .withCoachingState("three_layers_v1", 1, state, "open", "");
+        UUID lease = UUID.randomUUID();
+        UUID operation = fixtures.insertRunningCoachStartOperation(user, practice.id(), lease);
+        jdbc.update("UPDATE external_operations SET kind = 'coach_reply' WHERE id = ?", operation);
+        assertThatThrownBy(() -> store.completeCoachReplyOperation(operation, UUID.randomUUID(), next,
+                state, null, null, null, false, null, CoachStorageFixtures.NOW))
+                .isInstanceOf(LeaseOwnershipException.class);
+        assertThat(store.getOwnedCoachSession(user, session).session().stateRevision()).isZero();
+        assertThat(store.getOwnedCoachSession(user, session).session().turns()).isEmpty();
+        store.completeCoachReplyOperation(operation, lease, next, state, null, null, null, false, null, CoachStorageFixtures.NOW);
+        assertThatThrownBy(() -> store.saveCoachSession(next, CoachStorageFixtures.NOW))
+                .isInstanceOf(SessionWriteConflict.class);
+        assertThat(store.getOwnedCoachSession(user, session).session().stateRevision()).isEqualTo(1);
+    }
+
+    @Test
     void loadReturnsEveryTurnAndTranscriptInStoredOrder() {
         UUID userId = fixtures.insertUser();
         CoachStorageFixtures.Practice practice = fixtures.insertPractice(userId);
@@ -412,7 +471,7 @@ class CoachSessionRepositoryIT {
         assertThat(statements.get(5)).startsWith("insert into coaching_handoffs");
         assertThat(statements.get(6)).startsWith("insert into handoff_confirmations");
         assertThat(statements.get(7)).startsWith("insert into practice_reports");
-        assertThat(statements.get(8)).startsWith("update external_operations");
+        assertThat(statements.get(8)).contains("update external_operations set status = 'succeeded'");
         assertThat(fixtures.coachStatus(previousSessionId)).isEqualTo("open");
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM coach_sessions WHERE id = ?",
@@ -519,7 +578,7 @@ class CoachSessionRepositoryIT {
         assertThat(statements).hasSize(10);
         assertThat(statements.get(0)).startsWith(
                 "select session_id as session_id, kind as kind from external_operations");
-        assertThat(statements.get(1)).startsWith("select status as status from coach_sessions");
+        assertThat(statements.get(1)).startsWith("select status as status, state_revision from coach_sessions");
         assertThat(statements.get(1)).endsWith("for update");
         assertThat(statements.get(2)).contains("from coach_turns");
         assertThat(statements.get(3)).startsWith("insert into coach_turns");
@@ -528,7 +587,7 @@ class CoachSessionRepositoryIT {
         assertThat(statements.get(6)).startsWith("insert into coaching_handoffs");
         assertThat(statements.get(7)).startsWith("insert into handoff_confirmations");
         assertThat(statements.get(8)).startsWith("insert into practice_reports");
-        assertThat(statements.get(9)).startsWith("update external_operations");
+        assertThat(statements.get(9)).contains("update external_operations set status = 'succeeded'");
         CoachSessionSnapshot stored = store.getOwnedCoachSession(userId, sessionId).session();
         assertThat(stored.status()).isEqualTo("open");
         assertThat(stored.turns()).containsExactlyElementsOf(original);

@@ -51,14 +51,19 @@ class AnalysisWorkerConfigurationTest {
     }
 
     private static final class EmptyStore implements AnalysisStore {
+        @Override
+        public com.acttub.actingapi.platform.ledger.ExternalOperationExecution execution(UUID operation, UUID token) {
+            return com.acttub.actingapi.platform.ledger.ExternalOperationExecution.unobserved();
+        }
+
         @Override public UUID claimNext(UUID token, Duration duration, Instant now) { return null; }
         @Override public AnalysisContext getContext(UUID operation) { return null; }
         @Override public UUID complete(UUID operation, UUID token, AnalysisResult result,
                 String model, Instant now) { return null; }
-        @Override public boolean fail(UUID operation, UUID token, String code, Instant now) {
+        @Override public boolean fail(UUID operation, UUID token, String code, String classification, Instant now) {
             return false;
         }
-        @Override public void release(UUID operation, UUID token, Instant now) { }
+        @Override public void release(UUID operation, UUID token, String classification, Instant now) { }
         @Override public List<String> sweepExpiredUploads(Instant now) { return List.of(); }
         @Override public int sweepMaxAttempts(Instant now) { return 0; }
     }

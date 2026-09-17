@@ -5,6 +5,8 @@ import java.time.Instant;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.analysis.app.AnalysisOperationQueue;
+import com.acttub.actingapi.platform.ledger.ExternalOperationExecution;
+import com.acttub.actingapi.platform.ledger.ExternalOperationMonitoring;
 import org.springframework.stereotype.Component;
 
 /**
@@ -21,9 +23,17 @@ class ExternalOperationAnalysisQueue implements AnalysisOperationQueue {
     private static final String KIND = "analyze";
 
     private final ExternalOperationClaimer claimer;
+    private final ExternalOperationMonitoring monitoring;
 
-    ExternalOperationAnalysisQueue(ExternalOperationClaimer claimer) {
+    ExternalOperationAnalysisQueue(ExternalOperationClaimer claimer,
+            ExternalOperationMonitoring monitoring) {
         this.claimer = claimer;
+        this.monitoring = monitoring;
+    }
+
+    @Override
+    public ExternalOperationExecution execution(UUID operationId, UUID leaseToken) {
+        return monitoring.execution(operationId, leaseToken);
     }
 
     @Override
@@ -45,4 +55,14 @@ class ExternalOperationAnalysisQueue implements AnalysisOperationQueue {
     public int sweepMaxAttempts(Instant now) {
         return claimer.sweepMaxAttempts(now);
     }
+    @Override
+    public boolean fail(UUID operationId, UUID leaseToken, String errorCode, String classification, Instant now) {
+        return claimer.fail(operationId, leaseToken, errorCode, true, classification, now);
+    }
+
+    @Override
+    public void release(UUID operationId, UUID leaseToken, String classification, Instant now) {
+        claimer.release(operationId, leaseToken, classification, now);
+    }
+
 }

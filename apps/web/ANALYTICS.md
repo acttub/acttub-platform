@@ -56,11 +56,15 @@ amplitude.init(API_KEY, undefined, { autocapture: true });
 
 ⚠️ **마스킹은 설정하지 않았다.** Amplitude Session Replay는 텍스트·입력을 가리는 옵션을 따로 제공한다. 지금 설정은 받은 지침 그대로이고, 마스킹을 넣으려면 여기서부터 손대면 된다.
 
-#### ⚠️ 빌드는 반드시 webpack 으로 — Turbopack 에서는 녹화가 죽는다
+#### 번들러 변경 검증
 
-`package.json` 의 `build` 가 **`next build --webpack`** 인 이유다. **떼면 세션 리플레이가 조용히 죽는다.**
+[package.json](package.json)의 `build`는 세션 리플레이가 동작하는 번들러를 사용한다.
+번들러를 바꿀 때는 아래 런타임 검증을 통과해야 한다. 빌드 성공과 이벤트 수신만으로는
+녹화 청크가 실행되는지 알 수 없다.
 
-리플레이 SDK 는 rrweb 레코더를 **동적 import** 로 늦게 불러온다(`getRecordFunction`). Turbopack 이 만든 그 청크가 `SyntaxError: Invalid or unexpected token` 으로 깨지는데, SDK 가 예외를 삼키고 null 을 돌려주므로 녹화가 **시작조차 되지 않는다**:
+2026-08-11 검증에서 리플레이 SDK가 **동적 import**로 불러오는 rrweb 레코더 청크
+(`getRecordFunction`)가 Turbopack 빌드에서 `SyntaxError: Invalid or unexpected token`으로
+실패했다. SDK가 예외를 삼키고 null을 돌려주어 녹화가 시작되지 않았다:
 
 ```js
 case 3:
@@ -77,9 +81,13 @@ case 3:
 | Turbopack (기본) | `Uncaught SyntaxError` | **0건** |
 | webpack (`--webpack`) | 깨끗 | **`sessions/v2/track` 200 × 6** |
 
+**완료 기준:** 변경한 번들러의 배포 빌드를 로그인·최신 방침 동의·계측 키가 갖춰진 환경에서
+실행했다. 원격 설정의 캡처 활성화와 샘플 비율을 확인하고, 녹화 청크 로딩·리플레이 버퍼·
+`sessions/v2/track` 업로드 성공을 확인했다. 콘솔 오류와 검증 환경을 함께 기록한다.
+
 #### ⚠️ 코드의 `sampleRate` 는 서버 원격 설정에 덮인다
 
-**`initAll` 에 넣은 `sampleRate: 1` 이 최종 값이 아니다.** SDK 는 기동할 때
+**`sessionReplayPlugin`에 넣은 `sampleRate`가 최종 값은 아니다.** SDK 는 기동할 때
 `https://sr-client-cfg.amplitude.com/config/<key>?config_group=browser` 를 받아 그 값을 쓴다.
 Amplitude 가 Admin 에서 정한 개인정보 설정을 존중하도록 그렇게 설계돼 있고, **원격 설정이
 로드에 실패하면 아예 한 세션도 캡처하지 않는다.**
@@ -148,7 +156,10 @@ GA4는 `isMeasuredHost()`로 로컬 트래픽을 막지만, Amplitude는 그 가
 
 이벤트를 더 늘리기 전에 **이 21개로 답이 나오는지 먼저 본다.** 커뮤니티·입시 계측은 2차로 미룬다 — 지금 답해야 할 질문(퍼널 이탈·리텐션·대화 품질)에 필요 없다.
 
-> **설치 검증용 임시 이벤트 1개가 따로 있다.** `Viewed Home Page` — `startAmplitude()`의 `initAll` 바로 뒤에서 한 번 발생하며 `{ prompt_version: "BA400.4" }`를 싣는다. Amplitude Setup 페이지의 라이브 피드에 이 이름이 뜨는 것으로 설치를 확인한다. **확인이 끝나면 지운다** — 아래 21개와 달리 제품 질문에 답하지 않는다.
+> **설치 검증용 임시 이벤트가 따로 있다.** `Viewed Home Page` — `startAmplitude()`의
+> `amplitude.init` 바로 뒤에서 발생한다. 실제 payload는
+> [amplitude.ts](src/lib/analytics/amplitude.ts)의 호출부에서 확인한다. Amplitude Setup 페이지의
+> 라이브 피드에서 수신을 확인한 뒤 제거한다. 제품 질문에 답하는 이벤트가 아니다.
 
 ### A. 연습 퍼널 — "어디서 나가나"
 
@@ -189,13 +200,20 @@ GA4는 `isMeasuredHost()`로 로컬 트래픽을 막지만, Amplitude는 그 가
 
 `turn_count`는 **실측이 유일한 진실**이다. `TURN_BUDGET = 8`은 하드 컷오프가 아니라 프롬프트에 "남은 응답"으로 실려 모델이 배분할 뿐이라, 실제 턴 수는 세션마다 다르다.
 
-`report_type`의 `blocked`가 핵심이다 — 실질 답변이 2개 미만이면 노트 대신 blocked 리포트가 나간다(`coaching.py`의 `_MIN_ANSWERS_FOR_REPORT`). "대화는 시작했는데 노트를 못 받은 사람"의 정확한 크기가 여기서 나온다.
+`report_type`의 `blocked`는 대화를 시작했지만 노트를 만들 실질 답변이 부족한 경우다.
+답변 판정과 최소 개수는
+[HandoffReadiness](../api/src/main/java/com/acttub/actingapi/feature/coach/domain/HandoffReadiness.java)의
+`hasEnoughAnswers`·`MIN_ANSWERS_FOR_REPORT`에서 확인한다.
 
-`practice_dialogue_turn_failed`는 **지금 완전히 보이지 않는 실패**다. 답장 실패의 catch가 에러 상태 대신 가짜 AI 말풍선("연결이 잠시 끊겼어요…")만 넣기 때문에, 계측이 없으면 영원히 모른다.
+`practice_dialogue_turn_failed`는 `workspace-app.tsx:send`의 답장 실패 catch에서 발생한다.
+화면에는 연결 실패 안내 말풍선이 표시되므로, 이 이벤트로 답장 실패를 대화 내용과 구분해 센다.
 
 `ended_by`: `coach`(모델이 complete) \| `actor_closing`("그만"·"종료"·"끝"·"여기까지").
 
-⚠️ `actor_closing` 판정은 **프론트가 백엔드의 `is_closing`(`engine.py`)을 흉내 낸 것**이다. 응답에 종료 사유가 실려 오지 않아 어쩔 수 없이 재구현했고, 백엔드 규칙이 바뀌면 이 값만 조용히 어긋난다. `turn_count`·`report_type`은 서버 응답에서 직접 오므로 영향받지 않는다 — `ended_by`만 참고값으로 읽어라.
+`actor_closing`은 프론트의 `workspace-app.tsx:isActorClosing`이 추정한다. 응답에 종료 사유가
+없어 백엔드 [ClosingIntent](../api/src/main/java/com/acttub/actingapi/feature/coach/domain/ClosingIntent.java)의
+`isClosing`과 별도로 판정하므로, 백엔드 규칙이 바뀌면 둘을 대조한다. `ended_by`는 참고값이며,
+`turn_count`·`report_type`은 서버 응답에서 직접 온다.
 
 ### C. 이탈과 재방문 — "다시 오나"
 
@@ -260,14 +278,18 @@ GA4는 `isMeasuredHost()`로 로컬 트래픽을 막지만, Amplitude는 그 가
 
 **Amplitude 프로젝트를 두 개 만들어야 한다.** §1(4)대로 호스트로 거르지 않으므로, dev와 운영에 같은 키를 주면 개발 트래픽이 운영 통계에 그대로 섞인다. Repository 변수가 아니라 **Environment 변수**로 넣어야 환경별로 갈린다.
 
-### 무료 한도 — 세션 리플레이가 먼저 막힌다
+### 한도 검토
 
-| 항목 | 무료 한도 | 지금 설정에서 소진되는 속도 |
+아래 수치와 규모 계산은 2026-08-11 당시 기록이다. 샘플 비율을 바꾸기 전에는 Amplitude
+프로젝트의 현재 요금제·사용량·원격 샘플 설정을 확인하고 실제 세션 수로 다시 계산한다.
+
+| 항목 | 당시 무료 한도 | 당시 설정에서 예상한 소진 속도 |
 | --- | --- | --- |
 | 세션 리플레이 | 10,000 replay/월 | 100% 로 두면 **모든 세션이 녹화된다. 월 1만 세션에서 한도 도달** (단, 실제 비율은 코드가 아니라 **서버 원격 설정**이 정한다 — 위 ⚠️ 참고) |
 | 이벤트 | 2,000,000 건/월 | autocapture 포함 세션당 대략 30~60건 → 월 3~6만 세션 수준 |
 
-**리플레이가 이벤트보다 4배 먼저 막힌다.** 넘길 것 같으면 `sampleRate`를 낮춘다(`amplitude.ts`의 `initAll` 옵션). 0.1이면 10만 세션까지 버티고, 재현 가능한 표본으로는 대개 충분하다.
+이 계산에서는 리플레이가 이벤트보다 먼저 한도에 닿는다. 비율을 조정할 때는
+`amplitude.ts`의 `sessionReplayPlugin` 옵션과 §1(2)의 서버 원격 설정을 함께 확인한다.
 
 #### 세션이 무엇인지부터 — 연습 1회도, 사람 1명도 아니다
 
@@ -278,11 +300,11 @@ Amplitude의 세션은 **브라우저 활동 구간**이다. 30분 무활동이�
 - **분석이 250초 걸려 폰을 놓고 30분 뒤 돌아와 노트를 보면 2세션**
 - 한 사람이 한 달에 세 번 오면 3세션
 
-#### 지금 규모에서는 한참 여유다 (2026-08-11 계산)
+#### 당시 규모 계산 (2026-08-11)
 
 **동의 게이트가 익명 방문자를 통째로 걸러낸다.** Amplitude는 로그인 + 최신 방침 동의를 통과한 뒤에만 init되므로, 랜딩만 보고 나가는 사람은 세션을 만들지 않는다. SOMA-332 기준 최근 30일 광고 링크 클릭이 **3,205건**인데 거의 다 익명 유입이라 리플레이를 한 건도 쓰지 않는다. (SOMA-331이 "코어 GA가 로그인·동의 뒤에만 켜져서 그 이전 유입을 못 센다"고 지적한 것과 같은 구조다 — 귀속에는 불리하고 쿼터에는 유리하다.)
 
-가입자는 **175명**(SOMA-279, 2026-08-03 기준, `ADMIN_OPS_EXCLUDE_EMAILS`로 개발자 제외된 값). 전원이 매달 10번씩 들어와도 **1,750세션 = 한도의 17%**다. 그래서 `sampleRate: 1`을 그대로 둔다.
+가입자는 **175명**(SOMA-279, 2026-08-03 기준, `ADMIN_OPS_EXCLUDE_EMAILS`로 개발자 제외된 값). 전원이 매달 10번씩 들어와도 **1,750세션 = 한도의 17%**라는 계산이 당시 `sampleRate: 1` 유지의 근거였다.
 
 **다시 계산해야 하는 때는 둘이다.**
 1. **동의 게이트를 풀면** 즉시 위험해진다 — 익명 방문자가 세션을 만들기 시작하면 위 3,205건이 그대로 리플레이가 된다. 게이트는 방침 때문에 두는 것이지만 쿼터 방어도 겸하고 있다.

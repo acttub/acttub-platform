@@ -3,6 +3,7 @@ package com.acttub.actingapi.feature.practice.adapter.db;
 import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
 
 import java.time.Instant;
+import com.acttub.actingapi.platform.ledger.ExternalOperationMonitoring;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -37,14 +38,17 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
             "SHA-256 values must be 64 hexadecimal characters";
 
     private final EntityManager entityManager;
+    private final ExternalOperationMonitoring monitoring;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
 
     public PostgresPracticeSessionLedger(
             EntityManager entityManager,
             ObjectMapper objectMapper,
-            PlatformTransactionManager transactionManager) {
+            PlatformTransactionManager transactionManager,
+            ExternalOperationMonitoring monitoring) {
         this.entityManager = entityManager;
+        this.monitoring = monitoring;
         this.objectMapper = objectMapper;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.transactionTemplate.setPropagationBehavior(
@@ -53,30 +57,22 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
 
     @Override
     public PracticeSessionOperation createWithAnalysis(
-            UUID userId,
-            UUID uploadIntentId,
-            String situation,
-            String characterContext,
-            String goal,
-            String blockageKind,
-            String subBranch,
-            String blockageDetail,
-            UUID continuedFrom,
-            UUID requestId,
-            String requestFingerprint) {
+            UUID userId, UUID uploadIntentId, String situation, String characterContext, String goal,
+            String blockageKind, String subBranch, String blockageDetail, UUID continuedFrom,
+            UUID requestId, String requestFingerprint) {
+        return createWithAnalysis(userId, uploadIntentId, situation, characterContext, goal, blockageKind, subBranch,
+                blockageDetail, continuedFrom, requestId, requestFingerprint, "legacy");
+    }
+
+    @Override
+    public PracticeSessionOperation createWithAnalysis(
+            UUID userId, UUID uploadIntentId, String situation, String characterContext, String goal,
+            String blockageKind, String subBranch, String blockageDetail, UUID continuedFrom,
+            UUID requestId, String requestFingerprint, String experienceVersion) {
         validateSha256(requestFingerprint);
         return transactionTemplate.execute(status -> createPracticeSessionInTransaction(
-                userId,
-                uploadIntentId,
-                situation,
-                characterContext,
-                goal,
-                blockageKind,
-                subBranch,
-                blockageDetail,
-                continuedFrom,
-                requestId,
-                requestFingerprint));
+                userId, uploadIntentId, situation, characterContext, goal, blockageKind, subBranch,
+                blockageDetail, continuedFrom, requestId, requestFingerprint, experienceVersion));
     }
 
     @Override
@@ -104,7 +100,8 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
             String blockageDetail,
             UUID continuedFrom,
             UUID requestId,
-            String requestFingerprint) {
+            String requestFingerprint,
+            String experienceVersion) {
         if (!lockFinalizedUpload(userId, uploadIntentId)) {
             return null;
         }
@@ -122,12 +119,12 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
                 PracticeStatus.ANALYZING,
                 situation,
                 characterContext,
-                null,
                 blockageKind,
                 subBranch,
                 blockageDetail,
                 goal,
                 continuedFrom);
+        session.setExperienceVersion(experienceVersion);
         entityManager.persist(session);
         entityManager.flush();
 
@@ -251,6 +248,9 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
                 .setParameter("userId", userId)
                 .setParameter("requestId", requestId)
                 .setParameter("requestFingerprint", requestFingerprint));
+        if (!inserted.isEmpty()) {
+            monitoring.accepted("analyze");
+        }
         return inserted.isEmpty() ? null : inserted.getFirst().get("id", UUID.class);
     }
 
@@ -315,7 +315,6 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
                     situation,
                     character_context,
                     goal,
-                    subtext,
                     blockage_kind,
                     sub_branch,
                     blockage_detail,
@@ -356,7 +355,6 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
                 row.get("situation", String.class),
                 row.get("character_context", String.class),
                 row.get("goal", String.class),
-                row.get("subtext", String.class),
                 row.get("blockage_kind", String.class),
                 row.get("sub_branch", String.class),
                 row.get("blockage_detail", String.class),

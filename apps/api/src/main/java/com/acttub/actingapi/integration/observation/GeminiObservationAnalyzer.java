@@ -5,12 +5,19 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 import java.util.function.LongSupplier;
 
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.observability.FailureReporter;
+import com.acttub.actingapi.platform.observability.LlmCall;
+import com.acttub.actingapi.platform.observability.LlmScore;
+import com.acttub.actingapi.platform.observability.LlmStep;
+import com.acttub.actingapi.platform.observability.LlmTelemetry;
+import com.acttub.actingapi.platform.observability.LlmTokens;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -38,12 +45,14 @@ final class GeminiObservationAnalyzer implements ObservationAnalyzer {
     private final LongSupplier nanoTime;
     private final FileActivationPoller.Sleeper sleeper;
     private final FailureReporter failureReporter;
+    private final LlmTelemetry telemetry;
 
     GeminiObservationAnalyzer(
             GeminiGateway gateway,
             ObjectMapper mapper,
             String model,
-            FailureReporter failureReporter) {
+            FailureReporter failureReporter,
+            LlmTelemetry telemetry) {
         this(
                 gateway,
                 mapper,
@@ -52,7 +61,8 @@ final class GeminiObservationAnalyzer implements ObservationAnalyzer {
                 POLL_INTERVAL,
                 System::nanoTime,
                 FileActivationPoller.Sleeper.real(),
-                failureReporter);
+                failureReporter,
+                telemetry);
     }
 
     GeminiObservationAnalyzer(
@@ -63,7 +73,8 @@ final class GeminiObservationAnalyzer implements ObservationAnalyzer {
             Duration pollInterval,
             LongSupplier nanoTime,
             FileActivationPoller.Sleeper sleeper,
-            FailureReporter failureReporter) {
+            FailureReporter failureReporter,
+            LlmTelemetry telemetry) {
         this.gateway = gateway;
         this.mapper = mapper.copy()
                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
@@ -73,10 +84,12 @@ final class GeminiObservationAnalyzer implements ObservationAnalyzer {
         this.nanoTime = nanoTime;
         this.sleeper = sleeper;
         this.failureReporter = failureReporter;
+        this.telemetry = telemetry;
     }
 
     @Override
-    public ObservationPack analyze(Path videoPath, String mimeType, ActorMaterial actor) {
+    public ObservationPack analyze(
+            Path videoPath, String mimeType, ActorMaterial actor, UUID practiceSessionId, UUID userId) {
         String prompt = ObservationPrompt.build(actor);
         GeminiFile uploaded = gateway.upload(videoPath, mimeType);
         try {
@@ -110,9 +123,13 @@ final class GeminiObservationAnalyzer implements ObservationAnalyzer {
 
             SummaryParseError lastError = null;
             for (int attempt = 0; attempt < PARSE_ATTEMPTS; attempt++) {
-                String responseText = gateway.generate(model, contents, config);
+                // 되풀이한 호출도 각각 남긴다 — 몇 번 만에 읽을 수 있는 JSON 이 나왔는지가
+                // 그 자체로 신호다.
+                String responseText = recorded(practiceSessionId, userId, prompt, attempt, contents, config);
                 try {
-                    return filter(parse(responseText), actor.durationMs());
+                    ObservationPack pack = filter(parse(responseText), actor.durationMs());
+                    scoreObservations(practiceSessionId, pack);
+                    return pack;
                 } catch (SummaryParseError exc) {
                     lastError = exc;
                 }
@@ -132,6 +149,73 @@ final class GeminiObservationAnalyzer implements ObservationAnalyzer {
         }
     }
 
+    /**
+     * 관찰이 몇 개, 몇 자 나왔는지를 점수로 남긴다.
+     *
+     * <p>SOMA-490 이 개수 상한을 없애고 글자 상한을 1000자로 올렸는데 그것이 실제로
+     * 먹었는지를 지금까지 확인할 방법이 없었다. 이 둘이 그 답이다 — 여전히 두세 개만
+     * 나온다면 모델이 프롬프트를 안 듣는 것이고, 그건 완전히 다른 문제다.
+     */
+    private void scoreObservations(UUID practiceSessionId, ObservationPack pack) {
+        if (practiceSessionId == null) {
+            return;
+        }
+        telemetry.score(LlmScore.number(
+                practiceSessionId, "observation.count", pack.observations().size()));
+        int characters = pack.observations().stream()
+                .mapToInt(item -> item.what() == null ? 0 : item.what().length())
+                .sum();
+        telemetry.score(LlmScore.number(practiceSessionId, "observation.chars", characters));
+    }
+
+    /** 모델을 부르고 그 한 번을 남긴다. 기록이 실패해도 관찰은 그대로 간다. */
+    private String recorded(
+            UUID practiceSessionId,
+            UUID userId,
+            String prompt,
+            int attempt,
+            Content contents,
+            GenerateContentConfig config) {
+        Instant startedAt = Instant.now();
+        try {
+            var response = gateway.generateResponse(model, contents, config);
+            String responseText = response.text();
+            record(practiceSessionId, userId, prompt, responseText, GeminiUsage.tokens(response),
+                    attempt, startedAt, null);
+            return responseText;
+        } catch (RuntimeException failure) {
+            record(practiceSessionId, userId, prompt, "", LlmTokens.unknown(), attempt, startedAt,
+                    failure.getClass().getSimpleName());
+            throw failure;
+        }
+    }
+
+    private void record(
+            UUID practiceSessionId,
+            UUID userId,
+            String prompt,
+            String responseText,
+            LlmTokens tokens,
+            int attempt,
+            Instant startedAt,
+            String errorMessage) {
+        if (practiceSessionId == null) {
+            return;
+        }
+        telemetry.record(new LlmCall(
+                LlmStep.OBSERVATION,
+                practiceSessionId,
+                userId,
+                model,
+                ObservationPrompt.SYSTEM + "\n\n" + prompt,
+                responseText,
+                tokens,
+                startedAt,
+                java.time.Duration.between(startedAt, Instant.now()),
+                errorMessage,
+                LlmCall.metadata("attempt", String.valueOf(attempt + 1))));
+    }
+
     private ObservationPack parse(String text) {
         if (text == null || text.isEmpty()) {
             throw new SummaryParseError("no parseable observation pack in response");
@@ -143,14 +227,35 @@ final class GeminiObservationAnalyzer implements ObservationAnalyzer {
         }
     }
 
+    /** 관찰 하나가 담을 수 있는 최대 길이. 프롬프트가 약속한 값과 같아야 한다. */
+    private static final int WHAT_MAX_CHARS = 1000;
+
+    /**
+     * 시각이 어긋난 항목만 버린다.
+     *
+     * <p><b>개수로 자르지 않는다</b> — 앞 3개만 남기던 시절, 79초 영상이 코치에게 한 줄로
+     * 도착했다(SOMA-490). 상한은 프롬프트(15개)가 모델 쪽에서 걸고, 여기서는 영상 길이를
+     * 벗어난 구간처럼 <b>쓸 수 없는 것</b>만 걸러낸다.
+     */
     private static ObservationPack filter(ObservationPack pack, long durationMs) {
         List<ObservationItem> observations = pack.observations().stream()
                 .filter(item -> item.startMs() >= 0)
                 .filter(item -> item.endMs() > item.startMs())
                 .filter(item -> item.endMs() <= durationMs)
-                .limit(3)
+                .map(GeminiObservationAnalyzer::clipWhat)
                 .toList();
-        return new ObservationPack(observations, pack.uncertainties());
+        return new ObservationPack(pack.sceneSummary(), pack.timeline(), pack.speech(),
+                observations, pack.uncertainties());
+    }
+
+    private static ObservationItem clipWhat(ObservationItem item) {
+        String what = item.what();
+        if (what.codePointCount(0, what.length()) <= WHAT_MAX_CHARS) {
+            return item;
+        }
+        int end = what.offsetByCodePoints(0, WHAT_MAX_CHARS);
+        return new ObservationItem(item.startMs(), item.endMs(),
+                what.substring(0, end), item.quote(), item.dimension(), item.confidence());
     }
 
     private static Schema loadSchema() {

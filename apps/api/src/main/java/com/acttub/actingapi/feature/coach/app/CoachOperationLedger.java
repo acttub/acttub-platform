@@ -3,6 +3,7 @@ package com.acttub.actingapi.feature.coach.app;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.acttub.actingapi.platform.ledger.ExternalOperationExecution;
 import com.acttub.actingapi.platform.ledger.SyncOperationBegin;
 import com.acttub.actingapi.platform.ledger.SyncOperationClaim;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -20,6 +21,8 @@ import com.fasterxml.jackson.databind.JsonNode;
  * 된다.
  */
 public interface CoachOperationLedger {
+    ExternalOperationExecution execution(SyncOperationClaim claim);
+
 
     /** 헤더의 요청 ID. 없으면 새로 만들고, 형식이 틀리면 422 다. */
     UUID requestId(String header);
@@ -39,7 +42,11 @@ public interface CoachOperationLedger {
     void complete(SyncOperationClaim claim, JsonNode responsePayload);
 
     /** 잡은 작업을 실패로 닫는다. 리스를 이미 잃었으면 조용히 넘어간다. */
-    void fail(SyncOperationClaim claim, String errorCode);
+    default void fail(SyncOperationClaim claim, String errorCode) {
+        fail(claim, errorCode, null);
+    }
+
+    void fail(SyncOperationClaim claim, String errorCode, String classification);
 
     /** 원장이 쓰는 시계. 저장 시각을 컨트롤러가 따로 재지 않게 한다. */
     Instant now();

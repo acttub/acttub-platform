@@ -56,6 +56,8 @@ export default function CoachScreen() {
     practice ? practice.turns.map((t) => ({ role: t.role, text: t.text })) : [],
   );
   const [input, setInput] = useState('');
+  const inputRef = useRef<TextInput>(null);
+  const [askingCoach, setAskingCoach] = useState(false);
   const [connecting, setConnecting] = useState(true);
   const [waiting, setWaiting] = useState(false);
   const [done, setDone] = useState(false);
@@ -361,8 +363,9 @@ export default function CoachScreen() {
                 />
               )}
               <TextInput
+                ref={inputRef}
                 style={styles.input}
-                placeholder={t('coach.composerPh')}
+                placeholder={t(askingCoach ? 'coach.questionPh' : 'coach.composerPh')}
                 placeholderTextColor={palette.checkOff}
                 value={input}
                 onChangeText={setInput}
@@ -372,12 +375,20 @@ export default function CoachScreen() {
               />
             </View>
             <View style={styles.quickRow}>
-              {[t('coach.quickDontKnow'), t('coach.quickAskBack')].map((label) => (
+              {[
+                { label: t('coach.quickExplain'), text: t('coach.explainMessage') },
+                { label: t('coach.quickAskBack'), text: undefined },
+                { label: t('coach.quickLater'), text: t('coach.laterMessage') },
+              ].map(({ label, text }) => (
                 <Pressable
                   key={label}
                   style={styles.quick}
-                  disabled={waiting || connecting}
-                  onPress={() => setInput(label)}
+                  disabled={waiting || connecting || !practice.coachSessionId}
+                  onPress={() => {
+                    setAskingCoach(text === undefined);
+                    if (text !== undefined) setInput(text);
+                    inputRef.current?.focus();
+                  }}
                   accessibilityRole="button">
                   <Text style={styles.quickText}>{label}</Text>
                 </Pressable>
@@ -504,10 +515,13 @@ const styles = StyleSheet.create({
     lineHeight: 23,
     textAlignVertical: 'top',
   },
-  quickRow: { flexDirection: 'row', gap: 8 },
+  quickRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   quick: {
     flex: 1,
-    height: 37,
+    minHeight: 40,
+    minWidth: 96,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
     borderRadius: 9999,
     borderWidth: 1,
     borderColor: palette.border,

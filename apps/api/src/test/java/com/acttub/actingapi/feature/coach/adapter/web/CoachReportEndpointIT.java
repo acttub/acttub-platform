@@ -23,6 +23,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -67,6 +69,9 @@ class CoachReportEndpointIT {
     MockMvc mvc;
 
     @Autowired
+    io.micrometer.core.instrument.MeterRegistry meters;
+
+    @Autowired
     JdbcTemplate jdbc;
 
     @Autowired
@@ -85,6 +90,182 @@ class CoachReportEndpointIT {
         jdbc.execute("TRUNCATE TABLE users, consent_documents RESTART IDENTITY CASCADE");
         fixtures = new CoachStorageFixtures(jdbc);
         generator.reset();
+    }
+
+    @Test
+    void structuredConversationNegotiatesContractAndSavesAnUnconfirmedNoteExactlyOnce() throws Exception {
+        double startAttempts = operationCount("attempts", "kind", "coach_start");
+        double startCalls = operationCount("external.calls", "kind", "coach_start", "dependency", "model");
+        double replyAttempts = operationCount("attempts", "kind", "coach_reply");
+        double replyCalls = operationCount("external.calls", "kind", "coach_reply", "dependency", "model");
+        double replyCompleted = operationCount("terminal", "kind", "coach_reply", "outcome", "succeeded", "classification", "none");
+        double replyRejected = operationCount("terminal", "kind", "coach_reply", "outcome", "failed", "classification", "expected");
+        UUID user = fixtures.insertUser();
+        var practice = fixtures.insertPractice(user);
+        UUID summaryId = fixtures.insertSummary(practice.id());
+        jdbc.update("UPDATE practice_sessions SET experience_version='three_layers_v1' WHERE id=?", practice.id());
+        var record = (com.fasterxml.jackson.databind.node.ObjectNode)
+                com.acttub.actingapi.integration.llm.StructuredJson.resource("/coaching/record.json");
+        record.put("record_id", summaryId.toString());
+        jdbc.update("UPDATE summaries SET raw=?::jsonb WHERE session_id=?", record.toString(), practice.id());
+        var start = post("/v2/coach/start").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearer(user)).header("X-Request-Id", UUID.randomUUID())
+                .content("{\"practice_session_id\":\"" + practice.id() + "\"}");
+        assertError(start, 409, "client_contract_required");
+        generator.enqueue(structuredReply(0, "“가지 마”를 듣고 상대가 어떻게 하길 바랐어요?", "continue", null));
+        JsonNode started = successful(start.header("X-Acttub-Contract", "three_layers_v1"));
+        assertThat(operationCount("attempts", "kind", "coach_start")).isEqualTo(startAttempts + 1);
+        assertThat(operationCount("external.calls", "kind", "coach_start", "dependency", "model")).isEqualTo(startCalls + 1);
+        UUID session = UUID.fromString(started.path("session_id").asText());
+        assertThat(mapper.readTree(generator.lastInput).path("user_message").isNull()).isTrue();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM coach_turns WHERE session_id=? AND role='actor'",
+                Long.class, session)).isZero();
+        assertError(coachReply(user, session, UUID.randomUUID()), 409, "client_contract_required");
+        assertError(coachConfirm(user, session, UUID.randomUUID()).header("X-Acttub-Contract", "three_layers_v1"),
+                409, "practice_note_does_not_require_confirmation");
+        assertError(reports(user, session, UUID.randomUUID()), 409, "client_contract_required");
+        assertError(reports(user, session, UUID.randomUUID()).header("X-Acttub-Contract", "three_layers_v1"),
+                409, "coaching_session_is_open");
+        generator.enqueue(structuredReply(1, "오늘 나눈 내용까지만 남겨둘게요.", "finish", "turn:" + session + ":1"));
+        generator.enqueue("{\"summary\":[],\"next_take\":null}");
+        UUID requestId = UUID.randomUUID();
+        var finish = post("/v2/coach/reply").contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearer(user)).header("X-Request-Id", requestId)
+                .header("X-Acttub-Contract", "three_layers_v1")
+                .content("{\"session_id\":\"" + session + "\",\"text\":\"정리해줘\"}");
+        JsonNode completed = successful(finish);
+        assertThat(completed.path("status").asText()).isEqualTo("complete");
+        assertThat(completed.path("report").path("report_type").asText()).isEqualTo("practice_note");
+        assertThat(completed.path("report").path("mode").asText()).isEqualTo("observation");
+        assertThat(completed.path("report").path("practice").isNull()).isTrue();
+        assertThat(completed.path("report").path("direction").isNull()).isTrue();
+        assertThat(completed.path("report").path("attempts")).isEmpty();
+        assertThat(completed.path("report").has("source_catalog")).isFalse();
+        assertThat(successful(finish)).isEqualTo(completed);
+        assertThat(generator.callCount()).isEqualTo(3);
+        assertThat(operationCount("attempts", "kind", "coach_reply")).isEqualTo(replyAttempts + 1);
+        assertThat(operationCount("external.calls", "kind", "coach_reply", "dependency", "model")).isEqualTo(replyCalls + 2);
+        assertThat(operationCount("terminal", "kind", "coach_reply", "outcome", "succeeded", "classification", "none"))
+                .isEqualTo(replyCompleted + 1);
+        assertError(coachReply(user, session, UUID.randomUUID()).header("X-Acttub-Contract", "three_layers_v1"),
+                409, "session is closed");
+        assertThat(operationCount("terminal", "kind", "coach_reply", "outcome", "failed", "classification", "expected"))
+                .isEqualTo(replyRejected + 1);
+        assertThat(operationCount("attempts", "kind", "coach_reply")).isEqualTo(replyAttempts + 1);
+        assertThat(operationCount("external.calls", "kind", "coach_reply", "dependency", "model")).isEqualTo(replyCalls + 2);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM practice_reports WHERE practice_session_id=?", Long.class, practice.id())).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM handoff_confirmations", Long.class)).isZero();
+        assertError(get("/v2/reports/{id}", practice.id()).header("Authorization", bearer(user)),
+                409, "client_contract_required");
+        // 이 fixture는 스토리지를 구성하지 않는다. 노트 생성 자체는 재생 URL 없이 완료되어야 한다.
+        // 상세 재생 URL 계약은 StorageFixture를 가진 ReportEndpointIT에서 검증한다.
+        JsonNode saved = successful(reports(user, session, UUID.randomUUID())
+                .header("Authorization", bearer(user)).header("X-Acttub-Contract", "three_layers_v1"));
+        assertThat(saved).isEqualTo(completed.path("report"));
+        JsonNode history = successful(get("/v2/reports").header("Authorization", bearer(user)));
+        assertThat(history.path("reports")).isEmpty();
+    }
+
+    private double operationCount(String event, String... tags) {
+        return meters.get("acttub.external.operations." + event).tags(tags).counter().count();
+    }
+
+    private static String structuredReply(long revision, String text, String flow, String actorId) {
+        var response = com.acttub.actingapi.integration.llm.StructuredJson.MAPPER.createObjectNode()
+                .put("action", "respond").put("base_state_revision", revision).put("message", text)
+                .putNull("context_update").putNull("style_update").put("flow", flow);
+        var link = response.putObject("reply_link").put("move", actorId == null ? "open" : "close");
+        if (actorId == null) {
+            link.putNull("user_message_id").putNull("actor_quote");
+            var context = response.putObject("context_update").putNull("direction").putNull("reading");
+            context.putObject("scene_context").putNull("situation").putNull("character_goal").putNull("partner_action");
+            context.putArray("open_points");
+            var focus = context.putObject("focus").put("label", "가지 마 대사").put("utterance_ref", "u1");
+            focus.putArray("evidence_refs").add("u1");
+        }
+        else link.put("user_message_id", actorId).put("actor_quote", "정리해줘");
+        var refs = link.putArray("evidence_refs");
+        if (actorId == null) refs.add("u1");
+        return response.toString();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{}", "null", "[]", "{\"observations\":null}", "{\"legacy\":true}"})
+    void legacySplitObservationsReachCoachStartAndReply(String raw) throws Exception {
+        UUID userId = fixtures.insertUser();
+        var practice = fixtures.insertPractice(userId);
+        fixtures.insertSummary(practice.id());
+        jdbc.update("UPDATE summaries SET raw=?::jsonb WHERE session_id=?", raw, practice.id());
+        generator.enqueue(COACH_REPLY);
+
+        JsonNode started = successful(post("/v2/coach/start")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearer(userId))
+                .header("X-Request-Id", UUID.randomUUID())
+                .content("{\"practice_session_id\":\"" + practice.id() + "\"}"));
+
+        assertThat(generator.lastInput).contains("멈춘 뒤 말한다", "첫 대사", "얼굴은 확인되지 않음");
+        generator.enqueue(COACH_REPLY);
+        successful(coachReply(userId, UUID.fromString(started.path("session_id").asText()), UUID.randomUUID()));
+        assertThat(generator.lastInput).contains("멈춘 뒤 말한다", "첫 대사", "얼굴은 확인되지 않음");
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void coachReadsRawPackOrLegacyRawArrayBeforeSplitValues(boolean legacyArray) throws Exception {
+        UUID userId = fixtures.insertUser();
+        var practice = fixtures.insertPractice(userId);
+        fixtures.insertSummary(practice.id());
+        if (legacyArray) {
+            jdbc.update("UPDATE summaries SET raw=raw->'observations' WHERE session_id=?", practice.id());
+        }
+        jdbc.update("""
+                UPDATE summaries SET observations_json='[{"label":"낡은 관찰","quote":"낡은 대사"}]'::jsonb
+                WHERE session_id=?
+                """, practice.id());
+        generator.enqueue(COACH_REPLY);
+        JsonNode started = successful(post("/v2/coach/start")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Authorization", bearer(userId))
+                .header("X-Request-Id", UUID.randomUUID())
+                .content("{\"practice_session_id\":\"" + practice.id() + "\"}"));
+        assertThat(generator.lastInput).contains("멈춘 뒤 말한다", "첫 대사").doesNotContain("낡은 관찰", "낡은 대사");
+        if (!legacyArray) {
+            assertThat(generator.lastInput).contains("여자가 문 앞에서 돌아선 상대를 붙잡는다.");
+        }
+        generator.enqueue(COACH_REPLY);
+        successful(coachReply(userId, UUID.fromString(started.path("session_id").asText()), UUID.randomUUID()));
+        assertThat(generator.lastInput).contains("멈춘 뒤 말한다", "첫 대사").doesNotContain("낡은 관찰", "낡은 대사");
+        if (!legacyArray) {
+            assertThat(generator.lastInput).contains("여자가 문 앞에서 돌아선 상대를 붙잡는다.");
+        }
+    }
+
+    @Test
+    void modelRegenerationCountsTwoCallsInOneAttemptAndReplayDoesNotExecuteAgain() throws Exception {
+        var attempts = meters.get("acttub.external.operations.attempts").tag("kind", "coach_reply").counter();
+        var calls = meters.find("acttub.external.operations.external.calls").tags(
+                "kind", "coach_reply", "dependency", "model").counter();
+        assertThat(calls).isNotNull();
+        var accepted = meters.get("acttub.external.operations.accepted").tag("kind", "coach_reply").counter();
+        var succeeded = meters.get("acttub.external.operations.terminal").tags(
+                "kind", "coach_reply", "outcome", "succeeded", "classification", "none").counter();
+        double attemptsBefore = attempts.count();
+        double callsBefore = calls.count();
+        double acceptedBefore = accepted.count();
+        double succeededBefore = succeeded.count();
+        UUID user = fixtures.insertUser();
+        UUID session = openCoachSession(user);
+        UUID request = UUID.randomUUID();
+        generator.enqueue("{\"message\":\"점수로 볼게요\"}");
+        generator.enqueue(COACH_REPLY);
+        JsonNode first = successful(coachReply(user, session, request));
+        assertThat(successful(coachReply(user, session, request))).isEqualTo(first);
+        assertThat(generator.callCount()).isEqualTo(2);
+        assertThat(accepted.count()).isEqualTo(acceptedBefore + 1);
+        assertThat(attempts.count()).isEqualTo(attemptsBefore + 1);
+        assertThat(calls.count()).isEqualTo(callsBefore + 2);
+        assertThat(succeeded.count()).isEqualTo(succeededBefore + 1);
     }
 
     @Test
@@ -116,6 +297,8 @@ class CoachReportEndpointIT {
 
     @Test
     void existingReportBlocksResumeAndBypassesBothCreateAndConfirmGeneration() throws Exception {
+        double attemptsBefore = meters.find("acttub.external.operations.attempts").counters().stream()
+                .mapToDouble(io.micrometer.core.instrument.Counter::count).sum();
         UUID userId = fixtures.insertUser();
         CoachStorageFixtures.Practice practice = fixtures.insertPractice(userId);
         UUID summaryId = fixtures.insertSummary(practice.id());
@@ -155,6 +338,8 @@ class CoachReportEndpointIT {
                         """.formatted(sessionId)));
         assertThat(confirmed.path("report")).isEqualTo(report);
         assertThat(generator.callCount()).isZero();
+        assertThat(meters.find("acttub.external.operations.attempts").counters().stream()
+                .mapToDouble(io.micrometer.core.instrument.Counter::count).sum()).isEqualTo(attemptsBefore);
     }
 
     @Test
@@ -303,6 +488,8 @@ class CoachReportEndpointIT {
      */
     @Test
     void losingTheLeaseMidFlightIsStillProcessingOnEveryGeneratingRoute() throws Exception {
+        double terminalBefore = meters.find("acttub.external.operations.terminal").counters().stream()
+                .mapToDouble(io.micrometer.core.instrument.Counter::count).sum();
         UUID starting = fixtures.insertUser();
         CoachStorageFixtures.Practice startPractice = fixtures.insertPractice(starting);
         fixtures.insertSummary(startPractice.id());
@@ -347,6 +534,8 @@ class CoachReportEndpointIT {
         assertError(reports(reporting, reportSession, reportRequest),
                 409, "request is still processing");
         assertLostTheLease(reportRequest, beforeReport);
+        assertThat(meters.find("acttub.external.operations.terminal").counters().stream()
+                .mapToDouble(io.micrometer.core.instrument.Counter::count).sum()).isEqualTo(terminalBefore);
     }
 
     /**
@@ -417,6 +606,9 @@ class CoachReportEndpointIT {
      */
     @Test
     void aReportThatAppearsMidGenerationTurnsBothWritingRoutesIntoAConflict() throws Exception {
+        var rejected = meters.get("acttub.external.operations.terminal").tags(
+                "kind", "report", "outcome", "failed", "classification", "expected").counter();
+        double before = rejected.count();
         UUID reporting = fixtures.insertUser();
         UUID reportSession = openCoachSession(reporting);
         UUID reportHandoff = fixtures.insertHandoff(
@@ -437,6 +629,7 @@ class CoachReportEndpointIT {
         generator.enqueue(REPORT_BODY);
         assertError(coachConfirm(confirming, confirmSession, UUID.randomUUID()),
                 409, "report already exists");
+        assertThat(rejected.count()).isEqualTo(before + 2);
     }
 
     /** 남의 것이거나 없는 코치 세션으로 성적표를 만들면 404 다 — 연습 쪽 표기와 다르다. */
@@ -456,7 +649,27 @@ class CoachReportEndpointIT {
      * 서비스 층에서 본다.
      */
     @Test
+    void unexpectedModelFailureIsRecordedWithoutChangingThePublic500() throws Exception {
+        UUID user = fixtures.insertUser();
+        UUID session = openCoachSession(user);
+        confirmHandoff(fixtures.insertHandoff(session, practiceOf(session), CREATED_AT));
+        UUID request = UUID.randomUUID();
+        generator.enqueue(REPORT_BODY);
+        generator.duringGeneration(() -> { throw new IllegalStateException("broken invariant"); });
+        var failures = meters.get("acttub.external.operations.terminal").tags(
+                "kind", "report", "outcome", "failed", "classification", "unexpected").counter();
+        double before = failures.count();
+        assertError(reports(user, session, request), 500, "internal_server_error");
+        assertThat(failures.count()).isEqualTo(before + 1);
+        assertThat(jdbc.queryForObject("SELECT last_failure_classification FROM external_operations WHERE request_id=?",
+                String.class, request)).isEqualTo("unexpected");
+    }
+
+    @Test
     void reportParseFailureOnCreateIsBadGatewayAndMarksTheLedger() throws Exception {
+        var failures = meters.get("acttub.external.operations.terminal").tags(
+                "kind", "report", "outcome", "failed", "classification", "external").counter();
+        double before = failures.count();
         UUID reporting = fixtures.insertUser();
         UUID reportSession = openCoachSession(reporting);
         confirmHandoff(fixtures.insertHandoff(
@@ -472,6 +685,18 @@ class CoachReportEndpointIT {
         assertThat(jdbc.queryForObject("""
                 SELECT error_code FROM external_operations WHERE request_id = ?
                 """, String.class, requestId)).isEqualTo("report_parse_error");
+        assertThat(jdbc.queryForObject(
+                "SELECT last_failure_classification FROM external_operations WHERE request_id=?",
+                String.class, requestId)).isEqualTo("external");
+        assertThat(failures.count()).isEqualTo(before + 1);
+        var accepted = meters.get("acttub.external.operations.accepted").tag("kind", "report").counter();
+        double acceptedBeforeResume = accepted.count();
+        generator.enqueue(REPORT_BODY);
+        successful(reports(reporting, reportSession, requestId));
+        assertThat(accepted.count()).isEqualTo(acceptedBeforeResume);
+        assertThat(failures.count()).isEqualTo(before + 1);
+        assertThat(jdbc.queryForObject("SELECT status FROM external_operations WHERE request_id=?",
+                String.class, requestId)).isEqualTo("succeeded");
     }
 
     private JsonNode successful(
@@ -614,13 +839,20 @@ class CoachReportEndpointIT {
                 CREATED_AT);
     }
 
+    private static final String VALID_OBSERVATIONS =
+            "[{\"start_ms\":0,\"end_ms\":100,\"what\":\"멈춘다\","
+                    + "\"quote\":\"가지 마\",\"dimension\":\"호흡\",\"confidence\":0.9}]";
+
     private void useValidObservationPack(UUID practiceId) {
         jdbc.update("""
                 UPDATE summaries
-                SET observations_json = ?::jsonb, uncertainties_json = '[]'::jsonb
+                SET raw = ?::jsonb, observations_json = ?::jsonb,
+                    uncertainties_json = '[]'::jsonb
                 WHERE session_id = ?
                 """,
-                "[{\"start_ms\":0,\"end_ms\":100,\"label\":\"멈춘다\",\"confidence\":0.9}]",
+                "{\"scene_summary\":\"문 앞에서 돌아선다.\",\"observations\":"
+                        + VALID_OBSERVATIONS + ",\"uncertainties\":[]}",
+                VALID_OBSERVATIONS,
                 practiceId);
     }
 
@@ -654,10 +886,12 @@ class CoachReportEndpointIT {
         private final Deque<String> responses = new ArrayDeque<>();
         private Runnable duringGeneration;
         private int calls;
+        private String lastInput;
 
         @Override
         public synchronized GeneratedText generate(String instructions, String input) {
             calls++;
+            lastInput = input;
             // ⚠ 예정에 없던 호출이면 <b>부작용을 일으키기 전에</b> 멈춘다. 순서를 뒤집으면 훅이
             // 먼저 돌아 그 실패(제약 위반·픽스처 단언)가 진짜 원인을 가린다.
             if (responses.isEmpty()) {
@@ -689,6 +923,7 @@ class CoachReportEndpointIT {
             responses.clear();
             duringGeneration = null;
             calls = 0;
+            lastInput = null;
         }
     }
 }

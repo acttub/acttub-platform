@@ -30,7 +30,8 @@ class OpenAiResponsesClientTest {
 
         GeneratedText generated = client.generate("시스템", "입력 문자열");
 
-        assertThat(generated).isEqualTo(new GeneratedText("답변", new TokenUsage(11, 7, 18)));
+        assertThat(generated).isEqualTo(
+                new GeneratedText("답변", new TokenUsage(11, 7, 18), "gpt-5.6-luna"));
         OpenAiHttpRequest request = transport.requests.getFirst();
         assertThat(request.uri()).isEqualTo(URI.create("https://api.openai.com/v1/responses"));
         assertThat(request.headers()).containsExactly(
@@ -39,7 +40,7 @@ class OpenAiResponsesClientTest {
         assertThat(request.body().fieldNames()).toIterable()
                 .containsExactly("model", "instructions", "input");
         assertThat(request.body()).isEqualTo(OBJECT_MAPPER.readTree("""
-                {"model":"gpt-5.6-terra","instructions":"시스템","input":"입력 문자열"}
+                {"model":"gpt-5.6-luna","instructions":"시스템","input":"입력 문자열"}
                 """));
         assertThat(OpenAiResponsesClient.REQUEST_TIMEOUT).isEqualTo(Duration.ofSeconds(120));
     }

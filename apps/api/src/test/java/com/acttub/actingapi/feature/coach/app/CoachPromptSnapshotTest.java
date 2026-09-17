@@ -7,7 +7,6 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
-import com.acttub.actingapi.integration.llm.TextValidator;
 import com.acttub.actingapi.support.FrozenValue;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -22,6 +21,45 @@ class CoachPromptSnapshotTest {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
+    @Test
+    void oldPackWithoutTimelineOrSpeechStillBuildsForEveryBranch() throws Exception {
+        JsonNode old = observationPack();
+        assertThat(old.has("timeline")).isFalse();
+        assertThat(old.has("speech")).isFalse();
+        for (String kind : List.of("분석", "표현", "그 외")) {
+            var session = snapshot(old, kind, "그 외", "", List.of(), "", null, List.of());
+            String prompt = CoachPrompt.buildChat(session, "이유를 모르겠어요");
+            assertThat(prompt).contains("여자가 문 앞에서", "가지 마", "얼굴은 확인되지 않음");
+        }
+    }
+
+    @Test
+    void newPackIsReadInSceneTimelineSpeechObservationUncertaintyOrder() throws Exception {
+        var pack = (com.fasterxml.jackson.databind.node.ObjectNode) observationPack();
+        pack.put("timeline", "0:01에 멈추며 시선을 옮긴다");
+        pack.set("speech", OBJECT_MAPPER.readTree("{\"transcript\":\"가지 마\",\"avg_syllables_per_sec\":7.0}"));
+        var session = snapshot(pack, "분석", "그 외", "", List.of(), "", null, List.of());
+        String prompt = CoachPrompt.buildChat(session, "모르겠어요");
+        int previous = -1;
+        for (String field : List.of("scene_summary", "timeline", "speech", "observations", "uncertainties")) {
+            int index = prompt.indexOf("\"" + field + "\"");
+            assertThat(index).as(field).isGreaterThan(previous);
+            previous = index;
+        }
+        assertThat(prompt).contains("0:01에 멈추며 시선을 옮긴다", "\"avg_syllables_per_sec\":7.0");
+    }
+
+    @Test
+    void measuredSpeechIsStillAvailableWhenThereAreNoVisualObservations() throws Exception {
+        var pack = OBJECT_MAPPER.readTree("""
+                {"timeline":"0:01에 대사가 들린다", "speech":{"transcript":"가지 마"},
+                 "observations":[], "uncertainties":["사람이 화면 밖"]}
+                """);
+        var session = snapshot(pack, "분석", "그 외", "", List.of(), "", null, List.of());
+        assertThat(CoachPrompt.buildChat(session, "모르겠어요"))
+                .contains("\"speech\":{\"transcript\":\"가지 마\"}", "사람이 화면 밖");
+    }
+
     /** 두 줄짜리 받아쓴 대사 — 칸이 여러 줄을 목록으로 적는지 보이려고 둘을 쓴다. */
     private static final List<String> TRANSCRIPTS = List.of("가지 마", "제발");
 
@@ -30,19 +68,13 @@ class CoachPromptSnapshotTest {
             "표현", "coach-system-prompt-expression.txt",
             "그 외", "coach-system-prompt-other.txt");
 
-    /** 7번째부터의 안전 문구. 그 외는 분석 갈래라 분석 문장을 받는다. */
-    private static final Map<String, String> CLOSING_SAFE_TEMPLATE_BY_KIND = Map.of(
-            "분석", "coach-safe-template-closing-analysis.txt",
-            "그 외", "coach-safe-template-closing-analysis.txt",
-            "표현", "coach-safe-template-closing-expression.txt");
-
     @Test
-    @DisplayName("select 세 갈래가 동결된 값과 완전히 같다")
+    @DisplayName("공통 응답 정책 앞의 갈래별 본문은 동결된 값을 유지한다")
     void selectedPromptsMatchFrozenValues() {
         SYSTEM_PROMPT_BY_KIND.forEach((kind, fixture) ->
                 assertThat(CoachPrompt.select(kind))
                         .as("blockage_kind=%s 시스템 프롬프트", kind)
-                        .isEqualTo(FrozenValue.of(fixture)));
+                        .startsWith(FrozenValue.of(fixture) + "\n\n# 현재 요청에 맞춰 돕기"));
     }
 
     @Test
@@ -53,38 +85,54 @@ class CoachPromptSnapshotTest {
     }
 
     /**
-     * 받아쓴 대사 칸은 갈래로 갈리지 않는다 — 표현·그 외로 시작한 연습의 코치도 대사를
-     * 인용해 말해야 한다. 예전에는 "분석" 세션에만 넣었다.
+     * 받아쓴 대사 칸은 SOMA-490 에서 사라졌다 — 대사는 관찰의 {@code quote} 로 이미
+     * 프롬프트에 들어 있고, 같은 말을 두 번 실으면 코치가 그 목록만 붙잡고 말한다. 지난
+     * 연습에 남아 있는 대사 행이 프롬프트를 <b>바꾸지 않는다</b>는 것을 여기서 고정한다.
      */
     @Test
-    @DisplayName("표현 갈래에도 받아쓴 대사가 있으면 그 칸이 들어간다")
-    void expressionSessionWithTranscriptsMatchesFrozenValue() throws Exception {
-        CoachSessionSnapshot expression = expressionSession(TRANSCRIPTS);
-        assertThat(CoachPrompt.buildChat(expression, "이번에는 멈춰봤어요"))
-                .isEqualTo(FrozenValue.of("coach-chat-prompt-expression-transcripts.txt"));
+    @DisplayName("남아 있는 받아쓴 대사는 프롬프트를 바꾸지 않는다")
+    void leftoverTranscriptsDoNotChangeThePrompt() throws Exception {
+        assertThat(CoachPrompt.buildChat(expressionSession(TRANSCRIPTS), "이번에는 멈춰봤어요"))
+                .isEqualTo(CoachPrompt.buildChat(expressionSession(List.of()), "이번에는 멈춰봤어요"));
     }
 
     /**
-     * 그 외 갈래는 v2 본문을 쓰되 표현 전용 칸 없이, 받아쓴 대사 칸은 들어간다. 갈래가
-     * {@code 그 외} 이므로 막힘 미특정 블록이 붙는다 — 코치가 막힘을 지어내지 않고 영상에서
-     * 확인된 것으로 대화를 연다.
+     * 그 외 갈래는 영상부터 시작하는 기본 코치를 쓰되 표현 전용 칸 없이 간다. 갈래가 {@code 그 외} 이므로 막힘
+     * 미특정 블록이 붙는다 — 코치가 막힘을 지어내지 않고 영상에서 확인된 것으로 대화를 연다.
      */
     @Test
-    @DisplayName("그 외 갈래에는 막힘 미특정 블록이 붙고 받아쓴 대사 칸도 들어간다")
-    void otherSessionWithTranscriptsMatchesFrozenValue() throws Exception {
+    @DisplayName("그 외 갈래에는 막힘 미특정 블록이 붙는다")
+    void otherSessionMatchesFrozenValue() throws Exception {
         assertThat(CoachPrompt.buildChat(otherSession(), "잘 모르겠어요"))
-                .isEqualTo(FrozenValue.of("coach-chat-prompt-other-transcripts.txt"));
+                .isEqualTo(FrozenValue.of("coach-chat-prompt-other.txt"));
     }
 
     /**
      * 장면도 막힘도 건너뛴 세션 — 웹·앱 어느 쪽이든 둘 다 건너뛰면 이렇게 온다. 두 블록이
-     * 장면·막힘 순으로 나란히 붙는다.
+     * 장면·막힘 순으로 나란히 붙되 장면 질문이나 고정 진행 순서를 강제하지 않는다.
      */
     @Test
     @DisplayName("장면도 막힘도 건너뛴 그 외 갈래에는 두 블록이 장면·막힘 순으로 붙는다")
     void otherSessionWithBlankSceneMatchesFrozenValue() throws Exception {
         assertThat(CoachPrompt.buildChat(withScene(otherSession(), "", "", ""), "잘 모르겠어요"))
                 .isEqualTo(FrozenValue.of("coach-chat-prompt-other-blank-scene.txt"));
+    }
+
+    @Test
+    void videoOnlyFollowUpPreservesCorrectionWithoutReopeningContextInterview() throws Exception {
+        var session = withScene(otherSession(), "", "", "").withTurns(List.of(
+                new CoachTurnSnapshot("actor", "그 외"),
+                new CoachTurnSnapshot("ai", "마지막 대사를 살펴볼게요."),
+                new CoachTurnSnapshot("actor", "학생들에게 제 경험담이라고 오해받지 않으려는 거예요."),
+                new CoachTurnSnapshot("ai", "경험담으로 오해받지 않으려는 뜻으로 볼게요.")))
+                .withPrior(new PriorContext(Map.of("goal", "발음을 또렷하게 말하기"),
+                        null, false, List.of(), List.of()));
+        String input = CoachPrompt.buildChat(session, "그래서 어떻게 해요?");
+        assertThat(input).contains("학생들에게 제 경험담이라고 오해받지 않으려는 거예요.",
+                        "대화에서 이미 알려준 맥락은 다시 묻지 않는다.", "현재 응답: 3번째")
+                .doesNotContain("1~2번째 응답 안에서", "현재 구간:", "자연스러운 자리에서 한 번은")
+                .doesNotContain("질문 하나로 시작한다")
+                .contains("지난 기록을 이번 장면의 목표·의도로 확정하지 않는다.");
     }
 
     /**
@@ -133,50 +181,14 @@ class CoachPromptSnapshotTest {
     }
 
     @Test
-    @DisplayName("buildRegeneration 과 safeTemplate 가 동결된 값과 완전히 같다")
-    void regenerationAndSafeTemplateMatchFrozenValues() {
+    @DisplayName("buildRegeneration 이 동결된 값과 완전히 같다")
+    void regenerationMatchesFrozenValue() {
         assertThat(CoachPrompt.buildRegeneration(
                 analysisSession(),
                 "잘 모르겠어요",
                 "{\"message\":\"점수\"}",
                 List.of("금지어가 노출됐습니다: 점수", "응답에 시각이 들어 있습니다.")))
                 .isEqualTo(FrozenValue.of("coach-regeneration-prompt.txt"));
-        for (int turnNumber = 1; turnNumber <= 6; turnNumber++) {
-            for (String kind : CLOSING_SAFE_TEMPLATE_BY_KIND.keySet()) {
-                assertThat(CoachPrompt.safeTemplate(turnNumber, kind))
-                        .as("blockage_kind=%s %d번째 안전 문구", kind, turnNumber)
-                        .isEqualTo(FrozenValue.of("coach-safe-template.txt"));
-            }
-        }
-    }
-
-    /**
-     * 7번째부터의 안전 문구는 질문이 아니라 정리 청유다 — 응답 번호와 갈래마다 어느 문장이
-     * 가는지를 동결한다. 예산(8)을 넘긴 9번째도 같은 문장이다.
-     */
-    @Test
-    @DisplayName("7번째부터의 안전 문구가 갈래별 정리 청유 동결값과 완전히 같다")
-    void closingSafeTemplatesMatchFrozenValues() {
-        for (int turnNumber : List.of(7, 8, 9)) {
-            CLOSING_SAFE_TEMPLATE_BY_KIND.forEach((kind, fixture) ->
-                    assertThat(CoachPrompt.safeTemplate(turnNumber, kind))
-                            .as("blockage_kind=%s %d번째 안전 문구", kind, turnNumber)
-                            .isEqualTo(FrozenValue.of(fixture)));
-        }
-    }
-
-    /** 안전 문구는 검증을 건너뛰고 나간다 — 그래서 문구 자신이 검증을 통과해야 한다. */
-    @Test
-    @DisplayName("안전 문구 세 벌 모두 서버 검증에 걸리지 않는다")
-    void safeTemplatesPassTurnValidation() {
-        for (int turnNumber : List.of(6, 7)) {
-            for (String kind : List.of("분석", "표현")) {
-                assertThat(TextValidator.validateTurn(
-                        CoachPrompt.safeTemplate(turnNumber, kind), true).failures())
-                        .as("blockage_kind=%s %d번째 안전 문구", kind, turnNumber)
-                        .isEmpty();
-            }
-        }
     }
 
     /** 응답 번호는 코치 turn 수 + 1 이다 — 프롬프트의 "현재 응답: N번째" 와 같은 셈이다. */
@@ -230,7 +242,9 @@ class CoachPromptSnapshotTest {
 
     private static JsonNode observationPack() throws Exception {
         return OBJECT_MAPPER.readTree("""
-                {"observations":[{"start_ms":0,"end_ms":93000,"label":"멈춘 뒤 말한다","confidence":1.0}],
+                {"scene_summary":"여자가 문 앞에서 돌아선 상대를 붙잡는다.",
+                 "observations":[{"start_ms":0,"end_ms":93000,"what":"멈춘 뒤 말한다",
+                                  "quote":"가지 마","dimension":"호흡","confidence":1.0}],
                  "uncertainties":["얼굴은 확인되지 않음"]}
                 """);
     }

@@ -23,6 +23,14 @@ function clientHref(surface: StoreLinkSurface): string {
 // 값이 바뀔 일이 없으니 구독은 빈 껍데기다. 모듈 상수로 둬서 렌더마다 다시 구독하지 않는다.
 const subscribe = () => () => {};
 
+export function useAppDownloadHref(surface: StoreLinkSurface): string {
+  return useSyncExternalStore(
+    subscribe,
+    () => clientHref(surface),
+    () => "/app",
+  );
+}
+
 // 높이·모서리·글자 크기는 여기서만 정한다 — className 으로 h-* 를 덧씌우면 Tailwind 가
 // 어느 쪽을 이기게 할지 보장하지 않아서 자리마다 크기가 흔들린다.
 const SIZE_CLASS = {
@@ -53,11 +61,7 @@ export function AppDownloadButton({
   size?: "sm" | "md" | "lg";
   className?: string;
 }) {
-  const href = useSyncExternalStore(
-    subscribe,
-    () => clientHref(surface),
-    () => "/app",
-  );
+  const href = useAppDownloadHref(surface);
 
   return (
     <a

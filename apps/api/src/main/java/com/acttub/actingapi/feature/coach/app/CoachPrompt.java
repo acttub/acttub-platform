@@ -11,6 +11,7 @@ import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /** acting-agent/prompt.py의 프롬프트와 입력 직렬화 계약. */
 public final class CoachPrompt {
@@ -18,40 +19,16 @@ public final class CoachPrompt {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final String COACH_V2_PROMPT = load("/coach/coach-v2-prompt.txt");
     private static final String COACH_V3_PROMPT = load("/coach/coach-v3-prompt.txt");
-    /**
-     * 모델 답이 두 번 검증에 걸렸을 때 서버가 대신 내는 문장. 1~6번째 응답에서만 쓴다 —
-     * 질문이라서, 7번째부터 내면 두 프롬프트가 그 응답부터 하지 말라는 "새로운 질문"이
-     * 서버 손으로 나간다.
-     */
-    private static final String SAFE_TEMPLATE =
-            "방금 말한 지점에서 하나만 더 볼게. "
-                    + "이 말을 상대에게 건넬 때, 상대가 어떻게 되길 바라는 거야?";
-
-    /**
-     * 마지막 구간(7번째부터)의 안전 문구. 새 질문 대신 배우의 말로 정리해 달라고 청한다 —
-     * 두 프롬프트의 7번째 응답 절이 모델에 시키는 두 가지 중 둘째다. 첫째(오늘 대화에서 배우가
-     * 말한 것 하나를 되짚기)는 서버가 알 수 없어 뺀다. 분석·그 외는 다음 테이크에서 해볼 것,
-     * 표현은 다음 연습에서 유지할 것을 청한다. v3 는 실험을 못 한 세션에는 "해볼 것"을 청하라
-     * 하지만 서버는 실험 여부를 모르므로 표현은 늘 "유지할 것"이다.
-     */
-    private static final String ANALYSIS_CLOSING_SAFE_TEMPLATE =
-            "오늘 이야기한 것 가운데 다음 테이크에서 해볼 것 하나만 네 말로 정리해줄래? "
-                    + "한 줄이면 충분해.";
-    private static final String EXPRESSION_CLOSING_SAFE_TEMPLATE =
-            "오늘 이야기한 것 가운데 다음 연습에서 유지할 것 하나만 네 말로 정리해줄래? "
-                    + "한 줄이면 충분해.";
-
+    private static final String VIDEO_FIRST_PROMPT = load("/coach/coach-video-first-prompt.txt");
+    private static final String RESPONSE_POLICY = load("/coach/coach-response-policy.txt");
     /**
      * 코치 응답의 턴 예산. 분석·표현 갈래가 같은 값을 쓴다.
      *
-     * <p>상한에서 대화를 끊는 값이 아니라, 매 요청 프롬프트 끝에 "## 남은 응답" 블록으로
-     * 실려 모델이 그 안에서 대화를 배분하게 하는 값이다. 서버는 이 번호를 넘어도 끊지
-     * 않는다 — 넘은 응답의 처리는 모델 프롬프트의 몫이다.
+     * <p>매 요청에 남은 횟수를 전달한다. 마지막 응답의 complete 상태는 서버도 검증한다.
      */
-    private static final int TURN_BUDGET = 8;
+    static final int TURN_BUDGET = 8;
     /**
-     * 구간 경계 — 앞 두 구간의 마지막 응답 번호. 둘째 경계 다음이 마지막 구간이고, 안전
-     * 문구도 그 경계에서 질문에서 정리 청유로 바뀐다.
+     * 구간 경계 — 앞 두 구간의 마지막 응답 번호.
      */
     private static final int OPEN_UNTIL = 3;
     private static final int NARROW_UNTIL = 6;
@@ -114,6 +91,10 @@ public final class CoachPrompt {
      * 채운다. 첫 연습에서는 지금까지와 똑같은 프롬프트가 나가야 한다.
      */
     static String priorContextBlock(PriorContext prior) {
+        return priorContextBlock(prior, false);
+    }
+
+    private static String priorContextBlock(PriorContext prior, boolean videoFirst) {
         if (prior == null || prior.isEmpty()) {
             return "";
         }
@@ -121,9 +102,14 @@ public final class CoachPrompt {
         lines.add("## 배우에 대해 지금까지 알고 있는 것");
         lines.add("지난 연습에서 정리된 참고 사항이다. **영상 근거가 아니다** — 이걸로 이번"
                 + " 영상의 장면을 말하지 않는다. 배우가 지난번에 한 말이므로 그대로 읊지 않는다.");
-        lines.add("다만 모른 척도 하지 않는다 — **대화 중 자연스러운 자리에서 한 번은"
-                + " 이어받아라.** 지난 목표가 이번에도 유효한지 묻거나, 반복해서 막히는 지점이"
-                + " 이번 장면에서도 보이는지 연결하거나, 해보기로 한 것을 해봤는지 묻는 식이다.");
+        if (videoFirst) {
+            lines.add("이번 영상의 주제에 직접 도움이 될 때만 참고한다. 지난 목표 확인이나 과제 실행"
+                    + " 확인을 의무 질문으로 만들지 않는다. 지난 기록을 이번 장면의 목표·의도로 확정하지 않는다.");
+        } else {
+            lines.add("다만 모른 척도 하지 않는다 — **대화 중 자연스러운 자리에서 한 번은"
+                    + " 이어받아라.** 지난 목표가 이번에도 유효한지 묻거나, 반복해서 막히는 지점이"
+                    + " 이번 장면에서도 보이는지 연결하거나, 해보기로 한 것을 해봤는지 묻는 식이다.");
+        }
 
         if (!prior.memory().isEmpty()) {
             lines.add("");
@@ -170,12 +156,15 @@ public final class CoachPrompt {
     }
 
     /**
-     * 갈래로 시스템 프롬프트를 고른다. {@code 표현} 만 v3 이고 {@code 분석}·{@code 그 외} 는
-     * v2 다 — 그래서 v2 의 입력 정보는 {@code blockage_kind} 를 "분석 또는 그 외" 로 선언하고,
-     * {@code 그 외} 세션의 할 일은 {@link #blockageUnspecifiedBlock} 이 대화 프롬프트에서 말한다.
+     * 명시적인 분석·표현 선택은 기존 프롬프트를 쓴다. 선택을 건너뛴 {@code 그 외} 는
+     * 영상부터 점검 지점을 제안하는 기본 코치를 쓴다. 저장·연습 노트의 분석 계약은 유지한다.
      */
     public static String select(String blockageKind) {
-        return CoachBranch.isExpressionBlockage(blockageKind) ? COACH_V3_PROMPT : COACH_V2_PROMPT;
+        String branch = CoachBranch.isBlockageUnspecified(blockageKind)
+                ? VIDEO_FIRST_PROMPT
+                : CoachBranch.isExpressionBlockage(blockageKind) ? COACH_V3_PROMPT : COACH_V2_PROMPT;
+        return branch + "\n\n" + RESPONSE_POLICY
+                + (CoachBranch.isBlockageUnspecified(blockageKind) ? "\n\n" + OpeningQuestion.PROMPT : "");
     }
 
     /**
@@ -193,7 +182,9 @@ public final class CoachPrompt {
         addField(lines, "상황", session.situation());
         addField(lines, "캐릭터", session.characterContext());
         addField(lines, "이번 테이크의 목적", session.goal());
-        lines.add("- 배우가 고른 막히는 지점: " + session.blockageKind());
+        lines.add(CoachBranch.isBlockageUnspecified(session.blockageKind())
+                ? "- 막힘 선택: 건너뜀 (그 외는 시스템의 건너뛰기 값)"
+                : "- 배우가 고른 막히는 지점: " + session.blockageKind());
         lines.add("- 하위 갈래: " + subBranchLabel(session.subBranch()));
         addField(lines, "배우가 쓴 상세", session.blockageDetail());
         lines.add("- 영상 길이: " + session.durationMs() + "ms");
@@ -208,6 +199,13 @@ public final class CoachPrompt {
     private static String sceneContextMissingBlock(CoachSessionSnapshot session) {
         if (!sceneContextMissing(session)) {
             return "";
+        }
+        if (CoachBranch.isBlockageUnspecified(session.blockageKind())) {
+            return section("장면 맥락 미입력", "상황·인물·목표를 입력하지 않았다. 빈 입력은 결함이 아니다. "
+                    + (turnNumber(session) == 1
+                            ? "전체 흐름에서 첫 주제를 고르고, 답에 따라 살펴볼 기준이 달라지는 질문 하나로 시작한다. "
+                            : "배우의 최신 답변과 정정을 반영해 현재 주제를 이어간다. ")
+                    + "대화에서 이미 알려준 맥락은 다시 묻지 않는다.");
         }
         return section("장면 맥락 미입력", SCENE_CONTEXT_MISSING_TEXT);
     }
@@ -267,20 +265,18 @@ public final class CoachPrompt {
     public static String buildChat(
             CoachSessionSnapshot session, String userMessage) {
         List<CoachTurnSnapshot> turns = session.turns();
-        List<CoachTurnSnapshot> recentTurns = turns.subList(
-                Math.max(0, turns.size() - 8), turns.size());
-        String history = turnLines(recentTurns);
+        // 한 세션은 코치 응답 8회다. 앞선 정정이 압축 요약에 묻히지 않도록 원문을 유지한다.
+        String history = turnLines(turns);
         if (history.isEmpty()) {
             history = "이전 대화 없음";
         }
         String conversationSummary = empty(session.conversationSummary())
                 ? "아직 없음"
                 : session.conversationSummary();
-        return priorContextBlock(session.prior())
+        return priorContextBlock(session.prior(), CoachBranch.isBlockageUnspecified(session.blockageKind()))
                 + actorMaterialBlock(session)
                 + sceneContextMissingBlock(session)
                 + blockageUnspecifiedBlock(session)
-                + transcriptBlock(session) + "\n\n"
                 + "## 영상에서 확인된 것\n"
                 + "이 팩만 영상 근거로 쓴다. 이 호출에는 영상이 첨부되지 않았고 새 영상 사실을 만들면 안 된다.\n"
                 + videoFacts(session) + "\n\n"
@@ -309,21 +305,6 @@ public final class CoachPrompt {
     }
 
     /**
-     * 모델 답이 두 번 검증에 걸렸을 때 배우에게 갈 문장. 6번째까지는 질문이고, 마지막
-     * 구간(7번째부터)에서는 갈래별 정리 청유다 — 두 프롬프트가 그 응답부터 새 질문을 하지
-     * 말라고 하는데 서버가 대신 내는 문장이 질문이면 안 된다. 응답 번호는 {@link #turnNumber}
-     * 로 센다.
-     */
-    public static String safeTemplate(int turnNumber, String blockageKind) {
-        if (turnNumber <= NARROW_UNTIL) {
-            return SAFE_TEMPLATE;
-        }
-        return CoachBranch.isExpressionBlockage(blockageKind)
-                ? EXPRESSION_CLOSING_SAFE_TEMPLATE
-                : ANALYSIS_CLOSING_SAFE_TEMPLATE;
-    }
-
-    /**
      * 지금 만들 응답의 번호. turn 개수가 아니라 코치 turn 수 + 1 이다 — 프롬프트의
      * "현재 응답: N번째" 와 같은 셈이고, {@code CoachEngine} 의 안전 문구 판정과 그 로그도 이
      * 번호를 쓴다.
@@ -341,54 +322,56 @@ public final class CoachPrompt {
                 .collect(java.util.stream.Collectors.joining("\n"));
     }
 
-    /**
-     * 영상에서 받아쓴 대사를 담는 칸. 갈래로 갈리지 않는다 — 세 갈래 모두의 코치가 대사를
-     * 인용해 말해야 한다. 없으면 칸 자체를 만들지 않는다({@link #priorContextBlock} 과 같은
-     * 이유).
-     */
-    private static String transcriptBlock(CoachSessionSnapshot session) {
-        if (session.transcripts().isEmpty()) {
-            return "";
-        }
-        String transcriptLines = session.transcripts().stream()
-                .map(text -> "- " + text)
-                .collect(java.util.stream.Collectors.joining("\n"));
-        return section("영상에서 받아쓴 대사", transcriptLines);
-    }
 
+    /**
+     * 영상을 본 모델이 낸 관찰을 <b>가공하지 않고 그대로</b> 넘긴다 (SOMA-490).
+     *
+     * <p>예전에는 관찰 3개를 "- 0~93000ms: 라벨" 한 줄씩으로 다시 써서 넘겼다. 그 과정에서
+     * 장면 요약도, 대사 인용도, 어느 축의 관찰인지도 사라졌다 — 코치는 영상을 보지 못하므로
+     * 이 JSON 이 유일한 영상 근거다. 줄여서 넘길 이유가 없다.
+     *
+     * <p>내용은 그대로 두되 <b>순서만</b> 다시 세운다. 팩은 {@code jsonb} 칸에 있고 그 타입은
+     * 키 순서를 보존하지 않아(짧은 이름부터 저장한다) 장면 요약이 관찰 배열 뒤로 밀려 나온다.
+     * 무슨 이야기인지를 먼저 읽고 구간을 봐야 순서대로 읽힌다.
+     */
     private static String videoFacts(CoachSessionSnapshot session) {
         JsonNode pack = session.observationPack();
-        if (pack == null || pack.isNull()) {
+        if (pack == null || pack.isNull() || pack.isEmpty()) {
             return "아직 영상에서 확인된 것이 없다. 영상 이야기를 만들지 마라.";
         }
         JsonNode observations = pack.get("observations");
-        JsonNode uncertainties = pack.get("uncertainties");
-        if (observations == null || !observations.isArray() || observations.isEmpty()) {
-            String uncertaintyText = joinText(uncertainties, " / ");
-            if (uncertaintyText.isEmpty()) {
-                uncertaintyText = "없음";
+        if ((observations == null || !observations.isArray() || observations.isEmpty())
+                && !pack.path("speech").isObject()) {
+            String uncertaintyText = joinText(pack.get("uncertainties"), " / ");
+            return "관찰 0개. 영상 이야기를 새로 만들면 안 된다.\n불확실: "
+                    + (uncertaintyText.isEmpty() ? "없음" : uncertaintyText);
+        }
+        return compactJson(readingOrder(pack));
+    }
+
+    /**
+     * 장면 요약 · 전체 흐름 · 소리에서 잰 값 · 관찰 · 불확실 순으로 다시 담은 사본.
+     * 그 밖의 칸도 뒤에 그대로 따라붙는다 — 여기서 걸러 내면 다시 손실이 된다.
+     */
+    private static JsonNode readingOrder(JsonNode pack) {
+        ObjectNode ordered = OBJECT_MAPPER.createObjectNode();
+        for (String field : List.of("scene_summary", "timeline", "speech", "observations", "uncertainties")) {
+            if (pack.has(field)) {
+                ordered.set(field, pack.get(field));
             }
-            return "관찰 0개. 이것은 정상이며 영상 이야기를 새로 만들면 안 된다.\n"
-                    + "불확실: " + uncertaintyText;
         }
-        List<String> lines = new ArrayList<>();
-        observations.forEach(item -> lines.add(
-                "- " + item.path("start_ms").asLong()
-                        + "~" + item.path("end_ms").asLong() + "ms: "
-                        + pythonString(item.get("label"))
-                        + " (확인 가능성 " + pythonString(item.get("confidence")) + ")"));
-        String uncertaintyText = joinText(uncertainties, " / ");
-        if (!uncertaintyText.isEmpty()) {
-            lines.add("확인되지 않은 것: " + uncertaintyText);
-        }
-        return String.join("\n", lines);
+        pack.fields().forEachRemaining(field -> {
+            if (!ordered.has(field.getKey())) {
+                ordered.set(field.getKey(), field.getValue());
+            }
+        });
+        return ordered;
     }
 
     private static String analysisHandoffBlock(CoachSessionSnapshot session) {
         JsonNode handoff = session.analysisHandoff();
         if (!CoachBranch.isExpressionBlockage(session.blockageKind())
-                || handoff == null
-                || handoff.isNull()) {
+                || !hasUsableAnalysisHandoff(session)) {
             return "";
         }
         String evidenceLines = indentedItems(handoff.get("scene_evidence"));
@@ -413,10 +396,16 @@ public final class CoachPrompt {
         }
         List<String> lines = new ArrayList<>();
         observations.forEach(observation -> lines.add("  - " + compactJson(observation)));
-        String heading = session.analysisHandoff() == null || session.analysisHandoff().isNull()
+        String heading = !hasUsableAnalysisHandoff(session)
                 ? "## 표현 세션 입력 정보\n"
                 : "";
         return heading + "- video_observations:\n" + String.join("\n", lines) + "\n\n";
+    }
+
+    private static boolean hasUsableAnalysisHandoff(CoachSessionSnapshot session) {
+        JsonNode handoff = session.analysisHandoff();
+        return handoff != null && !handoff.isNull()
+                && !"unavailable".equals(handoff.path("completion_level").asText());
     }
 
     private static String phaseLabel(int turnNumber, String blockageKind) {
@@ -442,8 +431,12 @@ public final class CoachPrompt {
                 "## 남은 응답",
                 "전체 응답 예산: " + TURN_BUDGET + "번",
                 "현재 응답: " + turnNumber + "번째",
-                "이번 응답 뒤에 남는 횟수: " + left + "번",
-                "현재 구간: " + phaseLabel(turnNumber, session.blockageKind())));
+                "이번 응답 뒤에 남는 횟수: " + left + "번"));
+        if (CoachBranch.isBlockageUnspecified(session.blockageKind())) {
+            lines.add("횟수는 상한이다. 정해진 질문 순서 없이 현재 주제와 배우의 최신 요청에 맞춰 돕는다.");
+        } else {
+            lines.add("현재 구간: " + phaseLabel(turnNumber, session.blockageKind()));
+        }
         if (turnNumber >= TURN_BUDGET) {
             lines.add("이번이 마지막 응답이다.");
         }

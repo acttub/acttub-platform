@@ -236,6 +236,8 @@
                   }, {
                     "$ref" : "#/components/schemas/ExpressionReport"
                   }, {
+                    "$ref" : "#/components/schemas/PublicPracticeNote"
+                  }, {
                     "$ref" : "#/components/schemas/BlockedReport"
                   } ],
                   "title" : "Response 200 Create Report V2 Reports Post"
@@ -2246,6 +2248,316 @@
         "required" : [ "analysis", "expression" ],
         "title" : "SourceHandoffIds"
       },
+      "PracticeNoteAttempt" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "attempt_id" : {
+            "type" : "string",
+            "title" : "Attempt Id"
+          },
+          "proposal_id" : {
+            "type" : "string",
+            "title" : "Proposal Id"
+          },
+          "instruction" : {
+            "type" : "string",
+            "title" : "Instruction"
+          },
+          "execution" : {
+            "type" : "string",
+            "enum" : [ "unknown", "not_tried", "reported_tried" ],
+            "title" : "Execution"
+          },
+          "result" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/PracticeNoteResult"
+            }, {
+              "type" : "null"
+            } ]
+          }
+        },
+        "required" : [ "attempt_id", "execution", "instruction", "proposal_id", "result" ],
+        "title" : "PracticeNoteAttempt"
+      },
+      "PracticeNoteDirection" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "text" : {
+            "type" : "string",
+            "title" : "Text"
+          },
+          "origin" : {
+            "type" : "string",
+            "enum" : [ "actor_stated", "actor_selected", "coach_proposed" ],
+            "title" : "Origin"
+          }
+        },
+        "required" : [ "origin", "text" ],
+        "title" : "PracticeNoteDirection"
+      },
+      "PracticeNoteEvidence" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "title" : "Id"
+          },
+          "kind" : {
+            "type" : "string",
+            "enum" : [ "video_utterance", "video_observation", "record_limitation" ],
+            "title" : "Kind"
+          },
+          "text" : {
+            "type" : "string",
+            "title" : "Text"
+          },
+          "start_ms" : {
+            "anyOf" : [ {
+              "type" : "integer"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Start Ms"
+          },
+          "end_ms" : {
+            "anyOf" : [ {
+              "type" : "integer"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "End Ms"
+          }
+        },
+        "required" : [ "end_ms", "id", "kind", "start_ms", "text" ],
+        "title" : "PracticeNoteEvidence"
+      },
+      "PracticeNoteFocus" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "label" : {
+            "type" : "string",
+            "title" : "Label"
+          },
+          "start_ms" : {
+            "anyOf" : [ {
+              "type" : "integer"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Start Ms"
+          },
+          "end_ms" : {
+            "anyOf" : [ {
+              "type" : "integer"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "End Ms"
+          },
+          "quote" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Quote"
+          }
+        },
+        "required" : [ "end_ms", "label", "quote", "start_ms" ],
+        "title" : "PracticeNoteFocus"
+      },
+      "PracticeNotePractice" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "proposal_id" : {
+            "type" : "string",
+            "title" : "Proposal Id"
+          },
+          "selection" : {
+            "type" : "string",
+            "enum" : [ "proposed", "selected" ],
+            "title" : "Selection"
+          },
+          "instruction" : {
+            "type" : "string",
+            "title" : "Instruction"
+          },
+          "comparison" : {
+            "type" : "string",
+            "title" : "Comparison"
+          },
+          "keep" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Keep"
+          }
+        },
+        "required" : [ "comparison", "instruction", "keep", "proposal_id", "selection" ],
+        "title" : "PracticeNotePractice"
+      },
+      "PracticeNoteRecordRef" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "record_id" : {
+            "type" : "string",
+            "title" : "Record Id"
+          },
+          "version" : {
+            "type" : "integer",
+            "minimum" : 1,
+            "title" : "Version"
+          },
+          "duration_ms" : {
+            "type" : "integer",
+            "minimum" : 1,
+            "title" : "Duration Ms"
+          }
+        },
+        "required" : [ "duration_ms", "record_id", "version" ],
+        "title" : "PracticeNoteRecordRef"
+      },
+      "PracticeNoteResult" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "direction" : {
+            "type" : "string",
+            "enum" : [ "closer", "further", "mixed", "same", "unclear" ],
+            "title" : "Direction"
+          },
+          "statement" : {
+            "type" : "string",
+            "title" : "Statement"
+          },
+          "basis" : {
+            "type" : "string",
+            "const" : "actor_report",
+            "title" : "Basis"
+          }
+        },
+        "required" : [ "basis", "direction", "statement" ],
+        "title" : "PracticeNoteResult"
+      },
+      "PublicPracticeNote" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "schema_version" : {
+            "type" : "string",
+            "const" : "acttub.public_practice_note.v1",
+            "title" : "Schema Version"
+          },
+          "report_type" : {
+            "type" : "string",
+            "const" : "practice_note",
+            "title" : "Report Type"
+          },
+          "note_id" : {
+            "type" : "string",
+            "title" : "Note Id"
+          },
+          "revision" : {
+            "type" : "integer",
+            "minimum" : 1,
+            "title" : "Revision"
+          },
+          "title" : {
+            "type" : "string",
+            "title" : "Title"
+          },
+          "summary" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Summary"
+          },
+          "mode" : {
+            "type" : "string",
+            "enum" : [ "action", "observation", "record_only" ],
+            "title" : "Mode"
+          },
+          "end_reason" : {
+            "type" : "string",
+            "enum" : [ "actor_finished", "turn_budget", "interrupted", "system_failure" ],
+            "title" : "End Reason"
+          },
+          "record_ref" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/PracticeNoteRecordRef"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "lifecycle" : {
+            "type" : "string",
+            "enum" : [ "draft", "saved" ],
+            "title" : "Lifecycle"
+          },
+          "direction" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/PracticeNoteDirection"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "focus" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/PracticeNoteFocus"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "reading" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Reading"
+          },
+          "practice" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/PracticeNotePractice"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "attempts" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PracticeNoteAttempt"
+            },
+            "title" : "Attempts"
+          },
+          "open_points" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            },
+            "title" : "Open Points"
+          },
+          "evidence" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PracticeNoteEvidence"
+            },
+            "title" : "Evidence"
+          }
+        },
+        "required" : [ "attempts", "direction", "end_reason", "evidence", "focus", "lifecycle", "mode", "note_id", "open_points", "practice", "reading", "record_ref", "report_type", "revision", "schema_version", "summary", "title" ],
+        "title" : "PublicPracticeNote"
+      },
       "BlockedReport" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -2742,6 +3054,8 @@
             }, {
               "$ref" : "#/components/schemas/BlockedReport"
             }, {
+              "$ref" : "#/components/schemas/PublicPracticeNote"
+            }, {
               "type" : "null"
             } ],
             "title" : "Report"
@@ -2768,7 +3082,7 @@
           },
           "branch_kind" : {
             "type" : "string",
-            "enum" : [ "analysis", "expression" ],
+            "enum" : [ "analysis", "expression", "coaching" ],
             "title" : "Branch Kind"
           }
         },
@@ -2861,6 +3175,8 @@
               "$ref" : "#/components/schemas/ExpressionReport"
             }, {
               "$ref" : "#/components/schemas/BlockedReport"
+            }, {
+              "$ref" : "#/components/schemas/PublicPracticeNote"
             } ],
             "title" : "Report"
           }
@@ -3175,7 +3491,7 @@
           },
           "report_type" : {
             "type" : "string",
-            "enum" : [ "analysis", "expression" ],
+            "enum" : [ "analysis", "expression", "practice_note" ],
             "title" : "Report Type"
           },
           "title" : {
@@ -3210,6 +3526,8 @@
               "$ref" : "#/components/schemas/AnalysisReport"
             }, {
               "$ref" : "#/components/schemas/ExpressionReport"
+            }, {
+              "$ref" : "#/components/schemas/PublicPracticeNote"
             } ],
             "title" : "Report"
           },
@@ -3302,57 +3620,6 @@
         "required" : [ "sessions" ],
         "title" : "PracticeSessionListResponse"
       },
-      "ObservationItem" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "start_ms" : {
-            "type" : "integer",
-            "title" : "Start Ms"
-          },
-          "end_ms" : {
-            "type" : "integer",
-            "title" : "End Ms"
-          },
-          "label" : {
-            "type" : "string",
-            "title" : "Label"
-          },
-          "confidence" : {
-            "type" : "number",
-            "title" : "Confidence"
-          }
-        },
-        "required" : [ "confidence", "end_ms", "label", "start_ms" ],
-        "title" : "ObservationItem"
-      },
-      "ObservationPackResponse" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "summary_id" : {
-            "type" : "string",
-            "format" : "uuid",
-            "title" : "Summary Id"
-          },
-          "observations" : {
-            "type" : "array",
-            "items" : {
-              "$ref" : "#/components/schemas/ObservationItem"
-            },
-            "title" : "Observations"
-          },
-          "uncertainties" : {
-            "type" : "array",
-            "items" : {
-              "type" : "string"
-            },
-            "title" : "Uncertainties"
-          }
-        },
-        "required" : [ "observations", "summary_id", "uncertainties" ],
-        "title" : "ObservationPackResponse"
-      },
       "PracticeSessionDetail" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -3413,6 +3680,8 @@
           "summary" : {
             "anyOf" : [ {
               "$ref" : "#/components/schemas/ObservationPackResponse"
+            }, {
+              "$ref" : "#/components/schemas/VideoRecordSummaryResponse"
             }, {
               "type" : "null"
             } ]
@@ -4489,6 +4758,159 @@
         },
         "required" : [ "token" ],
         "title" : "UnregisterPushTokenRequest"
+      },
+      "ObservationItem" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "start_ms" : {
+            "type" : "integer",
+            "title" : "Start Ms"
+          },
+          "end_ms" : {
+            "type" : "integer",
+            "title" : "End Ms"
+          },
+          "label" : {
+            "type" : "string",
+            "title" : "Label"
+          },
+          "confidence" : {
+            "type" : "number",
+            "title" : "Confidence"
+          }
+        },
+        "required" : [ "confidence", "end_ms", "label", "start_ms" ],
+        "title" : "ObservationItem"
+      },
+      "ObservationPackResponse" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "summary_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Summary Id"
+          },
+          "observations" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ObservationItem"
+            },
+            "title" : "Observations"
+          },
+          "uncertainties" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            },
+            "title" : "Uncertainties"
+          }
+        },
+        "required" : [ "observations", "summary_id", "uncertainties" ],
+        "title" : "ObservationPackResponse"
+      },
+      "VideoRecordLimit" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "start_ms" : {
+            "type" : "integer",
+            "title" : "Start Ms"
+          },
+          "end_ms" : {
+            "type" : "integer",
+            "title" : "End Ms"
+          },
+          "description" : {
+            "type" : "string",
+            "title" : "Description"
+          }
+        },
+        "required" : [ "description", "end_ms", "start_ms" ],
+        "title" : "VideoRecordLimit"
+      },
+      "VideoRecordRange" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "start_ms" : {
+            "type" : "integer",
+            "title" : "Start Ms"
+          },
+          "end_ms" : {
+            "type" : "integer",
+            "title" : "End Ms"
+          }
+        },
+        "required" : [ "end_ms", "start_ms" ],
+        "title" : "VideoRecordRange"
+      },
+      "VideoRecordSummaryResponse" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "schema_version" : {
+            "type" : "string",
+            "const" : "acttub.video_record_summary.v1",
+            "title" : "Schema Version"
+          },
+          "record_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Record Id"
+          },
+          "record_version" : {
+            "type" : "integer",
+            "title" : "Record Version"
+          },
+          "duration_ms" : {
+            "type" : "integer",
+            "title" : "Duration Ms"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "ready", "partial" ],
+            "title" : "Status"
+          },
+          "processed_ranges" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/VideoRecordRange"
+            },
+            "title" : "Processed Ranges"
+          },
+          "missing_ranges" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/VideoRecordRange"
+            },
+            "title" : "Missing Ranges"
+          },
+          "observed_scene" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            },
+            "title" : "Observed Scene"
+          },
+          "spoken_content" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            },
+            "title" : "Spoken Content"
+          },
+          "limitations" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/VideoRecordLimit"
+            },
+            "title" : "Limitations"
+          }
+        },
+        "required" : [ "duration_ms", "limitations", "missing_ranges", "observed_scene", "processed_ranges", "record_id", "record_version", "schema_version", "spoken_content", "status" ],
+        "title" : "VideoRecordSummaryResponse"
       }
     },
     "securitySchemes" : {
