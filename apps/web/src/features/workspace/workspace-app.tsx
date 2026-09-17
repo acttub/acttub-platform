@@ -24,7 +24,8 @@ import { getStoredDisplayName, loadDisplayName } from "@/features/auth/display-n
 import { useRequireAuth } from "@/features/auth/use-require-auth";
 import { logout } from "@/lib/api/v2/auth";
 import { startCoach, replyCoach } from "@/lib/api/v2/coach";
-import { listReports } from "@/lib/api/v2/reports";
+import { getReport, listReports } from "@/lib/api/v2/reports";
+import { coachReplyError, isClosedCoach, recoverClosedCoach } from "./coach-reply-recovery";
 import {
   reanalyzeSession,
   getPracticeSession,
@@ -813,27 +814,50 @@ function WorkspaceInner() {
     trackAnalysis,
   ]);
 
+  const replyPendingRef = useRef(false);
   const send = useCallback(async (reply?: string) => {
     const text = (reply ?? answer).trim();
-    if (!text || sending || !coachIdRef.current) return;
+    const practiceId = currentSessionId();
+    const coachId = coachIdRef.current;
+    if (!text || sending || replyPendingRef.current || !coachId || !practiceId || screen.kind !== "chat") return;
+    replyPendingRef.current = true;
+    setError(null);
     const turnIndex = dialogueTurnCountRef.current + 1;
     setMessages((m) => [...m, { role: "me", text }]);
     setAnswer("");
     setSending(true);
     trackPracticeDialogueTurnSent(turnIndex, text);
     try {
-      const { data: turn } = await replyCoach({ session_id: coachIdRef.current, text });
+      const { data: turn } = await replyCoach({ session_id: coachId, text });
+      if (!isCurrentSession(practiceId) || coachIdRef.current !== coachId) return;
       pushAi(turn, isActorClosing(text) ? "actor_closing" : "coach");
-    } catch {
+    } catch (reason) {
+      if (!isCurrentSession(practiceId) || coachIdRef.current !== coachId) return;
       trackPracticeDialogueTurnFailed(turnIndex);
-      setMessages((m) => [
-        ...m,
-        { role: "ai", text: "(연결이 잠시 끊겼어요. 다시 답해 주세요.)" },
-      ]);
+      setMessages((m) => m.at(-1)?.role === "me" && m.at(-1)?.text === text ? m.slice(0, -1) : m);
+      if (isClosedCoach(reason)) {
+        await recoverClosedCoach({
+          isCurrent: () => isCurrentSession(practiceId),
+          close: () => {
+            coachIdRef.current = null;
+            dispatch({ type: "coachTurnReceived", coachId, done: true, report: null });
+            setError("이미 마친 대화예요. 저장된 연습 노트를 확인해 주세요.");
+          },
+          load: () => getReport(practiceId),
+          restore: (report) => {
+            dispatch({ type: "coachTurnReceived", coachId, done: true, report });
+          },
+          unavailable: () => setError("대화는 종료됐지만 노트를 불러오지 못했어요. 지난 연습에서 다시 열어 주세요."),
+        });
+      } else {
+        setAnswer(text);
+        setError(coachReplyError(reason));
+      }
     } finally {
+      replyPendingRef.current = false;
       setSending(false);
     }
-  }, [answer, sending, pushAi]);
+  }, [answer, sending, pushAi, screen.kind, currentSessionId, isCurrentSession]);
 
   const restartAfterBlocked = useCallback(async () => {
     const practiceSessionId = currentSessionId();

@@ -123,7 +123,7 @@ class DialogueNoteTest {
         assertThat(note.path("practice").isNull()).isTrue();
         ObjectNode failed = PracticeNote.assemble(handoff(), input -> { throw new IllegalStateException("offline"); });
         assertThat(failed.path("practice").isNull()).isTrue();
-        assertThat(failed.path("copy").path("summary").path("text").asText()).contains("마지막 음절");
+        assertThat(failed.path("copy").path("summary").path("text").asText()).contains("애원하는 것처럼 보이긴 싫어");
     }
 
     @Test void invalidNextTakeRetriesWithoutPartiallySavingAndUsesTheCorrectPrompt() {

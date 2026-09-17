@@ -101,6 +101,8 @@ final class GeminiVideoRecordAnalyzer implements VideoRecordAnalyzer {
                     System::nanoTime, FileActivationPoller.Sleeper.real());
             ObjectNode input = StructuredJson.MAPPER.createObjectNode().put("chunk_id", chunkId)
                     .put("chunk_duration_ms", end - start)
+                    .put("source_duration_ms", actor.durationMs())
+                    .put("chunk_start_ms", start).put("chunk_end_ms", end)
                     .put("audio_track_present", record.path("media").path("audio_track_present").asBoolean());
             input.set("actor_context", record.path("actor_context"));
             input.putNull("reference_transcript");
