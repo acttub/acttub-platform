@@ -66,6 +66,22 @@ export function resolveTrackingDecision(input: {
 }
 
 let started = false;
+let initialized = false;
+
+/**
+ * 앱 이벤트 한 건을 보낸다. 설치·실행은 SDK 가 자동으로 보내므로 여기 쓰지 않는다.
+ * 전송 게이트가 닫혔거나 SDK 초기화 전이면 아무것도 하지 않는다.
+ */
+export function logMetaEvent(name: string): void {
+  if (!metaEventsEnabled(API_URL, META_EVENTS_OVERRIDE) || !initialized) return;
+
+  try {
+    const { AppEventsLogger } = require('react-native-fbsdk-next');
+    AppEventsLogger.logEvent(name);
+  } catch {
+    // 네이티브 모듈 없음(Expo Go·웹) — no-op
+  }
+}
 
 /**
  * 앱 기동 시 한 번 호출한다. ATT 팝업은 앱이 활성 상태여야 뜨므로 스플래시 이후에 부른다.
@@ -94,6 +110,7 @@ export async function initMetaSdk(): Promise<void> {
   try {
     const { Settings } = require('react-native-fbsdk-next');
     Settings.initializeSDK();
+    initialized = true;
     await Settings.setAdvertiserTrackingEnabled(decision.advertiserTracking);
   } catch {
     // 네이티브 모듈 없음(Expo Go·웹) — no-op
