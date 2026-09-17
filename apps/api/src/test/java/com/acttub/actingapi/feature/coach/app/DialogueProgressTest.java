@@ -52,4 +52,13 @@ class DialogueProgressTest {
         assertThat(DialogueProgress.controls(input("상대가 급하게 계약하려고 해서", "simplify", "무슨 말이야"))
                 .path("explain_instead_of_repeating_question").asBoolean()).isFalse();
     }
+    @Test void answeredOrUnresolvedObjectiveIsNotAskedAgainWithTheSameWording() {
+        var input = input("상대가 급하게 계약하려고 해서", "clarify", "모르겠어");
+        ((ObjectNode) input.path("recent_messages").get(1)).put("text", "그때 상대가 어떻게 하길 바랐나요?");
+        var progress = DialogueProgress.controls(input);
+        var repeated = reply("clarify", true).put("message", "그 이야기를 듣고 상대가 어떻게 하길 바라나요?");
+        assertThatThrownBy(() -> DialogueProgress.validate(repeated, progress)).hasMessageContaining("이미 물었다");
+        var different = reply("clarify", true).put("message", "마지막 대사는 무엇에 대한 오해를 푸는 말인가요?");
+        assertThatCode(() -> DialogueProgress.validate(different, progress)).doesNotThrowAnyException();
+    }
 }

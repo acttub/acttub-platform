@@ -26,6 +26,10 @@ final class DialogueProgress {
         String lastMove = input.path("coaching_state").path("last_reply").path("move").asText();
         int acknowledgements = acknowledgement(latest) ? 1 : 0;
         JsonNode messages = input.path("recent_messages");
+        boolean objectiveAsked = false;
+        for (JsonNode message : messages) {
+            if ("ai".equals(message.path("role").asText()) && asksObjective(message.path("text").asText())) objectiveAsked = true;
+        }
         if (acknowledgements > 0) for (int i = messages.size() - 1; i >= 0; i--) {
             JsonNode message = messages.get(i);
             if (!"actor".equals(message.path("role").asText())) continue;
@@ -34,6 +38,7 @@ final class DialogueProgress {
         }
         return StructuredJson.MAPPER.createObjectNode()
                 .put("explain_instead_of_repeating_question", confusion && "simplify".equals(lastMove))
+                .put("objective_already_asked", objectiveAsked)
                 .put("consecutive_acknowledgements", acknowledgements);
     }
 
@@ -43,8 +48,10 @@ final class DialogueProgress {
         require(!finish || progress.path("allow_finish").asBoolean(),
                 "배우의 수긍은 종료 요청이 아니다. finish_required=false이면 대화를 계속하며 다음 도움을 준다.");
         if (finish) return;
-        require(!response.path("message").asText().matches("(?s).*(?:제가\\s*묻는\\s*건|묻는\\s*거예요|왜.{0,20}생각해보세요).*"),
+        require(!response.path("message").asText().matches("(?s).*(?:제가\\s*묻는\\s*건|묻는\\s*거(?:예요|였어요)|왜.{0,20}생각해보세요).*"),
                 "원래 질문을 반복해 설명하지 말고, 배우가 막힌 뜻을 구체적인 장면 내용으로 풀어준다.");
+        require(!progress.path("objective_already_asked").asBoolean() || !asksObjective(response.path("message").asText()),
+                "원하는 결과는 이미 물었다. 계기를 반복하거나 답하지 못한 배우에게 같은 목적 질문을 다시 하지 말고, 대사로 가능한 뜻을 설명한다.");
         String move = response.path("reply_link").path("move").asText();
         if (progress.path("explain_instead_of_repeating_question").asBoolean()) {
             require(response.path("reply_link").path("selection").path("question").isNull()
@@ -58,5 +65,9 @@ final class DialogueProgress {
 
     private static boolean acknowledgement(String text) {
         return text.strip().matches("(?:ㅇㅇ|ㅇㅋ|응|네+|맞아|맞아요|그래|그래요|알겠어|알겠어요)[.!\\s]*");
+    }
+
+    private static boolean asksObjective(String text) {
+        return text.matches("(?s).*(?:어떻게\\s*하길|무엇을\\s*하길).{0,18}(?:바라|바랐|원하|원했).*[?？].*");
     }
 }
