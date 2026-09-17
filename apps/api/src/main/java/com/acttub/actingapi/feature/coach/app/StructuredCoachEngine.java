@@ -226,11 +226,12 @@ final class StructuredCoachEngine {
     private String recorded(CoachSessionSnapshot session, JsonNode input, int call) {
         Instant started = Instant.now();
         String text = input.toString();
+        String prompt = PROMPT + DialogueProgress.turnInstruction(input.path("dialogue_progress"));
         try {
             ExternalOperationExecution.externalCall("model");
-            var generated = generate.generate(PROMPT, text);
+            var generated = generate.generate(prompt, text);
             telemetry.record(new LlmCall(call == 0 ? LlmStep.COACH_TURN : LlmStep.COACH_REGENERATION,
-                    session.practiceSessionId(), session.userId(), generated.model(), PROMPT + "\n" + text,
+                    session.practiceSessionId(), session.userId(), generated.model(), prompt + "\n" + text,
                     generated.text(), generated.usage() == null ? LlmTokens.unknown() : LlmTokens.of(
                             generated.usage().prompt(), generated.usage().completion(), generated.usage().total()),
                     started, Duration.between(started, Instant.now()), null,
@@ -238,7 +239,7 @@ final class StructuredCoachEngine {
             return generated.text();
         } catch (RuntimeException failure) {
             telemetry.record(new LlmCall(LlmStep.COACH_TURN, session.practiceSessionId(), session.userId(), "",
-                    PROMPT + "\n" + text, "", LlmTokens.unknown(), started, Duration.between(started, Instant.now()),
+                    prompt + "\n" + text, "", LlmTokens.unknown(), started, Duration.between(started, Instant.now()),
                     failure.getClass().getSimpleName(), LlmCall.metadata("contract", "three_layers_v1")));
             throw failure;
         }

@@ -50,11 +50,28 @@ final class DialogueProgress {
         }
         return StructuredJson.MAPPER.createObjectNode()
                 .put("explain_instead_of_repeating_question", confusion)
+                .put("analysis_uncertain", latest.strip().matches("(?:모르겠(?:어|어요|다)|몰라(?:요)?|ㅁㄹ|글쎄(?:요)?)[.!?\\s]*"))
                 .put("unobservable_hand_requested", handQuestion && handUnavailable)
                 .put("objective_already_asked", objectiveAsked)
                 .put("acknowledged_suggestion", acknowledgement(latest) && "suggest".equals(input.path("coaching_state").path("last_reply").path("move").asText()))
                 .put("consecutive_acknowledgements", acknowledgements)
                 .set("unobservable_hand_refs", handRefs);
+    }
+
+    static String turnInstruction(JsonNode progress) {
+        if (progress.path("explain_instead_of_repeating_question").asBoolean()) {
+            return "\n\n[이번 응답에서 가장 먼저 지킬 것]\n"
+                    + "배우는 코치 말을 이해하지 못했다. message에서 영상 대사로 확실히 알 수 있는 내용 하나를 쉬운 말로 직접 설명한다. "
+                    + "주어는 실제 인물이나 사건이다. 코치가 무엇을 물었는지·왜 질문했는지 설명하지 않는다. "
+                    + "새 질문이나 연기 동작 지시 없이 끝낸다. move=explain 또는 simplify, selection.question=null이다.";
+        }
+        if (progress.path("analysis_uncertain").asBoolean()) {
+            return "\n\n[이번 응답에서 가장 먼저 지킬 것]\n"
+                    + "배우는 아직 장면의 뜻을 모른다. 대사에서 확실히 알 수 있는 뜻 하나를 설명하거나, 막힌 뜻을 풀어줄 구체적인 질문 하나를 한다. "
+                    + "말해보세요·기다려보세요 같은 수행 지시나 표정·억양·시선 처방으로 넘어가지 않는다. "
+                    + "모른다는 답을 상황·관계·인물 목적의 사실로 저장하지 않는다.";
+        }
+        return "";
     }
 
     static ObjectNode observationLimitReply(JsonNode input) {
@@ -84,6 +101,10 @@ final class DialogueProgress {
         require(!progress.path("objective_already_asked").asBoolean() || !asksObjective(response.path("message").asText()),
                 "원하는 결과는 이미 물었다. 계기를 반복하거나 답하지 못한 배우에게 같은 목적 질문을 다시 하지 말고, 대사로 가능한 뜻을 설명한다.");
         String move = response.path("reply_link").path("move").asText();
+        if (progress.path("analysis_uncertain").asBoolean()) {
+            require(!"suggest".equals(move) && !response.path("message").asText().matches("(?s).*(?:보세요|기다리세요).*"),
+                    "아직 장면의 뜻을 모른다. 연기해 보라는 지시 대신 대사의 뜻을 설명하거나 그 뜻을 찾게 돕는 구체적인 질문 하나를 한다.");
+        }
         if (progress.path("unobservable_hand_requested").asBoolean()) {
             require("explain".equals(move) || "clarify".equals(move),
                     "손동작을 물었지만 손은 관찰할 수 없다. assess 대신 explain으로 손의 확인 한계만 설명한다. 어깨·몸통·시선·표정·목소리로 손을 대신 평가하지 않는다.");

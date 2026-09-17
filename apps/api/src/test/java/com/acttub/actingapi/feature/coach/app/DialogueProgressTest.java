@@ -71,6 +71,16 @@ class DialogueProgressTest {
         ((ObjectNode) input.path("user_message")).put("text", "손 말고 목소리를 봐줘");
         assertThat(DialogueProgress.controls(input).path("unobservable_hand_requested").asBoolean()).isFalse();
     }
+    @Test void notKnowingSceneMeaningMustNotTurnIntoAnActingAssignment() {
+        var progress = DialogueProgress.controls(input("ㅁㄹ", "open", ""));
+        assertThat(DialogueProgress.turnInstruction(progress)).contains("아직 장면의 뜻을 모른다");
+        assertThatThrownBy(() -> DialogueProgress.validate(reply("suggest", false).put("message", "마지막 말을 분명하게 말해보세요."), progress))
+                .hasMessageContaining("대사의 뜻");
+        assertThatThrownBy(() -> DialogueProgress.validate(reply("explain", false).put("message", "상대가 반응할 때까지 기다려보세요."), progress))
+                .hasMessageContaining("대사의 뜻");
+        assertThatCode(() -> DialogueProgress.validate(reply("explain", false).put("message", "마지막 대사는 열쇠를 돌려달라는 요구예요."), progress))
+                .doesNotThrowAnyException();
+    }
     @Test void newInformationAndRequestsAreNotAcknowledgements() {
         assertThat(DialogueProgress.controls(input("인물이 왜 이러는지 모르겠어", "clarify", ""))
                 .path("explain_instead_of_repeating_question").asBoolean()).isFalse();
