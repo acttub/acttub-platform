@@ -59,9 +59,9 @@ final class StructuredCoachEngine {
             maxSentences = 2;
         }
         ObjectNode input = input(session, state, actorText, actorId, operationId);
-        input.set("dialogue_progress", DialogueProgress.controls(input).put("allow_finish", finish));
         ObjectNode view = records.initial(session.observationPack());
         input.set("record_view", view);
+        input.set("dialogue_progress", DialogueProgress.controls(input).put("allow_finish", finish));
         input.put("output_contract", "acttub.layer2_turn.v2");
         input.putObject("reserved_ids").put("coach_message_id", coachId);
         ObjectNode controls = input.putObject("controls").put("max_message_chars", maxChars)
@@ -69,6 +69,7 @@ final class StructuredCoachEngine {
                         finish || input.path("dialogue_progress").path("explain_instead_of_repeating_question").asBoolean() ? 0 : 1)
                 .put("coach_replies_remaining", Math.max(0, 10 - replyCount))
                 .put("lookup_calls_remaining", MAX_LOOKUPS).put("finish_required", finish);
+        ArrayNode validationErrors = input.putArray("validation_errors");
         int lookups = 0;
         Instant deadline = Instant.now().plusSeconds(100);
         for (int call = 0; call < MAX_CALLS && Instant.now().isBefore(deadline); call++) {
@@ -118,8 +119,12 @@ final class StructuredCoachEngine {
                 failures.report(failure, FailureKind.EXTERNAL,
                         new FailureContext("StructuredCoachEngine.validation", operationId));
                 // Never echo an unvalidated model response to the actor or the next prompt.
-                input.put("validation_error", failure instanceof IllegalArgumentException
-                        ? failure.getMessage() : "generation unavailable; return a valid response using available evidence");
+                String error = failure instanceof IllegalArgumentException
+                        ? failure.getMessage() : "generation unavailable; return a valid response using available evidence";
+                input.put("validation_error", error);
+                if (!validationErrors.toString().contains(StructuredJson.MAPPER.getNodeFactory().textNode(error).toString())) {
+                    validationErrors.add(error);
+                }
             }
         }
         if (!finish) throw new CoachReplyUnavailable();

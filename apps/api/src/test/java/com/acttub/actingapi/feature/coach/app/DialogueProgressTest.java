@@ -57,6 +57,16 @@ class DialogueProgressTest {
         assertThatThrownBy(() -> DialogueProgress.validate(reply("suggest", false), progress)).hasMessageContaining("이미 방법");
         assertThatCode(() -> DialogueProgress.validate(reply("clarify", true), progress)).doesNotThrowAnyException();
     }
+    @Test void anInvisibleHandIsNotAssessedUsingOtherBodyParts() {
+        var input = input("내 손으로 붙잡는 연기는 잘 전달됐어?", "open", "");
+        input.putObject("record_view").putArray("source_catalog").addObject()
+                .put("kind", "record_limitation").put("text", "손과 하체가 화면 밖이므로 확인할 수 없다.");
+        var progress = DialogueProgress.controls(input);
+        assertThatThrownBy(() -> DialogueProgress.validate(reply("assess", false), progress)).hasMessageContaining("손동작");
+        assertThatCode(() -> DialogueProgress.validate(reply("explain", false), progress)).doesNotThrowAnyException();
+        ((ObjectNode) input.path("user_message")).put("text", "손 말고 목소리를 봐줘");
+        assertThat(DialogueProgress.controls(input).path("unobservable_hand_requested").asBoolean()).isFalse();
+    }
     @Test void newInformationAndRequestsAreNotAcknowledgements() {
         assertThat(DialogueProgress.controls(input("인물이 왜 이러는지 모르겠어", "clarify", ""))
                 .path("explain_instead_of_repeating_question").asBoolean()).isFalse();

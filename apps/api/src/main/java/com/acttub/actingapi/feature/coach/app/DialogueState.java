@@ -178,6 +178,6 @@ final class DialogueState {
                     "uncertainty or acknowledgment is not an actor direction");
             quoted |= source.path("text").asText().contains(value.path("text").asText());
         }
-        require(quoted, "keep the actor's own words in context");
+        require(quoted, "keep the actor's own words in context: scene_context와 direction의 text는 배우 원문에서 그대로 복사한다. 문장 끝이나 조사를 바꾸지 않는다. 요약은 message에만 쓴다.");
     }
 }

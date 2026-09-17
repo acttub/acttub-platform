@@ -111,6 +111,21 @@ class DialogueStateTest {
         assertThat(before.status()).isEqualTo("open");
     }
 
+    @Test void retriesKeepEveryPriorConstraintInsteadOfOscillatingBetweenErrors() {
+        AtomicInteger calls = new AtomicInteger();
+        var engine = new CoachEngine((system, text) -> {
+            var input = StructuredJson.parse(text);
+            int call = calls.getAndIncrement();
+            if (call == 0) throw new IllegalArgumentException("first synthetic constraint");
+            assertThat(input.path("validation_errors").toString()).contains("first synthetic constraint");
+            if (call == 1) throw new IllegalArgumentException("second synthetic constraint");
+            assertThat(input.path("validation_errors").toString()).contains("second synthetic constraint");
+            return StructuredCoachEngineTest.generated(StructuredCoachEngineTest.respond(input, "상대가 나가려는 상황을 알려주셨군요.", "continue"));
+        }, new RecordingFailureReporter(), new RecordingLlmTelemetry());
+        assertThat(engine.reply(session(), "상대가 나가려고 해서", UUID.randomUUID()).session().status()).isEqualTo("open");
+        assertThat(calls).hasValue(3);
+    }
+
     private CoachSessionSnapshot session() {
         return new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 StructuredJson.resource("/coaching/record.json"), "", "", "", 8000, "그 외", "그 외", null,

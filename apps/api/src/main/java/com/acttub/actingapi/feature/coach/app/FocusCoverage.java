@@ -9,7 +9,10 @@ final class FocusCoverage {
     private FocusCoverage() { }
     static void validate(JsonNode focus, JsonNode record, JsonNode view) {
         if (!"whole_video".equals(focus.path("scope").asText())) return;
-        require(!"isolated".equals(focus.path("pattern").asText()), "whole-video focus cannot be isolated");
+        boolean singleSpokenScene = "scene".equals(focus.path("basis").asText())
+                && record.path("speech").path("utterances").size() == 1;
+        require(!"isolated".equals(focus.path("pattern").asText()) || singleSpokenScene,
+                "whole-video focus cannot be isolated unless scene analysis covers the only utterance");
         require("ready".equals(record.path("processing").path("status").asText())
                 && record.path("processing").path("missing_ranges").isEmpty(),
                 "analysis has missing ranges; use local focus");
