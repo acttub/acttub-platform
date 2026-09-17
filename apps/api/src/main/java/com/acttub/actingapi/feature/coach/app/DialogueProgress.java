@@ -23,7 +23,6 @@ final class DialogueProgress {
     static ObjectNode controls(JsonNode input) {
         String latest = input.path("user_message").path("text").asText();
         boolean confusion = latest.matches("(?s).*(?:무슨\\s*(?:질문|말)|뭔\\s*소리|뭐라는|이해가?\\s*안|모르겠|^\\?+$).*");
-        String lastMove = input.path("coaching_state").path("last_reply").path("move").asText();
         int acknowledgements = acknowledgement(latest) ? 1 : 0;
         JsonNode messages = input.path("recent_messages");
         boolean objectiveAsked = false;
@@ -37,7 +36,7 @@ final class DialogueProgress {
             acknowledgements++;
         }
         return StructuredJson.MAPPER.createObjectNode()
-                .put("explain_instead_of_repeating_question", confusion && "simplify".equals(lastMove))
+                .put("explain_instead_of_repeating_question", confusion)
                 .put("objective_already_asked", objectiveAsked)
                 .put("consecutive_acknowledgements", acknowledgements);
     }
@@ -55,8 +54,8 @@ final class DialogueProgress {
         String move = response.path("reply_link").path("move").asText();
         if (progress.path("explain_instead_of_repeating_question").asBoolean()) {
             require(response.path("reply_link").path("selection").path("question").isNull()
-                    && !"simplify".equals(move) && !"clarify".equals(move),
-                    "질문을 풀었는데도 혼란이 이어졌다. 같은 질문을 다시 묻지 말고 확인된 장면 내용으로 설명하라.");
+                    && !"clarify".equals(move) && OpeningQuestion.questionCount(response.path("message").asText()) == 0,
+                    "배우가 질문에 혼란을 보였다. 질문을 멈추고 영상 대사에서 확실한 내용과 가능한 뜻 하나만 쉬운 말로 설명하라. selection.question=null이며 질문하지 않는다.");
         }
         if (progress.path("consecutive_acknowledgements").asInt() >= 2) {
             require(!"acknowledge".equals(move), "수긍 뒤 같은 요약을 반복하지 말고 다음 도움을 주거나 마쳐라.");

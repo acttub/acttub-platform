@@ -68,14 +68,14 @@ final class DialogueState {
             require(Set.of("open", "close").contains(link.path("move").asText()), "opening move required");
         } else {
             String quote = link.path("actor_quote").asText();
-            require(link.path("user_message_id").equals(userMessage.path("id")), "reply must address latest actor message");
+            require(link.path("user_message_id").equals(userMessage.path("id")), "reply must address latest actor message: copy response_constraints.user_message_id exactly");
             require(!quote.isBlank() && userMessage.path("text").asText().contains(quote), "reply quote must come from latest answer");
             require(!"open".equals(link.path("move").asText()), "cannot restart dialogue after an answer");
         }
         for (JsonNode id : link.path("evidence_refs")) {
             JsonNode source = catalog.get(id.asText());
             require(source != null && Set.of("video_observation", "video_utterance", "record_limitation")
-                    .contains(source.path("kind").asText()), "reply evidence must be delivered video material");
+                    .contains(source.path("kind").asText()), "reply evidence must be delivered video material: use only IDs in response_constraints.allowed_video_refs; request_id and session_id are not evidence");
         }
         String message = response.path("message").asText().strip();
         ResponseSelection.validate(response, catalog, finishRequired);

@@ -35,6 +35,12 @@ class DialogueProgressTest {
                 .hasMessageContaining("혼란");
         assertThatCode(() -> DialogueProgress.validate(reply("explain", false), progress)).doesNotThrowAnyException();
     }
+    @Test void firstConfusionReceivesSceneExplanationWithoutRequiringAnotherAnswer() {
+        var progress = DialogueProgress.controls(input("질문이 무슨 말이야?", "open", ""));
+        var rephrasing = reply("simplify", true).put("message", "그 말을 해서 무엇을 원하나요?");
+        assertThatThrownBy(() -> DialogueProgress.validate(rephrasing, progress)).hasMessageContaining("혼란");
+        assertThatCode(() -> DialogueProgress.validate(reply("explain", false), progress)).doesNotThrowAnyException();
+    }
     @Test void consecutiveAcknowledgementsMustNotProduceAnotherAcknowledgement() {
         var progress = DialogueProgress.controls(input("ㅇㅇ", "acknowledge", "ㅇㅇ"));
         assertThat(progress.path("consecutive_acknowledgements").asInt()).isEqualTo(2);

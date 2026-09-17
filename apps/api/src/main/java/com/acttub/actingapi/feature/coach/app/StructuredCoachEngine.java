@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import com.acttub.actingapi.feature.coach.domain.ClosingIntent;
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import com.acttub.actingapi.integration.llm.StructuredJson;
 import com.acttub.actingapi.integration.llm.TextGenerator;
@@ -66,7 +65,8 @@ final class StructuredCoachEngine {
         input.put("output_contract", "acttub.layer2_turn.v2");
         input.putObject("reserved_ids").put("coach_message_id", coachId);
         ObjectNode controls = input.putObject("controls").put("max_message_chars", maxChars)
-                .put("max_sentences", maxSentences).put("max_questions", finish ? 0 : 1)
+                .put("max_sentences", maxSentences).put("max_questions",
+                        finish || input.path("dialogue_progress").path("explain_instead_of_repeating_question").asBoolean() ? 0 : 1)
                 .put("coach_replies_remaining", Math.max(0, 10 - replyCount))
                 .put("lookup_calls_remaining", MAX_LOOKUPS).put("finish_required", finish);
         int lookups = 0;
@@ -74,6 +74,15 @@ final class StructuredCoachEngine {
         for (int call = 0; call < MAX_CALLS && Instant.now().isBefore(deadline); call++) {
             controls.put("lookup_calls_remaining", call == MAX_CALLS - 1 ? 0 : MAX_LOOKUPS - lookups);
             controls.put("min_questions", 0);
+            ObjectNode constraints = input.putObject("response_constraints");
+            constraints.set("user_message_id", input.path("user_message").path("id").isMissingNode()
+                    ? StructuredJson.MAPPER.nullNode() : input.path("user_message").path("id"));
+            ArrayNode videoRefs = constraints.putArray("allowed_video_refs");
+            for (JsonNode source : deliveredSources(input)) {
+                if (List.of("video_observation", "video_utterance", "record_limitation").contains(source.path("kind").asText())) {
+                    videoRefs.add(source.path("id"));
+                }
+            }
             try {
                 JsonNode response = StructuredJson.parse(recorded(session, input, call));
                 StructuredJson.validate("layer2_dialogue_turn", response);
