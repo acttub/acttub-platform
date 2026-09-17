@@ -61,10 +61,10 @@ def main():
         matches = list(reports.glob("TEST-*." + name + ".xml"))
         if len(matches) != 1:
             raise SystemExit("Expected live evaluation report is missing: " + name)
-        suite = ET.parse(matches[0]).getroot()
-        if any(int(suite.get(field, "0")) for field in ("skipped", "failures", "errors")):
+        report = ET.parse(matches[0]).getroot()
+        if any(int(report.get(field, "0")) for field in ("skipped", "failures", "errors")):
             raise SystemExit("Live evaluation must complete without skipped or failed cases: " + name)
-        total += int(suite.get("tests", "0"))
+        total += int(report.get("tests", "0"))
     if total < (8 if suite == "note" else 16):
         raise SystemExit("Live evaluation did not run every required scenario")
     print("Completed synthetic model evaluations:", total)

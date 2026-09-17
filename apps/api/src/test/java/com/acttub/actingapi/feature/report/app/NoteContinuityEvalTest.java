@@ -39,7 +39,7 @@ class NoteContinuityEvalTest {
         NoteContinuityFixtures.message(hiddenHands, "hands", "actor", "이 영상의 손동작을 근거로 고칠 점을 정리해줘요.");
         return Stream.of(
             new Scenario("scene-goal", NoteContinuityFixtures.scene(), true, List.of("음량", "시선", "호흡", "말끝")),
-            new Scenario("accepted-advice", accepted, true, List.of("2초", "시선", "호흡")),
+            new Scenario("accepted-advice", accepted, true, List.of("2초", "시선", "호흡", "순간에 멈", "받으면 멈")),
             new Scenario("no-method-request", rejected, false, List.of()),
             new Scenario("unknown-goal", unknown, false, List.of()),
             new Scenario("stale-correction", corrected, false, List.of()),
@@ -56,7 +56,8 @@ class NoteContinuityEvalTest {
         context.putObject("direction").put("text", direction).put("origin", "actor_stated")
                 .putArray("source_refs").add("direction");
         var focus = (ObjectNode) context.path("focus");
-        focus.put("basis", "delivery").put("scope", "local").put("pattern", "isolated").put("label", direction);
+        focus.put("basis", "delivery").put("scope", "local").put("pattern", "isolated").put("label", direction)
+                .put("utterance_ref", "u2");
         focus.putArray("evidence_refs").add("observed");
         NoteContinuityFixtures.source(handoff, "observed", "video_observation", observation, 7000, 11000);
         return handoff;
@@ -88,6 +89,10 @@ class NoteContinuityEvalTest {
                 assertThat(visible.path("practice").path("selection").asText()).isEqualTo("proposed");
             }
             assertThat(visible.path("attempts")).isEmpty();
+            if (scenario.name().equals("offscreen-hands")) {
+                assertThat(visible.path("summary").asText()).doesNotContain("고개", "목소리");
+            }
+            if (scenario.name().equals("stale-correction")) assertThat(visible.path("focus").isNull()).isTrue();
         } finally {
             var failures = output.putArray("errors");
             errors.forEach(e -> failures.add(e.getMessage()));

@@ -73,6 +73,7 @@ class NoteContinuityTest {
         assertThat(note.path("practice").isNull()).isTrue();
         assertThat(PracticeNote.publicView(note).path("summary").asText()).doesNotContain("돌려받으려는 거예요");
         assertThat(note.path("scene_context").path("character_goal").isNull()).isTrue();
+        assertThat(PracticeNote.publicView(note).path("focus").isNull()).isTrue();
     }
 
     @Test void anotherVideoOrMissingVideoCannotGroundANewPractice() {

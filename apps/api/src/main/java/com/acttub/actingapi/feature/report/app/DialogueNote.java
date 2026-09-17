@@ -110,6 +110,13 @@ final class DialogueNote {
                 ((ObjectNode) note.path("scene_context")).putNull(field);
             }
         }
+        if (sceneFocus(handoff.path("context"))
+                && handoff.path("context").path("scene_context").path("character_goal").isObject()
+                && note.path("scene_context").path("character_goal").isNull()
+                && currentAim(handoff, sources).isNull()) {
+            // A retired goal must not reappear as the visible focus label either.
+            note.putNull("focus");
+        }
         note.putNull("reading").putNull("practice");
         note.put("mode", note.path("focus").isNull() ? "record_only" : "observation");
         note.putArray("attempts");
