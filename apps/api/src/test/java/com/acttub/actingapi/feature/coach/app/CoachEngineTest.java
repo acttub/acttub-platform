@@ -1,10 +1,10 @@
 package com.acttub.actingapi.feature.coach.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
@@ -12,8 +12,10 @@ import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.integration.llm.TokenUsage;
 import com.acttub.actingapi.platform.observability.FailureKind;
-import com.acttub.actingapi.support.FrozenValue;
+import com.acttub.actingapi.platform.observability.LlmCall;
+import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.support.RecordingFailureReporter;
+import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
@@ -25,12 +27,6 @@ class CoachEngineTest {
     private static final UUID OPERATION =
             UUID.fromString("99999999-8888-7777-6666-555555555555");
     private final RecordingFailureReporter failureReporter = new RecordingFailureReporter();
-
-    /** 7번째부터의 안전 문구. 그 외는 분석 갈래라 분석 문장을 받는다. */
-    private static final Map<String, String> CLOSING_SAFE_TEMPLATE_BY_KIND = Map.of(
-            "분석", "coach-safe-template-closing-analysis.txt",
-            "그 외", "coach-safe-template-closing-analysis.txt",
-            "표현", "coach-safe-template-closing-expression.txt");
 
     @Test
     void parsesFencedAndUnfencedJson() {
@@ -68,11 +64,11 @@ class CoachEngineTest {
 
     @Test
     void emptyGeneratedResponseFallsBackAndIsReportedAsExternal() {
-        RecordingGenerator generator = new RecordingGenerator("");
+        RecordingGenerator generator = new RecordingGenerator("", "{\"message\":\"다시 설명할게요.\"}");
 
         CoachResult result = engine(generator).reply(session(), "모르겠어요", OPERATION);
 
-        assertThat(result.reply()).isEqualTo(new CoachReply("", "continue", null));
+        assertThat(result.reply()).isEqualTo(new CoachReply("다시 설명할게요.", "continue", null));
         assertThat(failureReporter.reports()).singleElement().satisfies(report -> {
             assertThat(report.kind()).isEqualTo(FailureKind.EXTERNAL);
             assertThat(report.context())
@@ -113,37 +109,22 @@ class CoachEngineTest {
         RecordingGenerator generator = new RecordingGenerator("점수", "등급");
         CoachResult result = engine(generator).reply(session(), "모르겠어요", OPERATION);
 
-        assertThat(result.reply()).isEqualTo(new CoachReply(
-                FrozenValue.of("coach-safe-template.txt"), "continue", null));
+        assertThat(result.reply().status()).isEqualTo("continue");
+        assertThat(result.reply().message()).contains("예를 들어").doesNotContain("?");
         assertThat(generator.inputs).hasSize(2);
     }
 
-    /** 6번째까지는 종전 안전 문구(질문)가 그대로 나간다. 갈래는 문장을 가르지 않는다. */
     @Test
-    @DisplayName("6번째 응답의 안전 문구는 갈래와 무관하게 종전 질문 그대로다")
-    void safeTemplateStaysAQuestionThroughSixthTurn() {
-        for (String kind : CLOSING_SAFE_TEMPLATE_BY_KIND.keySet()) {
-            assertThat(safeReplyAfterTwoFailures(6, kind))
-                    .as("blockage_kind=%s 6번째", kind)
-                    .isEqualTo(new CoachReply(
-                            FrozenValue.of("coach-safe-template.txt"), "continue", null));
-        }
-    }
-
-    /**
-     * 7번째부터는 마지막 구간이다 — 모델 답이 두 번 검증에 걸려도 새 질문을 내지 않고 배우의
-     * 말로 정리해 달라고 청한다. 분석(그 외 포함)은 다음 테이크에서 해볼 것 하나, 표현은 다음
-     * 연습에서 유지할 것 하나다. 8번째도 같은 문장이고 상태는 continue 그대로다.
-     */
-    @Test
-    @DisplayName("7번째 이상의 안전 문구는 새 질문 대신 갈래별 정리 청유다")
-    void safeTemplateBecomesClosingRequestFromSeventhTurn() {
-        for (int turnNumber : List.of(7, 8)) {
-            CLOSING_SAFE_TEMPLATE_BY_KIND.forEach((kind, fixture) ->
-                    assertThat(safeReplyAfterTwoFailures(turnNumber, kind))
-                            .as("blockage_kind=%s %d번째", kind, turnNumber)
-                            .isEqualTo(new CoachReply(
-                                    FrozenValue.of(fixture), "continue", null)));
+    void seventhFallbackExplainsWithoutDemandingSelfSummaryAndEighthCloses() {
+        for (String kind : List.of("분석", "표현", "그 외")) {
+            assertThat(safeReplyAfterTwoFailures(7, kind).message())
+                    .doesNotContain("정리해", "?", "해보고");
+            for (int turn : List.of(8, 9)) {
+                CoachReply reply = safeReplyAfterTwoFailures(turn, kind);
+                assertThat(reply.status()).isEqualTo("complete");
+                assertThat(reply.handoff().path("completion_level").asText()).isEqualTo("unavailable");
+                assertThat(reply.handoff().path("actor_words")).isEmpty();
+            }
         }
     }
 
@@ -160,9 +141,11 @@ class CoachEngineTest {
         // "끝"·"여기까지"는 발화 전체가 그 말일 때만 종료다. 어절 안에 섞인 "끝"까지
         // 종료로 보면 "끝까지 해볼게요" 같은 정상 답변에서 세션이 끊긴다.
         for (String closing : List.of("이제 그만", "이제 종료", "끝", "여기까지", "여기서 그만할게")) {
-            RecordingGenerator generator = new RecordingGenerator("계속할게요");
+            RecordingGenerator generator = new RecordingGenerator("계속할게요", "계속할게요");
             CoachResult result = engine(generator).reply(session(), closing, OPERATION);
 
+            assertThat(result.reply().status()).isEqualTo("complete");
+            assertThat(generator.inputs).hasSize(2);
             assertThat(generator.inputs.getFirst())
                     .contains("## 배우의 마무리 요청")
                     .contains("배우가 지금 대화를 마치겠다고 했다.");
@@ -249,8 +232,153 @@ class CoachEngineTest {
                 .isEqualTo(new CoachTurnSnapshot("actor", "분석"));
     }
 
+    /**
+     * 1차와 재생성이 <b>따로</b> 남는다.
+     *
+     * <p>둘을 한 건으로 합치면 재생성 비율을 셀 수 없다 — 그 비율이 곧 "모델이 몇 번에
+     * 한 번 규칙을 어기나" 이고, 이 작업이 보려는 숫자다(SOMA-517).
+     */
+    @Test
+    @DisplayName("코치 1차와 재생성이 각각 한 건씩 관측에 남는다")
+    void firstAndRegeneratedCallsAreRecordedSeparately() {
+        RecordingLlmTelemetry telemetry = new RecordingLlmTelemetry();
+        CoachEngine engine = new CoachEngine(
+                new RecordingGenerator(
+                        "{\"message\":\"점수로 볼게요\"}",
+                        "{\"message\":\"상대가 어떻게 되길 바라나요?\"}"),
+                failureReporter,
+                telemetry);
+
+        engine.reply(session(), "잘 모르겠어요", OPERATION);
+
+        assertThat(telemetry.steps())
+                .containsExactly(LlmStep.COACH_TURN, LlmStep.COACH_REGENERATION);
+        LlmCall first = telemetry.calls().getFirst();
+        // 기록을 묶는 열쇠는 연습 세션이다 — 코치 세션이 아니다.
+        assertThat(first.practiceSessionId())
+                .isEqualTo(UUID.fromString("00000000-0000-0000-0000-000000000002"));
+        assertThat(first.userId())
+                .isEqualTo(UUID.fromString("00000000-0000-0000-0000-000000000003"));
+        assertThat(first.output()).contains("점수로 볼게요");
+        assertThat(first.failed()).isFalse();
+        assertThat(first.metadata()).containsEntry("turn", "2");
+        // 재생성 입력에는 무엇에 걸렸는지가 들어 있어야 재현이 된다.
+        assertThat(telemetry.calls().get(1).input()).contains("금지어가 노출됐습니다: 점수");
+    }
+
+    /**
+     * 품질 판정이 점수로 쌓인다 — 이 숫자가 "들쭉날쭉" 을 눈이 아니라 비율로 보게 한다.
+     */
+    @Test
+    @DisplayName("검증에 걸린 응답은 재생성·실패 갈래가 점수로 남는다")
+    void validationOutcomeIsScored() {
+        RecordingLlmTelemetry telemetry = new RecordingLlmTelemetry();
+        new CoachEngine(
+                new RecordingGenerator(
+                        "{\"message\":\"점수로 볼게요\"}",
+                        "{\"message\":\"상대가 어떻게 되길 바라나요?\"}"),
+                failureReporter,
+                telemetry)
+                .reply(session(), "잘 모르겠어요", OPERATION);
+
+        assertThat(telemetry.scoreNames())
+                .contains("coach.regenerated", "coach.fallback_used", "coach.validation_failure");
+        assertThat(telemetry.scores())
+                .filteredOn(score -> score.name().equals("coach.regenerated"))
+                .singleElement()
+                .satisfies(score -> assertThat(score.value()).isEqualTo(1.0));
+        // 두 번째 응답이 통과했으므로 안전 문구로 물러나지 않았다.
+        assertThat(telemetry.scores())
+                .filteredOn(score -> score.name().equals("coach.fallback_used"))
+                .singleElement()
+                .satisfies(score -> assertThat(score.value()).isEqualTo(0.0));
+        // 갈래 이름은 실패 문구의 첫 마디다.
+        assertThat(telemetry.scores())
+                .filteredOn(score -> score.name().equals("coach.validation_failure"))
+                .allSatisfy(score -> assertThat((String) score.value()).doesNotContain(":"));
+    }
+
+    /** 실패도 같은 모양으로 남는다 — 실패만 빠지면 비율이 거짓이 된다. */
+    @Test
+    @DisplayName("모델 호출이 터져도 그 한 건이 남고 예외는 그대로 올라간다")
+    void failedCallIsRecordedAndRethrown() {
+        RecordingLlmTelemetry telemetry = new RecordingLlmTelemetry();
+        CoachEngine engine = new CoachEngine(
+                (instructions, input) -> {
+                    throw new IllegalStateException("OpenAI 생성 실패");
+                },
+                failureReporter,
+                telemetry);
+
+        assertThatThrownBy(() -> engine.reply(session(), "잘 모르겠어요", OPERATION))
+                .isInstanceOf(IllegalStateException.class);
+
+        assertThat(telemetry.calls()).singleElement().satisfies(call -> {
+            assertThat(call.step()).isEqualTo(LlmStep.COACH_TURN);
+            assertThat(call.failed()).isTrue();
+            assertThat(call.errorMessage()).isEqualTo("IllegalStateException");
+        });
+    }
+
+    @Test
+    @DisplayName("영상만 올린 시작과 후속 재생성까지 기본 코치가 실제 모델 입력에 연결된다")
+    void videoOnlyStartAndReplyUseVideoFirstCoachWithoutMandatoryInterview() throws Exception {
+        for (String blank : List.of("", " \t\n")) {
+            CoachSessionSnapshot source = session();
+            var pack = OBJECT_MAPPER.readTree("""
+                    {"observations":[{"what":"멈춘 뒤 말한다","quote":"가지 마"}],
+                     "uncertainties":["표정은 확인할 수 없다"]}
+                    """);
+            var videoOnly = new CoachSessionSnapshot(
+                    source.sessionId(), source.practiceSessionId(), source.summaryId(), source.userId(),
+                    pack, blank, blank, blank, source.durationMs(), "그 외", "그 외", blank,
+                    List.of(), "", null, "open", "", List.of());
+            RecordingGenerator generator = new RecordingGenerator(
+                    "'가지 마'를 듣고 상대가 어떻게 하길 바랐어요?",
+                    "**틀린 형식**", "말을 시작하기 전 멈춤만 줄여 비교해보세요.");
+            CoachEngine coach = engine(generator);
+
+            CoachResult started = coach.start(videoOnly, OPERATION);
+            CoachResult replied = coach.reply(started.session(), "어떻게 해?", OPERATION);
+
+            assertThat(generator.instructions).hasSize(3).allSatisfy(prompt -> assertThat(prompt)
+                    .startsWith("# ACTTUB 2층 — 영상만 올리고 시작하는 기본 코치")
+                    .contains("\"handoff_type\": \"analysis\"", "# 현재 요청에 맞춰 돕기"));
+            assertThat(generator.inputs).allSatisfy(input -> assertThat(input)
+                    .contains("가지 마", "표정은 확인할 수 없다", "막힘 선택: 건너뜀")
+                    .doesNotContain("1~2번째 응답 안에서", "현재 구간:", "배우가 고른 막히는 지점: 그 외"));
+            assertThat(generator.inputs.getFirst()).contains("현재 응답: 1번째");
+            assertThat(generator.inputs.getLast()).contains(
+                    "현재 응답: 2번째", "코치: '가지 마'를 듣고 상대가 어떻게 하길 바랐어요?", "## 서버 검증 실패");
+            assertThat(replied.reply().message()).isEqualTo("말을 시작하기 전 멈춤만 줄여 비교해보세요.");
+        }
+    }
+
+    @Test
+    void missingPracticePreservesGenerationAndOriginalFailureWithoutTelemetry() {
+        var source = session();
+        var unlinked = new CoachSessionSnapshot(
+                source.sessionId(), null, source.summaryId(), source.userId(),
+                source.observationPack(), source.situation(), source.characterContext(), source.goal(),
+                source.durationMs(), source.blockageKind(), source.subBranch(), source.blockageDetail(),
+                source.transcripts(), source.conversationSummary(), source.analysisHandoff(),
+                source.status(), source.closeReason(), source.turns());
+        var telemetry = new RecordingLlmTelemetry();
+        var generator = new RecordingGenerator("상대가 어떻게 되길 바라나요?");
+
+        assertThat(new CoachEngine(generator, failureReporter, telemetry)
+                .reply(unlinked, "잘 모르겠어요", OPERATION).reply().message())
+                .isEqualTo("상대가 어떻게 되길 바라나요?");
+        var failure = new IllegalStateException("모델 오류");
+        assertThatThrownBy(() -> new CoachEngine((system, user) -> { throw failure; },
+                failureReporter, telemetry).reply(unlinked, "잘 모르겠어요", OPERATION))
+                .isSameAs(failure);
+        assertThat(telemetry.calls()).isEmpty();
+        assertThat(telemetry.scores()).isEmpty();
+    }
+
     private CoachEngine engine(TextGenerator generator) {
-        return new CoachEngine(generator, failureReporter);
+        return new CoachEngine(generator, failureReporter, new RecordingLlmTelemetry());
     }
 
     private static CoachSessionSnapshot session() {
@@ -314,6 +442,7 @@ class CoachEngineTest {
     private static final class RecordingGenerator implements TextGenerator {
         private final List<String> replies;
         private final List<String> inputs = new ArrayList<>();
+        private final List<String> instructions = new ArrayList<>();
 
         RecordingGenerator(String... replies) {
             this.replies = List.of(replies);
@@ -321,6 +450,7 @@ class CoachEngineTest {
 
         @Override
         public GeneratedText generate(String instructions, String input) {
+            this.instructions.add(instructions);
             inputs.add(input);
             return new GeneratedText(
                     replies.get(inputs.size() - 1), new TokenUsage(0, 0, 0));

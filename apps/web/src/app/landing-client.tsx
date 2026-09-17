@@ -6,7 +6,10 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 import wordmark from "../assets/acttub-wordmark.png";
-import { AppDownloadButton } from "../features/app-download/app-download-button";
+import {
+  AppDownloadButton,
+  useAppDownloadHref,
+} from "../features/app-download/app-download-button";
 import { APP_HIGHLIGHTS } from "../features/app-download/app-highlights";
 import { StickyDownloadBar } from "../features/app-download/sticky-download-bar";
 import { StoreBadges } from "../features/app-download/store-badges";
@@ -111,6 +114,7 @@ const practiceLoginHref = "/login?next=/practice/new";
 
 export default function LandingClient() {
   const router = useRouter();
+  const appDownloadHref = useAppDownloadHref("landing_header");
   useEffect(() => {
     if (isLoggedIn()) router.replace("/home");
   }, [router]);
@@ -158,12 +162,13 @@ export default function LandingClient() {
                 </Link>
               </div>
               {/* 앱은 폰에서 받는다 — 이 버튼만은 좁은 화면에서도 접지 않는다. */}
-              <Link
-                href="/app"
+              <a
+                href={appDownloadHref}
+                data-app-download="landing_header"
                 className="inline-flex h-10 shrink-0 items-center justify-center rounded-full bg-[#3182f6] px-4 text-sm font-black text-white transition hover:-translate-y-0.5 hover:bg-[#1b64da]"
               >
                 {COPY.nav.app}
-              </Link>
+              </a>
             </div>
           </nav>
         </header>

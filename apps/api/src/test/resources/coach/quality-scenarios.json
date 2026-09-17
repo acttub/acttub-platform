@@ -1,0 +1,445 @@
+[
+  {
+    "id": "meta_question",
+    "branch": "분석",
+    "detail": "상황 전달이 궁금해요",
+    "situation": "연습을 마친 동료에게 내일 다시 만날 약속을 확인한다",
+    "goal": "내일 다시 만나기",
+    "transcripts": [
+      "내일도 여기서 보자"
+    ],
+    "observations": [
+      {
+        "start_ms": 3000,
+        "end_ms": 5000,
+        "confidence": 0.9,
+        "what": "말을 마친 뒤 상대 쪽을 바라본다",
+        "quote": "내일도 여기서 보자"
+      }
+    ],
+    "uncertainties": [
+      "상대는 화면 밖에 있음"
+    ],
+    "turns": [
+      "상황 전달이 궁금해요",
+      "이 말을 상대에게 어떤 뜻으로 건네고 싶어?",
+      "장면이 그려지는지 궁금해요",
+      "그 대사는 무엇을 그려 달라는 말일까?"
+    ],
+    "latest": "그건 제 대사가 아니라 코치님에게 하는 질문이에요. 지금 설명한 상황이 머릿속에 그려지세요?",
+    "review": "대사로 오해한 점을 인정하고 제공된 장면 맥락에 대해 직접 답한다. 이 질문을 새 대사로 분석하지 않는다.",
+    "scene_summary": "연습을 마친 동료에게 내일 다시 만날 약속을 확인한다"
+  },
+  {
+    "id": "repeated_unsure",
+    "branch": "분석",
+    "detail": "이 말을 왜 하는지 모르겠어요",
+    "situation": "상대가 방을 나가려 할 때 마지막 약속을 확인한다",
+    "goal": "다음 만남을 확인하기",
+    "transcripts": [
+      "내일은 오는 거지?"
+    ],
+    "observations": [
+      {
+        "start_ms": 2000,
+        "end_ms": 4000,
+        "confidence": 0.9,
+        "what": "상대 방향으로 한 걸음 다가가며 말한다",
+        "quote": "내일은 오는 거지?"
+      }
+    ],
+    "uncertainties": [
+      "상대의 대답은 들리지 않음"
+    ],
+    "turns": [
+      "이 말을 왜 하는지 모르겠어요",
+      "상대가 무엇을 알아줬으면 할까?",
+      "잘 모르겠어요",
+      "붙잡으려는 걸까, 약속을 확인하려는 걸까?",
+      "잘 모르겠어요",
+      "상대가 계속 간다고 생각하면 어떤 느낌이 들어?"
+    ],
+    "latest": "예시로 설명해 주세요.",
+    "review": "또 선택하거나 감각을 보고하라고 하지 않고 대사와 행동에 근거한 잠정 설명을 먼저 준다. 약속 확인과 다가서는 행동만으로 버려질 두려움 같은 새로운 관계 갈등을 만들지 않는다.",
+    "scene_summary": "상대가 방을 나가려 할 때 마지막 약속을 확인한다"
+  },
+  {
+    "id": "phonetic_correction",
+    "branch": "표현",
+    "sub_branch": "말끝",
+    "detail": "마지막 모음이 길어져요",
+    "situation": "동료와 다음 만남을 정하고 헤어진다",
+    "goal": "간결하게 약속하기",
+    "transcripts": [
+      "내일 여기서 보자"
+    ],
+    "observations": [
+      {
+        "start_ms": 4000,
+        "end_ms": 6000,
+        "confidence": 0.8,
+        "what": "문장의 마지막 모음이 앞의 모음보다 길게 이어진다",
+        "quote": "내일 여기서 보자"
+      }
+    ],
+    "uncertainties": [],
+    "turns": [
+      "마지막 모음이 길어져요",
+      "상대에게 무엇을 하려는지 생각해 볼까?",
+      "인물 목적은 정했어요. 소리 처리만 궁금해요.",
+      "목적을 상대에게 어떻게 전달하고 싶어?"
+    ],
+    "latest": "다시 목적을 찾는 게 아니라 마지막 모음을 덜 늘이는 방법을 알려주세요. 지금은 직접 해볼 수 없어요.",
+    "review": "기술적 정정을 인정하고 모음 길이 한 요소의 구체적인 방법을 설명한다. 인물 목적 질문이나 즉시 실행 요구로 되돌리지 않는다.",
+    "scene_summary": "동료와 다음 만남을 정하고 헤어진다"
+  },
+  {
+    "id": "video_feedback",
+    "branch": "표현",
+    "sub_branch": "속도",
+    "detail": "급하게 들리는지 궁금해요",
+    "situation": "동료에게 다음 약속을 확인한다",
+    "goal": "차분하게 약속하기",
+    "transcripts": [
+      "내일 여기서 다시 만나는 거지?"
+    ],
+    "observations": [
+      {
+        "start_ms": 5000,
+        "end_ms": 7000,
+        "confidence": 0.9,
+        "what": "문장 마지막 두 어절의 말속도가 앞부분보다 빨라진다",
+        "quote": "내일 여기서 다시 만나는 거지?"
+      }
+    ],
+    "uncertainties": [
+      "상대의 반응은 확인할 수 없음"
+    ],
+    "turns": [
+      "급하게 들리는지 궁금해요",
+      "대사를 하고 나서 어떤 느낌이었어?"
+    ],
+    "latest": "내 영상에서는 서두르는 느낌이 있어 보여요? 제가 느끼는 게 아니라 영상에 있는 걸 기준으로 말해 주세요.",
+    "review": "기존 속도 관찰을 근거로 피드백하고 추정 범위를 구분한다. 영상이 없다고 회피하거나 다시 찍어서 알려달라고 하지 않는다. 속도 수치를 언급하면 제공된 speech 측정값만 사용한다. delta_pct=30은 앞부분 대비가 아니라 전체 평균 대비 30%이다.",
+    "scene_summary": "동료에게 다음 약속을 확인한다",
+    "speech": {
+      "transcript": "내일 여기서 다시 만나는 거지?",
+      "avg_syllables_per_sec": 5.0,
+      "pauses": [
+        {
+          "at_ms": 4000,
+          "seconds": 1.0,
+          "after": "다시",
+          "before": "만나는"
+        }
+      ],
+      "chunks": [
+        {
+          "start_ms": 1000,
+          "end_ms": 4000,
+          "rate": 4.0,
+          "delta_pct": -20,
+          "mark": "느림",
+          "text": "내일 여기서 다시"
+        },
+        {
+          "start_ms": 5000,
+          "end_ms": 7000,
+          "rate": 6.5,
+          "delta_pct": 30,
+          "mark": "빠름",
+          "text": "만나는 거지?"
+        }
+      ]
+    }
+  },
+  {
+    "id": "missing_audio_evidence",
+    "branch": "표현",
+    "detail": "목소리가 따뜻한지 궁금해요",
+    "situation": "오랜만에 만난 동료에게 인사한다",
+    "goal": "반갑게 인사하기",
+    "transcripts": [],
+    "observations": [
+      {
+        "start_ms": 1000,
+        "end_ms": 3000,
+        "confidence": 0.9,
+        "what": "상대 쪽으로 몸을 돌린다"
+      }
+    ],
+    "uncertainties": [
+      "배경 소음으로 목소리의 음색과 대사를 확인하기 어려움"
+    ],
+    "turns": [
+      "목소리가 따뜻한지 궁금해요",
+      "어떤 점이 궁금한지 조금 더 말해줘."
+    ],
+    "latest": "영상 속 제 목소리가 따뜻하게 들리는지 알려주세요. 녹음 파일을 여기에 보내면 음색도 분석해 주나요?",
+    "review": "음색 근거가 부족함을 밝히고 이 채팅에서 음성 첨부 분석을 지원한다고 안내하지 않는다. 몸을 돌린 관찰로 따뜻한 목소리를 단정하지 않는다.",
+    "scene_summary": "오랜만에 만난 동료에게 인사한다"
+  },
+  {
+    "id": "agreement_is_not_execution",
+    "branch": "표현",
+    "detail": "말끝을 덜 길게 하고 싶어요",
+    "situation": "동료와 약속을 확인하고 헤어진다",
+    "goal": "간결한 말끝",
+    "transcripts": [
+      "내일 보자"
+    ],
+    "observations": [
+      {
+        "start_ms": 3000,
+        "end_ms": 5000,
+        "confidence": 0.8,
+        "what": "마지막 모음이 길게 이어진다",
+        "quote": "내일 보자"
+      }
+    ],
+    "uncertainties": [],
+    "turns": [
+      "말끝을 덜 길게 하고 싶어요",
+      "어느 부분이 길게 느껴져?",
+      "보자의 아 소리요",
+      "끝 모음의 길이만 살펴보자.",
+      "뜻은 그대로 두고 싶어요",
+      "그래. 의미를 바꾸지 않고 길이만 바꾸는 방법이야.",
+      "예시가 필요해요",
+      "끝 모음을 붙잡지 않고 문장이 끝나는 자리에서 소리도 멈추는 방식이야.",
+      "설명은 이해했어요",
+      "다른 요소는 그대로 둘 수 있어.",
+      "지금은 소리를 내기 어려워요",
+      "그럼 다음에 마지막 모음 길이만 달리해볼 수 있어.",
+      "그 방법을 기억할게요",
+      "끝 모음 길이만 바꿔보자는 뜻이야."
+    ],
+    "latest": "맞아",
+    "close": true,
+    "tested": false,
+    "report": true,
+    "review": "동의를 실제 실행으로 바꾸지 않는다. tested=false, observed_change=null이며 노트 생성은 blocked여야 한다.",
+    "scene_summary": "동료와 약속을 확인하고 헤어진다"
+  },
+  {
+    "id": "practice_later",
+    "branch": "표현",
+    "detail": "말속도가 빨라져요",
+    "situation": "동료에게 약속을 확인한다",
+    "goal": "말을 서두르지 않기",
+    "transcripts": [
+      "내일 다시 오는 거지"
+    ],
+    "observations": [
+      {
+        "start_ms": 4000,
+        "end_ms": 6000,
+        "confidence": 0.85,
+        "what": "문장 후반 말속도가 빨라진다",
+        "quote": "내일 다시 오는 거지"
+      }
+    ],
+    "uncertainties": [],
+    "turns": [
+      "말속도가 빨라져요",
+      "문장 마지막 부분만 앞부분 속도로 말해볼 수 있어."
+    ],
+    "latest": "지금은 연습하기 어려워요. 다음에 해볼 방법을 설명해 주세요.",
+    "review": "바로 실행하거나 효과를 답하라고 하지 않고 다음에 해볼 구체적인 방법을 설명한다. 속도 수치를 언급하면 제공된 speech 측정값만 사용한다. delta_pct=30은 앞부분 대비가 아니라 전체 평균 대비 30%이다.",
+    "scene_summary": "동료에게 약속을 확인한다",
+    "speech": {
+      "transcript": "내일 다시 오는 거지",
+      "avg_syllables_per_sec": 5.0,
+      "pauses": [
+        {
+          "at_ms": 4000,
+          "seconds": 1.0,
+          "after": "다시",
+          "before": "오는"
+        }
+      ],
+      "chunks": [
+        {
+          "start_ms": 1000,
+          "end_ms": 4000,
+          "rate": 4.0,
+          "delta_pct": -20,
+          "mark": "느림",
+          "text": "내일 다시"
+        },
+        {
+          "start_ms": 5000,
+          "end_ms": 7000,
+          "rate": 6.5,
+          "delta_pct": 30,
+          "mark": "빠름",
+          "text": "오는 거지"
+        }
+      ]
+    }
+  },
+  {
+    "id": "english_feedback",
+    "branch": "표현",
+    "detail": "I think I rush the ending.",
+    "situation": "동료에게 다음 약속을 확인한다",
+    "goal": "차분하게 말하기",
+    "transcripts": [
+      "Will you come back tomorrow?"
+    ],
+    "observations": [
+      {
+        "start_ms": 5000,
+        "end_ms": 7000,
+        "confidence": 0.9,
+        "what": "문장 마지막 두 어절의 말속도가 앞부분보다 빨라진다",
+        "quote": "Will you come back tomorrow?"
+      }
+    ],
+    "uncertainties": [
+      "상대의 반응은 보이지 않음"
+    ],
+    "turns": [
+      "I think I rush the ending.",
+      "What would you like to check?"
+    ],
+    "latest": "Does my clip sound rushed? Please assess the clip before suggesting another exercise.",
+    "review": "영어로 관찰 근거를 설명하며 직접 답한다. 한국어로 돌아가거나 먼저 연습하라고 요구하지 않는다. 속도 수치를 언급하면 제공된 speech 측정값만 사용한다. delta_pct=30은 앞부분 대비가 아니라 전체 평균 대비 30%이다.",
+    "scene_summary": "동료에게 다음 약속을 확인한다",
+    "speech": {
+      "transcript": "Will you come back tomorrow?",
+      "avg_syllables_per_sec": 5.0,
+      "pauses": [
+        {
+          "at_ms": 4000,
+          "seconds": 1.0,
+          "after": "come",
+          "before": "back"
+        }
+      ],
+      "chunks": [
+        {
+          "start_ms": 1000,
+          "end_ms": 4000,
+          "rate": 4.0,
+          "delta_pct": -20,
+          "mark": "느림",
+          "text": "Will you come"
+        },
+        {
+          "start_ms": 5000,
+          "end_ms": 7000,
+          "rate": 6.5,
+          "delta_pct": 30,
+          "mark": "빠름",
+          "text": "back tomorrow?"
+        }
+      ]
+    }
+  },
+  {
+    "id": "positive_practice_change",
+    "branch": "표현",
+    "detail": "말끝이 길어져요",
+    "situation": "동료와 다음 만남을 약속한다",
+    "goal": "간결하게 약속하기",
+    "transcripts": [
+      "내일 여기서 보자"
+    ],
+    "observations": [
+      {
+        "start_ms": 4000,
+        "end_ms": 6000,
+        "confidence": 0.8,
+        "what": "마지막 모음이 길게 이어진다",
+        "quote": "내일 여기서 보자"
+      }
+    ],
+    "uncertainties": [],
+    "turns": [
+      "말끝이 길어져요",
+      "마지막 모음의 길이만 달리해볼 수 있어.",
+      "방금 소리 내서 해봤어요",
+      "직접 해보니 어떤 차이가 있었어?",
+      "소리를 덜 끌게 됐어요",
+      "그 변화는 배우가 직접 해보고 느낀 거네. 다음에도 남기고 싶은 게 있어?"
+    ],
+    "latest": "네, 마지막 모음을 짧게 하니까 덜 읽는 느낌이었어요. 다음에도 이 한 가지만 유지할게요. 여기까지 정리해 주세요.",
+    "close": true,
+    "tested": true,
+    "report": true,
+    "review": "배우가 실제 실행하고 보고한 변화를 인정해 정리한다. 새로운 영상으로 확인했다고 쓰지 않으며 새 실험을 강요하지 않는다.",
+    "scene_summary": "동료와 다음 만남을 약속한다"
+  },
+  {
+    "id": "safety_context_correction",
+    "branch": "분석",
+    "detail": "이 대사의 뜻이 단순한 것 같아요",
+    "situation": "바닥이 젖은 계단을 내려가는 동료에게 안전 난간을 잡으라고 말한다",
+    "goal": "동료가 미끄러지지 않게 하기",
+    "transcripts": [
+      "난간 잡고 내려와"
+    ],
+    "observations": [
+      {
+        "start_ms": 2000,
+        "end_ms": 4000,
+        "confidence": 0.9,
+        "what": "난간 쪽을 손으로 가리키며 말한다",
+        "quote": "난간 잡고 내려와"
+      }
+    ],
+    "uncertainties": [],
+    "turns": [
+      "이 대사의 뜻이 단순한 것 같아요",
+      "도움을 받아도 된다는 허락을 주는 말일까?",
+      "아니요. 바닥이 젖어서 실제로 잡아야 안전해요.",
+      "그럼 도움받는 걸 부끄러워하지 않게 하려는 걸까?"
+    ],
+    "latest": "심리적인 의미가 아니라 안 넘어지게 하려는 말이에요. 계속 다른 이유를 찾아야 하나요?",
+    "review": "물리적 안전이라는 정정을 인정하고 단순한 목적만으로도 충분하다고 답한다. 수치심·의존·관계 불안 같은 다른 이유를 더 만들지 않는다.",
+    "scene_summary": "바닥이 젖은 계단을 내려가는 동료에게 안전 난간을 잡으라고 말한다"
+  },
+  {
+    "id": "early_correction_final_summary",
+    "branch": "분석",
+    "detail": "이 말의 뜻을 정리하고 싶어요",
+    "situation": "떠날 날짜가 정해진 뒤 동료에게 그 사실을 알린다",
+    "goal": "확정된 일 알리기",
+    "summary": "코치는 처음에 상대가 머무르도록 설득하려는 말이라고 추정했다",
+    "transcripts": [
+      "나는 내일 떠나"
+    ],
+    "observations": [
+      {
+        "start_ms": 3000,
+        "end_ms": 5000,
+        "confidence": 0.9,
+        "what": "가방을 든 채 상대를 바라보며 말한다",
+        "quote": "나는 내일 떠나"
+      }
+    ],
+    "uncertainties": [],
+    "turns": [
+      "이 말의 뜻을 정리하고 싶어요",
+      "상대가 붙잡아 주길 바라는 말일까?",
+      "아니요. 결정은 끝났고 알려주는 거예요.",
+      "확정된 일을 알리는 말로 보자는 거구나.",
+      "상대가 자꾸 계획을 바꾸라고 해서요",
+      "지금 말하는 이유는 그 설득이 계속되기 때문이네.",
+      "짐도 이미 쌌어요",
+      "가방을 든 관찰도 그 맥락과 이어져.",
+      "마음을 바꿀 생각은 없어요",
+      "상대가 더 설득하지 않길 바라는 거네.",
+      "맞아요. 부탁하는 말은 아니에요",
+      "결정을 통보하는 말이라는 뜻을 유지할게.",
+      "내일 떠난다는 사실을 받아들였으면 해요",
+      "오늘 정리에서 남길 뜻을 한 줄로 말해도 돼."
+    ],
+    "latest": "상대가 더 설득하지 않도록 이미 정해진 출발을 알리는 말이에요.",
+    "close": true,
+    "report": true,
+    "review": "초반 정정과 확정된 출발이라는 뜻을 handoff와 노트에 유지한다. 이전 요약의 붙잡기·설득 가설로 돌아가지 않는다.",
+    "scene_summary": "떠날 날짜가 정해진 뒤 동료에게 그 사실을 알린다"
+  }
+]

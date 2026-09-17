@@ -9,6 +9,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.integration.llm.TextGenerator;
@@ -17,6 +18,7 @@ import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.schema.ActorMemoryField;
 import com.acttub.actingapi.support.RecordingFailureReporter;
+import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
@@ -111,6 +113,39 @@ class MemoryUpdateWorkerPayloadTest {
                         "MemoryUpdateWorker.fail operation_id=" + OPERATION);
     }
 
+    @Test
+    void memoryExtractionRecordsUsageAndOperationWhileMissingPracticeSkipsTelemetry() {
+        for (boolean linked : List.of(true, false)) {
+            var queue = new RecordingQueue();
+            var reporter = new RecordingFailureReporter();
+            var telemetry = new RecordingLlmTelemetry();
+            var memory = new EmptyMemory() {
+                @Override
+                public MemoryUpdateMaterial material(UUID practiceSessionId) {
+                    return super.material(linked ? practiceSessionId : null);
+                }
+            };
+            var worker = new MemoryUpdateWorker(memory, queue, new ObjectMapper(),
+                    (system, user) -> new GeneratedText("{}", new TokenUsage(10, 20, 30), "model"),
+                    Clock.fixed(Instant.EPOCH, ZoneOffset.UTC), new MemoryExtractor(reporter), reporter, telemetry);
+
+            assertThat(worker.runOnce()).isTrue();
+            assertThat(queue.payload.path("updated_fields")).isEmpty();
+            assertThat(reporter.reports()).isEmpty();
+            if (linked) {
+                assertThat(telemetry.calls()).singleElement().satisfies(call -> {
+                    assertThat(call.practiceSessionId()).isEqualTo(SESSION);
+                    assertThat(call.model()).isEqualTo("model");
+                    assertThat(call.tokens()).isEqualTo(
+                            com.acttub.actingapi.platform.observability.LlmTokens.of(10, 20, 30));
+                    assertThat(call.metadata()).containsEntry("operation_id", OPERATION.toString());
+                });
+            } else {
+                assertThat(telemetry.calls()).isEmpty();
+            }
+        }
+    }
+
     private static MemoryUpdateWorker worker(RecordingQueue queue, String extracted) {
         return worker(
                 queue, new EmptyMemory(), extracted, new RecordingFailureReporter());
@@ -128,7 +163,8 @@ class MemoryUpdateWorkerPayloadTest {
                 (system, user) -> new GeneratedText(extracted, new TokenUsage(0, 0, 0)),
                 Clock.fixed(Instant.EPOCH, ZoneOffset.UTC),
                 new MemoryExtractor(reporter),
-                reporter);
+                reporter,
+                new RecordingLlmTelemetry());
     }
 
     /** 잡 하나를 내주고, 성공으로 닫을 때 넘어온 본문을 잡아 둔다. */
@@ -155,11 +191,11 @@ class MemoryUpdateWorkerPayloadTest {
 
         @Override
         public void complete(
-                UUID operationId, UUID leaseToken, JsonNode responsePayload, Instant now) {
+                UUID operationId, UUID leaseToken, Supplier<JsonNode> writeMemoryAndPayload, Instant now) {
             if (completeFailure != null) {
                 throw completeFailure;
             }
-            payload = responsePayload;
+            payload = writeMemoryAndPayload.get();
         }
 
         @Override
@@ -199,7 +235,7 @@ class MemoryUpdateWorkerPayloadTest {
         public MemoryUpdateMaterial material(UUID practiceSessionId) {
             return new MemoryUpdateMaterial(
                     UUID.randomUUID(), practiceSessionId, "목표", "분석", "캐릭터 분석", null,
-                    List.of(), List.of());
+                    List.of(), List.of(), List.of());
         }
     }
 

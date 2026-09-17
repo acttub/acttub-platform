@@ -72,6 +72,8 @@ public final class MemoryExtractor {
               - speech_self: 배우가 자기 화법에 대해 스스로 말한 내용의 요약
               - speech_actual: 실제 대사에서 드러난 말하기 방식의 요약 — speech_self 와
                 차이가 있으면 그 차이가 드러나게 적는다
+            - 영상 관찰의 대사 인용은 일부 구절이다. 전체 받아쓰기로 취급하거나 빠진 말을 채우지 않는다.
+              인물의 대사를 배우 개인의 성격이나 심리로 추론하지 않는다.
             - 각 칸은 200자를 넘기지 않는다.
             - 성별과 나이는 **절대 적지 않는다.** 배우가 직접 입력하는 칸이다.
 
@@ -115,6 +117,12 @@ public final class MemoryExtractor {
             lines.add("");
             lines.add("[영상에서 받아쓴 실제 대사]");
             material.transcripts().forEach(text -> lines.add("- " + text));
+        }
+        if (!material.quotations().isEmpty()) {
+            lines.add("");
+            lines.add("[영상 관찰에서 발췌한 일부 대사 인용]");
+            lines.add("전체 받아쓰기가 아니다. 인용된 구절만 근거로 사용한다.");
+            material.quotations().forEach(text -> lines.add("- " + text));
         }
         if (!material.actorMessages().isEmpty()) {
             lines.add("");

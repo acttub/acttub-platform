@@ -2,6 +2,7 @@ import type {
   AnalysisReport,
   ExpressionReport,
   PracticeReport,
+  PublicPracticeNote,
 } from "@/lib/api/v2/types";
 import { renderablePracticeReport } from "./coach-contract";
 
@@ -18,10 +19,31 @@ export function PracticeReportCards({ report }: { report: PracticeReport }) {
     );
   }
 
-  return visibleReport.report_type === "analysis" ? (
-    <AnalysisCards report={visibleReport} />
-  ) : (
-    <ExpressionCards report={visibleReport} />
+  switch (visibleReport.report_type) {
+    case "analysis": return <AnalysisCards report={visibleReport} />;
+    case "expression": return <ExpressionCards report={visibleReport} />;
+    case "practice_note": return <PracticeNoteCards report={visibleReport} />;
+    default: return <p className="p-6 text-sm">새로고침하면 이 연습 노트를 다시 불러올 수 있어요.</p>;
+  }
+}
+
+function PracticeNoteCards({ report }: { report: PublicPracticeNote }) {
+  const summary = report.summary?.trim()
+    || (report.focus ? `${report.focus.label} 부분을 함께 살펴봤어요.` : "이번에는 구체적인 촬영 방향을 정하지 않았어요.");
+  return (
+    <div className="mx-auto grid w-full min-w-0 max-w-[68ch]">
+      <ReportHeading title={report.title} />
+      <TextCard title="이번 대화 요약" body={summary} />
+      <article className="min-w-0 border-t border-[#e5e8eb] py-6">
+        <h3 className="text-xs font-black text-[#4e5968]">다음 촬영에서 해볼 것</h3>
+        <p className="mt-3 break-words whitespace-pre-wrap text-lg font-bold leading-7 text-[#191f28]">
+          {report.practice?.instruction || "이번에는 촬영 아이템을 정하지 않았어요."}
+        </p>
+      </article>
+      <p className="border-t border-[#e5e8eb] py-6 text-sm font-medium leading-6 text-[#4e5968]">
+        오늘 촬영도 수고했어요.<br />다음 촬영도 응원할게요.
+      </p>
+    </div>
   );
 }
 

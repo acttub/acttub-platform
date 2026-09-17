@@ -12,7 +12,6 @@ public record PracticeSessionRow(
         String situation,
         String characterContext,
         String goal,
-        String subtext,
         String blockageKind,
         String subBranch,
         String blockageDetail,

@@ -1,20 +1,27 @@
 package com.acttub.actingapi.feature.coach.app;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import com.acttub.actingapi.platform.ledger.ExternalOperationExecution;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.acttub.actingapi.feature.coach.domain.ClosingIntent;
+import com.acttub.actingapi.feature.coach.domain.CoachHelpIntent;
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.integration.llm.TextGenerator;
-import com.acttub.actingapi.integration.llm.TextValidation;
-import com.acttub.actingapi.integration.llm.TextValidator;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.observability.FailureReporter;
+import com.acttub.actingapi.platform.observability.LlmCall;
+import com.acttub.actingapi.platform.observability.LlmScore;
+import com.acttub.actingapi.platform.observability.LlmStep;
+import com.acttub.actingapi.platform.observability.LlmTelemetry;
+import com.acttub.actingapi.platform.observability.LlmTokens;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -41,10 +48,13 @@ public class CoachEngine {
 
     private final TextGenerator generate;
     private final FailureReporter failureReporter;
+    private final LlmTelemetry telemetry;
 
-    public CoachEngine(TextGenerator generate, FailureReporter failureReporter) {
+    public CoachEngine(
+            TextGenerator generate, FailureReporter failureReporter, LlmTelemetry telemetry) {
         this.generate = generate;
         this.failureReporter = failureReporter;
+        this.telemetry = telemetry;
     }
 
     public static CoachReply parseCoachingResponse(String rawText) {
@@ -89,6 +99,9 @@ public class CoachEngine {
 
     /** 새 세션의 첫 응답을 만들고 actor→ai 순서로 두 turn을 추가한다. */
     public CoachResult start(CoachSessionSnapshot session, UUID operationId) {
+        if (session.threeLayers()) {
+            return new StructuredCoachEngine(generate, failureReporter, telemetry).turn(session, null, operationId);
+        }
         String latest = firstActorMessage(session);
         CoachReply response = generateValidated(session, latest, operationId);
         return appendTurns(session, latest, response);
@@ -122,8 +135,10 @@ public class CoachEngine {
     /** 기존 세션의 다음 응답을 만들고 actor→ai 순서로 두 turn을 추가한다. */
     public CoachResult reply(
             CoachSessionSnapshot session, String actorText, UUID operationId) {
-        String userMessage = messageForGeneration(actorText);
-        CoachReply response = generateValidated(session, userMessage, operationId);
+        if (session.threeLayers()) {
+            return new StructuredCoachEngine(generate, failureReporter, telemetry).turn(session, actorText, operationId);
+        }
+        CoachReply response = generateValidated(session, actorText, operationId);
         return appendTurns(session, actorText, response);
     }
 
@@ -134,7 +149,7 @@ public class CoachEngine {
     }
 
     /**
-     * handoff 에서 종료어를 걷어낸다.
+     * handoff 에서 종료어와 도움 버튼 문구를 걷어낸다.
      *
      * <p>handoff 가 만들어지는 유일한 자리라 여기서 걸러야 새는 곳이 없다. 노트를 만드는
      * 경로가 둘(완료 턴, /v2/reports 가 저장된 handoff 로 다시 만드는 경우)이라
@@ -152,7 +167,8 @@ public class CoachEngine {
         }
         ArrayNode kept = RESPONSE_MAPPER.createArrayNode();
         for (JsonNode word : words) {
-            if (word.isTextual() && !ClosingIntent.isClosing(word.textValue())) {
+            if (word.isTextual() && !ClosingIntent.isClosing(word.textValue())
+                    && !CoachHelpIntent.isHelpOnly(word.textValue())) {
                 kept.add(word);
             }
         }
@@ -165,35 +181,149 @@ public class CoachEngine {
     }
 
     private CoachReply generateValidated(
-            CoachSessionSnapshot session, String userMessage, UUID operationId) {
+            CoachSessionSnapshot session, String actorText, UUID operationId) {
+        String userMessage = messageForGeneration(actorText)
+                + CoachResponsePolicy.recoveryInstruction(session, actorText);
         String systemPrompt = CoachPrompt.select(session.blockageKind());
-        GeneratedText generated = generate.generate(
-                systemPrompt, CoachPrompt.buildChat(session, userMessage));
+        int turnNumber = CoachPrompt.turnNumber(session);
+        String chatPrompt = CoachPrompt.buildChat(session, userMessage);
+        GeneratedText generated = recorded(
+                LlmStep.COACH_TURN, session, turnNumber, systemPrompt, chatPrompt, operationId);
         String rawText = generated.text();
         CoachReply reply = parseGeneratedResponse(rawText, operationId);
-        TextValidation validation = TextValidator.validateTurn(reply.message(), false);
-        if (!validation.failures().isEmpty()) {
-            generated = generate.generate(
-                    systemPrompt,
-                    CoachPrompt.buildRegeneration(
-                            session,
-                            userMessage,
-                            rawText,
-                            validation.failures()));
+        List<String> failures = CoachResponsePolicy.failures(session, actorText, reply);
+        List<String> firstFailures = failures;
+        if (!failures.isEmpty()) {
+            String retryPrompt =
+                    CoachPrompt.buildRegeneration(session, userMessage, rawText, failures);
+            generated = recorded(
+                    LlmStep.COACH_REGENERATION, session, turnNumber, systemPrompt, retryPrompt, operationId);
             reply = parseGeneratedResponse(generated.text(), operationId);
-            validation = TextValidator.validateTurn(reply.message(), false);
+            failures = CoachResponsePolicy.failures(session, actorText, reply);
         }
-        if (!validation.failures().isEmpty()) {
-            int turnNumber = CoachPrompt.turnNumber(session);
+        boolean fellBack = !failures.isEmpty();
+        scoreValidation(session, firstFailures, fellBack, failures);
+        if (fellBack) {
             LOG.warn(
                     "코치 답이 두 번 검증에 걸려 안전 문구로 대체한다: session={} response={} failures={}",
-                    session.sessionId(), turnNumber, validation.failures());
-            return new CoachReply(
-                    CoachPrompt.safeTemplate(turnNumber, session.blockageKind()),
-                    "continue",
-                    null);
+                    session.sessionId(), turnNumber, failures);
+            return CoachResponsePolicy.fallback(session, actorText);
         }
         return sanitizeActorWords(reply);
+    }
+
+    /**
+     * 이번 응답이 규칙을 어겼는지를 점수로 남긴다.
+     *
+     * <p>모델을 한 번도 더 부르지 않는다 — 서버가 이미 판정한 것을 옮겨 적을 뿐이다.
+     * 여기서 나오는 비율("이번 주 안전 문구 대체 11%, 그중 8할이 금지어")이 품질을
+     * 눈이 아니라 숫자로 보게 하는 자리다(SOMA-517).
+     */
+    private void scoreValidation(
+            CoachSessionSnapshot session,
+            List<String> firstFailures,
+            boolean fellBack,
+            List<String> remainingFailures) {
+        UUID practiceSessionId = session.practiceSessionId();
+        if (practiceSessionId == null) {
+            return;
+        }
+        telemetry.score(LlmScore.flag(
+                practiceSessionId, "coach.regenerated", !firstFailures.isEmpty()));
+        telemetry.score(LlmScore.flag(practiceSessionId, "coach.fallback_used", fellBack)
+                .withComment(fellBack ? String.join(" / ", remainingFailures) : null));
+        for (String failure : firstFailures) {
+            telemetry.score(LlmScore.category(
+                    practiceSessionId, "coach.validation_failure", failureLabel(failure)));
+        }
+    }
+
+    /**
+     * 실패 문구의 <b>첫 마디</b>를 갈래 이름으로 쓴다. 문구가 코드의 상수라 안정적이지만,
+     * 문구를 고치면 갈래가 갈린다 — 고칠 때 지난 기록과 이어지지 않는다는 것만 알고 고친다.
+     */
+    private static String failureLabel(String failure) {
+        int cut = failure.length();
+        for (String delimiter : List.of(":", ". ", "·")) {
+            int at = failure.indexOf(delimiter);
+            if (at > 0) {
+                cut = Math.min(cut, at);
+            }
+        }
+        return failure.substring(0, Math.min(cut, 40)).trim();
+    }
+
+    /**
+     * 모델을 부르고 그 한 번을 기록한다.
+     *
+     * <p><b>1차와 재생성을 따로 남기는 것이 요점이다.</b> 둘은 같은 메서드를 부르지만 뜻이
+     * 다르다 — 재생성이 있었다는 것은 1차가 서버 검증에 걸렸다는 뜻이고, 그 비율이 곧
+     * 품질 지표다. 지금까지는 둘이 원장 한 행에 묻혀 사후에 셀 방법이 없었다.
+     *
+     * <p>실패해도 기록하고 예외는 그대로 올린다 — 실패만 기록에서 빠지면 비율이 거짓이 된다.
+     */
+    private GeneratedText recorded(
+            LlmStep step,
+            CoachSessionSnapshot session,
+            int turnNumber,
+            String systemPrompt,
+            String userPrompt,
+            UUID operationId) {
+        if (session.practiceSessionId() == null) {
+            return generate.generate(systemPrompt, userPrompt);
+        }
+        Instant startedAt = Instant.now();
+        try {
+            ExternalOperationExecution.externalCall("model");
+            GeneratedText generated = generate.generate(systemPrompt, userPrompt);
+            telemetry.record(new LlmCall(
+                    step,
+                    session.practiceSessionId(),
+                    session.userId(),
+                    generated.model(),
+                    systemPrompt + "\n\n" + userPrompt,
+                    generated.text(),
+                    tokens(generated),
+                    startedAt,
+                    Duration.between(startedAt, Instant.now()),
+                    null,
+                    metadata(session, turnNumber, operationId)));
+            return generated;
+        } catch (RuntimeException failure) {
+            telemetry.record(new LlmCall(
+                    step,
+                    session.practiceSessionId(),
+                    session.userId(),
+                    "",
+                    systemPrompt + "\n\n" + userPrompt,
+                    "",
+                    LlmTokens.unknown(),
+                    startedAt,
+                    Duration.between(startedAt, Instant.now()),
+                    failure.getClass().getSimpleName(),
+                    metadata(session, turnNumber, operationId)));
+            throw failure;
+        }
+    }
+
+    private static java.util.Map<String, String> metadata(
+            CoachSessionSnapshot session, int turnNumber, UUID operationId) {
+        return LlmCall.metadata(
+                "coach_session", String.valueOf(session.sessionId()),
+                "operation_id", operationId == null ? null : operationId.toString(),
+                "turn", String.valueOf(turnNumber),
+                "blockage_kind", session.blockageKind(),
+                "sub_branch", session.subBranch());
+    }
+
+    private static LlmTokens tokens(GeneratedText generated) {
+        if (generated.usage() == null) {
+            return LlmTokens.unknown();
+        }
+        return LlmTokens.of(
+                generated.usage().prompt(),
+                generated.usage().completion(),
+                generated.usage().total());
     }
 
     private CoachReply parseGeneratedResponse(String rawText, UUID operationId) {

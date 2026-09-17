@@ -15,22 +15,6 @@ public class SummaryEntity extends AppGeneratedUuidEntity {
     @Column(name = "session_id", nullable = false)
     UUID sessionId;
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "observation", columnDefinition = "jsonb")
-    JsonNode observation;
-
-    @Column(name = "summary")
-    String summary;
-
-    @Column(name = "intent_alignment")
-    String intentAlignment;
-
-    @Column(name = "key_moment")
-    String keyMoment;
-
-    @Column(name = "key_dimension")
-    String keyDimension;
-
     @Column(name = "model", nullable = false)
     String model;
 
@@ -71,10 +55,6 @@ public class SummaryEntity extends AppGeneratedUuidEntity {
         this.uncertaintiesJson = uncertainties;
     }
 
-    public JsonNode getObservation() {
-        return observation;
-    }
-
     public JsonNode getRaw() {
         return raw;
     }
@@ -85,9 +65,5 @@ public class SummaryEntity extends AppGeneratedUuidEntity {
 
     public JsonNode getUncertaintiesJson() {
         return uncertaintiesJson;
-    }
-
-    public void setObservation(JsonNode value) {
-        observation = value;
     }
 }

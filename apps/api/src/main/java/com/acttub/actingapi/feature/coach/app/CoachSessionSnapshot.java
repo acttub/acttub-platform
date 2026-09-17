@@ -26,7 +26,10 @@ public record CoachSessionSnapshot(
         String status,
         String closeReason,
         List<CoachTurnSnapshot> turns,
-        PriorContext prior) {
+        PriorContext prior,
+        String experienceVersion,
+        long stateRevision,
+        JsonNode coachingState) {
 
     public CoachSessionSnapshot {
         transcripts = List.copyOf(transcripts);
@@ -63,12 +66,36 @@ public record CoachSessionSnapshot(
                 PriorContext.EMPTY);
     }
 
+    public CoachSessionSnapshot(UUID sessionId, UUID practiceSessionId, UUID summaryId,
+            UUID userId, JsonNode observationPack, String situation, String characterContext,
+            String goal, int durationMs, String blockageKind, String subBranch,
+            String blockageDetail, List<String> transcripts, String conversationSummary,
+            JsonNode analysisHandoff, String status, String closeReason,
+            List<CoachTurnSnapshot> turns, PriorContext prior) {
+        this(sessionId, practiceSessionId, summaryId, userId, observationPack, situation,
+                characterContext, goal, durationMs, blockageKind, subBranch, blockageDetail,
+                transcripts, conversationSummary, analysisHandoff, status, closeReason, turns,
+                prior, "legacy", 0, null);
+    }
+
+    public boolean threeLayers() {
+        return "three_layers_v1".equals(experienceVersion);
+    }
+
+    public CoachSessionSnapshot withCoachingState(String version, long revision,
+            JsonNode state, String newStatus, String reason) {
+        return new CoachSessionSnapshot(sessionId, practiceSessionId, summaryId, userId,
+                observationPack, situation, characterContext, goal, durationMs, blockageKind,
+                subBranch, blockageDetail, transcripts, conversationSummary, analysisHandoff,
+                newStatus, reason, turns, prior, version, revision, state);
+    }
+
     public CoachSessionSnapshot withPrior(PriorContext newPrior) {
         return new CoachSessionSnapshot(
                 sessionId, practiceSessionId, summaryId, userId, observationPack, situation,
                 characterContext, goal, durationMs, blockageKind, subBranch, blockageDetail,
                 transcripts, conversationSummary, analysisHandoff, status, closeReason, turns,
-                newPrior);
+                newPrior, experienceVersion, stateRevision, coachingState);
     }
 
     public CoachSessionSnapshot withTurns(List<CoachTurnSnapshot> newTurns) {
@@ -91,7 +118,7 @@ public record CoachSessionSnapshot(
                 status,
                 closeReason,
                 newTurns,
-                prior);
+                prior, experienceVersion, stateRevision, coachingState);
     }
 
     public CoachSessionSnapshot withStatus(String newStatus) {
@@ -114,6 +141,6 @@ public record CoachSessionSnapshot(
                 newStatus,
                 closeReason,
                 turns,
-                prior);
+                prior, experienceVersion, stateRevision, coachingState);
     }
 }

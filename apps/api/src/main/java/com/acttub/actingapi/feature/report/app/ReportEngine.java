@@ -3,7 +3,11 @@ package com.acttub.actingapi.feature.report.app;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Set;
+import java.util.UUID;
+import com.acttub.actingapi.platform.ledger.ExternalOperationExecution;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -11,6 +15,11 @@ import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.feature.report.domain.ExpressionReadiness;
 import com.acttub.actingapi.feature.report.domain.ReportBranch;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.acttub.actingapi.platform.observability.LlmCall;
+import com.acttub.actingapi.platform.observability.LlmScore;
+import com.acttub.actingapi.platform.observability.LlmStep;
+import com.acttub.actingapi.platform.observability.LlmTelemetry;
+import com.acttub.actingapi.platform.observability.LlmTokens;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -35,10 +44,29 @@ public class ReportEngine {
 
     private final TextGenerator generate;
     private final ObjectMapper mapper;
+    private final LlmTelemetry telemetry;
 
-    public ReportEngine(TextGenerator generate, ObjectMapper mapper) {
+    public ReportEngine(TextGenerator generate, ObjectMapper mapper, LlmTelemetry telemetry) {
         this.generate = generate;
         this.mapper = mapper;
+        this.telemetry = telemetry;
+    }
+
+    /**
+     * 어느 연습의 노트인지 모르는 자리에서 부를 때. 그때는 기록을 남기지 않는다 — 묶을
+     * 열쇠가 없는 기록은 화면에서 떠돌기만 한다.
+     */
+    public JsonNode generateReport(
+            String reportType,
+            JsonNode videoSummary,
+            JsonNode confirmedHandoff,
+            boolean confirmed,
+            String coachingHandoffId,
+            JsonNode analysisHandoff,
+            String analysisHandoffId) {
+        return generateReport(
+                reportType, videoSummary, confirmedHandoff, confirmed,
+                coachingHandoffId, analysisHandoff, analysisHandoffId, null, null);
     }
 
     public JsonNode generateReport(
@@ -48,7 +76,23 @@ public class ReportEngine {
             boolean confirmed,
             String coachingHandoffId,
             JsonNode analysisHandoff,
-            String analysisHandoffId) {
+            String analysisHandoffId,
+            UUID practiceSessionId,
+            UUID userId) {
+        if ("coaching".equals(reportType)) {
+            boolean[] copyFailed = {false};
+            JsonNode note = PracticeNote.assemble(confirmedHandoff, input -> recorded(
+                    PracticeNote.prompt(confirmedHandoff),
+                    "acttub.coach_handoff.v2".equals(confirmedHandoff.path("schema_version").asText())
+                            ? input : "{\"note_data\":" + input + "}",
+                    "practice_note", practiceSessionId, userId),
+                    failure -> copyFailed[0] = true);
+            if (practiceSessionId != null) {
+                // 제목·정리 생성이 실패해도 노트는 저장된다(기본 제목). 실패가 지표에 안 남으면 폴백 비율을 모른다.
+                telemetry.score(LlmScore.flag(practiceSessionId, "practice_note.copy_fallback", copyFailed[0]));
+            }
+            return note;
+        }
         JsonNode modelInput = buildReportInput(
                 reportType,
                 videoSummary,
@@ -57,11 +101,58 @@ public class ReportEngine {
                 coachingHandoffId,
                 analysisHandoff);
         if (modelInput == null) {
+            // 코치 대화가 안전 문구로 끝나면 핸드오프가 unavailable 로 남아 노트를 못 만든다.
+            // 배우 눈에 보이는 손해라 그 자체로 셀 값어치가 있다(SOMA-517).
+            if (practiceSessionId != null) {
+                telemetry.score(LlmScore.flag(practiceSessionId, "coach.report_blocked",
+                        confirmedHandoff != null
+                                && "unavailable".equals(confirmedHandoff.path("completion_level").asText())));
+            }
             return blockedReport(reportType);
         }
-        String raw = generate.generate(
-                ReportPrompt.select(reportType), serializeInput(modelInput)).text();
+        String systemPrompt = ReportPrompt.select(reportType);
+        String userPrompt = serializeInput(modelInput);
+        String raw = recorded(systemPrompt, userPrompt, reportType, practiceSessionId, userId);
+        if (practiceSessionId != null) {
+            telemetry.score(LlmScore.flag(practiceSessionId, "coach.report_blocked", false));
+        }
         return parseReport(raw, reportType, coachingHandoffId, analysisHandoffId);
+    }
+
+    /** 모델을 부르고 그 한 번을 남긴다. 연습을 모르면 부르기만 한다. */
+    private String recorded(
+            String systemPrompt,
+            String userPrompt,
+            String reportType,
+            UUID practiceSessionId,
+            UUID userId) {
+        Instant startedAt = Instant.now();
+        try {
+            ExternalOperationExecution.externalCall("model");
+            var generated = generate.generate(systemPrompt, userPrompt);
+            if (practiceSessionId != null) {
+                telemetry.record(new LlmCall(
+                        LlmStep.REPORT, practiceSessionId, userId, generated.model(),
+                        systemPrompt + "\n\n" + userPrompt, generated.text(),
+                        generated.usage() == null ? LlmTokens.unknown() : LlmTokens.of(
+                                generated.usage().prompt(),
+                                generated.usage().completion(),
+                                generated.usage().total()),
+                        startedAt, Duration.between(startedAt, Instant.now()), null,
+                        LlmCall.metadata("report_type", reportType)));
+            }
+            return generated.text();
+        } catch (RuntimeException failure) {
+            if (practiceSessionId != null) {
+                telemetry.record(new LlmCall(
+                        LlmStep.REPORT, practiceSessionId, userId, "",
+                        systemPrompt + "\n\n" + userPrompt, "", LlmTokens.unknown(),
+                        startedAt, Duration.between(startedAt, Instant.now()),
+                        failure.getClass().getSimpleName(),
+                        LlmCall.metadata("report_type", reportType)));
+            }
+            throw failure;
+        }
     }
 
     public JsonNode buildReportInput(
@@ -72,6 +163,10 @@ public class ReportEngine {
             String coachingHandoffId,
             JsonNode analysisHandoff) {
         if (!confirmed || confirmedHandoff == null || !confirmedHandoff.isObject()) {
+            return null;
+        }
+        // 코치 생성이 두 번 실패해 서버가 마친 대화는 노트 생성·재생성으로 결론을 만들지 않는다.
+        if ("unavailable".equals(confirmedHandoff.path("completion_level").asText())) {
             return null;
         }
         ObjectNode confirmation = mapper.createObjectNode();
@@ -92,6 +187,7 @@ public class ReportEngine {
             return null;
         }
         input.set("analysis_handoff", analysisHandoff == null
+                || "unavailable".equals(analysisHandoff.path("completion_level").asText())
                 ? mapper.nullNode()
                 : analysisHandoff.deepCopy());
         input.set("expression_handoff", confirmedHandoff.deepCopy());
@@ -184,6 +280,10 @@ public class ReportEngine {
         // 장면이 무슨 이야기인지가 먼저다 — 구간 관찰만으로는 노트가 장면을 통째로 알지
         // 못한다(SOMA-490). 옛 요약 행에는 이 칸이 없어 있을 때만 싣는다.
         copyText(value, "scene_summary", pack);
+        copyText(value, "timeline", pack);
+        if (value.path("speech").isObject()) {
+            pack.set("speech", value.get("speech").deepCopy());
+        }
         pack.set("observations", normalizedObservations);
         pack.set("uncertainties", normalizedUncertainties);
         return pack;

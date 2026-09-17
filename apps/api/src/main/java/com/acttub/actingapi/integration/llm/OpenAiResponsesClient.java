@@ -107,7 +107,7 @@ public class OpenAiResponsesClient implements TextGenerator {
             String detail = refusal.isEmpty() ? "" : " (" + refusal + ")";
             throw new IllegalStateException("OpenAI 평문 응답이 비었습니다" + detail + ".");
         }
-        return new GeneratedText(text, tokenUsage(payload));
+        return new GeneratedText(text, tokenUsage(payload), configuration.model());
     }
 
     private OpenAiHttpResponse retryingRequest(OpenAiHttpRequest request) {

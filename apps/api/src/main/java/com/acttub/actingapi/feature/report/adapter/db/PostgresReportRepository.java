@@ -34,7 +34,7 @@ public class PostgresReportRepository implements ReportRepository {
                 SELECT
                     report.practice_session_id,
                     report.report_type AS report_type,
-                    COALESCE(report.report_json ->> 'title', '') AS title,
+                    COALESCE(report.report_json ->> 'title', report.report_json #>> '{copy,title}', '') AS title,
                     report.created_at
                 FROM practice_reports AS report
                 JOIN practice_sessions AS practice

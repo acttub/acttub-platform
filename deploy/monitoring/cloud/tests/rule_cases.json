@@ -1,0 +1,2486 @@
+[
+  {
+    "name": "Three external failures in five minutes then recovery",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "probe_success{job=\"acttub-health-dev\"}",
+        "values": "1 0 0 0 1 1 1 1 1"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "2m",
+        "alertname": "external",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "3m",
+        "alertname": "external",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      },
+      {
+        "eval_time": "7m",
+        "alertname": "external",
+        "exp_alerts": []
+      }
+    ]
+  },
+  {
+    "name": "Three API 5xx among sixty requests meets both inclusive thresholds",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"api\",environment=\"dev\"}",
+        "values": "1+0x8"
+      },
+      {
+        "series": "acttub_http_requests_total{environment=\"dev\",status_class=\"2xx\",latency_class=\"ordinary\"}",
+        "values": "0 0 0 0 0 57 57 57"
+      },
+      {
+        "series": "acttub_http_requests_total{environment=\"dev\",status_class=\"5xx\",latency_class=\"ordinary\"}",
+        "values": "0 0 0 0 0 3 3 3"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "5m",
+        "alertname": "api-errors",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "최종 실패 발생 threshold/pending/recovery boundary",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"api\",environment=\"dev\"}",
+        "values": "1+0x40"
+      },
+      {
+        "series": "acttub_external_operations_snapshot_success{environment=\"dev\"}",
+        "values": "1+0x40"
+      },
+      {
+        "series": "acttub_external_operations_snapshot_timestamp_seconds{environment=\"dev\"}",
+        "values": "0+60x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"external\"}",
+        "values": "0 0 0 0 0 1 1 1 1"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"external\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"external\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"external\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "5m",
+        "alertname": "terminal",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "새 최종 실패 분류 정보 누락 threshold/pending/recovery boundary",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"api\",environment=\"dev\"}",
+        "values": "1+0x40"
+      },
+      {
+        "series": "acttub_external_operations_snapshot_success{environment=\"dev\"}",
+        "values": "1+0x40"
+      },
+      {
+        "series": "acttub_external_operations_snapshot_timestamp_seconds{environment=\"dev\"}",
+        "values": "0+60x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0 0 0 0 0 1 1 1 1"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"external\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"external\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"external\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"external\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "5m",
+        "alertname": "unclassified",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "분석 최장 대기 threshold/pending/recovery boundary",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"api\",environment=\"dev\"}",
+        "values": "1+0x40"
+      },
+      {
+        "series": "acttub_external_operations_snapshot_success{environment=\"dev\"}",
+        "values": "1+0x40"
+      },
+      {
+        "series": "acttub_external_operations_snapshot_timestamp_seconds{environment=\"dev\"}",
+        "values": "0+60x40"
+      },
+      {
+        "series": "acttub_external_operations_oldest_wait_seconds{environment=\"dev\",kind=\"analyze\",waiting=\"initial\"}",
+        "values": "180 181+0x10"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "0m",
+        "alertname": "analysis-wait",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "1m",
+        "alertname": "analysis-wait",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "최초 접수 후 미완료 분석 threshold/pending/recovery boundary",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"api\",environment=\"dev\"}",
+        "values": "1+0x40"
+      },
+      {
+        "series": "acttub_external_operations_snapshot_success{environment=\"dev\"}",
+        "values": "1+0x40"
+      },
+      {
+        "series": "acttub_external_operations_snapshot_timestamp_seconds{environment=\"dev\"}",
+        "values": "0+60x40"
+      },
+      {
+        "series": "acttub_external_operations_oldest_unfinished_age_seconds{environment=\"dev\",kind=\"analyze\"}",
+        "values": "300 301+0x10"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "0m",
+        "alertname": "analysis-age",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "1m",
+        "alertname": "analysis-age",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "코치 리포트 서버 HTTP 요청 지연 threshold/pending/recovery boundary",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"api\",environment=\"dev\"}",
+        "values": "1+0x40"
+      },
+      {
+        "series": "acttub_http_active_seconds_max{environment=\"dev\",feature=\"coach\"}",
+        "values": "60 61+0x10"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "0m",
+        "alertname": "http-inflight",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "1m",
+        "alertname": "http-inflight",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "일반 API p95 지연 (5분 20요청 이상) threshold/pending/recovery boundary",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"api\",environment=\"dev\"}",
+        "values": "1+0x40"
+      },
+      {
+        "series": "acttub_http_requests_total{environment=\"dev\",latency_class=\"ordinary\",status_class=\"2xx\"}",
+        "values": "0+10x15"
+      },
+      {
+        "series": "http_server_requests_seconds_bucket{environment=\"dev\",latency_class=\"ordinary\",le=\"2\"}",
+        "values": "0+0x15"
+      },
+      {
+        "series": "http_server_requests_seconds_bucket{environment=\"dev\",latency_class=\"ordinary\",le=\"4\"}",
+        "values": "0+10x15"
+      },
+      {
+        "series": "http_server_requests_seconds_bucket{environment=\"dev\",latency_class=\"ordinary\",le=\"+Inf\"}",
+        "values": "0+10x15"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "6m",
+        "alertname": "api-latency",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "7m",
+        "alertname": "api-latency",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "공유 호스트 CPU 사용률 (%) threshold/pending/recovery boundary",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"node\",environment=\"shared\"}",
+        "values": "1+0x40"
+      },
+      {
+        "series": "node_cpu_seconds_total{environment=\"shared\",mode=\"idle\",cpu=\"0\"}",
+        "values": "0+0x40"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "10m",
+        "alertname": "cpu",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "11m",
+        "alertname": "cpu",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "공유 호스트 가용 메모리 (%) threshold/pending/recovery boundary",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"node\",environment=\"shared\"}",
+        "values": "1+0x40"
+      },
+      {
+        "series": "node_memory_MemAvailable_bytes{environment=\"shared\"}",
+        "values": "9+0x20"
+      },
+      {
+        "series": "node_memory_MemTotal_bytes{environment=\"shared\"}",
+        "values": "100+0x20"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "4m",
+        "alertname": "memory",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "5m",
+        "alertname": "memory",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "데이터 디스크 여유 (%) threshold/pending/recovery boundary",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"node\",environment=\"shared\"}",
+        "values": "1+0x40"
+      },
+      {
+        "series": "node_filesystem_avail_bytes{environment=\"shared\",mountpoint=\"/\",fstype=\"ext4\"}",
+        "values": "14+0x20"
+      },
+      {
+        "series": "node_filesystem_size_bytes{environment=\"shared\",mountpoint=\"/\",fstype=\"ext4\"}",
+        "values": "100+0x20"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "4m",
+        "alertname": "disk",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "5m",
+        "alertname": "disk",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "데이터 디스크 여유 (%) threshold/pending/recovery boundary",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"node\",environment=\"shared\"}",
+        "values": "1+0x40"
+      },
+      {
+        "series": "node_filesystem_avail_bytes{environment=\"shared\",mountpoint=\"/\",fstype=\"ext4\"}",
+        "values": "5 4+0x20"
+      },
+      {
+        "series": "node_filesystem_size_bytes{environment=\"shared\",mountpoint=\"/\",fstype=\"ext4\"}",
+        "values": "100+0x20"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "0m",
+        "alertname": "disk-critical",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "1m",
+        "alertname": "disk-critical",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "내부 DB 연결 실패 threshold/pending/recovery boundary",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"db-health\"}",
+        "values": "1+0x10"
+      },
+      {
+        "series": "acttub_db_probe_success{environment=\"dev\"}",
+        "values": "0+0x10"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "1m",
+        "alertname": "db",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "2m",
+        "alertname": "db",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "마지막 백업 성공 경과 (초) threshold/pending/recovery boundary",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"backup\"}",
+        "values": "1+0x1600"
+      },
+      {
+        "series": "acttub_backup_state_read_success{environment=\"dev\"}",
+        "values": "1+0x1600"
+      },
+      {
+        "series": "acttub_backup_target_match{environment=\"dev\"}",
+        "values": "1+0x1600"
+      },
+      {
+        "series": "acttub_backup_last_success_timestamp_seconds{environment=\"dev\"}",
+        "values": "0+0x1600"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "1560m",
+        "alertname": "backup-age",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "1561m",
+        "alertname": "backup-age",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "미해결 백업 실패 threshold/pending/recovery boundary",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"backup\"}",
+        "values": "1+0x1600"
+      },
+      {
+        "series": "acttub_backup_state_read_success{environment=\"dev\"}",
+        "values": "1+0x1600"
+      },
+      {
+        "series": "acttub_backup_target_match{environment=\"dev\"}",
+        "values": "1+0x1600"
+      },
+      {
+        "series": "acttub_backup_unresolved_failure{environment=\"dev\"}",
+        "values": "1+0x10"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "4m",
+        "alertname": "backup-failure",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "5m",
+        "alertname": "backup-failure",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "api 필수 수집 중단 threshold/pending/recovery boundary",
+    "interval": "1m",
+    "input_series": [],
+    "alert_rule_test": [
+      {
+        "eval_time": "1m",
+        "alertname": "collect-api",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "2m",
+        "alertname": "collect-api",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "db-health 필수 수집 중단 threshold/pending/recovery boundary",
+    "interval": "1m",
+    "input_series": [],
+    "alert_rule_test": [
+      {
+        "eval_time": "1m",
+        "alertname": "collect-db-health",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "2m",
+        "alertname": "collect-db-health",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "backup 필수 수집 중단 threshold/pending/recovery boundary",
+    "interval": "1m",
+    "input_series": [],
+    "alert_rule_test": [
+      {
+        "eval_time": "1m",
+        "alertname": "collect-backup",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "2m",
+        "alertname": "collect-backup",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "node 필수 수집 중단 threshold/pending/recovery boundary",
+    "interval": "1m",
+    "input_series": [],
+    "alert_rule_test": [
+      {
+        "eval_time": "1m",
+        "alertname": "collect-node",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "2m",
+        "alertname": "collect-node",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "prometheus 필수 수집 중단 threshold/pending/recovery boundary",
+    "interval": "1m",
+    "input_series": [],
+    "alert_rule_test": [
+      {
+        "eval_time": "1m",
+        "alertname": "collect-prometheus",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "2m",
+        "alertname": "collect-prometheus",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "External Operation 집계 갱신 중단 threshold/pending/recovery boundary",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"api\",environment=\"dev\"}",
+        "values": "1+0x10"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "1m",
+        "alertname": "snapshot",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "2m",
+        "alertname": "snapshot",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "백업 상태 누락 파손 목적지 불일치 threshold/pending/recovery boundary",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"backup\"}",
+        "values": "1+0x10"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "1m",
+        "alertname": "backup-state",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "2m",
+        "alertname": "backup-state",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "외부 점검 수집 중단 threshold/pending/recovery boundary",
+    "interval": "1m",
+    "input_series": [],
+    "alert_rule_test": [
+      {
+        "eval_time": "1m",
+        "alertname": "collect-external",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "2m",
+        "alertname": "collect-external",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "필수 지표 누락 acttub_db_probe_success threshold/pending/recovery boundary",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"db-health\"}",
+        "values": "1+0x10"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "1m",
+        "alertname": "db-metric",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "2m",
+        "alertname": "db-metric",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "필수 지표 누락 process_start_time_seconds threshold/pending/recovery boundary",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"api\",environment=\"dev\"}",
+        "values": "1+0x10"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "1m",
+        "alertname": "api-metric",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "2m",
+        "alertname": "api-metric",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "필수 지표 누락 node_memory_MemAvailable_bytes threshold/pending/recovery boundary",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"node\",environment=\"shared\"}",
+        "values": "1+0x10"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "1m",
+        "alertname": "host-metric",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "2m",
+        "alertname": "host-metric",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "필수 수집 표본 갱신 중단 (초) threshold/pending/recovery boundary",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"api\",environment=\"dev\"}",
+        "values": "1 _ _ _ _"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "1m",
+        "alertname": "stale-api",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "2m",
+        "alertname": "stale-api",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "필수 수집 표본 갱신 중단 (초) threshold/pending/recovery boundary",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"db-health\"}",
+        "values": "1 _ _ _ _"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "1m",
+        "alertname": "stale-db-health",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "2m",
+        "alertname": "stale-db-health",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "필수 수집 표본 갱신 중단 (초) threshold/pending/recovery boundary",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"backup\"}",
+        "values": "1 _ _ _ _"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "1m",
+        "alertname": "stale-backup",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "2m",
+        "alertname": "stale-backup",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "필수 수집 표본 갱신 중단 (초) threshold/pending/recovery boundary",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"node\",environment=\"shared\"}",
+        "values": "1 _ _ _ _"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "1m",
+        "alertname": "stale-node",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "2m",
+        "alertname": "stale-node",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "필수 수집 표본 갱신 중단 (초) threshold/pending/recovery boundary",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"prometheus\",environment=\"shared\"}",
+        "values": "1 _ _ _ _"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "1m",
+        "alertname": "stale-prometheus",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "2m",
+        "alertname": "stale-prometheus",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "원장 집계 표본 갱신 중단 (초) threshold/pending/recovery boundary",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"api\",environment=\"dev\"}",
+        "values": "1+0x40"
+      },
+      {
+        "series": "acttub_external_operations_snapshot_timestamp_seconds{environment=\"dev\"}",
+        "values": "0+0x5"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "1m",
+        "alertname": "snapshot-stale",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "2m",
+        "alertname": "snapshot-stale",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "외부 점검 표본 갱신 중단 (초) threshold/pending/recovery boundary",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "probe_success{job=\"acttub-health-dev\"}",
+        "values": "1 _ _ _ _"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "1m",
+        "alertname": "external-stale",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "2m",
+        "alertname": "external-stale",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Two 5xx do not meet minimum count",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"api\",environment=\"dev\"}",
+        "values": "1+0x8"
+      },
+      {
+        "series": "acttub_http_requests_total{environment=\"dev\",status_class=\"2xx\",latency_class=\"ordinary\"}",
+        "values": "0 0 0 0 0 57 57 57"
+      },
+      {
+        "series": "acttub_http_requests_total{environment=\"dev\",status_class=\"5xx\",latency_class=\"ordinary\"}",
+        "values": "0 0 0 0 0 2 2 2"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "5m",
+        "alertname": "api-errors",
+        "exp_alerts": []
+      }
+    ]
+  },
+  {
+    "name": "Three 5xx below five percent do not alert",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"api\",environment=\"dev\"}",
+        "values": "1+0x8"
+      },
+      {
+        "series": "acttub_http_requests_total{environment=\"dev\",status_class=\"2xx\",latency_class=\"ordinary\"}",
+        "values": "0 0 0 0 0 997 997 997"
+      },
+      {
+        "series": "acttub_http_requests_total{environment=\"dev\",status_class=\"5xx\",latency_class=\"ordinary\"}",
+        "values": "0 0 0 0 0 3 3 3"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "5m",
+        "alertname": "api-errors",
+        "exp_alerts": []
+      }
+    ]
+  },
+  {
+    "name": "No traffic means zero errors",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"api\",environment=\"dev\"}",
+        "values": "1+0x8"
+      },
+      {
+        "series": "acttub_http_requests_total{environment=\"dev\",status_class=\"2xx\",latency_class=\"ordinary\"}",
+        "values": "0+0x15"
+      },
+      {
+        "series": "acttub_http_requests_total{environment=\"dev\",status_class=\"5xx\",latency_class=\"ordinary\"}",
+        "values": "0+0x15"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "5m",
+        "alertname": "api-errors",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "10m",
+        "alertname": "api-latency",
+        "exp_alerts": []
+      }
+    ]
+  },
+  {
+    "name": "Slow p95 with fewer than twenty requests does not alert",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"api\",environment=\"dev\"}",
+        "values": "1+0x40"
+      },
+      {
+        "series": "acttub_http_requests_total{environment=\"dev\",latency_class=\"ordinary\",status_class=\"2xx\"}",
+        "values": "0+1x15"
+      },
+      {
+        "series": "http_server_requests_seconds_bucket{environment=\"dev\",latency_class=\"ordinary\",le=\"2\"}",
+        "values": "0+0x15"
+      },
+      {
+        "series": "http_server_requests_seconds_bucket{environment=\"dev\",latency_class=\"ordinary\",le=\"4\"}",
+        "values": "0+1x15"
+      },
+      {
+        "series": "http_server_requests_seconds_bucket{environment=\"dev\",latency_class=\"ordinary\",le=\"+Inf\"}",
+        "values": "0+1x15"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "10m",
+        "alertname": "api-latency",
+        "exp_alerts": []
+      }
+    ]
+  },
+  {
+    "name": "No completed HTTP samples do not alert on latency",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"api\",environment=\"dev\"}",
+        "values": "1+0x40"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "10m",
+        "alertname": "api-latency",
+        "exp_alerts": []
+      }
+    ]
+  },
+  {
+    "name": "Counter reset is not a failure and one new event still alerts",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"api\",environment=\"dev\"}",
+        "values": "1+0x40"
+      },
+      {
+        "series": "acttub_external_operations_snapshot_success{environment=\"dev\"}",
+        "values": "1+0x40"
+      },
+      {
+        "series": "acttub_external_operations_snapshot_timestamp_seconds{environment=\"dev\"}",
+        "values": "0+60x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"external\"}",
+        "values": "9 9 0 0 0 1 1 1 1"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"external\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"external\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"external\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "2m",
+        "alertname": "terminal",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "5m",
+        "alertname": "terminal",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      },
+      {
+        "eval_time": "10m",
+        "alertname": "terminal",
+        "exp_alerts": []
+      }
+    ]
+  },
+  {
+    "name": "Historical terminal counter at first observation is not retroactive failure",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"api\",environment=\"dev\"}",
+        "values": "1+0x40"
+      },
+      {
+        "series": "acttub_external_operations_snapshot_success{environment=\"dev\"}",
+        "values": "1+0x40"
+      },
+      {
+        "series": "acttub_external_operations_snapshot_timestamp_seconds{environment=\"dev\"}",
+        "values": "0+60x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"external\"}",
+        "values": "9+0x15"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"external\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"external\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"external\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "5m",
+        "alertname": "terminal",
+        "exp_alerts": []
+      }
+    ]
+  },
+  {
+    "name": "Expected Rejection is excluded from terminal incident and missing-info alerts",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"api\",environment=\"dev\"}",
+        "values": "1+0x40"
+      },
+      {
+        "series": "acttub_external_operations_snapshot_success{environment=\"dev\"}",
+        "values": "1+0x40"
+      },
+      {
+        "series": "acttub_external_operations_snapshot_timestamp_seconds{environment=\"dev\"}",
+        "values": "0+60x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"external\"}",
+        "values": "0+0x10"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0 0 0 0 0 100 100 100"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"external\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"external\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"external\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "5m",
+        "alertname": "terminal",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "5m",
+        "alertname": "unclassified",
+        "exp_alerts": []
+      }
+    ]
+  },
+  {
+    "name": "Unclassified termination has its own missing-information alert",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"api\",environment=\"dev\"}",
+        "values": "1+0x40"
+      },
+      {
+        "series": "acttub_external_operations_snapshot_success{environment=\"dev\"}",
+        "values": "1+0x40"
+      },
+      {
+        "series": "acttub_external_operations_snapshot_timestamp_seconds{environment=\"dev\"}",
+        "values": "0+60x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0 0 0 0 0 1 1 1 1"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"external\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"external\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"external\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"external\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "5m",
+        "alertname": "terminal",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "5m",
+        "alertname": "unclassified",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Ten percent available memory is healthy",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"node\",environment=\"shared\"}",
+        "values": "1+0x40"
+      },
+      {
+        "series": "node_memory_MemAvailable_bytes{environment=\"shared\"}",
+        "values": "10+0x15"
+      },
+      {
+        "series": "node_memory_MemTotal_bytes{environment=\"shared\"}",
+        "values": "100+0x20"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "10m",
+        "alertname": "memory",
+        "exp_alerts": []
+      }
+    ]
+  },
+  {
+    "name": "Memory recovery clears the condition",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"node\",environment=\"shared\"}",
+        "values": "1+0x40"
+      },
+      {
+        "series": "node_memory_MemAvailable_bytes{environment=\"shared\"}",
+        "values": "9+0x5 50+0x10"
+      },
+      {
+        "series": "node_memory_MemTotal_bytes{environment=\"shared\"}",
+        "values": "100+0x20"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "5m",
+        "alertname": "memory",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      },
+      {
+        "eval_time": "6m",
+        "alertname": "memory",
+        "exp_alerts": []
+      }
+    ]
+  },
+  {
+    "name": "Fifteen percent disk free does not warn",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"node\",environment=\"shared\"}",
+        "values": "1+0x40"
+      },
+      {
+        "series": "node_filesystem_avail_bytes{environment=\"shared\",mountpoint=\"/\",fstype=\"ext4\"}",
+        "values": "15+0x15"
+      },
+      {
+        "series": "node_filesystem_size_bytes{environment=\"shared\",mountpoint=\"/\",fstype=\"ext4\"}",
+        "values": "100+0x20"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "10m",
+        "alertname": "disk",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "10m",
+        "alertname": "disk-critical",
+        "exp_alerts": []
+      }
+    ]
+  },
+  {
+    "name": "DB recovery before pending deadline prevents an incident",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"db-health\"}",
+        "values": "1+0x10"
+      },
+      {
+        "series": "acttub_db_probe_success{environment=\"dev\"}",
+        "values": "0 0 1+0x8"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "2m",
+        "alertname": "db",
+        "exp_alerts": []
+      }
+    ]
+  },
+  {
+    "name": "Unresolved backup failure clears only with normal observations",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"backup\"}",
+        "values": "1+0x1600"
+      },
+      {
+        "series": "acttub_backup_state_read_success{environment=\"dev\"}",
+        "values": "1+0x1600"
+      },
+      {
+        "series": "acttub_backup_target_match{environment=\"dev\"}",
+        "values": "1+0x1600"
+      },
+      {
+        "series": "acttub_backup_unresolved_failure{environment=\"dev\"}",
+        "values": "1+0x5 0+0x5"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "5m",
+        "alertname": "backup-failure",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      },
+      {
+        "eval_time": "6m",
+        "alertname": "backup-failure",
+        "exp_alerts": []
+      }
+    ]
+  },
+  {
+    "name": "Missing external samples are collection failure rather than service success",
+    "interval": "1m",
+    "input_series": [],
+    "alert_rule_test": [
+      {
+        "eval_time": "2m",
+        "alertname": "external",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "2m",
+        "alertname": "collect-external",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Unavailable API collection returns no service result (Grafana KeepLast policy)",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"api\",environment=\"dev\"}",
+        "values": "0+0x10"
+      },
+      {
+        "series": "acttub_external_operations_snapshot_success{environment=\"dev\"}",
+        "values": "1+0x40"
+      },
+      {
+        "series": "acttub_external_operations_snapshot_timestamp_seconds{environment=\"dev\"}",
+        "values": "0+60x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"external\"}",
+        "values": "0 0 0 0 0 1 1 1 1"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"external\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"external\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"external\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "5m",
+        "alertname": "terminal",
+        "exp_alerts": []
+      }
+    ]
+  },
+  {
+    "name": "External Operation 필수 지표 누락 threshold/pending/recovery boundary",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"api\",environment=\"dev\"}",
+        "values": "1+0x40"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "1m",
+        "alertname": "operation-metric",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "2m",
+        "alertname": "operation-metric",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "요청 표본은 있으나 일반 HTTP histogram 누락 threshold/pending/recovery boundary",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"api\",environment=\"dev\"}",
+        "values": "1+0x40"
+      },
+      {
+        "series": "acttub_http_requests_total{environment=\"dev\",latency_class=\"ordinary\",status_class=\"2xx\"}",
+        "values": "0+10x10"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "3m",
+        "alertname": "http-histogram",
+        "exp_alerts": []
+      },
+      {
+        "eval_time": "4m",
+        "alertname": "http-histogram",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "External recovery needs the latest fresh probe to succeed after a collection gap",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "probe_success{job=\"acttub-health-dev\"}",
+        "values": "0 0 0 _ _ _ 0 1"
+      }
+    ],
+    "promql_expr_test": [
+      {
+        "rule": "external",
+        "eval_time": "2m",
+        "exp_samples": [
+          {
+            "labels": "{}",
+            "value": 3
+          }
+        ]
+      },
+      {
+        "rule": "external",
+        "eval_time": "4m",
+        "exp_samples": []
+      },
+      {
+        "rule": "external",
+        "eval_time": "6m",
+        "exp_samples": []
+      },
+      {
+        "rule": "external",
+        "eval_time": "7m",
+        "exp_samples": [
+          {
+            "labels": "{}",
+            "value": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "An older successful probe cannot resolve a later outage after missing data",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "probe_success{job=\"acttub-health-dev\"}",
+        "values": "1 0 0 1 0 _ _ 0 1"
+      }
+    ],
+    "promql_expr_test": [
+      {
+        "rule": "external",
+        "eval_time": "4m",
+        "exp_samples": [
+          {
+            "labels": "{}",
+            "value": 3
+          }
+        ]
+      },
+      {
+        "rule": "external",
+        "eval_time": "7m",
+        "exp_samples": []
+      },
+      {
+        "rule": "external",
+        "eval_time": "8m",
+        "exp_samples": [
+          {
+            "labels": "{}",
+            "value": 2
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Initialized HTTP aggregate counts three first errors before the next scrape on a new route",
+    "interval": "30s",
+    "input_series": [
+      {
+        "series": "up{job=\"api\",environment=\"dev\"}",
+        "values": "1+0x12"
+      },
+      {
+        "series": "acttub_http_requests_total{environment=\"dev\",status_class=\"5xx\",latency_class=\"ordinary\"}",
+        "values": "0 0 3+0x10"
+      },
+      {
+        "series": "http_server_requests_seconds_count{environment=\"dev\",status=\"500\",uri=\"/new-route\",latency_class=\"ordinary\"}",
+        "values": "_ _ 3+0x10"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "2m",
+        "alertname": "api-errors",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Adequate ordinary requests with missing histogram must remain unknown",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"api\",environment=\"dev\"}",
+        "values": "1+0x10"
+      },
+      {
+        "series": "acttub_http_requests_total{environment=\"dev\",status_class=\"2xx\",latency_class=\"ordinary\"}",
+        "values": "0+6x10"
+      }
+    ],
+    "promql_expr_test": [
+      {
+        "rule": "api-latency",
+        "eval_time": "10m",
+        "exp_samples": []
+      }
+    ]
+  },
+  {
+    "name": "Measured zero traffic can clear a count-gated latency alert",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"api\",environment=\"dev\"}",
+        "values": "1+0x10"
+      },
+      {
+        "series": "acttub_http_requests_total{environment=\"dev\",status_class=\"2xx\",latency_class=\"ordinary\"}",
+        "values": "0+0x10"
+      }
+    ],
+    "promql_expr_test": [
+      {
+        "rule": "api-latency",
+        "eval_time": "10m",
+        "exp_samples": [
+          {
+            "labels": "{}",
+            "value": 0
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Measured low traffic can clear a count-gated latency alert",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"api\",environment=\"dev\"}",
+        "values": "1+0x10"
+      },
+      {
+        "series": "acttub_http_requests_total{environment=\"dev\",status_class=\"2xx\",latency_class=\"ordinary\"}",
+        "values": "0+1x10"
+      }
+    ],
+    "promql_expr_test": [
+      {
+        "rule": "api-latency",
+        "eval_time": "10m",
+        "exp_samples": [
+          {
+            "labels": "{}",
+            "value": 0
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Missing request counter is unknown rather than zero traffic",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"api\",environment=\"dev\"}",
+        "values": "1+0x10"
+      }
+    ],
+    "promql_expr_test": [
+      {
+        "rule": "api-latency",
+        "eval_time": "10m",
+        "exp_samples": []
+      }
+    ]
+  },
+  {
+    "name": "Committed external final failure is reported while DB snapshot stays stale",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"api\",environment=\"dev\"}",
+        "values": "1+0x15"
+      },
+      {
+        "series": "acttub_external_operations_snapshot_success{environment=\"dev\"}",
+        "values": "0+0x15"
+      },
+      {
+        "series": "acttub_external_operations_snapshot_timestamp_seconds{environment=\"dev\"}",
+        "values": "0+0x15"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"external\"}",
+        "values": "0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 1"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"external\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"external\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"external\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "10m",
+        "alertname": "terminal",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      },
+      {
+        "eval_time": "15m",
+        "alertname": "terminal",
+        "exp_alerts": []
+      }
+    ]
+  },
+  {
+    "name": "Committed unclassified final failure is reported while DB snapshot stays stale",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"api\",environment=\"dev\"}",
+        "values": "1+0x15"
+      },
+      {
+        "series": "acttub_external_operations_snapshot_success{environment=\"dev\"}",
+        "values": "0+0x15"
+      },
+      {
+        "series": "acttub_external_operations_snapshot_timestamp_seconds{environment=\"dev\"}",
+        "values": "0+0x15"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 1"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"external\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"analyze\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"external\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_start\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"external\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"coach_reply\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"external\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"unexpected\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"unclassified\"}",
+        "values": "0+0x40"
+      },
+      {
+        "series": "acttub_external_operations_terminal_total{environment=\"dev\",kind=\"report\",outcome=\"failed\",classification=\"expected\"}",
+        "values": "0+0x40"
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "eval_time": "10m",
+        "alertname": "unclassified",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      },
+      {
+        "eval_time": "15m",
+        "alertname": "unclassified",
+        "exp_alerts": []
+      }
+    ]
+  },
+  {
+    "name": "Frequent fast coach claims cannot dilute the analysis wait percentile",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"api\",environment=\"dev\"}",
+        "values": "1+0x10"
+      },
+      {
+        "series": "acttub_external_operations_wait_seconds_bucket{environment=\"dev\",kind=\"analyze\",waiting=\"initial\",le=\"0.1\"}",
+        "values": "0+0x10"
+      },
+      {
+        "series": "acttub_external_operations_wait_seconds_bucket{environment=\"dev\",kind=\"analyze\",waiting=\"initial\",le=\"30\"}",
+        "values": "0+0x10"
+      },
+      {
+        "series": "acttub_external_operations_wait_seconds_bucket{environment=\"dev\",kind=\"analyze\",waiting=\"initial\",le=\"60\"}",
+        "values": "0+1x10"
+      },
+      {
+        "series": "acttub_external_operations_wait_seconds_bucket{environment=\"dev\",kind=\"analyze\",waiting=\"initial\",le=\"+Inf\"}",
+        "values": "0+1x10"
+      },
+      {
+        "series": "acttub_external_operations_wait_seconds_bucket{environment=\"dev\",kind=\"coach_start\",waiting=\"initial\",le=\"0.1\"}",
+        "values": "0+99x10"
+      },
+      {
+        "series": "acttub_external_operations_wait_seconds_bucket{environment=\"dev\",kind=\"coach_start\",waiting=\"initial\",le=\"30\"}",
+        "values": "0+99x10"
+      },
+      {
+        "series": "acttub_external_operations_wait_seconds_bucket{environment=\"dev\",kind=\"coach_start\",waiting=\"initial\",le=\"60\"}",
+        "values": "0+99x10"
+      },
+      {
+        "series": "acttub_external_operations_wait_seconds_bucket{environment=\"dev\",kind=\"coach_start\",waiting=\"initial\",le=\"+Inf\"}",
+        "values": "0+99x10"
+      }
+    ],
+    "promql_expr_test": [
+      {
+        "dashboard": "operations",
+        "panel_id": 15,
+        "eval_time": "10m",
+        "exp_samples": [
+          {
+            "labels": "{waiting=\"initial\"}",
+            "value": 58.5
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Latency query becomes unknown after histogram loss and recovers only with measured fast responses",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"api\",environment=\"dev\"}",
+        "values": "1+0x20"
+      },
+      {
+        "series": "acttub_http_requests_total{environment=\"dev\",status_class=\"2xx\",latency_class=\"ordinary\"}",
+        "values": "0+6x20"
+      },
+      {
+        "series": "http_server_requests_seconds_bucket{environment=\"dev\",latency_class=\"ordinary\",le=\"2\"}",
+        "values": "0+0x7 stale _ _ _ _ _ 0 6 12 18 24 30"
+      },
+      {
+        "series": "http_server_requests_seconds_bucket{environment=\"dev\",latency_class=\"ordinary\",le=\"4\"}",
+        "values": "0+6x7 stale _ _ _ _ _ 42 48 54 60 66 72"
+      },
+      {
+        "series": "http_server_requests_seconds_bucket{environment=\"dev\",latency_class=\"ordinary\",le=\"+Inf\"}",
+        "values": "0+6x7 stale _ _ _ _ _ 42 48 54 60 66 72"
+      }
+    ],
+    "promql_expr_test": [
+      {
+        "rule": "api-latency",
+        "eval_time": "7m",
+        "exp_samples": [
+          {
+            "labels": "{}",
+            "value": 3.9
+          }
+        ]
+      },
+      {
+        "rule": "api-latency",
+        "eval_time": "13m",
+        "exp_samples": []
+      },
+      {
+        "rule": "api-latency",
+        "eval_time": "19m",
+        "exp_samples": [
+          {
+            "labels": "{}",
+            "value": 1.9
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Missing infinite histogram bucket is unknown and has its own collection warning",
+    "interval": "1m",
+    "input_series": [
+      {
+        "series": "up{job=\"api\",environment=\"dev\"}",
+        "values": "1+0x20"
+      },
+      {
+        "series": "acttub_http_requests_total{environment=\"dev\",status_class=\"2xx\",latency_class=\"ordinary\"}",
+        "values": "0+6x20"
+      },
+      {
+        "series": "http_server_requests_seconds_bucket{environment=\"dev\",latency_class=\"ordinary\",le=\"2\"}",
+        "values": "0+6x20"
+      }
+    ],
+    "promql_expr_test": [
+      {
+        "rule": "api-latency",
+        "eval_time": "10m",
+        "exp_samples": []
+      }
+    ],
+    "alert_rule_test": [
+      {
+        "alertname": "http-histogram",
+        "eval_time": "10m",
+        "exp_alerts": [
+          {
+            "exp_labels": {},
+            "exp_annotations": {}
+          }
+        ]
+      }
+    ]
+  }
+]

@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.acttub.actingapi.platform.ledger.ExternalOperationExecution;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 
 /**
@@ -16,6 +17,8 @@ import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
  * 저장소이고, 이쪽은 남이 관리하는 원장에 거는 요청이다.
  */
 public interface AnalysisOperationQueue {
+    ExternalOperationExecution execution(UUID operationId, UUID leaseToken);
+
 
     /** 분석 대기 중인 작업 하나를 선점한다. 집을 게 없으면 {@code null}. */
     UUID claimNext(UUID leaseToken, Duration duration, Instant now);
@@ -29,15 +32,23 @@ public interface AnalysisOperationQueue {
      * @return 그런 작업이 없으면 거짓
      * @throws LeaseOwnershipException 리스를 이미 다른 워커가 재선점했다
      */
-    boolean fail(UUID operationId, UUID leaseToken, String errorCode, Instant now);
+    default boolean fail(UUID operationId, UUID leaseToken, String errorCode, Instant now) {
+        return fail(operationId, leaseToken, errorCode, null, now);
+    }
 
     /**
      * 선점을 놓아 다시 대기 상태로 돌린다.
      *
      * @throws LeaseOwnershipException 리스를 이미 다른 워커가 재선점했다
      */
-    void release(UUID operationId, UUID leaseToken, Instant now);
+    default void release(UUID operationId, UUID leaseToken, Instant now) {
+        release(operationId, leaseToken, null, now);
+    }
 
     /** 시도 횟수가 소진된 작업들을 실패로 쓸어 담는다. 쓸어 담은 수. */
     int sweepMaxAttempts(Instant now);
+    boolean fail(UUID operationId, UUID leaseToken, String errorCode, String classification, Instant now);
+
+    void release(UUID operationId, UUID leaseToken, String classification, Instant now);
+
 }

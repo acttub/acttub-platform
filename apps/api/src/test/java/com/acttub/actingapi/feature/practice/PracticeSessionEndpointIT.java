@@ -21,6 +21,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -35,14 +37,12 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-@SpringBootTest(properties = "JWT_SECRET=test-secret")
+@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ACTTUB_THREE_LAYERS_ENABLED=true"})
 @AutoConfigureMockMvc
 @Import(PracticeSessionEndpointIT.StorageFixture.class)
 class PracticeSessionEndpointIT {
-    private static final UUID USER_ID =
-            UUID.fromString("00000000-0000-4000-8000-000000000301");
-    private static final UUID OTHER_USER_ID =
-            UUID.fromString("00000000-0000-4000-8000-000000000302");
+    private final UUID USER_ID = UUID.randomUUID();
+    private final UUID OTHER_USER_ID = UUID.randomUUID();
     private static final OffsetDateTime NOW =
             OffsetDateTime.of(2026, 8, 8, 1, 2, 3, 456789000, ZoneOffset.UTC);
 
@@ -74,6 +74,96 @@ class PracticeSessionEndpointIT {
         jdbc.execute("TRUNCATE TABLE users,consent_documents RESTART IDENTITY CASCADE");
         insertUser(USER_ID);
         insertUser(OTHER_USER_ID);
+    }
+
+    @Test
+    void videoOnlyContractIsPinnedAndReplayAndSummaryKeepTheirVersion() throws Exception {
+        UUID upload = insertUpload(USER_ID, "finalized", "video.mp4");
+        UUID requestId = UUID.randomUUID();
+        String body = """
+                {"upload_intent_id":"%s","situation":"","character_context":"",
+                 "goal":"","blockage_kind":"그 외","sub_branch":"그 외","blockage_detail":null}
+                """.formatted(upload);
+        var request = post("/v2/practice-sessions").header("Authorization", bearer(USER_ID))
+                .header("X-Request-Id", requestId).header("X-Acttub-Contract", "three_layers_v1")
+                .contentType(MediaType.APPLICATION_JSON).content(body);
+        MvcResult created = mvc.perform(request).andReturn();
+        assertThat(created.getResponse().getStatus()).isEqualTo(202);
+        UUID sessionId = UUID.fromString(json(created).path("session_id").asText());
+        assertThat(jdbc.queryForObject("SELECT experience_version FROM practice_sessions WHERE id=?",
+                String.class, sessionId)).isEqualTo("three_layers_v1");
+        MvcResult replay = mvc.perform(request).andReturn();
+        assertThat(replay.getResponse().getContentAsByteArray()).isEqualTo(created.getResponse().getContentAsByteArray());
+        assertError(mvc.perform(get("/v2/practice-sessions/{id}", sessionId)
+                .header("Authorization", bearer(USER_ID))).andReturn(), 409, "client_contract_required");
+        assertThat(json(mvc.perform(get("/v2/practice-sessions")
+                .header("Authorization", bearer(USER_ID))).andReturn()).path("sessions")).isEmpty();
+        assertThat(json(mvc.perform(get("/v2/practice-sessions")
+                .header("Authorization", bearer(USER_ID)).header("X-Acttub-Contract", "three_layers_v1"))
+                .andReturn()).path("sessions")).hasSize(1);
+        UUID summaryId = insertSummary(sessionId);
+        var record = (com.fasterxml.jackson.databind.node.ObjectNode)
+                com.acttub.actingapi.integration.llm.StructuredJson.resource("/coaching/record.json");
+        record.put("record_id", summaryId.toString());
+        jdbc.update("UPDATE summaries SET raw=?::jsonb WHERE session_id=?", record.toString(), sessionId);
+        jdbc.update("UPDATE practice_sessions SET status='analyzed' WHERE id=?", sessionId);
+        JsonNode summary = json(mvc.perform(get("/v2/practice-sessions/{id}", sessionId)
+                .header("Authorization", bearer(USER_ID)).header("X-Acttub-Contract", "three_layers_v1"))
+                .andReturn()).path("summary");
+        assertThat(summary.path("record_id").asText()).isEqualTo(summaryId.toString());
+        assertThat(summary.path("schema_version").asText()).isEqualTo("acttub.video_record_summary.v1");
+        assertThat(summary.has("segments")).isFalse();
+    }
+
+    @Test
+    void detailReadsNewPackBeforeLegacySplitValues() throws Exception {
+        UUID uploadId = insertUpload(USER_ID, "finalized", "video.mp4");
+        UUID sessionId = UUID.fromString(json(create(uploadId, UUID.randomUUID(), validBody(uploadId)))
+                .path("session_id").asText());
+        insertSummary(sessionId);
+        jdbc.update("UPDATE practice_sessions SET status='analyzed' WHERE id=?", sessionId);
+        jdbc.update("UPDATE summaries SET raw=?::jsonb WHERE session_id=?", """
+                {"scene_summary":"새 장면", "observations":[
+                  {"start_ms":120,"end_ms":900,"what":"새 관찰","quote":"기다려",
+                   "dimension":"호흡","confidence":0.8}],"uncertainties":["새 불확실"]}
+                """, sessionId);
+
+        JsonNode summary = detail(sessionId).path("summary");
+        assertThat(summary.path("observations")).isEqualTo(mapper.readTree("""
+                [{"start_ms":120,"end_ms":900,"label":"새 관찰","confidence":0.8}]
+                """));
+        assertThat(summary.path("uncertainties")).isEqualTo(mapper.readTree("[\"새 불확실\"]"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{}", "null", "[]", "{\"observations\":null}"})
+    void detailKeepsLegacySplitObservations(String raw) throws Exception {
+        UUID uploadId = insertUpload(USER_ID, "finalized", "video.mp4");
+        UUID sessionId = UUID.fromString(json(create(uploadId, UUID.randomUUID(), validBody(uploadId)))
+                .path("session_id").asText());
+        insertSummary(sessionId);
+        jdbc.update("UPDATE practice_sessions SET status='analyzed' WHERE id=?", sessionId);
+        jdbc.update("UPDATE summaries SET raw=?::jsonb WHERE session_id=?", raw, sessionId);
+
+        JsonNode summary = detail(sessionId).path("summary");
+        assertThat(summary.path("observations")).isEqualTo(mapper.readTree("""
+                [{"start_ms":0,"end_ms":10,"label":"한국어 관찰","confidence":0.9}]
+                """));
+        assertThat(summary.path("uncertainties")).isEqualTo(mapper.readTree("[\"불확실\"]"));
+    }
+
+    @Test
+    void emptyNewPackDoesNotResurrectLegacyObservations() throws Exception {
+        UUID uploadId = insertUpload(USER_ID, "finalized", "video.mp4");
+        UUID sessionId = UUID.fromString(json(create(uploadId, UUID.randomUUID(), validBody(uploadId)))
+                .path("session_id").asText());
+        insertSummary(sessionId);
+        jdbc.update("UPDATE practice_sessions SET status='analyzed' WHERE id=?", sessionId);
+        jdbc.update("UPDATE summaries SET raw=?::jsonb WHERE session_id=?",
+                "{\"scene_summary\":\"\",\"observations\":[],\"uncertainties\":[]}", sessionId);
+
+        assertThat(detail(sessionId).at("/summary/observations")).isEmpty();
+        assertThat(detail(sessionId).at("/summary/uncertainties")).isEmpty();
     }
 
     @Test

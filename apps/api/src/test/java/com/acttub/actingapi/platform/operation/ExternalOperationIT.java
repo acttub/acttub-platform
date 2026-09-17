@@ -23,9 +23,12 @@ import com.acttub.actingapi.feature.coach.app.CoachOperationLedger;
 import com.acttub.actingapi.feature.memory.app.MemoryUpdateQueue;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.acttub.actingapi.platform.ledger.SyncOperationBegin;
+import com.acttub.actingapi.platform.ledger.SyncOperationClaim;
+import com.acttub.actingapi.platform.ledger.ExternalOperationExecution;
 import com.acttub.actingapi.feature.practice.app.PracticeSessionLedger;
 import com.acttub.actingapi.feature.practice.app.PracticeSessionOperation;
 import com.acttub.actingapi.support.PostgresContainerSupport;
+import com.acttub.actingapi.support.MonitoringFailureFixture;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import org.junit.jupiter.api.AfterEach;
@@ -33,15 +36,49 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.hibernate.resource.jdbc.spi.StatementInspector;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataAccessException;
+import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
-@SpringBootTest(properties = "JWT_SECRET=test-secret")
+@SpringBootTest(properties = {"JWT_SECRET=test-secret", "EXTERNAL_OPERATION_SNAPSHOT_MS=25",
+        "spring.jpa.properties.hibernate.session_factory.statement_inspector="
+                + "com.acttub.actingapi.platform.operation.ExternalOperationIT$TransitionInspector"})
+@Import(MonitoringFailureFixture.class)
 class ExternalOperationIT {
+
+    /** Controls extra reads and post-commit interleaving at the real PostgreSQL boundary.
+     * Successful state-changing CTEs and their RETURNING rows stay untouched. */
+    public static class TransitionInspector implements StatementInspector {
+        private static final ThreadLocal<Integer> REMAINING = new ThreadLocal<>();
+        private static final ThreadLocal<Runnable> AFTER_COMMIT = new ThreadLocal<>();
+
+        @Override
+        public String inspect(String sql) {
+            Runnable afterCommit = AFTER_COMMIT.get();
+            if (afterCommit != null) {
+                AFTER_COMMIT.remove();
+                org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                        new org.springframework.transaction.support.TransactionSynchronization() {
+                            @Override
+                            public void afterCommit() { afterCommit.run(); }
+                        });
+            }
+            Integer remaining = REMAINING.get();
+            if (remaining != null && sql.stripLeading().toLowerCase(java.util.Locale.ROOT).startsWith("select")) {
+                REMAINING.set(remaining - 1);
+                if (remaining == 0) {
+                    // Preserve every original JDBC parameter while PostgreSQL aborts the transaction.
+                    return sql.replaceFirst("(?is)^\\s*select\\s+", "SELECT 1 / 0 AS forced_read_failure, ");
+                }
+            }
+            return sql;
+        }
+    }
 
     private static final Instant NOW = Instant.parse("2026-08-08T01:02:03.456789Z");
     private static final String FINGERPRINT = "a".repeat(64);
@@ -70,10 +107,25 @@ class ExternalOperationIT {
     PracticeSessionLedger store;
 
     @Autowired
+    com.acttub.actingapi.feature.practice.app.PracticeSessionRepository practices;
+
+    @Autowired
+    com.acttub.actingapi.feature.analysis.app.AnalysisStore analyses;
+
+    @Autowired
     CoachOperationLedger syncOperations;
 
     @Autowired
     MemoryUpdateQueue memoryQueue;
+
+    @Autowired
+    io.micrometer.core.instrument.MeterRegistry meters;
+
+    @Autowired
+    MonitoringFailureFixture.Sink reporting;
+
+    @Autowired
+    MonitoringFailureFixture.MetricClock metricClock;
 
     @BeforeEach
     void clearDatabase() {
@@ -88,6 +140,358 @@ class ExternalOperationIT {
         jdbc.execute("DROP FUNCTION IF EXISTS block_creation_session_insert()");
         jdbc.execute("DROP TRIGGER IF EXISTS block_retry_operation_insert ON external_operations");
         jdbc.execute("DROP FUNCTION IF EXISTS block_retry_operation_insert()");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"claim", "claim-next", "requeue", "complete", "fail", "sweep"})
+    void stateTransitionsDoNotDependOnAdditionalObservationReads(String transition) {
+        UUID user = insertUser();
+        UUID session = insertSession(user, insertFinalizedUpload(user), "analyzing", NOW);
+        UUID operation = insertOperation(user, session, "coach_start", "pending", NOW.minusSeconds(10));
+        UUID lease = UUID.randomUUID();
+        if (!transition.startsWith("claim") && !transition.equals("sweep")) {
+            claimer.claimById(operation, lease, Duration.ofMinutes(5), NOW);
+        }
+        if (transition.equals("sweep")) {
+            jdbc.update("UPDATE external_operations SET attempt_count=3 WHERE id=?", operation);
+        }
+        java.util.function.DoubleSupplier observations = switch (transition) {
+            case "claim", "claim-next" -> () -> meters.get("acttub.external.operations.wait")
+                    .tags("kind", "coach_start", "waiting", "initial").timer().count();
+            case "requeue" -> () -> meters.get("acttub.external.operations.requeues").tag("kind", "coach_start").counter().count();
+            default -> () -> meters.get("acttub.external.operations.terminal").tags("kind", "coach_start",
+                    "outcome", transition.equals("complete") ? "succeeded" : "failed",
+                    "classification", transition.equals("complete") ? "none" : transition.equals("fail") ? "external" : "unclassified")
+                    .counter().count();
+        };
+        double before = observations.getAsDouble();
+        // fail already needs one business read to find the owning practice session.
+        // The other transitions need only their conditional DML and returned values.
+        TransitionInspector.REMAINING.set(transition.equals("fail") ? 1 : 0);
+        try {
+            switch (transition) {
+                case "claim" -> assertThat(claimer.claimById(operation, lease, Duration.ofMinutes(5), NOW)).isEqualTo(operation);
+                case "claim-next" -> assertThat(claimer.claimNext("coach_start", lease, Duration.ofMinutes(5), NOW)).isEqualTo(operation);
+                case "requeue" -> assertThat(claimer.release(operation, lease, "external", NOW)).isTrue();
+                case "complete" -> syncOperations.complete(new SyncOperationClaim(operation, lease, UUID.randomUUID()),
+                        JsonNodeFactory.instance.objectNode().put("saved", true));
+                case "fail" -> assertThat(claimer.fail(operation, lease, "fixture_failure", false, "external", NOW)).isTrue();
+                case "sweep" -> assertThat(claimer.sweepMaxAttempts(NOW)).isEqualTo(1);
+                default -> throw new AssertionError(transition);
+            }
+        } finally {
+            TransitionInspector.REMAINING.remove();
+        }
+        assertThat(operation(operation).get("status")).isEqualTo(switch (transition) {
+            case "claim", "claim-next" -> "running";
+            case "requeue" -> "pending";
+            case "complete" -> "succeeded";
+            default -> "failed";
+        });
+        assertThat(observations.getAsDouble()).isEqualTo(before + 1);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"start", "complete"})
+    void failedObservationTimingAndReportingCannotChangeTheSuccessfulCommit(String phase) {
+        UUID user = insertUser();
+        UUID session = insertSession(user, insertFinalizedUpload(user), "analyzing", NOW);
+        UUID operation = insertOperation(user, session, "coach_start", "pending", NOW);
+        UUID lease = UUID.randomUUID();
+        claimer.claimById(operation, lease, Duration.ofMinutes(5), NOW);
+        SyncOperationClaim claim = new SyncOperationClaim(operation, lease, UUID.randomUUID());
+        var successes = meters.get("acttub.external.operations.terminal").tags(
+                "kind", "coach_start", "outcome", "succeeded", "classification", "none").counter();
+        double before = successes.count();
+        RuntimeException cause = phase.equals("start")
+                ? new IllegalStateException("start clock fixture failure")
+                : new IllegalArgumentException("completion clock fixture failure");
+        reporting.throwOnReport = true;
+        try {
+            try (var observation = syncOperations.execution(claim)) {
+                if (phase.equals("start")) metricClock.failure.set(cause);
+                ExternalOperationExecution.externalCall("model");
+                metricClock.failure.set(phase.equals("complete") ? cause : null);
+                syncOperations.complete(claim, JsonNodeFactory.instance.objectNode().put("saved", true));
+            }
+            assertThat(operation(operation).get("status")).isEqualTo("succeeded");
+            assertThat(successes.count()).isEqualTo(before + 1);
+            org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(3)).untilAsserted(() -> {
+                assertThat(reporting.at("ExternalOperationMetrics.executionTime"))
+                        .anySatisfy(report -> {
+                            assertThat(report.cause()).isSameAs(cause);
+                            assertThat(report.tags()).containsEntry("failure_kind", "unexpected");
+                        });
+            });
+        } finally {
+            metricClock.failure.remove();
+            reporting.throwOnReport = false;
+        }
+    }
+
+    @Test
+    void committedFailureIsRecordedEvenWhenAnotherTransactionResumesBeforeObservation() {
+        UUID user = insertUser();
+        UUID session = insertSession(user, insertFinalizedUpload(user), "analyzing", NOW);
+        UUID operation = insertOperation(user, session, "analyze", "pending", NOW);
+        UUID lease = UUID.randomUUID();
+        claimer.claimById(operation, lease, Duration.ofMinutes(5), NOW);
+        var failures = meters.get("acttub.external.operations.terminal").tags(
+                "kind", "analyze", "outcome", "failed", "classification", "external").counter();
+        double before = failures.count();
+        try (var executor = Executors.newSingleThreadExecutor()) {
+            // Install this at the real first SQL statement, before the observation callback.
+            // Commit releases the row lock; another thread then resumes through the real Port.
+            TransitionInspector.AFTER_COMMIT.set(() -> {
+                try {
+                    assertThat(executor.submit(() -> practices.resumeFailedOperation(user, operation,
+                            NOW.plusSeconds(1).atOffset(ZoneOffset.UTC))).get(3, TimeUnit.SECONDS)).isTrue();
+                } catch (Exception failure) {
+                    throw new AssertionError("concurrent resume failed", failure);
+                }
+            });
+            try {
+                assertThat(claimer.fail(operation, lease, "fixture_external_failure", true, "external", NOW)).isTrue();
+            } finally {
+                TransitionInspector.AFTER_COMMIT.remove();
+            }
+        }
+        assertThat(operation(operation).get("status")).isEqualTo("pending");
+        assertThat(failures.count()).isEqualTo(before + 1);
+    }
+
+    @Test
+    void unrepresentableHistoricalDurationReportsAfterCommitWithoutLosingSuccess() {
+        UUID user = insertUser();
+        UUID session = insertSession(user, insertFinalizedUpload(user), "analyzing", NOW);
+        UUID operation = insertOperation(user, session, "coach_start", "pending", NOW);
+        UUID lease = UUID.randomUUID();
+        claimer.claimById(operation, lease, Duration.ofMinutes(5), NOW);
+        jdbc.update("UPDATE external_operations SET created_at=? WHERE id=?",
+                Instant.parse("1500-01-01T00:00:00Z").atOffset(ZoneOffset.UTC), operation);
+        var successes = meters.get("acttub.external.operations.terminal").tags(
+                "kind", "coach_start", "outcome", "succeeded", "classification", "none").counter();
+        double before = successes.count();
+        reporting.throwOnReport = true;
+        try {
+            syncOperations.complete(new SyncOperationClaim(operation, lease, UUID.randomUUID()),
+                    JsonNodeFactory.instance.objectNode().put("saved", true));
+            assertThat(operation(operation).get("status")).isEqualTo("succeeded");
+            assertThat(successes.count()).isEqualTo(before + 1);
+            org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(3)).untilAsserted(() ->
+                    assertThat(reporting.at("ExternalOperationMetrics.afterCommit")).anySatisfy(report -> {
+                        assertThat(report.cause()).isInstanceOf(ArithmeticException.class);
+                        assertThat(report.tags()).containsEntry("failure_kind", "unexpected");
+                    }));
+        } finally {
+            reporting.throwOnReport = false;
+        }
+    }
+
+    @Test
+    void failedExecutionObservationReportsItsCauseWithoutDelayingOrAbortingTheOperation() {
+        UUID user = insertUser();
+        UUID session = insertSession(user, insertFinalizedUpload(user), "analyzing", NOW);
+        UUID operation = insertOperation(user, session, "coach_start", "pending", NOW);
+        UUID lease = UUID.randomUUID();
+        claimer.claimById(operation, lease, Duration.ofMinutes(5), NOW);
+        var success = meters.get("acttub.external.operations.terminal").tags(
+                "kind", "coach_start", "outcome", "succeeded", "classification", "none").counter();
+        double before = success.count();
+        jdbc.execute("""
+                CREATE FUNCTION reject_monitoring_start() RETURNS trigger LANGUAGE plpgsql AS $$
+                BEGIN
+                    RAISE EXCEPTION 'monitoring start fixture failure' USING ERRCODE = '57014';
+                END $$;
+                CREATE TRIGGER reject_monitoring_start BEFORE UPDATE OF execution_started_at ON external_operations
+                FOR EACH ROW WHEN (NEW.execution_started_at IS NOT NULL) EXECUTE FUNCTION reject_monitoring_start();
+                """);
+        reporting.release = new CountDownLatch(1);
+        try {
+            long began = System.nanoTime();
+            try (var observation = syncOperations.execution(new SyncOperationClaim(operation, lease, UUID.randomUUID()))) {
+                ExternalOperationExecution.externalCall("model");
+                syncOperations.complete(new SyncOperationClaim(operation, lease, UUID.randomUUID()),
+                        JsonNodeFactory.instance.objectNode().put("saved", true));
+            }
+            assertThat(Duration.ofNanos(System.nanoTime() - began)).isLessThan(Duration.ofSeconds(2));
+            assertThat(operation(operation).get("status")).isEqualTo("succeeded");
+            assertThat(success.count()).isEqualTo(before + 1);
+            org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(3)).untilAsserted(() -> {
+                var reports = reporting.at("ExternalOperationMetrics.startExecution");
+                assertThat(reports).hasSize(1);
+                assertThat(reports.getFirst().cause()).hasStackTraceContaining("monitoring start fixture failure");
+                assertThat(reports.getFirst().tags()).containsEntry("failure_kind", "external");
+            });
+        } finally {
+            reporting.release.countDown();
+            jdbc.execute("DROP TRIGGER reject_monitoring_start ON external_operations");
+            jdbc.execute("DROP FUNCTION reject_monitoring_start()");
+        }
+    }
+
+    @Test
+    void previousApplicationSqlInvalidatesStaleTimesWithoutReplayingHistoricalFailures() {
+        UUID user = insertUser();
+        UUID session = insertSession(user, insertFinalizedUpload(user), "analyzing", NOW);
+        UUID pending = insertOperation(user, session, "analyze", "pending", NOW.minusSeconds(500));
+        UUID running = insertOperation(user, session, "analyze", "running", NOW.minusSeconds(500));
+        jdbc.update("""
+                UPDATE external_operations SET attempt_count=1, waiting_since=?, execution_started_at=?,
+                    monitoring_updated_at=updated_at, monitoring_lease_token=lease_token WHERE id IN (?,?)
+                """, NOW.atOffset(ZoneOffset.UTC), NOW.atOffset(ZoneOffset.UTC), pending, running);
+        // The previous application knows only these original columns; stale metadata must not become ages.
+        jdbc.update("UPDATE external_operations SET updated_at=? WHERE id=?",
+                Instant.now().atOffset(ZoneOffset.UTC), pending);
+        jdbc.update("UPDATE external_operations SET updated_at=?, lease_token=?, lease_expires_at=? WHERE id=?",
+                Instant.now().atOffset(ZoneOffset.UTC), UUID.randomUUID(),
+                Instant.now().plusSeconds(300).atOffset(ZoneOffset.UTC), running);
+        double terminals = meters.find("acttub.external.operations.terminal").counters().stream()
+                .mapToDouble(io.micrometer.core.instrument.Counter::count).sum();
+        org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(3)).untilAsserted(() -> {
+            assertThat(meters.get("acttub.external.operations.unmeasured").tags(
+                    "kind", "analyze", "state", "pending", "waiting", "retry").gauge().value()).isEqualTo(1);
+            assertThat(meters.get("acttub.external.operations.unmeasured").tags(
+                    "kind", "analyze", "state", "running", "waiting", "none").gauge().value()).isEqualTo(1);
+            assertThat(meters.get("acttub.external.operations.oldest.wait.seconds").tags(
+                    "kind", "analyze", "waiting", "retry").gauge().value()).isZero();
+            assertThat(meters.get("acttub.external.operations.oldest.running.age.seconds")
+                    .tag("kind", "analyze").gauge().value()).isZero();
+            assertThat(meters.get("acttub.external.operations.oldest.unfinished.age.seconds")
+                    .tag("kind", "analyze").gauge().value()).isGreaterThan(500);
+        });
+        assertThat(meters.find("acttub.external.operations.terminal").counters().stream()
+                .mapToDouble(io.micrometer.core.instrument.Counter::count).sum()).isEqualTo(terminals);
+    }
+
+    @Test
+    void failedSnapshotKeepsItsLastTimestampUntilDatabaseReadsRecover() throws Exception {
+        org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(3)).untilAsserted(() ->
+                assertThat(meters.get("acttub.external.operations.snapshot.success").gauge().value()).isEqualTo(1));
+        double before;
+        try (Connection connection = dataSource.getConnection()) {
+            connection.setAutoCommit(false);
+            try (Statement statement = connection.createStatement()) {
+                statement.execute("LOCK TABLE external_operations IN ACCESS EXCLUSIVE MODE");
+                // Wait for one scheduled refresh to time out at the actual PostgreSQL boundary.
+                org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(5)).untilAsserted(() ->
+                        assertThat(meters.get("acttub.external.operations.snapshot.success").gauge().value()).isZero());
+                before = meters.get("acttub.external.operations.snapshot.timestamp.seconds").gauge().value();
+                org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(3)).untilAsserted(() -> {
+                    var reports = reporting.at("ExternalOperationMetrics.snapshot");
+                    assertThat(reports).isNotEmpty();
+                    assertThat(reports.getFirst().tags()).containsEntry("failure_kind", "external");
+                    assertThat(com.acttub.actingapi.platform.observability.FailureClassifier.classify(
+                            reports.getFirst().cause())).isEqualTo(
+                                    com.acttub.actingapi.platform.observability.FailureKind.EXTERNAL);
+                });
+            } finally {
+                connection.rollback();
+            }
+        }
+        org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(3)).untilAsserted(() -> {
+            assertThat(meters.get("acttub.external.operations.snapshot.success").gauge().value()).isEqualTo(1);
+            assertThat(meters.get("acttub.external.operations.snapshot.timestamp.seconds").gauge().value()).isGreaterThan(before);
+        });
+    }
+
+    @Test
+    void resumedOperationHasANewWaitAndTerminalEventButIsNotANewUniqueOperation() {
+        var accepted = meters.get("acttub.external.operations.accepted").tag("kind", "analyze").counter();
+        var failed = meters.get("acttub.external.operations.terminal").tags(
+                "kind", "analyze", "outcome", "failed", "classification", "external").counter();
+        var succeeded = meters.get("acttub.external.operations.terminal").tags(
+                "kind", "analyze", "outcome", "succeeded", "classification", "none").counter();
+        double acceptedBefore = accepted.count(), failedBefore = failed.count(), successBefore = succeeded.count();
+        UUID user = insertUser();
+        var created = create(user, insertFinalizedUpload(user), UUID.randomUUID(), FINGERPRINT);
+        UUID operation = created.operation().id();
+        UUID lease = UUID.randomUUID();
+        claimer.claimNext("analyze", lease, Duration.ofMinutes(5), Instant.now());
+        claimer.fail(operation, lease, "gemini_timeout", true, "external", Instant.now());
+        assertThat(failed.count()).isEqualTo(failedBefore + 1);
+        assertThatThrownBy(() -> claimer.fail(operation, lease, "duplicate", true, "unexpected", Instant.now()))
+                .isInstanceOf(LeaseOwnershipException.class);
+        assertThat(practices.resumeFailedOperation(user, operation, Instant.now().atOffset(ZoneOffset.UTC))).isTrue();
+        org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(3)).untilAsserted(() -> {
+            assertThat(meters.get("acttub.external.operations.current").tags(
+                    "kind", "analyze", "state", "pending", "waiting", "retry").gauge().value()).isEqualTo(1);
+            assertThat(meters.get("acttub.external.operations.unmeasured").tags(
+                    "kind", "analyze", "state", "pending", "waiting", "retry").gauge().value()).isZero();
+        });
+        UUID nextLease = UUID.randomUUID();
+        assertThat(claimer.claimNext("analyze", nextLease, Duration.ofMinutes(5), Instant.now())).isEqualTo(operation);
+        var pack = new com.acttub.actingapi.integration.observation.ObservationPack("scene",
+                java.util.List.of(new com.acttub.actingapi.integration.observation.ObservationItem(
+                        0, 500, "pause", "line", "breath", 0.8)), java.util.List.of());
+        analyses.complete(operation, nextLease,
+                new com.acttub.actingapi.feature.analysis.app.AnalysisResult(pack, false, 500), "fixture", Instant.now());
+        assertThat(accepted.count()).isEqualTo(acceptedBefore + 1);
+        assertThat(failed.count()).isEqualTo(failedBefore + 1);
+        assertThat(succeeded.count()).isEqualTo(successBefore + 1);
+        assertThat(meters.get("acttub.external.operations.wait").tags(
+                "kind", "analyze", "waiting", "retry").timer().count()).isGreaterThan(0);
+    }
+
+    @Test
+    void sweepCountsOnlyNewTerminalFailuresAndNeverOldFailedHistory() {
+        var unknown = meters.find("acttub.external.operations.terminal").tags(
+                "kind", "analyze", "outcome", "failed", "classification", "unclassified").counter();
+        var external = meters.find("acttub.external.operations.terminal").tags(
+                "kind", "analyze", "outcome", "failed", "classification", "external").counter();
+        assertThat(unknown).isNotNull();
+        double before = unknown.count();
+        double externalBefore = external.count();
+        UUID user = insertUser();
+        UUID session = insertSession(user, insertFinalizedUpload(user), "analyzing", NOW);
+        UUID old = insertOperation(user, session, "analyze", "failed", NOW.minusSeconds(100));
+        UUID pending = insertOperation(user, session, "analyze", "pending", NOW.minusSeconds(90));
+        jdbc.update("UPDATE external_operations SET attempt_count=3 WHERE id IN (?,?)", old, pending);
+        jdbc.update("UPDATE external_operations SET last_failure_classification='external' WHERE id=?", old);
+
+        assertThat(claimer.sweepMaxAttempts(NOW)).isEqualTo(2);
+        assertThat(unknown.count()).isEqualTo(before + 1);
+        assertThat(external.count()).isEqualTo(externalBefore);
+        assertThat(claimer.sweepMaxAttempts(NOW.plusSeconds(1))).isZero();
+        assertThat(unknown.count()).isEqualTo(before + 1);
+    }
+
+    @Test
+    void newAcceptedOperationsAreCountedOnceAndFailedCreationDoesNotCount() {
+        var counter = meters.find("acttub.external.operations.accepted").tag("kind", "analyze").counter();
+        assertThat(counter).as("zero counter exists before the first request").isNotNull();
+        double before = counter.count();
+        UUID user = insertUser();
+        UUID upload = insertFinalizedUpload(user);
+        UUID request = UUID.randomUUID();
+        create(user, upload, request, FINGERPRINT);
+        create(user, upload, request, FINGERPRINT);
+        assertThat(counter.count()).isEqualTo(before + 1);
+        assertThat(create(user, UUID.randomUUID(), UUID.randomUUID(), FINGERPRINT)).isNull();
+        UUID failedSession = insertSession(user, upload, "failed", NOW);
+        installFailingSessionUpdateTrigger(failedSession);
+        assertThatThrownBy(() -> store.createAnalysisRetry(user, failedSession, UUID.randomUUID(), FINGERPRINT, NOW))
+                .isInstanceOf(DataAccessException.class);
+        assertThat(counter.count()).isEqualTo(before + 1);
+    }
+
+    @Test
+    void previousSqlCanLeaveFailureClassificationEmptyAndOnlyKnownClassificationsAreStored() {
+        UUID user = insertUser();
+        UUID session = insertSession(user, insertFinalizedUpload(user), "analyzing", NOW);
+        UUID operation = insertOperation(user, session, "analyze", "pending", NOW);
+        assertThat(jdbc.queryForObject("SELECT last_failure_classification FROM external_operations WHERE id=?",
+                String.class, operation)).isNull();
+        for (String classification : new String[] {"expected", "external", "unexpected"}) {
+            jdbc.update("UPDATE external_operations SET last_failure_classification=? WHERE id=?",
+                    classification, operation);
+        }
+        assertThatThrownBy(() -> jdbc.update(
+                "UPDATE external_operations SET last_failure_classification='unclassified' WHERE id=?", operation))
+                .isInstanceOf(DataAccessException.class);
+        claimer.claimNext("analyze", UUID.randomUUID(), Duration.ofMinutes(5), NOW);
+        assertThat(jdbc.queryForObject("SELECT last_failure_classification FROM external_operations WHERE id=?",
+                String.class, operation)).isEqualTo("unexpected");
     }
 
     @Test
@@ -319,6 +723,8 @@ class ExternalOperationIT {
 
     @Test
     void failedLeaseOwnershipRollsBackSessionTransition() {
+        double before = meters.find("acttub.external.operations.terminal").counters().stream()
+                .mapToDouble(io.micrometer.core.instrument.Counter::count).sum();
         UUID userId = insertUser();
         UUID sessionId = insertSession(
                 userId, insertFinalizedUpload(userId), "failed", NOW.minusSeconds(30));
@@ -338,6 +744,7 @@ class ExternalOperationIT {
                 oldLeaseToken,
                 "gemini_timeout",
                 true,
+                "external",
                 NOW.plusSeconds(3)))
                 .isInstanceOf(LeaseOwnershipException.class);
 
@@ -347,6 +754,10 @@ class ExternalOperationIT {
         assertThat(session(sessionId).get("status"))
                 .as("session failure must roll back when operation lease ownership was lost")
                 .isEqualTo("analyzing");
+        assertThat(jdbc.queryForObject("SELECT last_failure_classification FROM external_operations WHERE id=?",
+                String.class, operationId)).isNull();
+        assertThat(meters.find("acttub.external.operations.terminal").counters().stream()
+                .mapToDouble(io.micrometer.core.instrument.Counter::count).sum()).isEqualTo(before);
     }
 
     @Test
@@ -573,14 +984,14 @@ class ExternalOperationIT {
         assertThatThrownBy(() -> memoryQueue.complete(
                 operationId,
                 UUID.randomUUID(),
-                JsonNodeFactory.instance.objectNode().put("updated", 1),
+                () -> JsonNodeFactory.instance.objectNode().put("updated", 1),
                 NOW.plusSeconds(1)))
                 .isInstanceOf(LeaseOwnershipException.class);
 
         memoryQueue.complete(
                 operationId,
                 leaseToken,
-                JsonNodeFactory.instance.objectNode().put("updated", 1),
+                () -> JsonNodeFactory.instance.objectNode().put("updated", 1),
                 NOW.plusSeconds(2));
 
         assertThat(operation(operationId))

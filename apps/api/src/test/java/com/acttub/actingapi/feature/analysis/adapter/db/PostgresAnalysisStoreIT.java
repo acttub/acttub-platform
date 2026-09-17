@@ -2,7 +2,12 @@ package com.acttub.actingapi.feature.analysis.adapter.db;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -10,22 +15,35 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.analysis.adapter.media.VideoDurationProbe;
 import com.acttub.actingapi.feature.analysis.app.AnalysisResult;
 import com.acttub.actingapi.feature.analysis.app.AnalysisStore;
+import com.acttub.actingapi.feature.analysis.app.AnalysisWorker;
+import com.acttub.actingapi.feature.analysis.app.SummaryAnalyzer;
+import com.acttub.actingapi.feature.coach.app.CoachSessionRepository;
+import com.acttub.actingapi.integration.storage.ObjectStorage;
+import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
+import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.acttub.actingapi.integration.observation.ObservationItem;
 import com.acttub.actingapi.integration.observation.ObservationPack;
+import com.acttub.actingapi.integration.observation.SpeechAnalysis;
+import com.acttub.actingapi.integration.observation.SpeechFacts;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * 분석 완료 전이를 <b>실제 Postgres 위에서</b> 본다 — {@code PostgresAnalysisStore.complete} 는
@@ -44,7 +62,7 @@ import org.springframework.test.context.DynamicPropertySource;
  * <p>{@code sweepExpiredUploads} 는 변경된 행의 object key를 실제로 반환하는지 함께 본다.
  * S3 삭제 자체는 저장소 바깥 책임이라 여기서 호출하지 않는다.
  */
-@SpringBootTest(properties = "JWT_SECRET=test-secret")
+@SpringBootTest(properties = {"JWT_SECRET=test-secret", "EXTERNAL_OPERATION_SNAPSHOT_MS=25"})
 class PostgresAnalysisStoreIT {
 
     private static final Instant NOW = Instant.parse("2026-08-17T04:05:06.789012Z");
@@ -66,11 +84,265 @@ class PostgresAnalysisStoreIT {
     AnalysisStore store;
 
     @Autowired
+    io.micrometer.core.instrument.MeterRegistry meters;
+
+    @Autowired
     ObjectMapper mapper;
+
+    @Autowired
+    CoachSessionRepository coaches;
 
     @BeforeEach
     void clearDatabase() {
         jdbc.execute("TRUNCATE TABLE users RESTART IDENTITY CASCADE");
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(ints = 7654)
+    void probedDurationSurvivesCompletionToNewAndWaitingCoaches(Integer declaredDurationMs) {
+        var observationCalls = meters.get("acttub.external.operations.external.calls").tags(
+                "kind", "analyze", "dependency", "observation").counter();
+        var speechCalls = meters.get("acttub.external.operations.external.calls").tags(
+                "kind", "analyze", "dependency", "speech").counter();
+        double observationBefore = observationCalls.count(), speechBefore = speechCalls.count();
+        UUID userId = insertUser();
+        UUID uploadId = insertFinalizedUpload(userId);
+        jdbc.update("UPDATE upload_intents SET duration_ms = ? WHERE id = ?", declaredDurationMs, uploadId);
+        UUID sessionId = insertSession(userId, uploadId);
+        UUID operationId = insertAnalyzeOperation(userId, sessionId);
+        int expectedDurationMs = declaredDurationMs == null ? 12345 : 7654;
+        UUID waitingCoach = insertCoachSession(sessionId, null);
+        ObjectStorage storage = mock(ObjectStorage.class);
+        when(storage.downloadToPath(anyString(), any())).thenAnswer(invocation -> {
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            return new StoredObjectMetadata(1L, "video/mp4", null);
+        });
+        RecordingFailureReporter reporter = new RecordingFailureReporter();
+        SummaryAnalyzer analyzer = new SummaryAnalyzer(
+                (path, declared) -> {
+                    assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+                    assertThat(declared).isEqualTo(declaredDurationMs);
+                    // 측정 경계만 대체한다. 선언 길이가 있으면 실제 probe의 우선순위를 따른다.
+                    return declared == null ? 12345 : new VideoDurationProbe().durationMs(path, declared);
+                },
+                path -> path,
+                (path, mime, actor, practiceId, actorId) -> {
+                    assertThat(actorId).isEqualTo(userId);
+                    assertThat(practiceId).isEqualTo(sessionId);
+                    assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+                    assertThat(actor.durationMs()).isEqualTo(expectedDurationMs);
+                    return result().observationPack();
+                },
+                (path, practiceId, actorId) -> {
+                    assertThat(actorId).isEqualTo(userId);
+                    assertThat(practiceId).isEqualTo(sessionId);
+                    assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+                    return result().observationPack().speech();
+                }, reporter);
+        AnalysisWorker worker = new AnalysisWorker(store, storage, analyzer,
+                Clock.fixed(NOW, ZoneOffset.UTC), Duration.ofMinutes(5), MODEL, reporter);
+
+        assertThat(worker.runOnce()).isTrue();
+
+        assertThat(reporter.reports()).isEmpty();
+        assertThat(observationCalls.count()).isEqualTo(observationBefore + 1);
+        assertThat(speechCalls.count()).isEqualTo(speechBefore + 1);
+        assertThat(operation(operationId).get("status")).isEqualTo("succeeded");
+        assertThat(coaches.getOwnedPracticeSessionContext(userId, sessionId).durationMs())
+                .isEqualTo(expectedDurationMs);
+        assertThat(coaches.getOwnedCoachSession(userId, waitingCoach).session().durationMs())
+                .isEqualTo(expectedDurationMs);
+    }
+
+    @Test
+    void measuredExecutionIsSeparateFromInitialWaitingAndVideoDuration() throws Exception {
+        var attempts = meters.find("acttub.external.operations.attempts").tag("kind", "analyze").counter();
+        assertThat(attempts).isNotNull();
+        double before = attempts.count();
+        UUID user = insertUser();
+        UUID operation = insertAnalyzeOperation(user, insertSession(user, insertFinalizedUpload(user)));
+        jdbc.update("UPDATE external_operations SET created_at=? WHERE id=?",
+                Instant.now().minusSeconds(90).atOffset(ZoneOffset.UTC), operation);
+        org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(3)).untilAsserted(() -> {
+            assertThat(meters.get("acttub.external.operations.current").tags(
+                    "kind", "analyze", "state", "pending", "waiting", "initial").gauge().value()).isEqualTo(1);
+            assertThat(meters.get("acttub.external.operations.oldest.wait.seconds").tags(
+                    "kind", "analyze", "waiting", "initial").gauge().value()).isBetween(89d, 94d);
+        });
+        ObjectStorage storage = mock(ObjectStorage.class);
+        when(storage.downloadToPath(anyString(), any())).thenReturn(new StoredObjectMetadata(1L, "video/mp4", null));
+        var entered = new java.util.concurrent.CountDownLatch(1);
+        var finish = new java.util.concurrent.CountDownLatch(1);
+        AnalysisWorker worker = new AnalysisWorker(store, storage, (path, context) -> {
+            entered.countDown();
+            try {
+                if (!finish.await(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("test execution was not released");
+                }
+            } catch (InterruptedException interrupted) {
+                throw new IllegalStateException(interrupted);
+            }
+            return result(); // The video is 12.345 seconds; this execution is much shorter.
+        }, Clock.systemUTC(), Duration.ofMinutes(5), MODEL, new RecordingFailureReporter());
+        var timer = meters.get("acttub.external.operations.execution").tags(
+                "kind", "analyze", "outcome", "succeeded").timer();
+        double elapsedBefore = timer.totalTime(java.util.concurrent.TimeUnit.SECONDS);
+        long countBefore = timer.count();
+        try (var executor = java.util.concurrent.Executors.newSingleThreadExecutor()) {
+            var work = executor.submit(() -> worker.runOnce());
+            try {
+                assertThat(entered.await(3, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+                org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(3)).untilAsserted(() -> {
+                    assertThat(meters.get("acttub.external.operations.current").tags(
+                            "kind", "analyze", "state", "running", "waiting", "none").gauge().value()).isEqualTo(1);
+                    assertThat(meters.get("acttub.external.operations.oldest.unfinished.age.seconds")
+                            .tag("kind", "analyze").gauge().value()).isGreaterThan(89);
+                });
+            } finally {
+                finish.countDown();
+            }
+            assertThat(work.get(3, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+        }
+        assertThat(attempts.count()).isEqualTo(before + 1);
+        assertThat(timer.count()).isEqualTo(countBefore + 1);
+        assertThat(timer.totalTime(java.util.concurrent.TimeUnit.SECONDS) - elapsedBefore).isBetween(0.001d, 5d);
+        assertThat(meters.get("acttub.external.operations.elapsed").tags(
+                "kind", "analyze", "outcome", "succeeded").timer().max(java.util.concurrent.TimeUnit.SECONDS))
+                .isGreaterThan(89);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"expected", "unexpected"})
+    void expectedMediaRejectionAndUnexpectedExecutionFailureKeepTheirOwnClassification(String classification) {
+        UUID user = insertUser();
+        UUID upload = insertFinalizedUpload(user);
+        UUID operation = insertAnalyzeOperation(user, insertSession(user, upload));
+        var failures = meters.get("acttub.external.operations.terminal").tags(
+                "kind", "analyze", "outcome", "failed", "classification", classification).counter();
+        var calls = meters.get("acttub.external.operations.external.calls").tags(
+                "kind", "analyze", "dependency", "storage").counter();
+        double before = failures.count(), callsBefore = calls.count();
+        ObjectStorage storage = mock(ObjectStorage.class);
+        when(storage.downloadToPath(anyString(), any())).thenReturn(new StoredObjectMetadata(1L, "video/mp4", null));
+        if ("expected".equals(classification)) {
+            jdbc.update("UPDATE upload_intents SET mime_type='image/png' WHERE id=?", upload);
+        }
+        AnalysisWorker worker = new AnalysisWorker(store, storage, (path, context) -> {
+            throw new IllegalStateException("broken invariant");
+        }, Clock.systemUTC(), Duration.ofMinutes(5), MODEL, new RecordingFailureReporter());
+        int attempts = "expected".equals(classification) ? 1 : 3;
+        for (int attempt = 0; attempt < attempts; attempt++) {
+            assertThat(worker.runOnce()).isTrue();
+        }
+        worker.sweep();
+        assertThat(jdbc.queryForObject("SELECT last_failure_classification FROM external_operations WHERE id=?",
+                String.class, operation)).isEqualTo(classification);
+        assertThat(failures.count()).isEqualTo(before + 1);
+        assertThat(calls.count()).isEqualTo(callsBefore + ("expected".equals(classification) ? 0 : 3));
+    }
+
+    @Test
+    void externalFailureClassificationSurvivesRequeueAndRetryExhaustion() {
+        var attempts = meters.get("acttub.external.operations.attempts").tag("kind", "analyze").counter();
+        var requeues = meters.get("acttub.external.operations.requeues").tag("kind", "analyze").counter();
+        var failures = meters.get("acttub.external.operations.terminal").tags(
+                "kind", "analyze", "outcome", "failed", "classification", "external").counter();
+        double attemptsBefore = attempts.count(), requeuesBefore = requeues.count(), failuresBefore = failures.count();
+        UUID user = insertUser();
+        UUID operation = insertAnalyzeOperation(user, insertSession(user, insertFinalizedUpload(user)));
+        ObjectStorage storage = mock(ObjectStorage.class);
+        when(storage.downloadToPath(anyString(), any())).thenThrow(
+                new IllegalStateException("network unavailable", new java.net.ConnectException()));
+        AnalysisWorker worker = new AnalysisWorker(store, storage, (path, context) -> result(),
+                Clock.fixed(NOW, ZoneOffset.UTC), Duration.ofMinutes(5), MODEL, new RecordingFailureReporter());
+
+        for (int attempt = 0; attempt < 3; attempt++) {
+            assertThat(worker.runOnce()).isTrue();
+            assertThat(operation(operation).get("status")).isEqualTo("pending");
+            assertThat(jdbc.queryForObject(
+                    "SELECT last_failure_classification FROM external_operations WHERE id=?", String.class, operation))
+                    .isEqualTo("external");
+        }
+        assertThat(worker.sweep().exhaustedOperations()).isEqualTo(1);
+        assertThat(operation(operation).get("status")).isEqualTo("failed");
+        assertThat(jdbc.queryForObject(
+                "SELECT last_failure_classification FROM external_operations WHERE id=?", String.class, operation))
+                .isEqualTo("external");
+        assertThat(worker.sweep().exhaustedOperations()).isZero();
+        assertThat(attempts.count()).isEqualTo(attemptsBefore + 3);
+        assertThat(requeues.count()).isEqualTo(requeuesBefore + 3);
+        assertThat(failures.count()).isEqualTo(failuresBefore + 1);
+    }
+
+    @Test
+    void sharedUploadKeepsTheFirstCompletedDurationEvenForAnAlreadyRunningAnalysis() {
+        UUID userId = insertUser();
+        UUID uploadId = insertFinalizedUpload(userId);
+        UUID firstSession = insertSession(userId, uploadId);
+        UUID firstOperation = insertAnalyzeOperation(userId, firstSession);
+        UUID firstLease = UUID.randomUUID();
+        assertThat(store.claimNext(firstLease, Duration.ofMinutes(5), NOW)).isEqualTo(firstOperation);
+        UUID secondSession = insertSession(userId, uploadId);
+        UUID secondOperation = insertAnalyzeOperation(userId, secondSession);
+        UUID secondLease = UUID.randomUUID();
+        assertThat(store.claimNext(secondLease, Duration.ofMinutes(5), NOW)).isEqualTo(secondOperation);
+        assertThat(store.getContext(secondOperation).durationMs()).isNull();
+
+        store.complete(firstOperation, firstLease, result(), MODEL, NOW.plusSeconds(1));
+        store.complete(secondOperation, secondLease,
+                new AnalysisResult(result().observationPack(), false, 23456), MODEL, NOW.plusSeconds(2));
+
+        assertThat(coaches.getOwnedPracticeSessionContext(userId, firstSession).durationMs()).isEqualTo(12345);
+        assertThat(coaches.getOwnedPracticeSessionContext(userId, secondSession).durationMs()).isEqualTo(12345);
+        assertThat(operation(firstOperation).get("status")).isEqualTo("succeeded");
+        assertThat(operation(secondOperation).get("status")).isEqualTo("succeeded");
+        assertThat(store.getContext(secondOperation).durationMs()).isEqualTo(12345);
+    }
+
+    @Test
+    void reclaimedLeaseRollsBackDurationSummaryPracticeAndWaitingCoachTogether() {
+        var successes = meters.get("acttub.external.operations.terminal").tags(
+                "kind", "analyze", "outcome", "succeeded", "classification", "none").counter();
+        double before = successes.count();
+        UUID userId = insertUser();
+        UUID uploadId = insertFinalizedUpload(userId);
+        UUID sessionId = insertSession(userId, uploadId);
+        UUID operationId = insertAnalyzeOperation(userId, sessionId);
+        UUID waitingCoach = insertCoachSession(sessionId, null);
+        UUID staleLease = UUID.randomUUID();
+        UUID currentLease = UUID.randomUUID();
+        assertThat(store.claimNext(staleLease, Duration.ofMinutes(5), NOW)).isEqualTo(operationId);
+        assertThat(store.claimNext(currentLease, Duration.ofMinutes(5), NOW.plusSeconds(301)))
+                .isEqualTo(operationId);
+        Map<String, Object> uploadBefore = jdbc.queryForMap("SELECT * FROM upload_intents WHERE id = ?", uploadId);
+        Map<String, Object> practiceBefore = jdbc.queryForMap("SELECT * FROM practice_sessions WHERE id = ?", sessionId);
+        Map<String, Object> coachBefore = jdbc.queryForMap("SELECT * FROM coach_sessions WHERE id = ?", waitingCoach);
+        Map<String, Object> operationBefore = jdbc.queryForMap("SELECT * FROM external_operations WHERE id = ?", operationId);
+
+        assertThatThrownBy(() -> store.complete(operationId, staleLease, result(), MODEL, NOW.plusSeconds(302)))
+                .isInstanceOf(LeaseOwnershipException.class);
+
+        assertThat(jdbc.queryForMap("SELECT * FROM upload_intents WHERE id = ?", uploadId)).isEqualTo(uploadBefore);
+        assertThat(jdbc.queryForMap("SELECT * FROM practice_sessions WHERE id = ?", sessionId)).isEqualTo(practiceBefore);
+        assertThat(jdbc.queryForMap("SELECT * FROM coach_sessions WHERE id = ?", waitingCoach)).isEqualTo(coachBefore);
+        assertThat(jdbc.queryForMap("SELECT * FROM external_operations WHERE id = ?", operationId)).isEqualTo(operationBefore);
+        assertThat(count("SELECT count(*) FROM summaries WHERE session_id = ?", sessionId)).isZero();
+        assertThat(count("SELECT count(*) FROM transcripts WHERE session_id = ?", sessionId)).isZero();
+        assertThat(store.getContext(operationId).durationMs()).isNull();
+        assertThat(coaches.getOwnedCoachSession(userId, waitingCoach).session().durationMs()).isZero();
+
+        assertThat(successes.count()).isEqualTo(before);
+        // 만료됐어도 재선점되지 않은 현재 Lease는 완료 가능하다.
+        store.complete(operationId, currentLease,
+                new AnalysisResult(result().observationPack(), false, 23456), MODEL, NOW.plusSeconds(602));
+        assertThat(coaches.getOwnedPracticeSessionContext(userId, sessionId).durationMs()).isEqualTo(23456);
+        assertThat(coaches.getOwnedCoachSession(userId, waitingCoach).session().durationMs()).isEqualTo(23456);
+        assertThat(operation(operationId).get("status")).isEqualTo("succeeded");
+        assertThat(successes.count()).isEqualTo(before + 1);
+        assertThatThrownBy(() -> store.complete(operationId, currentLease, result(), MODEL, NOW.plusSeconds(603)))
+                .isInstanceOf(RuntimeException.class);
+        assertThat(successes.count()).isEqualTo(before + 1);
     }
 
     @Test
@@ -83,7 +355,8 @@ class PostgresAnalysisStoreIT {
         assertThat(store.claimNext(leaseToken, Duration.ofMinutes(5), NOW.minusSeconds(5)))
                 .isEqualTo(operationId);
 
-        UUID summaryId = store.complete(operationId, leaseToken, result(), MODEL, NOW);
+        AnalysisResult result = result();
+        UUID summaryId = store.complete(operationId, leaseToken, result, MODEL, NOW);
 
         Map<String, Object> summary = jdbc.queryForMap("""
                 SELECT session_id, model, was_compressed,
@@ -103,12 +376,29 @@ class PostgresAnalysisStoreIT {
         assertThat(mapper.readTree((String) summary.get("uncertainties")))
                 .isEqualTo(mapper.readTree("[\"조명이 어둡다\"]"));
         // jsonb 는 키 순서를 보존하지 않는다(짧은 이름부터 저장한다) — 저장된 순서가 아니라
-        // 세 칸이 다 있는지가 여기서 볼 것이고, 읽는 순서는 CoachPrompt 가 다시 세운다.
+        // 팩의 칸이 다 있는지가 여기서 볼 것이고, 읽는 순서는 CoachPrompt 가 다시 세운다.
         assertThat(mapper.readTree((String) summary.get("raw")).fieldNames()).toIterable()
-                .containsExactlyInAnyOrder("scene_summary", "observations", "uncertainties");
+                .containsExactlyInAnyOrder("scene_summary", "timeline", "speech", "observations", "uncertainties");
+        assertThat(mapper.readTree((String) summary.get("raw")).path("timeline").asText())
+                .isEqualTo(result.observationPack().timeline());
+        // speech 도 같은 이유로 통째 비교하지 않는다 — jsonb 를 거치며 칸 순서가 바뀐다.
+        JsonNode speech = mapper.readTree((String) summary.get("raw")).path("speech");
+        SpeechAnalysis expected = result.observationPack().speech();
+        assertThat(speech.path("transcript").asText()).isEqualTo(expected.transcript());
+        assertThat(speech.path("avg_syllables_per_sec").asDouble())
+                .isEqualTo(expected.avgSyllablesPerSec());
+        assertThat(speech.path("pauses")).hasSize(expected.pauses().size());
+        assertThat(speech.path("chunks")).hasSize(expected.chunks().size());
+        JsonNode chunk = speech.path("chunks").get(0);
+        SpeechAnalysis.Chunk expectedChunk = expected.chunks().get(0);
+        assertThat(chunk.path("start_ms").asLong()).isEqualTo(expectedChunk.startMs());
+        assertThat(chunk.path("end_ms").asLong()).isEqualTo(expectedChunk.endMs());
+        assertThat(chunk.path("rate").asDouble()).isEqualTo(expectedChunk.rate());
+        assertThat(chunk.path("delta_pct").asInt()).isEqualTo(expectedChunk.deltaPct());
+        assertThat(chunk.path("mark").asText()).isEqualTo(expectedChunk.mark());
+        assertThat(chunk.path("text").asText()).isEqualTo(expectedChunk.text());
 
-        // 받아쓰기는 SOMA-490 에서 사라졌다 — 대사는 관찰의 quote 로 들어오므로
-        // 이 표에 더 쌓이지 않는다. 표 자체는 지난 연습의 기록을 위해 남아 있다.
+        // 새 받아쓰기는 관찰 팩의 speech에 저장한다. 옛 transcripts 표는 지난 기록만 보존한다.
         assertThat(count("SELECT count(*) FROM transcripts WHERE session_id = ?", sessionId))
                 .isZero();
 
@@ -234,10 +524,15 @@ class PostgresAnalysisStoreIT {
         return new AnalysisResult(
                 new ObservationPack(
                         "여자가 문 앞에서 돌아선다.",
+                        "0:00에 돌아서며 대사를 시작한다.",
+                        SpeechFacts.calculate("지금 놓치면 끝이야", List.of(
+                                new SpeechFacts.Word("지금", 0, .3),
+                                new SpeechFacts.Word("놓치면", .3, .6),
+                                new SpeechFacts.Word("끝이야", .6, 1.2))),
                         List.of(new ObservationItem(
                                 0, 1200, "호흡이 얕다", "지금 놓치면 끝이야", "호흡", 0.8)),
                         List.of("조명이 어둡다")),
-                true);
+                true, 12345);
     }
 
     private UUID insertUser() {

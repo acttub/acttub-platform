@@ -74,6 +74,16 @@ class ErrorContractInventoryTest {
      * 이관 중에 500 이던 자리가 404 로 바뀐 사고가 둘 있었고, 그때 응답 diff 는 0 이었다.
      */
     private static final Map<String, Coverage> EXPECTED = Map.ofEntries(
+            covered("feature.coach.app.CoachService|409|client_contract_required", 1,
+                    "feature.coach.adapter.web.CoachReportEndpointIT"),
+            covered("feature.coach.app.CoachService|409|practice_note_does_not_require_confirmation", 1,
+                    "feature.coach.adapter.web.CoachReportEndpointIT"),
+            covered("feature.report.app.ReportService|409|client_contract_required", 1,
+                    "feature.coach.adapter.web.CoachReportEndpointIT"),
+            covered("feature.report.app.ReportService|409|coaching_session_is_open", 1,
+                    "feature.coach.adapter.web.CoachReportEndpointIT"),
+            covered("feature.practice.adapter.web.PracticeSessionController|409|client_contract_required", 1,
+                    "feature.practice.PracticeSessionEndpointIT"),
             covered("feature.admin.adapter.web.AdminController|401|Unauthorized", 1,
                     "feature.admin.AdminEndpointIT"),
             covered("feature.admissions.app.AdmissionsService|404|university_not_found", 1,
@@ -106,7 +116,7 @@ class ErrorContractInventoryTest {
                     "feature.coach.adapter.web.CoachReportEndpointIT"),
             covered("feature.coach.app.CoachService|409|session changed concurrently", 1,
                     "feature.coach.app.CoachServiceTest"),
-            covered("feature.coach.app.CoachService|409|session is closed", 1,
+            covered("feature.coach.app.CoachService|409|session is closed", 2,
                     "feature.coach.adapter.web.CoachReportEndpointIT"),
             covered("feature.coach.app.CoachService|502|" + DYNAMIC, 3,
                     "feature.coach.app.CoachServiceTest"),

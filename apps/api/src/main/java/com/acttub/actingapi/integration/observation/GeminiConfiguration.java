@@ -1,7 +1,9 @@
 package com.acttub.actingapi.integration.observation;
 
 import com.acttub.actingapi.integration.media.GeminiVideoCompressor;
+import com.acttub.actingapi.integration.media.AudioExtractor;
 import com.acttub.actingapi.platform.observability.FailureReporter;
+import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.genai.Client;
 import org.springframework.beans.factory.annotation.Value;
@@ -48,9 +50,25 @@ class GeminiConfiguration {
             GeminiGateway gateway,
             ObjectMapper mapper,
             GeminiSettings settings,
-            FailureReporter failureReporter) {
+            FailureReporter failureReporter,
+            LlmTelemetry telemetry) {
         return new GeminiObservationAnalyzer(
-                gateway, mapper, settings.model(), failureReporter);
+                gateway, mapper, settings.model(), failureReporter, telemetry);
+    }
+
+    @Bean
+    SpeechAnalyzer speechAnalyzer(
+            GeminiGateway gateway, FailureReporter failureReporter, LlmTelemetry telemetry) {
+        return new GeminiTranscriber(new AudioExtractor(), gateway, failureReporter, telemetry);
+    }
+
+    @Bean
+    VideoRecordAnalyzer videoRecordAnalyzer(
+            GeminiGateway gateway, GeminiSettings settings,
+            FailureReporter failureReporter, LlmTelemetry telemetry) {
+        return new GeminiVideoRecordAnalyzer(gateway,
+                new com.acttub.actingapi.integration.media.VideoRecordChunks(),
+                settings.model(), failureReporter, telemetry);
     }
 
     @Bean

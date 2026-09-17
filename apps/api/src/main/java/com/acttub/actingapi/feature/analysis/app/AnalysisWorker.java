@@ -16,6 +16,8 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
+import com.acttub.actingapi.platform.ledger.ExternalOperationExecution;
+import com.acttub.actingapi.platform.ledger.ExternalOperationFailureClassification;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
@@ -78,56 +80,61 @@ public class AnalysisWorker {
         if (operationId == null) {
             return false;
         }
-        AnalysisContext context = store.getContext(operationId);
-        if (context == null) {
-            fail(operationId, leaseToken, "unsupported_media", now);
-            return true;
-        }
-        if (context.mimeType() == null
-                || !context.mimeType().toLowerCase(Locale.ROOT).startsWith("video/")) {
-            fail(operationId, leaseToken, "unsupported_media", now);
-            return true;
-        }
-
-        Path temporary = null;
-        try {
-            temporary = Files.createTempFile("acttub-analysis-", suffix(context.objectKey()));
-            StoredObjectMetadata downloaded = storage.downloadToPath(
-                    context.objectKey(), temporary);
-            if (!Objects.equals(downloaded.etag(), context.etag())) {
-                throw new ObjectETagMismatchError("uploaded object changed after finalization");
+        try (ExternalOperationExecution observation = store.execution(operationId, leaseToken)) {
+            AnalysisContext context = store.getContext(operationId);
+            if (context == null) {
+                fail(operationId, leaseToken, "unsupported_media", null, now);
+                return true;
             }
-            AnalysisResult result = analyzer.analyze(temporary, context);
-            store.complete(operationId, leaseToken, result, model, now);
-            notifyCompletion(context);
-        } catch (LeaseOwnershipException exception) {
-            LOGGER.warning("analysis lease ownership was lost: " + operationId);
-            failureReporter.report(
-                    exception,
-                    new FailureContext("AnalysisWorker.complete", operationId));
-        } catch (Exception exception) {
-            LOGGER.log(Level.WARNING, "analysis failed: " + operationId, exception);
-            String errorCode = errorCode(exception);
-            if (!"unsupported_media".equals(errorCode)) {
+            if (context.mimeType() == null
+                    || !context.mimeType().toLowerCase(Locale.ROOT).startsWith("video/")) {
+                fail(operationId, leaseToken, "unsupported_media", ExternalOperationFailureClassification.EXPECTED, now);
+                return true;
+            }
+
+            Path temporary = null;
+            try {
+                temporary = Files.createTempFile("acttub-analysis-", suffix(context.objectKey()));
+                ExternalOperationExecution.externalCall("storage");
+                StoredObjectMetadata downloaded = storage.downloadToPath(
+                        context.objectKey(), temporary);
+                if (!Objects.equals(downloaded.etag(), context.etag())) {
+                    throw new ObjectETagMismatchError("uploaded object changed after finalization");
+                }
+                AnalysisResult result = analyzer.analyze(temporary, context);
+                store.complete(operationId, leaseToken, result, model, now);
+                notifyCompletion(context);
+            } catch (LeaseOwnershipException exception) {
+                LOGGER.warning("analysis lease ownership was lost: " + operationId);
                 failureReporter.report(
                         exception,
-                        new FailureContext("AnalysisWorker.analysis", operationId));
-            }
-            if (errorCode == null) {
-                release(operationId, leaseToken, now);
-            } else {
-                fail(operationId, leaseToken, errorCode, now);
-            }
-        } finally {
-            if (temporary != null) {
-                try {
-                    Files.deleteIfExists(temporary);
-                } catch (IOException ignored) {
-                    // 임시 파일 정리 실패는 operation 전이를 바꾸지 않는다.
+                        new FailureContext("AnalysisWorker.complete", operationId));
+            } catch (Exception exception) {
+                LOGGER.log(Level.WARNING, "analysis failed: " + operationId, exception);
+                String errorCode = errorCode(exception);
+                if (!"unsupported_media".equals(errorCode)) {
+                    failureReporter.report(
+                            exception,
+                            new FailureContext("AnalysisWorker.analysis", operationId));
+                }
+                if (errorCode == null) {
+                    release(operationId, leaseToken, ExternalOperationFailureClassification.from(exception), now);
+                } else {
+                    fail(operationId, leaseToken, errorCode,
+                            "unsupported_media".equals(errorCode) ? ExternalOperationFailureClassification.EXPECTED
+                                    : ExternalOperationFailureClassification.from(exception), now);
+                }
+            } finally {
+                if (temporary != null) {
+                    try {
+                        Files.deleteIfExists(temporary);
+                    } catch (IOException ignored) {
+                        // 임시 파일 정리 실패는 operation 전이를 바꾸지 않는다.
+                    }
                 }
             }
+            return true;
         }
-        return true;
     }
 
     /**
@@ -191,9 +198,10 @@ public class AnalysisWorker {
             UUID operationId,
             UUID leaseToken,
             String errorCode,
+            String classification,
             Instant now) {
         try {
-            store.fail(operationId, leaseToken, errorCode, now);
+            store.fail(operationId, leaseToken, errorCode, classification, now);
         } catch (LeaseOwnershipException exception) {
             LOGGER.warning("analysis failure lease was lost: " + operationId);
             failureReporter.report(
@@ -202,9 +210,9 @@ public class AnalysisWorker {
         }
     }
 
-    private void release(UUID operationId, UUID leaseToken, Instant now) {
+    private void release(UUID operationId, UUID leaseToken, String classification, Instant now) {
         try {
-            store.release(operationId, leaseToken, now);
+            store.release(operationId, leaseToken, classification, now);
         } catch (LeaseOwnershipException exception) {
             LOGGER.warning("analysis retry lease was lost: " + operationId);
             failureReporter.report(

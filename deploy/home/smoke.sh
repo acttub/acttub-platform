@@ -60,6 +60,15 @@ compose() { compose_with "$WORK/.env" "$@"; }
 step() { printf '\n▶ %s\n' "$*"; }
 fail() { printf '✗ %s\n' "$*" >&2; exit 1; }
 
+# 성공한 앱 이미지를 후속 모니터링 검사에 재사용하는 선택 기능. 기본 정리는 그대로다.
+if [ -n "${SMOKE_EXPORT_API_IMAGE:-}${SMOKE_EXPORT_WEB_IMAGE:-}" ]; then
+  [ -n "${SMOKE_EXPORT_API_IMAGE:-}" ] && [ -n "${SMOKE_EXPORT_WEB_IMAGE:-}" ] \
+    || fail "SMOKE_EXPORT_API_IMAGE·SMOKE_EXPORT_WEB_IMAGE를 함께 지정한다"
+  for export_image in "$SMOKE_EXPORT_API_IMAGE" "$SMOKE_EXPORT_WEB_IMAGE"; do
+    [[ "$export_image" =~ ^[a-zA-Z0-9][a-zA-Z0-9._/:-]*$ ]] || fail "내보낼 이미지 태그가 유효하지 않다"
+  done
+fi
+
 cleanup() {
   local status=$?
   if [ "${SMOKE_KEEP:-}" = "1" ]; then
@@ -375,3 +384,9 @@ grep -q 'is up to date' <<< "$logs" || fail "재생성된 api 의 Flyway 로그�
 printf '%s\n' "$logs" | grep -E 'Current version of schema|is up to date' | tail -2 | sed 's/^/  /'
 
 printf '\n✔ 스모크 통과 — api·web 이미지·deploy.sh(첫 배포·멱등 재실행·빨강 둘)·restore-db.sh(왕복·빨강 둘)·compose(web+api+db)·Flyway v1→v%s·web 경유 /·/health commit %s\n' "$latest" "${COMMIT:0:7}"
+
+if [ -n "${SMOKE_EXPORT_API_IMAGE:-}" ]; then
+  docker tag "$IMAGE" "$SMOKE_EXPORT_API_IMAGE"
+  docker tag "$WEB_IMAGE" "$SMOKE_EXPORT_WEB_IMAGE"
+  printf '✔ 후속 검사 이미지 보존: %s · %s\n' "$SMOKE_EXPORT_API_IMAGE" "$SMOKE_EXPORT_WEB_IMAGE"
+fi

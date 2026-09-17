@@ -1,5 +1,7 @@
 "use client";
 
+import { CoachComposer } from "./coach-composer";
+
 // 홈 · 새 연습 · 연습 기록 · 세션 상세를 한 화면으로 합친 통합 워크스페이스.
 // 왼쪽에 지난 세션 바, 오른쪽을 현재 세션이 채운다.
 // 설계 정본은 새 UI 디자인 캔버스(2026-07-27)의 D1~D10 · M1~M9 화면.
@@ -24,6 +26,7 @@ import { logout } from "@/lib/api/v2/auth";
 import { startCoach, replyCoach } from "@/lib/api/v2/coach";
 import { listReports } from "@/lib/api/v2/reports";
 import {
+  reanalyzeSession,
   getPracticeSession,
   listPracticeSessions,
   pollSessionUntilSettled,
@@ -120,6 +123,7 @@ import {
   describeWorkspaceView,
   type WorkspaceStatusChip,
 } from "./workspace-view";
+import { videoRecordRows } from "@/features/practice/video-record-rows";
 
 const NEW_PRACTICE_SUBTITLE = "영상을 올리면 질문이 시작돼요";
 
@@ -548,6 +552,8 @@ function WorkspaceInner() {
     if (completed) void refreshList();
   }, [refreshList]);
 
+  const restartCoachAfterAnalysisRef = useRef(new Set<string>());
+
   const coordinatorFor = useCallback((practiceSessionId: string) => {
     if (coachCoordinatorRef.current?.sessionId === practiceSessionId) {
       return coachCoordinatorRef.current.coordinator;
@@ -561,8 +567,10 @@ function WorkspaceInner() {
       try {
         const { data: start } = await startCoach({
           practice_session_id: practiceSessionId,
+          restart: restartCoachAfterAnalysisRef.current.has(practiceSessionId),
         });
         if (!isCurrentSession(practiceSessionId)) return;
+        restartCoachAfterAnalysisRef.current.delete(practiceSessionId);
         restoreCoach(start);
         if (countStepOnce(practiceSessionId, "dialogue")) {
           const context = practiceAnalyticsContextRef.current;
@@ -590,13 +598,6 @@ function WorkspaceInner() {
 
   const startConversationAfterAnalysis = useCallback((practiceSessionId: string) => {
     void coordinatorFor(practiceSessionId).update("analyzed").catch(() => {});
-  }, [coordinatorFor]);
-
-  const startConversationWithoutEvidence = useCallback((practiceSessionId: string) => {
-    if (practiceAnalyticsContextRef.current) {
-      practiceAnalyticsContextRef.current.withEvidence = false;
-    }
-    void coordinatorFor(practiceSessionId).startWithoutEvidence().catch(() => {});
   }, [coordinatorFor]);
 
   const trackAnalysis = useCallback((practiceSessionId: string) => {
@@ -646,6 +647,34 @@ function WorkspaceInner() {
       if (analysisControllerRef.current === controller) analysisControllerRef.current = null;
     });
   }, [coordinatorFor, isCurrentSession, refreshList, reportProgress]);
+
+  const [analysisRetrying, setAnalysisRetrying] = useState(false);
+  const analysisRetryRef = useRef(false);
+  const retryAnalysis = async () => {
+    if (!activeId || analysisRetryRef.current) return;
+    const sessionId = activeId;
+    analysisRetryRef.current = true;
+    setAnalysisRetrying(true);
+    setError(null);
+    try {
+      await reanalyzeSession(sessionId);
+      restartCoachAfterAnalysisRef.current.add(sessionId);
+      if (!isCurrentSession(sessionId)) return;
+      coachCoordinatorRef.current = null;
+      reportProgress({ type: "reset" });
+      reportProgress({ type: "duration", videoDurationMs });
+      reportProgress({ type: "analyze", compressed: false });
+      dispatch({ type: "analysisStatusReported", status: "analyzing" });
+      trackAnalysis(sessionId);
+    } catch {
+      if (isCurrentSession(sessionId)) {
+        setError("영상 분석을 다시 요청하지 못했어요. 잠시 후 다시 시도해 주세요.");
+      }
+    } finally {
+      analysisRetryRef.current = false;
+      setAnalysisRetrying(false);
+    }
+  };
 
   const onPickFile = (file: File | null) => {
     // 영상을 고르는 길은 준비 화면에만 열려 있다. 그 밖에서 들어오면 만들어 둔
@@ -1392,10 +1421,8 @@ function WorkspaceInner() {
                   phase="scan"
                   pastDeadline={pastDeadline}
                   failed={body.footer.failed}
-                  starting={coachOpening}
-                  onStartWithoutEvidence={() => {
-                    if (activeId) startConversationWithoutEvidence(activeId);
-                  }}
+                  retrying={analysisRetrying}
+                  onRetry={() => void retryAnalysis()}
                 />
               )}
               <IntroLine />
@@ -1905,8 +1932,8 @@ function ProgressPanel({
   phase,
   pastDeadline,
   failed = false,
-  starting = false,
-  onStartWithoutEvidence,
+  retrying = false,
+  onRetry,
 }: {
   pct: number;
   durationMs: number | null;
@@ -1917,25 +1944,25 @@ function ProgressPanel({
    */
   pastDeadline: boolean;
   failed?: boolean;
-  starting?: boolean;
-  onStartWithoutEvidence?: () => void;
+  retrying?: boolean;
+  onRetry?: () => void;
 }) {
   if (failed) {
     return (
       <div aria-live="polite" className="rounded-[28px] bg-white p-5 shadow-[0_16px_48px_rgba(25,31,40,0.08)] sm:p-6">
         <h2 className="text-lg font-black leading-7 text-[#191f28]">
-          영상을 바탕으로 질문을 준비하지 못했어요
+          영상 분석을 완료하지 못했어요
         </h2>
         <p className="mt-2 text-sm font-semibold leading-6 text-[#4e5968]">
-          원하면 영상 근거 없이 대화를 시작할 수 있어요.
+          영상을 분석해야 대화를 시작할 수 있어요. 다시 분석해 주세요.
         </p>
         <button
           type="button"
-          disabled={starting}
-          onClick={onStartWithoutEvidence}
+          disabled={retrying}
+          onClick={onRetry}
           className="mt-5 min-h-12 rounded-2xl bg-[#2f6bff] px-5 py-3 text-sm font-black text-white transition hover:bg-[#3182f6] disabled:bg-[#b0d2ff]"
         >
-          {starting ? "질문 준비 중…" : "그냥 시작"}
+          {retrying ? "분석 요청 중…" : "영상 다시 분석"}
         </button>
       </div>
     );
@@ -2011,7 +2038,9 @@ function ScenePanel({
     .filter(Boolean)
     .join(" › ") || "적지 않았어요";
   const mobileRows: [string, string][] = [...rows, ["막힌 곳", blockage]];
-  const observations = detail?.summary?.observations ?? [];
+  const summary = detail?.summary;
+  const observations = summary && "observations" in summary ? summary.observations : [];
+  const recordRows = videoRecordRows(summary);
   const blockageDetail = detail?.blockage_detail?.trim();
 
   useEffect(() => {
@@ -2099,6 +2128,12 @@ function ScenePanel({
               </div>
             ) : null}
             <SceneRows rows={mobileRows} />
+            {recordRows.length > 0 ? (
+              <div className="mt-4">
+                <p className="text-[13.5px] font-black">영상 기록</p>
+                <SceneRows rows={recordRows} />
+              </div>
+            ) : null}
             {blockageDetail ? (
               <div className="mt-4">
                 <p className="text-[11.5px] font-black text-[#8b95a1]">내가 막힌다고 쓴 글</p>
@@ -2139,6 +2174,12 @@ function ScenePanel({
             <p className="text-[13.5px] font-black">이 장면에서 연기한 것</p>
             <SceneRows rows={rows} />
           </div>
+          {recordRows.length > 0 ? (
+            <div className="rounded-[18px] bg-white p-4 shadow-[0_12px_36px_rgba(25,31,40,0.05)]">
+              <p className="text-[13.5px] font-black">영상 기록</p>
+              <SceneRows rows={recordRows} />
+            </div>
+          ) : null}
           <button
             type="button"
             onClick={onToggle}
@@ -2215,11 +2256,6 @@ function ChatPanel({
     : [];
   const pastPairCount = pastMessages.filter((message) => message.role === "me").length;
   const questionCount = dialogueMessages.filter((message) => message.role === "ai").length;
-
-  const sendPreset = (reply: string) => {
-    setAnswer(reply);
-    onSend(reply);
-  };
 
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[18px] bg-white shadow-[0_12px_36px_rgba(25,31,40,0.06)] sm:rounded-[20px]">
@@ -2312,65 +2348,13 @@ function ChatPanel({
             </button>
           </div>
         ) : (
-          <div className="grid gap-2.5">
-            <div className="relative">
-              <textarea
-                value={answer}
-                disabled={!inputEnabled}
-                maxLength={300}
-                rows={3}
-                placeholder="답을 편하게 적어 주세요"
-                onChange={(event) => setAnswer(event.target.value)}
-                onKeyDown={(event) => {
-                  if (
-                    event.key === "Enter"
-                    && (event.metaKey || event.ctrlKey)
-                    && !event.nativeEvent.isComposing
-                    && answer.trim()
-                    && inputEnabled
-                  ) {
-                    event.preventDefault();
-                    onSend();
-                  }
-                }}
-                className="h-[104px] w-full resize-none rounded-[16px] border border-[#e5e8eb] bg-[#f8fbff] px-4 pb-3 pt-8 text-base font-semibold outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:bg-white disabled:bg-[#f2f4f6]"
-              />
-              <span className="pointer-events-none absolute right-4 top-3 text-[11.5px] font-semibold tabular-nums text-[#8b95a1]">
-                {answer.length} / 300
-              </span>
-            </div>
-            {/* 낮은 화면(안드로이드 키보드)에서는 접는다 — 답을 쓰기 시작한 뒤에 누르는 것이
-                아니라 막혔을 때 누르는 버튼이라, 질문 자리를 내주는 편이 낫다. */}
-            <div className="grid grid-cols-2 gap-2.5 [@media(max-height:560px)]:hidden">
-              <button
-                type="button"
-                onClick={() => sendPreset("잘 모르겠어요")}
-                disabled={sending || !inputEnabled}
-                className="h-10 rounded-[10px] bg-[#f2f4f6] px-3 text-xs font-black text-[#4e5968] transition hover:bg-[#eef2f6] disabled:text-[#b0b8c1]"
-              >
-                잘 모르겠어요
-              </button>
-              <button
-                type="button"
-                onClick={() => sendPreset("제가 되물을게요")}
-                disabled={sending || !inputEnabled}
-                className="h-10 rounded-[10px] bg-[#f2f4f6] px-3 text-xs font-black text-[#4e5968] transition hover:bg-[#eef2f6] disabled:text-[#b0b8c1]"
-              >
-                제가 되물을게요
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={() => onSend()}
-              disabled={sending || !inputEnabled || !answer.trim()}
-              className="min-h-12 w-full rounded-[16px] bg-[#3182f6] px-6 py-3 text-sm font-black text-white transition hover:bg-[#1b64da] disabled:bg-[#c9d3df]"
-            >
-              이 답으로 다음 질문 →
-            </button>
-            <p className="text-xs font-semibold text-[#8b95a1] [@media(max-height:560px)]:hidden">
-              &apos;그만&apos;이라고 쓰면 언제든 마칠 수 있어요
-            </p>
-          </div>
+          <CoachComposer
+            answer={answer}
+            setAnswer={setAnswer}
+            sending={sending}
+            inputEnabled={inputEnabled}
+            onSend={() => onSend()}
+          />
         )}
       </div>
     </section>

@@ -1,10 +1,14 @@
 package com.acttub.actingapi.integration.observation;
 
 import java.nio.file.Path;
+import java.nio.file.Files;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 
 import com.google.genai.Client;
 import com.google.genai.types.Content;
 import com.google.genai.types.GenerateContentConfig;
+import com.google.genai.types.GenerateContentResponse;
 import com.google.genai.types.GetFileConfig;
 import com.google.genai.types.UploadFileConfig;
 
@@ -18,10 +22,14 @@ final class GoogleGenAiGateway implements GeminiGateway {
 
     @Override
     public GeminiFile upload(Path path, String mimeType) {
-        return file(
-                client.files.upload(
-                        path.toString(), UploadFileConfig.builder().mimeType(mimeType).build()),
-                mimeType);
+        // The path overload guesses a second MIME for the resumable-upload header.
+        // Stream upload uses the same explicit MIME in metadata and transport.
+        try (var input = Files.newInputStream(path)) {
+            return file(client.files.upload(input, Files.size(path),
+                    UploadFileConfig.builder().mimeType(mimeType).build()), mimeType);
+        } catch (IOException failure) {
+            throw new UncheckedIOException("failed to read media for upload", failure);
+        }
     }
 
     @Override
@@ -35,6 +43,12 @@ final class GoogleGenAiGateway implements GeminiGateway {
             Content contents,
             GenerateContentConfig config) {
         return client.models.generateContent(model, contents, config).text();
+    }
+
+    @Override
+    public GenerateContentResponse generateResponse(
+            String model, Content contents, GenerateContentConfig config) {
+        return client.models.generateContent(model, contents, config);
     }
 
     @Override

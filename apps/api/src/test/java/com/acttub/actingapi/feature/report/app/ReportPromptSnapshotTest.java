@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.Map;
 
 import com.acttub.actingapi.support.FrozenValue;
+import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
@@ -36,7 +37,7 @@ class ReportPromptSnapshotTest {
     @Test
     @DisplayName("분석 보고서 입력 JSON 의 들여쓰기와 한글 표기가 동결된 값과 같다")
     void analysisInputJsonMatchesFrozenIndentationAndKorean() throws Exception {
-        ReportEngine engine = new ReportEngine((instructions, input) -> null, MAPPER);
+        ReportEngine engine = new ReportEngine((instructions, input) -> null, MAPPER, new RecordingLlmTelemetry());
         JsonNode input = engine.buildReportInput(
                 "analysis",
                 MAPPER.readTree("""
@@ -57,7 +58,7 @@ class ReportPromptSnapshotTest {
     @Test
     @DisplayName("표현 보고서 입력 JSON 의 필드 순서와 null 표기가 동결된 값과 같다")
     void expressionInputJsonMatchesFrozenFieldOrderAndNull() throws Exception {
-        ReportEngine engine = new ReportEngine((instructions, input) -> null, MAPPER);
+        ReportEngine engine = new ReportEngine((instructions, input) -> null, MAPPER, new RecordingLlmTelemetry());
         JsonNode handoff = MAPPER.readTree("""
                 {"experiment":{"tested":true,"instruction":"한 번 멈춘다"},
                  "observed_change":"말이 선명해졌다"}

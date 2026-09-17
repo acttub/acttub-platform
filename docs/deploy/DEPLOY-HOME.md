@@ -134,6 +134,12 @@ docker compose --env-file .env --env-file release.env logs --since 26h --tail 10
 실제 서버 검증은 구분해서 기록한다. 서버에서는 이미지 SHA, 터널 경유 `/health`, DB를 읽는 경로,
 백업 업로드·복원, 로그인·업로드·분석을 확인한다. `/health` 200만으로 이 전부가 검증되지는 않는다.
 
+지속 모니터링의 도입 범위·알림 기준·추가 검증은 [모니터링 명세](MONITORING.md)를 따른다.
+[수집 구성과 적용 절차](../../deploy/monitoring/README.md)는 앱과 다른 Compose 프로젝트를 사용하고,
+[Cloud 설정 절차](MONITORING-CLOUD.md)는 대시보드·알림·외부 점검을 별도로 적용한다.
+앱 배포가 이 모니터링 프로젝트를 기동하거나 갱신하지 않는다. 저장소의 자동 검증과 실제
+홈서버 설치·Cloud 권한·Slack 알림 수신은 구분해서 확인한다.
+
 ## 7. DB와 호스트 복구
 
 복원 도구는 [`restore-db.sh`](../../deploy/home/restore-db.sh)이며, 서버의 환경 디렉터리에서

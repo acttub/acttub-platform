@@ -30,7 +30,8 @@ class OpenAiResponsesClientTest {
 
         GeneratedText generated = client.generate("시스템", "입력 문자열");
 
-        assertThat(generated).isEqualTo(new GeneratedText("답변", new TokenUsage(11, 7, 18)));
+        assertThat(generated).isEqualTo(
+                new GeneratedText("답변", new TokenUsage(11, 7, 18), "gpt-5.6-luna"));
         OpenAiHttpRequest request = transport.requests.getFirst();
         assertThat(request.uri()).isEqualTo(URI.create("https://api.openai.com/v1/responses"));
         assertThat(request.headers()).containsExactly(

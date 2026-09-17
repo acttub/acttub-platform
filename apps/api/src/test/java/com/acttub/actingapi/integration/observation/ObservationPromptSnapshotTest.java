@@ -75,6 +75,19 @@ class ObservationPromptSnapshotTest {
                 .isEqualTo(FrozenValue.of("observation-prompt-blank-scene.txt"));
     }
 
+    @Test
+    @DisplayName("영상만 올린 입력은 그 외를 배우의 막힘으로 쓰지 않고 공백 입력도 동일하게 처리한다")
+    void videoOnlyInputDoesNotAttributeTheSystemDefaultToTheActor() {
+        String prompt = ObservationPrompt.build(
+                new ActorMaterial("", "", "", "그 외", "", 93000L));
+        assertThat(prompt)
+                .contains("배우가 장면을 적지 않았다", "막힘 선택: 건너뜀")
+                .doesNotContain("배우가 고른 막히는 지점:", "배우가 쓴 상세:");
+        assertThat(ObservationPrompt.build(
+                new ActorMaterial(" ", "\t", "\n", "그 외", "  ", 93000L)))
+                .isEqualTo(prompt);
+    }
+
     /**
      * 장면을 <b>적어 온</b> 배우의 프롬프트도 바뀐 자리다 — 지금까지는 상세가 비면
      * {@code - 배우가 쓴 상세: } 가 빈 채로 들어갔다. 건너뛰기와 무관하게 닿는 변화라
