@@ -90,7 +90,9 @@ final class StructuredCoachEngine {
                 var references = new DialogueReferences(deliveredSources(input), coachId);
                 ObjectNode modelInput = (ObjectNode) references.toModel(input);
                 modelInput.remove(List.of("request_id", "session_id"));
-                JsonNode response = !finish && input.path("dialogue_progress").path("unobservable_hand_requested").asBoolean()
+                JsonNode response = !finish && input.path("dialogue_progress").path("unclear_correction").asBoolean()
+                        ? DialogueProgress.correctionTargetReply(input)
+                        : !finish && input.path("dialogue_progress").path("unobservable_hand_requested").asBoolean()
                         ? DialogueProgress.observationLimitReply(input)
                         : references.fromModel(StructuredJson.parse(recorded(session, modelInput, call)));
                 StructuredJson.validate("layer2_dialogue_turn", response);

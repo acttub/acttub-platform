@@ -48,8 +48,12 @@ final class DialogueProgress {
                 handRefs.add(source.path("id"));
             }
         }
+        String lastCoach = input.path("last_exchange").path("coach_message").path("text").asText();
+        boolean unclearCorrection = latest.strip().matches("(?:아[,\\s]*)?(?:내가\\s*)?(?:실수로|잘못)\\s*(?:말했(?:어|어요|다)|썼(?:어|어요|다))[.!?\\s]*")
+                && OpeningQuestion.questionCount(lastCoach) == 0;
         return StructuredJson.MAPPER.createObjectNode()
                 .put("explain_instead_of_repeating_question", confusion)
+                .put("unclear_correction", unclearCorrection)
                 .put("analysis_uncertain", latest.strip().matches("(?:모르겠(?:어|어요|다)|몰라(?:요)?|ㅁㄹ|글쎄(?:요)?)[.!?\\s]*"))
                 .put("unobservable_hand_requested", handQuestion && handUnavailable)
                 .put("objective_already_asked", objectiveAsked)
@@ -72,6 +76,23 @@ final class DialogueProgress {
                     + "모른다는 답을 상황·관계·인물 목적의 사실로 저장하지 않는다.";
         }
         return "";
+    }
+
+    static ObjectNode correctionTargetReply(JsonNode input) {
+        var reply = StructuredJson.MAPPER.createObjectNode().put("action", "respond")
+                .put("base_state_revision", input.path("coaching_state").path("revision").asLong())
+                .put("message", "방금 저에게 한 답을 고치신다는 뜻인가요, 영상 속 대사를 실수로 말했다는 뜻인가요?")
+                .putNull("context_update").putNull("style_update").put("flow", "continue");
+        var actor = input.path("user_message");
+        String text = actor.path("text").asText();
+        var link = reply.putObject("reply_link").put("user_message_id", actor.path("id").asText())
+                .put("actor_quote", text.substring(0, Math.min(80, text.length()))).put("move", "clarify");
+        link.putArray("evidence_refs");
+        var selection = link.putObject("selection").put("need", "정정하려는 대상 확인").put("blocker", "scene_understanding");
+        selection.putArray("known_refs").add(actor.path("id"));
+        selection.putObject("question").put("missing_information", "코치에게 한 답을 정정하는지 영상 속 대사를 설명하는지")
+                .put("help_if_answered", "잘못된 전제를 철회하고 배우가 뜻한 상황으로 이어간다.");
+        return reply;
     }
 
     static ObjectNode observationLimitReply(JsonNode input) {

@@ -141,6 +141,16 @@ class DialogueStateTest {
         assertThat(engine.reply(session(), "지갑을 돌려받으려는 거예요", UUID.randomUUID()).reply().message()).startsWith("알겠습니다.");
     }
 
+    @Test void aBareCorrectionAfterACoachInterpretationClarifiesTheTargetBeforeChangingContext() {
+        var engine = new CoachEngine((system, text) -> { throw new AssertionError("Do not guess the target of a bare correction"); },
+                new RecordingFailureReporter(), new RecordingLlmTelemetry());
+        var before = session().withTurns(List.of(new CoachTurnSnapshot("ai", "상대를 붙잡으려는 말일 수 있어요.")));
+        var result = engine.reply(before, "내가 실수로 말했어", UUID.randomUUID());
+        assertThat(result.reply().message()).contains("저에게 한 답", "영상 속 대사");
+        assertThat(result.session().coachingState().path("last_reply").path("move").asText()).isEqualTo("clarify");
+        assertThat(result.session().coachingState().path("context").path("scene_context").path("situation").isNull()).isTrue();
+    }
+
     private CoachSessionSnapshot session() {
         return new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 StructuredJson.resource("/coaching/record.json"), "", "", "", 8000, "그 외", "그 외", null,

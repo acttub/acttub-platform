@@ -81,6 +81,13 @@ class DialogueProgressTest {
         assertThatCode(() -> DialogueProgress.validate(reply("explain", false).put("message", "마지막 대사는 열쇠를 돌려달라는 요구예요."), progress))
                 .doesNotThrowAnyException();
     }
+    @Test void explicitCorrectionTargetsAndAnswersToAQuestionAreNotForcedIntoTheSameClarification() {
+        var input = input("내가 대사를 실수로 말했어", "explain", "");
+        assertThat(DialogueProgress.controls(input).path("unclear_correction").asBoolean()).isFalse();
+        ((ObjectNode) input.path("user_message")).put("text", "내가 실수로 말했어");
+        input.putObject("last_exchange").putObject("coach_message").put("text", "그 대사를 일부러 한 건가요?");
+        assertThat(DialogueProgress.controls(input).path("unclear_correction").asBoolean()).isFalse();
+    }
     @Test void newInformationAndRequestsAreNotAcknowledgements() {
         assertThat(DialogueProgress.controls(input("인물이 왜 이러는지 모르겠어", "clarify", ""))
                 .path("explain_instead_of_repeating_question").asBoolean()).isFalse();
