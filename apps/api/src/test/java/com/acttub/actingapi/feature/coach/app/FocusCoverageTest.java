@@ -39,4 +39,15 @@ class FocusCoverageTest {
         assertThatCode(() -> FocusCoverage.validate(legacy, record, view)).doesNotThrowAnyException();
         assertThatCode(() -> FocusCoverage.validate(focus("e1").put("scope", "local").put("pattern", "isolated"), record, view)).doesNotThrowAnyException();
     }
+
+    @Test void sceneAnalysisUsesAllSpokenContentWithoutCallingItDeliveryEvidence() {
+        var record = record();
+        var utterances = ((ObjectNode) record.path("speech")).putArray("utterances");
+        utterances.addObject().put("id", "first").put("start_ms", 2000).put("end_ms", 3500).put("text", "지난번에도 그냥 갔지");
+        utterances.addObject().put("id", "last").put("start_ms", 4000).put("end_ms", 5800).put("text", "열쇠는 놓고 가");
+        var view = new CoachRecordLookup().initial(record);
+        assertThatCode(() -> FocusCoverage.validate(focus("first", "last").put("basis", "scene"), record, view)).doesNotThrowAnyException();
+        assertThatThrownBy(() -> FocusCoverage.validate(focus("last").put("basis", "scene"), record, view)).hasMessageContaining("early and late");
+        assertThatThrownBy(() -> FocusCoverage.validate(focus("first", "last").put("basis", "delivery"), record, view)).hasMessageContaining("early and late");
+    }
 }

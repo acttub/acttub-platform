@@ -26,8 +26,17 @@ class StructuredCoachConversationEvalTest {
         var session = new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 StructuredJson.resource("/coaching/record.json"), "", "", "", 8000, "그 외", "그 외", null,
                 List.of(), "", null, "open", "", List.of()).withCoachingState("three_layers_v1", 0, null, "open", "");
-        var engine = new CoachEngine(new OpenAiResponsesClient(StructuredJson.MAPPER), new RecordingFailureReporter(), new RecordingLlmTelemetry());
         var output = StructuredJson.MAPPER.createObjectNode().put("case", name).put("semantic_review", "pending");
+        var failures = new RecordingFailureReporter();
+        var calls = output.putArray("calls");
+        var client = new OpenAiResponsesClient(StructuredJson.MAPPER);
+        var engine = new CoachEngine((system, input) -> {
+            var call = calls.addObject();
+            call.set("input", StructuredJson.parse(input));
+            var generated = client.generate(system, input);
+            call.put("model", generated.model()).put("output", generated.text());
+            return generated;
+        }, failures, new RecordingLlmTelemetry());
         var messages = output.putArray("messages");
         Path dir = Path.of("build", "structured-coach-eval");
         Files.createDirectories(dir);
@@ -42,6 +51,11 @@ class StructuredCoachConversationEvalTest {
                 messages.addObject().put("role", "actor").put("text", answer);
                 result = engine.reply(session, answer, UUID.randomUUID());
                 session = result.session();
+                if (answer.equals("ㅁㄹ") || answer.equals("?")) {
+                    assertThat(session.coachingState().path("last_reply").path("move").asText())
+                            .isIn("explain", "clarify", "simplify");
+                    assertThat(result.reply().message()).doesNotContain("말해보세요", "기다려보세요", "잡아보세요", "기다리세요");
+                }
                 messages.addObject().put("role", "ai").put("text", result.reply().message());
                 assertThat(result.reply().message()).doesNotContain("지금은 이 구간을 더 확인하기 어려워요", "영상에 근거한 설명을 준비하지 못했어요", "기대답변");
             }
@@ -49,6 +63,8 @@ class StructuredCoachConversationEvalTest {
             assertThat(OpeningQuestion.questionCount(result.reply().message())).isZero();
             output.set("state", session.coachingState());
         } finally {
+            var errors = output.putArray("errors");
+            failures.reports().forEach(report -> errors.add(report.failure().getMessage()));
             StructuredJson.MAPPER.writerWithDefaultPrettyPrinter().writeValue(dir.resolve(name + ".json").toFile(), output);
         }
     }

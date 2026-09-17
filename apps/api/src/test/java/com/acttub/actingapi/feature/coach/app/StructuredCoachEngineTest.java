@@ -28,7 +28,12 @@ class StructuredCoachEngineTest {
         ObjectNode output = StructuredJson.MAPPER.createObjectNode().put("action", "respond")
                 .put("base_state_revision", input.path("coaching_state").path("revision").asLong())
                 .put("message", text).putNull("context_update").putNull("style_update").put("flow", flow);
-        ObjectNode link = output.putObject("reply_link").put("move", input.path("user_message").isNull() ? "open" : "explain");
+        ObjectNode link = output.putObject("reply_link").put("move", "finish".equals(flow) ? "close" : input.path("user_message").isNull() ? "open" : "explain");
+        ObjectNode selection = link.putObject("selection").put("need", "장면 이해").put("blocker", "scene_understanding");
+        selection.putArray("known_refs");
+        if (OpeningQuestion.questionCount(text) > 0) selection.putObject("question")
+                .put("missing_information", "현재 장면의 이유").put("help_if_answered", "장면에 맞는 설명을 연결한다");
+        else selection.putNull("question");
         link.set("user_message_id", input.path("user_message").isNull() ? StructuredJson.MAPPER.nullNode() : input.path("user_message").path("id"));
         if (input.path("user_message").isNull()) link.putNull("actor_quote");
         else link.put("actor_quote", input.path("user_message").path("text").asText());
