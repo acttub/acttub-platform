@@ -12,7 +12,7 @@ final class FocusCoverage {
         boolean singleSpokenScene = "scene".equals(focus.path("basis").asText())
                 && record.path("speech").path("utterances").size() == 1;
         require(!"isolated".equals(focus.path("pattern").asText()) || singleSpokenScene,
-                "whole-video focus cannot be isolated unless scene analysis covers the only utterance");
+                "whole-video focus cannot be isolated unless scene analysis covers the only utterance. 특정 발화의 표현 평가는 focus.scope=local, pattern=isolated로 바꾼다.");
         require("ready".equals(record.path("processing").path("status").asText())
                 && record.path("processing").path("missing_ranges").isEmpty(),
                 "analysis has missing ranges; use local focus");

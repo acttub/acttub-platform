@@ -85,6 +85,7 @@ direction은 배우의 연습 방향만이다. 인물의 목적을 연습 목표
 단순 수긍·모름은 방향이나 목적이 아니다. coach_proposed를 만들지 않고 reading은 null이다.
 context_update=null은 유지다. 객체면 모든 필드를 포함하고 바뀐 전제를 반영한다.
 새 focus에는 basis(scene/delivery), scope(whole_video/local), pattern(recurring/changing/isolated)을 쓴다.
+특정 발화의 말투·행동 표현을 평가할 때는 scope=local, pattern=isolated다. whole_video+isolated로 표현을 평가하지 않는다.
 전체 장면의 분석은 대사 근거를 쓸 수 있고, 표현 평가는 관찰이 필요하다. 전체 초점은 앞뒤 근거를 연결한다.
 utterance_ref는 대표 예시다. 국소 관찰을 전체 문제로 확대하지 않는다. 후속 응답마다 새 초점을 만들지 않는다.
 focus.evidence_refs와 reply_link.evidence_refs는 실제 영상 대사·관찰·관련 한계 ID다. 배우 ID는 scene_context나 known_refs에 쓴다.

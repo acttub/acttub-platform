@@ -37,18 +37,40 @@ final class DialogueProgress {
         }
         boolean handQuestion = latest.matches("(?s).*(?:손동작|손으로|손이|손은|손을|손\\s+.{0,8}(?:보|전달|움직|연기)).*")
                 && !latest.matches("(?s).*손.{0,12}(?:말고|아니라|제외).*");
+        handQuestion &= latest.matches("(?s).*(?:영상|보여|보였|보이는|전달|피드백|평가|확인|잘\\s*(?:됐|했|된|돼)).*");
+        var handRefs = StructuredJson.MAPPER.createArrayNode();
         boolean handUnavailable = false;
         for (JsonNode source : input.path("record_view").path("source_catalog")) {
             String description = source.path("text").asText();
             if ("record_limitation".equals(source.path("kind").asText()) && description.contains("손")
-                    && description.matches("(?s).*(?:화면\\s*밖|확인할\\s*수\\s*없).*")) handUnavailable = true;
+                    && description.matches("(?s).*(?:화면\\s*밖|확인할\\s*수\\s*없).*")) {
+                handUnavailable = true;
+                handRefs.add(source.path("id"));
+            }
         }
         return StructuredJson.MAPPER.createObjectNode()
                 .put("explain_instead_of_repeating_question", confusion)
                 .put("unobservable_hand_requested", handQuestion && handUnavailable)
                 .put("objective_already_asked", objectiveAsked)
                 .put("acknowledged_suggestion", acknowledgement(latest) && "suggest".equals(input.path("coaching_state").path("last_reply").path("move").asText()))
-                .put("consecutive_acknowledgements", acknowledgements);
+                .put("consecutive_acknowledgements", acknowledgements)
+                .set("unobservable_hand_refs", handRefs);
+    }
+
+    static ObjectNode observationLimitReply(JsonNode input) {
+        var reply = StructuredJson.MAPPER.createObjectNode().put("action", "respond")
+                .put("base_state_revision", input.path("coaching_state").path("revision").asLong())
+                .put("message", "영상에서 손동작을 확인할 수 없어, 그 동작이 잘 전달됐는지는 판단하기 어려워요.")
+                .putNull("context_update").putNull("style_update").put("flow", "continue");
+        var actor = input.path("user_message");
+        String text = actor.path("text").asText();
+        var link = reply.putObject("reply_link").put("user_message_id", actor.path("id").asText())
+                .put("actor_quote", text.substring(0, Math.min(80, text.length()))).put("move", "explain");
+        link.set("evidence_refs", input.path("dialogue_progress").path("unobservable_hand_refs").deepCopy());
+        var selection = link.putObject("selection").put("need", "손동작의 확인 가능 여부")
+                .put("blocker", "delivery").putNull("question");
+        selection.putArray("known_refs").add(actor.path("id"));
+        return reply;
     }
 
     static void validate(JsonNode response, JsonNode progress) {

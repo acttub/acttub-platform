@@ -53,7 +53,7 @@ final class StructuredCoachEngine {
         String coachId = turnId(session, session.turns().size() + (actorText == null ? 0 : 1));
         String style = responseStyle(state.path("response_style").asText(), actorText);
         int maxChars = switch (style) { case "brief" -> 80; case "expanded" -> 300; default -> 120; };
-        int maxSentences = style.equals("expanded") ? 4 : style.equals("brief") ? 1 : 2;
+        int maxSentences = style.equals("expanded") ? 4 : style.equals("brief") ? 1 : 3;
         if (actorText == null && style.equals("normal")) {
             maxChars = 100;
             maxSentences = 2;
@@ -90,7 +90,9 @@ final class StructuredCoachEngine {
                 var references = new DialogueReferences(deliveredSources(input), coachId);
                 ObjectNode modelInput = (ObjectNode) references.toModel(input);
                 modelInput.remove(List.of("request_id", "session_id"));
-                JsonNode response = references.fromModel(StructuredJson.parse(recorded(session, modelInput, call)));
+                JsonNode response = !finish && input.path("dialogue_progress").path("unobservable_hand_requested").asBoolean()
+                        ? DialogueProgress.observationLimitReply(input)
+                        : references.fromModel(StructuredJson.parse(recorded(session, modelInput, call)));
                 StructuredJson.validate("layer2_dialogue_turn", response);
                 CoachingStateReducer.require(response.path("base_state_revision").asLong() == session.stateRevision(),
                         "stale state revision");

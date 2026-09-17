@@ -40,7 +40,7 @@ class ResponseSelectionEvalTest {
             new Scenario("missing-hand-observation", "상대가 머물기를 바라는 장면이군요.",
                 "맞아. 내 손으로 붙잡는 연기는 영상에서 잘 전달됐어?", List.of("explain", "clarify"), true),
             new Scenario("ambiguous-correction", "이 대사는 상대가 떠나지 않기를 바라는 말일 수 있어요.",
-                "내가 실수로 말했어.", List.of("clarify"), true),
+                "내가 실수로 말했어.", List.of("clarify", "correct"), true),
             new Scenario("inner-monologue", "상대에게 가지 말라고 하는 이유가 무엇인가요?",
                 "떠난 사람을 떠올리며 혼잣말하는 장면이에요. 실제 상대는 없어요. 어떻게 연기할지 하나만 알려줘요.", List.of("suggest"), false)
         );
@@ -74,6 +74,12 @@ class ResponseSelectionEvalTest {
             assertThat(result.reply().message()).doesNotContain("지금은 이 구간을 더 확인하기 어려워요", "기대답변", "known_refs");
             assertThat(result.session().coachingState().path("last_reply").path("move").asText()).isIn(scenario.moves());
             if (!scenario.questionAllowed()) assertThat(OpeningQuestion.questionCount(result.reply().message())).isZero();
+            // A coach may acknowledge its mistaken premise before asking what the actor meant.
+            // The routing label alone is not enough: ambiguity must still receive a real question.
+            if (scenario.name().equals("ambiguous-correction")) {
+                assertThat(OpeningQuestion.questionCount(result.reply().message())).isEqualTo(1);
+                assertThat(result.session().coachingState().path("last_reply").path("selection").path("question").isNull()).isFalse();
+            }
             if (scenario.name().equals("stop")) assertThat(result.session().status()).isEqualTo("closed");
             if (scenario.name().equals("missing-hand-observation")) {
                 assertThat(result.reply().message()).doesNotContain("눈썹", "얼굴", "마음은", "목소리");

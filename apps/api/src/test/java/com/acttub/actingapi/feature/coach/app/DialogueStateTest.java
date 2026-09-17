@@ -126,6 +126,21 @@ class DialogueStateTest {
         assertThat(calls).hasValue(3);
     }
 
+    @Test void knownMissingHandEvidenceIsExplainedWithoutAskingTheModelToInferOtherBodyParts() {
+        var engine = new CoachEngine((system, text) -> { throw new AssertionError("No model call is needed for a known observation limit"); },
+                new RecordingFailureReporter(), new RecordingLlmTelemetry());
+        var result = engine.reply(session(), "내 손으로 붙잡는 연기는 영상에서 잘 전달됐어?", UUID.randomUUID());
+        assertThat(result.reply().message()).contains("손", "확인할 수 없어").doesNotContain("눈썹", "목소리", "몸통");
+        assertThat(result.session().coachingState().path("last_reply").path("move").asText()).isEqualTo("explain");
+        assertThat(result.session().status()).isEqualTo("open");
+    }
+    @Test void aShortAcknowledgementCanPrecedeTwoUsefulFollowupSentences() {
+        var engine = new CoachEngine((system, text) -> StructuredCoachEngineTest.generated(StructuredCoachEngineTest.respond(
+                StructuredJson.parse(text), "알겠습니다. 지갑을 돌려받으려는 말이군요. 그 요구를 상대에게 분명히 건네세요.", "continue")),
+                new RecordingFailureReporter(), new RecordingLlmTelemetry());
+        assertThat(engine.reply(session(), "지갑을 돌려받으려는 거예요", UUID.randomUUID()).reply().message()).startsWith("알겠습니다.");
+    }
+
     private CoachSessionSnapshot session() {
         return new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 StructuredJson.resource("/coaching/record.json"), "", "", "", 8000, "그 외", "그 외", null,
