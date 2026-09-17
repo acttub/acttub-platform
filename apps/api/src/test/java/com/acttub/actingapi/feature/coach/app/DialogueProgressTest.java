@@ -52,6 +52,11 @@ class DialogueProgressTest {
         progress.put("allow_finish", true);
         assertThatCode(() -> DialogueProgress.validate(close, progress)).doesNotThrowAnyException();
     }
+    @Test void agreeingToAMethodDoesNotTriggerAnotherMethodPrescription() {
+        var progress = DialogueProgress.controls(input("ㅇㅇ", "suggest", "조건을 확인하게 하고 싶어"));
+        assertThatThrownBy(() -> DialogueProgress.validate(reply("suggest", false), progress)).hasMessageContaining("이미 방법");
+        assertThatCode(() -> DialogueProgress.validate(reply("clarify", true), progress)).doesNotThrowAnyException();
+    }
     @Test void newInformationAndRequestsAreNotAcknowledgements() {
         assertThat(DialogueProgress.controls(input("인물이 왜 이러는지 모르겠어", "clarify", ""))
                 .path("explain_instead_of_repeating_question").asBoolean()).isFalse();

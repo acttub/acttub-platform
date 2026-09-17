@@ -28,7 +28,7 @@ def main():
     if suite not in {"coach", "note", "continuity"}:
         raise SystemExit("Unknown synthetic evaluation suite")
     classes = ("DialogueContinuityEvalTest",) if suite == "continuity" else ("NoteContinuityEvalTest",) if suite == "note" else (
-        "ResponseSelectionEvalTest", "SceneContextConversationEvalTest", "StructuredCoachConversationEvalTest")
+        "ResponseSelectionEvalTest", "SceneContextConversationEvalTest", "StructuredCoachConversationEvalTest", "DialogueContinuityEvalTest")
     result = subprocess.run(
         ["ssh", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=accept-new",
          "-o", "ConnectTimeout=20", "deploy@insung-server", "python3", "-"],
@@ -65,7 +65,7 @@ def main():
         if any(int(report.get(field, "0")) for field in ("skipped", "failures", "errors")):
             raise SystemExit("Live evaluation must complete without skipped or failed cases: " + name)
         total += int(report.get("tests", "0"))
-    if total < (4 if suite == "continuity" else 8 if suite == "note" else 16):
+    if total < (4 if suite == "continuity" else 8 if suite == "note" else 20):
         raise SystemExit("Live evaluation did not run every required scenario")
     print("Completed synthetic model evaluations:", total)
     return 0

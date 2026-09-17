@@ -20,7 +20,7 @@ final class ResponseSelection {
                 "a question needs missing information and how its answer changes the help");
         require(!closing || !question, "closing must not request more information");
         for (JsonNode ref : selection.path("known_refs")) {
-            require(sources.containsKey(ref.asText()), "selection must use delivered knowledge");
+            require(sources.containsKey(ref.asText()), "selection must use delivered knowledge: copy IDs from response_constraints.allowed_knowledge_refs");
         }
         if ("assess".equals(link.path("move").asText())) {
             boolean observed = false;

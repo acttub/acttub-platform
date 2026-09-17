@@ -38,6 +38,7 @@ final class DialogueProgress {
         return StructuredJson.MAPPER.createObjectNode()
                 .put("explain_instead_of_repeating_question", confusion)
                 .put("objective_already_asked", objectiveAsked)
+                .put("acknowledged_suggestion", acknowledgement(latest) && "suggest".equals(input.path("coaching_state").path("last_reply").path("move").asText()))
                 .put("consecutive_acknowledgements", acknowledgements);
     }
 
@@ -56,6 +57,9 @@ final class DialogueProgress {
             require(response.path("reply_link").path("selection").path("question").isNull()
                     && !"clarify".equals(move) && OpeningQuestion.questionCount(response.path("message").asText()) == 0,
                     "배우가 질문에 혼란을 보였다. 질문을 멈추고 영상 대사에서 확실한 내용과 가능한 뜻 하나만 쉬운 말로 설명하라. selection.question=null이며 질문하지 않는다.");
+        }
+        if (progress.path("acknowledged_suggestion").asBoolean()) {
+            require(!"suggest".equals(move), "이미 방법을 제안했고 배우가 수긍했다. 같은 제안을 반복하거나 다른 표현 동작을 추가하지 말고, 남은 장면 해석 하나를 돕거나 실제 관찰로 평가하라.");
         }
         if (progress.path("consecutive_acknowledgements").asInt() >= 2) {
             require(!"acknowledge".equals(move), "수긍 뒤 같은 요약을 반복하지 말고 다음 도움을 주거나 마쳐라.");

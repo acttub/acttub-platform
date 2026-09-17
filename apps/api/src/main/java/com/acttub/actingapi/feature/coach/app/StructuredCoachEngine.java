@@ -78,13 +78,18 @@ final class StructuredCoachEngine {
             constraints.set("user_message_id", input.path("user_message").path("id").isMissingNode()
                     ? StructuredJson.MAPPER.nullNode() : input.path("user_message").path("id"));
             ArrayNode videoRefs = constraints.putArray("allowed_video_refs");
+            ArrayNode knowledgeRefs = constraints.putArray("allowed_knowledge_refs");
             for (JsonNode source : deliveredSources(input)) {
+                knowledgeRefs.add(source.path("id"));
                 if (List.of("video_observation", "video_utterance", "record_limitation").contains(source.path("kind").asText())) {
                     videoRefs.add(source.path("id"));
                 }
             }
             try {
-                JsonNode response = StructuredJson.parse(recorded(session, input, call));
+                var references = new DialogueReferences(deliveredSources(input), coachId);
+                ObjectNode modelInput = (ObjectNode) references.toModel(input);
+                modelInput.remove(List.of("request_id", "session_id"));
+                JsonNode response = references.fromModel(StructuredJson.parse(recorded(session, modelInput, call)));
                 StructuredJson.validate("layer2_dialogue_turn", response);
                 CoachingStateReducer.require(response.path("base_state_revision").asLong() == session.stateRevision(),
                         "stale state revision");
