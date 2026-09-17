@@ -7,7 +7,12 @@ name: CI
 on:
   pull_request:
     branches: [dev, main]
-  workflow_dispatch: # Actions 탭에서 수동 실행
+  workflow_dispatch:
+    inputs:
+      live_coach_eval:
+        description: 합성 장면으로 dev 모델의 2층 대화를 평가합니다 (유료 실호출)
+        type: boolean
+        default: false
 
 # 같은 PR에 새 커밋이 올라오면 진행 중이던 오래된 실행은 취소.
 concurrency:
@@ -19,6 +24,7 @@ permissions:
 
 jobs:
   web:
+    if: ${{ !inputs.live_coach_eval }}
     name: web (lint · typecheck · test · build)
     runs-on: ubuntu-latest
     steps:
@@ -64,6 +70,7 @@ jobs:
   # **잡 이름이 곧 required status check 의 context 라 ruleset 도 함께 갱신해야 합니다** —
   # 옛 이름을 required 로 남겨 두면 영원히 오지 않는 관문이 됩니다.
   api:
+    if: ${{ !inputs.live_coach_eval }}
     name: api (gradle test · Testcontainers)
     runs-on: ubuntu-latest
     defaults:
@@ -147,6 +154,7 @@ jobs:
   # 20초짜리 잡을 몇 분으로 늘리고, tsc 는 typedRoutes 타입(.expo/types, gitignore)이
   # 클린 체크아웃에 없어 실재하는 라우트를 전부 오류로 냅니다.
   mobile:
+    if: ${{ !inputs.live_coach_eval }}
     name: mobile (node --test)
     runs-on: ubuntu-latest
     defaults:
@@ -162,3 +170,36 @@ jobs:
       # .ts 를 그대로 import 합니다(Node 타입 스트리핑). 웹과 달리 커스텀 로더가 없습니다.
       - name: Test
         run: node --test tests/*.test.mjs
+
+  coach_eval:
+    name: 2층 합성 대화 · 실제 dev 모델
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.live_coach_eval }}
+    environment: dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+      - uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+          ping: insung-server
+      - name: Evaluate synthetic conversations
+        run: python3 .github/scripts/run-coach-eval.py
+      - name: Save synthetic evaluation results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coach-synthetic-eval
+          retention-days: 7
+          path: |
+            apps/api/build/response-selection-eval
+            apps/api/build/scene-context-eval
+            apps/api/build/structured-coach-eval
+            apps/api/build/reports/tests/test

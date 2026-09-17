@@ -1,0 +1,46 @@
+"""Run opt-in synthetic evaluations with the deployed dev model configuration.
+
+Only two configuration fields cross the existing trusted deployment SSH channel.
+Credentials stay in process memory and are never printed or written to artifacts.
+"""
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+REMOTE_CONFIG = r'''
+import json, subprocess
+command = ["docker", "compose", "--env-file", ".env", "--env-file", "release.env",
+           "-f", "compose.yml", "exec", "-T", "api", "printenv"]
+result = subprocess.run(command, cwd="/svc/acttub/dev", capture_output=True, text=True)
+if result.returncode:
+    raise SystemExit("dev model configuration unavailable")
+allowed = {"OPENAI_API_KEY", "OPENAI_CHAT_MODEL"}
+values = dict(line.split("=", 1) for line in result.stdout.splitlines()
+              if "=" in line and line.split("=", 1)[0] in allowed)
+print(json.dumps(values))
+'''
+
+def main():
+    result = subprocess.run(
+        ["ssh", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=accept-new",
+         "-o", "ConnectTimeout=20", "deploy@insung-server", "python3", "-"],
+        input=REMOTE_CONFIG, capture_output=True, text=True, timeout=60)
+    if result.returncode:
+        raise SystemExit("Could not access dev model configuration over deployment SSH")
+    values = json.loads(result.stdout)
+    if not values.get("OPENAI_API_KEY", "").strip():
+        raise SystemExit("Dev OpenAI credential is missing; evaluation cannot be skipped")
+    environment = os.environ.copy()
+    environment.update(values)
+    environment["ACTTUB_COACH_EVAL"] = "1"
+    root = Path(__file__).resolve().parents[2]
+    return subprocess.run(
+        ["./gradlew", "test", "--no-daemon", "--rerun-tasks",
+         "--tests", "*ResponseSelectionEvalTest", "--tests", "*SceneContextConversationEvalTest",
+         "--tests", "*StructuredCoachConversationEvalTest"],
+        cwd=root / "apps/api", env=environment).returncode
+
+if __name__ == "__main__":
+    sys.exit(main())
