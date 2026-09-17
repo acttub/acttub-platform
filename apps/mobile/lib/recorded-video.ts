@@ -25,3 +25,11 @@ export function takeRecordedVideo(): RecordedVideo | null {
   pending = null;
   return v;
 }
+
+/**
+ * 비우지 않고 들여다본다 — 촬영 뒤 "챌린지에 올릴지 / AI 분석할지" 고르는 화면이 미리보기만
+ * 그릴 때. take 로 꺼내면 다음 화면(업로드·챌린지 올리기)이 결과를 못 받는다.
+ */
+export function peekRecordedVideo(): RecordedVideo | null {
+  return pending;
+}

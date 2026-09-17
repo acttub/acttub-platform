@@ -1,16 +1,16 @@
+import Feather from '@expo/vector-icons/Feather';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { weekColors, palette } from '@/constants/palette';
+import { palette } from '@/constants/palette';
 import { api, type ReportRecord } from '@/lib/api';
-import { RecordCard, type RecordMeta } from '@/components/record-card';
-import { buildWeekActivity, weekColorStep } from '@/lib/practice-activity';
-import { loadRecordMeta } from '@/lib/record-meta';
-import { displayNameFor } from '@/lib/display-name';
-import { useAuth } from '@/lib/auth';
-import { getUserName } from '@/lib/profile';
+import { buildWeekActivity } from '@/lib/practice-activity';
+import { rememberPracticeDays } from '@/lib/practice-days';
+import { dismissFeedbackNudge, feedbackNudgeVisible, maybeRequestStoreReview } from '@/lib/feedback-prompts';
+import { useFeedbackSheet } from '@/hooks/use-feedback-sheet';
 import { sortReportsNewestFirst } from '@/lib/report-order';
 import {
   localDate,
@@ -18,48 +18,54 @@ import {
   type AdmissionsResponse,
 } from '@/lib/admissions';
 import { translate as t } from '@/lib/i18n';
-import { StreakBadge, StreakCelebration } from '@/components/streak-badge';
+import { StreakCelebration } from '@/components/streak-badge';
 import {
   readLastSeenStreak,
   shouldCelebrateStreak,
   writeLastSeenStreak,
 } from '@/lib/streak-celebration';
 
-const PREVIEW_COUNT = 2;
+const PREVIEW_COUNT = 3;
+const MASCOT = require('@/assets/images/mascot-home.png');
+/** 연속 연습 스트립의 주황(pen). 팔레트의 amber는 글자용이라 따로 둔다. */
+const STREAK_ORANGE = '#E9A23B';
 
-/** A1. 홈 — 인사말 + AI 코치 카드(=연습 시작) + 연습 활동 + 최근 연습 + 입시 마감. */
+function recentDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
+}
+
+/** A1. 홈 — 히어로(마스코트) + 지금 바로 연습 + 연속 연습 + 최근 연습 + 입시 마감. */
 export default function HomeScreen() {
   const router = useRouter();
-  const { user } = useAuth();
   const [records, setRecords] = useState<ReportRecord[]>([]);
-  const [meta, setMeta] = useState<Record<string, RecordMeta>>({});
-  const [savedName, setSavedName] = useState<string | null>(null);
+  // 연속일·주간 원용 날짜 — 서버 기록 ∪ 기기에 누적된 연습일(지워도 남는다).
+  const [activityDays, setActivityDays] = useState<{ created_at: string }[]>([]);
   const [admissions, setAdmissions] = useState<AdmissionsResponse | null>(null);
   const [celebrateStreak, setCelebrateStreak] = useState<number | null>(null);
+  // 연습 3회 뒤 한 번 뜨는 의견 넛지 / 5회 뒤 한 번 스토어 평점(feedback-prompts).
+  const [nudge, setNudge] = useState(false);
+  const feedback = useFeedbackSheet('home');
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
       api
         .reportHistory()
-        .then(async (r) => {
-          const sorted = sortReportsNewestFirst(r.reports);
+        .then((r) => {
           if (cancelled) return;
-          setRecords(sorted);
-          // 미리보기로 보여줄 카드만 상세를 불러 칩(진단 축·구간)을 채운다.
-          const loaded = await loadRecordMeta(
-            sorted.slice(0, PREVIEW_COUNT).map((item) => item.practice_session_id),
-            (id) => api.getReport(id),
-          );
-          if (!cancelled) setMeta(loaded);
+          setRecords(sortReportsNewestFirst(r.reports));
+          void rememberPracticeDays(r.reports).then((days) => !cancelled && setActivityDays(days));
+          void feedbackNudgeVisible(r.reports.length).then((v) => !cancelled && setNudge(v));
+          void maybeRequestStoreReview(r.reports.length);
         })
         .catch(() => {
-          if (!cancelled) setRecords([]);
+          if (!cancelled) {
+            setRecords([]);
+            void rememberPracticeDays([]).then((days) => !cancelled && setActivityDays(days));
+          }
         });
-      // 설정에서 이름을 바꿀 수 있으니 화면에 돌아올 때마다 다시 읽는다.
-      void getUserName().then((stored) => {
-        if (!cancelled) setSavedName(stored?.trim() || null);
-      });
       return () => {
         cancelled = true;
       };
@@ -87,7 +93,7 @@ export default function HomeScreen() {
     [admissions],
   );
 
-  const { days, weekTotal, streak } = useMemo(() => buildWeekActivity(records), [records]);
+  const { days, streak } = useMemo(() => buildWeekActivity(activityDays), [activityDays]);
 
   // 연속일이 오늘 늘었으면(마지막으로 본 값보다 크면) 딱 한 번 축하한다 (SOMA-479).
   useEffect(() => {
@@ -101,11 +107,8 @@ export default function HomeScreen() {
       cancelled = true;
     };
   }, [streak]);
-  const total = records.length;
 
-  const latest = records[0];
   const recent = records.slice(0, PREVIEW_COUNT);
-  const name = displayNameFor(savedName, user?.email ?? null);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -113,125 +116,127 @@ export default function HomeScreen() {
         <StreakCelebration streak={celebrateStreak} onDone={() => setCelebrateStreak(null)} />
       )}
       <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.helloRow}>
+        {/* 히어로 — 큰 격려 문구 + 마스코트 */}
+        <View style={styles.hero}>
           <View style={styles.flex}>
-            <Text style={styles.hello}>{name ? t('home.helloName', { name }) : t('home.hello')}</Text>
-            <Text style={styles.helloSub}>{t('home.helloSub')}</Text>
+            <Text style={styles.heroTitle}>{t('home.heroTitle')}</Text>
+            <Text style={styles.heroSub}>{t('home.heroSub')}</Text>
           </View>
-          <StreakBadge streak={streak} celebrate={celebrateStreak !== null} />
+          <View style={styles.mascotCol}>
+            <View style={styles.bubble}>
+              <Text style={styles.bubbleText}>{t('home.mascotBubble')}</Text>
+            </View>
+            <Image source={MASCOT} style={styles.mascot} resizeMode="contain" />
+          </View>
         </View>
 
-        {/* AI 코치 카드 — 카드 전체가 '연습 시작' 버튼이다(안에 버튼을 또 두지 않는다). */}
+        {/* 지금 바로 연습하기 — 배너 전체가 버튼 */}
         <Pressable
-          style={({ pressed }) => [styles.coachCard, pressed && styles.coachCardPressed]}
+          style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
           accessibilityRole="button"
           accessibilityLabel={t('home.startA11y')}
           onPress={() => router.push('/upload')}>
-          <Text style={styles.coachLabel}>{t('home.coachLabel')}</Text>
-          <Text style={styles.coachHeadline}>
-            {latest
-              ? t('home.headlineContinue')
-              : t('home.headlineNew')}
-          </Text>
-          <Text style={styles.coachBody} numberOfLines={2}>
-            {latest
-              ? latest.title
-              : t('home.bodyNew')}
-          </Text>
-          <Text style={styles.coachCtaText}>{t('home.cta')}</Text>
+          <View style={styles.ctaPlay}>
+            <Feather name="play" size={18} color={palette.blue} />
+          </View>
+          <View style={styles.flex}>
+            <Text style={styles.ctaTitle}>{t('home.ctaTitle')}</Text>
+            <Text style={styles.ctaSub}>{t('home.ctaSub')}</Text>
+          </View>
+          <Feather name="chevron-right" size={22} color="rgba(255,255,255,0.9)" />
         </Pressable>
 
-        {/* 연습 활동 — 이번 주(월~일) */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>{t('home.activityTitle')}</Text>
-          <Text style={styles.sectionMeta}>{t('home.weekMeta', { count: weekTotal })}</Text>
-        </View>
-        <View style={styles.activityCard}>
-          <View style={styles.week}>
-            {days.map((day) => (
-              <View key={day.key} style={styles.weekDay}>
-                <View
-                  style={[
-                    styles.weekCell,
-                    {
-                      backgroundColor: day.isFuture
-                        ? 'transparent'
-                        : weekColors[weekColorStep(day.count)],
-                    },
-                    day.isFuture && styles.weekCellFuture,
-                    day.isToday && styles.weekCellToday,
-                  ]}
-                  accessibilityLabel={t('home.dayA11y', { day: day.label, count: day.count })}
-                />
-                <Text style={[styles.weekLabel, day.isToday && styles.weekLabelToday]}>
-                  {day.label}
-                </Text>
-              </View>
-            ))}
+        {/* 연속 연습 — 이번 주(월~일). pen: 불꽃 + 라벨, 연습한 날은 주황 원, 나머지는 테두리 원. */}
+        <View style={styles.streakCard}>
+          <View style={styles.streakTop}>
+            <Ionicons name="flame-outline" size={22} color={STREAK_ORANGE} />
+            <Text style={styles.streakLabel}>{t('home.streakCount', { days: streak })}</Text>
           </View>
-          <View style={styles.activityFooter}>
-            {streak >= 1 ? (
-              <View style={styles.streakChip}>
-                <Text style={styles.streak}>{t('home.streak', { days: streak })}</Text>
-              </View>
-            ) : (
-              <Text style={styles.streakEmpty}>
-                {total ? t('home.streakBuilding') : t('home.streakEmpty')}
-              </Text>
-            )}
-            <View style={styles.legend}>
-              <Text style={styles.legendLabel}>{t('home.legendLow')}</Text>
-              {weekColors.map((color) => (
-                <View key={color} style={[styles.legendSwatch, { backgroundColor: color }]} />
-              ))}
-              <Text style={styles.legendLabel}>{t('home.legendHigh')}</Text>
-            </View>
+          <View style={styles.week}>
+            {days.map((day) => {
+              const active = !day.isFuture && day.count > 0;
+              return (
+                <View
+                  key={day.key}
+                  style={[styles.dayCell, active ? styles.dayOn : styles.dayOff]}
+                  accessibilityLabel={t('home.dayA11y', { day: day.label, count: day.count })}>
+                  <Text style={[styles.dayLabel, active ? styles.dayLabelOn : styles.dayLabelOff]}>
+                    {day.label}
+                  </Text>
+                </View>
+              );
+            })}
           </View>
         </View>
 
-        {/* 스탯 */}
-        <View style={styles.statRow}>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{total}</Text>
-            <Text style={styles.statLabel}>{t('home.statPractice')}</Text>
+        {/* 의견 넛지 — 연습 3회 뒤 한 번. 닫든 남기든 다시 안 뜬다. */}
+        {nudge && (
+          <View style={styles.nudge}>
+            <View style={styles.flex}>
+              <Text style={styles.nudgeTitle}>{t('home.feedbackNudgeTitle')}</Text>
+              <Text style={styles.nudgeBody}>{t('home.feedbackNudgeBody')}</Text>
+            </View>
+            <Pressable
+              style={styles.nudgeCta}
+              onPress={() => {
+                setNudge(false);
+                void dismissFeedbackNudge();
+                feedback.open();
+              }}
+              accessibilityRole="button">
+              <Text style={styles.nudgeCtaText}>{t('home.feedbackNudgeCta')}</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                setNudge(false);
+                void dismissFeedbackNudge();
+              }}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.close')}>
+              <Feather name="x" size={18} color={palette.textFaint} />
+            </Pressable>
           </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{streak}</Text>
-            <Text style={styles.statLabel}>{t('home.statStreakDays')}</Text>
-          </View>
-        </View>
+        )}
 
         {/* 최근 연습 */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>{t('home.recentTitle')}</Text>
-          {records.length > 0 && (
-            <Pressable onPress={() => router.push('/history')}>
-              <Text style={styles.sectionLink}>{t('common.viewAll')}</Text>
-            </Pressable>
-          )}
+          {/* 기록이 없어도 늘 보인다 — 전체 보기(A1.1)엔 대본 리딩 녹음도 함께 쌓인다. */}
+          <Pressable onPress={() => router.push('/history')}>
+            <Text style={styles.sectionLink}>{t('common.viewAll')} ›</Text>
+          </Pressable>
         </View>
         {recent.length === 0 ? (
           <View style={styles.emptyCard}>
-            <Text style={styles.emptyText}>
-              {t('home.empty')}
-            </Text>
+            <Text style={styles.emptyText}>{t('home.empty')}</Text>
           </View>
         ) : (
-          recent.map((r) => (
-            <RecordCard
-              key={r.practice_session_id + r.created_at}
-              item={r}
-              meta={meta[r.practice_session_id]}
-              preview
-              onPress={() =>
-                router.push({
-                  pathname: '/report-detail',
-                  params: { practiceSessionId: r.practice_session_id },
-                })
-              }
-            />
-          ))
+          <View style={styles.recentList}>
+            {recent.map((r) => (
+              <Pressable
+                key={r.practice_session_id + r.created_at}
+                style={({ pressed }) => [styles.recentRow, pressed && styles.recentRowPressed]}
+                onPress={() =>
+                  router.push({
+                    pathname: '/report-detail',
+                    params: { practiceSessionId: r.practice_session_id },
+                  })
+                }>
+                <View style={styles.recentIcon}>
+                  <Feather name="film" size={17} color={palette.blue} />
+                </View>
+                <View style={styles.flex}>
+                  <Text style={styles.recentTitle} numberOfLines={1}>{r.title}</Text>
+                  <View style={styles.recentMeta}>
+                    <View style={styles.recentDot} />
+                    <Text style={styles.recentMetaText}>{recentDate(r.created_at)}</Text>
+                  </View>
+                </View>
+                <Feather name="chevron-right" size={16} color={palette.checkOff} />
+              </Pressable>
+            ))}
+          </View>
         )}
 
         {/* 입시 마감 — 실기 일정은 놓치면 1년을 기다린다. 임박한 둘만 띄운다. */}
@@ -240,7 +245,7 @@ export default function HomeScreen() {
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>{t('home.admissionsTitle')}</Text>
               <Pressable onPress={() => router.push('/admissions')}>
-                <Text style={styles.sectionLink}>{t('common.viewAll')}</Text>
+                <Text style={styles.sectionLink}>{t('common.viewAll')} ›</Text>
               </Pressable>
             </View>
             <Pressable
@@ -270,20 +275,135 @@ export default function HomeScreen() {
           </>
         )}
       </ScrollView>
+      {feedback.element}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  // 바로 위 '최근 연습'의 RecordCard와 같은 상자여야 한 화면처럼 보인다
-  // (radius 20 · padding 18 · marginBottom 12 · 같은 그림자).
+  container: { paddingHorizontal: 20, paddingTop: 28, paddingBottom: 140 },
+  flex: { flex: 1 },
+
+  hero: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingTop: 12 },
+  heroTitle: { fontSize: 26, fontWeight: '800', color: palette.text, lineHeight: 34 },
+  heroSub: { fontSize: 13, fontWeight: '600', color: palette.textDim, lineHeight: 20, marginTop: 12 },
+  mascotCol: { width: 118, alignItems: 'center', gap: 4 },
+  bubble: {
+    backgroundColor: palette.card,
+    borderColor: palette.border,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  bubbleText: { fontSize: 11.5, fontWeight: '700', color: palette.textDim, textAlign: 'center', lineHeight: 16 },
+  mascot: { width: 96, height: 108 },
+
+  cta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: palette.blue,
+    borderRadius: 18,
+    padding: 16,
+    marginTop: 20,
+  },
+  ctaPressed: { opacity: 0.9 },
+  ctaPlay: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ctaTitle: { fontSize: 16, fontWeight: '800', color: '#FFFFFF' },
+  ctaSub: { fontSize: 12.5, fontWeight: '600', color: 'rgba(255,255,255,0.9)', marginTop: 3 },
+
+  streakCard: {
+    backgroundColor: palette.card,
+    borderRadius: 18,
+    padding: 16,
+    marginTop: 12,
+    shadowColor: '#191F28',
+    shadowOpacity: 0.06,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 1,
+  },
+  streakTop: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
+  streakLabel: { fontSize: 16, fontWeight: '800', color: palette.text },
+  week: { flexDirection: 'row', justifyContent: 'space-between' },
+  dayCell: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayOn: { backgroundColor: STREAK_ORANGE },
+  dayOff: { borderWidth: 1.5, borderColor: palette.border },
+  dayLabel: { fontSize: 13, fontWeight: '700' },
+  dayLabelOn: { color: '#FFFFFF' },
+  dayLabelOff: { color: palette.textFaint },
+
+  nudge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: palette.blueSoft,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginTop: 16,
+  },
+  nudgeTitle: { fontSize: 14, fontWeight: '800', color: palette.blueDeep },
+  nudgeBody: { fontSize: 12, color: palette.textDim, marginTop: 2 },
+  nudgeCta: { backgroundColor: palette.blue, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
+  nudgeCtaText: { fontSize: 12.5, fontWeight: '800', color: '#FFFFFF' },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    marginTop: 26,
+    marginBottom: 12,
+  },
+  sectionTitle: { fontSize: 16, fontWeight: '800', color: palette.text },
+  sectionLink: { fontSize: 13, fontWeight: '600', color: palette.blue },
+
+  recentList: { gap: 8 },
+  recentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: palette.card,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  recentRowPressed: { opacity: 0.85 },
+  recentIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: palette.blueSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recentTitle: { fontSize: 14.5, fontWeight: '700', color: palette.text },
+  recentMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  recentDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: palette.blue },
+  recentMetaText: { fontSize: 12, fontWeight: '500', color: palette.textFaint },
+
+  emptyCard: { backgroundColor: palette.bgSoft, borderRadius: 16, padding: 20 },
+  emptyText: { fontSize: 13, color: palette.textDim, lineHeight: 20, textAlign: 'center' },
+
   admissionCard: {
     backgroundColor: palette.card,
-    borderRadius: 20,
-    paddingHorizontal: 20,
+    borderRadius: 18,
+    paddingHorizontal: 18,
     paddingVertical: 6,
-    marginBottom: 12,
     shadowColor: '#191F28',
     shadowOpacity: 0.06,
     shadowRadius: 20,
@@ -304,93 +424,4 @@ const styles = StyleSheet.create({
   admissionUni: { fontSize: 15, fontWeight: '700', color: palette.text },
   admissionDept: { marginTop: 4, fontSize: 12, fontWeight: '500', color: palette.textFaint, lineHeight: 17 },
   admissionLabel: { fontSize: 11, fontWeight: '700', color: palette.textFaint },
-  container: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 140 },
-  helloRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  flex: { flex: 1 },
-  hello: { fontSize: 14, color: palette.textDim, marginTop: 8 },
-  helloSub: { fontSize: 22, fontWeight: '800', color: palette.text, marginTop: 4, lineHeight: 30 },
-  coachCard: {
-    backgroundColor: palette.navy,
-    borderRadius: 20,
-    padding: 22,
-    marginTop: 20,
-  },
-  coachCardPressed: { opacity: 0.85 },
-  coachLabel: { fontSize: 12, fontWeight: '700', color: '#8FA5FF', marginBottom: 10 },
-  coachHeadline: { fontSize: 18, fontWeight: '800', color: '#FFFFFF', lineHeight: 26 },
-  coachBody: { fontSize: 13, color: '#9FB0C9', lineHeight: 20, marginTop: 10 },
-  coachCtaText: { color: '#8FA5FF', fontSize: 14, fontWeight: '800', marginTop: 18 },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    marginTop: 28,
-    marginBottom: 12,
-  },
-  sectionTitle: { fontSize: 16, fontWeight: '800', color: palette.text },
-  sectionMeta: { fontSize: 12, color: palette.textFaint },
-  sectionLink: { fontSize: 13, fontWeight: '600', color: palette.blue },
-  activityCard: {
-    backgroundColor: palette.card,
-    borderRadius: 20,
-    padding: 18,
-    shadowColor: '#191F28',
-    shadowOpacity: 0.06,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 1,
-  },
-  week: { flexDirection: 'row', gap: 5 },
-  weekDay: { flex: 1, alignItems: 'center', gap: 4 },
-  weekCell: {
-    width: '100%',
-    aspectRatio: 1, // 요일 칸은 정사각형
-    borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  weekCellFuture: { borderWidth: 1, borderColor: palette.border, borderStyle: 'dashed' },
-  weekCellToday: { borderWidth: 2, borderColor: palette.blue },
-  weekLabel: { fontSize: 11, color: palette.textFaint },
-  weekLabelToday: { color: palette.blue, fontWeight: '800' },
-  activityFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 14,
-  },
-  legend: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  legendLabel: { fontSize: 10, color: palette.textFaint, marginHorizontal: 2 },
-  legendSwatch: { width: 12, height: 12, borderRadius: 4 },
-  streakChip: {
-    backgroundColor: palette.amberSoft,
-    borderRadius: 999,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-  },
-  streak: { fontSize: 12, fontWeight: '800', color: '#B45309' },
-  streakEmpty: { fontSize: 12, color: palette.textFaint },
-  statRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: palette.card,
-    borderRadius: 20,
-    paddingVertical: 20,
-    marginTop: 12,
-    shadowColor: '#191F28',
-    shadowOpacity: 0.06,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 1,
-  },
-  statItem: { flex: 1, alignItems: 'center', gap: 4 },
-  statDivider: { width: 1, height: 28, backgroundColor: palette.border },
-  statValue: { fontSize: 18, fontWeight: '800', color: palette.blue },
-  statLabel: { fontSize: 11, color: palette.textDim },
-  emptyCard: {
-    backgroundColor: palette.bgSoft,
-    borderRadius: 16,
-    padding: 20,
-  },
-  emptyText: { fontSize: 13, color: palette.textDim, lineHeight: 20, textAlign: 'center' },
 });

@@ -45,7 +45,8 @@ export function appVersionLabel(): string {
 
 export function oneLinerPayload(input: {
   text: string;
-  screen: 'coach' | 'report';
+  /** coach·report = 나갈 때 한줄평, settings·home = 의견 시트, report_inline = 노트 미니 평가 */
+  screen: 'coach' | 'report' | 'settings' | 'home' | 'report_inline';
   sessionId: string | null | undefined;
   userId: string | null | undefined;
   contactEmail?: string | null;

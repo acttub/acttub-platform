@@ -128,7 +128,7 @@ test('탈퇴 화면 문구는 글이 남는다는 것을 숨기지 않는다', (
 });
 
 test('설정에서 탈퇴로 들어갈 수 있다', () => {
-  const settings = readSource('app/(tabs)/settings.tsx');
+  const settings = readSource('app/settings.tsx');
   const layout = readSource('app/_layout.tsx');
 
   assert.match(settings, /settings\.withdraw/);
