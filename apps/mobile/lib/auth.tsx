@@ -18,7 +18,7 @@ import {
 } from '@/lib/api';
 import { signOutBestEffort } from '@/lib/auth-session';
 import { createConsentEntrySession } from '@/lib/consent-entry';
-import { getUserName, saveUserName } from '@/lib/profile';
+import { getUserName, saveUserName, setProviderNameHint } from '@/lib/profile';
 import { clearLocalAccountData } from '@/lib/local-account-data';
 import { detachPushFromAccount, syncPushRegistration } from '@/lib/notifications';
 import {
@@ -126,14 +126,19 @@ async function getGoogleIdToken(): Promise<GoogleSignInResult | null> {
   return { idToken, name: profile?.givenName ?? profile?.name ?? null };
 }
 
-/** 아직 저장된 이름이 없을 때만 로그인 제공자가 준 이름을 채운다(사용자가 고친 이름을 덮지 않게). */
+/**
+ * 로그인 제공자가 준 이름은 저장하지 않고 힌트로만 든다.
+ *
+ * 바로 저장하면 needsProfileSetup 이 "이름 있음 = 설정 끝"으로 읽어 새 가입자에게 프로필
+ * 설정(A0.2)이 안 떴다. 이미 저장된 이름이 있으면(기존 유저) 힌트도 두지 않는다.
+ */
 async function rememberProviderName(name: string | null | undefined): Promise<void> {
   const trimmed = name?.trim();
   if (!trimmed) return;
   try {
     const existing = await getUserName();
     if (existing?.trim()) return;
-    await saveUserName(trimmed);
+    setProviderNameHint(trimmed);
   } catch {
     // 이름은 부가정보라 실패해도 로그인을 막지 않는다.
   }

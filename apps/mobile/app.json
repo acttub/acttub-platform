@@ -22,7 +22,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#0182F9",
+        "backgroundColor": "#298BFE",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -110,7 +110,12 @@
           "autoLogAppEventsEnabled": true,
           "advertiserIDCollectionEnabled": true
         }
-      ]
+      ],
+      "expo-audio",
+      "onnxruntime-react-native",
+      "./plugins/with-ort-16kb.js",
+      "./plugins/with-ort-newarch.js",
+      "./plugins/with-ort-register.js"
     ],
     "experiments": {
       "typedRoutes": true,

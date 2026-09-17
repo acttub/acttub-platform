@@ -28,6 +28,17 @@ class SceneContextConversationEvalTest {
         evaluate("confusion-help", List.of("모르겠어", "뭔 소리야?", "그래서 뭐 어쩌라고", "그만"));
     }
 
+    @Test void unknownReasonStaysWithSceneAnalysisBeforeDelivery() throws Exception {
+        evaluate("analysis-unknown", List.of("ㅁㄹ", "상대가 이제 자기 집으로 돌아가겠다고 했어요.",
+                "상대는 헤어진 연인이고 내 집 열쇠를 아직 갖고 있어요. 나가는 건 괜찮지만 열쇠는 돌려받으려는 거예요.", "여기까지"));
+    }
+
+    @Test void clearAnalysisCanProceedToDeliveryWithoutRepeatingBasics() throws Exception {
+        evaluate("analysis-ready", List.of(
+                "헤어진 연인에게 말해요. 상대가 자기 집으로 돌아간다고 해서, 내 집 열쇠를 돌려받으려고요. 지난번에는 그냥 가버렸어요. 붙잡는 게 아니라 이번에는 돌려달라고 요구하는 거예요.",
+                "그래서 지금 연기에서는 그 요구가 어떻게 들려요?", "여기까지"));
+    }
+
     private void evaluate(String name, List<String> replies) throws Exception {
         ObjectNode chunk = (ObjectNode) StructuredJson.resource("/coaching/chunk.json").deepCopy();
         var utterances = chunk.putArray("utterances");
@@ -83,6 +94,19 @@ class SceneContextConversationEvalTest {
                 result = engine.reply(result.session(), reply, UUID.randomUUID());
                 messages.addObject().put("role", "ai").put("text", result.reply().message());
                 assertThat(result.reply().message()).doesNotContain("지금은 이 구간을 더 확인하기 어려워요", "기대답변");
+                if (name.equals("analysis-unknown") && (reply.equals(replies.get(0)) || reply.equals(replies.get(1)))) {
+                    // In this fixture, neither uncertainty nor the preceding event explains the speaker's reason.
+                    assertThat(OpeningQuestion.questionCount(result.reply().message())).isLessThanOrEqualTo(1);
+                    assertThat(result.reply().message()).doesNotContain("단호", "음량", "목소리", "속도", "짧게 끊");
+                }
+                if (reply.equals("ㅁㄹ") || reply.equals("모르겠어") || reply.equals("뭔 소리야?")) {
+                    assertThat(result.session().coachingState().path("last_reply").path("move").asText())
+                            .isIn("explain", "clarify", "simplify");
+                    assertThat(result.reply().message()).doesNotContain("말해보세요", "기다려보세요", "잡아보세요", "기다리세요");
+                }
+                if (name.equals("purpose-correction") && (reply.contains("못 나가게 하려는 건 아니고") || reply.equals("그래서 어떻게 하면 돼?"))) {
+                    assertThat(result.reply().message()).doesNotContain("앞의 두 말은 상대를 붙잡는", "앞의 두 문장은 상대를 멈춰");
+                }
                 // An in-scene objective must not silently become the actor's training goal.
                 assertThat(result.session().coachingState().path("context").path("direction").isNull()).isTrue();
             }

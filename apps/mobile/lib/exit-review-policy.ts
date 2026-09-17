@@ -7,7 +7,8 @@
 
 import { translate } from './i18n.ts';
 
-export type ExitReviewTrigger = 'leave' | 'finish';
+/** feedback = 설정·홈에서 사용자가 스스로 여는 시트. 한 번만 묻기 규칙과 무관하다. */
+export type ExitReviewTrigger = 'leave' | 'finish' | 'feedback';
 
 export const EXIT_REVIEW_MAX_LENGTH = 100;
 
@@ -24,16 +25,19 @@ export type ExitReviewCopy = {
 };
 
 export function exitReviewCopy(trigger: ExitReviewTrigger): ExitReviewCopy {
+  const feedback = trigger === 'feedback';
   return {
-    title: translate('exitReview.title'),
-    subtitle: translate('exitReview.subtitle'),
+    title: translate(feedback ? 'exitReview.feedbackTitle' : 'exitReview.title'),
+    subtitle: translate(feedback ? 'exitReview.feedbackSubtitle' : 'exitReview.subtitle'),
     placeholder: translate('exitReview.placeholder'),
     submit:
       trigger === 'finish'
         ? translate('exitReview.submitFinish')
-        : translate('exitReview.submitLeave'),
-    skip: translate('exitReview.skip'),
-    notice: translate('exitReview.notice'),
+        : feedback
+          ? translate('exitReview.submitFeedback')
+          : translate('exitReview.submitLeave'),
+    skip: translate(feedback ? 'exitReview.close' : 'exitReview.skip'),
+    notice: translate(feedback ? 'exitReview.feedbackNotice' : 'exitReview.notice'),
     contactHint: translate('exitReview.contactHint'),
     contactEmailPlaceholder: translate('exitReview.contactEmailPlaceholder'),
     contactPhonePlaceholder: translate('exitReview.contactPhonePlaceholder'),

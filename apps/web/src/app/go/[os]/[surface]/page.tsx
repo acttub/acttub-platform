@@ -12,6 +12,7 @@ const STORE_LINK_SURFACES = [
   "landing_app_section",
   "landing_footer",
   "app_page",
+  "keyword_page",
 ] as const satisfies readonly StoreLinkSurface[];
 const STORE_BY_OS = {
   ios: "app_store",

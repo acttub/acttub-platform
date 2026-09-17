@@ -66,17 +66,6 @@ const REPORT: ExpressionReport = {
   source_handoff_ids: { analysis: null, expression: 'preview' },
 };
 
-/** 업로드 대기물만 채운다 — 막히는 지점 화면부터 보고 싶을 때. */
-export function seedPendingUpload(videoUri = '') {
-  setPendingUpload({
-    scene: SCENE,
-    video: { uri: videoUri, name: 'take_03.mov', mimeType: 'video/mp4' },
-    durationMs: 72_000,
-    blockage: null,
-    continuedFrom: null,
-  });
-}
-
 /** 분석까지 지난 상태. 질문 대화·분석 결과 화면이 이 상태를 읽는다. */
 export function seedPractice(options: { withReport?: boolean; withTurns?: boolean } = {}) {
   setPendingUpload({
@@ -84,6 +73,7 @@ export function seedPractice(options: { withReport?: boolean; withTurns?: boolea
     video: { uri: '', name: 'take_03.mov', mimeType: 'video/mp4' },
     durationMs: 72_000,
     blockage: BLOCKAGE,
+    theory: null,
     continuedFrom: null,
   });
   startPractice({

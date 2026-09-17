@@ -28,6 +28,11 @@ function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
 }
 
+/**
+ * A0.1 동의 — pen 대로 문서마다 한 줄(체크 · [필수]/[선택] 제목 · 화살표), 아래에 "전체 동의"와
+ * "결정 저장하기". 줄을 누르면 동의가 토글되고, 화살표를 누르면 본문이 펼쳐진다.
+ * 제출·재검증 로직은 종전 그대로(consent-entry-submission).
+ */
 export default function ConsentScreen() {
   const { status, consentEntry, refreshConsentEntry } = useAuth();
   const [choices, setChoices] = useState<Record<string, ConsentChoice>>({});
@@ -44,19 +49,18 @@ export default function ConsentScreen() {
     () => (entry ? documentsForConsentEntry(entry) : []),
     [entry],
   );
+  // 필수를 먼저, 선택을 뒤에 — 한 목록으로 보여준다.
+  const ordered = useMemo(
+    () => [...documents.filter((d) => d.required), ...documents.filter((d) => !d.required)],
+    [documents],
+  );
   const choiceMap = useMemo(
     () => new Map(Object.entries(choices)),
     [choices],
   );
-  const requiredDocuments = useMemo(
-    () => documents.filter((document) => document.required),
-    [documents],
-  );
-  const optionalDocuments = useMemo(
-    () => documents.filter((document) => !document.required),
-    [documents],
-  );
   const canProceed = canSubmitConsentDecisions(documents, choiceMap);
+  const allGranted =
+    documents.length > 0 && documents.every((d) => choices[d.id] === 'granted');
 
   useEffect(() => {
     setChoices({});
@@ -65,9 +69,34 @@ export default function ConsentScreen() {
     setError(null);
   }, [entry]);
 
-  const choose = (documentId: string, choice: ConsentChoice) => {
+  const locked = (id: string) => busy || completedDocumentIds.has(id);
+
+  const toggle = (document: ConsentEntryDocument) => {
+    if (locked(document.id)) return;
+    setChoices((current) => {
+      const now = current[document.id];
+      const next = { ...current };
+      if (document.required) {
+        if (now === 'granted') delete next[document.id];
+        else next[document.id] = 'granted';
+      } else {
+        next[document.id] = now === 'granted' ? 'declined' : 'granted';
+      }
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
     if (busy) return;
-    setChoices((current) => ({ ...current, [documentId]: choice }));
+    setChoices((current) => {
+      const next = { ...current };
+      for (const d of documents) {
+        if (completedDocumentIds.has(d.id)) continue;
+        if (allGranted) delete next[d.id];
+        else next[d.id] = 'granted';
+      }
+      return next;
+    });
   };
 
   const rememberCompletedChoices = async (documentIds: readonly string[]) => {
@@ -123,72 +152,38 @@ export default function ConsentScreen() {
     setBusy(false);
   };
 
-  const renderDocument = (document: ConsentEntryDocument) => {
-    const choice = choices[document.id];
-    const completed = completedDocumentIds.has(document.id);
+  const renderRow = (document: ConsentEntryDocument) => {
+    const granted = choices[document.id] === 'granted';
+    const declined = choices[document.id] === 'declined';
+    const isLocked = locked(document.id);
+    const open = !!expanded[document.id];
     return (
-      <View key={document.id} style={styles.docCard}>
-        <View style={styles.docHead}>
-          <Text style={styles.docTitle}>{document.title}</Text>
+      <View key={document.id}>
+        <Pressable
+          style={[styles.row, isLocked && styles.rowLocked]}
+          onPress={() => toggle(document)}
+          disabled={isLocked}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: granted, disabled: isLocked }}>
+          <Feather
+            name={declined ? 'x' : 'check'}
+            size={18}
+            color={granted ? palette.blue : declined ? palette.danger : palette.checkOff}
+          />
+          <Text style={[styles.rowLabel, granted && styles.rowLabelOn]} numberOfLines={1}>
+            {t(document.required ? 'consent.requiredTag' : 'consent.optionalTag')} {document.title}
+          </Text>
           <Pressable
-            hitSlop={8}
+            hitSlop={10}
             onPress={() =>
-              setExpanded((current) => ({
-                ...current,
-                [document.id]: !current[document.id],
-              }))
-            }>
-            <Text style={styles.viewLink}>
-              {expanded[document.id] ? t('common.fold') : t('common.view')}
-            </Text>
+              setExpanded((current) => ({ ...current, [document.id]: !current[document.id] }))
+            }
+            accessibilityRole="button"
+            accessibilityLabel={open ? t('common.fold') : t('common.view')}>
+            <Feather name={open ? 'chevron-down' : 'chevron-right'} size={18} color={palette.checkOff} />
           </Pressable>
-        </View>
-
-        {document.required ? (
-          <Pressable
-            style={[
-              styles.requiredChoice,
-              (completed || busy) && styles.choiceDisabled,
-            ]}
-            onPress={() => choose(document.id, 'granted')}
-            disabled={completed || busy}
-            accessibilityRole="checkbox"
-            accessibilityState={{
-              checked: choice === 'granted',
-              disabled: completed || busy,
-            }}>
-            <View style={[styles.check, choice === 'granted' && styles.checkOn]}>
-              {choice === 'granted' && <Feather name="check" size={14} color="#FFFFFF" />}
-            </View>
-            <Text style={styles.choiceLabel}>{t('consent.acceptRequired')}</Text>
-          </Pressable>
-        ) : (
-          <View style={styles.optionalChoices}>
-            {(['granted', 'declined'] as const).map((candidate) => {
-              const selected = choice === candidate;
-              return (
-                <Pressable
-                  key={candidate}
-                  style={[
-                    styles.choiceButton,
-                    selected && styles.choiceButtonSelected,
-                    (completed || busy) && styles.choiceDisabled,
-                  ]}
-                  onPress={() => choose(document.id, candidate)}
-                  disabled={completed || busy}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected, disabled: completed || busy }}>
-                  <Text style={[styles.choiceButtonText, selected && styles.choiceButtonTextSelected]}>
-                    {candidate === 'granted' ? t('consent.accept') : t('consent.decline')}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        )}
-
-        {completed && <Text style={styles.saved}>{t('common.saved')}</Text>}
-        {expanded[document.id] && (
+        </Pressable>
+        {open && (
           <View style={styles.docBody}>
             <Markdown source={document.body} variant="compact" />
           </View>
@@ -232,36 +227,40 @@ export default function ConsentScreen() {
       ) : (
         <>
           <ScrollView contentContainerStyle={styles.list}>
-            {requiredDocuments.length > 0 && (
-              <Text style={styles.sectionTitle}>{t('consent.required')}</Text>
+            <Text style={styles.sectionTitle}>{t('consent.itemsLabel')}</Text>
+            {ordered.map(renderRow)}
+            {documents.some((d) => !d.required) && (
+              <Text style={styles.sectionHint}>{t('consent.optionalHint')}</Text>
             )}
-            {requiredDocuments.map(renderDocument)}
-
-            {optionalDocuments.length > 0 && (
-              <>
-                <Text style={styles.sectionTitle}>{t('consent.optional')}</Text>
-                <Text style={styles.sectionHint}>{t('consent.optionalHint')}</Text>
-              </>
-            )}
-            {optionalDocuments.map(renderDocument)}
           </ScrollView>
 
-          {error && <Text style={styles.error}>{error}</Text>}
-          <Pressable
-            style={[
-              styles.cta,
-              ((!canProceed && !verificationOnly) || busy) && styles.ctaDisabled,
-            ]}
-            onPress={() => void (verificationOnly ? reload() : proceed())}
-            disabled={(!canProceed && !verificationOnly) || busy}>
-            {busy ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.ctaText}>
-                {verificationOnly ? t('consent.verifyAgain') : t('consent.cta')}
-              </Text>
-            )}
-          </Pressable>
+          <View style={styles.footer}>
+            {error && <Text style={styles.error}>{error}</Text>}
+            <Pressable
+              style={[styles.allRow, allGranted && styles.allRowOn]}
+              onPress={toggleAll}
+              disabled={busy}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: allGranted }}>
+              <Feather name="check-circle" size={20} color={allGranted ? palette.blue : palette.checkOff} />
+              <Text style={[styles.allLabel, allGranted && styles.allLabelOn]}>{t('consent.allAgreeShort')}</Text>
+            </Pressable>
+            <Pressable
+              style={[
+                styles.cta,
+                ((!canProceed && !verificationOnly) || busy) && styles.ctaDisabled,
+              ]}
+              onPress={() => void (verificationOnly ? reload() : proceed())}
+              disabled={(!canProceed && !verificationOnly) || busy}>
+              {busy ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.ctaText}>
+                  {verificationOnly ? t('consent.verifyAgain') : t('consent.cta')}
+                </Text>
+              )}
+            </Pressable>
+          </View>
         </>
       )}
     </SafeAreaView>
@@ -270,52 +269,39 @@ export default function ConsentScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  header: { paddingHorizontal: 24, paddingTop: 16, paddingBottom: 8 },
+  header: { paddingHorizontal: 24, paddingTop: 24, paddingBottom: 8 },
   title: { fontSize: 24, fontWeight: '800', color: palette.text },
   subtitle: { fontSize: 14, color: palette.textDim, marginTop: 6, lineHeight: 20 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
-  list: { padding: 20, gap: 10 },
-  sectionTitle: { fontSize: 13, fontWeight: '800', color: palette.textDim, marginTop: 14 },
-  sectionHint: { fontSize: 12, color: palette.textFaint, marginTop: -4, marginBottom: 2 },
-  docCard: {
-    backgroundColor: palette.card,
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 14,
-    padding: 14,
+  list: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 16 },
+  sectionTitle: { fontSize: 12.5, fontWeight: '800', color: palette.textDim, marginBottom: 6 },
+  sectionHint: { fontSize: 12, color: palette.textFaint, marginTop: 10 },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: palette.borderSoft,
   },
-  docHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  docTitle: { flex: 1, fontSize: 14, color: palette.text, fontWeight: '600' },
-  viewLink: { fontSize: 13, color: palette.textDim, textDecorationLine: 'underline' },
-  requiredChoice: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  check: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: palette.textFaint,
+  rowLocked: { opacity: 0.6 },
+  rowLabel: { flex: 1, fontSize: 15, fontWeight: '600', color: palette.textDim },
+  rowLabelOn: { color: palette.text },
+  docBody: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: palette.borderSoft },
+  footer: { paddingHorizontal: 20, paddingBottom: 16, gap: 12 },
+  allRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: palette.bgSubtle,
+    borderRadius: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
   },
-  checkOn: { backgroundColor: palette.blue, borderColor: palette.blue },
-  choiceLabel: { color: palette.text, fontSize: 14, fontWeight: '600' },
-  optionalChoices: { flexDirection: 'row', gap: 8 },
-  choiceButton: {
-    flex: 1,
-    alignItems: 'center',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: palette.border,
-    paddingVertical: 11,
-  },
-  choiceButtonSelected: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
-  choiceButtonText: { color: palette.textDim, fontSize: 14, fontWeight: '700' },
-  choiceButtonTextSelected: { color: palette.blue },
-  choiceDisabled: { opacity: 0.6 },
-  saved: { color: palette.blue, fontSize: 12, fontWeight: '700' },
-  docBody: { paddingTop: 12, borderTopWidth: 1, borderTopColor: palette.border },
-  error: { color: palette.danger, textAlign: 'center', paddingHorizontal: 20, paddingBottom: 8 },
+  allRowOn: { backgroundColor: palette.blueSoft },
+  allLabel: { fontSize: 15, fontWeight: '800', color: palette.textDim },
+  allLabelOn: { color: palette.blueDeep },
+  error: { color: palette.danger, textAlign: 'center', paddingHorizontal: 4 },
   retry: { paddingHorizontal: 16, paddingVertical: 8 },
   retryText: { color: palette.blue, fontSize: 14, fontWeight: '700' },
   cta: {
@@ -323,7 +309,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 17,
     alignItems: 'center',
-    margin: 20,
   },
   ctaDisabled: { opacity: 0.4 },
   ctaText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },

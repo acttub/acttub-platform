@@ -19,6 +19,7 @@ import { createOrReuseReport } from '@/lib/report-flow';
 import { palette } from '@/constants/palette';
 import { Markdown } from '@/components/markdown';
 import { PracticeNoteBody } from '@/components/practice-note';
+import { ReportRating } from '@/components/report-rating';
 import { reportDisplay } from '@/lib/report-display';
 import { translate as t } from '@/lib/i18n';
 
@@ -29,7 +30,10 @@ import { translate as t } from '@/lib/i18n';
  */
 export default function ReportScreen() {
   const router = useRouter();
-  const practice = getPractice();
+  // 마운트 때 한 번만 읽는다. 마치기에서 clearPractice()를 부른 직후(한줄평 시트가 닫히며)
+  // 화면이 한 번 더 그려지는데, 그때 스토어를 다시 읽으면 null이라 practice.scene에서
+  // 죽었다(릴리스에선 앱이 그대로 꺼진다). 화면 생애 동안 같은 연습을 붙든다.
+  const [practice] = useState(() => getPractice());
   const exitReview = useExitReview('finish', 'report', practice?.practiceSessionId);
   const [report, setReport] = useState<PracticeReport | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -200,6 +204,9 @@ export default function ReportScreen() {
             </Section>
 
         </>}
+
+            {/* 세션 맥락이 붙은 미니 평가 — 👍/👎 + 한 줄(선택). 연습 노트에도 붙는다. */}
+            <ReportRating sessionId={practice.practiceSessionId} />
 
             {/* 긴 문구가 반쪽 버튼에서 줄바꿈으로 깨져서 세로로 쌓는다(SOMA-444). */}
             <View style={styles.buttonRow}>

@@ -1,10 +1,24 @@
 import type { Metadata } from "next";
+import type { KeywordPageContent } from "@/features/keyword-pages/types";
 
 const DEFAULT_SITE_URL = "https://acttub.com";
-const DEFAULT_TITLE = "Acttub — 질문으로 다시 보는 연기 연습";
+const DEFAULT_TITLE = "Acttub — AI 연기 코칭, 질문으로 다시 보는 연기 연습";
 
 export const SITE_DESCRIPTION =
-  "내 연기 영상을 올리면 장면 맥락에서 확인한 단서가 질문으로 돌아와요. 질문으로 연기 장면을 다시 생각하는 연습 도구예요.";
+  "AI 연기 코칭 앱 Acttub. 내 연기 영상을 올리면 장면 맥락에서 확인한 단서가 질문으로 돌아와요. 질문으로 연기 장면을 다시 생각하는 연기 연습 도구예요.";
+
+// 검색엔진 소유권 확인 값은 페이지 소스에 그대로 공개되는 값이라 코드에 둔다.
+export const GOOGLE_SITE_VERIFICATION =
+  "zABzA1FHYUFDJR1hJmCKZqAdJDjZ7-Tz_zhWpOZ8hzg";
+export const NAVER_SITE_VERIFICATION =
+  "697b757ca85289cefc70141c0a879284c3ef8563";
+
+export function buildVerification(google: string, naver: string) {
+  return {
+    google,
+    ...(naver ? { other: { "naver-site-verification": naver } } : {}),
+  };
+}
 
 export function resolveSiteUrl(raw?: string): string {
   const candidate =
@@ -42,6 +56,34 @@ export function buildRootMetadata(siteUrl?: string): Metadata {
     },
     twitter: {
       card: "summary_large_image",
+    },
+    verification: buildVerification(
+      GOOGLE_SITE_VERIFICATION,
+      NAVER_SITE_VERIFICATION,
+    ),
+  };
+}
+
+export function buildKeywordPageMetadata(
+  content: Pick<KeywordPageContent, "path" | "title" | "description">,
+  siteUrl?: string,
+): Metadata {
+  const resolvedSiteUrl = resolveSiteUrl(siteUrl);
+  const rootMetadata = buildRootMetadata(resolvedSiteUrl);
+
+  return {
+    ...rootMetadata,
+    title: content.title,
+    description: content.description,
+    alternates: {
+      canonical: content.path,
+    },
+    openGraph: {
+      ...rootMetadata.openGraph,
+      type: "article",
+      url: `${resolvedSiteUrl}${content.path}`,
+      title: `${content.title} | Acttub`,
+      description: content.description,
     },
   };
 }

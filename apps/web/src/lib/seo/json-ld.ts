@@ -1,4 +1,5 @@
 import { APP_STORE_URL, GOOGLE_PLAY_URL } from "../app-download/store-links";
+import type { KeywordPageContent } from "@/features/keyword-pages/types";
 import { resolveSiteUrl, SITE_DESCRIPTION } from "./site-metadata";
 
 function resolveSchemaUrls(siteUrl?: string) {
@@ -6,6 +7,74 @@ function resolveSchemaUrls(siteUrl?: string) {
   return {
     homepageUrl: `${baseUrl}/`,
     organizationId: `${baseUrl}/#org`,
+  };
+}
+
+type KeywordJsonLdContent = Pick<
+  KeywordPageContent,
+  "path" | "description" | "eyebrow" | "h1" | "updatedAt" | "faq"
+>;
+
+export function buildFaqPageJsonLd(
+  content: Pick<KeywordPageContent, "path" | "faq">,
+  siteUrl?: string,
+) {
+  const baseUrl = resolveSiteUrl(siteUrl);
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "@id": `${baseUrl}${content.path}#faq`,
+    mainEntity: content.faq.map((item) => ({
+      "@type": "Question",
+      name: item.question,
+      acceptedAnswer: { "@type": "Answer", text: item.answer },
+    })),
+  };
+}
+
+export function buildKeywordArticleJsonLd(
+  content: KeywordJsonLdContent,
+  siteUrl?: string,
+) {
+  const baseUrl = resolveSiteUrl(siteUrl);
+  const { organizationId } = resolveSchemaUrls(siteUrl);
+  const pageUrl = `${baseUrl}${content.path}`;
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "@id": `${pageUrl}#article`,
+    headline: content.h1,
+    description: content.description,
+    inLanguage: "ko",
+    dateModified: content.updatedAt,
+    mainEntityOfPage: pageUrl,
+    author: { "@id": organizationId },
+    publisher: { "@id": organizationId },
+  };
+}
+
+export function buildBreadcrumbJsonLd(
+  content: Pick<KeywordPageContent, "path" | "eyebrow">,
+  siteUrl?: string,
+) {
+  const baseUrl = resolveSiteUrl(siteUrl);
+  const pageUrl = `${baseUrl}${content.path}`;
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "@id": `${pageUrl}#breadcrumb`,
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "홈", item: `${baseUrl}/` },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: content.eyebrow,
+        item: pageUrl,
+      },
+    ],
   };
 }
 

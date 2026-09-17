@@ -82,12 +82,13 @@ test("Play 주소에는 화면별 utm이 referrer로 붙고 App Store 주소는 
   );
 });
 
-test("go 주소는 스토어와 화면의 8개 조합을 내부 경로로 바꾼다", () => {
+test("go 주소는 스토어와 화면의 조합을 내부 경로로 바꾼다", () => {
   const surfaces = [
     "landing_hero",
     "landing_app_section",
     "landing_footer",
     "app_page",
+    "keyword_page",
   ];
 
   assert.deepEqual(
@@ -104,6 +105,8 @@ test("go 주소는 스토어와 화면의 8개 조합을 내부 경로로 바꾼
       "/go/android/landing_footer",
       "/go/ios/app_page",
       "/go/android/app_page",
+      "/go/ios/keyword_page",
+      "/go/android/keyword_page",
     ],
   );
 });
@@ -123,12 +126,13 @@ test("스토어 배지는 최종 스토어 주소 대신 go 주소를 쓴다", (
   assert.ok(!source.includes("storeHref("));
 });
 
-test("go 주소는 스토어와 화면의 8개 조합을 내부 경로로 바꾼다", () => {
+test("go 주소는 스토어와 화면의 조합을 내부 경로로 바꾼다", () => {
   const surfaces = [
     "landing_hero",
     "landing_app_section",
     "landing_footer",
     "app_page",
+    "keyword_page",
   ];
 
   assert.deepEqual(
@@ -145,6 +149,8 @@ test("go 주소는 스토어와 화면의 8개 조합을 내부 경로로 바꾼
       "/go/android/landing_footer",
       "/go/ios/app_page",
       "/go/android/app_page",
+      "/go/ios/keyword_page",
+      "/go/android/keyword_page",
     ],
   );
 });
