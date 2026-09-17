@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 
 REMOTE_CONFIG = r'''
 import json, subprocess
@@ -36,11 +37,27 @@ def main():
     environment.update(values)
     environment["ACTTUB_COACH_EVAL"] = "1"
     root = Path(__file__).resolve().parents[2]
-    return subprocess.run(
+    completed = subprocess.run(
         ["./gradlew", "test", "--no-daemon", "--rerun-tasks",
          "--tests", "*ResponseSelectionEvalTest", "--tests", "*SceneContextConversationEvalTest",
          "--tests", "*StructuredCoachConversationEvalTest"],
-        cwd=root / "apps/api", env=environment).returncode
+        cwd=root / "apps/api", env=environment)
+    if completed.returncode:
+        return completed.returncode
+    reports = root / "apps/api/build/test-results/test"
+    total = 0
+    for name in ("ResponseSelectionEvalTest", "SceneContextConversationEvalTest", "StructuredCoachConversationEvalTest"):
+        matches = list(reports.glob("TEST-*." + name + ".xml"))
+        if len(matches) != 1:
+            raise SystemExit("Expected live evaluation report is missing: " + name)
+        suite = ET.parse(matches[0]).getroot()
+        if any(int(suite.get(field, "0")) for field in ("skipped", "failures", "errors")):
+            raise SystemExit("Live evaluation must complete without skipped or failed cases: " + name)
+        total += int(suite.get("tests", "0"))
+    if total < 14:
+        raise SystemExit("Live evaluation did not run every required scenario")
+    print("Completed synthetic model evaluations:", total)
+    return 0
 
 if __name__ == "__main__":
     sys.exit(main())

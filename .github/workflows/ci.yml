@@ -24,7 +24,6 @@ permissions:
 
 jobs:
   web:
-    if: ${{ !inputs.live_coach_eval }}
     name: web (lint · typecheck · test · build)
     runs-on: ubuntu-latest
     steps:
@@ -70,7 +69,6 @@ jobs:
   # **잡 이름이 곧 required status check 의 context 라 ruleset 도 함께 갱신해야 합니다** —
   # 옛 이름을 required 로 남겨 두면 영원히 오지 않는 관문이 됩니다.
   api:
-    if: ${{ !inputs.live_coach_eval }}
     name: api (gradle test · Testcontainers)
     runs-on: ubuntu-latest
     defaults:
@@ -154,7 +152,6 @@ jobs:
   # 20초짜리 잡을 몇 분으로 늘리고, tsc 는 typedRoutes 타입(.expo/types, gitignore)이
   # 클린 체크아웃에 없어 실재하는 라우트를 전부 오류로 냅니다.
   mobile:
-    if: ${{ !inputs.live_coach_eval }}
     name: mobile (node --test)
     runs-on: ubuntu-latest
     defaults:
