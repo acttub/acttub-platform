@@ -20,6 +20,12 @@ class DialogueReferencesTest {
         assertThat(encoded.path("source_refs").get(0).asText()).isEqualTo("ref_3");
         assertThat(encoded.path("text").asText()).isEqualTo("인용 " + actor);
         assertThat(refs.fromModel(encoded)).isEqualTo(input);
-        assertThat(refs.fromModel(StructuredJson.MAPPER.getNodeFactory().textNode("unknown_ref")).asText()).isEqualTo("unknown_ref");
+        var response = StructuredJson.MAPPER.createObjectNode().put("message", "ref_2").put("actor_quote", "ref_3");
+        response.putArray("known_refs").add("ref_2").add("unknown_ref");
+        var restored = refs.fromModel(response);
+        assertThat(restored.path("message").asText()).isEqualTo("ref_2");
+        assertThat(restored.path("actor_quote").asText()).isEqualTo("ref_3");
+        assertThat(restored.path("known_refs").get(0).asText()).isEqualTo(actor);
+        assertThat(restored.path("known_refs").get(1).asText()).isEqualTo("unknown_ref");
     }
 }

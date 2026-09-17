@@ -27,20 +27,22 @@ final class DialogueReferences {
         }
     }
 
-    JsonNode toModel(JsonNode value) { return replace(value, encode); }
-    JsonNode fromModel(JsonNode value) { return replace(value, decode); }
+    JsonNode toModel(JsonNode value) { return replace(value, encode, ""); }
+    JsonNode fromModel(JsonNode value) { return replace(value, decode, ""); }
 
-    private JsonNode replace(JsonNode value, Map<String, String> mapping) {
-        if (value.isTextual()) return StructuredJson.MAPPER.getNodeFactory()
+    private JsonNode replace(JsonNode value, Map<String, String> mapping, String field) {
+        boolean reference = field.equals("id") || field.endsWith("_id") || field.endsWith("_ids")
+                || field.endsWith("_ref") || field.endsWith("_refs");
+        if (value.isTextual() && reference) return StructuredJson.MAPPER.getNodeFactory()
                 .textNode(mapping.getOrDefault(value.asText(), value.asText()));
         if (value.isObject()) {
             var result = StructuredJson.MAPPER.createObjectNode();
-            value.fields().forEachRemaining(field -> result.set(field.getKey(), replace(field.getValue(), mapping)));
+            value.fields().forEachRemaining(entry -> result.set(entry.getKey(), replace(entry.getValue(), mapping, entry.getKey())));
             return result;
         }
         if (value.isArray()) {
             var result = StructuredJson.MAPPER.createArrayNode();
-            value.forEach(item -> result.add(replace(item, mapping)));
+            value.forEach(item -> result.add(replace(item, mapping, field)));
             return result;
         }
         return value.deepCopy();
