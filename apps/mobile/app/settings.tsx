@@ -18,6 +18,7 @@ import { useAppDialog } from '@/components/app-dialog';
 import { Markdown } from '@/components/markdown';
 import { palette } from '@/constants/palette';
 import { api, type ConsentEntryDocument } from '@/lib/api';
+import { useFeedbackSheet } from '@/hooks/use-feedback-sheet';
 import { useAuth } from '@/lib/auth';
 import { consentPreferencesForEntry } from '@/lib/consent-entry';
 import { getConsentPrefs, setConsentPref } from '@/lib/consent-prefs';
@@ -51,6 +52,7 @@ export default function SettingsScreen() {
   const [pushOn, setPushOn] = useState(true);
   const [updatingConsentId, setUpdatingConsentId] = useState<string | null>(null);
   const { confirm, alert, dialog } = useAppDialog();
+  const feedback = useFeedbackSheet('settings');
 
   const loadSettings = useCallback(async () => {
     setLoading(true);
@@ -256,6 +258,21 @@ export default function SettingsScreen() {
             </View>
           </View>
 
+          {/* 의견 보내기 — 나갈 때 한 번 묻는 한줄평과 달리 언제든 남길 수 있는 자리. */}
+          <Text style={styles.sectionTitle}>{t('settings.feedbackSection')}</Text>
+          <Pressable style={styles.card} onPress={feedback.open} accessibilityRole="button">
+            <View style={styles.cardRow}>
+              <View style={styles.iconCircle}>
+                <Feather name="message-square" size={18} color={palette.blue} />
+              </View>
+              <View style={styles.cardBody}>
+                <Text style={styles.cardTitle}>{t('settings.feedbackTitle')}</Text>
+                <Text style={styles.cardSub}>{t('settings.feedbackSub')}</Text>
+              </View>
+              <Feather name="chevron-right" size={18} color={palette.checkOff} />
+            </View>
+          </Pressable>
+
           {/* 코치의 기억 — 틀린 내용을 되돌릴 수 있는 유일한 자리. */}
           <Text style={styles.sectionTitle}>{t('settings.memorySection')}</Text>
           <Pressable style={styles.card} onPress={() => router.push('/memory')} accessibilityRole="button">
@@ -308,6 +325,7 @@ export default function SettingsScreen() {
           </Pressable>
         </ScrollView>
       )}
+      {feedback.element}
       {dialog}
     </SafeAreaView>
   );

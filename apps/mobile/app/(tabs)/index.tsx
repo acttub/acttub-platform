@@ -9,6 +9,8 @@ import { palette } from '@/constants/palette';
 import { api, type ReportRecord } from '@/lib/api';
 import { buildWeekActivity } from '@/lib/practice-activity';
 import { rememberPracticeDays } from '@/lib/practice-days';
+import { dismissFeedbackNudge, feedbackNudgeVisible, maybeRequestStoreReview } from '@/lib/feedback-prompts';
+import { useFeedbackSheet } from '@/hooks/use-feedback-sheet';
 import { sortReportsNewestFirst } from '@/lib/report-order';
 import {
   localDate,
@@ -42,6 +44,9 @@ export default function HomeScreen() {
   const [activityDays, setActivityDays] = useState<{ created_at: string }[]>([]);
   const [admissions, setAdmissions] = useState<AdmissionsResponse | null>(null);
   const [celebrateStreak, setCelebrateStreak] = useState<number | null>(null);
+  // 연습 3회 뒤 한 번 뜨는 의견 넛지 / 5회 뒤 한 번 스토어 평점(feedback-prompts).
+  const [nudge, setNudge] = useState(false);
+  const feedback = useFeedbackSheet('home');
 
   useFocusEffect(
     useCallback(() => {
@@ -52,6 +57,8 @@ export default function HomeScreen() {
           if (cancelled) return;
           setRecords(sortReportsNewestFirst(r.reports));
           void rememberPracticeDays(r.reports).then((days) => !cancelled && setActivityDays(days));
+          void feedbackNudgeVisible(r.reports.length).then((v) => !cancelled && setNudge(v));
+          void maybeRequestStoreReview(r.reports.length);
         })
         .catch(() => {
           if (!cancelled) {
@@ -162,6 +169,36 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        {/* 의견 넛지 — 연습 3회 뒤 한 번. 닫든 남기든 다시 안 뜬다. */}
+        {nudge && (
+          <View style={styles.nudge}>
+            <View style={styles.flex}>
+              <Text style={styles.nudgeTitle}>{t('home.feedbackNudgeTitle')}</Text>
+              <Text style={styles.nudgeBody}>{t('home.feedbackNudgeBody')}</Text>
+            </View>
+            <Pressable
+              style={styles.nudgeCta}
+              onPress={() => {
+                setNudge(false);
+                void dismissFeedbackNudge();
+                feedback.open();
+              }}
+              accessibilityRole="button">
+              <Text style={styles.nudgeCtaText}>{t('home.feedbackNudgeCta')}</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                setNudge(false);
+                void dismissFeedbackNudge();
+              }}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel={t('common.close')}>
+              <Feather name="x" size={18} color={palette.textFaint} />
+            </Pressable>
+          </View>
+        )}
+
         {/* 최근 연습 */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>{t('home.recentTitle')}</Text>
@@ -238,6 +275,7 @@ export default function HomeScreen() {
           </>
         )}
       </ScrollView>
+      {feedback.element}
     </SafeAreaView>
   );
 }
@@ -310,6 +348,20 @@ const styles = StyleSheet.create({
   dayLabelOn: { color: '#FFFFFF' },
   dayLabelOff: { color: palette.textFaint },
 
+  nudge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: palette.blueSoft,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginTop: 16,
+  },
+  nudgeTitle: { fontSize: 14, fontWeight: '800', color: palette.blueDeep },
+  nudgeBody: { fontSize: 12, color: palette.textDim, marginTop: 2 },
+  nudgeCta: { backgroundColor: palette.blue, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
+  nudgeCtaText: { fontSize: 12.5, fontWeight: '800', color: '#FFFFFF' },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'flex-end',

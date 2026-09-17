@@ -18,6 +18,7 @@ import { previewVideoSource } from '@/lib/preview-video';
 import { createOrReuseReport } from '@/lib/report-flow';
 import { palette } from '@/constants/palette';
 import { Markdown } from '@/components/markdown';
+import { ReportRating } from '@/components/report-rating';
 import { reportDisplay } from '@/lib/report-display';
 import { translate as t } from '@/lib/i18n';
 
@@ -199,6 +200,9 @@ export default function ReportScreen() {
             <Section label={t('report.secNext')}>
               <Text style={styles.nextTake}>{display.next}</Text>
             </Section>
+
+            {/* 세션 맥락이 붙은 미니 평가 — 👍/👎 + 한 줄(선택). */}
+            <ReportRating sessionId={practice?.practiceSessionId} />
 
             {/* 긴 문구가 반쪽 버튼에서 줄바꿈으로 깨져서 세로로 쌓는다(SOMA-444). */}
             <View style={styles.buttonRow}>
