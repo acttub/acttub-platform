@@ -16,7 +16,7 @@ on:
       eval_suite:
         description: 실제 모델 평가 대상
         type: choice
-        options: [coach, note]
+        options: [coach, note, continuity]
         default: coach
 
 # 같은 PR에 새 커밋이 올라오면 진행 중이던 오래된 실행은 취소.
@@ -205,4 +205,5 @@ jobs:
             apps/api/build/scene-context-eval
             apps/api/build/structured-coach-eval
             apps/api/build/note-continuity-eval
+            apps/api/build/dialogue-continuity-eval
             apps/api/build/reports/tests/test

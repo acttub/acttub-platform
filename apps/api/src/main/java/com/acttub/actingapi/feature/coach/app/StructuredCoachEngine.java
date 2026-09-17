@@ -61,6 +61,7 @@ final class StructuredCoachEngine {
             maxSentences = 2;
         }
         ObjectNode input = input(session, state, actorText, actorId, operationId);
+        input.set("dialogue_progress", DialogueProgress.controls(input));
         ObjectNode view = records.initial(session.observationPack());
         input.set("record_view", view);
         input.put("output_contract", "acttub.layer2_turn.v2");
@@ -91,6 +92,7 @@ final class StructuredCoachEngine {
                     continue;
                 }
                 FocusCoverage.validate(response.path("context_update").path("focus"), session.observationPack(), view);
+                DialogueProgress.validate(response, input.path("dialogue_progress"));
                 ObjectNode next = DialogueState.apply(state, response, deliveredSources(input), input.path("user_message"),
                         coachId, maxChars, maxSentences, finish,
                         input.path("last_exchange").path("coach_message").path("text").asText());
