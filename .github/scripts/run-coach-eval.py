@@ -61,7 +61,7 @@ def main():
         if any(int(suite.get(field, "0")) for field in ("skipped", "failures", "errors")):
             raise SystemExit("Live evaluation must complete without skipped or failed cases: " + name)
         total += int(suite.get("tests", "0"))
-    if total < 14:
+    if total < 16:
         raise SystemExit("Live evaluation did not run every required scenario")
     print("Completed synthetic model evaluations:", total)
     return 0

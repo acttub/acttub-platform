@@ -38,7 +38,11 @@ class ResponseSelectionEvalTest {
             new Scenario("stop", "상대에게 머물러 달라고 부탁하는 선택을 이야기했어요.",
                 "알겠어. 오늘은 여기까지.", List.of("close"), false),
             new Scenario("missing-hand-observation", "상대가 머물기를 바라는 장면이군요.",
-                "맞아. 내 손으로 붙잡는 연기는 영상에서 잘 전달됐어?", List.of("explain", "clarify"), true)
+                "맞아. 내 손으로 붙잡는 연기는 영상에서 잘 전달됐어?", List.of("explain", "clarify"), true),
+            new Scenario("ambiguous-correction", "이 대사는 상대가 떠나지 않기를 바라는 말일 수 있어요.",
+                "내가 실수로 말했어.", List.of("clarify"), true),
+            new Scenario("inner-monologue", "상대에게 가지 말라고 하는 이유가 무엇인가요?",
+                "떠난 사람을 떠올리며 혼잣말하는 장면이에요. 실제 상대는 없어요. 어떻게 연기할지 하나만 알려줘요.", List.of("suggest"), false)
         );
     }
 
@@ -71,6 +75,10 @@ class ResponseSelectionEvalTest {
             assertThat(result.session().coachingState().path("last_reply").path("move").asText()).isIn(scenario.moves());
             if (!scenario.questionAllowed()) assertThat(OpeningQuestion.questionCount(result.reply().message())).isZero();
             if (scenario.name().equals("stop")) assertThat(result.session().status()).isEqualTo("closed");
+            if (scenario.name().equals("missing-hand-observation")) {
+                assertThat(result.reply().message()).doesNotContain("눈썹", "얼굴", "마음은", "목소리");
+                assertThat(result.reply().message()).contains("손");
+            }
         } finally {
             var errors = output.putArray("errors");
             failures.reports().forEach(report -> errors.add(report.failure().getMessage()));
