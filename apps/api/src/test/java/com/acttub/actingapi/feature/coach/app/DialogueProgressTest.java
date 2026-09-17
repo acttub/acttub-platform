@@ -89,6 +89,8 @@ class DialogueProgressTest {
         assertThat(DialogueProgress.controls(input).path("unclear_correction").asBoolean()).isFalse();
     }
     @Test void newInformationAndRequestsAreNotAcknowledgements() {
+        var closing = DialogueProgress.controls(input("무슨 질문이야", "simplify", "?")).put("allow_finish", true);
+        assertThat(DialogueProgress.turnInstruction(closing)).isEmpty();
         assertThat(DialogueProgress.controls(input("인물이 왜 이러는지 모르겠어", "clarify", ""))
                 .path("explain_instead_of_repeating_question").asBoolean()).isFalse();
         assertThat(DialogueProgress.controls(input("ㅇㅇ 어쩌라고", "explain", "ㅇㅇ"))

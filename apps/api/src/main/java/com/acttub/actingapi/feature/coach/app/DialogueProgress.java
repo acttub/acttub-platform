@@ -63,6 +63,7 @@ final class DialogueProgress {
     }
 
     static String turnInstruction(JsonNode progress) {
+        if (progress.path("allow_finish").asBoolean()) return "";
         if (progress.path("explain_instead_of_repeating_question").asBoolean()) {
             return "\n\n[이번 응답에서 가장 먼저 지킬 것]\n"
                     + "배우는 코치 말을 이해하지 못했다. 영상 속 말을 상대에게 어떤 뜻으로 건넬 수 있는지 일상적인 말로 풀이한다. "
