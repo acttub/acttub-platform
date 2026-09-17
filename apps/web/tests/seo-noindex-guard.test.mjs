@@ -30,6 +30,14 @@ function readSource(absolutePath) {
 const INDEXABLE_PAGES = [
   { page: "page.tsx", builder: "buildLandingMetadata" },
   { page: path.join("app", "page.tsx"), builder: "buildAppDownloadMetadata" },
+  {
+    page: path.join("ai-acting-coaching", "page.tsx"),
+    builder: "buildKeywordPageMetadata",
+  },
+  {
+    page: path.join("acting-coaching", "page.tsx"),
+    builder: "buildKeywordPageMetadata",
+  },
 ];
 
 const indexablePagePaths = new Set(

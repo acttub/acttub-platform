@@ -23,10 +23,12 @@ const COPY = {
     result: "결과물",
     terms: "안전 약속",
     app: "앱 다운로드",
+    aiCoaching: "AI 연기 코칭",
+    coaching: "연기 코칭 안내",
   },
   hero: {
     launch: "앱 출시",
-    free: "iOS · Android 무료",
+    free: "AI 연기 코칭 · iOS · Android 무료",
     titleFirst: "연기 영상 올리면",
     titleSecond: "앱이 질문해요",
     subFirst: "연습실에서 찍은 그 자리에서 바로.",
@@ -411,6 +413,18 @@ export default function LandingClient() {
                 <nav className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm font-bold text-[#b0b8c1] md:grid-cols-1">
                   <Link href="/app" className="transition hover:text-white">
                     {COPY.nav.app}
+                  </Link>
+                  <Link
+                    href="/ai-acting-coaching"
+                    className="transition hover:text-white"
+                  >
+                    {COPY.nav.aiCoaching}
+                  </Link>
+                  <Link
+                    href="/acting-coaching"
+                    className="transition hover:text-white"
+                  >
+                    {COPY.nav.coaching}
                   </Link>
                   <a href="#flow" className="transition hover:text-white">
                     {COPY.nav.flow}

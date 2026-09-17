@@ -7,14 +7,20 @@ import "./ts-module-loader.mjs";
 delete process.env.NEXT_PUBLIC_SITE_URL;
 
 const {
+  buildKeywordPageMetadata,
   buildLandingMetadata,
   buildNoindexMetadata,
   buildRootMetadata,
+  buildVerification,
   resolveSiteUrl,
 } = await import("../src/lib/seo/site-metadata.ts");
 
+const { AI_ACTING_COACHING } = await import(
+  "../src/features/keyword-pages/content/ai-acting-coaching.ts"
+);
+
 const description =
-  "내 연기 영상을 올리면 장면 맥락에서 확인한 단서가 질문으로 돌아와요. 질문으로 연기 장면을 다시 생각하는 연습 도구예요.";
+  "AI 연기 코칭 앱 Acttub. 내 연기 영상을 올리면 장면 맥락에서 확인한 단서가 질문으로 돌아와요. 질문으로 연기 장면을 다시 생각하는 연기 연습 도구예요.";
 
 test("사이트 URL은 기본값과 정상 http(s) 주소를 origin으로 정규화한다", () => {
   assert.equal(resolveSiteUrl(), "https://acttub.com");
@@ -43,7 +49,7 @@ test("루트 metadata는 공통 title과 소셜 정보를 담되 URL 신호를 �
 
   assert.equal(metadata.metadataBase.href, "https://example.com/");
   assert.deepEqual(metadata.title, {
-    default: "Acttub — 질문으로 다시 보는 연기 연습",
+    default: "Acttub — AI 연기 코칭, 질문으로 다시 보는 연기 연습",
     template: "%s | Acttub",
   });
   assert.equal(metadata.description, description);
@@ -53,8 +59,43 @@ test("루트 metadata는 공통 title과 소셜 정보를 담되 URL 신호를 �
     type: "website",
   });
   assert.deepEqual(metadata.twitter, { card: "summary_large_image" });
+  assert.deepEqual(metadata.verification, {
+    google: "zABzA1FHYUFDJR1hJmCKZqAdJDjZ7-Tz_zhWpOZ8hzg",
+    other: {
+      "naver-site-verification": "697b757ca85289cefc70141c0a879284c3ef8563",
+    },
+  });
   assert.equal(metadata.alternates, undefined);
   assert.equal("url" in metadata.openGraph, false);
+});
+
+test("소유권 metadata는 빈 네이버 값의 키를 만들지 않는다", () => {
+  assert.deepEqual(buildVerification("google-code", ""), {
+    google: "google-code",
+  });
+  assert.deepEqual(buildVerification("google-code", "naver-code"), {
+    google: "google-code",
+    other: { "naver-site-verification": "naver-code" },
+  });
+});
+
+test("키워드 metadata는 canonical과 Article 공유 정보를 본문에서 만든다", () => {
+  const metadata = buildKeywordPageMetadata(
+    AI_ACTING_COACHING,
+    "https://example.com/",
+  );
+
+  assert.equal(metadata.title, AI_ACTING_COACHING.title);
+  assert.equal(metadata.description, AI_ACTING_COACHING.description);
+  assert.equal(metadata.alternates.canonical, AI_ACTING_COACHING.path);
+  assert.deepEqual(metadata.openGraph, {
+    siteName: "Acttub",
+    locale: "ko_KR",
+    type: "article",
+    url: `https://example.com${AI_ACTING_COACHING.path}`,
+    title: `${AI_ACTING_COACHING.title} | Acttub`,
+    description: AI_ACTING_COACHING.description,
+  });
 });
 
 test("랜딩 metadata에만 canonical과 openGraph URL이 있다", () => {

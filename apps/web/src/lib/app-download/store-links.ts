@@ -22,7 +22,8 @@ export type StoreLinkSurface =
   | "landing_sticky"
   | "landing_cta"
   | "landing_footer"
-  | "app_page";
+  | "app_page"
+  | "keyword_page";
 
 /**
  * 스토어로 나가는 주소.

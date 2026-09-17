@@ -20,9 +20,17 @@ test("robots는 공개 페이지를 허용하고 API 경로를 제외한다", ()
   });
 });
 
-test("sitemap은 색인 대상인 랜딩과 앱 다운로드만 반환한다", () => {
+test("sitemap은 네 공개 페이지와 키워드 본문의 수정일을 반환한다", () => {
   assert.deepEqual(sitemap(), [
     { url: "https://acttub.com/" },
     { url: "https://acttub.com/app" },
+    {
+      url: "https://acttub.com/ai-acting-coaching",
+      lastModified: "2026-09-17",
+    },
+    {
+      url: "https://acttub.com/acting-coaching",
+      lastModified: "2026-09-17",
+    },
   ]);
 });
