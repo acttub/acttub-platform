@@ -57,4 +57,24 @@ class ResponseSelectionTest {
             assertThat(next.path("attempts")).isEmpty();
         }
     }
+
+    @Test void relatedLimitationsMayAccompanyEvidenceButCannotBecomeObservedAction() {
+        ObjectNode previous = CoachingStateReducer.empty();
+        ObjectNode actor = StructuredJson.MAPPER.createObjectNode().put("id", "actor:1").put("text", "붙잡으려는 거야. 어떻게 하면 돼?");
+        var sources = StructuredJson.MAPPER.createArrayNode()
+                .add(CoachingStateReducer.source("actor:1", "actor_message", actor.path("text").asText()))
+                .add(CoachingStateReducer.source("u1", "video_utterance", "가지 마"))
+                .add(CoachingStateReducer.source("l1", "record_limitation", "손은 화면 밖이다"));
+        ObjectNode response = response("손은 화면 밖이라 그 동작은 확인할 수 없어요.", "explain", "continue");
+        ObjectNode context = previous.path("context").deepCopy();
+        var focus = context.putObject("focus").put("label", "붙잡는 말").putNull("utterance_ref")
+                .put("basis", "scene").put("scope", "local").put("pattern", "isolated");
+        focus.putArray("evidence_refs").add("l1");
+        response.set("context_update", context);
+        assertThatThrownBy(() -> DialogueState.apply(previous, response, sources, actor, "coach:1", 120, 2, false, ""))
+                .hasMessageContaining("limitation alone");
+        focus.putArray("evidence_refs").add("u1").add("l1");
+        assertThatCode(() -> DialogueState.apply(previous, response, sources, actor, "coach:1", 120, 2, false, ""))
+                .doesNotThrowAnyException();
+    }
 }

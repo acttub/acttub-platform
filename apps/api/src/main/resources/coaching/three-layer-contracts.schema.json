@@ -135,6 +135,14 @@
             "isolated"
           ],
           "description": "Repeated characteristic, change across the video, or a local observation."
+        },
+        "basis": {
+          "type": "string",
+          "enum": [
+            "scene",
+            "delivery"
+          ],
+          "description": "scene: meaning/action of the scene, supported by dialogue or observations; delivery: observed performance, requiring observations. Missing on legacy records retains delivery coverage checks."
         }
       },
       "required": [

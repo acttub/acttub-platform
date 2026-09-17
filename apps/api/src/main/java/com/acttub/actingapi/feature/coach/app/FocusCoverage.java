@@ -22,14 +22,35 @@ final class FocusCoverage {
         Set<String> refs = new HashSet<>();
         focus.path("evidence_refs").forEach(ref -> refs.add(ref.asText()));
         long duration = record.path("media").path("duration_ms").asLong();
+        boolean scene = "scene".equals(focus.path("basis").asText());
+        long start = 0, end = duration;
+        JsonNode utterances = record.path("speech").path("utterances");
+        if (scene && !utterances.isEmpty()) {
+            start = Long.MAX_VALUE; end = 0;
+            for (JsonNode utterance : utterances) {
+                require(delivered.contains(utterance.path("id").asText()),
+                        "whole-scene analysis requires all utterances; lookup more or use local");
+                start = Math.min(start, utterance.path("start_ms").asLong());
+                end = Math.max(end, utterance.path("end_ms").asLong());
+            }
+        }
+        double earlyEnd = start + (end - start) / 3.0;
+        double lateStart = start + (end - start) * 2.0 / 3.0;
         boolean early = false, late = false;
         for (JsonNode event : record.path("events")) {
             if (!refs.contains(event.path("id").asText())) continue;
-            early |= event.path("start_ms").asLong() < duration / 3.0;
-            late |= event.path("end_ms").asLong() > duration * 2.0 / 3.0;
+            early |= event.path("start_ms").asLong() < earlyEnd;
+            late |= event.path("end_ms").asLong() > lateStart;
         }
-        require(duration > 0 && early && late,
-                "whole-video focus needs observations spanning early and late video; otherwise use local");
+        if (scene) for (JsonNode utterance : utterances) {
+            if (!refs.contains(utterance.path("id").asText())) continue;
+            early |= utterance.path("start_ms").asLong() < earlyEnd;
+            late |= utterance.path("end_ms").asLong() > lateStart;
+        }
+        require(duration > 0 && end > start && early && late,
+                "whole-video focus needs evidence spanning early and late "
+                + (scene ? "scene dialogue" : "video; scene analysis may use basis=scene with transcript evidence")
+                + "; otherwise use local or keep the existing focus");
     }
     private static void require(boolean valid, String message) {
         if (!valid) throw new IllegalArgumentException(message);

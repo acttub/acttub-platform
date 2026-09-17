@@ -26,8 +26,17 @@ class StructuredCoachConversationEvalTest {
         var session = new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 StructuredJson.resource("/coaching/record.json"), "", "", "", 8000, "그 외", "그 외", null,
                 List.of(), "", null, "open", "", List.of()).withCoachingState("three_layers_v1", 0, null, "open", "");
-        var engine = new CoachEngine(new OpenAiResponsesClient(StructuredJson.MAPPER), new RecordingFailureReporter(), new RecordingLlmTelemetry());
         var output = StructuredJson.MAPPER.createObjectNode().put("case", name).put("semantic_review", "pending");
+        var failures = new RecordingFailureReporter();
+        var calls = output.putArray("calls");
+        var client = new OpenAiResponsesClient(StructuredJson.MAPPER);
+        var engine = new CoachEngine((system, input) -> {
+            var call = calls.addObject();
+            call.set("input", StructuredJson.parse(input));
+            var generated = client.generate(system, input);
+            call.put("model", generated.model()).put("output", generated.text());
+            return generated;
+        }, failures, new RecordingLlmTelemetry());
         var messages = output.putArray("messages");
         Path dir = Path.of("build", "structured-coach-eval");
         Files.createDirectories(dir);
@@ -49,6 +58,8 @@ class StructuredCoachConversationEvalTest {
             assertThat(OpeningQuestion.questionCount(result.reply().message())).isZero();
             output.set("state", session.coachingState());
         } finally {
+            var errors = output.putArray("errors");
+            failures.reports().forEach(report -> errors.add(report.failure().getMessage()));
             StructuredJson.MAPPER.writerWithDefaultPrettyPrinter().writeValue(dir.resolve(name + ".json").toFile(), output);
         }
     }

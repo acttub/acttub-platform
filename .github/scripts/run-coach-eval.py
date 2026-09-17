@@ -36,6 +36,13 @@ def main():
     environment = os.environ.copy()
     environment.update(values)
     environment["ACTTUB_COACH_EVAL"] = "1"
+    # Independent synthetic sessions can run together; turns within a session stay sequential.
+    environment["JAVA_TOOL_OPTIONS"] = environment.get("JAVA_TOOL_OPTIONS", "") + (
+        " -Djunit.jupiter.execution.parallel.enabled=true"
+        " -Djunit.jupiter.execution.parallel.mode.default=concurrent"
+        " -Djunit.jupiter.execution.parallel.config.strategy=fixed"
+        " -Djunit.jupiter.execution.parallel.config.fixed.parallelism=3"
+        " -Djunit.jupiter.execution.parallel.config.fixed.max-pool-size=3")
     root = Path(__file__).resolve().parents[2]
     completed = subprocess.run(
         ["./gradlew", "test", "--no-daemon", "--rerun-tasks",
