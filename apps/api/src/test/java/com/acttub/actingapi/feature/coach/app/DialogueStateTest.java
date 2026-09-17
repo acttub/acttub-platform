@@ -95,6 +95,22 @@ class DialogueStateTest {
         assertThat(result.reply().message()).isEqualTo("어떤 문장을 말한 건가요?");
     }
 
+    @Test void exhaustedGenerationDoesNotCreateAnErrorTurnOrConsumeTheDialogueBudget() {
+        AtomicInteger calls = new AtomicInteger();
+        var engine = new CoachEngine((system, text) -> {
+            calls.incrementAndGet();
+            throw new IllegalStateException("synthetic provider failure");
+        }, new RecordingFailureReporter(), new RecordingLlmTelemetry());
+        var before = session();
+        var turns = List.copyOf(before.turns());
+        assertThatThrownBy(() -> engine.reply(before, "상대가 나가려고 해서", UUID.randomUUID()))
+                .isInstanceOf(CoachReplyUnavailable.class);
+        assertThat(calls).hasValue(4);
+        assertThat(before.turns()).isEqualTo(turns);
+        assertThat(before.stateRevision()).isZero();
+        assertThat(before.status()).isEqualTo("open");
+    }
+
     private CoachSessionSnapshot session() {
         return new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 StructuredJson.resource("/coaching/record.json"), "", "", "", 8000, "그 외", "그 외", null,
@@ -123,12 +139,11 @@ class DialogueStateTest {
     @Test void assignmentsAndVagueInterpretationsAreRejectedBeforeTheyReachTheActor() {
         for (String invalid : List.of("이 망설임을 남기고 싶었나요?", "시선을 유지해 보고 알려주세요.",
                 "한 번 찍어보고 알려주세요.", "**시선**을 바꿔보세요.", "그 편안함이 영상에서 보여요.")) {
-            CoachResult result = new CoachEngine((system, input) -> StructuredCoachEngineTest.generated(
+            assertThatThrownBy(() -> new CoachEngine((system, input) -> StructuredCoachEngineTest.generated(
                     StructuredCoachEngineTest.respond(StructuredJson.parse(input), invalid, "continue")),
                     new RecordingFailureReporter(), new RecordingLlmTelemetry())
-                    .reply(session(), "모르겠어", UUID.randomUUID());
-            assertThat(result.reply().message()).doesNotContain(invalid);
-            assertThat(result.session().coachingState().path("proposals")).isEmpty();
+                    .reply(session(), "모르겠어", UUID.randomUUID()))
+                    .isInstanceOf(CoachReplyUnavailable.class);
         }
     }
 

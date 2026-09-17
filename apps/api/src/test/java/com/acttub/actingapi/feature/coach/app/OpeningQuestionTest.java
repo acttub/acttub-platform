@@ -111,7 +111,12 @@ class OpeningQuestionTest {
                     ? StructuredCoachEngineTest.generated(StructuredCoachEngineTest.respond(StructuredJson.parse(text), REPORTED, "continue"))
                     : new GeneratedText(REPORTED, null, "test"),
                     new RecordingFailureReporter(), new RecordingLlmTelemetry());
-            var result = engine.start(session(structured), UUID.randomUUID());
+            if (structured) {
+                org.assertj.core.api.Assertions.assertThatThrownBy(() -> engine.start(session(true), UUID.randomUUID()))
+                        .isInstanceOf(CoachReplyUnavailable.class);
+                continue;
+            }
+            var result = engine.start(session(false), UUID.randomUUID());
             assertThat(result.reply().message()).contains("영상에 근거한 설명을 준비하지 못했어요").doesNotContain("말의 무게", "읽혀요");
             assertThat(OpeningQuestion.questionCount(result.reply().message())).isZero();
         }

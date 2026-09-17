@@ -7,6 +7,7 @@ export function isClosedCoach(error: unknown): boolean {
 }
 
 export function coachReplyError(error: unknown): string {
+  if (error instanceof ApiError && error.code === "coach_response_unavailable") return "코치의 답변을 준비하지 못했어요. 입력한 답은 보관했으니 다시 보내 주세요.";
   if (error instanceof NetworkError) return "응답을 받지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요.";
   if (error instanceof ApiError && error.status === 429) return "요청이 많아 잠시 기다려야 해요. 조금 뒤 다시 보내 주세요.";
   return "답변을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.";

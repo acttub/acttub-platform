@@ -53,6 +53,8 @@ class DialogueProgressTest {
         assertThatCode(() -> DialogueProgress.validate(close, progress)).doesNotThrowAnyException();
     }
     @Test void newInformationAndRequestsAreNotAcknowledgements() {
+        assertThat(DialogueProgress.controls(input("인물이 왜 이러는지 모르겠어", "clarify", ""))
+                .path("explain_instead_of_repeating_question").asBoolean()).isFalse();
         assertThat(DialogueProgress.controls(input("ㅇㅇ 어쩌라고", "explain", "ㅇㅇ"))
                 .path("consecutive_acknowledgements").asInt()).isZero();
         assertThat(DialogueProgress.controls(input("상대가 급하게 계약하려고 해서", "simplify", "무슨 말이야"))

@@ -117,13 +117,10 @@ final class StructuredCoachEngine {
                         ? failure.getMessage() : "generation unavailable; return a valid response using available evidence");
             }
         }
+        if (!finish) throw new CoachReplyUnavailable();
         ObjectNode retained = state.deepCopy();
         retained.put("revision", session.stateRevision() + 1).put("response_style", style);
-        String message = finish
-                ? "지금까지 이야기한 내용으로 정리할게요."
-                : actorText == null
-                        ? OpeningQuestion.fallback(false) : "지금은 이 구간을 더 확인하기 어려워요.";
-        return result(session, actorText, message, retained, finish ? "system_failure" : null);
+        return result(session, actorText, "지금까지 이야기한 내용으로 정리할게요.", retained, "system_failure");
     }
 
     private static ObjectNode input(CoachSessionSnapshot session, JsonNode state, String actorText,

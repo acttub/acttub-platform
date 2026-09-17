@@ -22,7 +22,7 @@ final class DialogueProgress {
 
     static ObjectNode controls(JsonNode input) {
         String latest = input.path("user_message").path("text").asText();
-        boolean confusion = latest.matches("(?s).*(?:무슨\\s*(?:질문|말)|뭔\\s*소리|뭐라는|이해가?\\s*안|모르겠|^\\?+$).*");
+        boolean confusion = latest.matches("(?s).*(?:무슨\\s*(?:질문|말)|뭔\\s*소리|뭐라는|이해가?\\s*안|질문.{0,12}모르겠|설명.{0,12}모르겠|^\\?+$).*");
         int acknowledgements = acknowledgement(latest) ? 1 : 0;
         JsonNode messages = input.path("recent_messages");
         boolean objectiveAsked = false;

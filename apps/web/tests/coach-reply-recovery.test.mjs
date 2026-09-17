@@ -11,6 +11,7 @@ test("closed sessions are distinct from transport, rate limit and other conflict
   assert.match(coachReplyError(new NetworkError()), /연결/);
   assert.doesNotMatch(coachReplyError(new ApiError(500, "error", null)), /연결/);
   assert.match(coachReplyError(new ApiError(429, "rate", null)), /기다려/);
+  assert.match(coachReplyError(new ApiError(502, "coach_response_unavailable", "coach_response_unavailable")), /입력한 답은 보관/);
 });
 
 test("a closed conversation locks immediately and restores the saved note without a model call", async () => {
