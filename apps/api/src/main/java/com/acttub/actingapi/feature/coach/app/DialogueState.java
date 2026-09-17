@@ -78,6 +78,7 @@ final class DialogueState {
                     .contains(source.path("kind").asText()), "reply evidence must be delivered video material");
         }
         String message = response.path("message").asText().strip();
+        ResponseSelection.validate(response, catalog, finishRequired);
         require(!presentsExperienceAsObservation(message),
                 "배우가 말한 편안함·감각을 영상에서 보인 사실로 단정하지 않는다. 경험은 배우가 느낀 것으로 받아주고, "
                 + "영상의 말소리·움직임은 별도 문장으로 설명한다. 둘의 관계를 만들어내지 않는다.");
@@ -106,7 +107,7 @@ final class DialogueState {
             }
         }
         require(!message.equals(previousMessage), "do not repeat the previous coach response");
-        require(!message.matches("(?s).*(?:해\\s*보(?:세요|고)|해본\\s*뒤|말해\\s*보|찍어\\s*보|촬영해\\s*보|연습해\\s*보|바꿔\\s*보|유지해\\s*보).*"),
+        require(!message.matches("(?s).*(?:찍어\\s*보|촬영해\\s*보|해본\\s*뒤|해\\s*보고.{0,15}(?:알려|보고)|비교.{0,10}실험).*"),
                 "practice assignments belong in the final note");
         require(!message.matches("(?s).*(?:^|\\n)\\s*(?:#{1,6} |[-*] |[0-9]+\\. ).*")
                 && !message.contains("**"), "use plain conversational sentences");

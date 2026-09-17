@@ -121,7 +121,7 @@ class DialogueStateTest {
     }
 
     @Test void assignmentsAndVagueInterpretationsAreRejectedBeforeTheyReachTheActor() {
-        for (String invalid : List.of("이 망설임을 남기고 싶었나요?", "시선을 유지해 보세요.",
+        for (String invalid : List.of("이 망설임을 남기고 싶었나요?", "시선을 유지해 보고 알려주세요.",
                 "한 번 찍어보고 알려주세요.", "**시선**을 바꿔보세요.", "그 편안함이 영상에서 보여요.")) {
             CoachResult result = new CoachEngine((system, input) -> StructuredCoachEngineTest.generated(
                     StructuredCoachEngineTest.respond(StructuredJson.parse(input), invalid, "continue")),
