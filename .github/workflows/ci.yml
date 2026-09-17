@@ -10,9 +10,14 @@ on:
   workflow_dispatch:
     inputs:
       live_coach_eval:
-        description: 합성 장면으로 dev 모델의 2층 대화를 평가합니다 (유료 실호출)
+        description: 합성 장면으로 dev 모델을 평가합니다 (유료 실호출)
         type: boolean
         default: false
+      eval_suite:
+        description: 실제 모델 평가 대상
+        type: choice
+        options: [coach, note]
+        default: coach
 
 # 같은 PR에 새 커밋이 올라오면 진행 중이던 오래된 실행은 취소.
 concurrency:
@@ -169,7 +174,7 @@ jobs:
         run: node --test tests/*.test.mjs
 
   coach_eval:
-    name: 2층 합성 대화 · 실제 dev 모델
+    name: 합성 대화·노트 · 실제 dev 모델
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.live_coach_eval }}
     environment: dev
     runs-on: ubuntu-latest
@@ -188,7 +193,7 @@ jobs:
           tags: tag:ci
           ping: insung-server
       - name: Evaluate synthetic conversations
-        run: python3 .github/scripts/run-coach-eval.py
+        run: python3 .github/scripts/run-coach-eval.py "${{ inputs.eval_suite || 'coach' }}"
       - name: Save synthetic evaluation results
         if: always()
         uses: actions/upload-artifact@v4
@@ -199,4 +204,5 @@ jobs:
             apps/api/build/response-selection-eval
             apps/api/build/scene-context-eval
             apps/api/build/structured-coach-eval
+            apps/api/build/note-continuity-eval
             apps/api/build/reports/tests/test

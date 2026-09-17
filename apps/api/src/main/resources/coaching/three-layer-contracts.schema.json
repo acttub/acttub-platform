@@ -1597,10 +1597,28 @@
             }
           },
           "then": {
-            "properties": {
-              "direction": {
-                "$ref": "#/$defs/direction"
+            "anyOf": [
+              {
+                "properties": {
+                  "direction": { "$ref": "#/$defs/direction" }
+                }
               },
+              {
+                "properties": {
+                  "focus": {
+                    "properties": { "basis": { "const": "scene" } },
+                    "required": ["basis"]
+                  },
+                  "scene_context": {
+                    "type": "object",
+                    "properties": { "character_goal": { "$ref": "#/$defs/direction" } },
+                    "required": ["character_goal"]
+                  }
+                },
+                "required": ["focus", "scene_context"]
+              }
+            ],
+            "properties": {
               "focus": {
                 "$ref": "#/$defs/focus"
               },

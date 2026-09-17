@@ -130,7 +130,19 @@ public final class PracticeNote {
             }
             output.set("start_ms", anchor == null ? StructuredJson.MAPPER.nullNode() : anchor.path("start_ms"));
             output.set("end_ms", anchor == null ? StructuredJson.MAPPER.nullNode() : anchor.path("end_ms"));
-            if (anchor != null && "video_utterance".equals(anchor.path("kind").asText())) {
+            boolean wholeScene = "whole_video".equals(focus.path("scope").asText());
+            if (wholeScene) {
+                long start = Long.MAX_VALUE, end = 0;
+                for (JsonNode ref : focus.path("evidence_refs")) {
+                    JsonNode source = catalog.get(ref.asText());
+                    if (source == null || !source.path("kind").asText().startsWith("video_")
+                            || !source.path("start_ms").isNumber() || !source.path("end_ms").isNumber()) continue;
+                    start = Math.min(start, source.path("start_ms").asLong());
+                    end = Math.max(end, source.path("end_ms").asLong());
+                }
+                if (end > start) output.put("start_ms", start).put("end_ms", end);
+            }
+            if (!wholeScene && anchor != null && "video_utterance".equals(anchor.path("kind").asText())) {
                 output.put("quote", anchor.path("text").asText());
             } else { output.putNull("quote"); }
         }

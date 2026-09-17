@@ -24,6 +24,11 @@ print(json.dumps(values))
 '''
 
 def main():
+    suite = sys.argv[1] if len(sys.argv) > 1 else "coach"
+    if suite not in {"coach", "note"}:
+        raise SystemExit("Unknown synthetic evaluation suite")
+    classes = ("NoteContinuityEvalTest",) if suite == "note" else (
+        "ResponseSelectionEvalTest", "SceneContextConversationEvalTest", "StructuredCoachConversationEvalTest")
     result = subprocess.run(
         ["ssh", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=accept-new",
          "-o", "ConnectTimeout=20", "deploy@insung-server", "python3", "-"],
@@ -44,16 +49,15 @@ def main():
         " -Djunit.jupiter.execution.parallel.config.fixed.parallelism=3"
         " -Djunit.jupiter.execution.parallel.config.fixed.max-pool-size=3")
     root = Path(__file__).resolve().parents[2]
+    tests = [arg for name in classes for arg in ("--tests", "*" + name)]
     completed = subprocess.run(
-        ["./gradlew", "test", "--no-daemon", "--rerun-tasks",
-         "--tests", "*ResponseSelectionEvalTest", "--tests", "*SceneContextConversationEvalTest",
-         "--tests", "*StructuredCoachConversationEvalTest"],
+        ["./gradlew", "test", "--no-daemon", "--rerun-tasks", *tests],
         cwd=root / "apps/api", env=environment)
     if completed.returncode:
         return completed.returncode
     reports = root / "apps/api/build/test-results/test"
     total = 0
-    for name in ("ResponseSelectionEvalTest", "SceneContextConversationEvalTest", "StructuredCoachConversationEvalTest"):
+    for name in classes:
         matches = list(reports.glob("TEST-*." + name + ".xml"))
         if len(matches) != 1:
             raise SystemExit("Expected live evaluation report is missing: " + name)
@@ -61,7 +65,7 @@ def main():
         if any(int(suite.get(field, "0")) for field in ("skipped", "failures", "errors")):
             raise SystemExit("Live evaluation must complete without skipped or failed cases: " + name)
         total += int(suite.get("tests", "0"))
-    if total < 16:
+    if total < (8 if suite == "note" else 16):
         raise SystemExit("Live evaluation did not run every required scenario")
     print("Completed synthetic model evaluations:", total)
     return 0
