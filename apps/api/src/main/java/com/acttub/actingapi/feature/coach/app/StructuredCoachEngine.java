@@ -48,8 +48,7 @@ final class StructuredCoachEngine {
                 : ((ObjectNode) session.coachingState()).deepCopy();
         CoachingStateReducer.require(state.path("revision").asLong() == session.stateRevision(), "stored revision mismatch");
         long replyCount = session.turns().stream().filter(t -> "ai".equals(t.role())).count();
-        boolean actorFinished = actorText != null && (ClosingIntent.isClosing(actorText)
-                || actorText.strip().matches("(?:(?:여기까지|지금까지|오늘은|오늘 대화|이번 대화)\\s*)?정리(?:해줘|해 줘|해주세요|해 주세요)[.!?\\s]*"));
+        boolean actorFinished = DialogueProgress.actorFinished(actorText);
         boolean finish = actorFinished || replyCount >= 9;
         String actorId = actorText == null ? null : turnId(session, session.turns().size());
         String coachId = turnId(session, session.turns().size() + (actorText == null ? 0 : 1));
@@ -61,7 +60,7 @@ final class StructuredCoachEngine {
             maxSentences = 2;
         }
         ObjectNode input = input(session, state, actorText, actorId, operationId);
-        input.set("dialogue_progress", DialogueProgress.controls(input));
+        input.set("dialogue_progress", DialogueProgress.controls(input).put("allow_finish", finish));
         ObjectNode view = records.initial(session.observationPack());
         input.set("record_view", view);
         input.put("output_contract", "acttub.layer2_turn.v2");

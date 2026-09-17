@@ -6,6 +6,13 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 
 class DialogueProgressTest {
+    @Test void aCorrectionCanBeFollowedByAnExplicitClosingSentence() {
+        assertThat(DialogueProgress.actorFinished("실제 경험은 아니야. 여기까지 정리해줘")).isTrue();
+        assertThat(DialogueProgress.actorFinished("알겠어. 오늘은 여기까지.")).isTrue();
+        assertThat(DialogueProgress.actorFinished("ㅇㅇ")).isFalse();
+        assertThat(DialogueProgress.actorFinished("‘여기까지 정리해줘’라는 대사야")).isFalse();
+        assertThat(DialogueProgress.actorFinished("여기까지 정리하지 마")).isFalse();
+    }
     private ObjectNode input(String latest, String lastMove, String previousActor) {
         ObjectNode input = StructuredJson.MAPPER.createObjectNode();
         input.putObject("user_message").put("text", latest);
@@ -35,6 +42,8 @@ class DialogueProgressTest {
                 .hasMessageContaining("다음 도움");
         assertThatCode(() -> DialogueProgress.validate(reply("explain", false), progress)).doesNotThrowAnyException();
         var close = reply("close", false).put("flow", "finish");
+        assertThatThrownBy(() -> DialogueProgress.validate(close, progress)).hasMessageContaining("종료 요청이 아니다");
+        progress.put("allow_finish", true);
         assertThatCode(() -> DialogueProgress.validate(close, progress)).doesNotThrowAnyException();
     }
     @Test void newInformationAndRequestsAreNotAcknowledgements() {
