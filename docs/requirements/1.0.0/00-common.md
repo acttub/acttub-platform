@@ -91,16 +91,16 @@
 
 1.0.0에서 하지 않는 것.
 
-- 게시판 community_* 7개는 현재 구조를 유지한다.
+- 게시판 community_* 7개는 현재 구조를 유지한다. 단 community_blocks는 사람 단위 user_blocks로
+  바꿔 커뮤니티·챌린지가 함께 쓴다.
+- 가입 유입 경로 추적. users의 signup_* 컬럼은 지우고 signup_attributions 테이블은 만들지 않는다.
 
 ## 열린 질문
 
 ERD 세션(2026-09-14)에서 이월한 것.
 
-- 사용자 차단 범위: community_blocks를 챌린지에도 쓰려면 users 단위 user_blocks로 바꿀지.
 - 연기 입시: notices.json 정적 유지 vs 테이블.
 - 예시 대본: scripts.user_id NULL 허용 vs 리소스.
 - 온보딩 완료 플래그(권장: 폰 저장소), 이론 선택(권장: 제외).
 - TTS 캐시: 자연스러운 음성을 넣을 때 script_lines.audio_key.
 - script_characters를 없애고 script_lines에 배역 이름 텍스트만 둘지.
-- signup_attributions는 ERD에 아직 없다.
