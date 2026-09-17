@@ -14,6 +14,7 @@ GA4는 유입용 서브프로젝트 6개(voice·acti·stage·mono·pick·link)�
 페이지로드를 경로별로 집계하므로 **배지 클릭 수와 랜딩 대비 비율은 Cloudflare에서 본다.**
 `/go`에서는 개인정보나 별도 이벤트 payload를 수집하지 않고 경로별 페이지로드만 센다. 이
 경로 집계는 아래 GA4·Amplitude의 로그인·방침 동의 게이트와 별개다.
+랜딩은 `landing_*`, 앱 안내는 `app_page`, 검색 유입 안내는 `keyword_page` surface로 구분한다.
 
 ---
 
