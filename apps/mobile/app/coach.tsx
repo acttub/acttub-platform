@@ -48,7 +48,8 @@ export default function CoachScreen() {
   const navigation = useNavigation();
   const keyboardHeight = useKeyboardHeight();
   const keyboardVisible = keyboardHeight > 0;
-  const practice = getPractice();
+  // 리포트 화면과 같은 이유로 마운트 때 한 번만 읽는다(clearPractice 뒤 재렌더 방어).
+  const [practice] = useState(() => getPractice());
   const scrollRef = useRef<ScrollView>(null);
   const mountedRef = useRef(true);
   const startInFlightRef = useRef(false);
@@ -156,7 +157,9 @@ export default function CoachScreen() {
   // 이미 물어본 사람은 그냥 나간다. 대화가 끝나 리포트로 넘어갈 때는 묻지 않는다.
   // beforeRemove 를 직접 걸면 iOS 네이티브 스택이 먼저 화면을 빼 버린다(헤더 뒤로가기·스와이프).
   // usePreventRemove 는 네이티브 쪽까지 막아 준다.
-  usePreventRemove(!leaveAllowed, ({ data }) => {
+  // 연습이 없는 안내 화면에선 한줄평 시트가 렌더되지 않으니 가로채지 않는다 — 가로채면
+  // offer가 시트를 띄우려다 영영 잠겨 뒤로가기가 먹통이 된다.
+  usePreventRemove(!leaveAllowed && !!practice, ({ data }) => {
     void exitReview.offer(() => leaveThen(() => navigation.dispatch(data.action)));
   });
 
