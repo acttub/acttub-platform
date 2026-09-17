@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Tabs, useRouter } from 'expo-router';
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
@@ -31,11 +31,11 @@ export default function TabLayout() {
           left: 16,
           right: 16,
           bottom: insets.bottom + 12,
-          height: 66,
-          borderRadius: 33,
+          height: 62,
+          borderRadius: 31,
           backgroundColor: palette.card,
           borderTopWidth: 0,
-          paddingTop: 8,
+          paddingTop: 10,
           paddingBottom: 10,
           shadowColor: palette.navy,
           shadowOpacity: 0.12,
@@ -43,7 +43,8 @@ export default function TabLayout() {
           shadowOffset: { width: 0, height: 8 },
           elevation: 8,
         },
-        tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
+        // 글자 없이 아이콘만(pen 탭바). 접근성 라벨은 title 로 남는다.
+        tabBarShowLabel: false,
         headerShown: false,
         tabBarButton: HapticTab,
       }}>
@@ -59,16 +60,18 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="history"
+        name="reading"
         options={{
-          title: t('tabs.history'),
+          title: t('tabs.reading'),
           tabBarIcon: ({ color, focused }) => (
             <View style={[styles.iconPill, focused && styles.iconPillActive]}>
-              <Feather size={21} name="file-text" color={color} />
+              <Feather size={21} name="book-open" color={color} />
             </View>
           ),
         }}
       />
+      {/* 기록은 탭바에서 빠졌지만(대본으로 교체) 라우트는 남겨 다른 화면에서 접근 가능하게 둔다. */}
+      <Tabs.Screen name="history" options={{ href: null }} />
       <Tabs.Screen
         name="record"
         options={{
@@ -79,27 +82,29 @@ export default function TabLayout() {
                 style={styles.fab}
                 accessibilityRole="button"
                 accessibilityLabel={t('tabs.shootA11y')}
-                onPress={() => router.push('/upload')}>
+                // 촬영 버튼은 바로 카메라로. 찍고 나면 챌린지에 올릴지 / AI 분석할지 고른다.
+                onPress={() => router.push({ pathname: '/record-video', params: { next: 'choose' } })}>
                 <Feather name="video" size={24} color="#FFFFFF" />
               </Pressable>
-              <Text style={styles.fabLabel}>{t('tabs.shoot')}</Text>
             </View>
           ),
         }}
       />
       <Tabs.Screen
-        name="community"
+        name="challenges"
         options={{
-          title: t('tabs.community'),
+          title: t('tabs.challenge'),
           tabBarIcon: ({ color, focused }) => (
             <View style={[styles.iconPill, focused && styles.iconPillActive]}>
-              <Feather size={21} name="message-square" color={color} />
+              <Feather size={21} name="award" color={color} />
             </View>
           ),
         }}
       />
+      {/* 게시판은 챌린지 탭에 자리를 내주고 탭바에서 빠졌지만(pen 정합) 라우트는 남긴다. */}
+      <Tabs.Screen name="community" options={{ href: null }} />
       <Tabs.Screen
-        name="settings"
+        name="profile"
         options={{
           title: t('tabs.profile'),
           tabBarIcon: ({ color, focused }) => (

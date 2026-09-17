@@ -17,6 +17,8 @@ import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { beginAnalysisNavigation } from '@/lib/analysis-entry';
 import type { VideoFile } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { BLOCKAGE_CHOICES, blockageFromHelp, type BlockageKind } from '@/lib/blockage';
+import { THEORY_IDS, toggleTheoryChoice, type TheoryChoiceId } from '@/lib/theory';
 import { setPendingUpload, takePrefill } from '@/lib/practice';
 import { takeRecordedVideo } from '@/lib/recorded-video';
 import {
@@ -44,6 +46,10 @@ export default function UploadScreen() {
   const [situation, setSituation] = useState('');
   const [character, setCharacter] = useState('');
   const [goal, setGoal] = useState('');
+  // 도움 종류·상세·이론을 한 화면에서 받는다(웹 준비 화면과 동일). 셋 다 선택이다.
+  const [helpKind, setHelpKind] = useState<BlockageKind | null>(null);
+  const [detail, setDetail] = useState('');
+  const [theory, setTheory] = useState<TheoryChoiceId | null>(null);
   const [video, setVideo] = useState<VideoFile | null>(null);
   const [durationMs, setDurationMs] = useState<number | null>(null);
   const [videoError, setVideoError] = useState<string | null>(null);
@@ -148,13 +154,13 @@ export default function UploadScreen() {
           },
           video,
           durationMs,
-          // 막히는 지점은 다음 화면에서 고른다. 여기서 채우면 분기가 늘 '그 외'가 된다.
-          blockage: null,
+          // 도움 종류·상세를 이 화면에서 이미 받았다 — 안 고르면 '그 외'로 내려간다.
+          blockage: blockageFromHelp(helpKind, detail),
+          theory,
           continuedFrom: continuedFromRef.current,
         });
       },
-      // 분석 전에 막히는 지점을 먼저 고른다 — 서버가 그 값으로 코치를 가른다.
-      () => router.replace('/blockage'),
+      () => router.replace('/analyzing'),
     );
   };
 
@@ -268,6 +274,47 @@ export default function UploadScreen() {
             </View>
           </View>
 
+          <View style={styles.sceneCard}>
+            <Text style={styles.sceneTitle}>{t('blockage.helpTitle')}</Text>
+            <Text style={styles.sceneOptionalHint}>{t('blockage.helpHint')}</Text>
+            <View style={styles.chipWrap}>
+              {BLOCKAGE_CHOICES.map((choice) => (
+                <Chip
+                  key={choice.value}
+                  label={t(`blockage.helpLabel.${choice.value}`)}
+                  selected={helpKind === choice.value}
+                  onPress={() =>
+                    setHelpKind((was) => (was === choice.value ? null : choice.value))
+                  }
+                />
+              ))}
+            </View>
+
+            <Text style={[styles.sceneTitle, styles.blockGap]}>{t('blockage.detailTitle')}</Text>
+            <Text style={styles.sceneOptionalHint}>{t('blockage.detailHint')}</Text>
+            <TextInput
+              style={[styles.input, styles.inputTall]}
+              placeholder={t('blockage.freePh')}
+              placeholderTextColor={palette.checkOff}
+              value={detail}
+              onChangeText={setDetail}
+              multiline
+            />
+
+            <Text style={[styles.sceneTitle, styles.blockGap]}>{t('theory.q')}</Text>
+            <Text style={styles.sceneOptionalHint}>{t('theory.hint')}</Text>
+            <View style={styles.chipWrap}>
+              {THEORY_IDS.map((id) => (
+                <Chip
+                  key={id}
+                  label={t(`theory.label.${id}`)}
+                  selected={theory === id}
+                  onPress={() => setTheory((was) => toggleTheoryChoice(was, id))}
+                />
+              ))}
+            </View>
+          </View>
+
           <Pressable style={styles.rightsRow} onPress={() => setAgreedRights((v) => !v)}>
             <View style={[styles.check, agreedRights && styles.checkOn]}>
               {agreedRights && <Text style={styles.checkMark}>✓</Text>}
@@ -294,6 +341,27 @@ export default function UploadScreen() {
         </View>
       </View>
     </SafeAreaView>
+  );
+}
+
+/** 도움 종류·이론을 고르는 알약 칩. 다시 누르면 선택이 풀린다(무응답). */
+function Chip({
+  label,
+  selected,
+  onPress,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      style={[styles.chip, selected && styles.chipOn]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected }}>
+      <Text style={[styles.chipText, selected && styles.chipTextOn]}>{label}</Text>
+    </Pressable>
   );
 }
 
@@ -425,6 +493,20 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   inputTall: { minHeight: 72 },
+
+  blockGap: { marginTop: 8 },
+  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 2 },
+  chip: {
+    borderRadius: 9999,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: palette.bgSoft,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  chipOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
+  chipText: { fontSize: 14, fontWeight: '700', color: palette.textDim },
+  chipTextOn: { color: palette.blueDeep },
 
   rightsRow: {
     flexDirection: 'row',

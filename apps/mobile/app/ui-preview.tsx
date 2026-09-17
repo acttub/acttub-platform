@@ -4,7 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
-import { seedPendingUpload, seedPractice } from '@/lib/ui-preview';
+import { seedPractice } from '@/lib/ui-preview';
 
 /**
  * 화면만 보는 통로 — 개발 빌드 전용.
@@ -32,15 +32,6 @@ export default function UiPreviewScreen() {
   }
 
   const items: { key: string; label: string; hint: string; go: () => void }[] = [
-    {
-      key: 'blockage',
-      label: '막히는 지점 · 3단계',
-      hint: '대분류 → 세부 → 서술로 적기 · 영상 보기',
-      go: () => {
-        seedPendingUpload();
-        router.push('/blockage?preview=1');
-      },
-    },
     {
       key: 'analyzing',
       label: '분석 진행',

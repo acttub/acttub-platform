@@ -27,3 +27,24 @@ export async function getUserName(): Promise<string | null> {
     return null;
   }
 }
+
+/**
+ * 로그인 제공자(구글·애플)가 준 이름 힌트 — 저장하지 않고 들고만 있다.
+ *
+ * 예전엔 이 이름을 바로 저장했는데, 그러면 "이름이 있다 = 프로필 설정 끝"으로 판정돼
+ * 새 가입자에게 프로필 설정 화면(A0.2)이 한 번도 안 떴다. 지금은 프로필 폼이 이 힌트를
+ * 첫 값으로 채우고, 사용자가 시작하기를 눌러야 비로소 저장한다.
+ */
+let providerNameHint: string | null = null;
+
+export function setProviderNameHint(name: string | null | undefined): void {
+  const trimmed = name?.trim();
+  providerNameHint = trimmed ? trimmed : null;
+}
+
+/** 힌트를 꺼내며 비운다 — 프로필 폼이 한 번만 쓴다. */
+export function takeProviderNameHint(): string | null {
+  const v = providerNameHint;
+  providerNameHint = null;
+  return v;
+}
