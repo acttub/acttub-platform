@@ -65,8 +65,10 @@ final class DialogueProgress {
     static String turnInstruction(JsonNode progress) {
         if (progress.path("explain_instead_of_repeating_question").asBoolean()) {
             return "\n\n[이번 응답에서 가장 먼저 지킬 것]\n"
-                    + "배우는 코치 말을 이해하지 못했다. message에서 영상 대사로 확실히 알 수 있는 내용 하나를 쉬운 말로 직접 설명한다. "
-                    + "주어는 실제 인물이나 사건이다. 코치가 무엇을 물었는지·왜 질문했는지 설명하지 않는다. "
+                    + "배우는 코치 말을 이해하지 못했다. 영상 속 말을 상대에게 어떤 뜻으로 건넬 수 있는지 일상적인 말로 풀이한다. "
+                    + "줄거리나 관찰 사실을 다시 나열하지 않는다. 부탁이라고만 하지 말고 '상대가 조금 더 남아 내 말을 들어줬으면 하는 뜻'처럼 쉽게 풀이한다. "
+                    + "확인되지 않은 의도는 '일 수 있어요'로 구분하고 배우의 확정된 목적처럼 저장하지 않는다. "
+                    + "직전 설명도 이해하지 못했다면 같은 내용을 반복하지 말고 더 쉬운 뜻으로 풀어준다. 코치가 무엇을 물었는지·왜 질문했는지 설명하지 않는다. "
                     + "새 질문이나 연기 동작 지시 없이 끝낸다. move=explain 또는 simplify, selection.question=null이다.";
         }
         if (progress.path("analysis_uncertain").asBoolean()) {
