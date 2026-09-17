@@ -64,6 +64,8 @@ class DialogueProgressTest {
         var progress = DialogueProgress.controls(input);
         assertThatThrownBy(() -> DialogueProgress.validate(reply("assess", false), progress)).hasMessageContaining("손동작");
         assertThatCode(() -> DialogueProgress.validate(reply("explain", false), progress)).doesNotThrowAnyException();
+        ((ObjectNode) input.path("user_message")).put("text", "손해 본 걸 말하는 연기는 어때?");
+        assertThat(DialogueProgress.controls(input).path("unobservable_hand_requested").asBoolean()).isFalse();
         ((ObjectNode) input.path("user_message")).put("text", "손 말고 목소리를 봐줘");
         assertThat(DialogueProgress.controls(input).path("unobservable_hand_requested").asBoolean()).isFalse();
     }

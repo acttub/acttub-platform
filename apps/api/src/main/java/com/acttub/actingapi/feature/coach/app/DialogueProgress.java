@@ -35,7 +35,7 @@ final class DialogueProgress {
             if (!acknowledgement(message.path("text").asText())) break;
             acknowledgements++;
         }
-        boolean handQuestion = latest.matches("(?s).*(?:손동작|손으로|손이|손은|손을|손.{0,8}(?:보|전달|움직|연기)).*")
+        boolean handQuestion = latest.matches("(?s).*(?:손동작|손으로|손이|손은|손을|손\\s+.{0,8}(?:보|전달|움직|연기)).*")
                 && !latest.matches("(?s).*손.{0,12}(?:말고|아니라|제외).*");
         boolean handUnavailable = false;
         for (JsonNode source : input.path("record_view").path("source_catalog")) {
