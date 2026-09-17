@@ -51,6 +51,11 @@ class StructuredCoachConversationEvalTest {
                 messages.addObject().put("role", "actor").put("text", answer);
                 result = engine.reply(session, answer, UUID.randomUUID());
                 session = result.session();
+                if (answer.equals("ㅁㄹ") || answer.equals("?")) {
+                    assertThat(session.coachingState().path("last_reply").path("move").asText())
+                            .isIn("explain", "clarify", "simplify");
+                    assertThat(result.reply().message()).doesNotContain("말해보세요", "기다려보세요", "잡아보세요", "기다리세요");
+                }
                 messages.addObject().put("role", "ai").put("text", result.reply().message());
                 assertThat(result.reply().message()).doesNotContain("지금은 이 구간을 더 확인하기 어려워요", "영상에 근거한 설명을 준비하지 못했어요", "기대답변");
             }

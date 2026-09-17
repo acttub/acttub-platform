@@ -99,6 +99,11 @@ class SceneContextConversationEvalTest {
                     assertThat(OpeningQuestion.questionCount(result.reply().message())).isLessThanOrEqualTo(1);
                     assertThat(result.reply().message()).doesNotContain("단호", "음량", "목소리", "속도", "짧게 끊");
                 }
+                if (reply.equals("ㅁㄹ") || reply.equals("모르겠어") || reply.equals("뭔 소리야?")) {
+                    assertThat(result.session().coachingState().path("last_reply").path("move").asText())
+                            .isIn("explain", "clarify", "simplify");
+                    assertThat(result.reply().message()).doesNotContain("말해보세요", "기다려보세요", "잡아보세요", "기다리세요");
+                }
                 // An in-scene objective must not silently become the actor's training goal.
                 assertThat(result.session().coachingState().path("context").path("direction").isNull()).isTrue();
             }
