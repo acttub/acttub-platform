@@ -91,8 +91,9 @@
 
 1.0.0에서 하지 않는 것.
 
-- 게시판 community_* 7개는 현재 구조를 유지한다. 단 community_blocks는 사람 단위 user_blocks로
-  바꿔 커뮤니티·챌린지가 함께 쓴다.
+- 커뮤니티(게시판)는 1.0.0에서 뺀다. 요구사항과 결정은 [later/community.md](../later/community.md)에
+  보관하고 후속에서 잇는다. community_blocks는 사람 단위 user_blocks로 바꿔 챌린지가 쓴다.
+  (결정 필요: community_* 테이블을 남길지)
 - 가입 유입 경로 추적. users의 signup_* 컬럼은 지우고 signup_attributions 테이블은 만들지 않는다.
 
 ## 열린 질문
