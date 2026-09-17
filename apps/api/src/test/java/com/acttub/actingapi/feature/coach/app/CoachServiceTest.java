@@ -100,6 +100,18 @@ class CoachServiceTest {
     }
 
     @Test
+    void unavailableOpeningDoesNotSaveAnErrorAsTheFirstQuestion() {
+        stubStartContext();
+        when(coach.start(any(), any())).thenThrow(new CoachReplyUnavailable());
+        assertThatThrownBy(() -> service.start(USER_ID, new CoachStart(PRACTICE_ID, false), null))
+                .isInstanceOfSatisfying(ApiException.class, error -> {
+                    assertThat(error.status()).isEqualTo(502);
+                    assertThat(error.getMessage()).isEqualTo("coach_response_unavailable");
+                });
+        org.mockito.Mockito.verifyNoInteractions(ledger);
+    }
+
+    @Test
     void unavailableReplyFailsTheOperationWithoutSavingAFakeTurn() {
         var snapshot = snapshot("open", List.of(new CoachTurnSnapshot("ai", "기존 질문")));
         when(sessions.getOwnedCoachSession(USER_ID, SESSION_ID))
