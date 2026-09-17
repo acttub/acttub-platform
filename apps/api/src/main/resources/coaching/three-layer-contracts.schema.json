@@ -135,6 +135,14 @@
             "isolated"
           ],
           "description": "Repeated characteristic, change across the video, or a local observation."
+        },
+        "basis": {
+          "type": "string",
+          "enum": [
+            "scene",
+            "delivery"
+          ],
+          "description": "scene: meaning/action of the scene, supported by dialogue or observations; delivery: observed performance, requiring observations. Missing on legacy records retains delivery coverage checks."
         }
       },
       "required": [
@@ -1726,7 +1734,11 @@
             "explain",
             "correct",
             "acknowledge",
-            "close"
+            "close",
+            "simplify",
+            "suggest",
+            "assess",
+            "extend"
           ]
         },
         "evidence_refs": {
@@ -1738,13 +1750,81 @@
           },
           "minItems": 0,
           "maxItems": 12
+        },
+        "selection": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "need": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 180,
+              "pattern": "\\S"
+            },
+            "blocker": {
+              "enum": [
+                "unknown_context",
+                "scene_understanding",
+                "question_understanding",
+                "interpretation",
+                "execution",
+                "delivery",
+                "transfer",
+                "none"
+              ]
+            },
+            "known_refs": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "maxItems": 12
+            },
+            "question": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "missing_information": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 180,
+                      "pattern": "\\S"
+                    },
+                    "help_if_answered": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 180,
+                      "pattern": "\\S"
+                    }
+                  },
+                  "required": [
+                    "missing_information",
+                    "help_if_answered"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "need",
+            "blocker",
+            "known_refs",
+            "question"
+          ]
         }
       },
       "required": [
         "user_message_id",
         "actor_quote",
         "move",
-        "evidence_refs"
+        "evidence_refs",
+        "selection"
       ]
     },
     "layer2_dialogue_respond": {
