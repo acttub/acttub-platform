@@ -15,7 +15,11 @@
 - 익명 글, 분류별 목록, 좋아요·신고는 현재 코드 구조를 따른다. 신고 사유는 spam·abuse·sexual·
   privacy·other다.
 
+## 1.0.0에서 한 것
+
+- community_* 테이블 7개와 기존 글 데이터는 남기고 API·화면만 내린다. community_blocks는
+  user_blocks가 된다.
+
 ## 후속에서 정할 것
 
-- community_* 테이블 7개를 1.0.0에서 남길지(데이터 보존) 지울지.
 - 연습·리포트와 데이터가 이어지지 않는다는 원칙(CONTEXT.md의 Community)을 유지할지.
