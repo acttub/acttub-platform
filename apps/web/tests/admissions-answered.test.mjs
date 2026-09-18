@@ -10,14 +10,21 @@ const { answeredAdmissions } = await import(
 
 const payload = { universities: [], notices: [], disclaimer: "", updated_at: "" };
 
-test("답이 오기 전에는 본문도 오늘도 없다", () => {
+test("답이 오기 전에는 초기 본문을 오늘 없이 준다", () => {
   for (const resource of [
     { state: "idle" },
     { state: "loading" },
     { state: "failed", message: "못 불러왔어요." },
   ]) {
-    assert.deepEqual(answeredAdmissions(resource), { payload: null, today: null });
+    assert.deepEqual(answeredAdmissions(resource, payload), { payload, today: null });
   }
+});
+
+test("실패해도 초기 본문을 남긴다", () => {
+  assert.deepEqual(
+    answeredAdmissions({ state: "failed", message: "못 불러왔어요." }, payload),
+    { payload, today: null },
+  );
 });
 
 test("답이 오면 받은 시각의 오늘을 함께 준다", () => {
