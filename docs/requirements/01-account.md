@@ -3,6 +3,7 @@
 [쓰는 법과 공통 규칙](00-common.md)을 먼저 읽는다.
 
 ## account.login 로그인·자동 가입
+- 도입: 1.0.0
 - 화면: A0, A0.1
 - 테이블: users, user_identities, refresh_tokens, consent_documents, user_consents
 
@@ -139,6 +140,7 @@
   테이블도 만들지 않는다.
 
 ## account.consent 동의 조회·변경
+- 도입: 1.0.0
 - 화면: A4 설정(동의 목록), D3·W3(약관 공개 페이지). 웹 게스트의 동의 시트는 미설계
 - 테이블: consent_documents, user_consents
 
@@ -212,6 +214,7 @@
 - 같은 판의 본문만 고쳐 배포: 판이 그대로고 재동의 게이트가 뜨지 않는다.
 
 ## account.profile 프로필
+- 도입: 1.0.0
 - 화면: A0.2, A4 프로필
 - 테이블: user_profiles, user_profile_directions
 
@@ -296,6 +299,7 @@ user_profile_directions(user_id, direction)에 고른 값마다 한 행씩 둔�
   받지 않는다.
 
 ## account.portfolio 포트폴리오
+- 도입: 1.0.0
 - 결정 기록: ADR-030
 - 화면: A4 프로필(포트폴리오 편집). 편집 화면과 공개 페이지는 미설계
 - 테이블: portfolios, portfolio_credits, portfolio_photos (ERD에 없음)
@@ -363,6 +367,7 @@ user_profile_directions(user_id, direction)에 고른 값마다 한 행씩 둔�
 - PDF 내보내기. 공개 페이지와 같은 내용을 파일 하나로 내는 기능이며 후속에서 요구사항을 정한다.
 
 ## account.notification 알림 설정·발송
+- 도입: 1.0.0
 - 화면: A4 설정
 - 테이블: user_profiles, push_tokens
 
@@ -421,6 +426,7 @@ user_profile_directions(user_id, direction)에 고른 값마다 한 행씩 둔�
 - 가입 직후 설정을 열면: 토글 셋이 모두 켜져 있다.
 
 ## account.logout 로그아웃
+- 도입: 1.0.0
 - 화면: A4 설정
 - 테이블: refresh_tokens, push_tokens
 
@@ -472,6 +478,7 @@ user_profile_directions(user_id, direction)에 고른 값마다 한 행씩 둔�
 - 동의를 아직 결정하지 않은 상태에서 로그아웃: 된다.
 
 ## account.guest 웹 체험과 앱으로 옮기기
+- 도입: 1.0.0
 - 결정 기록: ADR-028
 - 화면: 게스트 시작 안내, 기능별 동의 시트, 이관 코드, 옮긴 뒤 안내, 앱의 코드 입력(모두 미설계)
 - 테이블: users, user_identities, refresh_tokens, user_consents, guest_transfer_codes(ERD에 추가)
@@ -565,6 +572,7 @@ user_profile_directions(user_id, direction)에 고른 값마다 한 행씩 둔�
 - 웹 화면 넷(게스트 시작 안내, 이관 코드, 옮긴 뒤 안내)과 앱의 코드 입력 화면이 pen에 없다.
 
 ## account.withdraw 탈퇴
+- 도입: 1.0.0
 - 결정 기록: ADR-029
 - 화면: A5
 - 테이블: users, user_profiles, user_identities, refresh_tokens, push_tokens, actor_memories, videos, reading_recordings, challenge_entries, ai_jobs, portfolios, portfolio_photos, user_blocks, guest_transfer_codes
