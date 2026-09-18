@@ -21,7 +21,7 @@ import { api, type ConsentEntryDocument } from '@/lib/api';
 import { useFeedbackSheet } from '@/hooks/use-feedback-sheet';
 import { useAuth } from '@/lib/auth';
 import { consentPreferencesForEntry } from '@/lib/consent-entry';
-import { getConsentPrefs, setConsentPref } from '@/lib/consent-prefs';
+import { getConsentPrefs, MARKETING_ID, setConsentPref } from '@/lib/consent-prefs';
 import { translate as t } from '@/lib/i18n';
 import { disablePush, enablePush, isPushEnabled } from '@/lib/notifications';
 
@@ -42,7 +42,8 @@ function docIcon(title: string): ReactNode {
  */
 export default function SettingsScreen() {
   const router = useRouter();
-  const { consentEntry, signOut, refreshConsentEntry } = useAuth();
+  const { status, consentEntry, signOut, refreshConsentEntry, leaveGuest } = useAuth();
+  const isGuest = status === 'guest';
   const [initialConsentEntry] = useState(() => consentEntry.entry);
   const [docs, setDocs] = useState<ConsentEntryDocument[]>([]);
   const [prefs, setPrefs] = useState<Record<string, boolean>>({});
@@ -50,6 +51,7 @@ export default function SettingsScreen() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [pushOn, setPushOn] = useState(true);
+  const [marketingOn, setMarketingOn] = useState(false);
   const [updatingConsentId, setUpdatingConsentId] = useState<string | null>(null);
   const { confirm, alert, dialog } = useAppDialog();
   const feedback = useFeedbackSheet('settings');
@@ -59,6 +61,14 @@ export default function SettingsScreen() {
     setLoadError(null);
     try {
       const [cachedPrefs, push] = await Promise.all([getConsentPrefs(), isPushEnabled()]);
+      setMarketingOn(!!cachedPrefs[MARKETING_ID]);
+      if (isGuest) {
+        // 게스트는 서버 동의 문서가 없다 — 알림·의견·가이드만 보여준다.
+        setDocs([]);
+        setPrefs(cachedPrefs);
+        setPushOn(push);
+        return;
+      }
       let consentDocuments: ConsentEntryDocument[];
       let currentPrefs = cachedPrefs;
       if (initialConsentEntry && initialConsentEntry.documents.length > 0) {
@@ -80,7 +90,7 @@ export default function SettingsScreen() {
     } finally {
       setLoading(false);
     }
-  }, [initialConsentEntry]);
+  }, [initialConsentEntry, isGuest]);
 
   useEffect(() => {
     void loadSettings();
@@ -237,6 +247,34 @@ export default function SettingsScreen() {
             </>
           )}
 
+          {/* 마케팅 수신(선택) — 설문·이벤트 안내. 기기 저장(consent-prefs), 서버 문서 생기면 교체. */}
+          {!isGuest && (
+            <>
+              <Text style={styles.sectionTitle}>{t('settings.optionalConsent')}</Text>
+              <View style={styles.card}>
+                <View style={styles.cardRow}>
+                  <View style={styles.iconCircle}>
+                    <Feather name="mail" size={18} color={palette.blue} />
+                  </View>
+                  <View style={styles.cardBody}>
+                    <Text style={styles.cardTitle}>{t('settings.marketingTitle')}</Text>
+                    <Text style={styles.cardSub}>{t('settings.marketingSub')}</Text>
+                  </View>
+                  <Switch
+                    value={marketingOn}
+                    onValueChange={(v) => {
+                      setMarketingOn(v);
+                      void setConsentPref(MARKETING_ID, v).catch(() => undefined);
+                    }}
+                    trackColor={{ true: palette.blue, false: palette.border }}
+                    thumbColor="#FFFFFF"
+                    ios_backgroundColor={palette.border}
+                  />
+                </View>
+              </View>
+            </>
+          )}
+
           {/* 알림 — 분석 완료 푸시와 연습 리마인드를 한 토글로 켠다/끈다. */}
           <Text style={styles.sectionTitle}>{t('settings.notifications')}</Text>
           <View style={styles.card}>
@@ -273,9 +311,23 @@ export default function SettingsScreen() {
             </View>
           </Pressable>
 
-          {/* 코치의 기억 — 틀린 내용을 되돌릴 수 있는 유일한 자리. */}
-          <Text style={styles.sectionTitle}>{t('settings.memorySection')}</Text>
-          <Pressable style={styles.card} onPress={() => router.push('/memory')} accessibilityRole="button">
+          {/* 첫 시작 가이드 다시 보기 */}
+          <Pressable style={styles.card} onPress={() => router.push('/guide')} accessibilityRole="button">
+            <View style={styles.cardRow}>
+              <View style={styles.iconCircle}>
+                <Feather name="compass" size={18} color={palette.blue} />
+              </View>
+              <View style={styles.cardBody}>
+                <Text style={styles.cardTitle}>{t('settings.guideTitle')}</Text>
+                <Text style={styles.cardSub}>{t('settings.guideSub')}</Text>
+              </View>
+              <Feather name="chevron-right" size={18} color={palette.checkOff} />
+            </View>
+          </Pressable>
+
+          {/* 코치의 기억 — 틀린 내용을 되돌릴 수 있는 유일한 자리. 게스트에겐 없다. */}
+          {!isGuest && <Text style={styles.sectionTitle}>{t('settings.memorySection')}</Text>}
+          {!isGuest && <Pressable style={styles.card} onPress={() => router.push('/memory')} accessibilityRole="button">
             <View style={styles.cardRow}>
               <View style={styles.iconCircle}>
                 <Feather name="book" size={18} color={palette.blue} />
@@ -286,7 +338,7 @@ export default function SettingsScreen() {
               </View>
               <Feather name="chevron-right" size={18} color={palette.checkOff} />
             </View>
-          </Pressable>
+          </Pressable>}
 
           {/* 문의·신고 (SOMA-499, App Store 1.2 — 앱 안에서 부적절 활동을 신고할 창구) */}
           <Text style={styles.sectionTitle}>{t('settings.contactSection')}</Text>
@@ -312,17 +364,25 @@ export default function SettingsScreen() {
 
           <View style={styles.spacer} />
 
-          <Pressable style={styles.logout} onPress={() => void confirmLogout()}>
-            <Text style={styles.logoutText}>{t('settings.logout')}</Text>
-          </Pressable>
+          {isGuest ? (
+            <Pressable style={styles.loginBtn} onPress={() => void leaveGuest()} accessibilityRole="button">
+              <Text style={styles.loginBtnText}>{t('settings.guestLogin')}</Text>
+            </Pressable>
+          ) : (
+            <>
+              <Pressable style={styles.logout} onPress={() => void confirmLogout()}>
+                <Text style={styles.logoutText}>{t('settings.logout')}</Text>
+              </Pressable>
 
-          {/* 깊이 숨기지 않는다 — 앱스토어 심사가 계정 삭제를 앱 안에서 찾을 수 있는지 본다. */}
-          <Pressable
-            style={styles.deleteRow}
-            onPress={() => router.push('/delete-account')}
-            accessibilityRole="button">
-            <Text style={styles.deleteText}>{t('settings.withdraw')}</Text>
-          </Pressable>
+              {/* 깊이 숨기지 않는다 — 앱스토어 심사가 계정 삭제를 앱 안에서 찾을 수 있는지 본다. */}
+              <Pressable
+                style={styles.deleteRow}
+                onPress={() => router.push('/delete-account')}
+                accessibilityRole="button">
+                <Text style={styles.deleteText}>{t('settings.withdraw')}</Text>
+              </Pressable>
+            </>
+          )}
         </ScrollView>
       )}
       {feedback.element}
@@ -399,6 +459,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logoutText: { color: palette.danger, fontSize: 16, fontWeight: '800' },
+  loginBtn: { paddingVertical: 17, borderRadius: 18, backgroundColor: palette.blue, alignItems: 'center' },
+  loginBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
   deleteRow: { marginTop: 6, paddingVertical: 14, alignItems: 'center' },
   deleteText: { color: palette.textFaint, fontSize: 14, fontWeight: '600' },
 });

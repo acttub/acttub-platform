@@ -18,6 +18,7 @@ import {
 } from '@/lib/api';
 import { signOutBestEffort } from '@/lib/auth-session';
 import { createConsentEntrySession } from '@/lib/consent-entry';
+import { isGuestFlagSet, setGuestFlag } from '@/lib/guest';
 import { getUserName, saveUserName, setProviderNameHint } from '@/lib/profile';
 import { clearLocalAccountData } from '@/lib/local-account-data';
 import { detachPushFromAccount, syncPushRegistration } from '@/lib/notifications';
@@ -46,7 +47,8 @@ const WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '';
 // 없으면(안드로이드) undefined → 무시됨.
 const IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || undefined;
 
-type AuthStatus = 'loading' | 'signedIn' | 'signedOut';
+/** guest = 로그인 없이 둘러보기. 서버 계정이 없어 consent·profile 게이트를 타지 않는다. */
+type AuthStatus = 'loading' | 'signedIn' | 'signedOut' | 'guest';
 
 export type ConsentEntryState =
   | { status: 'checking'; entry: null; error: null }
@@ -66,6 +68,10 @@ type AuthContextValue = {
   /** iOS Sign in with Apple. isAvailableAsync가 true일 때만 노출. */
   signInWithApple: () => Promise<void>;
   signOut: () => Promise<void>;
+  /** 로그인 없이 둘러보기 — 기기에 플래그만 남기고 탭으로 보낸다. */
+  continueAsGuest: () => Promise<void>;
+  /** 게스트가 로그인하러 갈 때 — 플래그를 지우고 로그인 화면으로 돌아간다. */
+  leaveGuest: () => Promise<void>;
   /**
    * 회원탈퇴. 서버에 파기를 요청하고, 성공하면 이 기기에 남은 것까지 지운다.
    * 되돌릴 수 없다 — 부르기 전에 반드시 확인을 받는다.
@@ -218,7 +224,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!active) return;
       if (!hasToken) {
         setUser(null);
-        setStatus('signedOut');
+        setStatus((await isGuestFlagSet()) ? 'guest' : 'signedOut');
         return;
       }
       const requireProfileSetup = await needsProfileSetup();
@@ -263,6 +269,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const finishLogin = useCallback(
     async (pair: TokenPair, requireProfileSetup: boolean) => {
+      await setGuestFlag(false);
       const committed = await setTokens(
         pair.access_token,
         pair.refresh_token,
@@ -316,7 +323,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await finishLogin(pair, await needsProfileSetup());
   }, [finishLogin]);
 
+  const continueAsGuest = useCallback(async () => {
+    await setGuestFlag(true);
+    setUser(null);
+    setStatus('guest');
+  }, []);
+
+  const leaveGuest = useCallback(async () => {
+    await setGuestFlag(false);
+    setStatus('signedOut');
+  }, []);
+
   const signOut = useCallback(async () => {
+    await setGuestFlag(false);
     const rt = getRefreshToken();
     // 세션이 살아 있을 때 이 단말의 푸시 토큰을 서버에서 지운다 — 로그아웃 뒤에 오는
     // 알림은 다음 사용자의 화면에 뜬다. 실패해도 로그아웃은 계속 간다.
@@ -372,6 +391,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signInWithGoogle,
       signInWithApple,
       signOut,
+      continueAsGuest,
+      leaveGuest,
       deleteAccount,
       refreshConsentEntry,
       completeProfileSetup,
@@ -384,6 +405,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signInWithGoogle,
       signInWithApple,
       signOut,
+      continueAsGuest,
+      leaveGuest,
       deleteAccount,
       refreshConsentEntry,
       completeProfileSetup,

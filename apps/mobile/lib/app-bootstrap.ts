@@ -47,7 +47,7 @@ export type ConsentEntryGateStatus =
   | 'blocked';
 
 export type BootstrapStepInput = {
-  authStatus: 'loading' | 'signedIn' | 'signedOut';
+  authStatus: 'loading' | 'signedIn' | 'signedOut' | 'guest';
   userId: string | null;
   consentEntryStatus: ConsentEntryGateStatus;
   profileSetupRequired?: boolean;
@@ -82,6 +82,10 @@ export function resolveBootstrapStep(input: BootstrapStepInput): BootstrapStep {
   }
   if (input.authStatus === 'signedOut') {
     return { stage: 'auth-gate', route: '/login' };
+  }
+  // 게스트는 계정이 없어 동의·프로필·복구 게이트가 없다 — 바로 탭으로.
+  if (input.authStatus === 'guest') {
+    return { stage: 'done', route: '/(tabs)' };
   }
   if (!input.userId) {
     return { stage: 'auth-gate', route: null };
