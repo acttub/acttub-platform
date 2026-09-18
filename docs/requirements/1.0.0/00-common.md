@@ -87,6 +87,24 @@
 
 기능마다 반복되는 확인 방법을 여기에 모은다. 각 기능의 검증 방법에는 그 기능에만 있는 확인만 남긴다.
 
+## ERD에 반영할 변경
+
+계정 요구사항(2026-09-17 검토)에서 ERD 합의 뒤에 생긴 변경이다. ERD 아티팩트는 아직 이 목록을
+반영하지 않았다.
+
+| 변경 | 내용 | 출처 |
+|---|---|---|
+| 추가 | user_profile_directions(user_id, direction) | account.profile |
+| 추가 | portfolios(1:1), portfolio_credits, portfolio_photos | account.portfolio |
+| 추가 | guest_transfer_codes(user_id, code_hash, expires_at, used_at) | account.guest |
+| 추가 | notifications(알림함). 컬럼은 04-challenge에서 정한다 | account.notification |
+| 컬럼 | user_identities.uid_hash, provider_uid는 NULL 허용 | account.withdraw |
+| 값 | user_identities.provider에 guest 추가 | account.guest |
+| 값 | users.status에서 suspended 제거 | account.login |
+| 삭제 | users.signup_* 아홉 컬럼 | account.login |
+| 이름 | community_blocks → user_blocks | 범위 밖 |
+| 삭제 | users.nickname (user_profiles.name으로) | account.profile |
+
 ## 범위 밖
 
 1.0.0에서 하지 않는 것.
