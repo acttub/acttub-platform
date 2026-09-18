@@ -17,6 +17,7 @@ import {
   type AdmissionFilters,
   type AdmissionNotice,
   type AdmissionUniversity,
+  type AdmissionsResponse,
 } from "@/lib/api/v2/admissions";
 import { useResource } from "@/lib/react/use-resource";
 import { RailLayout } from "@/features/nav/app-rail";
@@ -29,7 +30,7 @@ const TYPE_LABEL: Record<string, string> = {
   college: "전문대",
 };
 
-export function AdmissionsPage() {
+export function AdmissionsPage({ initial }: { initial: AdmissionsResponse }) {
   const admissions = useResource(
     "admissions",
     (_, signal) => getAdmissions({ signal }),
@@ -38,7 +39,7 @@ export function AdmissionsPage() {
   const [filters, setFilters] = useState<AdmissionFilters>(EMPTY_FILTERS);
   const [filterOpen, setFilterOpen] = useState(false);
 
-  const { payload, today } = answeredAdmissions(admissions);
+  const { payload, today } = answeredAdmissions(admissions, initial);
 
   const groups = useMemo(
     () => (payload ? groupByUniversity(payload, today) : []),
@@ -97,7 +98,7 @@ export function AdmissionsPage() {
           <StatusLine tone="error">{admissions.message}</StatusLine>
         )}
 
-        {admissions.state === "loading" && (
+        {admissions.state === "loading" && !initial && (
           <StatusLine tone="muted">불러오는 중이에요…</StatusLine>
         )}
 

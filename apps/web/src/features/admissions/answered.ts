@@ -15,13 +15,16 @@ function localDate(at: number): string {
 }
 
 /**
- * 답이 왔을 때만 본문과 그때의 오늘을 함께 꺼낸다. 둘은 **늘 같이 서고 같이 없다** —
- * 목록·대학 상세 두 화면이 그 관계를 같은 세 줄로 따로 적고 있었다.
+ * 답이 오면 새 본문과 그때의 오늘을 함께 꺼낸다. 기다리거나 실패한 동안에는 서버가
+ * 먼저 준 본문만 남기고 오늘은 두지 않아 프리렌더와 첫 렌더를 같게 유지한다.
  */
-export function answeredAdmissions(resource: Resource<AdmissionsResponse>): {
+export function answeredAdmissions(
+  resource: Resource<AdmissionsResponse>,
+  initial?: AdmissionsResponse,
+): {
   payload: AdmissionsResponse | null;
   today: string | null;
 } {
-  if (resource.state !== "ready") return { payload: null, today: null };
+  if (resource.state !== "ready") return { payload: initial ?? null, today: null };
   return { payload: resource.data, today: localDate(resource.receivedAt) };
 }

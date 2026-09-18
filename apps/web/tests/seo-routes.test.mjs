@@ -20,8 +20,9 @@ test("robots는 공개 페이지를 허용하고 API 경로를 제외한다", ()
   });
 });
 
-test("sitemap은 네 공개 페이지와 키워드 본문의 수정일을 반환한다", () => {
-  assert.deepEqual(sitemap(), [
+test("sitemap은 기존 공개 페이지와 입시 목록·대학 상세를 반환한다", () => {
+  const entries = sitemap();
+  assert.deepEqual(entries.slice(0, 4), [
     { url: "https://acttub.com/" },
     { url: "https://acttub.com/app" },
     {
@@ -33,4 +34,10 @@ test("sitemap은 네 공개 페이지와 키워드 본문의 수정일을 반환
       lastModified: "2026-09-17",
     },
   ]);
+  assert.ok(entries.some(({ url }) => url === "https://acttub.com/admissions"));
+  assert.equal(
+    entries.filter(({ url }) => url.startsWith("https://acttub.com/admissions/")).length,
+    66,
+  );
+  assert.ok(entries.every(({ url }) => url.startsWith("https://acttub.com/")));
 });
