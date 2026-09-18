@@ -83,6 +83,11 @@ export function KeywordPageView({ content }: { content: KeywordPageContent }) {
         <nav aria-label="목차" className="mt-14 rounded-3xl bg-[#f2f4f6] p-6 sm:p-8">
           <p className="font-black">목차</p>
           <ol className="mt-4 space-y-3 text-[#4e5968]">
+            <li>
+              <Link href="/guide" className="font-bold hover:text-[#3182f6]">
+                연기 연습 가이드
+              </Link>
+            </li>
             {content.sections.map((section) => (
               <li key={section.id}>
                 <a href={`#${section.id}`} className="font-bold hover:text-[#3182f6]">
@@ -151,6 +156,7 @@ export function KeywordPageView({ content }: { content: KeywordPageContent }) {
           <nav className="mt-5 flex flex-wrap gap-x-6 gap-y-3 text-sm font-bold text-[#6b7684]">
             <Link href="/">홈</Link>
             <Link href="/app">앱 다운로드</Link>
+            <Link href="/guide">연기 연습 가이드</Link>
             <Link href="/ai-acting-coaching">AI 연기 코칭</Link>
             <Link href="/acting-coaching">연기 코칭 안내</Link>
             <Link href="/terms">안전 약속</Link>

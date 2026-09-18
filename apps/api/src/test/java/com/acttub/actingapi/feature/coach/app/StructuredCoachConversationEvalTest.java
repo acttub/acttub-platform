@@ -56,6 +56,10 @@ class StructuredCoachConversationEvalTest {
                             .isIn("explain", "clarify", "simplify");
                     assertThat(result.reply().message()).doesNotContain("말해보세요", "기다려보세요", "잡아보세요", "기다리세요");
                 }
+                if (answer.equals("내가 실수로 말했어")) {
+                    assertThat(OpeningQuestion.questionCount(result.reply().message())).isEqualTo(1);
+                    assertThat(result.session().coachingState().path("last_reply").path("move").asText()).isEqualTo("clarify");
+                }
                 messages.addObject().put("role", "ai").put("text", result.reply().message());
                 assertThat(result.reply().message()).doesNotContain("지금은 이 구간을 더 확인하기 어려워요", "영상에 근거한 설명을 준비하지 못했어요", "기대답변");
             }

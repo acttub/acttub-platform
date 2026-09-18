@@ -207,6 +207,8 @@ export const ACTING_COACHING: KeywordPageContent = {
   ],
   related: [
     { href: "/ai-acting-coaching", label: "AI 연기 코칭이 뭔가요?" },
+    { href: "/guide/how-to-choose-acting-academy", label: "연기학원 고르는 법" },
+    { href: "/guide/acting-self-study-routine", label: "연기 독학 루틴 — 매일 30분" },
     { href: "/app", label: "Acttub 앱 다운로드" },
     { href: "/terms", label: "안전 약속" },
   ],

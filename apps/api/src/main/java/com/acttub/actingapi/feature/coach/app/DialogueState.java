@@ -68,14 +68,14 @@ final class DialogueState {
             require(Set.of("open", "close").contains(link.path("move").asText()), "opening move required");
         } else {
             String quote = link.path("actor_quote").asText();
-            require(link.path("user_message_id").equals(userMessage.path("id")), "reply must address latest actor message");
+            require(link.path("user_message_id").equals(userMessage.path("id")), "reply must address latest actor message: copy response_constraints.user_message_id exactly");
             require(!quote.isBlank() && userMessage.path("text").asText().contains(quote), "reply quote must come from latest answer");
             require(!"open".equals(link.path("move").asText()), "cannot restart dialogue after an answer");
         }
         for (JsonNode id : link.path("evidence_refs")) {
             JsonNode source = catalog.get(id.asText());
             require(source != null && Set.of("video_observation", "video_utterance", "record_limitation")
-                    .contains(source.path("kind").asText()), "reply evidence must be delivered video material");
+                    .contains(source.path("kind").asText()), "reply evidence must be delivered video material: use only IDs in response_constraints.allowed_video_refs; request_id and session_id are not evidence");
         }
         String message = response.path("message").asText().strip();
         ResponseSelection.validate(response, catalog, finishRequired);
@@ -178,6 +178,6 @@ final class DialogueState {
                     "uncertainty or acknowledgment is not an actor direction");
             quoted |= source.path("text").asText().contains(value.path("text").asText());
         }
-        require(quoted, "keep the actor's own words in context");
+        require(quoted, "keep the actor's own words in context: scene_context와 direction의 text는 배우 원문에서 그대로 복사한다. 문장 끝이나 조사를 바꾸지 않는다. 요약은 message에만 쓴다.");
     }
 }

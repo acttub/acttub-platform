@@ -48,3 +48,34 @@ test('ATT 허용 시에만 광고 식별자를 수집한다', () => {
     advertiserTracking: true,
   });
 });
+
+async function loadMetaEvents(apiUrl) {
+  const previousApiUrl = process.env.EXPO_PUBLIC_API_URL;
+  const previousOverride = process.env.EXPO_PUBLIC_META_EVENTS;
+  try {
+    process.env.EXPO_PUBLIC_API_URL = apiUrl;
+    process.env.EXPO_PUBLIC_META_EVENTS = '0';
+    return await import(`../lib/meta-events.ts?apiUrl=${encodeURIComponent(apiUrl)}`);
+  } finally {
+    if (previousApiUrl === undefined) delete process.env.EXPO_PUBLIC_API_URL;
+    else process.env.EXPO_PUBLIC_API_URL = previousApiUrl;
+    if (previousOverride === undefined) delete process.env.EXPO_PUBLIC_META_EVENTS;
+    else process.env.EXPO_PUBLIC_META_EVENTS = previousOverride;
+  }
+}
+
+test('게이트가 꺼진 환경에서는 Meta 이벤트 전송이 예외 없이 no-op이다', async () => {
+  const { initMetaSdk, logMetaEvent } = await loadMetaEvents('https://dev.acttub.com');
+  await initMetaSdk();
+  assert.doesNotThrow(() => {
+    assert.equal(logMetaEvent('fb_mobile_complete_registration'), undefined);
+    assert.equal(logMetaEvent('practice_analysis_complete'), undefined);
+  });
+});
+
+test('네이티브 모듈이 없어 SDK가 초기화되지 않아도 Meta 이벤트 전송은 예외가 없다', async () => {
+  const { initMetaSdk, logMetaEvent } = await loadMetaEvents('https://acttub.com');
+  assert.doesNotThrow(() => logMetaEvent('fb_mobile_complete_registration'));
+  await assert.doesNotReject(() => initMetaSdk());
+  assert.doesNotThrow(() => logMetaEvent('practice_analysis_complete'));
+});

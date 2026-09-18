@@ -257,6 +257,8 @@ export const AI_ACTING_COACHING: KeywordPageContent = {
   ],
   related: [
     { href: "/acting-coaching", label: "연기 코칭을 받는 다섯 가지 방법" },
+    { href: "/guide/reviewing-your-acting-video", label: "내 연기 영상 다시 보는 법" },
+    { href: "/guide/monologue-practice", label: "독백 연습 혼자 하는 법" },
     { href: "/app", label: "Acttub 앱 다운로드" },
     { href: "/terms", label: "안전 약속" },
   ],

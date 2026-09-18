@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { logEvent } from '@/lib/analytics';
+import { logMetaEvent } from '@/lib/meta-events';
 import {
   AnalysisTerminalError,
   OperationInactiveError,
@@ -235,6 +236,7 @@ export default function AnalyzingScreen() {
           playbackUrl,
         });
         logEvent('analysis_complete', {});
+        logMetaEvent('practice_analysis_complete');
         router.replace('/coach');
       });
       appAnalysisOperationOwner.finish(operation);

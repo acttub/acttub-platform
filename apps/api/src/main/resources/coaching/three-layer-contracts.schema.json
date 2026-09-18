@@ -1597,10 +1597,45 @@
             }
           },
           "then": {
-            "properties": {
-              "direction": {
-                "$ref": "#/$defs/direction"
+            "anyOf": [
+              {
+                "properties": {
+                  "direction": {
+                    "$ref": "#/$defs/direction"
+                  }
+                }
               },
+              {
+                "properties": {
+                  "focus": {
+                    "properties": {
+                      "basis": {
+                        "const": "scene"
+                      }
+                    },
+                    "required": [
+                      "basis"
+                    ]
+                  },
+                  "scene_context": {
+                    "type": "object",
+                    "properties": {
+                      "character_goal": {
+                        "$ref": "#/$defs/direction"
+                      }
+                    },
+                    "required": [
+                      "character_goal"
+                    ]
+                  }
+                },
+                "required": [
+                  "focus",
+                  "scene_context"
+                ]
+              }
+            ],
+            "properties": {
               "focus": {
                 "$ref": "#/$defs/focus"
               },
@@ -1659,7 +1694,7 @@
         "direction": {
           "anyOf": [
             {
-              "$ref": "#/$defs/direction"
+              "$ref": "#/$defs/dialogue_actor_statement"
             },
             {
               "type": "null"
@@ -1667,7 +1702,7 @@
           ]
         },
         "scene_context": {
-          "$ref": "#/$defs/scene_context"
+          "$ref": "#/$defs/dialogue_scene_context"
         },
         "focus": {
           "anyOf": [
@@ -2062,6 +2097,79 @@
         "summary",
         "next_take"
       ]
+    },
+    "dialogue_actor_statement": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "origin": {
+          "enum": [
+            "actor_stated",
+            "actor_selected"
+          ]
+        },
+        "source_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "text",
+        "origin",
+        "source_refs"
+      ]
+    },
+    "dialogue_scene_context": {
+      "type": "object",
+      "properties": {
+        "situation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/dialogue_actor_statement"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "character_goal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/dialogue_actor_statement"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "partner_action": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/dialogue_actor_statement"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "situation",
+        "character_goal",
+        "partner_action"
+      ],
+      "additionalProperties": false
     }
   }
 }

@@ -4,8 +4,11 @@ import { test } from "node:test";
 import "./ts-module-loader.mjs";
 
 const {
+  buildAdmissionsBreadcrumbJsonLd,
+  buildAdmissionsWebPageJsonLd,
   buildBreadcrumbJsonLd,
   buildFaqPageJsonLd,
+  buildGuideItemListJsonLd,
   buildKeywordArticleJsonLd,
   buildMobileApplicationJsonLd,
   buildOrganizationJsonLd,
@@ -15,6 +18,9 @@ const {
 
 const { AI_ACTING_COACHING } = await import(
   "../src/features/keyword-pages/content/ai-acting-coaching.ts"
+);
+const { GUIDES } = await import(
+  "../src/features/keyword-pages/content/guide/index.ts"
 );
 
 const { APP_STORE_URL, GOOGLE_PLAY_URL } = await import(
@@ -155,6 +161,44 @@ test("키워드 Article과 Breadcrumb는 페이지와 Organization을 잇는다"
   });
 });
 
+test("가이드 Breadcrumb는 목차를 거치는 세 단계다", () => {
+  const guide = GUIDES[0];
+  const breadcrumb = buildBreadcrumbJsonLd(guide, siteUrl, {
+    path: "/guide",
+    name: "연기 연습 가이드",
+  });
+
+  assert.deepEqual(breadcrumb.itemListElement, [
+    { "@type": "ListItem", position: 1, name: "홈", item: `${siteUrl}/` },
+    {
+      "@type": "ListItem",
+      position: 2,
+      name: "연기 연습 가이드",
+      item: `${siteUrl}/guide`,
+    },
+    {
+      "@type": "ListItem",
+      position: 3,
+      name: guide.eyebrow,
+      item: `${siteUrl}${guide.path}`,
+    },
+  ]);
+});
+
+test("가이드 목차 ItemList는 글 순서와 주소를 보존한다", () => {
+  const itemList = buildGuideItemListJsonLd(GUIDES, siteUrl);
+
+  assert.equal(itemList["@type"], "ItemList");
+  assert.equal(itemList["@id"], `${siteUrl}/guide#list`);
+  assert.deepEqual(itemList.itemListElement[0], {
+    "@type": "ListItem",
+    position: 1,
+    url: `${siteUrl}${GUIDES[0].path}`,
+    name: GUIDES[0].h1,
+  });
+  assert.equal(itemList.itemListElement.length, GUIDES.length);
+});
+
 test("JSON-LD 결과는 undefined 없이 직렬화된다", () => {
   const values = [
     buildOrganizationJsonLd(siteUrl),
@@ -170,4 +214,54 @@ test("JSON-LD 결과는 undefined 없이 직렬화된다", () => {
     assert.equal(containsUndefined(value), false);
     assert.doesNotThrow(() => JSON.stringify(value));
   }
+});
+
+test("입시 breadcrumb는 목록과 대학 상세 경로를 잇는다", () => {
+  assert.deepEqual(
+    buildAdmissionsBreadcrumbJsonLd(
+      { id: "cau", name: "중앙대학교" },
+      siteUrl,
+    ).itemListElement,
+    [
+      { "@type": "ListItem", position: 1, name: "홈", item: `${siteUrl}/` },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "입시 정보",
+        item: `${siteUrl}/admissions`,
+      },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: "중앙대학교",
+        item: `${siteUrl}/admissions/cau`,
+      },
+    ],
+  );
+});
+
+test("입시 상세 WebPage는 수정일과 WebSite 식별자를 담는다", () => {
+  assert.deepEqual(
+    buildAdmissionsWebPageJsonLd(
+      {
+        id: "cau",
+        name: "중앙대학교 연기 입시 정보",
+        description: "중앙대학교 입시 정보예요.",
+        updatedAt: "2026-08-07",
+      },
+      siteUrl,
+    ),
+    {
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      "@id": `${siteUrl}/admissions/cau#webpage`,
+      name: "중앙대학교 연기 입시 정보",
+      description: "중앙대학교 입시 정보예요.",
+      inLanguage: "ko",
+      dateModified: "2026-08-07",
+      url: `${siteUrl}/admissions/cau`,
+      isPartOf: { "@id": `${siteUrl}/#website` },
+      publisher: { "@id": `${siteUrl}/#org` },
+    },
+  );
 });

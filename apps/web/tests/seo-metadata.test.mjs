@@ -7,13 +7,20 @@ import "./ts-module-loader.mjs";
 delete process.env.NEXT_PUBLIC_SITE_URL;
 
 const {
+  buildAdmissionsIndexMetadata,
+  buildGuideIndexMetadata,
   buildKeywordPageMetadata,
   buildLandingMetadata,
   buildNoindexMetadata,
   buildRootMetadata,
+  buildUniversityAdmissionsMetadata,
   buildVerification,
   resolveSiteUrl,
 } = await import("../src/lib/seo/site-metadata.ts");
+
+const { loadUniversityAdmissionsStatic } = await import(
+  "../src/features/admissions/admissions-static.ts"
+);
 
 const { AI_ACTING_COACHING } = await import(
   "../src/features/keyword-pages/content/ai-acting-coaching.ts"
@@ -98,6 +105,18 @@ test("키워드 metadata는 canonical과 Article 공유 정보를 본문에서 �
   });
 });
 
+test("가이드 목차 metadata는 canonical과 website 공유 정보를 담는다", () => {
+  const metadata = buildGuideIndexMetadata("https://example.com/");
+
+  assert.equal(
+    metadata.title,
+    "연기 연습 가이드 — 독백·셀프테이프·입시·독학 루틴",
+  );
+  assert.equal(metadata.alternates.canonical, "/guide");
+  assert.equal(metadata.openGraph.type, "website");
+  assert.equal(metadata.openGraph.url, "https://example.com/guide");
+});
+
 test("랜딩 metadata에만 canonical과 openGraph URL이 있다", () => {
   const metadata = buildLandingMetadata("https://example.com/");
 
@@ -113,4 +132,51 @@ test("noindex metadata는 검색과 링크 추적을 모두 막는다", () => {
   assert.deepEqual(buildNoindexMetadata(), {
     robots: { index: false, follow: false },
   });
+});
+
+test("입시 목록 metadata는 데이터의 대학 수와 canonical을 담는다", () => {
+  const metadata = buildAdmissionsIndexMetadata("https://example.com/");
+
+  assert.equal(
+    metadata.title,
+    "연극영화과 입시 정보 — 대학별 모집요강·실기·일정 정리",
+  );
+  assert.equal(
+    metadata.description,
+    "전국 연극영화과·연기 전공 66개 대학의 모집요강, 실기 과제, 원서 접수 일정을 한곳에 정리했어요. 최종 확인은 각 대학 입학처 공고로 해주세요.",
+  );
+  assert.equal(metadata.alternates.canonical, "/admissions");
+  assert.equal(metadata.openGraph.url, "https://example.com/admissions");
+});
+
+test("대학 상세 metadata는 실제 중앙대 공고에서 만든다", () => {
+  const payload = loadUniversityAdmissionsStatic("cau");
+  assert.ok(payload);
+  const metadata = buildUniversityAdmissionsMetadata(payload, "https://example.com/");
+
+  assert.equal(metadata.title, "중앙대학교 연기 입시 정보 — 모집요강·실기·일정");
+  assert.equal(
+    metadata.description,
+    "중앙대학교 공연영상창작학부 연극전공 (연기·뮤지컬) 2027학년도 수시 전형의 실기 과제와 접수 일정을 정리했어요. 최종 확인은 대학 입학처 공고로 해주세요.",
+  );
+  assert.equal(metadata.alternates.canonical, "/admissions/cau");
+  assert.equal(metadata.openGraph.url, "https://example.com/admissions/cau");
+  assert.equal(metadata.openGraph.type, "website");
+});
+
+test("공고가 없는 대학 상세 metadata는 중립 설명을 쓴다", () => {
+  const metadata = buildUniversityAdmissionsMetadata(
+    {
+      universities: [{ id: "empty", name: "빈대학교" }],
+      notices: [],
+      disclaimer: "확인해 주세요.",
+      updated_at: "2026-08-07",
+    },
+    "https://example.com",
+  );
+
+  assert.equal(
+    metadata.description,
+    "빈대학교 연기 전공 입시 정보를 정리했어요. 최종 확인은 대학 입학처 공고로 해주세요.",
+  );
 });
