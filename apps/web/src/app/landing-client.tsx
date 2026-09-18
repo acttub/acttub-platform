@@ -140,7 +140,7 @@ export default function LandingClient() {
 
   return (
     <>
-      <main className="h-dvh snap-y snap-mandatory scroll-smooth overflow-y-auto overscroll-y-contain bg-white text-[#191f28] [@media(max-height:700px)]:snap-proximity">
+      <main className="h-dvh snap-y snap-proximity scroll-smooth overflow-y-auto overscroll-y-contain bg-white text-[#191f28] [@media(max-height:700px)]:snap-proximity">
         <header className="sticky top-0 z-20 -mb-16 border-b border-[#edf0f3]/80 bg-white/90 px-5 backdrop-blur-xl">
           <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between">
             <Link href="/" aria-label={COPY.homeLabel} className="shrink-0">
@@ -181,8 +181,12 @@ export default function LandingClient() {
         >
           <div className="absolute left-1/2 top-12 h-80 w-80 -translate-x-1/2 rounded-full bg-[#3182f6]/[0.16] blur-3xl" />
           <div className="absolute -left-24 top-1/2 h-64 w-64 rounded-full bg-white/70 blur-3xl" />
+          {/* 첫 화면은 서버 HTML부터 보이게 둔다 — 아래 섹션처럼 data-reveal 로 숨겨 두면
+              JS 번들이 내려와 하이드레이션될 때까지 h1 이 opacity-0 이라, 모바일 실측에서
+              LCP 가 9초까지 밀렸다(2026-09-18, TTFB·FCP 는 정상). 스크롤 reveal 은
+              뷰포트 밖에서 시작하는 섹션에만 뜻이 있다. */}
           <div
-            data-reveal
+            data-visible="true"
             className="relative mx-auto grid w-full max-w-6xl translate-y-6 items-center gap-4 py-4 opacity-0 transition-[opacity,transform] duration-400 ease-[cubic-bezier(0,0,0.2,1)] data-[visible=true]:translate-y-0 data-[visible=true]:opacity-100 motion-reduce:translate-y-0 motion-reduce:opacity-100 motion-reduce:transition-none sm:gap-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(300px,0.7fr)] lg:gap-12"
           >
             <div className="text-center lg:text-left">
