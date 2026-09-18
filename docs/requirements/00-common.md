@@ -115,6 +115,44 @@ git 이력이 보관한다. 동작을 바꾸는 PR이 그 기능의 요구사항
 | 이름 | community_blocks → user_blocks | 범위 밖 |
 | 삭제 | users.nickname (user_profiles.name으로) | account.profile |
 
+## 디자인에 반영할 것
+
+pen을 고칠 목록이다. 규칙은 출처 기능의 본문이 정본이고 여기에는 한 줄만 둔다.
+
+| 화면 | 바꿀 것 | 출처 |
+|---|---|---|
+| A0 로그인 | 카카오·네이버 버튼(안드로이드는 애플 제외), 마지막 제공자 강조, 이메일 겹침 안내 | account.login |
+| A0.1 동의 | 선택 문서 줄(동의·거절 두 버튼), 버튼 문구 "동의하고 계속하기" | account.login, account.consent |
+| A0.2 프로필 설정 | 나이 칸을 생년월일로, 이름 칸에 "다른 사람에게 보이는 이름이에요", 만 14세 미만 안내 | account.profile |
+| A4 설정 | 알림 토글 셋과 밤 10시, 문서마다 판·시행일·결정 시각, 선택 동의 바꾸기 | account.notification, account.consent |
+| A4 설정·프로필 | 프로필 여섯 항목과 사진·소개를 고치는 진입점 | account.profile |
+| A5 탈퇴 | 안내 문구를 챌린지 기준으로, 지워지는 것에 사진·소개·영상 | account.withdraw |
+| 새 화면(앱) | 포트폴리오 편집, 이관 코드 입력, 기억 선택 팝업 | account.portfolio, account.guest |
+| 새 화면(웹) | 게스트 시작 안내, 기능별 동의 시트, 이관 코드, 옮긴 뒤 안내, 포트폴리오 공개 페이지 | account.guest, account.portfolio |
+| 없앨 화면(웹) | W2 로그인, D3.1 동의 결정, 상단 탐색의 아바타 | account.guest |
+| 내릴 화면 | 커뮤니티 A3·A3.1·A3.2, D11·D12·D15, WC·WC2·WC3 | 05-community |
+
+## 처리방침·동의 문서에 반영할 것
+
+동의 문서 새 판과 법무 확인에 넘길 목록이다. 문서를 고치면 판을 올리고 기존 회원은 게이트로 다시
+받는다(account.consent).
+
+| 문서 | 반영할 것 | 출처 |
+|---|---|---|
+| 개인정보 처리방침 | 필수 수집 항목 여섯과 항목마다 코칭에 쓰는 이유 한 줄 | account.profile |
+| 개인정보 처리방침 | 만 14세 미만은 가입할 수 없음 | account.profile |
+| 개인정보 처리방침 | 탈퇴 때 파기하는 것과 가명처리해 남기는 것, 남기는 목적(통계·연구) | account.withdraw |
+| 개인정보 처리방침 | 신원 해시를 탈퇴 후 3년 보관하고 쓰임은 둘뿐임 | account.withdraw |
+| 개인정보 처리방침 | 백업 덤프에 파기 전 데이터가 30일 남음 | account.withdraw |
+| 개인정보 처리방침 | 보관 동의의 철회 연락처와 본인 확인 방법 | account.withdraw |
+| 개인정보 처리방침 | 웹 게스트의 자료는 마지막 활동 30일 뒤 파기 | account.guest |
+| 개인정보 처리방침 | 포트폴리오 공유 링크로 공개되는 항목 | account.portfolio |
+| 이용약관 | 가입 방식에 카카오·네이버, 웹은 로그인 없이 게스트로 이용 | account.login, account.guest |
+| 탈퇴 후 영상·녹음 보관·활용(신설, 선택) | 목적(서비스 개선·모델 학습 중 무엇), 기간 3년, 철회 방법, 거절해도 서비스는 같음 | account.withdraw |
+| AI 분석 동의 | 리딩 녹음에도 필요한지는 03-reading에서 정한다 | account.guest |
+| 법무 확인 | 가명처리 보관과 동의 기반 보관의 문구, 자유 글(배우 기억·대화·받아쓰기) 보존, 해시 보관 | account.withdraw |
+| 운영 배포 체크리스트 | 카카오·네이버는 검수 승인 뒤에만 운영에서 켠다 | account.login |
+
 ## 범위 밖
 
 1.0.0에서 하지 않는 것.
