@@ -67,3 +67,16 @@
 ### 목적
 ### 예외
 ### 검증 방법
+
+## challenge.notification 챌린지 알림·알림함
+- 도입: 1.0.0
+- 화면:
+- 테이블: notifications, push_tokens
+
+토글과 토큰은 account.notification이 맡고, 이 기능은 어떤 사건에 언제 보내고 어떻게 묶는지와 알림함을 맡는다.
+
+### 기능
+### 의도
+### 목적
+### 예외
+### 검증 방법

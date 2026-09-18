@@ -65,8 +65,8 @@ git 이력이 보관한다. 동작을 바꾸는 PR이 그 기능의 요구사항
 표시가 떼진 문장만 따른다.
 
 기능 하나가 끝난 기준: 다섯 절이 다 있고, 테이블 줄의 이름이 전부 ERD에 있고, 검증 방법의 각
-항목이 입력과 기대 결과 한 쌍이고, (결정 필요)가 남아 있지 않다. 문서 묶음이 끝난 기준: ERD
-테이블 30개가 모두 어느 기능의 테이블 줄에 나온다. 구현이 끝난 기준: 검증 방법의 항목마다
+항목이 입력과 기대 결과 한 쌍이고, (결정 필요)가 남아 있지 않다. 문서 묶음이 끝난 기준: ERD의
+테이블과 아래 "ERD에 반영할 변경"의 추가 테이블이 모두 어느 기능의 테이블 줄에 나온다. 구현이 끝난 기준: 검증 방법의 항목마다
 테스트 하나가 대응한다.
 
 ## 공통 규칙
@@ -85,7 +85,8 @@ git 이력이 보관한다. 동작을 바꾸는 PR이 그 기능의 요구사항
 
 ### 탈퇴·삭제
 
-- users 행은 익명화해 남기고 프로필은 행째 삭제한다. 커뮤니티 글은 보존한다. (ERD 결정)
+- users 행은 익명화해 남긴다. 프로필은 이름·사진·소개를 지우고 나머지를 가명처리해 남긴다. 챌린지
+  댓글은 "탈퇴한 사용자"로 남는다. (account.withdraw)
 - 재가입은 새 계정이다. 이전 계정의 데이터는 옮기지 않는다. 영역마다 탈퇴한 사람의 행을 어떻게
   보일지만 따로 정한다.
 
@@ -107,13 +108,16 @@ git 이력이 보관한다. 동작을 바꾸는 PR이 그 기능의 요구사항
 | 추가 | user_profile_directions(user_id, direction) | account.profile |
 | 추가 | portfolios(1:1), portfolio_credits, portfolio_photos | account.portfolio |
 | 추가 | guest_transfer_codes(user_id, code_hash, expires_at, used_at) | account.guest |
-| 추가 | notifications(알림함). 컬럼은 04-challenge에서 정한다 | account.notification |
+| 추가 | notifications(알림함). 컬럼은 challenge.notification에서 정한다 | challenge.notification |
 | 컬럼 | user_identities.uid_hash, provider_uid는 NULL 허용 | account.withdraw |
 | 값 | user_identities.provider에 guest 추가 | account.guest |
 | 값 | users.status에서 suspended 제거 | account.login |
 | 삭제 | users.signup_* 아홉 컬럼 | account.login |
 | 이름 | community_blocks → user_blocks | 범위 밖 |
 | 삭제 | users.nickname (user_profiles.name으로) | account.profile |
+| 컬럼 | user_profiles 알림 토글 둘 → 셋(챌린지 알림 추가) | account.notification |
+| 컬럼 | user_profiles 나이는 생년월일로 받고, 탈퇴 때 연령대로 뭉개 남긴다 | account.profile, account.withdraw |
+| 컬럼 | user_identities에 애플 토큰(암호화) | account.login |
 
 ## 디자인에 반영할 것
 
