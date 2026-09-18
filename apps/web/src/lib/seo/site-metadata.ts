@@ -90,6 +90,30 @@ export function buildKeywordPageMetadata(
   };
 }
 
+const GUIDE_INDEX_TITLE =
+  "연기 연습 가이드 — 독백·셀프테이프·입시·독학 루틴";
+const GUIDE_INDEX_DESCRIPTION =
+  "혼자 하는 연기 연습을 위한 가이드예요. 독백 연습법, 셀프테이프 찍는 법, 자유연기 작품 고르기, 연기 독학 루틴, 연기학원 고르는 법, 연극영화과 입시 준비 순서, 장면 분석, 내 영상 다시 보는 법을 정리했어요.";
+
+export function buildGuideIndexMetadata(siteUrl?: string): Metadata {
+  const resolvedSiteUrl = resolveSiteUrl(siteUrl);
+  const rootMetadata = buildRootMetadata(resolvedSiteUrl);
+
+  return {
+    ...rootMetadata,
+    title: GUIDE_INDEX_TITLE,
+    description: GUIDE_INDEX_DESCRIPTION,
+    alternates: { canonical: "/guide" },
+    openGraph: {
+      ...rootMetadata.openGraph,
+      type: "website",
+      url: `${resolvedSiteUrl}/guide`,
+      title: `${GUIDE_INDEX_TITLE} | Acttub`,
+      description: GUIDE_INDEX_DESCRIPTION,
+    },
+  };
+}
+
 export function buildLandingMetadata(siteUrl?: string): Metadata {
   const resolvedSiteUrl = resolveSiteUrl(siteUrl);
   const rootMetadata = buildRootMetadata(resolvedSiteUrl);

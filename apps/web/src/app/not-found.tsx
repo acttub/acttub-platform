@@ -9,6 +9,7 @@ const links = [
   { href: "/app", label: "앱 다운로드" },
   { href: "/ai-acting-coaching", label: "AI 연기 코칭" },
   { href: "/acting-coaching", label: "연기 코칭 안내" },
+  { href: "/guide", label: "연기 연습 가이드" },
 ] as const;
 
 export default function NotFound() {

@@ -108,6 +108,9 @@ export default function AppDownloadView() {
           >
             연기 코칭 안내
           </Link>
+          <Link href="/guide" className="transition hover:text-[#191f28]">
+            연기 연습 가이드
+          </Link>
           <a
             href="https://www.instagram.com/acttub_com/"
             target="_blank"

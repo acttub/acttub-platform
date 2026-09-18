@@ -47,6 +47,15 @@ const INDEXABLE_PAGES = [
     builder: "buildUniversityAdmissionsMetadata",
     dynamic: true,
   },
+  {
+    page: path.join("guide", "page.tsx"),
+    builder: "buildGuideIndexMetadata",
+  },
+  {
+    page: path.join("guide", "[slug]", "page.tsx"),
+    builder: "buildKeywordPageMetadata",
+    dynamic: true,
+  },
 ];
 
 const indexablePagePaths = new Set(

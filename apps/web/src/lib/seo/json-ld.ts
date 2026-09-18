@@ -58,6 +58,7 @@ export function buildKeywordArticleJsonLd(
 export function buildBreadcrumbJsonLd(
   content: Pick<KeywordPageContent, "path" | "eyebrow">,
   siteUrl?: string,
+  intermediate?: { path: string; name: string },
 ) {
   const baseUrl = resolveSiteUrl(siteUrl);
   const pageUrl = `${baseUrl}${content.path}`;
@@ -68,13 +69,40 @@ export function buildBreadcrumbJsonLd(
     "@id": `${pageUrl}#breadcrumb`,
     itemListElement: [
       { "@type": "ListItem", position: 1, name: "홈", item: `${baseUrl}/` },
+      ...(intermediate
+        ? [{
+            "@type": "ListItem",
+            position: 2,
+            name: intermediate.name,
+            item: `${baseUrl}${intermediate.path}`,
+          }]
+        : []),
       {
         "@type": "ListItem",
-        position: 2,
+        position: intermediate ? 3 : 2,
         name: content.eyebrow,
         item: pageUrl,
       },
     ],
+  };
+}
+
+export function buildGuideItemListJsonLd(
+  guides: readonly Pick<KeywordPageContent, "path" | "h1">[],
+  siteUrl?: string,
+) {
+  const baseUrl = resolveSiteUrl(siteUrl);
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    "@id": `${baseUrl}/guide#list`,
+    itemListElement: guides.map((guide, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      url: `${baseUrl}${guide.path}`,
+      name: guide.h1,
+    })),
   };
 }
 

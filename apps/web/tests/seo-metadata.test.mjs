@@ -8,6 +8,7 @@ delete process.env.NEXT_PUBLIC_SITE_URL;
 
 const {
   buildAdmissionsIndexMetadata,
+  buildGuideIndexMetadata,
   buildKeywordPageMetadata,
   buildLandingMetadata,
   buildNoindexMetadata,
@@ -102,6 +103,18 @@ test("키워드 metadata는 canonical과 Article 공유 정보를 본문에서 �
     title: `${AI_ACTING_COACHING.title} | Acttub`,
     description: AI_ACTING_COACHING.description,
   });
+});
+
+test("가이드 목차 metadata는 canonical과 website 공유 정보를 담는다", () => {
+  const metadata = buildGuideIndexMetadata("https://example.com/");
+
+  assert.equal(
+    metadata.title,
+    "연기 연습 가이드 — 독백·셀프테이프·입시·독학 루틴",
+  );
+  assert.equal(metadata.alternates.canonical, "/guide");
+  assert.equal(metadata.openGraph.type, "website");
+  assert.equal(metadata.openGraph.url, "https://example.com/guide");
 });
 
 test("랜딩 metadata에만 canonical과 openGraph URL이 있다", () => {

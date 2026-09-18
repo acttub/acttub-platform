@@ -25,6 +25,7 @@ const COPY = {
     app: "앱 다운로드",
     aiCoaching: "AI 연기 코칭",
     coaching: "연기 코칭 안내",
+    guide: "연기 연습 가이드",
   },
   hero: {
     launch: "앱 출시",
@@ -429,6 +430,9 @@ export default function LandingClient() {
                     className="transition hover:text-white"
                   >
                     {COPY.nav.coaching}
+                  </Link>
+                  <Link href="/guide" className="transition hover:text-white">
+                    {COPY.nav.guide}
                   </Link>
                   <a href="#flow" className="transition hover:text-white">
                     {COPY.nav.flow}
