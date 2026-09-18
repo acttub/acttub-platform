@@ -190,3 +190,55 @@ export function buildSoftwareApplicationJsonLd(siteUrl?: string) {
     publisher: { "@id": organizationId },
   };
 }
+
+export function buildAdmissionsBreadcrumbJsonLd(
+  university?: { id: string; name: string },
+  siteUrl?: string,
+) {
+  const baseUrl = resolveSiteUrl(siteUrl);
+  const path = university ? `/admissions/${university.id}` : "/admissions";
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "@id": `${baseUrl}${path}#breadcrumb`,
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "홈", item: `${baseUrl}/` },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "입시 정보",
+        item: `${baseUrl}/admissions`,
+      },
+      ...(university
+        ? [
+            {
+              "@type": "ListItem",
+              position: 3,
+              name: university.name,
+              item: `${baseUrl}${path}`,
+            },
+          ]
+        : []),
+    ],
+  };
+}
+
+export function buildAdmissionsWebPageJsonLd(
+  page: { id: string; name: string; description: string; updatedAt: string },
+  siteUrl?: string,
+) {
+  const baseUrl = resolveSiteUrl(siteUrl);
+  const pageUrl = `${baseUrl}/admissions/${page.id}`;
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "@id": `${pageUrl}#webpage`,
+    name: page.name,
+    description: page.description,
+    inLanguage: "ko",
+    dateModified: page.updatedAt,
+    url: pageUrl,
+    isPartOf: { "@id": `${baseUrl}/#website` },
+    publisher: { "@id": `${baseUrl}/#org` },
+  };
+}

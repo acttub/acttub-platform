@@ -23,13 +23,14 @@ test("robots는 공개 페이지를 허용하고 API 경로를 제외한다", ()
   });
 });
 
-test("sitemap은 공개 페이지와 가이드 본문의 수정일을 반환한다", () => {
+test("sitemap은 공개 페이지, 입시 목록·대학 상세, 가이드를 순서대로 반환한다", () => {
   const latestGuideDate = GUIDES.reduce(
     (latest, guide) => guide.updatedAt > latest ? guide.updatedAt : latest,
     GUIDES[0].updatedAt,
   );
+  const entries = sitemap();
 
-  assert.deepEqual(sitemap(), [
+  assert.deepEqual(entries.slice(0, 4), [
     { url: "https://acttub.com/" },
     { url: "https://acttub.com/app" },
     {
@@ -40,10 +41,18 @@ test("sitemap은 공개 페이지와 가이드 본문의 수정일을 반환한�
       url: "https://acttub.com/acting-coaching",
       lastModified: "2026-09-17",
     },
+  ]);
+  assert.ok(entries.some(({ url }) => url === "https://acttub.com/admissions"));
+  assert.equal(
+    entries.filter(({ url }) => url.startsWith("https://acttub.com/admissions/")).length,
+    66,
+  );
+  assert.deepEqual(entries.slice(-(GUIDES.length + 1)), [
     { url: "https://acttub.com/guide", lastModified: latestGuideDate },
     ...GUIDES.map((guide) => ({
       url: `https://acttub.com${guide.path}`,
       lastModified: guide.updatedAt,
     })),
   ]);
+  assert.ok(entries.every(({ url }) => url.startsWith("https://acttub.com/")));
 });

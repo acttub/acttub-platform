@@ -39,6 +39,15 @@ const INDEXABLE_PAGES = [
     builder: "buildKeywordPageMetadata",
   },
   {
+    page: path.join("admissions", "page.tsx"),
+    builder: "buildAdmissionsIndexMetadata",
+  },
+  {
+    page: path.join("admissions", "[id]", "page.tsx"),
+    builder: "buildUniversityAdmissionsMetadata",
+    dynamic: true,
+  },
+  {
     page: path.join("guide", "page.tsx"),
     builder: "buildGuideIndexMetadata",
   },
@@ -77,10 +86,10 @@ test("색인 허용 페이지는 noindex 없이 자기 metadata builder를 expor
     const source = readSource(path.join(sourceAppRoot, page));
 
     assert.doesNotMatch(source, /buildNoindexMetadata/, page);
-    const builderPattern = dynamic
-      ? new RegExp(`\\bexport\\s+async\\s+function\\s+generateMetadata[\\s\\S]*?\\b${builder}\\s*\\(`)
+    const pattern = dynamic
+      ? new RegExp(`\\bexport\\s+async\\s+function\\s+generateMetadata[\\s\\S]*?${builder}\\s*\\(`)
       : new RegExp(`\\bexport\\s+const\\s+metadata\\s*=\\s*${builder}\\s*\\(`);
-    assert.match(source, builderPattern, page);
+    assert.match(source, pattern, page);
   }
 });
 

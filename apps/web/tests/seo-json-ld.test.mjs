@@ -4,6 +4,8 @@ import { test } from "node:test";
 import "./ts-module-loader.mjs";
 
 const {
+  buildAdmissionsBreadcrumbJsonLd,
+  buildAdmissionsWebPageJsonLd,
   buildBreadcrumbJsonLd,
   buildFaqPageJsonLd,
   buildGuideItemListJsonLd,
@@ -212,4 +214,54 @@ test("JSON-LD 결과는 undefined 없이 직렬화된다", () => {
     assert.equal(containsUndefined(value), false);
     assert.doesNotThrow(() => JSON.stringify(value));
   }
+});
+
+test("입시 breadcrumb는 목록과 대학 상세 경로를 잇는다", () => {
+  assert.deepEqual(
+    buildAdmissionsBreadcrumbJsonLd(
+      { id: "cau", name: "중앙대학교" },
+      siteUrl,
+    ).itemListElement,
+    [
+      { "@type": "ListItem", position: 1, name: "홈", item: `${siteUrl}/` },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "입시 정보",
+        item: `${siteUrl}/admissions`,
+      },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: "중앙대학교",
+        item: `${siteUrl}/admissions/cau`,
+      },
+    ],
+  );
+});
+
+test("입시 상세 WebPage는 수정일과 WebSite 식별자를 담는다", () => {
+  assert.deepEqual(
+    buildAdmissionsWebPageJsonLd(
+      {
+        id: "cau",
+        name: "중앙대학교 연기 입시 정보",
+        description: "중앙대학교 입시 정보예요.",
+        updatedAt: "2026-08-07",
+      },
+      siteUrl,
+    ),
+    {
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      "@id": `${siteUrl}/admissions/cau#webpage`,
+      name: "중앙대학교 연기 입시 정보",
+      description: "중앙대학교 입시 정보예요.",
+      inLanguage: "ko",
+      dateModified: "2026-08-07",
+      url: `${siteUrl}/admissions/cau`,
+      isPartOf: { "@id": `${siteUrl}/#website` },
+      publisher: { "@id": `${siteUrl}/#org` },
+    },
+  );
 });

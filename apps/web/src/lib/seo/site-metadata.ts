@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import type { KeywordPageContent } from "@/features/keyword-pages/types";
+import { loadAdmissionsStatic } from "@/features/admissions/admissions-static";
+import type { AdmissionsResponse } from "@/lib/api/v2/admissions";
 
 const DEFAULT_SITE_URL = "https://acttub.com";
 const DEFAULT_TITLE = "Acttub — AI 연기 코칭, 질문으로 다시 보는 연기 연습";
@@ -163,6 +165,65 @@ export function buildNoindexMetadata(title?: string): Metadata {
     robots: {
       index: false,
       follow: false,
+    },
+  };
+}
+
+export function buildAdmissionsIndexMetadata(siteUrl?: string): Metadata {
+  const resolvedSiteUrl = resolveSiteUrl(siteUrl);
+  const rootMetadata = buildRootMetadata(resolvedSiteUrl);
+  const title = "연극영화과 입시 정보 — 대학별 모집요강·실기·일정 정리";
+  const count = loadAdmissionsStatic().universities.length;
+  const description = `전국 연극영화과·연기 전공 ${count}개 대학의 모집요강, 실기 과제, 원서 접수 일정을 한곳에 정리했어요. 최종 확인은 각 대학 입학처 공고로 해주세요.`;
+
+  return {
+    ...rootMetadata,
+    title,
+    description,
+    alternates: { canonical: "/admissions" },
+    openGraph: {
+      ...rootMetadata.openGraph,
+      type: "website",
+      url: `${resolvedSiteUrl}/admissions`,
+      title: `${title} | Acttub`,
+      description,
+    },
+  };
+}
+
+export function buildUniversityAdmissionsMetadata(
+  payload: AdmissionsResponse,
+  siteUrl?: string,
+): Metadata {
+  const resolvedSiteUrl = resolveSiteUrl(siteUrl);
+  const rootMetadata = buildRootMetadata(resolvedSiteUrl);
+  const university = payload.universities[0];
+  const title = `${university.name} 연기 입시 정보 — 모집요강·실기·일정`;
+  const departments = [
+    ...new Set(payload.notices.map(({ department }) => department).filter(Boolean)),
+  ].slice(0, 3);
+  const tracks = [
+    ...new Set(payload.notices.map(({ track }) => track).filter(Boolean)),
+  ];
+  const years = payload.notices
+    .map(({ admission_year }) => admission_year)
+    .filter((year): year is number => typeof year === "number");
+  const description = payload.notices.length
+    ? `${university.name} ${departments.join(" · ")} ${Math.max(...years)}학년도 ${tracks.join(" · ")} 전형의 실기 과제와 접수 일정을 정리했어요. 최종 확인은 대학 입학처 공고로 해주세요.`
+    : `${university.name} 연기 전공 입시 정보를 정리했어요. 최종 확인은 대학 입학처 공고로 해주세요.`;
+  const path = `/admissions/${university.id}`;
+
+  return {
+    ...rootMetadata,
+    title,
+    description,
+    alternates: { canonical: path },
+    openGraph: {
+      ...rootMetadata.openGraph,
+      type: "website",
+      url: `${resolvedSiteUrl}${path}`,
+      title: `${title} | Acttub`,
+      description,
     },
   };
 }
