@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { palette } from '@/constants/palette';
 import { translate as t } from '@/lib/i18n';
 
-export type RecordMode = 'ai' | 'challenge';
+export type RecordMode = 'ai' | 'challenge' | 'plain';
 
 /**
  * 촬영 전에 용도를 고르는 시트 — 하단 탭 촬영 버튼이 연다.
@@ -53,6 +53,19 @@ export function RecordModeSheet({
           </View>
           <Ionicons name="chevron-forward" size={20} color={palette.checkOff} />
         </Pressable>
+        <Pressable
+          style={({ pressed }) => [styles.option, pressed && styles.pressed]}
+          onPress={() => onPick('plain')}
+          accessibilityRole="button">
+          <View style={[styles.icon, styles.iconPlain]}>
+            <Ionicons name="videocam-outline" size={22} color={palette.textDim} />
+          </View>
+          <View style={styles.body}>
+            <Text style={styles.optionTitle}>{t('recordMode.plain')}</Text>
+            <Text style={styles.optionSub}>{t('recordMode.plainSub')}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={palette.checkOff} />
+        </Pressable>
       </View>
     </Modal>
   );
@@ -87,6 +100,7 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.85 },
   icon: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFF4DE', alignItems: 'center', justifyContent: 'center' },
   iconPrimary: { backgroundColor: 'rgba(255,255,255,0.22)' },
+  iconPlain: { backgroundColor: palette.bgSoft },
   body: { flex: 1 },
   optionTitle: { fontSize: 16, fontWeight: '800', color: palette.text },
   optionTitlePrimary: { color: '#FFFFFF' },

@@ -33,6 +33,10 @@ export default function TabLayout() {
       requireLogin(() => router.push({ pathname: '/record-video', params: { mode: 'ai' } }));
       return;
     }
+    if (mode === 'plain') {
+      router.push({ pathname: '/record-video', params: { mode: 'plain' } });
+      return;
+    }
     router.push({
       pathname: '/record-video',
       params: { mode: 'challenge', line: TODAY_LINE.line, work: TODAY_LINE.work },

@@ -10,7 +10,8 @@ import { useAppDialog } from '@/components/app-dialog';
 import { palette } from '@/constants/palette';
 import { translate as t } from '@/lib/i18n';
 import { MAX_VIDEO_DURATION_MS, normalizeVideoDurationMs } from '@/lib/upload-input';
-import { setRecordedVideo } from '@/lib/recorded-video';
+import { setRecordedVideo, takeRecordedVideo } from '@/lib/recorded-video';
+import { addArchiveRecording } from '@/lib/archive-store';
 
 const MAX_SEC = Math.floor(MAX_VIDEO_DURATION_MS / 1000);
 /** 챌린지(오늘의 대사) 촬영은 60초 — pen A18 촬영 대기 화면과 같은 상한. */
@@ -31,6 +32,7 @@ const CHALLENGE_MAX_SEC = 60;
 export default function RecordVideoScreen() {
   const router = useRouter();
   // mode=ai: 하단 탭 촬영 버튼에서 "AI 코칭"을 고르고 옴 → 찍으면 업로드 화면으로.
+  // mode=plain: "기본 촬영" → 찍으면 보관함에 저장하고 그 영상 화면으로.
   // mode=challenge: 대사 띄운 챌린지 촬영. 그 외(업로드 화면의 촬영 버튼)는 찍고 되돌아간다.
   const { mode, line, work } = useLocalSearchParams<{
     mode?: string;
@@ -88,6 +90,18 @@ export default function RecordVideoScreen() {
     if (mode === 'ai') {
       // 업로드 화면이 포커스되며 takeRecordedVideo 로 결과를 받아 붙인다.
       router.replace('/upload');
+      return;
+    }
+    if (mode === 'plain') {
+      // 기본 촬영 — 서버로 안 보내고 보관함(기기)에 넣은 뒤 그 영상 화면으로.
+      const video = takeRecordedVideo();
+      if (!video) {
+        router.back();
+        return;
+      }
+      void addArchiveRecording({ uri: video.uri, durationMs: video.durationMs }).then((rec) =>
+        router.replace({ pathname: '/archive-detail', params: { id: rec.id } }),
+      );
       return;
     }
     router.back();
