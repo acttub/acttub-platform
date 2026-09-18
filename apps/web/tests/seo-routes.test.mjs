@@ -8,6 +8,9 @@ delete process.env.NEXT_PUBLIC_SITE_URL;
 
 const { default: robots } = await import("../src/app/robots.ts");
 const { default: sitemap } = await import("../src/app/sitemap.ts");
+const { GUIDES } = await import(
+  "../src/features/keyword-pages/content/guide/index.ts"
+);
 
 test("robots는 공개 페이지를 허용하고 API 경로를 제외한다", () => {
   assert.deepEqual(robots(), {
@@ -20,7 +23,12 @@ test("robots는 공개 페이지를 허용하고 API 경로를 제외한다", ()
   });
 });
 
-test("sitemap은 네 공개 페이지와 키워드 본문의 수정일을 반환한다", () => {
+test("sitemap은 공개 페이지와 가이드 본문의 수정일을 반환한다", () => {
+  const latestGuideDate = GUIDES.reduce(
+    (latest, guide) => guide.updatedAt > latest ? guide.updatedAt : latest,
+    GUIDES[0].updatedAt,
+  );
+
   assert.deepEqual(sitemap(), [
     { url: "https://acttub.com/" },
     { url: "https://acttub.com/app" },
@@ -32,5 +40,10 @@ test("sitemap은 네 공개 페이지와 키워드 본문의 수정일을 반환
       url: "https://acttub.com/acting-coaching",
       lastModified: "2026-09-17",
     },
+    { url: "https://acttub.com/guide", lastModified: latestGuideDate },
+    ...GUIDES.map((guide) => ({
+      url: `https://acttub.com${guide.path}`,
+      lastModified: guide.updatedAt,
+    })),
   ]);
 });
