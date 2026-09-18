@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
 import { api, type ReportRecord } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import { buildWeekActivity } from '@/lib/practice-activity';
 import { rememberPracticeDays } from '@/lib/practice-days';
 import { dismissFeedbackNudge, feedbackNudgeVisible, maybeRequestStoreReview } from '@/lib/feedback-prompts';
@@ -50,6 +51,8 @@ export default function HomeScreen() {
   const [nudge, setNudge] = useState(false);
   const feedback = useFeedbackSheet('home');
   const { requireLogin, element: loginGuard } = useRequireLogin();
+  const { status } = useAuth();
+  const isGuest = status === 'guest';
   // 첫 진입 한 번만 가이드(4장). 설정에서 다시 볼 수 있다.
   const guideCheckedRef = useRef(false);
 
@@ -62,8 +65,8 @@ export default function HomeScreen() {
         });
       }
       let cancelled = false;
-      api
-        .reportHistory()
+      // 게스트는 계정이 없다 — 보호 API를 부르면 토큰 정리 이벤트로 튕기니 아예 부르지 않는다.
+      (isGuest ? Promise.resolve({ reports: [] as ReportRecord[] }) : api.reportHistory())
         .then((r) => {
           if (cancelled) return;
           setRecords(sortReportsNewestFirst(r.reports));
@@ -80,7 +83,7 @@ export default function HomeScreen() {
       return () => {
         cancelled = true;
       };
-    }, [router]),
+    }, [router, isGuest]),
   );
 
   useEffect(() => {

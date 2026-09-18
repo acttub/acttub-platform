@@ -38,14 +38,16 @@ export default function ProfileScreen() {
       void getUserName().then((n) => alive && setName(n?.trim() || null));
       void getProfilePhotoUri().then((u) => alive && setPhotoUri(u));
       void getProfileBio().then((b) => alive && setBio(b));
-      void api
-        .reportHistory()
-        .then((r) => alive && setPracticeCount(r.reports.length))
-        .catch(() => {});
+      if (!isGuest) {
+        void api
+          .reportHistory()
+          .then((r) => alive && setPracticeCount(r.reports.length))
+          .catch(() => {});
+      }
       return () => {
         alive = false;
       };
-    }, []),
+    }, [isGuest]),
   );
 
   const display = displayNameFor(name, user?.email ?? null) || t('profileTab.title');

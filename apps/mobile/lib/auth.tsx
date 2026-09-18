@@ -238,7 +238,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       resetConsentEntry();
       setUser(null);
       setProfileSetupRequired(false);
-      setStatus('signedOut');
+      // 게스트는 토큰이 애초에 없다 — 보호 API가 토큰을 비웠다고 로그인 화면으로 쫓아내지 않는다.
+      setStatus((prev) => (prev === 'guest' ? 'guest' : 'signedOut'));
     });
     const unsubConsent = onConsentRequired(() => {
       void refreshConsentEntry().catch(() => undefined);
