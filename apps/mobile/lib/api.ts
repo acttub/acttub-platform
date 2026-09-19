@@ -29,6 +29,7 @@ import {
 import type { SignupDecision } from '@/lib/consent-entry-submission';
 import type { LoginRequestBody, LoginResponse } from '@/lib/login-flow';
 import type { ProfilePayload, ServerProfile } from '@/lib/profile-form';
+import type { NotificationSettings } from '@/lib/push-policy';
 import {
   sceneValueForSubmit,
   sendUploadIntent,
@@ -479,34 +480,81 @@ export const api = {
     );
   },
 
+  /** 프로필 사진을 올릴 주소. 앱이 줄인 JPEG 의 크기를 알린다(영상 업로드와 같은 방식). */
+  createProfilePhotoIntent(input: {
+    content_type: string;
+    size_bytes: number;
+  }): Promise<{ upload_url: string; expires_at: string }> {
+    return request('/v2/me/photo', jsonInit(input), { timeoutMs: 30_000 });
+  },
+
+  /** 올리기가 끝났다고 알린다. 서버가 객체를 확인해 프로필 사진으로 바꾸고 옛 사진을 지운다. */
+  completeProfilePhoto(): Promise<MeResponse> {
+    return request<MeResponse>('/v2/me/photo/complete', { method: 'POST' }, { timeoutMs: 30_000 });
+  },
+
+  /** 프로필 사진을 지운다. 사진이 없어도 204다(멱등). */
+  deleteProfilePhoto(): Promise<void> {
+    return request<void>('/v2/me/photo', { method: 'DELETE' }, { timeoutMs: 15_000 });
+  },
+
   /**
-   * 회원탈퇴. 204 를 받으면 끝난다.
+   * 회원탈퇴. 처음이든 다시든 200 과 최초 탈퇴 시각을 받는다.
    *
-   * 서버는 행을 지우지 않고 이메일·이름·로그인 연결을 파기하고 refresh 를 전부
-   * 끊는다. **되돌릴 수 없다.**
+   * 서버는 행을 지우지 않고 이메일·이름·사진·소개·포트폴리오·로그인 연결을 파기하고
+   * refresh 를 전부 끊는다. **되돌릴 수 없다.**
    *
    * 401 재시도를 막지 않는다 — 서버 처리가 멱등해서(이미 탈퇴한 계정이면 최초 탈퇴
    * 시각을 유지) 두 번 닿아도 결과가 같다. 막으면 액세스 토큰이 방금 만료된 사람만
-   * 탈퇴에 실패한다.
+   * 탈퇴에 실패한다. 탈퇴 도중 앱이 죽어 다시 눌러도 같은 200 이다.
    */
-  deleteMe(): Promise<void> {
-    return request<void>('/v2/me', { method: 'DELETE' }, { timeoutMs: 30_000 });
+  deleteMe(): Promise<{ status: 'deactivated'; deactivated_at: string }> {
+    return request('/v2/me', { method: 'DELETE' }, { timeoutMs: 30_000 });
+  },
+
+  // 알림 설정 -------------------------------------------------------------------
+  /** 알림 토글 셋. 프로필에 저장돼 폰을 바꿔도 유지된다. 가입 직후에는 셋 다 켜져 있다. */
+  notificationSettings(): Promise<NotificationSettings> {
+    return request('/v2/me/notification-settings', {}, { timeoutMs: 15_000 });
+  },
+
+  /**
+   * 바꿀 토글만 보낸다. 응답은 토글 셋 전체다. 푸시 토글 둘이 다 꺼지면 서버가 그 회원의
+   * 푸시 토큰을 전부 지운다.
+   */
+  updateNotificationSettings(patch: Partial<NotificationSettings>): Promise<NotificationSettings> {
+    return request(
+      '/v2/me/notification-settings',
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      },
+      { timeoutMs: 15_000 },
+    );
   },
 
   // 푸시 알림 -------------------------------------------------------------------
-  /** 이 단말의 Expo push token 을 내 것으로 등록. 서버가 토큰 기준 upsert 라 멱등하다. */
+  /**
+   * 이 단말의 Expo push token 을 내 것으로 등록. 서버가 토큰 기준 upsert 라 멱등하다.
+   * 보호 기능이라 동의와 프로필이 끝난 뒤에만 받는다(그 전에는 403).
+   */
   registerPushToken(token: string, platform: 'ios' | 'android'): Promise<void> {
     return request<void>('/v2/push-tokens', jsonInit({ token, platform }), {
       timeoutMs: 15_000,
     });
   },
 
-  /** 이 단말의 토큰을 지운다(로그아웃·알림 끄기). 없어도 204 — 멱등하다. */
+  /**
+   * 이 단말의 토큰을 지운다. 없어도 204 — 멱등하다. **로그인 없이 보낸다** — 푸시 토큰을 갖고
+   * 있다는 것이 본인 확인이다. 그래서 로그아웃 때 실패한 삭제를 다음 실행 때(기기에 액세스
+   * 토큰이 없어도) 다시 보낼 수 있다.
+   */
   unregisterPushToken(token: string): Promise<void> {
     return request<void>(
       '/v2/push-tokens',
       { ...jsonInit({ token }), method: 'DELETE' },
-      { timeoutMs: 15_000 },
+      { auth: false, timeoutMs: 15_000 },
     );
   },
 

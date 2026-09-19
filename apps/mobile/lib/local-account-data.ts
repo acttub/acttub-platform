@@ -16,6 +16,23 @@ import { deleteUserName } from '@/lib/profile';
  */
 const KEY_PREFIX = 'acttub.';
 
+/**
+ * 로그아웃 때 지우는 계정 캐시 — 이름과, 옛 빌드가 기기에 두던 동의 상태·프로필 사진·소개.
+ * 나머지(중단된 분석, 본 적 있음 표시 등)는 남긴다. 배우의 자료는 모두 서버에 있어 기기에서
+ * 잃는 것이 없고, 기기 자료를 전부 지우는 것은 탈퇴(clearLocalAccountData)다.
+ */
+const ACCOUNT_CACHE_KEYS = [
+  'acttub.consentPrefs',
+  'acttub.profilePhotoUri',
+  'acttub.profileBio',
+  'acttub.push.settings',
+];
+
+export async function clearAccountCache(): Promise<void> {
+  resetPracticeState();
+  await Promise.allSettled([AsyncStorage.multiRemove(ACCOUNT_CACHE_KEYS), deleteUserName()]);
+}
+
 export async function clearLocalAccountData(): Promise<void> {
   // 메모리에만 있는 것부터. 실패할 수 없고, 아래가 느려도 화면이 먼저 비워진다.
   resetPracticeState();

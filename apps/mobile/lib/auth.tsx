@@ -12,20 +12,19 @@ import {
 import {
   api,
   type AuthUser,
-  type ConsentDocument,
   type ConsentEntryResponse,
   type MeResponse,
   type TokenPair,
 } from '@/lib/api';
 import type { ProfileGateStatus } from '@/lib/app-bootstrap';
-import { signOutBestEffort } from '@/lib/auth-session';
+import { signOutBestEffort, withdrawAccount } from '@/lib/auth-session';
 import { createConsentEntrySession } from '@/lib/consent-entry';
 import {
   buildSignupDecisions,
   type ConsentChoice,
 } from '@/lib/consent-entry-submission';
 import { lastProviderStore } from '@/lib/last-provider';
-import { clearLocalAccountData } from '@/lib/local-account-data';
+import { clearAccountCache, clearLocalAccountData } from '@/lib/local-account-data';
 import {
   isSignupExpired,
   loginRequestBody,
@@ -33,13 +32,18 @@ import {
   type LoginProvider,
   type PendingSignup,
 } from '@/lib/login-flow';
-import { detachPushFromAccount, syncPushRegistration } from '@/lib/notifications';
+import {
+  cancelReminders,
+  detachPushToken,
+  forgetPushToken,
+  syncNotificationsAfterGate,
+} from '@/lib/notifications';
 import { saveUserName, setProviderNameHint } from '@/lib/profile';
 import {
   profileGateStatus,
   type ProfilePayload,
 } from '@/lib/profile-form';
-import { providerAdapter, signOutProviders } from '@/lib/provider-sdk';
+import { disconnectProviders, providerAdapter, signOutProviders } from '@/lib/provider-sdk';
 import { translate as t } from '@/lib/i18n';
 import {
   clearTokens,
@@ -113,6 +117,8 @@ type AuthContextValue = {
   reloadProfile: () => Promise<void>;
   /** 프로필 여섯 항목을 저장한다. 가입 게이트에서는 저장이 곧 게이트 통과다. */
   saveProfile: (payload: ProfilePayload) => Promise<MeResponse>;
+  /** 서버가 돌려준 내 계정(사진 올리기·지우기의 응답)을 그대로 반영한다. */
+  setMe: (me: MeResponse) => void;
   /** 가입 게이트에서 만 14세 미만이라 서버가 계정을 닫았다. 기기를 비우고 로그인으로 보낸다. */
   closeAccountUnder14: () => Promise<void>;
 };
@@ -136,26 +142,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [consentEntrySession] = useState(() =>
     createConsentEntrySession({
       readEntry: () => api.consentEntry(),
-      readPending: () => api.pendingConsents(),
     }),
   );
   const consentLoadGeneration = useRef(0);
   const profileLoadGeneration = useRef(0);
 
   const loadConsentEntry = useCallback(
-    async ({
-      fallbackDocuments,
-      refresh = false,
-    }: {
-      fallbackDocuments?: ConsentDocument[];
-      refresh?: boolean;
-    } = {}): Promise<ConsentEntryResponse> => {
+    async ({ refresh = false }: { refresh?: boolean } = {}): Promise<ConsentEntryResponse> => {
       const generation = ++consentLoadGeneration.current;
       setConsentEntry({ status: 'checking', entry: null, error: null });
       try {
         const entry = refresh
-          ? await consentEntrySession.refresh({ fallbackDocuments })
-          : await consentEntrySession.readOnce({ fallbackDocuments });
+          ? await consentEntrySession.refresh()
+          : await consentEntrySession.readOnce();
         if (generation === consentLoadGeneration.current) {
           setConsentEntry({
             status: entry.entry_status,
@@ -216,6 +215,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loadTokens().then((hasToken) => {
       if (!active) return;
       if (!hasToken) {
+        // 로그아웃한 폰에는 리마인드 알람이 없어야 한다. 옛 빌드가 로그인 없이 맞춰 둔 것도 걷는다.
+        void cancelReminders().catch(() => undefined);
         setUser(null);
         setStatus('signedOut');
         return;
@@ -232,11 +233,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
       setStatus('signedOut');
     });
-    const unsubConsent = onConsentRequired((pendingConsents) => {
-      void loadConsentEntry({
-        fallbackDocuments: pendingConsents,
-        refresh: true,
-      }).catch(() => undefined);
+    // 403 에 실린 미결정 목록은 요약이다. 화면은 판정 전체(entry)를 다시 읽어 그린다.
+    const unsubConsent = onConsentRequired(() => {
+      void loadConsentEntry({ refresh: true }).catch(() => undefined);
     });
     const unsubProfile = onProfileRequired(() => {
       void reloadProfile();
@@ -245,9 +244,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // 다른 기기에서 탈퇴했거나, 탈퇴 후 액세스 토큰이 아직 만료되지 않은 경우.
     // refresh 로 풀 수 없으므로 세션을 끊는다.
     const unsubDeactivated = onAccountDeactivated(() => {
-      void clearLocalAccountData().catch(() => undefined);
-      void lastProviderStore.forget();
-      void clearTokens();
+      void (async () => {
+        // 알람 id 가 기기 자료와 함께 지워지기 전에 먼저 취소한다.
+        await cancelReminders().catch(() => undefined);
+        await forgetPushToken().catch(() => undefined);
+        await clearLocalAccountData().catch(() => undefined);
+        await lastProviderStore.forget();
+        await clearTokens();
+      })();
     });
     const unsubStoredUser = onStoredUserChanged((nextUser) => {
       resetConsentEntry();
@@ -270,11 +274,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [loadConsentEntry, reloadProfile, resetConsentEntry, resetProfile]);
 
   // 푸시 토큰 등록은 보호 기능이다. 동의와 프로필이 끝난 뒤에만 서버가 받으므로, 게이트를
-  // 통과한 순간과 (게이트가 이미 끝난 회원은) 앱을 열 때 등록한다. 최선 노력이라 기다리지 않는다.
+  // 통과한 순간과 (게이트가 이미 끝난 회원은) 앱을 열 때 등록한다. 서버의 알림 토글을 읽어
+  // 저녁 리마인드 30일치도 함께 맞춘다. 최선 노력이라 기다리지 않는다.
   const gatePassed =
     status === 'signedIn' && consentEntry.status === 'allowed' && profile.status === 'complete';
   useEffect(() => {
-    if (gatePassed) void syncPushRegistration();
+    if (gatePassed) void syncNotificationsAfterGate().catch(() => undefined);
   }, [gatePassed, user?.id]);
 
   const finishLogin = useCallback(
@@ -293,9 +298,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoginNotice(null);
       setUser(pair.user);
       setStatus('signedIn');
-      void loadConsentEntry({
-        fallbackDocuments: pair.pending_consents ?? [],
-      }).catch(() => undefined);
+      void loadConsentEntry().catch(() => undefined);
       void reloadProfile();
     },
     [loadConsentEntry, reloadProfile, resetConsentEntry],
@@ -362,6 +365,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const closeAccountUnder14 = useCallback(async () => {
     // 서버가 계정을 행째 지웠고 토큰도 죽었다. 기기의 계정 자료를 지우고 로그인으로 보낸다.
     setLoginNotice(t('profileName.under14Closed'));
+    await cancelReminders().catch(() => undefined);
     await clearLocalAccountData().catch(() => undefined);
     await lastProviderStore.forget();
     await signOutProviders().catch(() => undefined);
@@ -370,36 +374,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     const rt = getRefreshToken();
-    // 세션이 살아 있을 때 이 단말의 푸시 토큰을 서버에서 지운다 — 로그아웃 뒤에 오는
-    // 알림은 다음 사용자의 화면에 뜬다. 실패해도 로그아웃은 계속 간다.
-    await detachPushFromAccount().catch(() => undefined);
+    // 순서가 계약이다: 푸시 토큰 삭제 → 리프레시 폐기 → 제공자 세션 정리 → 기기 토큰 삭제.
+    // 앞이 실패해도 뒤는 간다 — 비행기 모드에서도 로그아웃된다(auth-session).
     await signOutBestEffort({
+      // 로그아웃 뒤에 오는 알림은 다음 사용자의 화면에 뜬다. 지우지 못하면 기기에 적어 두었다가
+      // 다음 실행 때 로그인 없이 다시 보낸다.
+      deletePushToken: detachPushToken,
       serverLogout: async () => {
         if (rt) await api.logout(rt);
       },
       providerLogout: signOutProviders,
-      clearLocalSession: clearTokens,
+      cancelReminders,
+      // 토큰과 계정 캐시(이름, 동의 상태)를 지운다. 마지막 로그인 제공자 기억은 남긴다.
+      clearLocalSession: async () => {
+        await clearAccountCache().catch(() => undefined);
+        await clearTokens();
+      },
     });
     setUser(null);
     setStatus('signedOut');
   }, []);
 
   const deleteAccount = useCallback(async () => {
-    // 리마인드 예약과 로컬 토큰 기록을 먼저 걷는다. 서버 쪽 push_tokens 는 탈퇴
-    // 트랜잭션이 전부 지우므로 여기 실패는 아무것도 남기지 않는다.
-    await detachPushFromAccount().catch(() => undefined);
-    // 서버가 먼저다. 여기서 실패하면(네트워크·서버 오류) 로컬을 지우지 않고 예외를
-    // 올린다 — 계정은 살아 있는데 기기에서만 로그아웃되면 탈퇴한 줄 알고 떠난다.
-    await api.deleteMe();
-    // 성공한 뒤엔 실패해도 계속 간다. 계정은 이미 사라졌으므로 여기서 멈추면
-    // 지워진 계정으로 로그인된 화면에 남는다.
-    await clearLocalAccountData().catch(() => undefined);
-    // 마지막 로그인 제공자 기억은 로그아웃에는 남기지만, 계정이 사라지는 탈퇴에는 지운다.
-    await lastProviderStore.forget();
-    await signOutBestEffort({
-      // 서버 로그아웃은 부르지 않는다 — refresh 는 탈퇴가 이미 전부 끊었다.
-      serverLogout: async () => undefined,
+    // 서버가 먼저다. api.deleteMe() 가 실패하면(네트워크·서버 오류) 기기를 건드리지 않고 예외를
+    // 올린다 — 계정은 살아 있는데 기기에서만 로그아웃되면 탈퇴한 줄 알고 떠난다. 다시 눌러도
+    // 안전하다(서버 처리가 멱등). 성공한 뒤에는 실패해도 계속 간다(auth-session).
+    await withdrawAccount({
+      // 구글은 서버가 ID 토큰만 받아 끊을 수단이 없어 앱이 탈퇴 요청 직전에 SDK 로 끊는다.
+      // 애플·카카오·네이버는 서버가 끊는다.
+      disconnectProviders,
+      serverWithdraw: async () => {
+        await api.deleteMe();
+      },
+      // 서버의 push_tokens 는 탈퇴 트랜잭션이 전부 지웠다. 기기의 기록과 알람만 걷는다.
+      forgetPushToken,
+      cancelReminders,
+      wipeLocalData: clearLocalAccountData,
+      // 마지막 로그인 제공자 기억은 로그아웃에는 남기지만, 계정이 사라지는 탈퇴에는 지운다.
+      forgetLastProvider: () => lastProviderStore.forget(),
       providerLogout: signOutProviders,
+      // 서버 로그아웃은 부르지 않는다 — refresh 는 탈퇴가 이미 전부 끊었다.
       clearLocalSession: clearTokens,
     });
     setUser(null);
@@ -427,6 +441,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshConsentEntry,
       reloadProfile,
       saveProfile,
+      setMe: applyMe,
       closeAccountUnder14,
     }),
     [
@@ -447,6 +462,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshConsentEntry,
       reloadProfile,
       saveProfile,
+      applyMe,
       closeAccountUnder14,
     ],
   );

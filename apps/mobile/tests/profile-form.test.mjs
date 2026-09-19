@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { ApiError } from '../lib/api-request.ts';
 import {
+  BIO_MAX_LENGTH,
   EXPERIENCE_VALUES,
   GENDER_VALUES,
   GOAL_VALUES,
@@ -10,7 +11,9 @@ import {
   buildProfilePayload,
   formatBirthDateInput,
   initialProfileForm,
+  isBioValid,
   isProfileFormComplete,
+  normalizeBio,
   parseBirthDate,
   profileGateStatus,
   profileSaveFailure,
@@ -180,4 +183,22 @@ test('account.profile: 422의 detail이 배열이면 앱 버그로 다루고 그
     kind: 'retry',
   });
   assert.deepEqual(profileSaveFailure(new Error('network')), { kind: 'retry' });
+});
+
+test('account.profile: 한 줄 소개는 80자까지다 — 81자는 서버에 보내지 않는다', () => {
+  assert.equal(BIO_MAX_LENGTH, 80);
+  assert.equal(isBioValid('가'.repeat(80)), true);
+  assert.equal(isBioValid('가'.repeat(81)), false);
+  // 앞뒤 공백은 떼고 센다.
+  assert.equal(isBioValid(`  ${'가'.repeat(80)}  `), true);
+  assert.throws(() => buildProfilePayload(filled, today, { bio: '가'.repeat(81) }));
+});
+
+test('account.profile: 소개는 선택 항목이다 — 비우면 null로 저장되고 사진과 소개 없이도 저장된다', () => {
+  assert.equal(normalizeBio('   '), null);
+  assert.equal(normalizeBio(''), null);
+  assert.equal(normalizeBio('  무대를 좋아해요  '), '무대를 좋아해요');
+  assert.equal(buildProfilePayload(filled, today, { bio: '   ' }).bio, null);
+  assert.equal(buildProfilePayload(filled, today, { bio: '  무대를 좋아해요 ' }).bio, '무대를 좋아해요');
+  assert.equal(isBioValid(''), true);
 });

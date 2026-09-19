@@ -23,7 +23,13 @@ export type ProviderAdapter = {
   isAvailable: () => Promise<boolean>;
   /** 사용자가 취소하면 null. */
   signIn: () => Promise<ProviderCredential | null>;
+  /** 로그아웃 때의 제공자 세션 정리. 연결은 그대로 둔다. */
   signOut: () => Promise<void>;
+  /**
+   * 탈퇴 직전의 연결 해제 — 제공자의 "연결된 서비스" 목록에서 Acttub 을 뺀다. 앱이 SDK 로
+   * 끊는 제공자(구글)에만 있다. 애플·카카오·네이버는 서버가 끊는다(결정 I-7).
+   */
+  disconnect?: () => Promise<void>;
 };
 
 const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '';
@@ -97,6 +103,11 @@ const googleAdapter: ProviderAdapter = {
   async signOut() {
     if (google) await google.GoogleSignin.signOut();
   },
+  // 서버는 구글의 ID 토큰만 받아서 끊을 수단이 없다. 이 폰에 구글 세션이 없으면(다른
+  // 제공자로 로그인했으면) SDK 가 던지고, 부르는 쪽이 삼킨다 — 해제가 실패해도 탈퇴는 간다.
+  async disconnect() {
+    if (google) await google.GoogleSignin.revokeAccess();
+  },
 };
 
 const appleAdapter: ProviderAdapter = {
@@ -167,6 +178,13 @@ export async function supportedProviders(): Promise<LoginProvider[]> {
     LOGIN_PROVIDERS.map((provider) => adapters[provider].isAvailable().catch(() => false)),
   );
   return LOGIN_PROVIDERS.filter((_, index) => available[index]);
+}
+
+/** 탈퇴 요청 직전에 부른다. 앱이 SDK 로 끊을 수 있는 제공자의 연결을 해제한다. */
+export async function disconnectProviders(): Promise<void> {
+  await Promise.allSettled(
+    LOGIN_PROVIDERS.map((provider) => adapters[provider].disconnect?.() ?? Promise.resolve()),
+  );
 }
 
 /** 로그아웃·탈퇴 때 제공자 세션을 정리한다. 하나가 실패해도 나머지는 정리한다. */

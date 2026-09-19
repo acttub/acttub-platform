@@ -23,7 +23,6 @@ import {
   submitConsentDecisions,
   type ConsentChoice,
 } from '@/lib/consent-entry-submission';
-import { setConsentPref } from '@/lib/consent-prefs';
 import { translate as t } from '@/lib/i18n';
 import { loginErrorMessage } from '@/lib/login-flow';
 
@@ -125,16 +124,6 @@ export default function ConsentScreen() {
     });
   };
 
-  const rememberCompletedChoices = async (documentIds: readonly string[]) => {
-    await Promise.all(
-      documentIds.map(async (documentId) => {
-        const choice = choiceMap.get(documentId);
-        if (!choice) return;
-        await setConsentPref(documentId, choice === 'granted').catch(() => undefined);
-      }),
-    );
-  };
-
   const reload = async () => {
     setBusy(true);
     setError(null);
@@ -178,7 +167,6 @@ export default function ConsentScreen() {
     if (!entry) return;
     setBusy(true);
     setError(null);
-    const previousCompletedIds = completedDocumentIds;
     const result = await submitConsentDecisions({
       documents: documentsForConsentEntry(entry),
       choices: choiceMap,
@@ -187,13 +175,7 @@ export default function ConsentScreen() {
         api.recordConsent(documentId, action),
       refreshEntry: refreshConsentEntry,
     });
-    const nextCompletedIds = new Set(result.completedDocumentIds);
-    setCompletedDocumentIds(nextCompletedIds);
-    await rememberCompletedChoices(
-      result.completedDocumentIds.filter(
-        (documentId) => !previousCompletedIds.has(documentId),
-      ),
-    );
+    setCompletedDocumentIds(new Set(result.completedDocumentIds));
 
     if (result.kind === 'partial') {
       setError(t('consent.partialFail'));

@@ -28,7 +28,10 @@ import {
   type BootstrapRecoveryParams,
 } from '@/lib/app-bootstrap';
 import { AuthProvider, useAuth } from '@/lib/auth';
-import { configureNotificationHandling, syncDailyNudge } from '@/lib/notifications';
+import {
+  configureNotificationHandling,
+  flushPendingPushTokenDeletions,
+} from '@/lib/notifications';
 import type { PendingAnalysisHandle } from '@/lib/pending-analysis';
 import { palette } from '@/constants/palette';
 import { translate as t } from '@/lib/i18n';
@@ -39,8 +42,9 @@ SplashScreen.preventAutoHideAsync();
 
 // 포그라운드에서도 알림 배너가 뜨게 한다. 모듈이 없는 빌드에서는 아무 일도 하지 않는다.
 configureNotificationHandling();
-// 데일리 넛지도 기동 때 한 번 맞춰 깐다 — 어제 예약분을 오늘 상태로 갱신한다(SOMA-444).
-void syncDailyNudge();
+// 로그아웃 때 지우지 못한 푸시 토큰을 앱을 열 때 다시 보낸다 — 로그인 없이 받는 요청이라
+// 로그인 화면에서도 된다. 저녁 리마인드는 게이트를 통과한 뒤에 맞춘다(lib/auth.tsx).
+void flushPendingPushTokenDeletions();
 
 export const unstable_settings = {
   anchor: '(tabs)',

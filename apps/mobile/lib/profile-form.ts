@@ -25,6 +25,8 @@ export type Experience = (typeof EXPERIENCE_VALUES)[number];
 export type Goal = (typeof GOAL_VALUES)[number];
 
 export const NAME_MAX_LENGTH = 20;
+/** 한 줄 소개. 선택 항목이며 설정에서만 받는다. */
+export const BIO_MAX_LENGTH = 80;
 
 /** GET /v2/me의 profile. 1.0.0 이전 회원은 name(옛 닉네임)만 있고 나머지는 null이다. */
 export type ServerProfile = {
@@ -115,6 +117,16 @@ function trimmedName(form: ProfileFormState): string | null {
   return name.length >= 1 && [...name].length <= NAME_MAX_LENGTH ? name : null;
 }
 
+/** 앞뒤 공백을 떼고, 비었으면 null(소개 없음)이다. */
+export function normalizeBio(text: string | null | undefined): string | null {
+  const bio = text?.trim() ?? '';
+  return bio.length > 0 ? bio : null;
+}
+
+export function isBioValid(text: string | null | undefined): boolean {
+  return [...(normalizeBio(text) ?? '')].length <= BIO_MAX_LENGTH;
+}
+
 export function isProfileFormComplete(form: ProfileFormState, now: Date): boolean {
   return (
     trimmedName(form) !== null &&
@@ -127,7 +139,7 @@ export function isProfileFormComplete(form: ProfileFormState, now: Date): boolea
 }
 
 /**
- * 저장 요청 본문. `extras.bio`는 설정에서 고칠 때만 넘긴다 — 받아 둔 한 줄 소개를 그대로
+ * 저장 요청 본문. `extras.bio`는 설정에서 고칠 때만 넘긴다 — 한 줄 소개(80자까지)를 함께
  * 실어 여섯 항목 저장이 소개를 지우지 않게 한다. 가입 게이트에서는 키를 싣지 않는다.
  */
 export function buildProfilePayload(
@@ -147,6 +159,9 @@ export function buildProfilePayload(
   ) {
     throw new Error('프로필 여섯 항목을 모두 채워야 저장할 수 있어요.');
   }
+  if (extras && !isBioValid(extras.bio)) {
+    throw new Error('한 줄 소개는 80자까지 쓸 수 있어요.');
+  }
   return {
     name,
     gender: form.gender,
@@ -154,7 +169,7 @@ export function buildProfilePayload(
     directions: DIRECTION_VALUES.filter((direction) => form.directions.includes(direction)),
     experience: form.experience,
     goal: form.goal,
-    ...(extras ? { bio: extras.bio } : {}),
+    ...(extras ? { bio: normalizeBio(extras.bio) } : {}),
   };
 }
 
