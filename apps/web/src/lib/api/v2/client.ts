@@ -1,8 +1,10 @@
-import { API_BASE_URL } from "../../config/env";
+import { ACTTUB_CLIENT, API_BASE_URL } from "../../config/env";
+import { endGuestSession, ensureGuestSession } from "../../auth/guest-session";
 import { refreshAccessToken } from "../../auth/refresh";
-import { emitSessionEvent } from "../../auth/session-events";
-import { getAccessToken } from "../../auth/token-store";
-import { NetworkError, toApiError } from "./errors";
+import { getAccessToken, hasGuestSession } from "../../auth/token-store";
+import { askConsent } from "./consent-prompt";
+import { ApiError, NetworkError, toApiError } from "./errors";
+import type { ConsentDocument } from "./types";
 
 export type ApiFetchOptions = {
   method?: string;
@@ -11,6 +13,8 @@ export type ApiFetchOptions = {
   signal?: AbortSignal;
   auth?: boolean;
   retryOn401?: boolean;
+  /** false 면 403 consent_required 에 시트를 띄우지 않고 그대로 던진다. */
+  consentPrompt?: boolean;
 };
 
 export type ApiResponse<T> = {
@@ -36,15 +40,13 @@ function requestHeaders(
   auth: boolean,
 ): Headers {
   const headers = new Headers(source);
+  headers.set("X-Acttub-Client", ACTTUB_CLIENT);
   headers.set("X-Acttub-Contract", "three_layers_v1");
   if (body !== undefined && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
   if (auth && accessToken) {
     headers.set("Authorization", `Bearer ${accessToken}`);
-  }
-  if (auth) {
-    headers.set("X-Acttub-Consent-Entry", "1");
   }
   return headers;
 }
@@ -93,45 +95,122 @@ async function responsePayload(response: Response): Promise<unknown> {
 }
 
 function throwResponseError(response: Response, payload: unknown): never {
-  const error = toApiError(
+  throw toApiError(
     response.status,
     payload,
     response.headers.get("X-Request-Id") ?? undefined,
   );
-  if (
-    error.status === 403 &&
-    (error.code === "consent_required" || error.code === "consent_blocked")
-  ) {
-    emitSessionEvent("consent-required");
+}
+
+// 한 요청이 시트를 띄우는 횟수. 결정하는 사이 새 판이 나오면 한 번 더 묻고, 그래도
+// 막히면 403 을 돌려준다 — 끝없이 되묻지 않는다.
+const MAX_CONSENT_PROMPTS = 2;
+
+/**
+ * 게스트를 만들어도 되는 요청인가. 조회는 아니다 — 게스트가 없으면 볼 자료도 없고,
+ * 화면을 여는 것만으로 서버에 계정이 생기면 안 된다(account.guest). 게스트는 배우가
+ * 무언가를 하려 할 때(영상 올리기, 대본 등록) 생긴다.
+ */
+function startsGuest(options: ApiFetchOptions): boolean {
+  return (options.method ?? "GET") !== "GET";
+}
+
+function sessionAccess(
+  options: ApiFetchOptions,
+): string | null | Promise<string> {
+  if (hasGuestSession()) return getAccessToken();
+  if (startsGuest(options)) return ensureGuestSession();
+  throw new ApiError(401, "guest_session_required", "guest_session_required");
+}
+
+function isDeactivated(response: Response, payload: unknown): boolean {
+  return (
+    response.status === 403 &&
+    payload !== null &&
+    typeof payload === "object" &&
+    (payload as { detail?: unknown }).detail === "account_deactivated"
+  );
+}
+
+/** 403 consent_required 에 함께 실려 오는 빠진 문서 목록. 다른 응답이면 null. */
+function pendingConsents(
+  response: Response,
+  payload: unknown,
+): ConsentDocument[] | null {
+  if (response.status !== 403) return null;
+  if (payload === null || typeof payload !== "object") return null;
+  const { detail, pending_consents: pending } = payload as {
+    detail?: unknown;
+    pending_consents?: unknown;
+  };
+  if (detail !== "consent_required" || !Array.isArray(pending)) return null;
+  return pending.length > 0 ? (pending as ConsentDocument[]) : null;
+}
+
+async function sendWithSession(
+  path: string,
+  options: ApiFetchOptions,
+  body: string | undefined,
+): Promise<{ response: Response; payload: unknown }> {
+  const auth = options.auth ?? true;
+  const retryOn401 = options.retryOn401 ?? true;
+  // 게스트가 이미 있으면 기다리지 않는다 — 요청은 부른 그 틱에 나가야 호출자가 곧바로
+  // 건 취소가 진행 중인 fetch 에 닿는다.
+  const session = auth ? sessionAccess(options) : null;
+  const failedAccess = session instanceof Promise ? await session : session;
+
+  let response = await fetchResponse(path, options, body, failedAccess);
+  let payload = await responsePayload(response);
+
+  if (response.status === 401 && auth && retryOn401) {
+    let renewedAccess = await refreshAccessToken(failedAccess ?? undefined);
+    // 갱신이 거절된 게스트에는 다시 닿을 수 없다. 하려던 일은 새 게스트로 잇는다.
+    if (!renewedAccess && startsGuest(options)) {
+      renewedAccess = await ensureGuestSession();
+    }
+    if (!renewedAccess) throwResponseError(response, payload);
+
+    response = await fetchResponse(path, options, body, renewedAccess);
+    payload = await responsePayload(response);
   }
-  throw error;
+
+  // 닫힌 계정(30일 뒤 파기된 게스트 등)의 남은 액세스 토큰. 갱신이 거절된 것과 같게 다룬다.
+  if (auth && isDeactivated(response, payload)) {
+    endGuestSession();
+    if (startsGuest(options)) {
+      const guestAccess = await ensureGuestSession();
+      response = await fetchResponse(path, options, body, guestAccess);
+      payload = await responsePayload(response);
+    }
+  }
+  return { response, payload };
 }
 
 export async function apiFetch<T>(
   path: string,
   options: ApiFetchOptions = {},
 ): Promise<ApiResponse<T>> {
-  const auth = options.auth ?? true;
-  const retryOn401 = options.retryOn401 ?? true;
   const body = serializeBody(options.body);
-  const failedAccess = auth ? getAccessToken() : null;
 
-  let response = await fetchResponse(path, options, body, failedAccess);
-  let payload = await responsePayload(response);
+  for (let prompts = 0; ; prompts += 1) {
+    const { response, payload } = await sendWithSession(path, options, body);
+    if (response.ok) {
+      return {
+        status: response.status,
+        data: payload as T,
+        headers: response.headers,
+      };
+    }
 
-  if (response.status === 401 && auth && retryOn401) {
-    const refreshedAccess = await refreshAccessToken(failedAccess ?? undefined);
-    if (!refreshedAccess) throwResponseError(response, payload);
-
-    response = await fetchResponse(path, options, body, refreshedAccess);
-    payload = await responsePayload(response);
+    // 게스트의 기능별 동의: 빠진 문서로 시트를 띄우고, 결정이 끝나면 같은 요청을 다시 보낸다.
+    const pending =
+      options.consentPrompt === false ? null : pendingConsents(response, payload);
+    if (
+      !pending ||
+      prompts >= MAX_CONSENT_PROMPTS ||
+      (await askConsent(pending)) !== "decided"
+    ) {
+      throwResponseError(response, payload);
+    }
   }
-
-  if (!response.ok) throwResponseError(response, payload);
-
-  return {
-    status: response.status,
-    data: payload as T,
-    headers: response.headers,
-  };
 }

@@ -61,8 +61,15 @@ export function isStillProcessing(error: unknown): error is ApiError {
   );
 }
 
+const GUEST_DAILY_ANALYSIS_LIMIT = "guest_daily_analysis_limit";
+
+/** 잠시 기다리면 풀리는 429. 게스트의 하루 분석 횟수는 자정까지 풀리지 않으므로 뺀다. */
 export function isRateLimited(error: unknown): error is ApiError {
-  return error instanceof ApiError && error.status === 429;
+  return (
+    error instanceof ApiError &&
+    error.status === 429 &&
+    error.code !== GUEST_DAILY_ANALYSIS_LIMIT
+  );
 }
 
 /**
@@ -74,8 +81,19 @@ export function isRateLimited(error: unknown): error is ApiError {
  * 그대로 그렸다.
  */
 export function errorMessage(cause: unknown, fallback: string): string {
-  if (cause instanceof ApiError && cause.code === "client_contract_required") {
-    return "새로고침하면 이 연습 노트를 열 수 있어요.";
+  if (cause instanceof ApiError) {
+    if (cause.code === "client_contract_required") {
+      return "새로고침하면 이 연습 노트를 열 수 있어요.";
+    }
+    // 게스트가 동의 시트를 닫았다. 같은 동작을 다시 하면 시트가 다시 뜬다.
+    if (cause.status === 403 && cause.code === "consent_required") {
+      return "동의해야 계속할 수 있어요. 다시 시도하면 동의 문서를 볼 수 있어요.";
+    }
+    if (cause.status === 429) {
+      return cause.code === GUEST_DAILY_ANALYSIS_LIMIT
+        ? "오늘은 세 번까지 분석할 수 있어요. 앱으로 옮기면 계속할 수 있어요."
+        : "잠시 뒤 다시 시도해 주세요.";
+    }
   }
   return cause instanceof Error && cause.message ? cause.message : fallback;
 }

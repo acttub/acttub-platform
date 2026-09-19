@@ -13,7 +13,7 @@ import {
 import { APP_HIGHLIGHTS } from "../features/app-download/app-highlights";
 import { StickyDownloadBar } from "../features/app-download/sticky-download-bar";
 import { StoreBadges } from "../features/app-download/store-badges";
-import { isLoggedIn } from "../lib/auth/token-store";
+import { hasGuestSession } from "../lib/auth/token-store";
 
 const COPY = {
   wordmarkAlt: "Acttub",
@@ -113,13 +113,15 @@ const waveformHeights = [8, 15, 25, 18, 10, 23, 28, 13, 20, 9, 16, 24, 11];
 const typingDotColors = ["#8b95a1", "#b0b8c1", "#d1d6db"];
 // 대화가 위에서부터 차례로 올라오는 간격. 첫 버블은 화면이 뜬 직후 바로 나온다.
 const bubbleDelay = (order: number) => 300 + order * 800;
-const practiceLoginHref = "/login?next=/practice/new";
+// 웹에는 로그인이 없다. 연습 화면이 바로 열리고, 게스트 계정은 영상을 올리려 할 때 생긴다.
+const practiceHref = "/practice/new";
 
 export default function LandingClient() {
   const router = useRouter();
   const appDownloadHref = useAppDownloadHref("landing_header");
   useEffect(() => {
-    if (isLoggedIn()) router.replace("/home");
+    // 이미 이 브라우저에서 연습하던 게스트는 랜딩을 건너뛰고 연습으로 보낸다.
+    if (hasGuestSession()) router.replace("/home");
   }, [router]);
 
   useEffect(() => {
@@ -222,7 +224,7 @@ export default function LandingClient() {
                   {COPY.hero.helper}
                 </p>
                 <Link
-                  href={practiceLoginHref}
+                  href={practiceHref}
                   prefetch={false}
                   className="mt-2 inline-block text-sm font-bold text-[#4e5968] underline underline-offset-4"
                 >
@@ -231,7 +233,7 @@ export default function LandingClient() {
               </div>
               <div className="mt-9 hidden items-center justify-center gap-3 sm:flex lg:justify-start">
                 <Link
-                  href={practiceLoginHref}
+                  href={practiceHref}
                   prefetch={false}
                   className="inline-flex h-14 items-center justify-center rounded-2xl bg-[#191f28] px-7 text-base font-black text-white shadow-[0_14px_34px_rgba(25,31,40,0.18)] transition hover:-translate-y-0.5 hover:bg-[#333d4b]"
                 >
@@ -399,7 +401,7 @@ export default function LandingClient() {
                 />
                 <StoreBadges surface="landing_cta" className="mt-3 sm:mt-5" />
                 <Link
-                  href={practiceLoginHref}
+                  href={practiceHref}
                   prefetch={false}
                   className="mt-3 text-sm font-bold text-[#b0b8c1] underline underline-offset-4 sm:mt-5"
                 >

@@ -18,11 +18,10 @@ import {
   useRef,
   useState,
 } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import wordmark from "@/assets/acttub-wordmark.png";
-import { getStoredDisplayName, loadDisplayName } from "@/features/auth/display-name";
-import { useRequireAuth } from "@/features/auth/use-require-auth";
-import { logout } from "@/lib/api/v2/auth";
+import { GUEST_BROWSER_ONLY_NOTICE } from "@/features/consent/guest-notice";
+import { useGuestSession } from "@/features/consent/use-guest-session";
 import { startCoach, replyCoach } from "@/lib/api/v2/coach";
 import { getReport, listReports } from "@/lib/api/v2/reports";
 import { coachReplyError, isClosedCoach, recoverClosedCoach } from "./coach-reply-recovery";
@@ -140,8 +139,7 @@ export function WorkspaceApp() {
 
 // 같은 화면에 머무르면서 주소만 갈아끼운다. router.replace 는 라우터 네비게이션을 타고,
 // 그러면 useSearchParams 를 감싼 위 Suspense 가 다시 걸려 흰 화면이 한 번 깜빡인다 —
-// 업로드가 끝나는 지점에서 새로고침처럼 보이던 게 이것이다. 화면을 실제로 옮기는
-// 로그인·로그아웃 이동은 그대로 router 를 쓴다.
+// 업로드가 끝나는 지점에서 새로고침처럼 보이던 게 이것이다.
 function replaceUrl(path: string): void {
   window.history.replaceState(null, "", path);
 }
@@ -176,32 +174,19 @@ function isActorClosing(text: string): boolean {
 }
 
 function WorkspaceInner() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const sessionParam = searchParams.get("session");
-  const { ready } = useRequireAuth();
-
-  // 캐시를 초기값으로 써야 인증 게이트가 열린 첫 화면부터 호칭이 바뀌어 보이지 않는다.
-  const [nickname, setNickname] = useState<string | null>(() => getStoredDisplayName());
+  // 웹에는 로그인이 없다. 이 화면은 누구에게나 열리고, 게스트 계정은 배우가 영상을
+  // 올리려 할 때 공용 클라이언트가 만든다(account.guest). 게스트가 없는 동안에는 볼
+  // 자료도 없으므로 아래 조회들은 서버에 묻지 않는다.
+  const { hasSession } = useGuestSession();
   const initialPrepTrackedRef = useRef(false);
 
   useEffect(() => {
-    if (!ready || initialPrepTrackedRef.current) return;
+    if (initialPrepTrackedRef.current) return;
     initialPrepTrackedRef.current = true;
     trackPracticePrepOpened("new");
-  }, [ready]);
-
-  useEffect(() => {
-    if (!ready) return;
-    let cancelled = false;
-    void (async () => {
-      const resolvedNickname = await loadDisplayName();
-      if (!cancelled) setNickname(resolvedNickname);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [ready]);
+  }, []);
 
   // ── 왼쪽 세션 바 ────────────────────────────────────────────────
   const [sessions, setSessions] = useState<PracticeSessionListItem[]>([]);
@@ -229,7 +214,7 @@ function WorkspaceInner() {
   // 연습을 만들거나 지운 뒤 부르는 위 refreshList). 훅이 답을 들면 그 갈아 끼우기를
   // 밖에서 할 수 없다 (SOMA-411).
   useEffect(() => {
-    if (!ready) return;
+    if (!hasSession) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -245,7 +230,7 @@ function WorkspaceInner() {
     return () => {
       cancelled = true;
     };
-  }, [ready]);
+  }, [hasSession]);
 
   // ── 현재 세션 ───────────────────────────────────────────────────
   // 어느 화면인가는 전이 하나하나가 정한다 — 전이표는 workspace-state.ts 에 있다.
@@ -1015,7 +1000,7 @@ function WorkspaceInner() {
   // 주소에 ?session= 이 실려 오면(연습 기록 링크·새로고침) 그 세션을 연다.
   // 클릭으로 여는 경로는 openSession 이고, 이쪽은 첫 진입만 맡는다.
   useEffect(() => {
-    if (!ready || !sessionParam || urlLoadedRef.current === sessionParam) return;
+    if (!sessionParam || urlLoadedRef.current === sessionParam) return;
     urlLoadedRef.current = sessionParam;
     let cancelled = false;
     // cancelled 만으로는 부족하다 — effect 가 다시 도는 경우만 막는다. 기다리는 사이
@@ -1048,7 +1033,6 @@ function WorkspaceInner() {
       cancelled = true;
     };
   }, [
-    ready,
     sessionParam,
     applyLoadOutcome,
     reportProgress,
@@ -1101,25 +1085,24 @@ function WorkspaceInner() {
     () => new Map(reports.map((r) => [r.practice_session_id, r.title])),
     [reports],
   );
+  // 게스트가 끝나면(서버가 갱신을 거절) 그 게스트의 목록은 더 이상 열 수 없다. 받아 둔
+  // 목록을 지우는 대신 여기서 가린다 — 이펙트에서 동기 setState 를 하지 않기 위해서다.
   const running = useMemo(
-    () => sessions.filter((s) => s.status === "analyzing"),
-    [sessions],
+    () => (hasSession ? sessions.filter((s) => s.status === "analyzing") : []),
+    [hasSession, sessions],
   );
   const finished = useMemo(
-    () => sessions.filter((s) => s.status === "analyzed" || s.status === "failed"),
-    [sessions],
+    () =>
+      hasSession
+        ? sessions.filter((s) => s.status === "analyzed" || s.status === "failed")
+        : [],
+    [hasSession, sessions],
   );
   const toggleRail = useCallback(() => setRailOpen((v) => !v), []);
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
   const reselectVideo = useCallback(() => fileInputRef.current?.click(), []);
-  const handleLogout = useCallback(() => {
-    void logout().then(() => router.replace("/login"));
-  }, [router]);
-
-  if (!ready) return <div className="min-h-dvh bg-white" aria-busy="true" />;
 
   const questionCount = messages.filter((message) => message.role === "ai").length;
-  const displayName = nickname ?? "배우";
   const visibleScene = {
     situation: detail?.situation ?? situation,
     character: detail?.character_context ?? character,
@@ -1137,9 +1120,7 @@ function WorkspaceInner() {
       activeId={activeId}
       hasNote={noteBySession}
       headlines={headlineBySession}
-      listError={listError}
-      displayName={displayName}
-      onLogout={handleLogout}
+      listError={hasSession && listError}
     />
   );
 
@@ -1168,9 +1149,7 @@ function WorkspaceInner() {
               activeId={activeId}
               hasNote={noteBySession}
               headlines={headlineBySession}
-              listError={listError}
-              displayName={displayName}
-              onLogout={handleLogout}
+              listError={hasSession && listError}
             />
           </div>
         </div>
@@ -1258,12 +1237,6 @@ function WorkspaceInner() {
                 className="flex h-8 items-center rounded-[10px] px-2 text-xs font-black text-[#8b95a1] transition hover:bg-[#f2f4f6] hover:text-[#4e5968]"
               >
                 입시
-              </Link>
-              <Link
-                href="/community"
-                className="flex h-8 items-center rounded-[10px] px-2 text-xs font-black text-[#8b95a1] transition hover:bg-[#f2f4f6] hover:text-[#4e5968]"
-              >
-                커뮤
               </Link>
               {/* 코치가 나에 대해 적어 둔 것. 틀린 내용을 되돌릴 수 있는 유일한
                   자리라 숨기지 않는다. */}
@@ -1480,8 +1453,6 @@ const SessionRail = memo(function SessionRail({
   hasNote,
   headlines,
   listError,
-  displayName,
-  onLogout,
 }: {
   open: boolean;
   drawer?: boolean;
@@ -1494,8 +1465,6 @@ const SessionRail = memo(function SessionRail({
   hasNote: Set<string>;
   headlines: Map<string, string>;
   listError: boolean;
-  displayName: string;
-  onLogout: () => void;
 }) {
   const width = drawer ? "w-[300px]" : open ? "w-[280px]" : "w-16";
   // 이어한 연습(continued_from)을 부모 밑에 차수로 묶는다 (SOMA-418). 부모가 목록에
@@ -1667,7 +1636,7 @@ const SessionRail = memo(function SessionRail({
         </div>
       )}
 
-      {/* 커뮤니티·입시로 나가는 길은 위 헤더 오른쪽 끝이 맡는다. 여기 두면 두 군데가 된다.
+      {/* 입시로 나가는 길은 위 헤더 오른쪽 끝이 맡는다. 여기 두면 두 군데가 된다.
           앱 다운로드만 예외로 드로어에 둔다 — 폰에서 연습이 열려 있으면 헤더 오른쪽 줄이
           통째로 숨어서(375px에 제목 자리가 안 남는다) 앱으로 가는 길이 사라진다.
           데스크톱 레일에는 넣지 않는다. 헤더가 이미 보이는 자리라 두 군데가 된다. */}
@@ -1691,30 +1660,18 @@ const SessionRail = memo(function SessionRail({
         </Link>
       ) : null}
 
-      <div
-        className={`flex items-center border-t border-[#edf0f3] ${drawer ? "" : "mt-auto"} ${
-          open ? "justify-between px-4 py-3.5" : "justify-center py-3.5"
-        }`}
-      >
-        {open ? (
-          <>
-            {/* flex 자식은 min-width:auto 라서 min-w-0 없이는 truncate 가 먹지 않는다.
-                로그아웃 버튼이 shrink-0 이라 긴 이메일이 바 밖으로 밀려 나갔다. */}
-            <span className="min-w-0 flex-1 truncate text-[13px] font-black text-[#4e5968]">{displayName}</span>
-            <button
-              type="button"
-              onClick={onLogout}
-              className="shrink-0 text-[13px] font-semibold text-[#8b95a1] transition hover:text-[#191f28]"
-            >
-              로그아웃
-            </button>
-          </>
-        ) : (
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#191f28] text-[13px] font-black text-white">
-            {displayName[0] ?? "배"}
-          </span>
-        )}
-      </div>
+      {/* 계정 자리는 없다 — 웹에는 로그인이 없다. 대신 게스트의 자료가 이 브라우저에만
+          매여 있다는 것을 목록 아래에서 알린다(게스트 시작 안내). 접힌 레일에는 글을 둘
+          폭이 없어 펼쳤을 때만 보인다. */}
+      {open ? (
+        <p
+          className={`border-t border-[#edf0f3] px-4 py-3.5 text-[11.5px] font-semibold leading-[17px] text-[#8b95a1] ${
+            drawer ? "" : "mt-auto"
+          }`}
+        >
+          {GUEST_BROWSER_ONLY_NOTICE}
+        </p>
+      ) : null}
     </aside>
   );
 });

@@ -3,6 +3,7 @@ import { File } from "node:buffer";
 import { afterEach, test } from "node:test";
 
 import "./ts-module-loader.mjs";
+import "./guest-session-setup.mjs";
 
 process.env.NEXT_PUBLIC_API_BASE_URL = "";
 

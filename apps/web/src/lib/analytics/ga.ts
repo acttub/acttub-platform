@@ -17,8 +17,8 @@
  *    `utm_*` 만 남기는 이유는 toTrackedQuery 주석에 있다 — 방침 v2 6항이 수집 항목으로
  *    적어 둔 "유입 경로(캠페인 정보)"가 이 값이라, 통째로 버리면 방침보다 덜 걷는다.
  *    referrer 도 같이 씻는다 — GA4 는 `page_referrer` 를 생략하면 `document.referrer` 를
- *    쓰는데, `/practice/history?session=<uuid>` 에서 `/login` 으로 하드 이동하면
- *    그 주소가 referrer 에 그대로 실린다.
+ *    쓰는데, `/practice/history?session=<uuid>` 에서 하드 이동(새로고침·외부 링크)을
+ *    하면 그 주소가 referrer 에 그대로 실린다.
  *
  *    ⚠️ **GA4 데이터 스트림에서 향상된 측정의 "브라우저 기록 기반 페이지 변경"을 꺼야 한다.**
  *    `send_page_view:false` 는 이 config 가 만드는 이벤트만 막을 뿐, 향상된 측정의
@@ -157,12 +157,24 @@ export function startAnalytics(): void {
   document.head.appendChild(script);
 }
 
-/**
- * 동의가 확인된 뒤에만 부른다. 이때부터 쿠키가 저장돼 재방문이 이어진다.
- * 되돌리는 함수는 두지 않는다 — 동의 철회는 회원 탈퇴 경로로 처리한다(방침 8항).
- */
+let consentGranted = false;
+
+/** 동의가 확인된 뒤에만 부른다. 이때부터 쿠키가 저장돼 재방문이 이어진다. */
 export function grantAnalyticsConsent(): void {
+  if (consentGranted) return;
+  consentGranted = true;
   window.gtag?.("consent", "update", { analytics_storage: "granted" });
+}
+
+/**
+ * 이 페이지에서 켰던 동의를 다시 거둔다. 게스트가 끝났거나, 동의한 판이 더 이상 현재 판이
+ * 아니라고 확인된 때다(결정 I-6) — 옛 판에만 동의한 사람에게 새 판의 수집을 잇지 않는다.
+ * 켠 적이 없으면 아무것도 하지 않는다. 익명 방문자는 처음부터 denied 다.
+ */
+export function revokeAnalyticsConsent(): void {
+  if (!consentGranted) return;
+  consentGranted = false;
+  window.gtag?.("consent", "update", { analytics_storage: "denied" });
 }
 
 /**
@@ -187,10 +199,10 @@ export function toTrackedReferrer(referrer: string, origin: string): string {
 let sentUserId: string | null = null;
 
 /**
- * 로그인한 사람을 기기 너머로 잇는다. 폰에서 시작하고 노트북에서 이어 하면
- * 같은 사람이 둘로 세어져 "가입한 사람 중 몇 명이 연습까지 갔나"가 실제보다 낮게 나온다.
+ * 같은 게스트의 방문들을 잇는다. 웹에는 로그인이 없어 이 값은 이 브라우저의 게스트
+ * id 다 — 기기 너머로는 이어지지 않고, 앱으로 옮긴 뒤의 연습은 앱 쪽 계측이 본다.
  *
- * ⚠️ 값은 백엔드 내부 식별자(`AuthUser.id`)만 쓴다. 이메일·표시 이름·구글 sub 를 넣으면
+ * ⚠️ 값은 백엔드 내부 식별자(`AuthUser.id`)만 쓴다. 이메일·표시 이름·소셜 sub 를 넣으면
  * GA4 약관 위반이고, 이 파일이 주소에서 식별자를 씻어내는 이유와도 정면으로 어긋난다.
  */
 export function setAnalyticsUser(userId: string): void {

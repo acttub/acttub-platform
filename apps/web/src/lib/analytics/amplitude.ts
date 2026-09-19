@@ -6,7 +6,7 @@
  *
  * 지켜야 하는 것 셋 — 하나라도 풀면 개인정보처리방침과 어긋난다:
  *
- * 1) **동의 전에는 SDK를 초기화하지 않는다.** 호출부가 로그인과 최신 방침 동의를
+ * 1) **동의 전에는 SDK를 초기화하지 않는다.** 호출부가 게스트의 개인정보 동의를
  *    확인한 뒤 startAmplitude를 부른다. 그 전에 생긴 이벤트는 쌓지 않고 버린다.
  *
  * 2) **autocapture 와 화면 녹화는 켜져 있다**(2026-08-11 최우영 결정). 그래서 전체 주소·
@@ -49,7 +49,6 @@ type AnalysisErrorCode =
   | "max_attempts_exceeded";
 type ReportType = "analysis" | "expression" | "blocked" | "practice_note";
 type PracticeStatus = "analyzing" | "analyzed" | "failed";
-export type LoginProvider = "development" | "google" | "apple";
 // 연습을 시작하다 어디서 엎어졌는지. 가운데 셋(UploadStage)은 UploadError 가 스스로
 // 말하지만 양 끝 둘은 아니다. `session_create` 는 UploadError 가 아니다 — 업로드가 다
 // 끝난 뒤 세션 생성에서 터지는 실패인데, 이걸 preflight 로 묶으면 "영상이 문제였다"와
@@ -57,12 +56,15 @@ export type LoginProvider = "development" | "google" | "apple";
 export type PracticeStartFailurePoint = "preflight" | UploadStage | "session_create";
 
 let started = false;
-// SDK는 한 번만 init하되, 로그아웃·재동의 요구 뒤에는 남아 있는 인스턴스로 이벤트를
+// SDK는 한 번만 init하되, 게스트의 끝·재동의 요구 뒤에는 남아 있는 인스턴스로 이벤트를
 // 보내지 않는다. 다시 동의 조건을 만족해 startAmplitude가 불리면 같은 인스턴스를 켠다.
 let measuring = false;
+// SDK 의 opt-out. `measuring` 은 우리가 직접 쏘는 이벤트만 막는다 — autocapture 와 세션
+// 리플레이는 SDK 가 스스로 보내므로 이것으로 멈춰야 한다(stopAmplitude).
+let optedOut = false;
 
 /**
- * Amplitude를 켠다. 호출부가 로그인과 최신 방침 동의를 확인한 뒤에만 부른다.
+ * Amplitude를 켠다. 호출부가 게스트의 개인정보 동의를 확인한 뒤에만 부른다.
  *
  * 켜고 끄는 스위치는 API 키 하나다. 환경별로 다른 키를 넣어 프로젝트를 나눈다 —
  * `NEXT_PUBLIC_*`는 빌드 시점에 번들에 새겨지므로, 배포에서 키를 빼면 조용히 아무 일도
@@ -77,7 +79,13 @@ export function startAmplitude(): void {
   }
 
   measuring = true;
-  if (started) return;
+  if (started) {
+    if (optedOut) {
+      amplitude.setOptOut(false);
+      optedOut = false;
+    }
+    return;
+  }
   started = true;
   // 리플레이 플러그인은 init 앞에 붙여야 첫 세션부터 잡힌다.
   // ⚠️ 여기 sampleRate 는 최종값이 아니다 — Amplitude 프로젝트의 원격 설정이 덮는다.
@@ -94,17 +102,26 @@ export function setAmplitudeUser(userId: string): void {
   if (!started || !measuring) return;
   // 화면이 바뀔 때마다 같은 값을 다시 보내지 않는다.
   if (sentUserId === userId) return;
+  // 이 브라우저에서 다른 게스트가 시작됐다. 앞 게스트의 기기 식별과 잇지 않는다.
+  if (sentUserId !== null) amplitude.reset();
   amplitude.setUserId(userId);
   sentUserId = userId;
 }
 
-/** 로그아웃·재동의 요구 뒤에는 사용자와 기기 식별을 끊고 이후 이벤트도 버린다. */
-export function resetAmplitudeUser(): void {
+/**
+ * 계측을 실제로 멈춘다(결정 I-6). 식별자만 지우는 것으로는 부족하다 — 이미 켜진 autocapture
+ * 와 세션 리플레이는 SDK 가 스스로 보낸다. `setOptOut(true)` 는 그 뒤의 이벤트(autocapture
+ * 포함)를 버리고, 리플레이 플러그인은 opt-out 을 받아 녹화를 `shutdown()` 한다
+ * (plugin-session-replay-browser 의 onOptOutChanged). 다시 켤 때는 startAmplitude 가 푼다.
+ *
+ * 기기 식별은 여기서 끊지 않는다. 탭이 다시 보일 때마다 확인하느라 잠깐 끄는 것까지 새
+ * 기기로 세면 같은 게스트가 여럿으로 갈린다. 다른 게스트로 켜질 때 setAmplitudeUser 가 끊는다.
+ */
+export function stopAmplitude(): void {
   measuring = false;
-  if (!started) return;
-  if (sentUserId === null) return;
-  amplitude.reset();
-  sentUserId = null;
+  if (!started || optedOut) return;
+  amplitude.setOptOut(true);
+  optedOut = true;
 }
 
 /** 파일 크기는 원본 byte 대신 보고서에 필요한 네 구간만 남긴다. */
@@ -181,21 +198,6 @@ function toSafeReasonCode(reason: unknown, depth = 0): SafeReasonCode {
     if (statusMatch) return Number(statusMatch[1]);
   }
   if (error.cause !== undefined) return toSafeReasonCode(error.cause, depth + 1);
-  return "unknown";
-}
-
-/** 로그인 실패 분류는 화면 분류기와 같은 두 코드만 통과시키고 나머지는 원문 없이 묶는다. */
-function toLoginReasonCode(reason: unknown): string {
-  if (reason !== null && typeof reason === "object") {
-    const error = reason as { name?: unknown; status?: unknown; code?: unknown };
-    if (
-      (error.status === 401 && error.code === "invalid_provider_token")
-      || (error.status === 400 && error.code === "unsupported_provider")
-    ) {
-      return error.code;
-    }
-    if (error.name === "NetworkError") return "network";
-  }
   return "unknown";
 }
 
@@ -397,22 +399,11 @@ export function trackExitReviewSubmitted(trigger: "x" | "leave" | "back"): void 
 }
 
 /**
- * 동의를 이미 마친 사람의 로그인만 여기 남는다. 동의가 남은 신규 계정은 계측이 꺼진 채
- * 동의 화면으로 가므로 이 이벤트가 아니라 `consent_submitted` 로 잡힌다 — 그래서
- * "동의 대기 여부" 속성을 두지 않는다. 늘 같은 값이면 없느니만 못하다.
+ * 게스트의 기능별 동의 시트 제출. 계측은 개인정보 동의가 저장된 직후에 켜지므로 첫 시트의
+ * `ok` 는 켜진 직후의 첫 이벤트다. 저장이 실패한 시트(`partial_fail`)는 계측이 아직 꺼져
+ * 있으면 버려진다 — 소급 전송하지 않는다.
  */
-export function trackLoginCompleted(provider: LoginProvider): void {
-  track("login_completed", { provider });
-}
-
-export function trackLoginFailed(provider: LoginProvider, reason: unknown): void {
-  track("login_failed", {
-    provider,
-    reason_code: toLoginReasonCode(reason),
-  });
-}
-
-export function trackConsentSubmitted(result: "ok" | "partial_fail" | "forced_logout"): void {
+export function trackConsentSubmitted(result: "ok" | "partial_fail"): void {
   track("consent_submitted", { result });
 }
 

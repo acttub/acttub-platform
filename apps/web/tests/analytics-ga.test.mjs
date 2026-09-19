@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import "./ts-module-loader.mjs";
@@ -153,8 +152,8 @@ test("config 와 page_view 가 실제로 씻은 주소를 싣는다", () => {
   );
 });
 
-// GA4는 page_referrer를 생략하면 document.referrer를 직접 읽는다. refresh.ts가
-// /practice/history?session=<uuid> 에서 /login 으로 하드 이동하므로, 씻지 않으면
+// GA4는 page_referrer를 생략하면 document.referrer를 직접 읽는다. 하드 이동(새로고침·
+// 주소 직접 입력)으로 /practice/history?session=<uuid> 에서 넘어오면, 씻지 않으면
 // 그 주소가 통째로 구글에 실려 나간다.
 test("우리 사이트에서 온 referrer는 쿼리를 뗀다", () => {
   const origin = "https://acttub.com";
@@ -180,26 +179,10 @@ test("referrer가 없거나 주소가 아니면 빈 문자열", () => {
   assert.equal(toTrackedReferrer("javascript:alert(1)", origin), "");
 });
 
-// 계측 쿠키는 "이 빌드가 기대하는 버전의 방침에 동의한 기록"이 있을 때만 켜진다.
-// 방침을 개정하고 이 상수를 안 올리면, 옛 버전 동의자의 쿠키가 그대로 유지된다.
-test("기대하는 방침 버전이 발행 매니페스트와 같다", async () => {
-  const { EXPECTED_PRIVACY_VERSION } = await import(
-    "../src/features/auth/pending-consents.ts"
-  );
-  const manifest = JSON.parse(
-    readFileSync(
-      new URL(
-        "../../api/src/main/resources/consent-docs/manifest.json",
-        import.meta.url,
-      ),
-      "utf8",
-    ),
-  );
-  const privacy = manifest.find((item) => item.type === "privacy");
-
-  assert.ok(privacy, "매니페스트에 privacy 문서가 있어야 한다");
-  assert.equal(EXPECTED_PRIVACY_VERSION, privacy.version);
-});
+// 여기 있던 "기대하는 방침 버전이 발행 매니페스트와 같다"는 걷었다. 웹은 판 번호를 빌드에
+// 박아 두지 않는다(account.consent) — 계측 동의는 게스트가 시트에서 개인정보 문서에 동의한
+// 기록으로 보고, 새 판은 서버가 403 의 빠진 문서로 알려 온다. 그 동작은
+// tests/consent-sheet-flow.test.mjs 의 "계측:" 항목들이 돌려 본다.
 
 // 영상 길이를 원본 그대로 보내면 특정 연습을 짚어낼 수 있는 값이 된다. 구간 경계가
 // 밀리면 조용히 원본에 가까운 값이 나가므로 경계값을 못박아 둔다.

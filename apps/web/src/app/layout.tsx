@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Analytics } from "@/features/analytics/analytics";
-import { ConsentEntryBoundary } from "@/features/auth/consent-entry-boundary";
-import { ConsentRedirectListener } from "@/features/auth/consent-redirect-listener";
+import { ConsentSheetHost } from "@/features/consent/consent-sheet";
 import { buildRootMetadata } from "@/lib/seo/site-metadata";
 import { PretendardStylesheet } from "./pretendard-stylesheet";
 import "./globals.css";
@@ -9,7 +8,7 @@ import "./globals.css";
 export const metadata: Metadata = buildRootMetadata();
 
 // 인스타 인앱 웹뷰(안드로이드)를 기본 브라우저로 내보낸다.
-// iOS는 WKWebView가 커스텀 스킴을 막아 해당 없음 — 로그인 화면의 안내 문구가 남는다.
+// iOS는 WKWebView가 커스텀 스킴을 막아 해당 없음.
 const INAPP_ESCAPE = `
 (function () {
   var ua = navigator.userAgent || "";
@@ -43,8 +42,9 @@ export default function RootLayout({
         {/* 계측이 지켜야 하는 조건(동의 전 쿠키 금지·주소에서 식별자 제거·실서비스 호스트
             한정)은 전부 lib/analytics/ga.ts 주석에 있다. 여기서는 자리만 잡는다. */}
         <Analytics />
-        <ConsentRedirectListener />
-        <ConsentEntryBoundary>{children}</ConsentEntryBoundary>
+        {/* 게스트의 기능별 동의 시트. 평소에는 아무것도 그리지 않는다(consent-sheet.tsx). */}
+        <ConsentSheetHost />
+        {children}
       </body>
     </html>
   );

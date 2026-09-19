@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
-import { useRequireAuth } from "../auth/use-require-auth";
+import { useGuestSession } from "../consent/use-guest-session";
 import {
   deleteAllMemory,
   deleteMemoryField,
@@ -77,7 +77,10 @@ const FIELDS: {
 ];
 
 export function MemoryPanel() {
-  const { ready } = useRequireAuth();
+  // 게스트가 없으면 코치가 적어 둔 것도 없다. 서버에 묻지 않고 빈 상태를 그린다 —
+  // 화면을 여는 것만으로 계정이 생기면 안 된다(account.guest). 직접 적어 저장하면 그때
+  // 공용 클라이언트가 게스트를 만든다.
+  const { hasSession } = useGuestSession();
   const [items, setItems] = useState<Record<string, MemoryItem>>({});
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -90,35 +93,34 @@ export function MemoryPanel() {
   // 자리가 없어 override 표와 "전부 지웠음" 표시를 따로 들어야 하고, 그러면 상태가
   // 줄기는커녕 늘어난다.
   useEffect(() => {
-    if (!ready) return;
+    if (!hasSession) return;
     const controller = new AbortController();
     (async () => {
       try {
         const res = await getMemory({ signal: controller.signal });
         const next: Record<string, MemoryItem> = {};
         for (const item of res.items) next[item.field] = item;
-        setItems(next);
-        setDrafts(
-          Object.fromEntries(res.items.map((i) => [i.field, i.value])),
-        );
+        // 게스트 없이 적다가 첫 저장으로 게스트가 생기면 이 조회가 그 뒤에 돈다. 아직
+        // 저장하지 않은 다른 칸의 글을 서버 답으로 덮지 않게 이미 있는 것을 앞세운다.
+        setItems((prev) => ({ ...next, ...prev }));
+        setDrafts((prev) => ({
+          ...Object.fromEntries(res.items.map((i) => [i.field, i.value])),
+          ...prev,
+        }));
       } catch {
-        // 취소된 조회는 실패가 아니다. 세션이 만료되거나 다른 탭에서 로그아웃하면
-        // useRequireAuth 가 ready 를 다시 눕히고(use-require-auth.ts 의 redirectToLogin)
-        // 이 이펙트가 정리되며 조회를 끊는데, 그것을 걸러내지 않아 로그인 화면으로
-        // 넘어가기 전에 "불러오지 못했어요" 가 스쳤다.
+        // 취소된 조회는 실패가 아니다. 게스트가 끝나면(서버가 갱신을 거절하거나 다른
+        // 탭에서 토큰이 사라지면) 이 이펙트가 정리되며 조회를 끊는다.
         if (controller.signal.aborted) return;
         // 못 불러왔을 때 빈 화면과 구분돼야 한다. 빈 상태로 보이면 배우가
         // "코치가 아무것도 모르는구나" 로 잘못 읽는다.
         setError("지금은 불러오지 못했어요. 잠시 후 새로고침해 주세요.");
       } finally {
-        // 끊긴 조회는 로딩도 끄지 않는다. 다만 이것이 관측되는 길은 지금 없다 —
-        // redirectToLogin 이 곧바로 /login 으로 replace 하므로 ready 가 다시 서기 전에
-        // 이 화면이 언마운트된다. 위 catch 가드와 달리 이쪽은 방어일 뿐이다.
+        // 끊긴 조회는 로딩도 끄지 않는다.
         if (!controller.signal.aborted) setLoading(false);
       }
     })();
     return () => controller.abort();
-  }, [ready]);
+  }, [hasSession]);
 
   const save = useCallback(
     async (field: MemoryField) => {
@@ -178,8 +180,6 @@ export function MemoryPanel() {
     }
   }, []);
 
-  if (!ready) return null;
-
   const hasAny = Object.keys(items).length > 0;
 
   return (
@@ -213,7 +213,7 @@ export function MemoryPanel() {
         </p>
       ) : null}
 
-      {loading ? (
+      {hasSession && loading ? (
         <p className="mt-8 text-[14px] text-[#8b95a1]">불러오는 중…</p>
       ) : (
         <>
