@@ -73,7 +73,7 @@ class ComposeContractTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             work = Path(tmp)
             required = ["POSTGRES_PASSWORD", "JWT_SECRET", "ACCOUNT_IDENTITY_HASH_KEY",
-                        "ACCOUNT_TOKEN_ENCRYPTION_KEY", "ADMIN_OPS_TOKEN", "GEMINI_API_KEY",
+                        "ACCOUNT_TOKEN_ENCRYPTION_KEY", "SITE_URL", "ADMIN_OPS_TOKEN", "GEMINI_API_KEY",
                         "OPENAI_API_KEY", "S3_BUCKET", "AWS_REGION", "AWS_ACCESS_KEY_ID",
                         "AWS_SECRET_ACCESS_KEY", "TUNNEL_TOKEN"]
             (work / ".env").write_text("COMPOSE_PROJECT_NAME=test-dev\n" + "\n".join(key + "=test-only" for key in required))
