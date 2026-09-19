@@ -142,6 +142,8 @@ git 이력이 보관한다. 동작을 바꾸는 PR이 그 기능의 요구사항
 | 컬럼 | user_profiles 나이는 생년월일로 받고, 탈퇴 때 5세 단위 연령대로 뭉개 남긴다 | account.profile, account.withdraw |
 | 컬럼 | user_identities에 애플 토큰(암호화) | account.login |
 | 컬럼 | users.age_confirmed_at(게스트의 만 14세 이상 확인 시각) | account.guest |
+| 컬럼 | user_identities에 네이버 토큰(암호화). 탈퇴 때 연결 해제에 쓴다 | account.login, account.withdraw |
+| 추가 | account_cleanup_operations(탈퇴 뒤 객체 삭제와 제공자 연결 해제의 7일 재시도 장부) | account.withdraw |
 
 ## 디자인에 반영할 것
 
@@ -183,7 +185,9 @@ pen을 고칠 목록이다. 규칙은 출처 기능의 본문이 정본이고 �
 | 법무 확인 | 가명처리 보관과 동의 기반 보관의 문구, 자유 글(배우 기억·대화·받아쓰기) 보존, 해시 보관 | account.withdraw |
 | 운영 절차 문서 | 보관 동의 철회 요청을 처리하는 절차(해시 대조, 영상·녹음 파기, revoked 기록) | account.withdraw |
 | 운영 배포 체크리스트 | 카카오·네이버는 검수 승인 뒤에만 운영에서 켠다 | account.login |
-| 운영 배포 체크리스트 | 네이버·카카오 개발자 콘솔에 연결 끊기 콜백 주소를 등록한다 | account.login |
+| 운영 배포 체크리스트 | 네이버·카카오 개발자 콘솔에 연결 끊기 콜백 주소를 등록한다(카카오는 POST, 기본 어드민 키) | account.login |
+| 운영 배포 체크리스트 | 첫 배포 전에 신원 해시 키와 토큰 암호화 키를 넣는다. 한번 정하면 바꾸지 않는다 | account.withdraw |
+| 운영 배포 체크리스트 | 애플 키 셋(팀 ID·키 ID·개인 키)을 넣는다. 없으면 처음 온 애플 신원의 로그인이 503이다 | account.login |
 | 운영 배포 체크리스트 | 1.0.0 서버는 새 앱의 심사 제출 직전에 배포한다. 그때부터 1.0.0 이전 앱은 426이다 | 공통 규칙 |
 
 ## 범위 밖
