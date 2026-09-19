@@ -144,6 +144,19 @@ test('account.portfolio: 순서 페이로드에는 빠짐도 중복도 없다', 
   assert.deepEqual([...ids].sort(), items.map((item) => item.id).sort());
 });
 
+test('account.portfolio: 볼 주소가 없는 사진(url null)도 순서 페이로드에 남는다', () => {
+  // 서버는 저장소가 설정돼 있지 않으면 url 을 null 로 준다(CONTRACT §6-1). 그 사진을 목록에서
+  // 빼면 보낸 id 가 서버의 목록과 달라져 422 order_mismatch 가 된다.
+  const photos = [
+    { id: 'p0', url: 'https://cdn.example/0.jpg' },
+    { id: 'p1', url: null },
+    { id: 'p2', url: null },
+  ];
+  const moved = moveItem(photos, 'p2', 'up');
+
+  assert.deepEqual(orderPayload(moved), { ids: ['p0', 'p2', 'p1'] });
+});
+
 const failure = (status, code, detail = code) => new ApiError(status, 'x', code, detail);
 
 test('account.portfolio: 열한 번째 사진 422와 쉰한 번째 경력 422는 각각 상한 안내다', () => {

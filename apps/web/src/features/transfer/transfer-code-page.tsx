@@ -150,7 +150,7 @@ export function TransferCodePage() {
         <h2 className="text-[15px] font-black">앱에서 넣는 방법</h2>
         <ol className="mt-3 space-y-2.5 text-[14px] font-semibold leading-[1.6] text-[#4e5968]">
           <li>1. Acttub 앱을 열고 로그인해요.</li>
-          <li>2. 설정에서 코드 입력 화면을 열어요.</li>
+          <li>2. 설정에서 ‘웹 연습 가져오기’를 눌러요.</li>
           <li>3. 위의 여섯 자리 코드를 넣어요.</li>
         </ol>
         <ul className="mt-4 space-y-1.5 text-[13px] leading-[1.6] text-[#8b95a1]">

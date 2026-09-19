@@ -24,7 +24,11 @@ export type PortfolioCredit = {
   kind: CreditKind;
 };
 
-export type PortfolioPhoto = { id: string; url: string };
+/**
+ * `url` 은 시한이 있는 조회 주소다. 서버에 저장소가 설정돼 있지 않으면 null 로 온다
+ * (CONTRACT §6-1). 그때도 사진은 목록에 남긴다 — 순서 바꾸기는 지금 있는 id 를 전부 보내야 한다.
+ */
+export type PortfolioPhoto = { id: string; url: string | null };
 
 /** 공유 링크. 주소는 서버가 주는 url 을 그대로 쓴다 — 앱이 조립하지 않는다. */
 export type PortfolioShare = { enabled: boolean; slug: string | null; url: string | null };

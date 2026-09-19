@@ -3,12 +3,9 @@ import type {
   ConsentDocumentsResponse,
   ConsentEntryResponse,
   ConsentEventResponse,
+  ConsentNoticesResponse,
   ConsentRequest,
 } from "./types";
-
-// 게스트의 첫 동의에 싣는 "만 14세 이상이에요" 확인(account.guest). api 갈래가 아직 이
-// 필드를 내지 않아 생성 타입(v2-schema.d.ts)에 없다 — 통합 작업(I1)이 생성 타입으로 바꾼다.
-export type ConsentDecisionRequest = ConsentRequest & { age_confirmed?: true };
 
 /** 누구나 읽는 현재 판 전문. 토큰을 싣지 않으므로 게스트를 만들지 않는다. */
 export async function listConsentDocuments(
@@ -16,6 +13,20 @@ export async function listConsentDocuments(
 ): Promise<ConsentDocumentsResponse> {
   const { data } = await apiFetch<ConsentDocumentsResponse>(
     "/v2/consents/documents",
+    { method: "GET", auth: false, signal: options.signal },
+  );
+  return data;
+}
+
+/**
+ * 개인정보 처리방침 같은 고지의 전문. 동의 문서와 달리 결정 대상이 아니고 판·시행일이 없다
+ * (결정 I-6). 누구나 읽으므로 토큰을 싣지 않고 게스트를 만들지 않는다.
+ */
+export async function listConsentNotices(
+  options: { signal?: AbortSignal } = {},
+): Promise<ConsentNoticesResponse> {
+  const { data } = await apiFetch<ConsentNoticesResponse>(
+    "/v2/consents/notices",
     { method: "GET", auth: false, signal: options.signal },
   );
   return data;
@@ -36,8 +47,12 @@ export async function getConsentEntry(
   return data;
 }
 
+/**
+ * 문서 하나에 대한 결정. 게스트의 첫 동의에는 "만 14세 이상이에요" 확인(`age_confirmed`)을
+ * 함께 싣는다 — 없으면 서버가 422 `age_confirmation_required` 로 거절한다(account.guest).
+ */
 export async function recordConsent(
-  body: ConsentDecisionRequest,
+  body: ConsentRequest,
 ): Promise<ConsentEventResponse> {
   const { data } = await apiFetch<ConsentEventResponse>("/v2/consents", {
     method: "POST",

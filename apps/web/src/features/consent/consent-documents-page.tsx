@@ -3,20 +3,22 @@
 import { useState } from "react";
 
 import { ConsentMarkdown } from "@/features/practice/consent-markdown";
-import { listConsentDocuments } from "@/lib/api/v2/consents";
-import type { ConsentDocument } from "@/lib/api/v2/types";
+import type { ConsentDocument, ConsentNotice } from "@/lib/api/v2/types";
 import { useResource } from "@/lib/react/use-resource";
 
+import { loadConsentDocumentsPage } from "./consent-documents";
+
 /**
- * 동의 문서 공개 페이지(/terms). 누구에게나 모든 동의 문서의 현재 판 전문을 보여 주고
- * 결정 버튼이 없다 — 게스트 토큰이 있든 없든 같다(account.consent). 결정은 기능 안의
- * 시트에서만 받는다(consent-sheet.tsx). 판은 API 가 주는 것을 그대로 그린다.
+ * 동의 문서 공개 페이지(/terms). 누구에게나 모든 동의 문서의 현재 판 전문과 개인정보
+ * 처리방침(고지) 전문을 보여 주고 결정 버튼이 없다 — 게스트 토큰이 있든 없든 같다
+ * (account.consent). 결정은 기능 안의 시트에서만 받는다(consent-sheet.tsx). 판은 API 가
+ * 주는 것을 그대로 그린다.
  */
 export function ConsentDocumentsPage() {
   const [attempt, setAttempt] = useState(0);
   const documents = useResource(
     `consent-documents:${attempt}`,
-    async (_key, signal) => (await listConsentDocuments({ signal })).documents,
+    (_key, signal) => loadConsentDocumentsPage(signal),
     "약관 문서를 불러오지 못했어요.",
   );
 
@@ -56,8 +58,8 @@ export function ConsentDocumentsPage() {
       description="현재 제공 중인 약관과 데이터 처리 안내를 확인할 수 있어요."
     >
       <div className="space-y-5">
-        {documents.data.length > 0 ? (
-          documents.data.map((document) => (
+        {documents.data.documents.length > 0 ? (
+          documents.data.documents.map((document) => (
             <ConsentDocumentCard key={document.id} document={document} />
           ))
         ) : (
@@ -65,6 +67,9 @@ export function ConsentDocumentsPage() {
             현재 공개된 약관 문서가 없어요.
           </p>
         )}
+        {documents.data.notices.map((notice) => (
+          <ConsentNoticeCard key={notice.type} notice={notice} />
+        ))}
       </div>
     </TermsShell>
   );
@@ -113,6 +118,29 @@ function ConsentDocumentCard({ document }: { document: ConsentDocument }) {
         <span>버전 {document.version}</span>
         <span>시행일 {formatPublishedAt(document.published_at)}</span>
       </footer>
+    </article>
+  );
+}
+
+/**
+ * 개인정보 처리방침 같은 고지. 동의 문서가 아니라서 "필수·선택 동의" 꼬리표도 판·시행일도
+ * 없다 — 서버가 주지 않는 값을 지어내 그리지 않는다(결정 I-6).
+ */
+function ConsentNoticeCard({ notice }: { notice: ConsentNotice }) {
+  return (
+    <article className="overflow-hidden rounded-3xl border border-[#e5e8eb] bg-white shadow-sm">
+      <div className="p-6">
+        <p className="text-xs font-semibold text-[#8b95a1]">안내</p>
+        <h2 className="mt-1 text-lg font-bold tracking-[-0.02em] text-[#191f28]">
+          {notice.title}
+        </h2>
+        <div
+          tabIndex={0}
+          className="mt-5 max-h-64 overflow-y-auto rounded-2xl bg-[#f9fafb] p-4 outline-none focus:ring-2 focus:ring-[#90c2ff]"
+        >
+          <ConsentMarkdown source={notice.body} />
+        </div>
+      </div>
     </article>
   );
 }

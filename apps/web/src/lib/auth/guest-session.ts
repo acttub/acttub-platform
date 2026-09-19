@@ -1,4 +1,5 @@
 import { toApiError } from "../api/v2/errors";
+import type { GuestResponse } from "../api/v2/types";
 import { postAuth } from "./auth-request";
 import { emitSessionEvent } from "./session-events";
 import {
@@ -6,18 +7,7 @@ import {
   getAccessToken,
   hasGuestSession,
   setTokens,
-  type AuthUser,
-  type TokenPair,
 } from "./token-store";
-
-// POST /v2/auth/guest 의 응답. api 갈래가 아직 이 엔드포인트를 내지 않아 생성 타입
-// (v2-schema.d.ts)에 없다 — 통합 작업(I1)이 생성 타입으로 바꾼다.
-export type GuestTokenResponse = TokenPair & {
-  token_type: "bearer";
-  expires_in: number;
-  user: AuthUser;
-  account_type: "guest";
-};
 
 let guestInFlight: Promise<string> | null = null;
 
@@ -49,7 +39,8 @@ async function createGuestInsideLock(): Promise<string> {
     );
   }
 
-  const guest = payload as GuestTokenResponse;
+  // POST /v2/auth/guest 는 201 이다. 성공 여부는 위에서 response.ok 로 본다.
+  const guest = payload as GuestResponse;
   setTokens(guest, guest.user);
   emitSessionEvent("guest-started");
   return guest.access_token;

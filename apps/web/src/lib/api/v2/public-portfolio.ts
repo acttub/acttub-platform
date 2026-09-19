@@ -1,24 +1,10 @@
 import { apiFetch } from "./client";
+import type { components } from "../v2-schema";
 
-// GET /v2/public/portfolios/{slug} 의 응답. api 갈래가 아직 이 엔드포인트를 내지 않아 생성
-// 타입(v2-schema.d.ts)에 없다 — 통합 작업(I1)이 생성 타입으로 바꾼다.
-export type PublicPortfolioCredit = {
-  title: string;
-  role: string;
-  year: number;
-  kind: "film" | "drama" | "play" | "musical" | "ad" | "other";
-};
-
-export type PublicPortfolio = {
-  name: string;
-  photo_url: string | null;
-  /** 저장 값이 "선택 안 함"이면 서버가 null 로 준다. 그때는 성별 칸을 뺀다. */
-  gender: "female" | "male" | null;
-  age: number;
-  intro: string | null;
-  credits: PublicPortfolioCredit[];
-  photos: { url: string }[];
-};
+// GET /v2/public/portfolios/{slug} 의 응답. 성별은 저장 값이 "선택 안 함"이면 null 이고,
+// 사진의 url 은 서버에 저장소가 설정돼 있지 않으면 null 이다(CONTRACT §6-1).
+export type PublicPortfolioCredit = components["schemas"]["PublicPortfolioCredit"];
+export type PublicPortfolio = components["schemas"]["PublicPortfolio"];
 
 /**
  * 배우가 공유 링크를 켠 포트폴리오. 로그인 없이 부르며 토큰을 싣지 않는다 — 게스트가 있든

@@ -13,6 +13,7 @@ import {
   creditKindLabel,
   loadPortfolioPage,
   portfolioFacts,
+  portfolioPhotoUrls,
 } from "./public-portfolio";
 
 const subscribeToNothing = () => () => undefined;
@@ -89,6 +90,7 @@ function PortfolioNotice({ title, body }: { title: string; body: string }) {
 
 function PortfolioView({ portfolio }: { portfolio: PublicPortfolio }) {
   const facts = portfolioFacts(portfolio);
+  const photoUrls = portfolioPhotoUrls(portfolio);
 
   return (
     <PortfolioShell>
@@ -150,14 +152,14 @@ function PortfolioView({ portfolio }: { portfolio: PublicPortfolio }) {
           </section>
         ) : null}
 
-        {portfolio.photos.length > 0 ? (
+        {photoUrls.length > 0 ? (
           <section className="mt-4 rounded-[28px] bg-white p-6 sm:p-9">
             <h2 className="text-lg font-black tracking-[-0.03em]">사진</h2>
             <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {portfolio.photos.map((photo, index) => (
-                <li key={photo.url}>
+              {photoUrls.map((url, index) => (
+                <li key={url}>
                   <PortfolioImage
-                    src={photo.url}
+                    src={url}
                     alt={`${portfolio.name} 사진 ${index + 1}`}
                     className="aspect-[3/4] w-full rounded-2xl object-cover"
                   />

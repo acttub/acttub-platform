@@ -15,6 +15,7 @@ const {
   creditKindLabel,
   loadPortfolioPage,
   portfolioFacts,
+  portfolioPhotoUrls,
   slugFromPath,
 } = await import("../src/features/portfolio/public-portfolio.ts");
 const { clearTokens, hasGuestSession, setTokens } = await import(
@@ -119,6 +120,24 @@ test("account.portfolio: 성별이 '선택 안 함'(null)이면 성별 칸이 �
   assert.deepEqual(portfolioFacts(portfolio({ gender: "unspecified", age: 25 })), [
     { label: "나이", value: "만 25세" },
   ]);
+});
+
+test("account.portfolio: 볼 주소가 없는 사진(url null)은 빈 칸을 두지 않고 뺀다", () => {
+  // 서버는 저장소가 설정돼 있지 않으면 사진의 url 을 null 로 준다(CONTRACT §6-1).
+  assert.deepEqual(
+    portfolioPhotoUrls(
+      portfolio({
+        photos: [
+          { url: "https://cdn.example/1.jpg" },
+          { url: null },
+          { url: "https://cdn.example/3.jpg" },
+        ],
+      }),
+    ),
+    ["https://cdn.example/1.jpg", "https://cdn.example/3.jpg"],
+  );
+  assert.deepEqual(portfolioPhotoUrls(portfolio({ photos: [{ url: null }] })), []);
+  assert.deepEqual(portfolioPhotoUrls(portfolio({ photos: [] })), []);
 });
 
 test("account.portfolio: 경력 종류 여섯은 한국어 이름으로 보인다", () => {

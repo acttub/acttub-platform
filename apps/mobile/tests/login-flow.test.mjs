@@ -155,6 +155,35 @@ test('account.login: 네이버는 ID 토큰이 아니라 authorization code·cod
   // 교환은 서버가 client secret으로 한다. 앱이 보내는 본문에 비밀이나 ID 토큰은 없다.
   assert.equal('id_token' in body, false);
   assert.equal('client_secret' in body, false);
+  // 인가 요청에 state 를 쓰지 않았으면 키 자체를 싣지 않는다 — 서버가 난수를 채운다.
+  assert.equal('state' in body, false);
+});
+
+test('account.login: 네이버 인가 요청에 쓴 state 는 그대로 실어 서버가 코드 교환에 쓰게 한다', () => {
+  const body = loginRequestBody({
+    provider: 'naver',
+    authorizationCode: 'naver-code',
+    codeVerifier: 'pkce-verifier',
+    redirectUri: 'actingapp://oauth/naver',
+    state: 'st-4f9a',
+  });
+
+  assert.deepEqual(body, {
+    provider: 'naver',
+    authorization_code: 'naver-code',
+    code_verifier: 'pkce-verifier',
+    redirect_uri: 'actingapp://oauth/naver',
+    state: 'st-4f9a',
+  });
+  // 빈 state 는 없는 것과 같다. 쓰지 않은 값은 키 자체를 싣지 않는다.
+  const blank = loginRequestBody({
+    provider: 'naver',
+    authorizationCode: 'naver-code',
+    codeVerifier: 'pkce-verifier',
+    redirectUri: 'actingapp://oauth/naver',
+    state: '',
+  });
+  assert.equal('state' in blank, false);
 });
 
 test('account.login: 자격 값이 빠졌으면 서버에 보내지 않고 막는다', () => {

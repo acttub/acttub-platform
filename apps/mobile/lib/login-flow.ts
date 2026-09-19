@@ -69,6 +69,8 @@ export type ProviderCredential =
       authorizationCode: string;
       codeVerifier: string;
       redirectUri: string;
+      /** 인가 요청에 쓴 값. 네이버는 토큰 발급 때 state 를 받는다 — 없으면 서버가 난수를 채운다. */
+      state?: string;
     } & WithDisplayName);
 
 export type LoginRequestBody =
@@ -79,6 +81,7 @@ export type LoginRequestBody =
       authorization_code: string;
       code_verifier: string;
       redirect_uri: string;
+      state?: string;
     };
 
 /**
@@ -96,6 +99,8 @@ export function loginRequestBody(credential: ProviderCredential): LoginRequestBo
       authorization_code: credential.authorizationCode,
       code_verifier: credential.codeVerifier,
       redirect_uri: credential.redirectUri,
+      // 쓰지 않은 값은 키 자체를 싣지 않는다. 서버는 state 가 없거나 비어 있으면 난수를 채운다.
+      ...(credential.state ? { state: credential.state } : {}),
     };
   }
   if (!credential.idToken) throw incomplete();

@@ -76,6 +76,16 @@ export function portfolioFacts(
   return facts;
 }
 
+/**
+ * 그릴 수 있는 사진의 주소들. 서버는 저장소가 설정돼 있지 않으면 url 을 null 로 준다
+ * (CONTRACT §6-1). 그때는 깨진 그림을 두지 않고 그 사진을 뺀다.
+ */
+export function portfolioPhotoUrls(
+  portfolio: Pick<PublicPortfolio, "photos">,
+): string[] {
+  return portfolio.photos.flatMap((photo) => (photo.url ? [photo.url] : []));
+}
+
 const CREDIT_KIND_LABELS: Record<string, string> = {
   film: "영화",
   drama: "드라마",

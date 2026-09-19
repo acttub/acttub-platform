@@ -305,7 +305,11 @@ export default function PortfolioEditScreen() {
           {portfolio.photos.length === 0 && <Text style={styles.hint}>{t('portfolio.photosEmpty')}</Text>}
           {portfolio.photos.map((photo, index) => (
             <View key={photo.id} style={styles.item}>
-              <Image source={{ uri: photo.url }} style={styles.thumb} />
+              {photo.url ? (
+                <Image source={{ uri: photo.url }} style={styles.thumb} />
+              ) : (
+                <View style={styles.thumb} />
+              )}
               <Text style={[styles.itemBody, styles.itemSub]}>
                 {t('portfolio.photoOrder', { order: index + 1 })}
               </Text>
