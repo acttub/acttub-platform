@@ -9,6 +9,7 @@ import com.acttub.actingapi.integration.media.VideoRecordChunks;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.google.genai.types.Content;
 import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.GenerateContentResponse;
@@ -17,6 +18,18 @@ import org.junit.jupiter.api.io.TempDir;
 
 class GeminiVideoRecordAnalyzerTest {
     @TempDir Path directory;
+    @Test void allFailedChunksPreserveOriginalFailure() {
+        var chunks = org.mockito.Mockito.mock(VideoRecordChunks.class);
+        var original = new IllegalStateException("chunk extraction failed");
+        org.mockito.Mockito.when(chunks.extract(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong())).thenThrow(original);
+        var analyzer = new GeminiVideoRecordAnalyzer(org.mockito.Mockito.mock(GeminiGateway.class), chunks,
+                "test-model", new RecordingFailureReporter(), new RecordingLlmTelemetry());
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> analyzer.analyze(directory.resolve("take.mp4"),
+                new ActorMaterial("", "", "", "그 외", "", 4000), UUID.randomUUID(), null, null))
+                .isInstanceOf(SummaryParseError.class).hasCause(original);
+    }
+
     @Test void explicitSamplingAndTimingLimitsSurviveAssemblyAndTemporaryMediaIsRemoved() throws Exception {
         Path chunk = Files.createFile(directory.resolve("chunk.mp4"));
         boolean[] deleted = {false};
@@ -37,10 +50,23 @@ class GeminiVideoRecordAnalyzerTest {
                         .build();
             }
             public String generate(String model, Content content, GenerateContentConfig config) {
+                JsonNode input = StructuredJson.parse(content.parts().orElseThrow().get(1).text().orElseThrow());
+                assertThat(input.path("source_duration_ms").asLong()).isEqualTo(8000);
+                assertThat(input.path("chunk_start_ms").asLong()).isZero();
+                assertThat(input.path("chunk_end_ms").asLong()).isEqualTo(8000);
                 assertThat(content.parts().orElseThrow().getFirst().videoMetadata().orElseThrow().fps()).contains(6.0);
                 assertThat(config.thinkingConfig().orElseThrow().toJson()).contains("LOW");
+                var timingSchemas = StructuredJson.parse(config.responseSchema().orElseThrow().toJson())
+                        .findValues("timing_basis");
+                assertThat(timingSchemas).isNotEmpty().allSatisfy(basis ->
+                        assertThat(basis.path("enum").toString()).isEqualTo("[\"estimated\"]"));
                 ObjectNode response = (ObjectNode) StructuredJson.resource("/coaching/chunk.json");
                 response.put("chunk_id", "chunk_0_8000");
+                response.path("segments").forEach(segment -> {
+                    ((ObjectNode) segment).putArray("event_ids").add("unknown");
+                    ((ObjectNode) segment).putArray("utterance_ids");
+                    ((ObjectNode) segment).putArray("limitation_ids");
+                });
                 return response.toString();
             }
         };

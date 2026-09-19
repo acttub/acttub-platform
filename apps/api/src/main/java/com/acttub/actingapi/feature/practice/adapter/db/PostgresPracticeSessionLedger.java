@@ -3,6 +3,7 @@ package com.acttub.actingapi.feature.practice.adapter.db;
 import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
 
 import java.time.Instant;
+import com.acttub.actingapi.platform.ledger.ExternalOperationMonitoring;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -37,14 +38,17 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
             "SHA-256 values must be 64 hexadecimal characters";
 
     private final EntityManager entityManager;
+    private final ExternalOperationMonitoring monitoring;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
 
     public PostgresPracticeSessionLedger(
             EntityManager entityManager,
             ObjectMapper objectMapper,
-            PlatformTransactionManager transactionManager) {
+            PlatformTransactionManager transactionManager,
+            ExternalOperationMonitoring monitoring) {
         this.entityManager = entityManager;
+        this.monitoring = monitoring;
         this.objectMapper = objectMapper;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.transactionTemplate.setPropagationBehavior(
@@ -244,6 +248,9 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
                 .setParameter("userId", userId)
                 .setParameter("requestId", requestId)
                 .setParameter("requestFingerprint", requestFingerprint));
+        if (!inserted.isEmpty()) {
+            monitoring.accepted("analyze");
+        }
         return inserted.isEmpty() ? null : inserted.getFirst().get("id", UUID.class);
     }
 

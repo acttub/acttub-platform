@@ -40,13 +40,13 @@ final class CoachingStateReducer {
         String message = response.path("message").asText().strip();
         require(!message.isBlank() && message.codePointCount(0, message.length()) <= maxChars,
                 "message exceeds current length limit");
-        require(message.chars().filter(c -> c == '?' || c == '？').count() <= 1,
+        require(OpeningQuestion.questionCount(message) <= 1,
                 "at most one question");
         require(message.split("[.!?。！？]+(?:\\s|$)").length <= maxSentences,
                 "too many sentences");
         require(!message.contains("```") && !message.contains("source_refs"), "internal output in message");
         require(!finishRequired || "finish".equals(response.path("flow").asText()), "must finish now");
-        require(!finishRequired || (!message.contains("?") && !message.contains("？")), "closing response must not ask a question");
+        require(!finishRequired || OpeningQuestion.questionCount(message) == 0, "closing response must not ask a question");
         Map<String, JsonNode> catalog = catalog(sources);
         catalog.put(coachId, source(coachId, "coach_message", message));
         validateReferences(response, catalog);
@@ -60,11 +60,14 @@ final class CoachingStateReducer {
             JsonNode focus = context.path("focus");
             if (!focus.isNull()) {
                 require(!focus.path("evidence_refs").isEmpty(), "focus needs evidence");
+                boolean observedMaterial = false;
                 for (JsonNode ref : focus.path("evidence_refs")) {
                     String kind = catalog.get(ref.asText()).path("kind").asText();
-                    require(kind.equals("video_observation") || kind.equals("video_utterance"),
+                    observedMaterial |= kind.equals("video_observation") || kind.equals("video_utterance");
+                    require(kind.equals("video_observation") || kind.equals("video_utterance") || kind.equals("record_limitation"),
                             "focus must refer to observed material");
                 }
+                require(observedMaterial, "a limitation alone cannot establish a focus; retain or clear focus");
                 if (!focus.path("utterance_ref").isNull()) {
                     require("video_utterance".equals(catalog.get(focus.path("utterance_ref").asText())
                             .path("kind").asText()), "focus utterance must be a transcript");

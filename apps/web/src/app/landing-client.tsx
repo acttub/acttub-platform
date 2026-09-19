@@ -6,7 +6,10 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 import wordmark from "../assets/acttub-wordmark.png";
-import { AppDownloadButton } from "../features/app-download/app-download-button";
+import {
+  AppDownloadButton,
+  useAppDownloadHref,
+} from "../features/app-download/app-download-button";
 import { APP_HIGHLIGHTS } from "../features/app-download/app-highlights";
 import { StickyDownloadBar } from "../features/app-download/sticky-download-bar";
 import { StoreBadges } from "../features/app-download/store-badges";
@@ -20,10 +23,13 @@ const COPY = {
     result: "결과물",
     terms: "안전 약속",
     app: "앱 다운로드",
+    aiCoaching: "AI 연기 코칭",
+    coaching: "연기 코칭 안내",
+    guide: "연기 연습 가이드",
   },
   hero: {
     launch: "앱 출시",
-    free: "iOS · Android 무료",
+    free: "AI 연기 코칭 · iOS · Android 무료",
     titleFirst: "연기 영상 올리면",
     titleSecond: "앱이 질문해요",
     subFirst: "연습실에서 찍은 그 자리에서 바로.",
@@ -111,6 +117,7 @@ const practiceLoginHref = "/login?next=/practice/new";
 
 export default function LandingClient() {
   const router = useRouter();
+  const appDownloadHref = useAppDownloadHref("landing_header");
   useEffect(() => {
     if (isLoggedIn()) router.replace("/home");
   }, [router]);
@@ -134,7 +141,7 @@ export default function LandingClient() {
 
   return (
     <>
-      <main className="h-dvh snap-y snap-mandatory scroll-smooth overflow-y-auto overscroll-y-contain bg-white text-[#191f28] [@media(max-height:700px)]:snap-proximity">
+      <main className="h-dvh snap-y snap-proximity scroll-smooth overflow-y-auto overscroll-y-contain bg-white text-[#191f28] [@media(max-height:700px)]:snap-proximity">
         <header className="sticky top-0 z-20 -mb-16 border-b border-[#edf0f3]/80 bg-white/90 px-5 backdrop-blur-xl">
           <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between">
             <Link href="/" aria-label={COPY.homeLabel} className="shrink-0">
@@ -158,24 +165,33 @@ export default function LandingClient() {
                 </Link>
               </div>
               {/* 앱은 폰에서 받는다 — 이 버튼만은 좁은 화면에서도 접지 않는다. */}
-              <Link
-                href="/app"
+              <a
+                href={appDownloadHref}
+                data-app-download="landing_header"
                 className="inline-flex h-10 shrink-0 items-center justify-center rounded-full bg-[#3182f6] px-4 text-sm font-black text-white transition hover:-translate-y-0.5 hover:bg-[#1b64da]"
               >
                 {COPY.nav.app}
-              </Link>
+              </a>
             </div>
           </nav>
         </header>
 
+        {/* 첫 화면에는 snap-start 를 두지 않는다. 헤더(h-16 + border) 아래로 -mb-16 만큼 겹치면서
+            히어로의 스냅 지점이 y=1px 에 놓이고, 스냅 컨테이너가 로드 직후 1px 을 스스로
+            스크롤한다. Chrome 은 그 스크롤에서 LCP 측정을 멈춰 운영 모바일 LCP 가 9초대로
+            찍혔다(2026-09-18, JS 를 꺼도 재현). 스크롤 위치 0 이 곧 첫 화면이라 스냅이 필요 없다. */}
         <section
           id="hero"
-          className="relative flex min-h-dvh snap-start scroll-mt-0 flex-col justify-center overflow-hidden break-keep bg-[linear-gradient(180deg,#eaf6ff_0%,#f8fbff_58%,#ffffff_100%)] px-5 pt-16"
+          className="relative flex min-h-dvh flex-col justify-center overflow-hidden break-keep bg-[linear-gradient(180deg,#eaf6ff_0%,#f8fbff_58%,#ffffff_100%)] px-5 pt-16"
         >
           <div className="absolute left-1/2 top-12 h-80 w-80 -translate-x-1/2 rounded-full bg-[#3182f6]/[0.16] blur-3xl" />
           <div className="absolute -left-24 top-1/2 h-64 w-64 rounded-full bg-white/70 blur-3xl" />
+          {/* 첫 화면은 서버 HTML부터 보이게 둔다 — 아래 섹션처럼 data-reveal 로 숨겨 두면
+              JS 번들이 내려와 하이드레이션될 때까지 h1 이 opacity-0 이라, 모바일 실측에서
+              LCP 가 9초까지 밀렸다(2026-09-18, TTFB·FCP 는 정상). 스크롤 reveal 은
+              뷰포트 밖에서 시작하는 섹션에만 뜻이 있다. */}
           <div
-            data-reveal
+            data-visible="true"
             className="relative mx-auto grid w-full max-w-6xl translate-y-6 items-center gap-4 py-4 opacity-0 transition-[opacity,transform] duration-400 ease-[cubic-bezier(0,0,0.2,1)] data-[visible=true]:translate-y-0 data-[visible=true]:opacity-100 motion-reduce:translate-y-0 motion-reduce:opacity-100 motion-reduce:transition-none sm:gap-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(300px,0.7fr)] lg:gap-12"
           >
             <div className="text-center lg:text-left">
@@ -406,6 +422,21 @@ export default function LandingClient() {
                 <nav className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm font-bold text-[#b0b8c1] md:grid-cols-1">
                   <Link href="/app" className="transition hover:text-white">
                     {COPY.nav.app}
+                  </Link>
+                  <Link
+                    href="/ai-acting-coaching"
+                    className="transition hover:text-white"
+                  >
+                    {COPY.nav.aiCoaching}
+                  </Link>
+                  <Link
+                    href="/acting-coaching"
+                    className="transition hover:text-white"
+                  >
+                    {COPY.nav.coaching}
+                  </Link>
+                  <Link href="/guide" className="transition hover:text-white">
+                    {COPY.nav.guide}
                   </Link>
                   <a href="#flow" className="transition hover:text-white">
                     {COPY.nav.flow}

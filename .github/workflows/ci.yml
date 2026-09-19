@@ -7,7 +7,17 @@ name: CI
 on:
   pull_request:
     branches: [dev, main]
-  workflow_dispatch: # Actions 탭에서 수동 실행
+  workflow_dispatch:
+    inputs:
+      live_coach_eval:
+        description: 합성 장면으로 dev 모델을 평가합니다 (유료 실호출)
+        type: boolean
+        default: false
+      eval_suite:
+        description: 실제 모델 평가 대상
+        type: choice
+        options: [coach, note, continuity]
+        default: coach
 
 # 같은 PR에 새 커밋이 올라오면 진행 중이던 오래된 실행은 취소.
 concurrency:
@@ -90,6 +100,14 @@ jobs:
           deploy/guard-test.sh
           deploy/home/deploy-test.sh
 
+      - name: Monitoring collectors and configuration
+        working-directory: ${{ github.workspace }}
+        run: python3 -m unittest discover -s deploy/monitoring/tests -v
+
+      - name: Grafana configuration and alert rules
+        working-directory: ${{ github.workspace }}
+        run: deploy/monitoring/cloud/check.sh
+
       # 배포 산출물 검증(SOMA-489)입니다. api·web 컨테이너 이미지를 굽고(push 없음) deploy/home/compose.yml 을
       # 실제 배포 스크립트(deploy/home/deploy.sh)로 임시 프로젝트에 띄워 web 경유 /·/health 와 commit 대조,
       # 같은 sha 재실행의 멱등성(두 번 돌려도 결과가 같음), 배포 스크립트의 빨강 둘(대기 시간 초과·commit 불일치)까지
@@ -99,7 +117,17 @@ jobs:
       # 잡 이름은 그대로 둡니다 — required check context 라 바꾸면 ruleset 둘도 같이 가야 합니다.
       - name: Smoke (docker build ×2 · deploy.sh · compose)
         working-directory: ${{ github.workspace }}
+        env:
+          SMOKE_EXPORT_API_IMAGE: acttub-api:monitoring-ci
+          SMOKE_EXPORT_WEB_IMAGE: acttub-web:monitoring-ci
         run: deploy/home/smoke.sh
+
+      - name: Monitoring (scrape · isolation · persistence · independent deploy)
+        working-directory: ${{ github.workspace }}
+        env:
+          MONITORING_SMOKE_API_IMAGE: acttub-api:monitoring-ci
+          MONITORING_SMOKE_WEB_IMAGE: acttub-web:monitoring-ci
+        run: deploy/monitoring/smoke.sh
 
       - name: Restore (data · sequences · schema)
         working-directory: ${{ github.workspace }}
@@ -144,3 +172,38 @@ jobs:
       # .ts 를 그대로 import 합니다(Node 타입 스트리핑). 웹과 달리 커스텀 로더가 없습니다.
       - name: Test
         run: node --test tests/*.test.mjs
+
+  coach_eval:
+    name: 합성 대화·노트 · 실제 dev 모델
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.live_coach_eval }}
+    environment: dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+      - uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+          ping: insung-server
+      - name: Evaluate synthetic conversations
+        run: python3 .github/scripts/run-coach-eval.py "${{ inputs.eval_suite || 'coach' }}"
+      - name: Save synthetic evaluation results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coach-synthetic-eval
+          retention-days: 7
+          path: |
+            apps/api/build/response-selection-eval
+            apps/api/build/scene-context-eval
+            apps/api/build/structured-coach-eval
+            apps/api/build/note-continuity-eval
+            apps/api/build/dialogue-continuity-eval
+            apps/api/build/reports/tests/test

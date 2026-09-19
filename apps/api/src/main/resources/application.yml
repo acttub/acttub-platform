@@ -68,6 +68,29 @@ springdoc:
 server:
   port: 8080
 
+management:
+  server:
+    port: ${MANAGEMENT_SERVER_PORT:-1}
+  endpoints:
+    web:
+      discovery:
+        enabled: false
+      exposure:
+        include: health,prometheus
+    jmx:
+      exposure:
+        exclude: '*'
+  endpoint:
+    health:
+      show-details: never
+      show-components: always
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      slo:
+        http.server.requests: 100ms,250ms,500ms,1s,2s,5s,10s,30s,60s
+
 logging:
   level:
     org.flywaydb: INFO

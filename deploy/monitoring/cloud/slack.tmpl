@@ -1,0 +1,10 @@
+{{ range .Alerts }}
+환경: {{ .Labels.environment }} · 대상: {{ .Labels.target }} · 위치: {{ .Labels.site }}
+조건: {{ .Annotations.condition }}
+관측값: {{ .Annotations.observed_value }}
+발생 시각(UTC): {{ .StartsAt }}
+{{ if eq .Status "resolved" }}해제 시각(UTC): {{ .EndsAt }}
+해제 의미: {{ .Annotations.recovery_meaning }}{{ end }}
+<{{ .Annotations.dashboard_url }}|대시보드 (한국 시간)> · <{{ .Annotations.runbook_url }}|확인 절차>
+{{ if .SilenceURL }}<{{ .SilenceURL }}|종료 시각을 지정해 알림 일시 중지>{{ end }}
+{{ end }}

@@ -7,6 +7,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Set;
 import java.util.UUID;
+import com.acttub.actingapi.platform.ledger.ExternalOperationExecution;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -81,7 +82,10 @@ public class ReportEngine {
         if ("coaching".equals(reportType)) {
             boolean[] copyFailed = {false};
             JsonNode note = PracticeNote.assemble(confirmedHandoff, input -> recorded(
-                    PracticeNote.prompt(), "{\"note_data\":" + input + "}", "practice_note", practiceSessionId, userId),
+                    PracticeNote.prompt(confirmedHandoff),
+                    "acttub.coach_handoff.v2".equals(confirmedHandoff.path("schema_version").asText())
+                            ? input : "{\"note_data\":" + input + "}",
+                    "practice_note", practiceSessionId, userId),
                     failure -> copyFailed[0] = true);
             if (practiceSessionId != null) {
                 // 제목·정리 생성이 실패해도 노트는 저장된다(기본 제목). 실패가 지표에 안 남으면 폴백 비율을 모른다.
@@ -124,6 +128,7 @@ public class ReportEngine {
             UUID userId) {
         Instant startedAt = Instant.now();
         try {
+            ExternalOperationExecution.externalCall("model");
             var generated = generate.generate(systemPrompt, userPrompt);
             if (practiceSessionId != null) {
                 telemetry.record(new LlmCall(

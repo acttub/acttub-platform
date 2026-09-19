@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import com.acttub.actingapi.platform.ledger.ExternalOperationExecution;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -273,6 +274,7 @@ public class CoachEngine {
         }
         Instant startedAt = Instant.now();
         try {
+            ExternalOperationExecution.externalCall("model");
             GeneratedText generated = generate.generate(systemPrompt, userPrompt);
             telemetry.record(new LlmCall(
                     step,

@@ -19,7 +19,12 @@ case "${1:-}" in
     [ "${TEST_BACKUP_ACTIVE:-false}" != true ] || echo backup ;;
   pull) echo "$*" >> "$TEST_CALLS"; [ "${TEST_PULL_FAILURE:-false}" != true ] ;;
   up) echo "$*" >> "$TEST_CALLS"; [ "${TEST_UP_FAILURE:-false}" != true ] ;;
-  exec) printf '%s %s\n{}' "${TEST_STATUS:-200}" "${TEST_COMMIT:-0123456}" ;;
+  exec)
+    if [ "${3:-}" = api ]; then
+      printf '%s\n' "${TEST_THREE_LAYERS:-${DEPLOY_THREE_LAYERS_ENABLED:-false}}"
+    else
+      printf '%s %s\n{}' "${TEST_STATUS:-200}" "${TEST_COMMIT:-0123456}"
+    fi ;;
   ps|logs) : ;;
   *) exit 2 ;;
 esac
@@ -30,7 +35,7 @@ printf 'COMPOSE_PROFILES=edge\n' > "$WORK/.env"
 run_deploy() {
   (cd "$WORK" && env PATH="$WORK/bin:$PATH" TEST_CALLS="$WORK/calls" \
     SHA=0123456789abcdef API_IMAGE=example/api:0123456 WEB_IMAGE=example/web:0123456 \
-    BACKUP_IMAGE= DEPLOY_PULL_POLICY=missing DEPLOY_WAIT_SECONDS=180 "$@" \
+    BACKUP_IMAGE= DEPLOY_PULL_POLICY=missing DEPLOY_WAIT_SECONDS=180 DEPLOY_THREE_LAYERS_ENABLED= "$@" \
     "$ROOT/deploy/home/deploy.sh") > "$WORK/log" 2>&1
 }
 success() { run_deploy "$@" || { cat "$WORK/log"; exit 1; }; }
@@ -41,6 +46,7 @@ failure WEB_IMAGE='example/web:tag with spaces'
 failure DEPLOY_WAIT_SECONDS=0
 failure DEPLOY_WAIT_SECONDS=oops
 failure DEPLOY_PULL_POLICY=never
+failure DEPLOY_THREE_LAYERS_ENABLED=invalid
 printf 'previous-release\n' > "$WORK/release.env"
 failure TEST_BACKUP_ACTIVE=true
 grep -qx previous-release "$WORK/release.env"
@@ -57,4 +63,14 @@ failure TEST_PULL_FAILURE=true
 failure TEST_UP_FAILURE=true
 failure TEST_COMMIT=fffffff
 failure TEST_STATUS=503
+success DEPLOY_THREE_LAYERS_ENABLED=true
+grep -qx 'ACTTUB_THREE_LAYERS_ENABLED=true' "$WORK/release.env"
+cp "$WORK/release.env" "$WORK/enabled-release.env"
+success DEPLOY_THREE_LAYERS_ENABLED=true
+cmp "$WORK/enabled-release.env" "$WORK/release.env"
+failure DEPLOY_THREE_LAYERS_ENABLED=true TEST_THREE_LAYERS=false
+success DEPLOY_THREE_LAYERS_ENABLED=false
+grep -qx 'ACTTUB_THREE_LAYERS_ENABLED=false' "$WORK/release.env"
+success
+! grep -q '^ACTTUB_THREE_LAYERS_ENABLED=' "$WORK/release.env"
 echo '✔ deploy.sh: 입력 거부·backup 프로필·compose 실패·health 불일치 검증 통과'

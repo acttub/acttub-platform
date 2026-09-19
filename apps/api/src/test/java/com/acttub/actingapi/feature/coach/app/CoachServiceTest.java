@@ -100,6 +100,43 @@ class CoachServiceTest {
     }
 
     @Test
+    void unavailableOpeningDoesNotSaveAnErrorAsTheFirstQuestion() {
+        stubStartContext();
+        when(coach.start(any(), any())).thenThrow(new CoachReplyUnavailable());
+        assertThatThrownBy(() -> service.start(USER_ID, new CoachStart(PRACTICE_ID, false), null))
+                .isInstanceOfSatisfying(ApiException.class, error -> {
+                    assertThat(error.status()).isEqualTo(502);
+                    assertThat(error.getMessage()).isEqualTo("coach_response_unavailable");
+                });
+        org.mockito.Mockito.verifyNoInteractions(ledger);
+    }
+
+    @Test
+    void unavailableReplyFailsTheOperationWithoutSavingAFakeTurn() {
+        var snapshot = snapshot("open", List.of(new CoachTurnSnapshot("ai", "기존 질문")));
+        when(sessions.getOwnedCoachSession(USER_ID, SESSION_ID))
+                .thenReturn(new OwnedCoachSessionContext(PRACTICE_ID, snapshot));
+        when(coach.reply(any(), anyString(), any())).thenThrow(new CoachReplyUnavailable());
+        assertThatThrownBy(() -> service.reply(USER_ID, new ActorMessage(SESSION_ID, "상대가 나가려고 해서"), null))
+                .isInstanceOfSatisfying(ApiException.class, error -> {
+                    assertThat(error.status()).isEqualTo(502);
+                    assertThat(error.getMessage()).isEqualTo("coach_response_unavailable");
+                });
+        org.mockito.Mockito.verifyNoInteractions(ledger);
+    }
+
+    @Test
+    void failedAnalysisCannotStartOrResumeCoaching() {
+        when(sessions.getPracticeSessionStatus(USER_ID, PRACTICE_ID)).thenReturn("failed");
+        assertThatThrownBy(() -> service.start(USER_ID, new CoachStart(PRACTICE_ID, false), null))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("analysis is not settled");
+        verify(coach, never()).start(any(), any());
+        verify(sessions, never()).getOldestOpenCoachSession(any(), any());
+        verify(operations, never()).begin(any(), any(), any(), anyString(), anyString());
+    }
+
+    @Test
     void startResumeReturnsStoredConversationWithoutCallingEitherLlmOrCreatingOperation() {
         CoachSessionSnapshot session = snapshot("open", List.of(
                 new CoachTurnSnapshot("actor", "배우 말"),
@@ -188,7 +225,7 @@ class CoachServiceTest {
                 any(Instant.class));
         order.verify(reports).generateReport(any(), any(), any(),
                 org.mockito.ArgumentMatchers.anyBoolean(), any(), any(), any(), any(), any());
-        order.verify(operations).fail(CLAIM, "report_parse_error");
+        order.verify(operations).fail(CLAIM, "report_parse_error", "external");
     }
 
     /** 세션이 없으면 확정 저장이 예외를 던지고, 그것이 404 와 원장의 실패 표시로 옮겨진다. */
@@ -209,7 +246,7 @@ class CoachServiceTest {
                             .hasMessage("coach session not found");
                 });
 
-        verify(operations).fail(CLAIM, "session_not_found");
+        verify(operations).fail(CLAIM, "session_not_found", "expected");
     }
 
     @Test
@@ -241,7 +278,7 @@ class CoachServiceTest {
         assertReportParseError(() -> service.reply(
                 USER_ID, new ActorMessage(SESSION_ID, "그만"), null));
 
-        verify(operations, org.mockito.Mockito.times(2)).fail(CLAIM, "report_parse_error");
+        verify(operations, org.mockito.Mockito.times(2)).fail(CLAIM, "report_parse_error", "external");
     }
 
     @Test
@@ -265,7 +302,7 @@ class CoachServiceTest {
                             .hasMessage("session turns changed concurrently");
                 });
 
-        verify(operations).fail(CLAIM, "session_write_conflict");
+        verify(operations).fail(CLAIM, "session_write_conflict", "expected");
     }
 
     @Test

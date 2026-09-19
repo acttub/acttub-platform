@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { logEvent } from '@/lib/analytics';
+import { logMetaEvent } from '@/lib/meta-events';
 import {
   AnalysisTerminalError,
   OperationInactiveError,
@@ -152,7 +153,8 @@ export default function AnalyzingScreen() {
       setError(null);
       setStage(0);
       setUploading(false);
-      logEvent('analysis_start', {});
+      // 이론은 서버로 안 보내고 계측만 한다(웹과 같은 상태) — 무응답은 'none'.
+      logEvent('analysis_start', { theory: upload?.theory ?? 'none' });
       // 연습이 실제로 일어난 시점 — "마지막 연습 + 3일" 리마인드를 다시 건다.
       void markPracticedToday();
     });
@@ -234,6 +236,7 @@ export default function AnalyzingScreen() {
           playbackUrl,
         });
         logEvent('analysis_complete', {});
+        logMetaEvent('practice_analysis_complete');
         router.replace('/coach');
       });
       appAnalysisOperationOwner.finish(operation);
@@ -441,11 +444,8 @@ export default function AnalyzingScreen() {
                 scene={scene}
                 blockage={
                   blockage && {
-                    kind: `${t(`blockage.kindLabel.${blockage.blockage_kind}`)}${
-                      blockage.sub_branch && blockage.sub_branch !== blockage.blockage_kind
-                        ? ` › ${t(`blockage.kindLabel.${blockage.sub_branch}`)}`
-                        : ''
-                    }`,
+                    // 하위 갈래는 늘 '그 외'라 붙이지 않는다(웹처럼 도움 종류만 보여준다).
+                    kind: t(`blockage.helpLabel.${blockage.blockage_kind}`),
                     detail: blockage.blockage_detail,
                   }
                 }

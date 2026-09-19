@@ -11,7 +11,7 @@ const summary = {
 };
 
 test('video record summary becomes scene rows and spells out the missing range', () => {
-  const rows = videoRecordRows(summary);
+  const rows = videoRecordRows(summary, 'https://dev.acttub.com');
   assert.deepEqual(rows.map(([label]) => label), ['영상에서 본 것', '들린 대사', '확인하지 못한 것', '기록 상태']);
   assert.equal(rows[1][1], '가지 마');
   assert.ok(rows[2][1].includes('00:00~00:08 손은 화면 밖이다.'));
@@ -19,12 +19,18 @@ test('video record summary becomes scene rows and spells out the missing range',
 });
 
 test('a ready record without limitations does not invent a status row', () => {
-  const rows = videoRecordRows({ ...summary, status: 'ready', missing_ranges: [], limitations: [] });
+  const rows = videoRecordRows({ ...summary, status: 'ready', missing_ranges: [], limitations: [] }, 'https://dev.acttub.com');
   assert.deepEqual(rows.map(([label]) => label), ['영상에서 본 것', '들린 대사']);
 });
 
+test('production and unknown environments never display record rows', () => {
+  for (const site of ['https://acttub.com', 'https://www.acttub.com', '', 'invalid', 'https://dev.acttub.com.example.com']) {
+    assert.deepEqual(videoRecordRows(summary, site), []);
+  }
+});
+
 test('legacy observation packs and missing summaries render no record rows', () => {
-  assert.deepEqual(videoRecordRows({ summary_id: 's', observations: [], uncertainties: [] }), []);
-  assert.deepEqual(videoRecordRows(null), []);
-  assert.deepEqual(videoRecordRows(undefined), []);
+  assert.deepEqual(videoRecordRows({ summary_id: 's', observations: [], uncertainties: [] }, 'https://dev.acttub.com'), []);
+  assert.deepEqual(videoRecordRows(null, 'https://dev.acttub.com'), []);
+  assert.deepEqual(videoRecordRows(undefined, 'https://dev.acttub.com'), []);
 });

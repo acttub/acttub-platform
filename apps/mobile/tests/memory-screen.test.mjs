@@ -18,7 +18,7 @@ const readSource = (relativePath) => readFileSync(path.join(appRoot, relativePat
  */
 
 test('설정에서 기억 화면으로 들어가는 길이 있다', () => {
-  const source = readSource('app/(tabs)/settings.tsx');
+  const source = readSource('app/settings.tsx');
 
   assert.match(source, /router\.push\('\/memory'\)/);
 });

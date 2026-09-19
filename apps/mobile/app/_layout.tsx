@@ -333,6 +333,7 @@ function RootNavigator() {
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="consent" options={{ headerShown: false }} />
       <Stack.Screen name="profile-name" options={{ headerShown: false }} />
+      <Stack.Screen name="profile-edit" options={{ title: t('profileName.editTitle') }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen
         name="delete-account"
@@ -349,6 +350,22 @@ function RootNavigator() {
       <Stack.Screen name="admissions/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="community-post" options={{ headerShown: false }} />
       <Stack.Screen name="community-new" options={{ headerShown: false, presentation: 'modal' }} />
+      <Stack.Screen name="challenge-detail" options={{ title: t('challenges.detailTitle') }} />
+      <Stack.Screen name="challenge-play" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
+      <Stack.Screen name="record-choice" options={{ headerShown: false }} />
+      <Stack.Screen name="challenge-upload" options={{ title: t('challengeUpload.title') }} />
+      <Stack.Screen name="saved-videos" options={{ headerShown: false }} />
+      <Stack.Screen name="line-search" options={{ headerShown: false }} />
+      <Stack.Screen name="line-new" options={{ headerShown: false, presentation: 'modal' }} />
+      <Stack.Screen name="archive" options={{ headerShown: false }} />
+      <Stack.Screen name="archive-detail" options={{ headerShown: false }} />
+      <Stack.Screen name="reading/new" options={{ title: '새 대본' }} />
+      <Stack.Screen name="reading/detail" options={{ title: '대본' }} />
+      <Stack.Screen name="reading/full" options={{ title: '대본 전체' }} />
+      <Stack.Screen name="reading/roles" options={{ title: '배역 선택' }} />
+      <Stack.Screen name="reading/range" options={{ title: '시작 위치 선택' }} />
+      <Stack.Screen name="reading/play" options={{ headerShown: false }} />
+      <Stack.Screen name="reading/memorize" options={{ title: '암기하지 못한 대사' }} />
     </Stack>
   );
 }

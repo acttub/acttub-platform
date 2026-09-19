@@ -8,13 +8,25 @@
       "$ref": "#/$defs/layer1_chunk"
     },
     {
-      "$ref": "#/$defs/layer2_turn"
-    },
-    {
       "$ref": "#/$defs/layer3_copy"
     },
     {
       "$ref": "#/$defs/practice_note"
+    },
+    {
+      "$ref": "#/$defs/coach_handoff_v2"
+    },
+    {
+      "$ref": "#/$defs/layer3_note"
+    },
+    {
+      "$ref": "#/$defs/layer2_lookup"
+    },
+    {
+      "$ref": "#/$defs/layer2_respond"
+    },
+    {
+      "$ref": "#/$defs/layer2_dialogue_respond"
     }
   ],
   "$defs": {
@@ -106,6 +118,31 @@
           },
           "minItems": 1,
           "uniqueItems": true
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "whole_video",
+            "local"
+          ],
+          "description": "Scope of the coaching topic. Missing on legacy records means local."
+        },
+        "pattern": {
+          "type": "string",
+          "enum": [
+            "recurring",
+            "changing",
+            "isolated"
+          ],
+          "description": "Repeated characteristic, change across the video, or a local observation."
+        },
+        "basis": {
+          "type": "string",
+          "enum": [
+            "scene",
+            "delivery"
+          ],
+          "description": "scene: meaning/action of the scene, supported by dialogue or observations; delivery: observed performance, requiring observations. Missing on legacy records retains delivery coverage checks."
         }
       },
       "required": [
@@ -1560,10 +1597,45 @@
             }
           },
           "then": {
-            "properties": {
-              "direction": {
-                "$ref": "#/$defs/direction"
+            "anyOf": [
+              {
+                "properties": {
+                  "direction": {
+                    "$ref": "#/$defs/direction"
+                  }
+                }
               },
+              {
+                "properties": {
+                  "focus": {
+                    "properties": {
+                      "basis": {
+                        "const": "scene"
+                      }
+                    },
+                    "required": [
+                      "basis"
+                    ]
+                  },
+                  "scene_context": {
+                    "type": "object",
+                    "properties": {
+                      "character_goal": {
+                        "$ref": "#/$defs/direction"
+                      }
+                    },
+                    "required": [
+                      "character_goal"
+                    ]
+                  }
+                },
+                "required": [
+                  "focus",
+                  "scene_context"
+                ]
+              }
+            ],
+            "properties": {
               "focus": {
                 "$ref": "#/$defs/focus"
               },
@@ -1615,6 +1687,489 @@
           }
         }
       ]
+    },
+    "dialogue_context": {
+      "type": "object",
+      "properties": {
+        "direction": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/dialogue_actor_statement"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scene_context": {
+          "$ref": "#/$defs/dialogue_scene_context"
+        },
+        "focus": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/focus"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reading": {
+          "type": "null"
+        },
+        "open_points": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/grounded_text"
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "direction",
+        "scene_context",
+        "focus",
+        "reading",
+        "open_points"
+      ],
+      "additionalProperties": false
+    },
+    "reply_link": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "user_message_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "actor_quote": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "move": {
+          "enum": [
+            "open",
+            "clarify",
+            "explain",
+            "correct",
+            "acknowledge",
+            "close",
+            "simplify",
+            "suggest",
+            "assess",
+            "extend"
+          ]
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "minItems": 0,
+          "maxItems": 12
+        },
+        "selection": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "need": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 180,
+              "pattern": "\\S"
+            },
+            "blocker": {
+              "enum": [
+                "unknown_context",
+                "scene_understanding",
+                "question_understanding",
+                "interpretation",
+                "execution",
+                "delivery",
+                "transfer",
+                "none"
+              ]
+            },
+            "known_refs": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "maxItems": 12
+            },
+            "question": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "missing_information": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 180,
+                      "pattern": "\\S"
+                    },
+                    "help_if_answered": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 180,
+                      "pattern": "\\S"
+                    }
+                  },
+                  "required": [
+                    "missing_information",
+                    "help_if_answered"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "need",
+            "blocker",
+            "known_refs",
+            "question"
+          ]
+        }
+      },
+      "required": [
+        "user_message_id",
+        "actor_quote",
+        "move",
+        "evidence_refs",
+        "selection"
+      ]
+    },
+    "layer2_dialogue_respond": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "const": "respond"
+        },
+        "base_state_revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400
+        },
+        "context_update": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/dialogue_context"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "style_update": {
+          "anyOf": [
+            {
+              "enum": [
+                "brief",
+                "normal",
+                "expanded"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "flow": {
+          "enum": [
+            "continue",
+            "finish"
+          ]
+        },
+        "reply_link": {
+          "$ref": "#/$defs/reply_link"
+        }
+      },
+      "required": [
+        "action",
+        "base_state_revision",
+        "message",
+        "context_update",
+        "style_update",
+        "flow",
+        "reply_link"
+      ]
+    },
+    "layer2_dialogue_turn": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/layer2_lookup"
+        },
+        {
+          "$ref": "#/$defs/layer2_dialogue_respond"
+        }
+      ]
+    },
+    "dialogue_message": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "role": {
+          "enum": [
+            "actor",
+            "ai"
+          ]
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 10000
+        }
+      },
+      "required": [
+        "id",
+        "role",
+        "text"
+      ]
+    },
+    "coach_handoff_v2": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "acttub.coach_handoff.v2"
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "state_revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end_reason": {
+          "enum": [
+            "actor_finished",
+            "turn_budget",
+            "interrupted",
+            "system_failure"
+          ]
+        },
+        "record_ref": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/record_ref"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "context": {
+          "$ref": "#/$defs/dialogue_context"
+        },
+        "conversation": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/dialogue_message"
+          },
+          "minItems": 0
+        },
+        "source_catalog": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/source"
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "schema_version",
+        "session_id",
+        "state_revision",
+        "end_reason",
+        "record_ref",
+        "context",
+        "conversation",
+        "source_catalog"
+      ]
+    },
+    "note_excerpt": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "quote": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 50
+        }
+      },
+      "required": [
+        "source_ref",
+        "quote"
+      ]
+    },
+    "layer3_note": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "summary": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/note_excerpt"
+          },
+          "minItems": 0,
+          "maxItems": 2
+        },
+        "next_take": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "instruction": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "comparison": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "basis_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  },
+                  "minItems": 2,
+                  "maxItems": 12
+                }
+              },
+              "required": [
+                "instruction",
+                "comparison",
+                "basis_refs"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "summary",
+        "next_take"
+      ]
+    },
+    "dialogue_actor_statement": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "origin": {
+          "enum": [
+            "actor_stated",
+            "actor_selected"
+          ]
+        },
+        "source_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "text",
+        "origin",
+        "source_refs"
+      ]
+    },
+    "dialogue_scene_context": {
+      "type": "object",
+      "properties": {
+        "situation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/dialogue_actor_statement"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "character_goal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/dialogue_actor_statement"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "partner_action": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/dialogue_actor_statement"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "situation",
+        "character_goal",
+        "partner_action"
+      ],
+      "additionalProperties": false
     }
   }
 }

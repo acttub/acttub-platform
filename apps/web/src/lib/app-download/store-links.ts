@@ -16,12 +16,14 @@ export type AppStore = "app_store" | "google_play";
 
 /** 배지를 어느 화면에서 눌렀는지. */
 export type StoreLinkSurface =
+  | "landing_header"
   | "landing_hero"
   | "landing_app_section"
   | "landing_sticky"
   | "landing_cta"
   | "landing_footer"
-  | "app_page";
+  | "app_page"
+  | "keyword_page";
 
 /**
  * 스토어로 나가는 주소.

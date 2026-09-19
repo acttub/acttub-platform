@@ -8,11 +8,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import com.acttub.actingapi.feature.coach.domain.ClosingIntent;
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import com.acttub.actingapi.integration.llm.StructuredJson;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.integration.observation.VideoRecord;
+import com.acttub.actingapi.platform.ledger.ExternalOperationExecution;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.observability.FailureReporter;
@@ -27,7 +27,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 /** One visible reply may perform bounded lookups against the immutable text record. */
 final class StructuredCoachEngine {
     private static final String PROMPT = StructuredJson.instructions(
-            StructuredJson.textResource("/coaching/coach-prompt.txt"), "layer2_turn");
+            StructuredJson.textResource("/coaching/coach-prompt.txt") + "\n" + OpeningQuestion.PROMPT,
+            "layer2_dialogue_turn");
     private static final int MAX_CALLS = 4;
     private static final int MAX_LOOKUPS = 2;
     private final TextGenerator generate;
@@ -46,33 +47,55 @@ final class StructuredCoachEngine {
                 : ((ObjectNode) session.coachingState()).deepCopy();
         CoachingStateReducer.require(state.path("revision").asLong() == session.stateRevision(), "stored revision mismatch");
         long replyCount = session.turns().stream().filter(t -> "ai".equals(t.role())).count();
-        boolean actorFinished = actorText != null && (ClosingIntent.isClosing(actorText)
-                || actorText.strip().matches("(?:(?:여기까지|지금까지|오늘은|오늘 대화|이번 대화)\\s*)?정리(?:해줘|해 줘|해주세요|해 주세요)[.!?\\s]*"));
+        boolean actorFinished = DialogueProgress.actorFinished(actorText);
         boolean finish = actorFinished || replyCount >= 9;
         String actorId = actorText == null ? null : turnId(session, session.turns().size());
         String coachId = turnId(session, session.turns().size() + (actorText == null ? 0 : 1));
-        String proposalId = UUID.randomUUID().toString();
-        String attemptId = UUID.randomUUID().toString();
         String style = responseStyle(state.path("response_style").asText(), actorText);
         int maxChars = switch (style) { case "brief" -> 80; case "expanded" -> 300; default -> 120; };
-        int maxSentences = style.equals("expanded") ? 4 : style.equals("brief") ? 1 : 2;
+        int maxSentences = style.equals("expanded") ? 4 : style.equals("brief") ? 1 : 3;
+        if (actorText == null && style.equals("normal")) {
+            maxChars = 100;
+            maxSentences = 2;
+        }
         ObjectNode input = input(session, state, actorText, actorId, operationId);
         ObjectNode view = records.initial(session.observationPack());
         input.set("record_view", view);
-        input.put("output_contract", "acttub.layer2_turn.v1");
-        input.putObject("reserved_ids").put("coach_message_id", coachId)
-                .put("new_proposal_id", proposalId).put("new_attempt_id", attemptId);
+        input.set("dialogue_progress", DialogueProgress.controls(input).put("allow_finish", finish));
+        input.put("output_contract", "acttub.layer2_turn.v2");
+        input.putObject("reserved_ids").put("coach_message_id", coachId);
         ObjectNode controls = input.putObject("controls").put("max_message_chars", maxChars)
-                .put("max_sentences", maxSentences).put("max_questions", finish ? 0 : 1)
+                .put("max_sentences", maxSentences).put("max_questions",
+                        finish || input.path("dialogue_progress").path("explain_instead_of_repeating_question").asBoolean() ? 0 : 1)
                 .put("coach_replies_remaining", Math.max(0, 10 - replyCount))
                 .put("lookup_calls_remaining", MAX_LOOKUPS).put("finish_required", finish);
+        ArrayNode validationErrors = input.putArray("validation_errors");
         int lookups = 0;
         Instant deadline = Instant.now().plusSeconds(100);
         for (int call = 0; call < MAX_CALLS && Instant.now().isBefore(deadline); call++) {
             controls.put("lookup_calls_remaining", call == MAX_CALLS - 1 ? 0 : MAX_LOOKUPS - lookups);
+            controls.put("min_questions", 0);
+            ObjectNode constraints = input.putObject("response_constraints");
+            constraints.set("user_message_id", input.path("user_message").path("id").isMissingNode()
+                    ? StructuredJson.MAPPER.nullNode() : input.path("user_message").path("id"));
+            ArrayNode videoRefs = constraints.putArray("allowed_video_refs");
+            ArrayNode knowledgeRefs = constraints.putArray("allowed_knowledge_refs");
+            for (JsonNode source : deliveredSources(input)) {
+                knowledgeRefs.add(source.path("id"));
+                if (List.of("video_observation", "video_utterance", "record_limitation").contains(source.path("kind").asText())) {
+                    videoRefs.add(source.path("id"));
+                }
+            }
             try {
-                JsonNode response = StructuredJson.parse(recorded(session, input, call));
-                StructuredJson.validate("layer2_turn", response);
+                var references = new DialogueReferences(deliveredSources(input), coachId);
+                ObjectNode modelInput = (ObjectNode) references.toModel(input);
+                modelInput.remove(List.of("request_id", "session_id"));
+                JsonNode response = !finish && input.path("dialogue_progress").path("unclear_correction").asBoolean()
+                        ? DialogueProgress.correctionTargetReply(input)
+                        : !finish && input.path("dialogue_progress").path("unobservable_hand_requested").asBoolean()
+                        ? DialogueProgress.observationLimitReply(input)
+                        : references.fromModel(StructuredJson.parse(recorded(session, modelInput, call)));
+                StructuredJson.validate("layer2_dialogue_turn", response);
                 CoachingStateReducer.require(response.path("base_state_revision").asLong() == session.stateRevision(),
                         "stale state revision");
                 if ("lookup".equals(response.path("action").asText())) {
@@ -81,12 +104,16 @@ final class StructuredCoachEngine {
                     lookups++;
                     JsonNode result = records.lookup(session.observationPack(), response.path("request"));
                     view = records.merge(view, result);
+                    records.refreshCoverage(session.observationPack(), view);
                     input.set("record_view", view);
                     input.remove("validation_error");
                     continue;
                 }
-                ObjectNode next = CoachingStateReducer.apply(state, response, deliveredSources(input), actorId,
-                        coachId, proposalId, attemptId, maxChars, maxSentences, finish);
+                FocusCoverage.validate(response.path("context_update").path("focus"), session.observationPack(), view);
+                DialogueProgress.validate(response, input.path("dialogue_progress"));
+                ObjectNode next = DialogueState.apply(state, response, deliveredSources(input), input.path("user_message"),
+                        coachId, maxChars, maxSentences, finish,
+                        input.path("last_exchange").path("coach_message").path("text").asText());
                 // Explicit brevity requests persist even when the model omits style_update.
                 next.put("response_style", responseStyle(state.path("response_style").asText(), actorText));
                 boolean done = "finish".equals(response.path("flow").asText());
@@ -96,16 +123,18 @@ final class StructuredCoachEngine {
                 failures.report(failure, FailureKind.EXTERNAL,
                         new FailureContext("StructuredCoachEngine.validation", operationId));
                 // Never echo an unvalidated model response to the actor or the next prompt.
-                input.put("validation_error", failure instanceof IllegalArgumentException
-                        ? failure.getMessage() : "generation unavailable; return a valid response using available evidence");
+                String error = failure instanceof IllegalArgumentException
+                        ? failure.getMessage() : "generation unavailable; return a valid response using available evidence";
+                input.put("validation_error", error);
+                if (!validationErrors.toString().contains(StructuredJson.MAPPER.getNodeFactory().textNode(error).toString())) {
+                    validationErrors.add(error);
+                }
             }
         }
+        if (!finish) throw new CoachReplyUnavailable();
         ObjectNode retained = state.deepCopy();
         retained.put("revision", session.stateRevision() + 1).put("response_style", style);
-        String message = finish
-                ? "확인한 내용과 아직 제안인 연습을 구분해서 노트로 남길게요."
-                : "지금은 이 구간을 더 확인하기 어려워요.";
-        return result(session, actorText, message, retained, finish ? "system_failure" : null);
+        return result(session, actorText, "지금까지 이야기한 내용으로 정리할게요.", retained, "system_failure");
     }
 
     private static ObjectNode input(CoachSessionSnapshot session, JsonNode state, String actorText,
@@ -118,6 +147,8 @@ final class StructuredCoachEngine {
                 ? session.observationPack().path("actor_context").deepCopy() : StructuredJson.MAPPER.createObjectNode());
         ObjectNode visibleState = state.deepCopy();
         visibleState.remove("source_catalog");
+        visibleState.remove(List.of("proposals", "attempts", "active_proposal_id"));
+        visibleState.set("context", DialogueState.context(state));
         input.set("coaching_state", visibleState);
         input.set("state_sources", state.path("source_catalog").deepCopy());
         if (!session.prior().isEmpty()) {
@@ -128,6 +159,12 @@ final class StructuredCoachEngine {
             CoachTurnSnapshot turn = session.turns().get(i);
             messages.addObject().put("id", turnId(session, i)).put("role", turn.role()).put("text", turn.text());
         }
+        ObjectNode exchange = input.putObject("last_exchange");
+        exchange.putNull("coach_message");
+        for (JsonNode message : messages) {
+            if ("ai".equals(message.path("role").asText())) exchange.set("coach_message", message.deepCopy());
+        }
+        exchange.set("actor_message", input.path("user_message").deepCopy());
         return input;
     }
 
@@ -167,15 +204,23 @@ final class StructuredCoachEngine {
                 endReason == null ? "" : endReason);
         ObjectNode handoff = null;
         if (endReason != null) {
-            handoff = StructuredJson.MAPPER.createObjectNode().put("schema_version", "acttub.coach_handoff.v1")
+            handoff = StructuredJson.MAPPER.createObjectNode().put("schema_version", "acttub.coach_handoff.v2")
                     .put("session_id", session.sessionId().toString()).put("state_revision", next.stateRevision())
                     .put("end_reason", endReason);
             handoff.set("record_ref", VideoRecord.isRecord(session.observationPack())
                     ? VideoRecord.reference(session.observationPack()) : StructuredJson.MAPPER.nullNode());
-            ObjectNode snapshot = state.deepCopy();
-            snapshot.remove("source_catalog");
-            handoff.set("coaching_state", snapshot);
-            handoff.set("source_catalog", state.path("source_catalog").deepCopy());
+            handoff.set("context", DialogueState.context(state));
+            Map<String, JsonNode> sources = CoachingStateReducer.catalog(state.path("source_catalog"));
+            ArrayNode conversation = handoff.putArray("conversation");
+            for (int i = 0; i < turns.size(); i++) {
+                CoachTurnSnapshot turn = turns.get(i);
+                String id = turnId(session, i);
+                ObjectNode item = conversation.addObject().put("id", id).put("role", turn.role()).put("text", turn.text());
+                sources.put(id, messageSource(item));
+            }
+            ArrayNode catalog = handoff.putArray("source_catalog");
+            sources.values().forEach(catalog::add);
+            StructuredJson.validate("coach_handoff_v2", handoff);
         }
         return new CoachResult(next, new CoachReply(message, endReason == null ? "continue" : "complete", handoff));
     }
@@ -183,10 +228,12 @@ final class StructuredCoachEngine {
     private String recorded(CoachSessionSnapshot session, JsonNode input, int call) {
         Instant started = Instant.now();
         String text = input.toString();
+        String prompt = PROMPT + DialogueProgress.turnInstruction(input.path("dialogue_progress"));
         try {
-            var generated = generate.generate(PROMPT, text);
+            ExternalOperationExecution.externalCall("model");
+            var generated = generate.generate(prompt, text);
             telemetry.record(new LlmCall(call == 0 ? LlmStep.COACH_TURN : LlmStep.COACH_REGENERATION,
-                    session.practiceSessionId(), session.userId(), generated.model(), PROMPT + "\n" + text,
+                    session.practiceSessionId(), session.userId(), generated.model(), prompt + "\n" + text,
                     generated.text(), generated.usage() == null ? LlmTokens.unknown() : LlmTokens.of(
                             generated.usage().prompt(), generated.usage().completion(), generated.usage().total()),
                     started, Duration.between(started, Instant.now()), null,
@@ -194,7 +241,7 @@ final class StructuredCoachEngine {
             return generated.text();
         } catch (RuntimeException failure) {
             telemetry.record(new LlmCall(LlmStep.COACH_TURN, session.practiceSessionId(), session.userId(), "",
-                    PROMPT + "\n" + text, "", LlmTokens.unknown(), started, Duration.between(started, Instant.now()),
+                    prompt + "\n" + text, "", LlmTokens.unknown(), started, Duration.between(started, Instant.now()),
                     failure.getClass().getSimpleName(), LlmCall.metadata("contract", "three_layers_v1")));
             throw failure;
         }
