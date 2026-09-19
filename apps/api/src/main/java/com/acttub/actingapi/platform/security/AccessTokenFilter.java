@@ -44,6 +44,7 @@ public class AccessTokenFilter extends OncePerRequestFilter {
         // 약관·입시 정보 같은 온보딩 콘텐츠에서 401 을 받게 된다.
         if (path.equals("/v2/consents/documents")
                 || path.equals("/v2/consents/notices")
+                || path.startsWith("/v2/public/")
                 || path.startsWith("/v2/admissions")) {
             return true;
         }

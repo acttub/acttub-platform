@@ -12,7 +12,7 @@ import com.acttub.actingapi.feature.profile.domain.Account;
 import com.acttub.actingapi.feature.profile.domain.KoreanAge;
 import com.acttub.actingapi.feature.profile.domain.NotificationSettings;
 import com.acttub.actingapi.feature.profile.domain.Profile;
-import com.acttub.actingapi.feature.profile.domain.ProfilePhotoType;
+import com.acttub.actingapi.integration.storage.PhotoUploadType;
 import com.acttub.actingapi.platform.security.ProfileGate;
 import com.acttub.actingapi.platform.web.ApiException;
 import org.springframework.stereotype.Service;
@@ -153,11 +153,11 @@ public class ProfileService implements ProfileGate {
      * 먼저 나온다(영상 올리기와 같다).
      */
     public NewPhotoUpload beginPhotoUpload(UUID userId, String rawContentType, BigInteger sizeBytes) {
-        String contentType = ProfilePhotoType.accepted(rawContentType);
+        String contentType = PhotoUploadType.accepted(rawContentType);
         if (contentType == null) {
             throw new ApiException(415, "unsupported_media_type");
         }
-        if (sizeBytes.compareTo(BigInteger.valueOf(ProfilePhotoType.MAX_BYTES)) > 0) {
+        if (sizeBytes.compareTo(BigInteger.valueOf(PhotoUploadType.MAX_BYTES)) > 0) {
             throw new ApiException(413, "upload_too_large");
         }
         photos.requireConfigured();
@@ -165,7 +165,7 @@ public class ProfileService implements ProfileGate {
         Instant expiresAt = clock.instant().plus(PHOTO_UPLOAD_TTL);
         String objectKey = "users/" + userId + "/profile/"
                 + UUID.randomUUID().toString().replace("-", "")
-                + ProfilePhotoType.objectSuffix(contentType);
+                + PhotoUploadType.objectSuffix(contentType);
         String uploadUrl = photos.presignUpload(
                 objectKey, contentType, size, Math.toIntExact(PHOTO_UPLOAD_TTL.toSeconds()));
         if (!profiles.beginPhotoUpload(

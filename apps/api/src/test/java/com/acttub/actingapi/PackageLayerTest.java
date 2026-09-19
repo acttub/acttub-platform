@@ -70,9 +70,8 @@ class PackageLayerTest {
             // `users` 행의 Schema Entity 는 `auth/schema/UserEntity` 다 — 행을 만드는 쪽이
             // 갖는다(SOMA-397 12단계). 프로필은 `user_profiles`·`user_profile_directions` 를 갖는다.
             Map.entry("profile", FOUR_LAYERS),
-            // 포트폴리오와 게스트 이관은 테이블이 먼저 섰다(V7, SOMA-528). 나머지 층은 그 기능을
-            // 만드는 작업이 세우고, 그때 이 표에 층을 더한다.
-            Map.entry("portfolio", Set.of("schema")),
+            // 포트폴리오와 게스트 이관은 테이블이 먼저 서고(V7, SOMA-528) 나머지 층이 뒤에 섰다.
+            Map.entry("portfolio", FOUR_LAYERS),
             Map.entry("transfer", Set.of("app", "adapter", "schema")),
             // 입시 요강에는 Domain Model 도 Schema Entity 도 없다. 요강은 우리가 쓰는 데이터가
             // 아니라 바깥에서 통째로 들어오는 문서라 그것에 걸리는 행위 규칙이 없고, 문서가 곧

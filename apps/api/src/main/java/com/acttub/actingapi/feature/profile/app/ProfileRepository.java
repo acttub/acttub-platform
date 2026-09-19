@@ -72,6 +72,33 @@ public interface ProfileRepository {
         DEACTIVATED
     }
 
+    // ---- 매일 도는 일 (AccountHousekeeping) ----
+
+    /**
+     * 마지막 활동이 {@code lastActiveBefore} 보다 앞선 <b>활성</b> 게스트. 옮겨진 게스트는 이미 닫혀 있어
+     * 고르지 않는다. 마지막 활동은 가입·토큰 발급(갱신)·올리기·연습 가운데 가장 늦은 시각이다 — 액세스 토큰이
+     * 30분이라 웹을 쓰는 동안에는 토큰 발급이 계속 찍힌다.
+     */
+    List<UUID> idleGuests(Instant lastActiveBefore);
+
+    /**
+     * 탈퇴한 지 오래된({@code deactivatedBefore} 보다 앞선) 계정의 남은 것을 파기한다 — 신원의 해시 행을
+     * 지우고, 보관 동의로 남겨 두었던 영상 객체의 삭제를 정리 장부에 올린다. 한 트랜잭션이다. 해시 행이
+     * 남아 있는 계정만 고르므로 한 번 파기한 계정은 다시 고르지 않는다.
+     *
+     * @return 장부에 올린 객체 삭제들. 부르는 쪽이 트랜잭션 밖에서 시도한다
+     */
+    List<UUID> purgeRetained(Instant deactivatedBefore, Instant now);
+
+    /** 만료되거나 폐기된 지 오래된 리프레시 토큰 행을 지운다. 그 전까지는 재사용 탐지와 문제 추적에 쓴다. */
+    int deleteStaleRefreshTokens(Instant before);
+
+    /**
+     * 쓰였거나 시한이 지난 지 오래된 이관 코드 행을 지운다. ⚠ 쓰인 코드는 "이 게스트는 옮겨졌다"는 표식이라
+     * 그 게스트의 리프레시 토큰이 살 수 있는 동안(30일)에는 지우면 안 된다.
+     */
+    int deleteStaleTransferCodes(Instant before);
+
     /** 알림 토글 셋. 프로필 행이 없으면 {@code null}. */
     NotificationSettings notificationSettings(UUID userId);
 

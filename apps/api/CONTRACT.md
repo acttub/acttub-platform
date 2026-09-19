@@ -362,12 +362,15 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 | 26 | 옮겨진 게스트의 사유가 먼저 | 액세스 **403**·갱신 **401** 둘 다 `guest_transferred` 이고 `account_deactivated` 보다 먼저다. `DELETE /v2/me` 도 예외가 아니다(§6-9) |
 | 27 | 이관은 한 트랜잭션 | 도메인마다의 "주인 바꾸기" 포트는 **자기 트랜잭션을 열지 않는다.** 도중에 실패하면 어느 행의 주인도 바뀌지 않는다(§6-9) |
 | 28 | 로그아웃은 멱등 | 모르는·폐기된·위조된·**남의** 리프레시 토큰이어도 **204** 이고 아무것도 폐기하지 않는다. 푸시 토큰 삭제는 **로그인 없이** 받는다(§6-10) |
+| 29 | 포트폴리오 공개 조회는 같은 404 | 꺼진 링크·없는 slug·탈퇴한 사람의 slug 를 가르지 않는다(`portfolio_not_found`). 로그인 없이, **보는 사람의 IP 별** 분당 60회, 응답에 `X-Robots-Tag: noindex`(§6-11) |
+| 30 | slug 는 꺼도 남는다 | 처음 켤 때 생긴 난수 slug 를 다시 만들지 않는다 — 껐다 켜도 같은 주소다. `/`·`+`·`=` 가 없는 글자다(웹의 `/p/<slug>` 는 한 단계만 받는다)(§6-11) |
+| 31 | 매일 도는 일은 멱등이고 서로를 막지 않는다 | 한 가지가 실패해도 나머지는 돈다. **쓰인 이관 코드는 30일 안에 지우지 않는다**(`guest_transferred` 의 표식)(§6-12) |
 
 ### 6-1. nullable — "null 로 보낼 것" 과 "키를 생략할 것" 이 다르다
 
 | 동작 | 대상 |
 |---|---|
-| **required + `null` 값을 실어 보냄** | `AuthUser.email`, `MeResponse.email`/`.profile`, `Profile` 의 `directions` 를 뺀 전 항목(1.0.0 이전 회원은 `name` 만 차 있다), `CoachTurnResponse.handoff`/`.report`, `CoachConfirmResponse.handoff`, `SourceHandoffIds.analysis`, `MemoryItem.source_practice_session_id`, `ConsentEntryDocument.current_decision`/`.decided_at` |
+| **required + `null` 값을 실어 보냄** | `AuthUser.email`, `MeResponse.email`/`.profile`, `Profile` 의 `directions` 를 뺀 전 항목(1.0.0 이전 회원은 `name` 만 차 있다), `CoachTurnResponse.handoff`/`.report`, `CoachConfirmResponse.handoff`, `SourceHandoffIds.analysis`, `MemoryItem.source_practice_session_id`, `ConsentEntryDocument.current_decision`/`.decided_at`, `Portfolio.intro`, `PortfolioPhoto.url`, `PortfolioShare.slug`/`.url`, `PublicPortfolio.photo_url`/`.gender`/`.intro`, `PublicPortfolioPhoto.url`, 연습 노트의 `PracticeNote*`·`PublicPracticeNote` 항목들 |
 | **optional + 조건부로 키를 추가** | `PracticeSessionDetail.summary`(status 가 `analyzed` 이고 summary 가 있을 때만), `.error_code`(`failed` 일 때만) |
 | **optional 인데 항상 포함** | `PracticeSessionStatusResponse.error_code` |
 
@@ -400,7 +403,8 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 **422 는 두 모양이다.** 본문의 모양이 틀린 것(필수 키 빠짐·타입·값 목록 밖·길이 상한)은 `detail` 이
 **배열**이고, 규칙에 걸린 것은 다른 오류와 같이 **코드 문자열 하나**다: `under_14`,
 `under_14_account_closed`, `authorization_code_required`, `consent_decisions_incomplete`,
-`required_consent_cannot_be_declined`. (네이버 로그인에 `authorization_code`·`code_verifier` 가 빠진 것은
+`required_consent_cannot_be_declined`, `age_confirmation_required`, `order_mismatch`,
+`portfolio_credit_limit_exceeded`, `portfolio_photo_limit_exceeded`. (네이버 로그인에 `authorization_code`·`code_verifier` 가 빠진 것은
 본문의 모양이 틀린 것이라 **배열**이다 — 애플의 `authorization_code_required` 와 다르다.) 클라이언트는 `detail` 이 문자열이면 사유로 가르고 배열이면
 자기 버그로 다룬다. 선례는 `request_fingerprint_mismatch` 다.
 
@@ -432,14 +436,14 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 
 ### 6-3. unknown key 정책 — 전역 reject + DTO 별 예외
 
-요청 바디 16개 중 **5개가 unknown key 를 허용**한다:
+요청 바디 25개 중 **5개가 unknown key 를 허용**한다(2026-09-20, 계정 1.0.0 뒤):
 
 ```
 POST /v2/auth/login      POST /v2/auth/logout     POST /v2/auth/refresh
 POST /v2/consents        POST /v2/uploads/intents
 ```
 
-나머지 11개는 `additionalProperties: false` 다.
+나머지 20개는 `additionalProperties: false` 다. 1.0.0 에서 더한 요청 바디는 전부 닫혀 있다.
 
 **전역 `fail-on-unknown-properties: true` + 허용할 5개에
 `@JsonIgnoreProperties(ignoreUnknown = true)`.**
@@ -447,7 +451,7 @@ POST /v2/consents        POST /v2/uploads/intents
 **반대 방향(전역 허용 + DTO 별 거부)은 Jackson 이 표현하지 못한다** — 실제로 시도해 실패했다.
 `ignoreUnknown = false` 는 "거부하라" 가 아니라 **"전역 설정을 따르라"** 는 뜻이라 기본값과 다를
 바 없고, 예외가 나지 않는다. Spring Boot 기본값은 `false`(무시)라서, **그 기본을 쓰면 거부해야
-할 11개를 닫을 수단이 없다.**
+할 나머지를 닫을 수단이 없다.**
 
 **개수를 박지 말고 `openapi.json` 에서 확인한다** — 이관 중에 이 집합이 7→5 로 바뀐 적이 있다.
 
@@ -493,7 +497,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 
 | 단계 | 경로 |
 |---|---|
-| 게이트 밖 | `/v2/auth/**`, `/v2/consents/**`, `GET`·`DELETE /v2/me`, `DELETE /v2/push-tokens`, 공개 `/v2/admissions/**`, 운영 `/v2/admin/**` |
+| 게이트 밖 | `/v2/auth/**`, `/v2/consents/**`, `GET`·`DELETE /v2/me`, `DELETE /v2/push-tokens`, 공개 `/v2/admissions/**`·`GET /v2/public/**`, 운영 `/v2/admin/**` |
 | 게스트 전용 | `/v2/guest/**`(이관 코드 받기) — 필요한 동의 문서가 없다. 회원이 부르면 403 `guest_only` |
 | 동의까지만 | `PUT /v2/me/profile` — 개인정보를 받기 전에 수집 동의가 끝나 있어야 하고, 프로필이 빈 사람이 채우는 자리다 |
 | 동의 + 프로필 | 그 밖의 모든 `/v2` |
@@ -508,7 +512,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 - 위 표는 **회원**의 규칙이다. 웹 게스트는 다른 규칙으로 막힌다(§6-9) — 같은 `AccessGate#gatedUser` 가
   주체를 보고 가른다.
 - 토큰 없이 여는 공개 조회(`GET /v2/consents/documents`·`/v2/consents/notices`, `/v2/admissions/**`,
-  `GET /v2/auth/providers`)는 `Authorization` 헤더가 와도 검증하지 않는다
+  `GET /v2/auth/providers`, `GET /v2/public/**`)는 `Authorization` 헤더가 와도 검증하지 않는다
   (`AccessTokenFilter#shouldNotFilter`) — 만료된 토큰을 전역으로 붙이는 클라이언트가 온보딩 콘텐츠에서
   401 을 받지 않게 한다. 제공자가 부르는 `/v2/auth/providers/*/disconnect` 도 같다 — 카카오는
   `Authorization: KakaoAK <어드민 키>` 를 싣는데, 그것을 액세스 토큰으로 검증하면 알림이 전부 401 이 된다.
@@ -611,7 +615,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   값마다 새 nonce 다. 전용 키를 나중에 넣어도 그 전의 값이 읽힌다 — 신원 해시는 3년을 간다(ADR-029).
   운영자는 철회 요청의 본인 확인에서 두 키 모두로 해시를 계산해 대조한다(`identityHashCandidates`).
 - 챌린지 참여작 비공개는 그 테이블이 생길 때 탈퇴 트랜잭션에 더한다. 탈퇴 3년 뒤의 파기(해시 행, 보관하던
-  영상)는 매일 도는 일이다.
+  영상)는 매일 도는 일이다(§6-12).
 
 ### 6-9. 웹 게스트와 이관
 
@@ -673,6 +677,48 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 - `POST /v2/auth/logout` 은 **멱등**이다: 요청에 실린 리프레시 토큰 **하나만** 폐기하고, 이미 폐기됐거나
   모르는 토큰·위조된 토큰·**남의 토큰**이면 아무것도 폐기하지 않고 같은 **204** 다(그 토큰이 실재하는지도
   알려 주지 않는다). 본문의 모양(422 배열)과 액세스 토큰(401)은 그대로 본다. 게이트 밖이다.
+
+### 6-11. 포트폴리오
+
+- 회원당 하나이고 **처음 저장할 때** 행이 생긴다. `GET /v2/portfolio` 는 한 번도 편집하지 않았어도 빈 모양으로
+  **200** 이다(404 아님). 전부 보호 기능이고 회원만 쓴다 — 게스트의 기능 표에 없어 403 `member_only`.
+- 항목마다 따로 저장한다. 소개글·순서 바꾸기·사진 올리기 끝은 **포트폴리오 본문 전체**를 돌려준다(앱이 응답으로
+  화면을 덮는다). 경력 추가는 201 과 경력 하나, 수정은 경력 하나, 삭제는 204, 사진 주소 받기는 201
+  `photo_id`·`upload_url`·`expires_at`, 공유는 `share` 객체 하나(`enabled`·`slug`·`url`).
+- **값의 형태는 422 배열**이다: 소개글 2,000자, 작품명·역할 1~100자(빈 값 포함), 연도 1900~**내년**(한국
+  시간의 오늘에서 센다), 종류가 `film·drama·play·musical·ad·other` 밖. 길이는 code point 로 센다.
+  **규칙은 사유 코드 하나**다: 쉰한 번째 경력 `portfolio_credit_limit_exceeded`, 열한 번째 사진
+  `portfolio_photo_limit_exceeded`, 순서 불일치 `order_mismatch`(빠짐·중복·모르는 id — 아무것도 바꾸지 않는다).
+- 이미 지운 경력·사진을 다시 지우면 **404**(`portfolio_credit_not_found`·`portfolio_photo_not_found`). 없는 것과
+  남의 것을 가르지 않는다.
+- **사진은 프로필 사진과 같은 길**이다(주소 받기 → 직접 올리기 → 끝 알리기, 형식·크기 규칙은
+  `integration/storage/PhotoUploadType` 한 벌). 415 가 413 보다 먼저다. 장수는 올리기가 끝난 사진과 **아직 끝나지
+  않은 올리기**를 합쳐 센다. 시한(30분)이 지난 올리기는 세지 않고 다음 주소 받기 때 지운다. 끝 알리기는
+  멱등이다. 삭제는 행과 객체를 함께 지운다.
+- 상한과 순서는 **포트폴리오 행을 `FOR UPDATE` 로 잡은 채** 센다(`PostgresPortfolioRepository#lockOrCreate`).
+- **공유 링크**: 기본은 꺼짐. slug 는 처음 켤 때 생기는 128비트 난수(base64url, `/`·`+`·`=` 없음)이고 **꺼도
+  남는다.** 같은 값을 다시 보내도 200 이다. "새 링크 만들기"는 없다. `url` 은 `<SITE_URL>/p/<slug>` 이고
+  `SITE_URL` 이 비어 있으면 `null` 이다 — 주소를 코드에 박아 두지 않는다(SOMA-528 결정 I-8).
+- **공개 조회**(`GET /v2/public/portfolios/{slug}`): 로그인 없음·게이트 밖·`Authorization` 을 보지 않는다.
+  브라우저가 직접 부르므로 **보는 사람의 IP 별** 분당 60회다. 꺼진 링크·없는 slug·탈퇴한 사람의 slug 는 같은
+  404 `portfolio_not_found`. 응답은 이름·프로필 사진·성별·만 나이·소개글·경력(id 없음)·사진(`url` 만)이고
+  `X-Robots-Tag: noindex, nofollow` 를 싣는다. 성별이 `unspecified` 면 **`null`** 이다. 추구하는 방향·경력
+  구간·목표와 연습·분석은 없다. 프로필의 것은 `portfolio/app/PortfolioOwners` 포트로 받는다(구현은 `profile`).
+- 탈퇴하면 포트폴리오를 행째 지우고 사진 객체는 정리 장부로 간다(§6-8).
+
+### 6-12. 매일 도는 일
+
+`feature/profile/app/AccountHousekeeping#runDaily` — 한국 시간 새벽 4시 30분(`ACCOUNT_HOUSEKEEPING_CRON`).
+설정이 없으면 켜져 있고 `ACCOUNT_HOUSEKEEPING_ENABLED=false` 로 끈다. **전부 멱등**이고 한 가지가 실패해도
+나머지는 돈다(실패는 `AccountHousekeeping.<일 이름>` 으로 보고).
+
+| 일 | 규칙 |
+|---|---|
+| 리프레시 토큰 | 만료되거나 폐기된 지 **30일** 지난 행을 지운다. 그 전까지는 재사용 탐지와 문제 추적에 쓴다. 한 문장으로 지운다 — 회전된 옛 토큰이 새 토큰을 `replaced_by_id` 로 가리킨다 |
+| 게스트 | 마지막 활동(가입·토큰 발급·올리기·연습 가운데 가장 늦은 것) **30일** 지난 **활성** 게스트를 `ProfileService#withdraw` 로 파기한다. 옮겨진 게스트는 이미 닫혀 있어 고르지 않는다 |
+| 탈퇴 3년 | 탈퇴한 지 달력으로 **3년** 지난 계정의 신원 해시 행을 지우고, 보관 동의로 남겨 둔 영상 객체의 삭제를 정리 장부에 올린다. 한 트랜잭션이다 — 해시 보관 기간이 곧 영상 보관 기간이다(ADR-029). 해시 행이 남은 계정만 고르므로 다시 고르지 않는다 |
+| 해제 재시도 | `AccountCleanup#runDue`(5분마다도 돈다) — 7일 지난 것은 값과 함께 지운다(§6-8) |
+| 이관 코드 | 쓰였거나 시한이 지난 지 **30일** 지난 행을 지운다. ⚠ 쓰인 코드는 `guest_transferred` 의 표식이라 그 게스트의 리프레시 토큰이 살 수 있는 30일 동안은 지우면 안 된다(§6-9) |
 
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 

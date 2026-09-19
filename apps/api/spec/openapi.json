@@ -6,6 +6,178 @@
     "version" : "0.1.0"
   },
   "paths" : {
+    "/v2/portfolio/share" : {
+      "put" : {
+        "tags" : [ "v2-portfolio" ],
+        "summary" : "Set Portfolio Share",
+        "description" : "공유 링크를 켜거나 끈다. 기본은 꺼짐이다. 처음 켤 때 추측할 수 없는 난수 slug 가 생기고, 꺼도\n남아서 다시 켜면 같은 주소가 열린다. 같은 값을 다시 보내도 200 이다.",
+        "operationId" : "set_portfolio_share_v2_portfolio_share_put",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PortfolioShareRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PortfolioShare"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/portfolio/photos/order" : {
+      "put" : {
+        "tags" : [ "v2-portfolio" ],
+        "summary" : "Order Portfolio Photos",
+        "description" : "경력 순서 바꾸기와 같다.",
+        "operationId" : "order_portfolio_photos_v2_portfolio_photos_order_put",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PortfolioOrderRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "포트폴리오 본문",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Portfolio"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/portfolio/intro" : {
+      "put" : {
+        "tags" : [ "v2-portfolio" ],
+        "summary" : "Save Intro",
+        "description" : "소개글을 저장한다. 2,000자까지이고 null 이나 빈 글이면 지운다.",
+        "operationId" : "save_intro_v2_portfolio_intro_put",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PortfolioIntroRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "포트폴리오 본문",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Portfolio"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/portfolio/credits/order" : {
+      "put" : {
+        "tags" : [ "v2-portfolio" ],
+        "summary" : "Order Credits",
+        "description" : "지금 있는 경력 id 를 원하는 순서로 전부 보낸다. 지금 목록과 다르면 422 order_mismatch.",
+        "operationId" : "order_credits_v2_portfolio_credits_order_put",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PortfolioOrderRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "포트폴리오 본문",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Portfolio"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/me/profile" : {
       "put" : {
         "tags" : [ "v2-me" ],
@@ -500,6 +672,125 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/PracticeSessionAcceptedResponse"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/portfolio/photos" : {
+      "post" : {
+        "tags" : [ "v2-portfolio" ],
+        "summary" : "Begin Portfolio Photo Upload",
+        "description" : "포트폴리오 사진을 올릴 주소를 받는다. 10장까지, 이미지 파일만. 프로필 사진과 같이 앱이 긴 변\n2048px 의 JPEG 로 항상 줄여서 올리므로 413·415 는 안전망이다.",
+        "operationId" : "begin_portfolio_photo_v2_portfolio_photos_post",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PortfolioPhotoUploadRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PortfolioPhotoUploadResponse"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/portfolio/photos/{photo_id}/complete" : {
+      "post" : {
+        "tags" : [ "v2-portfolio" ],
+        "summary" : "Complete Portfolio Photo Upload",
+        "description" : "서버가 올라온 객체를 확인하고 목록 맨 끝에 붙인다.",
+        "operationId" : "complete_portfolio_photo_v2_portfolio_photos__photo_id__complete_post",
+        "parameters" : [ {
+          "name" : "photo_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Photo Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "포트폴리오 본문",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Portfolio"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/portfolio/credits" : {
+      "post" : {
+        "tags" : [ "v2-portfolio" ],
+        "summary" : "Add Credit",
+        "description" : "경력을 맨 끝에 붙인다. 50개까지다.",
+        "operationId" : "add_credit_v2_portfolio_credits_post",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PortfolioCreditRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PortfolioCredit"
                 }
               }
             }
@@ -1108,6 +1399,83 @@
         }
       }
     },
+    "/v2/portfolio/credits/{credit_id}" : {
+      "delete" : {
+        "tags" : [ "v2-portfolio" ],
+        "summary" : "Delete Credit",
+        "description" : "이미 지운 것을 다시 지우면 404 다. 없는 것과 남의 것을 구분하지 않는다.",
+        "operationId" : "delete_credit_v2_portfolio_credits__credit_id__delete",
+        "parameters" : [ {
+          "name" : "credit_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Credit Id"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Successful Response"
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      },
+      "patch" : {
+        "tags" : [ "v2-portfolio" ],
+        "summary" : "Update Credit",
+        "description" : "보낸 항목만 바꾼다.",
+        "operationId" : "update_credit_v2_portfolio_credits__credit_id__patch",
+        "parameters" : [ {
+          "name" : "credit_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Credit Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PortfolioCreditPatch"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "경력 하나",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PortfolioCredit"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/me/notification-settings" : {
       "get" : {
         "tags" : [ "v2-me" ],
@@ -1212,6 +1580,35 @@
         "security" : [ {
           "HTTPBearer" : [ ]
         } ]
+      }
+    },
+    "/v2/public/portfolios/{slug}" : {
+      "get" : {
+        "tags" : [ "v2-portfolio" ],
+        "summary" : "Get Public Portfolio",
+        "description" : "공유가 켜진 포트폴리오를 로그인 없이 본다. 꺼진 링크, 없는 slug, 탈퇴한 사람의 slug 는 같은 404\nportfolio_not_found 다. 추구하는 방향·경력 구간·목표와 연습·분석은 나오지 않는다.",
+        "operationId" : "get_public_portfolio_v2_public_portfolios__slug__get",
+        "parameters" : [ {
+          "name" : "slug",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "title" : "Slug"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "응답 헤더 X-Robots-Tag: noindex",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PublicPortfolio"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/v2/practice-sessions/{session_id}" : {
@@ -1321,6 +1718,29 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/portfolio" : {
+      "get" : {
+        "tags" : [ "v2-portfolio" ],
+        "summary" : "Get Portfolio",
+        "description" : "한 번도 편집하지 않았어도 빈 모양으로 200 이다. 행은 처음 저장할 때 생긴다. 배열은 저장된 순서다.",
+        "operationId" : "get_portfolio_v2_portfolio_get",
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Portfolio"
                 }
               }
             }
@@ -1588,10 +2008,194 @@
           }
         }
       }
+    },
+    "/v2/portfolio/photos/{photo_id}" : {
+      "delete" : {
+        "tags" : [ "v2-portfolio" ],
+        "summary" : "Delete Portfolio Photo",
+        "description" : "행과 사진 객체를 함께 지운다. 이미 지운 것을 다시 지우면 404 다.",
+        "operationId" : "delete_portfolio_photo_v2_portfolio_photos__photo_id__delete",
+        "parameters" : [ {
+          "name" : "photo_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Photo Id"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Successful Response"
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
     }
   },
   "components" : {
     "schemas" : {
+      "PortfolioShareRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "enabled" : {
+            "type" : "boolean",
+            "title" : "Enabled"
+          }
+        },
+        "required" : [ "enabled" ],
+        "title" : "PortfolioShareRequest"
+      },
+      "PortfolioShare" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "enabled" : {
+            "type" : "boolean",
+            "title" : "Enabled"
+          },
+          "slug" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Slug"
+          },
+          "url" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Url"
+          }
+        },
+        "required" : [ "enabled", "slug", "url" ],
+        "title" : "PortfolioShare"
+      },
+      "PortfolioOrderRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "ids" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            },
+            "title" : "Ids"
+          }
+        },
+        "required" : [ "ids" ],
+        "title" : "PortfolioOrderRequest"
+      },
+      "Portfolio" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "intro" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Intro"
+          },
+          "credits" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PortfolioCredit"
+            },
+            "title" : "Credits"
+          },
+          "photos" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PortfolioPhoto"
+            },
+            "title" : "Photos"
+          },
+          "share" : {
+            "$ref" : "#/components/schemas/PortfolioShare"
+          }
+        },
+        "required" : [ "credits", "intro", "photos", "share" ],
+        "title" : "Portfolio"
+      },
+      "PortfolioCredit" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "title" : {
+            "type" : "string",
+            "title" : "Title"
+          },
+          "role" : {
+            "type" : "string",
+            "title" : "Role"
+          },
+          "year" : {
+            "type" : "integer",
+            "title" : "Year"
+          },
+          "kind" : {
+            "$ref" : "#/components/schemas/PortfolioCreditKind"
+          }
+        },
+        "required" : [ "id", "kind", "role", "title", "year" ],
+        "title" : "PortfolioCredit"
+      },
+      "PortfolioCreditKind" : {
+        "type" : "string",
+        "enum" : [ "film", "drama", "play", "musical", "ad", "other" ],
+        "title" : "PortfolioCreditKind"
+      },
+      "PortfolioPhoto" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "url" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Url"
+          }
+        },
+        "required" : [ "id", "url" ],
+        "title" : "PortfolioPhoto"
+      },
+      "PortfolioIntroRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "intro" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Intro"
+          }
+        },
+        "title" : "PortfolioIntroRequest"
+      },
       "ActingDirection" : {
         "type" : "string",
         "enum" : [ "media", "stage" ],
@@ -2591,6 +3195,72 @@
         "required" : [ "session_id", "status" ],
         "title" : "PracticeSessionAcceptedResponse"
       },
+      "PortfolioPhotoUploadRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "content_type" : {
+            "type" : "string",
+            "title" : "Content Type"
+          },
+          "size_bytes" : {
+            "type" : "integer",
+            "title" : "Size Bytes"
+          }
+        },
+        "required" : [ "content_type", "size_bytes" ],
+        "title" : "PortfolioPhotoUploadRequest"
+      },
+      "PortfolioPhotoUploadResponse" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "photo_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Photo Id"
+          },
+          "upload_url" : {
+            "type" : "string",
+            "title" : "Upload Url"
+          },
+          "expires_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Expires At"
+          }
+        },
+        "required" : [ "expires_at", "photo_id", "upload_url" ],
+        "title" : "PortfolioPhotoUploadResponse"
+      },
+      "PortfolioCreditKindInput" : {
+        "type" : "string",
+        "enum" : [ "film", "drama", "play", "musical", "ad", "other" ],
+        "title" : "PortfolioCreditKindInput"
+      },
+      "PortfolioCreditRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "title" : {
+            "type" : "string",
+            "title" : "Title"
+          },
+          "role" : {
+            "type" : "string",
+            "title" : "Role"
+          },
+          "year" : {
+            "type" : "integer",
+            "title" : "Year"
+          },
+          "kind" : {
+            "$ref" : "#/components/schemas/PortfolioCreditKindInput"
+          }
+        },
+        "required" : [ "kind", "role", "title", "year" ],
+        "title" : "PortfolioCreditRequest"
+      },
       "PhotoUploadRequest" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -3283,6 +3953,28 @@
         "required" : [ "access_token", "account_type", "expires_in", "refresh_token", "token_type", "user" ],
         "title" : "GuestResponse"
       },
+      "PortfolioCreditPatch" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "title" : {
+            "type" : "string",
+            "title" : "Title"
+          },
+          "role" : {
+            "type" : "string",
+            "title" : "Role"
+          },
+          "year" : {
+            "type" : "integer",
+            "title" : "Year"
+          },
+          "kind" : {
+            "$ref" : "#/components/schemas/PortfolioCreditKindInput"
+          }
+        },
+        "title" : "PortfolioCreditPatch"
+      },
       "NotificationSettingsPatch" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -3399,6 +4091,100 @@
         },
         "required" : [ "created_at", "playback_url", "practice_session_id", "report" ],
         "title" : "ReportDetailResponse"
+      },
+      "PublicPortfolio" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "name" : {
+            "type" : "string",
+            "title" : "Name"
+          },
+          "photo_url" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Photo Url"
+          },
+          "gender" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "enum" : [ "female", "male" ]
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Gender"
+          },
+          "age" : {
+            "type" : "integer",
+            "title" : "Age"
+          },
+          "intro" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Intro"
+          },
+          "credits" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PublicPortfolioCredit"
+            },
+            "title" : "Credits"
+          },
+          "photos" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PublicPortfolioPhoto"
+            },
+            "title" : "Photos"
+          }
+        },
+        "required" : [ "age", "credits", "gender", "intro", "name", "photo_url", "photos" ],
+        "title" : "PublicPortfolio"
+      },
+      "PublicPortfolioCredit" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "title" : {
+            "type" : "string",
+            "title" : "Title"
+          },
+          "role" : {
+            "type" : "string",
+            "title" : "Role"
+          },
+          "year" : {
+            "type" : "integer",
+            "title" : "Year"
+          },
+          "kind" : {
+            "$ref" : "#/components/schemas/PortfolioCreditKind"
+          }
+        },
+        "required" : [ "kind", "role", "title", "year" ],
+        "title" : "PublicPortfolioCredit"
+      },
+      "PublicPortfolioPhoto" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "url" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Url"
+          }
+        },
+        "required" : [ "url" ],
+        "title" : "PublicPortfolioPhoto"
       },
       "PracticeSessionListItem" : {
         "type" : "object",

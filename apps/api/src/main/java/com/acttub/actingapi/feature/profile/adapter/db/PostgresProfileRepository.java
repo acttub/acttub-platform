@@ -154,6 +154,97 @@ class PostgresProfileRepository implements ProfileRepository {
     }
 
     @Override
+    public List<UUID> idleGuests(Instant lastActiveBefore) {
+        return list(entityManager.createNativeQuery("""
+                SELECT users.id
+                FROM users
+                WHERE users.status='active'
+                  AND EXISTS (SELECT 1 FROM user_identities
+                              WHERE user_identities.user_id=users.id)
+                  AND NOT EXISTS (SELECT 1 FROM user_identities
+                                  WHERE user_identities.user_id=users.id
+                                    AND user_identities.provider<>'guest')
+                  AND GREATEST(
+                        users.created_at,
+                        COALESCE((SELECT max(issued_at) FROM refresh_tokens
+                                  WHERE refresh_tokens.user_id=users.id),users.created_at),
+                        COALESCE((SELECT max(created_at) FROM upload_intents
+                                  WHERE upload_intents.user_id=users.id),users.created_at),
+                        COALESCE((SELECT max(created_at) FROM practice_sessions
+                                  WHERE practice_sessions.user_id=users.id),users.created_at)) < :cutoff
+                ORDER BY users.created_at,users.id
+                """, Tuple.class)
+                .setParameter("cutoff", lastActiveBefore.atOffset(ZoneOffset.UTC))).stream()
+                .map(row -> row.get("id", UUID.class))
+                .toList();
+    }
+
+    /**
+     * ⚠ 탈퇴와 같은 이유로 남의 테이블을 함께 친다 — 해시 행을 지우는 것과 영상 삭제를 장부에 올리는 것이 한
+     * 트랜잭션이어야 "해시는 지워졌는데 영상은 남은" 계정이 생기지 않는다. 해시 보관 기간이 곧 영상 보관
+     * 기간이다(ADR-029).
+     */
+    @Override
+    public List<UUID> purgeRetained(Instant deactivatedBefore, Instant now) {
+        return transaction.execute(status -> {
+            List<UUID> expired = list(entityManager.createNativeQuery("""
+                    SELECT users.id
+                    FROM users
+                    WHERE users.status='deactivated'
+                      AND users.deactivated_at<:cutoff
+                      AND EXISTS (SELECT 1 FROM user_identities
+                                  WHERE user_identities.user_id=users.id
+                                    AND user_identities.uid_hash IS NOT NULL)
+                    ORDER BY users.deactivated_at,users.id
+                    FOR UPDATE OF users
+                    """, Tuple.class)
+                    .setParameter("cutoff", deactivatedBefore.atOffset(ZoneOffset.UTC))).stream()
+                    .map(row -> row.get("id", UUID.class))
+                    .toList();
+            List<UUID> cleanups = new ArrayList<>();
+            for (UUID userId : expired) {
+                List<String> videos = videoKeys(userId);
+                if (!videos.isEmpty()) {
+                    cleanups.add(enqueue(userId, "object_delete", secrets.encrypt(json(videos)), now));
+                }
+                entityManager.createNativeQuery("""
+                        DELETE FROM user_identities
+                        WHERE user_id=:userId
+                          AND uid_hash IS NOT NULL
+                        """)
+                        .setParameter("userId", userId)
+                        .executeUpdate();
+            }
+            return List.copyOf(cleanups);
+        });
+    }
+
+    /**
+     * 한 문장으로 지운다. 회전된 옛 토큰은 새 토큰을 {@code replaced_by_id} 로 가리키는데, 새 토큰이 지울
+     * 때가 됐으면 그보다 먼저 폐기된 옛 토큰도 지울 때가 됐다 — FK 는 문장 끝에서 본다.
+     */
+    @Override
+    public int deleteStaleRefreshTokens(Instant before) {
+        return transaction.execute(status -> entityManager.createNativeQuery("""
+                DELETE FROM refresh_tokens
+                WHERE expires_at<:before
+                   OR revoked_at<:before
+                """)
+                .setParameter("before", before.atOffset(ZoneOffset.UTC))
+                .executeUpdate());
+    }
+
+    @Override
+    public int deleteStaleTransferCodes(Instant before) {
+        return transaction.execute(status -> entityManager.createNativeQuery("""
+                DELETE FROM guest_transfer_codes
+                WHERE COALESCE(used_at,expires_at)<:before
+                """)
+                .setParameter("before", before.atOffset(ZoneOffset.UTC))
+                .executeUpdate());
+    }
+
+    @Override
     public NotificationSettings notificationSettings(UUID userId) {
         List<Tuple> rows = list(entityManager.createNativeQuery("""
                 SELECT notify_analysis_done,notify_challenge,notify_evening_reminder
