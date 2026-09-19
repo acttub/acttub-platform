@@ -82,13 +82,24 @@ export function isRateLimited(error: unknown): error is ApiError {
   );
 }
 
+/** 연결이 끊겨 답을 받지 못했을 때 화면에 보이는 말. 어느 요청이었는지는 배우에게 뜻이 없다. */
+const NETWORK_ERROR_MESSAGE =
+  "응답을 받지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요.";
+
+const HANGUL = /[가-힣]/;
+
 /**
- * 오류를 화면에 보일 한 줄로 바꾼다.
+ * 오류를 화면에 보일 한 줄로 바꾼다. 화면 문구의 규칙은 여기 한 곳에만 둔다.
  *
- * `ApiError` 는 서버가 준 detail 을 message 로 들고 오므로 대개 그대로 쓸 수 있지만,
- * 빈 문자열이면 화면에 아무 말도 뜨지 않는다 — 그때는 부르는 자리가 준 문구로 돌아간다.
- * `cause instanceof Error ? cause.message : fallback` 으로 적은 자리들이 이 빈 문구를
- * 그대로 그렸다.
+ * 문구를 정해 둔 코드가 먼저다. 그 밖의 `ApiError` 는 서버가 준 detail 을 message 로 들고
+ * 오는데, 그것은 배우가 읽는 말이 아니라 코드다(`internal_server_error`, `session is closed`,
+ * 검증 오류의 `validation_error`). 그대로 그리면 코드 원문이 화면에 닿고, 404 에서는 무엇이
+ * 없는지까지 드러난다 — 그래서 **한글이 없는 말은 부르는 자리가 준 문구로 돌아간다.** 한글이
+ * 든 말은 그대로 보인다: 서버가 일부러 안내 문장으로 주는 detail(426 강제 업데이트)과 화면
+ * 쪽 코드가 "~해요"로 적어 던진 것(`UploadError`)이다. 빈 문자열도 부르는 자리의 문구다 —
+ * `cause instanceof Error ? cause.message : fallback` 으로 적은 자리들이 빈 줄을 그렸다.
+ *
+ * 코드 원문은 버려지지 않는다. `ApiError` 가 `code`·`detail`·`requestId` 를 그대로 든다.
  */
 export function errorMessage(cause: unknown, fallback: string): string {
   if (cause instanceof ApiError) {
@@ -107,5 +118,17 @@ export function errorMessage(cause: unknown, fallback: string): string {
         : "잠시 뒤 다시 시도해 주세요.";
     }
   }
-  return cause instanceof Error && cause.message ? cause.message : fallback;
+  // 아래 둘의 message 는 개발자가 읽는 말("…요청에 실패했습니다")이다. 화면에는 그리지 않는다.
+  if (cause instanceof NetworkError) return NETWORK_ERROR_MESSAGE;
+  // 멱등 계층의 기한 초과와 취소. 부르는 자리는 대개 취소를 먼저 걸러 내지만 여기까지 와도
+  // 브라우저의 영어 문장이나 "멱등 요청 …초과했습니다"가 닿지 않게 한다.
+  if (
+    cause instanceof Error &&
+    (cause.name === "TimeoutError" || cause.name === "AbortError")
+  ) {
+    return fallback;
+  }
+  return cause instanceof Error && HANGUL.test(cause.message)
+    ? cause.message
+    : fallback;
 }

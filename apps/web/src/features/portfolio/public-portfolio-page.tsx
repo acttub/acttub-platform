@@ -9,6 +9,7 @@ import type { PublicPortfolio } from "@/lib/api/v2/public-portfolio";
 import { useResource } from "@/lib/react/use-resource";
 
 import {
+  PORTFOLIO_FAILED_COPY,
   PORTFOLIO_NOT_FOUND_COPY,
   creditKindLabel,
   loadPortfolioPage,
@@ -35,14 +36,13 @@ export function PublicPortfolioPage() {
   const page = useResource(
     pathname,
     (key, signal) => loadPortfolioPage(key, signal),
-    "지금은 불러오지 못했어요. 잠시 뒤 다시 시도해 주세요.",
+    PORTFOLIO_FAILED_COPY.body,
   );
 
-  if (page.state === "failed") return <PortfolioNotice title="잠시 뒤 다시 열어 주세요" body={page.message} />;
-  if (page.state !== "ready") return <PortfolioShell aria-busy="true" />;
-  if (page.data.kind === "failed") {
-    return <PortfolioNotice title="잠시 뒤 다시 열어 주세요" body={page.data.message} />;
+  if (page.state === "failed") {
+    return <PortfolioNotice title={PORTFOLIO_FAILED_COPY.title} body={page.message} />;
   }
+  if (page.state !== "ready") return <PortfolioShell aria-busy="true" />;
   if (page.data.kind === "notFound") {
     return (
       <PortfolioNotice

@@ -33,10 +33,11 @@ GA4는 `consent: denied` 상태에서 쿠키 없이 히트를 보내지만, **Am
 - **판 번호를 코드에 박지 않고, 계측 판단을 `localStorage`에 복제하지도 않는다.** 예전의 `EXPECTED_PRIVACY_VERSION` 상수와 `accepted_privacy_version` 기록은 없다. 브라우저에 남기는 것은 나이 확인 하나뿐이고 계측과 무관하다.
 - **서버에 묻는 때는 셋이다** — 앱을 시작할 때 한 번, 탭이 다시 보일 때(`visibilitychange`), 동의 제출 직후. 화면을 옮길 때마다 묻지 않는다.
 - **즉시 끄는 때** — 어떤 요청이든 403 `consent_required`를 받아 시트가 열리는 순간(제출 완료를 기다리지 않는다), 게스트가 끝나는 순간(갱신 거절·`account_deactivated`), 새 게스트가 시작되는 순간. 진행 중이던 조회의 답은 버린다. 시트를 닫기만 해도 다시 묻는다 — 빠진 것이 `privacy`가 아니었다면 서버의 답은 여전히 `granted`다.
+- **다른 탭에서 일어난 게스트의 끝·시작도 즉시 끄는 때다. 묻는 때가 아니다.** 그 변화는 `storage` 이벤트로만 오고(`watchGuestSession`), 게스트 토큰 키가 지워지거나 새로 생긴 것만 본다. 같은 게스트의 토큰 회전(값 → 값)과 다른 키의 쓰기는 지나친다 — 다른 탭의 SDK가 이벤트마다 `localStorage`를 쓰므로, 키를 거르지 않으면 그때마다 끄고 다시 묻게 된다. 꺼진 탭은 다시 보일 때 묻는다.
 - **끈다는 것은 실제 중단이다.** GA4는 `analytics_storage: denied`로 되돌리고 `user_id`를 지운다(`revokeAnalyticsConsent`). Amplitude는 `setOptOut(true)`다(`stopAmplitude`) — 식별자만 지우면 이미 켜진 autocapture와 세션 리플레이는 SDK가 스스로 계속 보낸다. opt-out은 그 뒤의 이벤트(autocapture 포함)를 버리고, 리플레이 플러그인은 opt-out을 받아 녹화를 `shutdown()`한다(`@amplitude/plugin-session-replay-browser` 1.33.7의 `onOptOutChanged`, 코어의 `setOptOut` → `timeline.onOptOutChanged`로 확인). 다시 켤 때는 `setOptOut(false)`로 풀고 플러그인이 녹화를 다시 시작한다.
 - 기기 식별(`amplitude.reset()`)은 끌 때마다 끊지 않는다. 탭이 다시 보일 때마다 확인하느라 잠깐 끄는 것까지 새 기기로 세면 같은 게스트가 여럿으로 갈린다. **다른 게스트로 켜질 때** 끊는다(`setAmplitudeUser`).
 
-이 규칙은 `tests/analytics-consent.test.mjs`(granted → 켬 / declined·revoked·행 없음 → 끔 / 토큰 없음 → 끔 / 조회 실패 → 끔 / 켜진 뒤 403 → 즉시 끔 / 재조회로 어긋남 발견 → 끔)와 `tests/analytics-amplitude.test.mjs`의 "계측 I-6" 항목들이 고정한다.
+이 규칙은 `tests/analytics-consent.test.mjs`(granted → 켬 / declined·revoked·행 없음 → 끔 / 토큰 없음 → 끔 / 조회 실패 → 끔 / 켜진 뒤 403 → 즉시 끔 / 재조회로 어긋남 발견 → 끔), `tests/analytics-cross-tab.test.mjs`(다른 탭의 무관한 키·토큰 회전 → 묻지도 끄지도 않음 / 다른 탭의 게스트 끝·시작 → 묻지 않고 끔 / 탭이 다시 보임 → 물음), `tests/analytics-amplitude.test.mjs`의 "계측 I-6" 항목들이 고정한다.
 
 동의 전에 쌓인 이벤트는 **버린다.** 큐에 모았다가 동의 후 흘려보내지 않는다. 그렇게 하면 "동의 전에는 수집하지 않는다"는 약속이 "동의 전에는 전송하지 않는다"로 슬쩍 바뀐다.
 

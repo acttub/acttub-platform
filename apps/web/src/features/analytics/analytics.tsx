@@ -56,7 +56,7 @@ let firstCheck: Promise<boolean> | null = null;
  *
  * 서버에 묻는 때는 셋이다 — 앱을 시작할 때 한 번, 탭이 다시 보일 때, 동의 제출 직후(시트가
  * 부른다). 즉시 끄는 때는 403 consent_required 로 시트가 열리는 순간(시트가 부른다)과
- * 게스트가 끝나거나 새로 시작되는 순간이다.
+ * 게스트가 끝나거나 새로 시작되는 순간이다(이 탭이든 다른 탭이든).
  *
  * 게스트가 없는 방문자, 아직 동의 시트를 만나지 않은 게스트, 옛 판에만 동의한 게스트는
  * 모두 꺼진 채다. 익명 방문자는 consent 가 denied 인 채로 남아 쿠키 없이 집계된다.
@@ -81,17 +81,13 @@ export function Analytics() {
     const onVisibilityChange = () => {
       if (document.visibilityState === "visible") void analyticsConsentGate.check();
     };
-    // 게스트의 끝(앱으로 옮겨진 것 포함)과 새 게스트의 시작에는 묻지 않고 끈다.
+    // 게스트의 끝(앱으로 옮겨진 것 포함)과 새 게스트의 시작에는 묻지 않고 끈다. 다른 탭에서
+    // 일어난 것도 같다.
     const unsubscribe = watchGuestSession(analyticsConsentGate);
-    // 다른 탭의 변화는 세션 이벤트로 오지 않는다(token-store 는 storage 로 메모리 캐시만
-    // 되돌린다). storage 는 그 탭 밖에서 일어난 변화만 오므로 여기서 같이 듣는다.
-    const onStorage = () => void analyticsConsentGate.check();
     document.addEventListener("visibilitychange", onVisibilityChange);
-    window.addEventListener("storage", onStorage);
     return () => {
       unsubscribe();
       document.removeEventListener("visibilitychange", onVisibilityChange);
-      window.removeEventListener("storage", onStorage);
     };
   }, []);
 

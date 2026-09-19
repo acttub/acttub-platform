@@ -10,7 +10,9 @@ process.env.NEXT_PUBLIC_API_BASE_URL = "";
 const { getPublicPortfolio } = await import(
   "../src/lib/api/v2/public-portfolio.ts"
 );
+const { errorMessage } = await import("../src/lib/api/v2/errors.ts");
 const {
+  PORTFOLIO_FAILED_COPY,
   PORTFOLIO_NOT_FOUND_COPY,
   creditKindLabel,
   loadPortfolioPage,
@@ -180,16 +182,36 @@ test("결정 I-8: slug 없이 /p 만 열어도 서버에 묻지 않고 같은 �
   assert.equal(fetchCount, 0);
 });
 
-test("account.portfolio: 한 IP 에서 1분에 61번째 공개 조회(429)와 서버 오류는 없는 페이지로 꾸미지 않고 다시 시도하게 한다", async () => {
-  globalThis.fetch = async () => jsonResponse({ detail: "rate limit exceeded" }, 429);
-  assert.deepEqual(await loadPortfolioPage("/p/k3Tq9xZ"), {
-    kind: "failed",
-    message: "잠시 뒤 다시 시도해 주세요.",
-  });
+// 잠깐의 문제는 없는 페이지로 꾸미지 않는다. loadPortfolioPage 는 그 실패를 그대로 던지고,
+// 화면 문구는 useResource 가 errorMessage 로 만든다 — 실패를 알리는 길이 하나다.
+test("account.portfolio: 한 IP 에서 1분에 61번째 공개 조회(429)·서버 오류·끊긴 연결은 없는 페이지로 꾸미지 않고 다시 시도하게 한다", async () => {
+  async function shown() {
+    try {
+      await loadPortfolioPage("/p/k3Tq9xZ");
+    } catch (cause) {
+      return errorMessage(cause, PORTFOLIO_FAILED_COPY.body);
+    }
+    throw new Error("실패해야 하는 조회가 화면을 돌려줬다");
+  }
 
+  globalThis.fetch = async () => jsonResponse({ detail: "rate limit exceeded" }, 429);
+  assert.equal(await shown(), "잠시 뒤 다시 시도해 주세요.");
+
+  // 코드 원문(internal_server_error)이 공개 페이지에 닿지 않는다.
   globalThis.fetch = async () => jsonResponse({ detail: "internal_server_error" }, 500);
-  const failed = await loadPortfolioPage("/p/k3Tq9xZ");
-  assert.equal(failed.kind, "failed");
+  assert.equal(await shown(), PORTFOLIO_FAILED_COPY.body);
+  assert.equal(
+    PORTFOLIO_FAILED_COPY.body,
+    "지금은 불러오지 못했어요. 잠시 뒤 다시 시도해 주세요.",
+  );
+
+  globalThis.fetch = async () => {
+    throw new TypeError("fetch failed");
+  };
+  assert.equal(
+    await shown(),
+    "응답을 받지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요.",
+  );
 });
 
 // 주소(/p/<slug>)는 프리렌더한 껍데기 하나를 rewrites 로 서빙한다. 설정이 빠지면 /p/<slug> 가

@@ -1,4 +1,4 @@
-import { ApiError, errorMessage } from "@/lib/api/v2/errors";
+import { ApiError } from "@/lib/api/v2/errors";
 import {
   getPublicPortfolio,
   type PublicPortfolio,
@@ -18,11 +18,19 @@ export const PORTFOLIO_NOT_FOUND_COPY = {
   body: "주소가 바뀌었거나 공유가 꺼져 있을 수 있어요.",
 } as const;
 
+/**
+ * 잠깐의 문제(429·서버 오류·끊긴 연결)에 보이는 말. 없는 페이지로 꾸미지 않고 다시 시도하게
+ * 한다. 본문은 부르는 자리의 문구다 — 429 와 끊긴 연결처럼 더 맞는 말이 있으면 errorMessage 가
+ * 그것을 고른다.
+ */
+export const PORTFOLIO_FAILED_COPY = {
+  title: "잠시 뒤 다시 열어 주세요",
+  body: "지금은 불러오지 못했어요. 잠시 뒤 다시 시도해 주세요.",
+} as const;
+
 export type PortfolioPage =
   | { kind: "found"; portfolio: PublicPortfolio }
-  | { kind: "notFound" }
-  /** 잠깐의 문제(429·서버 오류·네트워크). 없는 페이지로 꾸미지 않고 다시 시도하게 한다. */
-  | { kind: "failed"; message: string };
+  | { kind: "notFound" };
 
 /** `/p/<slug>` 에서 slug 하나만 읽는다. 한 단계를 넘는 경로와 껍데기(/p)는 slug 가 없다. */
 export function slugFromPath(pathname: string): string | null {
@@ -46,15 +54,9 @@ export async function loadPortfolioPage(
     return { kind: "found", portfolio: await getPublicPortfolio(slug, { signal }) };
   } catch (cause) {
     if (cause instanceof ApiError && cause.status === 404) return { kind: "notFound" };
-    // 끊긴 조회는 부르는 쪽이 버린다. 여기서 실패 화면으로 바꾸지 않는다.
-    if (cause instanceof Error && cause.name === "AbortError") throw cause;
-    return {
-      kind: "failed",
-      message:
-        cause instanceof ApiError && cause.status === 429
-          ? errorMessage(cause, "잠시 뒤 다시 시도해 주세요.")
-          : "지금은 불러오지 못했어요. 잠시 뒤 다시 시도해 주세요.",
-    };
+    // 그 밖의 실패는 그대로 던진다. 화면 문구는 useResource 가 errorMessage 로 만들고,
+    // 끊긴 조회도 거기서 버린다 — 실패를 알리는 길을 여기에 하나 더 두지 않는다.
+    throw cause;
   }
 }
 

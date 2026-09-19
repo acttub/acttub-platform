@@ -1,6 +1,10 @@
 import { getConsentEntry } from "@/lib/api/v2/consents";
 import { onSessionEvent } from "@/lib/auth/session-events";
-import { getStoredUser, hasGuestSession } from "@/lib/auth/token-store";
+import {
+  REFRESH_KEY,
+  getStoredUser,
+  hasGuestSession,
+} from "@/lib/auth/token-store";
 
 // 계측(GA4 쿠키·Amplitude)을 켜도 되는지를 가리는 관문(SOMA-528 결정 I-6).
 //
@@ -77,10 +81,34 @@ export function createAnalyticsConsentGate(
 }
 
 /**
+ * 다른 탭의 storage 이벤트가 게스트의 끝이나 시작인가. 게스트 토큰 키만 본다 — 다른 키는
+ * 계측 조건과 무관한데 다른 탭의 SDK 가 이벤트마다 쓴다. 값이 값으로 바뀐 것은 같은 게스트의
+ * 토큰 회전이라 끝도 시작도 아니다(게스트가 바뀔 때는 언제나 앞 토큰을 지운 뒤에 새 토큰을
+ * 쓴다 — endGuestSession → ensureGuestSession). key 가 없으면 저장소가 통째로 비워진 것이다.
+ */
+function isGuestBoundary(event: StorageEvent): boolean {
+  if (event.key === null) return true;
+  if (event.key !== REFRESH_KEY) return false;
+  return event.oldValue === null || event.newValue === null;
+}
+
+/**
  * 게스트의 끝(갱신 거절·닫힌 계정·앱으로 옮겨짐)과 새 게스트의 시작은 화면 전환 없이도
  * 일어난다. 그 순간 묻지 않고 끈다 — 앞 게스트의 켜짐을 물려주지 않는다. 새 게스트는 동의를
  * 제출한 뒤에야 다시 묻는다. 돌려주는 함수로 거둔다.
+ *
+ * 다른 탭에서 일어난 끝·시작은 세션 이벤트로 오지 않는다(token-store 는 storage 로 메모리
+ * 캐시만 되돌린다). storage 는 그 탭 밖에서 일어난 변화만 오므로 여기서 같이 듣고 같게
+ * 다룬다 — 서버에 묻는 때가 아니다. 이 탭은 다시 보일 때 묻는다.
  */
 export function watchGuestSession(gate: AnalyticsConsentGate): () => void {
-  return onSessionEvent(() => gate.suspend());
+  const unsubscribe = onSessionEvent(() => gate.suspend());
+  const onStorage = (event: StorageEvent) => {
+    if (isGuestBoundary(event)) gate.suspend();
+  };
+  window.addEventListener("storage", onStorage);
+  return () => {
+    unsubscribe();
+    window.removeEventListener("storage", onStorage);
+  };
 }

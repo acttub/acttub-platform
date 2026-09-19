@@ -122,18 +122,23 @@ test("account.guest: 남은 시간은 분:초로, 코드는 세 자리씩 끊어
 });
 
 test("account.guest: 회원 토큰이면 403 guest_only, 너무 자주 받으면 429 — 둘 다 화면 문구로 돌려준다", async () => {
+  const FALLBACK = "코드를 받지 못했어요. 다시 시도해 주세요.";
+  async function rejection() {
+    try {
+      await requestTransferCode();
+    } catch (error) {
+      return error;
+    }
+    throw new Error("실패해야 하는 요청이 성공했다");
+  }
+
   globalThis.fetch = async () => jsonResponse({ detail: "guest_only" }, 403);
-  await assert.rejects(
-    requestTransferCode(),
-    (error) => error?.status === 403 && error?.code === "guest_only",
-  );
+  const guestOnly = await rejection();
+  assert.equal(guestOnly.status, 403);
+  assert.equal(guestOnly.code, "guest_only");
+  // 코드 원문이 아니라 화면이 준 문구다.
+  assert.equal(errorMessage(guestOnly, FALLBACK), FALLBACK);
 
   globalThis.fetch = async () => jsonResponse({ detail: "rate limit exceeded" }, 429);
-  let caught;
-  try {
-    await requestTransferCode();
-  } catch (error) {
-    caught = error;
-  }
-  assert.equal(errorMessage(caught, "기본 문구"), "잠시 뒤 다시 시도해 주세요.");
+  assert.equal(errorMessage(await rejection(), FALLBACK), "잠시 뒤 다시 시도해 주세요.");
 });

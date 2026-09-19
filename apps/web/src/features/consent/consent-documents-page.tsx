@@ -19,12 +19,12 @@ export function ConsentDocumentsPage() {
   const documents = useResource(
     `consent-documents:${attempt}`,
     (_key, signal) => loadConsentDocumentsPage(signal),
-    "약관 문서를 불러오지 못했어요.",
+    "잠시 뒤 다시 시도해 주세요.",
   );
 
   if (documents.state === "failed") {
     return (
-      <TermsShell title="약관을 불러오지 못했어요">
+      <TermsShell title="동의 문서를 불러오지 못했어요">
         <p
           role="alert"
           className="rounded-2xl bg-[#fff4f4] p-4 text-sm leading-6 text-[#d92d20]"
@@ -44,7 +44,7 @@ export function ConsentDocumentsPage() {
 
   if (documents.state !== "ready") {
     return (
-      <TermsShell title="약관을 확인하고 있어요">
+      <TermsShell title="동의 문서를 불러오고 있어요">
         <p className="rounded-2xl bg-[#f2f4f6] p-4 text-sm text-[#4e5968]">
           필요한 문서를 불러오는 중이에요.
         </p>
@@ -54,8 +54,8 @@ export function ConsentDocumentsPage() {
 
   return (
     <TermsShell
-      title="약관 및 동의 문서"
-      description="현재 제공 중인 약관과 데이터 처리 안내를 확인할 수 있어요."
+      title="동의 문서"
+      description="지금 적용 중인 동의 문서와 개인정보 처리방침을 확인할 수 있어요."
     >
       <div className="space-y-5">
         {documents.data.documents.length > 0 ? (
@@ -64,7 +64,7 @@ export function ConsentDocumentsPage() {
           ))
         ) : (
           <p className="rounded-3xl border border-[#e5e8eb] bg-white p-6 text-sm text-[#4e5968]">
-            현재 공개된 약관 문서가 없어요.
+            현재 공개된 동의 문서가 없어요.
           </p>
         )}
         {documents.data.notices.map((notice) => (
@@ -86,7 +86,7 @@ function TermsShell({
 }) {
   return (
     <main className="mx-auto min-h-dvh w-full max-w-3xl px-6 py-12 sm:py-16">
-      <p className="text-sm font-semibold text-[#3182f6]">Acttub 약관</p>
+      <p className="text-sm font-semibold text-[#3182f6]">Acttub 안전 약속</p>
       <h1 className="mt-3 text-3xl font-bold tracking-[-0.03em] text-[#191f28]">{title}</h1>
       {description ? (
         <p className="mt-3 max-w-2xl text-base leading-7 text-[#4e5968]">{description}</p>

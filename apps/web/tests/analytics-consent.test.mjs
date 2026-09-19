@@ -180,16 +180,20 @@ test("계측 I-6: 조회 중에는 꺼진 상태다 — 켜져 있었어도 답�
   assert.equal(server.calls.length, 2);
 });
 
-test("계측 I-6: 켜진 뒤 403 consent_required 로 시트가 열리면 제출을 기다리지 않고 즉시 끈다", async () => {
-  serveEntry(entry(entryDocument("privacy", "granted")));
+// 403 consent_required 로 시트가 열리는 순간 시트가 이것을 부른다. 실제 403 이 여기까지 닿는
+// 배선은 tests/consent-sheet-host.test.mjs 가 시트를 띄워서 본다.
+test("계측 I-6: suspend 는 켜져 있던 계측을 서버에 묻지 않고 즉시 끈다", async () => {
+  const server = serveEntry(entry(entryDocument("privacy", "granted")));
   const recorded = recordSwitch();
   const gate = createAnalyticsConsentGate(recorded.measurement);
   await gate.check();
   assert.equal(recorded.state, "on:guest-1");
+  server.calls.length = 0;
 
   gate.suspend();
 
   assert.equal(recorded.state, "off");
+  assert.deepEqual(server.calls, []);
 });
 
 test("계측 I-6: 조회하는 사이 시트가 열리면 늦게 온 granted 로 다시 켜지 않는다", async () => {
