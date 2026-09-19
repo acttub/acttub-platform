@@ -274,7 +274,11 @@ class AccountProfileIT {
                 .containsEntry("status", "deactivated")
                 .containsEntry("email", null)
                 .containsEntry("nickname", null);
-        assertThat(count("user_identities")).isZero();
+        // 탈퇴와 같은 절차다 — 신원 행은 제공자 ID 를 비우고 해시만 남긴다 (ADR-029).
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM user_identities WHERE provider_uid IS NOT NULL", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM user_identities WHERE uid_hash IS NULL", Integer.class)).isZero();
         assertThat(count("upload_intents")).isEqualTo(1);
         assertThat(mvc.perform(get("/v2/me").header("Authorization", bearer()))
                 .andReturn().getResponse().getStatus()).isEqualTo(403);

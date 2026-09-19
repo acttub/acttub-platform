@@ -24,7 +24,7 @@ import com.nimbusds.jose.crypto.DirectEncrypter;
  * 들고 가는 그릇이 이것이다. 동의 화면에서 나가면 토큰은 버려지고 아무것도 남지 않는다.
  *
  * <p><b>서명이 아니라 암호화다</b>(JWE {@code dir} + {@code A256GCM}). 서명만 하면 앱이 내용을
- * 읽는데, 여기에는 제공자 ID·이메일과 (애플이면) 탈퇴 때 폐기에 쓸 애플 토큰이 들어 있다. GCM 이라
+ * 읽는데, 여기에는 제공자 ID·이메일과 (애플·네이버면) 탈퇴 때 연결을 끊는 데 쓸 토큰이 들어 있다. GCM 이라
  * 위조도 함께 막힌다. 프로필은 담지 않는다 — 계정이 생긴 뒤에 입력하므로 맡아 둘 것이 없다.
  *
  * <p>키는 {@code JWT_SECRET} 에서 용도를 못박아 뽑는다(HMAC-SHA256). 액세스 토큰의 서명 키와 같은
@@ -59,7 +59,7 @@ public final class SignupTokens {
         claims.put("provider", identity.provider());
         claims.put("uid", identity.providerUid());
         claims.put("email", identity.verifiedEmail());
-        claims.put("apple_token", identity.appleToken());
+        claims.put("provider_token", identity.providerToken());
         claims.put("iat", now.getEpochSecond());
         claims.put("exp", now.getEpochSecond() + TTL_SECONDS);
         try {
@@ -96,7 +96,7 @@ public final class SignupTokens {
                     (String) claims.get("provider"),
                     (String) claims.get("uid"),
                     (String) claims.get("email"),
-                    (String) claims.get("apple_token"));
+                    (String) claims.get("provider_token"));
         } catch (InvalidSignupToken invalid) {
             throw invalid;
         } catch (Exception failure) {
@@ -109,13 +109,14 @@ public final class SignupTokens {
      *
      * @param verifiedEmail 제공자가 검증했다고 알린 이메일(정규화된 값). 없거나 검증되지 않았으면
      *        {@code null} — 검증된 이메일만 저장한다
-     * @param appleToken 애플이면 로그인 때 authorization code 로 바로 바꿔 온 토큰. 그 밖에는 {@code null}
+     * @param providerToken 탈퇴 때 제공자 쪽 연결을 끊는 데 쓸 토큰 — 애플이면 로그인 때 authorization
+     *        code 로 바로 바꿔 온 토큰, 네이버면 코드 교환으로 받은 refresh token. 그 밖에는 {@code null}
      */
     public record SignupIdentity(
             String provider,
             String providerUid,
             String verifiedEmail,
-            String appleToken) {
+            String providerToken) {
     }
 
     public static class InvalidSignupToken extends RuntimeException {

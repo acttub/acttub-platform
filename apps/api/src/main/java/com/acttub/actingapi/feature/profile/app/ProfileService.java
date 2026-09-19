@@ -35,11 +35,14 @@ public class ProfileService implements ProfileGate {
 
     private final ProfileRepository profiles;
     private final ProfilePhotoStorage photos;
+    private final AccountCleanup cleanup;
     private final Clock clock;
 
-    public ProfileService(ProfileRepository profiles, ProfilePhotoStorage photos, Clock clock) {
+    public ProfileService(
+            ProfileRepository profiles, ProfilePhotoStorage photos, AccountCleanup cleanup, Clock clock) {
         this.profiles = profiles;
         this.photos = photos;
+        this.cleanup = cleanup;
         this.clock = clock;
     }
 
@@ -84,9 +87,12 @@ public class ProfileService implements ProfileGate {
             if (before.profileComplete()) {
                 throw new ApiException(422, "under_14");
             }
-            // 연습이 있는 1.0.0 이전 회원은 탈퇴와 같은 절차로 닫힌다. 보관 동의와 무관하게 영상·녹음을
-            // 파기하는 일은 탈퇴의 파기 범위를 다시 만드는 작업이 이 자리에 잇는다.
-            profiles.closeUnderage(userId);
+            // 연습이 있는 1.0.0 이전 회원은 탈퇴와 같은 절차로 닫히고, 보관 동의와 무관하게 영상을
+            // 파기한다. 객체 삭제와 제공자 해제는 탈퇴와 같이 트랜잭션 밖에서 시도한다.
+            ProfileRepository.Closed closed = profiles.closeUnderage(userId, clock.instant(), today());
+            if (closed != null) {
+                cleanup.attempt(closed.cleanupOperationIds());
+            }
             throw new ApiException(422, "under_14_account_closed");
         }
         Profile kept = before.profile();
@@ -101,8 +107,22 @@ public class ProfileService implements ProfileGate {
                 submitted.bio()))));
     }
 
-    public void deactivate(UUID userId) {
-        require(profiles.deactivate(userId));
+    /**
+     * 탈퇴. 파기와 상태 전환은 한 트랜잭션이고, 객체 삭제와 제공자 해제는 그 <b>뒤에</b> 시도한다 —
+     * 바깥 호출이 실패해도 탈퇴는 끝났고, 실패한 것은 7일 동안 다시 시도된다 ({@link AccountCleanup}).
+     *
+     * <p>이미 탈퇴한 계정이 다시 와도 같은 결과다. 최초 탈퇴 시각을 돌려주고 파기만 다시 돈다 —
+     * 탈퇴 도중 앱이 죽어 다시 누른 경우를 위해서다.
+     *
+     * @return 최초 탈퇴 시각
+     */
+    public Instant withdraw(UUID userId) {
+        ProfileRepository.Withdrawn withdrawn = profiles.withdraw(userId, false, clock.instant(), today());
+        if (withdrawn == null) {
+            throw userNotFound();
+        }
+        cleanup.attempt(withdrawn.cleanupOperationIds());
+        return withdrawn.deactivatedAt();
     }
 
     /**

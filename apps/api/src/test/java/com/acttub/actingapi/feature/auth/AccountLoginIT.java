@@ -83,6 +83,15 @@ class AccountLoginIT {
     @Autowired
     MutableClock clock;
 
+    @Autowired
+    StubProviders.StubAppleTokens apple;
+
+    @Autowired
+    StubProviders.StubKakaoUsers kakao;
+
+    @Autowired
+    StubProviders.StubNaverTokens naver;
+
     private String address;
 
     @BeforeEach
@@ -96,13 +105,20 @@ class AccountLoginIT {
         // 시계는 컨텍스트에 하나라 앞 테스트가 돌려 둔 채로 남는다. 갱신이 발급하는 액세스 토큰은 이
         // 시계로 `iat` 를 적고 검증은 실제 시계로 하므로, 앞서 있으면 방금 받은 토큰이 거절된다.
         clock.set(java.time.Instant.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS));
+        apple.reset();
+        kakao.reset();
+        naver.reset();
     }
 
     @ParameterizedTest(name = "{0}")
     @ValueSource(strings = {"google", "apple", "kakao", "naver"})
     void accountLogin_firstLoginCreatesNothingUntilTheConsentsAreSubmittedAndTheSecondLoginIsTheSameAccount(
             String provider) throws Exception {
-        String idToken = provider + "-uid|first@example.test|verified";
+        // 네이버는 검증 표시를 주지 않아 @naver.com 주소만 검증된 것으로 본다. 카카오는 ID 토큰이 아니라
+        // 사용자 정보 API 가 인증 여부를 알려 준다.
+        String email = "naver".equals(provider) ? "first@naver.com" : "first@example.test";
+        kakao.verifiedEmails.add(email);
+        String idToken = provider + "-uid|" + email + "|verified";
 
         JsonNode first = login(provider, idToken);
 
@@ -122,7 +138,7 @@ class AccountLoginIT {
         assertThat(created.path("refresh_token").textValue()).isNotBlank();
         assertThat(created.path("token_type").textValue()).isEqualTo("bearer");
         assertThat(created.path("pending_consents")).isEmpty();
-        assertThat(created.path("user").path("email").textValue()).isEqualTo("first@example.test");
+        assertThat(created.path("user").path("email").textValue()).isEqualTo(email);
         assertThat(count("users")).isEqualTo(1);
         assertThat(jdbc.queryForMap("SELECT provider,provider_uid FROM user_identities"))
                 .containsEntry("provider", provider)
@@ -349,6 +365,7 @@ class AccountLoginIT {
     @Test
     void accountLogin_emailFollowsTheProviderUnlessAnotherAccountAlreadyUsesIt() throws Exception {
         String userId = signUp("google", "g-1|old@example.test|verified");
+        kakao.verifiedEmails.add("other@example.test");
         signUp("kakao", "k-1|other@example.test|verified");
 
         JsonNode moved = login("google", "g-1|new@example.test|verified");
@@ -441,7 +458,15 @@ class AccountLoginIT {
     private MockHttpServletResponse perform(String provider, String idToken) throws Exception {
         Map<String, String> body = new LinkedHashMap<>();
         body.put("provider", provider);
-        body.put("id_token", idToken);
+        if ("naver".equals(provider)) {
+            // 네이버는 ID 토큰을 내지 않는다. 스텁의 코드 교환이 받은 코드를 그대로 ID 토큰으로 돌려준다.
+            body.put("authorization_code", idToken);
+            body.put("code_verifier", "naver-verifier");
+            body.put("redirect_uri", "actingapp://auth/naver");
+            body.put("state", "naver-state");
+        } else {
+            body.put("id_token", idToken);
+        }
         if ("apple".equals(provider)) {
             body.put("authorization_code", "apple-code");
         }

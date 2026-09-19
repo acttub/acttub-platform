@@ -80,7 +80,7 @@ public class PostgresAuthRepository implements AuthRepository, AuthenticatedUser
             String provider,
             String uid,
             String email,
-            String appleTokenEncrypted,
+            String providerTokenEncrypted,
             List<AcceptedConsent> consents,
             Instant now) {
         return transaction.execute(status -> {
@@ -91,7 +91,7 @@ public class PostgresAuthRepository implements AuthRepository, AuthenticatedUser
                     user.getId(),
                     provider(provider),
                     uid,
-                    appleTokenEncrypted));
+                    providerTokenEncrypted));
             // ⚠ `user_consents` 의 주인은 `consent` 다. 그래도 여기서 쓰는 것은 계정과 동의가 한
             // 트랜잭션이어야 하기 때문이다. 다른 feature 의 Schema Entity 를 import 하면 패키지
             // 경계를 우회하므로 명시적 native DML 로 남긴다(탈퇴의 교차 도메인 정리와 같은 형태).
@@ -140,13 +140,16 @@ public class PostgresAuthRepository implements AuthRepository, AuthenticatedUser
     }
 
     @Override
-    public void linkIdentity(UUID user, String provider, String uid) {
+    public void linkIdentity(UUID user, String provider, String uid, String providerTokenEncrypted) {
         IdentityProvider identityProvider = provider(provider);
         transaction.executeWithoutResult(status -> {
+            // 토큰 칸은 제공자마다 따로다. 없는 값은 NULL 이라 타입을 추론하지 못해 CAST 한다.
             List<Tuple> inserted = list(entityManager.createNativeQuery("""
                     WITH linked AS (
-                        INSERT INTO user_identities(id,user_id,provider,provider_uid)
-                        VALUES (:id,:userId,:provider,:providerUid)
+                        INSERT INTO user_identities(
+                            id,user_id,provider,provider_uid,apple_token_encrypted,naver_token_encrypted)
+                        VALUES (:id,:userId,:provider,:providerUid,
+                                CAST(:appleToken AS text),CAST(:naverToken AS text))
                         ON CONFLICT(provider,provider_uid) DO NOTHING
                         RETURNING user_id
                     )
@@ -155,7 +158,11 @@ public class PostgresAuthRepository implements AuthRepository, AuthenticatedUser
                     .setParameter("id", UUID.randomUUID())
                     .setParameter("userId", user)
                     .setParameter("provider", identityProvider.dbValue())
-                    .setParameter("providerUid", uid));
+                    .setParameter("providerUid", uid)
+                    .setParameter("appleToken",
+                            identityProvider == IdentityProvider.APPLE ? providerTokenEncrypted : null)
+                    .setParameter("naverToken",
+                            identityProvider == IdentityProvider.NAVER ? providerTokenEncrypted : null));
             if (!inserted.isEmpty()) {
                 return;
             }
@@ -167,6 +174,56 @@ public class PostgresAuthRepository implements AuthRepository, AuthenticatedUser
                         "identity is already linked to another user");
             }
         });
+    }
+
+    @Override
+    public boolean lacksProviderToken(String provider, String uid) {
+        String column = tokenColumn(provider(provider));
+        if (column == null) {
+            return false;
+        }
+        return !list(entityManager.createNativeQuery(
+                "SELECT 1 AS missing FROM user_identities"
+                        + " WHERE provider=:provider AND provider_uid=:providerUid AND " + column + " IS NULL",
+                Tuple.class)
+                .setParameter("provider", provider(provider).dbValue())
+                .setParameter("providerUid", uid)).isEmpty();
+    }
+
+    @Override
+    public void storeProviderToken(String provider, String uid, String providerTokenEncrypted) {
+        String column = tokenColumn(provider(provider));
+        if (column == null) {
+            return;
+        }
+        transaction.executeWithoutResult(status -> entityManager.createNativeQuery(
+                "UPDATE user_identities SET " + column + "=:token"
+                        + " WHERE provider=:provider AND provider_uid=:providerUid")
+                .setParameter("token", providerTokenEncrypted)
+                .setParameter("provider", provider(provider).dbValue())
+                .setParameter("providerUid", uid)
+                .executeUpdate());
+    }
+
+    @Override
+    public void removeIdentity(String provider, String uid) {
+        transaction.executeWithoutResult(status -> entityManager.createNativeQuery("""
+                DELETE FROM user_identities
+                WHERE provider=:provider
+                  AND provider_uid=:providerUid
+                """)
+                .setParameter("provider", provider(provider).dbValue())
+                .setParameter("providerUid", uid)
+                .executeUpdate());
+    }
+
+    /** 토큰 암호문을 두는 컬럼. 이름은 코드의 상수라 SQL 에 이어 붙여도 된다. 토큰이 없는 제공자는 {@code null}. */
+    private static String tokenColumn(IdentityProvider provider) {
+        return switch (provider) {
+            case APPLE -> "apple_token_encrypted";
+            case NAVER -> "naver_token_encrypted";
+            default -> null;
+        };
     }
 
     @Override

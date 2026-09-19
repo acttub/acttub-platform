@@ -48,6 +48,14 @@ final class ProfileDtos {
         professional
     }
 
+    /** 탈퇴의 응답. 다시 불러도 같고, 시각은 최초 탈퇴 시각이다. */
+    @Schema(name = "WithdrawnResponse", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record WithdrawnResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = "deactivated") String status,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Instant deactivatedAt) {
+    }
+
     @Schema(name = "MeResponse", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     record MeResponse(

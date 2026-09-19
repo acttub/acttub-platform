@@ -7,12 +7,20 @@ import java.util.Locale;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.domain.EmailAddress;
+import com.acttub.actingapi.feature.auth.domain.NaverEmail;
 import com.acttub.actingapi.feature.auth.domain.RefreshToken;
+import com.acttub.actingapi.integration.oidc.AppleTokenClient;
 import com.acttub.actingapi.integration.oidc.InvalidIdentityToken;
+import com.acttub.actingapi.integration.oidc.KakaoUserClient;
+import com.acttub.actingapi.integration.oidc.NaverTokenClient;
 import com.acttub.actingapi.integration.oidc.ProviderConfigurationError;
 import com.acttub.actingapi.integration.oidc.ProviderIdentity;
 import com.acttub.actingapi.integration.oidc.ProviderRegistry;
+import com.acttub.actingapi.integration.oidc.ProviderUnavailable;
 import com.acttub.actingapi.integration.oidc.UnsupportedProviderError;
+import com.acttub.actingapi.platform.observability.FailureContext;
+import com.acttub.actingapi.platform.observability.FailureReporter;
+import com.acttub.actingapi.platform.security.AccountSecrets;
 import com.acttub.actingapi.platform.security.AuthenticatedUser;
 import com.acttub.actingapi.platform.web.ApiException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -31,25 +39,45 @@ import org.springframework.stereotype.Service;
 public class AuthService {
 
     private final ProviderRegistry providers;
+    private final AppleTokenClient appleTokens;
+    private final KakaoUserClient kakaoUsers;
+    private final NaverTokenClient naverTokens;
     private final AuthRepository accounts;
     private final PendingConsentDocuments consents;
     private final JwtService jwt;
     private final SignupTokens signupTokens;
+    private final AccountSecrets secrets;
+    private final FailureReporter failureReporter;
     private final Clock clock;
 
     public AuthService(
             ProviderRegistry providers,
+            AppleTokenClient appleTokens,
+            KakaoUserClient kakaoUsers,
+            NaverTokenClient naverTokens,
             AuthRepository accounts,
             PendingConsentDocuments consents,
             JwtService jwt,
             SignupTokens signupTokens,
+            AccountSecrets secrets,
+            FailureReporter failureReporter,
             Clock clock) {
         this.providers = providers;
+        this.appleTokens = appleTokens;
+        this.kakaoUsers = kakaoUsers;
+        this.naverTokens = naverTokens;
         this.accounts = accounts;
         this.consents = consents;
         this.jwt = jwt;
         this.signupTokens = signupTokens;
+        this.secrets = secrets;
+        this.failureReporter = failureReporter;
         this.clock = clock;
+    }
+
+    /** 운영에서 켜 둔 간편 로그인 제공자. 앱이 이 목록으로 로그인 버튼을 그린다. */
+    public List<String> enabledProviders() {
+        return providers.enabledProviders();
     }
 
     /**
@@ -63,31 +91,54 @@ public class AuthService {
      * <p>③에서는 아무 행도 만들지 않고 {@link SignupTokens 가입 토큰}과 현재 판 동의 문서만
      * 돌려준다. 계정은 {@link #signup 가입 제출}이 통과한 순간에 생긴다 — 동의 화면에서 나가면
      * 서버에 아무것도 남지 않는다.
+     *
+     * <p><b>서버가 제공자에 묻는 자리는 처음 온 신원에만 있다</b> — 카카오의 이메일 검증 여부(사용자
+     * 정보 API)와 애플 authorization code 교환이다. 그것이 답하지 않으면 502 이고 아무 행도 없다.
+     * ①에서 찾아지는 기존 회원은 묻지 않고 로그인된다. 네이버만 예외다: ID 토큰을 서버가 코드
+     * 교환으로 얻으므로 네이버의 무응답은 기존 회원에게도 502 다.
      */
     public LoginOutcome login(String rawProvider, LoginCredentials credentials) {
         String provider = rawProvider.strip().toLowerCase(Locale.ROOT);
+        // 꺼 둔 제공자에는 코드 교환 같은 바깥 호출을 하지 않는다. 그래서 자격 값을 보기 전에 가른다.
+        requireEnabled(provider);
         // 애플 토큰은 탈퇴 때 폐기 API 에 쓴다(App Store 필수). 코드는 5분 동안 한 번만 쓸 수 있어
         // 동의 화면을 기다리지 않고 로그인 요청에서 받는다.
         if ("apple".equals(provider) && isBlank(credentials.authorizationCode())) {
             throw new ApiException(422, "authorization_code_required");
         }
-        ProviderIdentity identity = verify(provider, credentials.idToken());
+        // 네이버만 ID 토큰을 서버가 코드 교환으로 얻는다(결정 I-5). 그래서 네이버가 답하지 않으면 기존
+        // 회원도 로그인하지 못한다 — 다른 제공자의 "장애는 처음 온 사람에게만 닿는다"의 예외다.
+        NaverTokenClient.NaverGrant naverGrant = "naver".equals(provider) ? exchangeNaverCode(credentials) : null;
+        ProviderIdentity identity = verify(provider, naverGrant == null ? credentials.idToken() : naverGrant.idToken());
         String email = EmailAddress.normalize(identity.email());
-        String verifiedEmail = identity.emailVerified() ? email : null;
 
         AuthenticatedUser user = accounts.findByIdentity(provider, identity.providerUid());
-        if (user == null) {
-            user = attachToExisting(provider, identity, email);
-        }
-        if (user == null) {
-            Instant now = clock.instant();
-            return new LoginOutcome.SignupRequired(
-                    signupTokens.issue(
-                            new SignupTokens.SignupIdentity(
-                                    provider, identity.providerUid(), verifiedEmail, null),
-                            now),
-                    SignupTokens.TTL_SECONDS,
-                    consents.currentDocuments());
+        String verifiedEmail;
+        if (user != null) {
+            // ① 제공자 ID 로 찾아지는 기존 회원은 이메일 검증 확인이 필요 없다. 제공자에 묻지 않는다.
+            verifiedEmail = identity.emailVerified() || naverOwnAddress(provider, email) ? email : null;
+            keepProviderToken(provider, identity, credentials, naverGrant);
+        } else {
+            boolean emailVerified = emailVerified(provider, identity, email);
+            verifiedEmail = emailVerified ? email : null;
+            AuthenticatedUser sameEmail = email == null ? null : accounts.findByEmail(email);
+            if (sameEmail != null && !emailVerified) {
+                throw emailTaken(sameEmail);
+            }
+            // 이메일 겹침을 가른 뒤에 바꾼다 — 409 로 끝날 요청에 한 번뿐인 코드를 쓰지 않는다.
+            String providerToken = providerToken(provider, identity, credentials, naverGrant);
+            if (sameEmail != null) {
+                user = attachToExisting(sameEmail, provider, identity, providerToken);
+            } else {
+                Instant now = clock.instant();
+                return new LoginOutcome.SignupRequired(
+                        signupTokens.issue(
+                                new SignupTokens.SignupIdentity(
+                                        provider, identity.providerUid(), verifiedEmail, providerToken),
+                                now),
+                        SignupTokens.TTL_SECONDS,
+                        consents.currentDocuments());
+            }
         }
         user.requireUsable();
         // 이메일은 신원이 아니라 부가 정보다. 제공자에서 주소를 바꿔도 같은 계정이고 주소만 따라간다.
@@ -125,7 +176,7 @@ public class AuthService {
                     identity.provider(),
                     identity.providerUid(),
                     identity.verifiedEmail(),
-                    identity.appleToken(),
+                    identity.providerToken() == null ? null : secrets.encrypt(identity.providerToken()),
                     accepted,
                     now);
         } catch (DataIntegrityViolationException race) {
@@ -234,36 +285,147 @@ public class AuthService {
         }
     }
 
+    /**
+     * 제공자 쪽에서 연결이 끊겼다는 알림 — 그 신원 행만 지운다. 계정은 남는다.
+     *
+     * <p>모르는 신원이어도 같은 결과다. 우리가 탈퇴 때 직접 끊은 경우에도 이 알림이 오는데, 그때는
+     * 신원이 이미 해시로 바뀌어 있어 찾아지지 않는다.
+     */
+    public void identityDisconnected(String provider, String providerUid) {
+        accounts.removeIdentity(provider, providerUid);
+    }
+
+    private void requireEnabled(String provider) {
+        try {
+            providers.requireEnabled(provider);
+        } catch (UnsupportedProviderError unsupported) {
+            throw unsupported(unsupported);
+        }
+    }
+
     private ProviderIdentity verify(String provider, String idToken) {
         try {
             return providers.verify(provider, idToken);
         } catch (UnsupportedProviderError unsupported) {
-            throw new ApiException(400, "unsupported_provider", unsupported);
+            throw unsupported(unsupported);
         } catch (ProviderConfigurationError misconfigured) {
-            throw ApiException.unexpected(503, "provider_not_configured", misconfigured);
+            throw notConfigured(misconfigured);
         } catch (InvalidIdentityToken invalid) {
-            throw new ApiException(401, "invalid_provider_token", invalid);
+            throw invalidProviderToken(invalid);
+        }
+    }
+
+    private NaverTokenClient.NaverGrant exchangeNaverCode(LoginCredentials credentials) {
+        try {
+            return naverTokens.exchange(
+                    credentials.authorizationCode(),
+                    credentials.codeVerifier(),
+                    credentials.redirectUri(),
+                    credentials.state());
+        } catch (InvalidIdentityToken invalid) {
+            throw invalidProviderToken(invalid);
+        } catch (ProviderConfigurationError misconfigured) {
+            throw notConfigured(misconfigured);
+        } catch (ProviderUnavailable unavailable) {
+            throw unavailable(unavailable);
         }
     }
 
     /**
-     * 같은 이메일의 계정이 이미 있으면 거기에 이 신원을 붙인다. 없으면 {@code null}.
+     * 처음 온 신원의 이메일을 검증된 것으로 볼지. 구글·애플은 ID 토큰의 {@code email_verified} 다.
+     * 카카오는 ID 토큰에 그 표시가 없어 사용자 정보 API 에 묻고, 네이버는 주소로 판단한다.
+     */
+    private boolean emailVerified(String provider, ProviderIdentity identity, String email) {
+        if (email == null) {
+            return false;
+        }
+        if ("naver".equals(provider)) {
+            return NaverEmail.verifiedByAccountStructure(email);
+        }
+        if (!"kakao".equals(provider)) {
+            return identity.emailVerified();
+        }
+        try {
+            return kakaoUsers.emailVerified(identity.providerUid(), email);
+        } catch (ProviderConfigurationError misconfigured) {
+            throw notConfigured(misconfigured);
+        } catch (ProviderUnavailable unavailable) {
+            throw unavailable(unavailable);
+        }
+    }
+
+    private static boolean naverOwnAddress(String provider, String email) {
+        return "naver".equals(provider) && NaverEmail.verifiedByAccountStructure(email);
+    }
+
+    /** 처음 온 신원이 탈퇴 때 제공자 쪽 연결을 끊는 데 쓸 토큰. 애플과 네이버에만 있다. */
+    private String providerToken(
+            String provider,
+            ProviderIdentity identity,
+            LoginCredentials credentials,
+            NaverTokenClient.NaverGrant naverGrant) {
+        if (naverGrant != null) {
+            return naverGrant.refreshToken();
+        }
+        if (!"apple".equals(provider)) {
+            return null;
+        }
+        try {
+            return appleTokens.exchange(credentials.authorizationCode(), identity.audience());
+        } catch (InvalidIdentityToken invalid) {
+            throw invalidProviderToken(invalid);
+        } catch (ProviderConfigurationError misconfigured) {
+            throw notConfigured(misconfigured);
+        } catch (ProviderUnavailable unavailable) {
+            throw unavailable(unavailable);
+        }
+    }
+
+    /**
+     * 기존 회원의 토큰을 최신으로 둔다. 네이버는 로그인마다 새 refresh token 이 온다. 애플은 토큰이
+     * 없을 때만(1.0.0 이전에 가입한 회원) 이번 코드를 바꿔 채운다 — <b>실패해도 로그인은 된다.</b>
+     * 기존 회원의 로그인은 애플의 장애와 무관해야 한다.
+     */
+    private void keepProviderToken(
+            String provider,
+            ProviderIdentity identity,
+            LoginCredentials credentials,
+            NaverTokenClient.NaverGrant naverGrant) {
+        if (naverGrant != null) {
+            if (naverGrant.refreshToken() != null) {
+                accounts.storeProviderToken(
+                        provider, identity.providerUid(), secrets.encrypt(naverGrant.refreshToken()));
+            }
+            return;
+        }
+        if (!"apple".equals(provider) || !accounts.lacksProviderToken(provider, identity.providerUid())) {
+            return;
+        }
+        try {
+            String grant = appleTokens.exchange(credentials.authorizationCode(), identity.audience());
+            accounts.storeProviderToken(provider, identity.providerUid(), secrets.encrypt(grant));
+        } catch (InvalidIdentityToken | ProviderUnavailable tolerated) {
+            // 다음 로그인에서 다시 채운다.
+        } catch (RuntimeException failure) {
+            failureReporter.report(failure, new FailureContext("AuthService.keepProviderToken"));
+        }
+    }
+
+    /**
+     * 같은 이메일의 계정에 이 신원을 붙인다. 이메일이 검증됐는지는 부르는 쪽이 이미 확인했다.
      *
      * <p>같은 신원으로 두 요청이 동시에 들어오면 하나는 유니크 제약에 걸린다. 그때는 진 쪽이
      * <b>다시 조회해</b> 이긴 쪽이 붙인 계정을 쓴다 — 경합을 오류로 내보내면 사용자에게는
      * 이유 없는 실패가 된다.
      */
     private AuthenticatedUser attachToExisting(
-            String provider, ProviderIdentity identity, String email) {
-        AuthenticatedUser existing = email == null ? null : accounts.findByEmail(email);
-        if (existing == null) {
-            return null;
-        }
-        if (!identity.emailVerified()) {
-            throw emailTaken(existing);
-        }
+            AuthenticatedUser existing, String provider, ProviderIdentity identity, String providerToken) {
         try {
-            accounts.linkIdentity(existing.id(), provider, identity.providerUid());
+            accounts.linkIdentity(
+                    existing.id(),
+                    provider,
+                    identity.providerUid(),
+                    providerToken == null ? null : secrets.encrypt(providerToken));
             return existing;
         } catch (DataIntegrityViolationException | IdentityAlreadyLinkedError race) {
             AuthenticatedUser winner = accounts.findByIdentity(provider, identity.providerUid());
@@ -282,6 +444,24 @@ public class AuthService {
 
     private static boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    /** 모르는 제공자이거나 운영에서 꺼 둔 제공자다. */
+    private static ApiException unsupported(Throwable cause) {
+        return new ApiException(400, "unsupported_provider", cause);
+    }
+
+    private static ApiException invalidProviderToken(Throwable cause) {
+        return new ApiException(401, "invalid_provider_token", cause);
+    }
+
+    private static ApiException notConfigured(Throwable cause) {
+        return ApiException.unexpected(503, "provider_not_configured", cause);
+    }
+
+    /** 제공자가 답하지 않는다. 계정은 만들어지지 않는다. */
+    private static ApiException unavailable(Throwable cause) {
+        return ApiException.external(502, "provider_unavailable", cause);
     }
 
     private static ApiException invalidRefresh() {

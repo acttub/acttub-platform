@@ -915,6 +915,32 @@
         }
       }
     },
+    "/v2/auth/providers/naver/disconnect" : {
+      "post" : {
+        "tags" : [ "v2-auth" ],
+        "summary" : "Naver Disconnect Callback",
+        "description" : "네이버 로그인 연결 끊기 알림(개발가이드 §4.4). application/x-www-form-urlencoded 로\nclientId·encryptUniqueId·timestamp·signature 가 온다. 서명은 HmacSHA256 이다.",
+        "operationId" : "naver_disconnect_v2_auth_providers_naver_disconnect_post",
+        "responses" : {
+          "204" : {
+            "description" : "신원을 지웠거나, 모르는 신원이다"
+          }
+        }
+      }
+    },
+    "/v2/auth/providers/kakao/disconnect" : {
+      "post" : {
+        "tags" : [ "v2-auth" ],
+        "summary" : "Kakao Unlink Callback",
+        "description" : "카카오 연결 해제 웹훅. app_id·user_id·referrer_type 이 오고, 헤더\nAuthorization: KakaoAK <기본 어드민 키> 로 보낸 쪽을 확인한다.",
+        "operationId" : "kakao_disconnect_v2_auth_providers_kakao_disconnect_post",
+        "responses" : {
+          "200" : {
+            "description" : "신원을 지웠거나, 모르는 신원이다. 본문은 없다"
+          }
+        }
+      }
+    },
     "/v2/auth/logout" : {
       "post" : {
         "tags" : [ "v2-auth" ],
@@ -1182,11 +1208,18 @@
       "delete" : {
         "tags" : [ "v2-me" ],
         "summary" : "Delete Me",
-        "description" : "회원탈퇴. 개인정보는 파기하고 글은 남긴다.\n\n커뮤니티 글·연습 기록이 user_id 를 물고 있어 행을 지우면 남의 글타래가\n깨진다. 그래서 행은 남기되 이메일·닉네임·identity 를 지우고 refresh 토큰을\n전부 끊는다. 남아 있는 액세스 토큰은 만료까지 유효하지만 인증 게이트가\ndeactivated 를 403 으로 막는다. 자세한 처리는 store.deactivate_user 참조.",
+        "description" : "회원탈퇴. 바로 알아보게 하는 정보는 파기하고, 나머지는 사람과 끊어 남긴다.\n\n연습 기록과 남의 화면에 얽힌 행이 user_id 를 물고 있어 행은 남긴다. 이메일, 프로필의\n이름·사진·소개, 포트폴리오, 이관 코드를 지우고 신원은 해시만 남기며 리프레시·푸시 토큰을\n전부 끊는다. 영상 객체는 보관에 동의한 사람 것만 남는다. 객체 삭제와 제공자 연결\n해제(애플·카카오·네이버)는 응답과 무관하게 뒤에서 다시 시도한다 — 실패해도 200 이다.\n\n이 경로만 탈퇴한 계정의 토큰을 받는다. 다시 불러도 같은 응답이고 시각은 최초 탈퇴\n시각이다. 게스트의 토큰도 받는다. 구글의 연결 해제는 앱이 이 요청 직전에 SDK 로 한다.",
         "operationId" : "delete_me_v2_me_delete",
         "responses" : {
-          "204" : {
-            "description" : "Successful Response"
+          "200" : {
+            "description" : "처음이든 다시든 같은 응답",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/WithdrawnResponse"
+                }
+              }
+            }
           }
         },
         "security" : [ {
@@ -1307,6 +1340,26 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ConsentDocumentsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/auth/providers" : {
+      "get" : {
+        "tags" : [ "v2-auth" ],
+        "summary" : "Enabled Providers",
+        "description" : "운영에서 켜 둔 간편 로그인 제공자. 앱은 이 목록으로 로그인 버튼을 그린다 — 카카오·네이버는\n검수 승인 뒤 서버 설정만 바꾸면 버튼이 나온다. 안드로이드에서 애플을 빼는 것은 앱이 한다.",
+        "operationId" : "providers_v2_auth_providers_get",
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AuthProvidersResponse"
                 }
               }
             }
@@ -2948,6 +3001,10 @@
           "redirect_uri" : {
             "type" : "string",
             "title" : "Redirect Uri"
+          },
+          "state" : {
+            "type" : "string",
+            "title" : "State"
           }
         },
         "required" : [ "provider" ],
@@ -3400,6 +3457,21 @@
         "type" : "string",
         "enum" : [ "allowed", "decision_required" ],
         "title" : "ConsentEntryStatus"
+      },
+      "AuthProvidersResponse" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "providers" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            },
+            "title" : "Providers"
+          }
+        },
+        "required" : [ "providers" ],
+        "title" : "AuthProvidersResponse"
       },
       "AdmissionNotice" : {
         "type" : "object",
@@ -4213,6 +4285,24 @@
         },
         "required" : [ "token" ],
         "title" : "UnregisterPushTokenRequest"
+      },
+      "WithdrawnResponse" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "status" : {
+            "type" : "string",
+            "enum" : [ "deactivated" ],
+            "title" : "Status"
+          },
+          "deactivated_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Deactivated At"
+          }
+        },
+        "required" : [ "deactivated_at", "status" ],
+        "title" : "WithdrawnResponse"
       },
       "ObservationItem" : {
         "type" : "object",

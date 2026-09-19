@@ -21,8 +21,11 @@ final class AuthDtos {
     /**
      * 제공자마다 내는 자격 값이 다르다 — 구글·카카오는 {@code id_token}, 애플은 {@code id_token} 과
      * {@code authorization_code}, 네이버는 {@code authorization_code}·{@code code_verifier}·
-     * {@code redirect_uri}(서버가 교환한다). 그래서 {@code provider} 말고는 칸 자체가 선택이고,
-     * 제공자에 필요한 칸이 빠졌는지는 요청을 받는 자리와 서비스가 본다.
+     * {@code redirect_uri}·{@code state}(서버가 교환한다). 그래서 {@code provider} 말고는 칸 자체가
+     * 선택이고, 제공자에 필요한 칸이 빠졌는지는 요청을 받는 자리와 서비스가 본다.
+     *
+     * <p>{@code state} 는 네이버의 토큰 발급이 요구하는 값이다(개발가이드 §3.5.6 "발급 때 필수"). 앱이
+     * 인가 요청에 쓴 값을 그대로 보낸다. 없으면 서버가 난수를 채운다.
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     @Schema(name = "LoginRequest")
@@ -31,7 +34,14 @@ final class AuthDtos {
             @JsonProperty("id_token") String idToken,
             @JsonProperty("authorization_code") String authorizationCode,
             @JsonProperty("code_verifier") String codeVerifier,
-            @JsonProperty("redirect_uri") String redirectUri) {
+            @JsonProperty("redirect_uri") String redirectUri,
+            String state) {
+    }
+
+    /** 켜져 있는 간편 로그인 제공자. 앱이 이 목록으로 로그인 버튼을 그린다. */
+    @Schema(name = "AuthProvidersResponse", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    record ProvidersResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<String> providers) {
     }
 
     @Schema(name = "SignupRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)

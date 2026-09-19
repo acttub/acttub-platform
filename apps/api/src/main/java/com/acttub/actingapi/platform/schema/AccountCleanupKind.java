@@ -1,0 +1,37 @@
+package com.acttub.actingapi.platform.schema;
+
+import jakarta.persistence.Converter;
+
+/**
+ * {@code account_cleanup_operations.kind} 의 값 — 탈퇴 트랜잭션 밖에서 하는 정리의 종류 (account.withdraw).
+ *
+ * <p>값 이름은 DB CHECK 값이다. 한쪽만 고치면 {@code ValueCheckCatalogIT} 가 잡는다.
+ */
+public enum AccountCleanupKind implements PgEnum {
+    /** 저장소의 객체(영상·사진) 삭제. */
+    OBJECT_DELETE("object_delete"),
+    /** 애플 토큰 폐기. */
+    APPLE_REVOKE("apple_revoke"),
+    /** 카카오 연결 끊기. */
+    KAKAO_UNLINK("kakao_unlink"),
+    /** 네이버 토큰 폐기(연동 해제). */
+    NAVER_REVOKE("naver_revoke");
+
+    private final String dbValue;
+
+    AccountCleanupKind(String dbValue) {
+        this.dbValue = dbValue;
+    }
+
+    @Override
+    public String dbValue() {
+        return dbValue;
+    }
+
+    @Converter(autoApply = false)
+    public static class JpaConverter extends PgEnumConverter<AccountCleanupKind> {
+        public JpaConverter() {
+            super(AccountCleanupKind.class);
+        }
+    }
+}

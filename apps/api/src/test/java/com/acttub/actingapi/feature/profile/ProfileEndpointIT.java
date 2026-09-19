@@ -83,7 +83,7 @@ class ProfileEndpointIT {
                 FOR EACH ROW EXECUTE FUNCTION fail_push_delete()
                 """);
 
-        assertThatThrownBy(() -> profiles.deactivate(USER_ID))
+        assertThatThrownBy(() -> profiles.withdraw(USER_ID))
                 .isInstanceOf(DataAccessException.class)
                 .hasStackTraceContaining("forced push cleanup failure");
 
@@ -124,7 +124,7 @@ class ProfileEndpointIT {
                 VALUES (?,'ExponentPushToken[retry]','ios')
                 """, USER_ID);
 
-        profiles.deactivate(USER_ID);
+        profiles.withdraw(USER_ID);
 
         var user = jdbc.queryForMap(
                 "SELECT email,nickname,status,deactivated_at FROM users WHERE id=?", USER_ID);
@@ -135,7 +135,10 @@ class ProfileEndpointIT {
         assertThat(((Timestamp) user.get("deactivated_at")).toInstant())
                 .isEqualTo(firstDeactivatedAt);
         assertThat(profileName()).isNull();
-        assertThat(count("user_identities")).isZero();
+        // 신원 행은 지우지 않는다 — 제공자 ID 를 비우고 해시만 남긴다 (ADR-029).
+        assertThat(jdbc.queryForMap("SELECT provider_uid,uid_hash FROM user_identities WHERE user_id=?", USER_ID))
+                .containsEntry("provider_uid", null)
+                .extractingByKey("uid_hash").asString().matches("[dk]1:[0-9a-f]{64}");
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM refresh_tokens WHERE revoked_at IS NULL", Integer.class))
                 .isZero();
@@ -155,7 +158,7 @@ class ProfileEndpointIT {
                 VALUES (?,'옛 닉네임','female','exam_prep','audition')
                 """, USER_ID);
 
-        profiles.deactivate(USER_ID);
+        profiles.withdraw(USER_ID);
 
         assertThat(jdbc.queryForMap("SELECT email,nickname,status FROM users WHERE id=?", USER_ID))
                 .containsEntry("email", null)
@@ -184,7 +187,7 @@ class ProfileEndpointIT {
         jdbc.update("INSERT INTO community_blocks(id,blocker_id,blocked_id) VALUES (?,?,?)",
                 UUID.randomUUID(), USER_ID, other);
 
-        profiles.deactivate(USER_ID);
+        profiles.withdraw(USER_ID);
 
         assertThat(count("community_posts")).isEqualTo(1);
         assertThat(count("community_comments")).isEqualTo(1);

@@ -12,6 +12,7 @@ import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.PhotoUploadR
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.PhotoUploadResponse;
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.ProfilePayload;
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.ProfileRequest;
+import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.WithdrawnResponse;
 import com.acttub.actingapi.feature.profile.app.ProfileService;
 import com.acttub.actingapi.feature.profile.domain.Account;
 import com.acttub.actingapi.feature.profile.domain.Profile;
@@ -171,21 +172,26 @@ class ProfileController {
     @Operation(
             summary = "Delete Me",
             description = """
-                    회원탈퇴. 개인정보는 파기하고 글은 남긴다.
+                    회원탈퇴. 바로 알아보게 하는 정보는 파기하고, 나머지는 사람과 끊어 남긴다.
 
-                    커뮤니티 글·연습 기록이 user_id 를 물고 있어 행을 지우면 남의 글타래가
-                    깨진다. 그래서 행은 남기되 이메일·닉네임·identity 를 지우고 refresh 토큰을
-                    전부 끊는다. 남아 있는 액세스 토큰은 만료까지 유효하지만 인증 게이트가
-                    deactivated 를 403 으로 막는다. 자세한 처리는 store.deactivate_user 참조.""",
+                    연습 기록과 남의 화면에 얽힌 행이 user_id 를 물고 있어 행은 남긴다. 이메일, 프로필의
+                    이름·사진·소개, 포트폴리오, 이관 코드를 지우고 신원은 해시만 남기며 리프레시·푸시 토큰을
+                    전부 끊는다. 영상 객체는 보관에 동의한 사람 것만 남는다. 객체 삭제와 제공자 연결
+                    해제(애플·카카오·네이버)는 응답과 무관하게 뒤에서 다시 시도한다 — 실패해도 200 이다.
+
+                    이 경로만 탈퇴한 계정의 토큰을 받는다. 다시 불러도 같은 응답이고 시각은 최초 탈퇴
+                    시각이다. 게스트의 토큰도 받는다. 구글의 연결 해제는 앱이 이 요청 직전에 SDK 로 한다.""",
             operationId = "delete_me_v2_me_delete",
             tags = "v2-me",
             security = @SecurityRequirement(name = "HTTPBearer"))
-    @ApiResponse(responseCode = "204", description = "Successful Response")
+    @ApiResponse(
+            responseCode = "200",
+            description = "처음이든 다시든 같은 응답",
+            content = @Content(schema = @Schema(implementation = WithdrawnResponse.class)))
     @DeleteMapping
-    ResponseEntity<Void> deleteMe(HttpServletRequest request) {
+    WithdrawnResponse deleteMe(HttpServletRequest request) {
         var user = auth.rateLimitedUser(request);
-        profiles.deactivate(user.id());
-        return ResponseEntity.noContent().build();
+        return new WithdrawnResponse("deactivated", profiles.withdraw(user.id()));
     }
 
     /**

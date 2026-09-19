@@ -29,6 +29,7 @@ import com.acttub.actingapi.feature.practice.schema.PracticeSessionEntity;
 import com.acttub.actingapi.feature.profile.schema.UserProfileDirectionEntity;
 import com.acttub.actingapi.feature.profile.schema.UserProfileEntity;
 import com.acttub.actingapi.feature.push.schema.PushTokenEntity;
+import com.acttub.actingapi.feature.profile.schema.AccountCleanupOperationEntity;
 import com.acttub.actingapi.feature.transfer.schema.GuestTransferCodeEntity;
 import com.acttub.actingapi.feature.upload.schema.UploadIntentEntity;
 import com.acttub.actingapi.support.PostgresContainerSupport;
@@ -102,12 +103,12 @@ class EntityMappingIT {
             "community_comments", "community_post_likes", "community_posts", "community_reports");
 
     @Test
-    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 24개 활성 엔티티를 포함한다")
-    void mapsExactlyTwentyFourActiveEntities() {
+    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 25개 활성 엔티티를 포함한다")
+    void mapsExactlyTwentyFiveActiveEntities() {
         Set<Class<?>> entities = entityManager.getMetamodel().getEntities().stream()
                 .map(jakarta.persistence.metamodel.Type::getJavaType)
                 .collect(java.util.stream.Collectors.toSet());
-        assertThat(entities).hasSize(24);
+        assertThat(entities).hasSize(25);
         assertThat(entities).contains(ActorMemoryEntryEntity.class, PushTokenEntity.class);
         assertThat(entities).allMatch(type -> type.getSimpleName().endsWith("Entity"));
         assertThat(entities).allMatch(type -> java.util.Arrays.stream(type.getDeclaredFields())
@@ -352,12 +353,14 @@ class EntityMappingIT {
                 java.time.Instant.now().plusSeconds(60)));
         save(GuestTransferCodeEntity.class,new GuestTransferCodeEntity(UUID.randomUUID(),userId,"c".repeat(64),
                 java.time.Instant.now().plusSeconds(600)));
+        save(AccountCleanupOperationEntity.class,new AccountCleanupOperationEntity(UUID.randomUUID(),userId,
+                AccountCleanupKind.KAKAO_UNLINK,"d1:payload",java.time.Instant.now(),java.time.Instant.now().plusSeconds(600)));
         entityManager.persist(new AnomalyEntity(summaryId,IntentImpact.REVERSAL,Severity.HIGH));
         entityManager.flush();
 
         List<String> statements=List.copyOf(RecordingInspector.STATEMENTS);
         assertThat(statements.stream().filter(sql->sql.startsWith("insert into "))
-                .map(sql->sql.substring("insert into ".length()).split(" ")[0]).distinct()).hasSize(23);
+                .map(sql->sql.substring("insert into ".length()).split(" ")[0]).distinct()).hasSize(24);
         assertThat(statements).noneMatch(sql->sql.stripLeading().toLowerCase().startsWith("select"));
         assertThat(jdbc.queryForObject("SELECT intent_impact FROM anomalies WHERE summary_id=?",String.class,summaryId)).isEqualTo("반전");
     }

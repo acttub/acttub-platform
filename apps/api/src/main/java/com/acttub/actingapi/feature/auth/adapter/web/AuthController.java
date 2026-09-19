@@ -25,6 +25,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -48,6 +49,22 @@ public class AuthController {
         this.limiter = limiter;
     }
 
+    @Operation(
+            summary = "Enabled Providers",
+            description = """
+                    운영에서 켜 둔 간편 로그인 제공자. 앱은 이 목록으로 로그인 버튼을 그린다 — 카카오·네이버는
+                    검수 승인 뒤 서버 설정만 바꾸면 버튼이 나온다. 안드로이드에서 애플을 빼는 것은 앱이 한다.""",
+            operationId = "providers_v2_auth_providers_get",
+            tags = "v2-auth")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Successful Response",
+            content = @Content(schema = @Schema(implementation = ProvidersResponse.class)))
+    @GetMapping("/providers")
+    ProvidersResponse providers() {
+        return new ProvidersResponse(auth.enabledProviders());
+    }
+
     @Operation(summary = "Login", operationId = "login_v2_auth_login_post", tags = "v2-auth")
     @ApiResponses({
         @ApiResponse(
@@ -66,14 +83,15 @@ public class AuthController {
     @PostMapping("/login")
     LoginResponse login(@Valid @RequestBody LoginRequest body, HttpServletRequest request) {
         ipLimit("auth-ip:", request);
-        requireIdToken(body);
+        requireCredentials(body);
         AuthService.LoginOutcome outcome = auth.login(
                 body.provider(),
                 new LoginCredentials(
                         body.idToken(),
                         body.authorizationCode(),
                         body.codeVerifier(),
-                        body.redirectUri()));
+                        body.redirectUri(),
+                        body.state()));
         return switch (outcome) {
             case AuthService.LoginOutcome.SignedIn signedIn -> signedIn(signedIn.user(), request);
             case AuthService.LoginOutcome.SignupRequired signup -> new SignupRequiredResponse(
@@ -163,19 +181,27 @@ public class AuthController {
     }
 
     /**
-     * ID 토큰은 네이버 말고는 전부 필수다. 빠지면 {@code @NotNull} 과 같은 모양의 422 배열이다 —
-     * 네이버만 서버가 authorization code 를 교환해 ID 토큰을 얻는다.
+     * 제공자에 필요한 자격 값이 빠졌으면 {@code @NotNull} 과 같은 모양의 422 배열이다. ID 토큰은 네이버
+     * 말고는 전부 필수이고, 네이버는 서버가 교환할 authorization code 와 PKCE 의 code verifier 가
+     * 필수다. (애플의 authorization code 만은 규칙 위반이라 서비스가 사유 코드로 답한다.)
      */
-    private static void requireIdToken(LoginRequest body) {
-        if (body.idToken() != null || "naver".equals(body.provider().strip().toLowerCase(Locale.ROOT))) {
+    private static void requireCredentials(LoginRequest body) {
+        boolean naver = "naver".equals(body.provider().strip().toLowerCase(Locale.ROOT));
+        String missing;
+        if (!naver) {
+            missing = body.idToken() == null ? "id_token" : null;
+        } else if (body.authorizationCode() == null) {
+            missing = "authorization_code";
+        } else {
+            missing = body.codeVerifier() == null ? "code_verifier" : null;
+        }
+        if (missing == null) {
             return;
         }
+        // 자격 값은 되돌려 보내지 않는다. 무엇이 빠졌는지는 loc 이 말한다.
         Map<String, Object> input = new LinkedHashMap<>();
         input.put("provider", body.provider());
-        if (body.authorizationCode() != null) {
-            input.put("authorization_code", body.authorizationCode());
-        }
-        throw ApiValidationException.missing(List.of("body", "id_token"), input);
+        throw ApiValidationException.missing(List.of("body", missing), input);
     }
 
     private static ConsentDocument document(PendingConsent consent) {

@@ -1,3 +1,13 @@
+COLUMN account_cleanup_operations.attempt_count ord=5 type=int4 len=- null=NO default=0
+COLUMN account_cleanup_operations.created_at ord=9 type=timestamptz len=- null=NO default=now()
+COLUMN account_cleanup_operations.expires_at ord=7 type=timestamptz len=- null=NO default=-
+COLUMN account_cleanup_operations.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
+COLUMN account_cleanup_operations.kind ord=3 type=text len=- null=NO default=-
+COLUMN account_cleanup_operations.last_error ord=8 type=text len=- null=YES default=-
+COLUMN account_cleanup_operations.next_attempt_at ord=6 type=timestamptz len=- null=NO default=-
+COLUMN account_cleanup_operations.payload_encrypted ord=4 type=text len=- null=NO default=-
+COLUMN account_cleanup_operations.updated_at ord=10 type=timestamptz len=- null=NO default=now()
+COLUMN account_cleanup_operations.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN actor_memory_entries.created_at ord=7 type=timestamptz len=- null=NO default=now()
 COLUMN actor_memory_entries.field ord=3 type=text len=- null=NO default=-
 COLUMN actor_memory_entries.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
@@ -236,6 +246,7 @@ COLUMN user_consents.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN user_identities.apple_token_encrypted ord=7 type=text len=- null=YES default=-
 COLUMN user_identities.created_at ord=5 type=timestamptz len=- null=NO default=now()
 COLUMN user_identities.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
+COLUMN user_identities.naver_token_encrypted ord=8 type=text len=- null=YES default=-
 COLUMN user_identities.provider ord=3 type=text len=- null=NO default=-
 COLUMN user_identities.provider_uid ord=4 type=text len=- null=YES default=-
 COLUMN user_identities.uid_hash ord=6 type=text len=- null=YES default=-
@@ -271,6 +282,18 @@ COLUMN users.nickname ord=6 type=text len=- null=YES default=-
 COLUMN users.role ord=8 type=text len=- null=NO default='user'::text
 COLUMN users.status ord=3 type=text len=- null=NO default='active'::text
 COLUMN users.updated_at ord=5 type=timestamptz len=- null=NO default=now()
+CONSTRAINT account_cleanup_operations account_cleanup_operations_attempt_count_not_null NOT NULL attempt_count
+CONSTRAINT account_cleanup_operations account_cleanup_operations_created_at_not_null NOT NULL created_at
+CONSTRAINT account_cleanup_operations account_cleanup_operations_expires_at_not_null NOT NULL expires_at
+CONSTRAINT account_cleanup_operations account_cleanup_operations_id_not_null NOT NULL id
+CONSTRAINT account_cleanup_operations account_cleanup_operations_kind_not_null NOT NULL kind
+CONSTRAINT account_cleanup_operations account_cleanup_operations_next_attempt_at_not_null NOT NULL next_attempt_at
+CONSTRAINT account_cleanup_operations account_cleanup_operations_payload_encrypted_not_null NOT NULL payload_encrypted
+CONSTRAINT account_cleanup_operations account_cleanup_operations_pkey PRIMARY KEY (id)
+CONSTRAINT account_cleanup_operations account_cleanup_operations_updated_at_not_null NOT NULL updated_at
+CONSTRAINT account_cleanup_operations account_cleanup_operations_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT account_cleanup_operations account_cleanup_operations_user_id_not_null NOT NULL user_id
+CONSTRAINT account_cleanup_operations ck_account_cleanup_operations_kind CHECK ((kind = ANY (ARRAY['object_delete'::text, 'apple_revoke'::text, 'kakao_unlink'::text, 'naver_revoke'::text])))
 CONSTRAINT actor_memory_entries actor_memory_entries_created_at_not_null NOT NULL created_at
 CONSTRAINT actor_memory_entries actor_memory_entries_field_not_null NOT NULL field
 CONSTRAINT actor_memory_entries actor_memory_entries_id_not_null NOT NULL id
@@ -628,6 +651,8 @@ CONSTRAINT users users_pkey PRIMARY KEY (id)
 CONSTRAINT users users_role_not_null NOT NULL role
 CONSTRAINT users users_status_not_null NOT NULL status
 CONSTRAINT users users_updated_at_not_null NOT NULL updated_at
+INDEX CREATE INDEX idx_account_cleanup_operations_due ON public.account_cleanup_operations USING btree (next_attempt_at)
+INDEX CREATE INDEX idx_account_cleanup_operations_user ON public.account_cleanup_operations USING btree (user_id)
 INDEX CREATE INDEX idx_actor_memory_user ON public.actor_memory_entries USING btree (user_id)
 INDEX CREATE INDEX idx_anomalies_summary ON public.anomalies USING btree (summary_id, sort_order)
 INDEX CREATE INDEX idx_coach_sessions_practice ON public.coach_sessions USING btree (practice_session_id, created_at)
@@ -665,6 +690,7 @@ INDEX CREATE INDEX idx_upload_intents_user_created ON public.upload_intents USIN
 INDEX CREATE INDEX idx_user_consents_current ON public.user_consents USING btree (user_id, document_id, occurred_at DESC)
 INDEX CREATE INDEX idx_user_identities_uid_hash ON public.user_identities USING btree (uid_hash) WHERE (uid_hash IS NOT NULL)
 INDEX CREATE INDEX idx_user_identities_user ON public.user_identities USING btree (user_id)
+INDEX CREATE UNIQUE INDEX account_cleanup_operations_pkey ON public.account_cleanup_operations USING btree (id)
 INDEX CREATE UNIQUE INDEX actor_memory_entries_pkey ON public.actor_memory_entries USING btree (id)
 INDEX CREATE UNIQUE INDEX anomalies_pkey ON public.anomalies USING btree (id)
 INDEX CREATE UNIQUE INDEX coach_sessions_pkey ON public.coach_sessions USING btree (id)
@@ -722,6 +748,7 @@ INDEX CREATE UNIQUE INDEX users_pkey ON public.users USING btree (id)
 INDEX CREATE UNIQUE INDEX ux_coaching_handoffs_session_revision ON public.coaching_handoffs USING btree (coach_session_id, state_revision) WHERE (state_revision IS NOT NULL)
 SEQUENCE anomalies_id_seq type=bigint
 SEQUENCE coach_turns_id_seq type=bigint
+TABLE account_cleanup_operations
 TABLE actor_memory_entries
 TABLE anomalies
 TABLE coach_sessions

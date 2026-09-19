@@ -107,6 +107,12 @@ class ErrorContractInventoryTest {
                     "feature.auth.AccountStatusContractIT"),
             covered("feature.auth.app.AuthService|503|provider_not_configured", 1,
                     "platform.web.AuthErrorContractIT"),
+            covered("feature.auth.app.AuthService|502|provider_unavailable", 1,
+                    "feature.auth.AccountProvidersIT"),
+            covered("feature.auth.adapter.web.ProviderDisconnectController|401|invalid_provider_signature", 1,
+                    "feature.auth.ProviderDisconnectCallbackIT"),
+            covered("feature.auth.adapter.web.ProviderDisconnectController|503|provider_not_configured", 1,
+                    "feature.auth.AccountDisabledProvidersIT"),
 
             covered("feature.coach.app.CoachService|404|practice session not found", 2,
                     "feature.coach.adapter.web.CoachReportEndpointIT"),

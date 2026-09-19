@@ -44,6 +44,7 @@ class ValueCheckCatalogIT {
     private static final Map<String, Class<? extends PgEnum>> BY_CONSTRAINT = new LinkedHashMap<>();
 
     static {
+        BY_CONSTRAINT.put("ck_account_cleanup_operations_kind", AccountCleanupKind.class);
         BY_CONSTRAINT.put("ck_actor_memory_entries_field", ActorMemoryField.class);
         BY_CONSTRAINT.put("ck_actor_memory_entries_written_by", ActorMemoryAuthor.class);
         BY_CONSTRAINT.put("ck_anomalies_intent_impact", IntentImpact.class);

@@ -95,7 +95,7 @@ Schema Entity는 활성 영속 경로를 매핑하고 `actor_memory_entries`·`p
 - `users.nickname`: 이름은 `user_profiles.name`이 정본이다. V7이 옛 값을 복사했고 Schema Entity는
   이 컬럼을 매핑하지 않으며 조회·수정은 이 컬럼을 보지 않는다. **탈퇴의 파기만 예외로 이 컬럼에
   NULL을 쓴다** — 복사 뒤에도 옛 값이 남아 있고 탈퇴는 이름을 지체 없이 파기해야 하기 때문이다
-  (`PostgresProfileRepository#deactivate`). 그래서 물리 삭제는 두 릴리스에 걸친다: 그 쓰기를 걷어낸
+  (`PostgresProfileRepository#withdraw`). 그래서 물리 삭제는 두 릴리스에 걸친다: 그 쓰기를 걷어낸
   릴리스 다음에 `DROP COLUMN` 한다. 이 쓰기가 남아 있는 동안 `LegacyStorageCompatibilityIT`의 제거
   대상에는 넣지 않는다.
 
@@ -355,6 +355,9 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 | 19 | 클라이언트 판 426 | `X-Acttub-Client`(예: `app/1.0.0`) 없는 `/v2` 요청은 **426** 이고 `detail` 이 코드가 아니라 **안내 문장**이다. 토큰 검증보다 먼저다(§6-5) |
 | 20 | 회원 게이트 | `/v2` 는 표에 적힌 **게이트 밖** 말고 전부 보호 기능이다. 동의 → 프로필 순으로 요청마다 DB 상태로 판정한다(§6-5) |
 | 21 | 로그인은 계정을 만들지 않는다 | 처음 온 신원은 200 `signup_required` 와 가입 토큰만 받는다. 계정·신원·동의 행은 가입 제출이 통과한 순간 **한 트랜잭션**으로 생긴다(§6-6) |
+| 22 | 제공자 장애는 처음 온 사람에게만 | 서버가 제공자에 물어야 하는 자리(카카오 사용자 정보 API, 애플 코드 교환)가 답하지 않으면 **502 `provider_unavailable`** 이고 아무 행도 없다. 제공자 ID 로 찾아지는 기존 회원은 묻지 않고 로그인된다. **네이버만 예외** — 로그인마다 서버가 코드를 교환하므로 기존 회원도 502 다(§6-7) |
+| 23 | 탈퇴는 200 과 최초 탈퇴 시각 | `DELETE /v2/me` 만 **탈퇴한 계정의 토큰을 받는다.** 다시 불러도 같은 본문이다. 바깥 호출(객체 삭제·제공자 해제)이 실패해도 200 이고 7일 동안 다시 시도한다(§6-8) |
+| 24 | 저장하는 비밀에는 키 판 접두사 | `uid_hash`·토큰 암호문·정리 장부의 payload 는 `k1:`(전용 키)·`d1:`(`JWT_SECRET` 파생) 로 시작한다. 읽을 때 접두사로 키를 고른다. **접두사 없는 값은 없다**(§6-8) |
 
 ### 6-1. nullable — "null 로 보낼 것" 과 "키를 생략할 것" 이 다르다
 
@@ -393,7 +396,8 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 **422 는 두 모양이다.** 본문의 모양이 틀린 것(필수 키 빠짐·타입·값 목록 밖·길이 상한)은 `detail` 이
 **배열**이고, 규칙에 걸린 것은 다른 오류와 같이 **코드 문자열 하나**다: `under_14`,
 `under_14_account_closed`, `authorization_code_required`, `consent_decisions_incomplete`,
-`required_consent_cannot_be_declined`. 클라이언트는 `detail` 이 문자열이면 사유로 가르고 배열이면
+`required_consent_cannot_be_declined`. (네이버 로그인에 `authorization_code`·`code_verifier` 가 빠진 것은
+본문의 모양이 틀린 것이라 **배열**이다 — 애플의 `authorization_code_required` 와 다르다.) 클라이언트는 `detail` 이 문자열이면 사유로 가르고 배열이면
 자기 버그로 다룬다. 선례는 `request_fingerprint_mismatch` 다.
 
 불규칙에 주의한다 — 대부분 snake_case(`upload_not_found`)인데 일부는 공백 포함 문장이다:
@@ -497,9 +501,14 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   소개는 세지 않는다. 판정은 요청마다 DB 상태로 하므로 토큰을 갱신해도 열리지 않는다.
 - 어느 경우에도 막힌 원 요청을 서버가 재실행하지 않는다.
 - 게스트의 기능별 동의와 프로필 면제는 이 표에 아직 없다.
-- 토큰 없이 여는 공개 조회(`GET /v2/consents/documents`·`/v2/consents/notices`, `/v2/admissions/**`)는
-  `Authorization` 헤더가 와도 검증하지 않는다(`AccessTokenFilter#shouldNotFilter`) — 만료된 토큰을 전역으로
-  붙이는 클라이언트가 온보딩 콘텐츠에서 401 을 받지 않게 한다.
+- 토큰 없이 여는 공개 조회(`GET /v2/consents/documents`·`/v2/consents/notices`, `/v2/admissions/**`,
+  `GET /v2/auth/providers`)는 `Authorization` 헤더가 와도 검증하지 않는다
+  (`AccessTokenFilter#shouldNotFilter`) — 만료된 토큰을 전역으로 붙이는 클라이언트가 온보딩 콘텐츠에서
+  401 을 받지 않게 한다. 제공자가 부르는 `/v2/auth/providers/*/disconnect` 도 같다 — 카카오는
+  `Authorization: KakaoAK <어드민 키>` 를 싣는데, 그것을 액세스 토큰으로 검증하면 알림이 전부 401 이 된다.
+- **`account_deactivated` 의 예외는 `DELETE /v2/me` 하나다**(`CurrentUserService`). 탈퇴 도중 앱이 죽어 다시
+  누른 사람이 403 을 받으면 기기의 자료를 지우는 다음 단계로 가지 못한다. 그 밖의 모든 경로는 남은 액세스
+  토큰을 요청마다 403 으로 막는다.
 
 **고지 문서는 동의 문서가 아니다.** 개인정보 처리방침은 `consent_documents` 의 행이 아니라 배포에 든 고정 파일
 (`consent-docs/privacy_policy.md`)이고 `GET /v2/consents/notices` 가 전문을 내준다. 결정할 수 없고 게이트에
@@ -517,15 +526,86 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   검증된 이메일이 바뀌어 있으면 `users.email` 을 따라 바꾸되 다른 계정이 쓰는 주소면 그대로 둔다.
 - 요청의 자격 값은 제공자마다 다르다: `id_token`(네이버 말고는 필수 — 빠지면 422 배열),
   애플의 `authorization_code`(없으면 422 `authorization_code_required`), 네이버의
-  `authorization_code`·`code_verifier`·`redirect_uri`.
+  `authorization_code`·`code_verifier`(둘 다 필수 — 빠지면 422 배열)·`redirect_uri`·`state`(선택).
+  자격 값은 422 의 `input` 으로 되돌려 보내지 않고 로그에도 남기지 않는다.
 - **가입 토큰**(`feature/auth/app/SignupTokens`)은 서버가 저장하지 않는 **암호화** 토큰(JWE
-  `dir`+`A256GCM`)이고 30분 산다. 제공자·제공자 ID·검증된 이메일·(애플) 애플 토큰을 담으며 앱은 읽을 수
-  없다. 키는 `JWT_SECRET` 에서 용도를 못박아 뽑는다.
+  `dir`+`A256GCM`)이고 30분 산다. 제공자·제공자 ID·검증된 이메일·(애플·네이버) 탈퇴 때 연결을 끊는 데 쓸
+  토큰을 담으며 앱은 읽을 수 없다. 키는 `JWT_SECRET` 에서 용도를 못박아 뽑는다.
 - `POST /v2/auth/signup` 은 현재 판 **모든** 문서의 결정(`decisions[]`, 선택 문서 포함)을 받아 계정·신원·
   동의 행을 한 트랜잭션에서 만든다. 결정의 확인이 먼저라 빠진 것이 있으면 어떤 행도 생기지 않는다.
   같은 신원의 계정이 이미 있으면(재시도·동시 제출의 진 쪽) 그 계정의 토큰을 준다.
 - 분당 한도는 로그인·가입 제출 모두 **IP 로만** 센다(각각 60회, 키가 다르다). 갱신은 IP 와 주체 둘 다.
 - 리프레시 토큰은 30일이다.
+
+### 6-7. 제공자와 연결 끊기 알림
+
+- **켜 둔 제공자**(`integration/oidc/ProviderRegistry`): `AUTH_ENABLED_PROVIDERS`(기본 `google,apple`)에 든
+  것만 로그인된다. 꺼 둔 제공자는 모르는 제공자와 같은 **400 `unsupported_provider`** 이고 그 제공자를
+  부르지도 않는다. 켜 두었는데 설정(키)이 빠진 것은 **503 `provider_not_configured`** 다 — 앞은 의도한
+  상태, 뒤는 운영 사고다. 카카오·네이버는 검수 승인 뒤에 이 값에 이름을 더해 켠다.
+  `GET /v2/auth/providers` 는 켜 둔 것을 늘 `google, apple, kakao, naver` 순서로 준다. 개발용 제공자는
+  이 스위치와 무관하고 목록에 나오지 않는다.
+- **이메일 검증 근거**: 구글·애플은 ID 토큰의 `email_verified`. 카카오는 ID 토큰에 그 표시가 없어
+  **처음 온 신원에 한해** 사용자 정보 API(어드민 키, `target_id` = `sub`)의 `is_email_valid` 와
+  `is_email_verified` 를 본다 — ID 토큰의 이메일과 같은 주소일 때만 검증으로 친다. 이메일이 없는 카카오
+  신원은 물을 것이 없어 부르지 않는다. 네이버는 표시가 없어 `@naver.com` 주소만 검증된 것으로 본다
+  (`feature/auth/domain/NaverEmail`).
+- **네이버는 서버가 코드를 교환한다**(SOMA-528 결정 I-5): `POST https://nid.naver.com/oauth2/token` 에
+  client secret 과 함께 보내 받은 `id_token` 을 JWKS(`https://nid.naver.com/oauth2/jwks`, 발급자
+  `https://nid.naver.com`, `aud` = 우리 Client ID)로 검증한다. 앱에 client secret 을 두지 않기 위해서다.
+  그래서 네이버의 무응답은 기존 회원에게도 502 다. 함께 받은 refresh token 은 암호화해
+  `user_identities.naver_token_encrypted` 에 두고 로그인마다 새 값으로 바꾼다.
+- **애플 authorization code** 는 처음 온 신원일 때 로그인 요청에서 바로 바꾼다(5분·1회용). 이메일 겹침
+  409 를 먼저 가르므로 409 로 끝날 요청에는 코드를 쓰지 않는다. 바꿔 온 값은 가입 토큰에 실려 가입 제출 때
+  `apple_token_encrypted` 로 저장된다. 교환과 폐기의 `client_id` 는 ID 토큰의 `aud` 다. 토큰이 없는 기존
+  애플 회원(1.0.0 이전 가입)은 다음 로그인 때 채우되 **실패해도 로그인은 된다.**
+- **연결 끊기 알림**(`POST /v2/auth/providers/{naver|kakao}/disconnect`): 제공자가 부른다. 클라이언트 판
+  헤더도 액세스 토큰도 보지 않는다. **그 신원 행만 지우고 계정은 그대로 둔다.** 응답 코드도 제공자가
+  정한다 — 네이버는 **204**, 카카오는 **200**(사용자 정보가 없어도 200 으로 답하라고 하고, 다른 응답은
+  발송 실패로 본다). 모르는 신원도 같은 응답이다(탈퇴로 이미 해시가 된 신원). 보낸 쪽을 확인하지 못하면
+  **401 `invalid_provider_signature`** 이고 아무것도 지우지 않는다. 설정이 없으면 503.
+  - 네이버(개발가이드 §4.4): 폼으로 `clientId`·`encryptUniqueId`·`timestamp`·`signature`. 키는
+    `MD5(client secret)` 앞 16바이트, 서명은 `HmacSHA256("clientId=…&encryptUniqueId=…&timestamp=…")` 의
+    URL-safe Base64, 식별자는 `base64(iv + AES128/CBC/PKCS5)` 다. MD5·CBC 는 네이버가 정한 규격이다.
+  - 카카오(연결 해제 웹훅): `app_id`·`user_id`·`referrer_type` 과 헤더
+    `Authorization: KakaoAK <기본 어드민 키>`. 이 웹훅에는 서명이 없어 **어드민 키의 일치가 검증의 전부다.**
+  - ⚠ 값을 **본문에서 직접 푼다.** `RequestBodyCachingFilter` 가 본문을 미리 읽어 두기 때문에 컨테이너가 폼
+    값을 파싱하지 못한다(`getParameter` 에는 쿼리 문자열만 남는다). MockMvc 는 이 차이를 가리므로
+    `ProviderDisconnectCallbackIT` 는 실제 포트로 부른다.
+- 바깥 호출은 전부 `integration/oidc` 의 포트(`AppleTokenClient`·`KakaoUserClient`·`NaverTokenClient`) 뒤에
+  있고 테스트는 스텁으로 바꾼다. 코드·토큰·제공자 ID 는 로그에도 예외 메시지에도 싣지 않는다.
+
+### 6-8. 탈퇴
+
+- `DELETE /v2/me` 는 **200** 과 `{ "status": "deactivated", "deactivated_at": … }` 다. 처음이든 다시든 같은
+  본문이고 시각은 **최초 탈퇴 시각**이다. 게스트의 토큰도 받는다.
+- **한 트랜잭션**(`PostgresProfileRepository#withdraw`)에서: 상태 전환, 이메일 파기(I-3 예외로
+  `users.nickname=NULL` 포함), 프로필의 이름·사진·소개 파기와 생년월일 → 5세 단위 `age_band`(아래 끝),
+  알림 토글 끄기, 포트폴리오 행째 삭제, 이관 코드 삭제, 리프레시 폐기·푸시 토큰 삭제, 진행 중
+  `external_operations` 를 `failed`/`account_deactivated` 로 닫고 lease 떼기(분석 중이던 연습도 `failed`),
+  신원의 `provider_uid`·토큰을 비우고 `uid_hash` 채우기. 성별·연령대·방향·경력·목표와 배우 기억은 남는다.
+- **신원 행은 지우지 않는다.** `uid_hash` = HMAC-SHA256(provider, provider_uid) 만 남긴다
+  (`ck_user_identities_uid_or_hash`). 서버는 해시로 옛 계정을 찾지 않는다 — 같은 제공자로 다시 오면 처음 온
+  신원이다. 해시의 쓰임은 보관 동의 철회 요청의 본인 확인 하나다.
+- **영상 객체**는 "탈퇴 후 영상·녹음 보관·활용"(`retention`)의 **현재 판에 대한 마지막 결정이 동의**인
+  사람 것만 남긴다. 현재 판에 답하지 않았으면 거절로 본다. 사진 객체(프로필·포트폴리오)는 언제나 지운다.
+  만 14세 미만으로 드러난 1.0.0 이전 회원은 동의와 무관하게 영상을 파기한다.
+- **바깥 호출은 트랜잭션 밖이다**(`feature/profile/app/AccountCleanup`). 탈퇴 트랜잭션은 해제에 쓸 값을
+  **파기 전에** `account_cleanup_operations`(V9)로 옮겨 두기만 한다 — `object_delete`(객체 키 목록),
+  `apple_revoke`(애플 토큰), `kakao_unlink`(회원번호), `naver_revoke`(refresh token). 커밋 뒤 바로 한 번
+  시도하고, 실패하면 5분에서 두 배씩(최대 12시간) 늘려 **7일** 동안 다시 시도한다. 성공하거나 7일이 지나면
+  행을 값과 함께 지운다 — **끝난 것은 장부에 남지 않는다.** 구글의 연결 해제는 앱이 SDK 로 한다.
+- 실패는 묻지 않는다: 시도가 실패할 때마다 `FailureReporter` 로 보고하고, **애플 폐기를 7일 뒤에도 못 하면
+  `AppleRevocationAbandoned` 를 따로 보고한다**(App Store 필수). 값은 보고에 싣지 않는다.
+- 이 장부는 `external_operations` 가 아니다(SOMA-528 결정 I-10). 그쪽은 연습 세션에 매여 있고 "최대 3회 뒤
+  FAILED" 가 고정 계약이다(§5-7). 장부 통합은 연습 영역 재설계의 일이다.
+- **키**(`platform/security/AccountSecrets`, 결정 I-11): `ACCOUNT_IDENTITY_HASH_KEY`·
+  `ACCOUNT_TOKEN_ENCRYPTION_KEY`. 비어 있으면 `JWT_SECRET` 에서 용도를 못박아 파생하고 기동 때 경고한다.
+  저장하는 값마다 어느 키로 만들었는지를 접두사로 붙인다(`k1:` 전용, `d1:` 파생). 암호화는 AES-256-GCM 이고
+  값마다 새 nonce 다. 전용 키를 나중에 넣어도 그 전의 값이 읽힌다 — 신원 해시는 3년을 간다(ADR-029).
+  운영자는 철회 요청의 본인 확인에서 두 키 모두로 해시를 계산해 대조한다(`identityHashCandidates`).
+- 챌린지 참여작 비공개는 그 테이블이 생길 때 탈퇴 트랜잭션에 더한다. 탈퇴 3년 뒤의 파기(해시 행, 보관하던
+  영상)는 매일 도는 일이다.
 
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 

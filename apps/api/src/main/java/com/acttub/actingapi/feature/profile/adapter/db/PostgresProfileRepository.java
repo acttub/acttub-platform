@@ -4,14 +4,18 @@ import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
 
 import java.sql.Date;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.profile.app.AccountCleanupRepository;
 import com.acttub.actingapi.feature.profile.app.ProfileRepository;
 import com.acttub.actingapi.feature.profile.domain.Account;
+import com.acttub.actingapi.feature.profile.domain.AgeBand;
 import com.acttub.actingapi.feature.profile.domain.Profile;
 import com.acttub.actingapi.platform.schema.ActingDirection;
 import com.acttub.actingapi.platform.schema.ActingExperience;
@@ -19,6 +23,8 @@ import com.acttub.actingapi.platform.schema.ActingGoal;
 import com.acttub.actingapi.platform.schema.PgEnum;
 import com.acttub.actingapi.platform.schema.ProfileGender;
 import com.acttub.actingapi.platform.schema.UserStatus;
+import com.acttub.actingapi.platform.security.AccountSecrets;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
@@ -27,14 +33,19 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 @Repository
 class PostgresProfileRepository implements ProfileRepository {
+    private static final ObjectMapper JSON = new ObjectMapper();
+
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
+    private final AccountSecrets secrets;
 
     PostgresProfileRepository(
             EntityManager entityManager,
-            PlatformTransactionManager transactionManager) {
+            PlatformTransactionManager transactionManager,
+            AccountSecrets secrets) {
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
+        this.secrets = secrets;
     }
 
     /**
@@ -238,16 +249,17 @@ class PostgresProfileRepository implements ProfileRepository {
      * <p>⚠ <b>남의 테이블을 여기서 함께 치는 것은 탈퇴와 같은 이유다</b> — 파기의 원자성이 트랜잭션
      * 하나를 요구한다. 자료가 있는지 보는 표는 {@code users} 를 FK 로 물고 있으면서 지우면 안 되는
      * 것들이다(연습·업로드·작업 장부·배우 기억, 그리고 1.0.0 이전에 쓴 커뮤니티 행). 하나라도 있으면
-     * 행을 지울 수 없어 탈퇴와 같은 절차로 닫는다.
+     * 행을 지울 수 없어 탈퇴와 같은 절차로 닫는다 — 그때는 보관 동의와 무관하게 영상을 파기한다.
      */
     @Override
-    public Closure closeUnderage(UUID userId) {
+    public Closed closeUnderage(UUID userId, Instant now, LocalDate today) {
         return transaction.execute(status -> {
             List<Tuple> rows = list(entityManager.createNativeQuery("""
                     SELECT (EXISTS (SELECT 1 FROM practice_sessions WHERE user_id=:userId)
                          OR EXISTS (SELECT 1 FROM upload_intents WHERE user_id=:userId)
                          OR EXISTS (SELECT 1 FROM external_operations WHERE user_id=:userId)
                          OR EXISTS (SELECT 1 FROM actor_memory_entries WHERE user_id=:userId)
+                         OR EXISTS (SELECT 1 FROM account_cleanup_operations WHERE user_id=:userId)
                          OR EXISTS (SELECT 1 FROM community_posts WHERE author_id=:userId)
                          OR EXISTS (SELECT 1 FROM community_comments WHERE author_id=:userId)
                          OR EXISTS (SELECT 1 FROM community_post_likes WHERE user_id=:userId)
@@ -264,8 +276,8 @@ class PostgresProfileRepository implements ProfileRepository {
                 return null;
             }
             if (rows.getFirst().get("has_history", Boolean.class)) {
-                deactivate(userId);
-                return Closure.DEACTIVATED;
+                Withdrawn withdrawn = withdraw(userId, true, now, today);
+                return new Closed(Closure.DEACTIVATED, withdrawn.cleanupOperationIds());
             }
             for (String owned : List.of("user_consents", "refresh_tokens", "user_identities", "push_tokens")) {
                 entityManager.createNativeQuery("DELETE FROM " + owned + " WHERE user_id=:userId")
@@ -276,27 +288,42 @@ class PostgresProfileRepository implements ProfileRepository {
             entityManager.createNativeQuery("DELETE FROM users WHERE id=:userId")
                     .setParameter("userId", userId)
                     .executeUpdate();
-            return Closure.ERASED;
+            return new Closed(Closure.ERASED, List.of());
         });
     }
 
     /**
-     * 탈퇴 처리 (`db/store.py:PostgresStore.deactivate_user`).
+     * 탈퇴 트랜잭션 (account.withdraw, ADR-029).
      *
-     * <p>행을 지우지 않는다 — 커뮤니티 글·연습 기록이 {@code user_id} 를 참조하므로 지우면
-     * 남의 글타래가 깨진다. 대신 개인을 식별하는 것(이메일·이름·identity)을 전부 파기하고
-     * refresh 토큰을 끊는다. <b>상태 전환·파기·토큰 폐기를 한 트랜잭션에 묶는다</b> — 나누면
-     * 중간 실패 시 "탈퇴했는데 refresh 는 살아 있는" 계정이 남는다.
+     * <p>행을 지우지 않는다 — 연습 기록과 남의 화면에 얽힌 행이 {@code user_id} 를 참조하므로 지우면
+     * 남의 흐름이 깨진다. 대신 바로 알아보게 하는 것을 파기하고, 나머지는 사람과 끊어 남긴다.
+     * <b>상태 전환과 파기가 한 트랜잭션이다</b> — 나누면 중간 실패 시 "탈퇴했는데 refresh 는 살아
+     * 있는" 계정이 남는다.
      *
-     * <p>⚠ <b>여기서 {@code user_identities}·{@code refresh_tokens}·{@code push_tokens} 를 함께
-     * 치는 것은 의도한 것이다.</b> 테이블 주인은 각각 {@code auth}·{@code push} 지만 파기의
-     * 원자성이 트랜잭션 하나를 요구한다. 다른 feature의 Schema Entity를 import하면 패키지
-     * 경계를 우회하므로 이 교차 도메인 정리는 명시적 native DML로 남긴다.
+     * <ul>
+     *   <li>파기: 이메일, 프로필의 이름·사진·소개, 신원의 제공자 ID 와 토큰, 리프레시·푸시 토큰, 이관
+     *       코드, 포트폴리오(행째).</li>
+     *   <li>가명처리: 생년월일을 5세 단위 연령대로 뭉개고 원래 값은 지운다. 성별·방향·경력·목표와 배우
+     *       기억은 남는다. 알림 토글은 끈다.</li>
+     *   <li>신원은 서버 비밀키의 HMAC 만 {@code uid_hash} 에 남긴다. 해제에 쓸 값(애플 토큰, 카카오
+     *       회원번호, 네이버 refresh token)은 <b>파기 전에</b> 정리 장부로 옮긴다.</li>
+     *   <li>영상 객체는 "탈퇴 후 영상·녹음 보관·활용"에 동의한 사람 것만 남긴다. 현재 판에 답하지
+     *       않았으면 거절로 본다. 사진 객체는 언제나 지운다. 객체 삭제도 장부로 간다.</li>
+     *   <li>진행 중인 비동기 작업은 실패로 닫고 lease 를 뗀다 — 돌고 있던 워커의 완료는 lease 가
+     *       맞지 않아 통째로 롤백되므로 결과가 저장되지 않는다.</li>
+     * </ul>
+     *
+     * <p>챌린지 참여작을 비공개로 내리는 일은 그 테이블이 생길 때 여기에 더한다(지금 스키마에 없다).
+     *
+     * <p>⚠ <b>여기서 남의 테이블을 함께 치는 것은 의도한 것이다.</b> 테이블 주인은 각각 {@code auth}·
+     * {@code push}·{@code portfolio}·{@code transfer}·{@code consent}·{@code upload}·작업 장부지만
+     * 파기의 원자성이 트랜잭션 하나를 요구한다. 다른 feature의 Schema Entity를 import하면 패키지
+     * 경계를 우회하므로 이 교차 도메인 정리는 명시적 native SQL 로 남긴다.
      *
      * <p>이미 탈퇴한 계정이면 <b>최초 탈퇴 시각을 유지</b>한다. 파기는 멱등하게 다시 돈다.
      */
     @Override
-    public Account deactivate(UUID userId) {
+    public Withdrawn withdraw(UUID userId, boolean destroyMediaRegardless, Instant now, LocalDate today) {
         return transaction.execute(status -> {
             List<Tuple> current = list(entityManager.createNativeQuery("""
                     SELECT status
@@ -312,13 +339,24 @@ class PostgresProfileRepository implements ProfileRepository {
                 entityManager.createNativeQuery("""
                         UPDATE users
                         SET status='deactivated',
-                            deactivated_at=now(),
-                            updated_at=now()
+                            deactivated_at=:now,
+                            updated_at=:now
                         WHERE id=:userId
                         """)
+                        .setParameter("now", now.atOffset(ZoneOffset.UTC))
                         .setParameter("userId", userId)
                         .executeUpdate();
             }
+            List<UUID> cleanups = new ArrayList<>();
+            List<String> objectKeys = new ArrayList<>(photoKeys(userId));
+            if (destroyMediaRegardless || !retentionGranted(userId)) {
+                objectKeys.addAll(videoKeys(userId));
+            }
+            if (!objectKeys.isEmpty()) {
+                cleanups.add(enqueue(userId, "object_delete", secrets.encrypt(json(objectKeys)), now));
+            }
+            cleanups.addAll(hashIdentities(userId, now));
+
             // ⚠ 새 코드가 `users.nickname` 을 건드리는 곳은 이 한 줄뿐이다 (SOMA-528 결정 I-3).
             // V7 은 옛 닉네임을 `user_profiles.name` 으로 복사만 해서 값이 이 컬럼에도 남아 있고,
             // 탈퇴는 이름을 지체 없이 파기해야 한다. 컬럼을 지우려면 먼저 이 쓰기를 걷어낸 릴리스를
@@ -331,25 +369,21 @@ class PostgresProfileRepository implements ProfileRepository {
                     """)
                     .setParameter("userId", userId)
                     .executeUpdate();
-            entityManager.createNativeQuery("""
-                    UPDATE user_profiles
-                    SET name=NULL,updated_at=now()
-                    WHERE user_id=:userId
-                    """)
+            blurProfile(userId, today);
+            // 경력·사진 행은 `ON DELETE CASCADE` 로 따라 지워진다. 공유 링크는 이 순간부터 404 다.
+            entityManager.createNativeQuery("DELETE FROM portfolios WHERE user_id=:userId")
                     .setParameter("userId", userId)
                     .executeUpdate();
-            entityManager.createNativeQuery("""
-                    DELETE FROM user_identities
-                    WHERE user_id=:userId
-                    """)
+            entityManager.createNativeQuery("DELETE FROM guest_transfer_codes WHERE user_id=:userId")
                     .setParameter("userId", userId)
                     .executeUpdate();
             entityManager.createNativeQuery("""
                     UPDATE refresh_tokens
-                    SET revoked_at=now()
+                    SET revoked_at=:now
                     WHERE user_id=:userId
                       AND revoked_at IS NULL
                     """)
+                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
                     .setParameter("userId", userId)
                     .executeUpdate();
             entityManager.createNativeQuery("""
@@ -358,8 +392,194 @@ class PostgresProfileRepository implements ProfileRepository {
                     """)
                     .setParameter("userId", userId)
                     .executeUpdate();
-            return find(userId);
+            cancelOperations(userId, now);
+
+            Instant deactivatedAt = list(entityManager.createNativeQuery("""
+                    SELECT deactivated_at
+                    FROM users
+                    WHERE id=:userId
+                    """, Tuple.class)
+                    .setParameter("userId", userId)).getFirst().get("deactivated_at", Instant.class);
+            return new Withdrawn(deactivatedAt, List.copyOf(cleanups));
         });
+    }
+
+    /** 프로필 사진(대기 중인 올리기 포함)과 포트폴리오 사진의 객체 키. 사진은 보관 동의와 무관하게 지운다. */
+    private List<String> photoKeys(UUID userId) {
+        return list(entityManager.createNativeQuery("""
+                SELECT photo_key AS object_key FROM user_profiles
+                WHERE user_id=:userId AND photo_key IS NOT NULL
+                UNION ALL
+                SELECT photo_upload_key FROM user_profiles
+                WHERE user_id=:userId AND photo_upload_key IS NOT NULL
+                UNION ALL
+                SELECT object_key FROM portfolio_photos
+                WHERE user_id=:userId
+                """, Tuple.class)
+                .setParameter("userId", userId)).stream()
+                .map(row -> row.get("object_key", String.class))
+                .toList();
+    }
+
+    /**
+     * 이 사람이 올린 영상의 객체 키. 연습 행은 남기고 객체만 지운다 — 얼굴과 목소리는 가명처리가 안
+     * 된다. 지금 서버가 맡아 둔 녹음은 없다(리딩 녹음은 그 영역이 서버에 붙을 때 여기에 더한다).
+     */
+    private List<String> videoKeys(UUID userId) {
+        return list(entityManager.createNativeQuery("""
+                SELECT object_key
+                FROM upload_intents
+                WHERE user_id=:userId
+                """, Tuple.class)
+                .setParameter("userId", userId)).stream()
+                .map(row -> row.get("object_key", String.class))
+                .toList();
+    }
+
+    /**
+     * 보관 문서의 <b>현재 판</b>에 대한 마지막 결정이 동의인가. 현재 판에 답하지 않았으면(새 판이
+     * 나온 뒤 결정 전에 탈퇴) 거절로 본다 — 동의 없이 얼굴을 남기지 않는 쪽이 안전하다.
+     */
+    private boolean retentionGranted(UUID userId) {
+        return !list(entityManager.createNativeQuery("""
+                SELECT 1 AS granted
+                FROM (SELECT id
+                      FROM consent_documents
+                      WHERE type='retention'
+                      ORDER BY published_at DESC,id DESC
+                      LIMIT 1) current_document
+                JOIN LATERAL (SELECT action
+                              FROM user_consents
+                              WHERE user_consents.user_id=:userId
+                                AND user_consents.document_id=current_document.id
+                              ORDER BY occurred_at DESC,id DESC
+                              LIMIT 1) last_decision ON true
+                WHERE last_decision.action='granted'
+                """, Tuple.class)
+                .setParameter("userId", userId)).isEmpty();
+    }
+
+    /**
+     * 신원마다 해시만 남기고 제공자 ID 와 토큰을 비운다. 그 전에 서버가 해제해야 하는 제공자의 값을
+     * 장부로 옮긴다 — 애플은 토큰으로 폐기하고, 카카오는 회원번호로 끊고, 네이버는 refresh token 을
+     * 폐기한다. 구글은 앱이 탈퇴 요청 직전에 SDK 로 끊는다.
+     *
+     * <p>이미 해시로 바뀐 신원(다시 온 탈퇴 요청)은 건드리지 않는다.
+     */
+    private List<UUID> hashIdentities(UUID userId, Instant now) {
+        List<UUID> cleanups = new ArrayList<>();
+        List<Tuple> identities = list(entityManager.createNativeQuery("""
+                SELECT id,provider,provider_uid,apple_token_encrypted,naver_token_encrypted
+                FROM user_identities
+                WHERE user_id=:userId
+                  AND provider_uid IS NOT NULL
+                FOR UPDATE
+                """, Tuple.class)
+                .setParameter("userId", userId));
+        for (Tuple identity : identities) {
+            String provider = identity.get("provider", String.class);
+            String providerUid = identity.get("provider_uid", String.class);
+            String appleToken = identity.get("apple_token_encrypted", String.class);
+            String naverToken = identity.get("naver_token_encrypted", String.class);
+            // 토큰은 이미 암호문이라 그대로 옮긴다. 카카오 회원번호는 평문이었으므로 여기서 암호화한다.
+            if ("apple".equals(provider) && appleToken != null) {
+                cleanups.add(enqueue(userId, "apple_revoke", appleToken, now));
+            } else if ("naver".equals(provider) && naverToken != null) {
+                cleanups.add(enqueue(userId, "naver_revoke", naverToken, now));
+            } else if ("kakao".equals(provider)) {
+                cleanups.add(enqueue(userId, "kakao_unlink", secrets.encrypt(providerUid), now));
+            }
+            entityManager.createNativeQuery("""
+                    UPDATE user_identities
+                    SET uid_hash=:uidHash,provider_uid=NULL,
+                        apple_token_encrypted=NULL,naver_token_encrypted=NULL
+                    WHERE id=:id
+                    """)
+                    .setParameter("uidHash", secrets.identityHash(provider, providerUid))
+                    .setParameter("id", identity.get("id", UUID.class))
+                    .executeUpdate();
+        }
+        return cleanups;
+    }
+
+    /** 이름·사진·소개를 지우고 생년월일을 연령대로 뭉갠다. 이미 뭉갠 프로필은 연령대를 그대로 둔다. */
+    private void blurProfile(UUID userId, LocalDate today) {
+        List<Tuple> rows = list(entityManager.createNativeQuery("""
+                SELECT birth_date
+                FROM user_profiles
+                WHERE user_id=:userId
+                FOR UPDATE
+                """, Tuple.class)
+                .setParameter("userId", userId));
+        if (rows.isEmpty()) {
+            return;
+        }
+        Date birthDate = rows.getFirst().get("birth_date", Date.class);
+        entityManager.createNativeQuery("""
+                UPDATE user_profiles
+                SET name=NULL,photo_key=NULL,bio=NULL,birth_date=NULL,
+                    age_band=COALESCE(CAST(:ageBand AS integer),age_band),
+                    photo_upload_key=NULL,photo_upload_mime_type=NULL,
+                    photo_upload_size_bytes=NULL,photo_upload_expires_at=NULL,
+                    notify_analysis_done=false,notify_challenge=false,notify_evening_reminder=false,
+                    updated_at=now()
+                WHERE user_id=:userId
+                """)
+                .setParameter("ageBand", birthDate == null ? null : AgeBand.of(birthDate.toLocalDate(), today))
+                .setParameter("userId", userId)
+                .executeUpdate();
+    }
+
+    /**
+     * 진행 중인 비동기 작업(분석·코치·노트·기억 갱신)을 실패로 닫는다. 분석 중이던 연습도 함께 닫는다.
+     * lease 를 떼므로 돌고 있던 워커의 완료는 받아들여지지 않는다(CONTRACT.md §5-7).
+     */
+    private void cancelOperations(UUID userId, Instant now) {
+        entityManager.createNativeQuery("""
+                UPDATE practice_sessions
+                SET status='failed',updated_at=:now
+                WHERE user_id=:userId
+                  AND status='analyzing'
+                """)
+                .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                .setParameter("userId", userId)
+                .executeUpdate();
+        entityManager.createNativeQuery("""
+                UPDATE external_operations
+                SET status='failed',error_code='account_deactivated',
+                    lease_token=NULL,lease_expires_at=NULL,monitoring_lease_token=NULL,
+                    updated_at=:now
+                WHERE user_id=:userId
+                  AND status IN ('pending','running')
+                """)
+                .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                .setParameter("userId", userId)
+                .executeUpdate();
+    }
+
+    private UUID enqueue(UUID userId, String kind, String payloadEncrypted, Instant now) {
+        UUID id = UUID.randomUUID();
+        entityManager.createNativeQuery("""
+                INSERT INTO account_cleanup_operations(
+                    id,user_id,kind,payload_encrypted,next_attempt_at,expires_at,created_at,updated_at)
+                VALUES (:id,:userId,:kind,:payload,:now,:expiresAt,:now,:now)
+                """)
+                .setParameter("id", id)
+                .setParameter("userId", userId)
+                .setParameter("kind", kind)
+                .setParameter("payload", payloadEncrypted)
+                .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                .setParameter("expiresAt", now.plus(AccountCleanupRepository.RETRY_WINDOW).atOffset(ZoneOffset.UTC))
+                .executeUpdate();
+        return id;
+    }
+
+    private static String json(List<String> values) {
+        try {
+            return JSON.writeValueAsString(values);
+        } catch (Exception failure) {
+            throw new IllegalStateException("failed to write object keys", failure);
+        }
     }
 
     private static Account account(Tuple row) {

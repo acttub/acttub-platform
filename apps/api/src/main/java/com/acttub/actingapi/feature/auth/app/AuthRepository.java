@@ -34,7 +34,8 @@ public interface AuthRepository {
      * 남는다.
      *
      * @param email 제공자가 검증한 이메일. 없으면 {@code null}(빈 문자열이 아니다)
-     * @param appleTokenEncrypted 애플 신원이면 암호화한 애플 토큰. 그 밖에는 {@code null}
+     * @param providerTokenEncrypted 탈퇴 때 제공자 쪽 연결을 끊는 데 쓸 토큰의 암호문 — 애플 토큰이나
+     *        네이버 refresh token. 그 밖의 제공자는 {@code null}
      * @throws org.springframework.dao.DataIntegrityViolationException 같은 신원이나 같은 이메일의
      *         계정이 그 사이 생겼을 때. 어느 쪽인지는 부르는 쪽이 다시 조회해 가른다
      */
@@ -42,7 +43,7 @@ public interface AuthRepository {
             String provider,
             String providerUid,
             String email,
-            String appleTokenEncrypted,
+            String providerTokenEncrypted,
             List<AcceptedConsent> consents,
             Instant now);
 
@@ -58,9 +59,22 @@ public interface AuthRepository {
     /**
      * 이미 있는 계정에 신원을 붙인다.
      *
+     * @param providerTokenEncrypted {@link #createAccount} 와 같다
      * @throws IdentityAlreadyLinkedError 그 신원이 다른 계정에 물려 있을 때
      */
-    void linkIdentity(UUID userId, String provider, String providerUid);
+    void linkIdentity(UUID userId, String provider, String providerUid, String providerTokenEncrypted);
+
+    /** 애플·네이버 신원인데 연결을 끊는 데 쓸 토큰이 아직 없는가. 다른 제공자는 언제나 {@code false}. */
+    boolean lacksProviderToken(String provider, String providerUid);
+
+    /** 그 신원의 토큰 암호문을 새 값으로 바꾼다. 애플·네이버 말고는 아무 일도 하지 않는다. */
+    void storeProviderToken(String provider, String providerUid, String providerTokenEncrypted);
+
+    /**
+     * 제공자 쪽에서 연결이 끊긴 신원 행을 지운다. 계정과 다른 신원은 그대로다. 모르는 신원이면 아무
+     * 일도 없다.
+     */
+    void removeIdentity(String provider, String providerUid);
 
     void issueRefresh(UUID userId, String tokenHash, Instant expiresAt, String device, Instant issuedAt);
 

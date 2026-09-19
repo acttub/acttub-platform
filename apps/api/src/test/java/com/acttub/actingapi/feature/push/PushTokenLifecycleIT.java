@@ -89,7 +89,7 @@ class PushTokenLifecycleIT {
         UUID user = insertUser("push-deactivate@example.com");
         tokens.register(user, "ExponentPushToken[to-destroy]", "ios");
 
-        profiles.deactivate(user);
+        profiles.withdraw(user);
 
         assertThat(countTokens(user)).isZero();
     }

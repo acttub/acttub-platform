@@ -30,6 +30,12 @@ public class AccessTokenFilter extends OncePerRequestFilter {
                 || path.startsWith("/v3/api-docs")) {
             return true;
         }
+        // 켜져 있는 제공자 목록은 로그인 전에 부르는 공개 경로이고, 그 아래의 연결 끊기 알림은 제공자가
+        // 부른다. 카카오는 `Authorization: KakaoAK <어드민 키>` 를 싣는데, 그것을 액세스 토큰으로
+        // 검증하려 들면 알림이 전부 401 이 된다.
+        if (path.equals("/v2/auth/providers") || path.startsWith("/v2/auth/providers/")) {
+            return true;
+        }
         // 인증 의존성이 **아예 없는** 경로 — 원본은 Authorization 헤더를 읽지도 않는다
         // (`consents.py:build_router.list_documents`, `admissions.py:build_router`).
         // 이 필터는 "헤더가 있으면 검증"이라 만료 토큰을 전역으로 붙이는 클라이언트가

@@ -30,6 +30,10 @@ public class UserIdentityEntity extends AppGeneratedUuidEntity {
     @Column(name = "apple_token_encrypted")
     String appleTokenEncrypted;
 
+    /** 서버가 코드 교환으로 받은 네이버 refresh token 의 암호문. 탈퇴 때 토큰 폐기(연동 해제)에 쓴다. */
+    @Column(name = "naver_token_encrypted")
+    String naverTokenEncrypted;
+
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     Instant createdAt;
 
@@ -45,12 +49,14 @@ public class UserIdentityEntity extends AppGeneratedUuidEntity {
             UUID userId,
             IdentityProvider provider,
             String providerUid,
-            String appleTokenEncrypted) {
+            String providerTokenEncrypted) {
         super(id);
         this.userId = userId;
         this.provider = provider;
         this.providerUid = providerUid;
-        this.appleTokenEncrypted = appleTokenEncrypted;
+        // 토큰 칸은 제공자마다 따로다. 토큰이 없는 제공자에 값이 와도 어디에도 넣지 않는다.
+        this.appleTokenEncrypted = provider == IdentityProvider.APPLE ? providerTokenEncrypted : null;
+        this.naverTokenEncrypted = provider == IdentityProvider.NAVER ? providerTokenEncrypted : null;
     }
 
     public UUID getUserId() {
