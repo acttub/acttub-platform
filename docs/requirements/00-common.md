@@ -135,9 +135,9 @@ git 이력이 보관한다. 동작을 바꾸는 PR이 그 기능의 요구사항
 | 추가 | notifications(알림함). 컬럼은 challenge.notification에서 정한다 | challenge.notification |
 | 컬럼 | user_identities.uid_hash, provider_uid는 NULL 허용 | account.withdraw |
 | 값 | user_identities.provider에 guest 추가 | account.guest |
-| 값 | users.status에서 suspended 제거 | account.login |
-| 삭제 | users.signup_* 아홉 컬럼 | account.login |
-| 삭제 | users.nickname (user_profiles.name으로) | account.profile |
+| 값 | users.status에서 suspended 제거 (V4에서 이미 반영됨) | account.login |
+| 삭제 | users.signup_* 아홉 컬럼 (V4에서 이미 삭제됨) | account.login |
+| 삭제 | users.nickname (user_profiles.name으로). 1.0.0은 값을 옮기고 쓰기를 끊는다. 컬럼 삭제는 다음 릴리스에서 한다. 삭제와 그것을 안 쓰는 코드를 한 릴리스에 묶지 않기 때문이다([DB와 배포 안전성](../BRANCHING-STRATEGY.md#db와-배포-안전성)) | account.profile |
 | 컬럼 | user_profiles 알림 토글 둘 → 셋(챌린지 알림 추가) | account.notification |
 | 컬럼 | user_profiles 나이는 생년월일로 받고, 탈퇴 때 5세 단위 연령대로 뭉개 남긴다 | account.profile, account.withdraw |
 | 컬럼 | user_identities에 애플 토큰(암호화) | account.login |
