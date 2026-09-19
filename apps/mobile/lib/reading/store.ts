@@ -42,7 +42,30 @@ export interface SavedScript {
   updatedAt: number;
 }
 
-const KEY = 'acttub.reading.scripts';
+/** 'acttub.' 접두사 — 탈퇴 시 local-account-data 가 이 접두사를 통째로 지운다. */
+export const READING_SCRIPTS_KEY = 'acttub.reading.scripts';
+const KEY = READING_SCRIPTS_KEY;
+
+/**
+ * 저장된 대본들의 연습 녹음 파일 uri. 탈퇴 때 저장소 키를 지우기 전에 파일부터 지우려고 읽는다
+ * (키가 사라지면 파일을 찾을 길이 없다). 값이 깨져 있으면 빈 목록이다.
+ */
+export function recordingFileUris(raw: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const scripts = JSON.parse(raw) as unknown;
+    if (!Array.isArray(scripts)) return [];
+    return scripts.flatMap((script) =>
+      Array.isArray(script?.recordings)
+        ? script.recordings
+            .map((recording: { uri?: unknown } | null) => recording?.uri)
+            .filter((uri: unknown): uri is string => typeof uri === 'string' && uri.length > 0)
+        : [],
+    );
+  } catch {
+    return [];
+  }
+}
 
 function storage() {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -96,6 +119,11 @@ let current: SavedScript | null = null;
 
 export function getCurrent(): SavedScript | null {
   return current;
+}
+
+/** 메모리의 진행 중 대본을 비운다. 모듈 변수라 탈퇴로 저장소를 지워도 남는다. */
+export function resetReadingState(): void {
+  current = null;
 }
 
 export function isMyRole(role: string): boolean {

@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { AppState } from 'react-native';
 
 import {
   api,
@@ -17,7 +18,12 @@ import {
   type TokenPair,
 } from '@/lib/api';
 import type { ProfileGateStatus } from '@/lib/app-bootstrap';
-import { signOutBestEffort, withdrawAccount } from '@/lib/auth-session';
+import {
+  signOutBestEffort,
+  wipeClosedAccount,
+  withdrawAccount,
+  type ClosedAccountDependencies,
+} from '@/lib/auth-session';
 import { createConsentEntrySession } from '@/lib/consent-entry';
 import {
   buildSignupDecisions,
@@ -37,6 +43,7 @@ import {
   detachPushToken,
   forgetPushToken,
   syncNotificationsAfterGate,
+  syncNotificationsOnForeground,
 } from '@/lib/notifications';
 import { saveUserName, setProviderNameHint } from '@/lib/profile';
 import {
@@ -126,6 +133,22 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 const PROFILE_CHECKING: ProfileState = { status: 'checking', me: null, error: null };
+
+/**
+ * 계정이 서버에서 사라진 뒤 이 기기를 비우는 한 벌(auth-session 의 wipeClosedAccount 가 순서를 정한다).
+ * 탈퇴, 다른 기기에서 한 탈퇴, 가입 게이트의 만 14세 미만 닫힘이 같이 쓴다.
+ */
+const CLOSED_ACCOUNT_STEPS: ClosedAccountDependencies = {
+  // 서버의 push_tokens 는 서버가 전부 지웠다. 기기의 기록과 알람만 걷는다.
+  forgetPushToken,
+  cancelReminders,
+  wipeLocalData: clearLocalAccountData,
+  // 마지막 로그인 제공자 기억은 로그아웃에는 남기지만, 계정이 사라질 때는 지운다.
+  forgetLastProvider: () => lastProviderStore.forget(),
+  providerLogout: signOutProviders,
+  // 서버 로그아웃은 부르지 않는다 — refresh 는 서버가 이미 전부 끊었다.
+  clearLocalSession: clearTokens,
+};
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('loading');
@@ -228,6 +251,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       void reloadProfile();
     });
     const unsubTokens = onTokensCleared(() => {
+      // 세션이 끊겨 나가는 폰에도 리마인드 알람이 없어야 한다. 진행 중이던 알림 동기화도 여기서 멈춘다.
+      void cancelReminders().catch(() => undefined);
       resetConsentEntry();
       resetProfile();
       setUser(null);
@@ -244,14 +269,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // 다른 기기에서 탈퇴했거나, 탈퇴 후 액세스 토큰이 아직 만료되지 않은 경우.
     // refresh 로 풀 수 없으므로 세션을 끊는다.
     const unsubDeactivated = onAccountDeactivated(() => {
-      void (async () => {
-        // 알람 id 가 기기 자료와 함께 지워지기 전에 먼저 취소한다.
-        await cancelReminders().catch(() => undefined);
-        await forgetPushToken().catch(() => undefined);
-        await clearLocalAccountData().catch(() => undefined);
-        await lastProviderStore.forget();
-        await clearTokens();
-      })();
+      void wipeClosedAccount(CLOSED_ACCOUNT_STEPS);
     });
     const unsubStoredUser = onStoredUserChanged((nextUser) => {
       resetConsentEntry();
@@ -281,6 +299,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (gatePassed) void syncNotificationsAfterGate().catch(() => undefined);
   }, [gatePassed, user?.id]);
+
+  // "앱을 열 때"는 새로 켤 때만이 아니다. 배경에서 돌아올 때도 밀린 토큰 삭제를 다시 보내고,
+  // 게이트를 통과한 계정이면 알림 설정·토큰 등록·리마인드 30일치를 다시 맞춘다. 다른 기기에서
+  // 푸시 토글 둘을 껐다 켜면 이 폰의 토큰도 지워져 있다. 너무 잦지 않게 최소 간격을 둔다
+  // (notification-sync).
+  const gatePassedRef = useRef(gatePassed);
+  gatePassedRef.current = gatePassed;
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (next) => {
+      if (next !== 'active') return;
+      void syncNotificationsOnForeground(gatePassedRef.current).catch(() => undefined);
+    });
+    return () => subscription.remove();
+  }, []);
 
   const finishLogin = useCallback(
     async (pair: TokenPair, provider: LoginProvider, providerName: string | null) => {
@@ -365,11 +397,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const closeAccountUnder14 = useCallback(async () => {
     // 서버가 계정을 행째 지웠고 토큰도 죽었다. 기기의 계정 자료를 지우고 로그인으로 보낸다.
     setLoginNotice(t('profileName.under14Closed'));
-    await cancelReminders().catch(() => undefined);
-    await clearLocalAccountData().catch(() => undefined);
-    await lastProviderStore.forget();
-    await signOutProviders().catch(() => undefined);
-    await clearTokens();
+    await wipeClosedAccount(CLOSED_ACCOUNT_STEPS);
   }, []);
 
   const signOut = useCallback(async () => {
@@ -406,15 +434,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       serverWithdraw: async () => {
         await api.deleteMe();
       },
-      // 서버의 push_tokens 는 탈퇴 트랜잭션이 전부 지웠다. 기기의 기록과 알람만 걷는다.
-      forgetPushToken,
-      cancelReminders,
-      wipeLocalData: clearLocalAccountData,
-      // 마지막 로그인 제공자 기억은 로그아웃에는 남기지만, 계정이 사라지는 탈퇴에는 지운다.
-      forgetLastProvider: () => lastProviderStore.forget(),
-      providerLogout: signOutProviders,
-      // 서버 로그아웃은 부르지 않는다 — refresh 는 탈퇴가 이미 전부 끊었다.
-      clearLocalSession: clearTokens,
+      ...CLOSED_ACCOUNT_STEPS,
     });
     setUser(null);
     setStatus('signedOut');

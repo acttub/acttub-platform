@@ -74,9 +74,19 @@ export function createPushTokenLifecycle(dependencies: { storage: Storage; api: 
     currentToken: readToken,
     pendingDeletions: readPending,
 
-    /** 이 폰의 토큰을 내 것으로 등록한다. 실패하면 던진다(부르는 쪽이 최선 노력으로 삼킨다). */
-    register(token: string, platform: 'ios' | 'android'): Promise<void> {
+    /**
+     * 이 폰의 토큰을 내 것으로 등록한다. 실패하면 던진다(부르는 쪽이 최선 노력으로 삼킨다).
+     *
+     * 줄에서 차례가 왔을 때 계정이 이미 떠났으면(isCurrent 가 거짓) 등록하지 않는다. 로그아웃의
+     * 토큰 삭제 뒤에도 액세스 토큰은 잠시 기기에 남아 있어, 늦게 도착한 등록을 서버가 받아 준다.
+     */
+    register(
+      token: string,
+      platform: 'ios' | 'android',
+      isCurrent: () => boolean = () => true,
+    ): Promise<void> {
       return enqueue(async () => {
+        if (!isCurrent()) return;
         await api.register(token, platform);
         await storage.setItem(TOKEN_KEY, token);
         await writePending([]);

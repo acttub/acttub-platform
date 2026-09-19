@@ -1,5 +1,6 @@
 import { classifyUnprocessable } from './api-request.ts';
 import type { ProfileGateStatus } from './app-bootstrap.ts';
+import { translate } from './i18n.ts';
 
 /**
  * 프로필 여섯 항목의 순수 로직(account.profile). 가입 게이트의 입력 화면(A0.2)과 설정의
@@ -157,10 +158,10 @@ export function buildProfilePayload(
     form.experience === null ||
     form.goal === null
   ) {
-    throw new Error('프로필 여섯 항목을 모두 채워야 저장할 수 있어요.');
+    throw new Error(translate('profileName.incomplete'));
   }
   if (extras && !isBioValid(extras.bio)) {
-    throw new Error('한 줄 소개는 80자까지 쓸 수 있어요.');
+    throw new Error(translate('profileName.bioTooLong'));
   }
   return {
     name,

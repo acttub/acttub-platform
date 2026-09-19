@@ -291,3 +291,15 @@ test('account.login: 꺼 둔 제공자 400, 잘못된 토큰 401, 제공자 무�
   // 그 밖의 오류는 요청 계층이 만든 문장을 그대로 쓴다.
   assert.equal(loginErrorMessage(new ApiError(429, '잠시 몰렸어요', 'rate limit exceeded')), '잠시 몰렸어요');
 });
+
+test('account.login: 제공자 SDK 가 없거나 토큰을 못 받았을 때의 안내는 한국어·영어 언어 파일에 모두 있다', async () => {
+  const { default: ko } = await import('../locales/ko.ts');
+  const { default: en } = await import('../locales/en.ts');
+
+  // provider-sdk 가 던지는 오류는 loginErrorMessage 가 message 그대로 화면에 띄운다.
+  for (const key of ['googleUnavailable', 'appleUnavailable', 'appleNoToken', 'providerUnsupportedBuild']) {
+    assert.match(ko.login[key], /[가-힣]/, key);
+    assert.equal(typeof en.login[key], 'string', key);
+    assert.doesNotMatch(en.login[key], /[가-힣]/, key);
+  }
+});

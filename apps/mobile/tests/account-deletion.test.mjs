@@ -75,60 +75,10 @@ test('api.deleteMe는 DELETE /v2/me를 부른다', () => {
   assert.match(source, /emitAccountDeactivated,/);
 });
 
-test('deleteAccount는 탈퇴 순서에 서버 파기와 기기 파기를 끼운다', () => {
-  // "서버가 성공한 뒤에만 기기를 지운다"는 순서 자체는 auth-session.test 가 동작으로 검사한다.
-  // 여기서는 그 순서에 실제 호출이 끼워져 있는지만 본다.
-  const source = readSource('lib/auth.tsx');
-  const body = source.slice(
-    source.indexOf('const deleteAccount'),
-    source.indexOf('const clearLoginNotice'),
-  );
-
-  assert.match(body, /await withdrawAccount\(\{/);
-  assert.match(body, /serverWithdraw: async \(\) => \{\s*await api\.deleteMe\(\);/);
-  assert.match(body, /disconnectProviders,/);
-  assert.match(body, /wipeLocalData: clearLocalAccountData/);
-  assert.match(body, /forgetLastProvider: \(\) => lastProviderStore\.forget\(\)/);
-  assert.match(body, /clearLocalSession: clearTokens/);
-  // 탈퇴가 refresh 를 이미 전부 끊었으므로 로그아웃 API 를 또 부르면 실패만 남는다.
-  assert.doesNotMatch(body, /api\.logout/);
-});
-
-test('signOut은 로그아웃 순서에 푸시 토큰 삭제와 계정 캐시 삭제를 끼우고 마지막 제공자 기억은 남긴다', () => {
-  const source = readSource('lib/auth.tsx');
-  const body = source.slice(
-    source.indexOf('const signOut'),
-    source.indexOf('const deleteAccount'),
-  );
-
-  assert.match(body, /await signOutBestEffort\(\{/);
-  assert.match(body, /deletePushToken: detachPushToken/);
-  assert.match(body, /await api\.logout\(rt\)/);
-  assert.match(body, /providerLogout: signOutProviders/);
-  assert.match(body, /cancelReminders,/);
-  assert.match(body, /clearAccountCache\(\)/);
-  assert.match(body, /clearTokens\(\)/);
-  // 기기 자료를 전부 지우는 것은 탈퇴다. 로그아웃은 마지막 로그인 제공자 기억을 남긴다.
-  assert.doesNotMatch(body, /clearLocalAccountData|lastProviderStore/);
-});
-
-test('탈퇴 이벤트를 받으면 세션을 끊는다', () => {
-  const source = readSource('lib/auth.tsx');
-
-  assert.match(source, /onAccountDeactivated\(\(\) => \{/);
-  assert.match(source, /deleteAccount: \(\) => Promise<void>;/);
-});
-
-test('로컬 파기는 acttub 접두사 저장소와 이름·연습 상태를 지운다', () => {
-  const source = readSource('lib/local-account-data.ts');
-
-  assert.match(source, /startsWith\(KEY_PREFIX\)/);
-  assert.match(source, /multiRemove/);
-  assert.match(source, /deleteUserName\(\)/);
-  assert.match(source, /resetPracticeState\(\)/);
-  assert.match(readSource('lib/profile.ts'), /export async function deleteUserName/);
-  assert.match(readSource('lib/practice.ts'), /export function resetPracticeState/);
-});
+// 탈퇴·로그아웃의 순서와 "계정이 사라졌을 때 기기 비우기"는 소스 문자열이 아니라 동작으로 검사한다:
+// 순서와 실패 허용은 auth-session.test, 기기에서 지우는 것과 남기는 것은 local-account-wipe.test ·
+// device-files.test, 알람과 푸시 토큰은 notification-sync.test · reminder-schedule.test ·
+// push-token-lifecycle.test.
 
 /** 주석은 화면에 안 나온다 — 문구 검사에서 뺀다. */
 const stripComments = (source) =>

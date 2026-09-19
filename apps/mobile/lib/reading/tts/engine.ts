@@ -19,6 +19,7 @@ import {
   UnicodeProcessor,
   writeWavFile,
 } from './helper.native.js';
+import { speechFileName } from './speech-file';
 
 export interface EngineConfig {
   variant?: Variant; // 기본 fp32(음질 우선)
@@ -106,7 +107,7 @@ export async function speak(text: string): Promise<void> {
   const durSec = duration[0] || 0;
   const samples = Float32Array.from(wav);
   const bytes = writeWavFile(samples, tts.sampleRate);
-  const out = new File(Paths.cache, `reading-${Date.now()}.wav`);
+  const out = new File(Paths.cache, speechFileName(Date.now()));
   out.write(bytes);
 
   stop();

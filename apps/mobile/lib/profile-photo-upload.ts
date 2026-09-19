@@ -1,6 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 
+import { discardDeviceFiles, trackTemporaryDeviceFile } from '@/lib/account-files';
 import { api, type MeResponse } from '@/lib/api';
 import { translate } from '@/lib/i18n';
 import type { Portfolio } from '@/lib/portfolio';
@@ -31,11 +32,15 @@ async function pickAndUpload<Result, Intent extends PhotoUploadIntent>(options: 
   try {
     compressor = require('react-native-compressor');
   } catch {
+    // 올리지 못해도 사진 고르기가 캐시에 만든 복사본은 남기지 않는다.
+    void discardDeviceFiles([picked.assets[0].uri]);
     throw new Error(translate('profileName.photoUnavailable'));
   }
 
   return uploadProfilePhoto<Result, Intent>(picked.assets[0].uri, {
     compress: (uri, compression) => compressor.Image.compress(uri, compression),
+    trackTemporary: trackTemporaryDeviceFile,
+    discard: discardDeviceFiles,
     sizeOf: async (uri) => {
       const info = await FileSystem.getInfoAsync(uri);
       return info.exists && typeof info.size === 'number' ? info.size : null;

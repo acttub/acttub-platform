@@ -52,7 +52,7 @@ const DIRECTION_LABEL_KEYS: Record<Direction, string> = {
 /**
  * A0.2 프로필 설정 — 이름·성별·생년월일·추구하는 방향·연기 경력·최종 목표 여섯을 모두 받는다.
  *
- * 온보딩(edit=false)과 설정의 프로필 편집(edit=true)이 같은 폼과 같은 API
+ * 가입 게이트(edit=false)와 설정의 프로필 편집(edit=true)이 같은 폼과 같은 API
  * (PUT /v2/me/profile)를 쓴다. 여섯 항목을 한 번에 저장하고 부분 저장은 없다 — 입력 도중
  * 앱을 닫으면 다음에 처음부터 다시 시작한다. 고칠 때도 필수 규칙은 같아 비워서 저장할 수 없다.
  *
@@ -61,7 +61,7 @@ const DIRECTION_LABEL_KEYS: Record<Direction, string> = {
  * 항목과 함께 저장한다.
  *
  * 편집은 별도 라우트(/profile-edit)에서 렌더한다. `profile-name` 라우트는 _layout의
- * 부트스트랩 게이트가 온보딩 전용으로 취급해 다 끝난 유저를 홈으로 되돌리기 때문이다.
+ * 부트스트랩 게이트가 가입 게이트 전용으로 취급해 게이트를 지난 회원을 홈으로 되돌리기 때문이다.
  */
 export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
   const { profile, reloadProfile, saveProfile, setMe, closeAccountUnder14 } = useAuth();
@@ -128,7 +128,7 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
         goal: form.goal ?? 'none',
       });
       if (!isEdit) logMetaEvent('fb_mobile_complete_registration');
-      // 온보딩은 저장이 곧 게이트 통과라 _layout이 화면을 옮긴다. 편집은 직접 돌아간다.
+      // 가입 게이트에서는 저장이 곧 게이트 통과라 _layout이 화면을 옮긴다. 편집은 직접 돌아간다.
       if (isEdit) router.back();
     } catch (cause) {
       const failure = profileSaveFailure(cause);
@@ -365,7 +365,7 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
   );
 }
 
-/** 온보딩 라우트(/profile-name) — 게이트가 신규 유저에게만 띄운다. */
+/** 가입 게이트 라우트(/profile-name) — 게이트가 프로필이 빈 회원에게만 띄운다. */
 export default function ProfileNameScreen() {
   return <ProfileForm edit={false} />;
 }

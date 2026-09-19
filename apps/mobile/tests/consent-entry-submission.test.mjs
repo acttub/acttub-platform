@@ -309,3 +309,15 @@ test('account.consent: 옛 판 문서 id에 결정을 보내 409를 받으면 �
   assert.equal(result.kind, 'verified');
   assert.deepEqual(result.entry.undecided_documents, [newVersion]);
 });
+
+test('account.consent: 결정을 다 고르지 않았다는 안내는 언어 파일에서 오고 "~해요"체다', async () => {
+  const { default: ko } = await import('../locales/ko.ts');
+  const { default: en } = await import('../locales/en.ts');
+
+  assert.throws(
+    () => buildSignupDecisions(signupDocuments, new Map()),
+    (error) => error.message === ko.consent.undecided,
+  );
+  assert.doesNotMatch(ko.consent.undecided, /습니다|합니다/);
+  assert.doesNotMatch(en.consent.undecided, /[가-힣]/);
+});

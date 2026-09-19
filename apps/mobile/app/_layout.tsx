@@ -27,6 +27,7 @@ import {
   resolvePostConsentRoute,
   type BootstrapRecoveryParams,
 } from '@/lib/app-bootstrap';
+import { sweepDeviceFiles } from '@/lib/account-files';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import {
   configureNotificationHandling,
@@ -45,6 +46,9 @@ configureNotificationHandling();
 // 로그아웃 때 지우지 못한 푸시 토큰을 앱을 열 때 다시 보낸다 — 로그인 없이 받는 요청이라
 // 로그인 화면에서도 된다. 저녁 리마인드는 게이트를 통과한 뒤에 맞춘다(lib/auth.tsx).
 void flushPendingPushTokenDeletions();
+// 앞선 실행이 올리던 도중에 죽어 남긴 임시 파일(줄인 사진·영상)을 지운다. 아직 아무것도 올리지
+// 않는 때라 쓰는 중인 파일을 건드리지 않는다.
+void sweepDeviceFiles();
 
 export const unstable_settings = {
   anchor: '(tabs)',

@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
+import { withTemporaryDeviceFiles } from '@/lib/account-files';
 import { logEvent } from '@/lib/analytics';
 import { logMetaEvent } from '@/lib/meta-events';
 import {
@@ -160,7 +161,9 @@ export default function AnalyzingScreen() {
     });
 
     try {
-      const result = await runAnalysisPipeline({
+      // 줄인 영상은 올리기가 끝나면(성공·실패·취소 모두) 기기에서 지운다. 원본 복사본은 코치 화면이
+      // 다시 틀기 때문에 두었다가 탈퇴 때 지운다(account-files).
+      const result = await withTemporaryDeviceFiles((trackTemporary) => runAnalysisPipeline({
         operation,
         ownerId,
         upload,
@@ -177,6 +180,8 @@ export default function AnalyzingScreen() {
             currentOperation.attachCompressionCancel(compression.cancel);
             const compressed = await compression.result;
             if (compressed.kind === 'cancelled') return compressed;
+            // 모듈이 없으면 줄이지 않고 원본을 그대로 돌려준다 — 그것은 임시 파일이 아니다.
+            if (compressed.uri !== pendingUpload.video.uri) await trackTemporary(compressed.uri);
             currentOperation.runIfActive(() => {
               setCompressPct(null);
               setSizeNote(formatSizeChange(compressed));
@@ -217,7 +222,7 @@ export default function AnalyzingScreen() {
           pollIntervalMs: POLL_INTERVAL_MS,
           pollTimeoutMs: POLL_TIMEOUT_MS,
         },
-      });
+      }));
       operation.runIfActive(() => {
         sessionIdRef.current = result.sessionId;
         pendingHandleRef.current = operation.pendingHandle;

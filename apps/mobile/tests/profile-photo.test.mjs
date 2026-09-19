@@ -31,6 +31,8 @@ function fakes(overrides = {}) {
         calls.push(['complete']);
         return { id: 'user-1', profile: { photo_url: 'https://cdn.test/me.jpg' } };
       },
+      trackTemporary: async () => {},
+      discard: async () => {},
       ...overrides,
     },
   };
@@ -115,6 +117,8 @@ test('account.portfolio: 포트폴리오 사진도 올리기 전에 항상 줄�
       calls.push(['complete', intent.photo_id]);
       return { photos: [{ id: 'photo-7', url: 'https://cdn.test/p7.jpg' }] };
     },
+    trackTemporary: async () => {},
+    discard: async () => {},
   });
 
   assert.deepEqual(calls[0], ['compress', 'file:///picked/headshot-30mb.heic', PROFILE_PHOTO_COMPRESSION]);
@@ -135,8 +139,96 @@ test('account.portfolio: 열한 번째 사진이라 주소를 못 받으면 아�
       },
       put: async () => void calls.push('put'),
       complete: async () => void calls.push('complete'),
+      trackTemporary: async () => {},
+      discard: async () => {},
     }),
     (error) => error.code === 'portfolio_photo_limit_exceeded',
   );
   assert.deepEqual(calls, []);
+});
+
+/** 장부 흉내 — 올리기가 만든 임시 파일을 적고, 다 쓰면 지운다. */
+function fileLedger() {
+  const tracked = [];
+  const discarded = [];
+  return {
+    tracked,
+    discarded,
+    deps: {
+      trackTemporary: async (uri) => void tracked.push(uri),
+      discard: async (uris) => void discarded.push(...uris),
+    },
+  };
+}
+
+test('account.withdraw: 사진 올리기가 끝나면 줄인 파일과 고른 사진의 복사본을 기기에서 바로 지운다', async () => {
+  const ledger = fileLedger();
+  const { deps } = fakes(ledger.deps);
+
+  await uploadProfilePhoto('file:///cache/ImagePicker/picked.heic', deps);
+
+  // 앱이 도중에 죽어도 다음 실행이 지우도록 만들자마자 장부에 적는다.
+  assert.deepEqual(ledger.tracked, ['file:///cache/ImagePicker/picked.heic', 'file:///cache/compressed.jpg']);
+  assert.deepEqual(ledger.discarded, ['file:///cache/compressed.jpg', 'file:///cache/ImagePicker/picked.heic']);
+});
+
+test('account.withdraw: 사진 올리기가 실패해도 줄인 파일을 기기에 남기지 않는다', async () => {
+  for (const failing of ['sizeOf', 'createIntent', 'put', 'complete']) {
+    const ledger = fileLedger();
+    const { deps } = fakes({
+      ...ledger.deps,
+      [failing]: async () => {
+        throw new TypeError(`${failing} failed`);
+      },
+    });
+
+    await assert.rejects(uploadProfilePhoto('file:///cache/ImagePicker/picked.heic', deps), failing);
+
+    assert.deepEqual(
+      ledger.discarded,
+      ['file:///cache/compressed.jpg', 'file:///cache/ImagePicker/picked.heic'],
+      failing,
+    );
+  }
+});
+
+test('account.withdraw: 줄이기가 실패해도 고른 사진의 복사본은 지운다', async () => {
+  const ledger = fileLedger();
+  const { deps } = fakes({
+    ...ledger.deps,
+    compress: async () => {
+      throw new Error('compress failed');
+    },
+  });
+
+  await assert.rejects(uploadProfilePhoto('file:///cache/ImagePicker/picked.heic', deps));
+
+  assert.deepEqual(ledger.discarded, ['file:///cache/ImagePicker/picked.heic']);
+});
+
+test('account.withdraw: 파일 정리가 실패해도 사진 올리기의 결과는 그대로다', async () => {
+  const { deps } = fakes({
+    trackTemporary: async () => {
+      throw new Error('ledger broken');
+    },
+    discard: async () => {
+      throw new Error('ledger broken');
+    },
+  });
+
+  const me = await uploadProfilePhoto('file:///cache/ImagePicker/picked.heic', deps);
+
+  assert.equal(me.profile.photo_url, 'https://cdn.test/me.jpg');
+});
+
+test('account.profile: 사진 파일을 읽지 못했다는 안내는 언어 파일에서 온다 — 영어 기기에 한국어가 뜨지 않는다', async () => {
+  const { default: ko } = await import('../locales/ko.ts');
+  const { default: en } = await import('../locales/en.ts');
+  const { deps } = fakes({ sizeOf: async () => null });
+
+  await assert.rejects(
+    uploadProfilePhoto('file:///picked/photo.jpg', deps),
+    (error) => error.message === ko.profileName.photoUnreadable,
+  );
+  assert.doesNotMatch(en.profileName.photoUnreadable, /[가-힣]/);
 });

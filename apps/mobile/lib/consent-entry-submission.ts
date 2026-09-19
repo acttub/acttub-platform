@@ -3,6 +3,7 @@ import type {
   ConsentEntryDocument,
   ConsentEntryResponse,
 } from './api.ts';
+import { translate } from './i18n.ts';
 
 export type ConsentChoice = 'granted' | 'declined';
 
@@ -57,7 +58,7 @@ export function buildSignupDecisions(
   choices: ReadonlyMap<string, ConsentChoice>,
 ): SignupDecision[] {
   if (!canSubmitConsentDecisions(documents, choices)) {
-    throw new Error('모든 동의 문서의 결정을 선택해야 합니다.');
+    throw new Error(translate('consent.undecided'));
   }
   return documents.map((document) => ({
     document_id: document.id,
@@ -118,7 +119,7 @@ export async function submitConsentDecisions({
   const results = await Promise.allSettled(
     remainingDocuments.map(async (document) => {
       const action = choices.get(document.id);
-      if (!action) throw new Error('모든 동의 문서의 결정을 선택해야 합니다.');
+      if (!action) throw new Error(translate('consent.undecided'));
       await recordDecision(document.id, action);
       return document.id;
     }),

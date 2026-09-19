@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { signOutBestEffort, withdrawAccount } from '../lib/auth-session.ts';
+import { signOutBestEffort, wipeClosedAccount, withdrawAccount } from '../lib/auth-session.ts';
 
 function recorder(failing = []) {
   const calls = [];
@@ -146,4 +146,41 @@ test('account.withdraw: 탈퇴 뒤에는 마지막 로그인 제공자 기억도
   await withdrawAccount(withdrawSteps(step));
 
   assert.ok(calls.includes('lastProvider'));
+});
+
+function closedAccountSteps(step) {
+  const { disconnectProviders, serverWithdraw, ...closed } = withdrawSteps(step);
+  return closed;
+}
+
+test('account.withdraw: 다른 기기에서 탈퇴해 세션이 끊긴 폰과 만 14세 미만으로 닫힌 계정의 폰도 탈퇴와 같은 순서로 기기를 비운다', async () => {
+  const closed = recorder();
+  const withdrawn = recorder();
+
+  await wipeClosedAccount(closedAccountSteps(closed.step));
+  await withdrawAccount(withdrawSteps(withdrawn.step));
+
+  assert.deepEqual(closed.calls, ['push', 'reminders', 'wipe', 'lastProvider', 'provider', 'local']);
+  // 탈퇴는 서버 파기 뒤에 같은 한 벌을 돈다 — 기기 비우기는 한 자리에만 있다.
+  assert.deepEqual(withdrawn.calls, ['disconnect', 'server', ...closed.calls]);
+});
+
+test('account.withdraw: 닫힌 계정의 기기 비우기는 서버를 부르지 않는다 — 계정은 이미 서버에서 사라졌다', async () => {
+  const { calls, step } = recorder();
+
+  await wipeClosedAccount(closedAccountSteps(step));
+
+  assert.equal(calls.includes('server'), false);
+  assert.equal(calls.includes('disconnect'), false);
+});
+
+test('account.withdraw: 닫힌 계정의 기기 비우기는 하나가 실패해도 끝까지 가서 기기 토큰을 지운다', async () => {
+  for (const failing of ['push', 'reminders', 'wipe', 'lastProvider', 'provider']) {
+    const { calls, step } = recorder([failing]);
+
+    await wipeClosedAccount(closedAccountSteps(step));
+
+    assert.equal(calls.at(-1), 'local', failing);
+    assert.equal(calls.length, 6, failing);
+  }
 });

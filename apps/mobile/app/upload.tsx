@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FirstUploadGuide } from '@/components/first-upload-guide';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
+import { keepDeviceFile } from '@/lib/account-files';
 import { beginAnalysisNavigation } from '@/lib/analysis-entry';
 import type { VideoFile } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -120,6 +121,8 @@ export default function UploadScreen() {
     });
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
+    // 고른 영상은 캐시에 생긴 복사본이다. 코치 화면이 다시 틀기 때문에 두었다가 탈퇴 때 지운다.
+    void keepDeviceFile(asset.uri);
     acceptVideo({
       uri: asset.uri,
       durationMs: asset.duration ?? null,

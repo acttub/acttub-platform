@@ -85,7 +85,8 @@ export function createGuestTransfer(dependencies: {
     /** 팝업에서 고른 쪽을 실어 같은 코드로 다시 보낸다. */
     choose(memoryChoice: MemoryChoice): Promise<TransferOutcome> {
       if (awaitingChoice === null) {
-        return Promise.reject(new Error('기억을 고를 이관 요청이 없어요.'));
+        // 화면에 닿지 않는 가드다 — 팝업은 memory_choice_required 뒤에만 뜬다.
+        return Promise.reject(new Error('choose() called with no transfer awaiting a memory choice'));
       }
       return request(awaitingChoice, memoryChoice);
     },

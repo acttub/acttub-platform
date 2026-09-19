@@ -202,3 +202,18 @@ test('account.profile: 소개는 선택 항목이다 — 비우면 null로 저�
   assert.equal(buildProfilePayload(filled, today, { bio: '  무대를 좋아해요 ' }).bio, '무대를 좋아해요');
   assert.equal(isBioValid(''), true);
 });
+
+test('account.profile: 저장을 막는 안내는 언어 파일에서 온다 — 영어 기기에 한국어가 뜨지 않는다', async () => {
+  const { default: ko } = await import('../locales/ko.ts');
+  const { default: en } = await import('../locales/en.ts');
+
+  assert.throws(
+    () => buildProfilePayload({ ...filled, goal: null }, today),
+    (error) => error.message === ko.profileName.incomplete,
+  );
+  assert.throws(
+    () => buildProfilePayload(filled, today, { bio: '가'.repeat(81) }),
+    (error) => error.message === ko.profileName.bioTooLong,
+  );
+  assert.doesNotMatch(en.profileName.incomplete, /[가-힣]/);
+});

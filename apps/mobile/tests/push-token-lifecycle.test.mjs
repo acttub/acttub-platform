@@ -174,3 +174,22 @@ test('account.notification: 저장소가 깨져 있어도 로그아웃과 재시
   await lifecycle.detach();
   assert.deepEqual(await lifecycle.pendingDeletions(), []);
 });
+
+test('account.logout: 로그아웃의 토큰 삭제가 줄을 선 뒤에 도착한 옛 동기화의 등록은 서버에 가지 않는다 — 로그아웃 뒤 그 폰에 알림이 오지 않는다', async () => {
+  const storage = memoryStorage();
+  const server = fakeServer();
+  const lifecycle = createPushTokenLifecycle({ storage, api: server.api });
+  await lifecycle.register('T1', 'ios');
+  let current = true;
+
+  // 로그아웃의 첫 단계가 줄을 서고, 권한 창에서 늦게 돌아온 옛 동기화가 그 뒤에 등록을 건다.
+  // 이때 액세스 토큰은 아직 기기에 있어 서버는 등록을 받아 준다.
+  current = false;
+  const detaching = lifecycle.detach();
+  const registering = lifecycle.register('T1', 'ios', () => current);
+  await Promise.all([detaching, registering]);
+
+  assert.equal(server.state.tokens.has('T1'), false);
+  assert.equal(await lifecycle.currentToken(), null);
+  assert.deepEqual(server.state.calls, ['POST T1', 'DELETE T1']);
+});

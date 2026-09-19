@@ -2,21 +2,20 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Linking, Platform } from 'react-native';
 
 import { api } from './api';
+import { createNotificationSync } from './notification-sync';
 import {
   NUDGE_BODY,
   NUDGE_TITLE,
   legacyOptOutPatch,
   localDayKey,
   notificationEffects,
-  nudgeFireDates,
   parseNotificationSettings,
   permissionPrompt,
-  practicedToday,
   registrablePlatform,
-  wantsServerPush,
   type NotificationSettings,
 } from './push-policy';
 import { createPushTokenLifecycle } from './push-token-lifecycle';
+import { LAST_PRACTICE_KEY, createReminderSchedule, type IsCurrent } from './reminder-schedule';
 
 export * from './push-policy';
 
@@ -50,8 +49,6 @@ try {
 
 /** 'acttub.' 접두사 — 탈퇴 시 local-account-data 가 이 접두사를 통째로 지운다. */
 const SETTINGS_KEY = 'acttub.push.settings';
-const NUDGE_IDS_KEY = 'acttub.push.nudgeIds';
-const LAST_PRACTICE_KEY = 'acttub.push.lastPracticeDay';
 /** 1.0.0 이전의 기기 토글. 한 번 서버로 옮기고 지운다(legacyOptOutPatch). */
 const LEGACY_ENABLED_KEY = 'acttub.push.enabled';
 
@@ -61,6 +58,32 @@ const pushTokens = createPushTokenLifecycle({
     register: (token, platform) => api.registerPushToken(token, platform),
     unregister: (token) => api.unregisterPushToken(token),
   },
+});
+
+/** 맞추기와 취소를 한 줄로 세운다(reminder-schedule). 모듈이 없는 빌드에서는 부르지 않는다. */
+const reminders = createReminderSchedule({
+  storage: AsyncStorage,
+  scheduler: {
+    schedule: (date) =>
+      notifications!.scheduleNotificationAsync({
+        content: { title: NUDGE_TITLE, body: NUDGE_BODY },
+        trigger: { type: notifications!.SchedulableTriggerInputTypes.DATE, date },
+      }),
+    cancel: (id) => notifications!.cancelScheduledNotificationAsync(id),
+    cancelAll: () => notifications!.cancelAllScheduledNotificationsAsync(),
+  },
+  now: () => new Date(),
+});
+
+/** 계정 세대와 동기화의 순서(notification-sync). 로그아웃이 진행 중인 동기화를 무효로 한다. */
+const notificationSync = createNotificationSync({
+  loadSettings: (isCurrent) => loadNotificationSettings(isCurrent),
+  cachedSettings,
+  registerDevice: registerThisDevice,
+  forgetToken: () => pushTokens.forget(),
+  flushPendingDeletions: () => pushTokens.flushPending().catch(() => undefined),
+  reminders: { sync: syncDailyNudge, cancelAll: cancelScheduledReminders },
+  now: () => Date.now(),
 });
 
 /**
@@ -95,12 +118,17 @@ async function cacheSettings(settings: NotificationSettings): Promise<void> {
 /**
  * 서버의 토글 셋을 읽는다. 1.0.0 이전에 기기에서 알림을 꺼 둔 사람은 그 선택을 먼저 서버로
  * 옮긴다 — 업데이트했다고 서버 기본값(모두 켜짐)으로 알림을 받기 시작하면 안 된다.
+ *
+ * 응답을 기다리는 사이 계정이 떠났으면(isCurrent 가 거짓) 읽은 값을 기기에 적지 않는다.
  */
-export async function loadNotificationSettings(): Promise<NotificationSettings> {
+export async function loadNotificationSettings(
+  isCurrent: IsCurrent = () => true,
+): Promise<NotificationSettings> {
   const legacy = legacyOptOutPatch(await AsyncStorage.getItem(LEGACY_ENABLED_KEY).catch(() => null));
   const settings = legacy
     ? await api.updateNotificationSettings(legacy)
     : await api.notificationSettings();
+  if (!isCurrent()) return settings;
   await AsyncStorage.removeItem(LEGACY_ENABLED_KEY).catch(() => undefined);
   await cacheSettings(settings);
   return settings;
@@ -111,40 +139,54 @@ export async function loadNotificationSettings(): Promise<NotificationSettings> 
  *
  * 시뮬레이터·권한 거부·모듈 없음·서버 오류 — 전부 조용히 끝낸다. 등록이 안 된 단말은
  * 푸시를 못 받을 뿐, 앱을 열면 홈이 이어서 안내한다. 등록에 성공하면 밀린 삭제를 버린다.
+ *
+ * 배경 복귀 때는 권한을 새로 묻지 않는다(askPermission=false) — 권한 창이 앱을 다시 배경으로
+ * 보내 복귀가 되풀이된다. 권한 창에서 돌아왔을 때 계정이 이미 떠났으면 등록하지 않는다.
  */
-async function registerThisDevice(): Promise<void> {
+async function registerThisDevice({
+  askPermission,
+  isCurrent,
+}: {
+  askPermission: boolean;
+  isCurrent: IsCurrent;
+}): Promise<void> {
   if (!notifications) return;
   const platform = registrablePlatform(Platform.OS);
   if (!platform) return;
   if (device && !device.isDevice) return; // 시뮬레이터는 푸시 토큰이 없다
   try {
     let permission = await notifications.getPermissionsAsync();
-    if (!permission.granted && permission.canAskAgain) {
+    if (!permission.granted && permission.canAskAgain && askPermission) {
       permission = await notifications.requestPermissionsAsync();
     }
     if (!permission.granted) return;
     const token = (await notifications.getExpoPushTokenAsync()).data;
     if (!token) return;
-    await pushTokens.register(token, platform);
+    await pushTokens.register(token, platform, isCurrent);
   } catch {
     // 최선 노력 — 다음 기동에서 다시 시도한다.
   }
 }
 
 /**
- * 게이트(동의 → 프로필)를 통과한 순간과, 게이트가 이미 끝난 회원이 앱을 열 때 부른다.
+ * 게이트(동의 → 프로필)를 통과한 순간과, 게이트가 이미 끝난 회원이 앱을 켰을 때 부른다.
  * 서버의 토글을 읽어 이 폰의 토큰 등록과 리마인드 30일치를 현재 상태에 맞춘다.
- * 서버를 못 읽으면 기기에 적어 둔 마지막 값으로 간다.
+ * 서버를 못 읽으면 기기에 적어 둔 마지막 값으로 간다. 도중에 로그아웃하면 멈춘다.
  */
-export async function syncNotificationsAfterGate(): Promise<void> {
-  const settings = await loadNotificationSettings().catch(() => cachedSettings());
-  if (wantsServerPush(settings)) await registerThisDevice();
-  else await pushTokens.forget();
-  await syncDailyNudge(settings);
+export function syncNotificationsAfterGate(): Promise<void> {
+  return notificationSync.afterGate();
 }
 
 /**
- * 앱을 열 때 부른다 — 로그인 여부와 무관하다. 로그아웃 때 지우지 못한 푸시 토큰을 다시
+ * 앱이 배경에서 돌아왔을 때 부른다 — "앱을 열 때"는 새로 켤 때만이 아니다. 밀린 토큰 삭제는
+ * 로그인 없이도 다시 보내고, 게이트를 통과한 계정이 있으면 최소 간격을 두고 다시 맞춘다.
+ */
+export function syncNotificationsOnForeground(gatePassed: boolean): Promise<void> {
+  return notificationSync.onForeground({ gatePassed });
+}
+
+/**
+ * 앱을 켤 때 부른다 — 로그인 여부와 무관하다. 로그아웃 때 지우지 못한 푸시 토큰을 다시
  * 보낸다. 삭제는 로그인 없이 받으므로 기기에 액세스 토큰이 없어도 된다.
  */
 export async function flushPendingPushTokenDeletions(): Promise<void> {
@@ -166,6 +208,7 @@ export async function setNotificationToggle(
   key: keyof NotificationSettings,
   value: boolean,
 ): Promise<ToggleResult> {
+  const isCurrent = notificationSync.guard();
   let blocked = false;
   if (notifications) {
     const permission = await notifications.getPermissionsAsync();
@@ -185,8 +228,8 @@ export async function setNotificationToggle(
   await cacheSettings(settings);
   const effects = notificationEffects(previous, settings);
   if (effects.forgetToken) await pushTokens.forget();
-  if (effects.registerToken) await registerThisDevice();
-  if (effects.scheduleReminders || effects.cancelReminders) await syncDailyNudge(settings);
+  if (effects.registerToken) await registerThisDevice({ askPermission: true, isCurrent });
+  if (effects.scheduleReminders || effects.cancelReminders) await syncDailyNudge(settings, isCurrent);
   return { kind: blocked ? 'permission_blocked' : 'saved', settings };
 }
 
@@ -198,13 +241,18 @@ export function openNotificationPermissionSettings(): Promise<void> {
 /**
  * 로그아웃의 첫 단계 — 이 폰의 푸시 토큰을 서버에서 지운다. 실패해도 던지지 않고 기기에 적어
  * 두었다가 다음 실행 때 다시 보낸다(push-token-lifecycle).
+ *
+ * 계정이 떠나기 시작하는 자리라 진행 중인 동기화부터 무효로 한다. 기기의 액세스 토큰은
+ * 로그아웃의 마지막 단계까지 살아 있어, 두면 늦게 돌아온 동기화가 지운 토큰을 다시 등록한다.
  */
 export function detachPushToken(): Promise<void> {
+  notificationSync.invalidate();
   return pushTokens.detach();
 }
 
 /** 탈퇴 뒤 — 서버가 토큰을 전부 지웠으므로 기기의 기록만 버린다. */
 export function forgetPushToken(): Promise<void> {
+  notificationSync.invalidate();
   return pushTokens.forget();
 }
 
@@ -212,63 +260,33 @@ export function forgetPushToken(): Promise<void> {
  * 연습을 마쳤을 때 부른다 — 오늘을 기록하고 리마인드를 내일부터로 다시 깐다(오늘 것만 끈다).
  */
 export async function markPracticedToday(): Promise<void> {
+  const isCurrent = notificationSync.guard();
   try {
     await AsyncStorage.setItem(LAST_PRACTICE_KEY, localDayKey(new Date()));
   } catch {
     // 기록을 못 해도 리마인드가 한 번 더 올 뿐이다.
   }
-  await syncDailyNudge(await cachedSettings());
+  await syncDailyNudge(await cachedSettings(), isCurrent);
 }
 
 /**
- * 저녁 리마인드를 현재 상태에 맞게 다시 깐다. 게이트 통과·앱 기동·연습 완료·토글에서 부른다.
- * 반복 트리거로는 "오늘만 건너뛰기" 가 안 되어 앞으로 30일치를 낱개로 예약한다.
+ * 저녁 리마인드를 현재 상태에 맞게 다시 깐다. 게이트 통과·앱 열기·연습 완료·토글에서 부른다.
+ * 순서와 "도중에 계정이 떠나면 멈춘다"는 reminder-schedule 이 정한다.
  */
-async function syncDailyNudge(settings: NotificationSettings): Promise<void> {
+async function syncDailyNudge(settings: NotificationSettings, isCurrent: IsCurrent): Promise<void> {
   if (!notifications) return;
-  if (!settings.evening_reminder) {
-    await cancelReminders();
-    return;
-  }
-  try {
-    await cancelReminders();
-    const now = new Date();
-    const last = await AsyncStorage.getItem(LAST_PRACTICE_KEY);
-    const dates = nudgeFireDates(now, practicedToday(last, now));
-    const ids: string[] = [];
-    for (const date of dates) {
-      ids.push(
-        await notifications.scheduleNotificationAsync({
-          content: { title: NUDGE_TITLE, body: NUDGE_BODY },
-          trigger: { type: notifications.SchedulableTriggerInputTypes.DATE, date },
-        }),
-      );
-    }
-    await AsyncStorage.setItem(NUDGE_IDS_KEY, JSON.stringify(ids));
-  } catch {
-    // 리마인드는 부가 기능 — 실패해도 흐름을 막지 않는다.
-  }
+  await reminders.sync(settings, isCurrent);
 }
 
-/** 예약된 리마인드를 전부 취소한다. 로그아웃·탈퇴·토글 끔에서 부른다. */
-export async function cancelReminders(): Promise<void> {
+async function cancelScheduledReminders(): Promise<void> {
   if (!notifications) return;
-  const raw = await AsyncStorage.getItem(NUDGE_IDS_KEY);
-  if (!raw) return;
-  await AsyncStorage.removeItem(NUDGE_IDS_KEY);
-  let ids: string[] = [];
-  try {
-    ids = JSON.parse(raw) as string[];
-  } catch {
-    // 깨진 저장소 — 예약 id 를 잃었다. 이 앱이 예약하는 로컬 알림은 리마인드뿐이라 전부 취소한다.
-    await notifications.cancelAllScheduledNotificationsAsync().catch(() => undefined);
-    return;
-  }
-  for (const id of ids) {
-    try {
-      await notifications.cancelScheduledNotificationAsync(id);
-    } catch {
-      // 이미 울렸거나 없는 예약 — 무시.
-    }
-  }
+  await reminders.cancelAll();
+}
+
+/**
+ * 예약된 리마인드를 전부 취소한다. 로그아웃·탈퇴·세션 끊김에서 부른다. 진행 중인 동기화를 무효로
+ * 한 뒤에 취소하므로, 30일치를 맞추던 중이어도 취소가 마지막에 끝난다(notification-sync).
+ */
+export function cancelReminders(): Promise<void> {
+  return notificationSync.leave();
 }
