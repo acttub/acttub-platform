@@ -87,6 +87,17 @@ Schema Entity는 활성 영속 경로를 매핑하고 `actor_memory_entries`·`p
   현재 분석 저장자와 관찰 소비자는 사용하지 않는다.
 - `practice_sessions.subtext`: 현재 입력·코칭에서 소비하지 않아 내부 전달도 종료했다.
 - `users.role`: 현재 관리자 인증은 별도 운영 토큰이며 사용자 역할 컬럼을 사용하지 않는다.
+- `community_*` 일곱 테이블(`community_categories`·`community_posts`·`community_comments`·
+  `community_post_likes`·`community_anonymous_aliases`·`community_reports`·`community_blocks`):
+  1.0.0에서 커뮤니티의 API와 코드를 내렸다([05-community.md](../../docs/requirements/05-community.md)).
+  `/v2/community/**`는 404다. 글·댓글·차단·신고·카테고리 데이터와 CHECK 값 검사
+  (`ValueCheckCatalogIT`)는 그대로 두고, 되살릴 때는 git 이력에서 `feature/community`를 가져온다.
+- `users.nickname`: 이름은 `user_profiles.name`이 정본이다. V7이 옛 값을 복사했고 Schema Entity는
+  이 컬럼을 매핑하지 않으며 조회·수정은 이 컬럼을 보지 않는다. **탈퇴의 파기만 예외로 이 컬럼에
+  NULL을 쓴다** — 복사 뒤에도 옛 값이 남아 있고 탈퇴는 이름을 지체 없이 파기해야 하기 때문이다
+  (`PostgresProfileRepository#deactivate`). 그래서 물리 삭제는 두 릴리스에 걸친다: 그 쓰기를 걷어낸
+  릴리스 다음에 `DROP COLUMN` 한다. 이 쓰기가 남아 있는 동안 `LegacyStorageCompatibilityIT`의 제거
+  대상에는 넣지 않는다.
 
 이 목록의 DB 구조와 과거 값은 그대로 보존한다. 물리 축소는 호환 코드의 dev·운영 배포와
 실제 데이터·외부 소비·백업/복원 확인 후 별도 릴리스에서 진행한다. 동결 마이그레이션과
@@ -142,7 +153,8 @@ JSON 연산, 상관 서브쿼리 조건부 갱신은 Spring Data `save()`나 조
    모르는 값을 읽을 때 예외를 던지는 `PgEnumConverter#convertToEntityAttribute`.
 2. **PK 는 BIGSERIAL 둘을 뺀 나머지가 전부 UUID 다.** 대부분 앱에서 생성하고,
    `CoachSession.id` 만 외부에서 오며 `push_tokens.id`는 DB default가 생성한다.
-   `HandoffConfirmation` 은 PK 가 `coaching_handoff_id` 로 **FK 겸 PK** 다.
+   `HandoffConfirmation` 은 PK 가 `coaching_handoff_id` 로 **FK 겸 PK** 다. 회원당 하나인
+   `user_profiles`·`portfolios` 도 PK 가 `user_id` 로 같은 형태다.
    Spring Data `save()` 는 `@Id` 가 non-null 이면 `merge()` 를 호출해 불필요한 SELECT 가
    붙는다. → 앱 생성 PK 는 `Persistable<UUID>` 구현(`AppGeneratedUuidEntity`), 그리고
    **INSERT 전 SELECT 가 없음을 검증**한다
@@ -172,6 +184,7 @@ JSON 연산, 상관 서브쿼리 조건부 갱신은 Spring Data `save()`나 조
    `blockage_kind`×`sub_branch` 조합을 묶고, `actor_memory_entries` 에는 값의 공백·길이·
    대상 조합을 묶는 제약이 걸려 있다 — **임의의 값을 넣으면 INSERT 가 거부된다.**
 7. **`community_reports.target_id` 는 의도적으로 FK 가 없다** — 글과 댓글 양쪽을 가리킨다.
+   (매핑은 은퇴했고 테이블은 남아 있다, §5-1.)
 
 ### 5-4. 트랜잭션 경계
 
@@ -331,12 +344,12 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 | 8 | S3 presign | **리전 엔드포인트 고정.** 글로벌 엔드포인트는 신규 버킷에 307 |
 | 9 | ffmpeg | 동시 실행 1개 락, 600초 타임아웃, 실패·부재 시 원본 폴백 |
 | 10 | 제약명 문자열 의존 | **`consent_documents` 유니크 위반** 판정을 `PSQLException.getServerErrorMessage().getConstraint()` 로 한다. 그래서 `org.postgresql:postgresql` 이 `runtimeOnly` 가 아니라 `implementation` 이다. 리포트 멱등은 제약명을 보지 않는다(`uq_practice_reports_source_handoff` 에 대한 `ON CONFLICT DO NOTHING`) |
-| 11 | 테이블 락 획득 순서 | `upload_intents`→`external_operations`, `practice_sessions`→`practice_reports`, `community_posts`→`community_anonymous_aliases`. 바꾸면 데드락 |
+| 11 | 테이블 락 획득 순서 | `upload_intents`→`external_operations`, `practice_sessions`→`practice_reports`. 바꾸면 데드락 |
 | 12 | canonical JSON | 멱등 replay 는 키 정렬 + 공백 없음 + 한글 raw UTF-8 |
 | 13 | `X-Request-Id` 응답 헤더 | 바디만 맞추면 놓친다 |
 | 14 | v1 경로 404 | `/summarize`, `/coach/start`, `/coach/reply`, `/report`, `/report/history/{id}` 5개 |
 | 15 | 숫자 파싱 | `size_bytes: 12.0`(정수형 float) → **201**, `12.5` → **422** |
-| 16 | 커뮤니티 읽기 공개 | 스펙엔 `security` 가 붙어 있지만 실제로는 optional — **토큰 없이 200** |
+| 16 | 커뮤니티 API 은퇴 | `/v2/community/**` 는 **404** 다(1.0.0, 테이블은 보존 §5-1). 인증이 선택이던 경로는 이것뿐이었다. `Authorization` 헤더가 오면 없는 경로에서도 먼저 검증한다 — 탈퇴한 계정의 토큰은 403 |
 | 17 | 미처리 예외 500 | `{"detail":"internal_server_error"}` |
 | 18 | 5xx `ApiException` | `ApiException.external(...)`·`ApiException.unexpected(...)` 팩토리로만 원인과 함께 만든다 |
 
@@ -344,7 +357,7 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 
 | 동작 | 대상 |
 |---|---|
-| **required + `null` 값을 실어 보냄** | `AuthUser.email`, `MeResponse.email`/`.nickname`, `CoachTurnResponse.handoff`/`.report`, `CoachConfirmResponse.handoff`, `SourceHandoffIds.analysis`, `PostListResponse.next_cursor`, `CommentListResponse.next_cursor`, `AuthorPayload.id`/`.nickname`/`.alias`, `CategoryPayload.description`, `BlockPayload.nickname`, `MemoryItem.source_practice_session_id`, `ConsentEntryDocument.current_decision` |
+| **required + `null` 값을 실어 보냄** | `AuthUser.email`, `MeResponse.email`/`.nickname`, `CoachTurnResponse.handoff`/`.report`, `CoachConfirmResponse.handoff`, `SourceHandoffIds.analysis`, `MemoryItem.source_practice_session_id`, `ConsentEntryDocument.current_decision` |
 | **optional + 조건부로 키를 추가** | `PracticeSessionDetail.summary`(status 가 `analyzed` 이고 summary 가 있을 때만), `.error_code`(`failed` 일 때만) |
 | **optional 인데 항상 포함** | `PracticeSessionStatusResponse.error_code` |
 
@@ -397,14 +410,14 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 
 ### 6-3. unknown key 정책 — 전역 reject + DTO 별 예외
 
-요청 바디 17개 중 **5개가 unknown key 를 허용**한다:
+요청 바디 14개 중 **5개가 unknown key 를 허용**한다:
 
 ```
 POST /v2/auth/login      POST /v2/auth/logout     POST /v2/auth/refresh
 POST /v2/consents        POST /v2/uploads/intents
 ```
 
-나머지 12개는 `additionalProperties: false` 다.
+나머지 9개는 `additionalProperties: false` 다.
 
 **전역 `fail-on-unknown-properties: true` + 허용할 5개에
 `@JsonIgnoreProperties(ignoreUnknown = true)`.**
@@ -412,7 +425,7 @@ POST /v2/consents        POST /v2/uploads/intents
 **반대 방향(전역 허용 + DTO 별 거부)은 Jackson 이 표현하지 못한다** — 실제로 시도해 실패했다.
 `ignoreUnknown = false` 는 "거부하라" 가 아니라 **"전역 설정을 따르라"** 는 뜻이라 기본값과 다를
 바 없고, 예외가 나지 않는다. Spring Boot 기본값은 `false`(무시)라서, **그 기본을 쓰면 거부해야
-할 12개를 닫을 수단이 없다.**
+할 9개를 닫을 수단이 없다.**
 
 **개수를 박지 말고 `openapi.json` 에서 확인한다** — 이관 중에 이 집합이 7→5 로 바뀐 적이 있다.
 
@@ -441,9 +454,10 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 
-1. **좋아요 카운트는 재집계다**(`feature/community/adapter/db/PostgresCommunityRepository`).
-   증감 방식이 "두 번 눌리면 2 증가" 하던 버그 때문에 의도적으로 선택됐다. 성능 명목으로
-   증감으로 되돌리면 버그가 부활한다.
+1. **좋아요 카운트는 재집계다.** 증감 방식이 "두 번 눌리면 2 증가" 하던 버그 때문에 의도적으로
+   선택됐다. 성능 명목으로 증감으로 되돌리면 버그가 부활한다. (1·2는 커뮤니티의 규칙이다. 코드는
+   1.0.0에서 내렸고 git 이력의 `feature/community/adapter/db/PostgresCommunityRepository`에 있다 —
+   되살릴 때와 챌린지의 좋아요·댓글 집계를 만들 때 같은 규칙을 지킨다.)
 2. **댓글 수 증감은 원자적이어야 한다.** `post.setCommentCount(get()+1)` 형태로 옮기면 lost
    update 가 새로 생긴다. 벌크 UPDATE 로 분리한다.
 3. **상관 서브쿼리에서 앵커 테이블을 명시한다.** 명시하지 않으면 같은 테이블이 FROM 에 두 번

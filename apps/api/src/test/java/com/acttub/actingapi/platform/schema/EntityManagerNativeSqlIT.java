@@ -54,13 +54,13 @@ class EntityManagerNativeSqlIT {
         UUID userId = insertUser("native-returning@example.test");
 
         inTransaction(() -> {
-            List<Tuple> noRows = updateUserReturning(UUID.randomUUID(), "없음");
+            List<Tuple> noRows = updateUserReturning(UUID.randomUUID(), "native-nobody@example.test");
             assertThat(noRows).isEmpty();
 
-            List<Tuple> oneRow = updateUserReturning(userId, "바뀐 이름");
+            List<Tuple> oneRow = updateUserReturning(userId, "native-returned@example.test");
             assertThat(oneRow).singleElement().satisfies(row -> {
                 assertThat(row.get("id", UUID.class)).isEqualTo(userId);
-                assertThat(row.get("nickname", String.class)).isEqualTo("바뀐 이름");
+                assertThat(row.get("email", String.class)).isEqualTo("native-returned@example.test");
                 assertThat(row.get("status", String.class)).isEqualTo("active");
             });
         });
@@ -95,13 +95,13 @@ class EntityManagerNativeSqlIT {
 
         TransactionTemplate transaction = transaction();
         transaction.executeWithoutResult(status -> {
-            updateNickname(userId, "롤백 이름");
+            updateEmail(userId, "native-rolled-back@example.test");
             status.setRollbackOnly();
         });
-        assertThat(nickname(userId)).isNull();
+        assertThat(email(userId)).isEqualTo("native-transaction@example.test");
 
-        transaction.executeWithoutResult(status -> updateNickname(userId, "커밋 이름"));
-        assertThat(nickname(userId)).isEqualTo("커밋 이름");
+        transaction.executeWithoutResult(status -> updateEmail(userId, "native-committed@example.test"));
+        assertThat(email(userId)).isEqualTo("native-committed@example.test");
     }
 
     @Test
@@ -144,15 +144,17 @@ class EntityManagerNativeSqlIT {
 
         inTransaction(() -> {
             UserEntity managed = new UserEntity(
-                    userId, "native-cache@example.test", UserStatus.ACTIVE, "쓰기 전");
+                    userId, "native-cache@example.test", UserStatus.ACTIVE);
             entityManager.persist(managed);
             entityManager.flush();
 
-            updateNickname(userId, "native 변경");
-            assertThat(entityManager.find(UserEntity.class, userId).getNickname()).isEqualTo("쓰기 전");
+            updateEmail(userId, "native-changed@example.test");
+            assertThat(entityManager.find(UserEntity.class, userId).getEmail())
+                    .isEqualTo("native-cache@example.test");
 
             entityManager.clear();
-            assertThat(entityManager.find(UserEntity.class, userId).getNickname()).isEqualTo("native 변경");
+            assertThat(entityManager.find(UserEntity.class, userId).getEmail())
+                    .isEqualTo("native-changed@example.test");
         });
     }
 
@@ -195,21 +197,21 @@ class EntityManagerNativeSqlIT {
                 .setParameter("platform", platform));
     }
 
-    private List<Tuple> updateUserReturning(UUID userId, String nickname) {
+    private List<Tuple> updateUserReturning(UUID userId, String email) {
         return tuples(entityManager.createNativeQuery("""
                 WITH changed AS (
-                    UPDATE users SET nickname = :nickname
+                    UPDATE users SET email = :email
                     WHERE id = :id
-                    RETURNING id, nickname, status
+                    RETURNING id, email, status
                 )
-                SELECT id, nickname, status FROM changed
+                SELECT id, email, status FROM changed
                 """, Tuple.class)
-                .setParameter("nickname", nickname)
+                .setParameter("email", email)
                 .setParameter("id", userId));
     }
 
-    private void updateNickname(UUID userId, String nickname) {
-        assertThat(updateUserReturning(userId, nickname)).hasSize(1);
+    private void updateEmail(UUID userId, String email) {
+        assertThat(updateUserReturning(userId, email)).hasSize(1);
     }
 
     private void lockUser(UUID userId) {
@@ -225,8 +227,8 @@ class EntityManagerNativeSqlIT {
         return id;
     }
 
-    private String nickname(UUID userId) {
-        return jdbc.queryForObject("SELECT nickname FROM users WHERE id = ?", String.class, userId);
+    private String email(UUID userId) {
+        return jdbc.queryForObject("SELECT email FROM users WHERE id = ?", String.class, userId);
     }
 
     private TransactionTemplate transaction() {

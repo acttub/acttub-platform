@@ -51,6 +51,7 @@ class ValueCheckCatalogIT {
         BY_CONSTRAINT.put("ck_coach_sessions_status", SessionStatus.class);
         BY_CONSTRAINT.put("ck_coach_sessions_close_reason", CloseReason.class);
         BY_CONSTRAINT.put("ck_coach_turns_role", TurnRole.class);
+        // 커뮤니티는 코드를 내리고 테이블을 남겼다(1.0.0). 되살릴 때 값이 어긋나 있지 않게 계속 본다.
         BY_CONSTRAINT.put("ck_community_comments_status", ContentStatus.class);
         BY_CONSTRAINT.put("ck_community_posts_status", ContentStatus.class);
         BY_CONSTRAINT.put("ck_community_reports_target_type", ReportTargetType.class);
@@ -59,10 +60,15 @@ class ValueCheckCatalogIT {
         BY_CONSTRAINT.put("ck_consent_documents_type", ConsentType.class);
         BY_CONSTRAINT.put("ck_external_operations_kind", OperationKind.class);
         BY_CONSTRAINT.put("ck_external_operations_status", OperationStatus.class);
+        BY_CONSTRAINT.put("ck_portfolio_credits_kind", PortfolioCreditKind.class);
         BY_CONSTRAINT.put("ck_practice_sessions_status", PracticeStatus.class);
         BY_CONSTRAINT.put("ck_upload_intents_status", UploadStatus.class);
         BY_CONSTRAINT.put("ck_user_consents_action", ConsentAction.class);
         BY_CONSTRAINT.put("ck_user_identities_provider", IdentityProvider.class);
+        BY_CONSTRAINT.put("ck_user_profile_directions_direction", ActingDirection.class);
+        BY_CONSTRAINT.put("ck_user_profiles_experience", ActingExperience.class);
+        BY_CONSTRAINT.put("ck_user_profiles_gender", ProfileGender.class);
+        BY_CONSTRAINT.put("ck_user_profiles_goal", ActingGoal.class);
         BY_CONSTRAINT.put("ck_users_status", UserStatus.class);
     }
 
@@ -95,7 +101,7 @@ class ValueCheckCatalogIT {
     JdbcTemplate jdbc;
 
     @Test
-    @DisplayName("값 CHECK 스무 개가 각각 자기 Java enum 과 같은 값 목록을 갖는다")
+    @DisplayName("값 CHECK 스물다섯 개가 각각 자기 Java enum 과 같은 값 목록을 갖는다")
     void everyValueCheckHasExactlyTheValuesOfItsJavaEnum() {
         Map<String, Set<String>> actual = valueChecks();
 

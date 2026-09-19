@@ -15,22 +15,21 @@ import com.acttub.actingapi.feature.coach.schema.CoachSessionEntity;
 import com.acttub.actingapi.feature.coach.schema.CoachTurnEntity;
 import com.acttub.actingapi.feature.coach.schema.CoachingHandoffEntity;
 import com.acttub.actingapi.feature.coach.schema.HandoffConfirmationEntity;
-import com.acttub.actingapi.feature.community.schema.CommunityAnonymousAliasEntity;
 import com.acttub.actingapi.feature.report.schema.PracticeReportEntity;
-import com.acttub.actingapi.feature.community.schema.CommunityBlockEntity;
-import com.acttub.actingapi.feature.community.schema.CommunityCategoryEntity;
-import com.acttub.actingapi.feature.community.schema.CommunityCommentEntity;
-import com.acttub.actingapi.feature.community.schema.CommunityPostEntity;
-import com.acttub.actingapi.feature.community.schema.CommunityPostLikeEntity;
-import com.acttub.actingapi.feature.community.schema.CommunityReportEntity;
 import com.acttub.actingapi.feature.auth.schema.UserEntity;
 import com.acttub.actingapi.feature.auth.schema.UserIdentityEntity;
 import com.acttub.actingapi.feature.auth.schema.RefreshTokenEntity;
 import com.acttub.actingapi.feature.consent.schema.ConsentDocumentEntity;
 import com.acttub.actingapi.feature.consent.schema.UserConsentEntity;
 import com.acttub.actingapi.feature.memory.schema.ActorMemoryEntryEntity;
+import com.acttub.actingapi.feature.portfolio.schema.PortfolioCreditEntity;
+import com.acttub.actingapi.feature.portfolio.schema.PortfolioEntity;
+import com.acttub.actingapi.feature.portfolio.schema.PortfolioPhotoEntity;
 import com.acttub.actingapi.feature.practice.schema.PracticeSessionEntity;
+import com.acttub.actingapi.feature.profile.schema.UserProfileDirectionEntity;
+import com.acttub.actingapi.feature.profile.schema.UserProfileEntity;
 import com.acttub.actingapi.feature.push.schema.PushTokenEntity;
+import com.acttub.actingapi.feature.transfer.schema.GuestTransferCodeEntity;
 import com.acttub.actingapi.feature.upload.schema.UploadIntentEntity;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import jakarta.persistence.EntityManager;
@@ -93,13 +92,22 @@ class EntityMappingIT {
     @PersistenceContext
     EntityManager entityManager;
 
+    /**
+     * 매핑을 은퇴시키고 DB 에는 남긴 테이블 (apps/api/CONTRACT.md §5-1). 구형 {@code reports} 와,
+     * 1.0.0 에서 API·코드를 내린 커뮤니티 일곱이다({@code docs/requirements/05-community.md}).
+     */
+    private static final Set<String> RETIRED_TABLES = Set.of(
+            "reports",
+            "community_anonymous_aliases", "community_blocks", "community_categories",
+            "community_comments", "community_post_likes", "community_posts", "community_reports");
+
     @Test
-    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 25개 활성 엔티티를 포함한다")
-    void mapsExactlyTwentyFiveActiveEntities() {
+    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 24개 활성 엔티티를 포함한다")
+    void mapsExactlyTwentyFourActiveEntities() {
         Set<Class<?>> entities = entityManager.getMetamodel().getEntities().stream()
                 .map(jakarta.persistence.metamodel.Type::getJavaType)
                 .collect(java.util.stream.Collectors.toSet());
-        assertThat(entities).hasSize(25);
+        assertThat(entities).hasSize(24);
         assertThat(entities).contains(ActorMemoryEntryEntity.class, PushTokenEntity.class);
         assertThat(entities).allMatch(type -> type.getSimpleName().endsWith("Entity"));
         assertThat(entities).allMatch(type -> java.util.Arrays.stream(type.getDeclaredFields())
@@ -122,14 +130,20 @@ class EntityMappingIT {
         Set<String> activeTables = new java.util.HashSet<>(jdbc.queryForList("""
                 SELECT table_name FROM information_schema.tables
                 WHERE table_schema='public' AND table_type='BASE TABLE'
-                  AND table_name NOT IN ('flyway_schema_history', 'reports')
+                  AND table_name <> 'flyway_schema_history'
                 """, String.class));
+        assertThat(activeTables)
+                .as("은퇴한 매핑의 테이블은 DB 에 그대로 있다 — 코드만 내리고 자료는 보존한다")
+                .containsAll(RETIRED_TABLES);
+        activeTables.removeAll(RETIRED_TABLES);
         assertThat(entities.stream().map(type -> type.getAnnotation(Table.class).name())
                 .collect(java.util.stream.Collectors.toSet())).isEqualTo(activeTables);
         var retiredColumns = java.util.Map.of(
                 "summaries", Set.of("observation", "summary", "intent_alignment", "key_moment", "key_dimension"),
                 "practice_sessions", Set.of("subtext"),
-                "users", Set.of("role"));
+                // nickname: 이름은 `user_profiles.name` 이 정본이다. 컬럼은 직전 릴리스의 서버를
+                // 위해 남아 있고, 새 코드가 건드리는 곳은 탈퇴의 파기 하나다(결정 I-3).
+                "users", Set.of("role", "nickname"));
         for (Class<?> entity : entities) {
             String table = entity.getAnnotation(Table.class).name();
             Set<String> databaseColumns = new java.util.HashSet<>(jdbc.queryForList("""
@@ -156,13 +170,14 @@ class EntityMappingIT {
     @DisplayName("users: 값 CHECK 가 걸린 text 컬럼을 컨버터로 읽고 쓴다")
     void userRoundTrip() {
         UUID id = UUID.randomUUID();
-        entityManager.persist(new UserEntity(id, "a@example.test", UserStatus.ACTIVE, "닉네임"));
+        entityManager.persist(new UserEntity(id, "a@example.test", UserStatus.ACTIVE));
         entityManager.flush();
         entityManager.clear();
 
         UserEntity loaded = entityManager.find(UserEntity.class, id);
         assertThat(loaded.getStatus()).isEqualTo(UserStatus.ACTIVE);
-        assertThat(loaded.getNickname()).isEqualTo("닉네임");
+        assertThat(loaded.getEmail()).isEqualTo("a@example.test");
+        assertThat(loaded.getAgeConfirmedAt()).isNull();
         assertThat(jdbc.queryForObject("SELECT role FROM users WHERE id = ?", String.class, id))
                 .isEqualTo("user");
         assertThat(loaded.getDeactivatedAt()).isNull();
@@ -176,10 +191,49 @@ class EntityMappingIT {
 
     @Test
     @Transactional
+    @DisplayName("user_profiles: 값 CHECK 컬럼과 생년월일을 읽고 쓰며 알림 토글은 켜진 채로 시작한다")
+    void userProfileRoundTrip() {
+        UUID userId = UUID.randomUUID();
+        entityManager.persist(new UserEntity(userId, null, UserStatus.ACTIVE));
+        entityManager.persist(new UserProfileEntity(userId, "김배우", ProfileGender.FEMALE,
+                java.time.LocalDate.of(2001, 3, 14), ActingExperience.EXAM_PREP, ActingGoal.PROFESSIONAL));
+        entityManager.flush();
+        entityManager.persist(new UserProfileDirectionEntity(UUID.randomUUID(), userId, ActingDirection.MEDIA));
+        entityManager.flush();
+        entityManager.clear();
+
+        UserProfileEntity loaded = entityManager.find(UserProfileEntity.class, userId);
+        assertThat(loaded.getName()).isEqualTo("김배우");
+        assertThat(loaded.getGender()).isEqualTo(ProfileGender.FEMALE);
+        assertThat(loaded.getBirthDate()).isEqualTo(java.time.LocalDate.of(2001, 3, 14));
+        assertThat(loaded.getExperience()).isEqualTo(ActingExperience.EXAM_PREP);
+        assertThat(loaded.getGoal()).isEqualTo(ActingGoal.PROFESSIONAL);
+        assertThat(loaded.getPhotoKey()).isNull();
+        assertThat(loaded.getBio()).isNull();
+        assertThat(loaded.getAgeBand()).isNull();
+        // 토글 셋의 기본값은 모두 켜짐이다 (account.notification).
+        assertThat(loaded.isNotifyAnalysisDone()).isTrue();
+        assertThat(loaded.isNotifyChallenge()).isTrue();
+        assertThat(loaded.isNotifyEveningReminder()).isTrue();
+        assertThat(loaded.getCreatedAt()).isNotNull();
+
+        // DB 에 실제로 들어간 값은 결정 12 의 값 이름이다.
+        assertThat(jdbc.queryForMap(
+                "SELECT gender, experience, goal FROM user_profiles WHERE user_id = ?", userId))
+                .containsEntry("gender", "female")
+                .containsEntry("experience", "exam_prep")
+                .containsEntry("goal", "professional");
+        assertThat(jdbc.queryForList(
+                "SELECT direction FROM user_profile_directions WHERE user_id = ?", String.class, userId))
+                .containsExactly("media");
+    }
+
+    @Test
+    @Transactional
     @DisplayName("actor_memory_entries: 앱 생성 UUID·text converter·server default를 함께 보존한다")
     void actorMemoryRoundTrip() {
         UUID userId = UUID.randomUUID();
-        entityManager.persist(new UserEntity(userId, "memory@example.test", UserStatus.ACTIVE, null));
+        entityManager.persist(new UserEntity(userId, "memory@example.test", UserStatus.ACTIVE));
 
         UUID id = UUID.randomUUID();
         entityManager.persist(new ActorMemoryEntryEntity(
@@ -206,7 +260,7 @@ class EntityMappingIT {
     @DisplayName("practice_sessions: 부분 인덱스가 걸린 테이블도 정상 매핑된다")
     void practiceSessionRoundTrip() {
         UUID userId = UUID.randomUUID();
-        entityManager.persist(new UserEntity(userId, null, UserStatus.ACTIVE, null));
+        entityManager.persist(new UserEntity(userId, null, UserStatus.ACTIVE));
 
         UUID uploadIntentId = UUID.randomUUID();
         entityManager.flush();
@@ -242,7 +296,7 @@ class EntityMappingIT {
 
         UUID id = UUID.randomUUID();
         // Spring Data 의 save() 경로를 흉내낸다: isNew()==true 면 persist, 아니면 merge.
-        UserEntity entity = new UserEntity(id, "b@example.test", UserStatus.DEACTIVATED, null);
+        UserEntity entity = new UserEntity(id, "b@example.test", UserStatus.DEACTIVATED);
         assertThat(entity.isNew()).isTrue();
         entityManager.persist(entity);
         entityManager.flush();
@@ -259,17 +313,16 @@ class EntityMappingIT {
 
     @Test
     @Transactional
-    @DisplayName("앱 생성 UUID 활성 엔티티 20종의 실제 Spring Data save()가 INSERT 전 SELECT를 내지 않는다")
+    @DisplayName("앱 생성 UUID 활성 엔티티 17종의 실제 Spring Data save()가 INSERT 전 SELECT를 내지 않는다")
     void allActiveAppGeneratedIdsUsePersistOnSave() {
         RecordingInspector.STATEMENTS.clear();
-        UUID userId=UUID.randomUUID(), otherUserId=UUID.randomUUID(), documentId=UUID.randomUUID();
+        UUID userId=UUID.randomUUID(), documentId=UUID.randomUUID();
         UUID uploadId=UUID.randomUUID(), practiceId=UUID.randomUUID(), summaryId=UUID.randomUUID();
-        UUID coachId=UUID.randomUUID(), handoffId=UUID.randomUUID(), categoryId=UUID.randomUUID(), postId=UUID.randomUUID();
+        UUID coachId=UUID.randomUUID(), handoffId=UUID.randomUUID();
         var object=JsonNodeFactory.instance.objectNode().put("k","v");
         var array=JsonNodeFactory.instance.arrayNode().add("v");
 
-        save(UserEntity.class,new UserEntity(userId,"all-"+userId+"@example.test",UserStatus.ACTIVE,"n"));
-        save(UserEntity.class,new UserEntity(otherUserId,"other-"+userId+"@example.test",UserStatus.ACTIVE,"n"));
+        save(UserEntity.class,new UserEntity(userId,"all-"+userId+"@example.test",UserStatus.ACTIVE));
         save(UserIdentityEntity.class,new UserIdentityEntity(UUID.randomUUID(),userId,IdentityProvider.GOOGLE,"uid-"+userId));
         save(RefreshTokenEntity.class,new RefreshTokenEntity(UUID.randomUUID(),userId,"a".repeat(64),null,
                 java.time.Instant.now(),java.time.Instant.now().plusSeconds(60)));
@@ -290,19 +343,21 @@ class EntityMappingIT {
         entityManager.persist(new HandoffConfirmationEntity(handoffId,true,null));
         save(PracticeReportEntity.class,new PracticeReportEntity(UUID.randomUUID(),practiceId,"analysis",object,handoffId));
         save(ExternalOperationEntity.class,new ExternalOperationEntity(UUID.randomUUID(),practiceId,userId,UUID.randomUUID(),OperationKind.ANALYZE,OperationStatus.PENDING,"b".repeat(64)));
-        save(CommunityCategoryEntity.class,new CommunityCategoryEntity(categoryId,"slug-"+userId,"name",null,100));
-        save(CommunityPostEntity.class,new CommunityPostEntity(postId,categoryId,userId,"t","b",ContentStatus.VISIBLE));
-        save(CommunityCommentEntity.class,new CommunityCommentEntity(UUID.randomUUID(),postId,userId,"b",ContentStatus.VISIBLE));
-        save(CommunityAnonymousAliasEntity.class,new CommunityAnonymousAliasEntity(UUID.randomUUID(),postId,userId,1));
-        save(CommunityPostLikeEntity.class,new CommunityPostLikeEntity(UUID.randomUUID(),postId,userId));
-        save(CommunityReportEntity.class,new CommunityReportEntity(UUID.randomUUID(),userId,ReportTargetType.POST,postId,ReportReason.SPAM,ReportStatus.PENDING));
-        save(CommunityBlockEntity.class,new CommunityBlockEntity(UUID.randomUUID(),userId,otherUserId));
+        entityManager.persist(new UserProfileEntity(userId,"이름",ProfileGender.UNSPECIFIED,
+                java.time.LocalDate.of(2001,3,14),ActingExperience.Y1_TO_3,ActingGoal.AUDITION));
+        entityManager.persist(new PortfolioEntity(userId,"소개글")); entityManager.flush();
+        save(UserProfileDirectionEntity.class,new UserProfileDirectionEntity(UUID.randomUUID(),userId,ActingDirection.STAGE));
+        save(PortfolioCreditEntity.class,new PortfolioCreditEntity(UUID.randomUUID(),userId,"작품","역할",2025,PortfolioCreditKind.MUSICAL,0));
+        save(PortfolioPhotoEntity.class,new PortfolioPhotoEntity(UUID.randomUUID(),userId,"portfolio/"+userId+".jpg","image/jpeg",1,
+                java.time.Instant.now().plusSeconds(60)));
+        save(GuestTransferCodeEntity.class,new GuestTransferCodeEntity(UUID.randomUUID(),userId,"c".repeat(64),
+                java.time.Instant.now().plusSeconds(600)));
         entityManager.persist(new AnomalyEntity(summaryId,IntentImpact.REVERSAL,Severity.HIGH));
         entityManager.flush();
 
         List<String> statements=List.copyOf(RecordingInspector.STATEMENTS);
         assertThat(statements.stream().filter(sql->sql.startsWith("insert into "))
-                .map(sql->sql.substring("insert into ".length()).split(" ")[0]).distinct()).hasSize(24);
+                .map(sql->sql.substring("insert into ".length()).split(" ")[0]).distinct()).hasSize(23);
         assertThat(statements).noneMatch(sql->sql.stripLeading().toLowerCase().startsWith("select"));
         assertThat(jdbc.queryForObject("SELECT intent_impact FROM anomalies WHERE summary_id=?",String.class,summaryId)).isEqualTo("반전");
     }
@@ -313,7 +368,7 @@ class EntityMappingIT {
     void jsonbPreservesFourCases() {
         UUID user=UUID.randomUUID(),sqlNullUpload=UUID.randomUUID(),jsonNullUpload=UUID.randomUUID();
         UUID sqlNullPractice=UUID.randomUUID(),jsonNullPractice=UUID.randomUUID();
-        entityManager.persist(new UserEntity(user,"json-"+user+"@example.test",UserStatus.ACTIVE,null)); entityManager.flush();
+        entityManager.persist(new UserEntity(user,"json-"+user+"@example.test",UserStatus.ACTIVE)); entityManager.flush();
         jdbc.update("INSERT INTO upload_intents(id,user_id,status,storage_provider,object_key,mime_type,size_bytes,expires_at) VALUES (?,?, 'pending','s3',?,'video/mp4',1,now()), (?,?, 'pending','s3',?,'video/mp4',1,now())",sqlNullUpload,user,"json-sql-null-"+user,jsonNullUpload,user,"json-null-"+user);
         entityManager.persist(new PracticeSessionEntity(sqlNullPractice,user,sqlNullUpload,PracticeStatus.ANALYZING,"s","c","분석","캐릭터 분석","g"));
         entityManager.persist(new PracticeSessionEntity(jsonNullPractice,user,jsonNullUpload,PracticeStatus.ANALYZING,"s","c","분석","캐릭터 분석","g")); entityManager.flush();

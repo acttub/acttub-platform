@@ -56,6 +56,11 @@ class LegacyStorageCompatibilityIT {
                     """);
             jdbc.execute("ALTER TABLE practice_sessions DROP COLUMN subtext");
             jdbc.execute("ALTER TABLE users DROP COLUMN role");
+            // 커뮤니티는 1.0.0 에서 코드를 내리고 테이블만 남겼다. 한 문장이라 서로의 FK 가 막지 않는다.
+            jdbc.execute("""
+                    DROP TABLE community_reports, community_post_likes, community_anonymous_aliases,
+                        community_comments, community_blocks, community_posts, community_categories
+                    """);
         }
 
         try (var context = new SpringApplicationBuilder(ActingApiApplication.class).run(
@@ -156,6 +161,10 @@ class LegacyStorageCompatibilityIT {
                 INSERT INTO practice_reports(practice_session_id,report_type,report_json,source_handoff_id)
                 VALUES (?,'analysis','{"title":"현재 연습 노트"}'::jsonb,?)
                 """, practice, handoff);
+        jdbc.update("""
+                INSERT INTO community_posts(category_id,author_id,title,body)
+                SELECT id,?,'보존할 글','보존할 본문' FROM community_categories ORDER BY sort_order LIMIT 1
+                """, user);
         return practice;
     }
 
@@ -173,7 +182,10 @@ class LegacyStorageCompatibilityIT {
                 "report", jdbc.queryForObject("""
                         SELECT to_jsonb(report)::text FROM reports report JOIN coach_sessions coach
                             ON coach.id=report.session_id WHERE coach.practice_session_id=?
-                        """, String.class, practice));
+                        """, String.class, practice),
+                "community", jdbc.queryForObject(
+                        "SELECT to_jsonb(post)::text FROM community_posts post WHERE author_id=?",
+                        String.class, user));
     }
 
     private JsonNode get(int port, String path, String bearer) throws Exception {

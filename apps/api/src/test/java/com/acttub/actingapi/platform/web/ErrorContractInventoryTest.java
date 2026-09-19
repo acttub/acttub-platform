@@ -33,8 +33,8 @@ import org.junit.jupiter.api.Test;
  *   <li><b>호출이 빠진 것</b> — {@code AuthenticatedUser.requireUsable} 처럼 한 자리에서 만든
  *       예외를 여러 경로가 부를 때, 한 경로가 부르기를 그만두어도 지점 수는 그대로다. 그래서
  *       경로별 단언이 따로 필요하다({@code AccountStatusContractIT} 가 그 이유를 적어 두었다).
- *   <li><b>같은 예외를 만드는 헬퍼</b> — {@code CommunityService.postNotFound()} 는 소스에
- *       {@code new} 가 하나지만 그것을 부르는 연산은 일곱이다.
+ *   <li><b>같은 예외를 만드는 헬퍼</b> — {@code ProfileService.require()} 는 소스에
+ *       {@code new} 가 하나지만 그것을 부르는 연산은 셋이다.
  *   <li><b>422 검증 오류</b> — {@code ApiValidationException} 과 Bean Validation 메시지는
  *       상수가 어노테이션 기본값이나 호출 인자 안에 흩어져 있어 표로 세지 않는다. 지키는 것은
  *       {@code ValidationErrorContractIT}(형상 + 실물 {@code value must not be blank}) ·
@@ -122,27 +122,6 @@ class ErrorContractInventoryTest {
                     "feature.coach.adapter.web.CoachReportEndpointIT"),
             covered("feature.coach.app.CoachService|502|" + DYNAMIC, 3,
                     "feature.coach.app.CoachServiceTest"),
-
-            covered("feature.community.app.CommunityService|400|cannot_block_self", 1,
-                    "feature.community.CommunityErrorContractIT"),
-            covered("feature.community.app.CommunityService|400|cannot_report_own", 1,
-                    "feature.community.CommunityErrorContractIT"),
-            covered("feature.community.app.CommunityService|400|invalid_cursor", 2,
-                    "feature.community.CommunityErrorContractIT"),
-            covered("feature.community.app.CommunityService|403|not_author", 1,
-                    "feature.community.CommunityErrorContractIT"),
-            covered("feature.community.app.CommunityService|404|category_not_found", 1,
-                    "feature.community.CommunityErrorContractIT"),
-            covered("feature.community.app.CommunityService|404|comment_not_found", 1,
-                    "feature.community.CommunityErrorContractIT"),
-            covered("feature.community.app.CommunityService|404|post_not_found", 1,
-                    "feature.community.CommunityErrorContractIT"),
-            covered("feature.community.app.CommunityService|404|target_not_found", 1,
-                    "feature.community.CommunityErrorContractIT"),
-            covered("feature.community.app.CommunityService|404|user_not_found", 1,
-                    "feature.community.CommunityErrorContractIT"),
-            covered("feature.community.app.CommunityService|409|already_reported", 1,
-                    "feature.community.CommunityErrorContractIT"),
 
             covered("feature.consent.app.ConsentService|404|consent_document_not_found", 1,
                     "feature.consent.ConsentEndpointIT"),

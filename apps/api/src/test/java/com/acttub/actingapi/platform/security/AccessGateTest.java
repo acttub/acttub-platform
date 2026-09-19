@@ -44,10 +44,10 @@ class AuthDependenciesTest {
         assertThat(ConsentGateInterceptor.requiresConsent("POST", "/v2/uploads/intents"))
                 .isTrue();
         assertThat(ConsentGateInterceptor.requiresConsent(
-                "POST", "/v2/community/posts/id/comments"))
+                "POST", "/v2/uploads/intents/id/complete"))
                 .isTrue();
         assertThat(ConsentGateInterceptor.requiresConsent(
-                "GET", "/v2/community/posts/id/comments"))
+                "GET", "/v2/uploads/intents/id/complete"))
                 .isFalse();
         assertThat(ConsentGateInterceptor.requiresConsent(
                 "DELETE", "/v2/practice-sessions/id"))

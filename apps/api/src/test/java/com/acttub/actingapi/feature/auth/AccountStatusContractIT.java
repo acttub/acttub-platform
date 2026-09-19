@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
+import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.AuthService;
@@ -24,7 +25,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 /**
- * 쓸 수 없는 계정을 막는 403 이 <b>네 진입 경로 전부</b>에서 나는지 본다.
+ * 쓸 수 없는 계정을 막는 403 이 <b>세 진입 경로 전부</b>에서 나는지 본다.
  *
  * <p><b>계약 하네스에서 옮겨 온 기대값이다</b>(SOMA-403 2단계). 하네스는 이것을 여섯 케이스로
  * 갖고 있었다 — 파이썬은 판정이 {@code auth/dependencies.py} 와 {@code auth/router.py} 두 벌로
@@ -83,16 +84,26 @@ class AccountStatusContractIT {
     }
 
     /**
-     * 인증이 <b>선택</b>인 경로도 같다. 헤더가 오면 읽고, 읽었으면 상태를 본다 — 헤더가 없을
-     * 때만 익명으로 지나간다.
+     * 커뮤니티는 1.0.0 에서 내렸다({@code docs/requirements/05-community.md}) — 테이블과 글은 남고
+     * API 만 없다. 인증이 <b>선택</b>이던 경로는 그것뿐이었고, 헤더 없이 익명으로 지나가던 자리는
+     * 이제 404 다. 헤더가 오면 여전히 읽고, 읽었으면 상태를 본다.
      */
     @Test
-    void optionalAuthRoutesStillRejectThemButStayOpenToAnonymous() throws Exception {
-        assertError(get("/v2/community/posts").header("Authorization", bearer(DEACTIVATED)),
-                403, "account_deactivated");
+    void retiredCommunityRoutesAreGoneButATokenIsStillChecked() throws Exception {
+        insertUser(SETTLED, "settled", null, "active");
 
-        assertThat(mvc.perform(get("/v2/community/posts")).andReturn().getResponse().getStatus())
-                .isEqualTo(200);
+        for (String path : List.of("/v2/community/posts", "/v2/community/categories",
+                "/v2/community/posts/" + UUID.randomUUID() + "/comments", "/v2/community/blocks")) {
+            assertError(get(path), 404, "Not Found");
+            assertError(get(path).header("Authorization", bearer(SETTLED)), 404, "Not Found");
+            assertError(get(path).header("Authorization", bearer(DEACTIVATED)),
+                    403, "account_deactivated");
+        }
+        assertError(post("/v2/community/posts")
+                        .header("Authorization", bearer(SETTLED))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"),
+                404, "Not Found");
     }
 
     /** 이미 신원이 연결된 계정으로 다시 로그인해도 상태 검사를 통과하지 못한다. */

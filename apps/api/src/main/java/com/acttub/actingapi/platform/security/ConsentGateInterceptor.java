@@ -15,21 +15,9 @@ import org.springframework.web.servlet.HandlerInterceptor;
 public final class ConsentGateInterceptor implements HandlerInterceptor {
     private static final AntPathMatcher PATHS = new AntPathMatcher();
 
-    // acting_api/app.py가 consented_user를 주입하는 라우트의 명시적 표다. 읽기 전용
-    // community 라우트와 practice-session DELETE는 의도적으로 포함하지 않는다.
+    // acting_api/app.py가 consented_user를 주입하는 라우트의 명시적 표다.
+    // practice-session DELETE는 의도적으로 포함하지 않는다.
     private static final List<ConsentRoute> CONSENTED_ROUTES = List.of(
-            route(HttpMethod.POST, "/v2/community/posts"),
-            route(HttpMethod.PATCH, "/v2/community/posts/*"),
-            route(HttpMethod.DELETE, "/v2/community/posts/*"),
-            route(HttpMethod.POST, "/v2/community/posts/*/likes"),
-            route(HttpMethod.DELETE, "/v2/community/posts/*/likes"),
-            route(HttpMethod.POST, "/v2/community/posts/*/comments"),
-            route(HttpMethod.PATCH, "/v2/community/comments/*"),
-            route(HttpMethod.DELETE, "/v2/community/comments/*"),
-            route(HttpMethod.POST, "/v2/community/reports"),
-            route(HttpMethod.GET, "/v2/community/blocks"),
-            route(HttpMethod.POST, "/v2/community/blocks"),
-            route(HttpMethod.DELETE, "/v2/community/blocks/*"),
             route(HttpMethod.POST, "/v2/uploads/intents"),
             route(HttpMethod.POST, "/v2/uploads/intents/*/complete"),
             route(HttpMethod.POST, "/v2/practice-sessions"),

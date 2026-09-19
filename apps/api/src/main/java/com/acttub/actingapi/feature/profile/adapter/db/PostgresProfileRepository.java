@@ -30,9 +30,10 @@ class PostgresProfileRepository implements ProfileRepository {
     @Override
     public Profile find(UUID userId) {
         List<Tuple> rows = list(entityManager.createNativeQuery("""
-                SELECT id,email,nickname,status
+                SELECT users.id,users.email,user_profiles.name,users.status
                 FROM users
-                WHERE id=:userId
+                LEFT JOIN user_profiles ON user_profiles.user_id=users.id
+                WHERE users.id=:userId
                 """, Tuple.class)
                 .setParameter("userId", userId));
         return rows.isEmpty() ? null : profile(rows.getFirst());
@@ -52,15 +53,25 @@ class PostgresProfileRepository implements ProfileRepository {
         return UserStatus.valueOf(raw.toUpperCase(Locale.ROOT)).dbValue();
     }
 
+    /**
+     * 이름은 {@code user_profiles.name} 에 산다 — 조회와 수정은 {@code users.nickname} 을 보지
+     * 않는다 (V7, apps/api/CONTRACT.md §5-1). 프로필 행은 처음 저장할 때 생기므로 upsert 다.
+     *
+     * <p>{@code INSERT … SELECT FROM users} 인 것은 없는 사용자를 FK 위반이 아니라 <b>0행</b>으로
+     * 돌려받기 위해서다. 그래야 "없으면 {@code null}" 이 그대로 성립한다.
+     */
     @Override
     public Profile updateNickname(UUID userId, String nickname) {
         return transaction.execute(status -> {
             int updated = entityManager.createNativeQuery("""
-                    UPDATE users
-                    SET nickname=:nickname,updated_at=now()
+                    INSERT INTO user_profiles(user_id,name)
+                    SELECT id,:name
+                    FROM users
                     WHERE id=:userId
+                    ON CONFLICT (user_id) DO UPDATE
+                    SET name=EXCLUDED.name,updated_at=now()
                     """)
-                    .setParameter("nickname", nickname)
+                    .setParameter("name", nickname)
                     .setParameter("userId", userId)
                     .executeUpdate();
             return updated == 0 ? null : find(userId);
@@ -71,7 +82,7 @@ class PostgresProfileRepository implements ProfileRepository {
      * 탈퇴 처리 (`db/store.py:PostgresStore.deactivate_user`).
      *
      * <p>행을 지우지 않는다 — 커뮤니티 글·연습 기록이 {@code user_id} 를 참조하므로 지우면
-     * 남의 글타래가 깨진다. 대신 개인을 식별하는 것(이메일·닉네임·identity)을 전부 파기하고
+     * 남의 글타래가 깨진다. 대신 개인을 식별하는 것(이메일·이름·identity)을 전부 파기하고
      * refresh 토큰을 끊는다. <b>상태 전환·파기·토큰 폐기를 한 트랜잭션에 묶는다</b> — 나누면
      * 중간 실패 시 "탈퇴했는데 refresh 는 살아 있는" 계정이 남는다.
      *
@@ -106,10 +117,22 @@ class PostgresProfileRepository implements ProfileRepository {
                         .setParameter("userId", userId)
                         .executeUpdate();
             }
+            // ⚠ 새 코드가 `users.nickname` 을 건드리는 곳은 이 한 줄뿐이다 (SOMA-528 결정 I-3).
+            // V7 은 옛 닉네임을 `user_profiles.name` 으로 복사만 해서 값이 이 컬럼에도 남아 있고,
+            // 탈퇴는 이름을 지체 없이 파기해야 한다. 컬럼을 지우려면 먼저 이 쓰기를 걷어낸 릴리스를
+            // 내고(N+1), 그다음 릴리스에서 DROP COLUMN 한다(N+2) — 삭제와 그것을 안 쓰는 코드를
+            // 한 릴리스에 묶지 않는다(docs/BRANCHING-STRATEGY.md 「DB와 배포 안전성」).
             entityManager.createNativeQuery("""
                     UPDATE users
                     SET email=NULL,nickname=NULL
                     WHERE id=:userId
+                    """)
+                    .setParameter("userId", userId)
+                    .executeUpdate();
+            entityManager.createNativeQuery("""
+                    UPDATE user_profiles
+                    SET name=NULL,updated_at=now()
+                    WHERE user_id=:userId
                     """)
                     .setParameter("userId", userId)
                     .executeUpdate();
@@ -141,7 +164,7 @@ class PostgresProfileRepository implements ProfileRepository {
         return new Profile(
                 row.get("id", UUID.class),
                 row.get("email", String.class),
-                row.get("nickname", String.class),
+                row.get("name", String.class),
                 status(row.get("status", String.class)));
     }
 }

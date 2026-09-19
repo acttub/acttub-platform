@@ -72,6 +72,7 @@ class ProfileEndpointIT {
         jdbc.update(
                 "UPDATE users SET email='rollback@example.test',nickname='되돌릴 이름' WHERE id=?",
                 USER_ID);
+        jdbc.update("INSERT INTO user_profiles(user_id,name) VALUES (?,'되돌릴 이름')", USER_ID);
         jdbc.update("""
                 INSERT INTO user_identities(id,user_id,provider,provider_uid)
                 VALUES (?,?, 'development','rollback-identity')
@@ -107,6 +108,7 @@ class ProfileEndpointIT {
                 .containsEntry("nickname", "되돌릴 이름")
                 .containsEntry("status", "active")
                 .containsEntry("deactivated_at", null);
+        assertThat(profileName()).isEqualTo("되돌릴 이름");
         assertThat(count("user_identities")).isEqualTo(1);
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM refresh_tokens WHERE revoked_at IS NULL", Integer.class))
@@ -123,6 +125,7 @@ class ProfileEndpointIT {
                     deactivated_at=?
                 WHERE id=?
                 """, firstDeactivatedAt.atOffset(ZoneOffset.UTC), USER_ID);
+        jdbc.update("INSERT INTO user_profiles(user_id,name) VALUES (?,'재시도')", USER_ID);
         jdbc.update("""
                 INSERT INTO user_identities(id,user_id,provider,provider_uid)
                 VALUES (?,?, 'development','retry-identity')
@@ -146,6 +149,7 @@ class ProfileEndpointIT {
                 .containsEntry("status", "deactivated");
         assertThat(((Timestamp) user.get("deactivated_at")).toInstant())
                 .isEqualTo(firstDeactivatedAt);
+        assertThat(profileName()).isNull();
         assertThat(count("user_identities")).isZero();
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM refresh_tokens WHERE revoked_at IS NULL", Integer.class))
@@ -175,9 +179,80 @@ class ProfileEndpointIT {
         assertThat(response.getStatus()).isEqualTo(200);
         assertThat(body(response.getContentAsString()).path("nickname").textValue())
                 .isEqualTo("두 칸 띄운 이름");
+        assertThat(profileName()).isEqualTo("두 칸 띄운 이름");
         assertThat(jdbc.queryForObject(
                 "SELECT nickname FROM users WHERE id=?", String.class, USER_ID))
-                .isEqualTo("두 칸 띄운 이름");
+                .as("이름은 user_profiles.name 에만 쓴다 — 옛 컬럼은 건드리지 않는다")
+                .isNull();
+    }
+
+    /**
+     * V7 은 옛 닉네임을 {@code user_profiles.name} 으로 복사하고 {@code users.nickname} 은 직전
+     * 릴리스의 서버를 위해 남겨 둔다. 새 서버가 읽는 것은 프로필의 이름뿐이다.
+     */
+    @Test
+    void accountProfile_nameIsReadFromTheProfileRowNotFromTheLegacyNicknameColumn() throws Exception {
+        jdbc.update("UPDATE users SET nickname='옛 컬럼 값' WHERE id=?", USER_ID);
+
+        assertThat(body(mvc.perform(get("/v2/me").header("Authorization", bearer()))
+                .andReturn().getResponse().getContentAsString()).path("nickname").isNull())
+                .as("프로필 행이 없으면 옛 컬럼에 값이 있어도 이름은 비어 있다")
+                .isTrue();
+
+        jdbc.update("INSERT INTO user_profiles(user_id,name) VALUES (?,'프로필 이름')", USER_ID);
+
+        assertThat(body(mvc.perform(get("/v2/me").header("Authorization", bearer()))
+                .andReturn().getResponse().getContentAsString()).path("nickname").textValue())
+                .isEqualTo("프로필 이름");
+    }
+
+    /**
+     * 1.0.0 이전 회원은 이름이 두 곳에 있다(옛 컬럼과 복사된 프로필 이름). 탈퇴는 이름을 지체 없이
+     * 파기해야 하므로 둘 다 비운다 — 새 코드가 {@code users.nickname} 을 건드리는 유일한 자리다
+     * (SOMA-528 결정 I-3). 프로필 행과 나머지 항목은 사람과 끊어 남긴다.
+     */
+    @Test
+    void accountWithdraw_clearsBothTheLegacyNicknameAndTheProfileName() {
+        jdbc.update("UPDATE users SET email='old@example.test',nickname='옛 닉네임' WHERE id=?", USER_ID);
+        jdbc.update("""
+                INSERT INTO user_profiles(user_id,name,gender,experience,goal)
+                VALUES (?,'옛 닉네임','female','exam_prep','audition')
+                """, USER_ID);
+
+        profiles.deactivate(USER_ID);
+
+        assertThat(jdbc.queryForMap("SELECT email,nickname,status FROM users WHERE id=?", USER_ID))
+                .containsEntry("email", null)
+                .containsEntry("nickname", null)
+                .containsEntry("status", "deactivated");
+        assertThat(jdbc.queryForMap(
+                "SELECT name,gender,experience,goal FROM user_profiles WHERE user_id=?", USER_ID))
+                .containsEntry("name", null)
+                .containsEntry("gender", "female")
+                .containsEntry("experience", "exam_prep")
+                .containsEntry("goal", "audition");
+    }
+
+    /** 커뮤니티는 API 만 내렸다. 탈퇴해도 글·댓글·차단 행은 남아 남의 글타래가 깨지지 않는다. */
+    @Test
+    void accountWithdraw_keepsRetiredCommunityRows() {
+        UUID other = UUID.randomUUID();
+        UUID post = UUID.randomUUID();
+        jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", other);
+        jdbc.update("""
+                INSERT INTO community_posts(id,category_id,author_id,title,body)
+                SELECT ?,id,?,'제목','본문' FROM community_categories ORDER BY sort_order LIMIT 1
+                """, post, USER_ID);
+        jdbc.update("INSERT INTO community_comments(id,post_id,author_id,body) VALUES (?,?,?,'댓글')",
+                UUID.randomUUID(), post, USER_ID);
+        jdbc.update("INSERT INTO community_blocks(id,blocker_id,blocked_id) VALUES (?,?,?)",
+                UUID.randomUUID(), USER_ID, other);
+
+        profiles.deactivate(USER_ID);
+
+        assertThat(count("community_posts")).isEqualTo(1);
+        assertThat(count("community_comments")).isEqualTo(1);
+        assertThat(count("community_blocks")).isEqualTo(1);
     }
 
     @Test
@@ -241,6 +316,10 @@ class ProfileEndpointIT {
 
     private JsonNode body(String value) throws Exception {
         return mapper.readTree(value);
+    }
+
+    private String profileName() {
+        return jdbc.queryForObject("SELECT name FROM user_profiles WHERE user_id=?", String.class, USER_ID);
     }
 
     private int count(String table) {

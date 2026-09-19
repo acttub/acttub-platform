@@ -3,7 +3,7 @@ package com.acttub.actingapi.platform.schema;
 import jakarta.persistence.Converter;
 
 public enum IdentityProvider implements PgEnum {
-    GOOGLE("google"), KAKAO("kakao"), APPLE("apple"), DEVELOPMENT("development");
+    GOOGLE("google"), KAKAO("kakao"), APPLE("apple"), NAVER("naver"), GUEST("guest"), DEVELOPMENT("development");
     private final String value;
     IdentityProvider(String value) { this.value = value; }
     public String dbValue() { return value; }

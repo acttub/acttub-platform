@@ -80,7 +80,7 @@ public class PostgresAuthRepository implements AuthRepository, AuthenticatedUser
             String email) {
         return transaction.execute(status -> {
             UserEntity user = users.save(new UserEntity(
-                    UUID.randomUUID(), email, UserStatus.ACTIVE, null));
+                    UUID.randomUUID(), email, UserStatus.ACTIVE));
             identities.saveAndFlush(new UserIdentityEntity(
                     UUID.randomUUID(),
                     user.getId(),
