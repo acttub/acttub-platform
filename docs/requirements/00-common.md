@@ -113,10 +113,9 @@ git 이력이 보관한다. 동작을 바꾸는 PR이 그 기능의 요구사항
 | 값 | user_identities.provider에 guest 추가 | account.guest |
 | 값 | users.status에서 suspended 제거 | account.login |
 | 삭제 | users.signup_* 아홉 컬럼 | account.login |
-| 이름 | community_blocks → user_blocks | 범위 밖 |
 | 삭제 | users.nickname (user_profiles.name으로) | account.profile |
 | 컬럼 | user_profiles 알림 토글 둘 → 셋(챌린지 알림 추가) | account.notification |
-| 컬럼 | user_profiles 나이는 생년월일로 받고, 탈퇴 때 연령대로 뭉개 남긴다 | account.profile, account.withdraw |
+| 컬럼 | user_profiles 나이는 생년월일로 받고, 탈퇴 때 5세 단위 연령대로 뭉개 남긴다 | account.profile, account.withdraw |
 | 컬럼 | user_identities에 애플 토큰(암호화) | account.login |
 | 컬럼 | users.age_confirmed_at(게스트의 만 14세 이상 확인 시각) | account.guest |
 
@@ -148,7 +147,7 @@ pen을 고칠 목록이다. 규칙은 출처 기능의 본문이 정본이고 �
 | 개인정보 수집·이용 동의 | 필수 수집 항목 여섯과 항목마다 코칭에 쓰는 이유 한 줄 | account.profile |
 | 개인정보 처리방침 | 만 14세 미만은 가입할 수 없고, 웹 게스트는 만 14세 이상임을 확인받음 | account.profile, account.guest |
 | 개인정보 처리방침 | 탈퇴 때 파기하는 것과 가명처리해 남기는 것, 남기는 목적(통계·연구) | account.withdraw |
-| 개인정보 처리방침 | 신원 해시를 탈퇴 후 3년 보관하고 쓰임은 둘뿐임 | account.withdraw |
+| 개인정보 처리방침 | 신원 해시를 탈퇴 후 3년 보관하고 쓰임은 철회 요청의 본인 확인 하나뿐임 | account.withdraw |
 | 개인정보 처리방침 | 백업 덤프에 파기 전 데이터가 30일 남음 | account.withdraw |
 | 개인정보 처리방침 | 탈퇴 뒤 제공자 연결 해제 재시도를 위해 해제 값을 최대 7일 암호화 보관 | account.withdraw |
 | 개인정보 처리방침 | 보관 동의의 철회 연락처와 본인 확인 방법 | account.withdraw |
@@ -158,6 +157,7 @@ pen을 고칠 목록이다. 규칙은 출처 기능의 본문이 정본이고 �
 | 탈퇴 후 영상·녹음 보관·활용(신설, 선택) | 목적(서비스 개선과 AI 모델 학습 둘 다), 기간 3년, 철회 방법, 거절해도 서비스는 같음 | account.withdraw |
 | AI 분석 동의 | 리딩 녹음에도 필요한지는 03-reading에서 정한다 | account.guest |
 | 법무 확인 | 가명처리 보관과 동의 기반 보관의 문구, 자유 글(배우 기억·대화·받아쓰기) 보존, 해시 보관 | account.withdraw |
+| 운영 절차 문서 | 보관 동의 철회 요청을 처리하는 절차(해시 대조, 영상·녹음 파기, revoked 기록) | account.withdraw |
 | 운영 배포 체크리스트 | 카카오·네이버는 검수 승인 뒤에만 운영에서 켠다 | account.login |
 
 ## 범위 밖
@@ -166,10 +166,15 @@ pen을 고칠 목록이다. 규칙은 출처 기능의 본문이 정본이고 �
 
 - 커뮤니티(게시판)는 1.0.0에서 뺀다. 요구사항과 결정은 [05-community.md](05-community.md)에
   보관하고 후속에서 잇는다. 테이블 7개와 기존 글 데이터는 남기고 API·화면만 내린다.
-  community_blocks는 사람 단위 user_blocks로 바꿔 챌린지가 쓴다.
+- 사람 차단. 1.0.0의 챌린지에는 차단이 없고 신고만 있다. 후속에서 넣을 때 사람 단위 user_blocks로
+  만든다.
 - 가입 유입 경로 추적. users의 signup_* 컬럼은 지우고 signup_attributions 테이블은 만들지 않는다.
 
 ## 열린 질문
+
+- 앱 심사 지침 1.2는 사용자가 올린 콘텐츠가 보이는 앱에 신고 수단과 악성 사용자를 막는 수단을
+  요구한다. 1.0.0은 사람 차단과 계정 정지가 둘 다 없다. 챌린지 문서를 쓸 때 신고 처리만으로 충분한지
+  확인한다.
 
 ERD 세션(2026-09-14)에서 이월한 것.
 
