@@ -2,6 +2,7 @@ package com.acttub.actingapi.platform.security;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
@@ -20,6 +21,12 @@ public interface PendingConsentGate {
 
     /** 종류 순(약관 · 수집·이용 동의 · AI 분석 · 탈퇴 후 보관). 없으면 빈 목록. */
     List<Document> undecidedFor(UUID userId);
+
+    /**
+     * 게스트의 규칙 — 그 기능에 필요한 종류 가운데 아직 <b>동의하지 않은</b> 문서만. 다른 종류의 미결정은
+     * 세지 않는다. 필요한 문서는 전부 필수 문서라 동의 말고는 통과하는 결정이 없다.
+     */
+    List<Document> undecidedAmong(UUID userId, Set<String> documentTypes);
 
     /** 403 {@code consent_required} 의 {@code pending_consents} 에 그대로 실린다. 로그인 응답과 같은 모양이다. */
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)

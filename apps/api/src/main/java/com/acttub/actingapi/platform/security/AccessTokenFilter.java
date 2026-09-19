@@ -27,6 +27,8 @@ public class AccessTokenFilter extends OncePerRequestFilter {
                 || path.equals("/v2/auth/login")
                 || path.equals("/v2/auth/refresh")
                 || path.equals("/v2/auth/signup")
+                // 게스트 만들기는 끝난 게스트의 토큰을 아직 붙이고 있는 웹이 부른다.
+                || path.equals("/v2/auth/guest")
                 || path.startsWith("/v3/api-docs")) {
             return true;
         }
@@ -50,6 +52,11 @@ public class AccessTokenFilter extends OncePerRequestFilter {
         // 토큰으로 검증하려다 401 invalid or missing access token 이 나가, 원본이 내는
         // 401 Unauthorized 와 달라진다.
         if (path.startsWith("/v2/admin/")) {
+            return true;
+        }
+        // 푸시 토큰 삭제는 로그인 없이 받는다(account.notification). 로그아웃하는 앱이 막 만료된 액세스 토큰을
+        // 붙여 보내도 401 로 막히면 안 된다 — 그 삭제가 실패하면 옛 계정의 알림이 그 폰에 계속 온다.
+        if (path.equals("/v2/push-tokens") && "DELETE".equalsIgnoreCase(request.getMethod())) {
             return true;
         }
         return request.getHeader("Authorization") == null && !path.equals("/v2/auth/logout");

@@ -37,7 +37,19 @@ class AccessGateTest {
                 }
             },
             new FixedWindowRateLimiter(() -> 1L),
-            ignored -> undecided.get(),
+            new PendingConsentGate() {
+                @Override
+                public List<Document> undecidedFor(UUID userId) {
+                    return undecided.get();
+                }
+
+                @Override
+                public List<Document> undecidedAmong(UUID userId, java.util.Set<String> documentTypes) {
+                    return undecided.get().stream()
+                            .filter(document -> documentTypes.contains(document.type()))
+                            .toList();
+                }
+            },
             ignored -> profileComplete.get());
 
     @Test

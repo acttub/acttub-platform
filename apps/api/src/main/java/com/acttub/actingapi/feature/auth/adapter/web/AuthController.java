@@ -2,6 +2,7 @@ package com.acttub.actingapi.feature.auth.adapter.web;
 
 import static com.acttub.actingapi.feature.auth.adapter.web.AuthDtos.*;
 
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -124,6 +125,35 @@ public class AuthController {
                 .map(decision -> new SignupDecision(decision.documentId(), decision.action().name()))
                 .toList();
         return signedIn(auth.signup(body.signupToken(), decisions), request);
+    }
+
+    @Operation(
+            summary = "Create Guest",
+            description = """
+                    웹 게스트를 만든다. 웹이 처음 보호 기능(연습 시작, 대본 등록)을 쓰려 할 때 부른다 — 랜딩·동의
+                    문서·입시 정보에서는 부르지 않는다. 한 IP 에서 시간당 10개까지다. 토큰의 구조와 갱신·만료는
+                    회원과 같다.""",
+            operationId = "create_guest_v2_auth_guest_post",
+            tags = "v2-auth")
+    @ApiResponse(
+            responseCode = "201",
+            description = "Successful Response",
+            content = @Content(schema = @Schema(implementation = GuestResponse.class)))
+    @PostMapping("/guest")
+    ResponseEntity<GuestResponse> createGuest(HttpServletRequest request) {
+        String host = request.getRemoteAddr() == null ? "unknown" : request.getRemoteAddr();
+        if (!limiter.allow("guest-ip:" + host, 10, Duration.ofHours(1))) {
+            throw new ApiException(429, "rate limit exceeded");
+        }
+        AuthenticatedUser guest = auth.createGuest();
+        AuthService.TokenPair tokens = auth.issueTokens(guest.id(), request.getHeader("user-agent"));
+        return ResponseEntity.status(201).body(new GuestResponse(
+                tokens.accessToken(),
+                tokens.refreshToken(),
+                "bearer",
+                tokens.expiresIn(),
+                new AuthUser(guest.id(), guest.email(), guest.status().dbValue()),
+                "guest"));
     }
 
     @Operation(summary = "Refresh", operationId = "refresh_v2_auth_refresh_post", tags = "v2-auth")

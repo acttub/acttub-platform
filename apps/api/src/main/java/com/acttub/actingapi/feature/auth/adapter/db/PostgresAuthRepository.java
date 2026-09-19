@@ -10,6 +10,7 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.AcceptedConsent;
 import com.acttub.actingapi.feature.auth.app.AuthRepository;
+import com.acttub.actingapi.feature.auth.app.GuestAccounts;
 import com.acttub.actingapi.feature.auth.app.IdentityAlreadyLinkedError;
 import com.acttub.actingapi.feature.auth.domain.RefreshToken;
 import com.acttub.actingapi.feature.auth.schema.RefreshTokenEntity;
@@ -34,7 +35,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  * PendingConsentDocuments})도 그쪽이 답한다 (SOMA-397 12단계).
  */
 @Repository
-public class PostgresAuthRepository implements AuthRepository, AuthenticatedUsers {
+public class PostgresAuthRepository implements AuthRepository, AuthenticatedUsers, GuestAccounts {
     private final UserJpaRepository users;
     private final UserIdentityJpaRepository identities;
     private final RefreshTokenJpaRepository refreshTokens;
@@ -54,11 +55,95 @@ public class PostgresAuthRepository implements AuthRepository, AuthenticatedUser
         this.transaction = new TransactionTemplate(transactionManager);
     }
 
+    /**
+     * 요청마다 부르므로 질의는 하나다. 게스트 여부는 신원으로 판정한다 — 신원이 있고 전부
+     * {@code guest} 면 게스트다({@code users} 에 컬럼을 늘리지 않는다, account.guest).
+     */
     @Override
     public AuthenticatedUser find(UUID id) {
-        return users.findAuthenticatedById(id)
-                .map(PostgresAuthRepository::authenticated)
-                .orElse(null);
+        List<Tuple> rows = list(entityManager.createNativeQuery("""
+                SELECT users.id,users.email,users.status,
+                       (EXISTS (SELECT 1 FROM user_identities
+                                WHERE user_identities.user_id=users.id)
+                        AND NOT EXISTS (SELECT 1 FROM user_identities
+                                        WHERE user_identities.user_id=users.id
+                                          AND user_identities.provider<>'guest')) AS guest
+                FROM users
+                WHERE users.id=:id
+                """, Tuple.class)
+                .setParameter("id", id));
+        if (rows.isEmpty()) {
+            return null;
+        }
+        Tuple row = rows.getFirst();
+        return new AuthenticatedUser(
+                row.get("id", UUID.class),
+                row.get("email", String.class),
+                UserStatus.valueOf(row.get("status", String.class).toUpperCase(Locale.ROOT)),
+                row.get("guest", Boolean.class));
+    }
+
+    /**
+     * 옮겨진 게스트의 표식은 <b>쓰인 이관 코드</b>다. 옮기기는 게스트의 신원 행을 지우므로 신원으로는 알 수
+     * 없고, 코드 행은 그 게스트의 것으로 남는다. ⚠ 테이블 주인은 {@code transfer} 지만 요청 주체의 판정이
+     * 그것을 물어야 해서 native SQL 로 읽는다(Schema Entity 를 import 하지 않는다).
+     */
+    @Override
+    public boolean transferredGuest(UUID id) {
+        return !list(entityManager.createNativeQuery("""
+                SELECT 1 AS transferred
+                FROM guest_transfer_codes
+                WHERE user_id=:id
+                  AND used_at IS NOT NULL
+                LIMIT 1
+                """, Tuple.class)
+                .setParameter("id", id)).isEmpty();
+    }
+
+    @Override
+    public AuthenticatedUser createGuest(String guestUid) {
+        return transaction.execute(status -> {
+            UserEntity user = users.save(new UserEntity(UUID.randomUUID(), null, UserStatus.ACTIVE));
+            identities.saveAndFlush(new UserIdentityEntity(
+                    UUID.randomUUID(), user.getId(), IdentityProvider.GUEST, guestUid));
+            return new AuthenticatedUser(user.getId(), null, UserStatus.ACTIVE, true);
+        });
+    }
+
+    @Override
+    public boolean activeGuest(UUID userId) {
+        AuthenticatedUser user = find(userId);
+        return user != null && user.guest() && user.status() == UserStatus.ACTIVE;
+    }
+
+    /**
+     * 옮겨진 게스트를 닫는다. 리프레시 토큰 <b>행은 남긴다</b> — 그 토큰으로 온 갱신에
+     * {@code guest_transferred} 를 답하려면 누구의 토큰인지 알아야 한다.
+     *
+     * <p>트랜잭션을 열지 않는다 — 부르는 쪽(이관)의 것에 참여하고, 없으면 {@code executeUpdate} 가 거절한다.
+     */
+    @Override
+    public void closeTransferredGuest(UUID guestId, Instant now) {
+        entityManager.createNativeQuery("""
+                UPDATE users
+                SET status='deactivated',deactivated_at=:now,updated_at=:now
+                WHERE id=:guestId
+                """)
+                .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                .setParameter("guestId", guestId)
+                .executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM user_identities WHERE user_id=:guestId")
+                .setParameter("guestId", guestId)
+                .executeUpdate();
+        entityManager.createNativeQuery("""
+                UPDATE refresh_tokens
+                SET revoked_at=:now
+                WHERE user_id=:guestId
+                  AND revoked_at IS NULL
+                """)
+                .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                .setParameter("guestId", guestId)
+                .executeUpdate();
     }
 
     @Override

@@ -6,6 +6,8 @@ import java.util.Set;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.analysis.app.AnalysisCompletionListener;
+import com.acttub.actingapi.platform.observability.FailureContext;
+import com.acttub.actingapi.platform.observability.FailureReporter;
 import org.springframework.stereotype.Service;
 
 /**
@@ -24,23 +26,44 @@ public class PushService implements AnalysisCompletionListener {
 
     private final PushTokenRepository tokens;
     private final PushSender sender;
+    private final FailureReporter failureReporter;
 
-    public PushService(PushTokenRepository tokens, PushSender sender) {
+    public PushService(PushTokenRepository tokens, PushSender sender, FailureReporter failureReporter) {
         this.tokens = tokens;
         this.sender = sender;
+        this.failureReporter = failureReporter;
     }
 
+    /**
+     * 서버 푸시 둘을 다 꺼 둔 회원의 토큰은 받지 않는다(조용히 지나간다). 그러지 않으면 한 기기에서 둘을
+     * 끈 뒤 다른 기기가 앱을 여는 것만으로 토큰이 되살아난다.
+     */
     public void register(UUID userId, String token, String platform) {
+        if (tokens.pushesTurnedOff(userId)) {
+            return;
+        }
         tokens.register(userId, token, platform);
     }
 
-    public void unregister(UUID userId, String token) {
-        tokens.unregister(userId, token);
+    public void unregister(String token) {
+        tokens.unregister(token);
     }
 
+    /**
+     * 분석이 끝난 순간 그 사람의 토큰 전부에 한 번 보낸다. <b>어떤 실패도 밖으로 내보내지 않는다</b> — 알림은
+     * 부가 기능이고 분석 완료 처리는 그대로 끝나야 한다. "등록되지 않은 기기"로 답이 온 토큰은 지운다.
+     */
     @Override
     public void onAnalysisComplete(UUID sessionId) {
-        List<String> targets = tokens.tokensForSessionOwner(sessionId);
+        try {
+            notifyAnalysisDone(sessionId);
+        } catch (RuntimeException failure) {
+            failureReporter.report(failure, new FailureContext("PushService.onAnalysisComplete"));
+        }
+    }
+
+    private void notifyAnalysisDone(UUID sessionId) {
+        List<String> targets = tokens.analysisDoneTargets(sessionId);
         if (targets.isEmpty()) {
             return;
         }
@@ -51,6 +74,6 @@ public class PushService implements AnalysisCompletionListener {
                         "질문이 준비됐어요. 이어서 확인해 볼까요?",
                         Map.of("sessionId", sessionId.toString())))
                 .toList();
-        sender.send(messages);
+        sender.send(messages).forEach(tokens::unregister);
     }
 }

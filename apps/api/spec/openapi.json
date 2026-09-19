@@ -308,7 +308,7 @@
       "post" : {
         "tags" : [ "v2-push" ],
         "summary" : "Register Push Token",
-        "description" : "이 단말의 Expo push token 을 현재 사용자 것으로 등록한다. 멱등.",
+        "description" : "이 단말의 Expo push token 을 현재 회원 것으로 등록한다. 멱등. 보호 기능이라 동의와 프로필이\n끝난 회원만 부를 수 있다 — 동의 전에는 기기 정보를 받지 않는다. 게스트는 403 member_only.",
         "operationId" : "register_push_token_v2_push_tokens_post",
         "requestBody" : {
           "content" : {
@@ -342,7 +342,7 @@
       "delete" : {
         "tags" : [ "v2-push" ],
         "summary" : "Unregister Push Token",
-        "description" : "이 단말의 토큰을 지운다. 로그아웃·알림 끄기에서 부른다. 멱등.",
+        "description" : "이 단말의 토큰을 지운다. 로그아웃의 첫 단계와, 로그아웃 때 실패한 삭제의 다음 실행 재시도에서\n부른다. 멱등. <b>로그인 없이 받는다</b> — 푸시 토큰을 갖고 있다는 것이 본인 확인이고, 주인을\n따지지 않고 그 토큰 행을 지운다. 한 IP 에서 분당 60회까지다.",
         "operationId" : "unregister_push_token_v2_push_tokens_delete",
         "requestBody" : {
           "content" : {
@@ -368,10 +368,7 @@
               }
             }
           }
-        },
-        "security" : [ {
-          "HTTPBearer" : [ ]
-        } ]
+        }
       }
     },
     "/v2/practice-sessions" : {
@@ -590,6 +587,72 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/MeResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/guest/transfer-code" : {
+      "post" : {
+        "tags" : [ "v2-guest" ],
+        "summary" : "Issue Transfer Code",
+        "description" : "웹이 보여 줄 여섯 자리 숫자를 만든다. 10분 유효, 한 번 쓰면 끝, 새로 받으면 이전 코드는\n무효다. 게스트만 부를 수 있고 필요한 동의 문서는 없다.",
+        "operationId" : "issue_transfer_code_v2_guest_transfer_code_post",
+        "responses" : {
+          "201" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TransferCodeResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/guest-transfers" : {
+      "post" : {
+        "tags" : [ "v2-guest" ],
+        "summary" : "Transfer Guest Data",
+        "description" : "앱에서 코드를 넣으면 그 게스트의 자료 행의 주인을 회원으로 바꾼다. 한 트랜잭션이고, 끝나면\n게스트 계정을 닫는다. 회원과 게스트 둘 다 배우 기억이 있는데 memory_choice 가 없으면 아무것도\n옮기지 않고 409 다 — 코드는 살아 있다.",
+        "operationId" : "transfer_guest_v2_guest_transfers_post",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/GuestTransferRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GuestTransferResponse"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -1023,6 +1086,90 @@
             }
           }
         }
+      }
+    },
+    "/v2/auth/guest" : {
+      "post" : {
+        "tags" : [ "v2-auth" ],
+        "summary" : "Create Guest",
+        "description" : "웹 게스트를 만든다. 웹이 처음 보호 기능(연습 시작, 대본 등록)을 쓰려 할 때 부른다 — 랜딩·동의\n문서·입시 정보에서는 부르지 않는다. 한 IP 에서 시간당 10개까지다. 토큰의 구조와 갱신·만료는\n회원과 같다.",
+        "operationId" : "create_guest_v2_auth_guest_post",
+        "responses" : {
+          "201" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GuestResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/me/notification-settings" : {
+      "get" : {
+        "tags" : [ "v2-me" ],
+        "summary" : "Get Notification Settings",
+        "description" : "알림 토글 셋. 가입 직후에는 셋 다 켜져 있다. 프로필에 저장돼 폰을 바꿔도 유지된다.",
+        "operationId" : "get_notification_settings_v2_me_notification_settings_get",
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/NotificationSettings"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      },
+      "patch" : {
+        "tags" : [ "v2-me" ],
+        "summary" : "Update Notification Settings",
+        "description" : "바꿀 토글만 보내고 토글 셋 전체를 돌려받는다. 분석 완료와 챌린지가 둘 다 꺼지면 서버가 그\n회원의 푸시 토큰을 전부 지운다(토글은 회원 단위다). 저녁 리마인드는 서버가 값만 기억하고\n알람은 폰이 맞춘다.",
+        "operationId" : "update_notification_settings_v2_me_notification_settings_patch",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/NotificationSettingsPatch"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "토글 셋 전체",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/NotificationSettings"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
       }
     },
     "/v2/reports/{practice_session_id}" : {
@@ -2477,6 +2624,59 @@
         "required" : [ "expires_at", "upload_url" ],
         "title" : "PhotoUploadResponse"
       },
+      "TransferCodeResponse" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "title" : "Code"
+          },
+          "expires_in" : {
+            "type" : "integer",
+            "title" : "Expires In"
+          },
+          "expires_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Expires At"
+          }
+        },
+        "required" : [ "code", "expires_at", "expires_in" ],
+        "title" : "TransferCodeResponse"
+      },
+      "GuestTransferRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "title" : "Code"
+          },
+          "memory_choice" : {
+            "$ref" : "#/components/schemas/MemoryChoice"
+          }
+        },
+        "required" : [ "code" ],
+        "title" : "GuestTransferRequest"
+      },
+      "MemoryChoice" : {
+        "type" : "string",
+        "enum" : [ "member", "guest" ],
+        "title" : "MemoryChoice"
+      },
+      "GuestTransferResponse" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "transferred" : {
+            "type" : "boolean",
+            "title" : "Transferred"
+          }
+        },
+        "required" : [ "transferred" ],
+        "title" : "GuestTransferResponse"
+      },
       "ConsentDecision" : {
         "type" : "string",
         "enum" : [ "granted", "declined" ],
@@ -2491,6 +2691,10 @@
           },
           "action" : {
             "$ref" : "#/components/schemas/ConsentDecision"
+          },
+          "age_confirmed" : {
+            "type" : "boolean",
+            "title" : "Age Confirmed"
           }
         },
         "required" : [ "action", "document_id" ],
@@ -3046,6 +3250,77 @@
         },
         "required" : [ "documents", "expires_in", "result", "signup_token" ],
         "title" : "SignupRequiredResponse"
+      },
+      "GuestResponse" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "access_token" : {
+            "type" : "string",
+            "title" : "Access Token"
+          },
+          "refresh_token" : {
+            "type" : "string",
+            "title" : "Refresh Token"
+          },
+          "token_type" : {
+            "type" : "string",
+            "title" : "Token Type"
+          },
+          "expires_in" : {
+            "type" : "integer",
+            "title" : "Expires In"
+          },
+          "user" : {
+            "$ref" : "#/components/schemas/AuthUser"
+          },
+          "account_type" : {
+            "type" : "string",
+            "enum" : [ "guest" ],
+            "title" : "Account Type"
+          }
+        },
+        "required" : [ "access_token", "account_type", "expires_in", "refresh_token", "token_type", "user" ],
+        "title" : "GuestResponse"
+      },
+      "NotificationSettingsPatch" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "analysis_done" : {
+            "type" : "boolean",
+            "title" : "Analysis Done"
+          },
+          "challenge" : {
+            "type" : "boolean",
+            "title" : "Challenge"
+          },
+          "evening_reminder" : {
+            "type" : "boolean",
+            "title" : "Evening Reminder"
+          }
+        },
+        "title" : "NotificationSettingsPatch"
+      },
+      "NotificationSettings" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "analysis_done" : {
+            "type" : "boolean",
+            "title" : "Analysis Done"
+          },
+          "challenge" : {
+            "type" : "boolean",
+            "title" : "Challenge"
+          },
+          "evening_reminder" : {
+            "type" : "boolean",
+            "title" : "Evening Reminder"
+          }
+        },
+        "required" : [ "analysis_done", "challenge", "evening_reminder" ],
+        "title" : "NotificationSettings"
       },
       "ReportHistoryResponse" : {
         "type" : "object",

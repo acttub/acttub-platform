@@ -85,7 +85,7 @@ class ConsentController {
     @GetMapping("/pending")
     ConsentDocumentsResponse listPendingDocuments(HttpServletRequest request) {
         var user = auth.rateLimitedUser(request);
-        return documents(consents.pendingDocuments(user.id()));
+        return documents(consents.pendingDocuments(user.id(), user.guest()));
     }
 
     @Operation(
@@ -99,8 +99,9 @@ class ConsentController {
             content = @Content(schema = @Schema(implementation = ConsentEntryResponse.class)))
     @GetMapping("/entry")
     ConsentEntryResponse getEntry(HttpServletRequest request) {
+        // 게스트에게도 열려 있다 — 웹은 이 응답의 privacy 행 하나로 계측을 켠다.
         var user = auth.rateLimitedUser(request);
-        return entry(consents.entryFor(user.id()));
+        return entry(consents.entryFor(user.id(), user.guest()));
     }
 
     @Operation(
@@ -137,7 +138,8 @@ class ConsentController {
         String action = ConsentAction
                 .valueOf(body.action().name().toUpperCase(Locale.ROOT))
                 .dbValue();
-        ConsentService.Recorded recorded = consents.record(user.id(), body.documentId(), action);
+        ConsentService.Recorded recorded = consents.record(
+                user.id(), body.documentId(), action, user.guest(), Boolean.TRUE.equals(body.ageConfirmed()));
         return ResponseEntity.status(recorded.created() ? 201 : 200).body(new ConsentEventResponse(
                 recorded.event().id(),
                 recorded.event().documentId(),

@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.profile.domain.Account;
+import com.acttub.actingapi.feature.profile.domain.NotificationSettings;
 import com.acttub.actingapi.feature.profile.domain.Profile;
 
 /**
@@ -70,6 +71,18 @@ public interface ProfileRepository {
         /** 자료가 있어 탈퇴와 같은 절차로 닫았다. */
         DEACTIVATED
     }
+
+    /** 알림 토글 셋. 프로필 행이 없으면 {@code null}. */
+    NotificationSettings notificationSettings(UUID userId);
+
+    /**
+     * 보낸 토글만 바꾼다({@code null} 은 그대로 둔다). 분석 완료와 챌린지가 <b>둘 다</b> 꺼지면 같은
+     * 트랜잭션에서 그 회원의 푸시 토큰을 전부 지운다 — 토글은 회원 단위라 기기마다가 아니다.
+     *
+     * @return 바꾼 뒤의 토글 셋. 프로필 행이 없으면 {@code null}
+     */
+    NotificationSettings updateNotificationSettings(
+            UUID userId, Boolean analysisDone, Boolean challenge, Boolean eveningReminder);
 
     /** 새로 받은 올리기 자리를 적는다. 앞의 대기 중인 올리기는 덮어쓴다. 프로필 행이 없으면 {@code false}. */
     boolean beginPhotoUpload(UUID userId, PhotoUpload upload);

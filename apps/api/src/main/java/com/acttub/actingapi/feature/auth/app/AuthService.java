@@ -1,7 +1,9 @@
 package com.acttub.actingapi.feature.auth.app;
 
 import java.time.Clock;
+import java.security.SecureRandom;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -20,6 +22,7 @@ import com.acttub.actingapi.integration.oidc.ProviderUnavailable;
 import com.acttub.actingapi.integration.oidc.UnsupportedProviderError;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
+import com.acttub.actingapi.platform.schema.UserStatus;
 import com.acttub.actingapi.platform.security.AccountSecrets;
 import com.acttub.actingapi.platform.security.AuthenticatedUser;
 import com.acttub.actingapi.platform.web.ApiException;
@@ -37,6 +40,7 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class AuthService {
+    private static final SecureRandom GUEST_UIDS = new SecureRandom();
 
     private final ProviderRegistry providers;
     private final AppleTokenClient appleTokens;
@@ -240,6 +244,11 @@ public class AuthService {
         if (user == null) {
             throw invalidRefresh();
         }
+        // 옮겨진 게스트의 사유가 먼저다. 웹은 이 401 의 사유를 보고 "옮겼어요" 안내를 띄운다 — 사유가
+        // 없으면 안내 없이 새 게스트로 이어 간다.
+        if (user.status() == UserStatus.DEACTIVATED && accounts.transferredGuest(user.id())) {
+            throw new ApiException(401, "guest_transferred");
+        }
         user.requireUsable();
         return new RefreshAttempt(user, now);
     }
@@ -265,24 +274,34 @@ public class AuthService {
     }
 
     /**
-     * 로그아웃. 토큰이 이 사람의 것이 아니거나 이미 끊겼으면 401 이다.
+     * 로그아웃 — 요청에 실린 리프레시 토큰 <b>하나만</b> 폐기한다. 다른 기기의 세션은 그대로다.
      *
-     * <p>주체와 토큰의 소유자를 <b>둘 다</b> 본다 — 남의 refresh 를 들고 와서 끊는 것을 막는다.
+     * <p><b>멱등이다.</b> 이미 폐기됐거나 모르는 토큰, 위조된 토큰, 그리고 <b>남의 토큰</b>이어도 같은
+     * 결과(204)이고 아무것도 폐기하지 않는다. 주체와 토큰의 소유자를 둘 다 보는 것은 그대로다 — 남의
+     * 세션을 끊을 수 없고, 그 토큰이 실재하는지도 알려 주지 않는다.
      */
     public void revokeRefresh(UUID userId, String refreshToken) {
+        JwtService.TokenClaims claims;
         try {
-            JwtService.TokenClaims claims = jwt.decodeRefreshToken(refreshToken);
-            String hash = JwtService.hashToken(refreshToken);
-            RefreshToken stored = accounts.getRefresh(hash);
-            if (!claims.userId().equals(userId)
-                    || stored == null
-                    || !stored.userId().equals(userId)
-                    || !accounts.revoke(hash, clock.instant())) {
-                throw invalidRefresh();
-            }
-        } catch (JwtService.TokenValidationException invalid) {
-            throw invalidRefresh(invalid);
+            claims = jwt.decodeRefreshToken(refreshToken);
+        } catch (JwtService.TokenValidationException unusable) {
+            return;
         }
+        String hash = JwtService.hashToken(refreshToken);
+        RefreshToken stored = accounts.getRefresh(hash);
+        if (claims.userId().equals(userId) && stored != null && stored.userId().equals(userId)) {
+            accounts.revoke(hash, clock.instant());
+        }
+    }
+
+    /**
+     * 웹 게스트를 만든다. 웹이 처음 보호 기능을 쓰려 할 때 부른다 — 랜딩·동의 문서·입시 정보만 보는 동안에는
+     * 서버에 계정이 생기지 않는다. 토큰의 구조와 갱신·만료는 회원과 같다.
+     */
+    public AuthenticatedUser createGuest() {
+        byte[] random = new byte[32];
+        GUEST_UIDS.nextBytes(random);
+        return accounts.createGuest(Base64.getUrlEncoder().withoutPadding().encodeToString(random));
     }
 
     /**

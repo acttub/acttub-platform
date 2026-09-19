@@ -33,6 +33,10 @@ public final class ConsentGateInterceptor implements HandlerInterceptor {
             route(null, "/v2/admissions/**"),
             route(null, "/v2/admin/**"));
 
+    /** 게스트만 쓰는 자리. 필요한 동의 문서가 없어 게이트 밖이고, 회원이 부르면 403 {@code guest_only} 다. */
+    private static final List<Route> GUEST_ONLY = List.of(
+            route(null, "/v2/guest/**"));
+
     /** 동의까지만 본다. 프로필이 비어 있는 사람이 프로필을 채우는 자리다. */
     private static final List<Route> CONSENT_ONLY = List.of(
             route(HttpMethod.PUT, "/v2/me/profile"));
@@ -54,6 +58,7 @@ public final class ConsentGateInterceptor implements HandlerInterceptor {
         switch (gateFor(request.getMethod(), normalizedPath(request.getRequestURI()))) {
             case FULL -> auth.gatedUser(request);
             case CONSENT_ONLY -> auth.consentedUser(request);
+            case GUEST_ONLY -> auth.guestUser(request);
             case NONE -> { }
         }
         return true;
@@ -63,11 +68,15 @@ public final class ConsentGateInterceptor implements HandlerInterceptor {
         if (!path.startsWith("/v2/") || matches(OUTSIDE_THE_GATE, method, path)) {
             return Gate.NONE;
         }
+        if (matches(GUEST_ONLY, method, path)) {
+            return Gate.GUEST_ONLY;
+        }
         return matches(CONSENT_ONLY, method, path) ? Gate.CONSENT_ONLY : Gate.FULL;
     }
 
     enum Gate {
         NONE,
+        GUEST_ONLY,
         CONSENT_ONLY,
         FULL
     }

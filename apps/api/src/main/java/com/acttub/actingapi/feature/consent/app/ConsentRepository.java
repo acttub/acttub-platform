@@ -30,4 +30,10 @@ public interface ConsentRepository {
     List<ConsentEvent> currentConsentsOf(UUID userId);
 
     ConsentEvent record(UUID userId, UUID documentId, String action, Instant occurredAt);
+
+    /** 게스트가 "만 14세 이상이에요"를 확인한 적이 있는가({@code users.age_confirmed_at}). */
+    boolean ageConfirmed(UUID userId);
+
+    /** 확인한 시각을 남긴다. 이미 있으면 처음 값을 그대로 둔다. */
+    void confirmAge(UUID userId, Instant now);
 }

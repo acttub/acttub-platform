@@ -53,15 +53,29 @@ public class ConsentService implements PendingConsentGate, PendingConsentDocumen
 
     /** 현재 판 가운데 이 사람이 아직 결정하지 않은 문서. 선택 문서도 센다. */
     public List<ConsentDocument> pendingDocuments(UUID userId) {
-        return entryFor(userId).undecidedDocuments().stream()
+        return pendingDocuments(userId, false);
+    }
+
+    /** 게스트에게는 선택 문서를 묻지 않는다 — 선택 문서는 회원에게만 묻는다. */
+    public List<ConsentDocument> pendingDocuments(UUID userId, boolean guest) {
+        return entryFor(userId, guest).undecidedDocuments().stream()
                 .map(ConsentEntry.DocumentDecision::document)
                 .toList();
     }
 
     /** 현재 판과 결정을 함께 읽어 서비스 진입 판정을 계산한다. */
     public ConsentEntry entryFor(UUID userId) {
+        return entryFor(userId, false);
+    }
+
+    /**
+     * 게스트의 현황에는 필수 문서만 있다. 웹은 이 목록의 {@code privacy} 행의 결정 하나로 계측을 켠다 —
+     * 그 값은 <b>현재 판</b>에 대한 결정이다.
+     */
+    public ConsentEntry entryFor(UUID userId, boolean guest) {
+        List<ConsentDocument> documents = consents.listLatestDocuments();
         return ConsentEntry.evaluate(
-                consents.listLatestDocuments(),
+                guest ? documents.stream().filter(ConsentDocument::required).toList() : documents,
                 consents.currentConsentsOf(userId));
     }
 
@@ -76,6 +90,13 @@ public class ConsentService implements PendingConsentGate, PendingConsentDocumen
                         document.body(),
                         document.required(),
                         document.publishedAt()))
+                .toList();
+    }
+
+    @Override
+    public List<Document> undecidedAmong(UUID userId, Set<String> documentTypes) {
+        return undecidedFor(userId).stream()
+                .filter(document -> documentTypes.contains(document.type()))
                 .toList();
     }
 
@@ -119,10 +140,34 @@ public class ConsentService implements PendingConsentGate, PendingConsentDocumen
      * 문서를 차례로 보내다 끊긴 앱이 처음부터 다시 보내도 증빙이 부풀지 않는다.
      */
     public Recorded record(UUID userId, String rawDocumentId, String action) {
+        return record(userId, rawDocumentId, action, false, false);
+    }
+
+    /**
+     * 게스트의 결정에는 규칙이 둘 더 있다 (account.guest).
+     *
+     * <ul>
+     *   <li>선택 문서는 회원에게만 묻는다 — 게스트가 보내면 403 {@code member_only}.</li>
+     *   <li>게스트의 <b>첫</b> 동의에는 "만 14세 이상이에요" 확인이 실려야 한다. 게스트는 생년월일을 내지
+     *       않으므로 이것이 만 14세 미만을 거르는 유일한 장치다. 확인한 시각을 {@code users} 행에 남기고,
+     *       그 뒤로는 다시 묻지 않는다.</li>
+     * </ul>
+     */
+    public Recorded record(
+            UUID userId, String rawDocumentId, String action, boolean guest, boolean ageConfirmed) {
         Map<UUID, ConsentDocument> current = consents.listLatestDocuments().stream()
                 .collect(Collectors.toMap(ConsentDocument::id, Function.identity()));
         ConsentDocument document = currentDocument(rawDocumentId, current);
+        if (guest && !document.required()) {
+            throw new ApiException(403, "member_only");
+        }
         requireAllowed(document, action);
+        if (guest && !consents.ageConfirmed(userId)) {
+            if (!ageConfirmed) {
+                throw new ApiException(422, "age_confirmation_required");
+            }
+            consents.confirmAge(userId, clock.instant());
+        }
         ConsentEvent last = consents.currentConsentsOf(userId).stream()
                 .filter(consent -> consent.documentId().equals(document.id()))
                 .findFirst()

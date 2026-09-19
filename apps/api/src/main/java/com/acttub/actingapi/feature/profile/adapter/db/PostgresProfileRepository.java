@@ -16,6 +16,7 @@ import com.acttub.actingapi.feature.profile.app.AccountCleanupRepository;
 import com.acttub.actingapi.feature.profile.app.ProfileRepository;
 import com.acttub.actingapi.feature.profile.domain.Account;
 import com.acttub.actingapi.feature.profile.domain.AgeBand;
+import com.acttub.actingapi.feature.profile.domain.NotificationSettings;
 import com.acttub.actingapi.feature.profile.domain.Profile;
 import com.acttub.actingapi.platform.schema.ActingDirection;
 import com.acttub.actingapi.platform.schema.ActingExperience;
@@ -150,6 +151,63 @@ class PostgresProfileRepository implements ProfileRepository {
             }
             return find(userId);
         });
+    }
+
+    @Override
+    public NotificationSettings notificationSettings(UUID userId) {
+        List<Tuple> rows = list(entityManager.createNativeQuery("""
+                SELECT notify_analysis_done,notify_challenge,notify_evening_reminder
+                FROM user_profiles
+                WHERE user_id=:userId
+                """, Tuple.class)
+                .setParameter("userId", userId));
+        return rows.isEmpty() ? null : settings(rows.getFirst());
+    }
+
+    /**
+     * ⚠ {@code push_tokens} 의 주인은 {@code push} 다. 그래도 여기서 지우는 것은 "둘 다 꺼짐"과 "토큰
+     * 없음"이 한 트랜잭션이어야 하기 때문이다 — 나누면 꺼 놓고도 알림이 오는 틈이 생긴다. 탈퇴의 교차
+     * 도메인 정리와 같은 형태로 명시적 native DML 로 남긴다.
+     */
+    @Override
+    public NotificationSettings updateNotificationSettings(
+            UUID userId, Boolean analysisDone, Boolean challenge, Boolean eveningReminder) {
+        return transaction.execute(status -> {
+            List<Tuple> rows = list(entityManager.createNativeQuery("""
+                    WITH changed AS (
+                        UPDATE user_profiles
+                        SET notify_analysis_done=COALESCE(CAST(:analysisDone AS boolean),notify_analysis_done),
+                            notify_challenge=COALESCE(CAST(:challenge AS boolean),notify_challenge),
+                            notify_evening_reminder=
+                                COALESCE(CAST(:eveningReminder AS boolean),notify_evening_reminder),
+                            updated_at=now()
+                        WHERE user_id=:userId
+                        RETURNING notify_analysis_done,notify_challenge,notify_evening_reminder
+                    )
+                    SELECT notify_analysis_done,notify_challenge,notify_evening_reminder FROM changed
+                    """, Tuple.class)
+                    .setParameter("analysisDone", analysisDone)
+                    .setParameter("challenge", challenge)
+                    .setParameter("eveningReminder", eveningReminder)
+                    .setParameter("userId", userId));
+            if (rows.isEmpty()) {
+                return null;
+            }
+            NotificationSettings settings = settings(rows.getFirst());
+            if (settings.pushesTurnedOff()) {
+                entityManager.createNativeQuery("DELETE FROM push_tokens WHERE user_id=:userId")
+                        .setParameter("userId", userId)
+                        .executeUpdate();
+            }
+            return settings;
+        });
+    }
+
+    private static NotificationSettings settings(Tuple row) {
+        return new NotificationSettings(
+                row.get("notify_analysis_done", Boolean.class),
+                row.get("notify_challenge", Boolean.class),
+                row.get("notify_evening_reminder", Boolean.class));
     }
 
     @Override
@@ -374,7 +432,10 @@ class PostgresProfileRepository implements ProfileRepository {
             entityManager.createNativeQuery("DELETE FROM portfolios WHERE user_id=:userId")
                     .setParameter("userId", userId)
                     .executeUpdate();
-            entityManager.createNativeQuery("DELETE FROM guest_transfer_codes WHERE user_id=:userId")
+            // 살아 있는 이관 코드만 지운다. 쓰인 코드는 "이 게스트는 옮겨졌다"는 표식이라 남긴다
+            // (그 게스트의 토큰으로 온 요청에 guest_transferred 를 답한다).
+            entityManager.createNativeQuery(
+                    "DELETE FROM guest_transfer_codes WHERE user_id=:userId AND used_at IS NULL")
                     .setParameter("userId", userId)
                     .executeUpdate();
             entityManager.createNativeQuery("""
@@ -464,7 +525,7 @@ class PostgresProfileRepository implements ProfileRepository {
      * 장부로 옮긴다 — 애플은 토큰으로 폐기하고, 카카오는 회원번호로 끊고, 네이버는 refresh token 을
      * 폐기한다. 구글은 앱이 탈퇴 요청 직전에 SDK 로 끊는다.
      *
-     * <p>이미 해시로 바뀐 신원(다시 온 탈퇴 요청)은 건드리지 않는다.
+     * <p>이미 해시로 바뀐 신원(다시 온 탈퇴 요청)은 건드리지 않는다. 게스트 신원은 해시를 남기지 않고 지운다.
      */
     private List<UUID> hashIdentities(UUID userId, Instant now) {
         List<UUID> cleanups = new ArrayList<>();
@@ -479,6 +540,14 @@ class PostgresProfileRepository implements ProfileRepository {
         for (Tuple identity : identities) {
             String provider = identity.get("provider", String.class);
             String providerUid = identity.get("provider_uid", String.class);
+            // 게스트 신원은 해시 없이 행째 지운다(account.guest). 서버가 만든 난수라 다시 올 사람이 없고,
+            // 해시의 쓰임인 보관 동의 철회도 게스트에게는 없다(선택 문서를 묻지 않는다).
+            if ("guest".equals(provider)) {
+                entityManager.createNativeQuery("DELETE FROM user_identities WHERE id=:id")
+                        .setParameter("id", identity.get("id", UUID.class))
+                        .executeUpdate();
+                continue;
+            }
             String appleToken = identity.get("apple_token_encrypted", String.class);
             String naverToken = identity.get("naver_token_encrypted", String.class);
             // 토큰은 이미 암호문이라 그대로 옮긴다. 카카오 회원번호는 평문이었으므로 여기서 암호화한다.

@@ -8,6 +8,8 @@ import java.util.Map;
 
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.Direction;
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.MeResponse;
+import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.NotificationSettingsPatch;
+import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.NotificationSettingsResponse;
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.PhotoUploadRequest;
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.PhotoUploadResponse;
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.ProfilePayload;
@@ -15,6 +17,7 @@ import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.ProfileReque
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.WithdrawnResponse;
 import com.acttub.actingapi.feature.profile.app.ProfileService;
 import com.acttub.actingapi.feature.profile.domain.Account;
+import com.acttub.actingapi.feature.profile.domain.NotificationSettings;
 import com.acttub.actingapi.feature.profile.domain.Profile;
 import com.acttub.actingapi.feature.profile.domain.ProfileName;
 import com.acttub.actingapi.platform.security.AccessGate;
@@ -31,6 +34,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -170,6 +174,53 @@ class ProfileController {
     }
 
     @Operation(
+            summary = "Get Notification Settings",
+            description = "알림 토글 셋. 가입 직후에는 셋 다 켜져 있다. 프로필에 저장돼 폰을 바꿔도 유지된다.",
+            operationId = "get_notification_settings_v2_me_notification_settings_get",
+            tags = "v2-me",
+            security = @SecurityRequirement(name = "HTTPBearer"))
+    @ApiResponse(
+            responseCode = "200",
+            description = "Successful Response",
+            content = @Content(schema = @Schema(implementation = NotificationSettingsResponse.class)))
+    @GetMapping("/notification-settings")
+    NotificationSettingsResponse notificationSettings(HttpServletRequest request) {
+        var user = auth.gatedUser(request);
+        return settings(profiles.notificationSettings(user.id()));
+    }
+
+    @Operation(
+            summary = "Update Notification Settings",
+            description = """
+                    바꿀 토글만 보내고 토글 셋 전체를 돌려받는다. 분석 완료와 챌린지가 둘 다 꺼지면 서버가 그
+                    회원의 푸시 토큰을 전부 지운다(토글은 회원 단위다). 저녁 리마인드는 서버가 값만 기억하고
+                    알람은 폰이 맞춘다.""",
+            operationId = "update_notification_settings_v2_me_notification_settings_patch",
+            tags = "v2-me",
+            security = @SecurityRequirement(name = "HTTPBearer"))
+    @ApiResponses({
+        @ApiResponse(
+                responseCode = "200",
+                description = "토글 셋 전체",
+                content = @Content(schema = @Schema(implementation = NotificationSettingsResponse.class))),
+        @ApiResponse(
+                responseCode = "422",
+                description = "Validation Error",
+                content = @Content(schema = @Schema(ref = "#/components/schemas/HTTPValidationError")))
+    })
+    @PatchMapping("/notification-settings")
+    NotificationSettingsResponse updateNotificationSettings(
+            @Valid @RequestBody NotificationSettingsPatch body, HttpServletRequest request) {
+        var user = auth.gatedUser(request);
+        if (body.analysisDone() == null && body.challenge() == null && body.eveningReminder() == null) {
+            throw ApiValidationException.valueError(
+                    List.of("body"), "at least one toggle is required", Map.of());
+        }
+        return settings(profiles.updateNotificationSettings(
+                user.id(), body.analysisDone(), body.challenge(), body.eveningReminder()));
+    }
+
+    @Operation(
             summary = "Delete Me",
             description = """
                     회원탈퇴. 바로 알아보게 하는 정보는 파기하고, 나머지는 사람과 끊어 남긴다.
@@ -192,6 +243,11 @@ class ProfileController {
     WithdrawnResponse deleteMe(HttpServletRequest request) {
         var user = auth.rateLimitedUser(request);
         return new WithdrawnResponse("deactivated", profiles.withdraw(user.id()));
+    }
+
+    private static NotificationSettingsResponse settings(NotificationSettings settings) {
+        return new NotificationSettingsResponse(
+                settings.analysisDone(), settings.challenge(), settings.eveningReminder());
     }
 
     /**

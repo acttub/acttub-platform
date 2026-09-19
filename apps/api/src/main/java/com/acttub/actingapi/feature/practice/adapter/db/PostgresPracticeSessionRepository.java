@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.practice.app.PracticeOwnership;
 import com.acttub.actingapi.feature.practice.app.PracticeSessionRepository;
 import com.acttub.actingapi.feature.practice.domain.AnalysisStatus;
 import com.acttub.actingapi.feature.practice.domain.Observation;
@@ -33,7 +34,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  * JSONB를 도메인 타입으로 옮기는 일은 Jackson을 아는 이 Adapter에 남는다.
  */
 @Repository
-class PostgresPracticeSessionRepository implements PracticeSessionRepository {
+class PostgresPracticeSessionRepository implements PracticeSessionRepository, PracticeOwnership {
     private final PracticeSessionJpaRepository sessions;
     private final EntityManager entityManager;
     private final ObjectMapper mapper;
@@ -146,6 +147,43 @@ class PostgresPracticeSessionRepository implements PracticeSessionRepository {
                 .setParameter("sessionId", sessionId)
                 .setParameter("userId", userId));
         return rows.isEmpty() ? null : detail(rows.getFirst());
+    }
+
+    /** ⚠ 작업 장부는 배관의 것이지만 분석 요청을 거는 쪽이 연습이라 여기서 센다. 읽기만 한다. */
+    @Override
+    public int analysisRequestsSince(UUID userId, OffsetDateTime since, UUID exceptRequestId) {
+        Number count = (Number) entityManager.createNativeQuery("""
+                SELECT count(*)
+                FROM external_operations
+                WHERE user_id = :userId
+                  AND kind = 'analyze'
+                  AND created_at >= :since
+                  AND request_id <> :exceptRequestId
+                """)
+                .setParameter("userId", userId)
+                .setParameter("since", since)
+                .setParameter("exceptRequestId", exceptRequestId)
+                .getSingleResult();
+        return count.intValue();
+    }
+
+    /**
+     * 분석·대화·노트는 연습 행에 매달려 함께 따라간다.
+     *
+     * <p>⚠ <b>이 클래스의 {@code transaction} 을 쓰지 않는다.</b> 그것은 {@code REQUIRES_NEW} 라 여기서 쓰면
+     * 이관의 트랜잭션과 따로 커밋돼, 이관이 도중에 실패해도 연습만 회원에게 넘어간 채로 남는다. 트랜잭션을
+     * 열지 않으므로 부르는 쪽에 없으면 {@code executeUpdate} 가 거절한다.
+     */
+    @Override
+    public void reassign(UUID from, UUID to) {
+        entityManager.createNativeQuery("""
+                UPDATE practice_sessions
+                SET user_id = :to
+                WHERE user_id = :from
+                """)
+                .setParameter("to", to)
+                .setParameter("from", from)
+                .executeUpdate();
     }
 
     @Override

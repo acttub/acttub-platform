@@ -2,6 +2,7 @@ package com.acttub.actingapi.platform.security;
 
 import java.util.UUID;
 
+import com.acttub.actingapi.platform.schema.UserStatus;
 import com.acttub.actingapi.platform.web.ApiException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Service;
@@ -34,6 +35,11 @@ public class CurrentUserService {
         AuthenticatedUser user = users.find(userId);
         if (user == null) {
             throw new ApiException(401, "invalid or missing access token");
+        }
+        // 옮겨진 게스트의 사유가 탈퇴보다 먼저다. 탈퇴 API 도 예외가 아니다 — 자료는 이미 회원의 것이라
+        // 이 토큰으로 지울 것이 없고, 웹은 어느 요청에서든 같은 안내를 띄워야 한다.
+        if (user.status() == UserStatus.DEACTIVATED && users.transferredGuest(user.id())) {
+            throw new ApiException(403, "guest_transferred");
         }
         if (!acceptsDeactivated(request)) {
             user.requireUsable();

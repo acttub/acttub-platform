@@ -60,22 +60,45 @@ class PostgresPushTokenRepository implements PushTokenRepository {
     }
 
     @Override
-    public void unregister(UUID userId, String token) {
-        transaction.executeWithoutResult(
-                status -> tokens.deleteByOwnerAndToken(userId, token));
+    public void unregister(String token) {
+        transaction.executeWithoutResult(status -> entityManager.createNativeQuery("""
+                DELETE FROM push_tokens
+                WHERE token=:token
+                """)
+                .setParameter("token", token)
+                .executeUpdate());
     }
 
+    /**
+     * ⚠ 토글은 프로필의 것이다({@code user_profiles}). 보내기 직전에 읽어 거르는 일이라 같은 질의에서
+     * 읽는다 — 다른 feature 의 Schema Entity 를 import 하지 않도록 native SQL 로 둔다. 프로필 행이 없으면
+     * 기본값(켜짐)으로 본다.
+     */
     @Override
-    public List<String> tokensForSessionOwner(UUID sessionId) {
+    public List<String> analysisDoneTargets(UUID sessionId) {
         return list(entityManager.createNativeQuery("""
                 SELECT push.token
                 FROM push_tokens push
                 JOIN practice_sessions practice ON practice.user_id=push.user_id
+                LEFT JOIN user_profiles profile ON profile.user_id=push.user_id
                 WHERE practice.id=:sessionId
+                  AND COALESCE(profile.notify_analysis_done,true)
                 ORDER BY push.created_at
                 """, Tuple.class)
                 .setParameter("sessionId", sessionId)).stream()
                 .map(row -> row.get("token", String.class))
                 .toList();
+    }
+
+    @Override
+    public boolean pushesTurnedOff(UUID userId) {
+        return !list(entityManager.createNativeQuery("""
+                SELECT 1 AS turned_off
+                FROM user_profiles
+                WHERE user_id=:userId
+                  AND NOT notify_analysis_done
+                  AND NOT notify_challenge
+                """, Tuple.class)
+                .setParameter("userId", userId)).isEmpty();
     }
 }

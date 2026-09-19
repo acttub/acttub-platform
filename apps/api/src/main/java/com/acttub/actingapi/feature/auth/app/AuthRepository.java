@@ -47,6 +47,16 @@ public interface AuthRepository {
             List<AcceptedConsent> consents,
             Instant now);
 
+    /**
+     * 웹 게스트 — 보통의 {@code users} 행과 {@code provider=guest} 신원 하나. 이메일도 프로필도 없다.
+     *
+     * @param guestUid 서버가 만든 추측할 수 없는 난수
+     */
+    AuthenticatedUser createGuest(String guestUid);
+
+    /** 앱으로 옮겨져 닫힌 게스트인가. 갱신의 401 사유를 가르는 데 쓴다. */
+    boolean transferredGuest(UUID userId);
+
     /** 이 계정에 붙어 있는 제공자 이름들. 이메일 겹침 안내("이미 OO로 가입한 이메일이에요")에 쓴다. */
     List<String> providersOf(UUID userId);
 

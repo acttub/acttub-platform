@@ -10,6 +10,7 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.profile.domain.Account;
 import com.acttub.actingapi.feature.profile.domain.KoreanAge;
+import com.acttub.actingapi.feature.profile.domain.NotificationSettings;
 import com.acttub.actingapi.feature.profile.domain.Profile;
 import com.acttub.actingapi.feature.profile.domain.ProfilePhotoType;
 import com.acttub.actingapi.platform.security.ProfileGate;
@@ -105,6 +106,28 @@ public class ProfileService implements ProfileGate {
                 submitted.goal(),
                 kept == null ? null : kept.photoKey(),
                 submitted.bio()))));
+    }
+
+    public NotificationSettings notificationSettings(UUID userId) {
+        NotificationSettings settings = profiles.notificationSettings(userId);
+        if (settings == null) {
+            throw userNotFound();
+        }
+        return settings;
+    }
+
+    /**
+     * 보낸 토글만 바꾸고 <b>셋 전체</b>를 돌려준다 — 앱이 응답으로 화면과 캐시를 덮는다. 서버 푸시 둘이 다
+     * 꺼지면 그 회원의 푸시 토큰을 전부 지운다. 하나를 다시 켜면 앱이 이 폰의 토큰을 다시 등록한다.
+     */
+    public NotificationSettings updateNotificationSettings(
+            UUID userId, Boolean analysisDone, Boolean challenge, Boolean eveningReminder) {
+        NotificationSettings settings =
+                profiles.updateNotificationSettings(userId, analysisDone, challenge, eveningReminder);
+        if (settings == null) {
+            throw userNotFound();
+        }
+        return settings;
     }
 
     /**

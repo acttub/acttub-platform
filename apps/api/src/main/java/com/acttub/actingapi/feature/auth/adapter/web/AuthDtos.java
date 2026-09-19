@@ -127,6 +127,18 @@ final class AuthDtos {
             implements LoginResponse {
     }
 
+    /** 방금 만든 웹 게스트. {@code user.id} 에 웹이 나이 확인과 계측의 user_id 를 묶는다. */
+    @Schema(name = "GuestResponse", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record GuestResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String accessToken,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String refreshToken,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String tokenType,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long expiresIn,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) AuthUser user,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = "guest") String accountType) {
+    }
+
     @Schema(name = "RefreshTokenResponse", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     record RefreshTokenResponse(

@@ -40,6 +40,33 @@ class ExpoPushSenderTest {
     }
 
     @Test
+    @org.junit.jupiter.api.DisplayName("account.notification: Expo 의 ticket 은 보낸 순서대로 오고, DeviceNotRegistered 로 답한 토큰만 돌려준다")
+    void ticketsThatSayDeviceNotRegisteredNameTheirTokens() {
+        @SuppressWarnings("unchecked")
+        HttpResponse<String> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(200);
+        when(response.body()).thenReturn("""
+                {"data":[
+                  {"status":"ok","id":"ticket-1"},
+                  {"status":"error","message":"the token is not a registered push notification recipient",
+                   "details":{"error":"DeviceNotRegistered"}},
+                  {"status":"error","message":"too big","details":{"error":"MessageTooBig"}}
+                ]}
+                """);
+        RecordingFailureReporter reporter = new RecordingFailureReporter();
+        ExpoPushSender sender = new ExpoPushSender(
+                new ObjectMapper(), "https://exp.host/--/api/v2/push/send", reporter, request -> response);
+
+        List<String> unregistered = sender.send(List.of(
+                new PushMessage("ExponentPushToken[alive]", "완료", "분석 완료", Map.of()),
+                new PushMessage("ExponentPushToken[gone]", "완료", "분석 완료", Map.of()),
+                new PushMessage("ExponentPushToken[big]", "완료", "분석 완료", Map.of())));
+
+        assertThat(unregistered).containsExactly("ExponentPushToken[gone]");
+        assertThat(reporter.reports()).isEmpty();
+    }
+
+    @Test
     void nonSuccessResponseIsReportedWithoutPuttingItsBodyInTheFailure() {
         @SuppressWarnings("unchecked")
         HttpResponse<String> response = mock(HttpResponse.class);

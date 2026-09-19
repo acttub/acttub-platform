@@ -17,6 +17,8 @@ import com.acttub.actingapi.platform.schema.ConsentType;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 동의 문서와 그 이력의 저장소.
@@ -29,14 +31,17 @@ class PostgresConsentRepository implements ConsentRepository {
     private final ConsentDocumentJpaRepository documents;
     private final UserConsentJpaRepository consents;
     private final EntityManager entityManager;
+    private final TransactionTemplate transaction;
 
     PostgresConsentRepository(
             ConsentDocumentJpaRepository documents,
             UserConsentJpaRepository consents,
-            EntityManager entityManager) {
+            EntityManager entityManager,
+            PlatformTransactionManager transactionManager) {
         this.documents = documents;
         this.consents = consents;
         this.entityManager = entityManager;
+        this.transaction = new TransactionTemplate(transactionManager);
     }
 
     /**
@@ -105,6 +110,35 @@ class PostgresConsentRepository implements ConsentRepository {
                 ConsentAction.valueOf(action.toUpperCase(Locale.ROOT)),
                 occurredAt));
         return new ConsentEvent(id, userId, documentId, action, occurredAt);
+    }
+
+    /**
+     * ⚠ {@code users} 의 주인은 {@code auth} 다. 그래도 여기서 읽고 쓰는 것은 이 컬럼이 <b>동의 제출의
+     * 일부</b>이기 때문이다 — 게스트의 첫 동의에 실린 확인을 그 동의와 함께 남긴다. 다른 feature 의
+     * Schema Entity 를 import 하지 않도록 native SQL 로 둔다.
+     */
+    @Override
+    public boolean ageConfirmed(UUID userId) {
+        return !list(entityManager.createNativeQuery("""
+                SELECT 1 AS confirmed
+                FROM users
+                WHERE id=:userId
+                  AND age_confirmed_at IS NOT NULL
+                """, Tuple.class)
+                .setParameter("userId", userId)).isEmpty();
+    }
+
+    @Override
+    public void confirmAge(UUID userId, Instant now) {
+        transaction.executeWithoutResult(status -> entityManager.createNativeQuery("""
+                UPDATE users
+                SET age_confirmed_at=:now,updated_at=:now
+                WHERE id=:userId
+                  AND age_confirmed_at IS NULL
+                """)
+                .setParameter("now", now.atOffset(java.time.ZoneOffset.UTC))
+                .setParameter("userId", userId)
+                .executeUpdate());
     }
 
     /**

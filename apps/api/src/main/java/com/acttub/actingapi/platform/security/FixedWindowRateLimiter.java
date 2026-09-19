@@ -1,5 +1,6 @@
 package com.acttub.actingapi.platform.security;
 
+import java.time.Duration;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
@@ -16,6 +17,8 @@ public class FixedWindowRateLimiter {
     private record Counter(long window, int count) {
     }
 
+    private static final Duration MINUTE = Duration.ofMinutes(1);
+
     private final ConcurrentHashMap<String, Counter> counters = new ConcurrentHashMap<>();
     private final LongSupplier nanoClock;
 
@@ -28,14 +31,32 @@ public class FixedWindowRateLimiter {
     }
 
     public boolean allow(String key, int limit) {
-        long now = nanoClock.getAsLong();
-        long window = now / 60_000_000_000L;
+        return allow(key, limit, MINUTE);
+    }
+
+    /**
+     * 창의 길이를 고른다(게스트 만들기는 시간당으로 센다). 같은 키는 늘 같은 길이로 불러야 한다 —
+     * 창 번호가 길이에서 나온다.
+     */
+    public boolean allow(String key, int limit, Duration window) {
+        long number = nanoClock.getAsLong() / window.toNanos();
         AtomicBoolean allowed = new AtomicBoolean();
         counters.compute(key, (ignored, old) -> {
-            int count = old == null || old.window() != window ? 1 : old.count() + 1;
+            int count = old == null || old.window() != number ? 1 : old.count() + 1;
             allowed.set(count <= limit);
-            return new Counter(window, count);
+            return new Counter(number, count);
         });
         return allowed.get();
+    }
+
+    /**
+     * 세지 않고 본다 — 이번 창에서 이미 {@code limit} 번을 채웠는가. <b>틀린 시도만</b> 세는 자리에서
+     * 쓴다: 먼저 이것으로 막고, 틀렸을 때만 {@link #allow} 로 센다. 그러지 않으면 한도를 넘긴 뒤의
+     * 추측도 계속 평가된다.
+     */
+    public boolean exhausted(String key, int limit) {
+        long number = nanoClock.getAsLong() / MINUTE.toNanos();
+        Counter counter = counters.get(key);
+        return counter != null && counter.window() == number && counter.count() >= limit;
     }
 }

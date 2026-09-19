@@ -153,6 +153,9 @@ class ConsentEndpointIT {
                 INSERT INTO user_identities(id,user_id,provider,provider_uid)
                 VALUES (?,?,?,'uid-for-entry')
                 """, UUID.randomUUID(), USER_ID, provider);
+        // 게스트의 첫 동의에는 "만 14세 이상이에요" 확인이 실려야 한다. 이미 확인한 게스트로 둔다 — 여기서
+        // 보려는 것은 판이다(확인 줄은 AccountGuestIT 가 본다).
+        jdbc.update("UPDATE users SET age_confirmed_at=now() WHERE id=?", USER_ID);
         UUID oldPrivacy = id(208);
         insertDocument(oldPrivacy, "privacy", "v4", "개인정보처리방침", true, OLD);
         insertConsent(id(301), oldPrivacy, "granted", DECIDED);

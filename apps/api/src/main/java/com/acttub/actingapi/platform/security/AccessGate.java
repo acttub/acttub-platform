@@ -61,12 +61,18 @@ public class AccessGate {
         return user;
     }
 
+    /**
+     * 동의까지만 본다 — 프로필이 비어 있는 회원이 프로필을 채우는 자리다. 게스트에게는 프로필이 없다.
+     */
     public AuthenticatedUser consentedUser(HttpServletRequest request) {
         if (request != null
                 && request.getAttribute(CONSENTED_ATTRIBUTE) instanceof AuthenticatedUser user) {
             return user;
         }
         AuthenticatedUser user = rateLimitedUser(request);
+        if (user.guest()) {
+            throw new ApiException(403, "member_only");
+        }
         List<PendingConsentGate.Document> undecided = consents.undecidedFor(user.id());
         if (!undecided.isEmpty()) {
             throw new ApiException(403, "consent_required").with("pending_consents", undecided);
@@ -77,18 +83,61 @@ public class AccessGate {
         return user;
     }
 
+    /**
+     * 보호 기능의 주체. <b>회원과 게스트는 서로 다른 규칙으로 막힌다</b>(ADR-028) — 합치지 않는다.
+     *
+     * <ul>
+     *   <li>회원: 현재 판 문서를 모두 결정했고(선택 문서 포함) 프로필 여섯 항목이 찼다.</li>
+     *   <li>게스트: 이 경로가 속한 기능({@link GuestFeature})의 문서에 동의했다. 다른 문서는 보지 않고
+     *       프로필도 보지 않는다. 어느 기능에도 속하지 않는 경로는 회원 전용이다.</li>
+     * </ul>
+     */
     public AuthenticatedUser gatedUser(HttpServletRequest request) {
         if (request != null
                 && request.getAttribute(GATED_ATTRIBUTE) instanceof AuthenticatedUser user) {
             return user;
         }
-        AuthenticatedUser user = consentedUser(request);
-        if (!profiles.completeFor(user.id())) {
-            throw new ApiException(403, "profile_required");
+        AuthenticatedUser user = rateLimitedUser(request);
+        if (user.guest()) {
+            requireGuestFeature(user, request);
+        } else {
+            consentedUser(request);
+            if (!profiles.completeFor(user.id())) {
+                throw new ApiException(403, "profile_required");
+            }
         }
         if (request != null) {
             request.setAttribute(GATED_ATTRIBUTE, user);
         }
         return user;
+    }
+
+    /** 게스트만 쓰는 자리(이관 코드 받기). 필요한 동의 문서는 없다. 회원이 부르면 403 {@code guest_only}. */
+    public AuthenticatedUser guestUser(HttpServletRequest request) {
+        AuthenticatedUser user = rateLimitedUser(request);
+        if (!user.guest()) {
+            throw new ApiException(403, "guest_only");
+        }
+        return user;
+    }
+
+    /** 403 의 {@code pending_consents} 에는 <b>그 기능에 빠진 문서만</b> 싣는다. 웹은 그 목록으로 시트를 띄운다. */
+    private void requireGuestFeature(AuthenticatedUser guest, HttpServletRequest request) {
+        GuestFeature feature = request == null ? null : GuestFeature.of(normalizedPath(request.getRequestURI()));
+        if (feature == null) {
+            throw new ApiException(403, "member_only");
+        }
+        List<PendingConsentGate.Document> missing =
+                consents.undecidedAmong(guest.id(), feature.requiredDocumentTypes());
+        if (!missing.isEmpty()) {
+            throw new ApiException(403, "consent_required").with("pending_consents", missing);
+        }
+    }
+
+    private static String normalizedPath(String path) {
+        if (path.length() > 1 && path.endsWith("/")) {
+            return path.substring(0, path.length() - 1);
+        }
+        return path;
     }
 }

@@ -4,6 +4,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
@@ -42,6 +43,9 @@ public class PracticeSessionService {
      */
     private static final String BLANK_SCENE_PLACEHOLDER = ".";
 
+    private static final int GUEST_DAILY_ANALYSES = 3;
+    private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
+
     private final PracticeSessionLedger operations;
     private final PracticeSessionRepository sessions;
     private final PracticePlayback playback;
@@ -59,6 +63,17 @@ public class PracticeSessionService {
         this.playback = playback;
         this.clock = clock;
         this.canonical = canonical;
+    }
+
+    /**
+     * 게스트의 분석 요청은 하루 3회까지다. 하루는 <b>한국 시간 자정</b>에 끊는다 (account.guest).
+     * 새 연습의 분석과 실패한 분석의 재요청을 함께 센다. 같은 요청의 재시도는 세지 않는다.
+     */
+    public void requireGuestAnalysisQuota(UUID guestId, UUID requestId) {
+        OffsetDateTime midnight = clock.instant().atZone(SEOUL).toLocalDate().atStartOfDay(SEOUL).toOffsetDateTime();
+        if (sessions.analysisRequestsSince(guestId, midnight, requestId) >= GUEST_DAILY_ANALYSES) {
+            throw new ApiException(429, "guest_daily_analysis_limit");
+        }
     }
 
     /**

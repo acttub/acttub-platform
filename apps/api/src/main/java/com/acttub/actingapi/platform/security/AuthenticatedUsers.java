@@ -15,4 +15,10 @@ public interface AuthenticatedUsers {
 
     /** 없으면 {@code null}. */
     AuthenticatedUser find(UUID id);
+
+    /**
+     * 앱으로 옮겨져 닫힌 게스트인가. 탈퇴로 닫힌 계정과 사유가 다르다 — 웹은 이것을 보고 "옮겼어요"
+     * 안내를 띄운다. 닫힌 계정에만 묻는다.
+     */
+    boolean transferredGuest(UUID id);
 }

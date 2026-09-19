@@ -122,7 +122,9 @@ final class ConsentDtos {
     @Schema(name = "ConsentRequest")
     record ConsentRequest(
             @NotNull @JsonProperty("document_id") String documentId,
-            @NotNull ConsentActionInput action) {
+            @NotNull ConsentActionInput action,
+            // 게스트의 첫 동의에만 필요하다 — "만 14세 이상이에요" 확인. 회원은 생년월일로 거른다.
+            @JsonProperty("age_confirmed") Boolean ageConfirmed) {
     }
 
     /** 철회({@code revoked})는 입력이 아니다 — 탈퇴 뒤 운영자만 DB 에 기록한다. */

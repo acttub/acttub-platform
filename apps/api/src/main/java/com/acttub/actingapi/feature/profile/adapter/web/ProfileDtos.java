@@ -48,6 +48,23 @@ final class ProfileDtos {
         professional
     }
 
+    /** 알림 토글 셋. 조회와 바꾸기 둘 다 이 모양으로 <b>셋 전체</b>를 돌려준다. */
+    @Schema(name = "NotificationSettings", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record NotificationSettingsResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean analysisDone,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean challenge,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean eveningReminder) {
+    }
+
+    /** 바꿀 토글만 보낸다. 빠진 토글은 그대로다. */
+    @Schema(name = "NotificationSettingsPatch", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    record NotificationSettingsPatch(
+            @JsonProperty("analysis_done") Boolean analysisDone,
+            Boolean challenge,
+            @JsonProperty("evening_reminder") Boolean eveningReminder) {
+    }
+
     /** 탈퇴의 응답. 다시 불러도 같고, 시각은 최초 탈퇴 시각이다. */
     @Schema(name = "WithdrawnResponse", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)

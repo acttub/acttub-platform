@@ -140,13 +140,13 @@ class AuthErrorContractIT {
                 401,
                 "{\"detail\":\"invalid_refresh_token\"}");
 
-        assertResponse(
-                post("/v2/auth/logout")
+        // 로그아웃은 멱등이다 — 모르는 리프레시 토큰이어도 같은 204 이고 아무것도 폐기하지 않는다
+        // (account.logout). 그 토큰이 실재하는지 알려 주지 않는다.
+        mvc.perform(post("/v2/auth/logout")
                         .header("Authorization", "Bearer " + jwt.issueAccessToken(userId).value())
                         .contentType("application/json")
-                        .content("{\"refresh_token\":\"" + unstored + "\"}"),
-                401,
-                "{\"detail\":\"invalid_refresh_token\"}");
+                        .content("{\"refresh_token\":\"" + unstored + "\"}"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isNoContent());
     }
 
     @Test

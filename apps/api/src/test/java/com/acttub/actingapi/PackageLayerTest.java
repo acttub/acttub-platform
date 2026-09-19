@@ -73,7 +73,7 @@ class PackageLayerTest {
             // 포트폴리오와 게스트 이관은 테이블이 먼저 섰다(V7, SOMA-528). 나머지 층은 그 기능을
             // 만드는 작업이 세우고, 그때 이 표에 층을 더한다.
             Map.entry("portfolio", Set.of("schema")),
-            Map.entry("transfer", Set.of("schema")),
+            Map.entry("transfer", Set.of("app", "adapter", "schema")),
             // 입시 요강에는 Domain Model 도 Schema Entity 도 없다. 요강은 우리가 쓰는 데이터가
             // 아니라 바깥에서 통째로 들어오는 문서라 그것에 걸리는 행위 규칙이 없고, 문서가 곧
             // 응답이라 형태는 `app` 에 산다(`report/app/PublicReport` 와 같은 자리). 네 층을

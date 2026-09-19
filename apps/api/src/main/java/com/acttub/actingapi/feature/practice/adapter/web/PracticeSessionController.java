@@ -104,6 +104,9 @@ class PracticeSessionController {
         validateLiteral("blockage_kind", body.blockageKind(), BlockageBranch.KINDS);
         validateLiteral("sub_branch", body.subBranch(), BlockageBranch.SUB_BRANCHES);
         UUID requestId = requestId(requestIdHeader);
+        if (user.guest()) {
+            sessions.requireGuestAnalysisQuota(user.id(), requestId);
+        }
         NewPracticeSession command = new NewPracticeSession(
                 body.uploadIntentId(),
                 body.situation(),
@@ -249,6 +252,9 @@ class PracticeSessionController {
             HttpServletRequest request) {
         var user = auth.gatedUser(request);
         UUID requestId = requestId(requestIdHeader);
+        if (user.guest()) {
+            sessions.requireGuestAnalysisQuota(user.id(), requestId);
+        }
         return json(sessions.reanalyze(user.id(), sessionId, requestId), requestId);
     }
 
