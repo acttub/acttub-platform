@@ -359,6 +359,8 @@ function RootNavigator() {
       <Stack.Screen name="consent" options={{ headerShown: false }} />
       <Stack.Screen name="profile-name" options={{ headerShown: false }} />
       <Stack.Screen name="profile-edit" options={{ title: t('profileName.editTitle') }} />
+      <Stack.Screen name="portfolio-edit" options={{ title: t('portfolio.title') }} />
+      <Stack.Screen name="guest-transfer" options={{ title: t('guestTransfer.title') }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen
         name="delete-account"

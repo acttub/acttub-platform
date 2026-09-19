@@ -27,7 +27,14 @@ import {
   type PostIdempotentOptions,
 } from '@/lib/api-request';
 import type { SignupDecision } from '@/lib/consent-entry-submission';
+import type { TransferRequestBody } from '@/lib/guest-transfer';
 import type { LoginRequestBody, LoginResponse } from '@/lib/login-flow';
+import type {
+  CreditPayload,
+  Portfolio,
+  PortfolioCredit,
+  PortfolioShare,
+} from '@/lib/portfolio';
 import type { ProfilePayload, ServerProfile } from '@/lib/profile-form';
 import type { NotificationSettings } from '@/lib/push-policy';
 import {
@@ -510,6 +517,133 @@ export const api = {
    */
   deleteMe(): Promise<{ status: 'deactivated'; deactivated_at: string }> {
     return request('/v2/me', { method: 'DELETE' }, { timeoutMs: 30_000 });
+  },
+
+  // 포트폴리오 -----------------------------------------------------------------
+  // 항목마다 따로 저장한다. 회원 전용이고 보호 기능이다(게스트는 403 member_only).
+  /** 한 번도 편집하지 않았어도 빈 모양으로 200 이다. 배열은 저장된 순서다. */
+  portfolio(): Promise<Portfolio> {
+    return request<Portfolio>('/v2/portfolio', {}, { timeoutMs: 20_000 });
+  },
+
+  /** 소개글 저장. null 이나 빈 글로 지운다. 2,000자까지. */
+  savePortfolioIntro(intro: string | null): Promise<Portfolio> {
+    return request<Portfolio>(
+      '/v2/portfolio/intro',
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ intro }),
+      },
+      { timeoutMs: 20_000 },
+    );
+  },
+
+  /** 경력 추가. 맨 끝에 붙는다. 쉰한 번째는 422 portfolio_credit_limit_exceeded. */
+  createPortfolioCredit(credit: CreditPayload): Promise<PortfolioCredit> {
+    return request<PortfolioCredit>('/v2/portfolio/credits', jsonInit(credit), {
+      timeoutMs: 20_000,
+    });
+  },
+
+  /** 경력 수정. 보낸 항목만 바꾼다. */
+  updatePortfolioCredit(
+    creditId: string,
+    patch: Partial<CreditPayload>,
+  ): Promise<PortfolioCredit> {
+    return request<PortfolioCredit>(
+      `/v2/portfolio/credits/${encodeURIComponent(creditId)}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      },
+      { timeoutMs: 20_000 },
+    );
+  },
+
+  /** 경력 삭제. 이미 지운 것을 다시 지우면 404 다. */
+  deletePortfolioCredit(creditId: string): Promise<void> {
+    return request<void>(
+      `/v2/portfolio/credits/${encodeURIComponent(creditId)}`,
+      { method: 'DELETE' },
+      { timeoutMs: 15_000 },
+    );
+  },
+
+  /** 경력 순서 바꾸기. 지금 있는 id 를 원하는 순서로 전부 보낸다(다르면 422 order_mismatch). */
+  reorderPortfolioCredits(order: { ids: string[] }): Promise<Portfolio> {
+    return request<Portfolio>(
+      '/v2/portfolio/credits/order',
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(order),
+      },
+      { timeoutMs: 20_000 },
+    );
+  },
+
+  /** 포트폴리오 사진을 올릴 주소. 열한 번째는 422 portfolio_photo_limit_exceeded. */
+  createPortfolioPhotoIntent(input: {
+    content_type: string;
+    size_bytes: number;
+  }): Promise<{ photo_id: string; upload_url: string; expires_at: string }> {
+    return request('/v2/portfolio/photos', jsonInit(input), { timeoutMs: 30_000 });
+  },
+
+  /** 올리기가 끝났다고 알린다. 서버가 객체를 확인하고 목록 맨 끝에 붙인다. */
+  completePortfolioPhoto(photoId: string): Promise<Portfolio> {
+    return request<Portfolio>(
+      `/v2/portfolio/photos/${encodeURIComponent(photoId)}/complete`,
+      { method: 'POST' },
+      { timeoutMs: 30_000 },
+    );
+  },
+
+  deletePortfolioPhoto(photoId: string): Promise<void> {
+    return request<void>(
+      `/v2/portfolio/photos/${encodeURIComponent(photoId)}`,
+      { method: 'DELETE' },
+      { timeoutMs: 15_000 },
+    );
+  },
+
+  reorderPortfolioPhotos(order: { ids: string[] }): Promise<Portfolio> {
+    return request<Portfolio>(
+      '/v2/portfolio/photos/order',
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(order),
+      },
+      { timeoutMs: 20_000 },
+    );
+  },
+
+  /**
+   * 공유 링크 켜기·끄기. 처음 켤 때 난수 slug 가 생기고, 꺼도 slug 는 남아 다시 켜면 같은
+   * 주소가 열린다. 주소는 응답의 url 을 그대로 쓴다.
+   */
+  setPortfolioShare(enabled: boolean): Promise<PortfolioShare> {
+    return request<PortfolioShare>(
+      '/v2/portfolio/share',
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+      },
+      { timeoutMs: 20_000 },
+    );
+  },
+
+  // 웹 체험 자료 옮기기 ---------------------------------------------------------
+  /**
+   * 웹이 보여 준 여섯 자리 코드로 게스트의 자료를 이 회원으로 옮긴다. 기억이 둘 다 있는데
+   * memory_choice 가 없으면 409 memory_choice_required — 아무것도 옮기지 않고 코드도 살아 있다.
+   */
+  transferGuestData(body: TransferRequestBody): Promise<{ transferred: boolean }> {
+    return request('/v2/guest-transfers', jsonInit(body), { timeoutMs: 60_000 });
   },
 
   // 알림 설정 -------------------------------------------------------------------

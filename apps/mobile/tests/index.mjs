@@ -25,6 +25,8 @@ import './push-policy.test.mjs';
 import './notification-settings.test.mjs';
 import './push-token-lifecycle.test.mjs';
 import './profile-photo.test.mjs';
+import './portfolio.test.mjs';
+import './guest-transfer.test.mjs';
 import './continue-practice.test.mjs';
 import './exit-review-policy.test.mjs';
 import './coach-completion.test.mjs';

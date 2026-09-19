@@ -12,7 +12,8 @@ import { getUserName } from '@/lib/profile';
 import { translate as t } from '@/lib/i18n';
 
 /**
- * A4 프로필 — 하단 탭 "프로필"이 여는 페이지. 설정(⚙)·프로필 편집·활동·코치 기억으로 간다.
+ * A4 프로필 — 하단 탭 "프로필"이 여는 페이지. 설정(⚙)·포트폴리오 편집·활동·코치 기억으로 간다.
+ * "포트폴리오 편집"은 가입 때 받는 프로필 여섯 항목과 다른 기능이다(account.portfolio).
  *
  * 이름·사진·한 줄 소개는 서버의 프로필(GET /v2/me)을 보여 준다. 사진과 소개는 설정에서만
  * 받으므로 여기서는 고치지 않고 프로필 수정 화면으로 보낸다. 보관함(A2.2)·저장한
@@ -83,7 +84,7 @@ export default function ProfileScreen() {
               <Text style={styles.statValue}>0</Text>
               <Text style={styles.statLabel}>{t('profileTab.statChallenge')}</Text>
             </View>
-            <Pressable style={styles.editBtn} onPress={() => router.push('/profile-edit')} accessibilityRole="button">
+            <Pressable style={styles.editBtn} onPress={() => router.push('/portfolio-edit')} accessibilityRole="button">
               <Feather name="edit-3" size={13} color={palette.blueDeep} />
               <Text style={styles.editBtnText}>{t('profileTab.editPortfolio')}</Text>
             </Pressable>

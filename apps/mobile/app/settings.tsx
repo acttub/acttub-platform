@@ -260,6 +260,20 @@ export default function SettingsScreen() {
             </View>
           </Pressable>
 
+          {/* 웹에서 로그인 없이 해 본 연습·대본을 여섯 자리 코드로 이 계정에 가져온다. */}
+          <Pressable style={styles.card} onPress={() => router.push('/guest-transfer')} accessibilityRole="button">
+            <View style={styles.cardRow}>
+              <View style={styles.iconCircle}>
+                <Feather name="download" size={18} color={palette.blue} />
+              </View>
+              <View style={styles.cardBody}>
+                <Text style={styles.cardTitle}>{t('settings.transferTitle')}</Text>
+                <Text style={styles.cardSub}>{t('settings.transferBody')}</Text>
+              </View>
+              <Feather name="chevron-right" size={18} color={palette.checkOff} />
+            </View>
+          </Pressable>
+
           {/* 필수 동의 — 내용만 본다. 바꾸는 버튼이 없다. */}
           {required.length > 0 && (
             <>
