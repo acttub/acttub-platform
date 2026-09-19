@@ -1,4 +1,5 @@
 import { getConsentEntry } from "@/lib/api/v2/consents";
+import { onSessionEvent } from "@/lib/auth/session-events";
 import { getStoredUser, hasGuestSession } from "@/lib/auth/token-store";
 
 // 계측(GA4 쿠키·Amplitude)을 켜도 되는지를 가리는 관문(SOMA-528 결정 I-6).
@@ -73,4 +74,13 @@ export function createAnalyticsConsentGate(
       measurement.off();
     },
   };
+}
+
+/**
+ * 게스트의 끝(갱신 거절·닫힌 계정·앱으로 옮겨짐)과 새 게스트의 시작은 화면 전환 없이도
+ * 일어난다. 그 순간 묻지 않고 끈다 — 앞 게스트의 켜짐을 물려주지 않는다. 새 게스트는 동의를
+ * 제출한 뒤에야 다시 묻는다. 돌려주는 함수로 거둔다.
+ */
+export function watchGuestSession(gate: AnalyticsConsentGate): () => void {
+  return onSessionEvent(() => gate.suspend());
 }

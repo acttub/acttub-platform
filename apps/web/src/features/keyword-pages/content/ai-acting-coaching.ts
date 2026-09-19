@@ -217,7 +217,7 @@ export const AI_ACTING_COACHING: KeywordPageContent = {
     {
       question: "AI 연기 코칭은 무료인가요?",
       answer:
-        "네. Acttub은 iOS 앱, Android 앱, 웹 모두 무료로 쓸 수 있어요. 같은 계정으로 로그인하면 지난 연습이 기기 사이에서 이어져요.",
+        "네. Acttub은 iOS 앱, Android 앱, 웹 모두 무료로 쓸 수 있어요. 웹은 로그인 없이 바로 써 볼 수 있고, 웹에서 한 연습은 코드 하나로 앱 계정에 옮겨 이어 갈 수 있어요.",
     },
     {
       question: "어떤 영상을 올리면 되나요?",

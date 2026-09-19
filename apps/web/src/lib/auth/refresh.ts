@@ -1,4 +1,4 @@
-import { toApiError } from "../api/v2/errors";
+import { isGuestTransferred, toApiError } from "../api/v2/errors";
 import type { RefreshTokenResponse } from "../api/v2/types";
 import { postAuth } from "./auth-request";
 import { endGuestSession } from "./guest-session";
@@ -24,6 +24,17 @@ async function refreshInsideLock(failedAccess?: string): Promise<string | null> 
     if (latestRefresh !== sentRefresh) {
       // 다른 탭이 먼저 회전에 성공했다. 저장된 새 access를 채택하고 세션을 끝내지 않는다.
       return getAccessToken();
+    }
+    // 앱으로 옮겨진 게스트다. 새 게스트로 이어 가지 않게 사유를 그대로 던진다 —
+    // 공용 클라이언트는 null 이면 하려던 일을 새 게스트로 잇는다.
+    const rejection = toApiError(
+      response.status,
+      payload,
+      response.headers.get("X-Request-Id") ?? undefined,
+    );
+    if (isGuestTransferred(rejection)) {
+      endGuestSession("transferred");
+      throw rejection;
     }
     return endGuestSession();
   }

@@ -62,6 +62,16 @@ export function isStillProcessing(error: unknown): error is ApiError {
 }
 
 const GUEST_DAILY_ANALYSIS_LIMIT = "guest_daily_analysis_limit";
+const GUEST_TRANSFERRED = "guest_transferred";
+
+/** "옮겼어요" 안내의 본문. 막힌 요청의 오류 문구와 안내 화면이 같은 말을 쓴다. */
+export const GUEST_TRANSFERRED_MESSAGE =
+  "이 브라우저의 연습을 앱으로 옮겼어요. 이제 앱에서 이어서 볼 수 있어요.";
+
+/** 앱으로 옮겨진 게스트의 토큰으로 온 요청. 액세스 토큰에는 403, 갱신에는 401 로 온다. */
+export function isGuestTransferred(error: unknown): error is ApiError {
+  return error instanceof ApiError && error.code === GUEST_TRANSFERRED;
+}
 
 /** 잠시 기다리면 풀리는 429. 게스트의 하루 분석 횟수는 자정까지 풀리지 않으므로 뺀다. */
 export function isRateLimited(error: unknown): error is ApiError {
@@ -85,6 +95,8 @@ export function errorMessage(cause: unknown, fallback: string): string {
     if (cause.code === "client_contract_required") {
       return "새로고침하면 이 연습 노트를 열 수 있어요.";
     }
+    // isGuestTransferred 를 쓰지 않는다 — 이미 ApiError 로 좁힌 값에 타입 가드를 걸면 아래가 never 가 된다.
+    if (cause.code === GUEST_TRANSFERRED) return GUEST_TRANSFERRED_MESSAGE;
     // 게스트가 동의 시트를 닫았다. 같은 동작을 다시 하면 시트가 다시 뜬다.
     if (cause.status === 403 && cause.code === "consent_required") {
       return "동의해야 계속할 수 있어요. 다시 시도하면 동의 문서를 볼 수 있어요.";

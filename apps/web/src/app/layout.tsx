@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Analytics } from "@/features/analytics/analytics";
 import { ConsentSheetHost } from "@/features/consent/consent-sheet";
+import { TransferredNoticeHost } from "@/features/transfer/transferred-notice";
 import { buildRootMetadata } from "@/lib/seo/site-metadata";
 import { PretendardStylesheet } from "./pretendard-stylesheet";
 import "./globals.css";
@@ -44,6 +45,8 @@ export default function RootLayout({
         <Analytics />
         {/* 게스트의 기능별 동의 시트. 평소에는 아무것도 그리지 않는다(consent-sheet.tsx). */}
         <ConsentSheetHost />
+        {/* 앱으로 옮겨진 게스트의 "옮겼어요" 안내. 평소에는 아무것도 그리지 않는다. */}
+        <TransferredNoticeHost />
         {children}
       </body>
     </html>

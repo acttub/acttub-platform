@@ -1121,6 +1121,7 @@ function WorkspaceInner() {
       hasNote={noteBySession}
       headlines={headlineBySession}
       listError={hasSession && listError}
+      canTransfer={hasSession}
     />
   );
 
@@ -1150,6 +1151,7 @@ function WorkspaceInner() {
               hasNote={noteBySession}
               headlines={headlineBySession}
               listError={hasSession && listError}
+              canTransfer={hasSession}
             />
           </div>
         </div>
@@ -1453,6 +1455,7 @@ const SessionRail = memo(function SessionRail({
   hasNote,
   headlines,
   listError,
+  canTransfer,
 }: {
   open: boolean;
   drawer?: boolean;
@@ -1465,6 +1468,8 @@ const SessionRail = memo(function SessionRail({
   hasNote: Set<string>;
   headlines: Map<string, string>;
   listError: boolean;
+  /** 옮길 자료가 있는가. 게스트가 있을 때만 이관 코드 화면으로 가는 길을 연다. */
+  canTransfer: boolean;
 }) {
   const width = drawer ? "w-[300px]" : open ? "w-[280px]" : "w-16";
   // 이어한 연습(continued_from)을 부모 밑에 차수로 묶는다 (SOMA-418). 부모가 목록에
@@ -1664,13 +1669,21 @@ const SessionRail = memo(function SessionRail({
           매여 있다는 것을 목록 아래에서 알린다(게스트 시작 안내). 접힌 레일에는 글을 둘
           폭이 없어 펼쳤을 때만 보인다. */}
       {open ? (
-        <p
-          className={`border-t border-[#edf0f3] px-4 py-3.5 text-[11.5px] font-semibold leading-[17px] text-[#8b95a1] ${
-            drawer ? "" : "mt-auto"
-          }`}
+        <div
+          className={`border-t border-[#edf0f3] px-4 py-3.5 ${drawer ? "" : "mt-auto"}`}
         >
-          {GUEST_BROWSER_ONLY_NOTICE}
-        </p>
+          <p className="text-[11.5px] font-semibold leading-[17px] text-[#8b95a1]">
+            {GUEST_BROWSER_ONLY_NOTICE}
+          </p>
+          {canTransfer ? (
+            <Link
+              href="/transfer"
+              className="mt-1.5 inline-block text-[12.5px] font-black text-[#3182f6] transition hover:text-[#1b64da]"
+            >
+              앱으로 옮기기
+            </Link>
+          ) : null}
+        </div>
       ) : null}
     </aside>
   );

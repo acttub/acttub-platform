@@ -1,4 +1,5 @@
 import { apiFetch, type ApiResponse } from "./client";
+import { consentPromptElapsedMs, whenConsentPromptCloses } from "./consent-prompt";
 import { isRateLimited, isStillProcessing, NetworkError } from "./errors";
 
 export type RetryWaitReason = "processing" | "rate_limited" | "network";
@@ -58,9 +59,13 @@ function deadlineError(): DOMException {
   return new DOMException("멱등 요청 처리 기한을 초과했습니다.", "TimeoutError");
 }
 
+/**
+ * @param remainingMs 지금 남은 기한. 동의 시트가 떠 있던 시간은 세지 않으므로 타이머가 울린
+ *   시점에도 기한이 남아 있을 수 있다 — 그때마다 다시 물어 맞춘다.
+ */
 function signalUntilDeadline(
   source: AbortSignal | undefined,
-  remainingMs: number,
+  remainingMs: () => number,
 ): { signal: AbortSignal; cleanup: () => void } {
   const controller = new AbortController();
   const onAbort = () => controller.abort(abortReason(source as AbortSignal));
@@ -71,10 +76,33 @@ function signalUntilDeadline(
     source?.addEventListener("abort", onAbort, { once: true });
   }
 
-  const timer = setTimeout(() => controller.abort(deadlineError()), remainingMs);
+  let finished = false;
+  let timer: ReturnType<typeof setTimeout>;
+  const arm = () => {
+    timer = setTimeout(onTimer, Math.max(0, remainingMs()));
+  };
+  const onTimer = () => {
+    if (finished) return;
+    // 시트가 열려 있는 동안 기한은 멈춰 있다. 닫힌 뒤에 남은 만큼 다시 잰다.
+    const sheetCloses = whenConsentPromptCloses();
+    if (sheetCloses) {
+      void sheetCloses.then(() => {
+        if (!finished) arm();
+      });
+      return;
+    }
+    if (remainingMs() > 0) {
+      arm();
+      return;
+    }
+    controller.abort(deadlineError());
+  };
+  arm();
+
   return {
     signal: controller.signal,
     cleanup: () => {
+      finished = true;
       clearTimeout(timer);
       source?.removeEventListener("abort", onAbort);
     },
@@ -88,7 +116,15 @@ export async function postIdempotent<T>(
 ): Promise<ApiResponse<T>> {
   const requestId = options.requestId ?? newRequestId();
   const deadlineMs = options.deadlineMs ?? 120_000;
-  const deadline = Date.now() + deadlineMs;
+  // 기한은 서버를 기다린 시간만 센다. 동의 시트가 떠 있던 시간(배우가 문서를 읽는 시간)은
+  // 뺀다 — 세면 동의를 마치자마자 보낸 재전송이 TimeoutError 로 죽는다.
+  const startedAt = Date.now();
+  const sheetMsAtStart = consentPromptElapsedMs(startedAt);
+  const remainingMs = () => {
+    const now = Date.now();
+    const sheetMs = consentPromptElapsedMs(now) - sheetMsAtStart;
+    return deadlineMs - (now - startedAt - sheetMs);
+  };
   const serializedBody = body === undefined ? undefined : JSON.stringify(body);
 
   let processingAttempts = 0;
@@ -97,14 +133,13 @@ export async function postIdempotent<T>(
   let lastError: unknown;
 
   while (true) {
-    const requestRemainingMs = deadline - Date.now();
-    if (requestRemainingMs <= 0) {
+    if (remainingMs() <= 0) {
       if (lastError !== undefined) throw lastError;
       throw deadlineError();
     }
 
     try {
-      const attempt = signalUntilDeadline(options.signal, requestRemainingMs);
+      const attempt = signalUntilDeadline(options.signal, remainingMs);
       try {
         return await apiFetch<T>(path, {
           method: "POST",
@@ -137,9 +172,9 @@ export async function postIdempotent<T>(
         throw error;
       }
 
-      const remainingMs = deadline - Date.now();
-      if (remainingMs <= 0) throw error;
-      const boundedDelayMs = Math.min(delayMs, remainingMs);
+      const leftMs = remainingMs();
+      if (leftMs <= 0) throw error;
+      const boundedDelayMs = Math.min(delayMs, leftMs);
       options.onWait?.({ reason, attempt, delayMs: boundedDelayMs });
       await wait(boundedDelayMs, options.signal);
     }

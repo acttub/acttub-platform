@@ -2,9 +2,9 @@
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { onSessionEvent } from "@/lib/auth/session-events";
 import {
   createAnalyticsConsentGate,
+  watchGuestSession,
   type AnalyticsConsentGate,
 } from "@/features/consent/analytics-consent";
 import {
@@ -81,9 +81,8 @@ export function Analytics() {
     const onVisibilityChange = () => {
       if (document.visibilityState === "visible") void analyticsConsentGate.check();
     };
-    // 게스트의 끝과 새 게스트의 시작은 화면 전환 없이도 일어난다. 앞 게스트의 켜짐을
-    // 물려주지 않는다 — 새 게스트는 동의를 제출한 뒤에야 다시 묻는다.
-    const unsubscribe = onSessionEvent(() => analyticsConsentGate.suspend());
+    // 게스트의 끝(앱으로 옮겨진 것 포함)과 새 게스트의 시작에는 묻지 않고 끈다.
+    const unsubscribe = watchGuestSession(analyticsConsentGate);
     // 다른 탭의 변화는 세션 이벤트로 오지 않는다(token-store 는 storage 로 메모리 캐시만
     // 되돌린다). storage 는 그 탭 밖에서 일어난 변화만 오므로 여기서 같이 듣는다.
     const onStorage = () => void analyticsConsentGate.check();

@@ -15,6 +15,11 @@ export type ApiFetchOptions = {
   retryOn401?: boolean;
   /** false 면 403 consent_required 에 시트를 띄우지 않고 그대로 던진다. */
   consentPrompt?: boolean;
+  /**
+   * false 면 조회가 아니어도 게스트를 만들지 않는다. 이미 있는 게스트의 자료를 다루는
+   * 요청(이관 코드 받기)이 쓴다 — 게스트가 없으면 다룰 자료도 없다.
+   */
+  startGuest?: boolean;
 };
 
 export type ApiResponse<T> = {
@@ -112,7 +117,7 @@ const MAX_CONSENT_PROMPTS = 2;
  * 무언가를 하려 할 때(영상 올리기, 대본 등록) 생긴다.
  */
 function startsGuest(options: ApiFetchOptions): boolean {
-  return (options.method ?? "GET") !== "GET";
+  return options.startGuest !== false && (options.method ?? "GET") !== "GET";
 }
 
 function sessionAccess(
@@ -123,13 +128,16 @@ function sessionAccess(
   throw new ApiError(401, "guest_session_required", "guest_session_required");
 }
 
-function isDeactivated(response: Response, payload: unknown): boolean {
-  return (
-    response.status === 403 &&
-    payload !== null &&
-    typeof payload === "object" &&
-    (payload as { detail?: unknown }).detail === "account_deactivated"
-  );
+/** 그 상태 코드로 온 응답의 사유 코드. 상태가 다르거나 본문에 코드가 없으면 null. */
+function detailOf(
+  response: Response,
+  payload: unknown,
+  status: number,
+): string | null {
+  if (response.status !== status) return null;
+  if (payload === null || typeof payload !== "object") return null;
+  const { detail } = payload as { detail?: unknown };
+  return typeof detail === "string" ? detail : null;
 }
 
 /** 403 consent_required 에 함께 실려 오는 빠진 문서 목록. 다른 응답이면 null. */
@@ -174,8 +182,15 @@ async function sendWithSession(
     payload = await responsePayload(response);
   }
 
+  // 앱으로 옮겨진 게스트의 남은 액세스 토큰. account_deactivated 보다 먼저 가른다. 하려던 일을
+  // 새 게스트로 잇지 않는다 — 자료가 앱으로 갔다는 안내를 보고 배우가 새로 시작한다.
+  if (auth && detailOf(response, payload, 403) === "guest_transferred") {
+    endGuestSession("transferred");
+    return { response, payload };
+  }
+
   // 닫힌 계정(30일 뒤 파기된 게스트 등)의 남은 액세스 토큰. 갱신이 거절된 것과 같게 다룬다.
-  if (auth && isDeactivated(response, payload)) {
+  if (auth && detailOf(response, payload, 403) === "account_deactivated") {
     endGuestSession();
     if (startsGuest(options)) {
       const guestAccess = await ensureGuestSession();
