@@ -63,6 +63,13 @@ public final class CoachPrompt {
             load("/coach/coach-block-blockage-unspecified.txt");
 
     /**
+     * 배우 프로필 블록의 지시문. 완성된 프로필이 있는 세션에만 붙는다({@link #actorProfileBlock}).
+     * 시스템 프롬프트가 아니라 블록 안에 두는 이유는 부재 시 동일성이다 — 프로필이 없는 세션의
+     * 프롬프트는 이 기능이 생기기 전과 글자 하나 다르지 않아야 한다.
+     */
+    private static final String ACTOR_PROFILE_TEXT = load("/coach/coach-block-actor-profile.txt");
+
+    /**
      * 지난 것을 담는 칸의 상한. 넘으면 앞에서부터 자른다 — 지난 연습이 길다고 이번
      * 대화의 예산을 밀어내면 안 된다.
      */
@@ -82,6 +89,33 @@ public final class CoachPrompt {
     }
 
     private CoachPrompt() {
+    }
+
+    /**
+     * 배우가 직접 저장한 프로필을 프롬프트에 넣는다.
+     *
+     * <p><b>완성된 프로필에만 붙는다.</b> 없으면 공백 하나도 더하지 않는다 — 게스트와 프로필을 아직
+     * 채우지 않은 회원의 프롬프트는 바이트 단위로 전과 같다({@link #priorContextBlock} 과 같은 이유:
+     * 빈 제목만 남기면 모델이 그 자리를 지어내 채운다).
+     *
+     * <p>기억 블록과 <b>따로</b> 둔다. 기억은 지난 연습에서 정리된 참고 사항이고 1,200자에서 잘리지만,
+     * 이것은 배우가 지금 저장해 둔 값이라 잘리면 안 되고 기억과 다르면 이쪽이 이긴다. 값은 한국어
+     * 표시말 그대로 싣는다 — 응답 언어는 기존 정책이 대화를 보고 정한다.
+     */
+    static String actorProfileBlock(ActorProfile profile) {
+        if (profile == null) {
+            return "";
+        }
+        List<String> lines = new ArrayList<>();
+        lines.add("## 배우 프로필");
+        lines.add(ACTOR_PROFILE_TEXT);
+        lines.add("- 이름: " + profile.name());
+        lines.add("- 성별: " + profile.gender());
+        lines.add("- 만 나이: " + profile.age() + "세");
+        lines.add("- 추구하는 방향: " + String.join(", ", profile.directions()));
+        lines.add("- 연기 경력: " + profile.experience());
+        lines.add("- 최종 목표: " + profile.goal());
+        return String.join("\n", lines) + "\n\n";
     }
 
     /**
@@ -273,7 +307,8 @@ public final class CoachPrompt {
         String conversationSummary = empty(session.conversationSummary())
                 ? "아직 없음"
                 : session.conversationSummary();
-        return priorContextBlock(session.prior(), CoachBranch.isBlockageUnspecified(session.blockageKind()))
+        return actorProfileBlock(session.actorProfile())
+                + priorContextBlock(session.priorForModel(), CoachBranch.isBlockageUnspecified(session.blockageKind()))
                 + actorMaterialBlock(session)
                 + sceneContextMissingBlock(session)
                 + blockageUnspecifiedBlock(session)

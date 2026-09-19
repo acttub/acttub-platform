@@ -1,0 +1,36 @@
+{
+  "video_summary": {
+    "observations": [],
+    "uncertainties": []
+  },
+  "confirmed_handoff": {
+    "experiment": {
+      "tested": true,
+      "instruction": "한 번 멈춘다"
+    },
+    "observed_change": "말이 선명해졌다"
+  },
+  "analysis_handoff": null,
+  "expression_handoff": {
+    "experiment": {
+      "tested": true,
+      "instruction": "한 번 멈춘다"
+    },
+    "observed_change": "말이 선명해졌다"
+  },
+  "confirmation": {
+    "confirmed": true,
+    "coaching_handoff_id": "expression-id"
+  },
+  "actor_profile": {
+    "name": "김배우",
+    "gender": "여성",
+    "age": 25,
+    "directions": [
+      "매체(TV·영화)",
+      "무대(연극·뮤지컬)"
+    ],
+    "experience": "1–3년",
+    "goal": "전문 배우"
+  }
+}

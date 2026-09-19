@@ -38,6 +38,15 @@ final class NoteContinuityFixtures {
             """);
     }
 
+    /**
+     * account.profile: 노트가 읽는 배우 프로필. handoff 에 넣지 않는다 — 실물에서도 handoff 밖에서 포트로
+     * 읽어 모델 입력 최상위에만 싣는다.
+     */
+    static ReportProfile.ActorProfile profile() {
+        return new ReportProfile.ActorProfile(
+                "김하늘", "여성", 19, java.util.List.of("무대(연극·뮤지컬)"), "입시생", "전문 배우");
+    }
+
     static void message(ObjectNode handoff, String id, String role, String text) {
         ((ArrayNode) handoff.path("conversation")).addObject().put("id", id).put("role", role).put("text", text);
         source(handoff, id, role.equals("actor") ? "actor_message" : "coach_message", text, -1, -1);

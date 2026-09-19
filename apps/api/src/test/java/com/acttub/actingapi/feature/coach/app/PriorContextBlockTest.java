@@ -33,4 +33,40 @@ class PriorContextBlockTest {
     void emptyPriorMakesNoBlock() {
         assertThat(CoachPrompt.priorContextBlock(PriorContext.EMPTY)).isEmpty();
     }
+
+    /**
+     * 완성된 프로필이 있으면 모델에 넘기는 기억 <b>사본</b>에서 성별·나이를 뺀다. 원본은 그대로다 —
+     * 저장된 기억을 고치는 것이 아니다.
+     */
+    @Test
+    @DisplayName("account.profile: 성별·나이를 뺀 사본은 목표와 나머지를 그대로 두고 원본을 바꾸지 않는다")
+    void withoutDemographicsKeepsEverythingElseAndLeavesTheOriginalAlone() {
+        PriorContext prior = new PriorContext(
+                Map.of("gender", "남", "age", "31", "goal", "입시 합격", "blockage", "대사 분석"),
+                "지난 대화", false, List.of("한 박자 쉬기"), List.of("1차: 호흡"));
+
+        PriorContext forModel = prior.withoutDemographics();
+
+        assertThat(forModel.memory()).containsOnlyKeys("goal", "blockage")
+                .containsEntry("goal", "입시 합격");
+        assertThat(forModel.earlierConversation()).isEqualTo("지난 대화");
+        assertThat(forModel.fromSamePractice()).isFalse();
+        assertThat(forModel.pendingTakes()).containsExactly("한 박자 쉬기");
+        assertThat(forModel.sceneHistory()).containsExactly("1차: 호흡");
+        assertThat(prior.memory()).containsKeys("gender", "age");
+    }
+
+    @Test
+    @DisplayName("account.profile: 프로필이 없는 세션은 기억을 그대로 모델에 넘긴다")
+    void sessionWithoutAProfileHandsTheMemoryOverUntouched() {
+        PriorContext prior = new PriorContext(Map.of("gender", "남", "age", "31"), null, true, List.of(), List.of());
+        CoachSessionSnapshot session = new CoachSessionSnapshot(
+                java.util.UUID.randomUUID(), java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
+                java.util.UUID.randomUUID(), null, "", "", "", 1000, "그 외", "그 외", null,
+                List.of(), "", null, "open", "", List.of(), prior);
+
+        assertThat(session.priorForModel()).isSameAs(prior);
+        assertThat(session.withActorProfile(new ActorProfile("김배우", "여성", 25, List.of("매체(TV·영화)"), "입시생", "취미"))
+                .priorForModel().isEmpty()).isTrue();
+    }
 }

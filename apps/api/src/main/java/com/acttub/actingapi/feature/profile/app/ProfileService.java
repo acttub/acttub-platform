@@ -53,6 +53,19 @@ public class ProfileService implements ProfileGate {
         return account != null && account.profileComplete();
     }
 
+    /**
+     * 코치와 노트가 읽는 것 — 필수 여섯 항목을 다 채운 프로필과 <b>지금의</b> 만 나이. 프로필이 없거나
+     * (게스트) 하나라도 비어 있으면 {@code null} 이다. 만 나이는 읽을 때마다 한국 시간의 오늘로 센다.
+     */
+    public CompleteProfile completeProfileOf(UUID userId) {
+        Account account = profiles.find(userId);
+        if (account == null || !account.profileComplete()) {
+            return null;
+        }
+        return new CompleteProfile(
+                account.profile(), KoreanAge.on(account.profile().birthDate(), today()));
+    }
+
     /** 한국 시간의 오늘. 만 나이와 생년월일 검사가 같은 날짜를 본다. */
     public LocalDate today() {
         return LocalDate.now(clock.withZone(SEOUL));
@@ -180,5 +193,9 @@ public class ProfileService implements ProfileGate {
     }
 
     public record NewPhotoUpload(String uploadUrl, Instant expiresAt) {
+    }
+
+    /** 완성된 프로필과 그것을 읽은 날의 만 나이. */
+    public record CompleteProfile(Profile profile, int age) {
     }
 }

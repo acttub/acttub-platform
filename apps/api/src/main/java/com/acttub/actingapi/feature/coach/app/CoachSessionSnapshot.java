@@ -29,12 +29,37 @@ public record CoachSessionSnapshot(
         PriorContext prior,
         String experienceVersion,
         long stateRevision,
-        JsonNode coachingState) {
+        JsonNode coachingState,
+        // 배우가 저장한 완성된 프로필. 없으면 null — 그때 모델 입력은 프로필이 없던 때와 같다.
+        // prior 와 같이 턴마다 새로 읽어 싣는 입력이고 저장하지 않는다.
+        ActorProfile actorProfile) {
 
     public CoachSessionSnapshot {
         transcripts = List.copyOf(transcripts);
         turns = List.copyOf(turns);
         prior = prior == null ? PriorContext.EMPTY : prior;
+    }
+
+    /** 프로필을 모르는 자리에서 쓰는 생성자. 저장소에서 되살린 세션이 그렇다. */
+    public CoachSessionSnapshot(UUID sessionId, UUID practiceSessionId, UUID summaryId,
+            UUID userId, JsonNode observationPack, String situation, String characterContext,
+            String goal, int durationMs, String blockageKind, String subBranch,
+            String blockageDetail, List<String> transcripts, String conversationSummary,
+            JsonNode analysisHandoff, String status, String closeReason,
+            List<CoachTurnSnapshot> turns, PriorContext prior, String experienceVersion,
+            long stateRevision, JsonNode coachingState) {
+        this(sessionId, practiceSessionId, summaryId, userId, observationPack, situation,
+                characterContext, goal, durationMs, blockageKind, subBranch, blockageDetail,
+                transcripts, conversationSummary, analysisHandoff, status, closeReason, turns,
+                prior, experienceVersion, stateRevision, coachingState, null);
+    }
+
+    /**
+     * 모델에 넘길 지난 것. 완성된 프로필이 있으면 기억의 성별·나이를 뺀다 — 문자열 프롬프트와 구조화
+     * 입력이 같은 것을 본다.
+     */
+    public PriorContext priorForModel() {
+        return actorProfile == null ? prior : prior.withoutDemographics();
     }
 
     /**
@@ -87,7 +112,7 @@ public record CoachSessionSnapshot(
         return new CoachSessionSnapshot(sessionId, practiceSessionId, summaryId, userId,
                 observationPack, situation, characterContext, goal, durationMs, blockageKind,
                 subBranch, blockageDetail, transcripts, conversationSummary, analysisHandoff,
-                newStatus, reason, turns, prior, version, revision, state);
+                newStatus, reason, turns, prior, version, revision, state, actorProfile);
     }
 
     public CoachSessionSnapshot withPrior(PriorContext newPrior) {
@@ -95,7 +120,15 @@ public record CoachSessionSnapshot(
                 sessionId, practiceSessionId, summaryId, userId, observationPack, situation,
                 characterContext, goal, durationMs, blockageKind, subBranch, blockageDetail,
                 transcripts, conversationSummary, analysisHandoff, status, closeReason, turns,
-                newPrior, experienceVersion, stateRevision, coachingState);
+                newPrior, experienceVersion, stateRevision, coachingState, actorProfile);
+    }
+
+    public CoachSessionSnapshot withActorProfile(ActorProfile newProfile) {
+        return new CoachSessionSnapshot(
+                sessionId, practiceSessionId, summaryId, userId, observationPack, situation,
+                characterContext, goal, durationMs, blockageKind, subBranch, blockageDetail,
+                transcripts, conversationSummary, analysisHandoff, status, closeReason, turns,
+                prior, experienceVersion, stateRevision, coachingState, newProfile);
     }
 
     public CoachSessionSnapshot withTurns(List<CoachTurnSnapshot> newTurns) {
@@ -118,7 +151,7 @@ public record CoachSessionSnapshot(
                 status,
                 closeReason,
                 newTurns,
-                prior, experienceVersion, stateRevision, coachingState);
+                prior, experienceVersion, stateRevision, coachingState, actorProfile);
     }
 
     public CoachSessionSnapshot withStatus(String newStatus) {
@@ -141,6 +174,6 @@ public record CoachSessionSnapshot(
                 newStatus,
                 closeReason,
                 turns,
-                prior, experienceVersion, stateRevision, coachingState);
+                prior, experienceVersion, stateRevision, coachingState, actorProfile);
     }
 }

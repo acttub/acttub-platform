@@ -24,6 +24,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /** acting-report 엔진: 차단 판정, Python식 입력 직렬화, 출력 파싱을 한 경계에 둔다. */
@@ -42,14 +43,36 @@ public class ReportEngine {
             "observed_change", "next_take", "acting_trap", "actor_training",
             "evidence", "actor_words", "uncertainties", "source_handoff_ids");
 
+    /**
+     * 입력에 {@code actor_profile} 이 있을 때만 시스템 프롬프트 뒤에 붙는 지시. 프롬프트 본문을 조건
+     * 없이 바꾸지 않는 것은 부재 시 동일성 때문이다 — 프로필이 없는 배우의 노트 입력은 전과 같아야 한다.
+     */
+    static final String ACTOR_PROFILE_INSTRUCTION = "\n\n[actor_profile]\n"
+            + "actor_profile 은 배우가 직접 저장한 현재 정보다. 설명의 깊이와 용어, 다음 연습 제안의 난이도를 "
+            + "연기 경력과 추구하는 방향에 맞추는 데만 참고한다. 영상 근거나 배우가 대화에서 한 말이 아니므로 "
+            + "evidence·actor_words 에 넣지 않고, 프로필의 최종 목표를 이번 장면의 목표로 채우지 않는다. "
+            + "프로필 값을 노트 본문에 그대로 옮겨 적지 않는다.";
+
     private final TextGenerator generate;
     private final ObjectMapper mapper;
     private final LlmTelemetry telemetry;
+    private final ReportProfile profiles;
 
+    /** 프로필을 읽을 곳이 없는 자리 — 누구의 노트인지 모르고 부르는 조립·파싱 검사가 그렇다. */
     public ReportEngine(TextGenerator generate, ObjectMapper mapper, LlmTelemetry telemetry) {
+        this(generate, mapper, telemetry, userId -> null);
+    }
+
+    @Autowired
+    public ReportEngine(
+            TextGenerator generate,
+            ObjectMapper mapper,
+            LlmTelemetry telemetry,
+            ReportProfile profiles) {
         this.generate = generate;
         this.mapper = mapper;
         this.telemetry = telemetry;
+        this.profiles = profiles;
     }
 
     /**
@@ -79,12 +102,18 @@ public class ReportEngine {
             String analysisHandoffId,
             UUID practiceSessionId,
             UUID userId) {
+        // 노트를 받을 사람의 완성된 프로필. 누구의 것인지 모르면(userId 없음) 읽지 않는다. 모델 입력으로만
+        // 쓰고 노트·handoff 에는 남기지 않는다.
+        ReportProfile.ActorProfile actorProfile = userId == null ? null : profiles.completeFor(userId);
         if ("coaching".equals(reportType)) {
             boolean[] copyFailed = {false};
             JsonNode note = PracticeNote.assemble(confirmedHandoff, input -> recorded(
-                    PracticeNote.prompt(confirmedHandoff),
-                    "acttub.coach_handoff.v2".equals(confirmedHandoff.path("schema_version").asText())
-                            ? input : "{\"note_data\":" + input + "}",
+                    PracticeNote.prompt(confirmedHandoff)
+                            + (actorProfile == null ? "" : ACTOR_PROFILE_INSTRUCTION),
+                    noteModelInput(
+                            "acttub.coach_handoff.v2".equals(confirmedHandoff.path("schema_version").asText())
+                                    ? input : "{\"note_data\":" + input + "}",
+                            actorProfile),
                     "practice_note", practiceSessionId, userId),
                     failure -> copyFailed[0] = true);
             if (practiceSessionId != null) {
@@ -99,7 +128,8 @@ public class ReportEngine {
                 confirmedHandoff,
                 confirmed,
                 coachingHandoffId,
-                analysisHandoff);
+                analysisHandoff,
+                actorProfile);
         if (modelInput == null) {
             // 코치 대화가 안전 문구로 끝나면 핸드오프가 unavailable 로 남아 노트를 못 만든다.
             // 배우 눈에 보이는 손해라 그 자체로 셀 값어치가 있다(SOMA-517).
@@ -110,7 +140,8 @@ public class ReportEngine {
             }
             return blockedReport(reportType);
         }
-        String systemPrompt = ReportPrompt.select(reportType);
+        String systemPrompt = ReportPrompt.select(reportType)
+                + (actorProfile == null ? "" : ACTOR_PROFILE_INSTRUCTION);
         String userPrompt = serializeInput(modelInput);
         String raw = recorded(systemPrompt, userPrompt, reportType, practiceSessionId, userId);
         if (practiceSessionId != null) {
@@ -155,6 +186,23 @@ public class ReportEngine {
         }
     }
 
+    /**
+     * 구조화 노트(제목·정리 생성)의 모델 입력. 프로필이 있으면 최상위에 {@code actor_profile} 을 나란히
+     * 싣고, 없으면 받은 문자열을 <b>그대로</b> 돌려준다 — 다시 직렬화하지도 않는다.
+     */
+    private String noteModelInput(String input, ReportProfile.ActorProfile actorProfile) {
+        if (actorProfile == null) {
+            return input;
+        }
+        try {
+            ObjectNode withProfile = (ObjectNode) mapper.readTree(input);
+            withProfile.set("actor_profile", mapper.valueToTree(actorProfile));
+            return withProfile.toString();
+        } catch (com.fasterxml.jackson.core.JsonProcessingException malformed) {
+            throw new IllegalStateException("note model input is not a JSON object", malformed);
+        }
+    }
+
     public JsonNode buildReportInput(
             String reportType,
             JsonNode videoSummary,
@@ -162,6 +210,23 @@ public class ReportEngine {
             boolean confirmed,
             String coachingHandoffId,
             JsonNode analysisHandoff) {
+        return buildReportInput(
+                reportType, videoSummary, confirmedHandoff, confirmed, coachingHandoffId,
+                analysisHandoff, null);
+    }
+
+    /**
+     * @param actorProfile 배우의 완성된 프로필. 있으면 최상위 {@code actor_profile} 로 싣고, 없으면
+     *        <b>키 자체를 만들지 않는다</b> — 그때의 입력은 프로필이 없던 때와 같다
+     */
+    public JsonNode buildReportInput(
+            String reportType,
+            JsonNode videoSummary,
+            JsonNode confirmedHandoff,
+            boolean confirmed,
+            String coachingHandoffId,
+            JsonNode analysisHandoff,
+            ReportProfile.ActorProfile actorProfile) {
         if (!confirmed || confirmedHandoff == null || !confirmedHandoff.isObject()) {
             return null;
         }
@@ -178,7 +243,7 @@ public class ReportEngine {
         input.set("confirmed_handoff", confirmedHandoff.deepCopy());
         if (ReportBranch.isAnalysis(reportType)) {
             input.set("confirmation", confirmation);
-            return input;
+            return withActorProfile(input, actorProfile);
         }
         if (!ReportBranch.isExpression(reportType)) {
             throw new IllegalArgumentException("unsupported report type: " + reportType);
@@ -192,6 +257,14 @@ public class ReportEngine {
                 : analysisHandoff.deepCopy());
         input.set("expression_handoff", confirmedHandoff.deepCopy());
         input.set("confirmation", confirmation);
+        return withActorProfile(input, actorProfile);
+    }
+
+    /** handoff 밖, 최상위에 둔다 — handoff 는 대화에서 확정된 것이고 프로필은 그 바깥의 참고 입력이다. */
+    private ObjectNode withActorProfile(ObjectNode input, ReportProfile.ActorProfile actorProfile) {
+        if (actorProfile != null) {
+            input.set("actor_profile", mapper.valueToTree(actorProfile));
+        }
         return input;
     }
 

@@ -29,6 +29,15 @@ final class StructuredCoachEngine {
     private static final String PROMPT = StructuredJson.instructions(
             StructuredJson.textResource("/coaching/coach-prompt.txt") + "\n" + OpeningQuestion.PROMPT,
             "layer2_dialogue_turn");
+    /**
+     * 입력에 {@code actor_profile} 이 있을 때만 붙는 지시. 기본 프롬프트를 조건 없이 바꾸지 않는 것은
+     * 부재 시 동일성 때문이다 — 프로필이 없는 세션의 모델 입력은 전과 글자 하나 다르지 않아야 한다.
+     */
+    static final String ACTOR_PROFILE_INSTRUCTION = "\n\n[actor_profile]\n"
+            + "actor_profile 은 배우가 직접 저장한 현재 정보다(이름·성별·만 나이·추구하는 방향·연기 경력·최종 목표). "
+            + "영상·인물의 근거가 아니므로 video_refs·knowledge_refs 로 인용하지 않고, 다시 입력하도록 묻지 않는다. "
+            + "prior_context 나 이전 대화와 다르면 actor_profile 의 값을 우선한다. 설명의 깊이와 용어를 경력에 맞춘다. "
+            + "이름은 필요할 때만 호칭으로 쓴다 — 한국어로는 이름 뒤에 '님'을 붙이고, 영어로는 이름 그대로 부른다.";
     private static final int MAX_CALLS = 4;
     private static final int MAX_LOOKUPS = 2;
     private final TextGenerator generate;
@@ -151,8 +160,13 @@ final class StructuredCoachEngine {
         visibleState.set("context", DialogueState.context(state));
         input.set("coaching_state", visibleState);
         input.set("state_sources", state.path("source_catalog").deepCopy());
-        if (!session.prior().isEmpty()) {
-            input.set("prior_context", StructuredJson.MAPPER.valueToTree(session.prior()));
+        // 완성된 프로필이 있을 때만 싣는다. 없으면 키 자체가 없다 — 모델 입력이 전과 같다.
+        if (session.actorProfile() != null) {
+            input.set("actor_profile", StructuredJson.MAPPER.valueToTree(session.actorProfile()));
+        }
+        PriorContext prior = session.priorForModel();
+        if (!prior.isEmpty()) {
+            input.set("prior_context", StructuredJson.MAPPER.valueToTree(prior));
         }
         ArrayNode messages = input.putArray("recent_messages");
         for (int i = 0; i < session.turns().size(); i++) {
@@ -228,7 +242,8 @@ final class StructuredCoachEngine {
     private String recorded(CoachSessionSnapshot session, JsonNode input, int call) {
         Instant started = Instant.now();
         String text = input.toString();
-        String prompt = PROMPT + DialogueProgress.turnInstruction(input.path("dialogue_progress"));
+        String prompt = PROMPT + DialogueProgress.turnInstruction(input.path("dialogue_progress"))
+                + (input.has("actor_profile") ? ACTOR_PROFILE_INSTRUCTION : "");
         try {
             ExternalOperationExecution.externalCall("model");
             var generated = generate.generate(prompt, text);

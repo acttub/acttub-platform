@@ -59,6 +59,7 @@ class CoachServiceTest {
     private final PracticeReportLedger reportOperations = mock(PracticeReportLedger.class);
     private final CoachOperationLedger operations = mock(CoachOperationLedger.class);
     private final CoachMemory memory = mock(CoachMemory.class);
+    private final CoachProfile profiles = mock(CoachProfile.class);
     private final CoachResponseRenderer renderer = mock(CoachResponseRenderer.class);
     private final ObjectMapper mapper = new ObjectMapper();
     private final RecordingFailureReporter failureReporter = new RecordingFailureReporter();
@@ -82,6 +83,7 @@ class CoachServiceTest {
                 operations,
                 coach,
                 memory,
+                profiles,
                 renderer,
                 reports,
                 reportService,

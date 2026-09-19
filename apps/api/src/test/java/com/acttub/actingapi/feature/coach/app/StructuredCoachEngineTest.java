@@ -57,6 +57,45 @@ class StructuredCoachEngineTest {
         return output;
     }
     static GeneratedText generated(JsonNode output) { return new GeneratedText(output.toString(), null, "test"); }
+    /**
+     * account.profile: 구조화 경로에도 같은 뜻의 {@code actor_profile} 이 독립 키로 실린다. 기억의 성별·나이는
+     * 빠지고 목표는 남으며, 프로필을 어떻게 쓸지의 지시는 프로필이 있을 때만 붙는다.
+     */
+    @Test void accountProfile_completeProfileTravelsAsItsOwnKeyAndReplacesRememberedDemographics() {
+        ActorProfile profile = new ActorProfile("김배우", "선택 안 함", 25, List.of("매체(TV·영화)", "무대(연극·뮤지컬)"), "5년 이상", "전문 배우");
+        PriorContext prior = new PriorContext(java.util.Map.of("gender", "남", "age", "31", "goal", "입시 합격"),
+                null, true, List.of(), List.of());
+        engine((system, text) -> {
+            JsonNode input = StructuredJson.parse(text);
+            assertThat(input.path("actor_profile")).isEqualTo(StructuredJson.parse("""
+                    {"name":"김배우","gender":"선택 안 함","age":25,
+                     "directions":["매체(TV·영화)","무대(연극·뮤지컬)"],"experience":"5년 이상","goal":"전문 배우"}
+                    """));
+            assertThat(input.path("prior_context").path("memory")).isEqualTo(StructuredJson.parse("{\"goal\":\"입시 합격\"}"));
+            assertThat(system).endsWith(StructuredCoachEngine.ACTOR_PROFILE_INSTRUCTION);
+            return generated(respond(input, "“가지 마”를 듣고 상대가 어떻게 하길 바랐어요?", "continue"));
+        }).start(session().withPrior(prior).withActorProfile(profile), UUID.randomUUID());
+    }
+    @Test void accountProfile_withoutAProfileTheStructuredInputHasNoKeyNoInstructionAndTheWholeMemory() {
+        PriorContext prior = new PriorContext(java.util.Map.of("gender", "남", "age", "31"), null, true, List.of(), List.of());
+        List<String> withoutProfile = new ArrayList<>();
+        List<String> withNullProfile = new ArrayList<>();
+        UUID operation = UUID.randomUUID();
+        CoachSessionSnapshot session = session().withPrior(prior);
+        engine((system, text) -> {
+            JsonNode input = StructuredJson.parse(text);
+            assertThat(input.has("actor_profile")).isFalse();
+            assertThat(input.path("prior_context").path("memory").path("gender").asText()).isEqualTo("남");
+            assertThat(system).doesNotContain("actor_profile");
+            withoutProfile.add(system + "\n" + text);
+            return generated(respond(input, "“가지 마”를 듣고 상대가 어떻게 하길 바랐어요?", "continue"));
+        }).start(session, operation);
+        engine((system, text) -> {
+            withNullProfile.add(system + "\n" + text);
+            return generated(respond(StructuredJson.parse(text), "“가지 마”를 듣고 상대가 어떻게 하길 바랐어요?", "continue"));
+        }).start(session.withActorProfile(null), operation);
+        assertThat(withNullProfile).as("미완성 프로필·게스트의 모델 입력은 바이트 단위로 같다").isEqualTo(withoutProfile);
+    }
     @Test void videoOnlyStartsWithoutInventingActorInput() {
         CoachResult result = engine((system, text) -> {
             JsonNode input = StructuredJson.parse(text);
