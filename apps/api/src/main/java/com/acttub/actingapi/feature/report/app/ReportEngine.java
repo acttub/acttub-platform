@@ -15,6 +15,7 @@ import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.feature.report.domain.ExpressionReadiness;
 import com.acttub.actingapi.feature.report.domain.ReportBranch;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.acttub.actingapi.platform.observability.ActorNameRedaction;
 import com.acttub.actingapi.platform.observability.LlmCall;
 import com.acttub.actingapi.platform.observability.LlmScore;
 import com.acttub.actingapi.platform.observability.LlmStep;
@@ -114,7 +115,7 @@ public class ReportEngine {
                             "acttub.coach_handoff.v2".equals(confirmedHandoff.path("schema_version").asText())
                                     ? input : "{\"note_data\":" + input + "}",
                             actorProfile),
-                    "practice_note", practiceSessionId, userId),
+                    "practice_note", practiceSessionId, userId, actorProfile != null),
                     failure -> copyFailed[0] = true);
             if (practiceSessionId != null) {
                 // 제목·정리 생성이 실패해도 노트는 저장된다(기본 제목). 실패가 지표에 안 남으면 폴백 비율을 모른다.
@@ -143,20 +144,28 @@ public class ReportEngine {
         String systemPrompt = ReportPrompt.select(reportType)
                 + (actorProfile == null ? "" : ACTOR_PROFILE_INSTRUCTION);
         String userPrompt = serializeInput(modelInput);
-        String raw = recorded(systemPrompt, userPrompt, reportType, practiceSessionId, userId);
+        String raw = recorded(systemPrompt, userPrompt, reportType, practiceSessionId, userId, actorProfile != null);
         if (practiceSessionId != null) {
             telemetry.score(LlmScore.flag(practiceSessionId, "coach.report_blocked", false));
         }
         return parseReport(raw, reportType, coachingHandoffId, analysisHandoffId);
     }
 
-    /** 모델을 부르고 그 한 번을 남긴다. 연습을 모르면 부르기만 한다. */
+    /**
+     * 모델을 부르고 그 한 번을 남긴다. 연습을 모르면 부르기만 한다.
+     *
+     * @param carriesProfile 입력 최상위에 {@code actor_profile} 이 실렸다. 모델에는 그대로 보내고, 바깥으로
+     *        나가는 기록에서만 이름을 가린다 (apps/api/CONTRACT.md §7-2)
+     */
     private String recorded(
             String systemPrompt,
             String userPrompt,
             String reportType,
             UUID practiceSessionId,
-            UUID userId) {
+            UUID userId,
+            boolean carriesProfile) {
+        String recordedInput = systemPrompt + "\n\n"
+                + (carriesProfile ? ActorNameRedaction.inJson(userPrompt) : userPrompt);
         Instant startedAt = Instant.now();
         try {
             ExternalOperationExecution.externalCall("model");
@@ -164,7 +173,7 @@ public class ReportEngine {
             if (practiceSessionId != null) {
                 telemetry.record(new LlmCall(
                         LlmStep.REPORT, practiceSessionId, userId, generated.model(),
-                        systemPrompt + "\n\n" + userPrompt, generated.text(),
+                        recordedInput, generated.text(),
                         generated.usage() == null ? LlmTokens.unknown() : LlmTokens.of(
                                 generated.usage().prompt(),
                                 generated.usage().completion(),
@@ -177,7 +186,7 @@ public class ReportEngine {
             if (practiceSessionId != null) {
                 telemetry.record(new LlmCall(
                         LlmStep.REPORT, practiceSessionId, userId, "",
-                        systemPrompt + "\n\n" + userPrompt, "", LlmTokens.unknown(),
+                        recordedInput, "", LlmTokens.unknown(),
                         startedAt, Duration.between(startedAt, Instant.now()),
                         failure.getClass().getSimpleName(),
                         LlmCall.metadata("report_type", reportType)));

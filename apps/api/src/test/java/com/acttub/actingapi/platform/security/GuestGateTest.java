@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -37,7 +38,7 @@ class GuestGateTest {
             new AtomicReference<>(List.of(TERMS, PRIVACY, AI_ANALYSIS, RETENTION));
 
     private final AccessGate gate = new AccessGate(
-            new CurrentUserService(null, null) {
+            new CurrentUserService(null, null, null) {
                 @Override
                 public AuthenticatedUser require(HttpServletRequest request) {
                     return current.get();
@@ -150,8 +151,8 @@ class GuestGateTest {
     }
 
     @Test
-    @DisplayName("account.guest: 시간당으로 세는 창은 한 시간이 지나야 다시 열리고, 틀린 시도는 세지 않고도 한도를 볼 수 있다")
-    void theLimiterCountsByTheHourAndCanPeek() {
+    @DisplayName("account.guest: 시간당으로 세는 창은 한 시간이 지나야 다시 열린다")
+    void theLimiterCountsByTheHour() {
         AtomicLong now = new AtomicLong();
         FixedWindowRateLimiter limiter = new FixedWindowRateLimiter(now::get);
         for (int created = 0; created < 10; created++) {
@@ -161,15 +162,31 @@ class GuestGateTest {
         assertThat(limiter.allow("guest-ip:1.1.1.1", 10, Duration.ofHours(1))).as("열한 번째").isFalse();
         now.set(Duration.ofHours(1).toNanos());
         assertThat(limiter.allow("guest-ip:1.1.1.1", 10, Duration.ofHours(1))).isTrue();
+    }
 
-        assertThat(limiter.exhausted("wrong:member", 5)).isFalse();
-        for (int wrong = 0; wrong < 5; wrong++) {
-            limiter.allow("wrong:member", 5);
+    @Test
+    @DisplayName("account.guest: 틀린 시도의 자리는 평가 전에 잡고, 되돌려 준 자리는 다시 쓸 수 있다. 창이 넘어간 뒤의 되돌림은 새 창을 깎지 않는다")
+    void wrongAttemptSlotsAreReservedBeforeEvaluationAndCanBeGivenBack() {
+        AtomicLong now = new AtomicLong();
+        FixedWindowRateLimiter limiter = new FixedWindowRateLimiter(now::get);
+        List<FixedWindowRateLimiter.Reservation> held = new ArrayList<>();
+        for (int attempt = 0; attempt < 5; attempt++) {
+            held.add(limiter.reserve("wrong:member", 5));
         }
-        assertThat(limiter.exhausted("wrong:member", 5)).as("보는 것만으로는 세지 않는다").isTrue();
-        assertThat(limiter.exhausted("wrong:other", 5)).isFalse();
-        now.set(Duration.ofHours(1).plusMinutes(1).toNanos());
-        assertThat(limiter.exhausted("wrong:member", 5)).isFalse();
+        assertThat(held).doesNotContainNull();
+        assertThat(limiter.reserve("wrong:member", 5)).as("평가 중인 시도도 자리를 차지한다").isNull();
+        assertThat(limiter.reserve("wrong:other", 5)).isNotNull();
+
+        held.get(0).release();
+        held.get(0).release();
+        assertThat(limiter.reserve("wrong:member", 5)).as("두 번 되돌려도 자리는 하나만 돌아온다").isNotNull();
+        assertThat(limiter.reserve("wrong:member", 5)).isNull();
+
+        now.set(Duration.ofMinutes(1).toNanos());
+        FixedWindowRateLimiter.Reservation fresh = limiter.reserve("wrong:member", 1);
+        assertThat(fresh).as("새 창").isNotNull();
+        held.get(1).release();
+        assertThat(limiter.reserve("wrong:member", 1)).as("옛 창의 되돌림은 새 창의 수를 줄이지 않는다").isNull();
     }
 
     private static HttpServletRequest request(String path) {

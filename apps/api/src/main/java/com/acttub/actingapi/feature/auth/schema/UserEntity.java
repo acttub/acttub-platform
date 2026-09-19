@@ -33,6 +33,10 @@ public class UserEntity extends AppGeneratedUuidEntity {
     @Column(name = "deactivated_at")
     private Instant deactivatedAt;
 
+    /** 탈퇴 3년 뒤의 파기(신원 해시 행, 보관하던 영상)를 마친 시각. 매일 도는 일이 이것이 빈 계정만 고른다. */
+    @Column(name = "retention_purged_at")
+    private Instant retentionPurgedAt;
+
     /** 웹 게스트가 첫 동의 시트에서 "만 14세 이상이에요"를 확인한 시각. 회원은 생년월일로 거른다. */
     @Column(name = "age_confirmed_at")
     private Instant ageConfirmedAt;
@@ -63,6 +67,10 @@ public class UserEntity extends AppGeneratedUuidEntity {
 
     public Instant getDeactivatedAt() {
         return deactivatedAt;
+    }
+
+    public Instant getRetentionPurgedAt() {
+        return retentionPurgedAt;
     }
 
     public Instant getAgeConfirmedAt() {

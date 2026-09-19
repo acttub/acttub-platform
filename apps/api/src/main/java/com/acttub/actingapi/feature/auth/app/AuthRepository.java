@@ -54,9 +54,6 @@ public interface AuthRepository {
      */
     AuthenticatedUser createGuest(String guestUid);
 
-    /** 앱으로 옮겨져 닫힌 게스트인가. 갱신의 401 사유를 가르는 데 쓴다. */
-    boolean transferredGuest(UUID userId);
-
     /** 이 계정에 붙어 있는 제공자 이름들. 이메일 겹침 안내("이미 OO로 가입한 이메일이에요")에 쓴다. */
     List<String> providersOf(UUID userId);
 

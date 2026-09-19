@@ -470,7 +470,7 @@ class ExternalOperationIT {
         assertThat(create(user, UUID.randomUUID(), UUID.randomUUID(), FINGERPRINT)).isNull();
         UUID failedSession = insertSession(user, upload, "failed", NOW);
         installFailingSessionUpdateTrigger(failedSession);
-        assertThatThrownBy(() -> store.createAnalysisRetry(user, failedSession, UUID.randomUUID(), FINGERPRINT, NOW))
+        assertThatThrownBy(() -> store.createAnalysisRetry(user, failedSession, UUID.randomUUID(), FINGERPRINT, NOW, null))
                 .isInstanceOf(DataAccessException.class);
         assertThat(counter.count()).isEqualTo(before + 1);
     }
@@ -848,11 +848,11 @@ class ExternalOperationIT {
             try {
                 Future<PracticeSessionOperation> loser = executor.submit(() ->
                         store.createAnalysisRetry(
-                                userId, losingSessionId, requestId, FINGERPRINT, NOW));
+                                userId, losingSessionId, requestId, FINGERPRINT, NOW, null));
                 awaitBlockedQuery("INSERT INTO external_operations");
 
                 PracticeSessionOperation winner = store.createAnalysisRetry(
-                        userId, winningSessionId, requestId, FINGERPRINT, NOW);
+                        userId, winningSessionId, requestId, FINGERPRINT, NOW, null);
                 advisoryUnlock(blocker, RETRY_LOCK);
                 PracticeSessionOperation replay = loser.get(5, TimeUnit.SECONDS);
 
@@ -883,7 +883,7 @@ class ExternalOperationIT {
                 userId, insertFinalizedUpload(userId), "failed", NOW.minusSeconds(30));
         UUID requestId = UUID.randomUUID();
         PracticeSessionOperation created = store.createAnalysisRetry(
-                userId, sessionId, requestId, FINGERPRINT, NOW);
+                userId, sessionId, requestId, FINGERPRINT, NOW, null);
         jdbc.update("""
                 UPDATE practice_sessions
                 SET status = 'analyzed'
@@ -891,7 +891,7 @@ class ExternalOperationIT {
                 """, sessionId);
 
         PracticeSessionOperation replay = store.createAnalysisRetry(
-                userId, sessionId, requestId, FINGERPRINT, NOW.plusSeconds(1));
+                userId, sessionId, requestId, FINGERPRINT, NOW.plusSeconds(1), null);
 
         assertThat(created.created()).isTrue();
         assertThat(replay).isNotNull();
@@ -984,14 +984,14 @@ class ExternalOperationIT {
         assertThatThrownBy(() -> memoryQueue.complete(
                 operationId,
                 UUID.randomUUID(),
-                () -> JsonNodeFactory.instance.objectNode().put("updated", 1),
+                owner -> JsonNodeFactory.instance.objectNode().put("updated", 1),
                 NOW.plusSeconds(1)))
                 .isInstanceOf(LeaseOwnershipException.class);
 
         memoryQueue.complete(
                 operationId,
                 leaseToken,
-                () -> JsonNodeFactory.instance.objectNode().put("updated", 1),
+                owner -> JsonNodeFactory.instance.objectNode().put("updated", 1),
                 NOW.plusSeconds(2));
 
         assertThat(operation(operationId))
@@ -1036,7 +1036,8 @@ class ExternalOperationIT {
                 null,
                 null,
                 requestId,
-                fingerprint);
+                fingerprint,
+                null);
     }
 
     private UUID insertUser() {

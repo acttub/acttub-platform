@@ -22,6 +22,7 @@ import com.acttub.actingapi.integration.llm.StructuredJson;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.integration.llm.TokenUsage;
 import com.acttub.actingapi.support.PostgresContainerSupport;
+import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -91,6 +92,9 @@ class CoachReadsProfileIT {
     @Autowired
     RecordingGenerator generator;
 
+    @Autowired
+    RecordingLlmTelemetry telemetry;
+
     CoachStorageFixtures fixtures;
     UUID user;
 
@@ -99,6 +103,7 @@ class CoachReadsProfileIT {
         jdbc.execute("TRUNCATE TABLE users, consent_documents RESTART IDENTITY CASCADE");
         fixtures = new CoachStorageFixtures(jdbc);
         generator.reset();
+        telemetry.clear();
         user = fixtures.insertUser();
         saveProfile(profile("exam_prep"));
     }
@@ -121,6 +126,7 @@ class CoachReadsProfileIT {
                 .doesNotContain("입시생")
                 // 생년월일은 넘기지 않는다. 만 나이만 간다.
                 .doesNotContain("2001-03-14");
+        assertTheNameStaysOutOfTheTelemetry("- 성별: 여성");
     }
 
     @Test
@@ -219,6 +225,7 @@ class CoachReadsProfileIT {
                 "SELECT coalesce(string_agg(response_payload::text, ' '), '') FROM external_operations")) {
             assertThat(jdbc.queryForObject(stored, String.class)).as(stored).doesNotContain(NAME, "입시생");
         }
+        assertTheNameStaysOutOfTheTelemetry("입시생");
     }
 
     @Test
@@ -254,6 +261,18 @@ class CoachReadsProfileIT {
                 "SELECT coalesce(string_agg(report_json::text, ' '), '') FROM practice_reports", String.class))
                 .as("프로필을 노트 필드로 복사하지 않는다")
                 .doesNotContain(NAME, "입시생", "1년 미만");
+        assertTheNameStaysOutOfTheTelemetry("여성");
+    }
+
+    /**
+     * 모델에 보내는 입력은 그대로 두고, 바깥 수탁사(Langfuse)로 나가는 기록에서만 이름을 가린다. 탈퇴가 이름을
+     * 파기해도 거기 남은 것은 서버가 지울 수 없다. 나머지 프로필은 입력을 읽는 사람이 맥락을 알 수 있게 남긴다.
+     */
+    private void assertTheNameStaysOutOfTheTelemetry(String keptProfileValue) {
+        assertThat(generator.inputs()).as("모델에 보내는 입력").isNotEmpty()
+                .allSatisfy(input -> assertThat(input).contains(NAME));
+        assertThat(telemetry.calls()).as("텔레메트리로 나가는 입력").hasSameSizeAs(generator.inputs())
+                .allSatisfy(call -> assertThat(call.input()).doesNotContain(NAME).contains(keptProfileValue));
     }
 
     private void assertProfileAtTheTopOfTheNoteInput(String experience) throws Exception {
@@ -400,6 +419,12 @@ class CoachReadsProfileIT {
         @Primary
         RecordingGenerator profileRecordingGenerator() {
             return new RecordingGenerator();
+        }
+
+        @Bean
+        @Primary
+        RecordingLlmTelemetry profileRecordingTelemetry() {
+            return new RecordingLlmTelemetry();
         }
     }
 

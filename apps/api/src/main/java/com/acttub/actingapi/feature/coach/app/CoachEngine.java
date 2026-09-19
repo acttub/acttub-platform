@@ -272,6 +272,8 @@ public class CoachEngine {
         if (session.practiceSessionId() == null) {
             return generate.generate(systemPrompt, userPrompt);
         }
+        // 모델에는 userPrompt 를 그대로 보내고, 바깥으로 나가는 기록에서만 이름을 가린다 (CONTRACT.md §7-2).
+        String recordedInput = systemPrompt + "\n\n" + CoachPrompt.withoutActorName(userPrompt, session.actorProfile());
         Instant startedAt = Instant.now();
         try {
             ExternalOperationExecution.externalCall("model");
@@ -281,7 +283,7 @@ public class CoachEngine {
                     session.practiceSessionId(),
                     session.userId(),
                     generated.model(),
-                    systemPrompt + "\n\n" + userPrompt,
+                    recordedInput,
                     generated.text(),
                     tokens(generated),
                     startedAt,
@@ -295,7 +297,7 @@ public class CoachEngine {
                     session.practiceSessionId(),
                     session.userId(),
                     "",
-                    systemPrompt + "\n\n" + userPrompt,
+                    recordedInput,
                     "",
                     LlmTokens.unknown(),
                     startedAt,

@@ -149,24 +149,6 @@ class PostgresPracticeSessionRepository implements PracticeSessionRepository, Pr
         return rows.isEmpty() ? null : detail(rows.getFirst());
     }
 
-    /** ⚠ 작업 장부는 배관의 것이지만 분석 요청을 거는 쪽이 연습이라 여기서 센다. 읽기만 한다. */
-    @Override
-    public int analysisRequestsSince(UUID userId, OffsetDateTime since, UUID exceptRequestId) {
-        Number count = (Number) entityManager.createNativeQuery("""
-                SELECT count(*)
-                FROM external_operations
-                WHERE user_id = :userId
-                  AND kind = 'analyze'
-                  AND created_at >= :since
-                  AND request_id <> :exceptRequestId
-                """)
-                .setParameter("userId", userId)
-                .setParameter("since", since)
-                .setParameter("exceptRequestId", exceptRequestId)
-                .getSingleResult();
-        return count.intValue();
-    }
-
     /**
      * 분석·대화·노트는 연습 행에 매달려 함께 따라간다.
      *

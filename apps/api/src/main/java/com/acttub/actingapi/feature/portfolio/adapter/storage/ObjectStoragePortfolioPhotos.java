@@ -44,11 +44,6 @@ class ObjectStoragePortfolioPhotos implements PortfolioPhotoStorage {
         return configured.map(storage -> storage.presignPlayback(objectKey, expiresInSeconds)).orElse(null);
     }
 
-    @Override
-    public void delete(String objectKey) {
-        storage().delete(objectKey);
-    }
-
     private ObjectStorage storage() {
         return configured.orElseThrow(() -> new NoCredentialsError("storage is not configured"));
     }

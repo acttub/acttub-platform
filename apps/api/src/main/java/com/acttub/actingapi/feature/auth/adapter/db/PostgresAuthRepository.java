@@ -83,23 +83,6 @@ public class PostgresAuthRepository implements AuthRepository, AuthenticatedUser
                 row.get("guest", Boolean.class));
     }
 
-    /**
-     * 옮겨진 게스트의 표식은 <b>쓰인 이관 코드</b>다. 옮기기는 게스트의 신원 행을 지우므로 신원으로는 알 수
-     * 없고, 코드 행은 그 게스트의 것으로 남는다. ⚠ 테이블 주인은 {@code transfer} 지만 요청 주체의 판정이
-     * 그것을 물어야 해서 native SQL 로 읽는다(Schema Entity 를 import 하지 않는다).
-     */
-    @Override
-    public boolean transferredGuest(UUID id) {
-        return !list(entityManager.createNativeQuery("""
-                SELECT 1 AS transferred
-                FROM guest_transfer_codes
-                WHERE user_id=:id
-                  AND used_at IS NOT NULL
-                LIMIT 1
-                """, Tuple.class)
-                .setParameter("id", id)).isEmpty();
-    }
-
     @Override
     public AuthenticatedUser createGuest(String guestUid) {
         return transaction.execute(status -> {

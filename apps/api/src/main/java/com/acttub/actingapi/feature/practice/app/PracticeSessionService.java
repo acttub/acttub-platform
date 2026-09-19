@@ -68,12 +68,16 @@ public class PracticeSessionService {
     /**
      * 게스트의 분석 요청은 하루 3회까지다. 하루는 <b>한국 시간 자정</b>에 끊는다 (account.guest).
      * 새 연습의 분석과 실패한 분석의 재요청을 함께 센다. 같은 요청의 재시도는 세지 않는다.
+     *
+     * <p>세는 일은 원장이 작업을 만드는 트랜잭션 안에서 한다 — 여기서 미리 세면 겹쳐 온 요청이 같은 수를
+     * 보고 함께 지나간다. 회원에게는 한도가 없다.
      */
-    public void requireGuestAnalysisQuota(UUID guestId, UUID requestId) {
-        OffsetDateTime midnight = clock.instant().atZone(SEOUL).toLocalDate().atStartOfDay(SEOUL).toOffsetDateTime();
-        if (sessions.analysisRequestsSince(guestId, midnight, requestId) >= GUEST_DAILY_ANALYSES) {
-            throw new ApiException(429, "guest_daily_analysis_limit");
+    private PracticeSessionLedger.AnalysisQuota dailyQuota(boolean guest) {
+        if (!guest) {
+            return null;
         }
+        OffsetDateTime midnight = clock.instant().atZone(SEOUL).toLocalDate().atStartOfDay(SEOUL).toOffsetDateTime();
+        return new PracticeSessionLedger.AnalysisQuota(GUEST_DAILY_ANALYSES, midnight);
     }
 
     /**
@@ -86,7 +90,7 @@ public class PracticeSessionService {
      * 걷어낸 값으로 만들면 옛 jar 가 {@code "."} 로 남긴 지문과 어긋나, 배포를 가로지른 같은
      * 요청의 재시도가 지문 불일치(422 {@code request_fingerprint_mismatch})로 갈린다.
      */
-    public AnalysisOutcome create(UUID userId, NewPracticeSession command, UUID requestId) {
+    public AnalysisOutcome create(UUID userId, boolean guest, NewPracticeSession command, UUID requestId) {
         if (!sessions.uploadExists(userId, command.uploadIntentId())) {
             throw new ApiException(404, "upload_intent_not_found");
         }
@@ -117,7 +121,8 @@ public class PracticeSessionService {
                 command.blockageDetail(),
                 continuedFrom,
                 requestId,
-                createFingerprint(command))
+                createFingerprint(command),
+                dailyQuota(guest))
                 : operations.createWithAnalysis(
                 userId,
                 command.uploadIntentId(),
@@ -129,7 +134,7 @@ public class PracticeSessionService {
                 command.blockageDetail(),
                 continuedFrom,
                 requestId,
-                createFingerprint(command), command.experienceVersion());
+                createFingerprint(command), command.experienceVersion(), dailyQuota(guest));
         if (result == null) {
             throw new ApiException(409, "upload_intent_not_finalized");
         }
@@ -177,13 +182,14 @@ public class PracticeSessionService {
      * <p>원장이 작업을 만들지 못했을 때 비로소 세션을 찾아본다 — 실패 이유가 "그런 세션이 없다"와
      * "실패 상태가 아니다" 둘이고, 정상 경로에서는 둘 다 확인할 필요가 없다.
      */
-    public AnalysisOutcome reanalyze(UUID userId, UUID sessionId, UUID requestId) {
+    public AnalysisOutcome reanalyze(UUID userId, boolean guest, UUID sessionId, UUID requestId) {
         PracticeSessionOperation result = operations.createAnalysisRetry(
                 userId,
                 sessionId,
                 requestId,
                 retryFingerprint(sessionId),
-                clock.instant());
+                clock.instant(),
+                dailyQuota(guest));
         if (result == null) {
             if (sessions.find(userId, sessionId) == null) {
                 throw new ApiException(404, "practice_session_not_found");
@@ -208,6 +214,9 @@ public class PracticeSessionService {
      * 재사용한 것이므로 422 다.
      */
     private AnalysisOutcome outcome(PracticeSessionOperation result, UUID userId) {
+        if (result.quotaExceeded()) {
+            throw new ApiException(429, "guest_daily_analysis_limit");
+        }
         if (result.fingerprintMismatch()) {
             throw new ApiException(422, "request_fingerprint_mismatch");
         }

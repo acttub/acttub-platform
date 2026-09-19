@@ -1,5 +1,6 @@
 package com.acttub.actingapi.feature.transfer.adapter.web;
 
+import com.acttub.actingapi.platform.web.CredentialField;
 import java.time.Instant;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -23,7 +24,7 @@ final class GuestTransferDtos {
 
     @Schema(name = "GuestTransferRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     record GuestTransferRequest(
-            @NotNull String code,
+            @NotNull @CredentialField String code,
             // 409 memory_choice_required 를 받은 뒤에만 싣는다.
             @JsonProperty("memory_choice") MemoryChoice memoryChoice) {
     }

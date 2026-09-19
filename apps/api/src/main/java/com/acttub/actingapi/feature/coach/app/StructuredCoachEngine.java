@@ -16,6 +16,7 @@ import com.acttub.actingapi.platform.ledger.ExternalOperationExecution;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.observability.FailureReporter;
+import com.acttub.actingapi.platform.observability.ActorNameRedaction;
 import com.acttub.actingapi.platform.observability.LlmCall;
 import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
@@ -244,11 +245,13 @@ final class StructuredCoachEngine {
         String text = input.toString();
         String prompt = PROMPT + DialogueProgress.turnInstruction(input.path("dialogue_progress"))
                 + (input.has("actor_profile") ? ACTOR_PROFILE_INSTRUCTION : "");
+        // 모델에는 text 를 그대로 보내고, 바깥으로 나가는 기록에서만 이름을 가린다 (CONTRACT.md §7-2).
+        String recordedInput = prompt + "\n" + (input.has("actor_profile") ? ActorNameRedaction.inJson(text) : text);
         try {
             ExternalOperationExecution.externalCall("model");
             var generated = generate.generate(prompt, text);
             telemetry.record(new LlmCall(call == 0 ? LlmStep.COACH_TURN : LlmStep.COACH_REGENERATION,
-                    session.practiceSessionId(), session.userId(), generated.model(), prompt + "\n" + text,
+                    session.practiceSessionId(), session.userId(), generated.model(), recordedInput,
                     generated.text(), generated.usage() == null ? LlmTokens.unknown() : LlmTokens.of(
                             generated.usage().prompt(), generated.usage().completion(), generated.usage().total()),
                     started, Duration.between(started, Instant.now()), null,
@@ -256,7 +259,7 @@ final class StructuredCoachEngine {
             return generated.text();
         } catch (RuntimeException failure) {
             telemetry.record(new LlmCall(LlmStep.COACH_TURN, session.practiceSessionId(), session.userId(), "",
-                    prompt + "\n" + text, "", LlmTokens.unknown(), started, Duration.between(started, Instant.now()),
+                    recordedInput, "", LlmTokens.unknown(), started, Duration.between(started, Instant.now()),
                     failure.getClass().getSimpleName(), LlmCall.metadata("contract", "three_layers_v1")));
             throw failure;
         }

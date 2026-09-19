@@ -36,12 +36,10 @@ public class PushService implements AnalysisCompletionListener {
 
     /**
      * 서버 푸시 둘을 다 꺼 둔 회원의 토큰은 받지 않는다(조용히 지나간다). 그러지 않으면 한 기기에서 둘을
-     * 끈 뒤 다른 기기가 앱을 여는 것만으로 토큰이 되살아난다.
+     * 끈 뒤 다른 기기가 앱을 여는 것만으로 토큰이 되살아난다. 거르는 일은 저장과 한 트랜잭션이어야 해서
+     * 저장소가 한다({@link PushTokenRepository#register}).
      */
     public void register(UUID userId, String token, String platform) {
-        if (tokens.pushesTurnedOff(userId)) {
-            return;
-        }
         tokens.register(userId, token, platform);
     }
 

@@ -169,6 +169,8 @@ class ErrorContractInventoryTest {
                     "operation 상태 넷(pending·running·succeeded·failed)이 모두 앞 분기에서 "
                             + "처리되므로 도달할 수 없는 방어 코드다. 하네스도 같은 사유로 제외했다."),
 
+            covered("feature.profile.app.ProfileService|403|account_deactivated", 1,
+                    "feature.profile.AccountWritesAndPhotoCleanupIT"),
             excluded("feature.profile.app.ProfileService|404|user_not_found", 1,
                     "인증 의존성이 이미 유저를 읽은 뒤라, 같은 요청 안에서 유저가 사라져야 도달한다. "
                             + "API 만으로는 만들 수 없다. 하네스도 같은 사유로 제외했다."),
@@ -222,6 +224,8 @@ class ErrorContractInventoryTest {
 
             covered("feature.portfolio.adapter.web.PublicPortfolioController|429|rate limit exceeded", 1,
                     "feature.portfolio.AccountPortfolioIT"),
+            covered("feature.portfolio.app.PortfolioService|403|account_deactivated", 1,
+                    "feature.profile.AccountWritesAndPhotoCleanupIT"),
             covered("feature.portfolio.app.PortfolioService|404|portfolio_credit_not_found", 1,
                     "feature.portfolio.AccountPortfolioIT"),
             covered("feature.portfolio.app.PortfolioService|404|portfolio_not_found", 2,

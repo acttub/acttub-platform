@@ -106,10 +106,16 @@ public class GuestTransferService {
                 return Outcome.CODE_NOT_FOUND;
             }
             UUID guestId = live.guestId();
-            moveMemory(guestId, memberId, memoryChoice);
+            // 올린 영상 → 연습 → 작업 장부 순서는 그대로다(새 연습을 만드는 쪽이 올린 영상 행을 먼저 잡으므로,
+            // 그 행에서 줄을 서야 겹쳐 만들어진 연습과 작업을 놓치지 않는다).
             uploads.reassign(guestId, memberId);
             practices.reassign(guestId, memberId);
             operations.reassign(guestId, memberId);
+            // 기억은 작업 장부 뒤에 본다. 기억 갱신 워커는 작업 행을 잡은 채 그 행의 주인에게 기억을
+            // 쓰므로, 작업 행을 먼저 잡아야 저장 중이던 갱신이 끝난 뒤의 기억을 보고 그 뒤의 갱신은 회원에게
+            // 간다. 기억을 먼저 보면 그 사이에 저장된 기억이 닫힌 게스트에게 남는다. 고르지 않았을 때의 409 는
+            // 어디서 나든 트랜잭션 전체를 되돌린다.
+            moveMemory(guestId, memberId, memoryChoice);
             guests.closeTransferredGuest(guestId, now);
             codes.markUsed(live.id(), now);
             return Outcome.TRANSFERRED;

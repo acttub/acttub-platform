@@ -104,9 +104,6 @@ class PracticeSessionController {
         validateLiteral("blockage_kind", body.blockageKind(), BlockageBranch.KINDS);
         validateLiteral("sub_branch", body.subBranch(), BlockageBranch.SUB_BRANCHES);
         UUID requestId = requestId(requestIdHeader);
-        if (user.guest()) {
-            sessions.requireGuestAnalysisQuota(user.id(), requestId);
-        }
         NewPracticeSession command = new NewPracticeSession(
                 body.uploadIntentId(),
                 body.situation(),
@@ -120,7 +117,7 @@ class PracticeSessionController {
                 com.acttub.actingapi.feature.practice.app.PracticeExperience.select(
                         request.getHeader(com.acttub.actingapi.feature.practice.app.PracticeExperience.HEADER),
                         threeLayersEnabled, command));
-        return json(sessions.create(user.id(), command, requestId), requestId);
+        return json(sessions.create(user.id(), user.guest(), command, requestId), requestId);
     }
 
     @Operation(
@@ -252,10 +249,7 @@ class PracticeSessionController {
             HttpServletRequest request) {
         var user = auth.gatedUser(request);
         UUID requestId = requestId(requestIdHeader);
-        if (user.guest()) {
-            sessions.requireGuestAnalysisQuota(user.id(), requestId);
-        }
-        return json(sessions.reanalyze(user.id(), sessionId, requestId), requestId);
+        return json(sessions.reanalyze(user.id(), user.guest(), sessionId, requestId), requestId);
     }
 
     @Operation(

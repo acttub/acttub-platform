@@ -13,6 +13,7 @@ import com.acttub.actingapi.feature.auth.app.LoginCredentials;
 import com.acttub.actingapi.feature.auth.app.PendingConsent;
 import com.acttub.actingapi.feature.auth.app.SignupDecision;
 import com.acttub.actingapi.platform.security.AuthenticatedUser;
+import com.acttub.actingapi.platform.security.ClientAddress;
 import com.acttub.actingapi.platform.security.CurrentUserService;
 import com.acttub.actingapi.platform.security.FixedWindowRateLimiter;
 import com.acttub.actingapi.platform.web.ApiException;
@@ -43,11 +44,14 @@ public class AuthController {
     private final AuthService auth;
     private final CurrentUserService users;
     private final FixedWindowRateLimiter limiter;
+    private final ClientAddress addresses;
 
-    public AuthController(AuthService auth, CurrentUserService users, FixedWindowRateLimiter limiter) {
+    public AuthController(
+            AuthService auth, CurrentUserService users, FixedWindowRateLimiter limiter, ClientAddress addresses) {
         this.auth = auth;
         this.users = users;
         this.limiter = limiter;
+        this.addresses = addresses;
     }
 
     @Operation(
@@ -141,8 +145,7 @@ public class AuthController {
             content = @Content(schema = @Schema(implementation = GuestResponse.class)))
     @PostMapping("/guest")
     ResponseEntity<GuestResponse> createGuest(HttpServletRequest request) {
-        String host = request.getRemoteAddr() == null ? "unknown" : request.getRemoteAddr();
-        if (!limiter.allow("guest-ip:" + host, 10, Duration.ofHours(1))) {
+        if (!limiter.allow("guest-ip:" + addresses.of(request), 10, Duration.ofHours(1))) {
             throw new ApiException(429, "rate limit exceeded");
         }
         AuthenticatedUser guest = auth.createGuest();
@@ -246,8 +249,7 @@ public class AuthController {
     }
 
     private void ipLimit(String bucket, HttpServletRequest request) {
-        String host = request.getRemoteAddr() == null ? "unknown" : request.getRemoteAddr();
-        if (!limiter.allow(bucket + host, 60)) {
+        if (!limiter.allow(bucket + addresses.of(request), 60)) {
             throw new ApiException(429, "rate limit exceeded");
         }
     }

@@ -50,13 +50,41 @@ public class FixedWindowRateLimiter {
     }
 
     /**
-     * 세지 않고 본다 — 이번 창에서 이미 {@code limit} 번을 채웠는가. <b>틀린 시도만</b> 세는 자리에서
-     * 쓴다: 먼저 이것으로 막고, 틀렸을 때만 {@link #allow} 로 센다. 그러지 않으면 한도를 넘긴 뒤의
-     * 추측도 계속 평가된다.
+     * <b>틀린 시도만</b> 세는 자리에서 쓴다: 평가하기 전에 자리를 먼저 잡고, 틀리지 않았으면
+     * {@link Reservation#release} 로 되돌려 준다. 한도를 읽고 평가한 뒤에 세면 겹쳐 온 요청이 모두 같은
+     * 수를 보고 지나가므로, 확인과 증가를 한 {@code compute} 로 묶는다 — 평가 중인 시도도 자리를 차지한다.
+     *
+     * @return 이번 창의 자리가 다 찼으면 {@code null}
      */
-    public boolean exhausted(String key, int limit) {
+    public Reservation reserve(String key, int limit) {
         long number = nanoClock.getAsLong() / MINUTE.toNanos();
-        Counter counter = counters.get(key);
-        return counter != null && counter.window() == number && counter.count() >= limit;
+        AtomicBoolean reserved = new AtomicBoolean();
+        counters.compute(key, (ignored, old) -> {
+            int count = old == null || old.window() != number ? 0 : old.count();
+            reserved.set(count < limit);
+            return new Counter(number, reserved.get() ? count + 1 : count);
+        });
+        return reserved.get() ? new Reservation(key, number) : null;
+    }
+
+    /** {@link #reserve} 로 잡은 자리 하나. 되돌려 주지 않으면 그 창이 끝날 때까지 센 채로 남는다. */
+    public final class Reservation {
+        private final String key;
+        private final long window;
+        private final AtomicBoolean released = new AtomicBoolean();
+
+        private Reservation(String key, long window) {
+            this.key = key;
+            this.window = window;
+        }
+
+        /** 창이 이미 넘어갔으면 아무것도 하지 않는다 — 새 창의 수는 이 자리를 센 적이 없다. */
+        public void release() {
+            if (!released.compareAndSet(false, true)) {
+                return;
+            }
+            counters.computeIfPresent(key, (ignored, old) ->
+                    old.window() == window && old.count() > 0 ? new Counter(window, old.count() - 1) : old);
+        }
     }
 }

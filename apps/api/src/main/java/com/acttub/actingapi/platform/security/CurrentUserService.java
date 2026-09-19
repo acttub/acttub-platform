@@ -14,10 +14,12 @@ public class CurrentUserService {
 
     private final AccessTokenVerifier tokens;
     private final AuthenticatedUsers users;
+    private final TransferredGuests transferred;
 
-    public CurrentUserService(AccessTokenVerifier tokens, AuthenticatedUsers users) {
+    public CurrentUserService(AccessTokenVerifier tokens, AuthenticatedUsers users, TransferredGuests transferred) {
         this.tokens = tokens;
         this.users = users;
+        this.transferred = transferred;
     }
 
     public AuthenticatedUser require(HttpServletRequest request) {
@@ -38,7 +40,7 @@ public class CurrentUserService {
         }
         // 옮겨진 게스트의 사유가 탈퇴보다 먼저다. 탈퇴 API 도 예외가 아니다 — 자료는 이미 회원의 것이라
         // 이 토큰으로 지울 것이 없고, 웹은 어느 요청에서든 같은 안내를 띄워야 한다.
-        if (user.status() == UserStatus.DEACTIVATED && users.transferredGuest(user.id())) {
+        if (user.status() == UserStatus.DEACTIVATED && transferred.transferredGuest(user.id())) {
             throw new ApiException(403, "guest_transferred");
         }
         if (!acceptsDeactivated(request)) {

@@ -14,8 +14,9 @@ public interface TransferCodeRepository {
     /**
      * 이 게스트의 새 코드를 적는다. 게스트마다 살아 있는 코드는 하나다 — 앞의 쓰지 않은 코드는 지운다.
      *
-     * @return 같은 해시의 살아 있는 코드가 다른 게스트에게 있으면 {@code false}(아무것도 적지 않는다).
-     *         여섯 자리라 겹칠 수 있고, 겹친 채로 두면 코드를 넣은 회원이 누구의 자료를 받을지 알 수 없다
+     * @return 같은 해시의 살아 있는 코드가 다른 게스트에게 있거나, 같은 게스트의 겹쳐 온 발급에 졌으면
+     *         {@code false}(아무것도 적지 않는다) — 부르는 쪽이 다시 뽑는다. 여섯 자리라 겹칠 수 있고, 겹친
+     *         채로 두면 코드를 넣은 회원이 누구의 자료를 받을지 알 수 없다
      */
     boolean issue(UUID guestId, String codeHash, Instant now, Instant expiresAt);
 

@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.portfolio.app.PortfolioPhotoCleanup;
 import com.acttub.actingapi.feature.portfolio.app.PortfolioRepository;
 import com.acttub.actingapi.feature.portfolio.domain.Portfolio;
 import com.acttub.actingapi.platform.schema.PortfolioCreditKind;
@@ -27,10 +28,15 @@ import org.springframework.transaction.support.TransactionTemplate;
 class PostgresPortfolioRepository implements PortfolioRepository {
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
+    private final PortfolioPhotoCleanup cleanup;
 
-    PostgresPortfolioRepository(EntityManager entityManager, PlatformTransactionManager transactionManager) {
+    PostgresPortfolioRepository(
+            EntityManager entityManager,
+            PlatformTransactionManager transactionManager,
+            PortfolioPhotoCleanup cleanup) {
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
+        this.cleanup = cleanup;
     }
 
     @Override
@@ -155,9 +161,14 @@ class PostgresPortfolioRepository implements PortfolioRepository {
                     .setParameter("now", now.atOffset(ZoneOffset.UTC))).stream()
                     .map(row -> row.get("object_key", String.class))
                     .toList();
+            // 행을 지운 트랜잭션에서 객체 삭제를 장부에 남긴다 — 커밋 뒤에 저장소가 실패해도 키를 잃지 않는다.
+            // 시한이 지난 올리기라 주소는 이미 죽었고, 바로 지워도 된다.
+            List<UUID> cleanups = abandoned.isEmpty()
+                    ? List.of()
+                    : List.of(cleanup.schedule(userId, abandoned, now, now));
             if (count("portfolio_photos", userId) >= limit) {
-                // 거절해도 치운 찌꺼기는 그대로 커밋된다. 그 객체는 부르는 쪽이 지운다.
-                return new PhotoSlot(false, abandoned);
+                // 거절해도 치운 찌꺼기는 그대로 커밋된다.
+                return new PhotoSlot(false, cleanups);
             }
             entityManager.createNativeQuery("""
                     INSERT INTO portfolio_photos(id,user_id,object_key,mime_type,size_bytes,expires_at)
@@ -170,7 +181,7 @@ class PostgresPortfolioRepository implements PortfolioRepository {
                     .setParameter("sizeBytes", photo.sizeBytes())
                     .setParameter("expiresAt", photo.expiresAt().atOffset(ZoneOffset.UTC))
                     .executeUpdate();
-            return new PhotoSlot(true, abandoned);
+            return new PhotoSlot(true, cleanups);
         });
     }
 
@@ -220,20 +231,29 @@ class PostgresPortfolioRepository implements PortfolioRepository {
     }
 
     @Override
-    public String deletePhoto(UUID userId, UUID photoId) {
+    public List<UUID> deletePhoto(UUID userId, UUID photoId, Instant now) {
         return transaction.execute(status -> {
             List<Tuple> rows = list(entityManager.createNativeQuery("""
                     WITH removed AS (
                         DELETE FROM portfolio_photos
                         WHERE id=:photoId
                           AND user_id=:userId
-                        RETURNING object_key
+                        RETURNING object_key,expires_at,uploaded_at
                     )
-                    SELECT object_key FROM removed
+                    SELECT object_key,expires_at,uploaded_at FROM removed
                     """, Tuple.class)
                     .setParameter("photoId", photoId)
                     .setParameter("userId", userId));
-            return rows.isEmpty() ? null : rows.getFirst().get("object_key", String.class);
+            if (rows.isEmpty()) {
+                return null;
+            }
+            Tuple removed = rows.getFirst();
+            // 올리는 중이던 사진의 주소는 시한까지 살아 있다. 그 전에 지우면 뒤에 올라온 객체가 다시 남는다.
+            Instant notBefore = removed.get("uploaded_at", Instant.class) == null
+                    ? removed.get("expires_at", Instant.class)
+                    : now;
+            return List.of(cleanup.schedule(
+                    userId, List.of(removed.get("object_key", String.class)), now, notBefore));
         });
     }
 
@@ -277,8 +297,26 @@ class PostgresPortfolioRepository implements PortfolioRepository {
         return rows.isEmpty() ? null : rows.getFirst().get("user_id", UUID.class);
     }
 
-    /** 행이 없으면 만들고, 있든 없든 잠근다. 같은 회원의 상한·순서 연산이 여기서 줄을 선다. */
+    /**
+     * 행이 없으면 만들고, 있든 없든 잠근다. 같은 회원의 상한·순서 연산이 여기서 줄을 선다.
+     *
+     * <p>그보다 먼저 <b>탈퇴와 같은 {@code users} 행</b>을 잡고 활성인지 본다. 탈퇴는 포트폴리오를 행째
+     * 지우는데, 게이트를 지난 뒤에 탈퇴가 끝난 요청이 여기서 그 행을 다시 만들면 파기한 자료가 되살아난다.
+     * ⚠ {@code users} 의 주인은 {@code auth} 지만 이 확인은 쓰는 트랜잭션 안에 있어야 뜻이 있어 native
+     * SQL 로 잠금만 잡는다(Schema Entity 를 import 하지 않는다).
+     */
     private void lockOrCreate(UUID userId) {
+        boolean active = !list(entityManager.createNativeQuery("""
+                SELECT id
+                FROM users
+                WHERE id=:userId
+                  AND status='active'
+                FOR UPDATE
+                """, Tuple.class)
+                .setParameter("userId", userId)).isEmpty();
+        if (!active) {
+            throw new OwnerNotActive();
+        }
         entityManager.createNativeQuery("""
                 INSERT INTO portfolios(user_id)
                 VALUES (:userId)

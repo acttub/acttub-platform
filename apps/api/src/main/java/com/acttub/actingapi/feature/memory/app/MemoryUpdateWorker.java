@@ -86,7 +86,7 @@ public class MemoryUpdateWorker {
             MemoryUpdateMaterial material = memory.material(sessionId);
             Map<String, String> updates = extract(material, operationId);
             queue.complete(operationId, leaseToken,
-                    () -> payload(sessionId, write(material, updates)), now);
+                    owner -> payload(sessionId, write(owner, material, updates)), now);
         } catch (LeaseOwnershipException lost) {
             LOG.warn("기억 갱신 lease 를 잃었다: {}", operationId);
             failureReporter.report(
@@ -188,8 +188,11 @@ public class MemoryUpdateWorker {
         }
     }
 
-    /** Lease를 소유한 완료 트랜잭션 안에서만 호출한다. */
-    private List<String> write(MemoryUpdateMaterial material, Map<String, String> updates) {
+    /**
+     * Lease를 소유한 완료 트랜잭션 안에서만 호출한다. 받는 사람은 자료를 읽을 때의 주인이 아니라 <b>지금의
+     * 주인</b>이다 — 모델을 기다리는 사이에 게스트의 연습이 회원에게 옮겨졌을 수 있다.
+     */
+    private List<String> write(UUID owner, MemoryUpdateMaterial material, Map<String, String> updates) {
         List<String> written = new ArrayList<>();
         // 여러 연습이 같은 배우를 갱신해도 기억 행의 잠금을 같은 순서로 얻는다.
         for (String name : AgentMemoryWrites.FIELDS) {
@@ -198,7 +201,7 @@ public class MemoryUpdateWorker {
                 continue;
             }
             MemoryEntry row = memory.writeAsAgent(
-                    material.userId(),
+                    owner,
                     ActorMemoryField.valueOf(name.toUpperCase(Locale.ROOT)),
                     value,
                     material.practiceSessionId());

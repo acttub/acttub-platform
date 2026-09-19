@@ -9,6 +9,7 @@ import java.time.LocalDate;
 import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import com.acttub.actingapi.feature.portfolio.app.PortfolioRepository.PendingPhoto;
 import com.acttub.actingapi.feature.portfolio.domain.CreditRules;
@@ -40,6 +41,7 @@ public class PortfolioService {
     private final PortfolioRepository portfolios;
     private final PortfolioPhotoStorage photos;
     private final PortfolioOwners owners;
+    private final PortfolioPhotoCleanup cleanup;
     private final Clock clock;
     private final String siteUrl;
     private final SecureRandom random = new SecureRandom();
@@ -52,11 +54,13 @@ public class PortfolioService {
             PortfolioRepository portfolios,
             PortfolioPhotoStorage photos,
             PortfolioOwners owners,
+            PortfolioPhotoCleanup cleanup,
             Clock clock,
             String siteUrl) {
         this.portfolios = portfolios;
         this.photos = photos;
         this.owners = owners;
+        this.cleanup = cleanup;
         this.clock = clock;
         String trimmed = siteUrl == null ? "" : siteUrl.strip();
         this.siteUrl = trimmed.endsWith("/") ? trimmed.substring(0, trimmed.length() - 1) : trimmed;
@@ -68,13 +72,16 @@ public class PortfolioService {
 
     /** {@code null} 이나 빈 글이면 지운다. */
     public PortfolioView saveIntro(UUID userId, String intro) {
-        portfolios.saveIntro(userId, intro == null || intro.isBlank() ? null : intro.strip());
-        return find(userId);
+        String kept = intro == null || intro.isBlank() ? null : intro.strip();
+        return activeOnly(() -> {
+            portfolios.saveIntro(userId, kept);
+            return find(userId);
+        });
     }
 
     public Portfolio.Credit addCredit(UUID userId, String title, String role, int year, String kind) {
-        Portfolio.Credit added =
-                portfolios.addCredit(userId, title.strip(), role.strip(), year, kind, CreditRules.CREDIT_MAX);
+        Portfolio.Credit added = activeOnly(() ->
+                portfolios.addCredit(userId, title.strip(), role.strip(), year, kind, CreditRules.CREDIT_MAX));
         if (added == null) {
             throw new ApiException(422, "portfolio_credit_limit_exceeded");
         }
@@ -100,7 +107,7 @@ public class PortfolioService {
 
     /** 다른 기기에서 그 사이 추가·삭제했으면 목록이 어긋난다. 그때는 아무것도 바꾸지 않고 422 다. */
     public PortfolioView orderCredits(UUID userId, List<UUID> ids) {
-        if (!portfolios.orderCredits(userId, ids)) {
+        if (!activeOnly(() -> portfolios.orderCredits(userId, ids))) {
             throw new ApiException(422, "order_mismatch");
         }
         return find(userId);
@@ -124,12 +131,14 @@ public class PortfolioService {
         UUID photoId = UUID.randomUUID();
         String objectKey = "users/" + userId + "/portfolio/"
                 + photoId.toString().replace("-", "") + PhotoUploadType.objectSuffix(contentType);
-        PortfolioRepository.PhotoSlot slot = portfolios.beginPhoto(
+        PortfolioRepository.PhotoSlot slot = activeOnly(() -> portfolios.beginPhoto(
                 userId,
                 new PendingPhoto(photoId, objectKey, contentType, sizeBytes.longValueExact(), expiresAt, false),
                 CreditRules.PHOTO_MAX,
-                now);
-        slot.abandonedObjectKeys().forEach(this::deleteQuietly);
+                now));
+        // 시한이 지난 올리기의 찌꺼기. 삭제는 이미 장부에 있어, 여기서 실패해도 새 올리기를 막지 않고 장부가
+        // 보고하며 다시 시도한다.
+        cleanup.attempt(slot.cleanupOperationIds());
         if (!slot.accepted()) {
             throw new ApiException(422, "portfolio_photo_limit_exceeded");
         }
@@ -159,21 +168,26 @@ public class PortfolioService {
         if (stored != pending.sizeBytes()) {
             throw new ApiException(409, "upload_size_mismatch");
         }
-        portfolios.completePhoto(userId, photoId, now);
-        return find(userId);
+        return activeOnly(() -> {
+            portfolios.completePhoto(userId, photoId, now);
+            return find(userId);
+        });
     }
 
-    /** 행과 사진 객체를 함께 지운다. 이미 지운 것을 다시 지우면 404 다. */
+    /**
+     * 행과 사진 객체를 함께 지운다. 이미 지운 것을 다시 지우면 404 다. 객체 삭제는 행을 지운 트랜잭션이 정리
+     * 장부에 올려 두었다 — 저장소가 실패해도 요청은 끝나고 장부가 다시 시도한다.
+     */
     public void deletePhoto(UUID userId, UUID photoId) {
-        String objectKey = portfolios.deletePhoto(userId, photoId);
-        if (objectKey == null) {
+        List<UUID> scheduled = portfolios.deletePhoto(userId, photoId, clock.instant());
+        if (scheduled == null) {
             throw photoNotFound();
         }
-        photos.delete(objectKey);
+        cleanup.attempt(scheduled);
     }
 
     public PortfolioView orderPhotos(UUID userId, List<UUID> ids) {
-        if (!portfolios.orderPhotos(userId, ids)) {
+        if (!activeOnly(() -> portfolios.orderPhotos(userId, ids))) {
             throw new ApiException(422, "order_mismatch");
         }
         return find(userId);
@@ -186,7 +200,7 @@ public class PortfolioService {
     public ShareView share(UUID userId, boolean enabled) {
         for (int attempt = 0; ; attempt++) {
             try {
-                return view(portfolios.share(userId, enabled, newSlug()));
+                return view(activeOnly(() -> portfolios.share(userId, enabled, newSlug())));
             } catch (DataIntegrityViolationException collision) {
                 // 128비트 난수가 겹칠 일은 없지만, 겹치면 다른 사람의 주소를 주는 대신 다시 뽑는다.
                 if (attempt + 1 >= SLUG_ATTEMPTS) {
@@ -231,11 +245,15 @@ public class PortfolioService {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
-    private void deleteQuietly(String objectKey) {
+    /**
+     * 게이트를 지난 뒤에 다른 기기의 탈퇴가 끝났으면 저장소가 쓰지 않고 알린다. 게이트가 했을 답을 그대로
+     * 준다 — 앱은 그 사유로 기기의 자료를 지운다.
+     */
+    private static <T> T activeOnly(Supplier<T> write) {
         try {
-            photos.delete(objectKey);
-        } catch (RuntimeException ignored) {
-            // 시한이 지난 올리기의 찌꺼기다. 못 지워도 새 올리기를 막지 않는다.
+            return write.get();
+        } catch (PortfolioRepository.OwnerNotActive closed) {
+            throw new ApiException(403, "account_deactivated", closed);
         }
     }
 

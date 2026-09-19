@@ -12,8 +12,11 @@ import com.acttub.actingapi.feature.profile.domain.Profile;
 /**
  * profile 이 저장소에 요구하는 것.
  *
- * <p>없음을 {@code null} 로 알린다(ADR-018) — "그 사용자가 없다" 하나뿐이다. 없음을 404 로 옮기는
- * 일은 서비스가 한다.
+ * <p>없음을 {@code null} 로 알린다(ADR-018). 없음을 404 로 옮기는 일은 서비스가 한다.
+ *
+ * <p><b>회원 자료를 쓰는 연산은 활성 계정에만 쓴다.</b> 쓰는 트랜잭션이 탈퇴와 같은 {@code users} 행을 잡고
+ * 상태를 다시 본다 — 게이트를 지난 뒤에 다른 기기의 탈퇴가 끝났으면 쓰지 않고 "없음"과 같은 값을 돌려준다.
+ * 어느 쪽인지(없음 404 · 닫힘 403)는 서비스가 그때 다시 읽어 가른다.
  */
 public interface ProfileRepository {
 
@@ -21,7 +24,7 @@ public interface ProfileRepository {
 
     /**
      * 여섯 항목과 소개를 <b>한 번에</b> 저장한다. 부분 저장은 없다 — 방향도 같은 트랜잭션에서 통째로
-     * 갈아 끼운다. 사진과 알림 토글은 건드리지 않는다. 없으면 {@code null}.
+     * 갈아 끼운다. 사진과 알림 토글은 건드리지 않는다. 없거나 계정이 활성이 아니면 {@code null}.
      */
     Account saveProfile(UUID userId, Profile profile);
 
@@ -84,7 +87,8 @@ public interface ProfileRepository {
     /**
      * 탈퇴한 지 오래된({@code deactivatedBefore} 보다 앞선) 계정의 남은 것을 파기한다 — 신원의 해시 행을
      * 지우고, 보관 동의로 남겨 두었던 영상 객체의 삭제를 정리 장부에 올린다. 한 트랜잭션이다. 해시 행이
-     * 남아 있는 계정만 고르므로 한 번 파기한 계정은 다시 고르지 않는다.
+     * 있든 없든(제공자의 연결 끊기로 신원이 먼저 지워진 회원) 고르고, 파기를 마친 시각을 적어 한 번 파기한
+     * 계정은 다시 고르지 않는다.
      *
      * @return 장부에 올린 객체 삭제들. 부르는 쪽이 트랜잭션 밖에서 시도한다
      */
@@ -106,26 +110,32 @@ public interface ProfileRepository {
      * 보낸 토글만 바꾼다({@code null} 은 그대로 둔다). 분석 완료와 챌린지가 <b>둘 다</b> 꺼지면 같은
      * 트랜잭션에서 그 회원의 푸시 토큰을 전부 지운다 — 토글은 회원 단위라 기기마다가 아니다.
      *
-     * @return 바꾼 뒤의 토글 셋. 프로필 행이 없으면 {@code null}
+     * @return 바꾼 뒤의 토글 셋. 프로필 행이 없거나 계정이 활성이 아니면 {@code null}
      */
     NotificationSettings updateNotificationSettings(
             UUID userId, Boolean analysisDone, Boolean challenge, Boolean eveningReminder);
 
-    /** 새로 받은 올리기 자리를 적는다. 앞의 대기 중인 올리기는 덮어쓴다. 프로필 행이 없으면 {@code false}. */
-    boolean beginPhotoUpload(UUID userId, PhotoUpload upload);
+    /**
+     * 새로 받은 올리기 자리를 적는다. 앞의 대기 중인 올리기는 덮어쓰되, 그 객체의 삭제를 같은 트랜잭션에서
+     * 정리 장부에 올린다(그 주소의 시한 뒤에 지운다) — 덮기만 하면 올리다 만 객체의 키를 아는 곳이 없어진다.
+     * 프로필 행이 없거나 계정이 활성이 아니면 {@code false}.
+     */
+    boolean beginPhotoUpload(UUID userId, PhotoUpload upload, Instant now);
 
     /** 대기 중인 올리기. 없으면 {@code null}. */
     PhotoUpload pendingPhotoUpload(UUID userId);
 
     /**
-     * 대기 중인 올리기를 프로필 사진으로 바꾼다.
+     * 대기 중인 올리기를 프로필 사진으로 바꾼다. 바뀌기 전 사진의 객체 삭제는 같은 트랜잭션에서 정리 장부에
+     * 올린다 — 커밋 뒤에 저장소가 실패해도 키를 잃지 않는다.
      *
-     * @return 바뀌기 전의 사진 키. 없었으면 {@code null}
+     * @return 장부에 올린 객체 삭제들(없었으면 빈 목록). 부르는 쪽이 트랜잭션 밖에서 시도한다. 계정이 활성이
+     *         아니면 {@code null}
      */
-    String completePhotoUpload(UUID userId, String objectKey);
+    List<UUID> completePhotoUpload(UUID userId, String objectKey, Instant now);
 
-    /** 사진을 뗀다. 돌려주는 값은 떼어 낸 사진 키이고, 없었으면 {@code null}. */
-    String clearPhoto(UUID userId);
+    /** 사진을 뗀다. 돌려주는 값은 {@link #completePhotoUpload} 와 같다. */
+    List<UUID> clearPhoto(UUID userId, Instant now);
 
     record PhotoUpload(String objectKey, String mimeType, long sizeBytes, Instant expiresAt) {
     }

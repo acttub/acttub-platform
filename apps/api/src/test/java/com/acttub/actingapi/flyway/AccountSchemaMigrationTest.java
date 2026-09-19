@@ -219,6 +219,50 @@ class AccountSchemaMigrationTest {
         }
     }
 
+    @Test
+    @DisplayName("account.guest·account.withdraw: V10 은 이미 겹친 미사용 이관 코드를 늦은 것 하나만 남기고 유일성을 걸며, 쓰인 코드와 기존 회원 행은 그대로다")
+    void v10KeepsTheLatestUnusedCodeAndThenEnforcesUniqueness() throws Exception {
+        String url = PostgresContainerSupport.createDatabase("account_v10_codes");
+        Flyway.configure().dataSource(dataSource(url)).locations("classpath:db/migration")
+                .target("9").load().migrate();
+        var jdbc = new JdbcTemplate(dataSource(url));
+        UUID other = UUID.fromString("00000000-0000-4000-8000-000000000710");
+        jdbc.update("INSERT INTO users(id, status) VALUES (?, 'active'), (?, 'active')", NAMED, other);
+        // V9 까지의 발급은 겹쳐 온 두 요청을 막지 못했다: 한 게스트의 미사용 코드 둘, 두 게스트의 같은 숫자.
+        jdbc.update("""
+                INSERT INTO guest_transfer_codes(user_id, code_hash, created_at, expires_at, used_at) VALUES
+                    (?, 'older', now() - interval '2 minutes', now() + interval '8 minutes', NULL),
+                    (?, 'same',  now() - interval '1 minute',  now() + interval '9 minutes', NULL),
+                    (?, 'same',  now(),                        now() + interval '10 minutes', NULL),
+                    (?, 'same',  now() - interval '40 days',   now() - interval '40 days', now() - interval '40 days')
+                """, NAMED, NAMED, other, other);
+
+        var result = Flyway.configure().dataSource(dataSource(url)).locations("classpath:db/migration")
+                .target("10").load().migrate();
+
+        assertThat(result.migrationsExecuted).isEqualTo(1);
+        assertThat(jdbc.queryForList("""
+                SELECT user_id::text || ':' || code_hash || ':' || (used_at IS NOT NULL)
+                FROM guest_transfer_codes ORDER BY 1
+                """, String.class))
+                .as("늦게 만든 미사용 코드 하나와, guest_transferred 의 표식인 쓰인 코드")
+                .containsExactly(other + ":same:false", other + ":same:true");
+        assertThat(jdbc.queryForObject("SELECT retention_purged_at FROM users WHERE id=?",
+                java.sql.Timestamp.class, NAMED)).as("더한 컬럼은 NULL 허용이다").isNull();
+        assertThatThrownBy(() -> jdbc.update("""
+                INSERT INTO guest_transfer_codes(user_id, code_hash, expires_at)
+                VALUES (?, 'second', now() + interval '10 minutes')
+                """, other))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("uq_guest_transfer_codes_unused_user");
+        assertThatThrownBy(() -> jdbc.update("""
+                INSERT INTO guest_transfer_codes(user_id, code_hash, expires_at)
+                VALUES (?, 'same', now() + interval '10 minutes')
+                """, NAMED))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("uq_guest_transfer_codes_unused_code_hash");
+    }
+
     /** dev·운영(baseline 기록만)과 신규 환경 두 경로 모두 직전 릴리스의 자리(V6)에 세운다. */
     private static String databaseAtV6(String name, boolean baselined) throws Exception {
         String url = PostgresContainerSupport.createDatabase(name + (baselined ? "_baselined" : "_fresh"));

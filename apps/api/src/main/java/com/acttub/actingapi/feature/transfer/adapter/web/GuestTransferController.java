@@ -8,9 +8,11 @@ import com.acttub.actingapi.feature.transfer.adapter.web.GuestTransferDtos.Guest
 import com.acttub.actingapi.feature.transfer.adapter.web.GuestTransferDtos.TransferCodeResponse;
 import com.acttub.actingapi.feature.transfer.app.GuestTransferService;
 import com.acttub.actingapi.platform.security.AccessGate;
+import com.acttub.actingapi.platform.security.ClientAddress;
 import com.acttub.actingapi.platform.security.FixedWindowRateLimiter;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.ApiValidationException;
+import com.acttub.actingapi.platform.web.CredentialField;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -42,11 +44,14 @@ class GuestTransferController {
     private final GuestTransferService transfers;
     private final AccessGate auth;
     private final FixedWindowRateLimiter limiter;
+    private final ClientAddress addresses;
 
-    GuestTransferController(GuestTransferService transfers, AccessGate auth, FixedWindowRateLimiter limiter) {
+    GuestTransferController(
+            GuestTransferService transfers, AccessGate auth, FixedWindowRateLimiter limiter, ClientAddress addresses) {
         this.transfers = transfers;
         this.auth = auth;
         this.limiter = limiter;
+        this.addresses = addresses;
     }
 
     @Operation(
@@ -92,19 +97,34 @@ class GuestTransferController {
     GuestTransferResponse transfer(@Valid @RequestBody GuestTransferRequest body, HttpServletRequest request) {
         var member = auth.gatedUser(request);
         if (!SIX_DIGITS.matcher(body.code()).matches()) {
+            // 모양이 틀린 코드도 되돌려 보내지 않는다 — 한 글자 더 친 진짜 코드일 수 있다.
             throw ApiValidationException.valueError(
-                    List.of("body", "code"), "code must be six digits", body.code());
+                    List.of("body", "code"), "code must be six digits", CredentialField.REDACTED);
         }
         String memberKey = "transfer-wrong-member:" + member.id();
-        String ipKey = "transfer-wrong-ip:" + (request.getRemoteAddr() == null ? "unknown" : request.getRemoteAddr());
-        if (limiter.exhausted(memberKey, WRONG_PER_MEMBER) || limiter.exhausted(ipKey, WRONG_PER_IP)) {
+        String ipKey = "transfer-wrong-ip:" + addresses.of(request);
+        // 평가하기 전에 자리를 잡는다 — 겹쳐 온 추측이 같은 수를 보고 함께 지나가지 못한다.
+        FixedWindowRateLimiter.Reservation memberSlot = limiter.reserve(memberKey, WRONG_PER_MEMBER);
+        FixedWindowRateLimiter.Reservation ipSlot = memberSlot == null ? null : limiter.reserve(ipKey, WRONG_PER_IP);
+        if (ipSlot == null) {
+            if (memberSlot != null) {
+                memberSlot.release();
+            }
             throw new ApiException(429, "rate limit exceeded");
         }
-        GuestTransferService.Outcome outcome = transfers.transfer(
-                member.id(), body.code(), body.memoryChoice() == null ? null : body.memoryChoice().name());
-        if (outcome == GuestTransferService.Outcome.CODE_NOT_FOUND) {
-            limiter.allow(memberKey, WRONG_PER_MEMBER);
-            limiter.allow(ipKey, WRONG_PER_IP);
+        boolean wrong = false;
+        try {
+            GuestTransferService.Outcome outcome = transfers.transfer(
+                    member.id(), body.code(), body.memoryChoice() == null ? null : body.memoryChoice().name());
+            wrong = outcome == GuestTransferService.Outcome.CODE_NOT_FOUND;
+        } finally {
+            // 틀린 시도만 센 채로 둔다. 맞은 코드·409·서버 쪽 실패는 자리를 되돌려 준다.
+            if (!wrong) {
+                memberSlot.release();
+                ipSlot.release();
+            }
+        }
+        if (wrong) {
             // 틀림·만료·사용·무효를 가르지 않는다.
             throw new ApiException(404, "transfer_code_not_found");
         }

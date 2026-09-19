@@ -20,6 +20,4 @@ public interface PortfolioPhotoStorage {
 
     /** 사진을 볼 주소. 스토리지가 설정돼 있지 않으면 {@code null} — 조회가 그것 때문에 막히면 안 된다. */
     String viewUrl(String objectKey, int expiresInSeconds);
-
-    void delete(String objectKey);
 }

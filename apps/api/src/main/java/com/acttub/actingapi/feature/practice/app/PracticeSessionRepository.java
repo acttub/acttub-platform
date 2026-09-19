@@ -43,10 +43,4 @@ public interface PracticeSessionRepository {
      * 있으면 거짓 — 호출자는 그것을 409 로 옮긴다.
      */
     boolean resumeFailedOperation(UUID userId, UUID operationId, OffsetDateTime now);
-
-    /**
-     * 이 사람이 {@code since} 뒤로 건 분석 요청의 수. 같은 요청의 재시도({@code exceptRequestId})는 세지
-     * 않는다 — 응답을 못 받아 다시 보낸 요청이 하루 한도를 깎으면 안 된다.
-     */
-    int analysisRequestsSince(UUID userId, OffsetDateTime since, UUID exceptRequestId);
 }

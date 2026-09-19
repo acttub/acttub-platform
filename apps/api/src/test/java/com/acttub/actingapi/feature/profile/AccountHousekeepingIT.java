@@ -1,6 +1,7 @@
 package com.acttub.actingapi.feature.profile;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
 import java.nio.file.Path;
@@ -171,7 +172,8 @@ class AccountHousekeepingIT {
         UUID usedLongAgo = code(guest, now.minus(Duration.ofDays(31)), now.minus(Duration.ofDays(31)));
         UUID usedRecently = code(guest, now.minus(Duration.ofDays(29)), now.minus(Duration.ofDays(29)));
         UUID expiredLongAgo = code(guest, now.minus(Duration.ofDays(31)), null);
-        UUID live = code(guest, now.plus(Duration.ofMinutes(5)), null);
+        // 쓰지 않은 코드는 게스트마다 하나다(V10) — 살아 있는 코드는 다른 게스트의 것으로 둔다.
+        UUID live = code(guest(now), now.plus(Duration.ofMinutes(5)), null);
 
         housekeeping.runDaily();
 
@@ -205,6 +207,43 @@ class AccountHousekeepingIT {
         // 다음 날 다시 돌아도 같은 결과다 — 한 번 파기한 계정은 다시 고르지 않는다.
         clock.advance(Duration.ofDays(1));
         housekeeping.runDaily();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM account_cleanup_operations", Integer.class)).isZero();
+    }
+
+    @Test
+    @DisplayName("account.withdraw: 마지막 소셜 신원이 끊긴 뒤 탈퇴한 회원 — 해시 행이 없어도 탈퇴 3년 뒤 보관하던 영상 객체가 없다. 한 번 파기한 계정은 다시 고르지 않는다")
+    void accountWithdraw_retainedVideosGoAfterThreeYearsEvenWithoutAHashRow() throws Exception {
+        UUID member = user("active", now.minus(Duration.ofDays(100)));
+        identity(member, "kakao", "kakao-" + member, null);
+        video(member, "videos/kept-without-hash.mp4", now.minus(Duration.ofDays(50)));
+        UUID retention = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO consent_documents(id,type,version,title,body,required,published_at)
+                VALUES (?,'retention','v1','탈퇴 후 보관','본문',false,?)
+                """, retention, at(now.minus(Duration.ofDays(200))));
+        jdbc.update("""
+                INSERT INTO user_consents(id,user_id,document_id,action,occurred_at)
+                VALUES (?,?,?,'granted',?)
+                """, UUID.randomUUID(), member, retention, at(now.minus(Duration.ofDays(90))));
+        // 카카오의 연결 끊기 알림은 그 신원 행만 지우고 계정은 둔다(ProviderDisconnectCallbackIT). 앱 토큰은 살아 있다.
+        jdbc.update("DELETE FROM user_identities WHERE user_id=?", member);
+
+        assertThat(mvc.perform(delete("/v2/me").header("Authorization", "Bearer " + jwt.issueAccessToken(member).value()))
+                .andReturn().getResponse().getStatus()).isEqualTo(200);
+        assertThat(storage.objects).as("보관에 동의했으므로 영상은 남는다").containsKey("videos/kept-without-hash.mp4");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM user_identities WHERE user_id=?", Integer.class, member))
+                .as("해시로 남길 신원이 없었다").isZero();
+
+        clock.set(now.atZone(SEOUL).plusYears(3).plusDays(1).toInstant());
+        housekeeping.runDaily();
+
+        assertThat(storage.objects).doesNotContainKey("videos/kept-without-hash.mp4");
+
+        // 다음 날 다시 돌아도 다시 고르지 않는다 — 객체가 (가정으로) 되살아나 있어도 건드리지 않는다.
+        storage.objects.put("videos/kept-without-hash.mp4", 100L);
+        clock.advance(Duration.ofDays(1));
+        housekeeping.runDaily();
+        assertThat(storage.objects).containsKey("videos/kept-without-hash.mp4");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM account_cleanup_operations", Integer.class)).isZero();
     }
 

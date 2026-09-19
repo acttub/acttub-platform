@@ -14,6 +14,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.acttub.actingapi.platform.security.AccountSecrets;
 import com.acttub.actingapi.support.PostgresContainerSupport;
+import com.acttub.actingapi.integration.oidc.ProviderUnavailable;
+import com.acttub.actingapi.platform.observability.FailureKind;
+import com.acttub.actingapi.support.RecordingFailureReporter;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import com.acttub.actingapi.support.StubProviders;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -40,7 +46,7 @@ import org.springframework.test.web.servlet.MockMvc;
  */
 @SpringBootTest(properties = {"JWT_SECRET=test-secret", "ACCOUNT_CLEANUP_ENABLED=false"})
 @AutoConfigureMockMvc
-@Import(StubProviders.class)
+@Import({StubProviders.class, AccountProvidersIT.ReportFixture.class})
 class AccountProvidersIT {
     private static final AtomicInteger ADDRESSES = new AtomicInteger();
     private static final OffsetDateTime PUBLISHED = OffsetDateTime.of(2026, 10, 1, 0, 0, 0, 0, ZoneOffset.UTC);
@@ -67,6 +73,9 @@ class AccountProvidersIT {
 
     @Autowired
     StubProviders.StubAppleTokens apple;
+
+    @Autowired
+    RecordingFailureReporter failures;
 
     @Autowired
     StubProviders.StubKakaoUsers kakao;
@@ -288,9 +297,18 @@ class AccountProvidersIT {
         apple.reset();
         apple.unavailable = true;
 
+        failures.clear();
+
         assertThat(login("apple", "a-old|old@example.test|verified").path("user").path("id").textValue())
                 .isEqualTo(member);
         assertThat(jdbc.queryForObject("SELECT apple_token_encrypted FROM user_identities", String.class)).isNull();
+        // 로그인은 되지만 바깥 의존의 실패는 삼키지 않는다(ADR-025) — 애플이 계속 답하지 않으면 탈퇴 때 폐기할
+        // 토큰이 영영 채워지지 않는데, 보고가 없으면 아무도 모른다.
+        assertThat(failures.reports()).singleElement().satisfies(report -> {
+            assertThat(report.failure()).isInstanceOf(ProviderUnavailable.class);
+            assertThat(report.kind()).isEqualTo(FailureKind.EXTERNAL);
+            assertThat(report.context()).isEqualTo("AuthService.keepProviderToken");
+        });
 
         apple.unavailable = false;
         login("apple", "a-old|old@example.test|verified");
@@ -298,6 +316,23 @@ class AccountProvidersIT {
         assertThat(secrets.decrypt(jdbc.queryForObject(
                 "SELECT apple_token_encrypted FROM user_identities", String.class)))
                 .isEqualTo("apple-grant:apple-code");
+    }
+
+    @Test
+    @DisplayName("account.login: 토큰을 채우려던 애플 코드가 이미 쓰인 것이면 로그인은 되고 보고하지 않는다 — 예상된 거절이다")
+    void accountLogin_aSpentAppleCodeWhileBackfillingIsNotReported() throws Exception {
+        String member = signUp("apple", "a-old|old@example.test|verified");
+        jdbc.update("UPDATE user_identities SET apple_token_encrypted=NULL");
+        failures.clear();
+
+        var response = postLogin("""
+                {"provider":"apple","id_token":"a-old|old@example.test|verified","authorization_code":"used-code"}
+                """);
+
+        assertThat(response.getStatus()).as(response.getContentAsString()).isEqualTo(200);
+        assertThat(mapper.readTree(response.getContentAsString()).path("user").path("id").textValue())
+                .isEqualTo(member);
+        assertThat(failures.reports()).isEmpty();
     }
 
     @Test
@@ -370,5 +405,14 @@ class AccountProvidersIT {
 
     private int count(String table) {
         return jdbc.queryForObject("SELECT count(*) FROM " + table, Integer.class);
+    }
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class ReportFixture {
+        @Bean
+        @Primary
+        RecordingFailureReporter recordingFailureReporter() {
+            return new RecordingFailureReporter();
+        }
     }
 }

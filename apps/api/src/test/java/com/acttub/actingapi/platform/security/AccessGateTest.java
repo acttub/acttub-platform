@@ -30,7 +30,7 @@ class AccessGateTest {
     // 세 갈래 분해의 실증이다 (SOMA-397 7단계).
     // 동의와 프로필은 별개의 포트다 — 소유한 쪽이 다르고, 한 포트는 한 쪽만 구현할 수 있다.
     private final AccessGate gate = new AccessGate(
-            new CurrentUserService(null, null) {
+            new CurrentUserService(null, null, null) {
                 @Override
                 public AuthenticatedUser require(HttpServletRequest request) {
                     return user;

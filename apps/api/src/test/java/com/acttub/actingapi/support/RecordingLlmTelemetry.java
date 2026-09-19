@@ -29,6 +29,11 @@ public class RecordingLlmTelemetry implements LlmTelemetry {
         scores.add(score);
     }
 
+    public void clear() {
+        calls.clear();
+        scores.clear();
+    }
+
     public List<LlmCall> calls() {
         return List.copyOf(calls);
     }

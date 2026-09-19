@@ -59,20 +59,20 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
     public PracticeSessionOperation createWithAnalysis(
             UUID userId, UUID uploadIntentId, String situation, String characterContext, String goal,
             String blockageKind, String subBranch, String blockageDetail, UUID continuedFrom,
-            UUID requestId, String requestFingerprint) {
+            UUID requestId, String requestFingerprint, AnalysisQuota quota) {
         return createWithAnalysis(userId, uploadIntentId, situation, characterContext, goal, blockageKind, subBranch,
-                blockageDetail, continuedFrom, requestId, requestFingerprint, "legacy");
+                blockageDetail, continuedFrom, requestId, requestFingerprint, "legacy", quota);
     }
 
     @Override
     public PracticeSessionOperation createWithAnalysis(
             UUID userId, UUID uploadIntentId, String situation, String characterContext, String goal,
             String blockageKind, String subBranch, String blockageDetail, UUID continuedFrom,
-            UUID requestId, String requestFingerprint, String experienceVersion) {
+            UUID requestId, String requestFingerprint, String experienceVersion, AnalysisQuota quota) {
         validateSha256(requestFingerprint);
         return transactionTemplate.execute(status -> createPracticeSessionInTransaction(
                 userId, uploadIntentId, situation, characterContext, goal, blockageKind, subBranch,
-                blockageDetail, continuedFrom, requestId, requestFingerprint, experienceVersion));
+                blockageDetail, continuedFrom, requestId, requestFingerprint, experienceVersion, quota));
     }
 
     @Override
@@ -81,12 +81,13 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
             UUID sessionId,
             UUID requestId,
             String requestFingerprint,
-            Instant now) {
+            Instant now,
+            AnalysisQuota quota) {
         validateSha256(requestFingerprint);
         OffsetDateTime retriedAt = (now == null ? Instant.now() : now)
                 .atOffset(ZoneOffset.UTC);
         return transactionTemplate.execute(status -> createAnalysisRetryInTransaction(
-                userId, sessionId, requestId, requestFingerprint, retriedAt));
+                userId, sessionId, requestId, requestFingerprint, retriedAt, quota));
     }
 
     private PracticeSessionOperation createPracticeSessionInTransaction(
@@ -101,7 +102,8 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
             UUID continuedFrom,
             UUID requestId,
             String requestFingerprint,
-            String experienceVersion) {
+            String experienceVersion,
+            AnalysisQuota quota) {
         if (!lockFinalizedUpload(userId, uploadIntentId)) {
             return null;
         }
@@ -109,6 +111,9 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
         ExternalOperationRow existing = findOperation(userId, requestId);
         if (existing != null) {
             return replay(existing, requestFingerprint, null);
+        }
+        if (overQuota(userId, requestId, quota)) {
+            return PracticeSessionOperation.overQuota();
         }
 
         UUID sessionId = UUID.randomUUID();
@@ -149,7 +154,8 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
             UUID sessionId,
             UUID requestId,
             String requestFingerprint,
-            OffsetDateTime retriedAt) {
+            OffsetDateTime retriedAt,
+            AnalysisQuota quota) {
         PracticeSessionRow session = lockVisibleSession(userId, sessionId);
         if (session == null) {
             return null;
@@ -158,6 +164,9 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
         ExternalOperationRow existing = findOperation(userId, requestId);
         if (existing != null) {
             return replay(existing, requestFingerprint, sessionId);
+        }
+        if (overQuota(userId, requestId, quota)) {
+            return PracticeSessionOperation.overQuota();
         }
 
         if (!"failed".equals(session.status())) {
@@ -186,6 +195,40 @@ public class PostgresPracticeSessionLedger implements PracticeSessionLedger {
                 requireOperation(operationId),
                 true,
                 false);
+    }
+
+    /**
+     * 그 사람의 {@code users} 행을 잡은 채 센다 — 같은 사람의 다른 분석 요청은 이 트랜잭션이 끝날 때까지
+     * 여기서 기다렸다가 방금 만든 작업까지 센다. 같은 요청 ID 는 세지 않는다: 재전송은 위에서 이미
+     * 갈렸고, 겹쳐 온 같은 요청은 아래 INSERT 의 {@code ON CONFLICT} 가 가른다.
+     *
+     * <p>⚠ 잠금 순서: 올린 영상·연습 행을 <b>먼저</b>, {@code users} 를 나중에 잡는다. 이관이 같은 순서
+     * (올린 영상 → 연습 → 작업 장부 → 게스트 행)라 엇갈리지 않는다 (apps/api/CONTRACT.md §6 의 11).
+     */
+    private boolean overQuota(UUID userId, UUID requestId, AnalysisQuota quota) {
+        if (quota == null) {
+            return false;
+        }
+        entityManager.createNativeQuery("""
+                SELECT id
+                FROM users
+                WHERE id = :userId
+                FOR UPDATE
+                """, Tuple.class)
+                .setParameter("userId", userId)
+                .getResultList();
+        Tuple counted = list(entityManager.createNativeQuery("""
+                SELECT count(*) AS requested
+                FROM external_operations
+                WHERE user_id = :userId
+                  AND kind = 'analyze'
+                  AND created_at >= :since
+                  AND request_id <> :requestId
+                """, Tuple.class)
+                .setParameter("userId", userId)
+                .setParameter("since", quota.since())
+                .setParameter("requestId", requestId)).getFirst();
+        return counted.get("requested", Long.class) >= quota.limit();
     }
 
     private boolean lockFinalizedUpload(UUID userId, UUID uploadIntentId) {

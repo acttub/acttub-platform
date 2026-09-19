@@ -4,6 +4,7 @@ import com.acttub.actingapi.feature.portfolio.adapter.web.PortfolioDtos.PublicCr
 import com.acttub.actingapi.feature.portfolio.adapter.web.PortfolioDtos.PublicPhoto;
 import com.acttub.actingapi.feature.portfolio.adapter.web.PortfolioDtos.PublicPortfolioResponse;
 import com.acttub.actingapi.feature.portfolio.app.PortfolioService;
+import com.acttub.actingapi.platform.security.ClientAddress;
 import com.acttub.actingapi.platform.security.FixedWindowRateLimiter;
 import com.acttub.actingapi.platform.web.ApiException;
 import io.swagger.v3.oas.annotations.Operation;
@@ -27,10 +28,12 @@ import org.springframework.web.bind.annotation.RestController;
 class PublicPortfolioController {
     private final PortfolioService portfolios;
     private final FixedWindowRateLimiter limiter;
+    private final ClientAddress addresses;
 
-    PublicPortfolioController(PortfolioService portfolios, FixedWindowRateLimiter limiter) {
+    PublicPortfolioController(PortfolioService portfolios, FixedWindowRateLimiter limiter, ClientAddress addresses) {
         this.portfolios = portfolios;
         this.limiter = limiter;
+        this.addresses = addresses;
     }
 
     @Operation(
@@ -46,8 +49,7 @@ class PublicPortfolioController {
             content = @Content(schema = @Schema(implementation = PublicPortfolioResponse.class)))
     @GetMapping("/v2/public/portfolios/{slug}")
     ResponseEntity<PublicPortfolioResponse> get(@PathVariable("slug") String slug, HttpServletRequest request) {
-        String host = request.getRemoteAddr() == null ? "unknown" : request.getRemoteAddr();
-        if (!limiter.allow("public-portfolio-ip:" + host, 60)) {
+        if (!limiter.allow("public-portfolio-ip:" + addresses.of(request), 60)) {
             throw new ApiException(429, "rate limit exceeded");
         }
         PortfolioService.PublicPortfolio view = portfolios.publicView(slug);

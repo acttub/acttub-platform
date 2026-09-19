@@ -37,14 +37,22 @@ import org.springframework.test.web.servlet.MockMvc;
  * 알림의 발송은 challenge.notification 의 일이고 여기서는 토글과 토큰만 본다. "등록되지 않은 기기"와
  * 발송 실패는 {@code PushServiceTest}·{@code ExpoPushSenderTest} 가 본다.
  */
-@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ACCOUNT_CLEANUP_ENABLED=false"})
+@SpringBootTest(properties = {
+    "JWT_SECRET=test-secret",
+    "ACCOUNT_CLEANUP_ENABLED=false",
+    // 겹쳐 보낸 요청 둘이 저마다 커넥션을 쥔 채 잠금을 기다린다.
+    "spring.datasource.hikari.maximum-pool-size=10"
+})
 @AutoConfigureMockMvc
 class AccountNotificationIT {
     private static final AtomicInteger ADDRESSES = new AtomicInteger();
+    private static final long TOGGLE_GATE = 528_109L;
+    private static String database;
 
     @DynamicPropertySource
     static void database(DynamicPropertyRegistry registry) {
         String name = PostgresContainerSupport.createDatabaseName("account_notification");
+        database = name;
         registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(name));
         registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
         registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);
@@ -70,6 +78,7 @@ class AccountNotificationIT {
 
     @BeforeEach
     void setUp() {
+        jdbc.execute("DROP TRIGGER IF EXISTS hold_token_delete ON push_tokens");
         jdbc.execute("TRUNCATE TABLE users,consent_documents RESTART IDENTITY CASCADE");
         jdbc.update("""
                 INSERT INTO consent_documents(id,type,version,title,body,required,published_at)
@@ -146,6 +155,50 @@ class AccountNotificationIT {
         patchSettings("{\"challenge\":true}", 200);
         register(bearer, "ExponentPushToken[tablet]");
         assertThat(tokensOf(member)).containsExactly("ExponentPushToken[tablet]");
+    }
+
+    @Test
+    @DisplayName("account.notification: 푸시 둘을 끄는 도중에 다른 폰이 앱을 열어도 그 폰의 토큰이 살아남지 않는다 — 확인과 저장이 끄기와 줄을 선다")
+    void accountNotification_aRegistrationOverlappingTheSwitchOffDoesNotSurvive() throws Exception {
+        register(bearer, "ExponentPushToken[phone]");
+        patchSettings("{\"analysis_done\":false}", 200);
+        // 끄기 트랜잭션이 토글을 바꾼 뒤, 토큰을 지우는 문장 앞에서 멈춘다.
+        jdbc.execute("""
+                CREATE OR REPLACE FUNCTION hold_token_delete() RETURNS trigger AS $$
+                BEGIN
+                    PERFORM pg_advisory_xact_lock_shared(%d);
+                    RETURN NULL;
+                END
+                $$ LANGUAGE plpgsql
+                """.formatted(TOGGLE_GATE));
+        jdbc.execute("""
+                CREATE TRIGGER hold_token_delete
+                BEFORE DELETE ON push_tokens
+                FOR EACH STATEMENT EXECUTE FUNCTION hold_token_delete()
+                """);
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        try (java.sql.Connection gate = java.sql.DriverManager.getConnection(
+                PostgresContainerSupport.jdbcUrlFor(database),
+                PostgresContainerSupport.POSTGRES.getUsername(), PostgresContainerSupport.POSTGRES.getPassword())) {
+            try (java.sql.Statement statement = gate.createStatement()) {
+                statement.execute("SELECT pg_advisory_lock(" + TOGGLE_GATE + ")");
+            }
+            var switchingOff = pool.submit(() -> patchSettings("{\"challenge\":false}", 200));
+            awaitLockWaiters(switchingOff, 1);
+            // 다른 폰이 앱을 연다. 끄기가 아직 커밋되지 않아 "둘 다 꺼짐"이 보이지 않는다.
+            var registering = pool.submit(() -> postToken(bearer, "ExponentPushToken[tablet]").getStatus());
+            awaitLockWaiters(registering, 2);
+            try (java.sql.Statement statement = gate.createStatement()) {
+                statement.execute("SELECT pg_advisory_unlock(" + TOGGLE_GATE + ")");
+            }
+
+            switchingOff.get();
+            assertThat(registering.get()).isEqualTo(204);
+            assertThat(tokensOf(member)).as("둘 다 꺼진 회원의 토큰은 하나도 없다").isEmpty();
+        } finally {
+            pool.shutdownNow();
+            jdbc.execute("DROP TRIGGER IF EXISTS hold_token_delete ON push_tokens");
+        }
     }
 
     @Test
@@ -285,6 +338,22 @@ class AccountNotificationIT {
                 .andReturn().getResponse();
         assertThat(response.getStatus()).as(response.getContentAsString()).isEqualTo(status);
         return mapper.readTree(response.getContentAsString());
+    }
+
+    /** 요청이 끝났거나(잠금 없이 지나갔다) 잠금을 기다리는 요청이 {@code waiters} 개가 될 때까지 본다. */
+    private void awaitLockWaiters(java.util.concurrent.Future<?> request, int waiters) throws Exception {
+        java.time.Instant deadline = java.time.Instant.now().plusSeconds(20);
+        while (java.time.Instant.now().isBefore(deadline)) {
+            Integer waiting = jdbc.queryForObject("""
+                    SELECT count(*) FROM pg_stat_activity
+                    WHERE datname=current_database() AND wait_event_type='Lock'
+                    """, Integer.class);
+            if (request.isDone() || (waiting != null && waiting >= waiters)) {
+                return;
+            }
+            Thread.sleep(10);
+        }
+        throw new AssertionError("the overlapping request neither finished nor waited");
     }
 
     private List<String> tokensOf(UUID owner) {

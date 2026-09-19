@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.acttub.actingapi.platform.schema.ConsentType;
+import com.acttub.actingapi.platform.web.CredentialField;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
@@ -31,11 +32,11 @@ final class AuthDtos {
     @Schema(name = "LoginRequest")
     record LoginRequest(
             @NotNull String provider,
-            @JsonProperty("id_token") String idToken,
-            @JsonProperty("authorization_code") String authorizationCode,
-            @JsonProperty("code_verifier") String codeVerifier,
-            @JsonProperty("redirect_uri") String redirectUri,
-            String state) {
+            @CredentialField @JsonProperty("id_token") String idToken,
+            @CredentialField @JsonProperty("authorization_code") String authorizationCode,
+            @CredentialField @JsonProperty("code_verifier") String codeVerifier,
+            @CredentialField @JsonProperty("redirect_uri") String redirectUri,
+            @CredentialField String state) {
     }
 
     /** 켜져 있는 간편 로그인 제공자. 앱이 이 목록으로 로그인 버튼을 그린다. */
@@ -46,7 +47,7 @@ final class AuthDtos {
 
     @Schema(name = "SignupRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     record SignupRequest(
-            @NotNull @JsonProperty("signup_token") String signupToken,
+            @NotNull @CredentialField @JsonProperty("signup_token") String signupToken,
             @NotNull @Valid List<@NotNull @Valid SignupDecisionInput> decisions) {
     }
 
@@ -64,11 +65,11 @@ final class AuthDtos {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record RefreshRequest(@NotNull @JsonProperty("refresh_token") String refreshToken) {
+    record RefreshRequest(@NotNull @CredentialField @JsonProperty("refresh_token") String refreshToken) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record LogoutRequest(@NotNull @JsonProperty("refresh_token") String refreshToken) {
+    record LogoutRequest(@NotNull @CredentialField @JsonProperty("refresh_token") String refreshToken) {
     }
 
     @Schema(name = "AuthUser", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)

@@ -7,6 +7,8 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -97,22 +99,45 @@ class ExpoPushSender implements PushSender {
      * Expo 는 보낸 순서대로 ticket 을 돌려준다({@code data[i]} 가 {@code messages[i]} 의 것).
      * {@code details.error} 가 {@code DeviceNotRegistered} 면 그 기기는 더는 알림을 받지 못한다 — Expo
      * 문서는 그 토큰으로 보내기를 멈추라고 한다. 읽지 못한 응답은 "그런 기기 없음"으로 본다.
+     *
+     * <p>읽지 못한 응답과 그 밖의 ticket 오류(너무 큰 메시지, 자격 오류, 한도 초과)는 바깥 의존의 실패다 —
+     * 발송은 그대로 끝내되 삼키지 않고 보고한다 (ADR-025). 본문과 토큰은 보고에 싣지 않고 오류의 종류만 싣는다.
      */
     private List<String> unregisteredDevices(List<PushMessage> messages, String body) {
+        JsonNode tickets;
         try {
-            JsonNode tickets = json.readTree(body).path("data");
-            List<String> unregistered = new ArrayList<>();
-            for (int index = 0; index < tickets.size() && index < messages.size(); index++) {
-                JsonNode ticket = tickets.get(index);
-                if ("error".equals(ticket.path("status").asText())
-                        && "DeviceNotRegistered".equals(ticket.path("details").path("error").asText())) {
-                    unregistered.add(messages.get(index).to());
-                }
-            }
-            return unregistered;
+            tickets = json.readTree(body).path("data");
         } catch (Exception unreadable) {
+            tickets = null;
+        }
+        if (tickets == null || !tickets.isArray()) {
+            reportTickets("expo push tickets are unreadable");
             return List.of();
         }
+        List<String> unregistered = new ArrayList<>();
+        Set<String> otherErrors = new TreeSet<>();
+        for (int index = 0; index < tickets.size() && index < messages.size(); index++) {
+            JsonNode ticket = tickets.get(index);
+            if (!"error".equals(ticket.path("status").asText())) {
+                continue;
+            }
+            String error = ticket.path("details").path("error").asText("unknown");
+            if ("DeviceNotRegistered".equals(error)) {
+                unregistered.add(messages.get(index).to());
+            } else {
+                otherErrors.add(error);
+            }
+        }
+        if (!otherErrors.isEmpty()) {
+            reportTickets("expo push tickets reported errors: " + otherErrors);
+        }
+        return unregistered;
+    }
+
+    private void reportTickets(String what) {
+        LOGGER.warning(what);
+        failureReporter.report(
+                new IllegalStateException(what), FailureKind.EXTERNAL, new FailureContext("ExpoPushSender.tickets"));
     }
 
     private static RequestSender defaultSender() {

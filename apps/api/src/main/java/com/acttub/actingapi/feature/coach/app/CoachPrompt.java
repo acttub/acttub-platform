@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 import com.acttub.actingapi.feature.coach.domain.CoachBranch;
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
+import com.acttub.actingapi.platform.observability.ActorNameRedaction;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -69,6 +70,8 @@ public final class CoachPrompt {
      */
     private static final String ACTOR_PROFILE_TEXT = load("/coach/coach-block-actor-profile.txt");
 
+    private static final String NAME_LABEL = "- 이름: ";
+
     /**
      * 지난 것을 담는 칸의 상한. 넘으면 앞에서부터 자른다 — 지난 연습이 길다고 이번
      * 대화의 예산을 밀어내면 안 된다.
@@ -109,13 +112,31 @@ public final class CoachPrompt {
         List<String> lines = new ArrayList<>();
         lines.add("## 배우 프로필");
         lines.add(ACTOR_PROFILE_TEXT);
-        lines.add("- 이름: " + profile.name());
+        lines.add(NAME_LABEL + profile.name());
         lines.add("- 성별: " + profile.gender());
         lines.add("- 만 나이: " + profile.age() + "세");
         lines.add("- 추구하는 방향: " + String.join(", ", profile.directions()));
         lines.add("- 연기 경력: " + profile.experience());
         lines.add("- 최종 목표: " + profile.goal());
         return String.join("\n", lines) + "\n\n";
+    }
+
+    /**
+     * 텔레메트리로 나가는 기록용 — 프로필 블록의 이름 줄만 가린다. 모델에 보내는 프롬프트는 이것을 거치지
+     * 않는다. 블록은 프롬프트의 맨 앞에 있고 그 모양은 {@link #actorProfileBlock} 이 정하므로, 같은 줄을
+     * 찾아 바꾼다(대화에 나온 같은 글자는 건드리지 않는다).
+     */
+    static String withoutActorName(String userPrompt, ActorProfile profile) {
+        if (profile == null) {
+            return userPrompt;
+        }
+        String line = NAME_LABEL + profile.name() + "\n";
+        int at = userPrompt.indexOf(line);
+        if (at < 0) {
+            return userPrompt;
+        }
+        return userPrompt.substring(0, at) + NAME_LABEL + ActorNameRedaction.MASK + "\n"
+                + userPrompt.substring(at + line.length());
     }
 
     /**

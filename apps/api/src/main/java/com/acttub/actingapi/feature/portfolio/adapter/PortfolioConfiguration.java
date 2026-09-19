@@ -3,6 +3,7 @@ package com.acttub.actingapi.feature.portfolio.adapter;
 import java.time.Clock;
 
 import com.acttub.actingapi.feature.portfolio.app.PortfolioOwners;
+import com.acttub.actingapi.feature.portfolio.app.PortfolioPhotoCleanup;
 import com.acttub.actingapi.feature.portfolio.app.PortfolioPhotoStorage;
 import com.acttub.actingapi.feature.portfolio.app.PortfolioRepository;
 import com.acttub.actingapi.feature.portfolio.app.PortfolioService;
@@ -22,8 +23,9 @@ class PortfolioConfiguration {
             PortfolioRepository portfolios,
             PortfolioPhotoStorage photos,
             PortfolioOwners owners,
+            PortfolioPhotoCleanup cleanup,
             Clock clock,
             @Value("${SITE_URL:}") String siteUrl) {
-        return new PortfolioService(portfolios, photos, owners, clock, siteUrl);
+        return new PortfolioService(portfolios, photos, owners, cleanup, clock, siteUrl);
     }
 }

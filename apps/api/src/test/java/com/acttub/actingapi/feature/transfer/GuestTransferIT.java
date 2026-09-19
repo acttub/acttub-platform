@@ -5,6 +5,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.Statement;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -18,12 +21,23 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.IntSupplier;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
+import com.acttub.actingapi.feature.memory.app.MemoryExtractor;
+import com.acttub.actingapi.feature.memory.app.MemoryRepository;
+import com.acttub.actingapi.feature.memory.app.MemoryUpdateQueue;
+import com.acttub.actingapi.feature.memory.app.MemoryUpdateWorker;
 import com.acttub.actingapi.feature.push.app.PushTokenRepository;
+import com.acttub.actingapi.feature.transfer.app.TransferCodeRepository;
+import com.acttub.actingapi.integration.llm.GeneratedText;
+import com.acttub.actingapi.integration.llm.TextGenerator;
+import com.acttub.actingapi.integration.llm.TokenUsage;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.MutableClock;
 import com.acttub.actingapi.support.PostgresContainerSupport;
+import com.acttub.actingapi.support.RecordingFailureReporter;
+import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,15 +61,25 @@ import org.springframework.test.web.servlet.MockMvc;
  * <p>대본·리딩 회차·녹음은 아직 서버에 없어(웹 리딩은 기기 안에서 돈다) 옮길 행이 없다. 지금 옮기는 것은
  * {@code user_id} 가 있는 자료 행 전부다 — 올린 영상, 연습, 작업 장부, 배우 기억.
  */
-@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ACCOUNT_CLEANUP_ENABLED=false"})
+@SpringBootTest(properties = {
+    "JWT_SECRET=test-secret",
+    "ACCOUNT_CLEANUP_ENABLED=false",
+    // 기억 갱신 워커는 테스트가 직접 구동한다. 자동 poll 이 작업을 먼저 집으면 안 된다.
+    "ANALYSIS_WORKER_ENABLED=false",
+    // 겹쳐 보낸 요청 여섯이 저마다 커넥션을 쥔 채 잠금을 기다린다.
+    "spring.datasource.hikari.maximum-pool-size=12"
+})
 @AutoConfigureMockMvc
 @Import(MutableClock.Fixture.class)
 class GuestTransferIT {
     private static final AtomicInteger ADDRESSES = new AtomicInteger();
+    private static final long ISSUE_GATE = 528_008L;
+    private static String database;
 
     @DynamicPropertySource
     static void database(DynamicPropertyRegistry registry) {
         String name = PostgresContainerSupport.createDatabaseName("guest_transfer");
+        database = name;
         registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(name));
         registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
         registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);
@@ -79,11 +103,22 @@ class GuestTransferIT {
     @Autowired
     PushTokenRepository pushTokens;
 
+    @Autowired
+    TransferCodeRepository codes;
+
+    @Autowired
+    MemoryRepository memories;
+
+    @Autowired
+    MemoryUpdateQueue memoryQueue;
+
     private String address;
 
     @BeforeEach
     void setUp() {
         jdbc.execute("DROP TRIGGER IF EXISTS fail_operation_transfer ON external_operations");
+        jdbc.execute("DROP TRIGGER IF EXISTS hold_code_insert ON guest_transfer_codes");
+        jdbc.execute("DROP TRIGGER IF EXISTS hold_memory_insert ON actor_memory_entries");
         jdbc.execute("TRUNCATE TABLE users,consent_documents RESTART IDENTITY CASCADE");
         jdbc.update("""
                 INSERT INTO consent_documents(id,type,version,title,body,required,published_at)
@@ -204,6 +239,122 @@ class GuestTransferIT {
         }
 
         assertThat(transfer(members.get(1), "000000", null).getStatus()).isEqualTo(429);
+    }
+
+    @Test
+    @DisplayName("account.guest: 틀린 코드 여섯 개를 겹쳐 보내도 평가되는 것은 다섯이다 — 자리를 먼저 잡고 평가한다(여섯 번째는 429)")
+    void accountGuest_overlappingWrongAttemptsCannotSlipPastTheMemberLimit() throws Exception {
+        UUID member = member();
+        int attempts = 6;
+        ExecutorService pool = Executors.newFixedThreadPool(attempts);
+        try (Connection blocker = outsideConnection()) {
+            // 코드 평가(lockLive)가 이 잠금에서 멈춘다 — 한도 확인과 세기 사이에 요청 여섯을 세워 둔다.
+            blocker.setAutoCommit(false);
+            try (Statement statement = blocker.createStatement()) {
+                statement.execute("LOCK TABLE guest_transfer_codes IN ACCESS EXCLUSIVE MODE");
+            }
+            List<Future<Integer>> racing = new ArrayList<>();
+            for (int attempt = 0; attempt < attempts; attempt++) {
+                String wrong = "00000" + attempt;
+                racing.add(pool.submit(() -> transfer(member, wrong, null).getStatus()));
+            }
+            awaitUntil("every request is either waiting on the code table or answered", attempts,
+                    () -> waitingOnCodeTable() + (int) racing.stream().filter(Future::isDone).count());
+            blocker.rollback();
+
+            List<Integer> statuses = new ArrayList<>();
+            for (Future<Integer> future : racing) {
+                statuses.add(future.get());
+            }
+
+            assertThat(statuses).containsExactlyInAnyOrder(404, 404, 404, 404, 404, 429);
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
+    @DisplayName("account.guest: 기억 선택이 필요한 409 와 맞은 코드는 틀린 시도의 자리를 되돌려 준다 — 409 여섯 번 뒤에도 옮길 수 있다")
+    void accountGuest_conflictsAndCorrectCodesGiveTheirSlotBack() throws Exception {
+        UUID member = member();
+        memory(member, "goal", "회원의 목표");
+        Guest guest = guest();
+        memory(guest.id(), "goal", "게스트의 목표");
+        String code = issueCode(guest).path("code").textValue();
+
+        for (int attempt = 0; attempt < 6; attempt++) {
+            assertThat(transfer(member, code, null).getStatus()).isEqualTo(409);
+        }
+
+        assertThat(transfer(member, code, "member").getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    @DisplayName("account.guest: 코드가 없는 게스트가 두 탭에서 동시에 코드를 받아도 살아 있는 코드는 하나다")
+    void accountGuest_overlappingIssuanceLeavesOneLiveCode() throws Exception {
+        Guest guest = guest();
+        holdCodeInserts();
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try (Connection gate = outsideConnection()) {
+            closeIssueGate(gate);
+            List<Future<JsonNode>> racing = new ArrayList<>();
+            for (int tab = 0; tab < 2; tab++) {
+                racing.add(pool.submit(() -> issueCode(guest)));
+            }
+            // 둘 다 "앞의 코드 지우기"(0행)를 지나 새 코드를 넣는 자리에서 멈춘다.
+            awaitUntil("both issuances are waiting", 2, this::lockWaiters);
+            openIssueGate(gate);
+
+            List<String> issued = List.of(
+                    racing.get(0).get().path("code").textValue(), racing.get(1).get().path("code").textValue());
+
+            assertThat(issued).allMatch(code -> code.matches("[0-9]{6}"));
+            assertThat(jdbc.queryForObject("""
+                    SELECT count(*) FROM guest_transfer_codes WHERE user_id=? AND used_at IS NULL
+                    """, Integer.class, guest.id()))
+                    .as("게스트마다 살아 있는 코드는 하나다").isEqualTo(1);
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
+    @DisplayName("account.guest: 서로 다른 게스트가 같은 해시의 코드를 동시에 받으면 한쪽만 적힌다 — 진 쪽은 다시 뽑는다")
+    void accountGuest_overlappingIssuanceOfTheSameCodeToTwoGuestsKeepsOne() throws Exception {
+        List<Guest> guests = List.of(guest(), guest());
+        Instant now = clock.instant();
+        holdCodeInserts();
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try (Connection gate = outsideConnection()) {
+            closeIssueGate(gate);
+            List<Future<Boolean>> racing = new ArrayList<>();
+            for (Guest guest : guests) {
+                racing.add(pool.submit(() -> codes.issue(guest.id(), "same-hash", now, now.plusSeconds(600))));
+            }
+            awaitUntil("both issuances are waiting", 2, this::lockWaiters);
+            openIssueGate(gate);
+
+            assertThat(List.of(racing.get(0).get(), racing.get(1).get())).containsExactlyInAnyOrder(true, false);
+            assertThat(jdbc.queryForObject(
+                    "SELECT count(*) FROM guest_transfer_codes WHERE code_hash='same-hash'", Integer.class))
+                    .isEqualTo(1);
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
+    @DisplayName("account.guest: 다른 게스트의 시한이 지난 코드는 같은 숫자의 새 발급을 막지 않는다")
+    void accountGuest_anExpiredCodeOfAnotherGuestDoesNotBlockTheSameCode() throws Exception {
+        List<Guest> guests = List.of(guest(), guest());
+        Instant now = clock.instant();
+        assertThat(codes.issue(guests.get(0).id(), "reused-hash", now, now.plusSeconds(600))).isTrue();
+
+        Instant later = now.plus(Duration.ofMinutes(11));
+
+        assertThat(codes.issue(guests.get(1).id(), "reused-hash", later, later.plusSeconds(600))).isTrue();
+        assertThat(codes.inTransaction(() -> codes.lockLive("reused-hash", later)).guestId())
+                .isEqualTo(guests.get(1).id());
     }
 
     @Test
@@ -415,6 +566,81 @@ class GuestTransferIT {
                 .containsExactlyInAnyOrder(analyzing.toString(), finished.toString());
     }
 
+    @Test
+    @DisplayName("account.guest: 기억 갱신이 모델 응답을 기다리는 사이에 옮기면 새 기억은 회원의 것이 된다 — 닫힌 게스트에게 기억이 다시 생기지 않는다")
+    void accountGuest_aMemoryUpdateWaitingOnTheModelLandsOnTheMember() throws Exception {
+        UUID member = member();
+        Guest guest = guest();
+        UUID session = practice(guest.id());
+        UUID update = operation(guest.id(), session, "memory_update", "pending");
+        String code = issueCode(guest).path("code").textValue();
+        // 워커는 자료(주인=게스트)를 읽은 뒤 모델을 부른다. 그 응답을 기다리는 사이에 이관이 끝난다.
+        MemoryUpdateWorker worker = memoryWorker((system, user) -> {
+            try {
+                assertThat(transfer(member, code, null).getStatus()).isEqualTo(200);
+            } catch (Exception failure) {
+                throw new IllegalStateException(failure);
+            }
+            return new GeneratedText("{\"goal\":\"새 목표\"}", new TokenUsage(0, 0, 0));
+        });
+
+        assertThat(worker.runOnce(clock.instant())).isTrue();
+
+        assertThat(jdbc.queryForObject("SELECT status FROM external_operations WHERE id=?", String.class, update))
+                .isEqualTo("succeeded");
+        assertThat(jdbc.queryForList("SELECT value FROM actor_memory_entries WHERE user_id=?", String.class, member))
+                .as("진행 중 작업도 따라간다 — 결과는 그때의 주인(회원)에게 간다").containsExactly("새 목표");
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM actor_memory_entries WHERE user_id=?", Integer.class, guest.id()))
+                .as("닫힌 게스트에게 기억이 생기지 않는다").isZero();
+    }
+
+    @Test
+    @DisplayName("account.guest: 기억 갱신이 저장하는 도중에 옮기기가 시작돼도 그 기억은 회원에게 간다 — 옮기기는 작업 장부를 잡은 뒤에 기억을 본다")
+    void accountGuest_aMemoryUpdateBeingSavedIsCarriedByTheTransfer() throws Exception {
+        UUID member = member();
+        Guest guest = guest();
+        UUID session = practice(guest.id());
+        operation(guest.id(), session, "memory_update", "pending");
+        String code = issueCode(guest).path("code").textValue();
+        jdbc.execute("""
+                CREATE OR REPLACE FUNCTION hold_memory_insert() RETURNS trigger AS $$
+                BEGIN
+                    PERFORM pg_advisory_xact_lock_shared(%d);
+                    RETURN NEW;
+                END
+                $$ LANGUAGE plpgsql
+                """.formatted(ISSUE_GATE));
+        jdbc.execute("""
+                CREATE TRIGGER hold_memory_insert
+                BEFORE INSERT ON actor_memory_entries
+                FOR EACH ROW EXECUTE FUNCTION hold_memory_insert()
+                """);
+        MemoryUpdateWorker worker = memoryWorker((system, user) ->
+                new GeneratedText("{\"goal\":\"새 목표\"}", new TokenUsage(0, 0, 0)));
+        Instant now = clock.instant();
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try (Connection gate = outsideConnection()) {
+            closeIssueGate(gate);
+            // 완료 트랜잭션이 작업 행을 잡은 채 기억을 넣다가 문 앞에서 멈춘다.
+            Future<Boolean> saving = pool.submit(() -> worker.runOnce(now));
+            awaitUntil("the memory write is waiting", 1, this::lockWaiters);
+            Future<Integer> moving = pool.submit(() -> transfer(member, code, null).getStatus());
+            awaitUntil("the transfer is waiting too", 2, this::lockWaiters);
+            openIssueGate(gate);
+
+            assertThat(saving.get()).isTrue();
+            assertThat(moving.get()).isEqualTo(200);
+            assertThat(jdbc.queryForList(
+                    "SELECT value FROM actor_memory_entries WHERE user_id=?", String.class, member))
+                    .containsExactly("새 목표");
+            assertThat(jdbc.queryForObject(
+                    "SELECT count(*) FROM actor_memory_entries WHERE user_id=?", Integer.class, guest.id())).isZero();
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
     // ---- helpers ----
 
     private record Guest(UUID id, String accessToken, String refreshToken) {
@@ -466,6 +692,73 @@ class GuestTransferIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andReturn().getResponse();
+    }
+
+    private MemoryUpdateWorker memoryWorker(TextGenerator generator) {
+        RecordingFailureReporter reporter = new RecordingFailureReporter();
+        return new MemoryUpdateWorker(memories, memoryQueue, mapper, generator, clock,
+                new MemoryExtractor(reporter), reporter, new RecordingLlmTelemetry());
+    }
+
+    private Connection outsideConnection() throws Exception {
+        return DriverManager.getConnection(PostgresContainerSupport.jdbcUrlFor(database),
+                PostgresContainerSupport.POSTGRES.getUsername(), PostgresContainerSupport.POSTGRES.getPassword());
+    }
+
+    /** 새 코드를 넣는 문장이 문(advisory lock) 앞에서 멈추게 한다 — 실행 순서만 제어하고 결과는 공개 계약에서 본다. */
+    private void holdCodeInserts() {
+        jdbc.execute("""
+                CREATE OR REPLACE FUNCTION hold_code_insert() RETURNS trigger AS $$
+                BEGIN
+                    PERFORM pg_advisory_xact_lock_shared(%d);
+                    RETURN NEW;
+                END
+                $$ LANGUAGE plpgsql
+                """.formatted(ISSUE_GATE));
+        jdbc.execute("""
+                CREATE TRIGGER hold_code_insert
+                BEFORE INSERT ON guest_transfer_codes
+                FOR EACH ROW EXECUTE FUNCTION hold_code_insert()
+                """);
+    }
+
+    private void closeIssueGate(Connection gate) throws Exception {
+        try (Statement statement = gate.createStatement()) {
+            statement.execute("SELECT pg_advisory_lock(" + ISSUE_GATE + ")");
+        }
+    }
+
+    private void openIssueGate(Connection gate) throws Exception {
+        try (Statement statement = gate.createStatement()) {
+            statement.execute("SELECT pg_advisory_unlock(" + ISSUE_GATE + ")");
+        }
+    }
+
+    private int lockWaiters() {
+        return jdbc.queryForObject("""
+                SELECT count(*) FROM pg_stat_activity
+                WHERE datname=current_database() AND wait_event_type='Lock'
+                """, Integer.class);
+    }
+
+    private int waitingOnCodeTable() {
+        return jdbc.queryForObject("""
+                SELECT count(*) FROM pg_stat_activity
+                WHERE datname=current_database() AND wait_event_type='Lock'
+                  AND query LIKE '%guest_transfer_codes%'
+                  AND query NOT LIKE '%pg_stat_activity%'
+                """, Integer.class);
+    }
+
+    private void awaitUntil(String what, int expected, IntSupplier observed) throws Exception {
+        Instant deadline = Instant.now().plusSeconds(20);
+        while (Instant.now().isBefore(deadline)) {
+            if (observed.getAsInt() >= expected) {
+                return;
+            }
+            Thread.sleep(10);
+        }
+        throw new AssertionError("timed out: " + what + " (saw " + observed.getAsInt() + " of " + expected + ")");
     }
 
     private void assertNotFound(MockHttpServletResponse response) throws Exception {

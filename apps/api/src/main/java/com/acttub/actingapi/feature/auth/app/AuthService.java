@@ -24,6 +24,7 @@ import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.schema.UserStatus;
 import com.acttub.actingapi.platform.security.AccountSecrets;
+import com.acttub.actingapi.platform.security.TransferredGuests;
 import com.acttub.actingapi.platform.security.AuthenticatedUser;
 import com.acttub.actingapi.platform.web.ApiException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -47,6 +48,7 @@ public class AuthService {
     private final KakaoUserClient kakaoUsers;
     private final NaverTokenClient naverTokens;
     private final AuthRepository accounts;
+    private final TransferredGuests transferred;
     private final PendingConsentDocuments consents;
     private final JwtService jwt;
     private final SignupTokens signupTokens;
@@ -60,6 +62,7 @@ public class AuthService {
             KakaoUserClient kakaoUsers,
             NaverTokenClient naverTokens,
             AuthRepository accounts,
+            TransferredGuests transferred,
             PendingConsentDocuments consents,
             JwtService jwt,
             SignupTokens signupTokens,
@@ -71,6 +74,7 @@ public class AuthService {
         this.kakaoUsers = kakaoUsers;
         this.naverTokens = naverTokens;
         this.accounts = accounts;
+        this.transferred = transferred;
         this.consents = consents;
         this.jwt = jwt;
         this.signupTokens = signupTokens;
@@ -246,7 +250,7 @@ public class AuthService {
         }
         // 옮겨진 게스트의 사유가 먼저다. 웹은 이 401 의 사유를 보고 "옮겼어요" 안내를 띄운다 — 사유가
         // 없으면 안내 없이 새 게스트로 이어 간다.
-        if (user.status() == UserStatus.DEACTIVATED && accounts.transferredGuest(user.id())) {
+        if (user.status() == UserStatus.DEACTIVATED && transferred.transferredGuest(user.id())) {
             throw new ApiException(401, "guest_transferred");
         }
         user.requireUsable();
@@ -423,9 +427,11 @@ public class AuthService {
         try {
             String grant = appleTokens.exchange(credentials.authorizationCode(), identity.audience());
             accounts.storeProviderToken(provider, identity.providerUid(), secrets.encrypt(grant));
-        } catch (InvalidIdentityToken | ProviderUnavailable tolerated) {
-            // 다음 로그인에서 다시 채운다.
+        } catch (InvalidIdentityToken tolerated) {
+            // 이미 쓰인 코드 같은 예상된 거절이다. 다음 로그인에서 다시 채운다.
         } catch (RuntimeException failure) {
+            // 애플의 무응답(External Failure)도 여기로 온다. 로그인은 되지만 삼키지 않는다 — 계속 답하지
+            // 않으면 탈퇴 때 폐기할 토큰이 영영 채워지지 않는데, 보고가 없으면 아무도 모른다 (ADR-025).
             failureReporter.report(failure, new FailureContext("AuthService.keepProviderToken"));
         }
     }

@@ -6,6 +6,7 @@ import com.acttub.actingapi.feature.push.adapter.web.PushDtos.RegisterPushTokenR
 import com.acttub.actingapi.feature.push.adapter.web.PushDtos.UnregisterPushTokenRequest;
 import com.acttub.actingapi.feature.push.app.PushService;
 import com.acttub.actingapi.platform.security.AccessGate;
+import com.acttub.actingapi.platform.security.ClientAddress;
 import com.acttub.actingapi.platform.security.FixedWindowRateLimiter;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.ApiValidationException;
@@ -34,11 +35,13 @@ class PushController {
     private final PushService push;
     private final AccessGate auth;
     private final FixedWindowRateLimiter limiter;
+    private final ClientAddress addresses;
 
-    PushController(PushService push, AccessGate auth, FixedWindowRateLimiter limiter) {
+    PushController(PushService push, AccessGate auth, FixedWindowRateLimiter limiter, ClientAddress addresses) {
         this.push = push;
         this.auth = auth;
         this.limiter = limiter;
+        this.addresses = addresses;
     }
 
     @Operation(
@@ -89,8 +92,7 @@ class PushController {
     @DeleteMapping
     ResponseEntity<Void> unregister(
             @Valid @RequestBody UnregisterPushTokenRequest body, HttpServletRequest request) {
-        String host = request.getRemoteAddr() == null ? "unknown" : request.getRemoteAddr();
-        if (!limiter.allow("push-delete-ip:" + host, 60)) {
+        if (!limiter.allow("push-delete-ip:" + addresses.of(request), 60)) {
             throw new ApiException(429, "rate limit exceeded");
         }
         push.unregister(requireToken(body.token()));

@@ -6,6 +6,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.profile.domain.Account;
@@ -97,7 +98,7 @@ public class ProfileService implements ProfileGate {
             throw new ApiException(422, "under_14_account_closed");
         }
         Profile kept = before.profile();
-        return view(require(profiles.saveProfile(userId, new Profile(
+        Account saved = profiles.saveProfile(userId, new Profile(
                 submitted.name(),
                 submitted.gender(),
                 submitted.birthDate(),
@@ -105,7 +106,11 @@ public class ProfileService implements ProfileGate {
                 submitted.experience(),
                 submitted.goal(),
                 kept == null ? null : kept.photoKey(),
-                submitted.bio()))));
+                submitted.bio()));
+        if (saved == null) {
+            throw refused(userId);
+        }
+        return view(saved);
     }
 
     public NotificationSettings notificationSettings(UUID userId) {
@@ -125,7 +130,7 @@ public class ProfileService implements ProfileGate {
         NotificationSettings settings =
                 profiles.updateNotificationSettings(userId, analysisDone, challenge, eveningReminder);
         if (settings == null) {
-            throw userNotFound();
+            throw refused(userId);
         }
         return settings;
     }
@@ -169,8 +174,8 @@ public class ProfileService implements ProfileGate {
         String uploadUrl = photos.presignUpload(
                 objectKey, contentType, size, Math.toIntExact(PHOTO_UPLOAD_TTL.toSeconds()));
         if (!profiles.beginPhotoUpload(
-                userId, new ProfileRepository.PhotoUpload(objectKey, contentType, size, expiresAt))) {
-            throw userNotFound();
+                userId, new ProfileRepository.PhotoUpload(objectKey, contentType, size, expiresAt), clock.instant())) {
+            throw refused(userId);
         }
         return new NewPhotoUpload(uploadUrl, expiresAt);
     }
@@ -189,19 +194,22 @@ public class ProfileService implements ProfileGate {
         if (stored != pending.sizeBytes()) {
             throw new ApiException(409, "upload_size_mismatch");
         }
-        String replaced = profiles.completePhotoUpload(userId, pending.objectKey());
-        if (replaced != null) {
-            photos.delete(replaced);
+        List<UUID> replaced = profiles.completePhotoUpload(userId, pending.objectKey(), clock.instant());
+        if (replaced == null) {
+            throw refused(userId);
         }
+        // 옛 객체의 삭제는 이미 장부에 있다. 여기서 실패해도 요청은 끝나고 장부가 다시 시도한다.
+        cleanup.attempt(replaced);
         return find(userId);
     }
 
     /** 사진이 없어도 같은 결과다. */
     public void deletePhoto(UUID userId) {
-        String removed = profiles.clearPhoto(userId);
-        if (removed != null) {
-            photos.delete(removed);
+        List<UUID> removed = profiles.clearPhoto(userId, clock.instant());
+        if (removed == null) {
+            throw refused(userId);
         }
+        cleanup.attempt(removed);
     }
 
     private AccountView view(Account account) {
@@ -224,6 +232,18 @@ public class ProfileService implements ProfileGate {
 
     private static ApiException userNotFound() {
         return new ApiException(404, "user_not_found");
+    }
+
+    /**
+     * 저장소가 쓰지 않은 까닭을 가른다. 게이트를 지난 뒤에 다른 기기의 탈퇴가 끝났으면 게이트가 했을 답
+     * (403 {@code account_deactivated})을 그대로 준다 — 앱은 그 사유로 기기의 자료를 지운다. 쓰지 않는다는
+     * 판정은 저장 트랜잭션이 이미 내렸고, 여기서는 사유만 고른다.
+     */
+    private ApiException refused(UUID userId) {
+        Account account = profiles.find(userId);
+        return account != null && "deactivated".equals(account.status())
+                ? new ApiException(403, "account_deactivated")
+                : userNotFound();
     }
 
     /**

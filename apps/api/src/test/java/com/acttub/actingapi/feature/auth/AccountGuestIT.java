@@ -5,6 +5,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.Statement;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -14,6 +17,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
@@ -44,16 +50,24 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  * 문서 집합으로 본다. 챌린지·포트폴리오의 경로도 아직 없어, 회원 전용은 지금 있는 경로(프로필·알림·푸시
  * 토큰·옮기기)로 본다. 웹의 시트와 브라우저 저장소는 웹 갈래의 테스트가 본다.
  */
-@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ACCOUNT_CLEANUP_ENABLED=false"})
+@SpringBootTest(properties = {
+    "JWT_SECRET=test-secret",
+    "ACCOUNT_CLEANUP_ENABLED=false",
+    // 겹쳐 보낸 분석 요청 둘이 저마다 커넥션을 쥔 채 잠금을 기다린다.
+    "spring.datasource.hikari.maximum-pool-size=10"
+})
 @AutoConfigureMockMvc
 @Import(MutableClock.Fixture.class)
 class AccountGuestIT {
     private static final AtomicInteger ADDRESSES = new AtomicInteger();
+    private static final long ANALYSIS_GATE = 528_006L;
+    private static String database;
     private static final OffsetDateTime PUBLISHED = OffsetDateTime.of(2026, 10, 1, 0, 0, 0, 0, ZoneOffset.UTC);
 
     @DynamicPropertySource
     static void database(DynamicPropertyRegistry registry) {
         String name = PostgresContainerSupport.createDatabaseName("account_guest");
+        database = name;
         registry.add("spring.datasource.url", () -> PostgresContainerSupport.jdbcUrlFor(name));
         registry.add("spring.datasource.username", PostgresContainerSupport.POSTGRES::getUsername);
         registry.add("spring.datasource.password", PostgresContainerSupport.POSTGRES::getPassword);
@@ -126,6 +140,9 @@ class AccountGuestIT {
         JsonNode me = json(authorized(get("/v2/me"), body.path("access_token").textValue()), 200);
         assertThat(me.path("account_type").textValue()).isEqualTo("guest");
 
+        // 토큰의 iat 는 실제 시계로 적히고(JwtService) 갱신의 확인은 이 시계로 한다. setUp 이 초 단위로 끊어 둔
+        // 시각에 머물면, 그 사이 실제 시계가 초 경계를 넘었을 때 방금 받은 토큰이 "아직 유효하지 않다"가 된다.
+        clock.set(Instant.now());
         JsonNode refreshed = json(mvc.perform(post("/v2/auth/refresh")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"refresh_token\":\"" + body.path("refresh_token").textValue() + "\"}")), 200);
@@ -275,6 +292,27 @@ class AccountGuestIT {
     }
 
     @Test
+    @DisplayName("account.guest: web 프록시 하나를 거쳐 온 서로 다른 방문자 열한 명은 모두 게스트가 된다 — 제한은 프록시가 아니라 방문자 IP 에 걸린다")
+    void accountGuest_visitorsBehindTheWebProxyAreLimitedSeparately() throws Exception {
+        for (int visitor = 1; visitor <= 11; visitor++) {
+            assertThat(createGuestThroughTheWebProxy("203.0.113." + visitor).getStatus())
+                    .as("방문자 " + visitor).isEqualTo(201);
+        }
+    }
+
+    @Test
+    @DisplayName("account.guest: 한 방문자가 X-Forwarded-For 를 바꿔 가며 위조해도 열한 번째는 429 다")
+    void accountGuest_aForgedForwardedHeaderDoesNotEvadeTheLimit() throws Exception {
+        for (int attempt = 1; attempt <= 10; attempt++) {
+            // 방문자가 실어 보낸 값(왼쪽)은 매번 다르고, Cloudflare 가 덧붙인 진짜 주소(오른쪽)는 같다.
+            assertThat(createGuestThroughTheWebProxy("192.0.2." + attempt + ", 198.51.100.77").getStatus())
+                    .isEqualTo(201);
+        }
+
+        assertThat(createGuestThroughTheWebProxy("192.0.2.99, 198.51.100.77").getStatus()).isEqualTo(429);
+    }
+
+    @Test
     @DisplayName("account.guest: 한 게스트가 하루 4번째 분석 — 429. 한국 시간 자정이 지나면 다시 된다")
     void accountGuest_aGuestGetsThreeAnalysesAKoreanDay() throws Exception {
         // 한국 시간 23시에서 시작한다. 한 시간 뒤가 자정이다.
@@ -307,6 +345,96 @@ class AccountGuestIT {
         assertThat(nextDay.getStatus()).as("자정이 지나면 한도에 걸리지 않는다(실패한 분석이 아니라 409)").isEqualTo(409);
         assertThat(mapper.readTree(nextDay.getContentAsString()).path("detail").textValue())
                 .isEqualTo("session_is_not_failed");
+    }
+
+    @Test
+    @DisplayName("account.guest: 분석 두 번을 쓴 게스트가 서로 다른 분석 둘을 겹쳐 요청해도 그날의 분석은 세 번이다 — 하나는 429")
+    void accountGuest_overlappingAnalysesCannotSlipPastTheDailyLimit() throws Exception {
+        JsonNode guest = mapper.readTree(createGuest().getContentAsString());
+        String token = guest.path("access_token").textValue();
+        UUID guestId = UUID.fromString(guest.path("user").path("id").textValue());
+        consent(token, "terms", true);
+        consent(token, "privacy", null);
+        consent(token, "ai_analysis", null);
+        List<UUID> failed = List.of(practice(guestId), practice(guestId));
+        jdbc.update("UPDATE practice_sessions SET status='failed' WHERE user_id=?", guestId);
+        for (int analysis = 0; analysis < 2; analysis++) {
+            jdbc.update("""
+                    INSERT INTO external_operations(id,session_id,user_id,request_id,kind,status,request_fingerprint,created_at)
+                    VALUES (?,?,?,?,'analyze','failed',?,?)
+                    """, UUID.randomUUID(), failed.get(analysis), guestId, UUID.randomUUID(), "a".repeat(64),
+                    clock.instant().minusSeconds(60L * (analysis + 1)).atOffset(ZoneOffset.UTC));
+        }
+        // 분석 작업을 넣는 문장이 문(advisory lock) 앞에서 멈춘다 — 두 요청이 한도를 확인한 뒤, 작업을 만들기 전이다.
+        jdbc.execute("""
+                CREATE OR REPLACE FUNCTION hold_analysis_insert() RETURNS trigger AS $$
+                BEGIN
+                    PERFORM pg_advisory_xact_lock_shared(%d);
+                    RETURN NEW;
+                END
+                $$ LANGUAGE plpgsql
+                """.formatted(ANALYSIS_GATE));
+        jdbc.execute("""
+                CREATE TRIGGER hold_analysis_insert
+                BEFORE INSERT ON external_operations
+                FOR EACH ROW EXECUTE FUNCTION hold_analysis_insert()
+                """);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try (Connection gate = DriverManager.getConnection(PostgresContainerSupport.jdbcUrlFor(database),
+                PostgresContainerSupport.POSTGRES.getUsername(), PostgresContainerSupport.POSTGRES.getPassword())) {
+            try (Statement statement = gate.createStatement()) {
+                statement.execute("SELECT pg_advisory_lock(" + ANALYSIS_GATE + ")");
+            }
+            List<Future<Integer>> racing = new java.util.ArrayList<>();
+            for (UUID session : failed) {
+                racing.add(pool.submit(() -> authorized(post("/v2/practice-sessions/{id}/analyze", session), token)
+                        .andReturn().getResponse().getStatus()));
+            }
+            awaitLockWaiters(2);
+            try (Statement statement = gate.createStatement()) {
+                statement.execute("SELECT pg_advisory_unlock(" + ANALYSIS_GATE + ")");
+            }
+
+            assertThat(List.of(racing.get(0).get(), racing.get(1).get())).containsExactlyInAnyOrder(202, 429);
+            assertThat(jdbc.queryForObject(
+                    "SELECT count(*) FROM external_operations WHERE user_id=? AND kind='analyze'", Integer.class, guestId))
+                    .as("그날의 분석 요청은 세 번이다").isEqualTo(3);
+        } finally {
+            pool.shutdownNow();
+            jdbc.execute("DROP TRIGGER IF EXISTS hold_analysis_insert ON external_operations");
+        }
+    }
+
+    @Test
+    @DisplayName("account.guest: 한도를 채운 게스트가 이미 받아들여진 분석 요청을 같은 요청 ID 로 다시 보내면 429 가 아니라 같은 응답이다")
+    void accountGuest_anIdempotentResendIsNotCountedAgainstTheDailyLimit() throws Exception {
+        JsonNode guest = mapper.readTree(createGuest().getContentAsString());
+        String token = guest.path("access_token").textValue();
+        UUID guestId = UUID.fromString(guest.path("user").path("id").textValue());
+        consent(token, "terms", true);
+        consent(token, "privacy", null);
+        consent(token, "ai_analysis", null);
+        UUID session = practice(guestId);
+        jdbc.update("UPDATE practice_sessions SET status='failed' WHERE id=?", session);
+        for (int analysis = 0; analysis < 2; analysis++) {
+            jdbc.update("""
+                    INSERT INTO external_operations(id,session_id,user_id,request_id,kind,status,request_fingerprint,created_at)
+                    VALUES (?,?,?,?,'analyze','failed',?,?)
+                    """, UUID.randomUUID(), session, guestId, UUID.randomUUID(), "a".repeat(64),
+                    clock.instant().minusSeconds(60L * (analysis + 1)).atOffset(ZoneOffset.UTC));
+        }
+        String requestId = UUID.randomUUID().toString();
+
+        var third = authorized(post("/v2/practice-sessions/{id}/analyze", session)
+                .header("X-Request-Id", requestId), token).andReturn().getResponse();
+        var resent = authorized(post("/v2/practice-sessions/{id}/analyze", session)
+                .header("X-Request-Id", requestId), token).andReturn().getResponse();
+        var fourth = authorized(post("/v2/practice-sessions/{id}/analyze", session), token).andReturn().getResponse();
+
+        assertThat(third.getStatus()).as(third.getContentAsString()).isEqualTo(202);
+        assertThat(resent.getStatus()).as("같은 요청의 재전송은 세지 않는다: " + resent.getContentAsString()).isEqualTo(202);
+        assertThat(resent.getContentAsString()).isEqualTo(third.getContentAsString());
+        assertThat(fourth.getStatus()).isEqualTo(429);
     }
 
     @Test
@@ -371,6 +499,16 @@ class AccountGuestIT {
         })).andReturn().getResponse();
     }
 
+    /** 배포 경로처럼 — api 가 보는 상대는 언제나 web 컨테이너이고, 방문자는 전달 헤더로만 구분된다. */
+    private MockHttpServletResponse createGuestThroughTheWebProxy(String forwardedFor) throws Exception {
+        return mvc.perform(post("/v2/auth/guest")
+                .header("X-Forwarded-For", forwardedFor)
+                .with(request -> {
+                    request.setRemoteAddr("172.18.0.5");
+                    return request;
+                })).andReturn().getResponse();
+    }
+
     private String guestToken() throws Exception {
         return mapper.readTree(createGuest().getContentAsString()).path("access_token").textValue();
     }
@@ -432,6 +570,21 @@ class AccountGuestIT {
         var response = actions.andReturn().getResponse();
         assertThat(response.getStatus()).as(response.getContentAsString()).isEqualTo(status);
         return mapper.readTree(response.getContentAsString());
+    }
+
+    private void awaitLockWaiters(int expected) throws Exception {
+        Instant deadline = Instant.now().plusSeconds(20);
+        while (Instant.now().isBefore(deadline)) {
+            Integer waiting = jdbc.queryForObject("""
+                    SELECT count(*) FROM pg_stat_activity
+                    WHERE datname=current_database() AND wait_event_type='Lock'
+                    """, Integer.class);
+            if (waiting != null && waiting >= expected) {
+                return;
+            }
+            Thread.sleep(10);
+        }
+        throw new AssertionError("requests did not reach the expected lock waits: " + expected);
     }
 
     private int count(String table) {

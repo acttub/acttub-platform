@@ -7,7 +7,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 import com.acttub.actingapi.feature.memory.app.MemoryUpdateQueue;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
@@ -69,11 +69,13 @@ class ExternalOperationMemoryQueue implements MemoryUpdateQueue {
 
     @Override
     public void complete(
-            UUID operationId, UUID leaseToken, Supplier<JsonNode> writeMemoryAndPayload, Instant now) {
+            UUID operationId, UUID leaseToken, Function<UUID, JsonNode> writeMemoryAndPayload, Instant now) {
         transaction.executeWithoutResult(status -> {
-            // 먼저 원장 행을 잠가 재선점을 막고, 같은 트랜잭션에서 기억과 완료를 확정한다.
+            // 먼저 원장 행을 잠가 재선점을 막고, 같은 트랜잭션에서 기억과 완료를 확정한다. 주인도 여기서
+            // 읽는다 — 이관은 작업 행의 주인을 바꾼 뒤에 기억을 보므로(GuestTransferService), 이 잠금
+            // 아래에서 읽은 주인에게 쓴 기억은 이관이 놓치지 않는다.
             var owned = list(entityManager.createNativeQuery("""
-                    SELECT id AS id FROM external_operations
+                    SELECT id AS id, user_id AS user_id FROM external_operations
                     WHERE id = :operationId AND status = 'running' AND lease_token = :leaseToken
                     FOR UPDATE
                     """, Tuple.class)
@@ -82,7 +84,7 @@ class ExternalOperationMemoryQueue implements MemoryUpdateQueue {
             if (owned.isEmpty()) {
                 throw new LeaseOwnershipException("external operation lease is not owned");
             }
-            JsonNode responsePayload = writeMemoryAndPayload.get();
+            JsonNode responsePayload = writeMemoryAndPayload.apply(owned.getFirst().get("user_id", UUID.class));
             int finished = entityManager.createNativeQuery("""
                     UPDATE external_operations
                     SET status = 'succeeded',

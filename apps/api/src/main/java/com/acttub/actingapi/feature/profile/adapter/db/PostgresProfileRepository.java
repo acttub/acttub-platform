@@ -12,7 +12,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
-import com.acttub.actingapi.feature.profile.app.AccountCleanupRepository;
 import com.acttub.actingapi.feature.profile.app.ProfileRepository;
 import com.acttub.actingapi.feature.profile.domain.Account;
 import com.acttub.actingapi.feature.profile.domain.AgeBand;
@@ -25,7 +24,6 @@ import com.acttub.actingapi.platform.schema.PgEnum;
 import com.acttub.actingapi.platform.schema.ProfileGender;
 import com.acttub.actingapi.platform.schema.UserStatus;
 import com.acttub.actingapi.platform.security.AccountSecrets;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
@@ -34,19 +32,41 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 @Repository
 class PostgresProfileRepository implements ProfileRepository {
-    private static final ObjectMapper JSON = new ObjectMapper();
-
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
     private final AccountSecrets secrets;
+    private final PostgresObjectCleanupLedger cleanups;
 
     PostgresProfileRepository(
             EntityManager entityManager,
             PlatformTransactionManager transactionManager,
-            AccountSecrets secrets) {
+            AccountSecrets secrets,
+            PostgresObjectCleanupLedger cleanups) {
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
         this.secrets = secrets;
+        this.cleanups = cleanups;
+    }
+
+    /**
+     * 회원 자료를 쓰는 트랜잭션의 첫 문장. 탈퇴({@link #withdraw})가 잡는 것과 <b>같은 {@code users} 행</b>을
+     * 잡고 활성인지 본다.
+     *
+     * <p>게이트의 계정 상태 확인은 요청의 앞머리에서 끝난다. 그 뒤에 다른 기기의 탈퇴가 커밋되면, 이 확인이
+     * 없는 쓰기는 파기한 이름·생년월일·사진 키를 다시 채운다 — 탈퇴는 {@code users} 행을 남기므로 FK 도 막지
+     * 못한다. 행을 잡으면 둘은 줄을 선다: 쓰기가 먼저면 탈퇴가 그 뒤에 파기하고, 탈퇴가 먼저면 여기서 거짓이다.
+     *
+     * @return 없거나 활성이 아니면 {@code false} — 아무것도 쓰지 않는다
+     */
+    private boolean lockActive(UUID userId) {
+        return !list(entityManager.createNativeQuery("""
+                SELECT id
+                FROM users
+                WHERE id=:userId
+                  AND status='active'
+                FOR UPDATE
+                """, Tuple.class)
+                .setParameter("userId", userId)).isEmpty();
     }
 
     /**
@@ -112,6 +132,9 @@ class PostgresProfileRepository implements ProfileRepository {
     @Override
     public Account saveProfile(UUID userId, Profile profile) {
         return transaction.execute(status -> {
+            if (!lockActive(userId)) {
+                return null;
+            }
             int saved = entityManager.createNativeQuery("""
                     INSERT INTO user_profiles(user_id,name,gender,birth_date,experience,goal,bio)
                     SELECT id,:name,:gender,:birthDate,:experience,:goal,CAST(:bio AS text)
@@ -183,6 +206,10 @@ class PostgresProfileRepository implements ProfileRepository {
      * ⚠ 탈퇴와 같은 이유로 남의 테이블을 함께 친다 — 해시 행을 지우는 것과 영상 삭제를 장부에 올리는 것이 한
      * 트랜잭션이어야 "해시는 지워졌는데 영상은 남은" 계정이 생기지 않는다. 해시 보관 기간이 곧 영상 보관
      * 기간이다(ADR-029).
+     *
+     * <p>고르는 기준은 <b>신원이 아니다.</b> 제공자의 연결 끊기 알림은 신원을 행째 지우므로, 마지막 신원이
+     * 끊긴 뒤 탈퇴한 회원에게는 해시 행이 없다 — 해시 행의 유무로 고르면 그 사람의 보관 영상은 영영 남는다.
+     * 탈퇴 시각과 {@code users.retention_purged_at}(V10) 으로 고르고, 같은 트랜잭션에서 그 시각을 적는다.
      */
     @Override
     public List<UUID> purgeRetained(Instant deactivatedBefore, Instant now) {
@@ -192,9 +219,7 @@ class PostgresProfileRepository implements ProfileRepository {
                     FROM users
                     WHERE users.status='deactivated'
                       AND users.deactivated_at<:cutoff
-                      AND EXISTS (SELECT 1 FROM user_identities
-                                  WHERE user_identities.user_id=users.id
-                                    AND user_identities.uid_hash IS NOT NULL)
+                      AND users.retention_purged_at IS NULL
                     ORDER BY users.deactivated_at,users.id
                     FOR UPDATE OF users
                     """, Tuple.class)
@@ -205,13 +230,21 @@ class PostgresProfileRepository implements ProfileRepository {
             for (UUID userId : expired) {
                 List<String> videos = videoKeys(userId);
                 if (!videos.isEmpty()) {
-                    cleanups.add(enqueue(userId, "object_delete", secrets.encrypt(json(videos)), now));
+                    cleanups.add(this.cleanups.schedule(userId, videos, now, now));
                 }
                 entityManager.createNativeQuery("""
                         DELETE FROM user_identities
                         WHERE user_id=:userId
                           AND uid_hash IS NOT NULL
                         """)
+                        .setParameter("userId", userId)
+                        .executeUpdate();
+                entityManager.createNativeQuery("""
+                        UPDATE users
+                        SET retention_purged_at=:now
+                        WHERE id=:userId
+                        """)
+                        .setParameter("now", now.atOffset(ZoneOffset.UTC))
                         .setParameter("userId", userId)
                         .executeUpdate();
             }
@@ -264,6 +297,9 @@ class PostgresProfileRepository implements ProfileRepository {
     public NotificationSettings updateNotificationSettings(
             UUID userId, Boolean analysisDone, Boolean challenge, Boolean eveningReminder) {
         return transaction.execute(status -> {
+            if (!lockActive(userId)) {
+                return null;
+            }
             List<Tuple> rows = list(entityManager.createNativeQuery("""
                     WITH changed AS (
                         UPDATE user_profiles
@@ -301,21 +337,50 @@ class PostgresProfileRepository implements ProfileRepository {
                 row.get("notify_evening_reminder", Boolean.class));
     }
 
+    /**
+     * 앞의 올리기가 남긴 키를 <b>같은 문장에서</b> 돌려받아 장부에 올린다. 그냥 덮으면 올리다 만 객체의 키를
+     * 아는 곳이 없어져 탈퇴도 그 객체를 지우지 못한다. 그 주소는 시한까지 살아 있으므로 삭제는 시한 뒤로
+     * 미룬다 — 먼저 지우면 그 뒤에 올라온 객체가 다시 남는다.
+     */
     @Override
-    public boolean beginPhotoUpload(UUID userId, PhotoUpload upload) {
-        return Boolean.TRUE.equals(transaction.execute(status -> entityManager.createNativeQuery("""
-                UPDATE user_profiles
-                SET photo_upload_key=:objectKey,photo_upload_mime_type=:mimeType,
-                    photo_upload_size_bytes=:sizeBytes,photo_upload_expires_at=:expiresAt,
-                    updated_at=now()
-                WHERE user_id=:userId
-                """)
-                .setParameter("objectKey", upload.objectKey())
-                .setParameter("mimeType", upload.mimeType())
-                .setParameter("sizeBytes", upload.sizeBytes())
-                .setParameter("expiresAt", upload.expiresAt().atOffset(ZoneOffset.UTC))
-                .setParameter("userId", userId)
-                .executeUpdate() > 0));
+    public boolean beginPhotoUpload(UUID userId, PhotoUpload upload, Instant now) {
+        return Boolean.TRUE.equals(transaction.execute(status -> {
+            if (!lockActive(userId)) {
+                return false;
+            }
+            List<Tuple> rows = list(entityManager.createNativeQuery("""
+                    WITH before AS (
+                        SELECT user_id,photo_upload_key,photo_upload_expires_at
+                        FROM user_profiles
+                        WHERE user_id=:userId
+                        FOR UPDATE
+                    ), changed AS (
+                        UPDATE user_profiles
+                        SET photo_upload_key=:objectKey,photo_upload_mime_type=:mimeType,
+                            photo_upload_size_bytes=:sizeBytes,photo_upload_expires_at=:expiresAt,
+                            updated_at=now()
+                        FROM before
+                        WHERE user_profiles.user_id=before.user_id
+                        RETURNING before.photo_upload_key AS abandoned,
+                                  before.photo_upload_expires_at AS abandoned_expires_at
+                    )
+                    SELECT abandoned,abandoned_expires_at FROM changed
+                    """, Tuple.class)
+                    .setParameter("objectKey", upload.objectKey())
+                    .setParameter("mimeType", upload.mimeType())
+                    .setParameter("sizeBytes", upload.sizeBytes())
+                    .setParameter("expiresAt", upload.expiresAt().atOffset(ZoneOffset.UTC))
+                    .setParameter("userId", userId));
+            if (rows.isEmpty()) {
+                return false;
+            }
+            String abandoned = rows.getFirst().get("abandoned", String.class);
+            if (abandoned != null) {
+                Instant abandonedExpiresAt = rows.getFirst().get("abandoned_expires_at", Instant.class);
+                cleanups.schedule(userId, List.of(abandoned), now, abandonedExpiresAt == null ? now : abandonedExpiresAt);
+            }
+            return true;
+        }));
     }
 
     @Override
@@ -341,55 +406,62 @@ class PostgresProfileRepository implements ProfileRepository {
 
     /**
      * 옛 키를 <b>같은 문장에서</b> 돌려받는다 — 조회 후 쓰기로 나누면 두 완료가 겹쳤을 때 같은 옛
-     * 사진을 두 번 지우려 한다 (apps/api/CONTRACT.md §5-2).
+     * 사진을 두 번 지우려 한다 (apps/api/CONTRACT.md §5-2). 옛 객체의 삭제는 같은 트랜잭션에서 장부에 올린다 —
+     * 커밋 뒤에 저장소가 실패해도 키를 잃지 않는다.
      */
     @Override
-    public String completePhotoUpload(UUID userId, String objectKey) {
-        return transaction.execute(status -> replacedPhoto(entityManager.createNativeQuery("""
-                WITH before AS (
-                    SELECT user_id,photo_key
-                    FROM user_profiles
-                    WHERE user_id=:userId
-                      AND photo_upload_key=:objectKey
-                    FOR UPDATE
-                ), changed AS (
-                    UPDATE user_profiles
-                    SET photo_key=:objectKey,photo_upload_key=NULL,photo_upload_mime_type=NULL,
-                        photo_upload_size_bytes=NULL,photo_upload_expires_at=NULL,updated_at=now()
-                    FROM before
-                    WHERE user_profiles.user_id=before.user_id
-                    RETURNING before.photo_key AS replaced
-                )
-                SELECT replaced FROM changed
-                """, Tuple.class)
-                .setParameter("userId", userId)
-                .setParameter("objectKey", objectKey)));
+    public List<UUID> completePhotoUpload(UUID userId, String objectKey, Instant now) {
+        return transaction.execute(status -> lockActive(userId)
+                ? scheduleReplaced(userId, now, entityManager.createNativeQuery("""
+                        WITH before AS (
+                            SELECT user_id,photo_key
+                            FROM user_profiles
+                            WHERE user_id=:userId
+                              AND photo_upload_key=:objectKey
+                            FOR UPDATE
+                        ), changed AS (
+                            UPDATE user_profiles
+                            SET photo_key=:objectKey,photo_upload_key=NULL,photo_upload_mime_type=NULL,
+                                photo_upload_size_bytes=NULL,photo_upload_expires_at=NULL,updated_at=now()
+                            FROM before
+                            WHERE user_profiles.user_id=before.user_id
+                            RETURNING before.photo_key AS replaced
+                        )
+                        SELECT replaced FROM changed
+                        """, Tuple.class)
+                        .setParameter("userId", userId)
+                        .setParameter("objectKey", objectKey))
+                : null);
     }
 
     @Override
-    public String clearPhoto(UUID userId) {
-        return transaction.execute(status -> replacedPhoto(entityManager.createNativeQuery("""
-                WITH before AS (
-                    SELECT user_id,photo_key
-                    FROM user_profiles
-                    WHERE user_id=:userId
-                      AND photo_key IS NOT NULL
-                    FOR UPDATE
-                ), changed AS (
-                    UPDATE user_profiles
-                    SET photo_key=NULL,updated_at=now()
-                    FROM before
-                    WHERE user_profiles.user_id=before.user_id
-                    RETURNING before.photo_key AS replaced
-                )
-                SELECT replaced FROM changed
-                """, Tuple.class)
-                .setParameter("userId", userId)));
+    public List<UUID> clearPhoto(UUID userId, Instant now) {
+        return transaction.execute(status -> lockActive(userId)
+                ? scheduleReplaced(userId, now, entityManager.createNativeQuery("""
+                        WITH before AS (
+                            SELECT user_id,photo_key
+                            FROM user_profiles
+                            WHERE user_id=:userId
+                              AND photo_key IS NOT NULL
+                            FOR UPDATE
+                        ), changed AS (
+                            UPDATE user_profiles
+                            SET photo_key=NULL,updated_at=now()
+                            FROM before
+                            WHERE user_profiles.user_id=before.user_id
+                            RETURNING before.photo_key AS replaced
+                        )
+                        SELECT replaced FROM changed
+                        """, Tuple.class)
+                        .setParameter("userId", userId))
+                : null);
     }
 
-    private static String replacedPhoto(jakarta.persistence.Query query) {
+    /** 쓰이던 사진은 올리기 주소가 이미 끝난 객체라 바로 지워도 된다. */
+    private List<UUID> scheduleReplaced(UUID userId, Instant now, jakarta.persistence.Query query) {
         List<Tuple> rows = list(query);
-        return rows.isEmpty() ? null : rows.getFirst().get("replaced", String.class);
+        String replaced = rows.isEmpty() ? null : rows.getFirst().get("replaced", String.class);
+        return replaced == null ? List.of() : List.of(cleanups.schedule(userId, List.of(replaced), now, now));
     }
 
     /**
@@ -502,7 +574,7 @@ class PostgresProfileRepository implements ProfileRepository {
                 objectKeys.addAll(videoKeys(userId));
             }
             if (!objectKeys.isEmpty()) {
-                cleanups.add(enqueue(userId, "object_delete", secrets.encrypt(json(objectKeys)), now));
+                cleanups.add(this.cleanups.schedule(userId, objectKeys, now, now));
             }
             cleanups.addAll(hashIdentities(userId, now));
 
@@ -643,11 +715,11 @@ class PostgresProfileRepository implements ProfileRepository {
             String naverToken = identity.get("naver_token_encrypted", String.class);
             // 토큰은 이미 암호문이라 그대로 옮긴다. 카카오 회원번호는 평문이었으므로 여기서 암호화한다.
             if ("apple".equals(provider) && appleToken != null) {
-                cleanups.add(enqueue(userId, "apple_revoke", appleToken, now));
+                cleanups.add(this.cleanups.enqueue(userId, "apple_revoke", appleToken, now, now));
             } else if ("naver".equals(provider) && naverToken != null) {
-                cleanups.add(enqueue(userId, "naver_revoke", naverToken, now));
+                cleanups.add(this.cleanups.enqueue(userId, "naver_revoke", naverToken, now, now));
             } else if ("kakao".equals(provider)) {
-                cleanups.add(enqueue(userId, "kakao_unlink", secrets.encrypt(providerUid), now));
+                cleanups.add(this.cleanups.enqueue(userId, "kakao_unlink", secrets.encrypt(providerUid), now, now));
             }
             entityManager.createNativeQuery("""
                     UPDATE user_identities
@@ -715,31 +787,6 @@ class PostgresProfileRepository implements ProfileRepository {
                 .setParameter("now", now.atOffset(ZoneOffset.UTC))
                 .setParameter("userId", userId)
                 .executeUpdate();
-    }
-
-    private UUID enqueue(UUID userId, String kind, String payloadEncrypted, Instant now) {
-        UUID id = UUID.randomUUID();
-        entityManager.createNativeQuery("""
-                INSERT INTO account_cleanup_operations(
-                    id,user_id,kind,payload_encrypted,next_attempt_at,expires_at,created_at,updated_at)
-                VALUES (:id,:userId,:kind,:payload,:now,:expiresAt,:now,:now)
-                """)
-                .setParameter("id", id)
-                .setParameter("userId", userId)
-                .setParameter("kind", kind)
-                .setParameter("payload", payloadEncrypted)
-                .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                .setParameter("expiresAt", now.plus(AccountCleanupRepository.RETRY_WINDOW).atOffset(ZoneOffset.UTC))
-                .executeUpdate();
-        return id;
-    }
-
-    private static String json(List<String> values) {
-        try {
-            return JSON.writeValueAsString(values);
-        } catch (Exception failure) {
-            throw new IllegalStateException("failed to write object keys", failure);
-        }
     }
 
     private static Account account(Tuple row) {

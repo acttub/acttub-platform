@@ -43,9 +43,10 @@ public interface PortfolioRepository {
 
     /**
      * @param accepted 이미 {@code limit} 장이면 {@code false}(자리를 적지 않았다)
-     * @param abandonedObjectKeys 이참에 지운, 시한이 지난 올리기의 객체 키들. 객체는 부르는 쪽이 지운다
+     * @param cleanupOperationIds 이참에 지운, 시한이 지난 올리기의 객체 삭제. 같은 트랜잭션에서 정리 장부에
+     *        올렸고({@link PortfolioPhotoCleanup}) 부르는 쪽이 트랜잭션 밖에서 시도한다
      */
-    record PhotoSlot(boolean accepted, List<String> abandonedObjectKeys) {
+    record PhotoSlot(boolean accepted, List<UUID> cleanupOperationIds) {
     }
 
     /** 없으면 {@code null}. 이미 끝난 사진도 돌려준다({@link PendingPhoto#uploaded}). */
@@ -54,8 +55,24 @@ public interface PortfolioRepository {
     /** 올리기를 끝낸 것으로 적고 목록 맨 끝에 붙인다. */
     void completePhoto(UUID userId, UUID photoId, Instant now);
 
-    /** @return 지운 사진의 객체 키. 없으면 {@code null} */
-    String deletePhoto(UUID userId, UUID photoId);
+    /**
+     * 행을 지우면서 그 객체의 삭제를 같은 트랜잭션에서 정리 장부에 올린다({@link PortfolioPhotoCleanup}).
+     * 아직 올리는 중이던 사진은 그 주소의 시한 뒤에 지운다.
+     *
+     * @return 장부에 올린 객체 삭제. 부르는 쪽이 트랜잭션 밖에서 시도한다. 그런 사진이 없으면 {@code null}
+     */
+    List<UUID> deletePhoto(UUID userId, UUID photoId, Instant now);
+
+    /**
+     * 포트폴리오를 쓰는 트랜잭션이 {@code users} 행을 잡아 보니 계정이 활성이 아니었다 — 게이트를 지난 뒤에
+     * 다른 기기의 탈퇴가 끝났다. 아무것도 쓰지 않았다. 탈퇴는 포트폴리오를 행째 지우는데, 이 확인이 없으면
+     * 뒤늦은 쓰기가 그 행을 다시 만든다.
+     */
+    final class OwnerNotActive extends RuntimeException {
+        public OwnerNotActive() {
+            super("the portfolio owner is not an active account");
+        }
+    }
 
     /** {@link #orderCredits} 와 같다. 올리기가 끝난 사진만 센다. */
     boolean orderPhotos(UUID userId, List<UUID> ids);

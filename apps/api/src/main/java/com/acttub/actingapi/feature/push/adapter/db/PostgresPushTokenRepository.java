@@ -33,14 +33,40 @@ class PostgresPushTokenRepository implements PushTokenRepository {
      *
      * <p>ID는 DB default가 만들고, 충돌 때는 기존 ID를 유지한다. native upsert의
      * {@code RETURNING}을 data-modifying CTE로 읽는 표준 패턴을 쓴다.
+     *
+     * <p><b>"둘 다 꺼짐" 확인과 저장이 한 트랜잭션이다.</b> 따로 읽고 쓰면, 토글을 끄는 트랜잭션이 토큰을
+     * 지우는 사이에 끼어든 등록이 살아남는다 — 다른 기기가 앱을 여는 것만으로 토큰이 되살아난다
+     * (apps/api/CONTRACT.md §5-2·§6-10). 토글 끄기와 탈퇴가 잡는 것과 같은 {@code users} 행을 먼저 잡아
+     * 줄을 서고, 그 뒤에 읽은 토글로 거른다. 활성 계정이 아니면 저장하지 않는다.
+     *
+     * <p>⚠ {@code users} 는 {@code auth}, 토글({@code user_profiles})은 {@code profile} 의 것이다. 확인이
+     * 저장과 같은 트랜잭션에 있어야 뜻이 있어 native SQL 로 읽는다(다른 feature 의 Schema Entity 를 import
+     * 하지 않는다).
      */
     @Override
     public void register(UUID userId, String token, String platform) {
         transaction.executeWithoutResult(status -> {
-            List<Tuple> registered = list(entityManager.createNativeQuery("""
+            boolean active = !list(entityManager.createNativeQuery("""
+                    SELECT id
+                    FROM users
+                    WHERE id=:userId
+                      AND status='active'
+                    FOR UPDATE
+                    """, Tuple.class)
+                    .setParameter("userId", userId)).isEmpty();
+            if (!active) {
+                return;
+            }
+            // 둘 다 꺼 둔 회원이면 0행이다 — 조용히 지나간다.
+            list(entityManager.createNativeQuery("""
                     WITH registered AS (
                         INSERT INTO push_tokens(user_id,token,platform)
-                        VALUES (:userId,:token,:platform)
+                        SELECT :userId,:token,:platform
+                        WHERE NOT EXISTS (SELECT 1
+                                          FROM user_profiles
+                                          WHERE user_id=:userId
+                                            AND NOT notify_analysis_done
+                                            AND NOT notify_challenge)
                         ON CONFLICT(token)
                         DO UPDATE SET user_id=EXCLUDED.user_id,
                                       platform=EXCLUDED.platform,
@@ -52,21 +78,12 @@ class PostgresPushTokenRepository implements PushTokenRepository {
                     .setParameter("userId", userId)
                     .setParameter("token", token)
                     .setParameter("platform", platform));
-            if (registered.size() != 1
-                    || registered.getFirst().get("id", UUID.class) == null) {
-                throw new IllegalStateException("push token upsert returned no id");
-            }
         });
     }
 
     @Override
     public void unregister(String token) {
-        transaction.executeWithoutResult(status -> entityManager.createNativeQuery("""
-                DELETE FROM push_tokens
-                WHERE token=:token
-                """)
-                .setParameter("token", token)
-                .executeUpdate());
+        transaction.executeWithoutResult(status -> tokens.deleteByToken(token));
     }
 
     /**
@@ -88,17 +105,5 @@ class PostgresPushTokenRepository implements PushTokenRepository {
                 .setParameter("sessionId", sessionId)).stream()
                 .map(row -> row.get("token", String.class))
                 .toList();
-    }
-
-    @Override
-    public boolean pushesTurnedOff(UUID userId) {
-        return !list(entityManager.createNativeQuery("""
-                SELECT 1 AS turned_off
-                FROM user_profiles
-                WHERE user_id=:userId
-                  AND NOT notify_analysis_done
-                  AND NOT notify_challenge
-                """, Tuple.class)
-                .setParameter("userId", userId)).isEmpty();
     }
 }

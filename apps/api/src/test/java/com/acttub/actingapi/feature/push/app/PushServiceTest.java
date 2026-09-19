@@ -72,19 +72,6 @@ class PushServiceTest {
     }
 
     @Test
-    @DisplayName("account.notification: 서버 푸시 둘을 다 꺼 둔 회원의 토큰은 받지 않는다")
-    void registrationIsIgnoredWhileBothPushesAreOff() {
-        UUID member = UUID.randomUUID();
-        tokens.turnedOff = true;
-        service.register(member, "ExponentPushToken[aaa]", "ios");
-        assertThat(tokens.registered).isEmpty();
-
-        tokens.turnedOff = false;
-        service.register(member, "ExponentPushToken[aaa]", "ios");
-        assertThat(tokens.registered).containsExactly("ExponentPushToken[aaa]");
-    }
-
-    @Test
     void knownPlatformsAreExactlyIosAndAndroid() {
         // 컨트롤러 검증이 이 집합을 본다 — 넓히면 계약(allowableValues)도 함께 넓혀야 한다.
         assertThat(PushService.PLATFORMS).containsExactlyInAnyOrder("ios", "android");
@@ -92,7 +79,6 @@ class PushServiceTest {
 
     private static final class RecordingRepository implements PushTokenRepository {
         private List<String> forSession = List.of();
-        private boolean turnedOff;
         private final List<String> registered = new ArrayList<>();
         private final List<String> removed = new ArrayList<>();
 
@@ -109,11 +95,6 @@ class PushServiceTest {
         @Override
         public List<String> analysisDoneTargets(UUID sessionId) {
             return forSession;
-        }
-
-        @Override
-        public boolean pushesTurnedOff(UUID userId) {
-            return turnedOff;
         }
     }
 

@@ -85,4 +85,17 @@ class AccountSecretsTest {
         assertThatThrownBy(() -> derivedOnly.decrypt("no-prefix")).isInstanceOf(AccountSecrets.UnreadableSecret.class);
         assertThatThrownBy(() -> derivedOnly.decrypt(null)).isInstanceOf(AccountSecrets.UnreadableSecret.class);
     }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("account.withdraw: 운영 문서(docs/deploy/RETENTION-REVOCATION.md)의 셸 절차로 계산한 해시와 같은 값이다 — 두 키 판 모두")
+    void identityHashesMatchTheOperatorsProcedure() {
+        // 문서의 절차: 키 = HMAC-SHA256(비밀, "acttub/identity-hash/v1"), 해시 = HMAC-SHA256(키, provider + "\n" + uid).
+        // 아래 값은 그 셸 절차(openssl)로 JWT_SECRET=test-secret, ACCOUNT_IDENTITY_HASH_KEY=dedicated-test-key 에서
+        // 계산한 것이다. 이 테스트가 깨지면 문서의 절차도 함께 고친다 — 해시는 3년을 간다.
+        AccountSecrets secrets = new AccountSecrets("test-secret", "dedicated-test-key", null);
+
+        assertThat(secrets.identityHashCandidates("kakao", "1234567890")).containsExactly(
+                "d1:498754e2271558afd047c29e4f174c83a3b4720f3a37d26238d94ab1aac4a570",
+                "k1:5cc94028c71558d34579fa6dd026a9742b6cfa12afd1d0f41496c70ef5d8ce2d");
+    }
 }
