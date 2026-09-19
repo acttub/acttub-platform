@@ -118,6 +118,7 @@ git 이력이 보관한다. 동작을 바꾸는 PR이 그 기능의 요구사항
 | 컬럼 | user_profiles 알림 토글 둘 → 셋(챌린지 알림 추가) | account.notification |
 | 컬럼 | user_profiles 나이는 생년월일로 받고, 탈퇴 때 연령대로 뭉개 남긴다 | account.profile, account.withdraw |
 | 컬럼 | user_identities에 애플 토큰(암호화) | account.login |
+| 컬럼 | users.age_confirmed_at(게스트의 만 14세 이상 확인 시각) | account.guest |
 
 ## 디자인에 반영할 것
 
@@ -126,13 +127,13 @@ pen을 고칠 목록이다. 규칙은 출처 기능의 본문이 정본이고 �
 | 화면 | 바꿀 것 | 출처 |
 |---|---|---|
 | A0 로그인 | 카카오·네이버 버튼(안드로이드는 애플 제외), 마지막 제공자 강조, 이메일 겹침 안내 | account.login |
-| A0.1 동의 | 선택 문서 줄(동의·거절 두 버튼), 버튼 문구 "동의하고 계속하기" | account.login, account.consent |
+| A0.1 동의 | 선택 문서 줄(동의·거절 두 버튼), 버튼 문구 "동의하고 계속하기", 문서 이름 "개인정보 수집·이용 동의" | account.login, account.consent |
 | A0.2 프로필 설정 | 나이 칸을 생년월일로, 이름 칸에 "다른 사람에게 보이는 이름이에요", 만 14세 미만 안내 | account.profile |
 | A4 설정 | 알림 토글 셋과 밤 10시, 문서마다 판·시행일·결정 시각, 선택 동의 바꾸기 | account.notification, account.consent |
 | A4 설정·프로필 | 프로필 여섯 항목과 사진·소개를 고치는 진입점 | account.profile |
 | A5 탈퇴 | 안내 문구를 챌린지 기준으로, 지워지는 것에 사진·소개·영상 | account.withdraw |
 | 새 화면(앱) | 포트폴리오 편집, 이관 코드 입력, 기억 선택 팝업 | account.portfolio, account.guest |
-| 새 화면(웹) | 게스트 시작 안내, 기능별 동의 시트, 이관 코드, 옮긴 뒤 안내, 포트폴리오 공개 페이지 | account.guest, account.portfolio |
+| 새 화면(웹) | 게스트 시작 안내, 기능별 동의 시트("만 14세 이상이에요" 확인 줄 포함), 이관 코드, 옮긴 뒤 안내, 포트폴리오 공개 페이지 | account.guest, account.portfolio |
 | 없앨 화면(웹) | W2 로그인, D3.1 동의 결정, 상단 탐색의 아바타 | account.guest |
 | 내릴 화면 | 커뮤니티 A3·A3.1·A3.2, D11·D12·D15, WC·WC2·WC3 | 05-community |
 
@@ -143,8 +144,9 @@ pen을 고칠 목록이다. 규칙은 출처 기능의 본문이 정본이고 �
 
 | 문서 | 반영할 것 | 출처 |
 |---|---|---|
-| 개인정보 처리방침 | 필수 수집 항목 여섯과 항목마다 코칭에 쓰는 이유 한 줄 | account.profile |
-| 개인정보 처리방침 | 만 14세 미만은 가입할 수 없음 | account.profile |
+| 개인정보 수집·이용 동의 | privacy 문서를 수집·이용 동의로 고쳐 새 판을 낸다. 처리방침은 고지로 분리해 공개 페이지에 싣는다 | account.consent |
+| 개인정보 수집·이용 동의 | 필수 수집 항목 여섯과 항목마다 코칭에 쓰는 이유 한 줄 | account.profile |
+| 개인정보 처리방침 | 만 14세 미만은 가입할 수 없고, 웹 게스트는 만 14세 이상임을 확인받음 | account.profile, account.guest |
 | 개인정보 처리방침 | 탈퇴 때 파기하는 것과 가명처리해 남기는 것, 남기는 목적(통계·연구) | account.withdraw |
 | 개인정보 처리방침 | 신원 해시를 탈퇴 후 3년 보관하고 쓰임은 둘뿐임 | account.withdraw |
 | 개인정보 처리방침 | 백업 덤프에 파기 전 데이터가 30일 남음 | account.withdraw |
