@@ -137,7 +137,7 @@ git 이력이 보관한다. 동작을 바꾸는 PR이 그 기능의 요구사항
 | 값 | user_identities.provider에 guest 추가 | account.guest |
 | 값 | users.status에서 suspended 제거 (V4에서 이미 반영됨) | account.login |
 | 삭제 | users.signup_* 아홉 컬럼 (V4에서 이미 삭제됨) | account.login |
-| 삭제 | users.nickname (user_profiles.name으로). 1.0.0은 값을 옮기고 쓰기를 끊는다. 컬럼 삭제는 다음 릴리스에서 한다. 삭제와 그것을 안 쓰는 코드를 한 릴리스에 묶지 않기 때문이다([DB와 배포 안전성](../BRANCHING-STRATEGY.md#db와-배포-안전성)) | account.profile |
+| 삭제 | users.nickname (user_profiles.name으로). 1.0.0은 값을 옮기고 읽기·쓰기를 끊는다. 탈퇴만 예외로 옛 닉네임을 계속 비운다(파기 공백을 두지 않기 위해서다). 다음 릴리스에서 그 쓰기를 없애고 그다음 릴리스에서 컬럼을 삭제한다. 삭제와 그것을 안 쓰는 코드를 한 릴리스에 묶지 않기 때문이다([DB와 배포 안전성](../BRANCHING-STRATEGY.md#db와-배포-안전성)) | account.profile |
 | 컬럼 | user_profiles 알림 토글 둘 → 셋(챌린지 알림 추가) | account.notification |
 | 컬럼 | user_profiles 나이는 생년월일로 받고, 탈퇴 때 5세 단위 연령대로 뭉개 남긴다 | account.profile, account.withdraw |
 | 컬럼 | user_identities에 애플 토큰(암호화) | account.login |
