@@ -1,6 +1,7 @@
 package com.acttub.actingapi.feature.auth.app;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.domain.RefreshToken;
@@ -26,8 +27,33 @@ public interface AuthRepository {
 
     AuthenticatedUser findByIdentity(String provider, String providerUid);
 
-    /** 계정과 신원을 함께 만든다. */
-    AuthenticatedUser createUserWithIdentity(String provider, String providerUid, String email);
+    /**
+     * 계정·신원·동의 결정을 <b>한 트랜잭션에서</b> 만든다 — 가입 제출이 통과한 순간이다.
+     *
+     * <p>셋이 함께여야 한다. 계정만 생기고 동의가 빠지면 "동의 없이 개인정보를 갖고 있는" 계정이
+     * 남는다.
+     *
+     * @param email 제공자가 검증한 이메일. 없으면 {@code null}(빈 문자열이 아니다)
+     * @param appleTokenEncrypted 애플 신원이면 암호화한 애플 토큰. 그 밖에는 {@code null}
+     * @throws org.springframework.dao.DataIntegrityViolationException 같은 신원이나 같은 이메일의
+     *         계정이 그 사이 생겼을 때. 어느 쪽인지는 부르는 쪽이 다시 조회해 가른다
+     */
+    AuthenticatedUser createAccount(
+            String provider,
+            String providerUid,
+            String email,
+            String appleTokenEncrypted,
+            List<AcceptedConsent> consents,
+            Instant now);
+
+    /** 이 계정에 붙어 있는 제공자 이름들. 이메일 겹침 안내("이미 OO로 가입한 이메일이에요")에 쓴다. */
+    List<String> providersOf(UUID userId);
+
+    /**
+     * 제공자가 준 검증된 이메일로 {@code users.email} 을 맞춘다. 다른 계정이 이미 쓰는 주소면
+     * 그대로 둔다 — 오류가 아니다.
+     */
+    void updateEmailIfFree(UUID userId, String email);
 
     /**
      * 이미 있는 계정에 신원을 붙인다.

@@ -153,8 +153,14 @@ class AuthErrorContractIT {
     void validationHasFastApiLocMsgAndTypeForMissingWrongAndMalformed() throws Exception {
         assertThat(body(jsonPost("{}"), 422)).isEqualTo(JSON.readTree("""
                 {"detail":[
-                  {"type":"missing","loc":["body","provider"],"msg":"Field required","input":{}},
-                  {"type":"missing","loc":["body","id_token"],"msg":"Field required","input":{}}
+                  {"type":"missing","loc":["body","provider"],"msg":"Field required","input":{}}
+                ]}
+                """));
+        // ID 토큰은 네이버 말고는 전부 필수다(네이버만 서버가 authorization code 를 교환한다).
+        assertThat(body(jsonPost("{\"provider\":\"google\"}"), 422)).isEqualTo(JSON.readTree("""
+                {"detail":[
+                  {"type":"missing","loc":["body","id_token"],"msg":"Field required",
+                   "input":{"provider":"google"}}
                 ]}
                 """));
 

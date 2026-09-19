@@ -3,10 +3,12 @@ package com.acttub.actingapi.feature.auth.adapter.db;
 import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
 
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.auth.app.AcceptedConsent;
 import com.acttub.actingapi.feature.auth.app.AuthRepository;
 import com.acttub.actingapi.feature.auth.app.IdentityAlreadyLinkedError;
 import com.acttub.actingapi.feature.auth.domain.RefreshToken;
@@ -28,7 +30,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 않는다 (ADR-017, SOMA-397 6단계의 {@code SyncOperationService} 와 같은 형태).
  *
  * <p>동의 여부는 여기 없다. 동의 문서와 그 이력을 소유한 쪽은 {@code consent} 이고, 게이트가
- * 묻는 것({@code RequiredConsentGate})도 로그인 응답에 실리는 목록({@code auth/app/
+ * 묻는 것({@code PendingConsentGate})도 로그인 응답에 실리는 목록({@code auth/app/
  * PendingConsentDocuments})도 그쪽이 답한다 (SOMA-397 12단계).
  */
 @Repository
@@ -74,10 +76,13 @@ public class PostgresAuthRepository implements AuthRepository, AuthenticatedUser
     }
 
     @Override
-    public AuthenticatedUser createUserWithIdentity(
+    public AuthenticatedUser createAccount(
             String provider,
             String uid,
-            String email) {
+            String email,
+            String appleTokenEncrypted,
+            List<AcceptedConsent> consents,
+            Instant now) {
         return transaction.execute(status -> {
             UserEntity user = users.save(new UserEntity(
                     UUID.randomUUID(), email, UserStatus.ACTIVE));
@@ -85,9 +90,53 @@ public class PostgresAuthRepository implements AuthRepository, AuthenticatedUser
                     UUID.randomUUID(),
                     user.getId(),
                     provider(provider),
-                    uid));
+                    uid,
+                    appleTokenEncrypted));
+            // ⚠ `user_consents` 의 주인은 `consent` 다. 그래도 여기서 쓰는 것은 계정과 동의가 한
+            // 트랜잭션이어야 하기 때문이다. 다른 feature 의 Schema Entity 를 import 하면 패키지
+            // 경계를 우회하므로 명시적 native DML 로 남긴다(탈퇴의 교차 도메인 정리와 같은 형태).
+            // 무엇을 받아도 되는지는 이미 `consent` 가 확인했다(`PendingConsentDocuments`).
+            for (AcceptedConsent consent : consents) {
+                entityManager.createNativeQuery("""
+                        INSERT INTO user_consents(id,user_id,document_id,action,occurred_at)
+                        VALUES (:id,:userId,:documentId,:action,:occurredAt)
+                        """)
+                        .setParameter("id", UUID.randomUUID())
+                        .setParameter("userId", user.getId())
+                        .setParameter("documentId", consent.documentId())
+                        .setParameter("action", consent.action())
+                        .setParameter("occurredAt", now.atOffset(ZoneOffset.UTC))
+                        .executeUpdate();
+            }
             return authenticated(user);
         });
+    }
+
+    @Override
+    public List<String> providersOf(UUID userId) {
+        return list(entityManager.createNativeQuery("""
+                SELECT DISTINCT provider
+                FROM user_identities
+                WHERE user_id=:userId
+                  AND provider_uid IS NOT NULL
+                ORDER BY provider
+                """, Tuple.class)
+                .setParameter("userId", userId)).stream()
+                .map(row -> provider(row.get("provider", String.class)).dbValue())
+                .toList();
+    }
+
+    @Override
+    public void updateEmailIfFree(UUID userId, String email) {
+        transaction.executeWithoutResult(status -> entityManager.createNativeQuery("""
+                UPDATE users
+                SET email=:email,updated_at=now()
+                WHERE id=:userId
+                  AND NOT EXISTS (SELECT 1 FROM users taken WHERE lower(taken.email)=lower(:email))
+                """)
+                .setParameter("email", email)
+                .setParameter("userId", userId)
+                .executeUpdate());
     }
 
     @Override

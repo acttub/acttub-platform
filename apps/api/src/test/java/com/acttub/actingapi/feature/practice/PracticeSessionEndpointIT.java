@@ -16,6 +16,7 @@ import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.platform.operation.ExternalOperationClaimer;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
+import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -666,6 +667,7 @@ class PracticeSessionEndpointIT {
 
     private void insertUser(UUID id) {
         jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", id);
+        AccountFixtures.completeProfile(jdbc, id);
     }
 
     private UUID insertUpload(UUID userId, String status, String objectKey) {

@@ -1,5 +1,6 @@
 package com.acttub.actingapi.feature.auth.adapter;
 import com.acttub.actingapi.feature.auth.app.JwtService;
+import com.acttub.actingapi.feature.auth.app.SignupTokens;
 import java.time.Clock; import com.fasterxml.jackson.databind.ObjectMapper; import org.springframework.beans.factory.annotation.Value; import org.springframework.context.annotation.*;
 @Configuration
 public class AuthConfiguration {
@@ -14,4 +15,7 @@ public class AuthConfiguration {
      * 된다 — 실제로 그렇게 죽은 적이 있다.
      */
     @Bean JwtService jwtService(@Value("${JWT_SECRET:}")String secret,ObjectMapper mapper){return new JwtService(secret,Clock.systemUTC(),mapper);}
+
+    /** 가입 토큰은 발급 시각과 만료를 <b>애플리케이션 시계</b>로 잰다 — 30분 만료를 시계를 돌려 확인한다. */
+    @Bean SignupTokens signupTokens(@Value("${JWT_SECRET:}")String secret){return new SignupTokens(secret);}
 }

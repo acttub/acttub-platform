@@ -80,7 +80,7 @@ class ReportController {
                     schema = @Schema(nullable = true))
             @RequestHeader(name = "X-Request-Id", required = false) String requestIdHeader,
             HttpServletRequest request) {
-        var user = auth.consentedUser(request);
+        var user = auth.gatedUser(request);
         ReportPayload payload = reports.create(user.id(), req.sessionId(), requestIdHeader, request.getHeader("X-Acttub-Contract"));
         return responses.ok(payload.body(), payload.requestId());
     }
@@ -96,7 +96,7 @@ class ReportController {
             content = @Content(schema = @Schema(implementation = ReportHistoryResponse.class)))
     @GetMapping
     ReportHistoryResponse history(HttpServletRequest request) {
-        var user = auth.consentedUser(request);
+        var user = auth.gatedUser(request);
         var reportRecords = reports.history(user.id(), request.getHeader("X-Acttub-Contract")).stream()
                 .map(summary -> new ReportRecord(
                         summary.practiceSessionId(),
@@ -126,7 +126,7 @@ class ReportController {
     ReportDetailResponse detail(
             @PathVariable("practice_session_id") UUID practiceSessionId,
             HttpServletRequest request) {
-        var user = auth.consentedUser(request);
+        var user = auth.gatedUser(request);
         PlayableReport playable = reports.detail(user.id(), practiceSessionId, request.getHeader("X-Acttub-Contract"));
         return new ReportDetailResponse(
                 playable.report().practiceSessionId(),

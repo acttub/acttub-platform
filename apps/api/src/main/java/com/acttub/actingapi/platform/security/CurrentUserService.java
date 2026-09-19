@@ -39,8 +39,4 @@ public class CurrentUserService {
         request.setAttribute(ATTRIBUTE, user);
         return user;
     }
-
-    public AuthenticatedUser optional(HttpServletRequest request) {
-        return request.getHeader("Authorization") == null ? null : require(request);
-    }
 }

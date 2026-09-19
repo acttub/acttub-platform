@@ -95,8 +95,10 @@ public class ConsentDocumentPublisher implements ApplicationRunner {
     public int publish() throws Exception {
         Resource manifest = resource("manifest.json");
         if (!manifest.exists()) {
-            log.warn("Consent documents manifest is missing: {}", manifest);
-            return 0;
+            // 기동은 계속하되 조용히 넘기지 않는다. manifest 는 jar 에 실리므로 없다는 것은 포장이나
+            // `CONSENT_DOCS_DIR` 설정이 틀렸다는 뜻이고, 그러면 새 판이 발행되지 않아 API 가 옛 판을
+            // 현재 판으로 돌려준다 — 새 수집이 옛 동의로 켜질 수 있다. `run` 이 실패로 보고한다.
+            throw new java.io.FileNotFoundException("consent documents manifest is missing: " + manifest);
         }
 
         List<Entry> entries = mapper.readValue(manifest.getInputStream(), new TypeReference<>() { });
@@ -129,22 +131,23 @@ public class ConsentDocumentPublisher implements ApplicationRunner {
             var existing = documents.findByTypeAndVersion(value.type(), entry.version());
             if (existing.isPresent()) {
                 ConsentDocumentEntity document = existing.get();
-                List<String> mismatch = new ArrayList<>();
-                if (!Objects.equals(document.getTitle(), entry.title())) {
-                    mismatch.add("title");
-                }
-                if (!Objects.equals(document.getBody(), value.body())) {
-                    mismatch.add("body");
-                }
-                if (!Objects.equals(document.isRequired(), entry.required())) {
-                    mismatch.add("required");
-                }
-                if (!mismatch.isEmpty()) {
-                    log.warn(
-                            "Consent document {}:{} differs in fields: {}; publish a new version",
+                // 같은 판의 제목·본문이 달라졌으면 덮어쓴다. 오탈자를 고치는 길이고 재동의는 없다 —
+                // 뜻이 바뀌는 수정은 판을 올려야 하며 그 판단은 사람이 한다(account.consent).
+                if (!Objects.equals(document.getTitle(), entry.title())
+                        || !Objects.equals(document.getBody(), value.body())) {
+                    document.rewrite(entry.title(), value.body());
+                    documents.saveAndFlush(document);
+                    log.info(
+                            "Consent document {}:{} text was rewritten in place",
                             value.type().dbValue(),
-                            entry.version(),
-                            mismatch);
+                            entry.version());
+                }
+                // 필수 여부는 뜻이다. 같은 판에서 바꾸지 않는다.
+                if (!Objects.equals(document.isRequired(), entry.required())) {
+                    log.warn(
+                            "Consent document {}:{} differs in required; publish a new version",
+                            value.type().dbValue(),
+                            entry.version());
                 }
                 continue;
             }

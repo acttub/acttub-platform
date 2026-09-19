@@ -134,9 +134,22 @@ class AccountStatusContractIT {
     @Test
     void loginWithAnUnverifiedEmailThatAlreadyBelongsToSomeoneIsAConflict() throws Exception {
         insertUser(SETTLED, "settled", "taken@example.test", "active");
+        jdbc.update("""
+                INSERT INTO user_identities(id, user_id, provider, provider_uid)
+                VALUES (?, ?, 'google', 'google-settled')
+                """, UUID.randomUUID(), SETTLED);
 
-        assertError(login("dev-newcomer:taken@example.test"),
-                409, "account_exists_with_different_provider");
+        MvcResult result = mvc.perform(login("dev-newcomer:taken@example.test")).andReturn();
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(409);
+        // 오류 본문이 `detail` 말고 하나를 더 싣는 두 예외 가운데 하나다 — "이미 OO로 가입한 이메일이에요".
+        assertThat(mapper.readTree(result.getResponse().getContentAsString()))
+                .isEqualTo(mapper.readTree("""
+                        {"detail":"account_exists_with_different_provider","providers":["google"]}
+                        """));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM users", Integer.class))
+                .as("계정은 늘지 않는다")
+                .isEqualTo(2);
     }
 
     private MockHttpServletRequestBuilder login(String idToken) {

@@ -56,6 +56,19 @@ public class UserProfileEntity {
     @Column(name = "bio")
     private String bio;
 
+    /** 주소를 받고 아직 끝을 알리지 않은 사진 올리기. 넷은 함께 차고 함께 빈다 (V8). */
+    @Column(name = "photo_upload_key")
+    private String photoUploadKey;
+
+    @Column(name = "photo_upload_mime_type")
+    private String photoUploadMimeType;
+
+    @Column(name = "photo_upload_size_bytes")
+    private Long photoUploadSizeBytes;
+
+    @Column(name = "photo_upload_expires_at")
+    private Instant photoUploadExpiresAt;
+
     /** 탈퇴 때 생년월일을 뭉갠 5세 단위 연령대. 구간의 아래 끝이다(25 = 만 25~29세). */
     @Column(name = "age_band")
     private Integer ageBand;
@@ -123,6 +136,22 @@ public class UserProfileEntity {
 
     public String getBio() {
         return bio;
+    }
+
+    public String getPhotoUploadKey() {
+        return photoUploadKey;
+    }
+
+    public String getPhotoUploadMimeType() {
+        return photoUploadMimeType;
+    }
+
+    public Long getPhotoUploadSizeBytes() {
+        return photoUploadSizeBytes;
+    }
+
+    public Instant getPhotoUploadExpiresAt() {
+        return photoUploadExpiresAt;
     }
 
     public Integer getAgeBand() {

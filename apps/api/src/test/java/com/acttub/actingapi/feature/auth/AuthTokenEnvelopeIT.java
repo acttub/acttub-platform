@@ -67,6 +67,14 @@ class AuthTokenEnvelopeIT {
         jdbc.execute("TRUNCATE TABLE users,consent_documents RESTART IDENTITY CASCADE");
         insertDocument(PRIVACY_DOCUMENT, "privacy", Instant.parse("2026-01-01T00:00:00Z"));
         insertDocument(TERMS_DOCUMENT, "terms", Instant.parse("2026-01-02T00:00:00Z"));
+        // 토큰 봉투는 이미 있는 계정의 로그인에서 나온다. 처음 온 신원은 가입 토큰을 받는다
+        // (`AccountLoginIT`).
+        UUID member = UUID.fromString("00000000-0000-4000-8000-000000000101");
+        jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", member);
+        jdbc.update("""
+                INSERT INTO user_identities(id,user_id,provider,provider_uid)
+                VALUES (?,?,'development','dev-envelope')
+                """, UUID.randomUUID(), member);
     }
 
     @Test
@@ -75,8 +83,9 @@ class AuthTokenEnvelopeIT {
         JsonNode body = login();
 
         assertTokenEnvelope(body);
+        assertThat(body.path("result").textValue()).isEqualTo("signed_in");
         assertThat(body.fieldNames()).toIterable().containsExactlyInAnyOrder(
-                "access_token", "refresh_token", "token_type", "expires_in",
+                "result", "access_token", "refresh_token", "token_type", "expires_in",
                 "user", "pending_consents");
         assertThat(body.path("user").path("id").textValue()).isNotBlank();
         assertThat(body.path("pending_consents").isArray()).isTrue();
@@ -84,15 +93,15 @@ class AuthTokenEnvelopeIT {
     }
 
     @Test
-    @DisplayName("로그인 보류 동의는 종류 순이 아니라 발행 시각 순으로 낸다")
-    void loginOrdersPendingConsentsByPublishedAt() throws Exception {
+    @DisplayName("로그인 보류 동의는 동의 화면이 그리는 종류 순으로 낸다 — 게이트·조회 API 와 같은 순서다")
+    void loginOrdersPendingConsentsLikeEveryOtherConsentList() throws Exception {
         JsonNode pending = login().path("pending_consents");
 
         assertThat(pending).hasSize(2);
         assertThat(pending.get(0).path("id").textValue())
-                .isEqualTo(PRIVACY_DOCUMENT.toString());
-        assertThat(pending.get(1).path("id").textValue())
                 .isEqualTo(TERMS_DOCUMENT.toString());
+        assertThat(pending.get(1).path("id").textValue())
+                .isEqualTo(PRIVACY_DOCUMENT.toString());
     }
 
     @Test

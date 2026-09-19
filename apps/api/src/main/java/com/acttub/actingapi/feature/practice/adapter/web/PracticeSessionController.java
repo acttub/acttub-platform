@@ -100,7 +100,7 @@ class PracticeSessionController {
                     schema = @Schema(nullable = true))
             @RequestHeader(name = "X-Request-Id", required = false) String requestIdHeader,
             HttpServletRequest request) {
-        var user = auth.consentedUser(request);
+        var user = auth.gatedUser(request);
         validateLiteral("blockage_kind", body.blockageKind(), BlockageBranch.KINDS);
         validateLiteral("sub_branch", body.subBranch(), BlockageBranch.SUB_BRANCHES);
         UUID requestId = requestId(requestIdHeader);
@@ -131,7 +131,7 @@ class PracticeSessionController {
             content = @Content(schema = @Schema(implementation = PracticeSessionListResponse.class)))
     @GetMapping
     PracticeSessionListResponse list(HttpServletRequest request) {
-        var user = auth.consentedUser(request);
+        var user = auth.gatedUser(request);
         return new PracticeSessionListResponse(sessions.list(user.id()).stream()
                 .filter(session -> supports(request, session))
                 .map(PracticeSessionController::listItem)
@@ -157,7 +157,7 @@ class PracticeSessionController {
     PracticeSessionStatusResponse status(
             @PathVariable("session_id") UUID sessionId,
             HttpServletRequest request) {
-        var user = auth.consentedUser(request);
+        var user = auth.gatedUser(request);
         AnalysisStatus status = sessions.status(user.id(), sessionId);
         return new PracticeSessionStatusResponse(status.status(), status.errorCode());
     }
@@ -189,7 +189,7 @@ class PracticeSessionController {
     Map<String, Object> detail(
             @PathVariable("session_id") UUID sessionId,
             HttpServletRequest request) {
-        var user = auth.consentedUser(request);
+        var user = auth.gatedUser(request);
         PlayableSession playable = sessions.detail(user.id(), sessionId);
         PracticeSession session = playable.session();
         requireContract(request, session);
@@ -247,7 +247,7 @@ class PracticeSessionController {
                     schema = @Schema(nullable = true))
             @RequestHeader(name = "X-Request-Id", required = false) String requestIdHeader,
             HttpServletRequest request) {
-        var user = auth.consentedUser(request);
+        var user = auth.gatedUser(request);
         UUID requestId = requestId(requestIdHeader);
         return json(sessions.reanalyze(user.id(), sessionId, requestId), requestId);
     }

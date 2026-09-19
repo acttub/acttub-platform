@@ -38,8 +38,8 @@ import org.junit.jupiter.api.Test;
  *   <li><b>422 검증 오류</b> — {@code ApiValidationException} 과 Bean Validation 메시지는
  *       상수가 어노테이션 기본값이나 호출 인자 안에 흩어져 있어 표로 세지 않는다. 지키는 것은
  *       {@code ValidationErrorContractIT}(형상 + 실물 {@code value must not be blank}) ·
- *       {@code CoachReportEndpointIT}({@code rebuttal_text …}) · {@code ProfileEndpointIT}
- *       ({@code nickname …}) · {@code PracticeSessionEndpointIT}({@code sub_branch …}) 다.
+ *       {@code CoachReportEndpointIT}({@code rebuttal_text …}) · {@code AccountProfileIT}
+ *       ({@code name …}) · {@code PracticeSessionEndpointIT}({@code sub_branch …}) 다.
  * </ul>
  *
  * <p>표는 {@code new ApiException} 과, {@code ApiErrorAdvice} 가 예외를 거치지 않고 응답을 직접
@@ -99,6 +99,10 @@ class ErrorContractInventoryTest {
                     "platform.web.AuthErrorContractIT"),
             covered("feature.auth.app.AuthService|401|invalid_refresh_token", 1,
                     "platform.web.AuthErrorContractIT"),
+            covered("feature.auth.app.AuthService|401|invalid_signup_token", 1,
+                    "feature.auth.AccountLoginIT"),
+            covered("feature.auth.app.AuthService|422|authorization_code_required", 1,
+                    "feature.auth.AccountLoginIT"),
             covered("feature.auth.app.AuthService|409|account_exists_with_different_provider", 1,
                     "feature.auth.AccountStatusContractIT"),
             covered("feature.auth.app.AuthService|503|provider_not_configured", 1,
@@ -123,9 +127,13 @@ class ErrorContractInventoryTest {
             covered("feature.coach.app.CoachService|502|" + DYNAMIC, 3,
                     "feature.coach.app.CoachServiceTest"),
 
-            covered("feature.consent.app.ConsentService|404|consent_document_not_found", 1,
+            covered("feature.consent.app.ConsentService|404|consent_document_not_found", 2,
                     "feature.consent.ConsentEndpointIT"),
-            covered("feature.consent.app.ConsentService|409|required_consent_cannot_be_declined", 1,
+            covered("feature.consent.app.ConsentService|409|consent_document_outdated", 1,
+                    "feature.consent.ConsentEndpointIT"),
+            covered("feature.consent.app.ConsentService|422|consent_decisions_incomplete", 1,
+                    "feature.auth.AccountLoginIT"),
+            covered("feature.consent.app.ConsentService|422|required_consent_cannot_be_declined", 1,
                     "feature.consent.ConsentEndpointIT"),
 
             covered("feature.practice.adapter.web.PracticeSessionController|422|invalid X-Request-Id",
@@ -149,6 +157,20 @@ class ErrorContractInventoryTest {
             excluded("feature.profile.app.ProfileService|404|user_not_found", 1,
                     "인증 의존성이 이미 유저를 읽은 뒤라, 같은 요청 안에서 유저가 사라져야 도달한다. "
                             + "API 만으로는 만들 수 없다. 하네스도 같은 사유로 제외했다."),
+            covered("feature.profile.app.ProfileService|409|upload_intent_expired", 1,
+                    "feature.profile.AccountProfileIT"),
+            covered("feature.profile.app.ProfileService|409|upload_not_found", 1,
+                    "feature.profile.AccountProfileIT"),
+            covered("feature.profile.app.ProfileService|409|upload_size_mismatch", 1,
+                    "feature.profile.AccountProfileIT"),
+            covered("feature.profile.app.ProfileService|413|upload_too_large", 1,
+                    "feature.profile.AccountProfileIT"),
+            covered("feature.profile.app.ProfileService|415|unsupported_media_type", 1,
+                    "feature.profile.AccountProfileIT"),
+            covered("feature.profile.app.ProfileService|422|under_14", 1,
+                    "feature.profile.AccountProfileIT"),
+            covered("feature.profile.app.ProfileService|422|under_14_account_closed", 1,
+                    "feature.profile.AccountProfileIT"),
 
             covered("feature.report.app.ReportService|404|report_not_found", 1,
                     "feature.report.adapter.web.ReportEndpointIT"),
@@ -184,9 +206,9 @@ class ErrorContractInventoryTest {
                     "feature.practice.PracticeSessionEndpointIT"),
 
             covered("platform.security.AccessGate|403|consent_required", 1,
-                    "feature.upload.UploadEndpointIT"),
-            covered("platform.security.AccessGate|403|consent_blocked", 1,
                     "feature.consent.ConsentEndpointIT"),
+            covered("platform.security.AccessGate|403|profile_required", 1,
+                    "feature.profile.AccountProfileIT"),
             covered("platform.security.AccessGate|429|rate limit exceeded", 1,
                     "platform.security.RateLimitContractIT"),
             covered("platform.security.AuthenticatedUser|403|account_deactivated", 1,

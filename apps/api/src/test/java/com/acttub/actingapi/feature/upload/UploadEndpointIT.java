@@ -11,6 +11,7 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
+import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -64,6 +65,7 @@ class UploadEndpointIT {
     void setUp() {
         jdbc.execute("TRUNCATE TABLE users,consent_documents RESTART IDENTITY CASCADE");
         jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", USER_ID);
+        AccountFixtures.completeProfile(jdbc, USER_ID);
         storage.metadata = new StoredObjectMetadata(12, "video/mp4", "\"etag-12\"");
     }
 
@@ -137,6 +139,7 @@ class UploadEndpointIT {
 
         UUID other = UUID.fromString("00000000-0000-4000-8000-000000000102");
         jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", other);
+        AccountFixtures.completeProfile(jdbc, other);
         var hidden = mvc.perform(post("/v2/uploads/intents/{id}/complete", intentId)
                         .header("Authorization", "Bearer " + jwt.issueAccessToken(other).value()))
                 .andReturn().getResponse();

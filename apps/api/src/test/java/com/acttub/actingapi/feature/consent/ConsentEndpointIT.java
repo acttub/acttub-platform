@@ -1,41 +1,54 @@
 package com.acttub.actingapi.feature.consent;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.UUID;
-import java.util.stream.Stream;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
+import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
-@SpringBootTest(properties = {"JWT_SECRET=test-secret", "DEVELOPMENT_AUTH_PROVIDER=1"})
+/**
+ * account.consent 의 "검증 방법"을 HTTP 와 실제 Postgres 로 본다.
+ *
+ * <p>회원은 프로필을 채워 둔 상태로 세운다 — 여기서 보려는 것은 동의이고, 보호 API 가 열렸는지는
+ * 동의만으로 갈려야 한다. 영상 보관 결정이 탈퇴의 파기에 미치는 영향은 탈퇴 쪽 테스트가 본다.
+ */
+@SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
 class ConsentEndpointIT {
     private static final UUID USER_ID = id(101);
     private static final UUID OLD_TERMS = id(201);
-    private static final UUID LATEST_TERMS_LOW_ID = id(202);
-    private static final UUID LATEST_TERMS_HIGH_ID = id(203);
+    private static final UUID TERMS_LOW_ID = id(202);
+    private static final UUID TERMS = id(203);
     private static final UUID PRIVACY = id(204);
+    private static final UUID AI_ANALYSIS = id(205);
+    private static final UUID RETENTION = id(206);
+
+    private static final OffsetDateTime OLD = OffsetDateTime.of(2026, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
+    private static final OffsetDateTime CURRENT = OLD.plusDays(1);
+    private static final OffsetDateTime DECIDED = OLD.plusDays(2);
 
     @DynamicPropertySource
     static void database(DynamicPropertyRegistry registry) {
@@ -61,284 +74,316 @@ class ConsentEndpointIT {
     void setUp() {
         jdbc.execute("TRUNCATE TABLE users,consent_documents RESTART IDENTITY CASCADE");
         jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", USER_ID);
-        OffsetDateTime old = OffsetDateTime.of(2026, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
-        OffsetDateTime latest = old.plusDays(1);
-        insertDocument(OLD_TERMS, "terms", "v1", "옛 약관", true, old);
-        insertDocument(LATEST_TERMS_LOW_ID, "terms", "v2-low", "낮은 id", true, latest);
-        insertDocument(LATEST_TERMS_HIGH_ID, "terms", "v2", "최신 약관", true, latest);
-        insertDocument(PRIVACY, "privacy", "v1", "개인정보", false, old);
+        AccountFixtures.completeProfile(jdbc, USER_ID);
+        insertDocument(OLD_TERMS, "terms", "v1", "옛 약관", true, OLD);
+        // 발행 시각이 같으면 식별자가 큰 쪽이 현재 판이다.
+        insertDocument(TERMS_LOW_ID, "terms", "v2-low", "낮은 id", true, CURRENT);
+        insertDocument(TERMS, "terms", "v2", "서비스 이용약관", true, CURRENT);
+        insertDocument(PRIVACY, "privacy", "v5", "개인정보 수집·이용 동의", true, CURRENT);
+        insertDocument(AI_ANALYSIS, "ai_analysis", "v1", "AI 분석 동의", true, OLD);
+        insertDocument(RETENTION, "retention", "v1", "탈퇴 후 영상·녹음 보관·활용", false, CURRENT);
     }
 
     @Test
-    void latestDocumentsUseDistinctOnTypePublishedAtAndIdOrdering() throws Exception {
-        var response = mvc.perform(get("/v2/consents/documents"))
-                .andReturn().getResponse();
+    void accountConsent_publicDocumentsAreTheCurrentVersionsInDisplayOrderWithOrWithoutAToken()
+            throws Exception {
+        for (var request : List.of(
+                get("/v2/consents/documents"),
+                get("/v2/consents/documents").header("Authorization", bearer()))) {
+            var response = mvc.perform(request).andReturn().getResponse();
 
-        assertThat(response.getStatus()).isEqualTo(200);
-        JsonNode documents = mapper.readTree(response.getContentAsString()).path("documents");
-        assertThat(documents).hasSize(2);
-        assertThat(documents.get(0).path("id").textValue())
-                .isEqualTo(LATEST_TERMS_HIGH_ID.toString());
-        assertThat(documents.get(1).path("id").textValue())
-                .isEqualTo(PRIVACY.toString());
-        assertThat(documents.get(0).path("published_at").textValue())
-                .isEqualTo("2026-01-02T00:00:00.000000Z");
+            assertThat(response.getStatus()).isEqualTo(200);
+            JsonNode documents = mapper.readTree(response.getContentAsString()).path("documents");
+            assertThat(documents).extracting(document -> document.path("id").textValue())
+                    .as("약관 · 수집·이용 동의 · AI 분석 · 탈퇴 후 보관, 옛 판은 나오지 않는다")
+                    .containsExactly(TERMS.toString(), PRIVACY.toString(),
+                            AI_ANALYSIS.toString(), RETENTION.toString());
+            assertThat(documents.get(3).path("required").booleanValue()).isFalse();
+            // 시행일은 발행 시각이다.
+            assertThat(documents.get(0).path("published_at").textValue())
+                    .isEqualTo("2026-01-02T00:00:00.000000Z");
+            assertThat(documents.get(0).path("body").textValue()).isEqualTo("서비스 이용약관 본문");
+        }
     }
 
+    /**
+     * 개인정보 처리방침은 동의를 받는 문서가 아니라 고지다. 결정 대상 목록에는 없고, 공개 페이지가 함께
+     * 싣도록 따로 내준다. 수탁사 고지(계측 포함)가 이 문서에 있다 — 배포 가드가 같은 파일을 본다.
+     */
     @Test
-    void pendingUsesLatestConsentByOccurredAtThenId() throws Exception {
-        OffsetDateTime occurredAt = OffsetDateTime.of(
-                2026, 1, 3, 0, 0, 0, 0, ZoneOffset.UTC);
-        insertConsent(id(301), LATEST_TERMS_HIGH_ID, "granted", occurredAt);
-        insertConsent(id(302), LATEST_TERMS_HIGH_ID, "revoked", occurredAt);
+    void accountConsent_privacyPolicyIsAPublicNoticeAndNeverADecisionTarget() throws Exception {
+        for (var request : List.of(
+                get("/v2/consents/notices"),
+                // 만료된 토큰을 전역으로 붙이는 클라이언트도 읽을 수 있어야 한다.
+                get("/v2/consents/notices").header("Authorization", "Bearer expired"))) {
+            var response = mvc.perform(request).andReturn().getResponse();
 
-        JsonNode pending = pendingDocuments();
-
-        assertThat(pending).hasSize(1);
-        assertThat(pending.get(0).path("id").textValue())
-                .isEqualTo(LATEST_TERMS_HIGH_ID.toString());
-
-        insertConsent(id(303), LATEST_TERMS_HIGH_ID, "granted", occurredAt.plusSeconds(1));
-        assertThat(pendingDocuments()).isEmpty();
-    }
-
-    @Test
-    void entryRequiresDecisionForEveryUndecidedLatestDocument() throws Exception {
-        JsonNode entry = consentEntry();
-
-        assertThat(entry.path("entry_status").textValue()).isEqualTo("decision_required");
-        assertThat(entry.path("documents")).hasSize(2);
-        assertThat(entry.path("documents").get(0).path("id").textValue())
-                .isEqualTo(LATEST_TERMS_HIGH_ID.toString());
-        assertThat(entry.path("documents").get(1).path("id").textValue())
-                .isEqualTo(PRIVACY.toString());
-        assertThat(entry.path("documents").get(0).has("current_decision")).isTrue();
-        assertThat(entry.path("documents").get(0).path("current_decision").isNull()).isTrue();
-        assertThat(entry.path("documents").get(1).path("current_decision").isNull()).isTrue();
-        assertThat(entry.path("undecided_documents")).hasSize(2);
-    }
-
-    @ParameterizedTest(name = "required={0}, decision={1} -> {2}")
-    @MethodSource("entryStatusCases")
-    void entryStatusUsesRequiredAndCurrentDecision(
-            boolean required,
-            String currentDecision,
-            String expectedStatus,
-            int expectedUndecidedDocuments) throws Exception {
-        jdbc.execute("TRUNCATE TABLE consent_documents RESTART IDENTITY CASCADE");
-        insertDocument(
-                LATEST_TERMS_HIGH_ID,
-                "terms",
-                "v1",
-                "약관",
-                required,
-                OffsetDateTime.of(2026, 1, 2, 0, 0, 0, 0, ZoneOffset.UTC));
-        if (currentDecision != null) {
-            insertConsent(
-                    id(301),
-                    LATEST_TERMS_HIGH_ID,
-                    currentDecision,
-                    OffsetDateTime.of(2026, 1, 3, 0, 0, 0, 0, ZoneOffset.UTC));
+            assertThat(response.getStatus()).isEqualTo(200);
+            JsonNode notices = mapper.readTree(response.getContentAsString()).path("notices");
+            assertThat(notices).hasSize(1);
+            assertThat(notices.get(0).fieldNames()).toIterable()
+                    .containsExactlyInAnyOrder("type", "title", "body");
+            assertThat(notices.get(0).path("type").textValue()).isEqualTo("privacy_policy");
+            assertThat(notices.get(0).path("title").textValue()).isEqualTo("개인정보 처리방침");
+            assertThat(notices.get(0).path("body").textValue())
+                    .contains("개인정보 처리의 위탁")
+                    .contains("Amplitude, Inc.");
         }
 
-        JsonNode entry = consentEntry();
-
-        assertThat(entry.path("entry_status").textValue()).isEqualTo(expectedStatus);
-        assertThat(entry.path("documents")).hasSize(1);
-        JsonNode decision = entry.path("documents").get(0).path("current_decision");
-        if (currentDecision == null) {
-            assertThat(decision.isNull()).isTrue();
-        } else {
-            assertThat(decision.textValue()).isEqualTo(currentDecision);
-        }
-        assertThat(entry.path("undecided_documents")).hasSize(expectedUndecidedDocuments);
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM consent_documents WHERE title LIKE '%처리방침%'", Integer.class))
+                .as("고지는 consent_documents 의 행이 아니다 — 게이트에 걸리지 않는다")
+                .isZero();
+        var documents = mapper.readTree(mvc.perform(get("/v2/consents/documents"))
+                .andReturn().getResponse().getContentAsString()).path("documents");
+        assertThat(documents).extracting(document -> document.path("type").textValue())
+                .doesNotContain("privacy_policy");
     }
 
-    private static Stream<Arguments> entryStatusCases() {
-        return Stream.of(
-                Arguments.of(true, null, "decision_required", 1),
-                Arguments.of(true, "granted", "allowed", 0),
-                Arguments.of(true, "declined", "blocked", 0),
-                Arguments.of(true, "revoked", "blocked", 0),
-                Arguments.of(false, null, "decision_required", 1),
-                Arguments.of(false, "granted", "allowed", 0),
-                Arguments.of(false, "declined", "allowed", 0),
-                Arguments.of(false, "revoked", "allowed", 0));
-    }
+    /**
+     * 웹은 계측을 켤지 말지를 이 응답의 privacy 행 {@code current_decision === "granted"} 하나로 정한다.
+     * 그래서 이 값은 <b>현재 판</b>에 대한 결정이어야 한다 — 옛 판에만 동의한 사람이 granted 로 나오면
+     * 새 수집이 옛 동의로 켜진다. 회원이든 게스트든 같다.
+     */
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"google", "guest"})
+    void accountConsent_privacyDecisionInTheEntryIsAboutTheCurrentVersionForMembersAndGuests(
+            String provider) throws Exception {
+        jdbc.update("""
+                INSERT INTO user_identities(id,user_id,provider,provider_uid)
+                VALUES (?,?,?,'uid-for-entry')
+                """, UUID.randomUUID(), USER_ID, provider);
+        UUID oldPrivacy = id(208);
+        insertDocument(oldPrivacy, "privacy", "v4", "개인정보처리방침", true, OLD);
+        insertConsent(id(301), oldPrivacy, "granted", DECIDED);
 
-    @Test
-    void blockedRequiredDecisionTakesPriorityOverUndecidedOptionalDocument() throws Exception {
-        insertConsent(
-                id(301),
-                LATEST_TERMS_HIGH_ID,
-                "declined",
-                OffsetDateTime.of(2026, 1, 3, 0, 0, 0, 0, ZoneOffset.UTC));
-
-        JsonNode entry = consentEntry();
-
-        assertThat(entry.path("entry_status").textValue()).isEqualTo("blocked");
-        assertThat(entry.path("undecided_documents")).hasSize(1);
-        assertThat(entry.path("undecided_documents").get(0).path("id").textValue())
-                .isEqualTo(PRIVACY.toString());
-    }
-
-    @Test
-    void decisionForPreviousVersionDoesNotDecideTheLatestVersion() throws Exception {
-        OffsetDateTime occurredAt = OffsetDateTime.of(
-                2026, 1, 3, 0, 0, 0, 0, ZoneOffset.UTC);
-        insertConsent(id(301), OLD_TERMS, "granted", occurredAt);
-        insertConsent(id(302), PRIVACY, "granted", occurredAt);
-
-        JsonNode entry = consentEntry();
-
-        assertThat(entry.path("entry_status").textValue()).isEqualTo("decision_required");
-        assertThat(entry.path("undecided_documents")).hasSize(1);
-        assertThat(entry.path("undecided_documents").get(0).path("id").textValue())
-                .isEqualTo(LATEST_TERMS_HIGH_ID.toString());
-    }
-
-    @Test
-    void entryUsesOccurredAtThenIdToChooseTheCurrentDecision() throws Exception {
-        OffsetDateTime occurredAt = OffsetDateTime.of(
-                2026, 1, 3, 0, 0, 0, 0, ZoneOffset.UTC);
-        insertConsent(id(301), LATEST_TERMS_HIGH_ID, "granted", occurredAt);
-        insertConsent(id(302), LATEST_TERMS_HIGH_ID, "revoked", occurredAt);
-        insertConsent(id(303), PRIVACY, "granted", occurredAt);
-
-        JsonNode entry = consentEntry();
-
-        assertThat(entry.path("entry_status").textValue()).isEqualTo("blocked");
-        assertThat(entry.path("documents").get(0).path("current_decision").textValue())
-                .isEqualTo("revoked");
-        assertThat(entry.path("undecided_documents")).isEmpty();
-    }
-
-    @Test
-    void loginAndEntryUseTheSameLatestDocumentVersion() throws Exception {
-        var loginResponse = mvc.perform(post("/v2/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"provider\":\"development\",\"id_token\":\"dev-consent-entry\"}"))
-                .andReturn().getResponse();
-        assertThat(loginResponse.getStatus()).isEqualTo(200);
-        JsonNode login = mapper.readTree(loginResponse.getContentAsString());
-
-        assertThat(login.path("pending_consents")).hasSize(1);
-        assertThat(login.path("pending_consents").get(0).path("id").textValue())
-                .isEqualTo(LATEST_TERMS_HIGH_ID.toString());
-
-        JsonNode entry = consentEntry(login.path("access_token").textValue());
-        assertThat(entry.path("documents").get(0).path("id").textValue())
-                .isEqualTo(LATEST_TERMS_HIGH_ID.toString());
-    }
-
-    @Test
-    void recordingConsentReturnsCreatedEventAndInvalidDocumentIsHiddenAsNotFound() throws Exception {
-        var created = mvc.perform(post("/v2/consents")
-                        .header("Authorization", bearer())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"document_id":"%s","action":"granted"}
-                                """.formatted(LATEST_TERMS_HIGH_ID)))
-                .andReturn().getResponse();
-        assertThat(created.getStatus()).isEqualTo(201);
-        JsonNode body = mapper.readTree(created.getContentAsString());
-        assertThat(body.path("document_id").textValue())
-                .isEqualTo(LATEST_TERMS_HIGH_ID.toString());
-        assertThat(body.path("action").textValue()).isEqualTo("granted");
-        assertThat(body.path("occurred_at").textValue())
-                .matches("\\d{4}-\\d{2}-\\d{2}T.*\\.\\d{6}Z");
-
-        var missing = mvc.perform(post("/v2/consents")
-                        .header("Authorization", bearer())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"document_id\":\"not-a-uuid\",\"action\":\"granted\"}"))
-                .andReturn().getResponse();
-        assertThat(missing.getStatus()).isEqualTo(404);
-        assertThat(mapper.readTree(missing.getContentAsString()))
-                .isEqualTo(mapper.readTree("{\"detail\":\"consent_document_not_found\"}"));
-    }
-
-    @Test
-    void requiredDocumentCannotBeDeclinedAndDoesNotCreateHistory() throws Exception {
-        var rejected = mvc.perform(post("/v2/consents")
-                        .header("Authorization", bearer())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"document_id":"%s","action":"declined"}
-                                """.formatted(LATEST_TERMS_HIGH_ID)))
-                .andReturn().getResponse();
-
-        assertThat(rejected.getStatus()).isEqualTo(409);
-        assertThat(mapper.readTree(rejected.getContentAsString()))
-                .isEqualTo(mapper.readTree(
-                        "{\"detail\":\"required_consent_cannot_be_declined\"}"));
-        assertThat(consentEntry().path("documents").get(0).path("current_decision").isNull())
+        JsonNode before = privacyRow(consentEntry());
+        assertThat(before.path("id").textValue()).isEqualTo(PRIVACY.toString());
+        assertThat(before.path("version").textValue()).isEqualTo("v5");
+        assertThat(before.path("current_decision").isNull())
+                .as("옛 판(v4)에만 동의했다 — 현재 판은 미결정이다")
                 .isTrue();
 
-        var optional = mvc.perform(post("/v2/consents")
-                        .header("Authorization", bearer())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"document_id":"%s","action":"declined"}
-                                """.formatted(PRIVACY)))
-                .andReturn().getResponse();
+        assertThat(decide(PRIVACY, "granted").getStatus()).isEqualTo(201);
 
-        assertThat(optional.getStatus()).isEqualTo(201);
+        assertThat(privacyRow(consentEntry()).path("current_decision").textValue()).isEqualTo("granted");
+    }
+
+    private static JsonNode privacyRow(JsonNode entry) {
+        for (JsonNode document : entry.path("documents")) {
+            if ("privacy".equals(document.path("type").textValue())) {
+                return document;
+            }
+        }
+        throw new AssertionError("entry 에 privacy 행이 없다");
     }
 
     @Test
-    void capableClientsDistinguishBlockedConsentWithoutChangingTheLegacyError() throws Exception {
-        var undecided = protectedUpload(true);
-        assertThat(undecided.getStatus()).isEqualTo(403);
-        assertThat(mapper.readTree(undecided.getContentAsString()).path("detail").textValue())
-                .isEqualTo("consent_required");
-
-        insertConsent(
-                id(301),
-                LATEST_TERMS_HIGH_ID,
-                "declined",
-                OffsetDateTime.of(2026, 1, 3, 0, 0, 0, 0, ZoneOffset.UTC));
-
-        var capable = protectedUpload(true);
-        assertThat(capable.getStatus()).isEqualTo(403);
-        assertThat(mapper.readTree(capable.getContentAsString()).path("detail").textValue())
-                .isEqualTo("consent_blocked");
-
-        var legacy = protectedUpload(false);
-        assertThat(legacy.getStatus()).isEqualTo(403);
-        assertThat(mapper.readTree(legacy.getContentAsString()).path("detail").textValue())
-                .isEqualTo("consent_required");
-
-        insertConsent(
-                id(302),
-                LATEST_TERMS_HIGH_ID,
-                "revoked",
-                OffsetDateTime.of(2026, 1, 3, 0, 0, 1, 0, ZoneOffset.UTC));
-        var revoked = protectedUpload(true);
-        assertThat(revoked.getStatus()).isEqualTo(403);
-        assertThat(mapper.readTree(revoked.getContentAsString()).path("detail").textValue())
-                .isEqualTo("consent_blocked");
+    void accountConsent_settingsShowEveryDocumentWithItsVersionEffectiveDateDecisionAndDecisionTime()
+            throws Exception {
+        insertConsent(id(301), TERMS, "granted", DECIDED);
+        insertConsent(id(302), PRIVACY, "granted", DECIDED);
+        insertConsent(id(303), AI_ANALYSIS, "granted", DECIDED);
+        insertConsent(id(304), RETENTION, "declined", DECIDED.plusHours(1));
 
         JsonNode entry = consentEntry();
-        assertThat(entry.path("entry_status").textValue()).isEqualTo("blocked");
 
-        var granted = mvc.perform(post("/v2/consents")
-                        .header("Authorization", bearer())
-                        .header("X-Acttub-Consent-Entry", "1")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"document_id":"%s","action":"granted"}
-                                """.formatted(LATEST_TERMS_HIGH_ID)))
+        assertThat(entry.path("entry_status").textValue()).isEqualTo("allowed");
+        assertThat(entry.path("undecided_documents")).isEmpty();
+        assertThat(entry.path("documents")).hasSize(4);
+        JsonNode terms = entry.path("documents").get(0);
+        assertThat(terms.path("title").textValue()).isEqualTo("서비스 이용약관");
+        assertThat(terms.path("version").textValue()).isEqualTo("v2");
+        assertThat(terms.path("published_at").textValue()).isEqualTo("2026-01-02T00:00:00.000000Z");
+        assertThat(terms.path("current_decision").textValue()).isEqualTo("granted");
+        assertThat(terms.path("decided_at").textValue()).isEqualTo("2026-01-03T00:00:00.000000Z");
+        JsonNode retention = entry.path("documents").get(3);
+        assertThat(retention.path("required").booleanValue()).isFalse();
+        assertThat(retention.path("current_decision").textValue()).isEqualTo("declined");
+        assertThat(retention.path("decided_at").textValue()).isEqualTo("2026-01-03T01:00:00.000000Z");
+    }
+
+    @Test
+    void accountConsent_entryListsEveryUndecidedCurrentDocumentIncludingTheOptionalOne() throws Exception {
+        // 옛 판에 한 결정은 현재 판을 결정하지 않는다 — 결정은 판 단위다.
+        insertConsent(id(301), OLD_TERMS, "granted", DECIDED);
+
+        JsonNode entry = consentEntry();
+
+        assertThat(entry.path("entry_status").textValue()).isEqualTo("decision_required");
+        assertThat(entry.path("undecided_documents")).hasSize(4);
+        for (JsonNode document : entry.path("documents")) {
+            assertThat(document.has("current_decision")).isTrue();
+            assertThat(document.path("current_decision").isNull()).isTrue();
+            assertThat(document.path("decided_at").isNull()).isTrue();
+        }
+        assertThat(pendingDocuments()).extracting(document -> document.path("id").textValue())
+                .containsExactly(TERMS.toString(), PRIVACY.toString(),
+                        AI_ANALYSIS.toString(), RETENTION.toString());
+    }
+
+    @Test
+    void accountConsent_currentDecisionIsTheLastRowByTimeThenId() throws Exception {
+        grantRequired();
+        insertConsent(id(311), RETENTION, "granted", DECIDED);
+        insertConsent(id(312), RETENTION, "declined", DECIDED);
+
+        assertThat(consentEntry().path("documents").get(3).path("current_decision").textValue())
+                .isEqualTo("declined");
+    }
+
+    @Test
+    void accountConsent_switchingTheOptionalDocumentStacksOneRowAndKeepsProtectedApisOpen()
+            throws Exception {
+        grantRequired();
+        insertConsent(id(304), RETENTION, "granted", DECIDED);
+        assertThat(protectedApi().getStatus()).isEqualTo(200);
+
+        var changed = decide(RETENTION, "declined");
+
+        assertThat(changed.getStatus()).isEqualTo(201);
+        JsonNode body = mapper.readTree(changed.getContentAsString());
+        assertThat(body.path("document_id").textValue()).isEqualTo(RETENTION.toString());
+        assertThat(body.path("action").textValue()).isEqualTo("declined");
+        assertThat(body.path("occurred_at").textValue()).matches("\\d{4}-\\d{2}-\\d{2}T.*\\.\\d{6}Z");
+        assertThat(consentEntry().path("documents").get(3).path("current_decision").textValue())
+                .isEqualTo("declined");
+        assertThat(rows(RETENTION, "declined")).isEqualTo(1);
+        assertThat(rows(RETENTION, "granted")).as("결정은 쌓기만 하고 고치지 않는다").isEqualTo(1);
+        assertThat(protectedApi().getStatus()).as("거절도 결정이다").isEqualTo(200);
+    }
+
+    @Test
+    void accountConsent_requiredDocumentCannotBeDeclinedAndLeavesNoHistory() throws Exception {
+        var rejected = decide(TERMS, "declined");
+
+        assertThat(rejected.getStatus()).isEqualTo(422);
+        assertThat(mapper.readTree(rejected.getContentAsString()))
+                .as("규칙에 걸린 422 의 본문은 사유 코드 하나다")
+                .isEqualTo(mapper.readTree("{\"detail\":\"required_consent_cannot_be_declined\"}"));
+        assertThat(rows(TERMS, "declined")).isZero();
+    }
+
+    @Test
+    void accountConsent_revocationIsNotAnInputEvenForTheOptionalDocument() throws Exception {
+        var rejected = decide(RETENTION, "revoked");
+
+        assertThat(rejected.getStatus()).isEqualTo(422);
+        assertThat(mapper.readTree(rejected.getContentAsString()).path("detail").isArray())
+                .as("값 목록 밖의 값은 본문 모양 오류다")
+                .isTrue();
+        assertThat(rows(RETENTION, "revoked")).isZero();
+    }
+
+    @Test
+    void accountConsent_decisionOnAnOldVersionIsOutdatedAndUnknownDocumentsAreHidden() throws Exception {
+        var outdated = decide(OLD_TERMS, "granted");
+        assertThat(outdated.getStatus()).isEqualTo(409);
+        assertThat(mapper.readTree(outdated.getContentAsString()))
+                .isEqualTo(mapper.readTree("{\"detail\":\"consent_document_outdated\"}"));
+        assertThat(rows(OLD_TERMS, "granted")).isZero();
+
+        for (String unknown : List.of(id(999).toString(), "not-a-uuid")) {
+            var missing = mvc.perform(post("/v2/consents")
+                            .header("Authorization", bearer())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"document_id\":\"" + unknown + "\",\"action\":\"granted\"}"))
+                    .andReturn().getResponse();
+            assertThat(missing.getStatus()).isEqualTo(404);
+            assertThat(mapper.readTree(missing.getContentAsString()))
+                    .isEqualTo(mapper.readTree("{\"detail\":\"consent_document_not_found\"}"));
+        }
+    }
+
+    @Test
+    void accountConsent_resendingTheSameDecisionAddsNoRow() throws Exception {
+        var first = decide(TERMS, "granted");
+        var second = decide(TERMS, "granted");
+
+        assertThat(first.getStatus()).isEqualTo(201);
+        assertThat(second.getStatus()).isEqualTo(200);
+        assertThat(mapper.readTree(second.getContentAsString()))
+                .as("이미 있는 결정 행을 그대로 돌려준다")
+                .isEqualTo(mapper.readTree(first.getContentAsString()));
+        assertThat(rows(TERMS, "granted")).isEqualTo(1);
+    }
+
+    @Test
+    void accountConsent_newVersionOfTheOptionalDocumentIsTheOnlyPendingOneAndDecliningPasses()
+            throws Exception {
+        grantRequired();
+        insertConsent(id(304), RETENTION, "granted", DECIDED);
+        UUID retentionV2 = id(207);
+        insertDocument(retentionV2, "retention", "v2", "탈퇴 후 영상·녹음 보관·활용", false,
+                CURRENT.plusDays(30));
+
+        var blocked = protectedApi();
+        assertThat(blocked.getStatus()).isEqualTo(403);
+        JsonNode body = mapper.readTree(blocked.getContentAsString());
+        assertThat(body.path("detail").textValue()).isEqualTo("consent_required");
+        assertThat(body.path("pending_consents")).hasSize(1);
+        JsonNode pending = body.path("pending_consents").get(0);
+        assertThat(pending.path("id").textValue()).isEqualTo(retentionV2.toString());
+        assertThat(pending.path("type").textValue()).isEqualTo("retention");
+        assertThat(pending.path("version").textValue()).isEqualTo("v2");
+        assertThat(pending.path("required").booleanValue()).isFalse();
+        assertThat(pending.path("body").textValue()).isEqualTo("탈퇴 후 영상·녹음 보관·활용 본문");
+        assertThat(pending.path("published_at").textValue()).isEqualTo("2026-02-01T00:00:00.000000Z");
+        // 다른 문서의 결정은 그대로다.
+        assertThat(consentEntry().path("documents").get(0).path("current_decision").textValue())
+                .isEqualTo("granted");
+
+        assertThat(decide(retentionV2, "declined").getStatus()).isEqualTo(201);
+        assertThat(protectedApi().getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void accountConsent_memberWhoDeclinedARequiredDocumentBefore1_0_0IsTreatedAsUndecided()
+            throws Exception {
+        insertConsent(id(301), TERMS, "declined", DECIDED);
+        insertConsent(id(302), PRIVACY, "revoked", DECIDED);
+        insertConsent(id(303), AI_ANALYSIS, "granted", DECIDED);
+        insertConsent(id(304), RETENTION, "granted", DECIDED);
+
+        var blocked = protectedApi();
+        assertThat(blocked.getStatus()).isEqualTo(403);
+        JsonNode body = mapper.readTree(blocked.getContentAsString());
+        assertThat(body.path("detail").textValue())
+                .as("거절·철회를 따로 가르던 consent_blocked 는 없다")
+                .isEqualTo("consent_required");
+        assertThat(body.path("pending_consents")).extracting(document -> document.path("id").textValue())
+                .containsExactly(TERMS.toString(), PRIVACY.toString());
+        JsonNode entry = consentEntry();
+        assertThat(entry.path("entry_status").textValue()).isEqualTo("decision_required");
+        assertThat(entry.path("documents").get(0).path("current_decision").isNull()).isTrue();
+
+        assertThat(decide(TERMS, "granted").getStatus()).isEqualTo(201);
+        assertThat(decide(PRIVACY, "granted").getStatus()).isEqualTo(201);
+        assertThat(protectedApi().getStatus()).as("같은 토큰으로 허용된다").isEqualTo(200);
+    }
+
+    @Test
+    void accountConsent_memberWithAnUndecidedRequiredVersionCanStillWithdrawAndKeepsTheRecord()
+            throws Exception {
+        insertConsent(id(301), OLD_TERMS, "granted", DECIDED);
+        assertThat(protectedApi().getStatus()).isEqualTo(403);
+
+        var withdrawn = mvc.perform(delete("/v2/me").header("Authorization", bearer()))
                 .andReturn().getResponse();
-        assertThat(granted.getStatus()).isEqualTo(201);
-        assertThat(protectedUpload(true).getStatus()).isNotEqualTo(403);
+
+        assertThat(withdrawn.getStatus()).as("탈퇴는 게이트 밖이다").isLessThan(300);
+        assertThat(jdbc.queryForObject("SELECT status FROM users WHERE id=?", String.class, USER_ID))
+                .isEqualTo("deactivated");
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM user_consents WHERE user_id=?", Integer.class, USER_ID))
+                .as("동의의 증빙은 탈퇴해도 남는다")
+                .isEqualTo(1);
     }
 
     /**
      * consents.py:ConsentRequest 는 extra 를 지정하지 않아 unknown key 를 <b>받는다</b>.
      * openapi.json 의 ConsentRequest 에도 additionalProperties 가 없다 —
-     * apps/api/CONTRACT.md §6-3 이 허용 목록 5개에 POST /v2/consents 를 넣은 근거이며, 그중 M3 범위는
-     * 이것과 POST /v2/uploads/intents 둘이다.
+     * apps/api/CONTRACT.md §6-3 이 허용 목록에 POST /v2/consents 를 넣은 근거다.
      */
     @Test
     void consentRequestAcceptsUnknownKeys() throws Exception {
@@ -347,10 +392,37 @@ class ConsentEndpointIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"document_id":"%s","action":"granted","unknown":true}
-                                """.formatted(LATEST_TERMS_HIGH_ID)))
+                                """.formatted(TERMS)))
                 .andReturn().getResponse();
 
         assertThat(response.getStatus()).isEqualTo(201);
+    }
+
+    private void grantRequired() {
+        insertConsent(id(301), TERMS, "granted", DECIDED);
+        insertConsent(id(302), PRIVACY, "granted", DECIDED);
+        insertConsent(id(303), AI_ANALYSIS, "granted", DECIDED);
+    }
+
+    private MockHttpServletResponse decide(UUID documentId, String action) throws Exception {
+        return mvc.perform(post("/v2/consents")
+                        .header("Authorization", bearer())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"document_id\":\"" + documentId + "\",\"action\":\"" + action + "\"}"))
+                .andReturn().getResponse();
+    }
+
+    /** 보호 기능 하나. 게이트를 지나면 빈 목록의 200 이다. */
+    private MockHttpServletResponse protectedApi() throws Exception {
+        return mvc.perform(get("/v2/practice-sessions").header("Authorization", bearer()))
+                .andReturn().getResponse();
+    }
+
+    private int rows(UUID documentId, String action) {
+        return jdbc.queryForObject("""
+                SELECT count(*) FROM user_consents
+                WHERE user_id=? AND document_id=? AND action=?
+                """, Integer.class, USER_ID, documentId, action);
     }
 
     private void insertDocument(
@@ -386,26 +458,11 @@ class ConsentEndpointIT {
     }
 
     private JsonNode consentEntry() throws Exception {
-        return consentEntry(jwt.issueAccessToken(USER_ID).value());
-    }
-
-    private JsonNode consentEntry(String accessToken) throws Exception {
         var response = mvc.perform(get("/v2/consents/entry")
-                        .header("Authorization", "Bearer " + accessToken))
+                        .header("Authorization", bearer()))
                 .andReturn().getResponse();
         assertThat(response.getStatus()).isEqualTo(200);
         return mapper.readTree(response.getContentAsString());
-    }
-
-    private MockHttpServletResponse protectedUpload(boolean capable) throws Exception {
-        var request = post("/v2/uploads/intents")
-                .header("Authorization", bearer())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"mime_type\":\"video/mp4\",\"size_bytes\":12}");
-        if (capable) {
-            request.header("X-Acttub-Consent-Entry", "1");
-        }
-        return mvc.perform(request).andReturn().getResponse();
     }
 
     private String bearer() {

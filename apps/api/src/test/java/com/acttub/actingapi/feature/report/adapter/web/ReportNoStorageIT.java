@@ -10,6 +10,7 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.report.adapter.db.ReportFixtures;
+import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -57,6 +58,7 @@ class ReportNoStorageIT {
                 INSERT INTO users (id,email,status)
                 VALUES (?,?,'active')
                 """, USER, "report-no-storage@example.test");
+        AccountFixtures.completeProfile(jdbc, USER);
         // reports 라우터는 app.py 에서 rate_limited_user 자리에 consented_user 를 받는다 —
         // 동의를 주지 않으면 storage 미설정(503)에 닿기 전에 403 consent_required 가 난다.
         grantAllConsents();

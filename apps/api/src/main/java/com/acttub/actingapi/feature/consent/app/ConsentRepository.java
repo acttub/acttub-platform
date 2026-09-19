@@ -16,9 +16,10 @@ import com.acttub.actingapi.feature.consent.domain.ConsentEvent;
 public interface ConsentRepository {
 
     /**
-     * 종류마다 가장 최근 판 하나씩. <b>종류 순</b>이다.
+     * 종류마다 <b>현재 판</b>(가장 최근에 발행한 판) 하나씩. <b>종류 순</b>이다.
      *
-     * <p>이 순서가 곧 {@code /v2/consents/documents}·{@code /v2/consents/pending} 응답의 순서다.
+     * <p>이 순서가 곧 {@code /v2/consents/documents}·{@code /v2/consents/pending} 과 로그인·게이트
+     * 응답의 순서다.
      */
     List<ConsentDocument> listLatestDocuments();
 

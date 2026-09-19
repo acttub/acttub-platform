@@ -256,6 +256,10 @@ COLUMN user_profiles.notify_analysis_done ord=10 type=bool len=- null=NO default
 COLUMN user_profiles.notify_challenge ord=11 type=bool len=- null=NO default=true
 COLUMN user_profiles.notify_evening_reminder ord=12 type=bool len=- null=NO default=true
 COLUMN user_profiles.photo_key ord=7 type=text len=- null=YES default=-
+COLUMN user_profiles.photo_upload_expires_at ord=18 type=timestamptz len=- null=YES default=-
+COLUMN user_profiles.photo_upload_key ord=15 type=text len=- null=YES default=-
+COLUMN user_profiles.photo_upload_mime_type ord=16 type=text len=- null=YES default=-
+COLUMN user_profiles.photo_upload_size_bytes ord=17 type=int8 len=- null=YES default=-
 COLUMN user_profiles.updated_at ord=14 type=timestamptz len=- null=NO default=now()
 COLUMN user_profiles.user_id ord=1 type=uuid len=- null=NO default=-
 COLUMN users.age_confirmed_at ord=9 type=timestamptz len=- null=YES default=-
@@ -606,6 +610,7 @@ CONSTRAINT user_profiles ck_user_profiles_age_band CHECK (((age_band >= 0) AND (
 CONSTRAINT user_profiles ck_user_profiles_experience CHECK ((experience = ANY (ARRAY['before_start'::text, 'exam_prep'::text, 'under_1y'::text, 'y1_to_3'::text, 'y3_to_5'::text, 'over_5y'::text])))
 CONSTRAINT user_profiles ck_user_profiles_gender CHECK ((gender = ANY (ARRAY['female'::text, 'male'::text, 'unspecified'::text])))
 CONSTRAINT user_profiles ck_user_profiles_goal CHECK ((goal = ANY (ARRAY['hobby'::text, 'audition'::text, 'professional'::text])))
+CONSTRAINT user_profiles ck_user_profiles_photo_upload_together CHECK ((((photo_upload_key IS NULL) AND (photo_upload_mime_type IS NULL) AND (photo_upload_size_bytes IS NULL) AND (photo_upload_expires_at IS NULL)) OR ((photo_upload_key IS NOT NULL) AND (photo_upload_mime_type IS NOT NULL) AND (photo_upload_size_bytes IS NOT NULL) AND (photo_upload_expires_at IS NOT NULL))))
 CONSTRAINT user_profiles user_profiles_created_at_not_null NOT NULL created_at
 CONSTRAINT user_profiles user_profiles_notify_analysis_done_not_null NOT NULL notify_analysis_done
 CONSTRAINT user_profiles user_profiles_notify_challenge_not_null NOT NULL notify_challenge

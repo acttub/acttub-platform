@@ -5,7 +5,7 @@ import java.util.regex.Pattern;
 import com.acttub.actingapi.platform.web.PythonText;
 
 /**
- * 사용자가 보낸 닉네임과 그것에 걸리는 규칙.
+ * 사용자가 보낸 이름(실명 또는 활동명)과 그것에 걸리는 규칙. 1.0.0 이전의 닉네임 규칙 그대로다.
  *
  * <p>거절하는 일(422 로 옮기는 것)은 여기가 아니라 web 어댑터가 한다 — 이 타입은 "무엇인가"만
  * 답한다. 응답 본문의 모양이 곧 계약이고, 그 계약은 요청을 받는 자리의 것이다.
@@ -18,7 +18,7 @@ import com.acttub.actingapi.platform.web.PythonText;
  * 같은 형태) — 파이썬 {@code str.strip} 의 공백 집합을 재현하는 문자열 규칙이라 정규화 규칙과
  * 같은 층에 속하고, 여기서 손으로 다시 구현하면 두 벌이 갈린다.
  */
-public record Nickname(String raw) {
+public record ProfileName(String raw) {
 
     /** 파이썬 {@code Field(max_length=20)} 와 같은 상한. 코드포인트로 센다. */
     public static final int MAX_LENGTH = 20;

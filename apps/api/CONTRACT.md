@@ -334,7 +334,7 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 
 | # | 항목 | 조치 |
 |---|---|---|
-| 1 | 오류 포맷 `{"detail": <str>}` | Spring 기본 `ProblemDetail` 을 **반드시** 오버라이드. 422 validation 만 `detail` 이 **배열** |
+| 1 | 오류 포맷 `{"detail": <str>}` | Spring 기본 `ProblemDetail` 을 **반드시** 오버라이드. 본문 모양이 틀린 422 만 `detail` 이 **배열**이고 규칙에 걸린 422 는 코드 문자열이다. `detail` 옆에 형제 필드를 싣는 오류는 **둘뿐**이다(§6-2) |
 | 2 | unknown key 정책 | **전역 `FAIL_ON_UNKNOWN_PROPERTIES=true` + 허용 DTO 에만 `@JsonIgnoreProperties(ignoreUnknown = true)`**(§6-3). 반대 방향은 표현 불가 |
 | 3 | null 필드 **포함** | `@JsonInclude(NON_NULL)` **전역 사용 금지**(§6-1) |
 | 4 | datetime | 전 엔드포인트 `Z` + 마이크로초 6자리(§4). **JDBC 바인딩은 `OffsetDateTime`**(§5-8) |
@@ -352,12 +352,15 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 | 16 | 커뮤니티 API 은퇴 | `/v2/community/**` 는 **404** 다(1.0.0, 테이블은 보존 §5-1). 인증이 선택이던 경로는 이것뿐이었다. `Authorization` 헤더가 오면 없는 경로에서도 먼저 검증한다 — 탈퇴한 계정의 토큰은 403 |
 | 17 | 미처리 예외 500 | `{"detail":"internal_server_error"}` |
 | 18 | 5xx `ApiException` | `ApiException.external(...)`·`ApiException.unexpected(...)` 팩토리로만 원인과 함께 만든다 |
+| 19 | 클라이언트 판 426 | `X-Acttub-Client`(예: `app/1.0.0`) 없는 `/v2` 요청은 **426** 이고 `detail` 이 코드가 아니라 **안내 문장**이다. 토큰 검증보다 먼저다(§6-5) |
+| 20 | 회원 게이트 | `/v2` 는 표에 적힌 **게이트 밖** 말고 전부 보호 기능이다. 동의 → 프로필 순으로 요청마다 DB 상태로 판정한다(§6-5) |
+| 21 | 로그인은 계정을 만들지 않는다 | 처음 온 신원은 200 `signup_required` 와 가입 토큰만 받는다. 계정·신원·동의 행은 가입 제출이 통과한 순간 **한 트랜잭션**으로 생긴다(§6-6) |
 
 ### 6-1. nullable — "null 로 보낼 것" 과 "키를 생략할 것" 이 다르다
 
 | 동작 | 대상 |
 |---|---|
-| **required + `null` 값을 실어 보냄** | `AuthUser.email`, `MeResponse.email`/`.nickname`, `CoachTurnResponse.handoff`/`.report`, `CoachConfirmResponse.handoff`, `SourceHandoffIds.analysis`, `MemoryItem.source_practice_session_id`, `ConsentEntryDocument.current_decision` |
+| **required + `null` 값을 실어 보냄** | `AuthUser.email`, `MeResponse.email`/`.profile`, `Profile` 의 `directions` 를 뺀 전 항목(1.0.0 이전 회원은 `name` 만 차 있다), `CoachTurnResponse.handoff`/`.report`, `CoachConfirmResponse.handoff`, `SourceHandoffIds.analysis`, `MemoryItem.source_practice_session_id`, `ConsentEntryDocument.current_decision`/`.decided_at` |
 | **optional + 조건부로 키를 추가** | `PracticeSessionDetail.summary`(status 가 `analyzed` 이고 summary 가 있을 때만), `.error_code`(`failed` 일 때만) |
 | **optional 인데 항상 포함** | `PracticeSessionStatusResponse.error_code` |
 
@@ -372,15 +375,26 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 
 ### 6-2. 오류 계약은 대부분 `openapi.json` 에 없다
 
-스펙이 명시하는 도메인 오류는 `POST /v2/consents`의
-`409 required_consent_cannot_be_declined` 하나뿐이다. 그 밖의 상태코드는
+스펙이 명시하는 도메인 오류는 셋뿐이다 — `POST /v2/consents`의
+`409 consent_document_outdated`, 그리고 `POST /v2/auth/login`·`/v2/auth/signup`의
+`409 account_exists_with_different_provider`(본문에 `providers`). 그 밖의 상태코드는
 `200/201/202/204/422`이고, 422는 자동 생성된 validation 오류뿐이다. 실제 오류는 그보다 훨씬
 많다.
 
-필수 동의 게이트는 새 클라이언트가 인증 요청에 `X-Acttub-Consent-Entry: 1`을 보냈을 때
-미결정을 `403 consent_required`, 기존 거절·철회를 `403 consent_blocked`로 가른다. 이 헤더가
-없는 구형 클라이언트에는 둘 다 종전의 `403 consent_required`로 답한다. 어느 경우에도 막힌
-원 요청을 서버가 재실행하지 않는다.
+**오류 본문은 `detail` 하나다. 형제 필드를 싣는 오류는 둘뿐이다**(`ApiException#with`):
+
+| 오류 | 형제 필드 | 쓰임 |
+|---|---|---|
+| `403 consent_required` | `pending_consents` — 로그인 응답과 같은 `ConsentDocument` 모양, 전문 포함 | 앱이 그 목록으로 동의 화면을 그린다 |
+| `409 account_exists_with_different_provider` | `providers` — 기존 계정의 제공자 이름 | "이미 OO로 가입한 이메일이에요" |
+
+셋째를 더하기 전에 이 표부터 고친다.
+
+**422 는 두 모양이다.** 본문의 모양이 틀린 것(필수 키 빠짐·타입·값 목록 밖·길이 상한)은 `detail` 이
+**배열**이고, 규칙에 걸린 것은 다른 오류와 같이 **코드 문자열 하나**다: `under_14`,
+`under_14_account_closed`, `authorization_code_required`, `consent_decisions_incomplete`,
+`required_consent_cannot_be_declined`. 클라이언트는 `detail` 이 문자열이면 사유로 가르고 배열이면
+자기 버그로 다룬다. 선례는 `request_fingerprint_mismatch` 다.
 
 불규칙에 주의한다 — 대부분 snake_case(`upload_not_found`)인데 일부는 공백 포함 문장이다:
 `invalid or missing access token`, `session not found`, `practice session not found`,
@@ -410,14 +424,14 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 
 ### 6-3. unknown key 정책 — 전역 reject + DTO 별 예외
 
-요청 바디 14개 중 **5개가 unknown key 를 허용**한다:
+요청 바디 16개 중 **5개가 unknown key 를 허용**한다:
 
 ```
 POST /v2/auth/login      POST /v2/auth/logout     POST /v2/auth/refresh
 POST /v2/consents        POST /v2/uploads/intents
 ```
 
-나머지 9개는 `additionalProperties: false` 다.
+나머지 11개는 `additionalProperties: false` 다.
 
 **전역 `fail-on-unknown-properties: true` + 허용할 5개에
 `@JsonIgnoreProperties(ignoreUnknown = true)`.**
@@ -425,7 +439,7 @@ POST /v2/consents        POST /v2/uploads/intents
 **반대 방향(전역 허용 + DTO 별 거부)은 Jackson 이 표현하지 못한다** — 실제로 시도해 실패했다.
 `ignoreUnknown = false` 는 "거부하라" 가 아니라 **"전역 설정을 따르라"** 는 뜻이라 기본값과 다를
 바 없고, 예외가 나지 않는다. Spring Boot 기본값은 `false`(무시)라서, **그 기본을 쓰면 거부해야
-할 9개를 닫을 수단이 없다.**
+할 11개를 닫을 수단이 없다.**
 
 **개수를 박지 말고 `openapi.json` 에서 확인한다** — 이관 중에 이 집합이 7→5 로 바뀐 적이 있다.
 
@@ -451,6 +465,67 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 상태 코드 갈래와 일반/장시간 처리 갈래로 나눈 HTTP 집계 계수를 요청 전에 0으로 준비하고,
 라우트별 응답시간 histogram과 구분한다. 상세 라우트의 첫 표본에만 `increase()`를 적용해
 새 오류가 사라지는 상태를 허용하지 않는다.
+
+### 6-5. 클라이언트 판과 회원 게이트
+
+판정 순서는 **426 → 토큰(401) → 계정 상태(403 `account_deactivated`) → 분당 한도(429) → 동의
+(403 `consent_required`) → 프로필(403 `profile_required`)** 이다. 요구사항의 정본은
+[00-common.md](../../docs/requirements/00-common.md) 「클라이언트 판과 강제 업데이트」·「게이트와 보호 기능」.
+
+**426**(`platform/security/ClientVersionFilter`): `X-Acttub-Client` 가 없거나 비어 있는 `/v2` 요청은
+무엇을 부르든 426 이고 본문은 `{"detail":"새 버전이 나왔어요. 스토어에서 업데이트해 주세요."}` 다.
+1.0.0 이전 앱이 모르는 상태 코드의 `detail` 을 그대로 보여 주기 때문에 **여기만 `detail` 이 코드가
+아니라 문장이다** — 문구를 고치면 옛 앱의 화면이 바뀐다. 헤더를 보지 않는 자리는 `/v2` 밖
+(`/health`·관리 포트), 제공자가 부르는 `/v2/auth/providers/*/disconnect`, 운영 토큰으로 여는
+`/v2/admin/**` 다. 서버에 1.0.0 이전의 규칙(로그인 즉시 계정 생성, 필수 문서만 보는 게이트, 닉네임)은
+남기지 않는다.
+
+**회원 게이트**(`platform/security/ConsentGateInterceptor`·`AccessGate`): 표는 보호 기능이 아니라
+**게이트 밖**을 적는다. 적지 않은 새 경로는 닫힌 채로 시작한다.
+
+| 단계 | 경로 |
+|---|---|
+| 게이트 밖 | `/v2/auth/**`, `/v2/consents/**`, `GET`·`DELETE /v2/me`, `DELETE /v2/push-tokens`, 공개 `/v2/admissions/**`, 운영 `/v2/admin/**` |
+| 동의까지만 | `PUT /v2/me/profile` — 개인정보를 받기 전에 수집 동의가 끝나 있어야 하고, 프로필이 빈 사람이 채우는 자리다 |
+| 동의 + 프로필 | 그 밖의 모든 `/v2` |
+
+- 동의 게이트는 **현재 판 문서 가운데 미결정이 하나라도 있으면** 막는다. **선택 문서도 센다** — 거절도
+  결정이고, 결정하지 않은 것만 막는다. 결정은 판 단위라 새 판이 나오면 그 문서만 다시 미결정이 된다.
+- 1.0.0 이전에 필수 문서를 거절·철회한 기록은 **미결정과 같게** 다룬다. 둘을 가르던
+  `consent_blocked`, `X-Acttub-Consent-Entry` 요청 헤더, `entry_status` 의 `blocked` 는 없다.
+- 프로필 게이트는 여섯 항목(이름·성별·생년월일·방향 하나 이상·경력·목표)이 다 찼는지 본다. 사진과
+  소개는 세지 않는다. 판정은 요청마다 DB 상태로 하므로 토큰을 갱신해도 열리지 않는다.
+- 어느 경우에도 막힌 원 요청을 서버가 재실행하지 않는다.
+- 게스트의 기능별 동의와 프로필 면제는 이 표에 아직 없다.
+- 토큰 없이 여는 공개 조회(`GET /v2/consents/documents`·`/v2/consents/notices`, `/v2/admissions/**`)는
+  `Authorization` 헤더가 와도 검증하지 않는다(`AccessTokenFilter#shouldNotFilter`) — 만료된 토큰을 전역으로
+  붙이는 클라이언트가 온보딩 콘텐츠에서 401 을 받지 않게 한다.
+
+**고지 문서는 동의 문서가 아니다.** 개인정보 처리방침은 `consent_documents` 의 행이 아니라 배포에 든 고정 파일
+(`consent-docs/privacy_policy.md`)이고 `GET /v2/consents/notices` 가 전문을 내준다. 결정할 수 없고 게이트에
+걸리지 않는다. 동의 문서 `privacy` 는 "개인정보 수집·이용 동의"다. 새 수집이 생기는 변경은 고지만 고치지 않고
+`privacy` 의 판도 올린다(`consent-docs/README.md`) — 웹은 `GET /v2/consents/entry` 의 privacy 행
+`current_decision` 하나로 계측을 켜며, 그 값은 **현재 판**에 대한 결정이다.
+
+### 6-6. 로그인과 가입 제출
+
+- `POST /v2/auth/login` 은 어느 쪽이든 **200** 이고 본문의 `result` 로 가른다: 이미 있는 계정은
+  `signed_in`(토큰·`user`·`pending_consents`), 처음 온 신원은 `signup_required`(`signup_token`·
+  `expires_in`·현재 판 `documents`). **`signup_required` 는 어떤 행도 만들지 않는다.**
+- 계정을 찾는 순서가 계약이다: ① 제공자 + 제공자 ID → ② 제공자가 **검증했다고 알린** 이메일(그 계정에
+  신원을 붙인다) → ③ 처음 온 신원. 검증되지 않은 이메일이 기존 계정과 겹치면 409 다. 로그인할 때
+  검증된 이메일이 바뀌어 있으면 `users.email` 을 따라 바꾸되 다른 계정이 쓰는 주소면 그대로 둔다.
+- 요청의 자격 값은 제공자마다 다르다: `id_token`(네이버 말고는 필수 — 빠지면 422 배열),
+  애플의 `authorization_code`(없으면 422 `authorization_code_required`), 네이버의
+  `authorization_code`·`code_verifier`·`redirect_uri`.
+- **가입 토큰**(`feature/auth/app/SignupTokens`)은 서버가 저장하지 않는 **암호화** 토큰(JWE
+  `dir`+`A256GCM`)이고 30분 산다. 제공자·제공자 ID·검증된 이메일·(애플) 애플 토큰을 담으며 앱은 읽을 수
+  없다. 키는 `JWT_SECRET` 에서 용도를 못박아 뽑는다.
+- `POST /v2/auth/signup` 은 현재 판 **모든** 문서의 결정(`decisions[]`, 선택 문서 포함)을 받아 계정·신원·
+  동의 행을 한 트랜잭션에서 만든다. 결정의 확인이 먼저라 빠진 것이 있으면 어떤 행도 생기지 않는다.
+  같은 신원의 계정이 이미 있으면(재시도·동시 제출의 진 쪽) 그 계정의 토큰을 준다.
+- 분당 한도는 로그인·가입 제출 모두 **IP 로만** 센다(각각 60회, 키가 다르다). 갱신은 IP 와 주체 둘 다.
+- 리프레시 토큰은 30일이다.
 
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 

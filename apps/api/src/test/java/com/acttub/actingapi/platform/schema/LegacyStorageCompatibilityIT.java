@@ -19,6 +19,8 @@ import com.acttub.actingapi.feature.analysis.app.AnalysisResult;
 import com.acttub.actingapi.feature.practice.app.PracticeSessionRepository;
 import com.acttub.actingapi.integration.observation.ObservationItem;
 import com.acttub.actingapi.integration.observation.ObservationPack;
+import com.acttub.actingapi.support.AccountFixtures;
+import com.acttub.actingapi.support.DefaultClientHeader;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -75,6 +77,7 @@ class LegacyStorageCompatibilityIT {
                     INSERT INTO user_consents(id,user_id,document_id,action,occurred_at)
                     SELECT gen_random_uuid(), ?, id, 'granted', now() FROM consent_documents
                     """, user);
+            AccountFixtures.completeProfile(jdbc, user);
             String bearer = "Bearer " + context.getBean(JwtService.class).issueAccessToken(user).value();
             assertThat(get(port, "/health", bearer).path("status").asText()).isEqualTo("ok");
             UUID request = UUID.randomUUID();
@@ -190,11 +193,13 @@ class LegacyStorageCompatibilityIT {
 
     private JsonNode get(int port, String path, String bearer) throws Exception {
         return send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
+                .header(DefaultClientHeader.NAME, DefaultClientHeader.APP)
                 .header("Authorization", bearer).GET().build(), 200);
     }
 
     private JsonNode create(int port, String bearer, UUID request, String body) throws Exception {
         return send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/v2/practice-sessions"))
+                .header(DefaultClientHeader.NAME, DefaultClientHeader.APP)
                 .header("Authorization", bearer).header("Content-Type", "application/json")
                 .header("X-Request-Id", request.toString())
                 .POST(HttpRequest.BodyPublishers.ofString(body)).build(), 202);

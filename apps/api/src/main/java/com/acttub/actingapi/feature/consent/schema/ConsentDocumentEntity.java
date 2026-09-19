@@ -42,6 +42,12 @@ public class ConsentDocumentEntity extends AppGeneratedUuidEntity {
         this.required = required;
     }
 
+    /** 같은 판의 오탈자를 고친다. 판·종류·필수 여부는 바꾸지 않는다 — 그것은 새 판의 일이다. */
+    public void rewrite(String title, String body) {
+        this.title = title;
+        this.body = body;
+    }
+
     public ConsentType getType() {
         return type;
     }

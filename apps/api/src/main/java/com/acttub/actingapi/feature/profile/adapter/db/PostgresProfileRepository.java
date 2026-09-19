@@ -2,12 +2,22 @@ package com.acttub.actingapi.feature.profile.adapter.db;
 
 import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
 
+import java.sql.Date;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.profile.app.ProfileRepository;
+import com.acttub.actingapi.feature.profile.domain.Account;
 import com.acttub.actingapi.feature.profile.domain.Profile;
+import com.acttub.actingapi.platform.schema.ActingDirection;
+import com.acttub.actingapi.platform.schema.ActingExperience;
+import com.acttub.actingapi.platform.schema.ActingGoal;
+import com.acttub.actingapi.platform.schema.PgEnum;
+import com.acttub.actingapi.platform.schema.ProfileGender;
 import com.acttub.actingapi.platform.schema.UserStatus;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
@@ -27,16 +37,37 @@ class PostgresProfileRepository implements ProfileRepository {
         this.transaction = new TransactionTemplate(transactionManager);
     }
 
+    /**
+     * 계정 뼈대와 프로필을 한 번에 읽는다. 게이트가 요청마다 부르므로 질의는 하나다.
+     *
+     * <p>게스트 여부는 신원으로 판정한다 — 신원이 있고 전부 {@code guest} 면 게스트다. 프로필 행이
+     * 없으면(LEFT JOIN 이 비면) 프로필은 {@code null} 이다.
+     */
     @Override
-    public Profile find(UUID userId) {
+    public Account find(UUID userId) {
         List<Tuple> rows = list(entityManager.createNativeQuery("""
-                SELECT users.id,users.email,user_profiles.name,users.status
+                SELECT users.id,users.email,users.status,
+                       (EXISTS (SELECT 1 FROM user_identities
+                                WHERE user_identities.user_id=users.id)
+                        AND NOT EXISTS (SELECT 1 FROM user_identities
+                                        WHERE user_identities.user_id=users.id
+                                          AND user_identities.provider<>'guest')) AS guest,
+                       user_profiles.user_id AS profile_user_id,
+                       user_profiles.name,user_profiles.gender,user_profiles.birth_date,
+                       user_profiles.experience,user_profiles.goal,
+                       user_profiles.photo_key,user_profiles.bio,
+                       (SELECT string_agg(direction, ',' ORDER BY CASE direction
+                                                                    WHEN 'media' THEN 1
+                                                                    WHEN 'stage' THEN 2
+                                                                  END)
+                        FROM user_profile_directions
+                        WHERE user_profile_directions.user_id=users.id) AS directions
                 FROM users
                 LEFT JOIN user_profiles ON user_profiles.user_id=users.id
                 WHERE users.id=:userId
                 """, Tuple.class)
                 .setParameter("userId", userId));
-        return rows.isEmpty() ? null : profile(rows.getFirst());
+        return rows.isEmpty() ? null : account(rows.getFirst());
     }
 
     /**
@@ -53,28 +84,199 @@ class PostgresProfileRepository implements ProfileRepository {
         return UserStatus.valueOf(raw.toUpperCase(Locale.ROOT)).dbValue();
     }
 
+    /** 위와 같은 판단이다 — 아는 어휘인지 확인하고 DB 값을 그대로 돌려준다. 비어 있으면 {@code null}. */
+    private static <E extends Enum<E> & PgEnum> String known(Class<E> vocabulary, String raw) {
+        return raw == null ? null : Enum.valueOf(vocabulary, raw.toUpperCase(Locale.ROOT)).dbValue();
+    }
+
     /**
-     * 이름은 {@code user_profiles.name} 에 산다 — 조회와 수정은 {@code users.nickname} 을 보지
-     * 않는다 (V7, apps/api/CONTRACT.md §5-1). 프로필 행은 처음 저장할 때 생기므로 upsert 다.
+     * 프로필 행은 처음 저장할 때 생기므로 upsert 다. 이름은 {@code user_profiles.name} 에만 쓴다 —
+     * {@code users.nickname} 은 보지 않는다 (V7, apps/api/CONTRACT.md §5-1).
      *
      * <p>{@code INSERT … SELECT FROM users} 인 것은 없는 사용자를 FK 위반이 아니라 <b>0행</b>으로
-     * 돌려받기 위해서다. 그래야 "없으면 {@code null}" 이 그대로 성립한다.
+     * 돌려받기 위해서다. 그래야 "없으면 {@code null}" 이 그대로 성립한다. 방향은 같은 트랜잭션에서
+     * 통째로 갈아 끼운다 — 부분 저장은 없다.
      */
     @Override
-    public Profile updateNickname(UUID userId, String nickname) {
+    public Account saveProfile(UUID userId, Profile profile) {
         return transaction.execute(status -> {
-            int updated = entityManager.createNativeQuery("""
-                    INSERT INTO user_profiles(user_id,name)
-                    SELECT id,:name
+            int saved = entityManager.createNativeQuery("""
+                    INSERT INTO user_profiles(user_id,name,gender,birth_date,experience,goal,bio)
+                    SELECT id,:name,:gender,:birthDate,:experience,:goal,CAST(:bio AS text)
                     FROM users
                     WHERE id=:userId
                     ON CONFLICT (user_id) DO UPDATE
-                    SET name=EXCLUDED.name,updated_at=now()
+                    SET name=EXCLUDED.name,gender=EXCLUDED.gender,birth_date=EXCLUDED.birth_date,
+                        experience=EXCLUDED.experience,goal=EXCLUDED.goal,bio=EXCLUDED.bio,
+                        updated_at=now()
                     """)
-                    .setParameter("name", nickname)
+                    .setParameter("name", profile.name())
+                    .setParameter("gender", profile.gender())
+                    .setParameter("birthDate", Date.valueOf(profile.birthDate()))
+                    .setParameter("experience", profile.experience())
+                    .setParameter("goal", profile.goal())
+                    // 소개는 비어 있을 수 있다. SELECT 목록의 NULL 파라미터는 타입을 추론하지 못해 CAST 한다.
+                    .setParameter("bio", profile.bio())
                     .setParameter("userId", userId)
                     .executeUpdate();
-            return updated == 0 ? null : find(userId);
+            if (saved == 0) {
+                return null;
+            }
+            entityManager.createNativeQuery("""
+                    DELETE FROM user_profile_directions
+                    WHERE user_id=:userId
+                    """)
+                    .setParameter("userId", userId)
+                    .executeUpdate();
+            for (String direction : profile.directions()) {
+                entityManager.createNativeQuery("""
+                        INSERT INTO user_profile_directions(user_id,direction)
+                        VALUES (:userId,:direction)
+                        """)
+                        .setParameter("userId", userId)
+                        .setParameter("direction", direction)
+                        .executeUpdate();
+            }
+            return find(userId);
+        });
+    }
+
+    @Override
+    public boolean beginPhotoUpload(UUID userId, PhotoUpload upload) {
+        return Boolean.TRUE.equals(transaction.execute(status -> entityManager.createNativeQuery("""
+                UPDATE user_profiles
+                SET photo_upload_key=:objectKey,photo_upload_mime_type=:mimeType,
+                    photo_upload_size_bytes=:sizeBytes,photo_upload_expires_at=:expiresAt,
+                    updated_at=now()
+                WHERE user_id=:userId
+                """)
+                .setParameter("objectKey", upload.objectKey())
+                .setParameter("mimeType", upload.mimeType())
+                .setParameter("sizeBytes", upload.sizeBytes())
+                .setParameter("expiresAt", upload.expiresAt().atOffset(ZoneOffset.UTC))
+                .setParameter("userId", userId)
+                .executeUpdate() > 0));
+    }
+
+    @Override
+    public PhotoUpload pendingPhotoUpload(UUID userId) {
+        List<Tuple> rows = list(entityManager.createNativeQuery("""
+                SELECT photo_upload_key,photo_upload_mime_type,
+                       photo_upload_size_bytes,photo_upload_expires_at
+                FROM user_profiles
+                WHERE user_id=:userId
+                  AND photo_upload_key IS NOT NULL
+                """, Tuple.class)
+                .setParameter("userId", userId));
+        if (rows.isEmpty()) {
+            return null;
+        }
+        Tuple row = rows.getFirst();
+        return new PhotoUpload(
+                row.get("photo_upload_key", String.class),
+                row.get("photo_upload_mime_type", String.class),
+                row.get("photo_upload_size_bytes", Long.class),
+                row.get("photo_upload_expires_at", Instant.class));
+    }
+
+    /**
+     * 옛 키를 <b>같은 문장에서</b> 돌려받는다 — 조회 후 쓰기로 나누면 두 완료가 겹쳤을 때 같은 옛
+     * 사진을 두 번 지우려 한다 (apps/api/CONTRACT.md §5-2).
+     */
+    @Override
+    public String completePhotoUpload(UUID userId, String objectKey) {
+        return transaction.execute(status -> replacedPhoto(entityManager.createNativeQuery("""
+                WITH before AS (
+                    SELECT user_id,photo_key
+                    FROM user_profiles
+                    WHERE user_id=:userId
+                      AND photo_upload_key=:objectKey
+                    FOR UPDATE
+                ), changed AS (
+                    UPDATE user_profiles
+                    SET photo_key=:objectKey,photo_upload_key=NULL,photo_upload_mime_type=NULL,
+                        photo_upload_size_bytes=NULL,photo_upload_expires_at=NULL,updated_at=now()
+                    FROM before
+                    WHERE user_profiles.user_id=before.user_id
+                    RETURNING before.photo_key AS replaced
+                )
+                SELECT replaced FROM changed
+                """, Tuple.class)
+                .setParameter("userId", userId)
+                .setParameter("objectKey", objectKey)));
+    }
+
+    @Override
+    public String clearPhoto(UUID userId) {
+        return transaction.execute(status -> replacedPhoto(entityManager.createNativeQuery("""
+                WITH before AS (
+                    SELECT user_id,photo_key
+                    FROM user_profiles
+                    WHERE user_id=:userId
+                      AND photo_key IS NOT NULL
+                    FOR UPDATE
+                ), changed AS (
+                    UPDATE user_profiles
+                    SET photo_key=NULL,updated_at=now()
+                    FROM before
+                    WHERE user_profiles.user_id=before.user_id
+                    RETURNING before.photo_key AS replaced
+                )
+                SELECT replaced FROM changed
+                """, Tuple.class)
+                .setParameter("userId", userId)));
+    }
+
+    private static String replacedPhoto(jakarta.persistence.Query query) {
+        List<Tuple> rows = list(query);
+        return rows.isEmpty() ? null : rows.getFirst().get("replaced", String.class);
+    }
+
+    /**
+     * 가입 중에 만 14세 미만으로 드러난 계정.
+     *
+     * <p>⚠ <b>남의 테이블을 여기서 함께 치는 것은 탈퇴와 같은 이유다</b> — 파기의 원자성이 트랜잭션
+     * 하나를 요구한다. 자료가 있는지 보는 표는 {@code users} 를 FK 로 물고 있으면서 지우면 안 되는
+     * 것들이다(연습·업로드·작업 장부·배우 기억, 그리고 1.0.0 이전에 쓴 커뮤니티 행). 하나라도 있으면
+     * 행을 지울 수 없어 탈퇴와 같은 절차로 닫는다.
+     */
+    @Override
+    public Closure closeUnderage(UUID userId) {
+        return transaction.execute(status -> {
+            List<Tuple> rows = list(entityManager.createNativeQuery("""
+                    SELECT (EXISTS (SELECT 1 FROM practice_sessions WHERE user_id=:userId)
+                         OR EXISTS (SELECT 1 FROM upload_intents WHERE user_id=:userId)
+                         OR EXISTS (SELECT 1 FROM external_operations WHERE user_id=:userId)
+                         OR EXISTS (SELECT 1 FROM actor_memory_entries WHERE user_id=:userId)
+                         OR EXISTS (SELECT 1 FROM community_posts WHERE author_id=:userId)
+                         OR EXISTS (SELECT 1 FROM community_comments WHERE author_id=:userId)
+                         OR EXISTS (SELECT 1 FROM community_post_likes WHERE user_id=:userId)
+                         OR EXISTS (SELECT 1 FROM community_anonymous_aliases WHERE user_id=:userId)
+                         OR EXISTS (SELECT 1 FROM community_reports WHERE reporter_id=:userId)
+                         OR EXISTS (SELECT 1 FROM community_blocks
+                                    WHERE blocker_id=:userId OR blocked_id=:userId)) AS has_history
+                    FROM users
+                    WHERE id=:userId
+                    FOR UPDATE
+                    """, Tuple.class)
+                    .setParameter("userId", userId));
+            if (rows.isEmpty()) {
+                return null;
+            }
+            if (rows.getFirst().get("has_history", Boolean.class)) {
+                deactivate(userId);
+                return Closure.DEACTIVATED;
+            }
+            for (String owned : List.of("user_consents", "refresh_tokens", "user_identities", "push_tokens")) {
+                entityManager.createNativeQuery("DELETE FROM " + owned + " WHERE user_id=:userId")
+                        .setParameter("userId", userId)
+                        .executeUpdate();
+            }
+            // 프로필·방향·포트폴리오·이관 코드는 `ON DELETE CASCADE` 로 함께 지워진다.
+            entityManager.createNativeQuery("DELETE FROM users WHERE id=:userId")
+                    .setParameter("userId", userId)
+                    .executeUpdate();
+            return Closure.ERASED;
         });
     }
 
@@ -94,7 +296,7 @@ class PostgresProfileRepository implements ProfileRepository {
      * <p>이미 탈퇴한 계정이면 <b>최초 탈퇴 시각을 유지</b>한다. 파기는 멱등하게 다시 돈다.
      */
     @Override
-    public Profile deactivate(UUID userId) {
+    public Account deactivate(UUID userId) {
         return transaction.execute(status -> {
             List<Tuple> current = list(entityManager.createNativeQuery("""
                     SELECT status
@@ -160,11 +362,30 @@ class PostgresProfileRepository implements ProfileRepository {
         });
     }
 
-    private static Profile profile(Tuple row) {
-        return new Profile(
+    private static Account account(Tuple row) {
+        return new Account(
                 row.get("id", UUID.class),
                 row.get("email", String.class),
+                status(row.get("status", String.class)),
+                row.get("guest", Boolean.class) ? "guest" : "member",
+                row.get("profile_user_id", UUID.class) == null ? null : profile(row));
+    }
+
+    private static Profile profile(Tuple row) {
+        String directions = row.get("directions", String.class);
+        Date birthDate = row.get("birth_date", Date.class);
+        return new Profile(
                 row.get("name", String.class),
-                status(row.get("status", String.class)));
+                known(ProfileGender.class, row.get("gender", String.class)),
+                birthDate == null ? null : birthDate.toLocalDate(),
+                directions == null
+                        ? List.of()
+                        : Arrays.stream(directions.split(","))
+                                .map(direction -> known(ActingDirection.class, direction))
+                                .toList(),
+                known(ActingExperience.class, row.get("experience", String.class)),
+                known(ActingGoal.class, row.get("goal", String.class)),
+                row.get("photo_key", String.class),
+                row.get("bio", String.class));
     }
 }

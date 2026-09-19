@@ -6,15 +6,47 @@
 백엔드가 기동할 때 그것을 읽어 아직 없는 문서를 DB에 심는다
 (`consent/adapter/ConsentDocumentPublisher`). 옛 버전 `.md`도 함께 실린다 — 빈 DB 재구축 경로가 쓴다.
 
+## 두 종류의 문서
+
+| | 동의 문서 | 고지 문서 |
+| --- | --- | --- |
+| 무엇 | 이용자가 **결정**하는 문서(동의·거절) | **알리기만** 하는 문서 — 개인정보 처리방침 |
+| 파일 | `manifest.json` 이 가리키는 `.md` | `privacy_policy.md` (**이름 고정**) |
+| DB | 판마다 `consent_documents` 행 | 행이 없다 |
+| 게이트 | 현재 판이 미결정이면 보호 기능이 막힌다 | 걸리지 않는다 |
+| 공개 API | `GET /v2/consents/documents` | `GET /v2/consents/notices` → `{"notices":[{"type":"privacy_policy","title":"개인정보 처리방침","body":"…"}]}` |
+
+수탁사(위탁) 고지는 **처리방침(`privacy_policy.md`)에 있다.** 배포 가드(`deploy/consent-gate.sh`)가 계측 키를
+넣기 전에 그 파일에 수탁사 고지가 있는지 본다 — 파일 이름을 바꾸면 가드도 함께 고쳐야 한다.
+
+### ⚠ 새 수집이 생기면 처리방침만 고쳐서는 안 된다
+
+새 수탁사를 더하거나 수집 항목을 늘리는 것처럼 **새 수집**이 생기는 변경은 ① `privacy_policy.md` 에 고지하고
+② **`privacy`(개인정보 수집·이용 동의)의 판도 올린다.** 고지는 게이트에 걸리지 않아서, ①만 하면 기존 동의자는
+아무것도 다시 결정하지 않은 채 새 수집의 대상이 된다. 판을 올리면 기존 동의자가 게이트에서 다시 결정하고,
+그 전까지 그 사람의 계측은 꺼져 있다 — 웹은 `GET /v2/consents/entry` 의 privacy 행
+`current_decision === "granted"` 하나로 계측을 켤지 정하고, 그 값은 **현재 판**에 대한 결정이다
+(`ConsentEndpointIT` 가 회원·게스트 둘 다 고정한다).
+
+문구만 다듬는 수정(오탈자, 표현)은 판을 올리지 않는다. 아래 「발행」 참고.
+
 ## 문서
 | 파일 | type | version | title | required |
 | --- | --- | --- | --- | --- |
 | `terms_v1.md` | `terms` | `v1` | 이용약관 | ✅ |
-| `privacy_v4.md` | `privacy` | `v4` | 개인정보처리방침 | ✅ |
+| `privacy_v5.md` | `privacy` | `v5` | 개인정보 수집·이용 동의 | ✅ |
 | `ai_analysis_v1.md` | `ai_analysis` | `v1` | AI 분석 동의 | ✅ |
+| `retention_v1.md` | `retention` | `v1` | 탈퇴 후 영상·녹음 보관·활용 | 선택 |
 
-> `ConsentType` enum은 이 3종만 지원(`platform/schema/ConsentType.java` + PG enum `consent_type_t`).
-> 선택 동의(연구/홍보 등)는 enum + Flyway 마이그레이션 확장이 함께 필요하다.
+> `ConsentType` enum은 이 4종을 지원한다(`platform/schema/ConsentType.java` + `ck_consent_documents_type`).
+> 종류를 더하려면 enum 과 Flyway 마이그레이션의 CHECK 를 함께 넓힌다(`ValueCheckCatalogIT` 가 대조한다).
+>
+> **`privacy` 는 1.0.0 부터 "개인정보 수집·이용 동의"다.** 처리방침은 동의를 받는 문서가 아니라 고지라서
+> 이 목록에 없다(`docs/requirements/01-account.md` account.consent). `privacy_v5.md` 의 "프로필 필수 항목"
+> 표는 프로필 API 의 필수 항목과 같아야 하고 `ProfileConsentParityTest` 가 둘을 대조한다 — 항목을 늘리거나
+> 선택을 필수로 바꾸면 **새 판**을 낸다.
+>
+> ⚠ `privacy_v5`·`retention_v1` 의 본문은 요구사항이 정한 항목을 담은 **초안**이고 법무 확인 전이다.
 
 ## 발행 — **배포가 곧 발행이다**
 
@@ -29,18 +61,25 @@
 2. `manifest.json` 의 해당 항목을 새 파일·새 버전으로 고친다
 3. 배포한다 — **그 순간 발행된다**
 
+**오탈자만 고칠 때는 판을 올리지 않는다.** 같은 판의 `.md`(또는 `title`)를 고쳐 배포하면 기동할 때 DB 의
+제목·본문을 그 자리에서 덮어쓰고 재동의는 없다. 뜻이 바뀌는 수정은 판을 올린다 — 그 판단은 사람이 한다.
+`required` 는 같은 판에서 바꾸지 않는다(경고만 남긴다).
+
 파일 이름은 어디에도 하드코딩돼 있지 않다. `manifest.json` 이 유일한 목록이고, `.md` 전부가
 jar 에 실린다(`build.gradle.kts` 의 `processResources`).
 
 ## 검증
 ```bash
-curl -s https://dev.acttub.com/v2/consents/documents   # documents 3개
+curl -s -H 'X-Acttub-Client: web/1.0.0' https://dev.acttub.com/v2/consents/documents   # documents 4개
 ```
-그 후 앱에서 소셜 로그인 → 동의 화면에 3종이 필수로 뜨는지 확인.
+그 후 앱에서 소셜 로그인 → 동의 화면에 필수 3종과 선택 1종이 뜨는지 확인.
 
 ⚠ **기동 실패로 드러나지 않는다.** `ConsentDocumentPublisher` 는 어떤 실패도 기동을 막지
-않고 로그에 남길 뿐이다(문서 시딩이 안 됐다고 앱이 안 뜨면 그 편이 더 나쁘다). manifest 가
-가리키는 파일이 없거나 형식이 틀려도 **배포는 초록으로 끝나므로** 위 curl 로 확인한다.
+않는다(문서 시딩이 안 됐다고 앱이 안 뜨면 그 편이 더 나쁘다). 대신 실패를 **보고한다** — manifest 가
+없거나 형식이 틀리거나 가리키는 파일이 없으면 `FailureReporter` 로 `UNEXPECTED` 가 올라간다
+(`ConsentDocumentPublisher.seed`). 그래도 **배포는 초록으로 끝나므로** 위 curl 로 확인한다:
+발행이 안 되면 API 가 옛 판을 현재 판으로 돌려주고, 그러면 새 수집이 옛 동의로 켜질 수 있다.
+`manifest.json` 의 판과 `/v2/consents/documents` 의 판이 같은지 본다.
 
 ## ⚠️ 배포 전 필수
 - 자리표시자는 **MVP 기본값으로 채움**: 운영자 `Acttub`, 시행일 `2026-07-22`, 문의 `acttub0527@gmail.com`, 개인정보 보호책임자는 운영자로 통합, 기타 수탁자 행 삭제. 정식 법인명·대표자·시행일이 확정되면 값 갱신.
@@ -55,7 +94,28 @@ curl -s https://dev.acttub.com/v2/consents/documents   # documents 3개
   - `privacy_v4`(2026-08-11) — v3 내용을 전부 포함하고 이용 행태 분석(Amplitude)과
     **화면 기록(세션 리플레이)** 을 추가한 개정. **현재 발행 대상.**
 
-## v4 발행 절차
+## 1.0.0 발행 순서 (privacy v5 · retention v1 · 처리방침 고지)
+
+⚠️ **배포가 곧 발행이다.** `manifest.json` 이 v5 를 가리키는 채로 운영에 api 를 배포하면 그 순간
+`privacy v5`(개인정보 수집·이용 동의)와 `retention v1`(선택)이 발행되고 **기존 회원 전원에게 동의 화면이 다시
+뜬다.** 1.0.0 은 앱도 강제 업데이트라 같은 배포에서 함께 일어난다.
+
+1. **서비스 내 공지를 먼저 띄운다** — 처리방침이 "개정 사유 및 시행일을 명시하여 공지"를 약속한다.
+2. `privacy_policy.md`·`privacy_v5.md`·`retention_v1.md` 의 시행일 문구와 법무 검토를 마친다(지금 본문은 초안이다).
+3. **운영에 배포한다** — 이 시점에 새 판이 발행되고 재동의가 시작된다. dev 를 먼저 배포해 동의 화면을 확인한다.
+
+계측 키(`AMPLITUDE_API_KEY_WEB`)를 넣는 것과 고지는 순서를 틀리면 되돌릴 수 없다 — 고지 없이 이용 기록과 화면
+녹화가 수탁사로 넘어간다. 배포 가드 `deploy/consent-gate.sh` 가 **`privacy_policy.md` 에 그 수탁사 고지가
+있는지**를 배포 시점에 본다. 가드는 마지막 방어선이지 절차가 아니다.
+
+> 웹이 방침 판을 상수(`EXPECTED_PRIVACY_VERSION`)로 들고 있던 구조는 없어졌다. 웹은 판 번호를 박아 두지 않고
+> 서버가 알려 주는 현재 판의 결정(`/v2/consents/entry`)만 본다. 그래서 웹과 api 의 배포 순서가 어긋나도
+> "기대한 판이 아직 없다"는 창이 생기지 않는다.
+
+## 지난 기록 — v4 발행 절차 (2026-08-11)
+
+> 아래는 `privacy v4`("개인정보처리방침"이라는 이름의 동의 문서였던 시절)를 낼 때의 기록이다. 지금 구조와 다른
+> 부분(`EXPECTED_PRIVACY_VERSION`, 방침 자체가 동의 대상)은 위 절이 대신한다.
 
 ⚠️ **배포가 곧 발행이다.** `manifest.json` 이 v4 를 가리키는 채로 **운영에 be 를 배포하면
 그 순간 v4 가 발행되고 기존 동의자 175명 전원에게 동의 화면이 다시 뜬다.**

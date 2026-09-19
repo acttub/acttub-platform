@@ -26,6 +26,7 @@ public class AccessTokenFilter extends OncePerRequestFilter {
         if (path.equals("/health")
                 || path.equals("/v2/auth/login")
                 || path.equals("/v2/auth/refresh")
+                || path.equals("/v2/auth/signup")
                 || path.startsWith("/v3/api-docs")) {
             return true;
         }
@@ -33,7 +34,9 @@ public class AccessTokenFilter extends OncePerRequestFilter {
         // (`consents.py:build_router.list_documents`, `admissions.py:build_router`).
         // 이 필터는 "헤더가 있으면 검증"이라 만료 토큰을 전역으로 붙이는 클라이언트가
         // 약관·입시 정보 같은 온보딩 콘텐츠에서 401 을 받게 된다.
-        if (path.equals("/v2/consents/documents") || path.startsWith("/v2/admissions")) {
+        if (path.equals("/v2/consents/documents")
+                || path.equals("/v2/consents/notices")
+                || path.startsWith("/v2/admissions")) {
             return true;
         }
         // /v2/admin/* 은 사용자 토큰이 아니라 ADMIN_OPS_TOKEN 을 Authorization 으로 받는다

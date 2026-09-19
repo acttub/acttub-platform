@@ -37,10 +37,20 @@ public class UserIdentityEntity extends AppGeneratedUuidEntity {
     }
 
     public UserIdentityEntity(UUID id, UUID userId, IdentityProvider provider, String providerUid) {
+        this(id, userId, provider, providerUid, null);
+    }
+
+    public UserIdentityEntity(
+            UUID id,
+            UUID userId,
+            IdentityProvider provider,
+            String providerUid,
+            String appleTokenEncrypted) {
         super(id);
         this.userId = userId;
         this.provider = provider;
         this.providerUid = providerUid;
+        this.appleTokenEncrypted = appleTokenEncrypted;
     }
 
     public UUID getUserId() {
