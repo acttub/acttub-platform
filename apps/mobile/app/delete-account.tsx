@@ -65,7 +65,6 @@ export default function DeleteAccountScreen() {
 
         <Section label={t('deleteAccount.secKept')}>
           <Bullet>{t('deleteAccount.keptBody')}</Bullet>
-          <Text style={styles.hint}>{t('deleteAccount.keptTip')}</Text>
         </Section>
 
         <Section label={t('deleteAccount.secRestart')}>
@@ -137,7 +136,6 @@ const styles = StyleSheet.create({
     color: palette.textDim,
     lineHeight: 23,
   },
-  hint: { fontSize: 12.5, fontWeight: '600', color: palette.textFaint, lineHeight: 21 },
 
   danger: {
     marginTop: 32,

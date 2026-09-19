@@ -14,13 +14,33 @@ import {
   type AuthUser,
   type ConsentDocument,
   type ConsentEntryResponse,
+  type MeResponse,
   type TokenPair,
 } from '@/lib/api';
+import type { ProfileGateStatus } from '@/lib/app-bootstrap';
 import { signOutBestEffort } from '@/lib/auth-session';
 import { createConsentEntrySession } from '@/lib/consent-entry';
-import { getUserName, saveUserName, setProviderNameHint } from '@/lib/profile';
+import {
+  buildSignupDecisions,
+  type ConsentChoice,
+} from '@/lib/consent-entry-submission';
+import { lastProviderStore } from '@/lib/last-provider';
 import { clearLocalAccountData } from '@/lib/local-account-data';
+import {
+  isSignupExpired,
+  loginRequestBody,
+  resolveLoginOutcome,
+  type LoginProvider,
+  type PendingSignup,
+} from '@/lib/login-flow';
 import { detachPushFromAccount, syncPushRegistration } from '@/lib/notifications';
+import { saveUserName, setProviderNameHint } from '@/lib/profile';
+import {
+  profileGateStatus,
+  type ProfilePayload,
+} from '@/lib/profile-form';
+import { providerAdapter, signOutProviders } from '@/lib/provider-sdk';
+import { translate as t } from '@/lib/i18n';
 import {
   clearTokens,
   getRefreshToken,
@@ -28,23 +48,23 @@ import {
   loadTokens,
   onAccountDeactivated,
   onConsentRequired,
+  onProfileRequired,
   onStoredUserChanged,
   onTokensCleared,
+  onUpdateRequired,
   setTokens,
 } from '@/lib/token-store';
 
 /**
  * 인증 상태 컨텍스트.
  * - 앱 시작 시 저장된 토큰을 로드해 로그인 여부를 판단(status).
- * - Google 로그인으로 id_token을 받아 v2 /auth/login과 교환.
- * - 새 로그인과 저장 세션 복원 모두 동의 진입 판정을 한 번 확인.
+ * - 제공자가 준 자격 값을 v2 /auth/login과 교환하고 응답의 result로 가른다. 이미 있는 계정은
+ *   토큰을 받고, 처음 온 신원은 가입 토큰과 동의 문서를 들고 동의 화면으로 간다(signup).
+ *   계정은 가입 제출이 통과한 순간 생긴다. 동의 화면에서 나가면 아무것도 남지 않는다.
+ * - 새 로그인과 저장 세션 복원 모두 동의 진입 판정과 프로필 완성 여부를 서버에서 읽는다.
+ *   게이트 순서는 인증 → 동의 → 프로필 → 탭이다(app-bootstrap).
  * - refresh 실패/로그아웃으로 토큰이 비워지면(onTokensCleared) 자동으로 signedOut.
  */
-
-const WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '';
-// iOS 전용 OAuth 클라이언트 ID(462... 프로젝트). plist에 없어서 명시적으로 넣어야 함.
-// 없으면(안드로이드) undefined → 무시됨.
-const IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || undefined;
 
 type AuthStatus = 'loading' | 'signedIn' | 'signedOut';
 
@@ -52,19 +72,37 @@ export type ConsentEntryState =
   | { status: 'checking'; entry: null; error: null }
   | { status: 'error'; entry: null; error: unknown }
   | {
-      status: 'allowed' | 'decision_required' | 'blocked';
+      status: 'allowed' | 'decision_required';
       entry: ConsentEntryResponse;
       error: null;
     };
+
+/** 서버에서 읽은 내 계정과 프로필. status가 프로필 게이트를 정한다. */
+export type ProfileState = {
+  status: ProfileGateStatus;
+  me: MeResponse | null;
+  error: unknown;
+};
 
 type AuthContextValue = {
   status: AuthStatus;
   user: AuthUser | null;
   consentEntry: ConsentEntryState;
-  profileSetupRequired: boolean;
-  signInWithGoogle: () => Promise<void>;
-  /** iOS Sign in with Apple. isAvailableAsync가 true일 때만 노출. */
-  signInWithApple: () => Promise<void>;
+  profile: ProfileState;
+  /** 처음 온 신원이 동의 화면에서 들고 있는 가입 토큰과 문서. 계정은 아직 없다. */
+  signup: PendingSignup | null;
+  /** 서버가 426으로 답했다. 업데이트 안내 화면만 보여 준다. */
+  updateRequired: boolean;
+  /** 로그인 화면으로 돌려보내며 남긴 안내(가입 토큰 만료, 만 14세 미만 등). */
+  loginNotice: string | null;
+  clearLoginNotice: () => void;
+  signInWith: (provider: LoginProvider) => Promise<void>;
+  /** 동의 화면의 "동의하고 계속하기". 통과하면 그 순간 계정이 생기고 로그인된다. */
+  submitSignup: (choices: ReadonlyMap<string, ConsentChoice>) => Promise<void>;
+  /** 보는 사이 새 판이 나왔을 때 가입 화면의 문서를 다시 받는다. */
+  reloadSignupDocuments: () => Promise<void>;
+  /** 가입 중의 동의 화면에서 나간다. 가입 토큰과 제공자가 준 이름을 버린다. */
+  cancelSignup: (notice?: string) => void;
   signOut: () => Promise<void>;
   /**
    * 회원탈퇴. 서버에 파기를 요청하고, 성공하면 이 기기에 남은 것까지 지운다.
@@ -72,85 +110,16 @@ type AuthContextValue = {
    */
   deleteAccount: () => Promise<void>;
   refreshConsentEntry: () => Promise<ConsentEntryResponse>;
-  completeProfileSetup: (name: string) => Promise<void>;
+  reloadProfile: () => Promise<void>;
+  /** 프로필 여섯 항목을 저장한다. 가입 게이트에서는 저장이 곧 게이트 통과다. */
+  saveProfile: (payload: ProfilePayload) => Promise<MeResponse>;
+  /** 가입 게이트에서 만 14세 미만이라 서버가 계정을 닫았다. 기기를 비우고 로그인으로 보낸다. */
+  closeAccountUnder14: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-// 네이티브 모듈이 없는 환경(재빌드 전 dev client·웹)에서도 앱이 뜨도록 가드해서 로드.
-type GoogleSigninModule = typeof import('@react-native-google-signin/google-signin');
-let google: GoogleSigninModule | null = null;
-try {
-  google = require('@react-native-google-signin/google-signin');
-  google?.GoogleSignin.configure({ webClientId: WEB_CLIENT_ID, iosClientId: IOS_CLIENT_ID });
-} catch {
-  google = null;
-}
-
-// Apple 로그인(iOS 전용). 네이티브 모듈 없으면(안드로이드·재빌드 전) null.
-type AppleModule = typeof import('expo-apple-authentication');
-let apple: AppleModule | null = null;
-try {
-  apple = require('expo-apple-authentication');
-} catch {
-  apple = null;
-}
-
-/** signIn 응답 형태가 버전마다 달라(idToken 위치) 방어적으로 추출한다. */
-type GoogleSignInResult = {
-  idToken: string | null;
-  /** 구글 계정 표시 이름 — 저장된 이름이 없을 때 인사말에 쓴다([[display-name]]). */
-  name: string | null;
-};
-
-async function getGoogleIdToken(): Promise<GoogleSignInResult | null> {
-  if (!google) throw new Error('구글 로그인 모듈이 없어요. 개발 빌드를 다시 설치해주세요.');
-  const { GoogleSignin } = google;
-  await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-  const result = (await GoogleSignin.signIn()) as {
-    type?: string;
-    idToken?: string | null;
-    user?: { name?: string | null; givenName?: string | null } | null;
-    data?: {
-      idToken?: string | null;
-      user?: { name?: string | null; givenName?: string | null } | null;
-    } | null;
-  };
-  if (result?.type === 'cancelled') return null;
-  let idToken = result?.data?.idToken ?? result?.idToken ?? null;
-  if (!idToken) {
-    const tokens = await GoogleSignin.getTokens();
-    idToken = tokens.idToken;
-  }
-  const profile = result?.data?.user ?? result?.user ?? null;
-  return { idToken, name: profile?.givenName ?? profile?.name ?? null };
-}
-
-/**
- * 로그인 제공자가 준 이름은 저장하지 않고 힌트로만 든다.
- *
- * 바로 저장하면 needsProfileSetup 이 "이름 있음 = 설정 끝"으로 읽어 새 가입자에게 프로필
- * 설정(A0.2)이 안 떴다. 이미 저장된 이름이 있으면(기존 유저) 힌트도 두지 않는다.
- */
-async function rememberProviderName(name: string | null | undefined): Promise<void> {
-  const trimmed = name?.trim();
-  if (!trimmed) return;
-  try {
-    const existing = await getUserName();
-    if (existing?.trim()) return;
-    setProviderNameHint(trimmed);
-  } catch {
-    // 이름은 부가정보라 실패해도 로그인을 막지 않는다.
-  }
-}
-
-async function needsProfileSetup(): Promise<boolean> {
-  try {
-    return !(await getUserName())?.trim();
-  } catch {
-    return false;
-  }
-}
+const PROFILE_CHECKING: ProfileState = { status: 'checking', me: null, error: null };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('loading');
@@ -160,7 +129,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     entry: null,
     error: null,
   });
-  const [profileSetupRequired, setProfileSetupRequired] = useState(false);
+  const [profile, setProfile] = useState<ProfileState>(PROFILE_CHECKING);
+  const [signup, setSignup] = useState<PendingSignup | null>(null);
+  const [updateRequired, setUpdateRequired] = useState(false);
+  const [loginNotice, setLoginNotice] = useState<string | null>(null);
   const [consentEntrySession] = useState(() =>
     createConsentEntrySession({
       readEntry: () => api.consentEntry(),
@@ -168,6 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }),
   );
   const consentLoadGeneration = useRef(0);
+  const profileLoadGeneration = useRef(0);
 
   const loadConsentEntry = useCallback(
     async ({
@@ -212,109 +185,188 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [loadConsentEntry],
   );
 
+  const applyMe = useCallback((me: MeResponse) => {
+    profileLoadGeneration.current += 1;
+    setProfile({ status: profileGateStatus(me), me, error: null });
+    // 홈 인사말과 프로필 탭이 읽는 기기 캐시. 정본은 서버의 profile.name이다.
+    const name = me.profile?.name?.trim();
+    if (me.profile_complete && name) void saveUserName(name).catch(() => undefined);
+  }, []);
+
+  const reloadProfile = useCallback(async () => {
+    const generation = ++profileLoadGeneration.current;
+    setProfile(PROFILE_CHECKING);
+    try {
+      const me = await api.me();
+      if (generation === profileLoadGeneration.current) applyMe(me);
+    } catch (error) {
+      if (generation === profileLoadGeneration.current) {
+        setProfile({ status: 'error', me: null, error });
+      }
+    }
+  }, [applyMe]);
+
+  const resetProfile = useCallback(() => {
+    profileLoadGeneration.current += 1;
+    setProfile(PROFILE_CHECKING);
+  }, []);
+
   useEffect(() => {
     let active = true;
-    loadTokens().then(async (hasToken) => {
+    loadTokens().then((hasToken) => {
       if (!active) return;
       if (!hasToken) {
         setUser(null);
         setStatus('signedOut');
         return;
       }
-      const requireProfileSetup = await needsProfileSetup();
-      if (!active) return;
       setUser(getStoredUser());
-      setProfileSetupRequired(requireProfileSetup);
       setStatus('signedIn');
+      // 갱신 응답에는 동의 목록이 없으므로 앱을 열 때 미결정 동의와 프로필을 직접 읽는다.
       void loadConsentEntry().catch(() => undefined);
+      void reloadProfile();
     });
     const unsubTokens = onTokensCleared(() => {
       resetConsentEntry();
+      resetProfile();
       setUser(null);
-      setProfileSetupRequired(false);
       setStatus('signedOut');
     });
-    const unsubConsent = onConsentRequired(() => {
-      void refreshConsentEntry().catch(() => undefined);
+    const unsubConsent = onConsentRequired((pendingConsents) => {
+      void loadConsentEntry({
+        fallbackDocuments: pendingConsents,
+        refresh: true,
+      }).catch(() => undefined);
     });
+    const unsubProfile = onProfileRequired(() => {
+      void reloadProfile();
+    });
+    const unsubUpdate = onUpdateRequired(() => setUpdateRequired(true));
     // 다른 기기에서 탈퇴했거나, 탈퇴 후 액세스 토큰이 아직 만료되지 않은 경우.
     // refresh 로 풀 수 없으므로 세션을 끊는다.
     const unsubDeactivated = onAccountDeactivated(() => {
       void clearLocalAccountData().catch(() => undefined);
+      void lastProviderStore.forget();
       void clearTokens();
     });
     const unsubStoredUser = onStoredUserChanged((nextUser) => {
       resetConsentEntry();
       setUser(nextUser);
-      setProfileSetupRequired(true);
       setStatus('signedIn');
       void loadConsentEntry().catch(() => undefined);
-      void needsProfileSetup().then(setProfileSetupRequired);
+      void reloadProfile();
     });
     return () => {
       active = false;
       consentLoadGeneration.current += 1;
+      profileLoadGeneration.current += 1;
       unsubTokens();
       unsubConsent();
+      unsubProfile();
+      unsubUpdate();
       unsubDeactivated();
       unsubStoredUser();
     };
-  }, [loadConsentEntry, refreshConsentEntry, resetConsentEntry]);
+  }, [loadConsentEntry, reloadProfile, resetConsentEntry, resetProfile]);
+
+  // 푸시 토큰 등록은 보호 기능이다. 동의와 프로필이 끝난 뒤에만 서버가 받으므로, 게이트를
+  // 통과한 순간과 (게이트가 이미 끝난 회원은) 앱을 열 때 등록한다. 최선 노력이라 기다리지 않는다.
+  const gatePassed =
+    status === 'signedIn' && consentEntry.status === 'allowed' && profile.status === 'complete';
+  useEffect(() => {
+    if (gatePassed) void syncPushRegistration();
+  }, [gatePassed, user?.id]);
 
   const finishLogin = useCallback(
-    async (pair: TokenPair, requireProfileSetup: boolean) => {
+    async (pair: TokenPair, provider: LoginProvider, providerName: string | null) => {
       const committed = await setTokens(
         pair.access_token,
         pair.refresh_token,
         pair.user,
       );
       if (!committed) return;
+      // 제공자가 준 이름은 저장하지 않는다. 프로필 화면의 이름 칸을 미리 채우는 데만 쓴다.
+      setProviderNameHint(providerName);
+      void lastProviderStore.remember(provider);
       resetConsentEntry();
+      setSignup(null);
+      setLoginNotice(null);
       setUser(pair.user);
-      setProfileSetupRequired(requireProfileSetup);
       setStatus('signedIn');
       void loadConsentEntry({
         fallbackDocuments: pair.pending_consents ?? [],
       }).catch(() => undefined);
-      // 푸시 등록은 로그인의 성패와 무관한 최선 노력 — 기다리지도, 실패를 올리지도 않는다.
-      void syncPushRegistration();
+      void reloadProfile();
     },
-    [loadConsentEntry, resetConsentEntry],
+    [loadConsentEntry, reloadProfile, resetConsentEntry],
   );
 
-  const signInWithGoogle = useCallback(async () => {
-    const signIn = await getGoogleIdToken();
-    if (!signIn?.idToken) return; // 사용자가 취소
-    const pair = await api.login('google', signIn.idToken);
-    await rememberProviderName(signIn.name);
-    await finishLogin(pair, await needsProfileSetup());
-  }, [finishLogin]);
-
-  const signInWithApple = useCallback(async () => {
-    if (!apple) throw new Error('이 기기에서는 Apple 로그인을 쓸 수 없어요.');
-    let credential: import('expo-apple-authentication').AppleAuthenticationCredential;
-    try {
-      credential = await apple.signInAsync({
-        requestedScopes: [
-          apple.AppleAuthenticationScope.FULL_NAME,
-          apple.AppleAuthenticationScope.EMAIL,
-        ],
+  const signInWith = useCallback(
+    async (provider: LoginProvider) => {
+      const credential = await providerAdapter(provider).signIn();
+      if (!credential) return; // 사용자가 취소
+      const response = await api.login(loginRequestBody(credential));
+      const outcome = resolveLoginOutcome(response, {
+        provider,
+        displayName: credential.displayName ?? null,
+        now: Date.now(),
       });
-    } catch (err) {
-      const code = (err as { code?: string })?.code;
-      if (code === 'ERR_REQUEST_CANCELED' || code === 'ERR_CANCELED') return; // 사용자가 취소
-      throw err;
-    }
-    if (!credential.identityToken) throw new Error('Apple 로그인 토큰을 받지 못했어요.');
-    const pair = await api.login('apple', credential.identityToken);
-    // Apple은 최초 1회만 이름을 준다 — 그때 받아 저장해 둔다.
-    await rememberProviderName(
-      [credential.fullName?.familyName, credential.fullName?.givenName]
-        .filter(Boolean)
-        .join('') || credential.fullName?.givenName,
-    );
-    await finishLogin(pair, await needsProfileSetup());
-  }, [finishLogin]);
+      if (outcome.kind === 'signed_in') {
+        await finishLogin(outcome.pair, provider, credential.displayName ?? null);
+        return;
+      }
+      // 처음 온 신원. 서버에는 아직 아무 행도 없고 앱은 가입 토큰만 들고 동의 화면으로 간다.
+      setLoginNotice(null);
+      setSignup(outcome.signup);
+    },
+    [finishLogin],
+  );
+
+  const cancelSignup = useCallback((notice?: string) => {
+    // 동의 화면에서 나가면 제공자가 준 이름도 함께 사라진다(애플은 다시 주지 않는다).
+    setProviderNameHint(null);
+    setSignup(null);
+    setLoginNotice(notice ?? null);
+  }, []);
+
+  const submitSignup = useCallback(
+    async (choices: ReadonlyMap<string, ConsentChoice>) => {
+      if (!signup) return;
+      if (isSignupExpired(signup, Date.now())) {
+        cancelSignup(t('login.signupExpired'));
+        return;
+      }
+      const pair = await api.signup(
+        signup.signupToken,
+        buildSignupDecisions(signup.documents, choices),
+      );
+      await finishLogin(pair, signup.provider, signup.displayName);
+    },
+    [cancelSignup, finishLogin, signup],
+  );
+
+  const reloadSignupDocuments = useCallback(async () => {
+    const { documents } = await api.consentDocuments();
+    setSignup((current) => (current ? { ...current, documents } : current));
+  }, []);
+
+  const saveProfile = useCallback(
+    async (payload: ProfilePayload) => {
+      const me = await api.saveProfile(payload);
+      applyMe(me);
+      return me;
+    },
+    [applyMe],
+  );
+
+  const closeAccountUnder14 = useCallback(async () => {
+    // 서버가 계정을 행째 지웠고 토큰도 죽었다. 기기의 계정 자료를 지우고 로그인으로 보낸다.
+    setLoginNotice(t('profileName.under14Closed'));
+    await clearLocalAccountData().catch(() => undefined);
+    await lastProviderStore.forget();
+    await signOutProviders().catch(() => undefined);
+    await clearTokens();
+  }, []);
 
   const signOut = useCallback(async () => {
     const rt = getRefreshToken();
@@ -325,9 +377,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       serverLogout: async () => {
         if (rt) await api.logout(rt);
       },
-      providerLogout: async () => {
-        if (google) await google.GoogleSignin.signOut();
-      },
+      providerLogout: signOutProviders,
       clearLocalSession: clearTokens,
     });
     setUser(null);
@@ -344,49 +394,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // 성공한 뒤엔 실패해도 계속 간다. 계정은 이미 사라졌으므로 여기서 멈추면
     // 지워진 계정으로 로그인된 화면에 남는다.
     await clearLocalAccountData().catch(() => undefined);
+    // 마지막 로그인 제공자 기억은 로그아웃에는 남기지만, 계정이 사라지는 탈퇴에는 지운다.
+    await lastProviderStore.forget();
     await signOutBestEffort({
       // 서버 로그아웃은 부르지 않는다 — refresh 는 탈퇴가 이미 전부 끊었다.
       serverLogout: async () => undefined,
-      providerLogout: async () => {
-        if (google) await google.GoogleSignin.signOut();
-      },
+      providerLogout: signOutProviders,
       clearLocalSession: clearTokens,
     });
     setUser(null);
     setStatus('signedOut');
   }, []);
 
-  const completeProfileSetup = useCallback(async (name: string) => {
-    const trimmed = name.trim();
-    if (!trimmed) throw new Error('이름을 입력해주세요.');
-    await saveUserName(trimmed);
-    setProfileSetupRequired(false);
-  }, []);
+  const clearLoginNotice = useCallback(() => setLoginNotice(null), []);
 
   const value = useMemo(
     () => ({
       status,
       user,
       consentEntry,
-      profileSetupRequired,
-      signInWithGoogle,
-      signInWithApple,
+      profile,
+      signup,
+      updateRequired,
+      loginNotice,
+      clearLoginNotice,
+      signInWith,
+      submitSignup,
+      reloadSignupDocuments,
+      cancelSignup,
       signOut,
       deleteAccount,
       refreshConsentEntry,
-      completeProfileSetup,
+      reloadProfile,
+      saveProfile,
+      closeAccountUnder14,
     }),
     [
       status,
       user,
       consentEntry,
-      profileSetupRequired,
-      signInWithGoogle,
-      signInWithApple,
+      profile,
+      signup,
+      updateRequired,
+      loginNotice,
+      clearLoginNotice,
+      signInWith,
+      submitSignup,
+      reloadSignupDocuments,
+      cancelSignup,
       signOut,
       deleteAccount,
       refreshConsentEntry,
-      completeProfileSetup,
+      reloadProfile,
+      saveProfile,
+      closeAccountUnder14,
     ],
   );
 

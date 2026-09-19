@@ -1,16 +1,9 @@
-import type { ReportPayload } from '@/lib/moderation';
 import type {
   AdmissionsResponse,
 } from './admissions';
 import { normalizeAdmissions } from './admissions';
-import type {
-  CommentListResponse,
-  CommunityCategory,
-  CommunityComment,
-  CommunityPost,
-  PostListResponse,
-} from './community';
 
+import Constants from 'expo-constants';
 import {
   createUploadTask,
   FileSystemUploadType,
@@ -21,6 +14,8 @@ import {
   commitRefreshedTokens,
   emitAccountDeactivated,
   emitConsentRequired,
+  emitProfileRequired,
+  emitUpdateRequired,
   getAccessToken,
   getAuthSessionEpoch,
   getRefreshToken,
@@ -31,6 +26,9 @@ import {
   createApiRequestClient,
   type PostIdempotentOptions,
 } from '@/lib/api-request';
+import type { SignupDecision } from '@/lib/consent-entry-submission';
+import type { LoginRequestBody, LoginResponse } from '@/lib/login-flow';
+import type { ProfilePayload, ServerProfile } from '@/lib/profile-form';
 import {
   sceneValueForSubmit,
   sendUploadIntent,
@@ -48,8 +46,12 @@ export { ApiError, NetworkError, RequestAbortError } from '@/lib/api-request';
  * - 분석: 비동기 — practice-session 생성 후 상태를 폴링해 analyzed까지 기다린다.
  */
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://dev.acttub.com';
+// 요청마다 보내는 클라이언트 종류와 판(X-Acttub-Client). 판은 app.json의 version이다.
+// 이 헤더가 없으면 서버는 1.0.0 이전 빌드로 보고 426으로 답한다.
+const CLIENT_HEADER = `app/${Constants.expoConfig?.version ?? '0.0.0'}`;
 const requestClient = createApiRequestClient({
   baseUrl: BASE_URL,
+  clientHeader: CLIENT_HEADER,
   fetchImpl: (...args) => fetch(...args),
   waitForCredentialReady,
   getAccessToken,
@@ -58,7 +60,9 @@ const requestClient = createApiRequestClient({
   setTokens: commitRefreshedTokens,
   clearTokens: clearTokensIfCurrent,
   emitConsentRequired,
+  emitProfileRequired,
   emitAccountDeactivated,
+  emitUpdateRequired,
 });
 
 // ─── 도메인 타입 ────────────────────────────────────────────────────────────
@@ -261,16 +265,15 @@ export type ConsentDocument = {
   published_at: string;
 };
 
-export type ConsentDecision = 'granted' | 'declined' | 'revoked';
+/** 앱이 보내는 결정은 둘뿐이다. 철회(revoked)는 운영자만 기록하고 API로 받지 않는다. */
+export type ConsentDecision = 'granted' | 'declined';
 
 export type ConsentEntryDocument = ConsentDocument & {
   current_decision: ConsentDecision | null;
+  decided_at?: string | null;
 };
 
-export type ConsentEntryStatus =
-  | 'allowed'
-  | 'decision_required'
-  | 'blocked';
+export type ConsentEntryStatus = 'allowed' | 'decision_required';
 
 export type ConsentEntryResponse = {
   entry_status: ConsentEntryStatus;
@@ -285,6 +288,13 @@ export type TokenPair = {
   expires_in: number;
   user: AuthUser;
   pending_consents: ConsentDocument[];
+};
+
+/** GET /v2/me. 앱은 profile_complete로 프로필 입력 화면을 띄울지 정한다. */
+export type MeResponse = AuthUser & {
+  account_type: 'member' | 'guest';
+  profile_complete: boolean;
+  profile: ServerProfile | null;
 };
 
 // ─── 업로드 / 세션 타입 ──────────────────────────────────────────────────────
@@ -400,11 +410,27 @@ function postIdempotent<T>(
 
 export const api = {
   // 인증 -----------------------------------------------------------------------
-  /** 소셜 로그인 id_token으로 access/refresh 토큰 교환. provider 예: 'google'. */
-  login(provider: string, idToken: string): Promise<TokenPair> {
+  /** 서버가 켜 둔 로그인 제공자. 앱은 이 목록으로 로그인 버튼을 그린다. */
+  authProviders(): Promise<{ providers: string[] }> {
+    return request('/v2/auth/providers', {}, { auth: false, timeoutMs: 15_000 });
+  },
+
+  /**
+   * 제공자가 준 자격 값으로 로그인한다. 응답은 어느 쪽이든 200이고 result로 가른다 —
+   * 이미 있는 계정은 토큰을, 처음 온 신원은 가입 토큰과 동의 문서를 받는다.
+   */
+  login(body: LoginRequestBody): Promise<LoginResponse> {
+    return request<LoginResponse>('/v2/auth/login', jsonInit(body), {
+      auth: false,
+      timeoutMs: 30_000,
+    });
+  },
+
+  /** 가입 제출. 현재 판 모든 문서의 결정을 담아 통과하면 그 순간 계정이 생기고 토큰을 받는다. */
+  signup(signupToken: string, decisions: SignupDecision[]): Promise<TokenPair> {
     return request<TokenPair>(
-      '/v2/auth/login',
-      jsonInit({ provider, id_token: idToken }),
+      '/v2/auth/signup',
+      jsonInit({ signup_token: signupToken, decisions }),
       { auth: false, timeoutMs: 30_000 },
     );
   },
@@ -428,22 +454,36 @@ export const api = {
     return request('/v2/consents/entry', {}, { auth: true });
   },
 
-  recordConsent(
-    documentId: string,
-    action: 'granted' | 'declined' | 'revoked',
-  ): Promise<void> {
+  recordConsent(documentId: string, action: ConsentDecision): Promise<void> {
     return request<void>('/v2/consents', jsonInit({ document_id: documentId, action }), {
       requestId: true,
     });
   },
 
   // 내 계정 ---------------------------------------------------------------------
+  /** 내 계정과 프로필. 게이트 밖이라 동의·프로필이 끝나기 전에도 읽힌다. */
+  me(): Promise<MeResponse> {
+    return request<MeResponse>('/v2/me', {}, { timeoutMs: 15_000 });
+  },
+
+  /** 프로필 여섯 항목을 한 번에 저장한다. 가입 게이트의 입력 화면과 설정의 수정이 함께 쓴다. */
+  saveProfile(payload: ProfilePayload): Promise<MeResponse> {
+    return request<MeResponse>(
+      '/v2/me/profile',
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      },
+      { timeoutMs: 15_000 },
+    );
+  },
+
   /**
    * 회원탈퇴. 204 를 받으면 끝난다.
    *
-   * 서버는 행을 지우지 않고 이메일·닉네임·로그인 연결을 파기하고 refresh 를 전부
-   * 끊는다. 커뮤니티에 쓴 글은 남고 작성자가 '탈퇴한 사용자' 로 바뀐다.
-   * **되돌릴 수 없다.**
+   * 서버는 행을 지우지 않고 이메일·이름·로그인 연결을 파기하고 refresh 를 전부
+   * 끊는다. **되돌릴 수 없다.**
    *
    * 401 재시도를 막지 않는다 — 서버 처리가 멱등해서(이미 탈퇴한 계정이면 최초 탈퇴
    * 시각을 유지) 두 번 닿아도 결과가 같다. 막으면 액세스 토큰이 방금 만료된 사람만
@@ -710,98 +750,6 @@ export const api = {
       `/v2/reports/${encodeURIComponent(practiceSessionId)}`,
       {},
       { timeoutMs: 20_000 },
-    );
-  },
-
-  // 게시판 --------------------------------------------------------------------
-  // 목록·상세는 로그인 없이 열린다. 쓰기만 토큰이 필요하다.
-  communityCategories(): Promise<{ categories: CommunityCategory[] }> {
-    return request<{ categories: CommunityCategory[] }>('/v2/community/categories', {}, {
-      auth: false,
-      timeoutMs: 15_000,
-    });
-  },
-
-  communityPosts(params: { category?: string; cursor?: string } = {}): Promise<PostListResponse> {
-    const query = new URLSearchParams();
-    if (params.category) query.set('category', params.category);
-    if (params.cursor) query.set('cursor', params.cursor);
-    const suffix = query.toString() ? `?${query.toString()}` : '';
-    return request<PostListResponse>(`/v2/community/posts${suffix}`, {}, {
-      auth: false,
-      timeoutMs: 20_000,
-    });
-  },
-
-  communityPost(postId: string): Promise<CommunityPost> {
-    return request<CommunityPost>(`/v2/community/posts/${encodeURIComponent(postId)}`, {}, {
-      auth: false,
-      timeoutMs: 20_000,
-    });
-  },
-
-  communityComments(postId: string, cursor?: string): Promise<CommentListResponse> {
-    const suffix = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
-    return request<CommentListResponse>(
-      `/v2/community/posts/${encodeURIComponent(postId)}/comments${suffix}`,
-      {},
-      { auth: false, timeoutMs: 20_000 },
-    );
-  },
-
-  createCommunityPost(input: {
-    category_slug: string;
-    title: string;
-    body: string;
-    anonymous: boolean;
-  }): Promise<CommunityPost> {
-    return request<CommunityPost>('/v2/community/posts', jsonInit(input), { timeoutMs: 20_000 });
-  },
-
-  // 신고·차단 (SOMA-444) — 값·경로는 웹 community.ts와 동일. 신고는 204, 중복 신고는 409.
-  reportCommunityContent(input: ReportPayload): Promise<void> {
-    return request<void>('/v2/community/reports', jsonInit(input), { timeoutMs: 15_000 });
-  },
-
-  blockCommunityUser(userId: string): Promise<void> {
-    return request<void>('/v2/community/blocks', jsonInit({ user_id: userId }), {
-      timeoutMs: 15_000,
-    });
-  },
-
-  // 내 글·댓글 삭제 (SOMA-499, App Store 1.2) — 서버가 작성자만 지우게 막는다(남의 것은 403).
-  deleteCommunityPost(postId: string): Promise<void> {
-    return request<void>(
-      `/v2/community/posts/${encodeURIComponent(postId)}`,
-      { method: 'DELETE' },
-      { timeoutMs: 15_000 },
-    );
-  },
-
-  deleteCommunityComment(commentId: string): Promise<void> {
-    return request<void>(
-      `/v2/community/comments/${encodeURIComponent(commentId)}`,
-      { method: 'DELETE' },
-      { timeoutMs: 15_000 },
-    );
-  },
-
-  createCommunityComment(
-    postId: string,
-    input: { body: string; anonymous: boolean },
-  ): Promise<CommunityComment> {
-    return request<CommunityComment>(
-      `/v2/community/posts/${encodeURIComponent(postId)}/comments`,
-      jsonInit(input),
-      { timeoutMs: 20_000 },
-    );
-  },
-
-  likeCommunityPost(postId: string, liked: boolean): Promise<void> {
-    return request<void>(
-      `/v2/community/posts/${encodeURIComponent(postId)}/likes`,
-      { method: liked ? 'POST' : 'DELETE' },
-      { timeoutMs: 15_000 },
     );
   },
 

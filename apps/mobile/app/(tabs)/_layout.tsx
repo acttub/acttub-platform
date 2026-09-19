@@ -9,7 +9,7 @@ import { palette } from '@/constants/palette';
 import { translate as t } from '@/lib/i18n';
 
 /**
- * 하단 탭 — 홈 / 기록 / [촬영(FAB)] / 게시판 / 프로필.
+ * 하단 탭 — 홈 / 대본 / [촬영(FAB)] / 챌린지 / 프로필.
  * 가운데 버튼이 무슨 버튼인지 모르겠다는 피드백이 있어 아이콘 아래 라벨을 붙였다.
  * 아이콘은 Feather(라인) 한 세트로 통일한다 — MaterialIcons 기본 채움 아이콘은 톤이 안 맞는다.
  *
@@ -101,8 +101,6 @@ export default function TabLayout() {
           ),
         }}
       />
-      {/* 게시판은 챌린지 탭에 자리를 내주고 탭바에서 빠졌지만(pen 정합) 라우트는 남긴다. */}
-      <Tabs.Screen name="community" options={{ href: null }} />
       <Tabs.Screen
         name="profile"
         options={{

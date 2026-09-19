@@ -100,12 +100,12 @@ export default function SettingsScreen() {
       setUpdatingConsentId(doc.id);
       setPrefs((p) => ({ ...p, [doc.id]: next })); // 낙관적 업데이트
       try {
-        await api.recordConsent(doc.id, next ? 'granted' : 'revoked');
+        await api.recordConsent(doc.id, next ? 'granted' : 'declined');
         await setConsentPref(doc.id, next).catch(() => undefined);
         setDocs((current) =>
           current.map((document) =>
             document.id === doc.id
-              ? { ...document, current_decision: next ? 'granted' : 'revoked' }
+              ? { ...document, current_decision: next ? 'granted' : 'declined' }
               : document,
           ),
         );
