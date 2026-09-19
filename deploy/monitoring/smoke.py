@@ -80,7 +80,8 @@ def main():
         directory = app_dirs[env]
         directory.mkdir()
         shutil.copyfile(REPO / "deploy/home/compose.yml", directory / "compose.yml")
-        required = ["POSTGRES_PASSWORD", "JWT_SECRET", "ADMIN_OPS_TOKEN", "GEMINI_API_KEY", "OPENAI_API_KEY",
+        required = ["POSTGRES_PASSWORD", "JWT_SECRET", "ACCOUNT_IDENTITY_HASH_KEY", "ACCOUNT_TOKEN_ENCRYPTION_KEY",
+                    "ADMIN_OPS_TOKEN", "GEMINI_API_KEY", "OPENAI_API_KEY",
                     "S3_BUCKET", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "TUNNEL_TOKEN"]
         values = {key: "smoke-only-unused" for key in required}
         values.update(COMPOSE_PROJECT_NAME=projects[env], AWS_REGION="ap-northeast-2", ANALYSIS_WORKER_ENABLED="false",

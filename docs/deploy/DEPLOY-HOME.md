@@ -40,6 +40,8 @@ DB는 PostgreSQL 18 계열이며 실제 서버 버전과 이미지 ID는 작업�
 | 프로젝트 / 프로필 | `COMPOSE_PROJECT_NAME=acttub-<env>`, `COMPOSE_PROFILES=edge,backup` |
 | DB | `POSTGRES_PASSWORD`; 사용자·DB 기본값은 `acttub`. `DATABASE_URL`은 Compose가 조립 |
 | 기존 운영 인증 | `JWT_SECRET`, `ADMIN_OPS_TOKEN`, Apple·Google OAuth client ID를 기존 운영과 대조 |
+| 계정 비밀 | `ACCOUNT_IDENTITY_HASH_KEY`, `ACCOUNT_TOKEN_ENCRYPTION_KEY`. 첫 배포 전에 넣고 바꾸지 않는다. 없으면 배포가 멈춘다 |
+| 로그인 제공자 | `AUTH_ENABLED_PROVIDERS`(기본 `google,apple`), 애플 키 셋(`APPLE_TEAM_ID`·`APPLE_KEY_ID`·`APPLE_PRIVATE_KEY`), 카카오·네이버 값은 검수 승인 뒤 |
 | 외부 서비스 | `GEMINI_API_KEY`, `OPENAI_API_KEY`, 모델 설정, `SENTRY_DSN`, `SENTRY_ENVIRONMENT` |
 | 영상 저장소 | 해당 환경의 `S3_BUCKET`, `AWS_REGION`, 그 버킷만 허용하는 AWS 자격증명 |
 | 터널 | 환경별 `TUNNEL_TOKEN`; Cloudflare 서비스 주소는 `http://web:3000` |
