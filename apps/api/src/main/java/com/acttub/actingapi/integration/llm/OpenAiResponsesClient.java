@@ -36,6 +36,7 @@ public class OpenAiResponsesClient implements TextGenerator {
 
     private final ObjectMapper objectMapper;
     private final OpenAiHttpTransport transport;
+    private OpenAiHttpTransport boundedTransport;
     private final Sleeper sleeper;
     private final Function<String, String> environment;
 
@@ -46,6 +47,7 @@ public class OpenAiResponsesClient implements TextGenerator {
                 new RestClientOpenAiTransport(REQUEST_TIMEOUT),
                 Sleeper.real(),
                 System::getenv);
+        this.boundedTransport = new RestClientOpenAiTransport(Duration.ofSeconds(20));
     }
 
     OpenAiResponsesClient(
@@ -55,23 +57,46 @@ public class OpenAiResponsesClient implements TextGenerator {
             Function<String, String> environment) {
         this.objectMapper = objectMapper;
         this.transport = transport;
+        this.boundedTransport = transport;
         this.sleeper = sleeper;
         this.environment = environment;
     }
 
     @Override
     public GeneratedText generate(String instructions, String input) {
+        return generate(instructions, input, null);
+    }
+
+    @Override
+    public GeneratedText generate(String instructions, String input, GenerationOptions options) {
         Configuration configuration = requiredConfiguration();
+        String model = options != null && options.model() != null ? options.model() : configuration.model();
         ObjectNode body = objectMapper.createObjectNode();
-        body.put("model", configuration.model());
+        body.put("model", model);
         body.put("instructions", instructions);
         body.put("input", input);
+        if (options != null) {
+            body.put("store", false);
+            body.put("max_output_tokens", options.maxOutputTokens());
+            body.putObject("reasoning").put("effort", options.reasoningEffort());
+            if (options.schema() != null) {
+                ObjectNode format = body.putObject("text").putObject("format");
+                format.put("type", "json_schema").put("name", options.schemaName()).put("strict", true);
+                format.set("schema", options.schema());
+            }
+        }
 
         Map<String, String> headers = new LinkedHashMap<>();
         headers.put("Authorization", "Bearer " + configuration.apiKey());
         headers.put("Content-Type", "application/json");
-        OpenAiHttpResponse response = retryingRequest(
-                new OpenAiHttpRequest(RESPONSES_URI, headers, body));
+        OpenAiHttpRequest request = new OpenAiHttpRequest(RESPONSES_URI, headers, body);
+        OpenAiHttpResponse response;
+        try {
+            // Routed stages own their bounded retry/fallback policy; avoid nested 120s retries.
+            response = options == null ? retryingRequest(request) : boundedTransport.exchange(request);
+        } catch (IOException failure) {
+            throw new OpenAiConnectionException(failure);
+        }
         if (response.status() < 200 || response.status() >= 300) {
             throw apiError(response.status(), "OpenAI 생성 실패");
         }
@@ -84,6 +109,9 @@ public class OpenAiResponsesClient implements TextGenerator {
         }
         if (payload == null || !payload.isObject()) {
             throw new IllegalStateException("OpenAI 평문 응답을 읽지 못했습니다.");
+        }
+        if (options != null && payload.has("status") && !"completed".equals(payload.path("status").asText())) {
+            throw new IllegalStateException("OpenAI response did not complete");
         }
 
         List<JsonNode> contents = outputItems(payload);
@@ -107,7 +135,7 @@ public class OpenAiResponsesClient implements TextGenerator {
             String detail = refusal.isEmpty() ? "" : " (" + refusal + ")";
             throw new IllegalStateException("OpenAI 평문 응답이 비었습니다" + detail + ".");
         }
-        return new GeneratedText(text, tokenUsage(payload), configuration.model());
+        return new GeneratedText(text, tokenUsage(payload), model);
     }
 
     private OpenAiHttpResponse retryingRequest(OpenAiHttpRequest request) {
