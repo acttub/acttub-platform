@@ -13,7 +13,7 @@ import type { SessionCard, SessionDetail } from "@/lib/reading/api-types";
 import { hasGuestSession } from "@/lib/auth/token-store";
 import { useResource } from "@/lib/react/use-resource";
 import { toStoredScript } from "@/lib/reading/script/from-server";
-import { scriptIdFromPath, STEP_PATH } from "@/lib/reading/step";
+import { MEMORIZE_PATH, scriptIdFromPath, STEP_PATH } from "@/lib/reading/step";
 import { storage, type StoredScript } from "@/lib/reading/storage";
 import { adoptStoredScript } from "@/features/reading/script-save";
 import { ScriptDetailScreen } from "@/features/reading/screens/ScriptDetailScreen";
@@ -91,6 +91,14 @@ export function ScriptDetailPage() {
       onNew={() => {
         adoptStoredScript(script);
         router.push(STEP_PATH.setup);
+      }}
+      onMemorize={() => {
+        // 대본에서 들어온 암기: 기본 배역은 마지막 회차의 내 배역, 없으면 첫 배역. 화면에서 바꿀 수 있다.
+        const lastIds = new Set(script.lastSession?.myCharacterIds ?? []);
+        const roles = script.characters.filter((c) => lastIds.has(c.id)).map((c) => c.name);
+        storage.saveScript(script);
+        storage.saveMemorizeEntry({ scriptId: script.id, roles: roles.length > 0 ? roles : script.roles.slice(0, 1), lineIds: null });
+        router.push(MEMORIZE_PATH);
       }}
       onDeleted={() => setVersion((v) => v + 1)}
       onBack={() => router.push(STEP_PATH.input)}

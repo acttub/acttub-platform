@@ -7,6 +7,7 @@
  * 맞음·틀림을 내지 않는다.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useLineRecorder } from "@/features/reading/hooks/useLineRecorder";
 import { useRehearsalRunner, type PartnerVoice } from "@/features/reading/hooks/useRehearsalRunner";
 import { useRevealed, useRunSession } from "@/features/reading/hooks/useRunSession";
 import { startAutoRecognition, sttAvailable, type AutoListening } from "@/lib/reading/audio/stt";
@@ -65,6 +66,8 @@ export function QuizScreen({
   const prog = progress(state);
   const [guide, dismissGuide] = useGuide();
   const [revealed, reveal] = useRevealed(state.index);
+  // record 켬 회차는 내 차례마다 녹음해 올린다. 입력하기로 대조한 줄은 녹음 행을 만들지 않는다.
+  const rec = useLineRecorder({ script, session, state, enabled: session.record });
 
   const [said, setSaid] = useState("");
   const [outcome, setOutcome] = useState<Outcome>(null);
@@ -109,7 +112,7 @@ export function QuizScreen({
   }
 
   /** 발화를 확정해 대조한다. 통과·2회 미달만 다음 줄로 간다. */
-  function submit(text: string) {
+  function submit(text: string, source: "stt" | "typed" = "stt") {
     if (!w.current || !lineId) return;
     setSaid(text);
     // 대조는 원문과 말한 것 각각 1,000자까지만. 넘으면 대조하지 않고 수동 진행이며 미달로 기록하지 않는다.
@@ -118,6 +121,7 @@ export function QuizScreen({
       return;
     }
     const r = compare(text, w.current.text);
+    rec.noteTranscript(lineId, text, r.pass, source);
     if (r.pass) {
       run.sync.results.pass(lineId);
       setOutcome({ kind: "pass" });
@@ -177,6 +181,7 @@ export function QuizScreen({
   const leave = () => {
     runner.stop();
     recRef.current?.abort();
+    rec.finish();
     run.sync.clock.pause();
     run.sync.save(state);
     onExit();
@@ -242,7 +247,7 @@ export function QuizScreen({
               className="flex gap-2"
               onSubmit={(e) => {
                 e.preventDefault();
-                if (typed.trim()) submit(typed.trim());
+                if (typed.trim()) submit(typed.trim(), "typed");
               }}
             >
               <input
@@ -255,7 +260,11 @@ export function QuizScreen({
               <Button type="submit" size="md">확인</Button>
             </form>
           )}
-          <p className="text-[11.5px] text-ink-4">내 차례 동안 마이크가 켜져 있어요. 말한 것을 글자로 바꿔 대본과 맞춰 봐요. {sttAvailable() && "말소리는 브라우저 음성 서비스로 가요."}</p>
+          <p className="text-[11.5px] text-ink-4">
+            내 차례 동안 마이크가 켜져 있어요. 말한 것을 글자로 바꿔 대본과 맞춰 봐요. {sttAvailable() && "말소리는 브라우저 음성 서비스로 가요."}
+            {rec.recording && " 이 줄은 녹음돼 내 계정에 저장돼요."}
+          </p>
+          {rec.notice && <p className="text-[12px] text-warn">{rec.notice}</p>}
           {sttNote && <p className="text-[12px] text-ink-3 font-bold">{sttNote}</p>}
         </>
       )}
@@ -272,7 +281,7 @@ export function QuizScreen({
   ) : isMe ? (
     <div className="flex flex-col items-center gap-2.5">
       <div className="flex items-center justify-center gap-3 w-full">
-        <Button variant="secondary" className="flex-1 md:w-36 md:flex-none" onClick={() => { setSaid(""); setOutcome(null); setSttNote(null); }}>
+        <Button variant="secondary" className="flex-1 md:w-36 md:flex-none" onClick={() => { setSaid(""); setOutcome(null); setSttNote(null); rec.restart(); }}>
           다시
         </Button>
         <button
@@ -318,6 +327,7 @@ export function QuizScreen({
         right={progressLabel(state, run.sync.elapsedMs)}
         progressRatio={prog.total ? prog.done / prog.total : 0}
       >
+        {rec.pending > 0 && <span className="text-[11.5px] font-bold text-ink-4">녹음 저장 중 {rec.pending}</span>}
         <MaskToggle scriptId={script.id} mask={run.mask} onChange={run.setMask} />
       </RunHeader>
       <div className="flex-1 flex flex-col md:flex-row min-h-0">

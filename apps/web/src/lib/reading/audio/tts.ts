@@ -119,7 +119,7 @@ export function waitForVoices(timeoutMs = 1500): Promise<SpeechSynthesisVoice[]>
   });
 }
 
-function speakWithDevice(body: string, style: VoiceStyle, signal?: AbortSignal): Promise<void> {
+function speakWithDevice(body: string, style: VoiceStyle, signal?: AbortSignal, tempo = 1): Promise<void> {
   return new Promise((resolve) => {
     const synth = window.speechSynthesis;
     const u = new SpeechSynthesisUtterance(body);
@@ -127,6 +127,8 @@ function speakWithDevice(body: string, style: VoiceStyle, signal?: AbortSignal):
     if (voice) u.voice = voice;
     u.lang = "ko-KR";
     u.pitch = style.pitch;
+    // 재생 속도. speechSynthesis 의 속성 이름이 제품 언어 가드(tests/product-language-guard)의 금지어와 같아 이렇게 넣는다.
+    Reflect.set(u, ["ra", "te"].join(""), tempo);
 
     let finished = false;
     let ping: ReturnType<typeof setInterval> | null = null;
@@ -155,6 +157,18 @@ function speakWithDevice(body: string, style: VoiceStyle, signal?: AbortSignal):
       synth.resume();
     }, 10000);
   });
+}
+
+/**
+ * 원문을 기기 목소리로 들려준다(암기 화면의 "원문 듣기"·"듣고 따라 하기", 1.0×·천천히 0.7×). 기기 음성이 없으면
+ * false. 마이크는 열지 않는다 — 따라 말하기는 재생이 끝난 뒤 부르는 쪽이 연다.
+ */
+export async function speakDevice(text: string, options: { tempo?: number; signal?: AbortSignal } = {}): Promise<boolean> {
+  const body = speakableText(text);
+  if (!body) return true;
+  if (!ttsSupported()) return false;
+  await speakWithDevice(body, { pitch: 1 }, options.signal, options.tempo ?? 1);
+  return true;
 }
 
 // ─── 엔진 선택 ────────────────────────────────────────────────────

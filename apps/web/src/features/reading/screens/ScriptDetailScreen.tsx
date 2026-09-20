@@ -9,8 +9,10 @@ import { deleteSession } from "@/lib/api/v2/reading-sessions";
 import { errorMessage } from "@/lib/api/v2/errors";
 import type { SessionCard } from "@/lib/reading/api-types";
 import type { StoredScript } from "@/lib/reading/storage";
+import { recordingSummary } from "@/lib/reading/recording/playback";
 import { Page } from "@/features/reading/page-shell";
-import { elapsedLabel, resumeProgress, sessionDateLabel } from "@/features/reading/session-cards";
+import { resumeProgress, sessionDateLabel } from "@/features/reading/session-cards";
+import { SessionRecordings } from "@/features/reading/screens/SessionRecordings";
 import { myCharactersLabel, resumeLabel, sessionStatusLabel } from "@/features/reading/session-copy";
 import { Button, Card, CardTitle, StatusPill, TopBar } from "@/features/reading/ui";
 
@@ -24,6 +26,7 @@ export function ScriptDetailScreen({
   error,
   onResume,
   onNew,
+  onMemorize,
   onDeleted,
   onBack,
 }: {
@@ -35,10 +38,13 @@ export function ScriptDetailScreen({
   error: string | null;
   onResume: () => void;
   onNew: () => void;
+  /** 암기 화면으로(고른 배역의 미암기 줄) */
+  onMemorize: () => void;
   onDeleted: (sessionId: string) => void;
   onBack: () => void;
 }) {
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const dialogueCount = script.lines.filter((l) => l.type === "dialogue").length;
@@ -80,6 +86,9 @@ export function ScriptDetailScreen({
             <Button size="lg" variant={openSession ? "secondary" : "primary"} className="w-full" disabled={resuming} onClick={onNew}>
               새로운 연습
             </Button>
+            <Button size="lg" variant="secondary" className="w-full" onClick={onMemorize}>
+              암기하기
+            </Button>
             {openSession && <p className="text-[11.5px] text-ink-4">새로운 연습을 시작하면 지금 진행 중인 회차는 중단으로 바뀌어요.</p>}
             {error && <p className="text-[12.5px] text-red">{error}</p>}
           </div>
@@ -101,18 +110,24 @@ export function ScriptDetailScreen({
                           <span className="text-[12px] font-semibold text-ink-4">{sessionDateLabel(card.started_at)}</span>
                         </p>
                         <p className="text-[12px] text-ink-4 mt-1">
-                          {myCharactersLabel(card.my_character_names)} · 내 대사 {card.my_dialogue_count}개 중 {card.recorded_line_count}개 녹음 · {elapsedLabel(card.elapsed_seconds)}
+                          {myCharactersLabel(card.my_character_names)} · {recordingSummary(card)}
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => setConfirmId(confirmId === card.id ? null : card.id)}
-                        className="shrink-0 text-[12px] font-bold text-ink-4"
-                      >
-                        지우기
-                      </button>
+                      <div className="shrink-0 flex items-center gap-3">
+                        <button type="button" onClick={() => setOpenId(openId === card.id ? null : card.id)} className="text-[12px] font-bold text-blue">
+                          {openId === card.id ? "접기" : "녹음"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => setConfirmId(confirmId === card.id ? null : card.id)}
+                          className="text-[12px] font-bold text-ink-4"
+                        >
+                          지우기
+                        </button>
+                      </div>
                     </div>
+                    {openId === card.id && <SessionRecordings script={script} sessionId={card.id} onChanged={() => onDeleted(card.id)} />}
                     {confirmId === card.id && (
                       <div className="rounded-xl bg-warn-bg p-3 flex flex-col gap-2">
                         <p className="text-[12.5px] font-bold text-warn">이 회차와 녹음 {card.recorded_line_count}개가 지워져요. 외웠다고 표시한 것은 남아요.</p>

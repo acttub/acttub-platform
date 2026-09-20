@@ -13,6 +13,9 @@ export const STEP_PATH: Record<Step, string> = {
   done: "/reading/done",
 };
 
+/** 암기 화면(R04·R04.1 대응). 대상은 storage 의 MemorizeEntry 가 정한다. */
+export const MEMORIZE_PATH = "/reading/memorize";
+
 /** 대본 상세. 프리렌더한 껍데기(/reading/scripts)를 rewrite 로 서빙하고 브라우저가 경로에서 id 를 읽는다. */
 export function scriptDetailPath(scriptId: string): string {
   return `/reading/scripts/${encodeURIComponent(scriptId)}`;

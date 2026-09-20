@@ -163,7 +163,7 @@ export interface SessionListResponse {
   sessions: SessionCard[];
 }
 
-/** 회차 상세의 녹음 하나(reading.recording, RW3 가 채운다) */
+/** 회차 상세의 녹음 하나(reading.recording). 재생 주소는 10분 서명이며 RA3 전에는 null 이다. */
 export interface SessionRecording {
   id: string;
   line_id: string;
@@ -174,8 +174,17 @@ export interface SessionRecording {
   transcript: string | null;
   transcript_source: "stt" | "none";
   matched: boolean | null;
-  playback_url: string;
-  playback_expires_at: string;
+  playback_url: string | null;
+  playback_expires_at: string | null;
+}
+
+/** 줄 단위 암기 상태(reading.memorization). 행이 없으면 아직 표시하지 않은 줄이다. */
+export type MemorizationStatus = "memorized" | "not_yet";
+
+export interface MemorizationEntry {
+  line_id: string;
+  status: MemorizationStatus;
+  updated_at: string;
 }
 
 /** GET /v2/reading/sessions/{id}, POST 의 응답 */

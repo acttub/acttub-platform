@@ -9,6 +9,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { saveProgress } from "@/lib/api/v2/reading-sessions";
 import type { SessionDetail } from "@/lib/reading/api-types";
 import type { RehearsalState } from "@/lib/reading/rehearsal/machine";
+import { startCompletionRetry } from "@/lib/reading/session/completion";
 import { createElapsedClock, createProgressSync, type ElapsedClock, type ProgressSync } from "@/lib/reading/session/progress";
 import { createLineResults, type LineResults } from "@/lib/reading/session/results";
 import type { StoredScript } from "@/lib/reading/storage";
@@ -56,8 +57,11 @@ export function useSessionSync(script: StoredScript, session: SessionDetail): Se
 
   const finish = async () => {
     clock.pause();
-    await sync.complete({ elapsedMs: clock.elapsedMs(), lineResults: results.list() });
+    const answer = await sync.complete({ elapsedMs: clock.elapsedMs(), lineResults: results.list() });
     if (sync.closed()) setClosed(true);
+    // 완료 저장이 실패했다(오프라인 등). 같은 본문을 재시도에 넘기고 완료 화면은 "저장 중"을 보인다.
+    const body = sync.lastRequest();
+    if (answer === null && !sync.closed() && body) startCompletionRetry(session.id, body);
   };
 
   return { clock, results, elapsedMs, save, finish, closed };

@@ -27,6 +27,8 @@ export interface ProgressSync {
   /** 서버가 회차가 닫혔다고(409 session_closed) 알렸는가. 그 뒤로는 보내지 않는다. */
   closed(): boolean;
   latest(): ProgressSnapshot | null;
+  /** 마지막으로 보낸(또는 보내려 한) 본문. 완료 저장이 실패하면 재시도(completion.ts)에 넘긴다. */
+  lastRequest(): ProgressRequest | null;
 }
 
 export function createProgressSync(deps: {
@@ -49,10 +51,14 @@ export function createProgressSync(deps: {
     ...(complete ? { complete: true } : {}),
   });
 
+  let lastBody: ProgressRequest | null = null;
+
   const attempt = async (snapshot: ProgressSnapshot, complete: boolean): Promise<ProgressResponse | null> => {
     if (closed) return null;
+    const body = toBody(snapshot, complete);
+    lastBody = body;
     try {
-      const answer = await deps.send(toBody(snapshot, complete));
+      const answer = await deps.send(body);
       pending = false;
       return answer;
     } catch (cause) {
@@ -79,6 +85,7 @@ export function createProgressSync(deps: {
     pending: () => pending,
     closed: () => closed,
     latest: () => latest,
+    lastRequest: () => lastBody,
   };
 }
 

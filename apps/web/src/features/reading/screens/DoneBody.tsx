@@ -17,25 +17,33 @@ function fmt(ms: number) {
   return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 }
 
+export const SAVING_COPY = "저장 중";
+
 export function DoneBody({
   script,
   stats,
   repeating,
   error,
+  saving = false,
   onRepeat,
   onChangeSetup,
   onNewScript,
   onDetail,
+  onReview,
 }: {
   script: StoredScript;
   stats: RunStats;
   repeating: boolean;
   error: string | null;
+  /** 완료 저장이나 녹음 올리기가 아직 끝나지 않았다(재시도 중) */
+  saving?: boolean;
   /** 같은 설정의 새 회차 */
   onRepeat: () => void;
   onChangeSetup: () => void;
   onNewScript: () => void;
   onDetail: () => void;
+  /** 다시 볼 대사 전체보기 → 암기 화면(그 회차의 배역과 다시 볼 줄) */
+  onReview?: () => void;
 }) {
   const review = reviewLines(script, stats.lineResults);
   const items: [string, string][] = [
@@ -53,6 +61,11 @@ export function DoneBody({
       <p className="text-[13px] md:text-[14px] text-ink-sub text-center -mt-2">
         {stats.mode === "quiz" ? "말한 것을 글자로 바꿔 원문과 맞춰 본 결과예요." : "구간의 마지막 대사까지 이어갔어요."}
       </p>
+      {saving && (
+        <p className="text-[12px] font-bold text-ink-4 -mt-2" role="status">
+          {SAVING_COPY} · 연결되면 자동으로 저장돼요
+        </p>
+      )}
 
       <div className="w-full grid grid-cols-3 bg-surface border border-line rounded-[18px] py-4 md:py-5">
         {items.map(([v, l]) => (
@@ -72,7 +85,14 @@ export function DoneBody({
 
       {review.length > 0 && (
         <section className="w-full bg-surface border border-line rounded-[18px] p-4 flex flex-col gap-2">
-          <h2 className="text-[13px] font-black text-ink-3">{REVIEW_HEADING(review.length)}</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-[13px] font-black text-ink-3">{REVIEW_HEADING(review.length)}</h2>
+            {onReview && (
+              <button type="button" onClick={onReview} className="text-[12.5px] font-bold text-blue">
+                전체보기
+              </button>
+            )}
+          </div>
           <ul className="flex flex-col gap-1.5">
             {review.map((r) => (
               <li key={r.lineId} className="script-text text-[13.5px] leading-relaxed flex gap-2">

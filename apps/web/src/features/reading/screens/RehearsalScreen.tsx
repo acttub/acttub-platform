@@ -6,6 +6,7 @@
  * 60초 무발화 안내(자동 넘김 없음), 나가기 확인, 목소리 준비 실패 → 글로 보기.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useLineRecorder } from "@/features/reading/hooks/useLineRecorder";
 import { useRehearsalRunner, type PartnerVoice } from "@/features/reading/hooks/useRehearsalRunner";
 import { useRevealed, useRunSession } from "@/features/reading/hooks/useRunSession";
 import { startAutoRecognition, sttAvailable, type AutoListening } from "@/lib/reading/audio/stt";
@@ -59,6 +60,8 @@ export function RehearsalScreen({
   const prog = progress(state);
   const [guide, dismissGuide] = useGuide();
   const [revealed, reveal] = useRevealed(state.index);
+  // record 켬 회차는 내 차례마다 한 줄을 녹음해 올린다. 상대 재생·일시정지 중에는 꺼진다.
+  const rec = useLineRecorder({ script, session, state, enabled: session.record });
 
   // 줄 전환·일시정지마다 서버에 저장한다.
   useEffect(() => {
@@ -88,8 +91,10 @@ export function RehearsalScreen({
           setSaid(t);
           // 대조는 원문과 말한 것 각각 1,000자까지만. 넘으면 대조하지 않고 기록도 남기지 않는다.
           if (!t.trim() || t.length > MATCH_MAX_CHARS || line.text.length > MATCH_MAX_CHARS) return;
-          if (compare(t, line.text).pass) run.sync.results.pass(lineId);
+          const passed = compare(t, line.text).pass;
+          if (passed) run.sync.results.pass(lineId);
           else run.sync.results.miss(lineId);
+          rec.noteTranscript(lineId, t, passed, "stt");
         },
         onError: () => {
           /* 인식 불가·무발화는 기록하지 않는다 */
@@ -120,6 +125,7 @@ export function RehearsalScreen({
   const leave = () => {
     runner.stop();
     recRef.current?.abort();
+    rec.finish();
     run.sync.clock.pause();
     run.sync.save(state);
     onExit();
@@ -150,9 +156,9 @@ export function RehearsalScreen({
                 <i className="bar" /><i className="bar" /><i className="bar" /><i className="bar" />
               </span>
             )}
-            {isMe && myTurn === "silence" && (
+            {isMe && (myTurn === "silence" || rec.recording) && (
               <span className="flex items-center gap-1.5 text-[12px] font-bold text-blue">
-                <span className="pulse-me w-2 h-2 rounded-full bg-blue" /> 듣고 있어요
+                <span className="pulse-me w-2 h-2 rounded-full bg-blue" /> {rec.recording ? "녹음 중" : "듣고 있어요"}
               </span>
             )}
           </div>
@@ -196,6 +202,7 @@ export function RehearsalScreen({
       {isAi && runner.voiceFailed && <VoiceFailedNote partnerVoice={voice.partnerVoice} />}
       {isMe && runner.noSpeech && <NoSpeechNote />}
       {micError && <p className="text-[12px] text-red text-center">{micError}</p>}
+      {rec.notice && <p className="text-[12px] text-warn text-center">{rec.notice}</p>}
       {idle ? (
         <Button size="lg" className="w-full md:w-[340px]" disabled={runner.preparing || !voice.ready} onClick={() => { run.sync.clock.start(); void runner.start(); }}>
           {runner.preparing || !voice.ready ? "상대 목소리 준비 중…" : run.from !== undefined && run.from > run.range.start ? "이어서 시작" : "시작"}
@@ -221,6 +228,7 @@ export function RehearsalScreen({
         right={progressLabel(state, run.sync.elapsedMs)}
         progressRatio={prog.total ? prog.done / prog.total : 0}
       >
+        {rec.pending > 0 && <span className="text-[11.5px] font-bold text-ink-4">녹음 저장 중 {rec.pending}</span>}
         <MaskToggle scriptId={script.id} mask={run.mask} onChange={run.setMask} />
       </RunHeader>
       <div className="flex-1 flex flex-col md:flex-row min-h-0">

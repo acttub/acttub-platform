@@ -31,6 +31,14 @@ export interface RunPrefs {
   partnerVoice: "supertonic" | "device" | "text";
 }
 
+/** 암기 화면(R04 대응)의 대상. 진입 경로가 정한다 — 대본에서 오면 고른 배역의 미암기 줄, 완료 화면에서 오면 다시 볼 줄. */
+export interface MemorizeEntry {
+  scriptId: string;
+  roles: string[];
+  /** 완료 화면의 다시 볼 대사에서 왔으면 그 줄 id 들. 대본에서 왔으면 null. */
+  lineIds: string[] | null;
+}
+
 /** 리딩 한 번의 결과. 완료 화면이 보여 준다 — 페이지가 나뉘어 있어 여기 저장해 넘긴다. */
 export interface RunStats {
   mode: ReadingMode;
@@ -49,6 +57,7 @@ const SCRIPT_KEY = "reading.script";
 const SESSION_KEY = "reading.session";
 const STATS_KEY = "reading.stats";
 const PREFS_KEY = "reading.run_prefs";
+const MEMORIZE_KEY = "reading.memorize";
 
 function read<T>(key: string): T | null {
   try {
@@ -81,4 +90,6 @@ export const storage = {
   saveStats: (s: RunStats | null) => write(STATS_KEY, s),
   loadRunPrefs: () => read<RunPrefs>(PREFS_KEY),
   saveRunPrefs: (p: RunPrefs | null) => write(PREFS_KEY, p),
+  loadMemorizeEntry: () => read<MemorizeEntry>(MEMORIZE_KEY),
+  saveMemorizeEntry: (e: MemorizeEntry | null) => write(MEMORIZE_KEY, e),
 };

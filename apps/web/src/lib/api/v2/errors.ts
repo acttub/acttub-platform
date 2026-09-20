@@ -95,7 +95,12 @@ export const READING_SCRIPT_MESSAGES: Record<string, string> = {
   // 회차(reading.session)
   empty_range: "고른 배역의 대사가 없어요. 다른 배역을 골라 주세요.",
   invalid_line: "이 회차의 구간에 없는 줄이에요. 대본을 다시 열어 주세요.",
+  // 녹음(reading.recording)
+  recording_too_long: "이 줄 녹음은 너무 길어 저장하지 않았어요.",
+  recording_quota: "녹음 저장 공간이 가득 찼어요. 지난 녹음을 지우면 다시 저장할 수 있어요.",
 };
+/** 변환(webm → m4a)이 실패했다. 행·객체는 없고 기기가 같은 요청 id 로 다시 시도한다. */
+const AUDIO_CONVERSION_MESSAGE = "녹음을 저장하는 중이에요. 잠시 뒤 다시 시도해요.";
 /** 닫힌 회차(completed·stopped)에 진행 저장을 보냈다. 새 회차를 시작해야 한다. */
 const SESSION_CLOSED_MESSAGE = "이미 끝난 회차예요. 상세에서 새로운 연습을 시작해 주세요.";
 
@@ -133,6 +138,7 @@ export function errorMessage(cause: unknown, fallback: string): string {
       return READING_SCRIPT_MESSAGES[cause.code];
     }
     if (cause.status === 409 && cause.code === "session_closed") return SESSION_CLOSED_MESSAGE;
+    if (cause.status === 503 && cause.code === "audio_conversion_failed") return AUDIO_CONVERSION_MESSAGE;
     if (cause.status === 429) {
       return cause.code === GUEST_DAILY_ANALYSIS_LIMIT
         ? "오늘은 세 번까지 분석할 수 있어요. 앱으로 옮기면 계속할 수 있어요."
