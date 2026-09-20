@@ -4,18 +4,31 @@ import { test } from "node:test";
 import "./ts-module-loader.mjs";
 
 const {
+  buildAdmissionsBreadcrumbJsonLd,
+  buildAdmissionsWebPageJsonLd,
+  buildBreadcrumbJsonLd,
+  buildFaqPageJsonLd,
+  buildGuideItemListJsonLd,
+  buildKeywordArticleJsonLd,
   buildMobileApplicationJsonLd,
   buildOrganizationJsonLd,
   buildSoftwareApplicationJsonLd,
   buildWebSiteJsonLd,
 } = await import("../src/lib/seo/json-ld.ts");
 
+const { AI_ACTING_COACHING } = await import(
+  "../src/features/keyword-pages/content/ai-acting-coaching.ts"
+);
+const { GUIDES } = await import(
+  "../src/features/keyword-pages/content/guide/index.ts"
+);
+
 const { APP_STORE_URL, GOOGLE_PLAY_URL } = await import(
   "../src/lib/app-download/store-links.ts"
 );
 
 const description =
-  "내 연기 영상을 올리면 장면 맥락에서 확인한 단서가 질문으로 돌아와요. 질문으로 연기 장면을 다시 생각하는 연습 도구예요.";
+  "AI 연기 코칭 앱 Acttub. 내 연기 영상을 올리면 장면 맥락에서 확인한 단서가 질문으로 돌아와요. 질문으로 연기 장면을 다시 생각하는 연기 연습 도구예요.";
 const siteUrl = "https://example.com";
 
 function containsUndefined(value) {
@@ -104,16 +117,151 @@ test("MobileApplication은 스토어별로 하나씩, 설치 주소를 달고 �
   assert.equal(android.downloadUrl, GOOGLE_PLAY_URL);
 });
 
+test("키워드 FAQ는 화면 본문과 같은 문답을 모두 담는다", () => {
+  const faq = buildFaqPageJsonLd(AI_ACTING_COACHING, siteUrl);
+
+  assert.equal(faq["@id"], `${siteUrl}${AI_ACTING_COACHING.path}#faq`);
+  assert.equal(faq.mainEntity.length, AI_ACTING_COACHING.faq.length);
+  assert.deepEqual(faq.mainEntity[0], {
+    "@type": "Question",
+    name: AI_ACTING_COACHING.faq[0].question,
+    acceptedAnswer: {
+      "@type": "Answer",
+      text: AI_ACTING_COACHING.faq[0].answer,
+    },
+  });
+});
+
+test("키워드 Article과 Breadcrumb는 페이지와 Organization을 잇는다", () => {
+  assert.deepEqual(buildKeywordArticleJsonLd(AI_ACTING_COACHING, siteUrl), {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "@id": `${siteUrl}${AI_ACTING_COACHING.path}#article`,
+    headline: AI_ACTING_COACHING.h1,
+    description: AI_ACTING_COACHING.description,
+    inLanguage: "ko",
+    dateModified: AI_ACTING_COACHING.updatedAt,
+    mainEntityOfPage: `${siteUrl}${AI_ACTING_COACHING.path}`,
+    author: { "@id": `${siteUrl}/#org` },
+    publisher: { "@id": `${siteUrl}/#org` },
+  });
+  assert.deepEqual(buildBreadcrumbJsonLd(AI_ACTING_COACHING, siteUrl), {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "@id": `${siteUrl}${AI_ACTING_COACHING.path}#breadcrumb`,
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "홈", item: `${siteUrl}/` },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: AI_ACTING_COACHING.eyebrow,
+        item: `${siteUrl}${AI_ACTING_COACHING.path}`,
+      },
+    ],
+  });
+});
+
+test("가이드 Breadcrumb는 목차를 거치는 세 단계다", () => {
+  const guide = GUIDES[0];
+  const breadcrumb = buildBreadcrumbJsonLd(guide, siteUrl, {
+    path: "/guide",
+    name: "연기 연습 가이드",
+  });
+
+  assert.deepEqual(breadcrumb.itemListElement, [
+    { "@type": "ListItem", position: 1, name: "홈", item: `${siteUrl}/` },
+    {
+      "@type": "ListItem",
+      position: 2,
+      name: "연기 연습 가이드",
+      item: `${siteUrl}/guide`,
+    },
+    {
+      "@type": "ListItem",
+      position: 3,
+      name: guide.eyebrow,
+      item: `${siteUrl}${guide.path}`,
+    },
+  ]);
+});
+
+test("가이드 목차 ItemList는 글 순서와 주소를 보존한다", () => {
+  const itemList = buildGuideItemListJsonLd(GUIDES, siteUrl);
+
+  assert.equal(itemList["@type"], "ItemList");
+  assert.equal(itemList["@id"], `${siteUrl}/guide#list`);
+  assert.deepEqual(itemList.itemListElement[0], {
+    "@type": "ListItem",
+    position: 1,
+    url: `${siteUrl}${GUIDES[0].path}`,
+    name: GUIDES[0].h1,
+  });
+  assert.equal(itemList.itemListElement.length, GUIDES.length);
+});
+
 test("JSON-LD 결과는 undefined 없이 직렬화된다", () => {
   const values = [
     buildOrganizationJsonLd(siteUrl),
     buildWebSiteJsonLd(siteUrl),
     buildSoftwareApplicationJsonLd(siteUrl),
     ...buildMobileApplicationJsonLd(siteUrl),
+    buildFaqPageJsonLd(AI_ACTING_COACHING, siteUrl),
+    buildKeywordArticleJsonLd(AI_ACTING_COACHING, siteUrl),
+    buildBreadcrumbJsonLd(AI_ACTING_COACHING, siteUrl),
   ];
 
   for (const value of values) {
     assert.equal(containsUndefined(value), false);
     assert.doesNotThrow(() => JSON.stringify(value));
   }
+});
+
+test("입시 breadcrumb는 목록과 대학 상세 경로를 잇는다", () => {
+  assert.deepEqual(
+    buildAdmissionsBreadcrumbJsonLd(
+      { id: "cau", name: "중앙대학교" },
+      siteUrl,
+    ).itemListElement,
+    [
+      { "@type": "ListItem", position: 1, name: "홈", item: `${siteUrl}/` },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "입시 정보",
+        item: `${siteUrl}/admissions`,
+      },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: "중앙대학교",
+        item: `${siteUrl}/admissions/cau`,
+      },
+    ],
+  );
+});
+
+test("입시 상세 WebPage는 수정일과 WebSite 식별자를 담는다", () => {
+  assert.deepEqual(
+    buildAdmissionsWebPageJsonLd(
+      {
+        id: "cau",
+        name: "중앙대학교 연기 입시 정보",
+        description: "중앙대학교 입시 정보예요.",
+        updatedAt: "2026-08-07",
+      },
+      siteUrl,
+    ),
+    {
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      "@id": `${siteUrl}/admissions/cau#webpage`,
+      name: "중앙대학교 연기 입시 정보",
+      description: "중앙대학교 입시 정보예요.",
+      inLanguage: "ko",
+      dateModified: "2026-08-07",
+      url: `${siteUrl}/admissions/cau`,
+      isPartOf: { "@id": `${siteUrl}/#website` },
+      publisher: { "@id": `${siteUrl}/#org` },
+    },
+  );
 });

@@ -15,6 +15,7 @@ import { palette } from '@/constants/palette';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { api } from '@/lib/api';
 import { logEvent } from '@/lib/analytics';
+import { logMetaEvent } from '@/lib/meta-events';
 import { useAuth } from '@/lib/auth';
 import { getUserName, saveUserName, takeProviderNameHint } from '@/lib/profile';
 import { translate as t, translateList } from '@/lib/i18n';
@@ -101,6 +102,7 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
         career: career !== null ? String(career) : 'none',
         goal: goal !== null ? String(goal) : 'none',
       });
+      if (!isEdit) logMetaEvent('fb_mobile_complete_registration');
       if (isEdit) {
         await saveUserName(name.trim());
         router.back();

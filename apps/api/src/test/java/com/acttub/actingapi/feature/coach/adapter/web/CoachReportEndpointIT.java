@@ -175,6 +175,11 @@ class CoachReportEndpointIT {
                 .put("action", "respond").put("base_state_revision", revision).put("message", text)
                 .putNull("context_update").putNull("style_update").put("flow", flow);
         var link = response.putObject("reply_link").put("move", actorId == null ? "open" : "close");
+        var selection = link.putObject("selection").put("need", "장면 이해").put("blocker", "none");
+        selection.putArray("known_refs");
+        if (text.contains("?")) selection.putObject("question").put("missing_information", "이유")
+                .put("help_if_answered", "장면 설명");
+        else selection.putNull("question");
         if (actorId == null) {
             link.putNull("user_message_id").putNull("actor_quote");
             var context = response.putObject("context_update").putNull("direction").putNull("reading");

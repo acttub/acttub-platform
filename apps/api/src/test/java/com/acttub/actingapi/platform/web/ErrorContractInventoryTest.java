@@ -74,6 +74,8 @@ class ErrorContractInventoryTest {
      * 이관 중에 500 이던 자리가 404 로 바뀐 사고가 둘 있었고, 그때 응답 diff 는 0 이었다.
      */
     private static final Map<String, Coverage> EXPECTED = Map.ofEntries(
+            covered("feature.coach.app.CoachService|502|coach_response_unavailable", 2,
+                    "feature.coach.app.CoachServiceTest"),
             covered("feature.coach.app.CoachService|409|client_contract_required", 1,
                     "feature.coach.adapter.web.CoachReportEndpointIT"),
             covered("feature.coach.app.CoachService|409|practice_note_does_not_require_confirmation", 1,

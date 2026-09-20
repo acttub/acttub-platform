@@ -100,6 +100,32 @@ class CoachServiceTest {
     }
 
     @Test
+    void unavailableOpeningDoesNotSaveAnErrorAsTheFirstQuestion() {
+        stubStartContext();
+        when(coach.start(any(), any())).thenThrow(new CoachReplyUnavailable());
+        assertThatThrownBy(() -> service.start(USER_ID, new CoachStart(PRACTICE_ID, false), null))
+                .isInstanceOfSatisfying(ApiException.class, error -> {
+                    assertThat(error.status()).isEqualTo(502);
+                    assertThat(error.getMessage()).isEqualTo("coach_response_unavailable");
+                });
+        org.mockito.Mockito.verifyNoInteractions(ledger);
+    }
+
+    @Test
+    void unavailableReplyFailsTheOperationWithoutSavingAFakeTurn() {
+        var snapshot = snapshot("open", List.of(new CoachTurnSnapshot("ai", "기존 질문")));
+        when(sessions.getOwnedCoachSession(USER_ID, SESSION_ID))
+                .thenReturn(new OwnedCoachSessionContext(PRACTICE_ID, snapshot));
+        when(coach.reply(any(), anyString(), any())).thenThrow(new CoachReplyUnavailable());
+        assertThatThrownBy(() -> service.reply(USER_ID, new ActorMessage(SESSION_ID, "상대가 나가려고 해서"), null))
+                .isInstanceOfSatisfying(ApiException.class, error -> {
+                    assertThat(error.status()).isEqualTo(502);
+                    assertThat(error.getMessage()).isEqualTo("coach_response_unavailable");
+                });
+        org.mockito.Mockito.verifyNoInteractions(ledger);
+    }
+
+    @Test
     void failedAnalysisCannotStartOrResumeCoaching() {
         when(sessions.getPracticeSessionStatus(USER_ID, PRACTICE_ID)).thenReturn("failed");
         assertThatThrownBy(() -> service.start(USER_ID, new CoachStart(PRACTICE_ID, false), null))

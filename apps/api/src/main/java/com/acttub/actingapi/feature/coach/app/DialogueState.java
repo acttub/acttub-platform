@@ -68,16 +68,17 @@ final class DialogueState {
             require(Set.of("open", "close").contains(link.path("move").asText()), "opening move required");
         } else {
             String quote = link.path("actor_quote").asText();
-            require(link.path("user_message_id").equals(userMessage.path("id")), "reply must address latest actor message");
+            require(link.path("user_message_id").equals(userMessage.path("id")), "reply must address latest actor message: copy response_constraints.user_message_id exactly");
             require(!quote.isBlank() && userMessage.path("text").asText().contains(quote), "reply quote must come from latest answer");
             require(!"open".equals(link.path("move").asText()), "cannot restart dialogue after an answer");
         }
         for (JsonNode id : link.path("evidence_refs")) {
             JsonNode source = catalog.get(id.asText());
             require(source != null && Set.of("video_observation", "video_utterance", "record_limitation")
-                    .contains(source.path("kind").asText()), "reply evidence must be delivered video material");
+                    .contains(source.path("kind").asText()), "reply evidence must be delivered video material: use only IDs in response_constraints.allowed_video_refs; request_id and session_id are not evidence");
         }
         String message = response.path("message").asText().strip();
+        ResponseSelection.validate(response, catalog, finishRequired);
         require(!presentsExperienceAsObservation(message),
                 "배우가 말한 편안함·감각을 영상에서 보인 사실로 단정하지 않는다. 경험은 배우가 느낀 것으로 받아주고, "
                 + "영상의 말소리·움직임은 별도 문장으로 설명한다. 둘의 관계를 만들어내지 않는다.");
@@ -106,7 +107,7 @@ final class DialogueState {
             }
         }
         require(!message.equals(previousMessage), "do not repeat the previous coach response");
-        require(!message.matches("(?s).*(?:해\\s*보(?:세요|고)|해본\\s*뒤|말해\\s*보|찍어\\s*보|촬영해\\s*보|연습해\\s*보|바꿔\\s*보|유지해\\s*보).*"),
+        require(!message.matches("(?s).*(?:찍어\\s*보|촬영해\\s*보|해본\\s*뒤|해\\s*보고.{0,15}(?:알려|보고)|비교.{0,10}실험).*"),
                 "practice assignments belong in the final note");
         require(!message.matches("(?s).*(?:^|\\n)\\s*(?:#{1,6} |[-*] |[0-9]+\\. ).*")
                 && !message.contains("**"), "use plain conversational sentences");
@@ -177,6 +178,6 @@ final class DialogueState {
                     "uncertainty or acknowledgment is not an actor direction");
             quoted |= source.path("text").asText().contains(value.path("text").asText());
         }
-        require(quoted, "keep the actor's own words in context");
+        require(quoted, "keep the actor's own words in context: scene_context와 direction의 text는 배우 원문에서 그대로 복사한다. 문장 끝이나 조사를 바꾸지 않는다. 요약은 message에만 쓴다.");
     }
 }

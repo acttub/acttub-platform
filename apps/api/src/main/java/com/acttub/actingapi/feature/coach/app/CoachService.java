@@ -172,6 +172,10 @@ public class CoachService {
             } catch (LeaseOwnershipException exception) {
                 operations.fail(claim, "lease_ownership_lost", ExternalOperationFailureClassification.EXPECTED);
                 throw new ApiException(409, "request is still processing", exception);
+            } catch (CoachReplyUnavailable exception) {
+                var unavailable = ApiException.external(502, "coach_response_unavailable", exception);
+                operations.fail(claim, "coach_response_unavailable", ExternalOperationFailureClassification.from(unavailable));
+                throw unavailable;
             } catch (ReportParseError exception) {
                 operations.fail(claim, "report_parse_error", ExternalOperationFailureClassification.from(exception));
                 throw ApiException.external(502, exception.getMessage(), exception);
@@ -252,6 +256,10 @@ public class CoachService {
             } catch (LeaseOwnershipException exception) {
                 operations.fail(claim, "lease_ownership_lost", ExternalOperationFailureClassification.EXPECTED);
                 throw new ApiException(409, "request is still processing", exception);
+            } catch (CoachReplyUnavailable exception) {
+                var unavailable = ApiException.external(502, "coach_response_unavailable", exception);
+                operations.fail(claim, "coach_response_unavailable", ExternalOperationFailureClassification.from(unavailable));
+                throw unavailable;
             } catch (ReportParseError exception) {
                 operations.fail(claim, "report_parse_error", ExternalOperationFailureClassification.from(exception));
                 throw ApiException.external(502, exception.getMessage(), exception);

@@ -60,11 +60,14 @@ final class CoachingStateReducer {
             JsonNode focus = context.path("focus");
             if (!focus.isNull()) {
                 require(!focus.path("evidence_refs").isEmpty(), "focus needs evidence");
+                boolean observedMaterial = false;
                 for (JsonNode ref : focus.path("evidence_refs")) {
                     String kind = catalog.get(ref.asText()).path("kind").asText();
-                    require(kind.equals("video_observation") || kind.equals("video_utterance"),
+                    observedMaterial |= kind.equals("video_observation") || kind.equals("video_utterance");
+                    require(kind.equals("video_observation") || kind.equals("video_utterance") || kind.equals("record_limitation"),
                             "focus must refer to observed material");
                 }
+                require(observedMaterial, "a limitation alone cannot establish a focus; retain or clear focus");
                 if (!focus.path("utterance_ref").isNull()) {
                     require("video_utterance".equals(catalog.get(focus.path("utterance_ref").asText())
                             .path("kind").asText()), "focus utterance must be a transcript");

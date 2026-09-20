@@ -30,6 +30,32 @@ function readSource(absolutePath) {
 const INDEXABLE_PAGES = [
   { page: "page.tsx", builder: "buildLandingMetadata" },
   { page: path.join("app", "page.tsx"), builder: "buildAppDownloadMetadata" },
+  {
+    page: path.join("ai-acting-coaching", "page.tsx"),
+    builder: "buildKeywordPageMetadata",
+  },
+  {
+    page: path.join("acting-coaching", "page.tsx"),
+    builder: "buildKeywordPageMetadata",
+  },
+  {
+    page: path.join("admissions", "page.tsx"),
+    builder: "buildAdmissionsIndexMetadata",
+  },
+  {
+    page: path.join("admissions", "[id]", "page.tsx"),
+    builder: "buildUniversityAdmissionsMetadata",
+    dynamic: true,
+  },
+  {
+    page: path.join("guide", "page.tsx"),
+    builder: "buildGuideIndexMetadata",
+  },
+  {
+    page: path.join("guide", "[slug]", "page.tsx"),
+    builder: "buildKeywordPageMetadata",
+    dynamic: true,
+  },
 ];
 
 const indexablePagePaths = new Set(
@@ -56,15 +82,14 @@ test("색인 허용 목록에 없는 모든 page는 자신 또는 같은 segment
 });
 
 test("색인 허용 페이지는 noindex 없이 자기 metadata builder를 export한다", () => {
-  for (const { page, builder } of INDEXABLE_PAGES) {
+  for (const { page, builder, dynamic } of INDEXABLE_PAGES) {
     const source = readSource(path.join(sourceAppRoot, page));
 
     assert.doesNotMatch(source, /buildNoindexMetadata/, page);
-    assert.match(
-      source,
-      new RegExp(`\\bexport\\s+const\\s+metadata\\s*=\\s*${builder}\\s*\\(`),
-      page,
-    );
+    const pattern = dynamic
+      ? new RegExp(`\\bexport\\s+async\\s+function\\s+generateMetadata[\\s\\S]*?${builder}\\s*\\(`)
+      : new RegExp(`\\bexport\\s+const\\s+metadata\\s*=\\s*${builder}\\s*\\(`);
+    assert.match(source, pattern, page);
   }
 });
 

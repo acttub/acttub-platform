@@ -95,6 +95,62 @@ class DialogueStateTest {
         assertThat(result.reply().message()).isEqualTo("어떤 문장을 말한 건가요?");
     }
 
+    @Test void exhaustedGenerationDoesNotCreateAnErrorTurnOrConsumeTheDialogueBudget() {
+        AtomicInteger calls = new AtomicInteger();
+        var engine = new CoachEngine((system, text) -> {
+            calls.incrementAndGet();
+            throw new IllegalStateException("synthetic provider failure");
+        }, new RecordingFailureReporter(), new RecordingLlmTelemetry());
+        var before = session();
+        var turns = List.copyOf(before.turns());
+        assertThatThrownBy(() -> engine.reply(before, "상대가 나가려고 해서", UUID.randomUUID()))
+                .isInstanceOf(CoachReplyUnavailable.class);
+        assertThat(calls).hasValue(4);
+        assertThat(before.turns()).isEqualTo(turns);
+        assertThat(before.stateRevision()).isZero();
+        assertThat(before.status()).isEqualTo("open");
+    }
+
+    @Test void retriesKeepEveryPriorConstraintInsteadOfOscillatingBetweenErrors() {
+        AtomicInteger calls = new AtomicInteger();
+        var engine = new CoachEngine((system, text) -> {
+            var input = StructuredJson.parse(text);
+            int call = calls.getAndIncrement();
+            if (call == 0) throw new IllegalArgumentException("first synthetic constraint");
+            assertThat(input.path("validation_errors").toString()).contains("first synthetic constraint");
+            if (call == 1) throw new IllegalArgumentException("second synthetic constraint");
+            assertThat(input.path("validation_errors").toString()).contains("second synthetic constraint");
+            return StructuredCoachEngineTest.generated(StructuredCoachEngineTest.respond(input, "상대가 나가려는 상황을 알려주셨군요.", "continue"));
+        }, new RecordingFailureReporter(), new RecordingLlmTelemetry());
+        assertThat(engine.reply(session(), "상대가 나가려고 해서", UUID.randomUUID()).session().status()).isEqualTo("open");
+        assertThat(calls).hasValue(3);
+    }
+
+    @Test void knownMissingHandEvidenceIsExplainedWithoutAskingTheModelToInferOtherBodyParts() {
+        var engine = new CoachEngine((system, text) -> { throw new AssertionError("No model call is needed for a known observation limit"); },
+                new RecordingFailureReporter(), new RecordingLlmTelemetry());
+        var result = engine.reply(session(), "내 손으로 붙잡는 연기는 영상에서 잘 전달됐어?", UUID.randomUUID());
+        assertThat(result.reply().message()).contains("손", "확인할 수 없어").doesNotContain("눈썹", "목소리", "몸통");
+        assertThat(result.session().coachingState().path("last_reply").path("move").asText()).isEqualTo("explain");
+        assertThat(result.session().status()).isEqualTo("open");
+    }
+    @Test void aShortAcknowledgementCanPrecedeTwoUsefulFollowupSentences() {
+        var engine = new CoachEngine((system, text) -> StructuredCoachEngineTest.generated(StructuredCoachEngineTest.respond(
+                StructuredJson.parse(text), "알겠습니다. 지갑을 돌려받으려는 말이군요. 그 요구를 상대에게 분명히 건네세요.", "continue")),
+                new RecordingFailureReporter(), new RecordingLlmTelemetry());
+        assertThat(engine.reply(session(), "지갑을 돌려받으려는 거예요", UUID.randomUUID()).reply().message()).startsWith("알겠습니다.");
+    }
+
+    @Test void aBareCorrectionAfterACoachInterpretationClarifiesTheTargetBeforeChangingContext() {
+        var engine = new CoachEngine((system, text) -> { throw new AssertionError("Do not guess the target of a bare correction"); },
+                new RecordingFailureReporter(), new RecordingLlmTelemetry());
+        var before = session().withTurns(List.of(new CoachTurnSnapshot("ai", "상대를 붙잡으려는 말일 수 있어요.")));
+        var result = engine.reply(before, "내가 실수로 말했어", UUID.randomUUID());
+        assertThat(result.reply().message()).contains("저에게 한 답", "영상 속 대사");
+        assertThat(result.session().coachingState().path("last_reply").path("move").asText()).isEqualTo("clarify");
+        assertThat(result.session().coachingState().path("context").path("scene_context").path("situation").isNull()).isTrue();
+    }
+
     private CoachSessionSnapshot session() {
         return new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 StructuredJson.resource("/coaching/record.json"), "", "", "", 8000, "그 외", "그 외", null,
@@ -121,14 +177,13 @@ class DialogueStateTest {
     }
 
     @Test void assignmentsAndVagueInterpretationsAreRejectedBeforeTheyReachTheActor() {
-        for (String invalid : List.of("이 망설임을 남기고 싶었나요?", "시선을 유지해 보세요.",
+        for (String invalid : List.of("이 망설임을 남기고 싶었나요?", "시선을 유지해 보고 알려주세요.",
                 "한 번 찍어보고 알려주세요.", "**시선**을 바꿔보세요.", "그 편안함이 영상에서 보여요.")) {
-            CoachResult result = new CoachEngine((system, input) -> StructuredCoachEngineTest.generated(
+            assertThatThrownBy(() -> new CoachEngine((system, input) -> StructuredCoachEngineTest.generated(
                     StructuredCoachEngineTest.respond(StructuredJson.parse(input), invalid, "continue")),
                     new RecordingFailureReporter(), new RecordingLlmTelemetry())
-                    .reply(session(), "모르겠어", UUID.randomUUID());
-            assertThat(result.reply().message()).doesNotContain(invalid);
-            assertThat(result.session().coachingState().path("proposals")).isEmpty();
+                    .reply(session(), "모르겠어", UUID.randomUUID()))
+                    .isInstanceOf(CoachReplyUnavailable.class);
         }
     }
 

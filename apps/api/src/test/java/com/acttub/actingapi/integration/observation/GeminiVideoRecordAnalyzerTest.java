@@ -9,6 +9,7 @@ import com.acttub.actingapi.integration.media.VideoRecordChunks;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import com.acttub.actingapi.support.RecordingLlmTelemetry;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.google.genai.types.Content;
 import com.google.genai.types.GenerateContentConfig;
 import com.google.genai.types.GenerateContentResponse;
@@ -49,6 +50,10 @@ class GeminiVideoRecordAnalyzerTest {
                         .build();
             }
             public String generate(String model, Content content, GenerateContentConfig config) {
+                JsonNode input = StructuredJson.parse(content.parts().orElseThrow().get(1).text().orElseThrow());
+                assertThat(input.path("source_duration_ms").asLong()).isEqualTo(8000);
+                assertThat(input.path("chunk_start_ms").asLong()).isZero();
+                assertThat(input.path("chunk_end_ms").asLong()).isEqualTo(8000);
                 assertThat(content.parts().orElseThrow().getFirst().videoMetadata().orElseThrow().fps()).contains(6.0);
                 assertThat(config.thinkingConfig().orElseThrow().toJson()).contains("LOW");
                 var timingSchemas = StructuredJson.parse(config.responseSchema().orElseThrow().toJson())
