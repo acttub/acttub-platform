@@ -62,7 +62,7 @@ export default function ReadingList() {
             style={styles.searchInput}
             value={q}
             onChangeText={setQ}
-            placeholder="작품명 또는 배역 검색"
+            placeholder={t('reading.searchPlaceholder')}
             placeholderTextColor={palette.textFaint}
           />
         </View>
