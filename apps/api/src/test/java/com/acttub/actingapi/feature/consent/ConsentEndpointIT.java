@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -12,6 +13,7 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.support.AccountFixtures;
+import com.acttub.actingapi.support.MutableClock;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -22,6 +24,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -37,6 +40,7 @@ import org.springframework.test.web.servlet.MockMvc;
  */
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
+@Import(MutableClock.Fixture.class)
 class ConsentEndpointIT {
     private static final UUID USER_ID = id(101);
     private static final UUID OLD_TERMS = id(201);
@@ -70,8 +74,12 @@ class ConsentEndpointIT {
     @Autowired
     ObjectMapper mapper;
 
+    @Autowired
+    MutableClock clock;
+
     @BeforeEach
     void setUp() {
+        clock.set(Instant.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS));
         jdbc.execute("TRUNCATE TABLE users,consent_documents RESTART IDENTITY CASCADE");
         jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", USER_ID);
         AccountFixtures.completeProfile(jdbc, USER_ID);
@@ -300,6 +308,10 @@ class ConsentEndpointIT {
 
     @Test
     void accountConsent_resendingTheSameDecisionAddsNoRow() throws Exception {
+        // 운영 시계는 나노초까지 준다. Postgres 는 마이크로초까지만 저장하므로, 첫 응답이 시계 값을 그대로
+        // 돌려주면 두 번째(저장된 값을 다시 읽은 것)와 1µs 가 갈릴 수 있다 — CI 가 그렇게 실패했다.
+        // 나노초 부분이 반올림되는 값을 심어 그 어긋남을 반드시 드러낸다.
+        clock.set(clock.instant().plusNanos(999_999_999));
         var first = decide(TERMS, "granted");
         var second = decide(TERMS, "granted");
 

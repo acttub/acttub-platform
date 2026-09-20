@@ -3,6 +3,7 @@ package com.acttub.actingapi.feature.consent.adapter.db;
 import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -100,16 +101,23 @@ class PostgresConsentRepository implements ConsentRepository {
                 .toList();
     }
 
+    /**
+     * 돌려주는 값은 <b>저장된 값</b>이다. {@code timestamptz} 는 마이크로초까지만 담으므로 시계가 준
+     * 나노초를 그대로 돌려주면, 같은 결정을 다시 보낸 응답(저장된 행을 읽은 것)과 1µs 가 갈릴 수 있다 —
+     * 응답을 6자리로 자를 때 첫 값은 반올림되고 저장된 값은 내림되기 때문이다. 저장 전에 같은
+     * 정밀도로 잘라 둘을 같게 한다.
+     */
     @Override
     public ConsentEvent record(UUID userId, UUID documentId, String action, Instant occurredAt) {
         UUID id = UUID.randomUUID();
+        Instant stored = occurredAt.truncatedTo(ChronoUnit.MICROS);
         consents.save(new UserConsentEntity(
                 id,
                 userId,
                 documentId,
                 ConsentAction.valueOf(action.toUpperCase(Locale.ROOT)),
-                occurredAt));
-        return new ConsentEvent(id, userId, documentId, action, occurredAt);
+                stored));
+        return new ConsentEvent(id, userId, documentId, action, stored);
     }
 
     /**
