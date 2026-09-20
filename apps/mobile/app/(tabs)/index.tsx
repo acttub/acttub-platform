@@ -1,16 +1,19 @@
 import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
 import { api, type ReportRecord } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import { buildWeekActivity } from '@/lib/practice-activity';
 import { rememberPracticeDays } from '@/lib/practice-days';
 import { dismissFeedbackNudge, feedbackNudgeVisible, maybeRequestStoreReview } from '@/lib/feedback-prompts';
 import { useFeedbackSheet } from '@/hooks/use-feedback-sheet';
+import { useRequireLogin } from '@/hooks/use-require-login';
+import { hasSeenGuide } from '@/lib/guide-state';
 import { sortReportsNewestFirst } from '@/lib/report-order';
 import {
   localDate,
@@ -47,12 +50,23 @@ export default function HomeScreen() {
   // 연습 3회 뒤 한 번 뜨는 의견 넛지 / 5회 뒤 한 번 스토어 평점(feedback-prompts).
   const [nudge, setNudge] = useState(false);
   const feedback = useFeedbackSheet('home');
+  const { requireLogin, element: loginGuard } = useRequireLogin();
+  const { status } = useAuth();
+  const isGuest = status === 'guest';
+  // 첫 진입 한 번만 가이드(4장). 설정에서 다시 볼 수 있다.
+  const guideCheckedRef = useRef(false);
 
   useFocusEffect(
     useCallback(() => {
+      if (!guideCheckedRef.current) {
+        guideCheckedRef.current = true;
+        void hasSeenGuide().then((seen) => {
+          if (!seen) router.push('/guide');
+        });
+      }
       let cancelled = false;
-      api
-        .reportHistory()
+      // 게스트는 계정이 없다 — 보호 API를 부르면 토큰 정리 이벤트로 튕기니 아예 부르지 않는다.
+      (isGuest ? Promise.resolve({ reports: [] as ReportRecord[] }) : api.reportHistory())
         .then((r) => {
           if (cancelled) return;
           setRecords(sortReportsNewestFirst(r.reports));
@@ -69,7 +83,7 @@ export default function HomeScreen() {
       return () => {
         cancelled = true;
       };
-    }, []),
+    }, [router, isGuest]),
   );
 
   useEffect(() => {
@@ -135,7 +149,7 @@ export default function HomeScreen() {
           style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
           accessibilityRole="button"
           accessibilityLabel={t('home.startA11y')}
-          onPress={() => router.push('/upload')}>
+          onPress={() => requireLogin(() => router.push('/upload'))}>
           <View style={styles.ctaPlay}>
             <Feather name="play" size={18} color={palette.blue} />
           </View>
@@ -276,6 +290,7 @@ export default function HomeScreen() {
         )}
       </ScrollView>
       {feedback.element}
+      {loginGuard}
     </SafeAreaView>
   );
 }

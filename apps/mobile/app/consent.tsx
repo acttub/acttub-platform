@@ -21,7 +21,7 @@ import {
   submitConsentDecisions,
   type ConsentChoice,
 } from '@/lib/consent-entry-submission';
-import { setConsentPref } from '@/lib/consent-prefs';
+import { MARKETING_ID, setConsentPref } from '@/lib/consent-prefs';
 import { translate as t } from '@/lib/i18n';
 
 function errorMessage(error: unknown, fallback: string): string {
@@ -49,9 +49,20 @@ export default function ConsentScreen() {
     () => (entry ? documentsForConsentEntry(entry) : []),
     [entry],
   );
-  // 필수를 먼저, 선택을 뒤에 — 한 목록으로 보여준다.
-  const ordered = useMemo(
-    () => [...documents.filter((d) => d.required), ...documents.filter((d) => !d.required)],
+  // 필수를 먼저, 선택을 뒤에 — 한 목록으로 보여준다. 마케팅 수신은 서버 문서가 아직 없어
+  // 기기에만 저장하는 선택 항목(MARKETING_ID)으로 맨 뒤에 붙인다. 설문·이벤트 안내용.
+  const ordered = useMemo<ConsentEntryDocument[]>(
+    () => [
+      ...documents.filter((d) => d.required),
+      ...documents.filter((d) => !d.required),
+      {
+        id: MARKETING_ID,
+        title: t('consent.marketingTitle'),
+        body: t('consent.marketingBody'),
+        required: false,
+        current_decision: null,
+      } as ConsentEntryDocument,
+    ],
     [documents],
   );
   const choiceMap = useMemo(
@@ -60,7 +71,9 @@ export default function ConsentScreen() {
   );
   const canProceed = canSubmitConsentDecisions(documents, choiceMap);
   const allGranted =
-    documents.length > 0 && documents.every((d) => choices[d.id] === 'granted');
+    documents.length > 0 &&
+    documents.every((d) => choices[d.id] === 'granted') &&
+    choices[MARKETING_ID] === 'granted';
 
   useEffect(() => {
     setChoices({});
@@ -95,6 +108,8 @@ export default function ConsentScreen() {
         if (allGranted) delete next[d.id];
         else next[d.id] = 'granted';
       }
+      if (allGranted) delete next[MARKETING_ID];
+      else next[MARKETING_ID] = 'granted';
       return next;
     });
   };
@@ -127,6 +142,7 @@ export default function ConsentScreen() {
     setBusy(true);
     setError(null);
     const previousCompletedIds = completedDocumentIds;
+    await setConsentPref(MARKETING_ID, choices[MARKETING_ID] === 'granted').catch(() => undefined);
     const result = await submitConsentDecisions({
       documents,
       choices: choiceMap,

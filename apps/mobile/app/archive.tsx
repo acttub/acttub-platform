@@ -1,47 +1,100 @@
 import Feather from '@expo/vector-icons/Feather';
-import { Stack, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { Stack, useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { formatClipDuration, relativeDayLabel } from '@/lib/archive-format';
-import { ARCHIVE_VIDEOS, PERF_IMAGES, type MockArchiveVideo } from '@/lib/challenge-mock';
+import { listArchive, setArchiveFavorite, type ArchiveRecording } from '@/lib/archive-store';
+import { ARCHIVE_VIDEOS, PERF_IMAGES } from '@/lib/challenge-mock';
 import { translate as t } from '@/lib/i18n';
 
 type Filter = 'all' | 'week' | 'fav';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/** 실제 촬영본과 예시를 한 모양으로 편다. real=false 면 포스터(예시). */
+type Cell = {
+  id: string;
+  real: boolean;
+  img: number | null;
+  duration: number | null;
+  createdAt: string;
+  favorite: boolean;
+};
+
 /**
- * A2.2 보관함 — 촬영으로 기기에 남은 영상 그리드(전체/이번 주/즐겨찾기, 선택 모드).
- * 프로필 "보관한 영상 확인"과 촬영 완료 화면의 "보관함 보기"가 온다.
- * 지금은 예시 데이터 — 실제 촬영 결과를 여기 쌓는 건 로컬 저장이 붙을 때.
+ * A2.2 보관함 — "기본 촬영"으로 찍은 영상(기기 저장) 그리드. 전체/이번 주/즐겨찾기, 선택 모드.
+ * 프로필 "보관한 영상 확인"이 온다. 촬영본이 하나도 없으면 예시 6개를 대신 보여준다.
  */
 export default function ArchiveScreen() {
   const router = useRouter();
   const [filter, setFilter] = useState<Filter>('all');
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
-  const [favs, setFavs] = useState<Record<string, boolean>>(() =>
+  const [real, setReal] = useState<ArchiveRecording[]>([]);
+  const [mockFavs, setMockFavs] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(ARCHIVE_VIDEOS.map((v) => [v.id, v.favorite])),
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      void listArchive().then((list) => alive && setReal(list));
+      return () => {
+        alive = false;
+      };
+    }, []),
+  );
+
+  const showingSamples = real.length === 0;
+  const cells = useMemo<Cell[]>(
+    () =>
+      showingSamples
+        ? ARCHIVE_VIDEOS.map((v) => ({
+            id: v.id,
+            real: false,
+            img: v.img,
+            duration: v.duration,
+            createdAt: v.createdAt,
+            favorite: !!mockFavs[v.id],
+          }))
+        : real.map((r) => ({
+            id: r.id,
+            real: true,
+            img: null,
+            duration: r.durationSec,
+            createdAt: r.createdAt,
+            favorite: r.favorite,
+          })),
+    [showingSamples, real, mockFavs],
   );
 
   const items = useMemo(() => {
     const since = Date.now() - 7 * DAY_MS;
-    return ARCHIVE_VIDEOS.filter((v) =>
-      filter === 'fav' ? favs[v.id] : filter === 'week' ? Date.parse(v.createdAt) >= since : true,
+    return cells.filter((v) =>
+      filter === 'fav' ? v.favorite : filter === 'week' ? Date.parse(v.createdAt) >= since : true,
     );
-  }, [filter, favs]);
+  }, [cells, filter]);
 
-  const open = (v: MockArchiveVideo) => {
+  const toggleFav = (cell: Cell) => {
+    if (cell.real) {
+      setReal((list) => list.map((r) => (r.id === cell.id ? { ...r, favorite: !cell.favorite } : r)));
+      void setArchiveFavorite(cell.id, !cell.favorite);
+    } else {
+      setMockFavs((f) => ({ ...f, [cell.id]: !f[cell.id] }));
+    }
+  };
+
+  const open = (cell: Cell) => {
     if (selecting) {
-      setSelected((s) => ({ ...s, [v.id]: !s[v.id] }));
+      setSelected((s) => ({ ...s, [cell.id]: !s[cell.id] }));
       return;
     }
-    logEvent('archive_open', { id: v.id });
-    router.push({ pathname: '/archive-detail', params: { id: v.id } });
+    logEvent('archive_open', { id: cell.id, real: cell.real });
+    router.push({ pathname: '/archive-detail', params: { id: cell.id } });
   };
 
   return (
@@ -53,7 +106,9 @@ export default function ArchiveScreen() {
         </Pressable>
         <View style={styles.flex}>
           <Text style={styles.title}>{t('archive.title')}</Text>
-          <Text style={styles.subtitle}>{t('archive.subtitle', { count: ARCHIVE_VIDEOS.length })}</Text>
+          <Text style={styles.subtitle}>
+            {showingSamples ? t('archive.sampleNote') : t('archive.subtitle', { count: real.length })}
+          </Text>
         </View>
         <Pressable
           onPress={() => {
@@ -93,17 +148,17 @@ export default function ArchiveScreen() {
             {items.map((v) => (
               <Pressable key={v.id} style={styles.cell} onPress={() => open(v)} accessibilityRole="button">
                 <View style={[styles.thumb, selecting && selected[v.id] && styles.thumbSelected]}>
-                  <Image source={PERF_IMAGES[v.img]} style={[StyleSheet.absoluteFill, styles.thumbImg]} resizeMode="cover" />
-                  <Pressable
-                    style={styles.star}
-                    hitSlop={6}
-                    onPress={() => setFavs((f) => ({ ...f, [v.id]: !f[v.id] }))}
-                    accessibilityRole="button">
-                    <Feather name="star" size={16} color={favs[v.id] ? '#F5B324' : 'rgba(255,255,255,0.7)'} />
+                  {v.img !== null && (
+                    <Image source={PERF_IMAGES[v.img]} style={[StyleSheet.absoluteFill, styles.thumbImg]} resizeMode="cover" />
+                  )}
+                  <Pressable style={styles.star} hitSlop={6} onPress={() => toggleFav(v)} accessibilityRole="button">
+                    <Feather name="star" size={16} color={v.favorite ? '#F5B324' : 'rgba(255,255,255,0.7)'} />
                   </Pressable>
-                  <View style={styles.durationChip}>
-                    <Text style={styles.durationText}>{formatClipDuration(v.duration)}</Text>
-                  </View>
+                  {v.duration !== null && (
+                    <View style={styles.durationChip}>
+                      <Text style={styles.durationText}>{formatClipDuration(v.duration)}</Text>
+                    </View>
+                  )}
                   <View style={styles.playBtn}>
                     <Feather name="play" size={16} color="#FFFFFF" />
                   </View>

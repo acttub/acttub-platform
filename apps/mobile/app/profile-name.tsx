@@ -41,7 +41,7 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
   // 온보딩이면 로그인 제공자가 준 이름을 첫 값으로(저장은 시작하기를 눌러야). 편집은 저장값을 불러온다.
   const [name, setName] = useState(() => (isEdit ? '' : (takeProviderNameHint() ?? '')));
   const [gender, setGender] = useState<Gender | null>(null);
-  const [birthYear, setBirthYear] = useState('');
+  const [age, setAge] = useState('');
   const [mediums, setMediums] = useState<string[]>([]);
   const [career, setCareer] = useState<number | null>(null);
   const [goal, setGoal] = useState<number | null>(null);
@@ -51,10 +51,16 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
 
   const careers = translateList('profileName.careerOptions');
   const goals = translateList('profileName.goalOptions');
-  // 온보딩은 인적사항 전부 필수. 편집은 이름만.
-  const complete = isEdit
-    ? name.trim().length > 0
-    : name.trim().length > 0 && gender !== null && birthYear.trim().length === 4 && mediums.length > 0 && career !== null && goal !== null;
+  // 온보딩은 인적사항 전부 필수. 편집은 이름만. 뭐가 비었는지도 그대로 보여준다.
+  const ageOk = /^[1-9][0-9]?$/.test(age.trim());
+  const missing: string[] = [];
+  if (!name.trim()) missing.push(t('profileName.nameMissingLabel'));
+  if (gender === null) missing.push(t('profileName.genderLabel'));
+  if (!ageOk) missing.push(t('profileName.ageLabel'));
+  if (mediums.length === 0) missing.push(t('profileName.mediumShortLabel'));
+  if (career === null) missing.push(t('profileName.careerLabel'));
+  if (goal === null) missing.push(t('profileName.goalLabel'));
+  const complete = isEdit ? name.trim().length > 0 : missing.length === 0;
 
   // 편집 모드에서는 저장된 값(이름·성별·나이)을 미리 채운다.
   useEffect(() => {
@@ -67,7 +73,7 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
         if (!alive) return;
         for (const it of items) {
           if (it.field === 'gender') setGender(it.value === '남성' ? 'male' : it.value === '여성' ? 'female' : null);
-          if (it.field === 'age') setBirthYear(it.value.replace(/[^0-9]/g, '').slice(0, 4));
+          if (it.field === 'age') setAge(it.value.replace(/[^0-9]/g, '').slice(0, 2));
         }
       })
       .catch(() => {});
@@ -87,8 +93,8 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
       if (gender === 'female' || gender === 'male') {
         await api.saveActorMemory('gender', gender === 'female' ? '여성' : '남성').catch(() => {});
       }
-      if (birthYear.trim()) {
-        await api.saveActorMemory('age', birthYear.trim()).catch(() => {});
+      if (ageOk) {
+        await api.saveActorMemory('age', `${age.trim()}세`).catch(() => {});
       }
       // 아직 저장 못 하는 칸은 계측만 한다(웹의 theory와 같은 상태).
       logEvent(isEdit ? 'profile_edit' : 'profile_setup', {
@@ -133,7 +139,7 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
             returnKeyType="next"
           />
 
-          <Field label={t('profileName.genderLabel')} required={!isEdit}>
+          <Field label={t('profileName.genderLabel')} required={!isEdit} missing={!isEdit && gender === null}>
             <View style={styles.chips}>
               {(['female', 'male', 'none'] as Gender[]).map((g) => (
                 <Chip
@@ -152,19 +158,19 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
             </View>
           </Field>
 
-          <Field label={t('profileName.ageLabel')} required={!isEdit}>
+          <Field label={t('profileName.ageLabel')} required={!isEdit} missing={!isEdit && !ageOk}>
             <TextInput
               style={styles.input}
               placeholder={t('profileName.agePlaceholder')}
               placeholderTextColor={palette.textFaint}
-              value={birthYear}
-              onChangeText={(v) => setBirthYear(v.replace(/[^0-9]/g, '').slice(0, 4))}
+              value={age}
+              onChangeText={(v) => setAge(v.replace(/[^0-9]/g, '').slice(0, 2))}
               keyboardType="number-pad"
-              maxLength={4}
+              maxLength={2}
             />
           </Field>
 
-          <Field label={t('profileName.mediumLabel')} required={!isEdit}>
+          <Field label={t('profileName.mediumLabel')} required={!isEdit} missing={!isEdit && mediums.length === 0}>
             <View style={styles.chips}>
               {[
                 { v: 'media', k: 'profileName.mediumMedia' },
@@ -175,7 +181,7 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
             </View>
           </Field>
 
-          <Field label={t('profileName.careerLabel')} required={!isEdit}>
+          <Field label={t('profileName.careerLabel')} required={!isEdit} missing={!isEdit && career === null}>
             <View style={styles.chips}>
               {careers.map((label, i) => (
                 <Chip
@@ -188,7 +194,7 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
             </View>
           </Field>
 
-          <Field label={t('profileName.goalLabel')} required={!isEdit}>
+          <Field label={t('profileName.goalLabel')} required={!isEdit} missing={!isEdit && goal === null}>
             <View style={styles.chips}>
               {goals.map((label, i) => (
                 <Chip
@@ -202,7 +208,9 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
           </Field>
 
           {error && <Text style={styles.error}>{error}</Text>}
-          {!isEdit && !complete && <Text style={styles.requiredHint}>{t('profileName.requiredHint')}</Text>}
+          {!isEdit && !complete && (
+            <Text style={styles.requiredHint}>{t('profileName.missingHint', { fields: missing.join(' · ') })}</Text>
+          )}
         </KeyboardAwareScroll>
         <Pressable
           style={[styles.cta, (!complete || busy) && styles.ctaDisabled]}
@@ -224,12 +232,22 @@ export default function ProfileNameScreen() {
   return <ProfileForm edit={false} />;
 }
 
-function Field({ label, required, children }: { label: string; required?: boolean; children: ReactNode }) {
+function Field({
+  label,
+  required,
+  missing,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  missing?: boolean;
+  children: ReactNode;
+}) {
   return (
     <View style={styles.field}>
-      <Text style={styles.fieldLabel}>
+      <Text style={[styles.fieldLabel, missing && styles.fieldLabelMissing]}>
         {label}
-        {required && <Text style={styles.requiredStar}> *</Text>}
+        {required && <Text style={missing ? styles.requiredStarMissing : styles.requiredStar}> *</Text>}
       </Text>
       {children}
     </View>
@@ -290,6 +308,8 @@ const styles = StyleSheet.create({
   error: { color: palette.danger, fontSize: 13 },
   requiredHint: { color: palette.textFaint, fontSize: 12.5, textAlign: 'center' },
   requiredStar: { color: palette.blue },
+  requiredStarMissing: { color: palette.danger },
+  fieldLabelMissing: { color: palette.danger },
   cta: {
     backgroundColor: palette.blue,
     borderRadius: 16,

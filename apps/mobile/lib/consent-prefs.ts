@@ -26,3 +26,6 @@ export async function setConsentPref(docId: string, granted: boolean): Promise<v
   prefs[docId] = granted;
   await saveConsentPrefs(prefs);
 }
+
+/** 마케팅 수신 동의(선택) — 서버 문서가 아직 없어 이 키로 기기에만 남긴다. 설문·이벤트 안내용. */
+export const MARKETING_ID = 'local:marketing';

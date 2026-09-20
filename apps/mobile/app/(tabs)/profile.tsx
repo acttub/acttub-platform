@@ -22,7 +22,8 @@ import { translate as t } from '@/lib/i18n';
  */
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, status, leaveGuest } = useAuth();
+  const isGuest = status === 'guest';
   const { alert, dialog } = useAppDialog();
   const [name, setName] = useState<string | null>(null);
   const [practiceCount, setPracticeCount] = useState(0);
@@ -37,14 +38,16 @@ export default function ProfileScreen() {
       void getUserName().then((n) => alive && setName(n?.trim() || null));
       void getProfilePhotoUri().then((u) => alive && setPhotoUri(u));
       void getProfileBio().then((b) => alive && setBio(b));
-      void api
-        .reportHistory()
-        .then((r) => alive && setPracticeCount(r.reports.length))
-        .catch(() => {});
+      if (!isGuest) {
+        void api
+          .reportHistory()
+          .then((r) => alive && setPracticeCount(r.reports.length))
+          .catch(() => {});
+      }
       return () => {
         alive = false;
       };
-    }, []),
+    }, [isGuest]),
   );
 
   const display = displayNameFor(name, user?.email ?? null) || t('profileTab.title');
@@ -82,8 +85,19 @@ export default function ProfileScreen() {
           </Pressable>
         </View>
 
+        {/* 게스트 — 계정이 없으니 프로필 대신 로그인 안내 카드. */}
+        {isGuest && (
+          <View style={styles.guestCard}>
+            <Text style={styles.guestTitle}>{t('guest.profileTitle')}</Text>
+            <Text style={styles.guestBody}>{t('guest.profileBody')}</Text>
+            <Pressable style={styles.guestBtn} onPress={() => void leaveGuest()} accessibilityRole="button">
+              <Text style={styles.guestBtnText}>{t('guest.login')}</Text>
+            </Pressable>
+          </View>
+        )}
+
         {/* 배우 프로필 카드 */}
-        <View style={styles.card}>
+        {!isGuest && <View style={styles.card}>
           <View style={styles.avatarCol}>
             <View style={styles.avatar}>
               {photoUri ? (
@@ -113,27 +127,29 @@ export default function ProfileScreen() {
               <Text style={styles.editBtnText}>{t('profileTab.editPortfolio')}</Text>
             </Pressable>
           </View>
-        </View>
+        </View>}
 
         {/* 한 줄 소개 */}
-        <Pressable style={styles.bioCard} onPress={openBio} accessibilityRole="button">
+        {!isGuest && <Pressable style={styles.bioCard} onPress={openBio} accessibilityRole="button">
           <Text style={styles.bioLabel}>{t('profileTab.bioLabel')}</Text>
           <Text style={bio ? styles.bioText : styles.bioPh}>{bio || t('profileTab.bioPlaceholder')}</Text>
-        </Pressable>
+        </Pressable>}
 
         {/* 나의 활동 */}
         <Text style={styles.sectionLabel}>{t('profileTab.activitySection')}</Text>
         <Row icon="video" title={t('profileTab.archiveTitle')} sub={t('profileTab.archiveSub')} onPress={() => router.push('/archive')} />
         <Row icon="bookmark" title={t('profileTab.savedTitle')} sub={t('profileTab.savedSub')} onPress={() => router.push('/saved-videos')} />
 
-        {/* 코치의 기억 */}
-        <Text style={styles.sectionLabel}>{t('profileTab.memorySection')}</Text>
-        <Row
-          icon="cpu"
-          title={t('profileTab.memoryTitle')}
-          sub={t('profileTab.memorySub')}
-          onPress={() => router.push('/memory')}
-        />
+        {/* 코치의 기억 — 게스트에겐 없다 */}
+        {!isGuest && <Text style={styles.sectionLabel}>{t('profileTab.memorySection')}</Text>}
+        {!isGuest && (
+          <Row
+            icon="cpu"
+            title={t('profileTab.memoryTitle')}
+            sub={t('profileTab.memorySub')}
+            onPress={() => router.push('/memory')}
+          />
+        )}
       </ScrollView>
 
       {/* 한 줄 소개 입력 — 작은 모달. */}
@@ -217,6 +233,11 @@ const styles = StyleSheet.create({
   editBtn: { flexDirection: 'row', alignSelf: 'flex-start', alignItems: 'center', gap: 5, backgroundColor: palette.blueSoft, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, marginTop: 10 },
   editBtnText: { fontSize: 12.5, fontWeight: '800', color: palette.blueDeep },
 
+  guestCard: { backgroundColor: palette.blueSoft, borderRadius: 18, padding: 18, gap: 8 },
+  guestTitle: { fontSize: 18, fontWeight: '800', color: palette.text },
+  guestBody: { fontSize: 13.5, color: palette.textDim, lineHeight: 20 },
+  guestBtn: { alignSelf: 'flex-start', backgroundColor: palette.blue, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 10, marginTop: 4 },
+  guestBtnText: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
   bioCard: { backgroundColor: palette.bgSubtle, borderColor: palette.border, borderWidth: 1, borderRadius: 14, padding: 14, gap: 4 },
   bioLabel: { fontSize: 12.5, fontWeight: '800', color: palette.textMuted },
   bioPh: { fontSize: 13, fontWeight: '500', color: palette.textFaint },
