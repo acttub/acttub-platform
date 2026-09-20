@@ -40,7 +40,9 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
-@SpringBootTest(properties = "JWT_SECRET=test-secret")
+// 기억 갱신 워커를 끈다 — 워커도 같은 모델 포트(스텁 큐)를 쓰므로 닫힌 대화가 남긴 작업을 집어 가면
+// 다음 테스트의 응답을 먼저 소비한다(CoachReadsProfileIT 와 같은 까닭).
+@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ANALYSIS_WORKER_ENABLED=false"})
 @AutoConfigureMockMvc
 @Import(CoachReportEndpointIT.GeneratorFixture.class)
 class CoachReportEndpointIT {

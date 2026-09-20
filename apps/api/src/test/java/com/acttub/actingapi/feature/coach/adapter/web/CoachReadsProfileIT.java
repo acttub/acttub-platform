@@ -51,7 +51,10 @@ import org.springframework.test.web.servlet.MockMvc;
  * <p>⚠ 입력이 맞다는 것까지만 본다. 모델이 그 입력으로 잘 말하는지는 실제 모델로 돌리는 eval 과 사람의
  * 의미 검토가 본다.
  */
-@SpringBootTest(properties = "JWT_SECRET=test-secret")
+// 기억 갱신 워커를 끈다. 워커도 같은 모델 포트(여기서는 스텁 큐)를 쓰므로, 앞 테스트가 닫은 대화가 남긴
+// 기억 갱신 작업을 워커가 집어 가면 다음 테스트가 큐에 넣은 응답을 먼저 소비한다 — CI 에서 그렇게 502/500 이
+// 났다. 워커의 동작은 MemoryUpdateWorkerIT 가 따로 본다.
+@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ANALYSIS_WORKER_ENABLED=false"})
 @AutoConfigureMockMvc
 @Import(CoachReadsProfileIT.GeneratorFixture.class)
 class CoachReadsProfileIT {
