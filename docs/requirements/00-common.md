@@ -165,12 +165,14 @@ git 이력이 보관한다. 동작을 바꾸는 PR이 그 기능의 요구사항
 | 컬럼 | users.exit_survey_asked_at(이탈 설문 노출 선점 시각). actor_memories 소유자 기준 memory_epoch(기억 세대; 삭제·이관 선택 때 증가, 갱신 작업은 예약 시점 세대를 갖고 다르면 미반영) | practice.feedback, practice.memory |
 | 삭제 조건 | 옛 테이블(practice_sessions, transcripts, summaries, anomalies, coach_sessions, coach_turns, coaching_handoffs, handoff_confirmations, practice_reports, reports, actor_memory_entries, external_operations)은 1.0.0에서 삭제하지 않고 호환 읽기 경로가 쓴다(upload_intents는 계속 쓴다). 삭제는 그 테이블의 읽기·쓰기를 모두 중단한 버전을 배포한 다음 릴리스부터이며, 무손실 대응이 확인되지 않은 자료(구형 분석·복수 대화)의 테이블은 시점을 정하지 않는다 | 02-practice 스키마 전환 |
 | 값 | account_cleanup_operations의 객체 삭제 종류에 영상 객체·미확정 업로드 객체·파일만 파기 | practice.record, practice.library |
-| 컬럼 | challenges: line(200자), work(100자, 기본 "창작"), character(50자), scene_note(200자), duration_days(선택지 7·14는 API 상수), host_user_id(NULL = 기획팀), request_id((host_user_id, request_id) 유일), featured_on(날짜, 오늘의 챌린지), starts_at·ends_at, status(active·ended·review·hidden) | challenge.create |
-| 컬럼 | challenge_entries: caption(200자), visibility(public·private), status(visible·hidden_by_report·deleted), view_count, request_id((user_id, request_id) 유일), (challenge_id, video_id) 유일(deleted 제외) | challenge.entry |
-| 컬럼 | entry_reports.reason(copyright·inappropriate·spam·duplicate·other), note(200자), status(received·reviewed), resolution_note | challenge.report |
-| 컬럼 | entry_ai_reports: status(pending·ready·failed), model, result(jsonb), completed_at | challenge.ai-report |
+| 컬럼 | challenges: line(1~200자), work(1~100자, 창작은 "창작"), character(100자), scene_note(500자), duration_days(7·14, API 상수), origin(team·member, 불변), host_user_id(team은 NULL, 탈퇴 시 NULL), request_id((host_user_id, request_id) 유일)·request_fingerprint, featured_on(team만, 날짜당 하나), starts_at·ends_at(기간 상태는 시각으로 판정, 컬럼 없음), moderation(visible·review·hidden) | challenge.create |
+| 컬럼 | challenge_entries: video_id(삭제 뒤 NULL 허용), caption(300자, 수정 가능), visibility(public·private), status(visible·hidden_by_report·deleted), view_count, final_like_count·final_rank(종료 시 저장), request_id((user_id, request_id) 유일)·request_fingerprint, deleted_at, (challenge_id, video_id) 유일(deleted 제외). 영상 길이 60초 이내 | challenge.entry, challenge.browse |
+| 컬럼·제약 | entry_reports: target_type(entry·comment·challenge)·target_id로 대상 확장, (target_type, target_id, reporter_id) 유일, reason(copyright·inappropriate·spam·duplicate·other), note(200자), status(received·reviewed), resolution(restored·kept_hidden·dismissed), reviewed_by·reviewed_at·resolution_note, target_version. 처리 완료 90일 뒤 삭제 | challenge.report |
+| 컬럼 | entry_comments: deleted_at(본문 파기·삭제 표시), status(visible·hidden) | challenge.react, challenge.report |
+| 추가 | user_blocks(blocker_id, blocked_id, created_at), (blocker_id, blocked_id) 유일. 챌린지 노출 조건과 반응 차단에 쓴다 | challenge.block |
+| 컬럼 | entry_ai_reports: status(pending·ready·failed), model, format_version, result(jsonb: 관찰·차이·한계·제안·표본 참여작 id), requested_at, completed_at. 요청 시 생성(하루 3회), 표본 최대 5개 | challenge.ai-report |
 | 값 | ai_jobs.kind에 challenge_report | challenge.ai-report |
-| 추가 | notifications: id, user_id, kind(entry_liked·entry_commented·challenge_featured·challenge_ended·challenge_new_entry), challenge_id, entry_id(NULL 가능), actor_user_id(NULL 가능), count, title, body, created_at, read_at, pushed_at. 90일 뒤 삭제 | challenge.notification |
+| 추가 | notifications: id, user_id, kind(entry_liked·entry_commented·challenge_ended·entry_ai_report_ready), actor_user_id(NULL 가능), challenge_id, entry_id, comment_id(NULL 가능), event_key((user_id, event_key) 유일), group_key(10분 구간 묶기), created_at, read_at, expires_at(90일), push_after, push_status(pending·attempted·skipped), push_attempted_at. 이름·본문·주소는 복사하지 않고 조회 때 조립 | challenge.notification |
 
 ## 디자인에 반영할 것
 
@@ -232,6 +234,15 @@ pen을 고칠 목록이다. 규칙은 출처 기능의 본문이 정본이고 �
 | A18.3 완료 | 비공개 저장 완료 문구 | challenge.entry |
 | P03 | 신고로 숨겨진 참여작 "확인 중", 공개·비공개 전환 진입 | challenge.entry, challenge.report |
 | 새 화면(앱) | 알림함(최신순·읽음·배지), AI 리포트 화면(관찰·견주기·제안, 점수 없음), 내 챌린지 닫기(참여작 0개·24시간) | challenge.notification, challenge.ai-report, challenge.create |
+| A15 반응 메뉴 | "이 사용자 차단" 추가, 공유는 참여작 딥링크 | challenge.block, challenge.react |
+| A15.3·A17 | 댓글 신고·챌린지 신고 메뉴 추가, 댓글 하트 삭제(후속), 댓글 최신순 | challenge.report, challenge.react |
+| A16 | "종료" 탭 추가, 인기 정렬 기준(좋아요 합·참여작 수) | challenge.browse |
+| A17 | 동점 공동 순위, 최신순에 순위 숫자 없음, 좋아요 0이면 1위 배지 없음, 종료 랭킹 고정 표시 | challenge.browse |
+| A18 촬영 | 60초 상한 표시 | challenge.entry |
+| A18.1·A18.2 | 공개 범위 미리 선택 없음, 공개 시 "다른 참여자의 AI 리포트 비교에 쓰일 수 있어요" 한 줄, "올리면 자동 준비" 문구를 "요청하면 준비" 로 | challenge.entry, challenge.ai-report |
+| A4 설정 | 차단 목록·풀기 | challenge.block |
+| 챌린지 카드 | 주최자 탈퇴 표시("주최자 탈퇴"), 기획팀 챌린지 표시 | challenge.create |
+| 새 문서 | PRD에 챌린지 절(리텐션 부가 기능, ADR-005 예외, 회원·앱·한국어 전용)을 사람이 추가한다 | 04-challenge |
 
 ## 처리방침·동의 문서에 반영할 것
 
@@ -287,6 +298,10 @@ pen을 고칠 목록이다. 규칙은 출처 기능의 본문이 정본이고 �
 | 개인정보 처리방침 | AI 리포트는 같은 대사의 다른 공개 참여작 영상을 식별 정보 없이 비교 입력으로 씀. 알림함은 90일 보관 | challenge.ai-report, challenge.notification |
 | 이용약관 | 챌린지 대사·영상의 저작권 책임과 신고·숨김 처리 | challenge.create, challenge.report |
 | 운영 절차 문서 | 신고 검토(되돌림·숨김), 챌린지 review 처리, 오늘의 챌린지 등록 관리 경로 | challenge.report, challenge.create |
+| 개인정보 처리방침 | 사람 차단(user_blocks)의 효과와 상대에게 알리지 않음, 신고 기록의 90일 보관과 신원 비공개 | challenge.block, challenge.report |
+| 개인정보 처리방침·이용약관 | 공개 참여작은 다른 참여자의 AI 리포트 비교 표본으로 쓰일 수 있음(식별 정보 없이), 비공개는 쓰이지 않음 | challenge.ai-report |
+| 운영 절차 문서 | 신고 처리 목표(첫 확인 24시간·처리 72시간), 처리자·판정 기록, 챌린지 review 처리, 오늘의 챌린지 선정 관리 경로 | challenge.report, challenge.create |
+| 운영 배포 체크리스트 | 챌린지 관리 경로(기획팀 개설·featured_on·신고 처리)의 접근 권한과 알림 발송 실패 보고 채널 | challenge.create, challenge.notification |
 
 ## 범위 밖
 
@@ -294,9 +309,9 @@ pen을 고칠 목록이다. 규칙은 출처 기능의 본문이 정본이고 �
 
 - 커뮤니티(게시판)는 1.0.0에서 뺀다. 요구사항과 결정은 [05-community.md](05-community.md)에
   보관하고 후속에서 잇는다. 테이블 7개와 기존 글 데이터는 남기고 API·화면만 내린다.
-- 사람 차단. 1.0.0의 챌린지에는 차단이 없고 신고만 있다. 후속에서 넣을 때 사람 단위 user_blocks로
-  만든다.
-- 챌린지의 댓글 좋아요·답글, 사용자당 하루 한 번 조회수(entry_views), 챌린지 공유 링크의 웹 공개 페이지, 랭킹 캐시 컬럼.
+- 계정 정지·운영 차단. 1.0.0에는 신고·운영 숨김·사람 차단(user_blocks, ADR-032)만 있다.
+- 챌린지의 댓글 좋아요·답글, 사용자당 하루 한 번 조회수(entry_views), 챌린지 공유 링크의 웹 공개 페이지, 랭킹 캐시 컬럼, 오늘의 챌린지·
+  순위 변동·새 참여 푸시, 사용자 개설의 사전 검토, 여러 챌린지를 섞는 전체 피드.
 - 가입 유입 경로 추적. users의 signup_* 컬럼은 지우고 signup_attributions 테이블은 만들지 않는다.
 
 ## 열린 질문
@@ -319,7 +334,8 @@ ERD 세션(2026-09-14)에서 이월한 것.
 
 계정 검토(2026-09-19)에서 나온 것.
 
-- 앱 심사 지침 1.2(신고 수단·악성 콘텐츠 차단): 챌린지는 신고 → 즉시 숨김 → 운영 확인으로 충족한다고 봤다(challenge.report,
-  2026-09-21). 사람 차단(user_blocks)은 후속이며 심사 지적이 오면 그때 넣는다.
+- 앱 심사 지침 1.2·Google Play UGC(신고·악성 사용자 차단): 챌린지 1.0.0에 신고(참여작·댓글·챌린지)와 사람 차단(user_blocks)을 함께
+  넣어 충족한다(challenge.report, challenge.block, ADR-032, 2026-09-21). 계정 정지는 두지 않는다.
+- PRD·ADR-005의 랭킹 금지와 챌린지 좋아요 랭킹: ADR-005 개정(2026-09-21)으로 반응 순서만 예외로 허용했다. PRD의 챌린지 절은 사람이 쓴다.
 - 용어집은 "작업·잡·job"을 피하고 External Operation을 쓰는데 1.0.0 ERD의 테이블 이름은 ai_jobs다.
   연습 문서를 쓸 때 용어집을 고칠지 테이블 이름을 바꿀지 정한다.
