@@ -15,6 +15,8 @@ public enum LlmStep {
     TRANSCRIPTION("transcription"),
     /** 코치의 첫 응답. */
     COACH_TURN("coach.turn"),
+    COACH_ROUTE("coach.route"),
+    COACH_POLISH("coach.polish"),
     /** 1차 응답이 검증에 걸려 다시 낸 응답. */
     COACH_REGENERATION("coach.regeneration"),
     /** 연습 노트. */

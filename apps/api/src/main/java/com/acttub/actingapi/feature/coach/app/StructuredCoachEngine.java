@@ -35,11 +35,17 @@ final class StructuredCoachEngine {
     private final FailureReporter failures;
     private final LlmTelemetry telemetry;
     private final CoachRecordLookup records = new CoachRecordLookup();
+    private final CoachingPipeline pipeline;
 
     StructuredCoachEngine(TextGenerator generate, FailureReporter failures, LlmTelemetry telemetry) {
+        this(generate, failures, telemetry, false);
+    }
+
+    StructuredCoachEngine(TextGenerator generate, FailureReporter failures, LlmTelemetry telemetry, boolean routed) {
         this.generate = generate;
         this.failures = failures;
         this.telemetry = telemetry;
+        this.pipeline = routed ? new CoachingPipeline(generate, telemetry) : null;
     }
 
     CoachResult turn(CoachSessionSnapshot session, String actorText, UUID operationId) {
@@ -60,8 +66,21 @@ final class StructuredCoachEngine {
         }
         ObjectNode input = input(session, state, actorText, actorId, operationId);
         ObjectNode view = records.initial(session.observationPack());
+        if (pipeline != null) {
+            if (!VideoRecord.isRecord(session.observationPack())
+                    || session.observationPack().path("processing").path("processed_ranges").isEmpty()) {
+                throw new CoachReplyUnavailable();
+            }
+            // Deliver the complete text record once; route generation does not run model lookup loops.
+            input.set("video_record", session.observationPack().deepCopy());
+            var allSources = view.putArray("source_catalog");
+            VideoRecord.sources(session.observationPack()).values().forEach(allSources::add);
+            view.set("segments", session.observationPack().path("segments").deepCopy());
+            view.set("events", session.observationPack().path("events").deepCopy());
+            records.refreshCoverage(session.observationPack(), view);
+        }
         input.set("record_view", view);
-        input.set("dialogue_progress", DialogueProgress.controls(input).put("allow_finish", finish));
+        if (pipeline == null) input.set("dialogue_progress", DialogueProgress.controls(input).put("allow_finish", finish));
         input.put("output_contract", "acttub.layer2_turn.v2");
         input.putObject("reserved_ids").put("coach_message_id", coachId);
         ObjectNode controls = input.putObject("controls").put("max_message_chars", maxChars)
@@ -69,11 +88,21 @@ final class StructuredCoachEngine {
                         finish || input.path("dialogue_progress").path("explain_instead_of_repeating_question").asBoolean() ? 0 : 1)
                 .put("coach_replies_remaining", Math.max(0, 10 - replyCount))
                 .put("lookup_calls_remaining", MAX_LOOKUPS).put("finish_required", finish);
+        CoachingRoute route = null;
+        if (pipeline != null && !finish) {
+            try {
+                route = pipeline.classify(session, input);
+            } catch (RuntimeException failure) {
+                failures.report(failure, FailureKind.EXTERNAL, new FailureContext("CoachingPipeline.classify", operationId));
+                throw new CoachReplyUnavailable();
+            }
+        }
         ArrayNode validationErrors = input.putArray("validation_errors");
         int lookups = 0;
         Instant deadline = Instant.now().plusSeconds(100);
-        for (int call = 0; call < MAX_CALLS && Instant.now().isBefore(deadline); call++) {
-            controls.put("lookup_calls_remaining", call == MAX_CALLS - 1 ? 0 : MAX_LOOKUPS - lookups);
+        int maxCalls = pipeline == null ? MAX_CALLS : 2;
+        for (int call = 0; call < maxCalls && Instant.now().isBefore(deadline); call++) {
+            controls.put("lookup_calls_remaining", pipeline != null || call == MAX_CALLS - 1 ? 0 : MAX_LOOKUPS - lookups);
             controls.put("min_questions", 0);
             ObjectNode constraints = input.putObject("response_constraints");
             constraints.set("user_message_id", input.path("user_message").path("id").isMissingNode()
@@ -90,7 +119,9 @@ final class StructuredCoachEngine {
                 var references = new DialogueReferences(deliveredSources(input), coachId);
                 ObjectNode modelInput = (ObjectNode) references.toModel(input);
                 modelInput.remove(List.of("request_id", "session_id"));
-                JsonNode response = !finish && input.path("dialogue_progress").path("unclear_correction").asBoolean()
+                JsonNode response = pipeline != null
+                        ? references.fromModel(pipeline.generate(session, modelInput, route, finish, call))
+                        : !finish && input.path("dialogue_progress").path("unclear_correction").asBoolean()
                         ? DialogueProgress.correctionTargetReply(input)
                         : !finish && input.path("dialogue_progress").path("unobservable_hand_requested").asBoolean()
                         ? DialogueProgress.observationLimitReply(input)
@@ -110,10 +141,27 @@ final class StructuredCoachEngine {
                     continue;
                 }
                 FocusCoverage.validate(response.path("context_update").path("focus"), session.observationPack(), view);
-                DialogueProgress.validate(response, input.path("dialogue_progress"));
-                ObjectNode next = DialogueState.apply(state, response, deliveredSources(input), input.path("user_message"),
+                if (pipeline == null) DialogueProgress.validate(response, input.path("dialogue_progress"));
+                ObjectNode next = pipeline != null
+                        ? DialogueState.applyRouted(state, response, deliveredSources(input), input.path("user_message"),
+                                coachId, maxChars, maxSentences, finish)
+                        : DialogueState.apply(state, response, deliveredSources(input), input.path("user_message"),
                         coachId, maxChars, maxSentences, finish,
                         input.path("last_exchange").path("coach_message").path("text").asText());
+                if (pipeline != null) {
+                    try {
+                        String polished = pipeline.polish(session, response.path("message").asText(), maxChars, route);
+                        ObjectNode edited = response.deepCopy();
+                        edited.put("message", polished);
+                        // Persist exactly the text shown to the actor, including handoff/source references.
+                        next = DialogueState.applyRouted(state, edited, deliveredSources(input), input.path("user_message"),
+                                coachId, maxChars, maxSentences, finish);
+                        response = edited;
+                    } catch (RuntimeException failure) {
+                        failures.report(failure, FailureKind.EXTERNAL, new FailureContext("CoachingPipeline.polish", operationId));
+                        // Editing cannot discard an already valid coaching reply.
+                    }
+                }
                 // Explicit brevity requests persist even when the model omits style_update.
                 next.put("response_style", responseStyle(state.path("response_style").asText(), actorText));
                 boolean done = "finish".equals(response.path("flow").asText());

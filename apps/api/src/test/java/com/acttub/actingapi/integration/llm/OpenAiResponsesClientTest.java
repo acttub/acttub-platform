@@ -146,6 +146,36 @@ class OpenAiResponsesClientTest {
                 OBJECT_MAPPER, transport, duration -> {}, environment::get);
     }
 
+    @Test
+    void stageOptionsPinLunaAndUseStrictRouteSchemaWithoutChangingDefaultModel() {
+        StubTransport transport = new StubTransport(response(200, "{\"status\":\"completed\",\"output_text\":\"{}\"}"),
+                response(200, "{\"output_text\":\"regular\"}"));
+        var client = client(transport, Map.of("OPENAI_API_KEY", "secret", "OPENAI_CHAT_MODEL", "configured-model"));
+        var schema = StructuredJson.parse("{\"type\":\"object\",\"additionalProperties\":false,\"properties\":{},\"required\":[]}");
+        var routed = client.generate("classifier", "data", new GenerationOptions("gpt-5.6-luna", "low", 512, "route", schema));
+        client.generate("regular", "data");
+        assertThat(routed.model()).isEqualTo("gpt-5.6-luna");
+        JsonNode body = transport.requests.getFirst().body();
+        assertThat(body.path("model").asText()).isEqualTo("gpt-5.6-luna");
+        assertThat(body.path("store").asBoolean(true)).isFalse();
+        assertThat(body.path("reasoning").path("effort").asText()).isEqualTo("low");
+        assertThat(body.path("text").path("format").path("strict").asBoolean()).isTrue();
+        assertThat(body.path("text").path("format").path("schema")).isEqualTo(schema);
+        assertThat(transport.requests.getLast().body().path("model").asText()).isEqualTo("configured-model");
+    }
+
+    @Test
+    void boundedStagesDoNotHideIncompleteOutputOrMultiplyRetries() {
+        var options = new GenerationOptions("gpt-5.6-luna", "low", 512, null, null);
+        StubTransport partial = new StubTransport(response(200, "{\"status\":\"incomplete\",\"output_text\":\"{\\\"route\\\":\\\"understand_scene\\\"}\"}"));
+        assertThatThrownBy(() -> client(partial, Map.of("OPENAI_API_KEY", "secret")).generate("s", "i", options))
+                .hasMessageContaining("did not complete");
+        StubTransport busy = new StubTransport(response(503, "{}"));
+        assertThatThrownBy(() -> client(busy, Map.of("OPENAI_API_KEY", "secret")).generate("s", "i", options))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(busy.requests).hasSize(1);
+    }
+
     private static OpenAiHttpResponse response(int status, String body) {
         return new OpenAiHttpResponse(status, body);
     }
