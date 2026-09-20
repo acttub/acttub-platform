@@ -70,8 +70,13 @@ class AccountSecretsTest {
         assertThat(first).isNotEqualTo(second).doesNotContain("apple-refresh-token");
         assertThat(secrets.decrypt(first)).isEqualTo("apple-refresh-token");
 
-        char last = first.charAt(first.length() - 1);
-        String tampered = first.substring(0, first.length() - 1) + (last == 'A' ? 'B' : 'A');
+        // 글자 하나를 바꾸는 것으로는 변조가 보장되지 않는다 — 패딩 없는 base64url 의 마지막 글자는 하위 비트가
+        // 버려져, 'A'↔'B' 는 같은 바이트로 풀린다(nonce 가 매번 달라 CI 에서만 걸렸다). 바이트를 뒤집는다.
+        int split = first.indexOf(':');
+        byte[] packed = java.util.Base64.getUrlDecoder().decode(first.substring(split + 1));
+        packed[packed.length - 1] ^= 0x01;
+        String tampered = first.substring(0, split + 1)
+                + java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(packed);
         assertThatThrownBy(() -> secrets.decrypt(tampered)).isInstanceOf(AccountSecrets.UnreadableSecret.class);
     }
 

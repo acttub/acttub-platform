@@ -98,6 +98,9 @@ class CoachReadsProfileIT {
     @Autowired
     RecordingLlmTelemetry telemetry;
 
+    @Autowired
+    com.acttub.actingapi.support.RecordingFailureReporter failures;
+
     CoachStorageFixtures fixtures;
     UUID user;
 
@@ -107,6 +110,7 @@ class CoachReadsProfileIT {
         fixtures = new CoachStorageFixtures(jdbc);
         generator.reset();
         telemetry.clear();
+        failures.clear();
         user = fixtures.insertUser();
         saveProfile(profile("exam_prep"));
     }
@@ -379,7 +383,11 @@ class CoachReadsProfileIT {
     private JsonNode successful(
             org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request) throws Exception {
         var response = mvc.perform(request).andReturn().getResponse();
-        assertThat(response.getStatus()).as(response.getContentAsString()).isEqualTo(200);
+        assertThat(response.getStatus())
+                .as(response.getContentAsString() + " reported=" + failures.reports().stream()
+                        .map(report -> report.failure().getClass().getSimpleName() + ": " + report.failure().getMessage())
+                        .toList())
+                .isEqualTo(200);
         return mapper.readTree(response.getContentAsString());
     }
 
@@ -428,6 +436,13 @@ class CoachReadsProfileIT {
         @Primary
         RecordingLlmTelemetry profileRecordingTelemetry() {
             return new RecordingLlmTelemetry();
+        }
+
+        /** 엔진이 삼키고 보고만 하는 실패를 붙잡아 둔다 — 502 의 까닭이 단언 메시지에 실린다. */
+        @Bean
+        @Primary
+        com.acttub.actingapi.support.RecordingFailureReporter profileRecordingFailures() {
+            return new com.acttub.actingapi.support.RecordingFailureReporter();
         }
     }
 
