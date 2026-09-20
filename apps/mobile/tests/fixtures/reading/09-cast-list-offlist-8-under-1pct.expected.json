@@ -1,0 +1,4501 @@
+{
+  "title": null,
+  "roles": [
+    "니나",
+    "트레플레프"
+  ],
+  "lines": [
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 1."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 2."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 3."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 4."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 5."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 6."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 7."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 8."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 9."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 10."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 11."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 12."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 13."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 14."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 15."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 16."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 17."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 18."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 19."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 20."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 21."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 22."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 23."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 24."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 25."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 26."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 27."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 28."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 29."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 30."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 31."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 32."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 33."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 34."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 35."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 36."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 37."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 38."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 39."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 40."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 41."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 42."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 43."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 44."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 45."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 46."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 47."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 48."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 49."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 50."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 51."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 52."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 53."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 54."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 55."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 56."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 57."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 58."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 59."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 60."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 61."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 62."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 63."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 64."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 65."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 66."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 67."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 68."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 69."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 70."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 71."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 72."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 73."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 74."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 75."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 76."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 77."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 78."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 79."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 80."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 81."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 82."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 83."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 84."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 85."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 86."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 87."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 88."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 89."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 90."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 91."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 92."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 93."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 94."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 95."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 96."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 97."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 98."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 99."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 100."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 101."
+    },
+    {
+      "kind": "direction",
+      "text": "소린: 목록 밖 이름 100."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 102."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 103."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 104."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 105."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 106."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 107."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 108."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 109."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 110."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 111."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 112."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 113."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 114."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 115."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 116."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 117."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 118."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 119."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 120."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 121."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 122."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 123."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 124."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 125."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 126."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 127."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 128."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 129."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 130."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 131."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 132."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 133."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 134."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 135."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 136."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 137."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 138."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 139."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 140."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 141."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 142."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 143."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 144."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 145."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 146."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 147."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 148."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 149."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 150."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 151."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 152."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 153."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 154."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 155."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 156."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 157."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 158."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 159."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 160."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 161."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 162."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 163."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 164."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 165."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 166."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 167."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 168."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 169."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 170."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 171."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 172."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 173."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 174."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 175."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 176."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 177."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 178."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 179."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 180."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 181."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 182."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 183."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 184."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 185."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 186."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 187."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 188."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 189."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 190."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 191."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 192."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 193."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 194."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 195."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 196."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 197."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 198."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 199."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 200."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 201."
+    },
+    {
+      "kind": "direction",
+      "text": "소린: 목록 밖 이름 200."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 202."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 203."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 204."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 205."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 206."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 207."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 208."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 209."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 210."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 211."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 212."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 213."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 214."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 215."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 216."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 217."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 218."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 219."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 220."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 221."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 222."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 223."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 224."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 225."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 226."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 227."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 228."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 229."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 230."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 231."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 232."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 233."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 234."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 235."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 236."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 237."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 238."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 239."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 240."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 241."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 242."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 243."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 244."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 245."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 246."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 247."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 248."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 249."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 250."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 251."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 252."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 253."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 254."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 255."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 256."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 257."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 258."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 259."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 260."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 261."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 262."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 263."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 264."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 265."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 266."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 267."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 268."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 269."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 270."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 271."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 272."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 273."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 274."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 275."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 276."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 277."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 278."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 279."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 280."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 281."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 282."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 283."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 284."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 285."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 286."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 287."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 288."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 289."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 290."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 291."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 292."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 293."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 294."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 295."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 296."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 297."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 298."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 299."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 300."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 301."
+    },
+    {
+      "kind": "direction",
+      "text": "소린: 목록 밖 이름 300."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 302."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 303."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 304."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 305."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 306."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 307."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 308."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 309."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 310."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 311."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 312."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 313."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 314."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 315."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 316."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 317."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 318."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 319."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 320."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 321."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 322."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 323."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 324."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 325."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 326."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 327."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 328."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 329."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 330."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 331."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 332."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 333."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 334."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 335."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 336."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 337."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 338."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 339."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 340."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 341."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 342."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 343."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 344."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 345."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 346."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 347."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 348."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 349."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 350."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 351."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 352."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 353."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 354."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 355."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 356."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 357."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 358."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 359."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 360."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 361."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 362."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 363."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 364."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 365."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 366."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 367."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 368."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 369."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 370."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 371."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 372."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 373."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 374."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 375."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 376."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 377."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 378."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 379."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 380."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 381."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 382."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 383."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 384."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 385."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 386."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 387."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 388."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 389."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 390."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 391."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 392."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 393."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 394."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 395."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 396."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 397."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 398."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 399."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 400."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 401."
+    },
+    {
+      "kind": "direction",
+      "text": "소린: 목록 밖 이름 400."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 402."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 403."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 404."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 405."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 406."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 407."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 408."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 409."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 410."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 411."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 412."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 413."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 414."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 415."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 416."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 417."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 418."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 419."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 420."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 421."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 422."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 423."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 424."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 425."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 426."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 427."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 428."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 429."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 430."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 431."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 432."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 433."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 434."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 435."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 436."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 437."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 438."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 439."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 440."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 441."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 442."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 443."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 444."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 445."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 446."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 447."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 448."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 449."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 450."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 451."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 452."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 453."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 454."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 455."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 456."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 457."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 458."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 459."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 460."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 461."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 462."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 463."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 464."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 465."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 466."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 467."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 468."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 469."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 470."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 471."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 472."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 473."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 474."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 475."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 476."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 477."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 478."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 479."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 480."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 481."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 482."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 483."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 484."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 485."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 486."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 487."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 488."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 489."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 490."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 491."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 492."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 493."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 494."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 495."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 496."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 497."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 498."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 499."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 500."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 501."
+    },
+    {
+      "kind": "direction",
+      "text": "소린: 목록 밖 이름 500."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 502."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 503."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 504."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 505."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 506."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 507."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 508."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 509."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 510."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 511."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 512."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 513."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 514."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 515."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 516."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 517."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 518."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 519."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 520."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 521."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 522."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 523."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 524."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 525."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 526."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 527."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 528."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 529."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 530."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 531."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 532."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 533."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 534."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 535."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 536."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 537."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 538."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 539."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 540."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 541."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 542."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 543."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 544."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 545."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 546."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 547."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 548."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 549."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 550."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 551."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 552."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 553."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 554."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 555."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 556."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 557."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 558."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 559."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 560."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 561."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 562."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 563."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 564."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 565."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 566."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 567."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 568."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 569."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 570."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 571."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 572."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 573."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 574."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 575."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 576."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 577."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 578."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 579."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 580."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 581."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 582."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 583."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 584."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 585."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 586."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 587."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 588."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 589."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 590."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 591."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 592."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 593."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 594."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 595."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 596."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 597."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 598."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 599."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 600."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 601."
+    },
+    {
+      "kind": "direction",
+      "text": "소린: 목록 밖 이름 600."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 602."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 603."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 604."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 605."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 606."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 607."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 608."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 609."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 610."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 611."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 612."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 613."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 614."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 615."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 616."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 617."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 618."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 619."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 620."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 621."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 622."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 623."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 624."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 625."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 626."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 627."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 628."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 629."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 630."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 631."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 632."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 633."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 634."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 635."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 636."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 637."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 638."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 639."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 640."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 641."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 642."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 643."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 644."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 645."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 646."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 647."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 648."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 649."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 650."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 651."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 652."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 653."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 654."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 655."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 656."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 657."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 658."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 659."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 660."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 661."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 662."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 663."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 664."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 665."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 666."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 667."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 668."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 669."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 670."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 671."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 672."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 673."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 674."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 675."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 676."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 677."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 678."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 679."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 680."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 681."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 682."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 683."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 684."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 685."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 686."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 687."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 688."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 689."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 690."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 691."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 692."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 693."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 694."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 695."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 696."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 697."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 698."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 699."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 700."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 701."
+    },
+    {
+      "kind": "direction",
+      "text": "소린: 목록 밖 이름 700."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 702."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 703."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 704."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 705."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 706."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 707."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 708."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 709."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 710."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 711."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 712."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 713."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 714."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 715."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 716."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 717."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 718."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 719."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 720."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 721."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 722."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 723."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 724."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 725."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 726."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 727."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 728."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 729."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 730."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 731."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 732."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 733."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 734."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 735."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 736."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 737."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 738."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 739."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 740."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 741."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 742."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 743."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 744."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 745."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 746."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 747."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 748."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 749."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 750."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 751."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 752."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 753."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 754."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 755."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 756."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 757."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 758."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 759."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 760."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 761."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 762."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 763."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 764."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 765."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 766."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 767."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 768."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 769."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 770."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 771."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 772."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 773."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 774."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 775."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 776."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 777."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 778."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 779."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 780."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 781."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 782."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 783."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 784."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 785."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 786."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 787."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 788."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 789."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 790."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 791."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 792."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 793."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 794."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 795."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 796."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 797."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 798."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 799."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 800."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 801."
+    },
+    {
+      "kind": "direction",
+      "text": "소린: 목록 밖 이름 800."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 802."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 803."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 804."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 805."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 806."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 807."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 808."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 809."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 810."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 811."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 812."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 813."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 814."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 815."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 816."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 817."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 818."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 819."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 820."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 821."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 822."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 823."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 824."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 825."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 826."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 827."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 828."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 829."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 830."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 831."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 832."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 833."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 834."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 835."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 836."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 837."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 838."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 839."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 840."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 841."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 842."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 843."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 844."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 845."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 846."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 847."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 848."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 849."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 850."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 851."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 852."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 853."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 854."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 855."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 856."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 857."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 858."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 859."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 860."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 861."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 862."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 863."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 864."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 865."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 866."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 867."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 868."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 869."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 870."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 871."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 872."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 873."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 874."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 875."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 876."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 877."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 878."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 879."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 880."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 881."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 882."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 883."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 884."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 885."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 886."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 887."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 888."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 889."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 890."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "대사 891."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "대사 892."
+    }
+  ]
+}

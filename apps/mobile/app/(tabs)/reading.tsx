@@ -1,58 +1,128 @@
 import Feather from '@expo/vector-icons/Feather';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
-import { listScripts, loadIntoCurrent, type SavedScript } from '@/lib/reading/store';
+import { useAppDialog } from '@/components/app-dialog';
+import { dismissLegacyScriptNotice, readLegacyScriptNotice } from '@/lib/reading/legacy-migration-runner';
+import type { LegacyNotice } from '@/lib/reading/legacy-migration';
+import { cardMeta, lastActivityLabel, listHeader, myCharactersLabel, statusChip } from '@/lib/reading/script-cards';
+import { scriptErrorMessage } from '@/lib/reading/script-errors';
+import { deleteScript, listScripts, loadIntoCurrent } from '@/lib/reading/store';
+import type { ScriptCard, ScriptCardStatus, ScriptListResponse } from '@/lib/reading/types';
 import { translate as t } from '@/lib/i18n';
 
-function statusOf(s: SavedScript): { label: string; color: string; bg: string } {
-  if (s.status === 'done') return { label: t('reading.statusDone'), color: palette.green, bg: palette.greenSoft };
-  if (s.myRoles.length === 0) return { label: t('reading.statusRole'), color: palette.textDim, bg: palette.bgSoft };
-  return { label: t('reading.statusPlaying'), color: palette.blue, bg: palette.blueSoft };
-}
+/**
+ * 내 대본 목록(R00, reading.script). 서버 목록이 정본이다 — 최근 고친 순, 머리 "전체 N개 · 연습 중 M개",
+ * 카드마다 제목·내 배역·대사 수·녹음 수·마지막 활동·상태 칩(연습 중·연습 완료·배역 선택). 검색은 서버가
+ * 제목과 배역 이름만 찾는다. "분석 완료" 칩은 리딩에 분석이 없어 없다.
+ */
+const SEARCH_DEBOUNCE_MS = 300;
+
+const CHIP_TONE: Record<ScriptCardStatus, { color: string; bg: string }> = {
+  reading: { color: palette.blue, bg: palette.blueSoft },
+  completed: { color: palette.green, bg: palette.greenSoft },
+  no_cast: { color: palette.textDim, bg: palette.bgSoft },
+};
 
 export default function ReadingList() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [scripts, setScripts] = useState<SavedScript[]>([]);
+  const { confirm, sheet, alert, dialog } = useAppDialog();
+  const [list, setList] = useState<ScriptListResponse | null>(null);
   const [q, setQ] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<LegacyNotice | null>(null);
+  const generation = useRef(0);
+
+  const load = useCallback(async (keyword: string) => {
+    const mine = ++generation.current;
+    setError(null);
+    try {
+      const next = await listScripts(keyword);
+      if (mine === generation.current) setList(next);
+    } catch (e) {
+      if (mine === generation.current) setError(scriptErrorMessage(e));
+    } finally {
+      if (mine === generation.current) setLoading(false);
+    }
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
-      let alive = true;
-      void listScripts().then((list) => alive && setScripts(list));
+      void load(q);
+      void readLegacyScriptNotice().then(setNotice).catch(() => undefined);
       return () => {
-        alive = false;
+        generation.current += 1;
       };
-    }, []),
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [load]),
   );
 
-  const filtered = useMemo(() => {
-    const kw = q.trim();
-    if (!kw) return scripts;
-    return scripts.filter(
-      (s) => s.title.includes(kw) || s.roles.some((r) => r.includes(kw)) || s.lines.some((l) => l.type === 'dialogue' && l.text.includes(kw)),
-    );
-  }, [scripts, q]);
+  // 검색어는 잠깐 기다렸다가 서버에 묻는다(제목·배역 이름만). 처음 그릴 때는 포커스 로드가 맡는다.
+  const searchedOnce = useRef(false);
+  useEffect(() => {
+    if (!searchedOnce.current) {
+      searchedOnce.current = true;
+      return;
+    }
+    const timer = setTimeout(() => void load(q), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [q, load]);
 
-  const open = async (s: SavedScript) => {
-    await loadIntoCurrent(s.id);
-    router.push(s.myRoles.length === 0 ? '/reading/roles' : '/reading/detail');
+  const open = async (s: ScriptCard) => {
+    const opened = await loadIntoCurrent(s.id);
+    if (!opened) {
+      void load(q);
+      return;
+    }
+    router.push(s.my_character_names.length === 0 ? '/reading/roles' : '/reading/detail');
   };
-  const memorize = async (s: SavedScript) => {
-    await loadIntoCurrent(s.id);
-    router.push('/reading/memorize');
+  const memorize = async (s: ScriptCard) => {
+    if (await loadIntoCurrent(s.id)) router.push('/reading/memorize');
+  };
+  const edit = async (s: ScriptCard) => {
+    if (await loadIntoCurrent(s.id)) router.push('/reading/edit');
+  };
+  const remove = async (s: ScriptCard) => {
+    const ok = await confirm({
+      title: t('reading.deleteTitle'),
+      message: s.recording_count > 0 ? t('reading.deleteBody', { recordings: s.recording_count }) : t('reading.deleteBodyNoRecordings'),
+      confirmLabel: t('common.delete'),
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await deleteScript(s.id);
+    } catch (e) {
+      void alert({ title: t('reading.deleteAction'), message: scriptErrorMessage(e) });
+    }
+    void load(q);
+  };
+  const more = (s: ScriptCard) =>
+    void sheet({
+      title: s.title,
+      actions: [
+        { label: t('reading.editAction'), onPress: () => void edit(s) },
+        { label: t('reading.deleteAction'), destructive: true, onPress: () => void remove(s) },
+      ],
+    });
+  const closeNotice = () => {
+    setNotice(null);
+    void dismissLegacyScriptNotice().catch(() => undefined);
   };
 
-  const inProgress = scripts.filter((s) => s.status !== 'done').length;
+  const scripts = list?.scripts ?? [];
+  const searching = q.trim().length > 0;
 
   return (
     <ScrollView
       style={styles.root}
-      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 110 }]}>
+      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 110 }]}
+      keyboardShouldPersistTaps="handled">
       <Text style={styles.h1}>내 대본</Text>
 
       <View style={styles.searchRow}>
@@ -72,14 +142,43 @@ export default function ReadingList() {
         </Pressable>
       </View>
 
-      {scripts.length > 0 && (
-        <View style={styles.sectionHead}>
-          <Text style={styles.sectionTitle}>업로드한 대본</Text>
-          <Text style={styles.sectionCount}>총 {scripts.length}개 · 연습 중 {inProgress}개</Text>
+      {notice && (
+        <View style={styles.notice}>
+          <View style={styles.noticeHead}>
+            <Text style={styles.noticeTitle}>{t('reading.legacyNoticeTitle')}</Text>
+            <Pressable onPress={closeNotice} hitSlop={8} accessibilityLabel={t('common.close')}>
+              <Feather name="x" size={16} color={palette.textDim} />
+            </Pressable>
+          </View>
+          {notice.moved > 0 && <Text style={styles.noticeLine}>{t('reading.legacyMoved', { count: notice.moved })}</Text>}
+          {notice.memorized > 0 && <Text style={styles.noticeLine}>{t('reading.legacyMemorized', { count: notice.memorized })}</Text>}
+          {notice.limited > 0 && <Text style={styles.noticeLine}>{t('reading.legacyLimited', { count: notice.limited })}</Text>}
+          {notice.failed > 0 && <Text style={styles.noticeLine}>{t('reading.legacyFailed', { count: notice.failed })}</Text>}
+          <Text style={styles.noticeLine}>{t('reading.legacyRecordingsNote')}</Text>
         </View>
       )}
 
-      {scripts.length === 0 ? (
+      {error && (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorText}>{t('reading.listLoadFail')}</Text>
+          <Pressable onPress={() => void load(q)}>
+            <Text style={styles.retry}>{t('common.retry')}</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {list && (scripts.length > 0 || searching) && (
+        <View style={styles.sectionHead}>
+          <Text style={styles.sectionTitle}>업로드한 대본</Text>
+          <Text style={styles.sectionCount}>{listHeader(list)}</Text>
+        </View>
+      )}
+
+      {loading && !list ? (
+        <View style={styles.empty}>
+          <ActivityIndicator color={palette.blue} />
+        </View>
+      ) : list && scripts.length === 0 && !searching ? (
         <View style={styles.empty}>
           <Feather name="book-open" size={34} color={palette.checkOff} />
           <Text style={styles.emptyTitle}>아직 대본이 없어요</Text>
@@ -91,35 +190,33 @@ export default function ReadingList() {
         </View>
       ) : (
         <View style={styles.list}>
-          {filtered.map((s) => {
-            const st = statusOf(s);
-            const ratio = s.lines.length ? Math.min(1, s.index / s.lines.length) : 0;
+          {scripts.map((s) => {
+            const chip = statusChip(s);
+            const tone = CHIP_TONE[chip.tone];
+            const activity = lastActivityLabel(s);
             return (
-              <Pressable key={s.id} style={styles.card} onPress={() => open(s)}>
+              <Pressable key={s.id} style={styles.card} onPress={() => void open(s)} onLongPress={() => more(s)}>
                 <View style={styles.cardIcon}>
                   <Feather name="file-text" size={18} color={palette.blue} />
                 </View>
                 <View style={styles.cardBody}>
                   <Text style={styles.cardTitle} numberOfLines={1}>{s.title}</Text>
-                  <Text style={styles.cardMeta}>
-                    {s.myRoles.length ? `${s.myRoles.join(', ')} · ` : ''}대사 {s.dialogueCount}개
-                    {s.recordings.length ? ` · 녹음 ${s.recordings.length}개` : ''}
+                  <Text style={styles.cardMeta} numberOfLines={1}>
+                    {myCharactersLabel(s)} · {cardMeta(s)}
                   </Text>
-                  <View style={styles.progressTrack}>
-                    <View style={[styles.progressFill, { width: `${Math.round(ratio * 100)}%`, backgroundColor: st.color }]} />
-                  </View>
+                  {!!activity && <Text style={styles.cardActivity}>{activity}</Text>}
                 </View>
                 <View style={styles.cardRight}>
-                  <View style={[styles.pill, { backgroundColor: st.bg }]}>
-                    <Text style={[styles.pillText, { color: st.color }]}>{st.label}</Text>
+                  <View style={styles.cardRightTop}>
+                    <View style={[styles.pill, { backgroundColor: tone.bg }]}>
+                      <Text style={[styles.pillText, { color: tone.color }]}>{chip.label}</Text>
+                    </View>
+                    <Pressable style={styles.moreBtn} hitSlop={8} accessibilityLabel={t('reading.more')} onPress={() => more(s)}>
+                      <Feather name="more-horizontal" size={18} color={palette.textDim} />
+                    </Pressable>
                   </View>
-                  {s.myRoles.length > 0 && (
-                    <Pressable
-                      style={styles.memoChip}
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        void memorize(s);
-                      }}>
+                  {s.my_character_names.length > 0 && (
+                    <Pressable style={styles.memoChip} onPress={() => void memorize(s)}>
                       <Feather name="edit-3" size={12} color={palette.blueDeep} />
                       <Text style={styles.memoChipText}>암기</Text>
                     </Pressable>
@@ -128,9 +225,10 @@ export default function ReadingList() {
               </Pressable>
             );
           })}
-          {filtered.length === 0 && <Text style={styles.noMatch}>검색 결과가 없어요.</Text>}
+          {scripts.length === 0 && searching && <Text style={styles.noMatch}>검색 결과가 없어요.</Text>}
         </View>
       )}
+      {dialog}
     </ScrollView>
   );
 }
@@ -144,6 +242,13 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, color: palette.text, fontFamily: 'Pretendard', fontSize: 14, padding: 0 },
   newBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: palette.blue, borderRadius: 12, paddingHorizontal: 14, height: 46 },
   newText: { color: '#fff', fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
+  notice: { backgroundColor: palette.blueMist, borderColor: palette.blueLine, borderWidth: 1, borderRadius: 14, padding: 14, gap: 4 },
+  noticeHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
+  noticeTitle: { color: palette.blueDeep, fontFamily: 'Pretendard-Bold', fontSize: 14, flex: 1 },
+  noticeLine: { color: palette.textDim, fontFamily: 'Pretendard', fontSize: 13, lineHeight: 19 },
+  errorBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: palette.dangerSoft, borderRadius: 12, padding: 12 },
+  errorText: { color: palette.danger, fontFamily: 'Pretendard', fontSize: 13 },
+  retry: { color: palette.danger, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
   sectionHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: 4 },
   sectionTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 16 },
   sectionCount: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 12 },
@@ -154,14 +259,15 @@ const styles = StyleSheet.create({
   list: { gap: 10 },
   card: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: palette.card, borderColor: palette.border, borderWidth: 1, borderRadius: 14, padding: 14 },
   cardIcon: { width: 40, height: 40, borderRadius: 10, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
-  cardBody: { flex: 1, gap: 6 },
+  cardBody: { flex: 1, gap: 4 },
   cardTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 15 },
   cardMeta: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 12 },
-  progressTrack: { height: 4, borderRadius: 2, backgroundColor: palette.bgSoft, overflow: 'hidden', marginTop: 2 },
-  progressFill: { height: 4, borderRadius: 2 },
+  cardActivity: { color: palette.textFaint, fontFamily: 'Pretendard', fontSize: 12 },
   cardRight: { alignItems: 'flex-end', gap: 6 },
+  cardRightTop: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   pill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
   pillText: { fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
+  moreBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   memoChip: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: palette.blueSoft, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
   memoChipText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 11 },
   noMatch: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 14, textAlign: 'center', paddingVertical: 24 },

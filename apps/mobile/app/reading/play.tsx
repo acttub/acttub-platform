@@ -121,7 +121,8 @@ export default function ReadingPlay() {
     const go = () => {
       if (!cancelled && mounted.current) setIndex((i) => i + 1);
     };
-    if (cur.type === 'direction') {
+    if (cur.type !== 'dialogue') {
+      // 지문·장면 줄은 잠깐 보여 주고 넘어간다. 상대역이 읽지 않는다.
       const t = setTimeout(go, 1000);
       return () => {
         cancelled = true;
@@ -204,7 +205,7 @@ export default function ReadingPlay() {
 
   const prev = index - 1 >= start ? lines[index - 1] : undefined;
   const next = index + 1 <= end ? lines[index + 1] : undefined;
-  const isDirection = !!line && line.type === 'direction';
+  const isDirection = !!line && line.type !== 'dialogue';
   const pos = index - start + 1;
   const total = end - start + 1;
 

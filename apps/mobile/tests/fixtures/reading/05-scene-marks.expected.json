@@ -1,0 +1,65 @@
+{
+  "title": null,
+  "roles": [
+    "윤서",
+    "태오"
+  ],
+  "lines": [
+    {
+      "kind": "scene",
+      "text": "제1막"
+    },
+    {
+      "kind": "dialogue",
+      "role": "윤서",
+      "text": "여기 있을 줄 알았어."
+    },
+    {
+      "kind": "dialogue",
+      "role": "태오",
+      "text": "어떻게 알았어."
+    },
+    {
+      "kind": "scene",
+      "text": "S#2"
+    },
+    {
+      "kind": "dialogue",
+      "role": "윤서",
+      "text": "다음 거 언제야."
+    },
+    {
+      "kind": "dialogue",
+      "role": "태오",
+      "text": "모레."
+    },
+    {
+      "kind": "scene",
+      "text": "1막 2장"
+    },
+    {
+      "kind": "dialogue",
+      "role": "윤서",
+      "text": "그럼 오늘은 내려가자."
+    },
+    {
+      "kind": "dialogue",
+      "role": "태오",
+      "text": "너 연기 못하잖아."
+    },
+    {
+      "kind": "scene",
+      "text": "제3장"
+    },
+    {
+      "kind": "dialogue",
+      "role": "윤서",
+      "text": "알아. 그래도 혼자 하는 것보단 낫지."
+    },
+    {
+      "kind": "dialogue",
+      "role": "태오",
+      "text": "고마워."
+    }
+  ]
+}

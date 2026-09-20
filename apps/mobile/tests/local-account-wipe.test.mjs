@@ -4,7 +4,7 @@ import test from 'node:test';
 import { DEVICE_FILES_KEY, createDeviceFileLedger } from '../lib/device-files.ts';
 import { clearAccountCacheData, wipeLocalAccountData } from '../lib/local-account-wipe.ts';
 import { peekPendingUpload, setPendingUpload } from '../lib/practice.ts';
-import { createFromParsed, getCurrent } from '../lib/reading/store.ts';
+import { getCurrent, openScript } from '../lib/reading/store.ts';
 import { peekRecordedVideo, setRecordedVideo } from '../lib/recorded-video.ts';
 
 const RECORDING_1 = 'file:///cache/Audio/recording-1.m4a';
@@ -104,7 +104,10 @@ test('account.withdraw: 탈퇴하면 장부에 적힌 파일(줄인 사진·영�
 
 test('account.withdraw: 탈퇴하면 메모리에 든 리딩 대본·올리던 연습·찍은 영상도 비운다', async () => {
   const { dependencies } = phone();
-  await createFromParsed({ title: '옥상, 밤', roles: ['윤서'], lines: [] });
+  await openScript({
+    id: 'sc_1', title: '옥상, 밤', source: 'paste', characters: [], lines: [],
+    recording_count: 0, open_session_id: null, last_session: null, created_at: 'a', updated_at: 'b',
+  });
   setPendingUpload({
     scene: { situation: '', character: '', goal: '' },
     video: { uri: ORIGINAL_VIDEO, name: 'a.mov', mimeType: 'video/quicktime' },

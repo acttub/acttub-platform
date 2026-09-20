@@ -37,6 +37,14 @@ import type {
 } from '@/lib/portfolio';
 import type { ProfilePayload, ServerProfile } from '@/lib/profile-form';
 import type { NotificationSettings } from '@/lib/push-policy';
+import type {
+  CreateScriptBody,
+  LineMemorization,
+  MemorizationStatus,
+  PatchScriptBody,
+  ScriptDetail,
+  ScriptListResponse,
+} from '@/lib/reading/types';
 import {
   sceneValueForSubmit,
   sendUploadIntent,
@@ -635,6 +643,66 @@ export const api = {
         body: JSON.stringify({ enabled }),
       },
       { timeoutMs: 20_000 },
+    );
+  },
+
+  // 대본 리딩 -------------------------------------------------------------------
+  // 경로·필드는 리딩 스펙의 API 표(계획안)다. 계약이 굳으면(CONTRACT.md §6-14) lib/reading/types 와 함께 맞춘다.
+  /** 내 대본 목록(최근 고친 순). q 는 제목·배역 이름만 찾는다 — 대사 본문은 찾지 않는다. */
+  listReadingScripts(q?: string): Promise<ScriptListResponse> {
+    const query = q ? `?q=${encodeURIComponent(q)}` : '';
+    return request<ScriptListResponse>(`/v2/reading/scripts${query}`, {}, { timeoutMs: 20_000 });
+  },
+
+  /**
+   * 대본 저장(한 요청). 같은 request_id·같은 본문이면 먼저 만든 대본을 돌려주고(200), 다른 본문이면 422
+   * request_fingerprint_mismatch. 한도는 422 script_too_long·script_limit, 배역은 no_characters·invalid_characters.
+   * 연결이 끊기면 요청 계층이 같은 id 로 다시 보낸다.
+   */
+  createReadingScript(body: CreateScriptBody): Promise<ScriptDetail> {
+    return postIdempotent<ScriptDetail>('/v2/reading/scripts', body, {
+      requestId: body.request_id,
+      timeoutMs: 60_000,
+    });
+  },
+
+  /** 없는 것과 남의 것은 같은 404 다. */
+  getReadingScript(scriptId: string): Promise<ScriptDetail> {
+    return request<ScriptDetail>(`/v2/reading/scripts/${encodeURIComponent(scriptId)}`, {}, { timeoutMs: 20_000 });
+  },
+
+  /** 제목·배역 이름·목소리만 고친다. 줄은 불변이다. 빈 이름·겹치는 이름은 422 invalid_characters. */
+  updateReadingScript(scriptId: string, body: PatchScriptBody): Promise<ScriptDetail> {
+    return request<ScriptDetail>(
+      `/v2/reading/scripts/${encodeURIComponent(scriptId)}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+      { timeoutMs: 20_000 },
+    );
+  },
+
+  /** 배역·줄·회차·녹음(객체 포함)·암기 상태가 함께 지워지고 되돌릴 수 없다. */
+  deleteReadingScript(scriptId: string): Promise<void> {
+    return request<void>(
+      `/v2/reading/scripts/${encodeURIComponent(scriptId)}`,
+      { method: 'DELETE' },
+      { timeoutMs: 20_000 },
+    );
+  },
+
+  /** 줄 하나의 암기 상태. 그 대본의 대사 줄이면 배역과 무관하게 받고, 지문·장면 줄은 422 invalid_line. */
+  setLineMemorization(lineId: string, status: MemorizationStatus): Promise<LineMemorization> {
+    return request<LineMemorization>(
+      `/v2/reading/lines/${encodeURIComponent(lineId)}/memorization`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      },
+      { timeoutMs: 15_000 },
     );
   },
 

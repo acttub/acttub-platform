@@ -1,0 +1,80 @@
+{
+  "title": null,
+  "roles": [
+    "니나",
+    "트레플레프",
+    "소린"
+  ],
+  "lines": [
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "저는 갈매기예요."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "아니, 당신은 갈매기가 아니에요."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "저는 배우예요."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "그래요."
+    },
+    {
+      "kind": "dialogue",
+      "role": "소린",
+      "text": "이건 대사가 여덟 줄이고 전체의 1%를 넘어 배역이다 하나."
+    },
+    {
+      "kind": "dialogue",
+      "role": "소린",
+      "text": "둘."
+    },
+    {
+      "kind": "dialogue",
+      "role": "소린",
+      "text": "셋."
+    },
+    {
+      "kind": "dialogue",
+      "role": "소린",
+      "text": "넷."
+    },
+    {
+      "kind": "dialogue",
+      "role": "소린",
+      "text": "다섯."
+    },
+    {
+      "kind": "dialogue",
+      "role": "소린",
+      "text": "여섯."
+    },
+    {
+      "kind": "dialogue",
+      "role": "소린",
+      "text": "일곱."
+    },
+    {
+      "kind": "dialogue",
+      "role": "소린",
+      "text": "여덟."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "끝이에요."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "끝."
+    }
+  ]
+}

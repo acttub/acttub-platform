@@ -1,0 +1,65 @@
+{
+  "title": null,
+  "roles": [
+    "ANNA",
+    "BEN"
+  ],
+  "lines": [
+    {
+      "kind": "scene",
+      "text": "Act 1"
+    },
+    {
+      "kind": "dialogue",
+      "role": "ANNA",
+      "text": "I knew you'd be here."
+    },
+    {
+      "kind": "dialogue",
+      "role": "BEN",
+      "text": "How did you know?"
+    },
+    {
+      "kind": "dialogue",
+      "role": "ANNA",
+      "text": "You always go somewhere high when it's hard."
+    },
+    {
+      "kind": "dialogue",
+      "role": "BEN",
+      "text": "Maybe."
+    },
+    {
+      "kind": "scene",
+      "text": "ACT ONE, SCENE 2"
+    },
+    {
+      "kind": "direction",
+      "text": "BEAT"
+    },
+    {
+      "kind": "dialogue",
+      "role": "ANNA",
+      "text": "When is the next one?"
+    },
+    {
+      "kind": "dialogue",
+      "role": "BEN",
+      "text": "The day after tomorrow."
+    },
+    {
+      "kind": "direction",
+      "text": "Pause."
+    },
+    {
+      "kind": "dialogue",
+      "role": "ANNA",
+      "text": "Then let's go down today."
+    },
+    {
+      "kind": "dialogue",
+      "role": "BEN",
+      "text": "You can't act."
+    }
+  ]
+}

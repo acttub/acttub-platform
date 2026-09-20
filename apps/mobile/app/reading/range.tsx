@@ -25,22 +25,26 @@ export default function ReadingRange() {
     () => lines.map((l, i) => ({ l, i })).filter((x) => x.l.type === 'dialogue'),
     [lines],
   );
-  // 장면: 지문을 경계로 끊는다
+  // 장면: 장면 줄(막·장 머리)이 있으면 그 줄을 경계로, 없으면 지문을 경계로 끊는다(reading.session).
   const scenes = useMemo(() => {
+    const boundary = lines.some((l) => l.type === 'scene') ? 'scene' : 'direction';
     const out: { label: string; from: number; to: number }[] = [];
     let curFrom = -1;
     let sceneNo = 0;
+    let label = '';
     lines.forEach((l, i) => {
-      if (l.type === 'direction') {
-        if (curFrom >= 0) out.push({ label: `장면 ${sceneNo}`, from: curFrom, to: i - 1 });
+      if (l.type === boundary) {
+        if (curFrom >= 0) out.push({ label, from: curFrom, to: i - 1 });
         sceneNo += 1;
+        label = boundary === 'scene' ? l.text : `장면 ${sceneNo}`;
         curFrom = i;
       } else if (curFrom < 0) {
         curFrom = i;
         sceneNo = 1;
+        label = `장면 ${sceneNo}`;
       }
     });
-    if (curFrom >= 0) out.push({ label: `장면 ${Math.max(1, sceneNo)}`, from: curFrom, to: lines.length - 1 });
+    if (curFrom >= 0) out.push({ label: label || `장면 ${Math.max(1, sceneNo)}`, from: curFrom, to: lines.length - 1 });
     return out;
   }, [lines]);
 
@@ -154,7 +158,7 @@ export default function ReadingRange() {
                   <View>
                     <Text style={styles.rowRole}>{s.label}</Text>
                     <Text style={styles.rowLine} numberOfLines={1}>
-                      {lines[s.from]?.type === 'direction' ? (lines[s.from] as any).text : `${(lines[s.from] as any)?.role ?? ''} …`}
+                      {lines[s.from]?.type !== 'dialogue' ? (lines[s.from] as any)?.text : `${(lines[s.from] as any)?.role ?? ''} …`}
                     </Text>
                   </View>
                   {active && <Feather name="check" size={18} color={palette.blue} />}

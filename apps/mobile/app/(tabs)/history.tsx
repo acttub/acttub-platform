@@ -14,7 +14,8 @@ import { mergeHistory, sessionCardTitle } from '@/lib/history-merge';
 import { translate as t } from '@/lib/i18n';
 import { setPrefill } from '@/lib/practice';
 import { buildWeekActivity } from '@/lib/practice-activity';
-import { listScripts, loadIntoCurrent, type SavedScript } from '@/lib/reading/store';
+import { listScripts, loadIntoCurrent } from '@/lib/reading/store';
+import type { ScriptCard } from '@/lib/reading/types';
 import { loadRecordMeta } from '@/lib/record-meta';
 import { sortReportsNewestFirst } from '@/lib/report-order';
 import { sceneValueForDisplay } from '@/lib/upload-input';
@@ -40,14 +41,14 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  *
  * 위: 요약 카드(총 연습 / 남긴 문장 / 이번 주) + 필터 칩(전체·즐겨찾기·최근 30일).
  * 아래: 월별 그룹 → 한 줄씩(아이콘 · 제목 · 날짜 메타 · 주제 칩 · 화살표).
- * 리포트(GET /v2/reports)·정리 없는 세션(SOMA-444)·기기 저장 대본 리딩(녹음 있는 것만)을
+ * 리포트(GET /v2/reports)·정리 없는 세션(SOMA-444)·서버 대본 리딩(녹음 있는 것만, 회차 목록 합치기는 후속)을
  * 함께 시간순으로 보여준다. 즐겨찾기는 아직 저장 필드가 없어 빈 상태만 그린다.
  */
 export default function HistoryScreen() {
   const router = useRouter();
   const [reports, setReports] = useState<ReportRecord[]>([]);
   const [sessions, setSessions] = useState<PracticeSessionListItem[]>([]);
-  const [scripts, setScripts] = useState<SavedScript[]>([]);
+  const [scripts, setScripts] = useState<ScriptCard[]>([]);
   const [meta, setMeta] = useState<Record<string, RecordMeta>>({});
   const [filter, setFilter] = useState<Filter>('all');
   const [loading, setLoading] = useState(true);
@@ -61,10 +62,10 @@ export default function HistoryScreen() {
       const [history, sessionList, savedScripts] = await Promise.all([
         api.reportHistory(),
         api.listPracticeSessions().catch(() => ({ sessions: [] as PracticeSessionListItem[] })),
-        listScripts().catch(() => [] as SavedScript[]),
+        listScripts().catch(() => null),
       ]);
       setSessions(sessionList.sessions);
-      setScripts(savedScripts.filter((s) => s.recordings.length > 0));
+      setScripts((savedScripts?.scripts ?? []).filter((s) => s.recording_count > 0 && !!s.last_activity_at));
       const sorted = sortReportsNewestFirst(history.reports);
       setReports(sorted);
       // 목록엔 진단 축이 없어서 카드별 상세를 따로 불러 칩을 채운다.
@@ -151,9 +152,8 @@ export default function HistoryScreen() {
     });
   };
 
-  const openScript = async (s: SavedScript) => {
-    await loadIntoCurrent(s.id);
-    router.push('/reading/detail');
+  const openScript = async (s: ScriptCard) => {
+    if (await loadIntoCurrent(s.id)) router.push('/reading/detail');
   };
 
   const dayLabel = (iso: string) => formatKoreanDate(iso, { month: 'long', day: 'numeric' });
@@ -184,15 +184,14 @@ export default function HistoryScreen() {
           },
     );
     const reading = scripts.map<Row>((s) => {
-      const latest = Math.max(...s.recordings.map((r) => r.createdAt));
-      const createdAt = new Date(latest).toISOString();
-      const role = s.myRoles[0];
+      const createdAt = new Date(s.last_activity_at ?? 0).toISOString();
+      const role = s.my_character_names[0];
       return {
         id: `d:${s.id}`,
         createdAt,
         icon: 'mic',
         title: role ? `${s.title} · ${role} ${t('history.readingLabel')}` : s.title,
-        meta: `${dayLabel(createdAt)} · ${t('history.recordingCount', { count: s.recordings.length })}`,
+        meta: `${dayLabel(createdAt)} · ${t('history.recordingCount', { count: s.recording_count })}`,
         chips: [],
         onPress: () => void openScript(s),
       };

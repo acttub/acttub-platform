@@ -1,0 +1,57 @@
+{
+  "title": "옥상, 밤",
+  "roles": [
+    "윤서",
+    "태오"
+  ],
+  "lines": [
+    {
+      "kind": "direction",
+      "text": "옥상 난간. 도시 불빛. 바람 소리."
+    },
+    {
+      "kind": "dialogue",
+      "role": "윤서",
+      "text": "여기 있을 줄 알았어."
+    },
+    {
+      "kind": "dialogue",
+      "role": "태오",
+      "text": "어떻게 알았어."
+    },
+    {
+      "kind": "dialogue",
+      "role": "윤서",
+      "text": "너 힘들면 항상 높은 데로 가잖아."
+    },
+    {
+      "kind": "dialogue",
+      "role": "태오",
+      "text": "(웃으며) 그런가."
+    },
+    {
+      "kind": "dialogue",
+      "role": "윤서",
+      "text": "왜 말 안 했어. 오디션 떨어진 거."
+    },
+    {
+      "kind": "dialogue",
+      "role": "태오",
+      "text": "말하면 뭐가 달라져."
+    },
+    {
+      "kind": "direction",
+      "text": "사이. 태오가 난간에 기댄다."
+    },
+    {
+      "kind": "dialogue",
+      "role": "윤서",
+      "text": "다음 거 언제야."
+    },
+    {
+      "kind": "dialogue",
+      "role": "태오",
+      "text": "모레."
+    }
+  ]
+}

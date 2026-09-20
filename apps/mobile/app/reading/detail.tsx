@@ -6,7 +6,9 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
-import { getCurrent, loadIntoCurrent, updateCurrent, type Recording, type SavedScript } from '@/lib/reading/store';
+import { useAppDialog } from '@/components/app-dialog';
+import { scriptErrorMessage } from '@/lib/reading/script-errors';
+import { deleteScript, getCurrent, loadIntoCurrent, updateCurrent, type Recording, type SavedScript } from '@/lib/reading/store';
 import { translate as t } from '@/lib/i18n';
 
 function ago(ts: number): string {
@@ -31,6 +33,7 @@ export default function ReadingDetail() {
   const [script, setScript] = useState<SavedScript | null>(getCurrent());
   const [playingId, setPlayingId] = useState<string | null>(null);
   const playerRef = useRef<any>(null);
+  const { confirm, sheet, alert, dialog } = useAppDialog();
 
   useFocusEffect(
     useCallback(() => {
@@ -87,6 +90,34 @@ export default function ReadingDetail() {
   };
   const resume = () => router.push('/reading/play');
 
+  // 더보기(R00.3·R00.4): 제목·배역 수정 시트와 삭제 확인. 삭제 확인에는 함께 지워지는 녹음 수를 보여 준다.
+  const remove = async () => {
+    const ok = await confirm({
+      title: t('reading.deleteTitle'),
+      message:
+        script.recordingCount > 0
+          ? t('reading.deleteBody', { recordings: script.recordingCount })
+          : t('reading.deleteBodyNoRecordings'),
+      confirmLabel: t('common.delete'),
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await deleteScript(script.id);
+      router.replace('/reading');
+    } catch (e) {
+      void alert({ title: t('reading.deleteAction'), message: scriptErrorMessage(e) });
+    }
+  };
+  const more = () =>
+    void sheet({
+      title: script.title,
+      actions: [
+        { label: t('reading.editAction'), onPress: () => router.push('/reading/edit') },
+        { label: t('reading.deleteAction'), destructive: true, onPress: () => void remove() },
+      ],
+    });
+
   return (
     <View style={styles.root}>
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 120 }]}>
@@ -98,13 +129,18 @@ export default function ReadingDetail() {
           <View style={styles.sumBody}>
             <Text style={styles.sumRole}>내 배역 · {script.myRoles.join(', ') || t('reading.unset')}</Text>
             <Text style={styles.sumMeta}>
-              {script.dialogueCount}개 대사 · 녹음 {recs.length}개{recs.length ? ` · ${ago(recs[0].createdAt)} 연습` : ''}
+              {script.dialogueCount}개 대사 · 녹음 {script.recordingCount}개{recs.length ? ` · ${ago(recs[0].createdAt)} 연습` : ''}
             </Text>
             <View style={styles.progressTrack}>
               <View style={[styles.progressFill, { width: `${Math.round((pos / total) * 100)}%`, backgroundColor: st.color }]} />
             </View>
           </View>
-          <Text style={[styles.statusText, { color: st.color }]}>{st.label}</Text>
+          <View style={styles.sumRight}>
+            <Text style={[styles.statusText, { color: st.color }]}>{st.label}</Text>
+            <Pressable style={styles.moreBtn} hitSlop={8} accessibilityLabel={t('reading.more')} onPress={more}>
+              <Feather name="more-horizontal" size={18} color={palette.textDim} />
+            </Pressable>
+          </View>
         </View>
 
         <Pressable style={styles.fullBtn} onPress={() => router.push('/reading/full')}>
@@ -167,6 +203,7 @@ export default function ReadingDetail() {
           <Text style={styles.footPrimaryText}>이어서 연습 · {Math.min(pos + 1, total)}/{total}</Text>
         </Pressable>
       </View>
+      {dialog}
     </View>
   );
 }
@@ -183,7 +220,9 @@ const styles = StyleSheet.create({
   sumMeta: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 12 },
   progressTrack: { height: 5, borderRadius: 3, backgroundColor: palette.bgSoft, overflow: 'hidden', marginTop: 2 },
   progressFill: { height: 5, borderRadius: 3 },
-  statusText: { fontFamily: 'Pretendard-SemiBold', fontSize: 12, alignSelf: 'flex-end' },
+  sumRight: { alignItems: 'flex-end', gap: 4 },
+  statusText: { fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
+  moreBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   fullBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: palette.bgSubtle, borderColor: palette.border, borderWidth: 1, borderRadius: 14, padding: 16 },
   fullTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 15 },
   fullSub: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 12, marginTop: 2 },
