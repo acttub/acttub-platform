@@ -18,10 +18,15 @@ import { createDraft, validateDraft, type ScriptDraft } from './script-draft.ts'
 import type {
   CreateScriptBody,
   PatchScriptBody,
+  ProgressBody,
+  ProgressResponse,
   ScriptCharacter,
   ScriptDetail,
+  ScriptLastSession,
   ScriptListResponse,
   ScriptSource,
+  SessionDetail,
+  StartSessionBody,
 } from './types.ts';
 
 /** 기기 쪽 진행 상태. 서버 회차(reading.session)가 오면 그것으로 바뀐다. */
@@ -63,6 +68,8 @@ export interface SavedScript extends DevicePrefs {
   /** 모든 회차의 녹음 수(서버 집계). */
   recordingCount: number;
   openSessionId: string | null;
+  /** 마지막 회차(그 대본에서 가장 늦게 시작한 회차). 배역 화면의 기본 선택이 이것이다. */
+  lastSession: ScriptLastSession | null;
   /** 옛 회차 전체 녹음(메모리). */
   recordings: Recording[];
   /** 외운 대사(줄 인덱스). 암기 상태가 서버로 가면(RM4) 없어진다. */
@@ -104,6 +111,10 @@ export type ScriptTransport = {
   create(body: CreateScriptBody): Promise<ScriptDetail>;
   patch(id: string, body: PatchScriptBody): Promise<ScriptDetail>;
   remove(id: string): Promise<void>;
+  /** 회차(reading.session). 테스트의 가짜 서버가 넣지 않아도 대본 기능은 돈다. */
+  startSession?(scriptId: string, body: StartSessionBody): Promise<SessionDetail>;
+  getSession?(sessionId: string): Promise<SessionDetail>;
+  saveProgress?(sessionId: string, body: ProgressBody): Promise<ProgressResponse>;
 };
 
 let transport: ScriptTransport | null = null;
@@ -123,6 +134,9 @@ function server(): ScriptTransport {
     create: (body) => api.createReadingScript(body),
     patch: (id, body) => api.updateReadingScript(id, body),
     remove: (id) => api.deleteReadingScript(id),
+    startSession: (scriptId, body) => api.startReadingSession(scriptId, body),
+    getSession: (sessionId) => api.getReadingSession(sessionId),
+    saveProgress: (sessionId, body) => api.saveReadingProgress(sessionId, body),
   };
   return transport;
 }
@@ -199,6 +213,7 @@ export function toSavedScript(detail: ScriptDetail, prefs: Partial<DevicePrefs> 
     dialogueCount: screenLines.filter((l) => l.type === 'dialogue').length,
     recordingCount: detail.recording_count,
     openSessionId: detail.open_session_id,
+    lastSession: detail.last_session ?? null,
     recordings: [],
     memorized: [],
     createdAt: Date.parse(detail.created_at) || 0,
@@ -215,6 +230,8 @@ export function listScripts(q?: string): Promise<ScriptListResponse> {
 
 let current: SavedScript | null = null;
 let pendingDraft: ScriptDraft | null = null;
+/** 실행 화면이 쓰는 현재 회차(reading.session). 시작·이어하기 때 채우고 실행 화면을 떠나면 비운다. */
+let currentSession: SessionDetail | null = null;
 
 export function getCurrent(): SavedScript | null {
   return current;
@@ -224,6 +241,7 @@ export function getCurrent(): SavedScript | null {
 export function resetReadingState(): void {
   current = null;
   pendingDraft = null;
+  currentSession = null;
 }
 
 export function isMyRole(role: string): boolean {
@@ -294,14 +312,24 @@ export async function saveDraft(draft: ScriptDraft): Promise<SavedScript> {
   return openScript(detail);
 }
 
-/** 제목·배역 이름만 고친다(R00.3). 줄·배역 id·목소리는 그대로다. */
+/**
+ * 제목·배역 이름·목소리만 고친다(R00.3 · reading.cast). 줄·배역 id 는 그대로다. voice_preset 은 키가 있을
+ * 때만 바뀐다 — null 이면 "자동"으로 돌아간다.
+ */
 export async function updateScriptMeta(
   id: string,
-  patch: { title?: string; characters?: { id: string; name: string }[] },
+  patch: { title?: string; characters?: { id: string; name?: string; voice_preset?: string | null }[] },
 ): Promise<ScriptDetail> {
   const body: PatchScriptBody = {};
   if (patch.title !== undefined) body.title = patch.title;
-  if (patch.characters) body.characters = patch.characters.map((c) => ({ id: c.id, name: c.name }));
+  if (patch.characters) {
+    body.characters = patch.characters.map((c) => {
+      const entry: { id: string; name?: string; voice_preset?: string | null } = { id: c.id };
+      if (c.name !== undefined) entry.name = c.name;
+      if ('voice_preset' in c) entry.voice_preset = c.voice_preset ?? null;
+      return entry;
+    });
+  }
   const detail = await server().patch(id, body);
   if (current?.id === id) {
     const kept = current;
@@ -315,4 +343,51 @@ export async function deleteScript(id: string): Promise<void> {
   await server().remove(id);
   if (current?.id === id) current = null;
   await writePrefs(id, null);
+}
+
+// ── 회차(reading.session) ─────────────────────────────────────────────────────
+
+export function getCurrentSession(): SessionDetail | null {
+  return currentSession;
+}
+
+export function setCurrentSession(session: SessionDetail | null): void {
+  currentSession = session;
+}
+
+/**
+ * 회차를 시작한다. 요청 id 는 화면이 한 번 만들어 재시도에도 같은 값을 쓴다(같은 회차 하나). 열린 회차가
+ * 있으면 서버가 stopped 로 바꾸고 새 회차를 만든다. 시작한 회차가 현재 회차가 된다.
+ */
+export async function startSession(scriptId: string, body: StartSessionBody): Promise<SessionDetail> {
+  const start = server().startSession;
+  if (!start) throw new Error('session transport missing');
+  const session = await start(scriptId, body);
+  currentSession = session;
+  if (current?.id === scriptId) {
+    current = {
+      ...current,
+      openSessionId: session.status === 'in_progress' ? session.id : current.openSessionId,
+      myRoles: current.characters.filter((c) => session.my_character_ids.includes(c.id)).map((c) => c.name),
+    };
+  }
+  return session;
+}
+
+/** 열린 회차를 다시 읽어 현재 회차로 올린다(이어하기). 없거나 남의 것이면 null. */
+export async function loadSession(sessionId: string): Promise<SessionDetail | null> {
+  const get = server().getSession;
+  if (!get) return null;
+  try {
+    currentSession = await get(sessionId);
+    return currentSession;
+  } catch {
+    return null;
+  }
+}
+
+export function saveProgress(sessionId: string, body: ProgressBody): Promise<ProgressResponse> {
+  const save = server().saveProgress;
+  if (!save) return Promise.reject(new Error('session transport missing'));
+  return save(sessionId, body);
 }

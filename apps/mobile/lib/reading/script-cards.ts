@@ -48,17 +48,16 @@ export function relativeDay(iso: string, now: number): string {
 }
 
 /**
- * 마지막 활동 — "어제 연습", "5월 25일 업로드". 회차를 한 번이라도 시작했으면(내 배역이 있으면)
- * 연습이고, 아니면 등록(업로드)이 마지막 활동이다.
+ * 마지막 활동 — "어제 연습", "5월 25일 업로드". 서버가 회차의 마지막 갱신 시각(last_practiced_at)을 주면
+ * 연습이고, 없으면 등록(업로드)이 마지막 활동이다(RA1 계약). 옛 응답처럼 그 필드가 없으면 내 배역 유무로 본다.
  */
 export function lastActivityLabel(
-  card: Pick<ScriptCard, 'last_activity_at' | 'my_character_names'>,
+  card: Pick<ScriptCard, 'last_activity_at' | 'my_character_names'> & { last_practiced_at?: string | null },
   now: number = Date.now(),
 ): string {
   if (!card.last_activity_at) return '';
   const when = relativeDay(card.last_activity_at, now);
   if (!when) return '';
-  return card.my_character_names.length > 0
-    ? t('reading.activityPractice', { when })
-    : t('reading.activityUpload', { when });
+  const practiced = card.last_practiced_at !== undefined ? card.last_practiced_at !== null : card.my_character_names.length > 0;
+  return practiced ? t('reading.activityPractice', { when }) : t('reading.activityUpload', { when });
 }

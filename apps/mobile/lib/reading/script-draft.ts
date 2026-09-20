@@ -85,8 +85,11 @@ export function draftSummary(draft: ScriptDraft): DraftSummary {
   return summary;
 }
 
+/** 서버 계약: 제목은 공백 정리 뒤 1~200자. 넘치면 기기가 200자에서 자른다. */
+export const TITLE_MAX = 200;
+
 export function draftTitle(draft: ScriptDraft): string {
-  const title = (draft.title ?? draftParsed(draft).title ?? '').trim();
+  const title = [...(draft.title ?? draftParsed(draft).title ?? '').trim()].slice(0, TITLE_MAX).join('');
   return title || t('reading.untitled');
 }
 

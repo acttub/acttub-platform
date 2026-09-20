@@ -56,4 +56,13 @@ test('reading.script: 마지막 활동 날짜 — "어제 연습", "5월 25일 �
     '5월 25일 업로드',
   );
   assert.equal(lastActivityLabel(card({ last_activity_at: null }), NOW), '');
+  // 서버 계약(RA1): last_practiced_at 이 있으면 연습, null 이면 업로드
+  assert.equal(
+    lastActivityLabel(card({ my_character_names: [], last_practiced_at: '2026-09-20T21:00:00+09:00', last_activity_at: '2026-09-20T21:00:00+09:00' }), NOW),
+    '어제 연습',
+  );
+  assert.equal(
+    lastActivityLabel(card({ my_character_names: ['니나'], last_practiced_at: null, last_activity_at: '2026-05-25T09:00:00+09:00' }), NOW),
+    '5월 25일 업로드',
+  );
 });

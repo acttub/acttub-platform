@@ -149,4 +149,5 @@ test('reading.script: 제목을 고치면 앞뒤 공백을 정리해 싣고 비�
   const draft = createDraft(COLON, 'paste', RID);
   assert.equal(draftToCreateBody(setDraftTitle(draft, '  갈매기 1막 ')).title, '갈매기 1막');
   assert.equal(draftToCreateBody(setDraftTitle(draft, '   ')).title, '제목 없는 대본');
+  assert.equal([...draftToCreateBody(setDraftTitle(draft, '가'.repeat(250))).title].length, 200, '제목은 200자까지');
 });

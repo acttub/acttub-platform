@@ -8,7 +8,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { palette } from '@/constants/palette';
 import { useAppDialog } from '@/components/app-dialog';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
-import { deleteScript, getCurrent, loadIntoCurrent, updateCurrent, type Recording, type SavedScript } from '@/lib/reading/store';
+import { deleteScript, getCurrent, loadIntoCurrent, loadSession, setCurrentSession, type Recording, type SavedScript } from '@/lib/reading/store';
+import type { SessionDetail } from '@/lib/reading/types';
 import { translate as t } from '@/lib/i18n';
 
 function ago(ts: number): string {
@@ -31,6 +32,7 @@ export default function ReadingDetail() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [script, setScript] = useState<SavedScript | null>(getCurrent());
+  const [openSession, setOpenSession] = useState<SessionDetail | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const playerRef = useRef<any>(null);
   const { confirm, sheet, alert, dialog } = useAppDialog();
@@ -38,7 +40,13 @@ export default function ReadingDetail() {
   useFocusEffect(
     useCallback(() => {
       const id = getCurrent()?.id;
-      if (id) void loadIntoCurrent(id).then((s) => setScript(s ? { ...s } : null));
+      if (id) {
+        void loadIntoCurrent(id).then(async (s) => {
+          setScript(s ? { ...s } : null);
+          // 열린 회차가 있으면 "이어서 연습 · K / N"(reading.session).
+          setOpenSession(s?.openSessionId ? await loadSession(s.openSessionId) : null);
+        });
+      }
       return () => {
         try {
           playerRef.current?.remove?.();
@@ -61,8 +69,6 @@ export default function ReadingDetail() {
   }
 
   const st = statusOf(script);
-  const total = script.endIndex - script.startIndex + 1;
-  const pos = Math.min(Math.max(script.index - script.startIndex, 0), total);
   const recs = script.recordings;
 
   const playRec = (rec: Recording) => {
@@ -84,11 +90,28 @@ export default function ReadingDetail() {
     }
   };
 
-  const startFresh = async () => {
-    await updateCurrent({ index: script.startIndex, status: 'reading' });
+  // "새로운 연습"은 배역 선택부터(열린 회차는 서버가 새 회차를 만들 때 stopped 로 바꾼다).
+  const startFresh = () => router.push('/reading/roles');
+  // "이어서 연습"은 열린 회차를 current_line 부터 다시 연다.
+  const resume = () => {
+    if (!openSession) return;
+    setCurrentSession(openSession);
     router.push('/reading/play');
   };
-  const resume = () => router.push('/reading/play');
+  const openProgress = (() => {
+    if (!openSession) return null;
+    const startAt = script.lineIds.indexOf(openSession.start_line_id);
+    const endAt = script.lineIds.indexOf(openSession.end_line_id);
+    const at = openSession.current_line_id ? script.lineIds.indexOf(openSession.current_line_id) : -1;
+    let k = 0;
+    let n = 0;
+    for (let i = startAt; i <= endAt && i >= 0; i++) {
+      if (script.lines[i]?.type !== 'dialogue') continue;
+      n += 1;
+      if (at >= 0 && i < at) k += 1;
+    }
+    return { k, n };
+  })();
 
   // 더보기(R00.3·R00.4): 제목·배역 수정 시트와 삭제 확인. 삭제 확인에는 함께 지워지는 녹음 수를 보여 준다.
   const remove = async () => {
@@ -132,7 +155,7 @@ export default function ReadingDetail() {
               {script.dialogueCount}개 대사 · 녹음 {script.recordingCount}개{recs.length ? ` · ${ago(recs[0].createdAt)} 연습` : ''}
             </Text>
             <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: `${Math.round((pos / total) * 100)}%`, backgroundColor: st.color }]} />
+              <View style={[styles.progressFill, { width: `${openProgress && openProgress.n ? Math.round((openProgress.k / openProgress.n) * 100) : 0}%`, backgroundColor: st.color }]} />
             </View>
           </View>
           <View style={styles.sumRight}>
@@ -194,14 +217,23 @@ export default function ReadingDetail() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
-        <Pressable style={[styles.foot, styles.footGhost]} onPress={startFresh}>
-          <Feather name="plus" size={16} color={palette.blue} />
-          <Text style={styles.footGhostText}>새로운 연습</Text>
-        </Pressable>
-        <Pressable style={[styles.foot, styles.footPrimary]} onPress={resume}>
-          <Feather name="play" size={15} color="#fff" />
-          <Text style={styles.footPrimaryText}>이어서 연습 · {Math.min(pos + 1, total)}/{total}</Text>
-        </Pressable>
+        {openSession && openProgress ? (
+          <>
+            <Pressable style={[styles.foot, styles.footGhost]} onPress={startFresh}>
+              <Feather name="plus" size={16} color={palette.blue} />
+              <Text style={styles.footGhostText}>{t('reading.newSession')}</Text>
+            </Pressable>
+            <Pressable style={[styles.foot, styles.footPrimary]} onPress={resume}>
+              <Feather name="play" size={15} color="#fff" />
+              <Text style={styles.footPrimaryText}>{t('reading.resumeSession', { k: openProgress.k, n: openProgress.n })}</Text>
+            </Pressable>
+          </>
+        ) : (
+          <Pressable style={[styles.foot, styles.footPrimary]} onPress={startFresh}>
+            <Feather name="play" size={15} color="#fff" />
+            <Text style={styles.footPrimaryText}>{t('reading.newSession')}</Text>
+          </Pressable>
+        )}
       </View>
       {dialog}
     </View>

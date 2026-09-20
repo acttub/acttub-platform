@@ -60,8 +60,12 @@ export type ScriptCard = {
   dialogue_count: number;
   /** 모든 회차의 녹음 수 합. 삭제 확인(R00.4)에 보여 준다. */
   recording_count: number;
+  /** 마지막 회차의 마지막 갱신 시각. 회차가 없으면 null. */
+  last_practiced_at?: string | null;
+  /** 마지막 활동 — 회차가 있으면 last_practiced_at, 없으면 등록 시각. */
   last_activity_at: string | null;
   status: ScriptCardStatus;
+  created_at?: string;
   updated_at: string;
 };
 
@@ -71,10 +75,16 @@ export type ScriptListResponse = {
   in_progress_count: number;
 };
 
+export type ReadingSessionStatus = 'in_progress' | 'completed' | 'stopped';
+
+/** 대본 상세와 카드가 함께 보는 마지막 회차(그 대본에서 가장 늦게 시작한 회차). */
 export type ScriptLastSession = {
   id: string;
-  status: 'in_progress' | 'completed' | 'stopped';
+  status: ReadingSessionStatus;
   my_character_ids: string[];
+  my_character_names: string[];
+  started_at: string;
+  ended_at: string | null;
 };
 
 /** 상세(R00.5)와 생성·수정 응답. */
@@ -110,3 +120,86 @@ export const SCRIPT_ERROR_CODES = [
   'request_fingerprint_mismatch',
 ] as const;
 export type ScriptErrorCode = (typeof SCRIPT_ERROR_CODES)[number];
+
+// ─── 리딩 회차(reading.cast · reading.session) ──────────────────────────────
+
+export type ReadingMode = 'read' | 'quiz';
+export type ReadingAdvance = 'silence' | 'manual';
+export type LineOutcome = 'passed' | 'unmatched' | 'skipped';
+
+/** 줄마다 하나. 마지막 사건이 이긴다. misses 는 미달 횟수. */
+export type LineResult = { line_id: string; outcome: LineOutcome; misses: number };
+
+/** POST /v2/reading/scripts/{id}/sessions. 속성은 시작할 때 정하고 뒤에 바꾸지 않는다. */
+export type StartSessionBody = {
+  request_id: string;
+  my_character_ids: string[];
+  mode: ReadingMode;
+  start_line_id: string;
+  end_line_id: string;
+  advance: ReadingAdvance;
+  record: boolean;
+};
+
+/** 회차 목록 카드(R00.5). ordinal 은 그 대본에서 시작한 순(집계). */
+export type SessionCard = {
+  id: string;
+  ordinal: number;
+  status: ReadingSessionStatus;
+  my_character_names: string[];
+  range: { start_dialogue_no: number; end_dialogue_no: number };
+  my_dialogue_count: number;
+  recorded_line_count: number;
+  elapsed_seconds: number;
+  started_at: string;
+  ended_at: string | null;
+};
+
+export type SessionRecording = {
+  id: string;
+  line_id: string;
+  attempt_no: number;
+  duration_ms: number;
+  content_type: string;
+  byte_size: number;
+  transcript: string | null;
+  transcript_source: 'stt' | 'none';
+  matched: boolean | null;
+  playback_url: string | null;
+  playback_expires_at: string | null;
+};
+
+export type SessionDetail = SessionCard & {
+  script_id: string;
+  my_character_ids: string[];
+  mode: ReadingMode;
+  start_line_id: string;
+  end_line_id: string;
+  advance: ReadingAdvance;
+  record: boolean;
+  /** 다음에 할 대사 줄. completed 면 null, stopped 는 중단 위치. */
+  current_line_id: string | null;
+  progress_seq: number;
+  line_results: LineResult[];
+  recordings: SessionRecording[];
+};
+
+/** PATCH /v2/reading/sessions/{id}/progress. seq 가 저장값보다 클 때만 반영된다. */
+export type ProgressBody = {
+  progress_seq: number;
+  current_line_id?: string | null;
+  elapsed_seconds?: number;
+  line_results?: LineResult[];
+  complete?: boolean;
+};
+
+export type ProgressResponse = {
+  current_line_id: string | null;
+  elapsed_seconds: number;
+  progress_seq: number;
+  status: ReadingSessionStatus;
+};
+
+/** 회차의 422·409 사유 코드. */
+export const SESSION_ERROR_CODES = ['invalid_characters', 'empty_range', 'invalid_line', 'session_closed'] as const;
+export type SessionErrorCode = (typeof SESSION_ERROR_CODES)[number];

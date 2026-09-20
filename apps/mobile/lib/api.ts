@@ -42,8 +42,13 @@ import type {
   LineMemorization,
   MemorizationStatus,
   PatchScriptBody,
+  ProgressBody,
+  ProgressResponse,
   ScriptDetail,
   ScriptListResponse,
+  SessionCard,
+  SessionDetail,
+  StartSessionBody,
 } from '@/lib/reading/types';
 import {
   sceneValueForSubmit,
@@ -690,6 +695,44 @@ export const api = {
       `/v2/reading/scripts/${encodeURIComponent(scriptId)}`,
       { method: 'DELETE' },
       { timeoutMs: 20_000 },
+    );
+  },
+
+  /**
+   * 회차 시작(reading.session). 열린 회차가 있으면 서버가 같은 트랜잭션에서 stopped 로 바꾸고 새 회차를
+   * 만든다. 같은 request_id 는 같은 회차 하나. 내 배역 없음·남의 배역 422 invalid_characters, 구간 안 내
+   * 대사 없음·순서 뒤집힘 422 empty_range.
+   */
+  startReadingSession(scriptId: string, body: StartSessionBody): Promise<SessionDetail> {
+    return postIdempotent<SessionDetail>(
+      `/v2/reading/scripts/${encodeURIComponent(scriptId)}/sessions`,
+      body,
+      { requestId: body.request_id, timeoutMs: 30_000 },
+    );
+  },
+
+  /** 그 대본의 회차 목록(최근순). */
+  listReadingSessions(scriptId: string): Promise<{ sessions: SessionCard[] }> {
+    return request(`/v2/reading/scripts/${encodeURIComponent(scriptId)}/sessions`, {}, { timeoutMs: 20_000 });
+  },
+
+  getReadingSession(sessionId: string): Promise<SessionDetail> {
+    return request<SessionDetail>(`/v2/reading/sessions/${encodeURIComponent(sessionId)}`, {}, { timeoutMs: 20_000 });
+  },
+
+  /**
+   * 진행 저장. 서버는 progress_seq 가 저장값보다 큰 요청만 반영하고 작거나 같으면 무시하고 현재 값을 200 으로
+   * 돌려준다. completed·stopped 회차는 409 session_closed, 구간 밖·지문 줄은 422 invalid_line.
+   */
+  saveReadingProgress(sessionId: string, body: ProgressBody): Promise<ProgressResponse> {
+    return request<ProgressResponse>(
+      `/v2/reading/sessions/${encodeURIComponent(sessionId)}/progress`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+      { timeoutMs: 15_000 },
     );
   },
 
