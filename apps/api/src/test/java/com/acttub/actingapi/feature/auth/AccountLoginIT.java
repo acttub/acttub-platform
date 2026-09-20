@@ -423,6 +423,10 @@ class AccountLoginIT {
                 .containsExactly(termsV2.toString());
 
         // 토큰을 갱신해도 열리지 않는다 — 게이트는 요청마다 DB 의 동의 상태로 판정한다.
+        // 갱신은 리프레시 토큰의 iat(실제 시계)를 애플리케이션 시계로 검사한다. setUp 이 시계를 초 단위로
+        // 고정해 두어, 다시 로그인한 순간이 다음 초로 넘어가 있으면 "아직 유효하지 않다"로 거절된다(CI 에서
+        // 그렇게 401 이 났다). 갱신 직전에 시계를 지금으로 맞춘다.
+        clock.set(java.time.Instant.now());
         JsonNode refreshed = mapper.readTree(mvc.perform(post("/v2/auth/refresh")
                         .with(request -> {
                             request.setRemoteAddr(address);
