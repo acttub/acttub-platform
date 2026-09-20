@@ -10,6 +10,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.consent.adapter.db.ConsentDocumentJpaRepository;
+import com.acttub.actingapi.feature.consent.domain.ConsentLocale;
 import com.acttub.actingapi.feature.consent.schema.ConsentDocumentEntity;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
@@ -73,8 +74,14 @@ public class ConsentDocumentPublisher implements ApplicationRunner {
             String file,
             String type,
             String version,
+            /** 문서가 쓰인 말. 없으면 정본(한국어)이다 (SOMA-544). */
+            String locale,
             String title,
             @JsonDeserialize(using = StrictBooleanDeserializer.class) Boolean required) {
+
+        String localeOrCanonical() {
+            return locale == null || locale.isBlank() ? ConsentLocale.CANONICAL : locale;
+        }
     }
 
     private record Validated(Entry entry, ConsentType type, String body) {
@@ -113,6 +120,9 @@ public class ConsentDocumentPublisher implements ApplicationRunner {
                     || entry.required() == null) {
                 throw new IllegalArgumentException("invalid consent manifest entry");
             }
+            if (!ConsentLocale.isSupported(entry.localeOrCanonical())) {
+                throw new IllegalArgumentException("invalid consent locale: " + entry.locale());
+            }
             Resource body = resource(entry.file());
             if (!body.exists()) {
                 throw new java.io.FileNotFoundException(entry.file());
@@ -126,7 +136,8 @@ public class ConsentDocumentPublisher implements ApplicationRunner {
         int published = 0;
         for (Validated value : all) {
             Entry entry = value.entry();
-            var existing = documents.findByTypeAndVersion(value.type(), entry.version());
+            var existing = documents.findByTypeAndVersionAndLocale(
+                    value.type(), entry.version(), entry.localeOrCanonical());
             if (existing.isPresent()) {
                 ConsentDocumentEntity document = existing.get();
                 List<String> mismatch = new ArrayList<>();
@@ -141,9 +152,10 @@ public class ConsentDocumentPublisher implements ApplicationRunner {
                 }
                 if (!mismatch.isEmpty()) {
                     log.warn(
-                            "Consent document {}:{} differs in fields: {}; publish a new version",
+                            "Consent document {}:{}:{} differs in fields: {}; publish a new version",
                             value.type().dbValue(),
                             entry.version(),
+                            entry.localeOrCanonical(),
                             mismatch);
                 }
                 continue;
@@ -153,6 +165,7 @@ public class ConsentDocumentPublisher implements ApplicationRunner {
                         UUID.randomUUID(),
                         value.type(),
                         entry.version(),
+                        entry.localeOrCanonical(),
                         entry.title(),
                         value.body(),
                         entry.required()));
