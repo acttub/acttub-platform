@@ -6,7 +6,7 @@
  * 오른쪽 열이 같은 것을 쓴다. 저장 버튼은 부르는 쪽이 놓는다(폰은 화면 아래 고정).
  */
 import { useState } from "react";
-import { resolveDraft, type ScriptDraft, updateDraft } from "@/lib/reading/draft";
+import { resolveDraft, type ScriptDraft, TITLE_MAX_LENGTH, updateDraft } from "@/lib/reading/draft";
 
 export const NO_CHARACTERS_COPY = "배역을 하나도 못 찾았어요. 배역 이름을 적어 주세요.";
 
@@ -37,6 +37,7 @@ export function ScriptConfirmPanel({ draft, onChange }: { draft: ScriptDraft; on
         <input
           value={draft.title ?? title}
           onChange={(e) => change({ title: e.target.value })}
+          maxLength={TITLE_MAX_LENGTH}
           aria-label="대본 제목"
           className="script-text w-full h-10 rounded-lg bg-surface border border-line px-3 text-[15px] font-black focus:outline-none focus:border-blue"
         />

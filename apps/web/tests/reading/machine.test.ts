@@ -22,7 +22,7 @@ const lines: ScriptLine[] = [
   { type: "dialogue", role: "민준", text: "가자." },
 ];
 
-const cfg = { lines, myRole: "지수", start: 0, end: lines.length - 1 };
+const cfg = { lines, myRoles: ["지수"], start: 0, end: lines.length - 1 };
 
 describe("createRehearsal / begin", () => {
   it("첫 대사 위치에서 idle로 시작한다", () => {
@@ -33,7 +33,7 @@ describe("createRehearsal / begin", () => {
 
   it("begin은 현재 줄의 화자에 따라 ai/me가 된다", () => {
     expect(begin(createRehearsal(cfg)).status).toBe("ai");
-    expect(begin(createRehearsal({ ...cfg, myRole: "민준" })).status).toBe("me");
+    expect(begin(createRehearsal({ ...cfg, myRoles: ["민준"] })).status).toBe("me");
   });
 
   it("범위에 대사가 없으면 바로 done", () => {

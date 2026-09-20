@@ -83,7 +83,7 @@ export function isRateLimited(error: unknown): error is ApiError {
 }
 
 /**
- * 리딩 대본 등록·수정의 422 사유(reading.script). 웹은 게스트뿐이라 대본 수 한도는 게스트의 20개다.
+ * 리딩 대본 등록·수정과 회차 시작·진행 저장의 422 사유(reading.script·reading.session). 웹은 게스트뿐이라 대본 수 한도는 게스트의 20개다.
  * 기기가 같은 한도를 먼저 검사하므로(src/lib/reading/draft.ts) 서버의 422 는 두 검사가 어긋났을 때만 온다.
  */
 export const READING_SCRIPT_MESSAGES: Record<string, string> = {
@@ -92,7 +92,12 @@ export const READING_SCRIPT_MESSAGES: Record<string, string> = {
   no_characters: "배역이 하나도 없어요. 배역 이름을 적어 주세요.",
   invalid_characters: "배역 이름이 비어 있거나 다른 배역과 겹쳐요. 이름을 고쳐 주세요.",
   request_fingerprint_mismatch: "같은 요청으로 다른 대본이 저장돼 있어요. 대본을 다시 넣어 주세요.",
+  // 회차(reading.session)
+  empty_range: "고른 배역의 대사가 없어요. 다른 배역을 골라 주세요.",
+  invalid_line: "이 회차의 구간에 없는 줄이에요. 대본을 다시 열어 주세요.",
 };
+/** 닫힌 회차(completed·stopped)에 진행 저장을 보냈다. 새 회차를 시작해야 한다. */
+const SESSION_CLOSED_MESSAGE = "이미 끝난 회차예요. 상세에서 새로운 연습을 시작해 주세요.";
 
 /** 연결이 끊겨 답을 받지 못했을 때 화면에 보이는 말. 어느 요청이었는지는 배우에게 뜻이 없다. */
 const NETWORK_ERROR_MESSAGE =
@@ -127,6 +132,7 @@ export function errorMessage(cause: unknown, fallback: string): string {
     if (cause.status === 422 && cause.code in READING_SCRIPT_MESSAGES) {
       return READING_SCRIPT_MESSAGES[cause.code];
     }
+    if (cause.status === 409 && cause.code === "session_closed") return SESSION_CLOSED_MESSAGE;
     if (cause.status === 429) {
       return cause.code === GUEST_DAILY_ANALYSIS_LIMIT
         ? "오늘은 세 번까지 분석할 수 있어요. 앱으로 옮기면 계속할 수 있어요."

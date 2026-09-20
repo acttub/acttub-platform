@@ -8,9 +8,7 @@ import type { ScriptCard, ScriptListResponse } from "@/lib/reading/api-types";
 import { newDraft, resolveDraft, updateDraft, type ScriptDraft } from "@/lib/reading/draft";
 import { ACCEPTED, extractText, FileTooLargeError, OldHwpError, UnsupportedFileError } from "@/lib/reading/script/extract";
 import { SAMPLE_SCRIPT } from "@/lib/reading/script/sample";
-import type { StoredScript } from "@/lib/reading/storage";
 import { useResource } from "@/lib/react/use-resource";
-import { openScript } from "@/features/reading/script-save";
 import { activityLabel, COPYRIGHT_NOTICE, listHeadline, myCharactersLabel, statusChip } from "@/features/reading/script-list";
 import { ScriptConfirmPanel } from "@/features/reading/screens/ScriptConfirmPanel";
 import type { ScriptSave } from "@/features/reading/use-script-save";
@@ -20,7 +18,6 @@ type Entry = "paste" | "write" | null;
 
 export const UNREADABLE_FILE_COPY = "이 파일에서 글자를 읽지 못했어요. 텍스트를 복사해 붙여넣어 주세요.";
 const LIST_FAILED_COPY = "저장한 대본을 불러오지 못했어요.";
-const OPEN_FAILED_COPY = "대본을 열지 못했어요. 다시 시도해 주세요.";
 const DELETE_FAILED_COPY = "대본을 지우지 못했어요. 다시 시도해 주세요.";
 
 /**
@@ -35,15 +32,15 @@ export function InputBody({
   initialDraft,
   save,
   onConfirm,
-  onOpened,
+  onOpen,
 }: {
   initialDraft: ScriptDraft | null;
   /** 데스크톱의 인라인 저장 */
   save: ScriptSave;
   /** 폰: 초안을 들고 확인 화면으로 */
   onConfirm: (draft: ScriptDraft) => void;
-  /** 목록에서 고른 대본을 열었다 */
-  onOpened: (script: StoredScript) => void;
+  /** 목록에서 대본을 골랐다 — 대본 상세로 간다 */
+  onOpen: (scriptId: string) => void;
 }) {
   const [draft, setDraft] = useState<ScriptDraft>(() => initialDraft ?? newDraft("", "typed"));
   const [entry, setEntry] = useState<Entry>(initialDraft?.raw ? "write" : null);
@@ -179,7 +176,7 @@ export function InputBody({
         {confirmCard}
       </div>
 
-      <RecentScripts onOpened={onOpened} />
+      <RecentScripts onOpen={onOpen} />
 
       <p className="text-[11.5px] text-ink-4 pb-6">{COPYRIGHT_NOTICE}</p>
     </div>
@@ -190,7 +187,7 @@ export function InputBody({
  * 이 게스트가 저장한 최근 대본, 최근 고친 순. 게스트가 없으면 볼 자료도 없으므로 서버에 묻지 않는다 —
  * 화면을 여는 것만으로 계정이 생기면 안 된다(account.guest).
  */
-function RecentScripts({ onOpened }: { onOpened: (script: StoredScript) => void }) {
+function RecentScripts({ onOpen }: { onOpen: (scriptId: string) => void }) {
   const [guest] = useState(() => hasGuestSession());
   // 지운 뒤 다시 묻는다. 키가 바뀌면 useResource 가 다시 조회한다.
   const [version, setVersion] = useState(0);
@@ -204,17 +201,6 @@ function RecentScripts({ onOpened }: { onOpened: (script: StoredScript) => void 
   const [error, setError] = useState<string | null>(null);
 
   if (!guest || list.state === "idle") return null;
-
-  async function open(card: ScriptCard) {
-    setBusyId(card.id);
-    setError(null);
-    try {
-      onOpened(await openScript(card.id));
-    } catch (cause) {
-      setError(errorMessage(cause, OPEN_FAILED_COPY));
-      setBusyId(null);
-    }
-  }
 
   async function remove(card: ScriptCard) {
     setBusyId(card.id);
@@ -249,7 +235,7 @@ function RecentScripts({ onOpened }: { onOpened: (script: StoredScript) => void 
             return (
               <li key={card.id} className="rounded-[14px] border border-line bg-surface p-3.5 flex flex-col gap-2">
                 <div className="flex items-start gap-3">
-                  <button type="button" disabled={busy} onClick={() => void open(card)} className="flex-1 min-w-0 text-left">
+                  <button type="button" disabled={busy} onClick={() => onOpen(card.id)} className="flex-1 min-w-0 text-left">
                     <span className="flex items-center gap-2">
                       <span className="script-text text-[15px] font-black truncate">{card.title}</span>
                       <StatusPill label={chip.label} tone={chip.tone} />

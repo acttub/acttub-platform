@@ -65,11 +65,14 @@ export interface ScriptLine {
   dialogue_no: number | null;
 }
 
-/** 대본 상세의 마지막 회차 요약. 회차의 전체 모양은 RW2 가 정한다. */
+/** 대본 상세의 마지막 회차 요약 */
 export interface ScriptLastSession {
   id: string;
-  status: "in_progress" | "completed" | "stopped";
+  status: SessionStatus;
   my_character_ids: string[];
+  my_character_names: string[];
+  started_at?: string;
+  ended_at?: string | null;
 }
 
 /** GET /v2/reading/scripts/{id}, POST·PATCH 의 응답 */
@@ -77,7 +80,8 @@ export interface ScriptDetail {
   id: string;
   title: string;
   source: ScriptSource;
-  raw_text: string;
+  /** 서버는 상세·목록에 원문을 싣지 않는다(RA1 결정). 등록 요청에만 보낸다. */
+  raw_text?: string;
   characters: ScriptCharacter[];
   lines: ScriptLine[];
   recording_count: number;
@@ -96,6 +100,9 @@ export interface ScriptCard {
   dialogue_count: number;
   /** 모든 회차의 녹음 수 합 */
   recording_count: number;
+  /** 회차의 마지막 갱신 시각. 회차가 없으면 null. */
+  last_practiced_at: string | null;
+  /** 마지막 활동 — 회차가 있으면 그 시각, 없으면 등록 시각 */
   last_activity_at: string;
   status: ScriptStatus;
   updated_at: string;
@@ -106,4 +113,101 @@ export interface ScriptListResponse {
   scripts: ScriptCard[];
   total_count: number;
   in_progress_count: number;
+}
+
+// ─── 리딩 회차 (reading.cast · reading.session) ───────────────────────────────
+
+export type ReadingMode = "read" | "quiz";
+export type ReadingAdvance = "silence" | "manual";
+export type SessionStatus = "in_progress" | "completed" | "stopped";
+/** passed 대조 통과 · unmatched 2회 미달 뒤 넘어감(read 는 1회) · skipped quiz 의 넘어가기 */
+export type LineOutcome = "passed" | "unmatched" | "skipped";
+
+/** 줄마다 하나. 마지막 사건이 이긴다. misses 는 미달 횟수. */
+export interface LineResult {
+  line_id: string;
+  outcome: LineOutcome;
+  misses: number;
+}
+
+/** POST /v2/reading/scripts/{id}/sessions */
+export interface SessionCreateRequest {
+  request_id: string;
+  my_character_ids: string[];
+  mode: ReadingMode;
+  start_line_id: string;
+  end_line_id: string;
+  advance: ReadingAdvance;
+  record: boolean;
+}
+
+/** GET /v2/reading/scripts/{id}/sessions 의 카드 하나. 최근순. */
+export interface SessionCard {
+  id: string;
+  /** 그 대본에서 시작한 순서(집계) */
+  ordinal: number;
+  status: SessionStatus;
+  my_character_ids: string[];
+  my_character_names: string[];
+  range: { start_dialogue_no: number; end_dialogue_no: number };
+  /** 구간 안 내 대사 수 */
+  my_dialogue_count: number;
+  /** 녹음된 줄 수(reading.recording) */
+  recorded_line_count: number;
+  elapsed_seconds: number;
+  started_at: string;
+  ended_at: string | null;
+}
+
+export interface SessionListResponse {
+  sessions: SessionCard[];
+}
+
+/** 회차 상세의 녹음 하나(reading.recording, RW3 가 채운다) */
+export interface SessionRecording {
+  id: string;
+  line_id: string;
+  attempt_no: number;
+  duration_ms: number;
+  content_type: string;
+  byte_size: number;
+  transcript: string | null;
+  transcript_source: "stt" | "none";
+  matched: boolean | null;
+  playback_url: string;
+  playback_expires_at: string;
+}
+
+/** GET /v2/reading/sessions/{id}, POST 의 응답 */
+export interface SessionDetail extends SessionCard {
+  script_id: string;
+  mode: ReadingMode;
+  advance: ReadingAdvance;
+  record: boolean;
+  start_line_id: string;
+  end_line_id: string;
+  /** 다음에 할 대사 줄. completed 면 null. */
+  current_line_id: string | null;
+  progress_seq: number;
+  line_results: LineResult[];
+  recordings: SessionRecording[];
+}
+
+/** PATCH /v2/reading/sessions/{id}/progress */
+export interface ProgressRequest {
+  /** 기기가 1씩 늘리는 순번. 서버는 저장된 값보다 큰 요청만 반영한다. */
+  progress_seq: number;
+  current_line_id?: string | null;
+  /** 누적, 일시정지 제외. 줄지 않는다. */
+  elapsed_seconds?: number;
+  line_results?: LineResult[];
+  complete?: boolean;
+}
+
+/** 200 — seq 가 작거나 같으면 무시하고 현재 값 */
+export interface ProgressResponse {
+  current_line_id: string | null;
+  elapsed_seconds: number;
+  progress_seq: number;
+  status: SessionStatus;
 }

@@ -22,6 +22,8 @@ export const SCRIPT_LIMITS = {
 
 /** 파서가 제목을 못 찾았고 배우도 적지 않았을 때 */
 export const DEFAULT_TITLE = "제목 없는 대본";
+/** 서버 규칙: 제목은 공백 정리 뒤 1~200자 */
+export const TITLE_MAX_LENGTH = 200;
 
 export interface ScriptDraft {
   raw: string;
@@ -105,7 +107,7 @@ export function resolveDraft(draft: ScriptDraft): ResolvedDraft {
     excluded: draft.excluded.includes(original),
     dialogueCount: counts.get(original) ?? 0,
   }));
-  const title = draft.title?.trim() || parsed.title || DEFAULT_TITLE;
+  const title = (draft.title?.trim() || parsed.title || DEFAULT_TITLE).slice(0, TITLE_MAX_LENGTH);
   return { parsed, title, characters, counts: countByKind(parsed.lines) };
 }
 

@@ -39,6 +39,9 @@ const nextConfig: NextConfig = {
       // 없다. 프리렌더한 껍데기 하나(/p)를 서빙하고 브라우저가 경로에서 slug 를 읽는다 — slug
       // 마다 서버 렌더나 캐시 파일이 생기지 않는다. 한 단계만 받는다(/p/a/b 는 404).
       { source: "/p/:slug", destination: "/p" },
+      // 리딩 대본 상세(reading.session, SOMA-546). 같은 방식 — 프리렌더한 껍데기 하나(/reading/scripts)를
+      // 서빙하고 브라우저가 경로에서 대본 id 를 읽는다.
+      { source: "/reading/scripts/:id", destination: "/reading/scripts" },
     ];
   },
   // 상대역 리딩(/reading)은 브라우저 안에서 onnxruntime wasm 으로 음성을 만든다. 멀티스레드

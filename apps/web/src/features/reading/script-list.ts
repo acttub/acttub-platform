@@ -41,15 +41,15 @@ function dayNumber(p: { year: number; month: number; day: number }): number {
 }
 
 /**
- * "어제 연습"·"5월 25일 업로드". 회차가 있었던 대본(내 배역이 있음)의 마지막 활동은 연습이고,
- * 회차가 없으면 업로드다. 날짜는 보는 사람의 달력(브라우저 시간대)으로 센다.
+ * "어제 연습"·"5월 25일 업로드". 회차가 있었던 대본(last_practiced_at 이 있음)의 마지막 활동은 연습이고,
+ * 회차가 없으면 업로드(등록 시각)다. 날짜는 보는 사람의 달력(브라우저 시간대)으로 센다.
  */
 export function activityLabel(
-  card: Pick<ScriptCard, "last_activity_at" | "my_character_names">,
+  card: Pick<ScriptCard, "last_activity_at" | "last_practiced_at">,
   now: Date = new Date(),
   timeZone?: string,
 ): string {
-  const kind = card.my_character_names.length > 0 ? "연습" : "업로드";
+  const kind = card.last_practiced_at ? "연습" : "업로드";
   const at = new Date(card.last_activity_at);
   if (Number.isNaN(at.getTime())) return kind;
   const then = calendarParts(at, timeZone);

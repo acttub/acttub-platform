@@ -1,6 +1,6 @@
 /**
  * 서버가 돌려준 대본을 화면이 쓰는 모양으로. 리딩 실행 화면과 상태 머신은 배역 이름으로
- * 줄을 가르므로 배역 id 를 이름으로 풀고, 회차·진행 저장이 줄 id 를 쓰도록 id 는 따로 든다.
+ * 줄을 가르므로 배역 id 를 이름으로 풀고, 회차 시작·진행 저장이 배역·줄 id 를 쓰도록 id 는 따로 든다.
  */
 import type { ScriptDetail } from "../api-types";
 import type { StoredScript } from "../storage";
@@ -21,8 +21,12 @@ export function toStoredScript(detail: ScriptDetail): StoredScript {
     title: detail.title,
     roles: characters.map((c) => c.name),
     lines,
-    raw: detail.raw_text,
-    characters: characters.map((c) => ({ id: c.id, name: c.name })),
+    raw: detail.raw_text ?? "",
+    characters: characters.map((c) => ({ id: c.id, name: c.name, voicePreset: c.voice_preset })),
     lineIds: sorted.map((l) => l.id),
+    openSessionId: detail.open_session_id,
+    lastSession: detail.last_session
+      ? { id: detail.last_session.id, status: detail.last_session.status, myCharacterIds: detail.last_session.my_character_ids }
+      : null,
   };
 }

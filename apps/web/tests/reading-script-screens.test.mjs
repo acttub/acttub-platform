@@ -23,7 +23,7 @@ function render(element) {
 }
 
 test("reading.script: 웹 대본 넣기 화면(D13)에 \"서버로 보내지 않아요\"·\"이 기기에만 저장돼요\"·\"어디로 가나요\" 가 없고 저작권 안내 한 줄이 있다", () => {
-  const text = render(React.createElement(InputBody, { initialDraft: null, save: idleSave, onConfirm: () => {}, onOpened: () => {} }));
+  const text = render(React.createElement(InputBody, { initialDraft: null, save: idleSave, onConfirm: () => {}, onOpen: () => {} }));
   assert.equal(text.includes("서버로 보내지 않아요"), false);
   assert.equal(text.includes("이 기기에만 저장돼요"), false);
   assert.equal(text.includes("어디로 가나요"), false);
@@ -56,7 +56,7 @@ test("reading.script: 배역이 하나도 안 잡히면 저장하지 않고 이�
 
   // 데스크톱 D13 의 저장 버튼도 배역이 없으면 잠긴다.
   const html = renderToStaticMarkup(
-    React.createElement(InputBody, { initialDraft: newDraft("오늘은 아무도 오지 않았다.", "typed"), save: idleSave, onConfirm: () => {}, onOpened: () => {} }),
+    React.createElement(InputBody, { initialDraft: newDraft("오늘은 아무도 오지 않았다.", "typed"), save: idleSave, onConfirm: () => {}, onOpen: () => {} }),
   );
   assert.match(html, /<button[^>]*disabled=""[^>]*>저장하고 배역 정하러 가기<\/button>/);
 });

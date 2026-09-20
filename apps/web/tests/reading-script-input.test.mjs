@@ -37,6 +37,7 @@ const card = (overrides = {}) => ({
   my_character_names: [],
   dialogue_count: 15,
   recording_count: 0,
+  last_practiced_at: null,
   last_activity_at: "2026-09-21T03:00:00+09:00",
   status: "no_cast",
   updated_at: "2026-09-21T03:00:00+09:00",
@@ -69,7 +70,7 @@ test("reading.script: 마지막 활동 날짜는 \"어제 연습\"·\"5월 25일
   assert.equal(activityLabel(card({ last_activity_at: "2025-12-31T12:00:00+09:00" }), now, seoul), "2025년 12월 31일 업로드");
   // 같은 순간도 달력이 다르면 다른 날이다(UTC 로는 아직 20일).
   assert.equal(activityLabel(card({ last_activity_at: "2026-09-21T03:00:00+09:00" }), now, "UTC"), "어제 업로드");
-  // 회차가 있었던 대본의 마지막 활동은 연습이다.
-  assert.equal(activityLabel(card({ last_activity_at: "2026-09-20T23:00:00+09:00", my_character_names: ["윤서"], status: "completed" }), now, seoul), "어제 연습");
-  assert.equal(activityLabel(card({ last_activity_at: "2026-05-25T12:00:00+09:00", my_character_names: ["윤서"], status: "reading" }), now, seoul), "5월 25일 연습");
+  // 회차가 있었던 대본(last_practiced_at)의 마지막 활동은 연습이다.
+  assert.equal(activityLabel(card({ last_activity_at: "2026-09-20T23:00:00+09:00", last_practiced_at: "2026-09-20T23:00:00+09:00", status: "completed" }), now, seoul), "어제 연습");
+  assert.equal(activityLabel(card({ last_activity_at: "2026-05-25T12:00:00+09:00", last_practiced_at: "2026-05-25T12:00:00+09:00", status: "reading" }), now, seoul), "5월 25일 연습");
 });

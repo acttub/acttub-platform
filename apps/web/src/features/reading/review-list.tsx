@@ -7,12 +7,13 @@ import { RoleName } from "@/features/reading/ui";
 /** 대본 전체 목록 — 대본 확인(정적)과 리딩 왼쪽 열(현재 줄 하이라이트) 둘 다 쓴다. 장면 줄은 머리글처럼 보인다. */
 export function ReviewList({
   lines,
-  myRole,
+  myRoles,
   currentIndex,
   className = "",
 }: {
   lines: ScriptLine[];
-  myRole: string;
+  /** 내 배역(하나 이상) */
+  myRoles: string[];
   currentIndex?: number;
   className?: string;
 }) {
@@ -35,7 +36,7 @@ export function ReviewList({
             }`}
           >
             <span className="w-11 shrink-0 text-[12.5px] leading-5">
-              {l.type === "dialogue" && <RoleName role={l.role} me={l.role === myRole} className={past ? "opacity-40" : ""} />}
+              {l.type === "dialogue" && <RoleName role={l.role} me={myRoles.includes(l.role)} className={past ? "opacity-40" : ""} />}
             </span>
             <span
               className={`script-text flex-1 text-[14px] leading-5 ${

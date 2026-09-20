@@ -41,7 +41,7 @@ export function ReviewScreen({
           <ScriptConfirmPanel draft={draft} onChange={onChange} />
         </section>
         <section className="bg-surface rounded-[18px] px-4 py-1.5">
-          <ReviewList lines={parsed.lines} myRole={kept[0]?.original ?? ""} />
+          <ReviewList lines={parsed.lines} myRoles={kept[0] ? [kept[0].original] : []} />
         </section>
       </div>
       <div className="sticky bottom-0 p-4 bg-gray-bg-2/90 backdrop-blur flex flex-col gap-2">

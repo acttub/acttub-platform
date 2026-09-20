@@ -17,11 +17,15 @@ export class DraftRejectedError extends Error {
   }
 }
 
-/** 서버가 돌려준 대본을 지금 대본으로 든다. 배역이 달라졌으므로 이전 설정·결과는 버린다. */
+/** 서버가 돌려준 대본을 지금 대본으로 든다. 다른 대본이므로 하던 회차·결과는 버린다. */
 export function adoptScript(detail: ScriptDetail): StoredScript {
-  const stored = toStoredScript(detail);
+  return adoptStoredScript(toStoredScript(detail));
+}
+
+/** 이미 화면 모양으로 바꾼 대본(상세 화면이 받은 것)을 지금 대본으로 든다. */
+export function adoptStoredScript(stored: StoredScript): StoredScript {
   storage.saveScript(stored);
-  storage.saveSetup(null);
+  storage.saveSession(null);
   storage.saveStats(null);
   return stored;
 }

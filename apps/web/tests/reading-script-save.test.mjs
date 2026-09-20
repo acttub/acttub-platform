@@ -71,7 +71,9 @@ test("reading.script: 서버가 돌려준 대본은 배역 순서·줄 순서대
   assert.equal(stored.id, "script-1");
   assert.equal(stored.title, "옥상, 밤");
   assert.deepEqual(stored.roles, ["윤서", "태오"]);
-  assert.deepEqual(stored.characters, [{ id: "c-1", name: "윤서" }, { id: "c-2", name: "태오" }]);
+  assert.deepEqual(stored.characters, [{ id: "c-1", name: "윤서", voicePreset: null }, { id: "c-2", name: "태오", voicePreset: null }]);
+  assert.equal(stored.openSessionId, null);
+  assert.equal(stored.lastSession, null);
   assert.deepEqual(stored.lines, [
     { type: "direction", text: "바람 소리." },
     { type: "dialogue", role: "윤서", text: "여기 있을 줄 알았어." },
@@ -84,9 +86,9 @@ test("reading.script: 서버가 돌려준 대본은 배역 순서·줄 순서대
   assert.equal(stored.raw, RAW);
 });
 
-test("reading.script: 초안을 저장하면 서버 대본이 지금 대본이 되고 초안과 이전 설정·결과는 버려진다", async () => {
-  storage.saveSetup({ myRole: "옛배역", start: 0, end: 1, mode: "read", advanceMode: "manual" });
-  storage.saveStats({ mode: "read", elapsedMs: 1, lineCount: 1 });
+test("reading.script: 초안을 저장하면 서버 대본이 지금 대본이 되고 초안과 이전 회차·결과는 버려진다", async () => {
+  storage.saveSession({ id: "s-old" });
+  storage.saveStats({ mode: "read", elapsedMs: 1, lineCount: 1, myCharacterNames: [], lineResults: [] });
   const draft = newDraft(RAW, "paste");
   storage.saveDraft(draft);
   const requests = [];
@@ -103,7 +105,7 @@ test("reading.script: 초안을 저장하면 서버 대본이 지금 대본이 �
   assert.equal(stored.id, "script-1");
   assert.deepEqual(storage.loadScript(), stored);
   assert.equal(storage.loadDraft(), null);
-  assert.equal(storage.loadSetup(), null);
+  assert.equal(storage.loadSession(), null);
   assert.equal(storage.loadStats(), null);
 });
 
@@ -120,8 +122,8 @@ test("reading.script: 배역 없는 초안은 서버에 보내지 않고 no_char
   assert.equal(new DraftRejectedError("no_characters").message, "배역이 하나도 없어요. 배역 이름을 적어 주세요.");
 });
 
-test("reading.script: 목록에서 고른 대본은 서버에서 받아 지금 대본이 되고 이전 설정·결과는 버려진다", async () => {
-  storage.saveSetup({ myRole: "옛배역", start: 0, end: 1, mode: "read", advanceMode: "manual" });
+test("reading.script: 목록에서 고른 대본은 서버에서 받아 지금 대본이 되고 이전 회차·결과는 버려진다", async () => {
+  storage.saveSession({ id: "s-old" });
   const requests = [];
   globalThis.fetch = async (url, init = {}) => {
     requests.push(`${init.method ?? "GET"} ${url}`);
@@ -133,5 +135,5 @@ test("reading.script: 목록에서 고른 대본은 서버에서 받아 지금 �
   assert.deepEqual(requests, ["GET /v2/reading/scripts/script-1"]);
   assert.equal(stored.id, "script-1");
   assert.deepEqual(storage.loadScript(), stored);
-  assert.equal(storage.loadSetup(), null);
+  assert.equal(storage.loadSession(), null);
 });

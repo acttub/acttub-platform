@@ -13,12 +13,29 @@ export const STEP_PATH: Record<Step, string> = {
   done: "/reading/done",
 };
 
+/** 대본 상세. 프리렌더한 껍데기(/reading/scripts)를 rewrite 로 서빙하고 브라우저가 경로에서 id 를 읽는다. */
+export function scriptDetailPath(scriptId: string): string {
+  return `/reading/scripts/${encodeURIComponent(scriptId)}`;
+}
+
+/** 경로에서 대본 id. 껍데기만 연 경우(/reading/scripts)와 한 단계를 넘는 경로는 없다. */
+export function scriptIdFromPath(pathname: string): string | null {
+  const match = /^\/reading\/scripts\/([^/]+)\/?$/.exec(pathname);
+  if (!match) return null;
+  try {
+    return decodeURIComponent(match[1]) || null;
+  } catch {
+    return null;
+  }
+}
+
 export interface StepState {
   /** 대본 넣기에서 확인 화면으로 넘긴 초안이 있는가(폰) */
   hasDraft: boolean;
   /** 서버에 저장된 대본을 들고 있는가 */
   hasScript: boolean;
-  hasSetup: boolean;
+  /** 시작하거나 이어 하는 회차를 들고 있는가 */
+  hasSession: boolean;
   hasStats: boolean;
   /** 데스크톱은 대본 확인을 대본 넣기 화면 안에 같이 보여 주므로 /reading/script 가 없다 */
   desktop: boolean;
@@ -26,7 +43,7 @@ export interface StepState {
 
 /**
  * 이 단계에 있어도 되는가. 안 되면 가야 할 경로를 준다.
- * 가장 가까운 앞 단계로 보낸다 — 대본이 없으면 대본 넣기, 설정이 없으면 배역 정하기.
+ * 가장 가까운 앞 단계로 보낸다 — 대본이 없으면 대본 넣기, 회차가 없으면 배역 정하기.
  */
 export function redirectFor(step: Step, s: StepState): string | null {
   switch (step) {
@@ -40,11 +57,11 @@ export function redirectFor(step: Step, s: StepState): string | null {
       return s.hasScript ? null : STEP_PATH.input;
     case "run":
       if (!s.hasScript) return STEP_PATH.input;
-      if (!s.hasSetup) return STEP_PATH.setup;
+      if (!s.hasSession) return STEP_PATH.setup;
       return null;
     case "done":
       if (!s.hasScript) return STEP_PATH.input;
-      if (!s.hasSetup) return STEP_PATH.setup;
+      if (!s.hasSession) return STEP_PATH.setup;
       if (!s.hasStats) return STEP_PATH.run;
       return null;
   }
