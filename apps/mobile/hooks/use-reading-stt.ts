@@ -1,3 +1,4 @@
+import { Paths } from 'expo-file-system';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import { useCallback, useRef, useState } from 'react';
 
@@ -35,11 +36,16 @@ export async function detectSttPolicy(): Promise<SttPolicy> {
 }
 
 export type SttHandle = {
-  /** 듣기 시작. 침묵 감지 사건과 중간 인식 결과를 알린다. */
-  start: (callbacks: { onEvent: (event: VadEvent) => void; onInterim: (text: string) => void }) => boolean;
+  /**
+   * 듣기 시작. 침묵 감지 사건과 중간 인식 결과를 알린다. persist 면 인식기가 들은 소리를 파일로 남긴다 —
+   * 녹음이 켜진 회차의 내 차례 녹음 파일이다(녹음기를 따로 열지 않는다, 조정자 결정).
+   */
+  start: (callbacks: { onEvent: (event: VadEvent) => void; onInterim: (text: string) => void }, options?: { persist?: boolean }) => boolean;
   /** 듣기를 끝내고 최종 글을 받는다. 못 알아들었으면 빈 글. */
   finish: () => Promise<string>;
   abort: () => void;
+  /** 마지막 듣기가 남긴 파일 uri(persist 였을 때). 가져가면 비운다. */
+  takeRecordingUri: () => string | null;
   interim: string;
 };
 
@@ -50,6 +56,7 @@ export function useReadingStt(): SttHandle {
   const detector = useRef<SilenceDetector | null>(null);
   const callbacks = useRef<{ onEvent: (event: VadEvent) => void; onInterim: (text: string) => void } | null>(null);
   const settle = useRef<((text: string) => void) | null>(null);
+  const recordingUri = useRef<string | null>(null);
 
   const finishNow = (value: string) => {
     active.current = false;
@@ -74,6 +81,9 @@ export function useReadingStt(): SttHandle {
     const vad = detector.current.feed(sttVolumeToRms(event.value), Date.now());
     if (vad !== 'none') callbacks.current?.onEvent(vad);
   });
+  useSpeechRecognitionEvent('audioend', (event) => {
+    if (event?.uri) recordingUri.current = event.uri;
+  });
   useSpeechRecognitionEvent('end', () => {
     if (active.current || settle.current) finishNow(text.current);
   });
@@ -81,8 +91,9 @@ export function useReadingStt(): SttHandle {
     if (active.current || settle.current) finishNow(text.current);
   });
 
-  const start = useCallback<SttHandle['start']>((next) => {
+  const start = useCallback<SttHandle['start']>((next, options) => {
     text.current = '';
+    recordingUri.current = null;
     setInterim('');
     callbacks.current = next;
     detector.current = createSilenceDetector(DEFAULT_VAD, Date.now());
@@ -93,6 +104,9 @@ export function useReadingStt(): SttHandle {
         continuous: true,
         requiresOnDeviceRecognition: true,
         volumeChangeEventOptions: { enabled: true, intervalMillis: VOLUME_INTERVAL_MS },
+        ...(options?.persist
+          ? { recordingOptions: { persist: true, outputDirectory: Paths.cache.uri, outputFileName: `reading-line-${Date.now()}.wav` } }
+          : {}),
       });
       active.current = true;
       return true;
@@ -127,5 +141,11 @@ export function useReadingStt(): SttHandle {
     } catch {}
   }, []);
 
-  return { start, finish, abort, interim };
+  const takeRecordingUri = useCallback((): string | null => {
+    const uri = recordingUri.current;
+    recordingUri.current = null;
+    return uri;
+  }, []);
+
+  return { start, finish, abort, takeRecordingUri, interim };
 }

@@ -19,6 +19,7 @@ import {
 } from '@/lib/api';
 import type { ProfileGateStatus } from '@/lib/app-bootstrap';
 import { runLegacyScriptMigrationOnce } from '@/lib/reading/legacy-migration-runner';
+import { flushRecordingUploads } from '@/lib/reading/recording-runner';
 import {
   signOutBestEffort,
   wipeClosedAccount,
@@ -305,6 +306,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // 그 전에는 서버가 받지 않는다. 실패한 대본은 기기에 남아 다음 실행에 다시 한다. 기다리지 않는다.
   useEffect(() => {
     if (gatePassed) void runLegacyScriptMigrationOnce();
+  }, [gatePassed]);
+
+  // 올리지 못한 줄 단위 녹음은 앱을 다시 열어도 큐에 남는다 — 게이트를 지나면 이어서 올린다(reading.recording).
+  useEffect(() => {
+    if (gatePassed) void flushRecordingUploads().catch(() => undefined);
   }, [gatePassed]);
 
   // "앱을 열 때"는 새로 켤 때만이 아니다. 배경에서 돌아올 때도 밀린 토큰 삭제를 다시 보내고,

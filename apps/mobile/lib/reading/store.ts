@@ -7,7 +7,7 @@
  *
  * 회차가 서버에 오기 전까지(RM2) 기기가 대본마다 기억하는 것 — 가리기·내 배역·진행 위치 — 은
  * `acttub.reading.devicePrefs` 에 둔다. 가리기는 요구사항대로 계속 기기 것이고, 나머지는 서버 회차가
- * 대신하게 될 임시다. 옛 회차 전체 녹음(addRecording)은 줄 단위 녹음(RM3)이 오기 전까지 메모리에만 둔다.
+ * 대신하게 될 임시다. 녹음은 줄 단위로 서버에 있다(reading.recording) — 옛 회차 전체 녹음은 없다.
  *
  * CI mobile 잡이 무설치 node --test 라 AsyncStorage·api 는 함수 안에서 lazy require 하고, 테스트는
  * configureScriptTransport 로 가짜 서버를 넣는다.
@@ -25,6 +25,7 @@ import type {
   ScriptLastSession,
   ScriptListResponse,
   ScriptSource,
+  SessionCard,
   SessionDetail,
   StartSessionBody,
 } from './types.ts';
@@ -32,16 +33,6 @@ import type {
 /** 기기 쪽 진행 상태. 서버 회차(reading.session)가 오면 그것으로 바뀐다. */
 export type ScriptStatus = 'draft' | 'reading' | 'done';
 export type MaskMode = 'none' | 'mine' | 'all';
-
-/** 옛 회차 전체 녹음. 줄 단위 녹음(reading.recording)이 오기 전까지 메모리에만 남는다. */
-export interface Recording {
-  id: string;
-  uri: string;
-  durationSec: number;
-  coveredCount: number; // 이 회차에 지나간 대사 수
-  totalCount: number; // 구간 전체 대사 수
-  createdAt: number;
-}
 
 /** 기기가 대본마다 기억하는 것. */
 export type DevicePrefs = {
@@ -70,8 +61,6 @@ export interface SavedScript extends DevicePrefs {
   openSessionId: string | null;
   /** 마지막 회차(그 대본에서 가장 늦게 시작한 회차). 배역 화면의 기본 선택이 이것이다. */
   lastSession: ScriptLastSession | null;
-  /** 옛 회차 전체 녹음(메모리). */
-  recordings: Recording[];
   /** 외운 대사(줄 인덱스). 암기 상태가 서버로 가면(RM4) 없어진다. */
   memorized: number[];
   createdAt: number;
@@ -115,6 +104,9 @@ export type ScriptTransport = {
   startSession?(scriptId: string, body: StartSessionBody): Promise<SessionDetail>;
   getSession?(sessionId: string): Promise<SessionDetail>;
   saveProgress?(sessionId: string, body: ProgressBody): Promise<ProgressResponse>;
+  listSessions?(scriptId: string): Promise<{ sessions: SessionCard[] }>;
+  deleteSession?(sessionId: string): Promise<void>;
+  deleteRecording?(recordingId: string): Promise<void>;
 };
 
 let transport: ScriptTransport | null = null;
@@ -137,6 +129,9 @@ function server(): ScriptTransport {
     startSession: (scriptId, body) => api.startReadingSession(scriptId, body),
     getSession: (sessionId) => api.getReadingSession(sessionId),
     saveProgress: (sessionId, body) => api.saveReadingProgress(sessionId, body),
+    listSessions: (scriptId) => api.listReadingSessions(scriptId),
+    deleteSession: (sessionId) => api.deleteReadingSession(sessionId),
+    deleteRecording: (recordingId) => api.deleteReadingRecording(recordingId),
   };
   return transport;
 }
@@ -214,7 +209,6 @@ export function toSavedScript(detail: ScriptDetail, prefs: Partial<DevicePrefs> 
     recordingCount: detail.recording_count,
     openSessionId: detail.open_session_id,
     lastSession: detail.last_session ?? null,
-    recordings: [],
     memorized: [],
     createdAt: Date.parse(detail.created_at) || 0,
     updatedAt: Date.parse(detail.updated_at) || 0,
@@ -259,10 +253,9 @@ export async function openScript(detail: ScriptDetail): Promise<SavedScript> {
 export async function loadIntoCurrent(id: string): Promise<SavedScript | null> {
   try {
     const detail = await server().get(id);
-    const recordings = current?.id === id ? current.recordings : [];
     const memorized = current?.id === id ? current.memorized : [];
     const opened = await openScript(detail);
-    current = { ...opened, recordings, memorized };
+    current = { ...opened, memorized };
     return current;
   } catch {
     if (current?.id === id) current = null;
@@ -275,13 +268,6 @@ export async function updateCurrent(patch: Partial<SavedScript>): Promise<void> 
   if (!current) return;
   current = { ...current, ...patch, updatedAt: Date.now() };
   await writePrefs(current.id, prefsOf(current));
-}
-
-/** 옛 회차 전체 녹음 1회를 현재 대본에 붙인다(메모리, 최신이 앞). 줄 단위 녹음이 오면 없어진다. */
-export async function addRecording(rec: Omit<Recording, 'id' | 'createdAt'>): Promise<void> {
-  if (!current) return;
-  const full: Recording = { ...rec, id: `r_${Date.now()}`, createdAt: Date.now() };
-  current = { ...current, recordings: [full, ...current.recordings], updatedAt: Date.now() };
 }
 
 // ── 초안(확인 화면) ────────────────────────────────────────────────────────────
@@ -333,7 +319,7 @@ export async function updateScriptMeta(
   const detail = await server().patch(id, body);
   if (current?.id === id) {
     const kept = current;
-    current = { ...(await openScript(detail)), recordings: kept.recordings, memorized: kept.memorized };
+    current = { ...(await openScript(detail)), memorized: kept.memorized };
   }
   return detail;
 }
@@ -390,4 +376,38 @@ export function saveProgress(sessionId: string, body: ProgressBody): Promise<Pro
   const save = server().saveProgress;
   if (!save) return Promise.reject(new Error('session transport missing'));
   return save(sessionId, body);
+}
+
+/** 회차 상세를 읽는다(현재 회차를 바꾸지 않는다). 없거나 남의 것이면 null. */
+export async function fetchSession(sessionId: string): Promise<SessionDetail | null> {
+  const get = server().getSession;
+  if (!get) return null;
+  try {
+    return await get(sessionId);
+  } catch {
+    return null;
+  }
+}
+
+/** 그 대본의 회차 목록(최근순). */
+export async function listSessions(scriptId: string): Promise<SessionCard[]> {
+  const list = server().listSessions;
+  if (!list) return [];
+  return (await list(scriptId)).sessions;
+}
+
+/** 회차를 지운다(R00.5). 녹음(파일 포함)이 함께 지워지고 암기 상태는 남는다. */
+export async function deleteSession(sessionId: string): Promise<void> {
+  const remove = server().deleteSession;
+  if (!remove) throw new Error('session transport missing');
+  await remove(sessionId);
+  if (currentSession?.id === sessionId) currentSession = null;
+  if (current?.openSessionId === sessionId) current = { ...current, openSessionId: null };
+}
+
+/** 개별 녹음 삭제. 회차 진행·암기 상태는 그대로다. */
+export async function deleteRecording(recordingId: string): Promise<void> {
+  const remove = server().deleteRecording;
+  if (!remove) throw new Error('recording transport missing');
+  await remove(recordingId);
 }

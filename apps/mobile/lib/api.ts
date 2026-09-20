@@ -48,6 +48,7 @@ import type {
   ScriptListResponse,
   SessionCard,
   SessionDetail,
+  SessionRecording,
   StartSessionBody,
 } from '@/lib/reading/types';
 import {
@@ -734,6 +735,53 @@ export const api = {
       },
       { timeoutMs: 15_000 },
     );
+  },
+
+  /** 회차와 그 녹음(파일 포함)을 지운다. 암기 상태는 남는다. 없는 것·남의 것은 404. */
+  deleteReadingSession(sessionId: string): Promise<void> {
+    return request<void>(`/v2/reading/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' }, { timeoutMs: 20_000 });
+  },
+
+  /**
+   * 내 대사 한 줄의 녹음을 multipart 한 요청으로 올린다(reading.recording). 같은 request_id 는 같은 결과(멱등),
+   * 더 큰 attempt_no 만 같은 줄의 이전 녹음을 대체하고 작은 번호는 200 현재 값이다. 서버가 m4a 가 아니면 변환해
+   * 저장하고, 변환 실패는 503 audio_conversion_failed 로 답한다(같은 request_id 로 재시도). 한도는 422
+   * recording_too_long·recording_quota, 구간 밖·상대역·지문 줄은 422 invalid_line, 지워진 회차는 404.
+   * 회차의 진행 상태와 분리돼 completed·stopped 회차에도 받는다.
+   */
+  uploadReadingRecording(
+    sessionId: string,
+    input: {
+      request_id: string;
+      line_id: string;
+      attempt_no: number;
+      duration_ms: number;
+      transcript: string | null;
+      transcript_source: 'stt' | 'none';
+      matched: boolean | null;
+      audio: { uri: string; name: string; type: string };
+    },
+  ): Promise<SessionRecording> {
+    const form = new FormData();
+    form.append('request_id', input.request_id);
+    form.append('line_id', input.line_id);
+    form.append('attempt_no', String(input.attempt_no));
+    form.append('duration_ms', String(input.duration_ms));
+    form.append('transcript_source', input.transcript_source);
+    if (input.transcript !== null) form.append('transcript', input.transcript);
+    if (input.matched !== null) form.append('matched', String(input.matched));
+    // React Native 의 fetch 는 {uri, name, type} 를 파일 파트로 보낸다. Content-Type 은 경계와 함께 fetch 가 붙인다.
+    form.append('audio', { uri: input.audio.uri, name: input.audio.name, type: input.audio.type } as unknown as Blob);
+    return request<SessionRecording>(
+      `/v2/reading/sessions/${encodeURIComponent(sessionId)}/recordings`,
+      { method: 'POST', headers: { 'X-Request-Id': input.request_id }, body: form },
+      { timeoutMs: 120_000 },
+    );
+  },
+
+  /** 개별 녹음 삭제. 그 행·객체가 없어지고 회차 진행·암기 상태는 그대로다. */
+  deleteReadingRecording(recordingId: string): Promise<void> {
+    return request<void>(`/v2/reading/recordings/${encodeURIComponent(recordingId)}`, { method: 'DELETE' }, { timeoutMs: 20_000 });
   },
 
   /** 줄 하나의 암기 상태. 그 대본의 대사 줄이면 배역과 무관하게 받고, 지문·장면 줄은 422 invalid_line. */

@@ -14,8 +14,9 @@ import { mergeHistory, sessionCardTitle } from '@/lib/history-merge';
 import { translate as t } from '@/lib/i18n';
 import { setPrefill } from '@/lib/practice';
 import { buildWeekActivity } from '@/lib/practice-activity';
-import { listScripts, loadIntoCurrent } from '@/lib/reading/store';
-import type { ScriptCard } from '@/lib/reading/types';
+import { readingHistoryRows, type ReadingHistoryRow } from '@/lib/reading/session-cards';
+import { listScripts, listSessions, loadIntoCurrent } from '@/lib/reading/store';
+import type { SessionCard } from '@/lib/reading/types';
 import { loadRecordMeta } from '@/lib/record-meta';
 import { sortReportsNewestFirst } from '@/lib/report-order';
 import { sceneValueForDisplay } from '@/lib/upload-input';
@@ -41,14 +42,14 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  *
  * 위: 요약 카드(총 연습 / 남긴 문장 / 이번 주) + 필터 칩(전체·즐겨찾기·최근 30일).
  * 아래: 월별 그룹 → 한 줄씩(아이콘 · 제목 · 날짜 메타 · 주제 칩 · 화살표).
- * 리포트(GET /v2/reports)·정리 없는 세션(SOMA-444)·서버 대본 리딩(녹음 있는 것만, 회차 목록 합치기는 후속)을
+ * 리포트(GET /v2/reports)·정리 없는 세션(SOMA-444)·리딩 회차(대본마다 서버 회차 목록, A1.1)를
  * 함께 시간순으로 보여준다. 즐겨찾기는 아직 저장 필드가 없어 빈 상태만 그린다.
  */
 export default function HistoryScreen() {
   const router = useRouter();
   const [reports, setReports] = useState<ReportRecord[]>([]);
   const [sessions, setSessions] = useState<PracticeSessionListItem[]>([]);
-  const [scripts, setScripts] = useState<ScriptCard[]>([]);
+  const [readingRows, setReadingRows] = useState<ReadingHistoryRow[]>([]);
   const [meta, setMeta] = useState<Record<string, RecordMeta>>({});
   const [filter, setFilter] = useState<Filter>('all');
   const [loading, setLoading] = useState(true);
@@ -65,7 +66,15 @@ export default function HistoryScreen() {
         listScripts().catch(() => null),
       ]);
       setSessions(sessionList.sessions);
-      setScripts((savedScripts?.scripts ?? []).filter((s) => s.recording_count > 0 && !!s.last_activity_at));
+      // 리딩 회차는 서버가 잇지 않는다 — 회차가 있는 대본(최근 10편)의 회차 목록을 앱이 합친다(A1.1).
+      const practiced = (savedScripts?.scripts ?? []).filter((s) => !!s.last_practiced_at).slice(0, 10);
+      const bySession: Record<string, SessionCard[]> = {};
+      await Promise.all(
+        practiced.map(async (s) => {
+          bySession[s.id] = await listSessions(s.id).catch(() => []);
+        }),
+      );
+      setReadingRows(readingHistoryRows(practiced, bySession));
       const sorted = sortReportsNewestFirst(history.reports);
       setReports(sorted);
       // 목록엔 진단 축이 없어서 카드별 상세를 따로 불러 칩을 채운다.
@@ -152,8 +161,8 @@ export default function HistoryScreen() {
     });
   };
 
-  const openScript = async (s: ScriptCard) => {
-    if (await loadIntoCurrent(s.id)) router.push('/reading/detail');
+  const openScript = async (scriptId: string) => {
+    if (await loadIntoCurrent(scriptId)) router.push('/reading/detail');
   };
 
   const dayLabel = (iso: string) => formatKoreanDate(iso, { month: 'long', day: 'numeric' });
@@ -183,22 +192,18 @@ export default function HistoryScreen() {
             onLongPress: () => onSessionMenu(entry.session),
           },
     );
-    const reading = scripts.map<Row>((s) => {
-      const createdAt = new Date(s.last_activity_at ?? 0).toISOString();
-      const role = s.my_character_names[0];
-      return {
-        id: `d:${s.id}`,
-        createdAt,
-        icon: 'mic',
-        title: role ? `${s.title} · ${role} ${t('history.readingLabel')}` : s.title,
-        meta: `${dayLabel(createdAt)} · ${t('history.recordingCount', { count: s.recording_count })}`,
-        chips: [],
-        onPress: () => void openScript(s),
-      };
-    });
+    const reading = readingRows.map<Row>((r) => ({
+      id: r.id,
+      createdAt: r.startedAt,
+      icon: 'mic',
+      title: r.title,
+      meta: r.meta,
+      chips: [],
+      onPress: () => void openScript(r.scriptId),
+    }));
     return [...merged, ...reading].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reports, sessions, scripts, meta]);
+  }, [reports, sessions, readingRows, meta]);
 
   const filtered = useMemo(() => {
     if (filter === 'fav') return [];

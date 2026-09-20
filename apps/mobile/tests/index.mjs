@@ -56,3 +56,7 @@ import './reading-session-plan.test.mjs';
 import './reading-session-run.test.mjs';
 import './reading-progress-queue.test.mjs';
 import './reading-run-policies.test.mjs';
+import './reading-recording-plan.test.mjs';
+import './reading-recording-queue.test.mjs';
+import './reading-session-cards.test.mjs';
+import './reading-session-results.test.mjs';

@@ -8,18 +8,24 @@ import { palette } from '@/constants/palette';
 import { useAppDialog } from '@/components/app-dialog';
 import { hasMicPermission, useReadingMic } from '@/hooks/use-reading-mic';
 import { detectSttPolicy, useReadingStt } from '@/hooks/use-reading-stt';
+import { deleteDeviceFile } from '@/lib/account-files';
 import { hasSeenReadingGuide, markReadingGuideSeen } from '@/lib/reading/guide-flag';
-import { compareLine } from '@/lib/reading/match';
+import { compareLine, type LineMatch } from '@/lib/reading/match';
 import { currentNetworkType } from '@/lib/reading/network';
 import { speakableText, type DialogueLine } from '@/lib/reading/parse';
 import { createProgressQueue, type ProgressQueue } from '@/lib/reading/progress-queue';
+import { RECORDING_MAX_MS, contentTypeFor, nextAttemptNo, transcriptFields } from '@/lib/reading/recording-plan';
+import { enqueueLineRecording, onRecordingQueueChange, pendingRecordingUploads } from '@/lib/reading/recording-runner';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
+import { quizSummary, readDialogueCount, reviewLines } from '@/lib/reading/session-results';
 import {
   advance,
   createRun,
   exitMessage,
   formatProgress,
   isHidden,
+  lineResultsOf,
+  mmss,
   pause as pauseRun,
   progressOf,
   progressPayload,
@@ -130,6 +136,12 @@ export default function ReadingPlay() {
   const queueRef = useRef<ProgressQueue | null>(null);
   const mounted = useRef(true);
   const sttActive = useRef(false);
+  /** 줄별 시도 번호 — 같은 줄을 다시 말하면 1씩 늘어 이전 녹음을 대체한다(reading.recording). */
+  const attempts = useRef<Record<string, number>>({});
+  const turnStartedAt = useRef(0);
+  /** 180초에 이르러 이미 녹음을 멈추고 올린 줄 — 줄이 끝날 때 다시 올리지 않는다. */
+  const recordingClosed = useRef(false);
+  const [pendingUploads, setPendingUploads] = useState(0);
 
   const voices = useMemo(
     () => (script && session ? assignVoices(script.characters, session.my_character_ids) : {}),
@@ -156,6 +168,59 @@ export default function ReadingPlay() {
       queueRef.current = null;
     };
   }, [session]);
+
+  useEffect(() => {
+    void pendingRecordingUploads().then((n) => mounted.current && setPendingUploads(n));
+    return onRecordingQueueChange((n) => mounted.current && setPendingUploads(n));
+  }, []);
+
+  /**
+   * 내 차례의 녹음을 거둬 큐에 넣는다(reading.recording). STT 가 켜져 있으면 인식기가 남긴 파일(wav)을, 아니면
+   * 녹음기 파일(m4a)을 쓴다(조정자 결정). 상대역 재생·일시정지 구간의 소리는 마이크가 닫혀 있어 들어가지 않는다.
+   * 녹음이 꺼진 회차면 파일을 지우기만 한다. 올리기는 진행을 막지 않는다.
+   */
+  const endTurnRecording = useCallback(
+    async (lineId: string, text: string, match: LineMatch | null): Promise<void> => {
+      const sttUsed = sttActive.current;
+      let uri: string | null = null;
+      let durationMs = Math.max(0, Date.now() - turnStartedAt.current);
+      let kind: 'recorder' | 'stt_persist' = 'recorder';
+      if (sttUsed) {
+        uri = stt.takeRecordingUri();
+        kind = 'stt_persist';
+      }
+      const fromMic = await mic.stop();
+      if (fromMic) {
+        uri = fromMic.uri ?? uri;
+        durationMs = fromMic.durationMs || durationMs;
+        kind = fromMic.uri ? 'recorder' : kind;
+      }
+      if (!uri) return;
+      if (!session?.record || recordingClosed.current) {
+        await deleteDeviceFile(uri).catch(() => undefined);
+        return;
+      }
+      const attemptNo = nextAttemptNo(attempts.current, lineId);
+      attempts.current[lineId] = attemptNo;
+      const fields = transcriptFields({ sttUsed, text, match });
+      const outcome = await enqueueLineRecording({
+        requestId: newRequestId(),
+        sessionId: session.id,
+        lineId,
+        attemptNo,
+        uri,
+        contentType: contentTypeFor(uri, kind),
+        durationMs,
+        transcript: fields.transcript,
+        transcriptSource: fields.transcript_source,
+        matched: fields.matched,
+      });
+      if (outcome.kind === 'rejected' && (outcome.reason === 'too_large' || outcome.reason === 'too_long')) {
+        void alert({ title: t('reading.recordToggle'), message: t('reading.recordingTooLarge') });
+      }
+    },
+    [alert, mic, session, stt],
+  );
 
   const commit = useCallback((next: RunState) => {
     const prev = runRef.current;
@@ -277,23 +342,22 @@ export default function ReadingPlay() {
       const cur = runRef.current;
       if (!cur || !session || cur.index !== from || cur.status !== 'mine') return;
       const text = sttActive.current ? await stt.finish() : '';
+      const line = cur.lines[cur.index] as DialogueLine;
+      const match = text ? compareLine(text, line.text) : null;
+      await endTurnRecording(cur.lineIds[cur.index], text, match);
       sttActive.current = false;
       setListening(false);
-      const line = cur.lines[cur.index] as DialogueLine;
       if (session.mode === 'read') {
         // read: 침묵 신호는 다음 줄. 대조 결과는 흐름에 끼어들지 않고 결과만 남긴다.
-        if (text) {
-          const result = compareLine(text, line.text);
-          if (result.kind === 'pass') commit(readPass(cur));
-          else if (result.kind === 'miss') commit(readMiss(cur));
-        }
+        if (match?.kind === 'pass') commit(readPass(cur));
+        else if (match?.kind === 'miss') commit(readMiss(cur));
         goNext(from);
         return;
       }
       handleQuizText(text, from);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [session, stt, commit, goNext],
+    [session, stt, commit, goNext, endTurnRecording],
   );
 
   const handleQuizText = useCallback(
@@ -333,24 +397,51 @@ export default function ReadingPlay() {
       if (event === 'timeout') setTimeoutHint(true);
       if (event === 'speech_end' && session.advance === 'silence') void onSilenceEnd(from);
     };
+    recordingClosed.current = false;
+    turnStartedAt.current = Date.now();
+    let limitTimer: ReturnType<typeof setTimeout> | null = null;
     void (async () => {
       if (typing || !micAllowed) return;
+      let opened = false;
       if (sttMode?.kind === 'stt') {
-        const ok = stt.start({ onEvent, onInterim: setSaid });
+        const ok = stt.start({ onEvent, onInterim: setSaid }, { persist: !!session.record });
         sttActive.current = ok;
-        if (ok) {
-          setListening(true);
-          return;
-        }
+        opened = ok;
       }
-      const ok = await mic.start(onEvent);
-      if (!cancelled) setListening(ok);
+      if (!opened) {
+        opened = await mic.start(onEvent);
+      }
+      if (cancelled) return;
+      setListening(opened);
+      if (opened && session.record) {
+        // 180초에 이르면 녹음을 멈추고 현재 줄은 그대로다 — 버튼으로 넘긴다.
+        limitTimer = setTimeout(() => {
+          if (cancelled) return;
+          const cur = runRef.current;
+          if (!cur || cur.index !== from) return;
+          void (async () => {
+            const text = sttActive.current ? await stt.finish() : '';
+            const line = cur.lines[cur.index] as DialogueLine;
+            await endTurnRecording(cur.lineIds[cur.index], text, text ? compareLine(text, line.text) : null);
+            recordingClosed.current = true;
+            sttActive.current = false;
+            setListening(false);
+            setTimeoutHint(true);
+          })();
+        }, RECORDING_MAX_MS);
+      }
     })();
     return () => {
       cancelled = true;
+      if (limitTimer) clearTimeout(limitTimer);
       stt.abort();
       sttActive.current = false;
-      void mic.stop();
+      // 줄이 끝나기 전에 닫히면(일시정지·나가기·입력하기) 그 소리는 녹음에 들어가지 않는다 — 조각 파일은 지운다.
+      void mic.stop().then((r) => {
+        if (r?.uri) void deleteDeviceFile(r.uri).catch(() => undefined);
+      });
+      const leftover = stt.takeRecordingUri();
+      if (leftover) void deleteDeviceFile(leftover).catch(() => undefined);
       setListening(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -534,26 +625,75 @@ export default function ReadingPlay() {
   }
 
   if (phase === 'done') {
-    const { total } = progressOf(run);
+    const readCount = readDialogueCount(run.lines, run.startIndex, run.endIndex);
+    const wholeScript = run.startIndex <= (run.lines.findIndex((l) => l.type === 'dialogue')) && run.endIndex >= run.lines.length - 1;
+    const results = lineResultsOf(run);
+    const review = reviewLines({ lines: run.lines, lineIds: run.lineIds, lineResults: results });
+    const quiz = session.mode === 'quiz' ? quizSummary(results) : null;
+    const goMemorize = () =>
+      router.replace({ pathname: '/reading/memorize', params: { sessionId: session.id, lineIds: review.map((r) => r.lineId).join(',') } });
     return (
-      <View style={[styles.root, styles.center]}>
+      <ScrollView style={styles.root} contentContainerStyle={[styles.doneContent, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
         <View style={styles.doneIcon}>
           <Feather name="check" size={28} color="#fff" />
         </View>
         <Text style={styles.doneTitle}>{t('reading.completeTitle')}</Text>
-        <Text style={styles.dim}>
-          {t('reading.completeBody', { title: script.title, count: total, time: formatProgress(run, run.elapsedMs).split(' · ')[1] })}
-        </Text>
+        <Text style={styles.dim}>{script.title}</Text>
+        <View style={styles.doneStats}>
+          <Text style={styles.doneStat}>{t('reading.doneMyRole', { roles: run.myRoles.join(', ') })}</Text>
+          <Text style={styles.doneStat}>
+            {t('reading.doneRead', { count: readCount })}
+            {!wholeScript ? ` · ${t('reading.donePartialNote')}` : ''}
+          </Text>
+          <Text style={styles.doneStat}>{t('reading.doneTime', { time: mmss(run.elapsedMs) })}</Text>
+          {quiz && <Text style={styles.doneStat}>{t('reading.quizSummary', { k: quiz.matched, n: quiz.tried, p: quiz.notYet })}</Text>}
+          {pendingUploads > 0 && <Text style={styles.doneStatFaint}>{t('reading.recordingPending', { count: pendingUploads })}</Text>}
+        </View>
+
+        {review.length > 0 && (
+          <View style={styles.reviewBox}>
+            <View style={styles.reviewHead}>
+              <Text style={styles.reviewTitle}>{t('reading.reviewTitle')}</Text>
+              <Text style={styles.reviewNeed}>{t('reading.reviewNeed', { count: review.length })}</Text>
+            </View>
+            {review.slice(0, 5).map((r) => (
+              <View key={r.lineId} style={styles.reviewRow}>
+                <Text style={styles.reviewNo}>{t('reading.lineNo', { n: r.dialogueNo })}</Text>
+                <Text style={styles.reviewText} numberOfLines={2}>{r.text}</Text>
+              </View>
+            ))}
+            <Pressable style={styles.reviewAll} onPress={goMemorize}>
+              <Text style={styles.reviewAllText}>{t('common.viewAll')}</Text>
+              <Feather name="chevron-right" size={14} color={palette.blueDeep} />
+            </Pressable>
+          </View>
+        )}
+
+        <Pressable style={styles.coachCard} onPress={() => router.replace('/upload')}>
+          <Feather name="video" size={18} color={palette.blueDeep} />
+          <View style={styles.coachBody}>
+            <Text style={styles.coachTitle}>{t('reading.coachTitle')}</Text>
+            <Text style={styles.coachText}>{t('reading.coachBody')}</Text>
+          </View>
+          <Text style={styles.coachGo}>{t('reading.coachGo')}</Text>
+        </Pressable>
+
         <View style={styles.doneRow}>
-          <Pressable style={[styles.pill, styles.pillGhost]} onPress={() => router.replace('/reading/detail')}>
-            <Text style={styles.pillGhostText}>{t('reading.toDetail')}</Text>
-          </Pressable>
           <Pressable style={styles.pill} onPress={() => void readAgain()}>
             <Text style={styles.pillText}>{t('reading.readAgain')}</Text>
           </Pressable>
+          <Pressable style={[styles.pill, styles.pillGhost]} onPress={() => router.replace('/reading/new')}>
+            <Text style={styles.pillGhostText}>{t('reading.newScript')}</Text>
+          </Pressable>
+          <Pressable style={[styles.pill, styles.pillGhost]} onPress={() => router.replace('/(tabs)')}>
+            <Text style={styles.pillGhostText}>{t('common.goHome')}</Text>
+          </Pressable>
         </View>
+        <Pressable onPress={() => router.replace('/reading/detail')}>
+          <Text style={styles.doneLink}>{t('reading.toDetail')}</Text>
+        </Pressable>
         {dialog}
-      </View>
+      </ScrollView>
     );
   }
 
@@ -597,6 +737,7 @@ export default function ReadingPlay() {
     const text = typed.trim();
     if (!text) return;
     const from = run.index;
+    // 입력하기로 한 대조는 녹음 행을 만들지 않고 line_results 에만 남는다(마이크가 닫혀 있다).
     if (session.mode === 'quiz') handleQuizText(text, from);
     else {
       const result = compareLine(text, (line as DialogueLine).text);
@@ -605,6 +746,19 @@ export default function ReadingPlay() {
       goNext(from);
     }
     setTyped('');
+  };
+
+  /** 버튼으로 내 차례를 끝낸다 — 그때까지의 녹음을 거둔 뒤 넘긴다. */
+  const endMyTurnByButton = async () => {
+    const from = run.index;
+    const cur = runRef.current;
+    if (!cur || cur.index !== from || cur.status !== 'mine') return;
+    const text = sttActive.current ? await stt.finish() : '';
+    const target = (cur.lines[cur.index] as DialogueLine).text;
+    await endTurnRecording(cur.lineIds[cur.index], text, text ? compareLine(text, target) : null);
+    sttActive.current = false;
+    if (session.mode === 'quiz') commit(quizSkip(cur));
+    else goNext(from);
   };
 
   return (
@@ -621,6 +775,7 @@ export default function ReadingPlay() {
             <Text style={styles.recText}>녹음 중</Text>
           </View>
         )}
+        {pendingUploads > 0 && !listening && <Text style={styles.pendingText}>{t('reading.recordingPending', { count: pendingUploads })}</Text>}
         <Text style={styles.counter}>{formatProgress(run, run.elapsedMs)}</Text>
       </View>
       <View style={styles.maskBar}>
@@ -751,9 +906,8 @@ export default function ReadingPlay() {
           style={[styles.ctrl, styles.ctrlPrimary, paused && styles.ctrlOff]}
           disabled={paused}
           onPress={() => {
-            const from = run.index;
-            if (myTurn && session.mode === 'quiz') commit(quizSkip(run));
-            else goNext(from);
+            if (myTurn) void endMyTurnByButton();
+            else goNext(run.index);
           }}>
           <Text style={styles.ctrlPrimaryText}>{myTurn && session.mode === 'quiz' ? t('reading.skipLine') : t('reading.next')}</Text>
           <Feather name="arrow-right" size={16} color="#fff" />
@@ -772,7 +926,26 @@ const styles = StyleSheet.create({
   loadNote: { color: palette.textFaint, fontFamily: 'Pretendard', fontSize: 13, textAlign: 'center' },
   doneIcon: { width: 56, height: 56, borderRadius: 28, backgroundColor: palette.green, alignItems: 'center', justifyContent: 'center' },
   doneTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 22, marginTop: 4, textAlign: 'center' },
-  doneRow: { flexDirection: 'row', gap: 10, marginTop: 10 },
+  doneRow: { flexDirection: 'row', gap: 8, marginTop: 10, flexWrap: 'wrap', justifyContent: 'center' },
+  doneContent: { alignItems: 'center', gap: 12, padding: 24 },
+  doneStats: { alignSelf: 'stretch', backgroundColor: palette.bgSubtle, borderRadius: 14, padding: 16, gap: 6 },
+  doneStat: { color: palette.textDim, fontFamily: 'Pretendard-SemiBold', fontSize: 14, lineHeight: 21 },
+  doneStatFaint: { color: palette.textFaint, fontFamily: 'Pretendard', fontSize: 12 },
+  reviewBox: { alignSelf: 'stretch', backgroundColor: palette.card, borderColor: palette.border, borderWidth: 1, borderRadius: 14, padding: 14, gap: 8 },
+  reviewHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  reviewTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 15 },
+  reviewNeed: { color: palette.amber, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
+  reviewRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
+  reviewNo: { color: palette.textFaint, fontFamily: 'Pretendard-SemiBold', fontSize: 12, width: 64 },
+  reviewText: { color: palette.text, fontFamily: 'Pretendard', fontSize: 14, lineHeight: 20, flex: 1 },
+  reviewAll: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, paddingTop: 4 },
+  reviewAllText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
+  coachCard: { alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: palette.blueMist, borderColor: palette.blueLine, borderWidth: 1, borderRadius: 14, padding: 14 },
+  coachBody: { flex: 1, gap: 2 },
+  coachTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 14 },
+  coachText: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 12, lineHeight: 17 },
+  coachGo: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
+  doneLink: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 13, paddingVertical: 8 },
   guideList: { gap: 8, alignSelf: 'stretch', backgroundColor: palette.bgSubtle, borderRadius: 14, padding: 16 },
   guideLine: { color: palette.textDim, fontFamily: 'Pretendard', fontSize: 14, lineHeight: 21 },
   choiceList: { gap: 10, alignSelf: 'stretch', marginTop: 8 },
@@ -823,6 +996,7 @@ const styles = StyleSheet.create({
   recBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: palette.dangerSoft, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
   recDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: palette.danger },
   recText: { color: palette.danger, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
+  pendingText: { color: palette.textFaint, fontFamily: 'Pretendard', fontSize: 11 },
   hint: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13, textAlign: 'center', marginTop: 2, lineHeight: 19 },
 
   controls: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 12, borderTopColor: palette.borderSoft, borderTopWidth: 1 },
