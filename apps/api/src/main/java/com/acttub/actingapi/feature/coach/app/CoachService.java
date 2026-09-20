@@ -56,6 +56,7 @@ public class CoachService {
     private final CoachOperationLedger operations;
     private final CoachEngine coach;
     private final CoachMemory memory;
+    private final CoachProfile profiles;
     private final CoachResponseRenderer renderer;
     private final ReportEngine reports;
     private final ReportService reportService;
@@ -69,6 +70,7 @@ public class CoachService {
             CoachOperationLedger operations,
             CoachEngine coach,
             CoachMemory memory,
+            CoachProfile profiles,
             CoachResponseRenderer renderer,
             ReportEngine reports,
             ReportService reportService,
@@ -80,6 +82,7 @@ public class CoachService {
         this.operations = operations;
         this.coach = coach;
         this.memory = memory;
+        this.profiles = profiles;
         this.renderer = renderer;
         this.reports = reports;
         this.reportService = reportService;
@@ -145,7 +148,8 @@ public class CoachService {
                 CoachResult result = coach.start(
                         owned.newCoachSession(UUID.randomUUID())
                                 .withPrior(priorContext(
-                                        userId, owned.practiceSessionId(), claim.operationId())),
+                                        userId, owned.practiceSessionId(), claim.operationId()))
+                                .withActorProfile(actorProfile(userId, claim.operationId())),
                         claim.operationId());
                 CompletedTurn completed = completeTurn(result.session(), result.reply());
                 ObjectNode payload = renderer.turn(
@@ -223,9 +227,12 @@ public class CoachService {
                 // 않으면 배우가 대화 중에 "내 목표 기억해?" 라고 물어도 코치가 모른다 —
                 // 첫 질문에만 실리고 그 뒤로는 잃어버리는 구멍이 실제로 있었다. 턴마다
                 // 새로 읽으므로, 대화 중에 기억을 고치면 다음 답변부터 반영된다.
+                // 프로필도 같다 — 저장하지 않는 입력이라 턴마다 다시 읽는다. 설정에서 고친 값이 다음
+                // 답변부터 반영되고, 재생성도 이 스냅샷으로 프롬프트를 다시 만든다.
                 CoachSessionSnapshot session = owned.session()
                         .withPrior(priorContext(
-                                userId, owned.practiceSessionId(), claim.operationId()));
+                                userId, owned.practiceSessionId(), claim.operationId()))
+                        .withActorProfile(actorProfile(userId, claim.operationId()));
                 CoachResult result = coach.reply(session, command.text(), claim.operationId());
                 CompletedTurn completed = completeReplyTurn(result.session(), result.reply());
                 ObjectNode payload = renderer.turn(
@@ -313,7 +320,7 @@ public class CoachService {
                 JsonNode existing = command.confirmed() && source.handoffId() != null
                         ? sessions.getPracticeReportForHandoff(source.handoffId())
                         : null;
-                JsonNode report = existing == null ? reportService.reportFor(source) : existing;
+                JsonNode report = existing == null ? reportService.reportFor(userId, source) : existing;
                 ObjectNode payload = renderer.confirmation(
                         command.coachSessionId(),
                         command.confirmed(),
@@ -381,6 +388,24 @@ public class CoachService {
                     failure,
                     new FailureContext("CoachService.priorContext", operationId));
             return PriorContext.EMPTY;
+        }
+    }
+
+    /**
+     * 배우가 저장해 둔 완성된 프로필. 없거나 다 채우지 않았으면 {@code null} 이다.
+     *
+     * <p>기억과 같은 판단이다 — <b>읽다 실패해도 대화는 이어져야 한다.</b> 프로필은 코치가 배우에게
+     * 맞춰 말하게 하는 참고 입력이지 대화의 전제가 아니다. 실패하면 프로필이 없는 것으로 간다.
+     */
+    private ActorProfile actorProfile(UUID userId, UUID operationId) {
+        try {
+            return profiles.completeFor(userId);
+        } catch (RuntimeException failure) {
+            LOG.warn("배우 프로필을 읽지 못했다: {}", userId, failure);
+            failureReporter.report(
+                    failure,
+                    new FailureContext("CoachService.actorProfile", operationId));
+            return null;
         }
     }
 

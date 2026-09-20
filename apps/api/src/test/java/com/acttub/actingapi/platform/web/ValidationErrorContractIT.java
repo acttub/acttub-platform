@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
+import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -65,6 +66,7 @@ class ValidationErrorContractIT {
     void blankMemoryValueIsAFieldScopedValueError() throws Exception {
         UUID userId = UUID.randomUUID();
         jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", userId);
+        AccountFixtures.passGate(jdbc, userId);
 
         MvcResult result = mvc.perform(put("/v2/me/memory/{field}", "goal")
                         .header("Authorization", "Bearer " + jwt.issueAccessToken(userId).value())

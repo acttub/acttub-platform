@@ -18,6 +18,7 @@ import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.integration.llm.TokenUsage;
 import com.acttub.actingapi.platform.operation.ExternalOperationClaimer;
+import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -39,7 +40,9 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
-@SpringBootTest(properties = "JWT_SECRET=test-secret")
+// 기억 갱신 워커를 끈다 — 워커도 같은 모델 포트(스텁 큐)를 쓰므로 닫힌 대화가 남긴 작업을 집어 가면
+// 다음 테스트의 응답을 먼저 소비한다(CoachReadsProfileIT 와 같은 까닭).
+@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ANALYSIS_WORKER_ENABLED=false"})
 @AutoConfigureMockMvc
 @Import(CoachReportEndpointIT.GeneratorFixture.class)
 class CoachReportEndpointIT {
@@ -100,7 +103,7 @@ class CoachReportEndpointIT {
         double replyCalls = operationCount("external.calls", "kind", "coach_reply", "dependency", "model");
         double replyCompleted = operationCount("terminal", "kind", "coach_reply", "outcome", "succeeded", "classification", "none");
         double replyRejected = operationCount("terminal", "kind", "coach_reply", "outcome", "failed", "classification", "expected");
-        UUID user = fixtures.insertUser();
+        UUID user = insertMember();
         var practice = fixtures.insertPractice(user);
         UUID summaryId = fixtures.insertSummary(practice.id());
         jdbc.update("UPDATE practice_sessions SET experience_version='three_layers_v1' WHERE id=?", practice.id());
@@ -203,7 +206,7 @@ class CoachReportEndpointIT {
     @ParameterizedTest
     @ValueSource(strings = {"{}", "null", "[]", "{\"observations\":null}", "{\"legacy\":true}"})
     void legacySplitObservationsReachCoachStartAndReply(String raw) throws Exception {
-        UUID userId = fixtures.insertUser();
+        UUID userId = insertMember();
         var practice = fixtures.insertPractice(userId);
         fixtures.insertSummary(practice.id());
         jdbc.update("UPDATE summaries SET raw=?::jsonb WHERE session_id=?", raw, practice.id());
@@ -224,7 +227,7 @@ class CoachReportEndpointIT {
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
     void coachReadsRawPackOrLegacyRawArrayBeforeSplitValues(boolean legacyArray) throws Exception {
-        UUID userId = fixtures.insertUser();
+        UUID userId = insertMember();
         var practice = fixtures.insertPractice(userId);
         fixtures.insertSummary(practice.id());
         if (legacyArray) {
@@ -265,7 +268,7 @@ class CoachReportEndpointIT {
         double callsBefore = calls.count();
         double acceptedBefore = accepted.count();
         double succeededBefore = succeeded.count();
-        UUID user = fixtures.insertUser();
+        UUID user = insertMember();
         UUID session = openCoachSession(user);
         UUID request = UUID.randomUUID();
         generator.enqueue("{\"message\":\"점수로 볼게요\"}");
@@ -281,7 +284,7 @@ class CoachReportEndpointIT {
 
     @Test
     void resumeReturnsTheOpenSessionWithoutCreatingAnOperationOrCallingLlm() throws Exception {
-        UUID userId = fixtures.insertUser();
+        UUID userId = insertMember();
         CoachStorageFixtures.Practice practice = fixtures.insertPractice(userId);
         UUID summaryId = fixtures.insertSummary(practice.id());
         useValidObservationPack(practice.id());
@@ -310,7 +313,7 @@ class CoachReportEndpointIT {
     void existingReportBlocksResumeAndBypassesBothCreateAndConfirmGeneration() throws Exception {
         double attemptsBefore = meters.find("acttub.external.operations.attempts").counters().stream()
                 .mapToDouble(io.micrometer.core.instrument.Counter::count).sum();
-        UUID userId = fixtures.insertUser();
+        UUID userId = insertMember();
         CoachStorageFixtures.Practice practice = fixtures.insertPractice(userId);
         UUID summaryId = fixtures.insertSummary(practice.id());
         UUID sessionId = UUID.randomUUID();
@@ -355,7 +358,7 @@ class CoachReportEndpointIT {
 
     @Test
     void confirmParseFailureLeavesConfirmationAndClosedSessionCommitted() throws Exception {
-        UUID userId = fixtures.insertUser();
+        UUID userId = insertMember();
         CoachStorageFixtures.Practice practice = fixtures.insertPractice(userId);
         UUID summaryId = fixtures.insertSummary(practice.id());
         useValidObservationPack(practice.id());
@@ -411,7 +414,7 @@ class CoachReportEndpointIT {
     @Test
     void openingACoachSessionNeedsAPracticeThatExistsAndHasSettledItsAnalysis()
             throws Exception {
-        UUID userId = fixtures.insertUser();
+        UUID userId = insertMember();
         CoachStorageFixtures.Practice practice = fixtures.insertPractice(userId);
 
         assertError(coachStart(userId, UUID.randomUUID(), UUID.randomUUID()),
@@ -436,7 +439,7 @@ class CoachReportEndpointIT {
     @Test
     void replayingWhileTheOperationIsStillRunningIsAConflictThatEchoesTheRequestId()
             throws Exception {
-        UUID userId = fixtures.insertUser();
+        UUID userId = insertMember();
         CoachStorageFixtures.Practice practice = fixtures.insertPractice(userId);
         UUID summaryId = fixtures.insertSummary(practice.id());
         UUID sessionId = UUID.randomUUID();
@@ -465,7 +468,7 @@ class CoachReportEndpointIT {
      */
     @Test
     void anOperationThatBurnedItsAttemptsIsRejectedAsExhaustedNotAsRunning() throws Exception {
-        UUID userId = fixtures.insertUser();
+        UUID userId = insertMember();
         CoachStorageFixtures.Practice practice = fixtures.insertPractice(userId);
         UUID summaryId = fixtures.insertSummary(practice.id());
         UUID sessionId = UUID.randomUUID();
@@ -501,7 +504,7 @@ class CoachReportEndpointIT {
     void losingTheLeaseMidFlightIsStillProcessingOnEveryGeneratingRoute() throws Exception {
         double terminalBefore = meters.find("acttub.external.operations.terminal").counters().stream()
                 .mapToDouble(io.micrometer.core.instrument.Counter::count).sum();
-        UUID starting = fixtures.insertUser();
+        UUID starting = insertMember();
         CoachStorageFixtures.Practice startPractice = fixtures.insertPractice(starting);
         fixtures.insertSummary(startPractice.id());
         useValidObservationPack(startPractice.id());
@@ -513,7 +516,7 @@ class CoachReportEndpointIT {
                 409, "request is still processing");
         assertLostTheLease(startRequest, beforeStart);
 
-        UUID replying = fixtures.insertUser();
+        UUID replying = insertMember();
         UUID replySession = openCoachSession(replying);
         UUID replyRequest = UUID.randomUUID();
         generator.duringGeneration(() -> stealLeaseOf(replyRequest));
@@ -523,7 +526,7 @@ class CoachReportEndpointIT {
                 409, "request is still processing");
         assertLostTheLease(replyRequest, beforeReply);
 
-        UUID confirming = fixtures.insertUser();
+        UUID confirming = insertMember();
         UUID confirmSession = openCoachSession(confirming);
         fixtures.insertHandoff(confirmSession, practiceOf(confirmSession), CREATED_AT);
         UUID confirmRequest = UUID.randomUUID();
@@ -534,7 +537,7 @@ class CoachReportEndpointIT {
                 409, "request is still processing");
         assertLostTheLease(confirmRequest, beforeConfirm);
 
-        UUID reporting = fixtures.insertUser();
+        UUID reporting = insertMember();
         UUID reportSession = openCoachSession(reporting);
         confirmHandoff(fixtures.insertHandoff(
                 reportSession, practiceOf(reportSession), CREATED_AT));
@@ -559,7 +562,7 @@ class CoachReportEndpointIT {
      */
     @Test
     void negativeConfirmationWithoutARebuttalIsAWholeBodyValidationError() throws Exception {
-        UUID userId = fixtures.insertUser();
+        UUID userId = insertMember();
         UUID sessionId = openCoachSession(userId);
 
         var response = mvc.perform(post("/v2/coach/confirm")
@@ -620,7 +623,7 @@ class CoachReportEndpointIT {
         var rejected = meters.get("acttub.external.operations.terminal").tags(
                 "kind", "report", "outcome", "failed", "classification", "expected").counter();
         double before = rejected.count();
-        UUID reporting = fixtures.insertUser();
+        UUID reporting = insertMember();
         UUID reportSession = openCoachSession(reporting);
         UUID reportHandoff = fixtures.insertHandoff(
                 reportSession, practiceOf(reportSession), CREATED_AT);
@@ -631,7 +634,7 @@ class CoachReportEndpointIT {
         assertError(reports(reporting, reportSession, UUID.randomUUID()),
                 409, "report already exists");
 
-        UUID confirming = fixtures.insertUser();
+        UUID confirming = insertMember();
         UUID confirmSession = openCoachSession(confirming);
         UUID confirmHandoff = fixtures.insertHandoff(
                 confirmSession, practiceOf(confirmSession), CREATED_AT);
@@ -646,7 +649,7 @@ class CoachReportEndpointIT {
     /** 남의 것이거나 없는 코치 세션으로 성적표를 만들면 404 다 — 연습 쪽 표기와 다르다. */
     @Test
     void creatingAReportForAnUnknownCoachSessionIsSessionNotFound() throws Exception {
-        UUID userId = fixtures.insertUser();
+        UUID userId = insertMember();
 
         assertError(reports(userId, UUID.randomUUID(), UUID.randomUUID()),
                 404, "session not found");
@@ -661,7 +664,7 @@ class CoachReportEndpointIT {
      */
     @Test
     void unexpectedModelFailureIsRecordedWithoutChangingThePublic500() throws Exception {
-        UUID user = fixtures.insertUser();
+        UUID user = insertMember();
         UUID session = openCoachSession(user);
         confirmHandoff(fixtures.insertHandoff(session, practiceOf(session), CREATED_AT));
         UUID request = UUID.randomUUID();
@@ -681,7 +684,7 @@ class CoachReportEndpointIT {
         var failures = meters.get("acttub.external.operations.terminal").tags(
                 "kind", "report", "outcome", "failed", "classification", "external").counter();
         double before = failures.count();
-        UUID reporting = fixtures.insertUser();
+        UUID reporting = insertMember();
         UUID reportSession = openCoachSession(reporting);
         confirmHandoff(fixtures.insertHandoff(
                 reportSession, practiceOf(reportSession), CREATED_AT));
@@ -939,5 +942,12 @@ class CoachReportEndpointIT {
             lastInput = null;
             inputs.clear();
         }
+    }
+
+    /** 보호 기능을 부르는 회원 — 프로필 게이트를 지난 상태로 세운다. */
+    private UUID insertMember() {
+        UUID id = fixtures.insertUser();
+        AccountFixtures.completeProfile(jdbc, id);
+        return id;
     }
 }

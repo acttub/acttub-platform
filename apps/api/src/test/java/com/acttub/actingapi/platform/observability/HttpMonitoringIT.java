@@ -23,6 +23,8 @@ import com.acttub.actingapi.feature.coach.adapter.db.CoachStorageFixtures;
 import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.integration.llm.TokenUsage;
+import com.acttub.actingapi.support.AccountFixtures;
+import com.acttub.actingapi.support.DefaultClientHeader;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import io.micrometer.core.instrument.MockClock;
 import org.junit.jupiter.api.AfterAll;
@@ -87,6 +89,7 @@ class HttpMonitoringIT {
             }
         }
         UUID user = fixtures.insertUser();
+        AccountFixtures.completeProfile(jdbc, user);
         String bearer = "Bearer " + context.getBean(JwtService.class).issueAccessToken(user).value();
         var practice = fixtures.insertPractice(user);
         UUID coach = UUID.randomUUID();
@@ -113,6 +116,7 @@ class HttpMonitoringIT {
     void scrapeCountsRealResponsesUsingTemplatesWithoutMonitoringTrafficOrSensitiveLabels() throws Exception {
         String before = scrape();
         UUID user = fixtures.insertUser();
+        AccountFixtures.completeProfile(jdbc, user);
         String bearer = "Bearer " + context.getBean(JwtService.class).issueAccessToken(user).value();
         UUID missing = UUID.randomUUID();
         assertThat(get("/v2/reports", bearer).statusCode()).isEqualTo(200);
@@ -170,6 +174,7 @@ class HttpMonitoringIT {
     @ValueSource(strings = {"coach", "report"})
     void activeHttpLifetimeIncludesExternalCallsAndIdempotentDatabaseWaits(String feature) throws Exception {
         UUID user = fixtures.insertUser();
+        AccountFixtures.completeProfile(jdbc, user);
         String bearer = "Bearer " + context.getBean(JwtService.class).issueAccessToken(user).value();
         var practice = fixtures.insertPractice(user);
         UUID summary = fixtures.insertSummary(practice.id());
@@ -244,7 +249,8 @@ class HttpMonitoringIT {
     }
 
     private HttpResponse<String> get(String path, String bearer) throws Exception {
-        var request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path)).GET();
+        var request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
+                .header(DefaultClientHeader.NAME, DefaultClientHeader.APP).GET();
         if (bearer != null) request.header("Authorization", bearer);
         return CLIENT.send(request.build(), HttpResponse.BodyHandlers.ofString());
     }
@@ -256,6 +262,7 @@ class HttpMonitoringIT {
     private HttpRequest postRequest(String path, String bearer, UUID requestId, String body) {
         return HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
                 .timeout(Duration.ofSeconds(15)).header("Authorization", bearer)
+                .header(DefaultClientHeader.NAME, DefaultClientHeader.APP)
                 .header("Content-Type", "application/json").header("X-Request-Id", requestId.toString())
                 .POST(HttpRequest.BodyPublishers.ofString(body)).build();
     }

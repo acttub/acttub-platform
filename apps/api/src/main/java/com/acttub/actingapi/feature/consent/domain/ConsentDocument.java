@@ -20,14 +20,15 @@ public record ConsentDocument(
         Instant publishedAt) {
 
     /**
-     * 이 사람이 아직 받아야 하는 문서인가.
+     * 이 문서에 대한 마지막 행위가 <b>결정</b>인가.
      *
-     * @param lastAction 이 문서에 대한 <b>마지막</b> 행위. 한 번도 없었으면 {@code null}
+     * @param lastAction 이 판에 대한 <b>마지막</b> 행위. 한 번도 없었으면 {@code null}
      *
-     * <p>마지막 행위를 보는 것이 규칙의 전부다 — 동의했다가 철회한 사람은 다시 받아야 하고,
-     * 철회했다가 동의한 사람은 아니다. 필수가 아닌 문서는 받지 않아도 통과한다.
+     * <p>동의는 언제나 결정이다. 거절은 <b>선택 문서에서만</b> 결정이다 — 필수 문서는 거절할 길이
+     * 없고, 1.0.0 이전에 남은 필수 문서의 거절·철회 기록은 미결정과 같게 다룬다. 철회는 탈퇴 뒤
+     * 운영자만 기록하므로 회원에게는 결정이 아니다.
      */
-    public boolean stillNeededBy(String lastAction) {
-        return required && !"granted".equals(lastAction);
+    public boolean decidedBy(String lastAction) {
+        return "granted".equals(lastAction) || (!required && "declined".equals(lastAction));
     }
 }

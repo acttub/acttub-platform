@@ -107,7 +107,7 @@ test("저장 길이 상한이 서버와 같다", () => {
   assert.match(panel(), /maxLength=\{MEMORY_VALUE_MAX_LENGTH\}/);
 });
 
-test("로그인해야 열리는 화면이라 색인하지 않는다", () => {
+test("게스트 한 사람의 자료를 보는 화면이라 색인하지 않는다", () => {
   const source = readSource("src/app/memory/page.tsx");
 
   assert.match(source, /buildNoindexMetadata/);

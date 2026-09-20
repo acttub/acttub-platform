@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { palette } from '@/constants/palette';
+import { keepDeviceFile } from '@/lib/account-files';
 import { translate as t } from '@/lib/i18n';
 import { MAX_VIDEO_DURATION_MS, normalizeVideoDurationMs } from '@/lib/upload-input';
 import { setRecordedVideo, takeRecordedVideo } from '@/lib/recorded-video';
@@ -112,6 +113,8 @@ export default function RecordVideoScreen() {
       if (finishedRef.current) return;
       finishedRef.current = true;
       if (uri) {
+        // 찍은 영상은 캐시에 남는다. 올리지 않고 나가도 탈퇴 때 지울 수 있게 장부에 적는다.
+        void keepDeviceFile(uri);
         setRecordedVideo({
           uri,
           durationMs: elapsed > 0 ? elapsed * 1000 : null,
@@ -153,6 +156,7 @@ export default function RecordVideoScreen() {
     const asset = result.assets[0];
     if (finishedRef.current) return;
     finishedRef.current = true;
+    void keepDeviceFile(asset.uri);
     setRecordedVideo({
       uri: asset.uri,
       // 픽커의 duration 은 플랫폼마다 초/밀리초가 섞여 온다 — 업로드 화면과 같은 정규화를 쓴다.

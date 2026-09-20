@@ -16,9 +16,10 @@ import com.acttub.actingapi.feature.consent.domain.ConsentEvent;
 public interface ConsentRepository {
 
     /**
-     * 종류마다 가장 최근 판 하나씩. <b>종류 순</b>이다.
+     * 종류마다 <b>현재 판</b>(가장 최근에 발행한 판) 하나씩. <b>종류 순</b>이다.
      *
-     * <p>이 순서가 곧 {@code /v2/consents/documents}·{@code /v2/consents/pending} 응답의 순서다.
+     * <p>이 순서가 곧 {@code /v2/consents/documents}·{@code /v2/consents/pending} 과 로그인·게이트
+     * 응답의 순서다.
      */
     List<ConsentDocument> listLatestDocuments();
 
@@ -29,4 +30,10 @@ public interface ConsentRepository {
     List<ConsentEvent> currentConsentsOf(UUID userId);
 
     ConsentEvent record(UUID userId, UUID documentId, String action, Instant occurredAt);
+
+    /** 게스트가 "만 14세 이상이에요"를 확인한 적이 있는가({@code users.age_confirmed_at}). */
+    boolean ageConfirmed(UUID userId);
+
+    /** 확인한 시각을 남긴다. 이미 있으면 처음 값을 그대로 둔다. */
+    void confirmAge(UUID userId, Instant now);
 }

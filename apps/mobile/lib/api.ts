@@ -1,16 +1,9 @@
-import type { ReportPayload } from '@/lib/moderation';
 import type {
   AdmissionsResponse,
 } from './admissions';
 import { normalizeAdmissions } from './admissions';
-import type {
-  CommentListResponse,
-  CommunityCategory,
-  CommunityComment,
-  CommunityPost,
-  PostListResponse,
-} from './community';
 
+import Constants from 'expo-constants';
 import {
   createUploadTask,
   FileSystemUploadType,
@@ -21,6 +14,8 @@ import {
   commitRefreshedTokens,
   emitAccountDeactivated,
   emitConsentRequired,
+  emitProfileRequired,
+  emitUpdateRequired,
   getAccessToken,
   getAuthSessionEpoch,
   getRefreshToken,
@@ -31,6 +26,17 @@ import {
   createApiRequestClient,
   type PostIdempotentOptions,
 } from '@/lib/api-request';
+import type { SignupDecision } from '@/lib/consent-entry-submission';
+import type { TransferRequestBody } from '@/lib/guest-transfer';
+import type { LoginRequestBody, LoginResponse } from '@/lib/login-flow';
+import type {
+  CreditPayload,
+  Portfolio,
+  PortfolioCredit,
+  PortfolioShare,
+} from '@/lib/portfolio';
+import type { ProfilePayload, ServerProfile } from '@/lib/profile-form';
+import type { NotificationSettings } from '@/lib/push-policy';
 import {
   sceneValueForSubmit,
   sendUploadIntent,
@@ -48,8 +54,12 @@ export { ApiError, NetworkError, RequestAbortError } from '@/lib/api-request';
  * - 분석: 비동기 — practice-session 생성 후 상태를 폴링해 analyzed까지 기다린다.
  */
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://dev.acttub.com';
+// 요청마다 보내는 클라이언트 종류와 판(X-Acttub-Client). 판은 app.json의 version이다.
+// 이 헤더가 없으면 서버는 1.0.0 이전 빌드로 보고 426으로 답한다.
+const CLIENT_HEADER = `app/${Constants.expoConfig?.version ?? '0.0.0'}`;
 const requestClient = createApiRequestClient({
   baseUrl: BASE_URL,
+  clientHeader: CLIENT_HEADER,
   fetchImpl: (...args) => fetch(...args),
   getLanguage: currentLanguage,
   waitForCredentialReady,
@@ -59,7 +69,9 @@ const requestClient = createApiRequestClient({
   setTokens: commitRefreshedTokens,
   clearTokens: clearTokensIfCurrent,
   emitConsentRequired,
+  emitProfileRequired,
   emitAccountDeactivated,
+  emitUpdateRequired,
 });
 
 // ─── 도메인 타입 ────────────────────────────────────────────────────────────
@@ -262,16 +274,15 @@ export type ConsentDocument = {
   published_at: string;
 };
 
-export type ConsentDecision = 'granted' | 'declined' | 'revoked';
+/** 앱이 보내는 결정은 둘뿐이다. 철회(revoked)는 운영자만 기록하고 API로 받지 않는다. */
+export type ConsentDecision = 'granted' | 'declined';
 
 export type ConsentEntryDocument = ConsentDocument & {
   current_decision: ConsentDecision | null;
+  decided_at?: string | null;
 };
 
-export type ConsentEntryStatus =
-  | 'allowed'
-  | 'decision_required'
-  | 'blocked';
+export type ConsentEntryStatus = 'allowed' | 'decision_required';
 
 export type ConsentEntryResponse = {
   entry_status: ConsentEntryStatus;
@@ -286,6 +297,13 @@ export type TokenPair = {
   expires_in: number;
   user: AuthUser;
   pending_consents: ConsentDocument[];
+};
+
+/** GET /v2/me. 앱은 profile_complete로 프로필 입력 화면을 띄울지 정한다. */
+export type MeResponse = AuthUser & {
+  account_type: 'member' | 'guest';
+  profile_complete: boolean;
+  profile: ServerProfile | null;
 };
 
 // ─── 업로드 / 세션 타입 ──────────────────────────────────────────────────────
@@ -401,11 +419,27 @@ function postIdempotent<T>(
 
 export const api = {
   // 인증 -----------------------------------------------------------------------
-  /** 소셜 로그인 id_token으로 access/refresh 토큰 교환. provider 예: 'google'. */
-  login(provider: string, idToken: string): Promise<TokenPair> {
+  /** 서버가 켜 둔 로그인 제공자. 앱은 이 목록으로 로그인 버튼을 그린다. */
+  authProviders(): Promise<{ providers: string[] }> {
+    return request('/v2/auth/providers', {}, { auth: false, timeoutMs: 15_000 });
+  },
+
+  /**
+   * 제공자가 준 자격 값으로 로그인한다. 응답은 어느 쪽이든 200이고 result로 가른다 —
+   * 이미 있는 계정은 토큰을, 처음 온 신원은 가입 토큰과 동의 문서를 받는다.
+   */
+  login(body: LoginRequestBody): Promise<LoginResponse> {
+    return request<LoginResponse>('/v2/auth/login', jsonInit(body), {
+      auth: false,
+      timeoutMs: 30_000,
+    });
+  },
+
+  /** 가입 제출. 현재 판 모든 문서의 결정을 담아 통과하면 그 순간 계정이 생기고 토큰을 받는다. */
+  signup(signupToken: string, decisions: SignupDecision[]): Promise<TokenPair> {
     return request<TokenPair>(
-      '/v2/auth/login',
-      jsonInit({ provider, id_token: idToken }),
+      '/v2/auth/signup',
+      jsonInit({ signup_token: signupToken, decisions }),
       { auth: false, timeoutMs: 30_000 },
     );
   },
@@ -429,45 +463,233 @@ export const api = {
     return request('/v2/consents/entry', {}, { auth: true });
   },
 
-  recordConsent(
-    documentId: string,
-    action: 'granted' | 'declined' | 'revoked',
-  ): Promise<void> {
+  recordConsent(documentId: string, action: ConsentDecision): Promise<void> {
     return request<void>('/v2/consents', jsonInit({ document_id: documentId, action }), {
       requestId: true,
     });
   },
 
   // 내 계정 ---------------------------------------------------------------------
+  /** 내 계정과 프로필. 게이트 밖이라 동의·프로필이 끝나기 전에도 읽힌다. */
+  me(): Promise<MeResponse> {
+    return request<MeResponse>('/v2/me', {}, { timeoutMs: 15_000 });
+  },
+
+  /** 프로필 여섯 항목을 한 번에 저장한다. 가입 게이트의 입력 화면과 설정의 수정이 함께 쓴다. */
+  saveProfile(payload: ProfilePayload): Promise<MeResponse> {
+    return request<MeResponse>(
+      '/v2/me/profile',
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      },
+      { timeoutMs: 15_000 },
+    );
+  },
+
+  /** 프로필 사진을 올릴 주소. 앱이 줄인 JPEG 의 크기를 알린다(영상 업로드와 같은 방식). */
+  createProfilePhotoIntent(input: {
+    content_type: string;
+    size_bytes: number;
+  }): Promise<{ upload_url: string; expires_at: string }> {
+    return request('/v2/me/photo', jsonInit(input), { timeoutMs: 30_000 });
+  },
+
+  /** 올리기가 끝났다고 알린다. 서버가 객체를 확인해 프로필 사진으로 바꾸고 옛 사진을 지운다. */
+  completeProfilePhoto(): Promise<MeResponse> {
+    return request<MeResponse>('/v2/me/photo/complete', { method: 'POST' }, { timeoutMs: 30_000 });
+  },
+
+  /** 프로필 사진을 지운다. 사진이 없어도 204다(멱등). */
+  deleteProfilePhoto(): Promise<void> {
+    return request<void>('/v2/me/photo', { method: 'DELETE' }, { timeoutMs: 15_000 });
+  },
+
   /**
-   * 회원탈퇴. 204 를 받으면 끝난다.
+   * 회원탈퇴. 처음이든 다시든 200 과 최초 탈퇴 시각을 받는다.
    *
-   * 서버는 행을 지우지 않고 이메일·닉네임·로그인 연결을 파기하고 refresh 를 전부
-   * 끊는다. 커뮤니티에 쓴 글은 남고 작성자가 '탈퇴한 사용자' 로 바뀐다.
-   * **되돌릴 수 없다.**
+   * 서버는 행을 지우지 않고 이메일·이름·사진·소개·포트폴리오·로그인 연결을 파기하고
+   * refresh 를 전부 끊는다. **되돌릴 수 없다.**
    *
    * 401 재시도를 막지 않는다 — 서버 처리가 멱등해서(이미 탈퇴한 계정이면 최초 탈퇴
    * 시각을 유지) 두 번 닿아도 결과가 같다. 막으면 액세스 토큰이 방금 만료된 사람만
-   * 탈퇴에 실패한다.
+   * 탈퇴에 실패한다. 탈퇴 도중 앱이 죽어 다시 눌러도 같은 200 이다.
    */
-  deleteMe(): Promise<void> {
-    return request<void>('/v2/me', { method: 'DELETE' }, { timeoutMs: 30_000 });
+  deleteMe(): Promise<{ status: 'deactivated'; deactivated_at: string }> {
+    return request('/v2/me', { method: 'DELETE' }, { timeoutMs: 30_000 });
+  },
+
+  // 포트폴리오 -----------------------------------------------------------------
+  // 항목마다 따로 저장한다. 회원 전용이고 보호 기능이다(게스트는 403 member_only).
+  /** 한 번도 편집하지 않았어도 빈 모양으로 200 이다. 배열은 저장된 순서다. */
+  portfolio(): Promise<Portfolio> {
+    return request<Portfolio>('/v2/portfolio', {}, { timeoutMs: 20_000 });
+  },
+
+  /** 소개글 저장. null 이나 빈 글로 지운다. 2,000자까지. */
+  savePortfolioIntro(intro: string | null): Promise<Portfolio> {
+    return request<Portfolio>(
+      '/v2/portfolio/intro',
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ intro }),
+      },
+      { timeoutMs: 20_000 },
+    );
+  },
+
+  /** 경력 추가. 맨 끝에 붙는다. 쉰한 번째는 422 portfolio_credit_limit_exceeded. */
+  createPortfolioCredit(credit: CreditPayload): Promise<PortfolioCredit> {
+    return request<PortfolioCredit>('/v2/portfolio/credits', jsonInit(credit), {
+      timeoutMs: 20_000,
+    });
+  },
+
+  /** 경력 수정. 보낸 항목만 바꾼다. */
+  updatePortfolioCredit(
+    creditId: string,
+    patch: Partial<CreditPayload>,
+  ): Promise<PortfolioCredit> {
+    return request<PortfolioCredit>(
+      `/v2/portfolio/credits/${encodeURIComponent(creditId)}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      },
+      { timeoutMs: 20_000 },
+    );
+  },
+
+  /** 경력 삭제. 이미 지운 것을 다시 지우면 404 다. */
+  deletePortfolioCredit(creditId: string): Promise<void> {
+    return request<void>(
+      `/v2/portfolio/credits/${encodeURIComponent(creditId)}`,
+      { method: 'DELETE' },
+      { timeoutMs: 15_000 },
+    );
+  },
+
+  /** 경력 순서 바꾸기. 지금 있는 id 를 원하는 순서로 전부 보낸다(다르면 422 order_mismatch). */
+  reorderPortfolioCredits(order: { ids: string[] }): Promise<Portfolio> {
+    return request<Portfolio>(
+      '/v2/portfolio/credits/order',
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(order),
+      },
+      { timeoutMs: 20_000 },
+    );
+  },
+
+  /** 포트폴리오 사진을 올릴 주소. 열한 번째는 422 portfolio_photo_limit_exceeded. */
+  createPortfolioPhotoIntent(input: {
+    content_type: string;
+    size_bytes: number;
+  }): Promise<{ photo_id: string; upload_url: string; expires_at: string }> {
+    return request('/v2/portfolio/photos', jsonInit(input), { timeoutMs: 30_000 });
+  },
+
+  /** 올리기가 끝났다고 알린다. 서버가 객체를 확인하고 목록 맨 끝에 붙인다. */
+  completePortfolioPhoto(photoId: string): Promise<Portfolio> {
+    return request<Portfolio>(
+      `/v2/portfolio/photos/${encodeURIComponent(photoId)}/complete`,
+      { method: 'POST' },
+      { timeoutMs: 30_000 },
+    );
+  },
+
+  deletePortfolioPhoto(photoId: string): Promise<void> {
+    return request<void>(
+      `/v2/portfolio/photos/${encodeURIComponent(photoId)}`,
+      { method: 'DELETE' },
+      { timeoutMs: 15_000 },
+    );
+  },
+
+  reorderPortfolioPhotos(order: { ids: string[] }): Promise<Portfolio> {
+    return request<Portfolio>(
+      '/v2/portfolio/photos/order',
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(order),
+      },
+      { timeoutMs: 20_000 },
+    );
+  },
+
+  /**
+   * 공유 링크 켜기·끄기. 처음 켤 때 난수 slug 가 생기고, 꺼도 slug 는 남아 다시 켜면 같은
+   * 주소가 열린다. 주소는 응답의 url 을 그대로 쓴다.
+   */
+  setPortfolioShare(enabled: boolean): Promise<PortfolioShare> {
+    return request<PortfolioShare>(
+      '/v2/portfolio/share',
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+      },
+      { timeoutMs: 20_000 },
+    );
+  },
+
+  // 웹 체험 자료 옮기기 ---------------------------------------------------------
+  /**
+   * 웹이 보여 준 여섯 자리 코드로 게스트의 자료를 이 회원으로 옮긴다. 기억이 둘 다 있는데
+   * memory_choice 가 없으면 409 memory_choice_required — 아무것도 옮기지 않고 코드도 살아 있다.
+   */
+  transferGuestData(body: TransferRequestBody): Promise<{ transferred: boolean }> {
+    return request('/v2/guest-transfers', jsonInit(body), { timeoutMs: 60_000 });
+  },
+
+  // 알림 설정 -------------------------------------------------------------------
+  /** 알림 토글 셋. 프로필에 저장돼 폰을 바꿔도 유지된다. 가입 직후에는 셋 다 켜져 있다. */
+  notificationSettings(): Promise<NotificationSettings> {
+    return request('/v2/me/notification-settings', {}, { timeoutMs: 15_000 });
+  },
+
+  /**
+   * 바꿀 토글만 보낸다. 응답은 토글 셋 전체다. 푸시 토글 둘이 다 꺼지면 서버가 그 회원의
+   * 푸시 토큰을 전부 지운다.
+   */
+  updateNotificationSettings(patch: Partial<NotificationSettings>): Promise<NotificationSettings> {
+    return request(
+      '/v2/me/notification-settings',
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      },
+      { timeoutMs: 15_000 },
+    );
   },
 
   // 푸시 알림 -------------------------------------------------------------------
-  /** 이 단말의 Expo push token 을 내 것으로 등록. 서버가 토큰 기준 upsert 라 멱등하다. */
+  /**
+   * 이 단말의 Expo push token 을 내 것으로 등록. 서버가 토큰 기준 upsert 라 멱등하다.
+   * 보호 기능이라 동의와 프로필이 끝난 뒤에만 받는다(그 전에는 403).
+   */
   registerPushToken(token: string, platform: 'ios' | 'android'): Promise<void> {
     return request<void>('/v2/push-tokens', jsonInit({ token, platform }), {
       timeoutMs: 15_000,
     });
   },
 
-  /** 이 단말의 토큰을 지운다(로그아웃·알림 끄기). 없어도 204 — 멱등하다. */
+  /**
+   * 이 단말의 토큰을 지운다. 없어도 204 — 멱등하다. **로그인 없이 보낸다** — 푸시 토큰을 갖고
+   * 있다는 것이 본인 확인이다. 그래서 로그아웃 때 실패한 삭제를 다음 실행 때(기기에 액세스
+   * 토큰이 없어도) 다시 보낼 수 있다.
+   */
   unregisterPushToken(token: string): Promise<void> {
     return request<void>(
       '/v2/push-tokens',
       { ...jsonInit({ token }), method: 'DELETE' },
-      { timeoutMs: 15_000 },
+      { auth: false, timeoutMs: 15_000 },
     );
   },
 
@@ -711,98 +933,6 @@ export const api = {
       `/v2/reports/${encodeURIComponent(practiceSessionId)}`,
       {},
       { timeoutMs: 20_000 },
-    );
-  },
-
-  // 게시판 --------------------------------------------------------------------
-  // 목록·상세는 로그인 없이 열린다. 쓰기만 토큰이 필요하다.
-  communityCategories(): Promise<{ categories: CommunityCategory[] }> {
-    return request<{ categories: CommunityCategory[] }>('/v2/community/categories', {}, {
-      auth: false,
-      timeoutMs: 15_000,
-    });
-  },
-
-  communityPosts(params: { category?: string; cursor?: string } = {}): Promise<PostListResponse> {
-    const query = new URLSearchParams();
-    if (params.category) query.set('category', params.category);
-    if (params.cursor) query.set('cursor', params.cursor);
-    const suffix = query.toString() ? `?${query.toString()}` : '';
-    return request<PostListResponse>(`/v2/community/posts${suffix}`, {}, {
-      auth: false,
-      timeoutMs: 20_000,
-    });
-  },
-
-  communityPost(postId: string): Promise<CommunityPost> {
-    return request<CommunityPost>(`/v2/community/posts/${encodeURIComponent(postId)}`, {}, {
-      auth: false,
-      timeoutMs: 20_000,
-    });
-  },
-
-  communityComments(postId: string, cursor?: string): Promise<CommentListResponse> {
-    const suffix = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
-    return request<CommentListResponse>(
-      `/v2/community/posts/${encodeURIComponent(postId)}/comments${suffix}`,
-      {},
-      { auth: false, timeoutMs: 20_000 },
-    );
-  },
-
-  createCommunityPost(input: {
-    category_slug: string;
-    title: string;
-    body: string;
-    anonymous: boolean;
-  }): Promise<CommunityPost> {
-    return request<CommunityPost>('/v2/community/posts', jsonInit(input), { timeoutMs: 20_000 });
-  },
-
-  // 신고·차단 (SOMA-444) — 값·경로는 웹 community.ts와 동일. 신고는 204, 중복 신고는 409.
-  reportCommunityContent(input: ReportPayload): Promise<void> {
-    return request<void>('/v2/community/reports', jsonInit(input), { timeoutMs: 15_000 });
-  },
-
-  blockCommunityUser(userId: string): Promise<void> {
-    return request<void>('/v2/community/blocks', jsonInit({ user_id: userId }), {
-      timeoutMs: 15_000,
-    });
-  },
-
-  // 내 글·댓글 삭제 (SOMA-499, App Store 1.2) — 서버가 작성자만 지우게 막는다(남의 것은 403).
-  deleteCommunityPost(postId: string): Promise<void> {
-    return request<void>(
-      `/v2/community/posts/${encodeURIComponent(postId)}`,
-      { method: 'DELETE' },
-      { timeoutMs: 15_000 },
-    );
-  },
-
-  deleteCommunityComment(commentId: string): Promise<void> {
-    return request<void>(
-      `/v2/community/comments/${encodeURIComponent(commentId)}`,
-      { method: 'DELETE' },
-      { timeoutMs: 15_000 },
-    );
-  },
-
-  createCommunityComment(
-    postId: string,
-    input: { body: string; anonymous: boolean },
-  ): Promise<CommunityComment> {
-    return request<CommunityComment>(
-      `/v2/community/posts/${encodeURIComponent(postId)}/comments`,
-      jsonInit(input),
-      { timeoutMs: 20_000 },
-    );
-  },
-
-  likeCommunityPost(postId: string, liked: boolean): Promise<void> {
-    return request<void>(
-      `/v2/community/posts/${encodeURIComponent(postId)}/likes`,
-      { method: liked ? 'POST' : 'DELETE' },
-      { timeoutMs: 15_000 },
     );
   },
 

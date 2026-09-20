@@ -11,5 +11,9 @@ import java.util.List;
  */
 public interface PushSender {
 
-    void send(List<PushMessage> messages);
+    /**
+     * @return 보낸 것 가운데 <b>"등록되지 않은 기기"</b>로 답이 온 토큰. 앱을 지웠거나 알림을 꺼서 더는 받을
+     *         수 없는 기기다 — 부르는 쪽이 그 토큰 행을 지운다. 없으면 빈 목록
+     */
+    List<String> send(List<PushMessage> messages);
 }

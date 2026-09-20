@@ -22,16 +22,14 @@ import { errorMessage } from "../api/v2/errors";
  * 로딩을 유추한 곳이 셋이다).
  */
 export type Resource<T> =
-  /** 아직 묻지 않았다. 게이트(로그인 대기 등)가 닫혀 있는 동안이다. */
+  /** 아직 묻지 않았다. 게이트(게스트 없음 등)가 닫혀 있는 동안이다. */
   | { state: "idle" }
   | { state: "loading" }
   /**
    * 응답이 왔다. `receivedAt` 은 그 순간의 시각이다 — 페이지를 전부 빌드 시점에
    * 프리렌더하므로 서버 시각이 없고, 화면이 "3시간 전"·"마감 D-2" 를 재려면 응답이 온
-   * 뒤에 한 번 읽은 시각이 필요하다. 그 시각을 답과 따로 든 자리가 넷인데 모양이 둘로
-   * 갈렸다 — `setNow(Date.now())` 둘(커뮤니티 목록·글 상세)과 `setToday(localDate())`
-   * 둘(입시 두 화면). 이것이 흡수한 것은 뒤엣 둘뿐이다. 앞엣 둘은 답을 그 뒤 사용자
-   * 행동이 바꾸는 자리라 이 훅으로 접히지 않았다.
+   * 뒤에 한 번 읽은 시각이 필요하다. 입시 두 화면이 그 시각을 답과 따로 들고 있던
+   * 것(`setToday(localDate())`)을 이것이 흡수했다.
    */
   | { state: "ready"; data: T; receivedAt: number }
   | { state: "failed"; message: string };

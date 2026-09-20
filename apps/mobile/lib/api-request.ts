@@ -4,18 +4,22 @@ export class ApiError extends Error {
   readonly status: number;
   readonly code?: string;
   readonly detail?: unknown;
+  /** 오류 본문 전체. 코드 말고 정보를 더 싣는 오류 둘(pending_consents·providers)을 여기서 읽는다. */
+  readonly body?: unknown;
 
   constructor(
     status: number,
     message: string,
     code?: string,
     detail?: unknown,
+    body?: unknown,
   ) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
     this.detail = detail;
+    this.body = body;
   }
 }
 
@@ -52,6 +56,8 @@ export type RequestClock = {
 
 export type ApiRequestDependencies = {
   baseUrl: string;
+  /** 요청마다 보내는 클라이언트 종류와 판. 예: app/1.0.0. 없으면 서버가 426으로 답한다. */
+  clientHeader: string;
   fetchImpl: typeof fetch;
   /**
    * 서버가 AI 답변을 어느 말로 쓸지 정하는 데 쓴다(Accept-Language).
@@ -70,8 +76,10 @@ export type ApiRequestDependencies = {
   clearTokens: (
     expectation: AuthCredentialExpectation,
   ) => Promise<boolean>;
-  emitConsentRequired: () => void;
+  emitConsentRequired: (pendingConsents: unknown[]) => void;
+  emitProfileRequired: () => void;
   emitAccountDeactivated: () => void;
+  emitUpdateRequired: () => void;
   clock?: RequestClock;
   random?: () => number;
 };
@@ -159,13 +167,51 @@ export function friendlyError(status: number, body: unknown): string {
 
 function toApiError(status: number, body: unknown): ApiError {
   const detail = errorDetail(body);
+  // 426의 detail은 코드가 아니라 안내 문장이다. 상태 코드로 알아본다.
   const code =
-    typeof detail === 'string'
-      ? detail
-      : Array.isArray(detail)
-        ? 'validation_error'
-        : 'unknown_error';
-  return new ApiError(status, friendlyError(status, body), code, detail);
+    status === 426
+      ? 'update_required'
+      : typeof detail === 'string'
+        ? detail
+        : Array.isArray(detail)
+          ? 'validation_error'
+          : 'unknown_error';
+  return new ApiError(status, friendlyError(status, body), code, detail, body);
+}
+
+function siblingList(error: unknown, key: string): unknown[] {
+  if (!(error instanceof ApiError)) return [];
+  const body = error.body;
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) return [];
+  const value = (body as Record<string, unknown>)[key];
+  return Array.isArray(value) ? value : [];
+}
+
+/** 403 consent_required에 함께 실린 미결정 문서 목록. 없으면 빈 목록. */
+export function pendingConsentsOf(error: unknown): unknown[] {
+  return siblingList(error, 'pending_consents');
+}
+
+/** 이메일 겹침 409에 함께 실린 기존 계정의 제공자 이름. 없으면 빈 목록. */
+export function conflictProviders(error: unknown): string[] {
+  return siblingList(error, 'providers').filter(
+    (provider): provider is string => typeof provider === 'string',
+  );
+}
+
+export type UnprocessableKind =
+  | { kind: 'reason'; code: string }
+  | { kind: 'client_bug' };
+
+/**
+ * 422를 가른다. detail이 글자면 규칙에 걸린 사유 코드이고, 배열이면 본문 모양이 틀린
+ * 것이라 앱 버그다. 422가 아니면 null.
+ */
+export function classifyUnprocessable(error: unknown): UnprocessableKind | null {
+  if (!(error instanceof ApiError) || error.status !== 422) return null;
+  return typeof error.detail === 'string'
+    ? { kind: 'reason', code: error.detail }
+    : { kind: 'client_bug' };
 }
 
 function randomId(random: () => number): string {
@@ -298,9 +344,9 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
     try {
       const headers = new Headers(init.headers);
       headers.set('X-Acttub-Contract', 'three_layers_v1');
+      headers.set('X-Acttub-Client', dependencies.clientHeader);
       headers.set('Accept-Language', dependencies.getLanguage?.() ?? 'ko');
       if (options.auth !== false) {
-        headers.set('X-Acttub-Consent-Entry', '1');
         const token = dependencies.getAccessToken();
         if (token) headers.set('Authorization', `Bearer ${token}`);
       }
@@ -326,7 +372,10 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
           ? composed.signal.reason
           : new RequestAbortError(options.signal?.aborted ? 'cancelled' : 'timeout');
       }
-      return { response, payload: await readPayload(response) };
+      const payload = await readPayload(response);
+      // 로그인·갱신을 포함해 어느 요청이든 426이면 이 빌드로는 더 쓸 수 없다.
+      if (response.status === 426) dependencies.emitUpdateRequired();
+      return { response, payload };
     } finally {
       composed.cleanup();
     }
@@ -443,10 +492,12 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
 
     if (!response.ok) {
       const error = toApiError(response.status, payload);
-      // 403 은 코드로 갈린다 — 동의는 받으면 풀리고, 탈퇴는 풀 수 없어 내보내야 한다.
+      // 403 은 코드로 갈린다 — 동의와 프로필은 채우면 풀리고, 탈퇴는 풀 수 없어 내보내야 한다.
       if (error.status === 403) {
-        if (error.code === 'consent_required' || error.code === 'consent_blocked') {
-          dependencies.emitConsentRequired();
+        if (error.code === 'consent_required') {
+          dependencies.emitConsentRequired(pendingConsentsOf(error));
+        } else if (error.code === 'profile_required') {
+          dependencies.emitProfileRequired();
         } else if (error.code === 'account_deactivated') {
           dependencies.emitAccountDeactivated();
         }

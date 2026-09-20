@@ -140,21 +140,27 @@ class AuthErrorContractIT {
                 401,
                 "{\"detail\":\"invalid_refresh_token\"}");
 
-        assertResponse(
-                post("/v2/auth/logout")
+        // 로그아웃은 멱등이다 — 모르는 리프레시 토큰이어도 같은 204 이고 아무것도 폐기하지 않는다
+        // (account.logout). 그 토큰이 실재하는지 알려 주지 않는다.
+        mvc.perform(post("/v2/auth/logout")
                         .header("Authorization", "Bearer " + jwt.issueAccessToken(userId).value())
                         .contentType("application/json")
-                        .content("{\"refresh_token\":\"" + unstored + "\"}"),
-                401,
-                "{\"detail\":\"invalid_refresh_token\"}");
+                        .content("{\"refresh_token\":\"" + unstored + "\"}"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isNoContent());
     }
 
     @Test
     void validationHasFastApiLocMsgAndTypeForMissingWrongAndMalformed() throws Exception {
         assertThat(body(jsonPost("{}"), 422)).isEqualTo(JSON.readTree("""
                 {"detail":[
-                  {"type":"missing","loc":["body","provider"],"msg":"Field required","input":{}},
-                  {"type":"missing","loc":["body","id_token"],"msg":"Field required","input":{}}
+                  {"type":"missing","loc":["body","provider"],"msg":"Field required","input":{}}
+                ]}
+                """));
+        // ID 토큰은 네이버 말고는 전부 필수다(네이버만 서버가 authorization code 를 교환한다).
+        assertThat(body(jsonPost("{\"provider\":\"google\"}"), 422)).isEqualTo(JSON.readTree("""
+                {"detail":[
+                  {"type":"missing","loc":["body","id_token"],"msg":"Field required",
+                   "input":{"provider":"google"}}
                 ]}
                 """));
 

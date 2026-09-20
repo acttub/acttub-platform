@@ -7,7 +7,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HapticTab } from '@/components/haptic-tab';
 import { RecordModeSheet, type RecordMode } from '@/components/record-mode-sheet';
 import { palette } from '@/constants/palette';
-import { useRequireLogin } from '@/hooks/use-require-login';
 import { TODAY_LINE } from '@/lib/challenge-mock';
 import { isKorean, translate as t } from '@/lib/i18n';
 
@@ -18,19 +17,17 @@ type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
  *
  * 화면 위에 떠 있는 알약: 좌우·바닥을 띄우고 그림자를 깊게 준다. 아이콘은 Ionicons
  * 아웃라인↔채움 쌍으로, 활성 탭은 채운 모양 + 연한 파란 pill.
- * 촬영 버튼은 먼저 용도(AI 코칭 / 챌린지)를 고르고 카메라로 간다 — 게스트가 AI 코칭을
- * 고르면 로그인으로 안내한다.
+ * 촬영 버튼은 먼저 용도(AI 코칭 / 챌린지 / 기본 촬영)를 고르고 카메라로 간다.
  */
 export default function TabLayout() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [modeOpen, setModeOpen] = useState(false);
-  const { requireLogin, element: loginGuard } = useRequireLogin();
 
   const pickMode = (mode: RecordMode) => {
     setModeOpen(false);
     if (mode === 'ai') {
-      requireLogin(() => router.push({ pathname: '/record-video', params: { mode: 'ai' } }));
+      router.push({ pathname: '/record-video', params: { mode: 'ai' } });
       return;
     }
     if (mode === 'plain') {
@@ -112,12 +109,9 @@ export default function TabLayout() {
               : { href: null }
           }
         />
-        {/* 게시판은 챌린지 탭에 자리를 내주고 탭바에서 빠졌지만(pen 정합) 라우트는 남긴다. */}
-        <Tabs.Screen name="community" options={{ href: null }} />
         <Tabs.Screen name="profile" options={{ title: t('tabs.profile'), tabBarIcon: icon('person-outline', 'person') }} />
       </Tabs>
       <RecordModeSheet visible={modeOpen} onClose={() => setModeOpen(false)} onPick={pickMode} />
-      {loginGuard}
     </>
   );
 }

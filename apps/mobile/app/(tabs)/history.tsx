@@ -11,7 +11,6 @@ import { api, type PracticeSessionListItem, type ReportRecord } from '@/lib/api'
 import { deletePracticeSessionIdempotently } from '@/lib/delete-practice';
 import { formatKoreanDate } from '@/lib/format';
 import { mergeHistory, sessionCardTitle } from '@/lib/history-merge';
-import { useAuth } from '@/lib/auth';
 import { translate as t } from '@/lib/i18n';
 import { setPrefill } from '@/lib/practice';
 import { buildWeekActivity } from '@/lib/practice-activity';
@@ -54,19 +53,14 @@ export default function HistoryScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { confirm, alert, sheet, dialog } = useAppDialog();
-  const { status } = useAuth();
-  const isGuest = status === 'guest';
 
   const load = useCallback(async () => {
     setError(null);
     try {
       // 세션 목록·대본은 실패해도 리포트만으로 화면이 서야 하므로 따로 삼킨다.
-      // 게스트는 서버 기록이 없다 — 기기 저장 대본 리딩만 보여준다.
       const [history, sessionList, savedScripts] = await Promise.all([
-        isGuest ? Promise.resolve({ reports: [] as ReportRecord[] }) : api.reportHistory(),
-        isGuest
-          ? Promise.resolve({ sessions: [] as PracticeSessionListItem[] })
-          : api.listPracticeSessions().catch(() => ({ sessions: [] as PracticeSessionListItem[] })),
+        api.reportHistory(),
+        api.listPracticeSessions().catch(() => ({ sessions: [] as PracticeSessionListItem[] })),
         listScripts().catch(() => [] as SavedScript[]),
       ]);
       setSessions(sessionList.sessions);
@@ -85,7 +79,7 @@ export default function HistoryScreen() {
     } finally {
       setLoading(false);
     }
-  }, [isGuest]);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {

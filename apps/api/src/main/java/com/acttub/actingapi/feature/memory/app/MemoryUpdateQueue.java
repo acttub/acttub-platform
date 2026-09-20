@@ -3,7 +3,7 @@ package com.acttub.actingapi.feature.memory.app;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -34,7 +34,10 @@ public interface MemoryUpdateQueue {
      * Lease 소유권을 확인한 뒤 기억 저장과 작업 완료를 한 트랜잭션으로 처리한다.
      * 재선점된 Lease는 저장 전에 거부하고, 만료만 된 Lease는 허용한다.
      *
-     * <p>{@code writeMemoryAndPayload}는 기억을 저장하고 응답 본문을 돌려준다.
+     * <p>{@code writeMemoryAndPayload}는 <b>작업의 지금 주인</b>을 받아 그 사람의 기억을 저장하고 응답 본문을
+     * 돌려준다. 주인은 작업 행을 잡은 채 읽은 값이다 — 모델 응답을 기다리는 사이에 이관이 주인을 회원으로
+     * 바꿨을 수 있어, 워커가 앞서 읽어 둔 자료의 주인을 믿으면 닫힌 게스트에게 기억이 다시 생긴다
+     * (account.guest: 진행 중 작업도 따라간다).
      * 외부 호출은 이 콜백 전에 끝내야 하며, 저장 또는 완료 실패 시 전체를 롤백한다.
      * 다음 재시도는 저장된 본문을 받는다.
      *
@@ -45,7 +48,7 @@ public interface MemoryUpdateQueue {
      * @throws LeaseOwnershipException 리스를 이미 다른 워커가 재선점했다
      */
     void complete(
-            UUID operationId, UUID leaseToken, Supplier<JsonNode> writeMemoryAndPayload, Instant now);
+            UUID operationId, UUID leaseToken, Function<UUID, JsonNode> writeMemoryAndPayload, Instant now);
 
     /**
      * 작업을 실패로 닫는다.

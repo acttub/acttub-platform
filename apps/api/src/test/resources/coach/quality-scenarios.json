@@ -441,5 +441,128 @@
     "report": true,
     "review": "초반 정정과 확정된 출발이라는 뜻을 handoff와 노트에 유지한다. 이전 요약의 붙잡기·설득 가설로 돌아가지 않는다.",
     "scene_summary": "떠날 날짜가 정해진 뒤 동료에게 그 사실을 알린다"
-  }
+  },
+    {
+      "id": "profile_matches_experience_without_reasking",
+      "branch": "분석",
+      "detail": "이 말을 왜 하는지 모르겠어요",
+      "situation": "상대가 방을 나가려 할 때 마지막 약속을 확인한다",
+      "goal": "다음 만남을 확인하기",
+      "transcripts": [
+        "내일은 오는 거지?"
+      ],
+      "observations": [
+        {
+          "start_ms": 2000,
+          "end_ms": 4000,
+          "confidence": 0.9,
+          "what": "상대 방향으로 한 걸음 다가가며 말한다",
+          "quote": "내일은 오는 거지?"
+        }
+      ],
+      "uncertainties": [
+        "상대의 대답은 들리지 않음"
+      ],
+      "turns": [
+        "이 말을 왜 하는지 모르겠어요",
+        "상대가 무엇을 알아줬으면 할까?"
+      ],
+      "latest": "어려운 말은 잘 몰라요. 쉽게 설명해 주세요.",
+      "profile": {
+        "name": "김하늘",
+        "gender": "여성",
+        "age": 19,
+        "directions": [
+          "무대(연극·뮤지컬)"
+        ],
+        "experience": "입시생",
+        "goal": "전문 배우"
+      },
+      "review": "프로필의 연기 경력(입시생)에 맞춰 전문 용어 없이 쉬운 말로 설명한다. 이름·성별·나이·경력·목표를 다시 묻지 않는다. 프로필의 최종 목표(전문 배우)를 이번 장면의 목표로 말하지 않는다. 프로필을 영상 근거처럼 인용하지 않는다. 호칭을 쓴다면 '김하늘님'이다.",
+      "scene_summary": "상대가 방을 나가려 할 때 마지막 약속을 확인한다"
+    },
+    {
+      "id": "profile_keeps_english",
+      "branch": "표현",
+      "detail": "I think I rush the ending.",
+      "situation": "동료에게 다음 약속을 확인한다",
+      "goal": "차분하게 말하기",
+      "transcripts": [
+        "Will you come back tomorrow?"
+      ],
+      "observations": [
+        {
+          "start_ms": 5000,
+          "end_ms": 7000,
+          "confidence": 0.9,
+          "what": "문장 마지막 두 어절의 말속도가 앞부분보다 빨라진다",
+          "quote": "Will you come back tomorrow?"
+        }
+      ],
+      "uncertainties": [
+        "상대의 반응은 보이지 않음"
+      ],
+      "turns": [
+        "I think I rush the ending.",
+        "What would you like to check?"
+      ],
+      "latest": "Does my clip sound rushed? Please keep it simple for me.",
+      "profile": {
+        "name": "Haneul",
+        "gender": "선택 안 함",
+        "age": 27,
+        "directions": [
+          "매체(TV·영화)"
+        ],
+        "experience": "1년 미만",
+        "goal": "공연·오디션"
+      },
+      "review": "프로필 블록이 한국어여도 영어로 답한다. 한국어로 돌아가지 않는다. 호칭을 쓴다면 'Haneul' 그대로이고 '님'을 붙이지 않는다. 경력(1년 미만)에 맞춰 설명을 단순하게 한다. 성별을 짐작해 말하지 않는다.",
+      "scene_summary": "동료에게 다음 약속을 확인한다"
+    },
+    {
+      "id": "profile_over_stale_memory",
+      "branch": "분석",
+      "detail": "상황 전달이 궁금해요",
+      "situation": "연습을 마친 동료에게 내일 다시 만날 약속을 확인한다",
+      "goal": "내일 다시 만나기",
+      "transcripts": [
+        "내일도 여기서 보자"
+      ],
+      "observations": [
+        {
+          "start_ms": 3000,
+          "end_ms": 5000,
+          "confidence": 0.9,
+          "what": "말을 마친 뒤 상대 쪽을 바라본다",
+          "quote": "내일도 여기서 보자"
+        }
+      ],
+      "uncertainties": [
+        "상대는 화면 밖에 있음"
+      ],
+      "turns": [
+        "상황 전달이 궁금해요",
+        "이 말을 상대에게 어떤 뜻으로 건네고 싶어?"
+      ],
+      "latest": "제 나이대에 어울리는 배역으로 보면 이 장면을 어떻게 읽으면 좋을까요?",
+      "memory": {
+        "gender": "남",
+        "age": "31",
+        "goal": "입시 합격"
+      },
+      "profile": {
+        "name": "김하늘",
+        "gender": "여성",
+        "age": 25,
+        "directions": [
+          "매체(TV·영화)",
+          "무대(연극·뮤지컬)"
+        ],
+        "experience": "1–3년",
+        "goal": "전문 배우"
+      },
+      "review": "나이와 성별은 프로필의 값(여성·만 25세)만 쓴다. 기억에 남아 있던 옛 값(남·31)은 모델 입력에서 빠지므로 응답에 나오면 안 된다. 배우가 말한 목표(입시 합격)는 기억으로 남아 있어 자연스러운 자리에서 이어받을 수 있다. 나이를 다시 묻지 않는다.",
+      "scene_summary": "연습을 마친 동료에게 내일 다시 만날 약속을 확인한다"
+    }
 ]

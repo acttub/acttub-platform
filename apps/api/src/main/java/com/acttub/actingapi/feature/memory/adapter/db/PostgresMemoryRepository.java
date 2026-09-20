@@ -18,6 +18,7 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.coach.app.CoachMemory;
 import com.acttub.actingapi.feature.coach.app.PriorContext;
 import com.acttub.actingapi.feature.memory.app.MemoryEntry;
+import com.acttub.actingapi.feature.memory.app.MemoryOwnership;
 import com.acttub.actingapi.feature.memory.app.MemoryRepository;
 import com.acttub.actingapi.feature.memory.app.MemoryUpdateMaterial;
 import com.acttub.actingapi.feature.memory.domain.AgentMemoryWrites;
@@ -47,7 +48,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 끝낸다 — 건너뛰면 {@code RETURNING} 이 0행이라 {@code null} 이 돌아온다.
  */
 @Repository
-public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
+public class PostgresMemoryRepository implements MemoryRepository, CoachMemory, MemoryOwnership {
     /** 차수 날짜는 배우가 보는 시간대로 적는다 — 자정 직전 연습이 "다른 날" 이 되면 어색하다. */
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
 
@@ -668,5 +669,41 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
         } catch (NoSuchAlgorithmException impossible) {
             throw new IllegalStateException(algorithm + " 을 쓸 수 없다", impossible);
         }
+    }
+
+    @Override
+    public boolean hasMemory(UUID userId) {
+        Number count = (Number) entityManager.createNativeQuery("""
+                SELECT count(*)
+                FROM actor_memory_entries
+                WHERE user_id = :userId
+                """)
+                .setParameter("userId", userId)
+                .getSingleResult();
+        return count.intValue() > 0;
+    }
+
+    /** 트랜잭션을 열지 않는다 — 부르는 쪽(이관)의 것에 참여하고, 없으면 {@code executeUpdate} 가 거절한다. */
+    @Override
+    public void discard(UUID userId) {
+        entityManager.createNativeQuery("""
+                DELETE FROM actor_memory_entries
+                WHERE user_id = :userId
+                """)
+                .setParameter("userId", userId)
+                .executeUpdate();
+    }
+
+    /** {@link #discard} 와 같다 — 트랜잭션을 열지 않는다. */
+    @Override
+    public void reassign(UUID from, UUID to) {
+        entityManager.createNativeQuery("""
+                UPDATE actor_memory_entries
+                SET user_id = :to
+                WHERE user_id = :from
+                """)
+                .setParameter("to", to)
+                .setParameter("from", from)
+                .executeUpdate();
     }
 }

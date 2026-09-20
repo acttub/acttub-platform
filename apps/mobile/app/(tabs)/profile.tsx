@@ -1,79 +1,52 @@
 import Feather from '@expo/vector-icons/Feather';
-import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState, type ComponentProps } from 'react';
-import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useAppDialog } from '@/components/app-dialog';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { displayNameFor } from '@/lib/display-name';
 import { getUserName } from '@/lib/profile';
-import { getProfileBio, getProfilePhotoUri, setProfileBio, setProfilePhotoUri } from '@/lib/profile-extras';
 import { isKorean, translate as t } from '@/lib/i18n';
 
 /**
- * A4 프로필 — 하단 탭 "프로필"이 여는 페이지. 설정(⚙)·프로필 편집·활동·코치 기억으로 간다.
+ * A4 프로필 — 하단 탭 "프로필"이 여는 페이지. 설정(⚙)·포트폴리오 편집·활동·코치 기억으로 간다.
+ * "포트폴리오 편집"은 가입 때 받는 프로필 여섯 항목과 다른 기능이다(account.portfolio).
  *
- * 사진·한 줄 소개는 기기에만 저장한다(profile-extras, 서버 필드 없음). 보관함(A2.2)·저장한
+ * 이름·사진·한 줄 소개는 서버의 프로필(GET /v2/me)을 보여 준다. 사진과 소개는 설정에서만
+ * 받으므로 여기서는 고치지 않고 프로필 수정 화면으로 보낸다. 보관함(A2.2)·저장한
  * 영상(A15.5)은 예시 데이터 화면. 챌린지 수도 계약이 없어 0을 보여준다(연습 수만 실데이터).
  */
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, status, leaveGuest } = useAuth();
-  const isGuest = status === 'guest';
-  const { alert, dialog } = useAppDialog();
+  const { user, profile } = useAuth();
   const [name, setName] = useState<string | null>(null);
   const [practiceCount, setPracticeCount] = useState(0);
-  const [photoUri, setPhotoUri] = useState<string | null>(null);
-  const [bio, setBio] = useState('');
-  const [bioDraft, setBioDraft] = useState('');
-  const [bioOpen, setBioOpen] = useState(false);
+  const serverProfile = profile.me?.profile ?? null;
+  const photoUri = serverProfile?.photo_url ?? null;
+  const bio = serverProfile?.bio?.trim() ?? '';
 
   useFocusEffect(
     useCallback(() => {
       let alive = true;
       void getUserName().then((n) => alive && setName(n?.trim() || null));
-      void getProfilePhotoUri().then((u) => alive && setPhotoUri(u));
-      void getProfileBio().then((b) => alive && setBio(b));
-      if (!isGuest) {
-        void api
-          .reportHistory()
-          .then((r) => alive && setPracticeCount(r.reports.length))
-          .catch(() => {});
-      }
+      void api
+        .reportHistory()
+        .then((r) => alive && setPracticeCount(r.reports.length))
+        .catch(() => {});
       return () => {
         alive = false;
       };
-    }, [isGuest]),
+    }, []),
   );
 
-  const display = displayNameFor(name, user?.email ?? null) || t('profileTab.title');
+  // 정본은 서버의 프로필 이름이다. 아직 못 읽었으면 기기에 적어 둔 이름으로 부른다.
+  const display =
+    displayNameFor(serverProfile?.name ?? name, user?.email ?? null) || t('profileTab.title');
   const initial = display.trim().charAt(0) || '?';
-
-  // 사진은 갤러리에서 골라 기기에만 둔다. 권한 거절·취소는 조용히 넘어간다.
-  const pickPhoto = async () => {
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.8 });
-      if (result.canceled || !result.assets[0]) return;
-      const uri = result.assets[0].uri;
-      await setProfilePhotoUri(uri);
-      setPhotoUri(uri);
-    } catch {
-      void alert({ title: t('profileTab.photoFail'), confirmLabel: t('common.confirm') });
-    }
-  };
-  const openBio = () => {
-    setBioDraft(bio);
-    setBioOpen(true);
-  };
-  const saveBio = async () => {
-    await setProfileBio(bioDraft);
-    setBio(bioDraft.trim());
-    setBioOpen(false);
-  };
+  const openProfileEdit = () => router.push('/profile-edit');
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -85,19 +58,8 @@ export default function ProfileScreen() {
           </Pressable>
         </View>
 
-        {/* 게스트 — 계정이 없으니 프로필 대신 로그인 안내 카드. */}
-        {isGuest && (
-          <View style={styles.guestCard}>
-            <Text style={styles.guestTitle}>{t('guest.profileTitle')}</Text>
-            <Text style={styles.guestBody}>{t('guest.profileBody')}</Text>
-            <Pressable style={styles.guestBtn} onPress={() => void leaveGuest()} accessibilityRole="button">
-              <Text style={styles.guestBtnText}>{t('guest.login')}</Text>
-            </Pressable>
-          </View>
-        )}
-
         {/* 배우 프로필 카드 */}
-        {!isGuest && <View style={styles.card}>
+        <View style={styles.card}>
           <View style={styles.avatarCol}>
             <View style={styles.avatar}>
               {photoUri ? (
@@ -106,7 +68,7 @@ export default function ProfileScreen() {
                 <Text style={styles.avatarText}>{initial}</Text>
               )}
             </View>
-            <Pressable style={styles.avatarBtn} onPress={() => void pickPhoto()} accessibilityRole="button">
+            <Pressable style={styles.avatarBtn} onPress={openProfileEdit} accessibilityRole="button">
               <Feather name="camera" size={12} color={palette.blueDeep} />
               <Text style={styles.avatarBtnText}>{t(photoUri ? 'profileTab.changePhoto' : 'profileTab.addPhoto')}</Text>
             </Pressable>
@@ -122,18 +84,18 @@ export default function ProfileScreen() {
               <Text style={styles.statValue}>0</Text>
               <Text style={styles.statLabel}>{t('profileTab.statChallenge')}</Text>
             </View>
-            <Pressable style={styles.editBtn} onPress={() => router.push('/profile-edit')} accessibilityRole="button">
+            <Pressable style={styles.editBtn} onPress={() => router.push('/portfolio-edit')} accessibilityRole="button">
               <Feather name="edit-3" size={13} color={palette.blueDeep} />
               <Text style={styles.editBtnText}>{t('profileTab.editPortfolio')}</Text>
             </Pressable>
           </View>
-        </View>}
+        </View>
 
         {/* 한 줄 소개 */}
-        {!isGuest && <Pressable style={styles.bioCard} onPress={openBio} accessibilityRole="button">
+        <Pressable style={styles.bioCard} onPress={openProfileEdit} accessibilityRole="button">
           <Text style={styles.bioLabel}>{t('profileTab.bioLabel')}</Text>
           <Text style={bio ? styles.bioText : styles.bioPh}>{bio || t('profileTab.bioPlaceholder')}</Text>
-        </Pressable>}
+        </Pressable>
 
         {/* 나의 활동 */}
         <Text style={styles.sectionLabel}>{t('profileTab.activitySection')}</Text>
@@ -143,43 +105,16 @@ export default function ProfileScreen() {
           <Row icon="bookmark" title={t('profileTab.savedTitle')} sub={t('profileTab.savedSub')} onPress={() => router.push('/saved-videos')} />
         )}
 
-        {/* 코치의 기억 — 게스트에겐 없다 */}
-        {!isGuest && <Text style={styles.sectionLabel}>{t('profileTab.memorySection')}</Text>}
-        {!isGuest && (
-          <Row
-            icon="cpu"
-            title={t('profileTab.memoryTitle')}
-            sub={t('profileTab.memorySub')}
-            onPress={() => router.push('/memory')}
-          />
-        )}
+        {/* 코치의 기억 */}
+        <Text style={styles.sectionLabel}>{t('profileTab.memorySection')}</Text>
+        <Row
+          icon="cpu"
+          title={t('profileTab.memoryTitle')}
+          sub={t('profileTab.memorySub')}
+          onPress={() => router.push('/memory')}
+        />
       </ScrollView>
 
-      {/* 한 줄 소개 입력 — 작은 모달. */}
-      <Modal visible={bioOpen} transparent animationType="fade" onRequestClose={() => setBioOpen(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setBioOpen(false)} accessibilityRole="button" />
-        <View style={styles.modalCard}>
-          <Text style={styles.modalTitle}>{t('profileTab.bioEditTitle')}</Text>
-          <TextInput
-            style={styles.modalInput}
-            placeholder={t('profileTab.bioEditPh')}
-            placeholderTextColor={palette.textFaint}
-            value={bioDraft}
-            onChangeText={setBioDraft}
-            maxLength={60}
-            autoFocus
-          />
-          <View style={styles.modalActions}>
-            <Pressable style={styles.modalBtn} onPress={() => setBioOpen(false)} accessibilityRole="button">
-              <Text style={styles.modalBtnText}>{t('common.cancel')}</Text>
-            </Pressable>
-            <Pressable style={[styles.modalBtn, styles.modalBtnPrimary]} onPress={() => void saveBio()} accessibilityRole="button">
-              <Text style={[styles.modalBtnText, styles.modalBtnTextPrimary]}>{t('common.save')}</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
-      {dialog}
     </SafeAreaView>
   );
 }
@@ -236,24 +171,10 @@ const styles = StyleSheet.create({
   editBtn: { flexDirection: 'row', alignSelf: 'flex-start', alignItems: 'center', gap: 5, backgroundColor: palette.blueSoft, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, marginTop: 10 },
   editBtnText: { fontSize: 12.5, fontWeight: '800', color: palette.blueDeep },
 
-  guestCard: { backgroundColor: palette.blueSoft, borderRadius: 18, padding: 18, gap: 8 },
-  guestTitle: { fontSize: 18, fontWeight: '800', color: palette.text },
-  guestBody: { fontSize: 13.5, color: palette.textDim, lineHeight: 20 },
-  guestBtn: { alignSelf: 'flex-start', backgroundColor: palette.blue, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 10, marginTop: 4 },
-  guestBtnText: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
   bioCard: { backgroundColor: palette.bgSubtle, borderColor: palette.border, borderWidth: 1, borderRadius: 14, padding: 14, gap: 4 },
   bioLabel: { fontSize: 12.5, fontWeight: '800', color: palette.textMuted },
   bioPh: { fontSize: 13, fontWeight: '500', color: palette.textFaint },
   bioText: { fontSize: 14, fontWeight: '600', color: palette.text },
-  modalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
-  modalCard: { position: 'absolute', left: 24, right: 24, top: '30%', backgroundColor: palette.card, borderRadius: 18, padding: 20, gap: 14 },
-  modalTitle: { fontSize: 17, fontWeight: '800', color: palette.text },
-  modalInput: { backgroundColor: palette.bgSoft, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: palette.text },
-  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8 },
-  modalBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10 },
-  modalBtnPrimary: { backgroundColor: palette.blue },
-  modalBtnText: { fontSize: 14, fontWeight: '700', color: palette.textDim },
-  modalBtnTextPrimary: { color: '#FFFFFF' },
 
   sectionLabel: { fontSize: 13, fontWeight: '800', color: palette.textMuted, marginTop: 6 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: palette.card, borderColor: palette.border, borderWidth: 1, borderRadius: 14, padding: 14 },

@@ -33,13 +33,13 @@ import org.junit.jupiter.api.Test;
  *   <li><b>호출이 빠진 것</b> — {@code AuthenticatedUser.requireUsable} 처럼 한 자리에서 만든
  *       예외를 여러 경로가 부를 때, 한 경로가 부르기를 그만두어도 지점 수는 그대로다. 그래서
  *       경로별 단언이 따로 필요하다({@code AccountStatusContractIT} 가 그 이유를 적어 두었다).
- *   <li><b>같은 예외를 만드는 헬퍼</b> — {@code CommunityService.postNotFound()} 는 소스에
- *       {@code new} 가 하나지만 그것을 부르는 연산은 일곱이다.
+ *   <li><b>같은 예외를 만드는 헬퍼</b> — {@code ProfileService.require()} 는 소스에
+ *       {@code new} 가 하나지만 그것을 부르는 연산은 셋이다.
  *   <li><b>422 검증 오류</b> — {@code ApiValidationException} 과 Bean Validation 메시지는
  *       상수가 어노테이션 기본값이나 호출 인자 안에 흩어져 있어 표로 세지 않는다. 지키는 것은
  *       {@code ValidationErrorContractIT}(형상 + 실물 {@code value must not be blank}) ·
- *       {@code CoachReportEndpointIT}({@code rebuttal_text …}) · {@code ProfileEndpointIT}
- *       ({@code nickname …}) · {@code PracticeSessionEndpointIT}({@code sub_branch …}) 다.
+ *       {@code CoachReportEndpointIT}({@code rebuttal_text …}) · {@code AccountProfileIT}
+ *       ({@code name …}) · {@code PracticeSessionEndpointIT}({@code sub_branch …}) 다.
  * </ul>
  *
  * <p>표는 {@code new ApiException} 과, {@code ApiErrorAdvice} 가 예외를 거치지 않고 응답을 직접
@@ -91,7 +91,8 @@ class ErrorContractInventoryTest {
             covered("feature.admissions.app.AdmissionsService|404|university_not_found", 1,
                     "feature.admissions.AdmissionsEndpointIT"),
 
-            covered("feature.auth.adapter.web.AuthController|429|rate limit exceeded", 2,
+            // 로그인·가입 제출·갱신이 함께 쓰는 IP·주체 한도 둘, 그리고 게스트 만들기의 시간당 한도.
+            covered("feature.auth.adapter.web.AuthController|429|rate limit exceeded", 3,
                     "platform.security.RateLimitContractIT"),
             covered("feature.auth.app.AuthService|400|unsupported_provider", 1,
                     "platform.web.AuthErrorContractIT"),
@@ -99,10 +100,22 @@ class ErrorContractInventoryTest {
                     "platform.web.AuthErrorContractIT"),
             covered("feature.auth.app.AuthService|401|invalid_refresh_token", 1,
                     "platform.web.AuthErrorContractIT"),
+            covered("feature.auth.app.AuthService|401|invalid_signup_token", 1,
+                    "feature.auth.AccountLoginIT"),
+            covered("feature.auth.app.AuthService|422|authorization_code_required", 1,
+                    "feature.auth.AccountLoginIT"),
             covered("feature.auth.app.AuthService|409|account_exists_with_different_provider", 1,
                     "feature.auth.AccountStatusContractIT"),
             covered("feature.auth.app.AuthService|503|provider_not_configured", 1,
                     "platform.web.AuthErrorContractIT"),
+            covered("feature.auth.app.AuthService|401|guest_transferred", 1,
+                    "feature.transfer.GuestTransferIT"),
+            covered("feature.auth.app.AuthService|502|provider_unavailable", 1,
+                    "feature.auth.AccountProvidersIT"),
+            covered("feature.auth.adapter.web.ProviderDisconnectController|401|invalid_provider_signature", 1,
+                    "feature.auth.ProviderDisconnectCallbackIT"),
+            covered("feature.auth.adapter.web.ProviderDisconnectController|503|provider_not_configured", 1,
+                    "feature.auth.AccountDisabledProvidersIT"),
 
             covered("feature.coach.app.CoachService|404|practice session not found", 2,
                     "feature.coach.adapter.web.CoachReportEndpointIT"),
@@ -123,30 +136,17 @@ class ErrorContractInventoryTest {
             covered("feature.coach.app.CoachService|502|" + DYNAMIC, 3,
                     "feature.coach.app.CoachServiceTest"),
 
-            covered("feature.community.app.CommunityService|400|cannot_block_self", 1,
-                    "feature.community.CommunityErrorContractIT"),
-            covered("feature.community.app.CommunityService|400|cannot_report_own", 1,
-                    "feature.community.CommunityErrorContractIT"),
-            covered("feature.community.app.CommunityService|400|invalid_cursor", 2,
-                    "feature.community.CommunityErrorContractIT"),
-            covered("feature.community.app.CommunityService|403|not_author", 1,
-                    "feature.community.CommunityErrorContractIT"),
-            covered("feature.community.app.CommunityService|404|category_not_found", 1,
-                    "feature.community.CommunityErrorContractIT"),
-            covered("feature.community.app.CommunityService|404|comment_not_found", 1,
-                    "feature.community.CommunityErrorContractIT"),
-            covered("feature.community.app.CommunityService|404|post_not_found", 1,
-                    "feature.community.CommunityErrorContractIT"),
-            covered("feature.community.app.CommunityService|404|target_not_found", 1,
-                    "feature.community.CommunityErrorContractIT"),
-            covered("feature.community.app.CommunityService|404|user_not_found", 1,
-                    "feature.community.CommunityErrorContractIT"),
-            covered("feature.community.app.CommunityService|409|already_reported", 1,
-                    "feature.community.CommunityErrorContractIT"),
-
-            covered("feature.consent.app.ConsentService|404|consent_document_not_found", 1,
+            covered("feature.consent.app.ConsentService|404|consent_document_not_found", 2,
                     "feature.consent.ConsentEndpointIT"),
-            covered("feature.consent.app.ConsentService|409|required_consent_cannot_be_declined", 1,
+            covered("feature.consent.app.ConsentService|409|consent_document_outdated", 1,
+                    "feature.consent.ConsentEndpointIT"),
+            covered("feature.consent.app.ConsentService|422|consent_decisions_incomplete", 1,
+                    "feature.auth.AccountLoginIT"),
+            covered("feature.consent.app.ConsentService|403|member_only", 1,
+                    "feature.auth.AccountGuestIT"),
+            covered("feature.consent.app.ConsentService|422|age_confirmation_required", 1,
+                    "feature.auth.AccountGuestIT"),
+            covered("feature.consent.app.ConsentService|422|required_consent_cannot_be_declined", 1,
                     "feature.consent.ConsentEndpointIT"),
 
             covered("feature.practice.adapter.web.PracticeSessionController|422|invalid X-Request-Id",
@@ -161,15 +161,33 @@ class ErrorContractInventoryTest {
                     "feature.practice.PracticeSessionEndpointIT"),
             covered("feature.practice.app.PracticeSessionService|409|upload_intent_not_finalized", 1,
                     "feature.practice.PracticeSessionEndpointIT"),
+            covered("feature.practice.app.PracticeSessionService|429|guest_daily_analysis_limit", 1,
+                    "feature.auth.AccountGuestIT"),
             covered("feature.practice.app.PracticeSessionService|422|request_fingerprint_mismatch", 1,
                     "feature.practice.PracticeSessionEndpointIT"),
             excluded("feature.practice.app.PracticeSessionService|409|invalid_operation_state", 1,
                     "operation 상태 넷(pending·running·succeeded·failed)이 모두 앞 분기에서 "
                             + "처리되므로 도달할 수 없는 방어 코드다. 하네스도 같은 사유로 제외했다."),
 
+            covered("feature.profile.app.ProfileService|403|account_deactivated", 1,
+                    "feature.profile.AccountWritesAndPhotoCleanupIT"),
             excluded("feature.profile.app.ProfileService|404|user_not_found", 1,
                     "인증 의존성이 이미 유저를 읽은 뒤라, 같은 요청 안에서 유저가 사라져야 도달한다. "
                             + "API 만으로는 만들 수 없다. 하네스도 같은 사유로 제외했다."),
+            covered("feature.profile.app.ProfileService|409|upload_intent_expired", 1,
+                    "feature.profile.AccountProfileIT"),
+            covered("feature.profile.app.ProfileService|409|upload_not_found", 1,
+                    "feature.profile.AccountProfileIT"),
+            covered("feature.profile.app.ProfileService|409|upload_size_mismatch", 1,
+                    "feature.profile.AccountProfileIT"),
+            covered("feature.profile.app.ProfileService|413|upload_too_large", 1,
+                    "feature.profile.AccountProfileIT"),
+            covered("feature.profile.app.ProfileService|415|unsupported_media_type", 1,
+                    "feature.profile.AccountProfileIT"),
+            covered("feature.profile.app.ProfileService|422|under_14", 1,
+                    "feature.profile.AccountProfileIT"),
+            covered("feature.profile.app.ProfileService|422|under_14_account_closed", 1,
+                    "feature.profile.AccountProfileIT"),
 
             covered("feature.report.app.ReportService|404|report_not_found", 1,
                     "feature.report.adapter.web.ReportEndpointIT"),
@@ -204,10 +222,53 @@ class ErrorContractInventoryTest {
             covered("platform.operation.SyncOperationService|422|request_fingerprint_mismatch", 1,
                     "feature.practice.PracticeSessionEndpointIT"),
 
-            covered("platform.security.AccessGate|403|consent_required", 1,
-                    "feature.upload.UploadEndpointIT"),
-            covered("platform.security.AccessGate|403|consent_blocked", 1,
+            covered("feature.portfolio.adapter.web.PublicPortfolioController|429|rate limit exceeded", 1,
+                    "feature.portfolio.AccountPortfolioIT"),
+            covered("feature.portfolio.app.PortfolioService|403|account_deactivated", 1,
+                    "feature.profile.AccountWritesAndPhotoCleanupIT"),
+            covered("feature.portfolio.app.PortfolioService|404|portfolio_credit_not_found", 1,
+                    "feature.portfolio.AccountPortfolioIT"),
+            covered("feature.portfolio.app.PortfolioService|404|portfolio_not_found", 2,
+                    "feature.portfolio.AccountPortfolioIT"),
+            covered("feature.portfolio.app.PortfolioService|404|portfolio_photo_not_found", 1,
+                    "feature.portfolio.AccountPortfolioIT"),
+            covered("feature.portfolio.app.PortfolioService|409|upload_intent_expired", 1,
+                    "feature.portfolio.AccountPortfolioIT"),
+            covered("feature.portfolio.app.PortfolioService|409|upload_not_found", 1,
+                    "feature.portfolio.AccountPortfolioIT"),
+            covered("feature.portfolio.app.PortfolioService|409|upload_size_mismatch", 1,
+                    "feature.portfolio.AccountPortfolioIT"),
+            covered("feature.portfolio.app.PortfolioService|413|upload_too_large", 1,
+                    "feature.portfolio.AccountPortfolioIT"),
+            covered("feature.portfolio.app.PortfolioService|415|unsupported_media_type", 1,
+                    "feature.portfolio.AccountPortfolioIT"),
+            covered("feature.portfolio.app.PortfolioService|422|order_mismatch", 2,
+                    "feature.portfolio.AccountPortfolioIT"),
+            covered("feature.portfolio.app.PortfolioService|422|portfolio_credit_limit_exceeded", 1,
+                    "feature.portfolio.AccountPortfolioIT"),
+            covered("feature.portfolio.app.PortfolioService|422|portfolio_photo_limit_exceeded", 1,
+                    "feature.portfolio.AccountPortfolioIT"),
+            covered("feature.push.adapter.web.PushController|429|rate limit exceeded", 1,
+                    "feature.push.AccountNotificationIT"),
+            covered("feature.transfer.adapter.web.GuestTransferController|404|transfer_code_not_found", 1,
+                    "feature.transfer.GuestTransferIT"),
+            covered("feature.transfer.adapter.web.GuestTransferController|429|rate limit exceeded", 1,
+                    "feature.transfer.GuestTransferIT"),
+            covered("feature.transfer.app.GuestTransferService|409|memory_choice_required", 1,
+                    "feature.transfer.GuestTransferIT"),
+
+            covered("platform.security.AccessGate|403|guest_only", 1,
+                    "feature.auth.AccountGuestIT"),
+            covered("platform.security.AccessGate|403|member_only", 2,
+                    "feature.auth.AccountGuestIT"),
+            covered("platform.security.CurrentUserService|403|guest_transferred", 1,
+                    "feature.transfer.GuestTransferIT"),
+            // 둘이다 — 회원의 규칙(미결정이 하나라도)과 게스트의 규칙(그 기능의 문서만). 합치지 않는 것이
+            // 결정이다(ADR-028). 게스트 쪽은 feature.auth.AccountGuestIT 가 본다.
+            covered("platform.security.AccessGate|403|consent_required", 2,
                     "feature.consent.ConsentEndpointIT"),
+            covered("platform.security.AccessGate|403|profile_required", 1,
+                    "feature.profile.AccountProfileIT"),
             covered("platform.security.AccessGate|429|rate limit exceeded", 1,
                     "platform.security.RateLimitContractIT"),
             covered("platform.security.AuthenticatedUser|403|account_deactivated", 1,

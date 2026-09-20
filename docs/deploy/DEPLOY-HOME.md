@@ -40,6 +40,11 @@ DB는 PostgreSQL 18 계열이며 실제 서버 버전과 이미지 ID는 작업�
 | 프로젝트 / 프로필 | `COMPOSE_PROJECT_NAME=acttub-<env>`, `COMPOSE_PROFILES=edge,backup` |
 | DB | `POSTGRES_PASSWORD`; 사용자·DB 기본값은 `acttub`. `DATABASE_URL`은 Compose가 조립 |
 | 기존 운영 인증 | `JWT_SECRET`, `ADMIN_OPS_TOKEN`, Apple·Google OAuth client ID를 기존 운영과 대조 |
+| 계정 비밀 | `ACCOUNT_IDENTITY_HASH_KEY`, `ACCOUNT_TOKEN_ENCRYPTION_KEY`. 첫 배포 전에 넣고 바꾸지 않는다. 없으면 배포가 멈춘다 |
+| 웹 공개 주소 | `SITE_URL`. 웹 빌드의 `NEXT_PUBLIC_SITE_URL`과 같은 값. 포트폴리오 공유 링크를 만든다. 없으면 배포가 멈춘다 |
+| 방문자 IP | `CLIENT_IP_TRUSTED_PROXIES`(선택). 보통 비워 둔다. IP 제한은 web이 Cloudflare를 거친 요청만 받는다는 전제 위에 선다. 배포 뒤 한 번 확인한다: 한 회선에서 공개 포트폴리오 조회를 61번 부르면 61번째가 429이고, 직후 다른 회선에서는 404여야 한다 |
+| 운영 절차 | 보관 동의 철회 요청은 [RETENTION-REVOCATION.md](RETENTION-REVOCATION.md)대로 처리한다 |
+| 로그인 제공자 | `AUTH_ENABLED_PROVIDERS`(기본 `google,apple`), 애플 키 셋(`APPLE_TEAM_ID`·`APPLE_KEY_ID`·`APPLE_PRIVATE_KEY`), 카카오·네이버 값은 검수 승인 뒤 |
 | 외부 서비스 | `GEMINI_API_KEY`, `OPENAI_API_KEY`, 모델 설정, `SENTRY_DSN`, `SENTRY_ENVIRONMENT` |
 | 영상 저장소 | 해당 환경의 `S3_BUCKET`, `AWS_REGION`, 그 버킷만 허용하는 AWS 자격증명 |
 | 터널 | 환경별 `TUNNEL_TOKEN`; Cloudflare 서비스 주소는 `http://web:3000` |

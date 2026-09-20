@@ -49,13 +49,13 @@ class AuthRepositoryIT {
 
     @Test
     void identityLinkIsIdempotentForItsOwnerAndRejectsAnotherOwner() {
-        accounts.linkIdentity(FIRST_USER, "development", "shared-identity");
-        accounts.linkIdentity(FIRST_USER, "development", "shared-identity");
+        accounts.linkIdentity(FIRST_USER, "development", "shared-identity", null);
+        accounts.linkIdentity(FIRST_USER, "development", "shared-identity", null);
 
         assertThat(identityOwners()).containsExactly(FIRST_USER);
 
         assertThatThrownBy(() -> accounts.linkIdentity(
-                        SECOND_USER, "development", "shared-identity"))
+                        SECOND_USER, "development", "shared-identity", null))
                 .isInstanceOf(IdentityAlreadyLinkedError.class);
         assertThat(identityOwners()).containsExactly(FIRST_USER);
     }

@@ -13,6 +13,7 @@ export const add = (...args) => calls.push(["add", ...args]);
 export const track = (...args) => calls.push(["track", ...args]);
 export const setUserId = (...args) => calls.push(["setUserId", ...args]);
 export const reset = (...args) => calls.push(["reset", ...args]);
+export const setOptOut = (...args) => calls.push(["setOptOut", ...args]);
 `)}`;
 
 // 리플레이는 별도 플러그인으로 붙인다. unified 의 initAll 은 engagement 까지 조건 없이
@@ -50,8 +51,6 @@ const {
   trackConsentSubmitted,
   trackExitReviewOpened,
   trackExitReviewSubmitted,
-  trackLoginCompleted,
-  trackLoginFailed,
   trackPracticeAbandoned,
   trackPracticeAnalysisSettled,
   trackPracticeSceneSkipped,
@@ -209,25 +208,17 @@ test("22개 이벤트 래퍼가 계약 속성만 보내고 금지 키를 만들�
   trackPracticeHistoryOpened("analyzed", true, 5);
   trackExitReviewOpened("x", "chat");
   trackExitReviewSubmitted("x");
-  trackLoginCompleted("google");
-  trackLoginFailed("google", {
-    status: 401,
-    code: "invalid_provider_token",
-    message: sensitiveText,
-  });
   trackConsentSubmitted("ok");
   trackScreenViewed("/practice/1b4e28ba-2fa1-11d2-883f-0016d3cca427?query=secret");
 
   const events = callsOf("track").map(([, event, payload]) => ({ event, payload }));
-  assert.equal(events.length, 22);
+  assert.equal(events.length, 20);
   assert.deepEqual(
     events.map(({ event }) => event).sort(),
     [
       "consent_submitted",
       "exit_review_opened",
       "exit_review_submitted",
-      "login_completed",
-      "login_failed",
       "practice_abandoned",
       "practice_analysis_settled",
       "practice_blockage_submitted",
@@ -281,8 +272,6 @@ test("22개 이벤트 래퍼가 계약 속성만 보내고 금지 키를 만들�
     practice_history_opened: ["age_days_bucket", "has_note", "status"],
     exit_review_opened: ["mode", "trigger"],
     exit_review_submitted: ["trigger"],
-    login_completed: ["provider"],
-    login_failed: ["provider", "reason_code"],
     consent_submitted: ["result"],
     screen_viewed: ["path"],
   };
@@ -307,4 +296,58 @@ test("22개 이벤트 래퍼가 계약 속성만 보내고 금지 키를 만들�
     }
     assert.equal(JSON.stringify(payload).includes(sensitiveText), false, `${event}에 원문이 남았다`);
   }
+});
+
+// 결정 I-6: 끈다는 것은 실제 중단이다. 식별자만 지우면 이미 켜진 autocapture 와 세션 리플레이는
+// SDK 가 스스로 계속 보낸다. opt-out 은 그 뒤의 이벤트를 버리고, 리플레이 플러그인은 opt-out 을
+// 받아 녹화를 shutdown 한다(plugin-session-replay-browser 의 onOptOutChanged).
+test("계측 I-6: stopAmplitude 는 SDK 를 opt-out 시키고 그 뒤의 이벤트를 보내지 않는다", () => {
+  const { setAmplitudeUser, stopAmplitude } = analytics;
+  process.env.NEXT_PUBLIC_AMPLITUDE_API_KEY = "test-key";
+  withFakeWindow("acttub.com", () => {
+    startAmplitude();
+    setAmplitudeUser("guest-1");
+  });
+  const optOutsBefore = callsOf("setOptOut").length;
+
+  stopAmplitude();
+  stopAmplitude();
+  const tracksAfterStop = callsOf("track").length;
+  trackScreenViewed("/home");
+
+  assert.deepEqual(callsOf("setOptOut").slice(optOutsBefore), [["setOptOut", true]]);
+  assert.equal(callsOf("track").length, tracksAfterStop);
+});
+
+test("계측 I-6: 같은 게스트로 다시 켜면 opt-out 만 풀고 기기 식별은 끊지 않는다", () => {
+  const { setAmplitudeUser } = analytics;
+  const optOutsBefore = callsOf("setOptOut").length;
+  const resetsBefore = callsOf("reset").length;
+  const initsBefore = callsOf("init").length;
+
+  withFakeWindow("acttub.com", () => {
+    startAmplitude();
+    setAmplitudeUser("guest-1");
+  });
+  const tracksBefore = callsOf("track").length;
+  trackScreenViewed("/home");
+
+  assert.deepEqual(callsOf("setOptOut").slice(optOutsBefore), [["setOptOut", false]]);
+  assert.equal(callsOf("reset").length, resetsBefore);
+  assert.equal(callsOf("init").length, initsBefore);
+  assert.equal(callsOf("track").length, tracksBefore + 1);
+});
+
+test("계측 I-6: 다른 게스트로 켜지면 앞 게스트의 기기 식별과 잇지 않는다", () => {
+  const { setAmplitudeUser, stopAmplitude } = analytics;
+  const resetsBefore = callsOf("reset").length;
+
+  stopAmplitude();
+  withFakeWindow("acttub.com", () => {
+    startAmplitude();
+    setAmplitudeUser("guest-2");
+  });
+
+  assert.equal(callsOf("reset").length, resetsBefore + 1);
+  assert.deepEqual(callsOf("setUserId").at(-1), ["setUserId", "guest-2"]);
 });

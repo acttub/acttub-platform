@@ -54,7 +54,7 @@ class UploadController {
     UploadIntentResponse createIntent(
             @Valid @RequestBody UploadIntentRequest body,
             HttpServletRequest request) {
-        var user = auth.consentedUser(request);
+        var user = auth.gatedUser(request);
         UploadService.NewUpload created = uploads.createIntent(
                 user.id(), body.mimeType(), body.sizeBytes(), body.durationMs());
         return new UploadIntentResponse(
@@ -80,7 +80,7 @@ class UploadController {
     UploadCompleteResponse completeIntent(
             @PathVariable("intent_id") UUID intentId,
             HttpServletRequest request) {
-        var user = auth.consentedUser(request);
+        var user = auth.gatedUser(request);
         return new UploadCompleteResponse(uploads.completeIntent(user.id(), intentId), "finalized");
     }
 }

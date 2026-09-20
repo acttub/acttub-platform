@@ -20,9 +20,12 @@ export type ConsentDocument = components["schemas"]["ConsentDocument"];
 export type ConsentEntryDocument = components["schemas"]["ConsentEntryDocument"];
 export type ConsentEntryStatus = components["schemas"]["ConsentEntryStatus"];
 
-export type TokenPairResponse = components["schemas"]["TokenPairResponse"];
+export type GuestResponse = components["schemas"]["GuestResponse"];
+export type TransferCodeResponse = components["schemas"]["TransferCodeResponse"];
 export type RefreshTokenResponse = components["schemas"]["RefreshTokenResponse"];
 export type ConsentDocumentsResponse = components["schemas"]["ConsentDocumentsResponse"];
+export type ConsentNotice = components["schemas"]["ConsentNotice"];
+export type ConsentNoticesResponse = components["schemas"]["ConsentNoticesResponse"];
 export type PendingConsentsResponse = components["schemas"]["ConsentDocumentsResponse"];
 export type ConsentEntryResponse = components["schemas"]["ConsentEntryResponse"];
 export type ConsentEventResponse = components["schemas"]["ConsentEventResponse"];

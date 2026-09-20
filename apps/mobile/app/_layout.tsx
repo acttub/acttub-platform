@@ -21,14 +21,18 @@ import { initMetaSdk } from '@/lib/meta-events';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
 import {
   recoveryStatusForConsentGate,
-  routeAllowedWhileConsentBlocked,
+  routeAllowedDuringConsentGate,
   resolveAnalyzingBootstrapRoute,
   resolveBootstrapStep,
   resolvePostConsentRoute,
   type BootstrapRecoveryParams,
 } from '@/lib/app-bootstrap';
+import { sweepDeviceFiles } from '@/lib/account-files';
 import { AuthProvider, useAuth } from '@/lib/auth';
-import { configureNotificationHandling, syncDailyNudge } from '@/lib/notifications';
+import {
+  configureNotificationHandling,
+  flushPendingPushTokenDeletions,
+} from '@/lib/notifications';
 import type { PendingAnalysisHandle } from '@/lib/pending-analysis';
 import { palette } from '@/constants/palette';
 import { translate as t } from '@/lib/i18n';
@@ -39,8 +43,12 @@ SplashScreen.preventAutoHideAsync();
 
 // 포그라운드에서도 알림 배너가 뜨게 한다. 모듈이 없는 빌드에서는 아무 일도 하지 않는다.
 configureNotificationHandling();
-// 데일리 넛지도 기동 때 한 번 맞춰 깐다 — 어제 예약분을 오늘 상태로 갱신한다(SOMA-444).
-void syncDailyNudge();
+// 로그아웃 때 지우지 못한 푸시 토큰을 앱을 열 때 다시 보낸다 — 로그인 없이 받는 요청이라
+// 로그인 화면에서도 된다. 저녁 리마인드는 게이트를 통과한 뒤에 맞춘다(lib/auth.tsx).
+void flushPendingPushTokenDeletions();
+// 앞선 실행이 올리던 도중에 죽어 남긴 임시 파일(줄인 사진·영상)을 지운다. 아직 아무것도 올리지
+// 않는 때라 쓰는 중인 파일을 건드리지 않는다.
+void sweepDeviceFiles();
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -58,14 +66,18 @@ const theme = {
   },
 };
 
-/** 인증 → 동의 진입 → 이름 → pending 분석 순서로 최초 화면을 게이트한다. */
+/** (426 업데이트 안내 →) 인증 → 동의 → 프로필 → pending 분석 순서로 최초 화면을 게이트한다. */
 function RootNavigator() {
   const {
     status,
     user,
     consentEntry,
-    profileSetupRequired,
+    profile,
+    signup,
+    updateRequired,
   } = useAuth();
+  const profileStatus = profile.status;
+  const signupPending = signup !== null;
   const segments = useSegments();
   const pathname = usePathname();
   const currentRouteParams = useGlobalSearchParams<BootstrapRecoveryParams>();
@@ -165,10 +177,12 @@ function RootNavigator() {
 
   useEffect(() => {
     const bootstrap = resolveBootstrapStep({
+      updateRequired,
       authStatus: status,
+      signupPending,
       userId: user?.id ?? null,
       consentEntryStatus: consentEntry.status,
-      profileSetupRequired,
+      profileStatus,
       recoveryStatus: recoveryStatusForConsentGate(recovery, consentGate),
       recoveryOwner: recovery.owner,
       pending: recovery.pending,
@@ -178,9 +192,7 @@ function RootNavigator() {
         ? `signedIn:${user.id}`
         : status === 'signedOut'
           ? 'signedOut'
-          : status === 'guest'
-            ? 'guest'
-            : null;
+          : null;
     if (
       completedBootstrapRef.current &&
       completedBootstrapRef.current.sessionKey !== sessionKey
@@ -193,7 +205,9 @@ function RootNavigator() {
     const inLogin = first === 'login';
     const inConsent = first === 'consent';
     const inProfileName = first === 'profile-name';
-    const inAccountManagement = routeAllowedWhileConsentBlocked(
+    const inUpdateRequired = first === 'update-required';
+    // 재동의 화면의 "동의하지 않으면 탈퇴할 수 있어요"가 여는 탈퇴 화면만 게이트 밖에 둔다.
+    const inWithdrawDuringConsent = routeAllowedDuringConsentGate(
       segments as string[],
     );
 
@@ -211,6 +225,11 @@ function RootNavigator() {
       };
     };
 
+    if (bootstrap.stage === 'update-gate') {
+      completedBootstrapRef.current = null;
+      if (!inUpdateRequired) router.replace('/update-required' as Href);
+      return;
+    }
     if (bootstrap.stage === 'auth-gate') {
       if (bootstrap.route === '/login') interruptedRouteRef.current = null;
       if (bootstrap.route === '/login' && !inLogin) {
@@ -218,25 +237,26 @@ function RootNavigator() {
       }
       return;
     }
+    if (bootstrap.stage === 'signup-gate') {
+      // 처음 온 신원의 동의 화면. 계정이 아직 없어 돌아갈 중단 화면도 없다.
+      interruptedRouteRef.current = null;
+      if (!inConsent) router.replace('/consent' as Href);
+      return;
+    }
     if (bootstrap.stage === 'consent-gate') {
       completedBootstrapRef.current = null;
+      if (inWithdrawDuringConsent) return;
       rememberInterruptedRoute();
       if (bootstrap.route === '/consent' && !inConsent) {
         router.replace('/consent' as Href);
       }
       return;
     }
-    if (bootstrap.stage === 'blocked-gate') {
-      completedBootstrapRef.current = null;
-      if (!inAccountManagement) {
-        rememberInterruptedRoute();
-        router.replace('/settings' as Href);
-      }
-      return;
-    }
     if (bootstrap.stage === 'profile-gate') {
       completedBootstrapRef.current = null;
-      if (!inProfileName) router.replace('/profile-name' as Href);
+      if (bootstrap.route === '/profile-name' && !inProfileName) {
+        router.replace('/profile-name' as Href);
+      }
       return;
     }
     if (bootstrap.stage === 'pending-recovery' || !bootstrap.route || !sessionKey) {
@@ -289,10 +309,12 @@ function RootNavigator() {
       route: bootstrap.route as Href,
     };
   }, [
+    updateRequired,
     status,
+    signupPending,
     user,
     consentEntry.status,
-    profileSetupRequired,
+    profileStatus,
     consentGate,
     recovery,
     segments,
@@ -306,37 +328,43 @@ function RootNavigator() {
   useEffect(() => {
     const consentScreenReady =
       consentEntry.status === 'error' ||
-      consentEntry.status === 'decision_required' ||
-      consentEntry.status === 'blocked';
+      consentEntry.status === 'decision_required';
+    const profileScreenReady = profileStatus === 'error' || profileStatus === 'required';
     const readyToShow =
+      updateRequired ||
       status === 'signedOut' ||
-      status === 'guest' ||
       (status === 'signedIn' &&
         Boolean(user) &&
         (consentScreenReady ||
           (consentEntry.status === 'allowed' &&
-            (profileSetupRequired ||
-              (recovery.status === 'ready' && recovery.owner === user?.id)))));
+            (profileScreenReady ||
+              (profileStatus === 'complete' &&
+                recovery.status === 'ready' &&
+                recovery.owner === user?.id)))));
     if (readyToShow) {
       void SplashScreen.hideAsync();
     }
   }, [
+    updateRequired,
     status,
     user,
     consentEntry.status,
-    profileSetupRequired,
+    profileStatus,
     recovery.status,
     recovery.owner,
   ]);
 
-  if (status === 'loading') return null;
+  if (status === 'loading' && !updateRequired) return null;
 
   return (
     <Stack>
+      <Stack.Screen name="update-required" options={{ headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="consent" options={{ headerShown: false }} />
       <Stack.Screen name="profile-name" options={{ headerShown: false }} />
       <Stack.Screen name="profile-edit" options={{ title: t('profileName.editTitle') }} />
+      <Stack.Screen name="portfolio-edit" options={{ title: t('portfolio.title') }} />
+      <Stack.Screen name="guest-transfer" options={{ title: t('guestTransfer.title') }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen
         name="delete-account"
@@ -347,12 +375,10 @@ function RootNavigator() {
       <Stack.Screen name="analyzing" options={{ title: t('stack.analyzing') }} />
       <Stack.Screen name="coach" options={{ title: t('stack.coach') }} />
       <Stack.Screen name="report" options={{ title: t('stack.report') }} />
-      {/* 아래 셋은 화면 안에 자체 헤더가 있다. 등록해 두지 않으면 기본 헤더가
+      {/* 아래 둘은 화면 안에 자체 헤더가 있다. 등록해 두지 않으면 기본 헤더가
           한 겹 더 붙어 '뒤로' 버튼이 두 개로 보인다. */}
       <Stack.Screen name="admissions/index" options={{ headerShown: false }} />
       <Stack.Screen name="admissions/[id]" options={{ headerShown: false }} />
-      <Stack.Screen name="community-post" options={{ headerShown: false }} />
-      <Stack.Screen name="community-new" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="challenge-detail" options={{ title: t('challenges.detailTitle') }} />
       <Stack.Screen name="challenge-play" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
       <Stack.Screen name="guide" options={{ headerShown: false, presentation: 'fullScreenModal' }} />

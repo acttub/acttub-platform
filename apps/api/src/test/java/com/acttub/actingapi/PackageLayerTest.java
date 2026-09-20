@@ -60,7 +60,6 @@ class PackageLayerTest {
      */
     private static final Map<String, Set<String>> FEATURE_LAYERS = Map.ofEntries(
             Map.entry("practice", FOUR_LAYERS),
-            Map.entry("community", FOUR_LAYERS),
             Map.entry("report", FOUR_LAYERS),
             Map.entry("coach", FOUR_LAYERS),
             // 분석의 Domain Model 은 받아쓴 대사를 문장으로 자르던 `TranscriptSegments` 하나였고,
@@ -68,9 +67,12 @@ class PackageLayerTest {
             // 통째로 내주는 것이라 우리가 걸 행위 규칙이 없다 — 남은 층이 셋이다.
             Map.entry("analysis", Set.of("app", "adapter", "schema")),
             Map.entry("upload", FOUR_LAYERS),
-            // 프로필의 Schema Entity 는 `auth/schema/UserEntity` 다 — `users` 행을 만드는 쪽이
-            // 갖는다(SOMA-397 12단계). 프로필은 이미 있는 행을 고칠 뿐이라 층이 셋이다.
-            Map.entry("profile", Set.of("domain", "app", "adapter")),
+            // `users` 행의 Schema Entity 는 `auth/schema/UserEntity` 다 — 행을 만드는 쪽이
+            // 갖는다(SOMA-397 12단계). 프로필은 `user_profiles`·`user_profile_directions` 를 갖는다.
+            Map.entry("profile", FOUR_LAYERS),
+            // 포트폴리오와 게스트 이관은 테이블이 먼저 서고(V9, SOMA-528) 나머지 층이 뒤에 섰다.
+            Map.entry("portfolio", FOUR_LAYERS),
+            Map.entry("transfer", Set.of("app", "adapter", "schema")),
             // 입시 요강에는 Domain Model 도 Schema Entity 도 없다. 요강은 우리가 쓰는 데이터가
             // 아니라 바깥에서 통째로 들어오는 문서라 그것에 걸리는 행위 규칙이 없고, 문서가 곧
             // 응답이라 형태는 `app` 에 산다(`report/app/PublicReport` 와 같은 자리). 네 층을
@@ -142,6 +144,14 @@ class PackageLayerTest {
         return featuresWith("schema");
     }
 
+    static List<String> featuresWithDomainOrApp() {
+        return FEATURE_LAYERS.entrySet().stream()
+                .filter(entry -> entry.getValue().contains("domain") || entry.getValue().contains("app"))
+                .map(Map.Entry::getKey)
+                .sorted()
+                .toList();
+    }
+
     @ParameterizedTest(name = "{0}")
     @MethodSource("featuresWithDomain")
     void domainKnowsNoFramework(String feature) {
@@ -169,7 +179,7 @@ class PackageLayerTest {
     }
 
     @ParameterizedTest(name = "{0}")
-    @MethodSource("features")
+    @MethodSource("featuresWithDomainOrApp")
     void domainAndAppKnowNoSchemaEntities(String feature) {
         noClasses()
                 .that()

@@ -191,6 +191,112 @@ class CoachPromptSnapshotTest {
                 .isEqualTo(FrozenValue.of("coach-regeneration-prompt.txt"));
     }
 
+    // ---- account.profile: 코치 대화가 프로필을 읽는다 ----
+
+    private static final ActorProfile PROFILE = new ActorProfile(
+            "김배우", "여성", 25, List.of("매체(TV·영화)", "무대(연극·뮤지컬)"), "1–3년", "전문 배우");
+
+    private static final String PROFILE_BLOCK = """
+            ## 배우 프로필
+            배우가 직접 저장한 현재 정보다. 영상·인물의 근거가 아니며 다시 입력하도록 묻지 않는다. 아래 기억이나 이전 대화와 다르면 현재 프로필 값을 우선한다.
+            이름은 필요할 때만 호칭으로 쓴다 — 한국어로는 이름 뒤에 '님'을 붙이고, 영어로는 이름 그대로 부른다.
+            - 이름: 김배우
+            - 성별: 여성
+            - 만 나이: 25세
+            - 추구하는 방향: 매체(TV·영화), 무대(연극·뮤지컬)
+            - 연기 경력: 1–3년
+            - 최종 목표: 전문 배우
+
+            """;
+
+    /**
+     * 완성된 프로필은 <b>맨 앞의 독립 블록 하나</b>로만 실린다. 그 뒤는 프로필이 없던 때의 프롬프트와
+     * 글자 하나 다르지 않다 — 기존 고정값을 그대로 기준으로 쓴다(다시 뜨지 않는다).
+     */
+    @Test
+    @DisplayName("account.profile: 프로필 블록은 맨 앞에 붙고 나머지는 동결된 값 그대로다 — 시작·후속·재생성")
+    void actorProfileIsPrependedAndNothingElseChanges() throws Exception {
+        assertThat(CoachPrompt.buildChat(otherSession().withActorProfile(PROFILE), "잘 모르겠어요"))
+                .as("대화를 여는 첫 응답")
+                .isEqualTo(PROFILE_BLOCK + FrozenValue.of("coach-chat-prompt-other.txt"));
+        assertThat(CoachPrompt.buildChat(expressionSession(List.of()).withActorProfile(PROFILE), "이번에는 멈춰봤어요"))
+                .as("후속 응답")
+                .isEqualTo(PROFILE_BLOCK + FrozenValue.of("coach-chat-prompt.txt"));
+        assertThat(CoachPrompt.buildRegeneration(
+                analysisSession().withActorProfile(PROFILE),
+                "잘 모르겠어요",
+                "{\"message\":\"점수\"}",
+                List.of("금지어가 노출됐습니다: 점수", "응답에 시각이 들어 있습니다.")))
+                .as("재생성")
+                .isEqualTo(PROFILE_BLOCK + FrozenValue.of("coach-regeneration-prompt.txt"));
+    }
+
+    /** 게스트와, 프로필을 아직 다 채우지 않은 회원은 포트가 {@code null} 을 준다. */
+    @Test
+    @DisplayName("account.profile: 프로필이 없으면 프롬프트가 바이트 단위로 전과 같다")
+    void withoutAProfileThePromptIsByteForByteTheSame() throws Exception {
+        assertThat(CoachPrompt.actorProfileBlock(null)).isEmpty();
+        assertThat(CoachPrompt.buildChat(expressionSession(List.of()).withActorProfile(null), "이번에는 멈춰봤어요"))
+                .isEqualTo(FrozenValue.of("coach-chat-prompt.txt"));
+        assertThat(CoachPrompt.buildChat(otherSession().withActorProfile(null), "잘 모르겠어요"))
+                .isEqualTo(FrozenValue.of("coach-chat-prompt-other.txt"));
+    }
+
+    /**
+     * 기억과 프로필이 함께 있는 프롬프트 전체를 고정한다. 기억의 성별·나이는 빠지고(프로필이 정본이다)
+     * 배우가 말한 목표는 남는다 — 프로필의 최종 목표와 결이 달라 서로 보완한다.
+     */
+    @Test
+    @DisplayName("account.profile: 프로필과 기억이 함께 있는 프롬프트가 동결된 값과 완전히 같다")
+    void chatPromptWithProfileAndMemoryMatchesFrozenValue() throws Exception {
+        var session = expressionSession(List.of())
+                .withPrior(new PriorContext(
+                        Map.of("gender", "남", "age", "31", "goal", "입시 합격"),
+                        null, true, List.of("첫 대사 앞에서 한 박자 쉬어 보기"), List.of()))
+                .withActorProfile(PROFILE);
+
+        String prompt = CoachPrompt.buildChat(session, "이번에는 멈춰봤어요");
+
+        assertThat(prompt).isEqualTo(FrozenValue.of("coach-chat-prompt-actor-profile.txt"));
+        assertThat(prompt)
+                .contains("- 성별: 여성", "- 만 나이: 25세", "- 배우가 말한 목표: 입시 합격")
+                .doesNotContain("- 성별: 남\n", "- 나이: 31");
+        assertThat(prompt.indexOf("## 배우 프로필"))
+                .as("프로필 블록이 기억 블록 앞이다")
+                .isLessThan(prompt.indexOf("## 배우에 대해 지금까지 알고 있는 것"));
+    }
+
+    @Test
+    @DisplayName("account.profile: 성별이 '선택 안 함'이어도 옛 기억의 성별로 보충하지 않는다")
+    void unspecifiedGenderIsNotFilledFromOldMemory() throws Exception {
+        var unspecified = new ActorProfile("김배우", "선택 안 함", 25, List.of("무대(연극·뮤지컬)"), "입시생", "취미");
+        var session = otherSession()
+                .withPrior(new PriorContext(Map.of("gender", "남", "age", "31"), null, true, List.of(), List.of()))
+                .withActorProfile(unspecified);
+
+        String prompt = CoachPrompt.buildChat(session, "잘 모르겠어요");
+
+        assertThat(prompt).contains("- 성별: 선택 안 함", "- 추구하는 방향: 무대(연극·뮤지컬)")
+                .doesNotContain("- 성별: 남", "- 나이: 31")
+                // 기억에 성별·나이만 있었다. 빼고 나면 남는 것이 없어 기억 블록 자체가 없다.
+                .doesNotContain("## 배우에 대해 지금까지 알고 있는 것");
+    }
+
+    /** 기억 블록은 1,200자에서 잘린다. 프로필은 그 예산 밖이다 — 배우가 지금 저장해 둔 값이 잘리면 안 된다. */
+    @Test
+    @DisplayName("account.profile: 지난 것이 길어도 프로필 블록은 잘리지 않는다")
+    void longPriorContextNeverClipsTheProfile() throws Exception {
+        var session = otherSession()
+                .withPrior(new PriorContext(Map.of("goal", "가".repeat(3000)), null, true, List.of(), List.of()))
+                .withActorProfile(PROFILE);
+
+        String prompt = CoachPrompt.buildChat(session, "잘 모르겠어요");
+
+        assertThat(prompt).startsWith(PROFILE_BLOCK);
+        String priorBlock = prompt.substring(PROFILE_BLOCK.length(), prompt.indexOf("## 배우가 쓴 것"));
+        assertThat(priorBlock.strip().codePointCount(0, priorBlock.strip().length())).isEqualTo(1200);
+    }
+
     /** 응답 번호는 코치 turn 수 + 1 이다 — 프롬프트의 "현재 응답: N번째" 와 같은 셈이다. */
     @Test
     @DisplayName("응답 번호는 코치 turn 수에 1을 더한 값이다")

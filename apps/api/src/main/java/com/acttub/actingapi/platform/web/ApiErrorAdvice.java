@@ -60,7 +60,10 @@ public class ApiErrorAdvice {
                 Objects.requireNonNull(exception.getCause()), kind, API_EXCEPTION_CONTEXT));
         var response = ResponseEntity.status(exception.status());
         exception.headers().forEach(response::header);
-        return response.body(Map.of("detail", exception.getMessage()));
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("detail", exception.getMessage());
+        body.putAll(exception.extras());
+        return response.body(body);
     }
 
     @ExceptionHandler(ApiValidationException.class)

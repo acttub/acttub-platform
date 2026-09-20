@@ -70,7 +70,7 @@ class CoachController {
                     schema = @Schema(nullable = true))
             @RequestHeader(name = "X-Request-Id", required = false) String requestIdHeader,
             HttpServletRequest request) {
-        var user = auth.consentedUser(request);
+        var user = auth.gatedUser(request);
         CoachPayload payload = coach.start(
                 user.id(),
                 new CoachStart(req.practiceSessionId(), req.restart()),
@@ -102,7 +102,7 @@ class CoachController {
                     schema = @Schema(nullable = true))
             @RequestHeader(name = "X-Request-Id", required = false) String requestIdHeader,
             HttpServletRequest request) {
-        var user = auth.consentedUser(request);
+        var user = auth.gatedUser(request);
         CoachPayload payload = coach.reply(
                 user.id(),
                 new ActorMessage(req.sessionId(), req.text()),
@@ -134,7 +134,7 @@ class CoachController {
                     schema = @Schema(nullable = true))
             @RequestHeader(name = "X-Request-Id", required = false) String requestIdHeader,
             HttpServletRequest request) {
-        var user = auth.consentedUser(request);
+        var user = auth.gatedUser(request);
         CoachPayload payload = coach.confirm(
                 user.id(),
                 new HandoffDecision(req.coachSessionId(), req.confirmed(), req.rebuttalText()),

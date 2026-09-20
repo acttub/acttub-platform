@@ -7,7 +7,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { palette } from '@/constants/palette';
-import { useRequireLogin } from '@/hooks/use-require-login';
 import { logEvent } from '@/lib/analytics';
 import { formatClipDuration, relativeDayLabel } from '@/lib/archive-format';
 import { listArchive, removeArchiveRecording, setArchiveFavorite, type ArchiveRecording } from '@/lib/archive-store';
@@ -35,7 +34,6 @@ type Detail = {
 export default function ArchiveDetailScreen() {
   const router = useRouter();
   const { confirm, alert, dialog } = useAppDialog();
-  const { requireLogin, element: loginGuard } = useRequireLogin();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const [detail, setDetail] = useState<Detail | null | undefined>(undefined);
   const [playing, setPlaying] = useState(false);
@@ -89,10 +87,8 @@ export default function ArchiveDetailScreen() {
   };
   const toCoach = () => {
     logEvent('archive_to_coach', { id: detail.id, real: detail.real });
-    requireLogin(() => {
-      handoff();
-      router.push('/upload');
-    });
+    handoff();
+    router.push('/upload');
   };
   const toChallenge = () => {
     logEvent('archive_to_challenge', { id: detail.id, real: detail.real });
@@ -189,7 +185,6 @@ export default function ArchiveDetailScreen() {
           </Pressable>
         </ScrollView>
       </SafeAreaView>
-      {loginGuard}
       {dialog}
     </View>
   );

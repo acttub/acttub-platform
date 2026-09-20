@@ -1,10 +1,10 @@
 import type { PendingAnalysisHandle } from './pending-analysis.ts';
 
 export type BootstrapRoute =
+  | '/update-required'
   | '/login'
   | '/consent'
   | '/profile-name'
-  | '/settings'
   | '/(tabs)'
   | {
       pathname: '/analyzing';
@@ -32,9 +32,10 @@ export function resolveAnalyzingBootstrapRoute(
 }
 
 export type BootstrapStage =
+  | 'update-gate'
   | 'auth-gate'
+  | 'signup-gate'
   | 'consent-gate'
-  | 'blocked-gate'
   | 'profile-gate'
   | 'pending-recovery'
   | 'done';
@@ -43,14 +44,20 @@ export type ConsentEntryGateStatus =
   | 'checking'
   | 'error'
   | 'allowed'
-  | 'decision_required'
-  | 'blocked';
+  | 'decision_required';
+
+/** 서버의 profile_complete를 읽은 결과. 읽기 전(checking)에는 탭으로 보내지 않는다. */
+export type ProfileGateStatus = 'checking' | 'error' | 'required' | 'complete';
 
 export type BootstrapStepInput = {
-  authStatus: 'loading' | 'signedIn' | 'signedOut' | 'guest';
+  /** 426을 받았다. 이 빌드로는 더 쓸 수 없어 다른 모든 판정보다 먼저다. */
+  updateRequired?: boolean;
+  authStatus: 'loading' | 'signedIn' | 'signedOut';
+  /** 처음 온 신원이 가입 토큰을 들고 동의 화면에 있다. 계정은 아직 없다. */
+  signupPending?: boolean;
   userId: string | null;
   consentEntryStatus: ConsentEntryGateStatus;
-  profileSetupRequired?: boolean;
+  profileStatus: ProfileGateStatus;
   recoveryStatus: 'loading' | 'ready';
   recoveryOwner: string | null;
   pending: PendingAnalysisHandle | null;
@@ -75,17 +82,18 @@ export function recoveryStatusForConsentGate(
     : 'loading';
 }
 
-/** auth → consent → profile → owner별 pending recovery 순서로만 done에 도달한다. */
+/** update → auth → consent → profile → owner별 pending recovery 순서로만 done에 도달한다. */
 export function resolveBootstrapStep(input: BootstrapStepInput): BootstrapStep {
+  if (input.updateRequired) {
+    return { stage: 'update-gate', route: '/update-required' };
+  }
   if (input.authStatus === 'loading') {
     return { stage: 'auth-gate', route: null };
   }
   if (input.authStatus === 'signedOut') {
-    return { stage: 'auth-gate', route: '/login' };
-  }
-  // 게스트는 계정이 없어 동의·프로필·복구 게이트가 없다 — 바로 탭으로.
-  if (input.authStatus === 'guest') {
-    return { stage: 'done', route: '/(tabs)' };
+    return input.signupPending
+      ? { stage: 'signup-gate', route: '/consent' }
+      : { stage: 'auth-gate', route: '/login' };
   }
   if (!input.userId) {
     return { stage: 'auth-gate', route: null };
@@ -99,10 +107,10 @@ export function resolveBootstrapStep(input: BootstrapStepInput): BootstrapStep {
   ) {
     return { stage: 'consent-gate', route: '/consent' };
   }
-  if (input.consentEntryStatus === 'blocked') {
-    return { stage: 'blocked-gate', route: '/settings' };
+  if (input.profileStatus === 'checking') {
+    return { stage: 'profile-gate', route: null };
   }
-  if (input.profileSetupRequired) {
+  if (input.profileStatus === 'error' || input.profileStatus === 'required') {
     return { stage: 'profile-gate', route: '/profile-name' };
   }
   if (
@@ -145,11 +153,12 @@ export function resolvePostConsentRoute(
     : bootstrapRoute;
 }
 
-export function routeAllowedWhileConsentBlocked(
+/**
+ * 재동의 화면에서 열어 두는 화면은 탈퇴뿐이다. 필수 문서에 거절이 없고 설정은 동의 화면
+ * 뒤에 있어서, 동의하지 않는 사람이 떠나는 길이 이것 하나다.
+ */
+export function routeAllowedDuringConsentGate(
   segments: readonly string[],
 ): boolean {
-  return (
-    (segments[0] === '(tabs)' && segments[1] === 'settings') ||
-    segments[0] === 'delete-account'
-  );
+  return segments[0] === 'delete-account';
 }

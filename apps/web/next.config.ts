@@ -35,13 +35,18 @@ const nextConfig: NextConfig = {
     return [
       { source: "/v2/:path*", destination: `${apiOrigin}/v2/:path*` },
       { source: "/health", destination: `${apiOrigin}/health` },
+      // 포트폴리오 공개 페이지(SOMA-528 결정 I-8). 주소는 /p/<slug> 인데 slug 는 빌드 때 알 수
+      // 없다. 프리렌더한 껍데기 하나(/p)를 서빙하고 브라우저가 경로에서 slug 를 읽는다 — slug
+      // 마다 서버 렌더나 캐시 파일이 생기지 않는다. 한 단계만 받는다(/p/a/b 는 404).
+      { source: "/p/:slug", destination: "/p" },
     ];
   },
   // 상대역 리딩(/reading)은 브라우저 안에서 onnxruntime wasm 으로 음성을 만든다. 멀티스레드
   // wasm 에는 SharedArrayBuffer 가 필요하고, 그건 교차 출처 격리(COOP+COEP)가 켜진 문서에만 있다.
-  // **이 경로에만** 건다 — COOP same-origin 을 사이트 전체에 걸면 Google/Apple 로그인 팝업이
-  // opener 를 잃어 로그인이 끝나지 않는다(SOMA-447). credentialless 라 외부 CSS·모델(HF CDN)은
-  // CORP 헤더 없이도 자격증명 없이 받아진다.
+  // **이 경로에만** 건다 — 교차 출처 격리가 필요한 화면은 리딩뿐이다. 처음 이렇게 좁힌 까닭은
+  // 사이트 전체에 걸면 Google/Apple 로그인 팝업이 opener 를 잃어서였다(SOMA-447). 웹 로그인은
+  // 1.0.0 에서 없어졌지만(SOMA-528) 범위는 그대로 둔다 — 필요한 곳에만 거는 편이 외부 창·임베드와
+  // 덜 부딪힌다. credentialless 라 외부 CSS·모델(HF CDN)은 CORP 헤더 없이도 자격증명 없이 받아진다.
   async headers() {
     return [
       {

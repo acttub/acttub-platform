@@ -62,16 +62,67 @@ class ConsentPublisherIT {
     @Test
     @Order(1)
     void emptyDatabaseBootPublishesWholeManifestAndRepeatIsIdempotent() throws Exception {
-        // 종류 3가지 × 말 2가지(한국어 정본 + 영어 번역본) = 6 (SOMA-544)
+        // 한국어 정본 4 + 영어 번역본 2(이용약관·AI 분석) = 6. 수집·이용 동의 v5 와 보관 동의는 아직 영어판이 없다.
         assertThat(jdbc.queryForList(
                 "SELECT type,version,locale,title,required,length(body) body_length "
                         + "FROM consent_documents ORDER BY type,locale"))
                 .hasSize(6)
                 .allSatisfy(row -> {
-                    assertThat(row.get("required")).isEqualTo(true);
+                    // 필수 셋과 선택 하나(탈퇴 후 영상·녹음 보관·활용).
+                    assertThat(row.get("required")).isEqualTo(!"retention".equals(row.get("type")));
                     assertThat(((Number) row.get("body_length")).intValue()).isPositive();
                 });
-        assertThat(publisher.publish()).isZero();
+        assertThat(jdbc.queryForObject(
+                "SELECT title FROM consent_documents WHERE type='privacy'", String.class))
+                .as("privacy 는 동의를 받는 문서다. 처리방침은 고지라 이 목록에 없다")
+                .isEqualTo("개인정보 수집·이용 동의");
+        assertThat(publisher.publish()).as("같은 판이면 행이 늘지 않는다").isZero();
+    }
+
+    @Test
+    @Order(2)
+    void accountConsent_newerVersionInTheDeployedFilesBecomesANewRowAndTheOldOneStays(
+            @TempDir Path directory) throws Exception {
+        Files.writeString(directory.resolve("terms.md"), "새 약관 본문");
+        Files.writeString(directory.resolve("manifest.json"), """
+                [{"file":"terms.md","type":"terms","version":"v2","title":"이용약관","required":true}]
+                """);
+
+        assertThat(publisherFor(directory).publish()).isEqualTo(1);
+
+        assertThat(jdbc.queryForList(
+                // 번역본(en)은 한국어 행의 판에 딸린 것이라 판 목록은 한국어 행으로 센다 (README 「말」).
+                "SELECT version FROM consent_documents WHERE type='terms' AND locale='ko' ORDER BY published_at,version",
+                String.class)).containsExactly("v1", "v2");
+        assertThat(publisherFor(directory).publish()).isZero();
+        jdbc.update("DELETE FROM consent_documents WHERE type='terms' AND version='v2'");
+    }
+
+    @Test
+    @Order(2)
+    void accountConsent_sameVersionWithEditedTextIsRewrittenInPlaceWithoutReconsent(
+            @TempDir Path directory) throws Exception {
+        var before = jdbc.queryForMap(
+                "SELECT id,published_at FROM consent_documents WHERE type='terms' AND version='v1' AND locale='ko'");
+        Files.writeString(directory.resolve("terms.md"), "오탈자를 고친 약관 본문");
+        Files.writeString(directory.resolve("manifest.json"), """
+                [{"file":"terms.md","type":"terms","version":"v1","title":"이용약관","required":true}]
+                """);
+
+        assertThat(publisherFor(directory).publish()).as("새 판이 아니다").isZero();
+
+        assertThat(jdbc.queryForMap("""
+                SELECT id,published_at,body FROM consent_documents WHERE type='terms' AND locale='ko'
+                """))
+                .as("같은 행이다 — 결정이 가리키는 문서 id 가 그대로라 재동의 게이트가 뜨지 않는다")
+                .containsEntry("id", before.get("id"))
+                .containsEntry("published_at", before.get("published_at"))
+                .containsEntry("body", "오탈자를 고친 약관 본문");
+    }
+
+    private ConsentDocumentPublisher publisherFor(Path directory) {
+        return new ConsentDocumentPublisher(
+                documents, mapper, resources, directory.toString(), new RecordingFailureReporter());
     }
 
     @Test
@@ -96,7 +147,9 @@ class ConsentPublisherIT {
                 reporter);
         assertThatCode(() -> invalid.run(new DefaultApplicationArguments()))
                 .doesNotThrowAnyException();
-        assertThat(reporter.reports()).singleElement().satisfies(report -> {
+        // 기동은 막지 않되 둘 다 조용히 넘기지 않는다 — 발행이 안 되면 API 가 옛 판을 현재 판으로
+        // 돌려주고, 그러면 새 수집이 옛 동의로 켜질 수 있다.
+        assertThat(reporter.reports()).hasSize(2).allSatisfy(report -> {
             assertThat(report.kind()).isEqualTo(FailureKind.UNEXPECTED);
             assertThat(report.context()).isEqualTo("ConsentDocumentPublisher.seed");
         });

@@ -1,7 +1,8 @@
 import { Stack, useRouter } from 'expo-router';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
+  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -13,112 +14,211 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { palette } from '@/constants/palette';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
-import { api } from '@/lib/api';
 import { logEvent } from '@/lib/analytics';
 import { logMetaEvent } from '@/lib/meta-events';
 import { useAuth } from '@/lib/auth';
-import { getUserName, saveUserName, takeProviderNameHint } from '@/lib/profile';
+import { takeProviderNameHint } from '@/lib/profile';
+import { pickAndUploadProfilePhoto, removeProfilePhoto } from '@/lib/profile-photo-upload';
+import {
+  BIO_MAX_LENGTH,
+  DIRECTION_VALUES,
+  EXPERIENCE_VALUES,
+  GENDER_VALUES,
+  GOAL_VALUES,
+  NAME_MAX_LENGTH,
+  buildProfilePayload,
+  formatBirthDateInput,
+  initialProfileForm,
+  isBioValid,
+  isProfileFormComplete,
+  parseBirthDate,
+  profileSaveFailure,
+  type Direction,
+  type Gender,
+  type ProfileFormState,
+} from '@/lib/profile-form';
 import { translate as t, translateList } from '@/lib/i18n';
 
-type Gender = 'female' | 'male' | 'none';
+const GENDER_LABEL_KEYS: Record<Gender, string> = {
+  female: 'profileName.genderFemale',
+  male: 'profileName.genderMale',
+  unspecified: 'profileName.genderNone',
+};
+const DIRECTION_LABEL_KEYS: Record<Direction, string> = {
+  media: 'profileName.mediumMedia',
+  stage: 'profileName.mediumStage',
+};
 
 /**
- * A0.2 프로필 설정 — 온보딩에서 배우 정보를 받는다(pen A0.2).
+ * A0.2 프로필 설정 — 이름·성별·생년월일·추구하는 방향·연기 경력·최종 목표 여섯을 모두 받는다.
  *
- * 이름은 프로필 셋업, 성별·나이는 배우 전용 기억(gender·age)에 저장한다. 추구 방향·연기
- * 경력·최종 목표는 아직 저장할 서버 필드가 없어 계측만 한다(theory 칩과 같은 상태).
- * 온보딩에선 전부 필수(빈 칸이 있으면 시작하기가 잠긴다). 편집 모드는 이름만 필수.
- */
-/**
- * 프로필 폼 — 온보딩(edit=false)과 설정의 프로필 편집(edit=true)이 공유한다.
+ * 가입 게이트(edit=false)와 설정의 프로필 편집(edit=true)이 같은 폼과 같은 API
+ * (PUT /v2/me/profile)를 쓴다. 여섯 항목을 한 번에 저장하고 부분 저장은 없다 — 입력 도중
+ * 앱을 닫으면 다음에 처음부터 다시 시작한다. 고칠 때도 필수 규칙은 같아 비워서 저장할 수 없다.
+ *
+ * 사진과 한 줄 소개(80자)는 선택 항목이고 설정에서만 받는다 — 편집(edit=true)에만 보인다.
+ * 사진은 고르는 즉시 올리고(올리기 전에 항상 긴 변 2048px JPEG 로 줄인다), 소개는 여섯
+ * 항목과 함께 저장한다.
  *
  * 편집은 별도 라우트(/profile-edit)에서 렌더한다. `profile-name` 라우트는 _layout의
- * 부트스트랩 게이트가 온보딩 전용으로 취급해 다 끝난 유저를 홈으로 되돌리기 때문이다.
+ * 부트스트랩 게이트가 가입 게이트 전용으로 취급해 게이트를 지난 회원을 홈으로 되돌리기 때문이다.
  */
 export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
-  const { completeProfileSetup } = useAuth();
+  const { profile, reloadProfile, saveProfile, setMe, closeAccountUnder14 } = useAuth();
   const router = useRouter();
-  // 온보딩이면 로그인 제공자가 준 이름을 첫 값으로(저장은 시작하기를 눌러야). 편집은 저장값을 불러온다.
-  const [name, setName] = useState(() => (isEdit ? '' : (takeProviderNameHint() ?? '')));
-  const [gender, setGender] = useState<Gender | null>(null);
-  const [age, setAge] = useState('');
-  const [mediums, setMediums] = useState<string[]>([]);
-  const [career, setCareer] = useState<number | null>(null);
-  const [goal, setGoal] = useState<number | null>(null);
+  const [form, setForm] = useState<ProfileFormState>(() => initialProfileForm(null, null));
+  const [bio, setBio] = useState('');
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [birthError, setBirthError] = useState<string | null>(null);
   const keyboardHeight = useKeyboardHeight();
+  const prefilled = useRef(false);
+
+  const me = profile.me;
+  // 서버에서 받은 값으로 한 번만 채운다. 1.0.0 이전 회원은 옛 닉네임이 이름 칸에 채워져 오고,
+  // 이름이 없으면 로그인 제공자가 준 이름을 첫 값으로 쓴다(저장은 버튼을 눌러야).
+  useEffect(() => {
+    if (prefilled.current || !me) return;
+    prefilled.current = true;
+    setForm(initialProfileForm(me.profile, isEdit ? null : takeProviderNameHint()));
+    setBio(me.profile?.bio ?? '');
+  }, [me, isEdit]);
 
   const careers = translateList('profileName.careerOptions');
   const goals = translateList('profileName.goalOptions');
-  // 온보딩은 인적사항 전부 필수. 편집은 이름만. 뭐가 비었는지도 그대로 보여준다.
-  const ageOk = /^[1-9][0-9]?$/.test(age.trim());
-  const missing: string[] = [];
-  if (!name.trim()) missing.push(t('profileName.nameMissingLabel'));
-  if (gender === null) missing.push(t('profileName.genderLabel'));
-  if (!ageOk) missing.push(t('profileName.ageLabel'));
-  if (mediums.length === 0) missing.push(t('profileName.mediumShortLabel'));
-  if (career === null) missing.push(t('profileName.careerLabel'));
-  if (goal === null) missing.push(t('profileName.goalLabel'));
-  const complete = isEdit ? name.trim().length > 0 : missing.length === 0;
+  const bioTooLong = isEdit && !isBioValid(bio);
+  const complete = isProfileFormComplete(form, new Date()) && !bioTooLong;
+  const nameTooLong = [...form.name.trim()].length > NAME_MAX_LENGTH;
+  const birthDateTyped = form.birthDate.length === 10;
+  // 가입 게이트에서는 무엇이 비어서 시작할 수 없는지 그대로 보여준다(피드백 1차). 편집은 이미 완성된 프로필이다.
+  const missing = {
+    name: !isEdit && form.name.trim().length === 0,
+    gender: !isEdit && form.gender === null,
+    birthDate: !isEdit && parseBirthDate(form.birthDate, new Date()) === null,
+    directions: !isEdit && form.directions.length === 0,
+    experience: !isEdit && form.experience === null,
+    goal: !isEdit && form.goal === null,
+  };
+  const missingLabels = [
+    missing.name && t('profileName.nameMissingLabel'),
+    missing.gender && t('profileName.genderLabel'),
+    missing.birthDate && t('profileName.birthLabel'),
+    missing.directions && t('profileName.mediumShortLabel'),
+    missing.experience && t('profileName.careerLabel'),
+    missing.goal && t('profileName.goalLabel'),
+  ].filter((label): label is string => typeof label === 'string');
 
-  // 편집 모드에서는 저장된 값(이름·성별·나이)을 미리 채운다.
-  useEffect(() => {
-    if (!isEdit) return;
-    let alive = true;
-    void getUserName().then((n) => alive && n && setName(n));
-    void api
-      .actorMemory()
-      .then(({ items }) => {
-        if (!alive) return;
-        for (const it of items) {
-          if (it.field === 'gender') setGender(it.value === '남성' ? 'male' : it.value === '여성' ? 'female' : null);
-          if (it.field === 'age') setAge(it.value.replace(/[^0-9]/g, '').slice(0, 2));
-        }
-      })
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, [isEdit]);
+  const update = (patch: Partial<ProfileFormState>) => setForm((prev) => ({ ...prev, ...patch }));
 
-  const toggleMedium = (v: string) =>
-    setMediums((prev) => (prev.includes(v) ? prev.filter((m) => m !== v) : [...prev, v]));
+  const toggleDirection = (direction: Direction) =>
+    update({
+      directions: form.directions.includes(direction)
+        ? form.directions.filter((d) => d !== direction)
+        : [...form.directions, direction],
+    });
+
+  const onBirthDateChange = (text: string) => {
+    const birthDate = formatBirthDateInput(text);
+    update({ birthDate });
+    setBirthError(
+      birthDate.length === 10 && parseBirthDate(birthDate, new Date()) === null
+        ? t('profileName.birthInvalid')
+        : null,
+    );
+  };
 
   const submit = async () => {
     setBusy(true);
     setError(null);
+    setBirthError(null);
     try {
-      // 저장되는 칸(성별·나이). 실패해도 흐름을 막지 않는다.
-      if (gender === 'female' || gender === 'male') {
-        await api.saveActorMemory('gender', gender === 'female' ? '여성' : '남성').catch(() => {});
-      }
-      if (ageOk) {
-        await api.saveActorMemory('age', `${age.trim()}세`).catch(() => {});
-      }
-      // 아직 저장 못 하는 칸은 계측만 한다(웹의 theory와 같은 상태).
+      const now = new Date();
+      await saveProfile(
+        // 한 줄 소개는 설정에서만 받는다. 가입 게이트에서는 키를 싣지 않는다.
+        isEdit ? buildProfilePayload(form, now, { bio }) : buildProfilePayload(form, now),
+      );
       logEvent(isEdit ? 'profile_edit' : 'profile_setup', {
-        mediums: mediums.join(',') || 'none',
-        career: career !== null ? String(career) : 'none',
-        goal: goal !== null ? String(goal) : 'none',
+        mediums: form.directions.join(',') || 'none',
+        career: form.experience ?? 'none',
+        goal: form.goal ?? 'none',
       });
       if (!isEdit) logMetaEvent('fb_mobile_complete_registration');
-      if (isEdit) {
-        await saveUserName(name.trim());
-        router.back();
-      } else {
-        // 온보딩: completeProfileSetup이 게이트를 진행시키며 화면을 떠난다(마지막에 호출).
-        await completeProfileSetup(name.trim());
-      }
+      // 가입 게이트에서는 저장이 곧 게이트 통과라 _layout이 화면을 옮긴다. 편집은 직접 돌아간다.
+      if (isEdit) router.back();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : t('profileName.fail'));
+      const failure = profileSaveFailure(cause);
+      if (failure.kind === 'account_closed') {
+        // 가입 게이트의 만 14세 미만. 서버가 계정을 닫았다 — 안내를 남기고 로그인으로 간다.
+        await closeAccountUnder14();
+        return;
+      }
+      if (failure.kind === 'under_14') setBirthError(t('profileName.under14'));
+      else if (failure.kind === 'client_bug') setError(t('profileName.appBug'));
+      else setError(cause instanceof Error ? cause.message : t('profileName.fail'));
     } finally {
       setBusy(false);
     }
   };
 
+  // 사진은 여섯 항목과 따로, 고르는 즉시 올린다. 큰 사진도 앱이 줄여서 올리므로 거절되지 않는다.
+  const changePhoto = async () => {
+    setPhotoBusy(true);
+    setPhotoError(null);
+    try {
+      const next = await pickAndUploadProfilePhoto();
+      if (next) setMe(next);
+    } catch (cause) {
+      setPhotoError(cause instanceof Error ? cause.message : t('profileName.photoFail'));
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
+  const removePhoto = async () => {
+    setPhotoBusy(true);
+    setPhotoError(null);
+    try {
+      setMe(await removeProfilePhoto());
+    } catch (cause) {
+      setPhotoError(cause instanceof Error ? cause.message : t('profileName.photoFail'));
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
+  const edges = isEdit
+    ? keyboardHeight > 0
+      ? []
+      : (['bottom'] as const)
+    : keyboardHeight > 0
+      ? (['top'] as const)
+      : (['top', 'bottom'] as const);
+
+  if (!me) {
+    // 내 계정을 아직 못 읽었다. 읽기 전에 빈 폼을 보여 주면 옛 닉네임을 덮어쓰게 된다.
+    return (
+      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+        <Stack.Screen options={{ headerShown: isEdit, title: t('profileName.editTitle') }} />
+        <View style={styles.center}>
+          {profile.status === 'error' ? (
+            <>
+              <Text style={styles.error}>{t('profileName.loadFail')}</Text>
+              <Pressable style={styles.reload} onPress={() => void reloadProfile()} accessibilityRole="button">
+                <Text style={styles.reloadText}>{t('profileName.reload')}</Text>
+              </Pressable>
+            </>
+          ) : (
+            <ActivityIndicator color={palette.blue} />
+          )}
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <SafeAreaView style={styles.safe} edges={isEdit ? (keyboardHeight > 0 ? [] : ['bottom']) : keyboardHeight > 0 ? ['top'] : ['top', 'bottom']}>
+    <SafeAreaView style={styles.safe} edges={[...edges]}>
       <Stack.Screen options={{ headerShown: isEdit, title: t('profileName.editTitle') }} />
       <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
         <KeyboardAwareScroll
@@ -129,87 +229,148 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
             <Text style={styles.subtitle}>{t('profileName.subtitle')}</Text>
           </View>
 
-          <TextInput
-            style={styles.nameInput}
-            placeholder={t('profileName.placeholder')}
-            placeholderTextColor={palette.textDim}
-            value={name}
-            onChangeText={setName}
-            autoFocus={!isEdit}
-            returnKeyType="next"
-          />
-
-          <Field label={t('profileName.genderLabel')} required={!isEdit} missing={!isEdit && gender === null}>
-            <View style={styles.chips}>
-              {(['female', 'male', 'none'] as Gender[]).map((g) => (
-                <Chip
-                  key={g}
-                  label={t(
-                    g === 'female'
-                      ? 'profileName.genderFemale'
-                      : g === 'male'
-                        ? 'profileName.genderMale'
-                        : 'profileName.genderNone',
+          {isEdit && (
+            <Field label={t('profileName.photoLabel')}>
+              <View style={styles.photoRow}>
+                <View style={styles.avatar}>
+                  {photoBusy ? (
+                    <ActivityIndicator color={palette.blue} />
+                  ) : me.profile?.photo_url ? (
+                    <Image source={{ uri: me.profile.photo_url }} style={styles.avatarImg} />
+                  ) : (
+                    <Text style={styles.avatarText}>{form.name.trim().charAt(0) || '?'}</Text>
                   )}
-                  selected={gender === g}
-                  onPress={() => setGender((prev) => (prev === g ? null : g))}
+                </View>
+                <View style={styles.photoActions}>
+                  <Pressable
+                    style={styles.photoBtn}
+                    onPress={() => void changePhoto()}
+                    disabled={photoBusy}
+                    accessibilityRole="button">
+                    <Text style={styles.photoBtnText}>
+                      {t(me.profile?.photo_url ? 'profileName.photoChange' : 'profileName.photoAdd')}
+                    </Text>
+                  </Pressable>
+                  {!!me.profile?.photo_url && (
+                    <Pressable
+                      style={styles.photoGhost}
+                      onPress={() => void removePhoto()}
+                      disabled={photoBusy}
+                      accessibilityRole="button">
+                      <Text style={styles.photoGhostText}>{t('profileName.photoRemove')}</Text>
+                    </Pressable>
+                  )}
+                </View>
+              </View>
+              {photoError && <Text style={styles.fieldError}>{photoError}</Text>}
+            </Field>
+          )}
+
+          <Field label={t('profileName.nameLabel')} required missing={missing.name}>
+            <TextInput
+              style={styles.nameInput}
+              placeholder={t('profileName.placeholder')}
+              placeholderTextColor={palette.textDim}
+              value={form.name}
+              onChangeText={(name) => update({ name })}
+              autoFocus={!isEdit && form.name.length === 0}
+              returnKeyType="next"
+            />
+            <Text style={nameTooLong ? styles.fieldError : styles.fieldHint}>
+              {nameTooLong ? t('profileName.nameTooLong') : t('profileName.nameHint')}
+            </Text>
+          </Field>
+
+          <Field label={t('profileName.genderLabel')} required missing={missing.gender}>
+            <View style={styles.chips}>
+              {GENDER_VALUES.map((gender) => (
+                <Chip
+                  key={gender}
+                  label={t(GENDER_LABEL_KEYS[gender])}
+                  selected={form.gender === gender}
+                  onPress={() => update({ gender })}
                 />
               ))}
             </View>
           </Field>
 
-          <Field label={t('profileName.ageLabel')} required={!isEdit} missing={!isEdit && !ageOk}>
+          <Field label={t('profileName.birthLabel')} required missing={missing.birthDate}>
             <TextInput
               style={styles.input}
-              placeholder={t('profileName.agePlaceholder')}
+              placeholder={t('profileName.birthPlaceholder')}
               placeholderTextColor={palette.textFaint}
-              value={age}
-              onChangeText={(v) => setAge(v.replace(/[^0-9]/g, '').slice(0, 2))}
+              value={form.birthDate}
+              onChangeText={onBirthDateChange}
               keyboardType="number-pad"
-              maxLength={2}
+              maxLength={10}
             />
+            {birthError && birthDateTyped && <Text style={styles.fieldError}>{birthError}</Text>}
           </Field>
 
-          <Field label={t('profileName.mediumLabel')} required={!isEdit} missing={!isEdit && mediums.length === 0}>
+          <Field label={t('profileName.mediumLabel')} required missing={missing.directions}>
             <View style={styles.chips}>
-              {[
-                { v: 'media', k: 'profileName.mediumMedia' },
-                { v: 'stage', k: 'profileName.mediumStage' },
-              ].map(({ v, k }) => (
-                <Chip key={v} label={t(k)} selected={mediums.includes(v)} onPress={() => toggleMedium(v)} />
-              ))}
-            </View>
-          </Field>
-
-          <Field label={t('profileName.careerLabel')} required={!isEdit} missing={!isEdit && career === null}>
-            <View style={styles.chips}>
-              {careers.map((label, i) => (
+              {DIRECTION_VALUES.map((direction) => (
                 <Chip
-                  key={label}
-                  label={label}
-                  selected={career === i}
-                  onPress={() => setCareer((prev) => (prev === i ? null : i))}
+                  key={direction}
+                  label={t(DIRECTION_LABEL_KEYS[direction])}
+                  selected={form.directions.includes(direction)}
+                  onPress={() => toggleDirection(direction)}
                 />
               ))}
             </View>
           </Field>
 
-          <Field label={t('profileName.goalLabel')} required={!isEdit} missing={!isEdit && goal === null}>
+          <Field label={t('profileName.careerLabel')} required missing={missing.experience}>
             <View style={styles.chips}>
-              {goals.map((label, i) => (
+              {EXPERIENCE_VALUES.map((experience, i) => (
                 <Chip
-                  key={label}
-                  label={label}
-                  selected={goal === i}
-                  onPress={() => setGoal((prev) => (prev === i ? null : i))}
+                  key={experience}
+                  label={careers[i] ?? experience}
+                  selected={form.experience === experience}
+                  onPress={() => update({ experience })}
                 />
               ))}
             </View>
           </Field>
+
+          <Field label={t('profileName.goalLabel')} required missing={missing.goal}>
+            <View style={styles.chips}>
+              {GOAL_VALUES.map((goal, i) => (
+                <Chip
+                  key={goal}
+                  label={goals[i] ?? goal}
+                  selected={form.goal === goal}
+                  onPress={() => update({ goal })}
+                />
+              ))}
+            </View>
+          </Field>
+
+          {isEdit && (
+            <Field label={t('profileName.bioLabel')}>
+              <TextInput
+                style={styles.input}
+                placeholder={t('profileName.bioPlaceholder')}
+                placeholderTextColor={palette.textFaint}
+                value={bio}
+                onChangeText={setBio}
+                multiline
+              />
+              <Text style={bioTooLong ? styles.fieldError : styles.fieldHint}>
+                {bioTooLong
+                  ? t('profileName.bioTooLong')
+                  : t('profileName.bioCount', { count: [...bio.trim()].length, max: BIO_MAX_LENGTH })}
+              </Text>
+            </Field>
+          )}
 
           {error && <Text style={styles.error}>{error}</Text>}
           {!isEdit && !complete && (
-            <Text style={styles.requiredHint}>{t('profileName.missingHint', { fields: missing.join(' · ') })}</Text>
+            <Text style={styles.requiredHint}>
+              {missingLabels.length > 0
+                ? t('profileName.missingHint', { fields: missingLabels.join(' · ') })
+                : t('profileName.requiredHint')}
+            </Text>
           )}
         </KeyboardAwareScroll>
         <Pressable
@@ -227,7 +388,7 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
   );
 }
 
-/** 온보딩 라우트(/profile-name) — 게이트가 신규 유저에게만 띄운다. */
+/** 가입 게이트 라우트(/profile-name) — 게이트가 프로필이 빈 회원에게만 띄운다. */
 export default function ProfileNameScreen() {
   return <ProfileForm edit={false} />;
 }
@@ -282,8 +443,30 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
+  reload: { paddingHorizontal: 16, paddingVertical: 8 },
+  reloadText: { color: palette.blue, fontSize: 14, fontWeight: '700' },
+  photoRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  avatar: {
+    width: 84,
+    height: 84,
+    borderRadius: 18,
+    backgroundColor: palette.blueSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarImg: { width: '100%', height: '100%' },
+  avatarText: { fontSize: 34, fontWeight: '800', color: palette.blue },
+  photoActions: { gap: 6, alignItems: 'flex-start' },
+  photoBtn: { backgroundColor: palette.blueSoft, borderRadius: 9999, paddingHorizontal: 14, paddingVertical: 9 },
+  photoBtnText: { fontSize: 13, fontWeight: '800', color: palette.blueDeep },
+  photoGhost: { paddingHorizontal: 14, paddingVertical: 6 },
+  photoGhostText: { fontSize: 13, fontWeight: '700', color: palette.textDim },
   field: { gap: 10 },
   fieldLabel: { fontSize: 13, fontWeight: '800', color: palette.textMuted },
+  fieldHint: { fontSize: 12.5, color: palette.textFaint },
+  fieldError: { fontSize: 12.5, color: palette.danger },
   input: {
     backgroundColor: palette.bgSoft,
     borderRadius: 12,

@@ -8,6 +8,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Stream;
@@ -90,9 +91,14 @@ class CoachQualityEvalTest {
             }
             if (scenario.path("report").asBoolean()) {
                 phase[0] = "report";
-                output.set("report", new ReportEngine(recording, MAPPER, new RecordingLlmTelemetry()).generateReport(
+                ActorProfile actor = session.actorProfile();
+                UUID reader = UUID.randomUUID();
+                output.set("report", new ReportEngine(recording, MAPPER, new RecordingLlmTelemetry(),
+                        userId -> actor == null ? null : new com.acttub.actingapi.feature.report.app.ReportProfile.ActorProfile(
+                                actor.name(), actor.gender(), actor.age(), actor.directions(), actor.experience(), actor.goal()))
+                        .generateReport(
                         "표현".equals(session.blockageKind()) ? "expression" : "analysis",
-                        session.observationPack(), reply.handoff(), true, "synthetic-handoff", null, null));
+                        session.observationPack(), reply.handoff(), true, "synthetic-handoff", null, null, null, reader));
             }
             output.put("contract_checks", "passed");
             // 해석 정확성·직접 답변·근거성은 저장된 출력과 review 기준을 별도로 대조해야 한다.
@@ -122,10 +128,28 @@ class CoachQualityEvalTest {
         }
         pack.set("observations", scenario.path("observations"));
         pack.set("uncertainties", scenario.path("uncertainties"));
-        return new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+        CoachSessionSnapshot session = new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 pack, scenario.path("situation").asText(), scenario.path("character").asText("동료"),
                 scenario.path("goal").asText(), 12000, scenario.path("branch").asText(),
                 scenario.path("sub_branch").asText("그 외"), scenario.path("detail").asText(), transcripts,
                 scenario.path("summary").asText(), null, "open", "", turns);
+        // 프로필과 기억은 handoff 밖에서 온다 — 실물에서는 턴마다 포트로 읽어 싣는 입력이다.
+        if (scenario.has("memory")) {
+            Map<String, String> memory = new java.util.LinkedHashMap<>();
+            scenario.path("memory").fields().forEachRemaining(entry -> memory.put(entry.getKey(), entry.getValue().asText()));
+            session = session.withPrior(new PriorContext(memory, null, true, List.of(), List.of()));
+        }
+        return session.withActorProfile(profile(scenario));
+    }
+
+    /** 시나리오의 {@code profile} 은 포트가 내주는 모양 그대로다(표시말과 만 나이). 없으면 {@code null}. */
+    private static ActorProfile profile(JsonNode scenario) {
+        JsonNode profile = scenario.path("profile");
+        if (!profile.isObject()) return null;
+        List<String> directions = new ArrayList<>();
+        profile.path("directions").forEach(direction -> directions.add(direction.asText()));
+        return new ActorProfile(profile.path("name").asText(), profile.path("gender").asText(),
+                profile.path("age").asInt(), directions, profile.path("experience").asText(),
+                profile.path("goal").asText());
     }
 }

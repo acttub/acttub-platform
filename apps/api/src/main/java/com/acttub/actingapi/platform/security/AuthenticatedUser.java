@@ -13,9 +13,14 @@ import com.acttub.actingapi.platform.web.ApiException;
  * 남는다. 6단계에서 {@code SyncOperationBegin} 을 {@code ledger} 로 올려 푼 매듭과 같은 형태다.
  *
  * <p>소비자 여덟은 {@link #id()} 만 쓴다. {@code email}·{@code status} 는 로그인 응답을 만드는
- * {@code auth} 자신을 위한 것이다.
+ * {@code auth} 자신을 위한 것이다. {@code guest} 는 게이트가 본다 — 회원과 웹 게스트는 서로 다른
+ * 규칙으로 막힌다(ADR-028). 게스트 여부는 신원으로 판정한다: 신원이 있고 전부 {@code guest} 다.
  */
-public record AuthenticatedUser(UUID id, String email, UserStatus status) {
+public record AuthenticatedUser(UUID id, String email, UserStatus status, boolean guest) {
+
+    public AuthenticatedUser(UUID id, String email, UserStatus status) {
+        this(id, email, status, false);
+    }
 
     /**
      * 쓸 수 없는 계정 상태를 403 으로 막는다 (`auth/dependencies.py`).

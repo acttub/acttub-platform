@@ -19,6 +19,8 @@ import com.acttub.actingapi.feature.analysis.app.AnalysisResult;
 import com.acttub.actingapi.feature.practice.app.PracticeSessionRepository;
 import com.acttub.actingapi.integration.observation.ObservationItem;
 import com.acttub.actingapi.integration.observation.ObservationPack;
+import com.acttub.actingapi.support.AccountFixtures;
+import com.acttub.actingapi.support.DefaultClientHeader;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -56,6 +58,11 @@ class LegacyStorageCompatibilityIT {
                     """);
             jdbc.execute("ALTER TABLE practice_sessions DROP COLUMN subtext");
             jdbc.execute("ALTER TABLE users DROP COLUMN role");
+            // 커뮤니티는 1.0.0 에서 코드를 내리고 테이블만 남겼다. 한 문장이라 서로의 FK 가 막지 않는다.
+            jdbc.execute("""
+                    DROP TABLE community_reports, community_post_likes, community_anonymous_aliases,
+                        community_comments, community_blocks, community_posts, community_categories
+                    """);
         }
 
         try (var context = new SpringApplicationBuilder(ActingApiApplication.class).run(
@@ -70,6 +77,7 @@ class LegacyStorageCompatibilityIT {
                     INSERT INTO user_consents(id,user_id,document_id,action,occurred_at)
                     SELECT gen_random_uuid(), ?, id, 'granted', now() FROM consent_documents
                     """, user);
+            AccountFixtures.completeProfile(jdbc, user);
             String bearer = "Bearer " + context.getBean(JwtService.class).issueAccessToken(user).value();
             assertThat(get(port, "/health", bearer).path("status").asText()).isEqualTo("ok");
             UUID request = UUID.randomUUID();
@@ -156,6 +164,10 @@ class LegacyStorageCompatibilityIT {
                 INSERT INTO practice_reports(practice_session_id,report_type,report_json,source_handoff_id)
                 VALUES (?,'analysis','{"title":"현재 연습 노트"}'::jsonb,?)
                 """, practice, handoff);
+        jdbc.update("""
+                INSERT INTO community_posts(category_id,author_id,title,body)
+                SELECT id,?,'보존할 글','보존할 본문' FROM community_categories ORDER BY sort_order LIMIT 1
+                """, user);
         return practice;
     }
 
@@ -173,16 +185,21 @@ class LegacyStorageCompatibilityIT {
                 "report", jdbc.queryForObject("""
                         SELECT to_jsonb(report)::text FROM reports report JOIN coach_sessions coach
                             ON coach.id=report.session_id WHERE coach.practice_session_id=?
-                        """, String.class, practice));
+                        """, String.class, practice),
+                "community", jdbc.queryForObject(
+                        "SELECT to_jsonb(post)::text FROM community_posts post WHERE author_id=?",
+                        String.class, user));
     }
 
     private JsonNode get(int port, String path, String bearer) throws Exception {
         return send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
+                .header(DefaultClientHeader.NAME, DefaultClientHeader.APP)
                 .header("Authorization", bearer).GET().build(), 200);
     }
 
     private JsonNode create(int port, String bearer, UUID request, String body) throws Exception {
         return send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/v2/practice-sessions"))
+                .header(DefaultClientHeader.NAME, DefaultClientHeader.APP)
                 .header("Authorization", bearer).header("Content-Type", "application/json")
                 .header("X-Request-Id", request.toString())
                 .POST(HttpRequest.BodyPublishers.ofString(body)).build(), 202);

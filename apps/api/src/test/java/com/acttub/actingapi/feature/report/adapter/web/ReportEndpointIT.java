@@ -13,6 +13,7 @@ import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.feature.report.adapter.db.ReportFixtures;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
+import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -191,6 +192,7 @@ class ReportEndpointIT {
                 INSERT INTO users (id,email,status)
                 VALUES (?,?,'active')
                 """, id, id + "@example.test");
+        AccountFixtures.completeProfile(jdbc, id);
     }
 
     private JsonNode analysisReport(String title) throws Exception {
