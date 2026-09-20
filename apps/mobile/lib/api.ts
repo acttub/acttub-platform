@@ -2,8 +2,6 @@ import type { ReportPayload } from '@/lib/moderation';
 import type {
   AdmissionsResponse,
 } from './admissions';
-import { currentLanguage } from './i18n';
-
 import { normalizeAdmissions } from './admissions';
 import type {
   CommentListResponse,
@@ -38,7 +36,7 @@ import {
   sendUploadIntent,
   type UploadIntentInput,
 } from '@/lib/upload-input';
-import { translate } from './i18n.ts';
+import { currentLanguage, translate } from './i18n.ts';
 
 export { ApiError, NetworkError, RequestAbortError } from '@/lib/api-request';
 
