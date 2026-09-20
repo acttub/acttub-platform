@@ -75,6 +75,7 @@ class PostgresConsentRepository implements ConsentRepository, PendingConsentDocu
         return list(entityManager.createNativeQuery("""
                 WITH canonical AS (
                     SELECT DISTINCT ON(consent_documents.type)
+                           consent_documents.id,
                            consent_documents.type, consent_documents.version
                     FROM consent_documents
                     WHERE consent_documents.locale = 'ko'
@@ -83,7 +84,7 @@ class PostgresConsentRepository implements ConsentRepository, PendingConsentDocu
                              consent_documents.id DESC),
                 picked AS (
                     SELECT DISTINCT ON(d.type)
-                           d.id,d.type,d.version,d.title,d.body,d.required,d.published_at
+                           c.id,d.type,d.version,d.title,d.body,d.required,d.published_at
                     FROM consent_documents d
                     JOIN canonical c ON c.type = d.type AND c.version = d.version
                     WHERE d.locale IN (:locale, 'ko')
@@ -149,27 +150,27 @@ class PostgresConsentRepository implements ConsentRepository, PendingConsentDocu
      * <p>철회한 뒤 다시 동의한 경우까지 맞으려면 <b>마지막</b> 행위를 봐야 한다 — 그래서
      * 안쪽 질의가 문서마다 가장 최근 한 줄을 집는다.
      *
-     * <p><b>동의 여부는 말을 건너 성립한다</b> (SOMA-544). 한국어로 동의한 사람이 기기 말을
-     * 영어로 바꾸면 같은 판의 영어 문서는 다른 행이라, 문서 번호로만 보면 다시 동의하라고
-     * 묻게 된다. 그래서 종류와 판이 같은 문서 중 하나라도 마지막 행위가 동의면 끝난 것으로 본다.
+     * <p><b>문서의 신원은 한국어 행이 쥔다</b> (SOMA-544). 번역본은 보이는 글만 바꾸고
+     * 문서 번호는 한국어 행의 것을 그대로 쓴다. 그래서 한국어로 동의한 사람이 기기 말을
+     * 영어로 바꿔도 같은 번호라 다시 묻지 않고, 동의 여부를 세는 자리 셋
+     * ({@code statusFor}·{@code entryFor}·{@code pendingDocuments})이 전부 그대로 맞는다.
      */
     @Override
     public List<PendingConsent> pendingFor(UUID userId) {
         return list(entityManager.createNativeQuery("""
                 WITH canonical AS (
-                    SELECT DISTINCT ON(type) type,version FROM consent_documents
+                    SELECT DISTINCT ON(type) id,type,version FROM consent_documents
                     WHERE locale='ko' ORDER BY type,published_at DESC,id DESC),
                 latest AS (
-                    SELECT DISTINCT ON(d.type) d.*
+                    SELECT DISTINCT ON(d.type)
+                           c.id,d.type,d.version,d.title,d.body,d.required,d.published_at
                     FROM consent_documents d
                     JOIN canonical c ON c.type=d.type AND c.version=d.version
                     WHERE d.locale IN (:locale,'ko')
                     ORDER BY d.type,(d.locale=:locale) DESC,d.id DESC)
                 SELECT d.id,d.type,d.version,d.title,d.body,d.required,d.published_at
                 FROM latest d WHERE d.required AND NOT EXISTS(
-                  SELECT 1 FROM user_consents c
-                  JOIN consent_documents cd ON cd.id=c.document_id
-                  WHERE c.user_id=:userId AND cd.type=d.type AND cd.version=d.version AND c.action='granted'
+                  SELECT 1 FROM user_consents c WHERE c.user_id=:userId AND c.document_id=d.id AND c.action='granted'
                   AND c.id=(SELECT c2.id FROM user_consents c2 WHERE c2.user_id=c.user_id AND c2.document_id=c.document_id ORDER BY c2.occurred_at DESC,c2.id DESC LIMIT 1))
                 ORDER BY d.published_at,d.id
                 """,
