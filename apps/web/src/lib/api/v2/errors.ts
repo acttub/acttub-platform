@@ -82,6 +82,18 @@ export function isRateLimited(error: unknown): error is ApiError {
   );
 }
 
+/**
+ * 리딩 대본 등록·수정의 422 사유(reading.script). 웹은 게스트뿐이라 대본 수 한도는 게스트의 20개다.
+ * 기기가 같은 한도를 먼저 검사하므로(src/lib/reading/draft.ts) 서버의 422 는 두 검사가 어긋났을 때만 온다.
+ */
+export const READING_SCRIPT_MESSAGES: Record<string, string> = {
+  script_too_long: "대본이 너무 길어요. 원문 100,000자·줄 3,000개·배역 50명까지 저장할 수 있어요.",
+  script_limit: "대본은 20개까지 저장할 수 있어요. 안 쓰는 대본을 지우면 다시 저장할 수 있어요.",
+  no_characters: "배역이 하나도 없어요. 배역 이름을 적어 주세요.",
+  invalid_characters: "배역 이름이 비어 있거나 다른 배역과 겹쳐요. 이름을 고쳐 주세요.",
+  request_fingerprint_mismatch: "같은 요청으로 다른 대본이 저장돼 있어요. 대본을 다시 넣어 주세요.",
+};
+
 /** 연결이 끊겨 답을 받지 못했을 때 화면에 보이는 말. 어느 요청이었는지는 배우에게 뜻이 없다. */
 const NETWORK_ERROR_MESSAGE =
   "응답을 받지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요.";
@@ -111,6 +123,9 @@ export function errorMessage(cause: unknown, fallback: string): string {
     // 게스트가 동의 시트를 닫았다. 같은 동작을 다시 하면 시트가 다시 뜬다.
     if (cause.status === 403 && cause.code === "consent_required") {
       return "동의해야 계속할 수 있어요. 다시 시도하면 동의 문서를 볼 수 있어요.";
+    }
+    if (cause.status === 422 && cause.code in READING_SCRIPT_MESSAGES) {
+      return READING_SCRIPT_MESSAGES[cause.code];
     }
     if (cause.status === 429) {
       return cause.code === GUEST_DAILY_ANALYSIS_LIMIT

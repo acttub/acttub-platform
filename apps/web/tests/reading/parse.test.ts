@@ -236,8 +236,9 @@ describe("배역처럼 생겼지만 배역이 아닌 것", () => {
     expect(s.lines.every((l) => !l.text.includes("F01"))).toBe(true);
   });
 
-  it("장·막 표시는 배역이 아니라 지문이다", () => {
-    // 인형의_집.hwp — [장] 제1장 꼴이 31군데 있고 "장"이 배역으로 잡혔다
+  it("장·막 표시는 배역이 아니라 장면이다", () => {
+    // 인형의_집.hwp — [장] 제1장 꼴이 31군데 있고 "장"이 배역으로 잡혔다.
+    // 1.0.0부터 막·장 머리 줄은 지문이 아니라 장면 줄이다(reading.script).
     const s = parseScript(`  [장] 제1장
   [노라] 오래 기다렸어?
   [헬머] 아니, 나도 방금 왔어.
@@ -245,7 +246,8 @@ describe("배역처럼 생겼지만 배역이 아닌 것", () => {
   [노라] 그럼 가자.
   [헬머] 그래.`);
     expect(s.roles).toEqual(["노라", "헬머"]);
-    expect(s.lines.some((l) => l.type === "direction" && l.text === "제1장")).toBe(true);
+    expect(s.lines.some((l) => l.type === "scene" && l.text === "제1장")).toBe(true);
+    expect(s.lines.some((l) => l.type === "direction")).toBe(false);
   });
 
   it("숫자만 있는 이름은 배역이 아니다", () => {

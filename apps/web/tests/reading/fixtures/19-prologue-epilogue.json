@@ -1,0 +1,65 @@
+{
+  "title": null,
+  "roles": [
+    "지수",
+    "민준"
+  ],
+  "lines": [
+    {
+      "type": "scene",
+      "text": "프롤로그"
+    },
+    {
+      "type": "dialogue",
+      "role": "지수",
+      "text": "시작이야."
+    },
+    {
+      "type": "dialogue",
+      "role": "민준",
+      "text": "그래."
+    },
+    {
+      "type": "scene",
+      "text": "S#1. 거실, 낮"
+    },
+    {
+      "type": "dialogue",
+      "role": "지수",
+      "text": "왔어?"
+    },
+    {
+      "type": "dialogue",
+      "role": "민준",
+      "text": "응."
+    },
+    {
+      "type": "scene",
+      "text": "1장 - 옥상"
+    },
+    {
+      "type": "dialogue",
+      "role": "지수",
+      "text": "여기야."
+    },
+    {
+      "type": "dialogue",
+      "role": "민준",
+      "text": "알아."
+    },
+    {
+      "type": "scene",
+      "text": "에필로그"
+    },
+    {
+      "type": "dialogue",
+      "role": "지수",
+      "text": "끝이야."
+    },
+    {
+      "type": "dialogue",
+      "role": "민준",
+      "text": "응."
+    }
+  ]
+}

@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import type { ScriptLine } from "@/lib/reading/script/parse";
 import { RoleName } from "@/features/reading/ui";
 
-/** 대본 전체 목록 — 대본 확인(정적)과 리딩 왼쪽 열(현재 줄 하이라이트) 둘 다 쓴다 */
+/** 대본 전체 목록 — 대본 확인(정적)과 리딩 왼쪽 열(현재 줄 하이라이트) 둘 다 쓴다. 장면 줄은 머리글처럼 보인다. */
 export function ReviewList({
   lines,
   myRole,
@@ -39,7 +39,15 @@ export function ReviewList({
             </span>
             <span
               className={`script-text flex-1 text-[14px] leading-5 ${
-                l.type === "direction" ? "italic text-ink-4" : cur ? "font-extrabold text-ink" : past ? "text-ink-5" : "text-ink"
+                l.type === "direction"
+                  ? "italic text-ink-4"
+                  : l.type === "scene"
+                    ? "font-extrabold text-ink-3 tracking-wide"
+                    : cur
+                      ? "font-extrabold text-ink"
+                      : past
+                        ? "text-ink-5"
+                        : "text-ink"
               }`}
             >
               {l.text}

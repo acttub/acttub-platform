@@ -1,0 +1,40 @@
+{
+  "title": null,
+  "roles": [
+    "헬머",
+    "노라",
+    "박사"
+  ],
+  "lines": [
+    {
+      "type": "dialogue",
+      "role": "헬머",
+      "text": "노라, 이리 와 봐."
+    },
+    {
+      "type": "dialogue",
+      "role": "노라",
+      "text": "왜요?"
+    },
+    {
+      "type": "dialogue",
+      "role": "박사",
+      "text": "실례합니다."
+    },
+    {
+      "type": "dialogue",
+      "role": "헬머",
+      "text": "어서 오세요."
+    },
+    {
+      "type": "dialogue",
+      "role": "노라",
+      "text": "앉으세요, 박사님."
+    },
+    {
+      "type": "dialogue",
+      "role": "박사",
+      "text": "고맙습니다."
+    }
+  ]
+}

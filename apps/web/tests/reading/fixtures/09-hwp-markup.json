@@ -1,0 +1,29 @@
+{
+  "title": null,
+  "roles": [
+    "지수",
+    "민준"
+  ],
+  "lines": [
+    {
+      "type": "dialogue",
+      "role": "지수",
+      "text": "오늘 뭐 해?"
+    },
+    {
+      "type": "dialogue",
+      "role": "민준",
+      "text": "아무것도."
+    },
+    {
+      "type": "dialogue",
+      "role": "지수",
+      "text": "그럼 아무것도 안 할래?"
+    },
+    {
+      "type": "dialogue",
+      "role": "민준",
+      "text": "좋아."
+    }
+  ]
+}

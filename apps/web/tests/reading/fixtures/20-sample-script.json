@@ -1,0 +1,92 @@
+{
+  "title": "옥상, 밤",
+  "roles": [
+    "윤서",
+    "태오"
+  ],
+  "lines": [
+    {
+      "type": "direction",
+      "text": "옥상 난간. 도시 불빛. 바람 소리."
+    },
+    {
+      "type": "dialogue",
+      "role": "윤서",
+      "text": "여기 있을 줄 알았어."
+    },
+    {
+      "type": "dialogue",
+      "role": "태오",
+      "text": "어떻게 알았어."
+    },
+    {
+      "type": "dialogue",
+      "role": "윤서",
+      "text": "너 힘들면 항상 높은 데로 가잖아."
+    },
+    {
+      "type": "dialogue",
+      "role": "태오",
+      "text": "(웃으며) 그런가."
+    },
+    {
+      "type": "dialogue",
+      "role": "윤서",
+      "text": "왜 말 안 했어. 오디션 떨어진 거."
+    },
+    {
+      "type": "dialogue",
+      "role": "태오",
+      "text": "말하면 뭐가 달라져."
+    },
+    {
+      "type": "dialogue",
+      "role": "윤서",
+      "text": "달라지지. 나는 알잖아, 네가 그거 얼마나 준비했는지."
+    },
+    {
+      "type": "dialogue",
+      "role": "태오",
+      "text": "그래서 더 말하기 싫었어. 네가 그걸 아니까."
+    },
+    {
+      "type": "direction",
+      "text": "사이. 태오가 난간에 기댄다."
+    },
+    {
+      "type": "dialogue",
+      "role": "윤서",
+      "text": "다음 거 언제야."
+    },
+    {
+      "type": "dialogue",
+      "role": "태오",
+      "text": "모레."
+    },
+    {
+      "type": "dialogue",
+      "role": "윤서",
+      "text": "그럼 오늘은 내려가자. 대본은 내가 상대역 해줄게."
+    },
+    {
+      "type": "dialogue",
+      "role": "태오",
+      "text": "너 연기 못하잖아."
+    },
+    {
+      "type": "dialogue",
+      "role": "윤서",
+      "text": "알아. 그래도 혼자 하는 것보단 낫지."
+    },
+    {
+      "type": "dialogue",
+      "role": "태오",
+      "text": "(한참 보다가) 고마워."
+    },
+    {
+      "type": "dialogue",
+      "role": "윤서",
+      "text": "가자. 춥다."
+    }
+  ]
+}

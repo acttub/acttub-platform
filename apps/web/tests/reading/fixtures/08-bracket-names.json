@@ -1,0 +1,37 @@
+{
+  "title": null,
+  "roles": [
+    "노라",
+    "헬머"
+  ],
+  "lines": [
+    {
+      "type": "scene",
+      "text": "제1장"
+    },
+    {
+      "type": "dialogue",
+      "role": "노라",
+      "text": "오래 기다렸어?"
+    },
+    {
+      "type": "dialogue",
+      "role": "헬머",
+      "text": "아니, 나도 방금 왔어."
+    },
+    {
+      "type": "scene",
+      "text": "제2장"
+    },
+    {
+      "type": "dialogue",
+      "role": "노라",
+      "text": "그럼 가자."
+    },
+    {
+      "type": "dialogue",
+      "role": "헬머",
+      "text": "그래."
+    }
+  ]
+}

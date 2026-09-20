@@ -4,7 +4,7 @@
  * idle ─begin→ ai | me ─advance→ … ─advance→ done
  *              ai | me ─pause→ paused ─resume→ (원래 상태)
  *
- * 지문(direction)은 화면에만 보이고 진행에서는 건너뛴다.
+ * 지문(direction)과 장면(scene)은 화면에만 보이고 진행에서는 건너뛴다.
  */
 import type { DialogueLine, ScriptLine } from "@/lib/reading/script/parse";
 
@@ -101,7 +101,8 @@ export function window(state: RehearsalState): RehearsalWindow {
   const leadingDirections: string[] = [];
   for (let i = state.index - 1; i >= state.start; i--) {
     const l = state.lines[i];
-    if (l.type !== "direction") break;
+    // 장면 줄(막·장 머리)도 대사가 아니므로 지문처럼 현재 줄 위에 보여 준다.
+    if (l.type === "dialogue") break;
     leadingDirections.unshift(l.text);
   }
   return { past, current, next, leadingDirections };

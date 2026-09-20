@@ -1,0 +1,100 @@
+{
+  "title": null,
+  "roles": [
+    "지수",
+    "민준",
+    "행인"
+  ],
+  "lines": [
+    {
+      "type": "dialogue",
+      "role": "지수",
+      "text": "하나."
+    },
+    {
+      "type": "dialogue",
+      "role": "민준",
+      "text": "둘."
+    },
+    {
+      "type": "dialogue",
+      "role": "행인",
+      "text": "지나갑니다 하나."
+    },
+    {
+      "type": "dialogue",
+      "role": "지수",
+      "text": "셋."
+    },
+    {
+      "type": "dialogue",
+      "role": "민준",
+      "text": "넷."
+    },
+    {
+      "type": "dialogue",
+      "role": "행인",
+      "text": "지나갑니다 둘."
+    },
+    {
+      "type": "dialogue",
+      "role": "지수",
+      "text": "다섯."
+    },
+    {
+      "type": "dialogue",
+      "role": "민준",
+      "text": "여섯."
+    },
+    {
+      "type": "dialogue",
+      "role": "행인",
+      "text": "지나갑니다 셋."
+    },
+    {
+      "type": "dialogue",
+      "role": "지수",
+      "text": "일곱."
+    },
+    {
+      "type": "dialogue",
+      "role": "민준",
+      "text": "여덟."
+    },
+    {
+      "type": "dialogue",
+      "role": "행인",
+      "text": "지나갑니다 넷."
+    },
+    {
+      "type": "dialogue",
+      "role": "지수",
+      "text": "아홉."
+    },
+    {
+      "type": "dialogue",
+      "role": "민준",
+      "text": "열."
+    },
+    {
+      "type": "dialogue",
+      "role": "행인",
+      "text": "지나갑니다 다섯."
+    },
+    {
+      "type": "dialogue",
+      "role": "행인",
+      "text": "지나갑니다 여섯."
+    },
+    {
+      "type": "dialogue",
+      "role": "행인",
+      "text": "지나갑니다 일곱."
+    },
+    {
+      "type": "dialogue",
+      "role": "행인",
+      "text": "지나갑니다 여덟."
+    }
+  ]
+}

@@ -14,10 +14,13 @@ export const STEP_PATH: Record<Step, string> = {
 };
 
 export interface StepState {
+  /** 대본 넣기에서 확인 화면으로 넘긴 초안이 있는가(폰) */
+  hasDraft: boolean;
+  /** 서버에 저장된 대본을 들고 있는가 */
   hasScript: boolean;
   hasSetup: boolean;
   hasStats: boolean;
-  /** 데스크톱은 대본 확인을 배역 정하기 화면 안에 같이 보여 주므로 /reading/script 가 없다 */
+  /** 데스크톱은 대본 확인을 대본 넣기 화면 안에 같이 보여 주므로 /reading/script 가 없다 */
   desktop: boolean;
 }
 
@@ -30,8 +33,8 @@ export function redirectFor(step: Step, s: StepState): string | null {
     case "input":
       return null;
     case "script":
-      if (!s.hasScript) return STEP_PATH.input;
-      if (s.desktop) return STEP_PATH.setup;
+      // 확인 화면은 저장 전 초안을 본다. 데스크톱은 그 초안을 대본 넣기 화면 안에서 본다.
+      if (s.desktop || !s.hasDraft) return STEP_PATH.input;
       return null;
     case "setup":
       return s.hasScript ? null : STEP_PATH.input;
@@ -45,9 +48,4 @@ export function redirectFor(step: Step, s: StepState): string | null {
       if (!s.hasStats) return STEP_PATH.run;
       return null;
   }
-}
-
-/** 대본을 넣은 다음에 갈 곳 — 폰은 확인 화면, 데스크톱은 바로 배역 정하기 */
-export function afterInput(desktop: boolean): string {
-  return desktop ? STEP_PATH.setup : STEP_PATH.script;
 }
