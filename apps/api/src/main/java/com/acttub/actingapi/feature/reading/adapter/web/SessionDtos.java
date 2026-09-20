@@ -166,6 +166,29 @@ final class SessionDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) Instant playbackExpiresAt) {
     }
 
+    /**
+     * 녹음 올리기의 multipart 본문(OpenAPI 서술용 — 바인딩은 {@code RecordingController} 가 칸마다 직접 한다). {@code audio} 는
+     * 파일이고 나머지는 글자 칸이다. {@code transcript}·{@code matched} 는 {@code transcript_source=stt} 일 때만 싣는다.
+     */
+    @Schema(name = "ReadingRecordingUploadForm")
+    record UploadForm(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "기기가 만든 UUID. 같은 값은 같은 결과")
+            @JsonProperty("request_id") UUID requestId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "구간 안 내 대사 줄")
+            @JsonProperty("line_id") UUID lineId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "줄마다 1부터 1씩")
+            @JsonProperty("attempt_no") Integer attemptNo,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, type = "string", format = "binary",
+                    description = "음성 파일. m4a(AAC)가 아니면 서버가 변환한다")
+            String audio,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "길이(밀리초, 0 이상)")
+            @JsonProperty("duration_ms") Integer durationMs,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"stt", "none"})
+            @JsonProperty("transcript_source") String transcriptSource,
+            @Schema(nullable = true, description = "기기 STT 의 전사") String transcript,
+            @Schema(nullable = true, description = "대조 결과. 인식 불가·무발화면 싣지 않는다") Boolean matched) {
+    }
+
     /** 그 대본의 회차, 최근순. */
     @Schema(name = "ReadingSessionList", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     record ListResponse(@Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<CardResponse> sessions) {

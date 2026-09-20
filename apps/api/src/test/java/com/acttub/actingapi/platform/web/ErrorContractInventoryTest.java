@@ -278,6 +278,19 @@ class ErrorContractInventoryTest {
                     "feature.reading.ReadingSessionIT"),
             covered("feature.reading.app.SessionService|422|request_fingerprint_mismatch", 1,
                     "feature.reading.ReadingSessionIT"),
+            // 리딩 녹음(reading.recording). 변환 실패는 5xx 팩토리(unexpected)로 만든다.
+            covered("feature.reading.app.RecordingService|404|recording_not_found", 1,
+                    "feature.reading.ReadingRecordingIT"),
+            covered("feature.reading.app.RecordingService|404|session_not_found", 1,
+                    "feature.reading.ReadingRecordingIT"),
+            covered("feature.reading.app.RecordingService|422|invalid_line", 1,
+                    "feature.reading.ReadingRecordingIT"),
+            covered("feature.reading.app.RecordingService|422|recording_quota", 1,
+                    "feature.reading.ReadingRecordingIT"),
+            covered("feature.reading.app.RecordingService|422|recording_too_long", 1,
+                    "feature.reading.ReadingRecordingIT"),
+            covered("feature.reading.app.RecordingService|503|audio_conversion_failed", 1,
+                    "feature.reading.ReadingRecordingIT"),
             covered("feature.push.adapter.web.PushController|429|rate limit exceeded", 1,
                     "feature.push.AccountNotificationIT"),
             covered("feature.transfer.adapter.web.GuestTransferController|404|transfer_code_not_found", 1,
@@ -312,6 +325,8 @@ class ErrorContractInventoryTest {
             // 404·405 는 Spring 표준 예외를 FastAPI 표기로 옮긴 것이다.
             covered(ADVICE + "|404|Not Found", 1, "platform.web.AuthErrorContractIT"),
             covered(ADVICE + "|405|Method Not Allowed", 1, "platform.web.AuthErrorContractIT"),
+            // multipart 가 컨테이너 상한을 넘었다 — 핸들러 전이라 안전망 코드다(리딩 녹음, 실제 서버로 본다).
+            covered(ADVICE + "|413|upload_too_large", 1, "feature.reading.ReadingRecordingUploadServerIT"),
             covered(ADVICE + "|500|internal_server_error", 1,
                     "platform.web.ApiErrorAdviceTest"),
             covered(ADVICE + "|503|storage_not_configured", 1,

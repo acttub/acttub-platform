@@ -287,6 +287,8 @@ class UploadEndpointIT {
     }
 
     static final class FakeStorage implements ObjectStorage {
+        @Override public void upload(String objectKey, String mimeType, java.nio.file.Path source) { }
+
         private String lastObjectKey;
         private StoredObjectMetadata metadata;
 

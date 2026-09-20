@@ -27,11 +27,14 @@ public class SessionService {
 
     private final SessionRepository sessions;
     private final ReadingRecordingCleanup cleanup;
+    private final RecordingPlayback playback;
     private final Clock clock;
 
-    public SessionService(SessionRepository sessions, ReadingRecordingCleanup cleanup, Clock clock) {
+    public SessionService(
+            SessionRepository sessions, ReadingRecordingCleanup cleanup, RecordingPlayback playback, Clock clock) {
         this.sessions = sessions;
         this.cleanup = cleanup;
+        this.playback = playback;
         this.clock = clock;
     }
 
@@ -54,12 +57,16 @@ public class SessionService {
         return new Started(find(userId, start.sessionId()), start.outcome() == SessionRepository.StartOutcome.CREATED);
     }
 
+    /** 녹음에는 조회할 때마다 10분 서명 재생 주소를 붙인다(reading.recording). */
     public SessionDetailView find(UUID userId, UUID sessionId) {
         SessionDetailView session = sessions.find(userId, sessionId);
         if (session == null) {
             throw notFound();
         }
-        return session;
+        return new SessionDetailView(
+                session.card(), session.scriptId(), session.mode(), session.advance(), session.record(),
+                session.startLineId(), session.endLineId(), session.currentLineId(), session.progressSeq(),
+                session.lineResults(), playback.decorate(session.recordings()));
     }
 
     public List<SessionCardView> list(UUID userId, UUID scriptId) {

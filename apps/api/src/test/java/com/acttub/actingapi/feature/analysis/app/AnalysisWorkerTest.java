@@ -341,6 +341,8 @@ class AnalysisWorkerTest {
     }
 
     private static final class FakeStorage implements ObjectStorage {
+        @Override public void upload(String objectKey, String mimeType, java.nio.file.Path source) { }
+
         private RuntimeException deleteFailure;
         @Override public String presignUpload(String key, String mime, long size, int ttl) { return ""; }
         @Override public String presignPlayback(String key, int ttl) { return ""; }

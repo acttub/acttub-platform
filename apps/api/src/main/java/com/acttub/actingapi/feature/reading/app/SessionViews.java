@@ -57,7 +57,10 @@ public final class SessionViews {
             List<RecordingView> recordings) {
     }
 
-    /** 회차 상세의 녹음 하나. 재생 주소는 아직 없다({@code null}) — 녹음 기능이 서명 주소를 채운다. */
+    /**
+     * 회차 상세의 녹음 하나. 저장소가 돌려준 그대로는 재생 주소가 없고({@code null}), {@link RecordingPlayback} 이 조회할
+     * 때마다 10분 서명 주소를 붙인다. {@code objectKey} 는 응답에 싣지 않는다.
+     */
     public record RecordingView(
             UUID id,
             UUID lineId,
@@ -68,8 +71,14 @@ public final class SessionViews {
             String transcript,
             String transcriptSource,
             Boolean matched,
+            String objectKey,
             String playbackUrl,
             Instant playbackExpiresAt) {
+
+        public RecordingView withPlayback(String url, Instant expiresAt) {
+            return new RecordingView(id, lineId, attemptNo, durationMs, contentType, byteSize, transcript,
+                    transcriptSource, matched, objectKey, url, expiresAt);
+        }
     }
 
     /** 진행 저장의 답 — 반영했든 무시했든 <b>현재 값</b>이다. */

@@ -10,6 +10,7 @@ import java.time.Duration;
 
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
@@ -124,6 +125,16 @@ public final class AwsS3Storage implements ObjectStorage, AutoCloseable {
         } catch (IOException exception) {
             throw new UncheckedIOException(exception);
         }
+    }
+
+    @Override
+    public void upload(String objectKey, String mimeType, Path source) {
+        resolveCredentials();
+        client.putObject(PutObjectRequest.builder()
+                .bucket(bucket)
+                .key(objectKey)
+                .contentType(mimeType)
+                .build(), RequestBody.fromFile(source));
     }
 
     @Override

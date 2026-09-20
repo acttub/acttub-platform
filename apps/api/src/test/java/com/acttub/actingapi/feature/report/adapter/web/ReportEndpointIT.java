@@ -252,6 +252,8 @@ class ReportEndpointIT {
         @Primary
         ObjectStorage reportStorage() {
             return new ObjectStorage() {
+                @Override public void upload(String objectKey, String mimeType, java.nio.file.Path source) { }
+
                 @Override
                 public String presignUpload(
                         String objectKey, String mimeType, long sizeBytes, int expiresInSeconds) {

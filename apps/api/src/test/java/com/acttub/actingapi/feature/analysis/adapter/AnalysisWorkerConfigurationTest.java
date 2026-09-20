@@ -69,6 +69,8 @@ class AnalysisWorkerConfigurationTest {
     }
 
     private static final class EmptyStorage implements ObjectStorage {
+        @Override public void upload(String objectKey, String mimeType, java.nio.file.Path source) { }
+
         @Override public String presignUpload(String key, String mime, long size, int ttl) {
             return "";
         }

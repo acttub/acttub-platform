@@ -670,6 +670,15 @@ class AccountWithdrawIT {
 
     /** 메모리의 오브젝트 스토리지. 무엇이 남아 있는지만 안다. {@link #failing} 에 든 키는 지워지지 않는다. */
     static final class FakeStorage implements ObjectStorage {
+        @Override
+        public void upload(String objectKey, String mimeType, java.nio.file.Path source) {
+            try {
+                objects.put(objectKey, java.nio.file.Files.size(source));
+            } catch (java.io.IOException failure) {
+                throw new java.io.UncheckedIOException(failure);
+            }
+        }
+
         final Map<String, Long> objects = new ConcurrentHashMap<>();
         final Set<String> failing = ConcurrentHashMap.newKeySet();
 

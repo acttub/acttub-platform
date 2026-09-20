@@ -476,6 +476,78 @@
         } ]
       }
     },
+    "/v2/reading/sessions/{session_id}/recordings" : {
+      "post" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "Upload Line Recording",
+        "description" : "내 대사 한 줄의 녹음을 multipart 한 요청으로 올린다: request_id·line_id·attempt_no·audio(파일)·\nduration_ms·transcript_source(stt·none)·transcript?·matched?. 서버가 m4a(AAC)가 아니면 변환해 저장한다.\n같은 request_id 는 같은 행(200), 같은 줄의 더 큰 attempt_no 는 대체(201), 더 작은 번호는 200 현재 값.\n10,000,000바이트·180초 초과 422 recording_too_long, 총량(회원 1GB·게스트 100MB) 초과 422 recording_quota,\n구간 밖·상대역·지문 줄 422 invalid_line, 지워진 회차 404, 변환 실패 503 audio_conversion_failed.\ncompleted·stopped 회차에도 받는다.",
+        "operationId" : "upload_reading_recording_v2_reading_sessions__session_id__recordings_post",
+        "parameters" : [ {
+          "name" : "session_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Session Id"
+          }
+        }, {
+          "name" : "X-Request-Id",
+          "in" : "header",
+          "description" : "본문의 request_id 와 같은 값. 실으면 같아야 하고 다르면 422 다",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "title" : "X-Request-Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "multipart/form-data" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReadingRecordingUploadForm"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReadingSessionRecording"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "같은 요청의 재전송이거나 더 작은 시도 번호 — 현재 값",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReadingSessionRecording"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/reading/scripts" : {
       "get" : {
         "tags" : [ "v2-reading" ],
@@ -2424,6 +2496,32 @@
         }
       }
     },
+    "/v2/reading/recordings/{recording_id}" : {
+      "delete" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "Delete Recording",
+        "description" : "그 녹음의 행과 객체를 지운다. 회차 진행·암기 상태는 그대로다. 없는 것과 남의 것은 같은 404 다.",
+        "operationId" : "delete_reading_recording_v2_reading_recordings__recording_id__delete",
+        "parameters" : [ {
+          "name" : "recording_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Recording Id"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Successful Response"
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/portfolio/photos/{photo_id}" : {
       "delete" : {
         "tags" : [ "v2-portfolio" ],
@@ -3494,6 +3592,139 @@
         "required" : [ "reason", "report_type" ],
         "title" : "BlockedReport"
       },
+      "ReadingRecordingUploadForm" : {
+        "type" : "object",
+        "properties" : {
+          "request_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "description" : "기기가 만든 UUID. 같은 값은 같은 결과",
+            "title" : "Request Id"
+          },
+          "line_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "description" : "구간 안 내 대사 줄",
+            "title" : "Line Id"
+          },
+          "attempt_no" : {
+            "type" : "integer",
+            "description" : "줄마다 1부터 1씩",
+            "title" : "Attempt No"
+          },
+          "audio" : {
+            "type" : "string",
+            "format" : "binary",
+            "description" : "음성 파일. m4a(AAC)가 아니면 서버가 변환한다",
+            "title" : "Audio"
+          },
+          "duration_ms" : {
+            "type" : "integer",
+            "description" : "길이(밀리초, 0 이상)",
+            "title" : "Duration Ms"
+          },
+          "transcript_source" : {
+            "type" : "string",
+            "enum" : [ "stt", "none" ],
+            "title" : "Transcript Source"
+          },
+          "transcript" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "기기 STT 의 전사"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Transcript"
+          },
+          "matched" : {
+            "anyOf" : [ {
+              "type" : "boolean",
+              "description" : "대조 결과. 인식 불가·무발화면 싣지 않는다"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Matched"
+          }
+        },
+        "required" : [ "attempt_no", "audio", "duration_ms", "line_id", "request_id", "transcript_source" ],
+        "title" : "ReadingRecordingUploadForm"
+      },
+      "ReadingSessionRecording" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "line_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Line Id"
+          },
+          "attempt_no" : {
+            "type" : "integer",
+            "title" : "Attempt No"
+          },
+          "duration_ms" : {
+            "type" : "integer",
+            "title" : "Duration Ms"
+          },
+          "content_type" : {
+            "type" : "string",
+            "title" : "Content Type"
+          },
+          "byte_size" : {
+            "type" : "integer",
+            "title" : "Byte Size"
+          },
+          "transcript" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Transcript"
+          },
+          "transcript_source" : {
+            "$ref" : "#/components/schemas/TranscriptSource"
+          },
+          "matched" : {
+            "anyOf" : [ {
+              "type" : "boolean"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Matched"
+          },
+          "playback_url" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Playback Url"
+          },
+          "playback_expires_at" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "date-time"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Playback Expires At"
+          }
+        },
+        "required" : [ "attempt_no", "byte_size", "content_type", "duration_ms", "id", "line_id", "matched", "playback_expires_at", "playback_url", "transcript", "transcript_source" ],
+        "title" : "ReadingSessionRecording"
+      },
+      "TranscriptSource" : {
+        "type" : "string",
+        "enum" : [ "stt", "none" ],
+        "title" : "TranscriptSource"
+      },
       "ReadingScriptCharacterInput" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -3994,81 +4225,6 @@
         },
         "required" : [ "end_dialogue_no", "start_dialogue_no" ],
         "title" : "ReadingSessionRange"
-      },
-      "ReadingSessionRecording" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "id" : {
-            "type" : "string",
-            "format" : "uuid",
-            "title" : "Id"
-          },
-          "line_id" : {
-            "type" : "string",
-            "format" : "uuid",
-            "title" : "Line Id"
-          },
-          "attempt_no" : {
-            "type" : "integer",
-            "title" : "Attempt No"
-          },
-          "duration_ms" : {
-            "type" : "integer",
-            "title" : "Duration Ms"
-          },
-          "content_type" : {
-            "type" : "string",
-            "title" : "Content Type"
-          },
-          "byte_size" : {
-            "type" : "integer",
-            "title" : "Byte Size"
-          },
-          "transcript" : {
-            "anyOf" : [ {
-              "type" : "string"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Transcript"
-          },
-          "transcript_source" : {
-            "$ref" : "#/components/schemas/TranscriptSource"
-          },
-          "matched" : {
-            "anyOf" : [ {
-              "type" : "boolean"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Matched"
-          },
-          "playback_url" : {
-            "anyOf" : [ {
-              "type" : "string"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Playback Url"
-          },
-          "playback_expires_at" : {
-            "anyOf" : [ {
-              "type" : "string",
-              "format" : "date-time"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Playback Expires At"
-          }
-        },
-        "required" : [ "attempt_no", "byte_size", "content_type", "duration_ms", "id", "line_id", "matched", "playback_expires_at", "playback_url", "transcript", "transcript_source" ],
-        "title" : "ReadingSessionRecording"
-      },
-      "TranscriptSource" : {
-        "type" : "string",
-        "enum" : [ "stt", "none" ],
-        "title" : "TranscriptSource"
       },
       "RegisterPushTokenRequest" : {
         "type" : "object",

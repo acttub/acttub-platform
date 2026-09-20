@@ -35,6 +35,12 @@ spring:
       fail-on-unknown-properties: true
     serialization:
       write-dates-as-timestamps: false
+  servlet:
+    multipart:
+      # 리딩 녹음 올리기(reading.recording)만 multipart 다. 파일 한도 10,000,000바이트는 핸들러가 422
+      # recording_too_long 으로 보고, 그보다 훨씬 큰 것은 여기서 잘라 413 upload_too_large 다.
+      max-file-size: 25MB
+      max-request-size: 26MB
   web:
     resources:
       add-mappings: false

@@ -408,8 +408,9 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 `under_14_account_closed`, `authorization_code_required`, `consent_decisions_incomplete`,
 `required_consent_cannot_be_declined`, `age_confirmation_required`, `order_mismatch`,
 `portfolio_credit_limit_exceeded`, `portfolio_photo_limit_exceeded`, 그리고 리딩의 `no_characters`,
-`invalid_characters`, `script_too_long`, `script_limit`, `request_fingerprint_mismatch`, `invalid_line`, `empty_range`
-(§6-14; 회차의 409 는 `session_closed`). (네이버 로그인에 `authorization_code`·`code_verifier` 가 빠진 것은
+`invalid_characters`, `script_too_long`, `script_limit`, `request_fingerprint_mismatch`, `invalid_line`, `empty_range`,
+`recording_too_long`, `recording_quota`(§6-14; 회차의 409 는 `session_closed`, 녹음 변환 실패는 503
+`audio_conversion_failed`). (네이버 로그인에 `authorization_code`·`code_verifier` 가 빠진 것은
 본문의 모양이 틀린 것이라 **배열**이다 — 애플의 `authorization_code_required` 와 다르다.) 클라이언트는 `detail` 이 문자열이면 사유로 가르고 배열이면
 자기 버그로 다룬다. 선례는 `request_fingerprint_mismatch` 다.
 
@@ -793,7 +794,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   않는다 — Cloudflare 를 거친 요청에서는 `X-Forwarded-For` 의 맨 오른쪽과 같은 값이고, 출처를 둘로 두면 다른
   길에서 믿을 헤더만 늘어난다.
 
-### 6-14. 대본 리딩 — 대본·회차 (SOMA-546 RA1·RA2 초안)
+### 6-14. 대본 리딩 — 대본·회차·녹음 (SOMA-546 RA1~RA3 초안)
 
 정본은 [03-reading.md](../../docs/requirements/03-reading.md) reading.script 와 「리딩 자료의 이관·삭제·탈퇴」 표다.
 회차·녹음·암기 상태(RA2~RA4)와 탈퇴·30일 파기(RA5)는 뒤에 이 절에 이어 쓴다. 서버는 대본·음성을 분석하지 않는다
@@ -879,9 +880,38 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   (`reading_recording_delete`)에 올린 뒤 **204**. 암기 상태는 줄에 매달려 있어 남는다.
 - **대본 카드**(§6-14 대본 절)의 `status`·`my_character_names`·`last_practiced_at` 과 상세의 `open_session_id`·
   `last_session` 이 이 회차들로 집계된다. 마지막 회차는 `started_at DESC, id DESC` 의 첫 행이다(같은 시각이면 id 순).
-- 아직 없는 것(뒤 티켓): 녹음 올리기·재생 주소(RA3), 암기 API(RA4), 탈퇴·30일 파기의 리딩 행 삭제와 보관 동의자의
-  녹음 보관, 정리 장부의 "객체 삭제는 성공까지 키 유지·7일 연속 실패 알림"(RA5 — 지금은 `object_delete` 와 같이 7일
-  뒤 지운다).
+
+**줄 단위 녹음 (SOMA-546 RA3)** — 정본은 reading.recording. 서버가 음성을 건드리는 유일한 일은 형식 변환이다(ADR-031).
+
+- **올리기** `POST /v2/reading/sessions/{id}/recordings` — **유일한 multipart 요청**이다: `request_id`·`line_id`·`attempt_no`
+  (1부터)·`audio`(파일)·`duration_ms`·`transcript_source`(`stt`·`none`)·`transcript?`·`matched?`(`true`·`false`).
+  `X-Request-Id` 헤더는 대본 등록과 같은 규칙이다. 칸의 모양(필수·UUID·정수·값 목록, none 인데 전사·대조가 실림)은
+  핸들러가 직접 422 **배열**로 만든다 — JSON 본문의 검증기가 닿지 않는 자리다(`RecordingController`).
+  `RequestBodyCachingFilter` 는 multipart 를 캐시하지 않는다(컨테이너의 파트 파싱이 원 스트림을 읽는다 —
+  `ReadingRecordingUploadServerIT` 가 실제 서버로 본다). 컨테이너 상한은 `spring.servlet.multipart.*`(25MB)이고 넘으면
+  핸들러 전이라 **413 `upload_too_large`**(advice) 다.
+  - **순서**: 크기·길이 한도(10,000,000바이트·180,000ms 초과 → 422 `recording_too_long`) → 잠그지 않는 사전 확인(회차
+    404 `session_not_found`, 구간 안 내 대사 줄이 아니면 422 `invalid_line`, 같은 `request_id` 는 200 현재 값, 같은 줄에
+    더 큰(같은) `attempt_no` 가 있으면 200 현재 값) → `audio/mp4`·`audio/m4a`·`audio/x-m4a`·`audio/aac` 가 아니면 ffmpeg
+    로 m4a(AAC) 변환(`integration/media/AudioTranscoder`, 실패 → **503 `audio_conversion_failed`**, 행·객체 없음) →
+    객체 올림(`reading/{user_id}/{session_id}/{line_id}/{request_id}.m4a`, 스토리지가 없으면 503
+    `storage_not_configured`) → **회차 행을 `FOR UPDATE` 로 잡은 최종 저장**(같은 확인을 다시 하고 총량을 본다).
+    바깥 호출(변환·올림)은 트랜잭션 밖이다(§5-4).
+  - **총량**은 저장된(변환 뒤) `byte_size` 합으로 회원 1,000,000,000·게스트 100,000,000 바이트다. 대체는 앞 녹음의 바이트를
+    빼고 센다. 넘으면 422 `recording_quota` 이고 기존은 그대로다(이관으로 넘어도 보존). 최종 저장이 거절(404·422)하거나
+    재전송·작은 시도 번호로 끝나면 방금 올린 객체의 키를 **같은 트랜잭션에서** 장부(`reading_recording_delete`)에 올린다.
+  - **대체**: 같은 (회차, 줄)에 더 큰 `attempt_no` 가 오면 **행은 하나**(id 그대로)이고 앞 객체는 장부로 지운다. 만들거나
+    대체하면 **201**, 재전송·작은 번호는 **200**. 응답은 `ReadingSessionRecording`(재생 주소 포함).
+  - 올리기는 회차의 진행 상태와 분리된다 — completed·stopped 에도 받는다(`session_closed` 는 진행 저장에만). 회차·대본이
+    지워졌으면 404 이고 녹음은 되살아나지 않는다. 이관이 먼저 끝났으면 회차가 남의 것이라 404 이고 올린 객체는 장부가 지운다.
+  - `transcript_source=none` 이면 `transcript`·`matched` 는 NULL 이다. `matched` 는 기기 결과 그대로(인식 불가·무발화 NULL).
+- **재생**: 회차 상세와 올리기 응답의 `playback_url` 은 10분 서명 주소이고 `playback_expires_at` 이 만료 시각이다
+  (`reading/app/RecordingPlayback`, 조회할 때마다 새로 만든다). 스토리지가 없으면 둘 다 `null`.
+- **삭제** `DELETE /v2/reading/recordings/{id}`: 행을 지우고 객체 삭제를 장부에 올린 뒤 **204**. 회차 진행·암기 상태는 그대로다.
+  없는 것과 남의 것은 404 `recording_not_found`.
+- 저장소 포트 `ObjectStorage` 에 `upload(objectKey, mimeType, Path)` 가 생겼다(서버가 직접 올리는 유일한 객체).
+- 아직 없는 것(뒤 티켓): 암기 API(RA4), 탈퇴·30일 파기의 리딩 행 삭제와 보관 동의자의 녹음 보관(회차·줄 FK NULL),
+  정리 장부의 "객체 삭제는 성공까지 키 유지·7일 연속 실패 알림"(RA5 — 지금은 `object_delete` 와 같이 7일 뒤 지운다).
 
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 

@@ -377,12 +377,12 @@ class PostgresSessionRepository implements SessionRepository {
                 row.get("ended_at", Instant.class));
     }
 
-    /** 줄 순서의 녹음. 재생 주소는 녹음 기능이 채운다 — 여기서는 비어 있다. */
+    /** 줄 순서의 녹음. 재생 주소는 서비스가 조회할 때마다 붙인다 — 여기서는 비어 있다. */
     private List<RecordingView> recordings(UUID sessionId) {
         List<RecordingView> recordings = new ArrayList<>();
         for (Tuple row : NativeTuples.list(entityManager.createNativeQuery("""
                 SELECT r.id,r.line_id,r.attempt_no,r.duration_ms,r.content_type,r.byte_size,r.transcript,r.transcript_source,
-                       r.matched
+                       r.matched,r.object_key
                 FROM reading_recordings r
                 JOIN script_lines l ON l.id=r.line_id
                 WHERE r.reading_session_id=:sessionId
@@ -399,6 +399,7 @@ class PostgresSessionRepository implements SessionRepository {
                     row.get("transcript", String.class),
                     TranscriptSource.valueOf(row.get("transcript_source", String.class).toUpperCase(Locale.ROOT)).dbValue(),
                     row.get("matched", Boolean.class),
+                    row.get("object_key", String.class),
                     null,
                     null));
         }
