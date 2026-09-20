@@ -879,7 +879,9 @@ Docker API 버전 협상이 실패하면 소켓 접근이 가능해도 `/info`�
 
 ### 8-5. 영상만 올리는 새 코칭 계약 (SOMA-526)
 
-첫 질문 개정(SOMA-531): 기본 코치와 새 구조화 코치는 공통 `coach/coach-opening-policy.txt`를 사용한다.
+아래 첫 질문·단일 프롬프트 설명은 legacy 및 `acttub.coaching.routed-enabled=false` 롤백 경로에 해당한다.
+현재 기본 2층은 [Luna 분류와 코드 기반 선택](../../docs/design/LAYER2-LUNA-ROUTES.md)을 따른다.
+첫 질문 개정(SOMA-531): 기존 기본 코치와 구조화 코치는 공통 `coach/coach-opening-policy.txt`를 사용한다.
 전체 흐름에서 중요한 지점을 고르고 답에 따라 살펴볼 기준이 달라지는 쉬운 질문 하나로 시작한다.
 기본 코치에 있던 질문 없는 관찰·해석 시작은 폐기한다. 근거가 있는 첫 응답은 질문 누락·중복과
 대표적인 모호한 해석 문구를 재생성 사유로 삼고, 새 경로는 근거 참조·focus 저장·즉시 종료도 검증한다.
@@ -895,3 +897,14 @@ Docker API 버전 협상이 실패하면 소켓 접근이 가능해도 `/info`�
 `X-Acttub-Contract: three_layers_v1`과 서버 생성 플래그로 선택한 신규 연습은 [3층 계약](../../docs/ACTTUB-THREE-LAYERS.md)을 따른다. 기존 입력 갈래의 응답과 legacy 저장 행은 유지한다. 새 공개 타입은 `VideoRecordSummaryResponse`, `PublicPracticeNote`, handoff branch `coaching`이다. 이 타입을 지원하지 않는 클라이언트에는 목록 필터와 직접 접근 409를 적용한다.
 
 새 계약은 배우가 하지 않은 첫 발화를 만들지 않고, state/revision을 누적한다. 보고서 작성 여부나 턴 수를 배우의 실행·확인 증거로 쓰지 않는다. 새 노트는 handoff_confirmation 없이 생성된다. 모델 출력·참조 검증과 레코드 조회, 조립, 상태 전이의 단위 테스트에 더해 `CoachSessionRepositoryIT`에서 새 필드의 원자적 저장과 충돌을 확인한다.
+
+### 8-6. 코드에서 선택하는 네 가지 코칭 프롬프트
+
+`three_layers_v1`의 기본 경로는 Luna 분류 → Java의 프롬프트 선택 → 문장 생성 → 문장 다듬기다.
+생성 모델에는 선택된 분류의 지침 하나만 전달한다. 이전 `dialogue_progress` 키워드 분기와 고정 답변은 적용하지 않는다.
+첫 응답에서 질문을 강제하지 않고 현재 자료로 제공할 수 있는 도움을 우선한다.
+생성 모델은 message·context_update·evidence_refs만 출력하며, 서버가 기존 저장 계약의 revision·reply_link·flow를 조립한다.
+영상 텍스트 기록 전체·현재 세션 원문 대화·현재 발화를 전달하고, 질문/종료/실행을 사용자 발화와 혼동하지 않는다.
+문장 편집 단계는 message만 받고 맥락이나 분류를 수정할 수 없다. 실패하면 원문 초안을 유지한다.
+별도 LLM 가드레일 검토는 없다. JSON 형식·근거 참조·원문 인용·길이·revision 검사는 저장 무결성 검사로 유지한다.
+공개 API, DB 스키마, 3층 handoff v2는 유지한다. 종료 요청과 턴 한도는 코드가 관리하고 종료 때는 분류를 생략한다.
