@@ -176,9 +176,13 @@ export default function LandingClient() {
           </nav>
         </header>
 
+        {/* 첫 화면에는 snap-start 를 두지 않는다. 헤더(h-16 + border) 아래로 -mb-16 만큼 겹치면서
+            히어로의 스냅 지점이 y=1px 에 놓이고, 스냅 컨테이너가 로드 직후 1px 을 스스로
+            스크롤한다. Chrome 은 그 스크롤에서 LCP 측정을 멈춰 운영 모바일 LCP 가 9초대로
+            찍혔다(2026-09-18, JS 를 꺼도 재현). 스크롤 위치 0 이 곧 첫 화면이라 스냅이 필요 없다. */}
         <section
           id="hero"
-          className="relative flex min-h-dvh snap-start scroll-mt-0 flex-col justify-center overflow-hidden break-keep bg-[linear-gradient(180deg,#eaf6ff_0%,#f8fbff_58%,#ffffff_100%)] px-5 pt-16"
+          className="relative flex min-h-dvh flex-col justify-center overflow-hidden break-keep bg-[linear-gradient(180deg,#eaf6ff_0%,#f8fbff_58%,#ffffff_100%)] px-5 pt-16"
         >
           <div className="absolute left-1/2 top-12 h-80 w-80 -translate-x-1/2 rounded-full bg-[#3182f6]/[0.16] blur-3xl" />
           <div className="absolute -left-24 top-1/2 h-64 w-64 rounded-full bg-white/70 blur-3xl" />
