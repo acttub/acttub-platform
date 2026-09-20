@@ -17,6 +17,7 @@ import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { beginAnalysisNavigation } from '@/lib/analysis-entry';
 import type { VideoFile } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useRequireLogin } from '@/hooks/use-require-login';
 import { BLOCKAGE_CHOICES, blockageFromHelp, type BlockageKind } from '@/lib/blockage';
 import { THEORY_IDS, toggleTheoryChoice, type TheoryChoiceId } from '@/lib/theory';
 import { setPendingUpload, takePrefill } from '@/lib/practice';
@@ -37,6 +38,14 @@ import { translate as t } from '@/lib/i18n';
 export default function UploadScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { isGuest, requireLogin, element: loginGuard } = useRequireLogin();
+  // 게스트가 딥링크 등으로 들어오면 로그인 안내만 하고 되돌린다.
+  useEffect(() => {
+    if (!isGuest) return;
+    requireLogin(() => {});
+    router.back();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isGuest]);
   const keyboardHeight = useKeyboardHeight();
   // SafeAreaView가 이미 하단 인셋을 비워두므로 그만큼 빼고 올린다([[use-keyboard-height]]).
   const keyboardVisible = keyboardHeight > 0;
@@ -340,6 +349,7 @@ export default function UploadScreen() {
           </Text>
         </View>
       </View>
+      {loginGuard}
     </SafeAreaView>
   );
 }

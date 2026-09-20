@@ -8,6 +8,12 @@ delete process.env.NEXT_PUBLIC_SITE_URL;
 
 const { default: robots } = await import("../src/app/robots.ts");
 const { default: sitemap } = await import("../src/app/sitemap.ts");
+const { AI_ACTING_COACHING } = await import(
+  "../src/features/keyword-pages/content/ai-acting-coaching.ts"
+);
+const { ACTING_COACHING } = await import(
+  "../src/features/keyword-pages/content/acting-coaching.ts"
+);
 const { GUIDES } = await import(
   "../src/features/keyword-pages/content/guide/index.ts"
 );
@@ -33,13 +39,14 @@ test("sitemap은 공개 페이지, 입시 목록·대학 상세, 가이드를 �
   assert.deepEqual(entries.slice(0, 4), [
     { url: "https://acttub.com/" },
     { url: "https://acttub.com/app" },
+    // 본문을 손보면 updatedAt이 바뀌므로 날짜를 박지 않고 본문에서 읽는다.
     {
       url: "https://acttub.com/ai-acting-coaching",
-      lastModified: "2026-09-17",
+      lastModified: AI_ACTING_COACHING.updatedAt,
     },
     {
       url: "https://acttub.com/acting-coaching",
-      lastModified: "2026-09-17",
+      lastModified: ACTING_COACHING.updatedAt,
     },
   ]);
   assert.ok(entries.some(({ url }) => url === "https://acttub.com/admissions"));

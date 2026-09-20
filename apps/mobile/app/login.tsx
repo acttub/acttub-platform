@@ -36,7 +36,7 @@ const GOOGLE_TEXT = '#1F1F1F';
  * Google 로그인만 제공. 로그인 성공 시 _layout 게이트가 자동으로 홈으로 보낸다.
  */
 export default function LoginScreen() {
-  const { signInWithGoogle, signInWithApple } = useAuth();
+  const { signInWithGoogle, signInWithApple, continueAsGuest } = useAuth();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [appleAvailable, setAppleAvailable] = useState(false);
@@ -113,6 +113,14 @@ export default function LoginScreen() {
         )}
 
         {error && <Text style={styles.error}>{error}</Text>}
+        {/* 로그인 없이 둘러보기 — 계정 없이 홈·대본·챌린지 예시를 본다. AI 코칭은 로그인 때 안내. */}
+        <Pressable
+          style={({ pressed }) => [styles.guestButton, pressed && styles.pressed]}
+          onPress={() => run(continueAsGuest)}
+          disabled={busy}
+          accessibilityRole="button">
+          <Text style={styles.guestText}>{t('login.guest')}</Text>
+        </Pressable>
         <Text style={styles.legal}>{t('login.legal')}</Text>
       </View>
     </SafeAreaView>
@@ -151,5 +159,7 @@ const styles = StyleSheet.create({
   appleGlyph: { fontFamily: 'System', fontSize: 21, color: '#FFFFFF' },
   appleText: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
   error: { color: palette.danger, fontSize: 13, textAlign: 'center' },
+  guestButton: { alignSelf: 'center', paddingVertical: 10, paddingHorizontal: 16 },
+  guestText: { fontSize: 14, fontWeight: '700', color: palette.textDim, textDecorationLine: 'underline' },
   legal: { color: palette.textFaint, fontSize: 12, textAlign: 'center', lineHeight: 18 },
 });

@@ -178,7 +178,9 @@ function RootNavigator() {
         ? `signedIn:${user.id}`
         : status === 'signedOut'
           ? 'signedOut'
-          : null;
+          : status === 'guest'
+            ? 'guest'
+            : null;
     if (
       completedBootstrapRef.current &&
       completedBootstrapRef.current.sessionKey !== sessionKey
@@ -308,6 +310,7 @@ function RootNavigator() {
       consentEntry.status === 'blocked';
     const readyToShow =
       status === 'signedOut' ||
+      status === 'guest' ||
       (status === 'signedIn' &&
         Boolean(user) &&
         (consentScreenReady ||
@@ -352,7 +355,7 @@ function RootNavigator() {
       <Stack.Screen name="community-new" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="challenge-detail" options={{ title: t('challenges.detailTitle') }} />
       <Stack.Screen name="challenge-play" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
-      <Stack.Screen name="record-choice" options={{ headerShown: false }} />
+      <Stack.Screen name="guide" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
       <Stack.Screen name="challenge-upload" options={{ title: t('challengeUpload.title') }} />
       <Stack.Screen name="saved-videos" options={{ headerShown: false }} />
       <Stack.Screen name="line-search" options={{ headerShown: false }} />

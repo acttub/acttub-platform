@@ -37,6 +37,7 @@ const COPY = {
     helper: "기기에 맞는 스토어로 바로 이동해요",
     web: "앱 없이 웹으로 계속하기 →",
     desktop: "무료로 사용해보기",
+    coaching: "연기 코칭, 어디서 어떻게 받을까요?",
   },
   phone: {
     scene: "이별 통보 직후, 카페에서",
@@ -239,6 +240,17 @@ export default function LandingClient() {
                 </Link>
                 <AppDownloadButton surface="landing_hero" />
               </div>
+              {/* 검색 유입용 안내 페이지로 가는 내부 링크. "연기 코칭" 검색어를 맡는 페이지는
+                  /acting-coaching 이라 첫 화면에서 한 번은 가리켜야 검색엔진이 그 페이지에
+                  무게를 준다(SOMA-536). 전환 버튼보다 눈에 덜 띄게 둔다. */}
+              <p className="mt-4 text-center text-[13px] font-semibold text-[#8b95a1] lg:text-left">
+                <Link
+                  href="/acting-coaching"
+                  className="underline underline-offset-4 transition hover:text-[#4e5968]"
+                >
+                  {COPY.hero.coaching} →
+                </Link>
+              </p>
             </div>
             <PhoneMockup />
           </div>
