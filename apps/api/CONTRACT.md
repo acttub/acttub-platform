@@ -408,7 +408,8 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 `under_14_account_closed`, `authorization_code_required`, `consent_decisions_incomplete`,
 `required_consent_cannot_be_declined`, `age_confirmation_required`, `order_mismatch`,
 `portfolio_credit_limit_exceeded`, `portfolio_photo_limit_exceeded`, 그리고 리딩의 `no_characters`,
-`invalid_characters`, `script_too_long`, `script_limit`, `request_fingerprint_mismatch`(§6-14). (네이버 로그인에 `authorization_code`·`code_verifier` 가 빠진 것은
+`invalid_characters`, `script_too_long`, `script_limit`, `request_fingerprint_mismatch`, `invalid_line`, `empty_range`
+(§6-14; 회차의 409 는 `session_closed`). (네이버 로그인에 `authorization_code`·`code_verifier` 가 빠진 것은
 본문의 모양이 틀린 것이라 **배열**이다 — 애플의 `authorization_code_required` 와 다르다.) 클라이언트는 `detail` 이 문자열이면 사유로 가르고 배열이면
 자기 버그로 다룬다. 선례는 `request_fingerprint_mismatch` 다.
 
@@ -792,7 +793,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   않는다 — Cloudflare 를 거친 요청에서는 `X-Forwarded-For` 의 맨 오른쪽과 같은 값이고, 출처를 둘로 두면 다른
   길에서 믿을 헤더만 늘어난다.
 
-### 6-14. 대본 리딩 — 대본 (SOMA-546 RA1 초안)
+### 6-14. 대본 리딩 — 대본·회차 (SOMA-546 RA1·RA2 초안)
 
 정본은 [03-reading.md](../../docs/requirements/03-reading.md) reading.script 와 「리딩 자료의 이관·삭제·탈퇴」 표다.
 회차·녹음·암기 상태(RA2~RA4)와 탈퇴·30일 파기(RA5)는 뒤에 이 절에 이어 쓴다. 서버는 대본·음성을 분석하지 않는다
@@ -842,8 +843,45 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   ReadingRecordingCleanup`, 구현은 `profile` 의 `PostgresObjectCleanupLedger`). 저장소가 실패해도 204 이고 장부가
   다시 시도한다. DB 가 도중에 실패하면 아무것도 지워지지 않는다.
 - **이관**: §6-9. 대본·회차·녹음·암기 상태의 `user_id` 가 바뀌고 `request_id` 충돌은 게스트 쪽을 비운다.
-- 아직 없는 것(뒤 티켓): 회차·녹음·암기 API, 탈퇴·30일 파기의 리딩 행 삭제와 보관 동의자의 녹음 보관, 정리 장부의
-  "객체 삭제는 성공까지 키 유지·7일 연속 실패 알림"(RA5 — 지금은 `object_delete` 와 같이 7일 뒤 지운다).
+
+**리딩 회차 (SOMA-546 RA2)** — 정본은 reading.cast·reading.session.
+
+- **시작** `POST /v2/reading/scripts/{id}/sessions`: 본문은 `request_id`·`my_character_ids[]`·`mode`(`read`·`quiz`)·
+  `start_line_id`·`end_line_id`·`advance`(`silence`·`manual`)·`record`. `X-Request-Id` 헤더는 대본 등록과 같은 규칙이다.
+  만들면 **201**, 같은 `request_id` 의 재전송이면 **200** 으로 먼저 만든 회차다(`reading_sessions` 에는 지문 컬럼이 없어
+  저장된 속성 여섯과 대본이 모두 같아야 재전송이고, 하나라도 다르면 422 `request_fingerprint_mismatch`). 응답은
+  `ReadingSession`(카드 필드 + `script_id`·속성·`current_line_id`·`progress_seq`·`line_results`·`recordings`).
+  - **한 트랜잭션에서 대본 행을 `FOR UPDATE` 로 잡고**(같은 대본의 시작이 여기서 줄을 선다) 열린 회차를 `stopped` 로
+    바꾼 뒤 새 회차를 만든다 — 열린 회차는 대본당 하나다(`uq_reading_sessions_open_script` 가 그물). 도중에 실패하면
+    닫으려던 회차도 그대로다. `current_line_id` 는 구간의 첫 대사 줄(= `start_line_id`), `started_at` 은 앱 시계다.
+  - **규칙은 사유 코드 하나**: 내 배역이 없거나 겹치거나 그 대본의 배역이 아니면 `invalid_characters`, 구간의 줄이 그
+    대본의 대사 줄이 아니면(지문·장면·남의 줄·없는 줄) `invalid_line`, 시작 줄이 끝 줄 뒤이거나 구간 안에 내 대사가
+    없으면 `empty_range`, 없는 대본·남의 대본 404 `script_not_found`. 모든 배역을 내 배역으로 골라도 된다.
+- **목록** `GET /v2/reading/scripts/{id}/sessions`: `{ sessions: ReadingSessionCard[] }`, 최근순(`started_at DESC`). 카드는
+  `ordinal`(그 대본에서 시작한 순, 집계)·`status`·`my_character_ids`·`my_character_names`·`range{start_dialogue_no,
+  end_dialogue_no}`·`my_dialogue_count`(구간 안 내 대사 수)·`recorded_line_count`(녹음된 줄 수)·`elapsed_seconds`·
+  `started_at`·`ended_at`. "이어서 연습 · K / N" 의 N 은 `end_dialogue_no − start_dialogue_no + 1`, K 는 현재 줄의 대사
+  번호에서 센다. 없는 대본·남의 대본은 404 `script_not_found`.
+- **상세** `GET /v2/reading/sessions/{id}`: `ReadingSession`. `recordings` 는 줄 순서의 녹음 행이고 `playback_url`·
+  `playback_expires_at` 은 녹음 기능(RA3)이 채우기 전까지 `null` 이다. 없는 것과 남의 것은 404 `session_not_found`
+  (진행 저장·삭제도 같다). 대본이 지워지면 회차도 없다.
+- **진행 저장** `PATCH /v2/reading/sessions/{id}/progress`: `progress_seq`(필수, 0 이상)·`current_line_id?`·
+  `elapsed_seconds?`(0 이상)·`line_results?[{line_id, outcome passed·unmatched·skipped, misses}]`·`complete?`. 응답은
+  `ReadingSessionProgress{current_line_id, elapsed_seconds, progress_seq, status}` 로 **언제나 현재 값**이다.
+  - 판정 순서: 404 → completed·stopped 면 **409 `session_closed`** → `progress_seq` 가 저장된 값보다 크지 않으면 아무것도
+    바꾸지 않고 200(늦게 온 옛 요청이 최신을 덮지 못한다) → 위치·줄 결과의 줄이 구간 안 대사 줄이 아니면 422
+    `invalid_line`(아무것도 바꾸지 않는다) → 반영.
+  - 반영: 보낸 항목만 바꾼다. 시간은 `GREATEST(저장값, 보낸 값)` 로 줄지 않고, 줄 결과는 **줄마다 하나, 마지막 사건이
+    이긴다**(보낸 줄만 갈아 끼우고 보내지 않은 줄은 남는다). `complete=true` 면 `completed`·`ended_at`(앱 시계)·
+    `current_line_id=null`. 회차 행을 `FOR UPDATE` 로 잡은 채 한다 — 이관·삭제가 먼저 끝났으면 남의 것이라 404 이고
+    옛 계정에 아무것도 남지 않는다(계정 상태를 따로 보지 않는다 — 행의 주인이 그 답이다).
+- **삭제** `DELETE /v2/reading/sessions/{id}`: 회차와 그 녹음 행을 지우고 객체 삭제를 같은 트랜잭션에서 장부
+  (`reading_recording_delete`)에 올린 뒤 **204**. 암기 상태는 줄에 매달려 있어 남는다.
+- **대본 카드**(§6-14 대본 절)의 `status`·`my_character_names`·`last_practiced_at` 과 상세의 `open_session_id`·
+  `last_session` 이 이 회차들로 집계된다. 마지막 회차는 `started_at DESC, id DESC` 의 첫 행이다(같은 시각이면 id 순).
+- 아직 없는 것(뒤 티켓): 녹음 올리기·재생 주소(RA3), 암기 API(RA4), 탈퇴·30일 파기의 리딩 행 삭제와 보관 동의자의
+  녹음 보관, 정리 장부의 "객체 삭제는 성공까지 키 유지·7일 연속 실패 알림"(RA5 — 지금은 `object_delete` 와 같이 7일
+  뒤 지운다).
 
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 

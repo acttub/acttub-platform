@@ -86,35 +86,13 @@ class ScriptController {
     @PostMapping
     ResponseEntity<ScriptResponse> create(
             @Parameter(description = "본문의 request_id 와 같은 값. 실으면 같아야 하고 다르면 422 다")
-            @RequestHeader(name = "X-Request-Id", required = false) String requestIdHeader,
+            @RequestHeader(name = RequestIdHeader.NAME, required = false) String requestIdHeader,
             @Valid @RequestBody CreateRequest body,
             HttpServletRequest request) {
         AuthenticatedUser user = auth.gatedUser(request);
-        requireMatchingHeader(requestIdHeader, body.requestId());
+        RequestIdHeader.requireMatching(requestIdHeader, body.requestId());
         ScriptService.Created created = scripts.create(user.id(), user.guest(), body.requestId(), draft(body));
         return ResponseEntity.status(created.created() ? 201 : 200).body(script(created.script()));
-    }
-
-    /**
-     * 웹은 요청 id 를 본문과 {@code X-Request-Id} 헤더에 같은 값으로 싣는다. 헤더는 없어도 되지만 있으면 본문과
-     * 같아야 한다 — 다르면 어느 쪽이 재전송의 열쇠인지 알 수 없어 본문의 모양이 틀린 것으로 본다(422 배열).
-     */
-    private static void requireMatchingHeader(String header, UUID requestId) {
-        if (header == null || header.isBlank()) {
-            return;
-        }
-        UUID fromHeader;
-        try {
-            fromHeader = UUID.fromString(header.strip());
-        } catch (IllegalArgumentException malformed) {
-            fromHeader = null;
-        }
-        if (!requestId.equals(fromHeader)) {
-            throw ApiValidationException.valueError(
-                    List.of("header", "X-Request-Id"),
-                    "Value error, X-Request-Id must equal body.request_id",
-                    header);
-        }
     }
 
     @Operation(

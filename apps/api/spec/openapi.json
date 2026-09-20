@@ -570,6 +570,109 @@
         } ]
       }
     },
+    "/v2/reading/scripts/{script_id}/sessions" : {
+      "get" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "List Reading Sessions",
+        "description" : "그 대본의 회차를 최근순으로. 없는 대본과 남의 대본은 같은 404 script_not_found 다.",
+        "operationId" : "list_reading_sessions_v2_reading_scripts__script_id__sessions_get",
+        "parameters" : [ {
+          "name" : "script_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Script Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReadingSessionList"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      },
+      "post" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "Start Reading Session",
+        "description" : "내 배역·방식·구간·넘김·녹음을 정해 회차를 시작한다. 열린 회차가 있으면 같은 트랜잭션에서 stopped 로\n바꾸고 새 회차를 만든다. 같은 request_id 가 다시 오면 먼저 만든 회차를 200 으로 돌려주고, 속성이 다르면\n422 request_fingerprint_mismatch. 내 배역이 없거나 그 대본의 배역이 아니면 422 invalid_characters,\n구간의 줄이 그 대본의 대사 줄이 아니면 422 invalid_line, 시작 줄이 끝 줄 뒤이거나 구간 안에 내 대사가\n없으면 422 empty_range. current_line_id 는 구간의 첫 대사 줄이다.",
+        "operationId" : "start_reading_session_v2_reading_scripts__script_id__sessions_post",
+        "parameters" : [ {
+          "name" : "script_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Script Id"
+          }
+        }, {
+          "name" : "X-Request-Id",
+          "in" : "header",
+          "description" : "본문의 request_id 와 같은 값. 실으면 같아야 하고 다르면 422 다",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "title" : "X-Request-Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReadingSessionCreateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReadingSession"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "같은 요청의 재전송 — 먼저 만든 회차",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReadingSession"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/push-tokens" : {
       "post" : {
         "tags" : [ "v2-push" ],
@@ -1493,6 +1596,59 @@
         }
       }
     },
+    "/v2/reading/sessions/{session_id}/progress" : {
+      "patch" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "Save Reading Progress",
+        "description" : "진행 위치·흐른 시간·줄 결과를 저장한다. progress_seq 가 저장된 값보다 클 때만 반영하고, 작거나 같으면\n무시하고 200 으로 현재 값을 돌려준다. 위치와 줄 결과는 구간 안 대사 줄만 받는다(아니면 422 invalid_line).\n시간은 줄지 않는다. complete=true 면 completed 가 되고 ended_at 이 찍히며 current_line_id 는 null 이다.\ncompleted·stopped 회차에는 409 session_closed.",
+        "operationId" : "save_reading_progress_v2_reading_sessions__session_id__progress_patch",
+        "parameters" : [ {
+          "name" : "session_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Session Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReadingSessionProgressRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReadingSessionProgress"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/reading/scripts/{script_id}" : {
       "get" : {
         "tags" : [ "v2-reading" ],
@@ -1777,6 +1933,63 @@
                 }
               }
             }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/reading/sessions/{session_id}" : {
+      "get" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "Get Reading Session",
+        "description" : "없는 것과 남의 것은 같은 404 session_not_found 다.",
+        "operationId" : "get_reading_session_v2_reading_sessions__session_id__get",
+        "parameters" : [ {
+          "name" : "session_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Session Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReadingSession"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      },
+      "delete" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "Delete Reading Session",
+        "description" : "회차와 그 녹음(파일 포함)을 지운다. 암기 상태는 남는다. 없는 것과 남의 것은 같은 404 다.",
+        "operationId" : "delete_reading_session_v2_reading_sessions__session_id__delete",
+        "parameters" : [ {
+          "name" : "session_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Session Id"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Successful Response"
           }
         },
         "security" : [ {
@@ -3567,6 +3780,296 @@
         "enum" : [ "file", "paste", "typed", "sample" ],
         "title" : "ScriptSource"
       },
+      "ReadingAdvanceInput" : {
+        "type" : "string",
+        "enum" : [ "silence", "manual" ],
+        "title" : "ReadingAdvanceInput"
+      },
+      "ReadingModeInput" : {
+        "type" : "string",
+        "enum" : [ "read", "quiz" ],
+        "title" : "ReadingModeInput"
+      },
+      "ReadingSessionCreateRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "request_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Request Id"
+          },
+          "my_character_ids" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            },
+            "title" : "My Character Ids"
+          },
+          "mode" : {
+            "$ref" : "#/components/schemas/ReadingModeInput"
+          },
+          "start_line_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Start Line Id"
+          },
+          "end_line_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "End Line Id"
+          },
+          "advance" : {
+            "$ref" : "#/components/schemas/ReadingAdvanceInput"
+          },
+          "record" : {
+            "type" : "boolean",
+            "title" : "Record"
+          }
+        },
+        "required" : [ "advance", "end_line_id", "mode", "my_character_ids", "record", "request_id", "start_line_id" ],
+        "title" : "ReadingSessionCreateRequest"
+      },
+      "ReadingAdvance" : {
+        "type" : "string",
+        "enum" : [ "silence", "manual" ],
+        "title" : "ReadingAdvance"
+      },
+      "ReadingLineResult" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "line_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Line Id"
+          },
+          "outcome" : {
+            "type" : "string",
+            "enum" : [ "passed", "unmatched", "skipped" ],
+            "title" : "Outcome"
+          },
+          "misses" : {
+            "type" : "integer",
+            "title" : "Misses"
+          }
+        },
+        "required" : [ "line_id", "misses", "outcome" ],
+        "title" : "ReadingLineResult"
+      },
+      "ReadingMode" : {
+        "type" : "string",
+        "enum" : [ "read", "quiz" ],
+        "title" : "ReadingMode"
+      },
+      "ReadingSession" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "ordinal" : {
+            "type" : "integer",
+            "title" : "Ordinal"
+          },
+          "status" : {
+            "$ref" : "#/components/schemas/ReadingSessionStatus"
+          },
+          "my_character_ids" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            },
+            "title" : "My Character Ids"
+          },
+          "my_character_names" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            },
+            "title" : "My Character Names"
+          },
+          "range" : {
+            "$ref" : "#/components/schemas/ReadingSessionRange"
+          },
+          "my_dialogue_count" : {
+            "type" : "integer",
+            "title" : "My Dialogue Count"
+          },
+          "recorded_line_count" : {
+            "type" : "integer",
+            "title" : "Recorded Line Count"
+          },
+          "elapsed_seconds" : {
+            "type" : "integer",
+            "title" : "Elapsed Seconds"
+          },
+          "started_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Started At"
+          },
+          "ended_at" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "date-time"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Ended At"
+          },
+          "script_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Script Id"
+          },
+          "mode" : {
+            "$ref" : "#/components/schemas/ReadingMode"
+          },
+          "advance" : {
+            "$ref" : "#/components/schemas/ReadingAdvance"
+          },
+          "record" : {
+            "type" : "boolean",
+            "title" : "Record"
+          },
+          "start_line_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Start Line Id"
+          },
+          "end_line_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "End Line Id"
+          },
+          "current_line_id" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "uuid"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Current Line Id"
+          },
+          "progress_seq" : {
+            "type" : "integer",
+            "title" : "Progress Seq"
+          },
+          "line_results" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ReadingLineResult"
+            },
+            "title" : "Line Results"
+          },
+          "recordings" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ReadingSessionRecording"
+            },
+            "title" : "Recordings"
+          }
+        },
+        "required" : [ "advance", "current_line_id", "elapsed_seconds", "end_line_id", "ended_at", "id", "line_results", "mode", "my_character_ids", "my_character_names", "my_dialogue_count", "ordinal", "progress_seq", "range", "record", "recorded_line_count", "recordings", "script_id", "start_line_id", "started_at", "status" ],
+        "title" : "ReadingSession"
+      },
+      "ReadingSessionRange" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "start_dialogue_no" : {
+            "type" : "integer",
+            "title" : "Start Dialogue No"
+          },
+          "end_dialogue_no" : {
+            "type" : "integer",
+            "title" : "End Dialogue No"
+          }
+        },
+        "required" : [ "end_dialogue_no", "start_dialogue_no" ],
+        "title" : "ReadingSessionRange"
+      },
+      "ReadingSessionRecording" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "line_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Line Id"
+          },
+          "attempt_no" : {
+            "type" : "integer",
+            "title" : "Attempt No"
+          },
+          "duration_ms" : {
+            "type" : "integer",
+            "title" : "Duration Ms"
+          },
+          "content_type" : {
+            "type" : "string",
+            "title" : "Content Type"
+          },
+          "byte_size" : {
+            "type" : "integer",
+            "title" : "Byte Size"
+          },
+          "transcript" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Transcript"
+          },
+          "transcript_source" : {
+            "$ref" : "#/components/schemas/TranscriptSource"
+          },
+          "matched" : {
+            "anyOf" : [ {
+              "type" : "boolean"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Matched"
+          },
+          "playback_url" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Playback Url"
+          },
+          "playback_expires_at" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "date-time"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Playback Expires At"
+          }
+        },
+        "required" : [ "attempt_no", "byte_size", "content_type", "duration_ms", "id", "line_id", "matched", "playback_expires_at", "playback_url", "transcript", "transcript_source" ],
+        "title" : "ReadingSessionRecording"
+      },
+      "TranscriptSource" : {
+        "type" : "string",
+        "enum" : [ "stt", "none" ],
+        "title" : "TranscriptSource"
+      },
       "RegisterPushTokenRequest" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -4441,6 +4944,107 @@
         "required" : [ "access_token", "account_type", "expires_in", "refresh_token", "token_type", "user" ],
         "title" : "GuestResponse"
       },
+      "ReadingLineOutcomeInput" : {
+        "type" : "string",
+        "enum" : [ "passed", "unmatched", "skipped" ],
+        "title" : "ReadingLineOutcomeInput"
+      },
+      "ReadingLineResultInput" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "line_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Line Id"
+          },
+          "outcome" : {
+            "$ref" : "#/components/schemas/ReadingLineOutcomeInput"
+          },
+          "misses" : {
+            "type" : "integer",
+            "title" : "Misses"
+          }
+        },
+        "required" : [ "line_id", "misses", "outcome" ],
+        "title" : "ReadingLineResultInput"
+      },
+      "ReadingSessionProgressRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "progress_seq" : {
+            "type" : "integer",
+            "title" : "Progress Seq"
+          },
+          "current_line_id" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "uuid"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Current Line Id"
+          },
+          "elapsed_seconds" : {
+            "anyOf" : [ {
+              "type" : "integer"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Elapsed Seconds"
+          },
+          "line_results" : {
+            "anyOf" : [ {
+              "type" : "array",
+              "items" : {
+                "$ref" : "#/components/schemas/ReadingLineResultInput"
+              }
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Line Results"
+          },
+          "complete" : {
+            "anyOf" : [ {
+              "type" : "boolean"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Complete"
+          }
+        },
+        "required" : [ "progress_seq" ],
+        "title" : "ReadingSessionProgressRequest"
+      },
+      "ReadingSessionProgress" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "current_line_id" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "uuid"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Current Line Id"
+          },
+          "elapsed_seconds" : {
+            "type" : "integer",
+            "title" : "Elapsed Seconds"
+          },
+          "progress_seq" : {
+            "type" : "integer",
+            "title" : "Progress Seq"
+          },
+          "status" : {
+            "$ref" : "#/components/schemas/ReadingSessionStatus"
+          }
+        },
+        "required" : [ "current_line_id", "elapsed_seconds", "progress_seq", "status" ],
+        "title" : "ReadingSessionProgress"
+      },
       "ReadingScriptCharacterPatch" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -4716,6 +5320,85 @@
         },
         "required" : [ "in_progress_count", "scripts", "total_count" ],
         "title" : "ReadingScriptList"
+      },
+      "ReadingSessionCard" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "ordinal" : {
+            "type" : "integer",
+            "title" : "Ordinal"
+          },
+          "status" : {
+            "$ref" : "#/components/schemas/ReadingSessionStatus"
+          },
+          "my_character_ids" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            },
+            "title" : "My Character Ids"
+          },
+          "my_character_names" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            },
+            "title" : "My Character Names"
+          },
+          "range" : {
+            "$ref" : "#/components/schemas/ReadingSessionRange"
+          },
+          "my_dialogue_count" : {
+            "type" : "integer",
+            "title" : "My Dialogue Count"
+          },
+          "recorded_line_count" : {
+            "type" : "integer",
+            "title" : "Recorded Line Count"
+          },
+          "elapsed_seconds" : {
+            "type" : "integer",
+            "title" : "Elapsed Seconds"
+          },
+          "started_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Started At"
+          },
+          "ended_at" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "date-time"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Ended At"
+          }
+        },
+        "required" : [ "elapsed_seconds", "ended_at", "id", "my_character_ids", "my_character_names", "my_dialogue_count", "ordinal", "range", "recorded_line_count", "started_at", "status" ],
+        "title" : "ReadingSessionCard"
+      },
+      "ReadingSessionList" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "sessions" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ReadingSessionCard"
+            },
+            "title" : "Sessions"
+          }
+        },
+        "required" : [ "sessions" ],
+        "title" : "ReadingSessionList"
       },
       "PublicPortfolio" : {
         "type" : "object",
