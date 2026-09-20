@@ -9,6 +9,7 @@ import com.acttub.actingapi.integration.llm.GenerationOptions;
 import com.acttub.actingapi.integration.llm.StructuredJson;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.platform.ledger.ExternalOperationExecution;
+import com.acttub.actingapi.platform.observability.ActorNameRedaction;
 import com.acttub.actingapi.platform.observability.LlmCall;
 import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
@@ -67,8 +68,12 @@ final class CoachingPipeline {
     ObjectNode generate(CoachSessionSnapshot session, ObjectNode input, CoachingRoute route, boolean finish, int attempt) {
         ObjectNode payload = input.deepCopy();
         payload.remove(List.of("dialogue_progress", "output_contract", "request_id", "session_id"));
+        // 완성된 프로필이 실린 호출에만 프로필 지시가 붙는다. 프로필이 없으면 프롬프트는 prompt(route, finish) 그대로다
+        // (CONTRACT.md §7-2 "부재 시 동일성"). 분류·다듬기 호출은 프로필을 받지 않는다 — 이름이 실리는 호출은 이것 하나다.
+        String prompt = prompt(route, finish)
+                + (payload.has("actor_profile") ? StructuredCoachEngine.ACTOR_PROFILE_INSTRUCTION : "");
         JsonNode draft = StructuredJson.parse(call(session, attempt == 0 ? LlmStep.COACH_TURN : LlmStep.COACH_REGENERATION,
-                prompt(route, finish), payload, new GenerationOptions(null, "low", 3000, null, null), route));
+                prompt, payload, new GenerationOptions(null, "low", 3000, null, null), route));
         if (draft.size() != 3 || !draft.path("message").isTextual() || !draft.has("context_update")
                 || !draft.path("evidence_refs").isArray()) throw new IllegalArgumentException("invalid coaching draft");
         ObjectNode response = StructuredJson.MAPPER.createObjectNode().put("action", "respond")
@@ -112,18 +117,20 @@ final class CoachingPipeline {
             GenerationOptions options, CoachingRoute route) {
         Instant start = Instant.now();
         String payload = input.toString();
+        // 모델에는 payload 를 그대로 보내고, 바깥으로 나가는 기록에서만 배우의 이름을 가린다 (CONTRACT.md §7-2).
+        String recorded = prompt + "\n" + (input.has("actor_profile") ? ActorNameRedaction.inJson(payload) : payload);
         var metadata = LlmCall.metadata("contract", "luna_routes_v1", "route", route == null ? "" : route.id);
         try {
             ExternalOperationExecution.externalCall("model");
             var output = generator.generate(prompt, payload, options);
             var usage = output.usage();
-            telemetry.record(new LlmCall(step, session.practiceSessionId(), session.userId(), output.model(), prompt + "\n" + payload,
+            telemetry.record(new LlmCall(step, session.practiceSessionId(), session.userId(), output.model(), recorded,
                     output.text(), usage == null ? LlmTokens.unknown() : LlmTokens.of(usage.prompt(), usage.completion(), usage.total()),
                     start, Duration.between(start, Instant.now()), null, metadata));
             return output.text();
         } catch (RuntimeException failure) {
             telemetry.record(new LlmCall(step, session.practiceSessionId(), session.userId(), options.model() == null ? "" : options.model(),
-                    prompt + "\n" + payload, "", LlmTokens.unknown(), start, Duration.between(start, Instant.now()),
+                    recorded, "", LlmTokens.unknown(), start, Duration.between(start, Instant.now()),
                     failure.getClass().getSimpleName(), metadata));
             throw failure;
         }

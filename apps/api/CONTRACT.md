@@ -826,6 +826,8 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   소비자의 것이고 값은 표시말이다. **생년월일은 넘기지 않는다** — 제공자가 한국 시간의 오늘로 센 만 나이만 간다.
 - **코치**: 문자열 경로는 `CoachPrompt:actorProfileBlock` 이 맨 앞의 독립 블록(`## 배우 프로필`)으로, 구조화 경로는
   `StructuredCoachEngine:input` 이 독립 키 `actor_profile` 로 싣는다. 기억 블록의 1,200자 상한과 분리돼 있다.
+  라우팅 경로(`luna_routes_v1`)에서는 그 입력이 **생성 호출**(`CoachingPipeline:generate`)에 실리고 프로필 지시도 그
+  호출에만 붙는다 — 분류·다듬기 호출은 프로필을 받지 않는다(분류는 배우가 무엇을 묻는지만 보고, 다듬기는 문장만 본다).
   `CoachService` 가 **턴마다 다시 읽는다** — 설정에서 고친 값이 다음 코치 대화부터 반영된다. 읽다 실패하면 보고하고
   프로필 없이 대화를 잇는다(기억과 같은 판단).
 - **기억과 겹침**: 완성된 프로필이 있으면 모델에 넘기는 기억 **사본**에서 `gender`·`age` 를 뺀다
@@ -835,7 +837,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   그래서 배우 발화만 읽는 기억 추출(`memory_update`)로 되먹임되지 않는다.
 - **텔레메트리에는 이름을 가려 보낸다.** 모델에 보내는 입력은 그대로 두고, 같은 입력을 바깥 수탁사(Langfuse)에
   기록할 때만 이름 자리에 `[redacted]` 를 싣는다 — 문자열 경로는 프로필 블록의 이름 줄
-  (`CoachPrompt:withoutActorName`), 구조화 경로와 노트는 최상위 `actor_profile.name`
+  (`CoachPrompt:withoutActorName`), 구조화 경로(라우팅 경로의 생성 호출 포함)와 노트는 최상위 `actor_profile.name`
   (`platform/observability/ActorNameRedaction`). 탈퇴는 이름을 지체 없이 파기하는데 거기 남은 기록은 서버가 지울 수
   없다. 성별·만 나이·방향·경력·목표는 남긴다. 프로필이 없는 호출의 기록은 글자 하나 바뀌지 않는다.
 - **노트**: `ReportEngine:generateReport` 가 받는 사람의 ID 로 프로필을 읽어 `buildReportInput` 의 **최상위**

@@ -193,11 +193,15 @@ class CoachReadsProfileIT {
                 VALUES (?,?,'gender','남','actor'),(?,?,'goal','입시 합격','actor')
                 """, UUID.randomUUID(), user, UUID.randomUUID(), user);
         UUID practice = structuredPractice();
-        generator.enqueue(structuredReply(0, "“가지 마”를 듣고 상대가 어떻게 하길 바랐어요?", "continue", null));
+        // 라우팅 경로(luna_routes_v1)는 한 턴에 분류 → 생성 → 다듬기 세 번 부른다. 프로필은 생성 호출에만 실린다.
+        generator.enqueue("{\"route\":\"understand_scene\"}");
+        generator.enqueue(structuredDraft("“가지 마”를 듣고 상대가 어떻게 하길 바랐어요?", true));
+        generator.enqueue("{\"message\":\"“가지 마”를 듣고 상대가 어떻게 하길 바랐어요?\"}");
 
         JsonNode started = start(practice, "three_layers_v1");
 
-        JsonNode opening = mapper.readTree(generator.lastInput());
+        assertThat(generator.inputs()).as("분류·생성·다듬기").hasSize(3);
+        JsonNode opening = mapper.readTree(generator.inputs().get(1));
         assertThat(opening.path("actor_profile")).isEqualTo(mapper.readTree("""
                 {"name":"%s","gender":"여성","age":%d,"directions":["매체(TV·영화)"],
                  "experience":"입시생","goal":"전문 배우"}
@@ -205,10 +209,17 @@ class CoachReadsProfileIT {
         assertThat(opening.path("actor_profile").path("age").asInt()).isGreaterThanOrEqualTo(25);
         assertThat(opening.path("prior_context").path("memory"))
                 .isEqualTo(mapper.readTree("{\"goal\":\"입시 합격\"}"));
-        assertThat(generator.lastInstructions()).contains("[actor_profile]");
+        assertThat(generator.instructions().get(1)).contains("[actor_profile]");
+        // 분류와 다듬기는 프로필을 받지 않는다 — 이름이 실리는 호출을 생성 하나로 한정한다.
+        assertThat(mapper.readTree(generator.inputs().get(0)).has("actor_profile")).as("분류 입력").isFalse();
+        assertThat(generator.instructions().get(0)).doesNotContain("[actor_profile]");
+        assertThat(mapper.readTree(generator.inputs().get(2)).has("actor_profile")).as("다듬기 입력").isFalse();
+        assertThat(generator.instructions().get(2)).doesNotContain("[actor_profile]");
 
         UUID session = UUID.fromString(started.path("session_id").asText());
-        generator.enqueue(structuredReply(1, "오늘 나눈 내용까지만 남겨둘게요.", "finish", "turn:" + session + ":1"));
+        // 마무리 턴은 분류를 건너뛴다: 생성 → 다듬기 → 노트.
+        generator.enqueue(structuredDraft("오늘 나눈 내용까지만 남겨둘게요.", false));
+        generator.enqueue("{\"message\":\"오늘 나눈 내용까지만 남겨둘게요.\"}");
         generator.enqueue("{\"summary\":[],\"next_take\":null}");
 
         JsonNode finished = reply(session, "three_layers_v1");
@@ -275,11 +286,23 @@ class CoachReadsProfileIT {
      * 모델에 보내는 입력은 그대로 두고, 바깥 수탁사(Langfuse)로 나가는 기록에서만 이름을 가린다. 탈퇴가 이름을
      * 파기해도 거기 남은 것은 서버가 지울 수 없다. 나머지 프로필은 입력을 읽는 사람이 맥락을 알 수 있게 남긴다.
      */
+    /**
+     * 모델에는 이름을 그대로 보내고, 텔레메트리에는 가려 보낸다. 프로필이 실리지 않는 호출(라우팅 경로의 분류·다듬기)은
+     * 어느 쪽에도 프로필이 없다 — 기록에 이름도, 남겨 두는 값도 없어야 한다.
+     */
     private void assertTheNameStaysOutOfTheTelemetry(String keptProfileValue) {
-        assertThat(generator.inputs()).as("모델에 보내는 입력").isNotEmpty()
-                .allSatisfy(input -> assertThat(input).contains(NAME));
-        assertThat(telemetry.calls()).as("텔레메트리로 나가는 입력").hasSameSizeAs(generator.inputs())
-                .allSatisfy(call -> assertThat(call.input()).doesNotContain(NAME).contains(keptProfileValue));
+        List<String> inputs = generator.inputs();
+        assertThat(inputs).as("모델에 보내는 입력").isNotEmpty().anySatisfy(input -> assertThat(input).contains(NAME));
+        assertThat(telemetry.calls()).as("텔레메트리로 나가는 입력").hasSameSizeAs(inputs);
+        for (int i = 0; i < inputs.size(); i++) {
+            String recorded = telemetry.calls().get(i).input();
+            assertThat(recorded).as("텔레메트리 %d", i).doesNotContain(NAME);
+            if (inputs.get(i).contains(NAME)) {
+                assertThat(recorded).as("프로필이 실린 호출 %d 의 기록", i).contains(keptProfileValue);
+            } else {
+                assertThat(recorded).as("프로필 없는 호출 %d 의 기록", i).doesNotContain(keptProfileValue);
+            }
+        }
     }
 
     private void assertProfileAtTheTopOfTheNoteInput(String experience) throws Exception {
@@ -385,7 +408,10 @@ class CoachReadsProfileIT {
         var response = mvc.perform(request).andReturn().getResponse();
         assertThat(response.getStatus())
                 .as(response.getContentAsString() + " reported=" + failures.reports().stream()
-                        .map(report -> report.failure().getClass().getSimpleName() + ": " + report.failure().getMessage())
+                        .map(report -> "[" + report.context() + "] " + report.failure().getClass().getSimpleName() + ": " + report.failure().getMessage()
+                                + " @ " + java.util.Arrays.stream(report.failure().getStackTrace()).limit(4)
+                                        .map(StackTraceElement::toString).toList()
+                                + " inputs=" + generator.inputs().size())
                         .toList())
                 .isEqualTo(200);
         return mapper.readTree(response.getContentAsString());
@@ -395,33 +421,21 @@ class CoachReadsProfileIT {
         return "Bearer " + jwt.issueAccessToken(user).value();
     }
 
-    private static String structuredReply(long revision, String text, String flow, String actorId) {
-        var response = StructuredJson.MAPPER.createObjectNode()
-                .put("action", "respond").put("base_state_revision", revision).put("message", text)
-                .putNull("context_update").putNull("style_update").put("flow", flow);
-        var link = response.putObject("reply_link").put("move", actorId == null ? "open" : "close");
-        var selection = link.putObject("selection").put("need", "장면 이해").put("blocker", "none");
-        selection.putArray("known_refs");
-        if (text.contains("?")) {
-            selection.putObject("question").put("missing_information", "이유").put("help_if_answered", "장면 설명");
-        } else {
-            selection.putNull("question");
-        }
-        if (actorId == null) {
-            link.putNull("user_message_id").putNull("actor_quote");
-            var context = response.putObject("context_update").putNull("direction").putNull("reading");
+    /** 라우팅 경로의 생성 응답(초안). revision·reply_link·flow 는 코드가 조립한다. */
+    private static String structuredDraft(String text, boolean opening) {
+        var draft = StructuredJson.MAPPER.createObjectNode().put("message", text);
+        if (opening) {
+            var context = draft.putObject("context_update").putNull("direction").putNull("reading");
             context.putObject("scene_context").putNull("situation").putNull("character_goal").putNull("partner_action");
             context.putArray("open_points");
             var focus = context.putObject("focus").put("label", "가지 마 대사").put("utterance_ref", "u1");
             focus.putArray("evidence_refs").add("u1");
+            draft.putArray("evidence_refs").add("u1");
         } else {
-            link.put("user_message_id", actorId).put("actor_quote", "정리해줘");
+            draft.putNull("context_update");
+            draft.putArray("evidence_refs");
         }
-        var refs = link.putArray("evidence_refs");
-        if (actorId == null) {
-            refs.add("u1");
-        }
-        return response.toString();
+        return draft.toString();
     }
 
     @TestConfiguration
@@ -468,6 +482,10 @@ class CoachReadsProfileIT {
 
         synchronized List<String> inputs() {
             return List.copyOf(inputs);
+        }
+
+        synchronized List<String> instructions() {
+            return List.copyOf(instructions);
         }
 
         synchronized String lastInput() {
