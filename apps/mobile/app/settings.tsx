@@ -177,7 +177,7 @@ export default function SettingsScreen() {
   };
 
   const openContactMail = async () => {
-    const url = 'mailto:acttub0527@gmail.com?subject=' + encodeURIComponent('[Acttub] 문의·신고');
+    const url = 'mailto:acttub0527@gmail.com?subject=' + encodeURIComponent(t('settings.contactSubject'));
     try {
       const okToOpen = await Linking.canOpenURL(url);
       if (okToOpen) await Linking.openURL(url);
@@ -345,6 +345,20 @@ export default function SettingsScreen() {
               <View style={styles.cardBody}>
                 <Text style={styles.cardTitle}>{t('settings.feedbackTitle')}</Text>
                 <Text style={styles.cardSub}>{t('settings.feedbackSub')}</Text>
+              </View>
+              <Feather name="chevron-right" size={18} color={palette.checkOff} />
+            </View>
+          </Pressable>
+
+          {/* 첫 시작 가이드 다시 보기 */}
+          <Pressable style={styles.card} onPress={() => router.push('/guide')} accessibilityRole="button">
+            <View style={styles.cardRow}>
+              <View style={styles.iconCircle}>
+                <Feather name="compass" size={18} color={palette.blue} />
+              </View>
+              <View style={styles.cardBody}>
+                <Text style={styles.cardTitle}>{t('settings.guideTitle')}</Text>
+                <Text style={styles.cardSub}>{t('settings.guideSub')}</Text>
               </View>
               <Feather name="chevron-right" size={18} color={palette.checkOff} />
             </View>

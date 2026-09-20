@@ -145,7 +145,7 @@ class AccountProfileIT {
 
     @Test
     void accountProfile_memberFromBefore1_0_0SeesTheOldNicknameInTheNameField() throws Exception {
-        // V7 이 옛 닉네임을 이름으로 복사해 둔 모양이다. 옛 컬럼은 남아 있지만 새 서버는 읽지 않는다.
+        // V9 가 옛 닉네임을 이름으로 복사해 둔 모양이다. 옛 컬럼은 남아 있지만 새 서버는 읽지 않는다.
         jdbc.update("UPDATE users SET nickname='옛 컬럼에만 남은 값' WHERE id=?", userId);
         assertThat(me().path("profile").isNull()).as("프로필 행이 없으면 옛 컬럼에 값이 있어도 비어 있다").isTrue();
         jdbc.update("INSERT INTO user_profiles(user_id,name) VALUES (?,'옛 닉네임')", userId);

@@ -31,6 +31,10 @@ public class PushTokenEntity {
     @Column(name = "platform", nullable = false)
     private String platform;
 
+    /** 이 단말이 쓰는 말. 알림 문구를 고를 때 읽는다 (SOMA-544). */
+    @Column(name = "locale", nullable = false)
+    private String locale;
+
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private Instant createdAt;
 
@@ -50,6 +54,10 @@ public class PushTokenEntity {
 
     public String getToken() {
         return token;
+    }
+
+    public String getLocale() {
+        return locale;
     }
 
     public String getPlatform() {

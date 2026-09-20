@@ -62,10 +62,11 @@ class ConsentPublisherIT {
     @Test
     @Order(1)
     void emptyDatabaseBootPublishesWholeManifestAndRepeatIsIdempotent() throws Exception {
+        // 한국어 정본 4 + 영어 번역본 2(이용약관·AI 분석) = 6. 수집·이용 동의 v5 와 보관 동의는 아직 영어판이 없다.
         assertThat(jdbc.queryForList(
-                "SELECT type,version,title,required,length(body) body_length "
-                        + "FROM consent_documents ORDER BY type"))
-                .hasSize(4)
+                "SELECT type,version,locale,title,required,length(body) body_length "
+                        + "FROM consent_documents ORDER BY type,locale"))
+                .hasSize(6)
                 .allSatisfy(row -> {
                     // 필수 셋과 선택 하나(탈퇴 후 영상·녹음 보관·활용).
                     assertThat(row.get("required")).isEqualTo(!"retention".equals(row.get("type")));
@@ -90,7 +91,8 @@ class ConsentPublisherIT {
         assertThat(publisherFor(directory).publish()).isEqualTo(1);
 
         assertThat(jdbc.queryForList(
-                "SELECT version FROM consent_documents WHERE type='terms' ORDER BY published_at,version",
+                // 번역본(en)은 한국어 행의 판에 딸린 것이라 판 목록은 한국어 행으로 센다 (README 「말」).
+                "SELECT version FROM consent_documents WHERE type='terms' AND locale='ko' ORDER BY published_at,version",
                 String.class)).containsExactly("v1", "v2");
         assertThat(publisherFor(directory).publish()).isZero();
         jdbc.update("DELETE FROM consent_documents WHERE type='terms' AND version='v2'");
@@ -101,7 +103,7 @@ class ConsentPublisherIT {
     void accountConsent_sameVersionWithEditedTextIsRewrittenInPlaceWithoutReconsent(
             @TempDir Path directory) throws Exception {
         var before = jdbc.queryForMap(
-                "SELECT id,published_at FROM consent_documents WHERE type='terms' AND version='v1'");
+                "SELECT id,published_at FROM consent_documents WHERE type='terms' AND version='v1' AND locale='ko'");
         Files.writeString(directory.resolve("terms.md"), "오탈자를 고친 약관 본문");
         Files.writeString(directory.resolve("manifest.json"), """
                 [{"file":"terms.md","type":"terms","version":"v1","title":"이용약관","required":true}]
@@ -110,7 +112,7 @@ class ConsentPublisherIT {
         assertThat(publisherFor(directory).publish()).as("새 판이 아니다").isZero();
 
         assertThat(jdbc.queryForMap("""
-                SELECT id,published_at,body FROM consent_documents WHERE type='terms'
+                SELECT id,published_at,body FROM consent_documents WHERE type='terms' AND locale='ko'
                 """))
                 .as("같은 행이다 — 결정이 가리키는 문서 id 가 그대로라 재동의 게이트가 뜨지 않는다")
                 .containsEntry("id", before.get("id"))
@@ -206,10 +208,10 @@ class ConsentPublisherIT {
         try {
             Future<Integer> first = pool.submit(publisher::publish);
             Future<Integer> second = pool.submit(other::publish);
-            assertThat(first.get() + second.get()).isBetween(4, 8);
+            assertThat(first.get() + second.get()).isBetween(6, 12);
             assertThat(jdbc.queryForObject(
                     "SELECT count(*) FROM consent_documents",
-                    Integer.class)).isEqualTo(4);
+                    Integer.class)).isEqualTo(6);
         } finally {
             pool.shutdownNow();
         }

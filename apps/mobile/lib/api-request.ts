@@ -59,6 +59,11 @@ export type ApiRequestDependencies = {
   /** 요청마다 보내는 클라이언트 종류와 판. 예: app/1.0.0. 없으면 서버가 426으로 답한다. */
   clientHeader: string;
   fetchImpl: typeof fetch;
+  /**
+   * 서버가 AI 답변을 어느 말로 쓸지 정하는 데 쓴다(Accept-Language).
+   * 없으면 한국어 — 옛 동작 그대로다.
+   */
+  getLanguage?: () => string;
   waitForCredentialReady: () => Promise<void>;
   getAccessToken: () => string | null;
   getRefreshToken: () => string | null;
@@ -130,7 +135,7 @@ function errorDetail(body: unknown): unknown {
 }
 
 export function friendlyError(status: number, body: unknown): string {
-  if (errorDetail(body) === 'client_contract_required') return '앱을 업데이트하면 이 연습 노트를 열 수 있어요.';
+  if (errorDetail(body) === 'client_contract_required') return translate('errors.clientContractRequired');
   switch (status) {
     case 401:
       return translate('errors.sessionExpired');
@@ -340,6 +345,7 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
       const headers = new Headers(init.headers);
       headers.set('X-Acttub-Contract', 'three_layers_v1');
       headers.set('X-Acttub-Client', dependencies.clientHeader);
+      headers.set('Accept-Language', dependencies.getLanguage?.() ?? 'ko');
       if (options.auth !== false) {
         const token = dependencies.getAccessToken();
         if (token) headers.set('Authorization', `Bearer ${token}`);

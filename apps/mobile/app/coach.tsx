@@ -235,7 +235,7 @@ export default function CoachScreen() {
       message: t('coach.endMsg'),
       confirmLabel: t('coach.endConfirm'),
     });
-    if (ok) await sendText('그만');
+    if (ok) await sendText(t('coach.endWord'));
   };
 
   const latestQuestion = [...messages].reverse().find((m) => m.role === 'ai')?.text ?? null;

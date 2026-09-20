@@ -61,3 +61,18 @@ export function translateList(key: string): string[] {
 export function dateLocale(): string {
   return language === 'ko' ? 'ko-KR' : 'en-US';
 }
+
+/** 지금 쓰는 말. 서버에 어느 말로 답할지 알릴 때, 한국 전용 기능을 가릴 때 쓴다. */
+export function currentLanguage(): 'ko' | 'en' {
+  return language;
+}
+
+/** 한국어로 쓰는 사람인가 — 연기 입시·대사 챌린지처럼 한국에서만 쓸모 있는 것에 쓴다. */
+export function isKorean(): boolean {
+  return language === 'ko';
+}
+
+/** 받아쓰기·음성 합성에 넘길 말 코드. */
+export function speechLocale(): string {
+  return language === 'ko' ? 'ko-KR' : 'en-US';
+}

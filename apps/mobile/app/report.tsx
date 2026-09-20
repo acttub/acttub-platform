@@ -150,7 +150,7 @@ export default function ReportScreen() {
       {report && report.report_type !== 'blocked' && display && practice && (
         <>
           <View style={styles.statusRow}>
-            <Text style={styles.confirmed}>{report.report_type === 'practice_note' ? '대화에서 남긴 연습 노트' : t('report.confirmed')}</Text>
+            <Text style={styles.confirmed}>{report.report_type === 'practice_note' ? t('report.practiceNoteFromDialogue') : t('report.confirmed')}</Text>
             <SceneFoldLink
               open={sceneOpen}
               onToggle={() => setSceneOpen((was) => !was)}

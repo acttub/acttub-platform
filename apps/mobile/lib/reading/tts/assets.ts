@@ -8,6 +8,8 @@
  */
 import { Directory, File, Paths } from 'expo-file-system';
 
+import { translate as t } from '../../i18n.ts';
+
 const SUPERTONE = 'https://huggingface.co/Supertone/supertonic-3/resolve/main';
 const INT8 = 'https://huggingface.co/csukuangfj2/sherpa-onnx-supertonic-3-tts-int8-2026-05-11/resolve/main';
 
@@ -85,11 +87,11 @@ export async function downloadAssets(variant: Variant, preset: string, log: LogF
   const idxFile = await ensureFile(dir, INDEXER_URL, 'unicode_indexer.json', 1000, log);
   const styleFile = await ensureFile(dir, voiceUrl(preset), `${preset}.json`, 1000, log);
 
-  log('JSON 파싱 중...');
+  log(t('reading.voiceParsing'));
   const cfgs = JSON.parse(await cfgFile.text());
   const indexer = JSON.parse(await idxFile.text());
   const style = JSON.parse(await styleFile.text());
-  log('자산 준비 완료');
+  log(t('reading.voiceAssetsReady'));
 
   return { modelPaths, cfgs, indexer, style };
 }

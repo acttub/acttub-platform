@@ -23,9 +23,9 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * 계정 1.0.0 스키마(V7)가 <b>이미 회원이 있는 DB</b> 위에서 넓히기만 하는지 본다 (SOMA-528).
+ * 계정 1.0.0 스키마(V9)가 <b>이미 회원이 있는 DB</b> 위에서 넓히기만 하는지 본다 (SOMA-528).
  *
- * <p>V7 은 세 가지를 한다 — 새 테이블을 더하고, 기존 테이블을 넓히고, 옛 닉네임을
+ * <p>V9 은 세 가지를 한다 — 새 테이블을 더하고, 기존 테이블을 넓히고, 옛 닉네임을
  * {@code user_profiles.name} 으로 복사한다. {@code users.nickname} 은 지우지 않는다: 직전 운영
  * 태그의 서버가 그 컬럼을 Entity 에 매핑하고 있어, 삭제는 그것을 안 쓰는 코드와 한 릴리스에
  * 묶지 않는다({@code docs/BRANCHING-STRATEGY.md} 「DB와 배포 안전성」).
@@ -43,7 +43,7 @@ class AccountSchemaMigrationTest {
     private static final UUID WITHDRAWN_WITH_LEFTOVER =
             UUID.fromString("00000000-0000-4000-8000-000000000705");
 
-    /** V7 이 기존 테이블에 더한 컬럼. 옛 행이 그대로인지 볼 때 이것만 빼고 비교한다. */
+    /** V9 이 기존 테이블에 더한 컬럼. 옛 행이 그대로인지 볼 때 이것만 빼고 비교한다. */
     private static final String ADDED_TO_USERS = "ARRAY['age_confirmed_at']";
     private static final String ADDED_TO_IDENTITIES = "ARRAY['uid_hash', 'apple_token_encrypted']";
 
@@ -52,19 +52,19 @@ class AccountSchemaMigrationTest {
     @DisplayName("account.profile: 옛 닉네임이 user_profiles.name 으로 복사되고 옛 행은 그대로다")
     void oldNicknamesAreCopiedIntoProfileNamesWithoutTouchingExistingRows(boolean baselined)
             throws Exception {
-        String url = databaseAtV6("account_v7_copy", baselined);
+        String url = databaseAtV8("account_v9_copy", baselined);
         var jdbc = new JdbcTemplate(dataSource(url));
         seedMembersAsTheOldServerWould(jdbc);
-        List<String> history = historyUpTo6(jdbc);
+        List<String> history = historyUpTo8(jdbc);
         List<String> usersBefore = rows(jdbc, "users", ADDED_TO_USERS);
         List<String> identitiesBefore = rows(jdbc, "user_identities", ADDED_TO_IDENTITIES);
 
         var result = Flyway.configure().dataSource(dataSource(url)).locations("classpath:db/migration")
-                .target("7").load().migrate();
+                .target("9").load().migrate();
 
         assertThat(result.migrationsExecuted).isEqualTo(1);
-        assertThat(result.migrations.getFirst().version).isEqualTo("7");
-        assertThat(historyUpTo6(jdbc)).containsExactlyElementsOf(history);
+        assertThat(result.migrations.getFirst().version).isEqualTo("9");
+        assertThat(historyUpTo8(jdbc)).containsExactlyElementsOf(history);
 
         // 이름이 있던 활성 회원만 프로필 행을 얻는다. 나머지 필수 항목은 비어 있어 게이트 대상이다.
         assertThat(jdbc.queryForList("SELECT user_id FROM user_profiles", UUID.class))
@@ -98,7 +98,7 @@ class AccountSchemaMigrationTest {
                 """, Long.class)).isZero();
 
         // 그 뒤 마이그레이션까지 전부 올린 자리가 커밋된 fingerprint 와 같다.
-        assertThat(flywayFor(url).migrate().migrationsExecuted).isEqualTo(committedCount() - 7);
+        assertThat(flywayFor(url).migrate().migrationsExecuted).isEqualTo(committedCount() - 9);
         try (var connection = connect(url)) {
             assertThat(SchemaFingerprint.of(connection)).containsExactlyElementsOf(SchemaFingerprint.expected());
         }
@@ -106,9 +106,9 @@ class AccountSchemaMigrationTest {
     }
 
     @Test
-    @DisplayName("V7 뒤에도 옛 서버가 쓰던 INSERT 가 그대로 통한다 — 더한 컬럼은 NULL 허용이거나 DEFAULT 다")
+    @DisplayName("V9 뒤에도 옛 서버가 쓰던 INSERT 가 그대로 통한다 — 더한 컬럼은 NULL 허용이거나 DEFAULT 다")
     void insertsOfThePreviousReleaseStillWorkAfterTheMigration() throws Exception {
-        String url = databaseAtV6("account_v7_rollback", true);
+        String url = databaseAtV8("account_v7_rollback", true);
         flywayFor(url).migrate();
         var jdbc = new JdbcTemplate(dataSource(url));
 
@@ -125,7 +125,7 @@ class AccountSchemaMigrationTest {
     @Test
     @DisplayName("account.login·account.guest·account.consent·account.withdraw: 넓힌 값과 빈 provider_uid 를 받는다")
     void widenedValueListsAndHashedIdentitiesAreAccepted() throws Exception {
-        String url = databaseAtV6("account_v7_values", false);
+        String url = databaseAtV8("account_v7_values", false);
         flywayFor(url).migrate();
         var jdbc = new JdbcTemplate(dataSource(url));
         jdbc.update("INSERT INTO users(id, status) VALUES (?, 'active')", NAMED);
@@ -165,7 +165,7 @@ class AccountSchemaMigrationTest {
     @Test
     @DisplayName("account.profile·account.portfolio·account.guest: 새 테이블이 값 목록과 주인 삭제를 DB 에서 지킨다")
     void newTablesKeepTheirValueListsAndFollowTheirOwner() throws Exception {
-        String url = databaseAtV6("account_v7_tables", false);
+        String url = databaseAtV8("account_v7_tables", false);
         flywayFor(url).migrate();
         var jdbc = new JdbcTemplate(dataSource(url));
         jdbc.update("INSERT INTO users(id, status) VALUES (?, 'active')", NAMED);
@@ -220,15 +220,15 @@ class AccountSchemaMigrationTest {
     }
 
     @Test
-    @DisplayName("account.guest·account.withdraw: V10 은 이미 겹친 미사용 이관 코드를 늦은 것 하나만 남기고 유일성을 걸며, 쓰인 코드와 기존 회원 행은 그대로다")
-    void v10KeepsTheLatestUnusedCodeAndThenEnforcesUniqueness() throws Exception {
-        String url = PostgresContainerSupport.createDatabase("account_v10_codes");
+    @DisplayName("account.guest·account.withdraw: V12 은 이미 겹친 미사용 이관 코드를 늦은 것 하나만 남기고 유일성을 걸며, 쓰인 코드와 기존 회원 행은 그대로다")
+    void v12KeepsTheLatestUnusedCodeAndThenEnforcesUniqueness() throws Exception {
+        String url = PostgresContainerSupport.createDatabase("account_v12_codes");
         Flyway.configure().dataSource(dataSource(url)).locations("classpath:db/migration")
-                .target("9").load().migrate();
+                .target("11").load().migrate();
         var jdbc = new JdbcTemplate(dataSource(url));
         UUID other = UUID.fromString("00000000-0000-4000-8000-000000000710");
         jdbc.update("INSERT INTO users(id, status) VALUES (?, 'active'), (?, 'active')", NAMED, other);
-        // V9 까지의 발급은 겹쳐 온 두 요청을 막지 못했다: 한 게스트의 미사용 코드 둘, 두 게스트의 같은 숫자.
+        // V11 까지의 발급은 겹쳐 온 두 요청을 막지 못했다: 한 게스트의 미사용 코드 둘, 두 게스트의 같은 숫자.
         jdbc.update("""
                 INSERT INTO guest_transfer_codes(user_id, code_hash, created_at, expires_at, used_at) VALUES
                     (?, 'older', now() - interval '2 minutes', now() + interval '8 minutes', NULL),
@@ -238,7 +238,7 @@ class AccountSchemaMigrationTest {
                 """, NAMED, NAMED, other, other);
 
         var result = Flyway.configure().dataSource(dataSource(url)).locations("classpath:db/migration")
-                .target("10").load().migrate();
+                .target("12").load().migrate();
 
         assertThat(result.migrationsExecuted).isEqualTo(1);
         assertThat(jdbc.queryForList("""
@@ -264,14 +264,14 @@ class AccountSchemaMigrationTest {
     }
 
     /** dev·운영(baseline 기록만)과 신규 환경 두 경로 모두 직전 릴리스의 자리(V6)에 세운다. */
-    private static String databaseAtV6(String name, boolean baselined) throws Exception {
+    private static String databaseAtV8(String name, boolean baselined) throws Exception {
         String url = PostgresContainerSupport.createDatabase(name + (baselined ? "_baselined" : "_fresh"));
         if (baselined) {
             applyRawBaseline(url);
             flywayFor(url).baseline();
         }
         Flyway.configure().dataSource(dataSource(url)).locations("classpath:db/migration")
-                .target("6").load().migrate();
+                .target("8").load().migrate();
         return url;
     }
 
@@ -299,10 +299,10 @@ class AccountSchemaMigrationTest {
                 """, UUID.randomUUID(), NAMED);
     }
 
-    private static List<String> historyUpTo6(JdbcTemplate jdbc) {
+    private static List<String> historyUpTo8(JdbcTemplate jdbc) {
         return jdbc.queryForList(
                 "SELECT version || '|' || type || '|' || coalesce(checksum::text, 'null') "
-                        + "FROM flyway_schema_history WHERE version::int <= 6 ORDER BY installed_rank", String.class);
+                        + "FROM flyway_schema_history WHERE version::int <= 8 ORDER BY installed_rank", String.class);
     }
 
     private static List<String> rows(JdbcTemplate jdbc, String table, String addedColumns) {

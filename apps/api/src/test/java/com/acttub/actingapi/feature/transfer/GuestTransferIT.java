@@ -28,6 +28,7 @@ import com.acttub.actingapi.feature.memory.app.MemoryExtractor;
 import com.acttub.actingapi.feature.memory.app.MemoryRepository;
 import com.acttub.actingapi.feature.memory.app.MemoryUpdateQueue;
 import com.acttub.actingapi.feature.memory.app.MemoryUpdateWorker;
+import com.acttub.actingapi.feature.push.app.PushTarget;
 import com.acttub.actingapi.feature.push.app.PushTokenRepository;
 import com.acttub.actingapi.feature.transfer.app.TransferCodeRepository;
 import com.acttub.actingapi.integration.llm.GeneratedText;
@@ -558,7 +559,8 @@ class GuestTransferIT {
         assertThat(jdbc.queryForMap("SELECT user_id,status,lease_token FROM external_operations WHERE id=?", running))
                 .as("상태와 lease 는 그대로라 돌고 있던 워커가 끝낸다")
                 .containsEntry("user_id", member).containsEntry("status", "running").containsEntry("lease_token", lease);
-        assertThat(pushTokens.analysisDoneTargets(analyzing)).containsExactly("ExponentPushToken[member-phone]");
+        assertThat(pushTokens.analysisDoneTargets(analyzing)).extracting(PushTarget::token)
+                .containsExactly("ExponentPushToken[member-phone]");
         JsonNode list = mapper.readTree(mvc.perform(get("/v2/practice-sessions")
                 .header("Authorization", "Bearer " + jwt.issueAccessToken(member).value()))
                 .andReturn().getResponse().getContentAsString());

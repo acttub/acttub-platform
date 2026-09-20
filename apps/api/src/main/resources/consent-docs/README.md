@@ -31,12 +31,17 @@
 문구만 다듬는 수정(오탈자, 표현)은 판을 올리지 않는다. 아래 「발행」 참고.
 
 ## 문서
-| 파일 | type | version | title | required |
-| --- | --- | --- | --- | --- |
-| `terms_v1.md` | `terms` | `v1` | 이용약관 | ✅ |
-| `privacy_v5.md` | `privacy` | `v5` | 개인정보 수집·이용 동의 | ✅ |
-| `ai_analysis_v1.md` | `ai_analysis` | `v1` | AI 분석 동의 | ✅ |
-| `retention_v1.md` | `retention` | `v1` | 탈퇴 후 영상·녹음 보관·활용 | 선택 |
+| 파일 | type | version | locale | title | required |
+| --- | --- | --- | --- | --- | --- |
+| `terms_v1.md` | `terms` | `v1` | `ko` | 이용약관 | ✅ |
+| `privacy_v5.md` | `privacy` | `v5` | `ko` | 개인정보 수집·이용 동의 | ✅ |
+| `ai_analysis_v1.md` | `ai_analysis` | `v1` | `ko` | AI 분석 동의 | ✅ |
+| `retention_v1.md` | `retention` | `v1` | `ko` | 탈퇴 후 영상·녹음 보관·활용 | 선택 |
+| `terms_v1_en.md` | `terms` | `v1` | `en` | Terms of Service | ✅ |
+| `ai_analysis_v1_en.md` | `ai_analysis` | `v1` | `en` | AI Analysis Consent | ✅ |
+
+> 개인정보 수집·이용 동의 v5 와 보관 동의 v1 의 영어판은 아직 없다 — 영어 사용자에게는 한국어가 보인다(아래
+> 「말」). `privacy_v4_en.md` 는 v4 의 번역본이라 v5 가 현행인 지금은 싣지 않는다.
 
 > `ConsentType` enum은 이 4종을 지원한다(`platform/schema/ConsentType.java` + `ck_consent_documents_type`).
 > 종류를 더하려면 enum 과 Flyway 마이그레이션의 CHECK 를 함께 넓힌다(`ValueCheckCatalogIT` 가 대조한다).
@@ -47,6 +52,27 @@
 > 선택을 필수로 바꾸면 **새 판**을 낸다.
 >
 > ⚠ `privacy_v5`·`retention_v1` 의 본문은 요구사항이 정한 항목을 담은 **초안**이고 법무 확인 전이다.
+
+## 말(locale) — **한국어가 정본이다** (SOMA-544)
+
+미국 출시를 위해 같은 판의 번역본이 나란히 설 수 있다(`V7__consent_document_locale.sql`).
+
+- **어느 판이 현행인지는 한국어 문서가 정한다.** 번역본은 그 판에 딸린 것이고, 한국어에
+  없는 판은 존재할 수 없다.
+- **문서의 신원(문서 번호)도 한국어 행이 쥔다.** 번역본은 보이는 글만 바꾸고 번호는
+  한국어 행의 것을 그대로 내보낸다. 그래서 동의 기록이 말과 무관하게 한 벌로 남는다.
+- **번역본이 없으면 한국어를 보여준다.** 동의 화면이 비는 것보다 낫다.
+- **말은 요청의 `Accept-Language` 에서 온다.** 아는 말(`ko`·`en`)이 아니면 한국어로 본다
+  (`feature/consent/domain/ConsentLocale.java`).
+- **동의 여부는 말을 건너 성립한다.** 문서 번호가 하나뿐이라 기기 말을 바꿔도 다시 묻지
+  않는다. 테스트에서 동의를 직접 심을 때는 `WHERE locale = 'ko'` 로 그 번호를 집어야 한다.
+
+### 새 판을 낼 때
+**한국어와 번역본을 같은 배포에 함께 올린다.** 한국어만 먼저 올리면 그 순간부터 영어
+사용자도 한국어 문서를 보게 된다(폴백). 틀린 것은 아니지만, 영어로 쓰는 사람에게 한국어
+약관에 동의하라고 묻는 상태가 된다.
+
+`manifest.json` 항목에 `locale` 을 적는다. 빠지면 한국어로 본다.
 
 ## 발행 — **배포가 곧 발행이다**
 

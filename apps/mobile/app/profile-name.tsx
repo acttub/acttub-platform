@@ -92,6 +92,23 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
   const complete = isProfileFormComplete(form, new Date()) && !bioTooLong;
   const nameTooLong = [...form.name.trim()].length > NAME_MAX_LENGTH;
   const birthDateTyped = form.birthDate.length === 10;
+  // 가입 게이트에서는 무엇이 비어서 시작할 수 없는지 그대로 보여준다(피드백 1차). 편집은 이미 완성된 프로필이다.
+  const missing = {
+    name: !isEdit && form.name.trim().length === 0,
+    gender: !isEdit && form.gender === null,
+    birthDate: !isEdit && parseBirthDate(form.birthDate, new Date()) === null,
+    directions: !isEdit && form.directions.length === 0,
+    experience: !isEdit && form.experience === null,
+    goal: !isEdit && form.goal === null,
+  };
+  const missingLabels = [
+    missing.name && t('profileName.nameMissingLabel'),
+    missing.gender && t('profileName.genderLabel'),
+    missing.birthDate && t('profileName.birthLabel'),
+    missing.directions && t('profileName.mediumShortLabel'),
+    missing.experience && t('profileName.careerLabel'),
+    missing.goal && t('profileName.goalLabel'),
+  ].filter((label): label is string => typeof label === 'string');
 
   const update = (patch: Partial<ProfileFormState>) => setForm((prev) => ({ ...prev, ...patch }));
 
@@ -249,7 +266,7 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
             </Field>
           )}
 
-          <Field label={t('profileName.nameLabel')} required>
+          <Field label={t('profileName.nameLabel')} required missing={missing.name}>
             <TextInput
               style={styles.nameInput}
               placeholder={t('profileName.placeholder')}
@@ -264,7 +281,7 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
             </Text>
           </Field>
 
-          <Field label={t('profileName.genderLabel')} required>
+          <Field label={t('profileName.genderLabel')} required missing={missing.gender}>
             <View style={styles.chips}>
               {GENDER_VALUES.map((gender) => (
                 <Chip
@@ -277,7 +294,7 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
             </View>
           </Field>
 
-          <Field label={t('profileName.birthLabel')} required>
+          <Field label={t('profileName.birthLabel')} required missing={missing.birthDate}>
             <TextInput
               style={styles.input}
               placeholder={t('profileName.birthPlaceholder')}
@@ -290,7 +307,7 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
             {birthError && birthDateTyped && <Text style={styles.fieldError}>{birthError}</Text>}
           </Field>
 
-          <Field label={t('profileName.mediumLabel')} required>
+          <Field label={t('profileName.mediumLabel')} required missing={missing.directions}>
             <View style={styles.chips}>
               {DIRECTION_VALUES.map((direction) => (
                 <Chip
@@ -303,7 +320,7 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
             </View>
           </Field>
 
-          <Field label={t('profileName.careerLabel')} required>
+          <Field label={t('profileName.careerLabel')} required missing={missing.experience}>
             <View style={styles.chips}>
               {EXPERIENCE_VALUES.map((experience, i) => (
                 <Chip
@@ -316,7 +333,7 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
             </View>
           </Field>
 
-          <Field label={t('profileName.goalLabel')} required>
+          <Field label={t('profileName.goalLabel')} required missing={missing.goal}>
             <View style={styles.chips}>
               {GOAL_VALUES.map((goal, i) => (
                 <Chip
@@ -348,7 +365,13 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
           )}
 
           {error && <Text style={styles.error}>{error}</Text>}
-          {!isEdit && !complete && <Text style={styles.requiredHint}>{t('profileName.requiredHint')}</Text>}
+          {!isEdit && !complete && (
+            <Text style={styles.requiredHint}>
+              {missingLabels.length > 0
+                ? t('profileName.missingHint', { fields: missingLabels.join(' · ') })
+                : t('profileName.requiredHint')}
+            </Text>
+          )}
         </KeyboardAwareScroll>
         <Pressable
           style={[styles.cta, (!complete || busy) && styles.ctaDisabled]}
@@ -370,12 +393,22 @@ export default function ProfileNameScreen() {
   return <ProfileForm edit={false} />;
 }
 
-function Field({ label, required, children }: { label: string; required?: boolean; children: ReactNode }) {
+function Field({
+  label,
+  required,
+  missing,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  missing?: boolean;
+  children: ReactNode;
+}) {
   return (
     <View style={styles.field}>
-      <Text style={styles.fieldLabel}>
+      <Text style={[styles.fieldLabel, missing && styles.fieldLabelMissing]}>
         {label}
-        {required && <Text style={styles.requiredStar}> *</Text>}
+        {required && <Text style={missing ? styles.requiredStarMissing : styles.requiredStar}> *</Text>}
       </Text>
       {children}
     </View>
@@ -458,6 +491,8 @@ const styles = StyleSheet.create({
   error: { color: palette.danger, fontSize: 13 },
   requiredHint: { color: palette.textFaint, fontSize: 12.5, textAlign: 'center' },
   requiredStar: { color: palette.blue },
+  requiredStarMissing: { color: palette.danger },
+  fieldLabelMissing: { color: palette.danger },
   cta: {
     backgroundColor: palette.blue,
     borderRadius: 16,

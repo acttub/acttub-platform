@@ -1,0 +1,7 @@
+{
+  "NSCameraUsageDescription": "연기 영상을 앱에서 바로 촬영하는 데 사용해요. 예: 오늘 연습한 독백을 그 자리에서 찍어 올릴 때.",
+  "NSMicrophoneUsageDescription": "연기 영상을 촬영할 때 소리를 함께 녹음하고, 코치 질문에 음성으로 답할 때 사용해요. 예: “방금 연기에서 무엇을 하려 했나요?”에 말로 답하면 글로 옮겨 드려요.",
+  "NSSpeechRecognitionUsageDescription": "코치 질문에 말로 답하면 그 내용을 글자로 바꿔 대화에 넣어요. 예: “상대 눈을 계속 봤어요”라고 말하면 그대로 받아 적어요.",
+  "NSPhotoLibraryUsageDescription": "프로필 사진을 고르거나, 앨범에 있는 연기 영상을 올릴 때 사용해요.",
+  "NSUserTrackingUsageDescription": "맞춤 광고를 보여주고 앱을 개선하는 데 광고 식별자를 사용해요. 허용하지 않아도 모든 기능을 그대로 쓸 수 있어요."
+}

@@ -8,13 +8,14 @@ import { palette } from '@/constants/palette';
 import { speakableText } from '@/lib/reading/parse';
 import { getCurrent, updateCurrent } from '@/lib/reading/store';
 import * as engine from '@/lib/reading/tts/engine';
+import { translate as t } from '@/lib/i18n';
 
 type Mode = 'blank' | 'first' | 'hide' | 'full';
 const MODES: { key: Mode; label: string }[] = [
-  { key: 'blank', label: '빈칸 연습' },
-  { key: 'first', label: '첫 글자' },
-  { key: 'hide', label: '가리고' },
-  { key: 'full', label: '원문 보기' },
+  { key: 'blank', label: t('reading.memorizeBlank') },
+  { key: 'first', label: t('reading.memorizeFirst') },
+  { key: 'hide', label: t('reading.memorizeHide') },
+  { key: 'full', label: t('reading.memorizeShow') },
 ];
 
 /** 어절 단위로, 짝수번째 실단어를 가린다(결정적). */
@@ -106,7 +107,7 @@ export default function ReadingMemorize() {
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.head}>{script.title}</Text>
         <Text style={styles.sub}>
-          {(script.myRoles[0] ?? '내 배역')} · 암기 안 한 대사 {remaining}개 · {pos + 1}/{myLines.length}
+          {(script.myRoles[0] ?? t('reading.myRole'))} · 암기 안 한 대사 {remaining}개 · {pos + 1}/{myLines.length}
         </Text>
 
         <View style={styles.tabs}>
@@ -120,7 +121,7 @@ export default function ReadingMemorize() {
         <View style={styles.metaRow}>
           <Text style={styles.metaRole}>{(cur.l as any).role} · {pos + 1}번째 대사</Text>
           <View style={[styles.state, done && styles.stateDone]}>
-            <Text style={[styles.stateText, done && styles.stateTextDone]}>{done ? '외움' : '암기 중'}</Text>
+            <Text style={[styles.stateText, done && styles.stateTextDone]}>{done ? t('reading.memorized') : t('reading.memorizing')}</Text>
           </View>
         </View>
 
@@ -139,7 +140,7 @@ export default function ReadingMemorize() {
           {(mode === 'blank' || mode === 'hide') && (
             <Pressable style={styles.aid} onPress={() => setHint((h) => !h)}>
               <Feather name="type" size={15} color={palette.blueDeep} />
-              <Text style={styles.aidText}>{hint ? '힌트 끄기' : '첫 글자 힌트'}</Text>
+              <Text style={styles.aidText}>{hint ? t('reading.hintOff') : t('reading.hintFirst')}</Text>
             </Pressable>
           )}
           <Pressable style={styles.aid} onPress={listen}>

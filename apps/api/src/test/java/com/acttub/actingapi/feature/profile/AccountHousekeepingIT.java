@@ -172,7 +172,7 @@ class AccountHousekeepingIT {
         UUID usedLongAgo = code(guest, now.minus(Duration.ofDays(31)), now.minus(Duration.ofDays(31)));
         UUID usedRecently = code(guest, now.minus(Duration.ofDays(29)), now.minus(Duration.ofDays(29)));
         UUID expiredLongAgo = code(guest, now.minus(Duration.ofDays(31)), null);
-        // 쓰지 않은 코드는 게스트마다 하나다(V10) — 살아 있는 코드는 다른 게스트의 것으로 둔다.
+        // 쓰지 않은 코드는 게스트마다 하나다(V12) — 살아 있는 코드는 다른 게스트의 것으로 둔다.
         UUID live = code(guest(now), now.plus(Duration.ofMinutes(5)), null);
 
         housekeeping.runDaily();

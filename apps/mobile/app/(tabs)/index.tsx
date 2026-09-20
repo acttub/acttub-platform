@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -11,13 +11,14 @@ import { buildWeekActivity } from '@/lib/practice-activity';
 import { rememberPracticeDays } from '@/lib/practice-days';
 import { dismissFeedbackNudge, feedbackNudgeVisible, maybeRequestStoreReview } from '@/lib/feedback-prompts';
 import { useFeedbackSheet } from '@/hooks/use-feedback-sheet';
+import { hasSeenGuide } from '@/lib/guide-state';
 import { sortReportsNewestFirst } from '@/lib/report-order';
 import {
   localDate,
   upcomingNotices,
   type AdmissionsResponse,
 } from '@/lib/admissions';
-import { translate as t } from '@/lib/i18n';
+import { dateLocale, isKorean, translate as t } from '@/lib/i18n';
 import { StreakCelebration } from '@/components/streak-badge';
 import {
   readLastSeenStreak,
@@ -33,7 +34,7 @@ const STREAK_ORANGE = '#E9A23B';
 function recentDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
+  return d.toLocaleDateString(dateLocale(), { month: 'long', day: 'numeric' });
 }
 
 /** A1. 홈 — 히어로(마스코트) + 지금 바로 연습 + 연속 연습 + 최근 연습 + 입시 마감. */
@@ -47,9 +48,17 @@ export default function HomeScreen() {
   // 연습 3회 뒤 한 번 뜨는 의견 넛지 / 5회 뒤 한 번 스토어 평점(feedback-prompts).
   const [nudge, setNudge] = useState(false);
   const feedback = useFeedbackSheet('home');
+  // 첫 진입 한 번만 가이드(4장). 설정에서 다시 볼 수 있다.
+  const guideCheckedRef = useRef(false);
 
   useFocusEffect(
     useCallback(() => {
+      if (!guideCheckedRef.current) {
+        guideCheckedRef.current = true;
+        void hasSeenGuide().then((seen) => {
+          if (!seen) router.push('/guide');
+        });
+      }
       let cancelled = false;
       api
         .reportHistory()
@@ -69,11 +78,13 @@ export default function HomeScreen() {
       return () => {
         cancelled = true;
       };
-    }, []),
+    }, [router]),
   );
 
   useEffect(() => {
     // 입시는 로그인과 무관하고 배포 때만 바뀐다 — 포커스마다 다시 읽지 않는다.
+    // 한국어를 안 쓰는 사람에겐 보여줄 자리가 없으니 받아오지도 않는다 (SOMA-544).
+    if (!isKorean()) return;
     let cancelled = false;
     api
       .admissions()
@@ -88,8 +99,9 @@ export default function HomeScreen() {
     };
   }, []);
 
+  // 연기 입시는 한국 대학 일정이라 한국어로 쓰는 사람에게만 쓸모가 있다 (SOMA-544).
   const deadlines = useMemo(
-    () => (admissions ? upcomingNotices(admissions, localDate(), 2) : []),
+    () => (admissions && isKorean() ? upcomingNotices(admissions, localDate(), 2) : []),
     [admissions],
   );
 

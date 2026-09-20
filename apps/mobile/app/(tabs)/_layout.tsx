@@ -1,148 +1,148 @@
-import Feather from '@expo/vector-icons/Feather';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs, useRouter } from 'expo-router';
-import React from 'react';
+import React, { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
+import { RecordModeSheet, type RecordMode } from '@/components/record-mode-sheet';
 import { palette } from '@/constants/palette';
-import { translate as t } from '@/lib/i18n';
+import { TODAY_LINE } from '@/lib/challenge-mock';
+import { isKorean, translate as t } from '@/lib/i18n';
+
+type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
 /**
- * 하단 탭 — 홈 / 대본 / [촬영(FAB)] / 챌린지 / 프로필.
- * 가운데 버튼이 무슨 버튼인지 모르겠다는 피드백이 있어 아이콘 아래 라벨을 붙였다.
- * 아이콘은 Feather(라인) 한 세트로 통일한다 — MaterialIcons 기본 채움 아이콘은 톤이 안 맞는다.
+ * 하단 탭 — 홈 / 대본 / [촬영(FAB)] / 챌린지 / 프로필. 글자 없이 아이콘만(pen 탭바).
  *
- * 다섯 칸이 되면서 알약 하나에 돌아가는 폭이 좁아졌다. 아이콘 알약 minWidth를
- * 44로 줄이고 라벨을 두 글자로 맞춰, 좁은 기기(iPhone SE 375pt)에서도 글자가
- * 줄바꿈되지 않게 했다.
+ * 화면 위에 떠 있는 알약: 좌우·바닥을 띄우고 그림자를 깊게 준다. 아이콘은 Ionicons
+ * 아웃라인↔채움 쌍으로, 활성 탭은 채운 모양 + 연한 파란 pill.
+ * 촬영 버튼은 먼저 용도(AI 코칭 / 챌린지 / 기본 촬영)를 고르고 카메라로 간다.
  */
 export default function TabLayout() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const [modeOpen, setModeOpen] = useState(false);
+
+  const pickMode = (mode: RecordMode) => {
+    setModeOpen(false);
+    if (mode === 'ai') {
+      router.push({ pathname: '/record-video', params: { mode: 'ai' } });
+      return;
+    }
+    if (mode === 'plain') {
+      router.push({ pathname: '/record-video', params: { mode: 'plain' } });
+      return;
+    }
+    router.push({
+      pathname: '/record-video',
+      params: { mode: 'challenge', line: TODAY_LINE.line, work: TODAY_LINE.work },
+    });
+  };
+
+  const icon = (outline: IoniconName, filled: IoniconName) => {
+    const TabIcon = ({ color, focused }: { color: string; focused: boolean }) => (
+      <View style={[styles.iconPill, focused && styles.iconPillActive]}>
+        <Ionicons size={24} name={focused ? filled : outline} color={color} />
+      </View>
+    );
+    TabIcon.displayName = `TabIcon(${outline})`;
+    return TabIcon;
+  };
 
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: palette.blue,
-        tabBarInactiveTintColor: palette.textFaint,
-        tabBarStyle: {
-          position: 'absolute',
-          left: 16,
-          right: 16,
-          bottom: insets.bottom + 12,
-          height: 62,
-          borderRadius: 31,
-          backgroundColor: palette.card,
-          borderTopWidth: 0,
-          paddingTop: 10,
-          paddingBottom: 10,
-          shadowColor: palette.navy,
-          shadowOpacity: 0.12,
-          shadowRadius: 16,
-          shadowOffset: { width: 0, height: 8 },
-          elevation: 8,
-        },
-        // 글자 없이 아이콘만(pen 탭바). 접근성 라벨은 title 로 남는다.
-        tabBarShowLabel: false,
-        headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: t('tabs.home'),
-          tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.iconPill, focused && styles.iconPillActive]}>
-              <Feather size={21} name="home" color={color} />
-            </View>
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="reading"
-        options={{
-          title: t('tabs.reading'),
-          tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.iconPill, focused && styles.iconPillActive]}>
-              <Feather size={21} name="book-open" color={color} />
-            </View>
-          ),
-        }}
-      />
-      {/* 기록은 탭바에서 빠졌지만(대본으로 교체) 라우트는 남겨 다른 화면에서 접근 가능하게 둔다. */}
-      <Tabs.Screen name="history" options={{ href: null }} />
-      <Tabs.Screen
-        name="record"
-        options={{
-          title: '',
-          tabBarButton: () => (
-            <View style={styles.fabSlot}>
-              <Pressable
-                style={styles.fab}
-                accessibilityRole="button"
-                accessibilityLabel={t('tabs.shootA11y')}
-                // 촬영 버튼은 바로 카메라로. 찍고 나면 챌린지에 올릴지 / AI 분석할지 고른다.
-                onPress={() => router.push({ pathname: '/record-video', params: { next: 'choose' } })}>
-                <Feather name="video" size={24} color="#FFFFFF" />
-              </Pressable>
-            </View>
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="challenges"
-        options={{
-          title: t('tabs.challenge'),
-          tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.iconPill, focused && styles.iconPillActive]}>
-              <Feather size={21} name="award" color={color} />
-            </View>
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: t('tabs.profile'),
-          tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.iconPill, focused && styles.iconPillActive]}>
-              <Feather size={21} name="user" color={color} />
-            </View>
-          ),
-        }}
-      />
-    </Tabs>
+    <>
+      <Tabs
+        screenOptions={{
+          tabBarActiveTintColor: palette.blue,
+          tabBarInactiveTintColor: palette.textFaint,
+          tabBarStyle: {
+            position: 'absolute',
+            left: 20,
+            right: 20,
+            bottom: insets.bottom + 16,
+            height: 64,
+            borderRadius: 32,
+            backgroundColor: palette.card,
+            borderTopWidth: 0,
+            borderWidth: 1,
+            borderColor: palette.borderSoft,
+            paddingTop: 11,
+            paddingBottom: 11,
+            shadowColor: palette.navy,
+            shadowOpacity: 0.18,
+            shadowRadius: 24,
+            shadowOffset: { width: 0, height: 12 },
+            elevation: 14,
+          },
+          tabBarShowLabel: false,
+          headerShown: false,
+          tabBarButton: HapticTab,
+        }}>
+        <Tabs.Screen name="index" options={{ title: t('tabs.home'), tabBarIcon: icon('home-outline', 'home') }} />
+        <Tabs.Screen name="reading" options={{ title: t('tabs.reading'), tabBarIcon: icon('book-outline', 'book') }} />
+        {/* 기록은 탭바에서 빠졌지만(대본으로 교체) 라우트는 남겨 다른 화면에서 접근 가능하게 둔다. */}
+        <Tabs.Screen name="history" options={{ href: null }} />
+        <Tabs.Screen
+          name="record"
+          options={{
+            title: '',
+            tabBarButton: () => (
+              <View style={styles.fabSlot}>
+                <Pressable
+                  style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('tabs.shootA11y')}
+                  onPress={() => setModeOpen(true)}>
+                  <Ionicons name="videocam" size={26} color="#FFFFFF" />
+                </Pressable>
+              </View>
+            ),
+          }}
+        />
+        {/* 대사 챌린지에 올라오는 대사가 전부 한국어라, 한국어로 쓰는 사람에게만 띄운다 (SOMA-544). */}
+        <Tabs.Screen
+          name="challenges"
+          options={
+            isKorean()
+              ? { title: t('tabs.challenge'), tabBarIcon: icon('trophy-outline', 'trophy') }
+              : { href: null }
+          }
+        />
+        <Tabs.Screen name="profile" options={{ title: t('tabs.profile'), tabBarIcon: icon('person-outline', 'person') }} />
+      </Tabs>
+      <RecordModeSheet visible={modeOpen} onClose={() => setModeOpen(false)} onPick={pickMode} />
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   iconPill: {
-    minWidth: 44,
-    height: 30,
+    minWidth: 48,
+    height: 34,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 15,
+    borderRadius: 17,
   },
   iconPillActive: {
     backgroundColor: palette.blueSoft,
   },
   fabSlot: { flex: 1, alignItems: 'center' },
   fab: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
     backgroundColor: palette.blue,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: -22,
+    marginTop: -28,
     borderWidth: 4,
     borderColor: palette.card,
     shadowColor: palette.blue,
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
   },
-  fabLabel: { fontSize: 11, fontWeight: '700', color: palette.blue, marginTop: 3 },
+  fabPressed: { transform: [{ scale: 0.96 }] },
 });

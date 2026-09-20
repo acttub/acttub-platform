@@ -11,9 +11,11 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.consent.app.ConsentRepository;
 import com.acttub.actingapi.feature.consent.domain.ConsentDocument;
 import com.acttub.actingapi.feature.consent.domain.ConsentEvent;
+import com.acttub.actingapi.feature.consent.domain.ConsentLocale;
 import com.acttub.actingapi.feature.consent.schema.ConsentDocumentEntity;
 import com.acttub.actingapi.feature.consent.schema.UserConsentEntity;
 import com.acttub.actingapi.platform.schema.ConsentAction;
+import com.acttub.actingapi.platform.web.OutputLanguage;
 import com.acttub.actingapi.platform.schema.ConsentType;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
@@ -59,25 +61,51 @@ class PostgresConsentRepository implements ConsentRepository {
      * 거부당한다. 안쪽의 정렬은 종류마다 <b>어느 판을 고를지</b>(가장 최근 것)를 정하는
      * 일이고, 바깥 정렬은 고른 것들을 보여줄 순서를 정하는 일이다 (apps/api/CONTRACT.md §5-8).
      */
+    /**
+     * <p><b>말은 요청에서 온다</b> (SOMA-544). 인자로 받지 않는 이유는 이 조회를 부르는
+     * 자리가 넷이고 그 위로 게이트까지 이어져 있어서다 — 한 요청이 어느 말을 쓰는지는
+     * 프롬프트와 같은 자리({@link OutputLanguage})에서 한 번만 읽는다. 요청 밖에서
+     * 부르면 정본(한국어)이다.
+     *
+     * <p>현행 판은 <b>한국어 문서가 정한다.</b> 번역본은 그 판에 딸린 것이고, 없으면
+     * 한국어를 보여준다 — 동의 화면이 비는 것보다 낫다.
+     */
     @Override
     public List<ConsentDocument> listLatestDocuments() {
         return list(entityManager.createNativeQuery("""
+                WITH canonical AS (
+                    SELECT DISTINCT ON(consent_documents.type)
+                           consent_documents.id,
+                           consent_documents.type, consent_documents.version
+                    FROM consent_documents
+                    WHERE consent_documents.locale = 'ko'
+                    ORDER BY consent_documents.type,
+                             consent_documents.published_at DESC,
+                             consent_documents.id DESC),
+                picked AS (
+                    SELECT DISTINCT ON(d.type)
+                           c.id,d.type,d.version,d.title,d.body,d.required,d.published_at
+                    FROM consent_documents d
+                    JOIN canonical c ON c.type = d.type AND c.version = d.version
+                    WHERE d.locale IN (:locale, 'ko')
+                    ORDER BY d.type, (d.locale = :locale) DESC, d.id DESC)
                 SELECT id,type,version,title,body,required,published_at
-                FROM (SELECT DISTINCT ON(consent_documents.type)
-                             id,type,version,title,body,required,published_at
-                      FROM consent_documents
-                      ORDER BY consent_documents.type,
-                               consent_documents.published_at DESC,
-                               consent_documents.id DESC) latest
-                ORDER BY CASE latest.type
+                FROM picked
+                ORDER BY CASE picked.type
                              WHEN 'terms' THEN 1
                              WHEN 'privacy' THEN 2
                              WHEN 'ai_analysis' THEN 3
                              WHEN 'retention' THEN 4
                          END
-                """, Tuple.class)).stream()
+                """, Tuple.class)
+                .setParameter("locale", requestLocale())).stream()
                 .map(PostgresConsentRepository::document)
                 .toList();
+    }
+
+    /** 이 요청이 읽을 동의 문서의 말. 아는 말이 아니면 정본(한국어). */
+    private static String requestLocale() {
+        return ConsentLocale.of(OutputLanguage.current());
     }
 
     @Override

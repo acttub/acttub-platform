@@ -5,7 +5,7 @@
 -- 새로 주소를 받으면 앞의 것을 덮어쓴다. 끝을 알리면 `photo_upload_key` 가 `photo_key` 로 옮겨지고
 -- 네 컬럼은 다시 빈다.
 --
--- `user_profiles` 는 V7 이 만든 테이블이라 직전 운영 태그의 서버는 이 테이블을 모른다. 컬럼은 전부
+-- `user_profiles` 는 V9 가 만든 테이블이라 직전 운영 태그의 서버는 이 테이블을 모른다. 컬럼은 전부
 -- NULL 허용이다 — 넷은 함께 차고 함께 빈다.
 ALTER TABLE public.user_profiles
     ADD COLUMN photo_upload_key text,

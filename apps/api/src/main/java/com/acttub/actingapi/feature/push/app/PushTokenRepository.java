@@ -22,8 +22,8 @@ public interface PushTokenRepository {
     void unregister(String token);
 
     /**
-     * 분석 완료를 알릴 토큰 — 연습 세션 <b>지금의</b> 주인의 토큰 전부. 주인이 분석 완료 알림을 꺼 두었으면
-     * 빈 목록이다(프로필의 토글을 읽어 거른다). 세션이 없으면 빈 목록.
+     * 분석 완료를 알릴 단말 — 연습 세션 <b>지금의</b> 주인의 토큰 전부와 각 단말이 쓰는 말(SOMA-544). 주인이
+     * 분석 완료 알림을 꺼 두었으면 빈 목록이다(프로필의 토글을 읽어 거른다). 세션이 없으면 빈 목록.
      */
-    List<String> analysisDoneTargets(UUID sessionId);
+    List<PushTarget> analysisDoneTargets(UUID sessionId);
 }

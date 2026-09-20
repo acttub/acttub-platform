@@ -22,7 +22,9 @@ class PushServiceTest {
     @Test
     void analysisCompletionSendsToEveryDeviceOfTheSessionOwner() {
         UUID sessionId = UUID.randomUUID();
-        tokens.forSession = List.of("ExponentPushToken[aaa]", "ExponentPushToken[bbb]");
+        tokens.forSession = List.of(
+                new PushTarget("ExponentPushToken[aaa]", "ko"),
+                new PushTarget("ExponentPushToken[bbb]", "ko"));
 
         service.onAnalysisComplete(sessionId);
 
@@ -52,7 +54,7 @@ class PushServiceTest {
     @Test
     @DisplayName("account.notification: Expo 가 \"등록되지 않은 기기\"로 답하면 그 토큰 행을 지운다")
     void unregisteredDevicesAreForgotten() {
-        tokens.forSession = List.of("ExponentPushToken[alive]", "ExponentPushToken[gone]");
+        tokens.forSession = List.of(new PushTarget("ExponentPushToken[alive]", "ko"), new PushTarget("ExponentPushToken[gone]", "ko"));
         sender.unregistered = List.of("ExponentPushToken[gone]");
 
         service.onAnalysisComplete(UUID.randomUUID());
@@ -63,7 +65,7 @@ class PushServiceTest {
     @Test
     @DisplayName("account.notification: 발송이 어떻게 실패해도 분석 완료 처리로 예외가 새지 않고, 실패는 보고된다")
     void aFailingSendNeverReachesTheAnalysisCompletion() {
-        tokens.forSession = List.of("ExponentPushToken[aaa]");
+        tokens.forSession = List.of(new PushTarget("ExponentPushToken[aaa]", "ko"));
         sender.failure = new IllegalStateException("expo is down");
 
         assertThatCode(() -> service.onAnalysisComplete(UUID.randomUUID())).doesNotThrowAnyException();
@@ -78,7 +80,7 @@ class PushServiceTest {
     }
 
     private static final class RecordingRepository implements PushTokenRepository {
-        private List<String> forSession = List.of();
+        private List<PushTarget> forSession = List.of();
         private final List<String> registered = new ArrayList<>();
         private final List<String> removed = new ArrayList<>();
 
@@ -93,7 +95,7 @@ class PushServiceTest {
         }
 
         @Override
-        public List<String> analysisDoneTargets(UUID sessionId) {
+        public List<PushTarget> analysisDoneTargets(UUID sessionId) {
             return forSession;
         }
     }

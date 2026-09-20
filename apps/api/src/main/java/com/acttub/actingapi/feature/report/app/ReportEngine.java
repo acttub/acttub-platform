@@ -21,6 +21,7 @@ import com.acttub.actingapi.platform.observability.LlmScore;
 import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.acttub.actingapi.platform.observability.LlmTokens;
+import com.acttub.actingapi.platform.web.OutputLanguage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -141,8 +142,8 @@ public class ReportEngine {
             }
             return blockedReport(reportType);
         }
-        String systemPrompt = ReportPrompt.select(reportType)
-                + (actorProfile == null ? "" : ACTOR_PROFILE_INSTRUCTION);
+        String systemPrompt = OutputLanguage.apply(ReportPrompt.select(reportType)
+                + (actorProfile == null ? "" : ACTOR_PROFILE_INSTRUCTION));
         String userPrompt = serializeInput(modelInput);
         String raw = recorded(systemPrompt, userPrompt, reportType, practiceSessionId, userId, actorProfile != null);
         if (practiceSessionId != null) {

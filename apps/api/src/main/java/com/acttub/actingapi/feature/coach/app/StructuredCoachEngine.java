@@ -21,6 +21,7 @@ import com.acttub.actingapi.platform.observability.LlmCall;
 import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.acttub.actingapi.platform.observability.LlmTokens;
+import com.acttub.actingapi.platform.web.OutputLanguage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -192,7 +193,9 @@ final class StructuredCoachEngine {
         if (!finish) throw new CoachReplyUnavailable();
         ObjectNode retained = state.deepCopy();
         retained.put("revision", session.stateRevision() + 1).put("response_style", style);
-        return result(session, actorText, "지금까지 이야기한 내용으로 정리할게요.", retained, "system_failure");
+        return result(session, actorText, (OutputLanguage.isKorean()
+                ? "지금까지 이야기한 내용으로 정리할게요."
+                : "Let's wrap up with what we've talked through so far."), retained, "system_failure");
     }
 
     private static ObjectNode input(CoachSessionSnapshot session, JsonNode state, String actorText,
@@ -291,8 +294,8 @@ final class StructuredCoachEngine {
     private String recorded(CoachSessionSnapshot session, JsonNode input, int call) {
         Instant started = Instant.now();
         String text = input.toString();
-        String prompt = PROMPT + DialogueProgress.turnInstruction(input.path("dialogue_progress"))
-                + (input.has("actor_profile") ? ACTOR_PROFILE_INSTRUCTION : "");
+        String prompt = OutputLanguage.apply(PROMPT + DialogueProgress.turnInstruction(input.path("dialogue_progress"))
+                + (input.has("actor_profile") ? ACTOR_PROFILE_INSTRUCTION : ""));
         // 모델에는 text 를 그대로 보내고, 바깥으로 나가는 기록에서만 이름을 가린다 (CONTRACT.md §7-2).
         String recordedInput = prompt + "\n" + (input.has("actor_profile") ? ActorNameRedaction.inJson(text) : text);
         try {

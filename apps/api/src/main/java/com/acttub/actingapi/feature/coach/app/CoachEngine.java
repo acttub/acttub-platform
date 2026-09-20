@@ -22,6 +22,7 @@ import com.acttub.actingapi.platform.observability.LlmScore;
 import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.acttub.actingapi.platform.observability.LlmTokens;
+import com.acttub.actingapi.platform.web.OutputLanguage;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -192,7 +193,7 @@ public class CoachEngine {
             CoachSessionSnapshot session, String actorText, UUID operationId) {
         String userMessage = messageForGeneration(actorText)
                 + CoachResponsePolicy.recoveryInstruction(session, actorText);
-        String systemPrompt = CoachPrompt.select(session.blockageKind());
+        String systemPrompt = OutputLanguage.apply(CoachPrompt.select(session.blockageKind()));
         int turnNumber = CoachPrompt.turnNumber(session);
         String chatPrompt = CoachPrompt.buildChat(session, userMessage);
         GeneratedText generated = recorded(

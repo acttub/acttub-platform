@@ -102,9 +102,24 @@ function splitColon(line: string): { name: string; text: string } | null {
  */
 const STAGE_WORDS = new Set(["잠시", "사이", "침묵", "암전", "조명", "음악", "효과음", "무대", "막", "장", "프롤로그", "에필로그", "서막", "종막"]);
 const ACT_MARK_RE = /^(?:제\s*)?\d+\s*(?:막|장|경|부|씬|신)(?:\s*\d+\s*(?:장|경|씬|신))?$/;
+/**
+ * 영어 대본에서 같은 자리를 차지하는 말 (SOMA-544). 영어 희곡은 `ACT ONE`·`SCENE 2`·
+ * `BEAT`·`PAUSE` 가 화자 자리에 오는데, 그냥 두면 배역으로 잡혀 대사가 사라진다.
+ */
+const EN_STAGE_WORDS = new Set([
+  "pause", "beat", "silence", "blackout", "lights", "music", "sound", "sfx", "stage",
+  "act", "scene", "prologue", "epilogue", "intermission", "curtain", "fadein", "fadeout",
+]);
+const EN_ACT_MARK_RE = /^(?:act|scene|part)\s*(?:[0-9]+|[ivxlcdm]+|one|two|three|four|five|six|seven|eight|nine|ten)$/i;
 
 function isStageWord(name: string): boolean {
-  return STAGE_WORDS.has(name) || ACT_MARK_RE.test(name);
+  const en = name.trim().toLowerCase().replace(/[\s.]/g, '');
+  return (
+    STAGE_WORDS.has(name)
+    || ACT_MARK_RE.test(name)
+    || EN_STAGE_WORDS.has(en)
+    || EN_ACT_MARK_RE.test(name.trim())
+  );
 }
 
 // ─── 등장인물 목록 ────────────────────────────────────────────────────────────

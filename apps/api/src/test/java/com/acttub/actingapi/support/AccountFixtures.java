@@ -36,6 +36,8 @@ public final class AccountFixtures {
                 SELECT gen_random_uuid(), ?, latest.id, 'granted', now()
                 FROM (SELECT DISTINCT ON (type) id
                       FROM consent_documents
+                      -- 문서의 신원은 한국어 행이 쥔다(SOMA-544). 번역본 행에 동의하면 게이트가 모른다.
+                      WHERE locale = 'ko'
                       ORDER BY type, published_at DESC, id DESC) latest
                 """, userId);
     }

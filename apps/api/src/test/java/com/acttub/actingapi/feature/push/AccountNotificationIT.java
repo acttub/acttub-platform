@@ -13,6 +13,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
+import com.acttub.actingapi.feature.push.app.PushTarget;
 import com.acttub.actingapi.feature.push.app.PushTokenRepository;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.PostgresContainerSupport;
@@ -124,6 +125,7 @@ class AccountNotificationIT {
         UUID session = practice(member);
         assertThat(tokens.analysisDoneTargets(session))
                 .as("폰 두 대에 로그인했으면 둘 다 받는다")
+                .extracting(PushTarget::token)
                 .containsExactly("ExponentPushToken[phone]", "ExponentPushToken[tablet]");
 
         patchSettings("{\"analysis_done\":false}", 200);

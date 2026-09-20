@@ -14,6 +14,7 @@ import com.acttub.actingapi.platform.observability.LlmCall;
 import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.acttub.actingapi.platform.observability.LlmTokens;
+import com.acttub.actingapi.platform.web.OutputLanguage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
@@ -70,8 +71,9 @@ final class CoachingPipeline {
         payload.remove(List.of("dialogue_progress", "output_contract", "request_id", "session_id"));
         // 완성된 프로필이 실린 호출에만 프로필 지시가 붙는다. 프로필이 없으면 프롬프트는 prompt(route, finish) 그대로다
         // (CONTRACT.md §7-2 "부재 시 동일성"). 분류·다듬기 호출은 프로필을 받지 않는다 — 이름이 실리는 호출은 이것 하나다.
-        String prompt = prompt(route, finish)
-                + (payload.has("actor_profile") ? StructuredCoachEngine.ACTOR_PROFILE_INSTRUCTION : "");
+        // 답할 말 지시(SOMA-544)는 맨 마지막이다. 한국어면 아무것도 붙지 않는다.
+        String prompt = OutputLanguage.apply(prompt(route, finish)
+                + (payload.has("actor_profile") ? StructuredCoachEngine.ACTOR_PROFILE_INSTRUCTION : ""));
         JsonNode draft = StructuredJson.parse(call(session, attempt == 0 ? LlmStep.COACH_TURN : LlmStep.COACH_REGENERATION,
                 prompt, payload, new GenerationOptions(null, "low", 3000, null, null), route));
         if (draft.size() != 3 || !draft.path("message").isTextual() || !draft.has("context_update")

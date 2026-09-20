@@ -92,7 +92,7 @@ Schema Entity는 활성 영속 경로를 매핑하고 `actor_memory_entries`·`p
   1.0.0에서 커뮤니티의 API와 코드를 내렸다([05-community.md](../../docs/requirements/05-community.md)).
   `/v2/community/**`는 404다. 글·댓글·차단·신고·카테고리 데이터와 CHECK 값 검사
   (`ValueCheckCatalogIT`)는 그대로 두고, 되살릴 때는 git 이력에서 `feature/community`를 가져온다.
-- `users.nickname`: 이름은 `user_profiles.name`이 정본이다. V7이 옛 값을 복사했고 Schema Entity는
+- `users.nickname`: 이름은 `user_profiles.name`이 정본이다. V9가 옛 값을 복사했고 Schema Entity는
   이 컬럼을 매핑하지 않으며 조회·수정은 이 컬럼을 보지 않는다. **탈퇴의 파기만 예외로 이 컬럼에
   NULL을 쓴다** — 복사 뒤에도 옛 값이 남아 있고 탈퇴는 이름을 지체 없이 파기해야 하기 때문이다
   (`PostgresProfileRepository#withdraw`). 그래서 물리 삭제는 두 릴리스에 걸친다: 그 쓰기를 걷어낸
@@ -619,7 +619,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   되살아난다. 쓰기가 먼저면 탈퇴가 그 뒤에 파기하고, 탈퇴가 먼저면 쓰지 않고 게이트가 했을 답
   **403 `account_deactivated`** 를 준다(푸시 토큰 등록은 조용히 204).
 - **바깥 호출은 트랜잭션 밖이다**(`feature/profile/app/AccountCleanup`). 탈퇴 트랜잭션은 해제에 쓸 값을
-  **파기 전에** `account_cleanup_operations`(V9)로 옮겨 두기만 한다 — `object_delete`(객체 키 목록),
+  **파기 전에** `account_cleanup_operations`(V11)로 옮겨 두기만 한다 — `object_delete`(객체 키 목록),
   `apple_revoke`(애플 토큰), `kakao_unlink`(회원번호), `naver_revoke`(refresh token). 커밋 뒤 바로 한 번
   시도하고, 실패하면 5분에서 두 배씩(최대 12시간) 늘려 **7일** 동안 다시 시도한다. 성공하거나 7일이 지나면
   행을 값과 함께 지운다 — **끝난 것은 장부에 남지 않는다.** 구글의 연결 해제는 앱이 SDK 로 한다.
@@ -669,7 +669,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 - **이관 코드**(`POST /v2/guest/transfer-code`, 게스트 전용, **201** `code`·`expires_in`·`expires_at`): 여섯 자리
   숫자, 10분, 1회용, 새로 받으면 이전 코드는 무효다. **해시로만 저장한다**(HMAC — 키는 `JWT_SECRET` 에서
   용도를 못박아 뽑는다). 다른 게스트의 살아 있는 코드와 해시가 겹치면 다시 뽑는다. **유일성은 DB 가 지킨다**
-  (V10 의 부분 유니크 인덱스 둘 — 쓰지 않은 코드는 게스트마다 하나, 숫자마다 하나). 겹쳐 온 발급은 뒤의 INSERT 가
+  (V12 의 부분 유니크 인덱스 둘 — 쓰지 않은 코드는 게스트마다 하나, 숫자마다 하나). 겹쳐 온 발급은 뒤의 INSERT 가
   앞의 커밋을 기다렸다가 `ON CONFLICT DO NOTHING` 의 0행으로 끝나고 다시 뽑으면서 앞의 코드를 지운다 — 둘 다 201
   이지만 살아 있는 코드는 하나다. 발급은 코드 행만 잠근다(`users` 행을 잡으면 옮기기와 순서가 엇갈려 교착한다).
 - **옮기기**(`POST /v2/guest-transfers`, 게이트를 지난 회원만, **200** `{"transferred":true}`): 코드가 틀림·

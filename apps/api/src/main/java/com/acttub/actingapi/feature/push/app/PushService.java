@@ -61,17 +61,28 @@ public class PushService implements AnalysisCompletionListener {
     }
 
     private void notifyAnalysisDone(UUID sessionId) {
-        List<String> targets = tokens.analysisDoneTargets(sessionId);
+        List<PushTarget> targets = tokens.analysisDoneTargets(sessionId);
         if (targets.isEmpty()) {
             return;
         }
         List<PushMessage> messages = targets.stream()
-                .map(token -> new PushMessage(
-                        token,
-                        "분석이 끝났어요",
-                        "질문이 준비됐어요. 이어서 확인해 볼까요?",
+                .map(target -> new PushMessage(
+                        target.token(),
+                        korean(target) ? "분석이 끝났어요" : "Your analysis is ready",
+                        korean(target)
+                                ? "질문이 준비됐어요. 이어서 확인해 볼까요?"
+                                : "The coach has questions waiting. Shall we pick it up?",
                         Map.of("sessionId", sessionId.toString())))
                 .toList();
         sender.send(messages).forEach(tokens::unregister);
+    }
+
+    /**
+     * 이 단말이 한국어를 쓰는가. 값이 비었으면(옛 토큰) 한국어로 본다 — 지금까지 쓰던 사람은
+     * 전부 한국어 사용자라, 모르면 바꾸지 않는 쪽이 맞다.
+     */
+    private static boolean korean(PushTarget target) {
+        return target.locale() == null || target.locale().isBlank()
+                || "ko".equals(target.locale());
     }
 }

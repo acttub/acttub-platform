@@ -34,8 +34,9 @@ DOCS="${CONSENT_DOCS_DIR:-apps/api/src/main/resources/consent-docs}"
 MANIFEST="$DOCS/manifest.json"
 NOTICE_FILE=privacy_policy.md
 NOTICE_PATH="$DOCS/$NOTICE_FILE"
-PRIVACY_FILE=$(jq -r '.[] | select(.type=="privacy") | .file' "$MANIFEST")
-PRIVACY_VERSION=$(jq -r '.[] | select(.type=="privacy") | .version' "$MANIFEST")
+# 번역본이 나란히 실릴 수 있다(SOMA-544). 발행의 정본은 한국어 행이다.
+PRIVACY_FILE=$(jq -r '.[] | select(.type=="privacy" and ((.locale // "ko") == "ko")) | .file' "$MANIFEST")
+PRIVACY_VERSION=$(jq -r '.[] | select(.type=="privacy" and ((.locale // "ko") == "ko")) | .version' "$MANIFEST")
 PRIVACY_PATH="$DOCS/$PRIVACY_FILE"
 
 stop() {

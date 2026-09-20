@@ -47,6 +47,10 @@ function requestHeaders(
   const headers = new Headers(source);
   headers.set("X-Acttub-Client", ACTTUB_CLIENT);
   headers.set("X-Acttub-Contract", "three_layers_v1");
+  // 서버가 AI 답변과 동의 문서를 어느 말로 낼지 이 값으로 정한다 (SOMA-544).
+  // 웹은 아직 한국어 화면뿐이라 한국어로 못박는다 — 브라우저가 보내는 값을 그대로 두면
+  // 화면은 한국어인데 약관만 영어로 나오는 기기가 생긴다. 웹을 영어로 열 때 같이 푼다.
+  headers.set("Accept-Language", "ko");
   if (body !== undefined && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }

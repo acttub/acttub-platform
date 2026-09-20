@@ -133,9 +133,15 @@ class ReportNoStorageIT {
         return practice;
     }
 
-    /** 기동 시 publisher 가 심어 둔 최신 동의 문서 전부에 granted 를 남긴다. */
+    /**
+     * 기동 시 publisher 가 심어 둔 최신 동의 문서 전부에 granted 를 남긴다.
+     *
+     * <p>말마다 행이 하나씩 있지만 <b>문서의 신원은 한국어 행이 쥔다</b> (SOMA-544) —
+     * 서비스가 내주는 문서 번호가 그것이라, 동의도 그 번호로 남겨야 맞는다.
+     */
     private void grantAllConsents() {
         jdbc.query("SELECT DISTINCT ON (type) id FROM consent_documents"
+                        + " WHERE locale = 'ko'"
                         + " ORDER BY consent_documents.type,"
                         + " consent_documents.published_at DESC, consent_documents.id DESC",
                 (rs, row) -> rs.getObject(1, UUID.class))
