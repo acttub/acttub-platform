@@ -61,6 +61,14 @@ class ValueCheckCatalogIT {
         BY_CONSTRAINT.put("ck_consent_documents_type", ConsentType.class);
         BY_CONSTRAINT.put("ck_external_operations_kind", OperationKind.class);
         BY_CONSTRAINT.put("ck_external_operations_status", OperationStatus.class);
+        // 리딩(V13). 값 이름은 API 값이기도 하다.
+        BY_CONSTRAINT.put("ck_line_memorization_status", MemorizationStatus.class);
+        BY_CONSTRAINT.put("ck_reading_recordings_transcript_source", TranscriptSource.class);
+        BY_CONSTRAINT.put("ck_reading_sessions_advance", ReadingAdvance.class);
+        BY_CONSTRAINT.put("ck_reading_sessions_mode", ReadingMode.class);
+        BY_CONSTRAINT.put("ck_reading_sessions_status", ReadingSessionStatus.class);
+        BY_CONSTRAINT.put("ck_script_lines_kind", ScriptLineKind.class);
+        BY_CONSTRAINT.put("ck_scripts_source", ScriptSource.class);
         BY_CONSTRAINT.put("ck_portfolio_credits_kind", PortfolioCreditKind.class);
         BY_CONSTRAINT.put("ck_practice_sessions_status", PracticeStatus.class);
         BY_CONSTRAINT.put("ck_upload_intents_status", UploadStatus.class);
@@ -102,7 +110,7 @@ class ValueCheckCatalogIT {
     JdbcTemplate jdbc;
 
     @Test
-    @DisplayName("값 CHECK 스물다섯 개가 각각 자기 Java enum 과 같은 값 목록을 갖는다")
+    @DisplayName("값 CHECK 서른두 개가 각각 자기 Java enum 과 같은 값 목록을 갖는다")
     void everyValueCheckHasExactlyTheValuesOfItsJavaEnum() {
         Map<String, Set<String>> actual = valueChecks();
 

@@ -59,8 +59,8 @@ import org.springframework.test.web.servlet.MockMvc;
  * account.guest 의 "검증 방법" 가운데 옮기기를 HTTP 와 실제 Postgres 로 본다. 동시성과 도중 실패는 같은
  * 이음매에서 요청을 겹쳐 보내거나 DB 가 거절하게 만들어 본다.
  *
- * <p>대본·리딩 회차·녹음은 아직 서버에 없어(웹 리딩은 기기 안에서 돈다) 옮길 행이 없다. 지금 옮기는 것은
- * {@code user_id} 가 있는 자료 행 전부다 — 올린 영상, 연습, 작업 장부, 배우 기억.
+ * <p>여기서 옮기는 것은 연습 쪽의 {@code user_id} 가 있는 자료 행이다 — 올린 영상, 연습, 작업 장부, 배우 기억.
+ * 대본·리딩 회차·녹음·암기 상태의 이관은 {@code feature.reading.ReadingScriptIT} 가 본다(SOMA-546).
  */
 @SpringBootTest(properties = {
     "JWT_SECRET=test-secret",

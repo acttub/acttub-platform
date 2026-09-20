@@ -407,7 +407,8 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 **배열**이고, 규칙에 걸린 것은 다른 오류와 같이 **코드 문자열 하나**다: `under_14`,
 `under_14_account_closed`, `authorization_code_required`, `consent_decisions_incomplete`,
 `required_consent_cannot_be_declined`, `age_confirmation_required`, `order_mismatch`,
-`portfolio_credit_limit_exceeded`, `portfolio_photo_limit_exceeded`. (네이버 로그인에 `authorization_code`·`code_verifier` 가 빠진 것은
+`portfolio_credit_limit_exceeded`, `portfolio_photo_limit_exceeded`, 그리고 리딩의 `no_characters`,
+`invalid_characters`, `script_too_long`, `script_limit`, `request_fingerprint_mismatch`(§6-14). (네이버 로그인에 `authorization_code`·`code_verifier` 가 빠진 것은
 본문의 모양이 틀린 것이라 **배열**이다 — 애플의 `authorization_code_required` 와 다르다.) 클라이언트는 `detail` 이 문자열이면 사유로 가르고 배열이면
 자기 버그로 다룬다. 선례는 `request_fingerprint_mismatch` 다.
 
@@ -439,14 +440,14 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 
 ### 6-3. unknown key 정책 — 전역 reject + DTO 별 예외
 
-요청 바디 25개 중 **5개가 unknown key 를 허용**한다(2026-09-20, 계정 1.0.0 뒤):
+요청 바디 27개 중 **5개가 unknown key 를 허용**한다(2026-09-21, 리딩 대본 뒤):
 
 ```
 POST /v2/auth/login      POST /v2/auth/logout     POST /v2/auth/refresh
 POST /v2/consents        POST /v2/uploads/intents
 ```
 
-나머지 20개는 `additionalProperties: false` 다. 1.0.0 에서 더한 요청 바디는 전부 닫혀 있다.
+나머지 22개는 `additionalProperties: false` 다. 1.0.0 에서 더한 요청 바디(리딩의 등록·수정 포함)는 전부 닫혀 있다.
 
 **전역 `fail-on-unknown-properties: true` + 허용할 5개에
 `@JsonIgnoreProperties(ignoreUnknown = true)`.**
@@ -620,7 +621,8 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   **403 `account_deactivated`** 를 준다(푸시 토큰 등록은 조용히 204).
 - **바깥 호출은 트랜잭션 밖이다**(`feature/profile/app/AccountCleanup`). 탈퇴 트랜잭션은 해제에 쓸 값을
   **파기 전에** `account_cleanup_operations`(V11)로 옮겨 두기만 한다 — `object_delete`(객체 키 목록),
-  `apple_revoke`(애플 토큰), `kakao_unlink`(회원번호), `naver_revoke`(refresh token). 커밋 뒤 바로 한 번
+  `apple_revoke`(애플 토큰), `kakao_unlink`(회원번호), `naver_revoke`(refresh token), 그리고 `reading_recording_delete`
+  (리딩 녹음 객체 키 목록, V13·§6-14 — 실행은 `object_delete` 와 같다). 커밋 뒤 바로 한 번
   시도하고, 실패하면 5분에서 두 배씩(최대 12시간) 늘려 **7일** 동안 다시 시도한다. 성공하거나 7일이 지나면
   행을 값과 함께 지운다 — **끝난 것은 장부에 남지 않는다.** 구글의 연결 해제는 앱이 SDK 로 한다.
 - **`object_delete` 는 탈퇴만 쓰는 것이 아니다.** 객체 키를 DB 에서 덮거나 그 행을 지우는 자리는 전부 같은
@@ -651,8 +653,8 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   토큰의 구조·갱신·만료는 회원과 같다. 끝난 게스트의 토큰이 붙어 와도 401 로 막지 않는다.
 - **게스트의 게이트**(`platform/security/GuestFeature`): 경로가 속한 **기능의 문서만** 본다. 연습
   (`/v2/uploads/**`·`/v2/practice-sessions/**`·`/v2/coach/**`·`/v2/reports/**`·`/v2/me/memory/**`)은 약관·
-  수집·이용 동의·AI 분석 동의, 리딩은 약관·수집·이용 동의 둘이다(녹음의 AI 대조는 (결정 필요)라 넣지
-  않았고, 리딩의 경로는 아직 서버에 없다). **프로필은 보지 않고 선택 문서는 묻지 않는다.** 403
+  수집·이용 동의·AI 분석 동의, 리딩(`/v2/reading/**`)은 약관·수집·이용 동의 둘이다(서버가 대본·음성을
+  분석하지 않아 AI 분석 동의는 없다 — ADR-031, §6-14). **프로필은 보지 않고 선택 문서는 묻지 않는다.** 403
   `consent_required` 의 `pending_consents` 에는 **그 기능에 빠진 문서만** 싣는다. 어느 기능에도 적히지 않은
   경로는 **403 `member_only`** 다 — 적지 않은 새 경로는 게스트에게 닫힌 채로 시작한다.
 - **동의**: 게스트의 **첫** 동의에는 `age_confirmed: true` 가 실려야 한다. 없으면 **422
@@ -679,18 +681,22 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   자리를 차지하므로 겹쳐 보낸 추측 스무 개가 같은 수를 보고 함께 평가되지 못한다. 맞은 코드·409·서버 쪽 실패는
   자리를 되돌려 준다.
 - **한 트랜잭션**(`feature/transfer/app/GuestTransferService`): 코드 행을 `FOR UPDATE` 로 잡고(같은 코드를 든
-  두 요청 가운데 하나만 받는다), 올린 영상·연습·작업 장부·배우 기억의 `user_id` 를 회원으로 바꾸고, 게스트를
+  두 요청 가운데 하나만 받는다), 올린 영상·연습·작업 장부·배우 기억과 리딩 자료(대본·회차·녹음·암기 상태)의
+  `user_id` 를 회원으로 바꾸고, 게스트를
   닫는다(`deactivated`, **신원 행 삭제**, 리프레시 폐기 — **행은 남긴다**), 코드를 쓴 것으로 적는다. 분석·
   대화·노트는 연습 행에 매달려 따라간다. 동의 기록은 게스트 행에 남는다. 진행 중 작업은 상태와 lease 를
   건드리지 않아 돌던 워커가 그대로 끝내고, 완료 알림은 **그때의 주인(회원)** 에게 간다.
-  - **순서는 올린 영상 → 연습 → 작업 장부 → 기억이다.** 앞의 셋은 새 연습을 만드는 쪽과 같은 방향이라(올린
+  - **순서는 올린 영상 → 연습 → 작업 장부 → 기억 → 리딩이다.** 앞의 셋은 새 연습을 만드는 쪽과 같은 방향이라(올린
     영상 행을 먼저 잡는다) 겹쳐 만들어진 연습과 작업을 놓치지 않는다. 기억을 작업 장부 **뒤**에 보는 것은 기억
     갱신 워커 때문이다 — 워커는 완료 트랜잭션에서 작업 행을 잡고 **그 행의 지금 주인**에게 기억을 쓴다
     (`MemoryUpdateQueue#complete` 가 주인을 넘긴다. 모델을 기다리기 전에 읽어 둔 자료의 주인을 믿지 않는다).
     이관이 작업 행을 잡은 뒤에 기억을 보면 저장 중이던 갱신이 끝난 뒤의 기억을 보고, 그 뒤의 갱신은 회원에게
     간다. 기억을 먼저 보면 닫힌 게스트에게 기억이 다시 생긴다.
+  - 리딩은 맨 뒤다(`reading/app/ReadingOwnership`, §6-14). 옮기기 전에 **게스트의 `users` 행을 `FOR UPDATE` 로
+    잡는다** — 리딩의 쓰기가 같은 행을 잡고 활성인지 보므로, 옮기는 사이에 커밋된 대본이 닫힌 게스트에게 남지
+    않는다. 게스트와 회원의 `request_id` 가 겹치면 게스트 쪽 값을 NULL 로 비우고 옮긴다.
   - 🔥 각 도메인의 주인 바꾸기 포트(`UploadOwnership`·`PracticeOwnership`·`MemoryOwnership`·
-    `platform/ledger/OperationOwnership`·`auth/app/GuestAccounts`)는 **자기 `TransactionTemplate` 을 쓰지
+    `platform/ledger/OperationOwnership`·`auth/app/GuestAccounts`·`reading/app/ReadingOwnership`)는 **자기 `TransactionTemplate` 을 쓰지
     않는다.** 몇몇 저장소의 템플릿은 `REQUIRES_NEW` 라(§5-4) 거기에 얹으면 이관과 따로 커밋돼, 도중에 실패해도
     그 행만 회원에게 넘어간 채로 남는다 — 실제로 그렇게 새는 것을 `GuestTransferIT` 가 잡았다.
   - 배우 기억은 **합치지 않는다.** 회원에게 없으면 옮기고, 둘 다 있으면 `memory_choice`(`member`·`guest`)로
@@ -785,6 +791,59 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   덮어 모든 요청에 영향을 주는데, 이 서버는 그것들을 헤더로 판정하지 않는다(§6-4). `CF-Connecting-IP` 도 보지
   않는다 — Cloudflare 를 거친 요청에서는 `X-Forwarded-For` 의 맨 오른쪽과 같은 값이고, 출처를 둘로 두면 다른
   길에서 믿을 헤더만 늘어난다.
+
+### 6-14. 대본 리딩 — 대본 (SOMA-546 RA1 초안)
+
+정본은 [03-reading.md](../../docs/requirements/03-reading.md) reading.script 와 「리딩 자료의 이관·삭제·탈퇴」 표다.
+회차·녹음·암기 상태(RA2~RA4)와 탈퇴·30일 파기(RA5)는 뒤에 이 절에 이어 쓴다. 서버는 대본·음성을 분석하지 않는다
+(ADR-031) — 배역 나누기는 기기의 파서가 하고 배우가 확인한 결과가 그대로 온다.
+
+- **경로**는 전부 `/v2/reading/**` 이고 보호 기능이다. 게스트의 기능 표 `READING` 은 약관·수집·이용 동의 둘이며
+  AI 분석 동의는 없다(§6-9). 회원은 회원의 게이트(§6-5)를 지난다.
+- **스키마(V13)**: `scripts`·`script_characters`·`script_lines`·`reading_sessions`·`reading_recordings`·
+  `line_memorization`. 값 목록은 text + CHECK 이고 Java enum 은 `platform/schema` 에 있다(`ScriptSource`·
+  `ScriptLineKind`·`ReadingMode`·`ReadingAdvance`·`ReadingSessionStatus`·`TranscriptSource`·`MemorizationStatus`).
+  FK 에 `ON DELETE` 가 없다 — 삭제는 애플리케이션이 표대로 순서를 정해 지운다. `scripts.request_id`·
+  `reading_sessions.request_id` 는 (user_id, request_id) 유일이고 이관 충돌 때만 NULL 이다.
+  `uq_script_characters_script_name` 은 DEFERRABLE 이다 — 이름 수정이 두 배역의 이름을 맞바꿀 때 문장 사이에서
+  잠시 겹치므로 수정 트랜잭션이 `SET CONSTRAINTS … DEFERRED` 로 커밋까지 미룬다.
+- **등록** `POST /v2/reading/scripts`: 본문은 `request_id`(UUID)·`title`(1~200자)·`source`(`file`·`paste`·`typed`·
+  `sample`)·`raw_text`·`characters[{name}]`·`lines[{ordinal, kind, character_index, text}]`. `ordinal` 은 1부터 배열
+  순서와 같아야 하고, `character_index` 는 `characters` 의 자리(0부터)로 대사 줄에만 있다 — 어긋나면 422 배열.
+  웹은 같은 값을 `X-Request-Id` 헤더에도 싣는다: 헤더는 없어도 되지만 있으면 본문과 같아야 하고 다르면 422 배열
+  (`loc: ["header","X-Request-Id"]`). 만들면 **201**, 같은 요청의 재전송이면 **200** 으로 먼저 만든 대본이다.
+  응답은 `ReadingScript`(원문은 싣지 않는다).
+  - **재전송은 지문으로 가른다.** 생성 요청의 정규화한 본문(제목·입력 경로·원문·배역 이름·줄)의 SHA-256 을
+    `request_fingerprint` 에 저장하고 뒤에 제목·배역 이름을 고쳐도 바꾸지 않는다. 같은 `request_id` 에 같은 지문이면
+    먼저 만든 대본, 다른 지문이면 422 `request_fingerprint_mismatch`. 대본을 지운 뒤 같은 id 는 새 대본이다.
+  - **규칙은 사유 코드 하나**다: 배역 0 `no_characters`, 비거나(공백 정리 뒤) 같은 대본 안에서 겹치는 이름
+    `invalid_characters`, 원문 100,000자·줄 본문 총량 100,000자·줄 3,000·배역 50 초과 `script_too_long`, 대본 수
+    회원 100·게스트 20 이상 `script_limit`(`domain/ScriptRules`). **재전송은 개수 검사보다 먼저다** — 마지막 허용
+    대본의 재시도가 실패하지 않는다. 거절하면 행이 남지 않는다.
+  - **쓰기는 `users` 행을 `FOR UPDATE` 로 잡고 활성인지 본다**(`PostgresScriptRepository#lockActive`, §6-8 과 같은
+    형태). 게이트를 지난 뒤 탈퇴·이관이 먼저 끝났으면 쓰지 않고 403 `account_deactivated` 다. 같은 회원의 등록이
+    겹쳐도 여기서 줄을 서므로 개수 한도가 정확하다.
+- **목록** `GET /v2/reading/scripts?q=`: `{ scripts: ReadingScriptCard[], total_count, in_progress_count }`. 최근 고친
+  순(`updated_at DESC`)이고 `q` 는 제목과 배역 이름을 ILIKE 로 찾는다(`%`·`_` 는 글자 그대로, 대사 본문은 찾지
+  않는다). 머리의 수는 검색과 무관하다. 카드의 `my_character_names` 는 마지막 회차(가장 늦게 시작한 회차)의 내
+  배역이고 회차가 없으면 빈 배열, `status` 는 열린 회차가 있으면 `reading`, 없고 마지막 회차가 completed 면
+  `completed`, 그 밖(회차 없음·stopped 만 남음)은 `no_cast`, `last_practiced_at` 은 회차의 마지막 갱신 시각
+  (없으면 null), `last_activity_at` 은 그것 아니면 등록 시각이다. `dialogue_count`·`recording_count` 는 집계다.
+- **상세** `GET /v2/reading/scripts/{id}`: `ReadingScript` — 배역(`voice_preset`, `dialogue_count`), 줄(`dialogue_no`
+  는 대사 줄만 센 순번, 지문·장면은 null), `recording_count`, `open_session_id`, `last_session`(id·status·
+  my_character_ids·my_character_names·started_at·ended_at). 없는 것과 남의 것은 같은 **404 `script_not_found`**
+  (수정·삭제도 같다).
+- **수정** `PATCH /v2/reading/scripts/{id}`: `title?`·`characters?[{id, name?, voice_preset?}]` 만. 줄은 받지 않는다
+  (모르는 키라 422 배열). 이름은 앞뒤 공백을 정리하고 비거나 겹치면, 이 대본에 없는 배역 id·같은 id 둘·33자 이상
+  프리셋이면 422 `invalid_characters`. `voice_preset` 은 **키가 있을 때만** 바꾸고 null 은 "자동"이다. 배역 id·줄의
+  연결·지문은 그대로이고 `updated_at` 이 는다. 응답은 상세와 같은 `ReadingScript`.
+- **삭제** `DELETE /v2/reading/scripts/{id}`: 배역·줄·회차·녹음·암기 상태를 행째 지우고 **204**. 녹음 객체의 삭제는
+  행을 지운 트랜잭션이 정리 장부(`reading_recording_delete`)에 올리고 커밋 뒤에 시도한다(`reading/app/
+  ReadingRecordingCleanup`, 구현은 `profile` 의 `PostgresObjectCleanupLedger`). 저장소가 실패해도 204 이고 장부가
+  다시 시도한다. DB 가 도중에 실패하면 아무것도 지워지지 않는다.
+- **이관**: §6-9. 대본·회차·녹음·암기 상태의 `user_id` 가 바뀌고 `request_id` 충돌은 게스트 쪽을 비운다.
+- 아직 없는 것(뒤 티켓): 회차·녹음·암기 API, 탈퇴·30일 파기의 리딩 행 삭제와 보관 동의자의 녹음 보관, 정리 장부의
+  "객체 삭제는 성공까지 키 유지·7일 연속 실패 알림"(RA5 — 지금은 `object_delete` 와 같이 7일 뒤 지운다).
 
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 

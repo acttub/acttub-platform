@@ -73,6 +73,8 @@ class PackageLayerTest {
             // 포트폴리오와 게스트 이관은 테이블이 먼저 서고(V9, SOMA-528) 나머지 층이 뒤에 섰다.
             Map.entry("portfolio", FOUR_LAYERS),
             Map.entry("transfer", Set.of("app", "adapter", "schema")),
+            // 대본 리딩(SOMA-546, ADR-031). 대본의 규칙(한도·배역 이름)이 domain 에 산다.
+            Map.entry("reading", FOUR_LAYERS),
             // 입시 요강에는 Domain Model 도 Schema Entity 도 없다. 요강은 우리가 쓰는 데이터가
             // 아니라 바깥에서 통째로 들어오는 문서라 그것에 걸리는 행위 규칙이 없고, 문서가 곧
             // 응답이라 형태는 `app` 에 산다(`report/app/PublicReport` 와 같은 자리). 네 층을

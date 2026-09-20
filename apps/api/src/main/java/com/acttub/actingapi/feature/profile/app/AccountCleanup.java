@@ -100,7 +100,8 @@ public class AccountCleanup {
         try {
             String payload = secrets.decrypt(operation.payloadEncrypted());
             switch (operation.kind()) {
-                case "object_delete" -> deleteObjects(payload);
+                // 리딩 녹음 객체도 같은 저장소의 객체 키 목록이다(reading.recording).
+                case "object_delete", "reading_recording_delete" -> deleteObjects(payload);
                 case "apple_revoke" -> apple.revoke(payload);
                 case "kakao_unlink" -> kakao.unlink(payload);
                 case "naver_revoke" -> naver.revoke(payload);

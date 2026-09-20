@@ -23,8 +23,8 @@ import org.springframework.mock.web.MockHttpServletRequest;
  * 게스트의 게이트 — 회원의 규칙과 <b>다른 규칙</b>이다(ADR-028). 그 기능의 문서만 보고, 프로필은 보지 않고,
  * 어느 기능에도 속하지 않는 경로는 회원 전용이다.
  *
- * <p>리딩의 경로는 아직 서버에 없어 HTTP 로는 볼 수 없다. "리딩부터 시작하면 시트에 둘만 나오고, 이어서
- * 연습을 시작하면 AI 분석 동의 하나만"은 기능의 문서 집합과 그 집합으로 거르는 규칙으로 여기서 본다.
+ * <p>"리딩부터 시작하면 시트에 둘만 나오고, 이어서 연습을 시작하면 AI 분석 동의 하나만"은 기능의 문서 집합과
+ * 그 집합으로 거르는 규칙으로 여기서 보고, 리딩 경로의 HTTP 는 {@code ReadingScriptIT} 가 본다.
  */
 class GuestGateTest {
     private static final PendingConsentGate.Document TERMS = document("terms", true);
@@ -66,17 +66,22 @@ class GuestGateTest {
         assertThat(GuestFeature.PRACTICE.requiredDocumentTypes())
                 .containsExactlyInAnyOrder("terms", "privacy", "ai_analysis");
         assertThat(GuestFeature.READING.requiredDocumentTypes())
-                .as("녹음을 AI 로 대조할 때의 AI 분석 동의는 (결정 필요)라 넣지 않는다")
+                .as("서버가 대본·음성을 분석하지 않으므로 AI 분석 동의는 없다(ADR-031)")
                 .containsExactlyInAnyOrder("terms", "privacy");
     }
 
     @Test
-    @DisplayName("account.guest: 연습의 경로는 연습 기능이고, 적지 않은 경로는 어느 기능도 아니다(회원 전용)")
+    @DisplayName("account.guest: 연습의 경로는 연습 기능, 리딩의 경로는 리딩 기능이고, 적지 않은 경로는 어느 기능도 아니다(회원 전용)")
     void routesBelongToAFeatureOrToMembers() {
         for (String path : List.of(
                 "/v2/uploads/intents", "/v2/practice-sessions", "/v2/practice-sessions/abc/analyze",
                 "/v2/coach/start", "/v2/reports", "/v2/reports/abc", "/v2/me/memory", "/v2/me/memory/goal")) {
             assertThat(GuestFeature.of(path)).as(path).isEqualTo(GuestFeature.PRACTICE);
+        }
+        for (String path : List.of(
+                "/v2/reading/scripts", "/v2/reading/scripts/abc", "/v2/reading/scripts/abc/sessions",
+                "/v2/reading/sessions/abc/progress", "/v2/reading/lines/abc/memorization")) {
+            assertThat(GuestFeature.of(path)).as(path).isEqualTo(GuestFeature.READING);
         }
         for (String path : List.of(
                 "/v2/me/profile", "/v2/me/photo", "/v2/me/notification-settings", "/v2/push-tokens",

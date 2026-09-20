@@ -476,6 +476,100 @@
         } ]
       }
     },
+    "/v2/reading/scripts" : {
+      "get" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "List Scripts",
+        "description" : "내 대본을 최근 고친 순으로. q 는 제목과 배역 이름에서 찾고 대사 본문은 찾지 않는다. 머리의 수\n(전체·연습 중)는 검색과 무관하다.",
+        "operationId" : "list_scripts_v2_reading_scripts_get",
+        "parameters" : [ {
+          "name" : "q",
+          "in" : "query",
+          "description" : "제목·배역 이름 검색어",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "title" : "Q"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReadingScriptList"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      },
+      "post" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "Create Script",
+        "description" : "기기가 나눈 대본(원문·배역·줄)을 한 요청으로 저장한다. 같은 request_id 에 같은 본문이 다시 오면\n먼저 만든 대본을 200 으로 돌려주고, 다른 본문이면 422 request_fingerprint_mismatch 다. 배역 없음\n422 no_characters, 비거나 겹치는 배역 이름 422 invalid_characters, 원문·줄 본문 100,000자·줄\n3,000·배역 50 초과 422 script_too_long, 대본 수 회원 100·게스트 20 초과 422 script_limit.",
+        "operationId" : "create_script_v2_reading_scripts_post",
+        "parameters" : [ {
+          "name" : "X-Request-Id",
+          "in" : "header",
+          "description" : "본문의 request_id 와 같은 값. 실으면 같아야 하고 다르면 422 다",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "title" : "X-Request-Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReadingScriptCreateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReadingScript"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "같은 요청의 재전송 — 먼저 만든 대본",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReadingScript"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/push-tokens" : {
       "post" : {
         "tags" : [ "v2-push" ],
@@ -1397,6 +1491,114 @@
             }
           }
         }
+      }
+    },
+    "/v2/reading/scripts/{script_id}" : {
+      "get" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "Get Script",
+        "description" : "없는 것과 남의 것은 같은 404 script_not_found 다.",
+        "operationId" : "get_script_v2_reading_scripts__script_id__get",
+        "parameters" : [ {
+          "name" : "script_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Script Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReadingScript"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      },
+      "delete" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "Delete Script",
+        "description" : "배역·줄·회차·녹음(파일 포함)·암기 상태와 함께 지운다. 되돌릴 수 없다. 없는 것과 남의 것은 같은\n404 다.",
+        "operationId" : "delete_script_v2_reading_scripts__script_id__delete",
+        "parameters" : [ {
+          "name" : "script_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Script Id"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Successful Response"
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      },
+      "patch" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "Update Script",
+        "description" : "제목과 배역의 이름·목소리만 고친다. 줄은 불변이다. 이름은 앞뒤 공백을 정리하고 비어 있거나 같은\n대본 안에서 겹치면 422 invalid_characters. voice_preset 은 키가 있을 때만 바꾸며 null 은 \"자동\"이다.",
+        "operationId" : "update_script_v2_reading_scripts__script_id__patch",
+        "parameters" : [ {
+          "name" : "script_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Script Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReadingScriptPatch"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReadingScript"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
       }
     },
     "/v2/portfolio/credits/{credit_id}" : {
@@ -3079,6 +3281,292 @@
         "required" : [ "reason", "report_type" ],
         "title" : "BlockedReport"
       },
+      "ReadingScriptCharacterInput" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "name" : {
+            "type" : "string",
+            "title" : "Name"
+          }
+        },
+        "required" : [ "name" ],
+        "title" : "ReadingScriptCharacterInput"
+      },
+      "ReadingScriptCreateRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "request_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Request Id"
+          },
+          "title" : {
+            "type" : "string",
+            "maxLength" : 200,
+            "title" : "Title"
+          },
+          "source" : {
+            "$ref" : "#/components/schemas/ReadingScriptSourceInput"
+          },
+          "raw_text" : {
+            "type" : "string",
+            "title" : "Raw Text"
+          },
+          "characters" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ReadingScriptCharacterInput"
+            },
+            "title" : "Characters"
+          },
+          "lines" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ReadingScriptLineInput"
+            },
+            "title" : "Lines"
+          }
+        },
+        "required" : [ "characters", "lines", "raw_text", "request_id", "source", "title" ],
+        "title" : "ReadingScriptCreateRequest"
+      },
+      "ReadingScriptLineInput" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "ordinal" : {
+            "type" : "integer",
+            "title" : "Ordinal"
+          },
+          "kind" : {
+            "$ref" : "#/components/schemas/ReadingScriptLineKindInput"
+          },
+          "character_index" : {
+            "anyOf" : [ {
+              "type" : "integer"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Character Index"
+          },
+          "text" : {
+            "type" : "string",
+            "title" : "Text"
+          }
+        },
+        "required" : [ "kind", "ordinal", "text" ],
+        "title" : "ReadingScriptLineInput"
+      },
+      "ReadingScriptLineKindInput" : {
+        "type" : "string",
+        "enum" : [ "dialogue", "direction", "scene" ],
+        "title" : "ReadingScriptLineKindInput"
+      },
+      "ReadingScriptSourceInput" : {
+        "type" : "string",
+        "enum" : [ "file", "paste", "typed", "sample" ],
+        "title" : "ReadingScriptSourceInput"
+      },
+      "ReadingScript" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "title" : {
+            "type" : "string",
+            "title" : "Title"
+          },
+          "source" : {
+            "$ref" : "#/components/schemas/ScriptSource"
+          },
+          "characters" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ReadingScriptCharacter"
+            },
+            "title" : "Characters"
+          },
+          "lines" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ReadingScriptLine"
+            },
+            "title" : "Lines"
+          },
+          "recording_count" : {
+            "type" : "integer",
+            "title" : "Recording Count"
+          },
+          "open_session_id" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "uuid"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Open Session Id"
+          },
+          "last_session" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/ReadingScriptLastSession"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "created_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Created At"
+          },
+          "updated_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Updated At"
+          }
+        },
+        "required" : [ "characters", "created_at", "id", "last_session", "lines", "open_session_id", "recording_count", "source", "title", "updated_at" ],
+        "title" : "ReadingScript"
+      },
+      "ReadingScriptCharacter" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "name" : {
+            "type" : "string",
+            "title" : "Name"
+          },
+          "order" : {
+            "type" : "integer",
+            "title" : "Order"
+          },
+          "voice_preset" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Voice Preset"
+          },
+          "dialogue_count" : {
+            "type" : "integer",
+            "title" : "Dialogue Count"
+          }
+        },
+        "required" : [ "dialogue_count", "id", "name", "order", "voice_preset" ],
+        "title" : "ReadingScriptCharacter"
+      },
+      "ReadingScriptLastSession" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "status" : {
+            "$ref" : "#/components/schemas/ReadingSessionStatus"
+          },
+          "my_character_ids" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            },
+            "title" : "My Character Ids"
+          },
+          "my_character_names" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            },
+            "title" : "My Character Names"
+          },
+          "started_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Started At"
+          },
+          "ended_at" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "date-time"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Ended At"
+          }
+        },
+        "required" : [ "ended_at", "id", "my_character_ids", "my_character_names", "started_at", "status" ],
+        "title" : "ReadingScriptLastSession"
+      },
+      "ReadingScriptLine" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "ordinal" : {
+            "type" : "integer",
+            "title" : "Ordinal"
+          },
+          "kind" : {
+            "$ref" : "#/components/schemas/ScriptLineKind"
+          },
+          "character_id" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "uuid"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Character Id"
+          },
+          "text" : {
+            "type" : "string",
+            "title" : "Text"
+          },
+          "dialogue_no" : {
+            "anyOf" : [ {
+              "type" : "integer"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Dialogue No"
+          }
+        },
+        "required" : [ "character_id", "dialogue_no", "id", "kind", "ordinal", "text" ],
+        "title" : "ReadingScriptLine"
+      },
+      "ReadingSessionStatus" : {
+        "type" : "string",
+        "enum" : [ "in_progress", "completed", "stopped" ],
+        "title" : "ReadingSessionStatus"
+      },
+      "ScriptLineKind" : {
+        "type" : "string",
+        "enum" : [ "dialogue", "direction", "scene" ],
+        "title" : "ScriptLineKind"
+      },
+      "ScriptSource" : {
+        "type" : "string",
+        "enum" : [ "file", "paste", "typed", "sample" ],
+        "title" : "ScriptSource"
+      },
       "RegisterPushTokenRequest" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -3953,6 +4441,59 @@
         "required" : [ "access_token", "account_type", "expires_in", "refresh_token", "token_type", "user" ],
         "title" : "GuestResponse"
       },
+      "ReadingScriptCharacterPatch" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "name" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Name"
+          },
+          "voice_preset" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 32
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Voice Preset"
+          }
+        },
+        "required" : [ "id" ],
+        "title" : "ReadingScriptCharacterPatch"
+      },
+      "ReadingScriptPatch" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "title" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 200
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Title"
+          },
+          "characters" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ReadingScriptCharacterPatch"
+            },
+            "title" : "Characters"
+          }
+        },
+        "title" : "ReadingScriptPatch"
+      },
       "PortfolioCreditPatch" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -4091,6 +4632,90 @@
         },
         "required" : [ "created_at", "playback_url", "practice_session_id", "report" ],
         "title" : "ReportDetailResponse"
+      },
+      "ReadingScriptCard" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "title" : {
+            "type" : "string",
+            "title" : "Title"
+          },
+          "my_character_names" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            },
+            "title" : "My Character Names"
+          },
+          "dialogue_count" : {
+            "type" : "integer",
+            "title" : "Dialogue Count"
+          },
+          "recording_count" : {
+            "type" : "integer",
+            "title" : "Recording Count"
+          },
+          "last_practiced_at" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "date-time"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Last Practiced At"
+          },
+          "last_activity_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Last Activity At"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "reading", "completed", "no_cast" ],
+            "title" : "Status"
+          },
+          "created_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Created At"
+          },
+          "updated_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Updated At"
+          }
+        },
+        "required" : [ "created_at", "dialogue_count", "id", "last_activity_at", "last_practiced_at", "my_character_names", "recording_count", "status", "title", "updated_at" ],
+        "title" : "ReadingScriptCard"
+      },
+      "ReadingScriptList" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "scripts" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ReadingScriptCard"
+            },
+            "title" : "Scripts"
+          },
+          "total_count" : {
+            "type" : "integer",
+            "title" : "Total Count"
+          },
+          "in_progress_count" : {
+            "type" : "integer",
+            "title" : "In Progress Count"
+          }
+        },
+        "required" : [ "in_progress_count", "scripts", "total_count" ],
+        "title" : "ReadingScriptList"
       },
       "PublicPortfolio" : {
         "type" : "object",

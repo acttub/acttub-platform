@@ -140,6 +140,12 @@ COLUMN handoff_confirmations.confirmed ord=2 type=bool len=- null=NO default=fal
 COLUMN handoff_confirmations.created_at ord=4 type=timestamptz len=- null=NO default=now()
 COLUMN handoff_confirmations.rebuttal_text ord=3 type=text len=- null=YES default=-
 COLUMN handoff_confirmations.updated_at ord=5 type=timestamptz len=- null=NO default=now()
+COLUMN line_memorization.created_at ord=5 type=timestamptz len=- null=NO default=now()
+COLUMN line_memorization.id ord=1 type=uuid len=- null=NO default=-
+COLUMN line_memorization.line_id ord=3 type=uuid len=- null=NO default=-
+COLUMN line_memorization.status ord=4 type=text len=- null=NO default=-
+COLUMN line_memorization.updated_at ord=6 type=timestamptz len=- null=NO default=now()
+COLUMN line_memorization.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN portfolio_credits.created_at ord=8 type=timestamptz len=- null=NO default=now()
 COLUMN portfolio_credits.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
 COLUMN portfolio_credits.kind ord=6 type=text len=- null=NO default=-
@@ -193,6 +199,39 @@ COLUMN push_tokens.platform ord=4 type=text len=- null=NO default=-
 COLUMN push_tokens.token ord=3 type=text len=- null=NO default=-
 COLUMN push_tokens.updated_at ord=6 type=timestamptz len=- null=NO default=now()
 COLUMN push_tokens.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN reading_recordings.attempt_no ord=6 type=int4 len=- null=NO default=-
+COLUMN reading_recordings.byte_size ord=9 type=int8 len=- null=NO default=-
+COLUMN reading_recordings.content_type ord=8 type=text len=- null=NO default=-
+COLUMN reading_recordings.created_at ord=14 type=timestamptz len=- null=NO default=now()
+COLUMN reading_recordings.duration_ms ord=10 type=int4 len=- null=NO default=-
+COLUMN reading_recordings.id ord=1 type=uuid len=- null=NO default=-
+COLUMN reading_recordings.line_id ord=4 type=uuid len=- null=YES default=-
+COLUMN reading_recordings.matched ord=13 type=bool len=- null=YES default=-
+COLUMN reading_recordings.object_key ord=7 type=text len=- null=NO default=-
+COLUMN reading_recordings.reading_session_id ord=3 type=uuid len=- null=YES default=-
+COLUMN reading_recordings.request_id ord=5 type=uuid len=- null=NO default=-
+COLUMN reading_recordings.transcript ord=11 type=text len=- null=YES default=-
+COLUMN reading_recordings.transcript_source ord=12 type=text len=- null=NO default=-
+COLUMN reading_recordings.updated_at ord=15 type=timestamptz len=- null=NO default=now()
+COLUMN reading_recordings.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN reading_sessions.advance ord=9 type=text len=- null=NO default=-
+COLUMN reading_sessions.current_line_id ord=12 type=uuid len=- null=YES default=-
+COLUMN reading_sessions.elapsed_seconds ord=13 type=int4 len=- null=NO default=0
+COLUMN reading_sessions.end_line_id ord=8 type=uuid len=- null=NO default=-
+COLUMN reading_sessions.ended_at ord=17 type=timestamptz len=- null=YES default=-
+COLUMN reading_sessions.id ord=1 type=uuid len=- null=NO default=-
+COLUMN reading_sessions.line_results ord=15 type=jsonb len=- null=NO default='[]'::jsonb
+COLUMN reading_sessions.mode ord=6 type=text len=- null=NO default=-
+COLUMN reading_sessions.my_character_ids ord=5 type=_uuid len=- null=NO default=-
+COLUMN reading_sessions.progress_seq ord=14 type=int8 len=- null=NO default=0
+COLUMN reading_sessions.record ord=10 type=bool len=- null=NO default=-
+COLUMN reading_sessions.request_id ord=4 type=uuid len=- null=YES default=-
+COLUMN reading_sessions.script_id ord=2 type=uuid len=- null=NO default=-
+COLUMN reading_sessions.start_line_id ord=7 type=uuid len=- null=NO default=-
+COLUMN reading_sessions.started_at ord=16 type=timestamptz len=- null=NO default=now()
+COLUMN reading_sessions.status ord=11 type=text len=- null=NO default=-
+COLUMN reading_sessions.updated_at ord=18 type=timestamptz len=- null=NO default=now()
+COLUMN reading_sessions.user_id ord=3 type=uuid len=- null=NO default=-
 COLUMN refresh_tokens.device_info ord=5 type=text len=- null=YES default=-
 COLUMN refresh_tokens.expires_at ord=7 type=timestamptz len=- null=NO default=-
 COLUMN refresh_tokens.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
@@ -211,6 +250,29 @@ COLUMN reports.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
 COLUMN reports.next_step ord=8 type=text len=- null=NO default=-
 COLUMN reports.self_discovery ord=6 type=text len=- null=NO default=-
 COLUMN reports.session_id ord=2 type=uuid len=- null=NO default=-
+COLUMN script_characters.created_at ord=6 type=timestamptz len=- null=NO default=now()
+COLUMN script_characters.id ord=1 type=uuid len=- null=NO default=-
+COLUMN script_characters.name ord=3 type=text len=- null=NO default=-
+COLUMN script_characters.script_id ord=2 type=uuid len=- null=NO default=-
+COLUMN script_characters.sort_order ord=4 type=int4 len=- null=NO default=-
+COLUMN script_characters.updated_at ord=7 type=timestamptz len=- null=NO default=now()
+COLUMN script_characters.voice_preset ord=5 type=text len=- null=YES default=-
+COLUMN script_lines.character_id ord=5 type=uuid len=- null=YES default=-
+COLUMN script_lines.created_at ord=7 type=timestamptz len=- null=NO default=now()
+COLUMN script_lines.id ord=1 type=uuid len=- null=NO default=-
+COLUMN script_lines.kind ord=4 type=text len=- null=NO default=-
+COLUMN script_lines.ordinal ord=3 type=int4 len=- null=NO default=-
+COLUMN script_lines.script_id ord=2 type=uuid len=- null=NO default=-
+COLUMN script_lines.text ord=6 type=text len=- null=NO default=-
+COLUMN scripts.created_at ord=8 type=timestamptz len=- null=NO default=now()
+COLUMN scripts.id ord=1 type=uuid len=- null=NO default=-
+COLUMN scripts.raw_text ord=4 type=text len=- null=NO default=-
+COLUMN scripts.request_fingerprint ord=7 type=bpchar len=64 null=NO default=-
+COLUMN scripts.request_id ord=6 type=uuid len=- null=YES default=-
+COLUMN scripts.source ord=5 type=text len=- null=NO default=-
+COLUMN scripts.title ord=3 type=text len=- null=NO default=-
+COLUMN scripts.updated_at ord=9 type=timestamptz len=- null=NO default=now()
+COLUMN scripts.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN summaries.created_at ord=11 type=timestamptz len=- null=NO default=now()
 COLUMN summaries.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
 COLUMN summaries.intent_alignment ord=5 type=text len=- null=YES default=-
@@ -296,7 +358,7 @@ CONSTRAINT account_cleanup_operations account_cleanup_operations_pkey PRIMARY KE
 CONSTRAINT account_cleanup_operations account_cleanup_operations_updated_at_not_null NOT NULL updated_at
 CONSTRAINT account_cleanup_operations account_cleanup_operations_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
 CONSTRAINT account_cleanup_operations account_cleanup_operations_user_id_not_null NOT NULL user_id
-CONSTRAINT account_cleanup_operations ck_account_cleanup_operations_kind CHECK ((kind = ANY (ARRAY['object_delete'::text, 'apple_revoke'::text, 'kakao_unlink'::text, 'naver_revoke'::text])))
+CONSTRAINT account_cleanup_operations ck_account_cleanup_operations_kind CHECK ((kind = ANY (ARRAY['object_delete'::text, 'apple_revoke'::text, 'kakao_unlink'::text, 'naver_revoke'::text, 'reading_recording_delete'::text])))
 CONSTRAINT actor_memory_entries actor_memory_entries_created_at_not_null NOT NULL created_at
 CONSTRAINT actor_memory_entries actor_memory_entries_field_not_null NOT NULL field
 CONSTRAINT actor_memory_entries actor_memory_entries_id_not_null NOT NULL id
@@ -484,6 +546,17 @@ CONSTRAINT handoff_confirmations handoff_confirmations_confirmed_not_null NOT NU
 CONSTRAINT handoff_confirmations handoff_confirmations_created_at_not_null NOT NULL created_at
 CONSTRAINT handoff_confirmations handoff_confirmations_pkey PRIMARY KEY (coaching_handoff_id)
 CONSTRAINT handoff_confirmations handoff_confirmations_updated_at_not_null NOT NULL updated_at
+CONSTRAINT line_memorization ck_line_memorization_status CHECK ((status = ANY (ARRAY['memorized'::text, 'not_yet'::text])))
+CONSTRAINT line_memorization line_memorization_created_at_not_null NOT NULL created_at
+CONSTRAINT line_memorization line_memorization_id_not_null NOT NULL id
+CONSTRAINT line_memorization line_memorization_line_id_fkey FOREIGN KEY (line_id) REFERENCES script_lines(id)
+CONSTRAINT line_memorization line_memorization_line_id_not_null NOT NULL line_id
+CONSTRAINT line_memorization line_memorization_pkey PRIMARY KEY (id)
+CONSTRAINT line_memorization line_memorization_status_not_null NOT NULL status
+CONSTRAINT line_memorization line_memorization_updated_at_not_null NOT NULL updated_at
+CONSTRAINT line_memorization line_memorization_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT line_memorization line_memorization_user_id_not_null NOT NULL user_id
+CONSTRAINT line_memorization uq_line_memorization_user_line UNIQUE (user_id, line_id)
 CONSTRAINT portfolio_credits ck_portfolio_credits_kind CHECK ((kind = ANY (ARRAY['film'::text, 'drama'::text, 'play'::text, 'musical'::text, 'ad'::text, 'other'::text])))
 CONSTRAINT portfolio_credits portfolio_credits_created_at_not_null NOT NULL created_at
 CONSTRAINT portfolio_credits portfolio_credits_id_not_null NOT NULL id
@@ -555,6 +628,51 @@ CONSTRAINT push_tokens push_tokens_token_not_null NOT NULL token
 CONSTRAINT push_tokens push_tokens_updated_at_not_null NOT NULL updated_at
 CONSTRAINT push_tokens push_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 CONSTRAINT push_tokens push_tokens_user_id_not_null NOT NULL user_id
+CONSTRAINT reading_recordings ck_reading_recordings_attempt_no CHECK ((attempt_no >= 1))
+CONSTRAINT reading_recordings ck_reading_recordings_transcript_source CHECK ((transcript_source = ANY (ARRAY['stt'::text, 'none'::text])))
+CONSTRAINT reading_recordings reading_recordings_attempt_no_not_null NOT NULL attempt_no
+CONSTRAINT reading_recordings reading_recordings_byte_size_not_null NOT NULL byte_size
+CONSTRAINT reading_recordings reading_recordings_content_type_not_null NOT NULL content_type
+CONSTRAINT reading_recordings reading_recordings_created_at_not_null NOT NULL created_at
+CONSTRAINT reading_recordings reading_recordings_duration_ms_not_null NOT NULL duration_ms
+CONSTRAINT reading_recordings reading_recordings_id_not_null NOT NULL id
+CONSTRAINT reading_recordings reading_recordings_line_id_fkey FOREIGN KEY (line_id) REFERENCES script_lines(id)
+CONSTRAINT reading_recordings reading_recordings_object_key_not_null NOT NULL object_key
+CONSTRAINT reading_recordings reading_recordings_pkey PRIMARY KEY (id)
+CONSTRAINT reading_recordings reading_recordings_reading_session_id_fkey FOREIGN KEY (reading_session_id) REFERENCES reading_sessions(id)
+CONSTRAINT reading_recordings reading_recordings_request_id_not_null NOT NULL request_id
+CONSTRAINT reading_recordings reading_recordings_transcript_source_not_null NOT NULL transcript_source
+CONSTRAINT reading_recordings reading_recordings_updated_at_not_null NOT NULL updated_at
+CONSTRAINT reading_recordings reading_recordings_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT reading_recordings reading_recordings_user_id_not_null NOT NULL user_id
+CONSTRAINT reading_recordings uq_reading_recordings_session_line UNIQUE (reading_session_id, line_id)
+CONSTRAINT reading_recordings uq_reading_recordings_user_request UNIQUE (user_id, request_id)
+CONSTRAINT reading_sessions ck_reading_sessions_advance CHECK ((advance = ANY (ARRAY['silence'::text, 'manual'::text])))
+CONSTRAINT reading_sessions ck_reading_sessions_mode CHECK ((mode = ANY (ARRAY['read'::text, 'quiz'::text])))
+CONSTRAINT reading_sessions ck_reading_sessions_my_characters_not_empty CHECK ((cardinality(my_character_ids) >= 1))
+CONSTRAINT reading_sessions ck_reading_sessions_status CHECK ((status = ANY (ARRAY['in_progress'::text, 'completed'::text, 'stopped'::text])))
+CONSTRAINT reading_sessions reading_sessions_advance_not_null NOT NULL advance
+CONSTRAINT reading_sessions reading_sessions_current_line_id_fkey FOREIGN KEY (current_line_id) REFERENCES script_lines(id)
+CONSTRAINT reading_sessions reading_sessions_elapsed_seconds_not_null NOT NULL elapsed_seconds
+CONSTRAINT reading_sessions reading_sessions_end_line_id_fkey FOREIGN KEY (end_line_id) REFERENCES script_lines(id)
+CONSTRAINT reading_sessions reading_sessions_end_line_id_not_null NOT NULL end_line_id
+CONSTRAINT reading_sessions reading_sessions_id_not_null NOT NULL id
+CONSTRAINT reading_sessions reading_sessions_line_results_not_null NOT NULL line_results
+CONSTRAINT reading_sessions reading_sessions_mode_not_null NOT NULL mode
+CONSTRAINT reading_sessions reading_sessions_my_character_ids_not_null NOT NULL my_character_ids
+CONSTRAINT reading_sessions reading_sessions_pkey PRIMARY KEY (id)
+CONSTRAINT reading_sessions reading_sessions_progress_seq_not_null NOT NULL progress_seq
+CONSTRAINT reading_sessions reading_sessions_record_not_null NOT NULL record
+CONSTRAINT reading_sessions reading_sessions_script_id_fkey FOREIGN KEY (script_id) REFERENCES scripts(id)
+CONSTRAINT reading_sessions reading_sessions_script_id_not_null NOT NULL script_id
+CONSTRAINT reading_sessions reading_sessions_start_line_id_fkey FOREIGN KEY (start_line_id) REFERENCES script_lines(id)
+CONSTRAINT reading_sessions reading_sessions_start_line_id_not_null NOT NULL start_line_id
+CONSTRAINT reading_sessions reading_sessions_started_at_not_null NOT NULL started_at
+CONSTRAINT reading_sessions reading_sessions_status_not_null NOT NULL status
+CONSTRAINT reading_sessions reading_sessions_updated_at_not_null NOT NULL updated_at
+CONSTRAINT reading_sessions reading_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT reading_sessions reading_sessions_user_id_not_null NOT NULL user_id
+CONSTRAINT reading_sessions uq_reading_sessions_user_request UNIQUE (user_id, request_id)
 CONSTRAINT refresh_tokens refresh_tokens_expires_at_not_null NOT NULL expires_at
 CONSTRAINT refresh_tokens refresh_tokens_id_not_null NOT NULL id
 CONSTRAINT refresh_tokens refresh_tokens_issued_at_not_null NOT NULL issued_at
@@ -577,6 +695,42 @@ CONSTRAINT reports reports_self_discovery_not_null NOT NULL self_discovery
 CONSTRAINT reports reports_session_id_fkey FOREIGN KEY (session_id) REFERENCES coach_sessions(id)
 CONSTRAINT reports reports_session_id_key UNIQUE (session_id)
 CONSTRAINT reports reports_session_id_not_null NOT NULL session_id
+CONSTRAINT script_characters ck_script_characters_name_trimmed CHECK (((name = btrim(name)) AND (name <> ''::text)))
+CONSTRAINT script_characters ck_script_characters_voice_preset_length CHECK ((char_length(voice_preset) <= 32))
+CONSTRAINT script_characters script_characters_created_at_not_null NOT NULL created_at
+CONSTRAINT script_characters script_characters_id_not_null NOT NULL id
+CONSTRAINT script_characters script_characters_name_not_null NOT NULL name
+CONSTRAINT script_characters script_characters_pkey PRIMARY KEY (id)
+CONSTRAINT script_characters script_characters_script_id_fkey FOREIGN KEY (script_id) REFERENCES scripts(id)
+CONSTRAINT script_characters script_characters_script_id_not_null NOT NULL script_id
+CONSTRAINT script_characters script_characters_sort_order_not_null NOT NULL sort_order
+CONSTRAINT script_characters script_characters_updated_at_not_null NOT NULL updated_at
+CONSTRAINT script_characters uq_script_characters_script_name UNIQUE (script_id, name) DEFERRABLE
+CONSTRAINT script_characters uq_script_characters_script_order UNIQUE (script_id, sort_order)
+CONSTRAINT script_lines ck_script_lines_dialogue_has_character CHECK (((kind = 'dialogue'::text) = (character_id IS NOT NULL)))
+CONSTRAINT script_lines ck_script_lines_kind CHECK ((kind = ANY (ARRAY['dialogue'::text, 'direction'::text, 'scene'::text])))
+CONSTRAINT script_lines script_lines_character_id_fkey FOREIGN KEY (character_id) REFERENCES script_characters(id)
+CONSTRAINT script_lines script_lines_created_at_not_null NOT NULL created_at
+CONSTRAINT script_lines script_lines_id_not_null NOT NULL id
+CONSTRAINT script_lines script_lines_kind_not_null NOT NULL kind
+CONSTRAINT script_lines script_lines_ordinal_not_null NOT NULL ordinal
+CONSTRAINT script_lines script_lines_pkey PRIMARY KEY (id)
+CONSTRAINT script_lines script_lines_script_id_fkey FOREIGN KEY (script_id) REFERENCES scripts(id)
+CONSTRAINT script_lines script_lines_script_id_not_null NOT NULL script_id
+CONSTRAINT script_lines script_lines_text_not_null NOT NULL text
+CONSTRAINT script_lines uq_script_lines_script_ordinal UNIQUE (script_id, ordinal)
+CONSTRAINT scripts ck_scripts_source CHECK ((source = ANY (ARRAY['file'::text, 'paste'::text, 'typed'::text, 'sample'::text])))
+CONSTRAINT scripts scripts_created_at_not_null NOT NULL created_at
+CONSTRAINT scripts scripts_id_not_null NOT NULL id
+CONSTRAINT scripts scripts_pkey PRIMARY KEY (id)
+CONSTRAINT scripts scripts_raw_text_not_null NOT NULL raw_text
+CONSTRAINT scripts scripts_request_fingerprint_not_null NOT NULL request_fingerprint
+CONSTRAINT scripts scripts_source_not_null NOT NULL source
+CONSTRAINT scripts scripts_title_not_null NOT NULL title
+CONSTRAINT scripts scripts_updated_at_not_null NOT NULL updated_at
+CONSTRAINT scripts scripts_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT scripts scripts_user_id_not_null NOT NULL user_id
+CONSTRAINT scripts uq_scripts_user_request UNIQUE (user_id, request_id)
 CONSTRAINT summaries summaries_created_at_not_null NOT NULL created_at
 CONSTRAINT summaries summaries_id_not_null NOT NULL id
 CONSTRAINT summaries summaries_model_not_null NOT NULL model
@@ -678,6 +832,7 @@ INDEX CREATE INDEX idx_external_operations_session ON public.external_operations
 INDEX CREATE INDEX idx_external_operations_status_attempt_lease ON public.external_operations USING btree (status, attempt_count, lease_expires_at)
 INDEX CREATE INDEX idx_guest_transfer_codes_code_hash ON public.guest_transfer_codes USING btree (code_hash)
 INDEX CREATE INDEX idx_guest_transfer_codes_user ON public.guest_transfer_codes USING btree (user_id)
+INDEX CREATE INDEX idx_line_memorization_line ON public.line_memorization USING btree (line_id)
 INDEX CREATE INDEX idx_portfolio_credits_user_order ON public.portfolio_credits USING btree (user_id, sort_order)
 INDEX CREATE INDEX idx_portfolio_photos_user_order ON public.portfolio_photos USING btree (user_id, sort_order)
 INDEX CREATE INDEX idx_practice_reports_session_created ON public.practice_reports USING btree (practice_session_id, created_at)
@@ -686,8 +841,13 @@ INDEX CREATE INDEX idx_practice_sessions_upload_intent ON public.practice_sessio
 INDEX CREATE INDEX idx_practice_sessions_user ON public.practice_sessions USING btree (user_id)
 INDEX CREATE INDEX idx_practice_sessions_user_visible_created ON public.practice_sessions USING btree (user_id, created_at DESC) WHERE (hidden_at IS NULL)
 INDEX CREATE INDEX idx_push_tokens_user ON public.push_tokens USING btree (user_id)
+INDEX CREATE INDEX idx_reading_recordings_user ON public.reading_recordings USING btree (user_id)
+INDEX CREATE INDEX idx_reading_sessions_script_started ON public.reading_sessions USING btree (script_id, started_at DESC)
+INDEX CREATE INDEX idx_reading_sessions_user ON public.reading_sessions USING btree (user_id)
 INDEX CREATE INDEX idx_refresh_tokens_user_expires ON public.refresh_tokens USING btree (user_id, expires_at)
 INDEX CREATE INDEX idx_reports_created ON public.reports USING btree (created_at DESC)
+INDEX CREATE INDEX idx_script_lines_character ON public.script_lines USING btree (character_id)
+INDEX CREATE INDEX idx_scripts_user_updated ON public.scripts USING btree (user_id, updated_at DESC)
 INDEX CREATE INDEX idx_sessions_summary ON public.coach_sessions USING btree (summary_id)
 INDEX CREATE INDEX idx_turns_session ON public.coach_turns USING btree (session_id, turn_index)
 INDEX CREATE INDEX idx_upload_intents_expiry ON public.upload_intents USING btree (status, expires_at)
@@ -713,6 +873,7 @@ INDEX CREATE UNIQUE INDEX consent_documents_pkey ON public.consent_documents USI
 INDEX CREATE UNIQUE INDEX external_operations_pkey ON public.external_operations USING btree (id)
 INDEX CREATE UNIQUE INDEX guest_transfer_codes_pkey ON public.guest_transfer_codes USING btree (id)
 INDEX CREATE UNIQUE INDEX handoff_confirmations_pkey ON public.handoff_confirmations USING btree (coaching_handoff_id)
+INDEX CREATE UNIQUE INDEX line_memorization_pkey ON public.line_memorization USING btree (id)
 INDEX CREATE UNIQUE INDEX portfolio_credits_pkey ON public.portfolio_credits USING btree (id)
 INDEX CREATE UNIQUE INDEX portfolio_photos_object_key_key ON public.portfolio_photos USING btree (object_key)
 INDEX CREATE UNIQUE INDEX portfolio_photos_pkey ON public.portfolio_photos USING btree (id)
@@ -721,10 +882,15 @@ INDEX CREATE UNIQUE INDEX practice_reports_pkey ON public.practice_reports USING
 INDEX CREATE UNIQUE INDEX practice_sessions_pkey ON public.practice_sessions USING btree (id)
 INDEX CREATE UNIQUE INDEX push_tokens_pkey ON public.push_tokens USING btree (id)
 INDEX CREATE UNIQUE INDEX push_tokens_token_key ON public.push_tokens USING btree (token)
+INDEX CREATE UNIQUE INDEX reading_recordings_pkey ON public.reading_recordings USING btree (id)
+INDEX CREATE UNIQUE INDEX reading_sessions_pkey ON public.reading_sessions USING btree (id)
 INDEX CREATE UNIQUE INDEX refresh_tokens_pkey ON public.refresh_tokens USING btree (id)
 INDEX CREATE UNIQUE INDEX refresh_tokens_token_hash_key ON public.refresh_tokens USING btree (token_hash)
 INDEX CREATE UNIQUE INDEX reports_pkey ON public.reports USING btree (id)
 INDEX CREATE UNIQUE INDEX reports_session_id_key ON public.reports USING btree (session_id)
+INDEX CREATE UNIQUE INDEX script_characters_pkey ON public.script_characters USING btree (id)
+INDEX CREATE UNIQUE INDEX script_lines_pkey ON public.script_lines USING btree (id)
+INDEX CREATE UNIQUE INDEX scripts_pkey ON public.scripts USING btree (id)
 INDEX CREATE UNIQUE INDEX summaries_pkey ON public.summaries USING btree (id)
 INDEX CREATE UNIQUE INDEX summaries_session_id_key ON public.summaries USING btree (session_id)
 INDEX CREATE UNIQUE INDEX transcripts_pkey ON public.transcripts USING btree (id)
@@ -741,8 +907,17 @@ INDEX CREATE UNIQUE INDEX uq_consent_documents_type_version ON public.consent_do
 INDEX CREATE UNIQUE INDEX uq_external_operations_user_request ON public.external_operations USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_guest_transfer_codes_unused_code_hash ON public.guest_transfer_codes USING btree (code_hash) WHERE (used_at IS NULL)
 INDEX CREATE UNIQUE INDEX uq_guest_transfer_codes_unused_user ON public.guest_transfer_codes USING btree (user_id) WHERE (used_at IS NULL)
+INDEX CREATE UNIQUE INDEX uq_line_memorization_user_line ON public.line_memorization USING btree (user_id, line_id)
 INDEX CREATE UNIQUE INDEX uq_portfolios_share_slug ON public.portfolios USING btree (share_slug)
 INDEX CREATE UNIQUE INDEX uq_practice_reports_source_handoff ON public.practice_reports USING btree (source_handoff_id)
+INDEX CREATE UNIQUE INDEX uq_reading_recordings_session_line ON public.reading_recordings USING btree (reading_session_id, line_id)
+INDEX CREATE UNIQUE INDEX uq_reading_recordings_user_request ON public.reading_recordings USING btree (user_id, request_id)
+INDEX CREATE UNIQUE INDEX uq_reading_sessions_open_script ON public.reading_sessions USING btree (script_id) WHERE (status = 'in_progress'::text)
+INDEX CREATE UNIQUE INDEX uq_reading_sessions_user_request ON public.reading_sessions USING btree (user_id, request_id)
+INDEX CREATE UNIQUE INDEX uq_script_characters_script_name ON public.script_characters USING btree (script_id, name)
+INDEX CREATE UNIQUE INDEX uq_script_characters_script_order ON public.script_characters USING btree (script_id, sort_order)
+INDEX CREATE UNIQUE INDEX uq_script_lines_script_ordinal ON public.script_lines USING btree (script_id, ordinal)
+INDEX CREATE UNIQUE INDEX uq_scripts_user_request ON public.scripts USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_transcripts_session_ord ON public.transcripts USING btree (session_id, ord)
 INDEX CREATE UNIQUE INDEX uq_user_identities_provider_uid ON public.user_identities USING btree (provider, provider_uid)
 INDEX CREATE UNIQUE INDEX uq_user_profile_directions_user_direction ON public.user_profile_directions USING btree (user_id, direction)
@@ -772,14 +947,20 @@ TABLE consent_documents
 TABLE external_operations
 TABLE guest_transfer_codes
 TABLE handoff_confirmations
+TABLE line_memorization
 TABLE portfolio_credits
 TABLE portfolio_photos
 TABLE portfolios
 TABLE practice_reports
 TABLE practice_sessions
 TABLE push_tokens
+TABLE reading_recordings
+TABLE reading_sessions
 TABLE refresh_tokens
 TABLE reports
+TABLE script_characters
+TABLE script_lines
+TABLE scripts
 TABLE summaries
 TABLE transcripts
 TABLE upload_intents
