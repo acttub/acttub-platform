@@ -135,7 +135,9 @@ final class StructuredCoachEngine {
         if (!finish) throw new CoachReplyUnavailable();
         ObjectNode retained = state.deepCopy();
         retained.put("revision", session.stateRevision() + 1).put("response_style", style);
-        return result(session, actorText, "지금까지 이야기한 내용으로 정리할게요.", retained, "system_failure");
+        return result(session, actorText, (OutputLanguage.isKorean()
+                ? "지금까지 이야기한 내용으로 정리할게요."
+                : "Let's wrap up with what we've talked through so far."), retained, "system_failure");
     }
 
     private static ObjectNode input(CoachSessionSnapshot session, JsonNode state, String actorText,

@@ -148,6 +148,7 @@ COLUMN practice_sessions.upload_intent_id ord=3 type=uuid len=- null=NO default=
 COLUMN practice_sessions.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN push_tokens.created_at ord=5 type=timestamptz len=- null=NO default=now()
 COLUMN push_tokens.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
+COLUMN push_tokens.locale ord=7 type=text len=- null=NO default='ko'::text
 COLUMN push_tokens.platform ord=4 type=text len=- null=NO default=-
 COLUMN push_tokens.token ord=3 type=text len=- null=NO default=-
 COLUMN push_tokens.updated_at ord=6 type=timestamptz len=- null=NO default=now()
@@ -429,6 +430,7 @@ CONSTRAINT practice_sessions practice_sessions_user_id_fkey FOREIGN KEY (user_id
 CONSTRAINT practice_sessions practice_sessions_user_id_not_null NOT NULL user_id
 CONSTRAINT push_tokens push_tokens_created_at_not_null NOT NULL created_at
 CONSTRAINT push_tokens push_tokens_id_not_null NOT NULL id
+CONSTRAINT push_tokens push_tokens_locale_not_null NOT NULL locale
 CONSTRAINT push_tokens push_tokens_pkey PRIMARY KEY (id)
 CONSTRAINT push_tokens push_tokens_platform_not_null NOT NULL platform
 CONSTRAINT push_tokens push_tokens_token_key UNIQUE (token)

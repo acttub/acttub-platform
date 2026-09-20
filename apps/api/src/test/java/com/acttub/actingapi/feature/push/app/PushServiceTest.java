@@ -18,7 +18,9 @@ class PushServiceTest {
     @Test
     void analysisCompletionSendsToEveryDeviceOfTheSessionOwner() {
         UUID sessionId = UUID.randomUUID();
-        tokens.forSession = List.of("ExponentPushToken[aaa]", "ExponentPushToken[bbb]");
+        tokens.forSession = List.of(
+                new PushTarget("ExponentPushToken[aaa]", "ko"),
+                new PushTarget("ExponentPushToken[bbb]", "ko"));
 
         service.onAnalysisComplete(sessionId);
 
@@ -52,7 +54,7 @@ class PushServiceTest {
     }
 
     private static final class RecordingRepository implements PushTokenRepository {
-        private List<String> forSession = List.of();
+        private List<PushTarget> forSession = List.of();
 
         @Override
         public void register(UUID userId, String token, String platform) {
@@ -63,7 +65,7 @@ class PushServiceTest {
         }
 
         @Override
-        public List<String> tokensForSessionOwner(UUID sessionId) {
+        public List<PushTarget> targetsForSessionOwner(UUID sessionId) {
             return forSession;
         }
     }

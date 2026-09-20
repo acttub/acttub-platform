@@ -47,7 +47,7 @@ export default function ReadingNew() {
     if (parsed.roles.length < 1) {
       void alert({
         title: t('reading.noRoles'),
-        message: '"이름: 대사" 형식인지 확인해 주세요. 예시 대본을 참고할 수 있어요.',
+        message: t('reading.noRolesBody'),
       });
       return;
     }
@@ -78,7 +78,7 @@ export default function ReadingNew() {
           value={raw}
           onChangeText={setRaw}
           multiline
-          placeholder={'예)\n윤서: 여기 있을 줄 알았어.\n태오: 어떻게 알았어.'}
+          placeholder={t('reading.pastePlaceholder')}
           placeholderTextColor={palette.textFaint}
           textAlignVertical="top"
         />
