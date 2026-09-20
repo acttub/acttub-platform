@@ -4,7 +4,7 @@
  * (components/pdf-text-extractor)가 등록한 추출기로 넘긴다 — 등록된 화면에서만 된다.
  */
 import { File } from 'expo-file-system';
-import { translate as t } from '@/lib/i18n';
+import { translate as t } from '../i18n.ts';
 
 export class UnsupportedScriptFile extends Error {}
 

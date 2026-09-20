@@ -8,7 +8,7 @@
  */
 import { Directory, File, Paths } from 'expo-file-system';
 
-import { translate as t } from '@/lib/i18n';
+import { translate as t } from '../../i18n.ts';
 
 const SUPERTONE = 'https://huggingface.co/Supertone/supertonic-3/resolve/main';
 const INT8 = 'https://huggingface.co/csukuangfj2/sherpa-onnx-supertonic-3-tts-int8-2026-05-11/resolve/main';

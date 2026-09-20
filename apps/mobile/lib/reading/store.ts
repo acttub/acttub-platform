@@ -6,7 +6,7 @@
  * (CI mobile 잡이 무설치 node --test 라 AsyncStorage 는 함수 안에서 lazy require.)
  */
 import type { ParsedScript, ScriptLine } from './parse';
-import { translate as t } from '@/lib/i18n';
+import { translate as t } from '../i18n.ts';
 
 export type ScriptStatus = 'draft' | 'reading' | 'done';
 export type MaskMode = 'none' | 'mine' | 'all';

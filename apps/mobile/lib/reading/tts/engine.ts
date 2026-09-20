@@ -11,7 +11,7 @@
 import { File, Paths } from 'expo-file-system';
 import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 
-import { currentLanguage, translate as t } from '@/lib/i18n';
+import { currentLanguage, translate as t } from '../../i18n.ts';
 
 import { downloadAssets, MODEL_KINDS, type Variant } from './assets';
 import {

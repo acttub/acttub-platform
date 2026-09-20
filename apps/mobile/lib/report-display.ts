@@ -1,6 +1,5 @@
 import type { SavedPracticeReport, PublicPracticeNote } from '@/lib/api';
-import { translate } from './i18n.ts';
-import { translate as t } from '@/lib/i18n';
+import { translate, translate as t } from './i18n.ts';
 
 export type ReportDisplay = {
   title: string;
