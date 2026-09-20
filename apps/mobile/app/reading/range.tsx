@@ -6,11 +6,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
 import { getCurrent, updateCurrent, type MaskMode } from '@/lib/reading/store';
+import { translate as t } from '@/lib/i18n';
 
 const MASKS: { key: MaskMode; label: string }[] = [
-  { key: 'none', label: '모든 대사 보기' },
-  { key: 'mine', label: '내 대사만 가리기' },
-  { key: 'all', label: '모든 대사 가리기' },
+  { key: 'none', label: t('reading.maskNone') },
+  { key: 'mine', label: t('reading.maskMine') },
+  { key: 'all', label: t('reading.maskAll') },
 ];
 
 export default function ReadingRange() {
@@ -101,7 +102,7 @@ export default function ReadingRange() {
         <View style={styles.tabs}>
           {(['line', 'scene'] as const).map((k) => (
             <Pressable key={k} style={[styles.tab, tab === k && styles.tabOn]} onPress={() => setTab(k)}>
-              <Text style={[styles.tabText, tab === k && styles.tabTextOn]}>{k === 'line' ? '대사로 찾기' : '장면으로 찾기'}</Text>
+              <Text style={[styles.tabText, tab === k && styles.tabTextOn]}>{k === 'line' ? t('reading.byLine') : t('reading.byScene')}</Text>
             </Pressable>
           ))}
         </View>
@@ -117,7 +118,7 @@ export default function ReadingRange() {
         {tab === 'line' && (
           <View style={styles.pickBar}>
             <Text style={styles.pickText}>
-              {picking === 'start' ? '① 시작할 대사를 탭하세요' : '② 끝낼 대사를 탭하세요'}
+              {picking === 'start' ? t('reading.pickStart') : t('reading.pickEnd')}
             </Text>
             <Pressable onPress={() => { setStart(0); setEnd(Math.max(0, lines.length - 1)); setPicking('start'); }}>
               <Text style={styles.pickReset}>전체 선택</Text>

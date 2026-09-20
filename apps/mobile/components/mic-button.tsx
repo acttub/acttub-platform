@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 
 import { palette } from '@/constants/palette';
+import { speechLocale } from '@/lib/i18n';
 
 export type MicButtonProps = {
   /** 인식 결과(중간·최종)로 입력창을 갱신한다. */
@@ -36,7 +37,7 @@ export function MicButton({ onText, disabled }: MicButtonProps) {
     const perm = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
     if (!perm.granted) return;
     ExpoSpeechRecognitionModule.start({
-      lang: 'ko-KR',
+      lang: speechLocale(),
       interimResults: true,
       continuous: false,
     });

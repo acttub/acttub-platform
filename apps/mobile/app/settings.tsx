@@ -138,7 +138,7 @@ export default function SettingsScreen() {
   };
 
   const openContactMail = async () => {
-    const url = 'mailto:acttub0527@gmail.com?subject=' + encodeURIComponent('[Acttub] 문의·신고');
+    const url = 'mailto:acttub0527@gmail.com?subject=' + encodeURIComponent(t('settings.contactSubject'));
     try {
       const okToOpen = await Linking.canOpenURL(url);
       if (okToOpen) await Linking.openURL(url);

@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { palette } from '@/constants/palette';
-import { translate as t } from '@/lib/i18n';
+import { isKorean, translate as t } from '@/lib/i18n';
 
 /**
  * 하단 탭 — 홈 / 기록 / [촬영(FAB)] / 게시판 / 프로필.
@@ -90,16 +90,21 @@ export default function TabLayout() {
           ),
         }}
       />
+      {/* 대사 챌린지에 올라오는 대사가 전부 한국어라, 한국어로 쓰는 사람에게만 띄운다 (SOMA-544). */}
       <Tabs.Screen
         name="challenges"
-        options={{
-          title: t('tabs.challenge'),
-          tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.iconPill, focused && styles.iconPillActive]}>
-              <Feather size={21} name="award" color={color} />
-            </View>
-          ),
-        }}
+        options={
+          isKorean()
+            ? {
+                title: t('tabs.challenge'),
+                tabBarIcon: ({ color, focused }) => (
+                  <View style={[styles.iconPill, focused && styles.iconPillActive]}>
+                    <Feather size={21} name="award" color={color} />
+                  </View>
+                ),
+              }
+            : { href: null }
+        }
       />
       {/* 게시판은 챌린지 탭에 자리를 내주고 탭바에서 빠졌지만(pen 정합) 라우트는 남긴다. */}
       <Tabs.Screen name="community" options={{ href: null }} />

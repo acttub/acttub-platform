@@ -2,6 +2,8 @@ import type { ReportPayload } from '@/lib/moderation';
 import type {
   AdmissionsResponse,
 } from './admissions';
+import { currentLanguage } from './i18n';
+
 import { normalizeAdmissions } from './admissions';
 import type {
   CommentListResponse,
@@ -51,6 +53,7 @@ const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://dev.acttub.com';
 const requestClient = createApiRequestClient({
   baseUrl: BASE_URL,
   fetchImpl: (...args) => fetch(...args),
+  getLanguage: currentLanguage,
   waitForCredentialReady,
   getAccessToken,
   getRefreshToken,

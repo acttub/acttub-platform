@@ -6,11 +6,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
 import { listScripts, loadIntoCurrent, type SavedScript } from '@/lib/reading/store';
+import { translate as t } from '@/lib/i18n';
 
 function statusOf(s: SavedScript): { label: string; color: string; bg: string } {
-  if (s.status === 'done') return { label: '연습 완료', color: palette.green, bg: palette.greenSoft };
-  if (s.myRoles.length === 0) return { label: '배역 선택', color: palette.textDim, bg: palette.bgSoft };
-  return { label: '연습 중', color: palette.blue, bg: palette.blueSoft };
+  if (s.status === 'done') return { label: t('reading.statusDone'), color: palette.green, bg: palette.greenSoft };
+  if (s.myRoles.length === 0) return { label: t('reading.statusRole'), color: palette.textDim, bg: palette.bgSoft };
+  return { label: t('reading.statusPlaying'), color: palette.blue, bg: palette.blueSoft };
 }
 
 export default function ReadingList() {

@@ -6,6 +6,7 @@
  * (CI mobile 잡이 무설치 node --test 라 AsyncStorage 는 함수 안에서 lazy require.)
  */
 import type { ParsedScript, ScriptLine } from './parse';
+import { translate as t } from '@/lib/i18n';
 
 export type ScriptStatus = 'draft' | 'reading' | 'done';
 export type MaskMode = 'none' | 'mine' | 'all';
@@ -111,7 +112,7 @@ export async function createFromParsed(p: ParsedScript): Promise<SavedScript> {
   const now = Date.now();
   const script: SavedScript = {
     id: newId(),
-    title: p.title ?? '제목 없는 대본',
+    title: p.title ?? t('reading.untitled'),
     roles: p.roles,
     lines: p.lines,
     myRoles: [],

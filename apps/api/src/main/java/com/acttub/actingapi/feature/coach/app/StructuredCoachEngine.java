@@ -20,6 +20,7 @@ import com.acttub.actingapi.platform.observability.LlmCall;
 import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.acttub.actingapi.platform.observability.LlmTokens;
+import com.acttub.actingapi.platform.web.OutputLanguage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -228,7 +229,8 @@ final class StructuredCoachEngine {
     private String recorded(CoachSessionSnapshot session, JsonNode input, int call) {
         Instant started = Instant.now();
         String text = input.toString();
-        String prompt = PROMPT + DialogueProgress.turnInstruction(input.path("dialogue_progress"));
+        String prompt = OutputLanguage.apply(
+                PROMPT + DialogueProgress.turnInstruction(input.path("dialogue_progress")));
         try {
             ExternalOperationExecution.externalCall("model");
             var generated = generate.generate(prompt, text);

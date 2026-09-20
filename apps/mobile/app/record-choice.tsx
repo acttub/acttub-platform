@@ -8,7 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { formatClipDuration } from '@/lib/archive-format';
-import { translate as t } from '@/lib/i18n';
+import { isKorean, translate as t } from '@/lib/i18n';
 import { peekRecordedVideo, takeRecordedVideo, type RecordedVideo } from '@/lib/recorded-video';
 
 /**
@@ -95,7 +95,10 @@ export default function RecordChoiceScreen() {
         <Text style={styles.sheetSub}>{t('recordChoice.sheetSub')}</Text>
 
         <Option icon="message-circle" tint={palette.blue} bg={palette.blueSoft} title={t('recordChoice.coach')} sub={t('recordChoice.coachSub')} onPress={goAi} />
-        <Option icon="award" tint="#E9A23B" bg="#FFF4DE" title={t('recordChoice.challenge')} sub={t('recordChoice.challengeSub2')} onPress={goChallenge} />
+        {/* 챌린지는 한국어 대사만 올라온다 — 한국어로 쓰는 사람에게만 보인다 (SOMA-544). */}
+        {isKorean() && (
+          <Option icon="award" tint="#E9A23B" bg="#FFF4DE" title={t('recordChoice.challenge')} sub={t('recordChoice.challengeSub2')} onPress={goChallenge} />
+        )}
         <Option icon="video" tint={palette.textDim} bg={palette.bgSoft} title={t('recordChoice.retake2')} sub={t('recordChoice.retakeSub')} onPress={retake} />
       </SafeAreaView>
     </View>

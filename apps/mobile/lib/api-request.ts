@@ -53,6 +53,11 @@ export type RequestClock = {
 export type ApiRequestDependencies = {
   baseUrl: string;
   fetchImpl: typeof fetch;
+  /**
+   * 서버가 AI 답변을 어느 말로 쓸지 정하는 데 쓴다(Accept-Language).
+   * 없으면 한국어 — 옛 동작 그대로다.
+   */
+  getLanguage?: () => string;
   waitForCredentialReady: () => Promise<void>;
   getAccessToken: () => string | null;
   getRefreshToken: () => string | null;
@@ -122,7 +127,7 @@ function errorDetail(body: unknown): unknown {
 }
 
 export function friendlyError(status: number, body: unknown): string {
-  if (errorDetail(body) === 'client_contract_required') return '앱을 업데이트하면 이 연습 노트를 열 수 있어요.';
+  if (errorDetail(body) === 'client_contract_required') return translate('errors.clientContractRequired');
   switch (status) {
     case 401:
       return translate('errors.sessionExpired');
@@ -293,6 +298,7 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
     try {
       const headers = new Headers(init.headers);
       headers.set('X-Acttub-Contract', 'three_layers_v1');
+      headers.set('Accept-Language', dependencies.getLanguage?.() ?? 'ko');
       if (options.auth !== false) {
         headers.set('X-Acttub-Consent-Entry', '1');
         const token = dependencies.getAccessToken();

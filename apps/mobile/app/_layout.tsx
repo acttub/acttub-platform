@@ -359,13 +359,13 @@ function RootNavigator() {
       <Stack.Screen name="line-new" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="archive" options={{ headerShown: false }} />
       <Stack.Screen name="archive-detail" options={{ headerShown: false }} />
-      <Stack.Screen name="reading/new" options={{ title: '새 대본' }} />
-      <Stack.Screen name="reading/detail" options={{ title: '대본' }} />
-      <Stack.Screen name="reading/full" options={{ title: '대본 전체' }} />
-      <Stack.Screen name="reading/roles" options={{ title: '배역 선택' }} />
-      <Stack.Screen name="reading/range" options={{ title: '시작 위치 선택' }} />
+      <Stack.Screen name="reading/new" options={{ title: t('reading.titleNew') }} />
+      <Stack.Screen name="reading/detail" options={{ title: t('reading.titleDetail') }} />
+      <Stack.Screen name="reading/full" options={{ title: t('reading.titleFull') }} />
+      <Stack.Screen name="reading/roles" options={{ title: t('reading.titleRoles') }} />
+      <Stack.Screen name="reading/range" options={{ title: t('reading.titleRange') }} />
       <Stack.Screen name="reading/play" options={{ headerShown: false }} />
-      <Stack.Screen name="reading/memorize" options={{ title: '암기하지 못한 대사' }} />
+      <Stack.Screen name="reading/memorize" options={{ title: t('reading.titleMemorize') }} />
     </Stack>
   );
 }

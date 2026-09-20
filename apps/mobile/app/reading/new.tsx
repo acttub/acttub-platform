@@ -13,6 +13,7 @@ import { extractScriptText } from '@/lib/reading/extract-file';
 import { parseScript } from '@/lib/reading/parse';
 import { SAMPLE_SCRIPT } from '@/lib/reading/sample';
 import { createFromParsed } from '@/lib/reading/store';
+import { translate as t } from '@/lib/i18n';
 
 export default function ReadingNew() {
   const router = useRouter();
@@ -33,7 +34,7 @@ export default function ReadingNew() {
       const text = await extractScriptText({ uri: a.uri, name: a.name, mimeType: a.mimeType });
       setRaw(text);
     } catch (e: any) {
-      void alert({ title: '파일을 읽지 못했어요', message: e?.message ?? '다른 파일을 고르거나 붙여넣어 주세요.' });
+      void alert({ title: t('reading.readFail'), message: e?.message ?? t('reading.readFailBody') });
     } finally {
       setBusy(false);
     }
@@ -45,7 +46,7 @@ export default function ReadingNew() {
     const parsed = parseScript(text);
     if (parsed.roles.length < 1) {
       void alert({
-        title: '배역을 찾지 못했어요',
+        title: t('reading.noRoles'),
         message: '"이름: 대사" 형식인지 확인해 주세요. 예시 대본을 참고할 수 있어요.',
       });
       return;
@@ -63,7 +64,7 @@ export default function ReadingNew() {
 
         <Pressable style={styles.dropzone} onPress={onPickFile} disabled={busy}>
           <Feather name={busy ? 'loader' : 'upload'} size={26} color={palette.blue} />
-          <Text style={styles.dropTitle}>{busy ? '읽는 중…' : '대본 파일 첨부'}</Text>
+          <Text style={styles.dropTitle}>{busy ? t('reading.attachReading') : t('reading.attach')}</Text>
           <Text style={styles.dropSub}>TXT·DOCX·PDF 파일 선택 · 아래에 붙여넣어도 돼요</Text>
         </Pressable>
 

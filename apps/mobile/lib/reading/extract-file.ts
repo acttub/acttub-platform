@@ -4,6 +4,7 @@
  * (components/pdf-text-extractor)가 등록한 추출기로 넘긴다 — 등록된 화면에서만 된다.
  */
 import { File } from 'expo-file-system';
+import { translate as t } from '@/lib/i18n';
 
 export class UnsupportedScriptFile extends Error {}
 
@@ -47,23 +48,23 @@ export async function extractScriptText(f: PickedFile): Promise<string> {
         arrayBuffer: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
       });
       const text = (value ?? '').trim();
-      if (!text) throw new Error('빈 문서');
+      if (!text) throw new Error(t('reading.emptyDoc'));
       return text;
     } catch {
-      throw new UnsupportedScriptFile('워드(.docx) 파일을 읽지 못했어요. 내용을 복사해 붙여넣어 주세요.');
+      throw new UnsupportedScriptFile(t('reading.docxFail'));
     }
   }
   if (kind === 'pdf') {
     if (!pdfExtractor) {
-      throw new UnsupportedScriptFile('PDF 인식기를 아직 준비 중이에요. 잠시 후 다시 시도하거나 붙여넣어 주세요.');
+      throw new UnsupportedScriptFile(t('reading.pdfNotReady'));
     }
     try {
       const text = (await pdfExtractor(f.uri)).trim();
-      if (!text) throw new Error('빈 문서');
+      if (!text) throw new Error(t('reading.emptyDoc'));
       return text;
     } catch {
-      throw new UnsupportedScriptFile('PDF에서 글자를 못 읽었어요(스캔본일 수 있어요). 대본 내용을 복사해서 붙여넣어 주세요.');
+      throw new UnsupportedScriptFile(t('reading.pdfNoText'));
     }
   }
-  throw new UnsupportedScriptFile('이 형식은 지원하지 않아요. TXT·DOCX를 올리거나 붙여넣어 주세요.');
+  throw new UnsupportedScriptFile(t('reading.unsupported'));
 }

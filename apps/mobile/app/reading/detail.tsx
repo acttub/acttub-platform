@@ -7,11 +7,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
 import { getCurrent, loadIntoCurrent, updateCurrent, type Recording, type SavedScript } from '@/lib/reading/store';
+import { translate as t } from '@/lib/i18n';
 
 function ago(ts: number): string {
   const d = Math.floor((Date.now() - ts) / 86400000);
-  if (d <= 0) return '오늘';
-  if (d === 1) return '어제';
+  if (d <= 0) return t('reading.today');
+  if (d === 1) return t('reading.yesterday');
   if (d < 7) return `${d}일 전`;
   return new Date(ts).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
 }
@@ -19,9 +20,9 @@ function mmss(sec: number): string {
   return `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(Math.floor(sec % 60)).padStart(2, '0')}`;
 }
 function statusOf(s: SavedScript): { label: string; color: string } {
-  if (s.status === 'done') return { label: '연습 완료', color: palette.green };
-  if (s.myRoles.length === 0) return { label: '배역 선택', color: palette.textDim };
-  return { label: '연습 중', color: palette.blue };
+  if (s.status === 'done') return { label: t('reading.statusDone'), color: palette.green };
+  if (s.myRoles.length === 0) return { label: t('reading.statusRole'), color: palette.textDim };
+  return { label: t('reading.statusPlaying'), color: palette.blue };
 }
 
 export default function ReadingDetail() {
@@ -95,7 +96,7 @@ export default function ReadingDetail() {
             <Feather name="file-text" size={20} color={palette.blue} />
           </View>
           <View style={styles.sumBody}>
-            <Text style={styles.sumRole}>내 배역 · {script.myRoles.join(', ') || '미선택'}</Text>
+            <Text style={styles.sumRole}>내 배역 · {script.myRoles.join(', ') || t('reading.unset')}</Text>
             <Text style={styles.sumMeta}>
               {script.dialogueCount}개 대사 · 녹음 {recs.length}개{recs.length ? ` · ${ago(recs[0].createdAt)} 연습` : ''}
             </Text>
