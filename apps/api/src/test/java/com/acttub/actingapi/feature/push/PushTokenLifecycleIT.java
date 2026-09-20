@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.profile.app.ProfileService;
+import com.acttub.actingapi.feature.push.app.PushTarget;
 import com.acttub.actingapi.feature.push.app.PushTokenRepository;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import org.junit.jupiter.api.Test;
@@ -77,11 +78,13 @@ class PushTokenLifecycleIT {
         tokens.register(bystander, "ExponentPushToken[bystander]", "ios");
         UUID sessionId = insertPracticeSession(owner);
 
-        List<String> found = tokens.tokensForSessionOwner(sessionId);
+        List<String> found = tokens.targetsForSessionOwner(sessionId).stream()
+                .map(PushTarget::token)
+                .toList();
 
         assertThat(found).containsExactly(
                 "ExponentPushToken[owner-phone]", "ExponentPushToken[owner-tablet]");
-        assertThat(tokens.tokensForSessionOwner(UUID.randomUUID())).isEmpty();
+        assertThat(tokens.targetsForSessionOwner(UUID.randomUUID())).isEmpty();
     }
 
     @Test

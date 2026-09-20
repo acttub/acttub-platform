@@ -15,5 +15,6 @@ public interface PushTokenRepository {
     void unregister(UUID userId, String token);
 
     /** 연습 세션 주인의 토큰 전부. 세션이 없으면 빈 목록. */
-    List<String> tokensForSessionOwner(UUID sessionId);
+    /** 알림을 받을 단말들. 토큰과 그 단말이 쓰는 말이 함께 온다 (SOMA-544). */
+    List<PushTarget> targetsForSessionOwner(UUID sessionId);
 }

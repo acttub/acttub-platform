@@ -19,6 +19,9 @@ public final class ClosingIntent {
     // 이 넷은 발화 전체가 그 말일 때만 종료로 본다. "끝"은 한 글자라
     // "끝까지", "끝나고" 같은 정상 답변에 항상 걸린다.
     private static final Set<String> EXACT = Set.of("그만", "종료", "끝", "여기까지");
+    // 공백·구두점이 걷힌 뒤라 "that's all" 은 thatsall 로 온다.
+    private static final Set<String> ENGLISH_EXACT = Set.of(
+            "stop", "done", "imdone", "thatsall", "thatisall", "finish", "finished", "wrapup", "endhere");
     // 짧은 발화 안에서만 부분 일치를 허용한다 ("여기서 그만할게").
     private static final List<String> LOOSE = List.of("그만", "종료");
     private static final int LOOSE_MAX_LEN = 10;
@@ -34,6 +37,11 @@ public final class ClosingIntent {
     public static boolean isClosing(String text) {
         String stripped = STRIP.matcher(text).replaceAll("");
         if (EXACT.contains(stripped)) {
+            return true;
+        }
+        // 영어로 쓰는 사람이 끝내겠다고 한 말 (SOMA-544). 한국어와 같은 기준으로,
+        // 발화 전체가 그 말일 때만 종료로 본다 — 설명하는 문장은 걸리지 않는다.
+        if (ENGLISH_EXACT.contains(stripped.toLowerCase(java.util.Locale.ROOT))) {
             return true;
         }
         if (stripped.length() > LOOSE_MAX_LEN) {

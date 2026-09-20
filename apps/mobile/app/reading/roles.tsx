@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { palette } from '@/constants/palette';
 import { countLinesByRole } from '@/lib/reading/parse';
 import { getCurrent, updateCurrent } from '@/lib/reading/store';
+import { translate as t } from '@/lib/i18n';
 
 export default function ReadingRoles() {
   const router = useRouter();
@@ -66,7 +67,7 @@ export default function ReadingRoles() {
               <Pressable key={role} style={[styles.roleRow, on && styles.roleRowOn]} onPress={() => toggle(role)}>
                 <View style={styles.roleInfo}>
                   <Text style={[styles.roleName, on && styles.roleNameOn]}>{role}</Text>
-                  <Text style={styles.roleDesc}>{on ? '내가 연습할 배역' : `대사 ${count}개 · 자동 음성`}</Text>
+                  <Text style={styles.roleDesc}>{on ? t('reading.pickRole') : `대사 ${count}개 · 자동 음성`}</Text>
                 </View>
                 <View style={[styles.check, on && styles.checkOn]}>
                   {on ? <Feather name="check" size={14} color="#fff" /> : null}
@@ -80,7 +81,7 @@ export default function ReadingRoles() {
       <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
         <Pressable style={[styles.primary, selected.length < 1 && styles.primaryOff]} onPress={onStart} disabled={selected.length < 1}>
           <Text style={styles.primaryText}>
-            {selected.length < 1 ? '배역을 선택하세요' : '다음'}
+            {selected.length < 1 ? t('reading.pickRoleFirst') : t('reading.next')}
           </Text>
         </Pressable>
       </View>

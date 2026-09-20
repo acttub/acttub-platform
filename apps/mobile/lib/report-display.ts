@@ -1,5 +1,5 @@
 import type { SavedPracticeReport, PublicPracticeNote } from '@/lib/api';
-import { translate } from './i18n.ts';
+import { translate, translate as t } from './i18n.ts';
 
 export type ReportDisplay = {
   title: string;
@@ -30,7 +30,7 @@ export function reportDisplay(report: SavedPracticeReport): ReportDisplay {
   }
 
   if (report.report_type !== 'expression') {
-    return { title: '연습 노트를 다시 불러와 주세요', found: '', blocked: '', evidence: '', actorWords: '', next: '', caution: '' };
+    return { title: t('report.noteReload'), found: '', blocked: '', evidence: '', actorWords: '', next: '', caution: '' };
   }
 
   return {
@@ -53,17 +53,19 @@ export type PracticeNoteSection = {
 export function practiceNoteSections(note: PublicPracticeNote): PracticeNoteSection[] {
   return [
     {
-      kind: 'summary', label: '이번 대화 요약',
+      kind: 'summary', label: t('report.noteSummaryLabel'),
       text: note.summary?.trim()
-        || (note.focus ? `${note.focus.label} 부분을 함께 살펴봤어요.` : '이번에는 구체적인 촬영 방향을 정하지 않았어요.'),
+        || (note.focus
+          ? t('report.noteSummaryFocus', { label: note.focus.label })
+          : t('report.noteSummaryEmpty')),
     },
     {
-      kind: 'next', label: '다음 촬영에서 해볼 것',
-      text: note.practice?.instruction || '이번에는 촬영 아이템을 정하지 않았어요.',
+      kind: 'next', label: t('report.noteNextLabel'),
+      text: note.practice?.instruction || t('report.noteNextEmpty'),
     },
     {
       kind: 'encouragement', label: '',
-      text: '오늘 촬영도 수고했어요.\n다음 촬영도 응원할게요.',
+      text: t('report.noteEncouragement'),
     },
   ];
 }

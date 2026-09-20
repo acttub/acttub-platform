@@ -20,7 +20,7 @@ import {
   upcomingNotices,
   type AdmissionsResponse,
 } from '@/lib/admissions';
-import { translate as t } from '@/lib/i18n';
+import { dateLocale, isKorean, translate as t } from '@/lib/i18n';
 import { StreakCelebration } from '@/components/streak-badge';
 import {
   readLastSeenStreak,
@@ -36,7 +36,7 @@ const STREAK_ORANGE = '#E9A23B';
 function recentDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
+  return d.toLocaleDateString(dateLocale(), { month: 'long', day: 'numeric' });
 }
 
 /** A1. 홈 — 히어로(마스코트) + 지금 바로 연습 + 연속 연습 + 최근 연습 + 입시 마감. */
@@ -88,6 +88,8 @@ export default function HomeScreen() {
 
   useEffect(() => {
     // 입시는 로그인과 무관하고 배포 때만 바뀐다 — 포커스마다 다시 읽지 않는다.
+    // 한국어를 안 쓰는 사람에겐 보여줄 자리가 없으니 받아오지도 않는다 (SOMA-544).
+    if (!isKorean()) return;
     let cancelled = false;
     api
       .admissions()
@@ -102,8 +104,9 @@ export default function HomeScreen() {
     };
   }, []);
 
+  // 연기 입시는 한국 대학 일정이라 한국어로 쓰는 사람에게만 쓸모가 있다 (SOMA-544).
   const deadlines = useMemo(
-    () => (admissions ? upcomingNotices(admissions, localDate(), 2) : []),
+    () => (admissions && isKorean() ? upcomingNotices(admissions, localDate(), 2) : []),
     [admissions],
   );
 

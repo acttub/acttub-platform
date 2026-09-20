@@ -9,7 +9,7 @@ import { RecordModeSheet, type RecordMode } from '@/components/record-mode-sheet
 import { palette } from '@/constants/palette';
 import { useRequireLogin } from '@/hooks/use-require-login';
 import { TODAY_LINE } from '@/lib/challenge-mock';
-import { translate as t } from '@/lib/i18n';
+import { isKorean, translate as t } from '@/lib/i18n';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -103,7 +103,15 @@ export default function TabLayout() {
             ),
           }}
         />
-        <Tabs.Screen name="challenges" options={{ title: t('tabs.challenge'), tabBarIcon: icon('trophy-outline', 'trophy') }} />
+        {/* 대사 챌린지에 올라오는 대사가 전부 한국어라, 한국어로 쓰는 사람에게만 띄운다 (SOMA-544). */}
+        <Tabs.Screen
+          name="challenges"
+          options={
+            isKorean()
+              ? { title: t('tabs.challenge'), tabBarIcon: icon('trophy-outline', 'trophy') }
+              : { href: null }
+          }
+        />
         {/* 게시판은 챌린지 탭에 자리를 내주고 탭바에서 빠졌지만(pen 정합) 라우트는 남긴다. */}
         <Tabs.Screen name="community" options={{ href: null }} />
         <Tabs.Screen name="profile" options={{ title: t('tabs.profile'), tabBarIcon: icon('person-outline', 'person') }} />

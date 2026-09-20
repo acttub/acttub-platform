@@ -3,7 +3,7 @@ import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
-import { translate as t } from '@/lib/i18n';
+import { isKorean, translate as t } from '@/lib/i18n';
 
 export type RecordMode = 'ai' | 'challenge' | 'plain';
 
@@ -40,19 +40,22 @@ export function RecordModeSheet({
           </View>
           <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.9)" />
         </Pressable>
-        <Pressable
-          style={({ pressed }) => [styles.option, pressed && styles.pressed]}
-          onPress={() => onPick('challenge')}
-          accessibilityRole="button">
-          <View style={styles.icon}>
-            <Ionicons name="trophy-outline" size={22} color="#E9A23B" />
-          </View>
-          <View style={styles.body}>
-            <Text style={styles.optionTitle}>{t('recordMode.challenge')}</Text>
-            <Text style={styles.optionSub}>{t('recordMode.challengeSub')}</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={palette.checkOff} />
-        </Pressable>
+        {/* 챌린지에 올라오는 대사가 전부 한국어라 한국어로 쓰는 사람에게만 보인다 (SOMA-544). */}
+        {isKorean() && (
+          <Pressable
+            style={({ pressed }) => [styles.option, pressed && styles.pressed]}
+            onPress={() => onPick('challenge')}
+            accessibilityRole="button">
+            <View style={styles.icon}>
+              <Ionicons name="trophy-outline" size={22} color="#E9A23B" />
+            </View>
+            <View style={styles.body}>
+              <Text style={styles.optionTitle}>{t('recordMode.challenge')}</Text>
+              <Text style={styles.optionSub}>{t('recordMode.challengeSub')}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={palette.checkOff} />
+          </Pressable>
+        )}
         <Pressable
           style={({ pressed }) => [styles.option, pressed && styles.pressed]}
           onPress={() => onPick('plain')}

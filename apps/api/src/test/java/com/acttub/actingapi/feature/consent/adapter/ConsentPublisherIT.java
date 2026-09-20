@@ -62,10 +62,11 @@ class ConsentPublisherIT {
     @Test
     @Order(1)
     void emptyDatabaseBootPublishesWholeManifestAndRepeatIsIdempotent() throws Exception {
+        // 종류 3가지 × 말 2가지(한국어 정본 + 영어 번역본) = 6 (SOMA-544)
         assertThat(jdbc.queryForList(
-                "SELECT type,version,title,required,length(body) body_length "
-                        + "FROM consent_documents ORDER BY type"))
-                .hasSize(3)
+                "SELECT type,version,locale,title,required,length(body) body_length "
+                        + "FROM consent_documents ORDER BY type,locale"))
+                .hasSize(6)
                 .allSatisfy(row -> {
                     assertThat(row.get("required")).isEqualTo(true);
                     assertThat(((Number) row.get("body_length")).intValue()).isPositive();
@@ -154,10 +155,10 @@ class ConsentPublisherIT {
         try {
             Future<Integer> first = pool.submit(publisher::publish);
             Future<Integer> second = pool.submit(other::publish);
-            assertThat(first.get() + second.get()).isBetween(3, 6);
+            assertThat(first.get() + second.get()).isBetween(6, 12);
             assertThat(jdbc.queryForObject(
                     "SELECT count(*) FROM consent_documents",
-                    Integer.class)).isEqualTo(3);
+                    Integer.class)).isEqualTo(6);
         } finally {
             pool.shutdownNow();
         }

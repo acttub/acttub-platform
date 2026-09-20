@@ -14,6 +14,7 @@ import { palette } from '@/constants/palette';
 import { speakableText } from '@/lib/reading/parse';
 import { addRecording, getCurrent, isMyRole, updateCurrent } from '@/lib/reading/store';
 import * as engine from '@/lib/reading/tts/engine';
+import { translate as t } from '@/lib/i18n';
 
 type Phase = 'loading' | 'reading' | 'done';
 
@@ -33,7 +34,7 @@ export default function ReadingPlay() {
   const maskMode = script?.maskMode ?? 'none';
 
   const [phase, setPhase] = useState<Phase>('loading');
-  const [progress, setProgress] = useState('음성 준비 중...');
+  const [progress, setProgress] = useState(t('reading.voicePreparing'));
   const [index, setIndex] = useState(() => {
     const at = script?.status === 'done' ? start : script?.index ?? start;
     return Math.min(Math.max(at, start), end);
@@ -106,7 +107,7 @@ export default function ReadingPlay() {
   const line = lines[index];
   const myTurn = !!line && line.type === 'dialogue' && isMyRole((line as any).role);
 
-  // 대사 진행: 상대 배역이면 TTS, 지문은 잠깐, 내 배역이면 '다음' 대기(녹음은 계속 돎)
+  // 대사 진행: 상대 배역이면 TTS, 지문은 잠깐, 내 배역이면 t('reading.next') 대기(녹음은 계속 돎)
   useEffect(() => {
     if (phase !== 'reading' || paused) return;
     if (index > end || !lines[index]) {
@@ -127,7 +128,7 @@ export default function ReadingPlay() {
         clearTimeout(t);
       };
     }
-    if (isMyRole(cur.role)) return; // 내 차례 — 마이크(useMicAutoAdvance) 또는 '다음'
+    if (isMyRole(cur.role)) return; // 내 차례 — 마이크(useMicAutoAdvance) 또는 t('reading.next')
     void (async () => {
       try {
         await engine.speak(speakableText(cur.text));
@@ -280,14 +281,14 @@ export default function ReadingPlay() {
         )}
 
         <Text style={styles.hint}>
-          {myTurn ? '대사를 읽고 다음을 눌러요' : '상대가 읽는 중 · 끝나면 내 차례'}
+          {myTurn ? t('reading.readAndNext') : t('reading.othersTurn')}
         </Text>
       </View>
 
       <View style={[styles.controls, { paddingBottom: insets.bottom + 12 }]}>
         <Pressable style={[styles.ctrl, styles.ctrlGhost]} onPress={onTogglePause}>
           <Feather name={paused ? 'play' : 'pause'} size={16} color={palette.textDim} />
-          <Text style={styles.ctrlGhostText}>{paused ? '재생' : '일시정지'}</Text>
+          <Text style={styles.ctrlGhostText}>{paused ? t('reading.play') : t('reading.pause')}</Text>
         </Pressable>
         <Pressable style={[styles.ctrl, styles.ctrlPrimary]} onPress={onNext}>
           <Text style={styles.ctrlPrimaryText}>다음</Text>

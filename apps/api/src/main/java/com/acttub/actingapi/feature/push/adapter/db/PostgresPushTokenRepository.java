@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.push.app.PushTokenRepository;
+import com.acttub.actingapi.feature.push.app.PushTarget;
+import com.acttub.actingapi.platform.web.OutputLanguage;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
@@ -39,11 +41,12 @@ class PostgresPushTokenRepository implements PushTokenRepository {
         transaction.executeWithoutResult(status -> {
             List<Tuple> registered = list(entityManager.createNativeQuery("""
                     WITH registered AS (
-                        INSERT INTO push_tokens(user_id,token,platform)
-                        VALUES (:userId,:token,:platform)
+                        INSERT INTO push_tokens(user_id,token,platform,locale)
+                        VALUES (:userId,:token,:platform,:locale)
                         ON CONFLICT(token)
                         DO UPDATE SET user_id=EXCLUDED.user_id,
                                       platform=EXCLUDED.platform,
+                                      locale=EXCLUDED.locale,
                                       updated_at=now()
                         RETURNING id
                     )
@@ -51,7 +54,9 @@ class PostgresPushTokenRepository implements PushTokenRepository {
                     """, Tuple.class)
                     .setParameter("userId", userId)
                     .setParameter("token", token)
-                    .setParameter("platform", platform));
+                    .setParameter("platform", platform)
+                    // 토큰을 맡기는 것은 요청이라 여기서만 받는 사람의 말을 알 수 있다 (SOMA-544).
+                    .setParameter("locale", OutputLanguage.current().getLanguage()));
             if (registered.size() != 1
                     || registered.getFirst().get("id", UUID.class) == null) {
                 throw new IllegalStateException("push token upsert returned no id");
@@ -66,16 +71,18 @@ class PostgresPushTokenRepository implements PushTokenRepository {
     }
 
     @Override
-    public List<String> tokensForSessionOwner(UUID sessionId) {
+    public List<PushTarget> targetsForSessionOwner(UUID sessionId) {
         return list(entityManager.createNativeQuery("""
-                SELECT push.token
+                SELECT push.token, push.locale
                 FROM push_tokens push
                 JOIN practice_sessions practice ON practice.user_id=push.user_id
                 WHERE practice.id=:sessionId
                 ORDER BY push.created_at
                 """, Tuple.class)
                 .setParameter("sessionId", sessionId)).stream()
-                .map(row -> row.get("token", String.class))
+                .map(row -> new PushTarget(
+                        row.get("token", String.class),
+                        row.get("locale", String.class)))
                 .toList();
     }
 }

@@ -8,6 +8,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import com.acttub.actingapi.integration.llm.StructuredJson;
+import com.acttub.actingapi.platform.web.OutputLanguage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -102,8 +103,9 @@ public final class PracticeNote {
     static String prompt() { return PROMPT; }
 
     static String prompt(JsonNode handoff) {
-        return handoff != null && "acttub.coach_handoff.v2".equals(handoff.path("schema_version").asText())
+        String base = handoff != null && "acttub.coach_handoff.v2".equals(handoff.path("schema_version").asText())
                 ? DialogueNote.PROMPT : PROMPT;
+        return OutputLanguage.apply(base);
     }
 
     /** Explicit projection: internal actor messages, state and source catalog never leak into public JSON. */

@@ -94,6 +94,7 @@ COLUMN community_reports.target_id ord=4 type=uuid len=- null=NO default=-
 COLUMN community_reports.target_type ord=3 type=text len=- null=NO default=-
 COLUMN consent_documents.body ord=5 type=text len=- null=NO default=-
 COLUMN consent_documents.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
+COLUMN consent_documents.locale ord=8 type=text len=- null=NO default='ko'::text
 COLUMN consent_documents.published_at ord=7 type=timestamptz len=- null=NO default=now()
 COLUMN consent_documents.required ord=6 type=bool len=- null=NO default=false
 COLUMN consent_documents.title ord=4 type=text len=- null=NO default=-
@@ -147,6 +148,7 @@ COLUMN practice_sessions.upload_intent_id ord=3 type=uuid len=- null=NO default=
 COLUMN practice_sessions.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN push_tokens.created_at ord=5 type=timestamptz len=- null=NO default=now()
 COLUMN push_tokens.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
+COLUMN push_tokens.locale ord=7 type=text len=- null=NO default='ko'::text
 COLUMN push_tokens.platform ord=4 type=text len=- null=NO default=-
 COLUMN push_tokens.token ord=3 type=text len=- null=NO default=-
 COLUMN push_tokens.updated_at ord=6 type=timestamptz len=- null=NO default=now()
@@ -365,13 +367,14 @@ CONSTRAINT community_reports uq_community_reports_reporter_target UNIQUE (report
 CONSTRAINT consent_documents ck_consent_documents_type CHECK ((type = ANY (ARRAY['terms'::text, 'privacy'::text, 'ai_analysis'::text])))
 CONSTRAINT consent_documents consent_documents_body_not_null NOT NULL body
 CONSTRAINT consent_documents consent_documents_id_not_null NOT NULL id
+CONSTRAINT consent_documents consent_documents_locale_not_null NOT NULL locale
 CONSTRAINT consent_documents consent_documents_pkey PRIMARY KEY (id)
 CONSTRAINT consent_documents consent_documents_published_at_not_null NOT NULL published_at
 CONSTRAINT consent_documents consent_documents_required_not_null NOT NULL required
 CONSTRAINT consent_documents consent_documents_title_not_null NOT NULL title
 CONSTRAINT consent_documents consent_documents_type_not_null NOT NULL type
 CONSTRAINT consent_documents consent_documents_version_not_null NOT NULL version
-CONSTRAINT consent_documents uq_consent_documents_type_version UNIQUE (type, version)
+CONSTRAINT consent_documents uq_consent_documents_type_version UNIQUE (type, version, locale)
 CONSTRAINT external_operations ck_external_operations_kind CHECK ((kind = ANY (ARRAY['analyze'::text, 'coach_start'::text, 'coach_reply'::text, 'report'::text, 'memory_update'::text])))
 CONSTRAINT external_operations ck_external_operations_last_failure_classification CHECK ((last_failure_classification = ANY (ARRAY['expected'::text, 'external'::text, 'unexpected'::text])))
 CONSTRAINT external_operations ck_external_operations_status CHECK ((status = ANY (ARRAY['pending'::text, 'running'::text, 'succeeded'::text, 'failed'::text])))
@@ -427,6 +430,7 @@ CONSTRAINT practice_sessions practice_sessions_user_id_fkey FOREIGN KEY (user_id
 CONSTRAINT practice_sessions practice_sessions_user_id_not_null NOT NULL user_id
 CONSTRAINT push_tokens push_tokens_created_at_not_null NOT NULL created_at
 CONSTRAINT push_tokens push_tokens_id_not_null NOT NULL id
+CONSTRAINT push_tokens push_tokens_locale_not_null NOT NULL locale
 CONSTRAINT push_tokens push_tokens_pkey PRIMARY KEY (id)
 CONSTRAINT push_tokens push_tokens_platform_not_null NOT NULL platform
 CONSTRAINT push_tokens push_tokens_token_key UNIQUE (token)
@@ -528,7 +532,7 @@ INDEX CREATE INDEX idx_community_posts_author ON public.community_posts USING bt
 INDEX CREATE INDEX idx_community_posts_category_created ON public.community_posts USING btree (category_id, created_at DESC, id DESC) WHERE (status = 'visible'::text)
 INDEX CREATE INDEX idx_community_posts_created ON public.community_posts USING btree (created_at DESC, id DESC) WHERE (status = 'visible'::text)
 INDEX CREATE INDEX idx_community_reports_status_created ON public.community_reports USING btree (status, created_at DESC)
-INDEX CREATE INDEX idx_consent_documents_latest ON public.consent_documents USING btree (type, published_at DESC)
+INDEX CREATE INDEX idx_consent_documents_latest ON public.consent_documents USING btree (type, locale, published_at DESC)
 INDEX CREATE INDEX idx_external_operations_claimable ON public.external_operations USING btree (kind, status, created_at)
 INDEX CREATE INDEX idx_external_operations_session ON public.external_operations USING btree (session_id)
 INDEX CREATE INDEX idx_external_operations_status_attempt_lease ON public.external_operations USING btree (status, attempt_count, lease_expires_at)
@@ -582,7 +586,7 @@ INDEX CREATE UNIQUE INDEX uq_community_alias_post_user ON public.community_anony
 INDEX CREATE UNIQUE INDEX uq_community_blocks_pair ON public.community_blocks USING btree (blocker_id, blocked_id)
 INDEX CREATE UNIQUE INDEX uq_community_post_likes ON public.community_post_likes USING btree (post_id, user_id)
 INDEX CREATE UNIQUE INDEX uq_community_reports_reporter_target ON public.community_reports USING btree (reporter_id, target_type, target_id)
-INDEX CREATE UNIQUE INDEX uq_consent_documents_type_version ON public.consent_documents USING btree (type, version)
+INDEX CREATE UNIQUE INDEX uq_consent_documents_type_version ON public.consent_documents USING btree (type, version, locale)
 INDEX CREATE UNIQUE INDEX uq_external_operations_user_request ON public.external_operations USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_practice_reports_source_handoff ON public.practice_reports USING btree (source_handoff_id)
 INDEX CREATE UNIQUE INDEX uq_transcripts_session_ord ON public.transcripts USING btree (session_id, ord)

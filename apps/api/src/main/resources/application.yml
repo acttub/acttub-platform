@@ -38,6 +38,10 @@ spring:
   web:
     resources:
       add-mappings: false
+    # 요청이 Accept-Language 를 안 보내면 한국어로 본다. 장비의 기본 언어를 따라가면
+    # 서버가 영어로 잡힌 순간 AI 가 영어로 답해 버린다.
+    locale: ko
+    locale-resolver: accept-header
   mvc:
     throw-exception-if-no-handler-found: true
 

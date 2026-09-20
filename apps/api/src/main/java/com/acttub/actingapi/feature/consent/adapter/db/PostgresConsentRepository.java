@@ -12,9 +12,11 @@ import com.acttub.actingapi.feature.auth.app.PendingConsentDocuments;
 import com.acttub.actingapi.feature.consent.app.ConsentRepository;
 import com.acttub.actingapi.feature.consent.domain.ConsentDocument;
 import com.acttub.actingapi.feature.consent.domain.ConsentEvent;
+import com.acttub.actingapi.feature.consent.domain.ConsentLocale;
 import com.acttub.actingapi.feature.consent.schema.ConsentDocumentEntity;
 import com.acttub.actingapi.feature.consent.schema.UserConsentEntity;
 import com.acttub.actingapi.platform.schema.ConsentAction;
+import com.acttub.actingapi.platform.web.OutputLanguage;
 import com.acttub.actingapi.platform.schema.ConsentType;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
@@ -59,24 +61,50 @@ class PostgresConsentRepository implements ConsentRepository, PendingConsentDocu
      * 거부당한다. 안쪽의 정렬은 종류마다 <b>어느 판을 고를지</b>(가장 최근 것)를 정하는
      * 일이고, 바깥 정렬은 고른 것들을 보여줄 순서를 정하는 일이다 (apps/api/CONTRACT.md §5-8).
      */
+    /**
+     * <p><b>말은 요청에서 온다</b> (SOMA-544). 인자로 받지 않는 이유는 이 조회를 부르는
+     * 자리가 넷이고 그 위로 게이트까지 이어져 있어서다 — 한 요청이 어느 말을 쓰는지는
+     * 프롬프트와 같은 자리({@link OutputLanguage})에서 한 번만 읽는다. 요청 밖에서
+     * 부르면 정본(한국어)이다.
+     *
+     * <p>현행 판은 <b>한국어 문서가 정한다.</b> 번역본은 그 판에 딸린 것이고, 없으면
+     * 한국어를 보여준다 — 동의 화면이 비는 것보다 낫다.
+     */
     @Override
     public List<ConsentDocument> listLatestDocuments() {
         return list(entityManager.createNativeQuery("""
+                WITH canonical AS (
+                    SELECT DISTINCT ON(consent_documents.type)
+                           consent_documents.id,
+                           consent_documents.type, consent_documents.version
+                    FROM consent_documents
+                    WHERE consent_documents.locale = 'ko'
+                    ORDER BY consent_documents.type,
+                             consent_documents.published_at DESC,
+                             consent_documents.id DESC),
+                picked AS (
+                    SELECT DISTINCT ON(d.type)
+                           c.id,d.type,d.version,d.title,d.body,d.required,d.published_at
+                    FROM consent_documents d
+                    JOIN canonical c ON c.type = d.type AND c.version = d.version
+                    WHERE d.locale IN (:locale, 'ko')
+                    ORDER BY d.type, (d.locale = :locale) DESC, d.id DESC)
                 SELECT id,type,version,title,body,required,published_at
-                FROM (SELECT DISTINCT ON(consent_documents.type)
-                             id,type,version,title,body,required,published_at
-                      FROM consent_documents
-                      ORDER BY consent_documents.type,
-                               consent_documents.published_at DESC,
-                               consent_documents.id DESC) latest
-                ORDER BY CASE latest.type
+                FROM picked
+                ORDER BY CASE picked.type
                              WHEN 'terms' THEN 1
                              WHEN 'privacy' THEN 2
                              WHEN 'ai_analysis' THEN 3
                          END
-                """, Tuple.class)).stream()
+                """, Tuple.class)
+                .setParameter("locale", requestLocale())).stream()
                 .map(PostgresConsentRepository::document)
                 .toList();
+    }
+
+    /** 이 요청이 읽을 동의 문서의 말. 아는 말이 아니면 정본(한국어). */
+    private static String requestLocale() {
+        return ConsentLocale.of(OutputLanguage.current());
     }
 
     @Override
@@ -121,11 +149,25 @@ class PostgresConsentRepository implements ConsentRepository, PendingConsentDocu
      *
      * <p>철회한 뒤 다시 동의한 경우까지 맞으려면 <b>마지막</b> 행위를 봐야 한다 — 그래서
      * 안쪽 질의가 문서마다 가장 최근 한 줄을 집는다.
+     *
+     * <p><b>문서의 신원은 한국어 행이 쥔다</b> (SOMA-544). 번역본은 보이는 글만 바꾸고
+     * 문서 번호는 한국어 행의 것을 그대로 쓴다. 그래서 한국어로 동의한 사람이 기기 말을
+     * 영어로 바꿔도 같은 번호라 다시 묻지 않고, 동의 여부를 세는 자리 셋
+     * ({@code statusFor}·{@code entryFor}·{@code pendingDocuments})이 전부 그대로 맞는다.
      */
     @Override
     public List<PendingConsent> pendingFor(UUID userId) {
         return list(entityManager.createNativeQuery("""
-                WITH latest AS (SELECT DISTINCT ON(type) * FROM consent_documents ORDER BY type,published_at DESC,id DESC)
+                WITH canonical AS (
+                    SELECT DISTINCT ON(type) id,type,version FROM consent_documents
+                    WHERE locale='ko' ORDER BY type,published_at DESC,id DESC),
+                latest AS (
+                    SELECT DISTINCT ON(d.type)
+                           c.id,d.type,d.version,d.title,d.body,d.required,d.published_at
+                    FROM consent_documents d
+                    JOIN canonical c ON c.type=d.type AND c.version=d.version
+                    WHERE d.locale IN (:locale,'ko')
+                    ORDER BY d.type,(d.locale=:locale) DESC,d.id DESC)
                 SELECT d.id,d.type,d.version,d.title,d.body,d.required,d.published_at
                 FROM latest d WHERE d.required AND NOT EXISTS(
                   SELECT 1 FROM user_consents c WHERE c.user_id=:userId AND c.document_id=d.id AND c.action='granted'
@@ -133,6 +175,7 @@ class PostgresConsentRepository implements ConsentRepository, PendingConsentDocu
                 ORDER BY d.published_at,d.id
                 """,
                 Tuple.class)
+                .setParameter("locale", requestLocale())
                 .setParameter("userId", userId)).stream()
                 .map(row -> new PendingConsent(
                         row.get("id", UUID.class),

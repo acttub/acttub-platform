@@ -20,6 +20,7 @@ import com.acttub.actingapi.platform.observability.LlmCall;
 import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.acttub.actingapi.platform.observability.LlmTokens;
+import com.acttub.actingapi.platform.web.OutputLanguage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -182,7 +183,9 @@ final class StructuredCoachEngine {
         if (!finish) throw new CoachReplyUnavailable();
         ObjectNode retained = state.deepCopy();
         retained.put("revision", session.stateRevision() + 1).put("response_style", style);
-        return result(session, actorText, "지금까지 이야기한 내용으로 정리할게요.", retained, "system_failure");
+        return result(session, actorText, (OutputLanguage.isKorean()
+                ? "지금까지 이야기한 내용으로 정리할게요."
+                : "Let's wrap up with what we've talked through so far."), retained, "system_failure");
     }
 
     private static ObjectNode input(CoachSessionSnapshot session, JsonNode state, String actorText,
@@ -276,7 +279,8 @@ final class StructuredCoachEngine {
     private String recorded(CoachSessionSnapshot session, JsonNode input, int call) {
         Instant started = Instant.now();
         String text = input.toString();
-        String prompt = PROMPT + DialogueProgress.turnInstruction(input.path("dialogue_progress"));
+        String prompt = OutputLanguage.apply(
+                PROMPT + DialogueProgress.turnInstruction(input.path("dialogue_progress")));
         try {
             ExternalOperationExecution.externalCall("model");
             var generated = generate.generate(prompt, text);

@@ -12,7 +12,7 @@ import { useAuth } from '@/lib/auth';
 import { displayNameFor } from '@/lib/display-name';
 import { getUserName } from '@/lib/profile';
 import { getProfileBio, getProfilePhotoUri, setProfileBio, setProfilePhotoUri } from '@/lib/profile-extras';
-import { translate as t } from '@/lib/i18n';
+import { isKorean, translate as t } from '@/lib/i18n';
 
 /**
  * A4 프로필 — 하단 탭 "프로필"이 여는 페이지. 설정(⚙)·프로필 편집·활동·코치 기억으로 간다.
@@ -138,7 +138,10 @@ export default function ProfileScreen() {
         {/* 나의 활동 */}
         <Text style={styles.sectionLabel}>{t('profileTab.activitySection')}</Text>
         <Row icon="video" title={t('profileTab.archiveTitle')} sub={t('profileTab.archiveSub')} onPress={() => router.push('/archive')} />
-        <Row icon="bookmark" title={t('profileTab.savedTitle')} sub={t('profileTab.savedSub')} onPress={() => router.push('/saved-videos')} />
+        {/* 저장한 영상은 챌린지에서 담은 것뿐이라 챌린지와 함께 가린다 (SOMA-544). */}
+        {isKorean() && (
+          <Row icon="bookmark" title={t('profileTab.savedTitle')} sub={t('profileTab.savedSub')} onPress={() => router.push('/saved-videos')} />
+        )}
 
         {/* 코치의 기억 — 게스트에겐 없다 */}
         {!isGuest && <Text style={styles.sectionLabel}>{t('profileTab.memorySection')}</Text>}

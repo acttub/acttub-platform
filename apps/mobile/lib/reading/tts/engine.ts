@@ -11,6 +11,8 @@
 import { File, Paths } from 'expo-file-system';
 import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 
+import { currentLanguage, translate as t } from '../../i18n.ts';
+
 import { downloadAssets, MODEL_KINDS, type Variant } from './assets';
 import {
   loadOnnx,
@@ -65,7 +67,7 @@ export function ensureReady(onProgress: ProgressFn = () => {}, next?: EngineConf
       graphOptimizationLevel: 'all',
       intraOpNumThreads: Math.max(1, cfg.threads),
     };
-    onProgress('음성 모델 로드 중...');
+    onProgress(t('reading.voiceLoading'));
     const sessions: any = {};
     for (const k of MODEL_KINDS) {
       try {
@@ -84,7 +86,7 @@ export function ensureReady(onProgress: ProgressFn = () => {}, next?: EngineConf
       sessions.vocoder,
     );
     await setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
-    onProgress('준비 완료');
+    onProgress(t('reading.voiceReady'));
   })().catch((e) => {
     readyPromise = null;
     throw e;
@@ -98,11 +100,13 @@ export function ensureReady(onProgress: ProgressFn = () => {}, next?: EngineConf
  * 이미 읽을 수 없게 정리된(빈) 문장이면 아무 것도 하지 않고 즉시 resolve.
  */
 export async function speak(text: string): Promise<void> {
-  if (!tts) throw new Error('음성 엔진이 준비되지 않았어요');
+  if (!tts) throw new Error(t('reading.voiceNotReady'));
   const clean = (text ?? '').trim();
   if (!clean) return;
 
-  const { wav, duration } = await tts.call(clean, 'ko', style, cfg.steps, cfg.speed, 0.1);
+  // 모델은 32개 말을 읽을 줄 안다. 대본이 어느 말로 쓰였는지는 알 수 없으니
+  // 앱을 쓰는 말로 읽힌다 — 한국어 사용자는 지금과 같다 (SOMA-544).
+  const { wav, duration } = await tts.call(clean, currentLanguage(), style, cfg.steps, cfg.speed, 0.1);
   const durSec = duration[0] || 0;
   const samples = Float32Array.from(wav);
   const bytes = writeWavFile(samples, tts.sampleRate);

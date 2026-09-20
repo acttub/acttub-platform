@@ -36,7 +36,7 @@ import {
   sendUploadIntent,
   type UploadIntentInput,
 } from '@/lib/upload-input';
-import { translate } from './i18n.ts';
+import { currentLanguage, translate } from './i18n.ts';
 
 export { ApiError, NetworkError, RequestAbortError } from '@/lib/api-request';
 
@@ -51,6 +51,7 @@ const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://dev.acttub.com';
 const requestClient = createApiRequestClient({
   baseUrl: BASE_URL,
   fetchImpl: (...args) => fetch(...args),
+  getLanguage: currentLanguage,
   waitForCredentialReady,
   getAccessToken,
   getRefreshToken,
