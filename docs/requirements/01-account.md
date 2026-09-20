@@ -594,7 +594,7 @@ user_profile_directions(user_id, direction)에 고른 값마다 한 행씩 둔�
 - 도입: 1.0.0
 - 결정 기록: ADR-028
 - 화면: 게스트 시작 안내, 기능별 동의 시트, 이관 코드, 옮긴 뒤 안내, 앱의 코드 입력과 기억 선택 팝업(모두 미설계)
-- 테이블: users, user_identities, refresh_tokens, user_consents, consent_documents, guest_transfer_codes(ERD에 추가), practices, videos, scripts, reading_sessions, line_memorization, ai_jobs, actor_memories
+- 테이블: users, user_identities, refresh_tokens, user_consents, consent_documents, guest_transfer_codes(ERD에 추가), practices, videos, scripts, reading_sessions, line_memorization, ai_jobs, actor_memories, reading_recordings, practice_feedback
 
 ### 기능
 웹에는 로그인이 없다. 처음 보호 기능을 쓰려 하면 서버가 게스트 계정을 만들고 브라우저에 토큰을
@@ -630,7 +630,7 @@ user_profile_directions(user_id, direction)에 고른 값마다 한 행씩 둔�
   | 기능 | 필요한 문서 |
   |---|---|
   | 연습(촬영·업로드·분석·코치 대화·노트) | 이용약관, 개인정보 수집·이용 동의, AI 분석 동의 |
-  | 리딩(대본 등록·리딩·녹음) | 이용약관, 개인정보 수집·이용 동의 (결정 필요: 녹음을 AI로 대조하면 AI 분석 동의도) |
+  | 리딩(대본 등록·리딩·녹음·암기) | 이용약관, 개인정보 수집·이용 동의. 서버가 대본·음성을 분석하지 않아 AI 분석 동의는 없다 (03-reading, ADR-031) |
   | 랜딩, 동의 문서 페이지, 입시 정보 | 없음 |
 
 - 서버는 요청마다 그 기능의 문서가 결정됐는지 본다. 빠진 문서가 있으면 403과 빠진 문서 목록을
@@ -658,7 +658,8 @@ user_profile_directions(user_id, direction)에 고른 값마다 한 행씩 둔�
 - 회원 계정은 여러 게스트를 차례로 받을 수 있다. 게스트 하나는 한 번만 옮겨진다.
 - 옮긴 연습은 회원의 연습 목록에 시간순으로 섞여 보이고 따로 표시하지 않는다.
 - 옮기지 않은 게스트는 마지막 활동 30일 뒤 탈퇴와 같은 절차로 파기한다. (account.withdraw) 마지막 활동은
-  게스트 시작, 토큰 갱신, 영상 올리기, 연습 만들기 가운데 가장 늦은 시각이다. 게스트는
+  게스트 시작, 토큰 갱신, 영상 올리기, 연습 만들기, 대본 등록, 리딩 회차 시작·진행 저장, 녹음 올리기, 암기 상태
+  갱신 가운데 가장 늦은 시각이다. (03-reading) 게스트는
   챌린지를 쓰지 않으므로 다른 사람의 화면에 얽힌 행이 없다. 연습·분석·대화 행은 탈퇴와 같이 사람과
   끊어 남긴다. 게스트 신원은 해시 없이 행째 지운다.
 - 게스트 토큰은 웹에서만 쓴다. 앱이 게스트를 만드는 길은 없다.
@@ -717,7 +718,7 @@ user_profile_directions(user_id, direction)에 고른 값마다 한 행씩 둔�
 - 도입: 1.0.0
 - 결정 기록: ADR-029
 - 화면: A5
-- 테이블: users, user_profiles, user_identities, refresh_tokens, push_tokens, actor_memories, videos, reading_recordings, challenge_entries, ai_jobs, portfolios, portfolio_credits, portfolio_photos, guest_transfer_codes, user_consents, user_profile_directions, entry_comments, entry_likes
+- 테이블: users, user_profiles, user_identities, refresh_tokens, push_tokens, actor_memories, videos, reading_recordings, challenge_entries, ai_jobs, portfolios, portfolio_credits, portfolio_photos, guest_transfer_codes, user_consents, user_profile_directions, entry_comments, entry_likes, practice_feedback, account_cleanup_operations(ERD에 추가)
 
 ### 기능
 설정에서 탈퇴하면 계정을 쓸 수 없게 하고, 바로 알아보게 하는 정보는 파기하며, 나머지는 사람과
@@ -743,8 +744,9 @@ user_profile_directions(user_id, direction)에 고른 값마다 한 행씩 둔�
   연결을 해제한다. 구글은 서버가 ID 토큰만 받으므로 앱이 탈퇴 요청 직전에 SDK의 연결 해제를 부른다.
   앱의 해제가 실패해도 탈퇴는 진행한다.
 - 서버 해제에 필요한 값(애플 토큰, 카카오 대상 ID, 네이버 토큰)과 지울 영상·녹음 객체의 목록은 파기
-  전에 탈퇴 정리 장부(account_cleanup_operations)에 암호화해 옮긴다. 해제와 삭제가 성공하거나 7일이
-  지나면 그 행과 값을 지운다. 처리방침에 적는다. 연습 영역의 비동기 작업 장부와 합치는 것은 후속이다.
+  전에 탈퇴 정리 장부(account_cleanup_operations)에 암호화해 옮긴다. 제공자 해제 값은 해제가 성공하거나 7일이
+  지나면 지운다. 객체 삭제 작업은 삭제가 성공할 때까지 대상 키를 유지하고, 7일 연속 실패하면 운영자에게 알리고
+  복구 대상으로 남긴다(03-reading). 처리방침에 적는다. 연습 영역의 비동기 작업 장부와 합치는 것은 후속이다.
 - 신원 해시: 탈퇴할 때 신원마다 서버 비밀키로 만든 HMAC(provider, provider_uid)을
   user_identities.uid_hash에 채우고 provider_uid는 비운다. 행은 탈퇴 3년 뒤 지운다. 3년은 한국 시간
   달력의 3년이다. 해시만으로는
@@ -758,8 +760,10 @@ user_profile_directions(user_id, direction)에 고른 값마다 한 행씩 둔�
   직접 처리하는 절차를 운영 문서로 남긴다.
 - 가명처리해 남기는 것: 성별·연령대·추구하는 방향·경력·목표와 배우 기억. 생년월일은 5세 단위
   연령대로 뭉개고 원래 값은 지운다. 알림 토글은 끈다. 통계·연구 목적이며 처리방침에 적는다.
-- 사람과 끊어 남기는 것: users 행(상태 deactivated, 탈퇴 시각), 연습·분석·대화·노트 행, 받아쓰기
-  텍스트, 챌린지 참여 기록과 좋아요·댓글. 남은 행은 어느 사람과도 이어지지 않는다.
+- 사람과 끊어 남기는 것: users 행(상태 deactivated, 탈퇴 시각), 연습·분석·대화·노트 행, 영상 연습의 받아쓰기
+  텍스트, 챌린지 참여 기록과 좋아요·댓글. 남은 행은 어느 사람과도 이어지지 않는다. 리딩의 대본·배역·줄·회차·
+  암기 상태는 행째 지우고, 리딩 녹음의 전사는 녹음과 함께 다룬다(보관 동의가 없으면 파기, 있으면 3년 보관, 철회
+  시 파기). (03-reading)
 - 영상 파일과 녹음: 얼굴과 목소리는 가명처리가 안 되므로 기본은 파기한다. "탈퇴 후 영상·녹음
   보관·활용" 선택 동의를 한 사람 것만 탈퇴 후 3년 동안 남기고, 기간이 끝나거나 동의를 철회하면
   파기한다. 더 쓰려면 재동의를 받는다. 동의 문서에 적는 목적은 서비스 개선과 AI 모델 학습 둘 다다.
@@ -773,7 +777,7 @@ user_profile_directions(user_id, direction)에 고른 값마다 한 행씩 둔�
   막는다. 탈퇴 화면은 "연습·노트는 돌아오지 않아요"를 확인받는다.
 - 백업 덤프에는 파기 전 데이터가 30일 남는다. 개인정보 처리방침에 적는다.
 - 탈퇴 화면(A5)의 안내는 이렇게 맞춘다. 지워지는 것: 이메일·이름·사진·소개, 포트폴리오와 공유 링크,
-  소셜 로그인 연결, 영상과 녹음(보관에 동의했으면 3년 뒤), 이 기기의 자료. 남는 것: 연습 기록은 나와
+  소셜 로그인 연결, 영상과 녹음(보관에 동의했으면 3년 뒤), 대본과 리딩 기록(회차·암기 상태), 이 기기의 자료. 남는 것: 연습 기록은 나와
   끊겨 남고, 챌린지 참여작은 비공개로 내려가며, 댓글은 "탈퇴한 사용자"로 남는다. 디자인의 현재 문구는
   커뮤니티 글 기준이라 챌린지 기준으로 바꾼다.
 
