@@ -27,18 +27,18 @@ class DirectVideoConfigurationTest {
                     () -> mock(com.acttub.actingapi.platform.observability.LlmTelemetry.class));
 
     @Test void enabledOnlyOnDev() {
-        runner.withPropertyValues("SITE_URL=https://dev.acttub.com").run(context -> {
+        runner.withPropertyValues("SITE_URL=https://dev.acttub.com", "ACTTUB_DIRECT_VIDEO_ENABLED=true").run(context -> {
             assertThat(context).hasSingleBean(DirectVideoSessions.class).hasSingleBean(DirectVideoController.class)
                     .hasSingleBean(com.acttub.actingapi.feature.coach.app.DirectVideoCoach.class)
                     .hasSingleBean(com.acttub.actingapi.integration.observation.DirectVideoModel.class);
         });
     }
 
-    @Test void productionStaysDisabledEvenWithTheFlag() {
+    @Test void productionEnablesDurableCoachButNotDisposableApi() {
         runner.withPropertyValues("SITE_URL=https://acttub.com", "ACTTUB_DIRECT_VIDEO_ENABLED=true").run(context -> {
             assertThat(context).doesNotHaveBean(DirectVideoSessions.class).doesNotHaveBean(DirectVideoController.class)
-                    .doesNotHaveBean(com.acttub.actingapi.feature.coach.app.DirectVideoCoach.class)
-                    .doesNotHaveBean(com.acttub.actingapi.integration.observation.DirectVideoModel.class);
+                    .hasSingleBean(com.acttub.actingapi.feature.coach.app.DirectVideoCoach.class)
+                    .hasSingleBean(com.acttub.actingapi.integration.observation.DirectVideoModel.class);
         });
     }
 

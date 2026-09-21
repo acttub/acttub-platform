@@ -9,14 +9,15 @@ import com.google.genai.Client;
 import jakarta.servlet.MultipartConfigElement;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.web.servlet.MultipartConfigFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.util.unit.DataSize;
 
-/** Explicitly scoped to the dev site; the experiment never opens on the production hostname. */
+/** Durable coaching is deployment-controlled; disposable sessions remain dev-only. */
 @Configuration(proxyBeanMethods = false)
-@ConditionalOnExpression("'${SITE_URL:}' == 'https://dev.acttub.com' && '${ACTTUB_DIRECT_VIDEO_ENABLED:true}' == 'true'")
+@ConditionalOnProperty(name = "ACTTUB_DIRECT_VIDEO_ENABLED", havingValue = "true")
 public class DirectVideoConfiguration {
     @Bean
     com.acttub.actingapi.integration.observation.DirectVideoModel directVideoModel(Client client,
@@ -34,12 +35,14 @@ public class DirectVideoConfiguration {
     }
 
     @Bean(destroyMethod = "close")
+    @ConditionalOnExpression("'${SITE_URL:}' == 'https://dev.acttub.com'")
     DirectVideoSessions directVideoSessions(Client client, FailureReporter failures, Clock clock,
             @Value("${GEMINI_MODEL:gemini-3-flash-preview}") String model) {
         return new DirectVideoSessions(new GeminiDirectVideoModel(client, model), failures, clock);
     }
 
     @Bean
+    @ConditionalOnExpression("'${SITE_URL:}' == 'https://dev.acttub.com'")
     MultipartConfigElement directVideoMultipartConfig() {
         MultipartConfigFactory factory = new MultipartConfigFactory();
         factory.setMaxFileSize(DataSize.ofMegabytes(50));

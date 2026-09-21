@@ -31,7 +31,7 @@ import org.springframework.web.multipart.MultipartFile;
 @Hidden
 @RestController
 @RequestMapping("/v2/coach/direct-video")
-@ConditionalOnExpression("'${SITE_URL:}' == 'https://dev.acttub.com' && '${ACTTUB_DIRECT_VIDEO_ENABLED:true}' == 'true'")
+@ConditionalOnExpression("'${SITE_URL:}' == 'https://dev.acttub.com' && '${ACTTUB_DIRECT_VIDEO_ENABLED:false}' == 'true'")
 class DirectVideoController {
     private final DirectVideoSessions sessions;
     private final AccessGate auth;

@@ -24,6 +24,8 @@ case "${1:-}" in
     if [ "${3:-}" = api ]; then
       if [ "${5:-}" = ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED ]; then
         printf '%s\n' "${TEST_GUEST_DAILY_LIMIT:-${DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED:-true}}"
+      elif [ "${5:-}" = ACTTUB_DIRECT_VIDEO_ENABLED ]; then
+        printf '%s\n' "${TEST_DIRECT_VIDEO:-${DEPLOY_DIRECT_VIDEO_ENABLED:-false}}"
       else
         printf '%s\n' "${TEST_THREE_LAYERS:-${DEPLOY_THREE_LAYERS_ENABLED:-false}}"
       fi
@@ -44,7 +46,7 @@ printf 'COMPOSE_PROFILES=edge\n' > "$WORK/.env"
 run_deploy() {
   (cd "$WORK" && env PATH="$WORK/bin:$PATH" TEST_CALLS="$WORK/calls" \
     SHA=0123456789abcdef API_IMAGE=example/api:0123456 WEB_IMAGE=example/web:0123456 \
-    BACKUP_IMAGE= DEPLOY_PULL_POLICY=missing DEPLOY_WAIT_SECONDS=180 DEPLOY_THREE_LAYERS_ENABLED= DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED= "$@" \
+    BACKUP_IMAGE= DEPLOY_PULL_POLICY=missing DEPLOY_WAIT_SECONDS=180 DEPLOY_THREE_LAYERS_ENABLED= DEPLOY_DIRECT_VIDEO_ENABLED= DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED= "$@" \
     "$ROOT/deploy/home/deploy.sh") > "$WORK/log" 2>&1
 }
 success() { run_deploy "$@" || { cat "$WORK/log"; exit 1; }; }
@@ -56,6 +58,7 @@ failure DEPLOY_WAIT_SECONDS=0
 failure DEPLOY_WAIT_SECONDS=oops
 failure DEPLOY_PULL_POLICY=never
 failure DEPLOY_THREE_LAYERS_ENABLED=invalid
+failure DEPLOY_DIRECT_VIDEO_ENABLED=invalid
 failure DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=invalid
 printf 'previous-release\n' > "$WORK/release.env"
 failure TEST_BACKUP_ACTIVE=true
@@ -99,3 +102,13 @@ grep -qx 'ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=true' "$WORK/release.env"
 success
 ! grep -q '^ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=' "$WORK/release.env"
 echo '✔ deploy.sh: 입력 거부·backup 프로필·compose 실패·health 불일치 검증 통과'
+success DEPLOY_THREE_LAYERS_ENABLED=true DEPLOY_DIRECT_VIDEO_ENABLED=true
+grep -qx 'ACTTUB_DIRECT_VIDEO_ENABLED=true' "$WORK/release.env"
+cp "$WORK/release.env" "$WORK/direct-release.env"
+success DEPLOY_THREE_LAYERS_ENABLED=true DEPLOY_DIRECT_VIDEO_ENABLED=true
+cmp "$WORK/direct-release.env" "$WORK/release.env"
+failure DEPLOY_DIRECT_VIDEO_ENABLED=true TEST_DIRECT_VIDEO=false
+success DEPLOY_DIRECT_VIDEO_ENABLED=false
+grep -qx 'ACTTUB_DIRECT_VIDEO_ENABLED=false' "$WORK/release.env"
+success
+! grep -q '^ACTTUB_DIRECT_VIDEO_ENABLED=' "$WORK/release.env"
