@@ -31,7 +31,7 @@ function phone({ undeletable = [] } = {}) {
   ]);
   const disk = new Set([RECORDING_1, RECORDING_2, SPEECH, COMPRESSED_PHOTO, ORIGINAL_VIDEO]);
   const stuck = new Set(undeletable);
-  const state = { nameDeleted: false };
+  const state = { nameDeleted: false, libraryPurged: false };
   const storage = {
     getAllKeys: async () => [...items.keys()],
     getItem: async (key) => items.get(key) ?? null,
@@ -55,6 +55,10 @@ function phone({ undeletable = [] } = {}) {
     deleteFile,
     purgeDeviceFiles: () => deviceFiles.purge(),
     listSpeechFiles: async () => [...disk].filter((uri) => uri.endsWith('.wav')),
+    purgeLibraryFiles: async () => {
+      state.libraryPurged = true;
+      for (const uri of [...disk]) if (uri.includes('/archive/')) disk.delete(uri);
+    },
     deleteUserName: async () => {
       state.nameDeleted = true;
     },
@@ -72,6 +76,18 @@ test('account.withdraw: 탈퇴 뒤 폰의 앱 저장소에는 계정 자료 키�
     [],
   );
   assert.equal(state.nameDeleted, true);
+});
+
+test('practice.record: 탈퇴하면 보관함의 기기 복사본 폴더와 업로드 대기 파일을 지운다(local-account-wipe 와 같은 길)', async () => {
+  const { disk, state, dependencies, items } = phone();
+  disk.add('file:///docs/archive/rec-1.mp4');
+  items.set('acttub.library.uploadQueue', '[{"id":"local-1"}]');
+
+  await wipeLocalAccountData(dependencies);
+
+  assert.equal(state.libraryPurged, true);
+  assert.equal(disk.has('file:///docs/archive/rec-1.mp4'), false);
+  assert.equal(items.has('acttub.library.uploadQueue'), false, '대기 큐 키도 접두사로 지워진다');
 });
 
 test('account.withdraw: 탈퇴하면 이 기기에 저장된 리딩 녹음 파일을 지운다', async () => {

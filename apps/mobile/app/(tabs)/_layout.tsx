@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
+import { LegacyArchivePrompt } from '@/components/legacy-archive-prompt';
 import { RecordModeSheet, type RecordMode } from '@/components/record-mode-sheet';
 import { palette } from '@/constants/palette';
 import { TODAY_LINE } from '@/lib/challenge-mock';
@@ -52,6 +53,7 @@ export default function TabLayout() {
 
   return (
     <>
+      <LegacyArchivePrompt />
       <Tabs
         screenOptions={{
           tabBarActiveTintColor: palette.blue,

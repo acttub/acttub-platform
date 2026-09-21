@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Directory, Paths } from 'expo-file-system';
 import * as FileSystem from 'expo-file-system/legacy';
 
 import { createDeviceFileLedger, withTemporaryFiles } from './device-files';
@@ -42,4 +43,27 @@ export async function listSpeechFiles(): Promise<string[]> {
   if (!directory) return [];
   const names = await FileSystem.readDirectoryAsync(directory);
   return names.filter(isSpeechFileName).map((name) => directory + name);
+}
+
+/** 보관함의 기기 복사본 폴더. 촬영본을 여기에 복사해 두고 업로드 대기 큐가 올린다(practice.record). */
+export const LIBRARY_DIRECTORY_NAME = 'archive';
+
+export function libraryDirectory(): Directory {
+  const dir = new Directory(Paths.document, LIBRARY_DIRECTORY_NAME);
+  try {
+    dir.create({ intermediates: true, idempotent: true });
+  } catch {
+    // 이미 있거나 못 만들면 그대로 — 복사가 실패하면 원본 uri 를 쓴다
+  }
+  return dir;
+}
+
+/** 탈퇴 — 보관함 폴더를 통째로 지운다. 없어도 던지지 않는다. */
+export async function purgeLibraryFiles(): Promise<void> {
+  try {
+    const dir = new Directory(Paths.document, LIBRARY_DIRECTORY_NAME);
+    if (dir.exists) dir.delete();
+  } catch {
+    // 최선 노력 — 탈퇴를 막지 않는다
+  }
 }

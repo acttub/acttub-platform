@@ -37,6 +37,7 @@ import type {
 } from '@/lib/portfolio';
 import type { ProfilePayload, ServerProfile } from '@/lib/profile-form';
 import type { NotificationSettings } from '@/lib/push-policy';
+import type { Video, VideoFilter, VideoIntentRequest, VideoIntentResponse, VideoListResponse } from '@/lib/library/types';
 import type {
   CreateScriptBody,
   LineMemorization,
@@ -896,6 +897,60 @@ export const api = {
   /** 기억을 통째로 지운다. */
   deleteAllActorMemory(): Promise<void> {
     return request<void>('/v2/me/memory', { method: 'DELETE' }, { timeoutMs: 15_000 });
+  },
+
+  // 영상 보관함 -----------------------------------------------------------------
+  // 경로·필드는 연습 스펙의 API 표(계획안)다. api 갈래(PA1)가 계약을 굳히면 lib/library/types 와 함께 맞춘다.
+  /**
+   * 올릴 자리 받기(practice.record). 예약 장부가 request_id 를 보존해 재전송이 같은 자리를 돌려준다.
+   * 100MiB·5분 초과는 422 video_too_large·video_too_long, 총량 초과는 422 video_quota.
+   */
+  createVideoIntent(body: VideoIntentRequest): Promise<VideoIntentResponse> {
+    return postIdempotent<VideoIntentResponse>('/v2/videos/intents', body, { requestId: body.request_id, timeoutMs: 30_000 });
+  },
+
+  /**
+   * 마무리 — videos 행(보관함 저장)을 만든다. 같은 request_id 의 재전송은 같은 영상이고, 자리가 만료됐으면(30분)
+   * 422 upload_expired 라 처음부터 다시 올린다. 실제 바이트가 메타와 다르면 실패한다.
+   */
+  completeVideoIntent(intentId: string, requestId: string): Promise<Video> {
+    return request<Video>(
+      `/v2/videos/intents/${encodeURIComponent(intentId)}/complete`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Request-Id': requestId }, body: '{}' },
+      { timeoutMs: 30_000 },
+    );
+  },
+
+  /** 내 영상, 최신 저장순. 예시 영상은 섞지 않는다. filter 는 all·recent7·favorite. */
+  listVideos(filter: VideoFilter = 'all'): Promise<VideoListResponse> {
+    return request<VideoListResponse>(`/v2/videos?filter=${filter}`, {}, { timeoutMs: 20_000 });
+  },
+
+  /** 상세 — 서명 재생 주소(10분, 만료 시 재조회)와 사용처. 없는 것·남의 것은 404. */
+  getVideo(videoId: string): Promise<Video> {
+    return request<Video>(`/v2/videos/${encodeURIComponent(videoId)}`, {}, { timeoutMs: 20_000 });
+  },
+
+  setVideoFavorite(videoId: string, favorite: boolean): Promise<Video> {
+    return request<Video>(
+      `/v2/videos/${encodeURIComponent(videoId)}`,
+      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ favorite }) },
+      { timeoutMs: 15_000 },
+    );
+  },
+
+  /** 참조(회차·참여작)가 없을 때만 된다. 있으면 422 video_in_use 이고 아무것도 지워지지 않는다. */
+  deleteVideo(videoId: string): Promise<void> {
+    return request<void>(`/v2/videos/${encodeURIComponent(videoId)}`, { method: 'DELETE' }, { timeoutMs: 20_000 });
+  },
+
+  /** 참조가 있는 영상의 파일만 파기 — 회차·참여작 기록은 남고 재생만 막히며 총량에서 빠진다. */
+  purgeVideoFile(videoId: string): Promise<Video> {
+    return request<Video>(
+      `/v2/videos/${encodeURIComponent(videoId)}/purge-file`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
+      { timeoutMs: 20_000 },
+    );
   },
 
   // 업로드 ---------------------------------------------------------------------

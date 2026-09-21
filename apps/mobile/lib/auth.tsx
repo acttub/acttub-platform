@@ -19,6 +19,7 @@ import {
 } from '@/lib/api';
 import type { ProfileGateStatus } from '@/lib/app-bootstrap';
 import { runLegacyScriptMigrationOnce } from '@/lib/reading/legacy-migration-runner';
+import { flushLibraryUploads } from '@/lib/library/library-runner';
 import { flushRecordingUploads } from '@/lib/reading/recording-runner';
 import {
   signOutBestEffort,
@@ -312,6 +313,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (gatePassed) void flushRecordingUploads().catch(() => undefined);
   }, [gatePassed]);
+
+  // 촬영 뒤 올리지 못한 보관함 영상도 큐에 남아 게이트를 지나면 이어서 올린다(practice.record). 큐는 계정별이다.
+  useEffect(() => {
+    if (gatePassed && user?.id) void flushLibraryUploads(user.id).catch(() => undefined);
+  }, [gatePassed, user?.id]);
 
   // "앱을 열 때"는 새로 켤 때만이 아니다. 배경에서 돌아올 때도 밀린 토큰 삭제를 다시 보내고,
   // 게이트를 통과한 계정이면 알림 설정·토큰 등록·리마인드 30일치를 다시 맞춘다. 다른 기기에서

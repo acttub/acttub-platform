@@ -61,3 +61,7 @@ import './reading-recording-queue.test.mjs';
 import './reading-session-cards.test.mjs';
 import './reading-session-results.test.mjs';
 import './reading-memorization.test.mjs';
+import './practice-video-checks.test.mjs';
+import './practice-upload-queue.test.mjs';
+import './practice-library-view.test.mjs';
+import './practice-legacy-archive.test.mjs';

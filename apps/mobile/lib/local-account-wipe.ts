@@ -31,6 +31,8 @@ export type LocalAccountWipeDependencies = AccountCacheDependencies & {
   purgeDeviceFiles: () => Promise<void>;
   /** 대본을 읽어 준 음성 합성 파일들. 이름이 정해져 있어 캐시 폴더에서 찾는다. */
   listSpeechFiles: () => Promise<string[]>;
+  /** 보관함의 기기 복사본 폴더(문서 폴더 archive)와 업로드 대기 파일을 통째로 지운다(practice.record). 없어도 던지지 않는다. */
+  purgeLibraryFiles?: () => Promise<void>;
 };
 
 /**
@@ -65,6 +67,7 @@ export async function wipeLocalAccountData({
   deleteFile,
   purgeDeviceFiles,
   listSpeechFiles,
+  purgeLibraryFiles,
   deleteUserName,
 }: LocalAccountWipeDependencies): Promise<void> {
   // 메모리에만 있는 것부터. 실패할 수 없고, 아래가 느려도 화면이 먼저 비워진다.
@@ -77,7 +80,7 @@ export async function wipeLocalAccountData({
     ...(await listSpeechFiles().catch(() => [])),
   ];
   // 하나가 실패해도 나머지는 지운다. 절반이라도 지우는 게 전부 남기는 것보다 낫다.
-  await Promise.allSettled([purgeDeviceFiles(), ...files.map((uri) => deleteFile(uri))]);
+  await Promise.allSettled([purgeDeviceFiles(), purgeLibraryFiles?.() ?? Promise.resolve(), ...files.map((uri) => deleteFile(uri))]);
   await Promise.allSettled([clearPrefixedKeys(storage), deleteUserName()]);
 }
 
