@@ -46,6 +46,7 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "./plugins/with-ios-only-locales.js",
       "expo-router",
       "./plugins/with-splash-adaptive-icon.js",
       [
