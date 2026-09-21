@@ -37,7 +37,7 @@ class CoachingPipelineTest {
     }
 
     @ParameterizedTest @EnumSource(CoachingRoute.class)
-    void codeDispatchesExactlyOneRouteAndPersistsEditedReply(CoachingRoute route) {
+    void codeDispatchesExactlyOneRouteAndPersistsGeneratedReply(CoachingRoute route) {
         List<String> stages = new ArrayList<>();
         TextGenerator model = new TextGenerator() {
             public GeneratedText generate(String p, String i) { throw new AssertionError("bounded options required"); }
@@ -46,15 +46,15 @@ class CoachingPipelineTest {
                 if ("coaching_route".equals(options.schemaName())) {
                     stages.add("classify");
                     assertThat(options.model()).isEqualTo("gpt-5.6-luna");
+                    assertThat(options.schema().path("properties").path("route").path("enum"))
+                            .extracting(JsonNode::asText).containsExactly("advance", "scaffold", "repair", "respond");
+                    assertThat(input.path("coaching_state").path("revision").asLong()).isZero();
+                    assertThat(input.path("last_exchange").path("coach_message").path("text").asText())
+                            .isEqualTo("어떤 뜻으로 말했어요?");
                     assertThat(input.path("video_record").path("events")).isNotEmpty();
                     assertThat(input.path("conversation_history").get(0).path("text").asText()).isEqualTo("어떤 뜻으로 말했어요?");
                     assertThat(input.path("user_message").path("text").asText()).isEqualTo("떠나지 말라는 뜻이에요");
                     return out(StructuredJson.MAPPER.createObjectNode().put("route", route.id));
-                }
-                if ("coaching_message".equals(options.schemaName())) {
-                    stages.add("polish");
-                    assertThat(input.fieldNames()).toIterable().containsExactly("message", "max_message_chars");
-                    return out(StructuredJson.MAPPER.createObjectNode().put("message", "상대를 붙잡으려는 말이군요."));
                 }
                 stages.add("generate");
                 assertThat(prompt).isEqualTo(CoachingPipeline.prompt(route, false));
@@ -68,8 +68,8 @@ class CoachingPipelineTest {
         };
         CoachResult result = engine(model).reply(session().withTurns(List.of(new CoachTurnSnapshot("ai", "어떤 뜻으로 말했어요?"))),
                 "떠나지 말라는 뜻이에요", UUID.randomUUID());
-        assertThat(stages).containsExactly("classify", "generate", "polish");
-        assertThat(result.reply().message()).isEqualTo("상대를 붙잡으려는 말이군요.");
+        assertThat(stages).containsExactly("classify", "generate");
+        assertThat(result.reply().message()).isEqualTo("상대를 붙잡으려는 말인 것이군요.");
         assertThat(result.session().turns().getLast().text()).isEqualTo(result.reply().message());
         assertThat(result.session().stateRevision()).isEqualTo(1);
     }
@@ -81,23 +81,25 @@ class CoachingPipelineTest {
             int stage = calls.getAndIncrement();
             if (stage == 0) {
                 assertThat(input.path("user_message").isNull()).isTrue();
-                return out(StructuredJson.MAPPER.createObjectNode().put("route", "understand_scene"));
+                return out(StructuredJson.MAPPER.createObjectNode().put("route", "respond"));
             }
             if (stage == 1) return out(draft(input, "상대가 떠나지 않기를 바라는 장면으로 보이네요."));
-            return out(StructuredJson.MAPPER.createObjectNode().put("message", input.path("message").asText()));
+            throw new AssertionError("unexpected extra model call");
         }).start(session(), UUID.randomUUID());
-        assertThat(calls).hasValue(3);
+        assertThat(calls).hasValue(2);
         assertThat(result.session().turns()).hasSize(1);
         assertThat(result.session().turns().getFirst().role()).isEqualTo("ai");
         assertThat(result.session().coachingState().path("context").path("focus").isObject()).isTrue();
     }
 
-    @Test void unknownRouteFailsWithoutGeneratingOrSavingAnInventedReply() {
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"invented_route", "understand_scene", "assess_performance", "design_performance", "adjust_performance"})
+    void unknownRouteFailsWithoutGeneratingOrSavingAnInventedReply(String invalidRoute) {
         AtomicInteger calls = new AtomicInteger();
         var original = session();
         assertThatThrownBy(() -> engine((p, t) -> {
             calls.incrementAndGet();
-            return out(StructuredJson.MAPPER.createObjectNode().put("route", "invented_route"));
+            return out(StructuredJson.MAPPER.createObjectNode().put("route", invalidRoute));
         }).reply(original, "질문이에요", UUID.randomUUID())).isInstanceOf(CoachReplyUnavailable.class);
         assertThat(calls).hasValue(1);
         assertThat(original.turns()).isEmpty();
@@ -114,14 +116,14 @@ class CoachingPipelineTest {
                 .start(noVideo, UUID.randomUUID())).isInstanceOf(CoachReplyUnavailable.class);
     }
 
-    @Test void polishFailureKeepsValidDraftWithoutAnotherGeneration() {
+    @Test void validGenerationDoesNotCallAnEditor() {
         AtomicInteger calls = new AtomicInteger();
         var result = engine((p,t) -> switch (calls.getAndIncrement()) {
-            case 0 -> out(StructuredJson.MAPPER.createObjectNode().put("route", "design_performance"));
+            case 0 -> out(StructuredJson.MAPPER.createObjectNode().put("route", "respond"));
             case 1 -> out(draft(StructuredJson.parse(t), "상대에게 나가지 말아야 할 이유를 건네보세요."));
-            default -> throw new IllegalStateException("editor unavailable");
+            default -> throw new AssertionError("only classification and generation may run");
         }).reply(session(), "어떻게 해야 해요?", UUID.randomUUID());
-        assertThat(calls).hasValue(3);
+        assertThat(calls).hasValue(2);
         assertThat(result.reply().message()).isEqualTo("상대에게 나가지 말아야 할 이유를 건네보세요.");
     }
 
@@ -135,9 +137,9 @@ class CoachingPipelineTest {
                 draft.putNull("context_update");
                 return out(draft);
             }
-            return out(StructuredJson.MAPPER.createObjectNode().put("message", input.path("message").asText()));
+            throw new AssertionError("unexpected extra model call");
         }).reply(session(), "그만할게요", UUID.randomUUID());
-        assertThat(calls).hasValue(2);
+        assertThat(calls).hasValue(1);
         assertThat(result.reply().status()).isEqualTo("complete");
         StructuredJson.validate("coach_handoff_v2", result.reply().handoff());
         assertThat(result.reply().handoff().path("conversation").get(1).path("text").asText()).isEqualTo(result.reply().message());
@@ -148,7 +150,7 @@ class CoachingPipelineTest {
         CoachResult result = engine((p,t) -> {
             JsonNode input = StructuredJson.parse(t);
             return switch (calls.getAndIncrement()) {
-                case 0 -> out(StructuredJson.MAPPER.createObjectNode().put("route", "assess_performance"));
+                case 0 -> out(StructuredJson.MAPPER.createObjectNode().put("route", "respond"));
                 case 1 -> {
                     ObjectNode draft = draft(input, "말이 이어지고 있어요.");
                     draft.putArray("evidence_refs").add("invented-source");
@@ -158,10 +160,10 @@ class CoachingPipelineTest {
                     assertThat(input.path("validation_errors")).isNotEmpty();
                     yield out(draft(input, "말이 이어지고 있어요."));
                 }
-                default -> out(StructuredJson.MAPPER.createObjectNode().put("message", input.path("message").asText()));
+                default -> throw new AssertionError("unexpected extra model call");
             };
         }).reply(session(), "어떻게 보여요?", UUID.randomUUID());
-        assertThat(calls).hasValue(4);
+        assertThat(calls).hasValue(3);
         assertThat(result.reply().message()).isEqualTo("말이 이어지고 있어요.");
     }
 
@@ -172,11 +174,11 @@ class CoachingPipelineTest {
             JsonNode input = StructuredJson.parse(t);
             int stage = calls.getAndIncrement();
             if (stage < 2) assertThat(input.path("user_message").path("text").asText()).isEqualTo(actor);
-            if (stage == 0) return out(StructuredJson.MAPPER.createObjectNode().put("route", "understand_scene"));
+            if (stage == 0) return out(StructuredJson.MAPPER.createObjectNode().put("route", "advance"));
             if (stage == 1) return out(draft(input, "붙잡는 이유와 열쇠를 돌려받으려는 목적을 함께 이야기했네요."));
-            return out(StructuredJson.MAPPER.createObjectNode().put("message", input.path("message").asText()));
+            throw new AssertionError("unexpected extra model call");
         }).reply(session(), actor, UUID.randomUUID());
-        assertThat(calls).hasValue(3);
+        assertThat(calls).hasValue(2);
         assertThat(result.session().turns().getFirst().text()).isEqualTo(actor);
         assertThat(result.session().coachingState().path("last_reply").path("actor_quote").asText()).hasSize(100);
     }
@@ -186,9 +188,9 @@ class CoachingPipelineTest {
         TextGenerator generator = (p,t) -> {
             JsonNode input = StructuredJson.parse(t);
             return switch (calls.getAndIncrement()) {
-                case 0 -> out(StructuredJson.MAPPER.createObjectNode().put("route", "understand_scene"));
+                case 0 -> out(StructuredJson.MAPPER.createObjectNode().put("route", "advance"));
                 case 1 -> out(draft(input, "상대를 붙잡으려는 이야기군요."));
-                default -> out(StructuredJson.MAPPER.createObjectNode().put("message", input.path("message").asText()));
+                default -> throw new AssertionError("unexpected extra model call");
             };
         };
         new org.springframework.boot.test.context.runner.ApplicationContextRunner()
@@ -201,6 +203,79 @@ class CoachingPipelineTest {
                     assertThat(context.getBean(CoachEngine.class).reply(session(), "이유를 알고 싶어요", UUID.randomUUID()).reply().status())
                             .isEqualTo("continue");
                 });
+        assertThat(calls).hasValue(2);
+    }
+
+    @Test void correctedContextReachesTheNextClassifierGeneratorAndHandoff() {
+        String original = "용서받고 싶어요";
+        String correction = "아니요, 상대가 알고 있는지 떠보려는 거예요";
+        String repairedMessage = "용서를 구한다는 전제를 고칠게요. 상대의 반응에서 알고 있다는 신호를 확인하려는 거군요.";
+        AtomicInteger calls = new AtomicInteger();
+        var coach = engine((prompt, text) -> {
+            JsonNode input = StructuredJson.parse(text);
+            int call = calls.getAndIncrement();
+            if (call == 0 || call == 2 || call == 4) {
+                if (call == 2) {
+                    assertThat(input.path("coaching_state").path("context").path("scene_context")
+                            .path("character_goal").path("text").asText()).isEqualTo(original);
+                    assertThat(input.path("user_message").path("text").asText()).isEqualTo(correction);
+                }
+                if (call == 4) {
+                    assertThat(input.path("coaching_state").path("context").path("scene_context")
+                            .path("character_goal").path("text").asText()).isEqualTo(correction);
+                    assertThat(input.path("last_exchange").path("coach_message").path("text").asText()).isEqualTo(repairedMessage);
+                    assertThat(input.path("conversation_history")).hasSize(4);
+                }
+                return out(StructuredJson.MAPPER.createObjectNode().put("route", call == 2 ? "repair" : "advance"));
+            }
+            if (call == 1 || call == 3) {
+                assertThat(prompt).isEqualTo(CoachingPipeline.prompt(call == 3 ? CoachingRoute.REPAIR : CoachingRoute.ADVANCE, false));
+                ObjectNode result = draft(input, call == 3 ? repairedMessage : "잘못을 이해받고 싶다는 뜻이군요.");
+                ObjectNode context = input.path("coaching_state").path("context").deepCopy();
+                ObjectNode goal = ((ObjectNode) context.path("scene_context")).putObject("character_goal");
+                goal.put("text", input.path("user_message").path("text").asText()).put("origin", "actor_stated");
+                goal.putArray("source_refs").add(input.path("user_message").path("id").asText());
+                result.set("context_update", context);
+                return out(result);
+            }
+            if (call == 5 || call == 6) {
+                assertThat(input.path("coaching_state").path("context").path("scene_context")
+                        .path("character_goal").path("text").asText()).isEqualTo(correction);
+                return out(draft(input, call == 6 ? "떠보려는 해석을 바탕으로 나눈 내용을 정리할게요." : "상대의 어떤 반응이 알고 있다는 신호가 될까요?"));
+            }
+            throw new AssertionError("unexpected extra model call");
+        });
+        var first = coach.reply(session(), original, UUID.randomUUID());
+        var repaired = coach.reply(first.session(), correction, UUID.randomUUID());
+        var next = coach.reply(repaired.session(), "네, 떠보는 거예요", UUID.randomUUID());
+        var closed = coach.reply(next.session(), "그만할게요", UUID.randomUUID());
+        assertThat(calls).hasValue(7);
+        assertThat(closed.reply().handoff().path("context").path("scene_context").path("character_goal")
+                .path("text").asText()).isEqualTo(correction);
+        assertThat(closed.reply().handoff().path("conversation").get(3).path("text").asText()).isEqualTo(repairedMessage);
+    }
+
+    @Test void classificationFailureDoesNotGenerateOrSaveATurn() {
+        AtomicInteger calls = new AtomicInteger();
+        var original = session();
+        assertThatThrownBy(() -> engine((prompt, text) -> {
+            calls.incrementAndGet();
+            throw new IllegalStateException("classifier unavailable");
+        }).reply(original, "뭔 말이에요?", UUID.randomUUID())).isInstanceOf(CoachReplyUnavailable.class);
+        assertThat(calls).hasValue(1);
+        assertThat(original.turns()).isEmpty();
+    }
+
+    @Test void invalidGenerationStopsAfterOneRetryWithoutSavingATurn() {
+        AtomicInteger calls = new AtomicInteger();
+        var original = session();
+        assertThatThrownBy(() -> engine((prompt, text) -> {
+            if (calls.getAndIncrement() == 0) return out(StructuredJson.MAPPER.createObjectNode().put("route", "repair"));
+            ObjectNode result = draft(StructuredJson.parse(text), "잘못 이해한 내용을 고칠게요.");
+            result.putArray("evidence_refs").add("nonexistent-evidence");
+            return out(result);
+        }).reply(original, "아닌데요", UUID.randomUUID())).isInstanceOf(CoachReplyUnavailable.class);
         assertThat(calls).hasValue(3);
+        assertThat(original.turns()).isEmpty();
     }
 }
