@@ -22,7 +22,11 @@ case "${1:-}" in
   exec)
     echo "$*" >> "$TEST_CALLS"
     if [ "${3:-}" = api ]; then
-      printf '%s\n' "${TEST_THREE_LAYERS:-${DEPLOY_THREE_LAYERS_ENABLED:-false}}"
+      if [ "${5:-}" = ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED ]; then
+        printf '%s\n' "${TEST_GUEST_DAILY_LIMIT:-${DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED:-true}}"
+      else
+        printf '%s\n' "${TEST_THREE_LAYERS:-${DEPLOY_THREE_LAYERS_ENABLED:-false}}"
+      fi
     else
       printf '%s %s\n{}' "${TEST_STATUS:-200}" "${TEST_COMMIT:-0123456}"
     fi ;;
@@ -40,7 +44,7 @@ printf 'COMPOSE_PROFILES=edge\n' > "$WORK/.env"
 run_deploy() {
   (cd "$WORK" && env PATH="$WORK/bin:$PATH" TEST_CALLS="$WORK/calls" \
     SHA=0123456789abcdef API_IMAGE=example/api:0123456 WEB_IMAGE=example/web:0123456 \
-    BACKUP_IMAGE= DEPLOY_PULL_POLICY=missing DEPLOY_WAIT_SECONDS=180 DEPLOY_THREE_LAYERS_ENABLED= "$@" \
+    BACKUP_IMAGE= DEPLOY_PULL_POLICY=missing DEPLOY_WAIT_SECONDS=180 DEPLOY_THREE_LAYERS_ENABLED= DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED= "$@" \
     "$ROOT/deploy/home/deploy.sh") > "$WORK/log" 2>&1
 }
 success() { run_deploy "$@" || { cat "$WORK/log"; exit 1; }; }
@@ -52,6 +56,7 @@ failure DEPLOY_WAIT_SECONDS=0
 failure DEPLOY_WAIT_SECONDS=oops
 failure DEPLOY_PULL_POLICY=never
 failure DEPLOY_THREE_LAYERS_ENABLED=invalid
+failure DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=invalid
 printf 'previous-release\n' > "$WORK/release.env"
 failure TEST_BACKUP_ACTIVE=true
 grep -qx previous-release "$WORK/release.env"
@@ -86,4 +91,11 @@ success DEPLOY_THREE_LAYERS_ENABLED=false
 grep -qx 'ACTTUB_THREE_LAYERS_ENABLED=false' "$WORK/release.env"
 success
 ! grep -q '^ACTTUB_THREE_LAYERS_ENABLED=' "$WORK/release.env"
+success DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=false
+grep -qx 'ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=false' "$WORK/release.env"
+failure DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=false TEST_GUEST_DAILY_LIMIT=true
+success DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=true
+grep -qx 'ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=true' "$WORK/release.env"
+success
+! grep -q '^ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=' "$WORK/release.env"
 echo '✔ deploy.sh: 입력 거부·backup 프로필·compose 실패·health 불일치 검증 통과'
