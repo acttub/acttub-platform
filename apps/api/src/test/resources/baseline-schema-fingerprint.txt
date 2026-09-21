@@ -246,6 +246,14 @@ COLUMN practice_feedback.sheet_synced_at ord=9 type=timestamptz len=- null=YES d
 COLUMN practice_feedback.trigger ord=5 type=text len=- null=NO default=-
 COLUMN practice_feedback.updated_at ord=13 type=timestamptz len=- null=NO default=now()
 COLUMN practice_feedback.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN practice_migration_entries.batch_id ord=7 type=uuid len=- null=NO default=-
+COLUMN practice_migration_entries.created_at ord=8 type=timestamptz len=- null=NO default=now()
+COLUMN practice_migration_entries.id ord=1 type=uuid len=- null=NO default=-
+COLUMN practice_migration_entries.skip_reason ord=6 type=text len=- null=YES default=-
+COLUMN practice_migration_entries.source_id ord=4 type=uuid len=- null=NO default=-
+COLUMN practice_migration_entries.source_table ord=3 type=text len=- null=NO default=-
+COLUMN practice_migration_entries.step ord=2 type=text len=- null=NO default=-
+COLUMN practice_migration_entries.target_id ord=5 type=uuid len=- null=YES default=-
 COLUMN practice_reports.created_at ord=6 type=timestamptz len=- null=NO default=now()
 COLUMN practice_reports.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
 COLUMN practice_reports.practice_session_id ord=2 type=uuid len=- null=NO default=-
@@ -813,6 +821,14 @@ CONSTRAINT practice_feedback practice_feedback_updated_at_not_null NOT NULL upda
 CONSTRAINT practice_feedback practice_feedback_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
 CONSTRAINT practice_feedback practice_feedback_user_id_not_null NOT NULL user_id
 CONSTRAINT practice_feedback uq_practice_feedback_user_request UNIQUE (user_id, request_id)
+CONSTRAINT practice_migration_entries practice_migration_entries_batch_id_not_null NOT NULL batch_id
+CONSTRAINT practice_migration_entries practice_migration_entries_created_at_not_null NOT NULL created_at
+CONSTRAINT practice_migration_entries practice_migration_entries_id_not_null NOT NULL id
+CONSTRAINT practice_migration_entries practice_migration_entries_pkey PRIMARY KEY (id)
+CONSTRAINT practice_migration_entries practice_migration_entries_source_id_not_null NOT NULL source_id
+CONSTRAINT practice_migration_entries practice_migration_entries_source_table_not_null NOT NULL source_table
+CONSTRAINT practice_migration_entries practice_migration_entries_step_not_null NOT NULL step
+CONSTRAINT practice_migration_entries uq_practice_migration_source UNIQUE (source_table, source_id)
 CONSTRAINT practice_reports ck_practice_reports_report_type CHECK ((report_type = ANY (ARRAY['analysis'::text, 'expression'::text, 'practice_note'::text])))
 CONSTRAINT practice_reports practice_reports_created_at_not_null NOT NULL created_at
 CONSTRAINT practice_reports practice_reports_id_not_null NOT NULL id
@@ -1115,6 +1131,7 @@ INDEX CREATE INDEX idx_line_memorization_line ON public.line_memorization USING 
 INDEX CREATE INDEX idx_portfolio_credits_user_order ON public.portfolio_credits USING btree (user_id, sort_order)
 INDEX CREATE INDEX idx_portfolio_photos_user_order ON public.portfolio_photos USING btree (user_id, sort_order)
 INDEX CREATE INDEX idx_practice_feedback_sheet_pending ON public.practice_feedback USING btree (created_at) WHERE (sheet_synced_at IS NULL)
+INDEX CREATE INDEX idx_practice_migration_step ON public.practice_migration_entries USING btree (step, created_at)
 INDEX CREATE INDEX idx_practice_reports_session_created ON public.practice_reports USING btree (practice_session_id, created_at)
 INDEX CREATE INDEX idx_practice_sessions_status_updated ON public.practice_sessions USING btree (status, updated_at)
 INDEX CREATE INDEX idx_practice_sessions_upload_intent ON public.practice_sessions USING btree (upload_intent_id)
@@ -1169,6 +1186,7 @@ INDEX CREATE UNIQUE INDEX portfolio_photos_object_key_key ON public.portfolio_ph
 INDEX CREATE UNIQUE INDEX portfolio_photos_pkey ON public.portfolio_photos USING btree (id)
 INDEX CREATE UNIQUE INDEX portfolios_pkey ON public.portfolios USING btree (user_id)
 INDEX CREATE UNIQUE INDEX practice_feedback_pkey ON public.practice_feedback USING btree (id)
+INDEX CREATE UNIQUE INDEX practice_migration_entries_pkey ON public.practice_migration_entries USING btree (id)
 INDEX CREATE UNIQUE INDEX practice_reports_pkey ON public.practice_reports USING btree (id)
 INDEX CREATE UNIQUE INDEX practice_sessions_pkey ON public.practice_sessions USING btree (id)
 INDEX CREATE UNIQUE INDEX practices_pkey ON public.practices USING btree (id)
@@ -1209,6 +1227,7 @@ INDEX CREATE UNIQUE INDEX uq_guest_transfer_codes_unused_user ON public.guest_tr
 INDEX CREATE UNIQUE INDEX uq_line_memorization_user_line ON public.line_memorization USING btree (user_id, line_id)
 INDEX CREATE UNIQUE INDEX uq_portfolios_share_slug ON public.portfolios USING btree (share_slug)
 INDEX CREATE UNIQUE INDEX uq_practice_feedback_user_request ON public.practice_feedback USING btree (user_id, request_id)
+INDEX CREATE UNIQUE INDEX uq_practice_migration_source ON public.practice_migration_entries USING btree (source_table, source_id)
 INDEX CREATE UNIQUE INDEX uq_practice_reports_source_handoff ON public.practice_reports USING btree (source_handoff_id)
 INDEX CREATE UNIQUE INDEX uq_practices_open_root ON public.practices USING btree (root_id) WHERE (stage <> 'closed'::text)
 INDEX CREATE UNIQUE INDEX uq_practices_root_ordinal ON public.practices USING btree (root_id, ordinal)
@@ -1265,6 +1284,7 @@ TABLE portfolio_credits
 TABLE portfolio_photos
 TABLE portfolios
 TABLE practice_feedback
+TABLE practice_migration_entries
 TABLE practice_reports
 TABLE practice_sessions
 TABLE practices

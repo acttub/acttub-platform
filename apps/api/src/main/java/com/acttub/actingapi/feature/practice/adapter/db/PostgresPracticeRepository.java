@@ -530,6 +530,8 @@ class PostgresPracticeRepository implements PracticeRepository {
                                 jobId,
                                 row.get("job_status", String.class),
                                 row.get("failure_reason", String.class),
-                                row.get("attempt_count", Integer.class)));
+                                row.get("attempt_count", Integer.class)),
+                // 새 표는 회차당 대화 하나다 — 이전 대화는 옛 자료를 읽는 호환 경로에서만 나온다.
+                List.of());
     }
 }

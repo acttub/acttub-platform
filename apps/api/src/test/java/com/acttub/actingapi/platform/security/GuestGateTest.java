@@ -74,8 +74,9 @@ class GuestGateTest {
     @DisplayName("account.guest: 연습의 경로는 연습 기능, 리딩의 경로는 리딩 기능이고, 적지 않은 경로는 어느 기능도 아니다(회원 전용)")
     void routesBelongToAFeatureOrToMembers() {
         for (String path : List.of(
-                "/v2/uploads/intents", "/v2/practice-sessions", "/v2/practice-sessions/abc/analyze",
-                "/v2/coach/start", "/v2/reports", "/v2/reports/abc", "/v2/me/memory", "/v2/me/memory/goal")) {
+                "/v2/videos", "/v2/videos/intents", "/v2/practices", "/v2/practices/abc/analyze",
+                "/v2/coach/start", "/v2/reports", "/v2/reports/abc", "/v2/me/memory", "/v2/me/memory/goal",
+                "/v2/practice-feedback", "/v2/me/practice-feedback/status")) {
             assertThat(GuestFeature.of(path)).as(path).isEqualTo(GuestFeature.PRACTICE);
         }
         for (String path : List.of(
@@ -93,7 +94,7 @@ class GuestGateTest {
     @Test
     @DisplayName("account.guest: 새 게스트의 연습 요청 — 403 과 빠진 문서 셋. 선택 문서는 묻지 않는다")
     void aNewGuestIsAskedForTheThreePracticeDocuments() {
-        assertThatThrownBy(() -> gate.gatedUser(request("/v2/practice-sessions")))
+        assertThatThrownBy(() -> gate.gatedUser(request("/v2/practices")))
                 .isInstanceOfSatisfying(ApiException.class, blocked -> {
                     assertThat(blocked.status()).isEqualTo(403);
                     assertThat(blocked).hasMessage("consent_required");

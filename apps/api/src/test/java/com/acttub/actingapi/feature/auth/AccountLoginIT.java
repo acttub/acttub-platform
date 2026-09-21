@@ -516,7 +516,7 @@ class AccountLoginIT {
     }
 
     private MockHttpServletResponse protectedApi(String accessToken) throws Exception {
-        return mvc.perform(get("/v2/practice-sessions").header("Authorization", "Bearer " + accessToken))
+        return mvc.perform(get("/v2/practices").header("Authorization", "Bearer " + accessToken))
                 .andReturn().getResponse();
     }
 

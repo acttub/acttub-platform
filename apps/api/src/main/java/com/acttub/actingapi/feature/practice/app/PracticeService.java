@@ -35,11 +35,18 @@ public class PracticeService {
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
 
     private final PracticeRepository practices;
+    /** 아직 옮기지 않은 옛 연습을 같은 모양으로 읽는 자리 (02-practice ②). */
+    private final LegacyPracticeReader legacy;
     private final boolean threeLayersEnabled;
     private final Clock clock;
 
-    public PracticeService(PracticeRepository practices, boolean threeLayersEnabled, Clock clock) {
+    public PracticeService(
+            PracticeRepository practices,
+            LegacyPracticeReader legacy,
+            boolean threeLayersEnabled,
+            Clock clock) {
         this.practices = practices;
+        this.legacy = legacy;
         this.threeLayersEnabled = threeLayersEnabled;
         this.clock = clock;
     }
@@ -67,24 +74,57 @@ public class PracticeService {
                 userId, practiceId, requestId, fingerprint("analyze_retry|" + practiceId), quota(guest), clock.instant()));
     }
 
+    /**
+     * 회차 하나. <b>새 표를 먼저 보고 없으면 옛 표를 읽는다</b>(02-practice ②) — 화면은 어느 표에서 왔는지
+     * 알 필요가 없다. 없는 것과 남의 것은 두 표 모두에서 같은 404 다.
+     */
     public PracticeView find(UUID userId, UUID practiceId) {
         PracticeView view = practices.find(userId, practiceId);
         if (view == null) {
-            throw notFound();
+            view = legacy.find(userId, practiceId);
+            if (view == null) {
+                throw notFound();
+            }
+            return view;
         }
-        return view;
+        // 옮긴 회차에도 옛 대화가 남아 있을 수 있다 — 전환은 최신 하나만 새 표로 옮기고 나머지는 옛 표에
+        // 그대로 둔다(practice.coach "옛 자료의 복수 대화").
+        List<PracticeViews.PreviousConversation> previous =
+                legacy.previousConversations(userId, practiceId);
+        return previous.isEmpty() ? view : withPrevious(view, previous);
+    }
+
+    private static PracticeView withPrevious(
+            PracticeView view, List<PracticeViews.PreviousConversation> previous) {
+        return new PracticeView(
+                view.id(), view.rootId(), view.ordinal(), view.videoId(), view.stage(), view.closeReason(),
+                view.experienceVersion(), view.situation(), view.characterContext(), view.goal(),
+                view.blockageKind(), view.subBranch(), view.blockageNote(), view.createdAt(),
+                view.analysisStatus(), view.conversationId(), view.conversationStatus(),
+                view.conversationCount(), view.noteId(), view.noteTitle(), view.noteKind(), view.job(),
+                previous);
     }
 
     public StatusView status(UUID userId, UUID practiceId) {
         StatusView view = practices.status(userId, practiceId);
         if (view == null) {
+            PracticeView fallback = legacy.find(userId, practiceId);
+            view = fallback == null
+                    ? null
+                    : new StatusView(
+                            fallback.stage(), fallback.closeReason(), fallback.analysisStatus(), fallback.job());
+        }
+        if (view == null) {
             throw notFound();
         }
         return view;
     }
 
+    /** 옮긴 묶음과 아직 옮기지 않은 묶음을 함께 낸다 — 배우에게는 한 목록이다. */
     public List<GroupView> groups(UUID userId, String filter) {
-        return practices.groups(userId, filter, clock.instant());
+        List<GroupView> groups = new java.util.ArrayList<>(practices.groups(userId, filter, clock.instant()));
+        groups.addAll(legacy.groups(userId, filter));
+        return List.copyOf(groups);
     }
 
     /** "그만두기". 화면 이탈은 취소가 아니다 — 그쪽은 조회만 멈춘다. */

@@ -156,11 +156,11 @@ class GuestTransferIT {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM upload_intents WHERE user_id=?", Integer.class, member))
                 .isEqualTo(2);
 
-        JsonNode list = mapper.readTree(mvc.perform(get("/v2/practice-sessions")
+        JsonNode list = mapper.readTree(mvc.perform(get("/v2/practices")
                 .header("Authorization", "Bearer " + jwt.issueAccessToken(member).value()))
                 .andReturn().getResponse().getContentAsString());
-        assertThat(list.path("sessions")).extracting(row -> row.path("session_id").textValue())
-                .as("옮긴 연습은 회원의 목록에 섞여 보인다")
+        assertThat(practiceIds(list))
+                .as("옮긴 연습은 회원의 목록에 섞여 보인다 — 아직 옮기지 않은 옛 자료는 호환 읽기가 보여 준다")
                 .containsExactlyInAnyOrder(session.toString(), own.toString());
 
         assertThat(jdbc.queryForObject("SELECT status FROM users WHERE id=?", String.class, guest.id()))
@@ -423,7 +423,7 @@ class GuestTransferIT {
         List<MockHttpServletResponse> access = List.of(
                 mvc.perform(get("/v2/me").header("Authorization", "Bearer " + guest.accessToken()))
                         .andReturn().getResponse(),
-                mvc.perform(get("/v2/practice-sessions").header("Authorization", "Bearer " + guest.accessToken()))
+                mvc.perform(get("/v2/practices").header("Authorization", "Bearer " + guest.accessToken()))
                         .andReturn().getResponse(),
                 mvc.perform(get("/v2/consents/entry").header("Authorization", "Bearer " + guest.accessToken()))
                         .andReturn().getResponse(),
@@ -561,11 +561,10 @@ class GuestTransferIT {
                 .containsEntry("user_id", member).containsEntry("status", "running").containsEntry("lease_token", lease);
         assertThat(pushTokens.analysisDoneTargets(analyzing)).extracting(PushTarget::token)
                 .containsExactly("ExponentPushToken[member-phone]");
-        JsonNode list = mapper.readTree(mvc.perform(get("/v2/practice-sessions")
+        JsonNode list = mapper.readTree(mvc.perform(get("/v2/practices")
                 .header("Authorization", "Bearer " + jwt.issueAccessToken(member).value()))
                 .andReturn().getResponse().getContentAsString());
-        assertThat(list.path("sessions")).extracting(row -> row.path("session_id").textValue())
-                .containsExactlyInAnyOrder(analyzing.toString(), finished.toString());
+        assertThat(practiceIds(list)).containsExactlyInAnyOrder(analyzing.toString(), finished.toString());
     }
 
     @Test
@@ -883,6 +882,14 @@ class GuestTransferIT {
     private void memory(UUID owner, String field, String value) {
         jdbc.update("INSERT INTO actor_memory_entries(id,user_id,field,value,written_by) VALUES (?,?,?,?,'actor')",
                 UUID.randomUUID(), owner, field, value);
+    }
+
+    /** 묶음 목록을 회차 id 로 편다 — 옛 묶음도 새 묶음도 같은 모양으로 온다(02-practice ②). */
+    private static List<String> practiceIds(JsonNode groups) {
+        List<String> ids = new java.util.ArrayList<>();
+        groups.path("groups").forEach(group ->
+                group.path("practices").forEach(practice -> ids.add(practice.path("id").textValue())));
+        return ids;
     }
 
     private UUID owner(String table, UUID id) {

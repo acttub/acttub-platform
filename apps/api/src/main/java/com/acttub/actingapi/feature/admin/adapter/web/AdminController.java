@@ -8,6 +8,7 @@ import java.util.Map;
 
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminSessions;
 import com.acttub.actingapi.feature.admin.app.AdminService;
+import com.acttub.actingapi.platform.migration.PracticeDataMigration;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.ApiValidationException;
 import io.swagger.v3.oas.annotations.Operation;
@@ -19,6 +20,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -29,13 +31,77 @@ import org.springframework.web.bind.annotation.RestController;
 @ConditionalOnExpression(AdminService.ENABLED_WHEN)
 class AdminController {
     private static final int MAX_SESSIONS = 50;
+    /** 한 묶음이 한 트랜잭션이다 — 너무 크면 그 트랜잭션이 길어진다. */
+    private static final int MAX_BATCH = 1000;
 
     private final AdminService admin;
+    private final PracticeDataMigration migration;
     private final byte[] expectedAuthorization;
 
-    AdminController(AdminService admin, @Value("${ADMIN_OPS_TOKEN}") String adminToken) {
+    AdminController(
+            AdminService admin,
+            PracticeDataMigration migration,
+            @Value("${ADMIN_OPS_TOKEN}") String adminToken) {
         this.admin = admin;
+        this.migration = migration;
         this.expectedAuthorization = ("Bearer " + adminToken).getBytes(StandardCharsets.UTF_8);
+    }
+
+    @Operation(
+            summary = "Practice Migration",
+            description = """
+                    옛 연습 테이블의 자료를 1.0.0 테이블로 옮긴다 (02-practice 「1.0.0 스키마 전환」 ③).
+
+                    작은 묶음으로 나눠 돌고 남은 것이 없을 때까지 되풀이한다. 몇 번을 돌려도 같은 결과다 —
+                    한 번 고른 원본은 대응표에 적혀 다시 고르지 않는다. 옮기지 않은 자료는 사유와 함께
+                    적히고 옛 테이블에 그대로 남는다.""",
+            operationId = "practice_migration_v2_admin_practice_migration_post",
+            tags = "admin")
+    @ApiResponses({
+        @ApiResponse(
+                responseCode = "200",
+                description = "Successful Response",
+                content = @Content(schema = @Schema(implementation = PracticeDataMigration.Report.class))),
+        @ApiResponse(
+                responseCode = "422",
+                description = "Validation Error",
+                content = @Content(schema = @Schema(ref = "#/components/schemas/HTTPValidationError")))
+    })
+    @PostMapping("/practice-migration")
+    PracticeDataMigration.Report practiceMigration(
+            @Parameter(schema = @Schema(type = "integer", minimum = "1", maximum = "1000",
+                    exclusiveMinimum = false, exclusiveMaximum = false, defaultValue = "200"))
+            @RequestParam(name = "batch", defaultValue = "200") String rawBatch,
+            @RequestHeader(name = "authorization", defaultValue = "") String authorization) {
+        requireToken(authorization);
+        int batch = parseBatch(rawBatch);
+        return migration.run(batch);
+    }
+
+    private static int parseBatch(String rawBatch) {
+        int batch;
+        try {
+            batch = Integer.parseInt(rawBatch.strip());
+        } catch (NumberFormatException exception) {
+            Map<String, Object> error = new LinkedHashMap<>();
+            error.put("type", "int_parsing");
+            error.put("loc", List.of("query", "batch"));
+            error.put("msg", "Input should be a valid integer, unable to parse string as an integer");
+            error.put("input", rawBatch);
+            throw new ApiValidationException(List.of(error));
+        }
+        if (batch < 1 || batch > MAX_BATCH) {
+            Map<String, Object> error = new LinkedHashMap<>();
+            error.put("type", batch < 1 ? "greater_than_equal" : "less_than_equal");
+            error.put("loc", List.of("query", "batch"));
+            error.put("msg", batch < 1
+                    ? "Input should be greater than or equal to 1"
+                    : "Input should be less than or equal to " + MAX_BATCH);
+            error.put("input", Integer.toString(batch));
+            error.put("ctx", Map.of(batch < 1 ? "ge" : "le", batch < 1 ? 1 : MAX_BATCH));
+            throw new ApiValidationException(List.of(error));
+        }
+        return batch;
     }
 
     @Operation(summary = "Sessions", operationId = "sessions_v2_admin_sessions_get", tags = "admin")

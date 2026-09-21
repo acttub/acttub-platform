@@ -235,7 +235,7 @@ class AccountWithdrawIT {
 
         var me = mvc.perform(get("/v2/me").header("Authorization", "Bearer " + member.accessToken()))
                 .andReturn().getResponse();
-        var practice = mvc.perform(get("/v2/practice-sessions").header("Authorization", "Bearer " + member.accessToken()))
+        var practice = mvc.perform(get("/v2/practices").header("Authorization", "Bearer " + member.accessToken()))
                 .andReturn().getResponse();
         var again = withdraw(member.accessToken());
 
@@ -271,16 +271,16 @@ class AccountWithdrawIT {
         assertThat(created.fieldNames()).toIterable().containsExactlyInAnyOrder(
                 "result", "access_token", "refresh_token", "token_type", "expires_in", "user", "pending_consents");
         assertThat(count("users")).isEqualTo(2);
-        var gated = mvc.perform(get("/v2/practice-sessions").header("Authorization", "Bearer " + token))
+        var gated = mvc.perform(get("/v2/practices").header("Authorization", "Bearer " + token))
                 .andReturn().getResponse();
         assertThat(gated.getStatus()).isEqualTo(403);
         assertThat(mapper.readTree(gated.getContentAsString()).path("detail").textValue()).isEqualTo("profile_required");
 
         AccountFixtures.completeProfile(jdbc, UUID.fromString(created.path("user").path("id").textValue()));
-        var list = mvc.perform(get("/v2/practice-sessions").header("Authorization", "Bearer " + token))
+        var list = mvc.perform(get("/v2/practices").header("Authorization", "Bearer " + token))
                 .andReturn().getResponse();
         assertThat(list.getStatus()).isEqualTo(200);
-        assertThat(mapper.readTree(list.getContentAsString()).path("sessions")).isEmpty();
+        assertThat(mapper.readTree(list.getContentAsString()).path("groups")).isEmpty();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM practice_sessions WHERE user_id=?", Integer.class, old.id()))
                 .as("옛 연습은 옛 계정에 끊겨 남는다").isEqualTo(1);
     }

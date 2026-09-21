@@ -318,7 +318,65 @@ class PostgresConversationRepository implements ConversationRepository {
                 "SELECT id FROM practices WHERE id=:practiceId AND user_id=:userId", Tuple.class)
                 .setParameter("practiceId", practiceId)
                 .setParameter("userId", userId));
-        return owned.isEmpty() ? null : noteOf("c.practice_id=:id", practiceId);
+        if (owned.isEmpty()) {
+            return legacyNote(userId, practiceId);
+        }
+        NoteView note = noteOf("c.practice_id=:id", practiceId);
+        return note == null ? legacyNote(userId, practiceId) : note;
+    }
+
+    /**
+     * 아직 옮기지 않은 옛 노트를 <b>새 봉투에 담아</b> 낸다 (02-practice ②).
+     *
+     * <p>기존 갈래는 {@code legacy} 형식에 옛 종류(analysis·expression)를 그대로 두고, 신형 노트만 {@code v2}
+     * 다 — 이름만 바꾸지 않는다. 원문은 {@code report} 로 그대로 나가 옛 공개 필드를 읽던 화면이 그대로 쓴다.
+     * 요약 인용은 비어 있다: 옛 원문에는 발췌와 출처의 짝이 남아 있지 않다.
+     */
+    private NoteView legacyNote(UUID userId, UUID practiceId) {
+        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
+                SELECT r.id,h.coach_session_id AS conversation_id,r.report_type,r.report_json::text AS report,
+                       COALESCE(h.state_revision,0) AS source_revision,r.created_at
+                FROM practice_reports r
+                JOIN coaching_handoffs h ON h.id=r.source_handoff_id
+                JOIN practice_sessions ps ON ps.id=r.practice_session_id
+                WHERE r.practice_session_id=:practiceId
+                  AND ps.user_id=:userId
+                ORDER BY r.created_at DESC,r.id DESC
+                LIMIT 1
+                """, Tuple.class)
+                .setParameter("practiceId", practiceId)
+                .setParameter("userId", userId));
+        if (rows.isEmpty()) {
+            return null;
+        }
+        Tuple row = rows.getFirst();
+        JsonNode report = json(row.get("report", String.class));
+        boolean modern = "practice_note".equals(row.get("report_type", String.class));
+        String mode = report.path("mode").asText("record_only");
+        return new NoteView(
+                row.get("id", UUID.class),
+                row.get("conversation_id", UUID.class),
+                modern ? "v2" : "legacy",
+                modern ? mode : row.get("report_type", String.class),
+                modern
+                        ? ("record_only".equals(mode) ? null : plain(report.path("copy").path("title")))
+                        : plain(report.path("title")),
+                JSON.createArrayNode(),
+                modern ? plain(report.path("practice").path("instruction")) : null,
+                JSON.createArrayNode(),
+                JSON.createArrayNode(),
+                JSON.createArrayNode(),
+                false,
+                ((Number) row.get("source_revision")).longValue(),
+                report,
+                row.get("created_at", Instant.class));
+    }
+
+    /** 비어 있는 JSON 값은 {@code null} 이다 — 옛 원문의 빈 제목을 빈 문자열로 내보내지 않는다. */
+    private static String plain(JsonNode value) {
+        return value == null || value.isMissingNode() || value.isNull() || value.asText().isBlank()
+                ? null
+                : value.asText();
     }
 
     private NoteView noteOf(String where, UUID id) {
@@ -365,7 +423,7 @@ class PostgresConversationRepository implements ConversationRepository {
                 .setParameter("conversationId", conversationId)
                 .setParameter("userId", userId));
         if (rows.isEmpty()) {
-            return null;
+            return legacyConversation(userId, conversationId);
         }
         Tuple row = rows.getFirst();
         List<Turn> turns = NativeTuples.list(entityManager.createNativeQuery("""
@@ -408,5 +466,49 @@ class PostgresConversationRepository implements ConversationRepository {
         } catch (Exception failure) {
             throw new IllegalStateException("failed to write conversation json", failure);
         }
+    }
+
+    /**
+     * 아직 옮기지 않은 옛 대화 (02-practice ②). <b>한 연습에 대화가 여럿인 옛 자료</b>의 "이전 대화" 가 이
+     * 경로로 열린다 — 최근 하나로 자르지 않는다(practice.coach).
+     *
+     * <p>종료 사유는 옛 어휘를 그대로 낸다. 전환 명령은 새 어휘로 옮기지만, 여기서 읽는 것은 아직 옛 표에
+     * 있는 행이고 그 행의 값을 고쳐 보이지 않는다.
+     */
+    private ConversationView legacyConversation(UUID userId, UUID conversationId) {
+        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
+                SELECT cs.id,cs.practice_session_id,cs.status::text AS status,
+                       cs.close_reason::text AS close_reason,cs.state_revision,cs.created_at
+                FROM coach_sessions cs
+                JOIN practice_sessions ps ON ps.id=cs.practice_session_id
+                WHERE cs.id=:conversationId
+                  AND ps.user_id=:userId
+                """, Tuple.class)
+                .setParameter("conversationId", conversationId)
+                .setParameter("userId", userId));
+        if (rows.isEmpty()) {
+            return null;
+        }
+        Tuple row = rows.getFirst();
+        List<Turn> turns = NativeTuples.list(entityManager.createNativeQuery("""
+                SELECT turn_index,role::text AS role,text,created_at FROM coach_turns
+                WHERE session_id=:conversationId
+                ORDER BY turn_index
+                """, Tuple.class)
+                .setParameter("conversationId", conversationId)).stream()
+                .map(turn -> new Turn(
+                        turn.get("turn_index", Integer.class),
+                        "ai".equals(turn.get("role", String.class)) ? "coach" : turn.get("role", String.class),
+                        turn.get("text", String.class),
+                        turn.get("created_at", Instant.class)))
+                .toList();
+        return new ConversationView(
+                row.get("id", UUID.class),
+                row.get("practice_session_id", UUID.class),
+                row.get("status", String.class),
+                row.get("close_reason", String.class),
+                ((Number) row.get("state_revision")).longValue(),
+                row.get("created_at", Instant.class),
+                turns);
     }
 }

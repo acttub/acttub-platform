@@ -98,8 +98,8 @@ class AccessGateTest {
 
         // 그 밖은 전부 보호 기능이다. 표에 적지 않은 새 경로도 닫힌 채로 시작한다.
         for (String[] guarded : new String[][] {
-                {"POST", "/v2/uploads/intents"}, {"POST", "/v2/uploads/intents/id/complete"},
-                {"GET", "/v2/practice-sessions"}, {"DELETE", "/v2/practice-sessions/id"},
+                {"POST", "/v2/videos/intents"}, {"POST", "/v2/videos/intents/id/complete"},
+                {"GET", "/v2/practices"}, {"DELETE", "/v2/videos/id"},
                 {"POST", "/v2/coach/start"}, {"GET", "/v2/reports"}, {"GET", "/v2/me/memory"},
                 {"PUT", "/v2/me/memory/goal"}, {"POST", "/v2/push-tokens"}, {"POST", "/v2/me/photo"},
                 {"POST", "/v2/me/photo/complete"}, {"DELETE", "/v2/me/photo"},

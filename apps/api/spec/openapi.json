@@ -576,90 +576,6 @@
         } ]
       }
     },
-    "/v2/uploads/intents" : {
-      "post" : {
-        "tags" : [ "v2-uploads" ],
-        "summary" : "Create Intent",
-        "operationId" : "create_intent_v2_uploads_intents_post",
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/UploadIntentRequest"
-              }
-            }
-          },
-          "required" : true
-        },
-        "responses" : {
-          "201" : {
-            "description" : "Successful Response",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/UploadIntentResponse"
-                }
-              }
-            }
-          },
-          "422" : {
-            "description" : "Validation Error",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        },
-        "security" : [ {
-          "HTTPBearer" : [ ]
-        } ]
-      }
-    },
-    "/v2/uploads/intents/{intent_id}/complete" : {
-      "post" : {
-        "tags" : [ "v2-uploads" ],
-        "summary" : "Complete Intent",
-        "operationId" : "complete_intent_v2_uploads_intents__intent_id__complete_post",
-        "parameters" : [ {
-          "name" : "intent_id",
-          "in" : "path",
-          "required" : true,
-          "schema" : {
-            "type" : "string",
-            "format" : "uuid",
-            "title" : "Intent Id"
-          }
-        } ],
-        "responses" : {
-          "200" : {
-            "description" : "Successful Response",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/UploadCompleteResponse"
-                }
-              }
-            }
-          },
-          "422" : {
-            "description" : "Validation Error",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        },
-        "security" : [ {
-          "HTTPBearer" : [ ]
-        } ]
-      }
-    },
     "/v2/reports" : {
       "get" : {
         "tags" : [ "v2-reports" ],
@@ -1314,155 +1230,6 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/Practice"
-                }
-              }
-            }
-          },
-          "422" : {
-            "description" : "Validation Error",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        },
-        "security" : [ {
-          "HTTPBearer" : [ ]
-        } ]
-      }
-    },
-    "/v2/practice-sessions" : {
-      "get" : {
-        "tags" : [ "v2-practice" ],
-        "summary" : "List Sessions",
-        "operationId" : "list_sessions_v2_practice_sessions_get",
-        "responses" : {
-          "200" : {
-            "description" : "Successful Response",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/PracticeSessionListResponse"
-                }
-              }
-            }
-          }
-        },
-        "security" : [ {
-          "HTTPBearer" : [ ]
-        } ]
-      },
-      "post" : {
-        "tags" : [ "v2-practice" ],
-        "summary" : "Create Session",
-        "operationId" : "create_session_v2_practice_sessions_post",
-        "parameters" : [ {
-          "name" : "X-Request-Id",
-          "in" : "header",
-          "required" : false,
-          "schema" : {
-            "anyOf" : [ {
-              "type" : "string"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "X-Request-Id"
-          }
-        } ],
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/PracticeSessionRequest"
-              }
-            }
-          },
-          "required" : true
-        },
-        "responses" : {
-          "200" : {
-            "description" : "Successful Response",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/PracticeSessionCreateResponse"
-                }
-              }
-            }
-          },
-          "202" : {
-            "description" : "Accepted",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/PracticeSessionAcceptedResponse"
-                }
-              }
-            }
-          },
-          "422" : {
-            "description" : "Validation Error",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        },
-        "security" : [ {
-          "HTTPBearer" : [ ]
-        } ]
-      }
-    },
-    "/v2/practice-sessions/{session_id}/analyze" : {
-      "post" : {
-        "tags" : [ "v2-practice" ],
-        "summary" : "Reanalyze Session",
-        "operationId" : "reanalyze_session_v2_practice_sessions__session_id__analyze_post",
-        "parameters" : [ {
-          "name" : "session_id",
-          "in" : "path",
-          "required" : true,
-          "schema" : {
-            "type" : "string",
-            "format" : "uuid",
-            "title" : "Session Id"
-          }
-        }, {
-          "name" : "X-Request-Id",
-          "in" : "header",
-          "required" : false,
-          "schema" : {
-            "anyOf" : [ {
-              "type" : "string"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "X-Request-Id"
-          }
-        } ],
-        "responses" : {
-          "200" : {
-            "description" : "Successful Response",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/PracticeSessionCreateResponse"
-                }
-              }
-            }
-          },
-          "202" : {
-            "description" : "Accepted",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/PracticeSessionAcceptedResponse"
                 }
               }
             }
@@ -3109,123 +2876,6 @@
         } ]
       }
     },
-    "/v2/practice-sessions/{session_id}" : {
-      "get" : {
-        "tags" : [ "v2-practice" ],
-        "summary" : "Get Session",
-        "operationId" : "get_session_v2_practice_sessions__session_id__get",
-        "parameters" : [ {
-          "name" : "session_id",
-          "in" : "path",
-          "required" : true,
-          "schema" : {
-            "type" : "string",
-            "format" : "uuid",
-            "title" : "Session Id"
-          }
-        } ],
-        "responses" : {
-          "200" : {
-            "description" : "Successful Response",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/PracticeSessionDetail"
-                }
-              }
-            }
-          },
-          "422" : {
-            "description" : "Validation Error",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        },
-        "security" : [ {
-          "HTTPBearer" : [ ]
-        } ]
-      },
-      "delete" : {
-        "tags" : [ "v2-practice" ],
-        "summary" : "Delete Session",
-        "operationId" : "delete_session_v2_practice_sessions__session_id__delete",
-        "parameters" : [ {
-          "name" : "session_id",
-          "in" : "path",
-          "required" : true,
-          "schema" : {
-            "type" : "string",
-            "format" : "uuid",
-            "title" : "Session Id"
-          }
-        } ],
-        "responses" : {
-          "204" : {
-            "description" : "No Content"
-          },
-          "422" : {
-            "description" : "Validation Error",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        },
-        "security" : [ {
-          "HTTPBearer" : [ ]
-        } ]
-      }
-    },
-    "/v2/practice-sessions/{session_id}/status" : {
-      "get" : {
-        "tags" : [ "v2-practice" ],
-        "summary" : "Get Session Status",
-        "operationId" : "get_session_status_v2_practice_sessions__session_id__status_get",
-        "parameters" : [ {
-          "name" : "session_id",
-          "in" : "path",
-          "required" : true,
-          "schema" : {
-            "type" : "string",
-            "format" : "uuid",
-            "title" : "Session Id"
-          }
-        } ],
-        "responses" : {
-          "200" : {
-            "description" : "Successful Response",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/PracticeSessionStatusResponse"
-                }
-              }
-            }
-          },
-          "422" : {
-            "description" : "Validation Error",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        },
-        "security" : [ {
-          "HTTPBearer" : [ ]
-        } ]
-      }
-    },
     "/v2/portfolio" : {
       "get" : {
         "tags" : [ "v2-portfolio" ],
@@ -4271,71 +3921,6 @@
         },
         "required" : [ "expires_at", "intent_id", "upload_url" ],
         "title" : "VideoIntent"
-      },
-      "UploadIntentRequest" : {
-        "type" : "object",
-        "properties" : {
-          "mime_type" : {
-            "type" : "string",
-            "title" : "Mime Type"
-          },
-          "size_bytes" : {
-            "type" : "integer",
-            "exclusiveMinimum" : 0.0,
-            "title" : "Size Bytes"
-          },
-          "duration_ms" : {
-            "anyOf" : [ {
-              "type" : "integer",
-              "exclusiveMinimum" : 0.0
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Duration Ms"
-          }
-        },
-        "required" : [ "mime_type", "size_bytes" ],
-        "title" : "UploadIntentRequest"
-      },
-      "UploadIntentResponse" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "intent_id" : {
-            "type" : "string",
-            "format" : "uuid",
-            "title" : "Intent Id"
-          },
-          "upload_url" : {
-            "type" : "string",
-            "title" : "Upload Url"
-          },
-          "expires_at" : {
-            "type" : "string",
-            "format" : "date-time",
-            "title" : "Expires At"
-          }
-        },
-        "required" : [ "expires_at", "intent_id", "upload_url" ],
-        "title" : "UploadIntentResponse"
-      },
-      "UploadCompleteResponse" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "intent_id" : {
-            "type" : "string",
-            "format" : "uuid",
-            "title" : "Intent Id"
-          },
-          "status" : {
-            "type" : "string",
-            "const" : "finalized",
-            "title" : "Status"
-          }
-        },
-        "required" : [ "intent_id", "status" ],
-        "title" : "UploadCompleteResponse"
       },
       "ReportReq" : {
         "type" : "object",
@@ -5800,9 +5385,16 @@
             }, {
               "type" : "null"
             } ]
+          },
+          "previous_conversations" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PreviousConversation"
+            },
+            "title" : "Previous Conversations"
           }
         },
-        "required" : [ "blockage_category", "blockage_detail", "character", "conversation_count", "created_at", "experience_version", "goal", "id", "ordinal", "root_id", "situation", "stage", "video_id" ],
+        "required" : [ "blockage_category", "blockage_detail", "character", "conversation_count", "created_at", "experience_version", "goal", "id", "ordinal", "previous_conversations", "root_id", "situation", "stage", "video_id" ],
         "title" : "Practice"
       },
       "PracticeJob" : {
@@ -5833,6 +5425,28 @@
         },
         "required" : [ "attempt_count", "id", "status" ],
         "title" : "PracticeJob"
+      },
+      "PreviousConversation" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "status" : {
+            "type" : "string",
+            "title" : "Status"
+          },
+          "created_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Created At"
+          }
+        },
+        "required" : [ "created_at", "id", "status" ],
+        "title" : "PreviousConversation"
       },
       "PracticeContinueRequest" : {
         "type" : "object",
@@ -5917,103 +5531,6 @@
         },
         "required" : [ "request_id" ],
         "title" : "PracticeAnalyzeRequest"
-      },
-      "PracticeSessionRequest" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "upload_intent_id" : {
-            "type" : "string",
-            "format" : "uuid",
-            "title" : "Upload Intent Id"
-          },
-          "situation" : {
-            "type" : "string",
-            "title" : "Situation"
-          },
-          "character_context" : {
-            "type" : "string",
-            "title" : "Character Context"
-          },
-          "goal" : {
-            "type" : "string",
-            "title" : "Goal"
-          },
-          "blockage_kind" : {
-            "type" : "string",
-            "enum" : [ "분석", "표현", "그 외" ],
-            "title" : "Blockage Kind"
-          },
-          "sub_branch" : {
-            "type" : "string",
-            "enum" : [ "캐릭터 분석", "대사 분석", "감정", "움직임", "화술", "표정", "그 외" ],
-            "title" : "Sub Branch"
-          },
-          "blockage_detail" : {
-            "anyOf" : [ {
-              "type" : "string"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Blockage Detail"
-          },
-          "continued_from" : {
-            "anyOf" : [ {
-              "type" : "string",
-              "format" : "uuid"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Continued From"
-          }
-        },
-        "required" : [ "blockage_kind", "character_context", "goal", "situation", "sub_branch", "upload_intent_id" ],
-        "title" : "PracticeSessionRequest"
-      },
-      "PracticeSessionCreateResponse" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "session_id" : {
-            "type" : "string",
-            "format" : "uuid",
-            "title" : "Session Id"
-          },
-          "status" : {
-            "type" : "string",
-            "enum" : [ "analyzing", "analyzed", "failed" ],
-            "title" : "Status"
-          },
-          "summary_id" : {
-            "anyOf" : [ {
-              "type" : "string",
-              "format" : "uuid"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Summary Id"
-          }
-        },
-        "required" : [ "session_id", "status" ],
-        "title" : "PracticeSessionCreateResponse"
-      },
-      "PracticeSessionAcceptedResponse" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "session_id" : {
-            "type" : "string",
-            "format" : "uuid",
-            "title" : "Session Id"
-          },
-          "status" : {
-            "type" : "string",
-            "const" : "analyzing",
-            "title" : "Status"
-          }
-        },
-        "required" : [ "session_id", "status" ],
-        "title" : "PracticeSessionAcceptedResponse"
       },
       "PracticeFeedbackRequest" : {
         "type" : "object",
@@ -7805,188 +7322,6 @@
         },
         "required" : [ "groups" ],
         "title" : "PracticeGroupList"
-      },
-      "PracticeSessionListItem" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "session_id" : {
-            "type" : "string",
-            "format" : "uuid",
-            "title" : "Session Id"
-          },
-          "status" : {
-            "type" : "string",
-            "enum" : [ "analyzing", "analyzed", "failed" ],
-            "title" : "Status"
-          },
-          "situation" : {
-            "type" : "string",
-            "title" : "Situation"
-          },
-          "character_context" : {
-            "type" : "string",
-            "title" : "Character Context"
-          },
-          "goal" : {
-            "type" : "string",
-            "title" : "Goal"
-          },
-          "blockage_kind" : {
-            "type" : "string",
-            "enum" : [ "분석", "표현", "그 외" ],
-            "title" : "Blockage Kind"
-          },
-          "sub_branch" : {
-            "type" : "string",
-            "title" : "Sub Branch"
-          },
-          "blockage_detail" : {
-            "anyOf" : [ {
-              "type" : "string"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Blockage Detail"
-          },
-          "continued_from" : {
-            "anyOf" : [ {
-              "type" : "string",
-              "format" : "uuid"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Continued From"
-          },
-          "created_at" : {
-            "type" : "string",
-            "format" : "date-time",
-            "title" : "Created At"
-          },
-          "updated_at" : {
-            "type" : "string",
-            "format" : "date-time",
-            "title" : "Updated At"
-          }
-        },
-        "required" : [ "blockage_kind", "character_context", "created_at", "goal", "session_id", "situation", "status", "sub_branch", "updated_at" ],
-        "title" : "PracticeSessionListItem"
-      },
-      "PracticeSessionListResponse" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "sessions" : {
-            "type" : "array",
-            "items" : {
-              "$ref" : "#/components/schemas/PracticeSessionListItem"
-            },
-            "title" : "Sessions"
-          }
-        },
-        "required" : [ "sessions" ],
-        "title" : "PracticeSessionListResponse"
-      },
-      "PracticeSessionDetail" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "session_id" : {
-            "type" : "string",
-            "format" : "uuid",
-            "title" : "Session Id"
-          },
-          "status" : {
-            "type" : "string",
-            "enum" : [ "analyzing", "analyzed", "failed" ],
-            "title" : "Status"
-          },
-          "situation" : {
-            "type" : "string",
-            "title" : "Situation"
-          },
-          "character_context" : {
-            "type" : "string",
-            "title" : "Character Context"
-          },
-          "goal" : {
-            "type" : "string",
-            "title" : "Goal"
-          },
-          "blockage_kind" : {
-            "type" : "string",
-            "enum" : [ "분석", "표현", "그 외" ],
-            "title" : "Blockage Kind"
-          },
-          "sub_branch" : {
-            "type" : "string",
-            "title" : "Sub Branch"
-          },
-          "blockage_detail" : {
-            "anyOf" : [ {
-              "type" : "string"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Blockage Detail"
-          },
-          "created_at" : {
-            "type" : "string",
-            "format" : "date-time",
-            "title" : "Created At"
-          },
-          "updated_at" : {
-            "type" : "string",
-            "format" : "date-time",
-            "title" : "Updated At"
-          },
-          "playback_url" : {
-            "type" : "string",
-            "title" : "Playback Url"
-          },
-          "summary" : {
-            "anyOf" : [ {
-              "$ref" : "#/components/schemas/ObservationPackResponse"
-            }, {
-              "$ref" : "#/components/schemas/VideoRecordSummaryResponse"
-            }, {
-              "type" : "null"
-            } ]
-          },
-          "error_code" : {
-            "anyOf" : [ {
-              "type" : "string",
-              "enum" : [ "gemini_timeout", "gemini_parse_error", "unsupported_media", "max_attempts_exceeded" ]
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Error Code"
-          }
-        },
-        "required" : [ "blockage_kind", "character_context", "created_at", "goal", "playback_url", "session_id", "situation", "status", "sub_branch", "updated_at" ],
-        "title" : "PracticeSessionDetail"
-      },
-      "PracticeSessionStatusResponse" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "status" : {
-            "type" : "string",
-            "enum" : [ "analyzing", "analyzed", "failed" ],
-            "title" : "Status"
-          },
-          "error_code" : {
-            "anyOf" : [ {
-              "type" : "string",
-              "enum" : [ "gemini_timeout", "gemini_parse_error", "unsupported_media", "max_attempts_exceeded" ]
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Error Code"
-          }
-        },
-        "required" : [ "status" ],
-        "title" : "PracticeSessionStatusResponse"
       },
       "ActorMemoryResponse" : {
         "type" : "object",

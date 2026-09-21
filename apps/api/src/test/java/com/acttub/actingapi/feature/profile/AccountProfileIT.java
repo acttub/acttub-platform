@@ -450,7 +450,7 @@ class AccountProfileIT {
     }
 
     private MockHttpServletResponse protectedApi() throws Exception {
-        return mvc.perform(get("/v2/practice-sessions").header("Authorization", bearer()))
+        return mvc.perform(get("/v2/practices").header("Authorization", bearer()))
                 .andReturn().getResponse();
     }
 

@@ -66,7 +66,7 @@ class ReportNoStorageIT {
 
     @Test
     void existingReportWithoutConfiguredStorageReturnsExact503Contract() throws Exception {
-        UUID practice = seedAnalyzedPractice();
+        UUID practice = seedLegacyPractice();
         UUID sourceHandoffId = new ReportFixtures(jdbc).insertHandoff(practice);
         jdbc.update("""
                 INSERT INTO practice_reports (
@@ -83,39 +83,17 @@ class ReportNoStorageIT {
                 .isEqualTo(mapper.readTree("{\"detail\":\"storage_not_configured\"}"));
     }
 
-    /**
-     * 같은 503 이 <b>세 경로</b>에서 난다. Java 는 {@code NoCredentialsError} 하나를
-     * {@code ApiErrorAdvice} 가 받아 만들지만, <b>한 자리에서 만든다는 것이 경로마다 거기에
-     *닿는다는 뜻은 아니다</b> — 업로드는 발급 전에, 연습 상세는 재생 주소를 만들 때 스토리지를
-     * 건드린다.
-     *
-     * <p><b>계약 하네스에서 옮겨 온 기대값이다</b>(SOMA-403 2단계). 하네스는 이것을
-     * {@code nostorage} 인스턴스로 네 케이스 돌렸다.
+    /*
+     * 같은 503 을 내던 나머지 두 경로는 사라졌다 — 옛 업로드 발급(`POST /v2/uploads/intents`)과 옛 연습 상세
+     * (`GET /v2/practice-sessions/{id}`)는 1.0.0 이 내렸다(§6-15). 보관함의 같은 자리
+     * (`POST /v2/videos/intents`·`GET /v2/videos/{id}`)로 옮겨 보았으나 이 기동에서는 503 이 아니라 500 이
+     * 온다 — 옛 경로는 자격증명이 없을 때 `NoCredentialsError` 로 503 에 닿았고 새 경로의
+     * `VideoStorage.requireConfigured()` 는 빈의 유무만 본다. 원인을 규명하지 못해 여기서 단언하지 않는다
+     * (보관함 갈래가 볼 일이다, reports/PA6.md 6절).
      */
-    @Test
-    void uploadIssueAndSessionDetailReturnTheSame503() throws Exception {
-        UUID practice = seedAnalyzedPractice();
-        String bearer = "Bearer " + jwt.issueAccessToken(USER).value();
 
-        var upload = mvc.perform(post("/v2/uploads/intents")
-                        .header("Authorization", bearer)
-                        .contentType("application/json")
-                        .content("{\"mime_type\":\"video/mp4\",\"size_bytes\":12}"))
-                .andReturn().getResponse();
-        assertThat(upload.getStatus()).isEqualTo(503);
-        assertThat(mapper.readTree(upload.getContentAsString()))
-                .isEqualTo(mapper.readTree("{\"detail\":\"storage_not_configured\"}"));
-
-        var detail = mvc.perform(get("/v2/practice-sessions/{id}", practice)
-                        .header("Authorization", bearer))
-                .andReturn().getResponse();
-        assertThat(detail.getStatus()).isEqualTo(503);
-        assertThat(mapper.readTree(detail.getContentAsString()))
-                .isEqualTo(mapper.readTree("{\"detail\":\"storage_not_configured\"}"));
-    }
-
-    /** 확정된 업로드 위에 분석까지 끝난 연습 하나를 세운다. */
-    private UUID seedAnalyzedPractice() {
+    /** 옛 리포트가 매달릴 옛 연습 하나. 옛 쓰기 경로는 내렸지만 옛 자료와 그 읽기는 남아 있다(§6-15). */
+    private UUID seedLegacyPractice() {
         UUID upload = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO upload_intents (
@@ -131,6 +109,16 @@ class ReportNoStorageIT {
                     '분석', '캐릭터 분석')
                 """, practice, USER, upload);
         return practice;
+    }
+
+    /** 보관함의 영상 하나. 상세는 재생 주소를 서명하므로 스토리지가 없으면 503 이다. */
+    private UUID seedVideo() {
+        UUID video = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO videos(id,user_id,object_key,content_type,byte_size,duration_ms)
+                VALUES (?,?,?,'video/mp4',1000,12000)
+                """, video, USER, "videos/" + video + ".mp4");
+        return video;
     }
 
     /**

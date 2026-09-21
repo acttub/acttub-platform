@@ -39,7 +39,17 @@ public final class PracticeViews {
             UUID noteId,
             String noteTitle,
             String noteKind,
-            JobView job) {
+            JobView job,
+            List<PreviousConversation> previousConversations) {
+    }
+
+    /**
+     * 그 회차의 이전 대화 하나 (practice.coach).
+     *
+     * <p>새 표는 회차당 대화 하나라 <b>언제나 빈 목록</b>이다. 채워지는 것은 한 연습에 대화가 여럿인 옛 자료를
+     * 호환 경로로 읽을 때뿐이다 — 최근 하나가 "대화" 이고 나머지가 여기 온다.
+     */
+    public record PreviousConversation(UUID id, String status, Instant createdAt) {
     }
 
     /**

@@ -1162,13 +1162,59 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     `video_transcripts` 는 **사람과 끊어 남긴다**.
   - **대화 중 탈퇴**: 코치 응답의 저장은 대화 행과 함께 `users.status` 를 본다 — 바깥 호출이 도는 사이에 탈퇴가
     끝났으면 아무것도 쓰지 않고 403 `account_deactivated` 다(분석의 완료가 같은 자리에서 같은 확인을 한다).
-- **옛 흐름은 아직 그대로다** — `/v2/uploads/**`·`/v2/practice-sessions/**`·`/v2/reports/**`, 그리고 옛 코치가 옮겨 간
-  **`/v2/legacy-coach/**`**. 1.0.0 대화가 `/v2/coach` 를 쓰게 되면서 옛 코치 컨트롤러의 경로만 바꿔 살려 두었다 —
-  그것이 지키던 행동 규칙 테스트(프로필 입력·관찰 읽기·확정 흐름)가 아직 유일한 방어선이기 때문이다. 옛 연습
-  흐름을 내릴 때 함께 사라진다(PA6).
+- **데이터 전환**(`POST /v2/admin/practice-migration`, `platform/migration`) — 옛 표의 자료를 1.0.0 표로 옮기는
+  <b>재실행 가능한 명령</b>이다. Flyway 가 아니라 애플리케이션 명령인 것은 전환이 배포를 멈추면 안 되고 되돌릴
+  수도 없기 때문이다(02-practice 「1.0.0 스키마 전환」 ③).
+  - **단계는 순서대로 끝까지 돈다**: 영상 → 회차 → 받아쓰기 → 관찰 기록 → 대화 → 메시지 → 노트 → 기억 →
+    작업 장부. 뒤 단계가 앞 단계가 만든 행을 가리키므로 한 단계를 남김없이 끝낸 뒤에 다음으로 간다. 한 묶음
+    (기본 200)이 한 트랜잭션이고 **고르기와 옮기기가 그 안에 함께** 있다.
+  - **멱등은 대응표가 만든다**(`practice_migration_entries`, V15). 한 번 고른 원본은 다시 고르지 않고
+    ({@code (source_table, source_id)} 유일), 옮기기는 언제나 다시 돌 수 있다(`NOT EXISTS`·`ON CONFLICT DO
+    NOTHING`). 몇 번을 돌려도 행 수도 대응표도 그대로다.
+  - **옮기지 않는 것은 사유와 함께 적힌다**: 가지 쳐 차수가 겹치는 묶음(`branching_chain`), 닫히지 않은 회차가
+    둘 이상인 묶음(`multiple_open_practices`), 확정되지 않은 업로드를 가리키는 묶음(`video_missing`), 한 연습의
+    옛 대화 가운데 최신이 아닌 것(`superseded_conversation`), 같은 영상의 두 번째 전사(`transcript_conflict`).
+    **임의로 닫거나 지우지 않는다** — 그 자료는 호환 읽기 경로가 옛 표에서 그대로 보여 준다.
+  - **옛 표에 쓰는 자리는 `upload_intents.video_id` 하나다** — V14 가 예약 장부에 더해 둔 칸이고 옛 서버는 그것을
+    모른다. 그 밖의 옛 표는 읽기만 한다.
+  - **진행 중인 AI 작업은 옮기지 않는다**(고르지도 않는다). 옛 워커가 끝내야 하고 두 큐에서 같은 작업이 동시에
+    돌면 안 된다 — 끝나면 다음 실행이 집어 간다. 옮긴 작업의 `memory_epoch` 는 NULL 이다(옛 예약에는 세대가
+    없고, NULL 은 "세대를 견주지 않는다" 는 뜻이다).
+  - **이름을 바꾸지 않는다**: 기존 갈래 노트는 `legacy` 형식에 옛 종류(analysis·expression) 그대로이고, 구형
+    관찰은 `legacy` 형식에 원문 그대로다. 대화의 종료 사유만 새 어휘로 옮긴다(`actor_finished`→`user_ended`,
+    `turn_budget`→`limit`, `interrupted`→`exhausted`). 옛 대화에는 시작 요청 id 가 없어 **세션 id 를 그대로** 쓴다.
+- **호환 읽기 경로**(02-practice ②) — 넓히기와 새 쓰기 사이에는 같은 배우의 자료가 두 표에 나뉘어 있다. 새 조회
+  API 는 **새 표를 먼저 보고 없으면 옛 표를 읽어 같은 응답 모양**을 낸다. 화면은 어느 표에서 왔는지 모른다.
+  - `GET /v2/practices/{id}`·`/status`·`GET /v2/practices` 는 `practice/adapter/db/PostgresLegacyPracticeReader`
+    로 간다. 차수는 `continued_from` 체인을 그때그때 펴서 만들고 **전환 명령과 같은 규칙**이라 옮기기 전후의
+    응답이 같다. 옛 묶음에는 제목·태그·즐겨찾기가 없어 `favorite` 필터에는 하나도 걸리지 않는다.
+  - `GET /v2/practices/{id}/note` 는 `practice_reports` 를 새 봉투에 담아 낸다. `GET /v2/coach/conversations/{id}`
+    는 `coach_sessions`·`coach_turns` 를 읽는다 — **한 연습에 대화가 여럿인 옛 자료의 "이전 대화" 가 이 경로로
+    열린다.**
+  - **회차 상세의 `previous_conversations`** 는 새 표에서는 언제나 빈 배열이다(회차당 대화 하나). 채워지는 것은
+    옛 자료뿐이고, **옮긴 뒤에도 채워진다** — 전환이 최신 하나만 옮기고 나머지를 옛 표에 남기기 때문이다.
+  - **구형 관찰은 요약만이다** — 새 모양에 담기는 것은 기록의 상태(`ready`·`partial`)까지다. 구형 분리 배열을
+    신형 기록으로 위장하지 않는다.
+  - 호환 읽기는 **옛 표를 고치거나 지우지 않는다.**
+- **되돌리기**(02-practice 「1.0.0 스키마 전환」, BRANCHING-STRATEGY 「DB와 배포 안전성」) — 내리기 마이그레이션은
+  없다. 대신 **더하기만 한다**: V14·V15 는 새 표와, 예약 장부의 NULL 허용 컬럼 셋, `users` 의 둘만 더했고 옛 표의
+  모양은 한 칸도 바뀌지 않았다(`flyway/PracticeRollbackCompatibilityTest` 가 V13 과 최신의 fingerprint 를 옛 표만
+  추려 견준다). Hibernate 의 `ddl-auto: validate` 는 **매핑이 없는 여분 표를 보지 않으므로** 직전 태그의 서버가
+  새 표가 있는 DB 에서 그대로 뜬다. 배포 절차는 [DEPLOY-HOME.md](../../docs/deploy/DEPLOY-HOME.md) 의 롤백 절과
+  같고, 사람이 밟아야 하는 확인(직전 태그 이미지로 옛 화면 읽기)은 배포 파이프라인의 일이다.
+- **옛 쓰기 경로는 내렸다** — `/v2/uploads/**` 와 `/v2/practice-sessions/**` 는 사라졌다. 영상은
+  `/v2/videos/**` 가, 회차는 `/v2/practices/**` 가 받고, 그 표에 없는 옛 자료는 **호환 읽기 경로**가 같은 모양으로
+  보여 준다(위 「호환 읽기 경로」). 옛 표는 그대로 남아 있고 지우지 않았다 — 삭제는 읽기·쓰기를 모두 중단한
+  버전을 배포한 다음 릴리스부터다(02-practice ④). 게스트 기능표에서도 두 경로를 뺐다.
+- **옛 읽기 경로 둘은 남는다** — `/v2/reports/**` 와 옛 코치가 옮겨 간 **`/v2/legacy-coach/**`** 다. 내리지 않은
+  이유는 하나다: **§7-2(코치 대화와 노트가 읽는 배우 프로필)를 지키는 시험이 그 경로에만 있고, 1.0.0 대화는 아직
+  그 규칙을 구현하지 않았다.** `PostgresConversationRepository` 가 엔진에 건네는 스냅샷은 프로필을 `null` 로,
+  지난 것을 `PriorContext.EMPTY` 로 채운다 — 먼저 새 흐름이 프로필·기억을 모델 입력에 싣게 한 뒤라야 그 시험을
+  새 경로로 옮기고 옛 경로를 내릴 수 있다. 그 전에 지우면 <b>보존 규칙 하나가 아무 데서도 지켜지지 않는다.</b>
 - OpenAPI 컴포넌트: 보관함은 `Video`·`VideoList`·`VideoUsage`·`VideoIntent`·`VideoIntentRequest`·`VideoPatch`, 회차는
   `Practice`·`PracticeGroup`·`PracticeGroupList`·`PracticeStatus`·`PracticeJob`·`PracticeScene`·`PracticeBlockage`·
-  `PracticeCreateRequest`·`PracticeContinueRequest`·`PracticeAnalyzeRequest`·`PracticeGroupPatch`, 기억은
+  `PracticeCreateRequest`·`PracticeContinueRequest`·`PracticeAnalyzeRequest`·`PracticeGroupPatch`·
+  `PreviousConversation`, 기억은
   `ActorMemoryItem`·`ActorMemoryResponse`·`UpdateActorMemoryRequest`(옛 여섯 칸의 `MemoryItem`·`MemoryResponse`·
   `UpdateMemoryRequest` 는 `/v2/legacy-me/memory` 가 계속 쓴다), 설문은 `PracticeFeedbackRequest`·
   `PracticeFeedbackResponse`·`PracticeFeedbackStatus`.

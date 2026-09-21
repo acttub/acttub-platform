@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.practice.app.PracticeViews;
 import com.acttub.actingapi.feature.practice.app.PracticeViews.GroupView;
 import com.acttub.actingapi.feature.practice.app.PracticeViews.JobView;
 import com.acttub.actingapi.feature.practice.app.PracticeViews.PracticeView;
@@ -111,7 +112,9 @@ final class PracticeDtos {
             @Schema(nullable = true) UUID noteId,
             @Schema(nullable = true) String noteTitle,
             @Schema(nullable = true) String noteKind,
-            @Schema(nullable = true) JobResponse job) {
+            @Schema(nullable = true) JobResponse job,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
+            List<PreviousConversationResponse> previousConversations) {
 
         static PracticeResponse of(PracticeView view) {
             return new PracticeResponse(
@@ -119,7 +122,26 @@ final class PracticeDtos {
                     view.experienceVersion(), view.situation(), view.characterContext(), view.goal(),
                     view.blockageKind(), view.subBranch(), view.blockageNote(), view.createdAt(),
                     view.analysisStatus(), view.conversationId(), view.conversationStatus(), view.conversationCount(),
-                    view.noteId(), view.noteTitle(), view.noteKind(), JobResponse.of(view.job()));
+                    view.noteId(), view.noteTitle(), view.noteKind(), JobResponse.of(view.job()),
+                    view.previousConversations().stream().map(PreviousConversationResponse::of).toList());
+        }
+    }
+
+    /**
+     * 그 회차의 이전 대화 하나.
+     *
+     * <p>새 표는 회차당 대화 하나라 <b>거의 언제나 빈 목록</b>이다. 채워지는 것은 한 연습에 대화가 여럿인 옛
+     * 자료를 호환 경로로 읽을 때뿐이다 — 가장 최근 것이 {@code conversation_id} 이고 나머지가 여기 온다.
+     */
+    @Schema(name = "PreviousConversation", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record PreviousConversationResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID id,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String status,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Instant createdAt) {
+
+        static PreviousConversationResponse of(PracticeViews.PreviousConversation view) {
+            return new PreviousConversationResponse(view.id(), view.status(), view.createdAt());
         }
     }
 

@@ -2,6 +2,7 @@ package com.acttub.actingapi.feature.practice.adapter;
 
 import java.time.Clock;
 
+import com.acttub.actingapi.feature.practice.app.LegacyPracticeReader;
 import com.acttub.actingapi.feature.practice.app.PracticeRepository;
 import com.acttub.actingapi.feature.practice.app.PracticeService;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,8 +19,9 @@ class PracticeConfiguration {
     @Bean
     PracticeService practiceService(
             PracticeRepository practices,
+            LegacyPracticeReader legacy,
             @Value("${ACTTUB_THREE_LAYERS_ENABLED:false}") boolean threeLayersEnabled,
             Clock clock) {
-        return new PracticeService(practices, threeLayersEnabled, clock);
+        return new PracticeService(practices, legacy, threeLayersEnabled, clock);
     }
 }

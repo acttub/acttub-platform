@@ -26,7 +26,9 @@ public enum GuestFeature {
      */
     PRACTICE(
             Set.of("terms", "privacy", "ai_analysis"),
-            List.of("/v2/uploads/**", "/v2/videos/**", "/v2/practices/**", "/v2/practice-sessions/**",
+            // 옛 쓰기 경로(`/v2/uploads/**`·`/v2/practice-sessions/**`)는 내렸다(§6-15). 옛 코치·리포트는
+            // 재전송 호환이 끝날 때까지 남는다.
+            List.of("/v2/videos/**", "/v2/practices/**",
                     "/v2/practice-feedback/**", "/v2/me/practice-feedback/**", "/v2/coach/**",
                     "/v2/reports/**", "/v2/me/memory/**")),
 
