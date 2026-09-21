@@ -52,8 +52,12 @@ final class CoachingPipeline {
     }
 
     static String prompt(CoachingRoute route, boolean finish) {
+        return prompt(route, finish, false);
+    }
+
+    static String prompt(CoachingRoute route, boolean finish, boolean opening) {
         // No combined routing instructions are sent to the message generator.
-        String task = finish ? resource("closing") : switch (route) {
+        String task = finish ? resource("closing") : opening ? resource("opening") : switch (route) {
             case ADVANCE -> resource("advance");
             case SCAFFOLD -> resource("scaffold");
             case REPAIR -> resource("repair");
@@ -65,10 +69,11 @@ final class CoachingPipeline {
     ObjectNode generate(CoachSessionSnapshot session, ObjectNode input, CoachingRoute route, boolean finish, int attempt) {
         ObjectNode payload = input.deepCopy();
         payload.remove(List.of("dialogue_progress", "output_contract", "request_id", "session_id"));
-        // 완성된 프로필이 실린 호출에만 프로필 지시가 붙는다. 프로필이 없으면 프롬프트는 prompt(route, finish) 그대로다
+        boolean opening = input.path("user_message").isNull();
+        // 완성된 프로필이 실린 호출에만 프로필 지시가 붙는다. 프로필이 없으면 선택된 프롬프트 그대로다
         // (CONTRACT.md §7-2 "부재 시 동일성"). 분류 호출은 프로필을 받지 않는다 — 이름이 실리는 호출은 이것 하나다.
         // 답할 말 지시(SOMA-544)는 맨 마지막이다. 한국어면 아무것도 붙지 않는다.
-        String prompt = OutputLanguage.apply(prompt(route, finish)
+        String prompt = OutputLanguage.apply(prompt(route, finish, opening)
                 + (payload.has("actor_profile") ? StructuredCoachEngine.ACTOR_PROFILE_INSTRUCTION : ""));
         JsonNode draft = StructuredJson.parse(call(session, attempt == 0 ? LlmStep.COACH_TURN : LlmStep.COACH_REGENERATION,
                 prompt, payload, new GenerationOptions(null, "low", 3000, null, null), route));
@@ -80,7 +85,6 @@ final class CoachingPipeline {
                 .putNull("style_update");
         response.set("context_update", draft.path("context_update"));
         ObjectNode link = response.putObject("reply_link");
-        boolean opening = input.path("user_message").isNull();
         link.put("move", finish ? "close" : opening ? "open" : route.move);
         link.set("user_message_id", opening ? StructuredJson.MAPPER.nullNode() : input.path("user_message").path("id"));
         if (opening) link.putNull("actor_quote");
