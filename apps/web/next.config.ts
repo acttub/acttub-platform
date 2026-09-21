@@ -17,6 +17,10 @@ const nextConfig: NextConfig = {
   // 런타임 이미지에 필요한 의존성만 담는 자립 실행 번들(.next/standalone).
   // `next dev`에는 영향이 없다 — `next build`에서만 쓰인다.
   output: "standalone",
+  // dev 영상 직접 대화는 multipart로 최대 50MiB를 API에 전달한다.
+  ...(process.env.NEXT_PUBLIC_SITE_URL === "https://dev.acttub.com"
+    ? { experimental: { proxyClientMaxBodySize: "51mb" } }
+    : {}),
   // 이미지 최적화를 쓰지 않는다. 그럼에도 standalone 산출물에는 sharp의 플랫폼
   // 전용 바이너리가 딸려온다(Next의 의존성 트레이싱이 무조건 포함시킨다).
   // Dockerfile은 빌드·런타임을 같은 리눅스로 맞춰 해당 바이너리도 함께 복사한다.
