@@ -1,5 +1,4 @@
 import type {
-  CoachTurnResponse,
   PracticeReport,
   PracticeSessionStatus,
   SavedPracticeReport,
@@ -40,18 +39,6 @@ export function createCoachStartCoordinator(
       return Promise.resolve(status === "failed" ? "failed" : "waiting");
     },
   };
-}
-
-export function completedCoachReport(
-  turn: CoachTurnResponse,
-): PracticeReport | null {
-  return turn.status === "complete" ? turn.report : null;
-}
-
-export function coachMessageText(
-  turn: CoachTurnResponse,
-): string {
-  return turn.message;
 }
 
 /**

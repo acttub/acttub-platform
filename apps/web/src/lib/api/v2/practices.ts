@@ -1,5 +1,6 @@
 import { apiFetch } from "./client";
 import { postIdempotent } from "./idempotency";
+import { newRequestId } from "../../reading/request-id";
 import type {
   Practice,
   PracticeCancelResponse,
@@ -80,10 +81,19 @@ export async function cancelPractice(practiceId: string): Promise<PracticeCancel
 
 /**
  * 실패한 회차의 명시적 재시도 — 새 작업과 함께 analyzing 으로 돌아간다(다른 진행 중 회차가 없을 때만, 아니면
- * 409 practice_in_progress). 스펙 표에 경로가 없어 계획안으로 둔다. 이름은 옛 화면의 부름 자리와 같다.
+ * 409 practice_in_progress). 요청 id 로 멱등하다: 두 번 눌러도 작업은 하나다.
+ * 이름은 옛 화면의 부름 자리와 같다(회귀 테스트가 그 이름을 지킨다).
  */
-export async function reanalyzeSession(practiceId: string): Promise<Practice> {
-  const { data } = await apiFetch<Practice>(`${practicePath(practiceId)}/retry`, { method: "POST", body: {} });
+export async function reanalyzeSession(
+  practiceId: string,
+  options: { requestId?: string } = {},
+): Promise<Practice> {
+  const requestId = options.requestId ?? newRequestId();
+  const { data } = await postIdempotent<Practice>(
+    `${practicePath(practiceId)}/analyze`,
+    { request_id: requestId },
+    { requestId },
+  );
   return data;
 }
 

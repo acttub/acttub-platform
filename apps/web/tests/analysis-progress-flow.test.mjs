@@ -18,12 +18,11 @@ function between(source, startMarker, endMarker) {
   return source.slice(start, end);
 }
 
-const {
-  coachMessageText,
-  createCoachStartCoordinator,
-  isCoachInputEnabled,
-} = await import(
+const { createCoachStartCoordinator, isCoachInputEnabled } = await import(
   "../src/features/practice/coach-contract.ts"
+);
+const { needsTurnHistory } = await import(
+  "../src/features/practice/conversation-view.ts"
 );
 const {
   ANALYSIS_DEADLINE_MS,
@@ -332,20 +331,23 @@ test("코치가 붙기 전에는 입력이 비활성이고 붙으면 활성된�
   assert.equal(isCoachInputEnabled({ coachReady: true, sending: true }), false);
 });
 
-test("대화 화면 진입 시 start message가 첫 코치 말풍선이 된다", () => {
+test("practice.coach: 대화 화면 진입 시 start message가 첫 코치 말풍선이 된다", () => {
+  // 새 계약에서 답 응답은 코치의 말 한 마디와 대화 머리(id·revision·status)만 준다.
   const start = {
-    session_id: "coach-1",
+    conversation: { id: "c-1", revision: 1, status: "open" },
     message: "그 말을 지금 꺼내는 이유부터 볼게.",
     status: "continue",
-    handoff: null,
+    note: null,
   };
 
-  assert.equal(coachMessageText(start), start.message);
+  assert.equal(needsTurnHistory(start), false);
   const workspace = readWeb("src/features/workspace/workspace-app.tsx");
   assert.match(
     workspace,
-    /const message = coachMessageText\(turn\);[\s\S]*setMessages\(\(m\) => \[\.\.\.m, \{ role: "ai", text: message \}\]\)/,
+    /setMessages\(\(m\) => \[\.\.\.m, \{ role: "ai", text: turn\.message \}\]\)/,
   );
+  // 새로 연 대화는 그 한 마디로 서고, 재개한 대화만 지난 턴을 읽는다.
+  assert.match(workspace, /history \? conversationLines\(history\) : \[\{ role: "ai", text: turn\.message \}\]/);
   assert.doesNotMatch(workspace, /이 연습에는 아직 오간 질문이 없어요/);
   assert.doesNotMatch(workspace, /막히는 대목을 그대로 적어 주세요/);
   assert.match(workspace, /sending=\{sending \|\| coachOpening\}/);
@@ -383,13 +385,13 @@ test("analyzed가 되면 대화로 전환하고 coach start를 한 번만 보낸
     'dispatch({ type: "coachStarting" })',
     coordinatorStart,
   );
-  const request = workspace.indexOf("await startCoach", coordinatorStart);
+  const request = workspace.indexOf("await startConversation", coordinatorStart);
   assert.ok(screenChange > coordinatorStart && screenChange < request);
   assert.doesNotMatch(coordinatorBlock, /setSending\(true\)/);
   assert.match(workspace, /coordinatorFor\(practiceSessionId\)\.update\(settled\.status\)/);
-  assert.match(workspace, /const \{ data: start \} = await startCoach[\s\S]*restoreCoach\(start\)/);
-  assert.match(workspace, /turn\.turns\?\.map[\s\S]*setMessages/);
-  assert.match(workspace, /restartAfterBlocked[\s\S]*restart: true/);
+  assert.match(workspace, /const start = await startConversation\(practiceSessionId, \{[\s\S]*restoreCoach\(start, history\)/);
+  // 같은 회차의 시작은 같은 요청 id 로 나간다 — 폴링 직후와 화면 복귀가 겹쳐도 대화는 하나다.
+  assert.match(workspace, /requestId: conversationRequestId\(practiceSessionId\)/);
 });
 
 test("분석 실패는 대화를 막고 분석 재시도만 제공한다", async () => {
@@ -406,8 +408,10 @@ test("분석 실패는 대화를 막고 분석 재시도만 제공한다", async
   assert.match(workspace, /onClick=\{onRetry\}/);
   assert.match(workspace, /await reanalyzeSession\(sessionId\)/);
   assert.match(workspace, /영상 다시 분석/);
-  assert.match(workspace, /restart: restartCoachAfterAnalysisRef\.current\.has\(practiceSessionId\)/);
-  assert.match(workspace, /await reanalyzeSession\(sessionId\);\s+restartCoachAfterAnalysisRef\.current\.add\(sessionId\)/);
+  // 다시 분석한 회차는 대화도 새로 시작한다. 옛 restart 플래그는 없다 — 닫힌 대화는 다시 열지 않고
+  // 새 회차로 간다(practice.resume).
+  assert.doesNotMatch(workspace, /restart: true|restartCoachAfterAnalysisRef/);
+  assert.match(workspace, /await reanalyzeSession\(sessionId\);[\s\S]{0,160}startRequestIdsRef\.current\.delete\(sessionId\)/);
 });
 
 test("시작 버튼이 먼저 서고, 선택 입력은 그 아래 안내 문장과 함께 선다", () => {

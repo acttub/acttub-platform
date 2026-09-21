@@ -110,6 +110,10 @@ export const READING_SCRIPT_MESSAGES: Record<string, string> = {
 const CONFLICT_MESSAGES: Record<string, string> = {
   practice_in_progress: "진행 중인 회차가 있어요. 그 회차로 돌아가요.",
   analysis_not_ready: "영상을 분석해야 대화를 시작할 수 있어요.",
+  // 다른 곳에서 대화가 먼저 저장됐다. 배우가 쓴 답은 화면에 그대로 있고, 최신 대화를 읽은 뒤 다시 보내면 된다.
+  conversation_conflict: "방금 대화가 바뀌었어요. 최신 내용을 불러왔어요. 다시 보내 주세요.",
+  // 닫힌 대화에는 답할 수 없다. 이어서 연습하려면 새 회차다(practice.resume).
+  conversation_closed: "이미 마친 대화예요. 이어서 연습하려면 새 회차를 시작해 주세요.",
 };
 /** 변환(webm → m4a)이 실패했다. 행·객체는 없고 기기가 같은 요청 id 로 다시 시도한다. */
 const AUDIO_CONVERSION_MESSAGE = "녹음을 저장하는 중이에요. 잠시 뒤 다시 시도해요.";

@@ -1,7 +1,7 @@
+import { getPracticeNote } from "@/lib/api/v2/notes";
 import { getPractice } from "@/lib/api/v2/practices";
-import { getReport } from "@/lib/api/v2/reports";
-import type { PracticeReport } from "@/lib/api/v2/types";
 import { practiceToSessionDetail, type PracticeDetailView } from "../practice/practice-view";
+import type { PracticeReport } from "./workspace-state";
 
 // 이미 있는 연습 하나를 열어 화면에 실을 것까지 받아 오는 길. 목록에서 누르는 길과
 // 주소 ?session= 으로 들어오는 길이 이 하나를 쓴다 — 옛 코드는 같은 순서를 두 번
@@ -67,9 +67,10 @@ export async function loadPracticeSession({
     }
     if (loaded.status === "failed") return { kind: "analysisFailed" };
     try {
-      const found = await getReport(sessionId);
+      // 노트는 회차에 딸린다(practice.note). 없는 회차도 흔하다 — 짧게 끝난 대화는 노트를 만들지 않는다.
+      const note = await getPracticeNote(sessionId);
       if (!isCurrent()) return { kind: "superseded" };
-      return { kind: "note", report: found.report };
+      return note ? { kind: "note", report: note } : { kind: "noNote" };
     } catch {
       if (!isCurrent()) return { kind: "superseded" };
       return { kind: "noNote" };

@@ -23,7 +23,22 @@ function jsonResponse(payload, status = 200) {
   });
 }
 
-const REPORT = { report_type: "analysis", title: "무엇이 막혔나" };
+// 1.0.0 의 노트(practice.note). 회차 경로로 온다.
+const REPORT = {
+  id: "n-1",
+  format: "v2",
+  kind: "action",
+  title: "무엇이 막혔나",
+  summary_quotes: [],
+  next_take: null,
+  actor_words: [],
+  corrections: [],
+  tags: [],
+  fallback: false,
+  cheer: null,
+  source_revision: 4,
+  created_at: "2026-09-21T03:00:00Z",
+};
 
 function detail(overrides = {}) {
   return {
@@ -59,8 +74,8 @@ function apiStub({ session = () => jsonResponse(detail()), report } = {}) {
   globalThis.fetch = async (url) => {
     const path = String(url);
     calls.push(path);
-    if (path.startsWith("/v2/reports/")) {
-      return report ? report() : jsonResponse({ report: REPORT });
+    if (path.endsWith("/note")) {
+      return report ? report() : jsonResponse(REPORT);
     }
     assert.equal(path, "/v2/practices/practice-1");
     return session();
@@ -99,7 +114,7 @@ test("훑어보기가 끝난 연습은 노트를 물어보고 받은 것을 그�
   assert.deepEqual(result, { kind: "note", report: REPORT });
   assert.deepEqual(calls, [
     "/v2/practices/practice-1",
-    "/v2/reports/practice-1",
+    "/v2/practices/practice-1/note",
   ]);
 });
 

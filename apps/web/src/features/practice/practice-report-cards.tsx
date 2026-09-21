@@ -1,3 +1,4 @@
+import type { PracticeNote } from "@/lib/practice/api-types";
 import type {
   AnalysisReport,
   ExpressionReport,
@@ -5,8 +6,25 @@ import type {
   PublicPracticeNote,
 } from "@/lib/api/v2/types";
 import { renderablePracticeReport } from "./coach-contract";
+import {
+  FALLBACK_NOTICE,
+  isNoteV2,
+  nextTakeCopy,
+  noteQuotes,
+  noteTitle,
+  quoteSourceLabel,
+} from "./practice-note";
 
-export function PracticeReportCards({ report }: { report: PracticeReport }) {
+export function PracticeReportCards({
+  report,
+  groupTitle = "",
+}: {
+  report: PracticeReport | PracticeNote;
+  /** 초점 없이 끝난 노트가 쓸 대체 제목(묶음의 이름). */
+  groupTitle?: string;
+}) {
+  // 신형 노트는 요약 인용·종류·폴백을 들고 온다. 옛 노트는 아래 옛 경로로 간다.
+  if (isNoteV2(report)) return <PracticeNoteV2Cards note={report} groupTitle={groupTitle} />;
   const visibleReport = renderablePracticeReport(report);
   if (!visibleReport) {
     return (
@@ -25,6 +43,55 @@ export function PracticeReportCards({ report }: { report: PracticeReport }) {
     case "practice_note": return <PracticeNoteCards report={visibleReport} />;
     default: return <p className="p-6 text-sm">새로고침하면 이 연습 노트를 다시 불러올 수 있어요.</p>;
   }
+}
+
+/**
+ * 신형 노트. 순서는 짧은 요약 → 다음 촬영에서 해볼 한 가지 → 응원이고, 그 사이에 비교 기준이나
+ * 확인을 강제하는 자리를 두지 않는다.
+ */
+function PracticeNoteV2Cards({ note, groupTitle }: { note: PracticeNote; groupTitle: string }) {
+  const quotes = noteQuotes(note);
+  return (
+    <div className="mx-auto grid w-full min-w-0 max-w-[68ch]">
+      <ReportHeading title={noteTitle(note, groupTitle)} />
+      {note.fallback ? (
+        <p className="rounded-xl bg-[#fff8ec] px-3.5 py-2.5 text-xs font-bold leading-5 text-[#8a4b00]">
+          {FALLBACK_NOTICE}
+        </p>
+      ) : null}
+      <article className="min-w-0 border-t border-[#e5e8eb] py-6">
+        <h3 className="text-xs font-black text-[#4e5968]">이번 대화 요약</h3>
+        {quotes.length === 0 ? (
+          <p className="mt-3 text-base font-semibold leading-7 text-[#191f28]">
+            오늘 나눈 이야기를 그대로 남겼어요.
+          </p>
+        ) : (
+          <ul className="mt-3 grid gap-3">
+            {quotes.map((quote, index) => (
+              <li key={`${index}-${quote.text}`} className="border-l-2 border-[#e5e8eb] pl-4">
+                <p className="break-words whitespace-pre-wrap text-base font-semibold leading-7 text-[#191f28]">
+                  {quote.text}
+                </p>
+                <p className="mt-1 text-[11.5px] font-black text-[#8b95a1]">{quoteSourceLabel(quote.source)}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </article>
+      <article className="min-w-0 border-t border-[#e5e8eb] py-6">
+        <h3 className="text-xs font-black text-[#4e5968]">다음 촬영에서 해볼 것</h3>
+        <p className="mt-3 break-words whitespace-pre-wrap text-lg font-bold leading-7 text-[#191f28]">
+          {nextTakeCopy(note)}
+        </p>
+      </article>
+      {note.actor_words.length > 0 ? (
+        <ListCard title="배우가 직접 남긴 말" items={note.actor_words} quoted />
+      ) : null}
+      <p className="border-t border-[#e5e8eb] py-6 text-sm font-medium leading-6 text-[#4e5968]">
+        {note.cheer?.trim() || "오늘 촬영도 수고했어요."}
+      </p>
+    </div>
+  );
 }
 
 function PracticeNoteCards({ report }: { report: PublicPracticeNote }) {

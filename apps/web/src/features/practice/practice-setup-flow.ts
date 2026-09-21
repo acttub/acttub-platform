@@ -44,8 +44,10 @@ export function formatVideoDuration(durationMs: number | null): string | null {
 
 /**
  * 회차 시작 요청 본문(요청 id 는 부르는 쪽이 붙인다). 상황·인물·목표는 공백을 정리해 빈 값이면 빈 문자열로
- * 보낸다 — 자리표시자를 채우지 않는다(ADR-021). 막힘은 화면의 저장값 그대로다. client_experience 는 웹의 계약
- * 판(three_layers_v1)이고, 무입력 조건에서만 신형이 되는 것은 서버가 정한다(practice.start).
+ * 보낸다 — 자리표시자를 채우지 않는다(ADR-021). 막힘은 화면의 저장값 그대로다.
+ *
+ * 경험 판은 본문에 싣지 않는다. `X-Acttub-Contract: three_layers_v1` 헤더가 정본이고 공용 클라이언트가
+ * 모든 요청에 붙인다(헤더가 없으면 legacy). 실제 판은 서버가 정한다(practice.start).
  */
 export function buildPracticeRequest(
   videoId: string,
@@ -64,6 +66,5 @@ export function buildPracticeRequest(
       detail: blockage.sub_branch,
       note: blockage.blockage_detail,
     },
-    client_experience: "three_layers_v1",
   };
 }

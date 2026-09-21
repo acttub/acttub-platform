@@ -26,8 +26,7 @@ export const MOCK_S3_UPLOAD = process.env.NEXT_PUBLIC_MOCK_S3_UPLOAD === "1";
 //                                  환경별로 다른 프로젝트 키를 넣어 통계를 나눈다.
 // 로컬에서 확인하려면 apps/web/.env.local 에 넣는다(.env* 는 커밋되지 않는다).
 
-// 연습을 마친 배우가 넘어가는 후기 페이지.
-export const REVIEW_FORM_URL = "https://acttub.github.io/review-form/";
+// 후기는 1.0.0 부터 서버에 직접 접수한다(practice.feedback). 외부 폼 주소는 더 쓰지 않는다.
 
 // 백엔드 uploads.py의 MAX_UPLOAD_BYTES(100MB)와 동일해야 한다.
 export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;

@@ -24,7 +24,7 @@ const {
 } = await import("../src/features/practice/blockage-flow.ts");
 
 // 1.0.0 의 회차 생성 본문(practice.start): 영상은 보관함 id 로 가리키고, 장면·막힘은 묶음으로 실린다.
-// client_experience 는 늘 three_layers_v1 — 실제 판은 서버가 정한다(experience_version).
+// 경험 판은 본문이 아니라 X-Acttub-Contract 헤더로 간다 — 실제 판은 서버가 정한다(experience_version).
 test("영상만 고른 시작은 빈 장면과 그 외 기본값으로 조립한다", () => {
   const blockage = completeBlockageFlowWithDefault(initialBlockageFlowState);
   const body = buildPracticeRequest(
@@ -37,7 +37,6 @@ test("영상만 고른 시작은 빈 장면과 그 외 기본값으로 조립한
     video_id: "video-only",
     scene: { situation: "", character: "", goal: "" },
     blockage: { category: "그 외", detail: "그 외", note: null },
-    client_experience: "three_layers_v1",
   });
 });
 
@@ -63,7 +62,6 @@ test("토글에서 고른 장면과 도움 값이 요청에 그대로 조립된�
       goal: "상대를 다시 앉게 만들기",
     },
     blockage: { category: "표현", detail: "표정", note: "눈을 피하는 순간을 보고 싶어요" },
-    client_experience: "three_layers_v1",
   });
 });
 

@@ -104,7 +104,13 @@ export interface Practice {
   blockage: BlockageInput;
   job: AiJobView | null;
   analysis: AnalysisView | null;
+  /** 가장 최근 대화. 회차와 1:1이고 열린 것은 같은 id 로 재개한다. */
   conversation: { id: string; status: string } | null;
+  /**
+   * 옛 자료에서 한 연습에 여럿 있던 대화. 새 자료에는 비어 있고, 화면은 이것을 "이전 대화"로만
+   * 보여 준다(읽기 전용). 턴은 대화 조회로 읽는다.
+   */
+  previous_conversations?: { id: string; status: string; created_at: string }[];
   note: { id: string; title: string | null; kind: string } | null;
   created_at: string;
   updated_at: string;
@@ -115,7 +121,6 @@ export interface PracticeCreateRequest {
   video_id: string;
   scene: SceneContext;
   blockage: BlockageInput;
-  client_experience: ExperienceVersion;
 }
 
 /** POST /v2/practices/{id}/continue — video_id 가 없으면 같은 영상 */
@@ -124,7 +129,6 @@ export interface PracticeContinueRequest {
   video_id?: string;
   scene: SceneContext;
   blockage: BlockageInput;
-  client_experience: ExperienceVersion;
 }
 
 /** GET /v2/practices/{id}/status */
@@ -173,4 +177,102 @@ export interface PracticeGroupPatch {
 
 export interface PracticeCancelResponse {
   job: AiJobView;
+}
+
+/* ── 코치 대화 (practice.coach) ─────────────────────────────────
+ * 회차와 1:1인 대화. 열린 대화는 같은 id 로 재개하고, 닫힌 뒤 다시 코칭하려면 새 회차다(practice.resume).
+ * 동시 요청은 revision 으로 가른다 — 저장 때 값이 다르면 409 conversation_conflict 이고 화면은 입력을
+ * 보존한 채 대화를 다시 읽는다.
+ */
+export type ConversationStatus = "open" | "closed";
+export type ConversationRole = "actor" | "coach";
+
+export interface ConversationTurn {
+  turn_index: number;
+  role: ConversationRole;
+  text: string;
+  created_at: string;
+}
+
+/** 대화 머리 — 응답마다 따라와 화면이 다음 요청에 실을 revision 을 안다. */
+export interface ConversationHead {
+  id: string;
+  revision: number;
+  status: ConversationStatus;
+}
+
+export interface Conversation extends ConversationHead {
+  practice_id: string;
+  closed_reason: string | null;
+  created_at: string;
+  turns: ConversationTurn[];
+}
+
+export interface ConversationStartRequest {
+  practice_id: string;
+  request_id: string;
+}
+
+export interface ConversationReplyRequest {
+  conversation_id: string;
+  request_id: string;
+  text: string;
+  revision: number;
+}
+
+/** 코치 한 턴의 답. 종료 턴이면 status 가 complete 이고 노트가 함께 온다. */
+export interface ConversationTurnResponse {
+  conversation: ConversationHead;
+  message: string;
+  status: "continue" | "complete";
+  note: PracticeNote | null;
+}
+
+/* ── 연습 노트 (practice.note) ─────────────────────────────────
+ * 대화가 닫힌 뒤 한 번 만든다. 종류는 action(다음 촬영 제안 있음)·observation(초점만)·record_only(초점 없이
+ * 종료)이고 성공·실패 표시가 아니다. 제목은 초점 원문이며 record_only 는 없다(묶음 대체 제목을 쓴다).
+ */
+export type NoteKind = "action" | "observation" | "record_only";
+export type NoteFormat = "legacy" | "v2";
+/** 인용은 어디서 나온 말인지와 함께 둔다 — 배우가 자기 말을 알아볼 수 있어야 한다. */
+export type QuoteSource = "actor" | "observation";
+
+export interface NoteQuote {
+  text: string;
+  source: QuoteSource;
+}
+
+export interface PracticeNote {
+  id: string;
+  format: NoteFormat;
+  kind: NoteKind;
+  /** 초점 문구 원문. 초점이 없는 record_only 는 null 이다. */
+  title: string | null;
+  /** 배우 말·관찰의 원문 발췌, 최대 둘. */
+  summary_quotes: NoteQuote[];
+  /** 다음 촬영에서 해볼 한 가지. 근거가 없으면 null 이다. */
+  next_take: string | null;
+  actor_words: string[];
+  corrections: string[];
+  tags: string[];
+  /** 생성이 거듭 실패해 확인된 것만 담았다. */
+  fallback: boolean;
+  cheer: string | null;
+  source_revision: number;
+  created_at: string;
+}
+
+/** 이탈 설문 (practice.feedback) */
+export type FeedbackScreen = "coach" | "report";
+export type FeedbackTrigger = "x" | "leave" | "back";
+
+export interface FeedbackRequest {
+  request_id: string;
+  practice_id: string | null;
+  screen: FeedbackScreen;
+  trigger: FeedbackTrigger;
+  /** 건너뛰기(dismissed)면 없다. */
+  body?: string;
+  contact_email?: string;
+  contact_phone?: string;
 }

@@ -22,8 +22,14 @@ import { useSearchParams } from "next/navigation";
 import wordmark from "@/assets/acttub-wordmark.png";
 import { GUEST_BROWSER_ONLY_NOTICE } from "@/features/consent/guest-notice";
 import { useGuestSession } from "@/features/consent/use-guest-session";
-import { startCoach, replyCoach } from "@/lib/api/v2/coach";
-import { getReport } from "@/lib/api/v2/reports";
+import {
+  conversationErrorMessage,
+  getConversation,
+  isConversationConflict,
+  replyConversation,
+  startConversation,
+} from "@/lib/api/v2/coach-conversations";
+import { getPracticeNote } from "@/lib/api/v2/notes";
 import { errorMessage } from "@/lib/api/v2/errors";
 import { coachReplyError, isClosedCoach, recoverClosedCoach } from "./coach-reply-recovery";
 import {
@@ -35,7 +41,13 @@ import {
 import { getVideo } from "@/lib/api/v2/videos";
 import type { PracticeGroup } from "@/lib/practice/api-types";
 import { newRequestId } from "@/lib/reading/request-id";
-import type { CoachTurnResponse, PracticeReport } from "@/lib/api/v2/types";
+import type { Conversation, ConversationTurnResponse } from "@/lib/practice/api-types";
+import {
+  actorTurnCount,
+  conversationLines,
+  isConversationDone,
+  needsTurnHistory,
+} from "../practice/conversation-view";
 import {
   trackDialogueStarted,
   trackResultViewed,
@@ -60,6 +72,7 @@ import {
   trackPracticeVideoSelected,
 } from "@/lib/analytics/amplitude";
 import { ExitReviewModal, useExitReview } from "./exit-review";
+import { feedbackScreen } from "./exit-survey";
 import { BlockageFields } from "../practice/blockage-selection";
 import {
   completeBlockageFlowWithDefault,
@@ -68,6 +81,7 @@ import {
   type BlockageSelection,
 } from "../practice/blockage-flow";
 import { analysisNotice, sessionStatusOf } from "../practice/practice-analysis";
+import { isBlockedReport, reportTypeOf } from "../practice/practice-note";
 import { practiceToSessionDetail, type PracticeDetailView } from "../practice/practice-view";
 import {
   ALL_FILTER_LABEL,
@@ -88,8 +102,6 @@ import { guestAnalysisNotice, guestAnalysisUsed, recordGuestAnalysis } from "../
 import {
   createCoachStartCoordinator,
   type CoachStartCoordinator,
-  coachMessageText,
-  completedCoachReport,
   isCoachInputEnabled,
 } from "../practice/coach-contract";
 import { WaitingDots } from "../practice/waiting-dots";
@@ -126,6 +138,7 @@ import {
 import {
   abandonedStage,
   currentReport,
+  type PracticeReport,
   initialWorkspaceScreen,
   isLocalVideo,
   pickedVideo,
@@ -160,14 +173,6 @@ export function WorkspaceApp() {
 // 업로드가 끝나는 지점에서 새로고침처럼 보이던 게 이것이다.
 function replaceUrl(path: string): void {
   window.history.replaceState(null, "", path);
-}
-
-/** API turns의 첫 actor 항목은 장면 폼 값이라 대화에서 실제로 보낸 답변 수에서 뺀다. */
-function dialogueTurnCount(turn: CoachTurnResponse): number {
-  return Math.max(
-    0,
-    turn.turns.filter((message) => message.role === "actor").length - 1,
-  );
 }
 
 function questionOrdinal(questionCount: number): string {
@@ -274,7 +279,6 @@ function WorkspaceInner() {
   // 게스트의 하루 3회 분석 한도. 시작 전에 알린다(practice.start). 서버가 정본이고 기기는 오늘 세어 둔 것만 보인다.
   const [guestUsed, setGuestUsed] = useState(0);
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setGuestUsed(guestAnalysisUsed());
   }, []);
   // 묶음 숨김 확인. "삭제"는 1.0.0 부터 묶음 숨김이다 — 노트·대화·기억은 남고 영상은 보관함에 남는다.
@@ -317,6 +321,11 @@ function WorkspaceInner() {
   const [sending, setSending] = useState(false);
   const [coachOpening, setCoachOpening] = useState(false);
   const coachIdRef = useRef<string | null>(null);
+  /**
+   * 대화의 낙관적 잠금 값. 답마다 실어 보내고 응답이 준 값으로 바꾼다 — 다른 곳에서 먼저
+   * 저장됐으면 409 conversation_conflict 이고, 그때는 대화를 다시 읽어 이 값을 맞춘다.
+   */
+  const revisionRef = useRef(0);
   const dialogueTurnCountRef = useRef(0);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -499,7 +508,6 @@ function WorkspaceInner() {
     trigger: reviewTrigger,
     openFromButton: openReview,
     close: closeReview,
-    markDone: markReviewDone,
   } = useExitReview(reviewArmed, view.review.kind);
 
   // 마치기로 연 후기 창을 닫으면 연습을 끝낸 것으로 보고 새 연습 준비 화면으로 돌아간다.
@@ -512,30 +520,29 @@ function WorkspaceInner() {
 
   const pushAi = useCallback(
     (
-      turn: CoachTurnResponse,
+      turn: ConversationTurnResponse,
       endedBy: "coach" | "actor_closing" = "coach",
     ) => {
-      // 코치 세션 id 는 매 응답마다 회전할 수 있어 다음 reply 에 최신 값을 쓴다.
-      coachIdRef.current = turn.session_id;
-      dialogueTurnCountRef.current = dialogueTurnCount(turn);
-      const message = coachMessageText(turn);
-      setMessages((m) => [...m, { role: "ai", text: message }]);
-      const completed = completedCoachReport(turn);
+      // 대화 id 는 회차와 1:1이라 바뀌지 않지만, revision 은 응답마다 오른다. 다음 답에 최신 값을 싣는다.
+      coachIdRef.current = turn.conversation.id;
+      revisionRef.current = turn.conversation.revision;
+      const done = isConversationDone(turn);
+      setMessages((m) => [...m, { role: "ai", text: turn.message }]);
       // 노트는 받아 두되 화면은 그대로 둔다 — 마지막 인사를 읽고 배우가 직접 넘어간다.
       dispatch({
         type: "coachTurnReceived",
-        coachId: turn.session_id,
-        done: turn.status === "complete",
-        report: completed,
+        coachId: turn.conversation.id,
+        done,
+        report: turn.note,
       });
-      if (turn.status === "complete") {
+      if (done) {
         trackPracticeDialogueCompleted(
           dialogueTurnCountRef.current,
-          completed?.report_type ?? "blocked",
+          reportTypeOf(turn.note),
           endedBy,
         );
       }
-      if (completed) void refreshList();
+      if (turn.note) void refreshList();
     },
     [refreshList],
   );
@@ -547,43 +554,55 @@ function WorkspaceInner() {
     const opened = currentReport(screen);
     if (opened && countStepOnce(currentSessionId(), "result")) {
       trackPracticeResultViewed(
-        opened.report_type,
+        reportTypeOf(opened),
         dialogueTurnCountRef.current,
         "current",
       );
     }
   }, [countStepOnce, currentSessionId, screen]);
 
-  const restoreCoach = useCallback((turn: CoachTurnResponse) => {
-    coachIdRef.current = turn.session_id;
-    dialogueTurnCountRef.current = dialogueTurnCount(turn);
-    const restored: ChatMsg[] | undefined = turn.turns?.map((message) => ({
-      role: message.role === "actor" ? "me" : "ai",
-      text: message.text,
-    }));
+  /**
+   * 대화 하나를 화면에 세운다. 새로 연 대화는 코치의 첫 말 하나가 전부이고, 이미 오간 대화를
+   * 재개하거나 충돌 뒤 다시 읽은 것이면 지난 턴이 함께 온다.
+   */
+  const restoreCoach = useCallback((turn: ConversationTurnResponse, history?: Conversation | null) => {
+    coachIdRef.current = turn.conversation.id;
+    revisionRef.current = history?.revision ?? turn.conversation.revision;
+    dialogueTurnCountRef.current = history ? actorTurnCount(history) : 0;
     setMessages(
-      restored ?? [{ role: "ai", text: coachMessageText(turn) }],
+      history ? conversationLines(history) : [{ role: "ai", text: turn.message }],
     );
-    const completed = completedCoachReport(turn);
-    // 첫 응답이 곧바로 complete 로 오는 경우가 있다. 재개 응답은 항상 continue 다.
-    // 그때도 화면은 그대로 두고 배우가 정리보기를 누를 때 넘긴다.
+    const done = isConversationDone(turn) || history?.status === "closed";
+    // 첫 응답이 곧바로 complete 로 오는 경우가 있다. 그때도 화면은 그대로 두고 배우가
+    // 정리보기를 누를 때 넘긴다.
     dispatch({
       type: "coachTurnReceived",
-      coachId: turn.session_id,
-      done: turn.status === "complete",
-      report: completed,
+      coachId: turn.conversation.id,
+      done,
+      report: turn.note,
     });
-    if (turn.status === "complete") {
+    if (done) {
       trackPracticeDialogueCompleted(
         dialogueTurnCountRef.current,
-        completed?.report_type ?? "blocked",
+        reportTypeOf(turn.note),
         "coach",
       );
     }
-    if (completed) void refreshList();
+    if (turn.note) void refreshList();
   }, [refreshList]);
 
-  const restartCoachAfterAnalysisRef = useRef(new Set<string>());
+  /**
+   * 회차마다 대화 시작에 쓰는 요청 id. 같은 회차에서 시작이 두 번 나가도(폴링이 끝난 직후와
+   * 화면 복귀) 같은 id 라 대화는 하나다(coach_conversations.start_request_id).
+   */
+  const startRequestIdsRef = useRef(new Map<string, string>());
+  const conversationRequestId = useCallback((practiceSessionId: string) => {
+    const known = startRequestIdsRef.current.get(practiceSessionId);
+    if (known) return known;
+    const created = newRequestId();
+    startRequestIdsRef.current.set(practiceSessionId, created);
+    return created;
+  }, []);
 
   const coordinatorFor = useCallback((practiceSessionId: string) => {
     if (coachCoordinatorRef.current?.sessionId === practiceSessionId) {
@@ -596,13 +615,14 @@ function WorkspaceInner() {
       setCoachOpening(true);
       setError(null);
       try {
-        const { data: start } = await startCoach({
-          practice_session_id: practiceSessionId,
-          restart: restartCoachAfterAnalysisRef.current.has(practiceSessionId),
+        const start = await startConversation(practiceSessionId, {
+          requestId: conversationRequestId(practiceSessionId),
         });
         if (!isCurrentSession(practiceSessionId)) return;
-        restartCoachAfterAnalysisRef.current.delete(practiceSessionId);
-        restoreCoach(start);
+        // 열린 대화를 재개한 것이면(revision 이 올라 있다) 지난 턴을 읽어 화면을 채운다.
+        const history = needsTurnHistory(start) ? await getConversation(start.conversation.id) : null;
+        if (!isCurrentSession(practiceSessionId)) return;
+        restoreCoach(start, history);
         if (countStepOnce(practiceSessionId, "dialogue")) {
           const context = practiceAnalyticsContextRef.current;
           if (context) {
@@ -625,7 +645,7 @@ function WorkspaceInner() {
     });
     coachCoordinatorRef.current = { sessionId: practiceSessionId, coordinator };
     return coordinator;
-  }, [countStepOnce, isCurrentSession, restoreCoach]);
+  }, [conversationRequestId, countStepOnce, isCurrentSession, restoreCoach]);
 
   const startConversationAfterAnalysis = useCallback((practiceSessionId: string) => {
     void coordinatorFor(practiceSessionId).update("analyzed").catch(() => {});
@@ -706,7 +726,8 @@ function WorkspaceInner() {
     setError(null);
     try {
       await reanalyzeSession(sessionId);
-      restartCoachAfterAnalysisRef.current.add(sessionId);
+      // 다시 분석한 회차는 대화도 새로 시작한다 — 시작 요청 id 를 버려 다음 시작이 새 요청이 되게 한다.
+      startRequestIdsRef.current.delete(sessionId);
       if (!isCurrentSession(sessionId)) return;
       coachCoordinatorRef.current = null;
       reportProgress({ type: "reset" });
@@ -888,6 +909,19 @@ function WorkspaceInner() {
   ]);
 
   const replyPendingRef = useRef(false);
+  /**
+   * 답 하나에 요청 id 하나. 같은 대화·같은 차례·같은 본문이면 같은 id 를 다시 쓴다 — 네트워크가
+   * 끊겨 다시 보내도 메시지가 둘이 되지 않는다. 본문이 달라지면 새 id 라 422 지문 불일치를 만들지 않는다.
+   */
+  const replyRequestIdsRef = useRef(new Map<string, string>());
+  const replyRequestIdFor = useCallback((conversationId: string, turnIndex: number, text: string) => {
+    const key = `${conversationId}:${turnIndex}:${text}`;
+    const known = replyRequestIdsRef.current.get(key);
+    if (known) return known;
+    const created = newRequestId();
+    replyRequestIdsRef.current.set(key, created);
+    return created;
+  }, []);
   const send = useCallback(async (reply?: string) => {
     const text = (reply ?? answer).trim();
     const practiceId = currentSessionId();
@@ -900,9 +934,15 @@ function WorkspaceInner() {
     setAnswer("");
     setSending(true);
     trackPracticeDialogueTurnSent(turnIndex, text);
+    // 같은 답의 재전송은 같은 요청 id 다 — 지문이 같아 서버가 먼저 만든 코치 응답을 그대로 준다.
+    const requestId = replyRequestIdFor(coachId, turnIndex, text);
     try {
-      const { data: turn } = await replyCoach({ session_id: coachId, text });
+      const turn = await replyConversation(
+        { conversationId: coachId, text, revision: revisionRef.current },
+        { requestId },
+      );
       if (!isCurrentSession(practiceId) || coachIdRef.current !== coachId) return;
+      dialogueTurnCountRef.current = turnIndex;
       pushAi(turn, isActorClosing(text) ? "actor_closing" : "coach");
     } catch (reason) {
       if (!isCurrentSession(practiceId) || coachIdRef.current !== coachId) return;
@@ -914,14 +954,31 @@ function WorkspaceInner() {
           close: () => {
             coachIdRef.current = null;
             dispatch({ type: "coachTurnReceived", coachId, done: true, report: null });
-            setError("이미 마친 대화예요. 저장된 연습 노트를 확인해 주세요.");
+            setError(conversationErrorMessage(reason));
           },
-          load: () => getReport(practiceId),
+          load: async () => ({ report: await getPracticeNote(practiceId) }),
           restore: (report) => {
             dispatch({ type: "coachTurnReceived", coachId, done: true, report });
           },
-          unavailable: () => setError("대화는 종료됐지만 노트를 불러오지 못했어요. 지난 연습에서 다시 열어 주세요."),
+          unavailable: () => setError("대화는 마쳤지만 노트를 불러오지 못했어요. 지난 연습에서 다시 열어 주세요."),
         });
+      } else if (isConversationConflict(reason)) {
+        // 다른 곳에서 먼저 저장됐다. 쓴 답은 그대로 돌려주고 최신 대화를 읽어 revision 을 맞춘다 —
+        // 그러면 배우는 같은 답을 다시 보내기만 하면 된다.
+        setAnswer(text);
+        setError(conversationErrorMessage(reason));
+        try {
+          const latest = await getConversation(coachId);
+          if (!isCurrentSession(practiceId) || coachIdRef.current !== coachId) return;
+          revisionRef.current = latest.revision;
+          dialogueTurnCountRef.current = actorTurnCount(latest);
+          setMessages(conversationLines(latest));
+          if (latest.status === "closed") {
+            dispatch({ type: "coachTurnReceived", coachId, done: true, report: null });
+          }
+        } catch {
+          // 다시 읽지 못했다. 답은 화면에 남아 있고 다시 보내면 그때 최신 값을 받는다.
+        }
       } else {
         setAnswer(text);
         setError(coachReplyError(reason));
@@ -930,7 +987,7 @@ function WorkspaceInner() {
       replyPendingRef.current = false;
       setSending(false);
     }
-  }, [answer, sending, pushAi, screen.kind, currentSessionId, isCurrentSession]);
+  }, [answer, sending, pushAi, replyRequestIdFor, screen.kind, currentSessionId, isCurrentSession]);
 
   const restartAfterBlocked = useCallback(async () => {
     const practiceSessionId = currentSessionId();
@@ -944,16 +1001,19 @@ function WorkspaceInner() {
     coachIdRef.current = null;
     dialogueTurnCountRef.current = 0;
     try {
-      const { data } = await startCoach({
-        practice_session_id: practiceSessionId,
-        restart: true,
+      // 열린 대화면 서버가 같은 대화를 그대로 돌려준다. 닫힌 대화는 다시 열 수 없어
+      // 409 conversation_closed 가 오고, 그 문구가 새 회차로 가라고 말한다(practice.resume).
+      const start = await startConversation(practiceSessionId, {
+        requestId: newRequestId(),
       });
       if (!isCurrentSession(practiceSessionId)) return;
-      restoreCoach(data);
-    } catch {
+      const history = needsTurnHistory(start) ? await getConversation(start.conversation.id) : null;
+      if (!isCurrentSession(practiceSessionId)) return;
+      restoreCoach(start, history);
+    } catch (reason) {
       trackPracticeDialogueStartFailed(true);
       if (isCurrentSession(practiceSessionId)) {
-        setError("대화를 다시 시작하지 못했어요. 잠시 후 다시 시도해 주세요.");
+        setError(conversationErrorMessage(reason, "대화를 다시 시작하지 못했어요. 잠시 후 다시 시도해 주세요."));
       }
     } finally {
       // 코치를 기다리는 표시는 화면의 것이라 지금 화면일 때만 내린다. 도는 일 쪽은
@@ -1548,8 +1608,9 @@ function WorkspaceInner() {
       {reviewTrigger ? (
         <ExitReviewModal
           trigger={reviewTrigger}
+          screen={feedbackScreen(view.review.kind)}
+          practiceId={activeId}
           onClose={onReviewClose}
-          onSubmitted={markReviewDone}
         />
       ) : null}
     </div>
@@ -2557,7 +2618,7 @@ function NotePanel({
   /** 영상이 파기됐으면 같은 영상으로는 이어갈 수 없다. */
   canReuseVideo: boolean;
 }) {
-  if (report.report_type === "blocked") {
+  if (isBlockedReport(report)) {
     return (
       <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <div className="min-h-0 flex-1 overflow-y-auto bg-[#f7faff] p-4 sm:p-5">

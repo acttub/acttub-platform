@@ -14,7 +14,11 @@
 // blockage-flow.ts 와 같은 모양이고, 마크업을 단언하지 않는다는 규칙
 // (apps/web/CLAUDE.md)을 지키면서 전이를 고정할 수 있는 표면이다.
 
-import type { PracticeReport, PracticeSessionStatus } from "@/lib/api/v2/types";
+import type { PracticeNote } from "@/lib/practice/api-types";
+import type { PracticeSessionStatus, PracticeReport as LegacyPracticeReport } from "@/lib/api/v2/types";
+
+/** 화면이 드는 노트. 신형(practice.note)과 옛 갈래의 결과가 같은 자리에 선다. */
+export type PracticeReport = LegacyPracticeReport | PracticeNote;
 
 /**
  * 배우가 방금 고른 로컬 원본. 파일과 그 blob 주소는 늘 함께 서고 함께 사라진다 —

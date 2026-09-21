@@ -203,7 +203,7 @@ export async function startPractice({
     const { practice } = continueFromId
       ? await continuePractice(
           continueFromId,
-          reuseVideo ? { scene: body.scene, blockage: body.blockage, client_experience: body.client_experience } : body,
+          reuseVideo ? { scene: body.scene, blockage: body.blockage } : body,
           { requestId, signal },
         )
       : await createPractice(body, { requestId, signal });

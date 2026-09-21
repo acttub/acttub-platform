@@ -7,7 +7,8 @@
 // 어느 화면인가와 그 화면이 무엇을 들고 있는가는 workspace-state.ts 가 정하고,
 // 여기는 그것으로 무엇을 그리는지만 정한다.
 
-import type { PracticeReport } from "@/lib/api/v2/types";
+import { isBlockedReport } from "../practice/practice-note";
+import type { PracticeReport } from "./workspace-state";
 import { isChatScreen, isLocalVideo, type WorkspaceScreen } from "./workspace-state";
 
 /**
@@ -90,7 +91,7 @@ function describeBody(input: WorkspaceViewInput): WorkspaceViewBody {
     return {
       kind: "note",
       report: screen.report,
-      backTo: screen.report.report_type === "blocked" ? "restart" : "chat",
+      backTo: isBlockedReport(screen.report) ? "restart" : "chat",
     };
   }
   if (isChatScreen(screen)) {

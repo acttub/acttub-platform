@@ -62,7 +62,6 @@ test("practice.start: 확정된 영상으로 회차를 만든다 — 요청 id �
     video_id: "v-1",
     scene: { situation: "면접 첫 인사", character: "긴장한 지원자", goal: "담담하게 말하기" },
     blockage: { category: "표현", detail: "몸이 굳어요", note: null },
-    client_experience: "three_layers_v1",
   });
 });
 

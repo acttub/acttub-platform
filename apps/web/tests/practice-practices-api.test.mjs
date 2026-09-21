@@ -76,7 +76,6 @@ const START = {
   video_id: "v-1",
   scene: { situation: "  면접 첫 인사 ", character: "", goal: "" },
   blockage: { category: "표현", detail: "감정", note: null },
-  client_experience: "three_layers_v1",
 };
 
 test("practice.start: 시작은 POST /v2/practices 에 request_id(본문+헤더)·video_id·장면·막힘·경험 판을 싣고, 같은 요청 id 재전송은 같은 회차다", async () => {
@@ -92,10 +91,10 @@ test("practice.start: 시작은 POST /v2/practices 에 request_id(본문+헤더)
 
 test("practice.resume: 이어하기는 POST /v2/practices/{id}/continue 이고 같은 영상이면 video_id 를 싣지 않는다", async () => {
   const calls = recordFetch({ "POST /v2/practices/p-1/continue": () => jsonResponse(practice({ id: "p-2", ordinal: 2 }), 201) });
-  const same = await continuePractice("p-1", { scene: START.scene, blockage: START.blockage, client_experience: "legacy" }, { requestId: "r-1" });
+  const same = await continuePractice("p-1", { scene: START.scene, blockage: START.blockage }, { requestId: "r-1" });
   assert.equal(same.practice.ordinal, 2);
   assert.equal("video_id" in calls[0].body, false);
-  await continuePractice("p-1", { video_id: "v-9", scene: START.scene, blockage: START.blockage, client_experience: "legacy" }, { requestId: "r-2" });
+  await continuePractice("p-1", { video_id: "v-9", scene: START.scene, blockage: START.blockage }, { requestId: "r-2" });
   assert.equal(calls[1].body.video_id, "v-9");
 });
 
@@ -138,11 +137,16 @@ test("practice.analyze: 상태는 10초 간격으로 읽고 succeeded·failed �
   assert.equal(detail.id, "p-1");
 });
 
-test("practice.analyze: 명시적 재시도는 POST /v2/practices/{id}/retry 이고 새 작업과 함께 analyzing 으로 돌아간다", async () => {
-  const calls = recordFetch({ "POST /v2/practices/p-1/retry": () => jsonResponse(practice({ stage: "analyzing", job: { id: "j-2", status: "pending", failure_reason: null } })) });
-  const retried = await reanalyzeSession("p-1");
+test("practice.analyze: 명시적 재시도는 POST /v2/practices/{id}/analyze 이고 요청 id 로 멱등하다", async () => {
+  const calls = recordFetch({ "POST /v2/practices/p-1/analyze": () => jsonResponse(practice({ stage: "analyzing", job: { id: "j-2", status: "pending", failure_reason: null } })) });
+
+  const retried = await reanalyzeSession("p-1", { requestId: "req-retry" });
+
   assert.equal(retried.job.id, "j-2");
-  assert.equal(calls[0].route, "POST /v2/practices/p-1/retry");
+  assert.equal(calls[0].route, "POST /v2/practices/p-1/analyze");
+  // 두 번 눌러도 작업이 하나가 되도록 요청 id 를 본문과 헤더에 함께 싣는다.
+  assert.deepEqual(calls[0].body, { request_id: "req-retry" });
+  assert.equal(calls[0].requestId, "req-retry");
 });
 
 test("practice.start·resume·analyze: 회차 오류 코드마다 화면 문구가 있다", () => {
