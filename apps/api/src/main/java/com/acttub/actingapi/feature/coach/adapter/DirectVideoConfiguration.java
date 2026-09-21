@@ -18,6 +18,21 @@ import org.springframework.util.unit.DataSize;
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnExpression("'${SITE_URL:}' == 'https://dev.acttub.com' && '${ACTTUB_DIRECT_VIDEO_ENABLED:true}' == 'true'")
 public class DirectVideoConfiguration {
+    @Bean
+    com.acttub.actingapi.integration.observation.DirectVideoModel directVideoModel(Client client,
+            @Value("${GEMINI_MODEL:gemini-3-flash-preview}") String model) {
+        return new GeminiDirectVideoModel(client, model);
+    }
+
+    @Bean
+    com.acttub.actingapi.feature.coach.app.DirectVideoCoach directVideoCoach(
+            com.acttub.actingapi.integration.observation.DirectVideoModel model,
+            com.acttub.actingapi.feature.coach.app.CoachVideoSource videos,
+            com.acttub.actingapi.integration.storage.ObjectStorage storage,
+            FailureReporter failures, com.acttub.actingapi.platform.observability.LlmTelemetry telemetry) {
+        return new com.acttub.actingapi.feature.coach.app.DirectVideoCoach(model, videos, storage, failures, telemetry);
+    }
+
     @Bean(destroyMethod = "close")
     DirectVideoSessions directVideoSessions(Client client, FailureReporter failures, Clock clock,
             @Value("${GEMINI_MODEL:gemini-3-flash-preview}") String model) {
