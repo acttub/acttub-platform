@@ -193,14 +193,13 @@ class CoachReadsProfileIT {
                 VALUES (?,?,'gender','남','actor'),(?,?,'goal','입시 합격','actor')
                 """, UUID.randomUUID(), user, UUID.randomUUID(), user);
         UUID practice = structuredPractice();
-        // 라우팅 경로(luna_routes_v1)는 한 턴에 분류 → 생성 → 다듬기 세 번 부른다. 프로필은 생성 호출에만 실린다.
-        generator.enqueue("{\"route\":\"understand_scene\"}");
+        // 라우팅 경로(dialogue_actions_v2)는 한 턴에 분류 → 생성 두 번 부른다. 프로필은 생성 호출에만 실린다.
+        generator.enqueue("{\"route\":\"respond\"}");
         generator.enqueue(structuredDraft("“가지 마”를 듣고 상대가 어떻게 하길 바랐어요?", true));
-        generator.enqueue("{\"message\":\"“가지 마”를 듣고 상대가 어떻게 하길 바랐어요?\"}");
 
         JsonNode started = start(practice, "three_layers_v1");
 
-        assertThat(generator.inputs()).as("분류·생성·다듬기").hasSize(3);
+        assertThat(generator.inputs()).as("분류·생성").hasSize(2);
         JsonNode opening = mapper.readTree(generator.inputs().get(1));
         assertThat(opening.path("actor_profile")).isEqualTo(mapper.readTree("""
                 {"name":"%s","gender":"여성","age":%d,"directions":["매체(TV·영화)"],
@@ -210,16 +209,13 @@ class CoachReadsProfileIT {
         assertThat(opening.path("prior_context").path("memory"))
                 .isEqualTo(mapper.readTree("{\"goal\":\"입시 합격\"}"));
         assertThat(generator.instructions().get(1)).contains("[actor_profile]");
-        // 분류와 다듬기는 프로필을 받지 않는다 — 이름이 실리는 호출을 생성 하나로 한정한다.
+        // 분류는 프로필을 받지 않는다 — 이름이 실리는 호출을 생성 하나로 한정한다.
         assertThat(mapper.readTree(generator.inputs().get(0)).has("actor_profile")).as("분류 입력").isFalse();
         assertThat(generator.instructions().get(0)).doesNotContain("[actor_profile]");
-        assertThat(mapper.readTree(generator.inputs().get(2)).has("actor_profile")).as("다듬기 입력").isFalse();
-        assertThat(generator.instructions().get(2)).doesNotContain("[actor_profile]");
 
         UUID session = UUID.fromString(started.path("session_id").asText());
-        // 마무리 턴은 분류를 건너뛴다: 생성 → 다듬기 → 노트.
+        // 마무리 턴은 분류를 건너뛴다: 생성 → 노트.
         generator.enqueue(structuredDraft("오늘 나눈 내용까지만 남겨둘게요.", false));
-        generator.enqueue("{\"message\":\"오늘 나눈 내용까지만 남겨둘게요.\"}");
         generator.enqueue("{\"summary\":[],\"next_take\":null}");
 
         JsonNode finished = reply(session, "three_layers_v1");
@@ -287,7 +283,7 @@ class CoachReadsProfileIT {
      * 파기해도 거기 남은 것은 서버가 지울 수 없다. 나머지 프로필은 입력을 읽는 사람이 맥락을 알 수 있게 남긴다.
      */
     /**
-     * 모델에는 이름을 그대로 보내고, 텔레메트리에는 가려 보낸다. 프로필이 실리지 않는 호출(라우팅 경로의 분류·다듬기)은
+     * 모델에는 이름을 그대로 보내고, 텔레메트리에는 가려 보낸다. 프로필이 실리지 않는 호출(라우팅 경로의 분류)은
      * 어느 쪽에도 프로필이 없다 — 기록에 이름도, 남겨 두는 값도 없어야 한다.
      */
     private void assertTheNameStaysOutOfTheTelemetry(String keptProfileValue) {

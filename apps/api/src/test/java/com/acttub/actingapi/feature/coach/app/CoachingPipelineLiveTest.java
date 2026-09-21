@@ -27,16 +27,16 @@ class CoachingPipelineLiveTest {
         CoachResult result = engine.start(session, UUID.randomUUID());
         transcript.add("AI: " + result.reply().message());
         for (String actor : List.of("상대가 떠나는 걸 막으려고 하는 말이에요.", "영상에서는 그 의도가 어떻게 보여요?",
-                "그럼 상대를 붙잡으려면 어떻게 말하면 될까요?", "방금 해보니 덜 급해졌는데 상대를 붙잡는 느낌은 약해졌어요.", "여기까지 할게요")) {
+                "어떻게 붙잡아야 할지 모르겠어요.", "방금 설명이 무슨 말이에요?", "아니요, 붙잡으려는 게 아니라 열쇠를 돌려받으려는 거예요.", "여기까지 할게요")) {
             transcript.add("ACTOR: " + actor);
             result = engine.reply(result.session(), actor, UUID.randomUUID());
             transcript.add("AI: " + result.reply().message());
-            assertThat(result.reply().message()).isNotBlank().doesNotContain("source_refs", "understand_scene", "{\"message\"");
+            assertThat(result.reply().message()).isNotBlank().doesNotContain("source_refs", "advance", "scaffold", "repair", "respond", "{\"message\"");
         }
         Files.createDirectories(Path.of("build/route-eval"));
         Files.writeString(Path.of("build/route-eval/synthetic-conversation.txt"), String.join("\n\n", transcript));
         assertThat(result.reply().status()).isEqualTo("complete");
         StructuredJson.validate("coach_handoff_v2", result.reply().handoff());
-        assertThat(result.reply().handoff().path("conversation")).hasSize(11);
+        assertThat(result.reply().handoff().path("conversation")).hasSize(13);
     }
 }
