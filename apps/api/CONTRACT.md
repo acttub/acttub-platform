@@ -882,8 +882,19 @@ Docker API 버전 협상이 실패하면 소켓 접근이 가능해도 `/info`�
 
 ### 8-5. 영상만 올리는 새 코칭 계약 (SOMA-526)
 
+**Gemini 직접 영상 코칭(2026-09-21):** 배포가 `ACTTUB_THREE_LAYERS_ENABLED=true`와
+`ACTTUB_DIRECT_VIDEO_ENABLED=true`를 명시하면 영상 전용 신규 연습은 1층 AI 분석을 생략한다.
+업로드 무결성과 길이를 확인하고 빈 관찰 팩으로 기존 분석 작업을 완료한다. 기존 코치 API가
+소유한 원본 영상과 해당 세션의 실제 대화 원문을 Gemini에 전달한다. 시스템 지시는
+`DirectVideoPrompts.common()` 하나이며 분류·추가 교정·JSON 출력 프롬프트를 붙이지 않는다.
+코치 응답은 기존 turn/revision/멱등 저장 계약을 따른다. 종료와 10회 제한, handoff v2 및 3층 노트는
+유지한다. 자유 형식 응답을 구조화된 관찰·확인된 배우 의도로 승격하지 않는다.
+매 요청의 Gemini 파일과 로컬 임시 파일은 성공·실패 모두 정리한다.
+공개 API·DB·계정·기존 화면은 바꾸지 않는다. legacy 연습과 설정이 꺼진 환경은 아래 경로를 유지한다.
+설정을 끈 뒤에는 분석을 생략한 세션 대신 영상을 새로 올린다.
+
 아래 첫 질문·단일 프롬프트 설명은 legacy 및 `acttub.coaching.routed-enabled=false` 롤백 경로에 해당한다.
-현재 기본 2층은 [Luna 분류와 코드 기반 선택](../../docs/design/LAYER2-LUNA-ROUTES.md)을 따른다.
+Gemini 직접 영상 코칭이 꺼진 환경의 기본 2층은 [Luna 분류와 코드 기반 선택](../../docs/design/LAYER2-LUNA-ROUTES.md)을 따른다.
 첫 질문 개정(SOMA-531): 기존 기본 코치와 구조화 코치는 공통 `coach/coach-opening-policy.txt`를 사용한다.
 전체 흐름에서 중요한 지점을 고르고 답에 따라 살펴볼 기준이 달라지는 쉬운 질문 하나로 시작한다.
 기본 코치에 있던 질문 없는 관찰·해석 시작은 폐기한다. 근거가 있는 첫 응답은 질문 누락·중복과
