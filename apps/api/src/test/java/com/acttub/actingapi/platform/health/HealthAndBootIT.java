@@ -128,7 +128,8 @@ class HealthAndBootIT {
         assertThat(generated.at("/paths/~1v2~1reports/post").isMissingNode()).isFalse();
         assertThat(generated.at("/paths/~1v2~1coach~1start").isMissingNode()).isFalse();
         assertThat(generated.at("/paths/~1v2~1coach~1reply").isMissingNode()).isFalse();
-        assertThat(generated.at("/paths/~1v2~1coach~1confirm").isMissingNode()).isFalse();
+        // 옛 흐름의 확정은 `/v2/legacy-coach` 로 옮겼다 — 1.0.0 회차의 대화가 `/v2/coach` 를 쓴다(§6-15).
+        assertThat(generated.at("/paths/~1v2~1legacy-coach~1confirm").isMissingNode()).isFalse();
     }
 
     @Test

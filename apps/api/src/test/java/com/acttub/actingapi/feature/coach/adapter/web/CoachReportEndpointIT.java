@@ -111,7 +111,7 @@ class CoachReportEndpointIT {
                 com.acttub.actingapi.integration.llm.StructuredJson.resource("/coaching/record.json");
         record.put("record_id", summaryId.toString());
         jdbc.update("UPDATE summaries SET raw=?::jsonb WHERE session_id=?", record.toString(), practice.id());
-        var start = post("/v2/coach/start").contentType(MediaType.APPLICATION_JSON)
+        var start = post("/v2/legacy-coach/start").contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", bearer(user)).header("X-Request-Id", UUID.randomUUID())
                 .content("{\"practice_session_id\":\"" + practice.id() + "\"}");
         assertError(start, 409, "client_contract_required");
@@ -135,7 +135,7 @@ class CoachReportEndpointIT {
         generator.enqueue("{\"message\":\"오늘 나눈 내용까지만 남겨둘게요.\"}");
         generator.enqueue("{\"summary\":[],\"next_take\":null}");
         UUID requestId = UUID.randomUUID();
-        var finish = post("/v2/coach/reply").contentType(MediaType.APPLICATION_JSON)
+        var finish = post("/v2/legacy-coach/reply").contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", bearer(user)).header("X-Request-Id", requestId)
                 .header("X-Acttub-Contract", "three_layers_v1")
                 .content("{\"session_id\":\"" + session + "\",\"text\":\"정리해줘\"}");
@@ -212,7 +212,7 @@ class CoachReportEndpointIT {
         jdbc.update("UPDATE summaries SET raw=?::jsonb WHERE session_id=?", raw, practice.id());
         generator.enqueue(COACH_REPLY);
 
-        JsonNode started = successful(post("/v2/coach/start")
+        JsonNode started = successful(post("/v2/legacy-coach/start")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", bearer(userId))
                 .header("X-Request-Id", UUID.randomUUID())
@@ -238,7 +238,7 @@ class CoachReportEndpointIT {
                 WHERE session_id=?
                 """, practice.id());
         generator.enqueue(COACH_REPLY);
-        JsonNode started = successful(post("/v2/coach/start")
+        JsonNode started = successful(post("/v2/legacy-coach/start")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", bearer(userId))
                 .header("X-Request-Id", UUID.randomUUID())
@@ -293,7 +293,7 @@ class CoachReportEndpointIT {
                 new CoachTurnSnapshot("actor", "배우 말"),
                 new CoachTurnSnapshot("ai", "저장된 질문")));
 
-        JsonNode response = successful(post("/v2/coach/start")
+        JsonNode response = successful(post("/v2/legacy-coach/start")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", bearer(userId))
                 .header("X-Request-Id", UUID.randomUUID())
@@ -322,7 +322,7 @@ class CoachReportEndpointIT {
         JsonNode report = analysisReport(handoffId);
         insertReport(practice.id(), handoffId, report);
 
-        var resume = mvc.perform(post("/v2/coach/start")
+        var resume = mvc.perform(post("/v2/legacy-coach/start")
                         .contentType(MediaType.APPLICATION_JSON)
                         .header("Authorization", bearer(userId))
                         .header("X-Request-Id", UUID.randomUUID())
@@ -343,7 +343,7 @@ class CoachReportEndpointIT {
                         """.formatted(sessionId)));
         assertThat(created).isEqualTo(report);
 
-        JsonNode confirmed = successful(post("/v2/coach/confirm")
+        JsonNode confirmed = successful(post("/v2/legacy-coach/confirm")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", bearer(userId))
                 .header("X-Request-Id", UUID.randomUUID())
@@ -368,7 +368,7 @@ class CoachReportEndpointIT {
         generator.enqueue("not-json");
         UUID requestId = UUID.randomUUID();
 
-        var failed = mvc.perform(post("/v2/coach/confirm")
+        var failed = mvc.perform(post("/v2/legacy-coach/confirm")
                         .contentType(MediaType.APPLICATION_JSON)
                         .header("Authorization", bearer(userId))
                         .header("X-Request-Id", requestId)
@@ -390,7 +390,7 @@ class CoachReportEndpointIT {
                 .containsEntry("status", "failed")
                 .containsEntry("error_code", "report_parse_error");
 
-        var reply = mvc.perform(post("/v2/coach/reply")
+        var reply = mvc.perform(post("/v2/legacy-coach/reply")
                         .contentType(MediaType.APPLICATION_JSON)
                         .header("Authorization", bearer(userId))
                         .header("X-Request-Id", UUID.randomUUID())
@@ -565,7 +565,7 @@ class CoachReportEndpointIT {
         UUID userId = insertMember();
         UUID sessionId = openCoachSession(userId);
 
-        var response = mvc.perform(post("/v2/coach/confirm")
+        var response = mvc.perform(post("/v2/legacy-coach/confirm")
                         .contentType(MediaType.APPLICATION_JSON)
                         .header("Authorization", bearer(userId))
                         .header("X-Request-Id", UUID.randomUUID())
@@ -723,7 +723,7 @@ class CoachReportEndpointIT {
 
     private MockHttpServletRequestBuilder coachStart(
             UUID userId, UUID practiceId, UUID requestId) {
-        return post("/v2/coach/start")
+        return post("/v2/legacy-coach/start")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", bearer(userId))
                 .header("X-Request-Id", requestId)
@@ -732,7 +732,7 @@ class CoachReportEndpointIT {
 
     private MockHttpServletRequestBuilder coachReply(
             UUID userId, UUID sessionId, UUID requestId) {
-        return post("/v2/coach/reply")
+        return post("/v2/legacy-coach/reply")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", bearer(userId))
                 .header("X-Request-Id", requestId)
@@ -741,7 +741,7 @@ class CoachReportEndpointIT {
 
     private MockHttpServletRequestBuilder coachConfirm(
             UUID userId, UUID sessionId, UUID requestId) {
-        return post("/v2/coach/confirm")
+        return post("/v2/legacy-coach/confirm")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", bearer(userId))
                 .header("X-Request-Id", requestId)

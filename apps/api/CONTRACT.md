@@ -1079,9 +1079,34 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   - **받아쓰기는 영상당 묶음 하나**다(`uq_video_transcripts_video`). 같은 영상의 다음 회차는 새로 만들지 않고 먼저
     만든 묶음을 재사용한다.
   - 예약 장부에 **검증값이 없는 영상은 견주지 않는다** — 없는 것을 불일치로 보면 그 회차가 재큐만 되풀이하다 실패한다.
-- **옛 흐름은 아직 그대로다** — `/v2/uploads/**`·`/v2/practice-sessions/**`·`/v2/coach/**`·`/v2/reports/**`. 코치·노트가
-  `practice_session_id` 에 매여 있어 함께 내려야 하고, 그 전환은 PA4 의 일이다(조정자 결정 2026-09-21). 새 회차 흐름은
-  `video_id` 기반이라 옛 것과 겹치지 않으므로 둘이 함께 선다. 코치·노트를 `practice_id` 로 옮길 때 이 절을 맞춘다.
+- **코치 대화**(`/v2/coach/**`, `feature/coach` 의 1.0.0 코드) — 회차에 대화는 하나다(`coach_conversations.practice_id`
+  유일). 열린 대화는 같은 id 로 재개하고 닫힌 뒤 다시 코칭하려면 새 회차다.
+  - **바꾼 것은 저장뿐이다.** 코치의 행동 규칙(응답 상한 8/10, 첫 응답 경로, 도움 버튼, 상태 json 의 출처 분리,
+    프로필 조건부 입력)은 `CoachEngine`·`CoachPrompt` 가 그대로 갖고 있고(§7·§8, ADR-027), 새 저장소는 엔진이 쓰는
+    `CoachSessionSnapshot` 을 `practices`·`analyses`·`videos`·`coach_*` 에서 만들어 건넨다.
+  - **시작** `POST /v2/coach/start` `{practice_id, request_id}`: 회차의 `stage` 가 `conversing` 이 아니면 409
+    `analysis_not_ready` 다 — 분석이 결과를 저장할 때 그 값이 된다(§6-15 분석). `start_request_id` 로 멱등하다.
+  - **답장** `POST /v2/coach/reply` `{conversation_id, request_id, text, revision}`: 배우 답은 300자까지다.
+    `(conversation_id, request_id)` 로 멱등하고 같은 id 에 다른 본문이면 422 `request_fingerprint_mismatch`,
+    `revision` 이 다르면 409 `conversation_conflict`, 닫힌 대화면 409 `conversation_closed` 다. **바깥 호출(LLM)은
+    트랜잭션 밖**이고 저장할 때 대화 행을 잠가 `state_revision` 을 다시 본다(§5-4).
+  - 응답은 `{conversation, message, note}` 이고 `conversation` 에 `status`·`revision`·`coach_reply_count`·
+    `reply_limit`·`messages` 가 있다 — 화면이 남은 응답 수와 마무리 예고를 그린다.
+  - **대화 조회** `GET /v2/coach/conversations/{id}`: 409 뒤 최신 상태를 다시 읽는 자리이자 회차의 이전 대화를
+    펼치는 자리다. 없는 것과 남의 것은 같은 404.
+- **연습 노트**(`coach_notes`, `GET /v2/practices/{id}/note`) — 대화와 1:1 이고 닫힐 때 **한 번** 만든다(고정된 종료
+  `source_revision`). 재생성 요청은 같은 노트를 돌려받는다.
+  - **만들지 않는 조건**이 갈래마다 다르다: 기존 갈래는 종료어·도움말을 뺀 배우 답이 2개 미만이면 만들지 않고
+    (화면은 "아직 정리 없음"), 신형은 조기 종료에도 남긴다 — 제안이 있으면 `action`, 초점만 남았으면
+    `observation`, 초점도 없으면 `record_only` 이고 그때 **제목은 NULL** 이다.
+  - 생성이 실패하면 **한 번 재시도**하고 그래도 실패하면 기존 갈래는 노트가 없고 신형은 확인된 것만 담은 폴백
+    (`fallback = true`)을 남긴다.
+  - 생성기가 낸 **원문 전체**를 `legacy_report` 에 함께 둔다 — 컬럼 이름은 옛 것이지만 신형도 여기에 둔다. 옛 공개
+    필드를 읽던 화면이 그대로 쓰는 호환 응답의 재료다.
+- **옛 흐름은 아직 그대로다** — `/v2/uploads/**`·`/v2/practice-sessions/**`·`/v2/reports/**`, 그리고 옛 코치가 옮겨 간
+  **`/v2/legacy-coach/**`**. 1.0.0 대화가 `/v2/coach` 를 쓰게 되면서 옛 코치 컨트롤러의 경로만 바꿔 살려 두었다 —
+  그것이 지키던 행동 규칙 테스트(프로필 입력·관찰 읽기·확정 흐름)가 아직 유일한 방어선이기 때문이다. 옛 연습
+  흐름을 내릴 때 함께 사라진다(PA6).
 - OpenAPI 컴포넌트: 보관함은 `Video`·`VideoList`·`VideoUsage`·`VideoIntent`·`VideoIntentRequest`·`VideoPatch`, 회차는
   `Practice`·`PracticeGroup`·`PracticeGroupList`·`PracticeStatus`·`PracticeJob`·`PracticeScene`·`PracticeBlockage`·
   `PracticeCreateRequest`·`PracticeContinueRequest`·`PracticeAnalyzeRequest`·`PracticeGroupPatch`.

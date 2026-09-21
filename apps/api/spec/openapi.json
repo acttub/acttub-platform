@@ -1592,6 +1592,171 @@
         } ]
       }
     },
+    "/v2/legacy-coach/start" : {
+      "post" : {
+        "tags" : [ "v2-coach" ],
+        "summary" : "Coach Start",
+        "operationId" : "coach_start_v2_coach_start_post",
+        "parameters" : [ {
+          "name" : "X-Request-Id",
+          "in" : "header",
+          "required" : false,
+          "schema" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "X-Request-Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CoachStartReq"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CoachTurnResponse"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/legacy-coach/reply" : {
+      "post" : {
+        "tags" : [ "v2-coach" ],
+        "summary" : "Coach Reply",
+        "operationId" : "coach_reply_v2_coach_reply_post",
+        "parameters" : [ {
+          "name" : "X-Request-Id",
+          "in" : "header",
+          "required" : false,
+          "schema" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "X-Request-Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CoachReplyReq"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CoachTurnResponse"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/legacy-coach/confirm" : {
+      "post" : {
+        "tags" : [ "v2-coach" ],
+        "summary" : "Coach Confirm",
+        "operationId" : "coach_confirm_v2_coach_confirm_post",
+        "parameters" : [ {
+          "name" : "X-Request-Id",
+          "in" : "header",
+          "required" : false,
+          "schema" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "X-Request-Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CoachConfirmReq"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CoachConfirmResponse"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/guest/transfer-code" : {
       "post" : {
         "tags" : [ "v2-guest" ],
@@ -1723,26 +1888,14 @@
     "/v2/coach/start" : {
       "post" : {
         "tags" : [ "v2-coach" ],
-        "summary" : "Coach Start",
-        "operationId" : "coach_start_v2_coach_start_post",
-        "parameters" : [ {
-          "name" : "X-Request-Id",
-          "in" : "header",
-          "required" : false,
-          "schema" : {
-            "anyOf" : [ {
-              "type" : "string"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "X-Request-Id"
-          }
-        } ],
+        "summary" : "Start Coach Conversation",
+        "description" : "분석이 끝난 회차에서 대화를 연다. 같은 요청 id 의 재전송과 이미 열린 대화는 같은 대화를 돌려주고,\n분석이 아직이면 409 analysis_not_ready, 닫힌 대화가 있으면 409 conversation_closed 다(다시 코칭하려면\n새 회차다).",
+        "operationId" : "start_coach_conversation_v2_coach_start_post",
         "requestBody" : {
           "content" : {
             "application/json" : {
               "schema" : {
-                "$ref" : "#/components/schemas/CoachStartReq"
+                "$ref" : "#/components/schemas/CoachStartRequest"
               }
             }
           },
@@ -1754,7 +1907,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/CoachTurnResponse"
+                  "$ref" : "#/components/schemas/CoachTurnResult"
                 }
               }
             }
@@ -1778,26 +1931,14 @@
     "/v2/coach/reply" : {
       "post" : {
         "tags" : [ "v2-coach" ],
-        "summary" : "Coach Reply",
-        "operationId" : "coach_reply_v2_coach_reply_post",
-        "parameters" : [ {
-          "name" : "X-Request-Id",
-          "in" : "header",
-          "required" : false,
-          "schema" : {
-            "anyOf" : [ {
-              "type" : "string"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "X-Request-Id"
-          }
-        } ],
+        "summary" : "Reply To Coach",
+        "description" : "대화를 한 턴 잇는다. 같은 요청 id·같은 본문의 재전송은 그 요청이 만든 코치 응답·종료·노트 결과를\n그대로 돌려주고, 다른 본문이면 422 request_fingerprint_mismatch 다. revision 이 다르면 409\nconversation_conflict(화면은 입력을 보존한 채 대화를 다시 읽는다), 닫힌 대화면 409\nconversation_closed. 답은 300자까지이고 \"그만\"이라고 쓰면 마친다.",
+        "operationId" : "reply_to_coach_v2_coach_reply_post",
         "requestBody" : {
           "content" : {
             "application/json" : {
               "schema" : {
-                "$ref" : "#/components/schemas/CoachReplyReq"
+                "$ref" : "#/components/schemas/CoachReplyRequest"
               }
             }
           },
@@ -1809,62 +1950,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/CoachTurnResponse"
-                }
-              }
-            }
-          },
-          "422" : {
-            "description" : "Validation Error",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        },
-        "security" : [ {
-          "HTTPBearer" : [ ]
-        } ]
-      }
-    },
-    "/v2/coach/confirm" : {
-      "post" : {
-        "tags" : [ "v2-coach" ],
-        "summary" : "Coach Confirm",
-        "operationId" : "coach_confirm_v2_coach_confirm_post",
-        "parameters" : [ {
-          "name" : "X-Request-Id",
-          "in" : "header",
-          "required" : false,
-          "schema" : {
-            "anyOf" : [ {
-              "type" : "string"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "X-Request-Id"
-          }
-        } ],
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/CoachConfirmReq"
-              }
-            }
-          },
-          "required" : true
-        },
-        "responses" : {
-          "200" : {
-            "description" : "Successful Response",
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/CoachConfirmResponse"
+                  "$ref" : "#/components/schemas/CoachTurnResult"
                 }
               }
             }
@@ -2837,6 +2923,39 @@
         } ]
       }
     },
+    "/v2/practices/{practice_id}/note" : {
+      "get" : {
+        "tags" : [ "v2-practices" ],
+        "summary" : "Get Practice Note",
+        "description" : "그 회차의 연습 노트. 대화가 닫힐 때 한 번 만들고 다시 만들지 않는다 — 없으면 404 note_not_found\n이고 화면은 \"아직 정리 없음\"을 보인다. 생성기가 낸 원문(report)이 함께 와서 옛 공개 필드를 읽던\n화면이 그대로 쓴다.",
+        "operationId" : "get_practice_note_v2_practices__practice_id__note_get",
+        "parameters" : [ {
+          "name" : "practice_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Practice Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CoachNote"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/practice-sessions/{session_id}" : {
       "get" : {
         "tags" : [ "v2-practice" ],
@@ -3138,6 +3257,39 @@
             }
           }
         }
+      }
+    },
+    "/v2/coach/conversations/{conversation_id}" : {
+      "get" : {
+        "tags" : [ "v2-coach" ],
+        "summary" : "Get Coach Conversation",
+        "description" : "대화 하나를 턴과 함께. 409 conversation_conflict 뒤 화면이 최신 revision·status·turns 를 다시 읽는\n자리이고, 회차 상세의 이전 대화를 펼칠 때도 쓴다. 없는 것과 남의 것은 같은 404.",
+        "operationId" : "get_coach_conversation_v2_coach_conversations__conversation_id__get",
+        "parameters" : [ {
+          "name" : "conversation_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Conversation Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CoachConversation"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
       }
     },
     "/v2/auth/providers" : {
@@ -5700,126 +5852,6 @@
         "required" : [ "expires_at", "upload_url" ],
         "title" : "PhotoUploadResponse"
       },
-      "TransferCodeResponse" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "code" : {
-            "type" : "string",
-            "title" : "Code"
-          },
-          "expires_in" : {
-            "type" : "integer",
-            "title" : "Expires In"
-          },
-          "expires_at" : {
-            "type" : "string",
-            "format" : "date-time",
-            "title" : "Expires At"
-          }
-        },
-        "required" : [ "code", "expires_at", "expires_in" ],
-        "title" : "TransferCodeResponse"
-      },
-      "GuestTransferRequest" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "code" : {
-            "type" : "string",
-            "title" : "Code"
-          },
-          "memory_choice" : {
-            "$ref" : "#/components/schemas/MemoryChoice"
-          }
-        },
-        "required" : [ "code" ],
-        "title" : "GuestTransferRequest"
-      },
-      "MemoryChoice" : {
-        "type" : "string",
-        "enum" : [ "member", "guest" ],
-        "title" : "MemoryChoice"
-      },
-      "GuestTransferResponse" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "transferred" : {
-            "type" : "boolean",
-            "title" : "Transferred"
-          }
-        },
-        "required" : [ "transferred" ],
-        "title" : "GuestTransferResponse"
-      },
-      "ConsentDecision" : {
-        "type" : "string",
-        "enum" : [ "granted", "declined" ],
-        "title" : "ConsentDecision"
-      },
-      "ConsentRequest" : {
-        "type" : "object",
-        "properties" : {
-          "document_id" : {
-            "type" : "string",
-            "title" : "Document Id"
-          },
-          "action" : {
-            "$ref" : "#/components/schemas/ConsentDecision"
-          },
-          "age_confirmed" : {
-            "type" : "boolean",
-            "title" : "Age Confirmed"
-          }
-        },
-        "required" : [ "action", "document_id" ],
-        "title" : "ConsentRequest"
-      },
-      "ConsentAction" : {
-        "type" : "string",
-        "enum" : [ "granted", "declined", "revoked" ],
-        "title" : "ConsentAction"
-      },
-      "ConsentEventResponse" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "id" : {
-            "type" : "string",
-            "format" : "uuid",
-            "title" : "Id"
-          },
-          "document_id" : {
-            "type" : "string",
-            "format" : "uuid",
-            "title" : "Document Id"
-          },
-          "action" : {
-            "$ref" : "#/components/schemas/ConsentAction"
-          },
-          "occurred_at" : {
-            "type" : "string",
-            "format" : "date-time",
-            "title" : "Occurred At"
-          }
-        },
-        "required" : [ "action", "document_id", "id", "occurred_at" ],
-        "title" : "ConsentEventResponse"
-      },
-      "ConsentDocumentOutdatedError" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "detail" : {
-            "type" : "string",
-            "enum" : [ "consent_document_outdated" ],
-            "title" : "Detail"
-          }
-        },
-        "required" : [ "detail" ],
-        "title" : "ConsentDocumentOutdatedError"
-      },
       "CoachStartReq" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -6000,6 +6032,363 @@
         },
         "required" : [ "confirmed", "handoff", "report", "session_id" ],
         "title" : "CoachConfirmResponse"
+      },
+      "TransferCodeResponse" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "title" : "Code"
+          },
+          "expires_in" : {
+            "type" : "integer",
+            "title" : "Expires In"
+          },
+          "expires_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Expires At"
+          }
+        },
+        "required" : [ "code", "expires_at", "expires_in" ],
+        "title" : "TransferCodeResponse"
+      },
+      "GuestTransferRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "code" : {
+            "type" : "string",
+            "title" : "Code"
+          },
+          "memory_choice" : {
+            "$ref" : "#/components/schemas/MemoryChoice"
+          }
+        },
+        "required" : [ "code" ],
+        "title" : "GuestTransferRequest"
+      },
+      "MemoryChoice" : {
+        "type" : "string",
+        "enum" : [ "member", "guest" ],
+        "title" : "MemoryChoice"
+      },
+      "GuestTransferResponse" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "transferred" : {
+            "type" : "boolean",
+            "title" : "Transferred"
+          }
+        },
+        "required" : [ "transferred" ],
+        "title" : "GuestTransferResponse"
+      },
+      "ConsentDecision" : {
+        "type" : "string",
+        "enum" : [ "granted", "declined" ],
+        "title" : "ConsentDecision"
+      },
+      "ConsentRequest" : {
+        "type" : "object",
+        "properties" : {
+          "document_id" : {
+            "type" : "string",
+            "title" : "Document Id"
+          },
+          "action" : {
+            "$ref" : "#/components/schemas/ConsentDecision"
+          },
+          "age_confirmed" : {
+            "type" : "boolean",
+            "title" : "Age Confirmed"
+          }
+        },
+        "required" : [ "action", "document_id" ],
+        "title" : "ConsentRequest"
+      },
+      "ConsentAction" : {
+        "type" : "string",
+        "enum" : [ "granted", "declined", "revoked" ],
+        "title" : "ConsentAction"
+      },
+      "ConsentEventResponse" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "document_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Document Id"
+          },
+          "action" : {
+            "$ref" : "#/components/schemas/ConsentAction"
+          },
+          "occurred_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Occurred At"
+          }
+        },
+        "required" : [ "action", "document_id", "id", "occurred_at" ],
+        "title" : "ConsentEventResponse"
+      },
+      "ConsentDocumentOutdatedError" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "detail" : {
+            "type" : "string",
+            "enum" : [ "consent_document_outdated" ],
+            "title" : "Detail"
+          }
+        },
+        "required" : [ "detail" ],
+        "title" : "ConsentDocumentOutdatedError"
+      },
+      "CoachStartRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "practice_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Practice Id"
+          },
+          "request_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Request Id"
+          }
+        },
+        "required" : [ "practice_id", "request_id" ],
+        "title" : "CoachStartRequest"
+      },
+      "CoachConversation" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "practice_id" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "uuid"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Practice Id"
+          },
+          "status" : {
+            "type" : "string",
+            "title" : "Status"
+          },
+          "close_reason" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Close Reason"
+          },
+          "revision" : {
+            "type" : "integer",
+            "title" : "Revision"
+          },
+          "coach_reply_count" : {
+            "type" : "integer",
+            "title" : "Coach Reply Count"
+          },
+          "reply_limit" : {
+            "type" : "integer",
+            "title" : "Reply Limit"
+          },
+          "messages" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/CoachTurn"
+            },
+            "title" : "Messages"
+          },
+          "created_at" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "date-time"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Created At"
+          }
+        },
+        "required" : [ "coach_reply_count", "id", "messages", "reply_limit", "revision", "status" ],
+        "title" : "CoachConversation"
+      },
+      "CoachNote" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "conversation_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Conversation Id"
+          },
+          "format" : {
+            "type" : "string",
+            "title" : "Format"
+          },
+          "kind" : {
+            "type" : "string",
+            "title" : "Kind"
+          },
+          "title" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Title"
+          },
+          "summary_quotes" : {
+            "$ref" : "#/components/schemas/JsonNode"
+          },
+          "next_take" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Next Take"
+          },
+          "actor_words" : {
+            "$ref" : "#/components/schemas/JsonNode"
+          },
+          "corrections" : {
+            "$ref" : "#/components/schemas/JsonNode"
+          },
+          "tags" : {
+            "$ref" : "#/components/schemas/JsonNode"
+          },
+          "fallback" : {
+            "type" : "boolean",
+            "title" : "Fallback"
+          },
+          "source_revision" : {
+            "type" : "integer",
+            "title" : "Source Revision"
+          },
+          "report" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/JsonNode"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "created_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Created At"
+          }
+        },
+        "required" : [ "actor_words", "conversation_id", "corrections", "created_at", "fallback", "format", "id", "kind", "source_revision", "summary_quotes", "tags" ],
+        "title" : "CoachNote"
+      },
+      "CoachTurn" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "turn_index" : {
+            "type" : "integer",
+            "title" : "Turn Index"
+          },
+          "role" : {
+            "type" : "string",
+            "title" : "Role"
+          },
+          "text" : {
+            "type" : "string",
+            "title" : "Text"
+          },
+          "created_at" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "date-time"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Created At"
+          }
+        },
+        "required" : [ "role", "text", "turn_index" ],
+        "title" : "CoachTurn"
+      },
+      "CoachTurnResult" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "conversation" : {
+            "$ref" : "#/components/schemas/CoachConversation"
+          },
+          "message" : {
+            "type" : "string",
+            "title" : "Message"
+          },
+          "note" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/CoachNote"
+            }, {
+              "type" : "null"
+            } ]
+          }
+        },
+        "required" : [ "conversation", "message" ],
+        "title" : "CoachTurnResult"
+      },
+      "CoachReplyRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "conversation_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Conversation Id"
+          },
+          "request_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Request Id"
+          },
+          "text" : {
+            "type" : "string",
+            "maxLength" : 300,
+            "minLength" : 0,
+            "title" : "Text"
+          },
+          "revision" : {
+            "anyOf" : [ {
+              "type" : "integer"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Revision"
+          }
+        },
+        "required" : [ "conversation_id", "request_id" ],
+        "title" : "CoachReplyRequest"
       },
       "SignupAction" : {
         "type" : "string",

@@ -252,7 +252,7 @@ class CoachReadsProfileIT {
         UUID confirmed = closableLegacySession();
         generator.enqueue(REPORT_BODY);
 
-        JsonNode confirmation = successful(post("/v2/coach/confirm")
+        JsonNode confirmation = successful(post("/v2/legacy-coach/confirm")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", bearer()).header("X-Request-Id", UUID.randomUUID())
                 .content("{\"coach_session_id\":\"" + confirmed + "\",\"confirmed\":true}"));
@@ -385,7 +385,7 @@ class CoachReadsProfileIT {
     }
 
     private JsonNode start(UUID practiceId, String contract) throws Exception {
-        var request = post("/v2/coach/start")
+        var request = post("/v2/legacy-coach/start")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", bearer())
                 // 새 요청 ID 다 — 같은 ID 는 앞선 응답을 되돌려줄 뿐 모델을 다시 부르지 않는다.
@@ -395,7 +395,7 @@ class CoachReadsProfileIT {
     }
 
     private JsonNode reply(UUID sessionId, String contract) throws Exception {
-        var request = post("/v2/coach/reply")
+        var request = post("/v2/legacy-coach/reply")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", bearer())
                 .header("X-Request-Id", UUID.randomUUID())

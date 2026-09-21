@@ -133,7 +133,7 @@ class HttpMonitoringIT {
         fixtures.insertCoachSession(coach, practice.id(), summary, "open",
                 CoachStorageFixtures.NOW.atOffset(ZoneOffset.UTC), List.of());
         fixtures.insertHandoff(coach, practice.id(), CoachStorageFixtures.NOW.atOffset(ZoneOffset.UTC));
-        var failure = post("/v2/coach/confirm", bearer, UUID.randomUUID(),
+        var failure = post("/v2/legacy-coach/confirm", bearer, UUID.randomUUID(),
                 "{\"coach_session_id\":\"" + coach + "\",\"confirmed\":true}");
         assertThat(failure.statusCode()).isEqualTo(502);
         assertThat(failure.body()).startsWith("{\"detail\":");
@@ -144,7 +144,7 @@ class HttpMonitoringIT {
         assertThat(metric(scrape, "http_server_requests_seconds_count", "uri=\"/v2/reports/{practice_session_id}\"",
                 "status=\"404\"", "latency_class=\"ordinary\"", "environment=\"dev\""))
                 .isEqualTo(1);
-        assertThat(metric(scrape, "http_server_requests_seconds_count", "uri=\"/v2/coach/confirm\"",
+        assertThat(metric(scrape, "http_server_requests_seconds_count", "uri=\"/v2/legacy-coach/confirm\"",
                 "status=\"502\"", "latency_class=\"long_running\""))
                 .isEqualTo(1);
         assertThat(metric(scrape, "http_server_requests_seconds_count", "uri=\"/v2/reports\"", "status=\"401\""))
@@ -178,7 +178,7 @@ class HttpMonitoringIT {
         String bearer = "Bearer " + context.getBean(JwtService.class).issueAccessToken(user).value();
         var practice = fixtures.insertPractice(user);
         UUID summary = fixtures.insertSummary(practice.id());
-        String path = "/v2/coach/start";
+        String path = "/v2/legacy-coach/start";
         String body = "{\"practice_session_id\":\"" + practice.id() + "\"}";
         String generated = "{\"message\":\"질문\",\"status\":\"continue\",\"handoff\":null}";
         if (feature.equals("report")) {

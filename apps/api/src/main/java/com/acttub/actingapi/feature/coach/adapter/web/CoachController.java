@@ -30,7 +30,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 /** Python {@code acting_api.coaching}의 공개 코칭 흐름. */
 @RestController
-@RequestMapping("/v2/coach")
+/*
+ * ⚠ <b>옛 연습 흐름의 코치다.</b> 1.0.0 회차의 대화는 {@code ConversationController}(=`/v2/coach/*`)가 맡고,
+ * 이 컨트롤러는 옛 `practice_sessions` 를 쓰는 화면이 남아 있는 동안만 `/v2/legacy-coach/*` 로 산다.
+ * 옛 흐름(업로드·연습 세션·리포트)을 내릴 때 함께 사라진다(CONTRACT §6-15).
+ */
+@RequestMapping("/v2/legacy-coach")
 class CoachController {
 
     private final CoachService coach;

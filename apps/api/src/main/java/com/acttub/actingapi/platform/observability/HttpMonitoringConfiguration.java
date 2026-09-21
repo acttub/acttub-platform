@@ -20,7 +20,9 @@ import org.springframework.http.server.observation.ServerRequestObservationConve
 public class HttpMonitoringConfiguration {
     static final Map<String, String> ACTIVE_POST_ROUTES = Map.of(
             "/v2/coach/start", "coach", "/v2/coach/reply", "coach",
-            "/v2/coach/confirm", "coach", "/v2/reports", "report");
+            // 옛 흐름의 코치는 `/v2/legacy-coach` 로 옮겼다(§6-15). 같은 기능 이름으로 센다.
+            "/v2/legacy-coach/start", "coach", "/v2/legacy-coach/reply", "coach",
+            "/v2/legacy-coach/confirm", "coach", "/v2/reports", "report");
 
     static String latencyClass(ServerRequestObservationContext context) {
         String route = context.getPathPattern();
