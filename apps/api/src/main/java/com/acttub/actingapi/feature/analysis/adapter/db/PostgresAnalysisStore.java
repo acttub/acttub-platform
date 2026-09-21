@@ -29,6 +29,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /** 분석 저장 전이. 각 public 변경 메서드는 외부 호출과 분리된 새 트랜잭션이다. */
 @Repository
+@org.springframework.context.annotation.Primary
 public class PostgresAnalysisStore implements AnalysisStore {
     private final EntityManager entityManager;
     private final ExternalOperationMonitoring monitoring;

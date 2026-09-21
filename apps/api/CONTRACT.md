@@ -1063,6 +1063,22 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   `analyze`·`memory_update` 둘이다. **lease 상태 전이는 `external_operations` 와 같은 고정 계약**이다(§5-7): 만료돼도
   재선점 전이면 완료를 받고, 토큰이 바뀌었으면 거절하며, `release` 는 `attempt_count` 를 되돌리지 않고, 3회 뒤
   sweep 이 닫는다. `failure_reason` 에는 CHECK 가 없다(분류가 열린 목록이다).
+- **분석 결과**(`analyses`, `feature/analysis`): 워커는 **한 클래스**(`AnalysisWorker`)이고 원장마다 저장소·빈이
+  하나다 — 옛 `AnalysisStore`(={`external_operations`} + `summaries`)와 1.0.0 `PracticeAnalysisStore`
+  (={`ai_jobs`} + `analyses`·`video_transcripts`). 영상을 내려받고 검증값을 견주고 실패를 분류하고 lease 를 다루는
+  규칙이 한 벌이어야 하기 때문이다. 스케줄러는 등록된 워커를 모두 돌린다.
+  - **완료는 한 트랜잭션이고 그 안에서 주인과 계정 상태를 다시 본다**: 탈퇴가 먼저 끝났으면 결과를 저장하지 않고
+    작업을 `failed`/`account_deactivated` 로 닫으며, 이관이 먼저 끝났으면 회차의 주인이 이미 회원이라 결과가 회원의
+    것이 된다. lease 가 재선점됐으면 완료가 거절되고 트랜잭션이 통째로 되돌아간다.
+  - **기록은 완료 뒤 불변이다** — 같은 회차에 두 번째 분석이 끝나도 덮지 않는다(`ON CONFLICT DO NOTHING`). 형식은
+    `experience_version` 이 정한다: 신형은 `video_record_v1` 이고 **행의 id 가 `record_id`**, 기존 갈래는 `legacy` 로
+    ObservationPack 원문을 그대로 둔다(구형을 신형으로 위장하지 않는다). **못 본 구간이 있으면 `partial`** 이고 그
+    구간을 채우지 않는다 — 부분 완료여도 대화는 시작된다.
+  - 결과가 저장되면 회차가 `conversing` 으로, 최종 실패(3회 소진·즉시 실패)면 `closed`/`analysis_failed` 로 간다.
+    **코치 시작은 이 `stage` 가 답한다** — `conversing` 이 아니면 409 `analysis_not_ready` 다.
+  - **받아쓰기는 영상당 묶음 하나**다(`uq_video_transcripts_video`). 같은 영상의 다음 회차는 새로 만들지 않고 먼저
+    만든 묶음을 재사용한다.
+  - 예약 장부에 **검증값이 없는 영상은 견주지 않는다** — 없는 것을 불일치로 보면 그 회차가 재큐만 되풀이하다 실패한다.
 - **옛 흐름은 아직 그대로다** — `/v2/uploads/**`·`/v2/practice-sessions/**`·`/v2/coach/**`·`/v2/reports/**`. 코치·노트가
   `practice_session_id` 에 매여 있어 함께 내려야 하고, 그 전환은 PA4 의 일이다(조정자 결정 2026-09-21). 새 회차 흐름은
   `video_id` 기반이라 옛 것과 겹치지 않으므로 둘이 함께 선다. 코치·노트를 `practice_id` 로 옮길 때 이 절을 맞춘다.
