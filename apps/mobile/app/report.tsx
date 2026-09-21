@@ -1,90 +1,71 @@
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { api, type PracticeReport } from '@/lib/api';
-import { clearPractice, getPractice, setContinueOrigin } from '@/lib/practice/session-state';
 import { SceneFoldBody, SceneFoldLink, SceneSummary } from '@/components/practice-chrome';
-import { useExitReview } from '@/hooks/use-exit-review';
-import { previewVideoSource } from '@/lib/preview-video';
-import { createOrReuseReport } from '@/lib/report-flow';
-import { palette } from '@/constants/palette';
-import { Markdown } from '@/components/markdown';
-import { PracticeNoteBody } from '@/components/practice-note';
 import { ReportRating } from '@/components/report-rating';
-import { reportDisplay } from '@/lib/report-display';
+import { palette } from '@/constants/palette';
+import { useExitReview } from '@/hooks/use-exit-review';
+import { api } from '@/lib/api';
 import { translate as t } from '@/lib/i18n';
+import { noteFallbackNotice, noteKindLabel, noteSections, noteTitle, quoteSourceLabel } from '@/lib/practice/note';
+import { clearPractice, getPractice, setContinueOrigin } from '@/lib/practice/session-state';
+import type { PracticeNote } from '@/lib/practice/types';
 
 /**
- * A4. 피드백 카드 — 4블록 단일 초점형 (명세 §4).
- * 의도 되짚기 → 잘된 순간 → 이번에 딱 하나 → 다음 한 걸음.
- * 모든 관찰은 처방으로 닫고, 진단은 하나만 보여준다.
+ * A13 연습 노트(practice.note) — 대화가 끝난 그 회차의 기록.
+ *
+ * 순서는 짧은 대화 요약 → 다음 촬영에서 해볼 한 가지 → 응원 문구다. 제목은 초점 문구 원문이고,
+ * 요약은 배우 말·관찰의 원문 발췌라 출처를 함께 보인다. 비교 기준과 확인을 강제하는 옛 카피는
+ * 없앴다 — 노트는 그 회차만 말하고 이전 연습과 견주지 않는다. "다음 연습"은 방금 끝낸 이 회차의
+ * 장면을 미리 채워 이어 간다(practice.resume).
  */
 export default function ReportScreen() {
   const router = useRouter();
-  // 마운트 때 한 번만 읽는다. 마치기에서 clearPractice()를 부른 직후(한줄평 시트가 닫히며)
-  // 화면이 한 번 더 그려지는데, 그때 스토어를 다시 읽으면 null이라 practice.scene에서
-  // 죽었다(릴리스에선 앱이 그대로 꺼진다). 화면 생애 동안 같은 연습을 붙든다.
+  // 마운트 때 한 번만 읽는다 — 마치기에서 clearPractice() 한 직후 다시 읽으면 null 이다.
   const [practice] = useState(() => getPractice());
-  const exitReview = useExitReview('finish', 'report', practice?.practiceId);
-  const [report, setReport] = useState<PracticeReport | null>(null);
+  const exitReview = useExitReview('leave', 'report', practice?.practiceId);
+  const [note, setNote] = useState<PracticeNote | null>(() => practice?.note ?? null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const mountedRef = useRef(true);
-  const requestInFlightRef = useRef(false);
-  const params = useLocalSearchParams();
-  const preview = params.preview === '1';
+  const [loading, setLoading] = useState(!practice?.note);
   const [sceneOpen, setSceneOpen] = useState(false);
-  // 업로드한 원본이 남아 있으면 그걸, 없으면 서버가 준 재생 주소를 쓴다.
-  const sceneVideo = practice?.videoUri || practice?.playbackUrl || previewVideoSource(preview);
+  const mountedRef = useRef(true);
+  const sceneVideo = practice?.videoUri || practice?.playbackUrl || null;
 
-  const loadReport = useCallback(async () => {
-    if (requestInFlightRef.current) return;
+  const loadNote = useCallback(async () => {
     if (!practice) {
       setError(t('report.noPractice'));
       setLoading(false);
       return;
     }
-    if (!practice.coachSessionId) {
-      setError(t('report.notDone'));
-      setLoading(false);
-      return;
-    }
-    requestInFlightRef.current = true;
     setError(null);
     setLoading(true);
     try {
-      const nextReport = await createOrReuseReport(practice, api.createReport);
-      if (mountedRef.current) setReport(nextReport);
-    } catch (err) {
-      if (mountedRef.current) {
-        setError(err instanceof Error ? err.message : t('report.createFail'));
-      }
+      const loaded = await api.getPracticeNote(practice.practiceId);
+      if (!mountedRef.current) return;
+      practice.note = loaded;
+      setNote(loaded);
+    } catch (e) {
+      if (!mountedRef.current) return;
+      // 404 는 대화가 짧아 노트를 만들지 않은 회차다(기존 갈래) — 오류가 아니라 없음이다.
+      const status = e !== null && typeof e === 'object' ? (e as { status?: number }).status : null;
+      setError(status === 404 ? t('note.none') : t('note.loadFail'));
     } finally {
-      requestInFlightRef.current = false;
       if (mountedRef.current) setLoading(false);
     }
   }, [practice]);
 
   useEffect(() => {
     mountedRef.current = true;
-    void loadReport();
+    if (!practice?.note) void loadNote();
     return () => {
       mountedRef.current = false;
     };
-  }, [loadReport]);
+  }, [loadNote, practice?.note]);
 
-  const retake = () => {
-    // A13 방금 끝낸 노트에서 이어갈 때만 이전 장면을 미리 채운다(practice.resume).
-    // 코치는 같은 묶음의 이전 대화·노트를 참고 맥락으로 읽는다.
+  /** A13 "다음 연습" — 방금 끝낸 회차에서만 이전 장면을 미리 채운다. */
+  const nextPractice = () => {
     if (practice) {
       setContinueOrigin({
         kind: 'note',
@@ -98,7 +79,6 @@ export default function ReportScreen() {
     router.push('/upload');
   };
 
-  // 세션을 마칠 때 한 번만 한줄평을 묻는다(SOMA-433). 이미 물어본 사람은 바로 마친다.
   const finish = () => {
     void exitReview.offer(() => {
       clearPractice();
@@ -106,62 +86,38 @@ export default function ReportScreen() {
     });
   };
 
-  const display = report && report.report_type !== 'blocked' ? reportDisplay(report) : null;
+  const sections = note ? noteSections(note) : [];
+  const fallbackNotice = note ? noteFallbackNotice(note) : null;
+  const title = noteTitle(note, practice?.scene.situation.trim() || t('history.noSceneTitle'));
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
-      <Stack.Screen
-        options={{
-          title: practice?.scene.situation.trim() || t('report.fallbackTitle'),
-          headerBackVisible: false,
-          headerShadowVisible: false,
-        }}
-      />
+      <Stack.Screen options={{ title: t('note.title'), headerBackVisible: false, headerShadowVisible: false }} />
 
-      {!report && loading && (
+      {loading && !note && (
         <View style={styles.center}>
           <ActivityIndicator color={palette.blue} size="large" />
           <Text style={styles.loadingText}>{t('report.making')}</Text>
         </View>
       )}
 
-      {error && (
+      {!loading && !note && (
         <View style={styles.center}>
-          <Text style={styles.errorText}>{error}</Text>
-          {practice?.coachSessionId && (
-            <Pressable style={styles.primary} onPress={() => void loadReport()}>
-              <Text style={styles.primaryText}>{t('common.retry')}</Text>
-            </Pressable>
-          )}
+          <Text style={styles.errorText}>{error ?? t('note.none')}</Text>
+          <Pressable style={styles.primary} onPress={() => void loadNote()}>
+            <Text style={styles.primaryText}>{t('common.retry')}</Text>
+          </Pressable>
           <Pressable style={styles.ghost} onPress={finish}>
             <Text style={styles.ghostText}>{t('common.goHome')}</Text>
           </Pressable>
         </View>
       )}
 
-      {report?.report_type === 'blocked' && (
-        <View style={styles.center}>
-          <Text style={styles.title}>{t('report.notReadyTitle')}</Text>
-          <Text style={styles.loadingText}>{t('report.notReadyBody')}</Text>
-          <Pressable style={styles.primary} onPress={() => router.back()}>
-            <Text style={styles.primaryText}>{t('report.backToChat')}</Text>
-          </Pressable>
-          {/* 정리가 안 만들어졌어도 갇히지 않게 — 홈으로 가는 길을 항상 둔다(SOMA-444). */}
-          <Pressable style={styles.ghost} onPress={finish}>
-            <Text style={styles.ghostText}>{t('common.goHome')}</Text>
-          </Pressable>
-        </View>
-      )}
-
-      {report && report.report_type !== 'blocked' && display && practice && (
+      {note && practice && (
         <>
           <View style={styles.statusRow}>
-            <Text style={styles.confirmed}>{report.report_type === 'practice_note' ? t('report.practiceNoteFromDialogue') : t('report.confirmed')}</Text>
-            <SceneFoldLink
-              open={sceneOpen}
-              onToggle={() => setSceneOpen((was) => !was)}
-              label={t('blockage.sceneFold')}
-            />
+            <Text style={styles.kind}>{noteKindLabel(note.kind)}</Text>
+            <SceneFoldLink open={sceneOpen} onToggle={() => setSceneOpen((was) => !was)} label={t('blockage.sceneFold')} />
           </View>
           <SceneFoldBody open={sceneOpen} videoUri={sceneVideo} />
           {sceneOpen && (
@@ -171,56 +127,41 @@ export default function ReportScreen() {
           )}
           <ScrollView contentContainerStyle={styles.body}>
             <View style={styles.heading}>
-              <Text style={styles.title}>{display.title}</Text>
-              <Text style={styles.subtitle}>
-                {report.report_type === 'practice_note' ? '' : t('report.goalQuote', { goal: practice.scene.goal })}
-              </Text>
+              <Text style={styles.title}>{title}</Text>
+              {fallbackNotice && <Text style={styles.fallback}>{fallbackNotice}</Text>}
             </View>
 
-        {report.report_type === 'practice_note' ? <PracticeNoteBody note={report} /> : <>
-            <Section label={t('report.secFound')}>
-              <Markdown source={display.found} />
-            </Section>
+            {sections.map((section) => (
+              <View style={styles.section} key={section.kind}>
+                {!!section.label && <Text style={styles.label}>{section.label}</Text>}
+                {section.kind === 'summary' ? (
+                  section.quotes.length > 0 ? (
+                    section.quotes.map((quote, index) => (
+                      <View style={styles.quote} key={`${index}-${quote.text.slice(0, 8)}`}>
+                        <Text style={styles.quoteText}>{quote.text}</Text>
+                        <Text style={styles.quoteSource}>{quoteSourceLabel(quote.source)}</Text>
+                      </View>
+                    ))
+                  ) : (
+                    <Text style={styles.text}>{section.text}</Text>
+                  )
+                ) : (
+                  <Text style={[styles.text, section.kind === 'next' && styles.next, section.kind === 'cheer' && styles.cheer]}>
+                    {section.text}
+                  </Text>
+                )}
+              </View>
+            ))}
 
-            <Section label={t('report.secStuck')}>
-              <Markdown source={display.blocked} />
-              {!!display.evidence && (
-                <View style={styles.quote}>
-                  <Markdown source={display.evidence} variant="compact" />
-                </View>
-              )}
-            </Section>
-
-            {!!display.actorWords && (
-              <Section label={t('report.secLine')}>
-                <View style={styles.quoteBlue}>
-                  <Markdown source={display.actorWords} />
-                </View>
-              </Section>
-            )}
-
-            {!!display.caution && (
-              <Section label={t('report.secCare')}>
-                <Markdown source={display.caution} />
-              </Section>
-            )}
-
-            <Section label={t('report.secNext')}>
-              <Text style={styles.nextTake}>{display.next}</Text>
-            </Section>
-
-        </>}
-
-            {/* 세션 맥락이 붙은 미니 평가 — 👍/👎 + 한 줄(선택). 연습 노트에도 붙는다. */}
+            {/* 회차 맥락이 붙은 미니 평가 — 👍/👎 + 한 줄(선택). 이탈 설문과 다른 기능이다. */}
             <ReportRating sessionId={practice.practiceId} />
 
-            {/* 긴 문구가 반쪽 버튼에서 줄바꿈으로 깨져서 세로로 쌓는다(SOMA-444). */}
             <View style={styles.buttonRow}>
-              <Pressable style={styles.primary} onPress={retake}>
-                <Text style={styles.primaryText}>{t('report.retakeCta')}</Text>
+              <Pressable style={styles.primary} onPress={nextPractice}>
+                <Text style={styles.primaryText}>{t('note.nextPractice')}</Text>
               </Pressable>
               <Pressable style={styles.ghost} onPress={finish}>
-                <Text style={styles.ghostText}>{t('report.doneToday')}</Text>
+                <Text style={styles.ghostText}>{t('note.finish')}</Text>
               </Pressable>
             </View>
           </ScrollView>
@@ -231,85 +172,40 @@ export default function ReportScreen() {
   );
 }
 
-/** 목업의 섹션 — 위에 얇은 선, 작은 라벨, 그 아래 내용. */
-function Section({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <View style={styles.section}>
-      <Text style={styles.sectionLabel}>{label}</Text>
-      {children}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, gap: 14 },
-  loadingText: {
-    fontSize: 13.5,
-    fontWeight: '600',
-    color: palette.textFaint,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  errorText: {
-    fontSize: 13.5,
-    fontWeight: '700',
-    color: palette.danger,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, padding: 28 },
+  loadingText: { fontSize: 14, fontWeight: '600', color: palette.textFaint, textAlign: 'center' },
+  errorText: { fontSize: 14, fontWeight: '700', color: palette.danger, textAlign: 'center' },
 
-  sceneSummary: { paddingHorizontal: 20, paddingTop: 12 },
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: palette.borderSoft,
+    paddingHorizontal: 20,
+    paddingBottom: 10,
   },
-  confirmed: { fontSize: 12.5, fontWeight: '700', color: palette.green },
+  kind: { fontSize: 12, fontWeight: '800', color: palette.blue },
+  sceneSummary: { paddingHorizontal: 20, paddingBottom: 8 },
 
-  body: { paddingTop: 22, paddingHorizontal: 20, paddingBottom: 24, gap: 20 },
-  heading: { gap: 6 },
-  title: { fontSize: 23, fontWeight: '900', color: palette.text, lineHeight: 32 },
-  subtitle: { fontSize: 13.5, fontWeight: '600', color: palette.textDim, lineHeight: 22 },
+  body: { paddingHorizontal: 20, paddingBottom: 40, gap: 22 },
+  heading: { gap: 8 },
+  title: { fontSize: 24, fontWeight: '900', color: palette.text, lineHeight: 34 },
+  fallback: { fontSize: 12.5, fontWeight: '700', color: palette.amber },
 
-  section: {
-    borderTopWidth: 1,
-    borderTopColor: palette.borderSoft,
-    paddingTop: 16,
-    gap: 10,
-  },
-  sectionLabel: { fontSize: 11.5, fontWeight: '900', color: palette.textFaint },
-  quote: {
-    borderLeftWidth: 2,
-    borderLeftColor: palette.border,
-    paddingLeft: 14,
-    paddingVertical: 2,
-  },
-  quoteBlue: {
-    borderLeftWidth: 2,
-    borderLeftColor: palette.blue,
-    paddingLeft: 14,
-    paddingVertical: 2,
-  },
-  nextTake: { fontSize: 17, fontWeight: '900', color: palette.text, lineHeight: 27 },
+  section: { borderTopWidth: 1, borderTopColor: palette.borderSoft, paddingTop: 16, gap: 8 },
+  label: { fontSize: 12, fontWeight: '800', color: palette.textDim },
+  text: { fontSize: 16, lineHeight: 26, color: palette.text },
+  next: { fontSize: 18, fontWeight: '700', lineHeight: 29 },
+  cheer: { fontSize: 14, lineHeight: 23, color: palette.textDim },
+  quote: { gap: 4, backgroundColor: palette.bgSubtle, borderRadius: 12, padding: 14 },
+  quoteText: { fontSize: 15.5, lineHeight: 25, color: palette.text },
+  quoteSource: { fontSize: 11.5, fontWeight: '800', color: palette.textFaint },
 
-  buttonRow: { gap: 10, paddingTop: 4 },
-  primary: {
-    alignSelf: 'stretch',
-    height: 52,
-    borderRadius: 14,
-    backgroundColor: palette.blue,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  primaryText: { fontSize: 14.5, fontWeight: '900', color: palette.bg },
+  buttonRow: { gap: 10, marginTop: 8 },
+  primary: { height: 52, borderRadius: 14, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
+  primaryText: { fontSize: 15, fontWeight: '900', color: palette.bg },
   ghost: {
-    alignSelf: 'stretch',
     height: 52,
     borderRadius: 14,
     borderWidth: 1,
@@ -317,5 +213,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  ghostText: { fontSize: 14.5, fontWeight: '800', color: palette.textDim },
+  ghostText: { fontSize: 15, fontWeight: '800', color: palette.textDim },
 });

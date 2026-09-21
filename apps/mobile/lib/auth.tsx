@@ -19,6 +19,7 @@ import {
 } from '@/lib/api';
 import type { ProfileGateStatus } from '@/lib/app-bootstrap';
 import { runLegacyScriptMigrationOnce } from '@/lib/reading/legacy-migration-runner';
+import { flushPracticeFeedback } from '@/lib/exit-review';
 import { flushLibraryUploads } from '@/lib/library/library-runner';
 import { flushRecordingUploads } from '@/lib/reading/recording-runner';
 import {
@@ -315,6 +316,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [gatePassed]);
 
   // 촬영 뒤 올리지 못한 보관함 영상도 큐에 남아 게이트를 지나면 이어서 올린다(practice.record). 큐는 계정별이다.
+  // 오프라인에서 밀린 이탈 설문 접수를 보낸다(practice.feedback) — 같은 요청 id 라 행은 하나다.
+  useEffect(() => {
+    if (gatePassed) void flushPracticeFeedback();
+  }, [gatePassed]);
+
   useEffect(() => {
     if (gatePassed && user?.id) void flushLibraryUploads(user.id).catch(() => undefined);
   }, [gatePassed, user?.id]);

@@ -1,25 +1,27 @@
-import type { CoachTurn, PracticeReport, SceneContext } from '@/lib/api';
+import type { SceneContext } from '@/lib/api';
 import type { ContinueOrigin } from './resume.ts';
+import type { PracticeNote } from './types.ts';
 
 /**
  * 화면 사이로 들고 다니는 진행 중 회차(모듈 스토어). 정본은 서버이고 여기는 표시에 필요한 만큼만 둔다.
  *
- * - practiceId·rootId·ordinal: 묶음의 몇 번째 회차인지. 코치 시작·노트가 쓴다.
+ * - practiceId·rootId·ordinal: 묶음의 몇 번째 회차인지. 대화 시작·노트가 쓴다.
  * - videoUri·playbackUrl: 기다리는 동안과 대화 중에 영상을 다시 트는 데 쓴다.
+ * - conversationId·note: 대화 화면이 채우고 노트 화면이 읽는다(정본은 서버).
  * - 이어하기 출처(continue origin)와 고른 영상은 준비 화면이 꺼내 간다.
  */
 export type Practice = {
   practiceId: string;
   rootId: string;
   ordinal: number;
-  coachSessionId: string | null;
+  /** 회차와 1:1 인 대화. 아직 시작하지 않았으면 null. */
+  conversationId: string | null;
   scene: SceneContext;
   /** 기기 복사본 uri 또는 빈 문자열. 없으면 playbackUrl 로 튼다. */
   videoUri: string;
   playbackUrl: string | null;
-  turns: CoachTurn[];
-  questionCount: number;
-  report: PracticeReport | null;
+  /** 대화가 닫히며 함께 온 노트. 없으면 노트 화면이 서버에서 읽는다. */
+  note: PracticeNote | null;
 };
 
 let current: Practice | null = null;
@@ -49,13 +51,11 @@ export function startPractice(input: {
     practiceId: input.practiceId,
     rootId: input.rootId,
     ordinal: input.ordinal,
-    coachSessionId: null,
+    conversationId: null,
     scene: input.scene,
     videoUri: input.videoUri,
     playbackUrl: input.playbackUrl,
-    turns: [],
-    questionCount: 0,
-    report: null,
+    note: null,
   };
   return current;
 }

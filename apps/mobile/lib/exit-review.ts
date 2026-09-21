@@ -3,38 +3,22 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
 import { logEvent } from '@/lib/analytics';
+import { api } from '@/lib/api';
 import {
   buildOneLinerPayload,
   type ExitReviewTrigger,
   type OneLinerPayload,
 } from '@/lib/exit-review-policy';
+import { createFeedbackQueue } from '@/lib/practice/feedback';
 
 /**
- * 한줄평 저장소 — 서버 API가 아니라 구글 시트다(SOMA-433, 사용자 결정).
- * 류지성 계정으로 배포한 Apps Script 웹 앱이 「acttub 리뷰 폼 응답」 시트의
- * '앱 한줄평' 탭에 행을 쌓는다. 응답은 ok / empty / ignored.
+ * 의견 시트(설정·홈)의 저장소 — Apps Script 웹 앱이 시트에 행을 쌓는다.
+ *
+ * 이탈 설문(A7, coach·report)은 1.0.0에서 서버가 정본이고 시트는 서버가 복제한다
+ * (practice.feedback). 앱은 그 경로에서 시트를 직접 부르지 않는다 — `practiceFeedback` 를 쓴다.
  */
 export const EXIT_REVIEW_ENDPOINT =
   'https://script.google.com/macros/s/AKfycbynlU4CAkxTaAqCr6JK_vh9icYADNx6mAboJXZE4x4nvrzQjvNrsvU0NA9Tq6mPYIN41w/exec';
-
-const ASKED_KEY = 'acttub.exitReview.asked';
-
-export async function hasAskedExitReview(): Promise<boolean> {
-  try {
-    return (await AsyncStorage.getItem(ASKED_KEY)) === '1';
-  } catch {
-    // 저장소를 못 읽으면 물어본 적 없는 것으로 본다 — 한 번 더 뜨는 쪽이 안 뜨는 쪽보다 낫다.
-    return false;
-  }
-}
-
-export async function markExitReviewAsked(): Promise<void> {
-  try {
-    await AsyncStorage.setItem(ASKED_KEY, '1');
-  } catch {
-    // 못 적어도 흐름은 그대로 간다
-  }
-}
 
 /** "0.0.5 (22)" 꼴. 어느 빌드에서 온 한줄평인지 시트에서 갈라 보려고. */
 export function appVersionLabel(): string {
@@ -46,7 +30,7 @@ export function appVersionLabel(): string {
 export function oneLinerPayload(input: {
   text: string;
   /** coach·report = 나갈 때 한줄평, settings·home = 의견 시트, report_inline = 노트 미니 평가 */
-  screen: 'coach' | 'report' | 'settings' | 'home' | 'report_inline';
+  screen: 'settings' | 'home' | 'report_inline';
   sessionId: string | null | undefined;
   userId: string | null | undefined;
   contactEmail?: string | null;
@@ -79,6 +63,20 @@ export async function submitOneLiner(payload: OneLinerPayload): Promise<boolean>
   } catch {
     return false;
   }
+}
+
+/**
+ * 이탈 설문 접수(practice.feedback). 서버가 정본이고, 못 보내면 기기가 들고 있다가 다시 보낸다
+ * — 같은 요청 id 라 행은 하나다.
+ */
+export const practiceFeedback = createFeedbackQueue({
+  storage: AsyncStorage,
+  submit: (body) => api.submitPracticeFeedback(body),
+});
+
+/** 게이트를 통과한 뒤 밀린 접수를 보낸다. */
+export async function flushPracticeFeedback(): Promise<void> {
+  await practiceFeedback.flush().catch(() => undefined);
 }
 
 export function trackExitReviewOpened(trigger: ExitReviewTrigger): void {

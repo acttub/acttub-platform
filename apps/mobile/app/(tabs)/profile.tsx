@@ -32,9 +32,10 @@ export default function ProfileScreen() {
     useCallback(() => {
       let alive = true;
       void getUserName().then((n) => alive && setName(n?.trim() || null));
+      // 연습 횟수는 묶음의 회차 수를 더한 값이다(practice.library).
       void api
-        .reportHistory()
-        .then((r) => alive && setPracticeCount(r.reports.length))
+        .listPracticeGroups('all')
+        .then((r) => alive && setPracticeCount(r.groups.reduce((sum, g) => sum + g.ordinal_count, 0)))
         .catch(() => {});
       return () => {
         alive = false;

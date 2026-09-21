@@ -39,12 +39,19 @@ import type { ProfilePayload, ServerProfile } from '@/lib/profile-form';
 import type { NotificationSettings } from '@/lib/push-policy';
 import type { Video, VideoFilter, VideoIntentRequest, VideoIntentResponse, VideoListResponse } from '@/lib/library/types';
 import type {
+  CoachConversation,
+  CoachReplyBody,
+  CoachTurnResult,
   ContinuePracticeBody,
   CreatePracticeBody,
+  FeedbackBody,
+  GroupPatch,
   Practice,
   PracticeDetail,
   PracticeGroup,
+  PracticeGroupDetail,
   PracticeGroupFilter,
+  PracticeNote,
   PracticeStatus,
 } from '@/lib/practice/types';
 import type {
@@ -139,29 +146,18 @@ export type CoachTurn = { role: 'ai' | 'actor'; text: string };
 export type MemoryItem = {
   field: MemoryField;
   value: string;
-  /** true 면 배우가 직접 쓰거나 고친 칸이다. 코치는 이 칸을 덮지 않는다. */
-  edited_by_me: boolean;
-  /** 이 말이 나온 연습. 배우가 "왜 이렇게 적혔지" 를 되짚을 근거다. */
-  source_practice_session_id: string | null;
+  /** actor 면 배우가 직접 쓰거나 고친 칸이다. 코치(agent)는 이 칸을 덮지 않는다. */
+  written_by: 'actor' | 'agent';
+  /** 이 말이 나온 회차. 그 연습이 숨겨졌으면 null 이라 링크만 없다. */
+  source_practice_id: string | null;
+  updated_at: string;
 };
 
 /**
- * 화면에 여는 칸.
- *
- * 성별·나이는 **배우만 쓴다.** 코치는 영상이나 말투에서 추론하지 않는다 — 틀리면
- * 그 상태로 이후 모든 연습의 전제가 되고, 민감정보 추론이기도 하다. 데이터베이스
- * 제약이 코치의 쓰기를 막고 있어서, 화면이 그 칸을 채우는 유일한 통로다.
+ * 화면에 여는 칸. 성별·나이는 1.0.0에서 프로필로 옮겼다(practice.memory) — 코치는 영상이나
+ * 말투에서 그것을 추론하지 않고, 기억 화면은 연습에서 나온 넷만 다룬다.
  */
-export type MemoryField =
-  | 'gender'
-  | 'age'
-  | 'goal'
-  | 'blockage'
-  | 'speech_self'
-  | 'speech_actual';
-
-/** 코치가 절대 쓰지 않는 칸. 화면에서 다르게 안내한다. */
-export const ACTOR_ONLY_MEMORY_FIELDS: readonly MemoryField[] = ['gender', 'age'];
+export type MemoryField = 'goal' | 'blockage' | 'speech_self' | 'speech_actual';
 
 export type AnalysisReport = {
   report_type: 'analysis';
@@ -1034,6 +1030,24 @@ export const api = {
     );
   },
 
+  /** 묶음 상세(A1.2) — 회차 흐름·마지막 대화·영상. */
+  getPracticeGroup(rootId: string, options: ApiCallOptions = {}): Promise<PracticeGroupDetail> {
+    return request<PracticeGroupDetail>(
+      `/v2/practices/${encodeURIComponent(rootId)}/group`,
+      {},
+      { timeoutMs: 20_000, signal: options.signal },
+    );
+  },
+
+  /** 묶음 속성(즐겨찾기·숨김·제목). 숨김은 묶음 전체이고 노트·대화·기억은 지우지 않는다. */
+  patchPracticeGroup(rootId: string, patch: GroupPatch): Promise<PracticeGroup> {
+    return request<PracticeGroup>(
+      `/v2/practices/${encodeURIComponent(rootId)}/group`,
+      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) },
+      { timeoutMs: 20_000 },
+    );
+  },
+
   /** 회차 진행 상태(A10 폴링). 작업 상태와 분석 결과 상태는 다른 것이다. */
   getPracticeStatus(practiceId: string, options: ApiCallOptions = {}): Promise<PracticeStatus> {
     return request<PracticeStatus>(
@@ -1064,94 +1078,68 @@ export const api = {
     );
   },
 
-  // 옛 연습 세션(기록 화면이 아직 읽는다 — 묶음 조회로 옮기는 것은 PM3) ------------
-  listPracticeSessions(): Promise<{ sessions: PracticeSessionListItem[] }> {
-    return request('/v2/practice-sessions', {}, { timeoutMs: 30_000 });
+  // 대화(practice.coach) --------------------------------------------------------
+  /**
+   * 회차의 대화를 시작한다. 회차에 대화는 하나이고, 열린 대화가 있으면 같은 대화를 돌려준다.
+   * 같은 request_id 재전송은 같은 대화다. 분석이 끝나지 않았으면 409 analysis_not_ready.
+   */
+  startConversation(practiceId: string, requestId: string): Promise<CoachTurnResult> {
+    return postIdempotent<CoachTurnResult>(
+      '/v2/coach/start',
+      { practice_id: practiceId, request_id: requestId },
+      { requestId, timeoutMs: 120_000 },
+    );
   },
 
-  getPracticeSession(
-    sessionId: string,
-    options: ApiCallOptions = {},
-  ): Promise<PracticeSessionDetail> {
-    return request<PracticeSessionDetail>(
-      `/v2/practice-sessions/${encodeURIComponent(sessionId)}`,
+  /**
+   * 답을 보낸다. revision 이 어긋나면 409 conversation_conflict 라 화면은 입력을 보존하고
+   * 최신 대화를 다시 읽는다. 닫힌 대화면 409 conversation_closed.
+   */
+  replyToCoach(body: CoachReplyBody): Promise<CoachTurnResult> {
+    return postIdempotent<CoachTurnResult>('/v2/coach/reply', body, {
+      requestId: body.request_id,
+      timeoutMs: 120_000,
+    });
+  },
+
+  /** 충돌 뒤 다시 읽기·앱 재시작 때 쓰는 대화 조회. */
+  getConversation(conversationId: string, options: ApiCallOptions = {}): Promise<CoachConversation> {
+    return request<CoachConversation>(
+      `/v2/coach/conversations/${encodeURIComponent(conversationId)}`,
       {},
       { timeoutMs: 20_000, signal: options.signal },
     );
   },
 
-  deletePracticeSession(sessionId: string): Promise<void> {
-    return request<void>(
-      `/v2/practice-sessions/${encodeURIComponent(sessionId)}`,
-      { method: 'DELETE' },
-      { timeoutMs: 15_000 },
-    );
-  },
-
-  // 코치 -----------------------------------------------------------------------
-  /**
-   * 질문 대화를 시작하거나 이어받는다.
-   *
-   * 서버는 열린 대화가 있으면 새로 만들지 않고 그대로 돌려준다 — 앱을 껐다 켜도
-   * 하던 대화가 이어진다. 처음부터 다시 하려면 `restart` 를 켠다.
-   */
-  coachStart(
-    practiceSessionId: string,
-    options: { restart?: boolean } = {},
-  ): Promise<CoachTurnResponse> {
-    return postIdempotent<CoachTurnResponse>(
-      '/v2/coach/start',
-      {
-        practice_session_id: practiceSessionId,
-        ...(options.restart ? { restart: true } : {}),
-      },
-      { timeoutMs: 120_000 },
-    );
-  },
-
-  coachReply(sessionId: string, text: string): Promise<CoachTurnResponse> {
-    return postIdempotent<CoachTurnResponse>(
-      '/v2/coach/reply',
-      { session_id: sessionId, text },
-      { timeoutMs: 120_000 },
-    );
-  },
-
-  coachConfirm(
-    coachSessionId: string,
-    confirmed: boolean,
-    rebuttalText?: string,
-  ): Promise<CoachConfirmResponse> {
-    return postIdempotent<CoachConfirmResponse>(
-      '/v2/coach/confirm',
-      {
-        coach_session_id: coachSessionId,
-        confirmed,
-        ...(confirmed ? {} : { rebuttal_text: rebuttalText }),
-      },
-      { timeoutMs: 120_000 },
-    );
-  },
-
-  // 리포트 ---------------------------------------------------------------------
-  createReport(sessionId: string): Promise<PracticeReport> {
-    return postIdempotent<PracticeReport>(
-      '/v2/reports',
-      { session_id: sessionId },
-      { timeoutMs: 120_000 },
-    );
-  },
-
-  reportHistory(): Promise<ReportHistoryResponse> {
-    return request<ReportHistoryResponse>('/v2/reports', {}, { timeoutMs: 30_000 });
-  },
-
-  getReport(practiceSessionId: string): Promise<ReportDetail> {
-    return request<ReportDetail>(
-      `/v2/reports/${encodeURIComponent(practiceSessionId)}`,
+  // 연습 노트(practice.note) ------------------------------------------------------
+  /** 회차의 노트. 없으면 404(대화가 짧아 노트를 만들지 않은 회차). */
+  getPracticeNote(practiceId: string, options: ApiCallOptions = {}): Promise<PracticeNote> {
+    return request<PracticeNote>(
+      `/v2/practices/${encodeURIComponent(practiceId)}/note`,
       {},
-      { timeoutMs: 20_000 },
+      { timeoutMs: 20_000, signal: options.signal },
     );
+  },
+
+  // 이탈 설문(practice.feedback) --------------------------------------------------
+  /**
+   * 자동 노출 표식을 원자적으로 선점한다. 선점한 기기만 시트를 띄운다(두 기기가 동시에
+   * 물어도 하나만). 이미 물어본 계정이면 asked_now 가 거짓이다.
+   */
+  claimFeedbackAsk(): Promise<{ asked_now: boolean }> {
+    return request<{ asked_now: boolean }>(
+      '/v2/me/practice-feedback/claim',
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
+      { requestId: true, timeoutMs: 15_000 },
+    );
+  },
+
+  /** 소감 접수. 건너뛰기도 본문 없는 행으로 남는다. 실패해도 나가기를 막지 않는다. */
+  submitPracticeFeedback(body: FeedbackBody): Promise<{ id: string }> {
+    return postIdempotent<{ id: string }>('/v2/practice-feedback', body, {
+      requestId: body.request_id,
+      timeoutMs: 20_000,
+    });
   },
 
   // 입시 ----------------------------------------------------------------------

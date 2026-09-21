@@ -69,11 +69,17 @@ export type PracticeStatus = {
 /** 묶음 목록의 한 줄. 진행 중 회차 id로 복귀시킨다(409의 본문은 코드뿐이다). */
 export type PracticeGroup = {
   root_id: string;
+  /** 서버가 계산해 준 제목. 없으면 앱이 노트 제목 → 상황 문장 → 대체 제목 순으로 고른다. */
   title: string | null;
+  /** 마지막 회차 노트의 제목(초점 원문). record_only 면 null. */
+  note_title?: string | null;
+  /** 첫 회차의 상황 문장. 노트 제목이 없을 때 쓴다. */
+  situation?: string | null;
   ordinal_count: number;
   in_progress_practice_id: string | null;
   favorite: boolean;
   hidden_at: string | null;
+  tags?: string[];
   last_practiced_at?: string | null;
 };
 
@@ -112,3 +118,126 @@ export type AnalysisFailureReason =
   | 'unsupported'
   | 'cancelled'
   | 'account_deactivated';
+
+// ─── 대화(practice.coach) ────────────────────────────────────────────────────
+
+export type ConversationStatus = 'open' | 'closed';
+
+export type CoachMessage = {
+  turn_index: number;
+  role: 'coach' | 'actor';
+  text: string;
+};
+
+/**
+ * 회차와 1:1 인 대화. 열린 대화는 같은 id 로 재개하고, 닫힌 뒤 다시 코칭하려면 새 회차다.
+ * 동시 요청은 revision 으로 가른다(다르면 409 conversation_conflict).
+ */
+export type CoachConversation = {
+  id: string;
+  practice_id: string;
+  status: ConversationStatus;
+  revision: number;
+  /** 시작 응답을 포함한 코치 응답 수. 상한은 기존 갈래 8, 신형 10이다. */
+  coach_reply_count: number;
+  reply_limit: number;
+  messages: CoachMessage[];
+};
+
+/** 시작·답장의 결과. 종료면 노트가 함께 올 수 있다(없을 수도 있다). */
+export type CoachTurnResult = {
+  conversation: CoachConversation;
+  /** 이번 코치 응답. 없을 수 있다(영상만 올린 첫 시작 등). */
+  message: string | null;
+  note: PracticeNote | null;
+};
+
+export type CoachStartBody = { practice_id: string; request_id: string };
+
+export type CoachReplyBody = {
+  conversation_id: string;
+  request_id: string;
+  text: string;
+  revision: number;
+};
+
+export const COACH_ANSWER_MAX = 300;
+
+// ─── 연습 노트(practice.note) ────────────────────────────────────────────────
+
+/** 종류는 성공·실패 표시가 아니다. 제안이 있으면 action, 초점만 있으면 observation, 둘 다 없으면 record_only. */
+export type NoteKind = 'action' | 'observation' | 'record_only';
+
+export type NoteFormat = 'legacy' | 'v2';
+
+export type NoteQuote = {
+  text: string;
+  /** 인용의 출처 — 배우가 한 말인지 영상 관찰인지. */
+  source: 'actor' | 'observation';
+};
+
+export type PracticeNote = {
+  id: string;
+  practice_id: string;
+  format: NoteFormat;
+  kind: NoteKind;
+  /** 초점 문구 원문. record_only 는 null 이고 목록은 묶음의 대체 제목을 쓴다. */
+  title: string | null;
+  /** 배우 말·관찰의 원문 발췌, 최대 둘. */
+  summary_quotes: NoteQuote[];
+  /** 다음 촬영에서 해볼 한 가지. 근거가 없으면 null. */
+  next_take: string | null;
+  actor_words: string[];
+  corrections: string[];
+  tags: string[];
+  /** 생성이 두 번 실패해 확인된 것만 담았다. */
+  fallback: boolean;
+  cheer: string | null;
+  source_revision: number;
+  created_at: string;
+};
+
+// ─── 기록(practice.library 의 연습 묶음) ─────────────────────────────────────
+
+export type PracticeRound = {
+  id: string;
+  ordinal: number;
+  created_at: string;
+  stage: PracticeStage;
+  /** 그 회차의 대화 메시지 수(배우+코치). */
+  message_count: number;
+  note: { id: string; title: string | null; kind: NoteKind } | null;
+};
+
+export type PracticeGroupDetail = PracticeGroup & {
+  video_id: string | null;
+  last_conversation: string | null;
+  practices: PracticeRound[];
+};
+
+export type GroupPatch = {
+  favorite?: boolean;
+  hidden?: boolean;
+  title?: string;
+};
+
+// ─── 이탈 설문(practice.feedback) ────────────────────────────────────────────
+
+export type FeedbackScreen = 'coach' | 'report';
+
+/** 계기는 셋뿐이다. 홈 의견·스토어 평점·노트 미니 평가는 이 기능이 아니다. */
+export type FeedbackTrigger = 'x' | 'leave' | 'back';
+
+export const FEEDBACK_BODY_MAX = 100;
+export const FEEDBACK_CONTACT_MAX = 80;
+
+export type FeedbackBody = {
+  request_id: string;
+  practice_id: string | null;
+  screen: FeedbackScreen;
+  trigger: FeedbackTrigger;
+  /** 건너뛰기(dismissed)면 없다. */
+  body?: string;
+  contact_email?: string;
+  contact_phone?: string;
+};
