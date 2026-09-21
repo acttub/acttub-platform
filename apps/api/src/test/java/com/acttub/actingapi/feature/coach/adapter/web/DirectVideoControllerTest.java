@@ -69,9 +69,20 @@ class DirectVideoControllerTest {
     @Test void emptyAndUnsupportedFilesNeverStartASession() {
         authorize();
         assertThatThrownBy(() -> controller.start(new MockMultipartFile("video", "take.mp4", "video/mp4", new byte[0]), request))
-                .isInstanceOf(ApiException.class).hasMessage("empty_video");
+                .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.status()).isEqualTo(422)).hasMessage("empty_video");
         assertThatThrownBy(() -> controller.start(new MockMultipartFile("video", "take.txt", "text/plain", new byte[]{1}), request))
-                .isInstanceOf(ApiException.class).hasMessage("unsupported_media_type");
+                .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.status()).isEqualTo(415)).hasMessage("unsupported_media_type");
+        verifyNoInteractions(sessions);
+    }
+
+    @Test void oversizedFileIsRejectedBeforeCopying() {
+        authorize();
+        var oversized = new MockMultipartFile("video", "take.mp4", "video/mp4", new byte[]{1}) {
+            @Override public long getSize() { return 50L * 1024 * 1024 + 1; }
+        };
+        assertThatThrownBy(() -> controller.start(oversized, request))
+                .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.status()).isEqualTo(413))
+                .hasMessage("upload_too_large");
         verifyNoInteractions(sessions);
     }
 }
