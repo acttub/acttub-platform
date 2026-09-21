@@ -194,7 +194,7 @@ final class StructuredCoachEngine {
         return current;
     }
 
-    private CoachResult result(CoachSessionSnapshot session, String actorText, String message,
+    static CoachResult result(CoachSessionSnapshot session, String actorText, String message,
             ObjectNode state, String endReason) {
         List<CoachTurnSnapshot> turns = new ArrayList<>(session.turns());
         if (actorText != null) { turns.add(new CoachTurnSnapshot("actor", actorText)); }

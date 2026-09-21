@@ -350,12 +350,13 @@ jobs:
           API_IMAGE: ${{ needs.guard.outputs.api_image }}
           WEB_IMAGE: ${{ needs.guard.outputs.web_image }}
           BACKUP_IMAGE: ${{ needs.guard.outputs.backup_image }}
-          # 영상만 올리는 새 2·3층은 dev에서 사용한다. 운영은 서버의 기존 설정을 유지한다.
-          THREE_LAYERS_ENABLED: ${{ needs.guard.outputs.environment == 'dev' && 'true' || '' }}
+          # 기존 화면의 영상 전용 연습을 Gemini 직접 코칭에 연결한다.
+          THREE_LAYERS_ENABLED: 'true'
+          DIRECT_VIDEO_ENABLED: 'true'
         run: |
           set -euo pipefail
           # shellcheck disable=SC2029
-          ssh "$SERVER" "cd '$REMOTE_DIR' && DEPLOY_THREE_LAYERS_ENABLED='$THREE_LAYERS_ENABLED' ./deploy.sh '$GITHUB_SHA' '$API_IMAGE' '$WEB_IMAGE' '$BACKUP_IMAGE'"
+          ssh "$SERVER" "cd '$REMOTE_DIR' && DEPLOY_THREE_LAYERS_ENABLED='$THREE_LAYERS_ENABLED' DEPLOY_DIRECT_VIDEO_ENABLED='$DIRECT_VIDEO_ENABLED' ./deploy.sh '$GITHUB_SHA' '$API_IMAGE' '$WEB_IMAGE' '$BACKUP_IMAGE'"
 
       # 터널을 거쳐 밖에서 봅니다. cloudflared 는 같은 compose 의 edge 프로필에 있고 deploy.sh 의 --wait 가
       # 그 healthy(엣지 연결)까지 기다렸으므로 보통 첫 시도에 맞습니다. 재시도는 DNS·엣지 전파 몫입니다.

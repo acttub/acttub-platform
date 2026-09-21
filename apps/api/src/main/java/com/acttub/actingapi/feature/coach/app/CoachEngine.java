@@ -49,12 +49,20 @@ public class CoachEngine {
     private final TextGenerator generate;
     private final FailureReporter failureReporter;
     private final LlmTelemetry telemetry;
+    private final DirectVideoCoach directVideo;
 
     public CoachEngine(
             TextGenerator generate, FailureReporter failureReporter, LlmTelemetry telemetry) {
+        this(generate, failureReporter, telemetry, java.util.Optional.empty());
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public CoachEngine(TextGenerator generate, FailureReporter failureReporter, LlmTelemetry telemetry,
+            java.util.Optional<DirectVideoCoach> directVideo) {
         this.generate = generate;
         this.failureReporter = failureReporter;
         this.telemetry = telemetry;
+        this.directVideo = directVideo.orElse(null);
     }
 
     public static CoachReply parseCoachingResponse(String rawText) {
@@ -99,6 +107,7 @@ public class CoachEngine {
 
     /** 새 세션의 첫 응답을 만들고 actor→ai 순서로 두 turn을 추가한다. */
     public CoachResult start(CoachSessionSnapshot session, UUID operationId) {
+        if (session.threeLayers() && directVideo != null) return directVideo.turn(session, null, operationId);
         if (session.threeLayers()) {
             return new StructuredCoachEngine(generate, failureReporter, telemetry).turn(session, null, operationId);
         }
@@ -135,6 +144,7 @@ public class CoachEngine {
     /** 기존 세션의 다음 응답을 만들고 actor→ai 순서로 두 turn을 추가한다. */
     public CoachResult reply(
             CoachSessionSnapshot session, String actorText, UUID operationId) {
+        if (session.threeLayers() && directVideo != null) return directVideo.turn(session, actorText, operationId);
         if (session.threeLayers()) {
             return new StructuredCoachEngine(generate, failureReporter, telemetry).turn(session, actorText, operationId);
         }
