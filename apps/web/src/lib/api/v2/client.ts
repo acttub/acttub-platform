@@ -32,16 +32,15 @@ function apiUrl(path: string): string {
   return `${API_BASE_URL}${path}`;
 }
 
-function serializeBody(body: unknown): string | FormData | undefined {
+function serializeBody(body: unknown): string | undefined {
   if (body === undefined) return undefined;
-  if (body instanceof FormData) return body;
   // 멱등 재시도 계층은 이미 직렬화한 문자열을 넘겨 같은 바이트를 재사용한다.
   return typeof body === "string" ? body : JSON.stringify(body);
 }
 
 function requestHeaders(
   source: HeadersInit | undefined,
-  body: string | FormData | undefined,
+  body: string | undefined,
   accessToken: string | null,
   auth: boolean,
 ): Headers {
@@ -52,7 +51,7 @@ function requestHeaders(
   // 웹은 아직 한국어 화면뿐이라 한국어로 못박는다 — 브라우저가 보내는 값을 그대로 두면
   // 화면은 한국어인데 약관만 영어로 나오는 기기가 생긴다. 웹을 영어로 열 때 같이 푼다.
   headers.set("Accept-Language", "ko");
-  if (body !== undefined && !(body instanceof FormData) && !headers.has("Content-Type")) {
+  if (body !== undefined && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
   if (auth && accessToken) {
@@ -64,7 +63,7 @@ function requestHeaders(
 async function fetchResponse(
   path: string,
   options: ApiFetchOptions,
-  body: string | FormData | undefined,
+  body: string | undefined,
   accessToken: string | null,
 ): Promise<Response> {
   const auth = options.auth ?? true;
@@ -163,7 +162,7 @@ function pendingConsents(
 async function sendWithSession(
   path: string,
   options: ApiFetchOptions,
-  body: string | FormData | undefined,
+  body: string | undefined,
 ): Promise<{ response: Response; payload: unknown }> {
   const auth = options.auth ?? true;
   const retryOn401 = options.retryOn401 ?? true;

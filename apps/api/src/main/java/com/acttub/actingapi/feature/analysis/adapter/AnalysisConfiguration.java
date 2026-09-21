@@ -41,7 +41,10 @@ class AnalysisConfiguration {
             ObservationAnalyzer observations,
             SpeechAnalyzer speech,
             FailureReporter failureReporter,
-            com.acttub.actingapi.integration.observation.VideoRecordAnalyzer videoRecords) {
-        return new SummaryAnalyzer(durationProbe, compressor, observations, speech, failureReporter, videoRecords);
+            com.acttub.actingapi.integration.observation.VideoRecordAnalyzer videoRecords,
+            org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.integration.observation.DirectVideoModel> directVideo) {
+        AnalysisProcessor analyzer = new SummaryAnalyzer(durationProbe, compressor, observations, speech, failureReporter, videoRecords);
+        return directVideo.getIfAvailable() == null ? analyzer
+                : new com.acttub.actingapi.feature.analysis.app.DirectVideoPreparation(durationProbe, analyzer);
     }
 }
