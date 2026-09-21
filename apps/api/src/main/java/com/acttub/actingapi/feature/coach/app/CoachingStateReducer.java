@@ -5,6 +5,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import com.acttub.actingapi.feature.coach.domain.ClosingIntent;
 import com.acttub.actingapi.integration.llm.StructuredJson;
@@ -14,6 +15,9 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /** Validates a proposed transition before either the message or its state can be saved. */
 final class CoachingStateReducer {
+    // Quoted dialogue is part of a coach sentence. Word-internal apostrophes are not quote boundaries.
+    private static final Pattern QUOTED_SENTENCES = Pattern.compile(
+            "“[^”]*”|‘[^’]*’|\"[^\"]*\"|(?<![A-Za-z0-9])'[^']*'(?![A-Za-z0-9])");
     private CoachingStateReducer() { }
 
     static ObjectNode empty() {
@@ -42,7 +46,7 @@ final class CoachingStateReducer {
                 "message exceeds current length limit");
         require(OpeningQuestion.questionCount(message) <= 1,
                 "at most one question");
-        require(message.split("[.!?。！？]+(?:\\s|$)").length <= maxSentences,
+        require(QUOTED_SENTENCES.matcher(message).replaceAll("quote").split("[.!?。！？]+(?:\\s|$)").length <= maxSentences,
                 "too many sentences");
         require(!message.contains("```") && !message.contains("source_refs"), "internal output in message");
         require(!finishRequired || "finish".equals(response.path("flow").asText()), "must finish now");
