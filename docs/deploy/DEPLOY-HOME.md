@@ -89,6 +89,8 @@ docker compose --env-file .env --env-file release.env logs --since 10m --tail 10
 curl -fsS https://acttub.com/health
 ```
 
+dev 배포는 `ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=false`를 릴리스 설정에 기록해 게스트의 영상 분석·재분석 일일 횟수를 제한하지 않는다. 운영 배포는 true로 하루 3회 제한을 유지하며, 설정 미지정 기본값도 true다. 배포 스크립트는 API 컨테이너에 실제 반영된 값을 대조한다.
+
 ## 4. 코드 배포 복구
 
 DB 스키마와 호환되는 직전 운영 SHA 및 이미지로 `deploy.sh`를 다시 실행한다. 현재 이미지와

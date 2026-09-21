@@ -660,6 +660,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   게스트가 선택 문서에 결정을 보내면 403 `member_only`. `GET /v2/consents/pending`·`/entry` 는 게스트에게도
   열려 있고 **필수 문서만** 싣는다 — 웹은 `entry` 의 `privacy` 행 `current_decision`(현재 판 기준) 하나로
   계측을 켠다.
+- **dev 분석 한도 예외**: `ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=false`이면 새 연습·재분석 모두 일일 횟수 제한 없이 처리한다. 배포 워크플로는 dev에 false, 운영에 true를 명시한다. 기본값은 true이며 회원 정책과 요청 ID 멱등성은 유지한다.
 - **분석 하루 3회**: 게스트의 분석 요청(새 연습 + 재분석)은 **한국 시간 자정**에 끊는 하루에 3회까지다. 넘으면
   **429 `guest_daily_analysis_limit`**. 작업 장부의 `analyze` 행을 세고 같은 요청 ID 의 재시도는 세지 않는다.
   **세는 일과 작업을 만드는 일은 한 트랜잭션이다**(`PostgresPracticeSessionLedger#overQuota`): 그 게스트의 `users`
