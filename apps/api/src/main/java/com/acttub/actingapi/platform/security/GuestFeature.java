@@ -27,7 +27,8 @@ public enum GuestFeature {
     PRACTICE(
             Set.of("terms", "privacy", "ai_analysis"),
             List.of("/v2/uploads/**", "/v2/videos/**", "/v2/practices/**", "/v2/practice-sessions/**",
-                    "/v2/practice-feedback/**", "/v2/coach/**", "/v2/reports/**", "/v2/me/memory/**")),
+                    "/v2/practice-feedback/**", "/v2/me/practice-feedback/**", "/v2/coach/**",
+                    "/v2/reports/**", "/v2/me/memory/**")),
 
     /** 리딩 — 대본 등록·리딩 회차·녹음·암기 상태. 리딩의 경로는 전부 {@code /v2/reading} 아래다. */
     READING(Set.of("terms", "privacy"), List.of("/v2/reading/**"));

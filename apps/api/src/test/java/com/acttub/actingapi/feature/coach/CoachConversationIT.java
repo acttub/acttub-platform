@@ -193,6 +193,29 @@ class CoachConversationIT {
     }
 
     @Test
+    @DisplayName("practice.coach: 대화 중 탈퇴 — 바깥 호출이 도는 사이에 탈퇴가 끝나면 그 뒤 도착한 코치 응답이 "
+            + "저장되지 않고 403 account_deactivated 다")
+    void practiceCoach_repliesArrivingAfterWithdrawalAreNotStored() throws Exception {
+        generator.enqueue(CONTINUE);
+        JsonNode started = json(post("/v2/coach/start").content(startBody(practice, UUID.randomUUID())), 200);
+        UUID conversationId = UUID.fromString(started.path("conversation").path("id").textValue());
+        long revision = started.path("conversation").path("revision").longValue();
+
+        generator.enqueue(CONTINUE);
+        // 게이트를 지난 뒤, 모델을 기다리는 사이에 다른 기기의 탈퇴가 커밋된다.
+        generator.duringNextCall(() ->
+                jdbc.update("UPDATE users SET status='deactivated',deactivated_at=now() WHERE id=?", member));
+
+        assertThat(json(post("/v2/coach/reply")
+                .content(replyBody(conversationId, UUID.randomUUID(), "숨이 막혔어요", revision)), 403))
+                .isEqualTo(mapper.readTree("{\"detail\":\"account_deactivated\"}"));
+        assertThat(count("coach_messages")).as("코치 응답도 배우 메시지도 쌓이지 않는다").isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT state_revision FROM coach_conversations WHERE id=?", Integer.class, conversationId))
+                .isEqualTo((int) revision);
+    }
+
+    @Test
     @DisplayName("practice.coach: 낡은 revision 으로 답 — 409 conversation_conflict 이고 아무것도 쌓이지 않는다. 대화 조회로 최신 상태를 다시 읽는다")
     void practiceCoach_staleRevisionsAreRejected() throws Exception {
         generator.enqueue(CONTINUE);
@@ -403,6 +426,8 @@ class CoachConversationIT {
     static final class StubGenerator implements TextGenerator {
         private final Deque<String> responses = new ArrayDeque<>();
         private final List<String> inputs = new ArrayList<>();
+        /** 바깥 호출이 도는 사이에 일어나는 일(탈퇴·이관)을 세우는 자리다. */
+        private volatile Runnable duringCall;
 
         @Override
         public synchronized GeneratedText generate(String systemInstructions, String input) {
@@ -410,11 +435,21 @@ class CoachConversationIT {
             if (responses.isEmpty()) {
                 throw new IllegalStateException("unexpected LLM call #" + inputs.size());
             }
+            Runnable hook = duringCall;
+            duringCall = null;
+            if (hook != null) {
+                hook.run();
+            }
             return new GeneratedText(responses.removeFirst(), new TokenUsage(0, 0, 0));
         }
 
         synchronized void enqueue(String response) {
             responses.addLast(response);
+        }
+
+        /** 다음 호출이 응답을 내기 직전에 한 번 돈다. */
+        void duringNextCall(Runnable hook) {
+            duringCall = hook;
         }
 
         synchronized int calls() {
@@ -424,6 +459,7 @@ class CoachConversationIT {
         synchronized void reset() {
             responses.clear();
             inputs.clear();
+            duringCall = null;
         }
     }
 }

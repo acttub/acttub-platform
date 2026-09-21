@@ -87,6 +87,19 @@ public interface ConversationRepository {
     }
 
     /**
+     * 저장 직전에 본 계정이 활성이 아니다 — 바깥 호출이 도는 사이에 다른 기기의 탈퇴가 끝났다
+     * (practice.coach "대화 중 탈퇴: 그 뒤 도착한 코치 응답이 저장되지 않는다").
+     *
+     * <p>무엇을 응답할지는 부르는 자리가 정한다(ADR-018). 예외인 것은 <b>정상 갈래와 갈라야 하기</b>
+     * 때문이다 — {@code null} 은 이미 "동시 저장이 이겼다"(409)라는 뜻을 갖고 있다.
+     */
+    class OwnerNotActive extends RuntimeException {
+        public OwnerNotActive() {
+            super("conversation owner is not active");
+        }
+    }
+
+    /**
      * 노트를 한 번 만든다. 이미 있으면 그것을 돌려주고 새로 쓰지 않는다 — 재생성 요청이 같은 노트를 준다.
      */
     NoteView saveNote(UUID conversationId, NewNote note, Instant now);

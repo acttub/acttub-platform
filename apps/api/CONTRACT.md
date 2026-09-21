@@ -606,13 +606,15 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 - **한 트랜잭션**(`PostgresProfileRepository#withdraw`)에서: 상태 전환, 이메일 파기(I-3 예외로
   `users.nickname=NULL` 포함), 프로필의 이름·사진·소개 파기와 생년월일 → 5세 단위 `age_band`(아래 끝),
   알림 토글 끄기, 포트폴리오 행째 삭제, 이관 코드 삭제, 리프레시 폐기·푸시 토큰 삭제, 진행 중
-  `external_operations` 를 `failed`/`account_deactivated` 로 닫고 lease 떼기(분석 중이던 연습도 `failed`),
-  신원의 `provider_uid`·토큰을 비우고 `uid_hash` 채우기. 성별·연령대·방향·경력·목표와 배우 기억은 남는다.
+  `external_operations` 와 `ai_jobs` 를 `failed`/`account_deactivated` 로 닫고 lease 떼기(분석 중이던 연습도
+  `failed`, 1.0.0 작업은 결과 본문도 비운다), **1.0.0 영상에 `purged_at` 찍기**, `practice_feedback` 의 연락처
+  비우고 시트 재전송 예약, 신원의 `provider_uid`·토큰을 비우고 `uid_hash` 채우기. 성별·연령대·방향·경력·목표와
+  배우 기억은 남는다(§6-15 「연습 자료의 이관·삭제·탈퇴」).
 - **신원 행은 지우지 않는다.** `uid_hash` = HMAC-SHA256(provider, provider_uid) 만 남긴다
   (`ck_user_identities_uid_or_hash`). 서버는 해시로 옛 계정을 찾지 않는다 — 같은 제공자로 다시 오면 처음 온
   신원이다. 해시의 쓰임은 보관 동의 철회 요청의 본인 확인 하나다.
-- **영상 객체**는 "탈퇴 후 영상·녹음 보관·활용"(`retention`)의 **현재 판에 대한 마지막 결정이 동의**인
-  사람 것만 남긴다. 현재 판에 답하지 않았으면 거절로 본다. 사진 객체(프로필·포트폴리오)는 언제나 지운다.
+- **영상 객체**는 옛 예약 장부(`upload_intents`)와 1.0.0 보관함(`videos`)의 키를 함께 모은다. "탈퇴 후
+  영상·녹음 보관·활용"(`retention`)의 **현재 판에 대한 마지막 결정이 동의**인 사람 것만 남긴다. 현재 판에 답하지 않았으면 거절로 본다. 사진 객체(프로필·포트폴리오)는 언제나 지운다.
   만 14세 미만으로 드러난 1.0.0 이전 회원은 동의와 무관하게 영상을 파기한다.
 - **리딩 자료는 같은 트랜잭션에서 행째 지운다**(`PostgresProfileRepository#eraseReading`, §6-14). 연습 기록과
   달리 사람과 끊어 남기지 않는다 — 대본·배역·줄·회차·암기 상태가 그렇다. **녹음만 보관 동의를 따른다**: 동의가
@@ -667,7 +669,8 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   토큰의 구조·갱신·만료는 회원과 같다. 끝난 게스트의 토큰이 붙어 와도 401 로 막지 않는다.
 - **게스트의 게이트**(`platform/security/GuestFeature`): 경로가 속한 **기능의 문서만** 본다. 연습
   (`/v2/uploads/**`·`/v2/videos/**`·`/v2/practices/**`·`/v2/practice-sessions/**`·`/v2/practice-feedback/**`·
-  `/v2/coach/**`·`/v2/reports/**`·`/v2/me/memory/**`)은 약관·수집·이용 동의·AI 분석 동의, 리딩
+  `/v2/me/practice-feedback/**`·`/v2/coach/**`·`/v2/reports/**`·`/v2/me/memory/**`)은 약관·수집·이용 동의·AI 분석
+  동의, 리딩
   (`/v2/reading/**`)은 약관·수집·이용 동의 둘이다(서버가 대본·음성을 분석하지 않아 AI 분석 동의는 없다 —
   ADR-031, §6-14). **영상을 보관만 하는 데에도 AI 분석 동의를 받는다** — 보관함의 다음 길이 분석이기 때문이고
   1.0.0 은 이를 받아들인다(practice.record, §6-15). **프로필은 보지 않고 선택 문서는 묻지 않는다.** 403
@@ -785,6 +788,15 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 | 탈퇴 3년 | 탈퇴한 지 달력으로 **3년** 지난 계정의 신원 해시 행을 지우고, 보관 동의로 남겨 둔 영상 객체와 **리딩 녹음**(행째 지우고 객체는 장부로, §6-14)의 삭제를 정리 장부에 올린다. 한 트랜잭션이다 — 해시 보관 기간이 곧 영상 보관 기간이다(ADR-029). **고르는 기준은 신원이 아니라 `users.deactivated_at` 과 `users.retention_purged_at`(V10)이다** — 제공자의 연결 끊기로 마지막 신원이 먼저 지워진 회원에게는 해시 행이 없다. 파기를 마친 시각을 적으므로 다시 고르지 않는다 |
 | 해제 재시도 | `AccountCleanup#runDue`(5분마다도 돈다) — 7일 지난 **제공자 해제**는 값과 함께 지우고, 7일 넘게 실패한 **객체 삭제**는 키를 지키며 운영자에게 알린다(§6-8) |
 | 이관 코드 | 쓰였거나 시한이 지난 지 **30일** 지난 행을 지운다. ⚠ 쓰인 코드는 `guest_transferred` 의 표식이라 그 게스트의 리프레시 토큰이 살 수 있는 30일 동안은 지우면 안 된다(§6-9) |
+
+`feature/feedback/app/ExitSurveySync#runDaily` — **이탈 설문의 매일 도는 일은 따로다**(`EXIT_SURVEY_SYNC_ENABLED`,
+기본 하루). 시트가 죽어 있는 동안 계정 정리까지 멈추면 안 되기 때문이다. 순서는 **연락처 파기 → 시트 전송**이다 —
+먼저 비워야 그날 안에 시트의 연락처까지 사라진다.
+
+| 일 | 규칙 |
+|---|---|
+| 설문 연락처 | 접수 **90일** 지난 행의 연락처를 비우고 `sheet_seq` 를 올린 뒤 `sheet_synced_at` 을 NULL 로 되돌린다 — 같은 설문 id·새 순번으로 시트에 다시 보내 시트의 연락처도 지운다(§6-15) |
+| 설문 시트 전송 | `sheet_synced_at` 이 NULL 인 행을 오래된 순으로 보낸다. 실패하면 그대로 두고 다음 날 다시 본다 — 한 묶음에서 하나도 보내지 못하면 멈춘다(시트가 죽은 동안 같은 묶음을 영원히 돌지 않는다) |
 
 ### 6-13. 방문자 IP
 
@@ -1103,13 +1115,63 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     (`fallback = true`)을 남긴다.
   - 생성기가 낸 **원문 전체**를 `legacy_report` 에 함께 둔다 — 컬럼 이름은 옛 것이지만 신형도 여기에 둔다. 옛 공개
     필드를 읽던 화면이 그대로 쓰는 호환 응답의 재료다.
+- **배우 기억**(`/v2/me/memory`, `actor_memories`) — 칸은 **넷**(`goal`·`blockage`·`speech_self`·`speech_actual`)이고
+  `(user_id, field)` 유일이다. **성별·나이 칸은 없다** — 프로필로 옮겼다(account.profile). 옛 여섯 칸 화면은
+  `/v2/legacy-me/memory` 로 옮겨 옛 표(`actor_memory_entries`)를 그대로 읽는다.
+  - `GET` 은 칸마다 `field`·`value`·`written_by_actor`·`source_practice_id`·`updated_at` 을 준다. **출처 회차가 숨겨진
+    묶음이면 값은 그대로고 `source_practice_id` 만 비운다**(링크만 사라진다).
+  - `PUT /v2/me/memory/{field}` 는 공백을 정리한 뒤 1~1,000자다. 다듬고 나서 빈 값이면 422 **배열**
+    (`value must not be blank`), 1,001자도 422 배열이다. 여기서 쓴 칸은 `written_by = actor` 이고 **워커가 덮지
+    않는다**. `DELETE` 는 칸 하나든 전체든 **멱등**(204)이고 누적 확인 연습 횟수를 초기화하지 않는다.
+  - **기억 세대**(`users.memory_epoch`)가 늦은 갱신을 막는다. 삭제와 **이관 선택**이 세대를 올리고, 갱신 작업은
+    예약 시점의 세대를 `ai_jobs.memory_epoch` 에 들고 있다가 완료 때 다르면 `memory_epoch_stale` 로 닫고 **아무것도
+    쓰지 않는다** — 지운 기억이 되살아나거나 버린 쪽의 작업이 덮지 못한다.
+  - **갱신 예약**은 대화가 닫히고 노트까지 남은 뒤다(`coach/app/ConversationClosedListener` → `memory`). 확인 연습은
+    **노트가 남은 회차**이고 `record_only` 는 세지 않는다 — 첫 회차와 그 뒤 3의 배수(1·3·6·9…)에만 `ai_jobs` 에
+    `memory_update` 가 선다. 요청 id 를 회차에서 만들어 **같은 회차는 작업 하나**다.
+  - 워커는 분석과 **같은 추출기·같은 재시도 규칙**이다(근거는 배우 발화·받아쓰기·관찰뿐, 바깥 실패는 재큐이고 3회
+    뒤 sweep 이 닫는다). 저장은 한 트랜잭션에서 **지금의 주인**에게 하고 계정 상태와 세대를 다시 본다. **회차 상태는
+    건드리지 않는다** — 기억이 없다고 연습이 망가질 것은 아니다.
+- **이탈 설문**(`/v2/practice-feedback`, `/v2/me/practice-feedback/**`, `practice_feedback`) — **DB 가 정본이고 시트는
+  복제본이다**(ERD).
+  - **접수** `POST /v2/practice-feedback`: `request_id`·`practice_id?`·`screen`(coach·report)·`trigger`(x·leave·back)·
+    `body?`·`contact_email?`·`contact_phone?`. 본문은 공백 정리 뒤 1~100자이고 **없으면 건너뛰기**(`dismissed`)다 —
+    공백만 보낸 본문은 건너뛰기가 아니라 422 `feedback_body_required`. 연락처는 각각 80자이고 없이도 보낼 수 있다.
+    남의 회차를 가리키면 404 `practice_not_found`. 만들면 **201**, 같은 `request_id` 의 재전송이면 **200** 이고 같은
+    설문 id 다(오프라인에서 들고 있다 다시 보내도 행 하나).
+  - **한 계정에 한 번만 묻는다.** `GET /v2/me/practice-feedback/status` 는 `{asked, asked_now}` 로 이미 물어봤는지만
+    보고 표식을 건드리지 않는다. 자동 노출 직전에는 `POST /v2/me/practice-feedback/claim` 으로 **선점**하고
+    `asked_now` 가 참인 기기만 시트를 띄운다 — `UPDATE users … WHERE exit_survey_asked_at IS NULL` 한 문장이라 두
+    기기가 동시에 물어도 하나만 이긴다. 오프라인에서는 선점을 부르지 않는다(새 자동 노출 없음).
+  - **시트 복제는 뒤의 일이다.** 저장은 DB 커밋으로 끝나고 전송이 실패하면 `sheet_synced_at` 이 NULL 로 남아 매일
+    도는 일이 다시 보낸다. 시트는 설문 id 로 **한 줄**이고 `sheet_seq` 가 작은 전송은 무시한다 — 오래된 전송이 파기한
+    연락처를 되살리지 못한다. **이 전송은 AI 작업이 아니라 `ai_jobs` 에 넣지 않는다.**
+  - **연락처는 접수 90일 뒤에 비운다**: DB 를 비우고 `sheet_seq` 를 올린 뒤 `sheet_synced_at` 을 NULL 로 되돌려 같은
+    설문 id·새 순번으로 시트에 다시 보낸다(시트의 연락처도 지운다). 탈퇴 때도 같다. **본문은 사람과 끊어 남는다.**
+  - 시트 구현이 아직 없다. 자리 지킴이(`adapter/sheet/LoggingExitSurveySheet`)는 **보낸 척하지 않고 실패로 남긴다** —
+    성공을 돌려주면 그 설문이 재전송 대상에서 빠져 시트가 붙는 날 영영 복제되지 않는다.
+- **연습 자료의 이관·삭제·탈퇴** — 정본은 02-practice 의 처리표다.
+  - **이관**은 `user_id` 가 있는 행을 한 트랜잭션에서 옮긴다: 예약 장부 → `videos` → `practice_sessions`·`practices`
+    → `external_operations`·`ai_jobs` → 배우 기억 → 리딩 → 설문 순이다(§6-9의 잠금 순서에 이어진다). 분석·대화·노트·
+    받아쓰기는 그 행에 매달려 따라간다. 기억은 합치지 않고 양쪽에 있으면 409 `memory_choice_required` 이며, 고른
+    뒤 **회원의 기억 세대가 오른다**. 설문 이력은 모두 회원 것이 되고 **어느 쪽이든 물어봤으면 회원도 물어본 것**이다.
+  - **탈퇴·30일 파기**: `videos` 는 **행을 지우지 않고** `purged_at` 을 찍어 최소 메타만 남긴다(재생은 막히고 총량에서
+    빠지며 회차·참여작의 기록은 깨지지 않는다). 객체는 정리 장부로 가고, 보관 동의자의 영상은 탈퇴 3년 뒤 같은 자리에서
+    파기된다. 진행 중인 `ai_jobs`(분석·기억 갱신)는 `failed`/`account_deactivated` 로 닫고 lease 를 떼며 결과 본문을
+    비운다. `practice_feedback` 의 연락처는 비우고 시트에 다시 보낸다. `practices`·`analyses`·`coach_*`·
+    `video_transcripts` 는 **사람과 끊어 남긴다**.
+  - **대화 중 탈퇴**: 코치 응답의 저장은 대화 행과 함께 `users.status` 를 본다 — 바깥 호출이 도는 사이에 탈퇴가
+    끝났으면 아무것도 쓰지 않고 403 `account_deactivated` 다(분석의 완료가 같은 자리에서 같은 확인을 한다).
 - **옛 흐름은 아직 그대로다** — `/v2/uploads/**`·`/v2/practice-sessions/**`·`/v2/reports/**`, 그리고 옛 코치가 옮겨 간
   **`/v2/legacy-coach/**`**. 1.0.0 대화가 `/v2/coach` 를 쓰게 되면서 옛 코치 컨트롤러의 경로만 바꿔 살려 두었다 —
   그것이 지키던 행동 규칙 테스트(프로필 입력·관찰 읽기·확정 흐름)가 아직 유일한 방어선이기 때문이다. 옛 연습
   흐름을 내릴 때 함께 사라진다(PA6).
 - OpenAPI 컴포넌트: 보관함은 `Video`·`VideoList`·`VideoUsage`·`VideoIntent`·`VideoIntentRequest`·`VideoPatch`, 회차는
   `Practice`·`PracticeGroup`·`PracticeGroupList`·`PracticeStatus`·`PracticeJob`·`PracticeScene`·`PracticeBlockage`·
-  `PracticeCreateRequest`·`PracticeContinueRequest`·`PracticeAnalyzeRequest`·`PracticeGroupPatch`.
+  `PracticeCreateRequest`·`PracticeContinueRequest`·`PracticeAnalyzeRequest`·`PracticeGroupPatch`, 기억은
+  `ActorMemoryItem`·`ActorMemoryResponse`·`UpdateActorMemoryRequest`(옛 여섯 칸의 `MemoryItem`·`MemoryResponse`·
+  `UpdateMemoryRequest` 는 `/v2/legacy-me/memory` 가 계속 쓴다), 설문은 `PracticeFeedbackRequest`·
+  `PracticeFeedbackResponse`·`PracticeFeedbackStatus`.
 
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 

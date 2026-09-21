@@ -206,16 +206,25 @@ class PostgresConversationRepository implements ConversationRepository {
             String closeReason,
             Instant now) {
         return transaction.execute(tx -> {
+            // 대화 행과 함께 계정 상태를 본다 — 바깥 호출이 도는 사이에 다른 기기의 탈퇴가 끝났으면 그 뒤에
+            // 도착한 코치 응답을 저장하지 않는다(practice.coach, 02-practice 「이관·삭제·탈퇴」). 분석의
+            // `PostgresPracticeAnalysisStore.complete` 가 같은 자리에서 같은 확인을 한다.
             List<Tuple> locked = NativeTuples.list(entityManager.createNativeQuery("""
-                    SELECT state_revision,status FROM coach_conversations
-                    WHERE id=:conversationId
-                    FOR UPDATE
+                    SELECT c.state_revision,c.status,u.status AS account_status
+                    FROM coach_conversations c
+                    JOIN practices p ON p.id=c.practice_id
+                    JOIN users u ON u.id=p.user_id
+                    WHERE c.id=:conversationId
+                    FOR UPDATE OF c
                     """, Tuple.class)
                     .setParameter("conversationId", conversationId));
             if (locked.isEmpty()) {
                 return null;
             }
             Tuple row = locked.getFirst();
+            if (!"active".equals(row.get("account_status", String.class))) {
+                throw new OwnerNotActive();
+            }
             // 바깥 호출이 도는 사이에 다른 요청이 저장했으면 이번 것은 쓰지 않는다.
             if (((Number) row.get("state_revision")).longValue() != expectedRevision
                     || !"open".equals(row.get("status", String.class))) {

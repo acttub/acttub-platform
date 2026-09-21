@@ -4,9 +4,11 @@ import java.time.Clock;
 
 import com.acttub.actingapi.feature.coach.app.CoachEngine;
 import com.acttub.actingapi.feature.coach.app.ConversationRepository;
+import com.acttub.actingapi.feature.coach.app.ConversationClosedListener;
 import com.acttub.actingapi.feature.coach.app.ConversationService;
 import com.acttub.actingapi.feature.coach.app.NoteWriter;
 import com.acttub.actingapi.feature.report.app.ReportEngine;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -22,9 +24,17 @@ class ConversationConfiguration {
         return new NoteWriter(conversations, reports);
     }
 
+    /**
+     * 종료 알림은 선택이다 — {@code memory} 가 구현을 내지만, 없어도 대화는 돌아야 한다
+     * ({@code AnalysisCompletionListener} 와 같은 형태).
+     */
     @Bean
     ConversationService conversationService(
-            ConversationRepository conversations, CoachEngine coach, NoteWriter notes, Clock clock) {
-        return new ConversationService(conversations, coach, notes, clock);
+            ConversationRepository conversations,
+            CoachEngine coach,
+            NoteWriter notes,
+            Clock clock,
+            ObjectProvider<ConversationClosedListener> closedListener) {
+        return new ConversationService(conversations, coach, notes, clock, closedListener.getIfAvailable());
     }
 }

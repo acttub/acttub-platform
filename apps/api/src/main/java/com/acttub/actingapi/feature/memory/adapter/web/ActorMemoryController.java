@@ -2,18 +2,17 @@ package com.acttub.actingapi.feature.memory.adapter.web;
 
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
-import com.acttub.actingapi.feature.memory.adapter.web.MemoryDtos.MemoryItem;
-import com.acttub.actingapi.feature.memory.adapter.web.MemoryDtos.MemoryResponse;
-import com.acttub.actingapi.feature.memory.adapter.web.MemoryDtos.UpdateMemoryRequest;
+import com.acttub.actingapi.feature.memory.adapter.web.ActorMemoryDtos.ActorMemoryItem;
+import com.acttub.actingapi.feature.memory.adapter.web.ActorMemoryDtos.ActorMemoryResponse;
+import com.acttub.actingapi.feature.memory.adapter.web.ActorMemoryDtos.UpdateActorMemoryRequest;
+import com.acttub.actingapi.feature.memory.app.ActorMemory;
+import com.acttub.actingapi.feature.memory.app.ActorMemoryService;
 import com.acttub.actingapi.feature.memory.app.BlankMemoryValue;
-import com.acttub.actingapi.feature.memory.app.MemoryEntry;
-import com.acttub.actingapi.feature.memory.app.MemoryService;
+import com.acttub.actingapi.feature.memory.domain.ActorMemoryFields;
 import com.acttub.actingapi.platform.security.AccessGate;
 import com.acttub.actingapi.platform.web.ApiValidationException;
-import com.acttub.actingapi.platform.schema.ActorMemoryField;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -32,85 +31,80 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 코치가 배우를 기억하는 6칸 — 조회·수정·삭제 (`actor_memory.py`).
+ * 코치가 배우에 대해 기억하는 네 칸 — 조회·수정·삭제 (practice.memory).
  *
- * <p>에이전트가 채우고 배우가 나중에 고친다. <b>그래서 이 화면이 이 기능의 안전판이다</b> —
- * 에이전트가 잘못 적은 것을 되돌릴 경로가 여기밖에 없다.
+ * <p>워커가 채우고 배우가 나중에 고친다. <b>그래서 이 화면이 이 기능의 안전판이다</b> — 워커가 잘못 적은 것을
+ * 되돌릴 경로가 여기밖에 없다.
  *
- * <p>성별·나이는 배우만 쓴다. 영상이나 목소리에서 추론하지 않는다 — 저장 계층이 막고
- * DB 제약이 최종 방어선이다.
- *
- * <p><b>1.0.0 의 기억 화면은 {@code /v2/me/memory} 로 옮겨 갔다</b>(네 칸, {@code actor_memories}).
- * 여기는 옛 표({@code actor_memory_entries})를 읽는 옛 경로로 남아 옛 갈래의 방어선을 지킨다 (§6-15).
+ * <p><b>성별·나이 칸은 없다</b> — 프로필로 옮겼다(account.profile). 옛 여섯 칸 화면은
+ * {@code /v2/legacy-me/memory} 에 남아 있고 옛 표를 읽는다.
  */
 @RestController
-@RequestMapping("/v2/legacy-me/memory")
-class MemoryController {
+@RequestMapping("/v2/me/memory")
+class ActorMemoryController {
     /** pydantic Literal 오류 메시지 형식: 마지막 항목만 or 로 잇는다. */
-    private static final String EXPECTED_FIELDS =
-            "'gender', 'age', 'goal', 'blockage', 'speech_self' or 'speech_actual'";
+    private static final String EXPECTED_FIELDS = "'goal', 'blockage', 'speech_self' or 'speech_actual'";
 
-    private final MemoryService memory;
+    private final ActorMemoryService memory;
     private final AccessGate auth;
 
-    MemoryController(MemoryService memory, AccessGate auth) {
+    ActorMemoryController(ActorMemoryService memory, AccessGate auth) {
         this.memory = memory;
         this.auth = auth;
     }
 
     @Operation(
-            summary = "Get Memory",
+            summary = "Get Actor Memory",
             description = "기억을 전부 읽는다. 아직 채워지지 않은 칸은 빠진 채로 온다.",
-            operationId = "get_memory_v2_legacy_me_memory_get",
+            operationId = "get_actor_memory_v2_me_memory_get",
             tags = "v2-me",
             security = @SecurityRequirement(name = "HTTPBearer"))
     @ApiResponse(
             responseCode = "200",
             description = "Successful Response",
-            content = @Content(schema = @Schema(implementation = MemoryResponse.class)))
+            content = @Content(schema = @Schema(implementation = ActorMemoryResponse.class)))
     @GetMapping
-    MemoryResponse getMemory(HttpServletRequest request) {
+    ActorMemoryResponse getMemory(HttpServletRequest request) {
         var user = auth.rateLimitedUser(request);
-        return new MemoryResponse(memory.list(user.id()).stream().map(MemoryController::item).toList());
+        return new ActorMemoryResponse(
+                memory.list(user.id()).stream().map(ActorMemoryController::item).toList());
     }
 
     @Operation(
-            summary = "Update Memory",
+            summary = "Update Actor Memory",
             description = """
                     배우가 한 칸을 쓰거나 고친다.
 
-                    여기서 쓴 칸은 이후 에이전트가 덮지 않는다. 되돌리려면 지우면 되고,
-                    지우면 다음 연습부터 에이전트가 다시 채운다.""",
-            operationId = "update_memory_v2_legacy_me_memory__field__put",
+                    여기서 쓴 칸은 이후 워커가 덮지 않는다. 되돌리려면 지우면 되고, 지우면 다음 갱신
+                    대상 회차부터 다시 채워진다.""",
+            operationId = "update_actor_memory_v2_me_memory__field__put",
             tags = "v2-me",
             security = @SecurityRequirement(name = "HTTPBearer"))
     @ApiResponses({
         @ApiResponse(
                 responseCode = "200",
                 description = "Successful Response",
-                content = @Content(schema = @Schema(implementation = MemoryItem.class))),
+                content = @Content(schema = @Schema(implementation = ActorMemoryItem.class))),
         @ApiResponse(
                 responseCode = "422",
                 description = "Validation Error",
                 content = @Content(schema = @Schema(ref = "#/components/schemas/HTTPValidationError")))
     })
     @PutMapping("/{field}")
-    MemoryItem updateMemory(
+    ActorMemoryItem updateMemory(
             @io.swagger.v3.oas.annotations.Parameter(
                     name = "field",
                     schema = @Schema(
                             title = "Field",
                             type = "string",
-                            allowableValues = {
-                                "gender", "age", "goal", "blockage", "speech_self", "speech_actual"
-                            }))
+                            allowableValues = {"goal", "blockage", "speech_self", "speech_actual"}))
             @PathVariable String field,
-            @Valid @RequestBody UpdateMemoryRequest body,
+            @Valid @RequestBody UpdateActorMemoryRequest body,
             HttpServletRequest request) {
-        ActorMemoryField target = field(field);
+        requireKnown(field);
         var user = auth.rateLimitedUser(request);
         try {
-            return item(memory.write(user.id(), target, body.value()));
+            return item(memory.write(user.id(), field, body.value()));
         } catch (BlankMemoryValue blank) {
             throw ApiValidationException.valueError(
                     List.of("body", "value"), "Value error, value must not be blank", body.value());
@@ -118,9 +112,9 @@ class MemoryController {
     }
 
     @Operation(
-            summary = "Delete Memory Field",
+            summary = "Delete Actor Memory Field",
             description = "한 칸을 지운다. 이미 없으면 404 대신 204 — 지우려는 결과는 같다.",
-            operationId = "delete_memory_field_v2_legacy_me_memory__field__delete",
+            operationId = "delete_actor_memory_field_v2_me_memory__field__delete",
             tags = "v2-me",
             security = @SecurityRequirement(name = "HTTPBearer"))
     @ApiResponses({
@@ -137,21 +131,19 @@ class MemoryController {
                     schema = @Schema(
                             title = "Field",
                             type = "string",
-                            allowableValues = {
-                                "gender", "age", "goal", "blockage", "speech_self", "speech_actual"
-                            }))
+                            allowableValues = {"goal", "blockage", "speech_self", "speech_actual"}))
             @PathVariable String field,
             HttpServletRequest request) {
-        ActorMemoryField target = field(field);
+        requireKnown(field);
         var user = auth.rateLimitedUser(request);
-        memory.delete(user.id(), target);
+        memory.delete(user.id(), field);
         return ResponseEntity.noContent().build();
     }
 
     @Operation(
-            summary = "Delete Memory",
-            description = "기억을 통째로 지운다. 다음 연습부터 다시 쌓인다.",
-            operationId = "delete_memory_v2_legacy_me_memory_delete",
+            summary = "Delete Actor Memory",
+            description = "기억을 통째로 지운다. 다음 갱신 대상 회차부터 다시 쌓인다.",
+            operationId = "delete_actor_memory_v2_me_memory_delete",
             tags = "v2-me",
             security = @SecurityRequirement(name = "HTTPBearer"))
     @ApiResponse(responseCode = "204", description = "Successful Response")
@@ -163,21 +155,21 @@ class MemoryController {
     }
 
     /** 경로 변수는 인증보다 먼저 판정한다 — FastAPI 도 Literal 을 의존성보다 앞에서 본다. */
-    private static ActorMemoryField field(String raw) {
-        if (!MemoryDtos.FIELD_NAMES.contains(raw)) {
-            Map<String, Object> error = new LinkedHashMap<>();
-            error.put("type", "literal_error");
-            error.put("loc", List.of("path", "field"));
-            error.put("msg", "Input should be " + EXPECTED_FIELDS);
-            error.put("input", raw);
-            error.put("ctx", Map.of("expected", EXPECTED_FIELDS));
-            throw new ApiValidationException(List.of(error));
+    private static void requireKnown(String raw) {
+        if (ActorMemoryFields.contains(raw)) {
+            return;
         }
-        return ActorMemoryField.valueOf(raw.toUpperCase(Locale.ROOT));
+        Map<String, Object> error = new LinkedHashMap<>();
+        error.put("type", "literal_error");
+        error.put("loc", List.of("path", "field"));
+        error.put("msg", "Input should be " + EXPECTED_FIELDS);
+        error.put("input", raw);
+        error.put("ctx", Map.of("expected", EXPECTED_FIELDS));
+        throw new ApiValidationException(List.of(error));
     }
 
-    private static MemoryItem item(MemoryEntry row) {
-        return new MemoryItem(
-                row.field(), row.value(), row.writtenByActor(), row.sourcePracticeSessionId());
+    private static ActorMemoryItem item(ActorMemory row) {
+        return new ActorMemoryItem(
+                row.field(), row.value(), row.writtenByActor(), row.sourcePracticeId(), row.updatedAt());
     }
 }

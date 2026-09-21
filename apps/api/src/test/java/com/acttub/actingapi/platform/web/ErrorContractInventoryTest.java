@@ -313,6 +313,23 @@ class ErrorContractInventoryTest {
                     "feature.coach.CoachConversationIT"),
             covered("feature.coach.app.ConversationService|422|request_fingerprint_mismatch", 1,
                     "feature.coach.CoachConversationIT"),
+            // 바깥 호출이 도는 사이에 탈퇴가 끝났다 — 저장 직전의 계정 상태 확인이 낸다(practice.coach).
+            covered("feature.coach.app.ConversationService|403|account_deactivated", 1,
+                    "feature.coach.CoachConversationIT"),
+            // 배우 기억 네 칸(practice.memory). 바깥 호출이 없어 게이트와 저장 사이의 창이 좁다.
+            excluded("feature.memory.app.ActorMemoryService|403|account_deactivated", 1,
+                    "게이트가 먼저 같은 403 을 낸다. 여기까지 오려면 게이트를 지난 뒤 다른 기기의 탈퇴가 "
+                            + "커밋돼야 하고, 그 사이에는 바깥 호출도 없어 API 만으로는 만들 수 없다."),
+            // 이탈 설문(practice.feedback). 본문은 다듬은 뒤 1~100자이고 건너뛰기만 본문이 없다.
+            excluded("feature.feedback.app.ExitSurveyService|403|account_deactivated", 1,
+                    "기억과 같은 자리다 — 게이트가 먼저 같은 403 을 내고, 접수에는 바깥 호출이 없다."),
+            covered("feature.feedback.app.ExitSurveyService|404|practice_not_found", 1,
+                    "feature.feedback.ExitSurveyIT"),
+            covered("feature.feedback.app.ExitSurveyService|422|feedback_body_required", 1,
+                    "feature.feedback.ExitSurveyIT"),
+            excluded("feature.feedback.app.ExitSurveyService|422|feedback_body_too_long", 1,
+                    "요청 문서의 @Size 가 먼저 422 배열을 낸다. 다듬기는 길이를 줄이기만 하므로 "
+                            + "여기에 닿는 본문을 만들 수 없다 — DB 에 길이 CHECK 가 없어 남겨 둔 방어선이다."),
             // 연습 회차·묶음(practice.start, practice.resume, practice.analyze). 409 는 코드만이고 진행 중 회차 id 는
             // 묶음 조회에서 얻는다.
             covered("feature.practice.app.PracticeService|404|practice_not_found", 1,

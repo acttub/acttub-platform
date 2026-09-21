@@ -158,14 +158,15 @@ class PostgresPracticeSessionRepository implements PracticeSessionRepository, Pr
      */
     @Override
     public void reassign(UUID from, UUID to) {
-        entityManager.createNativeQuery("""
-                UPDATE practice_sessions
-                SET user_id = :to
-                WHERE user_id = :from
-                """)
-                .setParameter("to", to)
-                .setParameter("from", from)
-                .executeUpdate();
+        // 옛 표와 1.0.0 회차를 함께 옮긴다 — 이관은 한 트랜잭션이고 게스트가 어느 흐름으로 연습했는지는
+        // 이관이 알 바가 아니다. 분석·대화·노트는 회차에 매달려 따라간다(02-practice 「이관·삭제·탈퇴」).
+        for (String table : List.of("practice_sessions", "practices")) {
+            entityManager.createNativeQuery(
+                    "UPDATE " + table + " SET user_id = :to WHERE user_id = :from")
+                    .setParameter("to", to)
+                    .setParameter("from", from)
+                    .executeUpdate();
+        }
     }
 
     @Override

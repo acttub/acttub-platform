@@ -9,6 +9,7 @@ import com.acttub.actingapi.feature.coach.app.ConversationRepository.NoteView;
 import com.acttub.actingapi.feature.report.app.PracticeNote;
 import com.acttub.actingapi.feature.report.app.ReportEngine;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
@@ -107,7 +108,7 @@ public class NoteWriter {
                 "record_only".equals(mode) || focus.isMissingNode() || focus.isNull()
                         ? null
                         : text(focus.path("label")),
-                empty(),
+                summaryQuotes(report),
                 direction.isMissingNode() || direction.isNull() ? null : text(direction.path("text")),
                 empty(),
                 empty(),
@@ -154,6 +155,88 @@ public class NoteWriter {
         empty.set("observations", ConversationService.json().createArrayNode());
         empty.set("uncertainties", ConversationService.json().createArrayNode());
         return empty;
+    }
+
+    /**
+     * 요약 인용 — <b>배우 말·관찰의 원문 발췌 최대 둘이고 각 인용에 출처가 있다</b>(practice.note).
+     *
+     * <p>생성기는 3층 모델이 고른 발췌({@code [{source_ref, quote}]}, 최대 둘)를 한 줄로 이어 노트의
+     * {@code copy.summary} 에 넣는다 — 이은 문장과 출처 목록은 남지만 어느 조각이 어느 출처의 것인지는
+     * 그 구조에 남지 않는다. 여기서 그것을 되살린다: 출처의 <b>원문과 이은 문장에 함께 나타나는 가장 긴
+     * 조각</b>이 그 출처의 발췌다. 생성기가 발췌를 출처 원문에 있는 그대로 싣고({@code source.text.contains(quote)}
+     * 를 강제한다) 그대로 이어 붙이므로 이 되살림은 원문을 만들어 내지 않는다.
+     *
+     * <p>스키마({@code coaching/three-layer-contracts.schema.json} 의 {@code copy})가 닫혀 있어 발췌를 노트
+     * 본문에 따로 실을 수 없다 — 그것을 넓히면 코치·노트의 생성 계약이 바뀐다(ADR-027, §7·§8).
+     *
+     * @return 요약이 없으면 빈 배열
+     */
+    static JsonNode summaryQuotes(JsonNode report) {
+        ArrayNode quotes = ConversationService.json().createArrayNode();
+        JsonNode summary = report.path("copy").path("summary");
+        if (summary.isMissingNode() || summary.isNull()) {
+            return quotes;
+        }
+        String joined = summary.path("text").asText("");
+        for (JsonNode ref : summary.path("source_refs")) {
+            JsonNode source = sourceOf(report, ref.asText());
+            String kind = quoteKind(source);
+            if (kind == null) {
+                continue;
+            }
+            String excerpt = sharedExcerpt(source.path("text").asText(""), joined);
+            if (excerpt.isBlank()) {
+                continue;
+            }
+            ObjectNode quote = quotes.addObject();
+            quote.put("quote", excerpt);
+            quote.put("source_ref", ref.asText());
+            quote.put("kind", kind);
+        }
+        return quotes;
+    }
+
+    private static JsonNode sourceOf(JsonNode report, String id) {
+        for (JsonNode source : report.path("source_catalog")) {
+            if (id.equals(source.path("id").asText())) {
+                return source;
+            }
+        }
+        return ConversationService.json().missingNode();
+    }
+
+    /** 요약에 실을 수 있는 출처는 배우의 말과 영상 관찰뿐이다 — 코치 해석은 사실이 되지 않는다. */
+    private static String quoteKind(JsonNode source) {
+        return switch (source.path("kind").asText("")) {
+            case "actor_message", "actor_input" -> "actor";
+            case "video_observation", "video_utterance" -> "observation";
+            default -> null;
+        };
+    }
+
+    /** 두 문자열에 함께 나타나는 가장 긴 조각. 출처 원문은 길어도 이은 문장이 120자 상한이라 짧다. */
+    private static String sharedExcerpt(String source, String joined) {
+        if (source.isEmpty() || joined.isEmpty()) {
+            return "";
+        }
+        int bestStart = 0;
+        int bestLength = 0;
+        int[] previous = new int[source.length() + 1];
+        for (int j = 1; j <= joined.length(); j++) {
+            int[] current = new int[source.length() + 1];
+            for (int i = 1; i <= source.length(); i++) {
+                if (source.charAt(i - 1) != joined.charAt(j - 1)) {
+                    continue;
+                }
+                current[i] = previous[i - 1] + 1;
+                if (current[i] > bestLength) {
+                    bestLength = current[i];
+                    bestStart = i - bestLength;
+                }
+            }
+            previous = current;
+        }
+        return source.substring(bestStart, bestStart + bestLength).strip();
     }
 
     private static JsonNode empty() {

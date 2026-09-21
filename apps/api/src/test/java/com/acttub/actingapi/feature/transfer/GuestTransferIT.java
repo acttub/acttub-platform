@@ -649,6 +649,94 @@ class GuestTransferIT {
     }
 
     /** 웹이 하듯 게스트를 만들고, 동의 하나를 남긴다(동의 기록은 옮겨지지 않는다는 것을 보려고). */
+    @Test
+    @DisplayName("account.guest: 1.0.0 연습 자료도 함께 옮긴다 — 회차·AI 작업·배우 기억·이탈 설문이 회원 것이 되고, "
+            + "게스트가 이미 설문을 봤으면 회원에게도 다시 뜨지 않는다")
+    void accountGuest_transferMovesPracticeRoundsJobsMemoriesAndSurveys() throws Exception {
+        Guest guest = guest();
+        UUID round = practiceRound(guest.id());
+        UUID job = aiJob(guest.id(), round);
+        UUID survey = feedback(guest.id(), round);
+        actorMemory(guest.id(), "goal", "게스트의 목표");
+        jdbc.update("UPDATE users SET exit_survey_asked_at=now() WHERE id=?", guest.id());
+        UUID member = member();
+
+        var response = transfer(member, issueCode(guest).path("code").textValue(), null);
+
+        assertThat(response.getStatus()).as(response.getContentAsString()).isEqualTo(200);
+        assertThat(owner("practices", round)).isEqualTo(member);
+        assertThat(owner("ai_jobs", job)).isEqualTo(member);
+        assertThat(owner("practice_feedback", survey)).isEqualTo(member);
+        assertThat(jdbc.queryForObject(
+                "SELECT value FROM actor_memories WHERE user_id=? AND field='goal'", String.class, member))
+                .isEqualTo("게스트의 목표");
+        assertThat(jdbc.queryForObject(
+                "SELECT exit_survey_asked_at FROM users WHERE id=?", Object.class, member))
+                .as("게스트가 물어봤으면 회원도 물어본 것이다").isNotNull();
+    }
+
+    @Test
+    @DisplayName("practice.memory: 이관에서 한쪽을 고르면 회원의 기억 세대가 올라간다 — 버린 쪽에서 시작된 갱신 "
+            + "작업은 회원에게 따라와도 세대가 달라 반영되지 않는다")
+    void practiceMemory_choosingOneSideBumpsTheMembersEpoch() throws Exception {
+        UUID member = member();
+        actorMemory(member, "goal", "회원의 목표");
+        Guest guest = guest();
+        actorMemory(guest.id(), "goal", "게스트의 목표");
+        UUID round = practiceRound(guest.id());
+        UUID job = aiJob(guest.id(), round);
+        jdbc.update("UPDATE ai_jobs SET kind='memory_update',memory_epoch=0 WHERE id=?", job);
+
+        assertThat(transfer(member, issueCode(guest).path("code").textValue(), "member").getStatus()).isEqualTo(200);
+
+        assertThat(jdbc.queryForObject("SELECT memory_epoch FROM users WHERE id=?", Integer.class, member))
+                .isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT memory_epoch FROM ai_jobs WHERE id=?", Integer.class, job))
+                .as("작업은 예약 시점의 세대를 그대로 들고 온다").isZero();
+        assertThat(jdbc.queryForObject(
+                "SELECT value FROM actor_memories WHERE user_id=? AND field='goal'", String.class, member))
+                .isEqualTo("회원의 목표");
+    }
+
+    /** 1.0.0 회차 하나 — 영상과 함께 만든다. 분석·대화·노트는 이 행에 매달려 따라간다. */
+    private UUID practiceRound(UUID owner) {
+        UUID videoId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO videos(id,user_id,object_key,content_type,byte_size,duration_ms)
+                VALUES (?,?,?,'video/mp4',1000,12000)
+                """, videoId, owner, "videos/" + videoId + ".mp4");
+        UUID id = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO practices(id,user_id,video_id,root_id,ordinal,stage,experience_version,
+                                      blockage_kind,sub_branch,situation)
+                VALUES (?,?,?,?,1,'analyzing','legacy','표현','감정','문 앞에서 돌아선다')
+                """, id, owner, videoId, id);
+        return id;
+    }
+
+    private UUID aiJob(UUID owner, UUID targetId) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO ai_jobs(id,user_id,kind,target_id,request_id,request_fingerprint,status)
+                VALUES (?,?,'analyze',?,?,?,'pending')
+                """, id, owner, targetId, UUID.randomUUID(), "a".repeat(64));
+        return id;
+    }
+
+    private UUID feedback(UUID owner, UUID practiceId) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO practice_feedback(id,user_id,practice_id,screen,trigger,body,request_id)
+                VALUES (?,?,?,'coach','x','좋았어요',?)
+                """, id, owner, practiceId, UUID.randomUUID());
+        return id;
+    }
+
+    private void actorMemory(UUID owner, String field, String value) {
+        jdbc.update("INSERT INTO actor_memories(id,user_id,field,value,written_by) VALUES (?,?,?,?,'actor')",
+                UUID.randomUUID(), owner, field, value);
+    }
+
     private Guest guest() throws Exception {
         var response = mvc.perform(post("/v2/auth/guest").with(request -> {
             request.setRemoteAddr("10.7." + ADDRESSES.incrementAndGet() + ".1");

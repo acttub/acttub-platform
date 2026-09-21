@@ -240,6 +240,15 @@ class PostgresProfileRepository implements ProfileRepository {
                 if (!videos.isEmpty()) {
                     cleanups.add(this.cleanups.schedule(userId, videos, now, now));
                 }
+                // 보관 동의로 남겨 두었던 영상도 이제 파일이 없다 — 행과 최소 메타만 남긴다.
+                entityManager.createNativeQuery("""
+                        UPDATE videos
+                        SET purged_at=:now,updated_at=:now
+                        WHERE user_id=:userId AND purged_at IS NULL
+                        """)
+                        .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                        .setParameter("userId", userId)
+                        .executeUpdate();
                 // 보관 동의로 남겨 두었던 리딩 녹음(음성과 전사)은 행째 지우고 객체는 장부로 간다(03-reading).
                 List<String> recordings = deleteRecordings(userId);
                 if (!recordings.isEmpty()) {
@@ -593,6 +602,7 @@ class PostgresProfileRepository implements ProfileRepository {
                 cleanups.add(this.cleanups.schedule(userId, objectKeys, now, now));
             }
             cleanups.addAll(eraseReading(userId, retainMedia, now));
+            erasePractice(userId, retainMedia, now);
             cleanups.addAll(hashIdentities(userId, now));
 
             // ⚠ 새 코드가 `users.nickname` 을 건드리는 곳은 이 한 줄뿐이다 (SOMA-528 결정 I-3).
@@ -665,16 +675,78 @@ class PostgresProfileRepository implements ProfileRepository {
     /**
      * 이 사람이 올린 영상의 객체 키. 연습 행은 남기고 객체만 지운다 — 얼굴과 목소리는 가명처리가 안
      * 된다. 리딩 녹음은 {@link #eraseReading} 이 따로 다룬다(행째 지우거나 보관).
+     *
+     * <p>장부 두 벌을 함께 본다: 옛 흐름의 {@code upload_intents} 와 1.0.0 보관함의 {@code videos} 다
+     * (02-practice 「이관·삭제·탈퇴」). 이미 파일만 파기된 영상은 객체가 없으므로 빼고, 미확정 업로드의
+     * 객체는 그대로 지운다 — 예약만 하고 올리지 않았으면 그 키에 객체가 없고 S3 의 삭제는 멱등이다.
      */
     private List<String> videoKeys(UUID userId) {
         return list(entityManager.createNativeQuery("""
                 SELECT object_key
                 FROM upload_intents
                 WHERE user_id=:userId
+                UNION
+                SELECT object_key
+                FROM videos
+                WHERE user_id=:userId AND purged_at IS NULL
                 """, Tuple.class)
                 .setParameter("userId", userId)).stream()
                 .map(row -> row.get("object_key", String.class))
                 .toList();
+    }
+
+    /**
+     * 1.0.0 연습 자료의 파기 (02-practice 「연습 자료의 이관·삭제·탈퇴」).
+     *
+     * <ul>
+     *   <li>{@code videos}: <b>행을 지우지 않고</b> {@code purged_at} 을 찍는다 — 회차·참여작의 기록이
+     *       깨지지 않고, 재생이 막히며, 총량에서 빠진다. 객체는 {@link #videoKeys} 가 장부로 보냈다.
+     *       보관 동의자의 영상은 3년 뒤({@link #purgeRetained}) 같은 자리에서 찍힌다.</li>
+     *   <li>{@code ai_jobs}: 진행 중인 작업을 취소하고 lease 를 뗀다 — 돌고 있던 워커의 완료는 lease 가
+     *       맞지 않아 통째로 롤백되므로 결과가 저장되지 않는다. 이력은 남기되 결과 본문은 비운다.</li>
+     *   <li>{@code practice_feedback}: 연락처를 비우고 순번을 올려 시트에도 다시 보내게 한다. 본문은
+     *       사람과 끊어 남는다(practice.feedback).</li>
+     * </ul>
+     *
+     * <p>{@code practices}·{@code analyses}·{@code coach_*}·{@code video_transcripts} 는 사람과 끊어
+     * 남긴다 — 지우지 않는다. 진행 중 대화의 늦은 저장은 저장 직전의 계정 상태 확인이 막는다.
+     *
+     * <p>먼저 이 사람의 영상 행을 잡는다 — 회차를 만드는 쪽이 같은 행을 잡으므로 겹쳐도 순서가 정해진다.
+     */
+    private void erasePractice(UUID userId, boolean retainMedia, Instant now) {
+        list(entityManager.createNativeQuery(
+                "SELECT id FROM videos WHERE user_id=:userId FOR UPDATE", Tuple.class)
+                .setParameter("userId", userId));
+        if (!retainMedia) {
+            entityManager.createNativeQuery("""
+                    UPDATE videos
+                    SET purged_at=:now,updated_at=:now
+                    WHERE user_id=:userId AND purged_at IS NULL
+                    """)
+                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                    .setParameter("userId", userId)
+                    .executeUpdate();
+        }
+        entityManager.createNativeQuery("""
+                UPDATE ai_jobs
+                SET status='failed',failure_reason='account_deactivated',
+                    lease_token=NULL,lease_expires_at=NULL,result=NULL,updated_at=:now
+                WHERE user_id=:userId
+                  AND status IN ('pending','running')
+                """)
+                .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                .setParameter("userId", userId)
+                .executeUpdate();
+        entityManager.createNativeQuery("""
+                UPDATE practice_feedback
+                SET contact_email=NULL,contact_phone=NULL,
+                    sheet_seq=sheet_seq+1,sheet_synced_at=NULL,updated_at=:now
+                WHERE user_id=:userId
+                  AND (contact_email IS NOT NULL OR contact_phone IS NOT NULL)
+                """)
+                .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                .setParameter("userId", userId)
+                .executeUpdate();
     }
 
     /**

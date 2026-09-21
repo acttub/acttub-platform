@@ -48,13 +48,19 @@ public class ConversationService {
     private final CoachEngine coach;
     private final NoteWriter notes;
     private final Clock clock;
+    private final ConversationClosedListener closedListener;
 
     public ConversationService(
-            ConversationRepository conversations, CoachEngine coach, NoteWriter notes, Clock clock) {
+            ConversationRepository conversations,
+            CoachEngine coach,
+            NoteWriter notes,
+            Clock clock,
+            ConversationClosedListener closedListener) {
         this.conversations = conversations;
         this.coach = coach;
         this.notes = notes;
         this.clock = clock;
+        this.closedListener = closedListener;
     }
 
     /** 분석이 끝난 회차에서 대화를 연다. 이미 열린 대화가 있으면 그것을 재개한다. */
@@ -114,7 +120,7 @@ public class ConversationService {
         }
         CoachResult result = coach.reply(loaded.session(), text, conversationId);
         boolean closing = COMPLETE.equals(result.reply().status());
-        Saved saved = conversations.appendTurn(
+        Saved saved = activeOnly(() -> conversations.appendTurn(
                 conversationId,
                 loaded.session().stateRevision(),
                 requestId,
@@ -124,13 +130,17 @@ public class ConversationService {
                 result.session().coachingState(),
                 closing ? "closed" : "open",
                 closing ? closeReason(result) : null,
-                clock.instant());
+                clock.instant()));
         if (saved == null) {
             throw new ApiException(409, "conversation_conflict");
         }
         NoteView note = closing
                 ? notes.write(loaded, result, saved.revision(), clock.instant())
                 : conversations.note(userId, loaded.practiceId());
+        if (closing && closedListener != null) {
+            // 노트가 남은 뒤에 알린다 — 확인 연습을 세는 쪽이 이번 회차의 노트를 보아야 한다.
+            closedListener.onConversationClosed(userId, loaded.practiceId());
+        }
         Loaded after = require(conversations.loadByConversation(userId, conversationId));
         return new Turn(
                 conversationId,
@@ -220,6 +230,18 @@ public class ConversationService {
             case "gap_stated", "exhausted", "limit", "user_ended", "system_failure" -> reason;
             default -> "exhausted";
         };
+    }
+
+    /**
+     * 게이트를 지난 뒤에 다른 기기의 탈퇴가 먼저 끝났으면 저장소가 쓰지 않고 알린다. 게이트가 했을 답을
+     * 그대로 준다 — 기기는 그 사유로 옛 계정의 쓰기와 재시도를 멈춘다(account.withdraw).
+     */
+    private static <T> T activeOnly(java.util.function.Supplier<T> write) {
+        try {
+            return write.get();
+        } catch (ConversationRepository.OwnerNotActive closed) {
+            throw new ApiException(403, "account_deactivated", closed);
+        }
     }
 
     private static Loaded require(Loaded loaded) {
