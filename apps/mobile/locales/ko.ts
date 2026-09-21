@@ -655,7 +655,7 @@ const ko = {
     genderMale: '남성',
     genderNone: '선택 안 함',
     birthLabel: '생년월일',
-    birthPlaceholder: '예: 2004-03-14',
+    birthPlaceholder: '예: 2004-03-14 (숫자만 입력)',
     birthInvalid: '생년월일을 다시 확인해주세요.',
     under14: '만 14세 미만으로는 바꿀 수 없어요.',
     under14Closed: '만 14세 미만은 가입할 수 없어요. 입력한 정보와 계정은 바로 지웠어요.',

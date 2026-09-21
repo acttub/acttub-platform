@@ -92,7 +92,8 @@ export default function ConsentScreen() {
   const locked = (id: string) => busy || completedDocumentIds.has(id);
 
   // 필수 문서는 동의만 된다. 다시 누르면 동의를 거둔다.
-  const toggleRequired = (document: ConsentDocument) => {
+  /** 필수·선택 모두 같은 토글이다. 체크하면 동의, 지우면 결정을 비운다. */
+  const toggleDocument = (document: ConsentDocument) => {
     if (locked(document.id)) return;
     setChoices((current) => {
       const next = { ...current };
@@ -100,12 +101,6 @@ export default function ConsentScreen() {
       else next[document.id] = 'granted';
       return next;
     });
-  };
-
-  // 선택 문서는 기본값이 없다. 동의·거절 중 하나를 직접 고른다(거절도 결정이다).
-  const choose = (document: ConsentDocument, choice: ConsentChoice) => {
-    if (locked(document.id)) return;
-    setChoices((current) => ({ ...current, [document.id]: choice }));
   };
 
   const toggleAllRequired = () => {
@@ -188,7 +183,6 @@ export default function ConsentScreen() {
 
   const renderRow = (document: ConsentDocument) => {
     const granted = choices[document.id] === 'granted';
-    const declined = choices[document.id] === 'declined';
     const isLocked = locked(document.id);
     const open = !!expanded[document.id];
     const label = `${t(document.required ? 'consent.requiredTag' : 'consent.optionalTag')} ${document.title}`;
@@ -208,7 +202,7 @@ export default function ConsentScreen() {
         {document.required ? (
           <Pressable
             style={[styles.row, isLocked && styles.rowLocked]}
-            onPress={() => toggleRequired(document)}
+            onPress={() => toggleDocument(document)}
             disabled={isLocked}
             accessibilityRole="checkbox"
             accessibilityState={{ checked: granted, disabled: isLocked }}>
@@ -219,34 +213,20 @@ export default function ConsentScreen() {
             {chevron}
           </Pressable>
         ) : (
-          <View style={[styles.optionalRow, isLocked && styles.rowLocked]}>
-            <View style={styles.optionalHead}>
-              <Text
-                style={[styles.rowLabel, (granted || declined) && styles.rowLabelOn]}
-                numberOfLines={2}>
-                {label}
-              </Text>
-              {chevron}
-            </View>
-            <View style={styles.choiceRow} accessibilityRole="radiogroup">
-              {(['granted', 'declined'] as ConsentChoice[]).map((choice) => {
-                const selected = choices[document.id] === choice;
-                return (
-                  <Pressable
-                    key={choice}
-                    style={[styles.choice, selected && styles.choiceOn]}
-                    onPress={() => choose(document, choice)}
-                    disabled={isLocked}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected, disabled: isLocked }}>
-                    <Text style={[styles.choiceText, selected && styles.choiceTextOn]}>
-                      {t(choice === 'granted' ? 'consent.accept' : 'consent.decline')}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
+          /* 선택 문서도 체크 한 줄이다 — 체크하면 동의, 비워 두면 거절 (SOMA-544).
+             거절 버튼을 두면 안 고르고 지나갈 수가 없어 '선택'이라는 말과 어긋났다. */
+          <Pressable
+            style={[styles.row, isLocked && styles.rowLocked]}
+            onPress={() => toggleDocument(document)}
+            disabled={isLocked}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: granted, disabled: isLocked }}>
+            <Feather name="check" size={18} color={granted ? palette.blue : palette.checkOff} />
+            <Text style={[styles.rowLabel, granted && styles.rowLabelOn]} numberOfLines={1}>
+              {label}
+            </Text>
+            {chevron}
+          </Pressable>
         )}
         {open && (
           <View style={styles.docBody}>

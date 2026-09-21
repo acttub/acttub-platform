@@ -673,7 +673,7 @@ const en: DeepStringShape<typeof ko> = {
     genderMale: 'Male',
     genderNone: 'Prefer not to say',
     birthLabel: 'Date of birth',
-    birthPlaceholder: 'e.g. 2004-03-14',
+    birthPlaceholder: 'e.g. 2004-03-14 (numbers only)',
     birthInvalid: 'Please check your date of birth.',
     under14: 'You cannot change it to an age under 14.',
     under14Closed: 'You must be at least 14 to sign up. We deleted the account and what you entered right away.',

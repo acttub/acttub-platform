@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   buildSignupDecisions,
   canSubmitConsentDecisions,
+  withDeclinedDefaults,
   documentsForConsentEntry,
   grantAllRequired,
   signupFailureAction,
@@ -187,14 +188,15 @@ const signupDocuments = [
   { ...optionalDocument, id: 'retention-1', type: 'retention', title: '탈퇴 후 영상·녹음 보관·활용' },
 ];
 
-test('account.login: 필수 셋에 동의하고 선택 문서를 동의·거절 중 하나로 골라야 버튼이 켜진다', () => {
+test('account.login: 필수 셋에만 동의하면 버튼이 켜진다 — 선택 문서는 안 골라도 된다', () => {
   const requiredOnly = new Map([
     ['terms-1', 'granted'],
     ['privacy-1', 'granted'],
     ['ai-1', 'granted'],
   ]);
 
-  assert.equal(canSubmitConsentDecisions(signupDocuments, requiredOnly), false);
+  // 선택 문서를 비워 둔 것이 곧 거절이다. 눌러야만 넘어갈 수 있으면 '선택'이 아니다.
+  assert.equal(canSubmitConsentDecisions(signupDocuments, requiredOnly), true);
   assert.equal(
     canSubmitConsentDecisions(signupDocuments, new Map([...requiredOnly, ['retention-1', 'declined']])),
     true,
@@ -213,7 +215,7 @@ test('account.login: 필수 셋에 동의하고 선택 문서를 동의·거절 
   );
 });
 
-test('account.login: 전체 동의는 필수 문서만 채우고 선택 문서의 결정은 기본값 없이 남긴다', () => {
+test('account.login: 전체 동의는 필수 문서만 채운다 — 선택 문서는 비운 채로 둔다', () => {
   const next = grantAllRequired(signupDocuments, new Map(), new Set());
 
   assert.deepEqual(
@@ -224,7 +226,27 @@ test('account.login: 전체 동의는 필수 문서만 채우고 선택 문서�
       ['ai-1', 'granted'],
     ],
   );
-  assert.equal(canSubmitConsentDecisions(signupDocuments, next), false);
+  // 비어 있어도 진행할 수 있고, 보낼 때 거절로 채워진다.
+  assert.equal(canSubmitConsentDecisions(signupDocuments, next), true);
+  assert.equal(withDeclinedDefaults(signupDocuments, next).get('retention-1'), 'declined');
+});
+
+test('account.login: 안 고른 선택 문서는 거절로 채워 보낸다 — 다음에 또 묻지 않는다', () => {
+  const filled = withDeclinedDefaults(
+    signupDocuments,
+    new Map([
+      ['terms-1', 'granted'],
+      ['privacy-1', 'granted'],
+      ['ai-1', 'granted'],
+    ]),
+  );
+
+  assert.equal(filled.get('retention-1'), 'declined');
+  // 이미 고른 값은 건드리지 않는다.
+  assert.equal(
+    withDeclinedDefaults(signupDocuments, new Map([['retention-1', 'granted']])).get('retention-1'),
+    'granted',
+  );
 });
 
 test('account.login: 전체 동의는 이미 고른 선택 문서의 결정과 저장이 끝난 문서를 건드리지 않는다', () => {
@@ -255,8 +277,19 @@ test('account.login: 가입 제출은 현재 판 모든 문서의 결정을 한 
   ]);
 });
 
-test('account.login: 결정이 빠진 가입 제출은 서버에 보내지 않는다', () => {
+test('account.login: 필수 문서의 결정이 빠지면 서버에 보내지 않는다', () => {
+  // 선택 문서를 안 고른 것은 거절이므로 막지 않는다. 필수가 비면 보내면 안 된다.
   assert.throws(() =>
+    buildSignupDecisions(
+      signupDocuments,
+      new Map([
+        ['terms-1', 'granted'],
+        ['privacy-1', 'granted'],
+      ]),
+    ),
+  );
+
+  assert.deepEqual(
     buildSignupDecisions(
       signupDocuments,
       new Map([
@@ -265,6 +298,12 @@ test('account.login: 결정이 빠진 가입 제출은 서버에 보내지 않�
         ['ai-1', 'granted'],
       ]),
     ),
+    [
+      { document_id: 'terms-1', action: 'granted' },
+      { document_id: 'privacy-1', action: 'granted' },
+      { document_id: 'ai-1', action: 'granted' },
+      { document_id: 'retention-1', action: 'declined' },
+    ],
   );
 });
 
