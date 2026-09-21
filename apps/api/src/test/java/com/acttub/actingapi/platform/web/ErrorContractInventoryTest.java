@@ -278,6 +278,13 @@ class ErrorContractInventoryTest {
                     "feature.reading.ReadingSessionIT"),
             covered("feature.reading.app.SessionService|422|request_fingerprint_mismatch", 1,
                     "feature.reading.ReadingSessionIT"),
+            // 암기 표시(reading.memorization).
+            covered("feature.reading.app.MemorizationService|404|line_not_found", 1,
+                    "feature.reading.ReadingMemorizationIT"),
+            covered("feature.reading.app.MemorizationService|404|script_not_found", 1,
+                    "feature.reading.ReadingMemorizationIT"),
+            covered("feature.reading.app.MemorizationService|422|invalid_line", 1,
+                    "feature.reading.ReadingMemorizationIT"),
             // 리딩 녹음(reading.recording). 변환 실패는 5xx 팩토리(unexpected)로 만든다.
             covered("feature.reading.app.RecordingService|404|recording_not_found", 1,
                     "feature.reading.ReadingRecordingIT"),

@@ -794,10 +794,10 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   않는다 — Cloudflare 를 거친 요청에서는 `X-Forwarded-For` 의 맨 오른쪽과 같은 값이고, 출처를 둘로 두면 다른
   길에서 믿을 헤더만 늘어난다.
 
-### 6-14. 대본 리딩 — 대본·회차·녹음 (SOMA-546 RA1~RA3 초안)
+### 6-14. 대본 리딩 — 대본·회차·녹음·암기 (SOMA-546 RA1~RA4 초안)
 
 정본은 [03-reading.md](../../docs/requirements/03-reading.md) reading.script 와 「리딩 자료의 이관·삭제·탈퇴」 표다.
-회차·녹음·암기 상태(RA2~RA4)와 탈퇴·30일 파기(RA5)는 뒤에 이 절에 이어 쓴다. 서버는 대본·음성을 분석하지 않는다
+탈퇴·30일 파기(RA5)는 뒤에 이 절에 이어 쓴다. 서버는 대본·음성을 분석하지 않는다
 (ADR-031) — 배역 나누기는 기기의 파서가 하고 배우가 확인한 결과가 그대로 온다.
 
 - **경로**는 전부 `/v2/reading/**` 이고 보호 기능이다. 게스트의 기능 표 `READING` 은 약관·수집·이용 동의 둘이며
@@ -910,7 +910,29 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - **삭제** `DELETE /v2/reading/recordings/{id}`: 행을 지우고 객체 삭제를 장부에 올린 뒤 **204**. 회차 진행·암기 상태는 그대로다.
   없는 것과 남의 것은 404 `recording_not_found`.
 - 저장소 포트 `ObjectStorage` 에 `upload(objectKey, mimeType, Path)` 가 생겼다(서버가 직접 올리는 유일한 객체).
-- 아직 없는 것(뒤 티켓): 암기 API(RA4), 탈퇴·30일 파기의 리딩 행 삭제와 보관 동의자의 녹음 보관(회차·줄 FK NULL),
+
+**암기 표시 (SOMA-546 RA4)** — 정본은 reading.memorization. 표시는 (사람, 줄)마다 하나이고 회차·녹음과 무관하다.
+외웠는지는 배우가 정한다 — 대조 통과(회차의 `line_results`·녹음의 `matched`)를 서버가 표시로 옮기지 않는다.
+
+- **갱신** `PUT /v2/reading/lines/{line_id}/memorization`: 본문 `{ status }`(`memorized`·`not_yet`, 모르는 값·빠짐·모르는
+  키는 422 배열). `request_id` 가 없다 — 같은 값을 다시 보내면 같은 결과라 멱등 지문이 필요 없다. 응답은
+  `ReadingLineMemorization{line_id, status, updated_at}` 로 **200** 하나다(만들든 바꾸든).
+  - **판정**: 그 줄이 없거나 남의 대본의 줄이면 **404 `line_not_found`** → 지문·장면 줄이면 **422 `invalid_line`** → 대사
+    줄이면 배역과 무관하게 받는다(상대역 대사 줄도 200 — 배역 선택은 기기의 것이다). 회차가 있든 없든 같다.
+  - **저장**은 `INSERT … ON CONFLICT (user_id, line_id) DO UPDATE` 한 문장이다 — 두 기기의 상반된 갱신은 **마지막 요청이
+    남는다**. 같은 상태의 재전송은 `updated_at` 을 바꾸지 않는다(CASE 로 옛 값을 유지). 판정과 저장은 그 줄의 **대본 행을
+    `FOR UPDATE` 로 잡은** 트랜잭션 안이다(`PostgresMemorizationRepository`) — 이관이 대본을 옮긴 뒤 옛 게스트의 늦은
+    갱신은 남의 것이라 404 이고(게이트가 먼저 403 `guest_transferred` 로 막는 게 보통이다) 닫힌 계정에 행이 남지 않는다.
+- **조회** `GET /v2/reading/scripts/{script_id}/memorization`: 그 대본 줄에 남긴 표시의 **배열**(`ReadingLineMemorization[]`)
+  이고 줄 순서(`script_lines.ordinal`)다. 행이 없는 줄은 아직 표시하지 않은 줄이라 배열에 없다(표시가 없으면 `[]`).
+  없는 대본·남의 대본은 **404 `script_not_found`**. 대상 계산("암기하지 못한 대사 N개", 배역 고르기, 다시 볼 줄)은 기기가
+  이 배열과 대본 상세로 한다.
+- **생애**: 회차·개별 녹음 삭제는 건드리지 않고(§6-14 회차·녹음 절), 대본 삭제가 그 줄의 행을 함께 지운다
+  (`PostgresScriptRepository#delete`). 이관은 `ReadingOwnership.reassign` 이 `user_id` 를 옮긴다. 탈퇴 때 행째 지우는 것은
+  RA5 다.
+- OpenAPI 컴포넌트: `ReadingMemorizationRequest`·`ReadingMemorizationStatusInput`·`ReadingLineMemorization`(`status` 는
+  `MemorizationStatus`).
+- 아직 없는 것(뒤 티켓): 탈퇴·30일 파기의 리딩 행 삭제와 보관 동의자의 녹음 보관(회차·줄 FK NULL),
   정리 장부의 "객체 삭제는 성공까지 키 유지·7일 연속 실패 알림"(RA5 — 지금은 `object_delete` 와 같이 7일 뒤 지운다).
 
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정

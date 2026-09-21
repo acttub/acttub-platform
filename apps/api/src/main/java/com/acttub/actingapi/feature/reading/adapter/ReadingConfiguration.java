@@ -2,6 +2,8 @@ package com.acttub.actingapi.feature.reading.adapter;
 
 import java.time.Clock;
 
+import com.acttub.actingapi.feature.reading.app.MemorizationRepository;
+import com.acttub.actingapi.feature.reading.app.MemorizationService;
 import com.acttub.actingapi.feature.reading.app.ReadingRecordingCleanup;
 import com.acttub.actingapi.feature.reading.app.RecordingPlayback;
 import com.acttub.actingapi.feature.reading.app.RecordingRepository;
@@ -34,6 +36,11 @@ class ReadingConfiguration {
     SessionService sessionService(
             SessionRepository sessions, ReadingRecordingCleanup cleanup, RecordingPlayback playback, Clock clock) {
         return new SessionService(sessions, cleanup, playback, clock);
+    }
+
+    @Bean
+    MemorizationService memorizationService(MemorizationRepository memorization, Clock clock) {
+        return new MemorizationService(memorization, clock);
     }
 
     @Bean

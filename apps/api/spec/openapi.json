@@ -6,6 +6,59 @@
     "version" : "0.1.0"
   },
   "paths" : {
+    "/v2/reading/lines/{line_id}/memorization" : {
+      "put" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "Set Line Memorization",
+        "description" : "줄 하나의 표시를 두거나 바꾼다. 그 대본의 대사 줄이면 배역과 무관하게 받고(상대역 대사 줄도 200), 지문·장면\n줄은 422 invalid_line, 없는 줄과 남의 줄은 404 line_not_found. 같은 상태의 재전송은 updated_at 을 바꾸지\n않는다. 마지막 요청이 남는다.",
+        "operationId" : "set_line_memorization_v2_reading_lines__line_id__memorization_put",
+        "parameters" : [ {
+          "name" : "line_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Line Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReadingMemorizationRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReadingLineMemorization"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/portfolio/share" : {
       "put" : {
         "tags" : [ "v2-portfolio" ],
@@ -2069,6 +2122,42 @@
         } ]
       }
     },
+    "/v2/reading/scripts/{script_id}/memorization" : {
+      "get" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "List Script Memorization",
+        "description" : "그 대본의 줄에 남긴 표시를 줄 순서로. 행이 없는 줄은 아직 표시하지 않은 줄이다. 없는 대본과 남의 대본은 404 script_not_found.",
+        "operationId" : "list_script_memorization_v2_reading_scripts__script_id__memorization_get",
+        "parameters" : [ {
+          "name" : "script_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Script Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/ReadingLineMemorization"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/public/portfolios/{slug}" : {
       "get" : {
         "tags" : [ "v2-portfolio" ],
@@ -2551,6 +2640,48 @@
   },
   "components" : {
     "schemas" : {
+      "ReadingMemorizationRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "status" : {
+            "$ref" : "#/components/schemas/ReadingMemorizationStatusInput"
+          }
+        },
+        "required" : [ "status" ],
+        "title" : "ReadingMemorizationRequest"
+      },
+      "ReadingMemorizationStatusInput" : {
+        "type" : "string",
+        "enum" : [ "memorized", "not_yet" ],
+        "title" : "ReadingMemorizationStatusInput"
+      },
+      "MemorizationStatus" : {
+        "type" : "string",
+        "enum" : [ "memorized", "not_yet" ],
+        "title" : "MemorizationStatus"
+      },
+      "ReadingLineMemorization" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "line_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Line Id"
+          },
+          "status" : {
+            "$ref" : "#/components/schemas/MemorizationStatus"
+          },
+          "updated_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Updated At"
+          }
+        },
+        "required" : [ "line_id", "status", "updated_at" ],
+        "title" : "ReadingLineMemorization"
+      },
       "PortfolioShareRequest" : {
         "type" : "object",
         "additionalProperties" : false,
