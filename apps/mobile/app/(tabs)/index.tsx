@@ -18,6 +18,7 @@ import {
   upcomingNotices,
   type AdmissionsResponse,
 } from '@/lib/admissions';
+import { useRequireLogin } from '@/hooks/use-require-login';
 import { dateLocale, isKorean, translate as t } from '@/lib/i18n';
 import { StreakCelebration } from '@/components/streak-badge';
 import {
@@ -40,6 +41,7 @@ function recentDate(iso: string): string {
 /** A1. 홈 — 히어로(마스코트) + 지금 바로 연습 + 연속 연습 + 최근 연습 + 입시 마감. */
 export default function HomeScreen() {
   const router = useRouter();
+  const { isGuest, requireLogin, element: loginGuard } = useRequireLogin();
   const [records, setRecords] = useState<ReportRecord[]>([]);
   // 연속일·주간 원용 날짜 — 서버 기록 ∪ 기기에 누적된 연습일(지워도 남는다).
   const [activityDays, setActivityDays] = useState<{ created_at: string }[]>([]);
@@ -60,6 +62,8 @@ export default function HomeScreen() {
         });
       }
       let cancelled = false;
+      // 둘러보는 중엔 계정이 없다 — 보호된 요청은 401 이라 부르지 않는다 (SOMA-544).
+      if (isGuest) return;
       api
         .reportHistory()
         .then((r) => {
@@ -147,7 +151,7 @@ export default function HomeScreen() {
           style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
           accessibilityRole="button"
           accessibilityLabel={t('home.startA11y')}
-          onPress={() => router.push('/upload')}>
+          onPress={() => requireLogin(() => router.push('/upload'))}>
           <View style={styles.ctaPlay}>
             <Feather name="play" size={18} color={palette.blue} />
           </View>
@@ -288,6 +292,7 @@ export default function HomeScreen() {
         )}
       </ScrollView>
       {feedback.element}
+      {loginGuard}
     </SafeAreaView>
   );
 }

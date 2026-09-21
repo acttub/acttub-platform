@@ -28,6 +28,7 @@ const ko = {
     tryLater: '잠시 후 다시 시도해주세요.',
   },
   login: {
+    guest: '로그인 없이 둘러보기',
     tagline: '그 장면에서 뭘 하려 했는지부터',
     google: 'Google로 계속하기',
     apple: 'Apple로 로그인',
@@ -935,6 +936,11 @@ const ko = {
   nudge: {
     title: '오늘 연습 아직이에요',
     body: '5분이면 돼요. 장면 하나만 찍어볼까요?',
+  },
+  guest: {
+    title: '로그인이 필요해요',
+    message: '이 기능은 계정이 있어야 써요. 로그인하면 지금 보던 것 그대로 이어서 할 수 있어요.',
+    cta: '로그인하기',
   },
   errors: {
     clientContractRequired: '앱을 업데이트하면 이 연습 노트를 열 수 있어요.',

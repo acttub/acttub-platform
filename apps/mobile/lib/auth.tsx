@@ -18,6 +18,7 @@ import {
   type TokenPair,
 } from '@/lib/api';
 import type { ProfileGateStatus } from '@/lib/app-bootstrap';
+import { isGuestFlagSet, setGuestFlag } from '@/lib/guest';
 import {
   signOutBestEffort,
   wipeClosedAccount,
@@ -77,7 +78,13 @@ import {
  * - refresh 실패/로그아웃으로 토큰이 비워지면(onTokensCleared) 자동으로 signedOut.
  */
 
-type AuthStatus = 'loading' | 'signedIn' | 'signedOut';
+/**
+ * 'guest' 는 계정 없이 둘러보는 상태다 (SOMA-544 로 되살림).
+ *
+ * <p>서버 계정이 없으므로 동의·프로필 게이트를 타지 않는다 — 동의는 계정을 만들 때 받는다.
+ * 계정이 있어야 하는 자리(AI 코칭·업로드·프로필)는 {@code useRequireLogin} 이 막는다.
+ */
+type AuthStatus = 'loading' | 'signedIn' | 'signedOut' | 'guest';
 
 export type ConsentEntryState =
   | { status: 'checking'; entry: null; error: null }
@@ -108,6 +115,10 @@ type AuthContextValue = {
   loginNotice: string | null;
   clearLoginNotice: () => void;
   signInWith: (provider: LoginProvider) => Promise<void>;
+  /** 계정 없이 둘러보기 시작. */
+  continueAsGuest: () => Promise<void>;
+  /** 둘러보기를 끝내고 로그인 화면으로 — 게이트가 signedOut 을 보고 보낸다. */
+  leaveGuest: () => Promise<void>;
   /** 동의 화면의 "동의하고 계속하기". 통과하면 그 순간 계정이 생기고 로그인된다. */
   submitSignup: (choices: ReadonlyMap<string, ConsentChoice>) => Promise<void>;
   /** 보는 사이 새 판이 나왔을 때 가입 화면의 문서를 다시 받는다. */
@@ -241,10 +252,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // 로그아웃한 폰에는 리마인드 알람이 없어야 한다. 옛 빌드가 로그인 없이 맞춰 둔 것도 걷는다.
         void cancelReminders().catch(() => undefined);
         setUser(null);
-        setStatus('signedOut');
+        // 둘러보던 중에 앱을 닫았으면 그 상태로 돌아온다 — 매번 로그인 화면을 만나면 둘러보기가 아니다.
+        void isGuestFlagSet().then((guest) => {
+          if (active) setStatus(guest ? 'guest' : 'signedOut');
+        });
         return;
       }
       setUser(getStoredUser());
+      void setGuestFlag(false);
       setStatus('signedIn');
       // 갱신 응답에는 동의 목록이 없으므로 앱을 열 때 미결정 동의와 프로필을 직접 읽는다.
       void loadConsentEntry().catch(() => undefined);
@@ -256,7 +271,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       resetConsentEntry();
       resetProfile();
       setUser(null);
-      setStatus('signedOut');
+      // 게스트는 원래 토큰이 없다. 보호된 요청이 401 을 뱉었다고 로그인 화면으로 보내면
+      // 둘러보기가 끊긴다 — 그 자리는 useRequireLogin 이 따로 막는다.
+      setStatus((prev) => (prev === 'guest' ? 'guest' : 'signedOut'));
     });
     // 403 에 실린 미결정 목록은 요약이다. 화면은 판정 전체(entry)를 다시 읽어 그린다.
     const unsubConsent = onConsentRequired(() => {
@@ -274,6 +291,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsubStoredUser = onStoredUserChanged((nextUser) => {
       resetConsentEntry();
       setUser(nextUser);
+      void setGuestFlag(false);
       setStatus('signedIn');
       void loadConsentEntry().catch(() => undefined);
       void reloadProfile();
@@ -329,6 +347,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSignup(null);
       setLoginNotice(null);
       setUser(pair.user);
+      void setGuestFlag(false);
       setStatus('signedIn');
       void loadConsentEntry().catch(() => undefined);
       void reloadProfile();
@@ -440,6 +459,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus('signedOut');
   }, []);
 
+  const continueAsGuest = useCallback(async () => {
+    await setGuestFlag(true);
+    setUser(null);
+    setStatus('guest');
+  }, []);
+
+  const leaveGuest = useCallback(async () => {
+    await setGuestFlag(false);
+    setStatus('signedOut');
+  }, []);
+
   const clearLoginNotice = useCallback(() => setLoginNotice(null), []);
 
   const value = useMemo(
@@ -453,6 +483,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loginNotice,
       clearLoginNotice,
       signInWith,
+      continueAsGuest,
+      leaveGuest,
       submitSignup,
       reloadSignupDocuments,
       cancelSignup,
@@ -474,6 +506,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loginNotice,
       clearLoginNotice,
       signInWith,
+      continueAsGuest,
+      leaveGuest,
       submitSignup,
       reloadSignupDocuments,
       cancelSignup,
