@@ -308,7 +308,7 @@ test("막힘 선택 완료 뒤에는 대화가 아니라 같은 진행 자리에
   // 여기서는 세션을 받은 자리와 폴링 사이 어디에 그것이 놓이는지를 본다.
   assert.match(
     begin,
-    /startPractice\([\s\S]*dispatch\(\{ type: "sessionCreated", status: session\.status \}\)[\s\S]*trackAnalysis\(session\.session_id\)/,
+    /startPractice\([\s\S]*dispatch\(\{ type: "sessionCreated", status: loaded\.status \}\)[\s\S]*trackAnalysis\(practice\.id\)/,
   );
   assert.doesNotMatch(begin, /type: "coachStarting"|startCoach\(/);
 });

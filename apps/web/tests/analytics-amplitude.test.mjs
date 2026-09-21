@@ -164,17 +164,19 @@ test("screen_viewed는 쿼리·해시를 버리고 경로 UUID를 가린다", ()
   assert.deepEqual(screen[2], { path: "/practice/<id>" });
 });
 
-test("practice_session_created는 고른 접근법만 theory_choice로 보낸다", () => {
+// 이론 선택은 1.0.0 에서 준비 화면과 함께 사라졌다(practice.start). 옛 호출 모양이 남아 있어도
+// 그 속성을 만들지 않는다.
+test("practice_session_created는 theory_choice를 보내지 않는다", () => {
   globalThis.__amplitudeCalls.length = 0;
 
-  trackPracticeSessionCreated(61_000, "분석", "대사 분석", false, "meisner");
   trackPracticeSessionCreated(61_000, "분석", "대사 분석", false);
 
   const payloads = callsOf("track")
     .filter(([, event]) => event === "practice_session_created")
     .map(([, , payload]) => payload);
-  assert.equal(payloads[0].theory_choice, "meisner");
-  assert.equal(Object.hasOwn(payloads[1], "theory_choice"), false);
+  assert.equal(payloads.length, 1);
+  assert.equal(Object.hasOwn(payloads[0], "theory_choice"), false);
+  assert.equal(payloads[0].scene_skipped, false);
 });
 
 // 원문을 받는 래퍼에도 일부러 민감한 값을 넣는다. payload에는 분류·버킷만 남아야 한다.
@@ -196,7 +198,7 @@ test("22개 이벤트 래퍼가 계약 속성만 보내고 금지 키를 만들�
     webcodecsSupported: true,
     videoDurationMs: 61_000,
   });
-  trackPracticeSessionCreated(61_000, "분석", "대사 분석", true, "meisner");
+  trackPracticeSessionCreated(61_000, "분석", "대사 분석", true);
   trackPracticeAnalysisSettled("failed", "gemini_timeout", 61_000);
   trackPracticeDialogueStarted(true, "분석", "대사 분석");
   trackPracticeDialogueStartFailed(false);
@@ -259,7 +261,6 @@ test("22개 이벤트 래퍼가 계약 속성만 보내고 금지 키를 만들�
       "kind",
       "scene_skipped",
       "sub_branch",
-      "theory_choice",
     ],
     practice_analysis_settled: ["error_code", "result", "wait_bucket"],
     practice_dialogue_started: ["kind", "sub_branch", "with_evidence"],

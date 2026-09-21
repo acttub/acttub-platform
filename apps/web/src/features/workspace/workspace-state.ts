@@ -20,11 +20,23 @@ import type { PracticeReport, PracticeSessionStatus } from "@/lib/api/v2/types";
  * 배우가 방금 고른 로컬 원본. 파일과 그 blob 주소는 늘 함께 서고 함께 사라진다 —
  * 파일은 압축·업로드가 쓰고, 주소는 화면이 튼다.
  */
-export type PickedVideo = { file: File; url: string };
+export type LocalVideo = { file: File; url: string; libraryId?: undefined };
 
 /**
- * 끝난 연습에서 "이어서 새 연습" 을 눌러 왔을 때 이어받을 연습. 세션을 만들 때 실어
- * 보내면 코치가 (가장 최근이 아니라) 이 연습의 대화를 이어받는다 (SOMA-417).
+ * 보관함에 이미 있는 영상(practice.library). 올릴 것이 없어 시작하면 곧바로 회차가 생긴다 — 보관함의
+ * "질문 코칭으로 보내기"와 "같은 영상으로 이어하기"가 이것을 들고 준비 화면에 선다.
+ */
+export type LibraryVideo = { libraryId: string; url: string | null; caption: string; durationMs: number | null };
+
+export type PickedVideo = LocalVideo | LibraryVideo;
+
+export function isLocalVideo(video: PickedVideo): video is LocalVideo {
+  return "file" in video;
+}
+
+/**
+ * 끝난 묶음에서 이어할 때 이어받을 회차. 새 회차는 이 회차와 같은 묶음(root)의 다음 차수가 된다
+ * (practice.resume). 같은 영상으로 이어하면 준비 화면이 그 영상을 보관함 영상으로 들고 선다.
  */
 export type ContinueFrom = { id: string; label: string | null };
 

@@ -17,15 +17,15 @@ afterEach(() => {
 });
 
 /**
- * 지우기 요청을 받아 적는 fetch. 무엇을 몇 번 불렀는지가 결과만큼이나 중요하다 —
- * 자리를 뺏긴 요청도 지우기 자체는 이미 서버에 갔다.
+ * 숨김 요청(묶음 PATCH)을 받아 적는 fetch. 무엇을 몇 번 불렀는지가 결과만큼이나 중요하다 —
+ * 자리를 뺏긴 요청도 숨김 자체는 이미 서버에 갔다.
  */
 function deleteStub({ ok = true } = {}) {
   const calls = [];
   globalThis.fetch = async (url, init) => {
-    calls.push({ path: String(url), method: init?.method });
+    calls.push({ path: String(url), method: init?.method, body: init?.body ? JSON.parse(init.body) : null });
     if (!ok) return new Response("", { status: 500 });
-    return new Response(null, { status: 204 });
+    return new Response(JSON.stringify({ root_id: "practice-1", hidden_at: "2026-09-21T00:00:00Z" }), { status: 200, headers: { "Content-Type": "application/json" } });
   };
   return calls;
 }
@@ -44,8 +44,9 @@ test("지우고 나서도 그 연습이 지금 화면이면 되돌릴 자리가 
   const result = await removePractice(removeInput());
 
   assert.deepEqual(result, { kind: "removed" });
+  // 1.0.0 의 "삭제"는 묶음 숨김이다 — 노트·대화·기억은 남고 영상은 보관함에 남는다.
   assert.deepEqual(calls, [
-    { path: "/v2/practice-sessions/practice-1", method: "DELETE" },
+    { path: "/v2/practices/practice-1/group", method: "PATCH", body: { hidden: true } },
   ]);
 });
 

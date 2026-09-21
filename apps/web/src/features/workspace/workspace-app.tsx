@@ -23,21 +23,19 @@ import wordmark from "@/assets/acttub-wordmark.png";
 import { GUEST_BROWSER_ONLY_NOTICE } from "@/features/consent/guest-notice";
 import { useGuestSession } from "@/features/consent/use-guest-session";
 import { startCoach, replyCoach } from "@/lib/api/v2/coach";
-import { getReport, listReports } from "@/lib/api/v2/reports";
+import { getReport } from "@/lib/api/v2/reports";
+import { errorMessage } from "@/lib/api/v2/errors";
 import { coachReplyError, isClosedCoach, recoverClosedCoach } from "./coach-reply-recovery";
 import {
+  cancelPractice,
+  listPracticeGroups,
+  pollPracticeUntilSettled,
   reanalyzeSession,
-  getPracticeSession,
-  listPracticeSessions,
-  pollSessionUntilSettled,
-} from "@/lib/api/v2/sessions";
-import type {
-  CoachTurnResponse,
-  PracticeReport,
-  PracticeSessionDetail,
-  PracticeSessionListItem,
-  ReportRecord,
-} from "@/lib/api/v2/types";
+} from "@/lib/api/v2/practices";
+import { getVideo } from "@/lib/api/v2/videos";
+import type { PracticeGroup } from "@/lib/practice/api-types";
+import { newRequestId } from "@/lib/reading/request-id";
+import type { CoachTurnResponse, PracticeReport } from "@/lib/api/v2/types";
 import {
   trackDialogueStarted,
   trackResultViewed,
@@ -69,11 +67,24 @@ import {
   type BlockageFlowState,
   type BlockageSelection,
 } from "../practice/blockage-flow";
+import { analysisNotice, sessionStatusOf } from "../practice/practice-analysis";
+import { practiceToSessionDetail, type PracticeDetailView } from "../practice/practice-view";
 import {
-  THEORY_CHOICES,
-  toggleTheoryChoice,
-  type TheoryChoiceId,
-} from "../practice/theory-choice";
+  ALL_FILTER_LABEL,
+  byMonth,
+  CONTINUE_NEW_VIDEO_LABEL,
+  CONTINUE_SAME_VIDEO_LABEL,
+  groupOfPractice,
+  HIDE_GROUP_COPY,
+  inProgressPracticeId,
+  railGroups,
+  recent30,
+  RECENT_FILTER_LABEL,
+  UNTITLED_PRACTICE,
+  type RailGroup,
+} from "../practice/practice-groups";
+import { guardUnfinishedUpload } from "./upload-exit-guard";
+import { guestAnalysisNotice, guestAnalysisUsed, recordGuestAnalysis } from "../practice/guest-daily-limit";
 import {
   createCoachStartCoordinator,
   type CoachStartCoordinator,
@@ -86,6 +97,8 @@ import { PracticeReportCards } from "../practice/practice-report-cards";
 import {
   formatVideoDuration,
   isSceneContextBlank,
+  SCENE_FIELD_MAX,
+  sceneContextTooLong,
   type SceneContextDraft,
 } from "../practice/practice-setup-flow";
 import {
@@ -114,9 +127,11 @@ import {
   abandonedStage,
   currentReport,
   initialWorkspaceScreen,
+  isLocalVideo,
   pickedVideo,
   workspaceScreenReducer,
   type ContinueFrom,
+  type LibraryVideo,
   type WorkspaceScreen,
 } from "./workspace-state";
 import {
@@ -126,6 +141,9 @@ import {
 import { videoRecordRows } from "@/features/practice/video-record-rows";
 
 const NEW_PRACTICE_SUBTITLE = "영상을 올리면 질문이 시작돼요";
+/** 같은 영상으로 이어할 때 준비 화면이 드는 보관함 영상의 설명 */
+const SAME_VIDEO_CAPTION = "지난 회차와 같은 영상";
+const LIBRARY_VIDEO_CAPTION = "보관함 영상";
 
 type ChatMsg = { role: "ai" | "me"; text: string };
 
@@ -189,8 +207,7 @@ function WorkspaceInner() {
   }, []);
 
   // ── 왼쪽 세션 바 ────────────────────────────────────────────────
-  const [sessions, setSessions] = useState<PracticeSessionListItem[]>([]);
-  const [reports, setReports] = useState<ReportRecord[]>([]);
+  const [groups, setGroups] = useState<PracticeGroup[]>([]);
   const [listError, setListError] = useState(false);
   const [railOpen, setRailOpen] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -198,9 +215,8 @@ function WorkspaceInner() {
 
   const refreshList = useCallback(async () => {
     try {
-      const [s, r] = await Promise.all([listPracticeSessions(), listReports()]);
-      setSessions(s.sessions);
-      setReports(r.reports);
+      const { groups: loaded } = await listPracticeGroups();
+      setGroups(loaded);
       setListError(false);
     } catch {
       setListError(true);
@@ -218,10 +234,9 @@ function WorkspaceInner() {
     let cancelled = false;
     void (async () => {
       try {
-        const [s, r] = await Promise.all([listPracticeSessions(), listReports()]);
+        const { groups: loaded } = await listPracticeGroups();
         if (cancelled) return;
-        setSessions(s.sessions);
-        setReports(r.reports);
+        setGroups(loaded);
         setListError(false);
       } catch {
         if (!cancelled) setListError(true);
@@ -254,8 +269,23 @@ function WorkspaceInner() {
     start: startWork,
     clear: clearWork,
   } = useWorkspaceBusy();
-  const [detail, setDetail] = useState<PracticeSessionDetail | null>(null);
+  const [detail, setDetail] = useState<PracticeDetailView | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // 게스트의 하루 3회 분석 한도. 시작 전에 알린다(practice.start). 서버가 정본이고 기기는 오늘 세어 둔 것만 보인다.
+  const [guestUsed, setGuestUsed] = useState(0);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setGuestUsed(guestAnalysisUsed());
+  }, []);
+  // 묶음 숨김 확인. "삭제"는 1.0.0 부터 묶음 숨김이다 — 노트·대화·기억은 남고 영상은 보관함에 남는다.
+  const [hideConfirm, setHideConfirm] = useState(false);
+  /** 기록 목록의 최근 30일 필터. 켠 시각을 들고 있다가 그 시각을 기준으로 자른다(practice.library). */
+  const [recentOnly, setRecentOnly] = useState<Date | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  /** 같은 본문의 시작 요청은 같은 요청 id 를 다시 쓴다 — 실패 뒤 다시 눌러도 회차가 하나다. */
+  const startRequestRef = useRef<{ key: string; id: string } | null>(null);
+  /** 409 practice_in_progress 뒤 그 회차로 돌아가는 길. openSession 이 아래에서 정해지므로 ref 로 잇는다. */
+  const returnToInProgressRef = useRef<(rootId?: string) => Promise<void>>(async () => {});
 
   // 준비 순서 입력. 고른 영상은 화면이 들고 있다 — 어느 자리까지 따라오는지가
   // 그 자리의 타입으로 적혀 있다(workspace-state.ts).
@@ -265,7 +295,6 @@ function WorkspaceInner() {
   const [blockageFlow, setBlockageFlow] = useState<BlockageFlowState>(
     initialBlockageFlowState,
   );
-  const [theoryChoice, setTheoryChoice] = useState<TheoryChoiceId | null>(null);
   // 이 셋을 보는 자리가 셋이다 — 건너뛰기를 열지 말지, 세션 생성 요청에 실을 값,
   // 그리고 건너뛴 연습으로 셀지. 한 벌로 묶어 그 셋이 같은 답을 보게 한다.
   const sceneDraft = useMemo<SceneContextDraft>(
@@ -357,13 +386,22 @@ function WorkspaceInner() {
     [],
   );
 
-  // 화면이 로컬 원본을 놓는 순간 그 blob 주소도 놓아 준다.
+  // 화면이 로컬 원본을 놓는 순간 그 blob 주소도 놓아 준다. 보관함 영상의 재생 주소는
+  // 서버가 준 것이라 놓을 것이 없다 — blob 주소만 놓는다.
   const pickedUrl = pickedVideo(screen)?.url ?? null;
   useEffect(
     () => () => {
-      if (pickedUrl) URL.revokeObjectURL(pickedUrl);
+      if (pickedUrl?.startsWith("blob:")) URL.revokeObjectURL(pickedUrl);
     },
     [pickedUrl],
+  );
+
+  // 마무리 전 영상이 떠 있는 동안 탭을 닫으려 하면 경고한다(practice.record). 웹에는 앱의
+  // 업로드 큐가 없어 탭이 닫히면 올리던 것이 그대로 사라진다.
+  const uploading = screen.kind === "uploading";
+  useEffect(
+    () => guardUnfinishedUpload(typeof window === "undefined" ? null : window, uploading),
+    [uploading],
   );
 
   // 떠날 때 남은 요청을 끊는다. 화면 안에서 영상을 갈아 끼우거나 다른 연습으로
@@ -379,7 +417,7 @@ function WorkspaceInner() {
   // 세션 하나가 분석 구간에 들어섰음을 알린다. 조회가 끝난 뒤에만 부른다 —
   // 미리 부르면 조회가 실패한 자리에 1초 타이머가 그대로 남는다.
   const enterAnalysis = useCallback(
-    (status: PracticeSessionDetail["status"], compressed: boolean) => {
+    (status: PracticeDetailView["status"], compressed: boolean) => {
       for (const event of analysisEventsForStatus(status, compressed)) {
         reportProgress(event);
       }
@@ -420,16 +458,17 @@ function WorkspaceInner() {
     setCharacter("");
     setGoal("");
     setBlockageFlow(initialBlockageFlowState);
-    setTheoryChoice(null);
+    setHideConfirm(false);
     setDrawerOpen(false);
     replaceUrl("/practice/new");
   }, [clearWork, discardPendingUpload, reportProgress, setCurrentSession]);
 
   const resetToPrep = useCallback(() => resetTo(null), [resetTo]);
 
-  // 끝난 연습의 노트에서 "이어서 새 연습" — 새 연습 준비 화면으로 가되, 코치가 이
-  // 연습의 대화를 이어받도록 표시해 둔다.
-  const continueFromCurrent = useCallback(() => {
+  // 끝난 회차의 노트에서 이어하기(practice.resume) — 같은 묶음의 다음 회차를 만든다. 같은 영상이면 준비
+  // 화면이 그 영상을 보관함 영상으로 들고 서고(올릴 것이 없다), 새 영상이면 빈 준비 화면이다. 회차마다
+  // 상황·인물·목표·막힘은 새로 확정하므로 미리 채우지 않는다.
+  const continueFromCurrent = useCallback((reuseVideo: boolean) => {
     const id = currentSessionId();
     if (!id) return;
     const situationLabel = detail?.situation.trim();
@@ -438,6 +477,12 @@ function WorkspaceInner() {
       // 자리표시자(".")로 채워진 장면은 이름이 못 된다.
       label: situationLabel && situationLabel.length > 1 ? situationLabel : null,
     });
+    if (reuseVideo && detail && !detail.video_purged) {
+      dispatch({
+        type: "videoPicked",
+        video: { libraryId: detail.video_id, url: detail.playback_url || null, caption: SAME_VIDEO_CAPTION, durationMs: null },
+      });
+    }
   }, [currentSessionId, detail, resetTo]);
 
   // 지금 상태가 무엇을 그리는지는 전부 이 순수 함수가 정한다. 렌더보다 위에 있는 이유는
@@ -592,20 +637,17 @@ function WorkspaceInner() {
     analysisControllerRef.current = controller;
     // 이 폴링이 얼마나 걸렸는지만 재는 시계다. 막대가 쓰는 경과 시간은 훅이 따로 잰다.
     const startedAt = Date.now();
-    void pollSessionUntilSettled(practiceSessionId, {
-      // 분석이 끝나도 이 간격만큼은 화면이 모른다. 4초 → 3초로만 줄인다.
-      // 더 줄이지 않는 이유는 사용자당 60회/분 제한을 이 폴링이 혼자 먹기 때문이다
-      // (3초면 20회/분, 두 탭이어도 40회/분). client.ts 에 429 백오프가 생기기
-      // 전까지는 429 한 번에 폴링이 끊기고 화면이 오류로 남는다.
-      intervalMs: 3000,
+    // 웹은 10초 간격이다(practice.analyze). 화면을 떠나면 조회만 멈추고 작업은 계속 돈다.
+    void pollPracticeUntilSettled(practiceSessionId, {
       signal: controller.signal,
       onStatus: (status) => {
         if (!isCurrentSession(practiceSessionId)) return;
-        dispatch({ type: "analysisStatusReported", status });
+        dispatch({ type: "analysisStatusReported", status: sessionStatusOf(status) });
       },
     }).then(
-      (settled) => {
+      (practice) => {
         if (!isCurrentSession(practiceSessionId) || controller.signal.aborted) return;
+        const settled = practiceToSessionDetail(practice);
         dispatch({ type: "analysisStatusReported", status: settled.status });
         reportProgress({ type: "settle", status: settled.status });
         setDetail(settled);
@@ -633,6 +675,26 @@ function WorkspaceInner() {
       if (analysisControllerRef.current === controller) analysisControllerRef.current = null;
     });
   }, [coordinatorFor, isCurrentSession, refreshList, reportProgress]);
+
+  // "그만두기"는 명시적 취소다 — failed/cancelled 로 종결하고 늦은 완료가 붙지 않는다. 화면 이탈은 취소가 아니다.
+  const cancelAnalysis = async () => {
+    if (!activeId || cancelling) return;
+    const sessionId = activeId;
+    setCancelling(true);
+    setError(null);
+    try {
+      await cancelPractice(sessionId);
+      if (!isCurrentSession(sessionId)) return;
+      analysisControllerRef.current?.abort();
+      dispatch({ type: "analysisStatusReported", status: "failed" });
+      reportProgress({ type: "settle", status: "failed" });
+      void refreshList();
+    } catch (cause) {
+      if (isCurrentSession(sessionId)) setError(errorMessage(cause, "분석을 그만두지 못했어요. 잠시 후 다시 시도해 주세요."));
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   const [analysisRetrying, setAnalysisRetrying] = useState(false);
   const analysisRetryRef = useRef(false);
@@ -691,10 +753,28 @@ function WorkspaceInner() {
     return pending;
   }, [reportProgress]);
 
+  /** 보관함 영상은 올릴 것이 없다 — 곧바로 회차를 만들 수 있게 같은 모양의 약속을 만든다. */
+  const startLibraryVideo = useCallback((video: LibraryVideo): PendingVideoUpload<PendingUploadResult> => {
+    uploadControllerRef.current?.abort();
+    const controller = new AbortController();
+    const pending = {
+      file: new File([], video.caption),
+      controller,
+      promise: Promise.resolve({ videoId: video.libraryId, durationMs: video.durationMs ?? 0, compressionRan: false }),
+    };
+    uploadControllerRef.current = controller;
+    pendingUploadRef.current = pending;
+    return pending;
+  }, []);
+
   const begin = useCallback(async () => {
     if (screen.kind !== "prep" || !screen.video) return;
     const { video, continueFrom } = screen;
     const blockage = completeBlockageFlowWithDefault(blockageFlow);
+    if (sceneContextTooLong(sceneDraft)) {
+      setError(`상황·인물·목표는 각 ${SCENE_FIELD_MAX}자까지 적을 수 있어요.`);
+      return;
+    }
     if (isSceneContextBlank(sceneDraft)) trackPracticeSceneSkipped();
     if (blockageFlow.kind) {
       trackPracticeBlockageSubmitted(
@@ -704,12 +784,15 @@ function WorkspaceInner() {
       );
     }
     setError(null);
-    // 누른 뒤에야 업로드를 띄운다. 준비 화면 하나에서 선택을 모두 끝내므로 선행 창이 없다.
-    const { controller, promise } = uploadForCurrentFile(
-      pendingUploadRef.current,
-      video.file,
-      startUpload,
-    );
+    // 누른 뒤에야 올린다(보관함 저장까지). 준비 화면 하나에서 선택을 모두 끝내므로 선행 창이 없다.
+    // 이미 보관함에 있는 영상(같은 영상으로 이어하기·보관함에서 보내기)은 올릴 것이 없다.
+    const { controller, promise } = isLocalVideo(video)
+      ? uploadForCurrentFile(
+          pendingUploadRef.current,
+          video.file,
+          startUpload,
+        )
+      : startLibraryVideo(video);
     dispatch({ type: "uploadStarted" });
     const reportFailure = (failure: PracticeStartFailure) => {
       trackPracticeUploadFailed(failure.stage, failure.cause);
@@ -724,62 +807,68 @@ function WorkspaceInner() {
         pendingUploadRef.current = null;
       }
     };
+    // 같은 본문에는 같은 요청 id — 실패 뒤 다시 눌러도 회차가 하나다.
+    const requestKey = JSON.stringify([isLocalVideo(video) ? [video.file.name, video.file.size] : video.libraryId, sceneDraft, blockage, continueFrom?.id ?? null]);
+    if (startRequestRef.current?.key !== requestKey) startRequestRef.current = { key: requestKey, id: newRequestId() };
     const started = await startPractice({
       upload: promise,
       signal: controller.signal,
       scene: sceneDraft,
       blockage,
       continueFromId: continueFrom?.id,
+      reuseVideo: continueFrom !== null && !isLocalVideo(video),
+      requestId: startRequestRef.current.id,
     });
     // 실패 처리를 아래 try 안에 두면, 이 처리 자신이 터졌을 때 catch 가 같은 실패를
     // 한 번 더 센다 — 옛 코드에서는 실패 처리가 catch 안에 있어 그럴 수 없었다.
     if (!started.ok) {
       try {
         reportFailure(started);
+        // 묶음에 진행 중 회차가 있다 — 새 회차 대신 그 회차로 돌아간다(practice.resume).
+        if (started.inProgress) void returnToInProgressRef.current(continueFrom?.id);
       } finally {
-        releaseUpload();
+        // 영상은 이미 보관함에 확정됐으면 남겨 둔다 — 다시 누르면 올리지 않고 회차만 다시 만든다.
+        if (started.videoId) {
+          if (uploadControllerRef.current === controller) uploadControllerRef.current = null;
+        } else {
+          releaseUpload();
+        }
       }
       return;
     }
     try {
-      const { session, durationMs, compressionRan } = started;
-      setCurrentSession(session.session_id);
+      const { practice, durationMs, compressionRan } = started;
+      recordGuestAnalysis();
+      setGuestUsed(guestAnalysisUsed());
+      setCurrentSession(practice.id);
       coachCoordinatorRef.current = null;
       practiceAnalyticsContextRef.current = {
         kind: blockage.blockage_kind,
         subBranch: blockage.sub_branch,
-        withEvidence: session.status === "analyzed",
+        withEvidence: false,
       };
-      setDetail(null);
-      reportProgress({ type: "duration", videoDurationMs: durationMs });
-      enterAnalysis(session.status, compressionRan);
-      dispatch({ type: "sessionCreated", status: session.status });
+      const loaded = practiceToSessionDetail(practice);
+      setDetail(loaded);
+      reportProgress({ type: "duration", videoDurationMs: durationMs || null });
+      enterAnalysis(loaded.status, compressionRan);
+      dispatch({ type: "sessionCreated", status: loaded.status });
       setSending(false);
-      urlLoadedRef.current = session.session_id;
-      replaceUrl(`/practice/new?session=${encodeURIComponent(session.session_id)}`);
-      // 업로드가 끝난 시점이 아니라 연습 세션까지 만들어진 시점에 센다.
-      // 업로드만 되고 세션 생성이 실패하면 연습이 시작된 게 아니다.
+      urlLoadedRef.current = practice.id;
+      replaceUrl(`/practice/new?session=${encodeURIComponent(practice.id)}`);
+      // 업로드가 끝난 시점이 아니라 회차까지 만들어진 시점에 센다.
+      // 업로드만 되고 회차 생성이 실패하면 연습이 시작된 게 아니다.
       trackVideoUploaded(durationMs);
       trackPracticeSessionCreated(
         durationMs,
         blockage.blockage_kind,
         blockage.sub_branch,
         isSceneContextBlank(sceneDraft),
-        theoryChoice,
       );
-      trackAnalysis(session.session_id);
-      void getPracticeSession(session.session_id).then(
-        (loaded) => {
-          if (!isCurrentSession(session.session_id)) return;
-          // 상세 조회는 장면 정보만 채운다 — 분석 상태는 먼저 시작한 폴링만 갱신한다.
-          setDetail(loaded);
-        },
-        () => {},
-      );
+      trackAnalysis(practice.id);
       void refreshList();
     } catch (err) {
-      // 시작 자체의 실패는 결과로 오므로, 여기 닿는 것은 세션을 받아 화면을 갈아
-      // 끼우는 도중의 예외뿐이다. 옛 코드가 그것을 세션 생성 실패와 한 자리에
+      // 시작 자체의 실패는 결과로 오므로, 여기 닿는 것은 회차를 받아 화면을 갈아
+      // 끼우는 도중의 예외뿐이다. 옛 코드가 그것을 회차 생성 실패와 한 자리에
       // 세고 있었고, 그대로 둔다.
       reportFailure(describeStartFailure("session_create", err));
     } finally {
@@ -788,14 +877,13 @@ function WorkspaceInner() {
   }, [
     screen,
     blockageFlow,
-    theoryChoice,
     sceneDraft,
     enterAnalysis,
-    isCurrentSession,
     setCurrentSession,
     refreshList,
     reportProgress,
     startUpload,
+    startLibraryVideo,
     trackAnalysis,
   ]);
 
@@ -877,7 +965,7 @@ function WorkspaceInner() {
 
   // 받아 온 연습으로 화면을 옮긴다. 두 진입 경로가 이 자리를 공유하고, 그 앞뒤로
   // 저마다 더 하는 일(주소로 온 길은 자기 자리부터 잡는다)은 각자에게 남는다.
-  const showLoadedSession = useCallback((loaded: PracticeSessionDetail) => {
+  const showLoadedSession = useCallback((loaded: PracticeDetailView) => {
     setDetail(loaded);
     // 목록·주소로 연 세션은 압축을 탔는지도 영상 길이도 모른다 — 무압축 쪽 시작점에서 출발한다.
     enterAnalysis(loaded.status, false);
@@ -932,14 +1020,15 @@ function WorkspaceInner() {
   );
 
   const openSession = useCallback(async (id: string) => {
-    const selected = sessions.find((session) => session.session_id === id);
+    const selected = groupOfPractice(groups, id)?.practices.find((practice) => practice.id === id);
     if (selected) {
       trackPracticeHistoryOpened(
-        selected.status,
-        reports.some((item) => item.practice_session_id === id),
+        selected.stage === "analyzing" ? "analyzing" : "analyzed",
+        Boolean(selected.note_title),
         (Date.now() - Date.parse(selected.created_at)) / 86_400_000,
       );
     }
+    setHideConfirm(false);
     // 올리던 영상을 두고 다른 연습으로 넘어가면 그 업로드는 갈 곳이 없다.
     discardPendingUpload();
     analysisControllerRef.current?.abort();
@@ -988,14 +1077,52 @@ function WorkspaceInner() {
   }, [
     applyLoadOutcome,
     discardPendingUpload,
+    groups,
     isCurrentSession,
     reportProgress,
-    reports,
-    sessions,
     setCurrentSession,
     showLoadedSession,
     startWork,
   ]);
+
+  // 409 practice_in_progress — 묶음 조회에서 진행 중 회차 id 를 얻어 거기로 돌아간다.
+  useEffect(() => {
+    returnToInProgressRef.current = async (rootId?: string) => {
+      try {
+        const { groups: latest } = await listPracticeGroups();
+        setGroups(latest);
+        const id = inProgressPracticeId(latest, rootId) ?? inProgressPracticeId(latest);
+        if (id) await openSession(id);
+      } catch {
+        // 문구는 이미 떴다. 목록에서 직접 열 수 있다.
+      }
+    };
+  }, [openSession]);
+
+  // 보관함에서 "질문 코칭으로 보내기"(?video=) — 준비 화면이 그 영상을 들고 선다. 올릴 것이 없다.
+  const videoParam = searchParams.get("video");
+  const videoLoadedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!videoParam || videoLoadedRef.current === videoParam) return;
+    videoLoadedRef.current = videoParam;
+    let cancelled = false;
+    void getVideo(videoParam).then(
+      (video) => {
+        if (cancelled || video.purged_at) return;
+        dispatch({
+          type: "videoPicked",
+          video: { libraryId: video.id, url: video.playback_url, caption: LIBRARY_VIDEO_CAPTION, durationMs: video.duration_ms },
+        });
+        reportProgress({ type: "duration", videoDurationMs: video.duration_ms });
+      },
+      () => {
+        if (!cancelled) setError("보관함 영상을 불러오지 못했어요.");
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [videoParam, reportProgress]);
 
   // 주소에 ?session= 이 실려 오면(연습 기록 링크·새로고침) 그 세션을 연다.
   // 클릭으로 여는 경로는 openSession 이고, 이쪽은 첫 진입만 맡는다.
@@ -1048,6 +1175,7 @@ function WorkspaceInner() {
     try {
       const outcome = await removePractice({
         sessionId: removing,
+        rootId: detail?.root_id,
         isCurrent: () => isCurrentSession(removing),
       });
       switch (outcome.kind) {
@@ -1060,7 +1188,7 @@ function WorkspaceInner() {
           void refreshList();
           return;
         case "failed":
-          setError("연습을 지우지 못했어요. 잠시 후 다시 시도해 주세요.");
+          setError("연습을 숨기지 못했어요. 잠시 후 다시 시도해 주세요.");
           return;
         // 못 지운 것도 남의 화면에는 띄우지 않는다.
         case "failedSuperseded":
@@ -1075,28 +1203,19 @@ function WorkspaceInner() {
       // 이 끝맺음이 아무 일도 하지 않는다.
       doneDeleting();
     }
-  }, [activeId, isCurrentSession, resetToPrep, refreshList, startWork]);
+  }, [activeId, detail, isCurrentSession, resetToPrep, refreshList, startWork]);
 
   const noteBySession = useMemo(
-    () => new Set(reports.map((r) => r.practice_session_id)),
-    [reports],
-  );
-  const headlineBySession = useMemo(
-    () => new Map(reports.map((r) => [r.practice_session_id, r.title])),
-    [reports],
+    () => new Set(groups.flatMap((g) => g.practices.filter((p) => p.note_title).map((p) => p.id))),
+    [groups],
   );
   // 게스트가 끝나면(서버가 갱신을 거절) 그 게스트의 목록은 더 이상 열 수 없다. 받아 둔
   // 목록을 지우는 대신 여기서 가린다 — 이펙트에서 동기 setState 를 하지 않기 위해서다.
-  const running = useMemo(
-    () => (hasSession ? sessions.filter((s) => s.status === "analyzing") : []),
-    [hasSession, sessions],
-  );
-  const finished = useMemo(
-    () =>
-      hasSession
-        ? sessions.filter((s) => s.status === "analyzed" || s.status === "failed")
-        : [],
-    [hasSession, sessions],
+  // 목록은 묶음·회차다(practice.library). 숨긴 묶음은 빠진다.
+  // 최근 30일 필터는 켤 때의 시각을 들고 있는다 — 렌더마다 새로 읽으면 같은 목록이 이유 없이 흔들린다.
+  const { running, finished } = useMemo(
+    () => railGroups(hasSession ? (recentOnly ? recent30(groups, recentOnly) : groups) : []),
+    [hasSession, groups, recentOnly],
   );
   const toggleRail = useCallback(() => setRailOpen((v) => !v), []);
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
@@ -1119,7 +1238,8 @@ function WorkspaceInner() {
       finished={finished}
       activeId={activeId}
       hasNote={noteBySession}
-      headlines={headlineBySession}
+      recentOnly={recentOnly !== null}
+      onToggleRecent={() => setRecentOnly((on) => (on ? null : new Date()))}
       listError={hasSession && listError}
       canTransfer={hasSession}
     />
@@ -1149,7 +1269,8 @@ function WorkspaceInner() {
               finished={finished}
               activeId={activeId}
               hasNote={noteBySession}
-              headlines={headlineBySession}
+              recentOnly={recentOnly !== null}
+              onToggleRecent={() => setRecentOnly((on) => (on ? null : new Date()))}
               listError={hasSession && listError}
               canTransfer={hasSession}
             />
@@ -1197,10 +1318,10 @@ function WorkspaceInner() {
                 <button
                   type="button"
                   disabled={busyDisabled.remove}
-                  onClick={() => void removeSession()}
-                  className="hidden h-8 rounded-[10px] border border-[#f1aeb5] px-3 text-xs font-black text-[#e03131] transition hover:bg-[#fff5f5] disabled:text-[#f1aeb5] sm:block"
+                  onClick={() => setHideConfirm((v) => !v)}
+                  className="hidden h-8 rounded-[10px] border border-[#e5e8eb] px-3 text-xs font-black text-[#4e5968] transition hover:bg-[#f2f4f6] disabled:text-[#c9d3df] sm:block"
                 >
-                  삭제
+                  숨기기
                 </button>
                 {reviewArmed ? (
                   <button
@@ -1228,6 +1349,12 @@ function WorkspaceInner() {
                 activeId ? "hidden sm:flex" : "flex"
               }`}
             >
+              <Link
+                href="/library"
+                className="flex h-8 items-center rounded-[10px] px-2 text-xs font-black text-[#8b95a1] transition hover:bg-[#f2f4f6] hover:text-[#4e5968]"
+              >
+                보관함
+              </Link>
               <Link
                 href="/reading"
                 className="flex h-8 items-center rounded-[10px] px-2 text-xs font-black text-[#8b95a1] transition hover:bg-[#f2f4f6] hover:text-[#4e5968]"
@@ -1259,6 +1386,26 @@ function WorkspaceInner() {
               </Link>
             </nav>
           </div>
+          {/* 숨김 확인. 오류 배너와 화면 분기 사이에는 아무것도 끼우지 않는다(workspace-note-handoff 테스트). */}
+          {hideConfirm && activeId ? (
+            <div className="flex flex-wrap items-center gap-3 border-t border-[#edf0f3] bg-[#fff8ec] px-4 py-3 sm:px-5">
+              <p className="text-sm font-bold text-[#8a4b00]">{HIDE_GROUP_COPY}</p>
+              <button
+                type="button"
+                disabled={busyDisabled.remove}
+                onClick={() => {
+                  setHideConfirm(false);
+                  void removeSession();
+                }}
+                className="h-8 rounded-[10px] bg-[#8a4b00] px-3 text-xs font-black text-white disabled:opacity-40"
+              >
+                숨기기
+              </button>
+              <button type="button" onClick={() => setHideConfirm(false)} className="h-8 rounded-[10px] px-3 text-xs font-black text-[#4e5968]">
+                취소
+              </button>
+            </div>
+          ) : null}
         </header>
 
         <WorkspaceErrorBanner error={error} />
@@ -1281,7 +1428,9 @@ function WorkspaceInner() {
                     : () => dispatch({ type: "chatReopened" })
                 }
                 onFinish={openReview}
-                onContinueNext={continueFromCurrent}
+                onContinueSame={() => continueFromCurrent(true)}
+                onContinueNew={() => continueFromCurrent(false)}
+                canReuseVideo={detail !== null && !detail.video_purged}
               />
             ) : (
               <ChatPanel
@@ -1345,6 +1494,9 @@ function WorkspaceInner() {
               />
               {body.footer.kind === "start" ? (
                 <>
+                  <p className="rounded-xl bg-[#f4f6fa] px-3.5 py-2.5 text-xs font-semibold leading-4 text-[#4e6183]">
+                    {guestAnalysisNotice(guestUsed)}
+                  </p>
                   <StartRow
                     ready={body.footer.ready}
                     onStart={() => void begin()}
@@ -1365,45 +1517,6 @@ function WorkspaceInner() {
                       onGoal={setGoal}
                     />
                     <BlockageFields state={blockageFlow} onChange={setBlockageFlow} />
-                    <section className="grid gap-3">
-                      <header>
-                        <h2 className="text-[15px] font-black leading-tight tracking-[-0.01em] text-[#191f28] sm:text-base">
-                          어떤 이론을 기반으로 볼까요?
-                        </h2>
-                        <p className="mt-1 text-xs font-semibold leading-[18px] text-[#6b7684]">
-                          고르지 않아도 돼요 — 그러면 코치가 골라요.
-                        </p>
-                      </header>
-                      <div className="flex flex-wrap gap-2">
-                        {THEORY_CHOICES.map((choice) => {
-                          const selected = theoryChoice === choice.id;
-                          return (
-                            <button
-                              key={choice.id}
-                              type="button"
-                              aria-pressed={selected}
-                              onClick={() =>
-                                setTheoryChoice((current) =>
-                                  toggleTheoryChoice(current, choice.id),
-                                )
-                              }
-                              className={`min-h-10 flex-1 whitespace-nowrap rounded-full px-4 py-2 text-[12.5px] font-bold transition ${
-                                selected
-                                  ? "bg-[#e8f3ff] text-[#3182f6]"
-                                  : "bg-[#f2f4f6] text-[#4e5968]"
-                              }`}
-                            >
-                              {choice.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      {theoryChoice ? (
-                        <p className="text-xs font-semibold leading-[18px] text-[#4e5968]">
-                          {THEORY_CHOICES.find((choice) => choice.id === theoryChoice)?.description}
-                        </p>
-                      ) : null}
-                    </section>
                   </div>
                 </>
               ) : body.footer.phase === "upload" ? (
@@ -1422,6 +1535,8 @@ function WorkspaceInner() {
                   failed={body.footer.failed}
                   retrying={analysisRetrying}
                   onRetry={() => void retryAnalysis()}
+                  cancelling={cancelling}
+                  onCancel={() => void cancelAnalysis()}
                 />
               )}
               <IntroLine />
@@ -1453,7 +1568,8 @@ const SessionRail = memo(function SessionRail({
   finished,
   activeId,
   hasNote,
-  headlines,
+  recentOnly,
+  onToggleRecent,
   listError,
   canTransfer,
 }: {
@@ -1462,40 +1578,22 @@ const SessionRail = memo(function SessionRail({
   onToggle: () => void;
   onNew: () => void;
   onOpen: (id: string) => void;
-  running: PracticeSessionListItem[];
-  finished: PracticeSessionListItem[];
+  running: RailGroup[];
+  finished: RailGroup[];
   activeId: string | null;
   hasNote: Set<string>;
-  headlines: Map<string, string>;
+  /** 지난 연습을 최근 30일로 좁혀 보는 중인가(practice.library) */
+  recentOnly: boolean;
+  onToggleRecent: () => void;
   listError: boolean;
   /** 옮길 자료가 있는가. 게스트가 있을 때만 이관 코드 화면으로 가는 길을 연다. */
   canTransfer: boolean;
 }) {
   const width = drawer ? "w-[300px]" : open ? "w-[280px]" : "w-16";
-  // 이어한 연습(continued_from)을 부모 밑에 차수로 묶는다 (SOMA-418). 부모가 목록에
-  // 없으면(숨김 등) 자식을 낱개로 승격한다 — 고아를 빈 묶음에 매달면 접근이 사라진다.
-  const finishedIds = new Set(finished.map((s) => s.session_id));
-  const childrenByRoot = new Map<string, PracticeSessionListItem[]>();
-  const roots: PracticeSessionListItem[] = [];
-  for (const s of finished) {
-    const parent = s.continued_from;
-    if (parent && parent !== s.session_id && finishedIds.has(parent)) {
-      childrenByRoot.set(parent, [...(childrenByRoot.get(parent) ?? []), s]);
-    } else {
-      roots.push(s);
-    }
-  }
-  childrenByRoot.forEach((list) =>
-    list.sort((a, b) => a.created_at.localeCompare(b.created_at)),
-  );
-  // 묶음은 가장 최근 차수 기준으로 띄운다 — 어제 이어한 묶음이 목록 바닥에 있으면 못 찾는다.
-  const newestOf = (s: PracticeSessionListItem) => {
-    const kids = childrenByRoot.get(s.session_id);
-    return kids?.length ? kids[kids.length - 1].created_at : s.created_at;
-  };
-  roots.sort((a, b) => newestOf(b).localeCompare(newestOf(a)));
-  // 묶음은 기본으로 접는다 — 차수가 쌓일수록 목록이 길어져 다른 연습이 밀려난다.
-  // 지금 열려 있는 연습이 속한 묶음은 항상 펼친다: 접혀 있으면 내가 어디 있는지 안 보인다.
+  // 목록은 서버가 준 묶음(root_id)과 회차(ordinal)다(practice.library). 묶음은 가장 최근 회차 기준으로
+  // 정렬돼 온다 — 어제 이어한 묶음이 목록 바닥에 있으면 못 찾는다.
+  // 묶음은 기본으로 접는다 — 회차가 쌓일수록 목록이 길어져 다른 연습이 밀려난다.
+  // 지금 열려 있는 회차가 속한 묶음은 항상 펼친다: 접혀 있으면 내가 어디 있는지 안 보인다.
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   const toggleGroup = (rootId: string) =>
     setOpenGroups((prev) => {
@@ -1504,6 +1602,10 @@ const SessionRail = memo(function SessionRail({
       else next.add(rootId);
       return next;
     });
+  /** 묶음 줄이 가리키는 회차 — 진행 중이면 그 회차, 아니면 마지막 회차 */
+  const headOf = (g: RailGroup) =>
+    g.inProgressPracticeId ?? g.practices[g.practices.length - 1]?.id ?? g.rootId;
+  const isActiveGroup = (g: RailGroup) => g.practices.some((p) => p.id === activeId);
   return (
     <aside
       className={`flex h-full shrink-0 flex-col border-r border-[#edf0f3] bg-[#f9fafb] ${width}`}
@@ -1541,45 +1643,61 @@ const SessionRail = memo(function SessionRail({
             </p>
           ) : null}
           {running.length > 0 ? (
-            <RailGroup label="진행 중">
-              {running.map((s) => (
+            <RailSection label="진행 중">
+              {running.map((g) => (
                 <RailItem
-                  key={s.session_id}
-                  title={s.situation?.trim() || "제목 없는 연습"}
-                  meta={`같이 볼 장면을 찾고 있어요 · ${whenLabel(s.created_at)}`}
-                  active={s.session_id === activeId}
+                  key={g.rootId}
+                  title={g.title}
+                  meta={`${g.practices.length > 1 ? `${g.practices.length}차 · ` : ""}같이 볼 장면을 찾고 있어요 · ${whenLabel(g.newestAt)}`}
+                  active={isActiveGroup(g)}
                   dot
-                  onClick={() => onOpen(s.session_id)}
+                  onClick={() => onOpen(headOf(g))}
                 />
               ))}
-            </RailGroup>
+            </RailSection>
           ) : null}
-          <RailGroup label="지난 연습">
+          <div className="mt-4">
+            <div className="flex items-center justify-between gap-2 px-2 pb-2">
+              <p className="text-[11.5px] font-black text-[#8b95a1]">지난 연습</p>
+              {/* 최근 30일과 전체를 오간다. 회차 시작 날짜(한국 시간) 기준이다. */}
+              <button
+                type="button"
+                aria-pressed={recentOnly}
+                onClick={onToggleRecent}
+                className={`h-6 rounded-full px-2.5 text-[11px] font-black transition ${
+                  recentOnly ? "bg-[#e8f3ff] text-[#3182f6]" : "bg-[#f2f4f6] text-[#8b95a1] hover:bg-[#eef2f6]"
+                }`}
+              >
+                {recentOnly ? RECENT_FILTER_LABEL : ALL_FILTER_LABEL}
+              </button>
+            </div>
             {finished.length === 0 ? (
               <p className="px-2 py-3 text-xs font-semibold leading-5 text-[#8b95a1]">
-                첫 영상을 올리면 여기에 쌓여요.
+                {recentOnly ? "최근 30일에 한 연습이 없어요." : "첫 영상을 올리면 여기에 쌓여요."}
               </p>
             ) : (
-              roots.map((s) => (
-                <div key={s.session_id}>
-                  <RailItem
-                    // ?? 는 빈 문자열을 통과시킨다 — 상황을 안 적은 세션이 제목 없이 렌더됐다.
-                    // 진행 중 목록(위)은 || 를 써서 여기만 어긋나 있었다.
-                    title={headlines.get(s.session_id)?.trim() || s.situation?.trim() || "제목 없는 연습"}
-                    meta={`${whenLabel(s.created_at)}${hasNote.has(s.session_id) ? " · 문장 남김" : ""}`}
-                    active={s.session_id === activeId}
-                    onClick={() => onOpen(s.session_id)}
-                  />
-                  {(() => {
-                    const kids = childrenByRoot.get(s.session_id) ?? [];
-                    if (kids.length === 0) return null;
-                    const opened = openGroups.has(s.session_id)
-                        || kids.some((child) => child.session_id === activeId);
-                    return (
+              // 달마다 나눈다 — 회차가 쌓이면 어느 시기의 연습인지가 목록에서 바로 보여야 한다.
+              byMonth(finished).map((section) => (
+                <RailSection key={section.label} label={section.label}>
+                  {section.groups.map((g) => {
+                const single = g.practices.length <= 1;
+                const head = g.practices[g.practices.length - 1];
+                const opened = !single && (openGroups.has(g.rootId) || isActiveGroup(g));
+                return (
+                  <div key={g.rootId}>
+                    <RailItem
+                      title={`${g.favorite ? "★ " : ""}${g.title}`}
+                      meta={`${whenLabel(g.newestAt)}${
+                        single ? (head && hasNote.has(head.id) ? " · 문장 남김" : "") : ` · 회차 ${g.practices.length}개`
+                      }`}
+                      active={single ? isActiveGroup(g) : false}
+                      onClick={() => (single ? onOpen(headOf(g)) : toggleGroup(g.rootId))}
+                    />
+                    {single ? null : (
                       <>
                         <button
                           type="button"
-                          onClick={() => toggleGroup(s.session_id)}
+                          onClick={() => toggleGroup(g.rootId)}
                           className="ml-4 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11.5px] font-black text-[#8b95a1] transition hover:bg-[#eef2f6] hover:text-[#4e5968]"
                         >
                           <span
@@ -1588,54 +1706,52 @@ const SessionRail = memo(function SessionRail({
                           >
                             ▸
                           </span>
-                          {opened ? "이어한 연습 접기" : `이어한 연습 ${kids.length}개 펼치기`}
+                          {opened ? "회차 접기" : `회차 ${g.practices.length}개 펼치기`}
                         </button>
                         {opened
-                          ? kids.map((child, index) => (
+                          ? g.practices.map((practice) => (
                               <div
-                                key={child.session_id}
+                                key={practice.id}
                                 className="ml-4 border-l-2 border-[#e5e8eb] pl-1.5"
                               >
                                 <RailItem
-                                  title={headlines.get(child.session_id)?.trim() || `${index + 2}차 연습`}
-                                  meta={`${index + 2}차 · ${whenLabel(child.created_at)}${
-                                    hasNote.has(child.session_id) ? " · 문장 남김" : ""
+                                  title={practice.title}
+                                  meta={`${practice.ordinal}차 · ${whenLabel(practice.createdAt)}${
+                                    hasNote.has(practice.id) ? " · 문장 남김" : ""
                                   }`}
-                                  active={child.session_id === activeId}
-                                  onClick={() => onOpen(child.session_id)}
+                                  active={practice.id === activeId}
+                                  onClick={() => onOpen(practice.id)}
                                 />
                               </div>
                             ))
                           : null}
                       </>
-                    );
-                  })()}
-                </div>
+                    )}
+                  </div>
+                );
+                  })}
+                </RailSection>
               ))
             )}
-          </RailGroup>
+          </div>
         </div>
       ) : (
         <div className="mt-5 flex flex-1 flex-col items-center gap-2 overflow-y-auto">
-          {[...running, ...finished].slice(0, 8).map((s) => (
+          {[...running, ...finished].slice(0, 8).map((g) => (
             <button
-              key={s.session_id}
+              key={g.rootId}
               type="button"
-              onClick={() => onOpen(s.session_id)}
+              onClick={() => onOpen(headOf(g))}
               // 장면을 건너뛴 연습은 아바타 글자가 다 같은 "연"이 된다. 펼친 목록과
-              // 같은 사슬을 써야 접어 둔 채로도 서로를 구분할 수 있다.
-              title={
-                headlines.get(s.session_id)?.trim()
-                || s.situation?.trim()
-                || "제목 없는 연습"
-              }
+              // 같은 제목을 써야 접어 둔 채로도 서로를 구분할 수 있다.
+              title={g.title}
               className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[13px] font-black transition ${
-                s.session_id === activeId
+                isActiveGroup(g)
                   ? "bg-[#e8f3ff] text-[#3182f6]"
                   : "bg-[#f2f4f6] text-[#8b95a1] hover:bg-[#eef2f6]"
               }`}
             >
-              {(s.situation?.trim() || "연")[0]}
+              {(g.title === UNTITLED_PRACTICE ? "연" : g.title)[0]}
             </button>
           ))}
         </div>
@@ -1647,8 +1763,16 @@ const SessionRail = memo(function SessionRail({
           데스크톱 레일에는 넣지 않는다. 헤더가 이미 보이는 자리라 두 군데가 된다. */}
       {drawer ? (
         <Link
+          href="/library"
+          className="mt-auto flex items-center gap-3 border-t border-[#edf0f3] px-4 py-3 text-[13px] font-black text-[#191f28] transition hover:bg-[#eef2f6]"
+        >
+          영상 보관함
+        </Link>
+      ) : null}
+      {drawer ? (
+        <Link
           href="/app"
-          className="mt-auto flex items-center gap-3 border-t border-[#edf0f3] px-4 py-3.5 transition hover:bg-[#eef2f6]"
+          className="flex items-center gap-3 border-t border-[#edf0f3] px-4 py-3.5 transition hover:bg-[#eef2f6]"
         >
           <span
             aria-hidden="true"
@@ -1689,7 +1813,7 @@ const SessionRail = memo(function SessionRail({
   );
 });
 
-function RailGroup({ label, children }: { label: string; children: React.ReactNode }) {
+function RailSection({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="mt-4 first:mt-0">
       <p className="px-2 pb-2 text-[11.5px] font-black text-[#8b95a1]">{label}</p>
@@ -1887,6 +2011,7 @@ function SceneField({
       <input
         value={value}
         placeholder={placeholder}
+        maxLength={SCENE_FIELD_MAX}
         onChange={(event) => onChange(event.target.value)}
         className="h-11 w-full rounded-xl border border-[#e5e8eb] bg-[#f8fafc] px-3.5 text-sm font-semibold text-[#191f28] outline-none transition placeholder:text-[13px] placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:bg-white focus:ring-4 focus:ring-[#e8f3ff]"
       />
@@ -1928,6 +2053,8 @@ function ProgressPanel({
   failed = false,
   retrying = false,
   onRetry,
+  cancelling = false,
+  onCancel,
 }: {
   pct: number;
   durationMs: number | null;
@@ -1940,6 +2067,9 @@ function ProgressPanel({
   failed?: boolean;
   retrying?: boolean;
   onRetry?: () => void;
+  cancelling?: boolean;
+  /** 그만두기 — 명시적 취소. 화면을 떠나는 것과 다르다(practice.analyze). */
+  onCancel?: () => void;
 }) {
   if (failed) {
     return (
@@ -1995,6 +2125,21 @@ function ProgressPanel({
           style={{ width: `${width}%` }}
         />
       </div>
+      {phase === "scan" && onCancel ? (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+          <span className="text-xs font-semibold text-[#8b95a1]">
+            화면을 떠나도 살펴보는 일은 계속돼요. 목록에서 다시 열 수 있어요.
+          </span>
+          <button
+            type="button"
+            disabled={cancelling}
+            onClick={onCancel}
+            className="h-8 rounded-[10px] border border-[#e5e8eb] px-3 text-xs font-black text-[#4e5968] transition hover:bg-[#f2f4f6] disabled:text-[#c9d3df]"
+          >
+            {cancelling ? "그만두는 중…" : "그만두기"}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -2017,11 +2162,12 @@ function ScenePanel({
   open,
   onToggle,
 }: {
-  detail: PracticeSessionDetail | null;
+  detail: PracticeDetailView | null;
   open: boolean;
   onToggle: () => void;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const partialNotice = detail ? analysisNotice(detail.analysis_status) : null;
   const mobileVideoRef = useRef<HTMLVideoElement | null>(null);
   const rows: [string, string][] = [
     ["상황", detail?.situation?.trim() || "적지 않았어요"],
@@ -2121,6 +2267,11 @@ function ScenePanel({
                 </div>
               </div>
             ) : null}
+            {partialNotice ? (
+              <p className="mt-4 rounded-xl bg-[#fff8ec] px-3 py-2 text-xs font-bold leading-5 text-[#8a4b00]">
+                {partialNotice}
+              </p>
+            ) : null}
             <SceneRows rows={mobileRows} />
             {recordRows.length > 0 ? (
               <div className="mt-4">
@@ -2163,6 +2314,11 @@ function ScenePanel({
                 구간을 누르면 그 지점부터 재생돼요
               </p>
             </div>
+          ) : null}
+          {partialNotice ? (
+            <p className="rounded-xl bg-[#fff8ec] px-3 py-2 text-xs font-bold leading-5 text-[#8a4b00]">
+              {partialNotice}
+            </p>
           ) : null}
           <div className="rounded-[18px] bg-white p-4 shadow-[0_12px_36px_rgba(25,31,40,0.05)]">
             <p className="text-[13.5px] font-black">이 장면에서 연기한 것</p>
@@ -2385,7 +2541,9 @@ function NotePanel({
   backDisabled,
   onBackToChat,
   onFinish,
-  onContinueNext,
+  onContinueSame,
+  onContinueNew,
+  canReuseVideo,
 }: {
   report: PracticeReport;
   messages: ChatMsg[];
@@ -2393,7 +2551,11 @@ function NotePanel({
   backDisabled: boolean;
   onBackToChat: () => void;
   onFinish: () => void;
-  onContinueNext: () => void;
+  /** 이어하기(practice.resume) — 같은 영상이면 올릴 것이 없고, 새 영상이면 준비 화면이 빈 채로 선다. */
+  onContinueSame: () => void;
+  onContinueNew: () => void;
+  /** 영상이 파기됐으면 같은 영상으로는 이어갈 수 없다. */
+  canReuseVideo: boolean;
 }) {
   if (report.report_type === "blocked") {
     return (
@@ -2445,14 +2607,26 @@ function NotePanel({
       </div>
 
       <div className="grid gap-2.5 border-t border-[#edf0f3] p-3.5 sm:p-4">
-        {/* 새 영상을 올려도 코치가 이 연습의 대화를 이어받는다 (SOMA-417) */}
-        <button
-          type="button"
-          onClick={onContinueNext}
-          className="h-12 rounded-[14px] bg-[#e8f3ff] text-sm font-black text-[#1b64da] transition hover:bg-[#d8eaff]"
-        >
-          이 연습에 이어서 새 연습
-        </button>
+        {/* 같은 묶음의 다음 회차 — 코치가 이 연습의 대화를 이어받는다 (SOMA-417). 영상은 같은 것이든 새 것이든
+            회차마다 상황·인물·목표·막힘은 새로 확정한다. */}
+        <div className="flex gap-2.5">
+          {canReuseVideo ? (
+            <button
+              type="button"
+              onClick={onContinueSame}
+              className="h-12 flex-1 rounded-[14px] bg-[#e8f3ff] text-sm font-black text-[#1b64da] transition hover:bg-[#d8eaff]"
+            >
+              {CONTINUE_SAME_VIDEO_LABEL}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={onContinueNew}
+            className="h-12 flex-1 rounded-[14px] bg-[#e8f3ff] text-sm font-black text-[#1b64da] transition hover:bg-[#d8eaff]"
+          >
+            {CONTINUE_NEW_VIDEO_LABEL}
+          </button>
+        </div>
         <div className="flex gap-2.5">
           <button
             type="button"

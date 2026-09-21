@@ -98,6 +98,18 @@ export const READING_SCRIPT_MESSAGES: Record<string, string> = {
   // 녹음(reading.recording)
   recording_too_long: "이 줄 녹음은 너무 길어 저장하지 않았어요.",
   recording_quota: "녹음 저장 공간이 가득 찼어요. 지난 녹음을 지우면 다시 저장할 수 있어요.",
+  // 영상 보관함·연습(practice.record·library·start)
+  video_too_large: "영상이 너무 커요(100MB 이내).",
+  video_too_long: "영상이 너무 길어요(5분 이내).",
+  video_quota: "보관함이 가득 찼어요. 영상을 지우거나 파일만 파기하면 다시 올릴 수 있어요.",
+  video_in_use: "회차나 챌린지에 쓰인 영상이라 지울 수 없어요. 파일만 파기할 수 있어요.",
+  video_not_ready: "이 영상은 아직 쓸 수 없어요. 다른 영상을 골라 주세요.",
+  upload_expired: "올릴 자리가 만료됐어요. 영상을 처음부터 다시 올려 주세요.",
+};
+/** 409 코드 문구(practice.resume·practice.analyze) */
+const CONFLICT_MESSAGES: Record<string, string> = {
+  practice_in_progress: "진행 중인 회차가 있어요. 그 회차로 돌아가요.",
+  analysis_not_ready: "영상을 분석해야 대화를 시작할 수 있어요.",
 };
 /** 변환(webm → m4a)이 실패했다. 행·객체는 없고 기기가 같은 요청 id 로 다시 시도한다. */
 const AUDIO_CONVERSION_MESSAGE = "녹음을 저장하는 중이에요. 잠시 뒤 다시 시도해요.";
@@ -138,6 +150,7 @@ export function errorMessage(cause: unknown, fallback: string): string {
       return READING_SCRIPT_MESSAGES[cause.code];
     }
     if (cause.status === 409 && cause.code === "session_closed") return SESSION_CLOSED_MESSAGE;
+    if (cause.status === 409 && cause.code in CONFLICT_MESSAGES) return CONFLICT_MESSAGES[cause.code];
     if (cause.status === 503 && cause.code === "audio_conversion_failed") return AUDIO_CONVERSION_MESSAGE;
     if (cause.status === 429) {
       return cause.code === GUEST_DAILY_ANALYSIS_LIMIT

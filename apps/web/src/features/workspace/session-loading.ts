@@ -1,6 +1,7 @@
+import { getPractice } from "@/lib/api/v2/practices";
 import { getReport } from "@/lib/api/v2/reports";
-import { getPracticeSession } from "@/lib/api/v2/sessions";
-import type { PracticeReport, PracticeSessionDetail } from "@/lib/api/v2/types";
+import type { PracticeReport } from "@/lib/api/v2/types";
+import { practiceToSessionDetail, type PracticeDetailView } from "../practice/practice-view";
 
 // 이미 있는 연습 하나를 열어 화면에 실을 것까지 받아 오는 길. 목록에서 누르는 길과
 // 주소 ?session= 으로 들어오는 길이 이 하나를 쓴다 — 옛 코드는 같은 순서를 두 번
@@ -49,7 +50,7 @@ export type LoadPracticeSessionInput = {
    * 연습을 받아 왔다. 무엇을 더 할지 갈리기 **전에** 부른다 — 화면은 받아 온 상태로
    * 먼저 옮기고, 폴링·노트 조회는 그다음이다.
    */
-  onLoaded: (detail: PracticeSessionDetail) => void;
+  onLoaded: (detail: PracticeDetailView) => void;
 };
 
 export async function loadPracticeSession({
@@ -58,7 +59,7 @@ export async function loadPracticeSession({
   onLoaded,
 }: LoadPracticeSessionInput): Promise<SessionLoadOutcome> {
   try {
-    const loaded = await getPracticeSession(sessionId);
+    const loaded = practiceToSessionDetail(await getPractice(sessionId));
     if (!isCurrent()) return { kind: "superseded" };
     onLoaded(loaded);
     if (loaded.status === "analyzing") {

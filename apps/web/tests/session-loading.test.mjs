@@ -27,19 +27,31 @@ const REPORT = { report_type: "analysis", title: "무엇이 막혔나" };
 
 function detail(overrides = {}) {
   return {
-    session_id: "practice-1",
-    status: "analyzed",
-    situation: "면접 첫 인사",
-    blockage_kind: "표현",
-    sub_branch: "몸이 굳어요",
-    playback_url: null,
-    error_code: null,
+    id: "practice-1",
+    root_id: "practice-1",
+    ordinal: 1,
+    stage: "conversing",
+    experience_version: "legacy",
+    video: { id: "v-1", playback_url: null, playback_expires_at: null, purged_at: null, duration_ms: 1000 },
+    scene: { situation: "면접 첫 인사", character: "", goal: "" },
+    blockage: { category: "표현", detail: "몸이 굳어요", note: null },
+    job: { id: "j-1", status: "succeeded", failure_reason: null },
+    analysis: { status: "ready", summary: null },
+    conversation: null,
+    note: null,
+    created_at: "2026-09-21T03:00:00Z",
+    updated_at: "2026-09-21T03:00:00Z",
     ...overrides,
   };
 }
 
+/** 아직 분석 중인 회차 */
+const ANALYZING = { stage: "analyzing", job: { id: "j-1", status: "pending", failure_reason: null }, analysis: null };
+/** 분석이 최종 실패한 회차 */
+const FAILED = { stage: "closed", job: { id: "j-1", status: "failed", failure_reason: "timeout" }, analysis: null };
+
 /**
- * 조회 두 개를 받아 적는 fetch. 세션 조회와 노트 조회가 어느 순서로, 몇 번
+ * 조회 두 개를 받아 적는 fetch. 회차 조회와 노트 조회가 어느 순서로, 몇 번
  * 불렸는지가 결과만큼이나 중요하다 — 훑어보기가 안 끝난 연습은 노트를 물어보면 안 된다.
  */
 function apiStub({ session = () => jsonResponse(detail()), report } = {}) {
@@ -50,7 +62,7 @@ function apiStub({ session = () => jsonResponse(detail()), report } = {}) {
     if (path.startsWith("/v2/reports/")) {
       return report ? report() : jsonResponse({ report: REPORT });
     }
-    assert.equal(path, "/v2/practice-sessions/practice-1");
+    assert.equal(path, "/v2/practices/practice-1");
     return session();
   };
   return calls;
@@ -67,18 +79,18 @@ function loadInput(overrides = {}) {
 
 test("훑어보기가 안 끝난 연습은 폴링을 걸라고 답하고 노트를 물어보지 않는다", async () => {
   const calls = apiStub({
-    session: () => jsonResponse(detail({ status: "analyzing" })),
+    session: () => jsonResponse(detail(ANALYZING)),
   });
   const result = await loadPracticeSession(loadInput());
   assert.deepEqual(result, { kind: "analyzing" });
-  assert.deepEqual(calls, ["/v2/practice-sessions/practice-1"]);
+  assert.deepEqual(calls, ["/v2/practices/practice-1"]);
 });
 
 test("훑어보기가 실패한 연습은 그 자리에서 멈추고 노트를 물어보지 않는다", async () => {
-  const calls = apiStub({ session: () => jsonResponse(detail({ status: "failed" })) });
+  const calls = apiStub({ session: () => jsonResponse(detail(FAILED)) });
   const result = await loadPracticeSession(loadInput());
   assert.deepEqual(result, { kind: "analysisFailed" });
-  assert.deepEqual(calls, ["/v2/practice-sessions/practice-1"]);
+  assert.deepEqual(calls, ["/v2/practices/practice-1"]);
 });
 
 test("훑어보기가 끝난 연습은 노트를 물어보고 받은 것을 그대로 싣는다", async () => {
@@ -86,7 +98,7 @@ test("훑어보기가 끝난 연습은 노트를 물어보고 받은 것을 그�
   const result = await loadPracticeSession(loadInput());
   assert.deepEqual(result, { kind: "note", report: REPORT });
   assert.deepEqual(calls, [
-    "/v2/practice-sessions/practice-1",
+    "/v2/practices/practice-1",
     "/v2/reports/practice-1",
   ]);
 });
@@ -155,7 +167,7 @@ test("기다리는 사이 다른 연습이 자리를 차지하면 화면을 건�
   assert.deepEqual(result, { kind: "superseded" });
   assert.deepEqual(loaded, []);
   // 자리를 뺏겼으면 노트까지 물어보지 않는다.
-  assert.deepEqual(calls, ["/v2/practice-sessions/practice-1"]);
+  assert.deepEqual(calls, ["/v2/practices/practice-1"]);
 });
 
 test("노트를 물어보는 사이 자리를 뺏기면 그 노트를 싣지 않는다", async () => {

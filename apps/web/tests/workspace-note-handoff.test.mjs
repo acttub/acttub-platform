@@ -97,7 +97,7 @@ test("대화가 끝나면 입력창 대신 정리보기 버튼이 나온다", ()
   assert.match(chatPanel, /정리보기/);
 });
 
-test("노트에서 이어서 새 연습을 누르면 되돌리기가 이어받을 연습을 함께 받는다", () => {
+test("노트에서 이어하기를 누르면 되돌리기가 이어받을 연습을 함께 받는다", () => {
   const continueFromCurrent = block(
     "const continueFromCurrent = useCallback",
     "const view = describeWorkspaceView",
@@ -108,9 +108,13 @@ test("노트에서 이어서 새 연습을 누르면 되돌리기가 이어받�
   assert.match(continueFromCurrent, /resetTo\(\{\s*id,/);
   assert.doesNotMatch(continueFromCurrent, /resetTo\(null\)|resetToPrep\(\)/);
 
-  // 노트 화면의 버튼이 실제로 그 길로 이어져 있어야 한다.
+  // 노트 화면의 두 버튼(같은 영상·새 영상, practice.resume)이 실제로 그 길로 이어져 있어야 한다.
   const notePanel = block("<NotePanel", "<ChatPanel");
-  assert.match(notePanel, /onContinueNext=\{continueFromCurrent\}/);
+  assert.match(notePanel, /onContinueSame=\{\(\) => continueFromCurrent\(true\)\}/);
+  assert.match(notePanel, /onContinueNew=\{\(\) => continueFromCurrent\(false\)\}/);
+  // 같은 영상으로 이어하기는 준비 화면이 그 영상을 보관함 영상으로 들고 선다 — 올릴 것이 없다.
+  assert.match(continueFromCurrent, /reuseVideo && detail && !detail\.video_purged/);
+  assert.match(continueFromCurrent, /libraryId: detail\.video_id/);
 });
 
 test("대화가 끝난 화면은 아직 질문 중이라고 말하지 않는다", () => {

@@ -1,4 +1,5 @@
 import { MAX_DURATION_MS, MAX_UPLOAD_BYTES, MOCK_S3_UPLOAD } from "../../config/env";
+import { browserS3Uploader, fakeS3Uploader } from "../../media/s3-uploader";
 import { apiFetch } from "./client";
 import { ApiError, errorMessage } from "./errors";
 import type {
@@ -78,167 +79,17 @@ function asUploadError(
   return new UploadError(stage, errorMessage(error, fallback), error);
 }
 
-function emitProgress(
-  onProgress: ((progress: UploadProgress) => void) | undefined,
-  loadedBytes: number,
-  totalBytes: number,
-): void {
-  if (!onProgress) return;
-  const boundedLoaded = Math.max(0, Math.min(loadedBytes, totalBytes));
-  const percent =
-    totalBytes > 0 ? Math.round((boundedLoaded / totalBytes) * 100) : 0;
-  onProgress({ loadedBytes: boundedLoaded, totalBytes, percent });
-}
-
-const xhrS3Uploader: S3Uploader = ({
-  url,
-  file,
-  contentType,
-  signal,
-  onProgress,
-}) =>
-  new Promise<void>((resolve, reject) => {
-    if (signal?.aborted) {
-      const error = abortError(signal);
-      reject(new UploadError("put", error.message, error));
-      return;
-    }
-    if (typeof XMLHttpRequest === "undefined") {
-      reject(
-        new UploadError(
-          "put",
-          "현재 환경에서는 브라우저 S3 업로드를 사용할 수 없어요.",
-          new Error("XMLHttpRequest is not available"),
-        ),
-      );
-      return;
-    }
-
-    let xhr: XMLHttpRequest;
-    try {
-      xhr = new XMLHttpRequest();
-    } catch (error) {
-      reject(
-        asUploadError(
-          "put",
-          error,
-          "현재 환경에서는 브라우저 S3 업로드를 사용할 수 없어요.",
-        ),
-      );
-      return;
-    }
-    let settled = false;
-    let lastLoadedBytes = 0;
-
-    const cleanup = () => signal?.removeEventListener("abort", onSignalAbort);
-    const succeed = () => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      resolve();
-    };
-    const fail = (error: unknown) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      reject(error);
-    };
-    const onSignalAbort = () => {
-      try {
-        xhr.abort();
-      } catch (error) {
-        fail(asUploadError("put", error, "업로드를 취소하지 못했어요."));
-      }
-    };
-
-    try {
-      xhr.open("PUT", url);
-      xhr.setRequestHeader("Content-Type", contentType);
-    } catch (error) {
-      fail(asUploadError("put", error, "S3 업로드 요청을 준비하지 못했어요."));
-      return;
-    }
-    xhr.upload.onprogress = (event) => {
-      const totalBytes =
-        event.lengthComputable && event.total > 0 ? event.total : file.size;
-      lastLoadedBytes = Math.max(lastLoadedBytes, event.loaded);
-      emitProgress(onProgress, lastLoadedBytes, totalBytes);
-    };
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        if (lastLoadedBytes < file.size) {
-          emitProgress(onProgress, file.size, file.size);
-        }
-        succeed();
-        return;
-      }
-
-      fail(
-        new UploadError(
-          "put",
-          xhr.status === 403
-            ? "업로드 URL이 만료되었을 수 있어요. 업로드를 처음부터 다시 시도해 주세요."
-            : `영상 업로드에 실패했어요. (HTTP ${xhr.status})`,
-        ),
-      );
-    };
-    xhr.onerror = () =>
-      fail(
-        new UploadError(
-          "put",
-          "네트워크 문제로 영상을 업로드하지 못했어요.",
-        ),
-      );
-    xhr.onabort = () => {
-      const error = abortError(signal);
-      fail(new UploadError("put", error.message, error));
-    };
-
-    signal?.addEventListener("abort", onSignalAbort, { once: true });
-    try {
-      xhr.send(file);
-    } catch (error) {
-      fail(asUploadError("put", error, "영상을 업로드하지 못했어요."));
-    }
+// 실제 PUT 은 공용 업로더(src/lib/media/s3-uploader.ts)가 한다 — 영상 보관함(videos.ts)과 같은 것이다.
+// 이 계층의 오류 모양(UploadError "put")으로 감싼다.
+const xhrS3Uploader: S3Uploader = (args) =>
+  browserS3Uploader(args).catch((error) => {
+    throw error instanceof UploadError ? error : asUploadError("put", error, "영상을 업로드하지 못했어요.");
   });
 
-function mockWait(signal?: AbortSignal): Promise<void> {
-  if (signal?.aborted) {
-    const error = abortError(signal);
-    return Promise.reject(new UploadError("put", error.message, error));
-  }
-
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      signal?.removeEventListener("abort", onAbort);
-      resolve();
-    }, 40);
-    const onAbort = () => {
-      clearTimeout(timer);
-      const error = abortError(signal);
-      reject(new UploadError("put", error.message, error));
-    };
-    signal?.addEventListener("abort", onAbort, { once: true });
+const mockS3Uploader: S3Uploader = (args) =>
+  fakeS3Uploader(args).catch((error) => {
+    throw error instanceof UploadError ? error : asUploadError("put", error, "영상을 업로드하지 못했어요.");
   });
-}
-
-const mockS3Uploader: S3Uploader = async ({
-  file,
-  signal,
-  onProgress,
-}) => {
-  const steps = 10;
-  for (let step = 1; step <= steps; step += 1) {
-    await mockWait(signal);
-    const loadedBytes =
-      step === steps ? file.size : Math.round((file.size * step) / steps);
-    onProgress?.({
-      loadedBytes,
-      totalBytes: file.size,
-      percent: step * 10,
-    });
-  }
-};
 
 const defaultS3Uploader: S3Uploader = MOCK_S3_UPLOAD
   ? mockS3Uploader

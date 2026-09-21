@@ -12,7 +12,7 @@ const readWeb = (relativePath) =>
 const readRepo = (relativePath) =>
   readFileSync(path.join(repoRoot, relativePath), "utf8");
 
-const { buildPracticeSessionRequest } = await import(
+const { buildPracticeRequest } = await import(
   "../src/features/practice/practice-setup-flow.ts"
 );
 const {
@@ -23,22 +23,21 @@ const {
   updateBlockageDetail,
 } = await import("../src/features/practice/blockage-flow.ts");
 
+// 1.0.0 의 회차 생성 본문(practice.start): 영상은 보관함 id 로 가리키고, 장면·막힘은 묶음으로 실린다.
+// client_experience 는 늘 three_layers_v1 — 실제 판은 서버가 정한다(experience_version).
 test("영상만 고른 시작은 빈 장면과 그 외 기본값으로 조립한다", () => {
   const blockage = completeBlockageFlowWithDefault(initialBlockageFlowState);
-  const body = buildPracticeSessionRequest(
-    "upload-intent-video-only",
+  const body = buildPracticeRequest(
+    "video-only",
     { situation: "", characterContext: " ", goal: "\n" },
     blockage,
   );
 
   assert.deepEqual(body, {
-    upload_intent_id: "upload-intent-video-only",
-    situation: "",
-    character_context: "",
-    goal: "",
-    blockage_kind: "그 외",
-    sub_branch: "그 외",
-    blockage_detail: null,
+    video_id: "video-only",
+    scene: { situation: "", character: "", goal: "" },
+    blockage: { category: "그 외", detail: "그 외", note: null },
+    client_experience: "three_layers_v1",
   });
 });
 
@@ -46,8 +45,8 @@ test("토글에서 고른 장면과 도움 값이 요청에 그대로 조립된�
   const kind = chooseBlockageKind(initialBlockageFlowState, "표현");
   const subBranch = chooseBlockageSubBranch(kind, "표정");
   const draft = updateBlockageDetail(subBranch, "  눈을 피하는 순간을 보고 싶어요  ");
-  const body = buildPracticeSessionRequest(
-    "upload-intent-with-details",
+  const body = buildPracticeRequest(
+    "video-with-details",
     {
       situation: "  카페에서 이별을 통보받은 직후  ",
       characterContext: "  담담한 척하는 인물  ",
@@ -57,19 +56,20 @@ test("토글에서 고른 장면과 도움 값이 요청에 그대로 조립된�
   );
 
   assert.deepEqual(body, {
-    upload_intent_id: "upload-intent-with-details",
-    situation: "카페에서 이별을 통보받은 직후",
-    character_context: "담담한 척하는 인물",
-    goal: "상대를 다시 앉게 만들기",
-    blockage_kind: "표현",
-    sub_branch: "표정",
-    blockage_detail: "눈을 피하는 순간을 보고 싶어요",
+    video_id: "video-with-details",
+    scene: {
+      situation: "카페에서 이별을 통보받은 직후",
+      character: "담담한 척하는 인물",
+      goal: "상대를 다시 앉게 만들기",
+    },
+    blockage: { category: "표현", detail: "표정", note: "눈을 피하는 순간을 보고 싶어요" },
+    client_experience: "three_layers_v1",
   });
 });
 
-test("세션 생성 본문은 goal을 포함하고 subtext를 포함하지 않는다", () => {
-  const body = buildPracticeSessionRequest(
-    "upload-intent-1",
+test("회차 생성 본문은 goal을 포함하고 subtext·이론 선택을 포함하지 않는다", () => {
+  const body = buildPracticeRequest(
+    "video-1",
     {
       situation: " 이별을 통보받은 직후, 카페에서 ",
       characterContext: " 담담한 척하는 20대 후반 여성 ",
@@ -78,15 +78,16 @@ test("세션 생성 본문은 goal을 포함하고 subtext를 포함하지 않�
     { blockage_kind: "표현", sub_branch: "표정" },
   );
 
-  assert.equal(body.goal, "상대가 마음을 돌려 다시 앉게 만들기");
-  assert.equal(Object.hasOwn(body, "subtext"), false);
+  assert.equal(body.scene.goal, "상대가 마음을 돌려 다시 앉게 만들기");
+  assert.equal(Object.hasOwn(body.scene, "subtext"), false);
+  assert.equal(Object.hasOwn(body, "theory_choice"), false);
 });
 
 // Scene Context 는 선택 입력이다(ADR-021). 비운 칸을 자리표시자로 채우던 장치가
 // 사라졌으므로 조립이 값을 어떻게 다루는지가 그대로 서버에 간다.
 test("적은 세 칸은 앞뒤 공백을 떼고 실린다", () => {
-  const body = buildPracticeSessionRequest(
-    "upload-intent-2",
+  const body = buildPracticeRequest(
+    "video-2",
     {
       situation: "  대표실에서 막말을 들은 직후  ",
       characterContext: "  사과를 기다리는 신입  ",
@@ -95,25 +96,25 @@ test("적은 세 칸은 앞뒤 공백을 떼고 실린다", () => {
     { blockage_kind: "분석", sub_branch: "대사 분석" },
   );
 
-  assert.equal(body.upload_intent_id, "upload-intent-2");
-  assert.equal(body.situation, "대표실에서 막말을 들은 직후");
-  assert.equal(body.character_context, "사과를 기다리는 신입");
-  assert.equal(body.goal, "사과를 받아내기");
+  assert.equal(body.video_id, "video-2");
+  assert.equal(body.scene.situation, "대표실에서 막말을 들은 직후");
+  assert.equal(body.scene.character, "사과를 기다리는 신입");
+  assert.equal(body.scene.goal, "사과를 받아내기");
 });
 
 // 세 칸을 함께 본다 — 한 칸에만 값을 두면 나머지 두 칸의 빈 값 분기를 아무도
 // 밟지 않아, 조립 층에 자리표시자가 되살아나도 초록으로 지나간다.
 test("비운 세 칸은 빈 값 그대로 실린다", () => {
-  const body = buildPracticeSessionRequest(
-    "upload-intent-3",
+  const body = buildPracticeRequest(
+    "video-3",
     { situation: "", characterContext: "   ", goal: "\n\t" },
     { blockage_kind: "표현", sub_branch: "그 외" },
   );
 
-  assert.equal(body.situation, "");
+  assert.equal(body.scene.situation, "");
   // 공백만 적은 칸은 비운 것과 같이 다룬다. 서버도 isBlank 로 같이 본다.
-  assert.equal(body.character_context, "");
-  assert.equal(body.goal, "");
+  assert.equal(body.scene.character, "");
+  assert.equal(body.scene.goal, "");
 });
 
 test("막힘 선택 완료 뒤 질문 재료가 준비될 때까지 진행 화면에 머문다", () => {
@@ -125,7 +126,7 @@ test("막힘 선택 완료 뒤 질문 재료가 준비될 때까지 진행 화�
 
   assert.match(
     begin,
-    /startPractice\([\s\S]*dispatch\(\{ type: "sessionCreated", status: session\.status \}\)[\s\S]*trackAnalysis\(session\.session_id\)/,
+    /startPractice\([\s\S]*dispatch\(\{ type: "sessionCreated", status: loaded\.status \}\)[\s\S]*trackAnalysis\(practice\.id\)/,
   );
   assert.doesNotMatch(begin, /type: "coachStarting"|startCoach\(/);
 });

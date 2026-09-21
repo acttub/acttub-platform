@@ -42,6 +42,8 @@ const nextConfig: NextConfig = {
       // 리딩 대본 상세(reading.session, SOMA-546). 같은 방식 — 프리렌더한 껍데기 하나(/reading/scripts)를
       // 서빙하고 브라우저가 경로에서 대본 id 를 읽는다.
       { source: "/reading/scripts/:id", destination: "/reading/scripts" },
+      // 영상 보관함 상세(practice.library, SOMA-546). 같은 방식 — 껍데기(/library)를 서빙하고 브라우저가 id 를 읽는다.
+      { source: "/library/:id", destination: "/library" },
     ];
   },
   // 상대역 리딩(/reading)은 브라우저 안에서 onnxruntime wasm 으로 음성을 만든다. 멀티스레드
