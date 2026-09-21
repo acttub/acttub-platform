@@ -69,11 +69,54 @@ export type EntryCard = {
   playback_url: string | null;
   liked: boolean;
   saved: boolean;
+  /** 보는 사람 자신의 참여작인지. 본인 재생은 조회수로 세지 않는다. */
+  is_mine?: boolean;
 };
 
 export type EntriesResponse = {
   entries: EntryCard[];
   next_cursor: string | null;
+};
+
+// ─── 참여작(challenge.entry) ─────────────────────────────────────────────────
+
+/** 공개 범위. 올리기 화면에서 명시적으로 고른다(미리 선택 없음). */
+export type EntryVisibility = 'public' | 'private';
+
+/** 신고 숨김은 작성자가 풀 수 없고, 삭제는 행을 남긴 채 표시만 바뀐다. */
+export type EntryStatus = 'visible' | 'hidden_by_report' | 'deleted';
+
+/** 챌린지 영상은 60초 이내다(촬영 상한도 같다). */
+export const ENTRY_VIDEO_MAX_SEC = 60;
+
+/** 캡션은 300자까지, 선택이다. */
+export const CAPTION_MAX = 300;
+
+export type CreateEntryBody = {
+  request_id: string;
+  video_id: string;
+  caption?: string;
+  visibility: EntryVisibility;
+};
+
+export type EntryPatch = {
+  caption?: string;
+  visibility?: EntryVisibility;
+};
+
+/** P03 내 참여작 — 분류와 부모 챌린지가 함께 온다. */
+export type MyEntryCard = EntryCard & {
+  visibility: EntryVisibility;
+  status: EntryStatus;
+  /** 부모 챌린지가 review·hidden 이면 참여작도 확인 중으로 보인다. */
+  challenge_hidden: boolean;
+  challenge: { id: string; line: string; work: string; character: string | null; ends_at: string };
+  created_at: string;
+};
+
+export type MyEntriesResponse = {
+  counts: { all: number; public: number; private: number; under_review: number };
+  entries: MyEntryCard[];
 };
 
 export type CreateChallengeBody = {
@@ -106,6 +149,11 @@ export type ReportReason = (typeof REPORT_REASONS)[number];
 
 export const CHALLENGE_ERROR_CODES = [
   'duplicate_challenge',
+  'duplicate_entry',
+  'video_not_ready',
+  'video_too_long',
+  'daily_entry_limit',
+  'entry_hidden',
   'invalid_duration',
   'daily_challenge_limit',
   'request_fingerprint_mismatch',

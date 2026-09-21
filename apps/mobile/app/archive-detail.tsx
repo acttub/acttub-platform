@@ -25,7 +25,6 @@ import {
 import type { Video } from '@/lib/library/types';
 import type { QueuedVideo } from '@/lib/library/upload-queue';
 import { videoErrorMessage } from '@/lib/library/video-checks';
-import { setRecordedVideo } from '@/lib/recorded-video';
 import { setPickedVideo } from '@/lib/practice/picked-video';
 
 /**
@@ -125,14 +124,6 @@ export default function ArchiveDetailScreen() {
     }
   };
 
-  // 다음 단계엔 기기 복사본을 그대로 넘긴다(recorded-video 핸드오프). 복사본이 없으면 새 연습 흐름(PM2)이 video_id 로 잇는다.
-  const handoff = (): boolean => {
-    const uri = state.kind === 'pending' ? state.entry.uri : state.localUri;
-    if (!uri) return false;
-    const durationMs = state.kind === 'pending' ? state.entry.durationMs : state.video.duration_ms;
-    setRecordedVideo({ uri, durationMs, name: `${state.kind === 'pending' ? state.entry.id : state.video.id}.mp4` });
-    return true;
-  };
   /** 새 연습으로 보낸다 — 영상은 보관함의 video_id 로 잇는다(기기 복사본은 미리보기에만 쓴다). */
   const toCoach = () => {
     logEvent('archive_to_coach', { id: state.kind === 'video' ? state.video.id : state.entry.id });
@@ -153,13 +144,14 @@ export default function ArchiveDetailScreen() {
     );
     router.push('/upload');
   };
+  /** 챌린지에 올리기 — 확정된 영상만 되고, 어떤 대사에 올릴지 먼저 고른다. */
   const toChallenge = () => {
     logEvent('archive_to_challenge', { id: state.kind === 'video' ? state.video.id : state.entry.id });
-    if (!handoff()) {
+    if (state.kind !== 'video' || state.video.purged_at) {
       void alert({ title: t('archive.toChallenge'), message: t('archive.statusPurged') });
       return;
     }
-    router.push({ pathname: '/challenge-upload', params: { line: '' } });
+    router.push({ pathname: '/challenges', params: { pickVideoId: state.video.id } });
   };
 
   const purge = async (video: Video) => {

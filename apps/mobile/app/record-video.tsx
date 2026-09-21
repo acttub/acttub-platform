@@ -41,10 +41,11 @@ export default function RecordVideoScreen() {
   // mode=ai: 하단 탭 촬영 버튼에서 "AI 코칭"을 고르고 옴 → 찍으면 업로드 화면으로.
   // mode=plain: "기본 촬영" → 찍으면 보관함에 저장하고 그 영상 화면으로.
   // mode=challenge: 대사 띄운 챌린지 촬영. 그 외(업로드 화면의 촬영 버튼)는 찍고 되돌아간다.
-  const { mode, line, work } = useLocalSearchParams<{
+  const { mode, line, work, challengeId } = useLocalSearchParams<{
     mode?: string;
     line?: string;
     work?: string;
+    challengeId?: string;
   }>();
   const isChallenge = mode === 'challenge';
   const maxSec = isChallenge ? CHALLENGE_MAX_SEC : MAX_SEC;
@@ -104,7 +105,10 @@ export default function RecordVideoScreen() {
 
   const goNext = useCallback(() => {
     if (isChallenge) {
-      router.replace({ pathname: '/challenge-upload', params: { line: line ?? '', work: work ?? '' } });
+      router.replace({
+        pathname: '/challenge-upload',
+        params: { challengeId: challengeId ?? '', line: line ?? '', work: work ?? '' },
+      });
       return;
     }
     if (mode === 'ai') {
@@ -134,7 +138,7 @@ export default function RecordVideoScreen() {
       return;
     }
     router.back();
-  }, [isChallenge, line, mode, router, saveToLibrary, work]);
+  }, [challengeId, isChallenge, line, mode, router, saveToLibrary, work]);
 
   const finishWith = useCallback(
     (uri: string | null) => {

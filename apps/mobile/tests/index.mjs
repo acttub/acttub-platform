@@ -73,3 +73,6 @@ import './practice-screens-coach.test.mjs';
 import './challenge-create.test.mjs';
 import './challenge-browse.test.mjs';
 import './challenge-screens.test.mjs';
+import './challenge-entry.test.mjs';
+import './challenge-views.test.mjs';
+import './challenge-entry-screens.test.mjs';

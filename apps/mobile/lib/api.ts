@@ -43,9 +43,13 @@ import type {
   ChallengeListResponse,
   ChallengeTab,
   CreateChallengeBody,
+  CreateEntryBody,
   EntriesResponse,
   EntryCard,
+  EntryPatch,
   EntrySort,
+  MyEntriesResponse,
+  MyEntryCard,
 } from '@/lib/challenge/types';
 import type {
   CoachConversation,
@@ -1213,19 +1217,54 @@ export const api = {
     );
   },
 
+  /**
+   * 챌린지 참여(A18.1·A18.2). 영상은 파일이 남아 있는 확정된 본인 영상이어야 하고 60초 이내다.
+   * 같은 요청 id 재전송은 같은 참여작이고, 같은 영상으로 같은 챌린지에 또 올리면 422
+   * duplicate_entry, 종료된 챌린지면 422 challenge_closed 다.
+   */
+  createEntry(challengeId: string, body: CreateEntryBody): Promise<MyEntryCard> {
+    return postIdempotent<MyEntryCard>(`/v2/challenges/${encodeURIComponent(challengeId)}/entries`, body, {
+      requestId: body.request_id,
+      timeoutMs: 30_000,
+    });
+  },
+
+  /** 캡션·공개 범위 고치기. 작성자만 되고 신고 숨김·종료 뒤 공개 전환은 422 다. */
+  updateEntry(entryId: string, patch: EntryPatch): Promise<MyEntryCard> {
+    return request<MyEntryCard>(
+      `/v2/entries/${encodeURIComponent(entryId)}`,
+      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) },
+      { timeoutMs: 20_000 },
+    );
+  },
+
+  /** 참여작만 지운다 — 영상은 보관함에 남는다. */
+  deleteEntry(entryId: string): Promise<void> {
+    return request<void>(`/v2/entries/${encodeURIComponent(entryId)}`, { method: 'DELETE' }, { timeoutMs: 20_000 });
+  },
+
+  /**
+   * 조회수 사건. 3초 이상 재생된 사건마다 한 번 보내고 같은 event_id 는 한 번만 반영된다.
+   * 실패해도 재생을 막지 않으므로 화면은 결과를 기다리지 않는다.
+   */
+  recordEntryView(entryId: string, eventId: string): Promise<void> {
+    return request<void>(
+      `/v2/entries/${encodeURIComponent(entryId)}/views`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId }) },
+      { timeoutMs: 10_000 },
+    );
+  },
+
   /** 저장한 참여작(A15.5). 반응·해제는 CM3 가 잇는다. */
   listSavedEntries(cursor?: string): Promise<{ entries: EntryCard[]; my_entry_count: number; saved_count: number }> {
     const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
     return request(`/v2/me/saved-entries${query}`, {}, { timeoutMs: 20_000 });
   },
 
-  /** 내 참여작(P03). 분류별 수와 목록이 함께 온다. */
-  listMyChallengeEntries(visibility?: 'public' | 'private'): Promise<{
-    counts: { all: number; public: number; private: number; under_review: number };
-    entries: EntryCard[];
-  }> {
+  /** 내 참여작(P03). 분류별 수와 목록이 함께 온다(삭제된 것은 오지 않는다). */
+  listMyChallengeEntries(visibility?: 'public' | 'private'): Promise<MyEntriesResponse> {
     const query = visibility ? `?visibility=${visibility}` : '';
-    return request(`/v2/me/challenge-entries${query}`, {}, { timeoutMs: 20_000 });
+    return request<MyEntriesResponse>(`/v2/me/challenge-entries${query}`, {}, { timeoutMs: 20_000 });
   },
 
   // 입시 ----------------------------------------------------------------------

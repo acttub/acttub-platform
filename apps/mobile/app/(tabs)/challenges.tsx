@@ -1,5 +1,5 @@
 import Feather from '@expo/vector-icons/Feather';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -38,6 +38,9 @@ const TABS: { key: ChallengeTab; label: string }[] = [
 
 export default function ChallengesScreen() {
   const router = useRouter();
+  // 보관함에서 "챌린지에 올리기"로 오면 올릴 챌린지를 고르는 화면이 된다(A2.3 → A18.1).
+  const { pickVideoId } = useLocalSearchParams<{ pickVideoId?: string }>();
+  const picking = typeof pickVideoId === 'string' && pickVideoId.length > 0;
   const [tab, setTab] = useState<ChallengeTab>('popular');
   const [featured, setFeatured] = useState<ChallengeCard | null>(null);
   const [challenges, setChallenges] = useState<ChallengeCard[] | null>(null);
@@ -70,6 +73,15 @@ export default function ChallengesScreen() {
     router.push({ pathname: '/challenge-detail', params: { id: challenge.id } });
   };
   const perform = (challenge: ChallengeCard) => {
+    if (picking) {
+      // 고른 영상을 그 챌린지 올리기 화면으로 보낸다.
+      logEvent('challenge_pick_for_video', { id: challenge.id });
+      router.replace({
+        pathname: '/challenge-upload',
+        params: { challengeId: challenge.id, videoId: pickVideoId as string },
+      });
+      return;
+    }
     logEvent('challenge_perform_tap', { id: challenge.id });
     router.push({
       pathname: '/record-video',
@@ -83,7 +95,7 @@ export default function ChallengesScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.title}>{t('challenges.title')}</Text>
+        <Text style={styles.title}>{picking ? t('challengeUpload.pickChallenge') : t('challenges.title')}</Text>
         <Pressable style={styles.addBtn} onPress={() => router.push('/line-new')} accessibilityRole="button">
           <Feather name="plus" size={20} color={palette.text} />
         </Pressable>

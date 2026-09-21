@@ -103,7 +103,16 @@ export default function ProfileScreen() {
         <Row icon="video" title={t('profileTab.archiveTitle')} sub={t('profileTab.archiveSub')} onPress={() => router.push('/archive')} />
         {/* 저장한 영상은 챌린지에서 담은 것뿐이라 챌린지와 함께 가린다 (SOMA-544). */}
         {isKorean() && (
-          <Row icon="bookmark" title={t('profileTab.savedTitle')} sub={t('profileTab.savedSub')} onPress={() => router.push('/saved-videos')} />
+          <>
+            <Row icon="bookmark" title={t('profileTab.savedTitle')} sub={t('profileTab.savedSub')} onPress={() => router.push('/saved-videos')} />
+            {/* P03 내 참여작 — 전체·공개·비공개·확인 중으로 센다(challenge.browse). */}
+            <Row
+              icon="award"
+              title={t('challengeEntries.title')}
+              sub={t('profileTab.challengeSub')}
+              onPress={() => router.push('/challenge-entries')}
+            />
+          </>
         )}
 
         {/* 코치의 기억 */}
