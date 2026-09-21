@@ -39,6 +39,7 @@ import type { ProfilePayload, ServerProfile } from '@/lib/profile-form';
 import type { NotificationSettings } from '@/lib/push-policy';
 import type { Video, VideoFilter, VideoIntentRequest, VideoIntentResponse, VideoListResponse } from '@/lib/library/types';
 import type {
+  BlockedUser,
   ChallengeDetail,
   ChallengeListResponse,
   ChallengeTab,
@@ -46,8 +47,12 @@ import type {
   CreateEntryBody,
   EntriesResponse,
   EntryCard,
+  EntryComment,
   EntryPatch,
   EntrySort,
+  CommentsResponse,
+  CreateCommentBody,
+  ReportBody,
   MyEntriesResponse,
   MyEntryCard,
 } from '@/lib/challenge/types';
@@ -1255,7 +1260,79 @@ export const api = {
     );
   },
 
-  /** 저장한 참여작(A15.5). 반응·해제는 CM3 가 잇는다. */
+  // 반응(challenge.react) ---------------------------------------------------------
+  /**
+   * 좋아요 켜기·끄기. 멱등이라 두 번 켜도 하나이고 없는 것을 꺼도 200 이다. 자기 참여작은
+   * 422 self_like, 비공개·삭제·숨김·차단 관계는 404 다.
+   */
+  likeEntry(entryId: string, liked: boolean): Promise<{ like_count: number; liked: boolean }> {
+    return request<{ like_count: number; liked: boolean }>(
+      `/v2/entries/${encodeURIComponent(entryId)}/like`,
+      { method: liked ? 'PUT' : 'DELETE' },
+      { requestId: true, timeoutMs: 15_000 },
+    );
+  },
+
+  /** 저장(개인 북마크) 켜기·끄기. 자기 참여작은 422 self_save 이고 알림을 만들지 않는다. */
+  saveEntry(entryId: string, saved: boolean): Promise<{ saved: boolean }> {
+    return request<{ saved: boolean }>(
+      `/v2/entries/${encodeURIComponent(entryId)}/save`,
+      { method: saved ? 'PUT' : 'DELETE' },
+      { requestId: true, timeoutMs: 15_000 },
+    );
+  },
+
+  /** 공유 링크가 가리키는 참여작 하나. 볼 수 없으면 404 다(개인 노출 조건). */
+  getEntry(entryId: string): Promise<EntryCard & { challenge_id: string }> {
+    return request<EntryCard & { challenge_id: string }>(
+      `/v2/entries/${encodeURIComponent(entryId)}`,
+      {},
+      { timeoutMs: 20_000 },
+    );
+  },
+
+  /** 댓글 목록 — 최신순 20개씩. 차단·숨김은 서버가 거른다(내 숨김 댓글은 "확인 중"으로 온다). */
+  listComments(entryId: string, cursor?: string): Promise<CommentsResponse> {
+    const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
+    return request<CommentsResponse>(`/v2/entries/${encodeURIComponent(entryId)}/comments${query}`, {}, { timeoutMs: 20_000 });
+  },
+
+  /** 댓글 쓰기. 같은 요청 id 재전송은 같은 댓글이고 하루 100개를 넘기면 429 다. */
+  createComment(entryId: string, body: CreateCommentBody): Promise<EntryComment> {
+    return postIdempotent<EntryComment>(`/v2/entries/${encodeURIComponent(entryId)}/comments`, body, {
+      requestId: body.request_id,
+      timeoutMs: 20_000,
+    });
+  },
+
+  /** 본인 댓글만 지운다(남의 댓글은 404). 본문은 파기되고 목록에서 빠진다. */
+  deleteComment(commentId: string): Promise<void> {
+    return request<void>(`/v2/comments/${encodeURIComponent(commentId)}`, { method: 'DELETE' }, { timeoutMs: 15_000 });
+  },
+
+  // 신고·차단(challenge.report · challenge.block) --------------------------------
+  /** 참여작·댓글·챌린지 신고. 본인 것은 422 self_report, 볼 수 없는 대상은 404 다. */
+  createReport(body: ReportBody): Promise<{ id: string; status: string }> {
+    return postIdempotent<{ id: string; status: string }>('/v2/reports', body, {
+      requestId: body.request_id,
+      timeoutMs: 20_000,
+    });
+  },
+
+  /** 사람 차단 켜기·끄기. 멱등이고 자기 자신은 422 self_block 이다. 상대에게 알리지 않는다. */
+  blockUser(userId: string, blocked: boolean): Promise<void> {
+    return request<void>(
+      `/v2/me/blocks/${encodeURIComponent(userId)}`,
+      { method: blocked ? 'PUT' : 'DELETE' },
+      { requestId: true, timeoutMs: 15_000 },
+    );
+  },
+
+  listBlocks(): Promise<{ users: BlockedUser[] }> {
+    return request<{ users: BlockedUser[] }>('/v2/me/blocks', {}, { timeoutMs: 20_000 });
+  },
+
+  /** 저장한 참여작(A15.5). 비공개·운영 숨김은 목록에서 빠지고 행은 남는다. */
   listSavedEntries(cursor?: string): Promise<{ entries: EntryCard[]; my_entry_count: number; saved_count: number }> {
     const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
     return request(`/v2/me/saved-entries${query}`, {}, { timeoutMs: 20_000 });

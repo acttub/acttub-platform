@@ -8,14 +8,16 @@ import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { avatarLetter, browseFailure, browseFailureMessage } from '@/lib/challenge/browse';
+import { reactFailure, reactFailureMessage } from '@/lib/challenge/react';
 import type { EntryCard } from '@/lib/challenge/types';
 import { translate as t } from '@/lib/i18n';
 
 /**
  * A15.5 저장한 영상 — 내 영상 / 저장한 영상 두 탭, 2열 그리드.
  *
- * 예시 데이터를 걷어내고 서버에서 읽는다. 저장 해제·좋아요 같은 반응은 CM3 가, 내 참여작의
- * 분류(공개·비공개·확인 중)는 CM2(P03)가 잇는다.
+ * 저장은 다시 찾아볼 개인 북마크다(challenge.react). 저장한 참여작이 비공개·운영 숨김이 되면
+ * 목록에서 빠지고 행은 남으며(다시 공개되면 돌아온다) 참여작이 삭제되면 행도 사라진다.
+ * 저장은 랭킹·작성자 알림에 반영하지 않는다. 내 참여작의 분류는 P03(challenge-entries)에 있다.
  */
 export default function SavedVideosScreen() {
   const router = useRouter();
@@ -43,6 +45,17 @@ export default function SavedVideosScreen() {
   }, [load]);
 
   const items = tab === 'mine' ? mine : saved;
+
+  /** 저장 풀기 — 멱등이라 두 번 눌러도 문제가 없다. */
+  const unsave = async (entry: EntryCard) => {
+    setSaved((prev) => (prev ?? []).filter((e) => e.id !== entry.id));
+    try {
+      await api.saveEntry(entry.id, false);
+    } catch (e) {
+      setError(reactFailureMessage(reactFailure(e)));
+      void load();
+    }
+  };
 
   const open = (entry: EntryCard) => {
     logEvent('saved_video_open', { id: entry.id, tab });
@@ -89,6 +102,16 @@ export default function SavedVideosScreen() {
               <Pressable key={entry.id} style={styles.cell} onPress={() => open(entry)} accessibilityRole="button">
                 <View style={styles.thumb}>
                   <View style={styles.thumbScrim} />
+                  {tab === 'saved' && (
+                    <Pressable
+                      style={styles.bookmark}
+                      hitSlop={6}
+                      onPress={() => void unsave(entry)}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('react.menuSave')}>
+                      <Feather name="bookmark" size={14} color="#FFD84D" />
+                    </Pressable>
+                  )}
                   <View style={styles.avatar}>
                     <Text style={styles.avatarText}>{avatarLetter(entry.author.name)}</Text>
                   </View>

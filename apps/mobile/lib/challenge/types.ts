@@ -14,8 +14,11 @@ export type ChallengeModeration = 'visible' | 'review' | 'hidden';
 /** 기획팀(team)은 주최자가 없고, 사용자 개설(member)은 주최자가 있다(탈퇴하면 비어 있다). */
 export type ChallengeOrigin = 'team' | 'member';
 
-/** 참여자 미리보기 — 이름만 온다. 아바타는 앱이 첫 글자로 그린다. */
-export type Participant = { name: string };
+/**
+ * 참여자 미리보기 — 이름만 보인다(사진·소개는 없다). 아바타는 앱이 첫 글자로 그린다.
+ * user_id 는 차단에 쓴다(화면에 보이지 않는다).
+ */
+export type Participant = { name: string; user_id?: string };
 
 export type ChallengeCard = {
   id: string;
@@ -142,10 +145,59 @@ export const SCENE_NOTE_MAX = 500;
 /** 검색은 2자 이상일 때만 찾는다. */
 export const SEARCH_MIN_LENGTH = 2;
 
-/** 신고 사유 다섯 개(별도 선택지). 신고 전송은 CM3 다. */
-export const REPORT_REASONS = ['copyright', 'sexual', 'violence', 'spam', 'other'] as const;
+/** 신고 사유 다섯 개. 화면(A15.4)은 각각을 선택지로 둔다. */
+export const REPORT_REASONS = ['copyright', 'inappropriate', 'spam', 'duplicate', 'other'] as const;
 
 export type ReportReason = (typeof REPORT_REASONS)[number];
+
+/** 신고 대상은 참여작·댓글·챌린지 셋이다. */
+export type ReportTarget = 'entry' | 'comment' | 'challenge';
+
+export const REPORT_NOTE_MAX = 200;
+
+export type ReportBody = {
+  request_id: string;
+  target_type: ReportTarget;
+  target_id: string;
+  reason: ReportReason;
+  note?: string;
+};
+
+// ─── 댓글(challenge.react) ───────────────────────────────────────────────────
+
+export const COMMENT_MAX = 500;
+
+/** 한 겹 댓글(답글 없음). 작성자 이름은 현재 프로필 이름이고 탈퇴하면 이름만 바뀐다. */
+export type EntryComment = {
+  id: string;
+  author: Participant;
+  body: string | null;
+  created_at: string;
+  /** 본인 댓글인지 — 본인만 지울 수 있다. */
+  is_mine: boolean;
+  /** 작성자가 탈퇴했다 — 이름 자리에 "탈퇴한 사용자"를 보인다. */
+  author_withdrawn: boolean;
+  /** 신고로 숨겨진 내 댓글은 원래 자리에 "확인 중"으로 나에게만 보인다. */
+  status: 'visible' | 'hidden';
+};
+
+export type CommentsResponse = {
+  comments: EntryComment[];
+  next_cursor: string | null;
+};
+
+export type CreateCommentBody = {
+  request_id: string;
+  body: string;
+};
+
+// ─── 차단(challenge.block) ───────────────────────────────────────────────────
+
+export type BlockedUser = {
+  user_id: string;
+  name: string;
+  created_at: string;
+};
 
 export const CHALLENGE_ERROR_CODES = [
   'duplicate_challenge',
@@ -154,6 +206,12 @@ export const CHALLENGE_ERROR_CODES = [
   'video_too_long',
   'daily_entry_limit',
   'entry_hidden',
+  'self_like',
+  'self_save',
+  'self_block',
+  'self_report',
+  'daily_comment_limit',
+  'daily_report_limit',
   'invalid_duration',
   'daily_challenge_limit',
   'request_fingerprint_mismatch',

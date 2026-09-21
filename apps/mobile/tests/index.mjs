@@ -76,3 +76,6 @@ import './challenge-screens.test.mjs';
 import './challenge-entry.test.mjs';
 import './challenge-views.test.mjs';
 import './challenge-entry-screens.test.mjs';
+import './challenge-react.test.mjs';
+import './challenge-moderation.test.mjs';
+import './challenge-react-screens.test.mjs';

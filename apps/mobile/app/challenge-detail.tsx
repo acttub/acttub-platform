@@ -23,7 +23,10 @@ import {
   ranksHidden,
   type RankedEntry,
 } from '@/lib/challenge/browse';
-import type { ChallengeDetail, EntrySort } from '@/lib/challenge/types';
+import { ChallengeReportSheet } from '@/components/challenge-report-sheet';
+import { buildReportBody, reportDoneMessage, reportFailure, reportFailureMessage } from '@/lib/challenge/moderation';
+import type { ChallengeDetail, EntrySort, ReportReason } from '@/lib/challenge/types';
+import { newRequestId } from '@/lib/request-id';
 import { translate as t } from '@/lib/i18n';
 
 type Ranked = RankedEntry;
@@ -44,6 +47,7 @@ export default function ChallengeDetailScreen() {
   const [challenge, setChallenge] = useState<ChallengeDetail | null>(null);
   const [entries, setEntries] = useState<Ranked[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reportOpen, setReportOpen] = useState(false);
 
   const load = useCallback(
     async (nextSort: EntrySort) => {
@@ -97,6 +101,21 @@ export default function ChallengeDetailScreen() {
     }
   };
 
+  /** 부적절한 대사는 챌린지 자체를 신고한다 — 신고가 쌓이면 운영이 본다(즉시 숨기지 않는다). */
+  const sendReport = async (reason: ReportReason, note: string) => {
+    setReportOpen(false);
+    if (!challenge) return;
+    try {
+      await api.createReport(
+        buildReportBody({ requestId: newRequestId(), target: 'challenge', targetId: challenge.id, reason, note }),
+      );
+      logEvent('challenge_report', { reason, target: 'challenge' });
+      void alert({ title: t('videoReport.doneTitle'), message: reportDoneMessage('challenge') });
+    } catch (e) {
+      void alert({ title: t('videoReport.titleChallenge'), message: reportFailureMessage(reportFailure(e)) });
+    }
+  };
+
   const share = () => {
     if (!challenge) return;
     logEvent('challenge_share', { id: challenge.id });
@@ -125,6 +144,11 @@ export default function ChallengeDetailScreen() {
           title: t('challenges.detailTitle'),
           headerRight: () => (
             <View style={styles.headerRight}>
+              {challenge && !canDelete(challenge) && (
+                <Pressable onPress={() => setReportOpen(true)} accessibilityRole="button" hitSlop={8}>
+                  <Feather name="flag" size={19} color={palette.textDim} />
+                </Pressable>
+              )}
               {challenge && canDelete(challenge) && (
                 <Pressable onPress={() => void remove()} accessibilityRole="button" hitSlop={8}>
                   <Feather name="trash-2" size={19} color={palette.textDim} />
@@ -234,6 +258,12 @@ export default function ChallengeDetailScreen() {
           </>
         )}
       </ScrollView>
+      <ChallengeReportSheet
+        visible={reportOpen}
+        target="challenge"
+        onClose={() => setReportOpen(false)}
+        onSubmit={(reason, note) => void sendReport(reason, note)}
+      />
       {dialog}
     </SafeAreaView>
   );
