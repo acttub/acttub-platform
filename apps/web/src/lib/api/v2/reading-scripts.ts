@@ -7,8 +7,7 @@ import type {
   ScriptUpdateRequest,
 } from "../../reading/api-types";
 
-// 대본 등록·목록·상세·수정·삭제(reading.script). 타입은 api 가 나오기 전의 임시 타입이며
-// 통합 작업이 생성 타입으로 바꾼다(src/lib/reading/api-types.ts).
+// 대본 등록·목록·상세·수정·삭제(reading.script). 타입은 생성 타입이다(src/lib/reading/api-types.ts).
 
 export type CreateScriptOptions = {
   /**

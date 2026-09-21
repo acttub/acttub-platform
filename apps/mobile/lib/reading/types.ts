@@ -1,7 +1,7 @@
 /**
- * 리딩 대본의 서버 계약 타입(reading.script). 경로·필드 이름은 `.scratch/SOMA-546-reading-spec.md`의
- * API 표를 따른 계획안이다 — api 갈래가 계약을 굳히면(CONTRACT.md §6-14) 여기를 맞춘다. 앱에는 생성
- * 타입이 없어 손으로 든다.
+ * 리딩 대본의 서버 계약 타입(reading.script). 앱에는 생성 타입이 없어 손으로 들며, 모양은
+ * `apps/api/spec/openapi.json`의 `Reading*` 컴포넌트(CONTRACT.md §6-14)와 맞춰 둔다 — 계약이
+ * 바뀌면 그 스냅샷을 보고 여기를 고친다.
  */
 
 /** 대본을 넣은 길. 예시 대본을 저장해도 보통 대본이고 이 값만 sample이다. */
@@ -61,11 +61,11 @@ export type ScriptCard = {
   /** 모든 회차의 녹음 수 합. 삭제 확인(R00.4)에 보여 준다. */
   recording_count: number;
   /** 마지막 회차의 마지막 갱신 시각. 회차가 없으면 null. */
-  last_practiced_at?: string | null;
-  /** 마지막 활동 — 회차가 있으면 last_practiced_at, 없으면 등록 시각. */
-  last_activity_at: string | null;
+  last_practiced_at: string | null;
+  /** 마지막 활동 — 회차가 있으면 last_practiced_at, 없으면 등록 시각. 서버는 늘 채워 보낸다. */
+  last_activity_at: string;
   status: ScriptCardStatus;
-  created_at?: string;
+  created_at: string;
   updated_at: string;
 };
 
@@ -146,6 +146,7 @@ export type SessionCard = {
   id: string;
   ordinal: number;
   status: ReadingSessionStatus;
+  my_character_ids: string[];
   my_character_names: string[];
   range: { start_dialogue_no: number; end_dialogue_no: number };
   my_dialogue_count: number;
@@ -171,7 +172,6 @@ export type SessionRecording = {
 
 export type SessionDetail = SessionCard & {
   script_id: string;
-  my_character_ids: string[];
   mode: ReadingMode;
   start_line_id: string;
   end_line_id: string;

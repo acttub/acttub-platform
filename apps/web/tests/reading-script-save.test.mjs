@@ -33,7 +33,6 @@ function scriptDetail() {
     id: "script-1",
     title: "옥상, 밤",
     source: "paste",
-    raw_text: RAW,
     // 서버가 순서를 섞어 줘도 order·ordinal 로 세운다.
     characters: [
       { id: "c-2", name: "태오", order: 1, voice_preset: null, dialogue_count: 2 },
@@ -83,7 +82,6 @@ test("reading.script: 서버가 돌려준 대본은 배역 순서·줄 순서대
     { type: "dialogue", role: "태오", text: "모레." },
   ]);
   assert.deepEqual(stored.lineIds, ["l-1", "l-2", "l-3", "l-4", "l-5", "l-6"]);
-  assert.equal(stored.raw, RAW);
 });
 
 test("reading.script: 초안을 저장하면 서버 대본이 지금 대본이 되고 초안과 이전 회차·결과는 버려진다", async () => {

@@ -21,7 +21,6 @@ export function toStoredScript(detail: ScriptDetail): StoredScript {
     title: detail.title,
     roles: characters.map((c) => c.name),
     lines,
-    raw: detail.raw_text ?? "",
     characters: characters.map((c) => ({ id: c.id, name: c.name, voicePreset: c.voice_preset })),
     lineIds: sorted.map((l) => l.id),
     openSessionId: detail.open_session_id,

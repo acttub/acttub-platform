@@ -4,6 +4,28 @@
  */
 
 export interface paths {
+    "/v2/reading/lines/{line_id}/memorization": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Line Memorization
+         * @description 줄 하나의 표시를 두거나 바꾼다. 그 대본의 대사 줄이면 배역과 무관하게 받고(상대역 대사 줄도 200), 지문·장면
+         *     줄은 422 invalid_line, 없는 줄과 남의 줄은 404 line_not_found. 같은 상태의 재전송은 updated_at 을 바꾸지
+         *     않는다. 마지막 요청이 남는다.
+         */
+        put: operations["set_line_memorization_v2_reading_lines__line_id__memorization_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/portfolio/share": {
         parameters: {
             query?: never;
@@ -133,6 +155,71 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/videos/{video_id}/purge-file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Purge Video File
+         * @description 파일만 파기한다 — 회차·참여작의 기록은 남기고 객체와 받아쓰기를 지운다. 그 영상은 재생 불가로
+         *     표시되고 총량에서 빠진다. 총량이 가득한 계정이 공간을 되찾는 길이다.
+         */
+        post: operations["purge_video_file_v2_videos__video_id__purge_file_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/videos/intents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Video Intent
+         * @description 올릴 자리를 내준다. 같은 요청 id 의 재전송은 같은 자리이고(기기가 올리다 만 객체를 이어 올린다),
+         *     같은 id 에 다른 본문이면 422 request_fingerprint_mismatch. 100MiB 초과는 video_too_large,
+         *     5분 초과는 video_too_long, 총량을 넘겼으면 video_quota 다.
+         */
+        post: operations["create_video_intent_v2_videos_intents_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/videos/intents/{intent_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Complete Video Intent
+         * @description 올라온 것을 확인하고 보관함에 영상을 만든다. 만들면 201, 마무리 재전송이면 200 으로 같은 영상이다.
+         *     시한(30분)이 지났으면 422 upload_expired 이고 미확정 객체는 삭제 장부로 간다. 아직 안 올라왔으면
+         *     422 video_not_ready, 이 확정이 총량을 넘기면 422 video_quota 다.
+         */
+        post: operations["complete_video_intent_v2_videos_intents__intent_id__complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/uploads/intents": {
         parameters: {
             query?: never;
@@ -185,6 +272,87 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/reading/sessions/{session_id}/recordings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Line Recording
+         * @description 내 대사 한 줄의 녹음을 multipart 한 요청으로 올린다: request_id·line_id·attempt_no·audio(파일)·
+         *     duration_ms·transcript_source(stt·none)·transcript?·matched?. 서버가 m4a(AAC)가 아니면 변환해 저장한다.
+         *     같은 request_id 는 같은 행(200), 같은 줄의 더 큰 attempt_no 는 대체(201), 더 작은 번호는 200 현재 값.
+         *     10,000,000바이트·180초 초과 422 recording_too_long, 총량(회원 1GB·게스트 100MB) 초과 422 recording_quota,
+         *     구간 밖·상대역·지문 줄 422 invalid_line, 지워진 회차 404, 변환 실패 503 audio_conversion_failed.
+         *     completed·stopped 회차에도 받는다.
+         */
+        post: operations["upload_reading_recording_v2_reading_sessions__session_id__recordings_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/reading/scripts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Scripts
+         * @description 내 대본을 최근 고친 순으로. q 는 제목과 배역 이름에서 찾고 대사 본문은 찾지 않는다. 머리의 수
+         *     (전체·연습 중)는 검색과 무관하다.
+         */
+        get: operations["list_scripts_v2_reading_scripts_get"];
+        put?: never;
+        /**
+         * Create Script
+         * @description 기기가 나눈 대본(원문·배역·줄)을 한 요청으로 저장한다. 같은 request_id 에 같은 본문이 다시 오면
+         *     먼저 만든 대본을 200 으로 돌려주고, 다른 본문이면 422 request_fingerprint_mismatch 다. 배역 없음
+         *     422 no_characters, 비거나 겹치는 배역 이름 422 invalid_characters, 원문·줄 본문 100,000자·줄
+         *     3,000·배역 50 초과 422 script_too_long, 대본 수 회원 100·게스트 20 초과 422 script_limit.
+         */
+        post: operations["create_script_v2_reading_scripts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/reading/scripts/{script_id}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Reading Sessions
+         * @description 그 대본의 회차를 최근순으로. 없는 대본과 남의 대본은 같은 404 script_not_found 다.
+         */
+        get: operations["list_reading_sessions_v2_reading_scripts__script_id__sessions_get"];
+        put?: never;
+        /**
+         * Start Reading Session
+         * @description 내 배역·방식·구간·넘김·녹음을 정해 회차를 시작한다. 열린 회차가 있으면 같은 트랜잭션에서 stopped 로
+         *     바꾸고 새 회차를 만든다. 같은 request_id 가 다시 오면 먼저 만든 회차를 200 으로 돌려주고, 속성이 다르면
+         *     422 request_fingerprint_mismatch. 내 배역이 없거나 그 대본의 배역이 아니면 422 invalid_characters,
+         *     구간의 줄이 그 대본의 대사 줄이 아니면 422 invalid_line, 시작 줄이 끝 줄 뒤이거나 구간 안에 내 대사가
+         *     없으면 422 empty_range. current_line_id 는 구간의 첫 대사 줄이다.
+         */
+        post: operations["start_reading_session_v2_reading_scripts__script_id__sessions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/push-tokens": {
         parameters: {
             query?: never;
@@ -207,6 +375,99 @@ export interface paths {
          *     따지지 않고 그 토큰 행을 지운다. 한 IP 에서 분당 60회까지다.
          */
         delete: operations["unregister_push_token_v2_push_tokens_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/practices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Practice Groups
+         * @description 연습 기록 — 묶음 단위다. 숨긴 묶음은 빠지고 필터는 all·favorite·recent30 이다. 묶음마다 회차 요약과
+         *     진행 중 회차 id 가 함께 온다.
+         */
+        get: operations["list_practice_groups_v2_practices_get"];
+        put?: never;
+        /**
+         * Start Practice
+         * @description 보관함의 영상으로 새 묶음의 첫 회차를 만든다 — 회차 하나와 분석 작업 하나가 한 트랜잭션이다.
+         *     상황·인물·목표와 막힘은 모두 선택이고 시작 뒤에는 바꾸지 않는다. 영상이 없거나 남의 것이거나
+         *     파일이 파기됐으면 422 video_not_ready, 게스트가 하루 세 번을 넘기면 429
+         *     guest_daily_analysis_limit, 같은 요청 id 에 다른 본문이면 422 request_fingerprint_mismatch 다.
+         */
+        post: operations["start_practice_v2_practices_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/practices/{practice_id}/continue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Continue Practice
+         * @description 같은 묶음의 다음 회차. 영상을 보내지 않으면 이어받을 회차의 영상을 그대로 쓴다(그 영상이 파기됐으면
+         *     422 video_not_ready 이고 새 영상으로는 된다). 묶음에 닫히지 않은 회차가 있으면 409
+         *     practice_in_progress 이고, 그 회차 id 는 묶음 조회의 in_progress_practice_id 로 얻는다.
+         */
+        post: operations["continue_practice_v2_practices__practice_id__continue_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/practices/{practice_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Practice Analysis
+         * @description "그만두기" — 작업을 failed/cancelled 로 닫고 lease 를 지워 늦은 완료와 재큐를 막는다. 회차는 closed 다.
+         *     화면을 떠나는 것은 취소가 아니다. 이미 끝난 분석에는 409 analysis_already_finished.
+         */
+        post: operations["cancel_practice_analysis_v2_practices__practice_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/practices/{practice_id}/analyze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry Practice Analysis
+         * @description 실패로 닫힌 회차의 분석을 다시 건다 — 새 작업과 함께 analyzing 으로 돌아간다. 묶음에 다른 진행 중
+         *     회차가 있으면 409 practice_in_progress 이고, 아직 실패하지 않은 회차면 409 analysis_not_failed 다.
+         *     게스트의 하루 세 번을 한 번 쓴다.
+         */
+        post: operations["retry_practice_analysis_v2_practices__practice_id__analyze_post"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -586,6 +847,109 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/videos/{video_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Video
+         * @description 영상 하나 — 10분 서명 재생 주소와 사용처(회차 수·챌린지 참여작 수)가 붙는다. 파기된 영상은 주소가 없다.
+         */
+        get: operations["get_video_v2_videos__video_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Video
+         * @description 보관함에서 지운다 — 참조(회차·챌린지 참여작)가 없을 때만. 있으면 422 video_in_use 이고 아무것도
+         *     지워지지 않는다(사용처는 상세 조회로 본다). 지우면 받아쓰기도 함께 지우고 객체는 삭제 장부로 간다.
+         */
+        delete: operations["delete_video_v2_videos__video_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Video
+         * @description 즐겨찾기를 바꾼다.
+         */
+        patch: operations["update_video_v2_videos__video_id__patch"];
+        trace?: never;
+    };
+    "/v2/reading/sessions/{session_id}/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Save Reading Progress
+         * @description 진행 위치·흐른 시간·줄 결과를 저장한다. progress_seq 가 저장된 값보다 클 때만 반영하고, 작거나 같으면
+         *     무시하고 200 으로 현재 값을 돌려준다. 위치와 줄 결과는 구간 안 대사 줄만 받는다(아니면 422 invalid_line).
+         *     시간은 줄지 않는다. complete=true 면 completed 가 되고 ended_at 이 찍히며 current_line_id 는 null 이다.
+         *     completed·stopped 회차에는 409 session_closed.
+         */
+        patch: operations["save_reading_progress_v2_reading_sessions__session_id__progress_patch"];
+        trace?: never;
+    };
+    "/v2/reading/scripts/{script_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Script
+         * @description 없는 것과 남의 것은 같은 404 script_not_found 다.
+         */
+        get: operations["get_script_v2_reading_scripts__script_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Script
+         * @description 배역·줄·회차·녹음(파일 포함)·암기 상태와 함께 지운다. 되돌릴 수 없다. 없는 것과 남의 것은 같은
+         *     404 다.
+         */
+        delete: operations["delete_script_v2_reading_scripts__script_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Script
+         * @description 제목과 배역의 이름·목소리만 고친다. 줄은 불변이다. 이름은 앞뒤 공백을 정리하고 비어 있거나 같은
+         *     대본 안에서 겹치면 422 invalid_characters. voice_preset 은 키가 있을 때만 바꾸며 null 은 "자동"이다.
+         */
+        patch: operations["update_script_v2_reading_scripts__script_id__patch"];
+        trace?: never;
+    };
+    "/v2/practices/{root_id}/group": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Practice Group
+         * @description 묶음 속성 — 즐겨찾기·숨김·제목. 보낸 것만 바꾼다. 숨김은 묶음 전체이고(개별 회차 숨김은 없다) 노트·대화·
+         *     기억은 지우지 않으며 영상은 보관함에 남는다.
+         */
+        patch: operations["update_practice_group_v2_practices__root_id__group_patch"];
+        trace?: never;
+    };
     "/v2/portfolio/credits/{credit_id}": {
         parameters: {
             query?: never;
@@ -636,6 +1000,27 @@ export interface paths {
         patch: operations["update_notification_settings_v2_me_notification_settings_patch"];
         trace?: never;
     };
+    "/v2/videos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Videos
+         * @description 보관함을 최신 저장순으로. 필터는 all·recent7(최근 7일)·favorite 이고 예시 영상을 섞지 않는다.
+         *     재생 주소는 상세에만 있다.
+         */
+        get: operations["list_videos_v2_videos_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/reports/{practice_session_id}": {
         parameters: {
             query?: never;
@@ -645,6 +1030,50 @@ export interface paths {
         };
         /** Report Detail */
         get: operations["report_detail_v2_reports__practice_session_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/reading/sessions/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Reading Session
+         * @description 없는 것과 남의 것은 같은 404 session_not_found 다.
+         */
+        get: operations["get_reading_session_v2_reading_sessions__session_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Reading Session
+         * @description 회차와 그 녹음(파일 포함)을 지운다. 암기 상태는 남는다. 없는 것과 남의 것은 같은 404 다.
+         */
+        delete: operations["delete_reading_session_v2_reading_sessions__session_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/reading/scripts/{script_id}/memorization": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Script Memorization
+         * @description 그 대본의 줄에 남긴 표시를 줄 순서로. 행이 없는 줄은 아직 표시하지 않은 줄이다. 없는 대본과 남의 대본은 404 script_not_found.
+         */
+        get: operations["list_script_memorization_v2_reading_scripts__script_id__memorization_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -666,6 +1095,46 @@ export interface paths {
          *     portfolio_not_found 다. 추구하는 방향·경력 구간·목표와 연습·분석은 나오지 않는다.
          */
         get: operations["get_public_portfolio_v2_public_portfolios__slug__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/practices/{practice_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Practice
+         * @description 회차 하나 — 장면·막힘과 분석·대화·노트의 현재 상태. 없는 것과 남의 것은 같은 404 practice_not_found.
+         */
+        get: operations["get_practice_v2_practices__practice_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/practices/{practice_id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Practice Status
+         * @description 폴링이 읽는 것 — 회차의 진행(stage)과 작업 상태·실패 분류, 관찰 기록의 상태. 앱은 4초, 웹은 10초 간격이다.
+         */
+        get: operations["get_practice_status_v2_practices__practice_id__status_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -926,6 +1395,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/reading/recordings/{recording_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Recording
+         * @description 그 녹음의 행과 객체를 지운다. 회차 진행·암기 상태는 그대로다. 없는 것과 남의 것은 같은 404 다.
+         */
+        delete: operations["delete_reading_recording_v2_reading_recordings__recording_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/portfolio/photos/{photo_id}": {
         parameters: {
             query?: never;
@@ -950,6 +1439,34 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ReadingMemorizationRequest */
+        ReadingMemorizationRequest: {
+            status: components["schemas"]["ReadingMemorizationStatusInput"];
+        };
+        /**
+         * ReadingMemorizationStatusInput
+         * @enum {string}
+         */
+        ReadingMemorizationStatusInput: "memorized" | "not_yet";
+        /**
+         * MemorizationStatus
+         * @enum {string}
+         */
+        MemorizationStatus: "memorized" | "not_yet";
+        /** ReadingLineMemorization */
+        ReadingLineMemorization: {
+            /**
+             * Line Id
+             * Format: uuid
+             */
+            line_id: string;
+            status: components["schemas"]["MemorizationStatus"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
         /** PortfolioShareRequest */
         PortfolioShareRequest: {
             /** Enabled */
@@ -1102,6 +1619,70 @@ export interface components {
             edited_by_me: boolean;
             /** Source Practice Session Id */
             source_practice_session_id: string | null;
+        };
+        /** Video */
+        Video: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Duration Ms */
+            duration_ms: number;
+            /** Byte Size */
+            byte_size: number;
+            /** Content Type */
+            content_type: string;
+            /** Favorite */
+            favorite: boolean;
+            /** Purged At */
+            purged_at?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            usage: components["schemas"]["VideoUsage"];
+            /** Playback Url */
+            playback_url?: string | null;
+            /** Playback Expires At */
+            playback_expires_at?: string | null;
+        };
+        /** VideoUsage */
+        VideoUsage: {
+            /** Practice Count */
+            practice_count: number;
+            /** Entry Count */
+            entry_count: number;
+        };
+        /** VideoIntentRequest */
+        VideoIntentRequest: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /** Content Type */
+            content_type: string;
+            /** Byte Size */
+            byte_size: number;
+            /** Duration Ms */
+            duration_ms: number;
+        };
+        /** VideoIntent */
+        VideoIntent: {
+            /**
+             * Intent Id
+             * Format: uuid
+             */
+            intent_id: string;
+            /** Upload Url */
+            upload_url: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
         };
         /** UploadIntentRequest */
         UploadIntentRequest: {
@@ -1410,6 +1991,343 @@ export interface components {
              */
             reason: "confirmed_analysis_handoff_required" | "confirmed_expression_handoff_required";
         };
+        /** ReadingRecordingUploadForm */
+        ReadingRecordingUploadForm: {
+            /**
+             * Request Id
+             * Format: uuid
+             * @description 기기가 만든 UUID. 같은 값은 같은 결과
+             */
+            request_id: string;
+            /**
+             * Line Id
+             * Format: uuid
+             * @description 구간 안 내 대사 줄
+             */
+            line_id: string;
+            /**
+             * Attempt No
+             * @description 줄마다 1부터 1씩
+             */
+            attempt_no: number;
+            /**
+             * Audio
+             * Format: binary
+             * @description 음성 파일. m4a(AAC)가 아니면 서버가 변환한다
+             */
+            audio: string;
+            /**
+             * Duration Ms
+             * @description 길이(밀리초, 0 이상)
+             */
+            duration_ms: number;
+            /**
+             * Transcript Source
+             * @enum {string}
+             */
+            transcript_source: "stt" | "none";
+            /** Transcript */
+            transcript?: string | null;
+            /** Matched */
+            matched?: boolean | null;
+        };
+        /** ReadingSessionRecording */
+        ReadingSessionRecording: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Line Id
+             * Format: uuid
+             */
+            line_id: string;
+            /** Attempt No */
+            attempt_no: number;
+            /** Duration Ms */
+            duration_ms: number;
+            /** Content Type */
+            content_type: string;
+            /** Byte Size */
+            byte_size: number;
+            /** Transcript */
+            transcript: string | null;
+            transcript_source: components["schemas"]["TranscriptSource"];
+            /** Matched */
+            matched: boolean | null;
+            /** Playback Url */
+            playback_url: string | null;
+            /** Playback Expires At */
+            playback_expires_at: string | null;
+        };
+        /**
+         * TranscriptSource
+         * @enum {string}
+         */
+        TranscriptSource: "stt" | "none";
+        /** ReadingScriptCharacterInput */
+        ReadingScriptCharacterInput: {
+            /** Name */
+            name: string;
+        };
+        /** ReadingScriptCreateRequest */
+        ReadingScriptCreateRequest: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /** Title */
+            title: string;
+            source: components["schemas"]["ReadingScriptSourceInput"];
+            /** Raw Text */
+            raw_text: string;
+            /** Characters */
+            characters: components["schemas"]["ReadingScriptCharacterInput"][];
+            /** Lines */
+            lines: components["schemas"]["ReadingScriptLineInput"][];
+        };
+        /** ReadingScriptLineInput */
+        ReadingScriptLineInput: {
+            /** Ordinal */
+            ordinal: number;
+            kind: components["schemas"]["ReadingScriptLineKindInput"];
+            /** Character Index */
+            character_index?: number | null;
+            /** Text */
+            text: string;
+        };
+        /**
+         * ReadingScriptLineKindInput
+         * @enum {string}
+         */
+        ReadingScriptLineKindInput: "dialogue" | "direction" | "scene";
+        /**
+         * ReadingScriptSourceInput
+         * @enum {string}
+         */
+        ReadingScriptSourceInput: "file" | "paste" | "typed" | "sample";
+        /** ReadingScript */
+        ReadingScript: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Title */
+            title: string;
+            source: components["schemas"]["ScriptSource"];
+            /** Characters */
+            characters: components["schemas"]["ReadingScriptCharacter"][];
+            /** Lines */
+            lines: components["schemas"]["ReadingScriptLine"][];
+            /** Recording Count */
+            recording_count: number;
+            /** Open Session Id */
+            open_session_id: string | null;
+            last_session: components["schemas"]["ReadingScriptLastSession"] | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** ReadingScriptCharacter */
+        ReadingScriptCharacter: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Order */
+            order: number;
+            /** Voice Preset */
+            voice_preset: string | null;
+            /** Dialogue Count */
+            dialogue_count: number;
+        };
+        /** ReadingScriptLastSession */
+        ReadingScriptLastSession: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            status: components["schemas"]["ReadingSessionStatus"];
+            /** My Character Ids */
+            my_character_ids: string[];
+            /** My Character Names */
+            my_character_names: string[];
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Ended At */
+            ended_at: string | null;
+        };
+        /** ReadingScriptLine */
+        ReadingScriptLine: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Ordinal */
+            ordinal: number;
+            kind: components["schemas"]["ScriptLineKind"];
+            /** Character Id */
+            character_id: string | null;
+            /** Text */
+            text: string;
+            /** Dialogue No */
+            dialogue_no: number | null;
+        };
+        /**
+         * ReadingSessionStatus
+         * @enum {string}
+         */
+        ReadingSessionStatus: "in_progress" | "completed" | "stopped";
+        /**
+         * ScriptLineKind
+         * @enum {string}
+         */
+        ScriptLineKind: "dialogue" | "direction" | "scene";
+        /**
+         * ScriptSource
+         * @enum {string}
+         */
+        ScriptSource: "file" | "paste" | "typed" | "sample";
+        /**
+         * ReadingAdvanceInput
+         * @enum {string}
+         */
+        ReadingAdvanceInput: "silence" | "manual";
+        /**
+         * ReadingModeInput
+         * @enum {string}
+         */
+        ReadingModeInput: "read" | "quiz";
+        /** ReadingSessionCreateRequest */
+        ReadingSessionCreateRequest: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /** My Character Ids */
+            my_character_ids: string[];
+            mode: components["schemas"]["ReadingModeInput"];
+            /**
+             * Start Line Id
+             * Format: uuid
+             */
+            start_line_id: string;
+            /**
+             * End Line Id
+             * Format: uuid
+             */
+            end_line_id: string;
+            advance: components["schemas"]["ReadingAdvanceInput"];
+            /** Record */
+            record: boolean;
+        };
+        /**
+         * ReadingAdvance
+         * @enum {string}
+         */
+        ReadingAdvance: "silence" | "manual";
+        /** ReadingLineResult */
+        ReadingLineResult: {
+            /**
+             * Line Id
+             * Format: uuid
+             */
+            line_id: string;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "passed" | "unmatched" | "skipped";
+            /** Misses */
+            misses: number;
+        };
+        /**
+         * ReadingMode
+         * @enum {string}
+         */
+        ReadingMode: "read" | "quiz";
+        /** ReadingSession */
+        ReadingSession: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Ordinal */
+            ordinal: number;
+            status: components["schemas"]["ReadingSessionStatus"];
+            /** My Character Ids */
+            my_character_ids: string[];
+            /** My Character Names */
+            my_character_names: string[];
+            range: components["schemas"]["ReadingSessionRange"];
+            /** My Dialogue Count */
+            my_dialogue_count: number;
+            /** Recorded Line Count */
+            recorded_line_count: number;
+            /** Elapsed Seconds */
+            elapsed_seconds: number;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Ended At */
+            ended_at: string | null;
+            /**
+             * Script Id
+             * Format: uuid
+             */
+            script_id: string;
+            mode: components["schemas"]["ReadingMode"];
+            advance: components["schemas"]["ReadingAdvance"];
+            /** Record */
+            record: boolean;
+            /**
+             * Start Line Id
+             * Format: uuid
+             */
+            start_line_id: string;
+            /**
+             * End Line Id
+             * Format: uuid
+             */
+            end_line_id: string;
+            /** Current Line Id */
+            current_line_id: string | null;
+            /** Progress Seq */
+            progress_seq: number;
+            /** Line Results */
+            line_results: components["schemas"]["ReadingLineResult"][];
+            /** Recordings */
+            recordings: components["schemas"]["ReadingSessionRecording"][];
+        };
+        /** ReadingSessionRange */
+        ReadingSessionRange: {
+            /** Start Dialogue No */
+            start_dialogue_no: number;
+            /** End Dialogue No */
+            end_dialogue_no: number;
+        };
         /** RegisterPushTokenRequest */
         RegisterPushTokenRequest: {
             /** Token */
@@ -1419,6 +2337,141 @@ export interface components {
              * @enum {string}
              */
             platform: "ios" | "android";
+        };
+        /** PracticeBlockage */
+        PracticeBlockage: {
+            /** Category */
+            category?: string | null;
+            /** Detail */
+            detail?: string | null;
+            /** Note */
+            note?: string | null;
+        };
+        /** PracticeCreateRequest */
+        PracticeCreateRequest: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /**
+             * Video Id
+             * Format: uuid
+             */
+            video_id: string;
+            scene?: components["schemas"]["PracticeScene"] | null;
+            blockage?: components["schemas"]["PracticeBlockage"] | null;
+        };
+        /** PracticeScene */
+        PracticeScene: {
+            /** Situation */
+            situation?: string | null;
+            /** Character */
+            character?: string | null;
+            /** Goal */
+            goal?: string | null;
+        };
+        /** Practice */
+        Practice: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Root Id
+             * Format: uuid
+             */
+            root_id: string;
+            /** Ordinal */
+            ordinal: number;
+            /**
+             * Video Id
+             * Format: uuid
+             */
+            video_id: string;
+            /** Stage */
+            stage: string;
+            /** Close Reason */
+            close_reason?: string | null;
+            /** Experience Version */
+            experience_version: string;
+            /** Situation */
+            situation: string;
+            /** Character */
+            character: string;
+            /** Goal */
+            goal: string;
+            /** Blockage Category */
+            blockage_category: string;
+            /** Blockage Detail */
+            blockage_detail: string;
+            /** Blockage Note */
+            blockage_note?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Analysis Status */
+            analysis_status?: string | null;
+            /** Conversation Id */
+            conversation_id?: string | null;
+            /** Conversation Status */
+            conversation_status?: string | null;
+            /** Conversation Count */
+            conversation_count: number;
+            /** Note Id */
+            note_id?: string | null;
+            /** Note Title */
+            note_title?: string | null;
+            /** Note Kind */
+            note_kind?: string | null;
+            job?: components["schemas"]["PracticeJob"] | null;
+        };
+        /** PracticeJob */
+        PracticeJob: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Status */
+            status: string;
+            /** Failure Reason */
+            failure_reason?: string | null;
+            /** Attempt Count */
+            attempt_count: number;
+        };
+        /** PracticeContinueRequest */
+        PracticeContinueRequest: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /** Video Id */
+            video_id?: string | null;
+            scene?: components["schemas"]["PracticeScene"] | null;
+            blockage?: components["schemas"]["PracticeBlockage"] | null;
+        };
+        /** PracticeStatus */
+        PracticeStatus: {
+            /** Stage */
+            stage: string;
+            /** Close Reason */
+            close_reason?: string | null;
+            /** Analysis Status */
+            analysis_status?: string | null;
+            job?: components["schemas"]["PracticeJob"] | null;
+        };
+        /** PracticeAnalyzeRequest */
+        PracticeAnalyzeRequest: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
         };
         /** PracticeSessionRequest */
         PracticeSessionRequest: {
@@ -1870,6 +2923,102 @@ export interface components {
              */
             account_type: "guest";
         };
+        /** VideoPatch */
+        VideoPatch: {
+            /** Favorite */
+            favorite: boolean;
+        };
+        /**
+         * ReadingLineOutcomeInput
+         * @enum {string}
+         */
+        ReadingLineOutcomeInput: "passed" | "unmatched" | "skipped";
+        /** ReadingLineResultInput */
+        ReadingLineResultInput: {
+            /**
+             * Line Id
+             * Format: uuid
+             */
+            line_id: string;
+            outcome: components["schemas"]["ReadingLineOutcomeInput"];
+            /** Misses */
+            misses: number;
+        };
+        /** ReadingSessionProgressRequest */
+        ReadingSessionProgressRequest: {
+            /** Progress Seq */
+            progress_seq: number;
+            /** Current Line Id */
+            current_line_id?: string | null;
+            /** Elapsed Seconds */
+            elapsed_seconds?: number | null;
+            /** Line Results */
+            line_results?: components["schemas"]["ReadingLineResultInput"][] | null;
+            /** Complete */
+            complete?: boolean | null;
+        };
+        /** ReadingSessionProgress */
+        ReadingSessionProgress: {
+            /** Current Line Id */
+            current_line_id: string | null;
+            /** Elapsed Seconds */
+            elapsed_seconds: number;
+            /** Progress Seq */
+            progress_seq: number;
+            status: components["schemas"]["ReadingSessionStatus"];
+        };
+        /** ReadingScriptCharacterPatch */
+        ReadingScriptCharacterPatch: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name?: string | null;
+            /** Voice Preset */
+            voice_preset?: string | null;
+        };
+        /** ReadingScriptPatch */
+        ReadingScriptPatch: {
+            /** Title */
+            title?: string | null;
+            /** Characters */
+            characters?: components["schemas"]["ReadingScriptCharacterPatch"][];
+        };
+        /** PracticeGroupPatch */
+        PracticeGroupPatch: {
+            /** Favorite */
+            favorite?: boolean | null;
+            /** Hidden */
+            hidden?: boolean | null;
+            /** Title */
+            title?: string | null;
+        };
+        /** PracticeGroup */
+        PracticeGroup: {
+            /**
+             * Root Id
+             * Format: uuid
+             */
+            root_id: string;
+            /** Title */
+            title?: string | null;
+            /** Ordinal Count */
+            ordinal_count: number;
+            /** Last Conversation At */
+            last_conversation_at?: string | null;
+            /** Tags */
+            tags: string[];
+            /** Favorite */
+            favorite: boolean;
+            /** Hidden At */
+            hidden_at?: string | null;
+            /** In Progress Practice Id */
+            in_progress_practice_id?: string | null;
+            /** Practices */
+            practices: components["schemas"]["Practice"][];
+        };
         /** PortfolioCreditPatch */
         PortfolioCreditPatch: {
             /** Title */
@@ -1897,6 +3046,13 @@ export interface components {
             challenge: boolean;
             /** Evening Reminder */
             evening_reminder: boolean;
+        };
+        /** VideoList */
+        VideoList: {
+            /** Videos */
+            videos: components["schemas"]["Video"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
         };
         /** ReportHistoryResponse */
         ReportHistoryResponse: {
@@ -1942,6 +3098,87 @@ export interface components {
             /** Playback Url */
             playback_url: string;
         };
+        /** ReadingScriptCard */
+        ReadingScriptCard: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Title */
+            title: string;
+            /** My Character Names */
+            my_character_names: string[];
+            /** Dialogue Count */
+            dialogue_count: number;
+            /** Recording Count */
+            recording_count: number;
+            /** Last Practiced At */
+            last_practiced_at: string | null;
+            /**
+             * Last Activity At
+             * Format: date-time
+             */
+            last_activity_at: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "reading" | "completed" | "no_cast";
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** ReadingScriptList */
+        ReadingScriptList: {
+            /** Scripts */
+            scripts: components["schemas"]["ReadingScriptCard"][];
+            /** Total Count */
+            total_count: number;
+            /** In Progress Count */
+            in_progress_count: number;
+        };
+        /** ReadingSessionCard */
+        ReadingSessionCard: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Ordinal */
+            ordinal: number;
+            status: components["schemas"]["ReadingSessionStatus"];
+            /** My Character Ids */
+            my_character_ids: string[];
+            /** My Character Names */
+            my_character_names: string[];
+            range: components["schemas"]["ReadingSessionRange"];
+            /** My Dialogue Count */
+            my_dialogue_count: number;
+            /** Recorded Line Count */
+            recorded_line_count: number;
+            /** Elapsed Seconds */
+            elapsed_seconds: number;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Ended At */
+            ended_at: string | null;
+        };
+        /** ReadingSessionList */
+        ReadingSessionList: {
+            /** Sessions */
+            sessions: components["schemas"]["ReadingSessionCard"][];
+        };
         /** PublicPortfolio */
         PublicPortfolio: {
             /** Name */
@@ -1973,6 +3210,11 @@ export interface components {
         PublicPortfolioPhoto: {
             /** Url */
             url: string | null;
+        };
+        /** PracticeGroupList */
+        PracticeGroupList: {
+            /** Groups */
+            groups: components["schemas"]["PracticeGroup"][];
         };
         /** PracticeSessionListItem */
         PracticeSessionListItem: {
@@ -2537,6 +3779,41 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    set_line_memorization_v2_reading_lines__line_id__memorization_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                line_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadingMemorizationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingLineMemorization"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     set_portfolio_share_v2_portfolio_share_put: {
         parameters: {
             query?: never;
@@ -2766,6 +4043,94 @@ export interface operations {
             };
         };
     };
+    purge_video_file_v2_videos__video_id__purge_file_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Video"];
+                };
+            };
+        };
+    };
+    create_video_intent_v2_videos_intents_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Request-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VideoIntentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoIntent"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    complete_video_intent_v2_videos_intents__intent_id__complete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                intent_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Video"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     create_intent_v2_uploads_intents_post: {
         parameters: {
             query?: never;
@@ -2885,6 +4250,190 @@ export interface operations {
             };
         };
     };
+    upload_reading_recording_v2_reading_sessions__session_id__recordings_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description 본문의 request_id 와 같은 값. 실으면 같아야 하고 다르면 422 다 */
+                "X-Request-Id"?: string;
+            };
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["ReadingRecordingUploadForm"];
+            };
+        };
+        responses: {
+            /** @description 같은 요청의 재전송이거나 더 작은 시도 번호 — 현재 값 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingSessionRecording"];
+                };
+            };
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingSessionRecording"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_scripts_v2_reading_scripts_get: {
+        parameters: {
+            query?: {
+                /** @description 제목·배역 이름 검색어 */
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingScriptList"];
+                };
+            };
+        };
+    };
+    create_script_v2_reading_scripts_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description 본문의 request_id 와 같은 값. 실으면 같아야 하고 다르면 422 다 */
+                "X-Request-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadingScriptCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description 같은 요청의 재전송 — 먼저 만든 대본 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingScript"];
+                };
+            };
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingScript"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_reading_sessions_v2_reading_scripts__script_id__sessions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                script_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingSessionList"];
+                };
+            };
+        };
+    };
+    start_reading_session_v2_reading_scripts__script_id__sessions_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description 본문의 request_id 와 같은 값. 실으면 같아야 하고 다르면 422 다 */
+                "X-Request-Id"?: string;
+            };
+            path: {
+                script_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadingSessionCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description 같은 요청의 재전송 — 먼저 만든 회차 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingSession"];
+                };
+            };
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingSession"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     register_push_token_v2_push_tokens_post: {
         parameters: {
             query?: never;
@@ -2935,6 +4484,161 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_practice_groups_v2_practices_get: {
+        parameters: {
+            query?: {
+                filter?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeGroupList"];
+                };
+            };
+        };
+    };
+    start_practice_v2_practices_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Request-Id"?: string;
+                "X-Acttub-Contract"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PracticeCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Practice"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    continue_practice_v2_practices__practice_id__continue_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Request-Id"?: string;
+                "X-Acttub-Contract"?: string;
+            };
+            path: {
+                practice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PracticeContinueRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Practice"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_practice_analysis_v2_practices__practice_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                practice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeStatus"];
+                };
+            };
+        };
+    };
+    retry_practice_analysis_v2_practices__practice_id__analyze_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Request-Id"?: string;
+            };
+            path: {
+                practice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PracticeAnalyzeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Practice"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -3625,6 +5329,230 @@ export interface operations {
             };
         };
     };
+    get_video_v2_videos__video_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Video"];
+                };
+            };
+        };
+    };
+    delete_video_v2_videos__video_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_video_v2_videos__video_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VideoPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Video"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_reading_progress_v2_reading_sessions__session_id__progress_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadingSessionProgressRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingSessionProgress"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_script_v2_reading_scripts__script_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                script_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingScript"];
+                };
+            };
+        };
+    };
+    delete_script_v2_reading_scripts__script_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                script_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_script_v2_reading_scripts__script_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                script_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadingScriptPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingScript"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_practice_group_v2_practices__root_id__group_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                root_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PracticeGroupPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeGroup"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     delete_credit_v2_portfolio_credits__credit_id__delete: {
         parameters: {
             query?: never;
@@ -3733,6 +5661,29 @@ export interface operations {
             };
         };
     };
+    list_videos_v2_videos_get: {
+        parameters: {
+            query?: {
+                filter?: string;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoList"];
+                };
+            };
+        };
+    };
     report_detail_v2_reports__practice_session_id__get: {
         parameters: {
             query?: never;
@@ -3764,6 +5715,70 @@ export interface operations {
             };
         };
     };
+    get_reading_session_v2_reading_sessions__session_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingSession"];
+                };
+            };
+        };
+    };
+    delete_reading_session_v2_reading_sessions__session_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_script_memorization_v2_reading_scripts__script_id__memorization_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                script_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingLineMemorization"][];
+                };
+            };
+        };
+    };
     get_public_portfolio_v2_public_portfolios__slug__get: {
         parameters: {
             query?: never;
@@ -3782,6 +5797,50 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublicPortfolio"];
+                };
+            };
+        };
+    };
+    get_practice_v2_practices__practice_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                practice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Practice"];
+                };
+            };
+        };
+    };
+    get_practice_status_v2_practices__practice_id__status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                practice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeStatus"];
                 };
             };
         };
@@ -4143,6 +6202,26 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
                 };
+            };
+        };
+    };
+    delete_reading_recording_v2_reading_recordings__recording_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                recording_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

@@ -8,8 +8,7 @@ import type {
   SessionListResponse,
 } from "../../reading/api-types";
 
-// 리딩 회차 시작·목록·상세·진행 저장·삭제(reading.session). 타입은 api 가 나오기 전의 임시 타입이며
-// 통합 작업이 생성 타입으로 바꾼다(src/lib/reading/api-types.ts).
+// 리딩 회차 시작·목록·상세·진행 저장·삭제(reading.session). 타입은 생성 타입이다(src/lib/reading/api-types.ts).
 
 export type CreateSessionResult = {
   /** 201 이면 새 회차, 200 이면 같은 요청 id 의 재전송에 먼저 만든 회차가 온 것 */

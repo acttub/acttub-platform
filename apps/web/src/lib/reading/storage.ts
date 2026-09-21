@@ -14,7 +14,6 @@ export interface StoredScript {
   /** 배역 이름, 등장 순서. 실행 화면과 상태 머신은 이름으로 줄을 가른다. */
   roles: string[];
   lines: ScriptLine[];
-  raw: string;
   /** 배역 id 와 목소리 — 회차 시작·목소리 저장이 쓴다 */
   characters: { id: string; name: string; voicePreset: string | null }[];
   /** lines 와 같은 순서의 줄 id — 회차의 구간·진행 저장이 쓴다 */
