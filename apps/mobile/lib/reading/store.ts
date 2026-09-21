@@ -112,6 +112,12 @@ export async function deleteScript(id: string): Promise<void> {
   const list = await readAll();
   await writeAll(list.filter((s) => s.id !== id));
   if (current?.id === id) current = null;
+  // 대본이 사라지면 그 대본을 읽어 준 음성도 쓸 데가 없다 (SOMA-547).
+  // 파일 정리는 실패해도 대본 삭제를 막지 않는다.
+  try {
+    const { deleteSpeechFilesOfScript } = await import('@/lib/account-files');
+    await deleteSpeechFilesOfScript(id);
+  } catch {}
 }
 
 // ── 진행 중 세션 (메모리 + 저장소) ────────────────────────────────

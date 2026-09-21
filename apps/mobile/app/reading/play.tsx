@@ -33,6 +33,10 @@ export default function ReadingPlay() {
   const end = script?.endIndex ?? Math.max(0, lines.length - 1);
   const maskMode = script?.maskMode ?? 'none';
 
+  // 상대 대사를 미리 만들어 두는 큐 (SOMA-547). 대본 하나에 하나.
+  const queue = useRef<engine.SpeechQueueHandle | null>(null);
+  if (!queue.current && script) queue.current = engine.createQueueFor(script.id);
+
   const [phase, setPhase] = useState<Phase>('loading');
   const [progress, setProgress] = useState(t('reading.voicePreparing'));
   const [index, setIndex] = useState(() => {
@@ -87,10 +91,16 @@ export default function ReadingPlay() {
           recorder.record();
         }
       } catch {}
+      // 첫 상대 대사를 만들어 두고 넘어간다 — 시작하자마자 기다리지 않게.
+      queue.current?.prime(upcomingOtherLines(indexRef.current));
+      try {
+        await queue.current?.first();
+      } catch {}
       if (mounted.current) setPhase('reading');
     })();
     return () => {
       mounted.current = false;
+      queue.current?.cancel();
       engine.stop();
       void saveRecording();
       void updateCurrent({ index: indexRef.current });
@@ -103,6 +113,18 @@ export default function ReadingPlay() {
     const t = setInterval(() => setElapsed((e) => e + 1), 1000);
     return () => clearInterval(t);
   }, [phase, paused]);
+
+  /** 지금 자리부터 끝까지, 내가 아닌 배역의 대사만 순서대로. 큐가 이 순서로 만든다. */
+  const upcomingOtherLines = (from: number): string[] => {
+    const out: string[] = [];
+    for (let i = from; i <= end && i < lines.length; i += 1) {
+      const l = lines[i];
+      if (l && l.type === 'dialogue' && !isMyRole((l as any).role)) {
+        out.push(speakableText(l.text));
+      }
+    }
+    return out;
+  };
 
   const line = lines[index];
   const myTurn = !!line && line.type === 'dialogue' && isMyRole((line as any).role);
@@ -130,8 +152,19 @@ export default function ReadingPlay() {
     }
     if (isMyRole(cur.role)) return; // 내 차례 — 마이크(useMicAutoAdvance) 또는 t('reading.next')
     void (async () => {
+      const text = speakableText(cur.text);
       try {
-        await engine.speak(speakableText(cur.text));
+        // 다음 줄들을 계속 만들어 둔다. 지금 줄은 이미 만들어져 있으면 곧바로 난다.
+        queue.current?.prime(upcomingOtherLines(index + 1));
+        const began = Date.now();
+        const ready = await queue.current?.take(text);
+        const waited = Date.now() - began;
+        if (waited > 3000) {
+          console.log(`[reading] 상대 대사를 기다린 시간 ${Math.round(waited / 1000)}초`);
+        }
+        if (cancelled) return;
+        if (ready) await engine.play(ready);
+        else await engine.speak(text, script?.id ?? 'adhoc');
       } catch {}
       go();
     })();
@@ -142,6 +175,7 @@ export default function ReadingPlay() {
 
   const onNext = () => {
     engine.stop();
+    queue.current?.prime(upcomingOtherLines(index + 1));
     setIndex((i) => i + 1);
   };
   const onTogglePause = () =>
@@ -150,6 +184,8 @@ export default function ReadingPlay() {
       return !p;
     });
   const onRestart = () => {
+    // 저장해 둔 음성이 있어 곧바로 들린다. 남은 순서만 다시 잡아 준다.
+    queue.current?.prime(upcomingOtherLines(start));
     setIndex(start);
     setPaused(false);
     setElapsed(0);

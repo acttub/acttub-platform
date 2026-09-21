@@ -97,7 +97,8 @@ export default function ReadingMemorize() {
     void (async () => {
       try {
         await engine.ensureReady(() => {});
-        await engine.speak(speakableText((cur.l as any).text));
+        // 저장해 둔 음성이 있으면 그대로 쓴다 (SOMA-547).
+        await engine.speak(speakableText((cur.l as any).text), script?.id ?? 'adhoc');
       } catch {}
     })();
   };
