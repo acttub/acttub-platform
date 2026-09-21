@@ -20,12 +20,17 @@ case "${1:-}" in
   pull) echo "$*" >> "$TEST_CALLS"; [ "${TEST_PULL_FAILURE:-false}" != true ] ;;
   up) echo "$*" >> "$TEST_CALLS"; [ "${TEST_UP_FAILURE:-false}" != true ] ;;
   exec)
+    echo "$*" >> "$TEST_CALLS"
     if [ "${3:-}" = api ]; then
       printf '%s\n' "${TEST_THREE_LAYERS:-${DEPLOY_THREE_LAYERS_ENABLED:-false}}"
     else
       printf '%s %s\n{}' "${TEST_STATUS:-200}" "${TEST_COMMIT:-0123456}"
     fi ;;
-  ps|logs) : ;;
+  ps)
+    [ "${TEST_PS_FAILURE:-false}" != true ] || exit 1
+    printf 'api %s\nweb healthy\n' "${TEST_API_HEALTH:-healthy}"
+    [ "${TEST_DB_MISSING:-false}" = true ] || echo 'db healthy' ;;
+  logs) : ;;
   *) exit 2 ;;
 esac
 MOCK
@@ -61,6 +66,14 @@ grep -qx 'pull --policy missing api web backup' "$WORK/calls"
 grep -qx 'BACKUP_IMAGE=example/backup:0123456' "$WORK/release.env"
 failure TEST_PULL_FAILURE=true
 failure TEST_UP_FAILURE=true
+for state in starting unhealthy; do
+  : > "$WORK/calls"
+  failure TEST_API_HEALTH="$state"
+  grep -q 'healthy 가 되지 않았다' "$WORK/log"
+  ! grep -q '^exec ' "$WORK/calls"
+done
+failure TEST_DB_MISSING=true
+failure TEST_PS_FAILURE=true
 failure TEST_COMMIT=fffffff
 failure TEST_STATUS=503
 success DEPLOY_THREE_LAYERS_ENABLED=true
