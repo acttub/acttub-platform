@@ -19,6 +19,9 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 집는 일은 한 문장이다 — {@code FOR UPDATE SKIP LOCKED} 로 고르고 같은 문장에서
  * {@code next_attempt_at} 을 lease 만큼 미룬다. 그래서 두 워커가 같은 행을 함께 집지 못하고, 집은
  * 워커가 죽어도 lease 가 지나면 다시 집힌다 (apps/api/CONTRACT.md §5-2).
+ *
+ * <p>{@code expires_at} 은 제공자 해제에는 값을 지우는 기한이고, 객체 삭제에는 <b>다음 알림 시각</b>이다 — 객체
+ * 삭제는 기한이 지나도 집는다(성공할 때까지 키를 지우지 않는다).
  */
 @Repository
 class PostgresAccountCleanupRepository implements AccountCleanupRepository {
@@ -45,7 +48,7 @@ class PostgresAccountCleanupRepository implements AccountCleanupRepository {
                                  FROM account_cleanup_operations
                                  WHERE id IN (:ids)
                                    AND next_attempt_at<=:now
-                                   AND expires_at>:now
+                                   AND (expires_at>:now OR kind IN (:objectKinds))
                                  ORDER BY created_at,id
                                  FOR UPDATE SKIP LOCKED)
                     RETURNING id,user_id,kind,payload_encrypted,attempt_count,created_at
@@ -53,6 +56,7 @@ class PostgresAccountCleanupRepository implements AccountCleanupRepository {
                 SELECT id,user_id,kind,payload_encrypted,attempt_count FROM claimed ORDER BY created_at,id
                 """, Tuple.class)
                 .setParameter("ids", ids)
+                .setParameter("objectKinds", OBJECT_DELETE_KINDS)
                 .setParameter("now", now.atOffset(ZoneOffset.UTC))
                 .setParameter("leasedUntil", now.plus(lease).atOffset(ZoneOffset.UTC))).stream()
                 .map(PostgresAccountCleanupRepository::operation)
@@ -68,7 +72,7 @@ class PostgresAccountCleanupRepository implements AccountCleanupRepository {
                     WHERE id IN (SELECT id
                                  FROM account_cleanup_operations
                                  WHERE next_attempt_at<=:now
-                                   AND expires_at>:now
+                                   AND (expires_at>:now OR kind IN (:objectKinds))
                                  ORDER BY next_attempt_at,id
                                  LIMIT :limit
                                  FOR UPDATE SKIP LOCKED)
@@ -76,6 +80,7 @@ class PostgresAccountCleanupRepository implements AccountCleanupRepository {
                 )
                 SELECT id,user_id,kind,payload_encrypted,attempt_count FROM claimed ORDER BY created_at,id
                 """, Tuple.class)
+                .setParameter("objectKinds", OBJECT_DELETE_KINDS)
                 .setParameter("now", now.atOffset(ZoneOffset.UTC))
                 .setParameter("leasedUntil", now.plus(lease).atOffset(ZoneOffset.UTC))
                 .setParameter("limit", limit)).stream()
@@ -111,12 +116,38 @@ class PostgresAccountCleanupRepository implements AccountCleanupRepository {
                 WITH removed AS (
                     DELETE FROM account_cleanup_operations
                     WHERE expires_at<=:now
+                      AND kind NOT IN (:objectKinds)
                     RETURNING id,user_id,kind,attempt_count,last_error
                 )
                 SELECT id,user_id,kind,attempt_count,last_error FROM removed
                 """, Tuple.class)
+                .setParameter("objectKinds", OBJECT_DELETE_KINDS)
                 .setParameter("now", now.atOffset(ZoneOffset.UTC))).stream()
                 .map(row -> new Abandoned(
+                        row.get("id", UUID.class),
+                        row.get("user_id", UUID.class),
+                        row.get("kind", String.class),
+                        row.get("attempt_count", Integer.class),
+                        row.get("last_error", String.class)))
+                .toList());
+    }
+
+    @Override
+    public List<Overdue> deferOverdueObjectDeletes(Instant now) {
+        return transaction.execute(status -> list(entityManager.createNativeQuery("""
+                WITH deferred AS (
+                    UPDATE account_cleanup_operations
+                    SET expires_at=:nextDeadline,updated_at=:now
+                    WHERE expires_at<=:now
+                      AND kind IN (:objectKinds)
+                    RETURNING id,user_id,kind,attempt_count,last_error
+                )
+                SELECT id,user_id,kind,attempt_count,last_error FROM deferred
+                """, Tuple.class)
+                .setParameter("objectKinds", OBJECT_DELETE_KINDS)
+                .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                .setParameter("nextDeadline", now.plus(RETRY_WINDOW).atOffset(ZoneOffset.UTC))).stream()
+                .map(row -> new Overdue(
                         row.get("id", UUID.class),
                         row.get("user_id", UUID.class),
                         row.get("kind", String.class),
