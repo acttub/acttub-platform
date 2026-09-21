@@ -666,9 +666,11 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   `POST /v2/auth/guest` 는 **201** 이고 `user.id`·`account_type: "guest"` 를 준다. 한 IP 에서 **시간당 10개**다.
   토큰의 구조·갱신·만료는 회원과 같다. 끝난 게스트의 토큰이 붙어 와도 401 로 막지 않는다.
 - **게스트의 게이트**(`platform/security/GuestFeature`): 경로가 속한 **기능의 문서만** 본다. 연습
-  (`/v2/uploads/**`·`/v2/practice-sessions/**`·`/v2/coach/**`·`/v2/reports/**`·`/v2/me/memory/**`)은 약관·
-  수집·이용 동의·AI 분석 동의, 리딩(`/v2/reading/**`)은 약관·수집·이용 동의 둘이다(서버가 대본·음성을
-  분석하지 않아 AI 분석 동의는 없다 — ADR-031, §6-14). **프로필은 보지 않고 선택 문서는 묻지 않는다.** 403
+  (`/v2/uploads/**`·`/v2/videos/**`·`/v2/practices/**`·`/v2/practice-sessions/**`·`/v2/practice-feedback/**`·
+  `/v2/coach/**`·`/v2/reports/**`·`/v2/me/memory/**`)은 약관·수집·이용 동의·AI 분석 동의, 리딩
+  (`/v2/reading/**`)은 약관·수집·이용 동의 둘이다(서버가 대본·음성을 분석하지 않아 AI 분석 동의는 없다 —
+  ADR-031, §6-14). **영상을 보관만 하는 데에도 AI 분석 동의를 받는다** — 보관함의 다음 길이 분석이기 때문이고
+  1.0.0 은 이를 받아들인다(practice.record, §6-15). **프로필은 보지 않고 선택 문서는 묻지 않는다.** 403
   `consent_required` 의 `pending_consents` 에는 **그 기능에 빠진 문서만** 싣는다. 어느 기능에도 적히지 않은
   경로는 **403 `member_only`** 다 — 적지 않은 새 경로는 게스트에게 닫힌 채로 시작한다.
 - **동의**: 게스트의 **첫** 동의에는 `age_confirmed: true` 가 실려야 한다. 없으면 **422
@@ -971,6 +973,62 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   키를 장부에 올린다. 동의 철회는 운영자가 DB 에서 처리하는 절차라 API 가 없다(account.withdraw).
 - **객체 삭제 장부**는 성공할 때까지 키를 지키고 7일마다 알린다(§6-8) — 대본·회차·녹음 삭제, 대체된 녹음, 탈퇴
   파기가 모두 같은 `reading_recording_delete` 를 쓴다.
+
+### 6-15. 연습 1.0.0 — 스키마(V14)와 영상 보관함 (SOMA-546)
+
+정본은 [02-practice.md](../../docs/requirements/02-practice.md) 와 「연습 자료의 이관·삭제·탈퇴」 표다. 회차·분석·
+대화·노트·기억·설문의 API 는 뒤 티켓이 이 절에 이어 쓴다. **코치의 행동 규칙(§7·§8-5·§8-6, ADR-027)은 바꾸지
+않는다** — 1.0.0 이 바꾸는 것은 저장이다.
+
+- **넓히기만 한 V14**: 새 테이블 열(`videos`·`video_transcripts`·`practices`·`analyses`·`coach_conversations`·
+  `coach_messages`·`coach_notes`·`actor_memories`·`practice_feedback`·`ai_jobs`)과, `upload_intents` 에 NULL 허용
+  컬럼 셋(`request_id`·`request_fingerprint`·`video_id`), `users` 에 `exit_survey_asked_at`·`memory_epoch`. **옛
+  테이블은 건드리지 않는다** — `practice_sessions`·`transcripts`·`summaries`·`anomalies`·`coach_sessions`·
+  `coach_turns`·`coaching_handoffs`·`practice_reports`·`actor_memory_entries`·`external_operations` 가 그대로 돈다.
+  데이터 전환은 Flyway 가 아니라 재실행 가능한 애플리케이션 명령이고, 옛 테이블의 삭제는 읽기·쓰기를 모두 중단한
+  버전을 배포한 **다음** 릴리스부터다(02-practice 「1.0.0 스키마 전환」).
+  - 값 목록은 text + CHECK 이고 Java enum 은 `platform/schema` 에 있다(`PracticeStage`·`PracticeCloseReason`·
+    `ExperienceVersion`·`AnalysisFormat`·`AnalysisStatus`·`NoteFormat`·`NoteKind`·`MemoryField`·`FeedbackScreen`·
+    `FeedbackTrigger`·`AiJobKind`·`TranscriptStatus`·`ConversationCloseReason`). 옛 테이블의 값 목록은 그대로 두고
+    새 테이블이 자기 것을 갖는다 — `coach_conversations` 의 종료 사유에는 신형의 `system_failure` 가 하나 더 있다.
+  - `ai_jobs.failure_reason` 에는 CHECK 를 두지 않는다(분류가 열린 목록이다 — 옛 `external_operations.error_code` 와 같다).
+  - **부분 유일 인덱스 둘**: `uq_practices_open_root`(묶음당 closed 아닌 회차 하나 — 409 `practice_in_progress` 가
+    여기서 나온다)와 `uq_upload_intents_user_request`(옛 행의 NULL 요청 id 들이 서로 부딪히지 않는다).
+  - **테이블이 먼저 서고 코드가 뒤에 선다.** Schema Entity 가 아직 없는 아홉은 `EntityMappingIT.AWAITING_MAPPING`
+    에 적혀 있고, 각 기능을 붙이는 티켓이 거기서 빼고 엔티티 수를 올린다.
+- **보관함**(`/v2/videos/**`, `feature/video`) — 영상은 연습에서 독립한 자산이다. 코칭 회차와 챌린지 참여작이 같은
+  `id` 를 가리키고 객체는 하나다("보내기는 복사가 아니라 참조다").
+  - **올리기는 세 단계다**: `POST /v2/videos/intents`(201 `{intent_id, upload_url, expires_at}`) → 기기가 그 주소로
+    PUT → `POST /v2/videos/intents/{id}/complete`. 예약 장부(`upload_intents`)가 요청 id·지문·객체 키·시한·확정
+    `video_id` 를 들고 있어 **마무리 재전송이 같은 영상**을 돌려준다(만들면 201, 재전송이면 200). 예약은
+    `request_id` 로 멱등하고 같은 id 에 다른 본문이면 422 `request_fingerprint_mismatch` 다. `X-Request-Id` 헤더는
+    대본 등록과 같은 규칙이다(있으면 본문과 같아야 한다).
+  - **한도**: 파일 100MiB·길이 5분(넘으면 422 `video_too_large`·`video_too_long`), 총량은 회원 5GiB·게스트 500MiB
+    이고 `purged_at` 없는 행의 `byte_size` 합이다(넘으면 422 `video_quota`, 기존은 보존). 형식은 MP4·MOV 뿐이고
+    그 밖은 값 오류(422 **배열**)다. 기기도 같은 값을 검사하지만 서버가 다시 본다.
+  - **총량 검사와 확정은 `users` 행을 `FOR UPDATE` 로 잡은 한 트랜잭션**이다 — 한도 직전에 겹쳐 온 확정 둘 가운데
+    하나만 통과한다. **바깥 호출(저장소)은 그 트랜잭션 밖이다**(§5-4): 주소를 받고 올라온 객체를 확인하는 일은
+    서비스가 하고, 아직 안 올라왔거나 크기가 예약과 다르면 422 `video_not_ready` 다.
+  - **시한은 30분**이다. 지난 뒤의 마무리는 422 `upload_expired` 이고 예약을 `expired` 로 닫으며 **미확정 객체의
+    삭제를 같은 트랜잭션에서 장부**(`object_delete`)에 올린다.
+  - **목록** `GET /v2/videos?filter=all·recent7·favorite&cursor=`: `{videos, next_cursor}` 로 최신 저장순이다(커서는
+    저장 시각과 id). 예시 영상을 섞지 않는다. **재생 주소는 상세에만** 있다 — 한 쪽에서 서른 개의 주소를 만들 이유가
+    없다.
+  - **상세** `GET /v2/videos/{id}`: `Video` + 10분 서명 `playback_url`·`playback_expires_at` + `usage{practice_count,
+    entry_count}`. 조회할 때마다 새 주소다. 없는 것과 남의 것은 같은 **404 `video_not_found`**(수정·삭제·파기도 같다).
+  - **삭제** `DELETE /v2/videos/{id}`: **참조가 없을 때만** 204 다. 회차나 참여작이 참조하면 422 `video_in_use` 이고
+    아무것도 지우지 않는다 — 오류 본문은 코드 하나이고 **사용처는 상세 조회에서** 본다. 지우면 받아쓰기도 함께
+    지우고 객체는 장부로 간다. 참조 확인과 삭제는 **영상 행을 잠근 채** 한다(회차 시작과 겹쳐도 하나만 성공한다).
+  - **파일만 파기** `POST /v2/videos/{id}/purge-file`: 회차·참여작의 기록은 남기고 객체·받아쓰기만 지운다
+    (`purged_at`). 그 영상은 재생 불가로 표시되고 **총량에서 빠진다** — 총량이 가득한 계정이 공간을 되찾는 길이다.
+    이미 파기된 영상에 다시 걸면 같은 답이고, 파기했어도 참조가 있으면 삭제는 여전히 422 다.
+  - **즐겨찾기** `PATCH /v2/videos/{id}` `{favorite}` → `Video`.
+  - **이관**은 `video/app/VideoOwnership` 이 `videos` 와 **예약 장부**를 함께 옮긴다(§6-9의 순서에서 올린 영상 바로
+    뒤다). 예약을 두고 가면 옛 게스트의 대기 업로드가 마무리될 자리를 잃는다.
+- **옛 `/v2/uploads/**` 는 아직 그대로다.** 옛 연습 흐름(`/v2/practice-sessions`)이 그 예약 id 로 회차를 만들기
+  때문이고, 같은 `upload_intents` 장부를 쓰되 **`videos` 행을 만들지 않는다**. 새 연습 흐름이 `video_id` 로 서면
+  (PA2) 이 경로와 옛 흐름을 함께 내린다 — 그때까지 두 경로로 올린 파일은 서로 다른 객체다.
+- OpenAPI 컴포넌트: `Video`·`VideoList`·`VideoUsage`·`VideoIntent`·`VideoIntentRequest`·`VideoPatch`.
 
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 

@@ -35,6 +35,7 @@ import com.acttub.actingapi.feature.reading.schema.ReadingRecordingEntity;
 import com.acttub.actingapi.feature.reading.schema.ReadingSessionEntity;
 import com.acttub.actingapi.feature.reading.schema.ScriptCharacterEntity;
 import com.acttub.actingapi.feature.reading.schema.ScriptEntity;
+import com.acttub.actingapi.feature.video.schema.VideoEntity;
 import com.acttub.actingapi.feature.reading.schema.ScriptLineEntity;
 import com.acttub.actingapi.feature.transfer.schema.GuestTransferCodeEntity;
 import com.acttub.actingapi.feature.upload.schema.UploadIntentEntity;
@@ -108,13 +109,23 @@ class EntityMappingIT {
             "community_anonymous_aliases", "community_blocks", "community_categories",
             "community_comments", "community_post_likes", "community_posts", "community_reports");
 
+    /**
+     * 테이블이 먼저 서고 코드가 뒤에 서는 것들 (SOMA-546 연습 1.0.0, V14). 스키마는 넓히기로 한 번에 들어가고
+     * 각 기능이 붙을 때 Schema Entity 가 생긴다 — 붙이는 티켓이 여기서 빼고 위의 수를 올린다.
+     *
+     * <p>{@code videos} 는 여기 없다 — 보관함(PA1)이 이미 매핑을 갖는다.
+     */
+    private static final Set<String> AWAITING_MAPPING = Set.of(
+            "video_transcripts", "practices", "analyses", "coach_conversations", "coach_messages",
+            "coach_notes", "actor_memories", "practice_feedback", "ai_jobs");
+
     @Test
-    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 31개 활성 엔티티를 포함한다")
-    void mapsExactlyThirtyOneActiveEntities() {
+    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 32개 활성 엔티티를 포함한다")
+    void mapsExactlyThirtyTwoActiveEntities() {
         Set<Class<?>> entities = entityManager.getMetamodel().getEntities().stream()
                 .map(jakarta.persistence.metamodel.Type::getJavaType)
                 .collect(java.util.stream.Collectors.toSet());
-        assertThat(entities).hasSize(31);
+        assertThat(entities).hasSize(32);
         assertThat(entities).contains(ActorMemoryEntryEntity.class, PushTokenEntity.class);
         assertThat(entities).allMatch(type -> type.getSimpleName().endsWith("Entity"));
         assertThat(entities).allMatch(type -> java.util.Arrays.stream(type.getDeclaredFields())
@@ -143,7 +154,11 @@ class EntityMappingIT {
         assertThat(activeTables)
                 .as("은퇴한 매핑의 테이블은 DB 에 그대로 있다 — 코드만 내리고 자료는 보존한다")
                 .containsAll(RETIRED_TABLES);
+        assertThat(activeTables)
+                .as("코드가 아직 붙지 않은 새 테이블은 DB 에 서 있다 — 넓히기가 먼저다")
+                .containsAll(AWAITING_MAPPING);
         activeTables.removeAll(RETIRED_TABLES);
+        activeTables.removeAll(AWAITING_MAPPING);
         assertThat(entities.stream().map(type -> type.getAnnotation(Table.class).name())
                 .collect(java.util.stream.Collectors.toSet())).isEqualTo(activeTables);
         var retiredColumns = java.util.Map.of(
@@ -321,7 +336,7 @@ class EntityMappingIT {
 
     @Test
     @Transactional
-    @DisplayName("앱 생성 UUID 활성 엔티티 23종의 실제 Spring Data save()가 INSERT 전 SELECT를 내지 않는다")
+    @DisplayName("앱 생성 UUID 활성 엔티티 24종의 실제 Spring Data save()가 INSERT 전 SELECT를 내지 않는다")
     void allActiveAppGeneratedIdsUsePersistOnSave() {
         RecordingInspector.STATEMENTS.clear();
         UUID userId=UUID.randomUUID(), documentId=UUID.randomUUID();
@@ -364,6 +379,9 @@ class EntityMappingIT {
                 AccountCleanupKind.KAKAO_UNLINK,"d1:payload",java.time.Instant.now(),java.time.Instant.now().plusSeconds(600)));
         entityManager.persist(new AnomalyEntity(summaryId,IntentImpact.REVERSAL,Severity.HIGH));
         entityManager.flush();
+        // 보관함(V14): 영상은 users 만 참조한다.
+        save(VideoEntity.class,new VideoEntity(UUID.randomUUID(),userId,"videos/"+userId+".mp4","video/mp4",1,1));
+        entityManager.flush();
         // 리딩(V13): 대본 → 배역 → 줄 → 회차 → 녹음·암기 상태 순으로 FK 를 따른다.
         UUID scriptId=UUID.randomUUID(), characterId=UUID.randomUUID(), lineId=UUID.randomUUID(), readingId=UUID.randomUUID();
         save(ScriptEntity.class,new ScriptEntity(scriptId,userId,"대본","원문",ScriptSource.PASTE,UUID.randomUUID(),"c".repeat(64)));
@@ -382,7 +400,7 @@ class EntityMappingIT {
 
         List<String> statements=List.copyOf(RecordingInspector.STATEMENTS);
         assertThat(statements.stream().filter(sql->sql.startsWith("insert into "))
-                .map(sql->sql.substring("insert into ".length()).split(" ")[0]).distinct()).hasSize(30);
+                .map(sql->sql.substring("insert into ".length()).split(" ")[0]).distinct()).hasSize(31);
         assertThat(statements).noneMatch(sql->sql.stripLeading().toLowerCase().startsWith("select"));
         assertThat(jdbc.queryForObject("SELECT intent_impact FROM anomalies WHERE summary_id=?",String.class,summaryId)).isEqualTo("반전");
     }

@@ -9,6 +9,7 @@ import com.acttub.actingapi.feature.reading.app.ReadingOwnership;
 import com.acttub.actingapi.feature.transfer.app.GuestTransferService;
 import com.acttub.actingapi.feature.transfer.app.TransferCodeRepository;
 import com.acttub.actingapi.feature.upload.app.UploadOwnership;
+import com.acttub.actingapi.feature.video.app.VideoOwnership;
 import com.acttub.actingapi.platform.ledger.OperationOwnership;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -30,9 +31,10 @@ class GuestTransferConfiguration {
             OperationOwnership operations,
             MemoryOwnership memories,
             ReadingOwnership readings,
+            VideoOwnership videos,
             Clock clock,
             @Value("${JWT_SECRET:}") String secret) {
         return new GuestTransferService(
-                codes, guests, uploads, practices, operations, memories, readings, clock, secret);
+                codes, guests, uploads, practices, operations, memories, readings, videos, clock, secret);
     }
 }

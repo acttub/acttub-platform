@@ -18,11 +18,16 @@ import org.springframework.util.AntPathMatcher;
  */
 public enum GuestFeature {
 
-    /** 연습 — 촬영·업로드·분석·코치 대화·노트, 그리고 거기서 쌓이는 배우 기억. */
+    /**
+     * 연습 — 촬영·보관함·회차·분석·코치 대화·노트·이탈 설문, 그리고 거기서 쌓이는 배우 기억.
+     *
+     * <p>보관만 하는 데에도 AI 분석 동의를 받는다 — 보관함의 다음 길이 분석이기 때문이고 1.0.0 은 이를
+     * 받아들인다(practice.record).
+     */
     PRACTICE(
             Set.of("terms", "privacy", "ai_analysis"),
-            List.of("/v2/uploads/**", "/v2/practice-sessions/**", "/v2/coach/**", "/v2/reports/**",
-                    "/v2/me/memory/**")),
+            List.of("/v2/uploads/**", "/v2/videos/**", "/v2/practices/**", "/v2/practice-sessions/**",
+                    "/v2/practice-feedback/**", "/v2/coach/**", "/v2/reports/**", "/v2/me/memory/**")),
 
     /** 리딩 — 대본 등록·리딩 회차·녹음·암기 상태. 리딩의 경로는 전부 {@code /v2/reading} 아래다. */
     READING(Set.of("terms", "privacy"), List.of("/v2/reading/**"));

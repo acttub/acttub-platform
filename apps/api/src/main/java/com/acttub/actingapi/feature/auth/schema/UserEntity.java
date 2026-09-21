@@ -37,6 +37,17 @@ public class UserEntity extends AppGeneratedUuidEntity {
     @Column(name = "retention_purged_at")
     private Instant retentionPurgedAt;
 
+    /**
+     * 이탈 설문의 노출 선점 시각과 배우 기억의 세대 (V14, practice.feedback·practice.memory). 설문은 계정에 한 번만
+     * 묻고, 기억 세대는 기억을 지우거나 이관에서 한쪽을 고를 때 올라간다 — 그때 돌던 갱신 작업의 결과는 반영되지
+     * 않는다.
+     */
+    @Column(name = "exit_survey_asked_at")
+    private Instant exitSurveyAskedAt;
+
+    @Column(name = "memory_epoch", nullable = false, insertable = false, updatable = false)
+    private int memoryEpoch;
+
     /** 웹 게스트가 첫 동의 시트에서 "만 14세 이상이에요"를 확인한 시각. 회원은 생년월일로 거른다. */
     @Column(name = "age_confirmed_at")
     private Instant ageConfirmedAt;

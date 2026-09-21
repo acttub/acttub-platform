@@ -17,6 +17,7 @@ import com.acttub.actingapi.feature.memory.app.MemoryOwnership;
 import com.acttub.actingapi.feature.practice.app.PracticeOwnership;
 import com.acttub.actingapi.feature.reading.app.ReadingOwnership;
 import com.acttub.actingapi.feature.upload.app.UploadOwnership;
+import com.acttub.actingapi.feature.video.app.VideoOwnership;
 import com.acttub.actingapi.platform.ledger.OperationOwnership;
 import com.acttub.actingapi.platform.web.ApiException;
 
@@ -48,6 +49,7 @@ public class GuestTransferService {
     private final OperationOwnership operations;
     private final MemoryOwnership memories;
     private final ReadingOwnership readings;
+    private final VideoOwnership videos;
     private final Clock clock;
     private final byte[] hashKey;
     private final SecureRandom random = new SecureRandom();
@@ -60,6 +62,7 @@ public class GuestTransferService {
             OperationOwnership operations,
             MemoryOwnership memories,
             ReadingOwnership readings,
+            VideoOwnership videos,
             Clock clock,
             String secret) {
         if (secret == null || secret.isEmpty()) {
@@ -72,6 +75,7 @@ public class GuestTransferService {
         this.operations = operations;
         this.memories = memories;
         this.readings = readings;
+        this.videos = videos;
         this.clock = clock;
         this.hashKey = hmac(secret.getBytes(StandardCharsets.UTF_8), HASH_PURPOSE);
     }
@@ -113,6 +117,8 @@ public class GuestTransferService {
             // 올린 영상 → 연습 → 작업 장부 순서는 그대로다(새 연습을 만드는 쪽이 올린 영상 행을 먼저 잡으므로,
             // 그 행에서 줄을 서야 겹쳐 만들어진 연습과 작업을 놓치지 않는다).
             uploads.reassign(guestId, memberId);
+            // 보관함은 올린 영상 바로 뒤다 — 새 연습을 만드는 쪽이 영상 행을 먼저 잡으므로 그 행에서 줄을 선다.
+            videos.reassign(guestId, memberId);
             practices.reassign(guestId, memberId);
             operations.reassign(guestId, memberId);
             // 기억은 작업 장부 뒤에 본다. 기억 갱신 워커는 작업 행을 잡은 채 그 행의 주인에게 기억을
