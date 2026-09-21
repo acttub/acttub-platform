@@ -32,6 +32,7 @@ BACKUP_IMAGE="${4:-${BACKUP_IMAGE:-}}"
 PULL_POLICY="${DEPLOY_PULL_POLICY:-always}"
 WAIT_SECONDS="${DEPLOY_WAIT_SECONDS:-180}"
 THREE_LAYERS_ENABLED="${DEPLOY_THREE_LAYERS_ENABLED:-}"
+DIRECT_VIDEO_ENABLED="${DEPLOY_DIRECT_VIDEO_ENABLED:-}"
 
 step() { printf '▶ %s\n' "$*"; }
 fail() { printf '✗ %s\n' "$*" >&2; exit 1; }
@@ -46,6 +47,7 @@ for image in "$API_IMAGE" "$WEB_IMAGE" "${BACKUP_IMAGE:-unused}"; do
 done
 case "$PULL_POLICY" in always|missing) ;; *) fail "DEPLOY_PULL_POLICY 는 always 또는 missing: '$PULL_POLICY'" ;; esac
 case "$THREE_LAYERS_ENABLED" in ''|true|false) ;; *) fail "DEPLOY_THREE_LAYERS_ENABLED 는 true 또는 false" ;; esac
+case "$DIRECT_VIDEO_ENABLED" in ''|true|false) ;; *) fail "DEPLOY_DIRECT_VIDEO_ENABLED 는 true 또는 false" ;; esac
 [[ "$WAIT_SECONDS" =~ ^[1-9][0-9]*$ ]] || fail "DEPLOY_WAIT_SECONDS 는 양의 초 단위 정수: '$WAIT_SECONDS'"
 [ -f compose.yml ] || fail "compose.yml 이 없다 — 프로젝트 디렉토리(/svc/acttub/<env>)에서 실행한다: $PWD"
 [ -f .env ] || fail ".env 가 없다 — 사람이 채우는 파일이다(deploy/home/.env.example): $PWD"
@@ -77,6 +79,7 @@ EOF
 [ -z "$BACKUP_IMAGE" ] || printf 'BACKUP_IMAGE=%s\n' "$BACKUP_IMAGE" >> "$RELEASE_FILE"
 # 명시한 환경만 새 연습 경로를 전환한다. .env 는 유지하고 릴리스 설정에 기록한다.
 [ -z "$THREE_LAYERS_ENABLED" ] || printf 'ACTTUB_THREE_LAYERS_ENABLED=%s\n' "$THREE_LAYERS_ENABLED" >> "$RELEASE_FILE"
+[ -z "$DIRECT_VIDEO_ENABLED" ] || printf 'ACTTUB_DIRECT_VIDEO_ENABLED=%s\n' "$DIRECT_VIDEO_ENABLED" >> "$RELEASE_FILE"
 # --no-env-resolution 은 첫 배포의 아직 없는 release.env 를 읽지 않고 치환과 활성 프로필만 검증한다.
 services="$(compose config --no-env-resolution --services)" || fail "compose 설정 검증에 실패했다"
 release_services=(api web)
@@ -133,6 +136,14 @@ if [ -n "$THREE_LAYERS_ENABLED" ]; then
   [ "$actual_three_layers" = "$THREE_LAYERS_ENABLED" ] \
     || fail "새 연습 경로 설정이 반영되지 않았다 (기대 $THREE_LAYERS_ENABLED)"
   step "새 연습 경로 확인: $actual_three_layers"
+fi
+
+if [ -n "$DIRECT_VIDEO_ENABLED" ]; then
+  actual_direct_video="$(compose exec -T api printenv ACTTUB_DIRECT_VIDEO_ENABLED)" \
+    || fail "Gemini 직접 코칭의 컨테이너 설정을 읽지 못했다"
+  [ "$actual_direct_video" = "$DIRECT_VIDEO_ENABLED" ] \
+    || fail "Gemini 직접 코칭 설정이 반영되지 않았다 (기대 $DIRECT_VIDEO_ENABLED)"
+  step "Gemini 직접 코칭 확인: $actual_direct_video"
 fi
 
 printf '✔ 배포 완료 — %s commit %s\n' "$(basename "$PWD")" "${SHA:0:7}"
