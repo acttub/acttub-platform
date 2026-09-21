@@ -12,14 +12,13 @@ import { deletePracticeSessionIdempotently } from '@/lib/delete-practice';
 import { formatKoreanDate } from '@/lib/format';
 import { mergeHistory, sessionCardTitle } from '@/lib/history-merge';
 import { translate as t } from '@/lib/i18n';
-import { setPrefill } from '@/lib/practice';
+import { setContinueOrigin } from '@/lib/practice/session-state';
 import { buildWeekActivity } from '@/lib/practice-activity';
 import { readingHistoryRows, type ReadingHistoryRow } from '@/lib/reading/session-cards';
 import { listScripts, listSessions, loadIntoCurrent } from '@/lib/reading/store';
 import type { SessionCard } from '@/lib/reading/types';
 import { loadRecordMeta } from '@/lib/record-meta';
 import { sortReportsNewestFirst } from '@/lib/report-order';
-import { sceneValueForDisplay } from '@/lib/upload-input';
 
 type Filter = 'all' | 'fav' | 'recent';
 
@@ -134,16 +133,10 @@ export default function HistoryScreen() {
     });
   };
 
-  // 정리가 아직 없는 세션(SOMA-444) — 같은 장면 다시 찍기 / 삭제.
-  const retakeSession = (s: PracticeSessionListItem) => {
-    setPrefill({
-      scene: {
-        situation: sceneValueForDisplay(s.situation),
-        character: sceneValueForDisplay(s.character_context),
-        goal: sceneValueForDisplay(s.goal),
-      },
-      continuedFrom: null,
-    });
+  // 정리가 아직 없는 세션(SOMA-444) — 다시 찍기 / 삭제. 장면 미리 채움은 방금 끝낸
+  // 노트(A13)에서만 한다(practice.resume) — 지난 기록은 빈 준비 화면이다.
+  const retakeSession = () => {
+    setContinueOrigin(null);
     router.push('/upload');
   };
 
@@ -151,7 +144,7 @@ export default function HistoryScreen() {
     void sheet({
       title: t('history.sessionMenuTitle'),
       actions: [
-        { label: t('history.retakeSame'), onPress: () => retakeSession(s) },
+        { label: t('history.retakeSame'), onPress: () => retakeSession() },
         {
           label: t('common.delete'),
           destructive: true,

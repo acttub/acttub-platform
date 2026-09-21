@@ -102,6 +102,18 @@ export function configureNotificationHandling(): void {
   });
 }
 
+/**
+ * 앱이 떠 있는 동안 도착한 푸시를 듣는다(분석 완료). 모듈이 없으면 구독하지 않는다.
+ * 푸시의 자료를 그대로 넘기고 무엇인지 가리는 것은 부르는 쪽이 한다(practice/analysis-run).
+ */
+export function onPushReceived(listener: (data: unknown) => void): () => void {
+  if (!notifications) return () => undefined;
+  const subscription = notifications.addNotificationReceivedListener((event) => {
+    listener(event?.request?.content?.data ?? null);
+  });
+  return () => subscription.remove();
+}
+
 /** 기기에 적어 둔 마지막 서버 값. 서버를 못 읽을 때(오프라인)와 연습 완료 때 쓴다. */
 async function cachedSettings(): Promise<NotificationSettings> {
   try {

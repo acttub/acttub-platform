@@ -1,417 +1,267 @@
-import { getInfoAsync } from 'expo-file-system/legacy';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { type VideoSource } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  AppState,
-  BackHandler,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
-import { withTemporaryDeviceFiles } from '@/lib/account-files';
+import { PracticeFooter, ProgressRow, SceneFoldBody, SceneFoldLink, SceneSummary } from '@/components/practice-chrome';
+import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
-import { logMetaEvent } from '@/lib/meta-events';
-import {
-  AnalysisTerminalError,
-  OperationInactiveError,
-  abandonAnalysis,
-  appAnalysisOperationOwner,
-  runAnalysisPipeline,
-  type AnalysisOperation,
-  type AnalysisPendingHandle,
-} from '@/lib/analysis-operation';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { markPracticedToday } from '@/lib/notifications';
-import { formatSizeChange, startVideoCompression } from '@/lib/compress';
-import { sceneValueForDisplay } from '@/lib/upload-input';
-import { startPractice, takePendingUpload, type PendingUpload } from '@/lib/practice';
-import { previewVideoSource } from '@/lib/preview-video';
-import { palette } from '@/constants/palette';
-import {
-  PracticeFooter,
-  ProgressRow,
-  SceneFoldBody,
-  SceneFoldLink,
-  SceneSummary,
-} from '@/components/practice-chrome';
 import { translate as t, translateList } from '@/lib/i18n';
+import { localCopyFor } from '@/lib/library/library-runner';
+import { logMetaEvent } from '@/lib/meta-events';
+import { markPracticedToday, onPushReceived } from '@/lib/notifications';
+import type { PendingAnalysisHandle } from '@/lib/pending-analysis';
+import {
+  analysisFailureMessage,
+  analysisPartialNotice,
+  analysisPushTarget,
+  cancelAnalysis,
+  watchAnalysis,
+} from '@/lib/practice/analysis-run';
+import { startPractice } from '@/lib/practice/session-state';
+import type { PracticeDetail, PracticeStatus } from '@/lib/practice/types';
+import { previewVideoSource } from '@/lib/preview-video';
 
-/** 경과 시간 기반 단계 문구로 기다림을 설계한다(실제 진행률은 서버가 주지 않음). */
+/** 경과 시간 기반 단계 문구로 기다림을 설계한다(실제 진행률은 서버가 주지 않는다). */
 const STAGES = translateList('analyzing.stages');
 
-const POLL_INTERVAL_MS = 4_000;
-const POLL_TIMEOUT_MS = 10 * 60 * 1000;
-
 /**
- * 폴링 사이 대기. 백그라운드에서 얼었다가 포그라운드로 돌아오면 남은 대기를
- * 건너뛰고 즉시 다음 상태 확인으로 넘어간다 — 복귀하자마자 결과를 보여주기 위해.
- */
-function abortableDelay(ms: number, signal: AbortSignal): Promise<void> {
-  if (signal.aborted) return Promise.reject(signal.reason);
-  return new Promise((resolve, reject) => {
-    const finish = () => {
-      cleanup();
-      resolve();
-    };
-    const onAbort = () => {
-      cleanup();
-      reject(signal.reason);
-    };
-    const timer = setTimeout(finish, ms);
-    const appState = AppState.addEventListener('change', (state) => {
-      if (state === 'active') finish();
-    });
-    const cleanup = () => {
-      clearTimeout(timer);
-      appState.remove();
-      signal.removeEventListener('abort', onAbort);
-    };
-    signal.addEventListener('abort', onAbort, { once: true });
-  });
-}
-
-/**
- * A3. 분석 대기 — 압축 → 업로드(intent·PUT·complete) → 세션 생성 → 상태 폴링(analyzed까지).
- * 기다리는 동안 방금 올린 영상을 바로 볼 수 있게 로컬 원본을 재생한다.
+ * A10 분석 진행(practice.analyze).
+ *
+ * 영상은 이미 보관함에 있고(practice.record) 회차도 만들어져 있다 — 이 화면은 회차 상태를
+ * 4초마다 읽기만 한다. 화면을 떠나면 조회만 멈추고 작업은 서버에서 계속 돈다. 돌아오면
+ * 기다리지 않고 서버 상태부터 읽는다. 완료 푸시가 오면 다음 조회를 기다리지 않는다.
+ * "그만두기"는 작업 취소이고 연습을 숨기지 않는다.
  */
 export default function AnalyzingScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { recoveryKey, sessionId: recoveredSessionId } = useLocalSearchParams<{
-    recoveryKey?: string;
-    sessionId?: string;
-  }>();
-  const activeOperationRef = useRef<AnalysisOperation | null>(null);
-  const availabilityUnsubscribeRef = useRef<(() => void) | null>(null);
-  const mountedRef = useRef(false);
-  const runRef = useRef<(retryFailed?: boolean) => Promise<void>>(async () => undefined);
-  const uploadRef = useRef<PendingUpload | null>(null);
-  const sessionIdRef = useRef<string | null>(null);
-  const pendingHandleRef = useRef<AnalysisPendingHandle | null>(null);
-  const [stage, setStage] = useState(0);
-  const [compressPct, setCompressPct] = useState<number | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [sizeNote, setSizeNote] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  // VideoSource 인 건 개발 미리보기 때문이다 — 번들 샘플은 require() 로 들어와 숫자다.
-  const [videoUri, setVideoUri] = useState<VideoSource | null>(null);
-  const [abandoning, setAbandoning] = useState(false);
-  // 목업이 '1분 12초 경과'를 보여준다. 얼마나 기다렸는지 보이면 덜 불안하다.
-  const [elapsedSec, setElapsedSec] = useState(0);
-  // 개발 빌드에서 화면만 보려고 들어온 경우. 업로드·분석을 돌리지 않는다.
-  // 훅은 조건 밖에서 부른다 — `__DEV__ &&` 를 앞에 두면 렌더마다 훅 순서가 달라진다.
-  const params = useLocalSearchParams();
+  const params = useLocalSearchParams<{ practiceId?: string; recoveryKey?: string; preview?: string }>();
+  const practiceId = typeof params.practiceId === 'string' ? params.practiceId : null;
   const preview = __DEV__ && params.preview === '1';
+  const { confirm, alert, dialog } = useAppDialog();
+
+  const [status, setStatus] = useState<PracticeStatus | null>(null);
+  const [detail, setDetail] = useState<PracticeDetail | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
+  const [stopping, setStopping] = useState(false);
+  const [stage, setStage] = useState(0);
+  const [elapsedSec, setElapsedSec] = useState(0);
   const [sceneOpen, setSceneOpen] = useState(false);
-  /**
-   * 화면에 보여줄 장면·막힌 곳.
-   *
-   * uploadRef 에서 바로 읽으면 안 된다 — ref 는 값이 바뀌어도 다시 그리지 않으므로,
-   * 첫 렌더의 null 이 그대로 남아 '분석에 쓰는 내용' 이 끝까지 안 떴다.
-   */
-  const [sceneInfo, setSceneInfo] = useState<{
-    scene: PendingUpload['scene'];
-    blockage: PendingUpload['blockage'];
-  } | null>(null);
-  const { confirm, dialog } = useAppDialog();
+  const [videoUri, setVideoUri] = useState<VideoSource | null>(null);
 
-  const run = useCallback(async (retryFailed = false) => {
-    const operation = appAnalysisOperationOwner.start();
-    if (!operation) {
-      if (activeOperationRef.current || availabilityUnsubscribeRef.current) return;
-      const unsubscribe = appAnalysisOperationOwner.onAvailable(() => {
-        unsubscribe();
-        if (availabilityUnsubscribeRef.current === unsubscribe) {
-          availabilityUnsubscribeRef.current = null;
-        }
-        if (mountedRef.current) void runRef.current(retryFailed);
-      });
-      availabilityUnsubscribeRef.current = unsubscribe;
-      return;
-    }
-    availabilityUnsubscribeRef.current?.();
-    availabilityUnsubscribeRef.current = null;
-    activeOperationRef.current = operation;
-    const upload = uploadRef.current;
-    const ownerId = user?.id;
-    if (!ownerId) {
-      appAnalysisOperationOwner.finish(operation);
-      activeOperationRef.current = null;
-      setError(t('analyzing.loginLost'));
-      return;
-    }
-    operation.runIfActive(() => {
-      setError(null);
-      setStage(0);
-      setUploading(false);
-      // 이론은 서버로 안 보내고 계측만 한다(웹과 같은 상태) — 무응답은 'none'.
-      logEvent('analysis_start', { theory: upload?.theory ?? 'none' });
-      // 연습이 실제로 일어난 시점 — "마지막 연습 + 3일" 리마인드를 다시 건다.
-      void markPracticedToday();
-    });
+  const controllerRef = useRef<AbortController | null>(null);
+  const pendingHandleRef = useRef<PendingAnalysisHandle | null>(null);
+  const finishedRef = useRef(false);
 
-    try {
-      // 줄인 영상은 올리기가 끝나면(성공·실패·취소 모두) 기기에서 지운다. 원본 복사본은 코치 화면이
-      // 다시 틀기 때문에 두었다가 탈퇴 때 지운다(account-files).
-      const result = await withTemporaryDeviceFiles((trackTemporary) => runAnalysisPipeline({
-        operation,
-        ownerId,
-        upload,
-        recovered: pendingHandleRef.current,
-        existingSessionId: sessionIdRef.current,
-        retryFailed,
-        dependencies: {
-          compress: async (pendingUpload, currentOperation) => {
-            currentOperation.runIfActive(() => setCompressPct(0));
-            const compression = startVideoCompression(
-              pendingUpload.video.uri,
-              (percent) => currentOperation.runIfActive(() => setCompressPct(percent)),
-            );
-            currentOperation.attachCompressionCancel(compression.cancel);
-            const compressed = await compression.result;
-            if (compressed.kind === 'cancelled') return compressed;
-            // 모듈이 없으면 줄이지 않고 원본을 그대로 돌려준다 — 그것은 임시 파일이 아니다.
-            if (compressed.uri !== pendingUpload.video.uri) await trackTemporary(compressed.uri);
-            currentOperation.runIfActive(() => {
-              setCompressPct(null);
-              setSizeNote(formatSizeChange(compressed));
-            });
-            return compressed;
-          },
-          getFileSize: async (uri) => {
-            const info = await getInfoAsync(uri);
-            return info.exists && typeof info.size === 'number' ? info.size : 0;
-          },
-          createUploadIntent: (input, signal) => {
-            operation.runIfActive(() => setUploading(true));
-            return api.createUploadIntent(input, { signal });
-          },
-          uploadToUrl: async (uploadUrl, fileUri, mimeType, currentOperation) => {
-            const uploadTask = api.startUploadToUrl(uploadUrl, fileUri, mimeType);
-            currentOperation.attachUploadCancel(uploadTask.cancel);
-            return uploadTask.result;
-          },
-          completeUpload: async (intentId, signal) => {
-            await api.completeUpload(intentId, { signal });
-          },
-          createPracticeSession: async (input, signal) => {
-            const created = await api.createPracticeSession(input, { signal });
-            operation.runIfActive(() => setUploading(false));
-            return created;
-          },
-          getStatus: (currentSessionId, signal) =>
-            api.getPracticeSessionStatus(currentSessionId, { signal }),
-          reanalyze: (currentSessionId, signal) =>
-            api.reanalyze(currentSessionId, { signal }),
-          getDetail: (currentSessionId, signal) =>
-            api.getPracticeSession(currentSessionId, { signal }),
-          savePending: pendingAnalysisStore.save,
-          removePending: pendingAnalysisStore.remove,
-          delay: abortableDelay,
-          now: () => Date.now(),
-          pollIntervalMs: POLL_INTERVAL_MS,
-          pollTimeoutMs: POLL_TIMEOUT_MS,
+  /** 분석이 끝났다. 장면·재생 주소를 받아 대화로 넘긴다. */
+  const enterCoach = useCallback(
+    async (analysis: 'ready' | 'partial') => {
+      if (!practiceId || finishedRef.current) return;
+      finishedRef.current = true;
+      const loaded = await api.getPractice(practiceId).catch(() => null);
+      const localUri = loaded ? await localCopyFor(loaded.video_id).catch(() => null) : null;
+      if (pendingHandleRef.current) {
+        await pendingAnalysisStore.remove(pendingHandleRef.current).catch(() => undefined);
+        pendingHandleRef.current = null;
+      }
+      const notice = analysisPartialNotice(analysis);
+      if (notice) await alert({ title: t('analyzing.screenTitle'), message: notice });
+      startPractice({
+        practiceId,
+        rootId: loaded?.root_id ?? practiceId,
+        ordinal: loaded?.ordinal ?? 1,
+        scene: {
+          situation: loaded?.scene.situation ?? '',
+          character: loaded?.scene.character ?? '',
+          goal: loaded?.scene.goal ?? '',
         },
-      }));
-      operation.runIfActive(() => {
-        sessionIdRef.current = result.sessionId;
-        pendingHandleRef.current = operation.pendingHandle;
-        const detail = result.detail;
-        // 복구 경로의 장면은 서버에서 온다 — 예전 빌드가 빈 칸에 채운 자리표시자('.')를 빈 값으로 되돌린다.
-        const scene = upload?.scene ?? {
-          situation: sceneValueForDisplay(detail.situation),
-          character: sceneValueForDisplay(detail.character_context),
-          goal: sceneValueForDisplay(detail.goal),
-        };
-        const playbackUrl = detail.playback_url ?? null;
-        startPractice({
-          practiceSessionId: result.sessionId,
-          scene,
-          videoUri: upload?.video.uri ?? playbackUrl ?? '',
-          playbackUrl,
-        });
-        logEvent('analysis_complete', {});
-        logMetaEvent('practice_analysis_complete');
-        router.replace('/coach');
+        videoUri: localUri ?? '',
+        playbackUrl: loaded?.playback_url ?? null,
       });
-      appAnalysisOperationOwner.finish(operation);
-      if (activeOperationRef.current === operation) activeOperationRef.current = null;
-    } catch (err) {
-      if (!operation.isActive() || err instanceof OperationInactiveError) return;
-      operation.runIfActive(() => {
-        sessionIdRef.current = operation.sessionId;
-        pendingHandleRef.current = operation.pendingHandle;
-        setCompressPct(null);
-        setUploading(false);
-        const message = err instanceof Error ? err.message : t('analyzing.failed');
-        logEvent('analysis_failed', { reason: message.slice(0, 90) });
-        setError(message);
-      });
-      appAnalysisOperationOwner.finish(operation);
-      if (activeOperationRef.current === operation) activeOperationRef.current = null;
+      logEvent('analysis_complete', { analysis });
+      logMetaEvent('practice_analysis_complete');
+      router.replace('/coach');
+    },
+    [alert, practiceId, router],
+  );
+
+  /** 상태를 읽기 시작한다. 이미 읽고 있으면 그것을 멈추고 지금 상태부터 다시 읽는다. */
+  const run = useCallback(async () => {
+    if (!practiceId || preview || finishedRef.current) return;
+    controllerRef.current?.abort();
+    const controller = new AbortController();
+    controllerRef.current = controller;
+    setError(null);
+    const outcome = await watchAnalysis(practiceId, controller.signal, {
+      getStatus: (id, signal) => api.getPracticeStatus(id, { signal }),
+      delay: (ms, signal) =>
+        new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(resolve, ms);
+          signal.addEventListener(
+            'abort',
+            () => {
+              clearTimeout(timer);
+              reject(signal.reason);
+            },
+            { once: true },
+          );
+        }),
+      onStatus: setStatus,
+    });
+    if (controllerRef.current !== controller) return;
+    if (outcome.kind === 'ready') {
+      await enterCoach(outcome.analysis);
+      return;
     }
-  }, [router, user?.id]);
-  runRef.current = run;
+    if (outcome.kind === 'failed') {
+      logEvent('analysis_failed', { reason: outcome.reason ?? 'unknown' });
+      setError(analysisFailureMessage(outcome.reason));
+      return;
+    }
+    if (outcome.kind === 'error') setError(t('analyzing.statusUnavailable'));
+  }, [enterCoach, practiceId, preview]);
 
   useEffect(() => {
-    let mounted = true;
-    mountedRef.current = true;
-    const initialize = async () => {
-      if (recoveryKey && recoveredSessionId && user?.id) {
-        const recovered = await pendingAnalysisStore.loadForOwner(user.id).catch(() => null);
-        if (!mounted) return;
-        if (
-          recovered &&
-          recovered.key === recoveryKey &&
-          recovered.record.session_id === recoveredSessionId
-        ) {
-          pendingHandleRef.current = recovered;
-          sessionIdRef.current = recovered.record.session_id;
-          setVideoUri(null);
-          await run(false);
-          return;
-        }
-      }
-      // 개발 미리보기로 곧장 들어오면(딥링크) 대기물이 없다. 그때만 가짜로 채운다.
-      if (preview) {
-        const seed = (
-          require('@/lib/ui-preview') as typeof import('@/lib/ui-preview')
-        ).seedPreviewAnalyzing();
-        setVideoUri(previewVideoSource(true));
-        setSceneInfo({ scene: seed.scene, blockage: seed.blockage });
-        return;
-      }
-      const pendingUpload = takePendingUpload();
-      uploadRef.current = pendingUpload;
-      if (!pendingUpload) {
-        router.replace('/upload');
-        return;
-      }
-      setVideoUri(pendingUpload.video.uri);
-      setSceneInfo({ scene: pendingUpload.scene, blockage: pendingUpload.blockage });
-      await run(false);
-    };
-    void initialize();
+    if (preview) {
+      const seed = (require('@/lib/ui-preview') as typeof import('@/lib/ui-preview')).seedPreviewAnalyzing();
+      setDetail(seed.detail);
+      setVideoUri(previewVideoSource(true));
+      return;
+    }
+    if (!practiceId) {
+      router.replace('/upload');
+      return;
+    }
+    void markPracticedToday();
+    void api
+      .getPractice(practiceId)
+      .then(async (loaded) => {
+        setDetail(loaded);
+        const localUri = await localCopyFor(loaded.video_id).catch(() => null);
+        setVideoUri(localUri ?? loaded.playback_url ?? null);
+      })
+      .catch(() => undefined);
+    // 앱을 껐다 켜도 이 회차로 돌아온다(진행 중 회차는 하나다).
+    if (user?.id) {
+      void pendingAnalysisStore
+        .save({ schemaVersion: 2, owner: user.id, practice_id: practiceId }, practiceId)
+        .then((handle) => {
+          pendingHandleRef.current = handle;
+        })
+        .catch(() => undefined);
+    }
     return () => {
-      mounted = false;
-      mountedRef.current = false;
-      availabilityUnsubscribeRef.current?.();
-      availabilityUnsubscribeRef.current = null;
-      const activeOperation = activeOperationRef.current;
-      if (activeOperation) void appAnalysisOperationOwner.leave(activeOperation);
+      controllerRef.current?.abort();
+      controllerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [practiceId]);
 
-  const abandon = useCallback(async () => {
-    if (abandoning) return;
-    setAbandoning(true);
-    try {
-      await abandonAnalysis(sessionIdRef.current, pendingHandleRef.current, {
-        deleteSession: api.deletePracticeSession,
-        removePending: pendingAnalysisStore.remove,
-      });
-      sessionIdRef.current = null;
-      pendingHandleRef.current = null;
-      uploadRef.current = null;
-      router.replace('/upload');
-    } catch (err) {
-      setError(
-        err instanceof AnalysisTerminalError || err instanceof Error
-          ? err.message
-          : t('analyzing.organizeFail'),
-      );
-    } finally {
-      setAbandoning(false);
-    }
-  }, [abandoning, router]);
+  // 화면을 떠나면 조회만 멈춘다(작업은 서버에서 계속 돈다). 돌아오면 기다리지 않고 다시 읽는다.
+  useFocusEffect(
+    useCallback(() => {
+      void run();
+      return () => {
+        controllerRef.current?.abort();
+      };
+    }, [run]),
+  );
 
-  /**
-   * 안드로이드 하드웨어 뒤로가기로 조용히 빠져나가면 압축·업로드가 통째로 날아간다.
-   * (iOS는 headerBackVisible·gestureEnabled를 이미 막아뒀다.)
-   */
-  const confirmLeave = useCallback(async () => {
-    const leave = await confirm({
+  // 배경에서 돌아온 직후에도 다음 조회를 기다리지 않는다.
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (next) => {
+      if (next === 'active') void run();
+    });
+    return () => subscription.remove();
+  }, [run]);
+
+  // 완료 푸시가 오면 다음 조회(4초)를 기다리지 않고 바로 읽는다.
+  useEffect(() => {
+    if (!practiceId || preview) return;
+    return onPushReceived((data) => {
+      const target = analysisPushTarget(data);
+      if (target?.practiceId === practiceId) void run();
+    });
+  }, [practiceId, preview, run]);
+
+  useEffect(() => {
+    if (error) return;
+    const startedAt = Date.now();
+    const timer = setInterval(() => setElapsedSec(Math.floor((Date.now() - startedAt) / 1000)), 1000);
+    return () => clearInterval(timer);
+  }, [error]);
+
+  useEffect(() => {
+    if (error) return;
+    const timer = setInterval(() => setStage((s) => Math.min(s + 1, STAGES.length - 1)), 20_000);
+    return () => clearInterval(timer);
+  }, [error]);
+
+  /** "그만두기" — 작업을 취소로 끝낸다. 영상은 보관함에 그대로 있고 연습을 숨기지 않는다. */
+  const stop = useCallback(async () => {
+    if (!practiceId || stopping) return;
+    const ok = await confirm({
       title: t('analyzing.stopTitle'),
       message: t('analyzing.stopMsg'),
       cancelLabel: t('analyzing.stopCancel'),
       confirmLabel: t('analyzing.stopConfirm'),
       destructive: true,
     });
-    if (leave) void abandon();
-  }, [abandon, confirm]);
+    if (!ok) return;
+    setStopping(true);
+    controllerRef.current?.abort();
+    try {
+      await cancelAnalysis(practiceId, (id) => api.cancelPractice(id));
+      if (pendingHandleRef.current) {
+        await pendingAnalysisStore.remove(pendingHandleRef.current).catch(() => undefined);
+        pendingHandleRef.current = null;
+      }
+      finishedRef.current = true;
+      logEvent('analysis_cancelled', {});
+      router.replace('/(tabs)');
+    } catch {
+      setError(t('analyzing.stopFailed'));
+    } finally {
+      setStopping(false);
+    }
+  }, [confirm, practiceId, router, stopping]);
 
-  useEffect(() => {
-    if (Platform.OS !== 'android' || error) return;
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      void confirmLeave();
-      return true; // 기본 뒤로가기를 막는다
-    });
-    return () => subscription.remove();
-  }, [confirmLeave, error]);
+  /** 실패한 회차를 다시 시도한다 — 새 작업이 생기고 stage 가 analyzing 으로 돌아간다. */
+  const retry = useCallback(async () => {
+    if (!practiceId || retrying) return;
+    setRetrying(true);
+    try {
+      await api.retryPracticeAnalysis(practiceId);
+      setStatus(null);
+      void run();
+    } catch (e) {
+      const status409 = e !== null && typeof e === 'object' && (e as { status?: number }).status === 409;
+      setError(status409 ? t('start.inProgressBody') : t('analyzing.retryFailed'));
+    } finally {
+      setRetrying(false);
+    }
+  }, [practiceId, retrying, run]);
 
-  useEffect(() => {
-    if (error) return;
-    const startedAt = Date.now();
-    const timer = setInterval(
-      () => setElapsedSec(Math.floor((Date.now() - startedAt) / 1000)),
-      1000,
-    );
-    return () => clearInterval(timer);
-  }, [error]);
-
-  // 압축/업로드 중이 아닐 때만 단계 문구를 진행시킨다.
-  useEffect(() => {
-    if (error || compressPct !== null || uploading) return;
-    const timer = setInterval(() => setStage((s) => Math.min(s + 1, STAGES.length - 1)), 20_000);
-    return () => clearInterval(timer);
-  }, [error, compressPct, uploading]);
-
-  const stageText =
-    compressPct !== null
-      ? t('analyzing.compressing', { pct: compressPct })
-      : uploading
-        ? t('analyzing.uploadingVideo')
-        : STAGES[stage];
-
-  const scene = sceneInfo?.scene ?? null;
-  const blockage = sceneInfo?.blockage ?? null;
+  const jobStatus = status?.job.status ?? 'pending';
+  const stageText = jobStatus === 'pending' ? t('analyzing.queued') : STAGES[stage];
   const elapsedText =
     elapsedSec < 60
       ? t('common.secElapsed', { sec: elapsedSec })
       : t('common.minSecElapsed', { min: Math.floor(elapsedSec / 60), sec: elapsedSec % 60 });
 
   return (
-    // edges 를 아래로 한정한다 — 위는 네비게이션 헤더가 이미 인셋을 먹었고, 기본값
-    // (전체)으로 두면 헤더 아래에 노치만큼 빈 칸이 한 번 더 생긴다.
     <SafeAreaView style={styles.safe} edges={['bottom']}>
-      <Stack.Screen
-        options={{
-          title: t('analyzing.screenTitle'),
-          headerBackVisible: false,
-          gestureEnabled: false,
-          headerShadowVisible: false,
-        }}
-      />
+      <Stack.Screen options={{ title: t('analyzing.screenTitle'), headerShadowVisible: false }} />
       <ProgressRow
         label={error ? t('analyzing.stepError') : t('analyzing.stepLoading')}
-        right={
-          <SceneFoldLink
-            open={sceneOpen}
-            onToggle={() => setSceneOpen((was) => !was)}
-            label={t('blockage.sceneFold')}
-          />
-        }
+        right={<SceneFoldLink open={sceneOpen} onToggle={() => setSceneOpen((was) => !was)} label={t('blockage.sceneFold')} />}
       />
       <SceneFoldBody open={sceneOpen} videoUri={videoUri} />
       <ScrollView contentContainerStyle={styles.body}>
@@ -420,13 +270,11 @@ export default function AnalyzingScreen() {
             <Text style={styles.errorTitle}>{t('analyzing.errorTitle')}</Text>
             <Text style={styles.errorBody}>{error}</Text>
             <Text style={styles.errorHint}>{t('analyzing.errorBody')}</Text>
-            <Pressable style={styles.retry} onPress={() => void run(true)}>
-              <Text style={styles.retryText}>{t('common.retry')}</Text>
+            <Pressable style={styles.retry} onPress={() => void retry()} disabled={retrying}>
+              {retrying ? <ActivityIndicator color={palette.bg} /> : <Text style={styles.retryText}>{t('common.retry')}</Text>}
             </Pressable>
-            <Pressable onPress={() => void abandon()} disabled={abandoning}>
-              <Text style={styles.backLink}>
-                {abandoning ? t('analyzing.cleaning') : t('analyzing.repickVideo')}
-              </Text>
+            <Pressable onPress={() => router.replace('/(tabs)')}>
+              <Text style={styles.backLink}>{t('analyzing.leaveLater')}</Text>
             </Pressable>
           </View>
         ) : (
@@ -435,27 +283,27 @@ export default function AnalyzingScreen() {
               <ActivityIndicator size="large" color={palette.blue} />
               <Text style={styles.stageText}>{stageText}</Text>
               <Text style={styles.elapsed}>{elapsedText}</Text>
-              {sizeNote && <Text style={styles.sizeNote}>{sizeNote}</Text>}
-              <Text style={styles.notice}>
-                {compressPct !== null || uploading
-                  ? t('analyzing.keepScreenOn')
-                  : t('analyzing.canClose')}
-              </Text>
+              <Text style={styles.notice}>{t('analyzing.canClose')}</Text>
             </View>
 
-            {scene && (
+            {detail && (
               <SceneSummary
                 title={t('analyzing.whatWeUse')}
-                scene={scene}
-                blockage={
-                  blockage && {
-                    // 하위 갈래는 늘 '그 외'라 붙이지 않는다(웹처럼 도움 종류만 보여준다).
-                    kind: t(`blockage.helpLabel.${blockage.blockage_kind}`),
-                    detail: blockage.blockage_detail,
-                  }
-                }
+                scene={{
+                  situation: detail.scene.situation,
+                  character: detail.scene.character,
+                  goal: detail.scene.goal,
+                }}
+                blockage={{
+                  kind: t(`blockage.helpLabel.${detail.blockage.category}`),
+                  detail: detail.blockage.note,
+                }}
               />
             )}
+
+            <Pressable onPress={() => void stop()} disabled={stopping}>
+              <Text style={styles.stopLink}>{stopping ? t('analyzing.cleaning') : t('analyzing.stopConfirm')}</Text>
+            </Pressable>
           </>
         )}
         <PracticeFooter />
@@ -470,37 +318,15 @@ const styles = StyleSheet.create({
   body: { paddingTop: 28, paddingHorizontal: 20, paddingBottom: 20, gap: 24 },
 
   progressBlock: { alignItems: 'center', gap: 14, paddingTop: 26, paddingBottom: 10 },
-  stageText: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: palette.text,
-    textAlign: 'center',
-  },
+  stageText: { fontSize: 20, fontWeight: '900', color: palette.text, textAlign: 'center' },
   elapsed: { fontSize: 12, fontWeight: '600', color: palette.textFaint },
-  sizeNote: { fontSize: 12, fontWeight: '700', color: palette.green },
-  notice: {
-    fontSize: 12.5,
-    fontWeight: '600',
-    color: palette.textFaint,
-    textAlign: 'center',
-    lineHeight: 21,
-  },
+  notice: { fontSize: 12.5, fontWeight: '600', color: palette.textFaint, textAlign: 'center', lineHeight: 21 },
+  stopLink: { color: palette.textFaint, fontSize: 12.5, fontWeight: '700', textAlign: 'center' },
 
   errorBlock: { alignItems: 'center', gap: 12, paddingTop: 26 },
   errorTitle: { fontSize: 20, fontWeight: '900', color: palette.text },
-  errorBody: {
-    fontSize: 13.5,
-    fontWeight: '600',
-    color: palette.danger,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  errorHint: {
-    fontSize: 12.5,
-    fontWeight: '600',
-    color: palette.textFaint,
-    textAlign: 'center',
-  },
+  errorBody: { fontSize: 13.5, fontWeight: '600', color: palette.danger, textAlign: 'center', lineHeight: 22 },
+  errorHint: { fontSize: 12.5, fontWeight: '600', color: palette.textFaint, textAlign: 'center' },
   retry: {
     height: 52,
     alignSelf: 'stretch',

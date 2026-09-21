@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { api, type PracticeReport } from '@/lib/api';
-import { clearPractice, getPractice, setPrefill } from '@/lib/practice';
+import { clearPractice, getPractice, setContinueOrigin } from '@/lib/practice/session-state';
 import { SceneFoldBody, SceneFoldLink, SceneSummary } from '@/components/practice-chrome';
 import { useExitReview } from '@/hooks/use-exit-review';
 import { previewVideoSource } from '@/lib/preview-video';
@@ -34,7 +34,7 @@ export default function ReportScreen() {
   // 화면이 한 번 더 그려지는데, 그때 스토어를 다시 읽으면 null이라 practice.scene에서
   // 죽었다(릴리스에선 앱이 그대로 꺼진다). 화면 생애 동안 같은 연습을 붙든다.
   const [practice] = useState(() => getPractice());
-  const exitReview = useExitReview('finish', 'report', practice?.practiceSessionId);
+  const exitReview = useExitReview('finish', 'report', practice?.practiceId);
   const [report, setReport] = useState<PracticeReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -83,9 +83,15 @@ export default function ReportScreen() {
   }, [loadReport]);
 
   const retake = () => {
-    // 같은 장면 프리필 + 이어받기 — 코치가 이 연습의 대화를 이어받는다 (SOMA-428).
+    // A13 방금 끝낸 노트에서 이어갈 때만 이전 장면을 미리 채운다(practice.resume).
+    // 코치는 같은 묶음의 이전 대화·노트를 참고 맥락으로 읽는다.
     if (practice) {
-      setPrefill({ scene: practice.scene, continuedFrom: practice.practiceSessionId });
+      setContinueOrigin({
+        kind: 'note',
+        rootId: practice.rootId,
+        practiceId: practice.practiceId,
+        scene: practice.scene,
+      });
     }
     clearPractice();
     router.dismissAll();
@@ -206,7 +212,7 @@ export default function ReportScreen() {
         </>}
 
             {/* 세션 맥락이 붙은 미니 평가 — 👍/👎 + 한 줄(선택). 연습 노트에도 붙는다. */}
-            <ReportRating sessionId={practice.practiceSessionId} />
+            <ReportRating sessionId={practice.practiceId} />
 
             {/* 긴 문구가 반쪽 버튼에서 줄바꿈으로 깨져서 세로로 쌓는다(SOMA-444). */}
             <View style={styles.buttonRow}>

@@ -15,6 +15,7 @@ import { saveRecordingToLibrary } from '@/lib/library/library-runner';
 import { videoErrorMessage } from '@/lib/library/video-checks';
 import { MAX_VIDEO_DURATION_MS, normalizeVideoDurationMs } from '@/lib/upload-input';
 import { peekRecordedVideo, setRecordedVideo, takeRecordedVideo } from '@/lib/recorded-video';
+import { setPickedVideo } from '@/lib/practice/picked-video';
 
 const MAX_SEC = Math.floor(MAX_VIDEO_DURATION_MS / 1000);
 /** 챌린지(오늘의 대사) 촬영은 60초 — pen A18 촬영 대기 화면과 같은 상한. */
@@ -90,7 +91,7 @@ export default function RecordVideoScreen() {
   }, [ready, camPerm, micPerm, requestCam, requestMic, confirm, router]);
 
   /** 촬영·선택한 영상을 보관함(기기 저장 + 업로드 대기)에 넣는다. 너무 길면 안내하고 넣지 않는다. */
-  const saveToLibrary = useCallback(async (): Promise<string | null> => {
+  const saveToLibrary = useCallback(async (): Promise<{ id: string; uri: string } | null> => {
     const video = peekRecordedVideo();
     if (!video || !user?.id) return null;
     const outcome = await saveRecordingToLibrary({ uri: video.uri, durationMs: video.durationMs, owner: user.id });
@@ -98,7 +99,7 @@ export default function RecordVideoScreen() {
       await alert({ title: t('archive.title'), message: videoErrorMessage(outcome.code) });
       return null;
     }
-    return outcome.entry.id;
+    return { id: outcome.entry.id, uri: outcome.entry.uri };
   }, [alert, user?.id]);
 
   const goNext = useCallback(() => {
@@ -107,15 +108,27 @@ export default function RecordVideoScreen() {
       return;
     }
     if (mode === 'ai') {
-      // 보관함에도 남기고(업로드 대기), 업로드 화면이 포커스되며 takeRecordedVideo 로 결과를 받아 붙인다.
-      void saveToLibrary().finally(() => router.replace('/upload'));
+      // 보관함에 저장하고(업로드 대기) 그 항목을 새 연습 준비 화면으로 넘긴다 — 여기서 올리지 않는다.
+      void saveToLibrary().then((pending) => {
+        const video = takeRecordedVideo();
+        if (pending) {
+          setPickedVideo({
+            videoId: null,
+            pendingId: pending.id,
+            uri: pending.uri,
+            playbackUrl: null,
+            durationMs: video?.durationMs ?? null,
+          });
+        }
+        router.replace('/upload');
+      });
       return;
     }
     if (mode === 'plain') {
       // 기본 촬영 — 기기에 저장하고 업로드 대기 큐에 넣은 뒤 그 영상 화면으로.
-      void saveToLibrary().then((pendingId) => {
+      void saveToLibrary().then((pending) => {
         takeRecordedVideo();
-        if (pendingId) router.replace({ pathname: '/archive-detail', params: { pending: pendingId } });
+        if (pending) router.replace({ pathname: '/archive-detail', params: { pending: pending.id } });
         else router.back();
       });
       return;

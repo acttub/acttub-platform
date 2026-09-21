@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import { DEVICE_FILES_KEY, createDeviceFileLedger } from '../lib/device-files.ts';
 import { clearAccountCacheData, wipeLocalAccountData } from '../lib/local-account-wipe.ts';
-import { peekPendingUpload, setPendingUpload } from '../lib/practice.ts';
+import { peekPickedVideo, setPickedVideo } from '../lib/practice/picked-video.ts';
 import { getCurrent, openScript } from '../lib/reading/store.ts';
 import { peekRecordedVideo, setRecordedVideo } from '../lib/recorded-video.ts';
 
@@ -124,20 +124,14 @@ test('account.withdraw: 탈퇴하면 메모리에 든 리딩 대본·올리던 �
     id: 'sc_1', title: '옥상, 밤', source: 'paste', characters: [], lines: [],
     recording_count: 0, open_session_id: null, last_session: null, created_at: 'a', updated_at: 'b',
   });
-  setPendingUpload({
-    scene: { situation: '', character: '', goal: '' },
-    video: { uri: ORIGINAL_VIDEO, name: 'a.mov', mimeType: 'video/quicktime' },
-    durationMs: 1000,
-    blockage: null,
-    theory: null,
-  });
+  setPickedVideo({ videoId: 'video-1', pendingId: null, uri: ORIGINAL_VIDEO, playbackUrl: null, durationMs: 1000 });
   setRecordedVideo({ uri: ORIGINAL_VIDEO, durationMs: 1000, name: 'a.mov' });
   assert.ok(getCurrent());
 
   await wipeLocalAccountData(dependencies);
 
   assert.equal(getCurrent(), null);
-  assert.equal(peekPendingUpload(), null);
+  assert.equal(peekPickedVideo(), null);
   assert.equal(peekRecordedVideo(), null);
 });
 

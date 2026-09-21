@@ -9,7 +9,8 @@
  *
  * 네이티브 모듈 없이 성립하는 부분만 여기 산다(local-account-data.ts 가 저장소와 파일 삭제를 넣어 쓴다).
  */
-import { resetPracticeState } from './practice.ts';
+import { resetPracticeState } from './practice/session-state.ts';
+import { clearPickedVideo } from './practice/picked-video.ts';
 import { READING_SCRIPTS_KEY, recordingFileUris, resetReadingState } from './reading/store.ts';
 import { takeRecordedVideo } from './recorded-video.ts';
 
@@ -59,6 +60,7 @@ export async function clearAccountCacheData({
   deleteUserName,
 }: AccountCacheDependencies): Promise<void> {
   resetPracticeState();
+  clearPickedVideo();
   await Promise.allSettled([storage.multiRemove(ACCOUNT_CACHE_KEYS), deleteUserName()]);
 }
 
@@ -72,6 +74,7 @@ export async function wipeLocalAccountData({
 }: LocalAccountWipeDependencies): Promise<void> {
   // 메모리에만 있는 것부터. 실패할 수 없고, 아래가 느려도 화면이 먼저 비워진다.
   resetPracticeState();
+  clearPickedVideo();
   resetReadingState();
   takeRecordedVideo();
   // 파일이 키보다 먼저다 — 녹음 파일의 위치는 대본 저장소에만 적혀 있다.

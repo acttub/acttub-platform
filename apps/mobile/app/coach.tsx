@@ -14,7 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { api } from '@/lib/api';
 import { attemptCoachStart, canSendCoachMessage, coachCompletionNext } from '@/lib/coach-flow';
-import { clearPractice, getPractice } from '@/lib/practice';
+import { clearPractice, getPractice } from '@/lib/practice/session-state';
 import { palette } from '@/constants/palette';
 import { SceneFoldBody, SceneFoldLink } from '@/components/practice-chrome';
 import { useAppDialog } from '@/components/app-dialog';
@@ -78,8 +78,8 @@ export default function CoachScreen() {
       }
     }, 0);
   }, []);
-  const exitReview = useExitReview('leave', 'coach', practice?.practiceSessionId);
-  const finishReview = useExitReview('finish', 'coach', practice?.practiceSessionId);
+  const exitReview = useExitReview('leave', 'coach', practice?.practiceId);
+  const finishReview = useExitReview('finish', 'coach', practice?.practiceId);
   const [noteSkipped, setNoteSkipped] = useState(false);
   const [pastOpen, setPastOpen] = useState(false);
   const [sceneOpen, setSceneOpen] = useState(false);
@@ -128,7 +128,7 @@ export default function CoachScreen() {
     startInFlightRef.current = true;
     setConnecting(true);
     setError(null);
-    const result = await attemptCoachStart(practice.practiceSessionId, api.coachStart);
+    const result = await attemptCoachStart(practice.practiceId, api.coachStart);
     if (mountedRef.current) {
       if (result.ok) {
         const reply = result.response;

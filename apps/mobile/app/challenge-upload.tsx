@@ -8,8 +8,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
+import { useAuth } from '@/lib/auth';
 import { TODAY_LINE } from '@/lib/challenge-mock';
 import { translate as t } from '@/lib/i18n';
+import { saveRecordingToLibrary } from '@/lib/library/library-runner';
+import { setPickedVideo } from '@/lib/practice/picked-video';
 import { peekRecordedVideo, takeRecordedVideo, type RecordedVideo } from '@/lib/recorded-video';
 
 type Mode = 'public' | 'private';
@@ -22,6 +25,7 @@ type Mode = 'public' | 'private';
  */
 export default function ChallengeUploadScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   // 챌린지 촬영에서 오면 어떤 대사/작품인지 같이 온다. 없으면 오늘의 대사.
   const params = useLocalSearchParams<{ line?: string; work?: string }>();
   const work = params.work || TODAY_LINE.work;
@@ -46,9 +50,26 @@ export default function ChallengeUploadScreen() {
     takeRecordedVideo();
     router.replace('/');
   };
-  const getReport = () => {
+  /** "AI 리포트 받기" — 찍은 영상을 보관함에 저장하고(업로드 대기) 새 연습 준비 화면으로 넘긴다. */
+  const getReport = async () => {
     logEvent('challenge_upload_report', { mode });
-    // 촬영 결과를 남겨두면 업로드 화면이 포커스되며 받아 붙인다.
+    const recorded = takeRecordedVideo();
+    if (recorded && user?.id) {
+      const outcome = await saveRecordingToLibrary({
+        uri: recorded.uri,
+        durationMs: recorded.durationMs,
+        owner: user.id,
+      });
+      if (outcome.kind === 'queued') {
+        setPickedVideo({
+          videoId: null,
+          pendingId: outcome.entry.id,
+          uri: outcome.entry.uri,
+          playbackUrl: null,
+          durationMs: recorded.durationMs,
+        });
+      }
+    }
     router.replace('/upload');
   };
 
@@ -65,7 +86,7 @@ export default function ChallengeUploadScreen() {
           <Pressable style={({ pressed }) => [styles.primary, styles.doneBtn, pressed && styles.pressed]} onPress={goHome} accessibilityRole="button">
             <Text style={styles.primaryText}>{t('challengeUpload.goHome')}</Text>
           </Pressable>
-          <Pressable style={({ pressed }) => [styles.ghost, styles.doneBtn, pressed && styles.pressed]} onPress={getReport} accessibilityRole="button">
+          <Pressable style={({ pressed }) => [styles.ghost, styles.doneBtn, pressed && styles.pressed]} onPress={() => void getReport()} accessibilityRole="button">
             <Text style={styles.ghostText}>{t('challengeUpload.getReport')}</Text>
           </Pressable>
         </View>

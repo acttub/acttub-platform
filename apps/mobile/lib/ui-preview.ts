@@ -1,6 +1,6 @@
 import type { ExpressionReport, SceneContext } from '@/lib/api';
-import { setPendingUpload, startPractice, getPractice } from '@/lib/practice';
-import type { BlockageSelection } from '@/lib/api';
+import { getPractice, startPractice } from '@/lib/practice/session-state';
+import type { PracticeBlockage, PracticeDetail } from '@/lib/practice/types';
 
 /**
  * 화면만 보기 위한 가짜 데이터.
@@ -18,10 +18,10 @@ const SCENE: SceneContext = {
   goal: '상대가 마음을 돌려 다시 앉게 만들기',
 };
 
-const BLOCKAGE: BlockageSelection = {
-  blockage_kind: '표현',
-  sub_branch: '감정',
-  blockage_detail:
+const BLOCKAGE: PracticeBlockage = {
+  category: '표현',
+  detail: '감정',
+  note:
     '마지막에 “그럼 나 갈게” 하고 돌아서는 대목이요. 담담하게 참는 얼굴을 하려고 했는데, 막상 보니까 아무 표정도 안 남았어요.',
 };
 
@@ -68,16 +68,10 @@ const REPORT: ExpressionReport = {
 
 /** 분석까지 지난 상태. 질문 대화·분석 결과 화면이 이 상태를 읽는다. */
 export function seedPractice(options: { withReport?: boolean; withTurns?: boolean } = {}) {
-  setPendingUpload({
-    scene: SCENE,
-    video: { uri: '', name: 'take_03.mov', mimeType: 'video/mp4' },
-    durationMs: 72_000,
-    blockage: BLOCKAGE,
-    theory: null,
-    continuedFrom: null,
-  });
   startPractice({
-    practiceSessionId: 'preview-session',
+    practiceId: 'preview-practice',
+    rootId: 'preview-practice',
+    ordinal: 1,
     scene: SCENE,
     videoUri: '',
     playbackUrl: null,
@@ -98,9 +92,23 @@ export const previewBlockage = BLOCKAGE;
 /**
  * 분석 화면이 미리보기로 곧장 열렸을 때 쓸 값.
  *
- * 딥링크(`actingapp://analyzing?preview=1`)로 들어오면 업로드 대기물이 없어서 화면이
- * 업로드로 되돌아간다. 그 경우에만 이 값을 그려 준다.
+ * 딥링크(`actingapp://analyzing?preview=1`)로 들어오면 회차 id 가 없어서 화면이 준비
+ * 화면으로 되돌아간다. 그 경우에만 이 회차를 그려 준다.
  */
-export function seedPreviewAnalyzing() {
-  return { scene: SCENE, blockage: BLOCKAGE };
+export function seedPreviewAnalyzing(): { detail: PracticeDetail } {
+  return {
+    detail: {
+      id: 'preview-practice',
+      root_id: 'preview-practice',
+      ordinal: 1,
+      stage: 'analyzing',
+      analysis_status: null,
+      job: { id: 'preview-job', status: 'running' },
+      video_id: 'preview-video',
+      scene: SCENE,
+      blockage: BLOCKAGE,
+      created_at: new Date().toISOString(),
+      playback_url: null,
+    },
+  };
 }

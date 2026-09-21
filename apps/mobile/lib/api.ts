@@ -39,6 +39,15 @@ import type { ProfilePayload, ServerProfile } from '@/lib/profile-form';
 import type { NotificationSettings } from '@/lib/push-policy';
 import type { Video, VideoFilter, VideoIntentRequest, VideoIntentResponse, VideoListResponse } from '@/lib/library/types';
 import type {
+  ContinuePracticeBody,
+  CreatePracticeBody,
+  Practice,
+  PracticeDetail,
+  PracticeGroup,
+  PracticeGroupFilter,
+  PracticeStatus,
+} from '@/lib/practice/types';
+import type {
   CreateScriptBody,
   LineMemorization,
   MemorizationStatus,
@@ -52,11 +61,6 @@ import type {
   SessionRecording,
   StartSessionBody,
 } from '@/lib/reading/types';
-import {
-  sceneValueForSubmit,
-  sendUploadIntent,
-  type UploadIntentInput,
-} from '@/lib/upload-input';
 import { currentLanguage, translate } from './i18n.ts';
 
 export { ApiError, NetworkError, RequestAbortError } from '@/lib/api-request';
@@ -323,19 +327,7 @@ export type MeResponse = AuthUser & {
 
 // ─── 업로드 / 세션 타입 ──────────────────────────────────────────────────────
 
-export type UploadIntent = {
-  intent_id: string;
-  upload_url: string;
-  expires_at: string;
-};
-
 export type SessionStatus = 'analyzing' | 'analyzed' | 'failed';
-
-export type PracticeSessionCreate = {
-  session_id: string;
-  status: SessionStatus;
-  summary_id?: string | null;
-};
 
 export type PracticeSessionListItem = {
   session_id: string;
@@ -369,11 +361,6 @@ export type PracticeSessionDetail = {
     | 'unsupported_media'
     | 'max_attempts_exceeded'
     | null;
-};
-
-export type PracticeSessionStatusPayload = {
-  status: SessionStatus;
-  error_code: PracticeSessionDetail['error_code'];
 };
 
 // ─── 공통 요청 ────────────────────────────────────────────────────────────────
@@ -954,22 +941,6 @@ export const api = {
   },
 
   // 업로드 ---------------------------------------------------------------------
-  createUploadIntent(
-    input: UploadIntentInput,
-    options: ApiCallOptions = {},
-  ): Promise<UploadIntent> {
-    return sendUploadIntent(input, (body) =>
-      postIdempotent<UploadIntent>(
-        '/v2/uploads/intents',
-        body,
-        {
-          timeoutMs: 30_000,
-          signal: options.signal,
-        },
-      ),
-    );
-  },
-
   /** presigned URL PUT. UploadTask를 노출해 화면 operation이 native 취소할 수 있게 한다. */
   startUploadToUrl(
     uploadUrl: string,
@@ -1012,42 +983,88 @@ export const api = {
     };
   },
 
-  completeUpload(
-    intentId: string,
+  // 회차(연습) ------------------------------------------------------------------
+  /**
+   * 새 연습을 시작한다(practice.start). 보관함에서 확정된 영상으로만 되고, 회차 하나와 분석 작업
+   * 하나가 한 트랜잭션으로 생긴다. 같은 request_id 의 재전송은 같은 회차이고, 같은 id 에 다른
+   * 본문이면 422 request_fingerprint_mismatch 다. 확정 전 영상은 422 video_not_ready.
+   */
+  createPractice(body: CreatePracticeBody, options: ApiCallOptions = {}): Promise<Practice> {
+    return postIdempotent<Practice>('/v2/practices', body, {
+      requestId: body.request_id,
+      timeoutMs: 30_000,
+      signal: options.signal,
+    });
+  },
+
+  /**
+   * 같은 묶음의 다음 회차를 만든다(practice.resume). video_id 를 빼면 그 회차의 영상을 그대로
+   * 쓰고(A1.2), 실으면 새 영상이다(A8.1). 묶음에 닫히지 않은 회차가 있으면 409
+   * practice_in_progress 이고 본문은 코드뿐이라 회차 id 는 묶음 조회에서 얻는다.
+   */
+  continuePractice(
+    practiceId: string,
+    body: ContinuePracticeBody,
     options: ApiCallOptions = {},
-  ): Promise<{ intent_id: string; status: 'finalized' }> {
-    return request(
-      `/v2/uploads/intents/${encodeURIComponent(intentId)}/complete`,
-      { method: 'POST' },
+  ): Promise<Practice> {
+    return postIdempotent<Practice>(
+      `/v2/practices/${encodeURIComponent(practiceId)}/continue`,
+      body,
+      { requestId: body.request_id, timeoutMs: 30_000, signal: options.signal },
+    );
+  },
+
+  /** 묶음 목록. 진행 중 회차 id 가 있으면 그 회차로 복귀시킨다. */
+  listPracticeGroups(
+    filter: PracticeGroupFilter = 'all',
+    options: ApiCallOptions = {},
+  ): Promise<{ groups: PracticeGroup[] }> {
+    return request<{ groups: PracticeGroup[] }>(
+      `/v2/practices?filter=${filter}`,
+      {},
+      { timeoutMs: 20_000, signal: options.signal },
+    );
+  },
+
+  getPractice(practiceId: string, options: ApiCallOptions = {}): Promise<PracticeDetail> {
+    return request<PracticeDetail>(
+      `/v2/practices/${encodeURIComponent(practiceId)}`,
+      {},
+      { timeoutMs: 20_000, signal: options.signal },
+    );
+  },
+
+  /** 회차 진행 상태(A10 폴링). 작업 상태와 분석 결과 상태는 다른 것이다. */
+  getPracticeStatus(practiceId: string, options: ApiCallOptions = {}): Promise<PracticeStatus> {
+    return request<PracticeStatus>(
+      `/v2/practices/${encodeURIComponent(practiceId)}/status`,
+      {},
+      { timeoutMs: 20_000, signal: options.signal },
+    );
+  },
+
+  /** "그만두기" — 작업을 failed/cancelled 로 끝낸다. 연습을 숨기지 않는다. */
+  cancelPractice(practiceId: string, options: ApiCallOptions = {}): Promise<PracticeStatus> {
+    return request<PracticeStatus>(
+      `/v2/practices/${encodeURIComponent(practiceId)}/cancel`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
+      { requestId: true, timeoutMs: 20_000, signal: options.signal },
+    );
+  },
+
+  /**
+   * 실패한 회차를 명시적으로 다시 시도한다 — 새 작업이 생기고 stage 가 analyzing 으로 돌아간다.
+   * 다른 진행 중 회차가 있으면 409 practice_in_progress.
+   */
+  retryPracticeAnalysis(practiceId: string, options: ApiCallOptions = {}): Promise<Practice> {
+    return request<Practice>(
+      `/v2/practices/${encodeURIComponent(practiceId)}/analyze`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
       { requestId: true, timeoutMs: 30_000, signal: options.signal },
     );
   },
 
-  // 연습 세션 -------------------------------------------------------------------
-  createPracticeSession(input: {
-    upload_intent_id: string;
-    scene: SceneContext;
-    /** 배우가 고른 막히는 지점. 없으면 분기가 안 걸리므로 화면에서 반드시 채워 보낸다. */
-    blockage: BlockageSelection;
-    /** 이어서 연습 — 코치가 이 연습의 대화를 이어받는다. 없으면 가장 최근 대화(서버 기본). */
-    continued_from?: string | null;
-  }, options: ApiCallOptions = {}): Promise<PracticeSessionCreate> {
-    return postIdempotent<PracticeSessionCreate>(
-      '/v2/practice-sessions',
-      {
-        upload_intent_id: input.upload_intent_id,
-        situation: sceneValueForSubmit(input.scene.situation),
-        character_context: sceneValueForSubmit(input.scene.character),
-        goal: sceneValueForSubmit(input.scene.goal),
-        blockage_kind: input.blockage.blockage_kind,
-        sub_branch: input.blockage.sub_branch,
-        blockage_detail: input.blockage.blockage_detail,
-        continued_from: input.continued_from ?? null,
-      },
-      { timeoutMs: 30_000, signal: options.signal },
-    );
-  },
-
+  // 옛 연습 세션(기록 화면이 아직 읽는다 — 묶음 조회로 옮기는 것은 PM3) ------------
   listPracticeSessions(): Promise<{ sessions: PracticeSessionListItem[] }> {
     return request('/v2/practice-sessions', {}, { timeoutMs: 30_000 });
   },
@@ -1060,28 +1077,6 @@ export const api = {
       `/v2/practice-sessions/${encodeURIComponent(sessionId)}`,
       {},
       { timeoutMs: 20_000, signal: options.signal },
-    );
-  },
-
-  getPracticeSessionStatus(
-    sessionId: string,
-    options: ApiCallOptions = {},
-  ): Promise<PracticeSessionStatusPayload> {
-    return request<PracticeSessionStatusPayload>(
-      `/v2/practice-sessions/${encodeURIComponent(sessionId)}/status`,
-      {},
-      { timeoutMs: 20_000, signal: options.signal },
-    );
-  },
-
-  reanalyze(
-    sessionId: string,
-    options: ApiCallOptions = {},
-  ): Promise<PracticeSessionCreate> {
-    return request<PracticeSessionCreate>(
-      `/v2/practice-sessions/${encodeURIComponent(sessionId)}/analyze`,
-      { method: 'POST' },
-      { requestId: true, timeoutMs: 30_000, signal: options.signal },
     );
   },
 

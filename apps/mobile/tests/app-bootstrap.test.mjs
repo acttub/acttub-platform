@@ -9,10 +9,10 @@ import {
   routeAllowedDuringConsentGate,
 } from '../lib/app-bootstrap.ts';
 
-function pending(owner = 'user-1', sessionId = 'session-1') {
+function pending(owner = 'user-1', practiceId = 'practice-1') {
   return {
-    key: `pending:${owner}:${sessionId}:scope`,
-    record: { schemaVersion: 1, owner, session_id: sessionId },
+    key: `pending:${owner}:${practiceId}:scope`,
+    record: { schemaVersion: 2, owner, practice_id: practiceId },
   };
 }
 
@@ -39,7 +39,7 @@ test('동의 게이트가 끝나면 같은 세션의 pending 분석을 복구한
         pathname: '/analyzing',
         params: {
           recoveryKey: pendingAnalysis.key,
-          sessionId: 'session-1',
+          practiceId: 'practice-1',
         },
       },
     },
@@ -98,7 +98,7 @@ test('analyzing 복구 경로는 pathname과 params가 모두 같아야 완료�
     pathname: '/analyzing',
     params: {
       recoveryKey: 'pending:user-1:session-1:scope',
-      sessionId: 'session-1',
+      practiceId: 'practice-1',
     },
   };
 
@@ -106,7 +106,7 @@ test('analyzing 복구 경로는 pathname과 params가 모두 같아야 완료�
   assert.equal(
     resolveAnalyzingBootstrapRoute(
       '/analyzing',
-      { recoveryKey: 'pending:stale', sessionId: 'session-old' },
+      { recoveryKey: 'pending:stale', practiceId: 'practice-old' },
       target,
     ),
     'replace',
@@ -157,7 +157,7 @@ test('동의 뒤에는 중단 화면으로 돌아가되 pending 분석 복구를
     pathname: '/analyzing',
     params: {
       recoveryKey: 'pending:user-1:session-1:scope',
-      sessionId: 'session-1',
+      practiceId: 'practice-1',
     },
   };
   assert.deepEqual(

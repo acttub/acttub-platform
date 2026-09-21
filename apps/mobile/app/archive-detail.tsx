@@ -26,6 +26,7 @@ import type { Video } from '@/lib/library/types';
 import type { QueuedVideo } from '@/lib/library/upload-queue';
 import { videoErrorMessage } from '@/lib/library/video-checks';
 import { setRecordedVideo } from '@/lib/recorded-video';
+import { setPickedVideo } from '@/lib/practice/picked-video';
 
 /**
  * A2.3 보관함 영상(practice.library) — 위엔 영상(서명 재생 주소, 만료 시 재조회; 기기 복사본이 있으면 그것), 아래엔
@@ -132,12 +133,24 @@ export default function ArchiveDetailScreen() {
     setRecordedVideo({ uri, durationMs, name: `${state.kind === 'pending' ? state.entry.id : state.video.id}.mp4` });
     return true;
   };
+  /** 새 연습으로 보낸다 — 영상은 보관함의 video_id 로 잇는다(기기 복사본은 미리보기에만 쓴다). */
   const toCoach = () => {
     logEvent('archive_to_coach', { id: state.kind === 'video' ? state.video.id : state.entry.id });
-    if (!handoff()) {
+    if (state.kind === 'video' && state.video.purged_at) {
       void alert({ title: t('archive.toCoach'), message: t('archive.statusPurged') });
       return;
     }
+    setPickedVideo(
+      state.kind === 'video'
+        ? {
+            videoId: state.video.id,
+            pendingId: null,
+            uri: state.localUri,
+            playbackUrl: state.video.playback_url ?? null,
+            durationMs: state.video.duration_ms,
+          }
+        : { videoId: null, pendingId: state.entry.id, uri: state.entry.uri, playbackUrl: null, durationMs: state.entry.durationMs },
+    );
     router.push('/upload');
   };
   const toChallenge = () => {

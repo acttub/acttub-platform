@@ -1,5 +1,5 @@
 import Feather from '@expo/vector-icons/Feather';
-import { Stack, useFocusEffect, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,6 +14,7 @@ import { mergeLibrary, statusLabel, type LibraryItem } from '@/lib/library/libra
 import { onLibraryChange, pendingLibraryUploads, takeDiscardedCount } from '@/lib/library/library-runner';
 import type { Video, VideoFilter } from '@/lib/library/types';
 import { videoErrorMessage } from '@/lib/library/video-checks';
+import { setPickedVideo } from '@/lib/practice/picked-video';
 import type { QueuedVideo } from '@/lib/library/upload-queue';
 
 /**
@@ -29,6 +30,9 @@ const FILTERS: { key: VideoFilter; label: string }[] = [
 
 export default function ArchiveScreen() {
   const router = useRouter();
+  // 새 연습 준비 화면에서 "보관함에서 고르기"로 들어오면 고르는 화면이 된다(A8).
+  const { pick } = useLocalSearchParams<{ pick?: string }>();
+  const picking = pick === '1';
   const { user } = useAuth();
   const owner = user?.id ?? null;
   const [filter, setFilter] = useState<VideoFilter>('all');
@@ -65,6 +69,26 @@ export default function ArchiveScreen() {
   );
 
   const open = (item: LibraryItem) => {
+    if (picking) {
+      if (item.kind === 'video' && item.video.purged_at) {
+        setNotice(t('archive.statusPurged'));
+        return;
+      }
+      setPickedVideo(
+        item.kind === 'video'
+          ? {
+              videoId: item.video.id,
+              pendingId: null,
+              uri: null,
+              playbackUrl: item.video.playback_url ?? null,
+              durationMs: item.video.duration_ms,
+            }
+          : { videoId: null, pendingId: item.entry.id, uri: item.entry.uri, playbackUrl: null, durationMs: item.entry.durationMs },
+      );
+      logEvent('archive_pick', { id: item.id, kind: item.kind });
+      router.back();
+      return;
+    }
     logEvent('archive_open', { id: item.id, kind: item.kind });
     router.push({ pathname: '/archive-detail', params: item.kind === 'video' ? { id: item.id } : { pending: item.id } });
   };
@@ -88,7 +112,7 @@ export default function ArchiveScreen() {
           <Feather name="chevron-left" size={26} color={palette.text} />
         </Pressable>
         <View style={styles.flex}>
-          <Text style={styles.title}>{t('archive.title')}</Text>
+          <Text style={styles.title}>{picking ? t('start.fromLibrary') : t('archive.title')}</Text>
           <Text style={styles.subtitle}>
             {t('archive.subtitle', { count: total })}
             {pending.length > 0 ? ` · ${t('archive.pendingCount', { count: pending.length })}` : ''}

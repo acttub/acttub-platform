@@ -10,13 +10,13 @@ export type BootstrapRoute =
       pathname: '/analyzing';
       params: {
         recoveryKey: string;
-        sessionId: string;
+        practiceId: string;
       };
     };
 
 export type BootstrapRecoveryParams = {
   recoveryKey?: string | string[];
-  sessionId?: string | string[];
+  practiceId?: string | string[];
 };
 
 export function resolveAnalyzingBootstrapRoute(
@@ -26,7 +26,7 @@ export function resolveAnalyzingBootstrapRoute(
 ): 'replace' | 'complete' {
   return pathname === target.pathname &&
     currentParams.recoveryKey === target.params.recoveryKey &&
-    currentParams.sessionId === target.params.sessionId
+    currentParams.practiceId === target.params.practiceId
     ? 'complete'
     : 'replace';
 }
@@ -126,7 +126,7 @@ export function resolveBootstrapStep(input: BootstrapStepInput): BootstrapStep {
         pathname: '/analyzing',
         params: {
           recoveryKey: input.pending.key,
-          sessionId: input.pending.record.session_id,
+          practiceId: input.pending.record.practice_id,
         },
       },
     };

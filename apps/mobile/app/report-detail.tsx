@@ -7,7 +7,7 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { useAppDialog } from '@/components/app-dialog';
 import { api, type ReportDetail } from '@/lib/api';
 import { deletePracticeSessionIdempotently } from '@/lib/delete-practice';
-import { setPrefill } from '@/lib/practice';
+import { setContinueOrigin } from '@/lib/practice/session-state';
 import { formatKoreanDate } from '@/lib/format';
 import { Markdown } from '@/components/markdown';
 import { palette } from '@/constants/palette';
@@ -60,6 +60,17 @@ export default function ReportDetailScreen() {
       cancelled = true;
     };
   }, [practiceSessionId, player]);
+
+  /** 같은 묶음의 다음 회차로 간다. 그 회차의 영상을 그대로 쓴다. */
+  const continuePractice = async () => {
+    const loaded = await api.getPractice(practiceSessionId).catch(() => null);
+    setContinueOrigin(
+      loaded
+        ? { kind: 'history', rootId: loaded.root_id, practiceId: loaded.id, videoId: loaded.video_id }
+        : { kind: 'group', rootId: practiceSessionId, practiceId: practiceSessionId },
+    );
+    router.push('/upload');
+  };
 
   const onDelete = async () => {
     if (!practiceSessionId) return;
@@ -164,14 +175,12 @@ export default function ReportDetailScreen() {
 
         </>}
 
-        {/* 이어서 연습 — 코치가 이 연습의 대화를 이어받는다. 지난 기록에는 장면
-            원문이 없어(리포트 응답에 미포함) 폼은 비운 채 이어받기만 건다 (SOMA-428). */}
+        {/* A1.2 이어서 연습하기 — 같은 영상으로 같은 묶음의 다음 회차를 만든다. 지난 기록에서
+            이어갈 때는 장면을 미리 채우지 않는다(practice.resume). 영상 id 를 읽지 못하면
+            영상을 새로 고르는 흐름으로 보낸다. */}
         <Pressable
           style={styles.continueButton}
-          onPress={() => {
-            setPrefill({ scene: null, continuedFrom: practiceSessionId });
-            router.push('/upload');
-          }}>
+          onPress={() => void continuePractice()}>
           <Text style={styles.continueText}>{t('reportDetail.continueCta')}</Text>
         </Pressable>
 

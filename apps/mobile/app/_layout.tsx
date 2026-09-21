@@ -83,7 +83,7 @@ function RootNavigator() {
   const currentRouteParams = useGlobalSearchParams<BootstrapRecoveryParams>();
   const {
     recoveryKey: currentRecoveryKey,
-    sessionId: currentRecoverySessionId,
+    practiceId: currentRecoveryPracticeId,
   } = currentRouteParams;
   const router = useRouter();
   const hasConsentGate = consentEntry.status !== 'allowed';
@@ -293,7 +293,7 @@ function RootNavigator() {
           pathname,
           {
             recoveryKey: currentRecoveryKey,
-            sessionId: currentRecoverySessionId,
+            practiceId: currentRecoveryPracticeId,
           },
           bootstrap.route,
         ) === 'replace'
@@ -320,7 +320,7 @@ function RootNavigator() {
     segments,
     pathname,
     currentRecoveryKey,
-    currentRecoverySessionId,
+    currentRecoveryPracticeId,
     currentRouteParams,
     router,
   ]);
