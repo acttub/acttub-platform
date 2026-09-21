@@ -107,6 +107,17 @@ if ! compose up -d --remove-orphans --wait --wait-timeout "$WAIT_SECONDS"; then
   fail "compose up 이 실패했거나 ${WAIT_SECONDS}초 안에 healthy 가 되지 않았다 — 위 ps·로그를 본다"
 fi
 
+# 일부 Compose 실행은 짧은 --wait-timeout 만료에도 0을 반환한다. 아직 starting 인 API에
+# /health 를 보내 연결 오류로 오인하지 않도록 실제 필수 서비스 상태도 확인한다.
+readiness="$(compose ps --all --format '{{.Service}} {{.Health}}' api web db)" \
+  || fail "배포 컨테이너의 healthy 상태를 읽지 못했다"
+for service in api web db; do
+  if ! grep -qx "$service healthy" <<< "$readiness"; then
+    compose ps || true
+    fail "${WAIT_SECONDS}초 안에 healthy 가 되지 않았다 ($service) — compose 상태를 본다"
+  fi
+done
+
 # ── 4. /health 의 commit 대조 (web 경유) ───────────────────────────────────────
 # 호스트 포트를 publish 하지 않으므로 컨테이너 안에서 부른다. 런타임 웹 이미지에는 curl 이 없어 node 의
 # fetch 로 간다(compose healthcheck 와 같다). web → rewrites → api 경로 그대로라 사용자가 보는 것과 같다.
