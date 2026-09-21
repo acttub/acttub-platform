@@ -1025,10 +1025,50 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   - **즐겨찾기** `PATCH /v2/videos/{id}` `{favorite}` → `Video`.
   - **이관**은 `video/app/VideoOwnership` 이 `videos` 와 **예약 장부**를 함께 옮긴다(§6-9의 순서에서 올린 영상 바로
     뒤다). 예약을 두고 가면 옛 게스트의 대기 업로드가 마무리될 자리를 잃는다.
-- **옛 `/v2/uploads/**` 는 아직 그대로다.** 옛 연습 흐름(`/v2/practice-sessions`)이 그 예약 id 로 회차를 만들기
-  때문이고, 같은 `upload_intents` 장부를 쓰되 **`videos` 행을 만들지 않는다**. 새 연습 흐름이 `video_id` 로 서면
-  (PA2) 이 경로와 옛 흐름을 함께 내린다 — 그때까지 두 경로로 올린 파일은 서로 다른 객체다.
-- OpenAPI 컴포넌트: `Video`·`VideoList`·`VideoUsage`·`VideoIntent`·`VideoIntentRequest`·`VideoPatch`.
+- **회차**(`/v2/practices/**`, `feature/practice` 의 1.0.0 코드) — 영상 하나로 시작하는 연습의 단위다.
+  - **시작** `POST /v2/practices`: 본문 `request_id`·`video_id`·`scene{situation, character, goal}`·
+    `blockage{category, detail, note}`. **회차 하나와 분석 작업 하나가 한 트랜잭션**이다 — 도중에 실패하면 둘 다
+    없다. 첫 회차는 `root_id = 자기`·`ordinal = 1`·`stage analyzing` 이고 `ai_jobs` 에 `analyze` 가 `pending` 으로
+    선다. 응답은 **201** `Practice`.
+    - **잠그는 순서가 규칙을 세운다**: 시작은 **영상 행**(보관함의 삭제·파기와 같은 행, §6-15 보관함)을 잡고,
+      이어하기·재시도는 **묶음의 첫 행**을 잡으며, 게스트의 하루 한도는 **사용자 행**을 잡고 센다.
+    - Scene Context 는 셋 모두 선택이고 각 300자, 막힘 서술은 500자다(넘으면 422 **배열**). 비우면 빈 문자열로
+      저장하고 **시작 뒤에는 바꾸지 않는다** — 고치는 API 가 없다. 막힘을 고르지 않으면 "그 외/그 외"이고 큰 갈래와
+      세부의 조합은 옛 CHECK 와 같다. **이론 선택은 1.0.0 에 없다.**
+    - **경험 판**(`experience_version`)은 서버 플래그(`ACTTUB_THREE_LAYERS_ENABLED`)가 켜져 있고 계약 헤더
+      `X-Acttub-Contract: three_layers_v1` 이며 **장면·막힘을 하나도 적지 않았을 때만** `three_layers_v1` 이다. 그 밖은
+      전부 `legacy` — 본문에 `client_experience` 같은 필드는 없다(헤더가 정본이다).
+    - 영상이 없거나 남의 것이거나 `purged_at` 이 찼으면 422 `video_not_ready`. 게스트가 하루 세 번을 넘기면 429
+      `guest_daily_analysis_limit`(한국 시간 자정에 끊고, 두 흐름이 공존하는 동안 옛 `external_operations` 의 요청도
+      같은 하루에 든다). 같은 `request_id` 에 다른 본문이면 422 `request_fingerprint_mismatch`.
+  - **이어하기** `POST /v2/practices/{id}/continue`: 같은 묶음의 다음 차수다. `video_id` 를 보내지 않으면 이어받을
+    회차의 영상을 그대로 쓴다. **묶음에 닫히지 않은 회차가 있으면 409 `practice_in_progress`** 이고 본문은 코드
+    하나다 — 그 회차 id 는 묶음 조회의 `in_progress_practice_id` 에서 얻는다. 차수는 묶음 잠금과
+    `uq_practices_root_ordinal` 로 발급하므로 겹쳐 온 요청 둘 가운데 하나만 받는다.
+  - **재시도** `POST /v2/practices/{id}/analyze`(본문 `request_id`): 실패로 닫힌 회차에 새 작업을 걸고 `analyzing` 으로
+    돌린다. 아직 실패하지 않았으면 409 `analysis_not_failed`, 묶음에 다른 진행 중 회차가 있으면 409
+    `practice_in_progress` 다. 웹이 가정한 `/retry` 가 아니라 **옛 `/v2/practice-sessions/{id}/analyze` 와 같은 꼴**이다.
+  - **묶음 목록** `GET /v2/practices?filter=all·favorite·recent30`: `{ groups: [...] }`. 숨긴 묶음은 빠지고 묶음마다
+    회차 요약(`note_title`·`conversation_count` 포함)과 `in_progress_practice_id` 가 온다. **제목은 서버가 첫 행의
+    `title` 만 준다** — 없으면 화면이 마지막 회차 노트 제목 → 상황 문장 → "제목 없는 연습" 순으로 채운다.
+  - **상세·상태** `GET /v2/practices/{id}`·`GET /v2/practices/{id}/status`: `stage` 는 회차의 진행이고
+    `analysis_status` 는 관찰 기록의 상태다(**다른 것이다**). 폴링은 앱 4초·웹 10초다. 없는 것과 남의 것은 같은
+    **404 `practice_not_found`**.
+  - **취소** `POST /v2/practices/{id}/cancel`: "그만두기"다. 작업을 `failed`/`cancelled` 로 닫고 **lease 를 지워** 늦은
+    완료와 재큐를 막으며 회차는 `closed` 다. 화면을 떠나는 것은 취소가 아니다. 이미 끝난 분석은 409
+    `analysis_already_finished`.
+  - **묶음 속성** `PATCH /v2/practices/{root_id}/group` `{favorite?, hidden?, title?}`: 보낸 것만 바꾼다. 숨김은 묶음
+    전체이고 **개별 회차 숨김은 없다** — 노트·대화·기억은 지우지 않고 영상은 보관함에 남는다.
+- **`ai_jobs` 장부**(`platform/ledger/AiJobLedger`, `platform/operation/PostgresAiJobLedger`): 종류는
+  `analyze`·`memory_update` 둘이다. **lease 상태 전이는 `external_operations` 와 같은 고정 계약**이다(§5-7): 만료돼도
+  재선점 전이면 완료를 받고, 토큰이 바뀌었으면 거절하며, `release` 는 `attempt_count` 를 되돌리지 않고, 3회 뒤
+  sweep 이 닫는다. `failure_reason` 에는 CHECK 가 없다(분류가 열린 목록이다).
+- **옛 흐름은 아직 그대로다** — `/v2/uploads/**`·`/v2/practice-sessions/**`·`/v2/coach/**`·`/v2/reports/**`. 코치·노트가
+  `practice_session_id` 에 매여 있어 함께 내려야 하고, 그 전환은 PA4 의 일이다(조정자 결정 2026-09-21). 새 회차 흐름은
+  `video_id` 기반이라 옛 것과 겹치지 않으므로 둘이 함께 선다. 코치·노트를 `practice_id` 로 옮길 때 이 절을 맞춘다.
+- OpenAPI 컴포넌트: 보관함은 `Video`·`VideoList`·`VideoUsage`·`VideoIntent`·`VideoIntentRequest`·`VideoPatch`, 회차는
+  `Practice`·`PracticeGroup`·`PracticeGroupList`·`PracticeStatus`·`PracticeJob`·`PracticeScene`·`PracticeBlockage`·
+  `PracticeCreateRequest`·`PracticeContinueRequest`·`PracticeAnalyzeRequest`·`PracticeGroupPatch`.
 
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 

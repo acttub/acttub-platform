@@ -993,6 +993,260 @@
         }
       }
     },
+    "/v2/practices" : {
+      "get" : {
+        "tags" : [ "v2-practices" ],
+        "summary" : "List Practice Groups",
+        "description" : "연습 기록 — 묶음 단위다. 숨긴 묶음은 빠지고 필터는 all·favorite·recent30 이다. 묶음마다 회차 요약과\n진행 중 회차 id 가 함께 온다.",
+        "operationId" : "list_practice_groups_v2_practices_get",
+        "parameters" : [ {
+          "name" : "filter",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "default" : "all",
+            "title" : "Filter"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PracticeGroupList"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      },
+      "post" : {
+        "tags" : [ "v2-practices" ],
+        "summary" : "Start Practice",
+        "description" : "보관함의 영상으로 새 묶음의 첫 회차를 만든다 — 회차 하나와 분석 작업 하나가 한 트랜잭션이다.\n상황·인물·목표와 막힘은 모두 선택이고 시작 뒤에는 바꾸지 않는다. 영상이 없거나 남의 것이거나\n파일이 파기됐으면 422 video_not_ready, 게스트가 하루 세 번을 넘기면 429\nguest_daily_analysis_limit, 같은 요청 id 에 다른 본문이면 422 request_fingerprint_mismatch 다.",
+        "operationId" : "start_practice_v2_practices_post",
+        "parameters" : [ {
+          "name" : "X-Request-Id",
+          "in" : "header",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "title" : "X-Request-Id"
+          }
+        }, {
+          "name" : "X-Acttub-Contract",
+          "in" : "header",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "title" : "X-Acttub-Contract"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PracticeCreateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Practice"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/practices/{practice_id}/continue" : {
+      "post" : {
+        "tags" : [ "v2-practices" ],
+        "summary" : "Continue Practice",
+        "description" : "같은 묶음의 다음 회차. 영상을 보내지 않으면 이어받을 회차의 영상을 그대로 쓴다(그 영상이 파기됐으면\n422 video_not_ready 이고 새 영상으로는 된다). 묶음에 닫히지 않은 회차가 있으면 409\npractice_in_progress 이고, 그 회차 id 는 묶음 조회의 in_progress_practice_id 로 얻는다.",
+        "operationId" : "continue_practice_v2_practices__practice_id__continue_post",
+        "parameters" : [ {
+          "name" : "practice_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Practice Id"
+          }
+        }, {
+          "name" : "X-Request-Id",
+          "in" : "header",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "title" : "X-Request-Id"
+          }
+        }, {
+          "name" : "X-Acttub-Contract",
+          "in" : "header",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "title" : "X-Acttub-Contract"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PracticeContinueRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Practice"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/practices/{practice_id}/cancel" : {
+      "post" : {
+        "tags" : [ "v2-practices" ],
+        "summary" : "Cancel Practice Analysis",
+        "description" : "\"그만두기\" — 작업을 failed/cancelled 로 닫고 lease 를 지워 늦은 완료와 재큐를 막는다. 회차는 closed 다.\n화면을 떠나는 것은 취소가 아니다. 이미 끝난 분석에는 409 analysis_already_finished.",
+        "operationId" : "cancel_practice_analysis_v2_practices__practice_id__cancel_post",
+        "parameters" : [ {
+          "name" : "practice_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Practice Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PracticeStatus"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/practices/{practice_id}/analyze" : {
+      "post" : {
+        "tags" : [ "v2-practices" ],
+        "summary" : "Retry Practice Analysis",
+        "description" : "실패로 닫힌 회차의 분석을 다시 건다 — 새 작업과 함께 analyzing 으로 돌아간다. 묶음에 다른 진행 중\n회차가 있으면 409 practice_in_progress 이고, 아직 실패하지 않은 회차면 409 analysis_not_failed 다.\n게스트의 하루 세 번을 한 번 쓴다.",
+        "operationId" : "retry_practice_analysis_v2_practices__practice_id__analyze_post",
+        "parameters" : [ {
+          "name" : "practice_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Practice Id"
+          }
+        }, {
+          "name" : "X-Request-Id",
+          "in" : "header",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "title" : "X-Request-Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PracticeAnalyzeRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Practice"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/practice-sessions" : {
       "get" : {
         "tags" : [ "v2-practice" ],
@@ -2118,6 +2372,59 @@
         } ]
       }
     },
+    "/v2/practices/{root_id}/group" : {
+      "patch" : {
+        "tags" : [ "v2-practices" ],
+        "summary" : "Update Practice Group",
+        "description" : "묶음 속성 — 즐겨찾기·숨김·제목. 보낸 것만 바꾼다. 숨김은 묶음 전체이고(개별 회차 숨김은 없다) 노트·대화·\n기억은 지우지 않으며 영상은 보관함에 남는다.",
+        "operationId" : "update_practice_group_v2_practices__root_id__group_patch",
+        "parameters" : [ {
+          "name" : "root_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Root Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PracticeGroupPatch"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PracticeGroup"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/portfolio/credits/{credit_id}" : {
       "delete" : {
         "tags" : [ "v2-portfolio" ],
@@ -2462,6 +2769,72 @@
             }
           }
         }
+      }
+    },
+    "/v2/practices/{practice_id}" : {
+      "get" : {
+        "tags" : [ "v2-practices" ],
+        "summary" : "Get Practice",
+        "description" : "회차 하나 — 장면·막힘과 분석·대화·노트의 현재 상태. 없는 것과 남의 것은 같은 404 practice_not_found.",
+        "operationId" : "get_practice_v2_practices__practice_id__get",
+        "parameters" : [ {
+          "name" : "practice_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Practice Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Practice"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/practices/{practice_id}/status" : {
+      "get" : {
+        "tags" : [ "v2-practices" ],
+        "summary" : "Get Practice Status",
+        "description" : "폴링이 읽는 것 — 회차의 진행(stage)과 작업 상태·실패 분류, 관찰 기록의 상태. 앱은 4초, 웹은 10초 간격이다.",
+        "operationId" : "get_practice_status_v2_practices__practice_id__status_get",
+        "parameters" : [ {
+          "name" : "practice_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Practice Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PracticeStatus"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
       }
     },
     "/v2/practice-sessions/{session_id}" : {
@@ -4779,6 +5152,358 @@
         "required" : [ "platform", "token" ],
         "title" : "RegisterPushTokenRequest"
       },
+      "PracticeBlockage" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "category" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Category"
+          },
+          "detail" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Detail"
+          },
+          "note" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 500,
+              "minLength" : 0
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Note"
+          }
+        },
+        "title" : "PracticeBlockage"
+      },
+      "PracticeCreateRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "request_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Request Id"
+          },
+          "video_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Video Id"
+          },
+          "scene" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/PracticeScene"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "blockage" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/PracticeBlockage"
+            }, {
+              "type" : "null"
+            } ]
+          }
+        },
+        "required" : [ "request_id", "video_id" ],
+        "title" : "PracticeCreateRequest"
+      },
+      "PracticeScene" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "situation" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 300,
+              "minLength" : 0
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Situation"
+          },
+          "character" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 300,
+              "minLength" : 0
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Character"
+          },
+          "goal" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 300,
+              "minLength" : 0
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Goal"
+          }
+        },
+        "title" : "PracticeScene"
+      },
+      "Practice" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "root_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Root Id"
+          },
+          "ordinal" : {
+            "type" : "integer",
+            "title" : "Ordinal"
+          },
+          "video_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Video Id"
+          },
+          "stage" : {
+            "type" : "string",
+            "title" : "Stage"
+          },
+          "close_reason" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Close Reason"
+          },
+          "experience_version" : {
+            "type" : "string",
+            "title" : "Experience Version"
+          },
+          "situation" : {
+            "type" : "string",
+            "title" : "Situation"
+          },
+          "character" : {
+            "type" : "string",
+            "title" : "Character"
+          },
+          "goal" : {
+            "type" : "string",
+            "title" : "Goal"
+          },
+          "blockage_category" : {
+            "type" : "string",
+            "title" : "Blockage Category"
+          },
+          "blockage_detail" : {
+            "type" : "string",
+            "title" : "Blockage Detail"
+          },
+          "blockage_note" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Blockage Note"
+          },
+          "created_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Created At"
+          },
+          "analysis_status" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Analysis Status"
+          },
+          "conversation_id" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "uuid"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Conversation Id"
+          },
+          "conversation_status" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Conversation Status"
+          },
+          "conversation_count" : {
+            "type" : "integer",
+            "title" : "Conversation Count"
+          },
+          "note_id" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "uuid"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Note Id"
+          },
+          "note_title" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Note Title"
+          },
+          "note_kind" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Note Kind"
+          },
+          "job" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/PracticeJob"
+            }, {
+              "type" : "null"
+            } ]
+          }
+        },
+        "required" : [ "blockage_category", "blockage_detail", "character", "conversation_count", "created_at", "experience_version", "goal", "id", "ordinal", "root_id", "situation", "stage", "video_id" ],
+        "title" : "Practice"
+      },
+      "PracticeJob" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "status" : {
+            "type" : "string",
+            "title" : "Status"
+          },
+          "failure_reason" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Failure Reason"
+          },
+          "attempt_count" : {
+            "type" : "integer",
+            "title" : "Attempt Count"
+          }
+        },
+        "required" : [ "attempt_count", "id", "status" ],
+        "title" : "PracticeJob"
+      },
+      "PracticeContinueRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "request_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Request Id"
+          },
+          "video_id" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "uuid"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Video Id"
+          },
+          "scene" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/PracticeScene"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "blockage" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/PracticeBlockage"
+            }, {
+              "type" : "null"
+            } ]
+          }
+        },
+        "required" : [ "request_id" ],
+        "title" : "PracticeContinueRequest"
+      },
+      "PracticeStatus" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "stage" : {
+            "type" : "string",
+            "title" : "Stage"
+          },
+          "close_reason" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Close Reason"
+          },
+          "analysis_status" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Analysis Status"
+          },
+          "job" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/PracticeJob"
+            }, {
+              "type" : "null"
+            } ]
+          }
+        },
+        "required" : [ "stage" ],
+        "title" : "PracticeStatus"
+      },
+      "PracticeAnalyzeRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "request_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Request Id"
+          }
+        },
+        "required" : [ "request_id" ],
+        "title" : "PracticeAnalyzeRequest"
+      },
       "PracticeSessionRequest" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -5800,6 +6525,109 @@
         },
         "title" : "ReadingScriptPatch"
       },
+      "PracticeGroupPatch" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "favorite" : {
+            "anyOf" : [ {
+              "type" : "boolean"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Favorite"
+          },
+          "hidden" : {
+            "anyOf" : [ {
+              "type" : "boolean"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Hidden"
+          },
+          "title" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 200,
+              "minLength" : 0
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Title"
+          }
+        },
+        "title" : "PracticeGroupPatch"
+      },
+      "PracticeGroup" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "root_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Root Id"
+          },
+          "title" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Title"
+          },
+          "ordinal_count" : {
+            "type" : "integer",
+            "title" : "Ordinal Count"
+          },
+          "last_conversation_at" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "date-time"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Last Conversation At"
+          },
+          "tags" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            },
+            "title" : "Tags"
+          },
+          "favorite" : {
+            "type" : "boolean",
+            "title" : "Favorite"
+          },
+          "hidden_at" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "date-time"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Hidden At"
+          },
+          "in_progress_practice_id" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "uuid"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "In Progress Practice Id"
+          },
+          "practices" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/Practice"
+            },
+            "title" : "Practices"
+          }
+        },
+        "required" : [ "favorite", "ordinal_count", "practices", "root_id", "tags" ],
+        "title" : "PracticeGroup"
+      },
       "PortfolioCreditPatch" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -6218,6 +7046,21 @@
         },
         "required" : [ "url" ],
         "title" : "PublicPortfolioPhoto"
+      },
+      "PracticeGroupList" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "groups" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PracticeGroup"
+            },
+            "title" : "Groups"
+          }
+        },
+        "required" : [ "groups" ],
+        "title" : "PracticeGroupList"
       },
       "PracticeSessionListItem" : {
         "type" : "object",

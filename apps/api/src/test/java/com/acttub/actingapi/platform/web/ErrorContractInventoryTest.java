@@ -298,6 +298,22 @@ class ErrorContractInventoryTest {
                     "feature.reading.ReadingRecordingIT"),
             covered("feature.reading.app.RecordingService|503|audio_conversion_failed", 1,
                     "feature.reading.ReadingRecordingIT"),
+            // 연습 회차·묶음(practice.start, practice.resume, practice.analyze). 409 는 코드만이고 진행 중 회차 id 는
+            // 묶음 조회에서 얻는다.
+            covered("feature.practice.app.PracticeService|404|practice_not_found", 1,
+                    "feature.practice.PracticeLifecycleIT"),
+            covered("feature.practice.app.PracticeService|409|analysis_already_finished", 1,
+                    "feature.practice.PracticeLifecycleIT"),
+            covered("feature.practice.app.PracticeService|409|analysis_not_failed", 1,
+                    "feature.practice.PracticeLifecycleIT"),
+            covered("feature.practice.app.PracticeService|409|practice_in_progress", 1,
+                    "feature.practice.PracticeLifecycleIT"),
+            covered("feature.practice.app.PracticeService|422|request_fingerprint_mismatch", 1,
+                    "feature.practice.PracticeLifecycleIT"),
+            covered("feature.practice.app.PracticeService|422|video_not_ready", 1,
+                    "feature.practice.PracticeLifecycleIT"),
+            covered("feature.practice.app.PracticeService|429|guest_daily_analysis_limit", 1,
+                    "feature.practice.PracticeLifecycleIT"),
             // 영상 보관함(practice.record, practice.library). 사용처는 조회 응답에서 보고 오류 본문은 코드 하나다.
             covered("feature.video.adapter.storage.ObjectStorageVideos|503|storage_not_configured", 1,
                     "feature.video.VideoLibraryIT"),
