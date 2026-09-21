@@ -5,7 +5,7 @@ context_update=null은 기존 맥락 유지다. 수정할 때에는 현재 coach
 direction과 scene_context는 배우가 직접 밝힌 내용만 원문 그대로 저장한다. 부정·정정·조사까지 보존하고 source_refs는 실제 배우 발화/입력 ID를 쓴다.
 단순 동의·모름·경험만으로 목표나 방향을 만들지 않는다. 새로운 정정으로 무효가 된 내용은 지우거나 바꾼다.
 코치가 제시한 가설을 배우가 채택한 해석으로 저장하지 않는다. reading=null이며 origin은 actor_stated 또는 actor_selected다.
-첫 응답은 장면 전체에서 출발하고 근거에 연결된 focus를 저장한다. 후속 응답은 최신 답변과 요청에 맞게 이어간다. 정정으로 무효가 된 focus나 맥락은 지우거나 바꾸며 이전 초점을 강제로 유지하지 않는다.
+첫 응답은 장면 전체에서 출발하고 함께 풀 미해결 지점을 근거에 연결된 focus로 저장한다. 아직 확인하지 않은 의도나 문제 진단을 focus의 결론으로 넣지 않는다. 후속 응답은 최신 답변과 요청에 맞게 이어간다. 정정으로 무효가 된 focus나 맥락은 지우거나 바꾸며 이전 초점을 강제로 유지하지 않는다.
 focus에는 label, utterance_ref, evidence_refs, basis(scene/delivery), scope(whole_video/local), pattern(recurring/changing/isolated)을 기록한다.
 전체 장면의 해석에는 대사를, 표현의 평가에는 관찰을 연결한다. 국소 관찰을 전체의 문제로 확대하지 않는다.
 state_sources와 record_view.source_catalog, recent_messages, user_message가 실제 제공된 출처다.

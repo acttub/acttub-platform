@@ -58,6 +58,7 @@ class CoachingPipelineTest {
                 }
                 stages.add("generate");
                 assertThat(prompt).isEqualTo(CoachingPipeline.prompt(route, false));
+                assertThat(prompt).doesNotContain(StructuredJson.textResource("/coaching/routes/opening.txt"));
                 assertThat(prompt).doesNotContain("route 하나", "unobservable_hand_requested", "dialogue_progress");
                 for (CoachingRoute other : CoachingRoute.values()) {
                     if (other != route) assertThat(prompt).doesNotContain(StructuredJson.textResource("/coaching/routes/" + other.id + ".txt"));
@@ -83,13 +84,38 @@ class CoachingPipelineTest {
                 assertThat(input.path("user_message").isNull()).isTrue();
                 return out(StructuredJson.MAPPER.createObjectNode().put("route", "respond"));
             }
-            if (stage == 1) return out(draft(input, "상대가 떠나지 않기를 바라는 장면으로 보이네요."));
+            if (stage == 1) {
+                assertThat(prompt).contains(StructuredJson.textResource("/coaching/routes/opening.txt"));
+                assertThat(prompt).doesNotContain(StructuredJson.textResource("/coaching/routes/respond.txt"));
+                return out(draft(input, "이 장면에서 상대가 남아 있어야 하는 이유는 무엇인가요?"));
+            }
             throw new AssertionError("unexpected extra model call");
         }).start(session(), UUID.randomUUID());
         assertThat(calls).hasValue(2);
         assertThat(result.session().turns()).hasSize(1);
         assertThat(result.session().turns().getFirst().role()).isEqualTo("ai");
         assertThat(result.session().coachingState().path("context").path("focus").isObject()).isTrue();
+    }
+
+    @Test void openingRegenerationKeepsTheOpeningTaskWithoutReclassifying() {
+        AtomicInteger calls = new AtomicInteger();
+        var result = engine((prompt, text) -> {
+            JsonNode input = StructuredJson.parse(text);
+            int stage = calls.getAndIncrement();
+            if (stage == 0) return out(StructuredJson.MAPPER.createObjectNode().put("route", "respond"));
+            assertThat(prompt).contains(StructuredJson.textResource("/coaching/routes/opening.txt"));
+            assertThat(prompt).doesNotContain(StructuredJson.textResource("/coaching/routes/respond.txt"));
+            ObjectNode response = draft(input, "이 장면에서 상대가 남아 있어야 하는 이유는 무엇인가요?");
+            if (stage == 1) response.putArray("evidence_refs").add("missing-source");
+            else {
+                assertThat(stage).isEqualTo(2);
+                assertThat(input.path("validation_errors")).isNotEmpty();
+            }
+            return out(response);
+        }).start(session(), UUID.randomUUID());
+        assertThat(calls).hasValue(3);
+        assertThat(result.session().turns()).hasSize(1);
+        assertThat(result.reply().message()).isEqualTo("이 장면에서 상대가 남아 있어야 하는 이유는 무엇인가요?");
     }
 
     @ParameterizedTest
