@@ -17,6 +17,8 @@ import type { ScriptLine } from './parse.ts';
 import { createDraft, validateDraft, type ScriptDraft } from './script-draft.ts';
 import type {
   CreateScriptBody,
+  LineMemorization,
+  MemorizationStatus,
   PatchScriptBody,
   ProgressBody,
   ProgressResponse,
@@ -61,8 +63,6 @@ export interface SavedScript extends DevicePrefs {
   openSessionId: string | null;
   /** 마지막 회차(그 대본에서 가장 늦게 시작한 회차). 배역 화면의 기본 선택이 이것이다. */
   lastSession: ScriptLastSession | null;
-  /** 외운 대사(줄 인덱스). 암기 상태가 서버로 가면(RM4) 없어진다. */
-  memorized: number[];
   createdAt: number;
   updatedAt: number;
 }
@@ -107,6 +107,9 @@ export type ScriptTransport = {
   listSessions?(scriptId: string): Promise<{ sessions: SessionCard[] }>;
   deleteSession?(sessionId: string): Promise<void>;
   deleteRecording?(recordingId: string): Promise<void>;
+  /** 암기 상태(reading.memorization). 조회는 대본 단위, 갱신은 줄 단위. */
+  listMemorization?(scriptId: string): Promise<LineMemorization[]>;
+  setMemorization?(lineId: string, status: MemorizationStatus): Promise<LineMemorization>;
 };
 
 let transport: ScriptTransport | null = null;
@@ -132,6 +135,8 @@ function server(): ScriptTransport {
     listSessions: (scriptId) => api.listReadingSessions(scriptId),
     deleteSession: (sessionId) => api.deleteReadingSession(sessionId),
     deleteRecording: (recordingId) => api.deleteReadingRecording(recordingId),
+    listMemorization: (scriptId) => api.listLineMemorization(scriptId),
+    setMemorization: (lineId, status) => api.setLineMemorization(lineId, status),
   };
   return transport;
 }
@@ -209,7 +214,6 @@ export function toSavedScript(detail: ScriptDetail, prefs: Partial<DevicePrefs> 
     recordingCount: detail.recording_count,
     openSessionId: detail.open_session_id,
     lastSession: detail.last_session ?? null,
-    memorized: [],
     createdAt: Date.parse(detail.created_at) || 0,
     updatedAt: Date.parse(detail.updated_at) || 0,
   };
@@ -253,9 +257,7 @@ export async function openScript(detail: ScriptDetail): Promise<SavedScript> {
 export async function loadIntoCurrent(id: string): Promise<SavedScript | null> {
   try {
     const detail = await server().get(id);
-    const memorized = current?.id === id ? current.memorized : [];
-    const opened = await openScript(detail);
-    current = { ...opened, memorized };
+    current = await openScript(detail);
     return current;
   } catch {
     if (current?.id === id) current = null;
@@ -317,10 +319,7 @@ export async function updateScriptMeta(
     });
   }
   const detail = await server().patch(id, body);
-  if (current?.id === id) {
-    const kept = current;
-    current = { ...(await openScript(detail)), memorized: kept.memorized };
-  }
+  if (current?.id === id) current = await openScript(detail);
   return detail;
 }
 
@@ -410,4 +409,22 @@ export async function deleteRecording(recordingId: string): Promise<void> {
   const remove = server().deleteRecording;
   if (!remove) throw new Error('recording transport missing');
   await remove(recordingId);
+}
+
+/** 그 대본 줄의 암기 상태 행(reading.memorization). 못 읽으면 빈 목록 — 기기 값을 먼저 보여 준다. */
+export async function listMemorization(scriptId: string): Promise<LineMemorization[]> {
+  const list = server().listMemorization;
+  if (!list) return [];
+  try {
+    return await list(scriptId);
+  } catch {
+    return [];
+  }
+}
+
+/** 줄 하나의 "외웠어요/아직 헷갈려요". 실패는 호출자(memorization-sync)가 들고 있다가 다시 보낸다. */
+export function setLineMemorization(lineId: string, status: MemorizationStatus): Promise<LineMemorization> {
+  const set = server().setMemorization;
+  if (!set) return Promise.reject(new Error('memorization transport missing'));
+  return set(lineId, status);
 }

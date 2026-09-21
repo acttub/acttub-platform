@@ -8,7 +8,7 @@ import * as Speech from 'expo-speech';
 import { speechLocale } from '../../i18n.ts';
 import { devicePitchFor } from '../voices.ts';
 
-export function speakWithDevice(text: string, preset: string): Promise<void> {
+export function speakWithDevice(text: string, preset: string, options: { rate?: number } = {}): Promise<void> {
   const clean = (text ?? '').trim();
   if (!clean) return Promise.resolve();
   return new Promise((resolve) => {
@@ -22,7 +22,7 @@ export function speakWithDevice(text: string, preset: string): Promise<void> {
       Speech.speak(clean, {
         language: speechLocale(),
         pitch: devicePitchFor(preset),
-        rate: 1.0,
+        rate: options.rate ?? 1.0,
         onDone: done,
         onStopped: done,
         onError: done,

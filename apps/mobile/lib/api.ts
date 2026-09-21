@@ -784,6 +784,15 @@ export const api = {
     return request<void>(`/v2/reading/recordings/${encodeURIComponent(recordingId)}`, { method: 'DELETE' }, { timeoutMs: 20_000 });
   },
 
+  /** 그 대본 줄의 암기 상태 행 목록(reading.memorization). 행이 없는 줄은 아직 표시하지 않은 줄이다. */
+  listLineMemorization(scriptId: string): Promise<LineMemorization[]> {
+    return request<LineMemorization[]>(
+      `/v2/reading/scripts/${encodeURIComponent(scriptId)}/memorization`,
+      {},
+      { timeoutMs: 20_000 },
+    );
+  },
+
   /** 줄 하나의 암기 상태. 그 대본의 대사 줄이면 배역과 무관하게 받고, 지문·장면 줄은 422 invalid_line. */
   setLineMemorization(lineId: string, status: MemorizationStatus): Promise<LineMemorization> {
     return request<LineMemorization>(

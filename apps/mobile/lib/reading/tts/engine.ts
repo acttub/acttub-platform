@@ -120,7 +120,7 @@ async function styleFor(preset?: string): Promise<any> {
   }
 }
 
-export async function speak(text: string, preset?: string): Promise<void> {
+export async function speak(text: string, preset?: string, options: { speed?: number } = {}): Promise<void> {
   if (!tts) throw new Error(t('reading.voiceNotReady'));
   const clean = (text ?? '').trim();
   if (!clean) return;
@@ -128,7 +128,9 @@ export async function speak(text: string, preset?: string): Promise<void> {
   const voice = await styleFor(preset);
   // 모델은 32개 말을 읽을 줄 안다. 대본이 어느 말로 쓰였는지는 알 수 없으니
   // 앱을 쓰는 말로 읽힌다 — 한국어 사용자는 지금과 같다 (SOMA-544).
-  const { wav, duration } = await tts.call(clean, currentLanguage(), voice, cfg.steps, cfg.speed, 0.1);
+  // 말속도는 호출마다 바꿀 수 있다(듣고 따라 하기의 천천히 0.7×).
+  const speed = options.speed ?? cfg.speed;
+  const { wav, duration } = await tts.call(clean, currentLanguage(), voice, cfg.steps, speed, 0.1);
   const durSec = duration[0] || 0;
   const samples = Float32Array.from(wav);
   const bytes = writeWavFile(samples, tts.sampleRate);
