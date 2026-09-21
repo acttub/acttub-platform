@@ -39,6 +39,15 @@ import type { ProfilePayload, ServerProfile } from '@/lib/profile-form';
 import type { NotificationSettings } from '@/lib/push-policy';
 import type { Video, VideoFilter, VideoIntentRequest, VideoIntentResponse, VideoListResponse } from '@/lib/library/types';
 import type {
+  ChallengeDetail,
+  ChallengeListResponse,
+  ChallengeTab,
+  CreateChallengeBody,
+  EntriesResponse,
+  EntryCard,
+  EntrySort,
+} from '@/lib/challenge/types';
+import type {
   CoachConversation,
   CoachReplyBody,
   CoachTurnResult,
@@ -1140,6 +1149,83 @@ export const api = {
       requestId: body.request_id,
       timeoutMs: 20_000,
     });
+  },
+
+  // 챌린지(04-challenge) ---------------------------------------------------------
+  /**
+   * 대사 목록. 탭은 인기·최신·종료·내 챌린지이고 q 는 2자 이상일 때만 보낸다(대사·작품·참여작
+   * 작성자 이름만 찾는다). 오늘의 챌린지는 featured 로 따로 온다(인기·최신 탭에서만 고정).
+   * 게스트·한국어가 아닌 회원은 403 member_only.
+   */
+  listChallenges(
+    params: { tab: ChallengeTab; q?: string; cursor?: string } = { tab: 'popular' },
+    options: ApiCallOptions = {},
+  ): Promise<ChallengeListResponse> {
+    const query = new URLSearchParams({ tab: params.tab });
+    if (params.q) query.set('q', params.q);
+    if (params.cursor) query.set('cursor', params.cursor);
+    return request<ChallengeListResponse>(`/v2/challenges?${query.toString()}`, {}, {
+      timeoutMs: 20_000,
+      signal: options.signal,
+    });
+  },
+
+  /** 대사 상세 + 집계. review·hidden·deleted 챌린지는 남의 눈에 404 다. */
+  getChallenge(challengeId: string, options: ApiCallOptions = {}): Promise<ChallengeDetail> {
+    return request<ChallengeDetail>(`/v2/challenges/${encodeURIComponent(challengeId)}`, {}, {
+      timeoutMs: 20_000,
+      signal: options.signal,
+    });
+  },
+
+  /**
+   * 대사 등록(A16.2). 같은 request_id 재전송은 같은 챌린지이고, 같은 대사로 진행 중 챌린지가
+   * 있으면 422 duplicate_challenge, 하루 3개를 넘기면 429 daily_challenge_limit 다.
+   */
+  createChallenge(body: CreateChallengeBody): Promise<ChallengeDetail> {
+    return postIdempotent<ChallengeDetail>('/v2/challenges', body, {
+      requestId: body.request_id,
+      timeoutMs: 30_000,
+    });
+  },
+
+  /** 참여작이 없는 자기 챌린지만 지울 수 있다(422 challenge_has_entries). */
+  deleteChallenge(challengeId: string): Promise<void> {
+    return request<void>(`/v2/challenges/${encodeURIComponent(challengeId)}`, { method: 'DELETE' }, { timeoutMs: 20_000 });
+  },
+
+  /**
+   * 참여작 목록(A17 랭킹·A15 피드). 좋아요순은 처음 조회한 순서를 10분 고정하고, 정렬 기준이
+   * 바뀌면 410 cursor_expired 라 새로 조회한다.
+   */
+  listChallengeEntries(
+    challengeId: string,
+    params: { sort: EntrySort; cursor?: string; fromEntry?: string } = { sort: 'likes' },
+    options: ApiCallOptions = {},
+  ): Promise<EntriesResponse> {
+    const query = new URLSearchParams({ sort: params.sort });
+    if (params.cursor) query.set('cursor', params.cursor);
+    if (params.fromEntry) query.set('from_entry', params.fromEntry);
+    return request<EntriesResponse>(
+      `/v2/challenges/${encodeURIComponent(challengeId)}/entries?${query.toString()}`,
+      {},
+      { timeoutMs: 20_000, signal: options.signal },
+    );
+  },
+
+  /** 저장한 참여작(A15.5). 반응·해제는 CM3 가 잇는다. */
+  listSavedEntries(cursor?: string): Promise<{ entries: EntryCard[]; my_entry_count: number; saved_count: number }> {
+    const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
+    return request(`/v2/me/saved-entries${query}`, {}, { timeoutMs: 20_000 });
+  },
+
+  /** 내 참여작(P03). 분류별 수와 목록이 함께 온다. */
+  listMyChallengeEntries(visibility?: 'public' | 'private'): Promise<{
+    counts: { all: number; public: number; private: number; under_review: number };
+    entries: EntryCard[];
+  }> {
+    const query = visibility ? `?visibility=${visibility}` : '';
+    return request(`/v2/me/challenge-entries${query}`, {}, { timeoutMs: 20_000 });
   },
 
   // 입시 ----------------------------------------------------------------------

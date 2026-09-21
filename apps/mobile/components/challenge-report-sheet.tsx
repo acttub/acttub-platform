@@ -3,7 +3,7 @@ import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
-import { REPORT_REASONS } from '@/lib/challenge-mock';
+import { REPORT_REASONS } from '@/lib/challenge/types';
 import { translate as t } from '@/lib/i18n';
 
 /** A15.4 영상 신고 시트 — 사유 4개 중 하나를 고른다. 서버가 없어 고른 사유만 돌려준다. */

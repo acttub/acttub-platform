@@ -70,3 +70,6 @@ import './practice-groups.test.mjs';
 import './practice-feedback.test.mjs';
 import './practice-memory.test.mjs';
 import './practice-screens-coach.test.mjs';
+import './challenge-create.test.mjs';
+import './challenge-browse.test.mjs';
+import './challenge-screens.test.mjs';

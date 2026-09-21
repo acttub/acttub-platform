@@ -3,8 +3,8 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
-  Image,
   Pressable,
   Share,
   StyleSheet,
@@ -21,53 +21,73 @@ import { ChallengeCommentsSheet } from '@/components/challenge-comments-sheet';
 import { ChallengeReportSheet } from '@/components/challenge-report-sheet';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
-import { CLIPS, PERFORMERS, PERF_IMAGES, TODAY_LINE, type Performer } from '@/lib/challenge-mock';
+import { api } from '@/lib/api';
+import { avatarLetter, browseFailure, browseFailureMessage, isEnded, rankEntries } from '@/lib/challenge/browse';
+import type { ChallengeDetail, EntryCard } from '@/lib/challenge/types';
 import { translate as t } from '@/lib/i18n';
 
 /**
- * A15 챌린지 스토리 — 연기 영상을 풀스크린으로 보고, 옆으로 넘기면 다음 연기자로 간다.
+ * A15 챌린지 피드 — 고른 챌린지 **안에서만** 참여작을 위아래로 넘겨 본다.
  *
- * 플레이어는 하나만 두고 활성 페이지에서만 VideoView를 그린다(다른 페이지는 포스터).
- * 넘길 때 player.replace로 그 연기자의 클립을 튼다. 영상은 예시 샘플이고 좋아요·댓글은
- * 로컬(시트, A15.3), 신고는 사유 시트(A15.4), 공유는 OS 공유 시트. "나도 이 대사 연기하기"는
- * 실제 연습 시작으로 이어진다.
+ * 진입한 참여작부터 상세와 같은 순서(좋아요순)로 이어지고 끝에서 종료 안내를 보여 준다. 여러
+ * 챌린지를 섞는 전체 피드는 없다. 플레이어는 하나만 두고 활성 페이지에서만 그린다.
+ * 조회수 사건·반응(좋아요·저장·댓글·신고·차단)은 CM2·CM3 가 잇는다 — 여기서는 화면만 있다.
  */
 export default function ChallengePlayScreen() {
   const router = useRouter();
   const { width, height } = useWindowDimensions();
   const { alert, dialog } = useAppDialog();
-  const { name, line } = useLocalSearchParams<{ name?: string; line?: string }>();
-  const startIndex = Math.max(
-    0,
-    PERFORMERS.findIndex((p) => p.name === name),
-  );
-  const [active, setActive] = useState(startIndex);
+  const { id, entryId } = useLocalSearchParams<{ id?: string; entryId?: string }>();
+  const [challenge, setChallenge] = useState<ChallengeDetail | null>(null);
+  const [entries, setEntries] = useState<EntryCard[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [active, setActive] = useState(0);
   const [playing, setPlaying] = useState(true);
-  const [liked, setLiked] = useState<Record<number, boolean>>({});
+  const [liked, setLiked] = useState<Record<string, boolean>>({});
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
-  const listRef = useRef<FlatList<Performer>>(null);
+  const listRef = useRef<FlatList<EntryCard>>(null);
 
-  const player = useVideoPlayer(CLIPS[startIndex], (p) => {
+  const player = useVideoPlayer(null, (p) => {
     p.loop = true;
     p.muted = true;
-    p.play();
   });
 
-  // 페이지가 바뀌면 그 연기자의 클립으로 갈아끼운다.
   useEffect(() => {
-    player.replace(CLIPS[active]);
+    if (!id) return;
+    let alive = true;
+    void Promise.all([api.getChallenge(id), api.listChallengeEntries(id, { sort: 'likes', fromEntry: entryId })])
+      .then(([detail, list]) => {
+        if (!alive) return;
+        setChallenge(detail);
+        setEntries(rankEntries(list.entries, 'likes'));
+      })
+      .catch((e) => {
+        if (!alive) return;
+        setEntries([]);
+        setError(browseFailureMessage(browseFailure(e)));
+      });
+    return () => {
+      alive = false;
+    };
+  }, [entryId, id]);
+
+  // 페이지가 바뀌면 그 참여작의 영상으로 갈아끼운다.
+  useEffect(() => {
+    const entry = entries?.[active];
+    if (!entry?.playback_url) return;
+    player.replace(entry.playback_url);
     player.play();
     setPlaying(true);
     logEvent('challenge_swipe', { index: active });
-  }, [active, player]);
+  }, [active, entries, player]);
 
   const onMomentumEnd = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const next = Math.round(e.nativeEvent.contentOffset.x / width);
-      if (next !== active && next >= 0 && next < PERFORMERS.length) setActive(next);
+      const next = Math.round(e.nativeEvent.contentOffset.y / height);
+      if (next !== active && next >= 0 && next < (entries?.length ?? 0)) setActive(next);
     },
-    [active, width],
+    [active, entries?.length, height],
   );
 
   const togglePlay = () => {
@@ -75,16 +95,19 @@ export default function ChallengePlayScreen() {
     else player.play();
     setPlaying((v) => !v);
   };
-  // 대사를 띄운 챌린지 촬영(pen A18)으로. 찍으면 챌린지 올리기로 이어진다.
+
   const perform = () => {
-    const theLine = line || TODAY_LINE.line;
-    logEvent('challenge_perform_tap', { line: theLine.slice(0, 40) });
-    router.push({ pathname: '/record-video', params: { mode: 'challenge', line: theLine, work: TODAY_LINE.work } });
+    if (!challenge) return;
+    logEvent('challenge_perform_tap', { id: challenge.id });
+    router.push({
+      pathname: '/record-video',
+      params: { mode: 'challenge', challengeId: challenge.id, line: challenge.line, work: challenge.work },
+    });
   };
-  const share = (performer: Performer) => {
-    logEvent('challenge_share', { name: performer.name });
+  const share = (entry: EntryCard) => {
+    logEvent('challenge_share', { id: entry.id });
     void Share.share({
-      message: t('profileTab.shareText', { name: performer.name, line: line || TODAY_LINE.line }),
+      message: t('profileTab.shareText', { name: entry.author.name, line: challenge?.line ?? '' }),
     }).catch(() => {});
   };
   const report = (reason: string) => {
@@ -93,13 +116,12 @@ export default function ChallengePlayScreen() {
     void alert({ title: t('videoReport.doneTitle'), message: t('videoReport.doneMessage'), confirmLabel: t('common.confirm') });
   };
 
-  const renderItem = ({ item, index }: { item: Performer; index: number }) => {
+  const renderItem = ({ item, index }: { item: EntryCard; index: number }) => {
     const isActive = index === active;
-    const isLiked = !!liked[index];
+    const isLiked = liked[item.id] ?? item.liked;
     return (
       <View style={{ width, height }}>
-        <Image source={PERF_IMAGES[item.img]} style={StyleSheet.absoluteFill} resizeMode="cover" />
-        {isActive && (
+        {isActive && item.playback_url && (
           <VideoView style={StyleSheet.absoluteFill} player={player} contentFit="cover" nativeControls={false} />
         )}
         <Pressable style={StyleSheet.absoluteFill} onPress={togglePlay} accessibilityRole="button">
@@ -119,9 +141,9 @@ export default function ChallengePlayScreen() {
             </Pressable>
             <View style={styles.author}>
               <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{item.name.charAt(0)}</Text>
+                <Text style={styles.avatarText}>{avatarLetter(item.author.name)}</Text>
               </View>
-              <Text style={styles.authorName}>{item.name}</Text>
+              <Text style={styles.authorName}>{item.author.name}</Text>
             </View>
             <Pressable onPress={() => setReportOpen(true)} hitSlop={10} accessibilityRole="button">
               <Feather name="more-horizontal" size={24} color="#FFFFFF" />
@@ -131,39 +153,39 @@ export default function ChallengePlayScreen() {
           <View style={styles.flex} pointerEvents="none" />
 
           <View style={styles.bottom}>
-            <View style={styles.dots}>
-              {PERFORMERS.map((_, i) => (
-                <View key={i} style={[styles.dot, i === active && styles.dotOn]} />
-              ))}
-            </View>
-            <Text style={styles.storyLabel}>{t('challenges.todayLabel')}</Text>
-            <Text style={styles.line}>“{line || TODAY_LINE.line}”</Text>
-            <Text style={styles.work}>{TODAY_LINE.work}</Text>
+            <Text style={styles.storyLabel}>
+              {index + 1} / {entries?.length ?? 0}
+            </Text>
+            <Text style={styles.line}>“{challenge?.line ?? ''}”</Text>
+            <Text style={styles.work}>{challenge?.work ?? ''}</Text>
+            {!!item.caption && <Text style={styles.work}>{item.caption}</Text>}
 
             <View style={styles.actions}>
               <Pressable
                 style={styles.action}
-                onPress={() => setLiked((prev) => ({ ...prev, [index]: !prev[index] }))}
+                onPress={() => setLiked((prev) => ({ ...prev, [item.id]: !isLiked }))}
                 accessibilityRole="button">
                 <Feather name="heart" size={22} color={isLiked ? palette.danger : '#FFFFFF'} />
-                <Text style={styles.actionText}>{item.likes}{isLiked ? '+1' : ''}</Text>
+                <Text style={styles.actionText}>{item.like_count + (isLiked && !item.liked ? 1 : 0)}</Text>
               </Pressable>
               <Pressable style={styles.action} onPress={() => setCommentsOpen(true)} accessibilityRole="button">
                 <Feather name="message-circle" size={22} color="#FFFFFF" />
-                <Text style={styles.actionText}>{12 + index * 7}</Text>
+                <Text style={styles.actionText}>{item.comment_count}</Text>
               </Pressable>
               <Pressable style={styles.action} onPress={() => share(item)} accessibilityRole="button">
                 <Feather name="share-2" size={22} color="#FFFFFF" />
               </Pressable>
             </View>
 
-            <Pressable
-              style={({ pressed }) => [styles.performBtn, pressed && styles.pressed]}
-              onPress={perform}
-              accessibilityRole="button">
-              <Feather name="video" size={16} color="#FFFFFF" />
-              <Text style={styles.performText}>{t('challenges.performCta')}</Text>
-            </Pressable>
+            {challenge && !isEnded(challenge) && (
+              <Pressable
+                style={({ pressed }) => [styles.performBtn, pressed && styles.pressed]}
+                onPress={perform}
+                accessibilityRole="button">
+                <Feather name="video" size={16} color="#FFFFFF" />
+                <Text style={styles.performText}>{t('challenges.performCta')}</Text>
+              </Pressable>
+            )}
           </View>
         </SafeAreaView>
       </View>
@@ -173,19 +195,36 @@ export default function ChallengePlayScreen() {
   return (
     <View style={styles.root}>
       <Stack.Screen options={{ headerShown: false }} />
-      <FlatList
-        ref={listRef}
-        data={PERFORMERS}
-        keyExtractor={(p) => p.name}
-        renderItem={renderItem}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        initialScrollIndex={startIndex}
-        getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
-        onMomentumScrollEnd={onMomentumEnd}
-        extraData={{ active, playing, liked }}
-      />
+      {entries === null && !error && <ActivityIndicator color="#FFFFFF" style={styles.loading} />}
+      {!!error && <Text style={styles.error}>{error}</Text>}
+      {entries !== null && entries.length === 0 && !error && (
+        <SafeAreaView style={styles.emptyWrap} edges={['top', 'bottom']}>
+          <Pressable onPress={() => router.back()} hitSlop={10} accessibilityRole="button" style={styles.emptyClose}>
+            <Feather name="x" size={26} color="#FFFFFF" />
+          </Pressable>
+          <Text style={styles.line}>“{challenge?.line ?? ''}”</Text>
+          <Text style={styles.empty}>{t('challenges.emptyEntries')}</Text>
+          {challenge && !isEnded(challenge) && (
+            <Pressable style={styles.performBtn} onPress={perform} accessibilityRole="button">
+              <Feather name="video" size={16} color="#FFFFFF" />
+              <Text style={styles.performText}>{t('challenges.performCta')}</Text>
+            </Pressable>
+          )}
+        </SafeAreaView>
+      )}
+      {entries !== null && entries.length > 0 && (
+        <FlatList
+          ref={listRef}
+          data={entries}
+          keyExtractor={(entry) => entry.id}
+          renderItem={renderItem}
+          pagingEnabled
+          showsVerticalScrollIndicator={false}
+          getItemLayout={(_, index) => ({ length: height, offset: height * index, index })}
+          onMomentumScrollEnd={onMomentumEnd}
+          extraData={{ active, playing, liked }}
+        />
+      )}
       <ChallengeCommentsSheet visible={commentsOpen} onClose={() => setCommentsOpen(false)} />
       <ChallengeReportSheet visible={reportOpen} onClose={() => setReportOpen(false)} onPick={report} />
       {dialog}
@@ -194,6 +233,11 @@ export default function ChallengePlayScreen() {
 }
 
 const styles = StyleSheet.create({
+  loading: { flex: 1 },
+  error: { color: '#FFFFFF', textAlign: 'center', marginTop: 80, paddingHorizontal: 24 },
+  emptyWrap: { flex: 1, padding: 24, gap: 14, justifyContent: 'center' },
+  emptyClose: { position: 'absolute', top: 16, left: 16 },
+  empty: { color: 'rgba(255,255,255,0.8)', fontSize: 15, lineHeight: 24 },
   root: { flex: 1, backgroundColor: '#000000' },
   flex: { flex: 1 },
   pauseCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },

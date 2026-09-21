@@ -9,7 +9,6 @@ import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { useAuth } from '@/lib/auth';
-import { TODAY_LINE } from '@/lib/challenge-mock';
 import { translate as t } from '@/lib/i18n';
 import { saveRecordingToLibrary } from '@/lib/library/library-runner';
 import { setPickedVideo } from '@/lib/practice/picked-video';
@@ -28,7 +27,7 @@ export default function ChallengeUploadScreen() {
   const { user } = useAuth();
   // 챌린지 촬영에서 오면 어떤 대사/작품인지 같이 온다. 없으면 오늘의 대사.
   const params = useLocalSearchParams<{ line?: string; work?: string }>();
-  const work = params.work || TODAY_LINE.work;
+  const work = params.work ?? '';
   const [video] = useState<RecordedVideo | null>(() => peekRecordedVideo());
   const [caption, setCaption] = useState('');
   const [mode, setMode] = useState<Mode>('public');

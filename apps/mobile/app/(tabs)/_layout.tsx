@@ -8,7 +8,6 @@ import { HapticTab } from '@/components/haptic-tab';
 import { LegacyArchivePrompt } from '@/components/legacy-archive-prompt';
 import { RecordModeSheet, type RecordMode } from '@/components/record-mode-sheet';
 import { palette } from '@/constants/palette';
-import { TODAY_LINE } from '@/lib/challenge-mock';
 import { isKorean, translate as t } from '@/lib/i18n';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -35,10 +34,8 @@ export default function TabLayout() {
       router.push({ pathname: '/record-video', params: { mode: 'plain' } });
       return;
     }
-    router.push({
-      pathname: '/record-video',
-      params: { mode: 'challenge', line: TODAY_LINE.line, work: TODAY_LINE.work },
-    });
+    // 챌린지 참여는 대사를 고르는 데서 시작한다 — 목록에서 고른 챌린지가 촬영 화면에 대사를 준다.
+    router.push('/challenges');
   };
 
   const icon = (outline: IoniconName, filled: IoniconName) => {

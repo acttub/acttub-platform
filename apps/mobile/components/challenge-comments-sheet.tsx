@@ -14,16 +14,28 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
-import { COMMENTS, type MockComment } from '@/lib/challenge-mock';
 import { translate as t } from '@/lib/i18n';
 
+/** 한 줄 댓글. 서버 연결(목록·보내기·삭제·신고)은 CM3 가 잇는다. */
+export type ChallengeComment = { id: string; name: string; ago: string; text: string; liked: boolean };
+
 /**
- * A15.3 댓글 시트 — 영상 위로 올라오는 바텀시트. 예시 댓글 + 하트 토글 + 입력.
- * 보낸 댓글은 이 시트가 열려 있는 동안만 목록에 남는다(서버 없음).
+ * A15.3 댓글 시트 — 영상 위로 올라오는 바텀시트.
+ *
+ * 예시 댓글은 걷어냈다(운영 자료가 아니다). 지금은 받은 목록을 그리고 보낸 댓글을 이 시트가
+ * 열려 있는 동안만 얹는다 — 접수·목록 조회는 CM3 가 서버로 잇는다.
  */
-export function ChallengeCommentsSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+export function ChallengeCommentsSheet({
+  visible,
+  onClose,
+  comments = [],
+}: {
+  visible: boolean;
+  onClose: () => void;
+  comments?: readonly ChallengeComment[];
+}) {
   const insets = useSafeAreaInsets();
-  const [items, setItems] = useState<MockComment[]>(() => [...COMMENTS]);
+  const [items, setItems] = useState<ChallengeComment[]>(() => [...comments]);
   const [draft, setDraft] = useState('');
 
   const toggleLike = (id: string) =>
