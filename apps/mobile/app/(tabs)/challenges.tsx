@@ -18,6 +18,7 @@ import {
   pinsFeatured,
 } from '@/lib/challenge/browse';
 import { hasSeenChallengeIntro, markChallengeIntroSeen } from '@/lib/challenge/intro-state';
+import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
 import type { ChallengeCard, ChallengeTab } from '@/lib/challenge/types';
 import { translate as t } from '@/lib/i18n';
 
@@ -46,6 +47,7 @@ export default function ChallengesScreen() {
   const [challenges, setChallenges] = useState<ChallengeCard[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [intro, setIntro] = useState(false);
+  const unread = useUnreadNotifications(true);
 
   const load = useCallback(async (next: ChallengeTab) => {
     setError(null);
@@ -96,9 +98,20 @@ export default function ChallengesScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.title}>{picking ? t('challengeUpload.pickChallenge') : t('challenges.title')}</Text>
-        <Pressable style={styles.addBtn} onPress={() => router.push('/line-new')} accessibilityRole="button">
-          <Feather name="plus" size={20} color={palette.text} />
-        </Pressable>
+        <View style={styles.headerRight}>
+          {/* 알림함 — 읽지 않은 묶음이 있으면 점이 붙는다(challenge.notification). */}
+          <Pressable
+            style={styles.addBtn}
+            onPress={() => router.push('/notifications')}
+            accessibilityRole="button"
+            accessibilityLabel={t('notifications.title')}>
+            <Feather name="bell" size={18} color={palette.text} />
+            {unread.count > 0 && <View style={styles.badgeDot} />}
+          </Pressable>
+          <Pressable style={styles.addBtn} onPress={() => router.push('/line-new')} accessibilityRole="button">
+            <Feather name="plus" size={20} color={palette.text} />
+          </Pressable>
+        </View>
       </View>
 
       <Pressable style={styles.search} onPress={() => router.push('/line-search')} accessibilityRole="button">
@@ -234,6 +247,16 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   title: { fontSize: 24, fontWeight: '800', color: palette.text, letterSpacing: -0.5 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  badgeDot: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: palette.danger,
+  },
   addBtn: {
     width: 34,
     height: 34,

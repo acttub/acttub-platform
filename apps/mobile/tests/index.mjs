@@ -79,3 +79,6 @@ import './challenge-entry-screens.test.mjs';
 import './challenge-react.test.mjs';
 import './challenge-moderation.test.mjs';
 import './challenge-react-screens.test.mjs';
+import './challenge-ai-report.test.mjs';
+import './challenge-notification-center.test.mjs';
+import './challenge-notify-screens.test.mjs';

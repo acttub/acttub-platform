@@ -26,7 +26,6 @@ import { CAPTION_MAX, type ChallengeDetail, type EntryVisibility } from '@/lib/c
 import { useAuth } from '@/lib/auth';
 import { translate as t } from '@/lib/i18n';
 import { confirmedVideoFor, flushLibraryUploads, localCopyFor, onLibraryChange, saveRecordingToLibrary } from '@/lib/library/library-runner';
-import { setPickedVideo } from '@/lib/practice/picked-video';
 import { takeRecordedVideo } from '@/lib/recorded-video';
 
 /**
@@ -47,12 +46,13 @@ export default function ChallengeUploadScreen() {
   const [videoId, setVideoId] = useState<string | null>(params.videoId ?? null);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [localUri, setLocalUri] = useState<string | null>(null);
-  const [durationMs, setDurationMs] = useState<number | null>(null);
   const [caption, setCaption] = useState('');
   const [visibility, setVisibility] = useState<EntryVisibility | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<EntryVisibility | null>(null);
+  /** 방금 만든 참여작 — 완료 화면의 "AI 리포트 받기"가 쓴다. */
+  const [entryId, setEntryId] = useState<string | null>(null);
   const attemptRef = useRef<EntryAttempt | null>(null);
   const lockRef = useRef(false);
 
@@ -67,7 +67,6 @@ export default function ChallengeUploadScreen() {
     const recorded = takeRecordedVideo();
     if (!recorded || !user?.id || params.videoId) return;
     setLocalUri(recorded.uri);
-    setDurationMs(recorded.durationMs);
     if (videoTooLong(recorded.durationMs)) {
       setError(t('challengeUpload.errTooLong'));
       return;
@@ -124,7 +123,8 @@ export default function ChallengeUploadScreen() {
       const body = buildEntryBody({ requestId: 'pending', videoId, caption, visibility });
       const attempt = entryAttemptFor(attemptRef.current, entryFingerprint(body), () => `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
       attemptRef.current = attempt;
-      await api.createEntry(challengeId, { ...body, request_id: attempt.requestId });
+      const entry = await api.createEntry(challengeId, { ...body, request_id: attempt.requestId });
+      setEntryId(entry.id);
       logEvent('challenge_entry_created', { visibility });
       setDone(visibility);
     } catch (e) {
@@ -137,11 +137,17 @@ export default function ChallengeUploadScreen() {
     }
   }, [caption, challengeId, pendingId, submitting, user?.id, videoId, visibility]);
 
-  /** "AI 리포트 받기" — 이 영상으로 연습을 시작한다(보관함 영상을 그대로 쓴다). */
+  /**
+   * "AI 리포트 받기"(A18.3) — 같은 대사의 다른 참여작과 견주는 챌린지 리포트로 간다.
+   * 공개·비공개 참여작 모두 요청할 수 있다(challenge.ai-report).
+   */
   const getReport = () => {
     logEvent('challenge_upload_report', { visibility: done ?? 'none' });
-    setPickedVideo({ videoId, pendingId, uri: localUri, playbackUrl: null, durationMs });
-    router.replace('/upload');
+    if (!entryId) {
+      router.replace('/challenges');
+      return;
+    }
+    router.replace({ pathname: '/ai-report', params: { entryId } });
   };
 
   if (done) {

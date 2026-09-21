@@ -114,6 +114,18 @@ export function onPushReceived(listener: (data: unknown) => void): () => void {
   return () => subscription.remove();
 }
 
+/**
+ * 푸시를 눌러 앱이 열렸을 때. 잠금 화면 문구에는 이름·본문이 없고 알림 식별자만 있으므로
+ * 그 자료로 어디를 열지 정한다(challenge.notification). 모듈이 없으면 구독하지 않는다.
+ */
+export function onPushTapped(listener: (data: unknown) => void): () => void {
+  if (!notifications) return () => undefined;
+  const subscription = notifications.addNotificationResponseReceivedListener((event) => {
+    listener(event?.notification?.request?.content?.data ?? null);
+  });
+  return () => subscription.remove();
+}
+
 /** 기기에 적어 둔 마지막 서버 값. 서버를 못 읽을 때(오프라인)와 연습 완료 때 쓴다. */
 async function cachedSettings(): Promise<NotificationSettings> {
   try {

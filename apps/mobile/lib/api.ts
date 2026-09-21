@@ -39,6 +39,7 @@ import type { ProfilePayload, ServerProfile } from '@/lib/profile-form';
 import type { NotificationSettings } from '@/lib/push-policy';
 import type { Video, VideoFilter, VideoIntentRequest, VideoIntentResponse, VideoListResponse } from '@/lib/library/types';
 import type {
+  AiReport,
   BlockedUser,
   ChallengeDetail,
   ChallengeListResponse,
@@ -49,6 +50,7 @@ import type {
   EntryCard,
   EntryComment,
   EntryPatch,
+  NotificationsResponse,
   EntrySort,
   CommentsResponse,
   CreateCommentBody,
@@ -1330,6 +1332,52 @@ export const api = {
 
   listBlocks(): Promise<{ users: BlockedUser[] }> {
     return request<{ users: BlockedUser[] }>('/v2/me/blocks', {}, { timeoutMs: 20_000 });
+  },
+
+  // AI 리포트(challenge.ai-report) -----------------------------------------------
+  /**
+   * 리포트 만들기를 부탁한다. 이미 결과가 있으면 그것을 돌려주고, 같은 요청 id 의 재전송은
+   * 기존 작업이다. 하루 3회를 넘기면 429 daily_report_request_limit, 파일이 파기된 참여작은
+   * 422 video_not_ready 다.
+   */
+  requestAiReport(entryId: string, requestId: string): Promise<{ status: string }> {
+    return postIdempotent<{ status: string }>(
+      `/v2/entries/${encodeURIComponent(entryId)}/ai-report`,
+      { request_id: requestId },
+      { requestId, timeoutMs: 30_000 },
+    );
+  },
+
+  /** 본인만 본다(남의 리포트는 404). 비공개 참여작의 리포트도 본인은 본다. */
+  getAiReport(entryId: string, options: ApiCallOptions = {}): Promise<AiReport> {
+    return request<AiReport>(`/v2/entries/${encodeURIComponent(entryId)}/ai-report`, {}, {
+      timeoutMs: 20_000,
+      signal: options.signal,
+    });
+  },
+
+  // 알림함(challenge.notification) -------------------------------------------------
+  /** 묶음 20개씩, 묶음의 최신 사건 순. 토글을 꺼도 여기에는 쌓인다. */
+  listNotifications(cursor?: string): Promise<NotificationsResponse> {
+    const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
+    return request<NotificationsResponse>(`/v2/me/notifications${query}`, {}, { timeoutMs: 20_000 });
+  },
+
+  /**
+   * 읽음 표시. 묶음을 열면 그 묶음의 사건 전부가, "모두 읽음"은 요청 시각·id 까지가 읽음이 된다
+   * (그 뒤 도착한 것은 읽지 않음으로 남는다).
+   */
+  readNotifications(body: { group_keys?: string[]; all_before?: { created_at: string; id: string } }): Promise<void> {
+    return request<void>(
+      '/v2/me/notifications/read',
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
+      { requestId: true, timeoutMs: 15_000 },
+    );
+  },
+
+  /** 탭 배지 — 읽지 않은 묶음 수다. */
+  unreadNotificationCount(): Promise<{ count: number }> {
+    return request<{ count: number }>('/v2/me/notifications/unread-count', {}, { timeoutMs: 15_000 });
   },
 
   /** 저장한 참여작(A15.5). 비공개·운영 숨김은 목록에서 빠지고 행은 남는다. */

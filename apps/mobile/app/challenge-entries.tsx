@@ -105,6 +105,10 @@ export default function ChallengeEntriesScreen() {
       title: t('challengeEntries.menuTitle'),
       actions: [
         {
+          label: t('aiReport.title'),
+          onPress: () => router.push({ pathname: '/ai-report', params: { entryId: entry.id } }),
+        },
+        {
           label: t('challengeUpload.editCaption'),
           onPress: () => {
             setEditing(entry);

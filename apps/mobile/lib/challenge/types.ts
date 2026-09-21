@@ -191,6 +191,75 @@ export type CreateCommentBody = {
   body: string;
 };
 
+// ─── AI 리포트(challenge.ai-report) ──────────────────────────────────────────
+
+export type AiReportStatus = 'pending' | 'ready' | 'failed';
+
+/** 관찰·견주기에 붙는 근거 구간. 그 자리를 다시 볼 수 있게 시각을 준다. */
+export type ReportEvidence = { start_ms: number; end_ms: number; text: string };
+
+/**
+ * 리포트는 관찰·견주기·한계·제안이다. 점수·백분위·등급·순위·재능 판정은 없다(ADR-005 개정).
+ * 표본은 이름·id 없이 "다른 참여작들"로만 나온다.
+ */
+export type AiReport = {
+  entry_id: string;
+  status: AiReportStatus;
+  /** 내 영상에서 확인된 것. */
+  observations: ReportEvidence[];
+  /** 표본에서 자주 보인 선택과 내 선택의 차이(우열 없이). 표본이 부족하면 빈 목록이다. */
+  comparisons: string[];
+  /** 못 본 구간·표본 부족 같은 한계. 채우지 않는다. */
+  limits: string[];
+  /** 다음에 해볼 것 하나. 없을 수 있다. */
+  suggestion: string | null;
+  /** 견주기에 쓴 표본 수. 3개 미만이면 화면이 "비교할 영상이 아직 부족해요"를 보인다. */
+  sample_count: number;
+  requested_at: string | null;
+  completed_at: string | null;
+};
+
+/** 하루에 새로 만들 수 있는 리포트 수. */
+export const AI_REPORT_DAILY_LIMIT = 3;
+
+/** 견주기를 만들려면 표본이 이만큼은 있어야 한다. */
+export const AI_REPORT_MIN_SAMPLES = 3;
+
+// ─── 알림함(challenge.notification) ──────────────────────────────────────────
+
+export type NotificationKind =
+  | 'entry_liked'
+  | 'entry_commented'
+  | 'challenge_ended'
+  | 'entry_ai_report_ready';
+
+/**
+ * 알림함의 한 줄 = 묶음 하나. 같은 group_key(10분 구간)의 좋아요·댓글이 한 줄로 묶인다.
+ * 이름·본문·주소는 복사하지 않고 조회 때 현재 권한으로 조립된다.
+ */
+export type NotificationGroup = {
+  group_key: string;
+  kind: NotificationKind;
+  /** 유효한(취소·삭제되지 않은) 서로 다른 행동자 수·댓글 수. */
+  actor_count: number;
+  /** 대표 행동자 이름. 탈퇴했으면 서버가 "탈퇴한 사용자"로 준다. */
+  actor_name: string | null;
+  challenge_id: string | null;
+  entry_id: string | null;
+  comment_id: string | null;
+  /** 묶음의 최신 사건 시각. 목록은 이 순서의 역순이다. */
+  latest_at: string;
+  /** 포함된 사건이 모두 읽혔는지. */
+  read: boolean;
+  /** 대상이 삭제·비공개·숨김·차단으로 보이지 않으면 거짓이다(본인 리포트는 예외). */
+  target_available: boolean;
+};
+
+export type NotificationsResponse = {
+  groups: NotificationGroup[];
+  next_cursor: string | null;
+};
+
 // ─── 차단(challenge.block) ───────────────────────────────────────────────────
 
 export type BlockedUser = {
