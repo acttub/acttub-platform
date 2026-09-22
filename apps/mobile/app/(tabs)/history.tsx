@@ -18,6 +18,7 @@ import { listScripts, loadIntoCurrent, type SavedScript } from '@/lib/reading/st
 import { loadRecordMeta } from '@/lib/record-meta';
 import { sortReportsNewestFirst } from '@/lib/report-order';
 import { sceneValueForDisplay } from '@/lib/upload-input';
+import { useRequireLogin } from '@/hooks/use-require-login';
 
 type Filter = 'all' | 'fav' | 'recent';
 
@@ -53,9 +54,18 @@ export default function HistoryScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { confirm, alert, sheet, dialog } = useAppDialog();
+  const { isGuest } = useRequireLogin();
 
   const load = useCallback(async () => {
     setError(null);
+    // 둘러보는 중엔 계정이 없다 — 서버 기록 대신 기기에 있는 대본만 보여 준다 (SOMA-544).
+    if (isGuest) {
+      setSessions([]);
+      setScripts(await listScripts().catch(() => [] as SavedScript[]));
+      setReports([]);
+      setLoading(false);
+      return;
+    }
     try {
       // 세션 목록·대본은 실패해도 리포트만으로 화면이 서야 하므로 따로 삼킨다.
       const [history, sessionList, savedScripts] = await Promise.all([

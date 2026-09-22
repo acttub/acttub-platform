@@ -8,6 +8,7 @@ import { HapticTab } from '@/components/haptic-tab';
 import { RecordModeSheet, type RecordMode } from '@/components/record-mode-sheet';
 import { palette } from '@/constants/palette';
 import { TODAY_LINE } from '@/lib/challenge-mock';
+import { useRequireLogin } from '@/hooks/use-require-login';
 import { isKorean, translate as t } from '@/lib/i18n';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -23,21 +24,25 @@ export default function TabLayout() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [modeOpen, setModeOpen] = useState(false);
+  const { requireLogin, element: loginGuard } = useRequireLogin();
 
   const pickMode = (mode: RecordMode) => {
     setModeOpen(false);
+    // AI 코칭은 서버로 올려야 한다 — 둘러보는 중이면 로그인으로 안내한다 (SOMA-544).
     if (mode === 'ai') {
-      router.push({ pathname: '/record-video', params: { mode: 'ai' } });
+      requireLogin(() => router.push({ pathname: '/record-video', params: { mode: 'ai' } }));
       return;
     }
     if (mode === 'plain') {
       router.push({ pathname: '/record-video', params: { mode: 'plain' } });
       return;
     }
-    router.push({
-      pathname: '/record-video',
-      params: { mode: 'challenge', line: TODAY_LINE.line, work: TODAY_LINE.work },
-    });
+    requireLogin(() =>
+      router.push({
+        pathname: '/record-video',
+        params: { mode: 'challenge', line: TODAY_LINE.line, work: TODAY_LINE.work },
+      }),
+    );
   };
 
   const icon = (outline: IoniconName, filled: IoniconName) => {
@@ -112,6 +117,7 @@ export default function TabLayout() {
         <Tabs.Screen name="profile" options={{ title: t('tabs.profile'), tabBarIcon: icon('person-outline', 'person') }} />
       </Tabs>
       <RecordModeSheet visible={modeOpen} onClose={() => setModeOpen(false)} onPick={pickMode} />
+      {loginGuard}
     </>
   );
 }

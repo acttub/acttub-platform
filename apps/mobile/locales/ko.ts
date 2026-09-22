@@ -28,6 +28,7 @@ const ko = {
     tryLater: '잠시 후 다시 시도해주세요.',
   },
   login: {
+    guest: '로그인 없이 둘러보기',
     tagline: '그 장면에서 뭘 하려 했는지부터',
     google: 'Google로 계속하기',
     apple: 'Apple로 로그인',
@@ -654,7 +655,7 @@ const ko = {
     genderMale: '남성',
     genderNone: '선택 안 함',
     birthLabel: '생년월일',
-    birthPlaceholder: '예: 2004-03-14',
+    birthPlaceholder: '예: 2004-03-14 (숫자만 입력)',
     birthInvalid: '생년월일을 다시 확인해주세요.',
     under14: '만 14세 미만으로는 바꿀 수 없어요.',
     under14Closed: '만 14세 미만은 가입할 수 없어요. 입력한 정보와 계정은 바로 지웠어요.',
@@ -935,6 +936,11 @@ const ko = {
   nudge: {
     title: '오늘 연습 아직이에요',
     body: '5분이면 돼요. 장면 하나만 찍어볼까요?',
+  },
+  guest: {
+    title: '로그인이 필요해요',
+    message: '이 기능은 계정이 있어야 써요. 로그인하면 지금 보던 것 그대로 이어서 할 수 있어요.',
+    cta: '로그인하기',
   },
   errors: {
     clientContractRequired: '앱을 업데이트하면 이 연습 노트를 열 수 있어요.',

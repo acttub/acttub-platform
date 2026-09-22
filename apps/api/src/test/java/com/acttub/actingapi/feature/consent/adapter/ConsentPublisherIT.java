@@ -59,6 +59,13 @@ class ConsentPublisherIT {
     @Autowired
     ResourceLoader resources;
 
+    /** 목록에 적힌 문서 수. 종류나 말이 늘어도 이 테스트는 그대로 맞는다. */
+    private int manifestEntryCount() throws Exception {
+        try (var in = getClass().getResourceAsStream("/consent-docs/manifest.json")) {
+            return new com.fasterxml.jackson.databind.ObjectMapper().readTree(in).size();
+        }
+    }
+
     @Test
     @Order(1)
     void emptyDatabaseBootPublishesWholeManifestAndRepeatIsIdempotent() throws Exception {
@@ -66,14 +73,15 @@ class ConsentPublisherIT {
         assertThat(jdbc.queryForList(
                 "SELECT type,version,locale,title,required,length(body) body_length "
                         + "FROM consent_documents ORDER BY type,locale"))
-                .hasSize(6)
+                .hasSize(manifestEntryCount())
                 .allSatisfy(row -> {
                     // 필수 셋과 선택 하나(탈퇴 후 영상·녹음 보관·활용).
                     assertThat(row.get("required")).isEqualTo(!"retention".equals(row.get("type")));
                     assertThat(((Number) row.get("body_length")).intValue()).isPositive();
                 });
         assertThat(jdbc.queryForObject(
-                "SELECT title FROM consent_documents WHERE type='privacy'", String.class))
+                // 번역본도 같은 종류로 올라온다 — 제목의 정본은 한국어 행이다 (SOMA-544).
+                "SELECT title FROM consent_documents WHERE type='privacy' AND locale='ko'", String.class))
                 .as("privacy 는 동의를 받는 문서다. 처리방침은 고지라 이 목록에 없다")
                 .isEqualTo("개인정보 수집·이용 동의");
         assertThat(publisher.publish()).as("같은 판이면 행이 늘지 않는다").isZero();
@@ -208,10 +216,10 @@ class ConsentPublisherIT {
         try {
             Future<Integer> first = pool.submit(publisher::publish);
             Future<Integer> second = pool.submit(other::publish);
-            assertThat(first.get() + second.get()).isBetween(6, 12);
+            assertThat(first.get() + second.get()).isBetween(manifestEntryCount(), manifestEntryCount() * 2);
             assertThat(jdbc.queryForObject(
                     "SELECT count(*) FROM consent_documents",
-                    Integer.class)).isEqualTo(6);
+                    Integer.class)).isEqualTo(manifestEntryCount());
         } finally {
             pool.shutdownNow();
         }
