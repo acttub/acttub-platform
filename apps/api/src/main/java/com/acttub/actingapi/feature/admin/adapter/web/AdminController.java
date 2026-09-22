@@ -1,5 +1,19 @@
 package com.acttub.actingapi.feature.admin.adapter.web;
 
+import com.acttub.actingapi.feature.challenge.app.ChallengeRepository.Card;
+import com.acttub.actingapi.feature.challenge.app.ChallengeService.Draft;
+import com.acttub.actingapi.feature.challenge.app.ChallengeService;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import java.time.format.DateTimeParseException;
+import org.springframework.http.ResponseEntity;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.Valid;
+import java.time.LocalDate;
+import java.util.UUID;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.LinkedHashMap;
@@ -36,15 +50,61 @@ class AdminController {
 
     private final AdminService admin;
     private final PracticeDataMigration migration;
+    private final ChallengeService challenges;
     private final byte[] expectedAuthorization;
 
     AdminController(
             AdminService admin,
             PracticeDataMigration migration,
+            ChallengeService challenges,
             @Value("${ADMIN_OPS_TOKEN}") String adminToken) {
         this.admin = admin;
         this.migration = migration;
+        this.challenges = challenges;
         this.expectedAuthorization = ("Bearer " + adminToken).getBytes(StandardCharsets.UTF_8);
+    }
+
+    @Schema(name = "AdminChallengeCreateRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record ChallengeCreate(@NotNull UUID requestId,
+            @NotNull String line, @NotNull String work,
+            String character, String sceneNote, @NotNull Integer durationDays,
+            String origin, @Schema(nullable = true, type = "string", format = "date") String featuredOn) { }
+
+    @PostMapping("/challenges")
+    @Operation(summary = "Create Team Challenge", operationId = "create_team_challenge_v2_admin_challenges_post", tags = "admin")
+    @ApiResponse(responseCode = "201", description = "Created", content = @Content(schema = @Schema(implementation = Card.class)))
+    @ApiResponse(responseCode = "200", description = "Replay", content = @Content(schema = @Schema(implementation = Card.class)))
+    ResponseEntity<Card> createChallenge(
+            @Valid @RequestBody ChallengeCreate body,
+            @RequestHeader(name = "authorization", defaultValue = "") String authorization) {
+        requireToken(authorization);
+        if (body.origin() != null && !"team".equals(body.origin())) throw ApiValidationException.valueError(
+                List.of("body", "origin"), "Value error, admin challenges must have origin team", body.origin());
+        var result = challenges.createTeam(body.requestId(), new Draft(
+                body.line(), body.work(), body.character(), body.sceneNote(), body.durationDays()), featuredDate(body.featuredOn()));
+        return ResponseEntity.status(result.created() ? 201 : 200).body(result.card());
+    }
+
+    @Schema(name = "ChallengeModerationRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    record Moderation(@NotNull String moderation) { }
+
+    private static LocalDate featuredDate(String value) {
+        if (value == null) return null;
+        try { return LocalDate.parse(value); }
+        catch (DateTimeParseException invalid) {
+            throw ApiValidationException.valueError(List.of("body", "featured_on"), "Value error, invalid date", value);
+        }
+    }
+
+    @PatchMapping("/challenges/{id}/moderation")
+    @Operation(summary = "Moderate Challenge", operationId = "moderate_challenge_v2_admin_challenges__id__moderation_patch", tags = "admin")
+    Card moderateChallenge(
+            @PathVariable UUID id,
+            @Valid @RequestBody Moderation body,
+            @RequestHeader(name = "authorization", defaultValue = "") String authorization) {
+        requireToken(authorization);
+        return challenges.moderate(id, body.moderation());
     }
 
     @Operation(

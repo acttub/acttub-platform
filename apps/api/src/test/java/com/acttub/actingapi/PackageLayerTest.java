@@ -75,6 +75,7 @@ class PackageLayerTest {
             Map.entry("transfer", Set.of("app", "adapter", "schema")),
             // 대본 리딩(SOMA-546, ADR-031). 대본의 규칙(한도·배역 이름)이 domain 에 산다.
             Map.entry("reading", FOUR_LAYERS),
+            Map.entry("challenge", FOUR_LAYERS),
             // 영상 보관함(SOMA-546). 한도·형식·객체 키가 domain 에 산다.
             Map.entry("video", FOUR_LAYERS),
             // 입시 요강에는 Domain Model 도 Schema Entity 도 없다. 요강은 우리가 쓰는 데이터가

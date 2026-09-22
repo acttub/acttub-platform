@@ -122,12 +122,12 @@ class EntityMappingIT {
             "practice_migration_entries");
 
     @Test
-    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 32개 활성 엔티티를 포함한다")
-    void mapsExactlyThirtyTwoActiveEntities() {
+    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 36개 활성 엔티티를 포함한다")
+    void mapsExactlyThirtySixActiveEntities() {
         Set<Class<?>> entities = entityManager.getMetamodel().getEntities().stream()
                 .map(jakarta.persistence.metamodel.Type::getJavaType)
                 .collect(java.util.stream.Collectors.toSet());
-        assertThat(entities).hasSize(32);
+        assertThat(entities).hasSize(36);
         assertThat(entities).contains(ActorMemoryEntryEntity.class, PushTokenEntity.class);
         assertThat(entities).allMatch(type -> type.getSimpleName().endsWith("Entity"));
         assertThat(entities).allMatch(type -> java.util.Arrays.stream(type.getDeclaredFields())

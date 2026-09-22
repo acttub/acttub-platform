@@ -19,6 +19,10 @@ function codePoints(value: string): number {
   return [...value].length;
 }
 
+export function normalizeChallengeLine(value: string): string {
+  return value.replace(/\s+/gu, ' ').trim();
+}
+
 export type ChallengeDraft = {
   line: string;
   work: string;
@@ -48,7 +52,7 @@ export function isDuration(value: number): value is ChallengeDuration {
 
 /** 서버가 422로 막기 전에 화면이 먼저 막는다. 넘친 칸 이름을 돌려준다. */
 export function draftOverflow(draft: ChallengeDraft): 'line' | 'work' | 'character' | 'sceneNote' | null {
-  if (codePoints(draft.line.trim()) > LINE_MAX) return 'line';
+  if (codePoints(normalizeChallengeLine(draft.line)) > LINE_MAX) return 'line';
   if (codePoints(draft.work.trim()) > WORK_MAX) return 'work';
   if (codePoints(draft.character.trim()) > CHARACTER_MAX) return 'character';
   if (codePoints(draft.sceneNote.trim()) > SCENE_NOTE_MAX) return 'sceneNote';
@@ -58,7 +62,7 @@ export function draftOverflow(draft: ChallengeDraft): 'line' | 'work' | 'charact
 export function buildCreateBody(requestId: string, draft: ChallengeDraft): CreateChallengeBody {
   const body: CreateChallengeBody = {
     request_id: requestId,
-    line: draft.line.trim(),
+    line: normalizeChallengeLine(draft.line),
     work: draft.work.trim(),
     duration_days: draft.durationDays,
   };

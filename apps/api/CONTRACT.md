@@ -1230,6 +1230,37 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   `UpdateMemoryRequest` 는 `/v2/legacy-me/memory` 가 계속 쓴다), 설문은 `PracticeFeedbackRequest`·
   `PracticeFeedbackResponse`·`PracticeFeedbackStatus`.
 
+### 6-16. 챌린지 개설·목록 (1.0.0)
+
+- 정본은 [04-challenge.md](../../docs/requirements/04-challenge.md)다. `/v2/challenges`는 동의·프로필을
+  마친 회원, `X-Acttub-Client: app/...`, 한국어 요청에만 열리고 나머지는 403 `member_only`다.
+- `POST /v2/challenges`는 `request_id`·대사·작품·기간(7·14일)을 받고 인물·장면 메모는 선택이다.
+  대사는 공백을 한 칸으로 정리하고 나머지는 앞뒤 공백만 걷는다. 코드 포인트 기준 대사 1~200,
+  작품 1~100, 인물 100, 메모 500자다. 기간 밖 값은 422 `invalid_duration`이다. 생성은 201,
+  같은 요청·같은 정규화 본문은 200이며 다른 본문은 422 `request_fingerprint_mismatch`다.
+- 회원의 한국 날짜 하루 개설은 3회이며 삭제한 것도 센다(429 `daily_challenge_limit`). 같은 사람의
+  진행 중 같은 대사는 422 `duplicate_challenge`다. 성공한 요청의 재전송을 한도보다 먼저 확인한다.
+  검사·쓰기는 활성 사용자 행 잠금 아래 하므로 동시 개설·탈퇴 뒤 늦은 쓰기가 새 행을 만들지 않는다.
+- `DELETE /v2/challenges/{id}`는 자기 챌린지에 참여 이력이 전혀 없을 때만 204다. 삭제된 참여작도
+  이력에 포함한다(422 `challenge_has_entries`). 챌린지는 삭제 표시만 남겨 요청 이력·한도를 보존하며
+  같은 삭제는 204, 삭제한 개설 요청을 다시 보내도 새 챌린지를 만들지 않는다. 없는·남의·숨긴 대상은 404다.
+- 목록 `GET /v2/challenges?tab=popular|latest|ended|mine&q=&cursor=`와 상세 `GET /v2/challenges/{id}`는
+  visible이고 삭제하지 않은 챌린지만 낸다. 목록은 20개씩이고 커서는 요청자·탭·정리된 검색어에 묶인
+  마지막 정렬 값이다. 검색은 2자부터 대사·작품·노출 가능한 참여자의 현재 이름만 찾으며 인물·메모는 찾지 않는다.
+- 집계의 공개 조건은 참여작 public·visible, 활성 작성자, 파기하지 않은 본인 영상, visible·미삭제 챌린지다.
+  `entry_count`·`like_sum`은 차단과 무관한 전체 값이다. 참여자 이름(서로 다른 작성자 최대 셋)·검색에는
+  양방향 차단도 적용하며 `more_count`는 같은 개인 노출 조건으로 센다. 사진·소개는 응답에 없다.
+- 인기는 좋아요 합 → 참여작 수, 최신은 개설 시각, 종료는 종료 시각의 역순이다. 내 챌린지는 내가 삭제되지
+  않은 참여작을 가진 서로 다른 챌린지다. 동률은 개설 시각·id로 안정화한다. 오늘의 챌린지는 진행 중인 오늘
+  선정 → 가장 최근 과거 선정 → 공개 참여작 최다 순으로 고르고, 미래 선정은 고정하지 않는다. 인기·최신의
+  검색 없는 목록에서만 `featured`로 분리해 주며 일반 목록에서 중복하지 않는다.
+- 기존 운영 토큰이 있는 환경의 `POST /v2/admin/challenges`는 team 개설과 `featured_on`(ISO 날짜)을 받는다.
+  팀 요청은 별도 멱등 범위이며 날짜당 선정 하나다(422 `featured_date_conflict`).
+  `PATCH /v2/admin/challenges/{id}/moderation`은 visible·review·hidden을 바꾼다. 기간을 바꾸지 않으므로
+  만료 후 복구하면 종료 목록에 보인다. 일반 회원 토큰으로 이 운영 경로를 사용할 수 없다.
+- V16은 `challenges`, V17은 공개 집계의 기반인 `challenge_entries`·`entry_likes`·`user_blocks`를 더한다.
+  기존 표·컬럼은 축소하지 않는다. 값 CHECK와 Schema Entity 매핑도 함께 검증한다.
+
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 
 1. **좋아요 카운트는 재집계다.** 증감 방식이 "두 번 눌리면 2 증가" 하던 버그 때문에 의도적으로

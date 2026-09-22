@@ -62,6 +62,41 @@ COLUMN anomalies.start_ts ord=4 type=text len=- null=NO default=-
 COLUMN anomalies.summary_id ord=2 type=uuid len=- null=NO default=-
 COLUMN anomalies.what ord=7 type=text len=- null=NO default=-
 COLUMN anomalies.why_odd ord=8 type=text len=- null=NO default=-
+COLUMN challenge_entries.caption ord=5 type=text len=- null=YES default=-
+COLUMN challenge_entries.challenge_id ord=2 type=uuid len=- null=NO default=-
+COLUMN challenge_entries.content_version ord=6 type=int4 len=- null=NO default=1
+COLUMN challenge_entries.created_at ord=16 type=timestamptz len=- null=NO default=now()
+COLUMN challenge_entries.deleted_at ord=18 type=timestamptz len=- null=YES default=-
+COLUMN challenge_entries.final_eligible ord=12 type=bool len=- null=YES default=-
+COLUMN challenge_entries.final_like_count ord=11 type=int8 len=- null=YES default=-
+COLUMN challenge_entries.final_rank ord=13 type=int4 len=- null=YES default=-
+COLUMN challenge_entries.id ord=1 type=uuid len=- null=NO default=-
+COLUMN challenge_entries.published_at ord=7 type=timestamptz len=- null=YES default=-
+COLUMN challenge_entries.request_fingerprint ord=15 type=bpchar len=64 null=NO default=-
+COLUMN challenge_entries.request_id ord=14 type=uuid len=- null=NO default=-
+COLUMN challenge_entries.status ord=9 type=text len=- null=NO default='visible'::text
+COLUMN challenge_entries.updated_at ord=17 type=timestamptz len=- null=NO default=now()
+COLUMN challenge_entries.user_id ord=3 type=uuid len=- null=NO default=-
+COLUMN challenge_entries.video_id ord=4 type=uuid len=- null=YES default=-
+COLUMN challenge_entries.view_count ord=10 type=int8 len=- null=NO default=0
+COLUMN challenge_entries.visibility ord=8 type=text len=- null=NO default=-
+COLUMN challenges.character ord=4 type=text len=- null=YES default=-
+COLUMN challenges.deleted_at ord=15 type=timestamptz len=- null=YES default=-
+COLUMN challenges.duration_days ord=6 type=int4 len=- null=NO default=-
+COLUMN challenges.ends_at ord=13 type=timestamptz len=- null=NO default=-
+COLUMN challenges.featured_on ord=11 type=date len=- null=YES default=-
+COLUMN challenges.finalized_at ord=17 type=timestamptz len=- null=YES default=-
+COLUMN challenges.host_user_id ord=8 type=uuid len=- null=YES default=-
+COLUMN challenges.id ord=1 type=uuid len=- null=NO default=-
+COLUMN challenges.line ord=2 type=text len=- null=NO default=-
+COLUMN challenges.moderation ord=14 type=text len=- null=NO default='visible'::text
+COLUMN challenges.origin ord=7 type=text len=- null=NO default=-
+COLUMN challenges.ranking_state ord=16 type=text len=- null=YES default=-
+COLUMN challenges.request_fingerprint ord=10 type=bpchar len=64 null=NO default=-
+COLUMN challenges.request_id ord=9 type=uuid len=- null=NO default=-
+COLUMN challenges.scene_note ord=5 type=text len=- null=YES default=-
+COLUMN challenges.starts_at ord=12 type=timestamptz len=- null=NO default=-
+COLUMN challenges.work ord=3 type=text len=- null=NO default=-
 COLUMN coach_conversations.close_reason ord=5 type=text len=- null=YES default=-
 COLUMN coach_conversations.closed_at ord=10 type=timestamptz len=- null=YES default=-
 COLUMN coach_conversations.created_at ord=8 type=timestamptz len=- null=NO default=now()
@@ -173,6 +208,10 @@ COLUMN consent_documents.required ord=6 type=bool len=- null=NO default=false
 COLUMN consent_documents.title ord=4 type=text len=- null=NO default=-
 COLUMN consent_documents.type ord=2 type=text len=- null=NO default=-
 COLUMN consent_documents.version ord=3 type=text len=- null=NO default=-
+COLUMN entry_likes.created_at ord=4 type=timestamptz len=- null=NO default=now()
+COLUMN entry_likes.entry_id ord=2 type=uuid len=- null=NO default=-
+COLUMN entry_likes.id ord=1 type=uuid len=- null=NO default=-
+COLUMN entry_likes.user_id ord=3 type=uuid len=- null=NO default=-
 COLUMN external_operations.attempt_count ord=7 type=int4 len=- null=NO default=0
 COLUMN external_operations.created_at ord=13 type=timestamptz len=- null=NO default=now()
 COLUMN external_operations.error_code ord=11 type=text len=- null=YES default=-
@@ -412,6 +451,10 @@ COLUMN upload_intents.status ord=3 type=text len=- null=NO default='pending'::te
 COLUMN upload_intents.storage_provider ord=4 type=text len=- null=NO default=-
 COLUMN upload_intents.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN upload_intents.video_id ord=15 type=uuid len=- null=YES default=-
+COLUMN user_blocks.blocked_id ord=3 type=uuid len=- null=NO default=-
+COLUMN user_blocks.blocker_id ord=2 type=uuid len=- null=NO default=-
+COLUMN user_blocks.created_at ord=4 type=timestamptz len=- null=NO default=now()
+COLUMN user_blocks.id ord=1 type=uuid len=- null=NO default=-
 COLUMN user_consents.action ord=4 type=text len=- null=NO default=-
 COLUMN user_consents.document_id ord=3 type=uuid len=- null=NO default=-
 COLUMN user_consents.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
@@ -570,6 +613,58 @@ CONSTRAINT anomalies anomalies_what_not_null NOT NULL what
 CONSTRAINT anomalies anomalies_why_odd_not_null NOT NULL why_odd
 CONSTRAINT anomalies ck_anomalies_intent_impact CHECK ((intent_impact = ANY (ARRAY['반전'::text, '약화'::text, '국소'::text])))
 CONSTRAINT anomalies ck_anomalies_severity CHECK ((severity = ANY (ARRAY['high'::text, 'mid'::text, 'low'::text])))
+CONSTRAINT challenge_entries challenge_entries_challenge_id_fkey FOREIGN KEY (challenge_id) REFERENCES challenges(id)
+CONSTRAINT challenge_entries challenge_entries_challenge_id_not_null NOT NULL challenge_id
+CONSTRAINT challenge_entries challenge_entries_content_version_not_null NOT NULL content_version
+CONSTRAINT challenge_entries challenge_entries_created_at_not_null NOT NULL created_at
+CONSTRAINT challenge_entries challenge_entries_id_not_null NOT NULL id
+CONSTRAINT challenge_entries challenge_entries_pkey PRIMARY KEY (id)
+CONSTRAINT challenge_entries challenge_entries_request_fingerprint_not_null NOT NULL request_fingerprint
+CONSTRAINT challenge_entries challenge_entries_request_id_not_null NOT NULL request_id
+CONSTRAINT challenge_entries challenge_entries_status_not_null NOT NULL status
+CONSTRAINT challenge_entries challenge_entries_updated_at_not_null NOT NULL updated_at
+CONSTRAINT challenge_entries challenge_entries_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT challenge_entries challenge_entries_user_id_not_null NOT NULL user_id
+CONSTRAINT challenge_entries challenge_entries_video_id_fkey FOREIGN KEY (video_id) REFERENCES videos(id)
+CONSTRAINT challenge_entries challenge_entries_view_count_not_null NOT NULL view_count
+CONSTRAINT challenge_entries challenge_entries_visibility_not_null NOT NULL visibility
+CONSTRAINT challenge_entries ck_challenge_entries_caption CHECK ((char_length(caption) <= 300))
+CONSTRAINT challenge_entries ck_challenge_entries_deleted CHECK (((status = 'deleted'::text) = (deleted_at IS NOT NULL)))
+CONSTRAINT challenge_entries ck_challenge_entries_final_likes CHECK ((final_like_count >= 0))
+CONSTRAINT challenge_entries ck_challenge_entries_final_rank CHECK ((final_rank > 0))
+CONSTRAINT challenge_entries ck_challenge_entries_published CHECK (((visibility <> 'public'::text) OR (published_at IS NOT NULL)))
+CONSTRAINT challenge_entries ck_challenge_entries_purged_caption CHECK (((status <> 'deleted'::text) OR (caption IS NULL)))
+CONSTRAINT challenge_entries ck_challenge_entries_status CHECK ((status = ANY (ARRAY['visible'::text, 'hidden_by_report'::text, 'deleted'::text])))
+CONSTRAINT challenge_entries ck_challenge_entries_version CHECK ((content_version > 0))
+CONSTRAINT challenge_entries ck_challenge_entries_video CHECK (((status = 'deleted'::text) = (video_id IS NULL)))
+CONSTRAINT challenge_entries ck_challenge_entries_views CHECK ((view_count >= 0))
+CONSTRAINT challenge_entries ck_challenge_entries_visibility CHECK ((visibility = ANY (ARRAY['public'::text, 'private'::text])))
+CONSTRAINT challenge_entries uq_challenge_entries_parent UNIQUE (id, challenge_id)
+CONSTRAINT challenge_entries uq_challenge_entries_request UNIQUE (user_id, request_id)
+CONSTRAINT challenges challenges_duration_days_not_null NOT NULL duration_days
+CONSTRAINT challenges challenges_ends_at_not_null NOT NULL ends_at
+CONSTRAINT challenges challenges_host_user_id_fkey FOREIGN KEY (host_user_id) REFERENCES users(id)
+CONSTRAINT challenges challenges_id_not_null NOT NULL id
+CONSTRAINT challenges challenges_line_not_null NOT NULL line
+CONSTRAINT challenges challenges_moderation_not_null NOT NULL moderation
+CONSTRAINT challenges challenges_origin_not_null NOT NULL origin
+CONSTRAINT challenges challenges_pkey PRIMARY KEY (id)
+CONSTRAINT challenges challenges_request_fingerprint_not_null NOT NULL request_fingerprint
+CONSTRAINT challenges challenges_request_id_not_null NOT NULL request_id
+CONSTRAINT challenges challenges_starts_at_not_null NOT NULL starts_at
+CONSTRAINT challenges challenges_work_not_null NOT NULL work
+CONSTRAINT challenges ck_challenges_character_length CHECK ((char_length("character") <= 100))
+CONSTRAINT challenges ck_challenges_featured_team CHECK (((featured_on IS NULL) OR (origin = 'team'::text)))
+CONSTRAINT challenges ck_challenges_line_length CHECK (((char_length(line) >= 1) AND (char_length(line) <= 200)))
+CONSTRAINT challenges ck_challenges_moderation CHECK ((moderation = ANY (ARRAY['visible'::text, 'review'::text, 'hidden'::text])))
+CONSTRAINT challenges ck_challenges_origin CHECK ((origin = ANY (ARRAY['team'::text, 'member'::text])))
+CONSTRAINT challenges ck_challenges_period CHECK ((ends_at > starts_at))
+CONSTRAINT challenges ck_challenges_ranking_state CHECK ((ranking_state = ANY (ARRAY['pending'::text, 'final'::text])))
+CONSTRAINT challenges ck_challenges_scene_note_length CHECK ((char_length(scene_note) <= 500))
+CONSTRAINT challenges ck_challenges_team CHECK (((origin <> 'team'::text) OR (host_user_id IS NULL)))
+CONSTRAINT challenges ck_challenges_work_length CHECK (((char_length(work) >= 1) AND (char_length(work) <= 100)))
+CONSTRAINT challenges uq_challenges_featured UNIQUE (featured_on)
+CONSTRAINT challenges uq_challenges_request UNIQUE (host_user_id, request_id)
 CONSTRAINT coach_conversations ck_coach_conversations_close_reason CHECK ((close_reason = ANY (ARRAY['gap_stated'::text, 'exhausted'::text, 'limit'::text, 'user_ended'::text, 'system_failure'::text])))
 CONSTRAINT coach_conversations ck_coach_conversations_state_revision CHECK ((state_revision >= 0))
 CONSTRAINT coach_conversations ck_coach_conversations_status CHECK ((status = ANY (ARRAY['open'::text, 'closed'::text])))
@@ -735,6 +830,14 @@ CONSTRAINT consent_documents consent_documents_title_not_null NOT NULL title
 CONSTRAINT consent_documents consent_documents_type_not_null NOT NULL type
 CONSTRAINT consent_documents consent_documents_version_not_null NOT NULL version
 CONSTRAINT consent_documents uq_consent_documents_type_version UNIQUE (type, version, locale)
+CONSTRAINT entry_likes entry_likes_created_at_not_null NOT NULL created_at
+CONSTRAINT entry_likes entry_likes_entry_id_fkey FOREIGN KEY (entry_id) REFERENCES challenge_entries(id)
+CONSTRAINT entry_likes entry_likes_entry_id_not_null NOT NULL entry_id
+CONSTRAINT entry_likes entry_likes_id_not_null NOT NULL id
+CONSTRAINT entry_likes entry_likes_pkey PRIMARY KEY (id)
+CONSTRAINT entry_likes entry_likes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT entry_likes entry_likes_user_id_not_null NOT NULL user_id
+CONSTRAINT entry_likes uq_entry_likes_actor UNIQUE (entry_id, user_id)
 CONSTRAINT external_operations ck_external_operations_kind CHECK ((kind = ANY (ARRAY['analyze'::text, 'coach_start'::text, 'coach_reply'::text, 'report'::text, 'memory_update'::text])))
 CONSTRAINT external_operations ck_external_operations_last_failure_classification CHECK ((last_failure_classification = ANY (ARRAY['expected'::text, 'external'::text, 'unexpected'::text])))
 CONSTRAINT external_operations ck_external_operations_status CHECK ((status = ANY (ARRAY['pending'::text, 'running'::text, 'succeeded'::text, 'failed'::text])))
@@ -1031,6 +1134,15 @@ CONSTRAINT upload_intents upload_intents_storage_provider_not_null NOT NULL stor
 CONSTRAINT upload_intents upload_intents_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
 CONSTRAINT upload_intents upload_intents_user_id_not_null NOT NULL user_id
 CONSTRAINT upload_intents upload_intents_video_id_fkey FOREIGN KEY (video_id) REFERENCES videos(id)
+CONSTRAINT user_blocks ck_user_blocks_other CHECK ((blocker_id <> blocked_id))
+CONSTRAINT user_blocks uq_user_blocks_pair UNIQUE (blocker_id, blocked_id)
+CONSTRAINT user_blocks user_blocks_blocked_id_fkey FOREIGN KEY (blocked_id) REFERENCES users(id)
+CONSTRAINT user_blocks user_blocks_blocked_id_not_null NOT NULL blocked_id
+CONSTRAINT user_blocks user_blocks_blocker_id_fkey FOREIGN KEY (blocker_id) REFERENCES users(id)
+CONSTRAINT user_blocks user_blocks_blocker_id_not_null NOT NULL blocker_id
+CONSTRAINT user_blocks user_blocks_created_at_not_null NOT NULL created_at
+CONSTRAINT user_blocks user_blocks_id_not_null NOT NULL id
+CONSTRAINT user_blocks user_blocks_pkey PRIMARY KEY (id)
 CONSTRAINT user_consents ck_user_consents_action CHECK ((action = ANY (ARRAY['granted'::text, 'declined'::text, 'revoked'::text])))
 CONSTRAINT user_consents user_consents_action_not_null NOT NULL action
 CONSTRAINT user_consents user_consents_document_id_fkey FOREIGN KEY (document_id) REFERENCES consent_documents(id)
@@ -1156,12 +1268,19 @@ INDEX CREATE INDEX idx_user_consents_current ON public.user_consents USING btree
 INDEX CREATE INDEX idx_user_identities_uid_hash ON public.user_identities USING btree (uid_hash) WHERE (uid_hash IS NOT NULL)
 INDEX CREATE INDEX idx_user_identities_user ON public.user_identities USING btree (user_id)
 INDEX CREATE INDEX idx_videos_user_created ON public.videos USING btree (user_id, created_at DESC)
+INDEX CREATE INDEX ix_challenge_entries_owner ON public.challenge_entries USING btree (user_id, created_at)
+INDEX CREATE INDEX ix_challenge_entries_public ON public.challenge_entries USING btree (challenge_id, published_at DESC, id DESC) WHERE ((visibility = 'public'::text) AND (status = 'visible'::text))
+INDEX CREATE INDEX ix_challenges_host_created ON public.challenges USING btree (host_user_id, starts_at)
+INDEX CREATE INDEX ix_challenges_visible_ends ON public.challenges USING btree (ends_at, starts_at, id) WHERE ((moderation = 'visible'::text) AND (deleted_at IS NULL))
+INDEX CREATE INDEX ix_user_blocks_received ON public.user_blocks USING btree (blocked_id, blocker_id)
 INDEX CREATE UNIQUE INDEX account_cleanup_operations_pkey ON public.account_cleanup_operations USING btree (id)
 INDEX CREATE UNIQUE INDEX actor_memories_pkey ON public.actor_memories USING btree (id)
 INDEX CREATE UNIQUE INDEX actor_memory_entries_pkey ON public.actor_memory_entries USING btree (id)
 INDEX CREATE UNIQUE INDEX ai_jobs_pkey ON public.ai_jobs USING btree (id)
 INDEX CREATE UNIQUE INDEX analyses_pkey ON public.analyses USING btree (id)
 INDEX CREATE UNIQUE INDEX anomalies_pkey ON public.anomalies USING btree (id)
+INDEX CREATE UNIQUE INDEX challenge_entries_pkey ON public.challenge_entries USING btree (id)
+INDEX CREATE UNIQUE INDEX challenges_pkey ON public.challenges USING btree (id)
 INDEX CREATE UNIQUE INDEX coach_conversations_pkey ON public.coach_conversations USING btree (id)
 INDEX CREATE UNIQUE INDEX coach_messages_pkey ON public.coach_messages USING btree (id)
 INDEX CREATE UNIQUE INDEX coach_notes_pkey ON public.coach_notes USING btree (id)
@@ -1177,6 +1296,7 @@ INDEX CREATE UNIQUE INDEX community_post_likes_pkey ON public.community_post_lik
 INDEX CREATE UNIQUE INDEX community_posts_pkey ON public.community_posts USING btree (id)
 INDEX CREATE UNIQUE INDEX community_reports_pkey ON public.community_reports USING btree (id)
 INDEX CREATE UNIQUE INDEX consent_documents_pkey ON public.consent_documents USING btree (id)
+INDEX CREATE UNIQUE INDEX entry_likes_pkey ON public.entry_likes USING btree (id)
 INDEX CREATE UNIQUE INDEX external_operations_pkey ON public.external_operations USING btree (id)
 INDEX CREATE UNIQUE INDEX guest_transfer_codes_pkey ON public.guest_transfer_codes USING btree (id)
 INDEX CREATE UNIQUE INDEX handoff_confirmations_pkey ON public.handoff_confirmations USING btree (coaching_handoff_id)
@@ -1210,6 +1330,12 @@ INDEX CREATE UNIQUE INDEX uq_actor_memories_user_field ON public.actor_memories 
 INDEX CREATE UNIQUE INDEX uq_actor_memory_user_field ON public.actor_memory_entries USING btree (user_id, field)
 INDEX CREATE UNIQUE INDEX uq_ai_jobs_user_request ON public.ai_jobs USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_analyses_practice ON public.analyses USING btree (practice_id)
+INDEX CREATE UNIQUE INDEX uq_challenge_entries_parent ON public.challenge_entries USING btree (id, challenge_id)
+INDEX CREATE UNIQUE INDEX uq_challenge_entries_request ON public.challenge_entries USING btree (user_id, request_id)
+INDEX CREATE UNIQUE INDEX uq_challenge_entries_video ON public.challenge_entries USING btree (challenge_id, video_id) WHERE (status <> 'deleted'::text)
+INDEX CREATE UNIQUE INDEX uq_challenges_featured ON public.challenges USING btree (featured_on)
+INDEX CREATE UNIQUE INDEX uq_challenges_request ON public.challenges USING btree (host_user_id, request_id)
+INDEX CREATE UNIQUE INDEX uq_challenges_team_request ON public.challenges USING btree (request_id) WHERE (origin = 'team'::text)
 INDEX CREATE UNIQUE INDEX uq_coach_conversations_practice ON public.coach_conversations USING btree (practice_id)
 INDEX CREATE UNIQUE INDEX uq_coach_messages_request ON public.coach_messages USING btree (conversation_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_coach_messages_turn ON public.coach_messages USING btree (conversation_id, turn_index)
@@ -1221,6 +1347,7 @@ INDEX CREATE UNIQUE INDEX uq_community_blocks_pair ON public.community_blocks US
 INDEX CREATE UNIQUE INDEX uq_community_post_likes ON public.community_post_likes USING btree (post_id, user_id)
 INDEX CREATE UNIQUE INDEX uq_community_reports_reporter_target ON public.community_reports USING btree (reporter_id, target_type, target_id)
 INDEX CREATE UNIQUE INDEX uq_consent_documents_type_version ON public.consent_documents USING btree (type, version, locale)
+INDEX CREATE UNIQUE INDEX uq_entry_likes_actor ON public.entry_likes USING btree (entry_id, user_id)
 INDEX CREATE UNIQUE INDEX uq_external_operations_user_request ON public.external_operations USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_guest_transfer_codes_unused_code_hash ON public.guest_transfer_codes USING btree (code_hash) WHERE (used_at IS NULL)
 INDEX CREATE UNIQUE INDEX uq_guest_transfer_codes_unused_user ON public.guest_transfer_codes USING btree (user_id) WHERE (used_at IS NULL)
@@ -1242,9 +1369,11 @@ INDEX CREATE UNIQUE INDEX uq_script_lines_script_ordinal ON public.script_lines 
 INDEX CREATE UNIQUE INDEX uq_scripts_user_request ON public.scripts USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_transcripts_session_ord ON public.transcripts USING btree (session_id, ord)
 INDEX CREATE UNIQUE INDEX uq_upload_intents_user_request ON public.upload_intents USING btree (user_id, request_id) WHERE (request_id IS NOT NULL)
+INDEX CREATE UNIQUE INDEX uq_user_blocks_pair ON public.user_blocks USING btree (blocker_id, blocked_id)
 INDEX CREATE UNIQUE INDEX uq_user_identities_provider_uid ON public.user_identities USING btree (provider, provider_uid)
 INDEX CREATE UNIQUE INDEX uq_user_profile_directions_user_direction ON public.user_profile_directions USING btree (user_id, direction)
 INDEX CREATE UNIQUE INDEX uq_video_transcripts_video ON public.video_transcripts USING btree (video_id)
+INDEX CREATE UNIQUE INDEX user_blocks_pkey ON public.user_blocks USING btree (id)
 INDEX CREATE UNIQUE INDEX user_consents_pkey ON public.user_consents USING btree (id)
 INDEX CREATE UNIQUE INDEX user_identities_pkey ON public.user_identities USING btree (id)
 INDEX CREATE UNIQUE INDEX user_profile_directions_pkey ON public.user_profile_directions USING btree (id)
@@ -1262,6 +1391,8 @@ TABLE actor_memory_entries
 TABLE ai_jobs
 TABLE analyses
 TABLE anomalies
+TABLE challenge_entries
+TABLE challenges
 TABLE coach_conversations
 TABLE coach_messages
 TABLE coach_notes
@@ -1276,6 +1407,7 @@ TABLE community_post_likes
 TABLE community_posts
 TABLE community_reports
 TABLE consent_documents
+TABLE entry_likes
 TABLE external_operations
 TABLE guest_transfer_codes
 TABLE handoff_confirmations
@@ -1299,6 +1431,7 @@ TABLE scripts
 TABLE summaries
 TABLE transcripts
 TABLE upload_intents
+TABLE user_blocks
 TABLE user_consents
 TABLE user_identities
 TABLE user_profile_directions

@@ -1642,6 +1642,95 @@
         } ]
       }
     },
+    "/v2/challenges" : {
+      "get" : {
+        "tags" : [ "v2-challenges" ],
+        "summary" : "List Challenges",
+        "operationId" : "list_challenges_v2_challenges_get",
+        "parameters" : [ {
+          "name" : "tab",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "default" : "popular",
+            "title" : "Tab"
+          }
+        }, {
+          "name" : "q",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "default" : "",
+            "title" : "Q"
+          }
+        }, {
+          "name" : "cursor",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "title" : "Cursor"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChallengeList"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      },
+      "post" : {
+        "tags" : [ "v2-challenges" ],
+        "summary" : "Create Challenge",
+        "operationId" : "create_challenge_v2_challenges_post",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ChallengeCreateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Created",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Challenge"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Replay",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Challenge"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/auth/signup" : {
       "post" : {
         "tags" : [ "v2-auth" ],
@@ -2889,6 +2978,61 @@
                 }
               }
             }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/challenges/{id}" : {
+      "get" : {
+        "tags" : [ "v2-challenges" ],
+        "summary" : "Get Challenge",
+        "operationId" : "get_challenge_v2_challenges__id__get",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Challenge"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      },
+      "delete" : {
+        "tags" : [ "v2-challenges" ],
+        "summary" : "Delete Empty Challenge",
+        "operationId" : "delete_challenge_v2_challenges__id__delete",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
           }
         },
         "security" : [ {
@@ -5291,6 +5435,170 @@
         "required" : [ "conversation_id", "request_id" ],
         "title" : "CoachReplyRequest"
       },
+      "ChallengeCreateRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "request_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Request Id"
+          },
+          "line" : {
+            "type" : "string",
+            "title" : "Line"
+          },
+          "work" : {
+            "type" : "string",
+            "title" : "Work"
+          },
+          "character" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Character"
+          },
+          "scene_note" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Scene Note"
+          },
+          "duration_days" : {
+            "type" : "integer",
+            "title" : "Duration Days"
+          }
+        },
+        "required" : [ "duration_days", "line", "request_id", "work" ],
+        "title" : "ChallengeCreateRequest"
+      },
+      "Challenge" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "line" : {
+            "type" : "string",
+            "title" : "Line"
+          },
+          "work" : {
+            "type" : "string",
+            "title" : "Work"
+          },
+          "character" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Character"
+          },
+          "scene_note" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Scene Note"
+          },
+          "origin" : {
+            "type" : "string",
+            "enum" : [ "team", "member" ],
+            "title" : "Origin"
+          },
+          "host_name" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Host Name"
+          },
+          "is_host" : {
+            "type" : "boolean",
+            "title" : "Is Host"
+          },
+          "starts_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Starts At"
+          },
+          "ends_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Ends At"
+          },
+          "featured_on" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "date"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Featured On"
+          },
+          "moderation" : {
+            "type" : "string",
+            "enum" : [ "visible", "review", "hidden" ],
+            "title" : "Moderation"
+          },
+          "entry_count" : {
+            "type" : "integer",
+            "title" : "Entry Count"
+          },
+          "like_sum" : {
+            "type" : "integer",
+            "title" : "Like Sum"
+          },
+          "participants" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ChallengeParticipant"
+            },
+            "title" : "Participants"
+          },
+          "more_count" : {
+            "type" : "integer",
+            "title" : "More Count"
+          },
+          "ranking_state" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "enum" : [ "pending", "final" ]
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Ranking State"
+          }
+        },
+        "required" : [ "character", "ends_at", "entry_count", "featured_on", "host_name", "id", "is_host", "like_sum", "line", "moderation", "more_count", "origin", "participants", "ranking_state", "scene_note", "starts_at", "work" ],
+        "title" : "Challenge"
+      },
+      "ChallengeParticipant" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "user_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "User Id"
+          },
+          "name" : {
+            "type" : "string",
+            "title" : "Name"
+          }
+        },
+        "required" : [ "name", "user_id" ],
+        "title" : "ChallengeParticipant"
+      },
       "SignupAction" : {
         "type" : "string",
         "enum" : [ "granted", "declined" ],
@@ -6623,6 +6931,36 @@
         "type" : "string",
         "enum" : [ "allowed", "decision_required" ],
         "title" : "ConsentEntryStatus"
+      },
+      "ChallengeList" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "featured" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/Challenge"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "challenges" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/Challenge"
+            },
+            "title" : "Challenges"
+          },
+          "next_cursor" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Next Cursor"
+          }
+        },
+        "required" : [ "challenges", "featured", "next_cursor" ],
+        "title" : "ChallengeList"
       },
       "AuthProvidersResponse" : {
         "type" : "object",

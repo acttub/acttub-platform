@@ -15,6 +15,7 @@ import {
   createFailure,
   createFailureMessage,
   draftOverflow,
+  normalizeChallengeLine,
   emptyChallengeDraft,
   fingerprintOf,
   stepComplete,
@@ -23,10 +24,7 @@ import {
 } from '@/lib/challenge/create';
 import {
   CHALLENGE_DURATIONS,
-  CHARACTER_MAX,
   LINE_MAX,
-  SCENE_NOTE_MAX,
-  WORK_MAX,
   type ChallengeDuration,
 } from '@/lib/challenge/types';
 import { translate as t } from '@/lib/i18n';
@@ -118,12 +116,11 @@ export default function LineNewScreen() {
               placeholderTextColor={palette.textFaint}
               value={draft.line}
               onChangeText={(line) => set({ line })}
-              maxLength={LINE_MAX}
               multiline
               autoFocus
               textAlignVertical="top"
             />
-            <Text style={styles.counter}>{t('lineNew.counter', { count: [...draft.line].length, max: LINE_MAX })}</Text>
+            <Text style={styles.counter}>{t('lineNew.counter', { count: [...normalizeChallengeLine(draft.line)].length, max: LINE_MAX })}</Text>
             <View style={styles.hintRow}>
               <Feather name="zap" size={13} color={palette.blue} />
               <Text style={styles.hint}>{t('lineNew.hint1')}</Text>
@@ -142,7 +139,6 @@ export default function LineNewScreen() {
               placeholderTextColor={palette.textFaint}
               value={draft.work}
               onChangeText={(work) => set({ work })}
-              maxLength={WORK_MAX}
             />
             <Text style={styles.label}>{t('lineNew.roleLabel')}</Text>
             <TextInput
@@ -151,7 +147,6 @@ export default function LineNewScreen() {
               placeholderTextColor={palette.textFaint}
               value={draft.character}
               onChangeText={(character) => set({ character })}
-              maxLength={CHARACTER_MAX}
             />
             <Text style={styles.label}>{t('lineNew.noteLabel')}</Text>
             <TextInput
@@ -160,7 +155,6 @@ export default function LineNewScreen() {
               placeholderTextColor={palette.textFaint}
               value={draft.sceneNote}
               onChangeText={(sceneNote) => set({ sceneNote })}
-              maxLength={SCENE_NOTE_MAX}
               multiline
               textAlignVertical="top"
             />

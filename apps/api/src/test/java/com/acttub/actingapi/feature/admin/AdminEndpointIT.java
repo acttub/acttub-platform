@@ -238,7 +238,8 @@ class AdminEndpointIT {
                 added.add(path);
             }
         });
-        assertThat(added).containsExactlyInAnyOrder("/v2/admin/sessions", "/v2/admin/practice-migration");
+        assertThat(added).containsExactlyInAnyOrder("/v2/admin/sessions", "/v2/admin/practice-migration",
+                "/v2/admin/challenges", "/v2/admin/challenges/{id}/moderation");
         assertThat(actual.at("/paths/~1v2~1admin~1sessions/get/parameters/0/schema/type")
                 .textValue()).isEqualTo("integer");
         assertThat(actual.at("/paths/~1v2~1admin~1sessions/get/parameters/0/schema/default")

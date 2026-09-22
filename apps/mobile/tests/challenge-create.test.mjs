@@ -16,6 +16,14 @@ import { CHALLENGE_DURATIONS, CHARACTER_MAX, LINE_MAX, SCENE_NOTE_MAX, WORK_MAX 
 const apiError = (status, code) => Object.assign(new Error(code ?? String(status)), { status, code });
 const draft = (over = {}) => ({ ...emptyChallengeDraft, line: '가지 마', work: '옥상, 밤', ...over });
 
+test('challenge.create: 대사의 공백을 정리해 한도를 세고 메모의 줄바꿈은 보존한다', () => {
+  const value = draft({ line: '가'.repeat(99) + '   ' + '나'.repeat(100), sceneNote: '  첫 장면\n다음 장면  ' });
+  assert.equal(draftOverflow(value), null);
+  const body = buildCreateBody('req-normalized', value);
+  assert.equal(body.line, '가'.repeat(99) + ' ' + '나'.repeat(100));
+  assert.equal(body.scene_note, '첫 장면\n다음 장면');
+});
+
 test('challenge.create: 대사·작품·인물·기간 7일로 개설하면 본문이 그대로 실린다', () => {
   const body = buildCreateBody('req-1', draft({ character: '윤서', sceneNote: '  옥상에서 붙잡는 장면  ' }));
 

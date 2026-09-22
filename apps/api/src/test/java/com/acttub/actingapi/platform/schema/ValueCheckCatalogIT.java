@@ -97,6 +97,11 @@ class ValueCheckCatalogIT {
         BY_CONSTRAINT.put("ck_user_profiles_gender", ProfileGender.class);
         BY_CONSTRAINT.put("ck_user_profiles_goal", ActingGoal.class);
         BY_CONSTRAINT.put("ck_users_status", UserStatus.class);
+        BY_CONSTRAINT.put("ck_challenges_origin", ChallengeOrigin.class);
+        BY_CONSTRAINT.put("ck_challenges_moderation", ChallengeModeration.class);
+        BY_CONSTRAINT.put("ck_challenges_ranking_state", ChallengeRankingState.class);
+        BY_CONSTRAINT.put("ck_challenge_entries_visibility", ChallengeEntryVisibility.class);
+        BY_CONSTRAINT.put("ck_challenge_entries_status", ChallengeEntryStatus.class);
     }
 
     /**

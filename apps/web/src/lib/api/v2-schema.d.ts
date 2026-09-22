@@ -695,6 +695,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/challenges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Challenges */
+        get: operations["list_challenges_v2_challenges_get"];
+        put?: never;
+        /** Create Challenge */
+        post: operations["create_challenge_v2_challenges_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/auth/signup": {
         parameters: {
             query?: never;
@@ -1350,6 +1368,24 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/challenges/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Challenge */
+        get: operations["get_challenge_v2_challenges__id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Empty Challenge */
+        delete: operations["delete_challenge_v2_challenges__id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2528,6 +2564,86 @@ export interface components {
             /** Revision */
             revision?: number | null;
         };
+        /** ChallengeCreateRequest */
+        ChallengeCreateRequest: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /** Line */
+            line: string;
+            /** Work */
+            work: string;
+            /** Character */
+            character?: string | null;
+            /** Scene Note */
+            scene_note?: string | null;
+            /** Duration Days */
+            duration_days: number;
+        };
+        /** Challenge */
+        Challenge: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Line */
+            line: string;
+            /** Work */
+            work: string;
+            /** Character */
+            character: string | null;
+            /** Scene Note */
+            scene_note: string | null;
+            /**
+             * Origin
+             * @enum {string}
+             */
+            origin: "team" | "member";
+            /** Host Name */
+            host_name: string | null;
+            /** Is Host */
+            is_host: boolean;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Featured On */
+            featured_on: string | null;
+            /**
+             * Moderation
+             * @enum {string}
+             */
+            moderation: "visible" | "review" | "hidden";
+            /** Entry Count */
+            entry_count: number;
+            /** Like Sum */
+            like_sum: number;
+            /** Participants */
+            participants: components["schemas"]["ChallengeParticipant"][];
+            /** More Count */
+            more_count: number;
+            /** Ranking State */
+            ranking_state: ("pending" | "final") | null;
+        };
+        /** ChallengeParticipant */
+        ChallengeParticipant: {
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /** Name */
+            name: string;
+        };
         /**
          * SignupAction
          * @enum {string}
@@ -3115,6 +3231,14 @@ export interface components {
          * @enum {string}
          */
         ConsentEntryStatus: "allowed" | "decision_required";
+        /** ChallengeList */
+        ChallengeList: {
+            featured: components["schemas"]["Challenge"] | null;
+            /** Challenges */
+            challenges: components["schemas"]["Challenge"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
         /** AuthProvidersResponse */
         AuthProvidersResponse: {
             /** Providers */
@@ -4904,6 +5028,63 @@ export interface operations {
             };
         };
     };
+    list_challenges_v2_challenges_get: {
+        parameters: {
+            query?: {
+                tab?: string;
+                q?: string;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChallengeList"];
+                };
+            };
+        };
+    };
+    create_challenge_v2_challenges_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChallengeCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Replay */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Challenge"];
+                };
+            };
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Challenge"];
+                };
+            };
+        };
+    };
     signup_v2_auth_signup_post: {
         parameters: {
             query?: never;
@@ -5892,6 +6073,48 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["CoachConversation"];
                 };
+            };
+        };
+    };
+    get_challenge_v2_challenges__id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Challenge"];
+                };
+            };
+        };
+    };
+    delete_challenge_v2_challenges__id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
