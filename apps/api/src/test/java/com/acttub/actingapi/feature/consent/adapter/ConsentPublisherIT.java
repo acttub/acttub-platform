@@ -59,6 +59,13 @@ class ConsentPublisherIT {
     @Autowired
     ResourceLoader resources;
 
+    /** 목록에 적힌 문서 수. 종류나 말이 늘어도 이 테스트는 그대로 맞는다. */
+    private int manifestEntryCount() throws Exception {
+        try (var in = getClass().getResourceAsStream("/consent-docs/manifest.json")) {
+            return new com.fasterxml.jackson.databind.ObjectMapper().readTree(in).size();
+        }
+    }
+
     @Test
     @Order(1)
     void emptyDatabaseBootPublishesWholeManifestAndRepeatIsIdempotent() throws Exception {
@@ -66,7 +73,7 @@ class ConsentPublisherIT {
         assertThat(jdbc.queryForList(
                 "SELECT type,version,locale,title,required,length(body) body_length "
                         + "FROM consent_documents ORDER BY type,locale"))
-                .hasSize(6)
+                .hasSize(manifestEntryCount())
                 .allSatisfy(row -> {
                     // 필수 셋과 선택 하나(탈퇴 후 영상·녹음 보관·활용).
                     assertThat(row.get("required")).isEqualTo(!"retention".equals(row.get("type")));
@@ -208,10 +215,10 @@ class ConsentPublisherIT {
         try {
             Future<Integer> first = pool.submit(publisher::publish);
             Future<Integer> second = pool.submit(other::publish);
-            assertThat(first.get() + second.get()).isBetween(6, 12);
+            assertThat(first.get() + second.get()).isBetween(manifestEntryCount(), manifestEntryCount() * 2);
             assertThat(jdbc.queryForObject(
                     "SELECT count(*) FROM consent_documents",
-                    Integer.class)).isEqualTo(6);
+                    Integer.class)).isEqualTo(manifestEntryCount());
         } finally {
             pool.shutdownNow();
         }

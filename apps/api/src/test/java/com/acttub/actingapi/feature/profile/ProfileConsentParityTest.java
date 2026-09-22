@@ -56,7 +56,10 @@ class ProfileConsentParityTest {
     private static List<String> requiredItemLabelsOfThePublishedPrivacyDocument() throws Exception {
         String file = null;
         for (JsonNode entry : JSON.readTree(resource("/consent-docs/manifest.json"))) {
-            if ("privacy".equals(entry.path("type").textValue())) {
+            // 번역본도 같은 종류로 올라온다 — 항목의 정본은 한국어 문서다 (SOMA-544).
+            String locale = entry.path("locale").textValue();
+            boolean korean = locale == null || locale.isBlank() || "ko".equals(locale);
+            if ("privacy".equals(entry.path("type").textValue()) && korean) {
                 file = entry.path("file").textValue();
                 assertThat(entry.path("title").textValue()).isEqualTo("개인정보 수집·이용 동의");
                 assertThat(entry.path("required").booleanValue()).isTrue();
