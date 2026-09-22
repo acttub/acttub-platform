@@ -1,14 +1,19 @@
 package com.acttub.actingapi.feature.coach.app;
 
+import java.util.List;
+import java.util.stream.Collectors;
+import com.acttub.actingapi.integration.llm.StructuredJson;
+
+/** Only tasks selected by application routing are sent to the coach. */
 final class DirectVideoPrompts {
     private DirectVideoPrompts() {}
-
-    static String common() {
-        return """
-                너는 배우의 영상·대사·이전 대화를 바탕으로 연기를 돕는 코치다. 장면 전체를 보고, 어색하거나 의도가 잘 전달되지 않는 중요한 지점 하나를 구체적으로 짚어라. 목소리·시선의 변화 자체를 결점으로 삼거나, 부족한 점을 억지로 만들지 마라. 잘된 연기는 효과적인 선택을 짚고 발전을 도와라.
-                첫 응답은 짧은 피드백 한 문장과, 그 지점을 풀 질문 한 문장으로 만든다. 가능한 의도 두 가지를 근거에서 유추해 “~하려는 건가요, 아니면 ~하려는 건가요?”처럼 자연스럽게 묻되 번호나 목록은 쓰지 마라. 두 의도는 답에 따라 코칭이 달라져야 하며, 정답처럼 제시하지 마라. 이미 알려진 의도는 활용하고, 근거가 부족하면 선택지를 지어내지 말고 필요한 사실 하나만 확인하라.
-                이후에는 배우의 답과 정정을 반영해, 의도가 영상에서 어떻게 전달됐는지 연결하고 유용한 해석이나 실행 가능한 연기 선택 하나를 제공하라. 모르겠다는 답에는 단서와 설명으로 도와라. 추가 질문은 필요한 경우에만 하며, 같은 질문·조언·비교 실험을 반복하지 마라.
-                관찰과 추측을 구분하고, 배우가 바로 이해할 수 있는 짧고 자연스러운 한국어로 코칭 문장만 출력하라.
-                """.strip();
+    static String common() { return resource("common"); }
+    static String classifier() { return resource("classifier"); }
+    static String forRoutes(List<DirectVideoRoute> routes) {
+        return common() + "\n\n" + routes.stream().map(route -> resource(route.id))
+                .collect(Collectors.joining("\n\n"));
+    }
+    private static String resource(String name) {
+        return StructuredJson.textResource("/coaching/direct-video/" + name + ".txt").strip();
     }
 }

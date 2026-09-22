@@ -49,34 +49,43 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
 
     @Override
     public String reply(Video video, List<Message> history, String instruction) {
-        return generate(video, history, instruction, false);
+        return generate(video, history, instruction, null);
     }
 
     @Override
-    public String classify(Video video, List<Message> history, String instruction) {
-        return generate(video, history, instruction, true);
+    public String classify(List<Message> history, String instruction, List<String> categories) {
+        return generate(null, history, instruction, categories);
     }
 
-    private String generate(Video video, List<Message> history, String instruction, boolean classification) {
+    private String generate(Video video, List<Message> history, String instruction, List<String> categories) {
+        boolean classification = categories != null;
         List<Content> contents = new ArrayList<>();
-        contents.add(Content.builder().role("user").parts(
+        if (video != null) contents.add(Content.builder().role("user").parts(
                 Part.fromUri(video.uri(), video.mimeType())).build());
-        for (Message message : history) {
-            contents.add(Content.builder().role(message.role())
-                    .parts(Part.fromText(message.text())).build());
+        if (classification) {
+            // The first coaching turn has model role. Send the transcript as data in a user message,
+            // rather than asking the classifier to continue that assistant-led conversation.
+            var transcript = com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.arrayNode();
+            history.forEach(message -> transcript.addObject().put("role", message.role()).put("text", message.text()));
+            contents.add(Content.builder().role("user").parts(Part.fromText(transcript.toString())).build());
+        } else {
+            for (Message message : history) {
+                contents.add(Content.builder().role(message.role())
+                        .parts(Part.fromText(message.text())).build());
+            }
         }
         var config = GenerateContentConfig.builder()
                         .systemInstruction(Content.fromParts(Part.fromText(instruction)))
-                        .httpOptions(HttpOptions.builder().timeout(90000).build())
+                        .httpOptions(HttpOptions.builder().timeout(classification ? 15000 : 90000).build())
                         .thinkingConfig(model.startsWith("gemini-3")
                                 ? ThinkingConfig.builder().thinkingLevel("LOW").build()
                                 : ThinkingConfig.builder().thinkingBudget(0).build())
-                        .maxOutputTokens(8192);
+                        .maxOutputTokens(classification ? 1024 : 8192);
         if (classification) {
-            config.responseMimeType("application/json").responseJsonSchema(java.util.Map.of(
-                    "type", "object", "properties", java.util.Map.of("route", java.util.Map.of(
-                            "type", "string", "enum", List.of("advance", "scaffold", "repair", "respond"))),
-                    "required", List.of("route"), "additionalProperties", false));
+            config.temperature(0f).responseMimeType("application/json").responseJsonSchema(java.util.Map.of(
+                    "type", "object", "properties", java.util.Map.of("signals", java.util.Map.of(
+                            "type", "array", "items", java.util.Map.of("type", "string", "enum", categories))),
+                    "required", List.of("signals"), "additionalProperties", false));
         }
         String text = client.models.generateContent(model, contents, config.build()).text();
         if (text == null || text.isBlank()) throw new IllegalStateException("empty video coaching reply");
