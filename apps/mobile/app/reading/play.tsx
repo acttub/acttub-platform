@@ -11,6 +11,7 @@ import {
 } from 'expo-audio';
 
 import { palette } from '@/constants/palette';
+import { useMicAutoAdvance } from '@/hooks/use-mic-auto-advance';
 import { speakableText } from '@/lib/reading/parse';
 import { addRecording, getCurrent, isMyRole, updateCurrent } from '@/lib/reading/store';
 import * as engine from '@/lib/reading/tts/engine';
@@ -128,6 +129,16 @@ export default function ReadingPlay() {
 
   const line = lines[index];
   const myTurn = !!line && line.type === 'dialogue' && isMyRole((line as any).role);
+
+  // 내 차례에 듣고 있다가 말이 끝나면 스스로 넘어간다 (SOMA-549).
+  const [autoAdvance, setAutoAdvance] = useState(true);
+  const { heard, listening } = useMicAutoAdvance({
+    active: myTurn && phase === 'reading' && !paused,
+    enabled: autoAdvance,
+    onAdvance: () => {
+      if (mounted.current) setIndex((i) => i + 1);
+    },
+  });
 
   // 대사 진행: 상대 배역이면 TTS, 지문은 잠깐, 내 배역이면 t('reading.next') 대기(녹음은 계속 돎)
   useEffect(() => {
@@ -296,15 +307,27 @@ export default function ReadingPlay() {
                 <Text style={styles.badgeText}>{line ? (line as any).role : ''}</Text>
               </View>
               {myTurn ? (
-                <View style={styles.listening}>
-                  <View style={styles.dot} />
-                  <Text style={styles.listeningText}>내 차례</Text>
-                </View>
+                <Pressable
+                  style={styles.listening}
+                  onPress={() => setAutoAdvance((v) => !v)}
+                  accessibilityRole="switch"
+                  accessibilityState={{ checked: autoAdvance }}>
+                  <View style={[styles.dot, listening && styles.dotOn]} />
+                  <Text style={styles.listeningText}>
+                    {autoAdvance ? t(listening ? 'reading.listening' : 'reading.myTurn') : t('reading.myTurn')}
+                  </Text>
+                </Pressable>
               ) : (
                 <Feather name="volume-2" size={18} color="rgba(255,255,255,0.7)" />
               )}
             </View>
             <Text style={styles.lineText}>{shownText}</Text>
+            {/* 내가 실제로 한 말 — 원래 대사와 나란히 놓여 빠뜨린 곳이 보인다 (SOMA-549). */}
+            {myTurn && heard.trim().length > 0 && (
+              <Text style={styles.heardText} numberOfLines={3}>
+                {heard}
+              </Text>
+            )}
           </View>
         )}
 
@@ -370,6 +393,14 @@ const styles = StyleSheet.create({
   badgeText: { color: '#fff', fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
   listening: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#7DD3FC' },
+  dotOn: { backgroundColor: '#34D399' },
+  heardText: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: 10,
+    fontStyle: 'italic',
+  },
   listeningText: { color: '#BAE6FD', fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
   lineText: { color: '#fff', fontFamily: 'Pretendard-Bold', fontSize: 26, lineHeight: 37 },
   next: { color: palette.textFaint, fontFamily: 'Pretendard', fontSize: 14, textAlign: 'center' },
