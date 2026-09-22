@@ -28,6 +28,7 @@ import {
   type BootstrapRecoveryParams,
 } from '@/lib/app-bootstrap';
 import { sweepDeviceFiles } from '@/lib/account-files';
+import { SpotlightHost } from '@/components/spotlight-guide';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import {
   configureNotificationHandling,
@@ -438,6 +439,9 @@ export default function RootLayout() {
       <ThemeProvider value={theme}>
         <ScreenTracker />
         <RootNavigator />
+        {/* 첫 가이드는 화면 안이 아니라 여기서 덮는다 — 탭바까지 덮어야 하고, 앱과 같은 창이라야
+            비출 자리의 좌표가 맞는다 (SOMA-550). */}
+        <SpotlightHost />
         <StatusBar style="dark" />
       </ThemeProvider>
     </AuthProvider>

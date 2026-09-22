@@ -15,6 +15,15 @@
 export type Rect = { x: number; y: number; width: number; height: number };
 export type Screen = { width: number; height: number };
 
+export type SpotlightStep = {
+  /** 비출 요소의 이름표 ({@code lib/spotlight-targets} 의 TARGET). */
+  target: string;
+  /** 문구 키. `<키>Title` 과 `<키>Body` 를 읽는다. */
+  text: string;
+  /** 동그란 버튼이면 true — 테두리를 원으로 두른다. */
+  round?: boolean;
+};
+
 /** 비출 자리를 이만큼 넓힌다 — 버튼에 딱 붙으면 눌러야 할 곳이 좁아 보인다. */
 export const HOLE_PADDING = 8;
 /** 비출 자리와 설명 사이 틈. */
@@ -22,6 +31,18 @@ export const HOLE_GAP = 16;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
+}
+
+/**
+ * 창 기준으로 잰 자리를, 덮개를 그리는 판 기준으로 옮긴다.
+ *
+ * <p>둘의 원점이 같지 않다. 실기기에서 덮개 판의 원점을 같은 방법으로 재 보니 창 기준으로
+ * -28.19 였고, 구멍이 딱 그만큼 위로 밀려 있었다. 보정값을 짐작하는 대신, 판 자신을 재서
+ * 그 차이를 뺀다 — 기기가 어떻든 두 값이 같은 방법으로 나오므로 어긋남이 상쇄된다.
+ */
+export function relativeTo(rect: Rect | null, origin: { x: number; y: number }): Rect | null {
+  if (!rect) return null;
+  return { x: rect.x - origin.x, y: rect.y - origin.y, width: rect.width, height: rect.height };
 }
 
 /** 재어 온 자리를 여유만큼 넓히고 화면 안으로 자른다. 아직 못 쟀으면 null. */
@@ -68,6 +89,22 @@ export function captionTop(
   if (above >= 0) return above;
   // 비출 자리가 화면을 거의 다 차지한다 — 가리더라도 화면 안에는 둔다.
   return clamp(below, 0, Math.max(0, screen.height - captionHeight));
+}
+
+/**
+ * 사각형을 화면에 놓을 스타일로 바꾼다.
+ *
+ * <p><b>x·y 를 그대로 스타일에 넘기면 안 된다.</b> 리액트 네이티브에는 x·y 라는 스타일이 없어
+ * 조용히 무시되고, 모든 조각이 왼쪽 위 구석(0,0)에 겹쳐 그려진다 — 실기기에서 화면 맨 위가
+ * 비치던 것이 이것이었다. 자리 이름을 바꾸는 일을 한곳에 모아 다시 틀리지 않게 한다.
+ */
+export function rectStyle(rect: Rect): {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+} {
+  return { left: rect.x, top: rect.y, width: rect.width, height: rect.height };
 }
 
 /** 다음 단계. 마지막이면 null(끝). */

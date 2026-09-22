@@ -6,6 +6,8 @@ import {
   HOLE_PADDING,
   captionTop,
   holeOf,
+  rectStyle,
+  relativeTo,
   shroudRects,
   spotlightKey,
   stepAfter,
@@ -85,6 +87,29 @@ test('위아래 모두 모자라면 화면 안에 붙여 둔다', () => {
   const top = captionTop({ x: 0, y: 20, width: 390, height: 800 }, SCREEN, 300);
   assert.ok(top >= 0);
   assert.ok(top + 300 <= SCREEN.height);
+});
+
+test('화면에 놓을 때는 자리 이름이 left·top 이다 — x·y 는 조용히 무시된다', () => {
+  const style = rectStyle({ x: 12, y: 238, width: 387, height: 93 });
+  assert.deepEqual(style, { left: 12, top: 238, width: 387, height: 93 });
+  assert.equal('x' in style, false);
+  assert.equal('y' in style, false);
+});
+
+test('덮개 판의 원점만큼 빼서 같은 기준으로 맞춘다', () => {
+  // 실기기에서 판의 원점이 창 기준으로 -28.19 였고, 구멍이 딱 그만큼 위로 밀려 있었다.
+  const moved = relativeTo({ x: 20, y: 245.71, width: 371, height: 77 }, { x: 0, y: -28.19 });
+  assert.equal(moved.y, 245.71 + 28.19);
+  assert.equal(moved.x, 20);
+  assert.equal(moved.width, 371);
+  // 원점이 같으면 아무것도 바뀌지 않는다.
+  assert.deepEqual(relativeTo({ x: 5, y: 6, width: 7, height: 8 }, { x: 0, y: 0 }), {
+    x: 5,
+    y: 6,
+    width: 7,
+    height: 8,
+  });
+  assert.equal(relativeTo(null, { x: 0, y: -28 }), null);
 });
 
 test('마지막 단계 다음은 끝이다', () => {

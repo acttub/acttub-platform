@@ -19,7 +19,11 @@ const KEY = 'acttub.guide.seen';
 type Storage = {
   getItem(key: string): Promise<string | null>;
   setItem(key: string, value: string): Promise<void>;
+  removeItem(key: string): Promise<void>;
 };
+
+/** 스포트라이트를 띄우는 화면들. "다시 보기"가 이만큼을 되돌린다. */
+const SPOTLIGHT_TOPICS: SpotlightTopic[] = ['home', 'reading'];
 
 function storage(): Storage {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -56,4 +60,17 @@ export function hasSeenSpotlight(topic: SpotlightTopic): Promise<boolean> {
 
 export function markSpotlightSeen(topic: SpotlightTopic): Promise<void> {
   return mark(spotlightKey(topic));
+}
+
+/**
+ * 설정의 "가이드 다시 보기"가 부른다. 슬라이드만 다시 열고 마는 게 아니라, 화면에서 누를
+ * 자리를 비춰 주던 안내도 되살린다 — "다시 보기"는 처음 안내를 다 다시 본다는 뜻이다.
+ */
+export async function resetSpotlights(): Promise<void> {
+  try {
+    const store = storage();
+    await Promise.all(SPOTLIGHT_TOPICS.map((topic) => store.removeItem(spotlightKey(topic))));
+  } catch {
+    // no-op
+  }
 }

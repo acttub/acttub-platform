@@ -26,6 +26,7 @@ import {
   consentSettingsRows,
   type ConsentSettingsRow,
 } from '@/lib/consent-entry';
+import { resetSpotlights } from '@/lib/guide-state';
 import { translate as t } from '@/lib/i18n';
 import {
   DEFAULT_NOTIFICATION_SETTINGS,
@@ -352,8 +353,14 @@ export default function SettingsScreen() {
             </View>
           </Pressable>
 
-          {/* 첫 시작 가이드 다시 보기 */}
-          <Pressable style={styles.card} onPress={() => router.push('/guide')} accessibilityRole="button">
+          {/* 첫 시작 가이드 다시 보기 — 슬라이드를 열고, 화면에서 누를 자리를 비춰 주던 안내도 되살린다. */}
+          <Pressable
+            style={styles.card}
+            onPress={() => {
+              void resetSpotlights();
+              router.push('/guide');
+            }}
+            accessibilityRole="button">
             <View style={styles.cardRow}>
               <View style={styles.iconCircle}>
                 <Feather name="compass" size={18} color={palette.blue} />
