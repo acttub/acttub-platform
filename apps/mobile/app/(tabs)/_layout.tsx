@@ -5,11 +5,13 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
+import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { RecordModeSheet, type RecordMode } from '@/components/record-mode-sheet';
 import { palette } from '@/constants/palette';
 import { TODAY_LINE } from '@/lib/challenge-mock';
 import { useRequireLogin } from '@/hooks/use-require-login';
 import { isKorean, translate as t } from '@/lib/i18n';
+import { TARGET } from '@/lib/spotlight-targets';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -25,6 +27,8 @@ export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const [modeOpen, setModeOpen] = useState(false);
   const { requireLogin, element: loginGuard } = useRequireLogin();
+  // 첫 가이드가 이 버튼을 비춘다 — 탭바는 홈 화면 밖이라 자리를 재서 남겨 둔다 (SOMA-550).
+  const shootTarget = useSpotlightTarget(TARGET.shoot);
 
   const pickMode = (mode: RecordMode) => {
     setModeOpen(false);
@@ -95,6 +99,8 @@ export default function TabLayout() {
             tabBarButton: () => (
               <View style={styles.fabSlot}>
                 <Pressable
+                  ref={shootTarget.ref}
+                  onLayout={shootTarget.onLayout}
                   style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
                   accessibilityRole="button"
                   accessibilityLabel={t('tabs.shootA11y')}

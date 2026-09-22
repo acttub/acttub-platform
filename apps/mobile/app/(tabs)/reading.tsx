@@ -1,12 +1,19 @@
 import Feather from '@expo/vector-icons/Feather';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
 import { palette } from '@/constants/palette';
+import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
+import { hasSeenSpotlight, markSpotlightSeen } from '@/lib/guide-state';
+import { TARGET } from '@/lib/spotlight-targets';
 import { listScripts, loadIntoCurrent, type SavedScript } from '@/lib/reading/store';
 import { translate as t } from '@/lib/i18n';
+
+/** 대본 탭에서 처음 한 번 비추는 자리 — 대본을 들이는 버튼 하나뿐이다 (SOMA-550). */
+const READING_STEPS: SpotlightStep[] = [{ target: TARGET.readingNew, text: 'guide.spotReadingNew' }];
 
 function statusOf(s: SavedScript): { label: string; color: string; bg: string } {
   if (s.status === 'done') return { label: t('reading.statusDone'), color: palette.green, bg: palette.greenSoft };
@@ -19,11 +26,21 @@ export default function ReadingList() {
   const insets = useSafeAreaInsets();
   const [scripts, setScripts] = useState<SavedScript[]>([]);
   const [q, setQ] = useState('');
+  // 대본 탭에 처음 들어올 때 한 번만 — 홈 가이드와 따로 센다 (SOMA-550).
+  const guideCheckedRef = useRef(false);
+  const [guideOpen, setGuideOpen] = useState(false);
+  const newTarget = useSpotlightTarget(TARGET.readingNew);
 
   useFocusEffect(
     useCallback(() => {
       let alive = true;
       void listScripts().then((list) => alive && setScripts(list));
+      if (!guideCheckedRef.current) {
+        guideCheckedRef.current = true;
+        void hasSeenSpotlight('reading').then((seen) => {
+          if (alive && !seen) setGuideOpen(true);
+        });
+      }
       return () => {
         alive = false;
       };
@@ -66,7 +83,11 @@ export default function ReadingList() {
             placeholderTextColor={palette.textFaint}
           />
         </View>
-        <Pressable style={styles.newBtn} onPress={() => router.push('/reading/new')}>
+        <Pressable
+          ref={newTarget.ref}
+          onLayout={newTarget.onLayout}
+          style={styles.newBtn}
+          onPress={() => router.push('/reading/new')}>
           <Feather name="plus" size={16} color="#fff" />
           <Text style={styles.newText}>새 대본</Text>
         </Pressable>
@@ -131,6 +152,17 @@ export default function ReadingList() {
           {filtered.length === 0 && <Text style={styles.noMatch}>검색 결과가 없어요.</Text>}
         </View>
       )}
+
+      {/* 가이드는 제 창에 뜬다 — 목록 어디에 두든 자리를 차지하지 않는다. */}
+      <SpotlightGuide
+        visible={guideOpen}
+        topic="reading"
+        steps={READING_STEPS}
+        onDone={() => {
+          setGuideOpen(false);
+          void markSpotlightSeen('reading');
+        }}
+      />
     </ScrollView>
   );
 }

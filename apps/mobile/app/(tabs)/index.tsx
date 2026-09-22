@@ -11,7 +11,7 @@ import { buildWeekActivity } from '@/lib/practice-activity';
 import { rememberPracticeDays } from '@/lib/practice-days';
 import { dismissFeedbackNudge, feedbackNudgeVisible, maybeRequestStoreReview } from '@/lib/feedback-prompts';
 import { useFeedbackSheet } from '@/hooks/use-feedback-sheet';
-import { hasSeenGuide } from '@/lib/guide-state';
+import { hasSeenSpotlight, markSpotlightSeen } from '@/lib/guide-state';
 import { sortReportsNewestFirst } from '@/lib/report-order';
 import {
   localDate,
@@ -20,7 +20,10 @@ import {
 } from '@/lib/admissions';
 import { useRequireLogin } from '@/hooks/use-require-login';
 import { dateLocale, isKorean, translate as t } from '@/lib/i18n';
+import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
 import { StreakCelebration } from '@/components/streak-badge';
+import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
+import { TARGET } from '@/lib/spotlight-targets';
 import {
   readLastSeenStreak,
   shouldCelebrateStreak,
@@ -31,6 +34,12 @@ const PREVIEW_COUNT = 3;
 const MASCOT = require('@/assets/images/mascot-home.png');
 /** 연속 연습 스트립의 주황(pen). 팔레트의 amber는 글자용이라 따로 둔다. */
 const STREAK_ORANGE = '#E9A23B';
+
+/** 홈에서 처음 한 번 비추는 자리 — 연습을 시작하는 배너, 그리고 바로 찍는 버튼 (SOMA-550). */
+const HOME_STEPS: SpotlightStep[] = [
+  { target: TARGET.homeStart, text: 'guide.spotHomeStart' },
+  { target: TARGET.shoot, text: 'guide.spotShoot', round: true },
+];
 
 function recentDate(iso: string): string {
   const d = new Date(iso);
@@ -50,15 +59,17 @@ export default function HomeScreen() {
   // 연습 3회 뒤 한 번 뜨는 의견 넛지 / 5회 뒤 한 번 스토어 평점(feedback-prompts).
   const [nudge, setNudge] = useState(false);
   const feedback = useFeedbackSheet('home');
-  // 첫 진입 한 번만 가이드(4장). 설정에서 다시 볼 수 있다.
+  // 첫 진입 한 번만 가이드 — 누를 자리를 비춰 준다. 설정에서 슬라이드로 다시 볼 수 있다.
   const guideCheckedRef = useRef(false);
+  const [guideOpen, setGuideOpen] = useState(false);
+  const startTarget = useSpotlightTarget(TARGET.homeStart);
 
   useFocusEffect(
     useCallback(() => {
       if (!guideCheckedRef.current) {
         guideCheckedRef.current = true;
-        void hasSeenGuide().then((seen) => {
-          if (!seen) router.push('/guide');
+        void hasSeenSpotlight('home').then((seen) => {
+          if (!seen) setGuideOpen(true);
         });
       }
       let cancelled = false;
@@ -148,6 +159,8 @@ export default function HomeScreen() {
 
         {/* 지금 바로 연습하기 — 배너 전체가 버튼 */}
         <Pressable
+          ref={startTarget.ref}
+          onLayout={startTarget.onLayout}
           style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
           accessibilityRole="button"
           accessibilityLabel={t('home.startA11y')}
@@ -293,6 +306,15 @@ export default function HomeScreen() {
       </ScrollView>
       {feedback.element}
       {loginGuard}
+      <SpotlightGuide
+        visible={guideOpen}
+        topic="home"
+        steps={HOME_STEPS}
+        onDone={() => {
+          setGuideOpen(false);
+          void markSpotlightSeen('home');
+        }}
+      />
     </SafeAreaView>
   );
 }
