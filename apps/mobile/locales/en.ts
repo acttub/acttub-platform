@@ -1050,6 +1050,8 @@ const en: DeepStringShape<typeof ko> = {
     voiceParsing: 'Reading the settings...',
     voiceAssetsReady: 'Voice files ready',
     voiceNotReady: 'The voice isn’t ready yet',
+    myTurn: 'Your turn',
+    listening: 'Listening · moves on when you finish',
     readAndNext: 'Read your line, then tap Next',
     othersTurn: 'The other role is reading · you’re next',
     play: 'Play',

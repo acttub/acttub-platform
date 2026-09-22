@@ -1029,6 +1029,8 @@ const ko = {
     voiceParsing: '설정 읽는 중...',
     voiceAssetsReady: '자산 준비 완료',
     voiceNotReady: '음성 엔진이 준비되지 않았어요',
+    myTurn: '내 차례',
+    listening: '듣는 중 · 말이 끝나면 넘어가요',
     readAndNext: '대사를 읽고 다음을 눌러요',
     othersTurn: '상대가 읽는 중 · 끝나면 내 차례',
     play: '재생',
