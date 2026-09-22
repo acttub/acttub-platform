@@ -60,7 +60,7 @@ class CoachConversationIT {
             "{\"message\":\"오늘은 여기까지 해요\",\"status\":\"complete\",\"handoff\":{\"end_reason\":\"user_ended\"}}";
     /** 종료 턴 뒤에 노트 생성기가 한 번 더 모델을 부른다 — 기존 갈래의 리포트 본문이다. */
     private static final String REPORT = """
-            {"report_type":"expression","title":"생성된 노트",
+            {"report_type":"analysis","title":"생성된 노트",
              "actor_discovery":"발견","line_meaning":"의미","timing_reason":"타이밍",
              "target_effect":"효과","next_take":{"direction":"방향","tested":false},
              "acting_caution":"주의","evidence":[],"uncertainties":[]}
@@ -275,6 +275,8 @@ class CoachConversationIT {
                 .containsEntry("status", "closed").containsEntry("close_reason", "user_ended");
         assertThat(count("coach_notes")).as("유효 답 둘이라 노트를 만든다").isEqualTo(1);
         assertThat(closed.path("note").path("format").textValue()).isEqualTo("legacy");
+        assertThat(closed.at("/note/report/report_type").asText()).isEqualTo("analysis");
+        assertThat(closed.at("/note/report/title").asText()).isEqualTo("생성된 노트");
         assertThat(closed.path("note").path("source_revision").longValue())
                 .isEqualTo(closed.path("conversation").path("revision").longValue());
 
@@ -346,6 +348,80 @@ class CoachConversationIT {
 
     // ---- helpers ----
 
+    @Test
+    void practiceCoach_replayKeepsTheOriginalOutcomeAfterLaterTurnsAndClosing() throws Exception {
+        generator.enqueue(CONTINUE);
+        UUID conversation = UUID.fromString(json(post("/v2/coach/start").content(startBody(practice, UUID.randomUUID())), 200)
+                .at("/conversation/id").asText());
+        UUID request = UUID.randomUUID();
+        String originalBody = replyBody(conversation, request, "숨이 막혔어요", 1L);
+        generator.enqueue(CONTINUE);
+        JsonNode original = json(post("/v2/coach/reply").content(originalBody), 200);
+        generator.enqueue(CONTINUE);
+        json(post("/v2/coach/reply").content(replyBody(conversation, UUID.randomUUID(), "목이 잠겼어요", null)), 200);
+        generator.enqueue(CLOSING);
+        generator.enqueue(REPORT);
+        json(post("/v2/coach/reply").content(replyBody(conversation, UUID.randomUUID(), "그만할래요", null)), 200);
+        int calls = generator.calls();
+
+        JsonNode replayed = json(post("/v2/coach/reply").content(originalBody), 200);
+
+        assertThat(replayed).isEqualTo(original);
+        assertThat(generator.calls()).isEqualTo(calls);
+    }
+
+    @Test
+    void practiceNote_legacyClosingFallbackDoesNotPersistABlockedReportAsANote() throws Exception {
+        generator.enqueue(CONTINUE);
+        UUID conversation = UUID.fromString(json(post("/v2/coach/start").content(startBody(practice, UUID.randomUUID())), 200)
+                .at("/conversation/id").asText());
+        generator.enqueue(CONTINUE);
+        json(post("/v2/coach/reply").content(replyBody(conversation, UUID.randomUUID(), "숨이 막혔어요", null)), 200);
+        generator.enqueue(CONTINUE);
+        json(post("/v2/coach/reply").content(replyBody(conversation, UUID.randomUUID(), "목이 잠겼어요", null)), 200);
+        generator.enqueue("{\"message\":\"점수로 볼게요\",\"status\":\"continue\",\"handoff\":null}");
+        generator.enqueue("{\"message\":\"점수로 볼게요\",\"status\":\"continue\",\"handoff\":null}");
+
+        JsonNode closed = json(post("/v2/coach/reply").content(replyBody(conversation, UUID.randomUUID(), "그만할래요", null)), 200);
+
+        assertThat(closed.at("/conversation/status").asText()).isEqualTo("closed");
+        assertThat(closed.path("note").isNull()).isTrue();
+        assertThat(count("coach_notes")).isZero();
+        assertThat(generator.calls()).isEqualTo(5);
+    }
+
+    @Test
+    void practiceCoach_withdrawalWhileOpeningDoesNotSaveTheFirstMessage() throws Exception {
+        generator.enqueue(CONTINUE);
+        generator.duringNextCall(() -> jdbc.update(
+                "UPDATE users SET status='deactivated',deactivated_at=now() WHERE id=?", member));
+
+        JsonNode denied = json(post("/v2/coach/start").content(startBody(practice, UUID.randomUUID())), 403);
+
+        assertThat(denied.path("detail").asText()).isEqualTo("account_deactivated");
+        assertThat(count("coach_messages")).isZero();
+    }
+
+    @Test
+    void practiceNote_withdrawalDuringGenerationDoesNotSaveALateNote() throws Exception {
+        generator.enqueue(CONTINUE);
+        JsonNode opened = json(post("/v2/coach/start").content(startBody(practice, UUID.randomUUID())), 200);
+        UUID conversation = UUID.fromString(opened.at("/conversation/id").asText());
+        generator.enqueue(CONTINUE);
+        json(post("/v2/coach/reply").content(replyBody(conversation, UUID.randomUUID(), "숨이 막혔어요", null)), 200);
+        generator.enqueue(CONTINUE);
+        json(post("/v2/coach/reply").content(replyBody(conversation, UUID.randomUUID(), "목이 잠겼어요", null)), 200);
+        generator.enqueue(CLOSING);
+        generator.enqueue(REPORT);
+        generator.duringNextCall(() -> generator.duringNextCall(() -> jdbc.update(
+                "UPDATE users SET status='deactivated',deactivated_at=now() WHERE id=?", member)));
+
+        JsonNode denied = json(post("/v2/coach/reply").content(replyBody(conversation, UUID.randomUUID(), "그만할래요", null)), 403);
+
+        assertThat(denied.path("detail").asText()).isEqualTo("account_deactivated");
+        assertThat(count("coach_notes")).isZero();
+    }
+
     private String startBody(UUID practiceId, UUID requestId) {
         return "{\"practice_id\":\"" + practiceId + "\",\"request_id\":\"" + requestId + "\"}";
     }
@@ -386,7 +462,7 @@ class CoachConversationIT {
         jdbc.update("""
                 INSERT INTO practices(id,user_id,video_id,root_id,ordinal,stage,experience_version,
                                       blockage_kind,sub_branch,situation)
-                VALUES (?,?,?,?,1,?,'legacy','표현','감정','문 앞에서 돌아선다')
+                VALUES (?,?,?,?,1,?,'legacy','분석','캐릭터 분석','문 앞에서 돌아선다')
                 """, id, owner, videoId, id, stage);
         return id;
     }

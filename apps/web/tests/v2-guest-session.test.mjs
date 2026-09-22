@@ -76,7 +76,7 @@ test("account.guest: 토큰 없이 보호 조회를 불러도 게스트를 만�
   const calls = recordFetch(() => jsonResponse({ sessions: [] }));
 
   await assert.rejects(
-    apiFetch("/v2/practice-sessions"),
+    apiFetch("/v2/practices"),
     (error) => error?.status === 401 && error?.code === "guest_session_required",
   );
 
@@ -94,7 +94,7 @@ test("account.guest: 처음 보호 기능을 쓰려 할 때 POST /v2/auth/guest�
   const unsubscribe = onSessionEvent((event) => events.push(event));
 
   try {
-    const { data } = await apiFetch("/v2/uploads/intents", {
+    const { data } = await apiFetch("/v2/videos/intents", {
       method: "POST",
       body: { filename: "take.mp4" },
     });
@@ -102,7 +102,7 @@ test("account.guest: 처음 보호 기능을 쓰려 할 때 POST /v2/auth/guest�
     assert.deepEqual(data, { intent_id: "intent-1" });
     assert.deepEqual(calls.map((call) => call.route), [
       "POST /v2/auth/guest",
-      "POST /v2/uploads/intents",
+      "POST /v2/videos/intents",
     ]);
     assert.equal(calls[0].body, undefined);
     assert.equal(calls[0].headers.has("Authorization"), false);
@@ -125,9 +125,9 @@ test("account.guest: 동시에 시작한 보호 요청 여럿이 게스트를 �
   });
 
   await Promise.all([
-    apiFetch("/v2/uploads/intents", { method: "POST", body: {} }),
-    apiFetch("/v2/uploads/intents", { method: "POST", body: {} }),
-    apiFetch("/v2/uploads/intents", { method: "POST", body: {} }),
+    apiFetch("/v2/videos/intents", { method: "POST", body: {} }),
+    apiFetch("/v2/videos/intents", { method: "POST", body: {} }),
+    apiFetch("/v2/videos/intents", { method: "POST", body: {} }),
   ]);
 
   assert.equal(
@@ -135,7 +135,7 @@ test("account.guest: 동시에 시작한 보호 요청 여럿이 게스트를 �
     1,
   );
   assert.equal(
-    calls.filter((call) => call.route === "POST /v2/uploads/intents").length,
+    calls.filter((call) => call.route === "POST /v2/videos/intents").length,
     3,
   );
 });
@@ -144,9 +144,9 @@ test("account.guest: 이미 게스트 토큰이 있으면 다시 만들지 않�
   setTokens({ access_token: "guest-access-0", refresh_token: "guest-refresh-0" });
   const calls = recordFetch(() => jsonResponse({ ok: true }));
 
-  await apiFetch("/v2/uploads/intents", { method: "POST", body: {} });
+  await apiFetch("/v2/videos/intents", { method: "POST", body: {} });
 
-  assert.deepEqual(calls.map((call) => call.route), ["POST /v2/uploads/intents"]);
+  assert.deepEqual(calls.map((call) => call.route), ["POST /v2/videos/intents"]);
   assert.equal(calls[0].headers.get("Authorization"), "Bearer guest-access-0");
 });
 
@@ -157,7 +157,7 @@ test("account.guest: 한 IP에서 한 시간에 열한 번째 게스트(429)는 
 
   let caught;
   try {
-    await apiFetch("/v2/uploads/intents", { method: "POST", body: {} });
+    await apiFetch("/v2/videos/intents", { method: "POST", body: {} });
   } catch (error) {
     caught = error;
   }
@@ -188,17 +188,17 @@ test("account.guest: 갱신이 401이면 토큰을 지우고 새 게스트로 �
   const unsubscribe = onSessionEvent((event) => events.push(event));
 
   try {
-    const { data } = await apiFetch("/v2/uploads/intents", {
+    const { data } = await apiFetch("/v2/videos/intents", {
       method: "POST",
       body: { filename: "take.mp4" },
     });
 
     assert.deepEqual(data, { intent_id: "intent-2" });
     assert.deepEqual(calls.map((call) => call.route), [
-      "POST /v2/uploads/intents",
+      "POST /v2/videos/intents",
       "POST /v2/auth/refresh",
       "POST /v2/auth/guest",
-      "POST /v2/uploads/intents",
+      "POST /v2/videos/intents",
     ]);
     assert.equal(calls[3].body, calls[0].body);
     assert.equal(getRefreshToken(), "guest-refresh-2");
@@ -220,12 +220,12 @@ test("account.guest: 갱신이 401인 보호 조회는 새 게스트를 만들�
 
   try {
     await assert.rejects(
-      apiFetch("/v2/practice-sessions"),
+      apiFetch("/v2/practices"),
       (error) => error?.status === 401,
     );
 
     assert.deepEqual(calls.map((call) => call.route), [
-      "GET /v2/practice-sessions",
+      "GET /v2/practices",
       "POST /v2/auth/refresh",
     ]);
     assert.equal(getAccessToken(), null);
@@ -261,7 +261,7 @@ test("공통 규칙: 보호 요청·공개 요청·갱신·게스트 만들기 �
     if (call.route === "POST /v2/auth/guest") {
       return jsonResponse(guestTokens("3"), 201);
     }
-    if (call.route === "GET /v2/practice-sessions") {
+    if (call.route === "GET /v2/practices") {
       return call.headers.get("Authorization") === "Bearer guest-access-new"
         ? jsonResponse({ sessions: [] })
         : jsonResponse({ detail: "invalid or missing access token" }, 401);
@@ -269,18 +269,18 @@ test("공통 규칙: 보호 요청·공개 요청·갱신·게스트 만들기 �
     return jsonResponse({ ok: true });
   });
 
-  await apiFetch("/v2/practice-sessions");
+  await apiFetch("/v2/practices");
   await apiFetch("/v2/admissions", { auth: false });
   clearTokens();
-  await apiFetch("/v2/uploads/intents", { method: "POST", body: {} });
+  await apiFetch("/v2/videos/intents", { method: "POST", body: {} });
 
   assert.deepEqual(calls.map((call) => call.route), [
-    "GET /v2/practice-sessions",
+    "GET /v2/practices",
     "POST /v2/auth/refresh",
-    "GET /v2/practice-sessions",
+    "GET /v2/practices",
     "GET /v2/admissions",
     "POST /v2/auth/guest",
-    "POST /v2/uploads/intents",
+    "POST /v2/videos/intents",
   ]);
   for (const call of calls) {
     assert.equal(call.headers.get("X-Acttub-Client"), "web/1.0.0", call.route);
@@ -302,16 +302,16 @@ test("account.withdraw: 파기된 게스트의 남은 액세스 토큰(403 accou
   const unsubscribe = onSessionEvent((event) => events.push(event));
 
   try {
-    const { data } = await apiFetch("/v2/uploads/intents", {
+    const { data } = await apiFetch("/v2/videos/intents", {
       method: "POST",
       body: { filename: "take.mp4" },
     });
 
     assert.deepEqual(data, { intent_id: "intent-4" });
     assert.deepEqual(calls.map((call) => call.route), [
-      "POST /v2/uploads/intents",
+      "POST /v2/videos/intents",
       "POST /v2/auth/guest",
-      "POST /v2/uploads/intents",
+      "POST /v2/videos/intents",
     ]);
     assert.equal(getRefreshToken(), "guest-refresh-4");
     assert.deepEqual(events, ["guest-ended", "guest-started"]);
@@ -327,10 +327,10 @@ test("account.withdraw: 403 account_deactivated인 보호 조회는 토큰만 �
   );
 
   await assert.rejects(
-    apiFetch("/v2/practice-sessions"),
+    apiFetch("/v2/practices"),
     (error) => error?.status === 403 && error?.code === "account_deactivated",
   );
 
-  assert.deepEqual(calls.map((call) => call.route), ["GET /v2/practice-sessions"]);
+  assert.deepEqual(calls.map((call) => call.route), ["GET /v2/practices"]);
   assert.equal(hasGuestSession(), false);
 });

@@ -87,11 +87,8 @@ class LegacyStorageCompatibilityIT {
                     .path("stage").asText()).isEqualTo("analyzing");
             assertThat(practiceIds(get(port, "/v2/practices", bearer)))
                     .containsExactlyInAnyOrder(session, historical.toString());
-            assertThat(get(port, "/v2/reports", bearer).path("reports"))
-                    .singleElement().satisfies(item -> {
-                        assertThat(item.path("practice_session_id").asText()).isEqualTo(historical.toString());
-                        assertThat(item.path("title").asText()).isEqualTo("현재 연습 노트");
-                    });
+            assertThat(get(port, "/v2/practices/" + historical + "/note", bearer).path("title").asText())
+                    .isEqualTo("현재 연습 노트");
 
             // 분석 저장 Port는 실제 JPA INSERT·Lease 완료를 사용한다. 외부 모델 호출은 없다.
             AnalysisStore store = context.getBean(AnalysisStore.class);

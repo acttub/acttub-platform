@@ -13,7 +13,7 @@ import { formatClipDuration, relativeDayLabel } from '@/lib/archive-format';
 import { useAuth } from '@/lib/auth';
 import { formatKoreanDateTime } from '@/lib/format';
 import { translate as t } from '@/lib/i18n';
-import { deleteDecision, usageLabel } from '@/lib/library/library-view';
+import { deleteDecision, usageLabel, videoPlaybackSource } from '@/lib/library/library-view';
 import {
   flushLibraryUploads,
   forgetLocalCopy,
@@ -86,7 +86,7 @@ export default function ArchiveDetailScreen() {
   }, [state.kind, router]);
 
   const source =
-    state.kind === 'pending' ? state.entry.uri : state.kind === 'video' ? (state.localUri ?? (state.video.purged_at ? null : state.video.playback_url)) : null;
+    state.kind === 'pending' ? state.entry.uri : state.kind === 'video' ? videoPlaybackSource(state.video, state.localUri) : null;
   const player = useVideoPlayer(source ?? null, (p) => {
     p.loop = true;
   });

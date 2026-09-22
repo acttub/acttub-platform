@@ -3,6 +3,8 @@ package com.acttub.actingapi.feature.practice.app;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import com.acttub.actingapi.feature.practice.domain.ObservationPack;
+import com.acttub.actingapi.feature.practice.domain.VideoRecordSummary;
 
 /** 회차·묶음이 밖으로 보여 주는 모양 (practice.start, practice.resume, practice.library). */
 public final class PracticeViews {
@@ -81,4 +83,8 @@ public final class PracticeViews {
     /** 회차의 진행 상태만. 화면이 폴링한다(앱 4초·웹 10초). */
     public record StatusView(String stage, String closeReason, String analysisStatus, JobView job) {
     }
+
+    /** 내부 원문 대신 화면에 필요한 관찰 요약만 전달한다. 두 형식을 이름만 바꿔 혼합하지 않는다. */
+    public record AnalysisView(UUID id, String format, String status, ObservationPack observation,
+                               VideoRecordSummary videoRecord) { }
 }

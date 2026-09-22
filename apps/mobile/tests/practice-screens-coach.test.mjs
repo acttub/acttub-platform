@@ -14,12 +14,12 @@ const read = (rel) => readFileSync(path.join(appRoot, rel), 'utf8');
 test('practice.coach: 대화는 요청 id 와 revision 을 싣고 충돌이면 입력을 보존한 채 다시 읽는다', () => {
   const coach = read('app/coach.tsx');
 
-  assert.match(coach, /api\.startConversation/);
+  assert.match(coach, /loadCoachSession/);
   assert.match(coach, /api\.replyToCoach/);
   assert.match(coach, /buildReplyBody/);
   assert.match(coach, /newRequestId/);
   assert.match(coach, /failure\.kind === 'conflict'/);
-  assert.match(coach, /api\.getConversation/);
+  assert.match(coach, /reloadConversation/);
   // 충돌 처리에서 입력을 비우지 않는다 — 비우는 것은 성공했을 때뿐이다.
   const conflictBlock = coach.slice(coach.indexOf('} catch (e) {', coach.indexOf('const sendText')));
   assert.doesNotMatch(conflictBlock.slice(0, 600), /setInput\(''\)/);

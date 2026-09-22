@@ -102,7 +102,7 @@ class ConversationController {
     ConversationResponse conversation(
             @PathVariable("conversation_id") UUID conversationId, HttpServletRequest request) {
         var view = conversations.conversation(auth.gatedUser(request).id(), conversationId);
-        return ConversationResponse.of(view, ConversationService.LEGACY_REPLY_LIMIT);
+        return ConversationResponse.of(view, ConversationService.replyLimit(view.experienceVersion()));
     }
 
 }

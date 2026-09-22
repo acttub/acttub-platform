@@ -22,7 +22,7 @@ final class DialogueNote {
 
     private DialogueNote() { }
 
-    static ObjectNode assemble(JsonNode handoff, Function<String, String> generate,
+    static PracticeNote.Generated assembleResult(JsonNode handoff, Function<String, String> generate,
             Consumer<RuntimeException> onFailure) {
         StructuredJson.validate("coach_handoff_v2", handoff);
         JsonNode context = handoff.path("context");
@@ -53,7 +53,7 @@ final class DialogueNote {
                         ? StructuredJson.MAPPER.nullNode() : summary);
                 if (!next.isNull()) attachNext(note, next);
                 StructuredJson.validate("practice_note", note);
-                return note;
+                return new PracticeNote.Generated(note, false);
             } catch (RuntimeException failure) {
                 onFailure.accept(failure);
                 input.put("validation_error", failure instanceof IllegalArgumentException
@@ -78,7 +78,7 @@ final class DialogueNote {
         if (!experience.isEmpty()) {
             ((ObjectNode) note.path("copy")).set("summary", summary(experience, handoff, context, sources));
             StructuredJson.validate("practice_note", note);
-            return note;
+            return new PracticeNote.Generated(note, true);
         }
         for (JsonNode id : context.path("focus").path("evidence_refs")) {
             JsonNode source = sources.get(id.asText());
@@ -91,7 +91,7 @@ final class DialogueNote {
             }
         }
         StructuredJson.validate("practice_note", note);
-        return note;
+        return new PracticeNote.Generated(note, true);
     }
 
     private static ObjectNode base(JsonNode handoff, Map<String, JsonNode> sources) {

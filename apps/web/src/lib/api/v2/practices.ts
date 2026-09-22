@@ -1,3 +1,6 @@
+import { getVideo } from "./videos";
+import { ApiError } from "./errors";
+import type { PracticeAnalysis, Video } from "../../practice/api-types";
 import { apiFetch } from "./client";
 import { postIdempotent } from "./idempotency";
 import { newRequestId } from "../../reading/request-id";
@@ -14,7 +17,7 @@ import type {
 } from "../../practice/api-types";
 
 // 연습 회차·묶음(practice.start·resume·analyze·library). 시작·이어하기는 request_id 멱등이고 회차와 분석 작업이 한
-// 트랜잭션으로 만들어진다. 타입은 임시이며 통합 작업이 생성 타입으로 바꾼다(src/lib/practice/api-types.ts).
+// 트랜잭션으로 만들어진다. 타입은 현재 OpenAPI 생성 계약을 따른다(src/lib/practice/api-types.ts).
 
 /** 웹은 10초 간격으로 상태를 읽는다(앱은 4초). 화면을 떠나면 조회만 멈춘다. */
 export const PRACTICE_POLL_INTERVAL_MS = 10_000;
@@ -63,9 +66,30 @@ export async function listPracticeGroups(
   return data;
 }
 
-export async function getPractice(practiceId: string, options: { signal?: AbortSignal } = {}): Promise<Practice> {
+export type PracticeDetail = Practice & { video: Video | null; analysis: PracticeAnalysis | null };
+
+export async function getPractice(practiceId: string, options: { signal?: AbortSignal } = {}): Promise<PracticeDetail> {
   const { data } = await apiFetch<Practice>(practicePath(practiceId), { signal: options.signal });
-  return data;
+  let video: Video | null = null;
+  if (data.video_id) {
+    try {
+      video = await getVideo(data.video_id, options);
+    } catch (cause) {
+      // 영상이 없어도 남아 있는 대화·노트는 읽을 수 있다.
+      if (!(cause instanceof ApiError && cause.status === 404)) throw cause;
+    }
+  }
+  let analysis: PracticeAnalysis | null = null;
+  if (data.analysis_status === "ready" || data.analysis_status === "partial") {
+    try {
+      const response = await apiFetch<PracticeAnalysis>(`${practicePath(practiceId)}/analysis`, { signal: options.signal });
+      analysis = response.data;
+    } catch (cause) {
+      // 오래된 회차에 공개 요약이 없어도 대화·노트는 읽는다.
+      if (!(cause instanceof ApiError && cause.status === 404)) throw cause;
+    }
+  }
+  return { ...data, video, analysis };
 }
 
 export async function getPracticeStatus(practiceId: string, options: { signal?: AbortSignal } = {}): Promise<PracticeStatusResponse> {
@@ -129,7 +153,7 @@ export type PollPracticeOptions = {
 };
 
 /** 작업이 succeeded·failed 로 끝날 때까지 상태를 읽고, 끝나면 상세를 받는다. */
-export async function pollPracticeUntilSettled(practiceId: string, options: PollPracticeOptions = {}): Promise<Practice> {
+export async function pollPracticeUntilSettled(practiceId: string, options: PollPracticeOptions = {}): Promise<PracticeDetail> {
   const { intervalMs = PRACTICE_POLL_INTERVAL_MS, onStatus, signal } = options;
   while (true) {
     if (signal?.aborted) throw abortReason(signal);

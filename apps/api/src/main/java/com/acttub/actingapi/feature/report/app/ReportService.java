@@ -12,7 +12,6 @@ import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.feature.report.domain.ReportBranch;
 import com.acttub.actingapi.feature.practice.app.PracticeExperience;
 import com.fasterxml.jackson.databind.JsonNode;
-import org.springframework.stereotype.Service;
 
 /**
  * 성적표의 규칙. HTTP 도 SQL 도 모르며, 요청 하나가 어떤 순서로 무엇을 확인하고 무엇을 남기는지만
@@ -22,7 +21,6 @@ import org.springframework.stereotype.Service;
  * 아니므로 도메인 사이의 결합은 아니다 — 이 예외를 상태코드와 본문으로 옮기는 일은
  * {@code platform/web/ApiErrorAdvice} 하나가 맡고 있고, 그 형태가 곧 계약이다.
  */
-@Service
 public class ReportService {
 
     /** 재생 서명 주소의 수명. 파이썬과 같은 15분이고, 응답에 그대로 실린다. */

@@ -100,7 +100,7 @@ class AccessGateTest {
         for (String[] guarded : new String[][] {
                 {"POST", "/v2/videos/intents"}, {"POST", "/v2/videos/intents/id/complete"},
                 {"GET", "/v2/practices"}, {"DELETE", "/v2/videos/id"},
-                {"POST", "/v2/coach/start"}, {"GET", "/v2/reports"}, {"GET", "/v2/me/memory"},
+                {"POST", "/v2/coach/start"}, {"GET", "/v2/practices"}, {"GET", "/v2/me/memory"},
                 {"PUT", "/v2/me/memory/goal"}, {"POST", "/v2/push-tokens"}, {"POST", "/v2/me/photo"},
                 {"POST", "/v2/me/photo/complete"}, {"DELETE", "/v2/me/photo"},
                 {"GET", "/v2/something-new"}}) {

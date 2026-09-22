@@ -53,6 +53,15 @@ class PracticeController {
     private final PracticeService practices;
     private final AccessGate auth;
 
+    @Operation(summary = "Get Practice Analysis", tags = "v2-practices",
+            security = @SecurityRequirement(name = "HTTPBearer"))
+    @ApiResponse(responseCode = "200", description = "Public analysis summary",
+            content = @Content(schema = @Schema(implementation = PracticeDtos.AnalysisResponse.class)))
+    @GetMapping("/{practice_id}/analysis")
+    PracticeDtos.AnalysisResponse analysis(@PathVariable("practice_id") UUID practiceId, HttpServletRequest request) {
+        return PracticeDtos.AnalysisResponse.of(practices.analysis(auth.gatedUser(request).id(), practiceId));
+    }
+
     PracticeController(PracticeService practices, AccessGate auth) {
         this.practices = practices;
         this.auth = auth;

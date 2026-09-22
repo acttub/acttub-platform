@@ -12,20 +12,20 @@ import {
 
 const note = (over = {}) => ({
   id: 'note-1',
-  practice_id: 'practice-1',
+  conversation_id: 'conversation-1',
   format: 'v2',
   kind: 'action',
   title: '말을 끝낸 뒤 시선이 내려가는 곳',
   summary_quotes: [
-    { text: '먼저 미안하다고 말해주길 기다렸어요', source: 'actor' },
-    { text: '0:41 말을 끝낸 직후 시선이 먼저 내려간다', source: 'observation' },
+    { quote: '먼저 미안하다고 말해주길 기다렸어요', kind: 'actor', source_ref: 'actor:1' },
+    { quote: '0:41 말을 끝낸 직후 시선이 먼저 내려간다', kind: 'observation', source_ref: 'observation:1' },
   ],
   next_take: '대답하기 전에 2초를 더 듣고, 그 뒤에 시선을 든다',
   actor_words: [],
   corrections: [],
   tags: [],
   fallback: false,
-  cheer: null,
+  report: null,
   source_revision: 7,
   created_at: '2026-09-21T02:00:00Z',
   ...over,
@@ -42,9 +42,9 @@ test('practice.note: 제목은 초점 원문이고 요약 인용은 최대 둘·
   const sections = noteSections(
     note({
       summary_quotes: [
-        { text: '하나', source: 'actor' },
-        { text: '둘', source: 'observation' },
-        { text: '셋', source: 'actor' },
+        { quote: '하나', kind: 'actor', source_ref: 'actor:1' },
+        { quote: '둘', kind: 'observation', source_ref: 'observation:1' },
+        { quote: '셋', kind: 'actor', source_ref: 'actor:1' },
       ],
     }),
   );
@@ -54,8 +54,8 @@ test('practice.note: 제목은 초점 원문이고 요약 인용은 최대 둘·
   assert.equal(SUMMARY_QUOTE_MAX, 2);
   assert.equal(summary.quotes.length, 2);
   for (const quote of summary.quotes) {
-    assert.ok(['actor', 'observation'].includes(quote.source));
-    assert.equal(typeof quoteSourceLabel(quote.source), 'string');
+    assert.ok(['actor', 'observation'].includes(quote.kind));
+    assert.equal(typeof quoteSourceLabel(quote.kind), 'string');
   }
 });
 

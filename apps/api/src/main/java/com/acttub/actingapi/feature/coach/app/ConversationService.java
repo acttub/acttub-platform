@@ -7,6 +7,8 @@ import java.time.Instant;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.acttub.actingapi.feature.coach.app.ConversationRepository.Loaded;
 import com.acttub.actingapi.feature.coach.app.ConversationRepository.NewNote;
@@ -15,6 +17,8 @@ import com.acttub.actingapi.feature.coach.app.ConversationRepository.Replay;
 import com.acttub.actingapi.feature.coach.app.ConversationRepository.Saved;
 import com.acttub.actingapi.feature.coach.domain.CoachBranch;
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
+import com.acttub.actingapi.platform.observability.FailureContext;
+import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -49,29 +53,49 @@ public class ConversationService {
     private final NoteWriter notes;
     private final Clock clock;
     private final ConversationClosedListener closedListener;
+    private final CoachProfile profiles;
+    private final CoachMemory memory;
+    private final FailureReporter failureReporter;
+    private final Set<RequestKey> generating = ConcurrentHashMap.newKeySet();
+
+    private record RequestKey(String operation, UUID userId, UUID targetId, UUID requestId) { }
 
     public ConversationService(
             ConversationRepository conversations,
             CoachEngine coach,
             NoteWriter notes,
             Clock clock,
-            ConversationClosedListener closedListener) {
+            ConversationClosedListener closedListener,
+            CoachProfile profiles,
+            CoachMemory memory,
+            FailureReporter failureReporter) {
         this.conversations = conversations;
         this.coach = coach;
         this.notes = notes;
         this.clock = clock;
         this.closedListener = closedListener;
+        this.profiles = profiles;
+        this.memory = memory;
+        this.failureReporter = failureReporter;
     }
 
     /** 분석이 끝난 회차에서 대화를 연다. 이미 열린 대화가 있으면 그것을 재개한다. */
     public Turn start(UUID userId, UUID practiceId, UUID requestId) {
+        return withRequestInFlight(new RequestKey("start", userId, practiceId, requestId),
+                () -> startTurn(userId, practiceId, requestId));
+    }
+
+    private Turn startTurn(UUID userId, UUID practiceId, UUID requestId) {
         Loaded loaded = require(conversations.loadByPractice(userId, practiceId));
         if (loaded.conversationId() != null) {
             if ("closed".equals(loaded.session().status())) {
                 // 닫힌 뒤 다시 코칭하려면 새 회차다(practice.resume).
                 throw new ApiException(409, "conversation_closed");
             }
-            return turn(loaded.session(), loaded.conversationId(), null);
+            if (!loaded.session().turns().isEmpty()) {
+                return turn(loaded.session(), loaded.conversationId(), null);
+            }
+            // 첫 모델 호출이 실패한 행에는 아직 메시지가 없다. 빈 응답으로 재개하지 않고 다시 생성한다.
         }
         if (!"conversing".equals(loaded.stage())) {
             throw new ApiException(409, "analysis_not_ready");
@@ -82,8 +106,11 @@ public class ConversationService {
             // 같은 요청이 먼저 열고 첫 응답까지 저장했다 — 시작 재전송이 턴을 늘리지 않는다.
             return turn(opened.session(), conversationId, null);
         }
-        CoachResult result = coach.start(opened.session(), conversationId);
-        conversations.saveOpening(conversationId, result.reply().message(), result.session().coachingState(), clock.instant());
+        CoachResult result = generate(() -> coach.start(withContext(opened.session()), conversationId));
+        activeOnly(() -> {
+            conversations.saveOpening(conversationId, result.reply().message(), result.session().coachingState(), clock.instant());
+            return null;
+        });
         Loaded saved = require(conversations.loadByConversation(userId, conversationId));
         return turn(saved.session(), conversationId, null);
     }
@@ -93,6 +120,11 @@ public class ConversationService {
      * 아무것도 쓰지 않는다.
      */
     public Turn reply(UUID userId, UUID conversationId, UUID requestId, String text, Long revision) {
+        return withRequestInFlight(new RequestKey("reply", userId, conversationId, requestId),
+                () -> replyTurn(userId, conversationId, requestId, text, revision));
+    }
+
+    private Turn replyTurn(UUID userId, UUID conversationId, UUID requestId, String text, Long revision) {
         Loaded loaded = require(conversations.loadByConversation(userId, conversationId));
         String fingerprint = fingerprint("coach_reply|" + conversationId + "|" + text);
         Replay replayed = conversations.findReplay(conversationId, requestId, fingerprint);
@@ -101,16 +133,18 @@ public class ConversationService {
                 throw new ApiException(422, "request_fingerprint_mismatch");
             }
             // 그 요청이 만든 코치 응답·종료·노트 결과를 그대로 돌려준다.
+            List<ConversationRepository.Turn> originalTurns = turns(loaded.session()).stream()
+                    .limit(replayed.turnCount()).toList();
             return new Turn(
                     conversationId,
                     replayed.status(),
                     replayed.closeReason(),
                     replayed.revision(),
                     replayed.coachMessage(),
-                    coachReplies(loaded.session()),
+                    (int) originalTurns.stream().filter(turn -> "coach".equals(turn.role())).count(),
                     replyLimit(loaded.session()),
-                    turns(loaded.session()),
-                    conversations.note(userId, loaded.practiceId()));
+                    originalTurns,
+                    "closed".equals(replayed.status()) ? conversations.note(userId, loaded.practiceId()) : null);
         }
         if ("closed".equals(loaded.session().status())) {
             throw new ApiException(409, "conversation_closed");
@@ -118,7 +152,7 @@ public class ConversationService {
         if (revision != null && revision != loaded.session().stateRevision()) {
             throw new ApiException(409, "conversation_conflict");
         }
-        CoachResult result = coach.reply(loaded.session(), text, conversationId);
+        CoachResult result = generate(() -> coach.reply(withContext(loaded.session()), text, conversationId));
         boolean closing = COMPLETE.equals(result.reply().status());
         Saved saved = activeOnly(() -> conversations.appendTurn(
                 conversationId,
@@ -135,8 +169,8 @@ public class ConversationService {
             throw new ApiException(409, "conversation_conflict");
         }
         NoteView note = closing
-                ? notes.write(loaded, result, saved.revision(), clock.instant())
-                : conversations.note(userId, loaded.practiceId());
+                ? activeOnly(() -> notes.write(loaded, result, saved.revision(), clock.instant()))
+                : null;
         if (closing && closedListener != null) {
             // 노트가 남은 뒤에 알린다 — 확인 연습을 세는 쪽이 이번 회차의 노트를 보아야 한다.
             closedListener.onConversationClosed(userId, loaded.practiceId());
@@ -150,7 +184,7 @@ public class ConversationService {
                 result.reply().message(),
                 saved.coachReplyCount(),
                 replyLimit(loaded.session()),
-                turns(after.session()),
+                turns(after.session()).stream().limit(result.session().turns().size()).toList(),
                 note);
     }
 
@@ -219,7 +253,11 @@ public class ConversationService {
     }
 
     private static int replyLimit(CoachSessionSnapshot session) {
-        return session.threeLayers() ? THREE_LAYERS_REPLY_LIMIT : LEGACY_REPLY_LIMIT;
+        return replyLimit(session.experienceVersion());
+    }
+
+    public static int replyLimit(String experienceVersion) {
+        return "three_layers_v1".equals(experienceVersion) ? THREE_LAYERS_REPLY_LIMIT : LEGACY_REPLY_LIMIT;
     }
 
     /** 상한에 닿아 끝났는지, 배우가 마쳤는지. 엔진이 사유를 주지 않으면 소진으로 본다. */
@@ -244,11 +282,44 @@ public class ConversationService {
         }
     }
 
+    private static CoachResult generate(java.util.function.Supplier<CoachResult> request) {
+        try {
+            return request.get();
+        } catch (CoachReplyUnavailable failure) {
+            throw ApiException.external(502, "coach_response_unavailable", failure);
+        }
+    }
+
+    /** 같은 서버의 중복 전송이 모델을 함께 부르지 않게 한다. 저장은 DB의 revision·유일성으로도 보호한다. */
+    private Turn withRequestInFlight(RequestKey key, java.util.function.Supplier<Turn> request) {
+        if (!generating.add(key)) throw new ApiException(409, "request is still processing");
+        try {
+            return request.get();
+        } finally {
+            generating.remove(key);
+        }
+    }
+
     private static Loaded require(Loaded loaded) {
         if (loaded == null) {
             throw new ApiException(404, "practice_not_found");
         }
         return loaded;
+    }
+
+    /** 모델을 부르는 턴마다 읽는다. 저장소에 프로필을 복제하지 않고, 조회 실패도 대화를 막지 않는다(§7-2). */
+    private CoachSessionSnapshot withContext(CoachSessionSnapshot session) {
+        try {
+            session = session.withPrior(memory.priorForPractice(session.userId(), session.practiceSessionId(), null));
+        } catch (RuntimeException failure) {
+            failureReporter.report(failure, new FailureContext("ConversationService.priorContext"));
+        }
+        try {
+            return session.withActorProfile(profiles.completeFor(session.userId()));
+        } catch (RuntimeException failure) {
+            failureReporter.report(failure, new FailureContext("ConversationService.actorProfile"));
+            return session;
+        }
     }
 
     static String fingerprint(String payload) {

@@ -16,11 +16,11 @@ export function memoryValueTooLong(value: string): boolean {
 }
 
 /** 배우가 적은 값인지. 그렇다면 코치가 다시 바꾸지 않는다. */
-export function isWrittenByActor(item: { written_by?: string | null }): boolean {
-  return item.written_by === 'actor';
+export function isWrittenByActor(item: { written_by_actor: boolean }): boolean {
+  return item.written_by_actor;
 }
 
-export function writtenByLabel(item: { written_by?: string | null }): string | null {
+export function writtenByLabel(item: { written_by_actor: boolean }): string | null {
   return isWrittenByActor(item) ? translate('memory.writtenByMe') : null;
 }
 

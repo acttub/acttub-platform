@@ -104,26 +104,10 @@ public class ReportEngine {
             String analysisHandoffId,
             UUID practiceSessionId,
             UUID userId) {
-        // 노트를 받을 사람의 완성된 프로필. 누구의 것인지 모르면(userId 없음) 읽지 않는다. 모델 입력으로만
-        // 쓰고 노트·handoff 에는 남기지 않는다.
-        ReportProfile.ActorProfile actorProfile = userId == null ? null : profiles.completeFor(userId);
         if ("coaching".equals(reportType)) {
-            boolean[] copyFailed = {false};
-            JsonNode note = PracticeNote.assemble(confirmedHandoff, input -> recorded(
-                    PracticeNote.prompt(confirmedHandoff)
-                            + (actorProfile == null ? "" : ACTOR_PROFILE_INSTRUCTION),
-                    noteModelInput(
-                            "acttub.coach_handoff.v2".equals(confirmedHandoff.path("schema_version").asText())
-                                    ? input : "{\"note_data\":" + input + "}",
-                            actorProfile),
-                    "practice_note", practiceSessionId, userId, actorProfile != null),
-                    failure -> copyFailed[0] = true);
-            if (practiceSessionId != null) {
-                // 제목·정리 생성이 실패해도 노트는 저장된다(기본 제목). 실패가 지표에 안 남으면 폴백 비율을 모른다.
-                telemetry.score(LlmScore.flag(practiceSessionId, "practice_note.copy_fallback", copyFailed[0]));
-            }
-            return note;
+            return generatePracticeNote(confirmedHandoff, practiceSessionId, userId).note();
         }
+        ReportProfile.ActorProfile actorProfile = userId == null ? null : profiles.completeFor(userId);
         JsonNode modelInput = buildReportInput(
                 reportType,
                 videoSummary,
@@ -150,6 +134,26 @@ public class ReportEngine {
             telemetry.score(LlmScore.flag(practiceSessionId, "coach.report_blocked", false));
         }
         return parseReport(raw, reportType, coachingHandoffId, analysisHandoffId);
+    }
+
+    /** 신형 노트의 본문과 최종 폴백 여부. 내부 재시도에서 회복한 경우는 폴백이 아니다. */
+    public PracticeNote.Generated generatePracticeNote(JsonNode confirmedHandoff, UUID practiceSessionId, UUID userId) {
+        ReportProfile.ActorProfile actorProfile = userId == null ? null : profiles.completeFor(userId);
+        boolean[] copyFailed = {false};
+        PracticeNote.Generated generated = PracticeNote.assembleResult(confirmedHandoff, input -> recorded(
+                PracticeNote.prompt(confirmedHandoff)
+                        + (actorProfile == null ? "" : ACTOR_PROFILE_INSTRUCTION),
+                noteModelInput(
+                        "acttub.coach_handoff.v2".equals(confirmedHandoff.path("schema_version").asText())
+                                ? input : "{\"note_data\":" + input + "}",
+                        actorProfile),
+                "practice_note", practiceSessionId, userId, actorProfile != null),
+                failure -> copyFailed[0] = true);
+        if (practiceSessionId != null) {
+            // 제목·정리 생성이 실패해도 노트는 저장된다(기본 제목). 실패가 지표에 안 남으면 폴백 비율을 모른다.
+            telemetry.score(LlmScore.flag(practiceSessionId, "practice_note.copy_fallback", copyFailed[0]));
+        }
+        return generated;
     }
 
     /**

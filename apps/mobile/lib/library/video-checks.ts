@@ -36,7 +36,7 @@ const MESSAGE_KEY: Record<VideoErrorCode | 'video_empty', string> = {
   video_not_ready: 'archive.statusPending',
   video_in_use: 'archive.inUseTitle',
   upload_expired: 'archive.uploadExpired',
-  request_fingerprint_mismatch: 'archive.uploadExpired',
+  request_fingerprint_mismatch: 'errors.requestChanged',
   video_empty: 'archive.tooLarge',
 };
 

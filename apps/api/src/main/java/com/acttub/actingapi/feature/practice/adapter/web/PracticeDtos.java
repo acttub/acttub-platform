@@ -63,6 +63,21 @@ final class PracticeDtos {
     record AnalyzeRequest(@NotNull UUID requestId) {
     }
 
+    @Schema(name = "PracticeAnalysis", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    record AnalysisResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID id,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"legacy", "video_record_v1"}) String format,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"ready", "partial"}) String status,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                    anyOf = {PracticeSessionDtos.ObservationPackResponse.class, PracticeSessionDtos.VideoRecordSummaryResponse.class})
+            Object summary) {
+        static AnalysisResponse of(PracticeViews.AnalysisView view) {
+            return new AnalysisResponse(view.id(), view.format(), view.status(),
+                    view.videoRecord() == null ? PracticeSessionDtos.observationPack(view.observation())
+                            : PracticeSessionDtos.videoRecord(view.videoRecord()));
+        }
+    }
+
     /** 묶음 속성. 보낸 것만 바꾼다. */
     @Schema(name = "PracticeGroupPatch", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     record GroupPatchRequest(
@@ -94,7 +109,7 @@ final class PracticeDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID id,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID rootId,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int ordinal,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID videoId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) UUID videoId,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String stage,
             @Schema(nullable = true) String closeReason,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String experienceVersion,

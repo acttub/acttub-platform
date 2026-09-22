@@ -1,7 +1,5 @@
 /**
- * 영상 보관함(practice.record · practice.library)의 서버 계약 타입. 경로·필드는 `.scratch/SOMA-546-practice-spec.md`
- * API 표(2차 검토 반영)를 따른 계획안이고 웹 임시 타입(apps/web/src/lib/practice/api-types.ts)과 같은 모양이다.
- * api 갈래(PA1)가 계약을 굳히면 여기를 맞춘다.
+ * 영상 보관함의 서버 계약 타입. VideoDtos와 apps/api/spec/openapi.json을 따른다.
  */
 export type VideoUsage = {
   /** 이 영상을 쓰는 회차 수 */

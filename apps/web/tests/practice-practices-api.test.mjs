@@ -35,11 +35,11 @@ function practice(overrides = {}) {
     ordinal: 1,
     stage: "analyzing",
     experience_version: "legacy",
-    video: { id: "v-1", playback_url: null, playback_expires_at: null, purged_at: null, duration_ms: 4200 },
-    scene: { situation: "", character: "", goal: "" },
-    blockage: { category: "그 외", detail: "그 외", note: null },
+    video_id: null,
+    situation: "", character: "", goal: "",
+    blockage_category: "그 외", blockage_detail: "그 외", blockage_note: null,
     job: { id: "j-1", status: "pending", failure_reason: null },
-    analysis: null,
+    analysis_status: null,
     conversation: null,
     note: null,
     created_at: "2026-09-21T03:00:00Z",
@@ -53,6 +53,7 @@ function recordFetch(routes) {
   globalThis.fetch = async (url, init = {}) => {
     const u = new URL(String(url), "http://web.test");
     const path = u.pathname + u.search;
+    if (path.endsWith("/analysis")) return jsonResponse({ detail: "analysis_not_found" }, 404);
     const headers = new Headers(init.headers);
     calls.push({ route: `${init.method ?? "GET"} ${path}`, body: init.body ? JSON.parse(init.body) : undefined, requestId: headers.get("X-Request-Id") });
     const reply = routes[`${init.method ?? "GET"} ${path}`];
@@ -114,20 +115,20 @@ test("practice.library: 묶음 목록은 필터를 싣고, 묶음 숨김·즐겨
 test("practice.analyze: 상태는 10초 간격으로 읽고 succeeded·failed 에서 멈추며 마지막에 상세를 받는다; 그만두기는 POST cancel 이다", async () => {
   assert.equal(PRACTICE_POLL_INTERVAL_MS, 10_000);
   const statuses = [
-    { stage: "analyzing", job: { status: "pending", failure_reason: null }, analysis: null },
-    { stage: "analyzing", job: { status: "running", failure_reason: null }, analysis: null },
-    { stage: "conversing", job: { status: "succeeded", failure_reason: null }, analysis: { status: "partial" } },
+    { stage: "analyzing", job: { status: "pending", failure_reason: null }, analysis_status: null },
+    { stage: "analyzing", job: { status: "running", failure_reason: null }, analysis_status: null },
+    { stage: "conversing", job: { status: "succeeded", failure_reason: null }, analysis_status: "partial" },
   ];
   let i = 0;
   const calls = recordFetch({
     "GET /v2/practices/p-1/status": () => jsonResponse(statuses[Math.min(i++, statuses.length - 1)]),
-    "GET /v2/practices/p-1": () => jsonResponse(practice({ stage: "conversing", job: { id: "j-1", status: "succeeded", failure_reason: null }, analysis: { status: "partial", summary: null } })),
+    "GET /v2/practices/p-1": () => jsonResponse(practice({ stage: "conversing", job: { id: "j-1", status: "succeeded", failure_reason: null }, analysis_status: "partial" })),
     "POST /v2/practices/p-1/cancel": () => jsonResponse({ job: { status: "failed", failure_reason: "cancelled" } }),
   });
   const seen = [];
   const settled = await pollPracticeUntilSettled("p-1", { intervalMs: 1, onStatus: (s) => seen.push(s.job.status) });
   assert.deepEqual(seen, ["pending", "running", "succeeded"]);
-  assert.equal(settled.analysis.status, "partial");
+  assert.equal(settled.analysis_status, "partial");
   assert.equal(calls.filter((c) => c.route.endsWith("/status")).length, 3);
   const cancelled = await cancelPractice("p-1");
   assert.equal(cancelled.job.failure_reason, "cancelled");

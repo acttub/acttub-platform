@@ -224,7 +224,7 @@ test("practice.coach: complete 응답의 노트를 확인 단계 없이 바로 �
   const note = { id: "n-1", format: "v2", kind: "action", title: "말끝", summary_quotes: [], next_take: null, actor_words: [], corrections: [], tags: [], fallback: false, cheer: null, source_revision: 5, created_at: "2026-09-21T03:00:00Z" };
 
   assert.equal(isConversationDone({ conversation: head, message: "여기서 정리할게.", status: "continue", note: null }), false);
-  assert.equal(isConversationDone({ conversation: head, message: "여기서 정리할게.", status: "complete", note }), true);
+  assert.equal(isConversationDone({ conversation: { ...head, status: "closed" }, message: "여기서 정리할게.", note }), true);
   // 대화가 닫혔다는 것은 대화 상태로도 온다.
   assert.equal(isConversationDone({ conversation: { ...head, status: "closed" }, message: "", status: "continue", note }), true);
 });
@@ -268,7 +268,7 @@ test("complete가 오면 코치 응답에서 노트를 꺼내 받아 둔다", ()
   );
 
   // 노트는 종료 응답에 실려 온다(practice.note).
-  assert.match(pushAi, /report: turn\.note,/);
+  assert.match(pushAi, /report: turn\.note \?\? null,/);
   // 받아 둔 노트는 화면이 든다. 안 딸려 온 턴이 그것을 지우지 않는 것은
   // tests/workspace-state.test.mjs 가 실행으로 지킨다.
   assert.match(pushAi, /done,/);

@@ -7,15 +7,16 @@ import type { PracticeSessionStatus } from "@/lib/api/v2/types";
 
 export const PARTIAL_NOTICE = "일부 구간은 보지 못했어요";
 
-export function sessionStatusOf(status: Pick<PracticeStatusResponse, "stage" | "job" | "analysis">): PracticeSessionStatus {
-  if (status.analysis) return "analyzed";
+export function sessionStatusOf(status: Pick<PracticeStatusResponse, "stage" | "job" | "analysis_status">): PracticeSessionStatus {
+  if (status.stage === "analyzing") return "analyzing";
   if (status.job?.status === "failed") return "failed";
-  if (status.stage === "analyzing" || status.job?.status === "pending" || status.job?.status === "running") return "analyzing";
+  if (status.analysis_status === "ready" || status.analysis_status === "partial") return "analyzed";
+  if (status.job?.status === "pending" || status.job?.status === "running") return "analyzing";
   return "failed";
 }
 
 export function analysisNotice(
-  analysis: { status: "ready" | "partial" } | "ready" | "partial" | null | undefined,
+  analysis: { status: string } | string | null | undefined,
 ): string | null {
   const status = typeof analysis === "string" ? analysis : analysis?.status;
   return status === "partial" ? PARTIAL_NOTICE : null;

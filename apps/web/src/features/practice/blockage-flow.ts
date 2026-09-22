@@ -1,7 +1,7 @@
-import type { PracticeSessionRequest } from "@/lib/api/v2/types";
+import type { BlockageCategory } from "@/lib/practice/api-types";
 
-export type BlockageKind = PracticeSessionRequest["blockage_kind"];
-export type BlockageSubBranch = PracticeSessionRequest["sub_branch"];
+export type BlockageKind = BlockageCategory;
+export type BlockageSubBranch = "캐릭터 분석" | "대사 분석" | "그 외" | "감정" | "움직임" | "화술" | "표정";
 
 export type BlockageChoice = {
   value: BlockageKind;

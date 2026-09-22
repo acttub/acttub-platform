@@ -8,6 +8,11 @@ import { translate as t } from '../i18n.ts';
 
 const DAY_MS = 86_400_000;
 
+/** 파기 표식은 기기 복사본보다 우선한다. 영상 기록과 재생 가능 여부는 별개다. */
+export function videoPlaybackSource(video: Pick<Video, 'purged_at' | 'playback_url'>, localUri: string | null): string | null {
+  return video.purged_at ? null : localUri ?? video.playback_url;
+}
+
 export type LibraryItem =
   | { kind: 'pending'; id: string; key: string; uri: string; durationMs: number | null; createdAt: number; favorite: false; entry: QueuedVideo }
   | { kind: 'video'; id: string; key: string; uri: null; durationMs: number; createdAt: number; favorite: boolean; video: Video };

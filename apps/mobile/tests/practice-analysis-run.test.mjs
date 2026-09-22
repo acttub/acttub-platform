@@ -12,7 +12,8 @@ import {
 const status = (job, analysis = null, reason = null) => ({
   stage: job === 'succeeded' ? 'conversing' : job === 'failed' ? 'closed' : 'analyzing',
   job: { status: job, failure_reason: reason },
-  analysis: analysis ? { status: analysis } : null,
+  analysis_status: analysis,
+  close_reason: reason,
 });
 
 /** 기다린 시간을 적어 두는 가짜 지연 — 실제로 기다리지 않는다. */

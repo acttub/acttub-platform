@@ -144,16 +144,21 @@ test("practice.start: 상황·인물·목표는 각 300자, 막힘 서술은 500
 });
 
 test("practice.analyze: 회차 상태는 화면 상태로 매핑되고 부분 완료는 \"일부 구간은 보지 못했어요\" 를 보인다", () => {
-  assert.equal(sessionStatusOf({ stage: "analyzing", job: { status: "pending", failure_reason: null }, analysis: null }), "analyzing");
-  assert.equal(sessionStatusOf({ stage: "analyzing", job: { status: "running", failure_reason: null }, analysis: null }), "analyzing");
-  assert.equal(sessionStatusOf({ stage: "conversing", job: { status: "succeeded", failure_reason: null }, analysis: { status: "ready" } }), "analyzed");
-  assert.equal(sessionStatusOf({ stage: "conversing", job: { status: "succeeded", failure_reason: null }, analysis: { status: "partial" } }), "analyzed");
-  assert.equal(sessionStatusOf({ stage: "closed", job: { status: "failed", failure_reason: "timeout" }, analysis: null }), "failed");
-  assert.equal(sessionStatusOf({ stage: "closed", job: { status: "failed", failure_reason: "cancelled" }, analysis: null }), "failed");
+  assert.equal(sessionStatusOf({ stage: "analyzing", job: { status: "pending", failure_reason: null }, analysis_status: null }), "analyzing");
+  assert.equal(sessionStatusOf({ stage: "analyzing", job: { status: "running", failure_reason: null }, analysis_status: null }), "analyzing");
+  assert.equal(sessionStatusOf({ stage: "conversing", job: { status: "succeeded", failure_reason: null }, analysis_status: "ready" }), "analyzed");
+  assert.equal(sessionStatusOf({ stage: "conversing", job: { status: "succeeded", failure_reason: null }, analysis_status: "partial" }), "analyzed");
+  assert.equal(sessionStatusOf({ stage: "closed", job: { status: "failed", failure_reason: "timeout" }, analysis_status: null }), "failed");
+  assert.equal(sessionStatusOf({ stage: "closed", job: { status: "failed", failure_reason: "cancelled" }, analysis_status: null }), "failed");
   // 대화가 끝나 닫혔어도 분석 결과가 있으면 대화·노트를 볼 수 있다.
-  assert.equal(sessionStatusOf({ stage: "closed", job: { status: "succeeded", failure_reason: null }, analysis: { status: "ready" } }), "analyzed");
+  assert.equal(sessionStatusOf({ stage: "closed", job: { status: "succeeded", failure_reason: null }, analysis_status: "ready" }), "analyzed");
   assert.equal(analysisNotice({ status: "partial" }), PARTIAL_NOTICE);
   assert.equal(PARTIAL_NOTICE, "일부 구간은 보지 못했어요");
   assert.equal(analysisNotice({ status: "ready" }), null);
   assert.equal(analysisNotice(null), null);
+});
+
+test("재시도 중 남아 있는 이전 분석 결과가 취소·최종 실패를 완료로 바꾸지 않는다", () => {
+  assert.equal(sessionStatusOf({ stage: "analyzing", analysis_status: "ready", job: { status: "running" } }), "analyzing");
+  assert.equal(sessionStatusOf({ stage: "closed", analysis_status: "ready", job: { status: "failed", failure_reason: "cancelled" } }), "failed");
 });

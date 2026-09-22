@@ -59,6 +59,12 @@ class ActorMemoryIT {
     private static final String CONTINUE = "{\"message\":\"무엇이 달라졌나요\",\"status\":\"continue\",\"handoff\":null}";
     private static final String CLOSING =
             "{\"message\":\"오늘은 여기까지 해요\",\"status\":\"complete\",\"handoff\":{\"end_reason\":\"user_ended\"}}";
+    private static final String REPORT = """
+            {"report_type":"analysis","title":"기억의 출처가 되는 노트",
+             "actor_discovery":"발견","line_meaning":"의미","timing_reason":"타이밍",
+             "target_effect":"효과","next_take":{"direction":"방향","tested":false},
+             "acting_caution":"주의","evidence":[],"uncertainties":[]}
+            """;
     /** 기억 추출기가 낸 네 칸. 워커는 이것을 받아 저장한다. */
     private static final String EXTRACTED = """
             {"goal":"새 목표","blockage":"문 앞에서 멈춘다","speech_self":"또박또박 말한다",
@@ -273,7 +279,10 @@ class ActorMemoryIT {
         generator.enqueue(CONTINUE);
         json(post("/v2/coach/reply").content(replyBody(conversation, "첫 답")), 200);
         generator.enqueue(CLOSING);
-        json(post("/v2/coach/reply").content(replyBody(conversation, "둘째 답")), 200);
+        generator.enqueue(REPORT);
+        JsonNode closed = json(post("/v2/coach/reply").content(replyBody(conversation, "둘째 답")), 200);
+        assertThat(closed.at("/note/report/report_type").asText()).isEqualTo("analysis");
+        assertThat(closed.at("/note/title").asText()).isEqualTo("기억의 출처가 되는 노트");
     }
 
     private String replyBody(UUID conversation, String text) {
@@ -318,7 +327,7 @@ class ActorMemoryIT {
         jdbc.update("""
                 INSERT INTO practices(id,user_id,video_id,root_id,ordinal,stage,experience_version,
                                       blockage_kind,sub_branch,situation,goal)
-                VALUES (?,?,?,?,1,'conversing','legacy','표현','감정','문 앞에서 돌아선다','망설임을 보여 주기')
+                VALUES (?,?,?,?,1,'conversing','legacy','분석','캐릭터 분석','문 앞에서 돌아선다','망설임을 보여 주기')
                 """, id, owner, videoId, id);
         jdbc.update("""
                 INSERT INTO analyses(id,practice_id,format,status,model,record,completed_at)

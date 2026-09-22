@@ -1,59 +1,63 @@
-/**
- * 회차(Practice)를 워크스페이스 화면이 그리는 모양(옛 PracticeSessionDetail)으로 옮긴다. 대화·노트·장면 패널은
- * 그 모양을 그대로 쓰고, 회차 API 로 바뀐 것은 이 한 자리가 흡수한다. 통합(PI1)이 생성 타입으로 바꿀 때도 여기만 본다.
- */
-import type { PracticeSessionDetail } from "@/lib/api/v2/types";
-import type { Practice } from "@/lib/practice/api-types";
+/** 회차·영상 응답을 워크스페이스의 화면 상태로 옮긴다. */
+import type { components } from "@/lib/api/v2-schema";
+import type { PracticeSessionStatus } from "@/lib/api/v2/types";
+import type { Practice, PracticeAnalysis, Video } from "@/lib/practice/api-types";
+import type { BlockageKind } from "./blockage-flow";
 import { sessionStatusOf } from "./practice-analysis";
 
-export type PracticeDetailView = PracticeSessionDetail & {
-  /** 묶음의 첫 회차 id — 숨김·즐겨찾기·이어하기가 쓴다 */
+export interface PracticeDetailView {
+  session_id: string;
+  status: PracticeSessionStatus;
+  situation: string;
+  character_context: string;
+  goal: string;
+  blockage_kind: BlockageKind;
+  sub_branch: string;
+  blockage_detail: string | null;
+  created_at: string;
+  playback_url: string;
+  summary: components["schemas"]["ObservationPackResponse"] | components["schemas"]["VideoRecordSummaryResponse"] | null;
+  error_code: "gemini_timeout" | "gemini_parse_error" | "unsupported_media" | "max_attempts_exceeded" | null;
   root_id: string;
   ordinal: number;
-  video_id: string;
-  /** 파일만 파기한 영상은 재생할 수 없다 */
+  video_id: string | null;
   video_purged: boolean;
-  analysis_status: "ready" | "partial" | null;
+  analysis_status: string | null;
   stage: Practice["stage"];
-};
+  previous_conversations: Practice["previous_conversations"];
+}
 
-export function practiceToSessionDetail(practice: Practice): PracticeDetailView {
+export function practiceToSessionDetail(practice: Practice & { video?: Video | null; analysis?: PracticeAnalysis | null }): PracticeDetailView {
   const status = sessionStatusOf(practice);
-  const failure = practice.job?.failure_reason ?? null;
   return {
     session_id: practice.id,
     status,
-    situation: practice.scene.situation,
-    character_context: practice.scene.character,
-    goal: practice.scene.goal,
-    blockage_kind: practice.blockage.category,
-    sub_branch: practice.blockage.detail,
-    blockage_detail: practice.blockage.note,
+    situation: practice.situation,
+    character_context: practice.character,
+    goal: practice.goal,
+    blockage_kind: practice.blockage_category === "분석" || practice.blockage_category === "표현" ? practice.blockage_category : "그 외",
+    sub_branch: practice.blockage_detail,
+    blockage_detail: practice.blockage_note ?? null,
     created_at: practice.created_at,
-    updated_at: practice.updated_at,
-    playback_url: practice.video.playback_url ?? "",
-    summary: (practice.analysis?.summary ?? null) as PracticeSessionDetail["summary"],
-    error_code: status === "failed" ? (toErrorCode(failure) as PracticeSessionDetail["error_code"]) : null,
+    playback_url: practice.video?.playback_url ?? "",
+    summary: practice.analysis?.summary ?? null,
+    error_code: status === "failed" ? toErrorCode(practice.job?.failure_reason ?? null) : null,
     root_id: practice.root_id,
     ordinal: practice.ordinal,
-    video_id: practice.video.id,
-    video_purged: practice.video.purged_at !== null,
-    analysis_status: practice.analysis?.status ?? null,
+    video_id: practice.video_id,
+    video_purged: !practice.video_id || Boolean(practice.video?.purged_at),
+    analysis_status: practice.analysis_status ?? null,
     stage: practice.stage,
+    previous_conversations: practice.previous_conversations ?? [],
   };
 }
 
-function toErrorCode(reason: string | null): string | null {
+function toErrorCode(reason: string | null): PracticeDetailView["error_code"] {
   switch (reason) {
-    case "timeout":
-      return "gemini_timeout";
-    case "parse":
-      return "gemini_parse_error";
-    case "unsupported":
-      return "unsupported_media";
-    case null:
-      return null;
-    default:
-      return "max_attempts_exceeded";
+    case "timeout": return "gemini_timeout";
+    case "parse": return "gemini_parse_error";
+    case "unsupported": return "unsupported_media";
+    case null: return null;
+    default: return "max_attempts_exceeded";
   }
 }

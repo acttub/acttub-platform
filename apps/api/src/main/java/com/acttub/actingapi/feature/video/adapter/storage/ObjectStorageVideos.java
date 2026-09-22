@@ -2,8 +2,8 @@ package com.acttub.actingapi.feature.video.adapter.storage;
 
 import com.acttub.actingapi.feature.video.app.VideoStorage;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
+import com.acttub.actingapi.integration.storage.NoCredentialsError;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
-import com.acttub.actingapi.platform.web.ApiException;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
@@ -22,7 +22,7 @@ class ObjectStorageVideos implements VideoStorage {
     @Override
     public void requireConfigured() {
         if (storage.getIfAvailable() == null) {
-            throw new ApiException(503, "storage_not_configured");
+            throw new NoCredentialsError("storage is not configured");
         }
     }
 

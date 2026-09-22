@@ -1,8 +1,8 @@
 import { apiFetch } from "./client";
 import type { components } from "../v2-schema";
 
-export type MemoryItem = components["schemas"]["MemoryItem"];
-export type MemoryResponse = components["schemas"]["MemoryResponse"];
+export type MemoryItem = components["schemas"]["ActorMemoryItem"];
+export type MemoryResponse = components["schemas"]["ActorMemoryResponse"];
 
 /**
  * 배우가 화면에서 다루는 칸(practice.memory). 1.0.0 부터 넷이다.

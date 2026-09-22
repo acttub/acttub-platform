@@ -13,7 +13,7 @@ import type {
  * 같은 id·같은 본문 재전송은 먼저 만든 답을 그대로 받고, 본문이 다르면 422 request_fingerprint_mismatch.
  * 저장 때 revision 이 다르면 409 conversation_conflict — 화면은 입력을 보존하고 대화를 다시 읽는다.
  *
- * 타입은 임시이며 통합 작업이 생성 타입으로 바꾼다(src/lib/practice/api-types.ts).
+ * 타입은 현재 OpenAPI 생성 계약을 따른다(src/lib/practice/api-types.ts).
  */
 
 /** 배우 답의 길이 한도. 서버도 같은 값으로 막는다(422). */

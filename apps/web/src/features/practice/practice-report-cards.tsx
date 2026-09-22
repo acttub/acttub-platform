@@ -9,6 +9,8 @@ import { renderablePracticeReport } from "./coach-contract";
 import {
   FALLBACK_NOTICE,
   isNoteV2,
+  legacyReportOf,
+  noteCheer,
   nextTakeCopy,
   noteQuotes,
   noteTitle,
@@ -24,7 +26,11 @@ export function PracticeReportCards({
   groupTitle?: string;
 }) {
   // 신형 노트는 요약 인용·종류·폴백을 들고 온다. 옛 노트는 아래 옛 경로로 간다.
-  if (isNoteV2(report)) return <PracticeNoteV2Cards note={report} groupTitle={groupTitle} />;
+  if (isNoteV2(report)) {
+    const legacy = legacyReportOf(report);
+    if (legacy) return <PracticeReportCards report={legacy} groupTitle={groupTitle} />;
+    return <PracticeNoteV2Cards note={report} groupTitle={groupTitle} />;
+  }
   const visibleReport = renderablePracticeReport(report);
   if (!visibleReport) {
     return (
@@ -51,6 +57,7 @@ export function PracticeReportCards({
  */
 function PracticeNoteV2Cards({ note, groupTitle }: { note: PracticeNote; groupTitle: string }) {
   const quotes = noteQuotes(note);
+  const actorWords = note.actor_words;
   return (
     <div className="mx-auto grid w-full min-w-0 max-w-[68ch]">
       <ReportHeading title={noteTitle(note, groupTitle)} />
@@ -68,11 +75,11 @@ function PracticeNoteV2Cards({ note, groupTitle }: { note: PracticeNote; groupTi
         ) : (
           <ul className="mt-3 grid gap-3">
             {quotes.map((quote, index) => (
-              <li key={`${index}-${quote.text}`} className="border-l-2 border-[#e5e8eb] pl-4">
+              <li key={`${index}-${quote.quote}`} className="border-l-2 border-[#e5e8eb] pl-4">
                 <p className="break-words whitespace-pre-wrap text-base font-semibold leading-7 text-[#191f28]">
-                  {quote.text}
+                  {quote.quote}
                 </p>
-                <p className="mt-1 text-[11.5px] font-black text-[#8b95a1]">{quoteSourceLabel(quote.source)}</p>
+                <p className="mt-1 text-[11.5px] font-black text-[#8b95a1]">{quoteSourceLabel(quote.kind)}</p>
               </li>
             ))}
           </ul>
@@ -84,11 +91,11 @@ function PracticeNoteV2Cards({ note, groupTitle }: { note: PracticeNote; groupTi
           {nextTakeCopy(note)}
         </p>
       </article>
-      {note.actor_words.length > 0 ? (
-        <ListCard title="배우가 직접 남긴 말" items={note.actor_words} quoted />
+      {actorWords.length > 0 ? (
+        <ListCard title="배우가 직접 남긴 말" items={actorWords} quoted />
       ) : null}
       <p className="border-t border-[#e5e8eb] py-6 text-sm font-medium leading-6 text-[#4e5968]">
-        {note.cheer?.trim() || "오늘 촬영도 수고했어요."}
+        {noteCheer(note) || "오늘 촬영도 수고했어요."}
       </p>
     </div>
   );

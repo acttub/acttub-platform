@@ -43,8 +43,9 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 // 기억 갱신 워커를 끈다 — 워커도 같은 모델 포트(스텁 큐)를 쓰므로 닫힌 대화가 남긴 작업을 집어 가면
 // 다음 테스트의 응답을 먼저 소비한다(CoachReadsProfileIT 와 같은 까닭).
 @SpringBootTest(properties = {"JWT_SECRET=test-secret", "ANALYSIS_WORKER_ENABLED=false"})
+@org.springframework.test.context.ActiveProfiles("legacy-practice-test")
 @AutoConfigureMockMvc
-@Import(CoachReportEndpointIT.GeneratorFixture.class)
+@Import({CoachReportEndpointIT.GeneratorFixture.class, com.acttub.actingapi.support.LegacyPracticeApiFixture.class})
 class CoachReportEndpointIT {
 
     private static final OffsetDateTime CREATED_AT =
@@ -161,14 +162,14 @@ class CoachReportEndpointIT {
         assertThat(operationCount("external.calls", "kind", "coach_reply", "dependency", "model")).isEqualTo(replyCalls + 3);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM practice_reports WHERE practice_session_id=?", Long.class, practice.id())).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM handoff_confirmations", Long.class)).isZero();
-        assertError(get("/v2/reports/{id}", practice.id()).header("Authorization", bearer(user)),
+        assertError(get("/v2/legacy-test-reports/{id}", practice.id()).header("Authorization", bearer(user)),
                 409, "client_contract_required");
         // 이 fixture는 스토리지를 구성하지 않는다. 노트 생성 자체는 재생 URL 없이 완료되어야 한다.
         // 상세 재생 URL 계약은 StorageFixture를 가진 ReportEndpointIT에서 검증한다.
         JsonNode saved = successful(reports(user, session, UUID.randomUUID())
                 .header("Authorization", bearer(user)).header("X-Acttub-Contract", "three_layers_v1"));
         assertThat(saved).isEqualTo(completed.path("report"));
-        JsonNode history = successful(get("/v2/reports").header("Authorization", bearer(user)));
+        JsonNode history = successful(get("/v2/legacy-test-reports").header("Authorization", bearer(user)));
         assertThat(history.path("reports")).isEmpty();
     }
 
@@ -334,7 +335,7 @@ class CoachReportEndpointIT {
         assertThat(mapper.readTree(resume.getContentAsString()).path("detail").textValue())
                 .isEqualTo("report already exists for practice session");
 
-        JsonNode created = successful(post("/v2/reports")
+        JsonNode created = successful(post("/v2/legacy-test-reports")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", bearer(userId))
                 .header("X-Request-Id", UUID.randomUUID())
@@ -770,7 +771,7 @@ class CoachReportEndpointIT {
     /**
      * handoff 를 확정 상태로 만든다.
      *
-     * <p><b>{@code /v2/reports} 는 확정되지 않은 handoff 로는 LLM 을 부르지 않는다</b> —
+     * <p><b>{@code /v2/legacy-test-reports} 는 확정되지 않은 handoff 로는 LLM 을 부르지 않는다</b> —
      * {@code ReportEngine.buildReportInput} 이 {@code null} 을 내고 차단 노트가 그대로 200 으로
      * 나간다. 확정을 심지 않으면 생성 경로를 밟는 줄 알았던 테스트가 조용히 다른 길로 간다.
      */
@@ -803,7 +804,7 @@ class CoachReportEndpointIT {
 
     private MockHttpServletRequestBuilder reports(
             UUID userId, UUID sessionId, UUID requestId) {
-        return post("/v2/reports")
+        return post("/v2/legacy-test-reports")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", bearer(userId))
                 .header("X-Request-Id", requestId)

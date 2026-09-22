@@ -196,6 +196,26 @@ class PracticeDataMigrationIT {
     }
 
     @Test
+    void practiceMigration_keepsInstructionTextInsteadOfSerializingItsSourceObject() {
+        UUID practice = session(intent("videos/instruction.mp4"), null, "analyzed");
+        UUID conversation = conversation(practice, "closed", "user_ended", "2026-09-10 00:00:00+00");
+        UUID handoff = handoff(practice, conversation);
+        jdbc.update("""
+                INSERT INTO practice_reports(id,practice_session_id,report_type,report_json,source_handoff_id)
+                VALUES (?,?,'practice_note',CAST(? AS jsonb),?)
+                """, UUID.randomUUID(), practice, """
+                {"schema_version":"acttub.practice_note.v1","mode":"action","copy":{"title":"말끝"},
+                 "practice":{"instruction":{"text":"말끝을 짧게 끝내 보세요.","source_refs":["c2"]}},
+                 "direction":{"text":"붙잡고 싶어요"}}
+                """, handoff);
+
+        migration.run(50);
+
+        assertThat(jdbc.queryForObject("SELECT next_take FROM coach_notes WHERE conversation_id=?", String.class, conversation))
+                .isEqualTo("말끝을 짧게 끝내 보세요.");
+    }
+
+    @Test
     @DisplayName("02-practice ③: 새 제약에 맞지 않는 묶음은 임의로 닫거나 지우지 않고 사유와 함께 대응표에 남는다 "
             + "— 진행 중 회차가 둘인 묶음, 가지 친 이어하기, 확정되지 않은 업로드")
     void practiceMigration_leavesGroupsThatDoNotFitTheNewConstraints() {

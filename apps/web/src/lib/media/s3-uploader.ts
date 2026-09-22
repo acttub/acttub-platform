@@ -1,6 +1,6 @@
 /**
  * 서명 주소로 파일을 PUT 하는 업로더. 영상 보관함(src/lib/api/v2/videos.ts)이 쓴다.
- * 옛 업로드 계층(src/lib/api/v2/uploads.ts)도 같은 것을 쓴다.
+ * 보관함 업로드(src/lib/api/v2/videos.ts)가 사용한다.
  */
 import { MOCK_S3_UPLOAD } from "../config/env";
 

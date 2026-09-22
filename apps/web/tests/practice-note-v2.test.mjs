@@ -32,15 +32,15 @@ function note(overrides = {}) {
     kind: "action",
     title: "말끝이 흐려지는 순간",
     summary_quotes: [
-      { text: "붙잡고 싶었어요", source: "actor" },
-      { text: "마지막 문장에서 시선이 내려갔다", source: "observation" },
+      { quote: "붙잡고 싶었어요", kind: "actor", source_ref: "actor-1" },
+      { quote: "마지막 문장에서 시선이 내려갔다", kind: "observation", source_ref: "video-1" },
     ],
     next_take: "말끝을 짧게 끊고 한 번 더 찍어 보기",
     actor_words: ["붙잡고 싶었어요"],
     corrections: [],
     tags: ["말끝"],
     fallback: false,
-    cheer: "오늘 촬영도 수고했어요.",
+    report: { cheer: "오늘 촬영도 수고했어요." },
     source_revision: 9,
     created_at: "2026-09-21T03:00:00Z",
     ...overrides,
@@ -73,12 +73,12 @@ test("practice.note: 화면 순서는 요약 → 다음 촬영에서 해볼 한 
 test("practice.note: 요약 인용은 최대 둘이고 각 인용에 출처가 붙는다", () => {
   const many = note({
     summary_quotes: [
-      { text: "하나", source: "actor" },
-      { text: "둘", source: "observation" },
-      { text: "셋", source: "actor" },
+      { quote: "하나", kind: "actor", source_ref: "actor-1" },
+      { quote: "둘", kind: "observation", source_ref: "video-1" },
+      { quote: "셋", kind: "actor", source_ref: "actor-1" },
     ],
   });
-  assert.deepEqual(noteQuotes(many).map((q) => q.text), ["하나", "둘"]);
+  assert.deepEqual(noteQuotes(many).map((q) => q.quote), ["하나", "둘"]);
   assert.equal(quoteSourceLabel("actor"), "내가 한 말");
   assert.equal(quoteSourceLabel("observation"), "영상에서 본 것");
 

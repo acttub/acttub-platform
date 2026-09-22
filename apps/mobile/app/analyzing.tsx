@@ -18,14 +18,17 @@ import { markPracticedToday, onPushReceived } from '@/lib/notifications';
 import type { PendingAnalysisHandle } from '@/lib/pending-analysis';
 import {
   analysisFailureMessage,
+  analysisRecoveryAction,
   analysisPartialNotice,
   analysisPushTarget,
   cancelAnalysis,
   watchAnalysis,
 } from '@/lib/practice/analysis-run';
 import { startPractice } from '@/lib/practice/session-state';
+import { inProgressPracticeId } from '@/lib/practice/start';
 import type { PracticeDetail, PracticeStatus } from '@/lib/practice/types';
 import { previewVideoSource } from '@/lib/preview-video';
+import { newRequestId } from '@/lib/request-id';
 
 /** 경과 시간 기반 단계 문구로 기다림을 설계한다(실제 진행률은 서버가 주지 않는다). */
 const STAGES = translateList('analyzing.stages');
@@ -59,24 +62,33 @@ export default function AnalyzingScreen() {
   const controllerRef = useRef<AbortController | null>(null);
   const pendingHandleRef = useRef<PendingAnalysisHandle | null>(null);
   const finishedRef = useRef(false);
+  const retryRequestId = useRef<string | null>(null);
 
   /** 분석이 끝났다. 장면·재생 주소를 받아 대화로 넘긴다. */
   const enterCoach = useCallback(
-    async (analysis: 'ready' | 'partial') => {
+    async (analysis: 'ready' | 'partial', signal: AbortSignal) => {
       if (!practiceId || finishedRef.current) return;
-      finishedRef.current = true;
-      const loaded = await api.getPractice(practiceId).catch(() => null);
-      const localUri = loaded ? await localCopyFor(loaded.video_id).catch(() => null) : null;
+      const loaded = await api.getPractice(practiceId, { signal }).catch(() => null);
+      if (!loaded || signal.aborted) {
+        if (!signal.aborted) setError(t('analyzing.statusUnavailable'));
+        return;
+      }
+      const localUri = loaded?.video_id && !loaded.video_purged ? await localCopyFor(loaded.video_id).catch(() => null) : null;
       if (pendingHandleRef.current) {
         await pendingAnalysisStore.remove(pendingHandleRef.current).catch(() => undefined);
         pendingHandleRef.current = null;
       }
       const notice = analysisPartialNotice(analysis);
       if (notice) await alert({ title: t('analyzing.screenTitle'), message: notice });
+      if (signal.aborted) {
+        return;
+      }
+      finishedRef.current = true;
       startPractice({
         practiceId,
         rootId: loaded?.root_id ?? practiceId,
         ordinal: loaded?.ordinal ?? 1,
+        conversationId: loaded?.conversation_id,
         scene: {
           situation: loaded?.scene.situation ?? '',
           character: loaded?.scene.character ?? '',
@@ -117,7 +129,7 @@ export default function AnalyzingScreen() {
     });
     if (controllerRef.current !== controller) return;
     if (outcome.kind === 'ready') {
-      await enterCoach(outcome.analysis);
+      await enterCoach(outcome.analysis, controller.signal);
       return;
     }
     if (outcome.kind === 'failed') {
@@ -144,7 +156,7 @@ export default function AnalyzingScreen() {
       .getPractice(practiceId)
       .then(async (loaded) => {
         setDetail(loaded);
-        const localUri = await localCopyFor(loaded.video_id).catch(() => null);
+        const localUri = loaded.video_id && !loaded.video_purged ? await localCopyFor(loaded.video_id).catch(() => null) : null;
         setVideoUri(localUri ?? loaded.playback_url ?? null);
       })
       .catch(() => undefined);
@@ -236,20 +248,43 @@ export default function AnalyzingScreen() {
   /** 실패한 회차를 다시 시도한다 — 새 작업이 생기고 stage 가 analyzing 으로 돌아간다. */
   const retry = useCallback(async () => {
     if (!practiceId || retrying) return;
+    const recovery = analysisRecoveryAction(status);
+    if (recovery === 'none') return;
+    if (recovery === 'reload') {
+      void run();
+      return;
+    }
     setRetrying(true);
     try {
-      await api.retryPracticeAnalysis(practiceId);
+      retryRequestId.current ??= newRequestId();
+      await api.retryPracticeAnalysis(practiceId, { requestId: retryRequestId.current });
+      retryRequestId.current = null;
       setStatus(null);
       void run();
     } catch (e) {
-      const status409 = e !== null && typeof e === 'object' && (e as { status?: number }).status === 409;
-      setError(status409 ? t('start.inProgressBody') : t('analyzing.retryFailed'));
+      const code = e !== null && typeof e === 'object' ? (e as { code?: string }).code : null;
+      if (code === 'analysis_not_failed') {
+        retryRequestId.current = null;
+        void run();
+      } else if (code === 'practice_in_progress') {
+        const groups = await api.listPracticeGroups().catch(() => null);
+        const open = groups ? inProgressPracticeId(groups.groups, detail?.root_id ?? practiceId) : null;
+        if (open) router.replace({ pathname: '/analyzing', params: { practiceId: open } });
+        else setError(t('start.inProgressBody'));
+      } else if (code === 'guest_daily_analysis_limit') {
+        setError(t('start.dailyLimit'));
+      } else if (code === 'request_fingerprint_mismatch') {
+        retryRequestId.current = null;
+        setError(t('errors.requestChanged'));
+      } else {
+        setError(t('analyzing.retryFailed'));
+      }
     } finally {
       setRetrying(false);
     }
-  }, [practiceId, retrying, run]);
+  }, [detail?.root_id, practiceId, retrying, router, run, status]);
 
-  const jobStatus = status?.job.status ?? 'pending';
+  const jobStatus = status?.job?.status ?? 'pending';
   const stageText = jobStatus === 'pending' ? t('analyzing.queued') : STAGES[stage];
   const elapsedText =
     elapsedSec < 60
@@ -270,9 +305,11 @@ export default function AnalyzingScreen() {
             <Text style={styles.errorTitle}>{t('analyzing.errorTitle')}</Text>
             <Text style={styles.errorBody}>{error}</Text>
             <Text style={styles.errorHint}>{t('analyzing.errorBody')}</Text>
-            <Pressable style={styles.retry} onPress={() => void retry()} disabled={retrying}>
-              {retrying ? <ActivityIndicator color={palette.bg} /> : <Text style={styles.retryText}>{t('common.retry')}</Text>}
-            </Pressable>
+            {analysisRecoveryAction(status) !== 'none' && (
+              <Pressable style={styles.retry} onPress={() => void retry()} disabled={retrying}>
+                {retrying ? <ActivityIndicator color={palette.bg} /> : <Text style={styles.retryText}>{t('common.retry')}</Text>}
+              </Pressable>
+            )}
             <Pressable onPress={() => router.replace('/(tabs)')}>
               <Text style={styles.backLink}>{t('analyzing.leaveLater')}</Text>
             </Pressable>

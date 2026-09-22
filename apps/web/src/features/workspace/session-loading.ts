@@ -1,3 +1,5 @@
+import { getConversation } from "@/lib/api/v2/coach-conversations";
+import type { Conversation } from "@/lib/practice/api-types";
 import { getPracticeNote } from "@/lib/api/v2/notes";
 import { getPractice } from "@/lib/api/v2/practices";
 import { practiceToSessionDetail, type PracticeDetailView } from "../practice/practice-view";
@@ -36,6 +38,7 @@ export type SessionLoadOutcome =
   | { kind: "note"; report: PracticeReport }
   /** 훑어보기는 끝났는데 노트가 없다. 코치를 부를 자리다. */
   | { kind: "noNote" }
+  | { kind: "conversation"; conversation: Conversation }
   /** 연습 자체를 못 불러왔다. 무슨 문구를 띄울지는 진입 경로가 정한다. */
   | { kind: "loadFailed"; cause: unknown };
 
@@ -59,7 +62,8 @@ export async function loadPracticeSession({
   onLoaded,
 }: LoadPracticeSessionInput): Promise<SessionLoadOutcome> {
   try {
-    const loaded = practiceToSessionDetail(await getPractice(sessionId));
+    const practice = await getPractice(sessionId);
+    const loaded = practiceToSessionDetail(practice);
     if (!isCurrent()) return { kind: "superseded" };
     onLoaded(loaded);
     if (loaded.status === "analyzing") {
@@ -70,9 +74,15 @@ export async function loadPracticeSession({
       // 노트는 회차에 딸린다(practice.note). 없는 회차도 흔하다 — 짧게 끝난 대화는 노트를 만들지 않는다.
       const note = await getPracticeNote(sessionId);
       if (!isCurrent()) return { kind: "superseded" };
-      return note ? { kind: "note", report: note } : { kind: "noNote" };
-    } catch {
+      if (note) return { kind: "note", report: note };
+      if (practice.conversation_id && practice.conversation_status === "closed") {
+        const conversation = await getConversation(practice.conversation_id);
+        return isCurrent() ? { kind: "conversation", conversation } : { kind: "superseded" };
+      }
+      return { kind: "noNote" };
+    } catch (cause) {
       if (!isCurrent()) return { kind: "superseded" };
+      if (practice.conversation_status === "closed") return { kind: "loadFailed", cause };
       return { kind: "noNote" };
     }
   } catch (cause) {

@@ -46,12 +46,13 @@ export function startPractice(input: {
   scene: SceneContext;
   videoUri: string;
   playbackUrl: string | null;
+  conversationId?: string | null;
 }): Practice {
   current = {
     practiceId: input.practiceId,
     rootId: input.rootId,
     ordinal: input.ordinal,
-    conversationId: null,
+    conversationId: input.conversationId ?? null,
     scene: input.scene,
     videoUri: input.videoUri,
     playbackUrl: input.playbackUrl,

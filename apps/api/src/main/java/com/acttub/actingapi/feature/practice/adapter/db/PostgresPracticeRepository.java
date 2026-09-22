@@ -9,10 +9,16 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.practice.app.PracticeRepository;
+import com.acttub.actingapi.feature.practice.app.PracticeSessionRepository;
 import com.acttub.actingapi.feature.practice.app.PracticeViews.GroupView;
 import com.acttub.actingapi.feature.practice.app.PracticeViews.JobView;
 import com.acttub.actingapi.feature.practice.app.PracticeViews.PracticeView;
 import com.acttub.actingapi.feature.practice.app.PracticeViews.StatusView;
+import com.acttub.actingapi.feature.practice.app.PracticeViews.AnalysisView;
+import com.acttub.actingapi.feature.practice.domain.ObservationPack;
+import com.acttub.actingapi.integration.observation.VideoRecord;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
@@ -59,10 +65,47 @@ class PostgresPracticeRepository implements PracticeRepository {
 
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
+    private final ObjectMapper mapper;
+    private final PracticeSessionRepository legacySessions;
 
-    PostgresPracticeRepository(EntityManager entityManager, PlatformTransactionManager transactionManager) {
+    PostgresPracticeRepository(EntityManager entityManager, PlatformTransactionManager transactionManager,
+                               ObjectMapper mapper, PracticeSessionRepository legacySessions) {
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
+        this.mapper = mapper;
+        this.legacySessions = legacySessions;
+    }
+
+    @Override
+    public AnalysisView analysis(UUID userId, UUID practiceId) {
+        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
+                SELECT a.id,a.format,a.status,CAST(a.record AS text) AS record
+                FROM analyses a JOIN practices p ON p.id=a.practice_id
+                WHERE p.id=:id AND p.user_id=:userId
+                """, Tuple.class).setParameter("id", practiceId).setParameter("userId", userId));
+        if (rows.isEmpty()) {
+            var legacy = legacySessions.detail(userId, practiceId);
+            if (legacy == null) return null;
+            if (legacy.videoRecord() != null) {
+                return new AnalysisView(legacy.videoRecord().recordId(), "video_record_v1",
+                        legacy.videoRecord().status(), null, legacy.videoRecord());
+            }
+            return legacy.summary() == null ? null : new AnalysisView(legacy.summary().summaryId(),
+                    "legacy", "ready", legacy.summary(), null);
+        }
+        Tuple row = rows.getFirst();
+        try {
+            var record = mapper.readTree(row.get("record", String.class));
+            UUID id = row.get("id", UUID.class);
+            boolean structured = VideoRecord.isRecord(record);
+            return new AnalysisView(id, row.get("format", String.class), row.get("status", String.class),
+                    structured ? null : new ObservationPack(id,
+                            PracticeAnalysisMapper.observations(record.path("observations")),
+                            PracticeAnalysisMapper.uncertainties(record.path("uncertainties"))),
+                    structured ? PracticeAnalysisMapper.recordSummary(record) : null);
+        } catch (JsonProcessingException failure) {
+            throw new IllegalStateException("practice analysis contains invalid JSON", failure);
+        }
     }
 
     @Override

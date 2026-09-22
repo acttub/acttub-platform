@@ -1,6 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -40,17 +40,26 @@ export default function ArchiveScreen() {
   const [pending, setPending] = useState<QueuedVideo[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadRevision = useRef(0);
+  const moreInFlight = useRef(false);
 
   const load = useCallback(async () => {
+    const revision = ++loadRevision.current;
     setError(null);
     const [list, queued] = await Promise.all([
       api.listVideos(filter).catch((e: unknown) => {
-        setError(videoErrorMessage(e));
+        if (revision === loadRevision.current) setError(videoErrorMessage(e));
         return null;
       }),
       owner ? pendingLibraryUploads(owner) : Promise.resolve([]),
     ]);
-    if (list) setVideos(list.videos);
+    if (revision !== loadRevision.current) return;
+    if (list) {
+      setVideos(list.videos);
+      setNextCursor(list.next_cursor);
+    }
     setPending(queued);
     const discarded = takeDiscardedCount();
     if (discarded > 0) setNotice(t('archive.discardedNotice', { count: discarded }));
@@ -58,10 +67,31 @@ export default function ArchiveScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      setVideos(null);
+      setNextCursor(null);
       void load();
+      return () => { loadRevision.current += 1; };
     }, [load]),
   );
   useEffect(() => onLibraryChange(() => void load()), [load]);
+
+  const loadMore = async () => {
+    if (!nextCursor || moreInFlight.current) return;
+    const revision = loadRevision.current;
+    moreInFlight.current = true;
+    setLoadingMore(true);
+    try {
+      const page = await api.listVideos(filter, nextCursor);
+      if (revision !== loadRevision.current) return;
+      setVideos(current => [...new Map([...(current ?? []), ...page.videos].map(video => [video.id, video])).values()]);
+      setNextCursor(page.next_cursor);
+    } catch (error) {
+      if (revision === loadRevision.current) setError(videoErrorMessage(error));
+    } finally {
+      moreInFlight.current = false;
+      setLoadingMore(false);
+    }
+  };
 
   const items = useMemo<LibraryItem[]>(
     () => mergeLibrary({ videos: videos ?? [], pending, filter, now: Date.now() }),
@@ -181,6 +211,11 @@ export default function ArchiveScreen() {
               </Pressable>
             ))}
           </View>
+        )}
+        {nextCursor && (
+          <Pressable onPress={() => void loadMore()} disabled={loadingMore} accessibilityRole="button">
+            <Text style={styles.noticeText}>{loadingMore ? t('archive.loadingMore') : t('archive.loadMore')}</Text>
+          </Pressable>
         )}
       </ScrollView>
     </SafeAreaView>

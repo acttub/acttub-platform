@@ -75,7 +75,7 @@ class GuestGateTest {
     void routesBelongToAFeatureOrToMembers() {
         for (String path : List.of(
                 "/v2/videos", "/v2/videos/intents", "/v2/practices", "/v2/practices/abc/analyze",
-                "/v2/coach/start", "/v2/reports", "/v2/reports/abc", "/v2/me/memory", "/v2/me/memory/goal",
+                "/v2/coach/start", "/v2/practices", "/v2/practices/abc/note", "/v2/me/memory", "/v2/me/memory/goal",
                 "/v2/practice-feedback", "/v2/me/practice-feedback/status")) {
             assertThat(GuestFeature.of(path)).as(path).isEqualTo(GuestFeature.PRACTICE);
         }

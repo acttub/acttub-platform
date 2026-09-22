@@ -26,10 +26,10 @@ test('practice.memory: 1,000자는 저장하고 1,001자는 화면이 먼저 막
 });
 
 test('practice.memory: 배우가 적은 값은 "내가 적은 값"으로 표시한다', () => {
-  assert.equal(isWrittenByActor({ written_by: 'actor' }), true);
-  assert.equal(isWrittenByActor({ written_by: 'agent' }), false);
-  assert.equal(typeof writtenByLabel({ written_by: 'actor' }), 'string');
-  assert.equal(writtenByLabel({ written_by: 'agent' }), null);
+  assert.equal(isWrittenByActor({ written_by_actor: true }), true);
+  assert.equal(isWrittenByActor({ written_by_actor: false }), false);
+  assert.equal(typeof writtenByLabel({ written_by_actor: true }), 'string');
+  assert.equal(writtenByLabel({ written_by_actor: false }), null);
 });
 
 test('practice.memory: 출처 연습이 숨겨졌으면 값은 그대로고 링크만 없다', () => {

@@ -29,7 +29,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Service;
 
 /**
  * 코칭 대화의 규칙 (Python {@code acting_api.coaching}). HTTP 도 SQL 도 모르며, 요청 하나가 어떤
@@ -42,7 +41,6 @@ import org.springframework.stereotype.Service;
  * <p><b>성적표는 {@code report} 에게 맡긴다.</b> 코치는 언제 성적표를 만들지·만든 것을 어디에
  * 실을지만 정하고, 무엇을 어떻게 만드는지는 {@link ReportEngine}·{@link ReportService} 가 안다.
  */
-@Service
 public class CoachService {
 
     private static final Logger LOG = LoggerFactory.getLogger(CoachService.class);

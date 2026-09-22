@@ -1,3 +1,4 @@
+import type { components } from "../v2-schema";
 import { apiFetch } from "./client";
 import { postIdempotent } from "./idempotency";
 import type { FeedbackRequest, FeedbackScreen, FeedbackTrigger } from "../../practice/api-types";
@@ -6,7 +7,7 @@ import type { FeedbackRequest, FeedbackScreen, FeedbackTrigger } from "../../pra
  * 이탈 설문 접수(practice.feedback). 저장은 DB 커밋으로 끝나고 시트 복제는 서버가 맡는다 —
  * 화면은 외부 폼을 띄우지 않는다.
  *
- * 타입은 임시이며 통합 작업이 생성 타입으로 바꾼다(src/lib/practice/api-types.ts).
+ * 타입은 현재 OpenAPI 생성 계약을 따른다(src/lib/practice/api-types.ts).
  */
 
 /**
@@ -16,7 +17,7 @@ import type { FeedbackRequest, FeedbackScreen, FeedbackTrigger } from "../../pra
  */
 export async function claimExitSurvey(options: { signal?: AbortSignal } = {}): Promise<boolean> {
   try {
-    const { data } = await apiFetch<{ asked_now: boolean }>("/v2/me/practice-feedback/claim", {
+    const { data } = await apiFetch<components["schemas"]["PracticeFeedbackStatus"]>("/v2/me/practice-feedback/claim", {
       method: "POST",
       signal: options.signal,
     });
@@ -40,7 +41,7 @@ export type FeedbackInput = {
 export async function submitPracticeFeedback(
   input: FeedbackInput,
   options: { requestId: string; signal?: AbortSignal },
-): Promise<{ id: string }> {
+): Promise<components["schemas"]["PracticeFeedbackResponse"]> {
   const { practiceId, screen, trigger, ...rest } = input;
   const body: FeedbackRequest = {
     request_id: options.requestId,
@@ -49,7 +50,7 @@ export async function submitPracticeFeedback(
     trigger,
     ...rest,
   };
-  const { data } = await postIdempotent<{ id: string }>("/v2/practice-feedback", body, {
+  const { data } = await postIdempotent<components["schemas"]["PracticeFeedbackResponse"]>("/v2/practice-feedback", body, {
     requestId: options.requestId,
     signal: options.signal,
   });

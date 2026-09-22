@@ -6,6 +6,7 @@
  * 제목을 쓴다. 화면 순서는 짧은 요약 → 다음 촬영에서 해볼 한 가지 → 응원이다(PRD).
  */
 import type { NoteKind, NoteQuote, PracticeNote, QuoteSource } from "@/lib/practice/api-types";
+import type { AnalysisReport, ExpressionReport } from "@/lib/api/v2/types";
 import { UNTITLED_PRACTICE } from "./practice-groups";
 
 /** 요약에 싣는 원문 발췌의 최대 개수. 더 오면 앞의 둘만 보인다. */
@@ -18,11 +19,12 @@ export const RECORD_ONLY_COPY = "오늘 나눈 것만 남겼어요";
 /** 생성이 거듭 실패해 확인된 것만 담은 노트 */
 export const FALLBACK_NOTICE = "대화에서 확인한 것만 남겼어요";
 
-/** 신형(v2) 노트인가. 옛 노트는 summary_quotes·kind 가 없다. */
+/** 새 노트 봉투인가. format 으로 기존·신형 내용을 구분한다. */
 export function isNoteV2(report: unknown): report is PracticeNote {
   if (report === null || typeof report !== "object") return false;
-  const candidate = report as Partial<PracticeNote>;
-  return Array.isArray(candidate.summary_quotes) && typeof candidate.kind === "string";
+  return "format" in report && "summary_quotes" in report && "kind" in report
+    && (report.format === "v2" || report.format === "legacy")
+    && Array.isArray(report.summary_quotes) && typeof report.kind === "string";
 }
 
 /**
@@ -35,7 +37,7 @@ export function noteTitle(note: PracticeNote, groupTitle: string): string {
 
 /** 요약 인용. 최대 둘이고 빈 인용은 뺀다. */
 export function noteQuotes(note: PracticeNote): NoteQuote[] {
-  return note.summary_quotes.filter((quote) => quote.text.trim()).slice(0, MAX_SUMMARY_QUOTES);
+  return note.summary_quotes.filter((item) => item.quote.trim()).slice(0, MAX_SUMMARY_QUOTES);
 }
 
 /** 인용이 어디서 나온 말인지. 배우가 자기 말을 알아볼 수 있어야 한다. */
@@ -45,7 +47,10 @@ export function quoteSourceLabel(source: QuoteSource): string {
 
 /** 다음 촬영 자리에 그릴 말. 제안이 없으면 종류에 맞는 빈 자리를 말한다. */
 export function nextTakeCopy(note: PracticeNote): string {
-  const take = note.next_take?.trim();
+  const report = note.report;
+  const take = note.kind === "action"
+    ? (report?.report_type === "practice_note" ? report.practice?.instruction?.trim() : note.next_take?.trim())
+    : null;
   if (take) return take;
   return note.kind === "record_only" ? RECORD_ONLY_COPY : NO_NEXT_TAKE_COPY;
 }
@@ -63,12 +68,22 @@ export function reportTypeOf(
   report: { report_type?: string } | PracticeNote | null | undefined,
 ): "analysis" | "expression" | "blocked" | "practice_note" {
   if (!report) return "blocked";
-  if (isNoteV2(report)) return "practice_note";
-  const type = (report as { report_type?: string }).report_type;
+  if (isNoteV2(report)) return report.format === "legacy" && (report.kind === "analysis" || report.kind === "expression") ? report.kind : "practice_note";
+  const type = ("report_type" in report ? report.report_type : undefined);
   return type === "analysis" || type === "expression" || type === "practice_note" ? type : "blocked";
 }
 
 /** 되돌아갈 대화가 없는 노트인가(막힌 대화). 신형 노트에는 이 자리가 없다. */
 export function isBlockedReport(report: { report_type?: string } | PracticeNote): boolean {
-  return !isNoteV2(report) && (report as { report_type?: string }).report_type === "blocked";
+  return !isNoteV2(report) && ("report_type" in report ? report.report_type : undefined) === "blocked";
+}
+
+export function noteCheer(note: PracticeNote): string {
+  return note.report && "cheer" in note.report && typeof note.report.cheer === "string" ? note.report.cheer.trim() : "";
+}
+
+/** 기존 갈래는 봉투 안에 보존된 공개 원문으로 그린다. */
+export function legacyReportOf(note: PracticeNote): AnalysisReport | ExpressionReport | null {
+  const report = note.report;
+  return note.format === "legacy" && (report?.report_type === "analysis" || report?.report_type === "expression") ? report : null;
 }

@@ -240,11 +240,11 @@ export function MemoryPanel() {
                     {item ? (
                       <span
                         className={`shrink-0 text-[12px] font-bold ${
-                          item.edited_by_me ? "text-[#4e5968]" : "text-[#3182f6]"
+                          item.written_by_actor ? "text-[#4e5968]" : "text-[#3182f6]"
                         }`}
                       >
                         {/* 내가 적은 값은 코치가 덮지 않는다 — 그 사실이 보여야 고치는 의미가 생긴다. */}
-                        {item.edited_by_me ? "내가 적은 값" : "코치가 적음"}
+                        {item.written_by_actor ? "내가 적은 값" : "코치가 적음"}
                       </span>
                     ) : (
                       <span className="shrink-0 text-[12px] text-[#b0b8c1]">비어 있음</span>
@@ -267,9 +267,9 @@ export function MemoryPanel() {
                     className="mt-3 w-full resize-y rounded-xl border border-[#e5e8eb] px-3.5 py-3 text-[15px] leading-[1.6] text-[#191f28] outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6]"
                   />
 
-                  {item?.source_practice_session_id && !item.edited_by_me ? (
+                  {item?.source_practice_id && !item.written_by_actor ? (
                     <Link
-                      href={`/home?session=${encodeURIComponent(item.source_practice_session_id)}`}
+                      href={`/home?session=${encodeURIComponent(item.source_practice_id)}`}
                       className="mt-1 inline-block text-[13px] font-semibold text-[#3182f6] transition hover:text-[#1b64da]"
                     >
                       이 말이 나온 연습 보기

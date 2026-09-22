@@ -9,6 +9,7 @@ import java.nio.file.Path;
 
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -57,6 +58,38 @@ class OpenApiSnapshotIT {
 
     @Autowired
     MockMvc mvc;
+
+    @Test
+    void everyLocalReferenceResolvesForClientTypeGeneration() throws Exception {
+        JsonNode document = new ObjectMapper().readTree(mvc.perform(get("/v3/api-docs"))
+                .andReturn().getResponse().getContentAsString());
+        assertReferences(document, document);
+    }
+
+    @Test
+    void retiredPracticeRoutesAreNotPublishedByTheCurrentServer() throws Exception {
+        JsonNode paths = new ObjectMapper().readTree(mvc.perform(get("/v3/api-docs"))
+                .andReturn().getResponse().getContentAsString()).path("paths");
+        for (String path : java.util.List.of("/v2/legacy-coach/start", "/v2/legacy-coach/reply", "/v2/legacy-coach/confirm",
+                "/v2/reports/{practice_session_id}", "/v2/practice-sessions", "/v2/uploads/intents")) {
+            assertThat(paths.has(path)).as("내린 연습 경로 %s", path).isFalse();
+        }
+        assertThat(paths.path("/v2/reports").has("get")).isFalse();
+        // 같은 POST 주소는 챌린지 신고가 이어받는다. 옛 연습 리포트 작업을 노출하지 않는 것이 계약이다.
+        assertThat(paths.path("/v2/reports").path("post").path("operationId").asText())
+                .isNotEqualTo("create_report_v2_reports_post");
+    }
+
+    private static void assertReferences(JsonNode document, JsonNode value) {
+        if (value.isObject() && value.has("$ref")) {
+            String ref = value.path("$ref").asText();
+            if (ref.startsWith("#/")) {
+                assertThat(document.at(ref.substring(1)).isMissingNode())
+                        .as("클라이언트 타입 생성에 필요한 참조 %s가 정의되어야 한다", ref).isFalse();
+            }
+        }
+        value.forEach(child -> assertReferences(document, child));
+    }
 
     @Test
     void springdocOutputMatchesSnapshot() throws Exception {

@@ -1,9 +1,10 @@
+import type { PracticeReport } from '../api';
+
 /**
  * 회차(practice) 계약 타입 — 1.0.0에서 연습은 묶음의 n차이고, 영상은 보관함의 독립 자산이다.
  *
- * 서버(PA2)가 아직 없어 스펙의 API 표와 요구사항(02-practice practice.start·resume·analyze)을
- * 기준으로 둔다. 통합(PI1)이 생성 타입으로 바꾼다. 경험 판(legacy·three_layers_v1)은 서버가
- * 정하고 앱은 `X-Acttub-Contract: three_layers_v1` 헤더로 알린다(api-request).
+ * 서버 PracticeDtos·ConversationDtos와 OpenAPI가 요청·응답의 정본이다.
+ * 화면용 scene·blockage와 묶음 요약은 api.ts가 서버의 평평한 응답에서 구성한다.
  */
 
 /** 회차 진행 상태. 분석 결과의 상태(analysis.status)와 다른 것이다. */
@@ -38,6 +39,7 @@ export type PracticeJob = {
   id: string;
   status: JobStatus;
   failure_reason?: string | null;
+  attempt_count?: number;
 };
 
 /** 시작·이어하기 응답. */
@@ -47,23 +49,62 @@ export type Practice = {
   ordinal: number;
   stage: PracticeStage;
   analysis_status: AnalysisStatus | null;
-  job: PracticeJob;
+  job: PracticeJob | null;
 };
 
 /** 회차 상세(GET /v2/practices/{id}). 코치·노트는 PM3가 쓴다. */
 export type PracticeDetail = Practice & {
-  video_id: string;
+  video_id: string | null;
   scene: PracticeScene;
   blockage: PracticeBlockage;
   created_at: string;
   playback_url?: string | null;
+  video_purged: boolean;
+  conversation_id: string | null;
+  previous_conversations: PreviousConversation[];
 };
 
 /** 폴링이 읽는 것(GET /v2/practices/{id}/status). */
 export type PracticeStatus = {
   stage: PracticeStage;
-  job: { status: JobStatus; failure_reason?: string | null };
-  analysis: { status: AnalysisStatus } | null;
+  close_reason: string | null;
+  job: PracticeJob | null;
+  analysis_status: AnalysisStatus | null;
+};
+
+export type PreviousConversation = { id: string; status: ConversationStatus; created_at: string };
+
+/** PracticeDtos.PracticeResponse: 장면·막힘은 응답 최상위에 있다. */
+export type PracticeResponse = Practice & {
+  video_id: string | null;
+  close_reason: string | null;
+  experience_version: 'legacy' | 'three_layers_v1';
+  situation: string;
+  character: string;
+  goal: string;
+  blockage_category: BlockageCategory;
+  blockage_detail: BlockageDetail;
+  blockage_note: string | null;
+  created_at: string;
+  conversation_id: string | null;
+  conversation_status: ConversationStatus | null;
+  conversation_count: number;
+  note_id: string | null;
+  note_title: string | null;
+  note_kind: NoteKind | null;
+  previous_conversations: PreviousConversation[];
+};
+
+export type PracticeGroupResponse = {
+  root_id: string;
+  title: string | null;
+  ordinal_count: number;
+  last_conversation_at: string | null;
+  tags: string[];
+  favorite: boolean;
+  hidden_at: string | null;
+  in_progress_practice_id: string | null;
+  practices: PracticeResponse[];
 };
 
 /** 묶음 목록의 한 줄. 진행 중 회차 id로 복귀시킨다(409의 본문은 코드뿐이다). */
@@ -81,6 +122,7 @@ export type PracticeGroup = {
   hidden_at: string | null;
   tags?: string[];
   last_practiced_at?: string | null;
+  practices: PracticeRound[];
 };
 
 export type PracticeGroupFilter = 'all' | 'favorite' | 'recent30';
@@ -127,6 +169,7 @@ export type CoachMessage = {
   turn_index: number;
   role: 'coach' | 'actor';
   text: string;
+  created_at: string | null;
 };
 
 /**
@@ -135,8 +178,10 @@ export type CoachMessage = {
  */
 export type CoachConversation = {
   id: string;
-  practice_id: string;
+  practice_id: string | null;
   status: ConversationStatus;
+  close_reason: 'user_ended' | 'limit' | 'exhausted' | 'system_failure' | null;
+  created_at: string | null;
   revision: number;
   /** 시작 응답을 포함한 코치 응답 수. 상한은 기존 갈래 8, 신형 10이다. */
   coach_reply_count: number;
@@ -166,19 +211,20 @@ export const COACH_ANSWER_MAX = 300;
 // ─── 연습 노트(practice.note) ────────────────────────────────────────────────
 
 /** 종류는 성공·실패 표시가 아니다. 제안이 있으면 action, 초점만 있으면 observation, 둘 다 없으면 record_only. */
-export type NoteKind = 'action' | 'observation' | 'record_only';
+export type NoteKind = 'action' | 'observation' | 'record_only' | 'analysis' | 'expression';
 
 export type NoteFormat = 'legacy' | 'v2';
 
 export type NoteQuote = {
-  text: string;
+  quote: string;
   /** 인용의 출처 — 배우가 한 말인지 영상 관찰인지. */
-  source: 'actor' | 'observation';
+  kind: 'actor' | 'observation';
+  source_ref: string;
 };
 
 export type PracticeNote = {
   id: string;
-  practice_id: string;
+  conversation_id: string;
   format: NoteFormat;
   kind: NoteKind;
   /** 초점 문구 원문. record_only 는 null 이고 목록은 묶음의 대체 제목을 쓴다. */
@@ -192,7 +238,8 @@ export type PracticeNote = {
   tags: string[];
   /** 생성이 두 번 실패해 확인된 것만 담았다. */
   fallback: boolean;
-  cheer: string | null;
+  /** 서버가 공개용으로 변환한 원문. 내부 출처 목록은 노출하지 않는다. */
+  report: PracticeReport | null;
   source_revision: number;
   created_at: string;
 };
@@ -207,11 +254,13 @@ export type PracticeRound = {
   /** 그 회차의 대화 메시지 수(배우+코치). */
   message_count: number;
   note: { id: string; title: string | null; kind: NoteKind } | null;
+  conversation_id: string | null;
+  previous_conversations: PreviousConversation[];
 };
 
 export type PracticeGroupDetail = PracticeGroup & {
   video_id: string | null;
-  last_conversation: string | null;
+  last_conversation_id: string | null;
   practices: PracticeRound[];
 };
 

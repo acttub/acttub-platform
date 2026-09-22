@@ -1,6 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -10,8 +10,9 @@ import { api } from '@/lib/api';
 import { formatKoreanDate } from '@/lib/format';
 import { translate as t } from '@/lib/i18n';
 import { groupTitle, hideNotice, roundSummary } from '@/lib/practice/groups';
+import { orderedMessages } from '@/lib/practice/coach';
 import { setContinueOrigin } from '@/lib/practice/session-state';
-import type { PracticeGroupDetail } from '@/lib/practice/types';
+import type { CoachConversation, PracticeGroupDetail } from '@/lib/practice/types';
 
 /**
  * A1.2 연습 기록 상세 — 묶음 하나.
@@ -27,6 +28,25 @@ export default function PracticeGroupScreen() {
   const [group, setGroup] = useState<PracticeGroupDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [conversation, setConversation] = useState<CoachConversation | null>(null);
+  const [conversationError, setConversationError] = useState<string | null>(null);
+  const [conversationLoading, setConversationLoading] = useState(false);
+  const conversationRequest = useRef(0);
+
+  const openConversation = async (id: string) => {
+    const request = ++conversationRequest.current;
+    setConversation(null);
+    setConversationError(null);
+    setConversationLoading(true);
+    try {
+      const loaded = await api.getConversation(id);
+      if (request === conversationRequest.current) setConversation(loaded);
+    } catch {
+      if (request === conversationRequest.current) setConversationError(t('history.conversationLoadFail'));
+    } finally {
+      if (request === conversationRequest.current) setConversationLoading(false);
+    }
+  };
 
   const load = useCallback(async () => {
     if (!rootId) return;
@@ -42,11 +62,16 @@ export default function PracticeGroupScreen() {
 
   useEffect(() => {
     void load();
+    return () => { conversationRequest.current += 1; };
   }, [load]);
 
   /** 같은 영상으로 같은 묶음의 다음 회차를 만든다. 장면은 비운 채 시작한다. */
   const continuePractice = () => {
     if (!group) return;
+    if (group.in_progress_practice_id) {
+      router.push({ pathname: '/analyzing', params: { practiceId: group.in_progress_practice_id } });
+      return;
+    }
     const last = group.practices[group.practices.length - 1];
     setContinueOrigin(
       group.video_id
@@ -69,8 +94,7 @@ export default function PracticeGroupScreen() {
       if (!ok) return;
     }
     try {
-      await api.patchPracticeGroup(group.root_id, { hidden: hiding });
-      void load();
+      setGroup(await api.patchPracticeGroup(group.root_id, { hidden: hiding }));
     } catch (e) {
       await alert({
         title: t('history.deleteFailTitle'),
@@ -103,29 +127,58 @@ export default function PracticeGroupScreen() {
             <Text style={styles.meta}>{t('history.countTimes', { count: group.ordinal_count })}</Text>
           </View>
 
-          {group.last_conversation && (
+          {group.video_id && (
+            <Pressable style={styles.round} onPress={() => router.push({ pathname: '/archive-detail', params: { id: group.video_id! } })} accessibilityRole="button">
+              <Text style={styles.openNote}>{t('history.openVideo')}</Text>
+            </Pressable>
+          )}
+          {group.last_conversation_id && (
+            <Pressable style={styles.round} onPress={() => void openConversation(group.last_conversation_id!)} accessibilityRole="button">
+              <Text style={styles.openNote}>{t('history.lastConversation')}</Text>
+            </Pressable>
+          )}
+          {conversationLoading && <ActivityIndicator color={palette.blue} />}
+          {conversationError && <Text style={styles.error}>{conversationError}</Text>}
+          {conversation && (
             <View style={styles.card}>
-              <Text style={styles.cardLabel}>{t('history.lastConversation')}</Text>
-              <Text style={styles.cardText}>{group.last_conversation}</Text>
+              <Text style={styles.cardLabel}>{t('history.conversation')}</Text>
+              {orderedMessages(conversation).map(message => (
+                <View key={message.turn_index}>
+                  <Text style={styles.cardLabel}>{t(message.role === 'coach' ? 'coach.roleCoach' : 'coach.roleMe')}</Text>
+                  <Text style={styles.cardText}>{message.text}</Text>
+                </View>
+              ))}
             </View>
           )}
 
           <Text style={styles.sectionTitle}>{t('history.roundsTitle')}</Text>
           {group.practices.map((round) => (
-            <Pressable
+            <View
               key={round.id}
-              style={styles.round}
-              onPress={() => openNote(round.id, Boolean(round.note))}
-              accessibilityRole="button">
+              style={styles.card}>
               <View style={styles.roundBody}>
                 <Text style={styles.roundTitle}>{roundSummary(round)}</Text>
                 <Text style={styles.roundMeta}>
                   {formatKoreanDate(round.created_at, { month: 'long', day: 'numeric' })}
                 </Text>
               </View>
-              {round.note ? <Text style={styles.openNote}>{t('history.openNote')}</Text> : null}
-              <Feather name="chevron-right" size={18} color={palette.checkOff} />
-            </Pressable>
+              {round.note && (
+                <Pressable style={styles.round} onPress={() => openNote(round.id, true)} accessibilityRole="button">
+                  <Text style={styles.openNote}>{t('history.openNote')}</Text>
+                  <Feather name="chevron-right" size={18} color={palette.checkOff} />
+                </Pressable>
+              )}
+              {round.conversation_id && (
+                <Pressable style={styles.round} onPress={() => void openConversation(round.conversation_id!)} accessibilityRole="button">
+                  <Text style={styles.openNote}>{t('history.conversation')}</Text>
+                </Pressable>
+              )}
+              {round.previous_conversations.map(previous => (
+                <Pressable key={previous.id} style={styles.round} onPress={() => void openConversation(previous.id)} accessibilityRole="button">
+                  <Text style={styles.openNote}>{t('history.previousConversation')} · {formatKoreanDate(previous.created_at, { month: 'long', day: 'numeric' })}</Text>
+                </Pressable>
+              ))}
+            </View>
           ))}
 
           <Pressable style={styles.primary} onPress={continuePractice} accessibilityRole="button">

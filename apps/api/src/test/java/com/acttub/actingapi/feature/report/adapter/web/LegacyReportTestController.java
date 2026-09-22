@@ -1,6 +1,7 @@
 package com.acttub.actingapi.feature.report.adapter.web;
 
 import java.util.UUID;
+import org.springframework.boot.test.context.TestComponent;
 
 import com.acttub.actingapi.platform.security.AccessGate;
 import com.acttub.actingapi.platform.web.CanonicalJsonResponse;
@@ -33,15 +34,18 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/** 이전 저장 계약의 회귀 검사용 어댑터. 운영 jar에는 포함되지 않고 명시적으로 import한 테스트에서만 열린다. */
+@TestComponent
+@org.springframework.context.annotation.Profile("legacy-practice-test")
 @RestController
-@RequestMapping("/v2/reports")
-class ReportController {
+@RequestMapping("/v2/legacy-test-reports")
+public class LegacyReportTestController {
 
     private final AccessGate auth;
     private final ReportService reports;
     private final CanonicalJsonResponse responses;
 
-    ReportController(
+    LegacyReportTestController(
             AccessGate auth,
             ReportService reports,
             CanonicalJsonResponse responses) {

@@ -284,6 +284,8 @@ const en: DeepStringShape<typeof ko> = {
     doneMessage: 'This is a preview, so the list does not update yet.',
   },
   archive: {
+    loadingMore: 'Loading…',
+    loadMore: 'Load more videos',
     title: 'Archive',
     subtitle: '{{count}} videos saved from recording · keep the good takes',
     select: 'Select',
@@ -511,6 +513,11 @@ const en: DeepStringShape<typeof ko> = {
     feedbackNudgeCta: 'Leave a line',
   },
   history: {
+    openVideo: 'View practice video',
+    conversation: 'Conversation',
+    previousConversation: 'Previous conversation',
+    conversationLoadFail: 'Could not load the conversation. Tap again to retry.',
+
     favOn: 'Add to favorites',
     favOff: 'Remove from favorites',
     ordinal: 'Take {{n}}',
@@ -798,6 +805,7 @@ const en: DeepStringShape<typeof ko> = {
     reconnect: 'Reconnect to coach',
     doneShort:
       'That’s all for today. It’s a bit short to keep as a note — let’s pick it up next time.',
+    doneFailure: 'The connection was interrupted while closing. You can review the saved conversation or start another round.',
     doneNormal: 'That’s it for today’s conversation. I’ll build your summary now.',
     finishBtn: 'Finish practice',
     seeSummary: 'See the summary',
@@ -824,6 +832,8 @@ const en: DeepStringShape<typeof ko> = {
   },
   note: {
     kind: {
+      analysis: 'Scene analysis',
+      expression: 'Expression practice',
       action: 'With something to try',
       observation: 'What stood out',
       record_only: 'Record only',
@@ -1215,6 +1225,7 @@ const en: DeepStringShape<typeof ko> = {
     body: '5 minutes is enough. Shoot just one scene?',
   },
   errors: {
+    requestChanged: 'The request changed. Please send it again.',
     clientContractRequired: 'Update the app to open this practice note.',
     network: 'Check your network connection and try again.',
     timeout: 'The request timed out. Check your network and try again.',

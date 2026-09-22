@@ -3,11 +3,14 @@ package com.acttub.actingapi.feature.coach.adapter;
 import java.time.Clock;
 
 import com.acttub.actingapi.feature.coach.app.CoachEngine;
+import com.acttub.actingapi.feature.coach.app.CoachProfile;
+import com.acttub.actingapi.feature.coach.app.CoachMemory;
 import com.acttub.actingapi.feature.coach.app.ConversationRepository;
 import com.acttub.actingapi.feature.coach.app.ConversationClosedListener;
 import com.acttub.actingapi.feature.coach.app.ConversationService;
 import com.acttub.actingapi.feature.coach.app.NoteWriter;
 import com.acttub.actingapi.feature.report.app.ReportEngine;
+import com.acttub.actingapi.platform.observability.FailureReporter;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -34,7 +37,11 @@ class ConversationConfiguration {
             CoachEngine coach,
             NoteWriter notes,
             Clock clock,
-            ObjectProvider<ConversationClosedListener> closedListener) {
-        return new ConversationService(conversations, coach, notes, clock, closedListener.getIfAvailable());
+            ObjectProvider<ConversationClosedListener> closedListener,
+            CoachProfile profiles,
+            CoachMemory memory,
+            FailureReporter failureReporter) {
+        return new ConversationService(conversations, coach, notes, clock, closedListener.getIfAvailable(),
+                profiles, memory, failureReporter);
     }
 }

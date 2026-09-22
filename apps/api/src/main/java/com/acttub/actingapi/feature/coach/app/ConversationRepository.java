@@ -62,7 +62,7 @@ public interface ConversationRepository {
     Replay findReplay(UUID conversationId, UUID requestId, String fingerprint);
 
     /** @param coachMessage 그 요청이 만든 코치 응답. 지문이 어긋나면 {@code null} */
-    record Replay(boolean mismatch, String coachMessage, String status, String closeReason, long revision) {
+    record Replay(boolean mismatch, String coachMessage, String status, String closeReason, long revision, int turnCount) {
     }
 
     /**
@@ -150,6 +150,7 @@ public interface ConversationRepository {
             UUID practiceId,
             String status,
             String closeReason,
+            String experienceVersion,
             long revision,
             Instant createdAt,
             List<Turn> turns) {

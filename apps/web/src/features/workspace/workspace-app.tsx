@@ -89,6 +89,7 @@ import {
   CONTINUE_NEW_VIDEO_LABEL,
   CONTINUE_SAME_VIDEO_LABEL,
   groupOfPractice,
+  groupTitle,
   HIDE_GROUP_COPY,
   inProgressPracticeId,
   railGroups,
@@ -105,6 +106,7 @@ import {
   isCoachInputEnabled,
 } from "../practice/coach-contract";
 import { WaitingDots } from "../practice/waiting-dots";
+import { PreviousConversations } from "../practice/previous-conversations";
 import { PracticeReportCards } from "../practice/practice-report-cards";
 import {
   formatVideoDuration,
@@ -486,7 +488,7 @@ function WorkspaceInner() {
       // 자리표시자(".")로 채워진 장면은 이름이 못 된다.
       label: situationLabel && situationLabel.length > 1 ? situationLabel : null,
     });
-    if (reuseVideo && detail && !detail.video_purged) {
+    if (reuseVideo && detail && detail.video_id && !detail.video_purged) {
       dispatch({
         type: "videoPicked",
         video: { libraryId: detail.video_id, url: detail.playback_url || null, caption: SAME_VIDEO_CAPTION, durationMs: null },
@@ -533,7 +535,7 @@ function WorkspaceInner() {
         type: "coachTurnReceived",
         coachId: turn.conversation.id,
         done,
-        report: turn.note,
+        report: turn.note ?? null,
       });
       if (done) {
         trackPracticeDialogueCompleted(
@@ -579,7 +581,7 @@ function WorkspaceInner() {
       type: "coachTurnReceived",
       coachId: turn.conversation.id,
       done,
-      report: turn.note,
+      report: turn.note ?? null,
     });
     if (done) {
       trackPracticeDialogueCompleted(
@@ -1059,6 +1061,9 @@ function WorkspaceInner() {
             startConversationAfterAnalysis(id);
           }
           return;
+        case "conversation":
+          restoreCoach({ conversation: result.conversation, message: "", note: null }, result.conversation);
+          return;
         case "noNote":
           dispatch({ type: "noteLoaded", report: null });
           startConversationAfterAnalysis(id);
@@ -1076,7 +1081,7 @@ function WorkspaceInner() {
         }
       }
     },
-    [countStepOnce, startConversationAfterAnalysis, trackAnalysis],
+    [countStepOnce, startConversationAfterAnalysis, trackAnalysis, restoreCoach],
   );
 
   const openSession = useCallback(async (id: string) => {
@@ -1084,7 +1089,7 @@ function WorkspaceInner() {
     if (selected) {
       trackPracticeHistoryOpened(
         selected.stage === "analyzing" ? "analyzing" : "analyzed",
-        Boolean(selected.note_title),
+        Boolean(selected.note_id),
         (Date.now() - Date.parse(selected.created_at)) / 86_400_000,
       );
     }
@@ -1171,7 +1176,7 @@ function WorkspaceInner() {
         if (cancelled || video.purged_at) return;
         dispatch({
           type: "videoPicked",
-          video: { libraryId: video.id, url: video.playback_url, caption: LIBRARY_VIDEO_CAPTION, durationMs: video.duration_ms },
+          video: { libraryId: video.id, url: video.playback_url ?? null, caption: LIBRARY_VIDEO_CAPTION, durationMs: video.duration_ms },
         });
         reportProgress({ type: "duration", videoDurationMs: video.duration_ms });
       },
@@ -1265,8 +1270,11 @@ function WorkspaceInner() {
     }
   }, [activeId, detail, isCurrentSession, resetToPrep, refreshList, startWork]);
 
+  const activeGroup = activeId ? groupOfPractice(groups, activeId) : null;
+  const noteGroupTitle = activeGroup ? groupTitle(activeGroup) : detail?.situation ?? "";
+
   const noteBySession = useMemo(
-    () => new Set(groups.flatMap((g) => g.practices.filter((p) => p.note_title).map((p) => p.id))),
+    () => new Set(groups.flatMap((g) => g.practices.filter((p) => p.note_id).map((p) => p.id))),
     [groups],
   );
   // 게스트가 끝나면(서버가 갱신을 거절) 그 게스트의 목록은 더 이상 열 수 없다. 받아 둔
@@ -1480,6 +1488,7 @@ function WorkspaceInner() {
             {body.kind === "note" ? (
               <NotePanel
                 report={body.report}
+                groupTitle={noteGroupTitle}
                 messages={messages}
                 backDisabled={busyDisabled.backToChat}
                 onBackToChat={
@@ -2334,6 +2343,7 @@ function ScenePanel({
               </p>
             ) : null}
             <SceneRows rows={mobileRows} />
+            <PreviousConversations conversations={detail?.previous_conversations ?? []} />
             {recordRows.length > 0 ? (
               <div className="mt-4">
                 <p className="text-[13.5px] font-black">영상 기록</p>
@@ -2384,6 +2394,7 @@ function ScenePanel({
           <div className="rounded-[18px] bg-white p-4 shadow-[0_12px_36px_rgba(25,31,40,0.05)]">
             <p className="text-[13.5px] font-black">이 장면에서 연기한 것</p>
             <SceneRows rows={rows} />
+            <PreviousConversations conversations={detail?.previous_conversations ?? []} />
           </div>
           {recordRows.length > 0 ? (
             <div className="rounded-[18px] bg-white p-4 shadow-[0_12px_36px_rgba(25,31,40,0.05)]">
@@ -2547,7 +2558,7 @@ function ChatPanel({
         {done ? (
           <div className="flex flex-col items-center gap-3 py-1">
             <p role="status" className="text-sm font-semibold text-[#4e5968]">
-              {noteReady ? "지금까지 이야기한 걸 정리해 뒀어요." : "정리하고 있어요…"}
+              {noteReady ? "지금까지 이야기한 걸 정리해 뒀어요." : "아직 정리 없음 · 오늘 나눈 대화는 남아 있어요."}
             </p>
             <button
               type="button"
@@ -2598,6 +2609,7 @@ function Bubble({ msg }: { msg: ChatMsg }) {
 // 두었는데, 화면이 노트를 들게 된 뒤로는 그 자리에 닿을 길이 없어졌다.
 function NotePanel({
   report,
+  groupTitle,
   messages,
   backDisabled,
   onBackToChat,
@@ -2607,6 +2619,7 @@ function NotePanel({
   canReuseVideo,
 }: {
   report: PracticeReport;
+  groupTitle: string;
   messages: ChatMsg[];
   /** 뒤에서 도는 일이 대화로 돌아가는 길을 막고 있는가. */
   backDisabled: boolean;
@@ -2664,7 +2677,7 @@ function NotePanel({
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <div className="min-h-0 flex-1 overflow-y-auto bg-[#f7faff] p-4 sm:p-5">
-        <PracticeReportCards report={report} />
+        <PracticeReportCards report={report} groupTitle={groupTitle} />
       </div>
 
       <div className="grid gap-2.5 border-t border-[#edf0f3] p-3.5 sm:p-4">

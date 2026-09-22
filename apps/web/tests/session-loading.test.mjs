@@ -47,11 +47,11 @@ function detail(overrides = {}) {
     ordinal: 1,
     stage: "conversing",
     experience_version: "legacy",
-    video: { id: "v-1", playback_url: null, playback_expires_at: null, purged_at: null, duration_ms: 1000 },
-    scene: { situation: "면접 첫 인사", character: "", goal: "" },
-    blockage: { category: "표현", detail: "몸이 굳어요", note: null },
+    video_id: null,
+    situation: "면접 첫 인사", character: "", goal: "",
+    blockage_category: "표현", blockage_detail: "움직임", blockage_note: null,
     job: { id: "j-1", status: "succeeded", failure_reason: null },
-    analysis: { status: "ready", summary: null },
+    analysis_status: "ready",
     conversation: null,
     note: null,
     created_at: "2026-09-21T03:00:00Z",
@@ -61,9 +61,9 @@ function detail(overrides = {}) {
 }
 
 /** 아직 분석 중인 회차 */
-const ANALYZING = { stage: "analyzing", job: { id: "j-1", status: "pending", failure_reason: null }, analysis: null };
+const ANALYZING = { stage: "analyzing", job: { id: "j-1", status: "pending", failure_reason: null }, analysis_status: null };
 /** 분석이 최종 실패한 회차 */
-const FAILED = { stage: "closed", job: { id: "j-1", status: "failed", failure_reason: "timeout" }, analysis: null };
+const FAILED = { stage: "closed", job: { id: "j-1", status: "failed", failure_reason: "timeout" }, analysis_status: null };
 
 /**
  * 조회 두 개를 받아 적는 fetch. 회차 조회와 노트 조회가 어느 순서로, 몇 번
@@ -73,6 +73,7 @@ function apiStub({ session = () => jsonResponse(detail()), report } = {}) {
   const calls = [];
   globalThis.fetch = async (url) => {
     const path = String(url);
+    if (path.endsWith("/analysis")) return jsonResponse({ detail: "analysis_not_found" }, 404);
     calls.push(path);
     if (path.endsWith("/note")) {
       return report ? report() : jsonResponse(REPORT);
@@ -91,6 +92,20 @@ function loadInput(overrides = {}) {
     ...overrides,
   };
 }
+
+test("노트 없이 닫힌 회차는 새 코칭을 시작하지 않고 저장된 대화를 읽는다", async () => {
+  const conversation = { id: "c1", status: "closed", revision: 2, close_reason: "actor_finished",
+    messages: [{ role: "coach", turn_index: 1, text: "오늘은 여기까지예요" }], coach_reply_count: 1, reply_limit: 8 };
+  globalThis.fetch = async (url) => {
+    if (url === "/v2/practices/practice-1") return jsonResponse(detail({ stage: "closed", conversation_id: "c1", conversation_status: "closed" }));
+    if (url.endsWith("/analysis")) return jsonResponse({ detail: "analysis_not_found" }, 404);
+    if (url === "/v2/practices/practice-1/note") return jsonResponse({ detail: "note_not_found" }, 404);
+    assert.equal(url, "/v2/coach/conversations/c1");
+    return jsonResponse(conversation);
+  };
+  const result = await loadPracticeSession(loadInput());
+  assert.deepEqual(result, { kind: "conversation", conversation });
+});
 
 test("훑어보기가 안 끝난 연습은 폴링을 걸라고 답하고 노트를 물어보지 않는다", async () => {
   const calls = apiStub({

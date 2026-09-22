@@ -1,6 +1,7 @@
 import { translate } from '../i18n.ts';
-import type { CoachConversation, CoachMessage, CoachReplyBody } from './types.ts';
+import type { CoachConversation, CoachMessage, CoachReplyBody, CoachTurnResult, PracticeDetail, PracticeNote } from './types.ts';
 import { COACH_ANSWER_MAX } from './types.ts';
+import { readOptionalPracticeNote } from './note.ts';
 
 /**
  * 코치 대화 화면의 규칙(practice.coach). 코치의 행동 규칙(CONTRACT §7·§8, ADR-027)은 서버 것이고,
@@ -8,6 +9,25 @@ import { COACH_ANSWER_MAX } from './types.ts';
  * 오류를 어떻게 가르는지. 도움 버튼은 입력만 채우고 배우가 보내야 전송된다.
  */
 export const COACH_END_WORD = '그만';
+
+type CoachSessionApi = {
+  getPractice: (id: string) => Promise<PracticeDetail>;
+  getConversation: (id: string) => Promise<CoachConversation>;
+  getPracticeNote: (id: string) => Promise<PracticeNote>;
+  startConversation: (id: string, requestId: string) => Promise<CoachTurnResult>;
+};
+
+/** 화면 재진입은 서버의 대화 id로 복원한다. 닫힌 대화에 start를 보내지 않는다. */
+export async function loadCoachSession(api: CoachSessionApi, practiceId: string, requestId: string, conversationId?: string | null): Promise<CoachTurnResult> {
+  const id = conversationId ?? (await api.getPractice(practiceId)).conversation_id;
+  if (!id) return api.startConversation(practiceId, requestId);
+  const conversation = await api.getConversation(id);
+  let note: PracticeNote | null = null;
+  if (isClosed(conversation)) {
+    note = await readOptionalPracticeNote(api.getPracticeNote, practiceId);
+  }
+  return { conversation, message: null, note };
+}
 
 export type CoachInput = {
   text: string;
@@ -121,8 +141,9 @@ export function coachFailureMessage(failure: CoachFailure): string {
     case 'not_ready':
       return translate('coach.notReady');
     case 'too_long':
-    case 'fingerprint_mismatch':
       return translate('coach.answerTooLong');
+    case 'fingerprint_mismatch':
+      return translate('errors.requestChanged');
     case 'offline':
       return translate('coach.offline');
     default:

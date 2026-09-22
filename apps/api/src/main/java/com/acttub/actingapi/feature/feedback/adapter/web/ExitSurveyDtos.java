@@ -7,7 +7,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
 
 /** 이탈 설문의 요청·응답 (practice.feedback). 셋 다 unknown key 를 거부한다. */
 final class ExitSurveyDtos {
@@ -30,13 +29,10 @@ final class ExitSurveyDtos {
                     allowableValues = {"x", "leave", "back"})
             String trigger,
             // 그냥 나갔으면 본문이 없다(dismissed). 보냈으면 다듬은 뒤 1~100자다.
-            @Size(max = ExitSurveyRules.BODY_MAX_CHARS)
-            @Schema(title = "Body", nullable = true, maxLength = ExitSurveyRules.BODY_MAX_CHARS)
+            @Schema(title = "Body", nullable = true, description = "공백 정리 뒤 1~100 유니코드 코드 포인트. 생략하면 건너뛰기다.")
             String body,
-            @Size(max = ExitSurveyRules.CONTACT_MAX_CHARS)
             @Schema(title = "Contact Email", nullable = true, maxLength = ExitSurveyRules.CONTACT_MAX_CHARS)
             @JsonProperty("contact_email") String contactEmail,
-            @Size(max = ExitSurveyRules.CONTACT_MAX_CHARS)
             @Schema(title = "Contact Phone", nullable = true, maxLength = ExitSurveyRules.CONTACT_MAX_CHARS)
             @JsonProperty("contact_phone") String contactPhone) {
     }

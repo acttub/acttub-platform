@@ -6,7 +6,7 @@ import type { Video, VideoFilter, VideoIntentRequest, VideoIntentResponse, Video
 
 // 영상 보관함(practice.record·practice.library). 올리기는 세 단계 — 올릴 자리 받기 · 올리기 · 마무리 —
 // 그대로이고 마무리가 videos 행(보관함 저장)을 만든다. 예약 장부가 request_id 를 보존하므로 마무리 재전송은
-// 같은 영상이다. 타입은 api 가 나오기 전의 임시 타입이며 통합 작업이 생성 타입으로 바꾼다(src/lib/practice/api-types.ts).
+// 같은 영상이다. 타입은 현재 OpenAPI 계약에서 생성한다.
 
 export type UploadLibraryVideoOptions = {
   /** 기기가 잰 길이(ms). 5분을 넘으면 자리를 받기 전에 거른다. */

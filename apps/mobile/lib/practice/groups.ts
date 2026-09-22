@@ -1,5 +1,27 @@
 import { translate } from '../i18n.ts';
-import type { PracticeGroup, PracticeGroupFilter, PracticeRound } from './types.ts';
+import type { PracticeGroup, PracticeGroupDetail, PracticeGroupFilter, PracticeGroupResponse, PracticeRound } from './types.ts';
+
+/** 목록과 PATCH가 같은 서버 묶음 DTO를 준다. 화면에 필요한 요약은 회차에서 얻는다. */
+export function practiceGroupFromResponse(group: PracticeGroupResponse): PracticeGroupDetail {
+  const practices = [...group.practices].sort((a, b) => a.ordinal - b.ordinal);
+  const first = practices[0];
+  const last = practices.at(-1);
+  return {
+    ...group,
+    note_title: last?.note_title ?? null,
+    situation: first?.situation ?? null,
+    last_practiced_at: last?.created_at ?? null,
+    video_id: last?.video_id ?? null,
+    last_conversation_id: [...practices].reverse().find(p => p.conversation_id)?.conversation_id ?? null,
+    practices: practices.map(p => ({
+      id: p.id, ordinal: p.ordinal, created_at: p.created_at, stage: p.stage,
+      message_count: p.conversation_count,
+      note: p.note_id && p.note_kind ? { id: p.note_id, title: p.note_title, kind: p.note_kind } : null,
+      conversation_id: p.conversation_id,
+      previous_conversations: p.previous_conversations,
+    })),
+  };
+}
 
 /**
  * 연습 기록(A1·A1.1·A1.2)의 규칙. 기록은 묶음 단위이고 회차는 그 안의 n차다.
@@ -90,7 +112,7 @@ export function roundSummary(round: Pick<PracticeRound, 'ordinal' | 'message_cou
   const parts = [
     translate('history.ordinal', { n: round.ordinal }),
     translate('history.messageCount', { count: round.message_count }),
-    round.note?.title?.trim() || translate('note.none'),
+    round.note ? round.note.title?.trim() || translate(`note.kind.${round.note.kind}`) : translate('note.none'),
   ];
   return parts.join(' · ');
 }

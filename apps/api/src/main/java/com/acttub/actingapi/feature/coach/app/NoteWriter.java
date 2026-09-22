@@ -47,22 +47,26 @@ public class NoteWriter {
             // "모르겠어요 → 그만": 연습 기록에 "아직 정리 없음" 으로 남는다.
             return null;
         }
-        JsonNode report = generate(loaded, result, threeLayers);
-        if (report == null) {
+        PracticeNote.Generated generated = generate(loaded, result, threeLayers);
+        if (generated == null || (!threeLayers && "blocked".equals(generated.note().path("report_type").asText()))) {
             // 거듭 실패했다. 기존 갈래는 노트가 없고, 신형은 확인된 것만 남긴다.
             return threeLayers
                     ? conversations.saveNote(loaded.conversationId(), fallbackNote(sourceRevision), now)
                     : null;
         }
         return conversations.saveNote(
-                loaded.conversationId(), note(report, session, threeLayers, sourceRevision), now);
+                loaded.conversationId(), note(generated.note(), session, threeLayers, sourceRevision, generated.fallback()), now);
     }
 
     /** 생성 실패는 한 번 재시도한다. 두 번 다 실패하면 {@code null}. */
-    private JsonNode generate(Loaded loaded, CoachResult result, boolean threeLayers) {
+    private PracticeNote.Generated generate(Loaded loaded, CoachResult result, boolean threeLayers) {
         for (int attempt = 0; attempt < 2; attempt++) {
             try {
-                return reports.generateReport(
+                if (threeLayers) {
+                    // 신형 생성기는 내부에서 이미 한 번 재시도하고 근거를 보존한 폴백 여부를 돌려준다.
+                    return reports.generatePracticeNote(result.reply().handoff(), loaded.practiceId(), result.session().userId());
+                }
+                JsonNode report = reports.generateReport(
                         ConversationService.branchOf(result.session()),
                         observationPack(result.session()),
                         result.reply().handoff(),
@@ -72,6 +76,7 @@ public class NoteWriter {
                         null,
                         loaded.practiceId(),
                         result.session().userId());
+                return new PracticeNote.Generated((ObjectNode) report, false);
             } catch (Exception retryable) {
                 // 생성 실패는 한 번 재시도한다 — 모델이 형식을 어기거나 잠시 답하지 못하는 경우다.
                 if (attempt == 1) {
@@ -82,7 +87,7 @@ public class NoteWriter {
         return null;
     }
 
-    private NewNote note(JsonNode report, CoachSessionSnapshot session, boolean threeLayers, long sourceRevision) {
+    private NewNote note(JsonNode report, CoachSessionSnapshot session, boolean threeLayers, long sourceRevision, boolean fallback) {
         if (!threeLayers || !PracticeNote.isNote(report)) {
             // 기존 갈래: 종류와 응답 모양을 현행 그대로 두고 원문을 보존한다.
             return new NewNote(
@@ -100,7 +105,7 @@ public class NoteWriter {
         }
         String mode = report.path("mode").asText("record_only");
         JsonNode focus = report.path("focus");
-        JsonNode direction = report.path("direction");
+        JsonNode instruction = report.path("practice").path("instruction");
         return new NewNote(
                 "v2",
                 mode,
@@ -109,11 +114,11 @@ public class NoteWriter {
                         ? null
                         : text(focus.path("label")),
                 summaryQuotes(report),
-                direction.isMissingNode() || direction.isNull() ? null : text(direction.path("text")),
+                instruction.isMissingNode() || instruction.isNull() ? null : text(instruction.path("text")),
                 empty(),
                 empty(),
                 empty(),
-                false,
+                fallback,
                 sourceRevision,
                 report);
     }

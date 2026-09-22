@@ -9,7 +9,7 @@ import { palette } from '@/constants/palette';
 import { useExitReview } from '@/hooks/use-exit-review';
 import { api } from '@/lib/api';
 import { translate as t } from '@/lib/i18n';
-import { noteFallbackNotice, noteKindLabel, noteSections, noteTitle, quoteSourceLabel } from '@/lib/practice/note';
+import { noteFallbackNotice, noteKindLabel, noteSections, noteTitle, quoteSourceLabel, readOptionalPracticeNote } from '@/lib/practice/note';
 import { clearPractice, getPractice, setContinueOrigin } from '@/lib/practice/session-state';
 import type { PracticeNote } from '@/lib/practice/types';
 
@@ -42,15 +42,14 @@ export default function ReportScreen() {
     setError(null);
     setLoading(true);
     try {
-      const loaded = await api.getPracticeNote(practice.practiceId);
+      const loaded = await readOptionalPracticeNote(api.getPracticeNote, practice.practiceId);
       if (!mountedRef.current) return;
       practice.note = loaded;
       setNote(loaded);
-    } catch (e) {
+      if (!loaded) setError(t('note.none'));
+    } catch {
       if (!mountedRef.current) return;
-      // 404 는 대화가 짧아 노트를 만들지 않은 회차다(기존 갈래) — 오류가 아니라 없음이다.
-      const status = e !== null && typeof e === 'object' ? (e as { status?: number }).status : null;
-      setError(status === 404 ? t('note.none') : t('note.loadFail'));
+      setError(t('note.loadFail'));
     } finally {
       if (mountedRef.current) setLoading(false);
     }
@@ -137,9 +136,9 @@ export default function ReportScreen() {
                 {section.kind === 'summary' ? (
                   section.quotes.length > 0 ? (
                     section.quotes.map((quote, index) => (
-                      <View style={styles.quote} key={`${index}-${quote.text.slice(0, 8)}`}>
-                        <Text style={styles.quoteText}>{quote.text}</Text>
-                        <Text style={styles.quoteSource}>{quoteSourceLabel(quote.source)}</Text>
+                      <View style={styles.quote} key={`${index}-${quote.quote.slice(0, 8)}`}>
+                        <Text style={styles.quoteText}>{quote.quote}</Text>
+                        <Text style={styles.quoteSource}>{quoteSourceLabel(quote.kind)}</Text>
                       </View>
                     ))
                   ) : (

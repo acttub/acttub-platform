@@ -13,6 +13,13 @@ export const PRACTICE_POLL_INTERVAL_MS = 4_000;
 /** 백그라운드에서 깨어난 직후 한두 번의 조회 실패는 정상이다. 연속 실패만 센다. */
 export const STATUS_POLL_MAX_FAILURES = 3;
 
+/** 통신 실패에 새 분석을 만들지 않는다. 취소·탈퇴는 다시 실행할 상태도 아니다. */
+export function analysisRecoveryAction(status: PracticeStatus | null): 'reload' | 'reanalyze' | 'none' {
+  const reason = status?.job?.failure_reason ?? status?.close_reason;
+  if (reason === 'cancelled' || reason === 'account_deactivated') return 'none';
+  return status?.job?.status === 'failed' || status?.close_reason === 'analysis_failed' ? 'reanalyze' : 'reload';
+}
+
 export type WatchOutcome =
   /** 분석이 끝났다. partial이어도 대화는 시작된다. */
   | { kind: 'ready'; analysis: AnalysisStatus }
@@ -69,12 +76,12 @@ export async function watchAnalysis(
     }
     if (aborted(signal)) return { kind: 'stopped' };
     dependencies.onStatus?.(status);
-    if (status.job.status === 'succeeded' && status.analysis) {
-      return { kind: 'ready', analysis: status.analysis.status };
+    if (status.stage !== 'analyzing' && status.analysis_status) {
+      return { kind: 'ready', analysis: status.analysis_status };
     }
-    if (status.job.status === 'failed') {
-      const reason = status.job.failure_reason ?? null;
-      return { kind: 'failed', reason, retriable: reason !== 'cancelled' };
+    if (status.job?.status === 'failed' || status.stage === 'closed') {
+      const reason = status.job?.failure_reason ?? status.close_reason ?? null;
+      return { kind: 'failed', reason, retriable: reason !== 'cancelled' && reason !== 'account_deactivated' };
     }
   }
 }

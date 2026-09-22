@@ -88,6 +88,9 @@ public interface PracticeRepository {
     /** 회차 하나. 없거나 남의 것이면 {@code null}. */
     PracticeView find(UUID userId, UUID practiceId);
 
+    /** 소유한 회차의 분석 요약. 아직 분석하지 않았으면 null이다. */
+    PracticeViews.AnalysisView analysis(UUID userId, UUID practiceId);
+
     /** 회차의 진행 상태만. 없거나 남의 것이면 {@code null}. */
     PracticeViews.StatusView status(UUID userId, UUID practiceId);
 

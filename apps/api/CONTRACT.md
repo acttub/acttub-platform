@@ -669,7 +669,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   토큰의 구조·갱신·만료는 회원과 같다. 끝난 게스트의 토큰이 붙어 와도 401 로 막지 않는다.
 - **게스트의 게이트**(`platform/security/GuestFeature`): 경로가 속한 **기능의 문서만** 본다. 연습
   (`/v2/uploads/**`·`/v2/videos/**`·`/v2/practices/**`·`/v2/practice-sessions/**`·`/v2/practice-feedback/**`·
-  `/v2/me/practice-feedback/**`·`/v2/coach/**`·`/v2/reports/**`·`/v2/me/memory/**`)은 약관·수집·이용 동의·AI 분석
+  `/v2/me/practice-feedback/**`·`/v2/coach/**`·`/v2/me/memory/**`)은 약관·수집·이용 동의·AI 분석
   동의, 리딩
   (`/v2/reading/**`)은 약관·수집·이용 동의 둘이다(서버가 대본·음성을 분석하지 않아 AI 분석 동의는 없다 —
   ADR-031, §6-14). **영상을 보관만 하는 데에도 AI 분석 동의를 받는다** — 보관함의 다음 길이 분석이기 때문이고
@@ -1079,6 +1079,10 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   하나다 — 옛 `AnalysisStore`(={`external_operations`} + `summaries`)와 1.0.0 `PracticeAnalysisStore`
   (={`ai_jobs`} + `analyses`·`video_transcripts`). 영상을 내려받고 검증값을 견주고 실패를 분류하고 lease 를 다루는
   규칙이 한 벌이어야 하기 때문이다. 스케줄러는 등록된 워커를 모두 돌린다.
+  - **공개 요약 조회** `GET /v2/practices/{id}/analysis`: `{id, format, status, summary}`다. 기존 갈래의 summary는
+    `ObservationPackResponse`, 신형은 `VideoRecordSummaryResponse`다. 전체 내부 원문·출처 목록은 내보내지 않는다.
+    새 분석이 없으면 소유권을 확인하는 옛 분석 읽기로 이어진다. 없는/남의 회차는 404 `practice_not_found`,
+    소유한 회차에 아직 분석이 없으면 404 `analysis_not_found`다. 영상 파일을 파기해도 저장된 요약은 읽을 수 있다.
   - **완료는 한 트랜잭션이고 그 안에서 주인과 계정 상태를 다시 본다**: 탈퇴가 먼저 끝났으면 결과를 저장하지 않고
     작업을 `failed`/`account_deactivated` 로 닫으며, 이관이 먼저 끝났으면 회차의 주인이 이미 회원이라 결과가 회원의
     것이 된다. lease 가 재선점됐으면 완료가 거절되고 트랜잭션이 통째로 되돌아간다.
@@ -1105,16 +1109,21 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   - 응답은 `{conversation, message, note}` 이고 `conversation` 에 `status`·`revision`·`coach_reply_count`·
     `reply_limit`·`messages` 가 있다 — 화면이 남은 응답 수와 마무리 예고를 그린다.
   - **대화 조회** `GET /v2/coach/conversations/{id}`: 409 뒤 최신 상태를 다시 읽는 자리이자 회차의 이전 대화를
-    펼치는 자리다. 없는 것과 남의 것은 같은 404.
+    펼치는 자리다. 없는 것과 남의 것은 같은 404. `reply_limit`은 저장된 경험 판을 읽어 기존 갈래는 8,
+    신형은 10을 반환하며 시작·후속 응답과 같다.
 - **연습 노트**(`coach_notes`, `GET /v2/practices/{id}/note`) — 대화와 1:1 이고 닫힐 때 **한 번** 만든다(고정된 종료
   `source_revision`). 재생성 요청은 같은 노트를 돌려받는다.
   - **만들지 않는 조건**이 갈래마다 다르다: 기존 갈래는 종료어·도움말을 뺀 배우 답이 2개 미만이면 만들지 않고
     (화면은 "아직 정리 없음"), 신형은 조기 종료에도 남긴다 — 제안이 있으면 `action`, 초점만 남았으면
     `observation`, 초점도 없으면 `record_only` 이고 그때 **제목은 NULL** 이다.
   - 생성이 실패하면 **한 번 재시도**하고 그래도 실패하면 기존 갈래는 노트가 없고 신형은 확인된 것만 담은 폴백
-    (`fallback = true`)을 남긴다.
+    (`fallback = true`)을 남긴다. 내부 재시도가 성공하면 `fallback = false`이고, 거듭 실패해도 이미 확인된
+    초점·근거는 보존한다. 배우의 방향(`direction`)과 촬영 제안(`practice.instruction.text`)을 혼동하지 않는다.
   - 생성기가 낸 **원문 전체**를 `legacy_report` 에 함께 둔다 — 컬럼 이름은 옛 것이지만 신형도 여기에 둔다. 옛 공개
     필드를 읽던 화면이 그대로 쓰는 호환 응답의 재료다.
+  - 응답의 `summary_quotes`는 `{quote, kind, source_ref}` 배열이고 `kind`는 actor·observation이다.
+    `actor_words`·`corrections`·`tags`는 문자열 배열이다. 응답의 `report`는 기존 공개 리포트 또는
+    `acttub.public_practice_note.v1`이며 내부 출처 목록·대화 상태를 보내지 않는다. 원문은 DB에 그대로 보존한다.
 - **배우 기억**(`/v2/me/memory`, `actor_memories`) — 칸은 **넷**(`goal`·`blockage`·`speech_self`·`speech_actual`)이고
   `(user_id, field)` 유일이다. **성별·나이 칸은 없다** — 프로필로 옮겼다(account.profile). 옛 여섯 칸 화면은
   `/v2/legacy-me/memory` 로 옮겨 옛 표(`actor_memory_entries`)를 그대로 읽는다.
@@ -1137,6 +1146,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   - **접수** `POST /v2/practice-feedback`: `request_id`·`practice_id?`·`screen`(coach·report)·`trigger`(x·leave·back)·
     `body?`·`contact_email?`·`contact_phone?`. 본문은 공백 정리 뒤 1~100자이고 **없으면 건너뛰기**(`dismissed`)다 —
     공백만 보낸 본문은 건너뛰기가 아니라 422 `feedback_body_required`. 연락처는 각각 80자이고 없이도 보낼 수 있다.
+    길이는 유니코드 코드 포인트로 세며 본문은 공백 정리 뒤 센다. 초과는 422 배열이며 이모지 100개를 UTF-16 길이로 거절하지 않는다.
     남의 회차를 가리키면 404 `practice_not_found`. 만들면 **201**, 같은 `request_id` 의 재전송이면 **200** 이고 같은
     설문 id 다(오프라인에서 들고 있다 다시 보내도 행 하나).
   - **한 계정에 한 번만 묻는다.** `GET /v2/me/practice-feedback/status` 는 `{asked, asked_now}` 로 이미 물어봤는지만
@@ -1206,11 +1216,11 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   `/v2/videos/**` 가, 회차는 `/v2/practices/**` 가 받고, 그 표에 없는 옛 자료는 **호환 읽기 경로**가 같은 모양으로
   보여 준다(위 「호환 읽기 경로」). 옛 표는 그대로 남아 있고 지우지 않았다 — 삭제는 읽기·쓰기를 모두 중단한
   버전을 배포한 다음 릴리스부터다(02-practice ④). 게스트 기능표에서도 두 경로를 뺐다.
-- **옛 읽기 경로 둘은 남는다** — `/v2/reports/**` 와 옛 코치가 옮겨 간 **`/v2/legacy-coach/**`** 다. 내리지 않은
-  이유는 하나다: **§7-2(코치 대화와 노트가 읽는 배우 프로필)를 지키는 시험이 그 경로에만 있고, 1.0.0 대화는 아직
-  그 규칙을 구현하지 않았다.** `PostgresConversationRepository` 가 엔진에 건네는 스냅샷은 프로필을 `null` 로,
-  지난 것을 `PriorContext.EMPTY` 로 채운다 — 먼저 새 흐름이 프로필·기억을 모델 입력에 싣게 한 뒤라야 그 시험을
-  새 경로로 옮기고 옛 경로를 내릴 수 있다. 그 전에 지우면 <b>보존 규칙 하나가 아무 데서도 지켜지지 않는다.</b>
+- **옛 코치·리포트 경로도 내렸다** — `/v2/legacy-coach/**`와 옛 연습의 `/v2/reports/**`는 등록하지 않는다.
+  코치는 `/v2/coach/start`·`/v2/coach/reply`, 노트 읽기는 `/v2/practices/{id}/note`를 쓴다. 새 코치는 §7-2의
+  프로필과 배우 기억을 매 턴 읽으며, 같은 묶음의 앞 회차 대화·노트만 참고한다. 복수 대화 전환에서 옛 표에
+  남긴 노트도 소유권을 확인해 읽는다. `CoachReadsProfileIT`는 새 경로에서 이 규칙과 조회 실패의 폴백을 검증한다.
+  옛 저장 형식의 회귀 검사는 테스트 전용 어댑터로 유지하며 이 어댑터는 운영 산출물에 포함하지 않는다.
 - OpenAPI 컴포넌트: 보관함은 `Video`·`VideoList`·`VideoUsage`·`VideoIntent`·`VideoIntentRequest`·`VideoPatch`, 회차는
   `Practice`·`PracticeGroup`·`PracticeGroupList`·`PracticeStatus`·`PracticeJob`·`PracticeScene`·`PracticeBlockage`·
   `PracticeCreateRequest`·`PracticeContinueRequest`·`PracticeAnalyzeRequest`·`PracticeGroupPatch`·

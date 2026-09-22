@@ -49,7 +49,6 @@ function json(payload, status = 200) {
 const TURN = {
   conversation: { id: "c-1", revision: 4, status: "open" },
   message: "그 순간에 무엇을 하려고 했나요?",
-  status: "continue",
   note: null,
 };
 
@@ -88,7 +87,7 @@ test("practice.coach: 답은 대화 id·요청 id·본문·revision 을 함께 �
     requestId: "req-9",
   });
   assert.equal(turn.conversation.revision, 4);
-  assert.equal(turn.status, "continue");
+  assert.equal(turn.conversation.status, "open");
 });
 
 test("practice.coach: 배우 답은 300자까지다", async () => {
@@ -146,9 +145,9 @@ test("practice.coach: 대화 조회는 최신 revision·상태·턴을 돌려준
       practice_id: "practice-1",
       status: "open",
       revision: 7,
-      closed_reason: null,
+      close_reason: null,
       created_at: "2026-09-21T03:00:00Z",
-      turns: [
+      messages: [
         { turn_index: 1, role: "coach", text: "무엇을 하려 했나요?", created_at: "2026-09-21T03:00:00Z" },
         { turn_index: 2, role: "actor", text: "붙잡고 싶었어요", created_at: "2026-09-21T03:01:00Z" },
       ],
@@ -159,7 +158,7 @@ test("practice.coach: 대화 조회는 최신 revision·상태·턴을 돌려준
 
   assert.deepEqual(calls[0], { path: "/v2/coach/conversations/c-1", method: "GET", body: null, requestId: null });
   assert.equal(conversation.revision, 7);
-  assert.deepEqual(conversation.turns.map((t) => t.role), ["coach", "actor"]);
+  assert.deepEqual(conversation.messages.map((t) => t.role), ["coach", "actor"]);
 });
 
 test("practice.coach: 종료 응답은 노트를 함께 싣는다", async () => {
@@ -167,14 +166,13 @@ test("practice.coach: 종료 응답은 노트를 함께 싣는다", async () => 
     json({
       conversation: { id: "c-1", revision: 9, status: "closed" },
       message: "오늘은 여기까지 해요.",
-      status: "complete",
       note: { id: "n-1", kind: "action", title: "말끝", fallback: false },
     }),
   );
 
   const turn = await replyConversation({ conversationId: "c-1", text: "그만", revision: 8 }, { requestId: "r" });
 
-  assert.equal(turn.status, "complete");
+  assert.equal(turn.conversation.status, "closed");
   assert.equal(turn.conversation.status, "closed");
   assert.equal(turn.note?.id, "n-1");
 });

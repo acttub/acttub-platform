@@ -2,10 +2,12 @@ package com.acttub.actingapi.feature.feedback.app;
 
 import java.time.Clock;
 import java.util.UUID;
+import java.util.List;
 
 import com.acttub.actingapi.feature.feedback.app.ExitSurveyStore.Accepted;
 import com.acttub.actingapi.feature.feedback.app.ExitSurveyStore.NewSurvey;
 import com.acttub.actingapi.platform.web.ApiException;
+import com.acttub.actingapi.platform.web.ApiValidationException;
 import org.springframework.stereotype.Service;
 
 /**
@@ -28,7 +30,7 @@ public class ExitSurveyService {
     }
 
     /**
-     * 설문을 접수한다. 본문·연락처의 길이는 요청 문서가 먼저 거르고, 여기서는 다듬은 뒤의 길이를 본다 —
+     * 설문을 접수한다. UTF-16 단위인 Bean Size 대신 코드 포인트를 세고, 본문은 다듬은 뒤 길이를 본다 —
      * 공백만 보낸 본문은 건너뛰기가 아니라 잘못된 요청이다.
      *
      * @param dismissed 배우가 그냥 나갔으면 참 — 그때만 본문이 없어도 된다
@@ -38,9 +40,9 @@ public class ExitSurveyService {
         if (!dismissed && body == null) {
             throw new ApiException(422, "feedback_body_required");
         }
-        if (ExitSurveyRules.length(body) > ExitSurveyRules.BODY_MAX_CHARS) {
-            throw new ApiException(422, "feedback_body_too_long");
-        }
+        validateLength("body", body, ExitSurveyRules.BODY_MAX_CHARS);
+        validateLength("contact_email", requested.contactEmail(), ExitSurveyRules.CONTACT_MAX_CHARS);
+        validateLength("contact_phone", requested.contactPhone(), ExitSurveyRules.CONTACT_MAX_CHARS);
         if (!store.ownsPractice(requested.userId(), requested.practiceId())) {
             throw new ApiException(404, "practice_not_found");
         }
@@ -78,5 +80,12 @@ public class ExitSurveyService {
 
     private static String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value;
+    }
+
+    private static void validateLength(String field, String value, int maximum) {
+        if (ExitSurveyRules.length(value) > maximum) {
+            throw ApiValidationException.valueError(List.of("body", field),
+                    "Value error, must contain at most " + maximum + " characters", value);
+        }
     }
 }

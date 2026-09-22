@@ -21,13 +21,14 @@ import {
   coachFailureMessage,
   helpButtonDraft,
   isClosed,
+  loadCoachSession,
   nextReplyWraps,
   orderedMessages,
   remainingCoachReplies,
   type HelpButton,
 } from '@/lib/practice/coach';
 import { clearPractice, getPractice, setContinueOrigin } from '@/lib/practice/session-state';
-import type { CoachConversation, CoachMessage } from '@/lib/practice/types';
+import type { CoachConversation, CoachMessage, CoachTurnResult } from '@/lib/practice/types';
 import { COACH_ANSWER_MAX } from '@/lib/practice/types';
 import { newRequestId } from '@/lib/request-id';
 
@@ -95,12 +96,12 @@ export default function CoachScreen() {
   }, [leaveThen, router]);
 
   const applyResult = useCallback(
-    (result: { conversation: CoachConversation; note: unknown }) => {
+    (result: CoachTurnResult) => {
       setConversation(result.conversation);
       setMessages(orderedMessages(result.conversation));
       if (practice) {
         practice.conversationId = result.conversation.id;
-        if (result.note) practice.note = result.note as NonNullable<typeof practice.note>;
+        practice.note = result.note;
       }
       return isClosed(result.conversation);
     },
@@ -113,9 +114,9 @@ export default function CoachScreen() {
     setConnecting(true);
     setError(null);
     try {
-      const result = await api.startConversation(practice.practiceId, startRequestIdRef.current);
+      const result = await loadCoachSession(api, practice.practiceId, startRequestIdRef.current, practice.conversationId);
       if (!mountedRef.current) return;
-      if (applyResult(result)) goToNote();
+      if (applyResult(result) && result.note) goToNote();
     } catch (e) {
       if (mountedRef.current) setError(coachFailureMessage(coachFailure(e)));
     } finally {
@@ -127,13 +128,12 @@ export default function CoachScreen() {
   /** 충돌 뒤 최신 대화를 다시 읽는다. 쓰던 글은 건드리지 않는다. */
   const reloadConversation = useCallback(async () => {
     const id = conversation?.id ?? practice?.conversationId;
-    if (!id) return;
-    const latest = await api.getConversation(id).catch(() => null);
+    if (!id || !practice) return;
+    const latest = await loadCoachSession(api, practice.practiceId, startRequestIdRef.current, id).catch(() => null);
     if (latest && mountedRef.current) {
-      setConversation(latest);
-      setMessages(orderedMessages(latest));
+      applyResult(latest);
     }
-  }, [conversation?.id, practice?.conversationId]);
+  }, [applyResult, conversation?.id, practice]);
 
   const sendText = useCallback(
     async (text: string) => {
@@ -158,7 +158,7 @@ export default function CoachScreen() {
         if (!mountedRef.current) return;
         attemptRef.current = null;
         setInput('');
-        if (applyResult(result)) goToNote();
+        if (applyResult(result) && result.note) goToNote();
       } catch (e) {
         if (!mountedRef.current) return;
         const failure = coachFailure(e);
@@ -318,7 +318,8 @@ export default function CoachScreen() {
 
           {closed && (
             <>
-              <Text style={styles.doneText}>{practice.note ? t('coach.doneNormal') : t('coach.doneShort')}</Text>
+              <Text style={styles.doneText}>{conversation?.close_reason === 'system_failure' || conversation?.close_reason === 'exhausted'
+                ? t('coach.doneFailure') : practice.note ? t('coach.doneNormal') : t('coach.doneShort')}</Text>
               <Pressable style={styles.retry} onPress={practice.note ? goToNote : finishWithoutNote} accessibilityRole="button">
                 <Text style={styles.retryText}>{practice.note ? t('coach.seeSummary') : t('coach.finishBtn')}</Text>
               </Pressable>

@@ -161,6 +161,14 @@ class ExitSurveyIT {
     }
 
     @Test
+    void practiceFeedback_countsCodePointsAfterWhitespaceNormalization() throws Exception {
+        perform(submit(body("coach", "x", "🎭".repeat(100))), 201);
+        perform(submit(body("coach", "x", "   " + "가".repeat(100) + "   ")), 201);
+        var tooLong = perform(submit(body("coach", "x", "🎭".repeat(101))), 422);
+        assertThat(mapper.readTree(tooLong.getContentAsString()).path("detail").isArray()).isTrue();
+    }
+
+    @Test
     @DisplayName("practice.feedback: 같은 request_id 의 재전송은 행을 늘리지 않고 같은 설문 id 를 돌려준다 — "
             + "오프라인에서 들고 있다 다시 보내도 시트에 한 줄이다")
     void practiceFeedback_isIdempotentPerRequestId() throws Exception {
@@ -296,7 +304,7 @@ class ExitSurveyIT {
                         .contentType(MediaType.APPLICATION_JSON))
                 .andReturn()
                 .getResponse();
-        assertThat(response.getStatus()).isEqualTo(status);
+        assertThat(response.getStatus()).as(response.getContentAsString()).isEqualTo(status);
         return response;
     }
 

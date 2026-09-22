@@ -142,7 +142,7 @@ test('Q1: 보호 요청은 최초 credential readiness가 정착된 뒤 Authoriz
     baseUrl: 'https://api.test',
     fetchImpl: async (_url, init) => {
       authorizations.push(new Headers(init.headers).get('Authorization'));
-      return new Response(JSON.stringify({ count: 0, reports: [] }), {
+      return new Response(JSON.stringify({ groups: [] }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       });
@@ -155,7 +155,7 @@ test('Q1: 보호 요청은 최초 credential readiness가 정착된 뒤 Authoriz
     clearTokens: queue.clearTokensIfCurrent,
     emitConsentRequired: () => {},
   });
-  const homeHistory = client.request('/v2/reports');
+  const homeHistory = client.request('/v2/practices');
 
   try {
     await new Promise((resolve) => setImmediate(resolve));
@@ -165,7 +165,7 @@ test('Q1: 보호 요청은 최초 credential readiness가 정착된 뒤 Authoriz
     await loading;
   }
 
-  assert.deepEqual(await homeHistory, { count: 0, reports: [] });
+  assert.deepEqual(await homeHistory, { groups: [] });
   assert.deepEqual(authorizations, [`Bearer ${jwtWithSubject(userA.id)}`]);
 });
 

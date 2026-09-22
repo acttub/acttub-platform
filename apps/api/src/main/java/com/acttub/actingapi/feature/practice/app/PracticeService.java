@@ -120,6 +120,15 @@ public class PracticeService {
         return view;
     }
 
+    public PracticeViews.AnalysisView analysis(UUID userId, UUID practiceId) {
+        find(userId, practiceId);
+        PracticeViews.AnalysisView analysis = practices.analysis(userId, practiceId);
+        if (analysis == null) {
+            throw new ApiException(404, "analysis_not_found");
+        }
+        return analysis;
+    }
+
     /** 옮긴 묶음과 아직 옮기지 않은 묶음을 함께 낸다 — 배우에게는 한 목록이다. */
     public List<GroupView> groups(UUID userId, String filter) {
         List<GroupView> groups = new java.util.ArrayList<>(practices.groups(userId, filter, clock.instant()));

@@ -44,7 +44,7 @@ test("practice.memory: 내가 적은 값임을 칸마다 보여준다", () => {
   // 내가 고친 칸은 코치가 덮지 않는다는 걸 알아야 고치는 의미가 생긴다.
   const source = panel();
 
-  assert.match(source, /edited_by_me/);
+  assert.match(source, /written_by_actor/);
   assert.match(source, /내가 적은 값/);
   assert.match(source, /코치가 적음/);
 });
@@ -58,7 +58,7 @@ test("코치가 적은 칸은 근거가 된 연습으로 갈 수 있다", () => 
   // "이게 왜 이렇게 적혔지" 를 볼 수 있어야 고칠지 판단이 선다.
   const source = panel();
 
-  assert.match(source, /source_practice_session_id/);
+  assert.match(source, /source_practice_id/);
   assert.match(source, /\/home\?session=/); // 연습 화면이 세션을 여는 방식
 });
 

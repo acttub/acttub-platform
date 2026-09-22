@@ -79,7 +79,7 @@ test("account.guest: 게스트 시작이 연결에서 끊기면 연습 화면은
   };
 
   const failure = await caught(
-    apiFetch("/v2/uploads/intents", { method: "POST", body: {} }),
+    apiFetch("/v2/videos/intents", { method: "POST", body: {} }),
   );
 
   assert.equal(failure.name, "NetworkError");
@@ -93,7 +93,7 @@ test("account.guest: 게스트 시작의 응답을 읽다가 끊겨도 같은 '~
   globalThis.fetch = async () => brokenBodyResponse(201);
 
   const failure = await caught(
-    apiFetch("/v2/uploads/intents", { method: "POST", body: {} }),
+    apiFetch("/v2/videos/intents", { method: "POST", body: {} }),
   );
 
   assert.equal(failure.name, "NetworkError");
@@ -107,7 +107,7 @@ test("account.guest: 토큰 갱신이 연결에서 끊겨도 같은 '~해요' �
     return jsonResponse({ detail: "invalid or missing access token" }, 401);
   };
 
-  const failure = await caught(apiFetch("/v2/practice-sessions"));
+  const failure = await caught(apiFetch("/v2/practices"));
 
   assert.equal(failure.name, "NetworkError");
   assert.equal(errorMessage(failure, FALLBACK), CONNECTION_COPY);
@@ -123,7 +123,7 @@ test("공용 클라이언트의 요청이 연결에서 끊기면 '~해요' 문�
   ]) {
     globalThis.fetch = fail;
 
-    const failure = await caught(apiFetch("/v2/practice-sessions"));
+    const failure = await caught(apiFetch("/v2/practices"));
 
     assert.equal(failure.name, "NetworkError");
     const shown = errorMessage(failure, FALLBACK);
@@ -250,7 +250,7 @@ test("서버가 일부러 한국어 안내 문장으로 주는 detail(426 강제
   const notice = "새 버전이 나왔어요. 스토어에서 업데이트해 주세요.";
   globalThis.fetch = async () => jsonResponse({ detail: notice }, 426);
 
-  const failure = await caught(apiFetch("/v2/practice-sessions"));
+  const failure = await caught(apiFetch("/v2/practices"));
 
   assert.equal(failure.status, 426);
   assert.equal(errorMessage(failure, FALLBACK), notice);

@@ -1,8 +1,7 @@
 /**
  * 코치 대화(practice.coach)를 화면이 쓰는 모양으로 옮긴다. 순수 함수라 화면 없이 테스트한다.
  *
- * 새 계약에서 답 응답은 코치의 말 한 마디와 대화 머리(id·revision·status)만 준다. 지난 턴이
- * 필요한 자리(열린 대화 재개, 409 충돌 뒤 다시 읽기)는 대화 조회가 통째로 준다.
+ * 응답과 대화 조회가 messages·revision·status 를 함께 준다.
  */
 import type { Conversation, ConversationTurnResponse } from "@/lib/practice/api-types";
 
@@ -13,7 +12,7 @@ export interface ChatLine {
 
 /** 대화 조회가 준 턴을 화면 줄로 옮긴다. turn_index 순서를 그대로 믿지 않고 여기서 세운다. */
 export function conversationLines(conversation: Conversation): ChatLine[] {
-  return [...conversation.turns]
+  return [...conversation.messages]
     .sort((a, b) => a.turn_index - b.turn_index)
     .map((turn) => ({ role: turn.role === "actor" ? "me" : "ai", text: turn.text }));
 }
@@ -24,12 +23,12 @@ export function conversationLines(conversation: Conversation): ChatLine[] {
  * 항목을 장면 폼으로 빼지 않는다).
  */
 export function actorTurnCount(conversation: Conversation): number {
-  return conversation.turns.filter((turn) => turn.role === "actor").length;
+  return conversation.messages.filter((turn) => turn.role === "actor").length;
 }
 
 /** 이 응답으로 대화가 닫혔는가. */
 export function isConversationDone(turn: ConversationTurnResponse): boolean {
-  return turn.status === "complete" || turn.conversation.status === "closed";
+  return turn.conversation.status === "closed";
 }
 
 /**

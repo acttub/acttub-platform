@@ -7,7 +7,13 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.coach.app.ConversationRepository.ConversationView;
 import com.acttub.actingapi.feature.coach.app.ConversationRepository.NoteView;
 import com.acttub.actingapi.feature.coach.app.ConversationService;
+import com.acttub.actingapi.feature.report.app.PracticeNote;
+import com.acttub.actingapi.feature.report.app.PublicReport.AnalysisReport;
+import com.acttub.actingapi.feature.report.app.PublicReport.ExpressionReport;
+import com.acttub.actingapi.feature.report.app.PublicReport.PublicPracticeNote;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -16,6 +22,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 final class ConversationDtos {
+    private static final ObjectMapper JSON = new ObjectMapper();
     private ConversationDtos() {
     }
 
@@ -88,8 +95,15 @@ final class ConversationDtos {
      * 연습 노트. {@code kind} 는 성공·실패 표시가 아니다 — 기존 갈래는 analysis·expression, 신형은
      * action·observation·record_only 다. 초점 없이 끝난 record_only 의 제목은 NULL 이다.
      *
-     * @param report 생성기가 낸 원문. 옛 공개 필드를 읽던 화면이 그대로 쓴다
+     * @param report 저장한 원문에서 만든 공개 응답. 내부 출처 목록과 대화 상태는 노출하지 않는다
      */
+    @Schema(name = "CoachNoteQuote", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record NoteQuote(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String quote,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"actor", "observation"}) String kind,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String sourceRef) { }
+
     @Schema(name = "CoachNote", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     record NoteResponse(
@@ -98,14 +112,14 @@ final class ConversationDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String format,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String kind,
             @Schema(nullable = true) String title,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) JsonNode summaryQuotes,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<NoteQuote> summaryQuotes,
             @Schema(nullable = true) String nextTake,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) JsonNode actorWords,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) JsonNode corrections,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) JsonNode tags,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<String> actorWords,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<String> corrections,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<String> tags,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean fallback,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long sourceRevision,
-            @Schema(nullable = true) JsonNode report,
+            @Schema(nullable = true, anyOf = {AnalysisReport.class, ExpressionReport.class, PublicPracticeNote.class}) JsonNode report,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Instant createdAt) {
 
         static NoteResponse of(NoteView view) {
@@ -113,9 +127,15 @@ final class ConversationDtos {
                     ? null
                     : new NoteResponse(
                             view.id(), view.conversationId(), view.format(), view.kind(), view.title(),
-                            view.summaryQuotes(), view.nextTake(), view.actorWords(), view.corrections(),
-                            view.tags(), view.fallback(), view.sourceRevision(), view.legacyReport(),
+                            JSON.convertValue(view.summaryQuotes(), new TypeReference<List<NoteQuote>>() { }),
+                            view.nextTake(), strings(view.actorWords()), strings(view.corrections()),
+                            strings(view.tags()), view.fallback(), view.sourceRevision(),
+                            PracticeNote.publicView(view.legacyReport()),
                             view.createdAt());
+        }
+
+        private static List<String> strings(JsonNode value) {
+            return JSON.convertValue(value, new TypeReference<List<String>>() { });
         }
     }
 

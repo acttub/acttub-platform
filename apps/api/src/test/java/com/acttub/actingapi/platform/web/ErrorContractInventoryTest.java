@@ -74,6 +74,10 @@ class ErrorContractInventoryTest {
      * 이관 중에 500 이던 자리가 404 로 바뀐 사고가 둘 있었고, 그때 응답 diff 는 0 이었다.
      */
     private static final Map<String, Coverage> EXPECTED = Map.ofEntries(
+            covered("feature.coach.app.ConversationService|502|coach_response_unavailable", 1,
+                    "feature.coach.adapter.web.CoachReadsProfileIT"),
+            covered("feature.coach.app.ConversationService|409|request is still processing", 1,
+                    "platform.observability.HttpMonitoringIT"),
             covered("feature.coach.app.CoachService|502|coach_response_unavailable", 2,
                     "feature.coach.app.CoachServiceTest"),
             covered("feature.coach.app.CoachService|409|client_contract_required", 1,
@@ -294,9 +298,6 @@ class ErrorContractInventoryTest {
                     "feature.feedback.ExitSurveyIT"),
             covered("feature.feedback.app.ExitSurveyService|422|feedback_body_required", 1,
                     "feature.feedback.ExitSurveyIT"),
-            excluded("feature.feedback.app.ExitSurveyService|422|feedback_body_too_long", 1,
-                    "요청 문서의 @Size 가 먼저 422 배열을 낸다. 다듬기는 길이를 줄이기만 하므로 "
-                            + "여기에 닿는 본문을 만들 수 없다 — DB 에 길이 CHECK 가 없어 남겨 둔 방어선이다."),
             // 연습 회차·묶음(practice.start, practice.resume, practice.analyze). 409 는 코드만이고 진행 중 회차 id 는
             // 묶음 조회에서 얻는다.
             covered("feature.practice.app.PracticeService|404|practice_not_found", 1,
@@ -305,6 +306,8 @@ class ErrorContractInventoryTest {
                     "feature.practice.PracticeLifecycleIT"),
             covered("feature.practice.app.PracticeService|409|analysis_not_failed", 1,
                     "feature.practice.PracticeLifecycleIT"),
+            covered("feature.practice.app.PracticeService|404|analysis_not_found", 1,
+                    "feature.coach.adapter.web.CoachReadsProfileIT"),
             covered("feature.practice.app.PracticeService|409|practice_in_progress", 1,
                     "feature.practice.PracticeLifecycleIT"),
             covered("feature.practice.app.PracticeService|422|request_fingerprint_mismatch", 1,
@@ -314,8 +317,6 @@ class ErrorContractInventoryTest {
             covered("feature.practice.app.PracticeService|429|guest_daily_analysis_limit", 1,
                     "feature.practice.PracticeLifecycleIT"),
             // 영상 보관함(practice.record, practice.library). 사용처는 조회 응답에서 보고 오류 본문은 코드 하나다.
-            covered("feature.video.adapter.storage.ObjectStorageVideos|503|storage_not_configured", 1,
-                    "feature.video.VideoLibraryIT"),
             covered("feature.video.app.VideoService|404|upload_intent_not_found", 2,
                     "feature.video.VideoLibraryIT"),
             covered("feature.video.app.VideoService|404|video_not_found", 1,

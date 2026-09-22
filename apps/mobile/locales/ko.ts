@@ -275,6 +275,8 @@ const ko = {
     doneMessage: '지금은 예시 화면이라 목록엔 아직 반영되지 않아요.',
   },
   archive: {
+    loadingMore: '불러오는 중…',
+    loadMore: '영상 더 보기',
     title: '보관함',
     subtitle: '촬영으로 저장한 영상 {{count}}개 · 좋은 컷만 골라 두세요',
     select: '선택',
@@ -502,6 +504,11 @@ const ko = {
     feedbackNudgeCta: '남기기',
   },
   history: {
+    openVideo: '연습 영상 보기',
+    conversation: '대화',
+    previousConversation: '이전 대화',
+    conversationLoadFail: '대화를 불러오지 못했어요. 다시 눌러 주세요.',
+
     favOn: '즐겨찾기에 넣기',
     favOff: '즐겨찾기에서 빼기',
     ordinal: '{{n}}차',
@@ -787,6 +794,7 @@ const ko = {
     wrapping: '영상을 마저 정리하고 있어요…',
     reconnect: '코치 다시 연결하기',
     doneShort: '오늘은 여기까지 나눴어요. 노트로 남기기엔 짧아서, 다음에 이어서 해요.',
+    doneFailure: '대화를 마무리하는 중 연결이 끊겼어요. 남아 있는 기록을 확인하거나 새 회차로 이어갈 수 있어요.',
     doneNormal: '오늘 대화는 여기까지예요. 정리를 만들어 보여드릴게요.',
     finishBtn: '연습 마치기',
     seeSummary: '정리 보러 가기',
@@ -806,6 +814,8 @@ const ko = {
   },
   note: {
     kind: {
+      analysis: '장면 분석',
+      expression: '표현 연습',
       action: '다음에 해볼 것까지',
       observation: '눈에 남은 곳까지',
       record_only: '기록만',
@@ -818,7 +828,7 @@ const ko = {
     summaryEmpty: '이번에는 짧게 나눴어요.',
     nextLabel: '다음 촬영에서 해볼 한 가지',
     nextEmpty: '이번에는 다음 촬영에서 해볼 것을 정하지 않았어요.',
-    cheer: '다음 촬영도 응원할게요.',
+    cheer: '오늘 촬영도 수고했어요. 다음 촬영도 응원할게요.',
     none: '아직 정리 없음',
     fallbackNotice: '정리를 다 만들지 못해 확인된 것만 담았어요.',
     title: '연습 노트',
@@ -1194,6 +1204,7 @@ const ko = {
     body: '5분이면 돼요. 장면 하나만 찍어볼까요?',
   },
   errors: {
+    requestChanged: '요청 내용이 바뀌었어요. 다시 보내 주세요.',
     clientContractRequired: '앱을 업데이트하면 이 연습 노트를 열 수 있어요.',
     network: '네트워크 연결을 확인하고 다시 시도해주세요.',
     timeout: '요청 시간이 초과됐어요. 네트워크를 확인하고 다시 시도해주세요.',

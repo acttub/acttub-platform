@@ -1,5 +1,7 @@
 package com.acttub.actingapi.feature.coach.adapter.web;
 
+import org.springframework.boot.test.context.TestComponent;
+
 import com.acttub.actingapi.feature.coach.adapter.web.CoachDtos.CoachConfirmReq;
 import com.acttub.actingapi.feature.coach.adapter.web.CoachDtos.CoachConfirmResponse;
 import com.acttub.actingapi.feature.coach.adapter.web.CoachDtos.CoachReplyReq;
@@ -29,6 +31,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /** Python {@code acting_api.coaching}의 공개 코칭 흐름. */
+/** 이전 저장 계약의 회귀 검사용 어댑터. 운영 jar에는 포함되지 않고 명시적으로 import한 테스트에서만 열린다. */
+@TestComponent
+@org.springframework.context.annotation.Profile("legacy-practice-test")
 @RestController
 /*
  * ⚠ <b>옛 연습 흐름의 코치다.</b> 1.0.0 회차의 대화는 {@code ConversationController}(=`/v2/coach/*`)가 맡고,
@@ -36,13 +41,13 @@ import org.springframework.web.bind.annotation.RestController;
  * 옛 흐름(업로드·연습 세션·리포트)을 내릴 때 함께 사라진다(CONTRACT §6-15).
  */
 @RequestMapping("/v2/legacy-coach")
-class CoachController {
+public class LegacyCoachTestController {
 
     private final CoachService coach;
     private final CanonicalJsonResponse responses;
     private final AccessGate auth;
 
-    CoachController(
+    LegacyCoachTestController(
             CoachService coach,
             CanonicalJsonResponse responses,
             AccessGate auth) {

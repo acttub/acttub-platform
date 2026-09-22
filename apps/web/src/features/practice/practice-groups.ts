@@ -77,7 +77,7 @@ function toRailGroup(group: PracticeGroup): RailGroup {
       ordinal: p.ordinal,
       createdAt: p.created_at,
       title: p.note_title?.trim() || p.situation?.trim() || `${p.ordinal}차 연습`,
-      hasNote: Boolean(p.note_title),
+      hasNote: Boolean(p.note_id),
       conversationCount: p.conversation_count,
       stage: p.stage,
     }));
@@ -86,7 +86,7 @@ function toRailGroup(group: PracticeGroup): RailGroup {
     title: groupTitle(group),
     favorite: group.favorite,
     tags: group.tags,
-    inProgressPracticeId: group.in_progress_practice_id,
+    inProgressPracticeId: group.in_progress_practice_id ?? null,
     newestAt: startedAt(group),
     practices,
   };

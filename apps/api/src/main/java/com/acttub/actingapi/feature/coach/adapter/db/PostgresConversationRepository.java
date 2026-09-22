@@ -73,6 +73,12 @@ class PostgresConversationRepository implements ConversationRepository {
         UUID conversationId = row.get("conversation_id", UUID.class);
         UUID practiceId = row.get("practice_id", UUID.class);
         Number revision = (Number) row.get("state_revision");
+        JsonNode state = json(row.get("state", String.class));
+        // 새 행의 DB 기본값 {}는 아직 대화를 시작하지 않았다는 뜻이다. 엔진은 null을 받아야
+        // 첫 상태를 조립한다. 진행된 상태의 손상을 빈 대화로 바꾸지는 않는다.
+        if (state != null && state.isObject() && state.isEmpty() && revision.longValue() == 0) {
+            state = null;
+        }
         return new Loaded(
                 practiceId,
                 conversationId,
@@ -101,7 +107,7 @@ class PostgresConversationRepository implements ConversationRepository {
                         PriorContext.EMPTY,
                         row.get("experience_version", String.class),
                         revision == null ? 0L : revision.longValue(),
-                        json(row.get("state", String.class)),
+                        state,
                         (ActorProfile) null));
     }
 
@@ -140,6 +146,9 @@ class PostgresConversationRepository implements ConversationRepository {
     @Override
     public void saveOpening(UUID conversationId, String coachMessage, JsonNode state, Instant now) {
         transaction.executeWithoutResult(tx -> {
+            if (!lockActiveOwner(conversationId)) return;
+            entityManager.createNativeQuery("SELECT id FROM coach_conversations WHERE id=:id FOR UPDATE")
+                    .setParameter("id", conversationId).getResultList();
             Number turns = (Number) entityManager.createNativeQuery(
                     "SELECT count(*) FROM coach_messages WHERE conversation_id=:conversationId")
                     .setParameter("conversationId", conversationId)
@@ -169,7 +178,13 @@ class PostgresConversationRepository implements ConversationRepository {
                           AND later.turn_index>m.turn_index
                           AND later.role='ai'
                         ORDER BY later.turn_index
-                        LIMIT 1) AS coach_message
+                        LIMIT 1) AS coach_message,
+                       (SELECT count(*) FROM coach_messages later
+                        WHERE later.conversation_id=m.conversation_id AND later.role='actor'
+                          AND later.turn_index>m.turn_index) AS later_replies,
+                       (SELECT count(*) FROM coach_messages previous
+                        WHERE previous.conversation_id=m.conversation_id
+                          AND previous.turn_index<=m.turn_index+1) AS response_turn_count
                 FROM coach_messages m
                 JOIN coach_conversations c ON c.id=m.conversation_id
                 WHERE m.conversation_id=:conversationId
@@ -183,14 +198,16 @@ class PostgresConversationRepository implements ConversationRepository {
         Tuple row = rows.getFirst();
         String stored = row.get("request_fingerprint", String.class);
         if (stored != null && !fingerprint.equals(stored.strip())) {
-            return new Replay(true, null, null, null, 0L);
+            return new Replay(true, null, null, null, 0L, 0);
         }
+        long laterReplies = ((Number) row.get("later_replies")).longValue();
         return new Replay(
                 false,
                 row.get("coach_message", String.class),
-                row.get("status", String.class),
-                row.get("close_reason", String.class),
-                ((Number) row.get("state_revision")).longValue());
+                laterReplies == 0 ? row.get("status", String.class) : "open",
+                laterReplies == 0 ? row.get("close_reason", String.class) : null,
+                ((Number) row.get("state_revision")).longValue() - laterReplies,
+                ((Number) row.get("response_turn_count")).intValue());
     }
 
     @Override
@@ -206,14 +223,13 @@ class PostgresConversationRepository implements ConversationRepository {
             String closeReason,
             Instant now) {
         return transaction.execute(tx -> {
+            if (!lockActiveOwner(conversationId)) return null;
             // 대화 행과 함께 계정 상태를 본다 — 바깥 호출이 도는 사이에 다른 기기의 탈퇴가 끝났으면 그 뒤에
             // 도착한 코치 응답을 저장하지 않는다(practice.coach, 02-practice 「이관·삭제·탈퇴」). 분석의
             // `PostgresPracticeAnalysisStore.complete` 가 같은 자리에서 같은 확인을 한다.
             List<Tuple> locked = NativeTuples.list(entityManager.createNativeQuery("""
-                    SELECT c.state_revision,c.status,u.status AS account_status
+                    SELECT c.state_revision,c.status
                     FROM coach_conversations c
-                    JOIN practices p ON p.id=c.practice_id
-                    JOIN users u ON u.id=p.user_id
                     WHERE c.id=:conversationId
                     FOR UPDATE OF c
                     """, Tuple.class)
@@ -222,9 +238,6 @@ class PostgresConversationRepository implements ConversationRepository {
                 return null;
             }
             Tuple row = locked.getFirst();
-            if (!"active".equals(row.get("account_status", String.class))) {
-                throw new OwnerNotActive();
-            }
             // 바깥 호출이 도는 사이에 다른 요청이 저장했으면 이번 것은 쓰지 않는다.
             if (((Number) row.get("state_revision")).longValue() != expectedRevision
                     || !"open".equals(row.get("status", String.class))) {
@@ -282,6 +295,7 @@ class PostgresConversationRepository implements ConversationRepository {
     @Override
     public NoteView saveNote(UUID conversationId, NewNote note, Instant now) {
         return transaction.execute(tx -> {
+            if (!lockActiveOwner(conversationId)) return null;
             entityManager.createNativeQuery("""
                     INSERT INTO coach_notes(id,conversation_id,format,kind,title,summary_quotes,next_take,
                                             actor_words,corrections,tags,fallback,source_revision,legacy_report,created_at)
@@ -310,6 +324,34 @@ class PostgresConversationRepository implements ConversationRepository {
                     .executeUpdate();
             return noteOf("n.conversation_id=:id", conversationId);
         });
+    }
+
+    /**
+     * 탈퇴·이관과 같은 사용자 행을 먼저 잠근다. 모델 호출 뒤의 새 주인을 확인하고, 계정 잠금 뒤에도
+     * 주인이 같은지 다시 보므로 이관 직전 읽은 게스트의 상태로 회원의 쓰기를 판단하지 않는다.
+     * 대화 행 잠금은 항상 이 뒤다. 바깥 모델 호출 중에는 어느 잠금도 잡지 않는다.
+     */
+    private boolean lockActiveOwner(UUID conversationId) {
+        while (true) {
+            UUID owner = currentOwner(conversationId);
+            if (owner == null) return false;
+            List<Tuple> users = NativeTuples.list(entityManager.createNativeQuery(
+                            "SELECT status FROM users WHERE id=:id FOR UPDATE", Tuple.class)
+                    .setParameter("id", owner));
+            if (!owner.equals(currentOwner(conversationId))) continue;
+            if (users.isEmpty() || !"active".equals(users.getFirst().get("status", String.class))) {
+                throw new OwnerNotActive();
+            }
+            return true;
+        }
+    }
+
+    private UUID currentOwner(UUID conversationId) {
+        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
+                SELECT p.user_id FROM coach_conversations c JOIN practices p ON p.id=c.practice_id
+                WHERE c.id=:id
+                """, Tuple.class).setParameter("id", conversationId));
+        return rows.isEmpty() ? null : rows.getFirst().get("user_id", UUID.class);
     }
 
     @Override
@@ -414,7 +456,7 @@ class PostgresConversationRepository implements ConversationRepository {
     @Override
     public ConversationView conversation(UUID userId, UUID conversationId) {
         List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT c.id,c.practice_id,c.status,c.close_reason,c.state_revision,c.created_at
+                SELECT c.id,c.practice_id,c.status,c.close_reason,c.state_revision,c.created_at,p.experience_version
                 FROM coach_conversations c
                 JOIN practices p ON p.id=c.practice_id
                 WHERE c.id=:conversationId
@@ -444,6 +486,7 @@ class PostgresConversationRepository implements ConversationRepository {
                 row.get("practice_id", UUID.class),
                 row.get("status", String.class),
                 row.get("close_reason", String.class),
+                row.get("experience_version", String.class),
                 ((Number) row.get("state_revision")).longValue(),
                 row.get("created_at", Instant.class),
                 turns);
@@ -478,7 +521,7 @@ class PostgresConversationRepository implements ConversationRepository {
     private ConversationView legacyConversation(UUID userId, UUID conversationId) {
         List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
                 SELECT cs.id,cs.practice_session_id,cs.status::text AS status,
-                       cs.close_reason::text AS close_reason,cs.state_revision,cs.created_at
+                       cs.close_reason::text AS close_reason,cs.state_revision,cs.created_at,ps.experience_version
                 FROM coach_sessions cs
                 JOIN practice_sessions ps ON ps.id=cs.practice_session_id
                 WHERE cs.id=:conversationId
@@ -507,6 +550,7 @@ class PostgresConversationRepository implements ConversationRepository {
                 row.get("practice_session_id", UUID.class),
                 row.get("status", String.class),
                 row.get("close_reason", String.class),
+                row.get("experience_version", String.class),
                 ((Number) row.get("state_revision")).longValue(),
                 row.get("created_at", Instant.class),
                 turns);

@@ -503,7 +503,9 @@ class PostgresPracticeDataMigration implements PracticeDataMigration {
                             ELSE NULLIF(r.report_json->>'title','') END,
                        '[]'::jsonb,
                        CASE WHEN r.report_type='practice_note'
-                            THEN NULLIF(r.report_json->'practice'->>'instruction','') END,
+                            THEN NULLIF(CASE WHEN jsonb_typeof(r.report_json->'practice'->'instruction')='object'
+                                             THEN r.report_json->'practice'->'instruction'->>'text'
+                                             ELSE r.report_json->'practice'->>'instruction' END,'') END,
                        '[]'::jsonb,'[]'::jsonb,'[]'::jsonb,false,
                        GREATEST(COALESCE(h.state_revision,0),0)::integer,
                        r.report_json,r.created_at

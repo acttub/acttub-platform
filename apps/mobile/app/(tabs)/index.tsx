@@ -68,7 +68,7 @@ export default function HomeScreen() {
           setGroups(r.groups);
           // 연습한 날은 기기에도 쌓아 둔다 — 기록을 숨겨도 "그 날 연습했다"는 사실은 남는다.
           const practicedAt = r.groups
-            .map((g) => g.last_practiced_at)
+            .flatMap((g) => g.practices.map((round) => round.created_at))
             .filter((at): at is string => typeof at === 'string' && at.length > 0)
             .map((created_at) => ({ created_at }));
           void rememberPracticeDays(practicedAt).then((days) => !cancelled && setActivityDays(days));

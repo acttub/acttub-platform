@@ -1,5 +1,5 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -8,7 +8,7 @@ import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { formatKoreanDate } from '@/lib/format';
 import { translate as t } from '@/lib/i18n';
-import { noteFallbackNotice, noteKindLabel, noteSections, noteTitle, quoteSourceLabel } from '@/lib/practice/note';
+import { noteFallbackNotice, noteKindLabel, noteSections, noteTitle, quoteSourceLabel, readOptionalPracticeNote } from '@/lib/practice/note';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 import type { PracticeDetail, PracticeNote } from '@/lib/practice/types';
 
@@ -26,8 +26,10 @@ export default function ReportDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { alert, dialog } = useAppDialog();
+  const loadRevision = useRef(0);
 
   const load = useCallback(async () => {
+    const revision = ++loadRevision.current;
     if (!practiceId) {
       setError(t('note.loadFail'));
       setLoading(false);
@@ -35,18 +37,26 @@ export default function ReportDetailScreen() {
     }
     setLoading(true);
     setError(null);
-    const [loadedNote, loadedPractice] = await Promise.all([
-      api.getPracticeNote(practiceId).catch(() => null),
-      api.getPractice(practiceId).catch(() => null),
-    ]);
-    setNote(loadedNote);
-    setPractice(loadedPractice);
-    if (!loadedNote) setError(t('note.none'));
-    setLoading(false);
+    setNote(null);
+    try {
+      const [loadedNote, loadedPractice] = await Promise.all([
+        readOptionalPracticeNote(api.getPracticeNote, practiceId),
+        api.getPractice(practiceId).catch(() => null),
+      ]);
+      if (revision !== loadRevision.current) return;
+      setNote(loadedNote);
+      setPractice(loadedPractice);
+      if (!loadedNote) setError(t('note.none'));
+    } catch {
+      if (revision === loadRevision.current) setError(t('note.loadFail'));
+    } finally {
+      if (revision === loadRevision.current) setLoading(false);
+    }
   }, [practiceId]);
 
   useEffect(() => {
     void load();
+    return () => { loadRevision.current += 1; };
   }, [load]);
 
   /** 같은 묶음의 다음 회차로. 그 회차의 영상을 그대로 쓴다. */
@@ -55,12 +65,9 @@ export default function ReportDetailScreen() {
       void alert({ title: t('history.continueCta'), message: t('note.loadFail') });
       return;
     }
-    setContinueOrigin({
-      kind: 'history',
-      rootId: practice.root_id,
-      practiceId: practice.id,
-      videoId: practice.video_id,
-    });
+    setContinueOrigin(practice.video_id
+      ? { kind: 'history', rootId: practice.root_id, practiceId: practice.id, videoId: practice.video_id }
+      : { kind: 'group', rootId: practice.root_id, practiceId: practice.id });
     router.push('/upload');
   };
 
@@ -77,6 +84,11 @@ export default function ReportDetailScreen() {
         </View>
       )}
       {!loading && !note && <Text style={styles.error}>{error ?? t('note.none')}</Text>}
+      {!loading && error === t('note.loadFail') && (
+        <Pressable onPress={() => void load()} accessibilityRole="button">
+          <Text style={styles.label}>{t('common.retry')}</Text>
+        </Pressable>
+      )}
       {note && (
         <ScrollView contentContainerStyle={styles.body}>
           <View style={styles.heading}>
@@ -92,9 +104,9 @@ export default function ReportDetailScreen() {
               {section.kind === 'summary' ? (
                 section.quotes.length > 0 ? (
                   section.quotes.map((quote, index) => (
-                    <View style={styles.quote} key={`${index}-${quote.text.slice(0, 8)}`}>
-                      <Text style={styles.quoteText}>{quote.text}</Text>
-                      <Text style={styles.quoteSource}>{quoteSourceLabel(quote.source)}</Text>
+                    <View style={styles.quote} key={`${index}-${quote.quote.slice(0, 8)}`}>
+                      <Text style={styles.quoteText}>{quote.quote}</Text>
+                      <Text style={styles.quoteSource}>{quoteSourceLabel(quote.kind)}</Text>
                     </View>
                   ))
                 ) : (

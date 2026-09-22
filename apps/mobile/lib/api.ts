@@ -68,12 +68,14 @@ import type {
   GroupPatch,
   Practice,
   PracticeDetail,
-  PracticeGroup,
   PracticeGroupDetail,
   PracticeGroupFilter,
+  PracticeGroupResponse,
   PracticeNote,
+  PracticeResponse,
   PracticeStatus,
 } from '@/lib/practice/types';
+import { practiceGroupFromResponse } from '@/lib/practice/groups';
 import type {
   CreateScriptBody,
   LineMemorization,
@@ -97,7 +99,7 @@ export { ApiError, NetworkError, RequestAbortError } from '@/lib/api-request';
  * v1(Render, X-API-Key) → v2(Bearer JWT)로 전환.
  * - 인증: 소셜 로그인으로 받은 access/refresh 토큰. 401 시 refresh로 1회 자동 재발급 후 재시도.
  * - 업로드: multipart 직접 전송이 아니라 intent → presigned URL PUT → complete.
- * - 분석: 비동기 — practice-session 생성 후 상태를 폴링해 analyzed까지 기다린다.
+ * - 분석: 비동기 — 회차 생성 후 상태를 폴링해 ready·partial 결과를 기다린다.
  */
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://dev.acttub.com';
 // 요청마다 보내는 클라이언트 종류와 판(X-Acttub-Client). 판은 app.json의 version이다.
@@ -122,7 +124,7 @@ const requestClient = createApiRequestClient({
 
 // ─── 도메인 타입 ────────────────────────────────────────────────────────────
 
-/** 앱 내부 표현. API로 보낼 땐 character → character_context 로 매핑한다. */
+/** 상황·인물·목표. 시작 요청의 scene과 같은 모양이다. */
 export type SceneContext = {
   situation: string;
   character: string;
@@ -139,35 +141,12 @@ export type BlockageSelection = {
   blockage_detail: string | null;
 };
 
-export type SceneSummary = {
-  summary_id: string;
-  observations: {
-    start_ms: number;
-    end_ms: number;
-    label: string;
-    confidence: number;
-  }[];
-  uncertainties: string[];
-};
-
-export type CoachTurnResponse = {
-  session_id: string;
-  message: string | null;
-  status: 'continue' | 'complete';
-  handoff: { id: string; branch_kind: 'analysis' | 'expression' | 'coaching' } | null;
-  /** 대화가 정리돼 카드가 만들어졌으면 함께 온다. status==='complete' 여도 없을 수 있다. */
-  report: PracticeReport | null;
-  turns: CoachTurn[];
-};
-
-export type CoachTurn = { role: 'ai' | 'actor'; text: string };
-
 /** 코치가 배우에 대해 기억하고 있는 한 칸. */
 export type MemoryItem = {
   field: MemoryField;
   value: string;
-  /** actor 면 배우가 직접 쓰거나 고친 칸이다. 코치(agent)는 이 칸을 덮지 않는다. */
-  written_by: 'actor' | 'agent';
+  /** 참이면 배우가 직접 쓰거나 고친 칸이다. 코치는 이 칸을 덮지 않는다. */
+  written_by_actor: boolean;
   /** 이 말이 나온 회차. 그 연습이 숨겨졌으면 null 이라 링크만 없다. */
   source_practice_id: string | null;
   updated_at: string;
@@ -242,19 +221,6 @@ export type PublicPracticeNote = {
   evidence: { id: string; kind: 'video_utterance' | 'video_observation' | 'record_limitation'; text: string; start_ms: number | null; end_ms: number | null }[];
 };
 
-export type VideoRecordSummary = {
-  schema_version: 'acttub.video_record_summary.v1';
-  record_id: string;
-  record_version: number;
-  duration_ms: number;
-  status: 'ready' | 'partial';
-  processed_ranges: { start_ms: number; end_ms: number }[];
-  missing_ranges: { start_ms: number; end_ms: number }[];
-  observed_scene: string[];
-  spoken_content: string[];
-  limitations: { start_ms: number; end_ms: number; description: string }[];
-};
-
 export type BlockedReport = {
   report_type: 'blocked';
   reason:
@@ -263,34 +229,6 @@ export type BlockedReport = {
 };
 
 export type PracticeReport = AnalysisReport | ExpressionReport | BlockedReport | PublicPracticeNote;
-export type SavedPracticeReport = AnalysisReport | ExpressionReport | PublicPracticeNote;
-
-export type CoachConfirmResponse = {
-  session_id: string;
-  confirmed: boolean;
-  handoff: CoachTurnResponse['handoff'];
-  report: PracticeReport;
-};
-
-export type ReportRecord = {
-  practice_session_id: string;
-  report_type: 'analysis' | 'expression' | 'practice_note';
-  title: string;
-  created_at: string;
-};
-
-export type ReportDetail = {
-  practice_session_id: string;
-  created_at: string;
-  report: SavedPracticeReport;
-  playback_url: string;
-};
-
-export type ReportHistoryResponse = {
-  count: number;
-  reports: ReportRecord[];
-};
-
 // ─── 인증 타입 ──────────────────────────────────────────────────────────────
 
 export type AuthUser = {
@@ -339,44 +277,6 @@ export type MeResponse = AuthUser & {
   account_type: 'member' | 'guest';
   profile_complete: boolean;
   profile: ServerProfile | null;
-};
-
-// ─── 업로드 / 세션 타입 ──────────────────────────────────────────────────────
-
-export type SessionStatus = 'analyzing' | 'analyzed' | 'failed';
-
-export type PracticeSessionListItem = {
-  session_id: string;
-  status: SessionStatus;
-  situation: string;
-  character_context: string;
-  goal: string;
-  blockage_kind: '분석' | '표현' | '그 외';
-  sub_branch: string;
-  blockage_detail?: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-export type PracticeSessionDetail = {
-  session_id: string;
-  status: SessionStatus;
-  situation: string;
-  character_context: string;
-  goal: string;
-  blockage_kind: '분석' | '표현' | '그 외';
-  sub_branch: string;
-  blockage_detail?: string | null;
-  created_at: string;
-  updated_at: string;
-  playback_url?: string;
-  summary?: SceneSummary | VideoRecordSummary | null;
-  error_code?:
-    | 'gemini_timeout'
-    | 'gemini_parse_error'
-    | 'unsupported_media'
-    | 'max_attempts_exceeded'
-    | null;
 };
 
 // ─── 공통 요청 ────────────────────────────────────────────────────────────────
@@ -903,7 +803,7 @@ export const api = {
   },
 
   // 영상 보관함 -----------------------------------------------------------------
-  // 경로·필드는 연습 스펙의 API 표(계획안)다. api 갈래(PA1)가 계약을 굳히면 lib/library/types 와 함께 맞춘다.
+  // VideoDtos와 OpenAPI의 보관함 계약을 따른다.
   /**
    * 올릴 자리 받기(practice.record). 예약 장부가 request_id 를 보존해 재전송이 같은 자리를 돌려준다.
    * 100MiB·5분 초과는 422 video_too_large·video_too_long, 총량 초과는 422 video_quota.
@@ -925,13 +825,15 @@ export const api = {
   },
 
   /** 내 영상, 최신 저장순. 예시 영상은 섞지 않는다. filter 는 all·recent7·favorite. */
-  listVideos(filter: VideoFilter = 'all'): Promise<VideoListResponse> {
-    return request<VideoListResponse>(`/v2/videos?filter=${filter}`, {}, { timeoutMs: 20_000 });
+  listVideos(filter: VideoFilter = 'all', cursor?: string): Promise<VideoListResponse> {
+    const query = new URLSearchParams({ filter });
+    if (cursor) query.set('cursor', cursor);
+    return request<VideoListResponse>(`/v2/videos?${query}`, {}, { timeoutMs: 20_000 });
   },
 
   /** 상세 — 서명 재생 주소(10분, 만료 시 재조회)와 사용처. 없는 것·남의 것은 404. */
-  getVideo(videoId: string): Promise<Video> {
-    return request<Video>(`/v2/videos/${encodeURIComponent(videoId)}`, {}, { timeoutMs: 20_000 });
+  getVideo(videoId: string, options: ApiCallOptions = {}): Promise<Video> {
+    return request<Video>(`/v2/videos/${encodeURIComponent(videoId)}`, {}, { timeoutMs: 20_000, signal: options.signal });
   },
 
   setVideoFavorite(videoId: string, favorite: boolean): Promise<Video> {
@@ -1031,41 +933,52 @@ export const api = {
   },
 
   /** 묶음 목록. 진행 중 회차 id 가 있으면 그 회차로 복귀시킨다. */
-  listPracticeGroups(
+  async listPracticeGroups(
     filter: PracticeGroupFilter = 'all',
     options: ApiCallOptions = {},
-  ): Promise<{ groups: PracticeGroup[] }> {
-    return request<{ groups: PracticeGroup[] }>(
+  ): Promise<{ groups: PracticeGroupDetail[] }> {
+    const response = await request<{ groups: PracticeGroupResponse[] }>(
       `/v2/practices?filter=${filter}`,
       {},
       { timeoutMs: 20_000, signal: options.signal },
     );
+    return { groups: response.groups.map(practiceGroupFromResponse) };
   },
 
-  getPractice(practiceId: string, options: ApiCallOptions = {}): Promise<PracticeDetail> {
-    return request<PracticeDetail>(
+  async getPractice(practiceId: string, options: ApiCallOptions = {}): Promise<PracticeDetail> {
+    const practice = await request<PracticeResponse>(
       `/v2/practices/${encodeURIComponent(practiceId)}`,
       {},
       { timeoutMs: 20_000, signal: options.signal },
     );
+    // 재생은 독립 자산에서 읽는다. 파일 조회가 실패해도 장면·노트·대화는 열 수 있다.
+    const video = practice.video_id ? await api.getVideo(practice.video_id, options).catch(() => null) : null;
+    return {
+      ...practice,
+      scene: { situation: practice.situation, character: practice.character, goal: practice.goal },
+      blockage: { category: practice.blockage_category, detail: practice.blockage_detail, note: practice.blockage_note },
+      playback_url: video?.purged_at ? null : video?.playback_url ?? null,
+      video_purged: Boolean(video?.purged_at),
+    };
   },
 
   /** 묶음 상세(A1.2) — 회차 흐름·마지막 대화·영상. */
-  getPracticeGroup(rootId: string, options: ApiCallOptions = {}): Promise<PracticeGroupDetail> {
-    return request<PracticeGroupDetail>(
-      `/v2/practices/${encodeURIComponent(rootId)}/group`,
-      {},
-      { timeoutMs: 20_000, signal: options.signal },
-    );
+  async getPracticeGroup(rootId: string, options: ApiCallOptions = {}): Promise<PracticeGroupDetail> {
+    // 서버는 묶음 전체를 목록에 싣는다. /{root_id}/group은 PATCH 전용이다.
+    const { groups } = await api.listPracticeGroups('all', options);
+    const group = groups.find(item => item.root_id === rootId);
+    if (!group) throw new ApiError(404, translate('history.groupLoadFail'), 'practice_not_found');
+    return group;
   },
 
   /** 묶음 속성(즐겨찾기·숨김·제목). 숨김은 묶음 전체이고 노트·대화·기억은 지우지 않는다. */
-  patchPracticeGroup(rootId: string, patch: GroupPatch): Promise<PracticeGroup> {
-    return request<PracticeGroup>(
+  async patchPracticeGroup(rootId: string, patch: GroupPatch): Promise<PracticeGroupDetail> {
+    const group = await request<PracticeGroupResponse>(
       `/v2/practices/${encodeURIComponent(rootId)}/group`,
       { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) },
       { timeoutMs: 20_000 },
     );
+    return practiceGroupFromResponse(group);
   },
 
   /** 회차 진행 상태(A10 폴링). 작업 상태와 분석 결과 상태는 다른 것이다. */
@@ -1090,11 +1003,12 @@ export const api = {
    * 실패한 회차를 명시적으로 다시 시도한다 — 새 작업이 생기고 stage 가 analyzing 으로 돌아간다.
    * 다른 진행 중 회차가 있으면 409 practice_in_progress.
    */
-  retryPracticeAnalysis(practiceId: string, options: ApiCallOptions = {}): Promise<Practice> {
-    return request<Practice>(
+  retryPracticeAnalysis(practiceId: string, options: ApiCallOptions & { requestId?: string } = {}): Promise<Practice> {
+    const requestId = options.requestId ?? randomId();
+    return postIdempotent<Practice>(
       `/v2/practices/${encodeURIComponent(practiceId)}/analyze`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
-      { requestId: true, timeoutMs: 30_000, signal: options.signal },
+      { request_id: requestId },
+      { requestId, timeoutMs: 30_000, signal: options.signal },
     );
   },
 
@@ -1146,8 +1060,8 @@ export const api = {
    * 자동 노출 표식을 원자적으로 선점한다. 선점한 기기만 시트를 띄운다(두 기기가 동시에
    * 물어도 하나만). 이미 물어본 계정이면 asked_now 가 거짓이다.
    */
-  claimFeedbackAsk(): Promise<{ asked_now: boolean }> {
-    return request<{ asked_now: boolean }>(
+  claimFeedbackAsk(): Promise<{ asked: boolean; asked_now: boolean }> {
+    return request<{ asked: boolean; asked_now: boolean }>(
       '/v2/me/practice-feedback/claim',
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
       { requestId: true, timeoutMs: 15_000 },
