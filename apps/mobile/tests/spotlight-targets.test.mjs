@@ -5,6 +5,8 @@ import {
   TARGET,
   clearTargetRect,
   onTargetsChanged,
+  registerMeasure,
+  remeasureTargets,
   setTargetRect,
   targetRect,
 } from '../lib/spotlight-targets.ts';
@@ -38,6 +40,23 @@ test('자리가 바뀌면 알려 준다', () => {
   setTargetRect(TARGET.shoot, { x: 0, y: 20, width: 58, height: 58 });
   assert.equal(calls, 2);
   clearTargetRect(TARGET.shoot);
+});
+
+test('가이드를 띄울 때 맡겨 둔 자리를 다시 잰다 — 첫 배치 값은 제자리가 아닐 수 있다', () => {
+  let measured = 0;
+  const off = registerMeasure(TARGET.homeStart, () => {
+    measured += 1;
+    setTargetRect(TARGET.homeStart, { x: 20, y: 330, width: 350, height: 72 });
+  });
+  // 첫 배치에서 화면 맨 위로 잘못 잡혀 있었다고 하자.
+  setTargetRect(TARGET.homeStart, { x: 20, y: 0, width: 350, height: 72 });
+  remeasureTargets();
+  assert.equal(measured, 1);
+  assert.equal(targetRect(TARGET.homeStart).y, 330);
+  off();
+  remeasureTargets();
+  assert.equal(measured, 1);
+  clearTargetRect(TARGET.homeStart);
 });
 
 test('이름표는 서로 다르다', () => {

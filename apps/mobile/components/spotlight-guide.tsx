@@ -14,7 +14,7 @@ import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { captionTop, holeOf, shroudRects, stepAfter } from '@/lib/guide-spotlight';
 import { translate as t } from '@/lib/i18n';
-import { onTargetsChanged, targetRect } from '@/lib/spotlight-targets';
+import { onTargetsChanged, remeasureTargets, targetRect } from '@/lib/spotlight-targets';
 
 export type SpotlightStep = {
   /** 비출 요소의 이름표 ({@code lib/spotlight-targets} 의 TARGET). */
@@ -57,6 +57,15 @@ export function SpotlightGuide({
   const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => onTargetsChanged(refresh), []);
+
+  // 띄우는 순간 자리를 다시 잰다 — 첫 배치 때 잰 값은 제자리가 아닐 수 있다.
+  // 한 박자 뒤 한 번 더 재서, 화면이 막 열리는 중이라 아직 안 잡힌 경우까지 받는다.
+  useEffect(() => {
+    if (!visible) return;
+    remeasureTargets();
+    const again = setTimeout(remeasureTargets, 250);
+    return () => clearTimeout(again);
+  }, [visible, index]);
 
   useEffect(() => {
     if (!visible) {

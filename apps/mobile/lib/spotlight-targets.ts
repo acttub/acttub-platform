@@ -12,6 +12,7 @@ export type TargetRect = { x: number; y: number; width: number; height: number }
 
 const rects = new Map<string, TargetRect>();
 const listeners = new Set<() => void>();
+const measurers = new Map<string, () => void>();
 
 /** 다 그려진 뒤 자기 자리를 적는다. 같은 자리면 알리지 않는다 — 다시 그릴 일이 없다. */
 export function setTargetRect(id: string, rect: TargetRect): void {
@@ -37,6 +38,24 @@ export function targetRect(id: string): TargetRect | null {
 export function clearTargetRect(id: string): void {
   if (!rects.delete(id)) return;
   listeners.forEach((fn) => fn());
+}
+
+/**
+ * 자기 자리를 다시 재는 법을 맡겨 둔다. 끊는 함수를 돌려준다.
+ *
+ * <p>맨 처음 재는 값은 믿을 수 없다 — 목록 안의 요소는 첫 배치 때 아직 제자리가 아니라
+ * 화면 맨 위(0)로 잡히는 일이 있다. 그래서 가이드를 띄우는 순간 한 번 더 재게 한다.
+ */
+export function registerMeasure(id: string, measure: () => void): () => void {
+  measurers.set(id, measure);
+  return () => {
+    if (measurers.get(id) === measure) measurers.delete(id);
+  };
+}
+
+/** 지금 화면에 있는 자리들을 모두 다시 잰다. 가이드가 열릴 때 부른다. */
+export function remeasureTargets(): void {
+  measurers.forEach((measure) => measure());
 }
 
 /** 자리가 바뀌면 알려 준다(화면 회전·탭 전환). 끊는 함수를 돌려준다. */
