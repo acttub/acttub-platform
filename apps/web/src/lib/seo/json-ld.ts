@@ -1,6 +1,10 @@
 import { APP_STORE_URL, GOOGLE_PLAY_URL } from "../app-download/store-links";
 import type { KeywordPageContent } from "@/features/keyword-pages/types";
-import { resolveSiteUrl, SITE_DESCRIPTION } from "./site-metadata";
+import {
+  BRAND_ALTERNATE_NAMES,
+  resolveSiteUrl,
+  SITE_DESCRIPTION,
+} from "./site-metadata";
 
 function resolveSchemaUrls(siteUrl?: string) {
   const baseUrl = resolveSiteUrl(siteUrl);
@@ -114,6 +118,8 @@ export function buildOrganizationJsonLd(siteUrl?: string) {
     "@type": "Organization",
     "@id": organizationId,
     name: "Acttub",
+    // 한글로 브랜드를 검색하는 사람이 많다 — 구글에 같은 이름임을 알린다.
+    alternateName: [...BRAND_ALTERNATE_NAMES],
     url: homepageUrl,
     // 스토어 두 곳을 sameAs 로 잇는다 — 검색엔진이 웹과 앱을 같은 서비스로 묶는 근거다.
     sameAs: [
@@ -133,6 +139,8 @@ export function buildWebSiteJsonLd(siteUrl?: string) {
     "@type": "WebSite",
     "@id": `${resolveSiteUrl(siteUrl)}/#website`,
     name: "Acttub",
+    // 한글로 브랜드를 검색하는 사람이 많다 — 구글에 같은 이름임을 알린다.
+    alternateName: [...BRAND_ALTERNATE_NAMES],
     url: homepageUrl,
     inLanguage: "ko",
     publisher: { "@id": organizationId },
@@ -163,6 +171,8 @@ export function buildMobileApplicationJsonLd(siteUrl?: string) {
     "@type": "MobileApplication",
     "@id": `${baseUrl}/#app-${app.id}`,
     name: "Acttub",
+    // 한글로 브랜드를 검색하는 사람이 많다 — 구글에 같은 이름임을 알린다.
+    alternateName: [...BRAND_ALTERNATE_NAMES],
     url: `${baseUrl}/app`,
     description: SITE_DESCRIPTION,
     applicationCategory: "EducationalApplication",
@@ -182,6 +192,8 @@ export function buildSoftwareApplicationJsonLd(siteUrl?: string) {
     "@type": "SoftwareApplication",
     "@id": `${resolveSiteUrl(siteUrl)}/#app`,
     name: "Acttub",
+    // 한글로 브랜드를 검색하는 사람이 많다 — 구글에 같은 이름임을 알린다.
+    alternateName: [...BRAND_ALTERNATE_NAMES],
     url: homepageUrl,
     description: SITE_DESCRIPTION,
     applicationCategory: "EducationalApplication",

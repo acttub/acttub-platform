@@ -4,10 +4,19 @@ import { loadAdmissionsStatic } from "@/features/admissions/admissions-static";
 import type { AdmissionsResponse } from "@/lib/api/v2/admissions";
 
 const DEFAULT_SITE_URL = "https://acttub.com";
-const DEFAULT_TITLE = "Acttub — AI 연기 코칭, 질문으로 다시 보는 연기 연습";
+/**
+ * 한글 표기. 스토어 앱 이름이 "Acttub(액터브)"라 본문 표기는 "액터브"로 맞춘다.
+ * "엑터브"는 사람들이 실제로 치는 오타 변형이라 구조화 데이터의 alternateName 에만 둔다
+ * (본문에 둘 다 적으면 문서가 지저분해지고, 구글은 alternateName 으로 같은 브랜드임을 안다).
+ */
+export const BRAND_NAME_KO = "액터브";
+export const BRAND_ALTERNATE_NAMES = ["액터브", "엑터브"] as const;
+
+const DEFAULT_TITLE =
+  "Acttub(액터브) — AI 연기 코칭, 질문으로 다시 보는 연기 연습";
 
 export const SITE_DESCRIPTION =
-  "AI 연기 코칭 앱 Acttub. 내 연기 영상을 올리면 장면 맥락에서 확인한 단서가 질문으로 돌아와요. 질문으로 연기 장면을 다시 생각하는 연기 연습 도구예요.";
+  "AI 연기 코칭 앱 Acttub(액터브). 내 연기 영상을 올리면 장면 맥락에서 확인한 단서가 질문으로 돌아와요. 질문으로 연기 장면을 다시 생각하는 연기 연습 도구예요.";
 
 // 검색엔진 소유권 확인 값은 페이지 소스에 그대로 공개되는 값이라 코드에 둔다.
 export const GOOGLE_SITE_VERIFICATION =
@@ -133,7 +142,7 @@ export function buildLandingMetadata(siteUrl?: string): Metadata {
 export const APP_DOWNLOAD_TITLE = "앱 다운로드";
 
 export const APP_DOWNLOAD_DESCRIPTION =
-  "acttub 앱을 App Store와 Google Play에서 받을 수 있어요. 연습실에서 찍은 영상을 폰에서 바로 올리고 질문에 말로 답해요.";
+  "Acttub(액터브) 앱을 App Store와 Google Play에서 받을 수 있어요. 연습실에서 찍은 영상을 폰에서 바로 올리고 질문에 말로 답해요.";
 
 /**
  * `/app`은 랜딩과 함께 색인되는 두 번째 공개 페이지다. 인스타그램 프로필 링크가 이 주소를
