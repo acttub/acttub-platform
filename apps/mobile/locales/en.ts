@@ -97,6 +97,8 @@ const en: DeepStringShape<typeof ko> = {
     s3Title: 'Leave one thing for next time',
     s3Body: 'Your practice note ends with one thing to try in the next take. Shoot, look back, again.',
     s4Title: 'Script reading & line challenges',
+    s4TitleGlobal: 'Script reading, too',
+    s4BodyGlobal: 'Paste a script and the app reads the other roles aloud, so you can run a scene on your own.',
     s4Body: 'Paste a script and the app reads the other roles; take on today’s line alongside other actors.',
   },
   tabs: {

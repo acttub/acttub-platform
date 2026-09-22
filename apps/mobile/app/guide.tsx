@@ -16,9 +16,18 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { markGuideSeen } from '@/lib/guide-state';
-import { translate as t } from '@/lib/i18n';
+import { isKorean, translate as t } from '@/lib/i18n';
 
 type Slide = { key: string; icon: React.ComponentProps<typeof Ionicons>['name']; tint: string; bg: string };
+
+/**
+ * 넷째 장의 문구 키. 대사 챌린지는 올라오는 대사가 전부 한국어라 한국어로 쓰는 사람에게만
+ * 보인다(SOMA-544) — 안 보이는 기능을 설명하지 않도록 그쪽은 대본 리딩만 이야기한다.
+ */
+function textKey(slide: Slide, part: 'Title' | 'Body'): string {
+  const global = slide.key === 's4' && !isKorean();
+  return `guide.${slide.key}${part}${global ? 'Global' : ''}`;
+}
 
 const SLIDES: Slide[] = [
   { key: 's1', icon: 'videocam-outline', tint: palette.blue, bg: palette.blueSoft },
@@ -80,8 +89,8 @@ export default function GuideScreen() {
             <View style={[styles.iconWrap, { backgroundColor: item.bg }]}>
               <Ionicons name={item.icon} size={64} color={item.tint} />
             </View>
-            <Text style={styles.title}>{t(`guide.${item.key}Title`)}</Text>
-            <Text style={styles.body}>{t(`guide.${item.key}Body`)}</Text>
+            <Text style={styles.title}>{t(textKey(item, 'Title'))}</Text>
+            <Text style={styles.body}>{t(textKey(item, 'Body'))}</Text>
           </View>
         )}
       />
