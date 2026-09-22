@@ -18,6 +18,7 @@ import com.acttub.actingapi.feature.practice.domain.SessionDetail;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.CanonicalJson;
 import com.fasterxml.jackson.databind.JsonNode;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 /**
@@ -51,18 +52,21 @@ public class PracticeSessionService {
     private final PracticePlayback playback;
     private final Clock clock;
     private final CanonicalJson canonical;
+    private final boolean guestDailyAnalysisLimitEnabled;
 
     public PracticeSessionService(
             PracticeSessionLedger operations,
             PracticeSessionRepository sessions,
             PracticePlayback playback,
             Clock clock,
-            CanonicalJson canonical) {
+            CanonicalJson canonical,
+            @Value("${ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED:true}") boolean guestDailyAnalysisLimitEnabled) {
         this.operations = operations;
         this.sessions = sessions;
         this.playback = playback;
         this.clock = clock;
         this.canonical = canonical;
+        this.guestDailyAnalysisLimitEnabled = guestDailyAnalysisLimitEnabled;
     }
 
     /**
@@ -70,10 +74,10 @@ public class PracticeSessionService {
      * 새 연습의 분석과 실패한 분석의 재요청을 함께 센다. 같은 요청의 재시도는 세지 않는다.
      *
      * <p>세는 일은 원장이 작업을 만드는 트랜잭션 안에서 한다 — 여기서 미리 세면 겹쳐 온 요청이 같은 수를
-     * 보고 함께 지나간다. 회원에게는 한도가 없다.
+     * 보고 함께 지나간다. 회원에게는 한도가 없다. dev는 환경 설정으로 게스트의 일일 한도도 끈다.
      */
     private PracticeSessionLedger.AnalysisQuota dailyQuota(boolean guest) {
-        if (!guest) {
+        if (!guest || !guestDailyAnalysisLimitEnabled) {
             return null;
         }
         OffsetDateTime midnight = clock.instant().atZone(SEOUL).toLocalDate().atStartOfDay(SEOUL).toOffsetDateTime();

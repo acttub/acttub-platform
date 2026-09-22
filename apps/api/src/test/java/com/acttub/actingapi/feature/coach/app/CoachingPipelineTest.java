@@ -99,13 +99,14 @@ class CoachingPipelineTest {
 
     @Test void openingRegenerationKeepsTheOpeningTaskWithoutReclassifying() {
         AtomicInteger calls = new AtomicInteger();
+        String message = "왜 “지금은 아니에요. 나중이라고요.”로 말이 바뀌나요? 상대에게 원하는 것을 말해 주세요.";
         var result = engine((prompt, text) -> {
             JsonNode input = StructuredJson.parse(text);
             int stage = calls.getAndIncrement();
             if (stage == 0) return out(StructuredJson.MAPPER.createObjectNode().put("route", "respond"));
             assertThat(prompt).contains(StructuredJson.textResource("/coaching/routes/opening.txt"));
             assertThat(prompt).doesNotContain(StructuredJson.textResource("/coaching/routes/respond.txt"));
-            ObjectNode response = draft(input, "이 장면에서 상대가 남아 있어야 하는 이유는 무엇인가요?");
+            ObjectNode response = draft(input, message);
             if (stage == 1) response.putArray("evidence_refs").add("missing-source");
             else {
                 assertThat(stage).isEqualTo(2);
@@ -115,7 +116,7 @@ class CoachingPipelineTest {
         }).start(session(), UUID.randomUUID());
         assertThat(calls).hasValue(3);
         assertThat(result.session().turns()).hasSize(1);
-        assertThat(result.reply().message()).isEqualTo("이 장면에서 상대가 남아 있어야 하는 이유는 무엇인가요?");
+        assertThat(result.reply().message()).isEqualTo(message);
     }
 
     @ParameterizedTest

@@ -96,6 +96,23 @@ class CoachSessionRepositoryIT {
 
     CoachStorageFixtures fixtures;
 
+    @Autowired
+    PostgresCoachVideoSource videos;
+
+    @Test
+    void directVideoSourceRequiresTheOwnedVisiblePractice() {
+        UUID user = fixtures.insertUser();
+        var practice = fixtures.insertPractice(user);
+        jdbc.update("UPDATE upload_intents SET etag = 'original-etag' WHERE id = ?", practice.uploadId());
+        var video = videos.find(user, practice.id());
+        assertThat(video.objectKey()).isEqualTo("uploads/" + practice.uploadId() + ".mp4");
+        assertThat(video.mimeType()).isEqualTo("video/mp4");
+        assertThat(video.etag()).isEqualTo("original-etag");
+        assertThat(videos.find(fixtures.insertUser(), practice.id())).isNull();
+        assertThat(videos.find(user, fixtures.insertPractice(user, true).id())).isNull();
+        assertThat(videos.find(user, UUID.randomUUID())).isNull();
+    }
+
     @BeforeEach
     void setUp() {
         fixtures = new CoachStorageFixtures(jdbc);
