@@ -81,7 +81,7 @@ const COPY = {
   },
   footer: {
     description:
-      "질문으로 다시 보는 연기 연습. 웹에서 해 본 연습은 코드 하나로 앱에 옮겨 이어서 해요.",
+      "Acttub(액터브)은 질문으로 다시 보는 연기 연습 도구예요. 웹에서 해 본 연습은 코드 하나로 앱에 옮겨 이어서 해요.",
     instagram: "인스타그램",
     email: "acttub0527@gmail.com",
   },
