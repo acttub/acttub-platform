@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
 
 import { createDeviceFileLedger, withTemporaryFiles } from './device-files';
-import { isSpeechFileName } from './reading/tts/speech-file';
+import { isSpeechFileName, isSpeechFileOfScript } from './reading/tts/speech-file';
 
 /**
  * 이 기기에 만든 계정 자료 파일(account.withdraw). 무엇을 언제 지우는지는 device-files 가 정하고,
@@ -42,4 +42,16 @@ export async function listSpeechFiles(): Promise<string[]> {
   if (!directory) return [];
   const names = await FileSystem.readDirectoryAsync(directory);
   return names.filter(isSpeechFileName).map((name) => directory + name);
+}
+
+/** 대본 하나를 지울 때 그 대본의 음성도 같이 지운다 (SOMA-547). */
+export async function deleteSpeechFilesOfScript(scriptId: string): Promise<void> {
+  const directory = FileSystem.cacheDirectory;
+  if (!directory) return;
+  const names = await FileSystem.readDirectoryAsync(directory).catch(() => [] as string[]);
+  await Promise.all(
+    names
+      .filter((name) => isSpeechFileOfScript(name, scriptId))
+      .map((name) => deleteDeviceFile(directory + name).catch(() => undefined)),
+  );
 }

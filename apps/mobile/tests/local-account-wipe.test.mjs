@@ -157,10 +157,20 @@ test('account.logout: 로그아웃은 계정 캐시(이름, 동의 상태)만 �
 });
 
 test('account.withdraw: 음성 합성 파일은 엔진이 만든 이름 그대로 다시 찾고, 다른 캐시 파일은 건드리지 않는다', async () => {
-  const { isSpeechFileName, speechFileName } = await import('../lib/reading/tts/speech-file.ts');
+  const { isSpeechFileName, isSpeechFileOfScript, speechFileName, speechScriptFileName } =
+    await import('../lib/reading/tts/speech-file.ts');
 
+  // 옛 이름(시각으로 지은 것)도 계속 찾는다 — 기기에 남아 있다.
   assert.equal(isSpeechFileName(speechFileName(1789000000000)), true);
+  // 지금 이름(대본 + 내용으로 지은 것)도 찾는다 (SOMA-547).
+  assert.equal(isSpeechFileName(speechScriptFileName('script-1', 'abc123')), true);
+
   for (const other of ['reading-.wav', 'reading-12.wav.bak', 'recording-1.m4a', 'ExponentAsset-font.ttf']) {
     assert.equal(isSpeechFileName(other), false, other);
   }
+
+  // 대본 하나만 지울 때 남의 대본 음성을 가져가지 않는다.
+  assert.equal(isSpeechFileOfScript(speechScriptFileName('script-1', 'k'), 'script-1'), true);
+  assert.equal(isSpeechFileOfScript(speechScriptFileName('script-2', 'k'), 'script-1'), false);
+  assert.equal(isSpeechFileOfScript('recording-1.m4a', 'script-1'), false);
 });
