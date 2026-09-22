@@ -80,7 +80,8 @@ class ConsentPublisherIT {
                     assertThat(((Number) row.get("body_length")).intValue()).isPositive();
                 });
         assertThat(jdbc.queryForObject(
-                "SELECT title FROM consent_documents WHERE type='privacy'", String.class))
+                // 번역본도 같은 종류로 올라온다 — 제목의 정본은 한국어 행이다 (SOMA-544).
+                "SELECT title FROM consent_documents WHERE type='privacy' AND locale='ko'", String.class))
                 .as("privacy 는 동의를 받는 문서다. 처리방침은 고지라 이 목록에 없다")
                 .isEqualTo("개인정보 수집·이용 동의");
         assertThat(publisher.publish()).as("같은 판이면 행이 늘지 않는다").isZero();
