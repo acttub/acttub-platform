@@ -49,11 +49,13 @@ class GeminiDirectVideoModelTest {
                     .isEqualTo("코칭 지침");
             assertThat(request.get().path("generationConfig").has("responseMimeType")).isFalse();
             model.classify(List.of(new DirectVideoModel.Message("model", "첫 질문"),
-                            new DirectVideoModel.Message("user", "배우의 답")), "분류 지침", List.of("intention", "correction", "unsure", "method", "acknowledgement"));
+                            new DirectVideoModel.Message("user", "배우의 답")), "분류 지침", List.of("intention", "correction", "unsure", "method", "acknowledgement", "other"));
             JsonNode config = request.get().path("generationConfig");
             assertThat(config.path("responseMimeType").asText()).isEqualTo("application/json");
             assertThat(config.path("responseJsonSchema").path("properties").path("signals").path("items").path("enum").size())
-                    .isEqualTo(5);
+                    .isEqualTo(6);
+            assertThat(config.path("responseJsonSchema").path("properties").path("signals").path("items").path("enum").get(5).asText())
+                    .isEqualTo("other");
             assertThat(request.get().path("contents")).hasSize(1);
             assertThat(request.get().path("contents").get(0).path("role").asText()).isEqualTo("user");
             JsonNode transcript = mapper.readTree(request.get().path("contents").get(0).path("parts").get(0).path("text").asText());

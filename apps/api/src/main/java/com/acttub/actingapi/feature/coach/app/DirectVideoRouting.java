@@ -20,7 +20,7 @@ import com.acttub.actingapi.platform.observability.LlmTokens;
 
 /** Classifies actor messages separately, then selects prompts in code. Model labels never close a session. */
 final class DirectVideoRouting {
-    static final List<String> CATEGORIES = List.of("intention", "correction", "unsure", "method", "acknowledgement");
+    static final List<String> CATEGORIES = List.of("intention", "correction", "unsure", "method", "acknowledgement", "other");
     private final DirectVideoModel model;
     private final FailureReporter failures;
     private final Consumer<LlmCall> record;
@@ -83,9 +83,9 @@ final class DirectVideoRouting {
             return List.of(DirectVideoRoute.CORRECTION);
         }
         for (var route : List.of(DirectVideoRoute.UNSURE, DirectVideoRoute.METHOD,
-                DirectVideoRoute.INTENTION, DirectVideoRoute.ACKNOWLEDGEMENT)) {
+                DirectVideoRoute.INTENTION, DirectVideoRoute.OTHER, DirectVideoRoute.ACKNOWLEDGEMENT)) {
             if (signals.contains(route)) return List.of(route);
         }
-        return List.of(DirectVideoRoute.GENERAL);
+        return List.of(DirectVideoRoute.OTHER);
     }
 }

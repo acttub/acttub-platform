@@ -32,7 +32,7 @@ class DirectVideoRoutingTest {
         assertThat(telemetry.calls()).isEmpty();
     }
 
-    @ParameterizedTest @ValueSource(strings = {"intention", "correction", "unsure", "method", "acknowledgement"})
+    @ParameterizedTest @ValueSource(strings = {"intention", "correction", "unsure", "method", "acknowledgement", "other"})
     void passesTheActualConversationButOnlyTheSelectedTaskToTheCoach(String category) {
         var history = List.of(new DirectVideoModel.Message("model", "웃으면서 겁주려던 건가요?"),
                 new DirectVideoModel.Message("user", "응"));
@@ -62,12 +62,20 @@ class DirectVideoRoutingTest {
                 .containsExactly(DirectVideoRoute.METHOD);
     }
 
-    @Test void anOrdinaryQuestionUsesGeneralRatherThanPretendingItIsAnIntention() {
-        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[]}");
+    @ParameterizedTest @ValueSource(strings = {"{\"signals\":[\"other\"]}", "{\"signals\":[]}"})
+    void anOrdinaryQuestionUsesOtherRatherThanPretendingItIsAnIntention(String output) {
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn(output);
         var selected = select(List.of(new DirectVideoModel.Message("user", "왜 그렇게 보였어?")), "왜 그렇게 보였어?", false);
-        assertThat(selected.routes()).containsExactly(DirectVideoRoute.GENERAL);
+        assertThat(selected.routes()).containsExactly(DirectVideoRoute.OTHER);
         assertThat(selected.fallback()).isFalse();
         assertThat(failures.contexts()).isEmpty();
+    }
+
+    @Test void otherDoesNotHideASpecificRequestOrBecomeAMereAcknowledgement() {
+        assertThat(DirectVideoRouting.parse("{\"signals\":[\"other\",\"method\"]}"))
+                .containsExactly(DirectVideoRoute.METHOD);
+        assertThat(DirectVideoRouting.parse("{\"signals\":[\"acknowledgement\",\"other\"]}"))
+                .containsExactly(DirectVideoRoute.OTHER);
     }
 
     @ParameterizedTest @ValueSource(strings = {"", "not json", "null", "[]", "{}", "{\"signals\":null}",
