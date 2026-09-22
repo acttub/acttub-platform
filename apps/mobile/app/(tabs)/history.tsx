@@ -20,6 +20,7 @@ import type { PracticeGroup, PracticeGroupFilter } from '@/lib/practice/types';
 import { readingHistoryRows } from '@/lib/reading/session-cards';
 import { listScripts, listSessions, loadIntoCurrent } from '@/lib/reading/store';
 import type { SessionCard } from '@/lib/reading/types';
+import { useRequireLogin } from '@/hooks/use-require-login';
 
 type Row = HistoryRow & {
   icon: 'video' | 'mic';
@@ -44,9 +45,17 @@ export default function HistoryScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { confirm, alert, sheet, dialog } = useAppDialog();
+  const { isGuest } = useRequireLogin();
 
   const load = useCallback(async () => {
     setError(null);
+    // 둘러보는 중에는 서버 계정이 없어 보호된 목록을 요청하지 않는다.
+    if (isGuest) {
+      setGroups([]);
+      setReadingRows([]);
+      setLoading(false);
+      return;
+    }
     try {
       // 리딩 목록은 실패해도 연습 기록만으로 화면이 서야 하므로 따로 삼킨다.
       const [groupList, savedScripts] = await Promise.all([
@@ -76,7 +85,7 @@ export default function HistoryScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isGuest]);
 
   useFocusEffect(
     useCallback(() => {

@@ -52,7 +52,7 @@ export type ProfileGateStatus = 'checking' | 'error' | 'required' | 'complete';
 export type BootstrapStepInput = {
   /** 426을 받았다. 이 빌드로는 더 쓸 수 없어 다른 모든 판정보다 먼저다. */
   updateRequired?: boolean;
-  authStatus: 'loading' | 'signedIn' | 'signedOut';
+  authStatus: 'loading' | 'signedIn' | 'signedOut' | 'guest';
   /** 처음 온 신원이 가입 토큰을 들고 동의 화면에 있다. 계정은 아직 없다. */
   signupPending?: boolean;
   userId: string | null;
@@ -89,6 +89,11 @@ export function resolveBootstrapStep(input: BootstrapStepInput): BootstrapStep {
   }
   if (input.authStatus === 'loading') {
     return { stage: 'auth-gate', route: null };
+  }
+  // 둘러보기는 계정이 없다 — 동의도 프로필도 계정을 만들 때 받는다 (SOMA-544).
+  // 여기서 막으면 로그인 없이 볼 수 있다던 약속이 깨진다.
+  if (input.authStatus === 'guest') {
+    return { stage: 'done', route: '/(tabs)' };
   }
   if (input.authStatus === 'signedOut') {
     return input.signupPending

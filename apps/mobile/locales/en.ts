@@ -37,6 +37,7 @@ const en: DeepStringShape<typeof ko> = {
     tryLater: 'Please try again in a moment.',
   },
   login: {
+    guest: 'Browse without signing in',
     tagline: 'Start with what you were trying to do in that scene',
     google: 'Continue with Google',
     apple: 'Sign in with Apple',
@@ -945,7 +946,7 @@ const en: DeepStringShape<typeof ko> = {
     genderMale: 'Male',
     genderNone: 'Prefer not to say',
     birthLabel: 'Date of birth',
-    birthPlaceholder: 'e.g. 2004-03-14',
+    birthPlaceholder: 'e.g. 2004-03-14 (numbers only)',
     birthInvalid: 'Please check your date of birth.',
     under14: 'You cannot change it to an age under 14.',
     under14Closed: 'You must be at least 14 to sign up. We deleted the account and what you entered right away.',
@@ -1223,6 +1224,11 @@ const en: DeepStringShape<typeof ko> = {
   nudge: {
     title: 'No practice yet today',
     body: '5 minutes is enough. Shoot just one scene?',
+  },
+  guest: {
+    title: 'Sign in to continue',
+    message: 'This part needs an account. Sign in and you can pick up right where you are.',
+    cta: 'Sign in',
   },
   errors: {
     requestChanged: 'The request changed. Please send it again.',

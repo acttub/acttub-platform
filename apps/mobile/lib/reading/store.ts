@@ -328,6 +328,11 @@ export async function deleteScript(id: string): Promise<void> {
   await server().remove(id);
   if (current?.id === id) current = null;
   await writePrefs(id, null);
+  // 서버 삭제 성공 뒤에 이 대본의 합성 음성도 정리한다.
+  try {
+    const { deleteSpeechFilesOfScript } = await import('../account-files');
+    await deleteSpeechFilesOfScript(id);
+  } catch {}
 }
 
 // ── 회차(reading.session) ─────────────────────────────────────────────────────

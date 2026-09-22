@@ -159,20 +159,6 @@ final class StructuredCoachEngine {
                         : DialogueState.apply(state, response, deliveredSources(input), input.path("user_message"),
                         coachId, maxChars, maxSentences, finish,
                         input.path("last_exchange").path("coach_message").path("text").asText());
-                if (pipeline != null) {
-                    try {
-                        String polished = pipeline.polish(session, response.path("message").asText(), maxChars, route);
-                        ObjectNode edited = response.deepCopy();
-                        edited.put("message", polished);
-                        // Persist exactly the text shown to the actor, including handoff/source references.
-                        next = DialogueState.applyRouted(state, edited, deliveredSources(input), input.path("user_message"),
-                                coachId, maxChars, maxSentences, finish);
-                        response = edited;
-                    } catch (RuntimeException failure) {
-                        failures.report(failure, FailureKind.EXTERNAL, new FailureContext("CoachingPipeline.polish", operationId));
-                        // Editing cannot discard an already valid coaching reply.
-                    }
-                }
                 // Explicit brevity requests persist even when the model omits style_update.
                 next.put("response_style", responseStyle(state.path("response_style").asText(), actorText));
                 boolean done = "finish".equals(response.path("flow").asText());
@@ -260,7 +246,7 @@ final class StructuredCoachEngine {
         return current;
     }
 
-    private CoachResult result(CoachSessionSnapshot session, String actorText, String message,
+    static CoachResult result(CoachSessionSnapshot session, String actorText, String message,
             ObjectNode state, String endReason) {
         List<CoachTurnSnapshot> turns = new ArrayList<>(session.turns());
         if (actorText != null) { turns.add(new CoachTurnSnapshot("actor", actorText)); }

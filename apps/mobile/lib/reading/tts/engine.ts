@@ -4,11 +4,15 @@
  * 대본 리딩용 온디바이스 음성 엔진 (SOMA-527).
  * 스파이크(SOMA-500)에서 검증한 다운로드→로드→합성 흐름을 재사용 가능한 싱글턴으로 묶었다.
  *
- * ensureReady(): 모델 4개 + 설정 + 기본 음성 스타일을 1회 준비(다운로드 캐시 + ORT 세션 로드).
- * speak(text, preset): 한 문장을 그 프리셋(M1~M5·F1~F5)으로 합성해 재생하고, 재생이 끝나면 resolve 한다.
- *               프리셋 스타일은 처음 쓸 때 받아 메모리에 둔다 — 배역마다 다른 목소리로 읽는다(reading.cast).
- * preview(preset): 짧은 예문을 그 프리셋으로 들려준다(배역 화면의 미리 듣기).
- * stop():       현재 재생 중지.
+ * ensureReady():   모델 4개 + 설정 + 음성 스타일을 1회 준비(다운로드 캐시 + ORT 세션 로드).
+ * synthesize(text): 한 문장을 만들어 파일로 남기고 그 자리를 돌려준다. 소리는 내지 않는다.
+ * play(uri):        만들어 둔 파일을 틀고, 끝날 즈음 resolve 한다.
+ * speak(text):      위 둘을 이어서 한다(만들어 둔 것이 없을 때 쓰는 길).
+ * stop():           재생만 멈춘다. 만들던 것은 건드리지 않는다.
+ *
+ * 만들기와 재생을 나눈 이유는 미리 만들어 두기 위해서다 (SOMA-547) — 읽는 동안 다음 줄을
+ * 만들어 두면 차례가 왔을 때 기다림이 없다.
+ * 프리셋과 속도는 호출마다 지정하며, 미리 생성한 음성도 같은 설정으로 구분한다.
  */
 import { File, Paths } from 'expo-file-system';
 import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
@@ -23,7 +27,9 @@ import {
   UnicodeProcessor,
   writeWavFile,
 } from './helper.native.js';
-import { speechFileName } from './speech-file';
+import { speechScriptFileName } from './speech-file.ts';
+import { speechKey } from './speech-key.ts';
+import { createSpeechQueue, type SpeechQueue } from './prefetch.ts';
 
 export interface EngineConfig {
   variant?: Variant; // 기본 fp32(음질 우선)
@@ -41,6 +47,9 @@ let style: any = null;
 /** 프리셋 id → 로드한 스타일. 기본 프리셋(cfg.preset)은 ensureReady 가 넣는다. */
 const styles = new Map<string, any>();
 let player: any = null;
+let finishPlayback: (() => void) | null = null;
+let playbackEpoch = 0;
+let synthesisTail: Promise<unknown> = Promise.resolve();
 let readyPromise: Promise<void> | null = null;
 let cfg: Required<EngineConfig> = {
   variant: 'fp32',
@@ -101,10 +110,18 @@ export function ensureReady(onProgress: ProgressFn = () => {}, next?: EngineConf
   return readyPromise;
 }
 
-/**
- * 한 문장을 합성해 재생한다. 재생이 끝날 즈음(합성이 알려준 길이 + 여유) resolve.
- * 이미 읽을 수 없게 정리된(빈) 문장이면 아무 것도 하지 않고 즉시 resolve.
- */
+/** 지금 설정으로 이 문장이 갖게 될 열쇠. 파일 이름과 캐시가 이것으로 갈린다. */
+export function keyFor(text: string, preset = cfg.preset, speed = cfg.speed): string {
+  return speechKey({
+    text,
+    locale: currentLanguage(),
+    preset,
+    variant: cfg.variant,
+    steps: cfg.steps,
+    speed,
+  });
+}
+
 /** 프리셋의 스타일. 처음이면 받아서 로드한다. 모르는 프리셋은 기본 스타일로 읽는다. */
 async function styleFor(preset?: string): Promise<any> {
   const key = preset || cfg.preset;
@@ -120,30 +137,88 @@ async function styleFor(preset?: string): Promise<any> {
   }
 }
 
-export async function speak(text: string, preset?: string, options: { speed?: number } = {}): Promise<void> {
+/** 미리 생성과 화면의 즉시 요청도 같은 엔진을 한 번에 하나만 사용한다. */
+export function synthesize(text: string, scriptId: string, preset = cfg.preset, options: { speed?: number } = {}): Promise<string | null> {
+  const work = synthesisTail.then(() => synthesizeOne(text, scriptId, preset, options.speed ?? cfg.speed));
+  synthesisTail = work.catch(() => undefined);
+  return work;
+}
+
+async function synthesizeOne(text: string, scriptId: string, preset: string, speed: number): Promise<string | null> {
   if (!tts) throw new Error(t('reading.voiceNotReady'));
   const clean = (text ?? '').trim();
-  if (!clean) return;
+  if (!clean) return null;
+
+  const out = new File(Paths.cache, speechScriptFileName(scriptId, keyFor(clean, preset, speed)));
+  if (out.exists) return out.uri;
 
   const voice = await styleFor(preset);
   // 모델은 32개 말을 읽을 줄 안다. 대본이 어느 말로 쓰였는지는 알 수 없으니
   // 앱을 쓰는 말로 읽힌다 — 한국어 사용자는 지금과 같다 (SOMA-544).
   // 말속도는 호출마다 바꿀 수 있다(듣고 따라 하기의 천천히 0.7×).
-  const speed = options.speed ?? cfg.speed;
-  const { wav, duration } = await tts.call(clean, currentLanguage(), voice, cfg.steps, speed, 0.1);
-  const durSec = duration[0] || 0;
+  const { wav } = await tts.call(clean, currentLanguage(), voice, cfg.steps, speed, 0.1);
   const samples = Float32Array.from(wav);
-  const bytes = writeWavFile(samples, tts.sampleRate);
-  const out = new File(Paths.cache, speechFileName(Date.now()));
-  out.write(bytes);
+  out.write(writeWavFile(samples, tts.sampleRate));
+  return out.uri;
+}
 
+/** 저장본의 길이가 아직 0이어도 실제 재생 완료를 기다린다(Expo SDK 54 playbackStatusUpdate). */
+export async function play(uri: string): Promise<void> {
   stop();
-  player = createAudioPlayer({ uri: out.uri });
-  player.play();
-
-  await new Promise<void>((resolve) => {
-    setTimeout(resolve, Math.max(300, durSec * 1000 + 200));
+  const current = createAudioPlayer({ uri });
+  player = current;
+  await new Promise<void>((resolve, reject) => {
+    let subscription: { remove(): void } | null = null;
+    const finish = () => {
+      subscription?.remove();
+      if (finishPlayback === finish) finishPlayback = null;
+      resolve();
+    };
+    finishPlayback = finish;
+    subscription = current.addListener('playbackStatusUpdate', (status) => {
+      if (status.didJustFinish) finish();
+    });
+    try {
+      current.play();
+    } catch (error) {
+      subscription.remove();
+      if (finishPlayback === finish) finishPlayback = null;
+      reject(error);
+    }
   });
+}
+
+/** 만들어 둔 것이 없을 때 — 만들고 바로 튼다. */
+export async function speak(text: string, preset = cfg.preset, options: { speed?: number; scriptId?: string } = {}): Promise<void> {
+  stop();
+  const epoch = playbackEpoch;
+  const uri = await synthesize(text, options.scriptId ?? 'adhoc', preset, options);
+  if (uri && epoch === playbackEpoch) await play(uri);
+}
+
+export type SpeechQueueHandle = SpeechQueue & {
+  /** 첫 줄만 만들어 둘 때까지 기다린다 — 읽기 시작 화면에서 쓴다. */
+  first: () => Promise<void>;
+};
+
+/**
+ * 이 대본의 미리 만들기 큐. 만드는 일은 엔진이 하고, 순서와 취소는 큐가 본다 (SOMA-547).
+ */
+export function createQueueFor(scriptId: string): SpeechQueueHandle {
+  const queue = createSpeechQueue({
+    synthesize: async (text, _key, preset) => {
+      const uri = await synthesize(text, scriptId, preset);
+      if (!uri) throw new Error('빈 문장');
+      return uri;
+    },
+    scriptId,
+    locale: currentLanguage(),
+    preset: cfg.preset,
+    variant: cfg.variant,
+    steps: cfg.steps,
+    speed: cfg.speed,
+  });
+  return { ...queue, first: () => queue.settled() };
 }
 
 /** 배역 화면의 미리 듣기 — 짧은 예문을 그 프리셋으로. */
@@ -153,6 +228,8 @@ export function preview(preset: string): Promise<void> {
 }
 
 export function stop() {
+  playbackEpoch += 1;
+  finishPlayback?.();
   try {
     player?.remove?.();
   } catch {}

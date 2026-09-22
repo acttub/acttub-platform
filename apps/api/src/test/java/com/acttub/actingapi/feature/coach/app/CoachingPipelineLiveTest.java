@@ -24,19 +24,34 @@ class CoachingPipelineLiveTest {
         var engine = new CoachEngine(new OpenAiResponsesClient(StructuredJson.MAPPER), failures, telemetry, true);
         var transcript = new ArrayList<String>();
         var session = CoachingPipelineTest.session();
-        CoachResult result = engine.start(session, UUID.randomUUID());
-        transcript.add("AI: " + result.reply().message());
-        for (String actor : List.of("상대가 떠나는 걸 막으려고 하는 말이에요.", "영상에서는 그 의도가 어떻게 보여요?",
-                "그럼 상대를 붙잡으려면 어떻게 말하면 될까요?", "방금 해보니 덜 급해졌는데 상대를 붙잡는 느낌은 약해졌어요.", "여기까지 할게요")) {
-            transcript.add("ACTOR: " + actor);
-            result = engine.reply(result.session(), actor, UUID.randomUUID());
+        try {
+            CoachResult result = engine.start(session, UUID.randomUUID());
             transcript.add("AI: " + result.reply().message());
-            assertThat(result.reply().message()).isNotBlank().doesNotContain("source_refs", "understand_scene", "{\"message\"");
+            for (String actor : List.of("상대가 떠나는 걸 막으려고 하는 말이에요.", "영상에서는 그 의도가 어떻게 보여요?",
+                    "어떻게 붙잡아야 할지 모르겠어요.", "방금 설명이 무슨 말이에요?", "아니요, 붙잡으려는 게 아니라 열쇠를 돌려받으려는 거예요.", "여기까지 할게요")) {
+                transcript.add("ACTOR: " + actor);
+                result = engine.reply(result.session(), actor, UUID.randomUUID());
+                transcript.add("AI: " + result.reply().message());
+                assertThat(result.reply().message()).isNotBlank().doesNotContain("source_refs", "advance", "scaffold", "repair", "respond", "{\"message\"");
+            }
+            assertThat(result.reply().status()).isEqualTo("complete");
+            StructuredJson.validate("coach_handoff_v2", result.reply().handoff());
+            assertThat(result.reply().handoff().path("conversation")).hasSize(13);
+        } finally {
+            // Keep the partial synthetic conversation and diagnostics even when a turn fails.
+            Files.createDirectories(Path.of("build/route-eval"));
+            Files.writeString(Path.of("build/route-eval/synthetic-conversation.txt"), String.join("\n\n", transcript));
+            var calls = StructuredJson.MAPPER.createArrayNode();
+            for (var call : telemetry.calls()) {
+                var item = calls.addObject().put("step", call.step().name()).put("output", call.output());
+                item.set("metadata", StructuredJson.MAPPER.valueToTree(call.metadata()));
+                item.put("error", call.errorMessage());
+            }
+            Files.writeString(Path.of("build/route-eval/synthetic-calls.json"), calls.toPrettyString());
+            Files.writeString(Path.of("build/route-eval/synthetic-failures.txt"), failures.reports().stream()
+                    .map(report -> report.context() + ": " + (report.failure() instanceof IllegalArgumentException
+                            ? report.failure().getMessage() : report.failure().getClass().getSimpleName()))
+                    .collect(java.util.stream.Collectors.joining("\n")));
         }
-        Files.createDirectories(Path.of("build/route-eval"));
-        Files.writeString(Path.of("build/route-eval/synthetic-conversation.txt"), String.join("\n\n", transcript));
-        assertThat(result.reply().status()).isEqualTo("complete");
-        StructuredJson.validate("coach_handoff_v2", result.reply().handoff());
-        assertThat(result.reply().handoff().path("conversation")).hasSize(11);
     }
 }

@@ -211,14 +211,13 @@ class CoachReadsProfileIT {
                 """, UUID.randomUUID(), user, UUID.randomUUID(), user);
         rememberGoal();
         UUID practice = structuredPractice();
-        // 라우팅 경로(luna_routes_v1)는 한 턴에 분류 → 생성 → 다듬기 세 번 부른다. 프로필은 생성 호출에만 실린다.
-        generator.enqueue("{\"route\":\"understand_scene\"}");
+        // 라우팅 경로(dialogue_actions_v2)는 한 턴에 분류 → 생성 두 번 부른다. 프로필은 생성 호출에만 실린다.
+        generator.enqueue("{\"route\":\"respond\"}");
         generator.enqueue(structuredDraft("“가지 마”를 듣고 상대가 어떻게 하길 바랐어요?", true));
-        generator.enqueue("{\"message\":\"“가지 마”를 듣고 상대가 어떻게 하길 바랐어요?\"}");
 
         JsonNode started = startPractice(practice);
 
-        assertThat(generator.inputs()).as("분류·생성·다듬기").hasSize(3);
+        assertThat(generator.inputs()).as("분류·생성").hasSize(2);
         JsonNode opening = mapper.readTree(generator.inputs().get(1));
         assertThat(opening.path("actor_profile")).isEqualTo(mapper.readTree("""
                 {"name":"%s","gender":"여성","age":%d,"directions":["매체(TV·영화)"],
@@ -228,18 +227,15 @@ class CoachReadsProfileIT {
         assertThat(opening.path("prior_context").path("memory"))
                 .isEqualTo(mapper.readTree("{\"goal\":\"입시 합격\"}"));
         assertThat(generator.instructions().get(1)).contains("[actor_profile]");
-        // 분류와 다듬기는 프로필을 받지 않는다 — 이름이 실리는 호출을 생성 하나로 한정한다.
+        // 분류는 프로필을 받지 않는다 — 이름이 실리는 호출을 생성 하나로 한정한다.
         assertThat(mapper.readTree(generator.inputs().get(0)).has("actor_profile")).as("분류 입력").isFalse();
         assertThat(generator.instructions().get(0)).doesNotContain("[actor_profile]");
-        assertThat(mapper.readTree(generator.inputs().get(2)).has("actor_profile")).as("다듬기 입력").isFalse();
-        assertThat(generator.instructions().get(2)).doesNotContain("[actor_profile]");
 
         UUID session = UUID.fromString(started.path("conversation").path("id").asText());
         JsonNode resumed = successful(get("/v2/coach/conversations/{id}", session).header("Authorization", bearer()));
         assertThat(resumed.path("reply_limit").asInt()).as("신형 대화 재조회도 10회 상한이다").isEqualTo(10);
-        // 마무리 턴은 분류를 건너뛴다: 생성 → 다듬기 → 노트.
+        // 마무리 턴은 분류를 건너뛴다: 생성 → 노트.
         generator.enqueue(structuredDraft("오늘 나눈 내용까지만 남겨둘게요.", false));
-        generator.enqueue("{\"message\":\"오늘 나눈 내용까지만 남겨둘게요.\"}");
         generator.enqueue("{\"summary\":[],\"next_take\":null}");
 
         JsonNode finished = reply(session, "three_layers_v1");
@@ -297,7 +293,7 @@ class CoachReadsProfileIT {
      * 파기해도 거기 남은 것은 서버가 지울 수 없다. 나머지 프로필은 입력을 읽는 사람이 맥락을 알 수 있게 남긴다.
      */
     /**
-     * 모델에는 이름을 그대로 보내고, 텔레메트리에는 가려 보낸다. 프로필이 실리지 않는 호출(라우팅 경로의 분류·다듬기)은
+     * 모델에는 이름을 그대로 보내고, 텔레메트리에는 가려 보낸다. 프로필이 실리지 않는 호출(라우팅 경로의 분류)은
      * 어느 쪽에도 프로필이 없다 — 기록에 이름도, 남겨 두는 값도 없어야 한다.
      */
     private void assertTheNameStaysOutOfTheTelemetry(String keptProfileValue) {
@@ -338,9 +334,8 @@ class CoachReadsProfileIT {
         assertThat(mapper.readTree(failed.getContentAsString()).path("detail").asText()).isEqualTo("coach_response_unavailable");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM coach_messages", Integer.class)).isZero();
 
-        generator.enqueue("{\"route\":\"understand_scene\"}");
+        generator.enqueue("{\"route\":\"respond\"}");
         generator.enqueue(structuredDraft("“가지 마”를 듣고 상대가 어떻게 하길 바랐어요?", true));
-        generator.enqueue("{\"message\":\"“가지 마”를 듣고 상대가 어떻게 하길 바랐어요?\"}");
         JsonNode recovered = successful(post("/v2/coach/start").header("Authorization", bearer())
                 .contentType(MediaType.APPLICATION_JSON).content(opening));
         assertThat(recovered.at("/conversation/messages")).hasSize(1);
@@ -363,14 +358,12 @@ class CoachReadsProfileIT {
     @DisplayName("practice.note: 신형 노트 생성 두 번 실패는 근거를 보존한 fallback 노트 하나이고 재전송은 생성하지 않는다")
     void practiceNote_generationRetryKeepsEvidenceAndMarksOnlyFinalFallback(boolean recovers) throws Exception {
         UUID practice = structuredPractice();
-        generator.enqueue("{\"route\":\"understand_scene\"}");
+        generator.enqueue("{\"route\":\"respond\"}");
         generator.enqueue(structuredDraft("“가지 마”를 듣고 상대가 어떻게 하길 바랐어요?", true));
-        generator.enqueue("{\"message\":\"“가지 마”를 듣고 상대가 어떻게 하길 바랐어요?\"}");
         JsonNode started = startPractice(practice);
         String closing = mapper.writeValueAsString(Map.of("conversation_id", started.at("/conversation/id").asText(),
                 "request_id", UUID.randomUUID(), "text", "정리해줘"));
         generator.enqueue(structuredDraft("오늘 나눈 내용까지만 남겨둘게요.", false));
-        generator.enqueue("{\"message\":\"오늘 나눈 내용까지만 남겨둘게요.\"}");
         generator.enqueue("not valid JSON");
         generator.enqueue(recovers ? "{\"summary\":[],\"next_take\":null}" : "not valid JSON again");
 

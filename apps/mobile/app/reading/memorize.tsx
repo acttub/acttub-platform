@@ -194,7 +194,7 @@ export default function ReadingMemorize() {
     try {
       if (engine.isReady()) {
         const preset = voices[script.characters.find((c) => c.name === cur.role)?.id ?? ''] ?? 'F1';
-        await engine.speak(text, preset, { speed });
+        await engine.speak(text, preset, { speed, scriptId: script.id });
       } else {
         await speakWithDevice(text, 'F1', { rate: speed });
       }

@@ -264,7 +264,10 @@ public class ConversationService {
     private static String closeReason(CoachResult result) {
         JsonNode handoff = result.reply().handoff();
         String reason = handoff == null ? null : handoff.path("end_reason").asText(null);
+        if (reason == null || reason.isBlank()) reason = result.session().closeReason();
         return switch (reason == null ? "" : reason) {
+            case "actor_finished" -> "user_ended";
+            case "turn_budget" -> "limit";
             case "gap_stated", "exhausted", "limit", "user_ended", "system_failure" -> reason;
             default -> "exhausted";
         };

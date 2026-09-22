@@ -25,6 +25,30 @@ class CoachingStateReducerTest {
     }
     ObjectNode proposed() { return apply(apply(CoachingStateReducer.empty(), output(0), 0), output(1), 1); }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+            "처음 설명 뒤에 왜 “지금은 아니에요. 나중이라고요.”로 바뀌나요? 상대에게 원하는 것을 말해 주세요.",
+            "처음 설명 뒤에 왜 \"지금은 아니에요. 나중이라고요.\"로 바뀌나요? 상대에게 원하는 것을 말해 주세요.",
+            "처음 설명 뒤에 왜 ‘지금은 아니에요. 나중이라고요.’로 바뀌나요? 상대에게 원하는 것을 말해 주세요.",
+            "처음 설명 뒤에 왜 '지금은 아니에요. 나중이라고요.'로 바뀌나요? 상대에게 원하는 것을 말해 주세요."
+    })
+    void quotedDialogueDoesNotConsumeTheCoachSentenceBudget(String message) {
+        ObjectNode response = output(0).put("message", message);
+        assertThat(apply(CoachingStateReducer.empty(), response, 0).path("revision").asInt()).isEqualTo(1);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+            "첫 설명입니다. 다음 설명입니다. 마지막 설명입니다.",
+            "“지금은 아니에요. 나중이라고요.”라고 말해요. 이유를 살펴봐요. 무엇을 원하나요?",
+            "I'm here. The pause is brief. That's the change.",
+            "“열린 인용입니다. 다음 설명입니다. 마지막 설명입니다."
+    })
+    void actualCoachSentencesStillRespectTheLimit(String message) {
+        assertThatThrownBy(() -> apply(CoachingStateReducer.empty(), output(0).put("message", message), 0))
+                .hasMessageContaining("too many sentences");
+    }
+
     @Test void actualDirectionAndDisplayedInstructionsSurviveWithoutInventedExecution() {
         ObjectNode proposed = proposed();
         assertThat(proposed.path("context").path("direction").path("origin").asText()).isEqualTo("actor_stated");

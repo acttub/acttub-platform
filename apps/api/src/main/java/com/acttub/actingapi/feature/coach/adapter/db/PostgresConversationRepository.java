@@ -263,6 +263,15 @@ class PostgresConversationRepository implements ConversationRepository {
                     .setParameter("now", now.atOffset(ZoneOffset.UTC))
                     .setParameter("conversationId", conversationId)
                     .executeUpdate();
+            if ("closed".equals(status)) {
+                entityManager.createNativeQuery("""
+                        UPDATE practices SET stage='closed',close_reason='conversation_closed',updated_at=:now
+                        WHERE id=(SELECT practice_id FROM coach_conversations WHERE id=:conversationId)
+                        """)
+                        .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                        .setParameter("conversationId", conversationId)
+                        .executeUpdate();
+            }
             int coachReplies = ((Number) entityManager.createNativeQuery("""
                     SELECT count(*) FROM coach_messages
                     WHERE conversation_id=:conversationId AND role='ai'

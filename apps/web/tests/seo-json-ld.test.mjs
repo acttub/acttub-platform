@@ -28,7 +28,7 @@ const { APP_STORE_URL, GOOGLE_PLAY_URL } = await import(
 );
 
 const description =
-  "AI 연기 코칭 앱 Acttub. 내 연기 영상을 올리면 장면 맥락에서 확인한 단서가 질문으로 돌아와요. 질문으로 연기 장면을 다시 생각하는 연기 연습 도구예요.";
+  "AI 연기 코칭 앱 Acttub(액터브). 내 연기 영상을 올리면 장면 맥락에서 확인한 단서가 질문으로 돌아와요. 질문으로 연기 장면을 다시 생각하는 연기 연습 도구예요.";
 const siteUrl = "https://example.com";
 
 function containsUndefined(value) {
@@ -48,6 +48,7 @@ test("Organization은 고정 식별자와 공식 연락처를 제공한다", () 
     "@type": "Organization",
     "@id": `${siteUrl}/#org`,
     name: "Acttub",
+    alternateName: ["액터브", "엑터브"],
     url: `${siteUrl}/`,
     sameAs: [
       "https://www.instagram.com/acttub_com/",
@@ -67,6 +68,7 @@ test("WebSite과 SoftwareApplication은 Organization 식별자를 publisher로 �
     "@type": "WebSite",
     "@id": `${siteUrl}/#website`,
     name: "Acttub",
+    alternateName: ["액터브", "엑터브"],
     url: `${siteUrl}/`,
     inLanguage: "ko",
     publisher: { "@id": `${siteUrl}/#org` },
@@ -76,6 +78,7 @@ test("WebSite과 SoftwareApplication은 Organization 식별자를 publisher로 �
     "@type": "SoftwareApplication",
     "@id": `${siteUrl}/#app`,
     name: "Acttub",
+    alternateName: ["액터브", "엑터브"],
     url: `${siteUrl}/`,
     description,
     applicationCategory: "EducationalApplication",
@@ -98,6 +101,7 @@ test("MobileApplication은 스토어별로 하나씩, 설치 주소를 달고 �
     "@type": "MobileApplication",
     "@id": `${siteUrl}/#app-ios`,
     name: "Acttub",
+    alternateName: ["액터브", "엑터브"],
     url: `${siteUrl}/app`,
     description,
     applicationCategory: "EducationalApplication",

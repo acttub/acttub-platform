@@ -293,6 +293,27 @@ class CoachConversationIT {
     }
 
     @Test
+    @DisplayName("practice.resume: 노트 없이 대화를 끝내도 회차가 닫히고 같은 영상으로 다음 회차를 시작한다")
+    void practiceCoach_closingAlsoClosesThePracticeBeforeContinuing() throws Exception {
+        generator.enqueue(CONTINUE);
+        JsonNode opened = json(post("/v2/coach/start").content(startBody(practice, UUID.randomUUID())), 200);
+        UUID conversation = UUID.fromString(opened.at("/conversation/id").asText());
+        generator.enqueue(CLOSING);
+        JsonNode closed = json(post("/v2/coach/reply")
+                .content(replyBody(conversation, UUID.randomUUID(), "그만", null)), 200);
+        assertThat(closed.path("note").isNull()).isTrue();
+        JsonNode finishedPractice = json(get("/v2/practices/{id}", practice), 200);
+        assertThat(finishedPractice.path("stage").asText()).isEqualTo("closed");
+        assertThat(finishedPractice.path("close_reason").asText()).isEqualTo("conversation_closed");
+        JsonNode continued = json(post("/v2/practices/{id}/continue", practice)
+                .content("{\"request_id\":\"" + UUID.randomUUID() + "\"}"), 201);
+        assertThat(continued.path("root_id").asText()).isEqualTo(practice.toString());
+        assertThat(continued.path("ordinal").asInt()).isEqualTo(2);
+        assertThat(continued.path("stage").asText()).isEqualTo("analyzing");
+        assertThat(continued.path("video_id")).isEqualTo(finishedPractice.path("video_id"));
+    }
+
+    @Test
     @DisplayName("practice.note: 노트 조회 — 그 회차의 노트가 종류·제목·원문과 함께 온다. 노트가 없는 회차는 404 note_not_found")
     void practiceNote_isReadPerPractice() throws Exception {
         assertThat(json(get("/v2/practices/{id}/note", practice), 404))

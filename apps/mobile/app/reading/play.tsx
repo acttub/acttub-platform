@@ -134,6 +134,7 @@ export default function ReadingPlay() {
   const [guideChecked, setGuideChecked] = useState(false);
   const [closedMessage, setClosedMessage] = useState<string | null>(null);
   const queueRef = useRef<ProgressQueue | null>(null);
+  const speechQueue = useRef<engine.SpeechQueueHandle | null>(null);
   const mounted = useRef(true);
   const sttActive = useRef(false);
   /** 줄별 시도 번호 — 같은 줄을 다시 말하면 1씩 늘어 이전 녹음을 대체한다(reading.recording). */
@@ -149,6 +150,16 @@ export default function ReadingPlay() {
   );
   const characterIdByName = useMemo(() => new Map((script?.characters ?? []).map((c) => [c.name, c.id] as const)), [script]);
   const presetFor = useCallback((role: string) => voices[characterIdByName.get(role) ?? ''] ?? 'F1', [voices, characterIdByName]);
+
+  const primeSpeech = useCallback((from: number) => {
+    if (!script || !config) return null;
+    if (!speechQueue.current) speechQueue.current = engine.createQueueFor(script.id);
+    const upcoming = config.lines.slice(from, config.endIndex + 1)
+      .filter((line): line is DialogueLine => line.type === 'dialogue' && !config.myRoles.includes(line.role))
+      .map((line) => ({ text: speakableText(line.text), preset: presetFor(line.role) }));
+    speechQueue.current.prime(upcoming);
+    return speechQueue.current;
+  }, [script, config, presetFor]);
 
   // ── 진행 저장 큐 ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -259,6 +270,8 @@ export default function ReadingPlay() {
     })();
     return () => {
       mounted.current = false;
+      speechQueue.current?.cancel();
+      speechQueue.current = null;
       engine.stop();
       stopDeviceVoice();
       stt.abort();
@@ -278,7 +291,7 @@ export default function ReadingPlay() {
 
   const prepare = useCallback(async () => {
     // 모든 배역이 내 배역이면 상대 대사가 없어 모델 준비를 기다리지 않는다.
-    if (!hasPartnerLines || engine.isReady() || partnerEngine !== 'supertonic') {
+    if (!hasPartnerLines || partnerEngine !== 'supertonic') {
       setPhase('running');
       return;
     }
@@ -303,11 +316,19 @@ export default function ReadingPlay() {
     setPhase('preparing');
     try {
       await engine.ensureReady((line) => mounted.current && setPrepareLine(line));
+      if (!mounted.current) return;
+      await primeSpeech(runRef.current?.index ?? 0)?.first();
       if (mounted.current) setPhase('running');
     } catch {
       if (mounted.current) setPhase('voice_failed');
     }
-  }, [confirm, hasPartnerLines, partnerEngine]);
+  }, [confirm, hasPartnerLines, partnerEngine, primeSpeech]);
+
+  useEffect(() => {
+    if (phase === 'running' && partnerEngine === 'supertonic' && engine.isReady()) {
+      primeSpeech(run?.index ?? 0);
+    }
+  }, [phase, partnerEngine, run?.index, primeSpeech]);
 
   const startAfterGuide = async () => {
     await markReadingGuideSeen();
@@ -316,16 +337,22 @@ export default function ReadingPlay() {
 
   // ── 상대 차례: 배역별 목소리로 읽고 넘어간다 ──────────────────────────────────
   useEffect(() => {
-    if (phase !== 'running' || !run || run.status !== 'partner') return;
-    const line = run.lines[run.index] as DialogueLine;
-    const from = run.index;
+    const current = runRef.current;
+    if (phase !== 'running' || !current || current.status !== 'partner') return;
+    const line = current.lines[current.index] as DialogueLine;
+    const from = current.index;
     if (partnerEngine === 'text_only') return; // 글로 보기 — 버튼으로 넘긴다
     let cancelled = false;
     void (async () => {
       try {
         const text = speakableText(line.text);
-        if (partnerEngine === 'supertonic') await engine.speak(text, presetFor(line.role));
-        else await speakWithDevice(text, presetFor(line.role));
+        if (partnerEngine === 'supertonic') {
+          const preset = presetFor(line.role);
+          const ready = await primeSpeech(from)?.take({ text, preset });
+          if (cancelled || !mounted.current) return;
+          if (ready) await engine.play(ready);
+          else await engine.speak(text, preset, { scriptId: script?.id });
+        } else await speakWithDevice(text, presetFor(line.role));
       } catch {}
       if (!cancelled && mounted.current) goNext(from);
     })();
@@ -334,7 +361,7 @@ export default function ReadingPlay() {
       engine.stop();
       stopDeviceVoice();
     };
-  }, [phase, run?.index, run?.status, partnerEngine, goNext, presetFor, run]);
+  }, [phase, run?.index, run?.status, partnerEngine, goNext, presetFor, primeSpeech, script?.id]);
 
   // ── 내 차례: 마이크(침묵 감지)와 STT ─────────────────────────────────────────
   const onSilenceEnd = useCallback(

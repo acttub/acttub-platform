@@ -38,16 +38,19 @@ public class PracticeService {
     /** 아직 옮기지 않은 옛 연습을 같은 모양으로 읽는 자리 (02-practice ②). */
     private final LegacyPracticeReader legacy;
     private final boolean threeLayersEnabled;
+    private final boolean guestDailyAnalysisLimitEnabled;
     private final Clock clock;
 
     public PracticeService(
             PracticeRepository practices,
             LegacyPracticeReader legacy,
             boolean threeLayersEnabled,
+            boolean guestDailyAnalysisLimitEnabled,
             Clock clock) {
         this.practices = practices;
         this.legacy = legacy;
         this.threeLayersEnabled = threeLayersEnabled;
+        this.guestDailyAnalysisLimitEnabled = guestDailyAnalysisLimitEnabled;
         this.clock = clock;
     }
 
@@ -194,7 +197,7 @@ public class PracticeService {
 
     /** 게스트만 하루 한도가 있다. 하루는 한국 시간 자정에 끊는다. */
     private Quota quota(boolean guest) {
-        if (!guest) {
+        if (!guest || !guestDailyAnalysisLimitEnabled) {
             return null;
         }
         Instant midnight = LocalDate.now(clock.withZone(SEOUL)).atStartOfDay(SEOUL).toInstant();

@@ -19,6 +19,7 @@ import { Markdown } from '@/components/markdown';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { useFeedbackSheet } from '@/hooks/use-feedback-sheet';
+import { useRequireLogin } from '@/hooks/use-require-login';
 import { useAuth } from '@/lib/auth';
 import {
   consentChangeFailureAction,
@@ -67,7 +68,8 @@ const NOTIFICATION_TOGGLES: {
  */
 export default function SettingsScreen() {
   const router = useRouter();
-  const { signOut } = useAuth();
+  const { signOut, leaveGuest } = useAuth();
+  const { isGuest } = useRequireLogin();
   const [rows, setRows] = useState<ConsentSettingsRow[]>([]);
   const [notif, setNotif] = useState<NotificationSettings>(DEFAULT_NOTIFICATION_SETTINGS);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -419,17 +421,26 @@ export default function SettingsScreen() {
 
           <View style={styles.spacer} />
 
-          <Pressable style={styles.logout} onPress={() => void confirmLogout()}>
-            <Text style={styles.logoutText}>{t('settings.logout')}</Text>
-          </Pressable>
+          {/* 둘러보는 중엔 지울 계정이 없다 — 로그아웃·탈퇴 대신 로그인을 권한다 (SOMA-544). */}
+          {isGuest ? (
+            <Pressable style={styles.logout} onPress={() => void leaveGuest()}>
+              <Text style={styles.logoutText}>{t('guest.cta')}</Text>
+            </Pressable>
+          ) : (
+            <>
+              <Pressable style={styles.logout} onPress={() => void confirmLogout()}>
+                <Text style={styles.logoutText}>{t('settings.logout')}</Text>
+              </Pressable>
 
-          {/* 깊이 숨기지 않는다 — 앱스토어 심사가 계정 삭제를 앱 안에서 찾을 수 있는지 본다. */}
-          <Pressable
-            style={styles.deleteRow}
-            onPress={() => router.push('/delete-account')}
-            accessibilityRole="button">
-            <Text style={styles.deleteText}>{t('settings.withdraw')}</Text>
-          </Pressable>
+              {/* 깊이 숨기지 않는다 — 앱스토어 심사가 계정 삭제를 앱 안에서 찾을 수 있는지 본다. */}
+              <Pressable
+                style={styles.deleteRow}
+                onPress={() => router.push('/delete-account')}
+                accessibilityRole="button">
+                <Text style={styles.deleteText}>{t('settings.withdraw')}</Text>
+              </Pressable>
+            </>
+          )}
         </ScrollView>
       )}
       {feedback.element}

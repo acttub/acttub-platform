@@ -207,7 +207,7 @@ class ActorMemoryIT {
                 .containsEntry("lease_token", null)
                 .containsEntry("failure_reason", "memory_update_failed");
         assertThat(jdbc.queryForObject("SELECT stage FROM practices WHERE id=?", String.class, practice))
-                .as("기억 갱신 실패가 회차를 닫지 않는다").isNotEqualTo("closed");
+                .as("기억 갱신 실패가 대화를 마친 회차를 다시 열지 않는다").isEqualTo("closed");
         assertThat(rows()).isEmpty();
 
         assertThat(runWorker()).isTrue();

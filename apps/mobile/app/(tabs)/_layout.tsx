@@ -9,6 +9,7 @@ import { LegacyArchivePrompt } from '@/components/legacy-archive-prompt';
 import { RecordModeSheet, type RecordMode } from '@/components/record-mode-sheet';
 import { palette } from '@/constants/palette';
 import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
+import { useRequireLogin } from '@/hooks/use-require-login';
 import { isKorean, translate as t } from '@/lib/i18n';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -25,12 +26,14 @@ export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const [modeOpen, setModeOpen] = useState(false);
   // 읽지 않은 알림 묶음 수 — 챌린지가 열린 사람에게만 읽는다.
-  const unread = useUnreadNotifications(isKorean());
+  const { isGuest, requireLogin, element: loginGuard } = useRequireLogin();
+  const unread = useUnreadNotifications(isKorean() && !isGuest);
 
   const pickMode = (mode: RecordMode) => {
     setModeOpen(false);
+    // AI 코칭은 서버로 올려야 한다 — 둘러보는 중이면 로그인으로 안내한다 (SOMA-544).
     if (mode === 'ai') {
-      router.push({ pathname: '/record-video', params: { mode: 'ai' } });
+      requireLogin(() => router.push({ pathname: '/record-video', params: { mode: 'ai' } }));
       return;
     }
     if (mode === 'plain') {
@@ -38,7 +41,7 @@ export default function TabLayout() {
       return;
     }
     // 챌린지 참여는 대사를 고르는 데서 시작한다 — 목록에서 고른 챌린지가 촬영 화면에 대사를 준다.
-    router.push('/challenges');
+    requireLogin(() => router.push('/challenges'));
   };
 
   const icon = (outline: IoniconName, filled: IoniconName) => {
@@ -119,6 +122,7 @@ export default function TabLayout() {
         <Tabs.Screen name="profile" options={{ title: t('tabs.profile'), tabBarIcon: icon('person-outline', 'person') }} />
       </Tabs>
       <RecordModeSheet visible={modeOpen} onClose={() => setModeOpen(false)} onPick={pickMode} />
+      {loginGuard}
     </>
   );
 }

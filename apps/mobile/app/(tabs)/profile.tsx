@@ -1,3 +1,4 @@
+import { AccountContent } from '@/components/account-content';
 import Feather from '@expo/vector-icons/Feather';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState, type ComponentProps } from 'react';
@@ -20,6 +21,10 @@ import { isKorean, translate as t } from '@/lib/i18n';
  * 영상(A15.5)은 예시 데이터 화면. 챌린지 수도 계약이 없어 0을 보여준다(연습 수만 실데이터).
  */
 export default function ProfileScreen() {
+  return <AccountContent><ProfileScreenContent /></AccountContent>;
+}
+
+function ProfileScreenContent() {
   const router = useRouter();
   const { user, profile } = useAuth();
   const [name, setName] = useState<string | null>(null);

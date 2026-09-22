@@ -21,7 +21,8 @@ class PracticeConfiguration {
             PracticeRepository practices,
             LegacyPracticeReader legacy,
             @Value("${ACTTUB_THREE_LAYERS_ENABLED:false}") boolean threeLayersEnabled,
+            @Value("${ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED:true}") boolean guestDailyAnalysisLimitEnabled,
             Clock clock) {
-        return new PracticeService(practices, legacy, threeLayersEnabled, clock);
+        return new PracticeService(practices, legacy, threeLayersEnabled, guestDailyAnalysisLimitEnabled, clock);
     }
 }

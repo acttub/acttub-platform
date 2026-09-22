@@ -116,12 +116,11 @@ class CoachReportEndpointIT {
                 .header("Authorization", bearer(user)).header("X-Request-Id", UUID.randomUUID())
                 .content("{\"practice_session_id\":\"" + practice.id() + "\"}");
         assertError(start, 409, "client_contract_required");
-        generator.enqueue("{\"route\":\"understand_scene\"}");
+        generator.enqueue("{\"route\":\"respond\"}");
         generator.enqueue(structuredReply(0, "“가지 마”를 듣고 상대가 어떻게 하길 바랐어요?", "continue", null));
-        generator.enqueue("{\"message\":\"“가지 마”를 듣고 상대가 어떻게 하길 바랐어요?\"}");
         JsonNode started = successful(start.header("X-Acttub-Contract", "three_layers_v1"));
         assertThat(operationCount("attempts", "kind", "coach_start")).isEqualTo(startAttempts + 1);
-        assertThat(operationCount("external.calls", "kind", "coach_start", "dependency", "model")).isEqualTo(startCalls + 3);
+        assertThat(operationCount("external.calls", "kind", "coach_start", "dependency", "model")).isEqualTo(startCalls + 2);
         UUID session = UUID.fromString(started.path("session_id").asText());
         assertThat(mapper.readTree(generator.inputs.get(1)).path("user_message").isNull()).isTrue();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM coach_turns WHERE session_id=? AND role='actor'",
@@ -133,7 +132,6 @@ class CoachReportEndpointIT {
         assertError(reports(user, session, UUID.randomUUID()).header("X-Acttub-Contract", "three_layers_v1"),
                 409, "coaching_session_is_open");
         generator.enqueue(structuredReply(1, "오늘 나눈 내용까지만 남겨둘게요.", "finish", "turn:" + session + ":1"));
-        generator.enqueue("{\"message\":\"오늘 나눈 내용까지만 남겨둘게요.\"}");
         generator.enqueue("{\"summary\":[],\"next_take\":null}");
         UUID requestId = UUID.randomUUID();
         var finish = post("/v2/legacy-coach/reply").contentType(MediaType.APPLICATION_JSON)
@@ -149,9 +147,9 @@ class CoachReportEndpointIT {
         assertThat(completed.path("report").path("attempts")).isEmpty();
         assertThat(completed.path("report").has("source_catalog")).isFalse();
         assertThat(successful(finish)).isEqualTo(completed);
-        assertThat(generator.callCount()).isEqualTo(6);
+        assertThat(generator.callCount()).isEqualTo(4);
         assertThat(operationCount("attempts", "kind", "coach_reply")).isEqualTo(replyAttempts + 1);
-        assertThat(operationCount("external.calls", "kind", "coach_reply", "dependency", "model")).isEqualTo(replyCalls + 3);
+        assertThat(operationCount("external.calls", "kind", "coach_reply", "dependency", "model")).isEqualTo(replyCalls + 2);
         assertThat(operationCount("terminal", "kind", "coach_reply", "outcome", "succeeded", "classification", "none"))
                 .isEqualTo(replyCompleted + 1);
         assertError(coachReply(user, session, UUID.randomUUID()).header("X-Acttub-Contract", "three_layers_v1"),
@@ -159,7 +157,7 @@ class CoachReportEndpointIT {
         assertThat(operationCount("terminal", "kind", "coach_reply", "outcome", "failed", "classification", "expected"))
                 .isEqualTo(replyRejected + 1);
         assertThat(operationCount("attempts", "kind", "coach_reply")).isEqualTo(replyAttempts + 1);
-        assertThat(operationCount("external.calls", "kind", "coach_reply", "dependency", "model")).isEqualTo(replyCalls + 3);
+        assertThat(operationCount("external.calls", "kind", "coach_reply", "dependency", "model")).isEqualTo(replyCalls + 2);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM practice_reports WHERE practice_session_id=?", Long.class, practice.id())).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM handoff_confirmations", Long.class)).isZero();
         assertError(get("/v2/legacy-test-reports/{id}", practice.id()).header("Authorization", bearer(user)),
