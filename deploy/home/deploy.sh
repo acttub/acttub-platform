@@ -32,6 +32,8 @@ BACKUP_IMAGE="${4:-${BACKUP_IMAGE:-}}"
 PULL_POLICY="${DEPLOY_PULL_POLICY:-always}"
 WAIT_SECONDS="${DEPLOY_WAIT_SECONDS:-180}"
 THREE_LAYERS_ENABLED="${DEPLOY_THREE_LAYERS_ENABLED:-}"
+DIRECT_VIDEO_ENABLED="${DEPLOY_DIRECT_VIDEO_ENABLED:-}"
+GUEST_DAILY_LIMIT_ENABLED="${DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED:-}"
 
 step() { printf '▶ %s\n' "$*"; }
 fail() { printf '✗ %s\n' "$*" >&2; exit 1; }
@@ -45,7 +47,9 @@ for image in "$API_IMAGE" "$WEB_IMAGE" "${BACKUP_IMAGE:-unused}"; do
   [[ "$image" =~ ^[a-zA-Z0-9][a-zA-Z0-9._/@:-]*$ ]] || fail "이미지 이름에 허용하지 않는 문자가 있다"
 done
 case "$PULL_POLICY" in always|missing) ;; *) fail "DEPLOY_PULL_POLICY 는 always 또는 missing: '$PULL_POLICY'" ;; esac
+case "$GUEST_DAILY_LIMIT_ENABLED" in ''|true|false) ;; *) fail "DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED 는 true 또는 false" ;; esac
 case "$THREE_LAYERS_ENABLED" in ''|true|false) ;; *) fail "DEPLOY_THREE_LAYERS_ENABLED 는 true 또는 false" ;; esac
+case "$DIRECT_VIDEO_ENABLED" in ''|true|false) ;; *) fail "DEPLOY_DIRECT_VIDEO_ENABLED 는 true 또는 false" ;; esac
 [[ "$WAIT_SECONDS" =~ ^[1-9][0-9]*$ ]] || fail "DEPLOY_WAIT_SECONDS 는 양의 초 단위 정수: '$WAIT_SECONDS'"
 [ -f compose.yml ] || fail "compose.yml 이 없다 — 프로젝트 디렉토리(/svc/acttub/<env>)에서 실행한다: $PWD"
 [ -f .env ] || fail ".env 가 없다 — 사람이 채우는 파일이다(deploy/home/.env.example): $PWD"
@@ -77,6 +81,8 @@ EOF
 [ -z "$BACKUP_IMAGE" ] || printf 'BACKUP_IMAGE=%s\n' "$BACKUP_IMAGE" >> "$RELEASE_FILE"
 # 명시한 환경만 새 연습 경로를 전환한다. .env 는 유지하고 릴리스 설정에 기록한다.
 [ -z "$THREE_LAYERS_ENABLED" ] || printf 'ACTTUB_THREE_LAYERS_ENABLED=%s\n' "$THREE_LAYERS_ENABLED" >> "$RELEASE_FILE"
+[ -z "$DIRECT_VIDEO_ENABLED" ] || printf 'ACTTUB_DIRECT_VIDEO_ENABLED=%s\n' "$DIRECT_VIDEO_ENABLED" >> "$RELEASE_FILE"
+[ -z "$GUEST_DAILY_LIMIT_ENABLED" ] || printf 'ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=%s\n' "$GUEST_DAILY_LIMIT_ENABLED" >> "$RELEASE_FILE"
 # --no-env-resolution 은 첫 배포의 아직 없는 release.env 를 읽지 않고 치환과 활성 프로필만 검증한다.
 services="$(compose config --no-env-resolution --services)" || fail "compose 설정 검증에 실패했다"
 release_services=(api web)
@@ -107,6 +113,17 @@ if ! compose up -d --remove-orphans --wait --wait-timeout "$WAIT_SECONDS"; then
   fail "compose up 이 실패했거나 ${WAIT_SECONDS}초 안에 healthy 가 되지 않았다 — 위 ps·로그를 본다"
 fi
 
+# 일부 Compose 실행은 짧은 --wait-timeout 만료에도 0을 반환한다. 아직 starting 인 API에
+# /health 를 보내 연결 오류로 오인하지 않도록 실제 필수 서비스 상태도 확인한다.
+readiness="$(compose ps --all --format '{{.Service}} {{.Health}}' api web db)" \
+  || fail "배포 컨테이너의 healthy 상태를 읽지 못했다"
+for service in api web db; do
+  if ! grep -qx "$service healthy" <<< "$readiness"; then
+    compose ps || true
+    fail "${WAIT_SECONDS}초 안에 healthy 가 되지 않았다 ($service) — compose 상태를 본다"
+  fi
+done
+
 # ── 4. /health 의 commit 대조 (web 경유) ───────────────────────────────────────
 # 호스트 포트를 publish 하지 않으므로 컨테이너 안에서 부른다. 런타임 웹 이미지에는 curl 이 없어 node 의
 # fetch 로 간다(compose healthcheck 와 같다). web → rewrites → api 경로 그대로라 사용자가 보는 것과 같다.
@@ -133,6 +150,22 @@ if [ -n "$THREE_LAYERS_ENABLED" ]; then
   [ "$actual_three_layers" = "$THREE_LAYERS_ENABLED" ] \
     || fail "새 연습 경로 설정이 반영되지 않았다 (기대 $THREE_LAYERS_ENABLED)"
   step "새 연습 경로 확인: $actual_three_layers"
+fi
+
+if [ -n "$GUEST_DAILY_LIMIT_ENABLED" ]; then
+  actual_guest_limit="$(compose exec -T api printenv ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED)" \
+    || fail "게스트 일일 분석 한도 설정을 읽지 못했다"
+  [ "$actual_guest_limit" = "$GUEST_DAILY_LIMIT_ENABLED" ] \
+    || fail "게스트 일일 분석 한도 설정이 반영되지 않았다"
+  step "게스트 일일 분석 한도 확인: $actual_guest_limit"
+fi
+
+if [ -n "$DIRECT_VIDEO_ENABLED" ]; then
+  actual_direct_video="$(compose exec -T api printenv ACTTUB_DIRECT_VIDEO_ENABLED)" \
+    || fail "Gemini 직접 코칭의 컨테이너 설정을 읽지 못했다"
+  [ "$actual_direct_video" = "$DIRECT_VIDEO_ENABLED" ] \
+    || fail "Gemini 직접 코칭 설정이 반영되지 않았다"
+  step "Gemini 직접 코칭 확인: $actual_direct_video"
 fi
 
 printf '✔ 배포 완료 — %s commit %s\n' "$(basename "$PWD")" "${SHA:0:7}"

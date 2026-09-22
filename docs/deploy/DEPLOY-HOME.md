@@ -74,7 +74,8 @@ gh workflow run deploy.yml --ref main -f environment=prod
 Actions가 이미지 세 개를 빌드·게시한 뒤 서버의 배포·복원 파일을 전송하고 `deploy.sh`를 실행한다.
 처음 만든 GHCR 백업 패키지도 서버가 읽을 수 있는지 확인한다. 복원 도구는 `restore-db.sh`와
 `db-manifest.sql`·`schema-fingerprint.sql`을 함께 전송한다.
-이 스크립트는 앱 이미지 pull → Compose 기동·healthy 대기 → 웹 경유 `/health.commit` 대조를 한다.
+이 스크립트는 앱 이미지 pull → Compose 기동·healthy 대기 → api·web·db의 실제 healthy 상태 확인 → 웹 경유 `/health.commit` 대조를 한다.
+Compose가 짧은 대기 상한에서 성공을 반환해도 필수 컨테이너가 아직 starting이거나 누락됐으면 배포를 실패로 처리한다.
 공개 URL 대조까지 성공해야 터널을 통한 배포를 확인한 것이다. `.env`나 전체 Compose 설정을
 로그에 찍지 말고, 필요한 상태·이미지 ID·릴리스 SHA만 기록한다.
 
@@ -87,6 +88,8 @@ docker compose --env-file .env --env-file release.env ps
 docker compose --env-file .env --env-file release.env logs --since 10m --tail 100 api
 curl -fsS https://acttub.com/health
 ```
+
+dev 배포는 `ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=false`를 릴리스 설정에 기록해 게스트의 영상 분석·재분석 일일 횟수를 제한하지 않는다. 운영 배포는 true로 하루 3회 제한을 유지하며, 설정 미지정 기본값도 true다. 배포 스크립트는 API 컨테이너에 실제 반영된 값을 대조한다.
 
 ## 4. 코드 배포 복구
 

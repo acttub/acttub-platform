@@ -74,6 +74,20 @@ class ErrorContractInventoryTest {
      * 이관 중에 500 이던 자리가 404 로 바뀐 사고가 둘 있었고, 그때 응답 diff 는 0 이었다.
      */
     private static final Map<String, Coverage> EXPECTED = Map.ofEntries(
+            covered("feature.coach.adapter.web.DirectVideoController|413|upload_too_large", 1,
+                    "feature.coach.adapter.web.DirectVideoControllerTest"),
+            covered("feature.coach.adapter.web.DirectVideoController|415|unsupported_media_type", 1,
+                    "feature.coach.adapter.web.DirectVideoControllerTest"),
+            covered("feature.coach.adapter.web.DirectVideoController|422|empty_video", 1,
+                    "feature.coach.adapter.web.DirectVideoControllerTest"),
+            covered("feature.coach.app.DirectVideoSessions|404|direct_video_not_found", 1,
+                    "feature.coach.app.DirectVideoLimitsTest"),
+            covered("feature.coach.app.DirectVideoSessions|409|direct_video_not_ready", 1,
+                    "feature.coach.app.DirectVideoLimitsTest"),
+            covered("feature.coach.app.DirectVideoSessions|409|direct_video_turn_limit", 1,
+                    "feature.coach.app.DirectVideoLimitsTest"),
+            covered("feature.coach.app.DirectVideoSessions|429|direct_video_session_limit", 1,
+                    "feature.coach.app.DirectVideoLimitsTest"),
             covered("feature.coach.app.CoachService|502|coach_response_unavailable", 2,
                     "feature.coach.app.CoachServiceTest"),
             covered("feature.coach.app.CoachService|409|client_contract_required", 1,
