@@ -29,11 +29,13 @@ public final class DirectVideoSessions implements AutoCloseable {
     private final DirectVideoModel model;
     private final FailureReporter failures;
     private final Clock clock;
+    private final DirectVideoRouting routing;
 
     public DirectVideoSessions(DirectVideoModel model, FailureReporter failures, Clock clock) {
         this.model = model;
         this.failures = failures;
         this.clock = clock;
+        this.routing = new DirectVideoRouting(model, failures, call -> {});
     }
 
     public record View(UUID id, String status, String model, List<Message> messages, String error, Instant expiresAt) {}
@@ -94,10 +96,12 @@ public final class DirectVideoSessions implements AutoCloseable {
             if (session.closed) return;
             history = new ArrayList<>(session.messages);
         }
-        boolean finish = text != null && history.size() >= 17;
+        boolean finish = DialogueProgress.actorFinished(text) || (text != null && history.size() >= 17);
         if (text != null) history.add(new Message("user", text));
         if (session.closed) return;
-        String reply = model.reply(session.video, history, DirectVideoPrompts.common());
+        var selection = routing.select(history, text, finish, null, session.owner, session.id);
+        String reply = model.reply(session.video, history, selection.prompt());
+        if (reply == null || reply.isBlank()) throw new IllegalStateException("empty video coaching reply");
         synchronized (session) {
             if (session.closed) return;
             if (text != null) session.messages.add(new Message("user", text));

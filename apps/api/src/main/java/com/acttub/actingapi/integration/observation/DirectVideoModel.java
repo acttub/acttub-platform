@@ -10,9 +10,8 @@ public interface DirectVideoModel {
     Video upload(Path path, String mimeType);
     boolean ready(Video video);
     String reply(Video video, List<Message> history, String instruction);
-    default String classify(Video video, List<Message> history, String instruction) {
-        return reply(video, history, instruction);
-    }
+    /** Text-only routing; the application owns the allowed categories. */
+    String classify(List<Message> history, String instruction, List<String> categories);
     void delete(Video video);
     String model();
 }
