@@ -5,7 +5,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
 import { palette } from '@/constants/palette';
+import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
+import { hasSeenSpotlight, markSpotlightSeen } from '@/lib/guide-state';
+import { TARGET } from '@/lib/spotlight-targets';
 import { useAppDialog } from '@/components/app-dialog';
 import { dismissLegacyScriptNotice, readLegacyScriptNotice } from '@/lib/reading/legacy-migration-runner';
 import type { LegacyNotice } from '@/lib/reading/legacy-migration';
@@ -21,6 +25,9 @@ import { translate as t } from '@/lib/i18n';
  * 제목과 배역 이름만 찾는다. "분석 완료" 칩은 리딩에 분석이 없어 없다.
  */
 const SEARCH_DEBOUNCE_MS = 300;
+
+/** 대본 탭에서 처음 한 번 비추는 자리 — 대본을 들이는 버튼 하나뿐이다 (SOMA-550). */
+const READING_STEPS: SpotlightStep[] = [{ target: TARGET.readingNew, text: 'guide.spotReadingNew' }];
 
 const CHIP_TONE: Record<ScriptCardStatus, { color: string; bg: string }> = {
   reading: { color: palette.blue, bg: palette.blueSoft },
@@ -42,6 +49,9 @@ function ReadingListContent() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<LegacyNotice | null>(null);
   const generation = useRef(0);
+  // 대본 탭에서 처음 한 번만 — 홈 가이드와 따로 센다 (SOMA-550).
+  const [guideOpen, setGuideOpen] = useState(false);
+  const newTarget = useSpotlightTarget(TARGET.readingNew);
 
   const load = useCallback(async (keyword: string) => {
     const mine = ++generation.current;
@@ -60,6 +70,10 @@ function ReadingListContent() {
     useCallback(() => {
       void load(q);
       void readLegacyScriptNotice().then(setNotice).catch(() => undefined);
+      // 올 때마다 묻는다 — 설정에서 되살린 뒤 앱을 다시 켜야 보이면 아무도 못 본다.
+      void hasSeenSpotlight('reading').then((seen) => {
+        if (!seen) setGuideOpen(true);
+      });
       return () => {
         generation.current += 1;
       };
@@ -141,7 +155,11 @@ function ReadingListContent() {
             placeholderTextColor={palette.textFaint}
           />
         </View>
-        <Pressable style={styles.newBtn} onPress={() => router.push('/reading/new')}>
+        <Pressable
+          ref={newTarget.ref}
+          onLayout={newTarget.onLayout}
+          style={styles.newBtn}
+          onPress={() => router.push('/reading/new')}>
           <Feather name="plus" size={16} color="#fff" />
           <Text style={styles.newText}>새 대본</Text>
         </Pressable>
@@ -234,6 +252,17 @@ function ReadingListContent() {
         </View>
       )}
       {dialog}
+
+      {/* 가이드는 제 창에 뜬다 — 목록 어디에 두든 자리를 차지하지 않는다. */}
+      <SpotlightGuide
+        visible={guideOpen}
+        topic="reading"
+        steps={READING_STEPS}
+        onDone={() => {
+          setGuideOpen(false);
+          void markSpotlightSeen('reading');
+        }}
+      />
     </ScrollView>
   );
 }

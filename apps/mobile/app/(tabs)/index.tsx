@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -13,7 +13,7 @@ import type { PracticeGroup } from '@/lib/practice/types';
 import { rememberPracticeDays } from '@/lib/practice-days';
 import { dismissFeedbackNudge, feedbackNudgeVisible, maybeRequestStoreReview } from '@/lib/feedback-prompts';
 import { useFeedbackSheet } from '@/hooks/use-feedback-sheet';
-import { hasSeenGuide } from '@/lib/guide-state';
+import { hasSeenSpotlight, markSpotlightSeen } from '@/lib/guide-state';
 import {
   localDate,
   upcomingNotices,
@@ -21,7 +21,10 @@ import {
 } from '@/lib/admissions';
 import { useRequireLogin } from '@/hooks/use-require-login';
 import { dateLocale, isKorean, translate as t } from '@/lib/i18n';
+import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
 import { StreakCelebration } from '@/components/streak-badge';
+import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
+import { TARGET } from '@/lib/spotlight-targets';
 import {
   readLastSeenStreak,
   shouldCelebrateStreak,
@@ -32,6 +35,12 @@ const PREVIEW_COUNT = 3;
 const MASCOT = require('@/assets/images/mascot-home.png');
 /** 연속 연습 스트립의 주황(pen). 팔레트의 amber는 글자용이라 따로 둔다. */
 const STREAK_ORANGE = '#E9A23B';
+
+/** 홈에서 처음 한 번 비추는 자리 — 연습을 시작하는 배너, 그리고 바로 찍는 버튼 (SOMA-550). */
+const HOME_STEPS: SpotlightStep[] = [
+  { target: TARGET.homeStart, text: 'guide.spotHomeStart' },
+  { target: TARGET.shoot, text: 'guide.spotShoot', round: true },
+];
 
 function recentDate(iso: string): string {
   const d = new Date(iso);
@@ -51,17 +60,17 @@ export default function HomeScreen() {
   // 연습 3회 뒤 한 번 뜨는 의견 넛지 / 5회 뒤 한 번 스토어 평점(feedback-prompts).
   const [nudge, setNudge] = useState(false);
   const feedback = useFeedbackSheet('home');
-  // 첫 진입 한 번만 가이드(4장). 설정에서 다시 볼 수 있다.
-  const guideCheckedRef = useRef(false);
+  // 처음 한 번만 가이드 — 누를 자리를 비춰 준다. 설정의 "가이드 다시 보기"로 되살릴 수 있다.
+  const [guideOpen, setGuideOpen] = useState(false);
+  const startTarget = useSpotlightTarget(TARGET.homeStart);
 
   useFocusEffect(
     useCallback(() => {
-      if (!guideCheckedRef.current) {
-        guideCheckedRef.current = true;
-        void hasSeenGuide().then((seen) => {
-          if (!seen) router.push('/guide');
-        });
-      }
+      // 올 때마다 본 적 있는지 묻는다(기기에서 읽는 값이라 싸다). 한 번만 묻고 말면,
+      // 설정에서 되살린 뒤 앱을 껐다 켜야 보인다 — 실기기에서 그렇게 걸렸다.
+      void hasSeenSpotlight('home').then((seen) => {
+        if (!seen) setGuideOpen(true);
+      });
       let cancelled = false;
       // 둘러보는 중엔 계정이 없다 — 보호된 요청은 401 이라 부르지 않는다 (SOMA-544).
       if (isGuest) return;
@@ -157,6 +166,8 @@ export default function HomeScreen() {
 
         {/* 지금 바로 연습하기 — 배너 전체가 버튼 */}
         <Pressable
+          ref={startTarget.ref}
+          onLayout={startTarget.onLayout}
           style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
           accessibilityRole="button"
           accessibilityLabel={t('home.startA11y')}
@@ -297,6 +308,15 @@ export default function HomeScreen() {
       </ScrollView>
       {feedback.element}
       {loginGuard}
+      <SpotlightGuide
+        visible={guideOpen}
+        topic="home"
+        steps={HOME_STEPS}
+        onDone={() => {
+          setGuideOpen(false);
+          void markSpotlightSeen('home');
+        }}
+      />
     </SafeAreaView>
   );
 }
