@@ -14,7 +14,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 public interface ChallengeRepository {
     Creation create(UUID owner, UUID requestId, String fingerprint, Draft draft, Instant now);
     Creation createTeam(UUID requestId, String fingerprint, Draft draft, LocalDate featuredOn, Instant now);
-    Card moderate(UUID id, String moderation);
+    Card moderate(UUID id, String moderation, Instant now);
     boolean delete(UUID owner, UUID id, Instant now);
     Card find(UUID viewer, UUID id);
     Listing list(UUID viewer, String tab, String query, Instant now, ChallengeCursor cursor);

@@ -119,7 +119,9 @@ class EntityMappingIT {
             "video_transcripts", "practices", "analyses", "coach_conversations", "coach_messages",
             "coach_notes", "actor_memories", "practice_feedback", "ai_jobs",
             // 전환 대응표(V15)는 전환 명령만 읽고 쓴다 — 도메인이 없어 매핑도 없다.
-            "practice_migration_entries");
+            "practice_migration_entries",
+            // 조회수 사건·좋아요순 커서(V18)는 참여작 저장소의 native SQL 만 쓰는 장부다.
+            "entry_view_events", "entry_ranking_snapshots");
 
     @Test
     @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 36개 활성 엔티티를 포함한다")

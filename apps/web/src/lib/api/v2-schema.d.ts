@@ -633,6 +633,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/entries/{id}/views": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record Challenge Entry View
+         * @description 3초 이상 재생된 사건 하나. 같은 event_id 는 한 번만 세고 본인 재생은 세지 않는다. 볼 수 없는 참여작은 404.
+         */
+        post: operations["record_view_v2_entries__id__views_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/consents": {
         parameters: {
             query?: never;
@@ -707,6 +727,35 @@ export interface paths {
         put?: never;
         /** Create Challenge */
         post: operations["create_challenge_v2_challenges_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/challenges/{id}/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Challenge Entries
+         * @description 랭킹·피드. likes 는 첫 조회의 순서와 공동 순위를 10분 동안 굳혀 이어 주고 매 쪽에서 개인 노출 조건을 다시
+         *     본다. 정렬 기준이 바뀌었거나(진행 중 → 집계 중 → 확정) 10분이 지난 커서는 410 cursor_expired. latest 는
+         *     공개 시각 역순이고 순위가 없다. from_entry 는 피드의 시작 참여작이다.
+         */
+        get: operations["list_entries_v2_challenges__id__entries_get"];
+        put?: never;
+        /**
+         * Create Challenge Entry
+         * @description 파일이 남아 있는 확정된 본인 영상으로 참여한다. 실제 길이 60초 초과 422 video_too_long, 미확정·파일 파기 영상
+         *     422 video_not_ready, 없는·남의 영상 404, 같은 챌린지의 같은 영상 422 duplicate_entry, 하루 네 번째 429
+         *     daily_entry_limit, 종료 챌린지 422 challenge_closed, review·hidden·deleted 챌린지 404. 같은 request_id·같은
+         *     본문의 재전송은 같은 참여작(200)이다.
+         */
+        post: operations["create_entry_v2_challenges__id__entries_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -998,6 +1047,36 @@ export interface paths {
         patch: operations["update_notification_settings_v2_me_notification_settings_patch"];
         trace?: never;
     };
+    "/v2/entries/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Challenge Entry
+         * @description 공유 링크의 참여작. 본인 것이거나 개인 노출 조건을 지나야 보이고 그 밖은 404 다.
+         */
+        get: operations["get_entry_v2_entries__id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Challenge Entry
+         * @description 참여작만 지운다 — 영상은 보관함에 남는다. 행은 deleted 로 남고 캡션·영상 참조·반응을 지운다. 되돌리지 않는다.
+         */
+        delete: operations["delete_entry_v2_entries__id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Challenge Entry
+         * @description 작성자만 캡션·공개 범위를 바꾼다(남의 것 404). 비공개 전환은 언제든 된다. 공개 전환은 진행 중 visible 챌린지의
+         *     정상 참여작만 된다 — 종료 422 challenge_closed, 신고 숨김 422 entry_hidden, 파일 파기 422 video_not_ready.
+         *     다시 공개해도 published_at 은 처음 값이다.
+         */
+        patch: operations["update_entry_v2_entries__id__patch"];
+        trace?: never;
+    };
     "/v2/videos": {
         parameters: {
             query?: never;
@@ -1251,6 +1330,27 @@ export interface paths {
          * @description 기억을 통째로 지운다. 다음 갱신 대상 회차부터 다시 쌓인다.
          */
         delete: operations["delete_actor_memory_v2_me_memory_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/me/challenge-entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List My Challenge Entries
+         * @description 프로필 챌린지 기록(P03). 삭제되지 않은 내 참여작을 확인 중 → 비공개 → 공개 순으로 한 분류에만 넣어 센다.
+         *     visibility 로 한 분류만 볼 수 있다.
+         */
+        get: operations["list_my_entries_v2_me_challenge_entries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -2395,6 +2495,14 @@ export interface components {
             /** Transferred */
             transferred: boolean;
         };
+        /** ChallengeEntryViewRequest */
+        ChallengeEntryViewRequest: {
+            /**
+             * Event Id
+             * Format: uuid
+             */
+            event_id: string;
+        };
         /**
          * ConsentDecision
          * @enum {string}
@@ -2643,6 +2751,108 @@ export interface components {
             user_id: string;
             /** Name */
             name: string;
+        };
+        /** ChallengeEntryCreateRequest */
+        ChallengeEntryCreateRequest: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /**
+             * Video Id
+             * Format: uuid
+             */
+            video_id: string;
+            /** Caption */
+            caption?: string | null;
+            /**
+             * Visibility
+             * @description 올리기 화면에서 명시적으로 고른다
+             * @enum {string}
+             */
+            visibility: "public" | "private";
+        };
+        /** MyChallengeEntry */
+        MyChallengeEntry: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Challenge Id
+             * Format: uuid
+             */
+            challenge_id: string;
+            author: components["schemas"]["ChallengeParticipant"];
+            /** Caption */
+            caption: string | null;
+            /** Content Version */
+            content_version: number;
+            /** Like Count */
+            like_count: number;
+            /** Comment Count */
+            comment_count: number;
+            /** View Count */
+            view_count: number;
+            /** Rank */
+            rank: number | null;
+            /** Final Like Count */
+            final_like_count: number | null;
+            /** Published At */
+            published_at: string | null;
+            /** Playback Url */
+            playback_url: string | null;
+            /** Liked */
+            liked: boolean;
+            /** Saved */
+            saved: boolean;
+            /** Is Mine */
+            is_mine: boolean;
+            /**
+             * Visibility
+             * @enum {string}
+             */
+            visibility: "public" | "private";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "visible" | "hidden_by_report" | "deleted";
+            /**
+             * Category
+             * @description P03 분류. 확인 중 → 비공개 → 공개 순으로 한 곳에만 든다
+             * @enum {string}
+             */
+            category: "public" | "private" | "under_review";
+            /** Challenge Hidden */
+            challenge_hidden: boolean;
+            challenge: components["schemas"]["MyChallengeEntryParent"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** MyChallengeEntryParent */
+        MyChallengeEntryParent: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Line */
+            line: string;
+            /** Work */
+            work: string;
+            /** Character */
+            character: string | null;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
         };
         /**
          * SignupAction
@@ -2944,6 +3154,13 @@ export interface components {
             /** Evening Reminder */
             evening_reminder: boolean;
         };
+        /** ChallengeEntryPatchRequest */
+        ChallengeEntryPatchRequest: {
+            /** Caption */
+            caption?: string | null;
+            /** Visibility */
+            visibility?: ("public" | "private") | null;
+        };
         /** VideoList */
         VideoList: {
             /** Videos */
@@ -3165,10 +3382,70 @@ export interface components {
             /** Items */
             items: components["schemas"]["ActorMemoryItem"][];
         };
+        /** MyChallengeEntries */
+        MyChallengeEntries: {
+            counts: components["schemas"]["MyChallengeEntryCounts"];
+            /** Entries */
+            entries: components["schemas"]["MyChallengeEntry"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** MyChallengeEntryCounts */
+        MyChallengeEntryCounts: {
+            /** All */
+            all: number;
+            /** Public */
+            public: number;
+            /** Private */
+            private: number;
+            /** Under Review */
+            under_review: number;
+        };
         /** MemoryResponse */
         MemoryResponse: {
             /** Items */
             items: components["schemas"]["MemoryItem"][];
+        };
+        /** ChallengeEntry */
+        ChallengeEntry: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Challenge Id
+             * Format: uuid
+             */
+            challenge_id: string;
+            author: components["schemas"]["ChallengeParticipant"];
+            /** Caption */
+            caption: string | null;
+            /** Like Count */
+            like_count: number;
+            /** Comment Count */
+            comment_count: number;
+            /** View Count */
+            view_count: number;
+            /** Rank */
+            rank: number | null;
+            /** Final Like Count */
+            final_like_count: number | null;
+            /** Published At */
+            published_at: string | null;
+            /** Playback Url */
+            playback_url: string | null;
+            /** Liked */
+            liked: boolean;
+            /** Saved */
+            saved: boolean;
+            /** Is Mine */
+            is_mine: boolean;
+            /**
+             * Is New
+             * @description 최신순 첫 항목
+             */
+            is_new: boolean;
         };
         /** ConsentDocumentsResponse */
         ConsentDocumentsResponse: {
@@ -3238,6 +3515,15 @@ export interface components {
             challenges: components["schemas"]["Challenge"][];
             /** Next Cursor */
             next_cursor: string | null;
+        };
+        /** ChallengeEntryPage */
+        ChallengeEntryPage: {
+            /** Entries */
+            entries: components["schemas"]["ChallengeEntry"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+            /** Ranking State */
+            ranking_state: ("pending" | "final") | null;
         };
         /** AuthProvidersResponse */
         AuthProvidersResponse: {
@@ -4911,6 +5197,30 @@ export interface operations {
             };
         };
     };
+    record_view_v2_entries__id__views_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChallengeEntryViewRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     record_consent_v2_consents_post: {
         parameters: {
             query?: never;
@@ -5081,6 +5391,67 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Challenge"];
+                };
+            };
+        };
+    };
+    list_entries_v2_challenges__id__entries_get: {
+        parameters: {
+            query?: {
+                sort?: string;
+                cursor?: string;
+                from_entry?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChallengeEntryPage"];
+                };
+            };
+        };
+    };
+    create_entry_v2_challenges__id__entries_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChallengeEntryCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Replay */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyChallengeEntry"];
+                };
+            };
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyChallengeEntry"];
                 };
             };
         };
@@ -5621,6 +5992,74 @@ export interface operations {
             };
         };
     };
+    get_entry_v2_entries__id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChallengeEntry"];
+                };
+            };
+        };
+    };
+    delete_entry_v2_entries__id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_entry_v2_entries__id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChallengeEntryPatchRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyChallengeEntry"];
+                };
+            };
+        };
+    };
     list_videos_v2_videos_get: {
         parameters: {
             query?: {
@@ -5933,6 +6372,29 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    list_my_entries_v2_me_challenge_entries_get: {
+        parameters: {
+            query?: {
+                visibility?: "public" | "private" | "under_review";
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyChallengeEntries"];
+                };
             };
         };
     };

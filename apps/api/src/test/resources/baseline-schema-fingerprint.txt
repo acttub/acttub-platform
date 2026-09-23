@@ -212,6 +212,17 @@ COLUMN entry_likes.created_at ord=4 type=timestamptz len=- null=NO default=now()
 COLUMN entry_likes.entry_id ord=2 type=uuid len=- null=NO default=-
 COLUMN entry_likes.id ord=1 type=uuid len=- null=NO default=-
 COLUMN entry_likes.user_id ord=3 type=uuid len=- null=NO default=-
+COLUMN entry_ranking_snapshots.basis ord=4 type=text len=- null=NO default=-
+COLUMN entry_ranking_snapshots.challenge_id ord=2 type=uuid len=- null=NO default=-
+COLUMN entry_ranking_snapshots.created_at ord=7 type=timestamptz len=- null=NO default=-
+COLUMN entry_ranking_snapshots.entry_ids ord=5 type=_uuid len=- null=NO default=-
+COLUMN entry_ranking_snapshots.id ord=1 type=uuid len=- null=NO default=-
+COLUMN entry_ranking_snapshots.ranks ord=6 type=_int4 len=- null=NO default=-
+COLUMN entry_ranking_snapshots.viewer_id ord=3 type=uuid len=- null=NO default=-
+COLUMN entry_view_events.created_at ord=4 type=timestamptz len=- null=NO default=now()
+COLUMN entry_view_events.entry_id ord=2 type=uuid len=- null=NO default=-
+COLUMN entry_view_events.event_id ord=1 type=uuid len=- null=NO default=-
+COLUMN entry_view_events.user_id ord=3 type=uuid len=- null=NO default=-
 COLUMN external_operations.attempt_count ord=7 type=int4 len=- null=NO default=0
 COLUMN external_operations.created_at ord=13 type=timestamptz len=- null=NO default=now()
 COLUMN external_operations.error_code ord=11 type=text len=- null=YES default=-
@@ -838,6 +849,25 @@ CONSTRAINT entry_likes entry_likes_pkey PRIMARY KEY (id)
 CONSTRAINT entry_likes entry_likes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
 CONSTRAINT entry_likes entry_likes_user_id_not_null NOT NULL user_id
 CONSTRAINT entry_likes uq_entry_likes_actor UNIQUE (entry_id, user_id)
+CONSTRAINT entry_ranking_snapshots ck_entry_ranking_snapshots_basis CHECK ((basis = ANY (ARRAY['live'::text, 'pending'::text, 'final'::text])))
+CONSTRAINT entry_ranking_snapshots ck_entry_ranking_snapshots_shape CHECK ((cardinality(entry_ids) = cardinality(ranks)))
+CONSTRAINT entry_ranking_snapshots entry_ranking_snapshots_basis_not_null NOT NULL basis
+CONSTRAINT entry_ranking_snapshots entry_ranking_snapshots_challenge_id_fkey FOREIGN KEY (challenge_id) REFERENCES challenges(id)
+CONSTRAINT entry_ranking_snapshots entry_ranking_snapshots_challenge_id_not_null NOT NULL challenge_id
+CONSTRAINT entry_ranking_snapshots entry_ranking_snapshots_created_at_not_null NOT NULL created_at
+CONSTRAINT entry_ranking_snapshots entry_ranking_snapshots_entry_ids_not_null NOT NULL entry_ids
+CONSTRAINT entry_ranking_snapshots entry_ranking_snapshots_id_not_null NOT NULL id
+CONSTRAINT entry_ranking_snapshots entry_ranking_snapshots_pkey PRIMARY KEY (id)
+CONSTRAINT entry_ranking_snapshots entry_ranking_snapshots_ranks_not_null NOT NULL ranks
+CONSTRAINT entry_ranking_snapshots entry_ranking_snapshots_viewer_id_fkey FOREIGN KEY (viewer_id) REFERENCES users(id)
+CONSTRAINT entry_ranking_snapshots entry_ranking_snapshots_viewer_id_not_null NOT NULL viewer_id
+CONSTRAINT entry_view_events entry_view_events_created_at_not_null NOT NULL created_at
+CONSTRAINT entry_view_events entry_view_events_entry_id_fkey FOREIGN KEY (entry_id) REFERENCES challenge_entries(id)
+CONSTRAINT entry_view_events entry_view_events_entry_id_not_null NOT NULL entry_id
+CONSTRAINT entry_view_events entry_view_events_event_id_not_null NOT NULL event_id
+CONSTRAINT entry_view_events entry_view_events_pkey PRIMARY KEY (event_id)
+CONSTRAINT entry_view_events entry_view_events_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT entry_view_events entry_view_events_user_id_not_null NOT NULL user_id
 CONSTRAINT external_operations ck_external_operations_kind CHECK ((kind = ANY (ARRAY['analyze'::text, 'coach_start'::text, 'coach_reply'::text, 'report'::text, 'memory_update'::text])))
 CONSTRAINT external_operations ck_external_operations_last_failure_classification CHECK ((last_failure_classification = ANY (ARRAY['expected'::text, 'external'::text, 'unexpected'::text])))
 CONSTRAINT external_operations ck_external_operations_status CHECK ((status = ANY (ARRAY['pending'::text, 'running'::text, 'succeeded'::text, 'failed'::text])))
@@ -1272,6 +1302,8 @@ INDEX CREATE INDEX ix_challenge_entries_owner ON public.challenge_entries USING 
 INDEX CREATE INDEX ix_challenge_entries_public ON public.challenge_entries USING btree (challenge_id, published_at DESC, id DESC) WHERE ((visibility = 'public'::text) AND (status = 'visible'::text))
 INDEX CREATE INDEX ix_challenges_host_created ON public.challenges USING btree (host_user_id, starts_at)
 INDEX CREATE INDEX ix_challenges_visible_ends ON public.challenges USING btree (ends_at, starts_at, id) WHERE ((moderation = 'visible'::text) AND (deleted_at IS NULL))
+INDEX CREATE INDEX ix_entry_ranking_snapshots_created ON public.entry_ranking_snapshots USING btree (created_at)
+INDEX CREATE INDEX ix_entry_view_events_created ON public.entry_view_events USING btree (created_at)
 INDEX CREATE INDEX ix_user_blocks_received ON public.user_blocks USING btree (blocked_id, blocker_id)
 INDEX CREATE UNIQUE INDEX account_cleanup_operations_pkey ON public.account_cleanup_operations USING btree (id)
 INDEX CREATE UNIQUE INDEX actor_memories_pkey ON public.actor_memories USING btree (id)
@@ -1297,6 +1329,8 @@ INDEX CREATE UNIQUE INDEX community_posts_pkey ON public.community_posts USING b
 INDEX CREATE UNIQUE INDEX community_reports_pkey ON public.community_reports USING btree (id)
 INDEX CREATE UNIQUE INDEX consent_documents_pkey ON public.consent_documents USING btree (id)
 INDEX CREATE UNIQUE INDEX entry_likes_pkey ON public.entry_likes USING btree (id)
+INDEX CREATE UNIQUE INDEX entry_ranking_snapshots_pkey ON public.entry_ranking_snapshots USING btree (id)
+INDEX CREATE UNIQUE INDEX entry_view_events_pkey ON public.entry_view_events USING btree (event_id)
 INDEX CREATE UNIQUE INDEX external_operations_pkey ON public.external_operations USING btree (id)
 INDEX CREATE UNIQUE INDEX guest_transfer_codes_pkey ON public.guest_transfer_codes USING btree (id)
 INDEX CREATE UNIQUE INDEX handoff_confirmations_pkey ON public.handoff_confirmations USING btree (coaching_handoff_id)
@@ -1408,6 +1442,8 @@ TABLE community_posts
 TABLE community_reports
 TABLE consent_documents
 TABLE entry_likes
+TABLE entry_ranking_snapshots
+TABLE entry_view_events
 TABLE external_operations
 TABLE guest_transfer_codes
 TABLE handoff_confirmations

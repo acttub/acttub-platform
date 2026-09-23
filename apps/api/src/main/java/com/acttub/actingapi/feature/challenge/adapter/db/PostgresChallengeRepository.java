@@ -25,7 +25,10 @@ import org.springframework.transaction.annotation.Transactional;
 class PostgresChallengeRepository implements ChallengeRepository {
     private final EntityManager em;
     private final PostgresChallengeBrowse browse;
-    PostgresChallengeRepository(EntityManager em, PostgresChallengeBrowse browse) { this.em = em; this.browse = browse; }
+    private final ChallengeSettlement settlement;
+    PostgresChallengeRepository(EntityManager em, PostgresChallengeBrowse browse, ChallengeSettlement settlement) {
+        this.em = em; this.browse = browse; this.settlement = settlement;
+    }
 
     @Override @Transactional
     public Creation create(UUID owner, UUID requestId, String fingerprint, Draft draft, Instant now) {
@@ -83,10 +86,13 @@ class PostgresChallengeRepository implements ChallengeRepository {
     }
 
     @Override @Transactional
-    public Card moderate(UUID id, String moderation) {
+    public Card moderate(UUID id, String moderation, Instant now) {
         var c = em.find(ChallengeEntity.class, id, LockModeType.PESSIMISTIC_WRITE);
         if (c == null || c.getDeletedAt() != null) return null;
         c.moderate(ChallengeModeration.valueOf(moderation.toUpperCase(Locale.ROOT)));
+        em.flush();
+        // review 가 끝나면 마감 집계를 기다리던 순위를 확정할 수 있다(challenge.browse 종료 랭킹).
+        settlement.settle(id, now);
         return card(c, null);
     }
 

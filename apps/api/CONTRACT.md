@@ -1261,6 +1261,45 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - V16은 `challenges`, V17은 공개 집계의 기반인 `challenge_entries`·`entry_likes`·`user_blocks`를 더한다.
   기존 표·컬럼은 축소하지 않는다. 값 CHECK와 Schema Entity 매핑도 함께 검증한다.
 
+### 6-17. 챌린지 참여·랭킹·조회수 (1.0.0)
+
+- 게이트는 6-16과 같다. `POST /v2/challenges/{id}/entries`는 `request_id`·`video_id`·`visibility`(public·private,
+  필수)와 선택 `caption`(앞뒤 공백을 걷고 코드 포인트 300자)을 받는다. 생성 201, 같은 요청·같은 본문 200,
+  다른 본문 422 `request_fingerprint_mismatch`. 재전송 확인이 한도보다 먼저다(삭제된 참여작의 옛 요청도 새 행을
+  만들지 않고 그 행을 돌려준다).
+- 영상은 확정된 본인 `videos` 행이어야 한다. 없는·남의 영상 404 `video_not_found`, 아직 확정되지 않은 본인 업로드
+  예약 id와 파일 파기 영상은 422 `video_not_ready`. 길이는 기기가 적은 값과 **서버가 객체를 ffprobe로 읽은 실제 값**
+  모두 60초 이하여야 한다(422 `video_too_long`, 정확히 60초는 통과). 객체를 읽을 수 없으면 422 `video_not_ready`.
+- visible·진행 중 챌린지에만 참여한다. review·hidden·삭제·없는 챌린지 404 `challenge_not_found`, 마감(저장 시점의
+  서버 시각) 뒤 422 `challenge_closed`. 같은 챌린지의 같은 영상(삭제되지 않은 참여작 사이) 422 `duplicate_entry`,
+  한국 날짜 하루 네 번째 429 `daily_entry_limit`(삭제한 것도 센다). 검사·쓰기는 사용자 → 챌린지 → 영상 행을 잠근
+  한 트랜잭션이라 챌린지 삭제·영상 파기·보관함 삭제·탈퇴와 겹쳐도 한쪽만 성공한다.
+- `PATCH /v2/entries/{id}`는 작성자만(남의·삭제된 것 404 `entry_not_found`). `caption` 빈 문자열은 지우기이고 값이
+  바뀌면 `content_version`이 오른다. 비공개 전환은 언제든 된다. 공개 전환은 진행 중 visible 챌린지(아니면 422
+  `challenge_closed`), 신고 숨김이 아닌 참여작(422 `entry_hidden`), 파일이 남은 영상(422 `video_not_ready`)만 되고
+  `published_at`은 처음 공개 시각을 유지한다. 비공개로 가도 좋아요 행은 남는다.
+- `DELETE /v2/entries/{id}`는 204(같은 삭제도 204). 행은 `status=deleted`로 남기고 캡션·영상 참조를 비우며 좋아요를
+  지운다. 영상은 보관함에 남고, 보관함 삭제는 삭제되지 않은 참여작이 참조하면 422 `video_in_use`다.
+- `GET /v2/challenges/{id}/entries?sort=likes|latest&cursor=&from_entry=`는 20개씩이다. 목록은 개인 노출 조건
+  (6-16의 공개 조건 + 양방향 차단 없음), 순위는 공개 조건 전체 기준의 공동 순위(좋아요 같으면 같은 순위, 안에서는
+  `published_at`·id 순)다. 좋아요가 모두 0이면 `rank`는 null이다. likes의 첫 조회는 전체 순서와 순위를
+  `entry_ranking_snapshots`에 굳히고 커서는 그 위치다 — 10분 안의 다음 쪽은 처음 순서를 잇고 매 쪽에서 개인 노출
+  조건을 다시 본다. 기준(진행 중 → 집계 중 → 확정)이 바뀌었거나 10분이 지난 커서는 410 `cursor_expired`, 모양이
+  틀린 커서는 422다. latest는 `published_at`·id 역순이고 순위가 없으며 가장 최근 하나만 `is_new`다.
+- 종료 랭킹: 마감 뒤 그 챌린지에 처음 닿는 변경(현재는 참여작 수정·삭제, 운영 검토 변경)이나 목록 조회, 매시 도는
+  일(`CHALLENGE_SETTLEMENT_ENABLED`)이 챌린지 행을 잠그고 한 번 집계한다 — 삭제되지 않은 참여작의
+  `final_like_count`와 `final_eligible`(신고 숨김은 통과로 셈한 공개 조건)을 저장하고 `ranking_state=pending`.
+  챌린지가 review가 아니고 자격 있는 신고 숨김 참여작이 없으면 자격 있고 visible인 참여작에 `final_rank`를 매겨
+  `final`로 바꾼다. 확정 뒤의 좋아요·비공개·삭제는 저장된 값을 바꾸지 않고 순위를 당겨 매기지 않는다. 종료 목록의
+  `rank`는 `final_rank`, 집계 중에는 null이며 응답의 `ranking_state`로 구분한다.
+- `POST /v2/entries/{id}/views`(`event_id`)는 204. 볼 수 없는 참여작 404, 본인 재생과 같은 사건 재전송은 세지 않는다.
+  사건은 `entry_view_events`에 조회수 증가와 한 트랜잭션으로 남기고 매시 일이 7일 지난 것을 지운다.
+- `GET /v2/entries/{id}`는 본인 것이거나 개인 노출 조건을 지난 참여작 하나(그 밖 404). `GET /v2/me/challenge-entries
+  ?visibility=public|private|under_review&cursor=`는 삭제되지 않은 내 참여작을 확인 중(신고 숨김 또는 부모 챌린지
+  review·hidden) → 비공개 → 공개 순으로 한 분류에만 넣어 `counts`(all = 셋의 합)와 20개씩의 목록을 낸다.
+- 카드에는 작성자의 현재 이름만 있고 사진·소개가 없다. 댓글 수·저장 여부는 반응 갈래(challenge.react)가 채우기
+  전까지 0·false다. V18은 `entry_view_events`·`entry_ranking_snapshots`를 더하고 기존 표는 바꾸지 않는다.
+
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 
 1. **좋아요 카운트는 재집계다.** 증감 방식이 "두 번 눌리면 2 증가" 하던 버그 때문에 의도적으로

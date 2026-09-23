@@ -1494,6 +1494,42 @@
         } ]
       }
     },
+    "/v2/entries/{id}/views" : {
+      "post" : {
+        "tags" : [ "v2-challenges" ],
+        "summary" : "Record Challenge Entry View",
+        "description" : "3초 이상 재생된 사건 하나. 같은 event_id 는 한 번만 세고 본인 재생은 세지 않는다. 볼 수 없는 참여작은 404.",
+        "operationId" : "record_view_v2_entries__id__views_post",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ChallengeEntryViewRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/consents" : {
       "post" : {
         "tags" : [ "v2-consents" ],
@@ -1721,6 +1757,116 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/Challenge"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/challenges/{id}/entries" : {
+      "get" : {
+        "tags" : [ "v2-challenges" ],
+        "summary" : "List Challenge Entries",
+        "description" : "랭킹·피드. likes 는 첫 조회의 순서와 공동 순위를 10분 동안 굳혀 이어 주고 매 쪽에서 개인 노출 조건을 다시\n본다. 정렬 기준이 바뀌었거나(진행 중 → 집계 중 → 확정) 10분이 지난 커서는 410 cursor_expired. latest 는\n공개 시각 역순이고 순위가 없다. from_entry 는 피드의 시작 참여작이다.",
+        "operationId" : "list_entries_v2_challenges__id__entries_get",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          }
+        }, {
+          "name" : "sort",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "default" : "likes",
+            "title" : "Sort"
+          }
+        }, {
+          "name" : "cursor",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "title" : "Cursor"
+          }
+        }, {
+          "name" : "from_entry",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "From Entry"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChallengeEntryPage"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      },
+      "post" : {
+        "tags" : [ "v2-challenges" ],
+        "summary" : "Create Challenge Entry",
+        "description" : "파일이 남아 있는 확정된 본인 영상으로 참여한다. 실제 길이 60초 초과 422 video_too_long, 미확정·파일 파기 영상\n422 video_not_ready, 없는·남의 영상 404, 같은 챌린지의 같은 영상 422 duplicate_entry, 하루 네 번째 429\ndaily_entry_limit, 종료 챌린지 422 challenge_closed, review·hidden·deleted 챌린지 404. 같은 request_id·같은\n본문의 재전송은 같은 참여작(200)이다.",
+        "operationId" : "create_entry_v2_challenges__id__entries_post",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ChallengeEntryCreateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Created",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MyChallengeEntry"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Replay",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MyChallengeEntry"
                 }
               }
             }
@@ -2412,6 +2558,104 @@
         } ]
       }
     },
+    "/v2/entries/{id}" : {
+      "get" : {
+        "tags" : [ "v2-challenges" ],
+        "summary" : "Get Challenge Entry",
+        "description" : "공유 링크의 참여작. 본인 것이거나 개인 노출 조건을 지나야 보이고 그 밖은 404 다.",
+        "operationId" : "get_entry_v2_entries__id__get",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChallengeEntry"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      },
+      "delete" : {
+        "tags" : [ "v2-challenges" ],
+        "summary" : "Delete Challenge Entry",
+        "description" : "참여작만 지운다 — 영상은 보관함에 남는다. 행은 deleted 로 남고 캡션·영상 참조·반응을 지운다. 되돌리지 않는다.",
+        "operationId" : "delete_entry_v2_entries__id__delete",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      },
+      "patch" : {
+        "tags" : [ "v2-challenges" ],
+        "summary" : "Update Challenge Entry",
+        "description" : "작성자만 캡션·공개 범위를 바꾼다(남의 것 404). 비공개 전환은 언제든 된다. 공개 전환은 진행 중 visible 챌린지의\n정상 참여작만 된다 — 종료 422 challenge_closed, 신고 숨김 422 entry_hidden, 파일 파기 422 video_not_ready.\n다시 공개해도 published_at 은 처음 값이다.",
+        "operationId" : "update_entry_v2_entries__id__patch",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ChallengeEntryPatchRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MyChallengeEntry"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/videos" : {
       "get" : {
         "tags" : [ "v2-videos" ],
@@ -2825,6 +3069,47 @@
         "responses" : {
           "204" : {
             "description" : "Successful Response"
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/me/challenge-entries" : {
+      "get" : {
+        "tags" : [ "v2-challenges" ],
+        "summary" : "List My Challenge Entries",
+        "description" : "프로필 챌린지 기록(P03). 삭제되지 않은 내 참여작을 확인 중 → 비공개 → 공개 순으로 한 분류에만 넣어 센다.\nvisibility 로 한 분류만 볼 수 있다.",
+        "operationId" : "list_my_entries_v2_me_challenge_entries_get",
+        "parameters" : [ {
+          "name" : "visibility",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "public", "private", "under_review" ],
+            "title" : "Visibility"
+          }
+        }, {
+          "name" : "cursor",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "title" : "Cursor"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MyChallengeEntries"
+                }
+              }
+            }
           }
         },
         "security" : [ {
@@ -5087,6 +5372,19 @@
         "required" : [ "transferred" ],
         "title" : "GuestTransferResponse"
       },
+      "ChallengeEntryViewRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "event_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Event Id"
+          }
+        },
+        "required" : [ "event_id" ],
+        "title" : "ChallengeEntryViewRequest"
+      },
       "ConsentDecision" : {
         "type" : "string",
         "enum" : [ "granted", "declined" ],
@@ -5598,6 +5896,191 @@
         },
         "required" : [ "name", "user_id" ],
         "title" : "ChallengeParticipant"
+      },
+      "ChallengeEntryCreateRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "request_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Request Id"
+          },
+          "video_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Video Id"
+          },
+          "caption" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "300자(코드 포인트)까지. 앞뒤 공백을 떼고 비면 캡션 없음"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Caption"
+          },
+          "visibility" : {
+            "type" : "string",
+            "description" : "올리기 화면에서 명시적으로 고른다",
+            "enum" : [ "public", "private" ],
+            "title" : "Visibility"
+          }
+        },
+        "required" : [ "request_id", "video_id", "visibility" ],
+        "title" : "ChallengeEntryCreateRequest"
+      },
+      "MyChallengeEntry" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "challenge_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Challenge Id"
+          },
+          "author" : {
+            "$ref" : "#/components/schemas/ChallengeParticipant"
+          },
+          "caption" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Caption"
+          },
+          "content_version" : {
+            "type" : "integer",
+            "title" : "Content Version"
+          },
+          "like_count" : {
+            "type" : "integer",
+            "title" : "Like Count"
+          },
+          "comment_count" : {
+            "type" : "integer",
+            "title" : "Comment Count"
+          },
+          "view_count" : {
+            "type" : "integer",
+            "title" : "View Count"
+          },
+          "rank" : {
+            "anyOf" : [ {
+              "type" : "integer"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Rank"
+          },
+          "final_like_count" : {
+            "anyOf" : [ {
+              "type" : "integer"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Final Like Count"
+          },
+          "published_at" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "date-time"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Published At"
+          },
+          "playback_url" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Playback Url"
+          },
+          "liked" : {
+            "type" : "boolean",
+            "title" : "Liked"
+          },
+          "saved" : {
+            "type" : "boolean",
+            "title" : "Saved"
+          },
+          "is_mine" : {
+            "type" : "boolean",
+            "title" : "Is Mine"
+          },
+          "visibility" : {
+            "type" : "string",
+            "enum" : [ "public", "private" ],
+            "title" : "Visibility"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "visible", "hidden_by_report", "deleted" ],
+            "title" : "Status"
+          },
+          "category" : {
+            "type" : "string",
+            "description" : "P03 분류. 확인 중 → 비공개 → 공개 순으로 한 곳에만 든다",
+            "enum" : [ "public", "private", "under_review" ],
+            "title" : "Category"
+          },
+          "challenge_hidden" : {
+            "type" : "boolean",
+            "title" : "Challenge Hidden"
+          },
+          "challenge" : {
+            "$ref" : "#/components/schemas/MyChallengeEntryParent"
+          },
+          "created_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Created At"
+          }
+        },
+        "required" : [ "author", "caption", "category", "challenge", "challenge_hidden", "challenge_id", "comment_count", "content_version", "created_at", "final_like_count", "id", "is_mine", "like_count", "liked", "playback_url", "published_at", "rank", "saved", "status", "view_count", "visibility" ],
+        "title" : "MyChallengeEntry"
+      },
+      "MyChallengeEntryParent" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "line" : {
+            "type" : "string",
+            "title" : "Line"
+          },
+          "work" : {
+            "type" : "string",
+            "title" : "Work"
+          },
+          "character" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Character"
+          },
+          "ends_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Ends At"
+          }
+        },
+        "required" : [ "character", "ends_at", "id", "line", "work" ],
+        "title" : "MyChallengeEntryParent"
       },
       "SignupAction" : {
         "type" : "string",
@@ -6287,6 +6770,31 @@
         "required" : [ "analysis_done", "challenge", "evening_reminder" ],
         "title" : "NotificationSettings"
       },
+      "ChallengeEntryPatchRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "caption" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "빈 문자열이면 캡션을 지운다. 바뀌면 content_version 이 오른다"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Caption"
+          },
+          "visibility" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "enum" : [ "public", "private" ]
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Visibility"
+          }
+        },
+        "title" : "ChallengeEntryPatchRequest"
+      },
       "VideoList" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -6781,6 +7289,56 @@
         "required" : [ "items" ],
         "title" : "ActorMemoryResponse"
       },
+      "MyChallengeEntries" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "counts" : {
+            "$ref" : "#/components/schemas/MyChallengeEntryCounts"
+          },
+          "entries" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/MyChallengeEntry"
+            },
+            "title" : "Entries"
+          },
+          "next_cursor" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Next Cursor"
+          }
+        },
+        "required" : [ "counts", "entries", "next_cursor" ],
+        "title" : "MyChallengeEntries"
+      },
+      "MyChallengeEntryCounts" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "all" : {
+            "type" : "integer",
+            "title" : "All"
+          },
+          "public" : {
+            "type" : "integer",
+            "title" : "Public"
+          },
+          "private" : {
+            "type" : "integer",
+            "title" : "Private"
+          },
+          "under_review" : {
+            "type" : "integer",
+            "title" : "Under Review"
+          }
+        },
+        "required" : [ "all", "private", "public", "under_review" ],
+        "title" : "MyChallengeEntryCounts"
+      },
       "MemoryResponse" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -6795,6 +7353,99 @@
         },
         "required" : [ "items" ],
         "title" : "MemoryResponse"
+      },
+      "ChallengeEntry" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "challenge_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Challenge Id"
+          },
+          "author" : {
+            "$ref" : "#/components/schemas/ChallengeParticipant"
+          },
+          "caption" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Caption"
+          },
+          "like_count" : {
+            "type" : "integer",
+            "title" : "Like Count"
+          },
+          "comment_count" : {
+            "type" : "integer",
+            "title" : "Comment Count"
+          },
+          "view_count" : {
+            "type" : "integer",
+            "title" : "View Count"
+          },
+          "rank" : {
+            "anyOf" : [ {
+              "type" : "integer",
+              "description" : "전체 기준 공동 순위. 최신순이거나 좋아요가 모두 0이거나 집계 중이면 null"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Rank"
+          },
+          "final_like_count" : {
+            "anyOf" : [ {
+              "type" : "integer",
+              "description" : "종료 뒤 저장된 좋아요 수"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Final Like Count"
+          },
+          "published_at" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "date-time"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Published At"
+          },
+          "playback_url" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Playback Url"
+          },
+          "liked" : {
+            "type" : "boolean",
+            "title" : "Liked"
+          },
+          "saved" : {
+            "type" : "boolean",
+            "title" : "Saved"
+          },
+          "is_mine" : {
+            "type" : "boolean",
+            "title" : "Is Mine"
+          },
+          "is_new" : {
+            "type" : "boolean",
+            "description" : "최신순 첫 항목",
+            "title" : "Is New"
+          }
+        },
+        "required" : [ "author", "caption", "challenge_id", "comment_count", "final_like_count", "id", "is_mine", "is_new", "like_count", "liked", "playback_url", "published_at", "rank", "saved", "view_count" ],
+        "title" : "ChallengeEntry"
       },
       "ConsentDocumentsResponse" : {
         "type" : "object",
@@ -6961,6 +7612,38 @@
         },
         "required" : [ "challenges", "featured", "next_cursor" ],
         "title" : "ChallengeList"
+      },
+      "ChallengeEntryPage" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "entries" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ChallengeEntry"
+            },
+            "title" : "Entries"
+          },
+          "next_cursor" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Next Cursor"
+          },
+          "ranking_state" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "enum" : [ "pending", "final" ]
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Ranking State"
+          }
+        },
+        "required" : [ "entries", "next_cursor", "ranking_state" ],
+        "title" : "ChallengeEntryPage"
       },
       "AuthProvidersResponse" : {
         "type" : "object",

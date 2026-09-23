@@ -231,7 +231,8 @@ class PostgresVideoRepository implements VideoRepository {
     public VideoPage list(UUID userId, String filter, String cursor, int limit, Instant now) {
         StringBuilder sql = new StringBuilder("""
                 SELECT v.id,v.object_key,v.content_type,v.byte_size,v.duration_ms,v.favorite,v.purged_at,v.created_at,
-                       (SELECT count(*) FROM practices p WHERE p.video_id=v.id) AS practice_count
+                       (SELECT count(*) FROM practices p WHERE p.video_id=v.id) AS practice_count,
+                       (SELECT count(*) FROM challenge_entries ce WHERE ce.video_id=v.id) AS entry_count
                 FROM videos v
                 WHERE v.user_id=:userId
                 """);
@@ -270,7 +271,8 @@ class PostgresVideoRepository implements VideoRepository {
     public VideoView find(UUID userId, UUID videoId) {
         List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
                 SELECT v.id,v.object_key,v.content_type,v.byte_size,v.duration_ms,v.favorite,v.purged_at,v.created_at,
-                       (SELECT count(*) FROM practices p WHERE p.video_id=v.id) AS practice_count
+                       (SELECT count(*) FROM practices p WHERE p.video_id=v.id) AS practice_count,
+                       (SELECT count(*) FROM challenge_entries ce WHERE ce.video_id=v.id) AS entry_count
                 FROM videos v
                 WHERE v.id=:videoId
                   AND v.user_id=:userId
@@ -368,10 +370,12 @@ class PostgresVideoRepository implements VideoRepository {
         return rows.isEmpty() ? null : rows.getFirst();
     }
 
-    /** 회차나 참여작이 이 영상을 쓰는가. 챌린지 참여작은 그 테이블이 생기면 여기에 더한다. */
+    /** 회차나 참여작이 이 영상을 쓰는가. 지운 참여작은 영상 참조를 풀어 두므로 세지 않는다. */
     private boolean referenced(UUID videoId) {
-        return !NativeTuples.list(entityManager.createNativeQuery(
-                "SELECT 1 AS used FROM practices WHERE video_id=:videoId LIMIT 1", Tuple.class)
+        return !NativeTuples.list(entityManager.createNativeQuery("""
+                SELECT 1 AS used WHERE EXISTS(SELECT 1 FROM practices WHERE video_id=:videoId)
+                   OR EXISTS(SELECT 1 FROM challenge_entries WHERE video_id=:videoId)
+                """, Tuple.class)
                 .setParameter("videoId", videoId)).isEmpty();
     }
 
@@ -408,7 +412,7 @@ class PostgresVideoRepository implements VideoRepository {
                 row.get("purged_at", Instant.class),
                 row.get("created_at", Instant.class),
                 ((Number) row.get("practice_count")).intValue(),
-                0,
+                ((Number) row.get("entry_count")).intValue(),
                 null,
                 null);
     }

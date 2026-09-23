@@ -41,7 +41,7 @@ public class ChallengeService {
             throw ApiValidationException.valueError(
                     List.of("body", "moderation"), "Value error, invalid moderation", moderation);
         }
-        var card = challenges.moderate(id, moderation);
+        var card = challenges.moderate(id, moderation, clock.instant());
         if (card == null) throw new ApiException(404, "challenge_not_found");
         return card;
     }

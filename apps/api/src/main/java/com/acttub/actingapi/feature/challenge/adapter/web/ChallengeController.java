@@ -6,10 +6,7 @@ import com.acttub.actingapi.feature.challenge.app.ChallengeRepository.Card;
 import com.acttub.actingapi.feature.challenge.app.ChallengeRepository.Listing;
 import com.acttub.actingapi.feature.challenge.app.ChallengeService;
 import com.acttub.actingapi.feature.challenge.app.ChallengeService.Draft;
-import com.acttub.actingapi.platform.security.AccessGate;
-import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.ApiValidationException;
-import com.acttub.actingapi.platform.web.OutputLanguage;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -28,8 +25,8 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/v2/challenges")
 class ChallengeController {
     private final ChallengeService challenges;
-    private final AccessGate auth;
-    ChallengeController(ChallengeService challenges, AccessGate auth) { this.challenges = challenges; this.auth = auth; }
+    private final ChallengeMembers members;
+    ChallengeController(ChallengeService challenges, ChallengeMembers members) { this.challenges = challenges; this.members = members; }
 
     @Schema(name = "ChallengeCreateRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
@@ -77,13 +74,6 @@ class ChallengeController {
         return result;
     }
 
-    private UUID member(HttpServletRequest request) {
-        var user = auth.gatedUser(request);
-        String client = request.getHeader("X-Acttub-Client");
-        if (user.guest() || client == null || !client.startsWith("app/") || !OutputLanguage.isKorean()) {
-            throw new ApiException(403, "member_only");
-        }
-        return user.id();
-    }
+    private UUID member(HttpServletRequest request) { return members.member(request); }
 
 }
