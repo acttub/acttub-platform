@@ -3,6 +3,9 @@ package com.acttub.actingapi.feature.admin.adapter.web;
 import com.acttub.actingapi.feature.challenge.app.ChallengeRepository.Card;
 import com.acttub.actingapi.feature.challenge.app.ChallengeService.Draft;
 import com.acttub.actingapi.feature.challenge.app.ChallengeService;
+import com.acttub.actingapi.feature.challenge.app.ReactionService;
+import com.acttub.actingapi.feature.challenge.app.ReportRepository.AdminReport;
+import com.acttub.actingapi.feature.challenge.app.ReportRepository.AdminReportPage;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -51,16 +54,19 @@ class AdminController {
     private final AdminService admin;
     private final PracticeDataMigration migration;
     private final ChallengeService challenges;
+    private final ReactionService reactions;
     private final byte[] expectedAuthorization;
 
     AdminController(
             AdminService admin,
             PracticeDataMigration migration,
             ChallengeService challenges,
+            ReactionService reactions,
             @Value("${ADMIN_OPS_TOKEN}") String adminToken) {
         this.admin = admin;
         this.migration = migration;
         this.challenges = challenges;
+        this.reactions = reactions;
         this.expectedAuthorization = ("Bearer " + adminToken).getBytes(StandardCharsets.UTF_8);
     }
 
@@ -105,6 +111,37 @@ class AdminController {
             @RequestHeader(name = "authorization", defaultValue = "") String authorization) {
         requireToken(authorization);
         return challenges.moderate(id, body.moderation());
+    }
+
+    @Schema(name = "AdminReportResolution", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record Resolution(@NotNull @Schema(allowableValues = {"restored", "kept_hidden", "dismissed"}) String resolution,
+            @NotNull @Schema(description = "처리한 운영자") String reviewer,
+            @Schema(nullable = true) String note) { }
+
+    @GetMapping("/reports")
+    @Operation(summary = "List Challenge Reports", operationId = "list_reports_v2_admin_reports_get", tags = "admin",
+            description = "접수순 50개씩. 신고 당시와 지금의 캡션·댓글·대사, 남은 처리 전 신고 수, 24·72시간 목표 시각을 함께 본다.")
+    AdminReportPage reports(
+            @RequestParam(defaultValue = "received") String status,
+            @RequestParam(required = false) String cursor,
+            @RequestHeader(name = "authorization", defaultValue = "") String authorization) {
+        requireToken(authorization);
+        return reactions.adminReports(status, cursor);
+    }
+
+    @PatchMapping("/reports/{id}")
+    @Operation(summary = "Resolve Challenge Report", operationId = "resolve_report_v2_admin_reports__id__patch", tags = "admin",
+            description = """
+                    restored·dismissed 는 그 대상에 처리 전 신고가 남지 않았을 때만 운영 숨김을 푼다(작성자의 비공개·삭제와
+                    챌린지 종료는 그대로). kept_hidden 은 숨김을 유지하고 챌린지는 hidden 으로 내린다. 이미 처리한 신고는 422
+                    report_already_reviewed.""")
+    AdminReport resolveReport(
+            @PathVariable UUID id,
+            @Valid @RequestBody Resolution body,
+            @RequestHeader(name = "authorization", defaultValue = "") String authorization) {
+        requireToken(authorization);
+        return reactions.resolve(id, body.resolution(), body.reviewer(), body.note());
     }
 
     @Operation(

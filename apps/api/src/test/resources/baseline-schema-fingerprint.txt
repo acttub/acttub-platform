@@ -208,6 +208,15 @@ COLUMN consent_documents.required ord=6 type=bool len=- null=NO default=false
 COLUMN consent_documents.title ord=4 type=text len=- null=NO default=-
 COLUMN consent_documents.type ord=2 type=text len=- null=NO default=-
 COLUMN consent_documents.version ord=3 type=text len=- null=NO default=-
+COLUMN entry_comments.body ord=4 type=text len=- null=YES default=-
+COLUMN entry_comments.created_at ord=8 type=timestamptz len=- null=NO default=now()
+COLUMN entry_comments.deleted_at ord=9 type=timestamptz len=- null=YES default=-
+COLUMN entry_comments.entry_id ord=2 type=uuid len=- null=NO default=-
+COLUMN entry_comments.id ord=1 type=uuid len=- null=NO default=-
+COLUMN entry_comments.request_fingerprint ord=7 type=bpchar len=64 null=NO default=-
+COLUMN entry_comments.request_id ord=6 type=uuid len=- null=NO default=-
+COLUMN entry_comments.status ord=5 type=text len=- null=NO default='visible'::text
+COLUMN entry_comments.user_id ord=3 type=uuid len=- null=NO default=-
 COLUMN entry_likes.created_at ord=4 type=timestamptz len=- null=NO default=now()
 COLUMN entry_likes.entry_id ord=2 type=uuid len=- null=NO default=-
 COLUMN entry_likes.id ord=1 type=uuid len=- null=NO default=-
@@ -219,6 +228,26 @@ COLUMN entry_ranking_snapshots.entry_ids ord=5 type=_uuid len=- null=NO default=
 COLUMN entry_ranking_snapshots.id ord=1 type=uuid len=- null=NO default=-
 COLUMN entry_ranking_snapshots.ranks ord=6 type=_int4 len=- null=NO default=-
 COLUMN entry_ranking_snapshots.viewer_id ord=3 type=uuid len=- null=NO default=-
+COLUMN entry_reports.created_at ord=16 type=timestamptz len=- null=NO default=now()
+COLUMN entry_reports.id ord=1 type=uuid len=- null=NO default=-
+COLUMN entry_reports.note ord=6 type=text len=- null=YES default=-
+COLUMN entry_reports.reason ord=5 type=text len=- null=NO default=-
+COLUMN entry_reports.reporter_id ord=4 type=uuid len=- null=NO default=-
+COLUMN entry_reports.request_fingerprint ord=15 type=bpchar len=64 null=NO default=-
+COLUMN entry_reports.request_id ord=14 type=uuid len=- null=NO default=-
+COLUMN entry_reports.resolution ord=8 type=text len=- null=YES default=-
+COLUMN entry_reports.resolution_note ord=11 type=text len=- null=YES default=-
+COLUMN entry_reports.reviewed_at ord=10 type=timestamptz len=- null=YES default=-
+COLUMN entry_reports.reviewed_by ord=9 type=text len=- null=YES default=-
+COLUMN entry_reports.status ord=7 type=text len=- null=NO default='received'::text
+COLUMN entry_reports.target_id ord=3 type=uuid len=- null=NO default=-
+COLUMN entry_reports.target_text ord=13 type=text len=- null=YES default=-
+COLUMN entry_reports.target_type ord=2 type=text len=- null=NO default=-
+COLUMN entry_reports.target_version ord=12 type=int4 len=- null=NO default=-
+COLUMN entry_saves.created_at ord=4 type=timestamptz len=- null=NO default=now()
+COLUMN entry_saves.entry_id ord=2 type=uuid len=- null=NO default=-
+COLUMN entry_saves.id ord=1 type=uuid len=- null=NO default=-
+COLUMN entry_saves.user_id ord=3 type=uuid len=- null=NO default=-
 COLUMN entry_view_events.created_at ord=4 type=timestamptz len=- null=NO default=now()
 COLUMN entry_view_events.entry_id ord=2 type=uuid len=- null=NO default=-
 COLUMN entry_view_events.event_id ord=1 type=uuid len=- null=NO default=-
@@ -841,6 +870,20 @@ CONSTRAINT consent_documents consent_documents_title_not_null NOT NULL title
 CONSTRAINT consent_documents consent_documents_type_not_null NOT NULL type
 CONSTRAINT consent_documents consent_documents_version_not_null NOT NULL version
 CONSTRAINT consent_documents uq_consent_documents_type_version UNIQUE (type, version, locale)
+CONSTRAINT entry_comments ck_entry_comments_body CHECK (((char_length(body) >= 1) AND (char_length(body) <= 500)))
+CONSTRAINT entry_comments ck_entry_comments_deleted CHECK (((deleted_at IS NULL) = (body IS NOT NULL)))
+CONSTRAINT entry_comments ck_entry_comments_status CHECK ((status = ANY (ARRAY['visible'::text, 'hidden'::text])))
+CONSTRAINT entry_comments entry_comments_created_at_not_null NOT NULL created_at
+CONSTRAINT entry_comments entry_comments_entry_id_fkey FOREIGN KEY (entry_id) REFERENCES challenge_entries(id)
+CONSTRAINT entry_comments entry_comments_entry_id_not_null NOT NULL entry_id
+CONSTRAINT entry_comments entry_comments_id_not_null NOT NULL id
+CONSTRAINT entry_comments entry_comments_pkey PRIMARY KEY (id)
+CONSTRAINT entry_comments entry_comments_request_fingerprint_not_null NOT NULL request_fingerprint
+CONSTRAINT entry_comments entry_comments_request_id_not_null NOT NULL request_id
+CONSTRAINT entry_comments entry_comments_status_not_null NOT NULL status
+CONSTRAINT entry_comments entry_comments_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT entry_comments entry_comments_user_id_not_null NOT NULL user_id
+CONSTRAINT entry_comments uq_entry_comments_request UNIQUE (user_id, request_id)
 CONSTRAINT entry_likes entry_likes_created_at_not_null NOT NULL created_at
 CONSTRAINT entry_likes entry_likes_entry_id_fkey FOREIGN KEY (entry_id) REFERENCES challenge_entries(id)
 CONSTRAINT entry_likes entry_likes_entry_id_not_null NOT NULL entry_id
@@ -861,6 +904,35 @@ CONSTRAINT entry_ranking_snapshots entry_ranking_snapshots_pkey PRIMARY KEY (id)
 CONSTRAINT entry_ranking_snapshots entry_ranking_snapshots_ranks_not_null NOT NULL ranks
 CONSTRAINT entry_ranking_snapshots entry_ranking_snapshots_viewer_id_fkey FOREIGN KEY (viewer_id) REFERENCES users(id)
 CONSTRAINT entry_ranking_snapshots entry_ranking_snapshots_viewer_id_not_null NOT NULL viewer_id
+CONSTRAINT entry_reports ck_entry_reports_note CHECK ((char_length(note) <= 200))
+CONSTRAINT entry_reports ck_entry_reports_reason CHECK ((reason = ANY (ARRAY['copyright'::text, 'inappropriate'::text, 'spam'::text, 'duplicate'::text, 'other'::text])))
+CONSTRAINT entry_reports ck_entry_reports_resolution CHECK ((resolution = ANY (ARRAY['restored'::text, 'kept_hidden'::text, 'dismissed'::text])))
+CONSTRAINT entry_reports ck_entry_reports_reviewed CHECK (((status = 'reviewed'::text) = ((resolution IS NOT NULL) AND (reviewed_at IS NOT NULL))))
+CONSTRAINT entry_reports ck_entry_reports_status CHECK ((status = ANY (ARRAY['received'::text, 'reviewed'::text])))
+CONSTRAINT entry_reports ck_entry_reports_target_type CHECK ((target_type = ANY (ARRAY['entry'::text, 'comment'::text, 'challenge'::text])))
+CONSTRAINT entry_reports ck_entry_reports_version CHECK ((target_version > 0))
+CONSTRAINT entry_reports entry_reports_created_at_not_null NOT NULL created_at
+CONSTRAINT entry_reports entry_reports_id_not_null NOT NULL id
+CONSTRAINT entry_reports entry_reports_pkey PRIMARY KEY (id)
+CONSTRAINT entry_reports entry_reports_reason_not_null NOT NULL reason
+CONSTRAINT entry_reports entry_reports_reporter_id_fkey FOREIGN KEY (reporter_id) REFERENCES users(id)
+CONSTRAINT entry_reports entry_reports_reporter_id_not_null NOT NULL reporter_id
+CONSTRAINT entry_reports entry_reports_request_fingerprint_not_null NOT NULL request_fingerprint
+CONSTRAINT entry_reports entry_reports_request_id_not_null NOT NULL request_id
+CONSTRAINT entry_reports entry_reports_status_not_null NOT NULL status
+CONSTRAINT entry_reports entry_reports_target_id_not_null NOT NULL target_id
+CONSTRAINT entry_reports entry_reports_target_type_not_null NOT NULL target_type
+CONSTRAINT entry_reports entry_reports_target_version_not_null NOT NULL target_version
+CONSTRAINT entry_reports uq_entry_reports_request UNIQUE (reporter_id, request_id)
+CONSTRAINT entry_reports uq_entry_reports_target UNIQUE (target_type, target_id, reporter_id)
+CONSTRAINT entry_saves entry_saves_created_at_not_null NOT NULL created_at
+CONSTRAINT entry_saves entry_saves_entry_id_fkey FOREIGN KEY (entry_id) REFERENCES challenge_entries(id)
+CONSTRAINT entry_saves entry_saves_entry_id_not_null NOT NULL entry_id
+CONSTRAINT entry_saves entry_saves_id_not_null NOT NULL id
+CONSTRAINT entry_saves entry_saves_pkey PRIMARY KEY (id)
+CONSTRAINT entry_saves entry_saves_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT entry_saves entry_saves_user_id_not_null NOT NULL user_id
+CONSTRAINT entry_saves uq_entry_saves_actor UNIQUE (entry_id, user_id)
 CONSTRAINT entry_view_events entry_view_events_created_at_not_null NOT NULL created_at
 CONSTRAINT entry_view_events entry_view_events_entry_id_fkey FOREIGN KEY (entry_id) REFERENCES challenge_entries(id)
 CONSTRAINT entry_view_events entry_view_events_entry_id_not_null NOT NULL entry_id
@@ -1302,7 +1374,13 @@ INDEX CREATE INDEX ix_challenge_entries_owner ON public.challenge_entries USING 
 INDEX CREATE INDEX ix_challenge_entries_public ON public.challenge_entries USING btree (challenge_id, published_at DESC, id DESC) WHERE ((visibility = 'public'::text) AND (status = 'visible'::text))
 INDEX CREATE INDEX ix_challenges_host_created ON public.challenges USING btree (host_user_id, starts_at)
 INDEX CREATE INDEX ix_challenges_visible_ends ON public.challenges USING btree (ends_at, starts_at, id) WHERE ((moderation = 'visible'::text) AND (deleted_at IS NULL))
+INDEX CREATE INDEX ix_entry_comments_entry ON public.entry_comments USING btree (entry_id, created_at DESC, id DESC)
+INDEX CREATE INDEX ix_entry_comments_user_created ON public.entry_comments USING btree (user_id, created_at)
 INDEX CREATE INDEX ix_entry_ranking_snapshots_created ON public.entry_ranking_snapshots USING btree (created_at)
+INDEX CREATE INDEX ix_entry_reports_open ON public.entry_reports USING btree (target_type, target_id) WHERE (status = 'received'::text)
+INDEX CREATE INDEX ix_entry_reports_queue ON public.entry_reports USING btree (status, created_at)
+INDEX CREATE INDEX ix_entry_reports_reporter_created ON public.entry_reports USING btree (reporter_id, created_at)
+INDEX CREATE INDEX ix_entry_saves_user ON public.entry_saves USING btree (user_id, created_at DESC, id DESC)
 INDEX CREATE INDEX ix_entry_view_events_created ON public.entry_view_events USING btree (created_at)
 INDEX CREATE INDEX ix_user_blocks_received ON public.user_blocks USING btree (blocked_id, blocker_id)
 INDEX CREATE UNIQUE INDEX account_cleanup_operations_pkey ON public.account_cleanup_operations USING btree (id)
@@ -1328,8 +1406,11 @@ INDEX CREATE UNIQUE INDEX community_post_likes_pkey ON public.community_post_lik
 INDEX CREATE UNIQUE INDEX community_posts_pkey ON public.community_posts USING btree (id)
 INDEX CREATE UNIQUE INDEX community_reports_pkey ON public.community_reports USING btree (id)
 INDEX CREATE UNIQUE INDEX consent_documents_pkey ON public.consent_documents USING btree (id)
+INDEX CREATE UNIQUE INDEX entry_comments_pkey ON public.entry_comments USING btree (id)
 INDEX CREATE UNIQUE INDEX entry_likes_pkey ON public.entry_likes USING btree (id)
 INDEX CREATE UNIQUE INDEX entry_ranking_snapshots_pkey ON public.entry_ranking_snapshots USING btree (id)
+INDEX CREATE UNIQUE INDEX entry_reports_pkey ON public.entry_reports USING btree (id)
+INDEX CREATE UNIQUE INDEX entry_saves_pkey ON public.entry_saves USING btree (id)
 INDEX CREATE UNIQUE INDEX entry_view_events_pkey ON public.entry_view_events USING btree (event_id)
 INDEX CREATE UNIQUE INDEX external_operations_pkey ON public.external_operations USING btree (id)
 INDEX CREATE UNIQUE INDEX guest_transfer_codes_pkey ON public.guest_transfer_codes USING btree (id)
@@ -1381,7 +1462,11 @@ INDEX CREATE UNIQUE INDEX uq_community_blocks_pair ON public.community_blocks US
 INDEX CREATE UNIQUE INDEX uq_community_post_likes ON public.community_post_likes USING btree (post_id, user_id)
 INDEX CREATE UNIQUE INDEX uq_community_reports_reporter_target ON public.community_reports USING btree (reporter_id, target_type, target_id)
 INDEX CREATE UNIQUE INDEX uq_consent_documents_type_version ON public.consent_documents USING btree (type, version, locale)
+INDEX CREATE UNIQUE INDEX uq_entry_comments_request ON public.entry_comments USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_entry_likes_actor ON public.entry_likes USING btree (entry_id, user_id)
+INDEX CREATE UNIQUE INDEX uq_entry_reports_request ON public.entry_reports USING btree (reporter_id, request_id)
+INDEX CREATE UNIQUE INDEX uq_entry_reports_target ON public.entry_reports USING btree (target_type, target_id, reporter_id)
+INDEX CREATE UNIQUE INDEX uq_entry_saves_actor ON public.entry_saves USING btree (entry_id, user_id)
 INDEX CREATE UNIQUE INDEX uq_external_operations_user_request ON public.external_operations USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_guest_transfer_codes_unused_code_hash ON public.guest_transfer_codes USING btree (code_hash) WHERE (used_at IS NULL)
 INDEX CREATE UNIQUE INDEX uq_guest_transfer_codes_unused_user ON public.guest_transfer_codes USING btree (user_id) WHERE (used_at IS NULL)
@@ -1441,8 +1526,11 @@ TABLE community_post_likes
 TABLE community_posts
 TABLE community_reports
 TABLE consent_documents
+TABLE entry_comments
 TABLE entry_likes
 TABLE entry_ranking_snapshots
+TABLE entry_reports
+TABLE entry_saves
 TABLE entry_view_events
 TABLE external_operations
 TABLE guest_transfer_codes

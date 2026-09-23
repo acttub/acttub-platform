@@ -10,8 +10,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import com.acttub.actingapi.feature.challenge.app.ChallengeRepository.Participant;
-import com.acttub.actingapi.feature.challenge.app.EntryMedia;
 import com.acttub.actingapi.feature.challenge.app.EntryRepository;
 import com.acttub.actingapi.feature.challenge.domain.ChallengeRules;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
@@ -32,32 +30,14 @@ import org.springframework.transaction.support.TransactionTemplate;
 class PostgresEntryRepository implements EntryRepository {
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     /** 카드 한 장에 필요한 것. 영상·챌린지가 사라진 행(삭제된 참여작)도 본인 조회를 위해 LEFT JOIN 한다. */
-    private static final String CARD = """
-            SELECT e.id,e.challenge_id,e.user_id,coalesce(ep.name,'배우') AS author_name,e.caption,e.content_version,
-                   (SELECT count(*) FROM entry_likes l WHERE l.entry_id=e.id) AS like_count,
-                   0 AS comment_count,
-                   e.view_count,e.final_like_count,e.final_rank,e.published_at,e.visibility,e.status,e.created_at,
-                   v.object_key,v.purged_at,
-                   EXISTS(SELECT 1 FROM entry_likes l WHERE l.entry_id=e.id AND l.user_id=:viewer) AS liked,
-                   false AS saved,
-                   c.line,c.work,c.character,c.ends_at,c.moderation,c.ranking_state
-            FROM challenge_entries e
-            JOIN challenges c ON c.id=e.challenge_id
-            LEFT JOIN videos v ON v.id=e.video_id
-            LEFT JOIN user_profiles ep ON ep.user_id=e.user_id
-            """;
-    private static final String CATEGORY = """
-            CASE WHEN e.status='hidden_by_report' OR c.moderation<>'visible' THEN 'under_review'
-                 WHEN e.visibility='private' THEN 'private' ELSE 'public' END
-            """;
     private final EntityManager em;
     private final ChallengeSettlement settlement;
-    private final EntryMedia media;
+    private final EntryCards cards;
     private final TransactionTemplate transaction;
 
-    PostgresEntryRepository(EntityManager em, ChallengeSettlement settlement, EntryMedia media,
+    PostgresEntryRepository(EntityManager em, ChallengeSettlement settlement, EntryCards cards,
                             PlatformTransactionManager transactions) {
-        this.em = em; this.settlement = settlement; this.media = media;
+        this.em = em; this.settlement = settlement; this.cards = cards;
         this.transaction = new TransactionTemplate(transactions);
     }
 
@@ -86,7 +66,7 @@ class PostgresEntryRepository implements EntryRepository {
                 .setParameter("owner", owner).setParameter("request", requestId));
         if (rows.isEmpty()) return null;
         return new Replay(rows.getFirst().get("request_fingerprint", String.class).strip(),
-                mineById(owner, rows.getFirst().get("id", UUID.class)));
+                cards.mine(owner, rows.getFirst().get("id", UUID.class)));
     }
 
     @Override @Transactional
@@ -130,7 +110,7 @@ class PostgresEntryRepository implements EntryRepository {
                 .setParameter("open", open)
                 .setParameter("request", requestId).setParameter("fingerprint", fingerprint)
                 .setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate();
-        return new Creation(mineById(owner, id), true);
+        return new Creation(cards.mine(owner, id), true);
     }
 
     @Override @Transactional
@@ -165,7 +145,7 @@ class PostgresEntryRepository implements EntryRepository {
             em.createNativeQuery("UPDATE challenge_entries SET visibility='private',updated_at=:now WHERE id=:id")
                     .setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", entryId).executeUpdate();
         }
-        return mineById(owner, entryId);
+        return cards.mine(owner, entryId);
     }
 
     @Override @Transactional
@@ -177,8 +157,17 @@ class PostgresEntryRepository implements EntryRepository {
         if (found.isEmpty()) throw new ApiException(404, "entry_not_found");
         if ("deleted".equals(found.getFirst().get("status", String.class))) return;
         lockOwnEntry(owner, entryId, now);
-        // 반응은 그 참여작의 것만 지운다. 댓글·저장·AI 리포트·알림은 그 표가 생기는 갈래가 여기에 더한다.
+        // 반응은 그 참여작의 것만 지운다. 댓글은 본문을 파기하고 표시만 남기며 신고 행은 남기되 사본 본문을 비운다.
+        // AI 리포트·알림은 그 표가 생기는 갈래가 여기에 더한다.
         em.createNativeQuery("DELETE FROM entry_likes WHERE entry_id=:id").setParameter("id", entryId).executeUpdate();
+        em.createNativeQuery("DELETE FROM entry_saves WHERE entry_id=:id").setParameter("id", entryId).executeUpdate();
+        em.createNativeQuery("""
+                UPDATE entry_reports SET target_text=NULL
+                WHERE (target_type='entry' AND target_id=:id)
+                   OR (target_type='comment' AND target_id IN (SELECT id FROM entry_comments WHERE entry_id=:id))
+                """).setParameter("id", entryId).executeUpdate();
+        em.createNativeQuery("UPDATE entry_comments SET body=NULL,deleted_at=coalesce(deleted_at,:now) WHERE entry_id=:id")
+                .setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", entryId).executeUpdate();
         em.createNativeQuery("""
                 UPDATE challenge_entries SET status='deleted',caption=NULL,video_id=NULL,deleted_at=:now,updated_at=:now
                 WHERE id=:id
@@ -230,7 +219,7 @@ class PostgresEntryRepository implements EntryRepository {
                 "SELECT id FROM challenge_entries WHERE id=:id AND user_id=:viewer AND status<>'deleted'", Tuple.class)
                 .setParameter("id", entryId).setParameter("viewer", viewer));
         if (visible.isEmpty() && own.isEmpty()) throw new ApiException(404, "entry_not_found");
-        return cards(viewer, List.of(entryId), Map.of(), null, true).getFirst();
+        return cards.cards(viewer, List.of(entryId), Map.of(), null, true).getFirst();
     }
 
     @Override @Transactional(readOnly = true)
@@ -242,13 +231,13 @@ class PostgresEntryRepository implements EntryRepository {
                        count(*) FILTER (WHERE category='under_review') AS review_count
                 FROM (SELECT %s AS category FROM challenge_entries e JOIN challenges c ON c.id=e.challenge_id
                       WHERE e.user_id=:owner AND e.status<>'deleted') mine
-                """.formatted(CATEGORY), Tuple.class).setParameter("owner", owner)).getFirst();
+                """.formatted(EntryCards.CATEGORY), Tuple.class).setParameter("owner", owner)).getFirst();
         String[] after = cursor == null || cursor.isBlank() ? null : decode(cursor, "M", 3, "cursor");
         if (after != null && !after[1].equals(owner.toString())) throw invalidCursor(cursor);
         var query = em.createNativeQuery("""
                 SELECT e.id FROM challenge_entries e JOIN challenges c ON c.id=e.challenge_id
                 WHERE e.user_id=:owner AND e.status<>'deleted' AND (:category='' OR %s=:category)
-                """.formatted(CATEGORY) + (after == null ? "" : " AND (e.created_at,e.id)<(:at,:after) ")
+                """.formatted(EntryCards.CATEGORY) + (after == null ? "" : " AND (e.created_at,e.id)<(:at,:after) ")
                 + " ORDER BY e.created_at DESC,e.id DESC", Tuple.class)
                 .setParameter("owner", owner).setParameter("category", category == null ? "" : category)
                 .setMaxResults(ChallengeRules.ENTRY_PAGE + 1);
@@ -260,7 +249,7 @@ class PostgresEntryRepository implements EntryRepository {
         List<UUID> ids = NativeTuples.list(query).stream().map(row -> row.get("id", UUID.class)).toList();
         boolean more = ids.size() > ChallengeRules.ENTRY_PAGE;
         List<MyEntry> entries = ids.subList(0, Math.min(ids.size(), ChallengeRules.ENTRY_PAGE)).stream()
-                .map(id -> mineById(owner, id)).toList();
+                .map(id -> cards.mine(owner, id)).toList();
         String next = more ? encode("M", owner.toString(), entries.getLast().createdAt().toString(),
                 entries.getLast().id().toString()) : null;
         return new MyEntries(new Counts(number(counts, "all_count"), number(counts, "public_count"),
@@ -276,6 +265,9 @@ class PostgresEntryRepository implements EntryRepository {
                     .setParameter("before", now.minus(ChallengeRules.VIEW_EVENT_RETENTION).atOffset(ZoneOffset.UTC)).executeUpdate();
             em.createNativeQuery("DELETE FROM entry_ranking_snapshots WHERE created_at<:before")
                     .setParameter("before", now.minus(ChallengeRules.RANKING_HOLD).atOffset(ZoneOffset.UTC)).executeUpdate();
+            // 처리 완료된 신고는 90일 보관한다(challenge.report).
+            em.createNativeQuery("DELETE FROM entry_reports WHERE status='reviewed' AND reviewed_at<:before")
+                    .setParameter("before", now.minus(ChallengeRules.REPORT_RETENTION).atOffset(ZoneOffset.UTC)).executeUpdate();
         });
         return waiting.size();
     }
@@ -312,7 +304,7 @@ class PostgresEntryRepository implements EntryRepository {
                 Tuple.class).setParameter("challenge", challengeId).setParameter("viewer", viewer).setMaxResults(1));
         UUID newestId = newest.isEmpty() ? null : newest.getFirst().get("id", UUID.class);
         boolean more = ids.size() > ChallengeRules.ENTRY_PAGE;
-        var page = cards(viewer, ids.subList(0, Math.min(ids.size(), ChallengeRules.ENTRY_PAGE)), Map.of(), newestId, false);
+        var page = cards.cards(viewer, ids.subList(0, Math.min(ids.size(), ChallengeRules.ENTRY_PAGE)), Map.of(), newestId, false);
         String next = more ? encode("L", challengeId.toString(), viewer.toString(),
                 page.getLast().publishedAt().toString(), page.getLast().id().toString()) : null;
         return new EntryPage(page, next, state);
@@ -379,7 +371,7 @@ class PostgresEntryRepository implements EntryRepository {
             }
             position += window.size();
         }
-        var page = cards(viewer, picked, rankOf, null, false);
+        var page = cards.cards(viewer, picked, rankOf, null, false);
         return new EntryPage(page, nextOffset == null ? null : encode("S", snapshot.toString(), Integer.toString(nextOffset)), state);
     }
 
@@ -426,55 +418,6 @@ class PostgresEntryRepository implements EntryRepository {
                 .setParameter("ids", ids).setParameter("viewer", viewer)).stream().map(row -> row.get("id", UUID.class)).toList());
     }
 
-    /** @param stored 순위를 저장된 확정 값으로 채운다(단건 조회). 목록은 굳힌 순서의 순위를, 최신순은 순위 없음을 쓴다 */
-    private List<EntryCard> cards(UUID viewer, List<UUID> ids, Map<UUID, Integer> ranks, UUID newest, boolean stored) {
-        if (ids.isEmpty()) return List.of();
-        var rows = new HashMap<UUID, Tuple>();
-        NativeTuples.list(em.createNativeQuery(CARD + " WHERE e.id IN (:ids)", Tuple.class)
-                .setParameter("ids", ids).setParameter("viewer", viewer)).forEach(row -> rows.put(row.get("id", UUID.class), row));
-        return ids.stream().map(rows::get).map(row -> {
-            UUID id = row.get("id", UUID.class);
-            Integer rank = stored ? finalRank(row) : ranks.get(id);
-            return new EntryCard(id, row.get("challenge_id", UUID.class), author(row), row.get("caption", String.class),
-                    number(row, "like_count"), number(row, "comment_count"), number(row, "view_count"), rank,
-                    finalLikes(row), row.get("published_at", Instant.class), playback(row),
-                    row.get("liked", Boolean.class), row.get("saved", Boolean.class),
-                    viewer.equals(row.get("user_id", UUID.class)), id.equals(newest));
-        }).toList();
-    }
-
-    private MyEntry mineById(UUID owner, UUID id) {
-        Tuple row = NativeTuples.list(em.createNativeQuery(CARD.replace("SELECT e.id,", "SELECT " + CATEGORY + " AS category,e.id,")
-                + " WHERE e.id=:id AND e.user_id=:viewer", Tuple.class).setParameter("id", id).setParameter("viewer", owner)).getFirst();
-        return new MyEntry(id, row.get("challenge_id", UUID.class), author(row), row.get("caption", String.class),
-                ((Number) row.get("content_version")).intValue(), number(row, "like_count"), number(row, "comment_count"),
-                number(row, "view_count"), finalRank(row), finalLikes(row), row.get("published_at", Instant.class), playback(row),
-                row.get("liked", Boolean.class), row.get("saved", Boolean.class), true,
-                row.get("visibility", String.class), row.get("status", String.class), row.get("category", String.class),
-                !"visible".equals(row.get("moderation", String.class)),
-                new Parent(row.get("challenge_id", UUID.class), row.get("line", String.class), row.get("work", String.class),
-                        row.get("character", String.class), row.get("ends_at", Instant.class)),
-                row.get("created_at", Instant.class));
-    }
-
-    private static Participant author(Tuple row) {
-        return new Participant(row.get("user_id", UUID.class), row.get("author_name", String.class));
-    }
-
-    /** 확정된 순위만. 좋아요가 모두 0인 확정도 배지를 보이지 않도록 순위 없이 둔다. */
-    private static Integer finalRank(Tuple row) {
-        if (!"final".equals(row.get("ranking_state", String.class)) || row.get("final_rank") == null) return null;
-        return ((Number) row.get("final_rank")).intValue();
-    }
-
-    private static Long finalLikes(Tuple row) {
-        return row.get("final_like_count") == null ? null : ((Number) row.get("final_like_count")).longValue();
-    }
-
-    private String playback(Tuple row) {
-        String key = row.get("object_key", String.class);
-        return key == null || row.get("purged_at", Instant.class) != null ? null : media.playbackUrl(key);
-    }
 
     // ── 잠금 ─────────────────────────────────────────────────────────────────
 

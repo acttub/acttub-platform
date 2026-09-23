@@ -15,6 +15,14 @@ public final class ChallengeRules {
     public static final Duration RANKING_HOLD = Duration.ofMinutes(10);
     /** 조회수 사건의 중복 제거 기간. */
     public static final Duration VIEW_EVENT_RETENTION = Duration.ofDays(7);
+    /** 처리 완료된 신고의 보관 기간. */
+    public static final Duration REPORT_RETENTION = Duration.ofDays(90);
+    public static final int DAILY_COMMENTS = 100;
+    public static final int COMMENT_MAX = 500;
+    public static final int DAILY_REPORTS = 20;
+    public static final int REPORT_NOTE_MAX = 200;
+    /** 챌린지는 처리되지 않은 신고가 서로 다른 이만큼의 사람에게서 모이면 검토(review)로 올린다. */
+    public static final int CHALLENGE_REPORT_THRESHOLD = 3;
     private ChallengeRules() { }
 
     public static String normalize(String value) {

@@ -408,13 +408,18 @@ class ChallengeEntryIT {
         UUID hidden = seeded(challenge, member("확인 중"), 1, 10);
         UUID shown = seeded(challenge, member("공개"), 2, 4);
         jdbc.update("UPDATE challenge_entries SET status='hidden_by_report' WHERE id=?", hidden);
+        UUID report = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO entry_reports(id,target_type,target_id,reporter_id,reason,target_version,request_id,request_fingerprint)
+                VALUES (?,'entry',?,?,'spam',1,?,?)
+                """, report, hidden, member("신고자"), UUID.randomUUID(), "0".repeat(64));
         clock.set(deadline.plus(Duration.ofMinutes(1)));
         assertThat(entryRepository.settle(clock.instant())).isEqualTo(1);
         JsonNode pending = response(get("/v2/challenges/{id}/entries", challenge), 200);
         assertThat(pending.path("ranking_state").asText()).isEqualTo("pending");
         assertThat(pending.path("entries").findValues("rank")).allMatch(JsonNode::isNull);
-        jdbc.update("UPDATE challenge_entries SET status='visible' WHERE id=?", hidden);
-        entryRepository.settle(clock.instant());
+        response(patch("/v2/admin/reports/{id}", report).content("{\"resolution\":\"restored\",\"reviewer\":\"운영\"}"), 200,
+                "Bearer entry-test-ops");
         JsonNode settled = response(get("/v2/challenges/{id}/entries", challenge), 200);
         assertThat(ids(settled)).containsExactly(hidden.toString(), shown.toString());
         assertThat(ranks(settled)).containsExactly("1", "2");

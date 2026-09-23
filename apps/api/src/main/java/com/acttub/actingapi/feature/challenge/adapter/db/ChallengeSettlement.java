@@ -17,10 +17,14 @@ import org.springframework.stereotype.Component;
 @Component
 class ChallengeSettlement {
     /**
-     * 순위 확정을 기다리게 하는 참여작. 마감 당시 자격이 있었고 지금 신고로 숨겨져 있다. 참가 자격은 신고 숨김을
-     * 통과로 셈해 두고(되돌리면 그 자리에서 순위에 든다), 확정은 남은 숨김이 없을 때 한다.
+     * 순위 확정을 기다리게 하는 참여작. 마감 당시 자격이 있었고 지금 신고로 숨겨져 처리되지 않은 신고가 남아 있다.
+     * 참가 자격은 신고 숨김을 통과로 셈해 두고(되돌리면 그 자리에서 순위에 든다), 숨김 유지(kept_hidden)로 끝난 것은
+     * 순위 밖에 두고 확정한다.
      */
-    static final String UNDER_REVIEW = "e.status='hidden_by_report' AND e.final_eligible";
+    static final String UNDER_REVIEW = """
+            e.status='hidden_by_report' AND e.final_eligible AND EXISTS(SELECT 1 FROM entry_reports r
+              WHERE r.target_type='entry' AND r.target_id=e.id AND r.status='received')
+            """;
     private final EntityManager em;
     ChallengeSettlement(EntityManager em) { this.em = em; }
 

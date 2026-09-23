@@ -14,9 +14,19 @@ final class ChallengeVisibility {
             e.visibility='public' AND e.status='visible' AND eu.status='active' AND v.purged_at IS NULL
             AND ec.moderation='visible' AND ec.deleted_at IS NULL
             """;
-    static final String UNBLOCKED = """
+    static final String UNBLOCKED = unblocked("e.user_id");
+
+    /** 보는 사람과 그 사람 사이에 어느 쪽으로도 차단이 없다. */
+    static String unblocked(String person) {
+        return """
             NOT EXISTS (SELECT 1 FROM user_blocks b
-              WHERE (b.blocker_id=CAST(:viewer AS uuid) AND b.blocked_id=e.user_id)
-                 OR (b.blocked_id=CAST(:viewer AS uuid) AND b.blocker_id=e.user_id))
-            """;
+              WHERE (b.blocker_id=CAST(:viewer AS uuid) AND b.blocked_id=%1$s)
+                 OR (b.blocked_id=CAST(:viewer AS uuid) AND b.blocker_id=%1$s))
+            """.formatted(person);
+    }
+
+    /** 댓글의 개인 노출 조건 중 댓글 쪽(부모 참여작이 보이는지는 따로 본다). 본인 숨김 댓글은 본인에게만 보인다. */
+    static final String VISIBLE_COMMENT = """
+            cm.deleted_at IS NULL AND (cm.status='visible' OR cm.user_id=CAST(:viewer AS uuid)) AND %s
+            """.formatted(unblocked("cm.user_id"));
 }

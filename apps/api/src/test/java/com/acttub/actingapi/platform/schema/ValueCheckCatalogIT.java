@@ -102,6 +102,11 @@ class ValueCheckCatalogIT {
         BY_CONSTRAINT.put("ck_challenges_ranking_state", ChallengeRankingState.class);
         BY_CONSTRAINT.put("ck_challenge_entries_visibility", ChallengeEntryVisibility.class);
         BY_CONSTRAINT.put("ck_challenge_entries_status", ChallengeEntryStatus.class);
+        BY_CONSTRAINT.put("ck_entry_comments_status", EntryCommentStatus.class);
+        BY_CONSTRAINT.put("ck_entry_reports_target_type", EntryReportTarget.class);
+        BY_CONSTRAINT.put("ck_entry_reports_reason", EntryReportReason.class);
+        BY_CONSTRAINT.put("ck_entry_reports_status", EntryReportStatus.class);
+        BY_CONSTRAINT.put("ck_entry_reports_resolution", EntryReportResolution.class);
     }
 
     /**

@@ -361,6 +361,70 @@
         } ]
       }
     },
+    "/v2/me/blocks/{user_id}" : {
+      "put" : {
+        "tags" : [ "v2-challenges" ],
+        "summary" : "Block User",
+        "description" : "상대에게 알리지 않는다. 자기 자신 422 self_block, 없는 회원 404. 멱등이다.",
+        "operationId" : "block_user_v2_me_blocks__user_id__put",
+        "parameters" : [ {
+          "name" : "user_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "User Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/UserBlockState"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      },
+      "delete" : {
+        "tags" : [ "v2-challenges" ],
+        "summary" : "Unblock User",
+        "description" : "멱등이다. 없는 차단을 풀어도 200.",
+        "operationId" : "unblock_user_v2_me_blocks__user_id__delete",
+        "parameters" : [ {
+          "name" : "user_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "User Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/UserBlockState"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/legacy-me/memory/{field}" : {
       "put" : {
         "tags" : [ "v2-me" ],
@@ -438,6 +502,134 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/entries/{id}/save" : {
+      "put" : {
+        "tags" : [ "v2-challenges" ],
+        "summary" : "Save Entry",
+        "description" : "보는 사람에게 보이는 참여작에만 된다 — 비공개·삭제·숨김·review·hidden 챌린지·차단 관계는 404. 켜기·끄기는 멱등이다. 자기 참여작은 422 self_save. 랭킹·알림에 반영하지 않는다.",
+        "operationId" : "save_entry_v2_entries__id__save_put",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/EntrySaveState"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      },
+      "delete" : {
+        "tags" : [ "v2-challenges" ],
+        "summary" : "Unsave Entry",
+        "description" : "보는 사람에게 보이는 참여작에만 된다 — 비공개·삭제·숨김·review·hidden 챌린지·차단 관계는 404. 켜기·끄기는 멱등이다.",
+        "operationId" : "unsave_entry_v2_entries__id__save_delete",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/EntrySaveState"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/entries/{id}/like" : {
+      "put" : {
+        "tags" : [ "v2-challenges" ],
+        "summary" : "Like Entry",
+        "description" : "보는 사람에게 보이는 참여작에만 된다 — 비공개·삭제·숨김·review·hidden 챌린지·차단 관계는 404. 켜기·끄기는 멱등이다. 자기 참여작은 422 self_like. 종료 뒤에도 되지만 저장된 최종 순위는 바뀌지 않는다.",
+        "operationId" : "like_entry_v2_entries__id__like_put",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/EntryLikeState"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      },
+      "delete" : {
+        "tags" : [ "v2-challenges" ],
+        "summary" : "Unlike Entry",
+        "description" : "보는 사람에게 보이는 참여작에만 된다 — 비공개·삭제·숨김·review·hidden 챌린지·차단 관계는 404. 켜기·끄기는 멱등이다.",
+        "operationId" : "unlike_entry_v2_entries__id__like_delete",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/EntryLikeState"
                 }
               }
             }
@@ -566,6 +758,49 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/reports" : {
+      "post" : {
+        "tags" : [ "v2-challenges" ],
+        "summary" : "Report Challenge Content",
+        "description" : "참여작·댓글·챌린지 신고. 지금 볼 수 있는 대상만(아니면 404) 되고 본인 것은 422 self_report, 하루 21번째는 429\ndaily_report_limit. 참여작·댓글은 접수와 함께 숨겨지고, 챌린지는 서로 다른 세 사람의 처리 전 신고가 모이면\n검토로 넘어간다. 같은 대상의 재신고는 먼저 낸 신고(200)다.",
+        "operationId" : "create_challenge_report_v2_reports_post",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ChallengeReportRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Created",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReportReceipt"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Replay",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReportReceipt"
                 }
               }
             }
@@ -1523,6 +1758,98 @@
         "responses" : {
           "204" : {
             "description" : "No Content"
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/entries/{id}/comments" : {
+      "get" : {
+        "tags" : [ "v2-challenges" ],
+        "summary" : "List Entry Comments",
+        "description" : "최신순 20개씩. 차단 관계의 댓글과 숨겨진 남의 댓글은 빠지고, 신고로 숨겨진 내 댓글은 status hidden 으로\n나에게만 온다. 부모 참여작이 보이지 않으면 404.",
+        "operationId" : "list_comments_v2_entries__id__comments_get",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          }
+        }, {
+          "name" : "cursor",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "title" : "Cursor"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/EntryCommentPage"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      },
+      "post" : {
+        "tags" : [ "v2-challenges" ],
+        "summary" : "Create Entry Comment",
+        "description" : "자기 참여작에도 쓸 수 있다. 하루 100개(429 daily_comment_limit). 같은 request_id·같은 본문은 같은 댓글(200).",
+        "operationId" : "create_comment_v2_entries__id__comments_post",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/EntryCommentCreateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Created",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/EntryComment"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Replay",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/EntryComment"
+                }
+              }
+            }
           }
         },
         "security" : [ {
@@ -3016,6 +3343,38 @@
         } ]
       }
     },
+    "/v2/me/saved-entries" : {
+      "get" : {
+        "tags" : [ "v2-challenges" ],
+        "summary" : "List Saved Entries",
+        "description" : "저장순 20개씩. 비공개·숨김·차단으로 지금 볼 수 없는 것은 빠지고 행은 남는다(다시 보이면 돌아온다).",
+        "operationId" : "list_saved_entries_v2_me_saved_entries_get",
+        "parameters" : [ {
+          "name" : "cursor",
+          "in" : "query",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "title" : "Cursor"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SavedChallengeEntries"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/me/practice-feedback/status" : {
       "get" : {
         "tags" : [ "v2-me" ],
@@ -3107,6 +3466,28 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/MyChallengeEntries"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/me/blocks" : {
+      "get" : {
+        "tags" : [ "v2-challenges" ],
+        "summary" : "List Blocked Users",
+        "operationId" : "list_blocks_v2_me_blocks_get",
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/BlockedUsers"
                 }
               }
             }
@@ -3465,6 +3846,32 @@
         "responses" : {
           "204" : {
             "description" : "Successful Response"
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/comments/{id}" : {
+      "delete" : {
+        "tags" : [ "v2-challenges" ],
+        "summary" : "Delete Entry Comment",
+        "description" : "본인 댓글만(남의 것 404). 본문을 파기하고 목록에서 뺀다.",
+        "operationId" : "delete_comment_v2_comments__id__delete",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
           }
         },
         "security" : [ {
@@ -3922,6 +4329,23 @@
         "required" : [ "field", "source_practice_id", "updated_at", "value", "written_by_actor" ],
         "title" : "ActorMemoryItem"
       },
+      "UserBlockState" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "user_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "User Id"
+          },
+          "blocked" : {
+            "type" : "boolean",
+            "title" : "Blocked"
+          }
+        },
+        "required" : [ "blocked", "user_id" ],
+        "title" : "UserBlockState"
+      },
       "UpdateMemoryRequest" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -3965,6 +4389,34 @@
         },
         "required" : [ "edited_by_me", "field", "source_practice_session_id", "value" ],
         "title" : "MemoryItem"
+      },
+      "EntrySaveState" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "saved" : {
+            "type" : "boolean",
+            "title" : "Saved"
+          }
+        },
+        "required" : [ "saved" ],
+        "title" : "EntrySaveState"
+      },
+      "EntryLikeState" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "like_count" : {
+            "type" : "integer",
+            "title" : "Like Count"
+          },
+          "liked" : {
+            "type" : "boolean",
+            "title" : "Liked"
+          }
+        },
+        "required" : [ "like_count", "liked" ],
+        "title" : "EntryLikeState"
       },
       "Video" : {
         "type" : "object",
@@ -4091,6 +4543,61 @@
         },
         "required" : [ "expires_at", "intent_id", "upload_url" ],
         "title" : "VideoIntent"
+      },
+      "ChallengeReportRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "request_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Request Id"
+          },
+          "target_type" : {
+            "type" : "string",
+            "enum" : [ "entry", "comment", "challenge" ],
+            "title" : "Target Type"
+          },
+          "target_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Target Id"
+          },
+          "reason" : {
+            "type" : "string",
+            "enum" : [ "copyright", "inappropriate", "spam", "duplicate", "other" ],
+            "title" : "Reason"
+          },
+          "note" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "200자(코드 포인트)까지"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Note"
+          }
+        },
+        "required" : [ "reason", "request_id", "target_id", "target_type" ],
+        "title" : "ChallengeReportRequest"
+      },
+      "ReportReceipt" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "received", "reviewed" ],
+            "title" : "Status"
+          }
+        },
+        "required" : [ "id", "status" ],
+        "title" : "ReportReceipt"
       },
       "ReadingRecordingUploadForm" : {
         "type" : "object",
@@ -5385,6 +5892,85 @@
         "required" : [ "event_id" ],
         "title" : "ChallengeEntryViewRequest"
       },
+      "EntryCommentCreateRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "request_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Request Id"
+          },
+          "body" : {
+            "type" : "string",
+            "description" : "앞뒤 공백을 걷고 1~500자(코드 포인트)",
+            "title" : "Body"
+          }
+        },
+        "required" : [ "body", "request_id" ],
+        "title" : "EntryCommentCreateRequest"
+      },
+      "ChallengeParticipant" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "user_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "User Id"
+          },
+          "name" : {
+            "type" : "string",
+            "title" : "Name"
+          }
+        },
+        "required" : [ "name", "user_id" ],
+        "title" : "ChallengeParticipant"
+      },
+      "EntryComment" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "author" : {
+            "$ref" : "#/components/schemas/ChallengeParticipant",
+            "description" : "현재 프로필 이름만. 탈퇴했으면 \"탈퇴한 사용자\""
+          },
+          "body" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Body"
+          },
+          "created_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Created At"
+          },
+          "is_mine" : {
+            "type" : "boolean",
+            "title" : "Is Mine"
+          },
+          "author_withdrawn" : {
+            "type" : "boolean",
+            "title" : "Author Withdrawn"
+          },
+          "status" : {
+            "type" : "string",
+            "description" : "hidden 은 신고로 숨겨진 내 댓글이다(작성자에게만 온다)",
+            "enum" : [ "visible", "hidden" ],
+            "title" : "Status"
+          }
+        },
+        "required" : [ "author", "author_withdrawn", "body", "created_at", "id", "is_mine", "status" ],
+        "title" : "EntryComment"
+      },
       "ConsentDecision" : {
         "type" : "string",
         "enum" : [ "granted", "declined" ],
@@ -5879,23 +6465,6 @@
         },
         "required" : [ "character", "ends_at", "entry_count", "featured_on", "host_name", "id", "is_host", "like_sum", "line", "moderation", "more_count", "origin", "participants", "ranking_state", "scene_note", "starts_at", "work" ],
         "title" : "Challenge"
-      },
-      "ChallengeParticipant" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "user_id" : {
-            "type" : "string",
-            "format" : "uuid",
-            "title" : "User Id"
-          },
-          "name" : {
-            "type" : "string",
-            "title" : "Name"
-          }
-        },
-        "required" : [ "name", "user_id" ],
-        "title" : "ChallengeParticipant"
       },
       "ChallengeEntryCreateRequest" : {
         "type" : "object",
@@ -7274,86 +7843,6 @@
         "required" : [ "duration_ms", "limitations", "missing_ranges", "observed_scene", "processed_ranges", "record_id", "record_version", "schema_version", "spoken_content", "status" ],
         "title" : "VideoRecordSummaryResponse"
       },
-      "ActorMemoryResponse" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "items" : {
-            "type" : "array",
-            "items" : {
-              "$ref" : "#/components/schemas/ActorMemoryItem"
-            },
-            "title" : "Items"
-          }
-        },
-        "required" : [ "items" ],
-        "title" : "ActorMemoryResponse"
-      },
-      "MyChallengeEntries" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "counts" : {
-            "$ref" : "#/components/schemas/MyChallengeEntryCounts"
-          },
-          "entries" : {
-            "type" : "array",
-            "items" : {
-              "$ref" : "#/components/schemas/MyChallengeEntry"
-            },
-            "title" : "Entries"
-          },
-          "next_cursor" : {
-            "anyOf" : [ {
-              "type" : "string"
-            }, {
-              "type" : "null"
-            } ],
-            "title" : "Next Cursor"
-          }
-        },
-        "required" : [ "counts", "entries", "next_cursor" ],
-        "title" : "MyChallengeEntries"
-      },
-      "MyChallengeEntryCounts" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "all" : {
-            "type" : "integer",
-            "title" : "All"
-          },
-          "public" : {
-            "type" : "integer",
-            "title" : "Public"
-          },
-          "private" : {
-            "type" : "integer",
-            "title" : "Private"
-          },
-          "under_review" : {
-            "type" : "integer",
-            "title" : "Under Review"
-          }
-        },
-        "required" : [ "all", "private", "public", "under_review" ],
-        "title" : "MyChallengeEntryCounts"
-      },
-      "MemoryResponse" : {
-        "type" : "object",
-        "additionalProperties" : false,
-        "properties" : {
-          "items" : {
-            "type" : "array",
-            "items" : {
-              "$ref" : "#/components/schemas/MemoryItem"
-            },
-            "title" : "Items"
-          }
-        },
-        "required" : [ "items" ],
-        "title" : "MemoryResponse"
-      },
       "ChallengeEntry" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -7446,6 +7935,179 @@
         },
         "required" : [ "author", "caption", "challenge_id", "comment_count", "final_like_count", "id", "is_mine", "is_new", "like_count", "liked", "playback_url", "published_at", "rank", "saved", "view_count" ],
         "title" : "ChallengeEntry"
+      },
+      "SavedChallengeEntries" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "entries" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ChallengeEntry"
+            },
+            "title" : "Entries"
+          },
+          "my_entry_count" : {
+            "type" : "integer",
+            "description" : "삭제되지 않은 내 참여작 수",
+            "title" : "My Entry Count"
+          },
+          "saved_count" : {
+            "type" : "integer",
+            "description" : "지금 보이는 저장한 참여작 수",
+            "title" : "Saved Count"
+          },
+          "next_cursor" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Next Cursor"
+          }
+        },
+        "required" : [ "entries", "my_entry_count", "next_cursor", "saved_count" ],
+        "title" : "SavedChallengeEntries"
+      },
+      "ActorMemoryResponse" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ActorMemoryItem"
+            },
+            "title" : "Items"
+          }
+        },
+        "required" : [ "items" ],
+        "title" : "ActorMemoryResponse"
+      },
+      "MyChallengeEntries" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "counts" : {
+            "$ref" : "#/components/schemas/MyChallengeEntryCounts"
+          },
+          "entries" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/MyChallengeEntry"
+            },
+            "title" : "Entries"
+          },
+          "next_cursor" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Next Cursor"
+          }
+        },
+        "required" : [ "counts", "entries", "next_cursor" ],
+        "title" : "MyChallengeEntries"
+      },
+      "MyChallengeEntryCounts" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "all" : {
+            "type" : "integer",
+            "title" : "All"
+          },
+          "public" : {
+            "type" : "integer",
+            "title" : "Public"
+          },
+          "private" : {
+            "type" : "integer",
+            "title" : "Private"
+          },
+          "under_review" : {
+            "type" : "integer",
+            "title" : "Under Review"
+          }
+        },
+        "required" : [ "all", "private", "public", "under_review" ],
+        "title" : "MyChallengeEntryCounts"
+      },
+      "BlockedUser" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "user_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "User Id"
+          },
+          "name" : {
+            "type" : "string",
+            "title" : "Name"
+          },
+          "created_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Created At"
+          }
+        },
+        "required" : [ "created_at", "name", "user_id" ],
+        "title" : "BlockedUser"
+      },
+      "BlockedUsers" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "users" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/BlockedUser"
+            },
+            "title" : "Users"
+          }
+        },
+        "required" : [ "users" ],
+        "title" : "BlockedUsers"
+      },
+      "MemoryResponse" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/MemoryItem"
+            },
+            "title" : "Items"
+          }
+        },
+        "required" : [ "items" ],
+        "title" : "MemoryResponse"
+      },
+      "EntryCommentPage" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "comments" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/EntryComment"
+            },
+            "title" : "Comments"
+          },
+          "next_cursor" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Next Cursor"
+          }
+        },
+        "required" : [ "comments", "next_cursor" ],
+        "title" : "EntryCommentPage"
       },
       "ConsentDocumentsResponse" : {
         "type" : "object",

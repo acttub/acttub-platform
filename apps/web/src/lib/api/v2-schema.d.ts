@@ -155,6 +155,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/me/blocks/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Block User
+         * @description 상대에게 알리지 않는다. 자기 자신 422 self_block, 없는 회원 404. 멱등이다.
+         */
+        put: operations["block_user_v2_me_blocks__user_id__put"];
+        post?: never;
+        /**
+         * Unblock User
+         * @description 멱등이다. 없는 차단을 풀어도 200.
+         */
+        delete: operations["unblock_user_v2_me_blocks__user_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/legacy-me/memory/{field}": {
         parameters: {
             query?: never;
@@ -177,6 +201,54 @@ export interface paths {
          * @description 한 칸을 지운다. 이미 없으면 404 대신 204 — 지우려는 결과는 같다.
          */
         delete: operations["delete_memory_field_v2_legacy_me_memory__field__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/entries/{id}/save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Save Entry
+         * @description 보는 사람에게 보이는 참여작에만 된다 — 비공개·삭제·숨김·review·hidden 챌린지·차단 관계는 404. 켜기·끄기는 멱등이다. 자기 참여작은 422 self_save. 랭킹·알림에 반영하지 않는다.
+         */
+        put: operations["save_entry_v2_entries__id__save_put"];
+        post?: never;
+        /**
+         * Unsave Entry
+         * @description 보는 사람에게 보이는 참여작에만 된다 — 비공개·삭제·숨김·review·hidden 챌린지·차단 관계는 404. 켜기·끄기는 멱등이다.
+         */
+        delete: operations["unsave_entry_v2_entries__id__save_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/entries/{id}/like": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Like Entry
+         * @description 보는 사람에게 보이는 참여작에만 된다 — 비공개·삭제·숨김·review·hidden 챌린지·차단 관계는 404. 켜기·끄기는 멱등이다. 자기 참여작은 422 self_like. 종료 뒤에도 되지만 저장된 최종 순위는 바뀌지 않는다.
+         */
+        put: operations["like_entry_v2_entries__id__like_put"];
+        post?: never;
+        /**
+         * Unlike Entry
+         * @description 보는 사람에게 보이는 참여작에만 된다 — 비공개·삭제·숨김·review·hidden 챌린지·차단 관계는 404. 켜기·끄기는 멱등이다.
+         */
+        delete: operations["unlike_entry_v2_entries__id__like_delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -241,6 +313,28 @@ export interface paths {
          *     422 video_not_ready, 이 확정이 총량을 넘기면 422 video_quota 다.
          */
         post: operations["complete_video_intent_v2_videos_intents__intent_id__complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report Challenge Content
+         * @description 참여작·댓글·챌린지 신고. 지금 볼 수 있는 대상만(아니면 404) 되고 본인 것은 422 self_report, 하루 21번째는 429
+         *     daily_report_limit. 참여작·댓글은 접수와 함께 숨겨지고, 챌린지는 서로 다른 세 사람의 처리 전 신고가 모이면
+         *     검토로 넘어간다. 같은 대상의 재신고는 먼저 낸 신고(200)다.
+         */
+        post: operations["create_challenge_report_v2_reports_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -647,6 +741,31 @@ export interface paths {
          * @description 3초 이상 재생된 사건 하나. 같은 event_id 는 한 번만 세고 본인 재생은 세지 않는다. 볼 수 없는 참여작은 404.
          */
         post: operations["record_view_v2_entries__id__views_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/entries/{id}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Entry Comments
+         * @description 최신순 20개씩. 차단 관계의 댓글과 숨겨진 남의 댓글은 빠지고, 신고로 숨겨진 내 댓글은 status hidden 으로
+         *     나에게만 온다. 부모 참여작이 보이지 않으면 404.
+         */
+        get: operations["list_comments_v2_entries__id__comments_get"];
+        put?: never;
+        /**
+         * Create Entry Comment
+         * @description 자기 참여작에도 쓸 수 있다. 하루 100개(429 daily_comment_limit). 같은 request_id·같은 본문은 같은 댓글(200).
+         */
+        post: operations["create_comment_v2_entries__id__comments_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1291,6 +1410,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/me/saved-entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Saved Entries
+         * @description 저장순 20개씩. 비공개·숨김·차단으로 지금 볼 수 없는 것은 빠지고 행은 남는다(다시 보이면 돌아온다).
+         */
+        get: operations["list_saved_entries_v2_me_saved_entries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/me/practice-feedback/status": {
         parameters: {
             query?: never;
@@ -1348,6 +1487,23 @@ export interface paths {
          *     visibility 로 한 분류만 볼 수 있다.
          */
         get: operations["list_my_entries_v2_me_challenge_entries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/me/blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Blocked Users */
+        get: operations["list_blocks_v2_me_blocks_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1603,6 +1759,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/comments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Entry Comment
+         * @description 본인 댓글만(남의 것 404). 본문을 파기하고 목록에서 뺀다.
+         */
+        delete: operations["delete_comment_v2_comments__id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1793,6 +1969,16 @@ export interface components {
              */
             updated_at: string;
         };
+        /** UserBlockState */
+        UserBlockState: {
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /** Blocked */
+            blocked: boolean;
+        };
         /** UpdateMemoryRequest */
         UpdateMemoryRequest: {
             /** Value */
@@ -1811,6 +1997,18 @@ export interface components {
             edited_by_me: boolean;
             /** Source Practice Session Id */
             source_practice_session_id: string | null;
+        };
+        /** EntrySaveState */
+        EntrySaveState: {
+            /** Saved */
+            saved: boolean;
+        };
+        /** EntryLikeState */
+        EntryLikeState: {
+            /** Like Count */
+            like_count: number;
+            /** Liked */
+            liked: boolean;
         };
         /** Video */
         Video: {
@@ -1875,6 +2073,44 @@ export interface components {
              * Format: date-time
              */
             expires_at: string;
+        };
+        /** ChallengeReportRequest */
+        ChallengeReportRequest: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /**
+             * Target Type
+             * @enum {string}
+             */
+            target_type: "entry" | "comment" | "challenge";
+            /**
+             * Target Id
+             * Format: uuid
+             */
+            target_id: string;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "copyright" | "inappropriate" | "spam" | "duplicate" | "other";
+            /** Note */
+            note?: string | null;
+        };
+        /** ReportReceipt */
+        ReportReceipt: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "received" | "reviewed";
         };
         /** ReadingRecordingUploadForm */
         ReadingRecordingUploadForm: {
@@ -2503,6 +2739,56 @@ export interface components {
              */
             event_id: string;
         };
+        /** EntryCommentCreateRequest */
+        EntryCommentCreateRequest: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /**
+             * Body
+             * @description 앞뒤 공백을 걷고 1~500자(코드 포인트)
+             */
+            body: string;
+        };
+        /** ChallengeParticipant */
+        ChallengeParticipant: {
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /** Name */
+            name: string;
+        };
+        /** EntryComment */
+        EntryComment: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** @description 현재 프로필 이름만. 탈퇴했으면 "탈퇴한 사용자" */
+            author: components["schemas"]["ChallengeParticipant"];
+            /** Body */
+            body: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Is Mine */
+            is_mine: boolean;
+            /** Author Withdrawn */
+            author_withdrawn: boolean;
+            /**
+             * Status
+             * @description hidden 은 신고로 숨겨진 내 댓글이다(작성자에게만 온다)
+             * @enum {string}
+             */
+            status: "visible" | "hidden";
+        };
         /**
          * ConsentDecision
          * @enum {string}
@@ -2741,16 +3027,6 @@ export interface components {
             more_count: number;
             /** Ranking State */
             ranking_state: ("pending" | "final") | null;
-        };
-        /** ChallengeParticipant */
-        ChallengeParticipant: {
-            /**
-             * User Id
-             * Format: uuid
-             */
-            user_id: string;
-            /** Name */
-            name: string;
         };
         /** ChallengeEntryCreateRequest */
         ChallengeEntryCreateRequest: {
@@ -3377,35 +3653,6 @@ export interface components {
             /** Limitations */
             limitations: components["schemas"]["VideoRecordLimit"][];
         };
-        /** ActorMemoryResponse */
-        ActorMemoryResponse: {
-            /** Items */
-            items: components["schemas"]["ActorMemoryItem"][];
-        };
-        /** MyChallengeEntries */
-        MyChallengeEntries: {
-            counts: components["schemas"]["MyChallengeEntryCounts"];
-            /** Entries */
-            entries: components["schemas"]["MyChallengeEntry"][];
-            /** Next Cursor */
-            next_cursor: string | null;
-        };
-        /** MyChallengeEntryCounts */
-        MyChallengeEntryCounts: {
-            /** All */
-            all: number;
-            /** Public */
-            public: number;
-            /** Private */
-            private: number;
-            /** Under Review */
-            under_review: number;
-        };
-        /** MemoryResponse */
-        MemoryResponse: {
-            /** Items */
-            items: components["schemas"]["MemoryItem"][];
-        };
         /** ChallengeEntry */
         ChallengeEntry: {
             /**
@@ -3446,6 +3693,79 @@ export interface components {
              * @description 최신순 첫 항목
              */
             is_new: boolean;
+        };
+        /** SavedChallengeEntries */
+        SavedChallengeEntries: {
+            /** Entries */
+            entries: components["schemas"]["ChallengeEntry"][];
+            /**
+             * My Entry Count
+             * @description 삭제되지 않은 내 참여작 수
+             */
+            my_entry_count: number;
+            /**
+             * Saved Count
+             * @description 지금 보이는 저장한 참여작 수
+             */
+            saved_count: number;
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** ActorMemoryResponse */
+        ActorMemoryResponse: {
+            /** Items */
+            items: components["schemas"]["ActorMemoryItem"][];
+        };
+        /** MyChallengeEntries */
+        MyChallengeEntries: {
+            counts: components["schemas"]["MyChallengeEntryCounts"];
+            /** Entries */
+            entries: components["schemas"]["MyChallengeEntry"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** MyChallengeEntryCounts */
+        MyChallengeEntryCounts: {
+            /** All */
+            all: number;
+            /** Public */
+            public: number;
+            /** Private */
+            private: number;
+            /** Under Review */
+            under_review: number;
+        };
+        /** BlockedUser */
+        BlockedUser: {
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** BlockedUsers */
+        BlockedUsers: {
+            /** Users */
+            users: components["schemas"]["BlockedUser"][];
+        };
+        /** MemoryResponse */
+        MemoryResponse: {
+            /** Items */
+            items: components["schemas"]["MemoryItem"][];
+        };
+        /** EntryCommentPage */
+        EntryCommentPage: {
+            /** Comments */
+            comments: components["schemas"]["EntryComment"][];
+            /** Next Cursor */
+            next_cursor: string | null;
         };
         /** ConsentDocumentsResponse */
         ConsentDocumentsResponse: {
@@ -4379,6 +4699,50 @@ export interface operations {
             };
         };
     };
+    block_user_v2_me_blocks__user_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserBlockState"];
+                };
+            };
+        };
+    };
+    unblock_user_v2_me_blocks__user_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserBlockState"];
+                };
+            };
+        };
+    };
     update_memory_v2_legacy_me_memory__field__put: {
         parameters: {
             query?: never;
@@ -4439,6 +4803,94 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_entry_v2_entries__id__save_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntrySaveState"];
+                };
+            };
+        };
+    };
+    unsave_entry_v2_entries__id__save_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntrySaveState"];
+                };
+            };
+        };
+    };
+    like_entry_v2_entries__id__like_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntryLikeState"];
+                };
+            };
+        };
+    };
+    unlike_entry_v2_entries__id__like_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntryLikeState"];
                 };
             };
         };
@@ -4527,6 +4979,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_challenge_report_v2_reports_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChallengeReportRequest"];
+            };
+        };
+        responses: {
+            /** @description Replay */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportReceipt"];
+                };
+            };
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportReceipt"];
                 };
             };
         };
@@ -5218,6 +5703,65 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    list_comments_v2_entries__id__comments_get: {
+        parameters: {
+            query?: {
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntryCommentPage"];
+                };
+            };
+        };
+    };
+    create_comment_v2_entries__id__comments_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EntryCommentCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Replay */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntryComment"];
+                };
+            };
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntryComment"];
+                };
             };
         };
     };
@@ -6317,6 +6861,28 @@ export interface operations {
             };
         };
     };
+    list_saved_entries_v2_me_saved_entries_get: {
+        parameters: {
+            query?: {
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedChallengeEntries"];
+                };
+            };
+        };
+    };
     get_practice_feedback_status_v2_me_practice_feedback_status_get: {
         parameters: {
             query?: never;
@@ -6394,6 +6960,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MyChallengeEntries"];
+                };
+            };
+        };
+    };
+    list_blocks_v2_me_blocks_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlockedUsers"];
                 };
             };
         };
@@ -6703,6 +7289,26 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    delete_comment_v2_comments__id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
             204: {
                 headers: {
                     [name: string]: unknown;

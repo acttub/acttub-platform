@@ -1297,8 +1297,42 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - `GET /v2/entries/{id}`는 본인 것이거나 개인 노출 조건을 지난 참여작 하나(그 밖 404). `GET /v2/me/challenge-entries
   ?visibility=public|private|under_review&cursor=`는 삭제되지 않은 내 참여작을 확인 중(신고 숨김 또는 부모 챌린지
   review·hidden) → 비공개 → 공개 순으로 한 분류에만 넣어 `counts`(all = 셋의 합)와 20개씩의 목록을 낸다.
-- 카드에는 작성자의 현재 이름만 있고 사진·소개가 없다. 댓글 수·저장 여부는 반응 갈래(challenge.react)가 채우기
-  전까지 0·false다. V18은 `entry_view_events`·`entry_ranking_snapshots`를 더하고 기존 표는 바꾸지 않는다.
+- 카드에는 작성자의 현재 이름만 있고 사진·소개가 없다. `comment_count`는 보는 사람에게 보이는 댓글 수, `saved`는
+  보는 사람의 저장 여부다. V18은 `entry_view_events`·`entry_ranking_snapshots`를 더하고 기존 표는 바꾸지 않는다.
+
+### 6-18. 챌린지 반응·차단·신고 (1.0.0)
+
+- 게이트는 6-16과 같다. 반응(좋아요·저장·댓글 쓰기)은 보는 사람에게 보이는 참여작(6-17 개인 노출 조건)에만 되고
+  그 밖(비공개·삭제·신고 숨김·review·hidden 챌린지·양방향 차단)은 404 `entry_not_found`다. 저장은 행동하는 사람·작성자
+  `users` 행(id 순)과 참여작 행을 잠근 채 조건을 다시 본다. 마감 뒤 첫 반응은 쓰기 전에 마감 집계를 한다(6-17).
+- `PUT|DELETE /v2/entries/{id}/like`는 `{like_count, liked}`, `PUT|DELETE /v2/entries/{id}/save`는 `{saved}`이며 멱등이다
+  (두 번 켜도 한 행, 없는 것을 꺼도 200). 자기 참여작은 422 `self_like`·`self_save`. 좋아요 수는 연결 행을 다시 센다.
+- `GET /v2/me/saved-entries?cursor=`는 저장순 20개씩 지금 보이는 저장만 내고 `my_entry_count`(삭제되지 않은 내 참여작)·
+  `saved_count`(지금 보이는 저장)를 함께 준다. 비공개·숨김·차단된 저장은 행을 남긴 채 빠지고, 참여작 삭제는 행을 지운다.
+- 댓글: `POST /v2/entries/{id}/comments`(`request_id`, 앞뒤 공백을 걷은 1~500자)는 생성 201·재전송 200·다른 본문 422
+  `request_fingerprint_mismatch`. 자기 참여작에도 쓸 수 있고 한국 날짜 하루 100개(429 `daily_comment_limit`). 재전송 확인이
+  한도·노출 검사보다 먼저다. `GET …/comments?cursor=`는 최신순 20개씩이고 차단 관계·숨긴 남의 댓글·삭제된 댓글을 뺀다.
+  신고로 숨겨진 내 댓글은 `status: hidden`으로 나에게만 온다. 작성자 이름은 현재 프로필 이름, 탈퇴했으면 "탈퇴한 사용자"
+  (`author_withdrawn`). `DELETE /v2/comments/{id}`는 본인만(남의 것 404 `comment_not_found`) 본문을 파기하고 표시만 남긴다.
+- 차단: `PUT|DELETE /v2/me/blocks/{user_id}`는 `{user_id, blocked}`이고 멱등이다. 자기 자신 422 `self_block`, 없는 회원
+  404 `user_not_found`. 두 사람 행을 id 순으로 잠근다. `GET /v2/me/blocks`는 이름·차단 시각만 준다. 상대에게 알리지 않고
+  이전 좋아요 행은 남아 전체 수에 든다.
+- 신고: `POST /v2/reports`(`request_id`, `target_type` entry·comment·challenge, `target_id`, `reason` copyright·
+  inappropriate·spam·duplicate·other, 선택 `note` 200자)는 201 `{id, status}`. 같은 요청 재전송·같은 사람의 같은 대상
+  재신고는 먼저 낸 신고 200(처리 뒤라도 다시 숨기지 않는다), 같은 요청 id의 다른 본문 422. 신고자에게 지금 보이지 않는
+  대상은 404, 본인 것은 422 `self_report`, 하루 21번째는 429 `daily_report_limit`. 참여작은 신고와 함께 `hidden_by_report`,
+  댓글은 `hidden`(한 트랜잭션, 대상 행 잠금). 챌린지는 처리 전 신고의 서로 다른 신고자가 셋이 되면 `review`다.
+  `target_version`은 신고 당시 참여작 `content_version`(댓글·챌린지는 1), `target_text`는 당시 캡션·댓글·대사다.
+  참여작·댓글 본문이 파기되면 `target_text`도 비운다. 처리 완료 신고는 90일 뒤 매시 일이 지운다.
+- 운영(`ADMIN_OPS_TOKEN`): `GET /v2/admin/reports?status=received|reviewed&cursor=`는 접수순 50개씩 신고 당시·현재
+  버전과 본문, 대상 상태, 남은 처리 전 신고 수, 24·72시간 목표 시각을 준다(신고자 신원은 없다). `PATCH
+  /v2/admin/reports/{id}`(`resolution`, `reviewer`, 선택 `note`)는 대상 행을 잠그고 그 신고를 처리한다.
+  restored·dismissed는 그 대상에 처리 전 신고가 남지 않았을 때만 운영 숨김을 풀며 작성자의 비공개·삭제와 챌린지 종료는
+  그대로다. kept_hidden은 숨김을 유지하고 챌린지는 `hidden`으로 내린다. 이미 처리한 신고 422 `report_already_reviewed`,
+  없는 신고 404. 참여작·챌린지 판정 뒤 순위 확정을 다시 시도한다 — 확정을 기다리는 참여작은 마감 자격이 있고 처리 전
+  신고가 남은 신고 숨김뿐이라 kept_hidden으로 끝난 참여작은 순위 밖에서 확정된다.
+- POST `/v2/reports`는 옛 연습 리포트 작업(`create_report_v2_reports_post`)이 아니라 챌린지 신고
+  (`create_challenge_report_v2_reports_post`)다. V19는 `entry_saves`·`entry_comments`·`entry_reports`를 더한다.
 
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 
