@@ -74,7 +74,7 @@ export function useReadingStt(): SttHandle {
       setInterim(transcript);
       callbacks.current?.onInterim(transcript);
     }
-    if (event.isFinal && settle.current) finishNow(text.current);
+    // 최종 결과로 끝내지 않는다 — 녹음 파일 uri 는 그 뒤의 audioend 로 온다. 끝은 end 가 정한다.
   });
   useSpeechRecognitionEvent('volumechange', (event) => {
     if (!active.current || !detector.current) return;
@@ -84,10 +84,9 @@ export function useReadingStt(): SttHandle {
   useSpeechRecognitionEvent('audioend', (event) => {
     if (event?.uri) recordingUri.current = event.uri;
   });
+  // 안드로이드는 멈출 때 error(client) → audioend(uri) → end 순으로 보낸다. error 에서 끝내면 takeRecordingUri()
+  // 가 아직 비어 있어 내 차례 녹음이 조용히 버려진다(SOMA-557). 인식기는 error 뒤에도 반드시 end 를 보낸다.
   useSpeechRecognitionEvent('end', () => {
-    if (active.current || settle.current) finishNow(text.current);
-  });
-  useSpeechRecognitionEvent('error', () => {
     if (active.current || settle.current) finishNow(text.current);
   });
 
