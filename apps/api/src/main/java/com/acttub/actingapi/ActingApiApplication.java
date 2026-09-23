@@ -40,3 +40,4 @@ public class ActingApiApplication {
         SpringApplication.run(ActingApiApplication.class, args);
     }
 }
+// SOMA-552 CI 시간 측정용 — 머지하지 않습니다
