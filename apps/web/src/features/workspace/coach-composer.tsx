@@ -1,5 +1,6 @@
 "use client";
 
+import { ACTOR_REPLY_MAX } from "@/lib/api/v2/coach-conversations";
 import { useRef, useState } from "react";
 
 export function CoachComposer({
@@ -28,7 +29,7 @@ export function CoachComposer({
           aria-label="코치에게 보낼 말"
           value={answer}
           disabled={disabled}
-          maxLength={300}
+          maxLength={ACTOR_REPLY_MAX}
           rows={3}
           placeholder={asking ? "코치에게 궁금한 점을 적어 주세요" : "답이나 질문을 편하게 적어 주세요"}
           onChange={(event) => setAnswer(event.target.value)}

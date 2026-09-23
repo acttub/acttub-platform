@@ -13,9 +13,12 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
 import com.acttub.actingapi.feature.auth.app.GuestAccounts;
+import com.acttub.actingapi.feature.feedback.app.ExitSurveyOwnership;
 import com.acttub.actingapi.feature.memory.app.MemoryOwnership;
 import com.acttub.actingapi.feature.practice.app.PracticeOwnership;
+import com.acttub.actingapi.feature.reading.app.ReadingOwnership;
 import com.acttub.actingapi.feature.upload.app.UploadOwnership;
+import com.acttub.actingapi.feature.video.app.VideoOwnership;
 import com.acttub.actingapi.platform.ledger.OperationOwnership;
 import com.acttub.actingapi.platform.web.ApiException;
 
@@ -46,6 +49,9 @@ public class GuestTransferService {
     private final PracticeOwnership practices;
     private final OperationOwnership operations;
     private final MemoryOwnership memories;
+    private final ReadingOwnership readings;
+    private final VideoOwnership videos;
+    private final ExitSurveyOwnership surveys;
     private final Clock clock;
     private final byte[] hashKey;
     private final SecureRandom random = new SecureRandom();
@@ -57,6 +63,9 @@ public class GuestTransferService {
             PracticeOwnership practices,
             OperationOwnership operations,
             MemoryOwnership memories,
+            ReadingOwnership readings,
+            VideoOwnership videos,
+            ExitSurveyOwnership surveys,
             Clock clock,
             String secret) {
         if (secret == null || secret.isEmpty()) {
@@ -68,6 +77,9 @@ public class GuestTransferService {
         this.practices = practices;
         this.operations = operations;
         this.memories = memories;
+        this.readings = readings;
+        this.videos = videos;
+        this.surveys = surveys;
         this.clock = clock;
         this.hashKey = hmac(secret.getBytes(StandardCharsets.UTF_8), HASH_PURPOSE);
     }
@@ -109,6 +121,8 @@ public class GuestTransferService {
             // 올린 영상 → 연습 → 작업 장부 순서는 그대로다(새 연습을 만드는 쪽이 올린 영상 행을 먼저 잡으므로,
             // 그 행에서 줄을 서야 겹쳐 만들어진 연습과 작업을 놓치지 않는다).
             uploads.reassign(guestId, memberId);
+            // 보관함은 올린 영상 바로 뒤다 — 새 연습을 만드는 쪽이 영상 행을 먼저 잡으므로 그 행에서 줄을 선다.
+            videos.reassign(guestId, memberId);
             practices.reassign(guestId, memberId);
             operations.reassign(guestId, memberId);
             // 기억은 작업 장부 뒤에 본다. 기억 갱신 워커는 작업 행을 잡은 채 그 행의 주인에게 기억을
@@ -116,6 +130,11 @@ public class GuestTransferService {
             // 간다. 기억을 먼저 보면 그 사이에 저장된 기억이 닫힌 게스트에게 남는다. 고르지 않았을 때의 409 는
             // 어디서 나든 트랜잭션 전체를 되돌린다.
             moveMemory(guestId, memberId, memoryChoice);
+            // 리딩(대본·회차·녹음·암기 상태)은 게스트의 users 행을 잡은 뒤 옮긴다 — 리딩의 쓰기가 같은 행을 잡고
+            // 활성인지 보므로, 옮기는 사이에 커밋된 대본이 닫힌 게스트에게 남지 않는다(03-reading).
+            readings.reassign(guestId, memberId);
+            // 설문 이력은 회원 것이 되고, 어느 쪽이든 물어봤으면 회원도 물어본 것이다(practice.feedback).
+            surveys.reassign(guestId, memberId);
             guests.closeTransferredGuest(guestId, now);
             codes.markUsed(live.id(), now);
             return Outcome.TRANSFERRED;
@@ -134,6 +153,9 @@ public class GuestTransferService {
             if (memoryChoice == null) {
                 throw new ApiException(409, "memory_choice_required");
             }
+            // 고른 쪽만 남기고 세대를 올린다 — 버린 쪽에서 시작된 갱신 작업은 이관을 따라 회원에게
+            // 오지만, 완료 때 세대가 달라 반영되지 않는다(practice.memory).
+            memories.bumpEpoch(memberId);
             if ("member".equals(memoryChoice)) {
                 memories.discard(guestId);
                 return;

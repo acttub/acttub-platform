@@ -6,13 +6,14 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
-import { api, type ReportRecord } from '@/lib/api';
+import { api } from '@/lib/api';
 import { buildWeekActivity } from '@/lib/practice-activity';
+import { practiceStreak, groupTitle, recentGroups } from '@/lib/practice/groups';
+import type { PracticeGroup } from '@/lib/practice/types';
 import { rememberPracticeDays } from '@/lib/practice-days';
 import { dismissFeedbackNudge, feedbackNudgeVisible, maybeRequestStoreReview } from '@/lib/feedback-prompts';
 import { useFeedbackSheet } from '@/hooks/use-feedback-sheet';
 import { hasSeenGuide } from '@/lib/guide-state';
-import { sortReportsNewestFirst } from '@/lib/report-order';
 import {
   localDate,
   upcomingNotices,
@@ -41,8 +42,8 @@ function recentDate(iso: string): string {
 /** A1. 홈 — 히어로(마스코트) + 지금 바로 연습 + 연속 연습 + 최근 연습 + 입시 마감. */
 export default function HomeScreen() {
   const router = useRouter();
+  const [groups, setGroups] = useState<PracticeGroup[]>([]);
   const { isGuest, requireLogin, element: loginGuard } = useRequireLogin();
-  const [records, setRecords] = useState<ReportRecord[]>([]);
   // 연속일·주간 원용 날짜 — 서버 기록 ∪ 기기에 누적된 연습일(지워도 남는다).
   const [activityDays, setActivityDays] = useState<{ created_at: string }[]>([]);
   const [admissions, setAdmissions] = useState<AdmissionsResponse | null>(null);
@@ -65,24 +66,29 @@ export default function HomeScreen() {
       // 둘러보는 중엔 계정이 없다 — 보호된 요청은 401 이라 부르지 않는다 (SOMA-544).
       if (isGuest) return;
       api
-        .reportHistory()
+        .listPracticeGroups('all')
         .then((r) => {
           if (cancelled) return;
-          setRecords(sortReportsNewestFirst(r.reports));
-          void rememberPracticeDays(r.reports).then((days) => !cancelled && setActivityDays(days));
-          void feedbackNudgeVisible(r.reports.length).then((v) => !cancelled && setNudge(v));
-          void maybeRequestStoreReview(r.reports.length);
+          setGroups(r.groups);
+          // 연습한 날은 기기에도 쌓아 둔다 — 기록을 숨겨도 "그 날 연습했다"는 사실은 남는다.
+          const practicedAt = r.groups
+            .flatMap((g) => g.practices.map((round) => round.created_at))
+            .filter((at): at is string => typeof at === 'string' && at.length > 0)
+            .map((created_at) => ({ created_at }));
+          void rememberPracticeDays(practicedAt).then((days) => !cancelled && setActivityDays(days));
+          void feedbackNudgeVisible(r.groups.length).then((v) => !cancelled && setNudge(v));
+          void maybeRequestStoreReview(r.groups.length);
         })
         .catch(() => {
           if (!cancelled) {
-            setRecords([]);
+            setGroups([]);
             void rememberPracticeDays([]).then((days) => !cancelled && setActivityDays(days));
           }
         });
       return () => {
         cancelled = true;
       };
-    }, [router]),
+    }, [router, isGuest]),
   );
 
   useEffect(() => {
@@ -109,7 +115,9 @@ export default function HomeScreen() {
     [admissions],
   );
 
-  const { days, streak } = useMemo(() => buildWeekActivity(activityDays), [activityDays]);
+  const { days } = useMemo(() => buildWeekActivity(activityDays), [activityDays]);
+  // 연속 연습 일수는 회차 시작 날짜를 한국 시간으로 센다(practice.library).
+  const streak = useMemo(() => practiceStreak(activityDays.map((d) => d.created_at)), [activityDays]);
 
   // 연속일이 오늘 늘었으면(마지막으로 본 값보다 크면) 딱 한 번 축하한다 (SOMA-479).
   useEffect(() => {
@@ -124,7 +132,8 @@ export default function HomeScreen() {
     };
   }, [streak]);
 
-  const recent = records.slice(0, PREVIEW_COUNT);
+  // 홈의 최근 연습은 숨기지 않은 묶음 3개다.
+  const recent = useMemo(() => recentGroups(groups, PREVIEW_COUNT), [groups]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -231,22 +240,17 @@ export default function HomeScreen() {
           <View style={styles.recentList}>
             {recent.map((r) => (
               <Pressable
-                key={r.practice_session_id + r.created_at}
+                key={r.root_id}
                 style={({ pressed }) => [styles.recentRow, pressed && styles.recentRowPressed]}
-                onPress={() =>
-                  router.push({
-                    pathname: '/report-detail',
-                    params: { practiceSessionId: r.practice_session_id },
-                  })
-                }>
+                onPress={() => router.push({ pathname: '/practice-group', params: { rootId: r.root_id } })}>
                 <View style={styles.recentIcon}>
                   <Feather name="film" size={17} color={palette.blue} />
                 </View>
                 <View style={styles.flex}>
-                  <Text style={styles.recentTitle} numberOfLines={1}>{r.title}</Text>
+                  <Text style={styles.recentTitle} numberOfLines={1}>{groupTitle(r)}</Text>
                   <View style={styles.recentMeta}>
                     <View style={styles.recentDot} />
-                    <Text style={styles.recentMetaText}>{recentDate(r.created_at)}</Text>
+                    <Text style={styles.recentMetaText}>{recentDate(r.last_practiced_at ?? '')}</Text>
                   </View>
                 </View>
                 <Feather name="chevron-right" size={16} color={palette.checkOff} />

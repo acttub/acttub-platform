@@ -25,7 +25,12 @@ class AnalysisWorkerScheduler {
     private static final Logger LOGGER =
             Logger.getLogger(AnalysisWorkerScheduler.class.getName());
 
-    private final AnalysisWorker worker;
+    /**
+      * 원장마다 워커 하나다 — 옛 {@code external_operations} 와 1.0.0 의 {@code ai_jobs} (practice.analyze).
+      * 둘은 서로 다른 큐를 집고 서로 다른 표에 쓰지만 lease·실패 분류 규칙은 한 벌이다(CONTRACT §5-7).
+      * PA4 가 코치·노트를 회차로 옮기면 옛 워커가 사라진다.
+      */
+    private final java.util.List<AnalysisWorker> workers;
     private final ThreadPoolTaskExecutor executor;
     private final FailureReporter failureReporter;
 
@@ -33,7 +38,7 @@ class AnalysisWorkerScheduler {
             ObjectProvider<AnalysisWorker> worker,
             @Qualifier("analysisWorkerExecutor") ThreadPoolTaskExecutor executor,
             FailureReporter failureReporter) {
-        this.worker = worker.getIfAvailable();
+        this.workers = worker.orderedStream().toList();
         this.executor = executor;
         this.failureReporter = failureReporter;
     }
@@ -73,7 +78,7 @@ class AnalysisWorkerScheduler {
             fixedDelayString = "#{@analysisWorkerPollIntervalMillis}",
             initialDelayString = "0")
     void poll() {
-        if (worker == null) {
+        if (workers.isEmpty()) {
             return;
         }
         int openSlots = executor.getMaxPoolSize() - executor.getActiveCount();
@@ -91,29 +96,30 @@ class AnalysisWorkerScheduler {
             initialDelayString = "0")
     void sweep() {
         // Python 풀의 index 0 역할이다. maintenance tick은 이 단일 메서드만 소유한다.
-        if (worker == null) {
-            return;
-        }
-        try {
-            worker.sweep();
-        } catch (Exception exception) {
-            LOGGER.log(Level.WARNING, "analysis maintenance sweep failed", exception);
-            failureReporter.report(
-                    exception,
-                    new FailureContext("AnalysisWorkerScheduler.sweep"));
+        for (AnalysisWorker worker : workers) {
+            try {
+                worker.sweep();
+            } catch (Exception exception) {
+                LOGGER.log(Level.WARNING, "analysis maintenance sweep failed", exception);
+                failureReporter.report(
+                        exception,
+                        new FailureContext("AnalysisWorkerScheduler.sweep"));
+            }
         }
     }
 
     private void drainQueue() {
-        try {
-            while (worker.runOnce()) {
-                // 일감이 있는 동안은 대기하지 않는다.
+        for (AnalysisWorker worker : workers) {
+            try {
+                while (worker.runOnce()) {
+                    // 일감이 있는 동안은 대기하지 않는다.
+                }
+            } catch (Exception exception) {
+                LOGGER.log(Level.WARNING, "analysis worker cycle failed", exception);
+                failureReporter.report(
+                        exception,
+                        new FailureContext("AnalysisWorkerScheduler.cycle"));
             }
-        } catch (Exception exception) {
-            LOGGER.log(Level.WARNING, "analysis worker cycle failed", exception);
-            failureReporter.report(
-                    exception,
-                    new FailureContext("AnalysisWorkerScheduler.cycle"));
         }
     }
 

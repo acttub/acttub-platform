@@ -9,10 +9,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppDialog } from '@/components/app-dialog';
 import { palette } from '@/constants/palette';
 import { keepDeviceFile } from '@/lib/account-files';
+import { useAuth } from '@/lib/auth';
 import { translate as t } from '@/lib/i18n';
+import { saveRecordingToLibrary } from '@/lib/library/library-runner';
+import { videoErrorMessage } from '@/lib/library/video-checks';
 import { MAX_VIDEO_DURATION_MS, normalizeVideoDurationMs } from '@/lib/upload-input';
-import { setRecordedVideo, takeRecordedVideo } from '@/lib/recorded-video';
-import { addArchiveRecording } from '@/lib/archive-store';
+import { peekRecordedVideo, setRecordedVideo, takeRecordedVideo } from '@/lib/recorded-video';
+import { setPickedVideo } from '@/lib/practice/picked-video';
 
 const MAX_SEC = Math.floor(MAX_VIDEO_DURATION_MS / 1000);
 /** 챌린지(오늘의 대사) 촬영은 60초 — pen A18 촬영 대기 화면과 같은 상한. */
@@ -28,6 +31,9 @@ const CHALLENGE_MAX_SEC = 60;
  * mode=challenge 면 pen A18 "촬영 대기" 화면이 된다 — 대사 카드를 위에 띄우고, 60초 상한,
  * 카메라 전환은 오른쪽 위, 아래엔 업로드(갤러리)·셔터·대사 숨김. 찍고 나면 챌린지 올리기로.
  *
+ * 촬영이 끝나면(A2.1, practice.record) 기기에 먼저 저장하고 업로드 대기 큐에 넣는다 — 서버 확정 전에는 "기기에 저장 ·
+ * 업로드 대기", 확정 뒤에는 "보관함 저장"이다. 어디로 보낼지 정하지 않아도 보관함에 남는다.
+ *
  * 시뮬레이터엔 카메라가 없어 실기기에서만 실제로 돈다.
  */
 export default function RecordVideoScreen() {
@@ -35,10 +41,11 @@ export default function RecordVideoScreen() {
   // mode=ai: 하단 탭 촬영 버튼에서 "AI 코칭"을 고르고 옴 → 찍으면 업로드 화면으로.
   // mode=plain: "기본 촬영" → 찍으면 보관함에 저장하고 그 영상 화면으로.
   // mode=challenge: 대사 띄운 챌린지 촬영. 그 외(업로드 화면의 촬영 버튼)는 찍고 되돌아간다.
-  const { mode, line, work } = useLocalSearchParams<{
+  const { mode, line, work, challengeId } = useLocalSearchParams<{
     mode?: string;
     line?: string;
     work?: string;
+    challengeId?: string;
   }>();
   const isChallenge = mode === 'challenge';
   const maxSec = isChallenge ? CHALLENGE_MAX_SEC : MAX_SEC;
@@ -51,7 +58,8 @@ export default function RecordVideoScreen() {
   const [lineHidden, setLineHidden] = useState(false);
   // 종료 처리가 겹쳐 두 번 도는 것을 막는다(자동 정지 + 사용자 정지).
   const finishedRef = useRef(false);
-  const { confirm, dialog } = useAppDialog();
+  const { confirm, alert, dialog } = useAppDialog();
+  const { user } = useAuth();
   // 권한 요청은 화면에 들어오자마자 한 번만 — OS 팝업이 곧바로 뜬다.
   const askedRef = useRef(false);
 
@@ -83,30 +91,54 @@ export default function RecordVideoScreen() {
     })();
   }, [ready, camPerm, micPerm, requestCam, requestMic, confirm, router]);
 
+  /** 촬영·선택한 영상을 보관함(기기 저장 + 업로드 대기)에 넣는다. 너무 길면 안내하고 넣지 않는다. */
+  const saveToLibrary = useCallback(async (): Promise<{ id: string; uri: string } | null> => {
+    const video = peekRecordedVideo();
+    if (!video || !user?.id) return null;
+    const outcome = await saveRecordingToLibrary({ uri: video.uri, durationMs: video.durationMs, owner: user.id });
+    if (outcome.kind === 'rejected') {
+      await alert({ title: t('archive.title'), message: videoErrorMessage(outcome.code) });
+      return null;
+    }
+    return { id: outcome.entry.id, uri: outcome.entry.uri };
+  }, [alert, user?.id]);
+
   const goNext = useCallback(() => {
     if (isChallenge) {
-      router.replace({ pathname: '/challenge-upload', params: { line: line ?? '', work: work ?? '' } });
+      router.replace({
+        pathname: '/challenge-upload',
+        params: { challengeId: challengeId ?? '', line: line ?? '', work: work ?? '' },
+      });
       return;
     }
     if (mode === 'ai') {
-      // 업로드 화면이 포커스되며 takeRecordedVideo 로 결과를 받아 붙인다.
-      router.replace('/upload');
+      // 보관함에 저장하고(업로드 대기) 그 항목을 새 연습 준비 화면으로 넘긴다 — 여기서 올리지 않는다.
+      void saveToLibrary().then((pending) => {
+        const video = takeRecordedVideo();
+        if (pending) {
+          setPickedVideo({
+            videoId: null,
+            pendingId: pending.id,
+            uri: pending.uri,
+            playbackUrl: null,
+            durationMs: video?.durationMs ?? null,
+          });
+        }
+        router.replace('/upload');
+      });
       return;
     }
     if (mode === 'plain') {
-      // 기본 촬영 — 서버로 안 보내고 보관함(기기)에 넣은 뒤 그 영상 화면으로.
-      const video = takeRecordedVideo();
-      if (!video) {
-        router.back();
-        return;
-      }
-      void addArchiveRecording({ uri: video.uri, durationMs: video.durationMs }).then((rec) =>
-        router.replace({ pathname: '/archive-detail', params: { id: rec.id } }),
-      );
+      // 기본 촬영 — 기기에 저장하고 업로드 대기 큐에 넣은 뒤 그 영상 화면으로.
+      void saveToLibrary().then((pending) => {
+        takeRecordedVideo();
+        if (pending) router.replace({ pathname: '/archive-detail', params: { pending: pending.id } });
+        else router.back();
+      });
       return;
     }
     router.back();
-  }, [isChallenge, line, mode, router, work]);
+  }, [challengeId, isChallenge, line, mode, router, saveToLibrary, work]);
 
   const finishWith = useCallback(
     (uri: string | null) => {

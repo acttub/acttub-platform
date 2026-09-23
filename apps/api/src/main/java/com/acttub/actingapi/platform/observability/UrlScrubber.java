@@ -7,7 +7,7 @@ import java.util.regex.Pattern;
  * {@code lib/observability/sentry-shared.ts:scrubUrl} 과도 같은 규칙이다.
  *
  * <p>쿼리를 통째로 버리므로 새 파라미터가 생겨도 따로 손볼 것이 없다. 라우트 템플릿
- * ({@code /v2/practice-sessions/{session_id}})은 Sentry 가 트랜잭션 이름으로 따로 들고 있어서,
+ * ({@code /v2/practices/{practice_id}})은 Sentry 가 트랜잭션 이름으로 따로 들고 있어서,
  * 여기서 실제 주소를 가려도 어느 엔드포인트인지는 그대로 보인다. UUID 를 가리면 같은 화면에서
  * 난 에러가 주소마다 다른 이슈로 쪼개지지 않는 이득도 따라온다.
  */

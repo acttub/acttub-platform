@@ -7,6 +7,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.acttub.actingapi.feature.memory.app.ActorMemoryUpdateWorker;
 import com.acttub.actingapi.feature.memory.app.MemoryUpdateWorker;
 import com.acttub.actingapi.support.RecordingFailureReporter;
 import org.junit.jupiter.api.DisplayName;
@@ -90,6 +91,9 @@ class MemoryWorkerSchedulerTest {
             RecordingFailureReporter reporter) {
         ObjectProvider<MemoryUpdateWorker> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(worker);
-        return new MemoryWorkerScheduler(provider, executor, reporter);
+        // 1.0.0 워커는 여기서 보지 않는다 — 이 시험은 폴·거절·보고의 형태만 본다.
+        ObjectProvider<ActorMemoryUpdateWorker> actorProvider = mock(ObjectProvider.class);
+        when(actorProvider.getIfAvailable()).thenReturn(null);
+        return new MemoryWorkerScheduler(provider, actorProvider, executor, reporter);
     }
 }

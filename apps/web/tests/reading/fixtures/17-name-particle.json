@@ -1,0 +1,37 @@
+{
+  "title": null,
+  "roles": [
+    "촐레",
+    "안스"
+  ],
+  "lines": [
+    {
+      "type": "dialogue",
+      "role": "촐레",
+      "text": "여기가 어디죠?"
+    },
+    {
+      "type": "dialogue",
+      "role": "안스",
+      "text": "요양원이야."
+    },
+    {
+      "type": "direction",
+      "text": "촐레가"
+    },
+    {
+      "type": "direction",
+      "text": "안스를 오래 바라본다."
+    },
+    {
+      "type": "dialogue",
+      "role": "촐레",
+      "text": "그렇군요."
+    },
+    {
+      "type": "dialogue",
+      "role": "안스",
+      "text": "앉아."
+    }
+  ]
+}

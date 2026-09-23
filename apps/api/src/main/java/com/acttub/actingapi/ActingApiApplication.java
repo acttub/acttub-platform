@@ -26,13 +26,16 @@ import org.springframework.boot.autoconfigure.domain.EntityScan;
     "com.acttub.actingapi.feature.report.schema",
     "com.acttub.actingapi.feature.coach.schema",
     "com.acttub.actingapi.feature.upload.schema",
+    "com.acttub.actingapi.feature.video.schema",
     "com.acttub.actingapi.feature.auth.schema",
     "com.acttub.actingapi.feature.consent.schema",
     "com.acttub.actingapi.feature.memory.schema",
     "com.acttub.actingapi.feature.push.schema",
     "com.acttub.actingapi.feature.profile.schema",
     "com.acttub.actingapi.feature.portfolio.schema",
-    "com.acttub.actingapi.feature.transfer.schema"
+    "com.acttub.actingapi.feature.transfer.schema",
+    "com.acttub.actingapi.feature.reading.schema",
+    "com.acttub.actingapi.feature.challenge.schema"
 })
 public class ActingApiApplication {
 

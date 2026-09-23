@@ -1,6 +1,9 @@
-import { getReport } from "@/lib/api/v2/reports";
-import { getPracticeSession } from "@/lib/api/v2/sessions";
-import type { PracticeReport, PracticeSessionDetail } from "@/lib/api/v2/types";
+import { getConversation } from "@/lib/api/v2/coach-conversations";
+import type { Conversation } from "@/lib/practice/api-types";
+import { getPracticeNote } from "@/lib/api/v2/notes";
+import { getPractice } from "@/lib/api/v2/practices";
+import { practiceToSessionDetail, type PracticeDetailView } from "../practice/practice-view";
+import type { PracticeReport } from "./workspace-state";
 
 // 이미 있는 연습 하나를 열어 화면에 실을 것까지 받아 오는 길. 목록에서 누르는 길과
 // 주소 ?session= 으로 들어오는 길이 이 하나를 쓴다 — 옛 코드는 같은 순서를 두 번
@@ -35,6 +38,7 @@ export type SessionLoadOutcome =
   | { kind: "note"; report: PracticeReport }
   /** 훑어보기는 끝났는데 노트가 없다. 코치를 부를 자리다. */
   | { kind: "noNote" }
+  | { kind: "conversation"; conversation: Conversation }
   /** 연습 자체를 못 불러왔다. 무슨 문구를 띄울지는 진입 경로가 정한다. */
   | { kind: "loadFailed"; cause: unknown };
 
@@ -49,7 +53,7 @@ export type LoadPracticeSessionInput = {
    * 연습을 받아 왔다. 무엇을 더 할지 갈리기 **전에** 부른다 — 화면은 받아 온 상태로
    * 먼저 옮기고, 폴링·노트 조회는 그다음이다.
    */
-  onLoaded: (detail: PracticeSessionDetail) => void;
+  onLoaded: (detail: PracticeDetailView) => void;
 };
 
 export async function loadPracticeSession({
@@ -58,7 +62,8 @@ export async function loadPracticeSession({
   onLoaded,
 }: LoadPracticeSessionInput): Promise<SessionLoadOutcome> {
   try {
-    const loaded = await getPracticeSession(sessionId);
+    const practice = await getPractice(sessionId);
+    const loaded = practiceToSessionDetail(practice);
     if (!isCurrent()) return { kind: "superseded" };
     onLoaded(loaded);
     if (loaded.status === "analyzing") {
@@ -66,11 +71,18 @@ export async function loadPracticeSession({
     }
     if (loaded.status === "failed") return { kind: "analysisFailed" };
     try {
-      const found = await getReport(sessionId);
+      // 노트는 회차에 딸린다(practice.note). 없는 회차도 흔하다 — 짧게 끝난 대화는 노트를 만들지 않는다.
+      const note = await getPracticeNote(sessionId);
       if (!isCurrent()) return { kind: "superseded" };
-      return { kind: "note", report: found.report };
-    } catch {
+      if (note) return { kind: "note", report: note };
+      if (practice.conversation_id && practice.conversation_status === "closed") {
+        const conversation = await getConversation(practice.conversation_id);
+        return isCurrent() ? { kind: "conversation", conversation } : { kind: "superseded" };
+      }
+      return { kind: "noNote" };
+    } catch (cause) {
       if (!isCurrent()) return { kind: "superseded" };
+      if (practice.conversation_status === "closed") return { kind: "loadFailed", cause };
       return { kind: "noNote" };
     }
   } catch (cause) {

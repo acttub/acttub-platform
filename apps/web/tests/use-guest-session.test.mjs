@@ -68,7 +68,7 @@ test("account.guest: 처음 보호 기능을 쓰는 순간 게스트가 생기�
   const probe = mount(Probe);
   try {
     await react.act(async () => {
-      await apiFetch("/v2/uploads/intents", { method: "POST", body: {} });
+      await apiFetch("/v2/videos/intents", { method: "POST", body: {} });
     });
 
     assert.equal(probe.latest.hasSession, true);
@@ -93,7 +93,7 @@ test("account.guest: 서버가 갱신을 거절하면 게스트가 끝나고 화
     assert.equal(probe.latest.hasSession, true);
 
     await react.act(async () => {
-      await apiFetch("/v2/practice-sessions").catch(() => undefined);
+      await apiFetch("/v2/practices").catch(() => undefined);
     });
 
     assert.equal(probe.latest.hasSession, false);

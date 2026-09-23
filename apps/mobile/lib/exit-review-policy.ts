@@ -7,8 +7,11 @@
 
 import { translate } from './i18n.ts';
 
-/** feedback = 설정·홈에서 사용자가 스스로 여는 시트. 한 번만 묻기 규칙과 무관하다. */
-export type ExitReviewTrigger = 'leave' | 'finish' | 'feedback';
+/**
+ * 이탈 설문의 계기는 x·leave·back 셋이다(practice.feedback). feedback 은 설정·홈에서 사용자가
+ * 스스로 여는 의견 시트라 한 번만 묻기 규칙과 무관하다(이 기능이 아니다).
+ */
+export type ExitReviewTrigger = 'x' | 'leave' | 'back' | 'feedback';
 
 export const EXIT_REVIEW_MAX_LENGTH = 100;
 
@@ -31,7 +34,7 @@ export function exitReviewCopy(trigger: ExitReviewTrigger): ExitReviewCopy {
     subtitle: translate(feedback ? 'exitReview.feedbackSubtitle' : 'exitReview.subtitle'),
     placeholder: translate('exitReview.placeholder'),
     submit:
-      trigger === 'finish'
+      trigger === 'leave'
         ? translate('exitReview.submitFinish')
         : feedback
           ? translate('exitReview.submitFeedback')
@@ -42,11 +45,6 @@ export function exitReviewCopy(trigger: ExitReviewTrigger): ExitReviewCopy {
     contactEmailPlaceholder: translate('exitReview.contactEmailPlaceholder'),
     contactPhonePlaceholder: translate('exitReview.contactPhonePlaceholder'),
   };
-}
-
-/** 한 번 물어봤으면(보냈든 건너뛰었든) 다시 안 띄운다. */
-export function shouldOfferExitReview(alreadyAsked: boolean): boolean {
-  return !alreadyAsked;
 }
 
 /** 보낼 수 있는 형태로 다듬는다. 빈 칸·공백뿐이면 null. */

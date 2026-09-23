@@ -73,6 +73,11 @@ class PackageLayerTest {
             // 포트폴리오와 게스트 이관은 테이블이 먼저 서고(V9, SOMA-528) 나머지 층이 뒤에 섰다.
             Map.entry("portfolio", FOUR_LAYERS),
             Map.entry("transfer", Set.of("app", "adapter", "schema")),
+            // 대본 리딩(SOMA-546, ADR-031). 대본의 규칙(한도·배역 이름)이 domain 에 산다.
+            Map.entry("reading", FOUR_LAYERS),
+            Map.entry("challenge", FOUR_LAYERS),
+            // 영상 보관함(SOMA-546). 한도·형식·객체 키가 domain 에 산다.
+            Map.entry("video", FOUR_LAYERS),
             // 입시 요강에는 Domain Model 도 Schema Entity 도 없다. 요강은 우리가 쓰는 데이터가
             // 아니라 바깥에서 통째로 들어오는 문서라 그것에 걸리는 행위 규칙이 없고, 문서가 곧
             // 응답이라 형태는 `app` 에 산다(`report/app/PublicReport` 와 같은 자리). 네 층을
@@ -85,6 +90,9 @@ class PackageLayerTest {
             Map.entry("auth", FOUR_LAYERS),
             Map.entry("consent", FOUR_LAYERS),
             Map.entry("memory", FOUR_LAYERS),
+            // 이탈 설문(SOMA-546). 값 규칙(화면·계기·길이)은 app 의 상수 묶음이고 Schema Entity 는 없다 —
+            // 새 표는 native SQL 로 읽고 쓴다(V14 의 다른 연습 표들과 같다, EntityMappingIT 의 대기 목록).
+            Map.entry("feedback", Set.of("app", "adapter")),
             // 푸시 토큰에는 행위 규칙이 없다 — 등록은 upsert, 해제는 delete, 발송은 위탁이라
             // domain 에 넣을 것을 지어내야 하는 형태다(ADR-017, admissions 와 같은 판별).
             Map.entry("push", Set.of("app", "adapter", "schema")));

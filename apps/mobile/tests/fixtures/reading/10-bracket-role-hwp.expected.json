@@ -1,0 +1,47 @@
+{
+  "title": null,
+  "roles": [
+    "지수",
+    "민준"
+  ],
+  "lines": [
+    {
+      "kind": "scene",
+      "text": "제1장"
+    },
+    {
+      "kind": "dialogue",
+      "role": "지수",
+      "text": "오래 기다렸어?"
+    },
+    {
+      "kind": "dialogue",
+      "role": "민준",
+      "text": "아니, 나도 방금 왔어."
+    },
+    {
+      "kind": "dialogue",
+      "role": "지수",
+      "text": "다행이다."
+    },
+    {
+      "kind": "dialogue",
+      "role": "민준",
+      "text": "응."
+    },
+    {
+      "kind": "scene",
+      "text": "제2막"
+    },
+    {
+      "kind": "dialogue",
+      "role": "지수",
+      "text": "가자."
+    },
+    {
+      "kind": "dialogue",
+      "role": "민준",
+      "text": "그래."
+    }
+  ]
+}

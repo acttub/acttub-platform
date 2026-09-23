@@ -149,7 +149,7 @@ public final class CoachPrompt {
         return priorContextBlock(prior, false);
     }
 
-    private static String priorContextBlock(PriorContext prior, boolean videoFirst) {
+    static String priorContextBlock(PriorContext prior, boolean videoFirst) {
         if (prior == null || prior.isEmpty()) {
             return "";
         }

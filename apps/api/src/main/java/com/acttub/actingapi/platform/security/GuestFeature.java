@@ -12,19 +12,27 @@ import org.springframework.util.AntPathMatcher;
  * 막히고, 게스트는 <b>그 기능의 문서만</b> 본다 — 동의를 시작할 때가 아니라 기능을 처음 쓰는 순간에
  * 받기 때문이다. 선택 문서는 게스트에게 묻지 않고 프로필 게이트도 면제한다.
  *
- * <p>리딩의 문서는 둘이다. 녹음을 AI 로 대조하면 AI 분석 동의도 필요한지는 (결정 필요)라 넣지 않았다.
- * 리딩의 경로는 아직 서버에 없다 — 그 영역이 서버에 붙을 때 {@link #READING} 의 표에 적는다.
+ * <p>리딩의 문서는 둘이다. 서버가 대본·음성을 분석하지 않으므로 AI 분석 동의는 없다(03-reading, ADR-031). 배역
+ * 나누기·상대역 목소리·침묵 감지·글자 대조는 기기에서 하고, 서버가 음성을 건드리는 유일한 일은 웹 녹음의 형식
+ * 변환이다.
  */
 public enum GuestFeature {
 
-    /** 연습 — 촬영·업로드·분석·코치 대화·노트, 그리고 거기서 쌓이는 배우 기억. */
+    /**
+     * 연습 — 촬영·보관함·회차·분석·코치 대화·노트·이탈 설문, 그리고 거기서 쌓이는 배우 기억.
+     *
+     * <p>보관만 하는 데에도 AI 분석 동의를 받는다 — 보관함의 다음 길이 분석이기 때문이고 1.0.0 은 이를
+     * 받아들인다(practice.record).
+     */
     PRACTICE(
             Set.of("terms", "privacy", "ai_analysis"),
-            List.of("/v2/uploads/**", "/v2/practice-sessions/**", "/v2/coach/**", "/v2/reports/**",
+            // 옛 쓰기 경로는 내렸다(§6-15). /v2/reports는 회원 전용 챌린지 신고가 쓰는 주소다.
+            List.of("/v2/videos/**", "/v2/practices/**",
+                    "/v2/practice-feedback/**", "/v2/me/practice-feedback/**", "/v2/coach/**",
                     "/v2/me/memory/**")),
 
-    /** 리딩 — 대본 등록·리딩·녹음. */
-    READING(Set.of("terms", "privacy"), List.of());
+    /** 리딩 — 대본 등록·리딩 회차·녹음·암기 상태. 리딩의 경로는 전부 {@code /v2/reading} 아래다. */
+    READING(Set.of("terms", "privacy"), List.of("/v2/reading/**"));
 
     private static final AntPathMatcher PATHS = new AntPathMatcher();
 

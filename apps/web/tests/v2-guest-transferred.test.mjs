@@ -74,7 +74,7 @@ test("account.guest: 옮겨진 게스트의 액세스 토큰(403 guest_transferr
   try {
     let caught;
     try {
-      await apiFetch("/v2/practice-sessions");
+      await apiFetch("/v2/practices");
     } catch (error) {
       caught = error;
     }
@@ -82,7 +82,7 @@ test("account.guest: 옮겨진 게스트의 액세스 토큰(403 guest_transferr
     assert.equal(caught?.status, 403);
     assert.equal(caught?.code, "guest_transferred");
     assert.equal(errorMessage(caught, "기본 문구"), TRANSFERRED_MESSAGE);
-    assert.deepEqual(calls.map((call) => call.route), ["GET /v2/practice-sessions"]);
+    assert.deepEqual(calls.map((call) => call.route), ["GET /v2/practices"]);
     assert.equal(hasGuestSession(), false);
     assert.deepEqual(events, ["guest-ended", "guest-transferred"]);
   } finally {
@@ -101,7 +101,7 @@ test("account.guest: 갱신 401 guest_transferred 도 같다 — 다른 기기�
   try {
     let caught;
     try {
-      await apiFetch("/v2/practice-sessions");
+      await apiFetch("/v2/practices");
     } catch (error) {
       caught = error;
     }
@@ -109,7 +109,7 @@ test("account.guest: 갱신 401 guest_transferred 도 같다 — 다른 기기�
     assert.equal(caught?.code, "guest_transferred");
     assert.equal(errorMessage(caught, "기본 문구"), TRANSFERRED_MESSAGE);
     assert.deepEqual(calls.map((call) => call.route), [
-      "GET /v2/practice-sessions",
+      "GET /v2/practices",
       "POST /v2/auth/refresh",
     ]);
     assert.equal(getRefreshToken(), null);
@@ -133,7 +133,7 @@ test("account.guest: 옮겨진 게스트가 하려던 일은 새 게스트로 �
     });
 
     await assert.rejects(
-      apiFetch("/v2/uploads/intents", { method: "POST", body: {} }),
+      apiFetch("/v2/videos/intents", { method: "POST", body: {} }),
       (error) => error?.code === "guest_transferred",
     );
 
@@ -148,7 +148,7 @@ test("account.guest: 옮겨진 게스트가 하려던 일은 새 게스트로 �
 
 test("account.guest: 새로 시작한 뒤 처음 보호 기능을 쓰면 새 게스트가 생긴다", async () => {
   recordFetch(() => jsonResponse({ detail: "guest_transferred" }, 403));
-  await assert.rejects(apiFetch("/v2/practice-sessions"));
+  await assert.rejects(apiFetch("/v2/practices"));
 
   const calls = recordFetch((call) =>
     call.route === "POST /v2/auth/guest"
@@ -166,11 +166,11 @@ test("account.guest: 새로 시작한 뒤 처음 보호 기능을 쓰면 새 게
       : jsonResponse({ intent_id: "intent-1" }, 201),
   );
 
-  await apiFetch("/v2/uploads/intents", { method: "POST", body: {} });
+  await apiFetch("/v2/videos/intents", { method: "POST", body: {} });
 
   assert.deepEqual(calls.map((call) => call.route), [
     "POST /v2/auth/guest",
-    "POST /v2/uploads/intents",
+    "POST /v2/videos/intents",
   ]);
   assert.equal(getRefreshToken(), "guest-2-refresh");
 });
@@ -195,7 +195,7 @@ test("계측 I-6: 켜져 있다가 어떤 요청이든 guest_transferred 를 받
     assert.equal(log.at(-1), "on:guest-1");
 
     recordFetch(() => jsonResponse({ detail: "guest_transferred" }, 403));
-    await assert.rejects(apiFetch("/v2/practice-sessions"));
+    await assert.rejects(apiFetch("/v2/practices"));
 
     assert.equal(log.at(-1), "off");
     assert.equal(log.lastIndexOf("on:guest-1") < log.lastIndexOf("off"), true);
@@ -230,7 +230,7 @@ test("계측 I-6: 옮겨지는 사이 늦게 온 granted 답으로 다시 켜지
     });
 
     const checking = gate.check();
-    await assert.rejects(apiFetch("/v2/practice-sessions"));
+    await assert.rejects(apiFetch("/v2/practices"));
     releaseEntry();
 
     assert.equal(await checking, false);

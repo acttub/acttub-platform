@@ -3,11 +3,14 @@ package com.acttub.actingapi.feature.transfer.adapter;
 import java.time.Clock;
 
 import com.acttub.actingapi.feature.auth.app.GuestAccounts;
+import com.acttub.actingapi.feature.feedback.app.ExitSurveyOwnership;
 import com.acttub.actingapi.feature.memory.app.MemoryOwnership;
 import com.acttub.actingapi.feature.practice.app.PracticeOwnership;
+import com.acttub.actingapi.feature.reading.app.ReadingOwnership;
 import com.acttub.actingapi.feature.transfer.app.GuestTransferService;
 import com.acttub.actingapi.feature.transfer.app.TransferCodeRepository;
 import com.acttub.actingapi.feature.upload.app.UploadOwnership;
+import com.acttub.actingapi.feature.video.app.VideoOwnership;
 import com.acttub.actingapi.platform.ledger.OperationOwnership;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -28,8 +31,12 @@ class GuestTransferConfiguration {
             PracticeOwnership practices,
             OperationOwnership operations,
             MemoryOwnership memories,
+            ReadingOwnership readings,
+            VideoOwnership videos,
+            ExitSurveyOwnership surveys,
             Clock clock,
             @Value("${JWT_SECRET:}") String secret) {
-        return new GuestTransferService(codes, guests, uploads, practices, operations, memories, clock, secret);
+        return new GuestTransferService(
+                codes, guests, uploads, practices, operations, memories, readings, videos, surveys, clock, secret);
     }
 }

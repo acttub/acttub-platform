@@ -1,80 +1,134 @@
 "use client";
 
-import { useState } from "react";
+/**
+ * 배역 정하기(D17, reading.cast·reading.session). 내 배역을 하나 이상 고르고(기본은 마지막 회차의 내 배역),
+ * 상대역마다 목소리(자동 + M1~M5·F1~F5)를 고르며, 방식·넘김·가리기·녹음을 정해 회차를 시작한다. 웹은 전체
+ * 구간으로 시작한다. 여기서는 아무것도 서버에 남지 않는다 — "시작"을 눌러야 회차가 생긴다.
+ */
+import { useEffect, useState } from "react";
 import { micSupported } from "@/lib/reading/audio/mic";
-import { sttAvailable } from "@/lib/reading/audio/stt";
-import { assignVoices, getEngine, speak, ttsSupported, unlockTts, type Engine } from "@/lib/reading/audio/tts";
-import { VoiceSetup } from "@/features/reading/voice-setup";
-import type { AdvanceMode, Mode, Setup, StoredScript } from "@/lib/reading/storage";
+import { VOICE_PRESETS, type VoicePreset } from "@/lib/reading/audio/supertonic/models";
+import { speak, unlockTts } from "@/lib/reading/audio/tts";
+import type { ReadingAdvance, ReadingMode } from "@/lib/reading/api-types";
+import { assignPresets, isVoicePreset, voicesFor } from "@/lib/reading/session/cast";
+import { loadMask, MASK_MODES, type MaskMode } from "@/lib/reading/session/mask";
+import { retryPendingVoicePresets, saveVoicePreset } from "@/lib/reading/session/voice-presets";
+import type { StoredScript } from "@/lib/reading/storage";
+import type { PartnerVoice } from "@/features/reading/hooks/useRehearsalRunner";
 import { Page } from "@/features/reading/page-shell";
 import { ReviewList } from "@/features/reading/review-list";
+import { MIC_DENIED_NOTICE, RECORD_NOTICE } from "@/features/reading/session-copy";
+import { checkStart, defaultMyCharacterIds, hasPartnerLines, rolesOf, START_BUTTON, type SessionStartInput } from "@/features/reading/session-start";
 import { Button, Card, CardTitle, Icon, SelectCard, StepsPill, TopBar } from "@/features/reading/ui";
+import { VoiceSetup } from "@/features/reading/voice-setup";
+
+export interface SetupResult extends SessionStartInput {
+  partnerVoice: PartnerVoice;
+}
 
 export function SetupScreen({
   script,
-  initialSetup,
+  starting,
+  error,
   onStart,
+  onVoiceChange,
   onBack,
   onReinput,
 }: {
   script: StoredScript;
-  initialSetup: Setup | null;
-  onStart: (setup: Setup) => void;
+  starting: boolean;
+  error: string | null;
+  onStart: (result: SetupResult) => void;
+  /** 목소리를 고쳤다 — 부모가 캐시의 대본을 갱신한다 */
+  onVoiceChange: (characterId: string, preset: string | null) => void;
   onBack: () => void;
   onReinput: () => void;
 }) {
-  const [myRole, setMyRole] = useState(initialSetup?.myRole ?? script.roles[0]);
-  const [mode, setMode] = useState<Mode>(initialSetup?.mode ?? "read");
-  const [advanceMode, setAdvanceMode] = useState<AdvanceMode>(initialSetup?.advanceMode ?? (micSupported() ? "silence" : "manual"));
-  // 준비가 끝나면 VoiceSetup 이 알려 준다 — 읽어 주는 목소리 표시를 바꾸기 위해서다.
-  const [engine, setEngineState] = useState<Engine>(getEngine);
-  // 음성 모델을 다 받기 전에는 시작하지 못한다(2026-08-27 결정). 이미 켜져 있으면 바로 시작할 수 있고,
-  // 받다가 실패하면 기기 음성으로라도 시작할 수 있게 VoiceSetup 이 true 를 준다.
-  const [voiceReady, setVoiceReady] = useState(() => getEngine() === "supertonic");
+  const [myIds, setMyIds] = useState<string[]>(() => defaultMyCharacterIds(script));
+  const [mode, setMode] = useState<ReadingMode>("read");
+  const mic = micSupported();
+  const [advance, setAdvance] = useState<ReadingAdvance>(mic ? "silence" : "manual");
+  const [record, setRecord] = useState(mic);
+  const [mask, setMask] = useState<MaskMode>(() => loadMask(script.id));
+  const [voice, setVoice] = useState<{ ready: boolean; partnerVoice: PartnerVoice }>({ ready: false, partnerVoice: "supertonic" });
+  const [voiceNote, setVoiceNote] = useState<string | null>(null);
 
-  // 음성 준비·안내는 VoiceSetup 이 맡는다. 여기서는 아예 읽어 줄 수 없는 경우만 알린다.
-  const voiceNote = ttsSupported()
-    ? null
-    : "이 브라우저는 음성 읽기를 지원하지 않아요. 상대 대사는 화면으로만 보여요.";
+  // 지난번에 저장하지 못한 목소리를 다시 보낸다(reading.cast 예외).
+  useEffect(() => {
+    void retryPendingVoicePresets(script.id);
+  }, [script.id]);
 
-  const others = script.roles.filter((r) => r !== myRole);
-  const dialogue = script.lines.filter((l) => l.type === "dialogue");
-  const count = (r: string) => dialogue.filter((l) => l.role === r).length;
+  const solo = script.characters.length === 1;
+  const dialogueCount = (name: string) => script.lines.filter((l) => l.type === "dialogue" && l.role === name).length;
+  const presets = assignPresets(script.characters, myIds);
+  const partners = hasPartnerLines(script, myIds);
+  const check = checkStart(script, myIds, voice.ready || !partners);
+  const myRoles = rolesOf(script, myIds);
 
-  function previewVoice() {
-    unlockTts();
-    const voices = assignVoices(others);
-    // 배역이 마흔 명 넘는 대본도 있다. 다 들려주면 1분이 넘으므로 앞의 몇만 들려준다.
-    others.slice(0, 4).forEach((r, i) => {
-      setTimeout(() => void speak(`${r} 역이에요.`, voices[r]), i * 1400);
-    });
+  const toggle = (id: string) => {
+    if (solo) return;
+    setMyIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  async function changeVoice(characterId: string, value: string) {
+    const preset = value === "auto" ? null : value;
+    onVoiceChange(characterId, preset);
+    const saved = await saveVoicePreset(script.id, characterId, preset);
+    setVoiceNote(saved ? null : "목소리를 저장하지 못했어요. 이번 회차는 고른 목소리로 읽고 다음에 다시 저장해요.");
   }
 
-  /**
-   * 상대 배역을 한 줄로 알려 준다. 마흔 명이 넘는 대본이 있어서 이름을 다 늘어놓으면
-   * 설명이 화면을 뒤덮는다. 몇 명만 보여 주고 나머지는 수로 말한다.
-   */
-  function voiceSummary(names: string[]): string {
-    if (names.length === 0) return "상대 없음";
-    if (names.length <= 3) return names.join(", ") + (names.length > 1 ? "는 서로 다른 목소리" : "");
-    return `${names.slice(0, 3).join(", ")} 외 ${names.length - 3}명 · 서로 다른 목소리`;
+  function preview(characterId: string) {
+    unlockTts();
+    const character = script.characters.find((c) => c.id === characterId);
+    if (!character) return;
+    const voices = voicesFor(script, myIds);
+    const v = voices[character.name];
+    if (v) void speak(`${character.name} 역이에요.`, v);
   }
 
   const roleCard = (
     <Card>
-      <CardTitle title="내 배역 고르기" sub="고른 배역은 기다리고, 나머지 배역을 소리로 읽어드려요." />
-      {/*
-        배역이 마흔 명 넘는 대본이 있다. 한 줄로 늘어놓으면 화면 밖으로 밀려나
-        고를 수가 없으므로 한 줄에 하나씩 세로로 쌓고, 길면 안에서 굴린다.
-        대사가 많은 배역이 앞에 오게 해서 위에서부터 찾을 수 있게 한다.
-      */}
-      <div className="flex flex-col gap-2 max-h-[360px] overflow-y-auto">
-        {[...script.roles]
-          .sort((a, b) => count(b) - count(a))
-          .map((r) => (
-            <SelectCard key={r} compact selected={r === myRole} onClick={() => setMyRole(r)} title={r} sub={`${count(r)}줄`} />
-          ))}
+      <CardTitle
+        title="내 배역 고르기"
+        sub={solo ? "배역이 하나라 이 배역으로 연습해요." : "여러 배역을 함께 고를 수 있어요. 고른 배역은 기다리고, 나머지 배역을 기기가 읽어요."}
+      />
+      {/* 배역이 마흔 명 넘는 대본이 있다. 한 줄에 하나씩 세로로 쌓고 길면 안에서 굴린다. */}
+      <div className="flex flex-col gap-2 max-h-[420px] overflow-y-auto">
+        {script.characters.map((c) => {
+          const mine = myIds.includes(c.id);
+          const auto = presets.get(c.id);
+          return (
+            <div key={c.id} className="flex flex-col gap-1.5">
+              <SelectCard compact selected={mine} onClick={() => toggle(c.id)} title={c.name} sub={`${dialogueCount(c.name)}줄`} />
+              {!mine && (
+                <div className="flex items-center gap-2 pl-3.5">
+                  <label className="flex items-center gap-1.5 text-[12px] text-ink-4">
+                    <Icon name="volume" size={14} className="text-ink-4" />
+                    <span className="sr-only">{c.name} 목소리</span>
+                    <select
+                      aria-label={`${c.name} 목소리`}
+                      value={isVoicePreset(c.voicePreset) ? c.voicePreset : "auto"}
+                      onChange={(e) => void changeVoice(c.id, e.target.value)}
+                      className="h-8 rounded-lg bg-surface border border-line px-2 text-[12.5px] font-bold text-ink"
+                    >
+                      <option value="auto">자동{auto ? ` (${auto})` : ""}</option>
+                      {VOICE_PRESETS.map((p: VoicePreset) => (
+                        <option key={p} value={p}>
+                          {p}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button type="button" onClick={() => preview(c.id)} className="text-[12px] font-bold text-blue">
+                    미리 듣기
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
+      {voiceNote && <p className="mt-2 text-[12px] text-warn">{voiceNote}</p>}
     </Card>
   );
 
@@ -87,34 +141,52 @@ export function SetupScreen({
       </div>
       <div className="mt-3 flex flex-col gap-2">
         <SettingRow
-          icon="volume"
-          title="읽어주는 목소리"
-          value={`${engine === "supertonic" ? "자연스러운 음성" : "기기 음성"} · ${voiceSummary(others)}`}
-          onClick={previewVoice}
-          action="들어보기"
+          icon="timer"
+          title="내 차례 넘기는 방식"
+          value={advance === "silence" ? "침묵 감지 · 말이 끝나고 1.8초" : `버튼으로 직접 넘기기 · ${MIC_DENIED_NOTICE}`}
+          onClick={mic ? () => setAdvance(advance === "silence" ? "manual" : "silence") : undefined}
+          action={mic ? "바꾸기" : undefined}
         />
-        {mode === "read" ? (
-          <SettingRow
-            icon="timer"
-            title="내 차례 넘기는 방식"
-            value={advanceMode === "silence" ? "침묵 감지 · 1.8초 · 소리는 어디에도 안 나가요" : "버튼으로 직접 넘기기"}
-            onClick={() => setAdvanceMode(advanceMode === "silence" ? "manual" : "silence")}
-            action="바꾸기"
-          />
-        ) : (
-          <SettingRow
-            icon="mic"
-            title="말한 것 알아듣기"
-            value={sttAvailable() ? "브라우저 음성인식 · 말소리가 브라우저 음성 서비스로 가요" : "이 브라우저는 음성인식이 없어서 글자로 입력해요"}
-          />
-        )}
-        {voiceNote && <p className="text-[11.5px] text-ink-4 px-1">{voiceNote}</p>}
-        <VoiceSetup onEngineChange={setEngineState} onReady={setVoiceReady} />
+        <SettingRow
+          icon="mic"
+          title="내 차례 녹음"
+          value={record ? `켬 · ${RECORD_NOTICE}` : "끔"}
+          onClick={mic ? () => setRecord((v) => !v) : undefined}
+          action={mic ? "바꾸기" : undefined}
+        />
+        <div className="rounded-xl bg-gray-bg px-3.5 py-3">
+          <p className="text-[13.5px] font-extrabold">가리기</p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {MASK_MODES.map((m) => (
+              <button
+                key={m.value}
+                type="button"
+                onClick={() => setMask(m.value)}
+                aria-pressed={mask === m.value}
+                className={`h-8 px-3 rounded-full text-[12.5px] font-bold border ${mask === m.value ? "bg-blue-soft border-blue text-blue" : "bg-surface border-line text-ink-3"}`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+          {mode === "quiz" && <p className="mt-1.5 text-[11.5px] text-ink-4">암기 대조에서는 내 대사가 늘 가려져요.</p>}
+        </div>
+        {partners && <VoiceSetup onChange={setVoice} />}
       </div>
     </Card>
   );
 
-  const start = () => onStart({ myRole, start: 0, end: script.lines.length - 1, mode, advanceMode });
+  const startLabel = starting
+    ? "회차를 시작하는 중…"
+    : check.ok
+      ? START_BUTTON(myIds.length)
+      : check.reason === "voice_not_ready"
+        ? "상대 목소리 준비 중…"
+        : check.reason === "empty_range"
+          ? "고른 배역의 대사가 없어요"
+          : "내 배역을 골라 주세요";
+
+  const start = () => onStart({ myCharacterIds: myIds, mode, advance, record, mask, partnerVoice: voice.partnerVoice });
 
   return (
     <Page>
@@ -122,7 +194,7 @@ export function SetupScreen({
         <TopBar title="배역 정하기" onBack={onBack} />
       </div>
       <div className="hidden md:block mb-4">
-        <TopBar title={`상대역 리딩 · ${script.title ?? "대본"}`} onBack={onBack} hint={`배역 ${script.roles.length}명 · 대사 ${dialogue.length}줄`} />
+        <TopBar title={`상대역 리딩 · ${script.title}`} onBack={onBack} hint={`배역 ${script.roles.length}명 · 대사 ${script.lines.filter((l) => l.type === "dialogue").length}줄`} />
       </div>
       <div className="flex-1 flex flex-col gap-4 p-4 md:p-0">
         <StepsPill states={["done", "on", "off"]} />
@@ -131,23 +203,25 @@ export function SetupScreen({
             <div className="flex items-center justify-between pb-2.5 border-b border-line-soft mb-1">
               <h2 className="text-[16px] font-black">대본 확인</h2>
               <button type="button" onClick={onReinput} className="text-[12.5px] font-bold text-blue">
-                다시 넣기
+                다른 대본
               </button>
             </div>
-            <ReviewList lines={script.lines} myRole={myRole} className="max-h-[560px] overflow-y-auto" />
+            <ReviewList lines={script.lines} myRoles={myRoles} className="max-h-[560px] overflow-y-auto" />
           </Card>
           <div className="flex flex-col gap-4">
             {roleCard}
             {modeCard}
-            <Button size="lg" className="w-full hidden md:flex" disabled={!voiceReady} onClick={start}>
-              {voiceReady ? "연습 시작" : "상대 목소리 준비 중…"}
+            {error && <p className="hidden md:block text-[12.5px] text-red">{error}</p>}
+            <Button size="lg" className="w-full hidden md:flex" disabled={!check.ok || starting} onClick={start}>
+              {startLabel}
             </Button>
           </div>
         </div>
       </div>
-      <div className="md:hidden sticky bottom-0 p-4 bg-gray-bg-2/90 backdrop-blur">
-        <Button size="lg" className="w-full" disabled={!voiceReady} onClick={start}>
-          {voiceReady ? "연습 시작" : "상대 목소리 준비 중…"}
+      <div className="md:hidden sticky bottom-0 p-4 bg-gray-bg-2/90 backdrop-blur flex flex-col gap-2">
+        {error && <p className="text-[12.5px] text-red">{error}</p>}
+        <Button size="lg" className="w-full" disabled={!check.ok || starting} onClick={start}>
+          {startLabel}
         </Button>
       </div>
     </Page>

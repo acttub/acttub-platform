@@ -1,0 +1,40 @@
+{
+  "title": null,
+  "roles": [
+    "사장",
+    "칠수",
+    "만수"
+  ],
+  "lines": [
+    {
+      "type": "dialogue",
+      "role": "사장",
+      "text": "자네 이름이 뭔가."
+    },
+    {
+      "type": "dialogue",
+      "role": "칠수",
+      "text": "칠수입니다."
+    },
+    {
+      "type": "dialogue",
+      "role": "사장",
+      "text": "만수는?"
+    },
+    {
+      "type": "dialogue",
+      "role": "만수",
+      "text": "여기 있습니다."
+    },
+    {
+      "type": "dialogue",
+      "role": "칠수",
+      "text": "저희 둘이 같이 왔습니다."
+    },
+    {
+      "type": "dialogue",
+      "role": "만수",
+      "text": "네, 사장님."
+    }
+  ]
+}

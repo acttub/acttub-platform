@@ -1,148 +1,252 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { useEffect, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
+import { api } from '@/lib/api';
 import { formatClipDuration, relativeDayLabel } from '@/lib/archive-format';
-import { listArchive, removeArchiveRecording, setArchiveFavorite, type ArchiveRecording } from '@/lib/archive-store';
-import { ARCHIVE_VIDEOS, PERF_IMAGES } from '@/lib/challenge-mock';
+import { useAuth } from '@/lib/auth';
 import { formatKoreanDateTime } from '@/lib/format';
 import { translate as t } from '@/lib/i18n';
-import { setRecordedVideo } from '@/lib/recorded-video';
-
-/** 실제 촬영본(uri 재생)과 예시(포스터)를 한 모양으로. */
-type Detail = {
-  id: string;
-  real: boolean;
-  uri: string | null;
-  img: number | null;
-  duration: number | null;
-  createdAt: string;
-  favorite: boolean;
-  title: string;
-};
+import { deleteDecision, usageLabel, videoPlaybackSource } from '@/lib/library/library-view';
+import {
+  flushLibraryUploads,
+  forgetLocalCopy,
+  localCopyFor,
+  onLibraryChange,
+  pendingLibraryUploads,
+  removePendingUpload,
+} from '@/lib/library/library-runner';
+import type { Video } from '@/lib/library/types';
+import type { QueuedVideo } from '@/lib/library/upload-queue';
+import { videoErrorMessage } from '@/lib/library/video-checks';
+import { setPickedVideo } from '@/lib/practice/picked-video';
 
 /**
- * A2.3 보관함 영상 — 위엔 영상, 아래엔 메타와 다음 단계(질문 코칭 / 챌린지 올리기), 맨 밑 삭제.
- * 실제 촬영본은 그대로 재생하고 다음 단계로 그 파일을 넘긴다. 예시는 포스터만.
+ * A2.3 보관함 영상(practice.library) — 위엔 영상(서명 재생 주소, 만료 시 재조회; 기기 복사본이 있으면 그것), 아래엔
+ * 날짜·길이·저장 상태, 사용처(회차 n개 · 챌린지 참여작 n개), "질문 코칭으로 보내기", "챌린지에 올리기", 삭제.
+ * 참조가 있는 영상은 지우지 못하고(422 video_in_use) 사용처와 "파일만 파기"를 안내한다. 아직 확정되지 않은
+ * 촬영본(업로드 대기)은 기기 파일로 재생하고 다시 올리기·대기에서 빼기를 준다.
  */
+type State =
+  | { kind: 'loading' }
+  | { kind: 'pending'; entry: QueuedVideo }
+  | { kind: 'video'; video: Video; localUri: string | null }
+  | { kind: 'missing' };
+
+function isExpired(video: Video): boolean {
+  if (!video.playback_url) return true;
+  if (!video.playback_expires_at) return false;
+  const at = Date.parse(video.playback_expires_at);
+  return Number.isNaN(at) ? false : at <= Date.now();
+}
+
 export default function ArchiveDetailScreen() {
   const router = useRouter();
-  const { confirm, alert, dialog } = useAppDialog();
-  const { id } = useLocalSearchParams<{ id?: string }>();
-  const [detail, setDetail] = useState<Detail | null | undefined>(undefined);
+  const { confirm, alert, sheet, dialog } = useAppDialog();
+  const { user } = useAuth();
+  const { id, pending } = useLocalSearchParams<{ id?: string; pending?: string }>();
+  const [state, setState] = useState<State>({ kind: 'loading' });
   const [playing, setPlaying] = useState(false);
 
-  useEffect(() => {
-    let alive = true;
-    void listArchive().then((list) => {
-      if (!alive) return;
-      const real = list.find((r) => r.id === id);
-      if (real) {
-        setDetail(toDetail(real));
+  const load = useCallback(async () => {
+    if (pending && user?.id) {
+      const entry = (await pendingLibraryUploads(user.id)).find((e) => e.id === pending);
+      if (entry) {
+        setState({ kind: 'pending', entry });
         return;
       }
-      const mock = ARCHIVE_VIDEOS.find((v) => v.id === id);
-      setDetail(
-        mock
-          ? { id: mock.id, real: false, uri: null, img: mock.img, duration: mock.duration, createdAt: mock.createdAt, favorite: mock.favorite, title: mock.line }
-          : null,
-      );
-    });
-    return () => {
-      alive = false;
-    };
-  }, [id]);
+      // 올라갔다 — 목록으로 돌아가면 "보관함 저장"으로 보인다.
+      setState({ kind: 'missing' });
+      return;
+    }
+    if (!id) {
+      setState({ kind: 'missing' });
+      return;
+    }
+    try {
+      const [video, localUri] = await Promise.all([api.getVideo(id), localCopyFor(id)]);
+      setState({ kind: 'video', video, localUri });
+    } catch {
+      setState({ kind: 'missing' });
+    }
+  }, [id, pending, user?.id]);
 
   useEffect(() => {
-    if (detail === null) router.back();
-  }, [detail, router]);
+    void load();
+  }, [load]);
+  useEffect(() => onLibraryChange(() => void load()), [load]);
+  useEffect(() => {
+    if (state.kind === 'missing') router.back();
+  }, [state.kind, router]);
 
-  const player = useVideoPlayer(detail?.uri ?? null, (p) => {
+  const source =
+    state.kind === 'pending' ? state.entry.uri : state.kind === 'video' ? videoPlaybackSource(state.video, state.localUri) : null;
+  const player = useVideoPlayer(source ?? null, (p) => {
     p.loop = true;
   });
 
-  if (!detail) return null;
+  if (state.kind === 'loading') {
+    return (
+      <View style={[styles.root, styles.center]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <ActivityIndicator color="#fff" />
+      </View>
+    );
+  }
+  if (state.kind === 'missing') return null;
 
-  const togglePlay = () => {
-    if (!detail.uri) return;
+  const togglePlay = async () => {
+    if (!source) return;
+    if (state.kind === 'video' && !state.localUri && isExpired(state.video)) {
+      // 서명 주소가 만료됐다 — 다시 조회해 새 주소를 받는다.
+      await load();
+      return;
+    }
     if (playing) player.pause();
     else player.play();
     setPlaying((v) => !v);
   };
-  const toggleFav = () => {
-    setDetail((d) => (d ? { ...d, favorite: !d.favorite } : d));
-    if (detail.real) void setArchiveFavorite(detail.id, !detail.favorite);
-  };
-  // 다음 단계엔 이 파일을 그대로 넘긴다(recorded-video 핸드오프). 예시는 파일이 없어 화면만 연다.
-  const handoff = () => {
-    if (detail.uri) {
-      setRecordedVideo({ uri: detail.uri, durationMs: detail.duration ? detail.duration * 1000 : null, name: `${detail.id}.mp4` });
+
+  const toggleFav = async () => {
+    if (state.kind !== 'video') return;
+    const next = !state.video.favorite;
+    setState({ ...state, video: { ...state.video, favorite: next } });
+    try {
+      await api.setVideoFavorite(state.video.id, next);
+    } catch {
+      void load();
     }
-  };
-  const toCoach = () => {
-    logEvent('archive_to_coach', { id: detail.id, real: detail.real });
-    handoff();
-    router.push('/upload');
-  };
-  const toChallenge = () => {
-    logEvent('archive_to_challenge', { id: detail.id, real: detail.real });
-    handoff();
-    router.push({ pathname: '/challenge-upload', params: { line: detail.real ? '' : detail.title } });
-  };
-  const remove = async () => {
-    const ok = await confirm({
-      title: t('archive.deleteTitle'),
-      message: t('archive.deleteMessage'),
-      confirmLabel: t('common.delete'),
-      destructive: true,
-    });
-    if (!ok) return;
-    logEvent('archive_delete', { id: detail.id, real: detail.real });
-    if (detail.real) {
-      player.pause();
-      await removeArchiveRecording(detail.id);
-    } else {
-      await alert({ title: t('archive.deletedTitle'), message: t('archive.deletedMessage'), confirmLabel: t('common.confirm') });
-    }
-    router.back();
   };
 
-  const when = `${relativeDayLabel(detail.createdAt)} ${formatKoreanDateTime(detail.createdAt).split(' ').slice(-2).join(' ')}`;
+  /** 새 연습으로 보낸다 — 영상은 보관함의 video_id 로 잇는다(기기 복사본은 미리보기에만 쓴다). */
+  const toCoach = () => {
+    logEvent('archive_to_coach', { id: state.kind === 'video' ? state.video.id : state.entry.id });
+    if (state.kind === 'video' && state.video.purged_at) {
+      void alert({ title: t('archive.toCoach'), message: t('archive.statusPurged') });
+      return;
+    }
+    setPickedVideo(
+      state.kind === 'video'
+        ? {
+            videoId: state.video.id,
+            pendingId: null,
+            uri: state.localUri,
+            playbackUrl: state.video.playback_url ?? null,
+            durationMs: state.video.duration_ms,
+          }
+        : { videoId: null, pendingId: state.entry.id, uri: state.entry.uri, playbackUrl: null, durationMs: state.entry.durationMs },
+    );
+    router.push('/upload');
+  };
+  /** 챌린지에 올리기 — 확정된 영상만 되고, 어떤 대사에 올릴지 먼저 고른다. */
+  const toChallenge = () => {
+    logEvent('archive_to_challenge', { id: state.kind === 'video' ? state.video.id : state.entry.id });
+    if (state.kind !== 'video' || state.video.purged_at) {
+      void alert({ title: t('archive.toChallenge'), message: t('archive.statusPurged') });
+      return;
+    }
+    router.push({ pathname: '/challenges', params: { pickVideoId: state.video.id } });
+  };
+
+  const purge = async (video: Video) => {
+    const ok = await confirm({ title: t('archive.purgeTitle'), message: t('archive.purgeBody'), confirmLabel: t('archive.purgeFile'), destructive: true });
+    if (!ok) return;
+    try {
+      const next = await api.purgeVideoFile(video.id);
+      await forgetLocalCopy(video.id);
+      player.pause();
+      setPlaying(false);
+      setState({ kind: 'video', video: next, localUri: null });
+    } catch (e) {
+      void alert({ title: t('archive.purgeFile'), message: videoErrorMessage(e) });
+    }
+  };
+
+  const remove = async () => {
+    if (state.kind === 'pending') {
+      const ok = await confirm({ title: t('archive.deleteTitle'), message: t('archive.deleteMessage'), confirmLabel: t('common.delete'), destructive: true });
+      if (!ok) return;
+      player.pause();
+      await removePendingUpload(state.entry.id);
+      router.back();
+      return;
+    }
+    const decision = deleteDecision(state.video);
+    if (decision.kind === 'in_use') {
+      void sheet({
+        title: t('archive.inUseBody', { usage: decision.usage }),
+        actions: decision.canPurge ? [{ label: t('archive.purgeFile'), destructive: true, onPress: () => void purge(state.video) }] : [],
+      });
+      return;
+    }
+    const ok = await confirm({ title: t('archive.deleteTitle'), message: t('archive.deleteMessage'), confirmLabel: t('common.delete'), destructive: true });
+    if (!ok) return;
+    logEvent('archive_delete', { id: state.video.id });
+    try {
+      player.pause();
+      await api.deleteVideo(state.video.id);
+      await forgetLocalCopy(state.video.id);
+      router.back();
+    } catch (e) {
+      void alert({ title: t('archive.inUseTitle'), message: videoErrorMessage(e) });
+      void load();
+    }
+  };
+
+  const createdAt = state.kind === 'pending' ? new Date(state.entry.createdAt).toISOString() : state.video.created_at;
+  const durationMs = state.kind === 'pending' ? state.entry.durationMs : state.video.duration_ms;
+  const when = `${relativeDayLabel(createdAt)} ${formatKoreanDateTime(createdAt).split(' ').slice(-2).join(' ')}`;
+  const status =
+    state.kind === 'pending'
+      ? state.entry.status === 'failed'
+        ? t('archive.statusFailed')
+        : state.entry.status === 'uploading'
+          ? t('archive.statusUploading')
+          : t('archive.statusPending')
+      : state.video.purged_at
+        ? t('archive.statusPurged')
+        : t('archive.statusSaved');
+  const favorite = state.kind === 'video' && state.video.favorite;
 
   return (
     <View style={styles.root}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.videoArea}>
-        {detail.uri ? (
+        {source ? (
           <VideoView style={StyleSheet.absoluteFill} player={player} contentFit="cover" nativeControls={false} />
         ) : (
-          detail.img !== null && (
-            <Image source={PERF_IMAGES[detail.img]} style={[StyleSheet.absoluteFill, styles.poster]} resizeMode="cover" />
-          )
+          <View style={styles.center}>
+            <Feather name="video-off" size={30} color="rgba(255,255,255,0.6)" />
+            <Text style={styles.noPlayback}>{t('archive.statusPurged')}</Text>
+          </View>
         )}
-        <Pressable style={StyleSheet.absoluteFill} onPress={togglePlay} accessibilityRole="button">
-          {!playing && (
-            <View style={styles.center}>
-              <View style={styles.playBtn}>
-                <Feather name="play" size={26} color="#FFFFFF" />
+        {source && (
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => void togglePlay()} accessibilityRole="button">
+            {!playing && (
+              <View style={styles.center}>
+                <View style={styles.playBtn}>
+                  <Feather name="play" size={26} color="#FFFFFF" />
+                </View>
               </View>
-            </View>
-          )}
-        </Pressable>
+            )}
+          </Pressable>
+        )}
         <SafeAreaView edges={['top']} style={styles.topBar} pointerEvents="box-none">
           <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button" accessibilityLabel={t('common.back')}>
             <Feather name="chevron-left" size={28} color="#FFFFFF" />
           </Pressable>
           <View style={styles.topRight}>
-            <Pressable onPress={toggleFav} hitSlop={10} accessibilityRole="button">
-              <Feather name="star" size={24} color={detail.favorite ? '#F5B324' : '#FFFFFF'} />
-            </Pressable>
+            {state.kind === 'video' && (
+              <Pressable onPress={() => void toggleFav()} hitSlop={10} accessibilityRole="button">
+                <Feather name="star" size={24} color={favorite ? '#F5B324' : '#FFFFFF'} />
+              </Pressable>
+            )}
             <Pressable onPress={() => void remove()} hitSlop={10} accessibilityRole="button">
               <Feather name="trash-2" size={22} color="#FFFFFF" />
             </Pressable>
@@ -152,10 +256,31 @@ export default function ArchiveDetailScreen() {
 
       <SafeAreaView edges={['bottom']} style={styles.sheet}>
         <ScrollView contentContainerStyle={styles.sheetContent}>
-          <Text style={styles.line}>{detail.real ? detail.title : `“${detail.title}”`}</Text>
+          <Text style={styles.line}>{t('archive.recordedTitle')}</Text>
           <Text style={styles.meta}>
-            {t('archive.metaLine', { when, duration: detail.duration !== null ? formatClipDuration(detail.duration) : '—' })}
+            {when} · {durationMs !== null ? formatClipDuration(Math.round(durationMs / 1000)) : '—'} · {status}
           </Text>
+          {state.kind === 'pending' ? (
+            <View style={styles.pendingRow}>
+              <Text style={styles.nextHint}>
+                {state.entry.lastError ? videoErrorMessage(state.entry.lastError) : t('archive.savedLocally')}
+              </Text>
+              <View style={styles.pendingBtns}>
+                <Pressable style={styles.smallBtn} onPress={() => user?.id && void flushLibraryUploads(user.id)}>
+                  <Feather name="upload-cloud" size={14} color={palette.blueDeep} />
+                  <Text style={styles.smallBtnText}>{t('archive.retryUpload')}</Text>
+                </Pressable>
+                <Pressable style={styles.smallBtn} onPress={() => void remove()}>
+                  <Feather name="x" size={14} color={palette.blueDeep} />
+                  <Text style={styles.smallBtnText}>{t('archive.removePending')}</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : (
+            <Text style={styles.usage}>
+              {t('archive.usageLabel')} · {usageLabel(state.video.usage)}
+            </Text>
+          )}
           <Text style={styles.nextHint}>{t('archive.nextHint')}</Text>
 
           <Pressable style={({ pressed }) => [styles.option, pressed && styles.pressed]} onPress={toCoach} accessibilityRole="button">
@@ -190,60 +315,27 @@ export default function ArchiveDetailScreen() {
   );
 }
 
-function toDetail(r: ArchiveRecording): Detail {
-  return {
-    id: r.id,
-    real: true,
-    uri: r.uri,
-    img: null,
-    duration: r.durationSec,
-    createdAt: r.createdAt,
-    favorite: r.favorite,
-    title: t('archive.recordedTitle'),
-  };
-}
-
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.navy },
   flex: { flex: 1 },
   pressed: { opacity: 0.8 },
   videoArea: { flex: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  poster: { width: '100%', height: '100%', opacity: 0.3 },
-  topBar: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-  },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
+  noPlayback: { color: 'rgba(255,255,255,0.7)', fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
+  topBar: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
   topRight: { flexDirection: 'row', alignItems: 'center', gap: 18 },
-  playBtn: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  playBtn: { width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
   sheet: { backgroundColor: palette.card, borderTopLeftRadius: 22, borderTopRightRadius: 22 },
   sheetContent: { padding: 20, paddingTop: 22, gap: 10 },
   line: { fontSize: 17, fontWeight: '800', color: palette.text, lineHeight: 25 },
   meta: { fontSize: 12.5, color: palette.textFaint },
+  usage: { fontSize: 13, color: palette.textDim, fontFamily: 'Pretendard-SemiBold' },
+  pendingRow: { gap: 8 },
+  pendingBtns: { flexDirection: 'row', gap: 8 },
+  smallBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: palette.blueSoft, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
+  smallBtnText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
   nextHint: { fontSize: 13, color: palette.textDim, marginTop: 6 },
-  option: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 16,
-    padding: 14,
-  },
+  option: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: palette.border, borderRadius: 16, padding: 14 },
   optionIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
   optionIconAmber: { backgroundColor: '#FFF4DE' },
   optionTitle: { fontSize: 15, fontWeight: '800', color: palette.text },

@@ -19,11 +19,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
+@org.springframework.test.context.ActiveProfiles("legacy-practice-test")
+@org.springframework.context.annotation.Import(com.acttub.actingapi.support.LegacyPracticeApiFixture.class)
 @AutoConfigureMockMvc
 class ReportNoStorageIT {
     private static final UUID USER =
@@ -66,7 +69,7 @@ class ReportNoStorageIT {
 
     @Test
     void existingReportWithoutConfiguredStorageReturnsExact503Contract() throws Exception {
-        UUID practice = seedAnalyzedPractice();
+        UUID practice = seedLegacyPractice();
         UUID sourceHandoffId = new ReportFixtures(jdbc).insertHandoff(practice);
         jdbc.update("""
                 INSERT INTO practice_reports (
@@ -75,7 +78,7 @@ class ReportNoStorageIT {
                     '{"report_type":"analysis","title":"리포트"}'::jsonb, ?, ?)
                 """, UUID.randomUUID(), practice, sourceHandoffId, NOW);
 
-        var response = mvc.perform(get("/v2/reports/{id}", practice)
+        var response = mvc.perform(get("/v2/legacy-test-reports/{id}", practice)
                         .header("Authorization", "Bearer " + jwt.issueAccessToken(USER).value()))
                 .andReturn().getResponse();
         assertThat(response.getStatus()).isEqualTo(503);
@@ -83,39 +86,32 @@ class ReportNoStorageIT {
                 .isEqualTo(mapper.readTree("{\"detail\":\"storage_not_configured\"}"));
     }
 
-    /**
-     * 같은 503 이 <b>세 경로</b>에서 난다. Java 는 {@code NoCredentialsError} 하나를
-     * {@code ApiErrorAdvice} 가 받아 만들지만, <b>한 자리에서 만든다는 것이 경로마다 거기에
-     *닿는다는 뜻은 아니다</b> — 업로드는 발급 전에, 연습 상세는 재생 주소를 만들 때 스토리지를
-     * 건드린다.
-     *
-     * <p><b>계약 하네스에서 옮겨 온 기대값이다</b>(SOMA-403 2단계). 하네스는 이것을
-     * {@code nostorage} 인스턴스로 네 케이스 돌렸다.
-     */
     @Test
-    void uploadIssueAndSessionDetailReturnTheSame503() throws Exception {
-        UUID practice = seedAnalyzedPractice();
-        String bearer = "Bearer " + jwt.issueAccessToken(USER).value();
-
-        var upload = mvc.perform(post("/v2/uploads/intents")
-                        .header("Authorization", bearer)
-                        .contentType("application/json")
-                        .content("{\"mime_type\":\"video/mp4\",\"size_bytes\":12}"))
+    void videoUploadWithoutConfiguredStorageReturnsExact503Contract() throws Exception {
+        var response = mvc.perform(post("/v2/videos/intents")
+                        .header("Authorization", "Bearer " + jwt.issueAccessToken(USER).value())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"request_id":"%s","content_type":"video/mp4","byte_size":1000,"duration_ms":12000}
+                                """.formatted(UUID.randomUUID())))
                 .andReturn().getResponse();
-        assertThat(upload.getStatus()).isEqualTo(503);
-        assertThat(mapper.readTree(upload.getContentAsString()))
+        assertThat(response.getStatus()).isEqualTo(503);
+        assertThat(mapper.readTree(response.getContentAsString()))
                 .isEqualTo(mapper.readTree("{\"detail\":\"storage_not_configured\"}"));
-
-        var detail = mvc.perform(get("/v2/practice-sessions/{id}", practice)
-                        .header("Authorization", bearer))
-                .andReturn().getResponse();
-        assertThat(detail.getStatus()).isEqualTo(503);
-        assertThat(mapper.readTree(detail.getContentAsString()))
-                .isEqualTo(mapper.readTree("{\"detail\":\"storage_not_configured\"}"));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM upload_intents", Integer.class)).isZero();
     }
 
-    /** 확정된 업로드 위에 분석까지 끝난 연습 하나를 세운다. */
-    private UUID seedAnalyzedPractice() {
+    @Test
+    void videoWithoutConfiguredStorageStillShowsItsRecordWithoutPlayback() throws Exception {
+        var response = mvc.perform(get("/v2/videos/{id}", seedVideo())
+                        .header("Authorization", "Bearer " + jwt.issueAccessToken(USER).value()))
+                .andReturn().getResponse();
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(mapper.readTree(response.getContentAsString()).path("playback_url").isNull()).isTrue();
+    }
+
+    /** 옛 리포트가 매달릴 옛 연습 하나. 옛 쓰기 경로는 내렸지만 옛 자료와 그 읽기는 남아 있다(§6-15). */
+    private UUID seedLegacyPractice() {
         UUID upload = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO upload_intents (
@@ -131,6 +127,16 @@ class ReportNoStorageIT {
                     '분석', '캐릭터 분석')
                 """, practice, USER, upload);
         return practice;
+    }
+
+    /** 보관함의 영상 하나. 스토리지가 없어도 기록은 열고 재생 주소만 비운다. */
+    private UUID seedVideo() {
+        UUID video = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO videos(id,user_id,object_key,content_type,byte_size,duration_ms)
+                VALUES (?,?,?,'video/mp4',1000,12000)
+                """, video, USER, "videos/" + video + ".mp4");
+        return video;
     }
 
     /**

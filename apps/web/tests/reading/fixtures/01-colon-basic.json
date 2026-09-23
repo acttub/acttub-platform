@@ -1,0 +1,33 @@
+{
+  "title": null,
+  "roles": [
+    "지수",
+    "민준"
+  ],
+  "lines": [
+    {
+      "type": "dialogue",
+      "role": "지수",
+      "text": "오래 기다렸어?"
+    },
+    {
+      "type": "dialogue",
+      "role": "민준",
+      "text": "아니, 나도 방금 왔어."
+    },
+    {
+      "type": "direction",
+      "text": "민준이 가방을 내려놓는다."
+    },
+    {
+      "type": "dialogue",
+      "role": "지수",
+      "text": "다행이다. (웃으며) 오늘 많이 떨려?"
+    },
+    {
+      "type": "dialogue",
+      "role": "민준",
+      "text": "조금."
+    }
+  ]
+}

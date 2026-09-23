@@ -52,7 +52,7 @@ test('공통 규칙: 로그인한 요청과 로그인 없는 요청 모두 X-Act
     return jsonResponse({ ok: true });
   });
 
-  await client.request('/v2/practice-sessions');
+  await client.request('/v2/practices');
   await client.request('/v2/auth/providers', {}, { auth: false });
 
   assert.equal(seen.length, 2);
@@ -87,7 +87,7 @@ test('공통 규칙: 426을 받으면 업데이트 안내를 알리고 안내 �
   const { client, events } = createClient(async () => jsonResponse({ detail: sentence }, 426));
 
   await assert.rejects(
-    client.request('/v2/practice-sessions'),
+    client.request('/v2/practices'),
     (error) =>
       error instanceof ApiError &&
       error.status === 426 &&
@@ -113,7 +113,7 @@ test('account.login: 403 consent_required는 미결정 문서 목록을 함께 �
   );
 
   await assert.rejects(
-    client.request('/v2/practice-sessions'),
+    client.request('/v2/practices'),
     (error) =>
       error instanceof ApiError &&
       error.code === 'consent_required' &&
@@ -130,7 +130,7 @@ test('account.profile: 403 profile_required는 프로필 게이트를 알리고 
   );
 
   await assert.rejects(
-    client.request('/v2/practice-sessions'),
+    client.request('/v2/practices'),
     (error) => error instanceof ApiError && error.code === 'profile_required',
   );
   assert.equal(events.profile, 1);
@@ -143,7 +143,7 @@ test('account.withdraw: 403 account_deactivated는 탈퇴만 알린다', async (
     jsonResponse({ detail: 'account_deactivated' }, 403),
   );
 
-  await assert.rejects(client.request('/v2/practice-sessions'));
+  await assert.rejects(client.request('/v2/practices'));
   assert.equal(events.deactivated, 1);
   assert.equal(events.profile, 0);
   assert.deepEqual(events.consent, []);
@@ -154,7 +154,7 @@ test('account.consent: 없어진 사유 consent_blocked는 동의 게이트로 �
     jsonResponse({ detail: 'consent_blocked' }, 403),
   );
 
-  await assert.rejects(client.request('/v2/practice-sessions'));
+  await assert.rejects(client.request('/v2/practices'));
   assert.deepEqual(events.consent, []);
 });
 

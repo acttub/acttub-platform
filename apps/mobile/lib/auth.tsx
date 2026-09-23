@@ -18,6 +18,10 @@ import {
   type TokenPair,
 } from '@/lib/api';
 import type { ProfileGateStatus } from '@/lib/app-bootstrap';
+import { runLegacyScriptMigrationOnce } from '@/lib/reading/legacy-migration-runner';
+import { flushPracticeFeedback } from '@/lib/exit-review';
+import { flushLibraryUploads } from '@/lib/library/library-runner';
+import { flushRecordingUploads } from '@/lib/reading/recording-runner';
 import { isGuestFlagSet, setGuestFlag } from '@/lib/guest';
 import {
   signOutBestEffort,
@@ -316,6 +320,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     status === 'signedIn' && consentEntry.status === 'allowed' && profile.status === 'complete';
   useEffect(() => {
     if (gatePassed) void syncNotificationsAfterGate().catch(() => undefined);
+  }, [gatePassed, user?.id]);
+
+  // 1.0.0 이전 앱이 기기에 남긴 대본은 게이트를 지난 뒤 한 번 서버로 옮긴다(reading.script). 보호 기능이라
+  // 그 전에는 서버가 받지 않는다. 실패한 대본은 기기에 남아 다음 실행에 다시 한다. 기다리지 않는다.
+  useEffect(() => {
+    if (gatePassed) void runLegacyScriptMigrationOnce();
+  }, [gatePassed]);
+
+  // 올리지 못한 줄 단위 녹음은 앱을 다시 열어도 큐에 남는다 — 게이트를 지나면 이어서 올린다(reading.recording).
+  useEffect(() => {
+    if (gatePassed) void flushRecordingUploads().catch(() => undefined);
+  }, [gatePassed]);
+
+  // 촬영 뒤 올리지 못한 보관함 영상도 큐에 남아 게이트를 지나면 이어서 올린다(practice.record). 큐는 계정별이다.
+  // 오프라인에서 밀린 이탈 설문 접수를 보낸다(practice.feedback) — 같은 요청 id 라 행은 하나다.
+  useEffect(() => {
+    if (gatePassed) void flushPracticeFeedback();
+  }, [gatePassed]);
+
+  useEffect(() => {
+    if (gatePassed && user?.id) void flushLibraryUploads(user.id).catch(() => undefined);
   }, [gatePassed, user?.id]);
 
   // "앱을 열 때"는 새로 켤 때만이 아니다. 배경에서 돌아올 때도 밀린 토큰 삭제를 다시 보내고,

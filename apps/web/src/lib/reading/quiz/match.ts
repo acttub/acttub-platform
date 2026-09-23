@@ -53,6 +53,8 @@ export function similarity(said: string, target: string): number {
 
 /** read.acttub.com 실측 통과선: 느슨하게 0.72 */
 export const PASS_THRESHOLD = 0.72;
+/** 글자 대조는 원문과 말한 것 각각 1,000자까지만 한다 — 대조는 길이의 곱에 비례한다(reading.script). */
+export const MATCH_MAX_CHARS = 1_000;
 
 export interface CompareResult {
   pass: boolean;

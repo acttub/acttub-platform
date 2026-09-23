@@ -168,11 +168,12 @@ export function SelectCard({
   );
 }
 
-export function StatusPill({ label, tone = "blue", dot = true }: { label: string; tone?: "blue" | "warn"; dot?: boolean }) {
-  const cls = tone === "blue" ? "bg-blue-soft text-blue" : "bg-warn-bg text-warn";
+export function StatusPill({ label, tone = "blue", dot = true }: { label: string; tone?: "blue" | "warn" | "neutral"; dot?: boolean }) {
+  const cls = tone === "blue" ? "bg-blue-soft text-blue" : tone === "warn" ? "bg-warn-bg text-warn" : "bg-gray-bg text-ink-3";
+  const dotCls = tone === "blue" ? "bg-blue" : tone === "warn" ? "bg-warn" : "bg-ink-5";
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-extrabold ${cls}`}>
-      {dot && <span className={`w-1.5 h-1.5 rounded-full ${tone === "blue" ? "bg-blue" : "bg-warn"}`} />}
+      {dot && <span className={`w-1.5 h-1.5 rounded-full ${dotCls}`} />}
       {label}
     </span>
   );

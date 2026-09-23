@@ -429,7 +429,7 @@ class ConsentEndpointIT {
 
     /** 보호 기능 하나. 게이트를 지나면 빈 목록의 200 이다. */
     private MockHttpServletResponse protectedApi() throws Exception {
-        return mvc.perform(get("/v2/practice-sessions").header("Authorization", bearer()))
+        return mvc.perform(get("/v2/practices").header("Authorization", bearer()))
                 .andReturn().getResponse();
     }
 

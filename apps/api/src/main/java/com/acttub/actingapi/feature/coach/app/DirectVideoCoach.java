@@ -71,8 +71,9 @@ public final class DirectVideoCoach {
                     session.practiceSessionId(), session.userId(), operationId);
             route = selection.label();
             routeFallback = selection.fallback();
-            String prompt = selection.prompt();
-            input = prompt + "\n" + history;
+            String prompt = CoachPrompt.actorProfileBlock(session.actorProfile())
+                    + CoachPrompt.priorContextBlock(session.priorForModel(), true) + selection.prompt();
+            input = CoachPrompt.withoutActorName(prompt, session.actorProfile()) + "\n" + history;
             ExternalOperationExecution.externalCall("model");
             String message = model.reply(uploaded, history, prompt);
             if (message == null || message.isBlank()) throw new IllegalStateException("empty video coaching reply");

@@ -7,8 +7,9 @@
 // 어느 화면인가와 그 화면이 무엇을 들고 있는가는 workspace-state.ts 가 정하고,
 // 여기는 그것으로 무엇을 그리는지만 정한다.
 
-import type { PracticeReport } from "@/lib/api/v2/types";
-import { isChatScreen, type WorkspaceScreen } from "./workspace-state";
+import { isBlockedReport } from "../practice/practice-note";
+import type { PracticeReport } from "./workspace-state";
+import { isChatScreen, isLocalVideo, type WorkspaceScreen } from "./workspace-state";
 
 /**
  * setup 몸통을 그리는 화면들. 서로 다른 Practice Stage 넷이 같은 몸통을 쓴다 —
@@ -90,7 +91,7 @@ function describeBody(input: WorkspaceViewInput): WorkspaceViewBody {
     return {
       kind: "note",
       report: screen.report,
-      backTo: screen.report.report_type === "blocked" ? "restart" : "chat",
+      backTo: isBlockedReport(screen.report) ? "restart" : "chat",
     };
   }
   if (isChatScreen(screen)) {
@@ -126,7 +127,7 @@ function describeSetup(
       ? {
           kind: "player",
           src,
-          caption: uploading ? UPLOADING_CAPTION : video?.file.name ?? UPLOADED_CAPTION,
+          caption: uploading ? UPLOADING_CAPTION : video ? (isLocalVideo(video) ? video.file.name : video.caption) : UPLOADED_CAPTION,
           reselectable: prep,
         }
       : prep

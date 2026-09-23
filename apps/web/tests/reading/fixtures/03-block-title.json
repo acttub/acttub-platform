@@ -1,0 +1,33 @@
+{
+  "title": "첫 만남",
+  "roles": [
+    "지수",
+    "민준"
+  ],
+  "lines": [
+    {
+      "type": "dialogue",
+      "role": "지수",
+      "text": "오래 기다렸어? 진짜 오래."
+    },
+    {
+      "type": "dialogue",
+      "role": "민준",
+      "text": "(고개를 저으며) 아니, 나도 방금 왔어."
+    },
+    {
+      "type": "direction",
+      "text": "암전"
+    },
+    {
+      "type": "dialogue",
+      "role": "지수",
+      "text": "다행이다."
+    },
+    {
+      "type": "dialogue",
+      "role": "민준",
+      "text": "응."
+    }
+  ]
+}

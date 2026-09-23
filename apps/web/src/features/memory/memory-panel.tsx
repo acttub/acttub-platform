@@ -9,7 +9,6 @@ import {
   deleteMemoryField,
   getMemory,
   saveMemoryField,
-  isActorOnlyField,
   MEMORY_VALUE_MAX_LENGTH,
   type MemoryField,
   type MemoryItem,
@@ -27,10 +26,12 @@ import {
  * - **누가 적었는지** — 내가 고친 칸은 코치가 다시 덮지 않는다는 걸 알아야
  *   고치는 의미가 생긴다.
  *
- * 성별·나이는 **배우만 쓰는 칸**이다. 코치는 영상이나 말투에서 추론하지 않는다.
- * 데이터베이스가 코치의 쓰기를 막고 있어서, 이 화면이 그 칸을 채울 수 있는
- * 유일한 통로다.
+ * 성별·나이는 1.0.0 부터 여기 없다 — 프로필이 가진다(account.profile). 웹에는 프로필이 없어서
+ * (게스트뿐) 그 자리에 앱으로 옮기면 적을 수 있다고 안내한다.
  */
+
+/** 프로필로 옮긴 칸의 안내. 웹 게스트에게는 편집 링크 대신 이 말이 간다. */
+export const PROFILE_MOVE_NOTICE = "성별·나이는 앱으로 옮기면 프로필에서 적어요";
 
 const FIELDS: {
   field: MemoryField;
@@ -38,18 +39,6 @@ const FIELDS: {
   hint: string;
   placeholder: string;
 }[] = [
-  {
-    field: "gender",
-    label: "성별",
-    hint: "코치는 짐작하지 않아요. 적어 두면 참고합니다",
-    placeholder: "예) 여성",
-  },
-  {
-    field: "age",
-    label: "나이",
-    hint: "코치는 짐작하지 않아요. 적어 두면 참고합니다",
-    placeholder: "예) 19살",
-  },
   {
     field: "goal",
     label: "목표",
@@ -195,13 +184,18 @@ export function MemoryPanel() {
         코치가 기억하는 것
       </h1>
       <p className="mt-3 text-[15px] leading-[1.6] text-[#6b7684]">
-        연습을 마칠 때마다 코치가 여기에 적어 둡니다. 다음 연습을 시작할 때 이 내용을
-        참고해요.
+        {/* 실제 갱신 시점은 첫 확인 연습과 그 뒤 3회마다다(1·3·6·9…). "마칠 때마다"는 사실이 아니다. */}
+        연습이 쌓이면 코치가 여기에 적어 둡니다. 다음 연습을 시작할 때 이 내용을 참고해요.
         <br />
         틀린 게 있으면 고쳐주세요.{" "}
         <strong className="font-bold text-[#4e5968]">
           고친 내용은 코치가 다시 바꾸지 않습니다.
         </strong>
+      </p>
+
+      {/* 성별·나이는 프로필로 옮겼다. 웹에는 프로필이 없어 적을 수 있는 곳을 알려 준다. */}
+      <p className="mt-3 rounded-xl bg-[#f4f6fa] px-4 py-3 text-[13.5px] font-semibold leading-[1.6] text-[#4e6183]">
+        {PROFILE_MOVE_NOTICE}
       </p>
 
       {error ? (
@@ -234,7 +228,6 @@ export function MemoryPanel() {
               const draft = drafts[field] ?? "";
               const dirty = draft.trim() !== (item?.value ?? "");
               const canSave = dirty && draft.trim().length > 0;
-              const actorOnly = isActorOnlyField(field);
               return (
                 <section
                   key={field}
@@ -247,15 +240,14 @@ export function MemoryPanel() {
                     {item ? (
                       <span
                         className={`shrink-0 text-[12px] font-bold ${
-                          item.edited_by_me ? "text-[#4e5968]" : "text-[#3182f6]"
+                          item.written_by_actor ? "text-[#4e5968]" : "text-[#3182f6]"
                         }`}
                       >
-                        {item.edited_by_me ? "내가 적음" : "코치가 적음"}
+                        {/* 내가 적은 값은 코치가 덮지 않는다 — 그 사실이 보여야 고치는 의미가 생긴다. */}
+                        {item.written_by_actor ? "내가 적은 값" : "코치가 적음"}
                       </span>
                     ) : (
-                      <span className="shrink-0 text-[12px] text-[#b0b8c1]">
-                        {actorOnly ? "내가 적는 칸" : "비어 있음"}
-                      </span>
+                      <span className="shrink-0 text-[12px] text-[#b0b8c1]">비어 있음</span>
                     )}
                   </div>
                   <p className="mt-1 text-[13px] text-[#8b95a1]">{hint}</p>
@@ -275,9 +267,9 @@ export function MemoryPanel() {
                     className="mt-3 w-full resize-y rounded-xl border border-[#e5e8eb] px-3.5 py-3 text-[15px] leading-[1.6] text-[#191f28] outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6]"
                   />
 
-                  {item?.source_practice_session_id && !item.edited_by_me ? (
+                  {item?.source_practice_id && !item.written_by_actor ? (
                     <Link
-                      href={`/home?session=${encodeURIComponent(item.source_practice_session_id)}`}
+                      href={`/home?session=${encodeURIComponent(item.source_practice_id)}`}
                       className="mt-1 inline-block text-[13px] font-semibold text-[#3182f6] transition hover:text-[#1b64da]"
                     >
                       이 말이 나온 연습 보기

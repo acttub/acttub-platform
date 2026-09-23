@@ -12,6 +12,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.challenge.app.ChallengeWithdrawal;
+
 import com.acttub.actingapi.feature.profile.app.ProfileRepository;
 import com.acttub.actingapi.feature.profile.domain.Account;
 import com.acttub.actingapi.feature.profile.domain.AgeBand;
@@ -37,15 +39,20 @@ class PostgresProfileRepository implements ProfileRepository {
     private final AccountSecrets secrets;
     private final PostgresObjectCleanupLedger cleanups;
 
+    /** 탈퇴 전 챌린지 마감 집계 — 이 저장소가 남의 표를 함께 치는 다른 정리와 같은 트랜잭션에서 돈다. */
+    private final ChallengeWithdrawal challenges;
+
     PostgresProfileRepository(
             EntityManager entityManager,
             PlatformTransactionManager transactionManager,
             AccountSecrets secrets,
-            PostgresObjectCleanupLedger cleanups) {
+            PostgresObjectCleanupLedger cleanups,
+            ChallengeWithdrawal challenges) {
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
         this.secrets = secrets;
         this.cleanups = cleanups;
+        this.challenges = challenges;
     }
 
     /**
@@ -194,7 +201,15 @@ class PostgresProfileRepository implements ProfileRepository {
                         COALESCE((SELECT max(created_at) FROM upload_intents
                                   WHERE upload_intents.user_id=users.id),users.created_at),
                         COALESCE((SELECT max(created_at) FROM practice_sessions
-                                  WHERE practice_sessions.user_id=users.id),users.created_at)) < :cutoff
+                                  WHERE practice_sessions.user_id=users.id),users.created_at),
+                        COALESCE((SELECT max(created_at) FROM scripts
+                                  WHERE scripts.user_id=users.id),users.created_at),
+                        COALESCE((SELECT max(updated_at) FROM reading_sessions
+                                  WHERE reading_sessions.user_id=users.id),users.created_at),
+                        COALESCE((SELECT max(updated_at) FROM reading_recordings
+                                  WHERE reading_recordings.user_id=users.id),users.created_at),
+                        COALESCE((SELECT max(updated_at) FROM line_memorization
+                                  WHERE line_memorization.user_id=users.id),users.created_at)) < :cutoff
                 ORDER BY users.created_at,users.id
                 """, Tuple.class)
                 .setParameter("cutoff", lastActiveBefore.atOffset(ZoneOffset.UTC))).stream()
@@ -231,6 +246,20 @@ class PostgresProfileRepository implements ProfileRepository {
                 List<String> videos = videoKeys(userId);
                 if (!videos.isEmpty()) {
                     cleanups.add(this.cleanups.schedule(userId, videos, now, now));
+                }
+                // 보관 동의로 남겨 두었던 영상도 이제 파일이 없다 — 행과 최소 메타만 남긴다.
+                entityManager.createNativeQuery("""
+                        UPDATE videos
+                        SET purged_at=:now,updated_at=:now
+                        WHERE user_id=:userId AND purged_at IS NULL
+                        """)
+                        .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                        .setParameter("userId", userId)
+                        .executeUpdate();
+                // 보관 동의로 남겨 두었던 리딩 녹음(음성과 전사)은 행째 지우고 객체는 장부로 간다(03-reading).
+                List<String> recordings = deleteRecordings(userId);
+                if (!recordings.isEmpty()) {
+                    cleanups.add(this.cleanups.schedule(userId, recordings, now));
                 }
                 entityManager.createNativeQuery("""
                         DELETE FROM user_identities
@@ -481,13 +510,24 @@ class PostgresProfileRepository implements ProfileRepository {
                          OR EXISTS (SELECT 1 FROM external_operations WHERE user_id=:userId)
                          OR EXISTS (SELECT 1 FROM actor_memory_entries WHERE user_id=:userId)
                          OR EXISTS (SELECT 1 FROM account_cleanup_operations WHERE user_id=:userId)
+                         OR EXISTS (SELECT 1 FROM scripts WHERE user_id=:userId)
+                         OR EXISTS (SELECT 1 FROM reading_recordings WHERE user_id=:userId)
                          OR EXISTS (SELECT 1 FROM community_posts WHERE author_id=:userId)
                          OR EXISTS (SELECT 1 FROM community_comments WHERE author_id=:userId)
                          OR EXISTS (SELECT 1 FROM community_post_likes WHERE user_id=:userId)
                          OR EXISTS (SELECT 1 FROM community_anonymous_aliases WHERE user_id=:userId)
                          OR EXISTS (SELECT 1 FROM community_reports WHERE reporter_id=:userId)
                          OR EXISTS (SELECT 1 FROM community_blocks
-                                    WHERE blocker_id=:userId OR blocked_id=:userId)) AS has_history
+                                    WHERE blocker_id=:userId OR blocked_id=:userId)
+                         OR EXISTS (SELECT 1 FROM challenges WHERE host_user_id=:userId)
+                         OR EXISTS (SELECT 1 FROM challenge_entries WHERE user_id=:userId)
+                         OR EXISTS (SELECT 1 FROM entry_likes WHERE user_id=:userId)
+                         OR EXISTS (SELECT 1 FROM entry_comments WHERE user_id=:userId)
+                         OR EXISTS (SELECT 1 FROM entry_reports WHERE reporter_id=:userId)
+                         OR EXISTS (SELECT 1 FROM entry_saves WHERE user_id=:userId)
+                         OR EXISTS (SELECT 1 FROM entry_view_events WHERE user_id=:userId)
+                         OR EXISTS (SELECT 1 FROM user_blocks WHERE blocker_id=:userId OR blocked_id=:userId)
+                         OR EXISTS (SELECT 1 FROM notifications WHERE user_id=:userId OR actor_user_id=:userId)) AS has_history
                     FROM users
                     WHERE id=:userId
                     FOR UPDATE
@@ -534,7 +574,7 @@ class PostgresProfileRepository implements ProfileRepository {
      *       맞지 않아 통째로 롤백되므로 결과가 저장되지 않는다.</li>
      * </ul>
      *
-     * <p>챌린지 참여작을 비공개로 내리는 일은 그 테이블이 생길 때 여기에 더한다(지금 스키마에 없다).
+     * <p>챌린지 자료는 {@link #eraseChallenge} 가 같은 트랜잭션에서 정리한다(04-challenge 「챌린지 자료의 삭제·탈퇴」).
      *
      * <p>⚠ <b>여기서 남의 테이블을 함께 치는 것은 의도한 것이다.</b> 테이블 주인은 각각 {@code auth}·
      * {@code push}·{@code portfolio}·{@code transfer}·{@code consent}·{@code upload}·작업 장부지만
@@ -557,6 +597,9 @@ class PostgresProfileRepository implements ProfileRepository {
                 return null;
             }
             if (!"deactivated".equals(current.getFirst().get("status", String.class))) {
+                // 탈퇴도 마감 뒤 첫 변경이다 — 계정이 아직 활성일 때 밀린 챌린지 마감 집계를 먼저 해, 마감 당시 자격이
+                // 있던 참여작이 이 탈퇴 때문에 최종 순위에서 빠지지 않게 한다(challenge.browse 종료 랭킹).
+                challenges.settleBeforeWithdrawal(userId, now);
                 entityManager.createNativeQuery("""
                         UPDATE users
                         SET status='deactivated',
@@ -569,13 +612,17 @@ class PostgresProfileRepository implements ProfileRepository {
                         .executeUpdate();
             }
             List<UUID> cleanups = new ArrayList<>();
+            boolean retainMedia = !destroyMediaRegardless && retentionGranted(userId);
             List<String> objectKeys = new ArrayList<>(photoKeys(userId));
-            if (destroyMediaRegardless || !retentionGranted(userId)) {
+            if (!retainMedia) {
                 objectKeys.addAll(videoKeys(userId));
             }
             if (!objectKeys.isEmpty()) {
                 cleanups.add(this.cleanups.schedule(userId, objectKeys, now, now));
             }
+            cleanups.addAll(eraseReading(userId, retainMedia, now));
+            erasePractice(userId, retainMedia, now);
+            eraseChallenge(userId, now);
             cleanups.addAll(hashIdentities(userId, now));
 
             // ⚠ 새 코드가 `users.nickname` 을 건드리는 곳은 이 한 줄뿐이다 (SOMA-528 결정 I-3).
@@ -628,6 +675,30 @@ class PostgresProfileRepository implements ProfileRepository {
         });
     }
 
+    /**
+     * 챌린지 자료 (04-challenge 「챌린지 자료의 삭제·탈퇴」). 참여작은 비공개로 내려 집계·표본에서 빠지고(다시 공개할 수 없다 —
+     * 공개 전환은 활성 계정만 된다), 개설한 챌린지는 주최자를 비운다. 건 차단·받은 차단, 개인 북마크(저장), 받은 알림은
+     * 행째 지우고, AI 리포트는 본문·비교 자료를 파기해 생성 이력만 남긴다(90일 뒤 매시 일이 지운다). 진행 중인 리포트
+     * 생성은 위 {@code ai_jobs} 취소가 닫는다. 남긴 좋아요·댓글은 남아 "탈퇴한 사용자"로 보인다.
+     */
+    private void eraseChallenge(UUID userId, Instant now) {
+        for (String statement : List.of(
+                "UPDATE challenges SET host_user_id=NULL WHERE host_user_id=:userId",
+                "DELETE FROM user_blocks WHERE blocker_id=:userId OR blocked_id=:userId",
+                "DELETE FROM entry_saves WHERE user_id=:userId",
+                "DELETE FROM notifications WHERE user_id=:userId")) {
+            entityManager.createNativeQuery(statement).setParameter("userId", userId).executeUpdate();
+        }
+        for (String statement : List.of(
+                "UPDATE challenge_entries SET visibility='private',updated_at=:now WHERE user_id=:userId AND status<>'deleted'",
+                "UPDATE entry_ai_reports SET result=NULL,purged_at=coalesce(purged_at,:now) WHERE user_id=:userId")) {
+            entityManager.createNativeQuery(statement)
+                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                    .setParameter("userId", userId)
+                    .executeUpdate();
+        }
+    }
+
     /** 프로필 사진(대기 중인 올리기 포함)과 포트폴리오 사진의 객체 키. 사진은 보관 동의와 무관하게 지운다. */
     private List<String> photoKeys(UUID userId) {
         return list(entityManager.createNativeQuery("""
@@ -647,13 +718,146 @@ class PostgresProfileRepository implements ProfileRepository {
 
     /**
      * 이 사람이 올린 영상의 객체 키. 연습 행은 남기고 객체만 지운다 — 얼굴과 목소리는 가명처리가 안
-     * 된다. 지금 서버가 맡아 둔 녹음은 없다(리딩 녹음은 그 영역이 서버에 붙을 때 여기에 더한다).
+     * 된다. 리딩 녹음은 {@link #eraseReading} 이 따로 다룬다(행째 지우거나 보관).
+     *
+     * <p>장부 두 벌을 함께 본다: 옛 흐름의 {@code upload_intents} 와 1.0.0 보관함의 {@code videos} 다
+     * (02-practice 「이관·삭제·탈퇴」). 이미 파일만 파기된 영상은 객체가 없으므로 빼고, 미확정 업로드의
+     * 객체는 그대로 지운다 — 예약만 하고 올리지 않았으면 그 키에 객체가 없고 S3 의 삭제는 멱등이다.
      */
     private List<String> videoKeys(UUID userId) {
         return list(entityManager.createNativeQuery("""
                 SELECT object_key
                 FROM upload_intents
                 WHERE user_id=:userId
+                UNION
+                SELECT object_key
+                FROM videos
+                WHERE user_id=:userId AND purged_at IS NULL
+                """, Tuple.class)
+                .setParameter("userId", userId)).stream()
+                .map(row -> row.get("object_key", String.class))
+                .toList();
+    }
+
+    /**
+     * 1.0.0 연습 자료의 파기 (02-practice 「연습 자료의 이관·삭제·탈퇴」).
+     *
+     * <ul>
+     *   <li>{@code videos}: <b>행을 지우지 않고</b> {@code purged_at} 을 찍는다 — 회차·참여작의 기록이
+     *       깨지지 않고, 재생이 막히며, 총량에서 빠진다. 객체는 {@link #videoKeys} 가 장부로 보냈다.
+     *       보관 동의자의 영상은 3년 뒤({@link #purgeRetained}) 같은 자리에서 찍힌다.</li>
+     *   <li>{@code ai_jobs}: 진행 중인 작업을 취소하고 lease 를 뗀다 — 돌고 있던 워커의 완료는 lease 가
+     *       맞지 않아 통째로 롤백되므로 결과가 저장되지 않는다. 이력은 남기되 결과 본문은 비운다.</li>
+     *   <li>{@code practice_feedback}: 연락처를 비우고 순번을 올려 시트에도 다시 보내게 한다. 본문은
+     *       사람과 끊어 남는다(practice.feedback).</li>
+     * </ul>
+     *
+     * <p>{@code practices}·{@code analyses}·{@code coach_*}·{@code video_transcripts} 는 사람과 끊어
+     * 남긴다 — 지우지 않는다. 진행 중 대화의 늦은 저장은 저장 직전의 계정 상태 확인이 막는다.
+     *
+     * <p>먼저 이 사람의 영상 행을 잡는다 — 회차를 만드는 쪽이 같은 행을 잡으므로 겹쳐도 순서가 정해진다.
+     */
+    private void erasePractice(UUID userId, boolean retainMedia, Instant now) {
+        list(entityManager.createNativeQuery(
+                "SELECT id FROM videos WHERE user_id=:userId FOR UPDATE", Tuple.class)
+                .setParameter("userId", userId));
+        if (!retainMedia) {
+            entityManager.createNativeQuery("""
+                    UPDATE videos
+                    SET purged_at=:now,updated_at=:now
+                    WHERE user_id=:userId AND purged_at IS NULL
+                    """)
+                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                    .setParameter("userId", userId)
+                    .executeUpdate();
+        }
+        entityManager.createNativeQuery("""
+                UPDATE ai_jobs
+                SET status='failed',failure_reason='account_deactivated',
+                    lease_token=NULL,lease_expires_at=NULL,result=NULL,updated_at=:now
+                WHERE user_id=:userId
+                  AND status IN ('pending','running')
+                """)
+                .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                .setParameter("userId", userId)
+                .executeUpdate();
+        entityManager.createNativeQuery("""
+                UPDATE practice_feedback
+                SET contact_email=NULL,contact_phone=NULL,
+                    sheet_seq=sheet_seq+1,sheet_synced_at=NULL,updated_at=:now
+                WHERE user_id=:userId
+                  AND (contact_email IS NOT NULL OR contact_phone IS NOT NULL)
+                """)
+                .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                .setParameter("userId", userId)
+                .executeUpdate();
+    }
+
+    /**
+     * 리딩 자료의 파기 (03-reading 「리딩 자료의 이관·삭제·탈퇴」, account.withdraw). 대본·배역·줄·회차·암기 상태는
+     * <b>행째</b> 지운다 — 연습 기록과 달리 사람과 끊어 남기지 않는다. 녹음은 보관 동의자 것만 남긴다: 회차·줄
+     * 연결을 비우고 {@code user_id} 를 유지해 3년 파기({@link #purgeRetained})가 지운다. 동의가 없으면 행(음성과
+     * 전사)을 지우고 객체 키를 같은 트랜잭션에서 장부({@code reading_recording_delete})에 올린다.
+     *
+     * <p>먼저 이 사람의 대본·회차 행을 잡는다 — 리딩의 쓰기(회차 시작·암기 갱신은 대본 행, 진행 저장·녹음 저장은
+     * 회차 행)가 같은 행을 잡으므로 겹쳐도 순서가 정해진다: 쓰기가 먼저면 그 행까지 여기서 지우고, 파기가 먼저면
+     * 쓰기는 없는 행을 보고 404 다. 다시 온 탈퇴는 지울 것이 없어 아무것도 하지 않는다.
+     *
+     * @return 장부에 올린 객체 삭제(없으면 빈 목록)
+     */
+    private List<UUID> eraseReading(UUID userId, boolean retainRecordings, Instant now) {
+        for (String table : List.of("scripts", "reading_sessions")) {
+            list(entityManager.createNativeQuery("SELECT id FROM " + table + " WHERE user_id=:userId FOR UPDATE", Tuple.class)
+                    .setParameter("userId", userId));
+        }
+        List<UUID> cleanups = new ArrayList<>();
+        if (retainRecordings) {
+            entityManager.createNativeQuery("""
+                    UPDATE reading_recordings
+                    SET reading_session_id=NULL,line_id=NULL,updated_at=:now
+                    WHERE user_id=:userId
+                      AND (reading_session_id IS NOT NULL OR line_id IS NOT NULL)
+                    """)
+                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                    .setParameter("userId", userId)
+                    .executeUpdate();
+        } else {
+            List<String> objectKeys = deleteRecordings(userId);
+            if (!objectKeys.isEmpty()) {
+                cleanups.add(this.cleanups.schedule(userId, objectKeys, now));
+            }
+        }
+        entityManager.createNativeQuery("DELETE FROM line_memorization WHERE user_id=:userId")
+                .setParameter("userId", userId)
+                .executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM reading_sessions WHERE user_id=:userId")
+                .setParameter("userId", userId)
+                .executeUpdate();
+        for (String table : List.of("script_lines", "script_characters")) {
+            entityManager.createNativeQuery("""
+                    DELETE FROM %s AS child
+                    USING scripts
+                    WHERE scripts.id=child.script_id
+                      AND scripts.user_id=:userId
+                    """.formatted(table))
+                    .setParameter("userId", userId)
+                    .executeUpdate();
+        }
+        entityManager.createNativeQuery("DELETE FROM scripts WHERE user_id=:userId")
+                .setParameter("userId", userId)
+                .executeUpdate();
+        return cleanups;
+    }
+
+    /** 이 사람의 녹음 행을 전부 지우고 객체 키를 돌려준다. 부르는 쪽이 같은 트랜잭션에서 장부에 올린다. */
+    private List<String> deleteRecordings(UUID userId) {
+        return list(entityManager.createNativeQuery("""
+                WITH removed AS (
+                    DELETE FROM reading_recordings
+                    WHERE user_id=:userId
+                    RETURNING object_key
+                )
+                SELECT object_key FROM removed
                 """, Tuple.class)
                 .setParameter("userId", userId)).stream()
                 .map(row -> row.get("object_key", String.class))

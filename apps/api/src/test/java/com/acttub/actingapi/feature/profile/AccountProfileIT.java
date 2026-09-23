@@ -450,7 +450,7 @@ class AccountProfileIT {
     }
 
     private MockHttpServletResponse protectedApi() throws Exception {
-        return mvc.perform(get("/v2/practice-sessions").header("Authorization", bearer()))
+        return mvc.perform(get("/v2/practices").header("Authorization", bearer()))
                 .andReturn().getResponse();
     }
 
@@ -487,6 +487,15 @@ class AccountProfileIT {
 
     /** 메모리의 오브젝트 스토리지. 무엇에 서명해 줬고 무엇이 남아 있는지만 안다. */
     static final class FakeStorage implements ObjectStorage {
+        @Override
+        public void upload(String objectKey, String mimeType, java.nio.file.Path source) {
+            try {
+                objects.put(objectKey, java.nio.file.Files.size(source));
+            } catch (java.io.IOException failure) {
+                throw new java.io.UncheckedIOException(failure);
+            }
+        }
+
         final Map<String, Long> objects = new ConcurrentHashMap<>();
         final List<String> presigned = new ArrayList<>();
 

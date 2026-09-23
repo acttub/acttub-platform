@@ -1,11 +1,10 @@
 package com.acttub.actingapi.feature.coach.adapter.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -16,7 +15,6 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.coach.adapter.db.CoachStorageFixtures;
-import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.integration.llm.StructuredJson;
 import com.acttub.actingapi.integration.llm.TextGenerator;
@@ -28,6 +26,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -40,6 +41,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 /**
  * account.profile: 코치 대화와 노트가 프로필을 읽는다 — HTTP 로 프로필을 저장하고, 실제 Postgres 를 거쳐,
@@ -58,7 +60,6 @@ import org.springframework.test.web.servlet.MockMvc;
 @AutoConfigureMockMvc
 @Import(CoachReadsProfileIT.GeneratorFixture.class)
 class CoachReadsProfileIT {
-    private static final OffsetDateTime CREATED_AT = CoachStorageFixtures.NOW.atOffset(ZoneOffset.UTC);
     private static final String COACH_REPLY = "{\"message\":\"질문\",\"status\":\"continue\",\"handoff\":null}";
     private static final String OBSERVATIONS = "[{\"start_ms\":0,\"end_ms\":100,\"what\":\"멈춘다\","
             + "\"quote\":\"가지 마\",\"dimension\":\"호흡\",\"confidence\":0.9}]";
@@ -101,6 +102,21 @@ class CoachReadsProfileIT {
     @Autowired
     com.acttub.actingapi.support.RecordingFailureReporter failures;
 
+    @Autowired
+    com.acttub.actingapi.platform.migration.PracticeDataMigration migration;
+
+    @Autowired
+    com.acttub.actingapi.feature.coach.app.NoteWriter notes;
+
+    @Autowired
+    com.acttub.actingapi.feature.coach.app.ConversationRepository conversations;
+
+    @MockitoSpyBean
+    com.acttub.actingapi.feature.coach.app.CoachProfile profiles;
+
+    @MockitoSpyBean
+    com.acttub.actingapi.feature.coach.app.CoachMemory memory;
+
     CoachStorageFixtures fixtures;
     UUID user;
 
@@ -119,12 +135,12 @@ class CoachReadsProfileIT {
     @DisplayName("account.profile: 설정에서 경력을 고친 뒤 새 코치 대화를 시작하면 코치에 넘기는 입력에 고친 값이 들어 있다")
     void accountProfile_experienceChangedInSettingsReachesTheNextCoachConversation() throws Exception {
         generator.enqueue(COACH_REPLY);
-        start(legacyPractice(), null);
+        startPractice(analyzedPractice());
         assertThat(generator.lastInput()).contains("- 연기 경력: 입시생");
 
         saveProfile(profile("over_5y"));
         generator.enqueue(COACH_REPLY);
-        start(legacyPractice(), null);
+        startPractice(analyzedPractice());
 
         assertThat(generator.lastInput())
                 .startsWith("## 배우 프로필\n")
@@ -169,9 +185,10 @@ class CoachReadsProfileIT {
                     VALUES (?,?,?,?,'actor')
                     """, UUID.randomUUID(), user, memory[0], memory[1]);
         }
+        rememberGoal();
         generator.enqueue(COACH_REPLY);
 
-        start(legacyPractice(), null);
+        startPractice(analyzedPractice());
 
         assertThat(generator.lastInput())
                 .contains("- 성별: 선택 안 함", "- 추구하는 방향: 매체(TV·영화), 무대(연극·뮤지컬)")
@@ -192,12 +209,13 @@ class CoachReadsProfileIT {
                 INSERT INTO actor_memory_entries(id,user_id,field,value,written_by)
                 VALUES (?,?,'gender','남','actor'),(?,?,'goal','입시 합격','actor')
                 """, UUID.randomUUID(), user, UUID.randomUUID(), user);
+        rememberGoal();
         UUID practice = structuredPractice();
         // 라우팅 경로(dialogue_actions_v2)는 한 턴에 분류 → 생성 두 번 부른다. 프로필은 생성 호출에만 실린다.
         generator.enqueue("{\"route\":\"respond\"}");
         generator.enqueue(structuredDraft("“가지 마”를 듣고 상대가 어떻게 하길 바랐어요?", true));
 
-        JsonNode started = start(practice, "three_layers_v1");
+        JsonNode started = startPractice(practice);
 
         assertThat(generator.inputs()).as("분류·생성").hasSize(2);
         JsonNode opening = mapper.readTree(generator.inputs().get(1));
@@ -213,14 +231,19 @@ class CoachReadsProfileIT {
         assertThat(mapper.readTree(generator.inputs().get(0)).has("actor_profile")).as("분류 입력").isFalse();
         assertThat(generator.instructions().get(0)).doesNotContain("[actor_profile]");
 
-        UUID session = UUID.fromString(started.path("session_id").asText());
+        UUID session = UUID.fromString(started.path("conversation").path("id").asText());
+        JsonNode resumed = successful(get("/v2/coach/conversations/{id}", session).header("Authorization", bearer()));
+        assertThat(resumed.path("reply_limit").asInt()).as("신형 대화 재조회도 10회 상한이다").isEqualTo(10);
         // 마무리 턴은 분류를 건너뛴다: 생성 → 노트.
         generator.enqueue(structuredDraft("오늘 나눈 내용까지만 남겨둘게요.", false));
         generator.enqueue("{\"summary\":[],\"next_take\":null}");
 
         JsonNode finished = reply(session, "three_layers_v1");
 
-        assertThat(finished.path("status").asText()).isEqualTo("complete");
+        assertThat(finished.path("conversation").path("status").asText()).isEqualTo("closed");
+        assertThat(finished.path("note").path("report").path("schema_version").asText())
+                .isEqualTo("acttub.public_practice_note.v1");
+        assertThat(finished.path("note").path("report").has("source_catalog")).isFalse();
         JsonNode noteInput = mapper.readTree(generator.lastInput());
         assertThat(noteInput.path("actor_profile").path("experience").asText())
                 .as("노트의 모델 입력 — 프로필은 handoff 와 나란히 최상위에 있다")
@@ -232,10 +255,9 @@ class CoachReadsProfileIT {
         // 그래서 배우 발화만 읽는 기억 추출로 되먹임되지도 않는다.
         assertThat(finished.toString()).doesNotContain(NAME);
         for (String stored : List.of(
-                "SELECT coalesce(string_agg(text, ' '), '') FROM coach_turns",
-                "SELECT coalesce(string_agg(coaching_state_json::text, ' '), '') FROM coach_sessions",
-                "SELECT coalesce(string_agg(handoff_json::text, ' '), '') FROM coaching_handoffs",
-                "SELECT coalesce(string_agg(report_json::text, ' '), '') FROM practice_reports",
+                "SELECT coalesce(string_agg(text, ' '), '') FROM coach_messages",
+                "SELECT coalesce(string_agg(state::text, ' '), '') FROM coach_conversations",
+                "SELECT coalesce(string_agg(legacy_report::text, ' '), '') FROM coach_notes",
                 "SELECT coalesce(string_agg(response_payload::text, ' '), '') FROM external_operations")) {
             assertThat(jdbc.queryForObject(stored, String.class)).as(stored).doesNotContain(NAME, "입시생");
         }
@@ -243,37 +265,25 @@ class CoachReadsProfileIT {
     }
 
     @Test
-    @DisplayName("account.profile: 확정으로 만드는 노트와 따로 요청하는 노트가 프로필을 입력 최상위로 받는다")
-    void accountProfile_notesFromConfirmAndFromTheReportsRouteReceiveTheProfile() throws Exception {
-        UUID confirmed = closableLegacySession();
+    @DisplayName("account.profile: 종료 노트는 최신 프로필을 입력으로 받고 저장된 노트 조회는 다시 생성하지 않는다")
+    void accountProfile_closingNoteReceivesProfileAndReadingItDoesNotRegenerate() throws Exception {
+        UUID practice = analyzedPractice();
+        UUID conversation = insertConversation(practice, List.of("첫 질문", "숨이 막혔어요", "그 다음은요", "목이 잠겼어요"));
+        generator.enqueue("{\"message\":\"오늘은 여기까지 해요\",\"status\":\"complete\",\"handoff\":{\"end_reason\":\"user_ended\"}}");
         generator.enqueue(REPORT_BODY);
 
-        JsonNode confirmation = successful(post("/v2/coach/confirm")
-                .contentType(MediaType.APPLICATION_JSON)
-                .header("Authorization", bearer()).header("X-Request-Id", UUID.randomUUID())
-                .content("{\"coach_session_id\":\"" + confirmed + "\",\"confirmed\":true}"));
+        JsonNode closed = reply(conversation, null);
 
         assertProfileAtTheTopOfTheNoteInput("입시생");
-        assertThat(confirmation.toString()).doesNotContain(NAME);
-
+        assertThat(closed.path("note").isNull()).isFalse();
+        assertThat(closed.toString()).doesNotContain(NAME);
+        int calls = generator.inputs().size();
         saveProfile(profile("under_1y"));
-        UUID requested = closableLegacySession();
-        jdbc.update("""
-                INSERT INTO handoff_confirmations(coaching_handoff_id, confirmed)
-                SELECT id, true FROM coaching_handoffs WHERE coach_session_id=?
-                """, requested);
-        generator.enqueue(REPORT_BODY);
-
-        JsonNode report = successful(post("/v2/reports")
-                .contentType(MediaType.APPLICATION_JSON)
-                .header("Authorization", bearer()).header("X-Request-Id", UUID.randomUUID())
-                .content("{\"session_id\":\"" + requested + "\"}"));
-
-        assertProfileAtTheTopOfTheNoteInput("1년 미만");
-        assertThat(report.toString()).doesNotContain(NAME);
+        JsonNode note = successful(get("/v2/practices/{id}/note", practice).header("Authorization", bearer()));
+        assertThat(note).isEqualTo(closed.path("note"));
+        assertThat(generator.inputs()).hasSize(calls);
         assertThat(jdbc.queryForObject(
-                "SELECT coalesce(string_agg(report_json::text, ' '), '') FROM practice_reports", String.class))
-                .as("프로필을 노트 필드로 복사하지 않는다")
+                "SELECT coalesce(string_agg(legacy_report::text, ' '), '') FROM coach_notes", String.class))
                 .doesNotContain(NAME, "입시생", "1년 미만");
         assertTheNameStaysOutOfTheTelemetry("여성");
     }
@@ -312,6 +322,260 @@ class CoachReadsProfileIT {
 
     // ---- fixtures ----
 
+    @Test
+    @DisplayName("practice.coach: 첫 모델 호출 실패는 502이고 같은 시작 요청으로 다시 시작할 수 있다")
+    void practiceCoach_failedOpeningCanRetryWithoutSavingAFakeMessage() throws Exception {
+        UUID practice = structuredPractice();
+        String opening = mapper.writeValueAsString(Map.of("practice_id", practice, "request_id", UUID.randomUUID()));
+        generator.enqueue("{\"route\":\"invalid-route\"}");
+        var failed = mvc.perform(post("/v2/coach/start").header("Authorization", bearer())
+                .contentType(MediaType.APPLICATION_JSON).content(opening)).andReturn().getResponse();
+        assertThat(failed.getStatus()).as(failed.getContentAsString()).isEqualTo(502);
+        assertThat(mapper.readTree(failed.getContentAsString()).path("detail").asText()).isEqualTo("coach_response_unavailable");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM coach_messages", Integer.class)).isZero();
+
+        generator.enqueue("{\"route\":\"respond\"}");
+        generator.enqueue(structuredDraft("“가지 마”를 듣고 상대가 어떻게 하길 바랐어요?", true));
+        JsonNode recovered = successful(post("/v2/coach/start").header("Authorization", bearer())
+                .contentType(MediaType.APPLICATION_JSON).content(opening));
+        assertThat(recovered.at("/conversation/messages")).hasSize(1);
+        assertThat(recovered.path("message").asText()).isEqualTo("“가지 마”를 듣고 상대가 어떻게 하길 바랐어요?");
+
+        generator.enqueue("{\"route\":\"invalid-route\"}");
+        var reply = mvc.perform(post("/v2/coach/reply").header("Authorization", bearer()).contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("conversation_id", recovered.at("/conversation/id").asText(),
+                        "request_id", UUID.randomUUID(), "text", "상대가 남아 있으면 좋겠어요"))))
+                .andReturn().getResponse();
+        assertThat(reply.getStatus()).as(reply.getContentAsString()).isEqualTo(502);
+        JsonNode unchanged = successful(get("/v2/coach/conversations/{id}", recovered.at("/conversation/id").asText())
+                .header("Authorization", bearer()));
+        assertThat(unchanged.path("messages")).hasSize(1);
+        assertThat(unchanged.path("revision")).isEqualTo(recovered.at("/conversation/revision"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    @DisplayName("practice.note: 신형 노트 생성 두 번 실패는 근거를 보존한 fallback 노트 하나이고 재전송은 생성하지 않는다")
+    void practiceNote_generationRetryKeepsEvidenceAndMarksOnlyFinalFallback(boolean recovers) throws Exception {
+        UUID practice = structuredPractice();
+        generator.enqueue("{\"route\":\"respond\"}");
+        generator.enqueue(structuredDraft("“가지 마”를 듣고 상대가 어떻게 하길 바랐어요?", true));
+        JsonNode started = startPractice(practice);
+        String closing = mapper.writeValueAsString(Map.of("conversation_id", started.at("/conversation/id").asText(),
+                "request_id", UUID.randomUUID(), "text", "정리해줘"));
+        generator.enqueue(structuredDraft("오늘 나눈 내용까지만 남겨둘게요.", false));
+        generator.enqueue("not valid JSON");
+        generator.enqueue(recovers ? "{\"summary\":[],\"next_take\":null}" : "not valid JSON again");
+
+        JsonNode ended = successful(post("/v2/coach/reply").header("Authorization", bearer())
+                .contentType(MediaType.APPLICATION_JSON).content(closing));
+
+        assertThat(ended.at("/note/fallback").asBoolean()).isEqualTo(!recovers);
+        assertThat(ended.at("/note/kind").asText()).isEqualTo("observation");
+        assertThat(ended.at("/note/title").asText()).isEqualTo("가지 마 대사");
+        assertThat(ended.at("/note/next_take").isNull()).isTrue();
+        long noteCalls = generator.inputs().stream().filter(input -> input.contains("\"coach_handoff\"")).count();
+        assertThat(noteCalls).as("노트 생성은 재시도 포함 두 번까지만").isEqualTo(2);
+        int calls = generator.inputs().size();
+        JsonNode replay = successful(post("/v2/coach/reply").header("Authorization", bearer())
+                .contentType(MediaType.APPLICATION_JSON).content(closing));
+        assertThat(replay.path("note")).isEqualTo(ended.path("note"));
+        assertThat(generator.inputs()).hasSize(calls);
+    }
+
+    @Test
+    @DisplayName("practice.note: 다음 촬영에는 배우의 방향이 아니라 실제 촬영 제안을 저장하고 보여 준다")
+    void practiceNote_nextTakeKeepsTheProposedActionDistinctFromActorDirection() throws Exception {
+        UUID practice = structuredPractice();
+        UUID conversation = insertConversation(practice, List.of());
+        var handoff = (com.fasterxml.jackson.databind.node.ObjectNode) StructuredJson.resource("/coaching/handoff.json");
+        var loaded = conversations.loadByConversation(user, conversation);
+        var ended = loaded.session().withCoachingState("three_layers_v1", 3,
+                handoff.path("coaching_state"), "closed", "user_ended");
+        generator.enqueue("{\"title\":\"말끝\",\"summary\":null}");
+        notes.write(loaded, new com.acttub.actingapi.feature.coach.app.CoachResult(ended,
+                new com.acttub.actingapi.feature.coach.app.CoachReply("여기까지 남길게요", "complete", handoff)),
+                3, CoachStorageFixtures.NOW);
+
+        JsonNode note = successful(get("/v2/practices/{id}/note", practice).header("Authorization", bearer()));
+
+        assertThat(note.path("kind").asText()).isEqualTo("action");
+        assertThat(note.path("next_take").asText()).isEqualTo("같은 대사를 말끝만 짧게 끝내서 한 번 해보세요.");
+        assertThat(note.path("next_take")).isNotEqualTo(note.at("/report/direction/text"));
+        assertThat(note.at("/report/practice/instruction").asText()).isEqualTo(note.path("next_take").asText());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"true,false", "true,true", "false,false", "false,true"})
+    @DisplayName("practice.coach: 프로필·기억 조회 실패를 원인·분류와 함께 보고하고 시작·후속 응답을 계속한다")
+    void practiceCoach_contextFailureIsReportedAndDoesNotBlockTheTurn(boolean failProfile, boolean followup) throws Exception {
+        UUID practice = analyzedPractice();
+        UUID conversation = null;
+        if (followup) {
+            generator.enqueue(COACH_REPLY);
+            conversation = UUID.fromString(startPractice(practice).at("/conversation/id").asText());
+            generator.reset();
+        }
+        RuntimeException failure = failProfile ? new IllegalStateException("profile value invalid")
+                : new org.springframework.dao.DataAccessResourceFailureException("memory database unavailable");
+        if (failProfile) {
+            org.mockito.Mockito.doThrow(failure).when(profiles).completeFor(user);
+        } else {
+            org.mockito.Mockito.doThrow(failure).when(memory).priorForPractice(
+                    org.mockito.ArgumentMatchers.eq(user), org.mockito.ArgumentMatchers.any(UUID.class),
+                    org.mockito.ArgumentMatchers.isNull());
+        }
+        generator.enqueue(COACH_REPLY);
+        JsonNode answer = followup
+                ? successful(post("/v2/coach/reply").contentType(MediaType.APPLICATION_JSON)
+                        .header("Authorization", bearer()).content(mapper.writeValueAsString(Map.of(
+                                "conversation_id", conversation, "request_id", UUID.randomUUID(), "text", "숨이 막혔어요"))))
+                : startPractice(practice);
+        assertThat(answer.path("message").asText()).isEqualTo("질문");
+        assertThat(failures.reports()).singleElement().satisfies(report -> {
+            Throwable origin = report.failure();
+            while (origin.getCause() != null) origin = origin.getCause();
+            assertThat(origin).isSameAs(failure);
+            assertThat(report.kind()).isEqualTo(failProfile
+                    ? com.acttub.actingapi.platform.observability.FailureKind.UNEXPECTED
+                    : com.acttub.actingapi.platform.observability.FailureKind.EXTERNAL);
+            assertThat(report.context()).isEqualTo(failProfile ? "ConversationService.actorProfile" : "ConversationService.priorContext");
+        });
+        if (failProfile) assertThat(generator.lastInput()).doesNotContain("## 배우 프로필");
+        else assertThat(generator.lastInput()).contains("## 배우 프로필");
+    }
+
+    @Test
+    @DisplayName("practice.analyze: 새 회차의 관찰을 공개 요약으로 읽고 남의 회차와 없는 회차는 같은 404다")
+    void practiceAnalysis_readsTheOwnedPublicSummary() throws Exception {
+        UUID practice = analyzedPractice();
+        JsonNode analysis = successful(get("/v2/practices/{id}/analysis", practice).header("Authorization", bearer()));
+        assertThat(analysis.path("format").asText()).isEqualTo("legacy");
+        assertThat(analysis.path("status").asText()).isEqualTo("ready");
+        assertThat(analysis.at("/summary/observations/0/label").asText()).isEqualTo("멈춘다");
+        assertThat(analysis.has("record")).isFalse();
+        jdbc.update("DELETE FROM analyses WHERE practice_id=?", practice);
+        var pending = mvc.perform(get("/v2/practices/{id}/analysis", practice).header("Authorization", bearer()))
+                .andReturn().getResponse();
+        assertThat(pending.getStatus()).isEqualTo(404);
+        assertThat(mapper.readTree(pending.getContentAsString()).path("detail").asText()).isEqualTo("analysis_not_found");
+
+        UUID other = fixtures.insertUser();
+        com.acttub.actingapi.support.AccountFixtures.passGate(jdbc, other);
+        for (UUID id : List.of(practice, UUID.randomUUID())) {
+            var response = mvc.perform(get("/v2/practices/{id}/analysis", id)
+                    .header("Authorization", "Bearer " + jwt.issueAccessToken(other).value())).andReturn().getResponse();
+            assertThat(response.getStatus()).isEqualTo(404);
+            assertThat(mapper.readTree(response.getContentAsString()).path("detail").asText()).isEqualTo("practice_not_found");
+        }
+    }
+
+    @Test
+    void practiceAnalysis_structuredRecordIsReadAsAPublicSummary() throws Exception {
+        JsonNode analysis = successful(get("/v2/practices/{id}/analysis", structuredPractice())
+                .header("Authorization", bearer()));
+        assertThat(analysis.path("format").asText()).isEqualTo("video_record_v1");
+        assertThat(analysis.at("/summary/schema_version").asText()).isEqualTo("acttub.video_record_summary.v1");
+        assertThat(analysis.at("/summary/record_id")).isEqualTo(analysis.path("id"));
+        assertThat(analysis.at("/summary/processed_ranges").isArray()).isTrue();
+        assertThat(analysis.path("summary").has("segments")).isFalse();
+        assertThat(analysis.path("summary").has("source_catalog")).isFalse();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{}", "null", "[]", "{\"observations\":null}", "{\"legacy\":true}"})
+    void practiceAnalysis_legacySplitObservationsRemainReadable(String raw) throws Exception {
+        UUID practice = fixtures.insertPractice(user).id();
+        fixtures.insertSummary(practice);
+        jdbc.update("UPDATE summaries SET raw=CAST(? AS jsonb) WHERE session_id=?", raw, practice);
+        JsonNode analysis = successful(get("/v2/practices/{id}/analysis", practice).header("Authorization", bearer()));
+        assertThat(analysis.path("format").asText()).isEqualTo("legacy");
+        assertThat(analysis.at("/summary/observations/0/label").asText()).isEqualTo("멈춘 뒤 말한다");
+        assertThat(analysis.at("/summary/uncertainties").toString()).contains("얼굴은 확인되지 않음");
+    }
+
+    @Test
+    @DisplayName("practice.resume: 같은 묶음의 이전 대화·노트만 참고하고 제안을 실행 약속으로 바꾸지 않는다")
+    void practiceResume_onlyEarlierRoundsOfTheSameGroupReachTheModel() throws Exception {
+        UUID previous = analyzedPractice();
+        closeWithNote(previous, "지난 회차에서 숨을 길게 쉬었어요", "호흡의 끝", "한 번 천천히 말해 보기");
+        UUID unrelated = analyzedPractice();
+        closeWithNote(unrelated, "다른 장면의 비밀", "무관한 노트", "무관한 제안");
+        UUID current = analyzedPractice();
+        jdbc.update("UPDATE practices SET root_id=?,ordinal=2 WHERE id=?", previous, current);
+        // 숨긴 묶음에서도 이어하기는 된다. 숨김은 기록 목록의 표시만 바꾼다.
+        jdbc.update("UPDATE practices SET hidden_at=now() WHERE id=?", previous);
+        generator.enqueue(COACH_REPLY);
+
+        startPractice(current);
+
+        assertThat(generator.lastInput())
+                .contains("지난 회차에서 숨을 길게 쉬었어요", "호흡의 끝", "제안: 한 번 천천히 말해 보기")
+                .doesNotContain("다른 장면의 비밀", "무관한 노트", "무관한 제안", "해보기로 했지만 아직 안 해본 것");
+    }
+
+    @Test
+    @DisplayName("practice.resume: 복수 대화 전환 후 옛 표에 남은 노트도 다음 회차의 참고 맥락에 남는다")
+    void practiceResume_keepsAnOlderNoteWhenTheLatestMigratedConversationHasNone() throws Exception {
+        UUID previous = fixtures.insertPractice(user).id();
+        UUID summary = fixtures.insertSummary(previous);
+        var stamp = CoachStorageFixtures.NOW.atOffset(java.time.ZoneOffset.UTC);
+        UUID early = UUID.randomUUID();
+        fixtures.insertCoachSession(early, previous, summary, "closed", stamp, List.of());
+        UUID handoff = fixtures.insertHandoff(early, previous, stamp);
+        jdbc.update("""
+                INSERT INTO practice_reports(id,practice_session_id,report_type,report_json,source_handoff_id)
+                VALUES (?,?,'analysis',CAST(? AS jsonb),?)
+                """, UUID.randomUUID(), previous, REPORT_BODY, handoff);
+        fixtures.insertCoachSession(UUID.randomUUID(), previous, summary, "closed", stamp.plusMinutes(1), List.of());
+        migration.run(50);
+        JsonNode visibleNote = successful(get("/v2/practices/{id}/note", previous).header("Authorization", bearer()));
+        assertThat(visibleNote.at("/report/title").asText()).isEqualTo("생성된 리포트");
+        UUID current = analyzedPractice();
+        jdbc.update("UPDATE practices SET root_id=?,ordinal=2 WHERE id=?", previous, current);
+        generator.enqueue(COACH_REPLY);
+
+        startPractice(current);
+
+        assertThat(generator.lastInput()).contains("생성된 리포트", "다음: 방향");
+    }
+
+    private void closeWithNote(UUID practice, String actorText, String title, String nextTake) {
+        UUID conversation = insertConversation(practice, List.of("어떤 느낌이었나요", actorText));
+        jdbc.update("UPDATE coach_conversations SET status='closed' WHERE id=?", conversation);
+        jdbc.update("UPDATE practices SET stage='closed',close_reason='conversation_closed' WHERE id=?", practice);
+        jdbc.update("""
+                INSERT INTO coach_notes(id,conversation_id,format,kind,title,next_take,source_revision)
+                VALUES (?,?,'v2','action',?,?,0)
+                """, UUID.randomUUID(), conversation, title, nextTake);
+    }
+
+    private UUID analyzedPractice() {
+        UUID video = UUID.randomUUID();
+        UUID practice = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO videos(id,user_id,object_key,content_type,byte_size,duration_ms)
+                VALUES (?,?,?,'video/mp4',1000,12000)
+                """, video, user, "videos/" + video + ".mp4");
+        jdbc.update("""
+                INSERT INTO practices(id,user_id,video_id,root_id,ordinal,stage,experience_version,
+                                      blockage_kind,sub_branch,situation)
+                VALUES (?,?,?,?,1,'conversing','legacy','분석','캐릭터 분석','문 앞에서 돌아선다')
+                """, practice, user, video, practice);
+        jdbc.update("""
+                INSERT INTO analyses(id,practice_id,format,status,model,record,completed_at)
+                VALUES (?,?,'legacy','ready','test-model',CAST(? AS jsonb),now())
+                """, UUID.randomUUID(), practice,
+                "{\"scene_summary\":\"문 앞에서 돌아선다.\",\"observations\":" + OBSERVATIONS + ",\"uncertainties\":[]}");
+        return practice;
+    }
+
+    private JsonNode startPractice(UUID practice) throws Exception {
+        return successful(post("/v2/coach/start")
+                .contentType(MediaType.APPLICATION_JSON).header("Authorization", bearer())
+                .content(mapper.writeValueAsString(Map.of("practice_id", practice, "request_id", UUID.randomUUID()))));
+    }
+
     private static Map<String, Object> profile(String experience) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("name", NAME);
@@ -332,70 +596,44 @@ class CoachReadsProfileIT {
                 .andReturn().getResponse().getStatus()).isEqualTo(200);
     }
 
-    private UUID legacyPractice() {
-        CoachStorageFixtures.Practice practice = fixtures.insertPractice(user);
-        fixtures.insertSummary(practice.id());
-        useValidObservationPack(practice.id());
-        return practice.id();
+    private void rememberGoal() {
+        jdbc.update("""
+                INSERT INTO actor_memories(id,user_id,field,value,written_by)
+                VALUES (?,?,'goal','입시 합격','actor')
+                """, UUID.randomUUID(), user);
     }
 
     private UUID structuredPractice() {
-        CoachStorageFixtures.Practice practice = fixtures.insertPractice(user);
-        UUID summaryId = fixtures.insertSummary(practice.id());
-        jdbc.update("UPDATE practice_sessions SET experience_version='three_layers_v1' WHERE id=?", practice.id());
+        UUID practice = analyzedPractice();
+        UUID analysis = jdbc.queryForObject("SELECT id FROM analyses WHERE practice_id=?", UUID.class, practice);
+        jdbc.update("UPDATE practices SET experience_version='three_layers_v1' WHERE id=?", practice);
         var record = (com.fasterxml.jackson.databind.node.ObjectNode) StructuredJson.resource("/coaching/record.json");
-        record.put("record_id", summaryId.toString());
-        jdbc.update("UPDATE summaries SET raw=?::jsonb WHERE session_id=?", record.toString(), practice.id());
-        return practice.id();
+        record.put("record_id", analysis.toString());
+        jdbc.update("UPDATE analyses SET format='video_record_v1',record=CAST(? AS jsonb) WHERE practice_id=?", record.toString(), practice);
+        return practice;
     }
 
     private UUID openLegacySession() {
-        CoachStorageFixtures.Practice practice = fixtures.insertPractice(user);
-        UUID summaryId = fixtures.insertSummary(practice.id());
-        useValidObservationPack(practice.id());
-        UUID sessionId = UUID.randomUUID();
-        fixtures.insertCoachSession(sessionId, practice.id(), summaryId, "open", CREATED_AT,
-                List.of(new CoachTurnSnapshot("actor", "배우 말"), new CoachTurnSnapshot("ai", "저장된 질문")));
-        return sessionId;
+        return insertConversation(analyzedPractice(), List.of("저장된 질문", "배우 말"));
     }
 
-    /** 핸드오프까지 나온 세션 — 확정하거나 노트를 요청하면 모델을 한 번 부른다. */
-    private UUID closableLegacySession() {
-        CoachStorageFixtures.Practice practice = fixtures.insertPractice(user);
-        UUID summaryId = fixtures.insertSummary(practice.id());
-        useValidObservationPack(practice.id());
-        UUID sessionId = UUID.randomUUID();
-        fixtures.insertCoachSession(sessionId, practice.id(), summaryId, "open", CREATED_AT, List.of());
-        fixtures.insertHandoff(sessionId, practice.id(), CREATED_AT);
-        return sessionId;
-    }
-
-    private void useValidObservationPack(UUID practiceId) {
-        jdbc.update("""
-                UPDATE summaries
-                SET raw = ?::jsonb, observations_json = ?::jsonb, uncertainties_json = '[]'::jsonb
-                WHERE session_id = ?
-                """,
-                "{\"scene_summary\":\"문 앞에서 돌아선다.\",\"observations\":" + OBSERVATIONS + ",\"uncertainties\":[]}",
-                OBSERVATIONS, practiceId);
-    }
-
-    private JsonNode start(UUID practiceId, String contract) throws Exception {
-        var request = post("/v2/coach/start")
-                .contentType(MediaType.APPLICATION_JSON)
-                .header("Authorization", bearer())
-                // 새 요청 ID 다 — 같은 ID 는 앞선 응답을 되돌려줄 뿐 모델을 다시 부르지 않는다.
-                .header("X-Request-Id", UUID.randomUUID())
-                .content("{\"practice_session_id\":\"" + practiceId + "\"}");
-        return successful(contract == null ? request : request.header("X-Acttub-Contract", contract));
+    private UUID insertConversation(UUID practice, List<String> messages) {
+        UUID conversation = UUID.randomUUID();
+        jdbc.update("INSERT INTO coach_conversations(id,practice_id,start_request_id,status) VALUES (?,?,?,'open')",
+                conversation, practice, UUID.randomUUID());
+        for (int i = 0; i < messages.size(); i++) {
+            jdbc.update("INSERT INTO coach_messages(id,conversation_id,turn_index,role,text) VALUES (?,?,?,?,?)",
+                    UUID.randomUUID(), conversation, i, i % 2 == 0 ? "ai" : "actor", messages.get(i));
+        }
+        return conversation;
     }
 
     private JsonNode reply(UUID sessionId, String contract) throws Exception {
         var request = post("/v2/coach/reply")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", bearer())
-                .header("X-Request-Id", UUID.randomUUID())
-                .content("{\"session_id\":\"" + sessionId + "\",\"text\":\"정리해줘\"}");
+                .content(mapper.writeValueAsString(Map.of("conversation_id", sessionId,
+                        "request_id", UUID.randomUUID(), "text", "정리해줘")));
         return successful(contract == null ? request : request.header("X-Acttub-Contract", contract));
     }
 

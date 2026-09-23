@@ -1,3 +1,4 @@
+import { AccountContent } from '@/components/account-content';
 import Feather from '@expo/vector-icons/Feather';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState, type ComponentProps } from 'react';
@@ -20,6 +21,10 @@ import { isKorean, translate as t } from '@/lib/i18n';
  * 영상(A15.5)은 예시 데이터 화면. 챌린지 수도 계약이 없어 0을 보여준다(연습 수만 실데이터).
  */
 export default function ProfileScreen() {
+  return <AccountContent><ProfileScreenContent /></AccountContent>;
+}
+
+function ProfileScreenContent() {
   const router = useRouter();
   const { user, profile } = useAuth();
   const [name, setName] = useState<string | null>(null);
@@ -32,9 +37,10 @@ export default function ProfileScreen() {
     useCallback(() => {
       let alive = true;
       void getUserName().then((n) => alive && setName(n?.trim() || null));
+      // 연습 횟수는 묶음의 회차 수를 더한 값이다(practice.library).
       void api
-        .reportHistory()
-        .then((r) => alive && setPracticeCount(r.reports.length))
+        .listPracticeGroups('all')
+        .then((r) => alive && setPracticeCount(r.groups.reduce((sum, g) => sum + g.ordinal_count, 0)))
         .catch(() => {});
       return () => {
         alive = false;
@@ -102,7 +108,16 @@ export default function ProfileScreen() {
         <Row icon="video" title={t('profileTab.archiveTitle')} sub={t('profileTab.archiveSub')} onPress={() => router.push('/archive')} />
         {/* 저장한 영상은 챌린지에서 담은 것뿐이라 챌린지와 함께 가린다 (SOMA-544). */}
         {isKorean() && (
-          <Row icon="bookmark" title={t('profileTab.savedTitle')} sub={t('profileTab.savedSub')} onPress={() => router.push('/saved-videos')} />
+          <>
+            <Row icon="bookmark" title={t('profileTab.savedTitle')} sub={t('profileTab.savedSub')} onPress={() => router.push('/saved-videos')} />
+            {/* P03 내 참여작 — 전체·공개·비공개·확인 중으로 센다(challenge.browse). */}
+            <Row
+              icon="award"
+              title={t('challengeEntries.title')}
+              sub={t('profileTab.challengeSub')}
+              onPress={() => router.push('/challenge-entries')}
+            />
+          </>
         )}
 
         {/* 코치의 기억 */}

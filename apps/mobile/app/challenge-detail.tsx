@@ -1,41 +1,169 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
-import { Image, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
-import { PERFORMERS, PERF_IMAGES, TODAY_LINE } from '@/lib/challenge-mock';
+import { api } from '@/lib/api';
+import {
+  avatarLetter,
+  browseFailure,
+  browseFailureMessage,
+  canDelete,
+  dDayLabel,
+  firstBadgeLabel,
+  hostLabel,
+  isEnded,
+  moderationNotice,
+  rankEntries,
+  rankingNotice,
+  ranksHidden,
+  type RankedEntry,
+} from '@/lib/challenge/browse';
+import { ChallengeReportSheet } from '@/components/challenge-report-sheet';
+import { buildReportBody, reportDoneMessage, reportFailure, reportFailureMessage } from '@/lib/challenge/moderation';
+import type { ChallengeDetail, EntrySort, ReportReason } from '@/lib/challenge/types';
+import { newRequestId } from '@/lib/request-id';
 import { translate as t } from '@/lib/i18n';
 
+type Ranked = RankedEntry;
+
 /**
- * A17 대사 상세 — 한 대사에 올라온 연기 영상을 좋아요순/최신순으로 겨루는 랭킹.
+ * A17 대사 상세·랭킹(challenge.browse).
  *
- * 예시(목업) 데이터로 채운다. 재생·좋아요·공유는 아직 백엔드가 없어 안내만 한다.
- * "이 대사로 연기하기"는 실제 연습 시작(/upload)으로 이어진다.
+ * 좋아요순은 공동 순위이고(좋아요가 같으면 같은 순위, 그 안에서는 최초 공개 시각·id 순),
+ * 최신순은 순위 숫자 없이 가장 최근 하나에만 NEW 를 붙인다. 좋아요가 모두 0이면 1위 배지가
+ * 없다. 종료된 챌린지는 굳은 값을 보여 주고 확정 전에는 "집계 중"이다. 좋아요 랭킹은 반응 수를
+ * 세운 순서이지 연기 점수가 아니다(ADR-005 개정).
  */
 export default function ChallengeDetailScreen() {
   const router = useRouter();
-  const { dialog } = useAppDialog();
-  const params = useLocalSearchParams<{ line?: string; work?: string }>();
-  const [tab, setTab] = useState(0);
-  const line = params.line || TODAY_LINE.line;
-  const work = params.work || TODAY_LINE.work;
+  const { alert, confirm, dialog } = useAppDialog();
+  const { id } = useLocalSearchParams<{ id?: string }>();
+  const [sort, setSort] = useState<EntrySort>('likes');
+  const [challenge, setChallenge] = useState<ChallengeDetail | null>(null);
+  const [entries, setEntries] = useState<Ranked[] | null>(null);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  /** 지금 보이는 정렬. 이어 받는 중에 정렬을 바꾸면 늦게 온 옛 정렬의 결과를 버린다. */
+  const shownSort = useRef<EntrySort>('likes');
+  const [error, setError] = useState<string | null>(null);
+  const [reportOpen, setReportOpen] = useState(false);
 
-  // 공유는 OS 공유 시트로 — 서버 없이도 동작한다.
+  const load = useCallback(
+    async (nextSort: EntrySort) => {
+      if (!id) return;
+      shownSort.current = nextSort;
+      setCursor(null);
+      setError(null);
+      try {
+        const [detail, list] = await Promise.all([
+          api.getChallenge(id),
+          api.listChallengeEntries(id, { sort: nextSort }),
+        ]);
+        setChallenge(detail);
+        setEntries(rankEntries(list.entries, nextSort));
+        setCursor(list.next_cursor);
+      } catch (e) {
+        const failure = browseFailure(e);
+        setEntries([]);
+        setError(browseFailureMessage(failure));
+        // 정렬 기준이 바뀌어 커서가 만료되면 처음부터 다시 읽는다.
+        if (failure.kind === 'cursor_expired') void api.listChallengeEntries(id, { sort: nextSort }).then((list) => {
+          setEntries(rankEntries(list.entries, nextSort));
+          setCursor(list.next_cursor);
+          setError(null);
+        }).catch(() => undefined);
+      }
+    },
+    [id],
+  );
+
+  /**
+   * 20개씩 이어 받는다. 좋아요순은 서버가 첫 조회의 순서를 10분 굳혀 두므로 그대로 붙이고, 기준이 바뀌었거나 오래돼
+   * 410 cursor_expired 면 처음부터 다시 읽는다.
+   */
+  const loadMore = async () => {
+    if (!id || !cursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const asked = sort;
+      const list = await api.listChallengeEntries(id, { sort: asked, cursor });
+      if (shownSort.current !== asked) return;
+      setEntries((prev) => [...(prev ?? []), ...rankEntries(list.entries, asked)]);
+      setCursor(list.next_cursor);
+    } catch (e) {
+      if (browseFailure(e).kind === 'cursor_expired') void load(sort);
+      else setError(browseFailureMessage(browseFailure(e)));
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  useEffect(() => {
+    void load(sort);
+  }, [load, sort]);
+
+  /** 참여작이 없는 자기 챌린지만 지운다. 지우면 목록·상세에서 사라진다(행은 남는다). */
+  const remove = async () => {
+    if (!challenge) return;
+    const ok = await confirm({
+      title: t('challenges.deleteTitle'),
+      message: t('challenges.deleteBody'),
+      confirmLabel: t('challenges.deleteConfirm'),
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await api.deleteChallenge(challenge.id);
+      logEvent('challenge_deleted', { id: challenge.id });
+      router.back();
+    } catch (e) {
+      const failure = browseFailure(e);
+      void alert({
+        title: t('challenges.deleteTitle'),
+        message: failure.kind === 'other' ? t('challenges.deleteHasEntries') : browseFailureMessage(failure),
+      });
+    }
+  };
+
+  /** 부적절한 대사는 챌린지 자체를 신고한다 — 신고가 쌓이면 운영이 본다(즉시 숨기지 않는다). */
+  const sendReport = async (reason: ReportReason, note: string) => {
+    setReportOpen(false);
+    if (!challenge) return;
+    try {
+      await api.createReport(
+        buildReportBody({ requestId: newRequestId(), target: 'challenge', targetId: challenge.id, reason, note }),
+      );
+      logEvent('challenge_report', { reason, target: 'challenge' });
+      void alert({ title: t('videoReport.doneTitle'), message: reportDoneMessage('challenge') });
+    } catch (e) {
+      void alert({ title: t('videoReport.titleChallenge'), message: reportFailureMessage(reportFailure(e)) });
+    }
+  };
+
   const share = () => {
-    logEvent('challenge_share', { line: line.slice(0, 40) });
-    void Share.share({ message: t('profileTab.shareText', { name: work, line }) }).catch(() => {});
+    if (!challenge) return;
+    logEvent('challenge_share', { id: challenge.id });
+    void Share.share({ message: t('profileTab.shareText', { name: challenge.work, line: challenge.line }) }).catch(() => {});
   };
-  // 대사를 띄운 챌린지 촬영(pen A18)으로. 찍으면 챌린지 올리기로 이어진다.
+
   const perform = () => {
-    logEvent('challenge_perform_tap', { line: line.slice(0, 40) });
-    router.push({ pathname: '/record-video', params: { mode: 'challenge', line, work } });
+    if (!challenge) return;
+    logEvent('challenge_perform_tap', { id: challenge.id });
+    router.push({
+      pathname: '/record-video',
+      params: { mode: 'challenge', challengeId: challenge.id, line: challenge.line, work: challenge.work },
+    });
   };
-  // 최신순 탭은 예시라 순서만 뒤집어 다르게 보이게 한다.
-  const list = tab === 0 ? PERFORMERS : [...PERFORMERS].reverse();
+
+  const ended = challenge ? isEnded(challenge) : false;
+  const hideRanks = challenge ? ranksHidden(challenge) : false;
+  const notice = challenge ? rankingNotice(challenge) : null;
+  const moderation = challenge ? moderationNotice(challenge) : null;
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
@@ -44,86 +172,155 @@ export default function ChallengeDetailScreen() {
           headerShown: true,
           title: t('challenges.detailTitle'),
           headerRight: () => (
-            <Pressable onPress={share} accessibilityRole="button" hitSlop={8}>
-              <Feather name="share-2" size={20} color={palette.textDim} />
-            </Pressable>
+            <View style={styles.headerRight}>
+              {challenge && !canDelete(challenge) && (
+                <Pressable onPress={() => setReportOpen(true)} accessibilityRole="button" hitSlop={8}>
+                  <Feather name="flag" size={19} color={palette.textDim} />
+                </Pressable>
+              )}
+              {challenge && canDelete(challenge) && (
+                <Pressable onPress={() => void remove()} accessibilityRole="button" hitSlop={8}>
+                  <Feather name="trash-2" size={19} color={palette.textDim} />
+                </Pressable>
+              )}
+              <Pressable onPress={share} accessibilityRole="button" hitSlop={8}>
+                <Feather name="share-2" size={20} color={palette.textDim} />
+              </Pressable>
+            </View>
           ),
         }}
       />
       <ScrollView contentContainerStyle={styles.content}>
-        {/* 대사 카드 */}
-        <View style={styles.lineCard}>
-          <Text style={styles.lineLabel}>{t('challenges.todayLabel')}</Text>
-          <Text style={styles.line}>“{line}”</Text>
-          <Text style={styles.work}>{work}</Text>
-          <Text style={styles.stat}>
-            {t('challenges.statLine', { plays: TODAY_LINE.plays, likes: TODAY_LINE.likes })}
-          </Text>
-          <Pressable
-            style={({ pressed }) => [styles.performBtn, pressed && styles.pressed]}
-            onPress={perform}
-            accessibilityRole="button">
-            <Feather name="play" size={15} color="#FFFFFF" />
-            <Text style={styles.performText}>{t('challenges.performCta2')}</Text>
-          </Pressable>
-        </View>
+        {!challenge && !error && <ActivityIndicator color={palette.blue} style={{ marginTop: 40 }} />}
+        {error && <Text style={styles.error}>{error}</Text>}
 
-        <Text style={styles.performersLabel}>{t('challenges.performers', { count: PERFORMERS.length })}</Text>
+        {challenge && (
+          <>
+            <View style={styles.lineCard}>
+              <Text style={styles.line}>“{challenge.line}”</Text>
+              <Text style={styles.work}>
+                {[challenge.work, challenge.character].filter(Boolean).join(' · ')}
+              </Text>
+              {!!challenge.scene_note && <Text style={styles.note}>{challenge.scene_note}</Text>}
+              <Text style={styles.host}>{hostLabel(challenge)}</Text>
+              <Text style={styles.stat}>
+                {t('challenges.entryCount', { count: challenge.entry_count })} ·{' '}
+                {t('challenges.likeSum', { count: challenge.like_sum })} · {dDayLabel(challenge)}
+              </Text>
+              {!ended && (
+                <Pressable style={styles.performBtn} onPress={perform} accessibilityRole="button">
+                  <Feather name="video" size={15} color="#FFFFFF" />
+                  <Text style={styles.performText}>{t('challenges.performCta2')}</Text>
+                </Pressable>
+              )}
+            </View>
 
-        {/* 좋아요순 / 최신순 */}
-        <View style={styles.tabRow}>
-          {[t('challenges.tabLikes'), t('challenges.tabRecent')].map((label, i) => (
-            <Pressable key={label} style={styles.tab} onPress={() => setTab(i)}>
-              <Text style={[styles.tabText, tab === i && styles.tabTextOn]}>{label}</Text>
-              {tab === i && <View style={styles.tabUnderline} />}
-            </Pressable>
-          ))}
-        </View>
+            {!!moderation && <Text style={styles.notice}>{moderation}</Text>}
+            {!!notice && <Text style={styles.notice}>{notice}</Text>}
 
-        {/* 연기 영상 랭킹 */}
-        <View style={styles.list}>
-          {list.map((p, i) => (
-            <Pressable
-              key={p.name}
-              style={({ pressed }) => [styles.row, pressed && styles.pressed]}
-              onPress={() =>
-                router.push({ pathname: '/challenge-play', params: { name: p.name, line } })
-              }
-              accessibilityRole="button">
-              {tab === 0 && <Text style={[styles.rank, i < 3 && styles.rankTop]}>{i + 1}</Text>}
-              <View style={styles.thumbWrap}>
-                <Image source={PERF_IMAGES[p.img]} style={styles.thumb} resizeMode="cover" />
-                <View style={styles.playOverlay}>
-                  <Feather name="play" size={16} color="#FFFFFF" />
+            <View style={styles.tabRow}>
+              {(
+                [
+                  ['likes', 'challenges.tabLikes'],
+                  ['latest', 'challenges.tabRecent'],
+                ] as const
+              ).map(([key, label]) => (
+                <Pressable
+                  key={key}
+                  style={styles.tab}
+                  onPress={() => {
+                    setSort(key);
+                    setEntries(null);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: sort === key }}>
+                  <Text style={[styles.tabText, sort === key && styles.tabTextOn]}>{t(label)}</Text>
+                  {sort === key && <View style={styles.tabUnderline} />}
+                </Pressable>
+              ))}
+            </View>
+
+            {entries === null && <ActivityIndicator color={palette.blue} style={{ marginTop: 24 }} />}
+            {entries?.map((entry) => (
+              <Pressable
+                key={entry.id}
+                style={styles.entry}
+                onPress={() =>
+                  router.push({ pathname: '/challenge-play', params: { id: challenge.id, entryId: entry.id } })
+                }
+                accessibilityRole="button">
+                <View style={styles.rankCell}>
+                  {!hideRanks && entry.displayRank !== null ? (
+                    <Text style={styles.rank}>{entry.displayRank}</Text>
+                  ) : (
+                    <View style={styles.avatar}>
+                      <Text style={styles.avatarText}>{avatarLetter(entry.author.name)}</Text>
+                    </View>
+                  )}
                 </View>
-              </View>
-              <View style={styles.rowBody}>
-                <Text style={styles.rowName}>{p.name}</Text>
-                <View style={styles.likeRow}>
-                  <Feather name="heart" size={12} color={palette.textFaint} />
-                  <Text style={styles.likeText}>{p.likes}</Text>
+                <View style={styles.entryBody}>
+                  <View style={styles.entryHead}>
+                    <Text style={styles.author} numberOfLines={1}>
+                      {entry.author.name}
+                    </Text>
+                    {entry.isNew && <Text style={styles.newBadge}>{t('challenges.newBadge')}</Text>}
+                  </View>
+                  {!!entry.caption && (
+                    <Text style={styles.caption} numberOfLines={2}>
+                      {entry.caption}
+                    </Text>
+                  )}
+                  {!hideRanks && entry.showsFirstBadge && (
+                    <Text style={styles.firstBadge}>{firstBadgeLabel(entry, ended)}</Text>
+                  )}
                 </View>
-              </View>
-              <Feather name="chevron-right" size={18} color={palette.checkOff} />
-            </Pressable>
-          ))}
-        </View>
+                <View style={styles.likeChip}>
+                  <Feather name="heart" size={13} color={palette.textFaint} />
+                  <Text style={styles.likeText}>{entry.like_count}</Text>
+                </View>
+              </Pressable>
+            ))}
+
+            {cursor && (
+              <Pressable style={styles.moreBtn} onPress={() => void loadMore()} disabled={loadingMore} accessibilityRole="button">
+                {loadingMore ? (
+                  <ActivityIndicator color={palette.blue} />
+                ) : (
+                  <Text style={styles.moreText}>{t('challenges.moreEntries')}</Text>
+                )}
+              </Pressable>
+            )}
+
+            {entries !== null && entries.length === 0 && !error && (
+              <Text style={styles.empty}>{t('challenges.emptyEntries')}</Text>
+            )}
+          </>
+        )}
       </ScrollView>
+      <ChallengeReportSheet
+        visible={reportOpen}
+        target="challenge"
+        onClose={() => setReportOpen(false)}
+        onSubmit={(reason, note) => void sendReport(reason, note)}
+      />
       {dialog}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  moreBtn: { alignItems: 'center', paddingVertical: 14 },
+  moreText: { color: palette.blue, fontSize: 14, fontWeight: '600' },
   safe: { flex: 1, backgroundColor: palette.bg },
-  pressed: { opacity: 0.8 },
-  content: { padding: 20, paddingBottom: 40, gap: 14 },
-
-  lineCard: { backgroundColor: palette.navy, borderRadius: 18, padding: 18, gap: 10 },
-  lineLabel: { fontSize: 12, fontWeight: '700', color: '#8FA5FF' },
-  line: { fontSize: 19, fontWeight: '800', color: '#FFFFFF', lineHeight: 27 },
-  work: { fontSize: 12.5, fontWeight: '600', color: '#9FB0C9' },
-  stat: { fontSize: 12, fontWeight: '600', color: '#8FA5FF' },
+  content: { padding: 20, paddingBottom: 60, gap: 10 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  error: { color: palette.danger, fontSize: 13.5, fontWeight: '700', textAlign: 'center', paddingVertical: 16 },
+  lineCard: { backgroundColor: palette.navy, borderRadius: 18, padding: 18, gap: 8 },
+  line: { fontSize: 19, fontWeight: '900', color: '#FFFFFF', lineHeight: 28 },
+  work: { fontSize: 13, fontWeight: '600', color: '#9FB0C9' },
+  note: { fontSize: 12.5, color: '#9FB0C9', lineHeight: 19 },
+  host: { fontSize: 12, fontWeight: '600', color: '#8FA5FF' },
+  stat: { fontSize: 12.5, fontWeight: '600', color: '#9FB0C9' },
   performBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -132,44 +329,34 @@ const styles = StyleSheet.create({
     backgroundColor: palette.blue,
     borderRadius: 12,
     paddingVertical: 13,
-    marginTop: 2,
+    marginTop: 6,
   },
   performText: { fontSize: 15, fontWeight: '800', color: '#FFFFFF' },
-
-  performersLabel: { fontSize: 13, fontWeight: '800', color: palette.textMuted, marginTop: 4 },
-  tabRow: { flexDirection: 'row', gap: 20 },
+  notice: { fontSize: 12.5, fontWeight: '700', color: palette.amber, paddingVertical: 4 },
+  tabRow: { flexDirection: 'row', gap: 18, marginTop: 8 },
   tab: { paddingBottom: 8, alignItems: 'center', gap: 8 },
   tabText: { fontSize: 14, fontWeight: '700', color: palette.textFaint },
   tabTextOn: { color: palette.text },
   tabUnderline: { height: 2, width: '100%', borderRadius: 1, backgroundColor: palette.text },
-
-  list: { gap: 10 },
-  row: {
+  entry: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: palette.card,
-    borderColor: palette.border,
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 10,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: palette.borderSoft,
   },
-  rank: { width: 18, fontSize: 15, fontWeight: '900', color: palette.textFaint, textAlign: 'center' },
-  rankTop: { color: palette.blue },
-  thumbWrap: { width: 52, height: 68, borderRadius: 10, overflow: 'hidden', backgroundColor: palette.bgSoft },
-  thumb: { width: '100%', height: '100%' },
-  playOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.18)',
-  },
-  rowBody: { flex: 1, gap: 5 },
-  rowName: { fontSize: 15, fontWeight: '700', color: palette.text },
-  likeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  rankCell: { width: 28, alignItems: 'center' },
+  rank: { fontSize: 16, fontWeight: '900', color: palette.blue },
+  avatar: { width: 26, height: 26, borderRadius: 13, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 12, fontWeight: '900', color: palette.blueDeep },
+  entryBody: { flex: 1, gap: 3 },
+  entryHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  author: { fontSize: 14.5, fontWeight: '700', color: palette.text },
+  newBadge: { fontSize: 10.5, fontWeight: '900', color: palette.blue },
+  caption: { fontSize: 12.5, color: palette.textFaint, lineHeight: 19 },
+  firstBadge: { fontSize: 12, fontWeight: '800', color: palette.blueDeep },
+  likeChip: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   likeText: { fontSize: 12, fontWeight: '700', color: palette.textFaint },
+  empty: { fontSize: 14, color: palette.textDim, textAlign: 'center', paddingVertical: 40, lineHeight: 22 },
 });

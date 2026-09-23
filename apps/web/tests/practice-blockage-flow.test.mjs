@@ -17,9 +17,11 @@ const {
   subBranchChoices,
 } = await import("../src/features/practice/blockage-flow.ts");
 const {
-  completedCoachReport,
   renderablePracticeReport,
 } = await import("../src/features/practice/coach-contract.ts");
+const { isConversationDone } = await import(
+  "../src/features/practice/conversation-view.ts"
+);
 
 const appRoot = path.resolve(import.meta.dirname, "..");
 const blockageSelectionSource = readFileSync(
@@ -215,25 +217,16 @@ test("서술 입력은 섹션 제목이 h2 로 서고 한 칸으로 유지된다
   assert.equal((blockageSelectionSource.match(/<textarea/g) ?? []).length, 1);
 });
 
-test("complete 응답의 결과를 확인 단계 없이 바로 연다", () => {
-  const report = {
-    report_type: "blocked",
-    reason: "confirmed_expression_handoff_required",
-  };
-  assert.equal(completedCoachReport({
-    session_id: "coach-1",
-    message: "여기서 정리할게.",
-    status: "continue",
-    handoff: null,
-    report: null,
-  }), null);
-  assert.deepEqual(completedCoachReport({
-    session_id: "coach-1",
-    message: "여기서 정리할게.",
-    status: "complete",
-    handoff: { id: "handoff-1", branch_kind: "expression" },
-    report,
-  }), report);
+test("practice.coach: complete 응답의 노트를 확인 단계 없이 바로 받는다", () => {
+  // 신형에는 분석 확인·후보 선택 단계가 없다(ADR-027). 종료 응답이 노트를 그대로 싣고,
+  // 화면은 마지막 인사를 보여 준 뒤 배우가 누를 때 노트로 넘어간다.
+  const head = { id: "c-1", revision: 5, status: "open" };
+  const note = { id: "n-1", format: "v2", kind: "action", title: "말끝", summary_quotes: [], next_take: null, actor_words: [], corrections: [], tags: [], fallback: false, cheer: null, source_revision: 5, created_at: "2026-09-21T03:00:00Z" };
+
+  assert.equal(isConversationDone({ conversation: head, message: "여기서 정리할게.", status: "continue", note: null }), false);
+  assert.equal(isConversationDone({ conversation: { ...head, status: "closed" }, message: "여기서 정리할게.", note }), true);
+  // 대화가 닫혔다는 것은 대화 상태로도 온다.
+  assert.equal(isConversationDone({ conversation: { ...head, status: "closed" }, message: "", status: "continue", note }), true);
 });
 
 test("blocked 결과는 카드에 넘기지 않는다", () => {
@@ -274,10 +267,11 @@ test("complete가 오면 코치 응답에서 노트를 꺼내 받아 둔다", ()
     workspace.indexOf("const openNote = useCallback"),
   );
 
-  assert.match(pushAi, /const completed = completedCoachReport\(turn\);/);
+  // 노트는 종료 응답에 실려 온다(practice.note).
+  assert.match(pushAi, /report: turn\.note \?\? null,/);
   // 받아 둔 노트는 화면이 든다. 안 딸려 온 턴이 그것을 지우지 않는 것은
   // tests/workspace-state.test.mjs 가 실행으로 지킨다.
-  assert.match(pushAi, /report: completed,/);
+  assert.match(pushAi, /done,/);
   assert.doesNotMatch(workspace, /이제 맞아요|아직 달라요/);
 });
 
@@ -286,7 +280,7 @@ test("blocked 결과는 대화 내용과 안내와 마치기·다시 시작 버�
     path.join(appRoot, "src/features/workspace/workspace-app.tsx"),
     "utf8",
   );
-  const blockedStart = workspace.indexOf('if (report.report_type === "blocked")');
+  const blockedStart = workspace.indexOf("if (isBlockedReport(report))");
   const regularNoteStart = workspace.indexOf("\n  return (", blockedStart);
   const blocked = workspace.slice(blockedStart, regularNoteStart);
 

@@ -8,6 +8,7 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.profile.app.AccountCleanupRepository.Abandoned;
 import com.acttub.actingapi.feature.profile.app.AccountCleanupRepository.CleanupOperation;
+import com.acttub.actingapi.feature.profile.app.AccountCleanupRepository.Overdue;
 import com.acttub.actingapi.integration.oidc.AppleTokenClient;
 import com.acttub.actingapi.integration.oidc.KakaoUserClient;
 import com.acttub.actingapi.integration.oidc.NaverTokenClient;
@@ -23,8 +24,10 @@ import org.springframework.stereotype.Service;
  * 탈퇴 트랜잭션 밖에서 하는 정리 — 저장소의 객체 삭제와 제공자 쪽 연결 해제.
  *
  * <p><b>여기서 난 실패는 탈퇴를 되돌리지 않는다.</b> 탈퇴는 이미 끝났고, 실패한 정리는 장부에 남아
- * 7일 동안 다시 시도된다. 간격은 5분에서 시작해 두 배씩 늘고 12시간에서 멈춘다. 성공하면 행을 값과
- * 함께 지우고, 7일이 지나면 포기하고 지운다 — 해제에 쓸 값을 그보다 오래 들고 있지 않는다.
+ * 다시 시도된다. 간격은 5분에서 시작해 두 배씩 늘고 12시간에서 멈춘다. 성공하면 행을 값과 함께 지운다.
+ * 7일이 지나면 종류가 가른다: <b>제공자 해제</b>는 포기하고 값과 함께 지우고(해제에 쓸 값을 그보다 오래 들고
+ * 있지 않는다), <b>객체 삭제</b>(영상·사진·리딩 녹음)는 성공할 때까지 키를 지우지 않고 계속 시도하되 7일
+ * 연속 실패면 운영자에게 알린다 — 사람이 복구할 대상이다(03-reading 「리딩 자료의 이관·삭제·탈퇴」).
  *
  * <p>실패는 조용히 묻지 않는다. 시도가 실패할 때마다 보고하고(같은 자리·같은 예외의 반복은 보고기가
  * 10분 동안 억제한다, ADR-025), 애플 폐기는 App Store 필수라 <b>7일 뒤에도 실패면 따로 알린다.</b>
@@ -86,6 +89,7 @@ public class AccountCleanup {
     public int runDue() {
         Instant now = clock.instant();
         operations.removeExpired(now).forEach(this::abandoned);
+        operations.deferOverdueObjectDeletes(now).forEach(this::overdue);
         int attempted = 0;
         List<CleanupOperation> claimed;
         do {
@@ -100,7 +104,8 @@ public class AccountCleanup {
         try {
             String payload = secrets.decrypt(operation.payloadEncrypted());
             switch (operation.kind()) {
-                case "object_delete" -> deleteObjects(payload);
+                // 리딩 녹음 객체도 같은 저장소의 객체 키 목록이다(reading.recording).
+                case "object_delete", "reading_recording_delete" -> deleteObjects(payload);
                 case "apple_revoke" -> apple.revoke(payload);
                 case "kakao_unlink" -> kakao.unlink(payload);
                 case "naver_revoke" -> naver.revoke(payload);
@@ -140,6 +145,14 @@ public class AccountCleanup {
                 new FailureContext("AccountCleanup.appleRevocationAbandoned", operation.id()));
     }
 
+    /** 객체 삭제가 7일 동안 실패했다. 키는 장부에 남아 있고 시도는 계속되지만 사람이 봐야 한다 — 일주일마다 다시 알린다. */
+    private void overdue(Overdue operation) {
+        failureReporter.report(
+                new ObjectDeletionOverdue(operation.kind(), operation.attemptCount(), operation.lastError()),
+                FailureKind.EXTERNAL,
+                new FailureContext("AccountCleanup.objectDeletionOverdue", operation.id()));
+    }
+
     static Duration retryDelay(int attemptCount) {
         Duration delay = FIRST_RETRY;
         for (int i = 1; i < attemptCount && delay.compareTo(LONGEST_RETRY) < 0; i++) {
@@ -155,6 +168,16 @@ public class AccountCleanup {
     public static final class AppleRevocationAbandoned extends RuntimeException {
         AppleRevocationAbandoned(int attempts, String lastError) {
             super("apple token revocation abandoned after " + attempts + " attempts; last error: " + lastError);
+        }
+    }
+
+    /**
+     * 객체 삭제(영상·사진·리딩 녹음)를 7일 동안 성공하지 못했다. 키는 장부에 그대로 있고 시도는 계속된다 —
+     * 저장소 쪽을 사람이 봐야 한다. 객체 키는 싣지 않는다.
+     */
+    public static final class ObjectDeletionOverdue extends RuntimeException {
+        ObjectDeletionOverdue(String kind, int attempts, String lastError) {
+            super(kind + " still failing after " + attempts + " attempts over the retry window; last error: " + lastError);
         }
     }
 }

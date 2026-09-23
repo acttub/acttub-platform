@@ -1,0 +1,52 @@
+{
+  "title": "봄의 요양원",
+  "roles": [
+    "수아",
+    "박사",
+    "연우"
+  ],
+  "lines": [
+    {
+      "type": "scene",
+      "text": "제1막"
+    },
+    {
+      "type": "dialogue",
+      "role": "수아",
+      "text": "여기가 어디죠?"
+    },
+    {
+      "type": "dialogue",
+      "role": "박사",
+      "text": "요양원입니다."
+    },
+    {
+      "type": "dialogue",
+      "role": "연우",
+      "text": "조용히 해."
+    },
+    {
+      "type": "dialogue",
+      "role": "수아",
+      "text": "네."
+    },
+    {
+      "type": "dialogue",
+      "role": "박사",
+      "text": "앉으세요."
+    },
+    {
+      "type": "direction",
+      "text": "무대감독: 조명 바꿔."
+    },
+    {
+      "type": "direction",
+      "text": "무대감독: 음악."
+    },
+    {
+      "type": "dialogue",
+      "role": "연우",
+      "text": "됐어."
+    }
+  ]
+}

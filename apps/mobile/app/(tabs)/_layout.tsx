@@ -5,9 +5,10 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
+import { LegacyArchivePrompt } from '@/components/legacy-archive-prompt';
 import { RecordModeSheet, type RecordMode } from '@/components/record-mode-sheet';
 import { palette } from '@/constants/palette';
-import { TODAY_LINE } from '@/lib/challenge-mock';
+import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
 import { useRequireLogin } from '@/hooks/use-require-login';
 import { isKorean, translate as t } from '@/lib/i18n';
 
@@ -24,7 +25,9 @@ export default function TabLayout() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [modeOpen, setModeOpen] = useState(false);
-  const { requireLogin, element: loginGuard } = useRequireLogin();
+  // 읽지 않은 알림 묶음 수 — 챌린지가 열린 사람에게만 읽는다.
+  const { isGuest, requireLogin, element: loginGuard } = useRequireLogin();
+  const unread = useUnreadNotifications(isKorean() && !isGuest);
 
   const pickMode = (mode: RecordMode) => {
     setModeOpen(false);
@@ -37,12 +40,8 @@ export default function TabLayout() {
       router.push({ pathname: '/record-video', params: { mode: 'plain' } });
       return;
     }
-    requireLogin(() =>
-      router.push({
-        pathname: '/record-video',
-        params: { mode: 'challenge', line: TODAY_LINE.line, work: TODAY_LINE.work },
-      }),
-    );
+    // 챌린지 참여는 대사를 고르는 데서 시작한다 — 목록에서 고른 챌린지가 촬영 화면에 대사를 준다.
+    requireLogin(() => router.push('/challenges'));
   };
 
   const icon = (outline: IoniconName, filled: IoniconName) => {
@@ -57,6 +56,7 @@ export default function TabLayout() {
 
   return (
     <>
+      <LegacyArchivePrompt />
       <Tabs
         screenOptions={{
           tabBarActiveTintColor: palette.blue,
@@ -106,11 +106,16 @@ export default function TabLayout() {
           }}
         />
         {/* 대사 챌린지에 올라오는 대사가 전부 한국어라, 한국어로 쓰는 사람에게만 띄운다 (SOMA-544). */}
+        {/* 배지는 읽지 않은 알림 묶음 수다(challenge.notification). */}
         <Tabs.Screen
           name="challenges"
           options={
             isKorean()
-              ? { title: t('tabs.challenge'), tabBarIcon: icon('trophy-outline', 'trophy') }
+              ? {
+                  title: t('tabs.challenge'),
+                  tabBarIcon: icon('trophy-outline', 'trophy'),
+                  tabBarBadge: unread.badge ?? undefined,
+                }
               : { href: null }
           }
         />

@@ -28,14 +28,14 @@ class UrlScrubbingCallbackTest {
 
     @Test
     void uuidInPathIsMasked() {
-        assertThat(UrlScrubber.scrub("/v2/practice-sessions/1b4e28ba-2fa1-11d2-883f-0016d3cca427"))
-                .isEqualTo("/v2/practice-sessions/<id>");
+        assertThat(UrlScrubber.scrub("/v2/practices/1b4e28ba-2fa1-11d2-883f-0016d3cca427"))
+                .isEqualTo("/v2/practices/<id>");
     }
 
     @Test
     void uppercaseUuidIsMasked() {
-        assertThat(UrlScrubber.scrub("/v2/uploads/1B4E28BA-2FA1-11D2-883F-0016D3CCA427/complete"))
-                .isEqualTo("/v2/uploads/<id>/complete");
+        assertThat(UrlScrubber.scrub("/v2/videos/intents/1B4E28BA-2FA1-11D2-883F-0016D3CCA427/complete"))
+                .isEqualTo("/v2/videos/intents/<id>/complete");
     }
 
     @Test
@@ -52,7 +52,7 @@ class UrlScrubbingCallbackTest {
     @Test
     void eventRequestIsScrubbed() {
         Request request = new Request();
-        request.setUrl("https://acttub.com/v2/practice-sessions/9f1c2d3e-4a5b-6c7d-8e9f-0a1b2c3d4e5f");
+        request.setUrl("https://acttub.com/v2/practices/9f1c2d3e-4a5b-6c7d-8e9f-0a1b2c3d4e5f");
         request.setQueryString("session=9f1c2d3e-4a5b-6c7d-8e9f-0a1b2c3d4e5f");
         SentryEvent event = new SentryEvent();
         event.setRequest(request);
@@ -60,7 +60,7 @@ class UrlScrubbingCallbackTest {
         callback.execute(event, new Hint());
 
         assertThat(event.getRequest().getUrl())
-                .isEqualTo("https://acttub.com/v2/practice-sessions/<id>");
+                .isEqualTo("https://acttub.com/v2/practices/<id>");
         assertThat(event.getRequest().getQueryString()).isNull();
     }
 

@@ -5,19 +5,21 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
+import { api, type MemoryField, type MemoryItem } from '@/lib/api';
 import {
-  api,
-  ACTOR_ONLY_MEMORY_FIELDS,
-  type MemoryField,
-  type MemoryItem,
-} from '@/lib/api';
+  MEMORY_FIELDS,
+  MEMORY_VALUE_MAX,
+  isWrittenByActor,
+  memoryValueTooLong,
+  profileNotice,
+} from '@/lib/practice/memory';
 import { palette } from '@/constants/palette';
 import { translate } from '@/lib/i18n';
 
 /**
  * 코치가 나에 대해 기억하는 것 — 배우가 보고 고치는 화면.
  *
- * 코치는 연습이 끝날 때마다 대화에서 알아낸 것을 여기에 쌓고, 다음 연습을 시작할 때
+ * 코치는 확인 연습 1·3·6·9회에 대화에서 알아낸 것을 여기에 쌓고, 다음 연습을 시작할 때
  * 이걸 읽는다. 그래서 **틀린 내용을 되돌릴 수 있는 유일한 자리**가 이 화면이다.
  * 없으면 잘못 적힌 기억이 이후 모든 대화의 전제로 남는다.
  *
@@ -26,13 +28,11 @@ import { translate } from '@/lib/i18n';
  * - **누가 적었는지** — 내가 고친 칸은 코치가 다시 덮지 않는다는 걸 알아야
  *   고치는 의미가 생긴다.
  *
- * 성별·나이는 **배우만 쓰는 칸**이다. 코치는 영상이나 말투에서 추론하지 않는다.
- * 데이터베이스가 코치의 쓰기를 막고 있어서, 이 화면이 그 칸을 채우는 유일한 통로다.
+ * 성별·나이는 1.0.0에서 프로필로 옮겼다(practice.memory) — 코치는 그것을 추론하지 않고, 이
+ * 화면은 연습에서 나온 넷(목표·막히는 지점·화법 둘)만 다룬다. 값은 1,000자까지다.
  */
 
-const FIELDS: { field: MemoryField; label: string; hint: string; placeholder: string }[] = (
-  ['gender', 'age', 'goal', 'blockage', 'speech_self', 'speech_actual'] as const
-).map((field) => ({
+const FIELDS: { field: MemoryField; label: string; hint: string; placeholder: string }[] = MEMORY_FIELDS.map((field) => ({
   field,
   label: translate(`memory.fields.${field}.label`),
   hint: translate(`memory.fields.${field}.hint`),
@@ -71,6 +71,10 @@ export default function MemoryScreen() {
     async (field: MemoryField) => {
       const value = (drafts[field] ?? '').trim();
       if (!value) return;
+      if (memoryValueTooLong(value)) {
+        void alert({ title: translate('memory.saveFailTitle'), message: translate('memory.tooLong') });
+        return;
+      }
       setSaving(field);
       try {
         const saved = await api.saveActorMemory(field, value);
@@ -175,15 +179,11 @@ export default function MemoryScreen() {
                 <View style={styles.cardHead}>
                   <Text style={styles.label}>{label}</Text>
                   {item ? (
-                    <Text style={item.edited_by_me ? styles.tagMine : styles.tagCoach}>
-                      {item.edited_by_me ? translate('memory.tagMine') : translate('memory.tagCoach')}
+                    <Text style={isWrittenByActor(item) ? styles.tagMine : styles.tagCoach}>
+                      {isWrittenByActor(item) ? translate('memory.writtenByMe') : translate('memory.tagCoach')}
                     </Text>
                   ) : (
-                    <Text style={styles.tagEmpty}>
-                      {ACTOR_ONLY_MEMORY_FIELDS.includes(field)
-                        ? translate('memory.tagActorOnly')
-                        : translate('memory.tagEmpty')}
-                    </Text>
+                    <Text style={styles.tagEmpty}>{translate('memory.tagEmpty')}</Text>
                   )}
                 </View>
                 <Text style={styles.hint}>{hint}</Text>
@@ -195,15 +195,16 @@ export default function MemoryScreen() {
                   placeholder={placeholder}
                   placeholderTextColor={palette.textFaint}
                   multiline
-                  maxLength={1000}
+                  maxLength={MEMORY_VALUE_MAX}
                 />
 
-                {item?.source_practice_session_id && !item.edited_by_me && (
+                {/* 출처 연습이 숨겨졌으면 서버가 null 을 준다 — 값은 그대로고 링크만 없다. */}
+                {item?.source_practice_id && !isWrittenByActor(item) && (
                   <Pressable
                     onPress={() =>
                       router.push({
                         pathname: '/report-detail',
-                        params: { practiceSessionId: item.source_practice_session_id! },
+                        params: { practiceId: item.source_practice_id as string },
                       })
                     }
                     accessibilityRole="button">
@@ -230,6 +231,14 @@ export default function MemoryScreen() {
               </View>
             );
           })}
+
+          {/* 성별·나이는 프로필로 옮겼다 — 여기서는 어디에 적는지만 알린다. */}
+          <View style={styles.profileCard}>
+            <Text style={styles.profileText}>{profileNotice()}</Text>
+            <Pressable onPress={() => router.push('/profile-edit')} accessibilityRole="button">
+              <Text style={styles.profileLink}>{translate('memory.openProfile')}</Text>
+            </Pressable>
+          </View>
 
           {hasAny && (
             <Pressable style={styles.removeAll} onPress={() => void removeAll()}>
@@ -272,6 +281,17 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontSize: 15, fontWeight: '700', color: palette.textStrong },
   emptyBody: { fontSize: 14, lineHeight: 20, color: palette.textMuted },
+  profileCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    backgroundColor: palette.bgSubtle,
+    borderRadius: 14,
+    padding: 16,
+  },
+  profileText: { flex: 1, fontSize: 13.5, lineHeight: 21, color: palette.textDim },
+  profileLink: { fontSize: 13.5, fontWeight: '800', color: palette.blueDeep },
   card: {
     borderWidth: 1,
     borderColor: palette.borderSoft,

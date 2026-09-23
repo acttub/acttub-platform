@@ -25,11 +25,11 @@ function createMemoryStorage() {
   };
 }
 
-function record(owner, sessionId) {
+function record(owner, practiceId) {
   return {
     schemaVersion: ANALYSIS_SCHEMA_VERSION,
     owner,
-    session_id: sessionId,
+    practice_id: practiceId,
   };
 }
 
@@ -51,7 +51,7 @@ test('Q3: B principal 교정 뒤에도 A pending record가 남아 A 재로그인
   const store = createPendingAnalysisStore(storage);
   const ownerA = await store.save(record('user-a', 'session-a'), '100-a');
   const invalidSchema = await store.save(
-    { schemaVersion: 999, owner: 'user-b', session_id: 'session-invalid' },
+    { schemaVersion: 999, owner: 'user-b', practice_id: 'practice-invalid' },
     '200-invalid',
   );
   const ownerB = await store.save(record('user-b', 'session-b'), '300-b');

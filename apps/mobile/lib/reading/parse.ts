@@ -6,14 +6,22 @@
  *  - 블록:   `지수` 한 줄 + 다음 줄부터 빈 줄 전까지 대사
  *  - 공백:   `강호 대사` (한국 연극 대본식 — 콜론·블록이 하나도 없을 때만)
  *  - 지문:   `(…)`·`[…]`로 감싼 한 줄, `이름, 행동` 꼴
+ *  - 장면:   막·장 머리 줄(`제1막`·`1막 2장`·`S#3`·`Act 1`·`프롤로그`). 그 글이 장면 이름이다
  *
  * 배역 판별은 빈도 기반이다 — 이름 꼴이고 2회 이상 나오면 배역. 한 번만 나온 이름은
  * 사용자가 힌트(roleHints)로 올려 줄 수 있다.
+ *
+ * 웹(apps/web/src/lib/reading/script/parse.ts)과 같은 파서다 — 이 파일은 그 복사본이다. 규칙을
+ * 바꾸면 양쪽을 같이 고치고 공통 검증 자료(apps/web/tests/reading/fixtures, 앱은
+ * tests/reading-script-fixtures.test.mjs 로 읽는다)로 같은 결과가 나오는지 고정한다(reading.script).
  */
 
 export type DialogueLine = { type: "dialogue"; role: string; text: string };
 export type DirectionLine = { type: "direction"; text: string };
-export type ScriptLine = DialogueLine | DirectionLine;
+/** 막·장 머리 줄. 배역이 없고 구간 선택의 "장면으로 찾기"가 경계로 쓴다(reading.session). */
+export type SceneLine = { type: "scene"; text: string };
+export type ScriptLine = DialogueLine | DirectionLine | SceneLine;
+export type LineKind = ScriptLine["type"];
 
 export interface ParsedScript {
   title: string | undefined;
@@ -43,6 +51,22 @@ export function countLinesByRole(lines: ScriptLine[]): Map<string, number> {
   return counts;
 }
 
+/**
+ * 줄마다 대사 번호. 대사 줄만 1부터 세고 지문·장면은 null 이다 — 화면이 "12번 대사"로 쓰는
+ * 값이며 저장하지 않고 줄 순서에서 센다(reading.script).
+ */
+export function dialogueNumbers(lines: ScriptLine[]): (number | null)[] {
+  let n = 0;
+  return lines.map((l) => (l.type === "dialogue" ? ++n : null));
+}
+
+/** 종류별 줄 수 — 확인 화면의 "배역 N명 · 대사 N줄 · 지문 N개 · 장면 N개"가 쓴다. */
+export function countByKind(lines: ScriptLine[]): Record<LineKind, number> {
+  const out: Record<LineKind, number> = { dialogue: 0, direction: 0, scene: 0 };
+  for (const l of lines) out[l.type]++;
+  return out;
+}
+
 const NAME_RE = /^[가-힣A-Za-z0-9·]{1,6}$/;
 /** `[지수] 대사` — 이름만 감싸고 뒤에 대사가 온다. 한글 파일 대본에 흔하다. */
 const BRACKET_ROLE_RE = /^[[［【]\s*([가-힣A-Za-z0-9·]{1,6})\s*[\]］】]\s*(.+)$/;
@@ -59,7 +83,8 @@ const STRUCTURE_WORDS = new Set(["장", "막", "씬", "신", "화"]);
  */
 const MARKUP_INDEX_RE = /<<\d*>>/g;
 const MARKUP_WRAP_RE = /<<([^>]*)>>/g;
-const WRAPPED_DIRECTION_RE = /^[(\[（【].*[)\]）】]$/;
+/** 괄호·대괄호(반각·전각)로 감싼 한 줄. `［지수, 앉는다.］` 처럼 전각 대괄호도 지문이다. */
+const WRAPPED_DIRECTION_RE = /^[(\[（［【].*[)\]）］】]$/;
 const NAME_COMMA_DIRECTION_RE = /^[가-힣A-Za-z0-9·]{1,6},\s*\S/;
 const MIN_ROLE_COUNT = 2;
 
@@ -110,16 +135,38 @@ const EN_STAGE_WORDS = new Set([
   "pause", "beat", "silence", "blackout", "lights", "music", "sound", "sfx", "stage",
   "act", "scene", "prologue", "epilogue", "intermission", "curtain", "fadein", "fadeout",
 ]);
-const EN_ACT_MARK_RE = /^(?:act|scene|part)\s*(?:[0-9]+|[ivxlcdm]+|one|two|three|four|five|six|seven|eight|nine|ten)$/i;
+const EN_NUMBER = "(?:[0-9]+|[ivxlcdm]+|one|two|three|four|five|six|seven|eight|nine|ten)";
+const EN_ACT_MARK_RE = new RegExp(`^(?:act|scene|part)\\s*${EN_NUMBER}$`, "i");
 
 function isStageWord(name: string): boolean {
-  const en = name.trim().toLowerCase().replace(/[\s.]/g, '');
-  return (
-    STAGE_WORDS.has(name)
-    || ACT_MARK_RE.test(name)
-    || EN_STAGE_WORDS.has(en)
-    || EN_ACT_MARK_RE.test(name.trim())
-  );
+  const en = name.trim().toLowerCase().replace(/[\s.]/g, "");
+  return STAGE_WORDS.has(name) || ACT_MARK_RE.test(name) || EN_STAGE_WORDS.has(en) || EN_ACT_MARK_RE.test(name.trim());
+}
+
+// ─── 장면 줄 ─────────────────────────────────────────────────────────────────
+//
+// 막·장 머리 줄은 배역도 지문도 아닌 장면이다(reading.script). 실물 대본의 표기:
+//   제1막 / 1막 / 제 2 장 / 1막 2장 / S#3 / S#3. 카페 안, 낮 / 1장 - 거실 / Act 1 / SCENE 2 /
+//   ACT I, SCENE 3 / 프롤로그 / 에필로그
+// 설명이 붙은 것은 구분 부호(`.`·`:`·`-`·`,`) 뒤 40자까지만 받는다 — 부호 없이 이어진 글은
+// 공백 형식 대사("1장 넘겨 봐")일 수 있어서다. 줄 전체가 장면 이름이다.
+
+const SCENE_MAX_LENGTH = 60;
+const SCENE_DESC = "(?:\\s*[.:·,;\\-–—]\\s*.{1,40})?";
+const KO_SCENE_RE = new RegExp(`^(?:제\\s*)?\\d+\\s*(?:막|장|경|부|씬|신)(?:\\s*\\d+\\s*(?:장|경|씬|신))?${SCENE_DESC}$`);
+const HASH_SCENE_RE = new RegExp(`^(?:S|Scene|씬|신)\\s*#\\s*\\d+(?:[-–.]\\d+)?${SCENE_DESC}$`, "i");
+const EN_SCENE_RE = new RegExp(
+  `^(?:act|scene|part)\\s+${EN_NUMBER}(?:\\s*[,.:;\\-–—]?\\s*scene\\s+${EN_NUMBER})?${SCENE_DESC}$`,
+  "i",
+);
+const NAMED_SCENE_RE = /^(?:프롤로그|에필로그|서막|종막|막간|prologue|epilogue|intermission|interlude)$/i;
+
+/** 막·장 머리 줄인지. 맞으면 장면 이름(줄 그대로)을, 아니면 null 을 준다. */
+export function sceneHeading(line: string): string | null {
+  const l = line.trim();
+  if (!l || l.length > SCENE_MAX_LENGTH) return null;
+  if (KO_SCENE_RE.test(l) || HASH_SCENE_RE.test(l) || EN_SCENE_RE.test(l) || NAMED_SCENE_RE.test(l)) return l;
+  return null;
 }
 
 // ─── 등장인물 목록 ────────────────────────────────────────────────────────────
@@ -331,7 +378,7 @@ function isWrappedDirection(line: string): boolean {
 }
 
 function stripWrap(line: string): string {
-  return line.replace(/^[(\[（【]\s*/, "").replace(/\s*[)\]）】]$/, "");
+  return line.replace(/^[(\[（［【]\s*/, "").replace(/\s*[)\]）］】]$/, "");
 }
 
 /** 등장 순서를 지키면서 빈도를 센다. */
@@ -385,7 +432,7 @@ function countCandidates(lines: string[]): { primary: Counter; space: Counter; s
   const strong = new Set<string>();
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    if (!line || isWrappedDirection(line)) continue;
+    if (!line || isWrappedDirection(line) || sceneHeading(line)) continue;
     const bracket = splitBracket(line);
     if (bracket) {
       primary.add(bracket.name);
@@ -541,8 +588,23 @@ export function parseScript(raw: string, options: ParseOptions = {}): ParsedScri
       pendingRole = null;
       continue;
     }
+    // `[막] 1막` 은 한글 파일이 남긴 구조 표시다. 뒤의 글이 장면 이름이다.
+    const scene = isStructureMark(line) ? sceneHeading(BRACKET_ROLE_RE.exec(line)![2].trim()) : sceneHeading(line);
+    if (scene) {
+      out.push({ type: "scene", text: scene });
+      prev = null;
+      pendingRole = null;
+      continue;
+    }
     if (isStructureMark(line)) {
       out.push({ type: "direction", text: BRACKET_ROLE_RE.exec(line)![2].trim() });
+      prev = null;
+      pendingRole = null;
+      continue;
+    }
+    // `사이`·`침묵`·`BEAT` 가 홀로 선 줄은 무대 지시다. 앞 대사에 붙이면 상대역이 그 말을 소리 내 읽는다.
+    if (isSoloName(line) && !roleSet.has(line) && isStageWord(line)) {
+      out.push({ type: "direction", text: line });
       prev = null;
       pendingRole = null;
       continue;
