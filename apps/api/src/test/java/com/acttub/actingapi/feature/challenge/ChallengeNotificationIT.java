@@ -334,6 +334,21 @@ class ChallengeNotificationIT {
         assertThat(count("entry_ai_reports")).isZero();
     }
 
+    @Test void accountWithdraw_afterTheDeadlineStillCountsTheEntryInTheFinalRanking() throws Exception {
+        Instant deadline = NOON.plus(Duration.ofHours(1));
+        UUID ending = challenge(deadline);
+        UUID mine = entry(ending, me);
+        UUID other = entry(ending, member("둘째"));
+        for (int i = 0; i < 3; i++) response(put("/v2/entries/{id}/like", mine), 200, token(member("팬 " + i)));
+        response(put("/v2/entries/{id}/like", other), 200, token(member("다른 팬")));
+        clock.set(deadline.plus(Duration.ofMinutes(10)));
+        response(delete("/v2/me"), 200);
+        entries.settle(clock.instant());
+        var row = jdbc.queryForMap("SELECT visibility,final_eligible,final_rank FROM challenge_entries WHERE id=?", mine);
+        assertThat(row).containsEntry("visibility", "private").containsEntry("final_eligible", true).containsEntry("final_rank", 1);
+        assertThat(jdbc.queryForObject("SELECT final_rank FROM challenge_entries WHERE id=?", Integer.class, other)).isEqualTo(2);
+    }
+
     // ── 도우미 ──────────────────────────────────────────────────────────────
 
     private UUID member(String name) {

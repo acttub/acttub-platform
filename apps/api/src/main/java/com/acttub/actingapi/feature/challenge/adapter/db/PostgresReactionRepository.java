@@ -128,18 +128,13 @@ class PostgresReactionRepository implements ReactionRepository {
 
     @Override @Transactional
     public CommentCreation comment(UUID viewer, UUID entryId, UUID requestId, String fingerprint, String body, Instant now) {
-        locks.people(viewer, viewer, false);
-        // 재전송 확인이 한도·노출 검사보다 먼저다 — 응답을 잃은 재전송이 두 번째 댓글이나 429가 되지 않는다.
-        var previous = NativeTuples.list(em.createNativeQuery(
-                "SELECT id,request_fingerprint FROM entry_comments WHERE user_id=:viewer AND request_id=:request", Tuple.class)
-                .setParameter("viewer", viewer).setParameter("request", requestId));
-        if (!previous.isEmpty()) {
-            if (!fingerprint.equals(previous.getFirst().get("request_fingerprint", String.class).strip())) {
-                throw new ApiException(422, "request_fingerprint_mismatch");
-            }
-            return new CommentCreation(commentById(previous.getFirst().get("id", UUID.class), viewer), false);
-        }
+        // 재전송 확인이 한도·노출 검사보다 먼저다 — 응답을 잃은 재전송이 두 번째 댓글이나 429가 되지 않는다. 사람 행은
+        // 작성자와 함께 id 순서로 잠가야 하므로(EntryLocks) 먼저 잠그지 않고 읽고, 잠근 뒤 한 번 더 본다.
+        CommentCreation replayed = replayComment(viewer, requestId, fingerprint);
+        if (replayed != null) return replayed;
         var target = locks.entry(viewer, entryId, now, false, true);
+        replayed = replayComment(viewer, requestId, fingerprint);
+        if (replayed != null) return replayed;
         Instant midnight = now.atZone(SEOUL).toLocalDate().atStartOfDay(SEOUL).toInstant();
         long today = ((Number) em.createNativeQuery("SELECT count(*) FROM entry_comments WHERE user_id=:viewer AND created_at>=:since")
                 .setParameter("viewer", viewer).setParameter("since", midnight.atOffset(ZoneOffset.UTC)).getSingleResult()).longValue();
@@ -153,6 +148,17 @@ class PostgresReactionRepository implements ReactionRepository {
                 .setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate();
         events.record(target.author(), "entry_commented", viewer, target.challengeId(), entryId, id, "comment:" + id, now);
         return new CommentCreation(commentById(id, viewer), true);
+    }
+
+    private CommentCreation replayComment(UUID viewer, UUID requestId, String fingerprint) {
+        var previous = NativeTuples.list(em.createNativeQuery(
+                "SELECT id,request_fingerprint FROM entry_comments WHERE user_id=:viewer AND request_id=:request", Tuple.class)
+                .setParameter("viewer", viewer).setParameter("request", requestId));
+        if (previous.isEmpty()) return null;
+        if (!fingerprint.equals(previous.getFirst().get("request_fingerprint", String.class).strip())) {
+            throw new ApiException(422, "request_fingerprint_mismatch");
+        }
+        return new CommentCreation(commentById(previous.getFirst().get("id", UUID.class), viewer), false);
     }
 
     @Override @Transactional

@@ -54,7 +54,8 @@ class EntryCards {
         var rows = new HashMap<UUID, Tuple>();
         NativeTuples.list(em.createNativeQuery(CARD + " WHERE e.id IN (:ids)", Tuple.class)
                 .setParameter("ids", ids).setParameter("viewer", viewer)).forEach(row -> rows.put(row.get("id", UUID.class), row));
-        return ids.stream().map(rows::get).map(row -> {
+        // 고른 뒤 사이에 사라진 행은 건너뛴다(삭제 표시는 행을 남기므로 드물다).
+        return ids.stream().map(rows::get).filter(java.util.Objects::nonNull).map(row -> {
             UUID id = row.get("id", UUID.class);
             Integer rank = stored ? finalRank(row) : ranks.get(id);
             return new EntryCard(id, row.get("challenge_id", UUID.class), author(row), row.get("caption", String.class),

@@ -52,7 +52,7 @@ class StorageEntryMedia implements EntryMedia {
         if (result.exitCode() != 0) throw new ApiException(422, "video_not_ready");
         try {
             int duration = new BigDecimal(result.output().strip()).multiply(BigDecimal.valueOf(1000))
-                    .setScale(0, RoundingMode.CEILING).intValueExact();
+                    .setScale(0, RoundingMode.HALF_EVEN).intValueExact();
             if (duration <= 0) throw new ArithmeticException("no duration");
             return duration;
         } catch (NumberFormatException | ArithmeticException unreadable) {
@@ -65,7 +65,8 @@ class StorageEntryMedia implements EntryMedia {
 
     private static Probe.Result execute(List<String> command) {
         try {
-            Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
+            // 경고·오류 줄은 버리고 표준 출력의 길이만 읽는다(섞이면 숫자로 읽히지 않는다).
+            Process process = new ProcessBuilder(command).redirectError(ProcessBuilder.Redirect.DISCARD).start();
             if (!process.waitFor(TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                 process.destroyForcibly();
                 throw new IllegalStateException("video duration probe timed out");

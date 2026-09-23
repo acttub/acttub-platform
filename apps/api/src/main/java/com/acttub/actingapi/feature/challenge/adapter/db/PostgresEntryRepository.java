@@ -12,6 +12,8 @@ import java.util.Map;
 import java.util.UUID;
 import com.acttub.actingapi.feature.challenge.app.EntryRepository;
 import com.acttub.actingapi.feature.challenge.domain.ChallengeRules;
+import com.acttub.actingapi.platform.observability.FailureContext;
+import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.ApiValidationException;
@@ -34,10 +36,13 @@ class PostgresEntryRepository implements EntryRepository {
     private final ChallengeSettlement settlement;
     private final EntryCards cards;
     private final TransactionTemplate transaction;
+    private final FailureReporter failures;
+    /** 묶음 푸시 선점은 그 10분 구간(밤이면 다음 09시)이 지나면 쓸모가 없다 — 이틀이면 넉넉하다. */
+    private static final java.time.Duration NOTIFICATION_PUSH_CLAIM_RETENTION = java.time.Duration.ofDays(2);
 
     PostgresEntryRepository(EntityManager em, ChallengeSettlement settlement, EntryCards cards,
-                            PlatformTransactionManager transactions) {
-        this.em = em; this.settlement = settlement; this.cards = cards;
+                            PlatformTransactionManager transactions, FailureReporter failures) {
+        this.em = em; this.settlement = settlement; this.cards = cards; this.failures = failures;
         this.transaction = new TransactionTemplate(transactions);
     }
 
@@ -266,7 +271,16 @@ class PostgresEntryRepository implements EntryRepository {
     @Override
     public int settle(Instant now) {
         List<UUID> waiting = transaction.execute(tx -> settlement.waiting(now));
-        for (UUID id : waiting) transaction.executeWithoutResult(tx -> settlement.settle(id, now));
+        int settled = 0;
+        // 챌린지마다 따로 커밋하고, 하나가 실패해도 나머지와 보관 기간 정리는 돈다.
+        for (UUID id : waiting) {
+            try {
+                transaction.executeWithoutResult(tx -> settlement.settle(id, now));
+                settled++;
+            } catch (RuntimeException failure) {
+                failures.report(failure, new FailureContext("PostgresEntryRepository.settle", id));
+            }
+        }
         transaction.executeWithoutResult(tx -> {
             em.createNativeQuery("DELETE FROM entry_view_events WHERE created_at<:before")
                     .setParameter("before", now.minus(ChallengeRules.VIEW_EVENT_RETENTION).atOffset(ZoneOffset.UTC)).executeUpdate();
@@ -276,14 +290,14 @@ class PostgresEntryRepository implements EntryRepository {
             em.createNativeQuery("DELETE FROM notifications WHERE expires_at<=:now")
                     .setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate();
             em.createNativeQuery("DELETE FROM notification_pushes WHERE created_at<:before")
-                    .setParameter("before", now.minus(java.time.Duration.ofDays(2)).atOffset(ZoneOffset.UTC)).executeUpdate();
+                    .setParameter("before", now.minus(NOTIFICATION_PUSH_CLAIM_RETENTION).atOffset(ZoneOffset.UTC)).executeUpdate();
             em.createNativeQuery("DELETE FROM entry_ai_reports WHERE purged_at<:before")
                     .setParameter("before", now.minus(ChallengeRules.REPORT_RETENTION).atOffset(ZoneOffset.UTC)).executeUpdate();
             // 처리 완료된 신고는 90일 보관한다(challenge.report).
             em.createNativeQuery("DELETE FROM entry_reports WHERE status='reviewed' AND reviewed_at<:before")
                     .setParameter("before", now.minus(ChallengeRules.REPORT_RETENTION).atOffset(ZoneOffset.UTC)).executeUpdate();
         });
-        return waiting.size();
+        return settled;
     }
 
     // ── 목록 ─────────────────────────────────────────────────────────────────

@@ -26,8 +26,8 @@ class StorageEntryMediaTest {
         }, "/usr/bin/ffprobe");
     }
 
-    @Test void challengeEntry_measuresTheStoredObjectAndRoundsPartialMillisecondsUp() {
-        assertThat(media(0, "60.0004\n").durationMs("videos/a")).isEqualTo(60_001);
+    @Test void challengeEntry_measuresTheStoredObjectToTheNearestMillisecond() {
+        assertThat(media(0, "60.0204\n").durationMs("videos/a")).isEqualTo(60_020);
         assertThat(commands.getFirst()).last().isEqualTo("https://storage.test/videos/a");
         assertThat(media(0, "45.000000").durationMs("videos/b")).isEqualTo(45_000);
     }

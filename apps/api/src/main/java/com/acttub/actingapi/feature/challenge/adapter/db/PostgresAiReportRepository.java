@@ -29,7 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Repository
 class PostgresAiReportRepository implements AiReportRepository {
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
-    private static final String KIND = "challenge_report";
+    private static final String KIND = com.acttub.actingapi.platform.schema.AiJobKind.CHALLENGE_REPORT.dbValue();
     private final EntityManager em;
     private final EntryLocks locks;
     private final AiJobLedger ledger;
@@ -154,6 +154,9 @@ class PostgresAiReportRepository implements AiReportRepository {
 
     @Override @Transactional
     public boolean complete(UUID jobId, UUID leaseToken, UUID entryId, Result result, String model, Instant now) {
+        // 참여작 행을 먼저 잡는다 — 삭제도 참여작 → 리포트 순서로 잡으므로, 겹치면 한쪽이 끝난 뒤 다른 쪽이 상태를 본다.
+        NativeTuples.list(em.createNativeQuery("SELECT id FROM challenge_entries WHERE id=:entry FOR UPDATE", Tuple.class)
+                .setParameter("entry", entryId));
         var locked = NativeTuples.list(em.createNativeQuery("""
                 SELECT r.user_id,e.challenge_id FROM entry_ai_reports r JOIN challenge_entries e ON e.id=r.entry_id JOIN users u ON u.id=r.user_id
                 WHERE r.entry_id=:entry AND r.job_id=:job AND r.status='pending' AND r.purged_at IS NULL

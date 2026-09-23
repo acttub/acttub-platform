@@ -51,8 +51,8 @@ public class EntryService {
             throw new ApiException(404, "video_not_found");
         }
         if (video.purged()) throw new ApiException(422, "video_not_ready");
-        if (video.declaredDurationMs() > ChallengeRules.ENTRY_VIDEO_MAX_MS
-                || media.durationMs(video.objectKey()) > ChallengeRules.ENTRY_VIDEO_MAX_MS) {
+        if (!ChallengeRules.withinEntryLength(video.declaredDurationMs())
+                || !ChallengeRules.withinEntryLength(media.durationMs(video.objectKey()))) {
             throw new ApiException(422, "video_too_long");
         }
         return entries.create(owner, challengeId, requestId, fingerprint,

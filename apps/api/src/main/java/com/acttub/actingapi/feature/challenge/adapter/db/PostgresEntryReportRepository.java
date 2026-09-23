@@ -37,30 +37,15 @@ class PostgresEntryReportRepository implements ReportRepository {
 
     @Override @Transactional
     public Filed file(UUID reporter, UUID requestId, String fingerprint, NewReport report, Instant now) {
-        locks.people(reporter, reporter, false);
-        var byRequest = NativeTuples.list(em.createNativeQuery(
-                "SELECT id,status,request_fingerprint FROM entry_reports WHERE reporter_id=:reporter AND request_id=:request", Tuple.class)
-                .setParameter("reporter", reporter).setParameter("request", requestId));
-        if (!byRequest.isEmpty()) {
-            if (!fingerprint.equals(byRequest.getFirst().get("request_fingerprint", String.class).strip())) {
-                throw new ApiException(422, "request_fingerprint_mismatch");
-            }
-            return new Filed(receipt(byRequest.getFirst()), false);
-        }
-        // 같은 사람이 같은 대상을 다시 신고하면 먼저 낸 신고다 — 처리 뒤라도 다시 숨기지 않는다.
-        var byTarget = NativeTuples.list(em.createNativeQuery("""
-                SELECT id,status FROM entry_reports WHERE target_type=:type AND target_id=:target AND reporter_id=:reporter
-                """, Tuple.class).setParameter("type", report.targetType()).setParameter("target", report.targetId())
-                .setParameter("reporter", reporter));
-        if (!byTarget.isEmpty()) return new Filed(receipt(byTarget.getFirst()), false);
-        Instant midnight = now.atZone(SEOUL).toLocalDate().atStartOfDay(SEOUL).toInstant();
-        long today = ((Number) em.createNativeQuery("SELECT count(*) FROM entry_reports WHERE reporter_id=:reporter AND created_at>=:since")
-                .setParameter("reporter", reporter).setParameter("since", midnight.atOffset(ZoneOffset.UTC)).getSingleResult()).longValue();
-        if (today >= ChallengeRules.DAILY_REPORTS) throw new ApiException(429, "daily_report_limit");
+        // 사람 행은 대상 작성자와 함께 id 순서로 잠가야 하므로(EntryLocks) 먼저 잠그지 않고 재전송을 본 뒤, 대상을 잠그고
+        // 나서 재전송·하루 한도를 다시 본다.
+        Filed prior = prior(reporter, requestId, fingerprint, report);
+        if (prior != null) return prior;
         UUID id = UUID.randomUUID();
         switch (report.targetType()) {
             case "entry" -> {
                 var target = locks.entry(reporter, report.targetId(), now, true, false);
+                if ((prior = guarded(reporter, requestId, fingerprint, report, now)) != null) return prior;
                 if (reporter.equals(target.author())) throw new ApiException(422, "self_report");
                 insert(id, reporter, requestId, fingerprint, report, target.contentVersion(), target.caption(), now);
                 em.createNativeQuery("UPDATE challenge_entries SET status='hidden_by_report',updated_at=:now WHERE id=:id AND status='visible'")
@@ -68,17 +53,20 @@ class PostgresEntryReportRepository implements ReportRepository {
             }
             case "comment" -> {
                 var comment = lockVisibleComment(reporter, report.targetId(), now);
+                if ((prior = guarded(reporter, requestId, fingerprint, report, now)) != null) return prior;
                 if (reporter.equals(comment.get("user_id", UUID.class))) throw new ApiException(422, "self_report");
                 insert(id, reporter, requestId, fingerprint, report, 1, comment.get("body", String.class), now);
                 em.createNativeQuery("UPDATE entry_comments SET status='hidden' WHERE id=:id")
                         .setParameter("id", report.targetId()).executeUpdate();
             }
             default -> {
+                locks.people(reporter, reporter, false);
                 var challenge = NativeTuples.list(em.createNativeQuery("""
                         SELECT host_user_id,line FROM challenges
                         WHERE id=:id AND deleted_at IS NULL AND moderation='visible' AND starts_at<=:now FOR UPDATE
                         """, Tuple.class).setParameter("id", report.targetId()).setParameter("now", now.atOffset(ZoneOffset.UTC)));
                 if (challenge.isEmpty()) throw new ApiException(404, "challenge_not_found");
+                if ((prior = guarded(reporter, requestId, fingerprint, report, now)) != null) return prior;
                 if (reporter.equals(challenge.getFirst().get("host_user_id", UUID.class))) throw new ApiException(422, "self_report");
                 insert(id, reporter, requestId, fingerprint, report, 1, challenge.getFirst().get("line", String.class), now);
                 long reporters = ((Number) em.createNativeQuery("""
@@ -92,6 +80,35 @@ class PostgresEntryReportRepository implements ReportRepository {
             }
         }
         return new Filed(new Receipt(id, "received"), true);
+    }
+
+    /** 같은 요청의 재전송, 또는 같은 사람의 같은 대상 재신고(처리 뒤라도 다시 숨기지 않는다). 없으면 {@code null}. */
+    private Filed prior(UUID reporter, UUID requestId, String fingerprint, NewReport report) {
+        var byRequest = NativeTuples.list(em.createNativeQuery(
+                "SELECT id,status,request_fingerprint FROM entry_reports WHERE reporter_id=:reporter AND request_id=:request", Tuple.class)
+                .setParameter("reporter", reporter).setParameter("request", requestId));
+        if (!byRequest.isEmpty()) {
+            if (!fingerprint.equals(byRequest.getFirst().get("request_fingerprint", String.class).strip())) {
+                throw new ApiException(422, "request_fingerprint_mismatch");
+            }
+            return new Filed(receipt(byRequest.getFirst()), false);
+        }
+        var byTarget = NativeTuples.list(em.createNativeQuery("""
+                SELECT id,status FROM entry_reports WHERE target_type=:type AND target_id=:target AND reporter_id=:reporter
+                """, Tuple.class).setParameter("type", report.targetType()).setParameter("target", report.targetId())
+                .setParameter("reporter", reporter));
+        return byTarget.isEmpty() ? null : new Filed(receipt(byTarget.getFirst()), false);
+    }
+
+    /** 신고자 행을 잠근 뒤: 그 사이 들어온 같은 요청을 먼저 돌려주고, 아니면 하루 한도를 본다. */
+    private Filed guarded(UUID reporter, UUID requestId, String fingerprint, NewReport report, Instant now) {
+        Filed prior = prior(reporter, requestId, fingerprint, report);
+        if (prior != null) return prior;
+        Instant midnight = now.atZone(SEOUL).toLocalDate().atStartOfDay(SEOUL).toInstant();
+        long today = ((Number) em.createNativeQuery("SELECT count(*) FROM entry_reports WHERE reporter_id=:reporter AND created_at>=:since")
+                .setParameter("reporter", reporter).setParameter("since", midnight.atOffset(ZoneOffset.UTC)).getSingleResult()).longValue();
+        if (today >= ChallengeRules.DAILY_REPORTS) throw new ApiException(429, "daily_report_limit");
+        return null;
     }
 
     @Override @Transactional(readOnly = true)
@@ -121,8 +138,8 @@ class PostgresEntryReportRepository implements ReportRepository {
 
     /**
      * 판정. 대상 행을 잠그고 이 신고를 처리한 뒤, restored·dismissed 는 그 대상에 처리되지 않은 신고가 남지 않았을 때만
-     * 운영 숨김을 푼다. 푸는 것은 숨김뿐이라 작성자의 비공개·삭제·탈퇴와 챌린지 종료는 그대로다. kept_hidden 은 숨김을
-     * 유지하고, 챌린지는 hidden 으로 내린다. 참여작·챌린지 판정 뒤에는 기다리던 종료 순위를 확정해 본다.
+     * 운영 숨김을 푼다. 푸는 것은 숨김뿐이라 작성자의 비공개·삭제·탈퇴와 챌린지 종료는 그대로다. kept_hidden 은 숨김
+     * (챌린지는 검토)을 유지한다. 참여작·챌린지 판정 뒤에는 기다리던 종료 순위를 확정해 본다.
      */
     @Override @Transactional
     public AdminReport resolve(UUID id, String resolution, String reviewer, String note, Instant now) {
@@ -147,11 +164,9 @@ class PostgresEntryReportRepository implements ReportRepository {
         long open = ((Number) em.createNativeQuery(
                 "SELECT count(*) FROM entry_reports WHERE target_type=:type AND target_id=:target AND status='received'")
                 .setParameter("type", type).setParameter("target", target).getSingleResult()).longValue();
-        if ("kept_hidden".equals(resolution)) {
-            if ("challenge".equals(type)) {
-                em.createNativeQuery("UPDATE challenges SET moderation='hidden' WHERE id=:id").setParameter("id", target).executeUpdate();
-            }
-        } else if (open == 0) {
+        // kept_hidden 은 지금 상태(참여작·댓글의 숨김, 챌린지의 검토)를 그대로 둔다. 챌린지를 아예 내릴지는 운영이
+        // moderation 경로로 따로 정한다.
+        if (!"kept_hidden".equals(resolution) && open == 0) {
             String release = switch (type) {
                 case "entry" -> "UPDATE challenge_entries SET status='visible' WHERE id=:id AND status='hidden_by_report'";
                 case "comment" -> "UPDATE entry_comments SET status='visible' WHERE id=:id AND status='hidden'";

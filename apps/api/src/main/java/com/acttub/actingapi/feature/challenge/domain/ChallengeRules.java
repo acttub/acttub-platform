@@ -40,4 +40,12 @@ public final class ChallengeRules {
 
     public static boolean duration(int days) { return days == 7 || days == 14; }
 
+    /**
+     * 참여할 수 있는 길이인가. 초 단위로 반올림해 60초 이하다 — 60초 상한으로 찍은 파일은 컨테이너 기록 때문에 60.02초
+     * 처럼 재어지기도 하므로 밀리초로 자르면 정확히 60초 촬영이 거절된다. 61초는 거절한다.
+     */
+    public static boolean withinEntryLength(int durationMs) {
+        return durationMs < ENTRY_VIDEO_MAX_MS + 500;
+    }
+
 }

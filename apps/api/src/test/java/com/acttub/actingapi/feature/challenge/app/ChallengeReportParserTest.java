@@ -12,7 +12,12 @@ import org.junit.jupiter.api.Test;
 /** challenge.ai-report: 모델 출력은 모양·금지 어휘를 검사한 뒤에만 결과가 된다. */
 class ChallengeReportParserTest {
     private final UUID a = UUID.randomUUID(), b = UUID.randomUUID(), c = UUID.randomUUID();
-    private final Map<String, UUID> three = new LinkedHashMap<>(Map.of("S1", a, "S2", b, "S3", c));
+    private final Map<String, UUID> three = new LinkedHashMap<>();
+    {
+        three.put("S1", a);
+        three.put("S2", b);
+        three.put("S3", c);
+    }
 
     @Test void challengeAiReport_mapsLabelsToSampleIdsAndDropsUnknownOnes() {
         var result = ChallengeReportParser.parse("""

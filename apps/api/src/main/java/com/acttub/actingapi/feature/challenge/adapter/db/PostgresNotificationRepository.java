@@ -26,7 +26,8 @@ class PostgresNotificationRepository implements NotificationRepository {
     private static final String WITHDRAWN = "탈퇴한 사용자";
     /** 사건이 지금도 유효한가 — 알림함의 인원·수와 발송이 같은 조건을 쓴다. */
     private static final String VALID = """
-            ((n.kind='entry_liked' AND EXISTS(SELECT 1 FROM entry_likes l WHERE CAST(l.id AS text)=substring(n.event_key FROM 6)))
+            ((n.kind='entry_liked' AND EXISTS(SELECT 1 FROM entry_likes l
+                   WHERE l.id=CASE WHEN n.kind='entry_liked' THEN CAST(substring(n.event_key FROM 6) AS uuid) END))
              OR (n.kind='entry_commented' AND EXISTS(SELECT 1 FROM entry_comments c
                    WHERE c.id=n.comment_id AND c.deleted_at IS NULL AND c.status='visible'))
              OR n.kind IN ('challenge_ended','entry_ai_report_ready'))

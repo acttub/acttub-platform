@@ -22,7 +22,7 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class ChallengeReportWorker {
-    static final String KIND = "challenge_report";
+    static final String KIND = com.acttub.actingapi.platform.schema.AiJobKind.CHALLENGE_REPORT.dbValue();
     static final Duration LEASE = Duration.ofMinutes(10);
     private final AiJobLedger ledger;
     private final AiReportRepository reports;

@@ -236,6 +236,33 @@ class ChallengeReactionIT {
         assertThat(comments.at("/comments/0/body").asText()).isEqualTo("남는 댓글");
     }
 
+    @Test void challengeReact_crossingCommentsAndLikesBetweenTwoAuthorsNeverDeadlock() throws Exception {
+        for (int round = 0; round < 8; round++) {
+            UUID a = member("가 " + round), b = member("나 " + round);
+            UUID ofA = entry(challenge, a), ofB = entry(challenge, b);
+            String tokenA = token(a), tokenB = token(b);
+            try (var executor = java.util.concurrent.Executors.newFixedThreadPool(4)) {
+                var go = new java.util.concurrent.CountDownLatch(1);
+                var calls = List.of(
+                        executor.submit(() -> { go.await(); return raw(post("/v2/entries/{id}/comments", ofB).content(comment("a→b")), tokenA); }),
+                        executor.submit(() -> { go.await(); return raw(put("/v2/entries/{id}/like", ofA), tokenB); }),
+                        executor.submit(() -> { go.await(); return raw(post("/v2/entries/{id}/comments", ofA).content(comment("b→a")), tokenB); }),
+                        executor.submit(() -> { go.await(); return raw(put("/v2/entries/{id}/like", ofB), tokenA); }));
+                go.countDown();
+                for (var call : calls) {
+                    var response = call.get(30, java.util.concurrent.TimeUnit.SECONDS);
+                    assertThat(response.getStatus()).as(response.getContentAsString()).isIn(200, 201);
+                }
+            }
+        }
+    }
+
+    private org.springframework.mock.web.MockHttpServletResponse raw(MockHttpServletRequestBuilder request, String authorization)
+            throws Exception {
+        return mvc.perform(request.header("Authorization", authorization).header("X-Acttub-Client", "app/1.0.0")
+                .header("Accept-Language", "ko").contentType(MediaType.APPLICATION_JSON)).andReturn().getResponse();
+    }
+
     // ── challenge.block ────────────────────────────────────────────────────
 
     @Test void challengeBlock_hidesBothWaysKeepsOldLikesCountedAndIsIdempotent() throws Exception {
@@ -337,6 +364,9 @@ class ChallengeReactionIT {
         }
         assertThat(moderation(challenge)).isEqualTo("visible");
         response(post("/v2/reports").content(report("challenge", challenge.toString(), "other", "대사가 부적절")), 201);
+        assertThat(moderation(challenge)).isEqualTo("review");
+        String any = jdbc.queryForObject("SELECT CAST(id AS text) FROM entry_reports WHERE target_id=? LIMIT 1", String.class, challenge);
+        resolve(any, "kept_hidden", 200);
         assertThat(moderation(challenge)).isEqualTo("review");
         assertThat(response(get("/v2/challenges"), 200).path("challenges")).isEmpty();
 

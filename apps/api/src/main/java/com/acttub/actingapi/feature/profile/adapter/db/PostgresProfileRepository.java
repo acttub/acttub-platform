@@ -12,6 +12,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.challenge.app.ChallengeWithdrawal;
+
 import com.acttub.actingapi.feature.profile.app.ProfileRepository;
 import com.acttub.actingapi.feature.profile.domain.Account;
 import com.acttub.actingapi.feature.profile.domain.AgeBand;
@@ -37,15 +39,20 @@ class PostgresProfileRepository implements ProfileRepository {
     private final AccountSecrets secrets;
     private final PostgresObjectCleanupLedger cleanups;
 
+    /** 탈퇴 전 챌린지 마감 집계 — 이 저장소가 남의 표를 함께 치는 다른 정리와 같은 트랜잭션에서 돈다. */
+    private final ChallengeWithdrawal challenges;
+
     PostgresProfileRepository(
             EntityManager entityManager,
             PlatformTransactionManager transactionManager,
             AccountSecrets secrets,
-            PostgresObjectCleanupLedger cleanups) {
+            PostgresObjectCleanupLedger cleanups,
+            ChallengeWithdrawal challenges) {
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
         this.secrets = secrets;
         this.cleanups = cleanups;
+        this.challenges = challenges;
     }
 
     /**
@@ -590,6 +597,9 @@ class PostgresProfileRepository implements ProfileRepository {
                 return null;
             }
             if (!"deactivated".equals(current.getFirst().get("status", String.class))) {
+                // 탈퇴도 마감 뒤 첫 변경이다 — 계정이 아직 활성일 때 밀린 챌린지 마감 집계를 먼저 해, 마감 당시 자격이
+                // 있던 참여작이 이 탈퇴 때문에 최종 순위에서 빠지지 않게 한다(challenge.browse 종료 랭킹).
+                challenges.settleBeforeWithdrawal(userId, now);
                 entityManager.createNativeQuery("""
                         UPDATE users
                         SET status='deactivated',
