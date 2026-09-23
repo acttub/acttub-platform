@@ -20,7 +20,10 @@ const modules = {
   '../../i18n.ts': `export const currentLanguage=()=> 'ko'; export const translate=k=>k;`,
   './assets': `export const MODEL_KINDS=[];
     export async function downloadAssets(variant,preset){return {modelPaths:{},style:preset,cfgs:{},indexer:{}};}
-    export async function downloadVoiceStyle(variant,preset){return preset;}`,
+    export async function downloadVoiceStyle(variant,preset){
+      if(globalThis.__readingEngineTest.failPresets?.has(preset)) throw new Error('offline');
+      return preset;
+    }`,
   './helper.native.js': `const s=globalThis.__readingEngineTest;
     export const loadOnnx=async()=>({});
     export const loadVoiceStyleFromObjects=styles=>styles[0];
@@ -47,6 +50,7 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
 beforeEach(async () => {
   engine._reset();
   state.files.clear(); state.players.length=0; state.calls.length=0; state.active=0; state.peak=0; state.gate=null;
+  state.failPresets=new Set();
   await engine.ensureReady();
 });
 
@@ -57,6 +61,19 @@ test('같은 대사도 목소리·속도별로 합성하며 동일 설정의 저
   const slow = await engine.synthesize('가지 마', 'script', 'F2', { speed: 0.7 });
   assert.notEqual(first, man); assert.notEqual(first, slow);
   assert.deepEqual(state.calls.map(c => [c.voice, c.speed]), [['F2',1],['M1',1],['F2',0.7]]);
+});
+
+test('요청한 목소리를 못 받아 기본 목소리로 읽은 것은 그 목소리의 저장본으로 남기지 않는다', async () => {
+  state.failPresets.add('F3');
+  const fallback = await engine.synthesize('가지 마', 'script', 'F3');
+  assert.equal(state.calls.at(-1).voice, 'M1');
+  state.failPresets.clear();
+  const real = await engine.synthesize('가지 마', 'script', 'F3');
+  assert.notEqual(real, fallback);
+  assert.equal(state.calls.at(-1).voice, 'F3');
+  // 기본 목소리 저장본은 기본 목소리 요청이 그대로 다시 쓴다.
+  assert.equal(await engine.synthesize('가지 마', 'script', 'M1'), fallback);
+  assert.equal(state.calls.length, 2);
 });
 
 test('미리 생성 중의 즉시 요청도 모델을 동시에 실행하지 않는다', async () => {

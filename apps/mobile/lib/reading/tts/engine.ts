@@ -122,18 +122,21 @@ export function keyFor(text: string, preset = cfg.preset, speed = cfg.speed): st
   });
 }
 
-/** 프리셋의 스타일. 처음이면 받아서 로드한다. 모르는 프리셋은 기본 스타일로 읽는다. */
-async function styleFor(preset?: string): Promise<any> {
+/**
+ * 프리셋의 스타일과 실제로 쓰게 된 프리셋. 처음이면 받아서 로드한다. 받지 못하면 기본 스타일로 읽고 그 사실을
+ * 돌려준다 — 부르는 쪽이 대체 음성을 요청한 목소리의 저장본으로 남기지 않게 하려는 것이다.
+ */
+async function styleFor(preset?: string): Promise<{ voice: any; preset: string }> {
   const key = preset || cfg.preset;
   const cached = styles.get(key);
-  if (cached) return cached;
+  if (cached) return { voice: cached, preset: key };
   try {
     const raw = await downloadVoiceStyle(cfg.variant, key);
     const loaded = loadVoiceStyleFromObjects([raw]);
     styles.set(key, loaded);
-    return loaded;
+    return { voice: loaded, preset: key };
   } catch {
-    return style;
+    return { voice: style, preset: cfg.preset };
   }
 }
 
@@ -149,10 +152,14 @@ async function synthesizeOne(text: string, scriptId: string, preset: string, spe
   const clean = (text ?? '').trim();
   if (!clean) return null;
 
-  const out = new File(Paths.cache, speechScriptFileName(scriptId, keyFor(clean, preset, speed)));
-  if (out.exists) return out.uri;
+  const wanted = new File(Paths.cache, speechScriptFileName(scriptId, keyFor(clean, preset, speed)));
+  if (wanted.exists) return wanted.uri;
 
-  const voice = await styleFor(preset);
+  const { voice, preset: used } = await styleFor(preset);
+  // 요청한 목소리를 못 받아 기본 목소리로 읽었으면 기본 목소리의 열쇠로 남긴다. 요청한 열쇠로 남기면 나중에 그
+  // 목소리를 받을 수 있게 돼도 저장본이 이미 있다며 계속 기본 목소리가 재생된다.
+  const out = used === preset ? wanted : new File(Paths.cache, speechScriptFileName(scriptId, keyFor(clean, used, speed)));
+  if (out.exists) return out.uri;
   // 모델은 32개 말을 읽을 줄 안다. 대본이 어느 말로 쓰였는지는 알 수 없으니
   // 앱을 쓰는 말로 읽힌다 — 한국어 사용자는 지금과 같다 (SOMA-544).
   // 말속도는 호출마다 바꿀 수 있다(듣고 따라 하기의 천천히 0.7×).
