@@ -1300,10 +1300,19 @@ export const api = {
     return request(`/v2/me/saved-entries${query}`, {}, { timeoutMs: 20_000 });
   },
 
-  /** 내 참여작(P03). 분류별 수와 목록이 함께 온다(삭제된 것은 오지 않는다). */
-  listMyChallengeEntries(visibility?: 'public' | 'private'): Promise<MyEntriesResponse> {
-    const query = visibility ? `?visibility=${visibility}` : '';
-    return request<MyEntriesResponse>(`/v2/me/challenge-entries${query}`, {}, { timeoutMs: 20_000 });
+  /**
+   * 내 참여작(P03). 분류별 수(counts)는 서버가 전체로 세고 목록은 20개씩이다(삭제된 것은 오지 않는다). visibility 로
+   * 한 분류만 받을 수 있다.
+   */
+  listMyChallengeEntries(
+    visibility?: 'public' | 'private' | 'under_review',
+    cursor?: string,
+  ): Promise<MyEntriesResponse> {
+    const query = new URLSearchParams();
+    if (visibility) query.set('visibility', visibility);
+    if (cursor) query.set('cursor', cursor);
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return request<MyEntriesResponse>(`/v2/me/challenge-entries${suffix}`, {}, { timeoutMs: 20_000 });
   },
 
   // 입시 ----------------------------------------------------------------------

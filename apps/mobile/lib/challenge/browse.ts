@@ -70,48 +70,27 @@ export type RankedEntry = EntryCard & {
   isNew: boolean;
 };
 
-function comparePublished(a: EntryCard, b: EntryCard): number {
-  const at = Date.parse(a.published_at) - Date.parse(b.published_at);
-  return at !== 0 ? at : a.id.localeCompare(b.id);
-}
-
 /**
- * 화면에 그릴 순서와 배지를 붙인다. 서버가 순위를 주면 그것을 쓰고, 없으면 같은 규칙으로 센다
- * (좋아요 내림차순, 같으면 최초 공개 시각·id 순, 같은 좋아요는 같은 순위).
+ * 화면에 그릴 배지를 붙인다. 순서·순위·NEW 는 서버가 정한 그대로다 — 좋아요순은 처음 조회한 순서를 10분 굳혀 주고
+ * 종료 뒤에는 확정 순위(final_rank)로 세우므로, 지금 좋아요 수로 다시 정렬하면 그 약속이 깨진다. 순위는 전체 기준
+ * 공동 순위이고(차단으로 빠진 참여작이 있어도 그대로), 좋아요가 모두 0이거나 집계 중이면 서버가 순위를 주지 않는다.
  */
 export function rankEntries(entries: readonly EntryCard[], sort: EntrySort): RankedEntry[] {
   if (sort === 'latest') {
-    const sorted = [...entries].sort((a, b) => -comparePublished(a, b));
-    return sorted.map((entry, index) => ({
-      ...entry,
-      displayRank: null,
-      showsFirstBadge: false,
-      isNew: index === 0,
-    }));
+    return entries.map((entry) => ({ ...entry, displayRank: null, showsFirstBadge: false, isNew: entry.is_new }));
   }
-  const sorted = [...entries].sort((a, b) => b.like_count - a.like_count || comparePublished(a, b));
-  const anyLikes = sorted.some((entry) => entry.like_count > 0);
-  let lastLikes: number | null = null;
-  let lastRank = 0;
-  return sorted.map((entry, index) => {
-    const rank =
-      entry.rank ?? (entry.like_count === lastLikes ? lastRank : index + 1);
-    lastLikes = entry.like_count;
-    lastRank = rank;
-    return {
-      ...entry,
-      displayRank: rank,
-      // 좋아요가 모두 0이면 1위 배지를 보이지 않는다.
-      showsFirstBadge: anyLikes && rank === 1 && entry.like_count > 0,
-      isNew: false,
-    };
-  });
+  return entries.map((entry) => ({
+    ...entry,
+    displayRank: entry.rank,
+    showsFirstBadge: entry.rank === 1,
+    isNew: false,
+  }));
 }
 
-/** 1위 카드의 배지 문구. 종료 뒤에는 굳은 값이다. */
-export function firstBadgeLabel(entry: Pick<EntryCard, 'like_count'>, ended: boolean): string {
+/** 1위 카드의 배지 문구. 종료 뒤에는 마감 때 저장된 좋아요 수다(그 뒤의 좋아요는 반영하지 않는다). */
+export function firstBadgeLabel(entry: Pick<EntryCard, 'like_count' | 'final_like_count'>, ended: boolean): string {
   return ended
-    ? translate('challenges.finalFirst', { count: entry.like_count })
+    ? translate('challenges.finalFirst', { count: entry.final_like_count ?? entry.like_count })
     : translate('challenges.currentFirst', { count: entry.like_count });
 }
 

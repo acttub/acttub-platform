@@ -19,12 +19,15 @@ import { translate as t } from '@/lib/i18n';
  * 목록에서 빠지고 행은 남으며(다시 공개되면 돌아온다) 참여작이 삭제되면 행도 사라진다.
  * 저장은 랭킹·작성자 알림에 반영하지 않는다. 내 참여작의 분류는 P03(challenge-entries)에 있다.
  */
+/** 저장한 참여작과 내 참여작이 함께 쓰는 칸 — NEW 는 최신순 목록에서만 뜻이 있다. */
+type SavedItem = Omit<EntryCard, 'is_new'>;
+
 export default function SavedVideosScreen() {
   const router = useRouter();
   const { tab: initialTab } = useLocalSearchParams<{ tab?: string }>();
   const [tab, setTab] = useState<'mine' | 'saved'>(initialTab === 'mine' ? 'mine' : 'saved');
-  const [saved, setSaved] = useState<EntryCard[] | null>(null);
-  const [mine, setMine] = useState<EntryCard[] | null>(null);
+  const [saved, setSaved] = useState<SavedItem[] | null>(null);
+  const [mine, setMine] = useState<SavedItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -47,7 +50,7 @@ export default function SavedVideosScreen() {
   const items = tab === 'mine' ? mine : saved;
 
   /** 저장 풀기 — 멱등이라 두 번 눌러도 문제가 없다. */
-  const unsave = async (entry: EntryCard) => {
+  const unsave = async (entry: SavedItem) => {
     setSaved((prev) => (prev ?? []).filter((e) => e.id !== entry.id));
     try {
       await api.saveEntry(entry.id, false);
@@ -57,7 +60,7 @@ export default function SavedVideosScreen() {
     }
   };
 
-  const open = (entry: EntryCard) => {
+  const open = (entry: SavedItem) => {
     logEvent('saved_video_open', { id: entry.id, tab });
     router.push({ pathname: '/challenge-play', params: { entryId: entry.id } });
   };

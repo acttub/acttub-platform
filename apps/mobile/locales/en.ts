@@ -442,6 +442,8 @@ const en: DeepStringShape<typeof ko> = {
     emptyEnded: 'No challenge has ended yet.',
     emptyMine: "You haven't joined a challenge yet.",
     emptyEntries: 'No entries yet. Be the first to join.',
+    moreLines: 'Load more lines',
+    moreEntries: 'Load more entries',
     newBadge: 'NEW',
     deleteTitle: 'Delete this challenge?',
     deleteBody: 'You can delete it only while it has no entries. It disappears from the list.',

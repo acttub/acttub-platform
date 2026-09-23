@@ -11,6 +11,7 @@ import {
   moderationNotice,
   participantsLabel,
   pinsFeatured,
+  firstBadgeLabel,
   rankEntries,
   rankingNotice,
   ranksHidden,
@@ -25,55 +26,78 @@ const entry = (id, likes, publishedAt, over = {}) => ({
   comment_count: 0,
   view_count: 0,
   rank: null,
+  final_like_count: null,
   published_at: publishedAt,
   playback_url: null,
   liked: false,
   saved: false,
+  is_mine: false,
+  is_new: false,
   ...over,
 });
 
-test('challenge.browse: 좋아요순은 5가 1위, 3 둘은 공동 2위이고 그 안에서 공개 시각·id 순이다', () => {
+test('challenge.browse: 좋아요순은 서버가 준 순서와 공동 순위 그대로이고 1위에만 배지다', () => {
   const ranked = rankEntries(
     [
-      entry('c', 3, '2026-09-20T02:00:00Z'),
-      entry('a', 5, '2026-09-19T02:00:00Z'),
-      entry('b', 3, '2026-09-19T05:00:00Z'),
+      entry('a', 5, '2026-09-19T02:00:00Z', { rank: 1 }),
+      entry('b', 3, '2026-09-19T05:00:00Z', { rank: 2 }),
+      entry('c', 3, '2026-09-20T02:00:00Z', { rank: 2 }),
     ],
     'likes',
   );
 
   assert.deepEqual(ranked.map((e) => e.id), ['a', 'b', 'c']);
   assert.deepEqual(ranked.map((e) => e.displayRank), [1, 2, 2]);
-  // 1위 카드에만 배지가 붙는다.
   assert.deepEqual(ranked.map((e) => e.showsFirstBadge), [true, false, false]);
 });
 
-test('challenge.browse: 좋아요가 모두 0이면 1위 배지가 없다', () => {
+test('challenge.browse: 10분 동안 굳힌 순서는 그 사이 좋아요가 뒤집혀도 다시 정렬하지 않는다', () => {
+  // 서버가 첫 조회 때 순서를 굳혀 두었다 — 2위가 그 뒤 좋아요로 1위를 넘어도 이어지는 쪽은 처음 순서다.
+  const ranked = rankEntries(
+    [entry('a', 5, '2026-09-19T02:00:00Z', { rank: 1 }), entry('b', 9, '2026-09-19T05:00:00Z', { rank: 2 })],
+    'likes',
+  );
+
+  assert.deepEqual(ranked.map((e) => e.id), ['a', 'b']);
+  assert.deepEqual(ranked.map((e) => e.displayRank), [1, 2]);
+});
+
+test('challenge.browse: 좋아요가 모두 0이면 서버가 순위를 주지 않아 1위 배지가 없다', () => {
   const ranked = rankEntries([entry('a', 0, '2026-09-19T02:00:00Z'), entry('b', 0, '2026-09-20T02:00:00Z')], 'likes');
 
-  assert.deepEqual(ranked.map((e) => e.displayRank), [1, 1]);
+  assert.deepEqual(ranked.map((e) => e.displayRank), [null, null]);
   assert.equal(ranked.some((e) => e.showsFirstBadge), false);
 });
 
-test('challenge.browse: 최신순은 공개 시각 역순이고 순위 숫자가 없으며 가장 최근 하나에만 NEW 다', () => {
+test('challenge.browse: 최신순은 순위 숫자가 없고 NEW 는 서버가 가장 최근 하나에만 붙인다', () => {
   const ranked = rankEntries(
-    [entry('a', 9, '2026-09-19T02:00:00Z'), entry('b', 1, '2026-09-21T02:00:00Z'), entry('c', 4, '2026-09-20T02:00:00Z')],
+    [entry('b', 1, '2026-09-21T02:00:00Z', { is_new: true }), entry('c', 4, '2026-09-20T02:00:00Z'), entry('a', 9, '2026-09-19T02:00:00Z')],
     'latest',
   );
+  const nextPage = rankEntries([entry('d', 2, '2026-09-18T02:00:00Z')], 'latest');
 
   assert.deepEqual(ranked.map((e) => e.id), ['b', 'c', 'a']);
   assert.deepEqual(ranked.map((e) => e.displayRank), [null, null, null]);
   assert.deepEqual(ranked.map((e) => e.isNew), [true, false, false]);
+  assert.equal(nextPage[0].isNew, false);
   assert.equal(ranked.some((e) => e.showsFirstBadge), false);
 });
 
-test('challenge.browse: 서버가 준 순위가 있으면 그대로 쓴다(차단으로 빠져도 전체 기준)', () => {
+test('challenge.browse: 서버가 준 순위는 차단으로 빠진 참여작이 있어도 전체 기준 그대로다', () => {
   const ranked = rankEntries(
     [entry('a', 5, '2026-09-19T02:00:00Z', { rank: 1 }), entry('c', 3, '2026-09-20T02:00:00Z', { rank: 3 })],
     'likes',
   );
 
   assert.deepEqual(ranked.map((e) => e.displayRank), [1, 3]);
+});
+
+test('challenge.browse: 종료 뒤 1위 배지는 마감 때 저장된 좋아요 수다', () => {
+  const winner = entry('a', 12, '2026-09-19T02:00:00Z', { rank: 1, final_like_count: 10 });
+
+  assert.match(firstBadgeLabel(winner, true), /10/);
+  assert.doesNotMatch(firstBadgeLabel(winner, true), /12/);
+  assert.match(firstBadgeLabel(winner, false), /12/);
 });
 
 test('challenge.browse: 종료된 챌린지는 확정 전까지 "집계 중"이고 순위를 감춘다', () => {

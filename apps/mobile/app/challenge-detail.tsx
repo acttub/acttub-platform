@@ -46,6 +46,8 @@ export default function ChallengeDetailScreen() {
   const [sort, setSort] = useState<EntrySort>('likes');
   const [challenge, setChallenge] = useState<ChallengeDetail | null>(null);
   const [entries, setEntries] = useState<Ranked[] | null>(null);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
 
@@ -60,6 +62,7 @@ export default function ChallengeDetailScreen() {
         ]);
         setChallenge(detail);
         setEntries(rankEntries(list.entries, nextSort));
+        setCursor(list.next_cursor);
       } catch (e) {
         const failure = browseFailure(e);
         setEntries([]);
@@ -67,12 +70,32 @@ export default function ChallengeDetailScreen() {
         // 정렬 기준이 바뀌어 커서가 만료되면 처음부터 다시 읽는다.
         if (failure.kind === 'cursor_expired') void api.listChallengeEntries(id, { sort: nextSort }).then((list) => {
           setEntries(rankEntries(list.entries, nextSort));
+          setCursor(list.next_cursor);
           setError(null);
         }).catch(() => undefined);
       }
     },
     [id],
   );
+
+  /**
+   * 20개씩 이어 받는다. 좋아요순은 서버가 첫 조회의 순서를 10분 굳혀 두므로 그대로 붙이고, 기준이 바뀌었거나 오래돼
+   * 410 cursor_expired 면 처음부터 다시 읽는다.
+   */
+  const loadMore = async () => {
+    if (!id || !cursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const list = await api.listChallengeEntries(id, { sort, cursor });
+      setEntries((prev) => [...(prev ?? []), ...rankEntries(list.entries, sort)]);
+      setCursor(list.next_cursor);
+    } catch (e) {
+      if (browseFailure(e).kind === 'cursor_expired') void load(sort);
+      else setError(browseFailureMessage(browseFailure(e)));
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   useEffect(() => {
     void load(sort);
@@ -252,6 +275,16 @@ export default function ChallengeDetailScreen() {
               </Pressable>
             ))}
 
+            {cursor && (
+              <Pressable style={styles.moreBtn} onPress={() => void loadMore()} disabled={loadingMore} accessibilityRole="button">
+                {loadingMore ? (
+                  <ActivityIndicator color={palette.blue} />
+                ) : (
+                  <Text style={styles.moreText}>{t('challenges.moreEntries')}</Text>
+                )}
+              </Pressable>
+            )}
+
             {entries !== null && entries.length === 0 && !error && (
               <Text style={styles.empty}>{t('challenges.emptyEntries')}</Text>
             )}
@@ -270,6 +303,8 @@ export default function ChallengeDetailScreen() {
 }
 
 const styles = StyleSheet.create({
+  moreBtn: { alignItems: 'center', paddingVertical: 14 },
+  moreText: { color: palette.blue, fontSize: 14, fontWeight: '600' },
   safe: { flex: 1, backgroundColor: palette.bg },
   content: { padding: 20, paddingBottom: 60, gap: 10 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 16 },

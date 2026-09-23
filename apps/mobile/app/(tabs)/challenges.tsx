@@ -50,6 +50,8 @@ function ChallengesScreenContent() {
   const [tab, setTab] = useState<ChallengeTab>('popular');
   const [featured, setFeatured] = useState<ChallengeCard | null>(null);
   const [challenges, setChallenges] = useState<ChallengeCard[] | null>(null);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [intro, setIntro] = useState(false);
   const unread = useUnreadNotifications(true);
@@ -59,14 +61,31 @@ function ChallengesScreenContent() {
     try {
       const result = await api.listChallenges({ tab: next });
       setChallenges(result.challenges);
+      setCursor(result.next_cursor);
       // 오늘의 챌린지는 인기·최신 탭에만 고정한다.
       setFeatured(pinsFeatured(next) ? result.featured : null);
     } catch (e) {
       setChallenges([]);
       setFeatured(null);
+      setCursor(null);
       setError(browseFailureMessage(browseFailure(e)));
     }
   }, []);
+
+  /** 20개씩 이어 받는다. 커서는 요청자·탭에 묶여 있어 탭을 바꾸면 처음부터 다시 읽는다. */
+  const loadMore = async () => {
+    if (!cursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const result = await api.listChallenges({ tab, cursor });
+      setChallenges((prev) => [...(prev ?? []), ...result.challenges]);
+      setCursor(result.next_cursor);
+    } catch (e) {
+      setError(browseFailureMessage(browseFailure(e)));
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -164,6 +183,12 @@ function ChallengesScreenContent() {
           />
         ))}
 
+        {cursor && (
+          <Pressable style={styles.moreBtn} onPress={() => void loadMore()} disabled={loadingMore} accessibilityRole="button">
+            {loadingMore ? <ActivityIndicator color={palette.blue} /> : <Text style={styles.moreText}>{t('challenges.moreLines')}</Text>}
+          </Pressable>
+        )}
+
         {challenges !== null && challenges.length === 0 && !featured && !error && (
           <View style={styles.empty}>
             <Text style={styles.emptyText}>{emptyText}</Text>
@@ -242,6 +267,8 @@ function Card({
 }
 
 const styles = StyleSheet.create({
+  moreBtn: { alignItems: 'center', paddingVertical: 14 },
+  moreText: { color: palette.blue, fontSize: 14, fontWeight: '600' },
   safe: { flex: 1, backgroundColor: palette.bg },
   header: {
     flexDirection: 'row',

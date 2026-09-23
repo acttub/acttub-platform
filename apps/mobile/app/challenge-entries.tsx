@@ -10,7 +10,7 @@ import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { browseFailure, browseFailureMessage, isEnded } from '@/lib/challenge/browse';
 import { canGoPublic, deleteNotice, entryFailure, entryFailureMessage } from '@/lib/challenge/entry';
-import { CAPTION_MAX, type MyEntryCard } from '@/lib/challenge/types';
+import { CAPTION_MAX, type MyEntriesResponse, type MyEntryCard } from '@/lib/challenge/types';
 import { bucketOf, entryCounts, entryStatusLabel, type EntryBucket } from '@/lib/challenge/views';
 import { formatKoreanDate } from '@/lib/format';
 import { translate as t } from '@/lib/i18n';
@@ -24,10 +24,14 @@ import { translate as t } from '@/lib/i18n';
  */
 type Filter = 'all' | EntryBucket;
 
+/** P03 목록을 한 번에 이어 받는 쪽 수의 상한(20개씩). */
+const MAX_PAGES = 10;
+
 export default function ChallengeEntriesScreen() {
   const router = useRouter();
   const { alert, confirm, sheet, dialog } = useAppDialog();
   const [entries, setEntries] = useState<MyEntryCard[] | null>(null);
+  const [serverCounts, setServerCounts] = useState<MyEntriesResponse['counts'] | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<MyEntryCard | null>(null);
@@ -36,8 +40,17 @@ export default function ChallengeEntriesScreen() {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const result = await api.listMyChallengeEntries();
-      setEntries(result.entries);
+      // 분류 수는 서버가 전체로 센다. 목록은 20개씩이라 다음 쪽이 있으면 이어 받는다(하루 3개 참여라 길지 않다).
+      const first = await api.listMyChallengeEntries();
+      const all = [...first.entries];
+      let cursor = first.next_cursor;
+      for (let page = 1; cursor && page < MAX_PAGES; page += 1) {
+        const next = await api.listMyChallengeEntries(undefined, cursor);
+        all.push(...next.entries);
+        cursor = next.next_cursor;
+      }
+      setEntries(all);
+      setServerCounts(first.counts);
     } catch (e) {
       setEntries([]);
       setError(browseFailureMessage(browseFailure(e)));
@@ -50,7 +63,7 @@ export default function ChallengeEntriesScreen() {
     }, [load]),
   );
 
-  const counts = entryCounts(entries ?? []);
+  const counts = serverCounts ?? entryCounts(entries ?? []);
   const visible = (entries ?? []).filter((entry) => entry.status !== 'deleted');
   const shown = filter === 'all' ? visible : visible.filter((entry) => bucketOf(entry) === filter);
 

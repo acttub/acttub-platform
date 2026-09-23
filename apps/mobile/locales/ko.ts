@@ -433,6 +433,8 @@ const ko = {
     emptyEnded: '종료된 챌린지가 없어요.',
     emptyMine: '아직 참여한 챌린지가 없어요.',
     emptyEntries: '아직 참여작이 없어요. 첫 번째로 참여해 보세요.',
+    moreLines: '대사 더 보기',
+    moreEntries: '참여작 더 보기',
     newBadge: 'NEW',
     deleteTitle: '이 챌린지를 지울까요?',
     deleteBody: '참여작이 없을 때만 지울 수 있어요. 지우면 목록에서 사라져요.',

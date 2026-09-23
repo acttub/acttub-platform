@@ -1,7 +1,8 @@
 /**
  * 챌린지 계약 타입(04-challenge). 챌린지는 대사 한 줄과 기간이고, 영상은 연습과 같은 videos 를 쓴다.
  *
- * 서버(CA1~)가 아직 없어 요구사항과 스펙의 API 표를 기준으로 둔다. 통합(CI1)이 생성 타입으로 바꾼다.
+ * 서버 계약(apps/api/spec/openapi.json, CONTRACT §6-16~§6-20)과 칸을 맞춘다. tests/challenge-api-contract 가
+ * 실제 api.ts 호출을 서버 스키마로 대조한다.
  * 챌린지에는 다른 사람의 **현재 프로필 이름만** 보인다 — 사진·소개는 없고 아바타는 이름 첫 글자다.
  */
 
@@ -18,7 +19,7 @@ export type ChallengeOrigin = 'team' | 'member';
  * 참여자 미리보기 — 이름만 보인다(사진·소개는 없다). 아바타는 앱이 첫 글자로 그린다.
  * user_id 는 차단에 쓴다(화면에 보이지 않는다).
  */
-export type Participant = { name: string; user_id?: string };
+export type Participant = { name: string; user_id: string };
 
 export type ChallengeCard = {
   id: string;
@@ -60,25 +61,32 @@ export type EntrySort = 'likes' | 'latest';
 
 export type EntryCard = {
   id: string;
+  challenge_id: string;
   author: Participant;
   caption: string | null;
   like_count: number;
   comment_count: number;
   view_count: number;
-  /** 서버가 계산한 순위(공동 순위). 최신순 조회에는 오지 않는다. */
+  /** 서버가 계산한 전체 기준 공동 순위. 최신순·좋아요가 모두 0·집계 중이면 null 이다. */
   rank: number | null;
-  /** 최초 공개 시각. 재공개해도 그대로다 — 최신순·동점 정렬의 기준. */
-  published_at: string;
+  /** 종료 뒤 마감 때 저장된 좋아요 수. 진행 중이면 null 이다. */
+  final_like_count: number | null;
+  /** 최초 공개 시각. 재공개해도 그대로다 — 최신순·동점 정렬의 기준. 비공개로 만든 내 참여작은 null 이다. */
+  published_at: string | null;
   playback_url: string | null;
   liked: boolean;
   saved: boolean;
   /** 보는 사람 자신의 참여작인지. 본인 재생은 조회수로 세지 않는다. */
-  is_mine?: boolean;
+  is_mine: boolean;
+  /** 최신순에서 가장 최근 참여작 하나에만 참이다. */
+  is_new: boolean;
 };
 
 export type EntriesResponse = {
   entries: EntryCard[];
   next_cursor: string | null;
+  /** 종료 랭킹의 상태. 진행 중이면 null, 마감 집계 뒤 확정 전이면 pending("집계 중")이다. */
+  ranking_state: RankingState | null;
 };
 
 // ─── 참여작(challenge.entry) ─────────────────────────────────────────────────
@@ -108,9 +116,13 @@ export type EntryPatch = {
 };
 
 /** P03 내 참여작 — 분류와 부모 챌린지가 함께 온다. */
-export type MyEntryCard = EntryCard & {
+export type MyEntryCard = Omit<EntryCard, 'is_new'> & {
+  /** 캡션을 고칠 때마다 오른다(신고의 target_version 과 대조). */
+  content_version: number;
   visibility: EntryVisibility;
   status: EntryStatus;
+  /** 서버가 매긴 P03 분류 — 확인 중 → 비공개 → 공개 순으로 한 곳에만 든다. */
+  category: 'public' | 'private' | 'under_review';
   /** 부모 챌린지가 review·hidden 이면 참여작도 확인 중으로 보인다. */
   challenge_hidden: boolean;
   challenge: { id: string; line: string; work: string; character: string | null; ends_at: string };
@@ -120,6 +132,7 @@ export type MyEntryCard = EntryCard & {
 export type MyEntriesResponse = {
   counts: { all: number; public: number; private: number; under_review: number };
   entries: MyEntryCard[];
+  next_cursor: string | null;
 };
 
 export type CreateChallengeBody = {
@@ -215,6 +228,8 @@ export type AiReport = {
   suggestion: string | null;
   /** 견주기에 쓴 표본 수. 3개 미만이면 화면이 "비교할 영상이 아직 부족해요"를 보인다. */
   sample_count: number;
+  /** 이번 생성의 실행 수(최대 3). */
+  attempt_count: number;
   requested_at: string | null;
   completed_at: string | null;
 };
@@ -240,13 +255,17 @@ export type NotificationKind =
 export type NotificationGroup = {
   group_key: string;
   kind: NotificationKind;
-  /** 유효한(취소·삭제되지 않은) 서로 다른 행동자 수·댓글 수. */
+  /** 유효한(취소·삭제되지 않은) 서로 다른 행동자 수. 시스템 사건은 0 이다. */
   actor_count: number;
+  /** 유효한 사건 수 — 댓글 묶음은 댓글 수다. */
+  event_count: number;
   /** 대표 행동자 이름. 탈퇴했으면 서버가 "탈퇴한 사용자"로 준다. */
   actor_name: string | null;
-  challenge_id: string | null;
+  challenge_id: string;
   entry_id: string | null;
   comment_id: string | null;
+  /** 최신 댓글의 앞부분(볼 수 있을 때만). 행에는 복사하지 않고 조회 때 조립한다. */
+  comment_excerpt: string | null;
   /** 묶음의 최신 사건 시각. 목록은 이 순서의 역순이다. */
   latest_at: string;
   /** 포함된 사건이 모두 읽혔는지. */
@@ -288,6 +307,14 @@ export const CHALLENGE_ERROR_CODES = [
   'challenge_closed',
   'member_only',
   'cursor_expired',
+  'daily_report_request_limit',
+  'entry_not_found',
+  'video_not_found',
+  'comment_not_found',
+  'user_not_found',
+  'ai_report_not_found',
+  'challenge_not_found',
+  'account_deactivated',
 ] as const;
 
 export type ChallengeErrorCode = (typeof CHALLENGE_ERROR_CODES)[number];
