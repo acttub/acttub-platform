@@ -80,7 +80,42 @@ jobs:
       run:
         working-directory: apps/api
     steps:
+      # pull_request 의 체크아웃은 base 위의 merge commit 이라 HEAD^1 이 base 입니다 — 2커밋이면 변경 파일을 셉니다.
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+
+      # 배포·모니터링 검증은 잡 시간의 70%(약 13분)라 관련 파일이 바뀐 PR 에서만 돕니다(SOMA-552).
+      # 잡 자체는 항상 돌아야 합니다 — required check 가 오지 않으면 PR 이 영원히 대기합니다.
+      # main 으로 가는 릴리스 PR 과 수동 실행은 전부 돌려 운영 전 안전망을 유지합니다.
+      # 앱 코드가 이미지 빌드를 깰 수 있어 Smoke 는 여기서 거르지 않고 항상 돕니다.
+      - name: 변경 범위 판정
+        id: changes
+        working-directory: ${{ github.workspace }}
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" != pull_request ] || [ "$BASE_REF" = main ]; then
+            echo "전체 실행 ($EVENT → ${BASE_REF:-없음})"
+            { echo monitoring=true; echo restore=true; } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          files="$(git diff --name-only HEAD^1 HEAD)"
+          printf '%s\n' "$files"
+          monitoring=false; restore=false
+          while IFS= read -r f; do
+            case "$f" in
+              .github/workflows/ci.yml) monitoring=true; restore=true ;;
+              deploy/monitoring/*|deploy/home/compose.yml|deploy/home/deploy.sh) monitoring=true ;;
+            esac
+            case "$f" in
+              deploy/home/*|apps/api/src/main/resources/db/migration/*|apps/api/src/test/resources/schema-fingerprint.sql) restore=true ;;
+            esac
+          done <<< "$files"
+          echo "monitoring=$monitoring restore=$restore"
+          { echo "monitoring=$monitoring"; echo "restore=$restore"; } >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-java@v5
         with:
@@ -101,10 +136,12 @@ jobs:
           deploy/home/deploy-test.sh
 
       - name: Monitoring collectors and configuration
+        if: steps.changes.outputs.monitoring == 'true'
         working-directory: ${{ github.workspace }}
         run: python3 -m unittest discover -s deploy/monitoring/tests -v
 
       - name: Grafana configuration and alert rules
+        if: steps.changes.outputs.monitoring == 'true'
         working-directory: ${{ github.workspace }}
         run: deploy/monitoring/cloud/check.sh
 
@@ -123,6 +160,7 @@ jobs:
         run: deploy/home/smoke.sh
 
       - name: Monitoring (scrape · isolation · persistence · independent deploy)
+        if: steps.changes.outputs.monitoring == 'true'
         working-directory: ${{ github.workspace }}
         env:
           MONITORING_SMOKE_API_IMAGE: acttub-api:monitoring-ci
@@ -130,10 +168,12 @@ jobs:
         run: deploy/monitoring/smoke.sh
 
       - name: Restore (data · sequences · schema)
+        if: steps.changes.outputs.restore == 'true'
         working-directory: ${{ github.workspace }}
         run: deploy/home/restore-test.sh
 
       - name: Backup (PostgreSQL dump · restore · scheduler · failures)
+        if: steps.changes.outputs.restore == 'true'
         working-directory: ${{ github.workspace }}
         run: deploy/home/backup-smoke.sh
 
