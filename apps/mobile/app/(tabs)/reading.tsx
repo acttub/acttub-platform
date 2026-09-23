@@ -1,6 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -26,8 +26,7 @@ export default function ReadingList() {
   const insets = useSafeAreaInsets();
   const [scripts, setScripts] = useState<SavedScript[]>([]);
   const [q, setQ] = useState('');
-  // 대본 탭에 처음 들어올 때 한 번만 — 홈 가이드와 따로 센다 (SOMA-550).
-  const guideCheckedRef = useRef(false);
+  // 대본 탭에서 처음 한 번만 — 홈 가이드와 따로 센다 (SOMA-550).
   const [guideOpen, setGuideOpen] = useState(false);
   const newTarget = useSpotlightTarget(TARGET.readingNew);
 
@@ -35,12 +34,10 @@ export default function ReadingList() {
     useCallback(() => {
       let alive = true;
       void listScripts().then((list) => alive && setScripts(list));
-      if (!guideCheckedRef.current) {
-        guideCheckedRef.current = true;
-        void hasSeenSpotlight('reading').then((seen) => {
-          if (alive && !seen) setGuideOpen(true);
-        });
-      }
+      // 올 때마다 묻는다 — 설정에서 되살린 뒤 앱을 다시 켜야 보이면 아무도 못 본다.
+      void hasSeenSpotlight('reading').then((seen) => {
+        if (alive && !seen) setGuideOpen(true);
+      });
       return () => {
         alive = false;
       };

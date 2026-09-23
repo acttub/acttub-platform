@@ -378,7 +378,7 @@ const en: DeepStringShape<typeof ko> = {
     feedbackTitle: 'Send feedback',
     feedbackSub: 'What worked, what didn’t — one line is enough',
     guideTitle: 'See the guide again',
-    guideSub: 'The 4-page welcome tour',
+    guideSub: 'See the intro walkthrough again',
   },
   upload: {
     titleRetake: 'Retake the same scene',

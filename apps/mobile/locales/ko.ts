@@ -369,7 +369,7 @@ const ko = {
     feedbackTitle: '의견 보내기',
     feedbackSub: '좋았던 점·불편한 점, 한 줄이면 돼요',
     guideTitle: '가이드 다시 보기',
-    guideSub: '처음 시작 안내 4장',
+    guideSub: '처음 시작 안내를 다시 봐요',
   },
   upload: {
     titleRetake: '같은 장면 다시 찍기',
