@@ -26,7 +26,8 @@ class ChallengeSettlement {
               WHERE r.target_type='entry' AND r.target_id=e.id AND r.status='received')
             """;
     private final EntityManager em;
-    ChallengeSettlement(EntityManager em) { this.em = em; }
+    private final NotificationEvents events;
+    ChallengeSettlement(EntityManager em, NotificationEvents events) { this.em = em; this.events = events; }
 
     /** 챌린지 행을 잠근 뒤 마감이 지났고 아직 집계 전이면 집계하고, 집계 중이면 확정을 시도한다. */
     void settle(UUID challengeId, Instant now) {
@@ -71,6 +72,12 @@ class ChallengeSettlement {
                 """).setParameter("id", challengeId).setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate();
         em.createNativeQuery("UPDATE challenges SET ranking_state='pending' WHERE id=:id")
                 .setParameter("id", challengeId).executeUpdate();
+        // 삭제되지 않은 참여작을 가진 사람마다 종료 알림 하나(챌린지당 한 번, 참여작이 여럿이어도 하나).
+        NativeTuples.list(em.createNativeQuery("""
+                SELECT DISTINCT e.user_id FROM challenge_entries e JOIN users u ON u.id=e.user_id
+                WHERE e.challenge_id=:id AND e.status<>'deleted' AND u.status='active'
+                """, Tuple.class).setParameter("id", challengeId)).forEach(row -> events.record(row.get("user_id", UUID.class),
+                "challenge_ended", null, challengeId, null, null, "ended:" + challengeId, now));
     }
 
     private void confirm(UUID challengeId, Instant now) {

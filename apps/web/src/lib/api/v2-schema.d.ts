@@ -684,6 +684,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/me/notifications/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read Challenge Notifications */
+        post: operations["read_notifications_v2_me_notifications_read_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/guest/transfer-code": {
         parameters: {
             query?: never;
@@ -1468,6 +1485,44 @@ export interface paths {
          * @description 이 계정에 이미 물어봤는지. 표식을 건드리지 않는다.
          */
         get: operations["get_practice_feedback_status_v2_me_practice_feedback_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/me/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Challenge Notifications
+         * @description 묶음 20개씩, 묶음의 최신 사건 시각 역순. 인원·수는 지금도 유효한(취소·삭제·숨김·차단되지 않은) 사건만 센다.
+         *     이름·본문은 조회 때 조립하고 탈퇴한 행동자는 "탈퇴한 사용자"다.
+         */
+        get: operations["list_notifications_v2_me_notifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/me/notifications/unread-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Count Unread Challenge Notifications */
+        get: operations["unread_notifications_v2_me_notifications_unread_count_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2729,6 +2784,22 @@ export interface components {
              */
             expires_at: string;
         };
+        /** NotificationReadBefore */
+        NotificationReadBefore: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id?: string | null;
+        };
+        /** NotificationReadRequest */
+        NotificationReadRequest: {
+            /** Group Keys */
+            group_keys?: string[] | null;
+            all_before?: components["schemas"]["NotificationReadBefore"] | null;
+        };
         /** TransferCodeResponse */
         TransferCodeResponse: {
             /** Code */
@@ -3797,6 +3868,66 @@ export interface components {
             saved_count: number;
             /** Next Cursor */
             next_cursor: string | null;
+        };
+        /** ChallengeNotificationGroup */
+        ChallengeNotificationGroup: {
+            /** Group Key */
+            group_key: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "entry_liked" | "entry_commented" | "challenge_ended" | "entry_ai_report_ready";
+            /**
+             * Actor Count
+             * @description 유효한 서로 다른 행동자 수(시스템 사건은 0)
+             */
+            actor_count: number;
+            /**
+             * Event Count
+             * @description 유효한 사건 수(댓글 묶음은 댓글 수)
+             */
+            event_count: number;
+            /** Actor Name */
+            actor_name: string | null;
+            /**
+             * Challenge Id
+             * Format: uuid
+             */
+            challenge_id: string;
+            /** Entry Id */
+            entry_id: string | null;
+            /** Comment Id */
+            comment_id: string | null;
+            /** Comment Excerpt */
+            comment_excerpt: string | null;
+            /**
+             * Latest At
+             * Format: date-time
+             */
+            latest_at: string;
+            /** Read */
+            read: boolean;
+            /**
+             * Target Available
+             * @description 대상이 삭제·비공개·숨김으로 볼 수 없으면 false(본인 AI 리포트는 예외)
+             */
+            target_available: boolean;
+        };
+        /** ChallengeNotifications */
+        ChallengeNotifications: {
+            /** Groups */
+            groups: components["schemas"]["ChallengeNotificationGroup"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** NotificationUnreadCount */
+        NotificationUnreadCount: {
+            /**
+             * Count
+             * @description 읽지 않은 묶음 수
+             */
+            count: number;
         };
         /** ActorMemoryResponse */
         ActorMemoryResponse: {
@@ -5716,6 +5847,28 @@ export interface operations {
             };
         };
     };
+    read_notifications_v2_me_notifications_read_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationReadRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     issue_transfer_code_v2_guest_transfer_code_post: {
         parameters: {
             query?: never;
@@ -7043,6 +7196,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PracticeFeedbackStatus"];
+                };
+            };
+        };
+    };
+    list_notifications_v2_me_notifications_get: {
+        parameters: {
+            query?: {
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChallengeNotifications"];
+                };
+            };
+        };
+    };
+    unread_notifications_v2_me_notifications_unread_count_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationUnreadCount"];
                 };
             };
         };

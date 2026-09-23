@@ -300,6 +300,26 @@ COLUMN line_memorization.line_id ord=3 type=uuid len=- null=NO default=-
 COLUMN line_memorization.status ord=4 type=text len=- null=NO default=-
 COLUMN line_memorization.updated_at ord=6 type=timestamptz len=- null=NO default=now()
 COLUMN line_memorization.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN notification_pushes.created_at ord=5 type=timestamptz len=- null=NO default=-
+COLUMN notification_pushes.group_key ord=2 type=text len=- null=NO default=-
+COLUMN notification_pushes.id ord=1 type=uuid len=- null=NO default=-
+COLUMN notification_pushes.stage ord=3 type=text len=- null=NO default=-
+COLUMN notification_pushes.user_id ord=4 type=uuid len=- null=NO default=-
+COLUMN notifications.actor_user_id ord=4 type=uuid len=- null=YES default=-
+COLUMN notifications.challenge_id ord=5 type=uuid len=- null=NO default=-
+COLUMN notifications.comment_id ord=7 type=uuid len=- null=YES default=-
+COLUMN notifications.created_at ord=10 type=timestamptz len=- null=NO default=-
+COLUMN notifications.entry_id ord=6 type=uuid len=- null=YES default=-
+COLUMN notifications.event_key ord=8 type=text len=- null=NO default=-
+COLUMN notifications.expires_at ord=12 type=timestamptz len=- null=NO default=-
+COLUMN notifications.group_key ord=9 type=text len=- null=NO default=-
+COLUMN notifications.id ord=1 type=uuid len=- null=NO default=-
+COLUMN notifications.kind ord=3 type=text len=- null=NO default=-
+COLUMN notifications.push_after ord=13 type=timestamptz len=- null=YES default=-
+COLUMN notifications.push_attempted_at ord=15 type=timestamptz len=- null=YES default=-
+COLUMN notifications.push_status ord=14 type=text len=- null=NO default=-
+COLUMN notifications.read_at ord=11 type=timestamptz len=- null=YES default=-
+COLUMN notifications.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN portfolio_credits.created_at ord=8 type=timestamptz len=- null=NO default=now()
 COLUMN portfolio_credits.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
 COLUMN portfolio_credits.kind ord=6 type=text len=- null=NO default=-
@@ -912,6 +932,7 @@ CONSTRAINT entry_comments entry_comments_request_id_not_null NOT NULL request_id
 CONSTRAINT entry_comments entry_comments_status_not_null NOT NULL status
 CONSTRAINT entry_comments entry_comments_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
 CONSTRAINT entry_comments entry_comments_user_id_not_null NOT NULL user_id
+CONSTRAINT entry_comments uq_entry_comments_parent UNIQUE (id, entry_id)
 CONSTRAINT entry_comments uq_entry_comments_request UNIQUE (user_id, request_id)
 CONSTRAINT entry_likes entry_likes_created_at_not_null NOT NULL created_at
 CONSTRAINT entry_likes entry_likes_entry_id_fkey FOREIGN KEY (entry_id) REFERENCES challenge_entries(id)
@@ -1010,6 +1031,37 @@ CONSTRAINT line_memorization line_memorization_updated_at_not_null NOT NULL upda
 CONSTRAINT line_memorization line_memorization_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
 CONSTRAINT line_memorization line_memorization_user_id_not_null NOT NULL user_id
 CONSTRAINT line_memorization uq_line_memorization_user_line UNIQUE (user_id, line_id)
+CONSTRAINT notification_pushes ck_notification_pushes_stage CHECK ((stage = ANY (ARRAY['first'::text, 'summary'::text])))
+CONSTRAINT notification_pushes notification_pushes_created_at_not_null NOT NULL created_at
+CONSTRAINT notification_pushes notification_pushes_group_key_not_null NOT NULL group_key
+CONSTRAINT notification_pushes notification_pushes_id_not_null NOT NULL id
+CONSTRAINT notification_pushes notification_pushes_pkey PRIMARY KEY (id)
+CONSTRAINT notification_pushes notification_pushes_stage_not_null NOT NULL stage
+CONSTRAINT notification_pushes notification_pushes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT notification_pushes notification_pushes_user_id_not_null NOT NULL user_id
+CONSTRAINT notification_pushes uq_notification_pushes_stage UNIQUE (group_key, stage)
+CONSTRAINT notifications ck_notifications_actor CHECK (((kind = ANY (ARRAY['entry_liked'::text, 'entry_commented'::text])) OR (actor_user_id IS NULL)))
+CONSTRAINT notifications ck_notifications_comment CHECK (((kind = 'entry_commented'::text) = (comment_id IS NOT NULL)))
+CONSTRAINT notifications ck_notifications_entry CHECK (((kind = 'challenge_ended'::text) = (entry_id IS NULL)))
+CONSTRAINT notifications ck_notifications_kind CHECK ((kind = ANY (ARRAY['entry_liked'::text, 'entry_commented'::text, 'challenge_ended'::text, 'entry_ai_report_ready'::text])))
+CONSTRAINT notifications ck_notifications_pending CHECK (((push_status <> 'pending'::text) OR (push_after IS NOT NULL)))
+CONSTRAINT notifications ck_notifications_push_status CHECK ((push_status = ANY (ARRAY['pending'::text, 'attempted'::text, 'skipped'::text])))
+CONSTRAINT notifications fk_notifications_comment FOREIGN KEY (comment_id, entry_id) REFERENCES entry_comments(id, entry_id)
+CONSTRAINT notifications fk_notifications_entry FOREIGN KEY (entry_id, challenge_id) REFERENCES challenge_entries(id, challenge_id)
+CONSTRAINT notifications notifications_actor_user_id_fkey FOREIGN KEY (actor_user_id) REFERENCES users(id)
+CONSTRAINT notifications notifications_challenge_id_fkey FOREIGN KEY (challenge_id) REFERENCES challenges(id)
+CONSTRAINT notifications notifications_challenge_id_not_null NOT NULL challenge_id
+CONSTRAINT notifications notifications_created_at_not_null NOT NULL created_at
+CONSTRAINT notifications notifications_event_key_not_null NOT NULL event_key
+CONSTRAINT notifications notifications_expires_at_not_null NOT NULL expires_at
+CONSTRAINT notifications notifications_group_key_not_null NOT NULL group_key
+CONSTRAINT notifications notifications_id_not_null NOT NULL id
+CONSTRAINT notifications notifications_kind_not_null NOT NULL kind
+CONSTRAINT notifications notifications_pkey PRIMARY KEY (id)
+CONSTRAINT notifications notifications_push_status_not_null NOT NULL push_status
+CONSTRAINT notifications notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT notifications notifications_user_id_not_null NOT NULL user_id
+CONSTRAINT notifications uq_notifications_event UNIQUE (user_id, event_key)
 CONSTRAINT portfolio_credits ck_portfolio_credits_kind CHECK ((kind = ANY (ARRAY['film'::text, 'drama'::text, 'play'::text, 'musical'::text, 'ad'::text, 'other'::text])))
 CONSTRAINT portfolio_credits portfolio_credits_created_at_not_null NOT NULL created_at
 CONSTRAINT portfolio_credits portfolio_credits_id_not_null NOT NULL id
@@ -1412,6 +1464,11 @@ INDEX CREATE INDEX ix_entry_reports_queue ON public.entry_reports USING btree (s
 INDEX CREATE INDEX ix_entry_reports_reporter_created ON public.entry_reports USING btree (reporter_id, created_at)
 INDEX CREATE INDEX ix_entry_saves_user ON public.entry_saves USING btree (user_id, created_at DESC, id DESC)
 INDEX CREATE INDEX ix_entry_view_events_created ON public.entry_view_events USING btree (created_at)
+INDEX CREATE INDEX ix_notification_pushes_created ON public.notification_pushes USING btree (created_at)
+INDEX CREATE INDEX ix_notifications_due ON public.notifications USING btree (push_after) WHERE (push_status = 'pending'::text)
+INDEX CREATE INDEX ix_notifications_entry ON public.notifications USING btree (entry_id)
+INDEX CREATE INDEX ix_notifications_expires ON public.notifications USING btree (expires_at)
+INDEX CREATE INDEX ix_notifications_inbox ON public.notifications USING btree (user_id, group_key, created_at DESC)
 INDEX CREATE INDEX ix_user_blocks_received ON public.user_blocks USING btree (blocked_id, blocker_id)
 INDEX CREATE UNIQUE INDEX account_cleanup_operations_pkey ON public.account_cleanup_operations USING btree (id)
 INDEX CREATE UNIQUE INDEX actor_memories_pkey ON public.actor_memories USING btree (id)
@@ -1447,6 +1504,8 @@ INDEX CREATE UNIQUE INDEX external_operations_pkey ON public.external_operations
 INDEX CREATE UNIQUE INDEX guest_transfer_codes_pkey ON public.guest_transfer_codes USING btree (id)
 INDEX CREATE UNIQUE INDEX handoff_confirmations_pkey ON public.handoff_confirmations USING btree (coaching_handoff_id)
 INDEX CREATE UNIQUE INDEX line_memorization_pkey ON public.line_memorization USING btree (id)
+INDEX CREATE UNIQUE INDEX notification_pushes_pkey ON public.notification_pushes USING btree (id)
+INDEX CREATE UNIQUE INDEX notifications_pkey ON public.notifications USING btree (id)
 INDEX CREATE UNIQUE INDEX portfolio_credits_pkey ON public.portfolio_credits USING btree (id)
 INDEX CREATE UNIQUE INDEX portfolio_photos_object_key_key ON public.portfolio_photos USING btree (object_key)
 INDEX CREATE UNIQUE INDEX portfolio_photos_pkey ON public.portfolio_photos USING btree (id)
@@ -1494,6 +1553,7 @@ INDEX CREATE UNIQUE INDEX uq_community_post_likes ON public.community_post_likes
 INDEX CREATE UNIQUE INDEX uq_community_reports_reporter_target ON public.community_reports USING btree (reporter_id, target_type, target_id)
 INDEX CREATE UNIQUE INDEX uq_consent_documents_type_version ON public.consent_documents USING btree (type, version, locale)
 INDEX CREATE UNIQUE INDEX uq_entry_ai_reports_entry ON public.entry_ai_reports USING btree (entry_id)
+INDEX CREATE UNIQUE INDEX uq_entry_comments_parent ON public.entry_comments USING btree (id, entry_id)
 INDEX CREATE UNIQUE INDEX uq_entry_comments_request ON public.entry_comments USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_entry_likes_actor ON public.entry_likes USING btree (entry_id, user_id)
 INDEX CREATE UNIQUE INDEX uq_entry_reports_request ON public.entry_reports USING btree (reporter_id, request_id)
@@ -1503,6 +1563,8 @@ INDEX CREATE UNIQUE INDEX uq_external_operations_user_request ON public.external
 INDEX CREATE UNIQUE INDEX uq_guest_transfer_codes_unused_code_hash ON public.guest_transfer_codes USING btree (code_hash) WHERE (used_at IS NULL)
 INDEX CREATE UNIQUE INDEX uq_guest_transfer_codes_unused_user ON public.guest_transfer_codes USING btree (user_id) WHERE (used_at IS NULL)
 INDEX CREATE UNIQUE INDEX uq_line_memorization_user_line ON public.line_memorization USING btree (user_id, line_id)
+INDEX CREATE UNIQUE INDEX uq_notification_pushes_stage ON public.notification_pushes USING btree (group_key, stage)
+INDEX CREATE UNIQUE INDEX uq_notifications_event ON public.notifications USING btree (user_id, event_key)
 INDEX CREATE UNIQUE INDEX uq_portfolios_share_slug ON public.portfolios USING btree (share_slug)
 INDEX CREATE UNIQUE INDEX uq_practice_feedback_user_request ON public.practice_feedback USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_practice_migration_source ON public.practice_migration_entries USING btree (source_table, source_id)
@@ -1569,6 +1631,8 @@ TABLE external_operations
 TABLE guest_transfer_codes
 TABLE handoff_confirmations
 TABLE line_memorization
+TABLE notification_pushes
+TABLE notifications
 TABLE portfolio_credits
 TABLE portfolio_photos
 TABLE portfolios

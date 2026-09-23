@@ -33,10 +33,11 @@ class PostgresAiReportRepository implements AiReportRepository {
     private final EntityManager em;
     private final EntryLocks locks;
     private final AiJobLedger ledger;
+    private final NotificationEvents events;
     private final ObjectMapper json = new ObjectMapper();
 
-    PostgresAiReportRepository(EntityManager em, EntryLocks locks, AiJobLedger ledger) {
-        this.em = em; this.locks = locks; this.ledger = ledger;
+    PostgresAiReportRepository(EntityManager em, EntryLocks locks, AiJobLedger ledger, NotificationEvents events) {
+        this.em = em; this.locks = locks; this.ledger = ledger; this.events = events;
     }
 
     @Override @Transactional
@@ -154,7 +155,7 @@ class PostgresAiReportRepository implements AiReportRepository {
     @Override @Transactional
     public boolean complete(UUID jobId, UUID leaseToken, UUID entryId, Result result, String model, Instant now) {
         var locked = NativeTuples.list(em.createNativeQuery("""
-                SELECT r.user_id FROM entry_ai_reports r JOIN challenge_entries e ON e.id=r.entry_id JOIN users u ON u.id=r.user_id
+                SELECT r.user_id,e.challenge_id FROM entry_ai_reports r JOIN challenge_entries e ON e.id=r.entry_id JOIN users u ON u.id=r.user_id
                 WHERE r.entry_id=:entry AND r.job_id=:job AND r.status='pending' AND r.purged_at IS NULL
                   AND e.status<>'deleted' AND u.status='active'
                 FOR UPDATE OF r
@@ -188,6 +189,8 @@ class PostgresAiReportRepository implements AiReportRepository {
                 """).setParameter("result", body.toString()).setParameter("model", model).setParameter("attempts", attempts)
                 .setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("entry", entryId).executeUpdate();
         if (!ledger.succeed(jobId, leaseToken, now)) throw new IllegalStateException("challenge report job was closed: " + jobId);
+        events.record(locked.getFirst().get("user_id", UUID.class), "entry_ai_report_ready", null,
+                locked.getFirst().get("challenge_id", UUID.class), entryId, null, "ai_report:" + jobId, now);
         return true;
     }
 

@@ -1360,6 +1360,33 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - 참여작 삭제는 리포트 본문을 파기하고(`purged_at`) 진행 중 작업을 `cancelled`로 닫는다. V20은 `ck_ai_jobs_kind`에
   `challenge_report`를 더하고 `entry_ai_reports`(참여작당 한 행)를 만든다.
 
+### 6-20. 챌린지 알림함·푸시와 탈퇴 연결 (1.0.0)
+
+- 사건은 넷이다: `entry_liked`(새 좋아요 행, event_key `like:<좋아요 id>`), `entry_commented`(`comment:<댓글 id>`,
+  `comment_id` 필수), `challenge_ended`(마감 집계 때 삭제되지 않은 참여작을 가진 활성 참여자마다 챌린지당 하나, `entry_id`
+  NULL), `entry_ai_report_ready`(`ai_report:<작업 id>`). 원인 행동과 같은 트랜잭션에서 `notifications`에 남기고
+  `(user_id, event_key)`로 재전송을 한 행으로 막는다. 자기 행동은 남기지 않고, 차단 관계의 반응은 애초에 404라 사건이 없다.
+  이름·캡션·본문·주소는 복사하지 않는다. 참조의 부모 관계(`comment_id`의 참여작, `entry_id`의 챌린지)는 FK로 묶는다.
+- 묶음(`group_key`)은 수신자·종류·참여작(없으면 챌린지)·10분 구간이다. 토글(`user_profiles.notify_challenge`)이 꺼졌거나
+  푸시 토큰이 없으면 `push_status=skipped`로 알림함에만 쌓는다. 아니면 묶음의 첫 사건은 지금, 뒤따르는 사건은 구간 끝이
+  `push_after`이고 한국 시간 21시~09시는 예외 없이 다음 09시다.
+- 발송은 커밋 뒤 따로 돈다(`CHALLENGE_NOTIFICATION_PUSH_ENABLED`, 1분). 때가 된 묶음을 잠그고 활성 계정·토글·지금 그
+  사람 것인 한국어 토큰과 사건의 현재 조건(좋아요가 남음, 댓글이 삭제·숨김 아님, 행동자–수신자 차단 없음, 반응 알림은
+  공개 조건의 참여작, 종료는 보이는 챌린지, AI 완료는 본인의 남은 참여작)을 다시 본다. `notification_pushes`의
+  `(group_key, stage first·summary)`를 한 번만 선점해 첫 푸시와 요약 푸시를 하나씩 보낸다. 보낸 사건은 `attempted`,
+  나머지는 `skipped`다. 잠금 화면 문구는 일반 문구이고 data 에는 묶음 키·종류·챌린지·참여작 id 만 싣는다. 전송 실패는
+  운영 보고뿐이고 원래 행동은 이미 성공이다. "등록되지 않은 기기" 답이 온 토큰은 지운다.
+- `GET /v2/me/notifications?cursor=`는 묶음 20개씩 묶음의 최신 사건 시각 역순이다. 인원(`actor_count`)·수는 지금도
+  유효한 사건만 세고 유효한 사건이 없는 묶음은 뺀다. 대표 행동자는 현재 이름, 탈퇴했으면 "탈퇴한 사용자"다.
+  `target_available`이 거짓이면 대상이 삭제·비공개·숨김이다(본인 AI 리포트는 예외). `POST /v2/me/notifications/read`는
+  `group_keys`(그 묶음의 지금까지 사건 전부) 또는 `all_before{created_at, id?}`(그 시각까지, id 가 UUID면 그 id 까지)를
+  읽음으로 하고 204, 둘 다 없으면 422. `GET …/unread-count`는 읽지 않은 묶음 수다. 90일 지난 알림은 매시 일이 지운다.
+- 탈퇴 트랜잭션(account.withdraw)은 참여작을 비공개로(공개 전환은 활성 계정만 된다), 개설한 챌린지의 주최자를 NULL로
+  (origin 은 그대로), 건 차단·받은 차단·저장·받은 알림을 지우고, AI 리포트 본문을 파기한다(이력은 90일 뒤 매시 일이 지운다).
+  진행 중 리포트 생성은 기존 `ai_jobs` 취소가 닫는다. 남긴 좋아요·댓글은 남아 "탈퇴한 사용자"로 보인다. 챌린지 표에 자료가
+  있는 계정은 행째 지우지 않고 비활성으로 닫는다. V21은 `notifications`·`notification_pushes`와 `entry_comments (id, entry_id)`
+  유일 제약을 더한다.
+
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 
 1. **좋아요 카운트는 재집계다.** 증감 방식이 "두 번 눌리면 2 증가" 하던 버그 때문에 의도적으로

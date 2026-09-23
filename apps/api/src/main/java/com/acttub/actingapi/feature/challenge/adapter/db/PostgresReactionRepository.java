@@ -30,9 +30,10 @@ class PostgresReactionRepository implements ReactionRepository {
     private final EntityManager em;
     private final EntryLocks locks;
     private final EntryCards cards;
+    private final NotificationEvents events;
 
-    PostgresReactionRepository(EntityManager em, EntryLocks locks, EntryCards cards) {
-        this.em = em; this.locks = locks; this.cards = cards;
+    PostgresReactionRepository(EntityManager em, EntryLocks locks, EntryCards cards, NotificationEvents events) {
+        this.em = em; this.locks = locks; this.cards = cards; this.events = events;
     }
 
     @Override @Transactional
@@ -40,11 +41,16 @@ class PostgresReactionRepository implements ReactionRepository {
         var target = locks.entry(viewer, entryId, now, false, false);
         if (viewer.equals(target.author())) throw new ApiException(422, "self_like");
         if (on) {
-            em.createNativeQuery("""
+            UUID like = UUID.randomUUID();
+            int inserted = em.createNativeQuery("""
                     INSERT INTO entry_likes(id,entry_id,user_id,created_at) VALUES (:id,:entry,:viewer,:now)
                     ON CONFLICT (entry_id,user_id) DO NOTHING
-                    """).setParameter("id", UUID.randomUUID()).setParameter("entry", entryId).setParameter("viewer", viewer)
+                    """).setParameter("id", like).setParameter("entry", entryId).setParameter("viewer", viewer)
                     .setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate();
+            // 좋아요 행이 원인이다 — 취소 뒤 다시 누르면 새 사건이고, 이미 눌러 둔 재전송은 사건을 만들지 않는다.
+            if (inserted == 1) {
+                events.record(target.author(), "entry_liked", viewer, target.challengeId(), entryId, null, "like:" + like, now);
+            }
         } else {
             em.createNativeQuery("DELETE FROM entry_likes WHERE entry_id=:entry AND user_id=:viewer")
                     .setParameter("entry", entryId).setParameter("viewer", viewer).executeUpdate();
@@ -133,7 +139,7 @@ class PostgresReactionRepository implements ReactionRepository {
             }
             return new CommentCreation(commentById(previous.getFirst().get("id", UUID.class), viewer), false);
         }
-        locks.entry(viewer, entryId, now, false, true);
+        var target = locks.entry(viewer, entryId, now, false, true);
         Instant midnight = now.atZone(SEOUL).toLocalDate().atStartOfDay(SEOUL).toInstant();
         long today = ((Number) em.createNativeQuery("SELECT count(*) FROM entry_comments WHERE user_id=:viewer AND created_at>=:since")
                 .setParameter("viewer", viewer).setParameter("since", midnight.atOffset(ZoneOffset.UTC)).getSingleResult()).longValue();
@@ -145,6 +151,7 @@ class PostgresReactionRepository implements ReactionRepository {
                 """).setParameter("id", id).setParameter("entry", entryId).setParameter("viewer", viewer).setParameter("body", body)
                 .setParameter("request", requestId).setParameter("fingerprint", fingerprint)
                 .setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate();
+        events.record(target.author(), "entry_commented", viewer, target.challengeId(), entryId, id, "comment:" + id, now);
         return new CommentCreation(commentById(id, viewer), true);
     }
 

@@ -158,7 +158,8 @@ class PostgresEntryRepository implements EntryRepository {
         if ("deleted".equals(found.getFirst().get("status", String.class))) return;
         lockOwnEntry(owner, entryId, now);
         // 반응은 그 참여작의 것만 지운다. 댓글은 본문을 파기하고 표시만 남기며 신고 행은 남기되 사본 본문을 비운다.
-        // AI 리포트는 본문·비교 자료를 파기하고 진행 중인 생성을 취소한다. 알림은 그 표가 생기는 갈래가 여기에 더한다.
+        // AI 리포트는 본문·비교 자료를 파기하고 진행 중인 생성을 취소한다. 그 참여작에 관한 알림은 지운다.
+        em.createNativeQuery("DELETE FROM notifications WHERE entry_id=:id").setParameter("id", entryId).executeUpdate();
         em.createNativeQuery("UPDATE entry_ai_reports SET result=NULL,purged_at=:now WHERE entry_id=:id")
                 .setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", entryId).executeUpdate();
         em.createNativeQuery("""
@@ -271,6 +272,13 @@ class PostgresEntryRepository implements EntryRepository {
                     .setParameter("before", now.minus(ChallengeRules.VIEW_EVENT_RETENTION).atOffset(ZoneOffset.UTC)).executeUpdate();
             em.createNativeQuery("DELETE FROM entry_ranking_snapshots WHERE created_at<:before")
                     .setParameter("before", now.minus(ChallengeRules.RANKING_HOLD).atOffset(ZoneOffset.UTC)).executeUpdate();
+            // 알림은 90일, 묶음 선점은 구간이 지나면 쓸모가 없다. 파기된 AI 리포트의 이력도 90일이다.
+            em.createNativeQuery("DELETE FROM notifications WHERE expires_at<=:now")
+                    .setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate();
+            em.createNativeQuery("DELETE FROM notification_pushes WHERE created_at<:before")
+                    .setParameter("before", now.minus(java.time.Duration.ofDays(2)).atOffset(ZoneOffset.UTC)).executeUpdate();
+            em.createNativeQuery("DELETE FROM entry_ai_reports WHERE purged_at<:before")
+                    .setParameter("before", now.minus(ChallengeRules.REPORT_RETENTION).atOffset(ZoneOffset.UTC)).executeUpdate();
             // 처리 완료된 신고는 90일 보관한다(challenge.report).
             em.createNativeQuery("DELETE FROM entry_reports WHERE status='reviewed' AND reviewed_at<:before")
                     .setParameter("before", now.minus(ChallengeRules.REPORT_RETENTION).atOffset(ZoneOffset.UTC)).executeUpdate();

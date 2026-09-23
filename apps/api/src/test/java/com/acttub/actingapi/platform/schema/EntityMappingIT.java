@@ -124,12 +124,12 @@ class EntityMappingIT {
             "entry_view_events", "entry_ranking_snapshots");
 
     @Test
-    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 40개 활성 엔티티를 포함한다")
-    void mapsExactlyFortyActiveEntities() {
+    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 42개 활성 엔티티를 포함한다")
+    void mapsExactlyFortyTwoActiveEntities() {
         Set<Class<?>> entities = entityManager.getMetamodel().getEntities().stream()
                 .map(jakarta.persistence.metamodel.Type::getJavaType)
                 .collect(java.util.stream.Collectors.toSet());
-        assertThat(entities).hasSize(40);
+        assertThat(entities).hasSize(42);
         assertThat(entities).contains(ActorMemoryEntryEntity.class, PushTokenEntity.class);
         assertThat(entities).allMatch(type -> type.getSimpleName().endsWith("Entity"));
         assertThat(entities).allMatch(type -> java.util.Arrays.stream(type.getDeclaredFields())

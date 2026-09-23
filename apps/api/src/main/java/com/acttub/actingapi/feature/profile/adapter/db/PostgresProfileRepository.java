@@ -511,7 +511,16 @@ class PostgresProfileRepository implements ProfileRepository {
                          OR EXISTS (SELECT 1 FROM community_anonymous_aliases WHERE user_id=:userId)
                          OR EXISTS (SELECT 1 FROM community_reports WHERE reporter_id=:userId)
                          OR EXISTS (SELECT 1 FROM community_blocks
-                                    WHERE blocker_id=:userId OR blocked_id=:userId)) AS has_history
+                                    WHERE blocker_id=:userId OR blocked_id=:userId)
+                         OR EXISTS (SELECT 1 FROM challenges WHERE host_user_id=:userId)
+                         OR EXISTS (SELECT 1 FROM challenge_entries WHERE user_id=:userId)
+                         OR EXISTS (SELECT 1 FROM entry_likes WHERE user_id=:userId)
+                         OR EXISTS (SELECT 1 FROM entry_comments WHERE user_id=:userId)
+                         OR EXISTS (SELECT 1 FROM entry_reports WHERE reporter_id=:userId)
+                         OR EXISTS (SELECT 1 FROM entry_saves WHERE user_id=:userId)
+                         OR EXISTS (SELECT 1 FROM entry_view_events WHERE user_id=:userId)
+                         OR EXISTS (SELECT 1 FROM user_blocks WHERE blocker_id=:userId OR blocked_id=:userId)
+                         OR EXISTS (SELECT 1 FROM notifications WHERE user_id=:userId OR actor_user_id=:userId)) AS has_history
                     FROM users
                     WHERE id=:userId
                     FOR UPDATE
@@ -558,7 +567,7 @@ class PostgresProfileRepository implements ProfileRepository {
      *       맞지 않아 통째로 롤백되므로 결과가 저장되지 않는다.</li>
      * </ul>
      *
-     * <p>챌린지 참여작을 비공개로 내리는 일은 그 테이블이 생길 때 여기에 더한다(지금 스키마에 없다).
+     * <p>챌린지 자료는 {@link #eraseChallenge} 가 같은 트랜잭션에서 정리한다(04-challenge 「챌린지 자료의 삭제·탈퇴」).
      *
      * <p>⚠ <b>여기서 남의 테이블을 함께 치는 것은 의도한 것이다.</b> 테이블 주인은 각각 {@code auth}·
      * {@code push}·{@code portfolio}·{@code transfer}·{@code consent}·{@code upload}·작업 장부지만
@@ -603,6 +612,7 @@ class PostgresProfileRepository implements ProfileRepository {
             }
             cleanups.addAll(eraseReading(userId, retainMedia, now));
             erasePractice(userId, retainMedia, now);
+            eraseChallenge(userId, now);
             cleanups.addAll(hashIdentities(userId, now));
 
             // ⚠ 새 코드가 `users.nickname` 을 건드리는 곳은 이 한 줄뿐이다 (SOMA-528 결정 I-3).
@@ -653,6 +663,30 @@ class PostgresProfileRepository implements ProfileRepository {
                     .setParameter("userId", userId)).getFirst().get("deactivated_at", Instant.class);
             return new Withdrawn(deactivatedAt, List.copyOf(cleanups));
         });
+    }
+
+    /**
+     * 챌린지 자료 (04-challenge 「챌린지 자료의 삭제·탈퇴」). 참여작은 비공개로 내려 집계·표본에서 빠지고(다시 공개할 수 없다 —
+     * 공개 전환은 활성 계정만 된다), 개설한 챌린지는 주최자를 비운다. 건 차단·받은 차단, 개인 북마크(저장), 받은 알림은
+     * 행째 지우고, AI 리포트는 본문·비교 자료를 파기해 생성 이력만 남긴다(90일 뒤 매시 일이 지운다). 진행 중인 리포트
+     * 생성은 위 {@code ai_jobs} 취소가 닫는다. 남긴 좋아요·댓글은 남아 "탈퇴한 사용자"로 보인다.
+     */
+    private void eraseChallenge(UUID userId, Instant now) {
+        for (String statement : List.of(
+                "UPDATE challenges SET host_user_id=NULL WHERE host_user_id=:userId",
+                "DELETE FROM user_blocks WHERE blocker_id=:userId OR blocked_id=:userId",
+                "DELETE FROM entry_saves WHERE user_id=:userId",
+                "DELETE FROM notifications WHERE user_id=:userId")) {
+            entityManager.createNativeQuery(statement).setParameter("userId", userId).executeUpdate();
+        }
+        for (String statement : List.of(
+                "UPDATE challenge_entries SET visibility='private',updated_at=:now WHERE user_id=:userId AND status<>'deleted'",
+                "UPDATE entry_ai_reports SET result=NULL,purged_at=coalesce(purged_at,:now) WHERE user_id=:userId")) {
+            entityManager.createNativeQuery(statement)
+                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                    .setParameter("userId", userId)
+                    .executeUpdate();
+        }
     }
 
     /** 프로필 사진(대기 중인 올리기 포함)과 포트폴리오 사진의 객체 키. 사진은 보관 동의와 무관하게 지운다. */
