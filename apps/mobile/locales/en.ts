@@ -373,6 +373,7 @@ const en: DeepStringShape<typeof ko> = {
     underReview: 'Under review',
     publicStat: '{{views}} views · {{likes}} likes',
     empty: "You haven't joined a challenge yet.",
+    truncated: 'Showing your most recent entries only.',
     loadFail: "Couldn't load your challenge history.",
     menuTitle: 'This entry',
     captionTitle: 'Caption',

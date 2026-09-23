@@ -364,6 +364,7 @@ const ko = {
     underReview: '확인 중',
     publicStat: '조회 {{views}} · 좋아요 {{likes}}',
     empty: '아직 참여한 챌린지가 없어요.',
+    truncated: '참여작이 많아 최근 것만 보여 드려요.',
     loadFail: '챌린지 기록을 불러오지 못했어요.',
     menuTitle: '이 참여작',
     captionTitle: '캡션',

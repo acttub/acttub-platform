@@ -24,14 +24,18 @@ import { translate as t } from '@/lib/i18n';
  */
 type Filter = 'all' | EntryBucket;
 
-/** P03 목록을 한 번에 이어 받는 쪽 수의 상한(20개씩). */
-const MAX_PAGES = 10;
+/**
+ * P03 목록을 한 번에 이어 받는 쪽 수의 상한(20개씩, 2,000개). 하루 참여가 셋이라 닿기 어렵지만, 닿으면 목록 끝에 더
+ * 있다고 알린다 — 분류 수는 서버가 전체로 세므로 목록과 숫자가 말없이 어긋나지 않게 한다.
+ */
+const MAX_PAGES = 100;
 
 export default function ChallengeEntriesScreen() {
   const router = useRouter();
   const { alert, confirm, sheet, dialog } = useAppDialog();
   const [entries, setEntries] = useState<MyEntryCard[] | null>(null);
   const [serverCounts, setServerCounts] = useState<MyEntriesResponse['counts'] | null>(null);
+  const [truncated, setTruncated] = useState(false);
   const [filter, setFilter] = useState<Filter>('all');
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<MyEntryCard | null>(null);
@@ -51,6 +55,7 @@ export default function ChallengeEntriesScreen() {
       }
       setEntries(all);
       setServerCounts(first.counts);
+      setTruncated(Boolean(cursor));
     } catch (e) {
       setEntries([]);
       setError(browseFailureMessage(browseFailure(e)));
@@ -208,6 +213,7 @@ export default function ChallengeEntriesScreen() {
             </Pressable>
           </Pressable>
         ))}
+        {truncated && <Text style={styles.empty}>{t('challengeEntries.truncated')}</Text>}
       </ScrollView>
 
       {editing && (

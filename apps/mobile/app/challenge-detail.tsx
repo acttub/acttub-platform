@@ -1,6 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -48,12 +48,16 @@ export default function ChallengeDetailScreen() {
   const [entries, setEntries] = useState<Ranked[] | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  /** 지금 보이는 정렬. 이어 받는 중에 정렬을 바꾸면 늦게 온 옛 정렬의 결과를 버린다. */
+  const shownSort = useRef<EntrySort>('likes');
   const [error, setError] = useState<string | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
 
   const load = useCallback(
     async (nextSort: EntrySort) => {
       if (!id) return;
+      shownSort.current = nextSort;
+      setCursor(null);
       setError(null);
       try {
         const [detail, list] = await Promise.all([
@@ -86,8 +90,10 @@ export default function ChallengeDetailScreen() {
     if (!id || !cursor || loadingMore) return;
     setLoadingMore(true);
     try {
-      const list = await api.listChallengeEntries(id, { sort, cursor });
-      setEntries((prev) => [...(prev ?? []), ...rankEntries(list.entries, sort)]);
+      const asked = sort;
+      const list = await api.listChallengeEntries(id, { sort: asked, cursor });
+      if (shownSort.current !== asked) return;
+      setEntries((prev) => [...(prev ?? []), ...rankEntries(list.entries, asked)]);
       setCursor(list.next_cursor);
     } catch (e) {
       if (browseFailure(e).kind === 'cursor_expired') void load(sort);

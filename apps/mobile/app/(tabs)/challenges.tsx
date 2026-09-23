@@ -1,7 +1,7 @@
 import { AccountContent } from '@/components/account-content';
 import Feather from '@expo/vector-icons/Feather';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -52,11 +52,15 @@ function ChallengesScreenContent() {
   const [challenges, setChallenges] = useState<ChallengeCard[] | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  /** 지금 보이는 탭. 이어 받는 중에 탭을 바꾸면 늦게 온 옛 탭의 결과를 버린다. */
+  const shownTab = useRef<ChallengeTab>('popular');
   const [error, setError] = useState<string | null>(null);
   const [intro, setIntro] = useState(false);
   const unread = useUnreadNotifications(true);
 
   const load = useCallback(async (next: ChallengeTab) => {
+    shownTab.current = next;
+    setCursor(null);
     setError(null);
     try {
       const result = await api.listChallenges({ tab: next });
@@ -77,7 +81,9 @@ function ChallengesScreenContent() {
     if (!cursor || loadingMore) return;
     setLoadingMore(true);
     try {
-      const result = await api.listChallenges({ tab, cursor });
+      const asked = tab;
+      const result = await api.listChallenges({ tab: asked, cursor });
+      if (shownTab.current !== asked) return;
       setChallenges((prev) => [...(prev ?? []), ...result.challenges]);
       setCursor(result.next_cursor);
     } catch (e) {
