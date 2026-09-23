@@ -1857,6 +1857,90 @@
         } ]
       }
     },
+    "/v2/entries/{id}/ai-report" : {
+      "get" : {
+        "tags" : [ "v2-challenges" ],
+        "summary" : "Get Challenge AI Report",
+        "description" : "본인만 본다(남의 것·없는 것 404). 지금 표본 조건을 벗어난 참여작에 기댄 견주기 문장은 빠진다.",
+        "operationId" : "get_ai_report_v2_entries__id__ai_report_get",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChallengeAiReport"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      },
+      "post" : {
+        "tags" : [ "v2-challenges" ],
+        "summary" : "Request Challenge AI Report",
+        "description" : "본인 참여작(공개·비공개)의 AI 리포트를 뒤에서 만든다. 결과가 있으면 그것(200), 만드는 중이면 그 작업(202)이고\n같은 request_id 재전송도 같다. 실패한 뒤의 요청은 새 생성이며 하루 3회(429 daily_report_request_limit).\n파일이 파기된 참여작은 422 video_not_ready, 남의·삭제된 참여작은 404.",
+        "operationId" : "request_ai_report_v2_entries__id__ai_report_post",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ChallengeAiReportRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "202" : {
+            "description" : "Accepted",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChallengeAiReport"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "Existing",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChallengeAiReport"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/consents" : {
       "post" : {
         "tags" : [ "v2-consents" ],
@@ -5970,6 +6054,112 @@
         },
         "required" : [ "author", "author_withdrawn", "body", "created_at", "id", "is_mine", "status" ],
         "title" : "EntryComment"
+      },
+      "ChallengeAiReportRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "request_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Request Id"
+          }
+        },
+        "required" : [ "request_id" ],
+        "title" : "ChallengeAiReportRequest"
+      },
+      "AiReportEvidence" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "start_ms" : {
+            "type" : "integer",
+            "title" : "Start Ms"
+          },
+          "end_ms" : {
+            "type" : "integer",
+            "title" : "End Ms"
+          },
+          "text" : {
+            "type" : "string",
+            "title" : "Text"
+          }
+        },
+        "required" : [ "end_ms", "start_ms", "text" ],
+        "title" : "AiReportEvidence"
+      },
+      "ChallengeAiReport" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "관찰·견주기·한계·제안. 점수·등급·순위가 없고 표본은 이름·id 없이 \"다른 참여작들\"이다",
+        "properties" : {
+          "entry_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Entry Id"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "pending", "ready", "failed" ],
+            "title" : "Status"
+          },
+          "observations" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/AiReportEvidence"
+            },
+            "title" : "Observations"
+          },
+          "comparisons" : {
+            "type" : "array",
+            "description" : "지금도 표본 조건을 지키는 참여작에 기댄 문장만",
+            "items" : {
+              "type" : "string"
+            },
+            "title" : "Comparisons"
+          },
+          "limits" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            },
+            "title" : "Limits"
+          },
+          "suggestion" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Suggestion"
+          },
+          "sample_count" : {
+            "type" : "integer",
+            "description" : "견주기에 쓴 표본 가운데 지금도 조건을 지키는 수",
+            "title" : "Sample Count"
+          },
+          "attempt_count" : {
+            "type" : "integer",
+            "description" : "이번 생성의 실행 수(최대 3)",
+            "title" : "Attempt Count"
+          },
+          "requested_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Requested At"
+          },
+          "completed_at" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "date-time"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Completed At"
+          }
+        },
+        "required" : [ "attempt_count", "comparisons", "completed_at", "entry_id", "limits", "observations", "requested_at", "sample_count", "status", "suggestion" ],
+        "title" : "ChallengeAiReport"
       },
       "ConsentDecision" : {
         "type" : "string",

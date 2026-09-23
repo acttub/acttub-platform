@@ -158,7 +158,13 @@ class PostgresEntryRepository implements EntryRepository {
         if ("deleted".equals(found.getFirst().get("status", String.class))) return;
         lockOwnEntry(owner, entryId, now);
         // 반응은 그 참여작의 것만 지운다. 댓글은 본문을 파기하고 표시만 남기며 신고 행은 남기되 사본 본문을 비운다.
-        // AI 리포트·알림은 그 표가 생기는 갈래가 여기에 더한다.
+        // AI 리포트는 본문·비교 자료를 파기하고 진행 중인 생성을 취소한다. 알림은 그 표가 생기는 갈래가 여기에 더한다.
+        em.createNativeQuery("UPDATE entry_ai_reports SET result=NULL,purged_at=:now WHERE entry_id=:id")
+                .setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", entryId).executeUpdate();
+        em.createNativeQuery("""
+                UPDATE ai_jobs SET status='failed',failure_reason='cancelled',lease_token=NULL,lease_expires_at=NULL,updated_at=:now
+                WHERE kind='challenge_report' AND target_id=:id AND status IN ('pending','running')
+                """).setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", entryId).executeUpdate();
         em.createNativeQuery("DELETE FROM entry_likes WHERE entry_id=:id").setParameter("id", entryId).executeUpdate();
         em.createNativeQuery("DELETE FROM entry_saves WHERE entry_id=:id").setParameter("id", entryId).executeUpdate();
         em.createNativeQuery("""

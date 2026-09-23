@@ -772,6 +772,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/entries/{id}/ai-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Challenge AI Report
+         * @description 본인만 본다(남의 것·없는 것 404). 지금 표본 조건을 벗어난 참여작에 기댄 견주기 문장은 빠진다.
+         */
+        get: operations["get_ai_report_v2_entries__id__ai_report_get"];
+        put?: never;
+        /**
+         * Request Challenge AI Report
+         * @description 본인 참여작(공개·비공개)의 AI 리포트를 뒤에서 만든다. 결과가 있으면 그것(200), 만드는 중이면 그 작업(202)이고
+         *     같은 request_id 재전송도 같다. 실패한 뒤의 요청은 새 생성이며 하루 3회(429 daily_report_request_limit).
+         *     파일이 파기된 참여작은 422 video_not_ready, 남의·삭제된 참여작은 404.
+         */
+        post: operations["request_ai_report_v2_entries__id__ai_report_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/consents": {
         parameters: {
             query?: never;
@@ -2788,6 +2814,67 @@ export interface components {
              * @enum {string}
              */
             status: "visible" | "hidden";
+        };
+        /** ChallengeAiReportRequest */
+        ChallengeAiReportRequest: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+        };
+        /** AiReportEvidence */
+        AiReportEvidence: {
+            /** Start Ms */
+            start_ms: number;
+            /** End Ms */
+            end_ms: number;
+            /** Text */
+            text: string;
+        };
+        /**
+         * ChallengeAiReport
+         * @description 관찰·견주기·한계·제안. 점수·등급·순위가 없고 표본은 이름·id 없이 "다른 참여작들"이다
+         */
+        ChallengeAiReport: {
+            /**
+             * Entry Id
+             * Format: uuid
+             */
+            entry_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "ready" | "failed";
+            /** Observations */
+            observations: components["schemas"]["AiReportEvidence"][];
+            /**
+             * Comparisons
+             * @description 지금도 표본 조건을 지키는 참여작에 기댄 문장만
+             */
+            comparisons: string[];
+            /** Limits */
+            limits: string[];
+            /** Suggestion */
+            suggestion: string | null;
+            /**
+             * Sample Count
+             * @description 견주기에 쓴 표본 가운데 지금도 조건을 지키는 수
+             */
+            sample_count: number;
+            /**
+             * Attempt Count
+             * @description 이번 생성의 실행 수(최대 3)
+             */
+            attempt_count: number;
+            /**
+             * Requested At
+             * Format: date-time
+             */
+            requested_at: string;
+            /** Completed At */
+            completed_at: string | null;
         };
         /**
          * ConsentDecision
@@ -5761,6 +5848,63 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EntryComment"];
+                };
+            };
+        };
+    };
+    get_ai_report_v2_entries__id__ai_report_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChallengeAiReport"];
+                };
+            };
+        };
+    };
+    request_ai_report_v2_entries__id__ai_report_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChallengeAiReportRequest"];
+            };
+        };
+        responses: {
+            /** @description Existing */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChallengeAiReport"];
+                };
+            };
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChallengeAiReport"];
                 };
             };
         };

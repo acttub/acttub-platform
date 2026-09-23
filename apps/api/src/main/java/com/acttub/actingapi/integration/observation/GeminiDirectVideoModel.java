@@ -92,6 +92,28 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
         return text.strip();
     }
 
+    @Override
+    public String compare(List<Video> videos, List<String> labels, String instruction) {
+        if (videos.size() != labels.size()) throw new IllegalArgumentException("each video needs a label");
+        List<Part> parts = new ArrayList<>();
+        for (int i = 0; i < videos.size(); i++) {
+            parts.add(Part.fromText(labels.get(i)));
+            parts.add(Part.fromUri(videos.get(i).uri(), videos.get(i).mimeType()));
+        }
+        var config = GenerateContentConfig.builder()
+                .systemInstruction(Content.fromParts(Part.fromText(instruction)))
+                .httpOptions(HttpOptions.builder().timeout(180000).build())
+                .thinkingConfig(model.startsWith("gemini-3")
+                        ? ThinkingConfig.builder().thinkingLevel("LOW").build()
+                        : ThinkingConfig.builder().thinkingBudget(0).build())
+                .responseMimeType("application/json")
+                .maxOutputTokens(8192);
+        String text = client.models.generateContent(model,
+                List.of(Content.builder().role("user").parts(parts).build()), config.build()).text();
+        if (text == null || text.isBlank()) throw new IllegalStateException("empty video comparison");
+        return text.strip();
+    }
+
     @Override public void delete(Video video) {
         client.files.delete(video.name(), DeleteFileConfig.builder()
                 .httpOptions(HttpOptions.builder().timeout(15000).build()).build());

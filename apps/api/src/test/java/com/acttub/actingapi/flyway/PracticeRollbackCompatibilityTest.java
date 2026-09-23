@@ -47,7 +47,8 @@ class PracticeRollbackCompatibilityTest {
             "videos", "video_transcripts", "practices", "analyses", "coach_conversations",
             "coach_messages", "coach_notes", "actor_memories", "practice_feedback", "ai_jobs",
             "practice_migration_entries", "challenges", "challenge_entries", "entry_likes", "user_blocks",
-            "entry_view_events", "entry_ranking_snapshots", "entry_saves", "entry_comments", "entry_reports");
+            "entry_view_events", "entry_ranking_snapshots", "entry_saves", "entry_comments", "entry_reports",
+            "entry_ai_reports");
 
     @Test
     @DisplayName("1.0.0 은 옛 표를 한 칸도 바꾸지 않았다 — 예약 장부에 더한 NULL 허용 컬럼 셋과 users 의 둘 "
@@ -98,8 +99,8 @@ class PracticeRollbackCompatibilityTest {
         }
     }
 
-    /** V14~V19 — 연습·챌린지가 더한 마이그레이션의 수. 더 늘면 이 값을 함께 올린다. */
-    private static final int NEW_MIGRATIONS = 6;
+    /** V14~V20 — 연습·챌린지가 더한 마이그레이션의 수. 더 늘면 이 값을 함께 올린다. */
+    private static final int NEW_MIGRATIONS = 7;
 
     private static List<String> fingerprintAt(String target) throws Exception {
         String jdbcUrl = PostgresContainerSupport.createDatabase(

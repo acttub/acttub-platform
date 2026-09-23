@@ -124,12 +124,12 @@ class EntityMappingIT {
             "entry_view_events", "entry_ranking_snapshots");
 
     @Test
-    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 39개 활성 엔티티를 포함한다")
-    void mapsExactlyThirtyNineActiveEntities() {
+    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 40개 활성 엔티티를 포함한다")
+    void mapsExactlyFortyActiveEntities() {
         Set<Class<?>> entities = entityManager.getMetamodel().getEntities().stream()
                 .map(jakarta.persistence.metamodel.Type::getJavaType)
                 .collect(java.util.stream.Collectors.toSet());
-        assertThat(entities).hasSize(39);
+        assertThat(entities).hasSize(40);
         assertThat(entities).contains(ActorMemoryEntryEntity.class, PushTokenEntity.class);
         assertThat(entities).allMatch(type -> type.getSimpleName().endsWith("Entity"));
         assertThat(entities).allMatch(type -> java.util.Arrays.stream(type.getDeclaredFields())
@@ -139,8 +139,8 @@ class EntityMappingIT {
         long jsonNodes = entities.stream().flatMap(type -> java.util.Arrays.stream(type.getDeclaredFields()))
                 .filter(field -> field.getType().equals(com.fasterxml.jackson.databind.JsonNode.class))
                 .count();
-        // 리딩 회차의 line_results 가 여덟 번째다(V13).
-        assertThat(jsonNodes).isEqualTo(8);
+        // 리딩 회차의 line_results 가 여덟 번째(V13), 챌린지 AI 리포트의 result 가 아홉 번째다(V20).
+        assertThat(jsonNodes).isEqualTo(9);
     }
 
     @Test

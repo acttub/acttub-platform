@@ -208,6 +208,18 @@ COLUMN consent_documents.required ord=6 type=bool len=- null=NO default=false
 COLUMN consent_documents.title ord=4 type=text len=- null=NO default=-
 COLUMN consent_documents.type ord=2 type=text len=- null=NO default=-
 COLUMN consent_documents.version ord=3 type=text len=- null=NO default=-
+COLUMN entry_ai_reports.attempt_count ord=8 type=int4 len=- null=NO default=0
+COLUMN entry_ai_reports.completed_at ord=11 type=timestamptz len=- null=YES default=-
+COLUMN entry_ai_reports.entry_id ord=2 type=uuid len=- null=NO default=-
+COLUMN entry_ai_reports.format_version ord=7 type=int4 len=- null=NO default=1
+COLUMN entry_ai_reports.id ord=1 type=uuid len=- null=NO default=-
+COLUMN entry_ai_reports.job_id ord=4 type=uuid len=- null=NO default=-
+COLUMN entry_ai_reports.model ord=6 type=text len=- null=YES default=-
+COLUMN entry_ai_reports.purged_at ord=12 type=timestamptz len=- null=YES default=-
+COLUMN entry_ai_reports.requested_at ord=10 type=timestamptz len=- null=NO default=-
+COLUMN entry_ai_reports.result ord=9 type=jsonb len=- null=YES default=-
+COLUMN entry_ai_reports.status ord=5 type=text len=- null=NO default=-
+COLUMN entry_ai_reports.user_id ord=3 type=uuid len=- null=NO default=-
 COLUMN entry_comments.body ord=4 type=text len=- null=YES default=-
 COLUMN entry_comments.created_at ord=8 type=timestamptz len=- null=NO default=now()
 COLUMN entry_comments.deleted_at ord=9 type=timestamptz len=- null=YES default=-
@@ -618,7 +630,7 @@ CONSTRAINT ai_jobs ai_jobs_updated_at_not_null NOT NULL updated_at
 CONSTRAINT ai_jobs ai_jobs_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
 CONSTRAINT ai_jobs ai_jobs_user_id_not_null NOT NULL user_id
 CONSTRAINT ai_jobs ck_ai_jobs_attempt_count CHECK ((attempt_count >= 0))
-CONSTRAINT ai_jobs ck_ai_jobs_kind CHECK ((kind = ANY (ARRAY['analyze'::text, 'memory_update'::text])))
+CONSTRAINT ai_jobs ck_ai_jobs_kind CHECK ((kind = ANY (ARRAY['analyze'::text, 'memory_update'::text, 'challenge_report'::text])))
 CONSTRAINT ai_jobs ck_ai_jobs_status CHECK ((status = ANY (ARRAY['pending'::text, 'running'::text, 'succeeded'::text, 'failed'::text])))
 CONSTRAINT ai_jobs uq_ai_jobs_user_request UNIQUE (user_id, request_id)
 CONSTRAINT analyses analyses_completed_at_not_null NOT NULL completed_at
@@ -870,6 +882,23 @@ CONSTRAINT consent_documents consent_documents_title_not_null NOT NULL title
 CONSTRAINT consent_documents consent_documents_type_not_null NOT NULL type
 CONSTRAINT consent_documents consent_documents_version_not_null NOT NULL version
 CONSTRAINT consent_documents uq_consent_documents_type_version UNIQUE (type, version, locale)
+CONSTRAINT entry_ai_reports ck_entry_ai_reports_attempts CHECK (((attempt_count >= 0) AND (attempt_count <= 3)))
+CONSTRAINT entry_ai_reports ck_entry_ai_reports_purged CHECK (((purged_at IS NULL) OR (result IS NULL)))
+CONSTRAINT entry_ai_reports ck_entry_ai_reports_ready CHECK (((status <> 'ready'::text) OR (purged_at IS NOT NULL) OR (result IS NOT NULL)))
+CONSTRAINT entry_ai_reports ck_entry_ai_reports_status CHECK ((status = ANY (ARRAY['pending'::text, 'ready'::text, 'failed'::text])))
+CONSTRAINT entry_ai_reports entry_ai_reports_attempt_count_not_null NOT NULL attempt_count
+CONSTRAINT entry_ai_reports entry_ai_reports_entry_id_fkey FOREIGN KEY (entry_id) REFERENCES challenge_entries(id)
+CONSTRAINT entry_ai_reports entry_ai_reports_entry_id_not_null NOT NULL entry_id
+CONSTRAINT entry_ai_reports entry_ai_reports_format_version_not_null NOT NULL format_version
+CONSTRAINT entry_ai_reports entry_ai_reports_id_not_null NOT NULL id
+CONSTRAINT entry_ai_reports entry_ai_reports_job_id_fkey FOREIGN KEY (job_id) REFERENCES ai_jobs(id)
+CONSTRAINT entry_ai_reports entry_ai_reports_job_id_not_null NOT NULL job_id
+CONSTRAINT entry_ai_reports entry_ai_reports_pkey PRIMARY KEY (id)
+CONSTRAINT entry_ai_reports entry_ai_reports_requested_at_not_null NOT NULL requested_at
+CONSTRAINT entry_ai_reports entry_ai_reports_status_not_null NOT NULL status
+CONSTRAINT entry_ai_reports entry_ai_reports_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT entry_ai_reports entry_ai_reports_user_id_not_null NOT NULL user_id
+CONSTRAINT entry_ai_reports uq_entry_ai_reports_entry UNIQUE (entry_id)
 CONSTRAINT entry_comments ck_entry_comments_body CHECK (((char_length(body) >= 1) AND (char_length(body) <= 500)))
 CONSTRAINT entry_comments ck_entry_comments_deleted CHECK (((deleted_at IS NULL) = (body IS NOT NULL)))
 CONSTRAINT entry_comments ck_entry_comments_status CHECK ((status = ANY (ARRAY['visible'::text, 'hidden'::text])))
@@ -1374,6 +1403,7 @@ INDEX CREATE INDEX ix_challenge_entries_owner ON public.challenge_entries USING 
 INDEX CREATE INDEX ix_challenge_entries_public ON public.challenge_entries USING btree (challenge_id, published_at DESC, id DESC) WHERE ((visibility = 'public'::text) AND (status = 'visible'::text))
 INDEX CREATE INDEX ix_challenges_host_created ON public.challenges USING btree (host_user_id, starts_at)
 INDEX CREATE INDEX ix_challenges_visible_ends ON public.challenges USING btree (ends_at, starts_at, id) WHERE ((moderation = 'visible'::text) AND (deleted_at IS NULL))
+INDEX CREATE INDEX ix_entry_ai_reports_user ON public.entry_ai_reports USING btree (user_id)
 INDEX CREATE INDEX ix_entry_comments_entry ON public.entry_comments USING btree (entry_id, created_at DESC, id DESC)
 INDEX CREATE INDEX ix_entry_comments_user_created ON public.entry_comments USING btree (user_id, created_at)
 INDEX CREATE INDEX ix_entry_ranking_snapshots_created ON public.entry_ranking_snapshots USING btree (created_at)
@@ -1406,6 +1436,7 @@ INDEX CREATE UNIQUE INDEX community_post_likes_pkey ON public.community_post_lik
 INDEX CREATE UNIQUE INDEX community_posts_pkey ON public.community_posts USING btree (id)
 INDEX CREATE UNIQUE INDEX community_reports_pkey ON public.community_reports USING btree (id)
 INDEX CREATE UNIQUE INDEX consent_documents_pkey ON public.consent_documents USING btree (id)
+INDEX CREATE UNIQUE INDEX entry_ai_reports_pkey ON public.entry_ai_reports USING btree (id)
 INDEX CREATE UNIQUE INDEX entry_comments_pkey ON public.entry_comments USING btree (id)
 INDEX CREATE UNIQUE INDEX entry_likes_pkey ON public.entry_likes USING btree (id)
 INDEX CREATE UNIQUE INDEX entry_ranking_snapshots_pkey ON public.entry_ranking_snapshots USING btree (id)
@@ -1462,6 +1493,7 @@ INDEX CREATE UNIQUE INDEX uq_community_blocks_pair ON public.community_blocks US
 INDEX CREATE UNIQUE INDEX uq_community_post_likes ON public.community_post_likes USING btree (post_id, user_id)
 INDEX CREATE UNIQUE INDEX uq_community_reports_reporter_target ON public.community_reports USING btree (reporter_id, target_type, target_id)
 INDEX CREATE UNIQUE INDEX uq_consent_documents_type_version ON public.consent_documents USING btree (type, version, locale)
+INDEX CREATE UNIQUE INDEX uq_entry_ai_reports_entry ON public.entry_ai_reports USING btree (entry_id)
 INDEX CREATE UNIQUE INDEX uq_entry_comments_request ON public.entry_comments USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_entry_likes_actor ON public.entry_likes USING btree (entry_id, user_id)
 INDEX CREATE UNIQUE INDEX uq_entry_reports_request ON public.entry_reports USING btree (reporter_id, request_id)
@@ -1526,6 +1558,7 @@ TABLE community_post_likes
 TABLE community_posts
 TABLE community_reports
 TABLE consent_documents
+TABLE entry_ai_reports
 TABLE entry_comments
 TABLE entry_likes
 TABLE entry_ranking_snapshots

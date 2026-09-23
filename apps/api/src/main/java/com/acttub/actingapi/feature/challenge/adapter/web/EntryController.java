@@ -6,6 +6,8 @@ import com.acttub.actingapi.feature.challenge.app.EntryRepository.EntryPage;
 import com.acttub.actingapi.feature.challenge.app.EntryRepository.MyEntries;
 import com.acttub.actingapi.feature.challenge.app.EntryRepository.MyEntry;
 import com.acttub.actingapi.feature.challenge.app.EntryService;
+import com.acttub.actingapi.feature.challenge.app.AiReportRepository.Report;
+import com.acttub.actingapi.feature.challenge.app.AiReportService;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import io.swagger.v3.oas.annotations.Operation;
@@ -25,8 +27,15 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/v2")
 class EntryController {
     private final EntryService entries;
+    private final AiReportService reports;
     private final ChallengeMembers members;
-    EntryController(EntryService entries, ChallengeMembers members) { this.entries = entries; this.members = members; }
+    EntryController(EntryService entries, AiReportService reports, ChallengeMembers members) {
+        this.entries = entries; this.reports = reports; this.members = members;
+    }
+
+    @Schema(name = "ChallengeAiReportRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record ReportRequest(@NotNull UUID requestId) { }
 
     @Schema(name = "ChallengeEntryCreateRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
@@ -104,6 +113,27 @@ class EntryController {
     void view(@PathVariable UUID id, @Valid @RequestBody View body, HttpServletRequest request) {
         entries.view(members.member(request), id, body.eventId());
     }
+
+    @PostMapping("/entries/{id}/ai-report")
+    @Operation(summary = "Request Challenge AI Report", operationId = "request_ai_report_v2_entries__id__ai_report_post",
+            description = """
+                    본인 참여작(공개·비공개)의 AI 리포트를 뒤에서 만든다. 결과가 있으면 그것(200), 만드는 중이면 그 작업(202)이고
+                    같은 request_id 재전송도 같다. 실패한 뒤의 요청은 새 생성이며 하루 3회(429 daily_report_request_limit).
+                    파일이 파기된 참여작은 422 video_not_ready, 남의·삭제된 참여작은 404.""",
+            tags = "v2-challenges", security = @SecurityRequirement(name = "HTTPBearer"))
+    @ApiResponse(responseCode = "202", description = "Accepted", content = @Content(schema = @Schema(implementation = Report.class)))
+    @ApiResponse(responseCode = "200", description = "Existing", content = @Content(schema = @Schema(implementation = Report.class)))
+    ResponseEntity<Report> requestReport(@PathVariable UUID id, @Valid @RequestBody ReportRequest body, HttpServletRequest request) {
+        var result = reports.request(members.member(request), id, body.requestId());
+        boolean ready = !"pending".equals(result.report().status());
+        return ResponseEntity.status(result.created() || !ready ? HttpStatus.ACCEPTED : HttpStatus.OK).body(result.report());
+    }
+
+    @GetMapping("/entries/{id}/ai-report")
+    @Operation(summary = "Get Challenge AI Report", operationId = "get_ai_report_v2_entries__id__ai_report_get",
+            description = "본인만 본다(남의 것·없는 것 404). 지금 표본 조건을 벗어난 참여작에 기댄 견주기 문장은 빠진다.",
+            tags = "v2-challenges", security = @SecurityRequirement(name = "HTTPBearer"))
+    Report report(@PathVariable UUID id, HttpServletRequest request) { return reports.find(members.member(request), id); }
 
     @GetMapping("/me/challenge-entries")
     @Operation(summary = "List My Challenge Entries", operationId = "list_my_entries_v2_me_challenge_entries_get",

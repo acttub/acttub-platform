@@ -1334,6 +1334,32 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - POST `/v2/reports`는 옛 연습 리포트 작업(`create_report_v2_reports_post`)이 아니라 챌린지 신고
   (`create_challenge_report_v2_reports_post`)다. V19는 `entry_saves`·`entry_comments`·`entry_reports`를 더한다.
 
+### 6-19. 챌린지 AI 리포트 (1.0.0)
+
+- 게이트는 6-16과 같다. `POST /v2/entries/{id}/ai-report`(`request_id`)는 본인 참여작(공개·비공개)만 되고 남의·삭제된
+  참여작은 404 `entry_not_found`, 파일이 파기된 참여작은 422 `video_not_ready`다. 결과가 있으면 그 리포트(200), 만드는
+  중이면 그 작업(202)이고 같은 `request_id`의 재전송도 같다 — 참여작당 실행 중인 생성은 하나다. 없거나 failed 뒤의 요청은
+  새 생성이라 `ai_jobs`(kind `challenge_report`) 한 행을 만들고 202이며 한국 날짜 하루 3회다(429
+  `daily_report_request_limit`). 같은 `request_id`를 다른 참여작·다른 종류 작업에 쓰면 422 `request_fingerprint_mismatch`.
+  요청은 참여작 행을 잠가 같은 참여작의 동시 요청과 삭제를 줄 세운다.
+- `GET /v2/entries/{id}/ai-report`는 본인만(그 밖 404 `ai_report_not_found`) `{entry_id, status(pending·ready·failed),
+  observations[{start_ms,end_ms,text}], comparisons[], limits[], suggestion, sample_count, attempt_count, requested_at,
+  completed_at}`를 낸다. 표본 참여작의 id·이름은 싣지 않는다.
+- 워커(`ANALYSIS_WORKER_ENABLED` 스위치를 공유)는 `AiJobLedger`로 작업을 집고, 표본으로 같은 챌린지의 공개 조건
+  참여작 가운데 요청자와 차단이 없는 다른 작성자의 작성자당 최신 하나씩 `published_at` 최근 다섯을 고른다(좋아요 수는
+  기준이 아니다). 셋 미만이면 표본 없이 관찰만 만들고 한계 첫 줄에 "비교할 영상이 아직 부족해요"를 적는다. 모델 포트
+  (`ChallengeReportModel`)는 영상과 챌린지 대사만 받는다 — 코치 대화·장면 입력·배우 기억을 실을 자리가 없다. Gemini
+  구현은 저장소에서 받은 영상들을 라벨(내 영상·S1…)과 함께 한 번에 보인다.
+- 출력은 JSON 관찰(근거 구간)·견주기(문장마다 근거 표본 라벨)·한계·제안 하나다. 모양이 틀리거나 관찰이 없거나 금지
+  어휘(점수·백분위·등급·순위·칭찬·재능·합격 등, `ChallengeReportRules`)가 든 출력은 저장하지 않는다. 모델 실패와 거절한
+  출력은 한 실행으로 세어 다시 대기로 돌리고, 세 번째 실행이 실패하면 작업·리포트를 failed로 닫는다(`attempt_count` 3).
+- 저장 직전에 리포트가 여전히 이 생성의 것인지, 참여작이 지워지지 않았는지, 계정이 활성인지 다시 보고 아니면 저장하지
+  않고 작업을 `cancelled`로 닫는다. 저장·조회 때 표본 조건(공개 조건·요청자와 차단 없음·다른 작성자)을 다시 검사해
+  부적격이 된 표본에 기댄 견주기 문장을 빼고 `sample_count`도 지금 조건을 지키는 수로 낸다. 결과의 문장별 표본 id는
+  `entry_ai_reports.result`에만 있다.
+- 참여작 삭제는 리포트 본문을 파기하고(`purged_at`) 진행 중 작업을 `cancelled`로 닫는다. V20은 `ck_ai_jobs_kind`에
+  `challenge_report`를 더하고 `entry_ai_reports`(참여작당 한 행)를 만든다.
+
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 
 1. **좋아요 카운트는 재집계다.** 증감 방식이 "두 번 눌리면 2 증가" 하던 버그 때문에 의도적으로

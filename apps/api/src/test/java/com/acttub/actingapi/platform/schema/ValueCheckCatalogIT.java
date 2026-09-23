@@ -107,6 +107,7 @@ class ValueCheckCatalogIT {
         BY_CONSTRAINT.put("ck_entry_reports_reason", EntryReportReason.class);
         BY_CONSTRAINT.put("ck_entry_reports_status", EntryReportStatus.class);
         BY_CONSTRAINT.put("ck_entry_reports_resolution", EntryReportResolution.class);
+        BY_CONSTRAINT.put("ck_entry_ai_reports_status", EntryAiReportStatus.class);
     }
 
     /**
