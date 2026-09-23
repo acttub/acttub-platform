@@ -7,6 +7,10 @@ name: CI
 on:
   pull_request:
     branches: [dev, main]
+  # PR 에서 경로로 건너뛴 배포·모니터링 검증을 기본 브랜치(dev)에서 매일 전부 돌립니다(SOMA-552).
+  # 앱 변경이 모니터링·복원을 깨도 다음 릴리스 PR 전에 하루 안에 드러납니다. 03:00 KST.
+  schedule:
+    - cron: "0 18 * * *"
   workflow_dispatch:
     inputs:
       live_coach_eval:
@@ -87,7 +91,7 @@ jobs:
 
       # 배포·모니터링 검증은 잡 시간의 70%(약 13분)라 관련 파일이 바뀐 PR 에서만 돕니다(SOMA-552).
       # 잡 자체는 항상 돌아야 합니다 — required check 가 오지 않으면 PR 이 영원히 대기합니다.
-      # main 으로 가는 릴리스 PR 과 수동 실행은 전부 돌려 운영 전 안전망을 유지합니다.
+      # main 으로 가는 릴리스 PR·매일 schedule·수동 실행은 전부 돌려 안전망을 유지합니다.
       # 앱 코드가 이미지 빌드를 깰 수 있어 Smoke 는 여기서 거르지 않고 항상 돕니다.
       - name: 변경 범위 판정
         id: changes
@@ -212,6 +216,29 @@ jobs:
       # .ts 를 그대로 import 합니다(Node 타입 스트리핑). 웹과 달리 커스텀 로더가 없습니다.
       - name: Test
         run: node --test tests/*.test.mjs
+
+  # 매일 schedule 실행이 실패하면 #배포알림 으로 보냅니다. PR 실행은 PR 화면이 알리므로 건너뜁니다.
+  # required check 가 아니고 PR 에서는 skipped 라 ruleset 과 무관합니다.
+  nightly_notify:
+    name: 매일 전체 검증 실패 통지
+    needs: [web, api, mobile]
+    if: ${{ failure() && github.event_name == 'schedule' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Slack 통지
+        env:
+          WEBHOOK: ${{ secrets.SLACK_WEBHOOK_DEPLOY }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          RESULTS: web=${{ needs.web.result }} api=${{ needs.api.result }} mobile=${{ needs.mobile.result }}
+        run: |
+          set -euo pipefail
+          if [ -z "$WEBHOOK" ]; then
+            echo "SLACK_WEBHOOK_DEPLOY 미설정 — 통지를 건너뜁니다."
+            exit 0
+          fi
+          text=":rotating_light: *dev 매일 전체 검증 실패* — ${RESULTS}"$'\n'"<${RUN_URL}|실행 로그> · \`${GITHUB_SHA:0:7}\`"
+          jq -n --arg t "$text" '{attachments:[{color:"danger", text:$t, mrkdwn_in:["text"]}]}' \
+            | curl -sS -X POST -H 'Content-type: application/json' --data @- "$WEBHOOK"
 
   coach_eval:
     name: 합성 대화·노트 · 실제 dev 모델
