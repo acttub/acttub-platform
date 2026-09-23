@@ -12,6 +12,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -52,6 +53,11 @@ public class LangfuseTelemetry implements LlmTelemetry {
 
     /** 버린 것을 매번 찍으면 로그가 그것으로 덮인다. 이 수마다 한 번만 알린다. */
     private static final long DROP_LOG_INTERVAL = 100;
+    /**
+     * Langfuse 가 받는 환경 이름: 소문자·숫자·하이픈·밑줄 40자 이내, langfuse 로 시작 금지.
+     * 규칙을 어긴 값을 그대로 실으면 수집이 거절돼 기록이 통째로 사라진다.
+     */
+    private static final Pattern TRACING_ENVIRONMENT = Pattern.compile("[a-z0-9_-]{1,40}");
 
     private final String host;
     private final String authorization;
@@ -59,6 +65,7 @@ public class LangfuseTelemetry implements LlmTelemetry {
     private final RestClient client;
     private final ObjectMapper mapper;
     private final Executor sender;
+    private final String tracingEnvironment;
     private final AtomicLong dropped = new AtomicLong();
 
     @Autowired
@@ -82,6 +89,7 @@ public class LangfuseTelemetry implements LlmTelemetry {
         this.enabled = !host.isEmpty() && !publicKey.isEmpty() && !secretKey.isEmpty();
         this.authorization = enabled ? basic(publicKey, secretKey) : "";
         this.client = enabled ? clientFactory.get() : null;
+        this.tracingEnvironment = tracingEnvironment(value(environment, "LANGFUSE_TRACING_ENVIRONMENT"));
         if (!enabled) {
             // 설정이 비면 통째로 꺼진다. dev 나 로컬에서 관측 없이 돌리는 정상 상태이므로
             // 경고가 아니라 알림으로 남긴다.
@@ -201,6 +209,8 @@ public class LangfuseTelemetry implements LlmTelemetry {
         ObjectNode resourceSpans = mapper.createObjectNode();
         ArrayNode resourceAttributes = resourceSpans.putObject("resource").putArray("attributes");
         attribute(resourceAttributes, "service.name", "acttub-api");
+        // 구간마다 싣지 않고 자원에 한 번만 단다 — 한 프로세스는 한 환경에서만 돈다.
+        attribute(resourceAttributes, "langfuse.environment", tracingEnvironment);
         resourceSpans.putArray("scopeSpans").add(scopeSpans);
 
         ObjectNode payload = mapper.createObjectNode();
@@ -266,6 +276,19 @@ public class LangfuseTelemetry implements LlmTelemetry {
     private static String value(Function<String, String> environment, String name) {
         String raw = environment.apply(name);
         return raw == null ? "" : raw.strip();
+    }
+
+    private static String tracingEnvironment(String raw) {
+        if (raw.isEmpty()) {
+            return "";
+        }
+        if (!TRACING_ENVIRONMENT.matcher(raw).matches() || raw.startsWith("langfuse")) {
+            // 값 자체는 남기지 않는다 — 잘못 들어온 설정에 다른 값이 섞여 있을 수 있다.
+            LOG.warn("LANGFUSE_TRACING_ENVIRONMENT 가 규칙에 안 맞아 무시한다"
+                    + " (소문자·숫자·하이픈·밑줄 40자 이내, langfuse 로 시작 금지)");
+            return "";
+        }
+        return raw;
     }
 
     private static String trimTrailingSlash(String raw) {
