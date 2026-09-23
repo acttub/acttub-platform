@@ -61,9 +61,9 @@ class ClientVersionContractIT {
         UUID member = member();
         List<MockHttpServletRequestBuilder> oldBuilds = List.of(
                 // 연습 API — 토큰이 멀쩡해도.
-                get("/v2/practice-sessions").header("Authorization", bearer(member)),
+                get("/v2/practices").header("Authorization", bearer(member)),
                 // 토큰이 틀려도 401 이 아니다. 옛 빌드가 로그인 화면으로 돌아가면 안내를 보지 못한다.
-                get("/v2/practice-sessions").header("Authorization", "Bearer expired"),
+                get("/v2/practices").header("Authorization", "Bearer expired"),
                 get("/v2/me"),
                 get("/v2/consents/documents"),
                 get("/v2/admissions"),
@@ -71,7 +71,7 @@ class ClientVersionContractIT {
                 post("/v2/auth/login").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"provider\":\"google\",\"id_token\":\"x\"}"),
                 post("/v2/auth/refresh").contentType(MediaType.APPLICATION_JSON).content("{}"),
-                get("/v2/practice-sessions").header("X-Acttub-Client", "  "));
+                get("/v2/practices").header("X-Acttub-Client", "  "));
 
         for (MockHttpServletRequestBuilder request : oldBuilds) {
             var response = mvc.perform(request).andReturn().getResponse();
@@ -86,11 +86,11 @@ class ClientVersionContractIT {
     void appAndWebBuildsThatSendTheHeaderAreJudgedAsUsual() throws Exception {
         UUID member = member();
         for (String client : List.of("app/1.0.0", "web/1.0.0")) {
-            assertThat(mvc.perform(get("/v2/practice-sessions")
+            assertThat(mvc.perform(get("/v2/practices")
                             .header("X-Acttub-Client", client)
                             .header("Authorization", bearer(member)))
                     .andReturn().getResponse().getStatus()).as(client).isEqualTo(200);
-            assertThat(mvc.perform(get("/v2/practice-sessions")
+            assertThat(mvc.perform(get("/v2/practices")
                             .header("X-Acttub-Client", client)
                             .header("Authorization", "Bearer expired"))
                     .andReturn().getResponse().getStatus()).as(client).isEqualTo(401);

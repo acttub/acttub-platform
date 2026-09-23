@@ -23,7 +23,11 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 class AnalysisWorkerConfigurationTest {
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withUserConfiguration(AnalysisWorkerConfiguration.class)
-            .withBean(AnalysisStore.class, EmptyStore::new)
+            // 옛 원장 쪽이 기본이다 — 1.0.0 저장소가 같은 포트의 하위 타입이라 표시가 없으면 주입이 갈리지 않는다
+            // (운영 코드에서는 `PostgresAnalysisStore` 의 @Primary 가 같은 일을 한다).
+            .withBean("analysisStore", AnalysisStore.class, EmptyStore::new,
+                    definition -> definition.setPrimary(true))
+            .withBean(com.acttub.actingapi.feature.analysis.app.PracticeAnalysisStore.class, EmptyPracticeStore::new)
             .withBean(AnalysisProcessor.class, () -> (path, context) -> null)
             .withBean(Clock.class, Clock::systemUTC)
             .withBean(RecordingFailureReporter.class, RecordingFailureReporter::new);
@@ -40,17 +44,23 @@ class AnalysisWorkerConfigurationTest {
     @Test
     void createsWorkerOnlyWhenStorageBoundaryExists() {
         runner.run(context -> assertThat(
-                context.getBeanProvider(AnalysisWorker.class).getIfAvailable()).isNull());
+                context.getBeanProvider(AnalysisWorker.class).orderedStream().toList()).isEmpty());
 
         runner.withBean(ObjectStorage.class, EmptyStorage::new)
                 .run(context -> {
-                    assertThat(context).hasNotFailed().hasSingleBean(AnalysisWorker.class);
-                    assertThat(context.getBeanProvider(AnalysisWorker.class).getIfAvailable())
-                            .isNotNull();
+                    assertThat(context).hasNotFailed();
+                    // 원장마다 워커 하나다 — 옛 external_operations 와 1.0.0 ai_jobs.
+                    assertThat(context.getBeanProvider(AnalysisWorker.class).orderedStream().toList())
+                            .hasSize(2);
                 });
     }
 
-    private static final class EmptyStore implements AnalysisStore {
+    /** 1.0.0 원장 쪽 빈 저장소. 이 검사는 워커가 만들어지는지만 본다. */
+    private static final class EmptyPracticeStore extends EmptyStore
+            implements com.acttub.actingapi.feature.analysis.app.PracticeAnalysisStore {
+    }
+
+    private static class EmptyStore implements AnalysisStore {
         @Override
         public com.acttub.actingapi.platform.ledger.ExternalOperationExecution execution(UUID operation, UUID token) {
             return com.acttub.actingapi.platform.ledger.ExternalOperationExecution.unobserved();
@@ -69,6 +79,8 @@ class AnalysisWorkerConfigurationTest {
     }
 
     private static final class EmptyStorage implements ObjectStorage {
+        @Override public void upload(String objectKey, String mimeType, java.nio.file.Path source) { }
+
         @Override public String presignUpload(String key, String mime, long size, int ttl) {
             return "";
         }

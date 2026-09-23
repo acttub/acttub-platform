@@ -39,9 +39,12 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>성별·나이는 배우만 쓴다. 영상이나 목소리에서 추론하지 않는다 — 저장 계층이 막고
  * DB 제약이 최종 방어선이다.
+ *
+ * <p><b>1.0.0 의 기억 화면은 {@code /v2/me/memory} 로 옮겨 갔다</b>(네 칸, {@code actor_memories}).
+ * 여기는 옛 표({@code actor_memory_entries})를 읽는 옛 경로로 남아 옛 갈래의 방어선을 지킨다 (§6-15).
  */
 @RestController
-@RequestMapping("/v2/me/memory")
+@RequestMapping("/v2/legacy-me/memory")
 class MemoryController {
     /** pydantic Literal 오류 메시지 형식: 마지막 항목만 or 로 잇는다. */
     private static final String EXPECTED_FIELDS =
@@ -58,7 +61,7 @@ class MemoryController {
     @Operation(
             summary = "Get Memory",
             description = "기억을 전부 읽는다. 아직 채워지지 않은 칸은 빠진 채로 온다.",
-            operationId = "get_memory_v2_me_memory_get",
+            operationId = "get_memory_v2_legacy_me_memory_get",
             tags = "v2-me",
             security = @SecurityRequirement(name = "HTTPBearer"))
     @ApiResponse(
@@ -78,7 +81,7 @@ class MemoryController {
 
                     여기서 쓴 칸은 이후 에이전트가 덮지 않는다. 되돌리려면 지우면 되고,
                     지우면 다음 연습부터 에이전트가 다시 채운다.""",
-            operationId = "update_memory_v2_me_memory__field__put",
+            operationId = "update_memory_v2_legacy_me_memory__field__put",
             tags = "v2-me",
             security = @SecurityRequirement(name = "HTTPBearer"))
     @ApiResponses({
@@ -117,7 +120,7 @@ class MemoryController {
     @Operation(
             summary = "Delete Memory Field",
             description = "한 칸을 지운다. 이미 없으면 404 대신 204 — 지우려는 결과는 같다.",
-            operationId = "delete_memory_field_v2_me_memory__field__delete",
+            operationId = "delete_memory_field_v2_legacy_me_memory__field__delete",
             tags = "v2-me",
             security = @SecurityRequirement(name = "HTTPBearer"))
     @ApiResponses({
@@ -148,7 +151,7 @@ class MemoryController {
     @Operation(
             summary = "Delete Memory",
             description = "기억을 통째로 지운다. 다음 연습부터 다시 쌓인다.",
-            operationId = "delete_memory_v2_me_memory_delete",
+            operationId = "delete_memory_v2_legacy_me_memory_delete",
             tags = "v2-me",
             security = @SecurityRequirement(name = "HTTPBearer"))
     @ApiResponse(responseCode = "204", description = "Successful Response")

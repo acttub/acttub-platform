@@ -1,0 +1,39 @@
+{
+  "title": null,
+  "roles": [
+    "강호",
+    "미영"
+  ],
+  "lines": [
+    {
+      "kind": "dialogue",
+      "role": "강호",
+      "text": "오늘은 좀 늦었네."
+    },
+    {
+      "kind": "dialogue",
+      "role": "미영",
+      "text": "버스가 안 와서."
+    },
+    {
+      "kind": "dialogue",
+      "role": "강호",
+      "text": "그럴 줄 알았어."
+    },
+    {
+      "kind": "dialogue",
+      "role": "미영",
+      "text": "미안. 다음엔 일찍 올게."
+    },
+    {
+      "kind": "dialogue",
+      "role": "강호",
+      "text": "됐어. 가자."
+    },
+    {
+      "kind": "dialogue",
+      "role": "미영",
+      "text": "응."
+    }
+  ]
+}

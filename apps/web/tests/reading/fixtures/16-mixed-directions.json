@@ -1,0 +1,45 @@
+{
+  "title": null,
+  "roles": [
+    "지수",
+    "민준"
+  ],
+  "lines": [
+    {
+      "type": "direction",
+      "text": "무대 왼쪽에 의자 하나."
+    },
+    {
+      "type": "dialogue",
+      "role": "지수",
+      "text": "앉아도 돼?"
+    },
+    {
+      "type": "dialogue",
+      "role": "민준",
+      "text": "응."
+    },
+    {
+      "type": "direction",
+      "text": "지수, 앉는다."
+    },
+    {
+      "type": "dialogue",
+      "role": "지수",
+      "text": "고마워."
+    },
+    {
+      "type": "direction",
+      "text": "사이."
+    },
+    {
+      "type": "dialogue",
+      "role": "민준",
+      "text": "별말씀을."
+    },
+    {
+      "type": "direction",
+      "text": "암전"
+    }
+  ]
+}

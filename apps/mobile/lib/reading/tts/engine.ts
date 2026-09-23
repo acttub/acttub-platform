@@ -12,13 +12,14 @@
  *
  * 만들기와 재생을 나눈 이유는 미리 만들어 두기 위해서다 (SOMA-547) — 읽는 동안 다음 줄을
  * 만들어 두면 차례가 왔을 때 기다림이 없다.
+ * 프리셋과 속도는 호출마다 지정하며, 미리 생성한 음성도 같은 설정으로 구분한다.
  */
 import { File, Paths } from 'expo-file-system';
 import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 
 import { currentLanguage, translate as t } from '../../i18n.ts';
 
-import { downloadAssets, MODEL_KINDS, type Variant } from './assets';
+import { downloadAssets, downloadVoiceStyle, MODEL_KINDS, type Variant } from './assets';
 import {
   loadOnnx,
   loadVoiceStyleFromObjects,
@@ -43,9 +44,12 @@ export type ProgressFn = (line: string) => void;
 
 let tts: any = null;
 let style: any = null;
+/** 프리셋 id → 로드한 스타일. 기본 프리셋(cfg.preset)은 ensureReady 가 넣는다. */
+const styles = new Map<string, any>();
 let player: any = null;
-/** 만들 때 모델이 알려 준 길이(초). 저장본을 틀 때는 없어서 재생기의 길이를 쓴다. */
-const lastDuration = new Map<string, number>();
+let finishPlayback: (() => void) | null = null;
+let playbackEpoch = 0;
+let synthesisTail: Promise<unknown> = Promise.resolve();
 let readyPromise: Promise<void> | null = null;
 let cfg: Required<EngineConfig> = {
   variant: 'fp32',
@@ -87,6 +91,7 @@ export function ensureReady(onProgress: ProgressFn = () => {}, next?: EngineConf
       }
     }
     style = loadVoiceStyleFromObjects([assets.style]);
+    styles.set(cfg.preset, style);
     tts = new TextToSpeech(
       assets.cfgs,
       new UnicodeProcessor(assets.indexer),
@@ -106,57 +111,96 @@ export function ensureReady(onProgress: ProgressFn = () => {}, next?: EngineConf
 }
 
 /** 지금 설정으로 이 문장이 갖게 될 열쇠. 파일 이름과 캐시가 이것으로 갈린다. */
-export function keyFor(text: string): string {
+export function keyFor(text: string, preset = cfg.preset, speed = cfg.speed): string {
   return speechKey({
     text,
     locale: currentLanguage(),
-    preset: cfg.preset,
+    preset,
     variant: cfg.variant,
     steps: cfg.steps,
-    speed: cfg.speed,
+    speed,
   });
 }
 
 /**
- * 한 문장을 만들어 파일로 남기고 그 자리를 돌려준다. 소리는 내지 않는다.
- *
- * 같은 대본·같은 문장·같은 설정이면 파일 이름이 같다 — 이미 있으면 다시 만들지 않는다.
- * 그래서 "처음부터"와 같은 대본 재연습이 곧바로 들린다.
+ * 프리셋의 스타일과 실제로 쓰게 된 프리셋. 처음이면 받아서 로드한다. 받지 못하면 기본 스타일로 읽고 그 사실을
+ * 돌려준다 — 부르는 쪽이 대체 음성을 요청한 목소리의 저장본으로 남기지 않게 하려는 것이다.
  */
-export async function synthesize(text: string, scriptId: string): Promise<string | null> {
+async function styleFor(preset?: string): Promise<{ voice: any; preset: string }> {
+  const key = preset || cfg.preset;
+  const cached = styles.get(key);
+  if (cached) return { voice: cached, preset: key };
+  try {
+    const raw = await downloadVoiceStyle(cfg.variant, key);
+    const loaded = loadVoiceStyleFromObjects([raw]);
+    styles.set(key, loaded);
+    return { voice: loaded, preset: key };
+  } catch {
+    return { voice: style, preset: cfg.preset };
+  }
+}
+
+/** 미리 생성과 화면의 즉시 요청도 같은 엔진을 한 번에 하나만 사용한다. */
+export function synthesize(text: string, scriptId: string, preset = cfg.preset, options: { speed?: number } = {}): Promise<string | null> {
+  const work = synthesisTail.then(() => synthesizeOne(text, scriptId, preset, options.speed ?? cfg.speed));
+  synthesisTail = work.catch(() => undefined);
+  return work;
+}
+
+async function synthesizeOne(text: string, scriptId: string, preset: string, speed: number): Promise<string | null> {
   if (!tts) throw new Error(t('reading.voiceNotReady'));
   const clean = (text ?? '').trim();
   if (!clean) return null;
 
-  const out = new File(Paths.cache, speechScriptFileName(scriptId, keyFor(clean)));
-  if (out.exists) return out.uri;
+  const wanted = new File(Paths.cache, speechScriptFileName(scriptId, keyFor(clean, preset, speed)));
+  if (wanted.exists) return wanted.uri;
 
+  const { voice, preset: used } = await styleFor(preset);
+  // 요청한 목소리를 못 받아 기본 목소리로 읽었으면 기본 목소리의 열쇠로 남긴다. 요청한 열쇠로 남기면 나중에 그
+  // 목소리를 받을 수 있게 돼도 저장본이 이미 있다며 계속 기본 목소리가 재생된다.
+  const out = used === preset ? wanted : new File(Paths.cache, speechScriptFileName(scriptId, keyFor(clean, used, speed)));
+  if (out.exists) return out.uri;
   // 모델은 32개 말을 읽을 줄 안다. 대본이 어느 말로 쓰였는지는 알 수 없으니
   // 앱을 쓰는 말로 읽힌다 — 한국어 사용자는 지금과 같다 (SOMA-544).
-  const { wav, duration } = await tts.call(clean, currentLanguage(), style, cfg.steps, cfg.speed, 0.1);
+  // 말속도는 호출마다 바꿀 수 있다(듣고 따라 하기의 천천히 0.7×).
+  const { wav } = await tts.call(clean, currentLanguage(), voice, cfg.steps, speed, 0.1);
   const samples = Float32Array.from(wav);
   out.write(writeWavFile(samples, tts.sampleRate));
-  lastDuration.set(out.uri, duration[0] || 0);
   return out.uri;
 }
 
-/** 만들어 둔 파일을 튼다. 끝날 즈음(길이 + 여유) resolve. */
+/** 저장본의 길이가 아직 0이어도 실제 재생 완료를 기다린다(Expo SDK 54 playbackStatusUpdate). */
 export async function play(uri: string): Promise<void> {
   stop();
-  player = createAudioPlayer({ uri });
-  player.play();
-  // 만들 때 알아 둔 길이가 있으면 그것을, 없으면(저장본) 재생기가 알려 주는 길이를 쓴다.
-  const known = lastDuration.get(uri);
-  const durSec = known ?? (player.duration || 0);
-  await new Promise<void>((resolve) => {
-    setTimeout(resolve, Math.max(300, durSec * 1000 + 200));
+  const current = createAudioPlayer({ uri });
+  player = current;
+  await new Promise<void>((resolve, reject) => {
+    let subscription: { remove(): void } | null = null;
+    const finish = () => {
+      subscription?.remove();
+      if (finishPlayback === finish) finishPlayback = null;
+      resolve();
+    };
+    finishPlayback = finish;
+    subscription = current.addListener('playbackStatusUpdate', (status) => {
+      if (status.didJustFinish) finish();
+    });
+    try {
+      current.play();
+    } catch (error) {
+      subscription.remove();
+      if (finishPlayback === finish) finishPlayback = null;
+      reject(error);
+    }
   });
 }
 
 /** 만들어 둔 것이 없을 때 — 만들고 바로 튼다. */
-export async function speak(text: string, scriptId = 'adhoc'): Promise<void> {
-  const uri = await synthesize(text, scriptId);
-  if (uri) await play(uri);
+export async function speak(text: string, preset = cfg.preset, options: { speed?: number; scriptId?: string } = {}): Promise<void> {
+  stop();
+  const epoch = playbackEpoch;
+  const uri = await synthesize(text, options.scriptId ?? 'adhoc', preset, options);
+  if (uri && epoch === playbackEpoch) await play(uri);
 }
 
 export type SpeechQueueHandle = SpeechQueue & {
@@ -169,8 +213,8 @@ export type SpeechQueueHandle = SpeechQueue & {
  */
 export function createQueueFor(scriptId: string): SpeechQueueHandle {
   const queue = createSpeechQueue({
-    synthesize: async (text) => {
-      const uri = await synthesize(text, scriptId);
+    synthesize: async (text, _key, preset) => {
+      const uri = await synthesize(text, scriptId, preset);
       if (!uri) throw new Error('빈 문장');
       return uri;
     },
@@ -184,7 +228,15 @@ export function createQueueFor(scriptId: string): SpeechQueueHandle {
   return { ...queue, first: () => queue.settled() };
 }
 
+/** 배역 화면의 미리 듣기 — 짧은 예문을 그 프리셋으로. */
+export function preview(preset: string): Promise<void> {
+  const sample = currentLanguage() === 'ko' ? '안녕하세요, 이 목소리로 읽어 드릴게요.' : 'Hello, I will read the lines in this voice.';
+  return speak(sample, preset);
+}
+
 export function stop() {
+  playbackEpoch += 1;
+  finishPlayback?.();
   try {
     player?.remove?.();
   } catch {}
@@ -196,5 +248,6 @@ export function _reset() {
   stop();
   tts = null;
   style = null;
+  styles.clear();
   readyPromise = null;
 }

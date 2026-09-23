@@ -385,7 +385,7 @@ test('F2: idempotent backoff 중 auth session이 바뀌면 다음 attempt를 새
     getAuthSessionEpoch: () => authSessionEpoch,
   });
   const originalMutation = client.postIdempotent(
-    '/v2/practice-sessions',
+    '/v2/practices',
     { upload_intent_id: 'intent-a' },
     {
       deadlineMs: 1_000_000,

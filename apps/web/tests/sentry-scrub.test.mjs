@@ -19,15 +19,15 @@ test("주소에서 쿼리를 통째로 버린다", () => {
 
 test("경로에 박힌 UUID를 가린다", () => {
   assert.equal(
-    scrubUrl("/v2/practice-sessions/1b4e28ba-2fa1-11d2-883f-0016d3cca427"),
-    "/v2/practice-sessions/<id>",
+    scrubUrl("/v2/practices/1b4e28ba-2fa1-11d2-883f-0016d3cca427"),
+    "/v2/practices/<id>",
   );
 });
 
 test("대문자 UUID도 가린다", () => {
   assert.equal(
-    scrubUrl("/v2/uploads/1B4E28BA-2FA1-11D2-883F-0016D3CCA427/complete"),
-    "/v2/uploads/<id>/complete",
+    scrubUrl("/v2/videos/1B4E28BA-2FA1-11D2-883F-0016D3CCA427/complete"),
+    "/v2/videos/<id>/complete",
   );
 });
 
@@ -60,7 +60,7 @@ test("이벤트의 요청 주소를 씻고 쿼리 문자열을 지운다", () =>
 test("빵부스러기에 실린 주소도 씻는다", () => {
   const event = {
     breadcrumbs: [
-      { data: { url: "/v2/practice-sessions/1b4e28ba-2fa1-11d2-883f-0016d3cca427" } },
+      { data: { url: "/v2/practices/1b4e28ba-2fa1-11d2-883f-0016d3cca427" } },
       { data: { url: "/v2/profile?email=a@b.com" } },
       { data: {} },
       {},
@@ -69,7 +69,7 @@ test("빵부스러기에 실린 주소도 씻는다", () => {
 
   scrubEvent(event);
 
-  assert.equal(event.breadcrumbs[0].data.url, "/v2/practice-sessions/<id>");
+  assert.equal(event.breadcrumbs[0].data.url, "/v2/practices/<id>");
   assert.equal(event.breadcrumbs[1].data.url, "/v2/profile");
 });
 

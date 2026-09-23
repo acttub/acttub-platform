@@ -98,7 +98,9 @@ public class AnalysisWorker {
                 ExternalOperationExecution.externalCall("storage");
                 StoredObjectMetadata downloaded = storage.downloadToPath(
                         context.objectKey(), temporary);
-                if (!Objects.equals(downloaded.etag(), context.etag())) {
+                // 검증값을 아는 영상만 견준다 — 예약 장부에 etag 가 없는 영상(옛 자료, 장부를 거치지 않고 들어온
+                // 보관함 행)은 견줄 기준이 없고, 없는 것을 불일치로 보면 그 회차는 재큐만 되풀이하다 실패한다.
+                if (context.etag() != null && !Objects.equals(downloaded.etag(), context.etag())) {
                     throw new ObjectETagMismatchError("uploaded object changed after finalization");
                 }
                 AnalysisResult result = analyzer.analyze(temporary, context);

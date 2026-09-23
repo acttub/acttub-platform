@@ -168,7 +168,7 @@ class AccountGuestIT {
     void accountGuest_practiceAsksForItsThreeDocumentsAndNoProfile() throws Exception {
         String token = guestToken();
 
-        var blocked = authorized(get("/v2/practice-sessions"), token).andReturn().getResponse();
+        var blocked = authorized(get("/v2/practices"), token).andReturn().getResponse();
 
         assertThat(blocked.getStatus()).isEqualTo(403);
         JsonNode body = mapper.readTree(blocked.getContentAsString());
@@ -182,15 +182,15 @@ class AccountGuestIT {
         consent(token, "terms", true);
         consent(token, "privacy", null);
         JsonNode partly = mapper.readTree(
-                authorized(get("/v2/practice-sessions"), token).andReturn().getResponse().getContentAsString());
+                authorized(get("/v2/practices"), token).andReturn().getResponse().getContentAsString());
         assertThat(partly.path("pending_consents")).extracting(document -> document.path("type").textValue())
                 .as("그 기능에 빠진 문서만 싣는다")
                 .containsExactly("ai_analysis");
 
         consent(token, "ai_analysis", null);
 
-        JsonNode list = json(authorized(get("/v2/practice-sessions"), token), 200);
-        assertThat(list.path("sessions")).isEmpty();
+        JsonNode list = json(authorized(get("/v2/practices"), token), 200);
+        assertThat(list.path("groups")).isEmpty();
         assertThat(count("user_profiles")).isZero();
     }
 
@@ -313,42 +313,7 @@ class AccountGuestIT {
     }
 
     @Test
-    @DisplayName("account.guest: 한 게스트가 하루 4번째 분석 — 429. 한국 시간 자정이 지나면 다시 된다")
-    void accountGuest_aGuestGetsThreeAnalysesAKoreanDay() throws Exception {
-        // 한국 시간 23시에서 시작한다. 한 시간 뒤가 자정이다.
-        clock.set(Instant.now().atZone(ZoneId.of("Asia/Seoul")).toLocalDate().atTime(23, 0)
-                .atZone(ZoneId.of("Asia/Seoul")).toInstant());
-        JsonNode guest = mapper.readTree(createGuest().getContentAsString());
-        String token = guest.path("access_token").textValue();
-        UUID guestId = UUID.fromString(guest.path("user").path("id").textValue());
-        consent(token, "terms", true);
-        consent(token, "privacy", null);
-        consent(token, "ai_analysis", null);
-        UUID session = practice(guestId);
-        for (int analysis = 0; analysis < 3; analysis++) {
-            jdbc.update("""
-                    INSERT INTO external_operations(id,session_id,user_id,request_id,kind,status,request_fingerprint,created_at)
-                    VALUES (?,?,?,?,'analyze','succeeded',?,?)
-                    """, UUID.randomUUID(), session, guestId, UUID.randomUUID(), "a".repeat(64),
-                    clock.instant().minusSeconds(60L * (analysis + 1)).atOffset(ZoneOffset.UTC));
-        }
-
-        var fourth = authorized(post("/v2/practice-sessions/{id}/analyze", session), token).andReturn().getResponse();
-
-        assertThat(fourth.getStatus()).isEqualTo(429);
-        assertThat(mapper.readTree(fourth.getContentAsString()))
-                .isEqualTo(mapper.readTree("{\"detail\":\"guest_daily_analysis_limit\"}"));
-
-        clock.advance(Duration.ofMinutes(61));
-
-        var nextDay = authorized(post("/v2/practice-sessions/{id}/analyze", session), token).andReturn().getResponse();
-        assertThat(nextDay.getStatus()).as("자정이 지나면 한도에 걸리지 않는다(실패한 분석이 아니라 409)").isEqualTo(409);
-        assertThat(mapper.readTree(nextDay.getContentAsString()).path("detail").textValue())
-                .isEqualTo("session_is_not_failed");
-    }
-
-    @Test
-    @DisplayName("account.guest: 분석 두 번을 쓴 게스트가 서로 다른 분석 둘을 겹쳐 요청해도 그날의 분석은 세 번이다 — 하나는 429")
+    @DisplayName("account.guest: 분석 두 번을 쓴 게스트가 서로 다른 회차 둘을 겹쳐 시작해도 그날의 분석은 세 번이다 — 하나는 429")
     void accountGuest_overlappingAnalysesCannotSlipPastTheDailyLimit() throws Exception {
         JsonNode guest = mapper.readTree(createGuest().getContentAsString());
         String token = guest.path("access_token").textValue();
@@ -356,15 +321,10 @@ class AccountGuestIT {
         consent(token, "terms", true);
         consent(token, "privacy", null);
         consent(token, "ai_analysis", null);
-        List<UUID> failed = List.of(practice(guestId), practice(guestId));
-        jdbc.update("UPDATE practice_sessions SET status='failed' WHERE user_id=?", guestId);
         for (int analysis = 0; analysis < 2; analysis++) {
-            jdbc.update("""
-                    INSERT INTO external_operations(id,session_id,user_id,request_id,kind,status,request_fingerprint,created_at)
-                    VALUES (?,?,?,?,'analyze','failed',?,?)
-                    """, UUID.randomUUID(), failed.get(analysis), guestId, UUID.randomUUID(), "a".repeat(64),
-                    clock.instant().minusSeconds(60L * (analysis + 1)).atOffset(ZoneOffset.UTC));
+            startPractice(token, video(guestId), 201);
         }
+        List<UUID> videos = List.of(video(guestId), video(guestId));
         // 분석 작업을 넣는 문장이 문(advisory lock) 앞에서 멈춘다 — 두 요청이 한도를 확인한 뒤, 작업을 만들기 전이다.
         jdbc.execute("""
                 CREATE OR REPLACE FUNCTION hold_analysis_insert() RETURNS trigger AS $$
@@ -376,7 +336,7 @@ class AccountGuestIT {
                 """.formatted(ANALYSIS_GATE));
         jdbc.execute("""
                 CREATE TRIGGER hold_analysis_insert
-                BEFORE INSERT ON external_operations
+                BEFORE INSERT ON ai_jobs
                 FOR EACH ROW EXECUTE FUNCTION hold_analysis_insert()
                 """);
         ExecutorService pool = Executors.newFixedThreadPool(2);
@@ -386,27 +346,26 @@ class AccountGuestIT {
                 statement.execute("SELECT pg_advisory_lock(" + ANALYSIS_GATE + ")");
             }
             List<Future<Integer>> racing = new java.util.ArrayList<>();
-            for (UUID session : failed) {
-                racing.add(pool.submit(() -> authorized(post("/v2/practice-sessions/{id}/analyze", session), token)
-                        .andReturn().getResponse().getStatus()));
+            for (UUID videoId : videos) {
+                racing.add(pool.submit(() -> startPractice(token, videoId, null)));
             }
             awaitLockWaiters(2);
             try (Statement statement = gate.createStatement()) {
                 statement.execute("SELECT pg_advisory_unlock(" + ANALYSIS_GATE + ")");
             }
 
-            assertThat(List.of(racing.get(0).get(), racing.get(1).get())).containsExactlyInAnyOrder(202, 429);
+            assertThat(List.of(racing.get(0).get(), racing.get(1).get())).containsExactlyInAnyOrder(201, 429);
             assertThat(jdbc.queryForObject(
-                    "SELECT count(*) FROM external_operations WHERE user_id=? AND kind='analyze'", Integer.class, guestId))
+                    "SELECT count(*) FROM ai_jobs WHERE user_id=? AND kind='analyze'", Integer.class, guestId))
                     .as("그날의 분석 요청은 세 번이다").isEqualTo(3);
         } finally {
             pool.shutdownNow();
-            jdbc.execute("DROP TRIGGER IF EXISTS hold_analysis_insert ON external_operations");
+            jdbc.execute("DROP TRIGGER IF EXISTS hold_analysis_insert ON ai_jobs");
         }
     }
 
     @Test
-    @DisplayName("account.guest: 한도를 채운 게스트가 이미 받아들여진 분석 요청을 같은 요청 ID 로 다시 보내면 429 가 아니라 같은 응답이다")
+    @DisplayName("account.guest: 한도를 채운 게스트가 이미 받아들여진 회차 시작을 같은 요청 id 로 다시 보내면 429 가 아니라 같은 응답이다")
     void accountGuest_anIdempotentResendIsNotCountedAgainstTheDailyLimit() throws Exception {
         JsonNode guest = mapper.readTree(createGuest().getContentAsString());
         String token = guest.path("access_token").textValue();
@@ -414,45 +373,22 @@ class AccountGuestIT {
         consent(token, "terms", true);
         consent(token, "privacy", null);
         consent(token, "ai_analysis", null);
-        UUID session = practice(guestId);
-        jdbc.update("UPDATE practice_sessions SET status='failed' WHERE id=?", session);
         for (int analysis = 0; analysis < 2; analysis++) {
-            jdbc.update("""
-                    INSERT INTO external_operations(id,session_id,user_id,request_id,kind,status,request_fingerprint,created_at)
-                    VALUES (?,?,?,?,'analyze','failed',?,?)
-                    """, UUID.randomUUID(), session, guestId, UUID.randomUUID(), "a".repeat(64),
-                    clock.instant().minusSeconds(60L * (analysis + 1)).atOffset(ZoneOffset.UTC));
+            startPractice(token, video(guestId), 201);
         }
-        String requestId = UUID.randomUUID().toString();
+        UUID videoId = video(guestId);
+        UUID requestId = UUID.randomUUID();
 
-        var third = authorized(post("/v2/practice-sessions/{id}/analyze", session)
-                .header("X-Request-Id", requestId), token).andReturn().getResponse();
-        var resent = authorized(post("/v2/practice-sessions/{id}/analyze", session)
-                .header("X-Request-Id", requestId), token).andReturn().getResponse();
-        var fourth = authorized(post("/v2/practice-sessions/{id}/analyze", session), token).andReturn().getResponse();
+        var third = startResponse(token, videoId, requestId);
+        var resent = startResponse(token, videoId, requestId);
+        var fourth = startResponse(token, video(guestId), UUID.randomUUID());
 
-        assertThat(third.getStatus()).as(third.getContentAsString()).isEqualTo(202);
-        assertThat(resent.getStatus()).as("같은 요청의 재전송은 세지 않는다: " + resent.getContentAsString()).isEqualTo(202);
-        assertThat(resent.getContentAsString()).isEqualTo(third.getContentAsString());
+        assertThat(third.getStatus()).as(third.getContentAsString()).isEqualTo(201);
+        assertThat(resent.getStatus()).as("같은 요청의 재전송은 세지 않는다: " + resent.getContentAsString())
+                .isEqualTo(201);
+        assertThat(mapper.readTree(resent.getContentAsString()).path("id"))
+                .isEqualTo(mapper.readTree(third.getContentAsString()).path("id"));
         assertThat(fourth.getStatus()).isEqualTo(429);
-    }
-
-    @Test
-    @DisplayName("account.guest: 하루 3회는 게스트에게만 걸린다 — 회원은 네 번째 분석도 한도에 걸리지 않는다")
-    void accountGuest_theDailyLimitIsOnlyForGuests() throws Exception {
-        UUID member = member();
-        UUID session = practice(member);
-        for (int analysis = 0; analysis < 3; analysis++) {
-            jdbc.update("""
-                    INSERT INTO external_operations(id,session_id,user_id,request_id,kind,status,request_fingerprint)
-                    VALUES (?,?,?,?,'analyze','succeeded',?)
-                    """, UUID.randomUUID(), session, member, UUID.randomUUID(), "a".repeat(64));
-        }
-
-        var fourth = authorized(post("/v2/practice-sessions/{id}/analyze", session),
-                jwt.issueAccessToken(member).value()).andReturn().getResponse();
-
-        assertThat(fourth.getStatus()).isEqualTo(409);
     }
 
     @Test
@@ -522,18 +458,30 @@ class AccountGuestIT {
         return member;
     }
 
-    private UUID practice(UUID owner) {
-        UUID upload = UUID.randomUUID();
-        UUID session = UUID.randomUUID();
+    /** 보관함의 영상 하나. 1.0.0 의 회차는 영상으로 시작한다(practice.start). */
+    private UUID video(UUID owner) {
+        UUID id = UUID.randomUUID();
         jdbc.update("""
-                INSERT INTO upload_intents(id,user_id,status,storage_provider,object_key,mime_type,size_bytes,expires_at,finalized_at)
-                VALUES (?,?,'finalized','s3',?,'video/mp4',100,now() + interval '1 hour',now())
-                """, upload, owner, "videos/" + upload + ".mp4");
-        jdbc.update("""
-                INSERT INTO practice_sessions(id,user_id,upload_intent_id,status,situation,character_context,blockage_kind,sub_branch,goal)
-                VALUES (?,?,?,'analyzed','상황','인물','분석','캐릭터 분석','목표')
-                """, session, owner, upload);
-        return session;
+                INSERT INTO videos(id,user_id,object_key,content_type,byte_size,duration_ms)
+                VALUES (?,?,?,'video/mp4',1000,12000)
+                """, id, owner, "videos/" + owner + "/" + id + ".mp4");
+        return id;
+    }
+
+    /** @param expected 기대하는 상태. {@code null} 이면 무엇이 오든 그 상태를 돌려준다(겹친 요청의 경합) */
+    private int startPractice(String token, UUID videoId, Integer expected) throws Exception {
+        var response = startResponse(token, videoId, UUID.randomUUID());
+        if (expected != null) {
+            assertThat(response.getStatus()).as(response.getContentAsString()).isEqualTo(expected);
+        }
+        return response.getStatus();
+    }
+
+    private MockHttpServletResponse startResponse(String token, UUID videoId, UUID requestId) throws Exception {
+        return authorized(post("/v2/practices")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"request_id\":\"%s\",\"video_id\":\"%s\"}".formatted(requestId, videoId)), token)
+                .andReturn().getResponse();
     }
 
     private void consent(String token, String type, Boolean ageConfirmed) throws Exception {

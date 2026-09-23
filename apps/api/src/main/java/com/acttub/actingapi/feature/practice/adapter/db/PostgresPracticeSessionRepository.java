@@ -158,14 +158,15 @@ class PostgresPracticeSessionRepository implements PracticeSessionRepository, Pr
      */
     @Override
     public void reassign(UUID from, UUID to) {
-        entityManager.createNativeQuery("""
-                UPDATE practice_sessions
-                SET user_id = :to
-                WHERE user_id = :from
-                """)
-                .setParameter("to", to)
-                .setParameter("from", from)
-                .executeUpdate();
+        // 옛 표와 1.0.0 회차를 함께 옮긴다 — 이관은 한 트랜잭션이고 게스트가 어느 흐름으로 연습했는지는
+        // 이관이 알 바가 아니다. 분석·대화·노트는 회차에 매달려 따라간다(02-practice 「이관·삭제·탈퇴」).
+        for (String table : List.of("practice_sessions", "practices")) {
+            entityManager.createNativeQuery(
+                    "UPDATE " + table + " SET user_id = :to WHERE user_id = :from")
+                    .setParameter("to", to)
+                    .setParameter("from", from)
+                    .executeUpdate();
+        }
     }
 
     @Override
@@ -282,61 +283,18 @@ class PostgresPracticeSessionRepository implements PracticeSessionRepository, Pr
                 json(row.get("uncertainties_json", String.class)));
         if (summaryId != null && session.analyzed() && VideoRecord.isRecord(pack)) {
             return new SessionDetail(session, row.get("object_key", String.class), null,
-                    row.get("error_code", String.class), recordSummary(pack));
+                    row.get("error_code", String.class), PracticeAnalysisMapper.recordSummary(pack));
         }
         ObservationPack summary = summaryId == null || !session.analyzed() ? null
                 : new ObservationPack(
                         summaryId,
-                        observations(pack.path("observations")),
-                        uncertainties(pack.path("uncertainties")));
+                        PracticeAnalysisMapper.observations(pack.path("observations")),
+                        PracticeAnalysisMapper.uncertainties(pack.path("uncertainties")));
         return new SessionDetail(
                 session,
                 row.get("object_key", String.class),
                 summary,
                 row.get("error_code", String.class));
-    }
-
-    private static VideoRecordSummary recordSummary(JsonNode record) {
-        return new VideoRecordSummary(UUID.fromString(record.path("record_id").asText()),
-                record.path("record_version").asInt(), record.path("media").path("duration_ms").asLong(),
-                record.path("processing").path("status").asText(),
-                ranges(record.path("processing").path("processed_ranges")),
-                ranges(record.path("processing").path("missing_ranges")),
-                record.path("overview").path("observed_scene").findValuesAsText("text"),
-                record.path("overview").path("spoken_content").findValuesAsText("text"),
-                java.util.stream.StreamSupport.stream(record.path("limitations").spliterator(), false)
-                        .map(item -> new VideoRecordSummary.Limit(item.path("start_ms").asLong(),
-                                item.path("end_ms").asLong(), item.path("description").asText())).toList());
-    }
-
-    private static List<VideoRecordSummary.Range> ranges(JsonNode ranges) {
-        return java.util.stream.StreamSupport.stream(ranges.spliterator(), false)
-                .map(range -> new VideoRecordSummary.Range(range.path("start_ms").asLong(),
-                        range.path("end_ms").asLong())).toList();
-    }
-
-    private static List<Observation> observations(JsonNode node) {
-        if (node == null) {
-            return List.of();
-        }
-        List<Observation> items = new ArrayList<>();
-        // what 은 SOMA-490 이 되살린 이름이고, label 은 그 이전에 저장된 관찰이다.
-        // 화면 계약(label)은 그대로 두고 읽는 쪽에서만 둘 다 받는다.
-        node.forEach(item -> items.add(new Observation(
-                item.path("start_ms").bigIntegerValue(),
-                item.path("end_ms").bigIntegerValue(),
-                item.has("what") ? item.path("what").textValue() : item.path("label").textValue(),
-                item.path("confidence").decimalValue())));
-        return List.copyOf(items);
-    }
-
-    private static List<String> uncertainties(JsonNode node) {
-        if (node == null) {
-            return List.of();
-        }
-        List<String> values = new ArrayList<>();
-        node.forEach(item -> values.add(item.textValue()));
-        return List.copyOf(values);
     }
 
     private JsonNode json(String value) {

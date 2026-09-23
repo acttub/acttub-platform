@@ -44,6 +44,7 @@ class DirectVideoCoachTest {
             return file;
         });
         when(model.ready(file)).thenReturn(true);
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"intention\"]}");
         when(model.reply(eq(file), anyList(), anyString())).thenReturn("말끝을 가볍게 던진 선택이 보여요. 장난스럽게 겁주려는 건가요?");
     }
 
@@ -53,30 +54,34 @@ class DirectVideoCoachTest {
                 List.of(), "", null, "open", "", List.of()).withCoachingState("three_layers_v1", 0, null, "open", "");
     }
 
-    @Test void existingEngineUsesOnlyVideoPromptAndPersistedConversation() {
+    @Test void existingEngineRoutesActualConversationAndPassesOnlySelectedPrompts() {
         var initial = session();
         var first = engine.start(initial, UUID.randomUUID());
         verify(videos).find(initial.userId(), initial.practiceSessionId());
-        verify(model).reply(file, List.of(), DirectVideoPrompts.common());
+        verify(model).reply(file, List.of(), DirectVideoPrompts.forRoutes(List.of(DirectVideoRoute.OPENING)));
         assertThat(first.session().turns()).containsExactly(new CoachTurnSnapshot("ai", first.reply().message()));
         assertThat(first.session().stateRevision()).isEqualTo(1);
         var second = engine.reply(first.session(), "장난스럽게 겁주려는 거야", UUID.randomUUID());
         verify(model).reply(file, List.of(new DirectVideoModel.Message("model", first.reply().message()),
-                new DirectVideoModel.Message("user", "장난스럽게 겁주려는 거야")), DirectVideoPrompts.common());
+                new DirectVideoModel.Message("user", "장난스럽게 겁주려는 거야")), DirectVideoPrompts.forRoutes(List.of(DirectVideoRoute.INTENTION)));
         assertThat(second.session().stateRevision()).isEqualTo(2);
         assertThat(second.session().turns()).hasSize(3);
         assertThat(second.session().coachingState().path("context").path("direction").isNull()).isTrue();
         verifyNoInteractions(oldGenerator);
-        verify(model, never()).classify(any(), anyList(), anyString());
+        verify(model).classify(List.of(new DirectVideoModel.Message("model", first.reply().message()),
+                new DirectVideoModel.Message("user", "장난스럽게 겁주려는 거야")),
+                DirectVideoPrompts.classifier(), DirectVideoRouting.CATEGORIES);
         verify(model, times(2)).delete(file);
         assertThat(temporary).allSatisfy(path -> assertThat(path).doesNotExist());
-        assertThat(telemetry.calls()).hasSize(2);
+        assertThat(telemetry.calls()).hasSize(3);
     }
 
     @Test void explicitEndPreservesExistingHandoffAndNoteContract() {
         var first = engine.start(session(), UUID.randomUUID());
         var end = engine.reply(first.session(), "그만", UUID.randomUUID());
         assertThat(end.reply().status()).isEqualTo("complete");
+        verify(model, never()).classify(anyList(), anyString(), anyList());
+        verify(model).reply(eq(file), anyList(), eq(DirectVideoPrompts.forRoutes(List.of(DirectVideoRoute.CLOSING))));
         assertThat(end.session().closeReason()).isEqualTo("actor_finished");
         StructuredJson.validate("coach_handoff_v2", end.reply().handoff());
         assertThat(end.reply().handoff().path("record_ref").isNull()).isTrue();
@@ -126,5 +131,18 @@ class DirectVideoCoachTest {
         assertThat(engine.start(session(), UUID.randomUUID()).reply().message()).isNotBlank();
         assertThat(failures.contexts()).anyMatch(context -> context.startsWith("DirectVideoCoach.turn"))
                 .anyMatch(context -> context.startsWith("DirectVideoCoach.delete"));
+    }
+
+    @Test void acknowledgementDoesNotCloseAndClassificationFailureStillAnswers() {
+        var first = engine.start(session(), UUID.randomUUID());
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"acknowledgement\"]}");
+        var acknowledged = engine.reply(first.session(), "알겠어", UUID.randomUUID());
+        assertThat(acknowledged.reply().status()).isNotEqualTo("complete");
+        verify(model).reply(eq(file), anyList(), eq(DirectVideoPrompts.forRoutes(List.of(DirectVideoRoute.ACKNOWLEDGEMENT))));
+        when(model.classify(anyList(), anyString(), anyList())).thenThrow(new IllegalStateException("classifier unavailable"));
+        var fallback = engine.reply(acknowledged.session(), "그런데 왜 그렇게 보였어?", UUID.randomUUID());
+        assertThat(fallback.session().turns()).hasSize(5);
+        verify(model).reply(eq(file), anyList(), eq(DirectVideoPrompts.forRoutes(List.of(DirectVideoRoute.GENERAL))));
+        assertThat(failures.contexts()).anyMatch(context -> context.startsWith("DirectVideoRouting.classify"));
     }
 }

@@ -61,6 +61,32 @@ class ValueCheckCatalogIT {
         BY_CONSTRAINT.put("ck_consent_documents_type", ConsentType.class);
         BY_CONSTRAINT.put("ck_external_operations_kind", OperationKind.class);
         BY_CONSTRAINT.put("ck_external_operations_status", OperationStatus.class);
+        // 리딩(V13). 값 이름은 API 값이기도 하다.
+        BY_CONSTRAINT.put("ck_line_memorization_status", MemorizationStatus.class);
+        BY_CONSTRAINT.put("ck_reading_recordings_transcript_source", TranscriptSource.class);
+        BY_CONSTRAINT.put("ck_reading_sessions_advance", ReadingAdvance.class);
+        BY_CONSTRAINT.put("ck_reading_sessions_mode", ReadingMode.class);
+        BY_CONSTRAINT.put("ck_reading_sessions_status", ReadingSessionStatus.class);
+        BY_CONSTRAINT.put("ck_script_lines_kind", ScriptLineKind.class);
+        BY_CONSTRAINT.put("ck_scripts_source", ScriptSource.class);
+        // 연습(V14). 옛 테이블의 값 목록은 그대로 두고 새 테이블이 자기 것을 갖는다.
+        BY_CONSTRAINT.put("ck_video_transcripts_status", TranscriptStatus.class);
+        BY_CONSTRAINT.put("ck_practices_stage", PracticeStage.class);
+        BY_CONSTRAINT.put("ck_practices_close_reason", PracticeCloseReason.class);
+        BY_CONSTRAINT.put("ck_practices_experience_version", ExperienceVersion.class);
+        BY_CONSTRAINT.put("ck_analyses_format", AnalysisFormat.class);
+        BY_CONSTRAINT.put("ck_analyses_status", AnalysisStatus.class);
+        BY_CONSTRAINT.put("ck_coach_conversations_status", SessionStatus.class);
+        BY_CONSTRAINT.put("ck_coach_conversations_close_reason", ConversationCloseReason.class);
+        BY_CONSTRAINT.put("ck_coach_messages_role", TurnRole.class);
+        BY_CONSTRAINT.put("ck_coach_notes_format", NoteFormat.class);
+        BY_CONSTRAINT.put("ck_coach_notes_kind", NoteKind.class);
+        BY_CONSTRAINT.put("ck_actor_memories_field", MemoryField.class);
+        BY_CONSTRAINT.put("ck_actor_memories_written_by", ActorMemoryAuthor.class);
+        BY_CONSTRAINT.put("ck_practice_feedback_screen", FeedbackScreen.class);
+        BY_CONSTRAINT.put("ck_practice_feedback_trigger", FeedbackTrigger.class);
+        BY_CONSTRAINT.put("ck_ai_jobs_kind", AiJobKind.class);
+        BY_CONSTRAINT.put("ck_ai_jobs_status", OperationStatus.class);
         BY_CONSTRAINT.put("ck_portfolio_credits_kind", PortfolioCreditKind.class);
         BY_CONSTRAINT.put("ck_practice_sessions_status", PracticeStatus.class);
         BY_CONSTRAINT.put("ck_upload_intents_status", UploadStatus.class);
@@ -71,6 +97,20 @@ class ValueCheckCatalogIT {
         BY_CONSTRAINT.put("ck_user_profiles_gender", ProfileGender.class);
         BY_CONSTRAINT.put("ck_user_profiles_goal", ActingGoal.class);
         BY_CONSTRAINT.put("ck_users_status", UserStatus.class);
+        BY_CONSTRAINT.put("ck_challenges_origin", ChallengeOrigin.class);
+        BY_CONSTRAINT.put("ck_challenges_moderation", ChallengeModeration.class);
+        BY_CONSTRAINT.put("ck_challenges_ranking_state", ChallengeRankingState.class);
+        BY_CONSTRAINT.put("ck_challenge_entries_visibility", ChallengeEntryVisibility.class);
+        BY_CONSTRAINT.put("ck_challenge_entries_status", ChallengeEntryStatus.class);
+        BY_CONSTRAINT.put("ck_entry_comments_status", EntryCommentStatus.class);
+        BY_CONSTRAINT.put("ck_entry_reports_target_type", EntryReportTarget.class);
+        BY_CONSTRAINT.put("ck_entry_reports_reason", EntryReportReason.class);
+        BY_CONSTRAINT.put("ck_entry_reports_status", EntryReportStatus.class);
+        BY_CONSTRAINT.put("ck_entry_reports_resolution", EntryReportResolution.class);
+        BY_CONSTRAINT.put("ck_entry_ai_reports_status", EntryAiReportStatus.class);
+        BY_CONSTRAINT.put("ck_notifications_kind", NotificationKind.class);
+        BY_CONSTRAINT.put("ck_notifications_push_status", NotificationPushStatus.class);
+        BY_CONSTRAINT.put("ck_notification_pushes_stage", NotificationPushStage.class);
     }
 
     /**
@@ -85,7 +125,13 @@ class ValueCheckCatalogIT {
             "ck_practice_reports_report_type",
             "ck_coaching_handoffs_branch_kind",
             "ck_practice_sessions_blockage_branch",
-            "ck_practice_sessions_experience_version");
+            "ck_practice_sessions_experience_version",
+            // 막힘의 큰 갈래와 세부는 <b>조합</b> 검사라 값 목록 하나로 떨어지지 않는다(V14 는 옛 것과 같은 조합이다).
+            "ck_practices_blockage_branch",
+            // 좋아요순 커서의 기준(live·pending·final)은 저장소 SQL 만 읽고 쓰는 장부 칸이다.
+            "ck_entry_ranking_snapshots_basis",
+            // 행동자가 있는 알림은 좋아요·댓글뿐이라는 조합 검사다(값 목록 하나가 아니다).
+            "ck_notifications_actor");
 
     /** {@code CHECK ((col = ANY (ARRAY['a'::text, 'b'::text])))} 에서 값만 뽑는다. */
     private static final Pattern LITERAL = Pattern.compile("'((?:[^']|'')*)'::text");
@@ -102,7 +148,7 @@ class ValueCheckCatalogIT {
     JdbcTemplate jdbc;
 
     @Test
-    @DisplayName("값 CHECK 스물다섯 개가 각각 자기 Java enum 과 같은 값 목록을 갖는다")
+    @DisplayName("값 CHECK 마흔아홉 개가 각각 자기 Java enum 과 같은 값 목록을 갖는다")
     void everyValueCheckHasExactlyTheValuesOfItsJavaEnum() {
         Map<String, Set<String>> actual = valueChecks();
 

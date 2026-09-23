@@ -1,101 +1,143 @@
+import { AccountContent } from '@/components/account-content';
 import Feather from '@expo/vector-icons/Feather';
-import { Stack, useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
+import { api } from '@/lib/api';
 import { formatClipDuration, relativeDayLabel } from '@/lib/archive-format';
-import { listArchive, setArchiveFavorite, type ArchiveRecording } from '@/lib/archive-store';
-import { ARCHIVE_VIDEOS, PERF_IMAGES } from '@/lib/challenge-mock';
+import { useAuth } from '@/lib/auth';
 import { translate as t } from '@/lib/i18n';
-
-type Filter = 'all' | 'week' | 'fav';
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-/** 실제 촬영본과 예시를 한 모양으로 편다. real=false 면 포스터(예시). */
-type Cell = {
-  id: string;
-  real: boolean;
-  img: number | null;
-  duration: number | null;
-  createdAt: string;
-  favorite: boolean;
-};
+import { mergeLibrary, statusLabel, type LibraryItem } from '@/lib/library/library-view';
+import { onLibraryChange, pendingLibraryUploads, takeDiscardedCount } from '@/lib/library/library-runner';
+import type { Video, VideoFilter } from '@/lib/library/types';
+import { videoErrorMessage } from '@/lib/library/video-checks';
+import { setPickedVideo } from '@/lib/practice/picked-video';
+import type { QueuedVideo } from '@/lib/library/upload-queue';
 
 /**
- * A2.2 보관함 — "기본 촬영"으로 찍은 영상(기기 저장) 그리드. 전체/이번 주/즐겨찾기, 선택 모드.
- * 프로필 "보관한 영상 확인"이 온다. 촬영본이 하나도 없으면 예시 6개를 대신 보여준다.
+ * A2.2 보관함(practice.library) — 내 영상(서버 videos)을 최신 저장순으로. 필터는 전체·최근 7일·즐겨찾기이고, 아직
+ * 확정되지 않은 촬영본(업로드 대기 큐)은 맨 위에 "기기에 저장 · 업로드 대기"로 보인다. 비어 있으면 예시 영상을 섞지
+ * 않고 빈 상태를 보여 준다. 프로필 "보관한 영상 확인"과 기본 촬영 완료가 온다.
  */
+const FILTERS: { key: VideoFilter; label: string }[] = [
+  { key: 'all', label: t('archive.filterAll') },
+  { key: 'recent7', label: t('archive.filterWeek') },
+  { key: 'favorite', label: t('archive.filterFav') },
+];
+
 export default function ArchiveScreen() {
+  return <AccountContent><ArchiveScreenContent /></AccountContent>;
+}
+
+function ArchiveScreenContent() {
   const router = useRouter();
-  const [filter, setFilter] = useState<Filter>('all');
-  const [selecting, setSelecting] = useState(false);
-  const [selected, setSelected] = useState<Record<string, boolean>>({});
-  const [real, setReal] = useState<ArchiveRecording[]>([]);
-  const [mockFavs, setMockFavs] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(ARCHIVE_VIDEOS.map((v) => [v.id, v.favorite])),
-  );
+  // 새 연습 준비 화면에서 "보관함에서 고르기"로 들어오면 고르는 화면이 된다(A8).
+  const { pick } = useLocalSearchParams<{ pick?: string }>();
+  const picking = pick === '1';
+  const { user } = useAuth();
+  const owner = user?.id ?? null;
+  const [filter, setFilter] = useState<VideoFilter>('all');
+  const [videos, setVideos] = useState<Video[] | null>(null);
+  const [pending, setPending] = useState<QueuedVideo[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadRevision = useRef(0);
+  const moreInFlight = useRef(false);
+
+  const load = useCallback(async () => {
+    const revision = ++loadRevision.current;
+    setError(null);
+    const [list, queued] = await Promise.all([
+      api.listVideos(filter).catch((e: unknown) => {
+        if (revision === loadRevision.current) setError(videoErrorMessage(e));
+        return null;
+      }),
+      owner ? pendingLibraryUploads(owner) : Promise.resolve([]),
+    ]);
+    if (revision !== loadRevision.current) return;
+    if (list) {
+      setVideos(list.videos);
+      setNextCursor(list.next_cursor);
+    }
+    setPending(queued);
+    const discarded = takeDiscardedCount();
+    if (discarded > 0) setNotice(t('archive.discardedNotice', { count: discarded }));
+  }, [filter, owner]);
 
   useFocusEffect(
     useCallback(() => {
-      let alive = true;
-      void listArchive().then((list) => alive && setReal(list));
-      return () => {
-        alive = false;
-      };
-    }, []),
+      setVideos(null);
+      setNextCursor(null);
+      void load();
+      return () => { loadRevision.current += 1; };
+    }, [load]),
   );
+  useEffect(() => onLibraryChange(() => void load()), [load]);
 
-  const showingSamples = real.length === 0;
-  const cells = useMemo<Cell[]>(
-    () =>
-      showingSamples
-        ? ARCHIVE_VIDEOS.map((v) => ({
-            id: v.id,
-            real: false,
-            img: v.img,
-            duration: v.duration,
-            createdAt: v.createdAt,
-            favorite: !!mockFavs[v.id],
-          }))
-        : real.map((r) => ({
-            id: r.id,
-            real: true,
-            img: null,
-            duration: r.durationSec,
-            createdAt: r.createdAt,
-            favorite: r.favorite,
-          })),
-    [showingSamples, real, mockFavs],
-  );
-
-  const items = useMemo(() => {
-    const since = Date.now() - 7 * DAY_MS;
-    return cells.filter((v) =>
-      filter === 'fav' ? v.favorite : filter === 'week' ? Date.parse(v.createdAt) >= since : true,
-    );
-  }, [cells, filter]);
-
-  const toggleFav = (cell: Cell) => {
-    if (cell.real) {
-      setReal((list) => list.map((r) => (r.id === cell.id ? { ...r, favorite: !cell.favorite } : r)));
-      void setArchiveFavorite(cell.id, !cell.favorite);
-    } else {
-      setMockFavs((f) => ({ ...f, [cell.id]: !f[cell.id] }));
+  const loadMore = async () => {
+    if (!nextCursor || moreInFlight.current) return;
+    const revision = loadRevision.current;
+    moreInFlight.current = true;
+    setLoadingMore(true);
+    try {
+      const page = await api.listVideos(filter, nextCursor);
+      if (revision !== loadRevision.current) return;
+      setVideos(current => [...new Map([...(current ?? []), ...page.videos].map(video => [video.id, video])).values()]);
+      setNextCursor(page.next_cursor);
+    } catch (error) {
+      if (revision === loadRevision.current) setError(videoErrorMessage(error));
+    } finally {
+      moreInFlight.current = false;
+      setLoadingMore(false);
     }
   };
 
-  const open = (cell: Cell) => {
-    if (selecting) {
-      setSelected((s) => ({ ...s, [cell.id]: !s[cell.id] }));
+  const items = useMemo<LibraryItem[]>(
+    () => mergeLibrary({ videos: videos ?? [], pending, filter, now: Date.now() }),
+    [videos, pending, filter],
+  );
+
+  const open = (item: LibraryItem) => {
+    if (picking) {
+      if (item.kind === 'video' && item.video.purged_at) {
+        setNotice(t('archive.statusPurged'));
+        return;
+      }
+      setPickedVideo(
+        item.kind === 'video'
+          ? {
+              videoId: item.video.id,
+              pendingId: null,
+              uri: null,
+              playbackUrl: item.video.playback_url ?? null,
+              durationMs: item.video.duration_ms,
+            }
+          : { videoId: null, pendingId: item.entry.id, uri: item.entry.uri, playbackUrl: null, durationMs: item.entry.durationMs },
+      );
+      logEvent('archive_pick', { id: item.id, kind: item.kind });
+      router.back();
       return;
     }
-    logEvent('archive_open', { id: cell.id, real: cell.real });
-    router.push({ pathname: '/archive-detail', params: { id: cell.id } });
+    logEvent('archive_open', { id: item.id, kind: item.kind });
+    router.push({ pathname: '/archive-detail', params: item.kind === 'video' ? { id: item.id } : { pending: item.id } });
   };
+  const toggleFav = async (item: LibraryItem) => {
+    if (item.kind !== 'video') return;
+    setVideos((list) => (list ?? []).map((v) => (v.id === item.id ? { ...v, favorite: !v.favorite } : v)));
+    try {
+      await api.setVideoFavorite(item.id, !item.video.favorite);
+    } catch {
+      void load();
+    }
+  };
+
+  const total = (videos?.length ?? 0) + pending.length;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -105,73 +147,80 @@ export default function ArchiveScreen() {
           <Feather name="chevron-left" size={26} color={palette.text} />
         </Pressable>
         <View style={styles.flex}>
-          <Text style={styles.title}>{t('archive.title')}</Text>
+          <Text style={styles.title}>{picking ? t('start.fromLibrary') : t('archive.title')}</Text>
           <Text style={styles.subtitle}>
-            {showingSamples ? t('archive.sampleNote') : t('archive.subtitle', { count: real.length })}
+            {t('archive.subtitle', { count: total })}
+            {pending.length > 0 ? ` · ${t('archive.pendingCount', { count: pending.length })}` : ''}
           </Text>
         </View>
-        <Pressable
-          onPress={() => {
-            setSelecting((v) => !v);
-            setSelected({});
-          }}
-          hitSlop={8}
-          accessibilityRole="button">
-          <Text style={styles.selectText}>{t(selecting ? 'archive.done' : 'archive.select')}</Text>
-        </Pressable>
       </View>
 
       <View style={styles.filters}>
-        {(
-          [
-            ['all', 'archive.filterAll'],
-            ['week', 'archive.filterWeek'],
-            ['fav', 'archive.filterFav'],
-          ] as const
-        ).map(([key, label]) => (
+        {FILTERS.map((f) => (
           <Pressable
-            key={key}
-            style={[styles.chip, filter === key && styles.chipOn]}
-            onPress={() => setFilter(key)}
+            key={f.key}
+            style={[styles.chip, filter === f.key && styles.chipOn]}
+            onPress={() => setFilter(f.key)}
             accessibilityRole="button"
-            accessibilityState={{ selected: filter === key }}>
-            <Text style={[styles.chipText, filter === key && styles.chipTextOn]}>{t(label)}</Text>
+            accessibilityState={{ selected: filter === f.key }}>
+            <Text style={[styles.chipText, filter === f.key && styles.chipTextOn]}>{f.label}</Text>
           </Pressable>
         ))}
       </View>
 
       <ScrollView contentContainerStyle={styles.body}>
-        {items.length === 0 ? (
-          <Text style={styles.empty}>{t('archive.empty')}</Text>
+        {notice && (
+          <Pressable style={styles.notice} onPress={() => setNotice(null)}>
+            <Text style={styles.noticeText}>{notice}</Text>
+          </Pressable>
+        )}
+        {error && (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorText}>{t('archive.loadFail')}</Text>
+            <Pressable onPress={() => void load()}>
+              <Text style={styles.retry}>{t('common.retry')}</Text>
+            </Pressable>
+          </View>
+        )}
+        {videos === null && !error ? (
+          <ActivityIndicator color={palette.blue} style={{ marginTop: 48 }} />
+        ) : items.length === 0 ? (
+          <View style={styles.empty}>
+            <Feather name="film" size={34} color={palette.checkOff} />
+            <Text style={styles.emptyTitle}>{t('archive.emptyTitle')}</Text>
+            <Text style={styles.emptySub}>{t('archive.emptySub')}</Text>
+          </View>
         ) : (
           <View style={styles.grid}>
-            {items.map((v) => (
-              <Pressable key={v.id} style={styles.cell} onPress={() => open(v)} accessibilityRole="button">
-                <View style={[styles.thumb, selecting && selected[v.id] && styles.thumbSelected]}>
-                  {v.img !== null && (
-                    <Image source={PERF_IMAGES[v.img]} style={[StyleSheet.absoluteFill, styles.thumbImg]} resizeMode="cover" />
+            {items.map((item) => (
+              <Pressable key={item.key} style={styles.cell} onPress={() => open(item)} accessibilityRole="button">
+                <View style={[styles.thumb, item.kind === 'pending' && styles.thumbPending]}>
+                  {item.kind === 'video' && (
+                    <Pressable style={styles.star} hitSlop={6} onPress={() => void toggleFav(item)} accessibilityRole="button">
+                      <Feather name="star" size={16} color={item.favorite ? '#F5B324' : 'rgba(255,255,255,0.7)'} />
+                    </Pressable>
                   )}
-                  <Pressable style={styles.star} hitSlop={6} onPress={() => toggleFav(v)} accessibilityRole="button">
-                    <Feather name="star" size={16} color={v.favorite ? '#F5B324' : 'rgba(255,255,255,0.7)'} />
-                  </Pressable>
-                  {v.duration !== null && (
+                  {item.durationMs !== null && (
                     <View style={styles.durationChip}>
-                      <Text style={styles.durationText}>{formatClipDuration(v.duration)}</Text>
+                      <Text style={styles.durationText}>{formatClipDuration(Math.round(item.durationMs / 1000))}</Text>
                     </View>
                   )}
                   <View style={styles.playBtn}>
-                    <Feather name="play" size={16} color="#FFFFFF" />
+                    <Feather name={item.kind === 'pending' ? 'upload-cloud' : 'play'} size={16} color="#FFFFFF" />
                   </View>
-                  {selecting && (
-                    <View style={[styles.check, selected[v.id] && styles.checkOn]}>
-                      {selected[v.id] && <Feather name="check" size={12} color="#FFFFFF" />}
-                    </View>
-                  )}
                 </View>
-                <Text style={styles.cellLabel}>{relativeDayLabel(v.createdAt)}</Text>
+                <Text style={styles.cellLabel}>{relativeDayLabel(new Date(item.createdAt).toISOString())}</Text>
+                <Text style={[styles.cellStatus, item.kind === 'pending' && styles.cellStatusPending]} numberOfLines={1}>
+                  {statusLabel(item)}
+                </Text>
               </Pressable>
             ))}
           </View>
+        )}
+        {nextCursor && (
+          <Pressable onPress={() => void loadMore()} disabled={loadingMore} accessibilityRole="button">
+            <Text style={styles.noticeText}>{loadingMore ? t('archive.loadingMore') : t('archive.loadMore')}</Text>
+          </Pressable>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -184,58 +233,29 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 8 },
   title: { fontSize: 20, fontWeight: '800', color: palette.text },
   subtitle: { fontSize: 12, color: palette.textFaint, marginTop: 2 },
-  selectText: { fontSize: 14, fontWeight: '700', color: palette.blue },
   filters: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginTop: 6 },
   chip: { borderRadius: 999, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 14, paddingVertical: 7 },
   chipOn: { backgroundColor: palette.text, borderColor: palette.text },
   chipText: { fontSize: 13, fontWeight: '700', color: palette.textDim },
   chipTextOn: { color: '#FFFFFF' },
-  body: { padding: 16, paddingBottom: 40 },
-  empty: { textAlign: 'center', color: palette.textDim, marginTop: 48 },
+  body: { padding: 16, paddingBottom: 40, gap: 12 },
+  notice: { backgroundColor: palette.amberSoft, borderRadius: 12, padding: 12 },
+  noticeText: { color: palette.amber, fontFamily: 'Pretendard', fontSize: 13 },
+  errorBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: palette.dangerSoft, borderRadius: 12, padding: 12 },
+  errorText: { color: palette.danger, fontFamily: 'Pretendard', fontSize: 13 },
+  retry: { color: palette.danger, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
+  empty: { alignItems: 'center', gap: 8, paddingVertical: 60 },
+  emptyTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 17, marginTop: 6 },
+  emptySub: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 13, textAlign: 'center', lineHeight: 20, paddingHorizontal: 20 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  cell: { width: '48%', gap: 6 },
-  thumb: {
-    aspectRatio: 0.72,
-    borderRadius: 14,
-    overflow: 'hidden',
-    backgroundColor: palette.navy,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  thumbSelected: { borderWidth: 3, borderColor: palette.blue },
-  thumbImg: { width: '100%', height: '100%', opacity: 0.35 },
+  cell: { width: '48%', gap: 4 },
+  thumb: { aspectRatio: 0.72, borderRadius: 14, overflow: 'hidden', backgroundColor: palette.navy, alignItems: 'center', justifyContent: 'center' },
+  thumbPending: { backgroundColor: palette.textDim },
   star: { position: 'absolute', top: 10, left: 10 },
-  durationChip: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
+  durationChip: { position: 'absolute', top: 10, right: 10, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   durationText: { fontSize: 11, fontWeight: '700', color: '#FFFFFF' },
-  playBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.7)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  check: {
-    position: 'absolute',
-    bottom: 10,
-    right: 10,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkOn: { backgroundColor: palette.blue, borderColor: palette.blue },
+  playBtn: { width: 38, height: 38, borderRadius: 19, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.7)', alignItems: 'center', justifyContent: 'center' },
   cellLabel: { fontSize: 12, color: palette.textFaint },
+  cellStatus: { fontSize: 11, color: palette.textMuted, fontFamily: 'Pretendard-SemiBold' },
+  cellStatusPending: { color: palette.amber },
 });

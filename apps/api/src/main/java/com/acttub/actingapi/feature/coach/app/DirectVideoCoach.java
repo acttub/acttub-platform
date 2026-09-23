@@ -19,13 +19,14 @@ import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.acttub.actingapi.platform.observability.LlmTokens;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
-/** Gemini transport for the existing durable coach API; no layer-one model or route classifier. */
+/** Gemini transport for the existing durable coach API; no layer-one model; response routing is a separate text call. */
 public final class DirectVideoCoach {
     private final DirectVideoModel model;
     private final CoachVideoSource videos;
     private final ObjectStorage storage;
     private final FailureReporter failures;
     private final LlmTelemetry telemetry;
+    private final DirectVideoRouting routing;
 
     public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
             FailureReporter failures, LlmTelemetry telemetry) {
@@ -34,6 +35,7 @@ public final class DirectVideoCoach {
         this.storage = storage;
         this.failures = failures;
         this.telemetry = telemetry;
+        this.routing = new DirectVideoRouting(model, failures, telemetry::record);
     }
 
     public CoachResult turn(CoachSessionSnapshot session, String actorText, UUID operationId) {
@@ -44,7 +46,11 @@ public final class DirectVideoCoach {
         session.turns().forEach(turn -> history.add(new DirectVideoModel.Message(
                 "ai".equals(turn.role()) ? "model" : "user", turn.text())));
         if (actorText != null) history.add(new DirectVideoModel.Message("user", actorText));
-        String input = DirectVideoPrompts.common() + "\n" + history;
+        String input = "";
+        String route = "";
+        boolean routeFallback = false;
+        boolean actorFinished = DialogueProgress.actorFinished(actorText);
+        boolean turnBudget = session.turns().stream().filter(t -> "ai".equals(t.role())).count() >= 9;
         try {
             var source = videos.find(session.userId(), session.practiceSessionId());
             if (source == null) throw new IllegalStateException("owned video is unavailable");
@@ -61,19 +67,25 @@ public final class DirectVideoCoach {
                 if (System.nanoTime() >= deadline) throw new IllegalStateException("video processing timed out");
                 Thread.sleep(1000);
             }
+            var selection = routing.select(history, actorText, actorFinished || turnBudget,
+                    session.practiceSessionId(), session.userId(), operationId);
+            route = selection.label();
+            routeFallback = selection.fallback();
+            String prompt = CoachPrompt.actorProfileBlock(session.actorProfile())
+                    + CoachPrompt.priorContextBlock(session.priorForModel(), true) + selection.prompt();
+            input = CoachPrompt.withoutActorName(prompt, session.actorProfile()) + "\n" + history;
             ExternalOperationExecution.externalCall("model");
-            String message = model.reply(uploaded, history, DirectVideoPrompts.common());
+            String message = model.reply(uploaded, history, prompt);
             if (message == null || message.isBlank()) throw new IllegalStateException("empty video coaching reply");
             telemetry.record(new LlmCall(LlmStep.COACH_TURN, session.practiceSessionId(), session.userId(),
                     model.model(), input, message, LlmTokens.unknown(), started, Duration.between(started, Instant.now()),
-                    null, LlmCall.metadata("transport", "gemini_direct_video")));
+                    null, LlmCall.metadata("transport", "gemini_direct_video", "route", route,
+                            "route_fallback", Boolean.toString(routeFallback))));
             ObjectNode state = session.coachingState() == null ? CoachingStateReducer.empty()
                     : ((ObjectNode) session.coachingState()).deepCopy();
             CoachingStateReducer.require(state.path("revision").asLong() == session.stateRevision(), "stored revision mismatch");
             state.put("revision", session.stateRevision() + 1);
             // Plain coaching prose is not structured evidence or a confirmed actor intention.
-            boolean actorFinished = DialogueProgress.actorFinished(actorText);
-            boolean turnBudget = session.turns().stream().filter(t -> "ai".equals(t.role())).count() >= 9;
             return StructuredCoachEngine.result(session, actorText, message.strip(), state,
                     actorFinished ? "actor_finished" : turnBudget ? "turn_budget" : null);
         } catch (Exception failure) {
@@ -81,7 +93,8 @@ public final class DirectVideoCoach {
             failures.report(failure, FailureKind.EXTERNAL, new FailureContext("DirectVideoCoach.turn", operationId));
             telemetry.record(new LlmCall(LlmStep.COACH_TURN, session.practiceSessionId(), session.userId(),
                     model.model(), input, "", LlmTokens.unknown(), started, Duration.between(started, Instant.now()),
-                    failure.getClass().getSimpleName(), LlmCall.metadata("transport", "gemini_direct_video")));
+                    failure.getClass().getSimpleName(), LlmCall.metadata("transport", "gemini_direct_video", "route", route,
+                            "route_fallback", Boolean.toString(routeFallback))));
             throw new CoachReplyUnavailable();
         } finally {
             if (uploaded != null) {

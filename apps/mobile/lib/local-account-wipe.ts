@@ -9,7 +9,8 @@
  *
  * 네이티브 모듈 없이 성립하는 부분만 여기 산다(local-account-data.ts 가 저장소와 파일 삭제를 넣어 쓴다).
  */
-import { resetPracticeState } from './practice.ts';
+import { resetPracticeState } from './practice/session-state.ts';
+import { clearPickedVideo } from './practice/picked-video.ts';
 import { READING_SCRIPTS_KEY, recordingFileUris, resetReadingState } from './reading/store.ts';
 import { takeRecordedVideo } from './recorded-video.ts';
 
@@ -31,6 +32,8 @@ export type LocalAccountWipeDependencies = AccountCacheDependencies & {
   purgeDeviceFiles: () => Promise<void>;
   /** 대본을 읽어 준 음성 합성 파일들. 이름이 정해져 있어 캐시 폴더에서 찾는다. */
   listSpeechFiles: () => Promise<string[]>;
+  /** 보관함의 기기 복사본 폴더(문서 폴더 archive)와 업로드 대기 파일을 통째로 지운다(practice.record). 없어도 던지지 않는다. */
+  purgeLibraryFiles?: () => Promise<void>;
 };
 
 /**
@@ -57,6 +60,7 @@ export async function clearAccountCacheData({
   deleteUserName,
 }: AccountCacheDependencies): Promise<void> {
   resetPracticeState();
+  clearPickedVideo();
   await Promise.allSettled([storage.multiRemove(ACCOUNT_CACHE_KEYS), deleteUserName()]);
 }
 
@@ -65,10 +69,12 @@ export async function wipeLocalAccountData({
   deleteFile,
   purgeDeviceFiles,
   listSpeechFiles,
+  purgeLibraryFiles,
   deleteUserName,
 }: LocalAccountWipeDependencies): Promise<void> {
   // 메모리에만 있는 것부터. 실패할 수 없고, 아래가 느려도 화면이 먼저 비워진다.
   resetPracticeState();
+  clearPickedVideo();
   resetReadingState();
   takeRecordedVideo();
   // 파일이 키보다 먼저다 — 녹음 파일의 위치는 대본 저장소에만 적혀 있다.
@@ -77,7 +83,7 @@ export async function wipeLocalAccountData({
     ...(await listSpeechFiles().catch(() => [])),
   ];
   // 하나가 실패해도 나머지는 지운다. 절반이라도 지우는 게 전부 남기는 것보다 낫다.
-  await Promise.allSettled([purgeDeviceFiles(), ...files.map((uri) => deleteFile(uri))]);
+  await Promise.allSettled([purgeDeviceFiles(), purgeLibraryFiles?.() ?? Promise.resolve(), ...files.map((uri) => deleteFile(uri))]);
   await Promise.allSettled([clearPrefixedKeys(storage), deleteUserName()]);
 }
 

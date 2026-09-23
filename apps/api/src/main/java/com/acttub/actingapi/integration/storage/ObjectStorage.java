@@ -15,5 +15,11 @@ public interface ObjectStorage {
 
     StoredObjectMetadata downloadToPath(String objectKey, Path destination);
 
+    /**
+     * 서버가 직접 객체를 올린다 — 리딩 녹음처럼 작아서 올릴 자리를 따로 받지 않는 파일(reading.recording).
+     * 같은 키에 다시 올리면 덮어쓴다.
+     */
+    void upload(String objectKey, String mimeType, Path source);
+
     void delete(String objectKey);
 }

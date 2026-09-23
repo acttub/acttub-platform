@@ -19,6 +19,8 @@ import '@/lib/global-font';
 import { logScreenView } from '@/lib/analytics';
 import { initMetaSdk } from '@/lib/meta-events';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
+import { challengePushTarget } from '@/lib/challenge/notification-center';
+import { onPushTapped } from '@/lib/notifications';
 import {
   recoveryStatusForConsentGate,
   routeAllowedDuringConsentGate,
@@ -84,7 +86,7 @@ function RootNavigator() {
   const currentRouteParams = useGlobalSearchParams<BootstrapRecoveryParams>();
   const {
     recoveryKey: currentRecoveryKey,
-    sessionId: currentRecoverySessionId,
+    practiceId: currentRecoveryPracticeId,
   } = currentRouteParams;
   const router = useRouter();
   const hasConsentGate = consentEntry.status !== 'allowed';
@@ -175,6 +177,13 @@ function RootNavigator() {
       active = false;
     };
   }, [status, user, consentGate]);
+
+  // 푸시를 누르면 알림 식별자로 알림함을 연다(잠금 화면 문구에는 이름·본문이 없다).
+  useEffect(() => {
+    return onPushTapped((data) => {
+      if (challengePushTarget(data)) router.push('/notifications');
+    });
+  }, [router]);
 
   useEffect(() => {
     const bootstrap = resolveBootstrapStep({
@@ -294,7 +303,7 @@ function RootNavigator() {
           pathname,
           {
             recoveryKey: currentRecoveryKey,
-            sessionId: currentRecoverySessionId,
+            practiceId: currentRecoveryPracticeId,
           },
           bootstrap.route,
         ) === 'replace'
@@ -321,7 +330,7 @@ function RootNavigator() {
     segments,
     pathname,
     currentRecoveryKey,
-    currentRecoverySessionId,
+    currentRecoveryPracticeId,
     currentRouteParams,
     router,
   ]);
@@ -390,6 +399,8 @@ function RootNavigator() {
       <Stack.Screen name="archive" options={{ headerShown: false }} />
       <Stack.Screen name="archive-detail" options={{ headerShown: false }} />
       <Stack.Screen name="reading/new" options={{ title: t('reading.titleNew') }} />
+      <Stack.Screen name="reading/confirm" options={{ title: t('reading.titleConfirm') }} />
+      <Stack.Screen name="reading/edit" options={{ title: t('reading.titleEdit'), presentation: 'modal' }} />
       <Stack.Screen name="reading/detail" options={{ title: t('reading.titleDetail') }} />
       <Stack.Screen name="reading/full" options={{ title: t('reading.titleFull') }} />
       <Stack.Screen name="reading/roles" options={{ title: t('reading.titleRoles') }} />

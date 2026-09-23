@@ -1,0 +1,29 @@
+{
+  "title": null,
+  "roles": [
+    "윤희",
+    "동수"
+  ],
+  "lines": [
+    {
+      "type": "dialogue",
+      "role": "윤희",
+      "text": "그래서 그 사람이 이 말을 했다는 거야?"
+    },
+    {
+      "type": "dialogue",
+      "role": "동수",
+      "text": "응, 내가 직접 들었어."
+    },
+    {
+      "type": "dialogue",
+      "role": "윤희",
+      "text": "믿을 수가 없네."
+    },
+    {
+      "type": "dialogue",
+      "role": "동수",
+      "text": "나도."
+    }
+  ]
+}

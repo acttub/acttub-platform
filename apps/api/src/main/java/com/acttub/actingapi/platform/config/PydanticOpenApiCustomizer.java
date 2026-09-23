@@ -7,12 +7,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import com.acttub.actingapi.feature.coach.adapter.web.CoachDtos.CoachConfirmResponse;
-import com.acttub.actingapi.feature.coach.adapter.web.CoachDtos.CoachTurnResponse;
+import com.acttub.actingapi.feature.report.app.PublicReport.AnalysisReport;
+import com.acttub.actingapi.feature.report.app.PublicReport.ExpressionReport;
+import com.acttub.actingapi.feature.report.app.PublicReport.PublicPracticeNote;
 import com.acttub.actingapi.feature.report.app.PublicReport.BlockedReport;
 import com.acttub.actingapi.feature.practice.adapter.web.PracticeSessionDtos.ObservationPackResponse;
 import com.acttub.actingapi.feature.practice.adapter.web.PracticeSessionDtos.VideoRecordSummaryResponse;
-import com.acttub.actingapi.feature.report.adapter.web.ReportDtos.ReportDetailResponse;
 import io.swagger.v3.core.converter.ModelConverter;
 import io.swagger.v3.core.converter.ModelConverters;
 import io.swagger.v3.core.jackson.ModelResolver;
@@ -55,9 +55,9 @@ class PydanticOpenApiCustomizer {
                 return;
             }
             Map<String, Schema> schemas = openApi.getComponents().getSchemas();
-            registerReferencedSchemas(schemas, ReportDetailResponse.class);
-            registerReferencedSchemas(schemas, CoachTurnResponse.class);
-            registerReferencedSchemas(schemas, CoachConfirmResponse.class);
+            registerReferencedSchemas(schemas, AnalysisReport.class);
+            registerReferencedSchemas(schemas, ExpressionReport.class);
+            registerReferencedSchemas(schemas, PublicPracticeNote.class);
             registerReferencedSchemas(schemas, BlockedReport.class);
             registerReferencedSchemas(schemas, ObservationPackResponse.class);
             registerReferencedSchemas(schemas, VideoRecordSummaryResponse.class);
@@ -361,6 +361,10 @@ class PydanticOpenApiCustomizer {
     }
 
     private static void applyCoachSchemaShape(Map<String, Schema> schemas) {
+        Schema<?> note = schemas.get("CoachNote");
+        if (note != null && note.getProperties() != null) {
+            note.getProperties().put("report", reportUnion(true));
+        }
         Schema<?> turn = schemas.get("CoachTurnResponse");
         if (turn != null && turn.getProperties() != null) {
             turn.getProperties().put("handoff", nullableReference("PublicHandoff", null));

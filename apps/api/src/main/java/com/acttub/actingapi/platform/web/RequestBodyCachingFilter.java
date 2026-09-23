@@ -12,10 +12,20 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * 그래서 바디를 advice 가 다시 읽을 수 있어야 하는데, Spring 의 ContentCachingRequestWrapper 는
  * **lazy** 라 소비된 만큼만 캐시한다 — Jackson 이 첫 필드에서 타입 오류로 멈추면 뒤쪽 바디가
  * 캐시에 없어 재파싱이 깨지고 `input` 이 null 로 나간다. 여기서는 전량을 미리 읽어 둔다.
+ *
+ * <p><b>multipart 는 캐시하지 않는다.</b> 컨테이너의 파트 파싱은 래퍼가 아니라 원 요청의 스트림을 읽으므로, 여기서
+ * 먼저 읽어 버리면 파트가 비어 "audio 파트가 없다"가 된다(리딩 녹음 올리기). 그 본문은 JSON 이 아니라 `input`
+ * 으로 되돌려 줄 것도 없다.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class RequestBodyCachingFilter extends OncePerRequestFilter {
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String contentType = request.getContentType();
+        return contentType != null && contentType.toLowerCase(java.util.Locale.ROOT).startsWith("multipart/");
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)

@@ -3,8 +3,8 @@ import test from 'node:test';
 
 import { DEVICE_FILES_KEY, createDeviceFileLedger } from '../lib/device-files.ts';
 import { clearAccountCacheData, wipeLocalAccountData } from '../lib/local-account-wipe.ts';
-import { peekPendingUpload, setPendingUpload } from '../lib/practice.ts';
-import { createFromParsed, getCurrent } from '../lib/reading/store.ts';
+import { peekPickedVideo, setPickedVideo } from '../lib/practice/picked-video.ts';
+import { getCurrent, openScript } from '../lib/reading/store.ts';
 import { peekRecordedVideo, setRecordedVideo } from '../lib/recorded-video.ts';
 
 const RECORDING_1 = 'file:///cache/Audio/recording-1.m4a';
@@ -31,7 +31,7 @@ function phone({ undeletable = [] } = {}) {
   ]);
   const disk = new Set([RECORDING_1, RECORDING_2, SPEECH, COMPRESSED_PHOTO, ORIGINAL_VIDEO]);
   const stuck = new Set(undeletable);
-  const state = { nameDeleted: false };
+  const state = { nameDeleted: false, libraryPurged: false };
   const storage = {
     getAllKeys: async () => [...items.keys()],
     getItem: async (key) => items.get(key) ?? null,
@@ -55,6 +55,10 @@ function phone({ undeletable = [] } = {}) {
     deleteFile,
     purgeDeviceFiles: () => deviceFiles.purge(),
     listSpeechFiles: async () => [...disk].filter((uri) => uri.endsWith('.wav')),
+    purgeLibraryFiles: async () => {
+      state.libraryPurged = true;
+      for (const uri of [...disk]) if (uri.includes('/archive/')) disk.delete(uri);
+    },
     deleteUserName: async () => {
       state.nameDeleted = true;
     },
@@ -72,6 +76,18 @@ test('account.withdraw: 탈퇴 뒤 폰의 앱 저장소에는 계정 자료 키�
     [],
   );
   assert.equal(state.nameDeleted, true);
+});
+
+test('practice.record: 탈퇴하면 보관함의 기기 복사본 폴더와 업로드 대기 파일을 지운다(local-account-wipe 와 같은 길)', async () => {
+  const { disk, state, dependencies, items } = phone();
+  disk.add('file:///docs/archive/rec-1.mp4');
+  items.set('acttub.library.uploadQueue', '[{"id":"local-1"}]');
+
+  await wipeLocalAccountData(dependencies);
+
+  assert.equal(state.libraryPurged, true);
+  assert.equal(disk.has('file:///docs/archive/rec-1.mp4'), false);
+  assert.equal(items.has('acttub.library.uploadQueue'), false, '대기 큐 키도 접두사로 지워진다');
 });
 
 test('account.withdraw: 탈퇴하면 이 기기에 저장된 리딩 녹음 파일을 지운다', async () => {
@@ -104,21 +120,18 @@ test('account.withdraw: 탈퇴하면 장부에 적힌 파일(줄인 사진·영�
 
 test('account.withdraw: 탈퇴하면 메모리에 든 리딩 대본·올리던 연습·찍은 영상도 비운다', async () => {
   const { dependencies } = phone();
-  await createFromParsed({ title: '옥상, 밤', roles: ['윤서'], lines: [] });
-  setPendingUpload({
-    scene: { situation: '', character: '', goal: '' },
-    video: { uri: ORIGINAL_VIDEO, name: 'a.mov', mimeType: 'video/quicktime' },
-    durationMs: 1000,
-    blockage: null,
-    theory: null,
+  await openScript({
+    id: 'sc_1', title: '옥상, 밤', source: 'paste', characters: [], lines: [],
+    recording_count: 0, open_session_id: null, last_session: null, created_at: 'a', updated_at: 'b',
   });
+  setPickedVideo({ videoId: 'video-1', pendingId: null, uri: ORIGINAL_VIDEO, playbackUrl: null, durationMs: 1000 });
   setRecordedVideo({ uri: ORIGINAL_VIDEO, durationMs: 1000, name: 'a.mov' });
   assert.ok(getCurrent());
 
   await wipeLocalAccountData(dependencies);
 
   assert.equal(getCurrent(), null);
-  assert.equal(peekPendingUpload(), null);
+  assert.equal(peekPickedVideo(), null);
   assert.equal(peekRecordedVideo(), null);
 });
 

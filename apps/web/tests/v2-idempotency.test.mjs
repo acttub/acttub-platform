@@ -224,7 +224,7 @@ test("account.guest: 동의 시트가 열려 있는 동안은 기한을 세지 �
 
   try {
     const { data } = await postIdempotent(
-      "/v2/practice-sessions",
+      "/v2/practices",
       { upload_intent_id: "intent-1" },
       { requestId: "request-sheet", deadlineMs: 40 },
     );
@@ -258,7 +258,7 @@ test("account.guest: 시트가 닫힌 뒤에는 남은 기한이 다시 흐른�
     const startedAt = Date.now();
     await assert.rejects(
       postIdempotent(
-        "/v2/practice-sessions",
+        "/v2/practices",
         { upload_intent_id: "intent-1" },
         { requestId: "request-sheet-timeout", deadlineMs: 40 },
       ),
@@ -282,7 +282,7 @@ test("account.guest: 시트를 닫아 403 이 돌아오면 기한과 무관하�
   try {
     await assert.rejects(
       postIdempotent(
-        "/v2/practice-sessions",
+        "/v2/practices",
         { upload_intent_id: "intent-1" },
         { requestId: "request-sheet-dismissed", deadlineMs: 20 },
       ),

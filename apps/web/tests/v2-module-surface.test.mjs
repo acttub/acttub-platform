@@ -15,11 +15,6 @@ const internalSymbols = [
   ["src/lib/api/v2/client.ts", "apiUrl", "function"],
   ["src/lib/api/v2/errors.ts", "UnauthorizedError", "class"],
   ["src/lib/api/v2/idempotency.ts", "newRequestId", "function"],
-  ["src/lib/api/v2/uploads.ts", "xhrS3Uploader", "const"],
-  ["src/lib/api/v2/uploads.ts", "mockS3Uploader", "const"],
-  ["src/lib/api/v2/uploads.ts", "defaultS3Uploader", "const"],
-  ["src/lib/api/v2/uploads.ts", "createUploadIntent", "function"],
-  ["src/lib/api/v2/uploads.ts", "completeUploadIntent", "function"],
 ];
 
 const moduleNamespaces = new Map(
@@ -53,13 +48,4 @@ test("RefreshRequest alias is absent from the handwritten v2 types", () => {
   const source = readSource("src/lib/api/v2/types.ts");
 
   assert.doesNotMatch(source, /\b(?:export\s+)?type\s+RefreshRequest\b/);
-});
-
-test("deletePracticeSession remains part of the sessions module contract", () => {
-  const source = readSource("src/lib/api/v2/sessions.ts");
-
-  assert.match(
-    source,
-    /\bexport\s+async\s+function\s+deletePracticeSession\b/,
-  );
 });

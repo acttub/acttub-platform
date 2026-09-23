@@ -54,7 +54,7 @@ test("account.guest: 옮긴 뒤 웹을 새로 고쳐 첫 요청이 403 guest_tra
     assert.equal(probe.latest.transferred, false);
 
     await react.act(async () => {
-      await apiFetch("/v2/practice-sessions").catch(() => undefined);
+      await apiFetch("/v2/practices").catch(() => undefined);
     });
 
     assert.equal(probe.latest.transferred, true);
@@ -71,7 +71,7 @@ test("account.guest: 액세스 토큰이 만료돼 갱신에서 401 guest_transf
   const probe = mount(Probe);
   try {
     await react.act(async () => {
-      await apiFetch("/v2/practice-sessions").catch(() => undefined);
+      await apiFetch("/v2/practices").catch(() => undefined);
     });
 
     assert.equal(probe.latest.transferred, true);
@@ -88,7 +88,7 @@ test("account.guest: 그냥 끝난 게스트(갱신 거절)에는 '옮겼어요'
   const probe = mount(Probe);
   try {
     await react.act(async () => {
-      await apiFetch("/v2/practice-sessions").catch(() => undefined);
+      await apiFetch("/v2/practices").catch(() => undefined);
     });
 
     assert.equal(probe.latest.transferred, false);
@@ -106,14 +106,14 @@ test("account.guest: 새로 시작을 누르면 안내를 거두고 빈 연습 �
   const probe = mount(Probe);
   try {
     await react.act(async () => {
-      await apiFetch("/v2/practice-sessions").catch(() => undefined);
+      await apiFetch("/v2/practices").catch(() => undefined);
     });
 
     probe.act((value) => value.startOver());
 
     assert.equal(probe.latest.transferred, false);
     assert.deepEqual(navigationsSoFar(), ["/practice/new"]);
-    assert.deepEqual(routes, ["GET /v2/practice-sessions"]);
+    assert.deepEqual(routes, ["GET /v2/practices"]);
   } finally {
     probe.unmount();
   }

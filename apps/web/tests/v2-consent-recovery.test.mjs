@@ -79,7 +79,7 @@ test("account.guest: 403 consent_required를 받으면 빠진 문서로 시트�
     return "decided";
   });
 
-  const { data } = await apiFetch("/v2/uploads/intents", {
+  const { data } = await apiFetch("/v2/videos/intents", {
     method: "POST",
     body: { filename: "take.mp4" },
     headers: { "X-Request-Id": "request-1" },
@@ -101,7 +101,7 @@ test("account.guest: 시트를 닫으면 요청을 다시 보내지 않고 403 c
 
   let caught;
   try {
-    await apiFetch("/v2/uploads/intents", { method: "POST", body: {} });
+    await apiFetch("/v2/videos/intents", { method: "POST", body: {} });
   } catch (error) {
     caught = error;
   }
@@ -129,7 +129,7 @@ test("account.guest: 연습에 동의한 뒤에는 서버가 빠졌다고 알린
     return "decided";
   });
 
-  await apiFetch("/v2/uploads/intents", { method: "POST", body: {} });
+  await apiFetch("/v2/videos/intents", { method: "POST", body: {} });
 
   assert.deepEqual(prompted, [["ai_analysis"]]);
 });
@@ -181,7 +181,7 @@ test("account.consent: 다시 보낸 요청이 또 막히면(그 사이 새 판)
   });
 
   await assert.rejects(
-    apiFetch("/v2/uploads/intents", { method: "POST", body: {} }),
+    apiFetch("/v2/videos/intents", { method: "POST", body: {} }),
     (error) => error?.status === 403 && error?.code === "consent_required",
   );
 
@@ -197,7 +197,7 @@ test("account.guest: 시트가 떠 있지 않은 화면에서는 403 consent_req
   };
 
   await assert.rejects(
-    apiFetch("/v2/uploads/intents", { method: "POST", body: {} }),
+    apiFetch("/v2/videos/intents", { method: "POST", body: {} }),
     (error) => error?.status === 403 && error?.code === "consent_required",
   );
   assert.equal(fetchCount, 1);
@@ -216,7 +216,7 @@ test("account.consent: consent_blocked 분기는 없다 — 시트를 띄우지�
   });
 
   await assert.rejects(
-    apiFetch("/v2/uploads/intents", { method: "POST", body: {} }),
+    apiFetch("/v2/videos/intents", { method: "POST", body: {} }),
     (error) => error?.status === 403 && error?.code === "consent_blocked",
   );
   assert.equal(promptCount, 0);
@@ -247,7 +247,7 @@ test("account.guest: 하루 네 번째 분석(429 guest_daily_analysis_limit)은
 
   let caught;
   try {
-    await postIdempotent("/v2/practice-sessions", { upload_intent_id: "intent-1" });
+    await postIdempotent("/v2/practices", { upload_intent_id: "intent-1" });
   } catch (error) {
     caught = error;
   }

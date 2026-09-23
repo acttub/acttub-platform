@@ -14,9 +14,11 @@ import { speechKey } from './speech-key.ts';
  * <p>만드는 일과 파일 쓰기는 주입받는다 — 이 파일은 onnxruntime 없이도 시험할 수 있다.
  */
 
+export type SpeechLine = string | { text: string; preset: string };
+
 export type SpeechQueueOptions = {
   /** 한 줄을 만들어 파일로 남기고 그 자리를 돌려준다. */
-  synthesize: (text: string, key: string) => Promise<string>;
+  synthesize: (text: string, key: string, preset: string) => Promise<string>;
   /** 어느 대본의 음성인가 — 파일 이름과 캐시를 가른다. */
   scriptId: string;
   locale: string;
@@ -28,12 +30,12 @@ export type SpeechQueueOptions = {
 
 export type SpeechQueue = {
   /** 앞으로 읽을 상대 대사를 순서대로 준다. 부를 때마다 남은 순서를 다시 잡는다. */
-  prime: (texts: readonly string[]) => void;
+  prime: (texts: readonly SpeechLine[]) => void;
   /**
    * 그 줄의 음성 자리. 이미 있으면 바로, 만드는 중이면 끝날 때까지 기다린다.
    * 아직 손도 안 댔거나 실패했으면 null — 부르는 쪽이 그때 직접 만든다.
    */
-  take: (text: string) => Promise<string | null>;
+  take: (text: SpeechLine) => Promise<string | null>;
   /** 화면을 나갈 때. 만들던 것이 끝나도 다음 줄로 넘어가지 않는다. */
   cancel: () => void;
   /** 시험용 — 지금 만들고 있는 한 줄이 끝날 때까지 기다린다(다음 줄은 그때 막 시작한다). */
@@ -43,24 +45,25 @@ export type SpeechQueue = {
 export function createSpeechQueue(options: SpeechQueueOptions): SpeechQueue {
   const done = new Map<string, string>();
   const inFlight = new Map<string, Promise<string | null>>();
-  let pending: string[] = [];
+  let pending: SpeechLine[] = [];
   let running: Promise<void> | null = null;
   let cancelled = false;
 
-  const keyOf = (text: string) =>
+  const textOf = (line: SpeechLine) => (typeof line === 'string' ? line : line.text).trim();
+  const presetOf = (line: SpeechLine) => typeof line === 'string' ? options.preset : line.preset;
+  const keyOf = (line: SpeechLine) =>
     speechKey({
-      text,
+      text: textOf(line),
       locale: options.locale,
-      preset: options.preset,
+      preset: presetOf(line),
       variant: options.variant,
       steps: options.steps,
       speed: options.speed,
     });
 
   /** 만들 필요가 있는 줄만 남긴다 — 빈 줄과 이미 만든 줄은 뺀다. */
-  const worth = (text: string) => {
-    const clean = (text ?? '').trim();
-    return clean.length > 0 && !done.has(keyOf(clean));
+  const worth = (line: SpeechLine) => {
+    return textOf(line).length > 0 && !done.has(keyOf(line));
   };
 
   function pump(): void {
@@ -71,19 +74,19 @@ export function createSpeechQueue(options: SpeechQueueOptions): SpeechQueue {
       pump();
       return;
     }
-    running = makeOne(next.trim()).then(() => {
+    running = makeOne(next).then(() => {
       running = null;
       // 만드는 동안 사용자가 건너뛰었을 수 있다 — 그 사이 다시 잡힌 순서를 따른다.
       if (!cancelled) pump();
     });
   }
 
-  function makeOne(text: string): Promise<string | null> {
-    const key = keyOf(text);
+  function makeOne(line: SpeechLine): Promise<string | null> {
+    const key = keyOf(line);
     const already = inFlight.get(key);
     if (already) return already;
     const work = options
-      .synthesize(text, key)
+      .synthesize(textOf(line), key, presetOf(line))
       .then((uri) => {
         done.set(key, uri);
         return uri;
@@ -102,10 +105,10 @@ export function createSpeechQueue(options: SpeechQueueOptions): SpeechQueue {
       pending = texts.filter(worth);
       pump();
     },
-    async take(text) {
-      const clean = (text ?? '').trim();
+    async take(line) {
+      const clean = textOf(line);
       if (!clean) return null;
-      const key = keyOf(clean);
+      const key = keyOf(line);
       const ready = done.get(key);
       if (ready) return ready;
       const making = inFlight.get(key);

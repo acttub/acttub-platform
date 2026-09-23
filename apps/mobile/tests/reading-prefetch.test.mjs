@@ -135,6 +135,26 @@ test('설정이 다르면 다른 음성이다 — 같은 글이어도 다시 만
   assert.equal(await english.take('Hello'), null, '다른 말로 만든 것은 쓰지 않는다');
 });
 
+test('같은 대사도 배역 목소리별로 만들고 순서대로 재생할 파일을 돌려준다', async () => {
+  const calls = [];
+  const queue = createSpeechQueue({ ...options, synthesize: async (text, key, preset) => {
+    calls.push({ text, key, preset });
+    return `file:///${preset}.wav`;
+  } });
+  const man = { text: '가지 마', preset: 'M1' };
+  const woman = { text: '가지 마', preset: 'F2' };
+  queue.prime([man, woman]);
+  await queue.settled();
+  await queue.settled();
+  assert.equal(await queue.take(man), 'file:///M1.wav');
+  assert.equal(await queue.take(woman), 'file:///F2.wav');
+  assert.deepEqual(calls.map((call) => call.preset), ['M1', 'F2']);
+  assert.notEqual(calls[0].key, calls[1].key);
+  queue.prime([woman, man]);
+  await queue.settled();
+  assert.equal(calls.length, 2);
+});
+
 test('새 파일 이름은 탈퇴 정리가 찾을 수 있고, 남의 파일은 아니다', () => {
   const made = speechScriptFileName('script-1', 'abc123');
   assert.equal(isSpeechFileName(made), true);

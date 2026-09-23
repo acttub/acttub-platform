@@ -1,0 +1,59 @@
+{
+  "title": null,
+  "roles": [
+    "지수",
+    "민준"
+  ],
+  "lines": [
+    {
+      "type": "scene",
+      "text": "제1막"
+    },
+    {
+      "type": "direction",
+      "text": "바람 소리."
+    },
+    {
+      "type": "dialogue",
+      "role": "지수",
+      "text": "하나."
+    },
+    {
+      "type": "dialogue",
+      "role": "민준",
+      "text": "둘."
+    },
+    {
+      "type": "scene",
+      "text": "S#2"
+    },
+    {
+      "type": "dialogue",
+      "role": "지수",
+      "text": "셋."
+    },
+    {
+      "type": "dialogue",
+      "role": "민준",
+      "text": "넷."
+    },
+    {
+      "type": "scene",
+      "text": "1막 2장"
+    },
+    {
+      "type": "dialogue",
+      "role": "지수",
+      "text": "다섯."
+    },
+    {
+      "type": "scene",
+      "text": "제 3 장"
+    },
+    {
+      "type": "dialogue",
+      "role": "민준",
+      "text": "여섯."
+    }
+  ]
+}

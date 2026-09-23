@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { deleteDeviceFile, listSpeechFiles, purgeDeviceFiles } from '@/lib/account-files';
+import { deleteDeviceFile, listSpeechFiles, purgeDeviceFiles, purgeLibraryFiles } from '@/lib/account-files';
 import { clearAccountCacheData, wipeLocalAccountData } from '@/lib/local-account-wipe';
 import { deleteUserName } from '@/lib/profile';
 
@@ -21,6 +21,7 @@ export function clearLocalAccountData(): Promise<void> {
     deleteFile: deleteDeviceFile,
     purgeDeviceFiles,
     listSpeechFiles,
+    purgeLibraryFiles,
     deleteUserName,
   });
 }

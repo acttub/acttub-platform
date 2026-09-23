@@ -4,6 +4,7 @@
  * (components/pdf-text-extractor)가 등록한 추출기로 넘긴다 — 등록된 화면에서만 된다.
  */
 import { File } from 'expo-file-system';
+import { checkScriptFile, type PickedScriptFile } from './file-input.ts';
 import { translate as t } from '../i18n.ts';
 
 export class UnsupportedScriptFile extends Error {}
@@ -19,23 +20,26 @@ export function registerPdfExtractor(fn: PdfExtractor): () => void {
   };
 }
 
-export interface PickedFile {
+export interface PickedFile extends PickedScriptFile {
   uri: string;
-  name: string;
-  mimeType?: string;
 }
 
-function kindOf(f: PickedFile): 'txt' | 'docx' | 'pdf' | 'unknown' {
-  const ext = (f.name.split('.').pop() ?? '').toLowerCase();
-  const mt = f.mimeType ?? '';
-  if (ext === 'txt' || mt.startsWith('text/')) return 'txt';
-  if (ext === 'docx' || mt.includes('wordprocessingml')) return 'docx';
-  if (ext === 'pdf' || mt.includes('pdf')) return 'pdf';
-  return 'unknown';
+/**
+ * 파일 검사 실패의 안내 문구. 크기(20,000,000바이트)는 글자를 뽑기 전에 거르고, hwp·hwpx 는 앱이 열지
+ * 않는다(1.0.0이 받아들인 한계). 어느 쪽도 서버에는 아무것도 남지 않는다.
+ */
+export function scriptFileRejection(f: PickedScriptFile): string | null {
+  const check = checkScriptFile(f);
+  if (check.ok) return null;
+  if (check.reason === 'too_large') return t('reading.fileTooLarge');
+  if (check.reason === 'hwp') return t('reading.hwpUnsupported');
+  return t('reading.unsupported');
 }
 
 export async function extractScriptText(f: PickedFile): Promise<string> {
-  const kind = kindOf(f);
+  const check = checkScriptFile(f);
+  if (!check.ok) throw new UnsupportedScriptFile(scriptFileRejection(f) ?? t('reading.unsupported'));
+  const kind = check.kind;
   if (kind === 'txt') {
     return (await new File(f.uri).text()).trim();
   }

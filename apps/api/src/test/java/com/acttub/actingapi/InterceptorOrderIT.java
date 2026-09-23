@@ -41,10 +41,10 @@ class InterceptorOrderIT {
 
     @Test
     void consentGateRunsBeforeBodyValidation() throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/v2/reports");
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/v2/practices");
         HandlerExecutionChain chain = handlerMapping.getHandler(request);
 
-        assertThat(chain).as("POST /v2/reports 핸들러가 잡혀야 한다").isNotNull();
+        assertThat(chain).as("POST /v2/practices 핸들러가 잡혀야 한다").isNotNull();
         List<String> names = Arrays.stream(chain.getInterceptors())
                 .map(interceptor -> interceptor.getClass().getSimpleName())
                 .toList();

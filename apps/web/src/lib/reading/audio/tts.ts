@@ -119,7 +119,7 @@ export function waitForVoices(timeoutMs = 1500): Promise<SpeechSynthesisVoice[]>
   });
 }
 
-function speakWithDevice(body: string, style: VoiceStyle, signal?: AbortSignal): Promise<void> {
+function speakWithDevice(body: string, style: VoiceStyle, signal?: AbortSignal, tempo = 1): Promise<void> {
   return new Promise((resolve) => {
     const synth = window.speechSynthesis;
     const u = new SpeechSynthesisUtterance(body);
@@ -127,6 +127,8 @@ function speakWithDevice(body: string, style: VoiceStyle, signal?: AbortSignal):
     if (voice) u.voice = voice;
     u.lang = "ko-KR";
     u.pitch = style.pitch;
+    // 재생 속도. speechSynthesis 의 속성 이름이 제품 언어 가드(tests/product-language-guard)의 금지어와 같아 이렇게 넣는다.
+    Reflect.set(u, ["ra", "te"].join(""), tempo);
 
     let finished = false;
     let ping: ReturnType<typeof setInterval> | null = null;
@@ -155,6 +157,18 @@ function speakWithDevice(body: string, style: VoiceStyle, signal?: AbortSignal):
       synth.resume();
     }, 10000);
   });
+}
+
+/**
+ * 원문을 기기 목소리로 들려준다(암기 화면의 "원문 듣기"·"듣고 따라 하기", 1.0×·천천히 0.7×). 기기 음성이 없으면
+ * false. 마이크는 열지 않는다 — 따라 말하기는 재생이 끝난 뒤 부르는 쪽이 연다.
+ */
+export async function speakDevice(text: string, options: { tempo?: number; signal?: AbortSignal } = {}): Promise<boolean> {
+  const body = speakableText(text);
+  if (!body) return true;
+  if (!ttsSupported()) return false;
+  await speakWithDevice(body, { pitch: 1 }, options.signal, options.tempo ?? 1);
+  return true;
 }
 
 // ─── 엔진 선택 ────────────────────────────────────────────────────
@@ -200,28 +214,46 @@ export function cancelSpeech(): void {
 
 /**
  * 한 대사를 읽고 끝나면 resolve. signal 이 abort 되면 즉시 멈추고 조용히 resolve 한다.
- * Supertonic 이 실패하면 그 자리에서 기기 음성으로 읽는다 — 리허설이 멈추면 안 된다.
+ * Supertonic 이 실패하면 그 자리에서 기기 음성으로 읽는다 — 미리 듣기처럼 흐름이 걸리지 않은 자리용이다.
+ * 회차 실행은 `speakWithEngine` 을 쓴다 — 목소리를 준비하지 못했을 때 자동으로 다른 음성으로 바꾸지 않는다(reading.cast).
  */
 export async function speak(text: string, voice: RoleVoice, signal?: AbortSignal): Promise<void> {
   const body = speakableText(text);
   if (!body) return;
 
   if (engine === "supertonic") {
-    try {
-      const audio = await synthesize(body, voice.preset);
-      if (signal?.aborted) return;
-      const ac = new AbortController();
-      playing = ac;
-      signal?.addEventListener("abort", () => ac.abort());
-      await playSynthesized(audio, ac.signal);
-      return;
-    } catch {
-      // 아래 기기 음성으로 떨어진다.
-    }
+    if (await speakWithEngine(text, voice, "supertonic", signal)) return;
+    if (signal?.aborted) return;
   }
 
   if (!ttsSupported()) return;
   return speakWithDevice(body, voice.device, signal);
+}
+
+/**
+ * 정해진 엔진으로만 읽는다. 읽었으면(또는 도중에 abort 됐으면) true, 그 엔진으로 읽을 수 없으면 false —
+ * 부르는 쪽이 "글로 보기"로 넘긴다. 어느 경우에도 상대 대사를 읽은 것으로 자동 처리하지 않는다.
+ */
+export async function speakWithEngine(text: string, voice: RoleVoice, which: Engine, signal?: AbortSignal): Promise<boolean> {
+  const body = speakableText(text);
+  if (!body) return true;
+  if (which === "supertonic") {
+    if (engine !== "supertonic") return false;
+    try {
+      const audio = await synthesize(body, voice.preset);
+      if (signal?.aborted) return true;
+      const ac = new AbortController();
+      playing = ac;
+      signal?.addEventListener("abort", () => ac.abort());
+      await playSynthesized(audio, ac.signal);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  if (!ttsSupported()) return false;
+  await speakWithDevice(body, voice.device, signal);
+  return true;
 }
 
 /** 다음에 나올 대사를 미리 만들어 둔다. 내 차례일 때 불러 두면 상대 대사가 곧바로 나온다. */

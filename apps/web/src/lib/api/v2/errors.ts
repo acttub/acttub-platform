@@ -82,6 +82,44 @@ export function isRateLimited(error: unknown): error is ApiError {
   );
 }
 
+/**
+ * 리딩 대본 등록·수정과 회차 시작·진행 저장의 422 사유(reading.script·reading.session). 웹은 게스트뿐이라 대본 수 한도는 게스트의 20개다.
+ * 기기가 같은 한도를 먼저 검사하므로(src/lib/reading/draft.ts) 서버의 422 는 두 검사가 어긋났을 때만 온다.
+ */
+export const READING_SCRIPT_MESSAGES: Record<string, string> = {
+  script_too_long: "대본이 너무 길어요. 원문 100,000자·줄 3,000개·배역 50명까지 저장할 수 있어요.",
+  script_limit: "대본은 20개까지 저장할 수 있어요. 안 쓰는 대본을 지우면 다시 저장할 수 있어요.",
+  no_characters: "배역이 하나도 없어요. 배역 이름을 적어 주세요.",
+  invalid_characters: "배역 이름이 비어 있거나 다른 배역과 겹쳐요. 이름을 고쳐 주세요.",
+  request_fingerprint_mismatch: "같은 요청으로 다른 대본이 저장돼 있어요. 대본을 다시 넣어 주세요.",
+  // 회차(reading.session)
+  empty_range: "고른 배역의 대사가 없어요. 다른 배역을 골라 주세요.",
+  invalid_line: "이 회차의 구간에 없는 줄이에요. 대본을 다시 열어 주세요.",
+  // 녹음(reading.recording)
+  recording_too_long: "이 줄 녹음은 너무 길어 저장하지 않았어요.",
+  recording_quota: "녹음 저장 공간이 가득 찼어요. 지난 녹음을 지우면 다시 저장할 수 있어요.",
+  // 영상 보관함·연습(practice.record·library·start)
+  video_too_large: "영상이 너무 커요(100MB 이내).",
+  video_too_long: "영상이 너무 길어요(5분 이내).",
+  video_quota: "보관함이 가득 찼어요. 영상을 지우거나 파일만 파기하면 다시 올릴 수 있어요.",
+  video_in_use: "회차나 챌린지에 쓰인 영상이라 지울 수 없어요. 파일만 파기할 수 있어요.",
+  video_not_ready: "이 영상은 아직 쓸 수 없어요. 다른 영상을 골라 주세요.",
+  upload_expired: "올릴 자리가 만료됐어요. 영상을 처음부터 다시 올려 주세요.",
+};
+/** 409 코드 문구(practice.resume·practice.analyze) */
+const CONFLICT_MESSAGES: Record<string, string> = {
+  practice_in_progress: "진행 중인 회차가 있어요. 그 회차로 돌아가요.",
+  analysis_not_ready: "영상을 분석해야 대화를 시작할 수 있어요.",
+  // 다른 곳에서 대화가 먼저 저장됐다. 배우가 쓴 답은 화면에 그대로 있고, 최신 대화를 읽은 뒤 다시 보내면 된다.
+  conversation_conflict: "방금 대화가 바뀌었어요. 최신 내용을 불러왔어요. 다시 보내 주세요.",
+  // 닫힌 대화에는 답할 수 없다. 이어서 연습하려면 새 회차다(practice.resume).
+  conversation_closed: "이미 마친 대화예요. 이어서 연습하려면 새 회차를 시작해 주세요.",
+};
+/** 변환(webm → m4a)이 실패했다. 행·객체는 없고 기기가 같은 요청 id 로 다시 시도한다. */
+const AUDIO_CONVERSION_MESSAGE = "녹음을 저장하는 중이에요. 잠시 뒤 다시 시도해요.";
+/** 닫힌 회차(completed·stopped)에 진행 저장을 보냈다. 새 회차를 시작해야 한다. */
+const SESSION_CLOSED_MESSAGE = "이미 끝난 회차예요. 상세에서 새로운 연습을 시작해 주세요.";
+
 /** 연결이 끊겨 답을 받지 못했을 때 화면에 보이는 말. 어느 요청이었는지는 배우에게 뜻이 없다. */
 const NETWORK_ERROR_MESSAGE =
   "응답을 받지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요.";
@@ -112,6 +150,12 @@ export function errorMessage(cause: unknown, fallback: string): string {
     if (cause.status === 403 && cause.code === "consent_required") {
       return "동의해야 계속할 수 있어요. 다시 시도하면 동의 문서를 볼 수 있어요.";
     }
+    if (cause.status === 422 && cause.code in READING_SCRIPT_MESSAGES) {
+      return READING_SCRIPT_MESSAGES[cause.code];
+    }
+    if (cause.status === 409 && cause.code === "session_closed") return SESSION_CLOSED_MESSAGE;
+    if (cause.status === 409 && cause.code in CONFLICT_MESSAGES) return CONFLICT_MESSAGES[cause.code];
+    if (cause.status === 503 && cause.code === "audio_conversion_failed") return AUDIO_CONVERSION_MESSAGE;
     if (cause.status === 429) {
       return cause.code === GUEST_DAILY_ANALYSIS_LIMIT
         ? "오늘은 세 번까지 분석할 수 있어요. 앱으로 옮기면 계속할 수 있어요."

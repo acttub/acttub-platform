@@ -1,0 +1,38 @@
+{
+  "title": null,
+  "roles": [
+    "강호",
+    "지혜"
+  ],
+  "lines": [
+    {
+      "type": "dialogue",
+      "role": "강호",
+      "text": "깨진 찻잔. 울리지 않는 자명종 시계."
+    },
+    {
+      "type": "dialogue",
+      "role": "지혜",
+      "text": "탐정님, 도대체 무슨 일로."
+    },
+    {
+      "type": "dialogue",
+      "role": "강호",
+      "text": "별일 아니야."
+    },
+    {
+      "type": "direction",
+      "text": "기태, 어딘가로 뛰쳐나간다."
+    },
+    {
+      "type": "dialogue",
+      "role": "지혜",
+      "text": "어디 가요?"
+    },
+    {
+      "type": "dialogue",
+      "role": "강호",
+      "text": "앉아."
+    }
+  ]
+}

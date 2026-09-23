@@ -18,7 +18,7 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.coach.app.CoachMemory;
 import com.acttub.actingapi.feature.coach.app.PriorContext;
 import com.acttub.actingapi.feature.memory.app.MemoryEntry;
-import com.acttub.actingapi.feature.memory.app.MemoryOwnership;
+import com.acttub.actingapi.feature.memory.app.ActorMemoryStore;
 import com.acttub.actingapi.feature.memory.app.MemoryRepository;
 import com.acttub.actingapi.feature.memory.app.MemoryUpdateMaterial;
 import com.acttub.actingapi.feature.memory.domain.AgentMemoryWrites;
@@ -48,7 +48,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 끝낸다 — 건너뛰면 {@code RETURNING} 이 0행이라 {@code null} 이 돌아온다.
  */
 @Repository
-public class PostgresMemoryRepository implements MemoryRepository, CoachMemory, MemoryOwnership {
+public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
     /** 차수 날짜는 배우가 보는 시간대로 적는다 — 자정 직전 연습이 "다른 날" 이 되면 어색하다. */
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
 
@@ -62,6 +62,7 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory, 
     private final ObjectMapper mapper;
     private final TransactionTemplate transaction;
     private final FailureReporter failureReporter;
+    private final ActorMemoryStore actorMemories;
 
     public PostgresMemoryRepository(
             ActorMemoryEntryJpaRepository entries,
@@ -69,13 +70,15 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory, 
             Clock clock,
             ObjectMapper mapper,
             PlatformTransactionManager transactionManager,
-            FailureReporter failureReporter) {
+            FailureReporter failureReporter,
+            ActorMemoryStore actorMemories) {
         this.entries = entries;
         this.entityManager = entityManager;
         this.clock = clock;
         this.mapper = mapper;
         this.transaction = new TransactionTemplate(transactionManager);
         this.failureReporter = failureReporter;
+        this.actorMemories = actorMemories;
     }
 
     /**
@@ -203,6 +206,94 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory, 
                 context.fromSamePractice(),
                 context.pendingTakes(),
                 context.sceneHistory());
+    }
+
+    @Override
+    public PriorContext priorForPractice(UUID userId, UUID practiceId, UUID operationId) {
+        Map<String, String> values = new LinkedHashMap<>();
+        actorMemories.list(userId).forEach(row -> values.put(row.field(), row.value()));
+        return practiceContext(userId, practiceId, values, operationId);
+    }
+
+    /**
+     * 1.0.0 이어하기는 같은 root의 앞선 회차만 읽는다. 다른 묶음의 최근 대화를 대신 넣지 않으며,
+     * 숨김은 목록 표시일 뿐이라 숨긴 묶음에서 이어할 때도 맥락은 남는다(practice.resume).
+     */
+    private PriorContext practiceContext(UUID userId, UUID practiceId, Map<String, String> memory, UUID operationId) {
+        List<Tuple> rounds = NativeTuples.list(entityManager.createNativeQuery("""
+                SELECT member.ordinal,member.created_at,c.id AS conversation_id,
+                       CASE WHEN n.id IS NOT NULL THEN n.format
+                            WHEN old.id IS NOT NULL THEN
+                                CASE WHEN old.report_type='practice_note' THEN 'v2' ELSE 'legacy' END END AS format,
+                       CASE WHEN n.id IS NOT NULL THEN n.title
+                            WHEN old.report_type='practice_note' THEN old.report_json->'focus'->>'label'
+                            ELSE old.report_json->>'title' END AS title,
+                       CASE WHEN n.id IS NOT NULL THEN n.next_take
+                            ELSE old.report_json->'practice'->'instruction'->>'text' END AS next_take,
+                       CAST(CASE WHEN n.id IS NOT NULL THEN n.legacy_report ELSE old.report_json END AS text) AS report
+                FROM practices current
+                JOIN practices member ON member.root_id=current.root_id AND member.ordinal<current.ordinal
+                JOIN coach_conversations c ON c.practice_id=member.id AND c.status='closed'
+                LEFT JOIN coach_notes n ON n.conversation_id=c.id
+                -- 전환이 최신 대화만 옮겨도 앞선 대화의 노트는 옛 표에 보존되어 있다.
+                -- 새 노트가 없을 때만, 같은 소유자의 같은 회차 노트를 읽는다.
+                LEFT JOIN LATERAL (
+                    SELECT r.id,r.report_type,r.report_json FROM practice_reports r
+                    JOIN practice_sessions p ON p.id=r.practice_session_id
+                    WHERE p.id=member.id AND p.user_id=:userId AND n.id IS NULL
+                    ORDER BY r.created_at DESC,r.id DESC LIMIT 1
+                ) old ON true
+                WHERE current.id=:practiceId AND current.user_id=:userId AND member.user_id=:userId
+                ORDER BY member.ordinal
+                """, Tuple.class)
+                .setParameter("practiceId", practiceId).setParameter("userId", userId));
+        List<String> history = new ArrayList<>();
+        List<String> pending = List.of();
+        for (Tuple round : rounds) {
+            String format = round.get("format", String.class);
+            if (format == null) {
+                continue;
+            }
+            String title = round.get("title", String.class);
+            if ("legacy".equals(format)) {
+                String raw = round.get("report", String.class);
+                String line = historyLine(round.get("ordinal", Integer.class),
+                        round.get("created_at", Instant.class).atOffset(ZoneOffset.UTC), raw, operationId);
+                if (line != null) history.add(line);
+                pending = pendingTakes(raw, operationId);
+            } else {
+                // 신형 노트의 다음 촬영 제안은 배우의 선택·실행 약속이 아니다.
+                // pendingTakes("해보기로 했지만 아직 안 해본 것")로 승격하지 않는다.
+                pending = List.of();
+                if (title != null && !title.isBlank()) {
+                    String suggestion = round.get("next_take", String.class);
+                    history.add(round.get("ordinal", Integer.class) + "차: " + title
+                            + (suggestion == null || suggestion.isBlank() ? "" : " — 제안: " + suggestion));
+                }
+            }
+        }
+        String excerpt = rounds.isEmpty() ? null : practiceConversationExcerpt(rounds.getLast().get("conversation_id", UUID.class));
+        return new PriorContext(memory, excerpt, false, pending, history);
+    }
+
+    /** 이전 회차의 마지막 세 왕복. 이번 회차 메시지는 엔진이 따로 받으므로 다시 넣지 않는다. */
+    private String practiceConversationExcerpt(UUID conversationId) {
+        List<String> lines = NativeTuples.list(entityManager.createNativeQuery("""
+                SELECT role,text FROM (
+                    SELECT role,text,turn_index FROM coach_messages
+                    WHERE conversation_id=:id ORDER BY turn_index DESC LIMIT %d
+                ) recent ORDER BY turn_index
+                """.formatted(EXCERPT_TURNS), Tuple.class).setParameter("id", conversationId)).stream()
+                .map(PostgresMemoryRepository::excerptLine).toList();
+        return lines.isEmpty() ? null : String.join("\n", lines);
+    }
+
+    private static String excerptLine(Tuple row) {
+        String text = PythonText.strip(row.get("text", String.class));
+        if (text.codePointCount(0, text.length()) > EXCERPT_TURN_CHARS) {
+            text = text.substring(0, text.offsetByCodePoints(0, EXCERPT_TURN_CHARS)).stripTrailing() + "…";
+        }
+        return ("actor".equals(row.get("role", String.class)) ? "배우: " : "코치: ") + text;
     }
 
     /** 지난 대화 발췌에 담는 마지막 턴 수. 여섯이면 배우·코치 세 왕복이다. */
@@ -407,15 +498,7 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory, 
                 ) latest ORDER BY latest.turn_index
                 """.formatted(EXCERPT_TURNS), Tuple.class)
                 .setParameter("coachSessionId", coachSessionId)).stream()
-                .map(row -> {
-            String speaker = "actor".equals(row.get("role", String.class)) ? "배우" : "코치";
-            String text = PythonText.strip(row.get("text", String.class));
-            if (text.codePointCount(0, text.length()) > EXCERPT_TURN_CHARS) {
-                int end = text.offsetByCodePoints(0, EXCERPT_TURN_CHARS);
-                text = text.substring(0, end).stripTrailing() + "…";
-            }
-            return speaker + ": " + text;
-        }).toList();
+                .map(PostgresMemoryRepository::excerptLine).toList();
         return lines.isEmpty() ? null : String.join("\n", lines);
     }
 
@@ -671,39 +754,4 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory, 
         }
     }
 
-    @Override
-    public boolean hasMemory(UUID userId) {
-        Number count = (Number) entityManager.createNativeQuery("""
-                SELECT count(*)
-                FROM actor_memory_entries
-                WHERE user_id = :userId
-                """)
-                .setParameter("userId", userId)
-                .getSingleResult();
-        return count.intValue() > 0;
-    }
-
-    /** 트랜잭션을 열지 않는다 — 부르는 쪽(이관)의 것에 참여하고, 없으면 {@code executeUpdate} 가 거절한다. */
-    @Override
-    public void discard(UUID userId) {
-        entityManager.createNativeQuery("""
-                DELETE FROM actor_memory_entries
-                WHERE user_id = :userId
-                """)
-                .setParameter("userId", userId)
-                .executeUpdate();
-    }
-
-    /** {@link #discard} 와 같다 — 트랜잭션을 열지 않는다. */
-    @Override
-    public void reassign(UUID from, UUID to) {
-        entityManager.createNativeQuery("""
-                UPDATE actor_memory_entries
-                SET user_id = :to
-                WHERE user_id = :from
-                """)
-                .setParameter("to", to)
-                .setParameter("from", from)
-                .executeUpdate();
-    }
 }

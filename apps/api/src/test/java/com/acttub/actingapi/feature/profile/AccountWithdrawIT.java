@@ -235,7 +235,7 @@ class AccountWithdrawIT {
 
         var me = mvc.perform(get("/v2/me").header("Authorization", "Bearer " + member.accessToken()))
                 .andReturn().getResponse();
-        var practice = mvc.perform(get("/v2/practice-sessions").header("Authorization", "Bearer " + member.accessToken()))
+        var practice = mvc.perform(get("/v2/practices").header("Authorization", "Bearer " + member.accessToken()))
                 .andReturn().getResponse();
         var again = withdraw(member.accessToken());
 
@@ -271,16 +271,16 @@ class AccountWithdrawIT {
         assertThat(created.fieldNames()).toIterable().containsExactlyInAnyOrder(
                 "result", "access_token", "refresh_token", "token_type", "expires_in", "user", "pending_consents");
         assertThat(count("users")).isEqualTo(2);
-        var gated = mvc.perform(get("/v2/practice-sessions").header("Authorization", "Bearer " + token))
+        var gated = mvc.perform(get("/v2/practices").header("Authorization", "Bearer " + token))
                 .andReturn().getResponse();
         assertThat(gated.getStatus()).isEqualTo(403);
         assertThat(mapper.readTree(gated.getContentAsString()).path("detail").textValue()).isEqualTo("profile_required");
 
         AccountFixtures.completeProfile(jdbc, UUID.fromString(created.path("user").path("id").textValue()));
-        var list = mvc.perform(get("/v2/practice-sessions").header("Authorization", "Bearer " + token))
+        var list = mvc.perform(get("/v2/practices").header("Authorization", "Bearer " + token))
                 .andReturn().getResponse();
         assertThat(list.getStatus()).isEqualTo(200);
-        assertThat(mapper.readTree(list.getContentAsString()).path("sessions")).isEmpty();
+        assertThat(mapper.readTree(list.getContentAsString()).path("groups")).isEmpty();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM practice_sessions WHERE user_id=?", Integer.class, old.id()))
                 .as("옛 연습은 옛 계정에 끊겨 남는다").isEqualTo(1);
     }
@@ -415,6 +415,33 @@ class AccountWithdrawIT {
                 .as("돌고 있던 워커의 완료는 받아들여지지 않는다")
                 .isInstanceOf(LeaseOwnershipException.class);
         assertThat(count("summaries")).as("결과가 저장되지 않는다").isZero();
+    }
+
+    @Test
+    @DisplayName("account.withdraw: 1.0.0 연습 자료 — 영상은 행과 최소 메타만 남고(purged_at) 객체는 지워지며, "
+            + "진행 중이던 AI 작업은 취소되고, 회차·분석·대화·노트는 사람과 끊어 남는다")
+    void accountWithdraw_purgesVideoFilesAndCancelsAiJobsWhileKeepingTheRecords() throws Exception {
+        Member member = member("google", "g-1|actor@example.test|verified", "declined");
+        UUID round = practiceRoundWithVideo(member.id(), "videos/round.mp4");
+        UUID analyze = aiJob(member.id(), round, "analyze");
+        UUID memoryUpdate = aiJob(member.id(), round, "memory_update");
+
+        withdraw(member.accessToken());
+
+        assertThat(storage.objects).doesNotContainKey("videos/round.mp4");
+        assertThat(jdbc.queryForMap("SELECT user_id,object_key,purged_at FROM videos WHERE user_id=?", member.id()))
+                .as("행과 최소 메타는 남는다 — 회차의 기록이 깨지지 않는다")
+                .containsEntry("user_id", member.id())
+                .hasEntrySatisfying("purged_at", value -> assertThat(value).isNotNull());
+        for (UUID job : java.util.List.of(analyze, memoryUpdate)) {
+            assertThat(jdbc.queryForMap("SELECT status,failure_reason,lease_token FROM ai_jobs WHERE id=?", job))
+                    .containsEntry("status", "failed")
+                    .containsEntry("failure_reason", "account_deactivated")
+                    .containsEntry("lease_token", null);
+        }
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM practices WHERE user_id=?", Integer.class, member.id()))
+                .as("회차는 사람과 끊어 남는다").isEqualTo(1);
+        assertThat(count("analyses")).as("관찰 기록도 남는다").isEqualTo(1);
     }
 
     @Test
@@ -615,6 +642,37 @@ class AccountWithdrawIT {
                 .andReturn().getResponse();
     }
 
+    /** 1.0.0 보관함의 영상과 그것을 쓰는 회차 하나. 객체는 가짜 저장소에 둔다. */
+    private UUID practiceRoundWithVideo(UUID userId, String objectKey) {
+        UUID videoId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO videos(id,user_id,object_key,content_type,byte_size,duration_ms)
+                VALUES (?,?,?,'video/mp4',1000,12000)
+                """, videoId, userId, objectKey);
+        UUID id = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO practices(id,user_id,video_id,root_id,ordinal,stage,experience_version,
+                                      blockage_kind,sub_branch,situation)
+                VALUES (?,?,?,?,1,'analyzing','legacy','표현','감정','문 앞에서 돌아선다')
+                """, id, userId, videoId, id);
+        jdbc.update("""
+                INSERT INTO analyses(id,practice_id,format,status,model,record,completed_at)
+                VALUES (?,?,'legacy','ready','test-model','{}'::jsonb,now())
+                """, UUID.randomUUID(), id);
+        storage.put(objectKey);
+        return id;
+    }
+
+    private UUID aiJob(UUID userId, UUID targetId, String kind) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO ai_jobs(id,user_id,kind,target_id,request_id,request_fingerprint,status,
+                                    lease_token,lease_expires_at)
+                VALUES (?,?,?,?,?,?, 'running',?,now() + interval '5 minutes')
+                """, id, userId, kind, targetId, UUID.randomUUID(), "a".repeat(64), UUID.randomUUID());
+        return id;
+    }
+
     /** 영상을 올려 만든 연습 하나. 객체는 가짜 저장소에 둔다. */
     private UUID practiceWithVideo(UUID userId, String objectKey, String status) {
         UUID upload = UUID.randomUUID();
@@ -670,6 +728,15 @@ class AccountWithdrawIT {
 
     /** 메모리의 오브젝트 스토리지. 무엇이 남아 있는지만 안다. {@link #failing} 에 든 키는 지워지지 않는다. */
     static final class FakeStorage implements ObjectStorage {
+        @Override
+        public void upload(String objectKey, String mimeType, java.nio.file.Path source) {
+            try {
+                objects.put(objectKey, java.nio.file.Files.size(source));
+            } catch (java.io.IOException failure) {
+                throw new java.io.UncheckedIOException(failure);
+            }
+        }
+
         final Map<String, Long> objects = new ConcurrentHashMap<>();
         final Set<String> failing = ConcurrentHashMap.newKeySet();
 

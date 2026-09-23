@@ -96,6 +96,19 @@ export async function downloadAssets(variant: Variant, preset: string, log: LogF
   return { modelPaths, cfgs, indexer, style };
 }
 
+/** 목소리 스타일(프리셋)만 받아 파싱한다. 모델과 달리 작아서(수십 KB) 배역마다 그때그때 받는다. */
+export async function downloadVoiceStyle(variant: Variant, preset: string, log: LogFn = () => {}): Promise<any> {
+  const dir = dirFor(variant);
+  if (!dir.exists) dir.create({ intermediates: true });
+  const styleFile = await ensureFile(dir, voiceUrl(preset), `${preset}.json`, 1000, log);
+  return JSON.parse(await styleFile.text());
+}
+
+/** 처음 내려받을 때 보여 줄 용량(모델 4개). 이동통신이면 확인을 받는다(reading.cast). */
+export function modelDownloadBytes(variant: Variant): number {
+  return variantBytes(variant);
+}
+
 export function assetsPresent(variant: Variant, preset: string): boolean {
   const dir = dirFor(variant);
   if (!dir.exists) return false;

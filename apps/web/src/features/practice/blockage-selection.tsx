@@ -1,5 +1,6 @@
 "use client";
 
+import { BLOCKAGE_NOTE_MAX } from "./practice-setup-flow";
 import {
   BLOCKAGE_CHOICES,
   chooseBlockageKind,
@@ -50,6 +51,7 @@ export function BlockageFields({
       <textarea
         rows={4}
         value={state.detail}
+        maxLength={BLOCKAGE_NOTE_MAX}
         onChange={(event) => onChange(updateBlockageDetail(state, event.target.value))}
         placeholder="편하게 적어 주세요"
         className="min-h-[104px] w-full resize-none rounded-xl border border-[#e5e8eb] bg-[#f8fafc] p-3.5 text-sm font-semibold leading-6 text-[#191f28] outline-none transition placeholder:text-[13px] placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:bg-white focus:ring-4 focus:ring-[#e8f3ff]"
