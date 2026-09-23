@@ -72,6 +72,9 @@ services:
       LANGFUSE_HOST: ${LANGFUSE_HOST:-}
       LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
       LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+      # 기록을 환경별로 가른다(SOMA-555). 비면 Langfuse 가 default 로 묶으므로 기본값을 두지
+      # 않는다 — 여기서 dev·운영을 헷갈리게 박느니 구분 없이 들어가는 편이 낫다.
+      LANGFUSE_TRACING_ENVIRONMENT: ${LANGFUSE_TRACING_ENVIRONMENT:-}
     networks:
       default: {}
       scrape:
