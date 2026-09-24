@@ -112,7 +112,7 @@ final class DirectVideoPracticeLoop {
             JsonNode loop = state == null ? null : state.path(STATE_KEY);
             if (loop == null || !loop.isObject() || handoff == null) return null;
             String design = loop.path("design").asText("");
-            String habit = first(DESIGN_HABIT, design);
+            String habit = habit(design);
             String next = first(DESIGN_NEXT, design);
             if (habit.isBlank()) return null;
             List<CoachTurnSnapshot> turns = session.turns();
@@ -207,6 +207,18 @@ final class DirectVideoPracticeLoop {
         int cut = value.offsetByCodePoints(0, max - 1);
         int space = value.lastIndexOf(' ', cut);
         return (space > max / 2 ? value.substring(0, space) : value.substring(0, cut)).strip() + "…";
+    }
+
+    private static final Pattern HABIT_CATEGORY = Pattern.compile("소리\\s*(?:빠르기|말끝|크기|쉬는\\s*곳)|몸");
+
+    /** 설계의 버릇. 모델이 설명 대신 항목 이름("소리 빠르기")을 적었으면 그 항목 줄의 설명을 쓴다. */
+    static String habit(String design) {
+        String habit = first(DESIGN_HABIT, design);
+        if (!HABIT_CATEGORY.matcher(habit).matches()) return habit;
+        Matcher line = Pattern.compile("(?m)^\\s*" + Pattern.quote(habit) + "\\s*:\\s*\\[?([^\\]\\n]+)").matcher(design);
+        if (!line.find()) return habit;
+        String described = line.group(1).split("[.\"“]", 2)[0].strip();
+        return described.isBlank() || described.equals("없음") ? habit : described;
     }
 
     private static String first(Pattern pattern, String text) {
