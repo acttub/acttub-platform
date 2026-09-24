@@ -144,7 +144,7 @@ const en: DeepStringShape<typeof ko> = {
     rdNextTitle: 'Tap Next to split the roles',
     rdNextBody: 'The app sorts out who says which line.',
     rdSummaryTitle: 'Roles and lines are split',
-    rdSummaryBody: 'If a name came out wrong, fix or remove it below.',
+    rdSummaryBody: 'If a name came out wrong, fix it with the pencil or remove it with X here.',
     rdSaveTitle: 'Save to create the script',
     rdSaveBody: 'It stays in your script list so you can practice again anytime.',
     rdRolesTitle: 'Pick your role',
@@ -156,7 +156,7 @@ const en: DeepStringShape<typeof ko> = {
     rdModeTitle: 'Read-along · Memory check',
     rdModeBody: 'Start with read-along, then hide your lines with memory check once you know them.',
     rdGoTitle: 'Start and the partner speaks first',
-    rdGoBody: 'When it is your turn, say your line out loud. Everything is processed on your phone.',
+    rdGoBody: 'The app reads the partner lines and pauses on your turn. Just say your line out loud.',
     reading: {
       introTitle: 'Try one script reading round?',
       introBody: 'Add a script and pick your role. The app reads the other parts, and you only say your lines.',

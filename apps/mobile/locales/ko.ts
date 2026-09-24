@@ -135,7 +135,7 @@ const ko = {
     rdNextTitle: '다음을 누르면 배역을 나눠요',
     rdNextBody: '누가 어떤 대사를 하는지 앱이 정리해서 보여 줘요.',
     rdSummaryTitle: '배역과 대사를 나눠 뒀어요',
-    rdSummaryBody: '이름이 잘못 잡혔으면 아래에서 고치거나 지울 수 있어요.',
+    rdSummaryBody: '이름이 잘못 잡혔으면 여기서 연필로 고치거나 X로 지워요.',
     rdSaveTitle: '저장하면 대본이 생겨요',
     rdSaveBody: '대본 목록에 남아서 언제든 다시 연습할 수 있어요.',
     rdRolesTitle: '내 배역을 골라요',
@@ -147,7 +147,7 @@ const ko = {
     rdModeTitle: '읽어주기 · 암기 대조',
     rdModeBody: '처음엔 읽어주기로 맞춰 보고, 익숙해지면 암기 대조로 내 대사를 가려 봐요.',
     rdGoTitle: '시작하면 상대 대사부터 들려요',
-    rdGoBody: '내 차례가 오면 소리 내어 말하면 돼요. 폰 안에서만 처리돼요.',
+    rdGoBody: '앱이 상대 대사를 읽고, 내 차례가 오면 멈춰요. 소리 내어 말하면 돼요.',
     reading: {
       introTitle: '대본 리딩 한 바퀴 해볼까요?',
       introBody: '대본을 넣고 내 배역을 고르면, 상대 대사는 앱이 읽어 주고 나는 내 대사만 말하면 돼요.',

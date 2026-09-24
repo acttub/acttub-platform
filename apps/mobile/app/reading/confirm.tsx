@@ -118,7 +118,7 @@ export default function ReadingConfirm() {
           placeholderTextColor={palette.textFaint}
         />
 
-        <View style={styles.summaryCard} ref={summaryTarget.ref} onLayout={summaryTarget.onLayout}>
+        <View style={styles.summaryCard}>
           <Feather name="file-text" size={16} color={palette.blue} />
           <Text style={styles.summaryText}>
             {t('reading.confirmSummary', { characters: summary.characters, dialogues: summary.dialogues, directions: summary.directions })}
@@ -132,7 +132,8 @@ export default function ReadingConfirm() {
             <Text style={styles.warnText}>{t('reading.confirmNoCharacters')}</Text>
           </View>
         )}
-        <View style={styles.list}>
+        {/* 배역 목록을 비춘다 — "여기서 고치거나 지워요"가 가리키는 곳이다. */}
+        <View style={styles.list} ref={summaryTarget.ref} onLayout={summaryTarget.onLayout}>
           {characters.map((c) => {
             const editing = renaming?.key === c.key;
             return (
