@@ -463,7 +463,61 @@ class ChallengeEntryIT {
         assertThat(json.readTree(result.getContentAsString()).path("detail").asText()).isEqualTo("member_only");
     }
 
+    // ── challenge.share ────────────────────────────────────────────────────
+
+    @Test void challengeShare_publicLookupShowsTheSceneOfPubliclyVisibleEntriesOnlyWithoutLogin() throws Exception {
+        UUID challenge = challenge(NOW.plus(Duration.ofDays(7)));
+        jdbc.update("UPDATE challenges SET work='햄릿',line='죽느냐 사느냐',\"character\"='햄릿' WHERE id=?", challenge);
+        UUID author = member("공개한 배우");
+        UUID shown = seeded(challenge, author, 1, 2);
+        var ok = publicLookup(shown);
+        assertThat(ok.getStatus()).isEqualTo(200);
+        assertThat(ok.getHeader("X-Robots-Tag")).isEqualTo("noindex, nofollow");
+        // 작성자의 이름·사진은 싣지 않는다 — 미리보기는 작품·대사·장면만 보여 준다.
+        assertThat(json.readTree(ok.getContentAsString())).isEqualTo(json.readTree("""
+                {"work":"햄릿","line":"죽느냐 사느냐","character":"햄릿","poster_url":null}"""));
+        // 보는 사람이 없으니 차단은 따지지 않는다. 만료된 토큰이 붙어 와도 검증하지 않는다.
+        jdbc.update("INSERT INTO user_blocks(id,blocker_id,blocked_id) VALUES (?,?,?)", UUID.randomUUID(), user, author);
+        var withStaleToken = mvc.perform(get("/v2/public/entries/{id}", shown).header("Authorization", "Bearer expired")
+                .header("X-Acttub-Client", "web/1.0.0")).andReturn().getResponse();
+        assertThat(withStaleToken.getStatus()).isEqualTo(200);
+
+        UUID secret = seeded(challenge, member("비공개"), 2, 0);
+        jdbc.update("UPDATE challenge_entries SET visibility='private' WHERE id=?", secret);
+        UUID reported = seeded(challenge, member("신고로 숨김"), 3, 0);
+        jdbc.update("UPDATE challenge_entries SET status='hidden_by_report' WHERE id=?", reported);
+        UUID removed = seeded(challenge, member("삭제"), 4, 0);
+        jdbc.update("UPDATE challenge_entries SET status='deleted',deleted_at=now(),video_id=NULL WHERE id=?", removed);
+        UUID leaver = member("탈퇴");
+        UUID withdrawn = seeded(challenge, leaver, 5, 0);
+        jdbc.update("UPDATE users SET status='deactivated',deactivated_at=now() WHERE id=?", leaver);
+        UUID purged = seeded(challenge, member("영상 파기"), 6, 0);
+        jdbc.update("UPDATE videos SET purged_at=now() WHERE id=(SELECT video_id FROM challenge_entries WHERE id=?)", purged);
+        UUID hiddenChallenge = challenge(NOW.plus(Duration.ofDays(7)));
+        UUID underHidden = seeded(hiddenChallenge, member("숨긴 챌린지"), 1, 0);
+        jdbc.update("UPDATE challenges SET moderation='hidden' WHERE id=?", hiddenChallenge);
+        UUID reviewChallenge = challenge(NOW.plus(Duration.ofDays(7)));
+        UUID underReview = seeded(reviewChallenge, member("검토 챌린지"), 1, 0);
+        jdbc.update("UPDATE challenges SET moderation='review' WHERE id=?", reviewChallenge);
+        UUID deletedChallenge = challenge(NOW.plus(Duration.ofDays(7)));
+        UUID underDeleted = seeded(deletedChallenge, member("지운 챌린지"), 1, 0);
+        jdbc.update("UPDATE challenges SET deleted_at=now() WHERE id=?", deletedChallenge);
+
+        for (UUID gone : List.of(secret, reported, removed, withdrawn, purged, underHidden, underReview, underDeleted,
+                UUID.randomUUID())) {
+            var missing = publicLookup(gone);
+            assertThat(missing.getStatus()).as("%s", gone).isEqualTo(404);
+            assertThat(json.readTree(missing.getContentAsString()).path("detail").asText()).isEqualTo("entry_not_found");
+        }
+    }
+
     // ── 도우미 ──────────────────────────────────────────────────────────────
+
+    /** 로그인 없는 웹 서버의 조회 — 토큰을 싣지 않는다. */
+    private org.springframework.mock.web.MockHttpServletResponse publicLookup(UUID entry) throws Exception {
+        return mvc.perform(get("/v2/public/entries/{id}", entry).header("X-Acttub-Client", "web/1.0.0")
+                .header("Accept-Language", "ko")).andReturn().getResponse();
+    }
 
     private UUID member(String name) {
         UUID id = UUID.randomUUID();
