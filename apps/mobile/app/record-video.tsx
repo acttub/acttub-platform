@@ -152,6 +152,7 @@ export default function RecordVideoScreen() {
   const swipe = useMemo(
     () =>
       PanResponder.create({
+        onStartShouldSetPanResponder: () => picker,
         onMoveShouldSetPanResponder: (_, g) => picker && Math.abs(g.dx) > 24 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
         onPanResponderRelease: (_, g) => {
           if (Math.abs(g.dx) < 40) return;
@@ -288,8 +289,10 @@ export default function RecordVideoScreen() {
       <View style={styles.safe}>
         <Stack.Screen options={{ title: t('record.screenTitle'), headerShown: false }} />
         <CameraView ref={cameraRef} style={styles.camera} facing={facing} mode="video" />
+        {/* 넘기기는 여기서 받는다 — 위 겹침은 box-none 이라 빈 곳 터치를 자기가 받지 않는다. */}
+        <View style={StyleSheet.absoluteFill} {...swipe.panHandlers} />
 
-        <SafeAreaView style={styles.overlay} pointerEvents="box-none" {...swipe.panHandlers}>
+        <SafeAreaView style={styles.overlay} pointerEvents="box-none">
           <View>
             <View style={styles.chTopRow}>
               <Pressable style={styles.closeBtn} onPress={() => router.back()} disabled={recording} accessibilityRole="button">
@@ -362,8 +365,10 @@ export default function RecordVideoScreen() {
     <View style={styles.safe}>
       <Stack.Screen options={{ title: t('record.screenTitle'), headerShown: false }} />
       <CameraView ref={cameraRef} style={styles.camera} facing={facing} mode="video" />
+        {/* 넘기기는 여기서 받는다 — 위 겹침은 box-none 이라 빈 곳 터치를 자기가 받지 않는다. */}
+        <View style={StyleSheet.absoluteFill} {...swipe.panHandlers} />
 
-      <SafeAreaView style={styles.overlay} pointerEvents="box-none" {...swipe.panHandlers}>
+      <SafeAreaView style={styles.overlay} pointerEvents="box-none">
         <View style={styles.topRow}>
           {recording ? (
             <View style={styles.timerPill}>
