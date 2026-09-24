@@ -93,4 +93,23 @@ export const TARGET = {
   coachComposer: 'coach.composer',
   /** 노트 — 연습 노트 본문. */
   reportNote: 'report.note',
+  // 대본 리딩 튜토리얼(SOMA-494)이 비추는 자리.
+  /** 새 대본 — 파일 넣기 자리. */
+  readingDrop: 'reading.drop',
+  /** 새 대본 — 붙여넣기 칸(예시 대본이 채워진 곳). */
+  readingText: 'reading.text',
+  /** 새 대본 — 다음 버튼. */
+  readingNext: 'reading.next',
+  /** 대본 확인 — 배역·대사 요약. */
+  readingSummary: 'reading.summary',
+  /** 대본 확인 — 저장 버튼. */
+  readingSave: 'reading.save',
+  /** 배역 — 배역 목록. */
+  readingRoleList: 'reading.roles',
+  /** 배역 — 시작 버튼. */
+  readingRoleStart: 'reading.roleStart',
+  /** 범위 — 읽기·외우기 방식. */
+  readingMode: 'reading.mode',
+  /** 범위 — 시작 버튼. */
+  readingRangeStart: 'reading.rangeStart',
 } as const;

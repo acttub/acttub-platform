@@ -6,6 +6,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
 import { useAppDialog } from '@/components/app-dialog';
+import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
+import { useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
+import { TARGET } from '@/lib/spotlight-targets';
 import {
   addDraftCharacter,
   draftCharacters,
@@ -37,6 +40,9 @@ export default function ReadingConfirm() {
   const [busy, setBusy] = useState(false);
   const [renaming, setRenaming] = useState<{ key: string; name: string } | null>(null);
   const [addName, setAddName] = useState('');
+  const summaryTarget = useSpotlightTarget(TARGET.readingSummary);
+  const saveTarget = useSpotlightTarget(TARGET.readingSave);
+  const tutorialGuide = useTutorialSpotlight('readingConfirm', { ready: !!draft });
 
   // 화면을 떠나면 초안을 버린다. 저장한 뒤에는 이미 비어 있다.
   useEffect(() => () => setPendingDraft(null), []);
@@ -112,7 +118,7 @@ export default function ReadingConfirm() {
           placeholderTextColor={palette.textFaint}
         />
 
-        <View style={styles.summaryCard}>
+        <View style={styles.summaryCard} ref={summaryTarget.ref} onLayout={summaryTarget.onLayout}>
           <Feather name="file-text" size={16} color={palette.blue} />
           <Text style={styles.summaryText}>
             {t('reading.confirmSummary', { characters: summary.characters, dialogues: summary.dialogues, directions: summary.directions })}
@@ -197,11 +203,17 @@ export default function ReadingConfirm() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
-        <Pressable style={[styles.primary, !canSave && styles.primaryOff]} onPress={onSave} disabled={!canSave}>
+        <Pressable
+          ref={saveTarget.ref}
+          onLayout={saveTarget.onLayout}
+          style={[styles.primary, !canSave && styles.primaryOff]}
+          onPress={onSave}
+          disabled={!canSave}>
           <Text style={styles.primaryText}>{busy ? t('common.saving') : t('common.save')}</Text>
         </Pressable>
       </View>
       {dialog}
+      {tutorialGuide.element}
     </View>
   );
 }

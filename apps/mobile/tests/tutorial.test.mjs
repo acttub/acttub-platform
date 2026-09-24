@@ -6,6 +6,8 @@ import {
   currentTutorial,
   endTutorial,
   onTutorialChanged,
+  READING_TUTORIAL_STAGES,
+  stageTrack,
   startTutorial,
   tutorialSteps,
   TUTORIAL_STAGES,
@@ -37,7 +39,7 @@ import en from '../locales/en.ts';
 
 test('시작하면 모드가 잡히고, 끝내면 비워진다', () => {
   startTutorial('sample');
-  assert.deepEqual(currentTutorial(), { mode: 'sample' });
+  assert.deepEqual(currentTutorial(), { mode: 'sample', track: 'practice' });
   endTutorial();
   assert.equal(currentTutorial(), null);
 });
@@ -183,4 +185,42 @@ test('예시 문구에 쓰면 안 되는 말이 없다', () => {
   const banned = /점수|평가|강점|약점|개선점|등급|레벨|score|grade|judge|weakness/i;
   const texts = [JSON.stringify(ko.tutorial), JSON.stringify(en.tutorial)];
   for (const text of texts) assert.doesNotMatch(text, banned);
+});
+
+// 대본 리딩도 같은 방식으로 한 바퀴 돈다(SOMA-494). 갈래가 다르면 서로의 화면을 비추지 않는다.
+test('대본 리딩 갈래로 시작하면 갈래가 기록된다', () => {
+  startTutorial('sample', 'reading');
+  assert.deepEqual(currentTutorial(), { mode: 'sample', track: 'reading' });
+  endTutorial();
+});
+
+test('화면 단계마다 갈래가 정해져 있다 — 연습 화면은 practice, 대본 화면은 reading', () => {
+  for (const stage of TUTORIAL_STAGES) assert.equal(stageTrack(stage), 'practice');
+  for (const stage of READING_TUTORIAL_STAGES) assert.equal(stageTrack(stage), 'reading');
+});
+
+test('대본 리딩 네 화면 모두 비출 단계가 있고, 문구는 한국어·영어 둘 다 있다', () => {
+  const targets = new Set(Object.values(TARGET));
+  const read = (dict, key) => key.split('.').reduce((node, part) => node?.[part], dict);
+  for (const mode of ['own', 'sample']) {
+    for (const stage of READING_TUTORIAL_STAGES) {
+      const steps = tutorialSteps(stage, mode);
+      assert.ok(steps.length > 0, `${mode}/${stage}`);
+      for (const step of steps) {
+        assert.ok(targets.has(step.target), step.target);
+        for (const dict of [ko, en]) {
+          assert.equal(typeof read(dict, `${step.text}Title`), 'string', `${step.text}Title`);
+          assert.equal(typeof read(dict, `${step.text}Body`), 'string', `${step.text}Body`);
+        }
+      }
+    }
+  }
+});
+
+test('예시 대본 경로는 파일 넣기 대신 채워 둔 대본을 비춘다', () => {
+  const own = tutorialSteps('readingNew', 'own').map((s) => s.target);
+  const sample = tutorialSteps('readingNew', 'sample').map((s) => s.target);
+  assert.ok(own.includes(TARGET.readingDrop));
+  assert.ok(!sample.includes(TARGET.readingDrop));
+  assert.ok(sample.includes(TARGET.readingText));
 });

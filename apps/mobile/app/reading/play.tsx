@@ -10,6 +10,8 @@ import { hasMicPermission, useReadingMic } from '@/hooks/use-reading-mic';
 import { detectSttPolicy, useReadingStt } from '@/hooks/use-reading-stt';
 import { deleteDeviceFile } from '@/lib/account-files';
 import { hasSeenReadingGuide, markReadingGuideSeen } from '@/lib/reading/guide-flag';
+import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
+import { currentTutorial } from '@/lib/tutorial';
 import { compareLine, type LineMatch } from '@/lib/reading/match';
 import { currentNetworkType } from '@/lib/reading/network';
 import { speakableText, type DialogueLine } from '@/lib/reading/parse';
@@ -260,8 +262,13 @@ export default function ReadingPlay() {
   // ── 가이드 → 목소리 준비 → 실행 ──────────────────────────────────────────────
   useEffect(() => {
     mounted.current = true;
+    // 대본 리딩 튜토리얼(SOMA-494)은 여기서 끝난다 — 이 화면의 첫 안내가 나머지를 맡는다.
+    // 튜토리얼로 들어왔으면 전에 봤더라도 그 안내를 한 번 더 보여 준다.
+    const fromTutorial = currentTutorial()?.track === 'reading';
+    if (fromTutorial) finishTutorial('done');
     void (async () => {
-      const [seen, micOk] = await Promise.all([hasSeenReadingGuide(), hasMicPermission()]);
+      const [seenBefore, micOk] = await Promise.all([hasSeenReadingGuide(), hasMicPermission()]);
+      const seen = seenBefore && !fromTutorial;
       if (!mounted.current) return;
       setMicAllowed(micOk);
       if (micOk) setSttMode(await detectSttPolicy());

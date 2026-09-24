@@ -2,11 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { SpotlightGuide } from '@/components/spotlight-guide';
 import { logEvent } from '@/lib/analytics';
-import { markSpotlightSeen, markTutorialSeen } from '@/lib/guide-state';
+import { markReadingTutorialSeen, markSpotlightSeen, markTutorialSeen } from '@/lib/guide-state';
 import {
   currentTutorial,
   endTutorial,
   onTutorialChanged,
+  stageTrack,
   tutorialSteps,
   type TutorialStage,
 } from '@/lib/tutorial';
@@ -14,16 +15,21 @@ import {
 /**
  * 튜토리얼을 끝낸다 — 끝까지 봤든 중간에 건너뛰었든 (SOMA-494).
  *
- * <p>다시 띄우지 않게 기록하고, 홈의 첫 안내도 본 것으로 친다. 한 바퀴를 돈 사람에게
- * "여기서 연습을 시작해요"를 또 비추면 군더더기다.
+ * <p>다시 띄우지 않게 기록하고, 그 갈래 탭의 첫 안내도 본 것으로 친다. 한 바퀴를 돈 사람에게
+ * "여기서 시작해요"를 또 비추면 군더더기다.
  */
 export function finishTutorial(how: 'done' | 'skip' | 'left'): void {
   const tutorial = currentTutorial();
   if (!tutorial) return;
-  logEvent('tutorial_finish', { mode: tutorial.mode, how });
+  logEvent('tutorial_finish', { mode: tutorial.mode, track: tutorial.track, how });
   endTutorial();
-  void markTutorialSeen();
-  void markSpotlightSeen('home');
+  if (tutorial.track === 'reading') {
+    void markReadingTutorialSeen();
+    void markSpotlightSeen('reading');
+  } else {
+    void markTutorialSeen();
+    void markSpotlightSeen('home');
+  }
 }
 
 /**
@@ -42,17 +48,19 @@ export function useTutorialSpotlight(
   onDone.current = options.onDone;
 
   useEffect(() => onTutorialChanged(() => setTutorial(currentTutorial())), []);
+  // 다른 갈래를 도는 중이면 이 화면은 비추지 않는다.
+  const active = !!tutorial && tutorial.track === stageTrack(stage);
 
   const steps = useMemo(
-    () => (tutorial ? tutorialSteps(stage, tutorial.mode) : []),
-    [tutorial, stage],
+    () => (tutorial && active ? tutorialSteps(stage, tutorial.mode) : []),
+    [active, tutorial, stage],
   );
 
   useEffect(() => {
-    if (tutorial) logEvent('tutorial_step', { mode: tutorial.mode, stage });
-  }, [tutorial, stage]);
+    if (tutorial && active) logEvent('tutorial_step', { mode: tutorial.mode, track: tutorial.track, stage });
+  }, [active, tutorial, stage]);
 
-  const visible = !!tutorial && !seen && (options.ready ?? true);
+  const visible = active && !seen && (options.ready ?? true);
 
   const element = (
     <SpotlightGuide
@@ -67,5 +75,5 @@ export function useTutorialSpotlight(
     />
   );
 
-  return { active: !!tutorial, mode: tutorial?.mode ?? null, element };
+  return { active, mode: active ? (tutorial?.mode ?? null) : null, element };
 }

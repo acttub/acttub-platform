@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { easing, motion } from '@/constants/motion';
 import { palette } from '@/constants/palette';
 import { translate as t } from '@/lib/i18n';
-import type { TutorialMode } from '@/lib/tutorial';
+import type { TutorialMode, TutorialTrack } from '@/lib/tutorial';
 
 export type TutorialChoice = TutorialMode | 'later';
 
@@ -27,10 +27,14 @@ export type TutorialChoice = TutorialMode | 'later';
 export function TutorialIntroSheet({
   visible,
   onChoose,
+  track = 'practice',
 }: {
   visible: boolean;
   onChoose: (choice: TutorialChoice) => void;
+  /** 어느 루프를 권하는가 — 문구만 다르다. */
+  track?: TutorialTrack;
 }) {
+  const copy = track === 'reading' ? 'tutorial.reading' : 'tutorial';
   const insets = useSafeAreaInsets();
   // 닫는 애니메이션이 끝날 때까지 창을 붙들어 둔다 — 바로 내리면 뚝 끊긴다.
   const [mounted, setMounted] = useState(visible);
@@ -66,7 +70,13 @@ export function TutorialIntroSheet({
 
   if (!mounted) return null;
 
-  const choice = (label: string, sub: string, icon: 'video' | 'play-circle', value: TutorialMode, index: number) => (
+  const choice = (
+    label: string,
+    sub: string,
+    icon: 'video' | 'play-circle' | 'file-text' | 'book-open',
+    value: TutorialMode,
+    index: number,
+  ) => (
     <Animated.View
       entering={FadeInDown.duration(motion.standard)
         .delay(120 + index * 70)
@@ -99,11 +109,11 @@ export function TutorialIntroSheet({
         accessibilityLabel={t('tutorial.a11y')}>
         <View style={styles.handle} />
         <Text style={styles.eyebrow}>{t('tutorial.introEyebrow')}</Text>
-        <Text style={styles.title}>{t('tutorial.introTitle')}</Text>
-        <Text style={styles.body}>{t('tutorial.introBody')}</Text>
+        <Text style={styles.title}>{t(`${copy}.introTitle`)}</Text>
+        <Text style={styles.body}>{t(`${copy}.introBody`)}</Text>
         <View style={styles.choices}>
-          {choice(t('tutorial.ownTitle'), t('tutorial.ownSub'), 'video', 'own', 0)}
-          {choice(t('tutorial.sampleTitle'), t('tutorial.sampleSub'), 'play-circle', 'sample', 1)}
+          {choice(t(`${copy}.ownTitle`), t(`${copy}.ownSub`), track === 'reading' ? 'file-text' : 'video', 'own', 0)}
+          {choice(t(`${copy}.sampleTitle`), t(`${copy}.sampleSub`), track === 'reading' ? 'book-open' : 'play-circle', 'sample', 1)}
         </View>
         <Pressable onPress={() => onChoose('later')} hitSlop={12} accessibilityRole="button" style={styles.later}>
           <Text style={styles.laterText}>{t('tutorial.later')}</Text>
