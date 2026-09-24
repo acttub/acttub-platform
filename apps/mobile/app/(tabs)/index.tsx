@@ -20,7 +20,6 @@ import {
   upcomingNotices,
   type AdmissionsResponse,
 } from '@/lib/admissions';
-import { useRequireLogin } from '@/hooks/use-require-login';
 import { dateLocale, isKorean, translate as t } from '@/lib/i18n';
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
 import { TutorialIntroSheet, type TutorialChoice } from '@/components/tutorial-intro-sheet';
@@ -56,7 +55,6 @@ function recentDate(iso: string): string {
 export default function HomeScreen() {
   const router = useRouter();
   const [groups, setGroups] = useState<PracticeGroup[]>([]);
-  const { isGuest, requireLogin, element: loginGuard } = useRequireLogin();
   // 연속일·주간 원용 날짜 — 서버 기록 ∪ 기기에 누적된 연습일(지워도 남는다).
   const [activityDays, setActivityDays] = useState<{ created_at: string }[]>([]);
   // 기록을 한 번이라도 받았는지 — 받기 전의 연속일(0)로 축하를 판단하면 안 된다.
@@ -86,15 +84,12 @@ export default function HomeScreen() {
       return;
     }
     if (choice === 'sample') {
-      // 예시는 계정이 없어도 돈다 — 서버를 부르지 않는다.
       startTutorial('sample');
       router.push({ pathname: '/upload', params: { sample: '1' } });
       return;
     }
-    requireLogin(() => {
-      startTutorial('own');
-      router.push('/upload');
-    });
+    startTutorial('own');
+    router.push('/upload');
   };
 
   useFocusEffect(
@@ -108,8 +103,6 @@ export default function HomeScreen() {
         else openHomeGuideIfNew();
       });
       let cancelled = false;
-      // 둘러보는 중엔 계정이 없다 — 보호된 요청은 401 이라 부르지 않는다 (SOMA-544).
-      if (isGuest) return;
       api
         .listPracticeGroups('all')
         .then((r) => {
@@ -141,7 +134,7 @@ export default function HomeScreen() {
       return () => {
         cancelled = true;
       };
-    }, [router, isGuest, openHomeGuideIfNew]),
+    }, [router, openHomeGuideIfNew]),
   );
 
   useEffect(() => {
@@ -222,7 +215,7 @@ export default function HomeScreen() {
           style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
           accessibilityRole="button"
           accessibilityLabel={t('home.startA11y')}
-          onPress={() => requireLogin(() => router.push('/upload'))}>
+          onPress={() => router.push('/upload')}>
           <View style={styles.ctaPlay}>
             <Feather name="play" size={18} color={palette.blue} />
           </View>
@@ -358,7 +351,6 @@ export default function HomeScreen() {
         )}
       </ScrollView>
       {feedback.element}
-      {loginGuard}
       <TutorialIntroSheet visible={introOpen} onChoose={chooseTutorial} />
       <SpotlightGuide
         visible={guideOpen && !introOpen}

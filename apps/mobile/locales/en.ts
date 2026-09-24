@@ -37,7 +37,6 @@ const en: DeepStringShape<typeof ko> = {
     tryLater: 'Please try again in a moment.',
   },
   login: {
-    guest: 'Browse without signing in',
     tagline: 'Start with what you were trying to do in that scene',
     google: 'Continue with Google',
     apple: 'Sign in with Apple',
@@ -1298,11 +1297,6 @@ const en: DeepStringShape<typeof ko> = {
   nudge: {
     title: 'No practice yet today',
     body: '5 minutes is enough. Shoot just one scene?',
-  },
-  guest: {
-    title: 'Sign in to continue',
-    message: 'This part needs an account. Sign in and you can pick up right where you are.',
-    cta: 'Sign in',
   },
   errors: {
     requestChanged: 'The request changed. Please send it again.',

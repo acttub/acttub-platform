@@ -47,7 +47,7 @@ type ProviderList =
  * 게이트가 다음 화면(처음이면 동의, 아니면 홈)으로 보낸다.
  */
 export default function LoginScreen() {
-  const { signInWith, continueAsGuest, loginNotice, clearLoginNotice } = useAuth();
+  const { signInWith, loginNotice, clearLoginNotice } = useAuth();
   const [list, setList] = useState<ProviderList>({ status: 'loading' });
   const [lastProvider, setLastProvider] = useState<LoginProvider | null>(null);
   const [busy, setBusy] = useState<LoginProvider | null>(null);
@@ -169,13 +169,6 @@ export default function LoginScreen() {
         )}
 
         {error && <Text style={styles.error}>{error}</Text>}
-        {/* 로그인 없이 둘러보기 — 계정이 있어야 하는 자리는 useRequireLogin 이 따로 막는다 (SOMA-544). */}
-        <Pressable
-          style={({ pressed }) => [styles.guestButton, pressed && styles.guestPressed]}
-          onPress={() => void continueAsGuest()}
-          accessibilityRole="button">
-          <Text style={styles.guestText}>{t('login.guest')}</Text>
-        </Pressable>
         <Text style={styles.legal}>{t('login.legal')}</Text>
       </View>
     </SafeAreaView>
@@ -226,9 +219,6 @@ const styles = StyleSheet.create({
   reloadText: { color: palette.blue, fontSize: 14, fontWeight: '700' },
   error: { color: palette.danger, fontSize: 13, textAlign: 'center' },
   legal: { color: palette.textFaint, fontSize: 12, textAlign: 'center', lineHeight: 18 },
-  guestButton: { alignSelf: 'center', paddingVertical: 12, paddingHorizontal: 16 },
-  guestPressed: { opacity: 0.6 },
-  guestText: { color: palette.textDim, fontSize: 14, fontWeight: '600', textDecorationLine: 'underline' },
 });
 
 /** 제공자별 버튼 모양. 각 브랜드 가이드의 규격 색을 지킨다. */

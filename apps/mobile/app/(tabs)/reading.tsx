@@ -1,4 +1,3 @@
-import { AccountContent } from '@/components/account-content';
 import Feather from '@expo/vector-icons/Feather';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -39,10 +38,6 @@ const CHIP_TONE: Record<ScriptCardStatus, { color: string; bg: string }> = {
 };
 
 export default function ReadingList() {
-  return <AccountContent><ReadingListContent /></AccountContent>;
-}
-
-function ReadingListContent() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { confirm, sheet, alert, dialog } = useAppDialog();

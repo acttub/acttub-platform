@@ -7,7 +7,6 @@ import { SceneFoldBody, SceneFoldLink, SceneSummary } from '@/components/practic
 import { ReportRating } from '@/components/report-rating';
 import { palette } from '@/constants/palette';
 import { useExitReview } from '@/hooks/use-exit-review';
-import { useRequireLogin } from '@/hooks/use-require-login';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { finishTutorial, useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
 import { TARGET } from '@/lib/spotlight-targets';
@@ -33,7 +32,6 @@ export default function ReportScreen() {
   // 튜토리얼 예시(SOMA-494) — 노트는 미리 써 둔 것이고, 서버에 남는 것이 없다.
   const sample = isSamplePracticeId(practice?.practiceId);
   const noteTarget = useSpotlightTarget(TARGET.reportNote);
-  const { requireLogin, element: loginGuard } = useRequireLogin();
   const exitReview = useExitReview('leave', 'report', practice?.practiceId);
   const [note, setNote] = useState<PracticeNote | null>(() => practice?.note ?? null);
   const [error, setError] = useState<string | null>(null);
@@ -74,14 +72,12 @@ export default function ReportScreen() {
 
   const tutorialGuide = useTutorialSpotlight('report', { ready: !!note && !loading });
 
-  // 예시를 다 돈 사람 — 이번엔 내 영상으로. 게스트면 로그인부터(안내는 이 화면에 뜬다).
+  // 예시를 다 돈 사람 — 이번엔 내 영상으로.
   const startOwn = () => {
-    requireLogin(() => {
-      finishTutorial('done');
-      clearPractice();
-      router.dismissAll();
-      router.push('/upload');
-    });
+    finishTutorial('done');
+    clearPractice();
+    router.dismissAll();
+    router.push('/upload');
   };
 
   const finishSample = () => {
@@ -218,7 +214,6 @@ export default function ReportScreen() {
         </>
       )}
       {exitReview.element}
-      {loginGuard}
       {tutorialGuide.element}
     </SafeAreaView>
   );

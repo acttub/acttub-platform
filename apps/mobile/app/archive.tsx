@@ -1,4 +1,3 @@
-import { AccountContent } from '@/components/account-content';
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -30,10 +29,6 @@ const FILTERS: { key: VideoFilter; label: string }[] = [
 ];
 
 export default function ArchiveScreen() {
-  return <AccountContent><ArchiveScreenContent /></AccountContent>;
-}
-
-function ArchiveScreenContent() {
   const router = useRouter();
   // 새 연습 준비 화면에서 "보관함에서 고르기"로 들어오면 고르는 화면이 된다(A8).
   const { pick } = useLocalSearchParams<{ pick?: string }>();
