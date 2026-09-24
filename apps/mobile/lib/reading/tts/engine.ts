@@ -8,6 +8,7 @@
  * synthesize(text): 한 문장을 만들어 파일로 남기고 그 자리를 돌려준다. 소리는 내지 않는다.
  * play(uri):        만들어 둔 파일을 틀고, 끝날 즈음 resolve 한다.
  * speak(text):      위 둘을 이어서 한다(만들어 둔 것이 없을 때 쓰는 길).
+ * prefetchIfWifi(): Wi-Fi 면 화면을 막지 않고 미리 받아 둔다(SOMA-494). ensureReady 와 같은 준비를 나눠 쓴다.
  * stop():           재생만 멈춘다. 만들던 것은 건드리지 않는다.
  *
  * 만들기와 재생을 나눈 이유는 미리 만들어 두기 위해서다 (SOMA-547) — 읽는 동안 다음 줄을
@@ -19,7 +20,9 @@ import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 
 import { currentLanguage, translate as t } from '../../i18n.ts';
 
-import { downloadAssets, downloadVoiceStyle, MODEL_KINDS, type Variant } from './assets';
+import { currentNetworkType } from '../network';
+import { assetsPresent, downloadAssets, downloadVoiceStyle, MODEL_KINDS, type Variant } from './assets';
+import type { VoiceProgress } from './download-progress.ts';
 import {
   loadOnnx,
   loadVoiceStyleFromObjects,
@@ -30,6 +33,7 @@ import {
 import { speechScriptFileName } from './speech-file.ts';
 import { speechKey } from './speech-key.ts';
 import { createSpeechQueue, type SpeechQueue } from './prefetch.ts';
+import { VoicePrepareError } from './voice-errors.ts';
 
 export interface EngineConfig {
   variant?: Variant; // 기본 fp32(음질 우선)
@@ -40,7 +44,7 @@ export interface EngineConfig {
   speed?: number; // 말속도, 기본 1.0
 }
 
-export type ProgressFn = (line: string) => void;
+export type ProgressFn = (progress: VoiceProgress) => void;
 
 let tts: any = null;
 let style: any = null;
@@ -51,6 +55,18 @@ let finishPlayback: (() => void) | null = null;
 let playbackEpoch = 0;
 let synthesisTail: Promise<unknown> = Promise.resolve();
 let readyPromise: Promise<void> | null = null;
+/** 준비를 지켜보는 화면들. 미리 받기가 먼저 시작했어도 나중에 온 화면이 진행을 받는다. */
+const listeners = new Set<ProgressFn>();
+let lastProgress: VoiceProgress | null = null;
+
+function report(progress: VoiceProgress) {
+  lastProgress = progress;
+  for (const fn of [...listeners]) {
+    try {
+      fn(progress);
+    } catch {}
+  }
+}
 let cfg: Required<EngineConfig> = {
   variant: 'fp32',
   preset: 'M1',
@@ -64,6 +80,11 @@ export function isReady(): boolean {
   return !!tts;
 }
 
+/** 지금 받거나 불러오는 중인가. */
+export function isPreparing(): boolean {
+  return !tts && !!readyPromise;
+}
+
 export function configure(next: EngineConfig) {
   cfg = { ...cfg, ...next };
 }
@@ -72,42 +93,72 @@ export function configure(next: EngineConfig) {
 export function ensureReady(onProgress: ProgressFn = () => {}, next?: EngineConfig): Promise<void> {
   if (next) configure(next);
   if (tts) return Promise.resolve();
-  if (readyPromise) return readyPromise;
+  listeners.add(onProgress);
+  const detach = () => {
+    listeners.delete(onProgress);
+  };
+  if (readyPromise) {
+    if (lastProgress) onProgress(lastProgress);
+    readyPromise.then(detach, detach);
+    return readyPromise;
+  }
 
-  readyPromise = (async () => {
-    const assets = await downloadAssets(cfg.variant, cfg.preset, onProgress);
+  lastProgress = null;
+  const work = (async () => {
+    const assets = await downloadAssets(cfg.variant, cfg.preset, report);
     const options = {
       executionProviders: [cfg.ep],
       graphOptimizationLevel: 'all',
       intraOpNumThreads: Math.max(1, cfg.threads),
     };
-    onProgress(t('reading.voiceLoading'));
+    report({ phase: 'load' });
     const sessions: any = {};
-    for (const k of MODEL_KINDS) {
-      try {
-        sessions[k] = await loadOnnx(assets.modelPaths[k], options);
-      } catch (e: any) {
-        sessions[k] = await loadOnnx(assets.modelPaths[k], { ...options, executionProviders: ['cpu'] });
+    try {
+      for (const k of MODEL_KINDS) {
+        try {
+          sessions[k] = await loadOnnx(assets.modelPaths[k], options);
+        } catch (e: any) {
+          sessions[k] = await loadOnnx(assets.modelPaths[k], { ...options, executionProviders: ['cpu'] });
+        }
       }
+      style = loadVoiceStyleFromObjects([assets.style]);
+      styles.set(cfg.preset, style);
+      tts = new TextToSpeech(
+        assets.cfgs,
+        new UnicodeProcessor(assets.indexer),
+        sessions.durationPredictor,
+        sessions.textEncoder,
+        sessions.vectorEstimator,
+        sessions.vocoder,
+      );
+    } catch (e) {
+      throw new VoicePrepareError('model_load', 'model load failed', { cause: e });
     }
-    style = loadVoiceStyleFromObjects([assets.style]);
-    styles.set(cfg.preset, style);
-    tts = new TextToSpeech(
-      assets.cfgs,
-      new UnicodeProcessor(assets.indexer),
-      sessions.durationPredictor,
-      sessions.textEncoder,
-      sessions.vectorEstimator,
-      sessions.vocoder,
-    );
     await setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
-    onProgress(t('reading.voiceReady'));
-  })().catch((e) => {
-    readyPromise = null;
+    report({ phase: 'ready' });
+  })();
+  readyPromise = work.catch((e) => {
+    if (readyPromise === guarded) readyPromise = null;
     throw e;
   });
+  const guarded = readyPromise;
+  guarded.then(detach, detach);
+  return guarded;
+}
 
-  return readyPromise;
+/**
+ * Wi-Fi 에서 모델을 미리 받아 둔다(배역 화면·대본 저장 뒤). 화면을 막지 않고 실패도 알리지 않는다 — 실패하면
+ * 실행 화면이 평소처럼 받거나 묻는다. 이미 받아 뒀으면 아무것도 하지 않는다(메모리 로드는 쓸 때 한다).
+ * 진행 중인 준비가 있으면 그것을 나눠 쓴다.
+ */
+export async function prefetchIfWifi(): Promise<void> {
+  try {
+    if (tts || readyPromise) return;
+    if (assetsPresent(cfg.variant, cfg.preset)) return;
+    if ((await currentNetworkType()) !== 'wifi') return;
+    if (tts || readyPromise) return;
+    await ensureReady();
+  } catch {}
 }
 
 /** 지금 설정으로 이 문장이 갖게 될 열쇠. 파일 이름과 캐시가 이것으로 갈린다. */
@@ -250,4 +301,6 @@ export function _reset() {
   style = null;
   styles.clear();
   readyPromise = null;
+  listeners.clear();
+  lastProgress = null;
 }

@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
 import { useAppDialog } from '@/components/app-dialog';
+import { logEvent } from '@/lib/analytics';
 import { hasMicPermission, useReadingMic } from '@/hooks/use-reading-mic';
 import { detectSttPolicy, useReadingStt } from '@/hooks/use-reading-stt';
 import { deleteDeviceFile } from '@/lib/account-files';
@@ -53,10 +54,12 @@ import {
 } from '@/lib/reading/store';
 import type { SttPolicy } from '@/lib/reading/stt-policy';
 import { assetsPresent, modelDownloadBytes } from '@/lib/reading/tts/assets';
+import { formatDownloadProgress, type VoiceProgress } from '@/lib/reading/tts/download-progress';
+import { voiceErrorKind, type VoiceErrorKind } from '@/lib/reading/tts/voice-errors';
 import { speakWithDevice, stopDeviceVoice } from '@/lib/reading/tts/device-voice';
 import * as engine from '@/lib/reading/tts/engine';
 import type { VadEvent } from '@/lib/reading/vad';
-import { modelDownloadPrompt, type PartnerVoiceEngine } from '@/lib/reading/voice-policy';
+import { formatMegabytes, modelDownloadPrompt, type PartnerVoiceEngine } from '@/lib/reading/voice-policy';
 import { assignVoices } from '@/lib/reading/voices';
 import { translate as t } from '@/lib/i18n';
 
@@ -120,7 +123,8 @@ export default function ReadingPlay() {
   runRef.current = run;
 
   const [phase, setPhase] = useState<Phase>('guide');
-  const [prepareLine, setPrepareLine] = useState(t('reading.voicePreparing'));
+  const [prepareProgress, setPrepareProgress] = useState<VoiceProgress | null>(null);
+  const [voiceFailure, setVoiceFailure] = useState<{ kind: VoiceErrorKind; neededBytes?: number } | null>(null);
   const [partnerEngine, setPartnerEngine] = useState<PartnerVoiceEngine>('supertonic');
   const [maskMode, setMaskMode] = useState<MaskMode>(script?.maskMode ?? 'none');
   const [revealed, setRevealed] = useState(false);
@@ -320,14 +324,25 @@ export default function ReadingPlay() {
         }
       }
     }
+    setPrepareProgress(null);
+    setVoiceFailure(null);
     setPhase('preparing');
     try {
-      await engine.ensureReady((line) => mounted.current && setPrepareLine(line));
+      await engine.ensureReady((progress) => {
+        if (mounted.current) setPrepareProgress(progress);
+      });
       if (!mounted.current) return;
       await primeSpeech(runRef.current?.index ?? 0)?.first();
       if (mounted.current) setPhase('running');
-    } catch {
-      if (mounted.current) setPhase('voice_failed');
+    } catch (e) {
+      // 원문(메시지·경로)은 보내지 않는다 — 종류만(SOMA-494).
+      const kind = voiceErrorKind(e);
+      void logEvent('reading_voice_failed', { kind });
+      const neededBytes = (e as { neededBytes?: unknown } | null)?.neededBytes;
+      if (mounted.current) {
+        setVoiceFailure({ kind, neededBytes: typeof neededBytes === 'number' ? neededBytes : undefined });
+        setPhase('voice_failed');
+      }
     }
   }, [confirm, hasPartnerLines, partnerEngine, primeSpeech]);
 
@@ -360,7 +375,10 @@ export default function ReadingPlay() {
           if (ready) await engine.play(ready);
           else await engine.speak(text, preset, { scriptId: script?.id });
         } else await speakWithDevice(text, presetFor(line.role));
-      } catch {}
+      } catch (e) {
+        // 한 줄을 못 읽어도 다음 줄로 넘어간다. 얼마나 자주 그런지만 남긴다.
+        void logEvent('reading_line_voice_failed', { engine: partnerEngine, kind: voiceErrorKind(e) });
+      }
       if (!cancelled && mounted.current) goNext(from);
     })();
     return () => {
@@ -604,11 +622,31 @@ export default function ReadingPlay() {
   }
 
   if (phase === 'preparing') {
+    if (prepareProgress?.phase === 'download') {
+      return (
+        <View style={[styles.root, styles.center]}>
+          <View style={styles.downloadCard}>
+            <Feather name="download-cloud" size={24} color={palette.blue} />
+            <Text style={styles.loadTitle}>{t('reading.voiceDownloadTitle')}</Text>
+            <View
+              style={styles.downloadTrack}
+              accessibilityRole="progressbar"
+              accessibilityValue={{ min: 0, max: 100, now: prepareProgress.percent }}>
+              <View style={[styles.downloadFill, { width: `${prepareProgress.percent}%` }]} />
+            </View>
+            <Text style={styles.progressLine}>{formatDownloadProgress(prepareProgress, t)}</Text>
+            <Text style={styles.loadNote}>{t('reading.voiceDownloadNote')}</Text>
+          </View>
+          {dialog}
+        </View>
+      );
+    }
     return (
       <View style={[styles.root, styles.center]}>
         <ActivityIndicator color={palette.blue} />
-        <Text style={styles.loadTitle}>{prepareLine}</Text>
-        <Text style={styles.loadNote}>처음 한 번만 음성 모델을 내려받아요. 잠시 걸릴 수 있어요.</Text>
+        <Text style={styles.loadTitle}>
+          {prepareProgress?.phase === 'load' || prepareProgress?.phase === 'ready' ? t('reading.voiceLoadTitle') : t('reading.voicePreparing')}
+        </Text>
         {dialog}
       </View>
     );
@@ -619,6 +657,13 @@ export default function ReadingPlay() {
       <View style={[styles.root, styles.center]}>
         <Feather name="alert-circle" size={30} color={palette.amber} />
         <Text style={styles.doneTitle}>{t('reading.voiceFailTitle')}</Text>
+        {voiceFailure?.kind === 'storage' ? (
+          <Text style={styles.dim}>
+            {t('reading.voiceFailStorage', { size: formatMegabytes(voiceFailure.neededBytes ?? modelDownloadBytes('fp32')) })}
+          </Text>
+        ) : voiceFailure?.kind === 'network' ? (
+          <Text style={styles.dim}>{t('reading.voiceFailNetwork')}</Text>
+        ) : null}
         <Text style={styles.dim}>{t('reading.voiceFailBody')}</Text>
         <View style={styles.choiceList}>
           <Pressable style={[styles.choice, styles.choiceGhost]} onPress={() => void prepare()}>
@@ -958,6 +1003,18 @@ const styles = StyleSheet.create({
   dim: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 15, textAlign: 'center', lineHeight: 22 },
   loadTitle: { color: palette.text, fontFamily: 'Pretendard-SemiBold', fontSize: 16, marginTop: 4, textAlign: 'center' },
   loadNote: { color: palette.textFaint, fontFamily: 'Pretendard', fontSize: 13, textAlign: 'center' },
+  downloadCard: {
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: palette.bgSubtle,
+    borderRadius: 16,
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+  },
+  downloadTrack: { alignSelf: 'stretch', height: 8, borderRadius: 4, backgroundColor: palette.border, overflow: 'hidden' },
+  downloadFill: { height: 8, borderRadius: 4, backgroundColor: palette.blue },
+  progressLine: { color: palette.textDim, fontFamily: 'Pretendard-SemiBold', fontSize: 14, textAlign: 'center' },
   doneIcon: { width: 56, height: 56, borderRadius: 28, backgroundColor: palette.green, alignItems: 'center', justifyContent: 'center' },
   doneTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 22, marginTop: 4, textAlign: 'center' },
   doneRow: { flexDirection: 'row', gap: 8, marginTop: 10, flexWrap: 'wrap', justifyContent: 'center' },
