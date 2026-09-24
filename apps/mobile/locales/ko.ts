@@ -81,6 +81,8 @@ const ko = {
     spotShootBody: '영상이 없으면 이 버튼으로 앱 안에서 찍어요. AI 코칭, 오늘의 대사, 그냥 촬영 중에 고를 수 있어요.',
     spotReadingNewTitle: '대본을 넣어 보세요',
     spotReadingNewBody: '내 배역만 고르면 상대 대사는 앱이 읽어 줘요. 혼자서도 상대가 있는 것처럼 맞춰 볼 수 있어요.',
+    spotContinueTitle: '이어서 연습할 수 있어요!',
+    spotContinueBody: '같은 영상으로 바로 다음 연습을 시작해요.',
     s1Title: '오늘의 연기를 찍어요',
     s1Body: '독백, 자유연기, 입시·오디션 연기 영상을 올리면 준비 끝. 앱 안에서 바로 촬영해도 돼요.',
     s2Title: '질문으로 되짚어요',

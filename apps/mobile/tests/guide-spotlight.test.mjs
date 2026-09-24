@@ -101,6 +101,7 @@ test('마지막 단계 다음은 끝이다', () => {
 
 test('화면마다 따로 기억한다 — 홈을 봤다고 대본 가이드가 사라지지 않는다', () => {
   assert.notEqual(spotlightKey('home'), spotlightKey('reading'));
+  assert.notEqual(spotlightKey('group'), spotlightKey('home'));
   assert.ok(spotlightKey('home').includes('home'));
 });
 

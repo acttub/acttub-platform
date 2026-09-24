@@ -121,7 +121,7 @@ export function stepAfter(index: number, total: number): number | null {
 }
 
 /** 가이드를 본 화면. 화면마다 따로 기억한다 — 홈을 봤다고 대본 가이드가 사라지면 안 된다. */
-export type SpotlightTopic = 'home' | 'reading';
+export type SpotlightTopic = 'home' | 'reading' | 'group';
 
 export function spotlightKey(topic: SpotlightTopic): string {
   return `acttub.spotlight.${topic}.seen`;

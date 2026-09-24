@@ -25,7 +25,7 @@ type Storage = {
 };
 
 /** 스포트라이트를 띄우는 화면들. "다시 보기"가 이만큼을 되돌린다. */
-const SPOTLIGHT_TOPICS: SpotlightTopic[] = ['home', 'reading'];
+const SPOTLIGHT_TOPICS: SpotlightTopic[] = ['home', 'reading', 'group'];
 
 function storage(): Storage {
   // eslint-disable-next-line @typescript-eslint/no-require-imports

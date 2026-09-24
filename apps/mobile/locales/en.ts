@@ -90,6 +90,8 @@ const en: DeepStringShape<typeof ko> = {
     spotShootBody: 'No footage yet? Record in the app. Pick AI coaching, today’s line, or a plain take.',
     spotReadingNewTitle: 'Bring in a script',
     spotReadingNewBody: 'Pick your role and the app reads the other parts aloud, so you can run the scene on your own.',
+    spotContinueTitle: 'You can keep practicing this!',
+    spotContinueBody: 'Start the next round with the same video right away.',
     s1Title: 'Shoot today’s take',
     s1Body: 'Upload a monologue, free scene or audition take — or record right in the app.',
     s2Title: 'Revisit it through questions',

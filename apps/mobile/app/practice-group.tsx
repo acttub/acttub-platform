@@ -12,7 +12,14 @@ import { translate as t } from '@/lib/i18n';
 import { groupTitle, hideNotice, roundSummary } from '@/lib/practice/groups';
 import { orderedMessages } from '@/lib/practice/coach';
 import { setContinueOrigin } from '@/lib/practice/session-state';
+import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
+import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
+import { hasSeenSpotlight, markSpotlightSeen } from '@/lib/guide-state';
+import { TARGET } from '@/lib/spotlight-targets';
 import type { CoachConversation, PracticeGroupDetail } from '@/lib/practice/types';
+
+/** 처음 한 번 비추는 자리 — "이어서 연습하기" 버튼. */
+const CONTINUE_STEPS: SpotlightStep[] = [{ target: TARGET.groupContinue, text: 'guide.spotContinue' }];
 
 /**
  * A1.2 연습 기록 상세 — 묶음 하나.
@@ -32,6 +39,25 @@ export default function PracticeGroupScreen() {
   const [conversationError, setConversationError] = useState<string | null>(null);
   const [conversationLoading, setConversationLoading] = useState(false);
   const conversationRequest = useRef(0);
+  // 처음 한 번만 "이어서 연습할 수 있어요!"를 비춘다. 버튼이 목록 맨 아래라 먼저 내려 준다.
+  const scrollRef = useRef<ScrollView>(null);
+  const continueTarget = useSpotlightTarget(TARGET.groupContinue);
+  const [guideOpen, setGuideOpen] = useState(false);
+
+  useEffect(() => {
+    if (!group) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let alive = true;
+    void hasSeenSpotlight('group').then((seen) => {
+      if (seen || !alive) return;
+      scrollRef.current?.scrollToEnd({ animated: false });
+      timer = setTimeout(() => alive && setGuideOpen(true), 300);
+    });
+    return () => {
+      alive = false;
+      if (timer) clearTimeout(timer);
+    };
+  }, [group]);
 
   const openConversation = async (id: string) => {
     const request = ++conversationRequest.current;
@@ -121,7 +147,7 @@ export default function PracticeGroupScreen() {
       )}
       {error && <Text style={styles.error}>{error}</Text>}
       {group && (
-        <ScrollView contentContainerStyle={styles.body}>
+        <ScrollView ref={scrollRef} contentContainerStyle={styles.body}>
           <View style={styles.headRow}>
             <Text style={styles.title}>{groupTitle(group)}</Text>
             <Text style={styles.meta}>{t('history.countTimes', { count: group.ordinal_count })}</Text>
@@ -181,7 +207,12 @@ export default function PracticeGroupScreen() {
             </View>
           ))}
 
-          <Pressable style={styles.primary} onPress={continuePractice} accessibilityRole="button">
+          <Pressable
+            ref={continueTarget.ref}
+            onLayout={continueTarget.onLayout}
+            style={styles.primary}
+            onPress={continuePractice}
+            accessibilityRole="button">
             <Text style={styles.primaryText}>{t('history.continueCta')}</Text>
           </Pressable>
           <Pressable onPress={() => void toggleHidden()} accessibilityRole="button">
@@ -191,6 +222,15 @@ export default function PracticeGroupScreen() {
         </ScrollView>
       )}
       {dialog}
+      <SpotlightGuide
+        visible={guideOpen}
+        topic="group"
+        steps={CONTINUE_STEPS}
+        onDone={() => {
+          setGuideOpen(false);
+          void markSpotlightSeen('group');
+        }}
+      />
     </SafeAreaView>
   );
 }

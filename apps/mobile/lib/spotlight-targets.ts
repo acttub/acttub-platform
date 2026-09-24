@@ -74,6 +74,8 @@ export const TARGET = {
   shoot: 'tabs.shoot',
   /** 대본 탭의 "새 대본" 버튼. */
   readingNew: 'reading.new',
+  /** 연습 묶음 화면의 "이어서 연습하기" 버튼. */
+  groupContinue: 'group.continue',
   // 연습 루프 튜토리얼(SOMA-494)이 비추는 자리.
   /** 업로드 — 영상 고르기·찍기. */
   uploadPick: 'upload.pick',
