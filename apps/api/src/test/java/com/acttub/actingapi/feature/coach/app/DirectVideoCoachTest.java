@@ -191,4 +191,12 @@ class DirectVideoCoachTest {
         assertThat(stopped.session().closeReason()).isEqualTo("actor_finished");
         assertThat(stopped.reply().message()).isEqualTo("오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요.");
     }
+
+    @Test void habitTitleFallsBackToTheDescriptionWhenTheModelWritesACategoryName() {
+        String design = "소리 빠르기: 처음부터 끝까지 일정하고 빠른 편이에요. \"손도 막 떨더라고요\"도요.\n소리 말끝: 없음\n"
+                + "버릇: 소리 빠르기 | 곳1: \"손도\" | 곳2: \"살아야\"\n다음 테이크: 문장 사이 쉬기";
+        assertThat(DirectVideoPracticeLoop.habit(design)).isEqualTo("처음부터 끝까지 일정하고 빠른 편이에요");
+        assertThat(DirectVideoPracticeLoop.habit("버릇: 말끝을 툭 떨어뜨려요 | 곳1: x")).isEqualTo("말끝을 툭 떨어뜨려요");
+        assertThat(DirectVideoPracticeLoop.habit("소리 크기: 없음\n버릇: 소리 크기 | 곳1: x")).isEqualTo("소리 크기");
+    }
 }
