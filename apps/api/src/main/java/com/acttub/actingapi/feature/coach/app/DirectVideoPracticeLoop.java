@@ -24,6 +24,8 @@ final class DirectVideoPracticeLoop {
     private static final Pattern STATUS = Pattern.compile("(?s)<상태>\\s*(.*?)\\s*</상태>");
     private static final Pattern COACH = Pattern.compile("(?s)<코치>\\s*(.*?)\\s*(?:</코치>|$)");
     private static final Pattern STRAY_TAG = Pattern.compile("</?(?:설계|상태|코치)>");
+    // 모델이 줄 끝에 남기는 날 자모("알려 주세요.ㄴ" 같은). 실험에서 실제로 나왔고 다음 턴에 그대로 따라 한다.
+    private static final Pattern TRAILING_JAMO = Pattern.compile("(?m)(?<=[^\\s\\u3131-\\u318E])[\\u3131-\\u318E]+[ \\t]*$");
 
     private DirectVideoPracticeLoop() { }
 
@@ -37,7 +39,8 @@ final class DirectVideoPracticeLoop {
         String rest = STATUS.matcher(DESIGN.matcher(text).replaceAll("")).replaceAll("");
         Matcher coach = COACH.matcher(rest);
         String message = coach.find() ? coach.group(1) : rest;
-        return new Parsed(design, status, STRAY_TAG.matcher(message).replaceAll("").strip());
+        message = STRAY_TAG.matcher(message).replaceAll("");
+        return new Parsed(design, status, TRAILING_JAMO.matcher(message).replaceAll("").strip());
     }
 
     /** 이 세션이 연습 루프로 시작됐는지. 루프 전에 열린 세션은 기존 경로로 이어간다. */
@@ -79,11 +82,16 @@ final class DirectVideoPracticeLoop {
         statuses.add(parsed.status());
     }
 
-    /** 코치가 마무리를 마쳤는지. 상태 줄의 둘째 칸(이번 응답이 하는 일)이 마무리2 또는 끝이다. */
+    /**
+     * 코치가 마무리를 마쳤는지. 상태 줄의 칸 중 하나(이번 응답이 하는 일)가 마무리2 또는 끝이다.
+     * 프롬프트 판마다 그 칸의 자리가 다르다("순간2 · 마무리2 · …", "마무리2 · 응답 6번째").
+     */
     static boolean finished(Parsed parsed) {
-        String[] parts = parsed.status().split("·");
-        String action = (parts.length > 1 ? parts[1] : parsed.status()).strip();
-        return action.startsWith("마무리2") || action.startsWith("끝");
+        for (String part : parsed.status().split("·")) {
+            String action = part.strip();
+            if (action.startsWith("마무리2") || action.startsWith("끝")) return true;
+        }
+        return false;
     }
 
     private static String first(Pattern pattern, String text) {
