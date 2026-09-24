@@ -139,4 +139,22 @@ class DirectVideoSessionsTest {
             verify(model).reply(eq(video), anyList(), eq(DirectVideoPrompts.forRoutes(java.util.List.of(DirectVideoRoute.CLOSING))));
         }
     }
+
+    @Test
+    void markdownRepliesAreKeptAsPlainTextAndMarkupOnlyRepliesFail() throws Exception {
+        try (var sessions = service(Clock.systemUTC())) {
+            when(model.reply(any(), anyList(), anyString()))
+                    .thenReturn("**전체 인상**\n- 말끝을 끝까지 전달해요.", "## \n**", "# 다음\n1) 사이를 두세요.");
+            UUID id = start(sessions);
+            assertThat(settled(sessions, id).messages()).extracting(DirectVideoModel.Message::text)
+                    .containsExactly("전체 인상\n말끝을 끝까지 전달해요.");
+            sessions.send(owner, id, "어떻게 해요?");
+            var failed = settled(sessions, id);
+            assertThat(failed.messages()).hasSize(1);
+            assertThat(failed.error()).isEqualTo("direct_video_generation_failed");
+            sessions.send(owner, id, "어떻게 해요?");
+            assertThat(settled(sessions, id).messages()).extracting(DirectVideoModel.Message::text)
+                    .containsExactly("전체 인상\n말끝을 끝까지 전달해요.", "어떻게 해요?", "다음\n사이를 두세요.");
+        }
+    }
 }
