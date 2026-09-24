@@ -29,6 +29,11 @@ import { inProgressPracticeId } from '@/lib/practice/start';
 import type { PracticeDetail, PracticeStatus } from '@/lib/practice/types';
 import { previewVideoSource } from '@/lib/preview-video';
 import { newRequestId } from '@/lib/request-id';
+import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
+import { finishTutorial, useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
+import { TARGET } from '@/lib/spotlight-targets';
+import { sampleVideoUri } from '@/lib/tutorial-loop';
+import { isSamplePracticeId, SAMPLE_ANALYZING_STEP_MS, sampleDetail, sampleScene } from '@/lib/tutorial-sample';
 
 /** 경과 시간 기반 단계 문구로 기다림을 설계한다(실제 진행률은 서버가 주지 않는다). */
 const STAGES = translateList('analyzing.stages');
@@ -63,6 +68,44 @@ export default function AnalyzingScreen() {
   const pendingHandleRef = useRef<PendingAnalysisHandle | null>(null);
   const finishedRef = useRef(false);
   const retryRequestId = useRef<string | null>(null);
+
+  // 튜토리얼 예시(SOMA-494) — 조회도 분석도 없이 몇 초 뒤 코치로 넘어간다.
+  // 설명(스포트라이트)을 다 본 뒤에 넘긴다 — 읽는 도중에 화면이 바뀌면 안 된다.
+  const sample = isSamplePracticeId(practiceId);
+  const [sampleReady, setSampleReady] = useState(false);
+  const [guideDone, setGuideDone] = useState(false);
+  const progressTarget = useSpotlightTarget(TARGET.analyzingProgress);
+  const tutorialGuide = useTutorialSpotlight('analyzing', { onDone: () => setGuideDone(true) });
+
+  useEffect(() => {
+    if (!sample) return;
+    let alive = true;
+    void (async () => {
+      for (let i = 0; i < SAMPLE_ANALYZING_STEP_MS.length; i += 1) {
+        setStage(Math.min(i, STAGES.length - 1));
+        await new Promise((resolve) => setTimeout(resolve, SAMPLE_ANALYZING_STEP_MS[i]));
+        if (!alive) return;
+      }
+      setSampleReady(true);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [sample]);
+
+  useEffect(() => {
+    if (!sample || !practiceId || !sampleReady || (tutorialGuide.active && !guideDone)) return;
+    finishedRef.current = true;
+    startPractice({
+      practiceId,
+      rootId: practiceId,
+      ordinal: 1,
+      scene: sampleScene(),
+      videoUri: sampleVideoUri(),
+      playbackUrl: null,
+    });
+    router.replace('/coach');
+  }, [guideDone, practiceId, router, sample, sampleReady, tutorialGuide.active]);
 
   /** 분석이 끝났다. 장면·재생 주소를 받아 대화로 넘긴다. */
   const enterCoach = useCallback(
@@ -106,7 +149,7 @@ export default function AnalyzingScreen() {
 
   /** 상태를 읽기 시작한다. 이미 읽고 있으면 그것을 멈추고 지금 상태부터 다시 읽는다. */
   const run = useCallback(async () => {
-    if (!practiceId || preview || finishedRef.current) return;
+    if (!practiceId || preview || sample || finishedRef.current) return;
     controllerRef.current?.abort();
     const controller = new AbortController();
     controllerRef.current = controller;
@@ -138,7 +181,7 @@ export default function AnalyzingScreen() {
       return;
     }
     if (outcome.kind === 'error') setError(t('analyzing.statusUnavailable'));
-  }, [enterCoach, practiceId, preview]);
+  }, [enterCoach, practiceId, preview, sample]);
 
   useEffect(() => {
     if (preview) {
@@ -149,6 +192,12 @@ export default function AnalyzingScreen() {
     }
     if (!practiceId) {
       router.replace('/upload');
+      return;
+    }
+    if (sample) {
+      // 예시는 서버에 회차가 없다 — 연습일·복구 기록도 남기지 않는다.
+      setDetail(sampleDetail());
+      setVideoUri(sampleVideoUri());
       return;
     }
     void markPracticedToday();
@@ -219,6 +268,11 @@ export default function AnalyzingScreen() {
   /** "그만두기" — 작업을 취소로 끝낸다. 영상은 보관함에 그대로 있고 연습을 숨기지 않는다. */
   const stop = useCallback(async () => {
     if (!practiceId || stopping) return;
+    if (sample) {
+      finishTutorial('left');
+      router.replace('/(tabs)');
+      return;
+    }
     const ok = await confirm({
       title: t('analyzing.stopTitle'),
       message: t('analyzing.stopMsg'),
@@ -243,7 +297,7 @@ export default function AnalyzingScreen() {
     } finally {
       setStopping(false);
     }
-  }, [confirm, practiceId, router, stopping]);
+  }, [confirm, practiceId, router, sample, stopping]);
 
   /** 실패한 회차를 다시 시도한다 — 새 작업이 생기고 stage 가 analyzing 으로 돌아간다. */
   const retry = useCallback(async () => {
@@ -285,7 +339,7 @@ export default function AnalyzingScreen() {
   }, [detail?.root_id, practiceId, retrying, router, run, status]);
 
   const jobStatus = status?.job?.status ?? 'pending';
-  const stageText = jobStatus === 'pending' ? t('analyzing.queued') : STAGES[stage];
+  const stageText = jobStatus === 'pending' && !sample ? t('analyzing.queued') : STAGES[stage];
   const elapsedText =
     elapsedSec < 60
       ? t('common.secElapsed', { sec: elapsedSec })
@@ -316,11 +370,11 @@ export default function AnalyzingScreen() {
           </View>
         ) : (
           <>
-            <View style={styles.progressBlock}>
+            <View style={styles.progressBlock} ref={progressTarget.ref} onLayout={progressTarget.onLayout}>
               <ActivityIndicator size="large" color={palette.blue} />
               <Text style={styles.stageText}>{stageText}</Text>
               <Text style={styles.elapsed}>{elapsedText}</Text>
-              <Text style={styles.notice}>{t('analyzing.canClose')}</Text>
+              <Text style={styles.notice}>{sample ? t('tutorial.sampleAnalyzing') : t('analyzing.canClose')}</Text>
             </View>
 
             {detail && (
@@ -346,6 +400,7 @@ export default function AnalyzingScreen() {
         <PracticeFooter />
       </ScrollView>
       {dialog}
+      {tutorialGuide.element}
     </SafeAreaView>
   );
 }

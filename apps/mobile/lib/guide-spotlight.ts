@@ -73,22 +73,30 @@ export function shroudRects(hole: Rect | null, screen: Screen): Rect[] {
 }
 
 /**
- * 설명 카드를 놓을 높이. 비출 자리 아래가 기본이고, 아래가 모자라면 위로 올린다 —
+ * 설명 카드를 놓을 자리. 비출 자리 아래가 기본이고, 아래가 모자라면 위로 올린다 —
  * 어느 쪽이든 비출 자리를 가리지 않는 게 먼저다.
+ *
+ * <p>구멍 쪽 모서리를 붙인다: 아래에 둘 땐 윗변({@code top}), 위에 둘 땐 아랫변({@code bottom}).
+ * 카드 높이는 그린 뒤에야 알고 단계마다 바뀌는데, 위에 둘 때 높이로 윗변을 계산하면 높이를
+ * 다시 잴 때마다 카드가 움직여 누르려던 버튼이 빗나갔다(SOMA-494, 실기기). 높이는 어느
+ * 쪽에 둘지 고를 때와, 양쪽 다 모자라 화면 안으로 밀어 넣을 때만 쓴다.
  */
-export function captionTop(
+export function captionPlacement(
   hole: Rect | null,
   screen: Screen,
   captionHeight: number,
   gap = HOLE_GAP,
-): number {
-  if (!hole) return Math.max(0, (screen.height - captionHeight) / 2);
+): { top: number } | { bottom: number } {
+  if (!hole) return { top: Math.max(0, (screen.height - captionHeight) / 2) };
   const below = hole.y + hole.height + gap;
-  if (below + captionHeight <= screen.height) return below;
-  const above = hole.y - gap - captionHeight;
-  if (above >= 0) return above;
-  // 비출 자리가 화면을 거의 다 차지한다 — 가리더라도 화면 안에는 둔다.
-  return clamp(below, 0, Math.max(0, screen.height - captionHeight));
+  const aboveEdge = hole.y - gap;
+  if (below + captionHeight <= screen.height) return { top: below };
+  if (aboveEdge - captionHeight >= 0) return { bottom: screen.height - aboveEdge };
+  // 비출 자리가 화면을 거의 다 차지한다 — 넓은 쪽에 두고, 가리더라도 화면 안에는 둔다.
+  if (aboveEdge >= screen.height - below) {
+    return { bottom: screen.height - Math.max(aboveEdge, captionHeight) };
+  }
+  return { top: Math.max(0, Math.min(below, screen.height - captionHeight)) };
 }
 
 /**

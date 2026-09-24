@@ -74,4 +74,21 @@ export const TARGET = {
   shoot: 'tabs.shoot',
   /** 대본 탭의 "새 대본" 버튼. */
   readingNew: 'reading.new',
+  // 연습 루프 튜토리얼(SOMA-494)이 비추는 자리.
+  /** 업로드 — 영상 고르기·찍기. */
+  uploadPick: 'upload.pick',
+  /** 업로드 — 예시 영상이 들어간 미리보기. */
+  uploadSample: 'upload.sample',
+  /** 업로드 — 장면 세 칸. */
+  uploadScene: 'upload.scene',
+  /** 업로드 — 질문 받기 버튼. */
+  uploadStart: 'upload.start',
+  /** 분석 대기 — 진행 표시. */
+  analyzingProgress: 'analyzing.progress',
+  /** 코치 — 지금 받은 질문. */
+  coachQuestion: 'coach.question',
+  /** 코치 — 답 적는 칸. */
+  coachComposer: 'coach.composer',
+  /** 노트 — 연습 노트 본문. */
+  reportNote: 'report.note',
 } as const;

@@ -13,7 +13,8 @@ import type { PracticeGroup } from '@/lib/practice/types';
 import { rememberPracticeDays } from '@/lib/practice-days';
 import { dismissFeedbackNudge, feedbackNudgeVisible, maybeRequestStoreReview } from '@/lib/feedback-prompts';
 import { useFeedbackSheet } from '@/hooks/use-feedback-sheet';
-import { hasSeenSpotlight, markSpotlightSeen } from '@/lib/guide-state';
+import { hasSeenSpotlight, hasSeenTutorial, markSpotlightSeen, markTutorialSeen } from '@/lib/guide-state';
+import { currentTutorial, startTutorial } from '@/lib/tutorial';
 import {
   localDate,
   upcomingNotices,
@@ -22,6 +23,8 @@ import {
 import { useRequireLogin } from '@/hooks/use-require-login';
 import { dateLocale, isKorean, translate as t } from '@/lib/i18n';
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
+import { TutorialIntroSheet, type TutorialChoice } from '@/components/tutorial-intro-sheet';
+import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
 import { StreakCelebration } from '@/components/streak-badge';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { TARGET } from '@/lib/spotlight-targets';
@@ -62,14 +65,44 @@ export default function HomeScreen() {
   const feedback = useFeedbackSheet('home');
   // 처음 한 번만 가이드 — 누를 자리를 비춰 준다. 설정의 "가이드 다시 보기"로 되살릴 수 있다.
   const [guideOpen, setGuideOpen] = useState(false);
+  // 그보다 먼저, 처음 연 사람에게 연습 한 바퀴를 권한다(SOMA-494). 이걸 닫아야 위 가이드가 뜬다.
+  const [introOpen, setIntroOpen] = useState(false);
   const startTarget = useSpotlightTarget(TARGET.homeStart);
+
+  const openHomeGuideIfNew = useCallback(() => {
+    void hasSeenSpotlight('home').then((seen) => {
+      if (!seen) setGuideOpen(true);
+    });
+  }, []);
+
+  const chooseTutorial = (choice: TutorialChoice) => {
+    setIntroOpen(false);
+    if (choice === 'later') {
+      void markTutorialSeen();
+      openHomeGuideIfNew();
+      return;
+    }
+    if (choice === 'sample') {
+      // 예시는 계정이 없어도 돈다 — 서버를 부르지 않는다.
+      startTutorial('sample');
+      router.push({ pathname: '/upload', params: { sample: '1' } });
+      return;
+    }
+    requireLogin(() => {
+      startTutorial('own');
+      router.push('/upload');
+    });
+  };
 
   useFocusEffect(
     useCallback(() => {
       // 올 때마다 본 적 있는지 묻는다(기기에서 읽는 값이라 싸다). 한 번만 묻고 말면,
       // 설정에서 되살린 뒤 앱을 껐다 켜야 보인다 — 실기기에서 그렇게 걸렸다.
-      void hasSeenSpotlight('home').then((seen) => {
-        if (!seen) setGuideOpen(true);
+      // 튜토리얼 중에 홈으로 돌아왔다면 루프를 벗어난 것이다 — 거기서 끝낸다.
+      if (currentTutorial()) finishTutorial('left');
+      void hasSeenTutorial().then((seen) => {
+        if (!seen) setIntroOpen(true);
+        else openHomeGuideIfNew();
       });
       let cancelled = false;
       // 둘러보는 중엔 계정이 없다 — 보호된 요청은 401 이라 부르지 않는다 (SOMA-544).
@@ -97,7 +130,7 @@ export default function HomeScreen() {
       return () => {
         cancelled = true;
       };
-    }, [router, isGuest]),
+    }, [router, isGuest, openHomeGuideIfNew]),
   );
 
   useEffect(() => {
@@ -308,8 +341,9 @@ export default function HomeScreen() {
       </ScrollView>
       {feedback.element}
       {loginGuard}
+      <TutorialIntroSheet visible={introOpen} onChoose={chooseTutorial} />
       <SpotlightGuide
-        visible={guideOpen}
+        visible={guideOpen && !introOpen}
         topic="home"
         steps={HOME_STEPS}
         onDone={() => {

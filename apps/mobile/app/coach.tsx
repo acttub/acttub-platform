@@ -10,7 +10,6 @@ import { SceneFoldBody, SceneFoldLink } from '@/components/practice-chrome';
 import { palette } from '@/constants/palette';
 import { useExitReview } from '@/hooks/use-exit-review';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
-import { api } from '@/lib/api';
 import { translate as t } from '@/lib/i18n';
 import {
   COACH_END_WORD,
@@ -31,6 +30,11 @@ import { clearPractice, getPractice, setContinueOrigin } from '@/lib/practice/se
 import type { CoachConversation, CoachMessage, CoachTurnResult } from '@/lib/practice/types';
 import { COACH_ANSWER_MAX } from '@/lib/practice/types';
 import { newRequestId } from '@/lib/request-id';
+import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
+import { finishTutorial, useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
+import { TARGET } from '@/lib/spotlight-targets';
+import { loopApiFor } from '@/lib/tutorial-loop';
+import { isSamplePracticeId } from '@/lib/tutorial-sample';
 
 // 네이티브 모듈이 없는 빌드(STT 도입 전 dev client)에서도 화면이 뜨도록 가드해서 로드한다.
 let MicButton: ComponentType<MicButtonProps> | null = null;
@@ -54,6 +58,11 @@ export default function CoachScreen() {
   const keyboardHeight = useKeyboardHeight();
   const keyboardVisible = keyboardHeight > 0;
   const [practice] = useState(() => getPractice());
+  // 튜토리얼 예시면 미리 써 둔 코치와 대화한다 — 서버·음성 인식·한 줄 설문 없이(SOMA-494).
+  const sample = isSamplePracticeId(practice?.practiceId);
+  const loop = loopApiFor(practice?.practiceId);
+  const questionTarget = useSpotlightTarget(TARGET.coachQuestion);
+  const composerTarget = useSpotlightTarget(TARGET.coachComposer);
   const scrollRef = useRef<ScrollView>(null);
   const mountedRef = useRef(true);
   const startInFlightRef = useRef(false);
@@ -114,7 +123,7 @@ export default function CoachScreen() {
     setConnecting(true);
     setError(null);
     try {
-      const result = await loadCoachSession(api, practice.practiceId, startRequestIdRef.current, practice.conversationId);
+      const result = await loadCoachSession(loop, practice.practiceId, startRequestIdRef.current, practice.conversationId);
       if (!mountedRef.current) return;
       if (applyResult(result) && result.note) goToNote();
     } catch (e) {
@@ -123,17 +132,17 @@ export default function CoachScreen() {
       if (mountedRef.current) setConnecting(false);
       startInFlightRef.current = false;
     }
-  }, [applyResult, goToNote, practice]);
+  }, [applyResult, goToNote, loop, practice]);
 
   /** 충돌 뒤 최신 대화를 다시 읽는다. 쓰던 글은 건드리지 않는다. */
   const reloadConversation = useCallback(async () => {
     const id = conversation?.id ?? practice?.conversationId;
     if (!id || !practice) return;
-    const latest = await loadCoachSession(api, practice.practiceId, startRequestIdRef.current, id).catch(() => null);
+    const latest = await loadCoachSession(loop, practice.practiceId, startRequestIdRef.current, id).catch(() => null);
     if (latest && mountedRef.current) {
       applyResult(latest);
     }
-  }, [applyResult, conversation?.id, practice]);
+  }, [applyResult, conversation?.id, loop, practice]);
 
   const sendText = useCallback(
     async (text: string) => {
@@ -152,7 +161,7 @@ export default function CoachScreen() {
       setWaiting(true);
       setError(null);
       try {
-        const result = await api.replyToCoach(
+        const result = await loop.replyToCoach(
           buildReplyBody({ conversation, requestId: attempt.requestId, text: trimmed }),
         );
         if (!mountedRef.current) return;
@@ -171,7 +180,7 @@ export default function CoachScreen() {
         if (mountedRef.current) setWaiting(false);
       }
     },
-    [applyResult, closed, conversation, goToNote, practice, reloadConversation, waiting],
+    [applyResult, closed, conversation, goToNote, loop, practice, reloadConversation, waiting],
   );
 
   /** 닫힌 대화에서 다시 코칭하려면 새 회차다. */
@@ -184,6 +193,11 @@ export default function CoachScreen() {
 
   // 대화 중에 뒤로가기로 나가면 한 번만 한 줄을 묻는다(practice.feedback, trigger back).
   usePreventRemove(!leaveAllowed && !!practice, ({ data }) => {
+    if (sample) {
+      finishTutorial('left');
+      leaveThen(() => navigation.dispatch(data.action));
+      return;
+    }
     void exitReview.offer(() => leaveThen(() => navigation.dispatch(data.action)));
   });
 
@@ -206,6 +220,11 @@ export default function CoachScreen() {
     const timer = setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
     return () => clearTimeout(timer);
   }, [keyboardVisible]);
+
+  // 첫 질문이 뜬 뒤에 비춘다 — 그 전엔 비출 질문이 없다.
+  const tutorialGuide = useTutorialSpotlight('coach', {
+    ready: !connecting && messages.some((m) => m.role === 'coach'),
+  });
 
   if (!practice) {
     return (
@@ -306,7 +325,9 @@ export default function CoachScreen() {
               <Text style={styles.loadingText}>{t('coach.wrapping')}</Text>
             </View>
           ) : (
-            <View style={styles.questionBlock}>{latestQuestion && <Text style={styles.question}>{latestQuestion}</Text>}</View>
+            <View style={styles.questionBlock} ref={questionTarget.ref} onLayout={questionTarget.onLayout}>
+              {latestQuestion && <Text style={styles.question}>{latestQuestion}</Text>}
+            </View>
           )}
 
           {error && <Text style={styles.errorText}>{error}</Text>}
@@ -323,15 +344,18 @@ export default function CoachScreen() {
               <Pressable style={styles.retry} onPress={practice.note ? goToNote : finishWithoutNote} accessibilityRole="button">
                 <Text style={styles.retryText}>{practice.note ? t('coach.seeSummary') : t('coach.finishBtn')}</Text>
               </Pressable>
-              <Pressable style={styles.retry} onPress={continueWithNewRound} accessibilityRole="button">
-                <Text style={styles.retryText}>{t('coach.continueNew')}</Text>
-              </Pressable>
+              {/* 예시 회차는 서버에 없어 이어 갈 수 없다. */}
+              {!sample && (
+                <Pressable style={styles.retry} onPress={continueWithNewRound} accessibilityRole="button">
+                  <Text style={styles.retryText}>{t('coach.continueNew')}</Text>
+                </Pressable>
+              )}
             </>
           )}
         </ScrollView>
 
         {!closed && (
-          <View style={styles.composer}>
+          <View style={styles.composer} ref={composerTarget.ref} onLayout={composerTarget.onLayout}>
             <View style={styles.composerLabelRow}>
               <Text style={styles.composerLabel}>{t('coach.composerLabel')}</Text>
               <Text style={styles.counter}>
@@ -339,7 +363,7 @@ export default function CoachScreen() {
               </Text>
             </View>
             <View style={styles.inputRow}>
-              {MicButton && <MicButton onText={setInput} disabled={connecting || waiting || !conversation} />}
+              {MicButton && !sample && <MicButton onText={setInput} disabled={connecting || waiting || !conversation} />}
               <TextInput
                 ref={inputRef}
                 style={styles.input}
@@ -386,6 +410,7 @@ export default function CoachScreen() {
       {dialog}
       {exitReview.element}
       {finishReview.element}
+      {tutorialGuide.element}
     </SafeAreaView>
   );
 }
