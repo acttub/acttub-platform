@@ -21,6 +21,11 @@ export type Video = {
   /** 10분 서명 재생 주소. 목록에는 없고 상세에만 온다. */
   playback_url: string | null;
   playback_expires_at: string | null;
+  /**
+   * 첫 장면 JPEG(폭 480px 이하)의 10분 서명 주소. 목록·상세 모두 온다. 서버가 올리기 뒤에 따로 만들므로
+   * 방금 올린 영상이나 만들지 못한 영상, 파기된 영상은 null 이다.
+   */
+  poster_url: string | null;
 };
 
 export type VideoFilter = 'all' | 'recent7' | 'favorite';

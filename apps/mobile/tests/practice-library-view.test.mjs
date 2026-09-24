@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { cellCaption, deleteDecision, mergeLibrary, statusLabel, usageLabel } from '../lib/library/library-view.ts';
+import { cellCaption, deleteDecision, mergeLibrary, posterFor, statusLabel, usageLabel } from '../lib/library/library-view.ts';
 
 const NOW = Date.parse('2026-09-21T12:00:00+09:00');
 const DAY = 86_400_000;
@@ -16,6 +16,7 @@ const video = (id, o = {}) => ({
   usage: { practice_count: 0, entry_count: 0 },
   playback_url: null,
   playback_expires_at: null,
+  poster_url: null,
   ...o,
 });
 const pending = (id, o = {}) => ({ id, owner: 'u1', requestId: `rid-${id}`, uri: `file:///a/${id}.mp4`, contentType: 'video/mp4', durationMs: 5_000, createdAt: NOW - 60_000, intentId: null, intentExpiresAt: null, status: 'queued', lastError: null, ...o });
@@ -58,4 +59,16 @@ test('practice.library: 보관함 칸은 저장된 영상이면 어디에 쓰였
   assert.equal(cellCaption(one({ purged_at: '2026-09-20T00:00:00Z', usage: { practice_count: 1, entry_count: 0 } })), '재생할 수 없어요');
   const queued = mergeLibrary({ videos: [], pending: [pending('p1')], filter: 'all', now: NOW })[0];
   assert.equal(cellCaption(queued), '기기에 저장 · 업로드 대기');
+});
+
+test('practice.library: 보관함 칸은 서버 포스터가 있으면 첫 장면 사진을 쓰고, 서명이 바뀌어도 같은 캐시 키다 (SOMA-562)', () => {
+  const one = (o) => mergeLibrary({ videos: [video('v', o)], pending: [], filter: 'all', now: NOW })[0];
+  assert.deepEqual(posterFor(one({ poster_url: 'https://s3.example/videos/u/r.poster.jpg?X-Amz-Signature=a' })), {
+    uri: 'https://s3.example/videos/u/r.poster.jpg?X-Amz-Signature=a',
+    cacheKey: 'https://s3.example/videos/u/r.poster.jpg',
+  });
+  assert.equal(posterFor(one({ poster_url: null })), null);
+  // 파기된 영상은 포스터가 남아 있어도 보이지 않는다.
+  assert.equal(posterFor(one({ poster_url: 'https://s3.example/p.jpg', purged_at: '2026-09-20T00:00:00Z' })), null);
+  assert.equal(posterFor(mergeLibrary({ videos: [], pending: [pending('p1')], filter: 'all', now: NOW })[0]), null);
 });

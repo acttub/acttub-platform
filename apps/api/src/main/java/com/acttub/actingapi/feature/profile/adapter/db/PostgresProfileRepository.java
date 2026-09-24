@@ -723,6 +723,9 @@ class PostgresProfileRepository implements ProfileRepository {
      * <p>장부 두 벌을 함께 본다: 옛 흐름의 {@code upload_intents} 와 1.0.0 보관함의 {@code videos} 다
      * (02-practice 「이관·삭제·탈퇴」). 이미 파일만 파기된 영상은 객체가 없으므로 빼고, 미확정 업로드의
      * 객체는 그대로 지운다 — 예약만 하고 올리지 않았으면 그 키에 객체가 없고 S3 의 삭제는 멱등이다.
+     *
+     * <p>보관함 영상의 <b>포스터</b>(V23, 첫 장면 JPEG)도 함께다 — 얼굴이 담긴 한 장이다. 포스터 워커는 같은
+     * {@code users} 행을 잡고 붙이므로 여기서 모은 뒤에 붙는 포스터는 없다(늦게 만든 것은 워커가 장부로 보낸다).
      */
     private List<String> videoKeys(UUID userId) {
         return list(entityManager.createNativeQuery("""
@@ -733,6 +736,10 @@ class PostgresProfileRepository implements ProfileRepository {
                 SELECT object_key
                 FROM videos
                 WHERE user_id=:userId AND purged_at IS NULL
+                UNION
+                SELECT poster_key
+                FROM videos
+                WHERE user_id=:userId AND purged_at IS NULL AND poster_key IS NOT NULL
                 """, Tuple.class)
                 .setParameter("userId", userId)).stream()
                 .map(row -> row.get("object_key", String.class))

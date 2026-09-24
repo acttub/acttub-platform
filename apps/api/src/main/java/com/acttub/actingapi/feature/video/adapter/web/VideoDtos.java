@@ -44,7 +44,8 @@ final class VideoDtos {
 
     /**
      * 보관함의 영상 한 편. {@code purgedAt} 이 있으면 파일이 없어 재생할 수 없다. {@code playbackUrl} 은
-     * 상세에서만 채운다 — 목록은 {@code null} 이다.
+     * 상세에서만 채운다 — 목록은 {@code null} 이다. {@code posterUrl} 은 목록·상세 모두 채우는 첫 장면 JPEG 의
+     * 서명 주소이고(재생 주소와 같은 10분), 워커가 아직 만들지 않았거나 파기됐으면 {@code null} 이다.
      */
     @Schema(name = "Video", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
@@ -58,7 +59,8 @@ final class VideoDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Instant createdAt,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UsageResponse usage,
             @Schema(nullable = true) String playbackUrl,
-            @Schema(nullable = true) Instant playbackExpiresAt) {
+            @Schema(nullable = true) Instant playbackExpiresAt,
+            @Schema(nullable = true) String posterUrl) {
 
         static VideoResponse of(VideoView view) {
             return new VideoResponse(
@@ -71,7 +73,8 @@ final class VideoDtos {
                     view.createdAt(),
                     new UsageResponse(view.practiceCount(), view.entryCount()),
                     view.playbackUrl(),
-                    view.playbackExpiresAt());
+                    view.playbackExpiresAt(),
+                    view.posterUrl());
         }
     }
 

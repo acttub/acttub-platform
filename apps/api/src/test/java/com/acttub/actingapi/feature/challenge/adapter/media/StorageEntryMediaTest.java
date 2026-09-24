@@ -19,6 +19,9 @@ class StorageEntryMediaTest {
             @Override public String presignUpload(String key, String type, long size, int seconds) { return null; }
             @Override public String presignPlayback(String key, int seconds) { return "https://storage.test/" + key; }
             @Override public Stored head(String key) { return null; }
+            @Override public boolean configured() { return true; }
+            @Override public void download(String key, java.nio.file.Path destination) { }
+            @Override public void upload(String key, String type, java.nio.file.Path source) { }
         };
         return new StorageEntryMedia(storage, command -> {
             commands.add(command);

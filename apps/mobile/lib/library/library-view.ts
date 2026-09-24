@@ -69,3 +69,13 @@ export function deleteDecision(video: Pick<Video, 'usage' | 'purged_at'>): Delet
   if (!inUse) return { kind: 'delete' };
   return { kind: 'in_use', usage: usageLabel(video.usage), canPurge: video.purged_at === null };
 }
+
+/**
+ * 보관함 칸의 첫 장면 사진 (SOMA-562). 서버가 뒤에서 만든 포스터의 서명 주소는 10분마다 바뀌므로
+ * 서명(쿼리)을 뗀 주소를 캐시 키로 써서 목록을 다시 받아도 사진을 새로 받지 않는다.
+ */
+export function posterFor(item: LibraryItem): { uri: string; cacheKey: string } | null {
+  if (item.kind !== 'video' || item.video.purged_at || !item.video.poster_url) return null;
+  const uri = item.video.poster_url;
+  return { uri, cacheKey: uri.split('?')[0] };
+}

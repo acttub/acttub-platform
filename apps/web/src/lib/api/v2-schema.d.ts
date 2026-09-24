@@ -1275,7 +1275,8 @@ export interface paths {
         /**
          * List Videos
          * @description 보관함을 최신 저장순으로. 필터는 all·recent7(최근 7일)·favorite 이고 예시 영상을 섞지 않는다.
-         *     재생 주소는 상세에만 있다.
+         *     재생 주소는 상세에만 있다. 포스터(첫 장면 JPEG)의 10분 서명 주소 poster_url 은 목록에도 있고,
+         *     아직 만들지 않았거나 파기된 영상은 null 이다.
          */
         get: operations["list_videos_v2_videos_get"];
         put?: never;
@@ -2196,6 +2197,8 @@ export interface components {
             playback_url?: string | null;
             /** Playback Expires At */
             playback_expires_at?: string | null;
+            /** Poster Url */
+            poster_url?: string | null;
         };
         /** VideoUsage */
         VideoUsage: {
