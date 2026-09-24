@@ -1,4 +1,5 @@
 import Feather from '@expo/vector-icons/Feather';
+import { Image } from 'expo-image';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -10,7 +11,7 @@ import { api } from '@/lib/api';
 import { formatClipDuration, relativeDayLabel } from '@/lib/archive-format';
 import { useAuth } from '@/lib/auth';
 import { translate as t } from '@/lib/i18n';
-import { cellCaption, mergeLibrary, type LibraryItem } from '@/lib/library/library-view';
+import { cellCaption, mergeLibrary, posterFor, type LibraryItem } from '@/lib/library/library-view';
 import { onLibraryChange, pendingLibraryUploads, takeDiscardedCount } from '@/lib/library/library-runner';
 import type { Video, VideoFilter } from '@/lib/library/types';
 import { videoErrorMessage } from '@/lib/library/video-checks';
@@ -187,9 +188,20 @@ export default function ArchiveScreen() {
           </View>
         ) : (
           <View style={styles.grid}>
-            {items.map((item) => (
+            {items.map((item) => {
+              const poster = posterFor(item);
+              return (
               <Pressable key={item.key} style={styles.cell} onPress={() => open(item)} accessibilityRole="button">
                 <View style={[styles.thumb, item.kind === 'pending' && styles.thumbPending]}>
+                  {/* 첫 장면 사진 — 서버가 만들기 전(방금 올린 영상)엔 어두운 칸 그대로다 (SOMA-562). */}
+                  {poster && (
+                    <Image
+                      source={{ uri: poster.uri, cacheKey: poster.cacheKey }}
+                      style={StyleSheet.absoluteFill}
+                      contentFit="cover"
+                      transition={150}
+                    />
+                  )}
                   {item.kind === 'video' && (
                     <Pressable style={styles.star} hitSlop={6} onPress={() => void toggleFav(item)} accessibilityRole="button">
                       <Feather name="star" size={16} color={item.favorite ? '#F5B324' : 'rgba(255,255,255,0.7)'} />
@@ -209,7 +221,8 @@ export default function ArchiveScreen() {
                   {cellCaption(item)}
                 </Text>
               </Pressable>
-            ))}
+              );
+            })}
           </View>
         )}
         {nextCursor && (
