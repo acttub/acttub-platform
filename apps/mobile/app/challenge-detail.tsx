@@ -27,6 +27,7 @@ import { ChallengeReportSheet } from '@/components/challenge-report-sheet';
 import { buildReportBody, reportDoneMessage, reportFailure, reportFailureMessage } from '@/lib/challenge/moderation';
 import type { ChallengeDetail, EntrySort, ReportReason } from '@/lib/challenge/types';
 import { newRequestId } from '@/lib/request-id';
+import { postedAtLabel } from '@/lib/time-label';
 import { translate as t } from '@/lib/i18n';
 
 type Ranked = RankedEntry;
@@ -264,6 +265,7 @@ export default function ChallengeDetailScreen() {
                       {entry.author.name}
                     </Text>
                     {entry.isNew && <Text style={styles.newBadge}>{t('challenges.newBadge')}</Text>}
+                    {!!entry.published_at && <Text style={styles.postedAt}>{postedAtLabel(entry.published_at)}</Text>}
                   </View>
                   {!!entry.caption && (
                     <Text style={styles.caption} numberOfLines={2}>
@@ -352,8 +354,9 @@ const styles = StyleSheet.create({
   avatarText: { fontSize: 12, fontWeight: '900', color: palette.blueDeep },
   entryBody: { flex: 1, gap: 3 },
   entryHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  author: { fontSize: 14.5, fontWeight: '700', color: palette.text },
+  author: { flexShrink: 1, fontSize: 14.5, fontWeight: '700', color: palette.text },
   newBadge: { fontSize: 10.5, fontWeight: '900', color: palette.blue },
+  postedAt: { fontSize: 11.5, color: palette.textFaint },
   caption: { fontSize: 12.5, color: palette.textFaint, lineHeight: 19 },
   firstBadge: { fontSize: 12, fontWeight: '800', color: palette.blueDeep },
   likeChip: { flexDirection: 'row', alignItems: 'center', gap: 4 },

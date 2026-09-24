@@ -2,7 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
@@ -25,6 +25,7 @@ import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide
 import { TutorialIntroSheet, type TutorialChoice } from '@/components/tutorial-intro-sheet';
 import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
 import { StreakCelebrationScreen } from '@/components/streak-celebration-screen';
+import { HomeMascot } from '@/components/home-mascot';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { TARGET } from '@/lib/spotlight-targets';
 import {
@@ -35,7 +36,6 @@ import {
 } from '@/lib/streak-celebration';
 
 const PREVIEW_COUNT = 3;
-const MASCOT = require('@/assets/images/mascot-home.png');
 /** 연속 연습 스트립의 주황(pen). 팔레트의 amber는 글자용이라 따로 둔다. */
 const STREAK_ORANGE = '#E9A23B';
 
@@ -200,12 +200,7 @@ export default function HomeScreen() {
             <Text style={styles.heroTitle}>{t('home.heroTitle')}</Text>
             <Text style={styles.heroSub}>{t('home.heroSub')}</Text>
           </View>
-          <View style={styles.mascotCol}>
-            <View style={styles.bubble}>
-              <Text style={styles.bubbleText}>{t('home.mascotBubble')}</Text>
-            </View>
-            <Image source={MASCOT} style={styles.mascot} resizeMode="contain" />
-          </View>
+          <HomeMascot streak={streak} />
         </View>
 
         {/* 지금 바로 연습하기 — 배너 전체가 버튼 */}
@@ -373,17 +368,6 @@ const styles = StyleSheet.create({
   hero: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingTop: 12 },
   heroTitle: { fontSize: 26, fontWeight: '800', color: palette.text, lineHeight: 34 },
   heroSub: { fontSize: 13, fontWeight: '600', color: palette.textDim, lineHeight: 20, marginTop: 12 },
-  mascotCol: { width: 118, alignItems: 'center', gap: 4 },
-  bubble: {
-    backgroundColor: palette.card,
-    borderColor: palette.border,
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  bubbleText: { fontSize: 11.5, fontWeight: '700', color: palette.textDim, textAlign: 'center', lineHeight: 16 },
-  mascot: { width: 96, height: 108 },
 
   cta: {
     flexDirection: 'row',

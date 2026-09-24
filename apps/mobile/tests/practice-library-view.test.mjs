@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { deleteDecision, mergeLibrary, statusLabel, usageLabel } from '../lib/library/library-view.ts';
+import { cellCaption, deleteDecision, mergeLibrary, statusLabel, usageLabel } from '../lib/library/library-view.ts';
 
 const NOW = Date.parse('2026-09-21T12:00:00+09:00');
 const DAY = 86_400_000;
@@ -47,4 +47,15 @@ test('practice.library: 사용처는 "회차 n개 · 챌린지 참여작 n개"�
   assert.deepEqual(deleteDecision(video('v1')), { kind: 'delete' });
   assert.deepEqual(deleteDecision(video('v2', { usage: { practice_count: 2, entry_count: 0 } })), { kind: 'in_use', usage: '회차 2개 · 챌린지 참여작 0개', canPurge: true });
   assert.deepEqual(deleteDecision(video('v3', { usage: { practice_count: 2, entry_count: 0 }, purged_at: '2026-09-20T00:00:00Z' })), { kind: 'in_use', usage: '회차 2개 · 챌린지 참여작 0개', canPurge: false });
+});
+
+test('practice.library: 보관함 칸은 저장된 영상이면 어디에 쓰였는지를, 아니면 상태를 짧게 보여 준다 (SOMA-494)', () => {
+  const one = (o) => mergeLibrary({ videos: [video('v', o)], pending: [], filter: 'all', now: NOW })[0];
+  assert.equal(cellCaption(one({ usage: { practice_count: 2, entry_count: 1 } })), '연습 2회 · 챌린지 1개');
+  assert.equal(cellCaption(one({ usage: { practice_count: 3, entry_count: 0 } })), '연습 3회');
+  assert.equal(cellCaption(one({ usage: { practice_count: 0, entry_count: 1 } })), '챌린지 1개');
+  assert.equal(cellCaption(one({})), '아직 안 쓴 영상');
+  assert.equal(cellCaption(one({ purged_at: '2026-09-20T00:00:00Z', usage: { practice_count: 1, entry_count: 0 } })), '재생할 수 없어요');
+  const queued = mergeLibrary({ videos: [], pending: [pending('p1')], filter: 'all', now: NOW })[0];
+  assert.equal(cellCaption(queued), '기기에 저장 · 업로드 대기');
 });
