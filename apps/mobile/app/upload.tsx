@@ -569,6 +569,8 @@ const styles = StyleSheet.create({
     borderColor: '#CFE0F5',
     borderRadius: 18,
     paddingVertical: 34,
+    // 버튼 두 개가 테두리에 붙지 않게 좌우 여백을 둔다 (SOMA-494).
+    paddingHorizontal: 20,
     alignItems: 'center',
     gap: 8,
   },

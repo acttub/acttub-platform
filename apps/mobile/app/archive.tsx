@@ -10,7 +10,7 @@ import { api } from '@/lib/api';
 import { formatClipDuration, relativeDayLabel } from '@/lib/archive-format';
 import { useAuth } from '@/lib/auth';
 import { translate as t } from '@/lib/i18n';
-import { mergeLibrary, statusLabel, type LibraryItem } from '@/lib/library/library-view';
+import { cellCaption, mergeLibrary, type LibraryItem } from '@/lib/library/library-view';
 import { onLibraryChange, pendingLibraryUploads, takeDiscardedCount } from '@/lib/library/library-runner';
 import type { Video, VideoFilter } from '@/lib/library/types';
 import { videoErrorMessage } from '@/lib/library/video-checks';
@@ -206,7 +206,7 @@ export default function ArchiveScreen() {
                 </View>
                 <Text style={styles.cellLabel}>{relativeDayLabel(new Date(item.createdAt).toISOString())}</Text>
                 <Text style={[styles.cellStatus, item.kind === 'pending' && styles.cellStatusPending]} numberOfLines={1}>
-                  {statusLabel(item)}
+                  {cellCaption(item)}
                 </Text>
               </Pressable>
             ))}

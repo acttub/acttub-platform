@@ -47,6 +47,20 @@ export function usageLabel(usage: VideoUsage): string {
   return t('archive.usage', { practices: usage.practice_count, entries: usage.entry_count });
 }
 
+/**
+ * 보관함 칸 밑 한 줄 — 저장된 영상은 어디에 쓰였는지("연습 2회 · 챌린지 1개"), 올리는 중이거나
+ * 파기된 영상은 상태. 상세를 열지 않아도 어떤 영상인지 알게 한다 (SOMA-494).
+ */
+export function cellCaption(item: LibraryItem): string {
+  if (item.kind === 'pending' || item.video.purged_at) return statusLabel(item);
+  const { practice_count: practices, entry_count: entries } = item.video.usage;
+  const parts = [
+    practices > 0 ? t('archive.cellPractices', { n: practices }) : null,
+    entries > 0 ? t('archive.cellEntries', { n: entries }) : null,
+  ].filter((part): part is string => part !== null);
+  return parts.length > 0 ? parts.join(' · ') : t('archive.cellUnused');
+}
+
 export type DeleteDecision = { kind: 'delete' } | { kind: 'in_use'; usage: string; canPurge: boolean };
 
 /** 참조가 없을 때만 지운다. 참조가 있으면 사용처와 "파일만 파기"(아직 파기하지 않았을 때)를 안내한다. */
