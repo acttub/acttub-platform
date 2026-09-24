@@ -120,7 +120,7 @@ export default function ReadingRoles() {
   return (
     <View style={styles.root}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.step}>STEP 2 · 배역 선택</Text>
+        <Text style={styles.step}>STEP 3 · 배역 선택</Text>
         <Text style={styles.title}>{t('reading.rolesHeading')}</Text>
         <Text style={styles.sub}>{single ? t('reading.singleRoleNote') : t('reading.rolesSub')}</Text>
 
