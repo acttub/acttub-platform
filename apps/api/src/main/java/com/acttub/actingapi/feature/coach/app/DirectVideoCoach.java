@@ -27,9 +27,17 @@ public final class DirectVideoCoach {
     private final FailureReporter failures;
     private final LlmTelemetry telemetry;
     private final DirectVideoRouting routing;
+    // 연습 루프 프롬프트 하나로 대화 전체를 끌고 간다(분류·과제 조립을 건너뛴다). 배포가 정한다.
+    private final boolean practiceLoop;
 
     public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
             FailureReporter failures, LlmTelemetry telemetry) {
+        this(model, videos, storage, failures, telemetry, false);
+    }
+
+    public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
+            FailureReporter failures, LlmTelemetry telemetry, boolean practiceLoop) {
+        this.practiceLoop = practiceLoop;
         this.model = model;
         this.videos = videos;
         this.storage = storage;
@@ -38,14 +46,23 @@ public final class DirectVideoCoach {
         this.routing = new DirectVideoRouting(model, failures, telemetry::record);
     }
 
+    public boolean practiceLoop() {
+        return practiceLoop;
+    }
+
     public CoachResult turn(CoachSessionSnapshot session, String actorText, UUID operationId) {
         Path local = null;
         DirectVideoModel.Video uploaded = null;
         Instant started = Instant.now();
+        boolean loop = practiceLoop && DirectVideoPracticeLoop.applies(session);
         var history = new ArrayList<DirectVideoModel.Message>();
-        session.turns().forEach(turn -> history.add(new DirectVideoModel.Message(
-                "ai".equals(turn.role()) ? "model" : "user", turn.text())));
-        if (actorText != null) history.add(new DirectVideoModel.Message("user", actorText));
+        if (loop) {
+            history.addAll(DirectVideoPracticeLoop.history(session.turns(), session.coachingState(), actorText));
+        } else {
+            session.turns().forEach(turn -> history.add(new DirectVideoModel.Message(
+                    "ai".equals(turn.role()) ? "model" : "user", turn.text())));
+            if (actorText != null) history.add(new DirectVideoModel.Message("user", actorText));
+        }
         String input = "";
         String route = "";
         boolean routeFallback = false;
@@ -67,16 +84,28 @@ public final class DirectVideoCoach {
                 if (System.nanoTime() >= deadline) throw new IllegalStateException("video processing timed out");
                 Thread.sleep(1000);
             }
-            var selection = routing.select(history, actorText, actorFinished || turnBudget,
-                    session.practiceSessionId(), session.userId(), operationId);
-            route = selection.label();
-            routeFallback = selection.fallback();
+            String task;
+            if (loop) {
+                // 종료("그만")도 연습 루프가 해 본 횟수로 닫는다. 서버는 아래에서 세션만 닫는다.
+                route = "practice_loop";
+                task = DirectVideoPrompts.practiceLoop();
+            } else {
+                var selection = routing.select(history, actorText, actorFinished || turnBudget,
+                        session.practiceSessionId(), session.userId(), operationId);
+                route = selection.label();
+                routeFallback = selection.fallback();
+                task = selection.prompt();
+            }
             String prompt = CoachPrompt.actorProfileBlock(session.actorProfile())
-                    + CoachPrompt.priorContextBlock(session.priorForModel(), true) + selection.prompt();
+                    + CoachPrompt.priorContextBlock(session.priorForModel(), true) + task;
             input = CoachPrompt.withoutActorName(prompt, session.actorProfile()) + "\n" + history;
             ExternalOperationExecution.externalCall("model");
             String message = model.reply(uploaded, history, prompt);
             if (message == null || message.isBlank()) throw new IllegalStateException("empty video coaching reply");
+            var parsed = loop ? DirectVideoPracticeLoop.parse(message) : null;
+            // 배우에게는 코치 본문만 저장한다. 숨은 칸(<설계>·<상태>)은 아래에서 상태에 둔다.
+            String shown = loop ? parsed.message() : message.strip();
+            if (shown.isBlank()) throw new IllegalStateException("empty video coaching reply");
             telemetry.record(new LlmCall(LlmStep.COACH_TURN, session.practiceSessionId(), session.userId(),
                     model.model(), input, message, LlmTokens.unknown(), started, Duration.between(started, Instant.now()),
                     null, LlmCall.metadata("transport", "gemini_direct_video", "route", route,
@@ -85,9 +114,11 @@ public final class DirectVideoCoach {
                     : ((ObjectNode) session.coachingState()).deepCopy();
             CoachingStateReducer.require(state.path("revision").asLong() == session.stateRevision(), "stored revision mismatch");
             state.put("revision", session.stateRevision() + 1);
+            if (loop) DirectVideoPracticeLoop.remember(state, parsed);
             // Plain coaching prose is not structured evidence or a confirmed actor intention.
-            return StructuredCoachEngine.result(session, actorText, message.strip(), state,
-                    actorFinished ? "actor_finished" : turnBudget ? "turn_budget" : null);
+            return StructuredCoachEngine.result(session, actorText, shown, state,
+                    actorFinished ? "actor_finished" : turnBudget ? "turn_budget"
+                            : loop && DirectVideoPracticeLoop.finished(parsed) ? "interrupted" : null);
         } catch (Exception failure) {
             if (failure instanceof InterruptedException) Thread.currentThread().interrupt();
             failures.report(failure, FailureKind.EXTERNAL, new FailureContext("DirectVideoCoach.turn", operationId));
