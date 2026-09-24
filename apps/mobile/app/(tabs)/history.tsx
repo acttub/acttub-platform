@@ -17,9 +17,6 @@ import {
   type HistoryRow,
 } from '@/lib/practice/groups';
 import type { PracticeGroup, PracticeGroupFilter } from '@/lib/practice/types';
-import { readingHistoryRows } from '@/lib/reading/session-cards';
-import { listScripts, listSessions, loadIntoCurrent } from '@/lib/reading/store';
-import type { SessionCard } from '@/lib/reading/types';
 import { useRequireLogin } from '@/hooks/use-require-login';
 
 type Row = HistoryRow & {
@@ -30,17 +27,16 @@ type Row = HistoryRow & {
 };
 
 /**
- * A1.1 연습 기록 — 연습 묶음과 리딩 회차의 목록.
+ * A1.1 연습 기록 — AI 코치와 한 연습 묶음의 목록.
  *
  * 기록은 묶음 단위다(practice.library). 묶음의 제목은 마지막 회차 노트의 제목이고, 없으면 상황
  * 문장, 그것도 없으면 "제목 없는 연습"이다. 필터는 전체·즐겨찾기·최근 30일이고 월별로 묶는다.
- * 숨김은 묶음 전체이며 노트·대화·기억은 지우지 않고 영상은 보관함에 남는다. 리딩 회차는 앱이
- * 리딩 목록을 받아 함께 섞어 보인다(03-reading).
+ * 숨김은 묶음 전체이며 노트·대화·기억은 지우지 않고 영상은 보관함에 남는다. 대본 리딩은 여기
+ * 섞지 않는다 — 리딩 기록은 대본 탭의 대본 상세에서 본다(SOMA-494).
  */
 export default function HistoryScreen() {
   const router = useRouter();
   const [groups, setGroups] = useState<PracticeGroup[]>([]);
-  const [readingRows, setReadingRows] = useState<HistoryRow[]>([]);
   const [filter, setFilter] = useState<PracticeGroupFilter>('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,34 +48,12 @@ export default function HistoryScreen() {
     // 둘러보는 중에는 서버 계정이 없어 보호된 목록을 요청하지 않는다.
     if (isGuest) {
       setGroups([]);
-      setReadingRows([]);
       setLoading(false);
       return;
     }
     try {
-      // 리딩 목록은 실패해도 연습 기록만으로 화면이 서야 하므로 따로 삼킨다.
-      const [groupList, savedScripts] = await Promise.all([
-        api.listPracticeGroups('all'),
-        listScripts().catch(() => null),
-      ]);
+      const groupList = await api.listPracticeGroups('all');
       setGroups(groupList.groups);
-      const practiced = (savedScripts?.scripts ?? []).filter((s) => !!s.last_practiced_at).slice(0, 10);
-      const bySession: Record<string, SessionCard[]> = {};
-      await Promise.all(
-        practiced.map(async (s) => {
-          bySession[s.id] = await listSessions(s.id).catch(() => []);
-        }),
-      );
-      setReadingRows(
-        readingHistoryRows(practiced, bySession).map((r) => ({
-          id: r.id,
-          at: r.startedAt,
-          kind: 'reading' as const,
-          title: r.title,
-          meta: r.meta,
-          scriptId: r.scriptId,
-        })) as (HistoryRow & { scriptId: string })[],
-      );
     } catch (err) {
       setError(err instanceof Error ? err.message : t('history.loadFail'));
     } finally {
@@ -138,10 +112,6 @@ export default function HistoryScreen() {
     });
   };
 
-  const openScript = async (scriptId: string) => {
-    if (await loadIntoCurrent(scriptId)) router.push('/reading/detail');
-  };
-
   const dayLabel = (iso: string) => formatKoreanDate(iso, { month: 'long', day: 'numeric' });
 
   const rows = useMemo<Row[]>(() => {
@@ -156,19 +126,9 @@ export default function HistoryScreen() {
       onPress: () => openGroup(group.root_id),
       onLongPress: () => onGroupMenu(group),
     }));
-    // 리딩 회차는 필터를 타지 않는다 — 연습 묶음의 속성(즐겨찾기·숨김)이 없다.
-    const readings =
-      filter === 'all'
-        ? readingRows.map<Row>((r) => ({
-            ...r,
-            icon: 'mic',
-            chips: [],
-            onPress: () => void openScript((r as HistoryRow & { scriptId: string }).scriptId),
-          }))
-        : [];
-    return mergeHistoryRows(practices, readings) as Row[];
+    return mergeHistoryRows(practices, []) as Row[];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [groups, readingRows, filter]);
+  }, [groups, filter]);
 
   // 월별 그룹 — 라벨은 "8월"처럼 짧게. 해가 바뀌면 연도를 붙인다.
   const monthGroups = useMemo(() => {
@@ -207,8 +167,6 @@ export default function HistoryScreen() {
           <Stat value={t('history.countTimes', { count: roundTotal })} label={t('history.statTotal')} />
           <View style={styles.statDivider} />
           <Stat value={t('history.countItems', { count: groups.length })} label={t('history.statLines')} />
-          <View style={styles.statDivider} />
-          <Stat value={t('history.countTimes', { count: readingRows.length })} label={t('history.readingLabel')} />
         </View>
 
         <View style={styles.filters}>

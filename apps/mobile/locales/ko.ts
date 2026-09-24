@@ -633,8 +633,6 @@ const ko = {
     filterRecent: '최근 30일',
     favEmpty: '즐겨찾기한 기록이 아직 없어요.',
     statusDone: '분석 완료',
-    readingLabel: '리딩',
-    recordingCount: '녹음 {{count}}개',
     loadFail: '기록을 불러오지 못했어요.',
     deleteTitle: '삭제할까요?',
     deleteReportMsg: '이 연습 기록을 지우면 되돌릴 수 없어요.',

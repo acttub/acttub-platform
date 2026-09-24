@@ -55,36 +55,3 @@ export function isPlaybackExpired(rec: Pick<SessionRecording, 'playback_url' | '
   return Number.isNaN(at) ? false : at <= now;
 }
 
-export type ReadingHistoryRow = {
-  id: string;
-  scriptId: string;
-  sessionId: string;
-  title: string;
-  meta: string;
-  startedAt: string;
-  status: ReadingSessionStatus;
-};
-
-/** 연습 기록(A1.1)에 섞을 리딩 회차 항목 — 서버는 잇지 않고 앱이 두 목록을 합친다. 최신순. */
-export function readingHistoryRows(
-  scripts: { id: string; title: string }[],
-  sessionsByScript: Record<string, SessionCard[]>,
-  now: number = Date.now(),
-): ReadingHistoryRow[] {
-  const rows: ReadingHistoryRow[] = [];
-  for (const script of scripts) {
-    for (const s of sessionsByScript[script.id] ?? []) {
-      const role = s.my_character_names[0];
-      rows.push({
-        id: `rs:${s.id}`,
-        scriptId: script.id,
-        sessionId: s.id,
-        title: role ? `${script.title} · ${role} ${t('history.readingLabel')}` : script.title,
-        meta: `${relativeDay(s.started_at, now)} · ${sessionStatusLabel(s.status)} · ${t('history.recordingCount', { count: s.recorded_line_count })}`,
-        startedAt: s.started_at,
-        status: s.status,
-      });
-    }
-  }
-  return rows.sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt));
-}

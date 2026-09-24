@@ -641,8 +641,6 @@ const en: DeepStringShape<typeof ko> = {
     filterRecent: 'Last 30 days',
     favEmpty: 'No favorited records yet.',
     statusDone: 'Analyzed',
-    readingLabel: 'reading',
-    recordingCount: '{{count}} recordings',
     title: 'Practice history',
     loadFail: 'Couldn’t load your history.',
     deleteTitle: 'Delete this?',
