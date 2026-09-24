@@ -67,3 +67,19 @@ export function celebrationDots(
     state: day.count > 0 ? (day.isToday ? 'today' : 'done') : 'empty',
   }));
 }
+
+/**
+ * 홈이 연속일을 볼 때 할 일. 기록을 아직 못 받았으면(연속일이 잠깐 0) 아무것도 하지 않는다 —
+ * 그때 0 을 기억하면 기록이 오는 순간 늘었다고 보고 매번 다시 축하한다(SOMA-494, 실기기).
+ */
+export function streakCelebrationStep(input: {
+  loaded: boolean;
+  lastSeen: number;
+  current: number;
+}): { celebrate: boolean; remember: number | null } {
+  if (!input.loaded) return { celebrate: false, remember: null };
+  return {
+    celebrate: shouldCelebrateStreak(input.lastSeen, input.current),
+    remember: Math.max(0, Math.trunc(input.current)),
+  };
+}

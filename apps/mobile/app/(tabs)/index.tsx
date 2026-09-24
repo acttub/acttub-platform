@@ -31,7 +31,7 @@ import { TARGET } from '@/lib/spotlight-targets';
 import {
   readLastSeenStreak,
   celebrationDots,
-  shouldCelebrateStreak,
+  streakCelebrationStep,
   writeLastSeenStreak,
 } from '@/lib/streak-celebration';
 
@@ -59,6 +59,8 @@ export default function HomeScreen() {
   const { isGuest, requireLogin, element: loginGuard } = useRequireLogin();
   // 연속일·주간 원용 날짜 — 서버 기록 ∪ 기기에 누적된 연습일(지워도 남는다).
   const [activityDays, setActivityDays] = useState<{ created_at: string }[]>([]);
+  // 기록을 한 번이라도 받았는지 — 받기 전의 연속일(0)로 축하를 판단하면 안 된다.
+  const [activityLoaded, setActivityLoaded] = useState(false);
   const [admissions, setAdmissions] = useState<AdmissionsResponse | null>(null);
   const [celebrateStreak, setCelebrateStreak] = useState<number | null>(null);
   // 연습 3회 뒤 한 번 뜨는 의견 넛지 / 5회 뒤 한 번 스토어 평점(feedback-prompts).
@@ -118,14 +120,22 @@ export default function HomeScreen() {
             .flatMap((g) => g.practices.map((round) => round.created_at))
             .filter((at): at is string => typeof at === 'string' && at.length > 0)
             .map((created_at) => ({ created_at }));
-          void rememberPracticeDays(practicedAt).then((days) => !cancelled && setActivityDays(days));
+          void rememberPracticeDays(practicedAt).then((days) => {
+            if (cancelled) return;
+            setActivityDays(days);
+            setActivityLoaded(true);
+          });
           void feedbackNudgeVisible(r.groups.length).then((v) => !cancelled && setNudge(v));
           void maybeRequestStoreReview(r.groups.length);
         })
         .catch(() => {
           if (!cancelled) {
             setGroups([]);
-            void rememberPracticeDays([]).then((days) => !cancelled && setActivityDays(days));
+            void rememberPracticeDays([]).then((days) => {
+              if (cancelled) return;
+              setActivityDays(days);
+              setActivityLoaded(true);
+            });
           }
         });
       return () => {
@@ -163,17 +173,20 @@ export default function HomeScreen() {
   const streak = useMemo(() => practiceStreak(activityDays.map((d) => d.created_at)), [activityDays]);
 
   // 연속일이 오늘 늘었으면(마지막으로 본 값보다 크면) 딱 한 번 축하한다 (SOMA-479).
+  // 기록을 받기 전엔 판단하지 않는다 — 그때의 0 을 기억하면 켤 때마다 다시 축하한다(SOMA-494).
   useEffect(() => {
+    if (!activityLoaded) return;
     let cancelled = false;
     void readLastSeenStreak().then((lastSeen) => {
       if (cancelled) return;
-      if (shouldCelebrateStreak(lastSeen, streak)) setCelebrateStreak(streak);
-      void writeLastSeenStreak(streak);
+      const step = streakCelebrationStep({ loaded: activityLoaded, lastSeen, current: streak });
+      if (step.celebrate) setCelebrateStreak(streak);
+      if (step.remember !== null) void writeLastSeenStreak(step.remember);
     });
     return () => {
       cancelled = true;
     };
-  }, [streak]);
+  }, [activityLoaded, streak]);
 
   // 홈의 최근 연습은 숨기지 않은 묶음 3개다.
   const recent = useMemo(() => recentGroups(groups, PREVIEW_COUNT), [groups]);
