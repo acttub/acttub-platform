@@ -1,7 +1,14 @@
 package com.acttub.actingapi.feature.coach.app;
 
+import com.acttub.actingapi.integration.llm.StructuredJson;
+
 final class DirectVideoPrompts {
     private DirectVideoPrompts() {}
+
+    /** 배우의 버릇을 비추고 질문으로 들여다보게 하는 연습 루프 프롬프트. */
+    static String practiceLoop() {
+        return StructuredJson.textResource("/coaching/direct-video/practice-loop.txt").strip();
+    }
 
     static String common() {
         return """

@@ -127,4 +127,76 @@ class DirectVideoCoachTest {
         assertThat(failures.reports()).anyMatch(report -> report.context().startsWith("DirectVideoCoach.turn"))
                 .anyMatch(report -> report.context().startsWith("DirectVideoCoach.delete"));
     }
+
+    static final String OPENING = "<설계>\n소리 빠르기: 없음\n버릇: 말끝을 툭 떨어뜨려요 | 곳1: \"그냥 가\" | 곳2: \"할 수 있으니까\"\n다음 테이크: 말끝을 끝까지 올려 보기\n인물: 붙잡히길 바란다\n</설계>\n"
+            + "<코치>\n말끝을 늘 툭 떨어뜨려요. \"그냥 가\"도요.\n인물 때문일 수도, 평소 습관일 수도 있어요.\n평소에도 말끝을 내리는 편이에요?\n</코치>";
+    static final String OPENING_SHOWN = "말끝을 늘 툭 떨어뜨려요. \"그냥 가\"도요.\n인물 때문일 수도, 평소 습관일 수도 있어요.\n평소에도 말끝을 내리는 편이에요?";
+
+    CoachEngine practiceLoopEngine() {
+        return new CoachEngine(oldGenerator, failures, telemetry, Optional.of(
+                new DirectVideoCoach(model, videos, storage, failures, telemetry, true)));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test void practiceLoopShowsOnlyCoachTextAndReplaysHiddenDesignAndStatus() {
+        var loopEngine = practiceLoopEngine();
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING,
+                "<상태>파고들기 · 응답 2번째</상태>\n평소에도 그렇군요.\n그때 속으로는 어땠어요?ㄴ");
+        var first = loopEngine.start(session(), UUID.randomUUID());
+        assertThat(first.reply().message()).isEqualTo(OPENING_SHOWN);
+        assertThat(first.session().coachingState().path("practice_loop").path("design").asText()).contains("버릇:");
+        var second = loopEngine.reply(first.session(), "네 그래요", UUID.randomUUID());
+        assertThat(second.reply().message()).isEqualTo("평소에도 그렇군요.\n그때 속으로는 어땠어요?");
+        var histories = org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(model, times(2)).reply(eq(file), histories.capture(), eq(DirectVideoPrompts.practiceLoop()));
+        assertThat(histories.getAllValues().get(1)).containsExactly(
+                new DirectVideoModel.Message("model", OPENING), new DirectVideoModel.Message("user", "네 그래요"));
+    }
+
+    @Test void practiceLoopClosesAndWritesANoteFromTheLoopItself() {
+        var loopEngine = practiceLoopEngine();
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING,
+                "<상태>파고들기 · 응답 2번째</상태>\n그때 속으로는 어땠어요?",
+                "<상태>이어보기 · 응답 3번째</상태>\n이 인물에게도 맞을까요?",
+                "<상태>마무리1 · 응답 4번째</상태>\n오늘 나에 대해 한 줄로 적는다면요?",
+                "<상태>마무리2 · 응답 5번째</상태>\n그대로 적어 둘게요.\n다음 테이크에서는 말끝을 끝까지 올려 봐도 좋아요.");
+        var turn = loopEngine.start(session(), UUID.randomUUID());
+        for (String actor : List.of("네", "빨리 끝내고 싶어서요", "인물은 붙잡히길 바랄 것 같아요", "나는 말끝으로 도망가는 배우다")) {
+            turn = loopEngine.reply(turn.session(), actor, UUID.randomUUID());
+        }
+        assertThat(turn.reply().status()).isEqualTo("complete");
+        StructuredJson.validate("coach_handoff_v2", turn.reply().handoff());
+        var note = DirectVideoPracticeLoop.practiceNote(turn.session(), turn.reply().handoff());
+        assertThat(note).isNotNull();
+        assertThat(note.path("mode").asText()).isEqualTo("action");
+        assertThat(note.path("copy").path("title").asText()).isEqualTo("말끝을 툭 떨어뜨려요");
+        assertThat(note.path("copy").path("summary").path("text").asText()).isEqualTo("나는 말끝으로 도망가는 배우다");
+        assertThat(note.path("practice").path("instruction").path("text").asText()).isEqualTo("말끝을 끝까지 올려 보기");
+        verify(model, never()).classify(any(), anyList(), anyString());
+        assertThat(DirectVideoPracticeLoop.practiceNote(session(), turn.reply().handoff())).isNull();
+    }
+
+    @Test void sessionsOpenedBeforeThePracticeLoopKeepTheCommonPrompt() {
+        var turns = List.of(new CoachTurnSnapshot("ai", "기존 첫 피드백이에요."));
+        practiceLoopEngine().reply(session().withTurns(turns), "겁주려는 거야", UUID.randomUUID());
+        verify(model).reply(eq(file), anyList(), eq(DirectVideoPrompts.common()));
+    }
+
+    @Test void actorStopEndsThePracticeLoop() {
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING,
+                "<상태>끝 · 응답 2번째</상태>\n오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요.");
+        var loopEngine = practiceLoopEngine();
+        var opened = loopEngine.start(session(), UUID.randomUUID());
+        var stopped = loopEngine.reply(opened.session(), "그만", UUID.randomUUID());
+        assertThat(stopped.session().closeReason()).isEqualTo("actor_finished");
+        assertThat(stopped.reply().message()).isEqualTo("오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요.");
+    }
+
+    @Test void habitTitleFallsBackToTheDescriptionWhenTheModelWritesACategoryName() {
+        String design = "소리 빠르기: 처음부터 끝까지 일정하고 빠른 편이에요. \"손도 막 떨더라고요\"도요.\n소리 말끝: 없음\n"
+                + "버릇: 소리 빠르기 | 곳1: \"손도\" | 곳2: \"살아야\"\n다음 테이크: 문장 사이 쉬기";
+        assertThat(DirectVideoPracticeLoop.habit(design)).isEqualTo("처음부터 끝까지 일정하고 빠른 편이에요");
+        assertThat(DirectVideoPracticeLoop.habit("버릇: 말끝을 툭 떨어뜨려요 | 곳1: x")).isEqualTo("말끝을 툭 떨어뜨려요");
+        assertThat(DirectVideoPracticeLoop.habit("소리 크기: 없음\n버릇: 소리 크기 | 곳1: x")).isEqualTo("소리 크기");
+    }
 }

@@ -25,7 +25,9 @@ public class DirectVideoConfiguration {
 
     @Bean
     DirectVideoCoach directVideoCoach(DirectVideoModel model, CoachVideoSource videos,
-            ObjectStorage storage, FailureReporter failures, LlmTelemetry telemetry) {
-        return new DirectVideoCoach(model, videos, storage, failures, telemetry);
+            ObjectStorage storage, FailureReporter failures, LlmTelemetry telemetry,
+            // 연습 루프가 기본이다. false 를 명시하면 이전 공통 프롬프트로 돌아간다(롤백).
+            @Value("${ACTTUB_DIRECT_VIDEO_PRACTICE_LOOP:true}") boolean practiceLoop) {
+        return new DirectVideoCoach(model, videos, storage, failures, telemetry, practiceLoop);
     }
 }
