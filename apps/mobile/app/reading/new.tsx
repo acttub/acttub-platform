@@ -1,5 +1,5 @@
 import Feather from '@expo/vector-icons/Feather';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,6 +9,9 @@ import * as DocumentPicker from 'expo-document-picker';
 import { palette } from '@/constants/palette';
 import { useAppDialog } from '@/components/app-dialog';
 import { PdfTextExtractor } from '@/components/pdf-text-extractor';
+import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
+import { useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
+import { TARGET } from '@/lib/spotlight-targets';
 import { extractScriptText, scriptFileRejection } from '@/lib/reading/extract-file';
 import { nextTextSource } from '@/lib/reading/file-input';
 import { SAMPLE_SCRIPT } from '@/lib/reading/sample';
@@ -35,12 +38,18 @@ const PICKER_TYPES = [
 export default function ReadingNew() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [raw, setRaw] = useState('');
+  // 대본 리딩 튜토리얼의 예시(SOMA-494) — 예시 대본을 채운 채 연다.
+  const sample = useLocalSearchParams<{ sample?: string }>().sample === '1';
+  const [raw, setRaw] = useState(() => (sample ? SAMPLE_SCRIPT : ''));
+  const dropTarget = useSpotlightTarget(TARGET.readingDrop);
+  const textTarget = useSpotlightTarget(TARGET.readingText);
+  const nextTarget = useSpotlightTarget(TARGET.readingNext);
+  const tutorialGuide = useTutorialSpotlight('readingNew');
   const [busy, setBusy] = useState(false);
   const { alert, dialog } = useAppDialog();
   // 입력 경로(file·paste·typed·sample)는 글이 어떻게 들어왔는지로 정한다(file-input).
-  const sourceRef = useRef<ScriptSource | null>(null);
-  const rawRef = useRef('');
+  const sourceRef = useRef<ScriptSource | null>(sample ? 'sample' : null);
+  const rawRef = useRef(sample ? SAMPLE_SCRIPT : '');
 
   const onChangeText = (next: string) => {
     sourceRef.current = nextTextSource(sourceRef.current, rawRef.current, next);
@@ -88,7 +97,12 @@ export default function ReadingNew() {
         <Text style={styles.title}>연습할 대본을 넣어주세요</Text>
         <Text style={styles.sub}>대본을 붙여넣으면 화자와 대사를 자동으로 나눠드려요.</Text>
 
-        <Pressable style={styles.dropzone} onPress={onPickFile} disabled={busy}>
+        <Pressable
+          ref={dropTarget.ref}
+          onLayout={dropTarget.onLayout}
+          style={styles.dropzone}
+          onPress={onPickFile}
+          disabled={busy}>
           <Feather name={busy ? 'loader' : 'upload'} size={26} color={palette.blue} />
           <Text style={styles.dropTitle}>{busy ? t('reading.attachReading') : t('reading.attach')}</Text>
           <Text style={styles.dropSub}>TXT·DOCX·PDF 파일 선택 · 아래에 붙여넣어도 돼요</Text>
@@ -99,15 +113,17 @@ export default function ReadingNew() {
           <Text style={styles.sampleText}>예시 대본 불러오기</Text>
         </Pressable>
 
-        <TextInput
-          style={styles.textArea}
-          value={raw}
-          onChangeText={onChangeText}
-          multiline
-          placeholder={t('reading.pastePlaceholder')}
-          placeholderTextColor={palette.textFaint}
-          textAlignVertical="top"
-        />
+        <View ref={textTarget.ref} onLayout={textTarget.onLayout}>
+          <TextInput
+            style={styles.textArea}
+            value={raw}
+            onChangeText={onChangeText}
+            multiline
+            placeholder={t('reading.pastePlaceholder')}
+            placeholderTextColor={palette.textFaint}
+            textAlignVertical="top"
+          />
+        </View>
         <View style={styles.noteRow}>
           <Feather name="lock" size={12} color={palette.textFaint} />
           <Text style={styles.note}>{t('reading.copyrightNote')}</Text>
@@ -115,12 +131,18 @@ export default function ReadingNew() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
-        <Pressable style={[styles.primary, !raw.trim() && styles.primaryOff]} onPress={onNext} disabled={!raw.trim()}>
+        <Pressable
+          ref={nextTarget.ref}
+          onLayout={nextTarget.onLayout}
+          style={[styles.primary, !raw.trim() && styles.primaryOff]}
+          onPress={onNext}
+          disabled={!raw.trim()}>
           <Text style={styles.primaryText}>다음</Text>
         </Pressable>
       </View>
       <PdfTextExtractor />
       {dialog}
+      {tutorialGuide.element}
     </View>
   );
 }

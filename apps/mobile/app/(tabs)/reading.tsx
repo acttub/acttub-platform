@@ -8,7 +8,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
 import { palette } from '@/constants/palette';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
-import { hasSeenSpotlight, markSpotlightSeen } from '@/lib/guide-state';
+import { hasSeenReadingTutorial, hasSeenSpotlight, markReadingTutorialSeen, markSpotlightSeen } from '@/lib/guide-state';
+import { TutorialIntroSheet, type TutorialChoice } from '@/components/tutorial-intro-sheet';
+import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
+import { currentTutorial, startTutorial } from '@/lib/tutorial';
 import { TARGET } from '@/lib/spotlight-targets';
 import { useAppDialog } from '@/components/app-dialog';
 import { dismissLegacyScriptNotice, readLegacyScriptNotice } from '@/lib/reading/legacy-migration-runner';
@@ -51,7 +54,26 @@ function ReadingListContent() {
   const generation = useRef(0);
   // 대본 탭에서 처음 한 번만 — 홈 가이드와 따로 센다 (SOMA-550).
   const [guideOpen, setGuideOpen] = useState(false);
+  // 그보다 먼저, 처음 온 사람에게 대본 리딩 한 바퀴를 권한다(SOMA-494). 닫아야 위 가이드가 뜬다.
+  const [introOpen, setIntroOpen] = useState(false);
   const newTarget = useSpotlightTarget(TARGET.readingNew);
+
+  const openReadingGuideIfNew = useCallback(() => {
+    void hasSeenSpotlight('reading').then((seen) => {
+      if (!seen) setGuideOpen(true);
+    });
+  }, []);
+
+  const chooseTutorial = (choice: TutorialChoice) => {
+    setIntroOpen(false);
+    if (choice === 'later') {
+      void markReadingTutorialSeen();
+      openReadingGuideIfNew();
+      return;
+    }
+    startTutorial(choice, 'reading');
+    router.push(choice === 'sample' ? { pathname: '/reading/new', params: { sample: '1' } } : '/reading/new');
+  };
 
   const load = useCallback(async (keyword: string) => {
     const mine = ++generation.current;
@@ -71,8 +93,11 @@ function ReadingListContent() {
       void load(q);
       void readLegacyScriptNotice().then(setNotice).catch(() => undefined);
       // 올 때마다 묻는다 — 설정에서 되살린 뒤 앱을 다시 켜야 보이면 아무도 못 본다.
-      void hasSeenSpotlight('reading').then((seen) => {
-        if (!seen) setGuideOpen(true);
+      // 대본 리딩 튜토리얼 중에 목록으로 돌아왔다면 루프를 벗어난 것이다 — 거기서 끝낸다.
+      if (currentTutorial()?.track === 'reading') finishTutorial('left');
+      void hasSeenReadingTutorial().then((seen) => {
+        if (!seen) setIntroOpen(true);
+        else openReadingGuideIfNew();
       });
       return () => {
         generation.current += 1;
@@ -254,8 +279,9 @@ function ReadingListContent() {
       {dialog}
 
       {/* 가이드는 제 창에 뜬다 — 목록 어디에 두든 자리를 차지하지 않는다. */}
+      <TutorialIntroSheet visible={introOpen} onChoose={chooseTutorial} track="reading" />
       <SpotlightGuide
-        visible={guideOpen}
+        visible={guideOpen && !introOpen}
         topic="reading"
         steps={READING_STEPS}
         onDone={() => {

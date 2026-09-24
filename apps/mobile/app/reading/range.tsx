@@ -6,6 +6,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
 import { useAppDialog } from '@/components/app-dialog';
+import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
+import { useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
+import { TARGET } from '@/lib/spotlight-targets';
 import { hasMicPermission } from '@/hooks/use-reading-mic';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import { buildStartBody, dialogueNumbers, rangeError, sceneRanges, snapRangeToDialogues } from '@/lib/reading/session-plan';
@@ -36,6 +39,9 @@ export default function ReadingRange() {
 
   const [tab, setTab] = useState<'line' | 'scene'>('scene');
   const [mode, setMode] = useState<ReadingMode>('read');
+  const modeTarget = useSpotlightTarget(TARGET.readingMode);
+  const rangeStartTarget = useSpotlightTarget(TARGET.readingRangeStart);
+  const tutorialGuide = useTutorialSpotlight('readingRange', { ready: !!script });
   const [mask, setMask] = useState<MaskMode>(script?.maskMode ?? 'none');
   const whole = snapRangeToDialogues(lines, 0, Math.max(0, lines.length - 1));
   const [start, setStart] = useState(whole?.startIndex ?? 0);
@@ -146,7 +152,7 @@ export default function ReadingRange() {
         <Text style={styles.sub}>{script.title} · 대사 {script.dialogueCount}개 · 내 배역 {script.myRoles.join(', ')}</Text>
 
         {/* 방식 */}
-        <View style={styles.modeRow}>
+        <View style={styles.modeRow} ref={modeTarget.ref} onLayout={modeTarget.onLayout}>
           {(['read', 'quiz'] as const).map((m) => (
             <Pressable key={m} style={[styles.modeCard, mode === m && styles.modeCardOn]} onPress={() => setMode(m)}>
               <Text style={[styles.modeTitle, mode === m && styles.modeTitleOn]}>{m === 'read' ? t('reading.modeRead') : t('reading.modeQuiz')}</Text>
@@ -244,11 +250,17 @@ export default function ReadingRange() {
             끝 · {endLine?.type === 'dialogue' ? `${endLine.role} ${endLine.text}` : endLine?.text}
           </Text>
         </View>
-        <Pressable style={[styles.primary, busy && styles.primaryOff]} onPress={onStart} disabled={busy}>
+        <Pressable
+          ref={rangeStartTarget.ref}
+          onLayout={rangeStartTarget.onLayout}
+          style={[styles.primary, busy && styles.primaryOff]}
+          onPress={onStart}
+          disabled={busy}>
           <Text style={styles.primaryText}>{busy ? t('common.saving') : t('reading.startSession', { count: dlgIn })}</Text>
         </Pressable>
       </View>
       {dialog}
+      {tutorialGuide.element}
     </View>
   );
 }

@@ -13,7 +13,8 @@ import type { PracticeGroup } from '@/lib/practice/types';
 import { rememberPracticeDays } from '@/lib/practice-days';
 import { dismissFeedbackNudge, feedbackNudgeVisible, maybeRequestStoreReview } from '@/lib/feedback-prompts';
 import { useFeedbackSheet } from '@/hooks/use-feedback-sheet';
-import { hasSeenSpotlight, markSpotlightSeen } from '@/lib/guide-state';
+import { hasSeenSpotlight, hasSeenTutorial, markSpotlightSeen, markTutorialSeen } from '@/lib/guide-state';
+import { currentTutorial, startTutorial } from '@/lib/tutorial';
 import {
   localDate,
   upcomingNotices,
@@ -22,12 +23,15 @@ import {
 import { useRequireLogin } from '@/hooks/use-require-login';
 import { dateLocale, isKorean, translate as t } from '@/lib/i18n';
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
-import { StreakCelebration } from '@/components/streak-badge';
+import { TutorialIntroSheet, type TutorialChoice } from '@/components/tutorial-intro-sheet';
+import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
+import { StreakCelebrationScreen } from '@/components/streak-celebration-screen';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { TARGET } from '@/lib/spotlight-targets';
 import {
   readLastSeenStreak,
-  shouldCelebrateStreak,
+  celebrationDots,
+  streakCelebrationStep,
   writeLastSeenStreak,
 } from '@/lib/streak-celebration';
 
@@ -55,6 +59,8 @@ export default function HomeScreen() {
   const { isGuest, requireLogin, element: loginGuard } = useRequireLogin();
   // 연속일·주간 원용 날짜 — 서버 기록 ∪ 기기에 누적된 연습일(지워도 남는다).
   const [activityDays, setActivityDays] = useState<{ created_at: string }[]>([]);
+  // 기록을 한 번이라도 받았는지 — 받기 전의 연속일(0)로 축하를 판단하면 안 된다.
+  const [activityLoaded, setActivityLoaded] = useState(false);
   const [admissions, setAdmissions] = useState<AdmissionsResponse | null>(null);
   const [celebrateStreak, setCelebrateStreak] = useState<number | null>(null);
   // 연습 3회 뒤 한 번 뜨는 의견 넛지 / 5회 뒤 한 번 스토어 평점(feedback-prompts).
@@ -62,14 +68,44 @@ export default function HomeScreen() {
   const feedback = useFeedbackSheet('home');
   // 처음 한 번만 가이드 — 누를 자리를 비춰 준다. 설정의 "가이드 다시 보기"로 되살릴 수 있다.
   const [guideOpen, setGuideOpen] = useState(false);
+  // 그보다 먼저, 처음 연 사람에게 연습 한 바퀴를 권한다(SOMA-494). 이걸 닫아야 위 가이드가 뜬다.
+  const [introOpen, setIntroOpen] = useState(false);
   const startTarget = useSpotlightTarget(TARGET.homeStart);
+
+  const openHomeGuideIfNew = useCallback(() => {
+    void hasSeenSpotlight('home').then((seen) => {
+      if (!seen) setGuideOpen(true);
+    });
+  }, []);
+
+  const chooseTutorial = (choice: TutorialChoice) => {
+    setIntroOpen(false);
+    if (choice === 'later') {
+      void markTutorialSeen();
+      openHomeGuideIfNew();
+      return;
+    }
+    if (choice === 'sample') {
+      // 예시는 계정이 없어도 돈다 — 서버를 부르지 않는다.
+      startTutorial('sample');
+      router.push({ pathname: '/upload', params: { sample: '1' } });
+      return;
+    }
+    requireLogin(() => {
+      startTutorial('own');
+      router.push('/upload');
+    });
+  };
 
   useFocusEffect(
     useCallback(() => {
       // 올 때마다 본 적 있는지 묻는다(기기에서 읽는 값이라 싸다). 한 번만 묻고 말면,
       // 설정에서 되살린 뒤 앱을 껐다 켜야 보인다 — 실기기에서 그렇게 걸렸다.
-      void hasSeenSpotlight('home').then((seen) => {
-        if (!seen) setGuideOpen(true);
+      // 튜토리얼 중에 홈으로 돌아왔다면 루프를 벗어난 것이다 — 거기서 끝낸다.
+      if (currentTutorial()) finishTutorial('left');
+      void hasSeenTutorial().then((seen) => {
+        if (!seen) setIntroOpen(true);
+        else openHomeGuideIfNew();
       });
       let cancelled = false;
       // 둘러보는 중엔 계정이 없다 — 보호된 요청은 401 이라 부르지 않는다 (SOMA-544).
@@ -84,20 +120,28 @@ export default function HomeScreen() {
             .flatMap((g) => g.practices.map((round) => round.created_at))
             .filter((at): at is string => typeof at === 'string' && at.length > 0)
             .map((created_at) => ({ created_at }));
-          void rememberPracticeDays(practicedAt).then((days) => !cancelled && setActivityDays(days));
+          void rememberPracticeDays(practicedAt).then((days) => {
+            if (cancelled) return;
+            setActivityDays(days);
+            setActivityLoaded(true);
+          });
           void feedbackNudgeVisible(r.groups.length).then((v) => !cancelled && setNudge(v));
           void maybeRequestStoreReview(r.groups.length);
         })
         .catch(() => {
           if (!cancelled) {
             setGroups([]);
-            void rememberPracticeDays([]).then((days) => !cancelled && setActivityDays(days));
+            void rememberPracticeDays([]).then((days) => {
+              if (cancelled) return;
+              setActivityDays(days);
+              setActivityLoaded(true);
+            });
           }
         });
       return () => {
         cancelled = true;
       };
-    }, [router, isGuest]),
+    }, [router, isGuest, openHomeGuideIfNew]),
   );
 
   useEffect(() => {
@@ -129,17 +173,20 @@ export default function HomeScreen() {
   const streak = useMemo(() => practiceStreak(activityDays.map((d) => d.created_at)), [activityDays]);
 
   // 연속일이 오늘 늘었으면(마지막으로 본 값보다 크면) 딱 한 번 축하한다 (SOMA-479).
+  // 기록을 받기 전엔 판단하지 않는다 — 그때의 0 을 기억하면 켤 때마다 다시 축하한다(SOMA-494).
   useEffect(() => {
+    if (!activityLoaded) return;
     let cancelled = false;
     void readLastSeenStreak().then((lastSeen) => {
       if (cancelled) return;
-      if (shouldCelebrateStreak(lastSeen, streak)) setCelebrateStreak(streak);
-      void writeLastSeenStreak(streak);
+      const step = streakCelebrationStep({ loaded: activityLoaded, lastSeen, current: streak });
+      if (step.celebrate) setCelebrateStreak(streak);
+      if (step.remember !== null) void writeLastSeenStreak(step.remember);
     });
     return () => {
       cancelled = true;
     };
-  }, [streak]);
+  }, [activityLoaded, streak]);
 
   // 홈의 최근 연습은 숨기지 않은 묶음 3개다.
   const recent = useMemo(() => recentGroups(groups, PREVIEW_COUNT), [groups]);
@@ -147,7 +194,11 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       {celebrateStreak !== null && (
-        <StreakCelebration streak={celebrateStreak} onDone={() => setCelebrateStreak(null)} />
+        <StreakCelebrationScreen
+          streak={celebrateStreak}
+          dots={celebrationDots(days)}
+          onDone={() => setCelebrateStreak(null)}
+        />
       )}
       <ScrollView contentContainerStyle={styles.container}>
         {/* 히어로 — 큰 격려 문구 + 마스코트 */}
@@ -308,8 +359,9 @@ export default function HomeScreen() {
       </ScrollView>
       {feedback.element}
       {loginGuard}
+      <TutorialIntroSheet visible={introOpen} onChoose={chooseTutorial} />
       <SpotlightGuide
-        visible={guideOpen}
+        visible={guideOpen && !introOpen}
         topic="home"
         steps={HOME_STEPS}
         onDone={() => {

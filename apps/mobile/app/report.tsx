@@ -7,7 +7,12 @@ import { SceneFoldBody, SceneFoldLink, SceneSummary } from '@/components/practic
 import { ReportRating } from '@/components/report-rating';
 import { palette } from '@/constants/palette';
 import { useExitReview } from '@/hooks/use-exit-review';
-import { api } from '@/lib/api';
+import { useRequireLogin } from '@/hooks/use-require-login';
+import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
+import { finishTutorial, useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
+import { TARGET } from '@/lib/spotlight-targets';
+import { loopApiFor } from '@/lib/tutorial-loop';
+import { isSamplePracticeId } from '@/lib/tutorial-sample';
 import { translate as t } from '@/lib/i18n';
 import { noteFallbackNotice, noteKindLabel, noteSections, noteTitle, quoteSourceLabel, readOptionalPracticeNote } from '@/lib/practice/note';
 import { clearPractice, getPractice, setContinueOrigin } from '@/lib/practice/session-state';
@@ -25,6 +30,10 @@ export default function ReportScreen() {
   const router = useRouter();
   // 마운트 때 한 번만 읽는다 — 마치기에서 clearPractice() 한 직후 다시 읽으면 null 이다.
   const [practice] = useState(() => getPractice());
+  // 튜토리얼 예시(SOMA-494) — 노트는 미리 써 둔 것이고, 서버에 남는 것이 없다.
+  const sample = isSamplePracticeId(practice?.practiceId);
+  const noteTarget = useSpotlightTarget(TARGET.reportNote);
+  const { requireLogin, element: loginGuard } = useRequireLogin();
   const exitReview = useExitReview('leave', 'report', practice?.practiceId);
   const [note, setNote] = useState<PracticeNote | null>(() => practice?.note ?? null);
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +51,7 @@ export default function ReportScreen() {
     setError(null);
     setLoading(true);
     try {
-      const loaded = await readOptionalPracticeNote(api.getPracticeNote, practice.practiceId);
+      const loaded = await readOptionalPracticeNote(loopApiFor(practice.practiceId).getPracticeNote, practice.practiceId);
       if (!mountedRef.current) return;
       practice.note = loaded;
       setNote(loaded);
@@ -63,8 +72,27 @@ export default function ReportScreen() {
     };
   }, [loadNote, practice?.note]);
 
+  const tutorialGuide = useTutorialSpotlight('report', { ready: !!note && !loading });
+
+  // 예시를 다 돈 사람 — 이번엔 내 영상으로. 게스트면 로그인부터(안내는 이 화면에 뜬다).
+  const startOwn = () => {
+    requireLogin(() => {
+      finishTutorial('done');
+      clearPractice();
+      router.dismissAll();
+      router.push('/upload');
+    });
+  };
+
+  const finishSample = () => {
+    finishTutorial('done');
+    clearPractice();
+    router.dismissAll();
+  };
+
   /** A13 "다음 연습" — 방금 끝낸 회차에서만 이전 장면을 미리 채운다. */
   const nextPractice = () => {
+    finishTutorial('done');
     if (practice) {
       setContinueOrigin({
         kind: 'note',
@@ -79,6 +107,11 @@ export default function ReportScreen() {
   };
 
   const finish = () => {
+    if (sample) {
+      finishSample();
+      return;
+    }
+    finishTutorial('done');
     void exitReview.offer(() => {
       clearPractice();
       router.dismissAll();
@@ -125,6 +158,7 @@ export default function ReportScreen() {
             </View>
           )}
           <ScrollView contentContainerStyle={styles.body}>
+            <View ref={noteTarget.ref} onLayout={noteTarget.onLayout} style={styles.noteBlock}>
             <View style={styles.heading}>
               <Text style={styles.title}>{title}</Text>
               {fallbackNotice && <Text style={styles.fallback}>{fallbackNotice}</Text>}
@@ -151,10 +185,25 @@ export default function ReportScreen() {
                 )}
               </View>
             ))}
+            </View>
 
             {/* 회차 맥락이 붙은 미니 평가 — 👍/👎 + 한 줄(선택). 이탈 설문과 다른 기능이다. */}
-            <ReportRating sessionId={practice.practiceId} />
+            {!sample && <ReportRating sessionId={practice.practiceId} />}
 
+            {sample ? (
+              <View style={styles.sampleDone}>
+                <Text style={styles.sampleDoneTitle}>{t('tutorial.sampleDone')}</Text>
+                <Text style={styles.sampleDoneBody}>{t('tutorial.sampleDoneBody')}</Text>
+                <View style={styles.buttonRow}>
+                  <Pressable style={styles.primary} onPress={startOwn}>
+                    <Text style={styles.primaryText}>{t('tutorial.ownTitle')}</Text>
+                  </Pressable>
+                  <Pressable style={styles.ghost} onPress={finishSample}>
+                    <Text style={styles.ghostText}>{t('common.goHome')}</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : (
             <View style={styles.buttonRow}>
               <Pressable style={styles.primary} onPress={nextPractice}>
                 <Text style={styles.primaryText}>{t('note.nextPractice')}</Text>
@@ -163,10 +212,13 @@ export default function ReportScreen() {
                 <Text style={styles.ghostText}>{t('note.finish')}</Text>
               </Pressable>
             </View>
+            )}
           </ScrollView>
         </>
       )}
       {exitReview.element}
+      {loginGuard}
+      {tutorialGuide.element}
     </SafeAreaView>
   );
 }
@@ -202,6 +254,18 @@ const styles = StyleSheet.create({
   quoteSource: { fontSize: 11.5, fontWeight: '800', color: palette.textFaint },
 
   buttonRow: { gap: 10, marginTop: 8 },
+  // 스크롤 본문의 gap(섹션 사이)을 노트 안에서도 그대로 둔다 — 비추려고 한 번 감쌌을 뿐이다.
+  noteBlock: { gap: 22 },
+  sampleDone: {
+    gap: 8,
+    borderRadius: 20,
+    backgroundColor: palette.blueMist,
+    borderWidth: 1,
+    borderColor: palette.blueLine,
+    padding: 18,
+  },
+  sampleDoneTitle: { fontSize: 17, fontWeight: '800', color: palette.text },
+  sampleDoneBody: { fontSize: 14, color: palette.textDim, lineHeight: 21, marginBottom: 6 },
   primary: { height: 52, borderRadius: 14, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
   primaryText: { fontSize: 15, fontWeight: '900', color: palette.bg },
   ghost: {

@@ -6,6 +6,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
 import { useAppDialog } from '@/components/app-dialog';
+import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
+import { useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
+import { TARGET } from '@/lib/spotlight-targets';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import { defaultMyCharacterIds } from '@/lib/reading/session-plan';
 import { getCurrent, updateCurrent, updateScriptMeta } from '@/lib/reading/store';
@@ -31,6 +34,9 @@ export default function ReadingRoles() {
   const [overrides, setOverrides] = useState<Record<string, string | null>>({});
   const [previewing, setPreviewing] = useState<string | null>(null);
   const [characters, setCharacters] = useState(script?.characters ?? []);
+  const roleListTarget = useSpotlightTarget(TARGET.readingRoleList);
+  const roleStartTarget = useSpotlightTarget(TARGET.readingRoleStart);
+  const tutorialGuide = useTutorialSpotlight('readingRoles', { ready: !!script });
 
   useEffect(() => {
     if (script) setCharacters(script.characters);
@@ -128,7 +134,7 @@ export default function ReadingRoles() {
           </View>
         </View>
 
-        <View style={styles.list}>
+        <View style={styles.list} ref={roleListTarget.ref} onLayout={roleListTarget.onLayout}>
           {effective.map((c) => {
             const on = selected.includes(c.id);
             const voice = assigned[c.id];
@@ -168,13 +174,19 @@ export default function ReadingRoles() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
-        <Pressable style={[styles.primary, selected.length < 1 && styles.primaryOff]} onPress={onStart} disabled={selected.length < 1}>
+        <Pressable
+          ref={roleStartTarget.ref}
+          onLayout={roleStartTarget.onLayout}
+          style={[styles.primary, selected.length < 1 && styles.primaryOff]}
+          onPress={onStart}
+          disabled={selected.length < 1}>
           <Text style={styles.primaryText}>
             {selected.length < 1 ? t('reading.pickRoleFirst') : t('reading.startWithRoles', { count: selected.length })}
           </Text>
         </Pressable>
       </View>
       {dialog}
+      {tutorialGuide.element}
     </View>
   );
 }

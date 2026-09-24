@@ -1,5 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
-import { Stack, useFocusEffect, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import {
@@ -14,10 +14,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
-import { FirstUploadGuide } from '@/components/first-upload-guide';
 import { Stepper } from '@/components/practice-chrome';
 import { palette } from '@/constants/palette';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
+import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
+import { useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -51,6 +52,9 @@ import {
 import { takeContinueOrigin } from '@/lib/practice/session-state';
 import type { BlockageCategory, BlockageDetail } from '@/lib/practice/types';
 import { newRequestId } from '@/lib/request-id';
+import { TARGET } from '@/lib/spotlight-targets';
+import { sampleVideoUri } from '@/lib/tutorial-loop';
+import { SAMPLE_PRACTICE_ID, sampleScene } from '@/lib/tutorial-sample';
 import { normalizeVideoDurationMs } from '@/lib/upload-input';
 
 /**
@@ -78,11 +82,22 @@ export default function UploadScreen() {
   const keyboardHeight = useKeyboardHeight();
   const keyboardVisible = keyboardHeight > 0;
 
-  const [plan, setPlan] = useState<StartPlan>(() => planFor(takeContinueOrigin()));
-  const [picked, setPicked] = useState<PickedVideo | null>(() => peekPickedVideo());
-  const [scene, setScene] = useState<SceneDraft>(plan.scene);
+  // 튜토리얼의 예시(SOMA-494) — 예시 영상과 장면을 채워 두고, 시작하면 서버 없이 예시 회차로 간다.
+  const sample = useLocalSearchParams<{ sample?: string }>().sample === '1';
+  const [plan, setPlan] = useState<StartPlan>(() => planFor(sample ? null : takeContinueOrigin()));
+  const [picked, setPicked] = useState<PickedVideo | null>(() =>
+    sample
+      ? { videoId: null, pendingId: null, uri: sampleVideoUri(), playbackUrl: null, durationMs: null }
+      : peekPickedVideo(),
+  );
+  const [scene, setScene] = useState<SceneDraft>(() => (sample ? sampleScene() : plan.scene));
   const [blockage, setBlockage] = useState<BlockageDraft>(emptyBlockageDraft);
-  const [agreedRights, setAgreedRights] = useState(false);
+  const [agreedRights, setAgreedRights] = useState(sample);
+  const pickTarget = useSpotlightTarget(TARGET.uploadPick);
+  const sampleTarget = useSpotlightTarget(TARGET.uploadSample);
+  const sceneTarget = useSpotlightTarget(TARGET.uploadScene);
+  const startTarget = useSpotlightTarget(TARGET.uploadStart);
+  const tutorialGuide = useTutorialSpotlight('upload');
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const attemptRef = useRef<StartAttempt | null>(null);
@@ -171,6 +186,10 @@ export default function UploadScreen() {
 
   const start = async () => {
     if (startLockRef.current || starting) return;
+    if (sample) {
+      if (agreedRights) router.replace({ pathname: '/analyzing', params: { practiceId: SAMPLE_PRACTICE_ID } });
+      return;
+    }
     if (!agreedRights || !canStart(plan, videoId)) return;
     const overflow = sceneOverflow(scene);
     if (overflow) {
@@ -255,8 +274,12 @@ export default function UploadScreen() {
     };
   }, [plan.video, picked]);
 
-  const ready = agreedRights && canStart(plan, videoId) && !uploading;
-  const hint = !canStart(plan, videoId)
+  const ready = sample ? agreedRights : agreedRights && canStart(plan, videoId) && !uploading;
+  const hint = sample
+    ? agreedRights
+      ? t('upload.submitHintReady')
+      : t('upload.missingRights')
+    : !canStart(plan, videoId)
     ? t('upload.missingVideo')
     : uploading
       ? t('start.stillUploading')
@@ -269,13 +292,15 @@ export default function UploadScreen() {
       <Stack.Screen
         options={{ title: plan.continueFrom ? t('start.titleContinue') : t('upload.titleNew'), headerShadowVisible: false }}
       />
-      {!plan.continueFrom && user && <FirstUploadGuide ownerId={user.id} />}
       <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
         <ScrollView ref={scrollRef} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-          <Stepper current={videoId || uploading ? 2 : 1} />
+          <Stepper current={videoId || uploading || sample ? 2 : 1} />
 
           {previewUri || uploading ? (
-            <View style={styles.pickedBlock}>
+            <View
+              style={styles.pickedBlock}
+              ref={sample ? sampleTarget.ref : pickTarget.ref}
+              onLayout={sample ? sampleTarget.onLayout : pickTarget.onLayout}>
               {previewUri ? (
                 <VideoView style={styles.preview} player={player} nativeControls contentFit="contain" />
               ) : (
@@ -284,13 +309,20 @@ export default function UploadScreen() {
                 </View>
               )}
               <View style={styles.pickedRow}>
-                {plan.video.kind !== 'same' && (
+                {sample && (
+                  <View style={styles.sampleBadge}>
+                    <Text style={styles.sampleBadgeText}>{t('tutorial.sampleBadge')}</Text>
+                  </View>
+                )}
+                {plan.video.kind !== 'same' && !sample && (
                   <Pressable style={styles.repick} onPress={pickFromLibrary}>
                     <Text style={styles.repickText}>{t('upload.repick')}</Text>
                   </Pressable>
                 )}
                 <Text style={styles.pickedMeta} numberOfLines={1}>
-                  {plan.video.kind === 'same'
+                  {sample
+                    ? t('tutorial.sample.situation')
+                    : plan.video.kind === 'same'
                     ? t('start.sameVideo')
                     : uploading
                       ? t('archive.statusUploading')
@@ -299,7 +331,7 @@ export default function UploadScreen() {
               </View>
             </View>
           ) : (
-            <View style={styles.dropzone}>
+            <View style={styles.dropzone} ref={pickTarget.ref} onLayout={pickTarget.onLayout}>
               <View style={styles.plusCircle}>
                 <Text style={styles.plus}>＋</Text>
               </View>
@@ -319,7 +351,7 @@ export default function UploadScreen() {
             </View>
           )}
 
-          {!plan.continueFrom && (
+          {!plan.continueFrom && !sample && (
             <Pressable style={styles.continueRow} onPress={() => void chooseGroup()}>
               <Text style={styles.continueText}>{t('start.continueCta')}</Text>
             </Pressable>
@@ -331,7 +363,8 @@ export default function UploadScreen() {
               <Text style={styles.sceneOptional}>{t('upload.sceneOptional')}</Text>
             </Text>
             <Text style={styles.sceneOptionalHint}>{t('upload.sceneHint')}</Text>
-            <View style={styles.fields}>
+            {/* 카드 전체는 화면보다 길어 설명이 비출 곳을 가린다 — 세 칸만 비춘다. */}
+            <View style={styles.fields} ref={sceneTarget.ref} onLayout={sceneTarget.onLayout}>
               <Field
                 label={t('upload.situation')}
                 placeholder={t('upload.situationPh')}
@@ -421,7 +454,12 @@ export default function UploadScreen() {
         </ScrollView>
 
         <View style={styles.submitBar}>
-          <Pressable style={[styles.submit, (!ready || starting) && styles.submitDisabled]} onPress={() => void start()} disabled={!ready || starting}>
+          <Pressable
+            ref={startTarget.ref}
+            onLayout={startTarget.onLayout}
+            style={[styles.submit, (!ready || starting) && styles.submitDisabled]}
+            onPress={() => void start()}
+            disabled={!ready || starting}>
             {starting ? (
               <ActivityIndicator color={palette.bg} />
             ) : (
@@ -432,6 +470,7 @@ export default function UploadScreen() {
         </View>
       </View>
       {dialog}
+      {tutorialGuide.element}
     </SafeAreaView>
   );
 }
@@ -509,6 +548,8 @@ const styles = StyleSheet.create({
   dropTitle: { fontSize: 15, fontWeight: '900', color: palette.text },
   dropHint: { fontSize: 12, fontWeight: '600', color: palette.textFaint },
 
+  sampleBadge: { backgroundColor: palette.blueSoft, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
+  sampleBadgeText: { fontSize: 12.5, fontWeight: '800', color: palette.blue },
   pickedBlock: { gap: 8 },
   preview: { width: '100%', aspectRatio: 16 / 9, borderRadius: 18, backgroundColor: palette.text },
   previewEmpty: { alignItems: 'center', justifyContent: 'center' },

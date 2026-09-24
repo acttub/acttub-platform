@@ -51,3 +51,35 @@ export async function writeLastSeenStreak(current: number): Promise<void> {
     // 무시 — 다음 진입에서 다시 시도된다.
   }
 }
+
+export type CelebrationDot = { key: string; label: string; state: 'done' | 'today' | 'empty' };
+
+/**
+ * 전체화면 축하의 요일 점(SOMA-494). 오늘 연습한 칸은 화면에서 차오르는 칸이라 따로 가른다.
+ * 지난 연습일은 이미 찬 칸, 나머지(쉰 날·앞날)는 빈 칸이다.
+ */
+export function celebrationDots(
+  days: readonly { key: string; label: string; count: number; isToday: boolean }[],
+): CelebrationDot[] {
+  return days.map((day) => ({
+    key: day.key,
+    label: day.label,
+    state: day.count > 0 ? (day.isToday ? 'today' : 'done') : 'empty',
+  }));
+}
+
+/**
+ * 홈이 연속일을 볼 때 할 일. 기록을 아직 못 받았으면(연속일이 잠깐 0) 아무것도 하지 않는다 —
+ * 그때 0 을 기억하면 기록이 오는 순간 늘었다고 보고 매번 다시 축하한다(SOMA-494, 실기기).
+ */
+export function streakCelebrationStep(input: {
+  loaded: boolean;
+  lastSeen: number;
+  current: number;
+}): { celebrate: boolean; remember: number | null } {
+  if (!input.loaded) return { celebrate: false, remember: null };
+  return {
+    celebrate: shouldCelebrateStreak(input.lastSeen, input.current),
+    remember: Math.max(0, Math.trunc(input.current)),
+  };
+}

@@ -5,7 +5,6 @@ import Animated, {
   Easing,
   useAnimatedStyle,
   useSharedValue,
-  withDelay,
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
@@ -59,37 +58,6 @@ export function StreakBadge({
   );
 }
 
-/**
- * 연속일이 늘어난 순간 한 번 뜨는 축하 배너. onDone 후 스스로 사라진다.
- * 화면을 막지 않게 상단에 떠서 흐르는(fade+slide) 형태로 둔다.
- */
-export function StreakCelebration({ streak, onDone }: { streak: number; onDone: () => void }) {
-  const opacity = useSharedValue(0);
-  const translateY = useSharedValue(-12);
-
-  useEffect(() => {
-    opacity.value = withSequence(
-      withTiming(1, { duration: 240 }),
-      withDelay(1900, withTiming(0, { duration: 320 })),
-    );
-    translateY.value = withTiming(0, { duration: 240, easing: Easing.out(Easing.back(1.4)) });
-    const timer = setTimeout(onDone, 2600);
-    return () => clearTimeout(timer);
-  }, [opacity, translateY, onDone]);
-
-  const style = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: [{ translateY: translateY.value }],
-  }));
-
-  return (
-    <Animated.View style={[styles.toast, style]} pointerEvents="none">
-      <Text style={styles.toastTitle}>{t('home.streakCelebrateTitle', { days: streak })}</Text>
-      <Text style={styles.toastSub}>{t('home.streakCelebrateSub')}</Text>
-    </Animated.View>
-  );
-}
-
 const styles = StyleSheet.create({
   badge: {
     flexDirection: 'row',
@@ -107,22 +75,4 @@ const styles = StyleSheet.create({
   count: { fontSize: 16, fontWeight: '800', letterSpacing: -0.3 },
   countActive: { color: palette.flameDeep },
   countIdle: { color: palette.checkOff },
-  toast: {
-    position: 'absolute',
-    top: 8,
-    left: 20,
-    right: 20,
-    backgroundColor: palette.navy,
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    zIndex: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.18,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
-  },
-  toastTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
-  toastSub: { color: '#D5DBE3', fontSize: 13, marginTop: 2 },
 });
