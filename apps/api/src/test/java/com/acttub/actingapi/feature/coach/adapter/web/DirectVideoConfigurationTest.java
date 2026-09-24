@@ -29,6 +29,13 @@ class DirectVideoConfigurationTest {
         });
     }
 
+    @Test void practiceLoopIsTheDefaultAndCanBeTurnedOff() {
+        runner.withPropertyValues("ACTTUB_DIRECT_VIDEO_ENABLED=true").run(context ->
+                assertThat(context.getBean(DirectVideoCoach.class).practiceLoop()).isTrue());
+        runner.withPropertyValues("ACTTUB_DIRECT_VIDEO_ENABLED=true", "ACTTUB_DIRECT_VIDEO_PRACTICE_LOOP=false").run(context ->
+                assertThat(context.getBean(DirectVideoCoach.class).practiceLoop()).isFalse());
+    }
+
     @Test void disabledOrUnspecifiedFlagKeepsExistingModelPath() {
         for (String flag : new String[]{"false", ""}) {
             runner.withPropertyValues("ACTTUB_DIRECT_VIDEO_ENABLED=" + flag).run(context -> {
