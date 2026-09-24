@@ -499,6 +499,7 @@ const ko = {
     tabEnded: '종료',
     tabMineShort: '내 챌린지',
     featuredLabel: '오늘의 챌린지',
+    watchEntries: '참여작 보기',
     dday: 'D-{{days}}',
     ended: '종료',
     hostTeam: '기획팀이 띄운 대사',

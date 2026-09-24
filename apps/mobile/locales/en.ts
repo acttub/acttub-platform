@@ -508,6 +508,7 @@ const en: DeepStringShape<typeof ko> = {
     tabEnded: 'Ended',
     tabMineShort: 'My challenges',
     featuredLabel: "Today's challenge",
+    watchEntries: 'Watch entries',
     dday: 'D-{{days}}',
     ended: 'Ended',
     hostTeam: 'Opened by the team',

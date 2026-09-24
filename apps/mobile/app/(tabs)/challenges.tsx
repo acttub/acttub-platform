@@ -172,12 +172,17 @@ function ChallengesScreenContent() {
         {challenges === null && !error && <ActivityIndicator color={palette.blue} style={{ marginTop: 40 }} />}
 
         {featured && (
-          <View style={styles.featuredWrap}>
-            <Text style={styles.sectionLabel}>
-              {t('challenges.featuredLabel')} · {dDayLabel(featured)}
-            </Text>
-            <Card challenge={featured} featured onOpen={() => openDetail(featured)} onPerform={() => perform(featured)} />
-          </View>
+          <TodayHero
+            challenge={featured}
+            onOpen={() => openDetail(featured)}
+            onWatch={() =>
+              featured.entry_count > 0
+                ? router.push({ pathname: '/challenge-play', params: { id: featured.id } })
+                : openDetail(featured)
+            }
+            onPerform={() => perform(featured)}
+            picking={picking}
+          />
         )}
 
         {challenges?.map((challenge) => (
@@ -217,6 +222,66 @@ function ChallengesScreenContent() {
         }}
       />
     </SafeAreaView>
+  );
+}
+
+/**
+ * 오늘의 챌린지 — 탭을 열면 제일 먼저 크게 보인다(SOMA-494). 목업 때처럼 오늘의 대사가 첫 화면의
+ * 주인공이 되게 한다. 인기·최신 탭에서만 띄운다(종료·내 챌린지 탭에는 고정하지 않는다, 요구사항 04).
+ */
+function TodayHero({
+  challenge,
+  onOpen,
+  onWatch,
+  onPerform,
+  picking,
+}: {
+  challenge: ChallengeCard;
+  onOpen: () => void;
+  onWatch: () => void;
+  onPerform: () => void;
+  picking: boolean;
+}) {
+  const meta = [challenge.work, challenge.character].filter(Boolean).join(' · ');
+  return (
+    <View style={styles.hero}>
+      <View style={styles.heroChip}>
+        <Text style={styles.heroChipText}>
+          🔥 {t('challenges.featuredLabel')} · {dDayLabel(challenge)}
+        </Text>
+      </View>
+      <Pressable onPress={onOpen} accessibilityRole="button">
+        <Text style={styles.heroLine} numberOfLines={4}>
+          “{challenge.line}”
+        </Text>
+        {!!meta && <Text style={styles.heroMeta}>{meta}</Text>}
+      </Pressable>
+      <View style={styles.statRow}>
+        <View style={styles.avatars}>
+          {challenge.participants.slice(0, 3).map((p, i) => (
+            <View key={`${p.name}-${i}`} style={styles.avatar}>
+              <Text style={styles.avatarText}>{avatarLetter(p.name)}</Text>
+            </View>
+          ))}
+        </View>
+        <Text style={styles.heroStat} numberOfLines={1}>
+          {t('challenges.entryCount', { count: challenge.entry_count })} ·{' '}
+          {t('challenges.likeSum', { count: challenge.like_sum })}
+        </Text>
+      </View>
+      <View style={styles.heroButtons}>
+        {!picking && (
+          <Pressable style={styles.heroGhost} onPress={onWatch} accessibilityRole="button">
+            <Feather name="play" size={15} color="#FFFFFF" />
+            <Text style={styles.heroGhostText}>{t('challenges.watchEntries')}</Text>
+          </Pressable>
+        )}
+        <Pressable style={styles.heroPrimary} onPress={onPerform} accessibilityRole="button">
+          <Feather name="video" size={15} color={palette.navy} />
+          <Text style={styles.heroPrimaryText}>{t('challenges.performCta')}</Text>
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -323,6 +388,42 @@ const styles = StyleSheet.create({
   error: { color: palette.danger, fontSize: 13.5, fontWeight: '700', textAlign: 'center', paddingVertical: 12 },
   sectionLabel: { fontSize: 13, fontWeight: '800', color: palette.textMuted },
   featuredWrap: { gap: 8 },
+  hero: { backgroundColor: palette.navy, borderRadius: 24, padding: 20, gap: 14 },
+  heroChip: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  heroChipText: { fontSize: 12.5, fontWeight: '800', color: '#FFFFFF' },
+  heroLine: { fontSize: 23, fontWeight: '900', color: '#FFFFFF', lineHeight: 33 },
+  heroMeta: { fontSize: 13.5, fontWeight: '600', color: '#9FB0C9', marginTop: 8 },
+  heroStat: { flex: 1, fontSize: 12.5, fontWeight: '700', color: '#9FB0C9' },
+  heroButtons: { flexDirection: 'row', gap: 10 },
+  heroGhost: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: 14,
+    paddingVertical: 13,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.35)',
+  },
+  heroGhostText: { fontSize: 14.5, fontWeight: '800', color: '#FFFFFF' },
+  heroPrimary: {
+    flex: 1.4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: 14,
+    paddingVertical: 13,
+    backgroundColor: '#FFFFFF',
+  },
+  heroPrimaryText: { fontSize: 14.5, fontWeight: '900', color: palette.navy },
 
   card: {
     backgroundColor: palette.bg,
