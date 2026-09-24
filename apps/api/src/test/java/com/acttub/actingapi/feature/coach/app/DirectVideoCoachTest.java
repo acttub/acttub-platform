@@ -145,4 +145,86 @@ class DirectVideoCoachTest {
         verify(model).reply(eq(file), anyList(), eq(DirectVideoPrompts.forRoutes(List.of(DirectVideoRoute.GENERAL))));
         assertThat(failures.contexts()).anyMatch(context -> context.startsWith("DirectVideoRouting.classify"));
     }
+
+    static final String OPENING = "<설계>\n인물: 혼자 선 척 붙잡히길 바란다\n순간1: \"됐어\" | 보이는: 상대가 물러나게 | 없는: 상대가 붙잡게\n</설계>\n"
+            + "<코치>\n\"됐어\"에서 고개를 돌려서, 상대에게 \"가\"라는 말로 들려요.\n이 순간 인물은 상대가 물러나길 바랄까요, 붙잡길 바랄까요?\n</코치>";
+    static final String OPENING_SHOWN = "\"됐어\"에서 고개를 돌려서, 상대에게 \"가\"라는 말로 들려요.\n"
+            + "이 순간 인물은 상대가 물러나길 바랄까요, 붙잡길 바랄까요?";
+
+    CoachEngine practiceLoopEngine() {
+        return new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(
+                new DirectVideoCoach(model, videos, storage, failures, telemetry, true)));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test void practiceLoopShowsOnlyCoachTextAndReplaysHiddenDesignAndStatus() {
+        var loopEngine = practiceLoopEngine();
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING,
+                "<상태>순간1 · 과제 · 누적 0줄 0번 · 응답 2번째</상태>\n붙잡게 두 번, 물러나게 한 번 해 보세요.",
+                "<상태>순간1 · 달라진 점 · 누적 1줄 3번 · 응답 3번째</상태>\n무엇이 달랐나요?");
+        var first = loopEngine.start(session(), UUID.randomUUID());
+        assertThat(first.reply().message()).isEqualTo(OPENING_SHOWN);
+        assertThat(first.session().turns()).containsExactly(new CoachTurnSnapshot("ai", OPENING_SHOWN));
+        assertThat(first.session().coachingState().path("practice_loop").path("design").asText()).startsWith("인물:");
+
+        var second = loopEngine.reply(first.session(), "붙잡길", UUID.randomUUID());
+        assertThat(second.reply().message()).isEqualTo("붙잡게 두 번, 물러나게 한 번 해 보세요.");
+        var third = loopEngine.reply(second.session(), "해봤어요", UUID.randomUUID());
+        assertThat(third.reply().status()).isEqualTo("continue");
+        assertThat(third.session().turns()).extracting(CoachTurnSnapshot::text)
+                .noneMatch(text -> text.contains("<설계>") || text.contains("<상태>") || text.contains("<코치>"));
+
+        var histories = org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(model, times(3)).reply(eq(file), histories.capture(), eq(DirectVideoPrompts.practiceLoop()));
+        verify(model, never()).classify(anyList(), anyString(), anyList());
+        assertThat(histories.getAllValues().get(0)).isEmpty();
+        assertThat(histories.getAllValues().get(1)).containsExactly(
+                new DirectVideoModel.Message("model", OPENING),
+                new DirectVideoModel.Message("user", "붙잡길"));
+        assertThat(histories.getAllValues().get(2)).containsExactly(
+                new DirectVideoModel.Message("model", OPENING),
+                new DirectVideoModel.Message("user", "붙잡길"),
+                new DirectVideoModel.Message("model",
+                        "<상태>순간1 · 과제 · 누적 0줄 0번 · 응답 2번째</상태>\n붙잡게 두 번, 물러나게 한 번 해 보세요."),
+                new DirectVideoModel.Message("user", "해봤어요"));
+        assertThat(telemetry.calls()).hasSize(3);
+    }
+
+    @Test void practiceLoopClosesWhenCoachFinishesOrActorStops() {
+        var loopEngine = practiceLoopEngine();
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING,
+                "<상태>순간2 · 마무리2 · 누적 2줄 6번 · 응답 9번째</상태>\n\"잡아주길 기다리는 사람\"으로 오늘 노트를 마칠게요.");
+        var first = loopEngine.start(session(), UUID.randomUUID());
+        var done = loopEngine.reply(first.session(), "잡아주길 기다리는 사람", UUID.randomUUID());
+        assertThat(done.reply().status()).isEqualTo("complete");
+        assertThat(done.reply().message()).doesNotContain("<상태>");
+        StructuredJson.validate("coach_handoff_v2", done.reply().handoff());
+
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING,
+                "<상태>순간1 · 끝 · 누적 0줄 0번 · 응답 2번째</상태>\n오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요.");
+        var opened = loopEngine.start(session(), UUID.randomUUID());
+        var stopped = loopEngine.reply(opened.session(), "그만", UUID.randomUUID());
+        assertThat(stopped.session().closeReason()).isEqualTo("actor_finished");
+        assertThat(stopped.reply().message()).isEqualTo("오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요.");
+        verify(model, never()).classify(anyList(), anyString(), anyList());
+        verify(model, never()).reply(eq(file), anyList(), eq(DirectVideoPrompts.forRoutes(List.of(DirectVideoRoute.CLOSING))));
+    }
+
+    @Test void sessionsOpenedBeforeThePracticeLoopKeepRouting() {
+        var turns = List.of(new CoachTurnSnapshot("ai", "기존 첫 피드백이에요."));
+        var result = practiceLoopEngine().reply(session().withTurns(turns), "겠주려는 거야", UUID.randomUUID());
+        verify(model).classify(anyList(), anyString(), anyList());
+        verify(model).reply(eq(file), anyList(), eq(DirectVideoPrompts.forRoutes(List.of(DirectVideoRoute.INTENTION))));
+        assertThat(result.session().coachingState().has("practice_loop")).isFalse();
+    }
+
+    @Test void practiceLoopParsingToleratesMissingTags() {
+        var plain = DirectVideoPracticeLoop.parse("태그 없이 온 답이에요.");
+        assertThat(plain.message()).isEqualTo("태그 없이 온 답이에요.");
+        assertThat(plain.status()).isEmpty();
+        assertThat(DirectVideoPracticeLoop.finished(plain)).isFalse();
+        var unclosed = DirectVideoPracticeLoop.parse("<설계>\n인물: x\n</설계>\n<코치>\n닫는 태그가 없어요.");
+        assertThat(unclosed.message()).isEqualTo("닫는 태그가 없어요.");
+        assertThat(unclosed.design()).isEqualTo("인물: x");
+    }
 }
