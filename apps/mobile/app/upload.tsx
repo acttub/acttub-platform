@@ -105,6 +105,24 @@ export default function UploadScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const characterRef = useRef<TextInput>(null);
   const goalRef = useRef<TextInput>(null);
+  // 장면 칸을 누르면 그 칸이 화면 맨 위로 오게 올린다 — 키보드가 떠도 적는 칸과 그다음 칸이
+  // 한 화면에 보여, 다음 칸을 찾으러 내려가지 않는다.
+  const sceneCardY = useRef(0);
+  const fieldsY = useRef(0);
+  const fieldY = useRef({ situation: 0, character: 0, goal: 0 });
+  // 도움 갈래를 고르면 그 카드를 맨 위로 올린다 — 세부 칩과 "상세히 적어 주세요"가 바로 보이게.
+  const helpCardY = useRef(0);
+  const scrollHelpToTop = () => {
+    // 세부 칩이 새로 그려진 뒤에 올린다.
+    setTimeout(() => scrollRef.current?.scrollTo({ y: Math.max(0, helpCardY.current - 8), animated: true }), 120);
+  };
+  const scrollFieldToTop = (field: keyof typeof fieldY.current) => () => {
+    // 키보드가 올라와 화면이 줄어든 뒤에 올려야 제자리에 선다.
+    setTimeout(() => {
+      const y = sceneCardY.current + fieldsY.current + fieldY.current[field] - 8;
+      scrollRef.current?.scrollTo({ y: Math.max(0, y), animated: true });
+    }, 250);
+  };
 
   const previewUri = picked?.uri ?? picked?.playbackUrl ?? null;
   const player = useVideoPlayer(previewUri, (p) => {
@@ -275,17 +293,14 @@ export default function UploadScreen() {
   }, [plan.video, picked]);
 
   const ready = sample ? agreedRights : agreedRights && canStart(plan, videoId) && !uploading;
-  const hint = sample
-    ? agreedRights
-      ? t('upload.submitHintReady')
-      : t('upload.missingRights')
-    : !canStart(plan, videoId)
-    ? t('upload.missingVideo')
-    : uploading
-      ? t('start.stillUploading')
-      : !agreedRights
-        ? t('upload.missingRights')
-        : t('upload.submitHintReady');
+  // 준비가 끝났으면 버튼만 둔다 — 무엇이 모자란지만 알린다.
+  const hint = ready
+    ? null
+    : !sample && !canStart(plan, videoId)
+      ? t('upload.missingVideo')
+      : !sample && uploading
+        ? t('start.stillUploading')
+        : t('upload.missingRights');
 
   return (
     <SafeAreaView style={styles.safe} edges={keyboardVisible ? [] : ['bottom']}>
@@ -357,19 +372,27 @@ export default function UploadScreen() {
             </Pressable>
           )}
 
-          <View style={styles.sceneCard}>
+          <View style={styles.sceneCard} onLayout={(e) => (sceneCardY.current = e.nativeEvent.layout.y)}>
             <Text style={styles.sceneTitle}>
               {t('upload.sceneTitle')}
               <Text style={styles.sceneOptional}>{t('upload.sceneOptional')}</Text>
             </Text>
             <Text style={styles.sceneOptionalHint}>{t('upload.sceneHint')}</Text>
             {/* 카드 전체는 화면보다 길어 설명이 비출 곳을 가린다 — 세 칸만 비춘다. */}
-            <View style={styles.fields} ref={sceneTarget.ref} onLayout={sceneTarget.onLayout}>
+            <View
+              style={styles.fields}
+              ref={sceneTarget.ref}
+              onLayout={(e) => {
+                fieldsY.current = e.nativeEvent.layout.y;
+                sceneTarget.onLayout();
+              }}>
               <Field
                 label={t('upload.situation')}
                 placeholder={t('upload.situationPh')}
                 value={scene.situation}
                 onChangeText={(situation) => setScene((s) => ({ ...s, situation }))}
+                onFocus={scrollFieldToTop('situation')}
+                onY={(y) => (fieldY.current.situation = y)}
                 returnKeyType="next"
                 onSubmitEditing={() => characterRef.current?.focus()}
               />
@@ -378,6 +401,8 @@ export default function UploadScreen() {
                 placeholder={t('upload.characterPh')}
                 value={scene.character}
                 onChangeText={(character) => setScene((s) => ({ ...s, character }))}
+                onFocus={scrollFieldToTop('character')}
+                onY={(y) => (fieldY.current.character = y)}
                 inputRef={characterRef}
                 returnKeyType="next"
                 onSubmitEditing={() => goalRef.current?.focus()}
@@ -387,6 +412,8 @@ export default function UploadScreen() {
                 placeholder={t('upload.goalPh')}
                 value={scene.goal}
                 onChangeText={(goal) => setScene((s) => ({ ...s, goal }))}
+                onFocus={scrollFieldToTop('goal')}
+                onY={(y) => (fieldY.current.goal = y)}
                 tall
                 inputRef={goalRef}
                 returnKeyType="done"
@@ -398,7 +425,7 @@ export default function UploadScreen() {
             </View>
           </View>
 
-          <View style={styles.sceneCard}>
+          <View style={styles.sceneCard} onLayout={(e) => (helpCardY.current = e.nativeEvent.layout.y)}>
             <Text style={styles.sceneTitle}>{t('blockage.helpTitle')}</Text>
             <Text style={styles.sceneOptionalHint}>{t('blockage.helpHint')}</Text>
             <View style={styles.chipWrap}>
@@ -407,13 +434,15 @@ export default function UploadScreen() {
                   key={category}
                   label={t(`blockage.helpLabel.${category}`)}
                   selected={blockage.category === category}
-                  onPress={() =>
+                  onPress={() => {
+                    const choosing = blockage.category !== category;
                     setBlockage((was) =>
                       was.category === category
                         ? { ...was, category: null, detail: null }
                         : { ...was, category, detail: null },
-                    )
-                  }
+                    );
+                    if (choosing) scrollHelpToTop();
+                  }}
                 />
               ))}
             </View>
@@ -466,7 +495,7 @@ export default function UploadScreen() {
               <Text style={styles.submitText}>{plan.prefilled ? t('upload.submitRetake') : t('upload.submitNew')}</Text>
             )}
           </Pressable>
-          <Text style={styles.submitHint}>{hint}</Text>
+          {hint && <Text style={styles.submitHint}>{hint}</Text>}
         </View>
       </View>
       {dialog}
@@ -493,6 +522,8 @@ function Field({
   inputRef,
   returnKeyType,
   onSubmitEditing,
+  onFocus,
+  onY,
 }: {
   label: string;
   placeholder: string;
@@ -502,9 +533,12 @@ function Field({
   inputRef?: RefObject<TextInput | null>;
   returnKeyType?: 'next' | 'done';
   onSubmitEditing?: () => void;
+  onFocus?: () => void;
+  /** 세 칸 묶음 안에서 이 칸의 위쪽 위치 — 누르면 여기를 화면 맨 위로 올린다. */
+  onY?: (y: number) => void;
 }) {
   return (
-    <View style={styles.field}>
+    <View style={styles.field} onLayout={(e) => onY?.(e.nativeEvent.layout.y)}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
         ref={inputRef}
@@ -518,6 +552,7 @@ function Field({
         submitBehavior="submit"
         returnKeyType={returnKeyType}
         onSubmitEditing={onSubmitEditing}
+        onFocus={onFocus}
       />
     </View>
   );

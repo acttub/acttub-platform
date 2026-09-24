@@ -2,15 +2,18 @@ import Feather from '@expo/vector-icons/Feather';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Linking, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
+import { RecordModeSlider } from '@/components/record-mode-slider';
 import { palette } from '@/constants/palette';
 import { keepDeviceFile } from '@/lib/account-files';
+import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { translate as t } from '@/lib/i18n';
+import { isKorean, translate as t } from '@/lib/i18n';
+import { recordModeAfterSwipe, recordModes, type RecordMode } from '@/lib/record-modes';
 import { saveRecordingToLibrary } from '@/lib/library/library-runner';
 import { videoErrorMessage } from '@/lib/library/video-checks';
 import { MAX_VIDEO_DURATION_MS, normalizeVideoDurationMs } from '@/lib/upload-input';
@@ -41,12 +44,25 @@ export default function RecordVideoScreen() {
   // mode=ai: 하단 탭 촬영 버튼에서 "AI 코칭"을 고르고 옴 → 찍으면 업로드 화면으로.
   // mode=plain: "기본 촬영" → 찍으면 보관함에 저장하고 그 영상 화면으로.
   // mode=challenge: 대사 띄운 챌린지 촬영. 그 외(업로드 화면의 촬영 버튼)는 찍고 되돌아간다.
-  const { mode, line, work, challengeId } = useLocalSearchParams<{
+  // picker=1: 하단 탭 가운데 버튼에서 곧장 옴 — 셔터 아래 줄을 넘겨 용도를 고른다(SOMA-494).
+  const params = useLocalSearchParams<{
     mode?: string;
     line?: string;
     work?: string;
     challengeId?: string;
+    picker?: string;
   }>();
+  const picker = params.picker === '1';
+  const [mode, setMode] = useState<string | undefined>(params.mode);
+  // 오늘의 대사로 넘기면 여기에 그 챌린지를 채운다 — 챌린지 화면에서 오면 처음부터 들어 있다.
+  const [challengeParams, setChallengeParams] = useState({
+    challengeId: params.challengeId,
+    line: params.line,
+    work: params.work,
+  });
+  const { challengeId, line, work } = challengeParams;
+  const [loadingToday, setLoadingToday] = useState(false);
+  const modes = useMemo(() => recordModes(isKorean()), []);
   const isChallenge = mode === 'challenge';
   const maxSec = isChallenge ? CHALLENGE_MAX_SEC : MAX_SEC;
   const cameraRef = useRef<CameraView>(null);
@@ -102,6 +118,62 @@ export default function RecordVideoScreen() {
     }
     return { id: outcome.entry.id, uri: outcome.entry.uri };
   }, [alert, user?.id]);
+
+  /**
+   * 용도를 바꾼다. 오늘의 대사는 그날 선정된 챌린지를 불러와 대사 카드를 띄운다 — 없으면 안내만 하고
+   * 지금 용도에 머문다(챌린지 탭에서 대사를 고르면 된다).
+   */
+  const changeMode = useCallback(
+    async (next: RecordMode) => {
+      if (recording || loadingToday || next === mode) return;
+      if (next !== 'challenge' || challengeId) {
+        setMode(next);
+        return;
+      }
+      setLoadingToday(true);
+      try {
+        const { featured } = await api.listChallenges({ tab: 'popular' });
+        if (!featured) {
+          void alert({ title: t('recordMode.challenge'), message: t('recordMode.noToday') });
+          return;
+        }
+        setChallengeParams({ challengeId: featured.id, line: featured.line, work: featured.work });
+        setMode('challenge');
+      } catch {
+        void alert({ title: t('recordMode.challenge'), message: t('recordMode.noToday') });
+      } finally {
+        setLoadingToday(false);
+      }
+    },
+    [alert, challengeId, loadingToday, mode, recording],
+  );
+
+  // 화면을 옆으로 넘겨도 용도가 바뀐다(인스타처럼). 가로로 충분히 움직였을 때만 가로챈다 — 버튼 누르기는 그대로다.
+  const swipe = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => picker,
+        onMoveShouldSetPanResponder: (_, g) => picker && Math.abs(g.dx) > 24 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
+        onPanResponderRelease: (_, g) => {
+          if (Math.abs(g.dx) < 40) return;
+          const current = (mode ?? 'ai') as RecordMode;
+          void changeMode(recordModeAfterSwipe(modes, current, g.dx < 0 ? 'left' : 'right'));
+        },
+      }),
+    [changeMode, mode, modes, picker],
+  );
+  const showPicker = picker && !recording;
+  const slider = showPicker ? (
+    <View>
+      <RecordModeSlider
+        modes={modes}
+        value={(mode ?? 'ai') as RecordMode}
+        onChange={(next) => void changeMode(next)}
+        disabled={loadingToday}
+      />
+      {loadingToday && <Text style={styles.hint}>{t('recordMode.loadingToday')}</Text>}
+    </View>
+  ) : null;
 
   const goNext = useCallback(() => {
     if (isChallenge) {
@@ -217,6 +289,8 @@ export default function RecordVideoScreen() {
       <View style={styles.safe}>
         <Stack.Screen options={{ title: t('record.screenTitle'), headerShown: false }} />
         <CameraView ref={cameraRef} style={styles.camera} facing={facing} mode="video" />
+        {/* 넘기기는 여기서 받는다 — 위 겹침은 box-none 이라 빈 곳 터치를 자기가 받지 않는다. */}
+        <View style={StyleSheet.absoluteFill} {...swipe.panHandlers} />
 
         <SafeAreaView style={styles.overlay} pointerEvents="box-none">
           <View>
@@ -276,6 +350,7 @@ export default function RecordVideoScreen() {
             <Text style={styles.hint}>
               {recording ? t('record.remaining', { sec: remaining }) : t('record.challengeHint')}
             </Text>
+            {slider}
           </View>
         </SafeAreaView>
       </View>
@@ -290,6 +365,8 @@ export default function RecordVideoScreen() {
     <View style={styles.safe}>
       <Stack.Screen options={{ title: t('record.screenTitle'), headerShown: false }} />
       <CameraView ref={cameraRef} style={styles.camera} facing={facing} mode="video" />
+      {/* 넘기기는 여기서 받는다 — 위 겹침은 box-none 이라 빈 곳 터치를 자기가 받지 않는다. */}
+      <View style={StyleSheet.absoluteFill} {...swipe.panHandlers} />
 
       <SafeAreaView style={styles.overlay} pointerEvents="box-none">
         <View style={styles.topRow}>
@@ -308,7 +385,7 @@ export default function RecordVideoScreen() {
         </View>
 
         <View style={styles.bottomGroup}>
-          {!recording && <Text style={styles.hint}>{t('record.hint')}</Text>}
+          {!recording && <Text style={styles.hint}>{picker ? t('recordMode.swipeHint') : t('record.hint')}</Text>}
           <View style={styles.bottomRow}>
             {/* 왼쪽 슬롯: 녹화 중엔 빈 칸으로 둬서 셔터가 늘 가운데에 오게 한다. */}
             {recording ? (
@@ -329,6 +406,7 @@ export default function RecordVideoScreen() {
             </Pressable>
             <View style={styles.flipBtn} />
           </View>
+          {slider}
         </View>
       </SafeAreaView>
     </View>

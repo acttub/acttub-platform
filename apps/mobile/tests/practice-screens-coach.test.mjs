@@ -63,7 +63,7 @@ test('practice.note: "다음 연습"은 방금 끝낸 회차의 장면을 미리
   assert.match(report, /scene: practice\.scene/);
 });
 
-test('practice.library: 기록은 묶음을 읽고 숨김은 묶음 전체이며 리딩이 섞인다', () => {
+test('practice.library: 기록은 묶음을 읽고 숨김은 묶음 전체이며 대본 리딩은 섞지 않는다', () => {
   const history = read('app/(tabs)/history.tsx');
 
   assert.match(history, /api\.listPracticeGroups/);
@@ -72,7 +72,8 @@ test('practice.library: 기록은 묶음을 읽고 숨김은 묶음 전체이며
   assert.match(history, /patchPracticeGroup\(group\.root_id, \{ hidden: true \}\)/);
   assert.match(history, /hideNotice\(\)/);
   assert.match(history, /mergeHistoryRows/);
-  assert.match(history, /readingHistoryRows/);
+  // 기록은 AI 코치와 한 연습만이다 — 리딩 기록은 대본 탭에서 본다(SOMA-494).
+  assert.doesNotMatch(history, /readingHistoryRows|listSessions/);
 });
 
 test('practice.library: 홈은 숨기지 않은 묶음 3개와 한국 시간 연속일을 보여 준다', () => {

@@ -18,14 +18,24 @@ const modules = {
       s.players.push(p);return p;
     }`,
   '../../i18n.ts': `export const currentLanguage=()=> 'ko'; export const translate=k=>k;`,
-  './assets': `export const MODEL_KINDS=[];
-    export async function downloadAssets(variant,preset){return {modelPaths:{},style:preset,cfgs:{},indexer:{}};}
+  '../network': `export async function currentNetworkType(){return globalThis.__readingEngineTest.network ?? 'wifi';}`,
+  './assets': `const s=globalThis.__readingEngineTest;
+    export const MODEL_KINDS=['vocoder'];
+    export function assetsPresent(){return !!s.present;}
+    export async function downloadAssets(variant,preset,onProgress){
+      s.downloads=(s.downloads??0)+1;
+      onProgress({phase:'download',receivedBytes:1,totalBytes:4,percent:25,etaSeconds:null});
+      if(s.downloadGate) await s.downloadGate;
+      if(s.downloadError) throw s.downloadError;
+      onProgress({phase:'download',receivedBytes:4,totalBytes:4,percent:100,etaSeconds:0});
+      return {modelPaths:{vocoder:'file:///v.onnx'},style:preset,cfgs:{},indexer:{}};
+    }
     export async function downloadVoiceStyle(variant,preset){
       if(globalThis.__readingEngineTest.failPresets?.has(preset)) throw new Error('offline');
       return preset;
     }`,
   './helper.native.js': `const s=globalThis.__readingEngineTest;
-    export const loadOnnx=async()=>({});
+    export const loadOnnx=async()=>{ if(s.loadFails) throw new Error('bad model'); return {}; };
     export const loadVoiceStyleFromObjects=styles=>styles[0];
     export const writeWavFile=samples=>new Uint8Array(samples);
     export class UnicodeProcessor{}
@@ -51,6 +61,7 @@ beforeEach(async () => {
   engine._reset();
   state.files.clear(); state.players.length=0; state.calls.length=0; state.active=0; state.peak=0; state.gate=null;
   state.failPresets=new Set();
+  state.downloads=0; state.downloadGate=null; state.downloadError=null; state.loadFails=false; state.present=false; state.network='wifi';
   await engine.ensureReady();
 });
 
@@ -117,4 +128,70 @@ test('재생 중지로 대기를 풀고 합성 중 화면을 떠나면 뒤늦게
   release();
   await speaking;
   assert.equal(state.players.length,1);
+});
+
+test('준비 진행: 먼저 시작한 준비를 나중에 온 화면도 함께 지켜보고 받기는 한 번만 한다', async () => {
+  engine._reset();
+  state.downloads=0;
+  let release;
+  state.downloadGate=new Promise(resolve=>{release=resolve;});
+  const early=[]; const late=[];
+  const first=engine.ensureReady(p=>early.push(p.phase));
+  await flush();
+  assert.equal(engine.isPreparing(),true);
+  const second=engine.ensureReady(p=>late.push(p.phase));
+  assert.equal(late[0],'download'); // 늦게 와도 마지막 진행부터 받는다
+  release();
+  await Promise.all([first,second]);
+  assert.equal(state.downloads,1);
+  assert.deepEqual(early,['download','download','load','ready']);
+  assert.deepEqual(late,['download','download','load','ready']);
+  assert.equal(engine.isReady(),true);
+});
+
+test('미리 받기: Wi-Fi 에서만 받고, 진행 중인 준비와 한 번의 받기를 나눠 쓴다', async () => {
+  engine._reset(); state.downloads=0;
+  state.network='cellular';
+  await engine.prefetchIfWifi();
+  assert.equal(state.downloads,0);
+  assert.equal(engine.isReady(),false);
+
+  state.network='unknown';
+  await engine.prefetchIfWifi();
+  assert.equal(state.downloads,0);
+
+  state.network='wifi';
+  let release;
+  state.downloadGate=new Promise(resolve=>{release=resolve;});
+  const prefetch=engine.prefetchIfWifi();
+  await flush(); await flush();
+  const screen=engine.ensureReady();
+  const again=engine.prefetchIfWifi();
+  release();
+  await Promise.all([prefetch,screen,again]);
+  assert.equal(state.downloads,1);
+  assert.equal(engine.isReady(),true);
+});
+
+test('미리 받기: 이미 받아 둔 모델은 미리 불러오지 않고 실패는 삼킨다', async () => {
+  engine._reset(); state.downloads=0;
+  state.present=true;
+  await engine.prefetchIfWifi();
+  assert.equal(state.downloads,0);
+  assert.equal(engine.isReady(),false);
+
+  state.present=false;
+  state.downloadError=new Error('offline');
+  await engine.prefetchIfWifi(); // 던지지 않는다
+  assert.equal(engine.isReady(),false);
+  assert.equal(engine.isPreparing(),false); // 실패 뒤에는 다시 시도할 수 있다
+});
+
+test('준비 실패: 모델을 못 불러오면 model_load 로 알린다', async () => {
+  engine._reset();
+  state.loadFails=true;
+  await assert.rejects(engine.ensureReady(), (e) => e.kind === 'model_load');
+  state.loadFails=false;
+  await engine.ensureReady();
+  assert.equal(engine.isReady(),true);
 });

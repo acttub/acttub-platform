@@ -17,6 +17,7 @@ import {
   isSamplePracticeId,
   SAMPLE_ANALYZING_STEP_MS,
   SAMPLE_PRACTICE_ID,
+  sampleAnswerFor,
   sampleDetail,
   sampleScene,
 } from '../lib/tutorial-sample.ts';
@@ -223,4 +224,16 @@ test('예시 대본 경로는 파일 넣기 대신 채워 둔 대본을 비춘�
   assert.ok(own.includes(TARGET.readingDrop));
   assert.ok(!sample.includes(TARGET.readingDrop));
   assert.ok(sample.includes(TARGET.readingText));
+});
+
+// 예시 튜토리얼은 답도 샘플로 채워 둔다 — 영상을 모르는 사람이 무엇을 적을지 막히지 않게(SOMA-494).
+test('예시 코치의 질문마다 채워 둘 샘플 답이 있고, 질문이 끝나면 없다', () => {
+  const first = sampleAnswerFor(0);
+  const second = sampleAnswerFor(1);
+  assert.ok(first && first.trim());
+  assert.ok(second && second.trim());
+  assert.notEqual(first, second);
+  assert.equal(sampleAnswerFor(2), null);
+  // 샘플 답은 답장 한도(300자) 안이다.
+  assert.ok(first.length <= 300 && second.length <= 300);
 });

@@ -34,7 +34,7 @@ import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { finishTutorial, useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
 import { TARGET } from '@/lib/spotlight-targets';
 import { loopApiFor } from '@/lib/tutorial-loop';
-import { isSamplePracticeId } from '@/lib/tutorial-sample';
+import { isSamplePracticeId, sampleAnswerFor } from '@/lib/tutorial-sample';
 
 // 네이티브 모듈이 없는 빌드(STT 도입 전 dev client)에서도 화면이 뜨도록 가드해서 로드한다.
 let MicButton: ComponentType<MicButtonProps> | null = null;
@@ -209,6 +209,15 @@ export default function CoachScreen() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 예시 튜토리얼은 새 질문이 오면 답 칸에 샘플 답을 채워 둔다 — 그대로 보내도, 고쳐 써도 된다.
+  useEffect(() => {
+    if (!sample || closed) return;
+    const last = messages[messages.length - 1];
+    if (last?.role !== 'coach') return;
+    const answer = sampleAnswerFor(messages.filter((m) => m.role === 'actor').length);
+    if (answer) setInput((was) => (was.trim() ? was : answer));
+  }, [closed, messages, sample]);
 
   useEffect(() => {
     const timer = setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
@@ -457,7 +466,7 @@ const styles = StyleSheet.create({
   loadingText: { fontSize: 13.5, fontWeight: '600', color: palette.textFaint },
 
   questionBlock: { gap: 14 },
-  question: { fontSize: 23, fontWeight: '900', color: palette.text, lineHeight: 33 },
+  question: { fontSize: 19, fontWeight: '800', color: palette.text, lineHeight: 28 },
 
   pastAi: { gap: 4 },
   pastMine: { gap: 4, paddingLeft: 14, borderLeftWidth: 2, borderLeftColor: palette.blueLine },

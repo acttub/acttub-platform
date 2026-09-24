@@ -42,6 +42,11 @@ export default function ReadingRoles() {
     if (script) setCharacters(script.characters);
   }, [script]);
 
+  // Wi-Fi 면 상대역 목소리를 미리 받아 둔다 — 실행 화면에서 기다리지 않게. 화면을 막지 않고 실패도 알리지 않는다.
+  useEffect(() => {
+    void engine.prefetchIfWifi();
+  }, []);
+
   const effective = useMemo(
     () => characters.map((c) => ({ ...c, voice_preset: c.id in overrides ? overrides[c.id] : c.voice_preset })),
     [characters, overrides],
@@ -120,7 +125,7 @@ export default function ReadingRoles() {
   return (
     <View style={styles.root}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.step}>STEP 2 · 배역 선택</Text>
+        <Text style={styles.step}>STEP 3 · 배역 선택</Text>
         <Text style={styles.title}>{t('reading.rolesHeading')}</Text>
         <Text style={styles.sub}>{single ? t('reading.singleRoleNote') : t('reading.rolesSub')}</Text>
 

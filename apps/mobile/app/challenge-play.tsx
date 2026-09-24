@@ -58,6 +58,8 @@ export default function ChallengePlayScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [atEnd, setAtEnd] = useState(false);
   const [playing, setPlaying] = useState(true);
+  // 소리는 켠 채로 튼다 — 연기 영상은 대사가 반이다. 끄고 싶으면 위의 스피커로 끈다.
+  const [muted, setMuted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [reportTarget, setReportTarget] = useState<{ type: ReportTarget; id: string } | null>(null);
@@ -65,8 +67,11 @@ export default function ChallengePlayScreen() {
 
   const player = useVideoPlayer(null, (p) => {
     p.loop = true;
-    p.muted = true;
   });
+
+  useEffect(() => {
+    player.muted = muted;
+  }, [muted, player]);
 
   /** 조회수 사건 — 한 재생에 한 번, 실패는 삼킨다. */
   const viewTracker = useRef(
@@ -311,9 +316,18 @@ export default function ChallengePlayScreen() {
               </View>
               <Text style={styles.authorName}>{item.author.name}</Text>
             </View>
-            <Pressable onPress={() => openMenu(item)} hitSlop={10} accessibilityRole="button">
-              <Feather name="more-horizontal" size={24} color="#FFFFFF" />
-            </Pressable>
+            <View style={styles.topRight}>
+              <Pressable
+                onPress={() => setMuted((v) => !v)}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel={t(muted ? 'react.unmute' : 'react.mute')}>
+                <Feather name={muted ? 'volume-x' : 'volume-2'} size={22} color="#FFFFFF" />
+              </Pressable>
+              <Pressable onPress={() => openMenu(item)} hitSlop={10} accessibilityRole="button">
+                <Feather name="more-horizontal" size={24} color="#FFFFFF" />
+              </Pressable>
+            </View>
           </View>
 
           <View style={styles.flex} pointerEvents="none" />
@@ -461,6 +475,7 @@ const styles = StyleSheet.create({
   line: { fontSize: 22, fontWeight: '800', color: '#FFFFFF', lineHeight: 30 },
   work: { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.75)' },
   actions: { flexDirection: 'row', gap: 22, marginTop: 6 },
+  topRight: { flexDirection: 'row', alignItems: 'center', gap: 18 },
   action: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   actionOff: { opacity: 0.4 },
   actionText: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },

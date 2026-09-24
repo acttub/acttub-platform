@@ -25,6 +25,7 @@ import {
   recoveryStatusForConsentGate,
   routeAllowedDuringConsentGate,
   resolveAnalyzingBootstrapRoute,
+  bootstrapSessionKey,
   resolveBootstrapStep,
   resolvePostConsentRoute,
   type BootstrapRecoveryParams,
@@ -197,12 +198,7 @@ function RootNavigator() {
       recoveryOwner: recovery.owner,
       pending: recovery.pending,
     });
-    const sessionKey =
-      status === 'signedIn' && user
-        ? `signedIn:${user.id}`
-        : status === 'signedOut'
-          ? 'signedOut'
-          : null;
+    const sessionKey = bootstrapSessionKey(status, user?.id ?? null);
     if (
       completedBootstrapRef.current &&
       completedBootstrapRef.current.sessionKey !== sessionKey

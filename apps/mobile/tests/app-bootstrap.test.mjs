@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  bootstrapSessionKey,
   recoveryStatusForConsentGate,
   resolveAnalyzingBootstrapRoute,
   resolveBootstrapStep,
@@ -283,4 +284,29 @@ test('공통 규칙: 426을 받은 뒤에는 로그인 여부와 무관하게 �
       { stage: 'update-gate', route: '/update-required' },
     );
   }
+});
+
+// 로그인 화면에서 "로그인 없이 둘러보기"를 누르면 상태만 guest 가 되고 이동은 루트 게이트가 한다.
+// 게이트는 세션 키가 없으면 아무것도 하지 않아, guest 의 키가 null 이던 동안 로그인 화면에 갇혔다(SOMA-544).
+test('둘러보기에도 세션 키가 있다 — 없으면 게이트가 탭으로 보내지 않는다', () => {
+  assert.equal(bootstrapSessionKey('guest', null), 'guest');
+  assert.equal(bootstrapSessionKey('signedOut', null), 'signedOut');
+  assert.equal(bootstrapSessionKey('signedIn', 'u-1'), 'signedIn:u-1');
+  // 로그인했지만 사용자를 아직 못 읽었거나, 앱이 켜지는 중이면 키가 없다(기다린다).
+  assert.equal(bootstrapSessionKey('signedIn', null), null);
+  assert.equal(bootstrapSessionKey('loading', null), null);
+});
+
+test('둘러보기는 곧장 탭으로 간다', () => {
+  assert.deepEqual(
+    resolveBootstrapStep({
+      authStatus: 'guest',
+      userId: null,
+      profileStatus: 'checking',
+      recoveryStatus: 'checking',
+      recoveryOwner: null,
+      pending: null,
+    }),
+    { stage: 'done', route: '/(tabs)' },
+  );
 });

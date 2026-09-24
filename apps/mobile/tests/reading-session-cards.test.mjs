@@ -4,7 +4,6 @@ import test from 'node:test';
 import {
   isPlaybackExpired,
   listenQueue,
-  readingHistoryRows,
   recordingSummary,
   recordingsInLineOrder,
   resumeProgress,
@@ -77,20 +76,3 @@ test('reading.recording: 재생 URL이 만료됐으면(11분 뒤) 목록을 다�
   assert.equal(isPlaybackExpired(rec('r2', 'l2', { playback_url: null }), NOW), true);
 });
 
-test('reading.session: 연습 기록(A1.1)에 리딩 회차 항목을 최신순으로 합친다', () => {
-  const scripts = [
-    { id: 's1', title: '갈매기' },
-    { id: 's2', title: '옥상, 밤' },
-  ];
-  const sessions = {
-    s1: [card({ id: 'a', started_at: '2026-09-20T21:00:00+09:00' }), card({ id: 'b', ordinal: 2, status: 'stopped', started_at: '2026-09-18T21:00:00+09:00' })],
-    s2: [card({ id: 'c', ordinal: 1, status: 'in_progress', my_character_names: [], started_at: '2026-09-21T09:00:00+09:00', ended_at: null })],
-  };
-  const rows = readingHistoryRows(scripts, sessions);
-  assert.deepEqual(rows.map((r) => r.sessionId), ['c', 'a', 'b']);
-  assert.equal(rows[1].title, '갈매기 · 니나 리딩');
-  assert.equal(rows[0].title, '옥상, 밤');
-  assert.equal(rows[1].scriptId, 's1');
-  assert.match(rows[1].meta, /완료/);
-  assert.match(rows[1].meta, /녹음 2/);
-});

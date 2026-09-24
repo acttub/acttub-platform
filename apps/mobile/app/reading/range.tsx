@@ -147,7 +147,7 @@ export default function ReadingRange() {
   return (
     <View style={styles.root}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.step}>STEP 3 · 시작 위치</Text>
+        <Text style={styles.step}>STEP 4 · 시작 위치</Text>
         <Text style={styles.title}>어디부터 어디까지 연습할까요?</Text>
         <Text style={styles.sub}>{script.title} · 대사 {script.dialogueCount}개 · 내 배역 {script.myRoles.join(', ')}</Text>
 

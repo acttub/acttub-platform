@@ -1,13 +1,12 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs, useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { LegacyArchivePrompt } from '@/components/legacy-archive-prompt';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
-import { RecordModeSheet, type RecordMode } from '@/components/record-mode-sheet';
 import { palette } from '@/constants/palette';
 import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
 import { useRequireLogin } from '@/hooks/use-require-login';
@@ -21,31 +20,20 @@ type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
  *
  * 화면 위에 떠 있는 알약: 좌우·바닥을 띄우고 그림자를 깊게 준다. 아이콘은 Ionicons
  * 아웃라인↔채움 쌍으로, 활성 탭은 채운 모양 + 연한 파란 pill.
- * 촬영 버튼은 먼저 용도(AI 코칭 / 챌린지 / 기본 촬영)를 고르고 카메라로 간다.
+ * 촬영 버튼은 카메라를 바로 연다(인스타 만들기 화면처럼) — 용도(AI 코칭 / 오늘의 대사 / 그냥 촬영)는
+ * 셔터 아래 줄을 넘겨 고른다(SOMA-494). 찍은 것은 보관함에 남아야 해서 둘러보는 중이면 로그인부터 안내한다.
  */
 export default function TabLayout() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [modeOpen, setModeOpen] = useState(false);
   // 읽지 않은 알림 묶음 수 — 챌린지가 열린 사람에게만 읽는다.
   const { isGuest, requireLogin, element: loginGuard } = useRequireLogin();
   const unread = useUnreadNotifications(isKorean() && !isGuest);
   // 첫 가이드가 이 버튼을 비춘다 — 탭바는 홈 화면 밖이라 자리를 재서 남겨 둔다 (SOMA-550).
   const shootTarget = useSpotlightTarget(TARGET.shoot);
 
-  const pickMode = (mode: RecordMode) => {
-    setModeOpen(false);
-    // AI 코칭은 서버로 올려야 한다 — 둘러보는 중이면 로그인으로 안내한다 (SOMA-544).
-    if (mode === 'ai') {
-      requireLogin(() => router.push({ pathname: '/record-video', params: { mode: 'ai' } }));
-      return;
-    }
-    if (mode === 'plain') {
-      router.push({ pathname: '/record-video', params: { mode: 'plain' } });
-      return;
-    }
-    // 챌린지 참여는 대사를 고르는 데서 시작한다 — 목록에서 고른 챌린지가 촬영 화면에 대사를 준다.
-    requireLogin(() => router.push('/challenges'));
+  const openCamera = () => {
+    requireLogin(() => router.push({ pathname: '/record-video', params: { mode: 'ai', picker: '1' } }));
   };
 
   const icon = (outline: IoniconName, filled: IoniconName) => {
@@ -104,7 +92,7 @@ export default function TabLayout() {
                   style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
                   accessibilityRole="button"
                   accessibilityLabel={t('tabs.shootA11y')}
-                  onPress={() => setModeOpen(true)}>
+                  onPress={openCamera}>
                   <Ionicons name="videocam" size={26} color="#FFFFFF" />
                 </Pressable>
               </View>
@@ -127,7 +115,6 @@ export default function TabLayout() {
         />
         <Tabs.Screen name="profile" options={{ title: t('tabs.profile'), tabBarIcon: icon('person-outline', 'person') }} />
       </Tabs>
-      <RecordModeSheet visible={modeOpen} onClose={() => setModeOpen(false)} onPick={pickMode} />
       {loginGuard}
     </>
   );
