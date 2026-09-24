@@ -42,6 +42,16 @@ class DirectVideoConfigurationTest {
         });
     }
 
+    @Test void practiceLoopDefaultsToDevOnlyAndCanBeSetExplicitly() {
+        runner.withPropertyValues("SITE_URL=https://dev.acttub.com", "ACTTUB_DIRECT_VIDEO_ENABLED=true").run(context ->
+                assertThat(context.getBean(com.acttub.actingapi.feature.coach.app.DirectVideoCoach.class).practiceLoop()).isTrue());
+        runner.withPropertyValues("SITE_URL=https://acttub.com", "ACTTUB_DIRECT_VIDEO_ENABLED=true").run(context ->
+                assertThat(context.getBean(com.acttub.actingapi.feature.coach.app.DirectVideoCoach.class).practiceLoop()).isFalse());
+        runner.withPropertyValues("SITE_URL=https://dev.acttub.com", "ACTTUB_DIRECT_VIDEO_ENABLED=true",
+                "ACTTUB_DIRECT_VIDEO_PRACTICE_LOOP=false").run(context ->
+                assertThat(context.getBean(com.acttub.actingapi.feature.coach.app.DirectVideoCoach.class).practiceLoop()).isFalse());
+    }
+
     @Test void devCanDisableTheExperiment() {
         runner.withPropertyValues("SITE_URL=https://dev.acttub.com", "ACTTUB_DIRECT_VIDEO_ENABLED=false").run(context -> {
             assertThat(context).doesNotHaveBean(DirectVideoSessions.class).doesNotHaveBean(DirectVideoController.class)
