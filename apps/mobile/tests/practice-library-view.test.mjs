@@ -16,6 +16,7 @@ const video = (id, o = {}) => ({
   usage: { practice_count: 0, entry_count: 0 },
   playback_url: null,
   playback_expires_at: null,
+  poster_url: null,
   ...o,
 });
 const pending = (id, o = {}) => ({ id, owner: 'u1', requestId: `rid-${id}`, uri: `file:///a/${id}.mp4`, contentType: 'video/mp4', durationMs: 5_000, createdAt: NOW - 60_000, intentId: null, intentExpiresAt: null, status: 'queued', lastError: null, ...o });

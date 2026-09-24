@@ -55,7 +55,7 @@ function phone({ failures = {}, now = 10_000_000, prepareFails = null } = {}) {
       const intent = server.intents.get(intentId);
       if (!intent) throw unprocessable('upload_expired');
       if (!intent.video) {
-        intent.video = { id: `vid_${intentId}`, duration_ms: 3_000, byte_size: 5_000_000, content_type: 'video/mp4', favorite: false, purged_at: null, created_at: new Date(clock.now).toISOString(), usage: { practice_count: 0, entry_count: 0 }, playback_url: null, playback_expires_at: null };
+        intent.video = { id: `vid_${intentId}`, duration_ms: 3_000, byte_size: 5_000_000, content_type: 'video/mp4', favorite: false, purged_at: null, created_at: new Date(clock.now).toISOString(), usage: { practice_count: 0, entry_count: 0 }, playback_url: null, playback_expires_at: null, poster_url: null };
         server.videos.set(intent.video.id, intent.video);
       }
       if (failure) throw failure;

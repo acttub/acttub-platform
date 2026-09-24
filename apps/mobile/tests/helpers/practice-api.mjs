@@ -88,5 +88,5 @@ export const practice = (over = {}) => ({
 export const video = (over = {}) => ({
   id: id(2), duration_ms: 30_000, byte_size: 1024, content_type: 'video/mp4', favorite: false, purged_at: null,
   created_at: '2026-09-21T02:00:00Z', usage: { practice_count: 1, entry_count: 0 },
-  playback_url: 'https://storage.test/signed.mp4', playback_expires_at: '2026-09-21T02:10:00Z', ...over,
+  playback_url: 'https://storage.test/signed.mp4', playback_expires_at: '2026-09-21T02:10:00Z', poster_url: null, ...over,
 });
