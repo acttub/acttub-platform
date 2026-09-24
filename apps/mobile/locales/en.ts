@@ -249,6 +249,8 @@ const en: DeepStringShape<typeof ko> = {
     keep: 'Notifications are kept for 90 days.',
   },
   react: {
+    mute: 'Mute',
+    unmute: 'Unmute',
     gone: 'This video is no longer available.',
     selfNotAllowed: "You can't react to your own entry.",
     dailyCommentLimit: 'You can write 100 comments a day.',

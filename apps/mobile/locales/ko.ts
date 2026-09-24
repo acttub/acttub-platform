@@ -240,6 +240,8 @@ const ko = {
     keep: '알림은 90일 동안 보관해요.',
   },
   react: {
+    mute: '소리 끄기',
+    unmute: '소리 켜기',
     gone: '이 영상은 더 이상 볼 수 없어요.',
     selfNotAllowed: '내 참여작에는 누를 수 없어요.',
     dailyCommentLimit: '댓글은 하루 100개까지 쓸 수 있어요.',

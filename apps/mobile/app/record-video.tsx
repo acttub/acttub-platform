@@ -365,8 +365,8 @@ export default function RecordVideoScreen() {
     <View style={styles.safe}>
       <Stack.Screen options={{ title: t('record.screenTitle'), headerShown: false }} />
       <CameraView ref={cameraRef} style={styles.camera} facing={facing} mode="video" />
-        {/* 넘기기는 여기서 받는다 — 위 겹침은 box-none 이라 빈 곳 터치를 자기가 받지 않는다. */}
-        <View style={StyleSheet.absoluteFill} {...swipe.panHandlers} />
+      {/* 넘기기는 여기서 받는다 — 위 겹침은 box-none 이라 빈 곳 터치를 자기가 받지 않는다. */}
+      <View style={StyleSheet.absoluteFill} {...swipe.panHandlers} />
 
       <SafeAreaView style={styles.overlay} pointerEvents="box-none">
         <View style={styles.topRow}>
