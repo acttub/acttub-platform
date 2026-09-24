@@ -21,6 +21,10 @@ const nextConfig: NextConfig = {
   // 전용 바이너리가 딸려온다(Next의 의존성 트레이싱이 무조건 포함시킨다).
   // Dockerfile은 빌드·런타임을 같은 리눅스로 맞춰 해당 바이너리도 함께 복사한다.
   images: { unoptimized: true },
+  // 참여작 공유 페이지(/e/<id>, challenge.share)는 메신저 미리보기 때문에 요청마다 서버에서 렌더하고, 그때
+  // API 에 직접 묻는다(src/lib/api/v2/public-entry.ts). 런타임 이미지에는 API_ORIGIN 환경변수가 없어
+  // rewrites 와 같은 값을 빌드 때 서버 번들에 굳힌다. 클라이언트 코드는 이 값을 읽지 않는다.
+  env: { ACTTUB_SERVER_API_ORIGIN: apiOrigin },
   // 폰 등 다른 기기에서 dev 서버를 열 때 필요 (기본은 로컬만 허용).
   // 이 값만으로는 부족하다 — dev 서버가 loopback에만 붙어 있으면 폰이 소켓에
   // 닿지 못하므로 `pnpm dev:lan`으로 LAN 주소에 바인드해야 한다.

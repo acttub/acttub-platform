@@ -3308,6 +3308,36 @@
         }
       }
     },
+    "/v2/public/entries/{id}" : {
+      "get" : {
+        "tags" : [ "v2-challenges" ],
+        "summary" : "Get Public Challenge Entry",
+        "description" : "공유 링크 미리보기용으로 참여작의 챌린지 작품·대사·배역을 로그인 없이 본다. 공개 조건(공개·보이는 상태·\n활성 작성자·파일이 남은 영상·보이는 챌린지)을 벗어난 참여작과 없는 id 는 같은 404 entry_not_found 다.\n작성자의 이름·사진은 나오지 않는다.",
+        "operationId" : "get_public_entry_v2_public_entries__id__get",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "응답 헤더 X-Robots-Tag: noindex",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PublicChallengeEntry"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v2/practices/{practice_id}" : {
       "get" : {
         "tags" : [ "v2-practices" ],
@@ -8075,6 +8105,39 @@
         },
         "required" : [ "url" ],
         "title" : "PublicPortfolioPhoto"
+      },
+      "PublicChallengeEntry" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "work" : {
+            "type" : "string",
+            "title" : "Work"
+          },
+          "line" : {
+            "type" : "string",
+            "title" : "Line"
+          },
+          "character" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Character"
+          },
+          "poster_url" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "장면 이미지. 아직 만들지 않아 언제나 null 이다 — 웹은 서비스 공통 OG 이미지로 대신한다"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Poster Url"
+          }
+        },
+        "required" : [ "character", "line", "poster_url", "work" ],
+        "title" : "PublicChallengeEntry"
       },
       "PracticeGroupList" : {
         "type" : "object",

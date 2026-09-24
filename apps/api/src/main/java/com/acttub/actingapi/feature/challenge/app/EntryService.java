@@ -79,6 +79,13 @@ public class EntryService {
 
     public EntryCard find(UUID viewer, UUID entryId) { return entries.find(viewer, entryId, clock.instant()); }
 
+    /** 공유 링크의 공개 조회. 비공개·숨김·삭제·탈퇴한 사람의 것과 없는 id 는 같은 404 다. */
+    public EntryRepository.PublicEntry publicView(UUID entryId) {
+        var entry = entries.publicEntry(entryId);
+        if (entry == null) throw new ApiException(404, "entry_not_found");
+        return entry;
+    }
+
     public MyEntries mine(UUID owner, String category, String cursor) {
         if (category != null && !Set.of("public", "private", "under_review").contains(category)) {
             throw ApiValidationException.valueError(List.of("query", "visibility"), "Value error, invalid visibility", category);

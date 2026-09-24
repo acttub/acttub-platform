@@ -23,7 +23,9 @@ export type StoreLinkSurface =
   | "landing_cta"
   | "landing_footer"
   | "app_page"
-  | "keyword_page";
+  | "keyword_page"
+  /** 참여작 공유 페이지(/e/<id>)의 "앱에서 보기" — 앱이 없을 때 스토어로 간다. */
+  | "entry_share";
 
 /**
  * 스토어로 나가는 주소.

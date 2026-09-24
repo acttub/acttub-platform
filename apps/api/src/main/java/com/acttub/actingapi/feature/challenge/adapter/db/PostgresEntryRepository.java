@@ -235,6 +235,18 @@ class PostgresEntryRepository implements EntryRepository {
     }
 
     @Override @Transactional(readOnly = true)
+    public PublicEntry publicEntry(UUID entryId) {
+        var rows = NativeTuples.list(em.createNativeQuery(
+                "SELECT ec.work,ec.line,ec.character " + ChallengeVisibility.ENTRY_FROM + " WHERE e.id=:id AND "
+                        + ChallengeVisibility.PUBLIC_ENTRY, Tuple.class)
+                .setParameter("id", entryId));
+        if (rows.isEmpty()) return null;
+        Tuple row = rows.getFirst();
+        return new PublicEntry(row.get("work", String.class), row.get("line", String.class),
+                row.get("character", String.class));
+    }
+
+    @Override @Transactional(readOnly = true)
     public MyEntries mine(UUID owner, String category, String cursor, Instant now) {
         Tuple counts = NativeTuples.list(em.createNativeQuery("""
                 SELECT count(*) AS all_count,

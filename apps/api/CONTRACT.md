@@ -373,7 +373,7 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 
 | 동작 | 대상 |
 |---|---|
-| **required + `null` 값을 실어 보냄** | `AuthUser.email`, `MeResponse.email`/`.profile`, `Profile` 의 `directions` 를 뺀 전 항목(1.0.0 이전 회원은 `name` 만 차 있다), `CoachTurnResponse.handoff`/`.report`, `CoachConfirmResponse.handoff`, `SourceHandoffIds.analysis`, `MemoryItem.source_practice_session_id`, `ConsentEntryDocument.current_decision`/`.decided_at`, `Portfolio.intro`, `PortfolioPhoto.url`, `PortfolioShare.slug`/`.url`, `PublicPortfolio.photo_url`/`.gender`/`.intro`, `PublicPortfolioPhoto.url`, 연습 노트의 `PracticeNote*`·`PublicPracticeNote` 항목들 |
+| **required + `null` 값을 실어 보냄** | `AuthUser.email`, `MeResponse.email`/`.profile`, `Profile` 의 `directions` 를 뺀 전 항목(1.0.0 이전 회원은 `name` 만 차 있다), `CoachTurnResponse.handoff`/`.report`, `CoachConfirmResponse.handoff`, `SourceHandoffIds.analysis`, `MemoryItem.source_practice_session_id`, `ConsentEntryDocument.current_decision`/`.decided_at`, `Portfolio.intro`, `PortfolioPhoto.url`, `PortfolioShare.slug`/`.url`, `PublicPortfolio.photo_url`/`.gender`/`.intro`, `PublicPortfolioPhoto.url`, `PublicChallengeEntry.character`/`.poster_url`, 연습 노트의 `PracticeNote*`·`PublicPracticeNote` 항목들 |
 | **optional + 조건부로 키를 추가** | `PracticeSessionDetail.summary`(status 가 `analyzed` 이고 summary 가 있을 때만), `.error_code`(`failed` 일 때만) |
 | **optional 인데 항상 포함** | `PracticeSessionStatusResponse.error_code` |
 
@@ -503,7 +503,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 
 | 단계 | 경로 |
 |---|---|
-| 게이트 밖 | `/v2/auth/**`, `/v2/consents/**`, `GET`·`DELETE /v2/me`, `DELETE /v2/push-tokens`, 공개 `/v2/admissions/**`·`GET /v2/public/**`, 운영 `/v2/admin/**` |
+| 게이트 밖 | `/v2/auth/**`, `/v2/consents/**`, `GET`·`DELETE /v2/me`, `DELETE /v2/push-tokens`, 공개 `/v2/admissions/**`·`GET /v2/public/**`(포트폴리오 §6-11·참여작 공유 §6-17), 운영 `/v2/admin/**` |
 | 게스트 전용 | `/v2/guest/**`(이관 코드 받기) — 필요한 동의 문서가 없다. 회원이 부르면 403 `guest_only` |
 | 동의까지만 | `PUT /v2/me/profile` — 개인정보를 받기 전에 수집 동의가 끝나 있어야 하고, 프로필이 빈 사람이 채우는 자리다 |
 | 동의 + 프로필 | 그 밖의 모든 `/v2` |
@@ -802,7 +802,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 ### 6-13. 방문자 IP
 
 IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮기기의 틀린 시도, 푸시 토큰 삭제, 포트폴리오 공개
-조회)의 열쇠는 **방문자 주소**이고 `platform/security/ClientAddress` 한 자리가 구한다. feature 는
+조회, 참여작 공유 조회)의 열쇠는 **방문자 주소**이고 `platform/security/ClientAddress` 한 자리가 구한다. feature 는
 `getRemoteAddr` 를 직접 읽지 않는다(`ClientAddressTest` 가 구조로 막는다).
 
 - 배포 경로는 방문자 → Cloudflare → cloudflared → web(Next rewrites) → api 라서 api 가 보는 상대는 **언제나 web
@@ -1320,6 +1320,13 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   review·hidden) → 비공개 → 공개 순으로 한 분류에만 넣어 `counts`(all = 셋의 합)와 20개씩의 목록을 낸다.
 - 카드에는 작성자의 현재 이름만 있고 사진·소개가 없다. `comment_count`는 보는 사람에게 보이는 댓글 수, `saved`는
   보는 사람의 저장 여부다. V18은 `entry_view_events`·`entry_ranking_snapshots`를 더하고 기존 표는 바꾸지 않는다.
+- **공유 링크**(challenge.share): 앱은 `<SITE_URL>/e/<entry id>`를 공유하고 웹이 그 주소에서 메신저 미리보기(OG)를
+  그린다. 웹 서버가 `GET /v2/public/entries/{id}`를 부른다 — 로그인 없음·게이트 밖·`Authorization`을 보지 않는다.
+  보는 사람이 없으므로 차단은 따지지 않고 **6-16의 공개 조건만** 본다. 그 밖(비공개·신고 숨김·삭제·탈퇴한 작성자·
+  파일 파기 영상·review·hidden·삭제 챌린지)과 없는 id는 같은 404 `entry_not_found`. 응답은 챌린지의 `work`·`line`·
+  `character`(nullable)와 `poster_url`(nullable, 아직 만들지 않아 언제나 null)뿐이다 — **작성자의 이름·사진은
+  싣지 않는다**(제품 결정: 미리보기는 작품·대사·장면만). `X-Robots-Tag: noindex, nofollow`를 싣고 보는 사람의
+  IP 별 분당 60회다(§6-13 — 웹 서버가 받은 `X-Forwarded-For`를 그대로 넘긴다).
 
 ### 6-18. 챌린지 반응·차단·신고 (1.0.0)
 

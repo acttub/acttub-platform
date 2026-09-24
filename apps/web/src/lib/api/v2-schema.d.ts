@@ -1351,6 +1351,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/public/entries/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Public Challenge Entry
+         * @description 공유 링크 미리보기용으로 참여작의 챌린지 작품·대사·배역을 로그인 없이 본다. 공개 조건(공개·보이는 상태·
+         *     활성 작성자·파일이 남은 영상·보이는 챌린지)을 벗어난 참여작과 없는 id 는 같은 404 entry_not_found 다.
+         *     작성자의 이름·사진은 나오지 않는다.
+         */
+        get: operations["get_public_entry_v2_public_entries__id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/practices/{practice_id}": {
         parameters: {
             query?: never;
@@ -3771,6 +3793,17 @@ export interface components {
         PublicPortfolioPhoto: {
             /** Url */
             url: string | null;
+        };
+        /** PublicChallengeEntry */
+        PublicChallengeEntry: {
+            /** Work */
+            work: string;
+            /** Line */
+            line: string;
+            /** Character */
+            character: string | null;
+            /** Poster Url */
+            poster_url: string | null;
         };
         /** PracticeGroupList */
         PracticeGroupList: {
@@ -7098,6 +7131,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublicPortfolio"];
+                };
+            };
+        };
+    };
+    get_public_entry_v2_public_entries__id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 응답 헤더 X-Robots-Tag: noindex */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicChallengeEntry"];
                 };
             };
         };

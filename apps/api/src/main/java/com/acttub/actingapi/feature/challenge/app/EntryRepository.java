@@ -30,6 +30,11 @@ public interface EntryRepository {
     boolean view(UUID viewer, UUID entryId, UUID eventId, Instant now);
     EntryPage list(UUID viewer, UUID challengeId, String sort, String cursor, UUID fromEntry, Instant now);
     EntryCard find(UUID viewer, UUID entryId, Instant now);
+    /**
+     * 공유 링크의 공개 조회(challenge.share) — 보는 사람 없이 공개 조건만 본다(차단은 보는 사람이 있어야 따진다).
+     * 공개 조건을 벗어났거나 없으면 {@code null}.
+     */
+    PublicEntry publicEntry(UUID entryId);
     MyEntries mine(UUID owner, String category, String cursor, Instant now);
     /** 매시 도는 일: 마감이 지난 챌린지의 집계·확정과 기한 지난 조회수 사건·커서 정리. */
     int settle(Instant now);
@@ -38,6 +43,8 @@ public interface EntryRepository {
     record NewEntry(UUID videoId, String caption, String visibility) { }
     record Replay(String fingerprint, MyEntry entry) { }
     record Creation(MyEntry entry, boolean created) { }
+    /** 공유 미리보기에 싣는 장면. 작성자는 담지 않는다. */
+    record PublicEntry(String work, String line, String character) { }
 
     @Schema(name = "ChallengeEntry", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
