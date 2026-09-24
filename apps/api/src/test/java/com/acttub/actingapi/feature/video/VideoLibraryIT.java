@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -20,6 +21,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -28,7 +30,9 @@ import java.util.function.IntSupplier;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.profile.app.AccountCleanup;
+import com.acttub.actingapi.feature.video.app.VideoPosterWorker;
 import com.acttub.actingapi.feature.video.domain.VideoRules;
+import com.acttub.actingapi.integration.media.PosterFrameExtractor;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.AccountFixtures;
@@ -59,13 +63,16 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  * 오브젝트 스토리지는 메모리의 가짜다 — 기기가 PUT 하는 자리는 그 가짜에 직접 넣어 흉내 낸다.
  *
  * <p>여기서 보지 못하는 것: 기기의 촬영·압축·크기 검사와 업로드 큐(앱), presigned PUT 과 서명 주소의 실제 만료
- * (저장소), 옛 기기 보관함 옮기기(앱). 회차·참여작이 참조하는 자리는 {@code practices} 에 행을 직접 넣어 본다 —
+ * (저장소), 옛 기기 보관함 옮기기(앱), 포스터의 실제 ffmpeg 추출({@code PosterFrameExtractorTest} 가 본다 — 여기서는
+ * 실행기를 흉내 낸다). 회차·참여작이 참조하는 자리는 {@code practices} 에 행을 직접 넣어 본다 —
  * 회차 API 는 PA2 의 것이고 챌린지 참여작 테이블은 아직 없다.
  */
 @SpringBootTest(properties = {
     "JWT_SECRET=test-secret",
     "ACCOUNT_CLEANUP_ENABLED=false",
     "ACCOUNT_HOUSEKEEPING_ENABLED=false",
+    // 포스터 워커는 테스트가 직접 부른다(스케줄러는 test application.properties 가 끈다).
+    "VIDEO_POSTER_ENABLED=false",
     // 한도 직전의 동시 업로드 둘이 저마다 커넥션을 쥔 채 사용자 행을 기다린다.
     "spring.datasource.hikari.maximum-pool-size=12"
 })
@@ -107,6 +114,12 @@ class VideoLibraryIT {
     @Autowired
     AccountCleanup cleanup;
 
+    @Autowired
+    VideoPosterWorker posters;
+
+    @Autowired
+    FakeFrames frames;
+
     private final Map<String, UUID> documents = new LinkedHashMap<>();
     private UUID member;
     private String bearer;
@@ -127,6 +140,8 @@ class VideoLibraryIT {
         }
         storage.objects.clear();
         storage.failing.clear();
+        storage.contentTypes.clear();
+        frames.reset();
         clock.set(Instant.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS));
         address = "10.56.0." + ADDRESSES.incrementAndGet();
         member = member();
@@ -149,7 +164,8 @@ class VideoLibraryIT {
 
         assertThat(created.fieldNames()).toIterable().containsExactlyInAnyOrder(
                 "id", "duration_ms", "byte_size", "content_type", "favorite", "purged_at", "created_at", "usage",
-                "playback_url", "playback_expires_at");
+                "playback_url", "playback_expires_at", "poster_url");
+        assertThat(created.path("poster_url").isNull()).as("포스터는 마무리를 기다리지 않고 워커가 뒤에 만든다").isTrue();
         assertThat(created.path("duration_ms").intValue()).isEqualTo(12_000);
         assertThat(created.path("byte_size").longValue()).isEqualTo(1_000_000L);
         assertThat(created.path("content_type").textValue()).isEqualTo("video/mp4");
@@ -522,6 +538,112 @@ class VideoLibraryIT {
         assertThat(mapper.readTree(stale.getContentAsString())).isEqualTo(mapper.readTree("{\"detail\":\"guest_transferred\"}"));
     }
 
+    @Test
+    @DisplayName("practice.library 포스터: 마무리한 영상과 이미 있던 영상(백필) 모두 워커가 최신순으로 첫 장면 JPEG 를 만들어 영상 옆에 둔다 — "
+            + "목록·상세에 10분 서명 poster_url 이 붙고, 할 일이 없으면 false")
+    void practiceLibrary_posterWorkerFillsNewAndExistingVideos() throws Exception {
+        UUID old = seedVideo(member, 2_000, clock.instant().minus(Duration.ofDays(30)));
+        UUID fresh = upload(bearer, 1_000, 12_000);
+        assertThat(json(get("/v2/videos"), 200).path("videos")).allMatch(video -> video.path("poster_url").isNull());
+
+        assertThat(posters.runOnce()).isTrue();
+        assertThat(posterKey(fresh)).as("최신 영상이 먼저다").isNotNull();
+        assertThat(posterKey(old)).isNull();
+        assertThat(posters.runOnce()).isTrue();
+        assertThat(posters.runOnce()).as("할 일이 없다").isFalse();
+
+        String freshKey = objectKey(fresh);
+        assertThat(posterKey(fresh)).isEqualTo(freshKey.substring(0, freshKey.lastIndexOf('.')) + ".poster.jpg");
+        assertThat(posterKey(old)).isEqualTo("videos/" + member + "/" + old + ".poster.jpg");
+        assertThat(storage.objects).containsKeys(posterKey(fresh), posterKey(old));
+        assertThat(storage.contentTypes.get(posterKey(fresh))).isEqualTo("image/jpeg");
+        assertThat(frames.seeks).as("12초 영상은 0.5초, 9초 영상도 0.5초 자리").containsExactly("0.5", "0.5");
+
+        JsonNode list = json(get("/v2/videos"), 200);
+        assertThat(list.path("videos")).extracting(video -> video.path("poster_url").textValue())
+                .containsExactly("https://storage.test/get/" + posterKey(fresh), "https://storage.test/get/" + posterKey(old));
+        assertThat(list.path("videos").get(0).path("playback_url").isNull()).as("목록에는 여전히 재생 주소가 없다").isTrue();
+        assertThat(json(get("/v2/videos/{id}", old), 200).path("poster_url").textValue())
+                .isEqualTo("https://storage.test/get/" + posterKey(old));
+    }
+
+    @Test
+    @DisplayName("practice.library 포스터: 추출이 실패해도 목록은 그대로이고 워커는 영상당 세 번까지만 시도한다. 탈퇴한 계정의 영상은 만들지 않는다")
+    void practiceLibrary_posterFailuresAreBoundedAndSkipInactiveAccounts() throws Exception {
+        UUID broken = seedVideo(member, 1_000, null);
+        UUID gone = UUID.randomUUID();
+        jdbc.update("INSERT INTO users(id,status,deactivated_at) VALUES (?,'deactivated',now())", gone);
+        seedVideo(gone, 1_000, null);
+        frames.failing = true;
+
+        for (int attempt = 1; attempt <= VideoRules.POSTER_MAX_ATTEMPTS; attempt++) {
+            assertThat(posters.runOnce()).as("시도 %d", attempt).isTrue();
+        }
+        assertThat(posters.runOnce()).as("세 번 실패한 영상은 더 고르지 않는다").isFalse();
+
+        assertThat(jdbc.queryForObject("SELECT poster_attempts FROM videos WHERE id=?", Integer.class, broken))
+                .isEqualTo(VideoRules.POSTER_MAX_ATTEMPTS);
+        assertThat(posterKey(broken)).isNull();
+        assertThat(storage.objects.keySet()).noneMatch(key -> key.endsWith(".poster.jpg"));
+        assertThat(json(get("/v2/videos"), 200).path("videos").get(0).path("poster_url").isNull()).isTrue();
+        assertThat(frames.seeks).as("탈퇴한 계정의 영상은 고르지 않는다").hasSize(VideoRules.POSTER_MAX_ATTEMPTS);
+    }
+
+    @Test
+    @DisplayName("practice.library 포스터: 파일만 파기 — poster_url 이 없고 포스터 객체도 지운다. 삭제 — 포스터 객체도 지운다. "
+            + "탈퇴 — 영상과 함께 포스터 객체를 지운다")
+    void practiceLibrary_postersLeaveWithTheirVideo() throws Exception {
+        UUID purged = seedVideo(member, 1_000, null);
+        UUID deleted = seedVideo(member, 1_000, null);
+        while (posters.runOnce()) {
+            // 둘 다 만든다.
+        }
+        String purgedPoster = posterKey(purged);
+        String deletedPoster = posterKey(deleted);
+        assertThat(storage.objects).containsKeys(purgedPoster, deletedPoster);
+
+        JsonNode response = json(post("/v2/videos/{id}/purge-file", purged), 200);
+        assertThat(response.path("poster_url").isNull()).isTrue();
+        assertThat(json(get("/v2/videos/{id}", purged), 200).path("poster_url").isNull()).isTrue();
+        assertThat(storage.objects).doesNotContainKeys(objectKey(purged), purgedPoster);
+
+        assertThat(perform(delete("/v2/videos/{id}", deleted), bearer).getStatus()).isEqualTo(204);
+        assertThat(storage.objects).doesNotContainKey(deletedPoster);
+        assertThat(count("account_cleanup_operations")).isZero();
+
+        UUID kept = seedVideo(member, 1_000, null);
+        assertThat(posters.runOnce()).isTrue();
+        String keptPoster = posterKey(kept);
+        assertThat(storage.objects).containsKey(keptPoster);
+        // 보관 동의가 없는 회원이다 — 탈퇴하면 영상 객체를 남기지 않는다.
+        jdbc.update("DELETE FROM user_consents WHERE user_id=? AND document_id=?", member, documents.get("retention"));
+        assertThat(perform(delete("/v2/me"), bearer).getStatus()).isEqualTo(200);
+        assertThat(storage.objects).as("탈퇴하면 영상과 포스터가 함께 사라진다").isEmpty();
+        assertThat(count("account_cleanup_operations")).isZero();
+    }
+
+    @Test
+    @DisplayName("practice.library 포스터: 추출하는 사이에 파일만 파기되거나 삭제됨 — 늦게 만든 포스터를 붙이지 않고 그 객체를 장부가 지운다")
+    void practiceLibrary_aPosterFinishedAfterThePurgeIsDeleted() throws Exception {
+        UUID purged = seedVideo(member, 1_000, null);
+        frames.during = () -> assertThat(perform(post("/v2/videos/{id}/purge-file", purged), bearer).getStatus()).isEqualTo(200);
+
+        assertThat(posters.runOnce()).isTrue();
+
+        assertThat(posterKey(purged)).isNull();
+        assertThat(storage.objects.keySet()).noneMatch(key -> key.endsWith(".poster.jpg"));
+        assertThat(count("account_cleanup_operations")).isZero();
+
+        UUID deleted = seedVideo(member, 1_000, null);
+        frames.during = () -> assertThat(perform(delete("/v2/videos/{id}", deleted), bearer).getStatus()).isEqualTo(204);
+
+        assertThat(posters.runOnce()).isTrue();
+
+        assertThat(storage.objects.keySet()).noneMatch(key -> key.endsWith(".poster.jpg"));
+        assertThat(count("account_cleanup_operations")).isZero();
+        assertThat(posters.runOnce()).isFalse();
+    }
+
     // ---- helpers ----
 
     private String intentBody(UUID requestId, String contentType, long byteSize, int durationMs) {
@@ -576,6 +698,10 @@ class VideoLibraryIT {
 
     private void seedTranscript(UUID videoId) {
         jdbc.update("INSERT INTO video_transcripts(id,video_id,status) VALUES (?,?,'ready')", UUID.randomUUID(), videoId);
+    }
+
+    private String posterKey(UUID videoId) {
+        return jdbc.queryForObject("SELECT poster_key FROM videos WHERE id=?", String.class, videoId);
     }
 
     private String objectKey(UUID videoId) {
@@ -713,11 +839,55 @@ class VideoLibraryIT {
         FakeStorage fakeStorage() {
             return new FakeStorage();
         }
+
+        @Bean
+        FakeFrames fakeFrames() {
+            return new FakeFrames();
+        }
+
+        @Bean
+        @Primary
+        PosterFrameExtractor fakePosterFrameExtractor(FakeFrames frames) {
+            return new PosterFrameExtractor(frames::run);
+        }
+    }
+
+    /**
+     * ffmpeg 대신 JPEG 흉내를 쓰는 실행기. {@link #seeks} 에 고른 자리를 남기고, {@link #during} 은 추출하는 사이에
+     * 일어나는 일(파기·삭제)을 흉내 낸다. {@link #failing} 이면 ffmpeg 가 실패한 것처럼 던진다.
+     */
+    static final class FakeFrames {
+        final List<String> seeks = new CopyOnWriteArrayList<>();
+        volatile boolean failing;
+        volatile ThrowingRunnable during;
+
+        void reset() {
+            seeks.clear();
+            failing = false;
+            during = null;
+        }
+
+        void run(List<String> command, Duration timeout) throws Exception {
+            seeks.add(command.get(command.indexOf("-ss") + 1));
+            if (during != null) {
+                during.run();
+            }
+            if (failing) {
+                throw new java.io.IOException("ffmpeg exited with status 1");
+            }
+            Files.writeString(Path.of(command.getLast()), "jpeg");
+        }
+    }
+
+    @FunctionalInterface
+    interface ThrowingRunnable {
+        void run() throws Exception;
     }
 
     /** 메모리의 오브젝트 스토리지. 무엇이 남아 있는지만 안다. {@link #failing} 에 든 키는 지워지지 않는다. */
     static final class FakeStorage implements ObjectStorage {
         final Map<String, Long> objects = new ConcurrentHashMap<>();
+        final Map<String, String> contentTypes = new ConcurrentHashMap<>();
         final Set<String> failing = ConcurrentHashMap.newKeySet();
 
         @Override
@@ -738,12 +908,26 @@ class VideoLibraryIT {
 
         @Override
         public StoredObjectMetadata downloadToPath(String objectKey, Path destination) {
-            throw new UnsupportedOperationException();
+            Long size = objects.get(objectKey);
+            if (size == null) {
+                throw new IllegalStateException("no such object");
+            }
+            try {
+                Files.writeString(destination, "video");
+            } catch (java.io.IOException exception) {
+                throw new java.io.UncheckedIOException(exception);
+            }
+            return new StoredObjectMetadata(size, "video/mp4", "etag-" + objectKey.hashCode());
         }
 
         @Override
         public void upload(String objectKey, String mimeType, Path source) {
-            throw new UnsupportedOperationException();
+            try {
+                objects.put(objectKey, Files.size(source));
+            } catch (java.io.IOException exception) {
+                throw new java.io.UncheckedIOException(exception);
+            }
+            contentTypes.put(objectKey, mimeType);
         }
 
         @Override

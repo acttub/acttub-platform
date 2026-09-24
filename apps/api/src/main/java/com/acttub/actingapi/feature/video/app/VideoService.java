@@ -130,10 +130,12 @@ public class VideoService {
 
     /**
      * 보관함 목록. 최신 저장순이고 재생 주소는 싣지 않는다 — 한 쪽에서 서른 개의 주소를 만들 이유가 없고 상세를
-     * 열 때 새로 받는다.
+     * 열 때 새로 받는다. <b>포스터 주소는 싣는다</b> — 목록이 미리보기를 보여 주는 자리다(서명은 서버 안의 계산이라
+     * 바깥 호출이 없다).
      */
     public VideoPage list(UUID userId, String filter, String cursor) {
-        return videos.list(userId, filter, cursor, VideoRules.PAGE_SIZE, clock.instant());
+        VideoPage page = videos.list(userId, filter, cursor, VideoRules.PAGE_SIZE, clock.instant());
+        return new VideoPage(page.videos().stream().map(this::poster).toList(), page.nextCursor());
     }
 
     /** 영상 상세 — 재생 주소가 붙는다. 파기된 영상은 주소가 없다. */
@@ -181,10 +183,20 @@ public class VideoService {
         if (video == null || video.purgedAt() != null) {
             return video;
         }
+        VideoView withPoster = poster(video);
         String url = storage.presignPlayback(video.objectKey(), VideoRules.PLAYBACK_TTL_SECONDS);
         return url == null
-                ? video
-                : video.withPlayback(url, clock.instant().plusSeconds(VideoRules.PLAYBACK_TTL_SECONDS));
+                ? withPoster
+                : withPoster.withPlayback(url, clock.instant().plusSeconds(VideoRules.PLAYBACK_TTL_SECONDS));
+    }
+
+    /** 포스터 주소 — 재생 주소와 같은 수명의 서명 GET 이다. 아직 없거나 파기된 영상은 {@code null} 이다. */
+    private VideoView poster(VideoView video) {
+        if (video.posterKey() == null || video.purgedAt() != null) {
+            return video;
+        }
+        String url = storage.presignPlayback(video.posterKey(), VideoRules.PLAYBACK_TTL_SECONDS);
+        return url == null ? video : video.withPoster(url);
     }
 
     private static VideoView require(VideoView video) {

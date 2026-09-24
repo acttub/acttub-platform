@@ -31,6 +31,12 @@ public final class VideoRules {
     /** 재생 서명 주소의 수명(초). 만료 뒤에는 기기가 다시 조회한다. */
     public static final int PLAYBACK_TTL_SECONDS = 600;
 
+    /**
+     * 포스터를 만들려고 한 영상을 집는 횟수의 상한. 넘으면 더 고르지 않는다 — 깨진 영상 하나가 매 주기 내려받기·ffmpeg 를
+     * 되풀이하지 않게 한다. 포스터 주소의 수명은 재생 주소와 같다({@link #PLAYBACK_TTL_SECONDS}).
+     */
+    public static final int POSTER_MAX_ATTEMPTS = 3;
+
     /** "최근 7일" 필터의 창. */
     public static final Duration RECENT_WINDOW = Duration.ofDays(7);
 
@@ -59,5 +65,15 @@ public final class VideoRules {
     /** {@code videos/{사용자}/{요청}.{확장자}} — 요청마다 달라 객체 키를 재사용하지 않는다. */
     public static String objectKey(UUID userId, UUID requestId, String contentType) {
         return "videos/" + userId + "/" + requestId + ("video/quicktime".equals(contentType) ? ".mov" : ".mp4");
+    }
+
+    /**
+     * 포스터는 영상 객체 옆이다 — {@code videos/{사용자}/{요청}.poster.jpg}. 영상 키에서 나오므로 같은 영상이면 몇 번을
+     * 만들어도 같은 키에 덮어쓴다.
+     */
+    public static String posterKey(String objectKey) {
+        int dot = objectKey.lastIndexOf('.');
+        int slash = objectKey.lastIndexOf('/');
+        return (dot > slash ? objectKey.substring(0, dot) : objectKey) + ".poster.jpg";
     }
 }

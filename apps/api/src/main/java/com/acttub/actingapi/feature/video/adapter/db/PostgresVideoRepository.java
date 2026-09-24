@@ -9,6 +9,7 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.video.app.VideoObjectCleanup;
 import com.acttub.actingapi.feature.video.app.VideoRepository;
+import com.acttub.actingapi.feature.video.app.VideoRepository.PosterJob;
 import com.acttub.actingapi.feature.video.app.VideoStorage;
 import com.acttub.actingapi.feature.video.app.VideoViews.VideoPage;
 import com.acttub.actingapi.feature.video.app.VideoViews.VideoView;
@@ -231,6 +232,7 @@ class PostgresVideoRepository implements VideoRepository {
     public VideoPage list(UUID userId, String filter, String cursor, int limit, Instant now) {
         StringBuilder sql = new StringBuilder("""
                 SELECT v.id,v.object_key,v.content_type,v.byte_size,v.duration_ms,v.favorite,v.purged_at,v.created_at,
+                       v.poster_key,
                        (SELECT count(*) FROM practices p WHERE p.video_id=v.id) AS practice_count,
                        (SELECT count(*) FROM challenge_entries ce WHERE ce.video_id=v.id) AS entry_count
                 FROM videos v
@@ -271,6 +273,7 @@ class PostgresVideoRepository implements VideoRepository {
     public VideoView find(UUID userId, UUID videoId) {
         List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
                 SELECT v.id,v.object_key,v.content_type,v.byte_size,v.duration_ms,v.favorite,v.purged_at,v.created_at,
+                       v.poster_key,
                        (SELECT count(*) FROM practices p WHERE p.video_id=v.id) AS practice_count,
                        (SELECT count(*) FROM challenge_entries ce WHERE ce.video_id=v.id) AS entry_count
                 FROM videos v
@@ -310,7 +313,6 @@ class PostgresVideoRepository implements VideoRepository {
             if (referenced(videoId)) {
                 return new Removed(RemoveOutcome.IN_USE, null, List.of());
             }
-            String objectKey = locked.get("object_key", String.class);
             boolean purged = locked.get("purged_at", Instant.class) != null;
             entityManager.createNativeQuery("DELETE FROM video_transcripts WHERE video_id=:videoId")
                     .setParameter("videoId", videoId)
@@ -321,10 +323,10 @@ class PostgresVideoRepository implements VideoRepository {
             entityManager.createNativeQuery("DELETE FROM videos WHERE id=:videoId")
                     .setParameter("videoId", videoId)
                     .executeUpdate();
-            // 이미 파기된 영상에는 지울 객체가 없다.
+            // 이미 파기된 영상에는 지울 객체가 없다(포스터도 파기 때 함께 갔다).
             List<UUID> scheduled = purged
                     ? List.of()
-                    : List.of(cleanup.scheduleObjectDelete(userId, List.of(objectKey), now, now));
+                    : List.of(cleanup.scheduleObjectDelete(userId, objectKeys(locked), now, now));
             return new Removed(RemoveOutcome.DELETED, null, scheduled);
         });
     }
@@ -350,16 +352,87 @@ class PostgresVideoRepository implements VideoRepository {
                     .setParameter("now", now.atOffset(ZoneOffset.UTC))
                     .setParameter("videoId", videoId)
                     .executeUpdate();
-            UUID scheduled = cleanup.scheduleObjectDelete(
-                    userId, List.of(locked.get("object_key", String.class)), now, now);
+            UUID scheduled = cleanup.scheduleObjectDelete(userId, objectKeys(locked), now, now);
             return new Removed(RemoveOutcome.PURGED, find(userId, videoId), List.of(scheduled));
+        });
+    }
+
+    @Override
+    public PosterJob claimPoster(int maxAttempts) {
+        return transaction.execute(tx -> {
+            // 집으면서 시도 횟수를 올린다 — 도중에 죽은 시도도 세고, 다른 프로세스는 잠긴 행을 건너뛴다.
+            List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
+                    WITH next AS (
+                        SELECT v.id
+                        FROM videos v
+                        JOIN users u ON u.id=v.user_id
+                        WHERE v.poster_key IS NULL
+                          AND v.purged_at IS NULL
+                          AND v.poster_attempts<:maxAttempts
+                          AND u.status='active'
+                        ORDER BY v.created_at DESC,v.id DESC
+                        LIMIT 1
+                        FOR UPDATE OF v SKIP LOCKED
+                    ), claimed AS (
+                        UPDATE videos
+                        SET poster_attempts=poster_attempts+1
+                        FROM next
+                        WHERE videos.id=next.id
+                        RETURNING videos.id,videos.user_id,videos.object_key,videos.duration_ms
+                    )
+                    SELECT id,user_id,object_key,duration_ms FROM claimed
+                    """, Tuple.class)
+                    .setParameter("maxAttempts", maxAttempts));
+            if (rows.isEmpty()) {
+                return null;
+            }
+            Tuple row = rows.getFirst();
+            return new PosterJob(
+                    row.get("id", UUID.class),
+                    row.get("user_id", UUID.class),
+                    row.get("object_key", String.class),
+                    row.get("duration_ms", Integer.class));
+        });
+    }
+
+    @Override
+    public List<UUID> attachPoster(PosterJob job, String posterKey, Instant now) {
+        return transaction.execute(tx -> {
+            // 탈퇴·3년 파기와 같은 순서로 사람 행을 먼저 잡는다 — 탈퇴가 영상 키를 모으기 전에 붙였거나, 탈퇴가 끝난
+            // 뒤라 붙이지 않거나 둘 중 하나다.
+            List<Tuple> owner = NativeTuples.list(entityManager.createNativeQuery(
+                    "SELECT status FROM users WHERE id=:userId FOR UPDATE", Tuple.class)
+                    .setParameter("userId", job.userId()));
+            List<Tuple> video = NativeTuples.list(entityManager.createNativeQuery("""
+                    SELECT purged_at
+                    FROM videos
+                    WHERE id=:videoId
+                      AND user_id=:userId
+                    FOR UPDATE
+                    """, Tuple.class)
+                    .setParameter("videoId", job.videoId())
+                    .setParameter("userId", job.userId()));
+            boolean attachable = !owner.isEmpty()
+                    && "active".equals(owner.getFirst().get("status", String.class))
+                    && !video.isEmpty()
+                    && video.getFirst().get("purged_at", Instant.class) == null;
+            if (!attachable) {
+                // 지워졌거나 파기됐거나 주인이 바뀌었거나 탈퇴했다 — 늦게 만든 포스터를 남기지 않는다. 주인이 바뀐
+                // 영상은 포스터가 비어 있으니 다음 주기에 다시 만든다.
+                return List.of(cleanup.scheduleObjectDelete(job.userId(), List.of(posterKey), now, now));
+            }
+            entityManager.createNativeQuery("UPDATE videos SET poster_key=:posterKey WHERE id=:videoId")
+                    .setParameter("posterKey", posterKey)
+                    .setParameter("videoId", job.videoId())
+                    .executeUpdate();
+            return List.of();
         });
     }
 
     /** 영상 행을 잡는다 — 회차 시작(PA2)·삭제·파기가 같은 행에서 줄을 선다. 없거나 남의 것이면 {@code null}. */
     private Tuple lock(UUID userId, UUID videoId) {
         List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT id,object_key,purged_at
+                SELECT id,object_key,poster_key,purged_at
                 FROM videos
                 WHERE id=:videoId
                   AND user_id=:userId
@@ -368,6 +441,16 @@ class PostgresVideoRepository implements VideoRepository {
                 .setParameter("videoId", videoId)
                 .setParameter("userId", userId));
         return rows.isEmpty() ? null : rows.getFirst();
+    }
+
+    /**
+     * 영상이 가진 객체 — 영상과, 있으면 포스터다. 포스터 키는 파기 뒤에도 행에 남지만({@code object_key} 와 같다)
+     * 객체는 여기서 함께 장부로 간다.
+     */
+    private static List<String> objectKeys(Tuple locked) {
+        String poster = locked.get("poster_key", String.class);
+        String video = locked.get("object_key", String.class);
+        return poster == null ? List.of(video) : List.of(video, poster);
     }
 
     /** 회차나 참여작이 이 영상을 쓰는가. 지운 참여작은 영상 참조를 풀어 두므로 세지 않는다. */
@@ -414,6 +497,8 @@ class PostgresVideoRepository implements VideoRepository {
                 ((Number) row.get("practice_count")).intValue(),
                 ((Number) row.get("entry_count")).intValue(),
                 null,
+                null,
+                row.get("poster_key", String.class),
                 null);
     }
 

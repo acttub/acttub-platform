@@ -152,4 +152,26 @@ public interface VideoRepository {
      * @return 장부에 올린 것들
      */
     List<UUID> sweepExpiredIntents(Instant now);
+
+    /**
+     * 포스터가 없는 영상 하나를 집는다 — 최신 저장순이다(방금 올린 영상이 밀린 옛 영상보다 먼저다). 파기됐거나 활성
+     * 계정의 것이 아니거나 이미 {@code maxAttempts} 번 집은 영상은 고르지 않는다. <b>집으면서 시도 횟수를 올리고
+     * 커밋한다</b> — 도중에 죽은 시도도 센다.
+     *
+     * @return 없으면 {@code null}
+     */
+    PosterJob claimPoster(int maxAttempts);
+
+    /** 포스터를 만들 영상 하나. {@code userId} 는 집을 때의 주인이다(이관되면 바뀔 수 있다). */
+    record PosterJob(UUID videoId, UUID userId, String objectKey, int durationMs) {
+    }
+
+    /**
+     * 올려 둔 포스터를 영상에 붙인다. <b>주인의 {@code users} 행을 먼저 잡고</b>(탈퇴·3년 파기와 같은 순서) 영상 행을
+     * 잡는다. 그 사이에 영상이 지워졌거나 파기됐거나 주인이 바뀌었거나 계정이 활성이 아니면 붙이지 않고, 포스터 객체의
+     * 삭제를 <b>같은 트랜잭션에서</b> 장부에 올린다 — 늦게 만든 포스터가 남지 않는다.
+     *
+     * @return 장부에 올린 것(붙였으면 빈 목록)
+     */
+    List<UUID> attachPoster(PosterJob job, String posterKey, Instant now);
 }

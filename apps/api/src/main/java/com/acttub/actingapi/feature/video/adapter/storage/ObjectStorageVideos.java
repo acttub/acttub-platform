@@ -1,5 +1,7 @@
 package com.acttub.actingapi.feature.video.adapter.storage;
 
+import java.nio.file.Path;
+
 import com.acttub.actingapi.feature.video.app.VideoStorage;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.integration.storage.NoCredentialsError;
@@ -46,5 +48,22 @@ class ObjectStorageVideos implements VideoStorage {
         }
         StoredObjectMetadata metadata = available.head(objectKey);
         return metadata == null ? null : new Stored(metadata.sizeBytes(), metadata.etag());
+    }
+
+    @Override
+    public boolean configured() {
+        return storage.getIfAvailable() != null;
+    }
+
+    @Override
+    public void download(String objectKey, Path destination) {
+        requireConfigured();
+        storage.getObject().downloadToPath(objectKey, destination);
+    }
+
+    @Override
+    public void upload(String objectKey, String contentType, Path source) {
+        requireConfigured();
+        storage.getObject().upload(objectKey, contentType, source);
     }
 }

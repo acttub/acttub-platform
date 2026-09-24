@@ -599,6 +599,8 @@ COLUMN videos.favorite ord=9 type=bool len=- null=NO default=false
 COLUMN videos.height ord=8 type=int4 len=- null=YES default=-
 COLUMN videos.id ord=1 type=uuid len=- null=NO default=-
 COLUMN videos.object_key ord=3 type=text len=- null=NO default=-
+COLUMN videos.poster_attempts ord=14 type=int2 len=- null=NO default=0
+COLUMN videos.poster_key ord=13 type=text len=- null=YES default=-
 COLUMN videos.purged_at ord=10 type=timestamptz len=- null=YES default=-
 COLUMN videos.updated_at ord=12 type=timestamptz len=- null=NO default=now()
 COLUMN videos.user_id ord=2 type=uuid len=- null=NO default=-
@@ -1420,6 +1422,7 @@ CONSTRAINT videos videos_favorite_not_null NOT NULL favorite
 CONSTRAINT videos videos_id_not_null NOT NULL id
 CONSTRAINT videos videos_object_key_not_null NOT NULL object_key
 CONSTRAINT videos videos_pkey PRIMARY KEY (id)
+CONSTRAINT videos videos_poster_attempts_not_null NOT NULL poster_attempts
 CONSTRAINT videos videos_updated_at_not_null NOT NULL updated_at
 CONSTRAINT videos videos_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
 CONSTRAINT videos videos_user_id_not_null NOT NULL user_id

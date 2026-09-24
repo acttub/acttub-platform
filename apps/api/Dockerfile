@@ -8,7 +8,7 @@
 FROM eclipse-temurin:21-jre-noble
 
 # ffmpeg·ffprobe 는 영상 압축(GeminiVideoCompressor)·음성 추출(FfmpegAudioExtractor)·
-# 길이 측정(VideoDurationProbe)이 PATH 에서 찾는다. 문서에 없던 호스트 의존을 이미지에 넣는다.
+# 길이 측정(VideoDurationProbe)·보관함 포스터(PosterFrameExtractor)가 PATH 에서 찾는다. 문서에 없던 호스트 의존을 이미지에 넣는다.
 # curl 은 compose healthcheck 와 배포 스크립트의 /health 확인이 쓴다.
 RUN apt-get update \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ffmpeg curl \

@@ -375,7 +375,7 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 |---|---|
 | **required + `null` 값을 실어 보냄** | `AuthUser.email`, `MeResponse.email`/`.profile`, `Profile` 의 `directions` 를 뺀 전 항목(1.0.0 이전 회원은 `name` 만 차 있다), `CoachTurnResponse.handoff`/`.report`, `CoachConfirmResponse.handoff`, `SourceHandoffIds.analysis`, `MemoryItem.source_practice_session_id`, `ConsentEntryDocument.current_decision`/`.decided_at`, `Portfolio.intro`, `PortfolioPhoto.url`, `PortfolioShare.slug`/`.url`, `PublicPortfolio.photo_url`/`.gender`/`.intro`, `PublicPortfolioPhoto.url`, `PublicChallengeEntry.character`/`.poster_url`, 연습 노트의 `PracticeNote*`·`PublicPracticeNote` 항목들 |
 | **optional + 조건부로 키를 추가** | `PracticeSessionDetail.summary`(status 가 `analyzed` 이고 summary 가 있을 때만), `.error_code`(`failed` 일 때만) |
-| **optional 인데 항상 포함** | `PracticeSessionStatusResponse.error_code` |
+| **optional 인데 항상 포함** | `PracticeSessionStatusResponse.error_code`, `Video.purged_at`/`.playback_url`/`.playback_expires_at`/`.poster_url` |
 
 같은 이름의 필드가 엔드포인트마다 다르게 동작한다. DTO 를 분리하거나 직렬화를 수동 제어한다.
 
@@ -613,7 +613,9 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 - **신원 행은 지우지 않는다.** `uid_hash` = HMAC-SHA256(provider, provider_uid) 만 남긴다
   (`ck_user_identities_uid_or_hash`). 서버는 해시로 옛 계정을 찾지 않는다 — 같은 제공자로 다시 오면 처음 온
   신원이다. 해시의 쓰임은 보관 동의 철회 요청의 본인 확인 하나다.
-- **영상 객체**는 옛 예약 장부(`upload_intents`)와 1.0.0 보관함(`videos`)의 키를 함께 모은다. "탈퇴 후
+- **영상 객체**는 옛 예약 장부(`upload_intents`)와 1.0.0 보관함(`videos`)의 키를 함께 모은다 — 보관함 영상의
+  **포스터**(`videos.poster_key`, V23)도 함께다. 포스터 워커는 붙일 때 같은 `users` 행을 잡으므로 탈퇴가 키를 모은 뒤에
+  붙는 포스터는 없다(§6-15 보관함 「포스터」). "탈퇴 후
   영상·녹음 보관·활용"(`retention`)의 **현재 판에 대한 마지막 결정이 동의**인 사람 것만 남긴다. 현재 판에 답하지 않았으면 거절로 본다. 사진 객체(프로필·포트폴리오)는 언제나 지운다.
   만 14세 미만으로 드러난 1.0.0 이전 회원은 동의와 무관하게 영상을 파기한다.
 - **리딩 자료는 같은 트랜잭션에서 행째 지운다**(`PostgresProfileRepository#eraseReading`, §6-14). 연습 기록과
@@ -1026,15 +1028,37 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     삭제를 같은 트랜잭션에서 장부**(`object_delete`)에 올린다.
   - **목록** `GET /v2/videos?filter=all·recent7·favorite&cursor=`: `{videos, next_cursor}` 로 최신 저장순이다(커서는
     저장 시각과 id). 예시 영상을 섞지 않는다. **재생 주소는 상세에만** 있다 — 한 쪽에서 서른 개의 주소를 만들 이유가
-    없다.
-  - **상세** `GET /v2/videos/{id}`: `Video` + 10분 서명 `playback_url`·`playback_expires_at` + `usage{practice_count,
-    entry_count}`. 조회할 때마다 새 주소다. 없는 것과 남의 것은 같은 **404 `video_not_found`**(수정·삭제·파기도 같다).
+    없다. **포스터 주소(`poster_url`)는 목록에도 있다** — 목록이 미리보기를 보여 주는 자리다(아래 「포스터」).
+  - **상세** `GET /v2/videos/{id}`: `Video` + 10분 서명 `playback_url`·`playback_expires_at` + `poster_url` +
+    `usage{practice_count, entry_count}`. 조회할 때마다 새 주소다. 없는 것과 남의 것은 같은 **404 `video_not_found`**(수정·삭제·파기도 같다).
   - **삭제** `DELETE /v2/videos/{id}`: **참조가 없을 때만** 204 다. 회차나 참여작이 참조하면 422 `video_in_use` 이고
     아무것도 지우지 않는다 — 오류 본문은 코드 하나이고 **사용처는 상세 조회에서** 본다. 지우면 받아쓰기도 함께
-    지우고 객체는 장부로 간다. 참조 확인과 삭제는 **영상 행을 잠근 채** 한다(회차 시작과 겹쳐도 하나만 성공한다).
-  - **파일만 파기** `POST /v2/videos/{id}/purge-file`: 회차·참여작의 기록은 남기고 객체·받아쓰기만 지운다
-    (`purged_at`). 그 영상은 재생 불가로 표시되고 **총량에서 빠진다** — 총량이 가득한 계정이 공간을 되찾는 길이다.
-    이미 파기된 영상에 다시 걸면 같은 답이고, 파기했어도 참조가 있으면 삭제는 여전히 422 다.
+    지우고 객체(영상과 포스터)는 장부로 간다. 참조 확인과 삭제는 **영상 행을 잠근 채** 한다(회차 시작과 겹쳐도 하나만
+    성공한다).
+  - **파일만 파기** `POST /v2/videos/{id}/purge-file`: 회차·참여작의 기록은 남기고 객체(영상과 포스터)·받아쓰기만
+    지운다(`purged_at`). 그 영상은 재생 불가로 표시되고 `poster_url` 도 `null` 이며 **총량에서 빠진다** — 총량이 가득한
+    계정이 공간을 되찾는 길이다. 이미 파기된 영상에 다시 걸면 같은 답이고, 파기했어도 참조가 있으면 삭제는 여전히
+    422 다. `poster_key` 는 `object_key` 처럼 행에 남지만 객체는 없다.
+  - **포스터**(`videos.poster_key`·`poster_attempts`, V23, SOMA-562) — 목록의 미리보기인 첫 장면 JPEG 한 장이다.
+    - **올리기를 막지 않는다.** 마무리는 포스터를 기다리지 않고 `poster_url: null` 로 영상을 돌려준다.
+      `video/app/VideoPosterWorker` 가 뒤에서 `poster_key` 가 빈 영상을 **최신 저장순으로 하나씩** 집는다 — 새 영상과
+      이 기능 이전에 올라온 영상(백필)이 같은 길이다. 스케줄러(`adapter/sched/VideoPosterScheduler`)는 10초마다
+      (`VIDEO_POSTER_POLL_INTERVAL_MS`) 자기 스레드 하나에서 일감이 없을 때까지 비운다.
+    - **한 번은 집기 · 받기 · 뽑기 · 올리기 · 붙이기다.** 집기는 `FOR UPDATE SKIP LOCKED` 로 한 행을 잡아
+      `poster_attempts` 를 올리고 커밋한다 — 도중에 죽은 시도도 세고, **세 번 집힌 영상은 더 고르지 않는다**
+      (`VideoRules.POSTER_MAX_ATTEMPTS`). 파기됐거나 활성 계정의 것이 아닌 영상은 고르지 않는다. 받기·ffmpeg·올리기는
+      트랜잭션 밖이다(§5-4). ffmpeg 는 0.5초 자리(1초 미만·길이 모름이면 맨 앞)의 한 장면을 폭 480px 이하 JPEG 로 뽑고
+      (`integration/media/PosterFrameExtractor`, 분석과 같은 `FfmpegLock`), 키는 영상 옆 `videos/{사용자}/{요청}.poster.jpg`
+      (`VideoRules.posterKey`)라 다시 만들어도 같은 키에 덮어쓴다. 실패는 보고(`VideoPosterWorker.generate`)만 하고 목록은
+      `poster_url` 없이 그대로 열린다.
+    - **붙이기는 주인의 `users` 행 → 영상 행 순서로 잡는다**(탈퇴·3년 파기와 같은 순서). 그 사이에 영상이 지워졌거나
+      파기됐거나 주인이 바뀌었거나 계정이 활성이 아니면 붙이지 않고 **올린 포스터의 삭제를 같은 트랜잭션에서 장부에**
+      올린다 — 늦게 만든 포스터가 남지 않는다. 주인이 바뀐(이관) 영상은 다음 주기에 다시 만든다.
+    - `poster_url` 은 재생 주소와 같은 **10분 서명 GET** 이고 목록·상세·즐겨찾기 응답에 실린다. 아직 없거나 파기됐거나
+      스토리지가 없는 기동이면 `null` 이다. 화면은 `null` 을 "미리보기 없음" 으로 그린다.
+    - **스위치가 둘이고 둘 다 켜져야 돈다**: `ANALYSIS_WORKER_ENABLED`(분석·기억·챌린지 리포트 워커와 공유 — 격리 복원
+      검증이 이것 하나로 뒤에서 쓰는 일을 모두 멈춘다)와 `VIDEO_POSTER_ENABLED`(포스터만). 테스트는 후자를 전역으로
+      끄고 워커를 직접 부른다.
   - **즐겨찾기** `PATCH /v2/videos/{id}` `{favorite}` → `Video`.
   - **이관**은 `video/app/VideoOwnership` 이 `videos` 와 **예약 장부**를 함께 옮긴다(§6-9의 순서에서 올린 영상 바로
     뒤다). 예약을 두고 가면 옛 게스트의 대기 업로드가 마무리될 자리를 잃는다.
@@ -1186,7 +1210,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     받아쓰기는 그 행에 매달려 따라간다. 기억은 합치지 않고 양쪽에 있으면 409 `memory_choice_required` 이며, 고른
     뒤 **회원의 기억 세대가 오른다**. 설문 이력은 모두 회원 것이 되고 **어느 쪽이든 물어봤으면 회원도 물어본 것**이다.
   - **탈퇴·30일 파기**: `videos` 는 **행을 지우지 않고** `purged_at` 을 찍어 최소 메타만 남긴다(재생은 막히고 총량에서
-    빠지며 회차·참여작의 기록은 깨지지 않는다). 객체는 정리 장부로 가고, 보관 동의자의 영상은 탈퇴 3년 뒤 같은 자리에서
+    빠지며 회차·참여작의 기록은 깨지지 않는다). 객체(포스터 포함)는 정리 장부로 가고, 보관 동의자의 영상은 탈퇴 3년 뒤 같은 자리에서
     파기된다. 진행 중인 `ai_jobs`(분석·기억 갱신)는 `failed`/`account_deactivated` 로 닫고 lease 를 떼며 결과 본문을
     비운다. `practice_feedback` 의 연락처는 비우고 시트에 다시 보낸다. `note_ratings` 는 한 줄만 비우고 값은 남긴다.
     `practices`·`analyses`·`coach_*`·
