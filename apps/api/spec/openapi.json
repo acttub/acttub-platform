@@ -59,6 +59,59 @@
         } ]
       }
     },
+    "/v2/practices/{practice_id}/note/rating" : {
+      "put" : {
+        "tags" : [ "v2-practices" ],
+        "summary" : "Rate Practice Note",
+        "description" : "노트에 \"도움 됐어요(helpful)·아쉬웠어요(not_helpful)\" 와 한 줄(선택)을 남긴다. 노트 하나에 한 행이고\n다시 보내면 덮어쓴다 — comment 를 빼면 한 줄도 비운다. 한 줄은 앞뒤 공백을 걷은 1~100자이고 넘으면\n422 comment_too_long 이다.\n\n같은 request_id·같은 본문의 재전송은 200 같은 응답이고, 같은 id 에 다른 본문이면 422\nrequest_fingerprint_mismatch 다. 없는 회차·남의 회차·노트가 아직 없는 회차는 모두 404\nnote_not_found 다(노트 조회와 같다).",
+        "operationId" : "rate_practice_note_v2_practices__practice_id__note_rating_put",
+        "parameters" : [ {
+          "name" : "practice_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Practice Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/NoteRatingRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/NoteRating"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/portfolio/share" : {
       "put" : {
         "tags" : [ "v2-portfolio" ],
@@ -3325,7 +3378,7 @@
       "get" : {
         "tags" : [ "v2-practices" ],
         "summary" : "Get Practice Note",
-        "description" : "그 회차의 연습 노트. 대화가 닫힐 때 한 번 만들고 다시 만들지 않는다 — 없으면 404 note_not_found\n이고 화면은 \"아직 정리 없음\"을 보인다. 생성기가 낸 원문(report)이 함께 와서 옛 공개 필드를 읽던\n화면이 그대로 쓴다.",
+        "description" : "그 회차의 연습 노트. 대화가 닫힐 때 한 번 만들고 다시 만들지 않는다 — 없으면 404 note_not_found\n이고 화면은 \"아직 정리 없음\"을 보인다. 생성기가 낸 원문(report)이 함께 와서 옛 공개 필드를 읽던\n화면이 그대로 쓴다. my_rating 은 이 사람이 이 노트에 남긴 평가이고 없으면 null 이다.",
         "operationId" : "get_practice_note_v2_practices__practice_id__note_get",
         "parameters" : [ {
           "name" : "practice_id",
@@ -4086,6 +4139,60 @@
         },
         "required" : [ "line_id", "status", "updated_at" ],
         "title" : "ReadingLineMemorization"
+      },
+      "NoteRatingRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "request_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Request Id"
+          },
+          "rating" : {
+            "type" : "string",
+            "enum" : [ "helpful", "not_helpful" ],
+            "pattern" : "helpful|not_helpful",
+            "title" : "Rating"
+          },
+          "comment" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "앞뒤 공백을 걷은 1~100 유니코드 코드 포인트. 비었으면 없는 것이다."
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Comment"
+          }
+        },
+        "required" : [ "rating", "request_id" ],
+        "title" : "NoteRatingRequest"
+      },
+      "NoteRating" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "rating" : {
+            "type" : "string",
+            "enum" : [ "helpful", "not_helpful" ],
+            "title" : "Rating"
+          },
+          "comment" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Comment"
+          },
+          "updated_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Updated At"
+          }
+        },
+        "required" : [ "comment", "rating", "updated_at" ],
+        "title" : "NoteRating"
       },
       "PortfolioShareRequest" : {
         "type" : "object",
@@ -6528,6 +6635,13 @@
             "type" : "string",
             "format" : "date-time",
             "title" : "Created At"
+          },
+          "my_rating" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/NoteRating"
+            }, {
+              "type" : "null"
+            } ]
           }
         },
         "required" : [ "actor_words", "conversation_id", "corrections", "created_at", "fallback", "format", "id", "kind", "source_revision", "summary_quotes", "tags" ],

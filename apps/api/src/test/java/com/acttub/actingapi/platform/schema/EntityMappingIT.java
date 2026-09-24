@@ -121,7 +121,9 @@ class EntityMappingIT {
             // 전환 대응표(V15)는 전환 명령만 읽고 쓴다 — 도메인이 없어 매핑도 없다.
             "practice_migration_entries",
             // 조회수 사건·좋아요순 커서(V18)는 참여작 저장소의 native SQL 만 쓰는 장부다.
-            "entry_view_events", "entry_ranking_snapshots");
+            "entry_view_events", "entry_ranking_snapshots",
+            // 노트 평가(V22)는 코치 저장소의 native SQL(upsert·잠금)만 읽고 쓴다.
+            "note_ratings");
 
     @Test
     @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 42개 활성 엔티티를 포함한다")

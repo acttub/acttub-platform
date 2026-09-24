@@ -407,7 +407,7 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 **배열**이고, 규칙에 걸린 것은 다른 오류와 같이 **코드 문자열 하나**다: `under_14`,
 `under_14_account_closed`, `authorization_code_required`, `consent_decisions_incomplete`,
 `required_consent_cannot_be_declined`, `age_confirmation_required`, `order_mismatch`,
-`portfolio_credit_limit_exceeded`, `portfolio_photo_limit_exceeded`, 그리고 리딩의 `no_characters`,
+`portfolio_credit_limit_exceeded`, `portfolio_photo_limit_exceeded`, 노트 평가의 `comment_too_long`(§6-15), 그리고 리딩의 `no_characters`,
 `invalid_characters`, `script_too_long`, `script_limit`, `request_fingerprint_mismatch`, `invalid_line`, `empty_range`,
 `recording_too_long`, `recording_quota`(§6-14; 회차의 409 는 `session_closed`, 녹음 변환 실패는 503
 `audio_conversion_failed`). (네이버 로그인에 `authorization_code`·`code_verifier` 가 빠진 것은
@@ -608,7 +608,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   알림 토글 끄기, 포트폴리오 행째 삭제, 이관 코드 삭제, 리프레시 폐기·푸시 토큰 삭제, 진행 중
   `external_operations` 와 `ai_jobs` 를 `failed`/`account_deactivated` 로 닫고 lease 떼기(분석 중이던 연습도
   `failed`, 1.0.0 작업은 결과 본문도 비운다), **1.0.0 영상에 `purged_at` 찍기**, `practice_feedback` 의 연락처
-  비우고 시트 재전송 예약, 신원의 `provider_uid`·토큰을 비우고 `uid_hash` 채우기. 성별·연령대·방향·경력·목표와
+  비우고 시트 재전송 예약, `note_ratings` 의 한 줄 비우기(평가 값은 남는다), 신원의 `provider_uid`·토큰을 비우고 `uid_hash` 채우기. 성별·연령대·방향·경력·목표와
   배우 기억은 남는다(§6-15 「연습 자료의 이관·삭제·탈퇴」).
 - **신원 행은 지우지 않는다.** `uid_hash` = HMAC-SHA256(provider, provider_uid) 만 남긴다
   (`ck_user_identities_uid_or_hash`). 서버는 해시로 옛 계정을 찾지 않는다 — 같은 제공자로 다시 오면 처음 온
@@ -1125,6 +1125,25 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   - 응답의 `summary_quotes`는 `{quote, kind, source_ref}` 배열이고 `kind`는 actor·observation이다.
     `actor_words`·`corrections`·`tags`는 문자열 배열이다. 응답의 `report`는 기존 공개 리포트 또는
     `acttub.public_practice_note.v1`이며 내부 출처 목록·대화 상태를 보내지 않는다. 원문은 DB에 그대로 보존한다.
+  - 응답의 `my_rating` 은 이 사람이 이 노트에 남긴 평가(`NoteRating`)이고 없으면 null 이다. **노트 조회만 채운다** —
+    코치 응답(`CoachTurnResult.note`)에 실린 노트는 방금 만든 것이라 언제나 null 이다(SOMA-558, 키 추가만).
+- **노트 평가**(`note_ratings`, V22, `PUT /v2/practices/{id}/note/rating`, SOMA-558) — "도움 됐어요·아쉬웠어요" 를 누르는
+  순간 노트 단위로 남긴다. 본문 `{request_id, rating, comment?}`, 응답 200 `{rating, comment, updated_at}`.
+  - **노트 하나에 사람 하나가 한 행**이다(`uq_note_ratings_note_user`). 다시 보내면 값·한 줄·`request_id`·`updated_at` 을
+    덮어쓰고, `comment` 를 빼면 한 줄도 비운다. `rating` 은 `helpful`·`not_helpful` 이고 밖의 값은 422 **배열**이다.
+    한 줄은 앞뒤 공백을 걷은 1~100자(코드 포인트)이고 비었으면 NULL, 넘으면 422 `comment_too_long` 이다.
+  - **멱등은 행의 `request_id` 가 한다.** 같은 id·같은 본문(다듬은 값으로 견준다)의 재전송은 200 같은 응답이고 행을
+    바꾸지 않으며, 같은 id 에 다른 본문은 422 `request_fingerprint_mismatch` 다. 행이 덮어쓰이므로 지문 칸을 따로
+    두지 않고 저장된 값과 견준다. 기기는 노트마다 마지막 요청 하나만 들고 있다가 다시 보낸다 — 옛 요청이 새 평가를
+    덮지 않게 하는 것은 기기의 몫이다.
+  - **게이트·소유권은 노트 조회와 같다**: 없는 회차·남의 회차·노트가 아직 없는 회차는 모두 404 `note_not_found`.
+    평가가 가리키는 것은 1.0.0 노트(`coach_notes`)뿐이라 **아직 옮기지 않은 옛 노트(`practice_reports`)는 조회는 되지만
+    평가는 404** 이고 `my_rating` 은 언제나 null 이다(전환 명령이 옮기면 받는다).
+  - 쓰기는 탈퇴와 같은 `users` 행을 `FOR UPDATE` 로 잡고 활성인지 다시 본다(§6-8) — 게이트 뒤에 탈퇴가 끝났으면 403
+    `account_deactivated`. 평가는 노트·대화·기억 상태를 바꾸지 않는다. 구현은 `coach/app/NoteRatingService`·
+    `coach/adapter/db/PostgresNoteRatingStore`, 실 DB 검증은 `NoteRatingIT` 다.
+  - **이관**은 회차를 따라 `user_id` 를 회원으로 바꾼다(`NoteRatingOwnership`, 설문 다음). **탈퇴**는 한 줄(자유 입력)을
+    비우고 평가 값은 사람과 끊어 남긴다(`PostgresProfileRepository#erasePractice`).
 - **배우 기억**(`/v2/me/memory`, `actor_memories`) — 칸은 **넷**(`goal`·`blockage`·`speech_self`·`speech_actual`)이고
   `(user_id, field)` 유일이다. **성별·나이 칸은 없다** — 프로필로 옮겼다(account.profile). 옛 여섯 칸 화면은
   `/v2/legacy-me/memory` 로 옮겨 옛 표(`actor_memory_entries`)를 그대로 읽는다.
@@ -1163,13 +1182,14 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     성공을 돌려주면 그 설문이 재전송 대상에서 빠져 시트가 붙는 날 영영 복제되지 않는다.
 - **연습 자료의 이관·삭제·탈퇴** — 정본은 02-practice 의 처리표다.
   - **이관**은 `user_id` 가 있는 행을 한 트랜잭션에서 옮긴다: 예약 장부 → `videos` → `practice_sessions`·`practices`
-    → `external_operations`·`ai_jobs` → 배우 기억 → 리딩 → 설문 순이다(§6-9의 잠금 순서에 이어진다). 분석·대화·노트·
+    → `external_operations`·`ai_jobs` → 배우 기억 → 리딩 → 설문 → 노트 평가 순이다(§6-9의 잠금 순서에 이어진다). 분석·대화·노트·
     받아쓰기는 그 행에 매달려 따라간다. 기억은 합치지 않고 양쪽에 있으면 409 `memory_choice_required` 이며, 고른
     뒤 **회원의 기억 세대가 오른다**. 설문 이력은 모두 회원 것이 되고 **어느 쪽이든 물어봤으면 회원도 물어본 것**이다.
   - **탈퇴·30일 파기**: `videos` 는 **행을 지우지 않고** `purged_at` 을 찍어 최소 메타만 남긴다(재생은 막히고 총량에서
     빠지며 회차·참여작의 기록은 깨지지 않는다). 객체는 정리 장부로 가고, 보관 동의자의 영상은 탈퇴 3년 뒤 같은 자리에서
     파기된다. 진행 중인 `ai_jobs`(분석·기억 갱신)는 `failed`/`account_deactivated` 로 닫고 lease 를 떼며 결과 본문을
-    비운다. `practice_feedback` 의 연락처는 비우고 시트에 다시 보낸다. `practices`·`analyses`·`coach_*`·
+    비운다. `practice_feedback` 의 연락처는 비우고 시트에 다시 보낸다. `note_ratings` 는 한 줄만 비우고 값은 남긴다.
+    `practices`·`analyses`·`coach_*`·
     `video_transcripts` 는 **사람과 끊어 남긴다**.
   - **대화 중 탈퇴**: 코치 응답의 저장은 대화 행과 함께 `users.status` 를 본다 — 바깥 호출이 도는 사이에 탈퇴가
     끝났으면 아무것도 쓰지 않고 403 `account_deactivated` 다(분석의 완료가 같은 자리에서 같은 확인을 한다).
@@ -1228,7 +1248,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   `PreviousConversation`, 기억은
   `ActorMemoryItem`·`ActorMemoryResponse`·`UpdateActorMemoryRequest`(옛 여섯 칸의 `MemoryItem`·`MemoryResponse`·
   `UpdateMemoryRequest` 는 `/v2/legacy-me/memory` 가 계속 쓴다), 설문은 `PracticeFeedbackRequest`·
-  `PracticeFeedbackResponse`·`PracticeFeedbackStatus`.
+  `PracticeFeedbackResponse`·`PracticeFeedbackStatus`, 노트 평가는 `NoteRatingRequest`·`NoteRating`(`CoachNote.my_rating`).
 
 ### 6-16. 챌린지 개설·목록 (1.0.0)
 

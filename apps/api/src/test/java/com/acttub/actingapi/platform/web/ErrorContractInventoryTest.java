@@ -395,6 +395,15 @@ class ErrorContractInventoryTest {
             // 바깥 호출이 도는 사이에 탈퇴가 끝났다 — 저장 직전의 계정 상태 확인이 낸다(practice.coach).
             covered("feature.coach.app.ConversationService|403|account_deactivated", 1,
                     "feature.coach.CoachConversationIT"),
+            // 노트 평가(practice.note). 게이트·소유권은 노트 조회와 같아 없는 것·남의 것·노트 없음이 한 404 다.
+            covered("feature.coach.app.NoteRatingService|404|note_not_found", 1,
+                    "feature.coach.NoteRatingIT"),
+            covered("feature.coach.app.NoteRatingService|422|comment_too_long", 1,
+                    "feature.coach.NoteRatingIT"),
+            covered("feature.coach.app.NoteRatingService|422|request_fingerprint_mismatch", 1,
+                    "feature.coach.NoteRatingIT"),
+            excluded("feature.coach.app.NoteRatingService|403|account_deactivated", 1,
+                    "이탈 설문과 같은 자리다 — 게이트가 먼저 같은 403 을 내고, 평가에는 바깥 호출이 없다."),
             // 배우 기억 네 칸(practice.memory). 바깥 호출이 없어 게이트와 저장 사이의 창이 좁다.
             excluded("feature.memory.app.ActorMemoryService|403|account_deactivated", 1,
                     "게이트가 먼저 같은 403 을 낸다. 여기까지 오려면 게이트를 지난 뒤 다른 기기의 탈퇴가 "

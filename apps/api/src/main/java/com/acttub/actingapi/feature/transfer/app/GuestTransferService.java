@@ -13,6 +13,7 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
 import com.acttub.actingapi.feature.auth.app.GuestAccounts;
+import com.acttub.actingapi.feature.coach.app.NoteRatingOwnership;
 import com.acttub.actingapi.feature.feedback.app.ExitSurveyOwnership;
 import com.acttub.actingapi.feature.memory.app.MemoryOwnership;
 import com.acttub.actingapi.feature.practice.app.PracticeOwnership;
@@ -52,6 +53,7 @@ public class GuestTransferService {
     private final ReadingOwnership readings;
     private final VideoOwnership videos;
     private final ExitSurveyOwnership surveys;
+    private final NoteRatingOwnership ratings;
     private final Clock clock;
     private final byte[] hashKey;
     private final SecureRandom random = new SecureRandom();
@@ -66,6 +68,7 @@ public class GuestTransferService {
             ReadingOwnership readings,
             VideoOwnership videos,
             ExitSurveyOwnership surveys,
+            NoteRatingOwnership ratings,
             Clock clock,
             String secret) {
         if (secret == null || secret.isEmpty()) {
@@ -80,6 +83,7 @@ public class GuestTransferService {
         this.readings = readings;
         this.videos = videos;
         this.surveys = surveys;
+        this.ratings = ratings;
         this.clock = clock;
         this.hashKey = hmac(secret.getBytes(StandardCharsets.UTF_8), HASH_PURPOSE);
     }
@@ -135,6 +139,8 @@ public class GuestTransferService {
             readings.reassign(guestId, memberId);
             // 설문 이력은 회원 것이 되고, 어느 쪽이든 물어봤으면 회원도 물어본 것이다(practice.feedback).
             surveys.reassign(guestId, memberId);
+            // 노트 평가는 회차를 따라 회원 것이 된다 — 회원의 노트 조회에 남긴 평가가 그대로 보인다(practice.note).
+            ratings.reassign(guestId, memberId);
             guests.closeTransferredGuest(guestId, now);
             codes.markUsed(live.id(), now);
             return Outcome.TRANSFERRED;

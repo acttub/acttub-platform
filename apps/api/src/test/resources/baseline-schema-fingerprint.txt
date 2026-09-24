@@ -300,6 +300,15 @@ COLUMN line_memorization.line_id ord=3 type=uuid len=- null=NO default=-
 COLUMN line_memorization.status ord=4 type=text len=- null=NO default=-
 COLUMN line_memorization.updated_at ord=6 type=timestamptz len=- null=NO default=now()
 COLUMN line_memorization.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN note_ratings.comment ord=6 type=text len=- null=YES default=-
+COLUMN note_ratings.created_at ord=8 type=timestamptz len=- null=NO default=now()
+COLUMN note_ratings.id ord=1 type=uuid len=- null=NO default=-
+COLUMN note_ratings.note_id ord=3 type=uuid len=- null=NO default=-
+COLUMN note_ratings.practice_id ord=2 type=uuid len=- null=NO default=-
+COLUMN note_ratings.rating ord=5 type=text len=- null=NO default=-
+COLUMN note_ratings.request_id ord=7 type=uuid len=- null=NO default=-
+COLUMN note_ratings.updated_at ord=9 type=timestamptz len=- null=NO default=now()
+COLUMN note_ratings.user_id ord=4 type=uuid len=- null=NO default=-
 COLUMN notification_pushes.created_at ord=5 type=timestamptz len=- null=NO default=-
 COLUMN notification_pushes.group_key ord=2 type=text len=- null=NO default=-
 COLUMN notification_pushes.id ord=1 type=uuid len=- null=NO default=-
@@ -1031,6 +1040,21 @@ CONSTRAINT line_memorization line_memorization_updated_at_not_null NOT NULL upda
 CONSTRAINT line_memorization line_memorization_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
 CONSTRAINT line_memorization line_memorization_user_id_not_null NOT NULL user_id
 CONSTRAINT line_memorization uq_line_memorization_user_line UNIQUE (user_id, line_id)
+CONSTRAINT note_ratings ck_note_ratings_comment CHECK (((comment IS NULL) OR (((char_length(comment) >= 1) AND (char_length(comment) <= 100)) AND (btrim(comment) <> ''::text))))
+CONSTRAINT note_ratings ck_note_ratings_rating CHECK ((rating = ANY (ARRAY['helpful'::text, 'not_helpful'::text])))
+CONSTRAINT note_ratings note_ratings_created_at_not_null NOT NULL created_at
+CONSTRAINT note_ratings note_ratings_id_not_null NOT NULL id
+CONSTRAINT note_ratings note_ratings_note_id_fkey FOREIGN KEY (note_id) REFERENCES coach_notes(id)
+CONSTRAINT note_ratings note_ratings_note_id_not_null NOT NULL note_id
+CONSTRAINT note_ratings note_ratings_pkey PRIMARY KEY (id)
+CONSTRAINT note_ratings note_ratings_practice_id_fkey FOREIGN KEY (practice_id) REFERENCES practices(id)
+CONSTRAINT note_ratings note_ratings_practice_id_not_null NOT NULL practice_id
+CONSTRAINT note_ratings note_ratings_rating_not_null NOT NULL rating
+CONSTRAINT note_ratings note_ratings_request_id_not_null NOT NULL request_id
+CONSTRAINT note_ratings note_ratings_updated_at_not_null NOT NULL updated_at
+CONSTRAINT note_ratings note_ratings_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT note_ratings note_ratings_user_id_not_null NOT NULL user_id
+CONSTRAINT note_ratings uq_note_ratings_note_user UNIQUE (note_id, user_id)
 CONSTRAINT notification_pushes ck_notification_pushes_stage CHECK ((stage = ANY (ARRAY['first'::text, 'summary'::text])))
 CONSTRAINT notification_pushes notification_pushes_created_at_not_null NOT NULL created_at
 CONSTRAINT notification_pushes notification_pushes_group_key_not_null NOT NULL group_key
@@ -1423,6 +1447,7 @@ INDEX CREATE INDEX idx_external_operations_status_attempt_lease ON public.extern
 INDEX CREATE INDEX idx_guest_transfer_codes_code_hash ON public.guest_transfer_codes USING btree (code_hash)
 INDEX CREATE INDEX idx_guest_transfer_codes_user ON public.guest_transfer_codes USING btree (user_id)
 INDEX CREATE INDEX idx_line_memorization_line ON public.line_memorization USING btree (line_id)
+INDEX CREATE INDEX idx_note_ratings_user ON public.note_ratings USING btree (user_id)
 INDEX CREATE INDEX idx_portfolio_credits_user_order ON public.portfolio_credits USING btree (user_id, sort_order)
 INDEX CREATE INDEX idx_portfolio_photos_user_order ON public.portfolio_photos USING btree (user_id, sort_order)
 INDEX CREATE INDEX idx_practice_feedback_sheet_pending ON public.practice_feedback USING btree (created_at) WHERE (sheet_synced_at IS NULL)
@@ -1504,6 +1529,7 @@ INDEX CREATE UNIQUE INDEX external_operations_pkey ON public.external_operations
 INDEX CREATE UNIQUE INDEX guest_transfer_codes_pkey ON public.guest_transfer_codes USING btree (id)
 INDEX CREATE UNIQUE INDEX handoff_confirmations_pkey ON public.handoff_confirmations USING btree (coaching_handoff_id)
 INDEX CREATE UNIQUE INDEX line_memorization_pkey ON public.line_memorization USING btree (id)
+INDEX CREATE UNIQUE INDEX note_ratings_pkey ON public.note_ratings USING btree (id)
 INDEX CREATE UNIQUE INDEX notification_pushes_pkey ON public.notification_pushes USING btree (id)
 INDEX CREATE UNIQUE INDEX notifications_pkey ON public.notifications USING btree (id)
 INDEX CREATE UNIQUE INDEX portfolio_credits_pkey ON public.portfolio_credits USING btree (id)
@@ -1563,6 +1589,7 @@ INDEX CREATE UNIQUE INDEX uq_external_operations_user_request ON public.external
 INDEX CREATE UNIQUE INDEX uq_guest_transfer_codes_unused_code_hash ON public.guest_transfer_codes USING btree (code_hash) WHERE (used_at IS NULL)
 INDEX CREATE UNIQUE INDEX uq_guest_transfer_codes_unused_user ON public.guest_transfer_codes USING btree (user_id) WHERE (used_at IS NULL)
 INDEX CREATE UNIQUE INDEX uq_line_memorization_user_line ON public.line_memorization USING btree (user_id, line_id)
+INDEX CREATE UNIQUE INDEX uq_note_ratings_note_user ON public.note_ratings USING btree (note_id, user_id)
 INDEX CREATE UNIQUE INDEX uq_notification_pushes_stage ON public.notification_pushes USING btree (group_key, stage)
 INDEX CREATE UNIQUE INDEX uq_notifications_event ON public.notifications USING btree (user_id, event_key)
 INDEX CREATE UNIQUE INDEX uq_portfolios_share_slug ON public.portfolios USING btree (share_slug)
@@ -1631,6 +1658,7 @@ TABLE external_operations
 TABLE guest_transfer_codes
 TABLE handoff_confirmations
 TABLE line_memorization
+TABLE note_ratings
 TABLE notification_pushes
 TABLE notifications
 TABLE portfolio_credits
