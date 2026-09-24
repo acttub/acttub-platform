@@ -1,4 +1,3 @@
-import { AccountContent } from '@/components/account-content';
 import Feather from '@expo/vector-icons/Feather';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
@@ -39,10 +38,6 @@ const TABS: { key: ChallengeTab; label: string }[] = [
 ];
 
 export default function ChallengesScreen() {
-  return <AccountContent><ChallengesScreenContent /></AccountContent>;
-}
-
-function ChallengesScreenContent() {
   const router = useRouter();
   // 보관함에서 "챌린지에 올리기"로 오면 올릴 챌린지를 고르는 화면이 된다(A2.3 → A18.1).
   const { pickVideoId } = useLocalSearchParams<{ pickVideoId?: string }>();

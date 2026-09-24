@@ -9,7 +9,6 @@ import { LegacyArchivePrompt } from '@/components/legacy-archive-prompt';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { palette } from '@/constants/palette';
 import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
-import { useRequireLogin } from '@/hooks/use-require-login';
 import { isKorean, translate as t } from '@/lib/i18n';
 import { TARGET } from '@/lib/spotlight-targets';
 
@@ -27,13 +26,12 @@ export default function TabLayout() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   // 읽지 않은 알림 묶음 수 — 챌린지가 열린 사람에게만 읽는다.
-  const { isGuest, requireLogin, element: loginGuard } = useRequireLogin();
-  const unread = useUnreadNotifications(isKorean() && !isGuest);
+  const unread = useUnreadNotifications(isKorean());
   // 첫 가이드가 이 버튼을 비춘다 — 탭바는 홈 화면 밖이라 자리를 재서 남겨 둔다 (SOMA-550).
   const shootTarget = useSpotlightTarget(TARGET.shoot);
 
   const openCamera = () => {
-    requireLogin(() => router.push({ pathname: '/record-video', params: { mode: 'ai', picker: '1' } }));
+    router.push({ pathname: '/record-video', params: { mode: 'ai', picker: '1' } });
   };
 
   const icon = (outline: IoniconName, filled: IoniconName) => {
@@ -115,7 +113,6 @@ export default function TabLayout() {
         />
         <Tabs.Screen name="profile" options={{ title: t('tabs.profile'), tabBarIcon: icon('person-outline', 'person') }} />
       </Tabs>
-      {loginGuard}
     </>
   );
 }

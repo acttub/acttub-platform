@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 
 import {
   bootstrapSessionKey,
@@ -286,10 +287,8 @@ test('공통 규칙: 426을 받은 뒤에는 로그인 여부와 무관하게 �
   }
 });
 
-// 로그인 화면에서 "로그인 없이 둘러보기"를 누르면 상태만 guest 가 되고 이동은 루트 게이트가 한다.
-// 게이트는 세션 키가 없으면 아무것도 하지 않아, guest 의 키가 null 이던 동안 로그인 화면에 갇혔다(SOMA-544).
-test('둘러보기에도 세션 키가 있다 — 없으면 게이트가 탭으로 보내지 않는다', () => {
-  assert.equal(bootstrapSessionKey('guest', null), 'guest');
+// 앱에는 로그인 없이 둘러보기가 없다 — 로그인해야 들어간다(SOMA-544에서 뺐다).
+test('세션 키는 로그인·로그아웃에만 있다', () => {
   assert.equal(bootstrapSessionKey('signedOut', null), 'signedOut');
   assert.equal(bootstrapSessionKey('signedIn', 'u-1'), 'signedIn:u-1');
   // 로그인했지만 사용자를 아직 못 읽었거나, 앱이 켜지는 중이면 키가 없다(기다린다).
@@ -297,16 +296,9 @@ test('둘러보기에도 세션 키가 있다 — 없으면 게이트가 탭으�
   assert.equal(bootstrapSessionKey('loading', null), null);
 });
 
-test('둘러보기는 곧장 탭으로 간다', () => {
-  assert.deepEqual(
-    resolveBootstrapStep({
-      authStatus: 'guest',
-      userId: null,
-      profileStatus: 'checking',
-      recoveryStatus: 'checking',
-      recoveryOwner: null,
-      pending: null,
-    }),
-    { stage: 'done', route: '/(tabs)' },
-  );
+test('로그인 화면에 둘러보기 버튼이 없고 인증 상태에 guest 가 없다', () => {
+  const login = readFileSync(new URL('../app/login.tsx', import.meta.url), 'utf8');
+  const auth = readFileSync(new URL('../lib/auth.tsx', import.meta.url), 'utf8');
+  assert.doesNotMatch(login, /continueAsGuest|login\.guest/);
+  assert.doesNotMatch(auth, /'guest'|continueAsGuest|leaveGuest/);
 });
