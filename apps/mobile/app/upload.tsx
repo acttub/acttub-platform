@@ -275,7 +275,11 @@ export default function UploadScreen() {
   }, [plan.video, picked]);
 
   const ready = sample ? agreedRights : agreedRights && canStart(plan, videoId) && !uploading;
-  const hint = !canStart(plan, videoId)
+  const hint = sample
+    ? agreedRights
+      ? t('upload.submitHintReady')
+      : t('upload.missingRights')
+    : !canStart(plan, videoId)
     ? t('upload.missingVideo')
     : uploading
       ? t('start.stillUploading')
