@@ -85,6 +85,7 @@ class ValueCheckCatalogIT {
         BY_CONSTRAINT.put("ck_actor_memories_written_by", ActorMemoryAuthor.class);
         BY_CONSTRAINT.put("ck_practice_feedback_screen", FeedbackScreen.class);
         BY_CONSTRAINT.put("ck_practice_feedback_trigger", FeedbackTrigger.class);
+        BY_CONSTRAINT.put("ck_note_ratings_rating", NoteRatingValue.class);
         BY_CONSTRAINT.put("ck_ai_jobs_kind", AiJobKind.class);
         BY_CONSTRAINT.put("ck_ai_jobs_status", OperationStatus.class);
         BY_CONSTRAINT.put("ck_portfolio_credits_kind", PortfolioCreditKind.class);

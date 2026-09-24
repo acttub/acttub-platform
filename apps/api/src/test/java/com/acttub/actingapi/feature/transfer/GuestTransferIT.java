@@ -649,13 +649,14 @@ class GuestTransferIT {
 
     /** 웹이 하듯 게스트를 만들고, 동의 하나를 남긴다(동의 기록은 옮겨지지 않는다는 것을 보려고). */
     @Test
-    @DisplayName("account.guest: 1.0.0 연습 자료도 함께 옮긴다 — 회차·AI 작업·배우 기억·이탈 설문이 회원 것이 되고, "
+    @DisplayName("account.guest: 1.0.0 연습 자료도 함께 옮긴다 — 회차·AI 작업·배우 기억·이탈 설문·노트 평가가 회원 것이 되고, "
             + "게스트가 이미 설문을 봤으면 회원에게도 다시 뜨지 않는다")
     void accountGuest_transferMovesPracticeRoundsJobsMemoriesAndSurveys() throws Exception {
         Guest guest = guest();
         UUID round = practiceRound(guest.id());
         UUID job = aiJob(guest.id(), round);
         UUID survey = feedback(guest.id(), round);
+        UUID rating = noteRating(guest.id(), round);
         actorMemory(guest.id(), "goal", "게스트의 목표");
         jdbc.update("UPDATE users SET exit_survey_asked_at=now() WHERE id=?", guest.id());
         UUID member = member();
@@ -666,6 +667,7 @@ class GuestTransferIT {
         assertThat(owner("practices", round)).isEqualTo(member);
         assertThat(owner("ai_jobs", job)).isEqualTo(member);
         assertThat(owner("practice_feedback", survey)).isEqualTo(member);
+        assertThat(owner("note_ratings", rating)).as("평가는 회원의 노트 조회에 그대로 보인다").isEqualTo(member);
         assertThat(jdbc.queryForObject(
                 "SELECT value FROM actor_memories WHERE user_id=? AND field='goal'", String.class, member))
                 .isEqualTo("게스트의 목표");
@@ -728,6 +730,24 @@ class GuestTransferIT {
                 INSERT INTO practice_feedback(id,user_id,practice_id,screen,trigger,body,request_id)
                 VALUES (?,?,?,'coach','x','좋았어요',?)
                 """, id, owner, practiceId, UUID.randomUUID());
+        return id;
+    }
+
+    /** 닫힌 대화의 노트와 그 노트의 평가. */
+    private UUID noteRating(UUID owner, UUID practiceId) {
+        UUID conversation = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO coach_conversations(id,practice_id,start_request_id,status,close_reason,closed_at)
+                VALUES (?,?,?,'closed','user_ended',now())
+                """, conversation, practiceId, UUID.randomUUID());
+        UUID note = UUID.randomUUID();
+        jdbc.update("INSERT INTO coach_notes(id,conversation_id,format,kind,source_revision) VALUES (?,?,'v2','record_only',1)",
+                note, conversation);
+        UUID id = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO note_ratings(id,practice_id,note_id,user_id,rating,comment,request_id)
+                VALUES (?,?,?,?,'helpful','좋았어요',?)
+                """, id, practiceId, note, owner, UUID.randomUUID());
         return id;
     }
 

@@ -66,6 +66,8 @@ import type {
   CreatePracticeBody,
   FeedbackBody,
   GroupPatch,
+  NoteRating,
+  NoteRatingBody,
   Practice,
   PracticeDetail,
   PracticeGroupDetail,
@@ -1052,6 +1054,22 @@ export const api = {
       `/v2/practices/${encodeURIComponent(practiceId)}/note`,
       {},
       { timeoutMs: 20_000, signal: options.signal },
+    );
+  },
+
+  /**
+   * 노트 평가. 노트 하나에 한 행이고 다시 보내면 덮어쓴다(comment 를 빼면 한 줄도 비운다). 같은 request_id·같은
+   * 본문의 재전송은 같은 답이다. 없는·남의·노트 없는 회차는 404 note_not_found.
+   */
+  putNoteRating(practiceId: string, body: NoteRatingBody): Promise<NoteRating> {
+    return request<NoteRating>(
+      `/v2/practices/${encodeURIComponent(practiceId)}/note/rating`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+      { timeoutMs: 15_000 },
     );
   },
 

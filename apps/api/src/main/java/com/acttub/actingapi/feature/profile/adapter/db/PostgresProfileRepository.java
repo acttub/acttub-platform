@@ -750,6 +750,8 @@ class PostgresProfileRepository implements ProfileRepository {
      *       맞지 않아 통째로 롤백되므로 결과가 저장되지 않는다. 이력은 남기되 결과 본문은 비운다.</li>
      *   <li>{@code practice_feedback}: 연락처를 비우고 순번을 올려 시트에도 다시 보내게 한다. 본문은
      *       사람과 끊어 남는다(practice.feedback).</li>
+     *   <li>{@code note_ratings}: 한 줄(자유 입력)을 비우고 평가 값은 사람과 끊어 남긴다(practice.note). 평가를 쓰는
+     *       쪽이 같은 {@code users} 행을 잡으므로 늦게 온 평가가 한 줄을 되살리지 못한다.</li>
      * </ul>
      *
      * <p>{@code practices}·{@code analyses}·{@code coach_*}·{@code video_transcripts} 는 사람과 끊어
@@ -787,6 +789,14 @@ class PostgresProfileRepository implements ProfileRepository {
                     sheet_seq=sheet_seq+1,sheet_synced_at=NULL,updated_at=:now
                 WHERE user_id=:userId
                   AND (contact_email IS NOT NULL OR contact_phone IS NOT NULL)
+                """)
+                .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                .setParameter("userId", userId)
+                .executeUpdate();
+        entityManager.createNativeQuery("""
+                UPDATE note_ratings
+                SET comment=NULL,updated_at=:now
+                WHERE user_id=:userId AND comment IS NOT NULL
                 """)
                 .setParameter("now", now.atOffset(ZoneOffset.UTC))
                 .setParameter("userId", userId)

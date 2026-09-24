@@ -4,6 +4,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
+import { ReportRating } from '@/components/report-rating';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { formatKoreanDate } from '@/lib/format';
@@ -119,6 +120,9 @@ export default function ReportDetailScreen() {
               )}
             </View>
           ))}
+
+          {/* 지난 노트에서도 평가를 남기고 고친다 — 초기값은 이미 남긴 평가다(practice.note). */}
+          {practiceId && <ReportRating practiceId={practiceId} initial={note.my_rating} key={note.id} />}
 
           <Pressable style={styles.primary} onPress={continuePractice} accessibilityRole="button">
             <Text style={styles.primaryText}>{t('history.continueCta')}</Text>

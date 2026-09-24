@@ -96,6 +96,8 @@ final class ConversationDtos {
      * action·observation·record_only 다. 초점 없이 끝난 record_only 의 제목은 NULL 이다.
      *
      * @param report 저장한 원문에서 만든 공개 응답. 내부 출처 목록과 대화 상태는 노출하지 않는다
+     * @param myRating 이 사람이 이 노트에 남긴 평가. 없으면 null. 노트 조회만 채운다 — 코치 응답에 실린 노트는
+     *        방금 만든 것이라 언제나 null 이다
      */
     @Schema(name = "CoachNoteQuote", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
@@ -120,9 +122,14 @@ final class ConversationDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean fallback,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long sourceRevision,
             @Schema(nullable = true, anyOf = {AnalysisReport.class, ExpressionReport.class, PublicPracticeNote.class}) JsonNode report,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Instant createdAt) {
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Instant createdAt,
+            @Schema(nullable = true) NoteRatingDtos.NoteRatingResponse myRating) {
 
         static NoteResponse of(NoteView view) {
+            return of(view, null);
+        }
+
+        static NoteResponse of(NoteView view, NoteRatingDtos.NoteRatingResponse myRating) {
             return view == null
                     ? null
                     : new NoteResponse(
@@ -131,7 +138,8 @@ final class ConversationDtos {
                             view.nextTake(), strings(view.actorWords()), strings(view.corrections()),
                             strings(view.tags()), view.fallback(), view.sourceRevision(),
                             PracticeNote.publicView(view.legacyReport()),
-                            view.createdAt());
+                            view.createdAt(),
+                            myRating);
         }
 
         private static List<String> strings(JsonNode value) {

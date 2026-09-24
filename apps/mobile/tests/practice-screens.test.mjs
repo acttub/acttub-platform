@@ -63,3 +63,21 @@ test('practice.analyze: 화면을 떠나면 조회만 멈추고 돌아오면 다
   assert.match(analyzing, /controllerRef\.current\?\.abort\(\)/);
   assert.match(analyzing, /AppState\.addEventListener/);
 });
+
+test('practice.note: 방금 끝난 노트와 지난 노트 둘 다 평가를 받고 서버에 저장한다(시트로 보내지 않는다)', () => {
+  for (const screen of ['app/report.tsx', 'app/report-detail.tsx']) {
+    const source = read(screen);
+    assert.match(source, /<ReportRating\s+practiceId=\{[^}]+\}\s+initial=\{note\.my_rating\}/, screen);
+  }
+  const rating = read('components/report-rating.tsx');
+  assert.match(rating, /noteRatings\.send/);
+  assert.equal(/submitOneLiner|oneLinerPayload|report_inline/.test(rating), false);
+  assert.equal(/report_inline/.test(read('lib/exit-review.ts')), false);
+  // 문구는 그대로다 — 유저에게 "평가"라는 말을 쓰지 않는다.
+  for (const key of ['rateTitle', 'rateGood', 'rateBad', 'ratePh', 'rateSend', 'rateThanks']) {
+    assert.match(rating, new RegExp(`report\\.${key}`));
+  }
+  assert.equal(/평가|점수/.test(read('locales/ko.ts').match(/rateTitle[\s\S]*?rateThanks[^\n]*/)[0]), false);
+  // 밀린 평가는 게이트를 지나면 다시 보낸다.
+  assert.match(read('lib/auth.tsx'), /flushNoteRatings\(\)/);
+});
