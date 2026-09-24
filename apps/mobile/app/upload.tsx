@@ -110,6 +110,12 @@ export default function UploadScreen() {
   const sceneCardY = useRef(0);
   const fieldsY = useRef(0);
   const fieldY = useRef({ situation: 0, character: 0, goal: 0 });
+  // 도움 갈래를 고르면 그 카드를 맨 위로 올린다 — 세부 칩과 "상세히 적어 주세요"가 바로 보이게.
+  const helpCardY = useRef(0);
+  const scrollHelpToTop = () => {
+    // 세부 칩이 새로 그려진 뒤에 올린다.
+    setTimeout(() => scrollRef.current?.scrollTo({ y: Math.max(0, helpCardY.current - 8), animated: true }), 120);
+  };
   const scrollFieldToTop = (field: keyof typeof fieldY.current) => () => {
     // 키보드가 올라와 화면이 줄어든 뒤에 올려야 제자리에 선다.
     setTimeout(() => {
@@ -419,7 +425,7 @@ export default function UploadScreen() {
             </View>
           </View>
 
-          <View style={styles.sceneCard}>
+          <View style={styles.sceneCard} onLayout={(e) => (helpCardY.current = e.nativeEvent.layout.y)}>
             <Text style={styles.sceneTitle}>{t('blockage.helpTitle')}</Text>
             <Text style={styles.sceneOptionalHint}>{t('blockage.helpHint')}</Text>
             <View style={styles.chipWrap}>
@@ -428,13 +434,15 @@ export default function UploadScreen() {
                   key={category}
                   label={t(`blockage.helpLabel.${category}`)}
                   selected={blockage.category === category}
-                  onPress={() =>
+                  onPress={() => {
+                    const choosing = blockage.category !== category;
                     setBlockage((was) =>
                       was.category === category
                         ? { ...was, category: null, detail: null }
                         : { ...was, category, detail: null },
-                    )
-                  }
+                    );
+                    if (choosing) scrollHelpToTop();
+                  }}
                 />
               ))}
             </View>
