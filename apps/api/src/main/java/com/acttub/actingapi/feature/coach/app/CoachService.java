@@ -437,6 +437,11 @@ public class CoachService {
             return new CompletedTurn(branch, null, null);
         }
         UUID handoffId = UUID.randomUUID();
+        if (session.threeLayers()) {
+            // 연습 루프 세션은 코치가 정리해 둔 버릇·한 줄·다음 테이크로 노트를 채운다.
+            JsonNode loopNote = DirectVideoPracticeLoop.practiceNote(session, reply.handoff());
+            if (loopNote != null) return new CompletedTurn(branch, handoffId, loopNote);
+        }
         JsonNode report = reports.generateReport(
                 branch,
                 observationPack(session.observationPack()),
