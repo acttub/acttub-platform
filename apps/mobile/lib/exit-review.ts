@@ -29,8 +29,8 @@ export function appVersionLabel(): string {
 
 export function oneLinerPayload(input: {
   text: string;
-  /** coach·report = 나갈 때 한줄평, settings·home = 의견 시트, report_inline = 노트 미니 평가 */
-  screen: 'settings' | 'home' | 'report_inline';
+  /** settings·home = 의견 시트. 노트 평가는 서버로 간다(lib/note-rating.ts). */
+  screen: 'settings' | 'home';
   sessionId: string | null | undefined;
   userId: string | null | undefined;
   contactEmail?: string | null;

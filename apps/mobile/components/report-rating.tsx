@@ -1,49 +1,57 @@
 import Feather from '@expo/vector-icons/Feather';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
-import { useAuth } from '@/lib/auth';
-import { oneLinerPayload, submitOneLiner } from '@/lib/exit-review';
 import { translate as t } from '@/lib/i18n';
+import { noteRatings } from '@/lib/note-rating';
+import { buildNoteRatingBody, NOTE_RATING_COMMENT_MAX, noteRatingCommentText } from '@/lib/practice/note-rating';
+import type { NoteRating, NoteRatingValue } from '@/lib/practice/types';
+import { newRequestId } from '@/lib/request-id';
 
 /**
- * 연습 노트 맨 아래 미니 평가 — 👍/👎 하나 누르면 한 줄 입력칸이 펼쳐진다(선택).
- * 세션 맥락이 붙은 피드백이라 제일 쓸모 있다. 같은 구글 시트에 screen='report_inline',
- * text 앞에 👍/👎 를 붙여 보낸다(시트 열 구조를 안 바꾸려고 별도 필드 없이).
+ * 연습 노트 맨 아래 평가(practice.note) — 칩을 누르는 순간 서버에 노트 단위로 저장한다(낙관적 표시).
+ * 한 줄은 선택이고, 보내면 같은 평가에 덧붙는다. 못 보낸 요청은 기기가 같은 요청 id 로 들고 있다가
+ * 다시 보낸다(lib/note-rating.ts). 초기값은 노트 조회의 my_rating 이다. 이탈 설문과 다른 기능이다.
  */
-export function ReportRating({ sessionId }: { sessionId: string | null | undefined }) {
-  const { user } = useAuth();
-  const [rating, setRating] = useState<'good' | 'bad' | null>(null);
-  const [text, setText] = useState('');
-  const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
+export function ReportRating({ practiceId, initial }: { practiceId: string; initial: NoteRating | null | undefined }) {
+  const [rating, setRating] = useState<NoteRatingValue | null>(initial?.rating ?? null);
+  // 서버에 붙어 있는(또는 보내는 중인) 한 줄. 칩을 바꿔도 이 한 줄은 그대로 함께 보낸다.
+  const [comment, setComment] = useState<string | null>(initial?.comment ?? null);
+  const [draft, setDraft] = useState(initial?.comment ?? '');
+  const [thanked, setThanked] = useState(false);
+  // 겹쳐 누른 칩의 늦은 실패가 나중 선택을 되돌리지 않게, 마지막 요청만 화면을 바꾼다.
+  const latest = useRef<string | null>(null);
 
-  const send = async () => {
-    if (!rating || sending) return;
-    const mark = rating === 'good' ? '👍' : '👎';
-    const payload = oneLinerPayload({
-      text: `${mark} ${text.trim()}`.trim(),
-      screen: 'report_inline',
-      sessionId,
-      userId: user?.id,
-    });
-    if (!payload) return;
-    setSending(true);
-    await submitOneLiner(payload);
-    logEvent('report_rating_submit', { rating, length: text.trim().length });
-    setSending(false);
-    setSent(true);
+  const save = async (next: NoteRatingValue, nextComment: string | null, previous: { rating: NoteRatingValue | null; comment: string | null }) => {
+    const requestId = newRequestId();
+    latest.current = requestId;
+    const result = await noteRatings.send(practiceId, buildNoteRatingBody({ requestId, rating: next, comment: nextComment }));
+    void logEvent('report_rating_submit', { rating: next, length: nextComment?.length ?? 0, result });
+    // 4xx 는 다시 보내도 소용없다 — 저장되지 않은 선택을 보여 두지 않는다.
+    if (result === 'dropped' && latest.current === requestId) {
+      setRating(previous.rating);
+      setComment(previous.comment);
+      setThanked(false);
+    }
   };
 
-  if (sent) {
-    return (
-      <View style={styles.box}>
-        <Text style={styles.thanks}>{t('report.rateThanks')}</Text>
-      </View>
-    );
-  }
+  const choose = (next: NoteRatingValue) => {
+    if (next === rating) return;
+    const previous = { rating, comment };
+    setRating(next);
+    void save(next, comment, previous);
+  };
+
+  const send = () => {
+    if (!rating) return;
+    const text = noteRatingCommentText(draft);
+    const previous = { rating, comment };
+    setComment(text);
+    setThanked(true);
+    void save(rating, text, previous);
+  };
 
   return (
     <View style={styles.box}>
@@ -51,14 +59,14 @@ export function ReportRating({ sessionId }: { sessionId: string | null | undefin
       <View style={styles.row}>
         {(
           [
-            ['good', 'thumbs-up', 'report.rateGood'],
-            ['bad', 'thumbs-down', 'report.rateBad'],
+            ['helpful', 'thumbs-up', 'report.rateGood'],
+            ['not_helpful', 'thumbs-down', 'report.rateBad'],
           ] as const
         ).map(([key, icon, label]) => (
           <Pressable
             key={key}
             style={[styles.chip, rating === key && styles.chipOn]}
-            onPress={() => setRating(key)}
+            onPress={() => choose(key)}
             accessibilityRole="button"
             accessibilityState={{ selected: rating === key }}>
             <Feather name={icon} size={15} color={rating === key ? palette.blueDeep : palette.textDim} />
@@ -66,18 +74,18 @@ export function ReportRating({ sessionId }: { sessionId: string | null | undefin
           </Pressable>
         ))}
       </View>
-      {rating && (
+      {rating && thanked && <Text style={styles.thanks}>{t('report.rateThanks')}</Text>}
+      {rating && !thanked && (
         <View style={styles.inputRow}>
           <TextInput
             style={styles.input}
-            value={text}
-            onChangeText={setText}
+            value={draft}
+            onChangeText={setDraft}
             placeholder={t('report.ratePh')}
             placeholderTextColor={palette.textFaint}
-            maxLength={100}
-            editable={!sending}
+            maxLength={NOTE_RATING_COMMENT_MAX}
           />
-          <Pressable style={[styles.send, sending && styles.sendOff]} onPress={() => void send()} disabled={sending} accessibilityRole="button">
+          <Pressable style={styles.send} onPress={send} accessibilityRole="button">
             <Text style={styles.sendText}>{t('report.rateSend')}</Text>
           </Pressable>
         </View>
@@ -117,7 +125,6 @@ const styles = StyleSheet.create({
     color: palette.text,
   },
   send: { backgroundColor: palette.blue, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 11 },
-  sendOff: { opacity: 0.5 },
   sendText: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
   thanks: { fontSize: 14, fontWeight: '700', color: palette.blueDeep },
 });

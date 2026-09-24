@@ -187,8 +187,9 @@ export default function ReportScreen() {
             ))}
             </View>
 
-            {/* 회차 맥락이 붙은 미니 평가 — 👍/👎 + 한 줄(선택). 이탈 설문과 다른 기능이다. */}
-            {!sample && <ReportRating sessionId={practice.practiceId} />}
+            {/* 노트 평가 — 누르는 순간 서버에 저장하고 한 줄(선택)을 덧붙인다. 이탈 설문과 다른 기능이다.
+                튜토리얼 예시 노트는 서버에 없어 평가를 받지 않는다(SOMA-494). */}
+            {!sample && <ReportRating practiceId={practice.practiceId} initial={note.my_rating} key={note.id} />}
 
             {sample ? (
               <View style={styles.sampleDone}>

@@ -242,6 +242,26 @@ export type PracticeNote = {
   report: PracticeReport | null;
   source_revision: number;
   created_at: string;
+  /** 이 노트에 남긴 평가. 없으면 null. 코치 응답에 실린 노트는 언제나 null 이다(노트 조회만 채운다). */
+  my_rating?: NoteRating | null;
+};
+
+// ─── 노트 평가(practice.note) ────────────────────────────────────────────────
+
+export type NoteRatingValue = 'helpful' | 'not_helpful';
+
+/** 남긴 평가 — 저장 응답이자 노트 조회의 my_rating. */
+export type NoteRating = {
+  rating: NoteRatingValue;
+  comment: string | null;
+  updated_at: string;
+};
+
+export type NoteRatingBody = {
+  request_id: string;
+  rating: NoteRatingValue;
+  /** 앞뒤 공백을 걷은 1~100자. 빼면 서버가 한 줄을 비운다. */
+  comment?: string;
 };
 
 // ─── 기록(practice.library 의 연습 묶음) ─────────────────────────────────────

@@ -8,6 +8,7 @@ import { writtenByLabel } from '../lib/practice/memory.ts';
 import { videoPlaybackSource } from '../lib/library/library-view.ts';
 import { buildContinueBody, buildStartBody, emptyBlockageDraft, emptySceneDraft } from '../lib/practice/start.ts';
 import { buildFeedbackBody, shouldOfferFeedback } from '../lib/practice/feedback.ts';
+import { buildNoteRatingBody } from '../lib/practice/note-rating.ts';
 import { buildReplyBody, coachFailure, coachFailureMessage, isClosed, loadCoachSession, orderedMessages, remainingCoachReplies } from '../lib/practice/coach.ts';
 import { videoErrorMessage } from '../lib/library/video-checks.ts';
 
@@ -212,4 +213,24 @@ test('명시한 분석 재시도 요청 id를 본문과 재전송에서 유지�
   await api.retryPracticeAnalysis(id(1), { requestId: id(11) });
   assert.equal(calls[0].body.request_id, id(11));
   assert.equal(calls[1].body.request_id, id(11));
+});
+
+test('노트 평가는 PUT 한 번에 저장하고 노트 조회의 my_rating 이 초기값이 된다', async t => {
+  const saved = { rating: 'helpful', comment: '시선 얘기가 좋았어요', updated_at: '2026-09-24T00:00:00.000000Z' };
+  const calls = httpResponses(t, [
+    { status: 200, body: saved },
+    { body: {
+      id: id(6), conversation_id: id(5), format: 'v2', kind: 'action', title: '기다리는 시선',
+      summary_quotes: [], next_take: null, actor_words: [], corrections: [], tags: [], fallback: false,
+      source_revision: 3, created_at: '2026-09-21T02:00:00Z', report: null, my_rating: saved,
+    } },
+  ]);
+  const body = buildNoteRatingBody({ requestId: id(9), rating: 'helpful', comment: '  시선 얘기가 좋았어요 ' });
+  const result = await api.putNoteRating(id(1), body);
+  assert.deepEqual(result, saved);
+  assert.equal(calls[0].method, 'put');
+  assert.equal(calls[0].path, `/v2/practices/${id(1)}/note/rating`);
+  assert.deepEqual(calls[0].body, { request_id: id(9), rating: 'helpful', comment: '시선 얘기가 좋았어요' });
+  const note = await api.getPracticeNote(id(1));
+  assert.deepEqual(note.my_rating, saved);
 });
