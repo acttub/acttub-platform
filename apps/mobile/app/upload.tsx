@@ -105,6 +105,14 @@ export default function UploadScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const characterRef = useRef<TextInput>(null);
   const goalRef = useRef<TextInput>(null);
+  // 장면 칸을 누르면 세 칸 묶음이 화면 맨 위로 오게 올린다 — 상황을 적다가 인물·목표를 찾으러
+  // 내려가지 않게, 키보드가 떠도 셋이 한 화면에 보이게 한다.
+  const sceneCardY = useRef(0);
+  const fieldsY = useRef(0);
+  const scrollSceneToTop = () => {
+    // 키보드가 올라와 화면이 줄어든 뒤에 올려야 제자리에 선다.
+    setTimeout(() => scrollRef.current?.scrollTo({ y: Math.max(0, sceneCardY.current + fieldsY.current - 8), animated: true }), 250);
+  };
 
   const previewUri = picked?.uri ?? picked?.playbackUrl ?? null;
   const player = useVideoPlayer(previewUri, (p) => {
@@ -354,19 +362,26 @@ export default function UploadScreen() {
             </Pressable>
           )}
 
-          <View style={styles.sceneCard}>
+          <View style={styles.sceneCard} onLayout={(e) => (sceneCardY.current = e.nativeEvent.layout.y)}>
             <Text style={styles.sceneTitle}>
               {t('upload.sceneTitle')}
               <Text style={styles.sceneOptional}>{t('upload.sceneOptional')}</Text>
             </Text>
             <Text style={styles.sceneOptionalHint}>{t('upload.sceneHint')}</Text>
             {/* 카드 전체는 화면보다 길어 설명이 비출 곳을 가린다 — 세 칸만 비춘다. */}
-            <View style={styles.fields} ref={sceneTarget.ref} onLayout={sceneTarget.onLayout}>
+            <View
+              style={styles.fields}
+              ref={sceneTarget.ref}
+              onLayout={(e) => {
+                fieldsY.current = e.nativeEvent.layout.y;
+                sceneTarget.onLayout();
+              }}>
               <Field
                 label={t('upload.situation')}
                 placeholder={t('upload.situationPh')}
                 value={scene.situation}
                 onChangeText={(situation) => setScene((s) => ({ ...s, situation }))}
+                onFocus={scrollSceneToTop}
                 returnKeyType="next"
                 onSubmitEditing={() => characterRef.current?.focus()}
               />
@@ -375,6 +390,7 @@ export default function UploadScreen() {
                 placeholder={t('upload.characterPh')}
                 value={scene.character}
                 onChangeText={(character) => setScene((s) => ({ ...s, character }))}
+                onFocus={scrollSceneToTop}
                 inputRef={characterRef}
                 returnKeyType="next"
                 onSubmitEditing={() => goalRef.current?.focus()}
@@ -384,6 +400,7 @@ export default function UploadScreen() {
                 placeholder={t('upload.goalPh')}
                 value={scene.goal}
                 onChangeText={(goal) => setScene((s) => ({ ...s, goal }))}
+                onFocus={scrollSceneToTop}
                 tall
                 inputRef={goalRef}
                 returnKeyType="done"
@@ -441,17 +458,16 @@ export default function UploadScreen() {
             />
           </View>
 
-          {error && <Text style={styles.errorText}>{error}</Text>}
-        </ScrollView>
-
-        <View style={styles.submitBar}>
-          {/* 권리 확인은 시작 버튼 바로 위에 붙인다 — 스크롤해도 따라다녀서 찾으러 내려가지 않는다. */}
-          <Pressable style={styles.rightsRow} onPress={() => setAgreedRights((v) => !v)} accessibilityRole="checkbox" accessibilityState={{ checked: agreedRights }}>
+          <Pressable style={styles.rightsRow} onPress={() => setAgreedRights((v) => !v)}>
             <View style={[styles.check, agreedRights && styles.checkOn]}>
               {agreedRights && <Text style={styles.checkMark}>✓</Text>}
             </View>
             <Text style={styles.rightsText}>{t('upload.rights')}</Text>
           </Pressable>
+          {error && <Text style={styles.errorText}>{error}</Text>}
+        </ScrollView>
+
+        <View style={styles.submitBar}>
           <Pressable
             ref={startTarget.ref}
             onLayout={startTarget.onLayout}
@@ -491,6 +507,7 @@ function Field({
   inputRef,
   returnKeyType,
   onSubmitEditing,
+  onFocus,
 }: {
   label: string;
   placeholder: string;
@@ -500,6 +517,7 @@ function Field({
   inputRef?: RefObject<TextInput | null>;
   returnKeyType?: 'next' | 'done';
   onSubmitEditing?: () => void;
+  onFocus?: () => void;
 }) {
   return (
     <View style={styles.field}>
@@ -516,6 +534,7 @@ function Field({
         submitBehavior="submit"
         returnKeyType={returnKeyType}
         onSubmitEditing={onSubmitEditing}
+        onFocus={onFocus}
       />
     </View>
   );
@@ -587,11 +606,11 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 14, fontWeight: '700', color: palette.textDim },
   chipTextOn: { color: palette.blueDeep },
 
-  rightsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: palette.bgSubtle, borderRadius: 12 },
+  rightsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 14, backgroundColor: palette.bgSubtle, borderRadius: 14 },
   check: { width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, borderColor: palette.checkOff, alignItems: 'center', justifyContent: 'center' },
   checkOn: { backgroundColor: palette.blue, borderColor: palette.blue },
   checkMark: { color: palette.bg, fontSize: 12, fontWeight: '900' },
-  rightsText: { flex: 1, fontSize: 11.5, fontWeight: '600', color: palette.textDim, lineHeight: 17 },
+  rightsText: { flex: 1, fontSize: 12, fontWeight: '600', color: palette.textDim, lineHeight: 19 },
 
   submitBar: {
     paddingHorizontal: 16,
