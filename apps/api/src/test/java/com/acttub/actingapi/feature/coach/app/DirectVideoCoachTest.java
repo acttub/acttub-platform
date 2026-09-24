@@ -228,6 +228,32 @@ class DirectVideoCoachTest {
         assertThat(unclosed.design()).isEqualTo("인물: x");
     }
 
+    @Test void practiceLoopNoteUsesTheHabitTheActorsOwnLineAndTheNextTake() throws Exception {
+        var state = (com.fasterxml.jackson.databind.node.ObjectNode) StructuredJson.MAPPER.readTree("""
+                {"revision":5,"practice_loop":{"design":"소리 빠르기: 없음\\n버릇: 문장 사이 쉼 없이 몰아쳐요 | 곳1: \\"장난하냐\\" | 곳2: \\"구해 와\\"\\n다음 테이크: 문장마다 한 번씩 쉬어 보기\\n인물: 돈을 받아내려 한다",
+                "statuses":["","파고들기 · 응답 2번째","파고들기 · 응답 3번째","이어보기 · 응답 4번째","마무리1 · 응답 5번째","마무리2 · 응답 6번째"]}}
+                """);
+        var turns = List.of(new CoachTurnSnapshot("ai", "첨 말"), new CoachTurnSnapshot("actor", "네 좀 그래요"),
+                new CoachTurnSnapshot("ai", "왜 그럴까요?"), new CoachTurnSnapshot("actor", "몰라요"),
+                new CoachTurnSnapshot("ai", "더 쉬운 질문"), new CoachTurnSnapshot("actor", "틈을 주면 밀릴 것 같아서요"),
+                new CoachTurnSnapshot("ai", "인물에게 맞나요?"), new CoachTurnSnapshot("actor", "인물은 여유 있게 눌러야 무서워요"),
+                new CoachTurnSnapshot("ai", "한 줄로 적는다면요?"), new CoachTurnSnapshot("actor", "나는 틈을 주면 밀릴까 봐 몰아치는 배우다"),
+                new CoachTurnSnapshot("ai", "적어 둘게요."));
+        var closed = session().withTurns(turns).withCoachingState("three_layers_v1", 6, state, "closed", "interrupted");
+        var note = DirectVideoPracticeLoop.note(closed, 6);
+        assertThat(note.format()).isEqualTo("v2");
+        assertThat(note.kind()).isEqualTo("action");
+        assertThat(note.title()).isEqualTo("문장 사이 쉼 없이 몰아쳐요");
+        assertThat(note.nextTake()).isEqualTo("문장마다 한 번씩 쉬어 보기");
+        assertThat(note.summaryQuotes()).hasSize(2);
+        assertThat(note.summaryQuotes().get(0).path("quote").asText()).isEqualTo("나는 틈을 주면 밀릴까 봐 몰아치는 배우다");
+        assertThat(note.summaryQuotes().get(0).path("kind").asText()).isEqualTo("actor");
+        assertThat(note.summaryQuotes().get(0).path("source_ref").asText()).isEqualTo(StructuredCoachEngine.turnId(closed, 9));
+        assertThat(note.summaryQuotes().get(1).path("quote").asText()).isEqualTo("틈을 주면 밀릴 것 같아서요");
+        assertThat(note.legacyReport()).isNull();
+        assertThat(DirectVideoPracticeLoop.note(session().withTurns(turns), 1)).isNull();
+    }
+
     @Test void practiceLoopReadsTheActionWhereverItSitsAndDropsStrayJamo() {
         var closing = DirectVideoPracticeLoop.parse("<상태>마무리2 · 응답 6번째</상태>\n한 줄을 적어 둘게요.");
         assertThat(DirectVideoPracticeLoop.finished(closing)).isTrue();

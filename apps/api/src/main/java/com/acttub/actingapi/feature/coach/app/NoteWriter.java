@@ -47,6 +47,11 @@ public class NoteWriter {
             // "모르겠어요 → 그만": 연습 기록에 "아직 정리 없음" 으로 남는다.
             return null;
         }
+        if (threeLayers) {
+            // 연습 루프 세션은 코치가 정리해 둔 버릇·한 줄·다음 테이크로 노트를 채운다.
+            NewNote loopNote = DirectVideoPracticeLoop.note(session, sourceRevision);
+            if (loopNote != null) return conversations.saveNote(loaded.conversationId(), loopNote, now);
+        }
         PracticeNote.Generated generated = generate(loaded, result, threeLayers);
         if (generated == null || (!threeLayers && "blocked".equals(generated.note().path("report_type").asText()))) {
             // 거듭 실패했다. 기존 갈래는 노트가 없고, 신형은 확인된 것만 남긴다.
