@@ -51,3 +51,19 @@ export async function writeLastSeenStreak(current: number): Promise<void> {
     // 무시 — 다음 진입에서 다시 시도된다.
   }
 }
+
+export type CelebrationDot = { key: string; label: string; state: 'done' | 'today' | 'empty' };
+
+/**
+ * 전체화면 축하의 요일 점(SOMA-494). 오늘 연습한 칸은 화면에서 차오르는 칸이라 따로 가른다.
+ * 지난 연습일은 이미 찬 칸, 나머지(쉰 날·앞날)는 빈 칸이다.
+ */
+export function celebrationDots(
+  days: readonly { key: string; label: string; count: number; isToday: boolean }[],
+): CelebrationDot[] {
+  return days.map((day) => ({
+    key: day.key,
+    label: day.label,
+    state: day.count > 0 ? (day.isToday ? 'today' : 'done') : 'empty',
+  }));
+}

@@ -25,11 +25,12 @@ import { dateLocale, isKorean, translate as t } from '@/lib/i18n';
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
 import { TutorialIntroSheet, type TutorialChoice } from '@/components/tutorial-intro-sheet';
 import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
-import { StreakCelebration } from '@/components/streak-badge';
+import { StreakCelebrationScreen } from '@/components/streak-celebration-screen';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { TARGET } from '@/lib/spotlight-targets';
 import {
   readLastSeenStreak,
+  celebrationDots,
   shouldCelebrateStreak,
   writeLastSeenStreak,
 } from '@/lib/streak-celebration';
@@ -180,7 +181,11 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       {celebrateStreak !== null && (
-        <StreakCelebration streak={celebrateStreak} onDone={() => setCelebrateStreak(null)} />
+        <StreakCelebrationScreen
+          streak={celebrateStreak}
+          dots={celebrationDots(days)}
+          onDone={() => setCelebrateStreak(null)}
+        />
       )}
       <ScrollView contentContainerStyle={styles.container}>
         {/* 히어로 — 큰 격려 문구 + 마스코트 */}
