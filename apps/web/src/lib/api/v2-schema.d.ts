@@ -26,6 +26,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/practices/{practice_id}/note/rating": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Rate Practice Note
+         * @description 노트에 "도움 됐어요(helpful)·아쉬웠어요(not_helpful)" 와 한 줄(선택)을 남긴다. 노트 하나에 한 행이고
+         *     다시 보내면 덮어쓴다 — comment 를 빼면 한 줄도 비운다. 한 줄은 앞뒤 공백을 걷은 1~100자이고 넘으면
+         *     422 comment_too_long 이다.
+         *
+         *     같은 request_id·같은 본문의 재전송은 200 같은 응답이고, 같은 id 에 다른 본문이면 422
+         *     request_fingerprint_mismatch 다. 없는 회차·남의 회차·노트가 아직 없는 회차는 모두 404
+         *     note_not_found 다(노트 조회와 같다).
+         */
+        put: operations["rate_practice_note_v2_practices__practice_id__note_rating_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/portfolio/share": {
         parameters: {
             query?: never;
@@ -1376,7 +1402,7 @@ export interface paths {
          * Get Practice Note
          * @description 그 회차의 연습 노트. 대화가 닫힐 때 한 번 만들고 다시 만들지 않는다 — 없으면 404 note_not_found
          *     이고 화면은 "아직 정리 없음"을 보인다. 생성기가 낸 원문(report)이 함께 와서 옛 공개 필드를 읽던
-         *     화면이 그대로 쓴다.
+         *     화면이 그대로 쓴다. my_rating 은 이 사람이 이 노트에 남긴 평가이고 없으면 null 이다.
          */
         get: operations["get_practice_note_v2_practices__practice_id__note_get"];
         put?: never;
@@ -1886,6 +1912,36 @@ export interface components {
              */
             line_id: string;
             status: components["schemas"]["MemorizationStatus"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** NoteRatingRequest */
+        NoteRatingRequest: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /**
+             * Rating
+             * @enum {string}
+             */
+            rating: "helpful" | "not_helpful";
+            /** Comment */
+            comment?: string | null;
+        };
+        /** NoteRating */
+        NoteRating: {
+            /**
+             * Rating
+             * @enum {string}
+             */
+            rating: "helpful" | "not_helpful";
+            /** Comment */
+            comment: string | null;
             /**
              * Updated At
              * Format: date-time
@@ -3068,6 +3124,7 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            my_rating?: components["schemas"]["NoteRating"] | null;
         };
         /** CoachNoteQuote */
         CoachNoteQuote: {
@@ -4675,6 +4732,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReadingLineMemorization"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rate_practice_note_v2_practices__practice_id__note_rating_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                practice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NoteRatingRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoteRating"];
                 };
             };
             /** @description Validation Error */
