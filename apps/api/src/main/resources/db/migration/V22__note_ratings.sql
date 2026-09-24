@@ -25,8 +25,10 @@ CREATE TABLE public.note_ratings (
     CONSTRAINT uq_note_ratings_note_user UNIQUE (note_id, user_id),
     CONSTRAINT ck_note_ratings_rating
         CHECK ((rating = ANY (ARRAY['helpful'::text, 'not_helpful'::text]))),
-    CONSTRAINT ck_note_ratings_comment
-        CHECK ((comment IS NULL) OR ((char_length(comment) BETWEEN 1 AND 100) AND (btrim(comment) <> ''::text)))
+    -- 한 줄은 NULL 이거나 공백만이 아닌 1~100자다. CHECK 는 NULL 을 통과시키므로 조건을 하나씩 나눈다 —
+    -- OR·AND 를 섞은 식은 덤프·복원 뒤 괄호 모양이 달라져 스키마 대조(smoke)가 깨진다.
+    CONSTRAINT ck_note_ratings_comment_length CHECK (char_length(comment) BETWEEN 1 AND 100),
+    CONSTRAINT ck_note_ratings_comment_not_blank CHECK ((btrim(comment) <> ''::text))
 );
 
 -- 이관과 탈퇴가 사람 단위로 찾는다.

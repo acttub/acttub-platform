@@ -1040,7 +1040,8 @@ CONSTRAINT line_memorization line_memorization_updated_at_not_null NOT NULL upda
 CONSTRAINT line_memorization line_memorization_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
 CONSTRAINT line_memorization line_memorization_user_id_not_null NOT NULL user_id
 CONSTRAINT line_memorization uq_line_memorization_user_line UNIQUE (user_id, line_id)
-CONSTRAINT note_ratings ck_note_ratings_comment CHECK (((comment IS NULL) OR (((char_length(comment) >= 1) AND (char_length(comment) <= 100)) AND (btrim(comment) <> ''::text))))
+CONSTRAINT note_ratings ck_note_ratings_comment_length CHECK (((char_length(comment) >= 1) AND (char_length(comment) <= 100)))
+CONSTRAINT note_ratings ck_note_ratings_comment_not_blank CHECK ((btrim(comment) <> ''::text))
 CONSTRAINT note_ratings ck_note_ratings_rating CHECK ((rating = ANY (ARRAY['helpful'::text, 'not_helpful'::text])))
 CONSTRAINT note_ratings note_ratings_created_at_not_null NOT NULL created_at
 CONSTRAINT note_ratings note_ratings_id_not_null NOT NULL id
