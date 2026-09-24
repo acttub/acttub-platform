@@ -83,6 +83,23 @@ export function recoveryStatusForConsentGate(
 }
 
 /** update → auth → consent → profile → owner별 pending recovery 순서로만 done에 도달한다. */
+/**
+ * 루트 게이트가 "이미 보낸 세션인가"를 가르는 키. 키가 없으면 게이트는 기다린다(아무 데도 보내지 않는다).
+ *
+ * 둘러보기(guest)에도 키를 준다. 로그인 화면에서 "로그인 없이 둘러보기"를 누르면 상태만 guest 로
+ * 바뀌고 이동은 게이트가 하는데, guest 의 키가 null 이던 동안 게이트가 멈춰 로그인 화면에 갇혔다
+ * (SOMA-544). 로그인했지만 사용자를 아직 못 읽었거나 앱이 켜지는 중이면 키가 없다.
+ */
+export function bootstrapSessionKey(
+  status: BootstrapStepInput['authStatus'],
+  userId: string | null,
+): string | null {
+  if (status === 'signedIn') return userId ? `signedIn:${userId}` : null;
+  if (status === 'signedOut') return 'signedOut';
+  if (status === 'guest') return 'guest';
+  return null;
+}
+
 export function resolveBootstrapStep(input: BootstrapStepInput): BootstrapStep {
   if (input.updateRequired) {
     return { stage: 'update-gate', route: '/update-required' };
