@@ -4,10 +4,8 @@ import {
   ActivityIndicator,
   Animated,
   FlatList,
-  KeyboardAvoidingView,
   Modal,
   PanResponder,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -18,6 +16,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
+import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { api } from '@/lib/api';
 import { avatarLetter } from '@/lib/challenge/browse';
 import {
@@ -57,6 +56,10 @@ export function ChallengeCommentsSheet({
 }) {
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
+  // 키보드만큼 시트를 들어 올린다 — 모달 안에서는 창이 줄지 않아 입력줄이 키보드 뒤로 숨었다.
+  // KeyboardAvoidingView 가 edge-to-edge 에서 어긋나는 까닭은 use-keyboard-height 에 적었다.
+  const keyboard = useKeyboardHeight();
+  const sheetHeight = keyboard > 0 ? Math.min(height * 0.68, height - keyboard - insets.top - 24) : height * 0.68;
   const [comments, setComments] = useState<EntryComment[] | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
@@ -122,7 +125,10 @@ export function ChallengeCommentsSheet({
   const drag = useMemo(
     () =>
       PanResponder.create({
+        // 손잡이·제목 줄에는 누를 것이 없다 — 닿는 순간 잡아야 안드로이드 모달에서도 끌린다.
+        onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: (_, g) => g.dy > 6 && Math.abs(g.dy) > Math.abs(g.dx),
+        onPanResponderTerminationRequest: () => false,
         onPanResponderMove: (_, g) => dragY.setValue(Math.max(0, g.dy)),
         onPanResponderRelease: (_, g) => {
           if (g.dy > 120 || g.vy > 1.2) {
@@ -142,9 +148,9 @@ export function ChallengeCommentsSheet({
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       {/* 위쪽은 영상이 비쳐 보이게 옅게만 가린다 — 누르면 닫힌다. */}
       <Pressable style={styles.backdrop} onPress={onClose} accessibilityRole="button" />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.kav}>
+      <View style={[styles.kav, { bottom: keyboard }]}>
         <Animated.View
-          style={[styles.sheet, { height: height * 0.68, paddingBottom: insets.bottom + 6, transform: [{ translateY: dragY }] }]}>
+          style={[styles.sheet, { height: sheetHeight, paddingBottom: keyboard > 0 ? 6 : insets.bottom + 6, transform: [{ translateY: dragY }] }]}>
           <View {...drag.panHandlers}>
             <View style={styles.grabber} />
             <Text style={styles.title}>{t('comments.title', { count: comments?.length ?? 0 })}</Text>
@@ -229,7 +235,7 @@ export function ChallengeCommentsSheet({
             )}
           </View>
         </Animated.View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
