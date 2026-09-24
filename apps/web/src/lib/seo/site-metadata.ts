@@ -99,10 +99,13 @@ export function buildKeywordPageMetadata(
   };
 }
 
+// 검색 결과 문구. 이 페이지로 노출되는 검색어가 "연기 연습"이라(서치콘솔 2026-09-24) 그 말로
+// 시작하고, 글 목록을 늘어놓는 대신 무엇을 따라 할 수 있는지 적는다 — 목록형 설명일 때
+// 노출 14회에 클릭이 1회였다. 모바일 결과에서 잘리지 않게 100자 안쪽으로 둔다.
 const GUIDE_INDEX_TITLE =
-  "연기 연습 가이드 — 독백·셀프테이프·입시·독학 루틴";
+  "혼자 하는 연기 연습 방법 — 독백·셀프테이프·입시 준비";
 const GUIDE_INDEX_DESCRIPTION =
-  "혼자 하는 연기 연습을 위한 가이드예요. 독백 연습법, 셀프테이프 찍는 법, 자유연기 작품 고르기, 연기 독학 루틴, 연기학원 고르는 법, 연극영화과 입시 준비 순서, 장면 분석, 내 영상 다시 보는 법을 정리했어요.";
+  "학원 없이 혼자 하는 연기 연습을 순서대로 정리했어요. 독백 6단계, 폰으로 찍는 셀프테이프, 자유연기 작품 고르기, 매일 30분 독학 루틴까지 따라 해 보세요.";
 
 export function buildGuideIndexMetadata(siteUrl?: string): Metadata {
   const resolvedSiteUrl = resolveSiteUrl(siteUrl);
@@ -139,10 +142,13 @@ export function buildLandingMetadata(siteUrl?: string): Metadata {
   };
 }
 
-export const APP_DOWNLOAD_TITLE = "앱 다운로드";
+// "앱 다운로드"만으로는 검색 결과에서 무엇을 하는 앱인지 안 보인다. 이 페이지가 가장 많이
+// 노출되는데(서치콘솔 2026-09-24 노출 17) 그 검색어는 브랜드와 "AI 연기 코칭"이다.
+// 루트 템플릿이 " | Acttub"을 붙이므로 영문 브랜드는 여기서 반복하지 않는다.
+export const APP_DOWNLOAD_TITLE = "AI 연기 코칭 앱 액터브 — iOS·Android 무료";
 
 export const APP_DOWNLOAD_DESCRIPTION =
-  "Acttub(액터브) 앱을 App Store와 Google Play에서 받을 수 있어요. 연습실에서 찍은 영상을 폰에서 바로 올리고 질문에 말로 답해요.";
+  "연기 영상을 폰에서 올리면 AI가 장면 속 순간을 짚어 질문해요. 말로 답하면 다음 테이크에서 붙잡을 문장이 연습 노트로 남아요. App Store·Google Play 무료.";
 
 /**
  * `/app`은 랜딩과 함께 색인되는 두 번째 공개 페이지다. 인스타그램 프로필 링크가 이 주소를
