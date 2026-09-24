@@ -105,13 +105,17 @@ export default function UploadScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const characterRef = useRef<TextInput>(null);
   const goalRef = useRef<TextInput>(null);
-  // 장면 칸을 누르면 세 칸 묶음이 화면 맨 위로 오게 올린다 — 상황을 적다가 인물·목표를 찾으러
-  // 내려가지 않게, 키보드가 떠도 셋이 한 화면에 보이게 한다.
+  // 장면 칸을 누르면 그 칸이 화면 맨 위로 오게 올린다 — 키보드가 떠도 적는 칸과 그다음 칸이
+  // 한 화면에 보여, 다음 칸을 찾으러 내려가지 않는다.
   const sceneCardY = useRef(0);
   const fieldsY = useRef(0);
-  const scrollSceneToTop = () => {
+  const fieldY = useRef({ situation: 0, character: 0, goal: 0 });
+  const scrollFieldToTop = (field: keyof typeof fieldY.current) => () => {
     // 키보드가 올라와 화면이 줄어든 뒤에 올려야 제자리에 선다.
-    setTimeout(() => scrollRef.current?.scrollTo({ y: Math.max(0, sceneCardY.current + fieldsY.current - 8), animated: true }), 250);
+    setTimeout(() => {
+      const y = sceneCardY.current + fieldsY.current + fieldY.current[field] - 8;
+      scrollRef.current?.scrollTo({ y: Math.max(0, y), animated: true });
+    }, 250);
   };
 
   const previewUri = picked?.uri ?? picked?.playbackUrl ?? null;
@@ -381,7 +385,8 @@ export default function UploadScreen() {
                 placeholder={t('upload.situationPh')}
                 value={scene.situation}
                 onChangeText={(situation) => setScene((s) => ({ ...s, situation }))}
-                onFocus={scrollSceneToTop}
+                onFocus={scrollFieldToTop('situation')}
+                onY={(y) => (fieldY.current.situation = y)}
                 returnKeyType="next"
                 onSubmitEditing={() => characterRef.current?.focus()}
               />
@@ -390,7 +395,8 @@ export default function UploadScreen() {
                 placeholder={t('upload.characterPh')}
                 value={scene.character}
                 onChangeText={(character) => setScene((s) => ({ ...s, character }))}
-                onFocus={scrollSceneToTop}
+                onFocus={scrollFieldToTop('character')}
+                onY={(y) => (fieldY.current.character = y)}
                 inputRef={characterRef}
                 returnKeyType="next"
                 onSubmitEditing={() => goalRef.current?.focus()}
@@ -400,7 +406,8 @@ export default function UploadScreen() {
                 placeholder={t('upload.goalPh')}
                 value={scene.goal}
                 onChangeText={(goal) => setScene((s) => ({ ...s, goal }))}
-                onFocus={scrollSceneToTop}
+                onFocus={scrollFieldToTop('goal')}
+                onY={(y) => (fieldY.current.goal = y)}
                 tall
                 inputRef={goalRef}
                 returnKeyType="done"
@@ -508,6 +515,7 @@ function Field({
   returnKeyType,
   onSubmitEditing,
   onFocus,
+  onY,
 }: {
   label: string;
   placeholder: string;
@@ -518,9 +526,11 @@ function Field({
   returnKeyType?: 'next' | 'done';
   onSubmitEditing?: () => void;
   onFocus?: () => void;
+  /** 세 칸 묶음 안에서 이 칸의 위쪽 위치 — 누르면 여기를 화면 맨 위로 올린다. */
+  onY?: (y: number) => void;
 }) {
   return (
-    <View style={styles.field}>
+    <View style={styles.field} onLayout={(e) => onY?.(e.nativeEvent.layout.y)}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
         ref={inputRef}
