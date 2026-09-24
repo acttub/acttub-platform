@@ -14,6 +14,7 @@ import {
   DISCIPLINE_LABEL,
   EMPTY_FILTERS,
   PRACTICAL_LABEL,
+  summaryLine,
   type AdmissionFilters,
   type AdmissionNotice,
   type AdmissionUniversity,
@@ -87,6 +88,46 @@ export function AdmissionsPage({ initial }: { initial: AdmissionsResponse }) {
           연기·뮤지컬 실기 전형만 모았어요. 각 대학 모집요강 원문을 사람이 직접 읽고
           채우고 있어요.
         </p>
+
+        {/* 목록만으로는 대학 이름이 늘어선 얇은 페이지라 검색엔진이 색인을 거절했다
+            (2026-09-24). 이 페이지를 어떻게 읽는지와 입시 구조를 서버 HTML에 싣는다. */}
+        <section className="mt-6 space-y-2 text-sm font-semibold leading-6 text-[#4e5968]">
+          <h2 className="text-[15px] font-black text-[#191f28]">
+            연극영화과 입시, 이 페이지는 이렇게 보면 돼요
+          </h2>
+          <p>
+            연극영화과·연기 전공 실기 전형은 학교마다 조합이 달라요. 자유연기만 보는 곳,
+            지정연기와 특기를 같이 보는 곳, 면접이나 즉흥연기를 더하는 곳이 있어요. 수시와
+            정시에서 실기 비중이 다른 학교도 많아요.
+          </p>
+          <p>
+            아래 목록은 대학마다 전형(수시·정시), 실기 종목, 원서 접수 시기를 한 줄로
+            요약했어요. 대학을 누르면 학과별 실기 과제, 단계별 일정, 먼저 다녀온 사람들의
+            영상까지 볼 수 있어요.
+          </p>
+          <p>
+            모집요강은 해마다 바뀌어요. 여기 정리한 내용은 원문을 사람이 직접 읽고 채운
+            것이지만, 원서를 쓰기 전에는 반드시 각 대학 입학처의 그해 공고로 한 번 더
+            확인하세요.
+          </p>
+          <p>
+            입시를 언제부터 어떻게 준비할지는{" "}
+            <Link
+              href="/guide/acting-exam-prep-timeline"
+              className="underline underline-offset-4 hover:text-[#191f28]"
+            >
+              연극영화과 입시 준비 순서
+            </Link>
+            에, 자유연기 작품을 고르는 기준은{" "}
+            <Link
+              href="/guide/choosing-free-acting-piece"
+              className="underline underline-offset-4 hover:text-[#191f28]"
+            >
+              자유연기 작품 고르는 법
+            </Link>
+            에 정리해 두었어요.
+          </p>
+        </section>
 
         {payload && (
           <p className="mt-4 rounded-2xl bg-[#fff4e6] px-4 py-3 text-[13px] font-bold leading-5 text-[#b45309]">
@@ -291,6 +332,7 @@ function UniversityCard({
   today: string | null;
 }) {
   const badge = cardBadge(notices, today);
+  const summary = summaryLine(notices);
 
   const departments = notices
     .map((notice) => notice.department ?? "학과 미확인")
@@ -322,6 +364,11 @@ function UniversityCard({
           {departments.length > 0 ? departments.join(" · ") : "전형 정보 확인 중"}
           {university.resources.length > 0 && ` · 영상 ${university.resources.length}`}
         </p>
+        {summary && (
+          <p className="mt-0.5 truncate text-[12px] font-semibold text-[#8b95a1]">
+            {summary}
+          </p>
+        )}
       </div>
       {badge && (
         <span

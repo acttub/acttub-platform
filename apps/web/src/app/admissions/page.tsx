@@ -1,5 +1,8 @@
 import { AdmissionsPage } from "@/features/admissions/admissions-page";
-import { loadAdmissionsStatic } from "@/features/admissions/admissions-static";
+import {
+  loadAdmissionsStatic,
+  toAdmissionsListPayload,
+} from "@/features/admissions/admissions-static";
 import {
   buildAdmissionsBreadcrumbJsonLd,
   buildOrganizationJsonLd,
@@ -10,7 +13,8 @@ import { buildAdmissionsIndexMetadata } from "@/lib/seo/site-metadata";
 export const metadata = buildAdmissionsIndexMetadata();
 
 export default function Page() {
-  const initial = loadAdmissionsStatic();
+  // 목록에 필요한 값만 넘긴다 — 넘긴 값이 통째로 HTML에 실린다(admissions-static 참고).
+  const initial = toAdmissionsListPayload(loadAdmissionsStatic());
   const jsonLdValues = [
     buildAdmissionsBreadcrumbJsonLd(),
     buildOrganizationJsonLd(),
