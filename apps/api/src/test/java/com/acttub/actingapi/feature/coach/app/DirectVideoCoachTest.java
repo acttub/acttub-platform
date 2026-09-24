@@ -227,4 +227,16 @@ class DirectVideoCoachTest {
         assertThat(unclosed.message()).isEqualTo("닫는 태그가 없어요.");
         assertThat(unclosed.design()).isEqualTo("인물: x");
     }
+
+    @Test void practiceLoopReadsTheActionWhereverItSitsAndDropsStrayJamo() {
+        var closing = DirectVideoPracticeLoop.parse("<상태>마무리2 · 응답 6번째</상태>\n한 줄을 적어 둘게요.");
+        assertThat(DirectVideoPracticeLoop.finished(closing)).isTrue();
+        assertThat(DirectVideoPracticeLoop.finished(DirectVideoPracticeLoop.parse(
+                "<상태>끝 · 응답 3번째</상태>\n오늘은 여기까지 해요."))).isTrue();
+        assertThat(DirectVideoPracticeLoop.finished(DirectVideoPracticeLoop.parse(
+                "<상태>파고들기 · 응답 2번째</상태>\n속으로 어땠어요?"))).isFalse();
+        var stray = DirectVideoPracticeLoop.parse("<상태>파고들기 · 응답 2번째</상태>\n그랬군요.ㄴ\n속으로는 어땠어요?ㄴ ");
+        assertThat(stray.message()).isEqualTo("그랬군요.\n속으로는 어땠어요?");
+        assertThat(DirectVideoPracticeLoop.parse("ㅋㅋ\n그랬군요").message()).isEqualTo("ㅋㅋ\n그랬군요");
+    }
 }
