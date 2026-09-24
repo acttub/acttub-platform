@@ -41,6 +41,15 @@ export function sampleScene(): PracticeScene {
   };
 }
 
+/**
+ * 예시 질문마다 답 칸에 채워 둘 샘플 답. 영상을 모르는 사람이 무엇을 적을지 막히지 않게 한다 —
+ * 그대로 보내도 되고 고쳐 써도 된다. `answered` 는 이미 보낸 답의 수다(첫 질문이면 0).
+ */
+export function sampleAnswerFor(answered: number): string | null {
+  const keys = ['tutorial.sample.a1', 'tutorial.sample.a2'];
+  return answered >= 0 && answered < keys.length ? t(keys[answered]) : null;
+}
+
 /** 회차 상세 — 분석 대기 화면의 "분석에 쓰는 내용"과 코치 화면의 대화 복원이 읽는다. */
 export function sampleDetail(conversationId: string | null = null): PracticeDetail {
   return {

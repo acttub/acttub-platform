@@ -275,17 +275,14 @@ export default function UploadScreen() {
   }, [plan.video, picked]);
 
   const ready = sample ? agreedRights : agreedRights && canStart(plan, videoId) && !uploading;
-  const hint = sample
-    ? agreedRights
-      ? t('upload.submitHintReady')
-      : t('upload.missingRights')
-    : !canStart(plan, videoId)
-    ? t('upload.missingVideo')
-    : uploading
-      ? t('start.stillUploading')
-      : !agreedRights
-        ? t('upload.missingRights')
-        : t('upload.submitHintReady');
+  // 준비가 끝났으면 버튼만 둔다 — 무엇이 모자란지만 알린다.
+  const hint = ready
+    ? null
+    : !sample && !canStart(plan, videoId)
+      ? t('upload.missingVideo')
+      : !sample && uploading
+        ? t('start.stillUploading')
+        : t('upload.missingRights');
 
   return (
     <SafeAreaView style={styles.safe} edges={keyboardVisible ? [] : ['bottom']}>
@@ -444,16 +441,17 @@ export default function UploadScreen() {
             />
           </View>
 
-          <Pressable style={styles.rightsRow} onPress={() => setAgreedRights((v) => !v)}>
+          {error && <Text style={styles.errorText}>{error}</Text>}
+        </ScrollView>
+
+        <View style={styles.submitBar}>
+          {/* 권리 확인은 시작 버튼 바로 위에 붙인다 — 스크롤해도 따라다녀서 찾으러 내려가지 않는다. */}
+          <Pressable style={styles.rightsRow} onPress={() => setAgreedRights((v) => !v)} accessibilityRole="checkbox" accessibilityState={{ checked: agreedRights }}>
             <View style={[styles.check, agreedRights && styles.checkOn]}>
               {agreedRights && <Text style={styles.checkMark}>✓</Text>}
             </View>
             <Text style={styles.rightsText}>{t('upload.rights')}</Text>
           </Pressable>
-          {error && <Text style={styles.errorText}>{error}</Text>}
-        </ScrollView>
-
-        <View style={styles.submitBar}>
           <Pressable
             ref={startTarget.ref}
             onLayout={startTarget.onLayout}
@@ -466,7 +464,7 @@ export default function UploadScreen() {
               <Text style={styles.submitText}>{plan.prefilled ? t('upload.submitRetake') : t('upload.submitNew')}</Text>
             )}
           </Pressable>
-          <Text style={styles.submitHint}>{hint}</Text>
+          {hint && <Text style={styles.submitHint}>{hint}</Text>}
         </View>
       </View>
       {dialog}
@@ -589,11 +587,11 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 14, fontWeight: '700', color: palette.textDim },
   chipTextOn: { color: palette.blueDeep },
 
-  rightsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 14, backgroundColor: palette.bgSubtle, borderRadius: 14 },
+  rightsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: palette.bgSubtle, borderRadius: 12 },
   check: { width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, borderColor: palette.checkOff, alignItems: 'center', justifyContent: 'center' },
   checkOn: { backgroundColor: palette.blue, borderColor: palette.blue },
   checkMark: { color: palette.bg, fontSize: 12, fontWeight: '900' },
-  rightsText: { flex: 1, fontSize: 12, fontWeight: '600', color: palette.textDim, lineHeight: 19 },
+  rightsText: { flex: 1, fontSize: 11.5, fontWeight: '600', color: palette.textDim, lineHeight: 17 },
 
   submitBar: {
     paddingHorizontal: 16,
