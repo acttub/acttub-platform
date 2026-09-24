@@ -248,6 +248,9 @@ final class StructuredCoachEngine {
 
     static CoachResult result(CoachSessionSnapshot session, String actorText, String message,
             ObjectNode state, String endReason) {
+        // 저장 턴·handoff·응답이 모두 같은 평문을 쓰도록 여기 한 곳에서 Markdown 기호를 걷는다 (CONTRACT.md §8-5).
+        message = PlainCoachText.plain(message);
+        if (message.isEmpty()) throw new IllegalStateException("empty coaching reply after removing markup");
         List<CoachTurnSnapshot> turns = new ArrayList<>(session.turns());
         if (actorText != null) { turns.add(new CoachTurnSnapshot("actor", actorText)); }
         turns.add(new CoachTurnSnapshot("ai", message));

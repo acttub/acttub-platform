@@ -100,8 +100,8 @@ public final class DirectVideoSessions implements AutoCloseable {
         if (text != null) history.add(new Message("user", text));
         if (session.closed) return;
         var selection = routing.select(history, text, finish, null, session.owner, session.id);
-        String reply = model.reply(session.video, history, selection.prompt());
-        if (reply == null || reply.isBlank()) throw new IllegalStateException("empty video coaching reply");
+        String reply = PlainCoachText.plain(model.reply(session.video, history, selection.prompt()));
+        if (reply.isEmpty()) throw new IllegalStateException("empty video coaching reply");
         synchronized (session) {
             if (session.closed) return;
             if (text != null) session.messages.add(new Message("user", text));

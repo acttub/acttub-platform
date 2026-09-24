@@ -273,4 +273,25 @@ class DirectVideoCoachTest {
         assertThat(DirectVideoPracticeLoop.habit("버릇: 말끝을 툭 떨어뜨려요 | 곳1: x")).isEqualTo("말끝을 툭 떨어뜨려요");
         assertThat(DirectVideoPracticeLoop.habit("소리 크기: 없음\n버릇: 소리 크기 | 곳1: x")).isEqualTo("소리 크기");
     }
+
+    @Test void markdownReplyIsStoredAndReturnedAsPlainText() {
+        when(model.reply(eq(file), anyList(), anyString()))
+                .thenReturn("**전체 인상**\n- 말끝을 끝까지 전달해요.\n## 다음 촬영\n1. \"우리 그만하자\" 앞에서 사이를 두세요.");
+        var first = engine.start(session(), UUID.randomUUID());
+        String expected = "전체 인상\n말끝을 끝까지 전달해요.\n다음 촬영\n\"우리 그만하자\" 앞에서 사이를 두세요.";
+        assertThat(first.reply().message()).isEqualTo(expected);
+        assertThat(first.session().turns()).containsExactly(new CoachTurnSnapshot("ai", expected));
+        var end = engine.reply(first.session(), "그만", UUID.randomUUID());
+        assertThat(end.reply().handoff().path("conversation").toString()).doesNotContain("**", "#", "- ");
+        assertThat(end.session().turns()).allSatisfy(turn -> assertThat(turn.text()).doesNotContain("**", "#")
+                .satisfies(text -> assertThat(text.lines()).noneMatch(line -> line.startsWith("- "))));
+    }
+
+    @Test void markupOnlyReplyIsUnavailableWithoutMutatingHistory() {
+        var initial = session();
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn("**\n#\n- ");
+        assertThatThrownBy(() -> engine.start(initial, UUID.randomUUID())).isInstanceOf(CoachReplyUnavailable.class);
+        assertThat(initial.turns()).isEmpty();
+        verify(model).delete(file);
+    }
 }
