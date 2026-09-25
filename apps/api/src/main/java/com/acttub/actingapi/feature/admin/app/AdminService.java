@@ -1,11 +1,17 @@
 package com.acttub.actingapi.feature.admin.app;
 
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminSession;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminSessions;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Service;
@@ -34,6 +40,10 @@ public class AdminService {
 
     /** 재생 주소의 수명. 파이썬 정본과 같은 1시간이고, 응답에 그대로 실린다. */
     public static final int PLAYBACK_TTL_SECONDS = 3600;
+
+    /** ops 화면이 날짜를 한국 시각으로 끊는다. 수집기 백업 경로의 as_of 와 같은 모양으로 낸다. */
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+    private static final ObjectMapper JSON = new ObjectMapper();
 
     private final AdminMetricsRepository metrics;
     private final AdminPlayback playback;
@@ -68,5 +78,20 @@ public class AdminService {
                             : playback.url(row.objectKey(), PLAYBACK_TTL_SECONDS)));
         }
         return new AdminSessions(List.copyOf(sessions), PLAYBACK_TTL_SECONDS);
+    }
+
+    /**
+     * ops 코어 지표를 운영 DB 에서 바로 센다. 모양은 수집기 CORE_SQL 의 JSON 그대로이고,
+     * 백업 경로({@code source=backup})와 구분되도록 {@code source=live} 와 기준 시각을 붙인다.
+     */
+    public ObjectNode opsCore() {
+        try {
+            ObjectNode core = (ObjectNode) JSON.readTree(metrics.opsCore(excludeEmails));
+            core.put("source", "live");
+            core.put("as_of", OffsetDateTime.now(KST).truncatedTo(ChronoUnit.MINUTES).toString());
+            return core;
+        } catch (JsonProcessingException | ClassCastException invalid) {
+            throw new IllegalStateException("ops core query did not return a JSON object", invalid);
+        }
     }
 }

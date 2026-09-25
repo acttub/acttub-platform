@@ -15,11 +15,21 @@ import java.util.UUID;
  *
  * <p>지표 집계 한 벌({@code /v2/admin/stats})이 여기 있었다. 부르는 코드도 보는 사람도 없어
  * 은퇴했고, 남은 것은 ops 대시보드가 실제로 읽는 세션 목록뿐이다 (SOMA-462).
+ *
+ * <p>{@link #opsCore} 는 그 은퇴한 집계의 부활이 아니다. ops 수집기가 하루 한 번 백업에서 돌리던
+ * SQL 을 <b>글자 그대로</b> 옮겨 운영 DB 에서 바로 돌린다 — 부르는 쪽(ops.acttub.com)이 있고,
+ * 세는 방식은 여전히 SQL 한 곳({@code resources/admin/ops-core.sql})에만 있다.
  */
 public interface AdminMetricsRepository {
 
     /** 최근 코치 세션. 오브젝트 키는 재생 주소를 만들 수 있을 때만 채워져 있다. */
     List<SessionRow> sessions(int limit, List<String> excludeEmails);
+
+    /**
+     * ops 코어 지표 한 벌 — {@code resources/admin/ops-core.sql} 이 만든 JSON 문자열 그대로.
+     * 팀 계정은 빼지 않고 {@code *_real}·{@code is_team} 으로 표시만 한다(수집기 계약).
+     */
+    String opsCore(List<String> excludeEmails);
 
     /** 세션 한 줄. 재생 주소는 아직 붙지 않았다 — 그것은 서비스가 스토리지에 물어 채운다. */
     record SessionRow(

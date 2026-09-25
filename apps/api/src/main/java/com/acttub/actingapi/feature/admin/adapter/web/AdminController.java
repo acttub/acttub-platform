@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminSessions;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.acttub.actingapi.feature.admin.app.AdminService;
 import com.acttub.actingapi.platform.migration.PracticeDataMigration;
 import com.acttub.actingapi.platform.web.ApiException;
@@ -227,6 +228,24 @@ class AdminController {
         int limit = parseLimit(rawLimit);
         validateLimit(limit);
         return admin.sessions(limit);
+    }
+
+    @Operation(
+            summary = "Ops Core",
+            description = """
+                    ops.acttub.com 코어 지표 한 벌(지표·퍼널·일별 활동·세션 가명 목록)을 운영 DB 에서 바로 센다.
+                    ops 수집기가 하루 한 번 백업에서 돌리던 SQL(resources/admin/ops-core.sql)과 같은 JSON 에
+                    source=live 와 as_of(한국 시각, 분 단위)를 더한다. 팀 계정은 빼지 않고 표시만 한다.""",
+            operationId = "ops_core_v2_admin_ops_core_get",
+            tags = "admin")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Successful Response",
+            content = @Content(schema = @Schema(type = "object")))
+    @GetMapping("/ops-core")
+    ObjectNode opsCore(@RequestHeader(name = "authorization", defaultValue = "") String authorization) {
+        requireToken(authorization);
+        return admin.opsCore();
     }
 
     /** 길이가 달라도 같은 시간이 걸리도록 {@link MessageDigest#isEqual} 로 견준다. */

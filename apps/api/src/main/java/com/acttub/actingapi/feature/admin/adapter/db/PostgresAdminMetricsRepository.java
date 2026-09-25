@@ -2,6 +2,12 @@ package com.acttub.actingapi.feature.admin.adapter.db;
 
 import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Statement;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -17,7 +23,9 @@ import com.acttub.actingapi.feature.admin.app.AdminMetricsRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
 import jakarta.persistence.Tuple;
+import org.hibernate.Session;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 최근 코치 세션을 native projection으로 읽는다. 파이썬 {@code db/store.py} 의 질의를 그대로 옮긴 것이다.
@@ -27,6 +35,15 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 class PostgresAdminMetricsRepository implements AdminMetricsRepository {
+    /**
+     * ops 수집기 CORE_SQL 을 옮긴 것. 위치 바인드 {@code ?} 는 팀 이메일 목록 한 자리뿐이다.
+     * Hibernate 의 이름 파라미터 해석을 거치지 않도록 JDBC 로 직접 돈다 — 600줄짜리 SQL 의
+     * {@code ::} 캐스트와 주석 속 따옴표·콜론을 Hibernate 가 다시 읽을 이유가 없다.
+     */
+    private static final String OPS_CORE_SQL = load("/admin/ops-core.sql");
+    /** 수집기 psql 경로와 같은 상한. 넘기면 이 트랜잭션만 취소된다. */
+    private static final String OPS_CORE_TIMEOUT = "SET LOCAL statement_timeout = '20s'";
+
     private final EntityManager entityManager;
 
     PostgresAdminMetricsRepository(EntityManager entityManager) {
@@ -118,6 +135,40 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                                 : row.get("text", String.class)));
         }
         return turnsBySession;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public String opsCore(List<String> excludeEmails) {
+        String excluded = String.join(",", excludeEmails.stream()
+                .map(email -> email.toLowerCase(Locale.ROOT))
+                .toList());
+        return entityManager.unwrap(Session.class).doReturningWork(connection -> {
+            try (Statement guard = connection.createStatement()) {
+                guard.execute(OPS_CORE_TIMEOUT);
+                guard.execute("SET TRANSACTION READ ONLY");
+            }
+            try (PreparedStatement statement = connection.prepareStatement(OPS_CORE_SQL)) {
+                statement.setString(1, excluded);
+                try (ResultSet result = statement.executeQuery()) {
+                    if (!result.next()) {
+                        throw new IllegalStateException("ops core query returned no row");
+                    }
+                    return result.getString(1);
+                }
+            }
+        });
+    }
+
+    private static String load(String resource) {
+        try (InputStream input = PostgresAdminMetricsRepository.class.getResourceAsStream(resource)) {
+            if (input == null) {
+                throw new IllegalStateException("admin sql is missing: " + resource);
+            }
+            return new String(input.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException exc) {
+            throw new IllegalStateException("failed to read admin sql: " + resource, exc);
+        }
     }
 
     private static String namedParameters(String prefix, int count) {
