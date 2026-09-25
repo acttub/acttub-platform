@@ -42,11 +42,12 @@ class DirectVideoConfigurationTest {
         });
     }
 
-    @Test void practiceLoopDefaultsToDevOnlyAndCanBeSetExplicitly() {
+    @Test void practiceLoopIsTheDefaultEverywhereAndCanBeTurnedOff() {
         runner.withPropertyValues("SITE_URL=https://dev.acttub.com", "ACTTUB_DIRECT_VIDEO_ENABLED=true").run(context ->
                 assertThat(context.getBean(com.acttub.actingapi.feature.coach.app.DirectVideoCoach.class).practiceLoop()).isTrue());
+        // 운영도 기본으로 켜져 있다(핫픽스 #388).
         runner.withPropertyValues("SITE_URL=https://acttub.com", "ACTTUB_DIRECT_VIDEO_ENABLED=true").run(context ->
-                assertThat(context.getBean(com.acttub.actingapi.feature.coach.app.DirectVideoCoach.class).practiceLoop()).isFalse());
+                assertThat(context.getBean(com.acttub.actingapi.feature.coach.app.DirectVideoCoach.class).practiceLoop()).isTrue());
         runner.withPropertyValues("SITE_URL=https://dev.acttub.com", "ACTTUB_DIRECT_VIDEO_ENABLED=true",
                 "ACTTUB_DIRECT_VIDEO_PRACTICE_LOOP=false").run(context ->
                 assertThat(context.getBean(com.acttub.actingapi.feature.coach.app.DirectVideoCoach.class).practiceLoop()).isFalse());
