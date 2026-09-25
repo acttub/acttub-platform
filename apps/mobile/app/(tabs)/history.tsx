@@ -5,51 +5,38 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
-import { recordChips, type RecordMeta } from '@/components/record-card';
 import { palette } from '@/constants/palette';
-import { api, type PracticeSessionListItem, type ReportRecord } from '@/lib/api';
-import { deletePracticeSessionIdempotently } from '@/lib/delete-practice';
+import { api } from '@/lib/api';
 import { formatKoreanDate } from '@/lib/format';
-import { mergeHistory, sessionCardTitle } from '@/lib/history-merge';
 import { translate as t } from '@/lib/i18n';
-import { setPrefill } from '@/lib/practice';
-import { buildWeekActivity } from '@/lib/practice-activity';
-import { listScripts, loadIntoCurrent, type SavedScript } from '@/lib/reading/store';
-import { loadRecordMeta } from '@/lib/record-meta';
-import { sortReportsNewestFirst } from '@/lib/report-order';
-import { sceneValueForDisplay } from '@/lib/upload-input';
+import {
+  filterGroups,
+  groupTitle,
+  hideNotice,
+  mergeHistoryRows,
+  type HistoryRow,
+} from '@/lib/practice/groups';
+import type { PracticeGroup, PracticeGroupFilter } from '@/lib/practice/types';
 
-type Filter = 'all' | 'fav' | 'recent';
-
-/** 화면 한 줄 — 리포트·정리 없는 세션·대본 리딩을 한 모양으로 편다. */
-type Row = {
-  id: string;
-  createdAt: string;
+type Row = HistoryRow & {
   icon: 'video' | 'mic';
-  title: string;
-  meta: string;
-  chips: string[];
   onPress: () => void;
   onLongPress?: () => void;
+  chips: string[];
 };
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
 /**
- * A1.1 연습 기록 · 전체 보기 — 홈의 "최근 연습 → 전체 보기"가 온다.
+ * A1.1 연습 기록 — AI 코치와 한 연습 묶음의 목록.
  *
- * 위: 요약 카드(총 연습 / 남긴 문장 / 이번 주) + 필터 칩(전체·즐겨찾기·최근 30일).
- * 아래: 월별 그룹 → 한 줄씩(아이콘 · 제목 · 날짜 메타 · 주제 칩 · 화살표).
- * 리포트(GET /v2/reports)·정리 없는 세션(SOMA-444)·기기 저장 대본 리딩(녹음 있는 것만)을
- * 함께 시간순으로 보여준다. 즐겨찾기는 아직 저장 필드가 없어 빈 상태만 그린다.
+ * 기록은 묶음 단위다(practice.library). 묶음의 제목은 마지막 회차 노트의 제목이고, 없으면 상황
+ * 문장, 그것도 없으면 "제목 없는 연습"이다. 필터는 전체·즐겨찾기·최근 30일이고 월별로 묶는다.
+ * 숨김은 묶음 전체이며 노트·대화·기억은 지우지 않고 영상은 보관함에 남는다. 대본 리딩은 여기
+ * 섞지 않는다 — 리딩 기록은 대본 탭의 대본 상세에서 본다(SOMA-494).
  */
 export default function HistoryScreen() {
   const router = useRouter();
-  const [reports, setReports] = useState<ReportRecord[]>([]);
-  const [sessions, setSessions] = useState<PracticeSessionListItem[]>([]);
-  const [scripts, setScripts] = useState<SavedScript[]>([]);
-  const [meta, setMeta] = useState<Record<string, RecordMeta>>({});
-  const [filter, setFilter] = useState<Filter>('all');
+  const [groups, setGroups] = useState<PracticeGroup[]>([]);
+  const [filter, setFilter] = useState<PracticeGroupFilter>('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { confirm, alert, sheet, dialog } = useAppDialog();
@@ -57,23 +44,8 @@ export default function HistoryScreen() {
   const load = useCallback(async () => {
     setError(null);
     try {
-      // 세션 목록·대본은 실패해도 리포트만으로 화면이 서야 하므로 따로 삼킨다.
-      const [history, sessionList, savedScripts] = await Promise.all([
-        api.reportHistory(),
-        api.listPracticeSessions().catch(() => ({ sessions: [] as PracticeSessionListItem[] })),
-        listScripts().catch(() => [] as SavedScript[]),
-      ]);
-      setSessions(sessionList.sessions);
-      setScripts(savedScripts.filter((s) => s.recordings.length > 0));
-      const sorted = sortReportsNewestFirst(history.reports);
-      setReports(sorted);
-      // 목록엔 진단 축이 없어서 카드별 상세를 따로 불러 칩을 채운다.
-      setMeta(
-        await loadRecordMeta(
-          sorted.map((r) => r.practice_session_id),
-          (id) => api.getReport(id),
-        ),
-      );
+      const groupList = await api.listPracticeGroups('all');
+      setGroups(groupList.groups);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('history.loadFail'));
     } finally {
@@ -83,25 +55,24 @@ export default function HistoryScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      load();
+      void load();
     }, [load]),
   );
 
-  const openDetail = (item: ReportRecord) => {
-    router.push({ pathname: '/report-detail', params: { practiceSessionId: item.practice_session_id } });
-  };
+  const openGroup = (rootId: string) => router.push({ pathname: '/practice-group', params: { rootId } });
 
-  const confirmDelete = async (sessionId: string, message: string) => {
+  /** 숨김은 묶음 전체다 — 노트·대화·기억은 그대로고 영상은 보관함에 남는다. */
+  const hideGroup = async (group: PracticeGroup) => {
     const ok = await confirm({
-      title: t('history.deleteTitle'),
-      message,
-      confirmLabel: t('common.delete'),
+      title: t('history.hideTitle'),
+      message: hideNotice(),
+      confirmLabel: t('history.hideConfirm'),
       destructive: true,
     });
     if (!ok) return;
     try {
-      await deletePracticeSessionIdempotently(sessionId, api.deletePracticeSession);
-      load();
+      await api.patchPracticeGroup(group.root_id, { hidden: true });
+      void load();
     } catch (e) {
       await alert({
         title: t('history.deleteFailTitle'),
@@ -110,115 +81,56 @@ export default function HistoryScreen() {
     }
   };
 
-  const onMenu = (item: ReportRecord) => {
+  const toggleFavorite = async (group: PracticeGroup) => {
+    try {
+      await api.patchPracticeGroup(group.root_id, { favorite: !group.favorite });
+      void load();
+    } catch {
+      void load();
+    }
+  };
+
+  const onGroupMenu = (group: PracticeGroup) => {
     void sheet({
-      title: t('history.itemMenuTitle'),
+      title: groupTitle(group),
       actions: [
-        { label: t('history.fullView'), onPress: () => openDetail(item) },
+        { label: t('history.fullView'), onPress: () => openGroup(group.root_id) },
         {
-          label: t('common.delete'),
-          destructive: true,
-          onPress: () => void confirmDelete(item.practice_session_id, t('history.deleteReportMsg')),
+          label: group.favorite ? t('history.favOff') : t('history.favOn'),
+          onPress: () => void toggleFavorite(group),
         },
+        { label: t('history.hideConfirm'), destructive: true, onPress: () => void hideGroup(group) },
       ],
     });
-  };
-
-  // 정리가 아직 없는 세션(SOMA-444) — 같은 장면 다시 찍기 / 삭제.
-  const retakeSession = (s: PracticeSessionListItem) => {
-    setPrefill({
-      scene: {
-        situation: sceneValueForDisplay(s.situation),
-        character: sceneValueForDisplay(s.character_context),
-        goal: sceneValueForDisplay(s.goal),
-      },
-      continuedFrom: null,
-    });
-    router.push('/upload');
-  };
-
-  const onSessionMenu = (s: PracticeSessionListItem) => {
-    void sheet({
-      title: t('history.sessionMenuTitle'),
-      actions: [
-        { label: t('history.retakeSame'), onPress: () => retakeSession(s) },
-        {
-          label: t('common.delete'),
-          destructive: true,
-          onPress: () => void confirmDelete(s.session_id, t('history.deleteSessionMsg')),
-        },
-      ],
-    });
-  };
-
-  const openScript = async (s: SavedScript) => {
-    await loadIntoCurrent(s.id);
-    router.push('/reading/detail');
   };
 
   const dayLabel = (iso: string) => formatKoreanDate(iso, { month: 'long', day: 'numeric' });
 
-  // 세 종류를 한 줄 모양으로 펴고 최신순으로 섞는다.
   const rows = useMemo<Row[]>(() => {
-    const merged = mergeHistory(sessions, reports).map<Row>((entry) =>
-      entry.kind === 'report'
-        ? {
-            id: `r:${entry.report.practice_session_id}`,
-            createdAt: entry.createdAt,
-            icon: 'video',
-            title: entry.report.title,
-            meta: `${dayLabel(entry.createdAt)} · ${t('history.statusDone')}`,
-            chips: recordChips(meta[entry.report.practice_session_id]),
-            onPress: () => openDetail(entry.report),
-            onLongPress: () => onMenu(entry.report),
-          }
-        : {
-            id: `s:${entry.session.session_id}`,
-            createdAt: entry.createdAt,
-            icon: 'video',
-            title: sessionCardTitle(entry.session.situation),
-            meta: dayLabel(entry.createdAt),
-            chips: [t('history.noSummaryKind')],
-            onPress: () => onSessionMenu(entry.session),
-            onLongPress: () => onSessionMenu(entry.session),
-          },
-    );
-    const reading = scripts.map<Row>((s) => {
-      const latest = Math.max(...s.recordings.map((r) => r.createdAt));
-      const createdAt = new Date(latest).toISOString();
-      const role = s.myRoles[0];
-      return {
-        id: `d:${s.id}`,
-        createdAt,
-        icon: 'mic',
-        title: role ? `${s.title} · ${role} ${t('history.readingLabel')}` : s.title,
-        meta: `${dayLabel(createdAt)} · ${t('history.recordingCount', { count: s.recordings.length })}`,
-        chips: [],
-        onPress: () => void openScript(s),
-      };
-    });
-    return [...merged, ...reading].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+    const practices = filterGroups(groups, filter).map<Row>((group) => ({
+      id: `g:${group.root_id}`,
+      at: group.last_practiced_at ?? '',
+      kind: 'practice',
+      title: groupTitle(group),
+      meta: `${dayLabel(group.last_practiced_at ?? '')} · ${t('history.countTimes', { count: group.ordinal_count })}`,
+      icon: 'video',
+      chips: group.tags ?? [],
+      onPress: () => openGroup(group.root_id),
+      onLongPress: () => onGroupMenu(group),
+    }));
+    return mergeHistoryRows(practices, []) as Row[];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reports, sessions, scripts, meta]);
-
-  const filtered = useMemo(() => {
-    if (filter === 'fav') return [];
-    if (filter === 'recent') {
-      const since = Date.now() - 30 * DAY_MS;
-      return rows.filter((r) => Date.parse(r.createdAt) >= since);
-    }
-    return rows;
-  }, [rows, filter]);
+  }, [groups, filter]);
 
   // 월별 그룹 — 라벨은 "8월"처럼 짧게. 해가 바뀌면 연도를 붙인다.
-  const groups = useMemo(() => {
+  const monthGroups = useMemo(() => {
     const thisYear = new Date().getFullYear();
     const out: { label: string; items: Row[] }[] = [];
     let cur: { label: string; items: Row[] } | null = null;
-    for (const row of filtered) {
-      const d = new Date(row.createdAt);
+    for (const row of rows) {
+      const d = new Date(row.at);
       const label = formatKoreanDate(
-        row.createdAt,
+        row.at,
         d.getFullYear() === thisYear ? { month: 'long' } : { year: 'numeric', month: 'long' },
       );
       if (!cur || cur.label !== label) {
@@ -228,14 +140,10 @@ export default function HistoryScreen() {
       cur.items.push(row);
     }
     return out;
-  }, [filtered]);
-
-  const weekTotal = useMemo(
-    () => buildWeekActivity(rows.map((r) => ({ created_at: r.createdAt }))).weekTotal,
-    [rows],
-  );
+  }, [rows]);
 
   const goBack = () => (router.canGoBack() ? router.back() : router.replace('/'));
+  const roundTotal = groups.reduce((sum, g) => sum + g.ordinal_count, 0);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -248,19 +156,17 @@ export default function HistoryScreen() {
 
       <ScrollView contentContainerStyle={styles.list}>
         <View style={styles.summary}>
-          <Stat value={t('history.countTimes', { count: rows.length })} label={t('history.statTotal')} />
+          <Stat value={t('history.countTimes', { count: roundTotal })} label={t('history.statTotal')} />
           <View style={styles.statDivider} />
-          <Stat value={t('history.countItems', { count: reports.length })} label={t('history.statLines')} />
-          <View style={styles.statDivider} />
-          <Stat value={t('history.countTimes', { count: weekTotal })} label={t('history.statWeek')} />
+          <Stat value={t('history.countItems', { count: groups.length })} label={t('history.statLines')} />
         </View>
 
         <View style={styles.filters}>
           {(
             [
               ['all', 'history.filterAll'],
-              ['fav', 'history.filterFav'],
-              ['recent', 'history.filterRecent'],
+              ['favorite', 'history.filterFav'],
+              ['recent30', 'history.filterRecent'],
             ] as const
           ).map(([key, label]) => (
             <Pressable
@@ -281,7 +187,7 @@ export default function HistoryScreen() {
         )}
         {error && <Text style={styles.error}>{error}</Text>}
 
-        {groups.map((group) => (
+        {monthGroups.map((group) => (
           <View key={group.label}>
             <Text style={styles.monthHeader}>{group.label}</Text>
             {group.items.map((row) => (
@@ -317,8 +223,8 @@ export default function HistoryScreen() {
           </View>
         ))}
 
-        {!loading && !error && filtered.length === 0 && (
-          <Text style={styles.empty}>{filter === 'fav' ? t('history.favEmpty') : t('history.empty')}</Text>
+        {!loading && !error && rows.length === 0 && (
+          <Text style={styles.empty}>{filter === 'favorite' ? t('history.favEmpty') : t('history.empty')}</Text>
         )}
       </ScrollView>
       {dialog}

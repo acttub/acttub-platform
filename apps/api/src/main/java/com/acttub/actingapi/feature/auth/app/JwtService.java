@@ -26,7 +26,8 @@ import com.nimbusds.jwt.SignedJWT;
  */
 public final class JwtService implements AccessTokenVerifier {
     public static final long ACCESS_TTL_SECONDS=30*60;
-    public static final long REFRESH_TTL_SECONDS=14*24*60*60;
+    /** 30일 동안 앱을 한 번도 열지 않으면 다시 로그인한다 (account.login). */
+    public static final long REFRESH_TTL_SECONDS=30L*24*60*60;
     private static final Set<String> REQUIRED=Set.of("iss","aud","sub","jti","token_type","iat","exp");
     private final byte[] secret; private final Clock clock; private final ObjectMapper mapper;
     public JwtService(String secret,Clock clock,ObjectMapper mapper){

@@ -4,6 +4,8 @@
  * (components/pdf-text-extractor)가 등록한 추출기로 넘긴다 — 등록된 화면에서만 된다.
  */
 import { File } from 'expo-file-system';
+import { checkScriptFile, type PickedScriptFile } from './file-input.ts';
+import { translate as t } from '../i18n.ts';
 
 export class UnsupportedScriptFile extends Error {}
 
@@ -18,23 +20,26 @@ export function registerPdfExtractor(fn: PdfExtractor): () => void {
   };
 }
 
-export interface PickedFile {
+export interface PickedFile extends PickedScriptFile {
   uri: string;
-  name: string;
-  mimeType?: string;
 }
 
-function kindOf(f: PickedFile): 'txt' | 'docx' | 'pdf' | 'unknown' {
-  const ext = (f.name.split('.').pop() ?? '').toLowerCase();
-  const mt = f.mimeType ?? '';
-  if (ext === 'txt' || mt.startsWith('text/')) return 'txt';
-  if (ext === 'docx' || mt.includes('wordprocessingml')) return 'docx';
-  if (ext === 'pdf' || mt.includes('pdf')) return 'pdf';
-  return 'unknown';
+/**
+ * 파일 검사 실패의 안내 문구. 크기(20,000,000바이트)는 글자를 뽑기 전에 거르고, hwp·hwpx 는 앱이 열지
+ * 않는다(1.0.0이 받아들인 한계). 어느 쪽도 서버에는 아무것도 남지 않는다.
+ */
+export function scriptFileRejection(f: PickedScriptFile): string | null {
+  const check = checkScriptFile(f);
+  if (check.ok) return null;
+  if (check.reason === 'too_large') return t('reading.fileTooLarge');
+  if (check.reason === 'hwp') return t('reading.hwpUnsupported');
+  return t('reading.unsupported');
 }
 
 export async function extractScriptText(f: PickedFile): Promise<string> {
-  const kind = kindOf(f);
+  const check = checkScriptFile(f);
+  if (!check.ok) throw new UnsupportedScriptFile(scriptFileRejection(f) ?? t('reading.unsupported'));
+  const kind = check.kind;
   if (kind === 'txt') {
     return (await new File(f.uri).text()).trim();
   }
@@ -47,23 +52,23 @@ export async function extractScriptText(f: PickedFile): Promise<string> {
         arrayBuffer: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
       });
       const text = (value ?? '').trim();
-      if (!text) throw new Error('빈 문서');
+      if (!text) throw new Error(t('reading.emptyDoc'));
       return text;
     } catch {
-      throw new UnsupportedScriptFile('워드(.docx) 파일을 읽지 못했어요. 내용을 복사해 붙여넣어 주세요.');
+      throw new UnsupportedScriptFile(t('reading.docxFail'));
     }
   }
   if (kind === 'pdf') {
     if (!pdfExtractor) {
-      throw new UnsupportedScriptFile('PDF 인식기를 아직 준비 중이에요. 잠시 후 다시 시도하거나 붙여넣어 주세요.');
+      throw new UnsupportedScriptFile(t('reading.pdfNotReady'));
     }
     try {
       const text = (await pdfExtractor(f.uri)).trim();
-      if (!text) throw new Error('빈 문서');
+      if (!text) throw new Error(t('reading.emptyDoc'));
       return text;
     } catch {
-      throw new UnsupportedScriptFile('PDF에서 글자를 못 읽었어요(스캔본일 수 있어요). 대본 내용을 복사해서 붙여넣어 주세요.');
+      throw new UnsupportedScriptFile(t('reading.pdfNoText'));
     }
   }
-  throw new UnsupportedScriptFile('이 형식은 지원하지 않아요. TXT·DOCX를 올리거나 붙여넣어 주세요.');
+  throw new UnsupportedScriptFile(t('reading.unsupported'));
 }

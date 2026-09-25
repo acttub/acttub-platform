@@ -18,6 +18,7 @@ import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.integration.llm.TokenUsage;
 import com.acttub.actingapi.platform.operation.ExternalOperationClaimer;
+import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -39,9 +40,12 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
-@SpringBootTest(properties = "JWT_SECRET=test-secret")
+// 기억 갱신 워커를 끈다 — 워커도 같은 모델 포트(스텁 큐)를 쓰므로 닫힌 대화가 남긴 작업을 집어 가면
+// 다음 테스트의 응답을 먼저 소비한다(CoachReadsProfileIT 와 같은 까닭).
+@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ANALYSIS_WORKER_ENABLED=false"})
+@org.springframework.test.context.ActiveProfiles("legacy-practice-test")
 @AutoConfigureMockMvc
-@Import(CoachReportEndpointIT.GeneratorFixture.class)
+@Import({CoachReportEndpointIT.GeneratorFixture.class, com.acttub.actingapi.support.LegacyPracticeApiFixture.class})
 class CoachReportEndpointIT {
 
     private static final OffsetDateTime CREATED_AT =
@@ -100,7 +104,7 @@ class CoachReportEndpointIT {
         double replyCalls = operationCount("external.calls", "kind", "coach_reply", "dependency", "model");
         double replyCompleted = operationCount("terminal", "kind", "coach_reply", "outcome", "succeeded", "classification", "none");
         double replyRejected = operationCount("terminal", "kind", "coach_reply", "outcome", "failed", "classification", "expected");
-        UUID user = fixtures.insertUser();
+        UUID user = insertMember();
         var practice = fixtures.insertPractice(user);
         UUID summaryId = fixtures.insertSummary(practice.id());
         jdbc.update("UPDATE practice_sessions SET experience_version='three_layers_v1' WHERE id=?", practice.id());
@@ -108,16 +112,17 @@ class CoachReportEndpointIT {
                 com.acttub.actingapi.integration.llm.StructuredJson.resource("/coaching/record.json");
         record.put("record_id", summaryId.toString());
         jdbc.update("UPDATE summaries SET raw=?::jsonb WHERE session_id=?", record.toString(), practice.id());
-        var start = post("/v2/coach/start").contentType(MediaType.APPLICATION_JSON)
+        var start = post("/v2/legacy-coach/start").contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", bearer(user)).header("X-Request-Id", UUID.randomUUID())
                 .content("{\"practice_session_id\":\"" + practice.id() + "\"}");
         assertError(start, 409, "client_contract_required");
+        generator.enqueue("{\"route\":\"respond\"}");
         generator.enqueue(structuredReply(0, "“가지 마”를 듣고 상대가 어떻게 하길 바랐어요?", "continue", null));
         JsonNode started = successful(start.header("X-Acttub-Contract", "three_layers_v1"));
         assertThat(operationCount("attempts", "kind", "coach_start")).isEqualTo(startAttempts + 1);
-        assertThat(operationCount("external.calls", "kind", "coach_start", "dependency", "model")).isEqualTo(startCalls + 1);
+        assertThat(operationCount("external.calls", "kind", "coach_start", "dependency", "model")).isEqualTo(startCalls + 2);
         UUID session = UUID.fromString(started.path("session_id").asText());
-        assertThat(mapper.readTree(generator.lastInput).path("user_message").isNull()).isTrue();
+        assertThat(mapper.readTree(generator.inputs.get(1)).path("user_message").isNull()).isTrue();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM coach_turns WHERE session_id=? AND role='actor'",
                 Long.class, session)).isZero();
         assertError(coachReply(user, session, UUID.randomUUID()), 409, "client_contract_required");
@@ -129,7 +134,7 @@ class CoachReportEndpointIT {
         generator.enqueue(structuredReply(1, "오늘 나눈 내용까지만 남겨둘게요.", "finish", "turn:" + session + ":1"));
         generator.enqueue("{\"summary\":[],\"next_take\":null}");
         UUID requestId = UUID.randomUUID();
-        var finish = post("/v2/coach/reply").contentType(MediaType.APPLICATION_JSON)
+        var finish = post("/v2/legacy-coach/reply").contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", bearer(user)).header("X-Request-Id", requestId)
                 .header("X-Acttub-Contract", "three_layers_v1")
                 .content("{\"session_id\":\"" + session + "\",\"text\":\"정리해줘\"}");
@@ -142,7 +147,7 @@ class CoachReportEndpointIT {
         assertThat(completed.path("report").path("attempts")).isEmpty();
         assertThat(completed.path("report").has("source_catalog")).isFalse();
         assertThat(successful(finish)).isEqualTo(completed);
-        assertThat(generator.callCount()).isEqualTo(3);
+        assertThat(generator.callCount()).isEqualTo(4);
         assertThat(operationCount("attempts", "kind", "coach_reply")).isEqualTo(replyAttempts + 1);
         assertThat(operationCount("external.calls", "kind", "coach_reply", "dependency", "model")).isEqualTo(replyCalls + 2);
         assertThat(operationCount("terminal", "kind", "coach_reply", "outcome", "succeeded", "classification", "none"))
@@ -155,14 +160,14 @@ class CoachReportEndpointIT {
         assertThat(operationCount("external.calls", "kind", "coach_reply", "dependency", "model")).isEqualTo(replyCalls + 2);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM practice_reports WHERE practice_session_id=?", Long.class, practice.id())).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM handoff_confirmations", Long.class)).isZero();
-        assertError(get("/v2/reports/{id}", practice.id()).header("Authorization", bearer(user)),
+        assertError(get("/v2/legacy-test-reports/{id}", practice.id()).header("Authorization", bearer(user)),
                 409, "client_contract_required");
         // 이 fixture는 스토리지를 구성하지 않는다. 노트 생성 자체는 재생 URL 없이 완료되어야 한다.
         // 상세 재생 URL 계약은 StorageFixture를 가진 ReportEndpointIT에서 검증한다.
         JsonNode saved = successful(reports(user, session, UUID.randomUUID())
                 .header("Authorization", bearer(user)).header("X-Acttub-Contract", "three_layers_v1"));
         assertThat(saved).isEqualTo(completed.path("report"));
-        JsonNode history = successful(get("/v2/reports").header("Authorization", bearer(user)));
+        JsonNode history = successful(get("/v2/legacy-test-reports").header("Authorization", bearer(user)));
         assertThat(history.path("reports")).isEmpty();
     }
 
@@ -191,19 +196,22 @@ class CoachReportEndpointIT {
         else link.put("user_message_id", actorId).put("actor_quote", "정리해줘");
         var refs = link.putArray("evidence_refs");
         if (actorId == null) refs.add("u1");
-        return response.toString();
+        var draft = com.acttub.actingapi.integration.llm.StructuredJson.MAPPER.createObjectNode().put("message", text);
+        draft.set("context_update", response.path("context_update"));
+        draft.set("evidence_refs", link.path("evidence_refs"));
+        return draft.toString();
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"{}", "null", "[]", "{\"observations\":null}", "{\"legacy\":true}"})
     void legacySplitObservationsReachCoachStartAndReply(String raw) throws Exception {
-        UUID userId = fixtures.insertUser();
+        UUID userId = insertMember();
         var practice = fixtures.insertPractice(userId);
         fixtures.insertSummary(practice.id());
         jdbc.update("UPDATE summaries SET raw=?::jsonb WHERE session_id=?", raw, practice.id());
         generator.enqueue(COACH_REPLY);
 
-        JsonNode started = successful(post("/v2/coach/start")
+        JsonNode started = successful(post("/v2/legacy-coach/start")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", bearer(userId))
                 .header("X-Request-Id", UUID.randomUUID())
@@ -218,7 +226,7 @@ class CoachReportEndpointIT {
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
     void coachReadsRawPackOrLegacyRawArrayBeforeSplitValues(boolean legacyArray) throws Exception {
-        UUID userId = fixtures.insertUser();
+        UUID userId = insertMember();
         var practice = fixtures.insertPractice(userId);
         fixtures.insertSummary(practice.id());
         if (legacyArray) {
@@ -229,7 +237,7 @@ class CoachReportEndpointIT {
                 WHERE session_id=?
                 """, practice.id());
         generator.enqueue(COACH_REPLY);
-        JsonNode started = successful(post("/v2/coach/start")
+        JsonNode started = successful(post("/v2/legacy-coach/start")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", bearer(userId))
                 .header("X-Request-Id", UUID.randomUUID())
@@ -259,7 +267,7 @@ class CoachReportEndpointIT {
         double callsBefore = calls.count();
         double acceptedBefore = accepted.count();
         double succeededBefore = succeeded.count();
-        UUID user = fixtures.insertUser();
+        UUID user = insertMember();
         UUID session = openCoachSession(user);
         UUID request = UUID.randomUUID();
         generator.enqueue("{\"message\":\"점수로 볼게요\"}");
@@ -275,7 +283,7 @@ class CoachReportEndpointIT {
 
     @Test
     void resumeReturnsTheOpenSessionWithoutCreatingAnOperationOrCallingLlm() throws Exception {
-        UUID userId = fixtures.insertUser();
+        UUID userId = insertMember();
         CoachStorageFixtures.Practice practice = fixtures.insertPractice(userId);
         UUID summaryId = fixtures.insertSummary(practice.id());
         useValidObservationPack(practice.id());
@@ -284,7 +292,7 @@ class CoachReportEndpointIT {
                 new CoachTurnSnapshot("actor", "배우 말"),
                 new CoachTurnSnapshot("ai", "저장된 질문")));
 
-        JsonNode response = successful(post("/v2/coach/start")
+        JsonNode response = successful(post("/v2/legacy-coach/start")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", bearer(userId))
                 .header("X-Request-Id", UUID.randomUUID())
@@ -304,7 +312,7 @@ class CoachReportEndpointIT {
     void existingReportBlocksResumeAndBypassesBothCreateAndConfirmGeneration() throws Exception {
         double attemptsBefore = meters.find("acttub.external.operations.attempts").counters().stream()
                 .mapToDouble(io.micrometer.core.instrument.Counter::count).sum();
-        UUID userId = fixtures.insertUser();
+        UUID userId = insertMember();
         CoachStorageFixtures.Practice practice = fixtures.insertPractice(userId);
         UUID summaryId = fixtures.insertSummary(practice.id());
         UUID sessionId = UUID.randomUUID();
@@ -313,7 +321,7 @@ class CoachReportEndpointIT {
         JsonNode report = analysisReport(handoffId);
         insertReport(practice.id(), handoffId, report);
 
-        var resume = mvc.perform(post("/v2/coach/start")
+        var resume = mvc.perform(post("/v2/legacy-coach/start")
                         .contentType(MediaType.APPLICATION_JSON)
                         .header("Authorization", bearer(userId))
                         .header("X-Request-Id", UUID.randomUUID())
@@ -325,7 +333,7 @@ class CoachReportEndpointIT {
         assertThat(mapper.readTree(resume.getContentAsString()).path("detail").textValue())
                 .isEqualTo("report already exists for practice session");
 
-        JsonNode created = successful(post("/v2/reports")
+        JsonNode created = successful(post("/v2/legacy-test-reports")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", bearer(userId))
                 .header("X-Request-Id", UUID.randomUUID())
@@ -334,7 +342,7 @@ class CoachReportEndpointIT {
                         """.formatted(sessionId)));
         assertThat(created).isEqualTo(report);
 
-        JsonNode confirmed = successful(post("/v2/coach/confirm")
+        JsonNode confirmed = successful(post("/v2/legacy-coach/confirm")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", bearer(userId))
                 .header("X-Request-Id", UUID.randomUUID())
@@ -349,7 +357,7 @@ class CoachReportEndpointIT {
 
     @Test
     void confirmParseFailureLeavesConfirmationAndClosedSessionCommitted() throws Exception {
-        UUID userId = fixtures.insertUser();
+        UUID userId = insertMember();
         CoachStorageFixtures.Practice practice = fixtures.insertPractice(userId);
         UUID summaryId = fixtures.insertSummary(practice.id());
         useValidObservationPack(practice.id());
@@ -359,7 +367,7 @@ class CoachReportEndpointIT {
         generator.enqueue("not-json");
         UUID requestId = UUID.randomUUID();
 
-        var failed = mvc.perform(post("/v2/coach/confirm")
+        var failed = mvc.perform(post("/v2/legacy-coach/confirm")
                         .contentType(MediaType.APPLICATION_JSON)
                         .header("Authorization", bearer(userId))
                         .header("X-Request-Id", requestId)
@@ -381,7 +389,7 @@ class CoachReportEndpointIT {
                 .containsEntry("status", "failed")
                 .containsEntry("error_code", "report_parse_error");
 
-        var reply = mvc.perform(post("/v2/coach/reply")
+        var reply = mvc.perform(post("/v2/legacy-coach/reply")
                         .contentType(MediaType.APPLICATION_JSON)
                         .header("Authorization", bearer(userId))
                         .header("X-Request-Id", UUID.randomUUID())
@@ -405,7 +413,7 @@ class CoachReportEndpointIT {
     @Test
     void openingACoachSessionNeedsAPracticeThatExistsAndHasSettledItsAnalysis()
             throws Exception {
-        UUID userId = fixtures.insertUser();
+        UUID userId = insertMember();
         CoachStorageFixtures.Practice practice = fixtures.insertPractice(userId);
 
         assertError(coachStart(userId, UUID.randomUUID(), UUID.randomUUID()),
@@ -430,7 +438,7 @@ class CoachReportEndpointIT {
     @Test
     void replayingWhileTheOperationIsStillRunningIsAConflictThatEchoesTheRequestId()
             throws Exception {
-        UUID userId = fixtures.insertUser();
+        UUID userId = insertMember();
         CoachStorageFixtures.Practice practice = fixtures.insertPractice(userId);
         UUID summaryId = fixtures.insertSummary(practice.id());
         UUID sessionId = UUID.randomUUID();
@@ -459,7 +467,7 @@ class CoachReportEndpointIT {
      */
     @Test
     void anOperationThatBurnedItsAttemptsIsRejectedAsExhaustedNotAsRunning() throws Exception {
-        UUID userId = fixtures.insertUser();
+        UUID userId = insertMember();
         CoachStorageFixtures.Practice practice = fixtures.insertPractice(userId);
         UUID summaryId = fixtures.insertSummary(practice.id());
         UUID sessionId = UUID.randomUUID();
@@ -495,7 +503,7 @@ class CoachReportEndpointIT {
     void losingTheLeaseMidFlightIsStillProcessingOnEveryGeneratingRoute() throws Exception {
         double terminalBefore = meters.find("acttub.external.operations.terminal").counters().stream()
                 .mapToDouble(io.micrometer.core.instrument.Counter::count).sum();
-        UUID starting = fixtures.insertUser();
+        UUID starting = insertMember();
         CoachStorageFixtures.Practice startPractice = fixtures.insertPractice(starting);
         fixtures.insertSummary(startPractice.id());
         useValidObservationPack(startPractice.id());
@@ -507,7 +515,7 @@ class CoachReportEndpointIT {
                 409, "request is still processing");
         assertLostTheLease(startRequest, beforeStart);
 
-        UUID replying = fixtures.insertUser();
+        UUID replying = insertMember();
         UUID replySession = openCoachSession(replying);
         UUID replyRequest = UUID.randomUUID();
         generator.duringGeneration(() -> stealLeaseOf(replyRequest));
@@ -517,7 +525,7 @@ class CoachReportEndpointIT {
                 409, "request is still processing");
         assertLostTheLease(replyRequest, beforeReply);
 
-        UUID confirming = fixtures.insertUser();
+        UUID confirming = insertMember();
         UUID confirmSession = openCoachSession(confirming);
         fixtures.insertHandoff(confirmSession, practiceOf(confirmSession), CREATED_AT);
         UUID confirmRequest = UUID.randomUUID();
@@ -528,7 +536,7 @@ class CoachReportEndpointIT {
                 409, "request is still processing");
         assertLostTheLease(confirmRequest, beforeConfirm);
 
-        UUID reporting = fixtures.insertUser();
+        UUID reporting = insertMember();
         UUID reportSession = openCoachSession(reporting);
         confirmHandoff(fixtures.insertHandoff(
                 reportSession, practiceOf(reportSession), CREATED_AT));
@@ -553,10 +561,10 @@ class CoachReportEndpointIT {
      */
     @Test
     void negativeConfirmationWithoutARebuttalIsAWholeBodyValidationError() throws Exception {
-        UUID userId = fixtures.insertUser();
+        UUID userId = insertMember();
         UUID sessionId = openCoachSession(userId);
 
-        var response = mvc.perform(post("/v2/coach/confirm")
+        var response = mvc.perform(post("/v2/legacy-coach/confirm")
                         .contentType(MediaType.APPLICATION_JSON)
                         .header("Authorization", bearer(userId))
                         .header("X-Request-Id", UUID.randomUUID())
@@ -614,7 +622,7 @@ class CoachReportEndpointIT {
         var rejected = meters.get("acttub.external.operations.terminal").tags(
                 "kind", "report", "outcome", "failed", "classification", "expected").counter();
         double before = rejected.count();
-        UUID reporting = fixtures.insertUser();
+        UUID reporting = insertMember();
         UUID reportSession = openCoachSession(reporting);
         UUID reportHandoff = fixtures.insertHandoff(
                 reportSession, practiceOf(reportSession), CREATED_AT);
@@ -625,7 +633,7 @@ class CoachReportEndpointIT {
         assertError(reports(reporting, reportSession, UUID.randomUUID()),
                 409, "report already exists");
 
-        UUID confirming = fixtures.insertUser();
+        UUID confirming = insertMember();
         UUID confirmSession = openCoachSession(confirming);
         UUID confirmHandoff = fixtures.insertHandoff(
                 confirmSession, practiceOf(confirmSession), CREATED_AT);
@@ -640,7 +648,7 @@ class CoachReportEndpointIT {
     /** 남의 것이거나 없는 코치 세션으로 성적표를 만들면 404 다 — 연습 쪽 표기와 다르다. */
     @Test
     void creatingAReportForAnUnknownCoachSessionIsSessionNotFound() throws Exception {
-        UUID userId = fixtures.insertUser();
+        UUID userId = insertMember();
 
         assertError(reports(userId, UUID.randomUUID(), UUID.randomUUID()),
                 404, "session not found");
@@ -655,7 +663,7 @@ class CoachReportEndpointIT {
      */
     @Test
     void unexpectedModelFailureIsRecordedWithoutChangingThePublic500() throws Exception {
-        UUID user = fixtures.insertUser();
+        UUID user = insertMember();
         UUID session = openCoachSession(user);
         confirmHandoff(fixtures.insertHandoff(session, practiceOf(session), CREATED_AT));
         UUID request = UUID.randomUUID();
@@ -675,7 +683,7 @@ class CoachReportEndpointIT {
         var failures = meters.get("acttub.external.operations.terminal").tags(
                 "kind", "report", "outcome", "failed", "classification", "external").counter();
         double before = failures.count();
-        UUID reporting = fixtures.insertUser();
+        UUID reporting = insertMember();
         UUID reportSession = openCoachSession(reporting);
         confirmHandoff(fixtures.insertHandoff(
                 reportSession, practiceOf(reportSession), CREATED_AT));
@@ -714,7 +722,7 @@ class CoachReportEndpointIT {
 
     private MockHttpServletRequestBuilder coachStart(
             UUID userId, UUID practiceId, UUID requestId) {
-        return post("/v2/coach/start")
+        return post("/v2/legacy-coach/start")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", bearer(userId))
                 .header("X-Request-Id", requestId)
@@ -723,7 +731,7 @@ class CoachReportEndpointIT {
 
     private MockHttpServletRequestBuilder coachReply(
             UUID userId, UUID sessionId, UUID requestId) {
-        return post("/v2/coach/reply")
+        return post("/v2/legacy-coach/reply")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", bearer(userId))
                 .header("X-Request-Id", requestId)
@@ -732,7 +740,7 @@ class CoachReportEndpointIT {
 
     private MockHttpServletRequestBuilder coachConfirm(
             UUID userId, UUID sessionId, UUID requestId) {
-        return post("/v2/coach/confirm")
+        return post("/v2/legacy-coach/confirm")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", bearer(userId))
                 .header("X-Request-Id", requestId)
@@ -761,7 +769,7 @@ class CoachReportEndpointIT {
     /**
      * handoff 를 확정 상태로 만든다.
      *
-     * <p><b>{@code /v2/reports} 는 확정되지 않은 handoff 로는 LLM 을 부르지 않는다</b> —
+     * <p><b>{@code /v2/legacy-test-reports} 는 확정되지 않은 handoff 로는 LLM 을 부르지 않는다</b> —
      * {@code ReportEngine.buildReportInput} 이 {@code null} 을 내고 차단 노트가 그대로 200 으로
      * 나간다. 확정을 심지 않으면 생성 경로를 밟는 줄 알았던 테스트가 조용히 다른 길로 간다.
      */
@@ -794,7 +802,7 @@ class CoachReportEndpointIT {
 
     private MockHttpServletRequestBuilder reports(
             UUID userId, UUID sessionId, UUID requestId) {
-        return post("/v2/reports")
+        return post("/v2/legacy-test-reports")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("Authorization", bearer(userId))
                 .header("X-Request-Id", requestId)
@@ -892,11 +900,13 @@ class CoachReportEndpointIT {
         private Runnable duringGeneration;
         private int calls;
         private String lastInput;
+        private final java.util.List<String> inputs = new java.util.ArrayList<>();
 
         @Override
         public synchronized GeneratedText generate(String instructions, String input) {
             calls++;
             lastInput = input;
+            inputs.add(input);
             // ⚠ 예정에 없던 호출이면 <b>부작용을 일으키기 전에</b> 멈춘다. 순서를 뒤집으면 훅이
             // 먼저 돌아 그 실패(제약 위반·픽스처 단언)가 진짜 원인을 가린다.
             if (responses.isEmpty()) {
@@ -929,6 +939,14 @@ class CoachReportEndpointIT {
             duringGeneration = null;
             calls = 0;
             lastInput = null;
+            inputs.clear();
         }
+    }
+
+    /** 보호 기능을 부르는 회원 — 프로필 게이트를 지난 상태로 세운다. */
+    private UUID insertMember() {
+        UUID id = fixtures.insertUser();
+        AccountFixtures.completeProfile(jdbc, id);
+        return id;
     }
 }

@@ -3,52 +3,54 @@ package com.acttub.actingapi.feature.consent.adapter.db;
 import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
-import com.acttub.actingapi.feature.auth.app.PendingConsent;
-import com.acttub.actingapi.feature.auth.app.PendingConsentDocuments;
 import com.acttub.actingapi.feature.consent.app.ConsentRepository;
 import com.acttub.actingapi.feature.consent.domain.ConsentDocument;
 import com.acttub.actingapi.feature.consent.domain.ConsentEvent;
+import com.acttub.actingapi.feature.consent.domain.ConsentLocale;
 import com.acttub.actingapi.feature.consent.schema.ConsentDocumentEntity;
 import com.acttub.actingapi.feature.consent.schema.UserConsentEntity;
 import com.acttub.actingapi.platform.schema.ConsentAction;
+import com.acttub.actingapi.platform.web.OutputLanguage;
 import com.acttub.actingapi.platform.schema.ConsentType;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 동의 문서와 그 이력을 소유한 쪽이 그것을 묻는 <b>바깥 포트도 직접</b> 구현한다 —
- * 위임만 하는 어댑터를 끼우지 않는다 (ADR-017, SOMA-397 6단계의 {@code SyncOperationService}
- * 와 같은 형태).
+ * 동의 문서와 그 이력의 저장소.
  *
- * <p>{@code auth} 는 로그인 응답에 실을 문서 자체를 묻는다({@link PendingConsentDocuments}).
- * 필수 동의의 세 갈래 접근 판정은 문서와 결정을 함께 해석하는 {@code ConsentService}가
- * 배관의 포트를 구현한다. 종전에는 두 질문을 모두 {@code auth} 가 자기 SQL 로 답했다
- * (SOMA-397 12단계에서 회수).
+ * <p>문서와 결정을 함께 해석하는 일(미결정 판정, 가입 결정의 확인)은 여기가 아니라
+ * {@code ConsentService} 가 한다 — 바깥 포트도 그쪽이 구현한다. 여기는 읽고 쌓기만 한다.
  */
 @Repository
-class PostgresConsentRepository implements ConsentRepository, PendingConsentDocuments {
+class PostgresConsentRepository implements ConsentRepository {
     private final ConsentDocumentJpaRepository documents;
     private final UserConsentJpaRepository consents;
     private final EntityManager entityManager;
+    private final TransactionTemplate transaction;
 
     PostgresConsentRepository(
             ConsentDocumentJpaRepository documents,
             UserConsentJpaRepository consents,
-            EntityManager entityManager) {
+            EntityManager entityManager,
+            PlatformTransactionManager transactionManager) {
         this.documents = documents;
         this.consents = consents;
         this.entityManager = entityManager;
+        this.transaction = new TransactionTemplate(transactionManager);
     }
 
     /**
      * `db/store.py:PostgresStore.list_latest_consent_documents` 대응.
      *
-     * <p><b>응답 순서는 약관·개인정보·AI 분석이다</b> — 웹의 동의 화면과 ops 대시보드가 그
+     * <p><b>응답 순서는 약관 · 수집·이용 동의 · AI 분석 · 탈퇴 후 보관이다</b> — 동의 화면이 그
      * 순서로 그린다. {@code consent_type_t} 이던 시절에는 enum 정의 순서가 이 일을 대신했지만,
      * text 가 된 지금은 사전순({@code ai_analysis, privacy, terms})으로 뒤집힌다.
      * 그래서 바깥에서 {@code CASE} 로 못박는다 (SOMA-462).
@@ -59,24 +61,51 @@ class PostgresConsentRepository implements ConsentRepository, PendingConsentDocu
      * 거부당한다. 안쪽의 정렬은 종류마다 <b>어느 판을 고를지</b>(가장 최근 것)를 정하는
      * 일이고, 바깥 정렬은 고른 것들을 보여줄 순서를 정하는 일이다 (apps/api/CONTRACT.md §5-8).
      */
+    /**
+     * <p><b>말은 요청에서 온다</b> (SOMA-544). 인자로 받지 않는 이유는 이 조회를 부르는
+     * 자리가 넷이고 그 위로 게이트까지 이어져 있어서다 — 한 요청이 어느 말을 쓰는지는
+     * 프롬프트와 같은 자리({@link OutputLanguage})에서 한 번만 읽는다. 요청 밖에서
+     * 부르면 정본(한국어)이다.
+     *
+     * <p>현행 판은 <b>한국어 문서가 정한다.</b> 번역본은 그 판에 딸린 것이고, 없으면
+     * 한국어를 보여준다 — 동의 화면이 비는 것보다 낫다.
+     */
     @Override
     public List<ConsentDocument> listLatestDocuments() {
         return list(entityManager.createNativeQuery("""
+                WITH canonical AS (
+                    SELECT DISTINCT ON(consent_documents.type)
+                           consent_documents.id,
+                           consent_documents.type, consent_documents.version
+                    FROM consent_documents
+                    WHERE consent_documents.locale = 'ko'
+                    ORDER BY consent_documents.type,
+                             consent_documents.published_at DESC,
+                             consent_documents.id DESC),
+                picked AS (
+                    SELECT DISTINCT ON(d.type)
+                           c.id,d.type,d.version,d.title,d.body,d.required,d.published_at
+                    FROM consent_documents d
+                    JOIN canonical c ON c.type = d.type AND c.version = d.version
+                    WHERE d.locale IN (:locale, 'ko')
+                    ORDER BY d.type, (d.locale = :locale) DESC, d.id DESC)
                 SELECT id,type,version,title,body,required,published_at
-                FROM (SELECT DISTINCT ON(consent_documents.type)
-                             id,type,version,title,body,required,published_at
-                      FROM consent_documents
-                      ORDER BY consent_documents.type,
-                               consent_documents.published_at DESC,
-                               consent_documents.id DESC) latest
-                ORDER BY CASE latest.type
+                FROM picked
+                ORDER BY CASE picked.type
                              WHEN 'terms' THEN 1
                              WHEN 'privacy' THEN 2
                              WHEN 'ai_analysis' THEN 3
+                             WHEN 'retention' THEN 4
                          END
-                """, Tuple.class)).stream()
+                """, Tuple.class)
+                .setParameter("locale", requestLocale())).stream()
                 .map(PostgresConsentRepository::document)
                 .toList();
+    }
+
+    /** 이 요청이 읽을 동의 문서의 말. 아는 말이 아니면 정본(한국어). */
+    private static String requestLocale() {
+        return ConsentLocale.of(OutputLanguage.current());
     }
 
     @Override
@@ -100,49 +129,52 @@ class PostgresConsentRepository implements ConsentRepository, PendingConsentDocu
                 .toList();
     }
 
+    /**
+     * 돌려주는 값은 <b>저장된 값</b>이다. {@code timestamptz} 는 마이크로초까지만 담으므로 시계가 준
+     * 나노초를 그대로 돌려주면, 같은 결정을 다시 보낸 응답(저장된 행을 읽은 것)과 1µs 가 갈릴 수 있다 —
+     * 응답을 6자리로 자를 때 첫 값은 반올림되고 저장된 값은 내림되기 때문이다. 저장 전에 같은
+     * 정밀도로 잘라 둘을 같게 한다.
+     */
     @Override
     public ConsentEvent record(UUID userId, UUID documentId, String action, Instant occurredAt) {
         UUID id = UUID.randomUUID();
+        Instant stored = occurredAt.truncatedTo(ChronoUnit.MICROS);
         consents.save(new UserConsentEntity(
                 id,
                 userId,
                 documentId,
                 ConsentAction.valueOf(action.toUpperCase(Locale.ROOT)),
-                occurredAt));
-        return new ConsentEvent(id, userId, documentId, action, occurredAt);
+                stored));
+        return new ConsentEvent(id, userId, documentId, action, stored);
     }
 
     /**
-     * 아직 받지 않은 <b>필수</b> 문서 (`db/store.py:PostgresStore.list_pending_consents`).
-     *
-     * <p>⚠ <b>{@code ConsentService#pendingDocuments} 와 같은 것을 세지만 순서가 다르다</b> —
-     * 이쪽은 <b>발행 시각 순</b>, 그쪽은 <b>종류 순</b>이다. 파이썬 정본이 두 자리를 그렇게
-     * 갈라 두었고 각각 다른 엔드포인트의 응답이 되므로 합치지 않는다.
-     *
-     * <p>철회한 뒤 다시 동의한 경우까지 맞으려면 <b>마지막</b> 행위를 봐야 한다 — 그래서
-     * 안쪽 질의가 문서마다 가장 최근 한 줄을 집는다.
+     * ⚠ {@code users} 의 주인은 {@code auth} 다. 그래도 여기서 읽고 쓰는 것은 이 컬럼이 <b>동의 제출의
+     * 일부</b>이기 때문이다 — 게스트의 첫 동의에 실린 확인을 그 동의와 함께 남긴다. 다른 feature 의
+     * Schema Entity 를 import 하지 않도록 native SQL 로 둔다.
      */
     @Override
-    public List<PendingConsent> pendingFor(UUID userId) {
-        return list(entityManager.createNativeQuery("""
-                WITH latest AS (SELECT DISTINCT ON(type) * FROM consent_documents ORDER BY type,published_at DESC,id DESC)
-                SELECT d.id,d.type,d.version,d.title,d.body,d.required,d.published_at
-                FROM latest d WHERE d.required AND NOT EXISTS(
-                  SELECT 1 FROM user_consents c WHERE c.user_id=:userId AND c.document_id=d.id AND c.action='granted'
-                  AND c.id=(SELECT c2.id FROM user_consents c2 WHERE c2.user_id=c.user_id AND c2.document_id=c.document_id ORDER BY c2.occurred_at DESC,c2.id DESC LIMIT 1))
-                ORDER BY d.published_at,d.id
-                """,
-                Tuple.class)
-                .setParameter("userId", userId)).stream()
-                .map(row -> new PendingConsent(
-                        row.get("id", UUID.class),
-                        type(row.get("type", String.class)),
-                        row.get("version", String.class),
-                        row.get("title", String.class),
-                        row.get("body", String.class),
-                        row.get("required", Boolean.class),
-                        row.get("published_at", Instant.class)))
-                .toList();
+    public boolean ageConfirmed(UUID userId) {
+        return !list(entityManager.createNativeQuery("""
+                SELECT 1 AS confirmed
+                FROM users
+                WHERE id=:userId
+                  AND age_confirmed_at IS NOT NULL
+                """, Tuple.class)
+                .setParameter("userId", userId)).isEmpty();
+    }
+
+    @Override
+    public void confirmAge(UUID userId, Instant now) {
+        transaction.executeWithoutResult(status -> entityManager.createNativeQuery("""
+                UPDATE users
+                SET age_confirmed_at=:now,updated_at=:now
+                WHERE id=:userId
+                  AND age_confirmed_at IS NULL
+                """)
+                .setParameter("now", now.atOffset(java.time.ZoneOffset.UTC))
+                .setParameter("userId", userId)
+                .executeUpdate());
     }
 
     /**

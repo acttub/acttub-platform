@@ -16,10 +16,12 @@ import com.acttub.actingapi.platform.ledger.ExternalOperationExecution;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.observability.FailureReporter;
+import com.acttub.actingapi.platform.observability.ActorNameRedaction;
 import com.acttub.actingapi.platform.observability.LlmCall;
 import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.acttub.actingapi.platform.observability.LlmTokens;
+import com.acttub.actingapi.platform.web.OutputLanguage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -29,17 +31,32 @@ final class StructuredCoachEngine {
     private static final String PROMPT = StructuredJson.instructions(
             StructuredJson.textResource("/coaching/coach-prompt.txt") + "\n" + OpeningQuestion.PROMPT,
             "layer2_dialogue_turn");
+    /**
+     * 입력에 {@code actor_profile} 이 있을 때만 붙는 지시. 기본 프롬프트를 조건 없이 바꾸지 않는 것은
+     * 부재 시 동일성 때문이다 — 프로필이 없는 세션의 모델 입력은 전과 글자 하나 다르지 않아야 한다.
+     */
+    static final String ACTOR_PROFILE_INSTRUCTION = "\n\n[actor_profile]\n"
+            + "actor_profile 은 배우가 직접 저장한 현재 정보다(이름·성별·만 나이·추구하는 방향·연기 경력·최종 목표). "
+            + "영상·인물의 근거가 아니므로 video_refs·knowledge_refs 로 인용하지 않고, 다시 입력하도록 묻지 않는다. "
+            + "prior_context 나 이전 대화와 다르면 actor_profile 의 값을 우선한다. 설명의 깊이와 용어를 경력에 맞춘다. "
+            + "이름은 필요할 때만 호칭으로 쓴다 — 한국어로는 이름 뒤에 '님'을 붙이고, 영어로는 이름 그대로 부른다.";
     private static final int MAX_CALLS = 4;
     private static final int MAX_LOOKUPS = 2;
     private final TextGenerator generate;
     private final FailureReporter failures;
     private final LlmTelemetry telemetry;
     private final CoachRecordLookup records = new CoachRecordLookup();
+    private final CoachingPipeline pipeline;
 
     StructuredCoachEngine(TextGenerator generate, FailureReporter failures, LlmTelemetry telemetry) {
+        this(generate, failures, telemetry, false);
+    }
+
+    StructuredCoachEngine(TextGenerator generate, FailureReporter failures, LlmTelemetry telemetry, boolean routed) {
         this.generate = generate;
         this.failures = failures;
         this.telemetry = telemetry;
+        this.pipeline = routed ? new CoachingPipeline(generate, telemetry) : null;
     }
 
     CoachResult turn(CoachSessionSnapshot session, String actorText, UUID operationId) {
@@ -60,8 +77,21 @@ final class StructuredCoachEngine {
         }
         ObjectNode input = input(session, state, actorText, actorId, operationId);
         ObjectNode view = records.initial(session.observationPack());
+        if (pipeline != null) {
+            if (!VideoRecord.isRecord(session.observationPack())
+                    || session.observationPack().path("processing").path("processed_ranges").isEmpty()) {
+                throw new CoachReplyUnavailable();
+            }
+            // Deliver the complete text record once; route generation does not run model lookup loops.
+            input.set("video_record", session.observationPack().deepCopy());
+            var allSources = view.putArray("source_catalog");
+            VideoRecord.sources(session.observationPack()).values().forEach(allSources::add);
+            view.set("segments", session.observationPack().path("segments").deepCopy());
+            view.set("events", session.observationPack().path("events").deepCopy());
+            records.refreshCoverage(session.observationPack(), view);
+        }
         input.set("record_view", view);
-        input.set("dialogue_progress", DialogueProgress.controls(input).put("allow_finish", finish));
+        if (pipeline == null) input.set("dialogue_progress", DialogueProgress.controls(input).put("allow_finish", finish));
         input.put("output_contract", "acttub.layer2_turn.v2");
         input.putObject("reserved_ids").put("coach_message_id", coachId);
         ObjectNode controls = input.putObject("controls").put("max_message_chars", maxChars)
@@ -69,11 +99,21 @@ final class StructuredCoachEngine {
                         finish || input.path("dialogue_progress").path("explain_instead_of_repeating_question").asBoolean() ? 0 : 1)
                 .put("coach_replies_remaining", Math.max(0, 10 - replyCount))
                 .put("lookup_calls_remaining", MAX_LOOKUPS).put("finish_required", finish);
+        CoachingRoute route = null;
+        if (pipeline != null && !finish) {
+            try {
+                route = pipeline.classify(session, input);
+            } catch (RuntimeException failure) {
+                failures.report(failure, FailureKind.EXTERNAL, new FailureContext("CoachingPipeline.classify", operationId));
+                throw new CoachReplyUnavailable();
+            }
+        }
         ArrayNode validationErrors = input.putArray("validation_errors");
         int lookups = 0;
         Instant deadline = Instant.now().plusSeconds(100);
-        for (int call = 0; call < MAX_CALLS && Instant.now().isBefore(deadline); call++) {
-            controls.put("lookup_calls_remaining", call == MAX_CALLS - 1 ? 0 : MAX_LOOKUPS - lookups);
+        int maxCalls = pipeline == null ? MAX_CALLS : 2;
+        for (int call = 0; call < maxCalls && Instant.now().isBefore(deadline); call++) {
+            controls.put("lookup_calls_remaining", pipeline != null || call == MAX_CALLS - 1 ? 0 : MAX_LOOKUPS - lookups);
             controls.put("min_questions", 0);
             ObjectNode constraints = input.putObject("response_constraints");
             constraints.set("user_message_id", input.path("user_message").path("id").isMissingNode()
@@ -90,7 +130,9 @@ final class StructuredCoachEngine {
                 var references = new DialogueReferences(deliveredSources(input), coachId);
                 ObjectNode modelInput = (ObjectNode) references.toModel(input);
                 modelInput.remove(List.of("request_id", "session_id"));
-                JsonNode response = !finish && input.path("dialogue_progress").path("unclear_correction").asBoolean()
+                JsonNode response = pipeline != null
+                        ? references.fromModel(pipeline.generate(session, modelInput, route, finish, call))
+                        : !finish && input.path("dialogue_progress").path("unclear_correction").asBoolean()
                         ? DialogueProgress.correctionTargetReply(input)
                         : !finish && input.path("dialogue_progress").path("unobservable_hand_requested").asBoolean()
                         ? DialogueProgress.observationLimitReply(input)
@@ -110,8 +152,11 @@ final class StructuredCoachEngine {
                     continue;
                 }
                 FocusCoverage.validate(response.path("context_update").path("focus"), session.observationPack(), view);
-                DialogueProgress.validate(response, input.path("dialogue_progress"));
-                ObjectNode next = DialogueState.apply(state, response, deliveredSources(input), input.path("user_message"),
+                if (pipeline == null) DialogueProgress.validate(response, input.path("dialogue_progress"));
+                ObjectNode next = pipeline != null
+                        ? DialogueState.applyRouted(state, response, deliveredSources(input), input.path("user_message"),
+                                coachId, maxChars, maxSentences, finish)
+                        : DialogueState.apply(state, response, deliveredSources(input), input.path("user_message"),
                         coachId, maxChars, maxSentences, finish,
                         input.path("last_exchange").path("coach_message").path("text").asText());
                 // Explicit brevity requests persist even when the model omits style_update.
@@ -134,7 +179,9 @@ final class StructuredCoachEngine {
         if (!finish) throw new CoachReplyUnavailable();
         ObjectNode retained = state.deepCopy();
         retained.put("revision", session.stateRevision() + 1).put("response_style", style);
-        return result(session, actorText, "지금까지 이야기한 내용으로 정리할게요.", retained, "system_failure");
+        return result(session, actorText, (OutputLanguage.isKorean()
+                ? "지금까지 이야기한 내용으로 정리할게요."
+                : "Let's wrap up with what we've talked through so far."), retained, "system_failure");
     }
 
     private static ObjectNode input(CoachSessionSnapshot session, JsonNode state, String actorText,
@@ -151,8 +198,13 @@ final class StructuredCoachEngine {
         visibleState.set("context", DialogueState.context(state));
         input.set("coaching_state", visibleState);
         input.set("state_sources", state.path("source_catalog").deepCopy());
-        if (!session.prior().isEmpty()) {
-            input.set("prior_context", StructuredJson.MAPPER.valueToTree(session.prior()));
+        // 완성된 프로필이 있을 때만 싣는다. 없으면 키 자체가 없다 — 모델 입력이 전과 같다.
+        if (session.actorProfile() != null) {
+            input.set("actor_profile", StructuredJson.MAPPER.valueToTree(session.actorProfile()));
+        }
+        PriorContext prior = session.priorForModel();
+        if (!prior.isEmpty()) {
+            input.set("prior_context", StructuredJson.MAPPER.valueToTree(prior));
         }
         ArrayNode messages = input.putArray("recent_messages");
         for (int i = 0; i < session.turns().size(); i++) {
@@ -196,6 +248,9 @@ final class StructuredCoachEngine {
 
     static CoachResult result(CoachSessionSnapshot session, String actorText, String message,
             ObjectNode state, String endReason) {
+        // 저장 턴·handoff·응답이 모두 같은 평문을 쓰도록 여기 한 곳에서 Markdown 기호를 걷는다 (CONTRACT.md §8-5).
+        message = PlainCoachText.plain(message);
+        if (message.isEmpty()) throw new IllegalStateException("empty coaching reply after removing markup");
         List<CoachTurnSnapshot> turns = new ArrayList<>(session.turns());
         if (actorText != null) { turns.add(new CoachTurnSnapshot("actor", actorText)); }
         turns.add(new CoachTurnSnapshot("ai", message));
@@ -228,12 +283,15 @@ final class StructuredCoachEngine {
     private String recorded(CoachSessionSnapshot session, JsonNode input, int call) {
         Instant started = Instant.now();
         String text = input.toString();
-        String prompt = PROMPT + DialogueProgress.turnInstruction(input.path("dialogue_progress"));
+        String prompt = OutputLanguage.apply(PROMPT + DialogueProgress.turnInstruction(input.path("dialogue_progress"))
+                + (input.has("actor_profile") ? ACTOR_PROFILE_INSTRUCTION : ""));
+        // 모델에는 text 를 그대로 보내고, 바깥으로 나가는 기록에서만 이름을 가린다 (CONTRACT.md §7-2).
+        String recordedInput = prompt + "\n" + (input.has("actor_profile") ? ActorNameRedaction.inJson(text) : text);
         try {
             ExternalOperationExecution.externalCall("model");
             var generated = generate.generate(prompt, text);
             telemetry.record(new LlmCall(call == 0 ? LlmStep.COACH_TURN : LlmStep.COACH_REGENERATION,
-                    session.practiceSessionId(), session.userId(), generated.model(), prompt + "\n" + text,
+                    session.practiceSessionId(), session.userId(), generated.model(), recordedInput,
                     generated.text(), generated.usage() == null ? LlmTokens.unknown() : LlmTokens.of(
                             generated.usage().prompt(), generated.usage().completion(), generated.usage().total()),
                     started, Duration.between(started, Instant.now()), null,
@@ -241,7 +299,7 @@ final class StructuredCoachEngine {
             return generated.text();
         } catch (RuntimeException failure) {
             telemetry.record(new LlmCall(LlmStep.COACH_TURN, session.practiceSessionId(), session.userId(), "",
-                    prompt + "\n" + text, "", LlmTokens.unknown(), started, Duration.between(started, Instant.now()),
+                    recordedInput, "", LlmTokens.unknown(), started, Duration.between(started, Instant.now()),
                     failure.getClass().getSimpleName(), LlmCall.metadata("contract", "three_layers_v1")));
             throw failure;
         }

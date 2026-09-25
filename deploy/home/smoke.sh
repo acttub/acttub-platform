@@ -186,6 +186,9 @@ cat > "$WORK/.env" <<ENV
 COMPOSE_PROJECT_NAME=$PROJECT
 POSTGRES_PASSWORD=smoke-pw
 JWT_SECRET=smoke-jwt-secret
+ACCOUNT_IDENTITY_HASH_KEY=smoke-identity-hash-key
+ACCOUNT_TOKEN_ENCRYPTION_KEY=smoke-token-encryption-key
+SITE_URL=$SITE_URL
 ADMIN_OPS_TOKEN=smoke-admin-token
 GEMINI_API_KEY=smoke-gemini-key
 OPENAI_API_KEY=smoke-openai-key

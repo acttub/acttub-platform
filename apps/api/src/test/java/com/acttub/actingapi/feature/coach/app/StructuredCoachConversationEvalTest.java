@@ -22,10 +22,23 @@ class StructuredCoachConversationEvalTest {
     @Test void ordinaryAnswersAndRequestForHelp() throws Exception {
         evaluate("ordinary-help", List.of("떠나는 사람을 붙잡으려고 했어", "대사를 생각하느라 그랬어", "그래서 어떻게 하면 돼?", "여기까지"));
     }
+    /**
+     * account.profile: 프로필이 실린 대화. 저장된 출력에서 사람이 볼 것 — 프로필 항목을 다시 묻지 않는지,
+     * 경력(입시생)에 맞는 말인지, 프로필의 최종 목표를 이 장면의 목표로 삼지 않는지, 옛 기억(남·31)이 새지 않는지.
+     */
+    @Test void profileInformsTheConversationWithoutBeingAskedAgain() throws Exception {
+        evaluate("actor-profile", List.of("떠나는 사람을 붙잡으려고 했어", "쉽게 설명해 줘", "여기까지"),
+                new ActorProfile("김하늘", "여성", 19, List.of("무대(연극·뮤지컬)"), "입시생", "전문 배우"),
+                new PriorContext(java.util.Map.of("gender", "남", "age", "31", "goal", "입시 합격"), null, true, List.of(), List.of()));
+    }
     private void evaluate(String name, List<String> replies) throws Exception {
+        evaluate(name, replies, null, PriorContext.EMPTY);
+    }
+    private void evaluate(String name, List<String> replies, ActorProfile profile, PriorContext prior) throws Exception {
         var session = new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 StructuredJson.resource("/coaching/record.json"), "", "", "", 8000, "그 외", "그 외", null,
-                List.of(), "", null, "open", "", List.of()).withCoachingState("three_layers_v1", 0, null, "open", "");
+                List.of(), "", null, "open", "", List.of()).withCoachingState("three_layers_v1", 0, null, "open", "")
+                .withPrior(prior).withActorProfile(profile);
         var output = StructuredJson.MAPPER.createObjectNode().put("case", name).put("semantic_review", "pending");
         var failures = new RecordingFailureReporter();
         var calls = output.putArray("calls");
@@ -45,7 +58,7 @@ class StructuredCoachConversationEvalTest {
             messages.addObject().put("role", "ai").put("text", result.reply().message());
             session = result.session();
             for (int i = 0; i < replies.size(); i++) {
-                if ("closed".equals(session.status()) && i == replies.size() - 1 && name.equals("ordinary-help")) break;
+                if ("closed".equals(session.status()) && i == replies.size() - 1 && (name.equals("ordinary-help") || name.equals("actor-profile"))) break;
                 String answer = replies.get(i);
                 assertThat(session.status()).isEqualTo("open");
                 messages.addObject().put("role", "actor").put("text", answer);
@@ -65,6 +78,14 @@ class StructuredCoachConversationEvalTest {
             }
             assertThat(session.status()).isEqualTo("closed");
             assertThat(OpeningQuestion.questionCount(result.reply().message())).isZero();
+            if (profile != null) {
+                // 계약 검사까지만 한다. 프로필을 잘 썼는지는 저장된 출력을 사람이 본다(semantic_review).
+                for (var call : calls) {
+                    assertThat(call.path("input").path("actor_profile").path("experience").asText()).isEqualTo(profile.experience());
+                    assertThat(call.path("input").path("prior_context").path("memory").has("gender")).isFalse();
+                    assertThat(call.path("input").path("prior_context").path("memory").has("age")).isFalse();
+                }
+            }
             output.set("state", session.coachingState());
         } finally {
             var errors = output.putArray("errors");

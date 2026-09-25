@@ -13,7 +13,7 @@ GA4는 유입용 서브프로젝트 6개(voice·acti·stage·mono·pick·link)�
 다운로드 배지는 스토어로 바로 가지 않고 `/go/<os>/<surface>`를 거친다. Cloudflare가 이
 페이지로드를 경로별로 집계하므로 **배지 클릭 수와 랜딩 대비 비율은 Cloudflare에서 본다.**
 `/go`에서는 개인정보나 별도 이벤트 payload를 수집하지 않고 경로별 페이지로드만 센다. 이
-경로 집계는 아래 GA4·Amplitude의 로그인·방침 동의 게이트와 별개다.
+경로 집계는 아래 GA4·Amplitude의 동의 게이트와 별개다.
 랜딩은 `landing_*`, 앱 안내는 `app_page`, 검색 유입 안내는 `keyword_page` surface로 구분한다.
 
 ---
@@ -24,7 +24,20 @@ GA4는 유입용 서브프로젝트 6개(voice·acti·stage·mono·pick·link)�
 
 ### (1) GA4·Amplitude는 동의 전에는 아무것도 저장하지 않는다
 
-GA4는 `consent: denied` 상태에서 쿠키 없이 히트를 보내지만, **Amplitude는 동의 전에는 초기화 자체를 하지 않는다.** 조건은 GA4와 동일하다 — `isLoggedIn() && hasAcceptedCurrentPrivacy()` (`src/features/analytics/analytics.tsx`).
+GA4는 `consent: denied` 상태에서 쿠키 없이 히트를 보내지만, **Amplitude는 동의 전에는 초기화 자체를 하지 않는다.** 조건은 GA4와 동일하고 하나뿐이다(SOMA-528 결정 I-6, `src/features/consent/analytics-consent.ts`).
+
+> **단일 기준은 서버다.** 이 브라우저에 게스트 토큰이 있고, `GET /v2/consents/entry`의 `privacy` 종류 행이 `current_decision === "granted"`일 때만 켠다.
+
+- 웹에는 로그인이 없다(account.guest). 게스트는 처음 보호 기능을 쓰려 할 때 생기고, 동의는 기능 안의 시트(`src/features/consent/consent-sheet.tsx`)에서 받는다. `entry`는 **현재 판**에 대한 결정을 주므로, 새 판이 나오면 그 행이 미결정으로 돌아가 저절로 꺼진다 — 옛 판에만 동의한 사람에게 새 판의 수집을 적용하지 않는다.
+- **닫힌 쪽으로 실패한다.** 게스트 토큰이 없거나(랜딩만 본 방문자 — 서버에 묻지도 않고, 이 조회 때문에 게스트가 생기지도 않는다), 행이 없거나, 값이 `granted`가 아니거나(`declined`·`revoked`·미결정), 조회가 실패하면 끈다. **조회 중에도 꺼진 상태다.**
+- **판 번호를 코드에 박지 않고, 계측 판단을 `localStorage`에 복제하지도 않는다.** 예전의 `EXPECTED_PRIVACY_VERSION` 상수와 `accepted_privacy_version` 기록은 없다. 브라우저에 남기는 것은 나이 확인 하나뿐이고 계측과 무관하다.
+- **서버에 묻는 때는 셋이다** — 앱을 시작할 때 한 번, 탭이 다시 보일 때(`visibilitychange`), 동의 제출 직후. 화면을 옮길 때마다 묻지 않는다.
+- **즉시 끄는 때** — 어떤 요청이든 403 `consent_required`를 받아 시트가 열리는 순간(제출 완료를 기다리지 않는다), 게스트가 끝나는 순간(갱신 거절·`account_deactivated`), 새 게스트가 시작되는 순간. 진행 중이던 조회의 답은 버린다. 시트를 닫기만 해도 다시 묻는다 — 빠진 것이 `privacy`가 아니었다면 서버의 답은 여전히 `granted`다.
+- **다른 탭에서 일어난 게스트의 끝·시작도 즉시 끄는 때다. 묻는 때가 아니다.** 그 변화는 `storage` 이벤트로만 오고(`watchGuestSession`), 게스트 토큰 키가 지워지거나 새로 생긴 것만 본다. 같은 게스트의 토큰 회전(값 → 값)과 다른 키의 쓰기는 지나친다 — 다른 탭의 SDK가 이벤트마다 `localStorage`를 쓰므로, 키를 거르지 않으면 그때마다 끄고 다시 묻게 된다. 꺼진 탭은 다시 보일 때 묻는다.
+- **끈다는 것은 실제 중단이다.** GA4는 `analytics_storage: denied`로 되돌리고 `user_id`를 지운다(`revokeAnalyticsConsent`). Amplitude는 `setOptOut(true)`다(`stopAmplitude`) — 식별자만 지우면 이미 켜진 autocapture와 세션 리플레이는 SDK가 스스로 계속 보낸다. opt-out은 그 뒤의 이벤트(autocapture 포함)를 버리고, 리플레이 플러그인은 opt-out을 받아 녹화를 `shutdown()`한다(`@amplitude/plugin-session-replay-browser` 1.33.7의 `onOptOutChanged`, 코어의 `setOptOut` → `timeline.onOptOutChanged`로 확인). 다시 켤 때는 `setOptOut(false)`로 풀고 플러그인이 녹화를 다시 시작한다.
+- 기기 식별(`amplitude.reset()`)은 끌 때마다 끊지 않는다. 탭이 다시 보일 때마다 확인하느라 잠깐 끄는 것까지 새 기기로 세면 같은 게스트가 여럿으로 갈린다. **다른 게스트로 켜질 때** 끊는다(`setAmplitudeUser`).
+
+이 규칙은 `tests/analytics-consent.test.mjs`(granted → 켬 / declined·revoked·행 없음 → 끔 / 토큰 없음 → 끔 / 조회 실패 → 끔 / 켜진 뒤 403 → 즉시 끔 / 재조회로 어긋남 발견 → 끔), `tests/analytics-cross-tab.test.mjs`(다른 탭의 무관한 키·토큰 회전 → 묻지도 끄지도 않음 / 다른 탭의 게스트 끝·시작 → 묻지 않고 끔 / 탭이 다시 보임 → 물음), `tests/analytics-amplitude.test.mjs`의 "계측 I-6" 항목들이 고정한다.
 
 동의 전에 쌓인 이벤트는 **버린다.** 큐에 모았다가 동의 후 흘려보내지 않는다. 그렇게 하면 "동의 전에는 수집하지 않는다"는 약속이 "동의 전에는 전송하지 않는다"로 슬쩍 바뀐다.
 
@@ -49,11 +62,11 @@ amplitude.init(API_KEY, undefined, { autocapture: true });
 
 **2026-08-11 최우영 결정으로 자동 수집과 화면 녹화를 전부 켰다.** 그래서 아래가 Amplitude로 나간다 — 방침이 이걸 전부 고지해야 하고, 이 목록이 곧 방침 6항의 수집 항목이다:
 
-- **전체 주소** — autocapture 페이지뷰가 `location.href`를 통째로 싣는다: `/practice/history?session=<uuid>`, `/community/post?id=<uuid>`, `/login?next=<경로>`
-- **클릭한 요소의 텍스트** — 좌측 레일 항목 제목은 **사용자가 직접 쓴 상황 텍스트**다(`workspace-app.tsx`의 `headlineBySession`). 커뮤니티 글 제목도 같다.
+- **전체 주소** — autocapture 페이지뷰가 `location.href`를 통째로 싣는다: `/practice/history?session=<uuid>`, `/home?session=<uuid>`
+- **클릭한 요소의 텍스트** — 좌측 레일 항목 제목은 **사용자가 직접 쓴 상황 텍스트**다(`workspace-app.tsx`의 `headlineBySession`).
 - **화면 녹화 100%** — `sampleRate: 1`. 연습 영상이 재생되는 화면, 장면 3칸, 코치 대화 전문, 연습 노트가 전부 들어간다.
 
-수동으로 쏘는 21개 이벤트는 그대로 §1(7)의 화이트리스트를 지킨다. 자동 수집을 켰다고 **우리가 만드는 payload까지 느슨해지지는 않는다** — 두 경로는 별개다.
+수동으로 쏘는 20개 이벤트는 그대로 §1(7)의 화이트리스트를 지킨다. 자동 수집을 켰다고 **우리가 만드는 payload까지 느슨해지지는 않는다** — 두 경로는 별개다.
 
 ⚠️ **마스킹은 설정하지 않았다.** Amplitude Session Replay는 텍스트·입력을 가리는 옵션을 따로 제공한다. 지금 설정은 받은 지침 그대로이고, 마스킹을 넣으려면 여기서부터 손대면 된다.
 
@@ -82,7 +95,7 @@ case 3:
 | Turbopack (기본) | `Uncaught SyntaxError` | **0건** |
 | webpack (`--webpack`) | 깨끗 | **`sessions/v2/track` 200 × 6** |
 
-**완료 기준:** 변경한 번들러의 배포 빌드를 로그인·최신 방침 동의·계측 키가 갖춰진 환경에서
+**완료 기준:** 변경한 번들러의 배포 빌드를 현재 판에 동의한 게스트·계측 키가 갖춰진 환경에서
 실행했다. 원격 설정의 캡처 활성화와 샘플 비율을 확인하고, 녹화 청크 로딩·리플레이 버퍼·
 `sessions/v2/track` 업로드 성공을 확인했다. 콘솔 오류와 검증 환경을 함께 기록한다.
 
@@ -124,13 +137,13 @@ GA4는 `isMeasuredHost()`로 로컬 트래픽을 막지만, Amplitude는 그 가
 
 ### (6) `user_id`는 백엔드 내부 식별자만
 
-`getStoredUser().id`만 쓴다. 이메일·표시 이름·소셜 sub는 넣지 않는다. 로그아웃·재동의 요구 시 `reset()`으로 지운다 — `analytics.tsx`가 이미 `session-events`와 `storage`를 듣고 있으므로 같은 자리에 붙인다.
+`getStoredUser().id`만 쓴다. 웹에서는 이 브라우저의 게스트 id다. 이메일·표시 이름·소셜 sub는 넣지 않는다. 계측이 꺼질 때 GA4의 `user_id`를 지우고, 다른 게스트로 켜질 때 Amplitude를 `reset()`한다(§1(1)).
 
 ### (7) 이벤트 속성은 화이트리스트다
 
 **절대 싣지 않는 값** — 한 번 나가면 되돌릴 수 없다:
 
-연습 세션 UUID · 업로드 intent id · 파일명 · 장면 3칸 텍스트(situation/character/goal) · 막힘 상세 텍스트 · 대화 입력과 응답 본문 · 노트 본문과 제목 · 표시 이름 · 이메일 · 커뮤니티 글·댓글 본문과 id · 입시 검색어 원문 · 원본 영상 길이(ms)와 파일 크기(byte)
+연습 세션 UUID · 업로드 intent id · 파일명 · 장면 3칸 텍스트(situation/character/goal) · 막힘 상세 텍스트 · 대화 입력과 응답 본문 · 노트 본문과 제목 · 표시 이름 · 이메일 · 입시 검색어 원문 · 원본 영상 길이(ms)와 파일 크기(byte)
 
 숫자는 **버킷으로 뭉갠다.** 원본 밀리초·바이트는 특정 연습을 짚어내는 지문이 된다.
 
@@ -153,9 +166,9 @@ GA4는 `isMeasuredHost()`로 로컬 트래픽을 막지만, Amplitude는 그 가
 
 ---
 
-## 3. 이벤트 사전 (1차 21개)
+## 3. 이벤트 사전 (1차 20개)
 
-이벤트를 더 늘리기 전에 **이 21개로 답이 나오는지 먼저 본다.** 커뮤니티·입시 계측은 2차로 미룬다 — 지금 답해야 할 질문(퍼널 이탈·리텐션·대화 품질)에 필요 없다.
+이벤트를 더 늘리기 전에 **이 20개로 답이 나오는지 먼저 본다.** 입시 계측은 2차로 미룬다 — 지금 답해야 할 질문(퍼널 이탈·리텐션·대화 품질)에 필요 없다.
 
 > **설치 검증용 임시 이벤트가 따로 있다.** `Viewed Home Page` — `startAmplitude()`의
 > `amplitude.init` 바로 뒤에서 발생한다. 실제 payload는
@@ -170,12 +183,12 @@ GA4는 `isMeasuredHost()`로 로컬 트래픽을 막지만, Amplitude는 그 가
 | `practice_video_selected` | 파일 선택 완료 | `size_bucket`, `is_reselect` |
 | `practice_blockage_submitted` | 도움을 실제로 고른 채 시작 | `kind`, `sub_branch`, `has_detail` |
 | `practice_upload_failed` | 업로드·세션 생성 실패 | `stage`: `preflight`\|`intent`\|`put`\|`complete`\|`session_create`, `reason_code` |
-| `practice_session_created` | 세션 생성 성공 | `duration_bucket`, `kind`, `sub_branch`, `scene_skipped`, 선택 시에만 `theory_choice` |
+| `practice_session_created` | 회차 생성 성공 | `duration_bucket`, `kind`, `sub_branch`, `scene_skipped` |
 | `practice_analysis_settled` | 분석 종료 | `result`: `analyzed`\|`failed`, `error_code`, `wait_bucket` |
 
 `practice_blockage_submitted`는 도움 갈래를 실제로 고른 사람만 세며, 자동으로 채우는 `그 외` 기본값은 포함하지 않는다. 업로드는 준비 화면의 시작 버튼을 누른 뒤 바로 시작하고, 실패는 같은 진행 자리에서 안내한다.
 
-`theory_choice`는 준비 화면에서 접근법을 고른 경우에만 SOMA-456의 리소스 id를 싣는다. 고르지 않았거나 고른 칩을 다시 눌러 해제한 경우에는 속성 자체를 보내지 않는다.
+`theory_choice`는 1.0.0에서 준비 화면의 이론 선택과 함께 사라졌다(SOMA-546). 옛 이벤트에 남은 값은 그대로 두고 새 이벤트는 이 속성을 만들지 않는다.
 
 
 `error_code`는 `PracticeSessionDetail.error_code`의 4종 enum(`gemini_timeout`·`gemini_parse_error`·`unsupported_media`·`max_attempts_exceeded`)을 그대로 싣는다. 지금 화면은 이 값을 전혀 쓰지 않는다.
@@ -227,15 +240,13 @@ GA4는 `isMeasuredHost()`로 로컬 트래픽을 막지만, Amplitude는 그 가
 
 `practice_history_opened`의 `age_days_bucket`이 리텐션의 실질 지표다 — Amplitude의 리텐션 차트가 "재방문"을 세는 것과 별개로, **지난 연습을 실제로 다시 열어보는지**가 이 제품에서 값이 있는 행동이다.
 
-### D. 인증 — "들어오다 막히나"
+### D. 동의 — "들어오다 막히나"
 
 | 이벤트 | 언제 | 속성 |
 | --- | --- | --- |
-| `login_completed` | 로그인 성공 (동의를 이미 마친 계정) | `provider` |
-| `login_failed` | 로그인 실패 | `provider`, `reason_code` |
-| `consent_submitted` | 약관 제출 | `result`: `ok`\|`partial_fail`\|`forced_logout` |
+| `consent_submitted` | 게스트의 기능별 동의 시트 제출 | `result`: `ok`\|`partial_fail` |
 
-⚠️ **`login_completed`에는 신규 가입자가 잡히지 않는다.** 동의가 남은 계정은 로그인 직후 약관 화면으로 가고, 그 시점엔 Amplitude가 켜져 있지 않다. §1(1)의 결과이지 버그가 아니다 — 소급 전송하지 않는다. 그래서 이 이벤트에 "동의 대기 여부" 속성을 두지 않았다(늘 같은 값이 된다). **신규 가입자는 `consent_submitted`로 센다.** 가입 전환율 자체는 GA4로 본다.
+웹에는 로그인이 없어 `login_completed`·`login_failed`는 없앴다(SOMA-528). ⚠️ **`consent_submitted`의 `ok`는 계측이 켜진 직후의 첫 이벤트다.** `privacy` 동의가 저장되고 서버가 `granted`라고 답한 뒤에야 Amplitude가 켜지므로 그 전의 이벤트(영상 고르기 등)는 남지 않고, 저장에 실패한 첫 시트의 `partial_fail`도 버려진다. §1(1)의 결과이지 버그가 아니다 — 소급 전송하지 않는다. `privacy`가 없는 두 번째 시트(예: AI 분석 동의만)는 이미 켜진 상태에서 잡힌다.
 
 ### E. 화면 — "무엇을 쓰나"
 
@@ -253,7 +264,7 @@ GA4는 `isMeasuredHost()`로 로컬 트래픽을 막지만, Amplitude는 그 가
 
 호출은 전부 `src/lib/analytics/amplitude.ts` 안의 래퍼 함수로만 한다 — `ga.ts`의 "이 파일 밖에서 `gtag`를 직접 부르지 않는다"와 같은 규칙이다. 그래야 속성 화이트리스트를 한 곳에서 강제할 수 있고, 금지 키가 payload에 없다는 테스트도 한 곳만 보면 된다.
 
-2차 후보(지금은 넣지 않음): 커뮤니티 글·댓글·좋아요, `auth_wall_hit`(비로그인이 로그인 필요 동작을 누름), 입시 필터·외부 링크 이탈, 막힘 1·2단계 개별 선택과 되돌리기 횟수.
+2차 후보(지금은 넣지 않음): 동의 시트를 닫고 나간 횟수, 입시 필터·외부 링크 이탈, 막힘 1·2단계 개별 선택과 되돌리기 횟수.
 
 ---
 
@@ -263,7 +274,9 @@ GA4는 `isMeasuredHost()`로 로컬 트래픽을 막지만, Amplitude는 그 가
 
 **방침 발행이 먼저, 키 주입이 나중이다.** 순서가 바뀌면 고지 없이 이용 기록과 화면 녹화가 수탁사로 넘어가고, 이미 전송된 것은 되돌릴 수 없다.
 
-이건 기억에 맡기지 않는다 — `deploy.yml`의 **`계측 키가 방침 고지보다 앞서지 않는지`** 가드가 막는다. 키가 설정돼 있는데 `consent-docs/manifest.json`이 발행 중이라고 선언한 방침 문서에 `Amplitude` 문자열이 없으면 **배포가 실패한다.** 같은 가드가 `EXPECTED_PRIVACY_VERSION`과 manifest 버전이 어긋나는 것도 막는다 — 어긋나면 동의 게이트가 영영 안 열려 계측이 조용히 죽는다.
+이건 기억에 맡기지 않는다 — `deploy.yml`이 부르는 `deploy/consent-gate.sh`의 **`계측 키가 방침 고지보다 앞서지 않는지`** 가드가 막는다. 키가 설정돼 있는데 발행 중인 문서에 `Amplitude` 위탁 고지가 없으면 **배포가 실패한다.**
+
+이 가드는 예전에 웹의 `EXPECTED_PRIVACY_VERSION` 상수가 manifest의 발행 판과 같은지도 대조했다. 그 상수는 없앴고(§1(1)), 그것이 지키던 것 — 옛 판 동의자에게 새 수집을 적용하지 않는다 — 은 이제 웹이 실행 중에 서버의 동의 현황을 물어 지킨다. 그래서 웹과 api의 배포 순서가 어긋나도 현재 판에 동의하지 않은 동안에는 꺼져 있을 뿐이다.
 
 키가 비어 있으면 가드는 그냥 통과한다. 계측이 꺼진 번들이 나갈 뿐이라 안전한 상태다.
 
@@ -303,7 +316,7 @@ Amplitude의 세션은 **브라우저 활동 구간**이다. 30분 무활동이�
 
 #### 당시 규모 계산 (2026-08-11)
 
-**동의 게이트가 익명 방문자를 통째로 걸러낸다.** Amplitude는 로그인 + 최신 방침 동의를 통과한 뒤에만 init되므로, 랜딩만 보고 나가는 사람은 세션을 만들지 않는다. SOMA-332 기준 최근 30일 광고 링크 클릭이 **3,205건**인데 거의 다 익명 유입이라 리플레이를 한 건도 쓰지 않는다. (SOMA-331이 "코어 GA가 로그인·동의 뒤에만 켜져서 그 이전 유입을 못 센다"고 지적한 것과 같은 구조다 — 귀속에는 불리하고 쿼터에는 유리하다.)
+**동의 게이트가 익명 방문자를 통째로 걸러낸다.** Amplitude는 서버가 게스트의 `privacy` 동의를 `granted`라고 답한 뒤에만 init되므로(당시에는 로그인 + 최신 방침 동의), 랜딩만 보고 나가는 사람은 세션을 만들지 않는다. SOMA-332 기준 최근 30일 광고 링크 클릭이 **3,205건**인데 거의 다 익명 유입이라 리플레이를 한 건도 쓰지 않는다. (SOMA-331이 "코어 GA가 로그인·동의 뒤에만 켜져서 그 이전 유입을 못 센다"고 지적한 것과 같은 구조다 — 귀속에는 불리하고 쿼터에는 유리하다.)
 
 가입자는 **175명**(SOMA-279, 2026-08-03 기준, `ADMIN_OPS_EXCLUDE_EMAILS`로 개발자 제외된 값). 전원이 매달 10번씩 들어와도 **1,750세션 = 한도의 17%**라는 계산이 당시 `sampleRate: 1` 유지의 근거였다.
 

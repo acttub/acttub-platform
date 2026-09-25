@@ -8,12 +8,12 @@ import com.acttub.actingapi.feature.consent.adapter.web.ConsentDtos.ConsentEntry
 import com.acttub.actingapi.feature.consent.adapter.web.ConsentDtos.ConsentEntryResponse;
 import com.acttub.actingapi.feature.consent.adapter.web.ConsentDtos.ConsentEntryStatus;
 import com.acttub.actingapi.feature.consent.adapter.web.ConsentDtos.ConsentEventResponse;
+import com.acttub.actingapi.feature.consent.adapter.web.ConsentDtos.ConsentNoticesResponse;
 import com.acttub.actingapi.feature.consent.adapter.web.ConsentDtos.ConsentRequest;
-import com.acttub.actingapi.feature.consent.adapter.web.ConsentDtos.RequiredConsentDeclineError;
+import com.acttub.actingapi.feature.consent.adapter.web.ConsentDtos.ConsentDocumentOutdatedError;
 import com.acttub.actingapi.feature.consent.app.ConsentService;
 import com.acttub.actingapi.feature.consent.domain.ConsentDocument;
 import com.acttub.actingapi.feature.consent.domain.ConsentEntry;
-import com.acttub.actingapi.feature.consent.domain.ConsentEvent;
 import com.acttub.actingapi.platform.security.AccessGate;
 import com.acttub.actingapi.platform.schema.ConsentAction;
 import io.swagger.v3.oas.annotations.Operation;
@@ -24,12 +24,11 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -57,6 +56,24 @@ class ConsentController {
     }
 
     @Operation(
+            summary = "List Notices",
+            description = """
+                    동의 대상이 아닌 고지 문서(개인정보 처리방침)의 전문. 누구나 읽는다. 공개 페이지가
+                    동의 문서의 현재 판과 함께 싣는다.""",
+            operationId = "list_notices_v2_consents_notices_get",
+            tags = "v2-consents")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Successful Response",
+            content = @Content(schema = @Schema(implementation = ConsentNoticesResponse.class)))
+    @GetMapping("/notices")
+    ConsentNoticesResponse listNotices() {
+        return new ConsentNoticesResponse(consents.notices().stream()
+                .map(notice -> new ConsentDtos.ConsentNotice(notice.type(), notice.title(), notice.body()))
+                .toList());
+    }
+
+    @Operation(
             summary = "List Pending Documents",
             operationId = "list_pending_documents_v2_consents_pending_get",
             tags = "v2-consents",
@@ -68,7 +85,7 @@ class ConsentController {
     @GetMapping("/pending")
     ConsentDocumentsResponse listPendingDocuments(HttpServletRequest request) {
         var user = auth.rateLimitedUser(request);
-        return documents(consents.pendingDocuments(user.id()));
+        return documents(consents.pendingDocuments(user.id(), user.guest()));
     }
 
     @Operation(
@@ -82,8 +99,9 @@ class ConsentController {
             content = @Content(schema = @Schema(implementation = ConsentEntryResponse.class)))
     @GetMapping("/entry")
     ConsentEntryResponse getEntry(HttpServletRequest request) {
+        // 게스트에게도 열려 있다 — 웹은 이 응답의 privacy 행 하나로 계측을 켠다.
         var user = auth.rateLimitedUser(request);
-        return entry(consents.entryFor(user.id()));
+        return entry(consents.entryFor(user.id(), user.guest()));
     }
 
     @Operation(
@@ -94,20 +112,23 @@ class ConsentController {
     @ApiResponses({
         @ApiResponse(
                 responseCode = "201",
-                description = "Successful Response",
+                description = "새 결정을 쌓았다",
+                content = @Content(schema = @Schema(implementation = ConsentEventResponse.class))),
+        @ApiResponse(
+                responseCode = "200",
+                description = "지금 결정과 같은 결정이다. 행을 늘리지 않고 이미 있는 결정을 돌려준다",
                 content = @Content(schema = @Schema(implementation = ConsentEventResponse.class))),
         @ApiResponse(
                 responseCode = "409",
-                description = "Required consent cannot be declined",
-                content = @Content(schema = @Schema(implementation = RequiredConsentDeclineError.class))),
+                description = "현재 판이 아닌 문서에 결정을 보냈다",
+                content = @Content(schema = @Schema(implementation = ConsentDocumentOutdatedError.class))),
         @ApiResponse(
                 responseCode = "422",
                 description = "Validation Error",
                 content = @Content(schema = @Schema(ref = "#/components/schemas/HTTPValidationError")))
     })
     @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
-    ConsentEventResponse recordConsent(
+    ResponseEntity<ConsentEventResponse> recordConsent(
             @Valid @RequestBody ConsentRequest body,
             HttpServletRequest request) {
         var user = auth.rateLimitedUser(request);
@@ -117,12 +138,13 @@ class ConsentController {
         String action = ConsentAction
                 .valueOf(body.action().name().toUpperCase(Locale.ROOT))
                 .dbValue();
-        ConsentEvent event = consents.record(user.id(), body.documentId(), action);
-        return new ConsentEventResponse(
-                event.id(),
-                event.documentId(),
-                event.action(),
-                event.occurredAt());
+        ConsentService.Recorded recorded = consents.record(
+                user.id(), body.documentId(), action, user.guest(), Boolean.TRUE.equals(body.ageConfirmed()));
+        return ResponseEntity.status(recorded.created() ? 201 : 200).body(new ConsentEventResponse(
+                recorded.event().id(),
+                recorded.event().documentId(),
+                recorded.event().action(),
+                recorded.event().occurredAt()));
     }
 
     private static ConsentDocumentsResponse documents(List<ConsentDocument> rows) {
@@ -142,7 +164,6 @@ class ConsentController {
         ConsentEntryStatus status = switch (entry.status()) {
             case ALLOWED -> ConsentEntryStatus.allowed;
             case DECISION_REQUIRED -> ConsentEntryStatus.decision_required;
-            case BLOCKED -> ConsentEntryStatus.blocked;
         };
         return new ConsentEntryResponse(
                 status,
@@ -154,9 +175,7 @@ class ConsentController {
 
     private static ConsentEntryDocument entryDocument(ConsentEntry.DocumentDecision row) {
         ConsentDocument document = row.document();
-        String currentDecision = row.currentDecision() == null
-                ? null
-                : row.currentDecision().action();
+        String currentDecision = row.isUndecided() ? null : row.currentDecision().action();
         return new ConsentEntryDocument(
                 document.id(),
                 document.type(),
@@ -165,6 +184,7 @@ class ConsentController {
                 document.body(),
                 document.required(),
                 document.publishedAt(),
-                currentDecision);
+                currentDecision,
+                row.isUndecided() ? null : row.currentDecision().occurredAt());
     }
 }

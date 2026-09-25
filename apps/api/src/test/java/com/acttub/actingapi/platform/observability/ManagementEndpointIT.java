@@ -56,7 +56,12 @@ class ManagementEndpointIT {
             assertThat(get(managementPort, "/actuator/prometheus", "Bearer " + TOKEN).body())
                     .contains("environment=\"local\"").doesNotContain("untrusted-sensitive-environment");
             assertThat(get(publicPort, "/health", "Bearer " + TOKEN).statusCode()).isEqualTo(200);
-            var rejected = get(publicPort, "/v2/auth/me", "Bearer " + TOKEN);
+            // 모니터링 토큰은 액세스 토큰이 아니다. 앱이 하듯 클라이언트 판 헤더를 실어 토큰 검증까지 간다.
+            var rejected = CLIENT.send(HttpRequest.newBuilder(
+                            URI.create("http://localhost:" + publicPort + "/v2/auth/me"))
+                    .header("X-Acttub-Client", "app/1.0.0")
+                    .header("Authorization", "Bearer " + TOKEN).GET().build(),
+                    HttpResponse.BodyHandlers.ofString());
             assertThat(rejected.statusCode()).isEqualTo(401);
             assertThat(rejected.body()).isEqualTo("{\"detail\":\"invalid or missing access token\"}");
         }

@@ -10,13 +10,11 @@ import org.springframework.data.repository.query.Param;
 
 interface PushTokenJpaRepository extends JpaRepository<PushTokenEntity, UUID> {
 
+    /** 주인을 따지지 않는다 — 푸시 토큰을 갖고 있다는 것이 본인 확인이다(apps/api/CONTRACT.md §6-10). */
     @Modifying
     @Query("""
             DELETE FROM PushTokenEntity token
-            WHERE token.userId = :userId
-              AND token.token = :token
+            WHERE token.token = :token
             """)
-    int deleteByOwnerAndToken(
-            @Param("userId") UUID userId,
-            @Param("token") String token);
+    int deleteByToken(@Param("token") String token);
 }

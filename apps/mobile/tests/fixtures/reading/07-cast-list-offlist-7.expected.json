@@ -1,0 +1,88 @@
+{
+  "title": null,
+  "roles": [
+    "니나",
+    "트레플레프",
+    "아르카지나"
+  ],
+  "lines": [
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "저는 갈매기예요."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "아니, 당신은 갈매기가 아니에요."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "저는 배우예요."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "그래요."
+    },
+    {
+      "kind": "dialogue",
+      "role": "아르카지나",
+      "text": "얘들아, 이리 와."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "네."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "가요."
+    },
+    {
+      "kind": "dialogue",
+      "role": "아르카지나",
+      "text": "늦었다."
+    },
+    {
+      "kind": "direction",
+      "text": "소린: 이건 대사가 일곱 줄이라 배역이 아니다 하나."
+    },
+    {
+      "kind": "direction",
+      "text": "소린: 둘."
+    },
+    {
+      "kind": "direction",
+      "text": "소린: 셋."
+    },
+    {
+      "kind": "direction",
+      "text": "소린: 넷."
+    },
+    {
+      "kind": "direction",
+      "text": "소린: 다섯."
+    },
+    {
+      "kind": "direction",
+      "text": "소린: 여섯."
+    },
+    {
+      "kind": "direction",
+      "text": "소린: 일곱."
+    },
+    {
+      "kind": "dialogue",
+      "role": "니나",
+      "text": "끝이에요."
+    },
+    {
+      "kind": "dialogue",
+      "role": "트레플레프",
+      "text": "끝."
+    }
+  ]
+}

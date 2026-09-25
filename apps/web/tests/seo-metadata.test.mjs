@@ -8,6 +8,7 @@ delete process.env.NEXT_PUBLIC_SITE_URL;
 
 const {
   buildAdmissionsIndexMetadata,
+  buildAppDownloadMetadata,
   buildGuideIndexMetadata,
   buildKeywordPageMetadata,
   buildLandingMetadata,
@@ -27,7 +28,7 @@ const { AI_ACTING_COACHING } = await import(
 );
 
 const description =
-  "AI 연기 코칭 앱 Acttub. 내 연기 영상을 올리면 장면 맥락에서 확인한 단서가 질문으로 돌아와요. 질문으로 연기 장면을 다시 생각하는 연기 연습 도구예요.";
+  "AI 연기 코칭 앱 Acttub(액터브). 내 연기 영상을 올리면 장면 맥락에서 확인한 단서가 질문으로 돌아와요. 질문으로 연기 장면을 다시 생각하는 연기 연습 도구예요.";
 
 test("사이트 URL은 기본값과 정상 http(s) 주소를 origin으로 정규화한다", () => {
   assert.equal(resolveSiteUrl(), "https://acttub.com");
@@ -56,7 +57,7 @@ test("루트 metadata는 공통 title과 소셜 정보를 담되 URL 신호를 �
 
   assert.equal(metadata.metadataBase.href, "https://example.com/");
   assert.deepEqual(metadata.title, {
-    default: "Acttub — AI 연기 코칭, 질문으로 다시 보는 연기 연습",
+    default: "Acttub(액터브) — AI 연기 코칭, 질문으로 다시 보는 연기 연습",
     template: "%s | Acttub",
   });
   assert.equal(metadata.description, description);
@@ -110,11 +111,25 @@ test("가이드 목차 metadata는 canonical과 website 공유 정보를 담는�
 
   assert.equal(
     metadata.title,
-    "연기 연습 가이드 — 독백·셀프테이프·입시·독학 루틴",
+    "혼자 하는 연기 연습 방법 — 독백·셀프테이프·입시 준비",
   );
+  // 모바일 검색 결과에서 잘리지 않는 길이 — 구글은 한글 설명을 대략 100자 안팎에서 자른다.
+  assert.ok(metadata.description.length <= 100, `${metadata.description.length}자`);
+  assert.match(metadata.description, /연기 연습/);
   assert.equal(metadata.alternates.canonical, "/guide");
   assert.equal(metadata.openGraph.type, "website");
   assert.equal(metadata.openGraph.url, "https://example.com/guide");
+});
+
+test("앱 다운로드 metadata는 무엇을 하는 앱인지와 무료임을 검색 결과에 보인다", () => {
+  const metadata = buildAppDownloadMetadata("https://example.com/");
+
+  // 루트 템플릿이 " | Acttub"을 붙인다 — 여기서 브랜드 영문명을 반복하지 않는다.
+  assert.equal(metadata.title, "AI 연기 코칭 앱 액터브 — iOS·Android 무료");
+  assert.equal(metadata.openGraph.title, "AI 연기 코칭 앱 액터브 — iOS·Android 무료 | Acttub");
+  assert.ok(metadata.description.length <= 100, `${metadata.description.length}자`);
+  assert.match(metadata.description, /무료/);
+  assert.equal(metadata.alternates.canonical, "/app");
 });
 
 test("랜딩 metadata에만 canonical과 openGraph URL이 있다", () => {

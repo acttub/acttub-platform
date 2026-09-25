@@ -1,276 +1,164 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useVideoPlayer, VideoView } from 'expo-video';
 
 import { useAppDialog } from '@/components/app-dialog';
-import { api, type ReportDetail } from '@/lib/api';
-import { deletePracticeSessionIdempotently } from '@/lib/delete-practice';
-import { setPrefill } from '@/lib/practice';
-import { formatKoreanDate } from '@/lib/format';
-import { Markdown } from '@/components/markdown';
+import { ReportRating } from '@/components/report-rating';
 import { palette } from '@/constants/palette';
-import { PracticeNoteBody } from '@/components/practice-note';
-import { reportDisplay } from '@/lib/report-display';
+import { api } from '@/lib/api';
+import { formatKoreanDate } from '@/lib/format';
 import { translate as t } from '@/lib/i18n';
+import { noteFallbackNotice, noteKindLabel, noteSections, noteTitle, quoteSourceLabel, readOptionalPracticeNote } from '@/lib/practice/note';
+import { setContinueOrigin } from '@/lib/practice/session-state';
+import type { PracticeDetail, PracticeNote } from '@/lib/practice/types';
 
 /**
- * 지난 피드백 상세 — 기록 화면에서 카드를 누르면 열린다.
- * practice_session_id를 라우터 파라미터로 받아 GET /v2/reports/{id}로
- * 리포트 본문과 영상 재생 URL을 조회한다.
+ * A12 지난 연습 노트 — 기록에서 회차를 누르면 열린다.
+ *
+ * 회차 id 로 노트를 읽는다(practice.note). 영상이 파기된 뒤에도 노트는 열린다. 여기서 이어가면
+ * 같은 영상으로 같은 묶음의 다음 회차를 만들고, 장면은 비운 채 시작한다(practice.resume).
  */
 export default function ReportDetailScreen() {
   const router = useRouter();
-  const { practiceSessionId } = useLocalSearchParams<{ practiceSessionId: string }>();
-  const [detail, setDetail] = useState<ReportDetail | null>(null);
+  const { practiceId } = useLocalSearchParams<{ practiceId?: string }>();
+  const [note, setNote] = useState<PracticeNote | null>(null);
+  const [practice, setPractice] = useState<PracticeDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState(false);
-  const { confirm, alert, dialog } = useAppDialog();
+  const { alert, dialog } = useAppDialog();
+  const loadRevision = useRef(0);
 
-  const player = useVideoPlayer(null, (p) => {
-    p.loop = false;
-  });
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!practiceSessionId) {
-      setError(t('reportDetail.loadFail'));
+  const load = useCallback(async () => {
+    const revision = ++loadRevision.current;
+    if (!practiceId) {
+      setError(t('note.loadFail'));
       setLoading(false);
       return;
     }
     setLoading(true);
     setError(null);
-    api
-      .getReport(practiceSessionId)
-      .then((result) => {
-        if (cancelled) return;
-        setDetail(result);
-        if (result.playback_url) player.replace(result.playback_url);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setError(err instanceof Error ? err.message : t('reportDetail.loadFail'));
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [practiceSessionId, player]);
-
-  const onDelete = async () => {
-    if (!practiceSessionId) return;
-    const ok = await confirm({
-      title: t('reportDetail.deleteTitle'),
-      message: t('reportDetail.deleteMsg'),
-      confirmLabel: t('common.delete'),
-      destructive: true,
-    });
-    if (!ok) return;
-    setDeleting(true);
+    setNote(null);
     try {
-      await deletePracticeSessionIdempotently(practiceSessionId, api.deletePracticeSession);
-      router.back();
-    } catch (err) {
-      setDeleting(false);
-      await alert({
-        title: t('reportDetail.deleteFailTitle'),
-        message: err instanceof Error ? err.message : t('reportDetail.deleteFail'),
-      });
+      const [loadedNote, loadedPractice] = await Promise.all([
+        readOptionalPracticeNote(api.getPracticeNote, practiceId),
+        api.getPractice(practiceId).catch(() => null),
+      ]);
+      if (revision !== loadRevision.current) return;
+      setNote(loadedNote);
+      setPractice(loadedPractice);
+      if (!loadedNote) setError(t('note.none'));
+    } catch {
+      if (revision === loadRevision.current) setError(t('note.loadFail'));
+    } finally {
+      if (revision === loadRevision.current) setLoading(false);
     }
+  }, [practiceId]);
+
+  useEffect(() => {
+    void load();
+    return () => { loadRevision.current += 1; };
+  }, [load]);
+
+  /** 같은 묶음의 다음 회차로. 그 회차의 영상을 그대로 쓴다. */
+  const continuePractice = () => {
+    if (!practice) {
+      void alert({ title: t('history.continueCta'), message: t('note.loadFail') });
+      return;
+    }
+    setContinueOrigin(practice.video_id
+      ? { kind: 'history', rootId: practice.root_id, practiceId: practice.id, videoId: practice.video_id }
+      : { kind: 'group', rootId: practice.root_id, practiceId: practice.id });
+    router.push('/upload');
   };
 
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.safe}>
-        <Stack.Screen options={{ title: t('reportDetail.screenTitle') }} />
-        <View style={styles.center}>
-          <ActivityIndicator color={palette.blue} />
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (error || !detail) {
-    return (
-      <SafeAreaView style={styles.safe}>
-        <Stack.Screen options={{ title: t('reportDetail.screenTitle') }} />
-        <View style={styles.center}>
-          <Text style={styles.empty}>{error ?? t('reportDetail.loadFail')}</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  const { report } = detail;
-  const display = reportDisplay(report);
+  const sections = note ? noteSections(note) : [];
+  const fallbackNotice = note ? noteFallbackNotice(note) : null;
+  const title = noteTitle(note, practice?.scene.situation?.trim() || t('history.noSceneTitle'));
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
-      <Stack.Screen options={{ title: t('reportDetail.screenTitle'), headerShadowVisible: false }} />
-      <View style={styles.metaRow}>
-        <Text style={styles.metaText}>{formatKoreanDate(detail.created_at)}</Text>
-        <View style={styles.noteChip}>
-          <Text style={styles.noteChipText}>{t('reportDetail.noteChip')}</Text>
+      <Stack.Screen options={{ title: t('note.title'), headerShadowVisible: false }} />
+      {loading && (
+        <View style={styles.center}>
+          <ActivityIndicator color={palette.blue} />
         </View>
-      </View>
-      <ScrollView contentContainerStyle={styles.body}>
-        <Text style={styles.title}>{display.title}</Text>
-
-        {!!detail.playback_url && (
-          <VideoView
-            style={styles.video}
-            player={player}
-            nativeControls
-            allowsFullscreen
-            contentFit="contain"
-          />
-        )}
-
-        {report.report_type === 'practice_note' ? <PracticeNoteBody note={report} /> : <>
-        <NoteSection label={t('reportDetail.secEye')}>
-          <Markdown source={display.blocked} />
-          {!!display.evidence && (
-            <View style={styles.quote}>
-              <Markdown source={display.evidence} variant="compact" />
-            </View>
-          )}
-        </NoteSection>
-
-        <NoteSection label={t('reportDetail.secConfirmed')}>
-          <Markdown source={display.found} />
-        </NoteSection>
-
-        {!!display.actorWords && (
-          <NoteSection label={t('reportDetail.secLine')}>
-            <View style={styles.quoteBlue}>
-              <Markdown source={display.actorWords} />
-            </View>
-          </NoteSection>
-        )}
-
-        {!!display.caution && (
-          <NoteSection label={t('reportDetail.secCare')}>
-            <Markdown source={display.caution} />
-          </NoteSection>
-        )}
-
-        <NoteSection label={t('reportDetail.secNext')}>
-          <Text style={styles.nextTake}>{display.next}</Text>
-        </NoteSection>
-
-        </>}
-
-        {/* 이어서 연습 — 코치가 이 연습의 대화를 이어받는다. 지난 기록에는 장면
-            원문이 없어(리포트 응답에 미포함) 폼은 비운 채 이어받기만 건다 (SOMA-428). */}
-        <Pressable
-          style={styles.continueButton}
-          onPress={() => {
-            setPrefill({ scene: null, continuedFrom: practiceSessionId });
-            router.push('/upload');
-          }}>
-          <Text style={styles.continueText}>{t('reportDetail.continueCta')}</Text>
+      )}
+      {!loading && !note && <Text style={styles.error}>{error ?? t('note.none')}</Text>}
+      {!loading && error === t('note.loadFail') && (
+        <Pressable onPress={() => void load()} accessibilityRole="button">
+          <Text style={styles.label}>{t('common.retry')}</Text>
         </Pressable>
+      )}
+      {note && (
+        <ScrollView contentContainerStyle={styles.body}>
+          <View style={styles.heading}>
+            <Text style={styles.kind}>{noteKindLabel(note.kind)}</Text>
+            <Text style={styles.title}>{title}</Text>
+            <Text style={styles.date}>{formatKoreanDate(note.created_at, { month: 'long', day: 'numeric' })}</Text>
+            {fallbackNotice && <Text style={styles.fallback}>{fallbackNotice}</Text>}
+          </View>
 
-        <Pressable
-          style={styles.deleteButton}
-          onPress={() => void onDelete()}
-          disabled={deleting}>
-          {deleting ? (
-            <ActivityIndicator color={palette.danger} />
-          ) : (
-            <Text style={styles.deleteText}>{t('reportDetail.deleteThis')}</Text>
-          )}
-        </Pressable>
-      </ScrollView>
+          {sections.map((section) => (
+            <View style={styles.section} key={section.kind}>
+              {!!section.label && <Text style={styles.label}>{section.label}</Text>}
+              {section.kind === 'summary' ? (
+                section.quotes.length > 0 ? (
+                  section.quotes.map((quote, index) => (
+                    <View style={styles.quote} key={`${index}-${quote.quote.slice(0, 8)}`}>
+                      <Text style={styles.quoteText}>{quote.quote}</Text>
+                      <Text style={styles.quoteSource}>{quoteSourceLabel(quote.kind)}</Text>
+                    </View>
+                  ))
+                ) : (
+                  <Text style={styles.text}>{section.text}</Text>
+                )
+              ) : (
+                <Text style={[styles.text, section.kind === 'next' && styles.next, section.kind === 'cheer' && styles.cheer]}>
+                  {section.text}
+                </Text>
+              )}
+            </View>
+          ))}
+
+          {/* 지난 노트에서도 평가를 남기고 고친다 — 초기값은 이미 남긴 평가다(practice.note). */}
+          {practiceId && <ReportRating practiceId={practiceId} initial={note.my_rating} key={note.id} />}
+
+          <Pressable style={styles.primary} onPress={continuePractice} accessibilityRole="button">
+            <Text style={styles.primaryText}>{t('history.continueCta')}</Text>
+          </Pressable>
+        </ScrollView>
+      )}
       {dialog}
     </SafeAreaView>
   );
 }
 
-/** 목업의 노트 섹션 — 위 얇은 선, 작은 라벨, 내용. */
-function NoteSection({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <View style={styles.section}>
-      <Text style={styles.sectionLabel}>{label}</Text>
-      {children}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-  empty: { color: palette.textDim, fontSize: 15 },
-
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: palette.borderSoft,
-  },
-  metaText: { fontSize: 12.5, fontWeight: '700', color: palette.textDim },
-  noteChip: {
-    backgroundColor: palette.blueSoft,
-    borderRadius: 9999,
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-  },
-  noteChipText: { fontSize: 11.5, fontWeight: '800', color: palette.blueDeep },
-
-  body: { paddingTop: 22, paddingHorizontal: 20, paddingBottom: 32, gap: 22 },
-  title: { fontSize: 24, fontWeight: '900', color: palette.text, lineHeight: 34 },
-  video: {
-    width: '100%',
-    aspectRatio: 16 / 9,
+  center: { paddingVertical: 48, alignItems: 'center' },
+  error: { color: palette.danger, textAlign: 'center', paddingVertical: 24 },
+  body: { padding: 20, paddingBottom: 48, gap: 20 },
+  heading: { gap: 6 },
+  kind: { fontSize: 12, fontWeight: '800', color: palette.blue },
+  title: { fontSize: 23, fontWeight: '900', color: palette.text, lineHeight: 33 },
+  date: { fontSize: 12.5, fontWeight: '600', color: palette.textFaint },
+  fallback: { fontSize: 12.5, fontWeight: '700', color: palette.amber },
+  section: { borderTopWidth: 1, borderTopColor: palette.borderSoft, paddingTop: 16, gap: 8 },
+  label: { fontSize: 12, fontWeight: '800', color: palette.textDim },
+  text: { fontSize: 16, lineHeight: 26, color: palette.text },
+  next: { fontSize: 18, fontWeight: '700', lineHeight: 29 },
+  cheer: { fontSize: 14, lineHeight: 23, color: palette.textDim },
+  quote: { gap: 4, backgroundColor: palette.bgSubtle, borderRadius: 12, padding: 14 },
+  quoteText: { fontSize: 15.5, lineHeight: 25, color: palette.text },
+  quoteSource: { fontSize: 11.5, fontWeight: '800', color: palette.textFaint },
+  primary: {
+    height: 52,
     borderRadius: 14,
-    backgroundColor: palette.bgSoft,
-  },
-
-  section: {
-    borderTopWidth: 1,
-    borderTopColor: palette.borderSoft,
-    paddingTop: 16,
-    gap: 8,
-  },
-  sectionLabel: { fontSize: 11.5, fontWeight: '900', color: palette.textFaint },
-  quote: {
-    borderLeftWidth: 2,
-    borderLeftColor: palette.border,
-    paddingLeft: 14,
-    paddingVertical: 2,
-  },
-  quoteBlue: {
-    borderLeftWidth: 2,
-    borderLeftColor: palette.blue,
-    paddingLeft: 14,
-    paddingVertical: 2,
-  },
-  nextTake: { fontSize: 17, fontWeight: '900', color: palette.text, lineHeight: 27 },
-
-  continueButton: {
-    marginTop: 20,
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
     backgroundColor: palette.blue,
-  },
-  continueText: { fontSize: 14.5, fontWeight: '800', color: '#fff' },
-  deleteButton: {
-    height: 48,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: palette.border,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 8,
   },
-  deleteText: { fontSize: 13.5, fontWeight: '800', color: palette.danger },
+  primaryText: { fontSize: 15, fontWeight: '900', color: palette.bg },
 });
-

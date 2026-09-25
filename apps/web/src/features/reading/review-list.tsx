@@ -4,15 +4,16 @@ import { useEffect, useRef } from "react";
 import type { ScriptLine } from "@/lib/reading/script/parse";
 import { RoleName } from "@/features/reading/ui";
 
-/** 대본 전체 목록 — 대본 확인(정적)과 리딩 왼쪽 열(현재 줄 하이라이트) 둘 다 쓴다 */
+/** 대본 전체 목록 — 대본 확인(정적)과 리딩 왼쪽 열(현재 줄 하이라이트) 둘 다 쓴다. 장면 줄은 머리글처럼 보인다. */
 export function ReviewList({
   lines,
-  myRole,
+  myRoles,
   currentIndex,
   className = "",
 }: {
   lines: ScriptLine[];
-  myRole: string;
+  /** 내 배역(하나 이상) */
+  myRoles: string[];
   currentIndex?: number;
   className?: string;
 }) {
@@ -35,11 +36,19 @@ export function ReviewList({
             }`}
           >
             <span className="w-11 shrink-0 text-[12.5px] leading-5">
-              {l.type === "dialogue" && <RoleName role={l.role} me={l.role === myRole} className={past ? "opacity-40" : ""} />}
+              {l.type === "dialogue" && <RoleName role={l.role} me={myRoles.includes(l.role)} className={past ? "opacity-40" : ""} />}
             </span>
             <span
               className={`script-text flex-1 text-[14px] leading-5 ${
-                l.type === "direction" ? "italic text-ink-4" : cur ? "font-extrabold text-ink" : past ? "text-ink-5" : "text-ink"
+                l.type === "direction"
+                  ? "italic text-ink-4"
+                  : l.type === "scene"
+                    ? "font-extrabold text-ink-3 tracking-wide"
+                    : cur
+                      ? "font-extrabold text-ink"
+                      : past
+                        ? "text-ink-5"
+                        : "text-ink"
               }`}
             >
               {l.text}

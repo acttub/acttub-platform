@@ -1,0 +1,59 @@
+{
+  "title": null,
+  "roles": [
+    "Anna",
+    "Ben"
+  ],
+  "lines": [
+    {
+      "type": "scene",
+      "text": "Act 1"
+    },
+    {
+      "type": "dialogue",
+      "role": "Anna",
+      "text": "Did you wait long?"
+    },
+    {
+      "type": "dialogue",
+      "role": "Ben",
+      "text": "No, I just got here."
+    },
+    {
+      "type": "direction",
+      "text": "PAUSE: (a long silence)"
+    },
+    {
+      "type": "scene",
+      "text": "SCENE 2"
+    },
+    {
+      "type": "dialogue",
+      "role": "Anna",
+      "text": "Good."
+    },
+    {
+      "type": "direction",
+      "text": "BEAT"
+    },
+    {
+      "type": "dialogue",
+      "role": "Ben",
+      "text": "Yes."
+    },
+    {
+      "type": "scene",
+      "text": "ACT I, SCENE 3"
+    },
+    {
+      "type": "dialogue",
+      "role": "Anna",
+      "text": "Then let's go."
+    },
+    {
+      "type": "dialogue",
+      "role": "Ben",
+      "text": "Sure."
+    }
+  ]
+}

@@ -444,6 +444,59 @@ export function cardBadge(
     : { label: "일정 미정", tone: "muted" };
 }
 
+const SUMMARY_PRACTICAL_LIMIT = 4;
+const SUMMARY_MONTH_LIMIT = 2;
+
+/**
+ * 목록 카드의 요약 한 줄 — "수시·정시 · 자유연기·지정연기·특기 · 접수 9·12월".
+ *
+ * 카드만 보고도 그 대학 실기가 어떤 모양인지 훑을 수 있게 한다. 목록 페이지가 대학
+ * 이름만 늘어선 얇은 페이지로 읽히지 않게 하는 몫도 있다(검색엔진이 서버 HTML에서 읽는다).
+ * 오늘 날짜를 읽지 않는다 — 프리렌더된 HTML과 첫 렌더가 같아야 한다.
+ * 모르는 조각은 빼고, 셋 다 모르면 빈 문자열을 준다.
+ */
+export function summaryLine(notices: AdmissionNotice[]): string {
+  const unique = (values: string[]) =>
+    values.filter((value, index, all) => all.indexOf(value) === index);
+
+  const tracks = unique(
+    notices.map((notice) => notice.track?.trim() ?? "").filter(Boolean),
+  );
+
+  const practicals = unique(
+    notices.flatMap((notice) =>
+      (notice.practical_items ?? []).map(
+        ({ category }) => PRACTICAL_LABEL[category] ?? category,
+      ),
+    ),
+  );
+  const practicalText =
+    practicals.length > SUMMARY_PRACTICAL_LIMIT
+      ? `${practicals.slice(0, SUMMARY_PRACTICAL_LIMIT).join("·")} 외 ${
+          practicals.length - SUMMARY_PRACTICAL_LIMIT
+        }`
+      : practicals.join("·");
+
+  // 연도가 아니라 달 순서로 놓는다. 공고에 지난해 정시(12월)와 올해 수시(9월)가 섞여
+  // 있으면 날짜순은 "12·9월"이 되는데, 읽는 사람에겐 입시 한 해의 모양("9·12월")이 맞다.
+  const months = unique(
+    notices
+      .map((notice) => notice.apply_start ?? notice.apply_end ?? "")
+      .filter((date) => /^\d{4}-\d{2}/.test(date))
+      .map((date) => Number(date.slice(5, 7)))
+      .sort((a, b) => a - b)
+      .map(String),
+  ).slice(0, SUMMARY_MONTH_LIMIT);
+
+  return [
+    tracks.join("·"),
+    practicalText,
+    months.length > 0 ? `접수 ${months.join("·")}월` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 /** 원서접수가 끝나지 않은 것만. 날짜가 비어 있으면 판단하지 않고 남긴다. */
 export function isOpen(notice: AdmissionNotice, today: string): boolean {
   if (!notice.apply_end) return true;

@@ -1,0 +1,7 @@
+{
+  "NSCameraUsageDescription": "Used to film your acting right inside the app. For example, recording the monologue you just rehearsed and sending it straight to your coach.",
+  "NSMicrophoneUsageDescription": "Used to record sound with your acting video, and to let you answer the coach out loud. For example, saying what you were trying to do in the scene instead of typing it.",
+  "NSSpeechRecognitionUsageDescription": "Turns your spoken answers into text so they go into the conversation with the coach. For example, saying “I kept eye contact the whole time” writes it down for you.",
+  "NSPhotoLibraryUsageDescription": "Used to pick a profile photo, or to upload an acting video you already have in your library.",
+  "NSUserTrackingUsageDescription": "Used to show relevant ads and improve the app. Everything keeps working the same if you say no."
+}

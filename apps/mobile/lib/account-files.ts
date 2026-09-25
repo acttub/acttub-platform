@@ -1,0 +1,81 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Directory, Paths } from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
+
+import { createDeviceFileLedger, withTemporaryFiles } from './device-files';
+import { isSpeechFileName, isSpeechFileOfScript } from './reading/tts/speech-file';
+
+/**
+ * 이 기기에 만든 계정 자료 파일(account.withdraw). 무엇을 언제 지우는지는 device-files 가 정하고,
+ * 여기는 저장소와 실제 파일 삭제를 넣어 준다.
+ */
+
+/** 없는 파일이어도 던지지 않는다. 앱 밖의 파일이라 지울 수 없으면 던진다. */
+export function deleteDeviceFile(uri: string): Promise<void> {
+  return FileSystem.deleteAsync(uri, { idempotent: true });
+}
+
+const ledger = createDeviceFileLedger({
+  storage: AsyncStorage,
+  deleteFile: deleteDeviceFile,
+  fileExists: async (uri) => (await FileSystem.getInfoAsync(uri)).exists,
+});
+
+/** 올리려고 만든 임시 파일(줄인 사진·영상). 다 쓰면 discardDeviceFiles 로 지운다. */
+export const trackTemporaryDeviceFile = ledger.trackTemporary;
+/** 고르거나 찍은 영상의 원본 복사본. 코치 화면이 다시 틀기 때문에 두었다가 탈퇴 때 지운다. */
+export const keepDeviceFile = ledger.keep;
+export const discardDeviceFiles = ledger.discard;
+/** 올리기 한 번이 만든 임시 파일을 모았다가 올리기가 끝나면(성공·실패·취소 모두) 지운다. */
+export function withTemporaryDeviceFiles<T>(
+  run: (trackTemporary: (uri: string) => Promise<void>) => Promise<T>,
+): Promise<T> {
+  return withTemporaryFiles(ledger, run);
+}
+/** 앱을 켤 때 부른다 — 앞선 실행이 죽어 남긴 임시 파일을 지운다. */
+export const sweepDeviceFiles = ledger.sweep;
+/** 탈퇴 — 장부의 파일을 전부 지운다. */
+export const purgeDeviceFiles = ledger.purge;
+
+/** 대본을 읽어 준 음성 합성 파일들(reading/tts/engine 이 캐시 폴더에 만든다). */
+export async function listSpeechFiles(): Promise<string[]> {
+  const directory = FileSystem.cacheDirectory;
+  if (!directory) return [];
+  const names = await FileSystem.readDirectoryAsync(directory);
+  return names.filter(isSpeechFileName).map((name) => directory + name);
+}
+
+/** 보관함의 기기 복사본 폴더. 촬영본을 여기에 복사해 두고 업로드 대기 큐가 올린다(practice.record). */
+export const LIBRARY_DIRECTORY_NAME = 'archive';
+
+export function libraryDirectory(): Directory {
+  const dir = new Directory(Paths.document, LIBRARY_DIRECTORY_NAME);
+  try {
+    dir.create({ intermediates: true, idempotent: true });
+  } catch {
+    // 이미 있거나 못 만들면 그대로 — 복사가 실패하면 원본 uri 를 쓴다
+  }
+  return dir;
+}
+
+/** 탈퇴 — 보관함 폴더를 통째로 지운다. 없어도 던지지 않는다. */
+export async function purgeLibraryFiles(): Promise<void> {
+  try {
+    const dir = new Directory(Paths.document, LIBRARY_DIRECTORY_NAME);
+    if (dir.exists) dir.delete();
+  } catch {
+    // 최선 노력 — 탈퇴를 막지 않는다
+  }
+}
+
+/** 대본 하나를 지울 때 그 대본의 음성도 같이 지운다 (SOMA-547). */
+export async function deleteSpeechFilesOfScript(scriptId: string): Promise<void> {
+  const directory = FileSystem.cacheDirectory;
+  if (!directory) return;
+  const names = await FileSystem.readDirectoryAsync(directory).catch(() => [] as string[]);
+  await Promise.all(
+    names
+      .filter((name) => isSpeechFileOfScript(name, scriptId))
+      .map((name) => deleteDeviceFile(directory + name).catch(() => undefined)),
+  );
+}

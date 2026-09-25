@@ -19,6 +19,8 @@ import com.acttub.actingapi.feature.analysis.app.AnalysisResult;
 import com.acttub.actingapi.feature.practice.app.PracticeSessionRepository;
 import com.acttub.actingapi.integration.observation.ObservationItem;
 import com.acttub.actingapi.integration.observation.ObservationPack;
+import com.acttub.actingapi.support.AccountFixtures;
+import com.acttub.actingapi.support.DefaultClientHeader;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -56,6 +58,11 @@ class LegacyStorageCompatibilityIT {
                     """);
             jdbc.execute("ALTER TABLE practice_sessions DROP COLUMN subtext");
             jdbc.execute("ALTER TABLE users DROP COLUMN role");
+            // 커뮤니티는 1.0.0 에서 코드를 내리고 테이블만 남겼다. 한 문장이라 서로의 FK 가 막지 않는다.
+            jdbc.execute("""
+                    DROP TABLE community_reports, community_post_likes, community_anonymous_aliases,
+                        community_comments, community_blocks, community_posts, community_categories
+                    """);
         }
 
         try (var context = new SpringApplicationBuilder(ActingApiApplication.class).run(
@@ -70,26 +77,18 @@ class LegacyStorageCompatibilityIT {
                     INSERT INTO user_consents(id,user_id,document_id,action,occurred_at)
                     SELECT gen_random_uuid(), ?, id, 'granted', now() FROM consent_documents
                     """, user);
+            AccountFixtures.completeProfile(jdbc, user);
             String bearer = "Bearer " + context.getBean(JwtService.class).issueAccessToken(user).value();
             assertThat(get(port, "/health", bearer).path("status").asText()).isEqualTo("ok");
-            UUID request = UUID.randomUUID();
-            String body = """
-                    {"upload_intent_id":"%s","situation":"상황","character_context":"인물",
-                     "goal":"목표","blockage_kind":"분석","sub_branch":"대사 분석"}
-                    """.formatted(upload);
-            JsonNode first = create(port, bearer, request, body);
-            assertThat(create(port, bearer, request, body)).isEqualTo(first);
-            String session = first.path("session_id").asText();
-            assertThat(get(port, "/v2/practice-sessions/" + session + "/status", bearer)
-                    .path("status").asText()).isEqualTo("analyzing");
-            assertThat(get(port, "/v2/practice-sessions", bearer).path("sessions"))
-                    .extracting(item -> item.path("session_id").asText())
+            // 옛 쓰기 경로(`POST /v2/practice-sessions`)는 내렸다(§6-15). 옛 자료는 그대로 심고 <b>호환 읽기
+            // 경로</b>로 읽는다 — 이 시험의 주제가 "현재 흐름이 옛 자료를 그대로 보여 주는가" 이기 때문이다.
+            String session = seedPending(jdbc, user, upload).toString();
+            assertThat(get(port, "/v2/practices/" + session + "/status", bearer)
+                    .path("stage").asText()).isEqualTo("analyzing");
+            assertThat(practiceIds(get(port, "/v2/practices", bearer)))
                     .containsExactlyInAnyOrder(session, historical.toString());
-            assertThat(get(port, "/v2/reports", bearer).path("reports"))
-                    .singleElement().satisfies(item -> {
-                        assertThat(item.path("practice_session_id").asText()).isEqualTo(historical.toString());
-                        assertThat(item.path("title").asText()).isEqualTo("현재 연습 노트");
-                    });
+            assertThat(get(port, "/v2/practices/" + historical + "/note", bearer).path("title").asText())
+                    .isEqualTo("현재 연습 노트");
 
             // 분석 저장 Port는 실제 JPA INSERT·Lease 완료를 사용한다. 외부 모델 호출은 없다.
             AnalysisStore store = context.getBean(AnalysisStore.class);
@@ -100,8 +99,8 @@ class LegacyStorageCompatibilityIT {
                     new ObservationItem(0, 500, "새 관찰", "기다려", "호흡", 0.8)), List.of("새 불확실"));
             assertThat(store.complete(operation, lease, new AnalysisResult(pack, true, 900),
                     "fixture-model", Instant.now())).isNotNull();
-            assertThat(get(port, "/v2/practice-sessions/" + session + "/status", bearer)
-                    .path("status").asText()).isEqualTo("analyzed");
+            assertThat(get(port, "/v2/practices/" + session + "/status", bearer)
+                    .path("stage").asText()).as("분석이 끝나면 대화로 넘어간다").isEqualTo("conversing");
             PracticeSessionRepository practices = context.getBean(PracticeSessionRepository.class);
             assertThat(practices.detail(user, UUID.fromString(session)).summary().observations())
                     .singleElement().satisfies(item -> assertThat(item.label()).isEqualTo("새 관찰"));
@@ -156,6 +155,10 @@ class LegacyStorageCompatibilityIT {
                 INSERT INTO practice_reports(practice_session_id,report_type,report_json,source_handoff_id)
                 VALUES (?,'analysis','{"title":"현재 연습 노트"}'::jsonb,?)
                 """, practice, handoff);
+        jdbc.update("""
+                INSERT INTO community_posts(category_id,author_id,title,body)
+                SELECT id,?,'보존할 글','보존할 본문' FROM community_categories ORDER BY sort_order LIMIT 1
+                """, user);
         return practice;
     }
 
@@ -173,19 +176,40 @@ class LegacyStorageCompatibilityIT {
                 "report", jdbc.queryForObject("""
                         SELECT to_jsonb(report)::text FROM reports report JOIN coach_sessions coach
                             ON coach.id=report.session_id WHERE coach.practice_session_id=?
-                        """, String.class, practice));
+                        """, String.class, practice),
+                "community", jdbc.queryForObject(
+                        "SELECT to_jsonb(post)::text FROM community_posts post WHERE author_id=?",
+                        String.class, user));
     }
 
     private JsonNode get(int port, String path, String bearer) throws Exception {
         return send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
+                .header(DefaultClientHeader.NAME, DefaultClientHeader.APP)
                 .header("Authorization", bearer).GET().build(), 200);
     }
 
-    private JsonNode create(int port, String bearer, UUID request, String body) throws Exception {
-        return send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/v2/practice-sessions"))
-                .header("Authorization", bearer).header("Content-Type", "application/json")
-                .header("X-Request-Id", request.toString())
-                .POST(HttpRequest.BodyPublishers.ofString(body)).build(), 202);
+    /** 분석을 기다리는 옛 세션 하나. 옛 쓰기 경로가 내려간 뒤에도 옛 자료는 이렇게 존재한다. */
+    private UUID seedPending(JdbcTemplate jdbc, UUID user, UUID upload) {
+        UUID session = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO practice_sessions(id,user_id,upload_intent_id,status,situation,
+                                              character_context,blockage_kind,sub_branch,goal)
+                VALUES (?,?,?,'analyzing','상황','인물','분석','대사 분석','목표')
+                """, session, user, upload);
+        jdbc.update("""
+                INSERT INTO external_operations(id,session_id,user_id,request_id,kind,status,
+                                                request_fingerprint)
+                VALUES (gen_random_uuid(),?,?,gen_random_uuid(),'analyze','pending',?)
+                """, session, user, "a".repeat(64));
+        return session;
+    }
+
+    /** 묶음 목록을 회차 id 로 편다 — 옛 묶음도 호환 읽기가 같은 모양으로 낸다(02-practice ②). */
+    private static List<String> practiceIds(JsonNode groups) {
+        List<String> ids = new java.util.ArrayList<>();
+        groups.path("groups").forEach(group ->
+                group.path("practices").forEach(practice -> ids.add(practice.path("id").asText())));
+        return ids;
     }
 
     private JsonNode send(HttpRequest request, int expectedStatus) throws Exception {

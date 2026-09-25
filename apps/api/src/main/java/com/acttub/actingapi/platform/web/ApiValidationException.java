@@ -26,6 +26,16 @@ public class ApiValidationException extends RuntimeException {
         return new ApiValidationException(List.of(error));
     }
 
+    /** 다른 칸의 값에 따라 필수가 되는 칸이 빠졌을 때. Bean Validation 의 {@code @NotNull} 과 같은 모양이다. */
+    public static ApiValidationException missing(List<Object> location, Object input) {
+        Map<String, Object> error = new LinkedHashMap<>();
+        error.put("type", "missing");
+        error.put("loc", location);
+        error.put("msg", "Field required");
+        error.put("input", input);
+        return new ApiValidationException(List.of(error));
+    }
+
     public List<Map<String, Object>> detail() {
         return detail;
     }

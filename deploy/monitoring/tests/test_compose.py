@@ -72,7 +72,8 @@ class ComposeContractTest(unittest.TestCase):
     def test_app_owns_scrape_network_and_missing_monitoring_token_does_not_block_deploy(self):
         with tempfile.TemporaryDirectory() as tmp:
             work = Path(tmp)
-            required = ["POSTGRES_PASSWORD", "JWT_SECRET", "ADMIN_OPS_TOKEN", "GEMINI_API_KEY",
+            required = ["POSTGRES_PASSWORD", "JWT_SECRET", "ACCOUNT_IDENTITY_HASH_KEY",
+                        "ACCOUNT_TOKEN_ENCRYPTION_KEY", "SITE_URL", "ADMIN_OPS_TOKEN", "GEMINI_API_KEY",
                         "OPENAI_API_KEY", "S3_BUCKET", "AWS_REGION", "AWS_ACCESS_KEY_ID",
                         "AWS_SECRET_ACCESS_KEY", "TUNNEL_TOKEN"]
             (work / ".env").write_text("COMPOSE_PROJECT_NAME=test-dev\n" + "\n".join(key + "=test-only" for key in required))

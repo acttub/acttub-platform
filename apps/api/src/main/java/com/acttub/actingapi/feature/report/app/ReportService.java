@@ -12,7 +12,6 @@ import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.feature.report.domain.ReportBranch;
 import com.acttub.actingapi.feature.practice.app.PracticeExperience;
 import com.fasterxml.jackson.databind.JsonNode;
-import org.springframework.stereotype.Service;
 
 /**
  * 성적표의 규칙. HTTP 도 SQL 도 모르며, 요청 하나가 어떤 순서로 무엇을 확인하고 무엇을 남기는지만
@@ -22,7 +21,6 @@ import org.springframework.stereotype.Service;
  * 아니므로 도메인 사이의 결합은 아니다 — 이 예외를 상태코드와 본문으로 옮기는 일은
  * {@code platform/web/ApiErrorAdvice} 하나가 맡고 있고, 그 형태가 곧 계약이다.
  */
-@Service
 public class ReportService {
 
     /** 재생 서명 주소의 수명. 파이썬과 같은 15분이고, 응답에 그대로 실린다. */
@@ -87,7 +85,7 @@ public class ReportService {
                 JsonNode existing = source.handoffId() == null
                         ? null
                         : sources.getPracticeReportForHandoff(source.handoffId());
-                JsonNode report = existing == null ? reportFor(source) : existing;
+                JsonNode report = existing == null ? reportFor(userId, source) : existing;
                 JsonNode publicReport = PracticeNote.publicView(report);
                 // ⚠ 아래 갈래는 CoachService.confirm 과 모양이 같다. 다른 것은 원장에 남기는 값
                 // 하나뿐이다 — 여기는 성적표 본문이 곧 응답이지만 저쪽은 확정 응답 전체를 남긴다.
@@ -178,7 +176,7 @@ public class ReportService {
      * 따로 요청하는 자리(`/v2/reports`)가 같은 원본에서 같은 성적표를 내야 한다. 조립을 양쪽에 두면
      * 인자 하나가 어긋나는 날 두 경로의 성적표가 갈린다.
      */
-    public JsonNode reportFor(OwnedReportSource source) {
+    public JsonNode reportFor(UUID userId, OwnedReportSource source) {
         return engine.generateReport(
                 source.branchKind(),
                 source.videoSummary(),
@@ -190,7 +188,8 @@ public class ReportService {
                         ? null
                         : source.analysisHandoffId().toString(),
                 source.practiceSessionId(),
-                null);
+                // 소유를 이미 확인한 요청 주체다. 노트가 이 사람의 프로필을 읽는다.
+                userId);
     }
     private static void requireContract(boolean newContract, String contract) {
         if (newContract && !PracticeExperience.supported(contract)) {

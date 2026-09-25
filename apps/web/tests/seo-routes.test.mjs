@@ -63,3 +63,21 @@ test("sitemap은 공개 페이지, 입시 목록·대학 상세, 가이드를 �
   ]);
   assert.ok(entries.every(({ url }) => url.startsWith("https://acttub.com/")));
 });
+
+// 결정 I-8: 포트폴리오 공개 페이지는 링크를 아는 사람만 본다. 검색 엔진에 길을 알려 주지 않는다 —
+// sitemap 에 싣지 않고, robots 의 disallow 에도 적지 않는다(적으면 그 경로가 있다는 것부터 알린다).
+// 색인을 막는 것은 페이지의 noindex 메타다(tests/seo-noindex-guard).
+test("account.portfolio: sitemap 과 robots 어디에도 포트폴리오 공개 주소(/p)와 이관 화면이 없다", () => {
+  const urls = sitemap().map(({ url }) => new URL(url).pathname);
+  assert.deepEqual(
+    urls.filter((path) => path === "/p" || path.startsWith("/p/") || path === "/transfer"),
+    [],
+  );
+
+  const { rules } = robots();
+  const listed = [rules.allow, rules.disallow].flat();
+  assert.equal(
+    listed.some((path) => path === "/p" || path.startsWith("/p/")),
+    false,
+  );
+});

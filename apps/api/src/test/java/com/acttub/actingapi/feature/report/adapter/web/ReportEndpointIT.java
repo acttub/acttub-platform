@@ -13,6 +13,7 @@ import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.feature.report.adapter.db.ReportFixtures;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
+import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,8 +32,9 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
+@org.springframework.test.context.ActiveProfiles("legacy-practice-test")
 @AutoConfigureMockMvc
-@Import(ReportEndpointIT.StorageFixture.class)
+@Import({ReportEndpointIT.StorageFixture.class, com.acttub.actingapi.support.LegacyPracticeApiFixture.class})
 class ReportEndpointIT {
     private static final UUID USER =
             UUID.fromString("00000000-0000-4000-8000-000000000501");
@@ -82,7 +84,7 @@ class ReportEndpointIT {
         insertReport(hidden, "analysis", analysisReport("숨긴 리포트"), CREATED_AT.plusSeconds(2));
         insertReport(other, "analysis", analysisReport("남의 리포트"), CREATED_AT.plusSeconds(3));
 
-        JsonNode history = body(get("/v2/reports")
+        JsonNode history = body(get("/v2/legacy-test-reports")
                 .header("Authorization", bearer(USER)));
         assertThat(history.path("count").intValue()).isEqualTo(2);
         assertThat(history.at("/reports/0/practice_session_id").textValue())
@@ -93,7 +95,7 @@ class ReportEndpointIT {
         assertThat(history.at("/reports/1/practice_session_id").textValue())
                 .isEqualTo(second.toString());
 
-        JsonNode detail = body(get("/v2/reports/{id}", first)
+        JsonNode detail = body(get("/v2/legacy-test-reports/{id}", first)
                 .header("Authorization", bearer(USER)));
         assertThat(detail.fieldNames()).toIterable()
                 .containsExactly("practice_session_id", "created_at", "report", "playback_url");
@@ -118,11 +120,11 @@ class ReportEndpointIT {
                  "open_points":[],"source_catalog":[],"copy":{"title":"오늘 나눈 이야기","summary":null}}
                 """.formatted(noteId, UUID.randomUUID()));
         insertReport(practice, "practice_note", note, CREATED_AT);
-        var old = mvc.perform(get("/v2/reports/{id}", practice).header("Authorization", bearer(USER)))
+        var old = mvc.perform(get("/v2/legacy-test-reports/{id}", practice).header("Authorization", bearer(USER)))
                 .andReturn().getResponse();
         assertThat(old.getStatus()).isEqualTo(409);
         assertThat(mapper.readTree(old.getContentAsString()).path("detail").asText()).isEqualTo("client_contract_required");
-        JsonNode detail = body(get("/v2/reports/{id}", practice).header("Authorization", bearer(USER))
+        JsonNode detail = body(get("/v2/legacy-test-reports/{id}", practice).header("Authorization", bearer(USER))
                 .header("X-Acttub-Contract", "three_layers_v1"));
         assertThat(detail.path("playback_url").asText()).isEqualTo("playback:note.mp4:900");
         assertThat(detail.path("report").path("note_id").asText()).isEqualTo(noteId.toString());
@@ -134,14 +136,14 @@ class ReportEndpointIT {
 
     @Test
     void postRouteIsRegisteredAndValidatesItsBody() throws Exception {
-        var response = mvc.perform(post("/v2/reports")
+        var response = mvc.perform(post("/v2/legacy-test-reports")
                         .header("Authorization", bearer(USER)))
                 .andReturn().getResponse();
         assertThat(response.getStatus()).isEqualTo(422);
     }
 
     private void assertMissing(UUID practiceSessionId, UUID userId) throws Exception {
-        var response = mvc.perform(get("/v2/reports/{id}", practiceSessionId)
+        var response = mvc.perform(get("/v2/legacy-test-reports/{id}", practiceSessionId)
                         .header("Authorization", bearer(userId)))
                 .andReturn().getResponse();
         assertThat(response.getStatus()).isEqualTo(404);
@@ -191,6 +193,7 @@ class ReportEndpointIT {
                 INSERT INTO users (id,email,status)
                 VALUES (?,?,'active')
                 """, id, id + "@example.test");
+        AccountFixtures.completeProfile(jdbc, id);
     }
 
     private JsonNode analysisReport(String title) throws Exception {
@@ -250,6 +253,8 @@ class ReportEndpointIT {
         @Primary
         ObjectStorage reportStorage() {
             return new ObjectStorage() {
+                @Override public void upload(String objectKey, String mimeType, java.nio.file.Path source) { }
+
                 @Override
                 public String presignUpload(
                         String objectKey, String mimeType, long sizeBytes, int expiresInSeconds) {

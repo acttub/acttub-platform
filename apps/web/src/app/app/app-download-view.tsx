@@ -8,10 +8,7 @@ import { StoreBadges } from "../../features/app-download/store-badges";
 // 인스타그램 프로필 링크가 이 주소를 가리킨다. 폰 세로 화면 첫 화면 안에서 배지까지 닿는
 // 것이 이 페이지의 유일한 임무라 위쪽에 다른 것을 끼우지 않는다.
 //
-// 랜딩과 달리 로그인 주소를 바로 걸지 않는다. 랜딩은 로그인된 사람을 /home 으로 먼저
-// 보내지만 이 페이지는 로그인 여부와 상관없이 열리고, /login 은 이미 로그인한 사람을
-// 돌려보내지 않아 로그인 화면에서 막힌다. /practice/new 로 보내면 useRequireAuth 가
-// 로그아웃 상태일 때만 next 를 실어 로그인으로 넘긴다.
+// 웹에는 로그인이 없다. 연습 화면은 누구에게나 바로 열린다(account.guest).
 const practiceHref = "/practice/new";
 
 export default function AppDownloadView() {

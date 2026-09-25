@@ -1,6 +1,8 @@
-import { deletePracticeSession } from "@/lib/api/v2/sessions";
+import { updatePracticeGroup } from "@/lib/api/v2/practices";
 
-// 연습 하나를 지우는 길. 헤더의 삭제 버튼 하나가 이것을 부른다.
+// 연습 묶음을 기록에서 숨기는 길. 헤더의 숨기기 버튼 하나가 이것을 부른다. 1.0.0 의 "삭제"는 묶음 전체
+// 숨김(hidden_at)이고 노트·대화·기억은 지우지 않으며 영상은 보관함에 남는다(practice.library). 이름은
+// 옛 화면의 부름 자리와 같다.
 //
 // 지우기 자체는 요청 한 번이라 여기 모을 것이 없어 보이지만, 그 답이 돌아왔을 때
 // **그 연습이 아직 지금 화면인가**가 무엇을 할지를 통째로 가른다 — 지우는 사이
@@ -33,6 +35,8 @@ export type PracticeRemovalOutcome =
 
 export type RemovePracticeInput = {
   sessionId: string;
+  /** 묶음의 첫 회차 id. 숨김은 묶음 속성이다. 모르면 회차 id 를 그대로 쓴다(첫 회차). */
+  rootId?: string;
   /**
    * 이 연습이 아직 지금 화면인가. 요청을 띄우기 전이 아니라 **답이 온 뒤에** 묻는다 —
    * 그 사이에 자리가 넘어가는 것이 바로 이 가드가 막는 것이다.
@@ -42,10 +46,11 @@ export type RemovePracticeInput = {
 
 export async function removePractice({
   sessionId,
+  rootId,
   isCurrent,
 }: RemovePracticeInput): Promise<PracticeRemovalOutcome> {
   try {
-    await deletePracticeSession(sessionId);
+    await updatePracticeGroup(rootId ?? sessionId, { hidden: true });
     return isCurrent() ? { kind: "removed" } : { kind: "removedSuperseded" };
   } catch {
     return isCurrent() ? { kind: "failed" } : { kind: "failedSuperseded" };

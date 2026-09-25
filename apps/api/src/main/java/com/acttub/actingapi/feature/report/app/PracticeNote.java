@@ -8,6 +8,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import com.acttub.actingapi.integration.llm.StructuredJson;
+import com.acttub.actingapi.platform.web.OutputLanguage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -21,6 +22,9 @@ public final class PracticeNote {
             "layer3_copy");
 
     private PracticeNote() { }
+
+    /** 모델 응답 대신 보존된 근거로 만든 노트인지 별도로 전달한다. 저장된 노트 JSON 계약은 바꾸지 않는다. */
+    public record Generated(ObjectNode note, boolean fallback) { }
 
     public static boolean isNote(JsonNode value) {
         return value != null && VERSION.equals(value.path("schema_version").asText());
@@ -36,8 +40,13 @@ public final class PracticeNote {
      */
     static ObjectNode assemble(JsonNode handoff, Function<String, String> generateCopy,
             Consumer<RuntimeException> onCopyFailure) {
+        return assembleResult(handoff, generateCopy, onCopyFailure).note();
+    }
+
+    static Generated assembleResult(JsonNode handoff, Function<String, String> generateCopy,
+            Consumer<RuntimeException> onCopyFailure) {
         if (handoff != null && "acttub.coach_handoff.v2".equals(handoff.path("schema_version").asText())) {
-            return DialogueNote.assemble(handoff, generateCopy, onCopyFailure);
+            return DialogueNote.assembleResult(handoff, generateCopy, onCopyFailure);
         }
         require(handoff != null && "acttub.coach_handoff.v1".equals(handoff.path("schema_version").asText()),
                 "versioned handoff required");
@@ -77,6 +86,7 @@ public final class PracticeNote {
         note.set("attempts", state.path("attempts").deepCopy());
         note.set("source_catalog", handoff.path("source_catalog").deepCopy());
         ObjectNode copy = note.putObject("copy").put("title", defaultTitle(note)).putNull("summary");
+        boolean fallback = false;
         // Copy failure must not discard a valid conversation or prevent its atomic save.
         try {
             JsonNode generated = StructuredJson.parse(generateCopy.apply(note.toString()));
@@ -92,18 +102,20 @@ public final class PracticeNote {
             }
         } catch (RuntimeException failure) {
             onCopyFailure.accept(failure);
+            fallback = true;
             copy.put("title", defaultTitle(note)).putNull("summary");
         }
         StructuredJson.validate("practice_note", note);
         validateRefs(note, sources(note));
-        return note;
+        return new Generated(note, fallback);
     }
 
     static String prompt() { return PROMPT; }
 
     static String prompt(JsonNode handoff) {
-        return handoff != null && "acttub.coach_handoff.v2".equals(handoff.path("schema_version").asText())
+        String base = handoff != null && "acttub.coach_handoff.v2".equals(handoff.path("schema_version").asText())
                 ? DialogueNote.PROMPT : PROMPT;
+        return OutputLanguage.apply(base);
     }
 
     /** Explicit projection: internal actor messages, state and source catalog never leak into public JSON. */

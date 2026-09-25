@@ -1,16 +1,9 @@
-import type { ReportPayload } from '@/lib/moderation';
 import type {
   AdmissionsResponse,
 } from './admissions';
 import { normalizeAdmissions } from './admissions';
-import type {
-  CommentListResponse,
-  CommunityCategory,
-  CommunityComment,
-  CommunityPost,
-  PostListResponse,
-} from './community';
 
+import Constants from 'expo-constants';
 import {
   createUploadTask,
   FileSystemUploadType,
@@ -21,6 +14,8 @@ import {
   commitRefreshedTokens,
   emitAccountDeactivated,
   emitConsentRequired,
+  emitProfileRequired,
+  emitUpdateRequired,
   getAccessToken,
   getAuthSessionEpoch,
   getRefreshToken,
@@ -31,12 +26,73 @@ import {
   createApiRequestClient,
   type PostIdempotentOptions,
 } from '@/lib/api-request';
-import {
-  sceneValueForSubmit,
-  sendUploadIntent,
-  type UploadIntentInput,
-} from '@/lib/upload-input';
-import { translate } from './i18n.ts';
+import type { SignupDecision } from '@/lib/consent-entry-submission';
+import type { TransferRequestBody } from '@/lib/guest-transfer';
+import type { LoginRequestBody, LoginResponse } from '@/lib/login-flow';
+import type {
+  CreditPayload,
+  Portfolio,
+  PortfolioCredit,
+  PortfolioShare,
+} from '@/lib/portfolio';
+import type { ProfilePayload, ServerProfile } from '@/lib/profile-form';
+import type { NotificationSettings } from '@/lib/push-policy';
+import type { Video, VideoFilter, VideoIntentRequest, VideoIntentResponse, VideoListResponse } from '@/lib/library/types';
+import type {
+  AiReport,
+  BlockedUser,
+  ChallengeDetail,
+  ChallengeListResponse,
+  ChallengeTab,
+  CreateChallengeBody,
+  CreateEntryBody,
+  EntriesResponse,
+  EntryCard,
+  EntryComment,
+  EntryPatch,
+  NotificationsResponse,
+  EntrySort,
+  CommentsResponse,
+  CreateCommentBody,
+  ReportBody,
+  MyEntriesResponse,
+  MyEntryCard,
+} from '@/lib/challenge/types';
+import type {
+  CoachConversation,
+  CoachReplyBody,
+  CoachTurnResult,
+  ContinuePracticeBody,
+  CreatePracticeBody,
+  FeedbackBody,
+  GroupPatch,
+  NoteRating,
+  NoteRatingBody,
+  Practice,
+  PracticeDetail,
+  PracticeGroupDetail,
+  PracticeGroupFilter,
+  PracticeGroupResponse,
+  PracticeNote,
+  PracticeResponse,
+  PracticeStatus,
+} from '@/lib/practice/types';
+import { practiceGroupFromResponse } from '@/lib/practice/groups';
+import type {
+  CreateScriptBody,
+  LineMemorization,
+  MemorizationStatus,
+  PatchScriptBody,
+  ProgressBody,
+  ProgressResponse,
+  ScriptDetail,
+  ScriptListResponse,
+  SessionCard,
+  SessionDetail,
+  SessionRecording,
+  StartSessionBody,
+} from '@/lib/reading/types';
+import { currentLanguage, translate } from './i18n.ts';
 
 export { ApiError, NetworkError, RequestAbortError } from '@/lib/api-request';
 
@@ -45,12 +101,17 @@ export { ApiError, NetworkError, RequestAbortError } from '@/lib/api-request';
  * v1(Render, X-API-Key) → v2(Bearer JWT)로 전환.
  * - 인증: 소셜 로그인으로 받은 access/refresh 토큰. 401 시 refresh로 1회 자동 재발급 후 재시도.
  * - 업로드: multipart 직접 전송이 아니라 intent → presigned URL PUT → complete.
- * - 분석: 비동기 — practice-session 생성 후 상태를 폴링해 analyzed까지 기다린다.
+ * - 분석: 비동기 — 회차 생성 후 상태를 폴링해 ready·partial 결과를 기다린다.
  */
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://dev.acttub.com';
+// 요청마다 보내는 클라이언트 종류와 판(X-Acttub-Client). 판은 app.json의 version이다.
+// 이 헤더가 없으면 서버는 1.0.0 이전 빌드로 보고 426으로 답한다.
+const CLIENT_HEADER = `app/${Constants.expoConfig?.version ?? '0.0.0'}`;
 const requestClient = createApiRequestClient({
   baseUrl: BASE_URL,
+  clientHeader: CLIENT_HEADER,
   fetchImpl: (...args) => fetch(...args),
+  getLanguage: currentLanguage,
   waitForCredentialReady,
   getAccessToken,
   getRefreshToken,
@@ -58,12 +119,14 @@ const requestClient = createApiRequestClient({
   setTokens: commitRefreshedTokens,
   clearTokens: clearTokensIfCurrent,
   emitConsentRequired,
+  emitProfileRequired,
   emitAccountDeactivated,
+  emitUpdateRequired,
 });
 
 // ─── 도메인 타입 ────────────────────────────────────────────────────────────
 
-/** 앱 내부 표현. API로 보낼 땐 character → character_context 로 매핑한다. */
+/** 상황·인물·목표. 시작 요청의 scene과 같은 모양이다. */
 export type SceneContext = {
   situation: string;
   character: string;
@@ -80,56 +143,22 @@ export type BlockageSelection = {
   blockage_detail: string | null;
 };
 
-export type SceneSummary = {
-  summary_id: string;
-  observations: {
-    start_ms: number;
-    end_ms: number;
-    label: string;
-    confidence: number;
-  }[];
-  uncertainties: string[];
-};
-
-export type CoachTurnResponse = {
-  session_id: string;
-  message: string | null;
-  status: 'continue' | 'complete';
-  handoff: { id: string; branch_kind: 'analysis' | 'expression' | 'coaching' } | null;
-  /** 대화가 정리돼 카드가 만들어졌으면 함께 온다. status==='complete' 여도 없을 수 있다. */
-  report: PracticeReport | null;
-  turns: CoachTurn[];
-};
-
-export type CoachTurn = { role: 'ai' | 'actor'; text: string };
-
 /** 코치가 배우에 대해 기억하고 있는 한 칸. */
 export type MemoryItem = {
   field: MemoryField;
   value: string;
-  /** true 면 배우가 직접 쓰거나 고친 칸이다. 코치는 이 칸을 덮지 않는다. */
-  edited_by_me: boolean;
-  /** 이 말이 나온 연습. 배우가 "왜 이렇게 적혔지" 를 되짚을 근거다. */
-  source_practice_session_id: string | null;
+  /** 참이면 배우가 직접 쓰거나 고친 칸이다. 코치는 이 칸을 덮지 않는다. */
+  written_by_actor: boolean;
+  /** 이 말이 나온 회차. 그 연습이 숨겨졌으면 null 이라 링크만 없다. */
+  source_practice_id: string | null;
+  updated_at: string;
 };
 
 /**
- * 화면에 여는 칸.
- *
- * 성별·나이는 **배우만 쓴다.** 코치는 영상이나 말투에서 추론하지 않는다 — 틀리면
- * 그 상태로 이후 모든 연습의 전제가 되고, 민감정보 추론이기도 하다. 데이터베이스
- * 제약이 코치의 쓰기를 막고 있어서, 화면이 그 칸을 채우는 유일한 통로다.
+ * 화면에 여는 칸. 성별·나이는 1.0.0에서 프로필로 옮겼다(practice.memory) — 코치는 영상이나
+ * 말투에서 그것을 추론하지 않고, 기억 화면은 연습에서 나온 넷만 다룬다.
  */
-export type MemoryField =
-  | 'gender'
-  | 'age'
-  | 'goal'
-  | 'blockage'
-  | 'speech_self'
-  | 'speech_actual';
-
-/** 코치가 절대 쓰지 않는 칸. 화면에서 다르게 안내한다. */
-export const ACTOR_ONLY_MEMORY_FIELDS: readonly MemoryField[] = ['gender', 'age'];
+export type MemoryField = 'goal' | 'blockage' | 'speech_self' | 'speech_actual';
 
 export type AnalysisReport = {
   report_type: 'analysis';
@@ -194,19 +223,6 @@ export type PublicPracticeNote = {
   evidence: { id: string; kind: 'video_utterance' | 'video_observation' | 'record_limitation'; text: string; start_ms: number | null; end_ms: number | null }[];
 };
 
-export type VideoRecordSummary = {
-  schema_version: 'acttub.video_record_summary.v1';
-  record_id: string;
-  record_version: number;
-  duration_ms: number;
-  status: 'ready' | 'partial';
-  processed_ranges: { start_ms: number; end_ms: number }[];
-  missing_ranges: { start_ms: number; end_ms: number }[];
-  observed_scene: string[];
-  spoken_content: string[];
-  limitations: { start_ms: number; end_ms: number; description: string }[];
-};
-
 export type BlockedReport = {
   report_type: 'blocked';
   reason:
@@ -215,34 +231,6 @@ export type BlockedReport = {
 };
 
 export type PracticeReport = AnalysisReport | ExpressionReport | BlockedReport | PublicPracticeNote;
-export type SavedPracticeReport = AnalysisReport | ExpressionReport | PublicPracticeNote;
-
-export type CoachConfirmResponse = {
-  session_id: string;
-  confirmed: boolean;
-  handoff: CoachTurnResponse['handoff'];
-  report: PracticeReport;
-};
-
-export type ReportRecord = {
-  practice_session_id: string;
-  report_type: 'analysis' | 'expression' | 'practice_note';
-  title: string;
-  created_at: string;
-};
-
-export type ReportDetail = {
-  practice_session_id: string;
-  created_at: string;
-  report: SavedPracticeReport;
-  playback_url: string;
-};
-
-export type ReportHistoryResponse = {
-  count: number;
-  reports: ReportRecord[];
-};
-
 // ─── 인증 타입 ──────────────────────────────────────────────────────────────
 
 export type AuthUser = {
@@ -261,16 +249,15 @@ export type ConsentDocument = {
   published_at: string;
 };
 
-export type ConsentDecision = 'granted' | 'declined' | 'revoked';
+/** 앱이 보내는 결정은 둘뿐이다. 철회(revoked)는 운영자만 기록하고 API로 받지 않는다. */
+export type ConsentDecision = 'granted' | 'declined';
 
 export type ConsentEntryDocument = ConsentDocument & {
   current_decision: ConsentDecision | null;
+  decided_at?: string | null;
 };
 
-export type ConsentEntryStatus =
-  | 'allowed'
-  | 'decision_required'
-  | 'blocked';
+export type ConsentEntryStatus = 'allowed' | 'decision_required';
 
 export type ConsentEntryResponse = {
   entry_status: ConsentEntryStatus;
@@ -287,59 +274,11 @@ export type TokenPair = {
   pending_consents: ConsentDocument[];
 };
 
-// ─── 업로드 / 세션 타입 ──────────────────────────────────────────────────────
-
-export type UploadIntent = {
-  intent_id: string;
-  upload_url: string;
-  expires_at: string;
-};
-
-export type SessionStatus = 'analyzing' | 'analyzed' | 'failed';
-
-export type PracticeSessionCreate = {
-  session_id: string;
-  status: SessionStatus;
-  summary_id?: string | null;
-};
-
-export type PracticeSessionListItem = {
-  session_id: string;
-  status: SessionStatus;
-  situation: string;
-  character_context: string;
-  goal: string;
-  blockage_kind: '분석' | '표현' | '그 외';
-  sub_branch: string;
-  blockage_detail?: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-export type PracticeSessionDetail = {
-  session_id: string;
-  status: SessionStatus;
-  situation: string;
-  character_context: string;
-  goal: string;
-  blockage_kind: '분석' | '표현' | '그 외';
-  sub_branch: string;
-  blockage_detail?: string | null;
-  created_at: string;
-  updated_at: string;
-  playback_url?: string;
-  summary?: SceneSummary | VideoRecordSummary | null;
-  error_code?:
-    | 'gemini_timeout'
-    | 'gemini_parse_error'
-    | 'unsupported_media'
-    | 'max_attempts_exceeded'
-    | null;
-};
-
-export type PracticeSessionStatusPayload = {
-  status: SessionStatus;
-  error_code: PracticeSessionDetail['error_code'];
+/** GET /v2/me. 앱은 profile_complete로 프로필 입력 화면을 띄울지 정한다. */
+export type MeResponse = AuthUser & {
+  account_type: 'member' | 'guest';
+  profile_complete: boolean;
+  profile: ServerProfile | null;
 };
 
 // ─── 공통 요청 ────────────────────────────────────────────────────────────────
@@ -400,11 +339,27 @@ function postIdempotent<T>(
 
 export const api = {
   // 인증 -----------------------------------------------------------------------
-  /** 소셜 로그인 id_token으로 access/refresh 토큰 교환. provider 예: 'google'. */
-  login(provider: string, idToken: string): Promise<TokenPair> {
+  /** 서버가 켜 둔 로그인 제공자. 앱은 이 목록으로 로그인 버튼을 그린다. */
+  authProviders(): Promise<{ providers: string[] }> {
+    return request('/v2/auth/providers', {}, { auth: false, timeoutMs: 15_000 });
+  },
+
+  /**
+   * 제공자가 준 자격 값으로 로그인한다. 응답은 어느 쪽이든 200이고 result로 가른다 —
+   * 이미 있는 계정은 토큰을, 처음 온 신원은 가입 토큰과 동의 문서를 받는다.
+   */
+  login(body: LoginRequestBody): Promise<LoginResponse> {
+    return request<LoginResponse>('/v2/auth/login', jsonInit(body), {
+      auth: false,
+      timeoutMs: 30_000,
+    });
+  },
+
+  /** 가입 제출. 현재 판 모든 문서의 결정을 담아 통과하면 그 순간 계정이 생기고 토큰을 받는다. */
+  signup(signupToken: string, decisions: SignupDecision[]): Promise<TokenPair> {
     return request<TokenPair>(
-      '/v2/auth/login',
-      jsonInit({ provider, id_token: idToken }),
+      '/v2/auth/signup',
+      jsonInit({ signup_token: signupToken, decisions }),
       { auth: false, timeoutMs: 30_000 },
     );
   },
@@ -428,45 +383,387 @@ export const api = {
     return request('/v2/consents/entry', {}, { auth: true });
   },
 
-  recordConsent(
-    documentId: string,
-    action: 'granted' | 'declined' | 'revoked',
-  ): Promise<void> {
+  recordConsent(documentId: string, action: ConsentDecision): Promise<void> {
     return request<void>('/v2/consents', jsonInit({ document_id: documentId, action }), {
       requestId: true,
     });
   },
 
   // 내 계정 ---------------------------------------------------------------------
+  /** 내 계정과 프로필. 게이트 밖이라 동의·프로필이 끝나기 전에도 읽힌다. */
+  me(): Promise<MeResponse> {
+    return request<MeResponse>('/v2/me', {}, { timeoutMs: 15_000 });
+  },
+
+  /** 프로필 여섯 항목을 한 번에 저장한다. 가입 게이트의 입력 화면과 설정의 수정이 함께 쓴다. */
+  saveProfile(payload: ProfilePayload): Promise<MeResponse> {
+    return request<MeResponse>(
+      '/v2/me/profile',
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      },
+      { timeoutMs: 15_000 },
+    );
+  },
+
+  /** 프로필 사진을 올릴 주소. 앱이 줄인 JPEG 의 크기를 알린다(영상 업로드와 같은 방식). */
+  createProfilePhotoIntent(input: {
+    content_type: string;
+    size_bytes: number;
+  }): Promise<{ upload_url: string; expires_at: string }> {
+    return request('/v2/me/photo', jsonInit(input), { timeoutMs: 30_000 });
+  },
+
+  /** 올리기가 끝났다고 알린다. 서버가 객체를 확인해 프로필 사진으로 바꾸고 옛 사진을 지운다. */
+  completeProfilePhoto(): Promise<MeResponse> {
+    return request<MeResponse>('/v2/me/photo/complete', { method: 'POST' }, { timeoutMs: 30_000 });
+  },
+
+  /** 프로필 사진을 지운다. 사진이 없어도 204다(멱등). */
+  deleteProfilePhoto(): Promise<void> {
+    return request<void>('/v2/me/photo', { method: 'DELETE' }, { timeoutMs: 15_000 });
+  },
+
   /**
-   * 회원탈퇴. 204 를 받으면 끝난다.
+   * 회원탈퇴. 처음이든 다시든 200 과 최초 탈퇴 시각을 받는다.
    *
-   * 서버는 행을 지우지 않고 이메일·닉네임·로그인 연결을 파기하고 refresh 를 전부
-   * 끊는다. 커뮤니티에 쓴 글은 남고 작성자가 '탈퇴한 사용자' 로 바뀐다.
-   * **되돌릴 수 없다.**
+   * 서버는 행을 지우지 않고 이메일·이름·사진·소개·포트폴리오·로그인 연결을 파기하고
+   * refresh 를 전부 끊는다. **되돌릴 수 없다.**
    *
    * 401 재시도를 막지 않는다 — 서버 처리가 멱등해서(이미 탈퇴한 계정이면 최초 탈퇴
    * 시각을 유지) 두 번 닿아도 결과가 같다. 막으면 액세스 토큰이 방금 만료된 사람만
-   * 탈퇴에 실패한다.
+   * 탈퇴에 실패한다. 탈퇴 도중 앱이 죽어 다시 눌러도 같은 200 이다.
    */
-  deleteMe(): Promise<void> {
-    return request<void>('/v2/me', { method: 'DELETE' }, { timeoutMs: 30_000 });
+  deleteMe(): Promise<{ status: 'deactivated'; deactivated_at: string }> {
+    return request('/v2/me', { method: 'DELETE' }, { timeoutMs: 30_000 });
+  },
+
+  // 포트폴리오 -----------------------------------------------------------------
+  // 항목마다 따로 저장한다. 회원 전용이고 보호 기능이다(게스트는 403 member_only).
+  /** 한 번도 편집하지 않았어도 빈 모양으로 200 이다. 배열은 저장된 순서다. */
+  portfolio(): Promise<Portfolio> {
+    return request<Portfolio>('/v2/portfolio', {}, { timeoutMs: 20_000 });
+  },
+
+  /** 소개글 저장. null 이나 빈 글로 지운다. 2,000자까지. */
+  savePortfolioIntro(intro: string | null): Promise<Portfolio> {
+    return request<Portfolio>(
+      '/v2/portfolio/intro',
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ intro }),
+      },
+      { timeoutMs: 20_000 },
+    );
+  },
+
+  /** 경력 추가. 맨 끝에 붙는다. 쉰한 번째는 422 portfolio_credit_limit_exceeded. */
+  createPortfolioCredit(credit: CreditPayload): Promise<PortfolioCredit> {
+    return request<PortfolioCredit>('/v2/portfolio/credits', jsonInit(credit), {
+      timeoutMs: 20_000,
+    });
+  },
+
+  /** 경력 수정. 보낸 항목만 바꾼다. */
+  updatePortfolioCredit(
+    creditId: string,
+    patch: Partial<CreditPayload>,
+  ): Promise<PortfolioCredit> {
+    return request<PortfolioCredit>(
+      `/v2/portfolio/credits/${encodeURIComponent(creditId)}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      },
+      { timeoutMs: 20_000 },
+    );
+  },
+
+  /** 경력 삭제. 이미 지운 것을 다시 지우면 404 다. */
+  deletePortfolioCredit(creditId: string): Promise<void> {
+    return request<void>(
+      `/v2/portfolio/credits/${encodeURIComponent(creditId)}`,
+      { method: 'DELETE' },
+      { timeoutMs: 15_000 },
+    );
+  },
+
+  /** 경력 순서 바꾸기. 지금 있는 id 를 원하는 순서로 전부 보낸다(다르면 422 order_mismatch). */
+  reorderPortfolioCredits(order: { ids: string[] }): Promise<Portfolio> {
+    return request<Portfolio>(
+      '/v2/portfolio/credits/order',
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(order),
+      },
+      { timeoutMs: 20_000 },
+    );
+  },
+
+  /** 포트폴리오 사진을 올릴 주소. 열한 번째는 422 portfolio_photo_limit_exceeded. */
+  createPortfolioPhotoIntent(input: {
+    content_type: string;
+    size_bytes: number;
+  }): Promise<{ photo_id: string; upload_url: string; expires_at: string }> {
+    return request('/v2/portfolio/photos', jsonInit(input), { timeoutMs: 30_000 });
+  },
+
+  /** 올리기가 끝났다고 알린다. 서버가 객체를 확인하고 목록 맨 끝에 붙인다. */
+  completePortfolioPhoto(photoId: string): Promise<Portfolio> {
+    return request<Portfolio>(
+      `/v2/portfolio/photos/${encodeURIComponent(photoId)}/complete`,
+      { method: 'POST' },
+      { timeoutMs: 30_000 },
+    );
+  },
+
+  deletePortfolioPhoto(photoId: string): Promise<void> {
+    return request<void>(
+      `/v2/portfolio/photos/${encodeURIComponent(photoId)}`,
+      { method: 'DELETE' },
+      { timeoutMs: 15_000 },
+    );
+  },
+
+  reorderPortfolioPhotos(order: { ids: string[] }): Promise<Portfolio> {
+    return request<Portfolio>(
+      '/v2/portfolio/photos/order',
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(order),
+      },
+      { timeoutMs: 20_000 },
+    );
+  },
+
+  /**
+   * 공유 링크 켜기·끄기. 처음 켤 때 난수 slug 가 생기고, 꺼도 slug 는 남아 다시 켜면 같은
+   * 주소가 열린다. 주소는 응답의 url 을 그대로 쓴다.
+   */
+  setPortfolioShare(enabled: boolean): Promise<PortfolioShare> {
+    return request<PortfolioShare>(
+      '/v2/portfolio/share',
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+      },
+      { timeoutMs: 20_000 },
+    );
+  },
+
+  // 대본 리딩 -------------------------------------------------------------------
+  // 경로·필드는 리딩 스펙의 API 표(계획안)다. 계약이 굳으면(CONTRACT.md §6-14) lib/reading/types 와 함께 맞춘다.
+  /** 내 대본 목록(최근 고친 순). q 는 제목·배역 이름만 찾는다 — 대사 본문은 찾지 않는다. */
+  listReadingScripts(q?: string): Promise<ScriptListResponse> {
+    const query = q ? `?q=${encodeURIComponent(q)}` : '';
+    return request<ScriptListResponse>(`/v2/reading/scripts${query}`, {}, { timeoutMs: 20_000 });
+  },
+
+  /**
+   * 대본 저장(한 요청). 같은 request_id·같은 본문이면 먼저 만든 대본을 돌려주고(200), 다른 본문이면 422
+   * request_fingerprint_mismatch. 한도는 422 script_too_long·script_limit, 배역은 no_characters·invalid_characters.
+   * 연결이 끊기면 요청 계층이 같은 id 로 다시 보낸다.
+   */
+  createReadingScript(body: CreateScriptBody): Promise<ScriptDetail> {
+    return postIdempotent<ScriptDetail>('/v2/reading/scripts', body, {
+      requestId: body.request_id,
+      timeoutMs: 60_000,
+    });
+  },
+
+  /** 없는 것과 남의 것은 같은 404 다. */
+  getReadingScript(scriptId: string): Promise<ScriptDetail> {
+    return request<ScriptDetail>(`/v2/reading/scripts/${encodeURIComponent(scriptId)}`, {}, { timeoutMs: 20_000 });
+  },
+
+  /** 제목·배역 이름·목소리만 고친다. 줄은 불변이다. 빈 이름·겹치는 이름은 422 invalid_characters. */
+  updateReadingScript(scriptId: string, body: PatchScriptBody): Promise<ScriptDetail> {
+    return request<ScriptDetail>(
+      `/v2/reading/scripts/${encodeURIComponent(scriptId)}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+      { timeoutMs: 20_000 },
+    );
+  },
+
+  /** 배역·줄·회차·녹음(객체 포함)·암기 상태가 함께 지워지고 되돌릴 수 없다. */
+  deleteReadingScript(scriptId: string): Promise<void> {
+    return request<void>(
+      `/v2/reading/scripts/${encodeURIComponent(scriptId)}`,
+      { method: 'DELETE' },
+      { timeoutMs: 20_000 },
+    );
+  },
+
+  /**
+   * 회차 시작(reading.session). 열린 회차가 있으면 서버가 같은 트랜잭션에서 stopped 로 바꾸고 새 회차를
+   * 만든다. 같은 request_id 는 같은 회차 하나. 내 배역 없음·남의 배역 422 invalid_characters, 구간 안 내
+   * 대사 없음·순서 뒤집힘 422 empty_range.
+   */
+  startReadingSession(scriptId: string, body: StartSessionBody): Promise<SessionDetail> {
+    return postIdempotent<SessionDetail>(
+      `/v2/reading/scripts/${encodeURIComponent(scriptId)}/sessions`,
+      body,
+      { requestId: body.request_id, timeoutMs: 30_000 },
+    );
+  },
+
+  /** 그 대본의 회차 목록(최근순). */
+  listReadingSessions(scriptId: string): Promise<{ sessions: SessionCard[] }> {
+    return request(`/v2/reading/scripts/${encodeURIComponent(scriptId)}/sessions`, {}, { timeoutMs: 20_000 });
+  },
+
+  getReadingSession(sessionId: string): Promise<SessionDetail> {
+    return request<SessionDetail>(`/v2/reading/sessions/${encodeURIComponent(sessionId)}`, {}, { timeoutMs: 20_000 });
+  },
+
+  /**
+   * 진행 저장. 서버는 progress_seq 가 저장값보다 큰 요청만 반영하고 작거나 같으면 무시하고 현재 값을 200 으로
+   * 돌려준다. completed·stopped 회차는 409 session_closed, 구간 밖·지문 줄은 422 invalid_line.
+   */
+  saveReadingProgress(sessionId: string, body: ProgressBody): Promise<ProgressResponse> {
+    return request<ProgressResponse>(
+      `/v2/reading/sessions/${encodeURIComponent(sessionId)}/progress`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+      { timeoutMs: 15_000 },
+    );
+  },
+
+  /** 회차와 그 녹음(파일 포함)을 지운다. 암기 상태는 남는다. 없는 것·남의 것은 404. */
+  deleteReadingSession(sessionId: string): Promise<void> {
+    return request<void>(`/v2/reading/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' }, { timeoutMs: 20_000 });
+  },
+
+  /**
+   * 내 대사 한 줄의 녹음을 multipart 한 요청으로 올린다(reading.recording). 같은 request_id 는 같은 결과(멱등),
+   * 더 큰 attempt_no 만 같은 줄의 이전 녹음을 대체하고 작은 번호는 200 현재 값이다. 서버가 m4a 가 아니면 변환해
+   * 저장하고, 변환 실패는 503 audio_conversion_failed 로 답한다(같은 request_id 로 재시도). 한도는 422
+   * recording_too_long·recording_quota, 구간 밖·상대역·지문 줄은 422 invalid_line, 지워진 회차는 404.
+   * 회차의 진행 상태와 분리돼 completed·stopped 회차에도 받는다.
+   */
+  uploadReadingRecording(
+    sessionId: string,
+    input: {
+      request_id: string;
+      line_id: string;
+      attempt_no: number;
+      duration_ms: number;
+      transcript: string | null;
+      transcript_source: 'stt' | 'none';
+      matched: boolean | null;
+      audio: { uri: string; name: string; type: string };
+    },
+  ): Promise<SessionRecording> {
+    const form = new FormData();
+    form.append('request_id', input.request_id);
+    form.append('line_id', input.line_id);
+    form.append('attempt_no', String(input.attempt_no));
+    form.append('duration_ms', String(input.duration_ms));
+    form.append('transcript_source', input.transcript_source);
+    if (input.transcript !== null) form.append('transcript', input.transcript);
+    if (input.matched !== null) form.append('matched', String(input.matched));
+    // React Native 의 fetch 는 {uri, name, type} 를 파일 파트로 보낸다. Content-Type 은 경계와 함께 fetch 가 붙인다.
+    form.append('audio', { uri: input.audio.uri, name: input.audio.name, type: input.audio.type } as unknown as Blob);
+    return request<SessionRecording>(
+      `/v2/reading/sessions/${encodeURIComponent(sessionId)}/recordings`,
+      { method: 'POST', headers: { 'X-Request-Id': input.request_id }, body: form },
+      { timeoutMs: 120_000 },
+    );
+  },
+
+  /** 개별 녹음 삭제. 그 행·객체가 없어지고 회차 진행·암기 상태는 그대로다. */
+  deleteReadingRecording(recordingId: string): Promise<void> {
+    return request<void>(`/v2/reading/recordings/${encodeURIComponent(recordingId)}`, { method: 'DELETE' }, { timeoutMs: 20_000 });
+  },
+
+  /** 그 대본 줄의 암기 상태 행 목록(reading.memorization). 행이 없는 줄은 아직 표시하지 않은 줄이다. */
+  listLineMemorization(scriptId: string): Promise<LineMemorization[]> {
+    return request<LineMemorization[]>(
+      `/v2/reading/scripts/${encodeURIComponent(scriptId)}/memorization`,
+      {},
+      { timeoutMs: 20_000 },
+    );
+  },
+
+  /** 줄 하나의 암기 상태. 그 대본의 대사 줄이면 배역과 무관하게 받고, 지문·장면 줄은 422 invalid_line. */
+  setLineMemorization(lineId: string, status: MemorizationStatus): Promise<LineMemorization> {
+    return request<LineMemorization>(
+      `/v2/reading/lines/${encodeURIComponent(lineId)}/memorization`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      },
+      { timeoutMs: 15_000 },
+    );
+  },
+
+  // 웹 체험 자료 옮기기 ---------------------------------------------------------
+  /**
+   * 웹이 보여 준 여섯 자리 코드로 게스트의 자료를 이 회원으로 옮긴다. 기억이 둘 다 있는데
+   * memory_choice 가 없으면 409 memory_choice_required — 아무것도 옮기지 않고 코드도 살아 있다.
+   */
+  transferGuestData(body: TransferRequestBody): Promise<{ transferred: boolean }> {
+    return request('/v2/guest-transfers', jsonInit(body), { timeoutMs: 60_000 });
+  },
+
+  // 알림 설정 -------------------------------------------------------------------
+  /** 알림 토글 셋. 프로필에 저장돼 폰을 바꿔도 유지된다. 가입 직후에는 셋 다 켜져 있다. */
+  notificationSettings(): Promise<NotificationSettings> {
+    return request('/v2/me/notification-settings', {}, { timeoutMs: 15_000 });
+  },
+
+  /**
+   * 바꿀 토글만 보낸다. 응답은 토글 셋 전체다. 푸시 토글 둘이 다 꺼지면 서버가 그 회원의
+   * 푸시 토큰을 전부 지운다.
+   */
+  updateNotificationSettings(patch: Partial<NotificationSettings>): Promise<NotificationSettings> {
+    return request(
+      '/v2/me/notification-settings',
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      },
+      { timeoutMs: 15_000 },
+    );
   },
 
   // 푸시 알림 -------------------------------------------------------------------
-  /** 이 단말의 Expo push token 을 내 것으로 등록. 서버가 토큰 기준 upsert 라 멱등하다. */
+  /**
+   * 이 단말의 Expo push token 을 내 것으로 등록. 서버가 토큰 기준 upsert 라 멱등하다.
+   * 보호 기능이라 동의와 프로필이 끝난 뒤에만 받는다(그 전에는 403).
+   */
   registerPushToken(token: string, platform: 'ios' | 'android'): Promise<void> {
     return request<void>('/v2/push-tokens', jsonInit({ token, platform }), {
       timeoutMs: 15_000,
     });
   },
 
-  /** 이 단말의 토큰을 지운다(로그아웃·알림 끄기). 없어도 204 — 멱등하다. */
+  /**
+   * 이 단말의 토큰을 지운다. 없어도 204 — 멱등하다. **로그인 없이 보낸다** — 푸시 토큰을 갖고
+   * 있다는 것이 본인 확인이다. 그래서 로그아웃 때 실패한 삭제를 다음 실행 때(기기에 액세스
+   * 토큰이 없어도) 다시 보낼 수 있다.
+   */
   unregisterPushToken(token: string): Promise<void> {
     return request<void>(
       '/v2/push-tokens',
       { ...jsonInit({ token }), method: 'DELETE' },
-      { timeoutMs: 15_000 },
+      { auth: false, timeoutMs: 15_000 },
     );
   },
 
@@ -507,23 +804,63 @@ export const api = {
     return request<void>('/v2/me/memory', { method: 'DELETE' }, { timeoutMs: 15_000 });
   },
 
-  // 업로드 ---------------------------------------------------------------------
-  createUploadIntent(
-    input: UploadIntentInput,
-    options: ApiCallOptions = {},
-  ): Promise<UploadIntent> {
-    return sendUploadIntent(input, (body) =>
-      postIdempotent<UploadIntent>(
-        '/v2/uploads/intents',
-        body,
-        {
-          timeoutMs: 30_000,
-          signal: options.signal,
-        },
-      ),
+  // 영상 보관함 -----------------------------------------------------------------
+  // VideoDtos와 OpenAPI의 보관함 계약을 따른다.
+  /**
+   * 올릴 자리 받기(practice.record). 예약 장부가 request_id 를 보존해 재전송이 같은 자리를 돌려준다.
+   * 100MiB·5분 초과는 422 video_too_large·video_too_long, 총량 초과는 422 video_quota.
+   */
+  createVideoIntent(body: VideoIntentRequest): Promise<VideoIntentResponse> {
+    return postIdempotent<VideoIntentResponse>('/v2/videos/intents', body, { requestId: body.request_id, timeoutMs: 30_000 });
+  },
+
+  /**
+   * 마무리 — videos 행(보관함 저장)을 만든다. 같은 request_id 의 재전송은 같은 영상이고, 자리가 만료됐으면(30분)
+   * 422 upload_expired 라 처음부터 다시 올린다. 실제 바이트가 메타와 다르면 실패한다.
+   */
+  completeVideoIntent(intentId: string, requestId: string): Promise<Video> {
+    return request<Video>(
+      `/v2/videos/intents/${encodeURIComponent(intentId)}/complete`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Request-Id': requestId }, body: '{}' },
+      { timeoutMs: 30_000 },
     );
   },
 
+  /** 내 영상, 최신 저장순. 예시 영상은 섞지 않는다. filter 는 all·recent7·favorite. */
+  listVideos(filter: VideoFilter = 'all', cursor?: string): Promise<VideoListResponse> {
+    const query = new URLSearchParams({ filter });
+    if (cursor) query.set('cursor', cursor);
+    return request<VideoListResponse>(`/v2/videos?${query}`, {}, { timeoutMs: 20_000 });
+  },
+
+  /** 상세 — 서명 재생 주소(10분, 만료 시 재조회)와 사용처. 없는 것·남의 것은 404. */
+  getVideo(videoId: string, options: ApiCallOptions = {}): Promise<Video> {
+    return request<Video>(`/v2/videos/${encodeURIComponent(videoId)}`, {}, { timeoutMs: 20_000, signal: options.signal });
+  },
+
+  setVideoFavorite(videoId: string, favorite: boolean): Promise<Video> {
+    return request<Video>(
+      `/v2/videos/${encodeURIComponent(videoId)}`,
+      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ favorite }) },
+      { timeoutMs: 15_000 },
+    );
+  },
+
+  /** 참조(회차·참여작)가 없을 때만 된다. 있으면 422 video_in_use 이고 아무것도 지워지지 않는다. */
+  deleteVideo(videoId: string): Promise<void> {
+    return request<void>(`/v2/videos/${encodeURIComponent(videoId)}`, { method: 'DELETE' }, { timeoutMs: 20_000 });
+  },
+
+  /** 참조가 있는 영상의 파일만 파기 — 회차·참여작 기록은 남고 재생만 막히며 총량에서 빠진다. */
+  purgeVideoFile(videoId: string): Promise<Video> {
+    return request<Video>(
+      `/v2/videos/${encodeURIComponent(videoId)}/purge-file`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
+      { timeoutMs: 20_000 },
+    );
+  },
+
+  // 업로드 ---------------------------------------------------------------------
   /** presigned URL PUT. UploadTask를 노출해 화면 operation이 native 취소할 수 있게 한다. */
   startUploadToUrl(
     uploadUrl: string,
@@ -566,243 +903,434 @@ export const api = {
     };
   },
 
-  completeUpload(
-    intentId: string,
-    options: ApiCallOptions = {},
-  ): Promise<{ intent_id: string; status: 'finalized' }> {
-    return request(
-      `/v2/uploads/intents/${encodeURIComponent(intentId)}/complete`,
-      { method: 'POST' },
-      { requestId: true, timeoutMs: 30_000, signal: options.signal },
-    );
-  },
-
-  // 연습 세션 -------------------------------------------------------------------
-  createPracticeSession(input: {
-    upload_intent_id: string;
-    scene: SceneContext;
-    /** 배우가 고른 막히는 지점. 없으면 분기가 안 걸리므로 화면에서 반드시 채워 보낸다. */
-    blockage: BlockageSelection;
-    /** 이어서 연습 — 코치가 이 연습의 대화를 이어받는다. 없으면 가장 최근 대화(서버 기본). */
-    continued_from?: string | null;
-  }, options: ApiCallOptions = {}): Promise<PracticeSessionCreate> {
-    return postIdempotent<PracticeSessionCreate>(
-      '/v2/practice-sessions',
-      {
-        upload_intent_id: input.upload_intent_id,
-        situation: sceneValueForSubmit(input.scene.situation),
-        character_context: sceneValueForSubmit(input.scene.character),
-        goal: sceneValueForSubmit(input.scene.goal),
-        blockage_kind: input.blockage.blockage_kind,
-        sub_branch: input.blockage.sub_branch,
-        blockage_detail: input.blockage.blockage_detail,
-        continued_from: input.continued_from ?? null,
-      },
-      { timeoutMs: 30_000, signal: options.signal },
-    );
-  },
-
-  listPracticeSessions(): Promise<{ sessions: PracticeSessionListItem[] }> {
-    return request('/v2/practice-sessions', {}, { timeoutMs: 30_000 });
-  },
-
-  getPracticeSession(
-    sessionId: string,
-    options: ApiCallOptions = {},
-  ): Promise<PracticeSessionDetail> {
-    return request<PracticeSessionDetail>(
-      `/v2/practice-sessions/${encodeURIComponent(sessionId)}`,
-      {},
-      { timeoutMs: 20_000, signal: options.signal },
-    );
-  },
-
-  getPracticeSessionStatus(
-    sessionId: string,
-    options: ApiCallOptions = {},
-  ): Promise<PracticeSessionStatusPayload> {
-    return request<PracticeSessionStatusPayload>(
-      `/v2/practice-sessions/${encodeURIComponent(sessionId)}/status`,
-      {},
-      { timeoutMs: 20_000, signal: options.signal },
-    );
-  },
-
-  reanalyze(
-    sessionId: string,
-    options: ApiCallOptions = {},
-  ): Promise<PracticeSessionCreate> {
-    return request<PracticeSessionCreate>(
-      `/v2/practice-sessions/${encodeURIComponent(sessionId)}/analyze`,
-      { method: 'POST' },
-      { requestId: true, timeoutMs: 30_000, signal: options.signal },
-    );
-  },
-
-  deletePracticeSession(sessionId: string): Promise<void> {
-    return request<void>(
-      `/v2/practice-sessions/${encodeURIComponent(sessionId)}`,
-      { method: 'DELETE' },
-      { timeoutMs: 15_000 },
-    );
-  },
-
-  // 코치 -----------------------------------------------------------------------
+  // 회차(연습) ------------------------------------------------------------------
   /**
-   * 질문 대화를 시작하거나 이어받는다.
-   *
-   * 서버는 열린 대화가 있으면 새로 만들지 않고 그대로 돌려준다 — 앱을 껐다 켜도
-   * 하던 대화가 이어진다. 처음부터 다시 하려면 `restart` 를 켠다.
+   * 새 연습을 시작한다(practice.start). 보관함에서 확정된 영상으로만 되고, 회차 하나와 분석 작업
+   * 하나가 한 트랜잭션으로 생긴다. 같은 request_id 의 재전송은 같은 회차이고, 같은 id 에 다른
+   * 본문이면 422 request_fingerprint_mismatch 다. 확정 전 영상은 422 video_not_ready.
    */
-  coachStart(
-    practiceSessionId: string,
-    options: { restart?: boolean } = {},
-  ): Promise<CoachTurnResponse> {
-    return postIdempotent<CoachTurnResponse>(
+  createPractice(body: CreatePracticeBody, options: ApiCallOptions = {}): Promise<Practice> {
+    return postIdempotent<Practice>('/v2/practices', body, {
+      requestId: body.request_id,
+      timeoutMs: 30_000,
+      signal: options.signal,
+    });
+  },
+
+  /**
+   * 같은 묶음의 다음 회차를 만든다(practice.resume). video_id 를 빼면 그 회차의 영상을 그대로
+   * 쓰고(A1.2), 실으면 새 영상이다(A8.1). 묶음에 닫히지 않은 회차가 있으면 409
+   * practice_in_progress 이고 본문은 코드뿐이라 회차 id 는 묶음 조회에서 얻는다.
+   */
+  continuePractice(
+    practiceId: string,
+    body: ContinuePracticeBody,
+    options: ApiCallOptions = {},
+  ): Promise<Practice> {
+    return postIdempotent<Practice>(
+      `/v2/practices/${encodeURIComponent(practiceId)}/continue`,
+      body,
+      { requestId: body.request_id, timeoutMs: 30_000, signal: options.signal },
+    );
+  },
+
+  /** 묶음 목록. 진행 중 회차 id 가 있으면 그 회차로 복귀시킨다. */
+  async listPracticeGroups(
+    filter: PracticeGroupFilter = 'all',
+    options: ApiCallOptions = {},
+  ): Promise<{ groups: PracticeGroupDetail[] }> {
+    const response = await request<{ groups: PracticeGroupResponse[] }>(
+      `/v2/practices?filter=${filter}`,
+      {},
+      { timeoutMs: 20_000, signal: options.signal },
+    );
+    return { groups: response.groups.map(practiceGroupFromResponse) };
+  },
+
+  async getPractice(practiceId: string, options: ApiCallOptions = {}): Promise<PracticeDetail> {
+    const practice = await request<PracticeResponse>(
+      `/v2/practices/${encodeURIComponent(practiceId)}`,
+      {},
+      { timeoutMs: 20_000, signal: options.signal },
+    );
+    // 재생은 독립 자산에서 읽는다. 파일 조회가 실패해도 장면·노트·대화는 열 수 있다.
+    const video = practice.video_id ? await api.getVideo(practice.video_id, options).catch(() => null) : null;
+    return {
+      ...practice,
+      scene: { situation: practice.situation, character: practice.character, goal: practice.goal },
+      blockage: { category: practice.blockage_category, detail: practice.blockage_detail, note: practice.blockage_note },
+      playback_url: video?.purged_at ? null : video?.playback_url ?? null,
+      video_purged: Boolean(video?.purged_at),
+    };
+  },
+
+  /** 묶음 상세(A1.2) — 회차 흐름·마지막 대화·영상. */
+  async getPracticeGroup(rootId: string, options: ApiCallOptions = {}): Promise<PracticeGroupDetail> {
+    // 서버는 묶음 전체를 목록에 싣는다. /{root_id}/group은 PATCH 전용이다.
+    const { groups } = await api.listPracticeGroups('all', options);
+    const group = groups.find(item => item.root_id === rootId);
+    if (!group) throw new ApiError(404, translate('history.groupLoadFail'), 'practice_not_found');
+    return group;
+  },
+
+  /** 묶음 속성(즐겨찾기·숨김·제목). 숨김은 묶음 전체이고 노트·대화·기억은 지우지 않는다. */
+  async patchPracticeGroup(rootId: string, patch: GroupPatch): Promise<PracticeGroupDetail> {
+    const group = await request<PracticeGroupResponse>(
+      `/v2/practices/${encodeURIComponent(rootId)}/group`,
+      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) },
+      { timeoutMs: 20_000 },
+    );
+    return practiceGroupFromResponse(group);
+  },
+
+  /** 회차 진행 상태(A10 폴링). 작업 상태와 분석 결과 상태는 다른 것이다. */
+  getPracticeStatus(practiceId: string, options: ApiCallOptions = {}): Promise<PracticeStatus> {
+    return request<PracticeStatus>(
+      `/v2/practices/${encodeURIComponent(practiceId)}/status`,
+      {},
+      { timeoutMs: 20_000, signal: options.signal },
+    );
+  },
+
+  /** "그만두기" — 작업을 failed/cancelled 로 끝낸다. 연습을 숨기지 않는다. */
+  cancelPractice(practiceId: string, options: ApiCallOptions = {}): Promise<PracticeStatus> {
+    return request<PracticeStatus>(
+      `/v2/practices/${encodeURIComponent(practiceId)}/cancel`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
+      { requestId: true, timeoutMs: 20_000, signal: options.signal },
+    );
+  },
+
+  /**
+   * 실패한 회차를 명시적으로 다시 시도한다 — 새 작업이 생기고 stage 가 analyzing 으로 돌아간다.
+   * 다른 진행 중 회차가 있으면 409 practice_in_progress.
+   */
+  retryPracticeAnalysis(practiceId: string, options: ApiCallOptions & { requestId?: string } = {}): Promise<Practice> {
+    const requestId = options.requestId ?? randomId();
+    return postIdempotent<Practice>(
+      `/v2/practices/${encodeURIComponent(practiceId)}/analyze`,
+      { request_id: requestId },
+      { requestId, timeoutMs: 30_000, signal: options.signal },
+    );
+  },
+
+  // 대화(practice.coach) --------------------------------------------------------
+  /**
+   * 회차의 대화를 시작한다. 회차에 대화는 하나이고, 열린 대화가 있으면 같은 대화를 돌려준다.
+   * 같은 request_id 재전송은 같은 대화다. 분석이 끝나지 않았으면 409 analysis_not_ready.
+   */
+  startConversation(practiceId: string, requestId: string): Promise<CoachTurnResult> {
+    return postIdempotent<CoachTurnResult>(
       '/v2/coach/start',
-      {
-        practice_session_id: practiceSessionId,
-        ...(options.restart ? { restart: true } : {}),
-      },
-      { timeoutMs: 120_000 },
+      { practice_id: practiceId, request_id: requestId },
+      { requestId, timeoutMs: 120_000 },
     );
   },
 
-  coachReply(sessionId: string, text: string): Promise<CoachTurnResponse> {
-    return postIdempotent<CoachTurnResponse>(
-      '/v2/coach/reply',
-      { session_id: sessionId, text },
-      { timeoutMs: 120_000 },
-    );
-  },
-
-  coachConfirm(
-    coachSessionId: string,
-    confirmed: boolean,
-    rebuttalText?: string,
-  ): Promise<CoachConfirmResponse> {
-    return postIdempotent<CoachConfirmResponse>(
-      '/v2/coach/confirm',
-      {
-        coach_session_id: coachSessionId,
-        confirmed,
-        ...(confirmed ? {} : { rebuttal_text: rebuttalText }),
-      },
-      { timeoutMs: 120_000 },
-    );
-  },
-
-  // 리포트 ---------------------------------------------------------------------
-  createReport(sessionId: string): Promise<PracticeReport> {
-    return postIdempotent<PracticeReport>(
-      '/v2/reports',
-      { session_id: sessionId },
-      { timeoutMs: 120_000 },
-    );
-  },
-
-  reportHistory(): Promise<ReportHistoryResponse> {
-    return request<ReportHistoryResponse>('/v2/reports', {}, { timeoutMs: 30_000 });
-  },
-
-  getReport(practiceSessionId: string): Promise<ReportDetail> {
-    return request<ReportDetail>(
-      `/v2/reports/${encodeURIComponent(practiceSessionId)}`,
-      {},
-      { timeoutMs: 20_000 },
-    );
-  },
-
-  // 게시판 --------------------------------------------------------------------
-  // 목록·상세는 로그인 없이 열린다. 쓰기만 토큰이 필요하다.
-  communityCategories(): Promise<{ categories: CommunityCategory[] }> {
-    return request<{ categories: CommunityCategory[] }>('/v2/community/categories', {}, {
-      auth: false,
-      timeoutMs: 15_000,
+  /**
+   * 답을 보낸다. revision 이 어긋나면 409 conversation_conflict 라 화면은 입력을 보존하고
+   * 최신 대화를 다시 읽는다. 닫힌 대화면 409 conversation_closed.
+   */
+  replyToCoach(body: CoachReplyBody): Promise<CoachTurnResult> {
+    return postIdempotent<CoachTurnResult>('/v2/coach/reply', body, {
+      requestId: body.request_id,
+      timeoutMs: 120_000,
     });
   },
 
-  communityPosts(params: { category?: string; cursor?: string } = {}): Promise<PostListResponse> {
-    const query = new URLSearchParams();
-    if (params.category) query.set('category', params.category);
+  /** 충돌 뒤 다시 읽기·앱 재시작 때 쓰는 대화 조회. */
+  getConversation(conversationId: string, options: ApiCallOptions = {}): Promise<CoachConversation> {
+    return request<CoachConversation>(
+      `/v2/coach/conversations/${encodeURIComponent(conversationId)}`,
+      {},
+      { timeoutMs: 20_000, signal: options.signal },
+    );
+  },
+
+  // 연습 노트(practice.note) ------------------------------------------------------
+  /** 회차의 노트. 없으면 404(대화가 짧아 노트를 만들지 않은 회차). */
+  getPracticeNote(practiceId: string, options: ApiCallOptions = {}): Promise<PracticeNote> {
+    return request<PracticeNote>(
+      `/v2/practices/${encodeURIComponent(practiceId)}/note`,
+      {},
+      { timeoutMs: 20_000, signal: options.signal },
+    );
+  },
+
+  /**
+   * 노트 평가. 노트 하나에 한 행이고 다시 보내면 덮어쓴다(comment 를 빼면 한 줄도 비운다). 같은 request_id·같은
+   * 본문의 재전송은 같은 답이다. 없는·남의·노트 없는 회차는 404 note_not_found.
+   */
+  putNoteRating(practiceId: string, body: NoteRatingBody): Promise<NoteRating> {
+    return request<NoteRating>(
+      `/v2/practices/${encodeURIComponent(practiceId)}/note/rating`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+      { timeoutMs: 15_000 },
+    );
+  },
+
+  // 이탈 설문(practice.feedback) --------------------------------------------------
+  /**
+   * 자동 노출 표식을 원자적으로 선점한다. 선점한 기기만 시트를 띄운다(두 기기가 동시에
+   * 물어도 하나만). 이미 물어본 계정이면 asked_now 가 거짓이다.
+   */
+  claimFeedbackAsk(): Promise<{ asked: boolean; asked_now: boolean }> {
+    return request<{ asked: boolean; asked_now: boolean }>(
+      '/v2/me/practice-feedback/claim',
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
+      { requestId: true, timeoutMs: 15_000 },
+    );
+  },
+
+  /** 소감 접수. 건너뛰기도 본문 없는 행으로 남는다. 실패해도 나가기를 막지 않는다. */
+  submitPracticeFeedback(body: FeedbackBody): Promise<{ id: string }> {
+    return postIdempotent<{ id: string }>('/v2/practice-feedback', body, {
+      requestId: body.request_id,
+      timeoutMs: 20_000,
+    });
+  },
+
+  // 챌린지(04-challenge) ---------------------------------------------------------
+  /**
+   * 대사 목록. 탭은 인기·최신·종료·내 챌린지이고 q 는 2자 이상일 때만 보낸다(대사·작품·참여작
+   * 작성자 이름만 찾는다). 오늘의 챌린지는 featured 로 따로 온다(인기·최신 탭에서만 고정).
+   * 게스트·한국어가 아닌 회원은 403 member_only.
+   */
+  listChallenges(
+    params: { tab: ChallengeTab; q?: string; cursor?: string } = { tab: 'popular' },
+    options: ApiCallOptions = {},
+  ): Promise<ChallengeListResponse> {
+    const query = new URLSearchParams({ tab: params.tab });
+    if (params.q) query.set('q', params.q);
     if (params.cursor) query.set('cursor', params.cursor);
-    const suffix = query.toString() ? `?${query.toString()}` : '';
-    return request<PostListResponse>(`/v2/community/posts${suffix}`, {}, {
-      auth: false,
+    return request<ChallengeListResponse>(`/v2/challenges?${query.toString()}`, {}, {
       timeoutMs: 20_000,
+      signal: options.signal,
     });
   },
 
-  communityPost(postId: string): Promise<CommunityPost> {
-    return request<CommunityPost>(`/v2/community/posts/${encodeURIComponent(postId)}`, {}, {
-      auth: false,
+  /** 대사 상세 + 집계. review·hidden·deleted 챌린지는 남의 눈에 404 다. */
+  getChallenge(challengeId: string, options: ApiCallOptions = {}): Promise<ChallengeDetail> {
+    return request<ChallengeDetail>(`/v2/challenges/${encodeURIComponent(challengeId)}`, {}, {
       timeoutMs: 20_000,
+      signal: options.signal,
     });
   },
 
-  communityComments(postId: string, cursor?: string): Promise<CommentListResponse> {
-    const suffix = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
-    return request<CommentListResponse>(
-      `/v2/community/posts/${encodeURIComponent(postId)}/comments${suffix}`,
+  /**
+   * 대사 등록(A16.2). 같은 request_id 재전송은 같은 챌린지이고, 같은 대사로 진행 중 챌린지가
+   * 있으면 422 duplicate_challenge, 하루 3개를 넘기면 429 daily_challenge_limit 다.
+   */
+  createChallenge(body: CreateChallengeBody): Promise<ChallengeDetail> {
+    return postIdempotent<ChallengeDetail>('/v2/challenges', body, {
+      requestId: body.request_id,
+      timeoutMs: 30_000,
+    });
+  },
+
+  /** 참여작이 없는 자기 챌린지만 지울 수 있다(422 challenge_has_entries). */
+  deleteChallenge(challengeId: string): Promise<void> {
+    return request<void>(`/v2/challenges/${encodeURIComponent(challengeId)}`, { method: 'DELETE' }, { timeoutMs: 20_000 });
+  },
+
+  /**
+   * 참여작 목록(A17 랭킹·A15 피드). 좋아요순은 처음 조회한 순서를 10분 고정하고, 정렬 기준이
+   * 바뀌면 410 cursor_expired 라 새로 조회한다.
+   */
+  listChallengeEntries(
+    challengeId: string,
+    params: { sort: EntrySort; cursor?: string; fromEntry?: string } = { sort: 'likes' },
+    options: ApiCallOptions = {},
+  ): Promise<EntriesResponse> {
+    const query = new URLSearchParams({ sort: params.sort });
+    if (params.cursor) query.set('cursor', params.cursor);
+    if (params.fromEntry) query.set('from_entry', params.fromEntry);
+    return request<EntriesResponse>(
+      `/v2/challenges/${encodeURIComponent(challengeId)}/entries?${query.toString()}`,
       {},
-      { auth: false, timeoutMs: 20_000 },
+      { timeoutMs: 20_000, signal: options.signal },
     );
   },
 
-  createCommunityPost(input: {
-    category_slug: string;
-    title: string;
-    body: string;
-    anonymous: boolean;
-  }): Promise<CommunityPost> {
-    return request<CommunityPost>('/v2/community/posts', jsonInit(input), { timeoutMs: 20_000 });
-  },
-
-  // 신고·차단 (SOMA-444) — 값·경로는 웹 community.ts와 동일. 신고는 204, 중복 신고는 409.
-  reportCommunityContent(input: ReportPayload): Promise<void> {
-    return request<void>('/v2/community/reports', jsonInit(input), { timeoutMs: 15_000 });
-  },
-
-  blockCommunityUser(userId: string): Promise<void> {
-    return request<void>('/v2/community/blocks', jsonInit({ user_id: userId }), {
-      timeoutMs: 15_000,
+  /**
+   * 챌린지 참여(A18.1·A18.2). 영상은 파일이 남아 있는 확정된 본인 영상이어야 하고 60초 이내다.
+   * 같은 요청 id 재전송은 같은 참여작이고, 같은 영상으로 같은 챌린지에 또 올리면 422
+   * duplicate_entry, 종료된 챌린지면 422 challenge_closed 다.
+   */
+  createEntry(challengeId: string, body: CreateEntryBody): Promise<MyEntryCard> {
+    return postIdempotent<MyEntryCard>(`/v2/challenges/${encodeURIComponent(challengeId)}/entries`, body, {
+      requestId: body.request_id,
+      timeoutMs: 30_000,
     });
   },
 
-  // 내 글·댓글 삭제 (SOMA-499, App Store 1.2) — 서버가 작성자만 지우게 막는다(남의 것은 403).
-  deleteCommunityPost(postId: string): Promise<void> {
-    return request<void>(
-      `/v2/community/posts/${encodeURIComponent(postId)}`,
-      { method: 'DELETE' },
-      { timeoutMs: 15_000 },
-    );
-  },
-
-  deleteCommunityComment(commentId: string): Promise<void> {
-    return request<void>(
-      `/v2/community/comments/${encodeURIComponent(commentId)}`,
-      { method: 'DELETE' },
-      { timeoutMs: 15_000 },
-    );
-  },
-
-  createCommunityComment(
-    postId: string,
-    input: { body: string; anonymous: boolean },
-  ): Promise<CommunityComment> {
-    return request<CommunityComment>(
-      `/v2/community/posts/${encodeURIComponent(postId)}/comments`,
-      jsonInit(input),
+  /** 캡션·공개 범위 고치기. 작성자만 되고 신고 숨김·종료 뒤 공개 전환은 422 다. */
+  updateEntry(entryId: string, patch: EntryPatch): Promise<MyEntryCard> {
+    return request<MyEntryCard>(
+      `/v2/entries/${encodeURIComponent(entryId)}`,
+      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) },
       { timeoutMs: 20_000 },
     );
   },
 
-  likeCommunityPost(postId: string, liked: boolean): Promise<void> {
+  /** 참여작만 지운다 — 영상은 보관함에 남는다. */
+  deleteEntry(entryId: string): Promise<void> {
+    return request<void>(`/v2/entries/${encodeURIComponent(entryId)}`, { method: 'DELETE' }, { timeoutMs: 20_000 });
+  },
+
+  /**
+   * 조회수 사건. 3초 이상 재생된 사건마다 한 번 보내고 같은 event_id 는 한 번만 반영된다.
+   * 실패해도 재생을 막지 않으므로 화면은 결과를 기다리지 않는다.
+   */
+  recordEntryView(entryId: string, eventId: string): Promise<void> {
     return request<void>(
-      `/v2/community/posts/${encodeURIComponent(postId)}/likes`,
-      { method: liked ? 'POST' : 'DELETE' },
-      { timeoutMs: 15_000 },
+      `/v2/entries/${encodeURIComponent(entryId)}/views`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId }) },
+      { timeoutMs: 10_000 },
     );
+  },
+
+  // 반응(challenge.react) ---------------------------------------------------------
+  /**
+   * 좋아요 켜기·끄기. 멱등이라 두 번 켜도 하나이고 없는 것을 꺼도 200 이다. 자기 참여작은
+   * 422 self_like, 비공개·삭제·숨김·차단 관계는 404 다.
+   */
+  likeEntry(entryId: string, liked: boolean): Promise<{ like_count: number; liked: boolean }> {
+    return request<{ like_count: number; liked: boolean }>(
+      `/v2/entries/${encodeURIComponent(entryId)}/like`,
+      { method: liked ? 'PUT' : 'DELETE' },
+      { requestId: true, timeoutMs: 15_000 },
+    );
+  },
+
+  /** 저장(개인 북마크) 켜기·끄기. 자기 참여작은 422 self_save 이고 알림을 만들지 않는다. */
+  saveEntry(entryId: string, saved: boolean): Promise<{ saved: boolean }> {
+    return request<{ saved: boolean }>(
+      `/v2/entries/${encodeURIComponent(entryId)}/save`,
+      { method: saved ? 'PUT' : 'DELETE' },
+      { requestId: true, timeoutMs: 15_000 },
+    );
+  },
+
+  /** 공유 링크가 가리키는 참여작 하나. 볼 수 없으면 404 다(개인 노출 조건). */
+  getEntry(entryId: string): Promise<EntryCard & { challenge_id: string }> {
+    return request<EntryCard & { challenge_id: string }>(
+      `/v2/entries/${encodeURIComponent(entryId)}`,
+      {},
+      { timeoutMs: 20_000 },
+    );
+  },
+
+  /** 댓글 목록 — 최신순 20개씩. 차단·숨김은 서버가 거른다(내 숨김 댓글은 "확인 중"으로 온다). */
+  listComments(entryId: string, cursor?: string): Promise<CommentsResponse> {
+    const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
+    return request<CommentsResponse>(`/v2/entries/${encodeURIComponent(entryId)}/comments${query}`, {}, { timeoutMs: 20_000 });
+  },
+
+  /** 댓글 쓰기. 같은 요청 id 재전송은 같은 댓글이고 하루 100개를 넘기면 429 다. */
+  createComment(entryId: string, body: CreateCommentBody): Promise<EntryComment> {
+    return postIdempotent<EntryComment>(`/v2/entries/${encodeURIComponent(entryId)}/comments`, body, {
+      requestId: body.request_id,
+      timeoutMs: 20_000,
+    });
+  },
+
+  /** 본인 댓글만 지운다(남의 댓글은 404). 본문은 파기되고 목록에서 빠진다. */
+  deleteComment(commentId: string): Promise<void> {
+    return request<void>(`/v2/comments/${encodeURIComponent(commentId)}`, { method: 'DELETE' }, { timeoutMs: 15_000 });
+  },
+
+  // 신고·차단(challenge.report · challenge.block) --------------------------------
+  /** 참여작·댓글·챌린지 신고. 본인 것은 422 self_report, 볼 수 없는 대상은 404 다. */
+  createReport(body: ReportBody): Promise<{ id: string; status: string }> {
+    return postIdempotent<{ id: string; status: string }>('/v2/reports', body, {
+      requestId: body.request_id,
+      timeoutMs: 20_000,
+    });
+  },
+
+  /** 사람 차단 켜기·끄기. 멱등이고 자기 자신은 422 self_block 이다. 상대에게 알리지 않는다. */
+  blockUser(userId: string, blocked: boolean): Promise<void> {
+    return request<void>(
+      `/v2/me/blocks/${encodeURIComponent(userId)}`,
+      { method: blocked ? 'PUT' : 'DELETE' },
+      { requestId: true, timeoutMs: 15_000 },
+    );
+  },
+
+  listBlocks(): Promise<{ users: BlockedUser[] }> {
+    return request<{ users: BlockedUser[] }>('/v2/me/blocks', {}, { timeoutMs: 20_000 });
+  },
+
+  // AI 리포트(challenge.ai-report) -----------------------------------------------
+  /**
+   * 리포트 만들기를 부탁한다. 이미 결과가 있으면 그것을 돌려주고, 같은 요청 id 의 재전송은
+   * 기존 작업이다. 하루 3회를 넘기면 429 daily_report_request_limit, 파일이 파기된 참여작은
+   * 422 video_not_ready 다.
+   */
+  requestAiReport(entryId: string, requestId: string): Promise<{ status: string }> {
+    return postIdempotent<{ status: string }>(
+      `/v2/entries/${encodeURIComponent(entryId)}/ai-report`,
+      { request_id: requestId },
+      { requestId, timeoutMs: 30_000 },
+    );
+  },
+
+  /** 본인만 본다(남의 리포트는 404). 비공개 참여작의 리포트도 본인은 본다. */
+  getAiReport(entryId: string, options: ApiCallOptions = {}): Promise<AiReport> {
+    return request<AiReport>(`/v2/entries/${encodeURIComponent(entryId)}/ai-report`, {}, {
+      timeoutMs: 20_000,
+      signal: options.signal,
+    });
+  },
+
+  // 알림함(challenge.notification) -------------------------------------------------
+  /** 묶음 20개씩, 묶음의 최신 사건 순. 토글을 꺼도 여기에는 쌓인다. */
+  listNotifications(cursor?: string): Promise<NotificationsResponse> {
+    const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
+    return request<NotificationsResponse>(`/v2/me/notifications${query}`, {}, { timeoutMs: 20_000 });
+  },
+
+  /**
+   * 읽음 표시. 묶음을 열면 그 묶음의 사건 전부가, "모두 읽음"은 요청 시각·id 까지가 읽음이 된다
+   * (그 뒤 도착한 것은 읽지 않음으로 남는다).
+   */
+  readNotifications(body: { group_keys?: string[]; all_before?: { created_at: string; id: string } }): Promise<void> {
+    return request<void>(
+      '/v2/me/notifications/read',
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
+      { requestId: true, timeoutMs: 15_000 },
+    );
+  },
+
+  /** 탭 배지 — 읽지 않은 묶음 수다. */
+  unreadNotificationCount(): Promise<{ count: number }> {
+    return request<{ count: number }>('/v2/me/notifications/unread-count', {}, { timeoutMs: 15_000 });
+  },
+
+  /** 저장한 참여작(A15.5). 비공개·운영 숨김은 목록에서 빠지고 행은 남는다. */
+  listSavedEntries(cursor?: string): Promise<{ entries: EntryCard[]; my_entry_count: number; saved_count: number }> {
+    const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
+    return request(`/v2/me/saved-entries${query}`, {}, { timeoutMs: 20_000 });
+  },
+
+  /**
+   * 내 참여작(P03). 분류별 수(counts)는 서버가 전체로 세고 목록은 20개씩이다(삭제된 것은 오지 않는다). visibility 로
+   * 한 분류만 받을 수 있다.
+   */
+  listMyChallengeEntries(
+    visibility?: 'public' | 'private' | 'under_review',
+    cursor?: string,
+  ): Promise<MyEntriesResponse> {
+    const query = new URLSearchParams();
+    if (visibility) query.set('visibility', visibility);
+    if (cursor) query.set('cursor', cursor);
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return request<MyEntriesResponse>(`/v2/me/challenge-entries${suffix}`, {}, { timeoutMs: 20_000 });
   },
 
   // 입시 ----------------------------------------------------------------------

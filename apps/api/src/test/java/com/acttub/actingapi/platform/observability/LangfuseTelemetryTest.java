@@ -291,6 +291,51 @@ class LangfuseTelemetryTest {
         telemetry.score(LlmScore.flag(null, "coach.regenerated", false));
     }
 
+    @Test
+    @DisplayName("실행 환경을 정하면 기록 전체에 그 이름이 붙는다")
+    void tracingEnvironmentIsAttachedToTheResource() {
+        JsonNode resource = resource(telemetry(environmentWith("production"))
+                .tracePayload(call(LlmStep.COACH_TURN, null)));
+
+        assertThat(attributes(resource))
+                .containsEntry("service.name", "acttub-api")
+                .containsEntry("langfuse.environment", "production");
+    }
+
+    @Test
+    @DisplayName("실행 환경을 안 정하면 환경 속성을 만들지 않는다")
+    void missingTracingEnvironmentLeavesTheResourceAlone() {
+        JsonNode resource = resource(telemetry(enabledEnvironment())
+                .tracePayload(call(LlmStep.COACH_TURN, null)));
+
+        assertThat(attributes(resource)).containsOnlyKeys("service.name");
+    }
+
+    /**
+     * 규칙에 안 맞는 이름을 그대로 실으면 수집 자체가 거절당해 기록이 통째로 사라진다.
+     * 환경 구분을 잃는 것보다 낫지 않으므로, 틀린 값은 버리고 기본 환경으로 보낸다.
+     */
+    @Test
+    @DisplayName("규칙에 안 맞는 환경 이름은 버리고 기록은 그대로 보낸다")
+    void invalidTracingEnvironmentIsDroppedWithoutBreakingTheTrace() {
+        List<String> invalid = List.of(
+                "Production",      // 대문자
+                "prod env",        // 공백
+                "prod!",           // 기호
+                "langfuse-prod",   // langfuse 로 시작
+                "a".repeat(41));   // 40자 초과
+
+        for (String value : invalid) {
+            JsonNode payload = telemetry(environmentWith(value))
+                    .tracePayload(call(LlmStep.COACH_TURN, null));
+
+            assertThat(attributes(resource(payload))).as(value).containsOnlyKeys("service.name");
+            assertThat(payload.path("resourceSpans").path(0).path("scopeSpans").path(0)
+                    .path("spans").path(0).path("traceId").asText()).as(value)
+                    .isEqualTo("11112222333344445555666677778888");
+        }
+    }
+
     private static LangfuseTelemetry telemetry(Map<String, String> environment) {
         return new LangfuseTelemetry(MAPPER, environment::get, Runnable::run);
     }
@@ -315,6 +360,16 @@ class LangfuseTelemetryTest {
                 Duration.ofSeconds(2),
                 errorMessage,
                 LlmCall.metadata("turn", "3", "blockage", null));
+    }
+
+    private static Map<String, String> environmentWith(String tracingEnvironment) {
+        Map<String, String> values = new java.util.LinkedHashMap<>(enabledEnvironment());
+        values.put("LANGFUSE_TRACING_ENVIRONMENT", tracingEnvironment);
+        return values;
+    }
+
+    private static JsonNode resource(JsonNode payload) {
+        return payload.path("resourceSpans").path(0).path("resource");
     }
 
     private static Map<String, String> attributes(JsonNode span) {

@@ -23,7 +23,9 @@ export default function ReadingFull() {
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>
       <Text style={styles.title}>{script.title}</Text>
       {script.lines.map((l, i) =>
-        l.type === 'direction' ? (
+        l.type === 'scene' ? (
+          <Text key={i} style={styles.scene}>{l.text}</Text>
+        ) : l.type === 'direction' ? (
           <Text key={i} style={styles.direction}>{l.text}</Text>
         ) : (
           <View key={i} style={styles.line}>
@@ -43,6 +45,7 @@ const styles = StyleSheet.create({
   content: { padding: 20, gap: 12, paddingBottom: 60 },
   title: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 20, marginBottom: 4 },
   direction: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 14, fontStyle: 'italic', lineHeight: 21, marginVertical: 4 },
+  scene: { color: palette.textDim, fontFamily: 'Pretendard-Bold', fontSize: 15, marginTop: 10, marginBottom: 2 },
   line: { gap: 2 },
   role: { color: palette.textDim, fontFamily: 'Pretendard-Bold', fontSize: 14 },
   roleMine: { color: palette.blueDeep },

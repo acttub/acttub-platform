@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.profile.app.ProfileService;
+import com.acttub.actingapi.feature.push.app.PushTarget;
 import com.acttub.actingapi.feature.push.app.PushTokenRepository;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import org.junit.jupiter.api.Test;
@@ -63,8 +64,9 @@ class PushTokenLifecycleIT {
                 .containsEntry("user_id", second)
                 .containsEntry("platform", "android");
 
-        tokens.unregister(second, token);
-        tokens.unregister(second, token);
+        // 삭제는 주인을 따지지 않는다 — 토큰을 갖고 있다는 것이 본인 확인이다. 없어도 조용히 지나간다.
+        tokens.unregister(token);
+        tokens.unregister(token);
         assertThat(countTokens(second)).isZero();
     }
 
@@ -77,11 +79,18 @@ class PushTokenLifecycleIT {
         tokens.register(bystander, "ExponentPushToken[bystander]", "ios");
         UUID sessionId = insertPracticeSession(owner);
 
-        List<String> found = tokens.tokensForSessionOwner(sessionId);
+        List<String> found = tokens.analysisDoneTargets(sessionId).stream()
+                .map(PushTarget::token)
+                .toList();
 
         assertThat(found).containsExactly(
                 "ExponentPushToken[owner-phone]", "ExponentPushToken[owner-tablet]");
-        assertThat(tokens.tokensForSessionOwner(UUID.randomUUID())).isEmpty();
+        assertThat(tokens.analysisDoneTargets(UUID.randomUUID())).isEmpty();
+
+        // 주인이 분석 완료 알림을 꺼 두었으면 보낼 곳이 없다. 토큰은 남는다(챌린지 알림은 켜져 있다).
+        jdbc.update("INSERT INTO user_profiles(user_id,notify_analysis_done) VALUES (?,false)", owner);
+        assertThat(tokens.analysisDoneTargets(sessionId)).isEmpty();
+        assertThat(countTokens(owner)).isEqualTo(2);
     }
 
     @Test
@@ -89,7 +98,7 @@ class PushTokenLifecycleIT {
         UUID user = insertUser("push-deactivate@example.com");
         tokens.register(user, "ExponentPushToken[to-destroy]", "ios");
 
-        profiles.deactivate(user);
+        profiles.withdraw(user);
 
         assertThat(countTokens(user)).isZero();
     }

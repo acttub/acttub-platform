@@ -1,0 +1,33 @@
+{
+  "title": null,
+  "roles": [
+    "지수",
+    "민준"
+  ],
+  "lines": [
+    {
+      "type": "direction",
+      "text": "서른한 글자를 채워서 제목이 되지 못하게 만드는 아주 긴 첫 줄"
+    },
+    {
+      "type": "dialogue",
+      "role": "지수",
+      "text": "하나."
+    },
+    {
+      "type": "dialogue",
+      "role": "민준",
+      "text": "둘."
+    },
+    {
+      "type": "dialogue",
+      "role": "지수",
+      "text": "셋."
+    },
+    {
+      "type": "dialogue",
+      "role": "민준",
+      "text": "넷."
+    }
+  ]
+}

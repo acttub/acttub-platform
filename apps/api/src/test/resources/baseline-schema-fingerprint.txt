@@ -1,3 +1,21 @@
+COLUMN account_cleanup_operations.attempt_count ord=5 type=int4 len=- null=NO default=0
+COLUMN account_cleanup_operations.created_at ord=9 type=timestamptz len=- null=NO default=now()
+COLUMN account_cleanup_operations.expires_at ord=7 type=timestamptz len=- null=NO default=-
+COLUMN account_cleanup_operations.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
+COLUMN account_cleanup_operations.kind ord=3 type=text len=- null=NO default=-
+COLUMN account_cleanup_operations.last_error ord=8 type=text len=- null=YES default=-
+COLUMN account_cleanup_operations.next_attempt_at ord=6 type=timestamptz len=- null=NO default=-
+COLUMN account_cleanup_operations.payload_encrypted ord=4 type=text len=- null=NO default=-
+COLUMN account_cleanup_operations.updated_at ord=10 type=timestamptz len=- null=NO default=now()
+COLUMN account_cleanup_operations.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN actor_memories.created_at ord=7 type=timestamptz len=- null=NO default=now()
+COLUMN actor_memories.field ord=3 type=text len=- null=NO default=-
+COLUMN actor_memories.id ord=1 type=uuid len=- null=NO default=-
+COLUMN actor_memories.source_practice_id ord=6 type=uuid len=- null=YES default=-
+COLUMN actor_memories.updated_at ord=8 type=timestamptz len=- null=NO default=now()
+COLUMN actor_memories.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN actor_memories.value ord=4 type=text len=- null=NO default=-
+COLUMN actor_memories.written_by ord=5 type=text len=- null=NO default=-
 COLUMN actor_memory_entries.created_at ord=7 type=timestamptz len=- null=NO default=now()
 COLUMN actor_memory_entries.field ord=3 type=text len=- null=NO default=-
 COLUMN actor_memory_entries.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
@@ -6,6 +24,29 @@ COLUMN actor_memory_entries.updated_at ord=8 type=timestamptz len=- null=NO defa
 COLUMN actor_memory_entries.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN actor_memory_entries.value ord=4 type=text len=- null=NO default=-
 COLUMN actor_memory_entries.written_by ord=5 type=text len=- null=NO default=-
+COLUMN ai_jobs.attempt_count ord=8 type=int4 len=- null=NO default=0
+COLUMN ai_jobs.created_at ord=14 type=timestamptz len=- null=NO default=now()
+COLUMN ai_jobs.failure_reason ord=11 type=text len=- null=YES default=-
+COLUMN ai_jobs.id ord=1 type=uuid len=- null=NO default=-
+COLUMN ai_jobs.kind ord=3 type=text len=- null=NO default=-
+COLUMN ai_jobs.lease_expires_at ord=10 type=timestamptz len=- null=YES default=-
+COLUMN ai_jobs.lease_token ord=9 type=uuid len=- null=YES default=-
+COLUMN ai_jobs.memory_epoch ord=13 type=int4 len=- null=YES default=-
+COLUMN ai_jobs.request_fingerprint ord=6 type=bpchar len=64 null=NO default=-
+COLUMN ai_jobs.request_id ord=5 type=uuid len=- null=NO default=-
+COLUMN ai_jobs.result ord=12 type=jsonb len=- null=YES default=-
+COLUMN ai_jobs.status ord=7 type=text len=- null=NO default=-
+COLUMN ai_jobs.target_id ord=4 type=uuid len=- null=NO default=-
+COLUMN ai_jobs.updated_at ord=15 type=timestamptz len=- null=NO default=now()
+COLUMN ai_jobs.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN analyses.completed_at ord=8 type=timestamptz len=- null=NO default=-
+COLUMN analyses.created_at ord=7 type=timestamptz len=- null=NO default=now()
+COLUMN analyses.format ord=3 type=text len=- null=NO default=-
+COLUMN analyses.id ord=1 type=uuid len=- null=NO default=-
+COLUMN analyses.model ord=5 type=text len=- null=NO default=-
+COLUMN analyses.practice_id ord=2 type=uuid len=- null=NO default=-
+COLUMN analyses.record ord=6 type=jsonb len=- null=NO default=-
+COLUMN analyses.status ord=4 type=text len=- null=NO default=-
 COLUMN anomalies.dimension ord=6 type=text len=- null=NO default=-
 COLUMN anomalies.end_ts ord=5 type=text len=- null=NO default=-
 COLUMN anomalies.id ord=1 type=int8 len=- null=NO default=nextval('anomalies_id_seq'::regclass)
@@ -21,6 +62,73 @@ COLUMN anomalies.start_ts ord=4 type=text len=- null=NO default=-
 COLUMN anomalies.summary_id ord=2 type=uuid len=- null=NO default=-
 COLUMN anomalies.what ord=7 type=text len=- null=NO default=-
 COLUMN anomalies.why_odd ord=8 type=text len=- null=NO default=-
+COLUMN challenge_entries.caption ord=5 type=text len=- null=YES default=-
+COLUMN challenge_entries.challenge_id ord=2 type=uuid len=- null=NO default=-
+COLUMN challenge_entries.content_version ord=6 type=int4 len=- null=NO default=1
+COLUMN challenge_entries.created_at ord=16 type=timestamptz len=- null=NO default=now()
+COLUMN challenge_entries.deleted_at ord=18 type=timestamptz len=- null=YES default=-
+COLUMN challenge_entries.final_eligible ord=12 type=bool len=- null=YES default=-
+COLUMN challenge_entries.final_like_count ord=11 type=int8 len=- null=YES default=-
+COLUMN challenge_entries.final_rank ord=13 type=int4 len=- null=YES default=-
+COLUMN challenge_entries.id ord=1 type=uuid len=- null=NO default=-
+COLUMN challenge_entries.published_at ord=7 type=timestamptz len=- null=YES default=-
+COLUMN challenge_entries.request_fingerprint ord=15 type=bpchar len=64 null=NO default=-
+COLUMN challenge_entries.request_id ord=14 type=uuid len=- null=NO default=-
+COLUMN challenge_entries.status ord=9 type=text len=- null=NO default='visible'::text
+COLUMN challenge_entries.updated_at ord=17 type=timestamptz len=- null=NO default=now()
+COLUMN challenge_entries.user_id ord=3 type=uuid len=- null=NO default=-
+COLUMN challenge_entries.video_id ord=4 type=uuid len=- null=YES default=-
+COLUMN challenge_entries.view_count ord=10 type=int8 len=- null=NO default=0
+COLUMN challenge_entries.visibility ord=8 type=text len=- null=NO default=-
+COLUMN challenges.character ord=4 type=text len=- null=YES default=-
+COLUMN challenges.deleted_at ord=15 type=timestamptz len=- null=YES default=-
+COLUMN challenges.duration_days ord=6 type=int4 len=- null=NO default=-
+COLUMN challenges.ends_at ord=13 type=timestamptz len=- null=NO default=-
+COLUMN challenges.featured_on ord=11 type=date len=- null=YES default=-
+COLUMN challenges.finalized_at ord=17 type=timestamptz len=- null=YES default=-
+COLUMN challenges.host_user_id ord=8 type=uuid len=- null=YES default=-
+COLUMN challenges.id ord=1 type=uuid len=- null=NO default=-
+COLUMN challenges.line ord=2 type=text len=- null=NO default=-
+COLUMN challenges.moderation ord=14 type=text len=- null=NO default='visible'::text
+COLUMN challenges.origin ord=7 type=text len=- null=NO default=-
+COLUMN challenges.ranking_state ord=16 type=text len=- null=YES default=-
+COLUMN challenges.request_fingerprint ord=10 type=bpchar len=64 null=NO default=-
+COLUMN challenges.request_id ord=9 type=uuid len=- null=NO default=-
+COLUMN challenges.scene_note ord=5 type=text len=- null=YES default=-
+COLUMN challenges.starts_at ord=12 type=timestamptz len=- null=NO default=-
+COLUMN challenges.work ord=3 type=text len=- null=NO default=-
+COLUMN coach_conversations.close_reason ord=5 type=text len=- null=YES default=-
+COLUMN coach_conversations.closed_at ord=10 type=timestamptz len=- null=YES default=-
+COLUMN coach_conversations.created_at ord=8 type=timestamptz len=- null=NO default=now()
+COLUMN coach_conversations.id ord=1 type=uuid len=- null=NO default=-
+COLUMN coach_conversations.practice_id ord=2 type=uuid len=- null=NO default=-
+COLUMN coach_conversations.start_request_id ord=3 type=uuid len=- null=NO default=-
+COLUMN coach_conversations.state ord=6 type=jsonb len=- null=NO default='{}'::jsonb
+COLUMN coach_conversations.state_revision ord=7 type=int4 len=- null=NO default=0
+COLUMN coach_conversations.status ord=4 type=text len=- null=NO default=-
+COLUMN coach_conversations.updated_at ord=9 type=timestamptz len=- null=NO default=now()
+COLUMN coach_messages.conversation_id ord=2 type=uuid len=- null=NO default=-
+COLUMN coach_messages.created_at ord=8 type=timestamptz len=- null=NO default=now()
+COLUMN coach_messages.id ord=1 type=uuid len=- null=NO default=-
+COLUMN coach_messages.request_fingerprint ord=7 type=bpchar len=64 null=YES default=-
+COLUMN coach_messages.request_id ord=6 type=uuid len=- null=YES default=-
+COLUMN coach_messages.role ord=4 type=text len=- null=NO default=-
+COLUMN coach_messages.text ord=5 type=text len=- null=NO default=-
+COLUMN coach_messages.turn_index ord=3 type=int4 len=- null=NO default=-
+COLUMN coach_notes.actor_words ord=8 type=jsonb len=- null=NO default='[]'::jsonb
+COLUMN coach_notes.conversation_id ord=2 type=uuid len=- null=NO default=-
+COLUMN coach_notes.corrections ord=9 type=jsonb len=- null=NO default='[]'::jsonb
+COLUMN coach_notes.created_at ord=14 type=timestamptz len=- null=NO default=now()
+COLUMN coach_notes.fallback ord=11 type=bool len=- null=NO default=false
+COLUMN coach_notes.format ord=3 type=text len=- null=NO default=-
+COLUMN coach_notes.id ord=1 type=uuid len=- null=NO default=-
+COLUMN coach_notes.kind ord=4 type=text len=- null=NO default=-
+COLUMN coach_notes.legacy_report ord=13 type=jsonb len=- null=YES default=-
+COLUMN coach_notes.next_take ord=7 type=text len=- null=YES default=-
+COLUMN coach_notes.source_revision ord=12 type=int4 len=- null=NO default=-
+COLUMN coach_notes.summary_quotes ord=6 type=jsonb len=- null=NO default='[]'::jsonb
+COLUMN coach_notes.tags ord=10 type=jsonb len=- null=NO default='[]'::jsonb
+COLUMN coach_notes.title ord=5 type=text len=- null=YES default=-
 COLUMN coach_sessions.close_reason ord=4 type=text len=- null=YES default=-
 COLUMN coach_sessions.coaching_state_json ord=9 type=jsonb len=- null=YES default=-
 COLUMN coach_sessions.conversation_summary ord=8 type=text len=- null=NO default=''::text
@@ -94,11 +202,68 @@ COLUMN community_reports.target_id ord=4 type=uuid len=- null=NO default=-
 COLUMN community_reports.target_type ord=3 type=text len=- null=NO default=-
 COLUMN consent_documents.body ord=5 type=text len=- null=NO default=-
 COLUMN consent_documents.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
+COLUMN consent_documents.locale ord=8 type=text len=- null=NO default='ko'::text
 COLUMN consent_documents.published_at ord=7 type=timestamptz len=- null=NO default=now()
 COLUMN consent_documents.required ord=6 type=bool len=- null=NO default=false
 COLUMN consent_documents.title ord=4 type=text len=- null=NO default=-
 COLUMN consent_documents.type ord=2 type=text len=- null=NO default=-
 COLUMN consent_documents.version ord=3 type=text len=- null=NO default=-
+COLUMN entry_ai_reports.attempt_count ord=8 type=int4 len=- null=NO default=0
+COLUMN entry_ai_reports.completed_at ord=11 type=timestamptz len=- null=YES default=-
+COLUMN entry_ai_reports.entry_id ord=2 type=uuid len=- null=NO default=-
+COLUMN entry_ai_reports.format_version ord=7 type=int4 len=- null=NO default=1
+COLUMN entry_ai_reports.id ord=1 type=uuid len=- null=NO default=-
+COLUMN entry_ai_reports.job_id ord=4 type=uuid len=- null=NO default=-
+COLUMN entry_ai_reports.model ord=6 type=text len=- null=YES default=-
+COLUMN entry_ai_reports.purged_at ord=12 type=timestamptz len=- null=YES default=-
+COLUMN entry_ai_reports.requested_at ord=10 type=timestamptz len=- null=NO default=-
+COLUMN entry_ai_reports.result ord=9 type=jsonb len=- null=YES default=-
+COLUMN entry_ai_reports.status ord=5 type=text len=- null=NO default=-
+COLUMN entry_ai_reports.user_id ord=3 type=uuid len=- null=NO default=-
+COLUMN entry_comments.body ord=4 type=text len=- null=YES default=-
+COLUMN entry_comments.created_at ord=8 type=timestamptz len=- null=NO default=now()
+COLUMN entry_comments.deleted_at ord=9 type=timestamptz len=- null=YES default=-
+COLUMN entry_comments.entry_id ord=2 type=uuid len=- null=NO default=-
+COLUMN entry_comments.id ord=1 type=uuid len=- null=NO default=-
+COLUMN entry_comments.request_fingerprint ord=7 type=bpchar len=64 null=NO default=-
+COLUMN entry_comments.request_id ord=6 type=uuid len=- null=NO default=-
+COLUMN entry_comments.status ord=5 type=text len=- null=NO default='visible'::text
+COLUMN entry_comments.user_id ord=3 type=uuid len=- null=NO default=-
+COLUMN entry_likes.created_at ord=4 type=timestamptz len=- null=NO default=now()
+COLUMN entry_likes.entry_id ord=2 type=uuid len=- null=NO default=-
+COLUMN entry_likes.id ord=1 type=uuid len=- null=NO default=-
+COLUMN entry_likes.user_id ord=3 type=uuid len=- null=NO default=-
+COLUMN entry_ranking_snapshots.basis ord=4 type=text len=- null=NO default=-
+COLUMN entry_ranking_snapshots.challenge_id ord=2 type=uuid len=- null=NO default=-
+COLUMN entry_ranking_snapshots.created_at ord=7 type=timestamptz len=- null=NO default=-
+COLUMN entry_ranking_snapshots.entry_ids ord=5 type=_uuid len=- null=NO default=-
+COLUMN entry_ranking_snapshots.id ord=1 type=uuid len=- null=NO default=-
+COLUMN entry_ranking_snapshots.ranks ord=6 type=_int4 len=- null=NO default=-
+COLUMN entry_ranking_snapshots.viewer_id ord=3 type=uuid len=- null=NO default=-
+COLUMN entry_reports.created_at ord=16 type=timestamptz len=- null=NO default=now()
+COLUMN entry_reports.id ord=1 type=uuid len=- null=NO default=-
+COLUMN entry_reports.note ord=6 type=text len=- null=YES default=-
+COLUMN entry_reports.reason ord=5 type=text len=- null=NO default=-
+COLUMN entry_reports.reporter_id ord=4 type=uuid len=- null=NO default=-
+COLUMN entry_reports.request_fingerprint ord=15 type=bpchar len=64 null=NO default=-
+COLUMN entry_reports.request_id ord=14 type=uuid len=- null=NO default=-
+COLUMN entry_reports.resolution ord=8 type=text len=- null=YES default=-
+COLUMN entry_reports.resolution_note ord=11 type=text len=- null=YES default=-
+COLUMN entry_reports.reviewed_at ord=10 type=timestamptz len=- null=YES default=-
+COLUMN entry_reports.reviewed_by ord=9 type=text len=- null=YES default=-
+COLUMN entry_reports.status ord=7 type=text len=- null=NO default='received'::text
+COLUMN entry_reports.target_id ord=3 type=uuid len=- null=NO default=-
+COLUMN entry_reports.target_text ord=13 type=text len=- null=YES default=-
+COLUMN entry_reports.target_type ord=2 type=text len=- null=NO default=-
+COLUMN entry_reports.target_version ord=12 type=int4 len=- null=NO default=-
+COLUMN entry_saves.created_at ord=4 type=timestamptz len=- null=NO default=now()
+COLUMN entry_saves.entry_id ord=2 type=uuid len=- null=NO default=-
+COLUMN entry_saves.id ord=1 type=uuid len=- null=NO default=-
+COLUMN entry_saves.user_id ord=3 type=uuid len=- null=NO default=-
+COLUMN entry_view_events.created_at ord=4 type=timestamptz len=- null=NO default=now()
+COLUMN entry_view_events.entry_id ord=2 type=uuid len=- null=NO default=-
+COLUMN entry_view_events.event_id ord=1 type=uuid len=- null=NO default=-
+COLUMN entry_view_events.user_id ord=3 type=uuid len=- null=NO default=-
 COLUMN external_operations.attempt_count ord=7 type=int4 len=- null=NO default=0
 COLUMN external_operations.created_at ord=13 type=timestamptz len=- null=NO default=now()
 COLUMN external_operations.error_code ord=11 type=text len=- null=YES default=-
@@ -118,11 +283,97 @@ COLUMN external_operations.status ord=6 type=text len=- null=NO default='pending
 COLUMN external_operations.updated_at ord=14 type=timestamptz len=- null=NO default=now()
 COLUMN external_operations.user_id ord=3 type=uuid len=- null=NO default=-
 COLUMN external_operations.waiting_since ord=16 type=timestamptz len=- null=YES default=-
+COLUMN guest_transfer_codes.code_hash ord=3 type=text len=- null=NO default=-
+COLUMN guest_transfer_codes.created_at ord=4 type=timestamptz len=- null=NO default=now()
+COLUMN guest_transfer_codes.expires_at ord=5 type=timestamptz len=- null=NO default=-
+COLUMN guest_transfer_codes.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
+COLUMN guest_transfer_codes.used_at ord=6 type=timestamptz len=- null=YES default=-
+COLUMN guest_transfer_codes.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN handoff_confirmations.coaching_handoff_id ord=1 type=uuid len=- null=NO default=-
 COLUMN handoff_confirmations.confirmed ord=2 type=bool len=- null=NO default=false
 COLUMN handoff_confirmations.created_at ord=4 type=timestamptz len=- null=NO default=now()
 COLUMN handoff_confirmations.rebuttal_text ord=3 type=text len=- null=YES default=-
 COLUMN handoff_confirmations.updated_at ord=5 type=timestamptz len=- null=NO default=now()
+COLUMN line_memorization.created_at ord=5 type=timestamptz len=- null=NO default=now()
+COLUMN line_memorization.id ord=1 type=uuid len=- null=NO default=-
+COLUMN line_memorization.line_id ord=3 type=uuid len=- null=NO default=-
+COLUMN line_memorization.status ord=4 type=text len=- null=NO default=-
+COLUMN line_memorization.updated_at ord=6 type=timestamptz len=- null=NO default=now()
+COLUMN line_memorization.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN note_ratings.comment ord=6 type=text len=- null=YES default=-
+COLUMN note_ratings.created_at ord=8 type=timestamptz len=- null=NO default=now()
+COLUMN note_ratings.id ord=1 type=uuid len=- null=NO default=-
+COLUMN note_ratings.note_id ord=3 type=uuid len=- null=NO default=-
+COLUMN note_ratings.practice_id ord=2 type=uuid len=- null=NO default=-
+COLUMN note_ratings.rating ord=5 type=text len=- null=NO default=-
+COLUMN note_ratings.request_id ord=7 type=uuid len=- null=NO default=-
+COLUMN note_ratings.updated_at ord=9 type=timestamptz len=- null=NO default=now()
+COLUMN note_ratings.user_id ord=4 type=uuid len=- null=NO default=-
+COLUMN notification_pushes.created_at ord=5 type=timestamptz len=- null=NO default=-
+COLUMN notification_pushes.group_key ord=2 type=text len=- null=NO default=-
+COLUMN notification_pushes.id ord=1 type=uuid len=- null=NO default=-
+COLUMN notification_pushes.stage ord=3 type=text len=- null=NO default=-
+COLUMN notification_pushes.user_id ord=4 type=uuid len=- null=NO default=-
+COLUMN notifications.actor_user_id ord=4 type=uuid len=- null=YES default=-
+COLUMN notifications.challenge_id ord=5 type=uuid len=- null=NO default=-
+COLUMN notifications.comment_id ord=7 type=uuid len=- null=YES default=-
+COLUMN notifications.created_at ord=10 type=timestamptz len=- null=NO default=-
+COLUMN notifications.entry_id ord=6 type=uuid len=- null=YES default=-
+COLUMN notifications.event_key ord=8 type=text len=- null=NO default=-
+COLUMN notifications.expires_at ord=12 type=timestamptz len=- null=NO default=-
+COLUMN notifications.group_key ord=9 type=text len=- null=NO default=-
+COLUMN notifications.id ord=1 type=uuid len=- null=NO default=-
+COLUMN notifications.kind ord=3 type=text len=- null=NO default=-
+COLUMN notifications.push_after ord=13 type=timestamptz len=- null=YES default=-
+COLUMN notifications.push_attempted_at ord=15 type=timestamptz len=- null=YES default=-
+COLUMN notifications.push_status ord=14 type=text len=- null=NO default=-
+COLUMN notifications.read_at ord=11 type=timestamptz len=- null=YES default=-
+COLUMN notifications.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN portfolio_credits.created_at ord=8 type=timestamptz len=- null=NO default=now()
+COLUMN portfolio_credits.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
+COLUMN portfolio_credits.kind ord=6 type=text len=- null=NO default=-
+COLUMN portfolio_credits.role ord=4 type=text len=- null=NO default=-
+COLUMN portfolio_credits.sort_order ord=7 type=int4 len=- null=NO default=-
+COLUMN portfolio_credits.title ord=3 type=text len=- null=NO default=-
+COLUMN portfolio_credits.updated_at ord=9 type=timestamptz len=- null=NO default=now()
+COLUMN portfolio_credits.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN portfolio_credits.year ord=5 type=int4 len=- null=NO default=-
+COLUMN portfolio_photos.created_at ord=7 type=timestamptz len=- null=NO default=now()
+COLUMN portfolio_photos.expires_at ord=8 type=timestamptz len=- null=NO default=-
+COLUMN portfolio_photos.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
+COLUMN portfolio_photos.mime_type ord=4 type=text len=- null=NO default=-
+COLUMN portfolio_photos.object_key ord=3 type=text len=- null=NO default=-
+COLUMN portfolio_photos.size_bytes ord=5 type=int8 len=- null=NO default=-
+COLUMN portfolio_photos.sort_order ord=6 type=int4 len=- null=YES default=-
+COLUMN portfolio_photos.uploaded_at ord=9 type=timestamptz len=- null=YES default=-
+COLUMN portfolio_photos.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN portfolios.created_at ord=5 type=timestamptz len=- null=NO default=now()
+COLUMN portfolios.intro ord=2 type=text len=- null=YES default=-
+COLUMN portfolios.share_enabled ord=3 type=bool len=- null=NO default=false
+COLUMN portfolios.share_slug ord=4 type=text len=- null=YES default=-
+COLUMN portfolios.updated_at ord=6 type=timestamptz len=- null=NO default=now()
+COLUMN portfolios.user_id ord=1 type=uuid len=- null=NO default=-
+COLUMN practice_feedback.body ord=6 type=text len=- null=YES default=-
+COLUMN practice_feedback.contact_email ord=7 type=text len=- null=YES default=-
+COLUMN practice_feedback.contact_phone ord=8 type=text len=- null=YES default=-
+COLUMN practice_feedback.created_at ord=12 type=timestamptz len=- null=NO default=now()
+COLUMN practice_feedback.id ord=1 type=uuid len=- null=NO default=-
+COLUMN practice_feedback.practice_id ord=3 type=uuid len=- null=YES default=-
+COLUMN practice_feedback.request_id ord=11 type=uuid len=- null=YES default=-
+COLUMN practice_feedback.screen ord=4 type=text len=- null=NO default=-
+COLUMN practice_feedback.sheet_seq ord=10 type=int4 len=- null=NO default=1
+COLUMN practice_feedback.sheet_synced_at ord=9 type=timestamptz len=- null=YES default=-
+COLUMN practice_feedback.trigger ord=5 type=text len=- null=NO default=-
+COLUMN practice_feedback.updated_at ord=13 type=timestamptz len=- null=NO default=now()
+COLUMN practice_feedback.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN practice_migration_entries.batch_id ord=7 type=uuid len=- null=NO default=-
+COLUMN practice_migration_entries.created_at ord=8 type=timestamptz len=- null=NO default=now()
+COLUMN practice_migration_entries.id ord=1 type=uuid len=- null=NO default=-
+COLUMN practice_migration_entries.skip_reason ord=6 type=text len=- null=YES default=-
+COLUMN practice_migration_entries.source_id ord=4 type=uuid len=- null=NO default=-
+COLUMN practice_migration_entries.source_table ord=3 type=text len=- null=NO default=-
+COLUMN practice_migration_entries.step ord=2 type=text len=- null=NO default=-
+COLUMN practice_migration_entries.target_id ord=5 type=uuid len=- null=YES default=-
 COLUMN practice_reports.created_at ord=6 type=timestamptz len=- null=NO default=now()
 COLUMN practice_reports.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
 COLUMN practice_reports.practice_session_id ord=2 type=uuid len=- null=NO default=-
@@ -145,12 +396,69 @@ COLUMN practice_sessions.subtext ord=7 type=text len=- null=YES default=-
 COLUMN practice_sessions.updated_at ord=10 type=timestamptz len=- null=NO default=now()
 COLUMN practice_sessions.upload_intent_id ord=3 type=uuid len=- null=NO default=-
 COLUMN practice_sessions.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN practices.blockage_detail ord=16 type=text len=- null=YES default=-
+COLUMN practices.blockage_kind ord=14 type=text len=- null=NO default=-
+COLUMN practices.character_context ord=12 type=text len=- null=NO default=''::text
+COLUMN practices.close_reason ord=7 type=text len=- null=YES default=-
+COLUMN practices.created_at ord=22 type=timestamptz len=- null=NO default=now()
+COLUMN practices.experience_version ord=8 type=text len=- null=NO default=-
+COLUMN practices.favorite ord=19 type=bool len=- null=NO default=false
+COLUMN practices.goal ord=13 type=text len=- null=NO default=''::text
+COLUMN practices.hidden_at ord=20 type=timestamptz len=- null=YES default=-
+COLUMN practices.id ord=1 type=uuid len=- null=NO default=-
+COLUMN practices.legacy_hidden_at ord=21 type=timestamptz len=- null=YES default=-
+COLUMN practices.ordinal ord=5 type=int4 len=- null=NO default=-
+COLUMN practices.request_fingerprint ord=10 type=bpchar len=64 null=YES default=-
+COLUMN practices.request_id ord=9 type=uuid len=- null=YES default=-
+COLUMN practices.root_id ord=4 type=uuid len=- null=NO default=-
+COLUMN practices.situation ord=11 type=text len=- null=NO default=''::text
+COLUMN practices.stage ord=6 type=text len=- null=NO default=-
+COLUMN practices.sub_branch ord=15 type=text len=- null=NO default=-
+COLUMN practices.tags ord=18 type=jsonb len=- null=NO default='[]'::jsonb
+COLUMN practices.title ord=17 type=text len=- null=YES default=-
+COLUMN practices.updated_at ord=23 type=timestamptz len=- null=NO default=now()
+COLUMN practices.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN practices.video_id ord=3 type=uuid len=- null=NO default=-
 COLUMN push_tokens.created_at ord=5 type=timestamptz len=- null=NO default=now()
 COLUMN push_tokens.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
+COLUMN push_tokens.locale ord=7 type=text len=- null=NO default='ko'::text
 COLUMN push_tokens.platform ord=4 type=text len=- null=NO default=-
 COLUMN push_tokens.token ord=3 type=text len=- null=NO default=-
 COLUMN push_tokens.updated_at ord=6 type=timestamptz len=- null=NO default=now()
 COLUMN push_tokens.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN reading_recordings.attempt_no ord=6 type=int4 len=- null=NO default=-
+COLUMN reading_recordings.byte_size ord=9 type=int8 len=- null=NO default=-
+COLUMN reading_recordings.content_type ord=8 type=text len=- null=NO default=-
+COLUMN reading_recordings.created_at ord=14 type=timestamptz len=- null=NO default=now()
+COLUMN reading_recordings.duration_ms ord=10 type=int4 len=- null=NO default=-
+COLUMN reading_recordings.id ord=1 type=uuid len=- null=NO default=-
+COLUMN reading_recordings.line_id ord=4 type=uuid len=- null=YES default=-
+COLUMN reading_recordings.matched ord=13 type=bool len=- null=YES default=-
+COLUMN reading_recordings.object_key ord=7 type=text len=- null=NO default=-
+COLUMN reading_recordings.reading_session_id ord=3 type=uuid len=- null=YES default=-
+COLUMN reading_recordings.request_id ord=5 type=uuid len=- null=NO default=-
+COLUMN reading_recordings.transcript ord=11 type=text len=- null=YES default=-
+COLUMN reading_recordings.transcript_source ord=12 type=text len=- null=NO default=-
+COLUMN reading_recordings.updated_at ord=15 type=timestamptz len=- null=NO default=now()
+COLUMN reading_recordings.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN reading_sessions.advance ord=9 type=text len=- null=NO default=-
+COLUMN reading_sessions.current_line_id ord=12 type=uuid len=- null=YES default=-
+COLUMN reading_sessions.elapsed_seconds ord=13 type=int4 len=- null=NO default=0
+COLUMN reading_sessions.end_line_id ord=8 type=uuid len=- null=NO default=-
+COLUMN reading_sessions.ended_at ord=17 type=timestamptz len=- null=YES default=-
+COLUMN reading_sessions.id ord=1 type=uuid len=- null=NO default=-
+COLUMN reading_sessions.line_results ord=15 type=jsonb len=- null=NO default='[]'::jsonb
+COLUMN reading_sessions.mode ord=6 type=text len=- null=NO default=-
+COLUMN reading_sessions.my_character_ids ord=5 type=_uuid len=- null=NO default=-
+COLUMN reading_sessions.progress_seq ord=14 type=int8 len=- null=NO default=0
+COLUMN reading_sessions.record ord=10 type=bool len=- null=NO default=-
+COLUMN reading_sessions.request_id ord=4 type=uuid len=- null=YES default=-
+COLUMN reading_sessions.script_id ord=2 type=uuid len=- null=NO default=-
+COLUMN reading_sessions.start_line_id ord=7 type=uuid len=- null=NO default=-
+COLUMN reading_sessions.started_at ord=16 type=timestamptz len=- null=NO default=now()
+COLUMN reading_sessions.status ord=11 type=text len=- null=NO default=-
+COLUMN reading_sessions.updated_at ord=18 type=timestamptz len=- null=NO default=now()
+COLUMN reading_sessions.user_id ord=3 type=uuid len=- null=NO default=-
 COLUMN refresh_tokens.device_info ord=5 type=text len=- null=YES default=-
 COLUMN refresh_tokens.expires_at ord=7 type=timestamptz len=- null=NO default=-
 COLUMN refresh_tokens.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
@@ -169,6 +477,29 @@ COLUMN reports.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
 COLUMN reports.next_step ord=8 type=text len=- null=NO default=-
 COLUMN reports.self_discovery ord=6 type=text len=- null=NO default=-
 COLUMN reports.session_id ord=2 type=uuid len=- null=NO default=-
+COLUMN script_characters.created_at ord=6 type=timestamptz len=- null=NO default=now()
+COLUMN script_characters.id ord=1 type=uuid len=- null=NO default=-
+COLUMN script_characters.name ord=3 type=text len=- null=NO default=-
+COLUMN script_characters.script_id ord=2 type=uuid len=- null=NO default=-
+COLUMN script_characters.sort_order ord=4 type=int4 len=- null=NO default=-
+COLUMN script_characters.updated_at ord=7 type=timestamptz len=- null=NO default=now()
+COLUMN script_characters.voice_preset ord=5 type=text len=- null=YES default=-
+COLUMN script_lines.character_id ord=5 type=uuid len=- null=YES default=-
+COLUMN script_lines.created_at ord=7 type=timestamptz len=- null=NO default=now()
+COLUMN script_lines.id ord=1 type=uuid len=- null=NO default=-
+COLUMN script_lines.kind ord=4 type=text len=- null=NO default=-
+COLUMN script_lines.ordinal ord=3 type=int4 len=- null=NO default=-
+COLUMN script_lines.script_id ord=2 type=uuid len=- null=NO default=-
+COLUMN script_lines.text ord=6 type=text len=- null=NO default=-
+COLUMN scripts.created_at ord=8 type=timestamptz len=- null=NO default=now()
+COLUMN scripts.id ord=1 type=uuid len=- null=NO default=-
+COLUMN scripts.raw_text ord=4 type=text len=- null=NO default=-
+COLUMN scripts.request_fingerprint ord=7 type=bpchar len=64 null=NO default=-
+COLUMN scripts.request_id ord=6 type=uuid len=- null=YES default=-
+COLUMN scripts.source ord=5 type=text len=- null=NO default=-
+COLUMN scripts.title ord=3 type=text len=- null=NO default=-
+COLUMN scripts.updated_at ord=9 type=timestamptz len=- null=NO default=now()
+COLUMN scripts.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN summaries.created_at ord=11 type=timestamptz len=- null=NO default=now()
 COLUMN summaries.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
 COLUMN summaries.intent_alignment ord=5 type=text len=- null=YES default=-
@@ -194,28 +525,113 @@ COLUMN upload_intents.finalized_at ord=12 type=timestamptz len=- null=YES defaul
 COLUMN upload_intents.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
 COLUMN upload_intents.mime_type ord=6 type=text len=- null=NO default=-
 COLUMN upload_intents.object_key ord=5 type=text len=- null=NO default=-
+COLUMN upload_intents.request_fingerprint ord=14 type=bpchar len=64 null=YES default=-
+COLUMN upload_intents.request_id ord=13 type=uuid len=- null=YES default=-
 COLUMN upload_intents.size_bytes ord=7 type=int8 len=- null=NO default=-
 COLUMN upload_intents.status ord=3 type=text len=- null=NO default='pending'::text
 COLUMN upload_intents.storage_provider ord=4 type=text len=- null=NO default=-
 COLUMN upload_intents.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN upload_intents.video_id ord=15 type=uuid len=- null=YES default=-
+COLUMN user_blocks.blocked_id ord=3 type=uuid len=- null=NO default=-
+COLUMN user_blocks.blocker_id ord=2 type=uuid len=- null=NO default=-
+COLUMN user_blocks.created_at ord=4 type=timestamptz len=- null=NO default=now()
+COLUMN user_blocks.id ord=1 type=uuid len=- null=NO default=-
 COLUMN user_consents.action ord=4 type=text len=- null=NO default=-
 COLUMN user_consents.document_id ord=3 type=uuid len=- null=NO default=-
 COLUMN user_consents.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
 COLUMN user_consents.occurred_at ord=5 type=timestamptz len=- null=NO default=now()
 COLUMN user_consents.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN user_identities.apple_token_encrypted ord=7 type=text len=- null=YES default=-
 COLUMN user_identities.created_at ord=5 type=timestamptz len=- null=NO default=now()
 COLUMN user_identities.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
+COLUMN user_identities.naver_token_encrypted ord=8 type=text len=- null=YES default=-
 COLUMN user_identities.provider ord=3 type=text len=- null=NO default=-
-COLUMN user_identities.provider_uid ord=4 type=text len=- null=NO default=-
+COLUMN user_identities.provider_uid ord=4 type=text len=- null=YES default=-
+COLUMN user_identities.uid_hash ord=6 type=text len=- null=YES default=-
 COLUMN user_identities.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN user_profile_directions.created_at ord=4 type=timestamptz len=- null=NO default=now()
+COLUMN user_profile_directions.direction ord=3 type=text len=- null=NO default=-
+COLUMN user_profile_directions.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
+COLUMN user_profile_directions.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN user_profiles.age_band ord=9 type=int4 len=- null=YES default=-
+COLUMN user_profiles.bio ord=8 type=text len=- null=YES default=-
+COLUMN user_profiles.birth_date ord=4 type=date len=- null=YES default=-
+COLUMN user_profiles.created_at ord=13 type=timestamptz len=- null=NO default=now()
+COLUMN user_profiles.experience ord=5 type=text len=- null=YES default=-
+COLUMN user_profiles.gender ord=3 type=text len=- null=YES default=-
+COLUMN user_profiles.goal ord=6 type=text len=- null=YES default=-
+COLUMN user_profiles.name ord=2 type=text len=- null=YES default=-
+COLUMN user_profiles.notify_analysis_done ord=10 type=bool len=- null=NO default=true
+COLUMN user_profiles.notify_challenge ord=11 type=bool len=- null=NO default=true
+COLUMN user_profiles.notify_evening_reminder ord=12 type=bool len=- null=NO default=true
+COLUMN user_profiles.photo_key ord=7 type=text len=- null=YES default=-
+COLUMN user_profiles.photo_upload_expires_at ord=18 type=timestamptz len=- null=YES default=-
+COLUMN user_profiles.photo_upload_key ord=15 type=text len=- null=YES default=-
+COLUMN user_profiles.photo_upload_mime_type ord=16 type=text len=- null=YES default=-
+COLUMN user_profiles.photo_upload_size_bytes ord=17 type=int8 len=- null=YES default=-
+COLUMN user_profiles.updated_at ord=14 type=timestamptz len=- null=NO default=now()
+COLUMN user_profiles.user_id ord=1 type=uuid len=- null=NO default=-
+COLUMN users.age_confirmed_at ord=9 type=timestamptz len=- null=YES default=-
 COLUMN users.created_at ord=4 type=timestamptz len=- null=NO default=now()
 COLUMN users.deactivated_at ord=7 type=timestamptz len=- null=YES default=-
 COLUMN users.email ord=2 type=text len=- null=YES default=-
+COLUMN users.exit_survey_asked_at ord=11 type=timestamptz len=- null=YES default=-
 COLUMN users.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
+COLUMN users.memory_epoch ord=12 type=int4 len=- null=NO default=0
 COLUMN users.nickname ord=6 type=text len=- null=YES default=-
+COLUMN users.retention_purged_at ord=10 type=timestamptz len=- null=YES default=-
 COLUMN users.role ord=8 type=text len=- null=NO default='user'::text
 COLUMN users.status ord=3 type=text len=- null=NO default='active'::text
 COLUMN users.updated_at ord=5 type=timestamptz len=- null=NO default=now()
+COLUMN video_transcripts.completed_at ord=8 type=timestamptz len=- null=YES default=-
+COLUMN video_transcripts.created_at ord=6 type=timestamptz len=- null=NO default=now()
+COLUMN video_transcripts.id ord=1 type=uuid len=- null=NO default=-
+COLUMN video_transcripts.segments ord=5 type=jsonb len=- null=NO default='[]'::jsonb
+COLUMN video_transcripts.source ord=4 type=text len=- null=YES default=-
+COLUMN video_transcripts.status ord=3 type=text len=- null=NO default=-
+COLUMN video_transcripts.updated_at ord=7 type=timestamptz len=- null=NO default=now()
+COLUMN video_transcripts.video_id ord=2 type=uuid len=- null=NO default=-
+COLUMN videos.byte_size ord=5 type=int8 len=- null=NO default=-
+COLUMN videos.content_type ord=4 type=text len=- null=NO default=-
+COLUMN videos.created_at ord=11 type=timestamptz len=- null=NO default=now()
+COLUMN videos.duration_ms ord=6 type=int4 len=- null=NO default=-
+COLUMN videos.favorite ord=9 type=bool len=- null=NO default=false
+COLUMN videos.height ord=8 type=int4 len=- null=YES default=-
+COLUMN videos.id ord=1 type=uuid len=- null=NO default=-
+COLUMN videos.object_key ord=3 type=text len=- null=NO default=-
+COLUMN videos.poster_attempts ord=14 type=int2 len=- null=NO default=0
+COLUMN videos.poster_key ord=13 type=text len=- null=YES default=-
+COLUMN videos.purged_at ord=10 type=timestamptz len=- null=YES default=-
+COLUMN videos.updated_at ord=12 type=timestamptz len=- null=NO default=now()
+COLUMN videos.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN videos.width ord=7 type=int4 len=- null=YES default=-
+CONSTRAINT account_cleanup_operations account_cleanup_operations_attempt_count_not_null NOT NULL attempt_count
+CONSTRAINT account_cleanup_operations account_cleanup_operations_created_at_not_null NOT NULL created_at
+CONSTRAINT account_cleanup_operations account_cleanup_operations_expires_at_not_null NOT NULL expires_at
+CONSTRAINT account_cleanup_operations account_cleanup_operations_id_not_null NOT NULL id
+CONSTRAINT account_cleanup_operations account_cleanup_operations_kind_not_null NOT NULL kind
+CONSTRAINT account_cleanup_operations account_cleanup_operations_next_attempt_at_not_null NOT NULL next_attempt_at
+CONSTRAINT account_cleanup_operations account_cleanup_operations_payload_encrypted_not_null NOT NULL payload_encrypted
+CONSTRAINT account_cleanup_operations account_cleanup_operations_pkey PRIMARY KEY (id)
+CONSTRAINT account_cleanup_operations account_cleanup_operations_updated_at_not_null NOT NULL updated_at
+CONSTRAINT account_cleanup_operations account_cleanup_operations_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT account_cleanup_operations account_cleanup_operations_user_id_not_null NOT NULL user_id
+CONSTRAINT account_cleanup_operations ck_account_cleanup_operations_kind CHECK ((kind = ANY (ARRAY['object_delete'::text, 'apple_revoke'::text, 'kakao_unlink'::text, 'naver_revoke'::text, 'reading_recording_delete'::text])))
+CONSTRAINT actor_memories actor_memories_created_at_not_null NOT NULL created_at
+CONSTRAINT actor_memories actor_memories_field_not_null NOT NULL field
+CONSTRAINT actor_memories actor_memories_id_not_null NOT NULL id
+CONSTRAINT actor_memories actor_memories_pkey PRIMARY KEY (id)
+CONSTRAINT actor_memories actor_memories_source_practice_id_fkey FOREIGN KEY (source_practice_id) REFERENCES practices(id)
+CONSTRAINT actor_memories actor_memories_updated_at_not_null NOT NULL updated_at
+CONSTRAINT actor_memories actor_memories_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT actor_memories actor_memories_user_id_not_null NOT NULL user_id
+CONSTRAINT actor_memories actor_memories_value_not_null NOT NULL value
+CONSTRAINT actor_memories actor_memories_written_by_not_null NOT NULL written_by
+CONSTRAINT actor_memories ck_actor_memories_field CHECK ((field = ANY (ARRAY['goal'::text, 'blockage'::text, 'speech_self'::text, 'speech_actual'::text])))
+CONSTRAINT actor_memories ck_actor_memories_value_length CHECK ((char_length(value) <= 1000))
+CONSTRAINT actor_memories ck_actor_memories_value_not_blank CHECK ((btrim(value) <> ''::text))
+CONSTRAINT actor_memories ck_actor_memories_written_by CHECK ((written_by = ANY (ARRAY['actor'::text, 'agent'::text])))
+CONSTRAINT actor_memories uq_actor_memories_user_field UNIQUE (user_id, field)
 CONSTRAINT actor_memory_entries actor_memory_entries_created_at_not_null NOT NULL created_at
 CONSTRAINT actor_memory_entries actor_memory_entries_field_not_null NOT NULL field
 CONSTRAINT actor_memory_entries actor_memory_entries_id_not_null NOT NULL id
@@ -232,6 +648,35 @@ CONSTRAINT actor_memory_entries ck_actor_memory_entries_written_by CHECK ((writt
 CONSTRAINT actor_memory_entries ck_actor_memory_value_length CHECK ((char_length(value) <= 1000))
 CONSTRAINT actor_memory_entries ck_actor_memory_value_not_blank CHECK ((btrim(value) <> ''::text))
 CONSTRAINT actor_memory_entries uq_actor_memory_user_field UNIQUE (user_id, field)
+CONSTRAINT ai_jobs ai_jobs_attempt_count_not_null NOT NULL attempt_count
+CONSTRAINT ai_jobs ai_jobs_created_at_not_null NOT NULL created_at
+CONSTRAINT ai_jobs ai_jobs_id_not_null NOT NULL id
+CONSTRAINT ai_jobs ai_jobs_kind_not_null NOT NULL kind
+CONSTRAINT ai_jobs ai_jobs_pkey PRIMARY KEY (id)
+CONSTRAINT ai_jobs ai_jobs_request_fingerprint_not_null NOT NULL request_fingerprint
+CONSTRAINT ai_jobs ai_jobs_request_id_not_null NOT NULL request_id
+CONSTRAINT ai_jobs ai_jobs_status_not_null NOT NULL status
+CONSTRAINT ai_jobs ai_jobs_target_id_not_null NOT NULL target_id
+CONSTRAINT ai_jobs ai_jobs_updated_at_not_null NOT NULL updated_at
+CONSTRAINT ai_jobs ai_jobs_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT ai_jobs ai_jobs_user_id_not_null NOT NULL user_id
+CONSTRAINT ai_jobs ck_ai_jobs_attempt_count CHECK ((attempt_count >= 0))
+CONSTRAINT ai_jobs ck_ai_jobs_kind CHECK ((kind = ANY (ARRAY['analyze'::text, 'memory_update'::text, 'challenge_report'::text])))
+CONSTRAINT ai_jobs ck_ai_jobs_status CHECK ((status = ANY (ARRAY['pending'::text, 'running'::text, 'succeeded'::text, 'failed'::text])))
+CONSTRAINT ai_jobs uq_ai_jobs_user_request UNIQUE (user_id, request_id)
+CONSTRAINT analyses analyses_completed_at_not_null NOT NULL completed_at
+CONSTRAINT analyses analyses_created_at_not_null NOT NULL created_at
+CONSTRAINT analyses analyses_format_not_null NOT NULL format
+CONSTRAINT analyses analyses_id_not_null NOT NULL id
+CONSTRAINT analyses analyses_model_not_null NOT NULL model
+CONSTRAINT analyses analyses_pkey PRIMARY KEY (id)
+CONSTRAINT analyses analyses_practice_id_fkey FOREIGN KEY (practice_id) REFERENCES practices(id)
+CONSTRAINT analyses analyses_practice_id_not_null NOT NULL practice_id
+CONSTRAINT analyses analyses_record_not_null NOT NULL record
+CONSTRAINT analyses analyses_status_not_null NOT NULL status
+CONSTRAINT analyses ck_analyses_format CHECK ((format = ANY (ARRAY['video_record_v1'::text, 'legacy'::text])))
+CONSTRAINT analyses ck_analyses_status CHECK ((status = ANY (ARRAY['ready'::text, 'partial'::text])))
+CONSTRAINT analyses uq_analyses_practice UNIQUE (practice_id)
 CONSTRAINT anomalies anomalies_dimension_not_null NOT NULL dimension
 CONSTRAINT anomalies anomalies_end_ts_not_null NOT NULL end_ts
 CONSTRAINT anomalies anomalies_id_not_null NOT NULL id
@@ -251,6 +696,101 @@ CONSTRAINT anomalies anomalies_what_not_null NOT NULL what
 CONSTRAINT anomalies anomalies_why_odd_not_null NOT NULL why_odd
 CONSTRAINT anomalies ck_anomalies_intent_impact CHECK ((intent_impact = ANY (ARRAY['반전'::text, '약화'::text, '국소'::text])))
 CONSTRAINT anomalies ck_anomalies_severity CHECK ((severity = ANY (ARRAY['high'::text, 'mid'::text, 'low'::text])))
+CONSTRAINT challenge_entries challenge_entries_challenge_id_fkey FOREIGN KEY (challenge_id) REFERENCES challenges(id)
+CONSTRAINT challenge_entries challenge_entries_challenge_id_not_null NOT NULL challenge_id
+CONSTRAINT challenge_entries challenge_entries_content_version_not_null NOT NULL content_version
+CONSTRAINT challenge_entries challenge_entries_created_at_not_null NOT NULL created_at
+CONSTRAINT challenge_entries challenge_entries_id_not_null NOT NULL id
+CONSTRAINT challenge_entries challenge_entries_pkey PRIMARY KEY (id)
+CONSTRAINT challenge_entries challenge_entries_request_fingerprint_not_null NOT NULL request_fingerprint
+CONSTRAINT challenge_entries challenge_entries_request_id_not_null NOT NULL request_id
+CONSTRAINT challenge_entries challenge_entries_status_not_null NOT NULL status
+CONSTRAINT challenge_entries challenge_entries_updated_at_not_null NOT NULL updated_at
+CONSTRAINT challenge_entries challenge_entries_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT challenge_entries challenge_entries_user_id_not_null NOT NULL user_id
+CONSTRAINT challenge_entries challenge_entries_video_id_fkey FOREIGN KEY (video_id) REFERENCES videos(id)
+CONSTRAINT challenge_entries challenge_entries_view_count_not_null NOT NULL view_count
+CONSTRAINT challenge_entries challenge_entries_visibility_not_null NOT NULL visibility
+CONSTRAINT challenge_entries ck_challenge_entries_caption CHECK ((char_length(caption) <= 300))
+CONSTRAINT challenge_entries ck_challenge_entries_deleted CHECK (((status = 'deleted'::text) = (deleted_at IS NOT NULL)))
+CONSTRAINT challenge_entries ck_challenge_entries_final_likes CHECK ((final_like_count >= 0))
+CONSTRAINT challenge_entries ck_challenge_entries_final_rank CHECK ((final_rank > 0))
+CONSTRAINT challenge_entries ck_challenge_entries_published CHECK (((visibility <> 'public'::text) OR (published_at IS NOT NULL)))
+CONSTRAINT challenge_entries ck_challenge_entries_purged_caption CHECK (((status <> 'deleted'::text) OR (caption IS NULL)))
+CONSTRAINT challenge_entries ck_challenge_entries_status CHECK ((status = ANY (ARRAY['visible'::text, 'hidden_by_report'::text, 'deleted'::text])))
+CONSTRAINT challenge_entries ck_challenge_entries_version CHECK ((content_version > 0))
+CONSTRAINT challenge_entries ck_challenge_entries_video CHECK (((status = 'deleted'::text) = (video_id IS NULL)))
+CONSTRAINT challenge_entries ck_challenge_entries_views CHECK ((view_count >= 0))
+CONSTRAINT challenge_entries ck_challenge_entries_visibility CHECK ((visibility = ANY (ARRAY['public'::text, 'private'::text])))
+CONSTRAINT challenge_entries uq_challenge_entries_parent UNIQUE (id, challenge_id)
+CONSTRAINT challenge_entries uq_challenge_entries_request UNIQUE (user_id, request_id)
+CONSTRAINT challenges challenges_duration_days_not_null NOT NULL duration_days
+CONSTRAINT challenges challenges_ends_at_not_null NOT NULL ends_at
+CONSTRAINT challenges challenges_host_user_id_fkey FOREIGN KEY (host_user_id) REFERENCES users(id)
+CONSTRAINT challenges challenges_id_not_null NOT NULL id
+CONSTRAINT challenges challenges_line_not_null NOT NULL line
+CONSTRAINT challenges challenges_moderation_not_null NOT NULL moderation
+CONSTRAINT challenges challenges_origin_not_null NOT NULL origin
+CONSTRAINT challenges challenges_pkey PRIMARY KEY (id)
+CONSTRAINT challenges challenges_request_fingerprint_not_null NOT NULL request_fingerprint
+CONSTRAINT challenges challenges_request_id_not_null NOT NULL request_id
+CONSTRAINT challenges challenges_starts_at_not_null NOT NULL starts_at
+CONSTRAINT challenges challenges_work_not_null NOT NULL work
+CONSTRAINT challenges ck_challenges_character_length CHECK ((char_length("character") <= 100))
+CONSTRAINT challenges ck_challenges_featured_team CHECK (((featured_on IS NULL) OR (origin = 'team'::text)))
+CONSTRAINT challenges ck_challenges_line_length CHECK (((char_length(line) >= 1) AND (char_length(line) <= 200)))
+CONSTRAINT challenges ck_challenges_moderation CHECK ((moderation = ANY (ARRAY['visible'::text, 'review'::text, 'hidden'::text])))
+CONSTRAINT challenges ck_challenges_origin CHECK ((origin = ANY (ARRAY['team'::text, 'member'::text])))
+CONSTRAINT challenges ck_challenges_period CHECK ((ends_at > starts_at))
+CONSTRAINT challenges ck_challenges_ranking_state CHECK ((ranking_state = ANY (ARRAY['pending'::text, 'final'::text])))
+CONSTRAINT challenges ck_challenges_scene_note_length CHECK ((char_length(scene_note) <= 500))
+CONSTRAINT challenges ck_challenges_team CHECK (((origin <> 'team'::text) OR (host_user_id IS NULL)))
+CONSTRAINT challenges ck_challenges_work_length CHECK (((char_length(work) >= 1) AND (char_length(work) <= 100)))
+CONSTRAINT challenges uq_challenges_featured UNIQUE (featured_on)
+CONSTRAINT challenges uq_challenges_request UNIQUE (host_user_id, request_id)
+CONSTRAINT coach_conversations ck_coach_conversations_close_reason CHECK ((close_reason = ANY (ARRAY['gap_stated'::text, 'exhausted'::text, 'limit'::text, 'user_ended'::text, 'system_failure'::text])))
+CONSTRAINT coach_conversations ck_coach_conversations_state_revision CHECK ((state_revision >= 0))
+CONSTRAINT coach_conversations ck_coach_conversations_status CHECK ((status = ANY (ARRAY['open'::text, 'closed'::text])))
+CONSTRAINT coach_conversations coach_conversations_created_at_not_null NOT NULL created_at
+CONSTRAINT coach_conversations coach_conversations_id_not_null NOT NULL id
+CONSTRAINT coach_conversations coach_conversations_pkey PRIMARY KEY (id)
+CONSTRAINT coach_conversations coach_conversations_practice_id_fkey FOREIGN KEY (practice_id) REFERENCES practices(id)
+CONSTRAINT coach_conversations coach_conversations_practice_id_not_null NOT NULL practice_id
+CONSTRAINT coach_conversations coach_conversations_start_request_id_not_null NOT NULL start_request_id
+CONSTRAINT coach_conversations coach_conversations_state_not_null NOT NULL state
+CONSTRAINT coach_conversations coach_conversations_state_revision_not_null NOT NULL state_revision
+CONSTRAINT coach_conversations coach_conversations_status_not_null NOT NULL status
+CONSTRAINT coach_conversations coach_conversations_updated_at_not_null NOT NULL updated_at
+CONSTRAINT coach_conversations uq_coach_conversations_practice UNIQUE (practice_id)
+CONSTRAINT coach_messages ck_coach_messages_role CHECK ((role = ANY (ARRAY['ai'::text, 'actor'::text])))
+CONSTRAINT coach_messages ck_coach_messages_turn_index CHECK ((turn_index >= 0))
+CONSTRAINT coach_messages coach_messages_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES coach_conversations(id)
+CONSTRAINT coach_messages coach_messages_conversation_id_not_null NOT NULL conversation_id
+CONSTRAINT coach_messages coach_messages_created_at_not_null NOT NULL created_at
+CONSTRAINT coach_messages coach_messages_id_not_null NOT NULL id
+CONSTRAINT coach_messages coach_messages_pkey PRIMARY KEY (id)
+CONSTRAINT coach_messages coach_messages_role_not_null NOT NULL role
+CONSTRAINT coach_messages coach_messages_text_not_null NOT NULL text
+CONSTRAINT coach_messages coach_messages_turn_index_not_null NOT NULL turn_index
+CONSTRAINT coach_messages uq_coach_messages_request UNIQUE (conversation_id, request_id)
+CONSTRAINT coach_messages uq_coach_messages_turn UNIQUE (conversation_id, turn_index)
+CONSTRAINT coach_notes ck_coach_notes_format CHECK ((format = ANY (ARRAY['legacy'::text, 'v2'::text])))
+CONSTRAINT coach_notes ck_coach_notes_kind CHECK ((kind = ANY (ARRAY['analysis'::text, 'expression'::text, 'action'::text, 'observation'::text, 'record_only'::text])))
+CONSTRAINT coach_notes ck_coach_notes_source_revision CHECK ((source_revision >= 0))
+CONSTRAINT coach_notes coach_notes_actor_words_not_null NOT NULL actor_words
+CONSTRAINT coach_notes coach_notes_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES coach_conversations(id)
+CONSTRAINT coach_notes coach_notes_conversation_id_not_null NOT NULL conversation_id
+CONSTRAINT coach_notes coach_notes_corrections_not_null NOT NULL corrections
+CONSTRAINT coach_notes coach_notes_created_at_not_null NOT NULL created_at
+CONSTRAINT coach_notes coach_notes_fallback_not_null NOT NULL fallback
+CONSTRAINT coach_notes coach_notes_format_not_null NOT NULL format
+CONSTRAINT coach_notes coach_notes_id_not_null NOT NULL id
+CONSTRAINT coach_notes coach_notes_kind_not_null NOT NULL kind
+CONSTRAINT coach_notes coach_notes_pkey PRIMARY KEY (id)
+CONSTRAINT coach_notes coach_notes_source_revision_not_null NOT NULL source_revision
+CONSTRAINT coach_notes coach_notes_summary_quotes_not_null NOT NULL summary_quotes
+CONSTRAINT coach_notes coach_notes_tags_not_null NOT NULL tags
+CONSTRAINT coach_notes uq_coach_notes_conversation UNIQUE (conversation_id)
 CONSTRAINT coach_sessions ck_coach_sessions_close_reason CHECK ((close_reason = ANY (ARRAY['gap_stated'::text, 'exhausted'::text, 'limit'::text, 'user_ended'::text, 'actor_finished'::text, 'turn_budget'::text, 'interrupted'::text, 'system_failure'::text])))
 CONSTRAINT coach_sessions ck_coach_sessions_coaching_state_object CHECK (((coaching_state_json IS NULL) OR (jsonb_typeof(coaching_state_json) = 'object'::text)))
 CONSTRAINT coach_sessions ck_coach_sessions_state_revision CHECK ((state_revision >= 0))
@@ -362,16 +902,105 @@ CONSTRAINT community_reports community_reports_status_not_null NOT NULL status
 CONSTRAINT community_reports community_reports_target_id_not_null NOT NULL target_id
 CONSTRAINT community_reports community_reports_target_type_not_null NOT NULL target_type
 CONSTRAINT community_reports uq_community_reports_reporter_target UNIQUE (reporter_id, target_type, target_id)
-CONSTRAINT consent_documents ck_consent_documents_type CHECK ((type = ANY (ARRAY['terms'::text, 'privacy'::text, 'ai_analysis'::text])))
+CONSTRAINT consent_documents ck_consent_documents_type CHECK ((type = ANY (ARRAY['terms'::text, 'privacy'::text, 'ai_analysis'::text, 'retention'::text])))
 CONSTRAINT consent_documents consent_documents_body_not_null NOT NULL body
 CONSTRAINT consent_documents consent_documents_id_not_null NOT NULL id
+CONSTRAINT consent_documents consent_documents_locale_not_null NOT NULL locale
 CONSTRAINT consent_documents consent_documents_pkey PRIMARY KEY (id)
 CONSTRAINT consent_documents consent_documents_published_at_not_null NOT NULL published_at
 CONSTRAINT consent_documents consent_documents_required_not_null NOT NULL required
 CONSTRAINT consent_documents consent_documents_title_not_null NOT NULL title
 CONSTRAINT consent_documents consent_documents_type_not_null NOT NULL type
 CONSTRAINT consent_documents consent_documents_version_not_null NOT NULL version
-CONSTRAINT consent_documents uq_consent_documents_type_version UNIQUE (type, version)
+CONSTRAINT consent_documents uq_consent_documents_type_version UNIQUE (type, version, locale)
+CONSTRAINT entry_ai_reports ck_entry_ai_reports_attempts CHECK (((attempt_count >= 0) AND (attempt_count <= 3)))
+CONSTRAINT entry_ai_reports ck_entry_ai_reports_purged CHECK (((purged_at IS NULL) OR (result IS NULL)))
+CONSTRAINT entry_ai_reports ck_entry_ai_reports_ready CHECK (((status <> 'ready'::text) OR (purged_at IS NOT NULL) OR (result IS NOT NULL)))
+CONSTRAINT entry_ai_reports ck_entry_ai_reports_status CHECK ((status = ANY (ARRAY['pending'::text, 'ready'::text, 'failed'::text])))
+CONSTRAINT entry_ai_reports entry_ai_reports_attempt_count_not_null NOT NULL attempt_count
+CONSTRAINT entry_ai_reports entry_ai_reports_entry_id_fkey FOREIGN KEY (entry_id) REFERENCES challenge_entries(id)
+CONSTRAINT entry_ai_reports entry_ai_reports_entry_id_not_null NOT NULL entry_id
+CONSTRAINT entry_ai_reports entry_ai_reports_format_version_not_null NOT NULL format_version
+CONSTRAINT entry_ai_reports entry_ai_reports_id_not_null NOT NULL id
+CONSTRAINT entry_ai_reports entry_ai_reports_job_id_fkey FOREIGN KEY (job_id) REFERENCES ai_jobs(id)
+CONSTRAINT entry_ai_reports entry_ai_reports_job_id_not_null NOT NULL job_id
+CONSTRAINT entry_ai_reports entry_ai_reports_pkey PRIMARY KEY (id)
+CONSTRAINT entry_ai_reports entry_ai_reports_requested_at_not_null NOT NULL requested_at
+CONSTRAINT entry_ai_reports entry_ai_reports_status_not_null NOT NULL status
+CONSTRAINT entry_ai_reports entry_ai_reports_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT entry_ai_reports entry_ai_reports_user_id_not_null NOT NULL user_id
+CONSTRAINT entry_ai_reports uq_entry_ai_reports_entry UNIQUE (entry_id)
+CONSTRAINT entry_comments ck_entry_comments_body CHECK (((char_length(body) >= 1) AND (char_length(body) <= 500)))
+CONSTRAINT entry_comments ck_entry_comments_deleted CHECK (((deleted_at IS NULL) = (body IS NOT NULL)))
+CONSTRAINT entry_comments ck_entry_comments_status CHECK ((status = ANY (ARRAY['visible'::text, 'hidden'::text])))
+CONSTRAINT entry_comments entry_comments_created_at_not_null NOT NULL created_at
+CONSTRAINT entry_comments entry_comments_entry_id_fkey FOREIGN KEY (entry_id) REFERENCES challenge_entries(id)
+CONSTRAINT entry_comments entry_comments_entry_id_not_null NOT NULL entry_id
+CONSTRAINT entry_comments entry_comments_id_not_null NOT NULL id
+CONSTRAINT entry_comments entry_comments_pkey PRIMARY KEY (id)
+CONSTRAINT entry_comments entry_comments_request_fingerprint_not_null NOT NULL request_fingerprint
+CONSTRAINT entry_comments entry_comments_request_id_not_null NOT NULL request_id
+CONSTRAINT entry_comments entry_comments_status_not_null NOT NULL status
+CONSTRAINT entry_comments entry_comments_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT entry_comments entry_comments_user_id_not_null NOT NULL user_id
+CONSTRAINT entry_comments uq_entry_comments_parent UNIQUE (id, entry_id)
+CONSTRAINT entry_comments uq_entry_comments_request UNIQUE (user_id, request_id)
+CONSTRAINT entry_likes entry_likes_created_at_not_null NOT NULL created_at
+CONSTRAINT entry_likes entry_likes_entry_id_fkey FOREIGN KEY (entry_id) REFERENCES challenge_entries(id)
+CONSTRAINT entry_likes entry_likes_entry_id_not_null NOT NULL entry_id
+CONSTRAINT entry_likes entry_likes_id_not_null NOT NULL id
+CONSTRAINT entry_likes entry_likes_pkey PRIMARY KEY (id)
+CONSTRAINT entry_likes entry_likes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT entry_likes entry_likes_user_id_not_null NOT NULL user_id
+CONSTRAINT entry_likes uq_entry_likes_actor UNIQUE (entry_id, user_id)
+CONSTRAINT entry_ranking_snapshots ck_entry_ranking_snapshots_basis CHECK ((basis = ANY (ARRAY['live'::text, 'pending'::text, 'final'::text])))
+CONSTRAINT entry_ranking_snapshots ck_entry_ranking_snapshots_shape CHECK ((cardinality(entry_ids) = cardinality(ranks)))
+CONSTRAINT entry_ranking_snapshots entry_ranking_snapshots_basis_not_null NOT NULL basis
+CONSTRAINT entry_ranking_snapshots entry_ranking_snapshots_challenge_id_fkey FOREIGN KEY (challenge_id) REFERENCES challenges(id)
+CONSTRAINT entry_ranking_snapshots entry_ranking_snapshots_challenge_id_not_null NOT NULL challenge_id
+CONSTRAINT entry_ranking_snapshots entry_ranking_snapshots_created_at_not_null NOT NULL created_at
+CONSTRAINT entry_ranking_snapshots entry_ranking_snapshots_entry_ids_not_null NOT NULL entry_ids
+CONSTRAINT entry_ranking_snapshots entry_ranking_snapshots_id_not_null NOT NULL id
+CONSTRAINT entry_ranking_snapshots entry_ranking_snapshots_pkey PRIMARY KEY (id)
+CONSTRAINT entry_ranking_snapshots entry_ranking_snapshots_ranks_not_null NOT NULL ranks
+CONSTRAINT entry_ranking_snapshots entry_ranking_snapshots_viewer_id_fkey FOREIGN KEY (viewer_id) REFERENCES users(id)
+CONSTRAINT entry_ranking_snapshots entry_ranking_snapshots_viewer_id_not_null NOT NULL viewer_id
+CONSTRAINT entry_reports ck_entry_reports_note CHECK ((char_length(note) <= 200))
+CONSTRAINT entry_reports ck_entry_reports_reason CHECK ((reason = ANY (ARRAY['copyright'::text, 'inappropriate'::text, 'spam'::text, 'duplicate'::text, 'other'::text])))
+CONSTRAINT entry_reports ck_entry_reports_resolution CHECK ((resolution = ANY (ARRAY['restored'::text, 'kept_hidden'::text, 'dismissed'::text])))
+CONSTRAINT entry_reports ck_entry_reports_reviewed CHECK (((status = 'reviewed'::text) = ((resolution IS NOT NULL) AND (reviewed_at IS NOT NULL))))
+CONSTRAINT entry_reports ck_entry_reports_status CHECK ((status = ANY (ARRAY['received'::text, 'reviewed'::text])))
+CONSTRAINT entry_reports ck_entry_reports_target_type CHECK ((target_type = ANY (ARRAY['entry'::text, 'comment'::text, 'challenge'::text])))
+CONSTRAINT entry_reports ck_entry_reports_version CHECK ((target_version > 0))
+CONSTRAINT entry_reports entry_reports_created_at_not_null NOT NULL created_at
+CONSTRAINT entry_reports entry_reports_id_not_null NOT NULL id
+CONSTRAINT entry_reports entry_reports_pkey PRIMARY KEY (id)
+CONSTRAINT entry_reports entry_reports_reason_not_null NOT NULL reason
+CONSTRAINT entry_reports entry_reports_reporter_id_fkey FOREIGN KEY (reporter_id) REFERENCES users(id)
+CONSTRAINT entry_reports entry_reports_reporter_id_not_null NOT NULL reporter_id
+CONSTRAINT entry_reports entry_reports_request_fingerprint_not_null NOT NULL request_fingerprint
+CONSTRAINT entry_reports entry_reports_request_id_not_null NOT NULL request_id
+CONSTRAINT entry_reports entry_reports_status_not_null NOT NULL status
+CONSTRAINT entry_reports entry_reports_target_id_not_null NOT NULL target_id
+CONSTRAINT entry_reports entry_reports_target_type_not_null NOT NULL target_type
+CONSTRAINT entry_reports entry_reports_target_version_not_null NOT NULL target_version
+CONSTRAINT entry_reports uq_entry_reports_request UNIQUE (reporter_id, request_id)
+CONSTRAINT entry_reports uq_entry_reports_target UNIQUE (target_type, target_id, reporter_id)
+CONSTRAINT entry_saves entry_saves_created_at_not_null NOT NULL created_at
+CONSTRAINT entry_saves entry_saves_entry_id_fkey FOREIGN KEY (entry_id) REFERENCES challenge_entries(id)
+CONSTRAINT entry_saves entry_saves_entry_id_not_null NOT NULL entry_id
+CONSTRAINT entry_saves entry_saves_id_not_null NOT NULL id
+CONSTRAINT entry_saves entry_saves_pkey PRIMARY KEY (id)
+CONSTRAINT entry_saves entry_saves_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT entry_saves entry_saves_user_id_not_null NOT NULL user_id
+CONSTRAINT entry_saves uq_entry_saves_actor UNIQUE (entry_id, user_id)
+CONSTRAINT entry_view_events entry_view_events_created_at_not_null NOT NULL created_at
+CONSTRAINT entry_view_events entry_view_events_entry_id_fkey FOREIGN KEY (entry_id) REFERENCES challenge_entries(id)
+CONSTRAINT entry_view_events entry_view_events_entry_id_not_null NOT NULL entry_id
+CONSTRAINT entry_view_events entry_view_events_event_id_not_null NOT NULL event_id
+CONSTRAINT entry_view_events entry_view_events_pkey PRIMARY KEY (event_id)
+CONSTRAINT entry_view_events entry_view_events_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT entry_view_events entry_view_events_user_id_not_null NOT NULL user_id
 CONSTRAINT external_operations ck_external_operations_kind CHECK ((kind = ANY (ARRAY['analyze'::text, 'coach_start'::text, 'coach_reply'::text, 'report'::text, 'memory_update'::text])))
 CONSTRAINT external_operations ck_external_operations_last_failure_classification CHECK ((last_failure_classification = ANY (ARRAY['expected'::text, 'external'::text, 'unexpected'::text])))
 CONSTRAINT external_operations ck_external_operations_status CHECK ((status = ANY (ARRAY['pending'::text, 'running'::text, 'succeeded'::text, 'failed'::text])))
@@ -389,12 +1018,130 @@ CONSTRAINT external_operations external_operations_updated_at_not_null NOT NULL 
 CONSTRAINT external_operations external_operations_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
 CONSTRAINT external_operations external_operations_user_id_not_null NOT NULL user_id
 CONSTRAINT external_operations uq_external_operations_user_request UNIQUE (user_id, request_id)
+CONSTRAINT guest_transfer_codes guest_transfer_codes_code_hash_not_null NOT NULL code_hash
+CONSTRAINT guest_transfer_codes guest_transfer_codes_created_at_not_null NOT NULL created_at
+CONSTRAINT guest_transfer_codes guest_transfer_codes_expires_at_not_null NOT NULL expires_at
+CONSTRAINT guest_transfer_codes guest_transfer_codes_id_not_null NOT NULL id
+CONSTRAINT guest_transfer_codes guest_transfer_codes_pkey PRIMARY KEY (id)
+CONSTRAINT guest_transfer_codes guest_transfer_codes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+CONSTRAINT guest_transfer_codes guest_transfer_codes_user_id_not_null NOT NULL user_id
 CONSTRAINT handoff_confirmations handoff_confirmations_coaching_handoff_id_fkey FOREIGN KEY (coaching_handoff_id) REFERENCES coaching_handoffs(id) ON DELETE CASCADE
 CONSTRAINT handoff_confirmations handoff_confirmations_coaching_handoff_id_not_null NOT NULL coaching_handoff_id
 CONSTRAINT handoff_confirmations handoff_confirmations_confirmed_not_null NOT NULL confirmed
 CONSTRAINT handoff_confirmations handoff_confirmations_created_at_not_null NOT NULL created_at
 CONSTRAINT handoff_confirmations handoff_confirmations_pkey PRIMARY KEY (coaching_handoff_id)
 CONSTRAINT handoff_confirmations handoff_confirmations_updated_at_not_null NOT NULL updated_at
+CONSTRAINT line_memorization ck_line_memorization_status CHECK ((status = ANY (ARRAY['memorized'::text, 'not_yet'::text])))
+CONSTRAINT line_memorization line_memorization_created_at_not_null NOT NULL created_at
+CONSTRAINT line_memorization line_memorization_id_not_null NOT NULL id
+CONSTRAINT line_memorization line_memorization_line_id_fkey FOREIGN KEY (line_id) REFERENCES script_lines(id)
+CONSTRAINT line_memorization line_memorization_line_id_not_null NOT NULL line_id
+CONSTRAINT line_memorization line_memorization_pkey PRIMARY KEY (id)
+CONSTRAINT line_memorization line_memorization_status_not_null NOT NULL status
+CONSTRAINT line_memorization line_memorization_updated_at_not_null NOT NULL updated_at
+CONSTRAINT line_memorization line_memorization_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT line_memorization line_memorization_user_id_not_null NOT NULL user_id
+CONSTRAINT line_memorization uq_line_memorization_user_line UNIQUE (user_id, line_id)
+CONSTRAINT note_ratings ck_note_ratings_comment_length CHECK (((char_length(comment) >= 1) AND (char_length(comment) <= 100)))
+CONSTRAINT note_ratings ck_note_ratings_comment_not_blank CHECK ((btrim(comment) <> ''::text))
+CONSTRAINT note_ratings ck_note_ratings_rating CHECK ((rating = ANY (ARRAY['helpful'::text, 'not_helpful'::text])))
+CONSTRAINT note_ratings note_ratings_created_at_not_null NOT NULL created_at
+CONSTRAINT note_ratings note_ratings_id_not_null NOT NULL id
+CONSTRAINT note_ratings note_ratings_note_id_fkey FOREIGN KEY (note_id) REFERENCES coach_notes(id)
+CONSTRAINT note_ratings note_ratings_note_id_not_null NOT NULL note_id
+CONSTRAINT note_ratings note_ratings_pkey PRIMARY KEY (id)
+CONSTRAINT note_ratings note_ratings_practice_id_fkey FOREIGN KEY (practice_id) REFERENCES practices(id)
+CONSTRAINT note_ratings note_ratings_practice_id_not_null NOT NULL practice_id
+CONSTRAINT note_ratings note_ratings_rating_not_null NOT NULL rating
+CONSTRAINT note_ratings note_ratings_request_id_not_null NOT NULL request_id
+CONSTRAINT note_ratings note_ratings_updated_at_not_null NOT NULL updated_at
+CONSTRAINT note_ratings note_ratings_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT note_ratings note_ratings_user_id_not_null NOT NULL user_id
+CONSTRAINT note_ratings uq_note_ratings_note_user UNIQUE (note_id, user_id)
+CONSTRAINT notification_pushes ck_notification_pushes_stage CHECK ((stage = ANY (ARRAY['first'::text, 'summary'::text])))
+CONSTRAINT notification_pushes notification_pushes_created_at_not_null NOT NULL created_at
+CONSTRAINT notification_pushes notification_pushes_group_key_not_null NOT NULL group_key
+CONSTRAINT notification_pushes notification_pushes_id_not_null NOT NULL id
+CONSTRAINT notification_pushes notification_pushes_pkey PRIMARY KEY (id)
+CONSTRAINT notification_pushes notification_pushes_stage_not_null NOT NULL stage
+CONSTRAINT notification_pushes notification_pushes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT notification_pushes notification_pushes_user_id_not_null NOT NULL user_id
+CONSTRAINT notification_pushes uq_notification_pushes_stage UNIQUE (group_key, stage)
+CONSTRAINT notifications ck_notifications_actor CHECK (((kind = ANY (ARRAY['entry_liked'::text, 'entry_commented'::text])) OR (actor_user_id IS NULL)))
+CONSTRAINT notifications ck_notifications_comment CHECK (((kind = 'entry_commented'::text) = (comment_id IS NOT NULL)))
+CONSTRAINT notifications ck_notifications_entry CHECK (((kind = 'challenge_ended'::text) = (entry_id IS NULL)))
+CONSTRAINT notifications ck_notifications_kind CHECK ((kind = ANY (ARRAY['entry_liked'::text, 'entry_commented'::text, 'challenge_ended'::text, 'entry_ai_report_ready'::text])))
+CONSTRAINT notifications ck_notifications_pending CHECK (((push_status <> 'pending'::text) OR (push_after IS NOT NULL)))
+CONSTRAINT notifications ck_notifications_push_status CHECK ((push_status = ANY (ARRAY['pending'::text, 'attempted'::text, 'skipped'::text])))
+CONSTRAINT notifications fk_notifications_comment FOREIGN KEY (comment_id, entry_id) REFERENCES entry_comments(id, entry_id)
+CONSTRAINT notifications fk_notifications_entry FOREIGN KEY (entry_id, challenge_id) REFERENCES challenge_entries(id, challenge_id)
+CONSTRAINT notifications notifications_actor_user_id_fkey FOREIGN KEY (actor_user_id) REFERENCES users(id)
+CONSTRAINT notifications notifications_challenge_id_fkey FOREIGN KEY (challenge_id) REFERENCES challenges(id)
+CONSTRAINT notifications notifications_challenge_id_not_null NOT NULL challenge_id
+CONSTRAINT notifications notifications_created_at_not_null NOT NULL created_at
+CONSTRAINT notifications notifications_event_key_not_null NOT NULL event_key
+CONSTRAINT notifications notifications_expires_at_not_null NOT NULL expires_at
+CONSTRAINT notifications notifications_group_key_not_null NOT NULL group_key
+CONSTRAINT notifications notifications_id_not_null NOT NULL id
+CONSTRAINT notifications notifications_kind_not_null NOT NULL kind
+CONSTRAINT notifications notifications_pkey PRIMARY KEY (id)
+CONSTRAINT notifications notifications_push_status_not_null NOT NULL push_status
+CONSTRAINT notifications notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT notifications notifications_user_id_not_null NOT NULL user_id
+CONSTRAINT notifications uq_notifications_event UNIQUE (user_id, event_key)
+CONSTRAINT portfolio_credits ck_portfolio_credits_kind CHECK ((kind = ANY (ARRAY['film'::text, 'drama'::text, 'play'::text, 'musical'::text, 'ad'::text, 'other'::text])))
+CONSTRAINT portfolio_credits portfolio_credits_created_at_not_null NOT NULL created_at
+CONSTRAINT portfolio_credits portfolio_credits_id_not_null NOT NULL id
+CONSTRAINT portfolio_credits portfolio_credits_kind_not_null NOT NULL kind
+CONSTRAINT portfolio_credits portfolio_credits_pkey PRIMARY KEY (id)
+CONSTRAINT portfolio_credits portfolio_credits_role_not_null NOT NULL role
+CONSTRAINT portfolio_credits portfolio_credits_sort_order_not_null NOT NULL sort_order
+CONSTRAINT portfolio_credits portfolio_credits_title_not_null NOT NULL title
+CONSTRAINT portfolio_credits portfolio_credits_updated_at_not_null NOT NULL updated_at
+CONSTRAINT portfolio_credits portfolio_credits_user_id_fkey FOREIGN KEY (user_id) REFERENCES portfolios(user_id) ON DELETE CASCADE
+CONSTRAINT portfolio_credits portfolio_credits_user_id_not_null NOT NULL user_id
+CONSTRAINT portfolio_credits portfolio_credits_year_not_null NOT NULL year
+CONSTRAINT portfolio_photos ck_portfolio_photos_uploaded_has_order CHECK (((uploaded_at IS NULL) OR (sort_order IS NOT NULL)))
+CONSTRAINT portfolio_photos portfolio_photos_created_at_not_null NOT NULL created_at
+CONSTRAINT portfolio_photos portfolio_photos_expires_at_not_null NOT NULL expires_at
+CONSTRAINT portfolio_photos portfolio_photos_id_not_null NOT NULL id
+CONSTRAINT portfolio_photos portfolio_photos_mime_type_not_null NOT NULL mime_type
+CONSTRAINT portfolio_photos portfolio_photos_object_key_key UNIQUE (object_key)
+CONSTRAINT portfolio_photos portfolio_photos_object_key_not_null NOT NULL object_key
+CONSTRAINT portfolio_photos portfolio_photos_pkey PRIMARY KEY (id)
+CONSTRAINT portfolio_photos portfolio_photos_size_bytes_not_null NOT NULL size_bytes
+CONSTRAINT portfolio_photos portfolio_photos_user_id_fkey FOREIGN KEY (user_id) REFERENCES portfolios(user_id) ON DELETE CASCADE
+CONSTRAINT portfolio_photos portfolio_photos_user_id_not_null NOT NULL user_id
+CONSTRAINT portfolios ck_portfolios_share_needs_slug CHECK (((NOT share_enabled) OR (share_slug IS NOT NULL)))
+CONSTRAINT portfolios portfolios_created_at_not_null NOT NULL created_at
+CONSTRAINT portfolios portfolios_pkey PRIMARY KEY (user_id)
+CONSTRAINT portfolios portfolios_share_enabled_not_null NOT NULL share_enabled
+CONSTRAINT portfolios portfolios_updated_at_not_null NOT NULL updated_at
+CONSTRAINT portfolios portfolios_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+CONSTRAINT portfolios portfolios_user_id_not_null NOT NULL user_id
+CONSTRAINT portfolios uq_portfolios_share_slug UNIQUE (share_slug)
+CONSTRAINT practice_feedback ck_practice_feedback_screen CHECK ((screen = ANY (ARRAY['coach'::text, 'report'::text])))
+CONSTRAINT practice_feedback ck_practice_feedback_sheet_seq CHECK ((sheet_seq >= 1))
+CONSTRAINT practice_feedback ck_practice_feedback_trigger CHECK ((trigger = ANY (ARRAY['x'::text, 'leave'::text, 'back'::text])))
+CONSTRAINT practice_feedback practice_feedback_created_at_not_null NOT NULL created_at
+CONSTRAINT practice_feedback practice_feedback_id_not_null NOT NULL id
+CONSTRAINT practice_feedback practice_feedback_pkey PRIMARY KEY (id)
+CONSTRAINT practice_feedback practice_feedback_practice_id_fkey FOREIGN KEY (practice_id) REFERENCES practices(id)
+CONSTRAINT practice_feedback practice_feedback_screen_not_null NOT NULL screen
+CONSTRAINT practice_feedback practice_feedback_sheet_seq_not_null NOT NULL sheet_seq
+CONSTRAINT practice_feedback practice_feedback_trigger_not_null NOT NULL trigger
+CONSTRAINT practice_feedback practice_feedback_updated_at_not_null NOT NULL updated_at
+CONSTRAINT practice_feedback practice_feedback_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT practice_feedback practice_feedback_user_id_not_null NOT NULL user_id
+CONSTRAINT practice_feedback uq_practice_feedback_user_request UNIQUE (user_id, request_id)
+CONSTRAINT practice_migration_entries practice_migration_entries_batch_id_not_null NOT NULL batch_id
+CONSTRAINT practice_migration_entries practice_migration_entries_created_at_not_null NOT NULL created_at
+CONSTRAINT practice_migration_entries practice_migration_entries_id_not_null NOT NULL id
+CONSTRAINT practice_migration_entries practice_migration_entries_pkey PRIMARY KEY (id)
+CONSTRAINT practice_migration_entries practice_migration_entries_source_id_not_null NOT NULL source_id
+CONSTRAINT practice_migration_entries practice_migration_entries_source_table_not_null NOT NULL source_table
+CONSTRAINT practice_migration_entries practice_migration_entries_step_not_null NOT NULL step
+CONSTRAINT practice_migration_entries uq_practice_migration_source UNIQUE (source_table, source_id)
 CONSTRAINT practice_reports ck_practice_reports_report_type CHECK ((report_type = ANY (ARRAY['analysis'::text, 'expression'::text, 'practice_note'::text])))
 CONSTRAINT practice_reports practice_reports_created_at_not_null NOT NULL created_at
 CONSTRAINT practice_reports practice_reports_id_not_null NOT NULL id
@@ -425,8 +1172,36 @@ CONSTRAINT practice_sessions practice_sessions_upload_intent_id_fkey FOREIGN KEY
 CONSTRAINT practice_sessions practice_sessions_upload_intent_id_not_null NOT NULL upload_intent_id
 CONSTRAINT practice_sessions practice_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
 CONSTRAINT practice_sessions practice_sessions_user_id_not_null NOT NULL user_id
+CONSTRAINT practices ck_practices_blockage_branch CHECK ((((blockage_kind = '분석'::text) AND (sub_branch = ANY (ARRAY['캐릭터 분석'::text, '대사 분석'::text, '그 외'::text]))) OR ((blockage_kind = '표현'::text) AND (sub_branch = ANY (ARRAY['감정'::text, '움직임'::text, '화술'::text, '표정'::text, '그 외'::text]))) OR ((blockage_kind = '그 외'::text) AND (sub_branch = '그 외'::text))))
+CONSTRAINT practices ck_practices_close_reason CHECK ((close_reason = ANY (ARRAY['analysis_failed'::text, 'cancelled'::text, 'conversation_closed'::text])))
+CONSTRAINT practices ck_practices_experience_version CHECK ((experience_version = ANY (ARRAY['legacy'::text, 'three_layers_v1'::text])))
+CONSTRAINT practices ck_practices_ordinal CHECK ((ordinal >= 1))
+CONSTRAINT practices ck_practices_stage CHECK ((stage = ANY (ARRAY['analyzing'::text, 'conversing'::text, 'closed'::text])))
+CONSTRAINT practices practices_blockage_kind_not_null NOT NULL blockage_kind
+CONSTRAINT practices practices_character_context_not_null NOT NULL character_context
+CONSTRAINT practices practices_created_at_not_null NOT NULL created_at
+CONSTRAINT practices practices_experience_version_not_null NOT NULL experience_version
+CONSTRAINT practices practices_favorite_not_null NOT NULL favorite
+CONSTRAINT practices practices_goal_not_null NOT NULL goal
+CONSTRAINT practices practices_id_not_null NOT NULL id
+CONSTRAINT practices practices_ordinal_not_null NOT NULL ordinal
+CONSTRAINT practices practices_pkey PRIMARY KEY (id)
+CONSTRAINT practices practices_root_id_fkey FOREIGN KEY (root_id) REFERENCES practices(id)
+CONSTRAINT practices practices_root_id_not_null NOT NULL root_id
+CONSTRAINT practices practices_situation_not_null NOT NULL situation
+CONSTRAINT practices practices_stage_not_null NOT NULL stage
+CONSTRAINT practices practices_sub_branch_not_null NOT NULL sub_branch
+CONSTRAINT practices practices_tags_not_null NOT NULL tags
+CONSTRAINT practices practices_updated_at_not_null NOT NULL updated_at
+CONSTRAINT practices practices_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT practices practices_user_id_not_null NOT NULL user_id
+CONSTRAINT practices practices_video_id_fkey FOREIGN KEY (video_id) REFERENCES videos(id)
+CONSTRAINT practices practices_video_id_not_null NOT NULL video_id
+CONSTRAINT practices uq_practices_root_ordinal UNIQUE (root_id, ordinal)
+CONSTRAINT practices uq_practices_user_request UNIQUE (user_id, request_id)
 CONSTRAINT push_tokens push_tokens_created_at_not_null NOT NULL created_at
 CONSTRAINT push_tokens push_tokens_id_not_null NOT NULL id
+CONSTRAINT push_tokens push_tokens_locale_not_null NOT NULL locale
 CONSTRAINT push_tokens push_tokens_pkey PRIMARY KEY (id)
 CONSTRAINT push_tokens push_tokens_platform_not_null NOT NULL platform
 CONSTRAINT push_tokens push_tokens_token_key UNIQUE (token)
@@ -434,6 +1209,51 @@ CONSTRAINT push_tokens push_tokens_token_not_null NOT NULL token
 CONSTRAINT push_tokens push_tokens_updated_at_not_null NOT NULL updated_at
 CONSTRAINT push_tokens push_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 CONSTRAINT push_tokens push_tokens_user_id_not_null NOT NULL user_id
+CONSTRAINT reading_recordings ck_reading_recordings_attempt_no CHECK ((attempt_no >= 1))
+CONSTRAINT reading_recordings ck_reading_recordings_transcript_source CHECK ((transcript_source = ANY (ARRAY['stt'::text, 'none'::text])))
+CONSTRAINT reading_recordings reading_recordings_attempt_no_not_null NOT NULL attempt_no
+CONSTRAINT reading_recordings reading_recordings_byte_size_not_null NOT NULL byte_size
+CONSTRAINT reading_recordings reading_recordings_content_type_not_null NOT NULL content_type
+CONSTRAINT reading_recordings reading_recordings_created_at_not_null NOT NULL created_at
+CONSTRAINT reading_recordings reading_recordings_duration_ms_not_null NOT NULL duration_ms
+CONSTRAINT reading_recordings reading_recordings_id_not_null NOT NULL id
+CONSTRAINT reading_recordings reading_recordings_line_id_fkey FOREIGN KEY (line_id) REFERENCES script_lines(id)
+CONSTRAINT reading_recordings reading_recordings_object_key_not_null NOT NULL object_key
+CONSTRAINT reading_recordings reading_recordings_pkey PRIMARY KEY (id)
+CONSTRAINT reading_recordings reading_recordings_reading_session_id_fkey FOREIGN KEY (reading_session_id) REFERENCES reading_sessions(id)
+CONSTRAINT reading_recordings reading_recordings_request_id_not_null NOT NULL request_id
+CONSTRAINT reading_recordings reading_recordings_transcript_source_not_null NOT NULL transcript_source
+CONSTRAINT reading_recordings reading_recordings_updated_at_not_null NOT NULL updated_at
+CONSTRAINT reading_recordings reading_recordings_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT reading_recordings reading_recordings_user_id_not_null NOT NULL user_id
+CONSTRAINT reading_recordings uq_reading_recordings_session_line UNIQUE (reading_session_id, line_id)
+CONSTRAINT reading_recordings uq_reading_recordings_user_request UNIQUE (user_id, request_id)
+CONSTRAINT reading_sessions ck_reading_sessions_advance CHECK ((advance = ANY (ARRAY['silence'::text, 'manual'::text])))
+CONSTRAINT reading_sessions ck_reading_sessions_mode CHECK ((mode = ANY (ARRAY['read'::text, 'quiz'::text])))
+CONSTRAINT reading_sessions ck_reading_sessions_my_characters_not_empty CHECK ((cardinality(my_character_ids) >= 1))
+CONSTRAINT reading_sessions ck_reading_sessions_status CHECK ((status = ANY (ARRAY['in_progress'::text, 'completed'::text, 'stopped'::text])))
+CONSTRAINT reading_sessions reading_sessions_advance_not_null NOT NULL advance
+CONSTRAINT reading_sessions reading_sessions_current_line_id_fkey FOREIGN KEY (current_line_id) REFERENCES script_lines(id)
+CONSTRAINT reading_sessions reading_sessions_elapsed_seconds_not_null NOT NULL elapsed_seconds
+CONSTRAINT reading_sessions reading_sessions_end_line_id_fkey FOREIGN KEY (end_line_id) REFERENCES script_lines(id)
+CONSTRAINT reading_sessions reading_sessions_end_line_id_not_null NOT NULL end_line_id
+CONSTRAINT reading_sessions reading_sessions_id_not_null NOT NULL id
+CONSTRAINT reading_sessions reading_sessions_line_results_not_null NOT NULL line_results
+CONSTRAINT reading_sessions reading_sessions_mode_not_null NOT NULL mode
+CONSTRAINT reading_sessions reading_sessions_my_character_ids_not_null NOT NULL my_character_ids
+CONSTRAINT reading_sessions reading_sessions_pkey PRIMARY KEY (id)
+CONSTRAINT reading_sessions reading_sessions_progress_seq_not_null NOT NULL progress_seq
+CONSTRAINT reading_sessions reading_sessions_record_not_null NOT NULL record
+CONSTRAINT reading_sessions reading_sessions_script_id_fkey FOREIGN KEY (script_id) REFERENCES scripts(id)
+CONSTRAINT reading_sessions reading_sessions_script_id_not_null NOT NULL script_id
+CONSTRAINT reading_sessions reading_sessions_start_line_id_fkey FOREIGN KEY (start_line_id) REFERENCES script_lines(id)
+CONSTRAINT reading_sessions reading_sessions_start_line_id_not_null NOT NULL start_line_id
+CONSTRAINT reading_sessions reading_sessions_started_at_not_null NOT NULL started_at
+CONSTRAINT reading_sessions reading_sessions_status_not_null NOT NULL status
+CONSTRAINT reading_sessions reading_sessions_updated_at_not_null NOT NULL updated_at
+CONSTRAINT reading_sessions reading_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT reading_sessions reading_sessions_user_id_not_null NOT NULL user_id
+CONSTRAINT reading_sessions uq_reading_sessions_user_request UNIQUE (user_id, request_id)
 CONSTRAINT refresh_tokens refresh_tokens_expires_at_not_null NOT NULL expires_at
 CONSTRAINT refresh_tokens refresh_tokens_id_not_null NOT NULL id
 CONSTRAINT refresh_tokens refresh_tokens_issued_at_not_null NOT NULL issued_at
@@ -456,6 +1276,42 @@ CONSTRAINT reports reports_self_discovery_not_null NOT NULL self_discovery
 CONSTRAINT reports reports_session_id_fkey FOREIGN KEY (session_id) REFERENCES coach_sessions(id)
 CONSTRAINT reports reports_session_id_key UNIQUE (session_id)
 CONSTRAINT reports reports_session_id_not_null NOT NULL session_id
+CONSTRAINT script_characters ck_script_characters_name_trimmed CHECK (((name = btrim(name)) AND (name <> ''::text)))
+CONSTRAINT script_characters ck_script_characters_voice_preset_length CHECK ((char_length(voice_preset) <= 32))
+CONSTRAINT script_characters script_characters_created_at_not_null NOT NULL created_at
+CONSTRAINT script_characters script_characters_id_not_null NOT NULL id
+CONSTRAINT script_characters script_characters_name_not_null NOT NULL name
+CONSTRAINT script_characters script_characters_pkey PRIMARY KEY (id)
+CONSTRAINT script_characters script_characters_script_id_fkey FOREIGN KEY (script_id) REFERENCES scripts(id)
+CONSTRAINT script_characters script_characters_script_id_not_null NOT NULL script_id
+CONSTRAINT script_characters script_characters_sort_order_not_null NOT NULL sort_order
+CONSTRAINT script_characters script_characters_updated_at_not_null NOT NULL updated_at
+CONSTRAINT script_characters uq_script_characters_script_name UNIQUE (script_id, name) DEFERRABLE
+CONSTRAINT script_characters uq_script_characters_script_order UNIQUE (script_id, sort_order)
+CONSTRAINT script_lines ck_script_lines_dialogue_has_character CHECK (((kind = 'dialogue'::text) = (character_id IS NOT NULL)))
+CONSTRAINT script_lines ck_script_lines_kind CHECK ((kind = ANY (ARRAY['dialogue'::text, 'direction'::text, 'scene'::text])))
+CONSTRAINT script_lines script_lines_character_id_fkey FOREIGN KEY (character_id) REFERENCES script_characters(id)
+CONSTRAINT script_lines script_lines_created_at_not_null NOT NULL created_at
+CONSTRAINT script_lines script_lines_id_not_null NOT NULL id
+CONSTRAINT script_lines script_lines_kind_not_null NOT NULL kind
+CONSTRAINT script_lines script_lines_ordinal_not_null NOT NULL ordinal
+CONSTRAINT script_lines script_lines_pkey PRIMARY KEY (id)
+CONSTRAINT script_lines script_lines_script_id_fkey FOREIGN KEY (script_id) REFERENCES scripts(id)
+CONSTRAINT script_lines script_lines_script_id_not_null NOT NULL script_id
+CONSTRAINT script_lines script_lines_text_not_null NOT NULL text
+CONSTRAINT script_lines uq_script_lines_script_ordinal UNIQUE (script_id, ordinal)
+CONSTRAINT scripts ck_scripts_source CHECK ((source = ANY (ARRAY['file'::text, 'paste'::text, 'typed'::text, 'sample'::text])))
+CONSTRAINT scripts scripts_created_at_not_null NOT NULL created_at
+CONSTRAINT scripts scripts_id_not_null NOT NULL id
+CONSTRAINT scripts scripts_pkey PRIMARY KEY (id)
+CONSTRAINT scripts scripts_raw_text_not_null NOT NULL raw_text
+CONSTRAINT scripts scripts_request_fingerprint_not_null NOT NULL request_fingerprint
+CONSTRAINT scripts scripts_source_not_null NOT NULL source
+CONSTRAINT scripts scripts_title_not_null NOT NULL title
+CONSTRAINT scripts scripts_updated_at_not_null NOT NULL updated_at
+CONSTRAINT scripts scripts_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT scripts scripts_user_id_not_null NOT NULL user_id
+CONSTRAINT scripts uq_scripts_user_request UNIQUE (user_id, request_id)
 CONSTRAINT summaries summaries_created_at_not_null NOT NULL created_at
 CONSTRAINT summaries summaries_id_not_null NOT NULL id
 CONSTRAINT summaries summaries_model_not_null NOT NULL model
@@ -487,6 +1343,16 @@ CONSTRAINT upload_intents upload_intents_status_not_null NOT NULL status
 CONSTRAINT upload_intents upload_intents_storage_provider_not_null NOT NULL storage_provider
 CONSTRAINT upload_intents upload_intents_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
 CONSTRAINT upload_intents upload_intents_user_id_not_null NOT NULL user_id
+CONSTRAINT upload_intents upload_intents_video_id_fkey FOREIGN KEY (video_id) REFERENCES videos(id)
+CONSTRAINT user_blocks ck_user_blocks_other CHECK ((blocker_id <> blocked_id))
+CONSTRAINT user_blocks uq_user_blocks_pair UNIQUE (blocker_id, blocked_id)
+CONSTRAINT user_blocks user_blocks_blocked_id_fkey FOREIGN KEY (blocked_id) REFERENCES users(id)
+CONSTRAINT user_blocks user_blocks_blocked_id_not_null NOT NULL blocked_id
+CONSTRAINT user_blocks user_blocks_blocker_id_fkey FOREIGN KEY (blocker_id) REFERENCES users(id)
+CONSTRAINT user_blocks user_blocks_blocker_id_not_null NOT NULL blocker_id
+CONSTRAINT user_blocks user_blocks_created_at_not_null NOT NULL created_at
+CONSTRAINT user_blocks user_blocks_id_not_null NOT NULL id
+CONSTRAINT user_blocks user_blocks_pkey PRIMARY KEY (id)
 CONSTRAINT user_consents ck_user_consents_action CHECK ((action = ANY (ARRAY['granted'::text, 'declined'::text, 'revoked'::text])))
 CONSTRAINT user_consents user_consents_action_not_null NOT NULL action
 CONSTRAINT user_consents user_consents_document_id_fkey FOREIGN KEY (document_id) REFERENCES consent_documents(id)
@@ -496,25 +1362,75 @@ CONSTRAINT user_consents user_consents_occurred_at_not_null NOT NULL occurred_at
 CONSTRAINT user_consents user_consents_pkey PRIMARY KEY (id)
 CONSTRAINT user_consents user_consents_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
 CONSTRAINT user_consents user_consents_user_id_not_null NOT NULL user_id
-CONSTRAINT user_identities ck_user_identities_provider CHECK ((provider = ANY (ARRAY['google'::text, 'kakao'::text, 'apple'::text, 'development'::text])))
+CONSTRAINT user_identities ck_user_identities_provider CHECK ((provider = ANY (ARRAY['google'::text, 'kakao'::text, 'apple'::text, 'naver'::text, 'guest'::text, 'development'::text])))
+CONSTRAINT user_identities ck_user_identities_uid_or_hash CHECK (((provider_uid IS NOT NULL) OR (uid_hash IS NOT NULL)))
 CONSTRAINT user_identities uq_user_identities_provider_uid UNIQUE (provider, provider_uid)
 CONSTRAINT user_identities user_identities_created_at_not_null NOT NULL created_at
 CONSTRAINT user_identities user_identities_id_not_null NOT NULL id
 CONSTRAINT user_identities user_identities_pkey PRIMARY KEY (id)
 CONSTRAINT user_identities user_identities_provider_not_null NOT NULL provider
-CONSTRAINT user_identities user_identities_provider_uid_not_null NOT NULL provider_uid
 CONSTRAINT user_identities user_identities_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
 CONSTRAINT user_identities user_identities_user_id_not_null NOT NULL user_id
+CONSTRAINT user_profile_directions ck_user_profile_directions_direction CHECK ((direction = ANY (ARRAY['media'::text, 'stage'::text])))
+CONSTRAINT user_profile_directions uq_user_profile_directions_user_direction UNIQUE (user_id, direction)
+CONSTRAINT user_profile_directions user_profile_directions_created_at_not_null NOT NULL created_at
+CONSTRAINT user_profile_directions user_profile_directions_direction_not_null NOT NULL direction
+CONSTRAINT user_profile_directions user_profile_directions_id_not_null NOT NULL id
+CONSTRAINT user_profile_directions user_profile_directions_pkey PRIMARY KEY (id)
+CONSTRAINT user_profile_directions user_profile_directions_user_id_fkey FOREIGN KEY (user_id) REFERENCES user_profiles(user_id) ON DELETE CASCADE
+CONSTRAINT user_profile_directions user_profile_directions_user_id_not_null NOT NULL user_id
+CONSTRAINT user_profiles ck_user_profiles_age_band CHECK (((age_band >= 0) AND ((age_band % 5) = 0)))
+CONSTRAINT user_profiles ck_user_profiles_experience CHECK ((experience = ANY (ARRAY['before_start'::text, 'exam_prep'::text, 'under_1y'::text, 'y1_to_3'::text, 'y3_to_5'::text, 'over_5y'::text])))
+CONSTRAINT user_profiles ck_user_profiles_gender CHECK ((gender = ANY (ARRAY['female'::text, 'male'::text, 'unspecified'::text])))
+CONSTRAINT user_profiles ck_user_profiles_goal CHECK ((goal = ANY (ARRAY['hobby'::text, 'audition'::text, 'professional'::text])))
+CONSTRAINT user_profiles ck_user_profiles_photo_upload_together CHECK ((((photo_upload_key IS NULL) AND (photo_upload_mime_type IS NULL) AND (photo_upload_size_bytes IS NULL) AND (photo_upload_expires_at IS NULL)) OR ((photo_upload_key IS NOT NULL) AND (photo_upload_mime_type IS NOT NULL) AND (photo_upload_size_bytes IS NOT NULL) AND (photo_upload_expires_at IS NOT NULL))))
+CONSTRAINT user_profiles user_profiles_created_at_not_null NOT NULL created_at
+CONSTRAINT user_profiles user_profiles_notify_analysis_done_not_null NOT NULL notify_analysis_done
+CONSTRAINT user_profiles user_profiles_notify_challenge_not_null NOT NULL notify_challenge
+CONSTRAINT user_profiles user_profiles_notify_evening_reminder_not_null NOT NULL notify_evening_reminder
+CONSTRAINT user_profiles user_profiles_pkey PRIMARY KEY (user_id)
+CONSTRAINT user_profiles user_profiles_updated_at_not_null NOT NULL updated_at
+CONSTRAINT user_profiles user_profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+CONSTRAINT user_profiles user_profiles_user_id_not_null NOT NULL user_id
 CONSTRAINT users ck_users_role CHECK ((role = ANY (ARRAY['user'::text, 'admin'::text])))
 CONSTRAINT users ck_users_status CHECK ((status = ANY (ARRAY['active'::text, 'deactivated'::text])))
 CONSTRAINT users users_created_at_not_null NOT NULL created_at
 CONSTRAINT users users_email_key UNIQUE (email)
 CONSTRAINT users users_id_not_null NOT NULL id
+CONSTRAINT users users_memory_epoch_not_null NOT NULL memory_epoch
 CONSTRAINT users users_pkey PRIMARY KEY (id)
 CONSTRAINT users users_role_not_null NOT NULL role
 CONSTRAINT users users_status_not_null NOT NULL status
 CONSTRAINT users users_updated_at_not_null NOT NULL updated_at
+CONSTRAINT video_transcripts ck_video_transcripts_status CHECK ((status = ANY (ARRAY['reserved'::text, 'ready'::text, 'failed'::text])))
+CONSTRAINT video_transcripts uq_video_transcripts_video UNIQUE (video_id)
+CONSTRAINT video_transcripts video_transcripts_created_at_not_null NOT NULL created_at
+CONSTRAINT video_transcripts video_transcripts_id_not_null NOT NULL id
+CONSTRAINT video_transcripts video_transcripts_pkey PRIMARY KEY (id)
+CONSTRAINT video_transcripts video_transcripts_segments_not_null NOT NULL segments
+CONSTRAINT video_transcripts video_transcripts_status_not_null NOT NULL status
+CONSTRAINT video_transcripts video_transcripts_updated_at_not_null NOT NULL updated_at
+CONSTRAINT video_transcripts video_transcripts_video_id_fkey FOREIGN KEY (video_id) REFERENCES videos(id)
+CONSTRAINT video_transcripts video_transcripts_video_id_not_null NOT NULL video_id
+CONSTRAINT videos ck_videos_byte_size CHECK ((byte_size >= 0))
+CONSTRAINT videos ck_videos_duration_ms CHECK ((duration_ms >= 0))
+CONSTRAINT videos videos_byte_size_not_null NOT NULL byte_size
+CONSTRAINT videos videos_content_type_not_null NOT NULL content_type
+CONSTRAINT videos videos_created_at_not_null NOT NULL created_at
+CONSTRAINT videos videos_duration_ms_not_null NOT NULL duration_ms
+CONSTRAINT videos videos_favorite_not_null NOT NULL favorite
+CONSTRAINT videos videos_id_not_null NOT NULL id
+CONSTRAINT videos videos_object_key_not_null NOT NULL object_key
+CONSTRAINT videos videos_pkey PRIMARY KEY (id)
+CONSTRAINT videos videos_poster_attempts_not_null NOT NULL poster_attempts
+CONSTRAINT videos videos_updated_at_not_null NOT NULL updated_at
+CONSTRAINT videos videos_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT videos videos_user_id_not_null NOT NULL user_id
+INDEX CREATE INDEX idx_account_cleanup_operations_due ON public.account_cleanup_operations USING btree (next_attempt_at)
+INDEX CREATE INDEX idx_account_cleanup_operations_user ON public.account_cleanup_operations USING btree (user_id)
 INDEX CREATE INDEX idx_actor_memory_user ON public.actor_memory_entries USING btree (user_id)
+INDEX CREATE INDEX idx_ai_jobs_due ON public.ai_jobs USING btree (status, created_at)
+INDEX CREATE INDEX idx_ai_jobs_target ON public.ai_jobs USING btree (target_id, created_at DESC)
 INDEX CREATE INDEX idx_anomalies_summary ON public.anomalies USING btree (summary_id, sort_order)
 INDEX CREATE INDEX idx_coach_sessions_practice ON public.coach_sessions USING btree (practice_session_id, created_at)
 INDEX CREATE INDEX idx_coaching_handoffs_practice_created ON public.coaching_handoffs USING btree (practice_session_id, created_at)
@@ -528,26 +1444,72 @@ INDEX CREATE INDEX idx_community_posts_author ON public.community_posts USING bt
 INDEX CREATE INDEX idx_community_posts_category_created ON public.community_posts USING btree (category_id, created_at DESC, id DESC) WHERE (status = 'visible'::text)
 INDEX CREATE INDEX idx_community_posts_created ON public.community_posts USING btree (created_at DESC, id DESC) WHERE (status = 'visible'::text)
 INDEX CREATE INDEX idx_community_reports_status_created ON public.community_reports USING btree (status, created_at DESC)
-INDEX CREATE INDEX idx_consent_documents_latest ON public.consent_documents USING btree (type, published_at DESC)
+INDEX CREATE INDEX idx_consent_documents_latest ON public.consent_documents USING btree (type, locale, published_at DESC)
 INDEX CREATE INDEX idx_external_operations_claimable ON public.external_operations USING btree (kind, status, created_at)
 INDEX CREATE INDEX idx_external_operations_session ON public.external_operations USING btree (session_id)
 INDEX CREATE INDEX idx_external_operations_status_attempt_lease ON public.external_operations USING btree (status, attempt_count, lease_expires_at)
+INDEX CREATE INDEX idx_guest_transfer_codes_code_hash ON public.guest_transfer_codes USING btree (code_hash)
+INDEX CREATE INDEX idx_guest_transfer_codes_user ON public.guest_transfer_codes USING btree (user_id)
+INDEX CREATE INDEX idx_line_memorization_line ON public.line_memorization USING btree (line_id)
+INDEX CREATE INDEX idx_note_ratings_user ON public.note_ratings USING btree (user_id)
+INDEX CREATE INDEX idx_portfolio_credits_user_order ON public.portfolio_credits USING btree (user_id, sort_order)
+INDEX CREATE INDEX idx_portfolio_photos_user_order ON public.portfolio_photos USING btree (user_id, sort_order)
+INDEX CREATE INDEX idx_practice_feedback_sheet_pending ON public.practice_feedback USING btree (created_at) WHERE (sheet_synced_at IS NULL)
+INDEX CREATE INDEX idx_practice_migration_step ON public.practice_migration_entries USING btree (step, created_at)
 INDEX CREATE INDEX idx_practice_reports_session_created ON public.practice_reports USING btree (practice_session_id, created_at)
 INDEX CREATE INDEX idx_practice_sessions_status_updated ON public.practice_sessions USING btree (status, updated_at)
 INDEX CREATE INDEX idx_practice_sessions_upload_intent ON public.practice_sessions USING btree (upload_intent_id)
 INDEX CREATE INDEX idx_practice_sessions_user ON public.practice_sessions USING btree (user_id)
 INDEX CREATE INDEX idx_practice_sessions_user_visible_created ON public.practice_sessions USING btree (user_id, created_at DESC) WHERE (hidden_at IS NULL)
+INDEX CREATE INDEX idx_practices_root ON public.practices USING btree (root_id, ordinal)
+INDEX CREATE INDEX idx_practices_user_created ON public.practices USING btree (user_id, created_at DESC)
+INDEX CREATE INDEX idx_practices_video ON public.practices USING btree (video_id)
 INDEX CREATE INDEX idx_push_tokens_user ON public.push_tokens USING btree (user_id)
+INDEX CREATE INDEX idx_reading_recordings_user ON public.reading_recordings USING btree (user_id)
+INDEX CREATE INDEX idx_reading_sessions_script_started ON public.reading_sessions USING btree (script_id, started_at DESC)
+INDEX CREATE INDEX idx_reading_sessions_user ON public.reading_sessions USING btree (user_id)
 INDEX CREATE INDEX idx_refresh_tokens_user_expires ON public.refresh_tokens USING btree (user_id, expires_at)
 INDEX CREATE INDEX idx_reports_created ON public.reports USING btree (created_at DESC)
+INDEX CREATE INDEX idx_script_lines_character ON public.script_lines USING btree (character_id)
+INDEX CREATE INDEX idx_scripts_user_updated ON public.scripts USING btree (user_id, updated_at DESC)
 INDEX CREATE INDEX idx_sessions_summary ON public.coach_sessions USING btree (summary_id)
 INDEX CREATE INDEX idx_turns_session ON public.coach_turns USING btree (session_id, turn_index)
 INDEX CREATE INDEX idx_upload_intents_expiry ON public.upload_intents USING btree (status, expires_at)
 INDEX CREATE INDEX idx_upload_intents_user_created ON public.upload_intents USING btree (user_id, created_at DESC)
 INDEX CREATE INDEX idx_user_consents_current ON public.user_consents USING btree (user_id, document_id, occurred_at DESC)
+INDEX CREATE INDEX idx_user_identities_uid_hash ON public.user_identities USING btree (uid_hash) WHERE (uid_hash IS NOT NULL)
 INDEX CREATE INDEX idx_user_identities_user ON public.user_identities USING btree (user_id)
+INDEX CREATE INDEX idx_videos_user_created ON public.videos USING btree (user_id, created_at DESC)
+INDEX CREATE INDEX ix_challenge_entries_owner ON public.challenge_entries USING btree (user_id, created_at)
+INDEX CREATE INDEX ix_challenge_entries_public ON public.challenge_entries USING btree (challenge_id, published_at DESC, id DESC) WHERE ((visibility = 'public'::text) AND (status = 'visible'::text))
+INDEX CREATE INDEX ix_challenges_host_created ON public.challenges USING btree (host_user_id, starts_at)
+INDEX CREATE INDEX ix_challenges_visible_ends ON public.challenges USING btree (ends_at, starts_at, id) WHERE ((moderation = 'visible'::text) AND (deleted_at IS NULL))
+INDEX CREATE INDEX ix_entry_ai_reports_user ON public.entry_ai_reports USING btree (user_id)
+INDEX CREATE INDEX ix_entry_comments_entry ON public.entry_comments USING btree (entry_id, created_at DESC, id DESC)
+INDEX CREATE INDEX ix_entry_comments_user_created ON public.entry_comments USING btree (user_id, created_at)
+INDEX CREATE INDEX ix_entry_ranking_snapshots_created ON public.entry_ranking_snapshots USING btree (created_at)
+INDEX CREATE INDEX ix_entry_reports_open ON public.entry_reports USING btree (target_type, target_id) WHERE (status = 'received'::text)
+INDEX CREATE INDEX ix_entry_reports_queue ON public.entry_reports USING btree (status, created_at)
+INDEX CREATE INDEX ix_entry_reports_reporter_created ON public.entry_reports USING btree (reporter_id, created_at)
+INDEX CREATE INDEX ix_entry_saves_user ON public.entry_saves USING btree (user_id, created_at DESC, id DESC)
+INDEX CREATE INDEX ix_entry_view_events_created ON public.entry_view_events USING btree (created_at)
+INDEX CREATE INDEX ix_notification_pushes_created ON public.notification_pushes USING btree (created_at)
+INDEX CREATE INDEX ix_notifications_due ON public.notifications USING btree (push_after) WHERE (push_status = 'pending'::text)
+INDEX CREATE INDEX ix_notifications_entry ON public.notifications USING btree (entry_id)
+INDEX CREATE INDEX ix_notifications_expires ON public.notifications USING btree (expires_at)
+INDEX CREATE INDEX ix_notifications_inbox ON public.notifications USING btree (user_id, group_key, created_at DESC)
+INDEX CREATE INDEX ix_user_blocks_received ON public.user_blocks USING btree (blocked_id, blocker_id)
+INDEX CREATE UNIQUE INDEX account_cleanup_operations_pkey ON public.account_cleanup_operations USING btree (id)
+INDEX CREATE UNIQUE INDEX actor_memories_pkey ON public.actor_memories USING btree (id)
 INDEX CREATE UNIQUE INDEX actor_memory_entries_pkey ON public.actor_memory_entries USING btree (id)
+INDEX CREATE UNIQUE INDEX ai_jobs_pkey ON public.ai_jobs USING btree (id)
+INDEX CREATE UNIQUE INDEX analyses_pkey ON public.analyses USING btree (id)
 INDEX CREATE UNIQUE INDEX anomalies_pkey ON public.anomalies USING btree (id)
+INDEX CREATE UNIQUE INDEX challenge_entries_pkey ON public.challenge_entries USING btree (id)
+INDEX CREATE UNIQUE INDEX challenges_pkey ON public.challenges USING btree (id)
+INDEX CREATE UNIQUE INDEX coach_conversations_pkey ON public.coach_conversations USING btree (id)
+INDEX CREATE UNIQUE INDEX coach_messages_pkey ON public.coach_messages USING btree (id)
+INDEX CREATE UNIQUE INDEX coach_notes_pkey ON public.coach_notes USING btree (id)
 INDEX CREATE UNIQUE INDEX coach_sessions_pkey ON public.coach_sessions USING btree (id)
 INDEX CREATE UNIQUE INDEX coach_turns_pkey ON public.coach_turns USING btree (id)
 INDEX CREATE UNIQUE INDEX coaching_handoffs_pkey ON public.coaching_handoffs USING btree (id)
@@ -560,42 +1522,124 @@ INDEX CREATE UNIQUE INDEX community_post_likes_pkey ON public.community_post_lik
 INDEX CREATE UNIQUE INDEX community_posts_pkey ON public.community_posts USING btree (id)
 INDEX CREATE UNIQUE INDEX community_reports_pkey ON public.community_reports USING btree (id)
 INDEX CREATE UNIQUE INDEX consent_documents_pkey ON public.consent_documents USING btree (id)
+INDEX CREATE UNIQUE INDEX entry_ai_reports_pkey ON public.entry_ai_reports USING btree (id)
+INDEX CREATE UNIQUE INDEX entry_comments_pkey ON public.entry_comments USING btree (id)
+INDEX CREATE UNIQUE INDEX entry_likes_pkey ON public.entry_likes USING btree (id)
+INDEX CREATE UNIQUE INDEX entry_ranking_snapshots_pkey ON public.entry_ranking_snapshots USING btree (id)
+INDEX CREATE UNIQUE INDEX entry_reports_pkey ON public.entry_reports USING btree (id)
+INDEX CREATE UNIQUE INDEX entry_saves_pkey ON public.entry_saves USING btree (id)
+INDEX CREATE UNIQUE INDEX entry_view_events_pkey ON public.entry_view_events USING btree (event_id)
 INDEX CREATE UNIQUE INDEX external_operations_pkey ON public.external_operations USING btree (id)
+INDEX CREATE UNIQUE INDEX guest_transfer_codes_pkey ON public.guest_transfer_codes USING btree (id)
 INDEX CREATE UNIQUE INDEX handoff_confirmations_pkey ON public.handoff_confirmations USING btree (coaching_handoff_id)
+INDEX CREATE UNIQUE INDEX line_memorization_pkey ON public.line_memorization USING btree (id)
+INDEX CREATE UNIQUE INDEX note_ratings_pkey ON public.note_ratings USING btree (id)
+INDEX CREATE UNIQUE INDEX notification_pushes_pkey ON public.notification_pushes USING btree (id)
+INDEX CREATE UNIQUE INDEX notifications_pkey ON public.notifications USING btree (id)
+INDEX CREATE UNIQUE INDEX portfolio_credits_pkey ON public.portfolio_credits USING btree (id)
+INDEX CREATE UNIQUE INDEX portfolio_photos_object_key_key ON public.portfolio_photos USING btree (object_key)
+INDEX CREATE UNIQUE INDEX portfolio_photos_pkey ON public.portfolio_photos USING btree (id)
+INDEX CREATE UNIQUE INDEX portfolios_pkey ON public.portfolios USING btree (user_id)
+INDEX CREATE UNIQUE INDEX practice_feedback_pkey ON public.practice_feedback USING btree (id)
+INDEX CREATE UNIQUE INDEX practice_migration_entries_pkey ON public.practice_migration_entries USING btree (id)
 INDEX CREATE UNIQUE INDEX practice_reports_pkey ON public.practice_reports USING btree (id)
 INDEX CREATE UNIQUE INDEX practice_sessions_pkey ON public.practice_sessions USING btree (id)
+INDEX CREATE UNIQUE INDEX practices_pkey ON public.practices USING btree (id)
 INDEX CREATE UNIQUE INDEX push_tokens_pkey ON public.push_tokens USING btree (id)
 INDEX CREATE UNIQUE INDEX push_tokens_token_key ON public.push_tokens USING btree (token)
+INDEX CREATE UNIQUE INDEX reading_recordings_pkey ON public.reading_recordings USING btree (id)
+INDEX CREATE UNIQUE INDEX reading_sessions_pkey ON public.reading_sessions USING btree (id)
 INDEX CREATE UNIQUE INDEX refresh_tokens_pkey ON public.refresh_tokens USING btree (id)
 INDEX CREATE UNIQUE INDEX refresh_tokens_token_hash_key ON public.refresh_tokens USING btree (token_hash)
 INDEX CREATE UNIQUE INDEX reports_pkey ON public.reports USING btree (id)
 INDEX CREATE UNIQUE INDEX reports_session_id_key ON public.reports USING btree (session_id)
+INDEX CREATE UNIQUE INDEX script_characters_pkey ON public.script_characters USING btree (id)
+INDEX CREATE UNIQUE INDEX script_lines_pkey ON public.script_lines USING btree (id)
+INDEX CREATE UNIQUE INDEX scripts_pkey ON public.scripts USING btree (id)
 INDEX CREATE UNIQUE INDEX summaries_pkey ON public.summaries USING btree (id)
 INDEX CREATE UNIQUE INDEX summaries_session_id_key ON public.summaries USING btree (session_id)
 INDEX CREATE UNIQUE INDEX transcripts_pkey ON public.transcripts USING btree (id)
 INDEX CREATE UNIQUE INDEX upload_intents_object_key_key ON public.upload_intents USING btree (object_key)
 INDEX CREATE UNIQUE INDEX upload_intents_pkey ON public.upload_intents USING btree (id)
+INDEX CREATE UNIQUE INDEX uq_actor_memories_user_field ON public.actor_memories USING btree (user_id, field)
 INDEX CREATE UNIQUE INDEX uq_actor_memory_user_field ON public.actor_memory_entries USING btree (user_id, field)
+INDEX CREATE UNIQUE INDEX uq_ai_jobs_user_request ON public.ai_jobs USING btree (user_id, request_id)
+INDEX CREATE UNIQUE INDEX uq_analyses_practice ON public.analyses USING btree (practice_id)
+INDEX CREATE UNIQUE INDEX uq_challenge_entries_parent ON public.challenge_entries USING btree (id, challenge_id)
+INDEX CREATE UNIQUE INDEX uq_challenge_entries_request ON public.challenge_entries USING btree (user_id, request_id)
+INDEX CREATE UNIQUE INDEX uq_challenge_entries_video ON public.challenge_entries USING btree (challenge_id, video_id) WHERE (status <> 'deleted'::text)
+INDEX CREATE UNIQUE INDEX uq_challenges_featured ON public.challenges USING btree (featured_on)
+INDEX CREATE UNIQUE INDEX uq_challenges_request ON public.challenges USING btree (host_user_id, request_id)
+INDEX CREATE UNIQUE INDEX uq_challenges_team_request ON public.challenges USING btree (request_id) WHERE (origin = 'team'::text)
+INDEX CREATE UNIQUE INDEX uq_coach_conversations_practice ON public.coach_conversations USING btree (practice_id)
+INDEX CREATE UNIQUE INDEX uq_coach_messages_request ON public.coach_messages USING btree (conversation_id, request_id)
+INDEX CREATE UNIQUE INDEX uq_coach_messages_turn ON public.coach_messages USING btree (conversation_id, turn_index)
+INDEX CREATE UNIQUE INDEX uq_coach_notes_conversation ON public.coach_notes USING btree (conversation_id)
 INDEX CREATE UNIQUE INDEX uq_coach_turns_session_index ON public.coach_turns USING btree (session_id, turn_index)
 INDEX CREATE UNIQUE INDEX uq_community_alias_post_ordinal ON public.community_anonymous_aliases USING btree (post_id, ordinal)
 INDEX CREATE UNIQUE INDEX uq_community_alias_post_user ON public.community_anonymous_aliases USING btree (post_id, user_id)
 INDEX CREATE UNIQUE INDEX uq_community_blocks_pair ON public.community_blocks USING btree (blocker_id, blocked_id)
 INDEX CREATE UNIQUE INDEX uq_community_post_likes ON public.community_post_likes USING btree (post_id, user_id)
 INDEX CREATE UNIQUE INDEX uq_community_reports_reporter_target ON public.community_reports USING btree (reporter_id, target_type, target_id)
-INDEX CREATE UNIQUE INDEX uq_consent_documents_type_version ON public.consent_documents USING btree (type, version)
+INDEX CREATE UNIQUE INDEX uq_consent_documents_type_version ON public.consent_documents USING btree (type, version, locale)
+INDEX CREATE UNIQUE INDEX uq_entry_ai_reports_entry ON public.entry_ai_reports USING btree (entry_id)
+INDEX CREATE UNIQUE INDEX uq_entry_comments_parent ON public.entry_comments USING btree (id, entry_id)
+INDEX CREATE UNIQUE INDEX uq_entry_comments_request ON public.entry_comments USING btree (user_id, request_id)
+INDEX CREATE UNIQUE INDEX uq_entry_likes_actor ON public.entry_likes USING btree (entry_id, user_id)
+INDEX CREATE UNIQUE INDEX uq_entry_reports_request ON public.entry_reports USING btree (reporter_id, request_id)
+INDEX CREATE UNIQUE INDEX uq_entry_reports_target ON public.entry_reports USING btree (target_type, target_id, reporter_id)
+INDEX CREATE UNIQUE INDEX uq_entry_saves_actor ON public.entry_saves USING btree (entry_id, user_id)
 INDEX CREATE UNIQUE INDEX uq_external_operations_user_request ON public.external_operations USING btree (user_id, request_id)
+INDEX CREATE UNIQUE INDEX uq_guest_transfer_codes_unused_code_hash ON public.guest_transfer_codes USING btree (code_hash) WHERE (used_at IS NULL)
+INDEX CREATE UNIQUE INDEX uq_guest_transfer_codes_unused_user ON public.guest_transfer_codes USING btree (user_id) WHERE (used_at IS NULL)
+INDEX CREATE UNIQUE INDEX uq_line_memorization_user_line ON public.line_memorization USING btree (user_id, line_id)
+INDEX CREATE UNIQUE INDEX uq_note_ratings_note_user ON public.note_ratings USING btree (note_id, user_id)
+INDEX CREATE UNIQUE INDEX uq_notification_pushes_stage ON public.notification_pushes USING btree (group_key, stage)
+INDEX CREATE UNIQUE INDEX uq_notifications_event ON public.notifications USING btree (user_id, event_key)
+INDEX CREATE UNIQUE INDEX uq_portfolios_share_slug ON public.portfolios USING btree (share_slug)
+INDEX CREATE UNIQUE INDEX uq_practice_feedback_user_request ON public.practice_feedback USING btree (user_id, request_id)
+INDEX CREATE UNIQUE INDEX uq_practice_migration_source ON public.practice_migration_entries USING btree (source_table, source_id)
 INDEX CREATE UNIQUE INDEX uq_practice_reports_source_handoff ON public.practice_reports USING btree (source_handoff_id)
+INDEX CREATE UNIQUE INDEX uq_practices_open_root ON public.practices USING btree (root_id) WHERE (stage <> 'closed'::text)
+INDEX CREATE UNIQUE INDEX uq_practices_root_ordinal ON public.practices USING btree (root_id, ordinal)
+INDEX CREATE UNIQUE INDEX uq_practices_user_request ON public.practices USING btree (user_id, request_id)
+INDEX CREATE UNIQUE INDEX uq_reading_recordings_session_line ON public.reading_recordings USING btree (reading_session_id, line_id)
+INDEX CREATE UNIQUE INDEX uq_reading_recordings_user_request ON public.reading_recordings USING btree (user_id, request_id)
+INDEX CREATE UNIQUE INDEX uq_reading_sessions_open_script ON public.reading_sessions USING btree (script_id) WHERE (status = 'in_progress'::text)
+INDEX CREATE UNIQUE INDEX uq_reading_sessions_user_request ON public.reading_sessions USING btree (user_id, request_id)
+INDEX CREATE UNIQUE INDEX uq_script_characters_script_name ON public.script_characters USING btree (script_id, name)
+INDEX CREATE UNIQUE INDEX uq_script_characters_script_order ON public.script_characters USING btree (script_id, sort_order)
+INDEX CREATE UNIQUE INDEX uq_script_lines_script_ordinal ON public.script_lines USING btree (script_id, ordinal)
+INDEX CREATE UNIQUE INDEX uq_scripts_user_request ON public.scripts USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_transcripts_session_ord ON public.transcripts USING btree (session_id, ord)
+INDEX CREATE UNIQUE INDEX uq_upload_intents_user_request ON public.upload_intents USING btree (user_id, request_id) WHERE (request_id IS NOT NULL)
+INDEX CREATE UNIQUE INDEX uq_user_blocks_pair ON public.user_blocks USING btree (blocker_id, blocked_id)
 INDEX CREATE UNIQUE INDEX uq_user_identities_provider_uid ON public.user_identities USING btree (provider, provider_uid)
+INDEX CREATE UNIQUE INDEX uq_user_profile_directions_user_direction ON public.user_profile_directions USING btree (user_id, direction)
+INDEX CREATE UNIQUE INDEX uq_video_transcripts_video ON public.video_transcripts USING btree (video_id)
+INDEX CREATE UNIQUE INDEX user_blocks_pkey ON public.user_blocks USING btree (id)
 INDEX CREATE UNIQUE INDEX user_consents_pkey ON public.user_consents USING btree (id)
 INDEX CREATE UNIQUE INDEX user_identities_pkey ON public.user_identities USING btree (id)
+INDEX CREATE UNIQUE INDEX user_profile_directions_pkey ON public.user_profile_directions USING btree (id)
+INDEX CREATE UNIQUE INDEX user_profiles_pkey ON public.user_profiles USING btree (user_id)
 INDEX CREATE UNIQUE INDEX users_email_key ON public.users USING btree (email)
 INDEX CREATE UNIQUE INDEX users_pkey ON public.users USING btree (id)
 INDEX CREATE UNIQUE INDEX ux_coaching_handoffs_session_revision ON public.coaching_handoffs USING btree (coach_session_id, state_revision) WHERE (state_revision IS NOT NULL)
+INDEX CREATE UNIQUE INDEX video_transcripts_pkey ON public.video_transcripts USING btree (id)
+INDEX CREATE UNIQUE INDEX videos_pkey ON public.videos USING btree (id)
 SEQUENCE anomalies_id_seq type=bigint
 SEQUENCE coach_turns_id_seq type=bigint
+TABLE account_cleanup_operations
+TABLE actor_memories
 TABLE actor_memory_entries
+TABLE ai_jobs
+TABLE analyses
 TABLE anomalies
+TABLE challenge_entries
+TABLE challenges
+TABLE coach_conversations
+TABLE coach_messages
+TABLE coach_notes
 TABLE coach_sessions
 TABLE coach_turns
 TABLE coaching_handoffs
@@ -607,16 +1651,44 @@ TABLE community_post_likes
 TABLE community_posts
 TABLE community_reports
 TABLE consent_documents
+TABLE entry_ai_reports
+TABLE entry_comments
+TABLE entry_likes
+TABLE entry_ranking_snapshots
+TABLE entry_reports
+TABLE entry_saves
+TABLE entry_view_events
 TABLE external_operations
+TABLE guest_transfer_codes
 TABLE handoff_confirmations
+TABLE line_memorization
+TABLE note_ratings
+TABLE notification_pushes
+TABLE notifications
+TABLE portfolio_credits
+TABLE portfolio_photos
+TABLE portfolios
+TABLE practice_feedback
+TABLE practice_migration_entries
 TABLE practice_reports
 TABLE practice_sessions
+TABLE practices
 TABLE push_tokens
+TABLE reading_recordings
+TABLE reading_sessions
 TABLE refresh_tokens
 TABLE reports
+TABLE script_characters
+TABLE script_lines
+TABLE scripts
 TABLE summaries
 TABLE transcripts
 TABLE upload_intents
+TABLE user_blocks
 TABLE user_consents
 TABLE user_identities
+TABLE user_profile_directions
+TABLE user_profiles
 TABLE users
+TABLE video_transcripts
+TABLE videos

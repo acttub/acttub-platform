@@ -1,0 +1,29 @@
+{
+  "title": null,
+  "roles": [
+    "지수",
+    "민준"
+  ],
+  "lines": [
+    {
+      "type": "dialogue",
+      "role": "지수",
+      "text": "안녕."
+    },
+    {
+      "type": "dialogue",
+      "role": "민준",
+      "text": "응, 안녕."
+    },
+    {
+      "type": "dialogue",
+      "role": "지수",
+      "text": "잘 지냈어? 그동안 연락 못 해서 미안."
+    },
+    {
+      "type": "dialogue",
+      "role": "민준",
+      "text": "괜찮아."
+    }
+  ]
+}

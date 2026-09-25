@@ -4,7 +4,208 @@
  */
 
 export interface paths {
+    "/v2/reading/lines/{line_id}/memorization": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Line Memorization
+         * @description 줄 하나의 표시를 두거나 바꾼다. 그 대본의 대사 줄이면 배역과 무관하게 받고(상대역 대사 줄도 200), 지문·장면
+         *     줄은 422 invalid_line, 없는 줄과 남의 줄은 404 line_not_found. 같은 상태의 재전송은 updated_at 을 바꾸지
+         *     않는다. 마지막 요청이 남는다.
+         */
+        put: operations["set_line_memorization_v2_reading_lines__line_id__memorization_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/practices/{practice_id}/note/rating": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Rate Practice Note
+         * @description 노트에 "도움 됐어요(helpful)·아쉬웠어요(not_helpful)" 와 한 줄(선택)을 남긴다. 노트 하나에 한 행이고
+         *     다시 보내면 덮어쓴다 — comment 를 빼면 한 줄도 비운다. 한 줄은 앞뒤 공백을 걷은 1~100자이고 넘으면
+         *     422 comment_too_long 이다.
+         *
+         *     같은 request_id·같은 본문의 재전송은 200 같은 응답이고, 같은 id 에 다른 본문이면 422
+         *     request_fingerprint_mismatch 다. 없는 회차·남의 회차·노트가 아직 없는 회차는 모두 404
+         *     note_not_found 다(노트 조회와 같다).
+         */
+        put: operations["rate_practice_note_v2_practices__practice_id__note_rating_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/portfolio/share": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Portfolio Share
+         * @description 공유 링크를 켜거나 끈다. 기본은 꺼짐이다. 처음 켤 때 추측할 수 없는 난수 slug 가 생기고, 꺼도
+         *     남아서 다시 켜면 같은 주소가 열린다. 같은 값을 다시 보내도 200 이다.
+         */
+        put: operations["set_portfolio_share_v2_portfolio_share_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/portfolio/photos/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Order Portfolio Photos
+         * @description 경력 순서 바꾸기와 같다.
+         */
+        put: operations["order_portfolio_photos_v2_portfolio_photos_order_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/portfolio/intro": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Save Intro
+         * @description 소개글을 저장한다. 2,000자까지이고 null 이나 빈 글이면 지운다.
+         */
+        put: operations["save_intro_v2_portfolio_intro_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/portfolio/credits/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Order Credits
+         * @description 지금 있는 경력 id 를 원하는 순서로 전부 보낸다. 지금 목록과 다르면 422 order_mismatch.
+         */
+        put: operations["order_credits_v2_portfolio_credits_order_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/me/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Save Profile
+         * @description 프로필 여섯 항목을 한 번에 저장한다. 가입 게이트의 입력 화면과 설정의 수정이 같은
+         *     API 를 쓴다. 부분 저장은 없다.
+         */
+        put: operations["save_profile_v2_me_profile_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/me/memory/{field}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Actor Memory
+         * @description 배우가 한 칸을 쓰거나 고친다.
+         *
+         *     여기서 쓴 칸은 이후 워커가 덮지 않는다. 되돌리려면 지우면 되고, 지우면 다음 갱신
+         *     대상 회차부터 다시 채워진다.
+         */
+        put: operations["update_actor_memory_v2_me_memory__field__put"];
+        post?: never;
+        /**
+         * Delete Actor Memory Field
+         * @description 한 칸을 지운다. 이미 없으면 404 대신 204 — 지우려는 결과는 같다.
+         */
+        delete: operations["delete_actor_memory_field_v2_me_memory__field__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/me/blocks/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Block User
+         * @description 상대에게 알리지 않는다. 자기 자신 422 self_block, 없는 회원 404. 멱등이다.
+         */
+        put: operations["block_user_v2_me_blocks__user_id__put"];
+        post?: never;
+        /**
+         * Unblock User
+         * @description 멱등이다. 없는 차단을 풀어도 200.
+         */
+        delete: operations["unblock_user_v2_me_blocks__user_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/legacy-me/memory/{field}": {
         parameters: {
             query?: never;
             header?: never;
@@ -19,19 +220,67 @@ export interface paths {
          *     여기서 쓴 칸은 이후 에이전트가 덮지 않는다. 되돌리려면 지우면 되고,
          *     지우면 다음 연습부터 에이전트가 다시 채운다.
          */
-        put: operations["update_memory_v2_me_memory__field__put"];
+        put: operations["update_memory_v2_legacy_me_memory__field__put"];
         post?: never;
         /**
          * Delete Memory Field
          * @description 한 칸을 지운다. 이미 없으면 404 대신 204 — 지우려는 결과는 같다.
          */
-        delete: operations["delete_memory_field_v2_me_memory__field__delete"];
+        delete: operations["delete_memory_field_v2_legacy_me_memory__field__delete"];
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/v2/uploads/intents": {
+    "/v2/entries/{id}/save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Save Entry
+         * @description 보는 사람에게 보이는 참여작에만 된다 — 비공개·삭제·숨김·review·hidden 챌린지·차단 관계는 404. 켜기·끄기는 멱등이다. 자기 참여작은 422 self_save. 랭킹·알림에 반영하지 않는다.
+         */
+        put: operations["save_entry_v2_entries__id__save_put"];
+        post?: never;
+        /**
+         * Unsave Entry
+         * @description 보는 사람에게 보이는 참여작에만 된다 — 비공개·삭제·숨김·review·hidden 챌린지·차단 관계는 404. 켜기·끄기는 멱등이다.
+         */
+        delete: operations["unsave_entry_v2_entries__id__save_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/entries/{id}/like": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Like Entry
+         * @description 보는 사람에게 보이는 참여작에만 된다 — 비공개·삭제·숨김·review·hidden 챌린지·차단 관계는 404. 켜기·끄기는 멱등이다. 자기 참여작은 422 self_like. 종료 뒤에도 되지만 저장된 최종 순위는 바뀌지 않는다.
+         */
+        put: operations["like_entry_v2_entries__id__like_put"];
+        post?: never;
+        /**
+         * Unlike Entry
+         * @description 보는 사람에게 보이는 참여작에만 된다 — 비공개·삭제·숨김·review·hidden 챌린지·차단 관계는 404. 켜기·끄기는 멱등이다.
+         */
+        delete: operations["unlike_entry_v2_entries__id__like_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/videos/{video_id}/purge-file": {
         parameters: {
             query?: never;
             header?: never;
@@ -40,15 +289,19 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create Intent */
-        post: operations["create_intent_v2_uploads_intents_post"];
+        /**
+         * Purge Video File
+         * @description 파일만 파기한다 — 회차·참여작의 기록은 남기고 객체와 받아쓰기를 지운다. 그 영상은 재생 불가로
+         *     표시되고 총량에서 빠진다. 총량이 가득한 계정이 공간을 되찾는 길이다.
+         */
+        post: operations["purge_video_file_v2_videos__video_id__purge_file_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/v2/uploads/intents/{intent_id}/complete": {
+    "/v2/videos/intents": {
         parameters: {
             query?: never;
             header?: never;
@@ -57,8 +310,35 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Complete Intent */
-        post: operations["complete_intent_v2_uploads_intents__intent_id__complete_post"];
+        /**
+         * Create Video Intent
+         * @description 올릴 자리를 내준다. 같은 요청 id 의 재전송은 같은 자리이고(기기가 올리다 만 객체를 이어 올린다),
+         *     같은 id 에 다른 본문이면 422 request_fingerprint_mismatch. 100MiB 초과는 video_too_large,
+         *     5분 초과는 video_too_long, 총량을 넘겼으면 video_quota 다.
+         */
+        post: operations["create_video_intent_v2_videos_intents_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/videos/intents/{intent_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Complete Video Intent
+         * @description 올라온 것을 확인하고 보관함에 영상을 만든다. 만들면 201, 마무리 재전송이면 200 으로 같은 영상이다.
+         *     시한(30분)이 지났으면 422 upload_expired 이고 미확정 객체는 삭제 장부로 간다. 아직 안 올라왔으면
+         *     422 video_not_ready, 이 확정이 총량을 넘기면 422 video_quota 다.
+         */
+        post: operations["complete_video_intent_v2_videos_intents__intent_id__complete_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -72,11 +352,96 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Report History */
-        get: operations["report_history_v2_reports_get"];
+        get?: never;
         put?: never;
-        /** Create Report */
-        post: operations["create_report_v2_reports_post"];
+        /**
+         * Report Challenge Content
+         * @description 참여작·댓글·챌린지 신고. 지금 볼 수 있는 대상만(아니면 404) 되고 본인 것은 422 self_report, 하루 21번째는 429
+         *     daily_report_limit. 참여작·댓글은 접수와 함께 숨겨지고, 챌린지는 서로 다른 세 사람의 처리 전 신고가 모이면
+         *     검토로 넘어간다. 같은 대상의 재신고는 먼저 낸 신고(200)다.
+         */
+        post: operations["create_challenge_report_v2_reports_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/reading/sessions/{session_id}/recordings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Line Recording
+         * @description 내 대사 한 줄의 녹음을 multipart 한 요청으로 올린다: request_id·line_id·attempt_no·audio(파일)·
+         *     duration_ms·transcript_source(stt·none)·transcript?·matched?. 서버가 m4a(AAC)가 아니면 변환해 저장한다.
+         *     같은 request_id 는 같은 행(200), 같은 줄의 더 큰 attempt_no 는 대체(201), 더 작은 번호는 200 현재 값.
+         *     10,000,000바이트·180초 초과 422 recording_too_long, 총량(회원 1GB·게스트 100MB) 초과 422 recording_quota,
+         *     구간 밖·상대역·지문 줄 422 invalid_line, 지워진 회차 404, 변환 실패 503 audio_conversion_failed.
+         *     completed·stopped 회차에도 받는다.
+         */
+        post: operations["upload_reading_recording_v2_reading_sessions__session_id__recordings_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/reading/scripts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Scripts
+         * @description 내 대본을 최근 고친 순으로. q 는 제목과 배역 이름에서 찾고 대사 본문은 찾지 않는다. 머리의 수
+         *     (전체·연습 중)는 검색과 무관하다.
+         */
+        get: operations["list_scripts_v2_reading_scripts_get"];
+        put?: never;
+        /**
+         * Create Script
+         * @description 기기가 나눈 대본(원문·배역·줄)을 한 요청으로 저장한다. 같은 request_id 에 같은 본문이 다시 오면
+         *     먼저 만든 대본을 200 으로 돌려주고, 다른 본문이면 422 request_fingerprint_mismatch 다. 배역 없음
+         *     422 no_characters, 비거나 겹치는 배역 이름 422 invalid_characters, 원문·줄 본문 100,000자·줄
+         *     3,000·배역 50 초과 422 script_too_long, 대본 수 회원 100·게스트 20 초과 422 script_limit.
+         */
+        post: operations["create_script_v2_reading_scripts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/reading/scripts/{script_id}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Reading Sessions
+         * @description 그 대본의 회차를 최근순으로. 없는 대본과 남의 대본은 같은 404 script_not_found 다.
+         */
+        get: operations["list_reading_sessions_v2_reading_scripts__script_id__sessions_get"];
+        put?: never;
+        /**
+         * Start Reading Session
+         * @description 내 배역·방식·구간·넘김·녹음을 정해 회차를 시작한다. 열린 회차가 있으면 같은 트랜잭션에서 stopped 로
+         *     바꾸고 새 회차를 만든다. 같은 request_id 가 다시 오면 먼저 만든 회차를 200 으로 돌려주고, 속성이 다르면
+         *     422 request_fingerprint_mismatch. 내 배역이 없거나 그 대본의 배역이 아니면 422 invalid_characters,
+         *     구간의 줄이 그 대본의 대사 줄이 아니면 422 invalid_line, 시작 줄이 끝 줄 뒤이거나 구간 안에 내 대사가
+         *     없으면 422 empty_range. current_line_id 는 구간의 첫 대사 줄이다.
+         */
+        post: operations["start_reading_session_v2_reading_scripts__script_id__sessions_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -94,12 +459,15 @@ export interface paths {
         put?: never;
         /**
          * Register Push Token
-         * @description 이 단말의 Expo push token 을 현재 사용자 것으로 등록한다. 멱등.
+         * @description 이 단말의 Expo push token 을 현재 회원 것으로 등록한다. 멱등. 보호 기능이라 동의와 프로필이
+         *     끝난 회원만 부를 수 있다 — 동의 전에는 기기 정보를 받지 않는다. 게스트는 403 member_only.
          */
         post: operations["register_push_token_v2_push_tokens_post"];
         /**
          * Unregister Push Token
-         * @description 이 단말의 토큰을 지운다. 로그아웃·알림 끄기에서 부른다. 멱등.
+         * @description 이 단말의 토큰을 지운다. 로그아웃의 첫 단계와, 로그아웃 때 실패한 삭제의 다음 실행 재시도에서
+         *     부른다. 멱등. <b>로그인 없이 받는다</b> — 푸시 토큰을 갖고 있다는 것이 본인 확인이고, 주인을
+         *     따지지 않고 그 토큰 행을 지운다. 한 IP 에서 분당 60회까지다.
          */
         delete: operations["unregister_push_token_v2_push_tokens_delete"];
         options?: never;
@@ -107,25 +475,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v2/practice-sessions": {
+    "/v2/practices": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List Sessions */
-        get: operations["list_sessions_v2_practice_sessions_get"];
+        /**
+         * List Practice Groups
+         * @description 연습 기록 — 묶음 단위다. 숨긴 묶음은 빠지고 필터는 all·favorite·recent30 이다. 묶음마다 회차 요약과
+         *     진행 중 회차 id 가 함께 온다.
+         */
+        get: operations["list_practice_groups_v2_practices_get"];
         put?: never;
-        /** Create Session */
-        post: operations["create_session_v2_practice_sessions_post"];
+        /**
+         * Start Practice
+         * @description 보관함의 영상으로 새 묶음의 첫 회차를 만든다 — 회차 하나와 분석 작업 하나가 한 트랜잭션이다.
+         *     상황·인물·목표와 막힘은 모두 선택이고 시작 뒤에는 바꾸지 않는다. 영상이 없거나 남의 것이거나
+         *     파일이 파기됐으면 422 video_not_ready, 게스트가 하루 세 번을 넘기면 429
+         *     guest_daily_analysis_limit, 같은 요청 id 에 다른 본문이면 422 request_fingerprint_mismatch 다.
+         */
+        post: operations["start_practice_v2_practices_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/v2/practice-sessions/{session_id}/analyze": {
+    "/v2/practices/{practice_id}/continue": {
         parameters: {
             query?: never;
             header?: never;
@@ -134,8 +512,329 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Reanalyze Session */
-        post: operations["reanalyze_session_v2_practice_sessions__session_id__analyze_post"];
+        /**
+         * Continue Practice
+         * @description 같은 묶음의 다음 회차. 영상을 보내지 않으면 이어받을 회차의 영상을 그대로 쓴다(그 영상이 파기됐으면
+         *     422 video_not_ready 이고 새 영상으로는 된다). 묶음에 닫히지 않은 회차가 있으면 409
+         *     practice_in_progress 이고, 그 회차 id 는 묶음 조회의 in_progress_practice_id 로 얻는다.
+         */
+        post: operations["continue_practice_v2_practices__practice_id__continue_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/practices/{practice_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Practice Analysis
+         * @description "그만두기" — 작업을 failed/cancelled 로 닫고 lease 를 지워 늦은 완료와 재큐를 막는다. 회차는 closed 다.
+         *     화면을 떠나는 것은 취소가 아니다. 이미 끝난 분석에는 409 analysis_already_finished.
+         */
+        post: operations["cancel_practice_analysis_v2_practices__practice_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/practices/{practice_id}/analyze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry Practice Analysis
+         * @description 실패로 닫힌 회차의 분석을 다시 건다 — 새 작업과 함께 analyzing 으로 돌아간다. 묶음에 다른 진행 중
+         *     회차가 있으면 409 practice_in_progress 이고, 아직 실패하지 않은 회차면 409 analysis_not_failed 다.
+         *     게스트의 하루 세 번을 한 번 쓴다.
+         */
+        post: operations["retry_practice_analysis_v2_practices__practice_id__analyze_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/practice-feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit Practice Feedback
+         * @description 나가기 직전의 소감을 접수한다.
+         *
+         *     저장은 DB 커밋으로 끝난다. 시트 복제는 뒤의 일이라 실패해도 접수는 유지되고 매일 도는
+         *     일이 다시 보낸다. 같은 request_id 의 재전송은 행을 늘리지 않고 같은 id 를 돌려준다.
+         */
+        post: operations["submit_practice_feedback_v2_practice_feedback_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/portfolio/photos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Begin Portfolio Photo Upload
+         * @description 포트폴리오 사진을 올릴 주소를 받는다. 10장까지, 이미지 파일만. 프로필 사진과 같이 앱이 긴 변
+         *     2048px 의 JPEG 로 항상 줄여서 올리므로 413·415 는 안전망이다.
+         */
+        post: operations["begin_portfolio_photo_v2_portfolio_photos_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/portfolio/photos/{photo_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Complete Portfolio Photo Upload
+         * @description 서버가 올라온 객체를 확인하고 목록 맨 끝에 붙인다.
+         */
+        post: operations["complete_portfolio_photo_v2_portfolio_photos__photo_id__complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/portfolio/credits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Credit
+         * @description 경력을 맨 끝에 붙인다. 50개까지다.
+         */
+        post: operations["add_credit_v2_portfolio_credits_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/me/practice-feedback/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Claim Practice Feedback Prompt
+         * @description 자동 노출 직전에 부른다. asked_now 가 참인 기기만 시트를 띄운다.
+         *
+         *     두 기기가 동시에 불러도 하나만 참을 받는다. 오프라인에서는 부르지 않는다 —
+         *     새 자동 노출은 하지 않고 이미 쓴 제출만 다시 보낸다.
+         */
+        post: operations["claim_practice_feedback_v2_me_practice_feedback_claim_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/me/photo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Photo Upload */
+        post: operations["create_photo_upload_v2_me_photo_post"];
+        /** Delete Photo */
+        delete: operations["delete_photo_v2_me_photo_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/me/photo/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Complete Photo Upload */
+        post: operations["complete_photo_upload_v2_me_photo_complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/me/notifications/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read Challenge Notifications */
+        post: operations["read_notifications_v2_me_notifications_read_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/guest/transfer-code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Issue Transfer Code
+         * @description 웹이 보여 줄 여섯 자리 숫자를 만든다. 10분 유효, 한 번 쓰면 끝, 새로 받으면 이전 코드는
+         *     무효다. 게스트만 부를 수 있고 필요한 동의 문서는 없다.
+         */
+        post: operations["issue_transfer_code_v2_guest_transfer_code_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/guest-transfers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Transfer Guest Data
+         * @description 앱에서 코드를 넣으면 그 게스트의 자료 행의 주인을 회원으로 바꾼다. 한 트랜잭션이고, 끝나면
+         *     게스트 계정을 닫는다. 회원과 게스트 둘 다 배우 기억이 있는데 memory_choice 가 없으면 아무것도
+         *     옮기지 않고 409 다 — 코드는 살아 있다.
+         */
+        post: operations["transfer_guest_v2_guest_transfers_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/entries/{id}/views": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record Challenge Entry View
+         * @description 3초 이상 재생된 사건 하나. 같은 event_id 는 한 번만 세고 본인 재생은 세지 않는다. 볼 수 없는 참여작은 404.
+         */
+        post: operations["record_view_v2_entries__id__views_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/entries/{id}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Entry Comments
+         * @description 최신순 20개씩. 차단 관계의 댓글과 숨겨진 남의 댓글은 빠지고, 신고로 숨겨진 내 댓글은 status hidden 으로
+         *     나에게만 온다. 부모 참여작이 보이지 않으면 404.
+         */
+        get: operations["list_comments_v2_entries__id__comments_get"];
+        put?: never;
+        /**
+         * Create Entry Comment
+         * @description 자기 참여작에도 쓸 수 있다. 하루 100개(429 daily_comment_limit). 같은 request_id·같은 본문은 같은 댓글(200).
+         */
+        post: operations["create_comment_v2_entries__id__comments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/entries/{id}/ai-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Challenge AI Report
+         * @description 본인만 본다(남의 것·없는 것 404). 지금 표본 조건을 벗어난 참여작에 기댄 견주기 문장은 빠진다.
+         */
+        get: operations["get_ai_report_v2_entries__id__ai_report_get"];
+        put?: never;
+        /**
+         * Request Challenge AI Report
+         * @description 본인 참여작(공개·비공개)의 AI 리포트를 뒤에서 만든다. 결과가 있으면 그것(200), 만드는 중이면 그 작업(202)이고
+         *     같은 request_id 재전송도 같다. 실패한 뒤의 요청은 새 생성이며 하루 3회(429 daily_report_request_limit).
+         *     파일이 파기된 참여작은 422 video_not_ready, 남의·삭제된 참여작은 404.
+         */
+        post: operations["request_ai_report_v2_entries__id__ai_report_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -159,95 +858,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v2/community/reports": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create Report */
-        post: operations["create_report_v2_community_reports_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v2/community/posts": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Posts */
-        get: operations["list_posts_v2_community_posts_get"];
-        put?: never;
-        /** Create Post */
-        post: operations["create_post_v2_community_posts_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v2/community/posts/{post_id}/likes": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Like Post */
-        post: operations["like_post_v2_community_posts__post_id__likes_post"];
-        /** Unlike Post */
-        delete: operations["unlike_post_v2_community_posts__post_id__likes_delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v2/community/posts/{post_id}/comments": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Comments */
-        get: operations["list_comments_v2_community_posts__post_id__comments_get"];
-        put?: never;
-        /** Create Comment */
-        post: operations["create_comment_v2_community_posts__post_id__comments_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v2/community/blocks": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Blocks */
-        get: operations["list_blocks_v2_community_blocks_get"];
-        put?: never;
-        /** Block User */
-        post: operations["block_user_v2_community_blocks_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v2/coach/start": {
         parameters: {
             query?: never;
@@ -257,8 +867,13 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Coach Start */
-        post: operations["coach_start_v2_coach_start_post"];
+        /**
+         * Start Coach Conversation
+         * @description 분석이 끝난 회차에서 대화를 연다. 같은 요청 id 의 재전송과 이미 열린 대화는 같은 대화를 돌려주고,
+         *     분석이 아직이면 409 analysis_not_ready, 닫힌 대화가 있으면 409 conversation_closed 다(다시 코칭하려면
+         *     새 회차다).
+         */
+        post: operations["start_coach_conversation_v2_coach_start_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -274,15 +889,68 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Coach Reply */
-        post: operations["coach_reply_v2_coach_reply_post"];
+        /**
+         * Reply To Coach
+         * @description 대화를 한 턴 잇는다. 같은 요청 id·같은 본문의 재전송은 그 요청이 만든 코치 응답·종료·노트 결과를
+         *     그대로 돌려주고, 다른 본문이면 422 request_fingerprint_mismatch 다. revision 이 다르면 409
+         *     conversation_conflict(화면은 입력을 보존한 채 대화를 다시 읽는다), 닫힌 대화면 409
+         *     conversation_closed. 답은 300자까지이고 "그만"이라고 쓰면 마친다.
+         */
+        post: operations["reply_to_coach_v2_coach_reply_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/v2/coach/confirm": {
+    "/v2/challenges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Challenges */
+        get: operations["list_challenges_v2_challenges_get"];
+        put?: never;
+        /** Create Challenge */
+        post: operations["create_challenge_v2_challenges_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/challenges/{id}/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Challenge Entries
+         * @description 랭킹·피드. likes 는 첫 조회의 순서와 공동 순위를 10분 동안 굳혀 이어 주고 매 쪽에서 개인 노출 조건을 다시
+         *     본다. 정렬 기준이 바뀌었거나(진행 중 → 집계 중 → 확정) 10분이 지난 커서는 410 cursor_expired. latest 는
+         *     공개 시각 역순이고 순위가 없다. from_entry 는 피드의 시작 참여작이다.
+         */
+        get: operations["list_entries_v2_challenges__id__entries_get"];
+        put?: never;
+        /**
+         * Create Challenge Entry
+         * @description 파일이 남아 있는 확정된 본인 영상으로 참여한다. 실제 길이 60초 초과 422 video_too_long, 미확정·파일 파기 영상
+         *     422 video_not_ready, 없는·남의 영상 404, 같은 챌린지의 같은 영상 422 duplicate_entry, 하루 네 번째 429
+         *     daily_entry_limit, 종료 챌린지 422 challenge_closed, review·hidden·deleted 챌린지 404. 같은 request_id·같은
+         *     본문의 재전송은 같은 참여작(200)이다.
+         */
+        post: operations["create_entry_v2_challenges__id__entries_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/auth/signup": {
         parameters: {
             query?: never;
             header?: never;
@@ -291,8 +959,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Coach Confirm */
-        post: operations["coach_confirm_v2_coach_confirm_post"];
+        /** Signup */
+        post: operations["signup_v2_auth_signup_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -310,6 +978,48 @@ export interface paths {
         put?: never;
         /** Refresh */
         post: operations["refresh_v2_auth_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/auth/providers/naver/disconnect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Naver Disconnect Callback
+         * @description 네이버 로그인 연결 끊기 알림(개발가이드 §4.4). application/x-www-form-urlencoded 로
+         *     clientId·encryptUniqueId·timestamp·signature 가 온다. 서명은 HmacSHA256 이다.
+         */
+        post: operations["naver_disconnect_v2_auth_providers_naver_disconnect_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/auth/providers/kakao/disconnect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Kakao Unlink Callback
+         * @description 카카오 연결 해제 웹훅. app_id·user_id·referrer_type 이 오고, 헤더
+         *     Authorization: KakaoAK <기본 어드민 키> 로 보낸 쪽을 확인한다.
+         */
+        post: operations["kakao_disconnect_v2_auth_providers_kakao_disconnect_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -350,6 +1060,419 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/auth/guest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Guest
+         * @description 웹 게스트를 만든다. 웹이 처음 보호 기능(연습 시작, 대본 등록)을 쓰려 할 때 부른다 — 랜딩·동의
+         *     문서·입시 정보에서는 부르지 않는다. 한 IP 에서 시간당 10개까지다. 토큰의 구조와 갱신·만료는
+         *     회원과 같다.
+         */
+        post: operations["create_guest_v2_auth_guest_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/videos/{video_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Video
+         * @description 영상 하나 — 10분 서명 재생 주소와 사용처(회차 수·챌린지 참여작 수)가 붙는다. 파기된 영상은 주소가 없다.
+         */
+        get: operations["get_video_v2_videos__video_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Video
+         * @description 보관함에서 지운다 — 참조(회차·챌린지 참여작)가 없을 때만. 있으면 422 video_in_use 이고 아무것도
+         *     지워지지 않는다(사용처는 상세 조회로 본다). 지우면 받아쓰기도 함께 지우고 객체는 삭제 장부로 간다.
+         */
+        delete: operations["delete_video_v2_videos__video_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Video
+         * @description 즐겨찾기를 바꾼다.
+         */
+        patch: operations["update_video_v2_videos__video_id__patch"];
+        trace?: never;
+    };
+    "/v2/reading/sessions/{session_id}/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Save Reading Progress
+         * @description 진행 위치·흐른 시간·줄 결과를 저장한다. progress_seq 가 저장된 값보다 클 때만 반영하고, 작거나 같으면
+         *     무시하고 200 으로 현재 값을 돌려준다. 위치와 줄 결과는 구간 안 대사 줄만 받는다(아니면 422 invalid_line).
+         *     시간은 줄지 않는다. complete=true 면 completed 가 되고 ended_at 이 찍히며 current_line_id 는 null 이다.
+         *     completed·stopped 회차에는 409 session_closed.
+         */
+        patch: operations["save_reading_progress_v2_reading_sessions__session_id__progress_patch"];
+        trace?: never;
+    };
+    "/v2/reading/scripts/{script_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Script
+         * @description 없는 것과 남의 것은 같은 404 script_not_found 다.
+         */
+        get: operations["get_script_v2_reading_scripts__script_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Script
+         * @description 배역·줄·회차·녹음(파일 포함)·암기 상태와 함께 지운다. 되돌릴 수 없다. 없는 것과 남의 것은 같은
+         *     404 다.
+         */
+        delete: operations["delete_script_v2_reading_scripts__script_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Script
+         * @description 제목과 배역의 이름·목소리만 고친다. 줄은 불변이다. 이름은 앞뒤 공백을 정리하고 비어 있거나 같은
+         *     대본 안에서 겹치면 422 invalid_characters. voice_preset 은 키가 있을 때만 바꾸며 null 은 "자동"이다.
+         */
+        patch: operations["update_script_v2_reading_scripts__script_id__patch"];
+        trace?: never;
+    };
+    "/v2/practices/{root_id}/group": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Practice Group
+         * @description 묶음 속성 — 즐겨찾기·숨김·제목. 보낸 것만 바꾼다. 숨김은 묶음 전체이고(개별 회차 숨김은 없다) 노트·대화·
+         *     기억은 지우지 않으며 영상은 보관함에 남는다.
+         */
+        patch: operations["update_practice_group_v2_practices__root_id__group_patch"];
+        trace?: never;
+    };
+    "/v2/portfolio/credits/{credit_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Credit
+         * @description 이미 지운 것을 다시 지우면 404 다. 없는 것과 남의 것을 구분하지 않는다.
+         */
+        delete: operations["delete_credit_v2_portfolio_credits__credit_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Credit
+         * @description 보낸 항목만 바꾼다.
+         */
+        patch: operations["update_credit_v2_portfolio_credits__credit_id__patch"];
+        trace?: never;
+    };
+    "/v2/me/notification-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Notification Settings
+         * @description 알림 토글 셋. 가입 직후에는 셋 다 켜져 있다. 프로필에 저장돼 폰을 바꿔도 유지된다.
+         */
+        get: operations["get_notification_settings_v2_me_notification_settings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Notification Settings
+         * @description 바꿀 토글만 보내고 토글 셋 전체를 돌려받는다. 분석 완료와 챌린지가 둘 다 꺼지면 서버가 그
+         *     회원의 푸시 토큰을 전부 지운다(토글은 회원 단위다). 저녁 리마인드는 서버가 값만 기억하고
+         *     알람은 폰이 맞춘다.
+         */
+        patch: operations["update_notification_settings_v2_me_notification_settings_patch"];
+        trace?: never;
+    };
+    "/v2/entries/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Challenge Entry
+         * @description 공유 링크의 참여작. 본인 것이거나 개인 노출 조건을 지나야 보이고 그 밖은 404 다.
+         */
+        get: operations["get_entry_v2_entries__id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Challenge Entry
+         * @description 참여작만 지운다 — 영상은 보관함에 남는다. 행은 deleted 로 남고 캡션·영상 참조·반응을 지운다. 되돌리지 않는다.
+         */
+        delete: operations["delete_entry_v2_entries__id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Challenge Entry
+         * @description 작성자만 캡션·공개 범위를 바꾼다(남의 것 404). 비공개 전환은 언제든 된다. 공개 전환은 진행 중 visible 챌린지의
+         *     정상 참여작만 된다 — 종료 422 challenge_closed, 신고 숨김 422 entry_hidden, 파일 파기 422 video_not_ready.
+         *     다시 공개해도 published_at 은 처음 값이다.
+         */
+        patch: operations["update_entry_v2_entries__id__patch"];
+        trace?: never;
+    };
+    "/v2/videos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Videos
+         * @description 보관함을 최신 저장순으로. 필터는 all·recent7(최근 7일)·favorite 이고 예시 영상을 섞지 않는다.
+         *     재생 주소는 상세에만 있다. 포스터(첫 장면 JPEG)의 10분 서명 주소 poster_url 은 목록에도 있고,
+         *     아직 만들지 않았거나 파기된 영상은 null 이다.
+         */
+        get: operations["list_videos_v2_videos_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/reading/sessions/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Reading Session
+         * @description 없는 것과 남의 것은 같은 404 session_not_found 다.
+         */
+        get: operations["get_reading_session_v2_reading_sessions__session_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Reading Session
+         * @description 회차와 그 녹음(파일 포함)을 지운다. 암기 상태는 남는다. 없는 것과 남의 것은 같은 404 다.
+         */
+        delete: operations["delete_reading_session_v2_reading_sessions__session_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/reading/scripts/{script_id}/memorization": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Script Memorization
+         * @description 그 대본의 줄에 남긴 표시를 줄 순서로. 행이 없는 줄은 아직 표시하지 않은 줄이다. 없는 대본과 남의 대본은 404 script_not_found.
+         */
+        get: operations["list_script_memorization_v2_reading_scripts__script_id__memorization_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/public/portfolios/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Public Portfolio
+         * @description 공유가 켜진 포트폴리오를 로그인 없이 본다. 꺼진 링크, 없는 slug, 탈퇴한 사람의 slug 는 같은 404
+         *     portfolio_not_found 다. 추구하는 방향·경력 구간·목표와 연습·분석은 나오지 않는다.
+         */
+        get: operations["get_public_portfolio_v2_public_portfolios__slug__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/public/entries/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Public Challenge Entry
+         * @description 공유 링크 미리보기용으로 참여작의 챌린지 작품·대사·배역을 로그인 없이 본다. 공개 조건(공개·보이는 상태·
+         *     활성 작성자·파일이 남은 영상·보이는 챌린지)을 벗어난 참여작과 없는 id 는 같은 404 entry_not_found 다.
+         *     작성자의 이름·사진은 나오지 않는다.
+         */
+        get: operations["get_public_entry_v2_public_entries__id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/practices/{practice_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Practice
+         * @description 회차 하나 — 장면·막힘과 분석·대화·노트의 현재 상태. 없는 것과 남의 것은 같은 404 practice_not_found.
+         */
+        get: operations["get_practice_v2_practices__practice_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/practices/{practice_id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Practice Status
+         * @description 폴링이 읽는 것 — 회차의 진행(stage)과 작업 상태·실패 분류, 관찰 기록의 상태. 앱은 4초, 웹은 10초 간격이다.
+         */
+        get: operations["get_practice_status_v2_practices__practice_id__status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/practices/{practice_id}/note": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Practice Note
+         * @description 그 회차의 연습 노트. 대화가 닫힐 때 한 번 만들고 다시 만들지 않는다 — 없으면 404 note_not_found
+         *     이고 화면은 "아직 정리 없음"을 보인다. 생성기가 낸 원문(report)이 함께 와서 옛 공개 필드를 읽던
+         *     화면이 그대로 쓴다. my_rating 은 이 사람이 이 노트에 남긴 평가이고 없으면 null 이다.
+         */
+        get: operations["get_practice_note_v2_practices__practice_id__note_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/practices/{practice_id}/analysis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Practice Analysis */
+        get: operations["analysis"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/portfolio": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Portfolio
+         * @description 한 번도 편집하지 않았어도 빈 모양으로 200 이다. 행은 처음 저장할 때 생긴다. 배열은 저장된 순서다.
+         */
+        get: operations["get_portfolio_v2_portfolio_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/me": {
         parameters: {
             query?: never;
@@ -363,66 +1486,34 @@ export interface paths {
         post?: never;
         /**
          * Delete Me
-         * @description 회원탈퇴. 개인정보는 파기하고 글은 남긴다.
+         * @description 회원탈퇴. 바로 알아보게 하는 정보는 파기하고, 나머지는 사람과 끊어 남긴다.
          *
-         *     커뮤니티 글·연습 기록이 user_id 를 물고 있어 행을 지우면 남의 글타래가
-         *     깨진다. 그래서 행은 남기되 이메일·닉네임·identity 를 지우고 refresh 토큰을
-         *     전부 끊는다. 남아 있는 액세스 토큰은 만료까지 유효하지만 인증 게이트가
-         *     deactivated 를 403 으로 막는다. 자세한 처리는 store.deactivate_user 참조.
+         *     연습 기록과 남의 화면에 얽힌 행이 user_id 를 물고 있어 행은 남긴다. 이메일, 프로필의
+         *     이름·사진·소개, 포트폴리오, 이관 코드를 지우고 신원은 해시만 남기며 리프레시·푸시 토큰을
+         *     전부 끊는다. 영상 객체는 보관에 동의한 사람 것만 남는다. 객체 삭제와 제공자 연결
+         *     해제(애플·카카오·네이버)는 응답과 무관하게 뒤에서 다시 시도한다 — 실패해도 200 이다.
+         *
+         *     이 경로만 탈퇴한 계정의 토큰을 받는다. 다시 불러도 같은 응답이고 시각은 최초 탈퇴
+         *     시각이다. 게스트의 토큰도 받는다. 구글의 연결 해제는 앱이 이 요청 직전에 SDK 로 한다.
          */
         delete: operations["delete_me_v2_me_delete"];
         options?: never;
         head?: never;
-        /** Update Me */
-        patch: operations["update_me_v2_me_patch"];
+        patch?: never;
         trace?: never;
     };
-    "/v2/community/posts/{post_id}": {
+    "/v2/me/saved-entries": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get Post */
-        get: operations["get_post_v2_community_posts__post_id__get"];
-        put?: never;
-        post?: never;
-        /** Delete Post */
-        delete: operations["delete_post_v2_community_posts__post_id__delete"];
-        options?: never;
-        head?: never;
-        /** Update Post */
-        patch: operations["update_post_v2_community_posts__post_id__patch"];
-        trace?: never;
-    };
-    "/v2/community/comments/{comment_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Delete Comment */
-        delete: operations["delete_comment_v2_community_comments__comment_id__delete"];
-        options?: never;
-        head?: never;
-        /** Update Comment */
-        patch: operations["update_comment_v2_community_comments__comment_id__patch"];
-        trace?: never;
-    };
-    "/v2/reports/{practice_session_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Report Detail */
-        get: operations["report_detail_v2_reports__practice_session_id__get"];
+        /**
+         * List Saved Entries
+         * @description 저장순 20개씩. 비공개·숨김·차단으로 지금 볼 수 없는 것은 빠지고 행은 남는다(다시 보이면 돌아온다).
+         */
+        get: operations["list_saved_entries_v2_me_saved_entries_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -431,33 +1522,56 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v2/practice-sessions/{session_id}": {
+    "/v2/me/practice-feedback/status": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get Session */
-        get: operations["get_session_v2_practice_sessions__session_id__get"];
+        /**
+         * Get Practice Feedback Status
+         * @description 이 계정에 이미 물어봤는지. 표식을 건드리지 않는다.
+         */
+        get: operations["get_practice_feedback_status_v2_me_practice_feedback_status_get"];
         put?: never;
         post?: never;
-        /** Delete Session */
-        delete: operations["delete_session_v2_practice_sessions__session_id__delete"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/v2/practice-sessions/{session_id}/status": {
+    "/v2/me/notifications": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get Session Status */
-        get: operations["get_session_status_v2_practice_sessions__session_id__status_get"];
+        /**
+         * List Challenge Notifications
+         * @description 묶음 20개씩, 묶음의 최신 사건 시각 역순. 인원·수는 지금도 유효한(취소·삭제·숨김·차단되지 않은) 사건만 센다.
+         *     이름·본문은 조회 때 조립하고 탈퇴한 행동자는 "탈퇴한 사용자"다.
+         */
+        get: operations["list_notifications_v2_me_notifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/me/notifications/unread-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Count Unread Challenge Notifications */
+        get: operations["unread_notifications_v2_me_notifications_unread_count_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -474,17 +1588,79 @@ export interface paths {
             cookie?: never;
         };
         /**
+         * Get Actor Memory
+         * @description 기억을 전부 읽는다. 아직 채워지지 않은 칸은 빠진 채로 온다.
+         */
+        get: operations["get_actor_memory_v2_me_memory_get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Actor Memory
+         * @description 기억을 통째로 지운다. 다음 갱신 대상 회차부터 다시 쌓인다.
+         */
+        delete: operations["delete_actor_memory_v2_me_memory_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/me/challenge-entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List My Challenge Entries
+         * @description 프로필 챌린지 기록(P03). 삭제되지 않은 내 참여작을 확인 중 → 비공개 → 공개 순으로 한 분류에만 넣어 센다.
+         *     visibility 로 한 분류만 볼 수 있다.
+         */
+        get: operations["list_my_entries_v2_me_challenge_entries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/me/blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Blocked Users */
+        get: operations["list_blocks_v2_me_blocks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/legacy-me/memory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
          * Get Memory
          * @description 기억을 전부 읽는다. 아직 채워지지 않은 칸은 빠진 채로 온다.
          */
-        get: operations["get_memory_v2_me_memory_get"];
+        get: operations["get_memory_v2_legacy_me_memory_get"];
         put?: never;
         post?: never;
         /**
          * Delete Memory
          * @description 기억을 통째로 지운다. 다음 연습부터 다시 쌓인다.
          */
-        delete: operations["delete_memory_v2_me_memory_delete"];
+        delete: operations["delete_memory_v2_legacy_me_memory_delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -499,6 +1675,27 @@ export interface paths {
         };
         /** List Pending Documents */
         get: operations["list_pending_documents_v2_consents_pending_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/consents/notices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Notices
+         * @description 동의 대상이 아닌 고지 문서(개인정보 처리방침)의 전문. 누구나 읽는다. 공개 페이지가
+         *     동의 문서의 현재 판과 함께 싣는다.
+         */
+        get: operations["list_notices_v2_consents_notices_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -541,15 +1738,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v2/community/categories": {
+    "/v2/coach/conversations/{conversation_id}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List Categories */
-        get: operations["list_categories_v2_community_categories_get"];
+        /**
+         * Get Coach Conversation
+         * @description 대화 하나를 턴과 함께. 409 conversation_conflict 뒤 화면이 최신 revision·status·turns 를 다시 읽는
+         *     자리이고, 회차 상세의 이전 대화를 펼칠 때도 쓴다. 없는 것과 남의 것은 같은 404.
+         */
+        get: operations["get_coach_conversation_v2_coach_conversations__conversation_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/challenges/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Challenge */
+        get: operations["get_challenge_v2_challenges__id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Empty Challenge */
+        delete: operations["delete_challenge_v2_challenges__id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/auth/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Enabled Providers
+         * @description 운영에서 켜 둔 간편 로그인 제공자. 앱은 이 목록으로 로그인 버튼을 그린다 — 카카오·네이버는
+         *     검수 승인 뒤 서버 설정만 바꾸면 버튼이 나온다. 안드로이드에서 애플을 빼는 것은 앱이 한다.
+         */
+        get: operations["providers_v2_auth_providers_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -609,7 +1849,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v2/community/blocks/{blocked_id}": {
+    "/v2/reading/recordings/{recording_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -619,8 +1859,51 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Unblock User */
-        delete: operations["unblock_user_v2_community_blocks__blocked_id__delete"];
+        /**
+         * Delete Recording
+         * @description 그 녹음의 행과 객체를 지운다. 회차 진행·암기 상태는 그대로다. 없는 것과 남의 것은 같은 404 다.
+         */
+        delete: operations["delete_reading_recording_v2_reading_recordings__recording_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/portfolio/photos/{photo_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Portfolio Photo
+         * @description 행과 사진 객체를 함께 지운다. 이미 지운 것을 다시 지우면 404 다.
+         */
+        delete: operations["delete_portfolio_photo_v2_portfolio_photos__photo_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/comments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Entry Comment
+         * @description 본인 댓글만(남의 것 404). 본문을 파기하고 목록에서 뺀다.
+         */
+        delete: operations["delete_comment_v2_comments__id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -630,6 +1913,232 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ReadingMemorizationRequest */
+        ReadingMemorizationRequest: {
+            status: components["schemas"]["ReadingMemorizationStatusInput"];
+        };
+        /**
+         * ReadingMemorizationStatusInput
+         * @enum {string}
+         */
+        ReadingMemorizationStatusInput: "memorized" | "not_yet";
+        /**
+         * MemorizationStatus
+         * @enum {string}
+         */
+        MemorizationStatus: "memorized" | "not_yet";
+        /** ReadingLineMemorization */
+        ReadingLineMemorization: {
+            /**
+             * Line Id
+             * Format: uuid
+             */
+            line_id: string;
+            status: components["schemas"]["MemorizationStatus"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** NoteRatingRequest */
+        NoteRatingRequest: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /**
+             * Rating
+             * @enum {string}
+             */
+            rating: "helpful" | "not_helpful";
+            /** Comment */
+            comment?: string | null;
+        };
+        /** NoteRating */
+        NoteRating: {
+            /**
+             * Rating
+             * @enum {string}
+             */
+            rating: "helpful" | "not_helpful";
+            /** Comment */
+            comment: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** PortfolioShareRequest */
+        PortfolioShareRequest: {
+            /** Enabled */
+            enabled: boolean;
+        };
+        /** PortfolioShare */
+        PortfolioShare: {
+            /** Enabled */
+            enabled: boolean;
+            /** Slug */
+            slug: string | null;
+            /** Url */
+            url: string | null;
+        };
+        /** PortfolioOrderRequest */
+        PortfolioOrderRequest: {
+            /** Ids */
+            ids: string[];
+        };
+        /** Portfolio */
+        Portfolio: {
+            /** Intro */
+            intro: string | null;
+            /** Credits */
+            credits: components["schemas"]["PortfolioCredit"][];
+            /** Photos */
+            photos: components["schemas"]["PortfolioPhoto"][];
+            share: components["schemas"]["PortfolioShare"];
+        };
+        /** PortfolioCredit */
+        PortfolioCredit: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Title */
+            title: string;
+            /** Role */
+            role: string;
+            /** Year */
+            year: number;
+            kind: components["schemas"]["PortfolioCreditKind"];
+        };
+        /**
+         * PortfolioCreditKind
+         * @enum {string}
+         */
+        PortfolioCreditKind: "film" | "drama" | "play" | "musical" | "ad" | "other";
+        /** PortfolioPhoto */
+        PortfolioPhoto: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Url */
+            url: string | null;
+        };
+        /** PortfolioIntroRequest */
+        PortfolioIntroRequest: {
+            /** Intro */
+            intro?: string | null;
+        };
+        /**
+         * ActingDirection
+         * @enum {string}
+         */
+        ActingDirection: "media" | "stage";
+        /** ActingExperience */
+        ActingExperience: ("before_start" | "exam_prep" | "under_1y" | "y1_to_3" | "y3_to_5" | "over_5y") | null;
+        /** ActingGoal */
+        ActingGoal: ("hobby" | "audition" | "professional") | null;
+        /** ProfileGender */
+        ProfileGender: ("female" | "male" | "unspecified") | null;
+        /** ProfileRequest */
+        ProfileRequest: {
+            /** Name */
+            name: string;
+            gender: components["schemas"]["ProfileGender"];
+            /**
+             * Birth Date
+             * Format: date
+             * @example 2001-03-14
+             */
+            birth_date: string;
+            /** Directions */
+            directions: components["schemas"]["ActingDirection"][];
+            experience: components["schemas"]["ActingExperience"];
+            goal: components["schemas"]["ActingGoal"];
+            /** Bio */
+            bio?: string | null;
+        };
+        /** MeResponse */
+        MeResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Email */
+            email: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "deactivated";
+            /**
+             * Account Type
+             * @enum {string}
+             */
+            account_type: "member" | "guest";
+            /** Profile Complete */
+            profile_complete: boolean;
+            profile: components["schemas"]["Profile"] | null;
+        };
+        /** Profile */
+        Profile: {
+            /** Name */
+            name: string | null;
+            gender: components["schemas"]["ProfileGender"] | null;
+            /** Birth Date */
+            birth_date: string | null;
+            /** Age */
+            age: number | null;
+            /** Directions */
+            directions: components["schemas"]["ActingDirection"][];
+            experience: components["schemas"]["ActingExperience"] | null;
+            goal: components["schemas"]["ActingGoal"] | null;
+            /** Photo Url */
+            photo_url: string | null;
+            /** Bio */
+            bio: string | null;
+        };
+        /** UpdateActorMemoryRequest */
+        UpdateActorMemoryRequest: {
+            /** Value */
+            value: string;
+        };
+        /** ActorMemoryItem */
+        ActorMemoryItem: {
+            /**
+             * Field
+             * @enum {string}
+             */
+            field: "goal" | "blockage" | "speech_self" | "speech_actual";
+            /** Value */
+            value: string;
+            /** Written By Actor */
+            written_by_actor: boolean;
+            /** Source Practice Id */
+            source_practice_id: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** UserBlockState */
+        UserBlockState: {
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /** Blocked */
+            blocked: boolean;
+        };
         /** UpdateMemoryRequest */
         UpdateMemoryRequest: {
             /** Value */
@@ -649,17 +2158,71 @@ export interface components {
             /** Source Practice Session Id */
             source_practice_session_id: string | null;
         };
-        /** UploadIntentRequest */
-        UploadIntentRequest: {
-            /** Mime Type */
-            mime_type: string;
-            /** Size Bytes */
-            size_bytes: number;
-            /** Duration Ms */
-            duration_ms?: number | null;
+        /** EntrySaveState */
+        EntrySaveState: {
+            /** Saved */
+            saved: boolean;
         };
-        /** UploadIntentResponse */
-        UploadIntentResponse: {
+        /** EntryLikeState */
+        EntryLikeState: {
+            /** Like Count */
+            like_count: number;
+            /** Liked */
+            liked: boolean;
+        };
+        /** Video */
+        Video: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Duration Ms */
+            duration_ms: number;
+            /** Byte Size */
+            byte_size: number;
+            /** Content Type */
+            content_type: string;
+            /** Favorite */
+            favorite: boolean;
+            /** Purged At */
+            purged_at?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            usage: components["schemas"]["VideoUsage"];
+            /** Playback Url */
+            playback_url?: string | null;
+            /** Playback Expires At */
+            playback_expires_at?: string | null;
+            /** Poster Url */
+            poster_url?: string | null;
+        };
+        /** VideoUsage */
+        VideoUsage: {
+            /** Practice Count */
+            practice_count: number;
+            /** Entry Count */
+            entry_count: number;
+        };
+        /** VideoIntentRequest */
+        VideoIntentRequest: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /** Content Type */
+            content_type: string;
+            /** Byte Size */
+            byte_size: number;
+            /** Duration Ms */
+            duration_ms: number;
+        };
+        /** VideoIntent */
+        VideoIntent: {
             /**
              * Intent Id
              * Format: uuid
@@ -673,288 +2236,380 @@ export interface components {
              */
             expires_at: string;
         };
-        /** UploadCompleteResponse */
-        UploadCompleteResponse: {
+        /** ChallengeReportRequest */
+        ChallengeReportRequest: {
             /**
-             * Intent Id
+             * Request Id
              * Format: uuid
              */
-            intent_id: string;
+            request_id: string;
             /**
-             * Status
-             * @constant
+             * Target Type
+             * @enum {string}
              */
-            status: "finalized";
-        };
-        /** ReportReq */
-        ReportReq: {
+            target_type: "entry" | "comment" | "challenge";
             /**
-             * Session Id
+             * Target Id
              * Format: uuid
              */
-            session_id: string;
-        };
-        /** AnalysisNextTake */
-        AnalysisNextTake: {
-            /** Direction */
-            direction: string;
-            /**
-             * Tested
-             * @constant
-             */
-            tested: false;
-        };
-        /** AnalysisReport */
-        AnalysisReport: {
-            /**
-             * Report Type
-             * @constant
-             */
-            report_type: "analysis";
-            /** Title */
-            title: string;
-            /** Actor Discovery */
-            actor_discovery: string;
-            /** Line Meaning */
-            line_meaning: string;
-            /** Timing Reason */
-            timing_reason: string;
-            /** Target Effect */
-            target_effect: string;
-            next_take: components["schemas"]["AnalysisNextTake"];
-            /** Acting Caution */
-            acting_caution: string;
-            /** Evidence */
-            evidence: string[];
-            /** Uncertainties */
-            uncertainties: string[];
-            /** Source Handoff Id */
-            source_handoff_id: string;
-        };
-        /** ActorTraining */
-        ActorTraining: {
-            /** Title */
-            title: string;
-            /** Purpose */
-            purpose: string;
-            /** Duration Minutes */
-            duration_minutes: number;
-            /** Steps */
-            steps: string[];
-            /** Focus */
-            focus: string;
-            /** Success Check */
-            success_check: string;
-            /**
-             * Tested
-             * @constant
-             */
-            tested: false;
-        };
-        /** EffectiveExperiment */
-        EffectiveExperiment: {
-            /** Instruction */
-            instruction: string;
-            /**
-             * Tested
-             * @constant
-             */
-            tested: true;
-        };
-        /** ExpressionReport */
-        ExpressionReport: {
-            /**
-             * Report Type
-             * @constant
-             */
-            report_type: "expression";
-            /** Title */
-            title: string;
-            /** Blocked Point */
-            blocked_point: string;
-            /** Expression Core */
-            expression_core: string;
-            /** Line Meaning */
-            line_meaning: string;
-            /** Timing Reason */
-            timing_reason: string;
-            /** Playable Action */
-            playable_action: string;
-            effective_experiment: components["schemas"]["EffectiveExperiment"];
-            /** Observed Change */
-            observed_change: string;
-            /** Next Take */
-            next_take: string;
-            /** Acting Trap */
-            acting_trap: string;
-            actor_training: components["schemas"]["ActorTraining"];
-            /** Evidence */
-            evidence: string[];
-            /** Actor Words */
-            actor_words: string[];
-            /** Uncertainties */
-            uncertainties: string[];
-            source_handoff_ids: components["schemas"]["SourceHandoffIds"];
-        };
-        /** SourceHandoffIds */
-        SourceHandoffIds: {
-            /** Analysis */
-            analysis: string | null;
-            /** Expression */
-            expression: string;
-        };
-        /** PracticeNoteAttempt */
-        PracticeNoteAttempt: {
-            /** Attempt Id */
-            attempt_id: string;
-            /** Proposal Id */
-            proposal_id: string;
-            /** Instruction */
-            instruction: string;
-            /**
-             * Execution
-             * @enum {string}
-             */
-            execution: "unknown" | "not_tried" | "reported_tried";
-            result: components["schemas"]["PracticeNoteResult"] | null;
-        };
-        /** PracticeNoteDirection */
-        PracticeNoteDirection: {
-            /** Text */
-            text: string;
-            /**
-             * Origin
-             * @enum {string}
-             */
-            origin: "actor_stated" | "actor_selected" | "coach_proposed";
-        };
-        /** PracticeNoteEvidence */
-        PracticeNoteEvidence: {
-            /** Id */
-            id: string;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "video_utterance" | "video_observation" | "record_limitation";
-            /** Text */
-            text: string;
-            /** Start Ms */
-            start_ms: number | null;
-            /** End Ms */
-            end_ms: number | null;
-        };
-        /** PracticeNoteFocus */
-        PracticeNoteFocus: {
-            /** Label */
-            label: string;
-            /** Start Ms */
-            start_ms: number | null;
-            /** End Ms */
-            end_ms: number | null;
-            /** Quote */
-            quote: string | null;
-        };
-        /** PracticeNotePractice */
-        PracticeNotePractice: {
-            /** Proposal Id */
-            proposal_id: string;
-            /**
-             * Selection
-             * @enum {string}
-             */
-            selection: "proposed" | "selected";
-            /** Instruction */
-            instruction: string;
-            /** Comparison */
-            comparison: string;
-            /** Keep */
-            keep: string | null;
-        };
-        /** PracticeNoteRecordRef */
-        PracticeNoteRecordRef: {
-            /** Record Id */
-            record_id: string;
-            /** Version */
-            version: number;
-            /** Duration Ms */
-            duration_ms: number;
-        };
-        /** PracticeNoteResult */
-        PracticeNoteResult: {
-            /**
-             * Direction
-             * @enum {string}
-             */
-            direction: "closer" | "further" | "mixed" | "same" | "unclear";
-            /** Statement */
-            statement: string;
-            /**
-             * Basis
-             * @constant
-             */
-            basis: "actor_report";
-        };
-        /** PublicPracticeNote */
-        PublicPracticeNote: {
-            /**
-             * Schema Version
-             * @constant
-             */
-            schema_version: "acttub.public_practice_note.v1";
-            /**
-             * Report Type
-             * @constant
-             */
-            report_type: "practice_note";
-            /** Note Id */
-            note_id: string;
-            /** Revision */
-            revision: number;
-            /** Title */
-            title: string;
-            /** Summary */
-            summary: string | null;
-            /**
-             * Mode
-             * @enum {string}
-             */
-            mode: "action" | "observation" | "record_only";
-            /**
-             * End Reason
-             * @enum {string}
-             */
-            end_reason: "actor_finished" | "turn_budget" | "interrupted" | "system_failure";
-            record_ref: components["schemas"]["PracticeNoteRecordRef"] | null;
-            /**
-             * Lifecycle
-             * @enum {string}
-             */
-            lifecycle: "draft" | "saved";
-            direction: components["schemas"]["PracticeNoteDirection"] | null;
-            focus: components["schemas"]["PracticeNoteFocus"] | null;
-            /** Reading */
-            reading: string | null;
-            practice: components["schemas"]["PracticeNotePractice"] | null;
-            /** Attempts */
-            attempts: components["schemas"]["PracticeNoteAttempt"][];
-            /** Open Points */
-            open_points: string[];
-            /** Evidence */
-            evidence: components["schemas"]["PracticeNoteEvidence"][];
-        };
-        /** BlockedReport */
-        BlockedReport: {
-            /**
-             * Report Type
-             * @constant
-             */
-            report_type: "blocked";
+            target_id: string;
             /**
              * Reason
              * @enum {string}
              */
-            reason: "confirmed_analysis_handoff_required" | "confirmed_expression_handoff_required";
+            reason: "copyright" | "inappropriate" | "spam" | "duplicate" | "other";
+            /** Note */
+            note?: string | null;
+        };
+        /** ReportReceipt */
+        ReportReceipt: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "received" | "reviewed";
+        };
+        /** ReadingRecordingUploadForm */
+        ReadingRecordingUploadForm: {
+            /**
+             * Request Id
+             * Format: uuid
+             * @description 기기가 만든 UUID. 같은 값은 같은 결과
+             */
+            request_id: string;
+            /**
+             * Line Id
+             * Format: uuid
+             * @description 구간 안 내 대사 줄
+             */
+            line_id: string;
+            /**
+             * Attempt No
+             * @description 줄마다 1부터 1씩
+             */
+            attempt_no: number;
+            /**
+             * Audio
+             * Format: binary
+             * @description 음성 파일. m4a(AAC)가 아니면 서버가 변환한다
+             */
+            audio: string;
+            /**
+             * Duration Ms
+             * @description 길이(밀리초, 0 이상)
+             */
+            duration_ms: number;
+            /**
+             * Transcript Source
+             * @enum {string}
+             */
+            transcript_source: "stt" | "none";
+            /** Transcript */
+            transcript?: string | null;
+            /** Matched */
+            matched?: boolean | null;
+        };
+        /** ReadingSessionRecording */
+        ReadingSessionRecording: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Line Id
+             * Format: uuid
+             */
+            line_id: string;
+            /** Attempt No */
+            attempt_no: number;
+            /** Duration Ms */
+            duration_ms: number;
+            /** Content Type */
+            content_type: string;
+            /** Byte Size */
+            byte_size: number;
+            /** Transcript */
+            transcript: string | null;
+            transcript_source: components["schemas"]["TranscriptSource"];
+            /** Matched */
+            matched: boolean | null;
+            /** Playback Url */
+            playback_url: string | null;
+            /** Playback Expires At */
+            playback_expires_at: string | null;
+        };
+        /**
+         * TranscriptSource
+         * @enum {string}
+         */
+        TranscriptSource: "stt" | "none";
+        /** ReadingScriptCharacterInput */
+        ReadingScriptCharacterInput: {
+            /** Name */
+            name: string;
+        };
+        /** ReadingScriptCreateRequest */
+        ReadingScriptCreateRequest: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /** Title */
+            title: string;
+            source: components["schemas"]["ReadingScriptSourceInput"];
+            /** Raw Text */
+            raw_text: string;
+            /** Characters */
+            characters: components["schemas"]["ReadingScriptCharacterInput"][];
+            /** Lines */
+            lines: components["schemas"]["ReadingScriptLineInput"][];
+        };
+        /** ReadingScriptLineInput */
+        ReadingScriptLineInput: {
+            /** Ordinal */
+            ordinal: number;
+            kind: components["schemas"]["ReadingScriptLineKindInput"];
+            /** Character Index */
+            character_index?: number | null;
+            /** Text */
+            text: string;
+        };
+        /**
+         * ReadingScriptLineKindInput
+         * @enum {string}
+         */
+        ReadingScriptLineKindInput: "dialogue" | "direction" | "scene";
+        /**
+         * ReadingScriptSourceInput
+         * @enum {string}
+         */
+        ReadingScriptSourceInput: "file" | "paste" | "typed" | "sample";
+        /** ReadingScript */
+        ReadingScript: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Title */
+            title: string;
+            source: components["schemas"]["ScriptSource"];
+            /** Characters */
+            characters: components["schemas"]["ReadingScriptCharacter"][];
+            /** Lines */
+            lines: components["schemas"]["ReadingScriptLine"][];
+            /** Recording Count */
+            recording_count: number;
+            /** Open Session Id */
+            open_session_id: string | null;
+            last_session: components["schemas"]["ReadingScriptLastSession"] | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** ReadingScriptCharacter */
+        ReadingScriptCharacter: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Order */
+            order: number;
+            /** Voice Preset */
+            voice_preset: string | null;
+            /** Dialogue Count */
+            dialogue_count: number;
+        };
+        /** ReadingScriptLastSession */
+        ReadingScriptLastSession: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            status: components["schemas"]["ReadingSessionStatus"];
+            /** My Character Ids */
+            my_character_ids: string[];
+            /** My Character Names */
+            my_character_names: string[];
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Ended At */
+            ended_at: string | null;
+        };
+        /** ReadingScriptLine */
+        ReadingScriptLine: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Ordinal */
+            ordinal: number;
+            kind: components["schemas"]["ScriptLineKind"];
+            /** Character Id */
+            character_id: string | null;
+            /** Text */
+            text: string;
+            /** Dialogue No */
+            dialogue_no: number | null;
+        };
+        /**
+         * ReadingSessionStatus
+         * @enum {string}
+         */
+        ReadingSessionStatus: "in_progress" | "completed" | "stopped";
+        /**
+         * ScriptLineKind
+         * @enum {string}
+         */
+        ScriptLineKind: "dialogue" | "direction" | "scene";
+        /**
+         * ScriptSource
+         * @enum {string}
+         */
+        ScriptSource: "file" | "paste" | "typed" | "sample";
+        /**
+         * ReadingAdvanceInput
+         * @enum {string}
+         */
+        ReadingAdvanceInput: "silence" | "manual";
+        /**
+         * ReadingModeInput
+         * @enum {string}
+         */
+        ReadingModeInput: "read" | "quiz";
+        /** ReadingSessionCreateRequest */
+        ReadingSessionCreateRequest: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /** My Character Ids */
+            my_character_ids: string[];
+            mode: components["schemas"]["ReadingModeInput"];
+            /**
+             * Start Line Id
+             * Format: uuid
+             */
+            start_line_id: string;
+            /**
+             * End Line Id
+             * Format: uuid
+             */
+            end_line_id: string;
+            advance: components["schemas"]["ReadingAdvanceInput"];
+            /** Record */
+            record: boolean;
+        };
+        /**
+         * ReadingAdvance
+         * @enum {string}
+         */
+        ReadingAdvance: "silence" | "manual";
+        /** ReadingLineResult */
+        ReadingLineResult: {
+            /**
+             * Line Id
+             * Format: uuid
+             */
+            line_id: string;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "passed" | "unmatched" | "skipped";
+            /** Misses */
+            misses: number;
+        };
+        /**
+         * ReadingMode
+         * @enum {string}
+         */
+        ReadingMode: "read" | "quiz";
+        /** ReadingSession */
+        ReadingSession: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Ordinal */
+            ordinal: number;
+            status: components["schemas"]["ReadingSessionStatus"];
+            /** My Character Ids */
+            my_character_ids: string[];
+            /** My Character Names */
+            my_character_names: string[];
+            range: components["schemas"]["ReadingSessionRange"];
+            /** My Dialogue Count */
+            my_dialogue_count: number;
+            /** Recorded Line Count */
+            recorded_line_count: number;
+            /** Elapsed Seconds */
+            elapsed_seconds: number;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Ended At */
+            ended_at: string | null;
+            /**
+             * Script Id
+             * Format: uuid
+             */
+            script_id: string;
+            mode: components["schemas"]["ReadingMode"];
+            advance: components["schemas"]["ReadingAdvance"];
+            /** Record */
+            record: boolean;
+            /**
+             * Start Line Id
+             * Format: uuid
+             */
+            start_line_id: string;
+            /**
+             * End Line Id
+             * Format: uuid
+             */
+            end_line_id: string;
+            /** Current Line Id */
+            current_line_id: string | null;
+            /** Progress Seq */
+            progress_seq: number;
+            /** Line Results */
+            line_results: components["schemas"]["ReadingLineResult"][];
+            /** Recordings */
+            recordings: components["schemas"]["ReadingSessionRecording"][];
+        };
+        /** ReadingSessionRange */
+        ReadingSessionRange: {
+            /** Start Dialogue No */
+            start_dialogue_no: number;
+            /** End Dialogue No */
+            end_dialogue_no: number;
         };
         /** RegisterPushTokenRequest */
         RegisterPushTokenRequest: {
@@ -966,73 +2621,431 @@ export interface components {
              */
             platform: "ios" | "android";
         };
-        /** PracticeSessionRequest */
-        PracticeSessionRequest: {
+        /** PracticeBlockage */
+        PracticeBlockage: {
+            /** Category */
+            category?: string | null;
+            /** Detail */
+            detail?: string | null;
+            /** Note */
+            note?: string | null;
+        };
+        /** PracticeCreateRequest */
+        PracticeCreateRequest: {
             /**
-             * Upload Intent Id
+             * Request Id
              * Format: uuid
              */
-            upload_intent_id: string;
+            request_id: string;
+            /**
+             * Video Id
+             * Format: uuid
+             */
+            video_id: string;
+            scene?: components["schemas"]["PracticeScene"] | null;
+            blockage?: components["schemas"]["PracticeBlockage"] | null;
+        };
+        /** PracticeScene */
+        PracticeScene: {
+            /** Situation */
+            situation?: string | null;
+            /** Character */
+            character?: string | null;
+            /** Goal */
+            goal?: string | null;
+        };
+        /** Practice */
+        Practice: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Root Id
+             * Format: uuid
+             */
+            root_id: string;
+            /** Ordinal */
+            ordinal: number;
+            /** Video Id */
+            video_id: string | null;
+            /** Stage */
+            stage: string;
+            /** Close Reason */
+            close_reason?: string | null;
+            /** Experience Version */
+            experience_version: string;
             /** Situation */
             situation: string;
-            /** Character Context */
-            character_context: string;
+            /** Character */
+            character: string;
             /** Goal */
             goal: string;
-            /**
-             * Blockage Kind
-             * @enum {string}
-             */
-            blockage_kind: "분석" | "표현" | "그 외";
-            /**
-             * Sub Branch
-             * @enum {string}
-             */
-            sub_branch: "캐릭터 분석" | "대사 분석" | "감정" | "움직임" | "화술" | "표정" | "그 외";
+            /** Blockage Category */
+            blockage_category: string;
             /** Blockage Detail */
-            blockage_detail?: string | null;
-            /** Continued From */
-            continued_from?: string | null;
-        };
-        /** PracticeSessionCreateResponse */
-        PracticeSessionCreateResponse: {
+            blockage_detail: string;
+            /** Blockage Note */
+            blockage_note?: string | null;
             /**
-             * Session Id
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Analysis Status */
+            analysis_status?: string | null;
+            /** Conversation Id */
+            conversation_id?: string | null;
+            /** Conversation Status */
+            conversation_status?: string | null;
+            /** Conversation Count */
+            conversation_count: number;
+            /** Note Id */
+            note_id?: string | null;
+            /** Note Title */
+            note_title?: string | null;
+            /** Note Kind */
+            note_kind?: string | null;
+            job?: components["schemas"]["PracticeJob"] | null;
+            /** Previous Conversations */
+            previous_conversations: components["schemas"]["PreviousConversation"][];
+        };
+        /** PracticeJob */
+        PracticeJob: {
+            /**
+             * Id
              * Format: uuid
              */
-            session_id: string;
+            id: string;
+            /** Status */
+            status: string;
+            /** Failure Reason */
+            failure_reason?: string | null;
+            /** Attempt Count */
+            attempt_count: number;
+        };
+        /** PreviousConversation */
+        PreviousConversation: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Status */
+            status: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** PracticeContinueRequest */
+        PracticeContinueRequest: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /** Video Id */
+            video_id?: string | null;
+            scene?: components["schemas"]["PracticeScene"] | null;
+            blockage?: components["schemas"]["PracticeBlockage"] | null;
+        };
+        /** PracticeStatus */
+        PracticeStatus: {
+            /** Stage */
+            stage: string;
+            /** Close Reason */
+            close_reason?: string | null;
+            /** Analysis Status */
+            analysis_status?: string | null;
+            job?: components["schemas"]["PracticeJob"] | null;
+        };
+        /** PracticeAnalyzeRequest */
+        PracticeAnalyzeRequest: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+        };
+        /** PracticeFeedbackRequest */
+        PracticeFeedbackRequest: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /** Practice Id */
+            practice_id?: string | null;
+            /**
+             * Screen
+             * @enum {string}
+             */
+            screen: "coach" | "report";
+            /**
+             * Trigger
+             * @enum {string}
+             */
+            trigger: "x" | "leave" | "back";
+            /** Body */
+            body?: string | null;
+            /** Contact Email */
+            contact_email?: string | null;
+            /** Contact Phone */
+            contact_phone?: string | null;
+        };
+        /** PracticeFeedbackResponse */
+        PracticeFeedbackResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+        };
+        /** PortfolioPhotoUploadRequest */
+        PortfolioPhotoUploadRequest: {
+            /** Content Type */
+            content_type: string;
+            /** Size Bytes */
+            size_bytes: number;
+        };
+        /** PortfolioPhotoUploadResponse */
+        PortfolioPhotoUploadResponse: {
+            /**
+             * Photo Id
+             * Format: uuid
+             */
+            photo_id: string;
+            /** Upload Url */
+            upload_url: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+        };
+        /**
+         * PortfolioCreditKindInput
+         * @enum {string}
+         */
+        PortfolioCreditKindInput: "film" | "drama" | "play" | "musical" | "ad" | "other";
+        /** PortfolioCreditRequest */
+        PortfolioCreditRequest: {
+            /** Title */
+            title: string;
+            /** Role */
+            role: string;
+            /** Year */
+            year: number;
+            kind: components["schemas"]["PortfolioCreditKindInput"];
+        };
+        /** PracticeFeedbackStatus */
+        PracticeFeedbackStatus: {
+            /** Asked */
+            asked: boolean;
+            /** Asked Now */
+            asked_now: boolean;
+        };
+        /** PhotoUploadRequest */
+        PhotoUploadRequest: {
+            /** Content Type */
+            content_type: string;
+            /** Size Bytes */
+            size_bytes: number;
+        };
+        /** PhotoUploadResponse */
+        PhotoUploadResponse: {
+            /** Upload Url */
+            upload_url: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+        };
+        /** NotificationReadBefore */
+        NotificationReadBefore: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id?: string | null;
+        };
+        /** NotificationReadRequest */
+        NotificationReadRequest: {
+            /** Group Keys */
+            group_keys?: string[] | null;
+            all_before?: components["schemas"]["NotificationReadBefore"] | null;
+        };
+        /** TransferCodeResponse */
+        TransferCodeResponse: {
+            /** Code */
+            code: string;
+            /** Expires In */
+            expires_in: number;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+        };
+        /** GuestTransferRequest */
+        GuestTransferRequest: {
+            /** Code */
+            code: string;
+            memory_choice?: components["schemas"]["MemoryChoice"];
+        };
+        /**
+         * MemoryChoice
+         * @enum {string}
+         */
+        MemoryChoice: "member" | "guest";
+        /** GuestTransferResponse */
+        GuestTransferResponse: {
+            /** Transferred */
+            transferred: boolean;
+        };
+        /** ChallengeEntryViewRequest */
+        ChallengeEntryViewRequest: {
+            /**
+             * Event Id
+             * Format: uuid
+             */
+            event_id: string;
+        };
+        /** EntryCommentCreateRequest */
+        EntryCommentCreateRequest: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /**
+             * Body
+             * @description 앞뒤 공백을 걷고 1~500자(코드 포인트)
+             */
+            body: string;
+        };
+        /** ChallengeParticipant */
+        ChallengeParticipant: {
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /** Name */
+            name: string;
+        };
+        /** EntryComment */
+        EntryComment: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** @description 현재 프로필 이름만. 탈퇴했으면 "탈퇴한 사용자" */
+            author: components["schemas"]["ChallengeParticipant"];
+            /** Body */
+            body: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Is Mine */
+            is_mine: boolean;
+            /** Author Withdrawn */
+            author_withdrawn: boolean;
+            /**
+             * Status
+             * @description hidden 은 신고로 숨겨진 내 댓글이다(작성자에게만 온다)
+             * @enum {string}
+             */
+            status: "visible" | "hidden";
+        };
+        /** ChallengeAiReportRequest */
+        ChallengeAiReportRequest: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+        };
+        /** AiReportEvidence */
+        AiReportEvidence: {
+            /** Start Ms */
+            start_ms: number;
+            /** End Ms */
+            end_ms: number;
+            /** Text */
+            text: string;
+        };
+        /**
+         * ChallengeAiReport
+         * @description 관찰·견주기·한계·제안. 점수·등급·순위가 없고 표본은 이름·id 없이 "다른 참여작들"이다
+         */
+        ChallengeAiReport: {
+            /**
+             * Entry Id
+             * Format: uuid
+             */
+            entry_id: string;
             /**
              * Status
              * @enum {string}
              */
-            status: "analyzing" | "analyzed" | "failed";
-            /** Summary Id */
-            summary_id?: string | null;
+            status: "pending" | "ready" | "failed";
+            /** Observations */
+            observations: components["schemas"]["AiReportEvidence"][];
+            /**
+             * Comparisons
+             * @description 지금도 표본 조건을 지키는 참여작에 기댄 문장만
+             */
+            comparisons: string[];
+            /** Limits */
+            limits: string[];
+            /** Suggestion */
+            suggestion: string | null;
+            /**
+             * Sample Count
+             * @description 견주기에 쓴 표본 가운데 지금도 조건을 지키는 수
+             */
+            sample_count: number;
+            /**
+             * Attempt Count
+             * @description 이번 생성의 실행 수(최대 3)
+             */
+            attempt_count: number;
+            /**
+             * Requested At
+             * Format: date-time
+             */
+            requested_at: string;
+            /** Completed At */
+            completed_at: string | null;
         };
-        /** PracticeSessionAcceptedResponse */
-        PracticeSessionAcceptedResponse: {
-            /**
-             * Session Id
-             * Format: uuid
-             */
-            session_id: string;
-            /**
-             * Status
-             * @constant
-             */
-            status: "analyzing";
+        /**
+         * ConsentDecision
+         * @enum {string}
+         */
+        ConsentDecision: "granted" | "declined";
+        /** ConsentRequest */
+        ConsentRequest: {
+            /** Document Id */
+            document_id: string;
+            action: components["schemas"]["ConsentDecision"];
+            /** Age Confirmed */
+            age_confirmed?: boolean;
         };
         /**
          * ConsentAction
          * @enum {string}
          */
         ConsentAction: "granted" | "declined" | "revoked";
-        /** ConsentRequest */
-        ConsentRequest: {
-            /** Document Id */
-            document_id: string;
-            action: components["schemas"]["ConsentAction"];
-        };
         /** ConsentEventResponse */
         ConsentEventResponse: {
             /**
@@ -1052,293 +3065,328 @@ export interface components {
              */
             occurred_at: string;
         };
-        /** RequiredConsentDeclineError */
-        RequiredConsentDeclineError: {
+        /** ConsentDocumentOutdatedError */
+        ConsentDocumentOutdatedError: {
             /**
              * Detail
              * @enum {string}
              */
-            detail: "required_consent_cannot_be_declined";
+            detail: "consent_document_outdated";
         };
-        /** ReportRequest */
-        ReportRequest: {
+        /** CoachStartRequest */
+        CoachStartRequest: {
             /**
-             * Target Type
-             * @enum {string}
-             */
-            target_type: "post" | "comment";
-            /**
-             * Target Id
+             * Practice Id
              * Format: uuid
              */
-            target_id: string;
+            practice_id: string;
             /**
-             * Reason
-             * @enum {string}
+             * Request Id
+             * Format: uuid
              */
-            reason: "spam" | "abuse" | "sexual" | "privacy" | "other";
-            /** Detail */
-            detail?: string | null;
+            request_id: string;
         };
-        /** PostWriteRequest */
-        PostWriteRequest: {
-            /** Category Slug */
-            category_slug: string;
-            /** Title */
-            title: string;
-            /** Body */
-            body: string;
-            /**
-             * Anonymous
-             * @default false
-             */
-            anonymous: boolean;
-        };
-        /**
-         * AuthorPayload
-         * @description 익명이면 `id`·`nickname` 이 비고 `alias` 만 온다.
-         *
-         *     익명 글에 실제 user id 를 실어 보내면 화면에 "익명" 이라 적혀 있어도 클라이언트가
-         *     같은 id 로 다른 글과 묶는다. 그래서 아예 담지 않는다.
-         */
-        AuthorPayload: {
-            /** Id */
-            id: string | null;
-            /** Nickname */
-            nickname: string | null;
-            /** Alias */
-            alias: string | null;
-        };
-        /** PostPayload */
-        PostPayload: {
+        /** CoachConversation */
+        CoachConversation: {
             /**
              * Id
              * Format: uuid
              */
             id: string;
-            /** Anonymous */
-            anonymous: boolean;
-            /** Category Slug */
-            category_slug: string;
-            /** Category Name */
-            category_name: string;
-            author: components["schemas"]["AuthorPayload"];
+            /** Practice Id */
+            practice_id?: string | null;
+            /** Status */
+            status: string;
+            /** Close Reason */
+            close_reason?: string | null;
+            /** Revision */
+            revision: number;
+            /** Coach Reply Count */
+            coach_reply_count: number;
+            /** Reply Limit */
+            reply_limit: number;
+            /** Messages */
+            messages: components["schemas"]["CoachTurn"][];
+            /** Created At */
+            created_at?: string | null;
+        };
+        /** CoachNote */
+        CoachNote: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Conversation Id
+             * Format: uuid
+             */
+            conversation_id: string;
+            /** Format */
+            format: string;
+            /** Kind */
+            kind: string;
             /** Title */
-            title: string;
-            /** Body */
-            body: string;
+            title?: string | null;
+            /** Summary Quotes */
+            summary_quotes: components["schemas"]["CoachNoteQuote"][];
+            /** Next Take */
+            next_take?: string | null;
+            /** Actor Words */
+            actor_words: string[];
+            /** Corrections */
+            corrections: string[];
+            /** Tags */
+            tags: string[];
+            /** Fallback */
+            fallback: boolean;
+            /** Source Revision */
+            source_revision: number;
+            /** Report */
+            report?: components["schemas"]["AnalysisReport"] | components["schemas"]["ExpressionReport"] | components["schemas"]["BlockedReport"] | components["schemas"]["PublicPracticeNote"] | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            my_rating?: components["schemas"]["NoteRating"] | null;
+        };
+        /** CoachNoteQuote */
+        CoachNoteQuote: {
+            /** Quote */
+            quote: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "actor" | "observation";
+            /** Source Ref */
+            source_ref: string;
+        };
+        /** CoachTurn */
+        CoachTurn: {
+            /** Turn Index */
+            turn_index: number;
+            /** Role */
+            role: string;
+            /** Text */
+            text: string;
+            /** Created At */
+            created_at?: string | null;
+        };
+        /** CoachTurnResult */
+        CoachTurnResult: {
+            conversation: components["schemas"]["CoachConversation"];
+            /** Message */
+            message: string;
+            note?: components["schemas"]["CoachNote"] | null;
+        };
+        /** CoachReplyRequest */
+        CoachReplyRequest: {
+            /**
+             * Conversation Id
+             * Format: uuid
+             */
+            conversation_id: string;
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /** Text */
+            text?: string;
+            /** Revision */
+            revision?: number | null;
+        };
+        /** ChallengeCreateRequest */
+        ChallengeCreateRequest: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /** Line */
+            line: string;
+            /** Work */
+            work: string;
+            /** Character */
+            character?: string | null;
+            /** Scene Note */
+            scene_note?: string | null;
+            /** Duration Days */
+            duration_days: number;
+        };
+        /** Challenge */
+        Challenge: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Line */
+            line: string;
+            /** Work */
+            work: string;
+            /** Character */
+            character: string | null;
+            /** Scene Note */
+            scene_note: string | null;
+            /**
+             * Origin
+             * @enum {string}
+             */
+            origin: "team" | "member";
+            /** Host Name */
+            host_name: string | null;
+            /** Is Host */
+            is_host: boolean;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Featured On */
+            featured_on: string | null;
+            /**
+             * Moderation
+             * @enum {string}
+             */
+            moderation: "visible" | "review" | "hidden";
+            /** Entry Count */
+            entry_count: number;
+            /** Like Sum */
+            like_sum: number;
+            /** Participants */
+            participants: components["schemas"]["ChallengeParticipant"][];
+            /** More Count */
+            more_count: number;
+            /** Ranking State */
+            ranking_state: ("pending" | "final") | null;
+        };
+        /** ChallengeEntryCreateRequest */
+        ChallengeEntryCreateRequest: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /**
+             * Video Id
+             * Format: uuid
+             */
+            video_id: string;
+            /** Caption */
+            caption?: string | null;
+            /**
+             * Visibility
+             * @description 올리기 화면에서 명시적으로 고른다
+             * @enum {string}
+             */
+            visibility: "public" | "private";
+        };
+        /** MyChallengeEntry */
+        MyChallengeEntry: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Challenge Id
+             * Format: uuid
+             */
+            challenge_id: string;
+            author: components["schemas"]["ChallengeParticipant"];
+            /** Caption */
+            caption: string | null;
+            /** Content Version */
+            content_version: number;
             /** Like Count */
             like_count: number;
             /** Comment Count */
             comment_count: number;
             /** View Count */
             view_count: number;
-            /** Liked By Me */
-            liked_by_me: boolean;
-            /** Mine */
-            mine: boolean;
+            /** Rank */
+            rank: number | null;
+            /** Final Like Count */
+            final_like_count: number | null;
+            /** Published At */
+            published_at: string | null;
+            /** Playback Url */
+            playback_url: string | null;
+            /** Liked */
+            liked: boolean;
+            /** Saved */
+            saved: boolean;
+            /** Is Mine */
+            is_mine: boolean;
             /**
-             * Created At
-             * Format: date-time
+             * Visibility
+             * @enum {string}
              */
-            created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-        };
-        /** LikeResponse */
-        LikeResponse: {
-            /** Like Count */
-            like_count: number;
-            /** Liked By Me */
-            liked_by_me: boolean;
-        };
-        /** CommentWriteRequest */
-        CommentWriteRequest: {
-            /** Body */
-            body: string;
-            /**
-             * Anonymous
-             * @default false
-             */
-            anonymous: boolean;
-        };
-        /** CommentPayload */
-        CommentPayload: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Post Id
-             * Format: uuid
-             */
-            post_id: string;
-            /** Anonymous */
-            anonymous: boolean;
-            author: components["schemas"]["AuthorPayload"];
-            /** Body */
-            body: string;
-            /** Mine */
-            mine: boolean;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-        };
-        /** BlockRequest */
-        BlockRequest: {
-            /**
-             * User Id
-             * Format: uuid
-             */
-            user_id: string;
-        };
-        /** CoachStartReq */
-        CoachStartReq: {
-            /**
-             * Practice Session Id
-             * Format: uuid
-             */
-            practice_session_id: string;
-            /**
-             * Restart
-             * @default false
-             */
-            restart: boolean;
-        };
-        /** CoachTurnResponse */
-        CoachTurnResponse: {
-            /**
-             * Session Id
-             * Format: uuid
-             */
-            session_id: string;
-            /** Message */
-            message: string;
+            visibility: "public" | "private";
             /**
              * Status
              * @enum {string}
              */
-            status: "continue" | "complete";
-            handoff: components["schemas"]["PublicHandoff"] | null;
-            /** Report */
-            report: components["schemas"]["AnalysisReport"] | components["schemas"]["ExpressionReport"] | components["schemas"]["BlockedReport"] | components["schemas"]["PublicPracticeNote"] | null;
-            /** Turns */
-            turns: components["schemas"]["PublicCoachTurn"][];
+            status: "visible" | "hidden_by_report" | "deleted";
+            /**
+             * Category
+             * @description P03 분류. 확인 중 → 비공개 → 공개 순으로 한 곳에만 든다
+             * @enum {string}
+             */
+            category: "public" | "private" | "under_review";
+            /** Challenge Hidden */
+            challenge_hidden: boolean;
+            challenge: components["schemas"]["MyChallengeEntryParent"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
         };
-        /** PublicHandoff */
-        PublicHandoff: {
+        /** MyChallengeEntryParent */
+        MyChallengeEntryParent: {
             /**
              * Id
              * Format: uuid
              */
             id: string;
+            /** Line */
+            line: string;
+            /** Work */
+            work: string;
+            /** Character */
+            character: string | null;
             /**
-             * Branch Kind
-             * @enum {string}
+             * Ends At
+             * Format: date-time
              */
-            branch_kind: "analysis" | "expression" | "coaching";
+            ends_at: string;
         };
-        /** PublicCoachTurn */
-        PublicCoachTurn: {
-            /**
-             * Role
-             * @enum {string}
-             */
-            role: "actor" | "ai";
-            /** Text */
-            text: string;
+        /**
+         * SignupAction
+         * @enum {string}
+         */
+        SignupAction: "granted" | "declined";
+        /** SignupDecision */
+        SignupDecision: {
+            /** Document Id */
+            document_id: string;
+            action: components["schemas"]["SignupAction"];
         };
-        /** CoachReplyReq */
-        CoachReplyReq: {
-            /**
-             * Session Id
-             * Format: uuid
-             */
-            session_id: string;
-            /** Text */
-            text: string;
-        };
-        /** CoachConfirmReq */
-        CoachConfirmReq: {
-            /**
-             * Coach Session Id
-             * Format: uuid
-             */
-            coach_session_id: string;
-            /** Confirmed */
-            confirmed: boolean;
-            /** Rebuttal Text */
-            rebuttal_text?: string | null;
-        };
-        /** CoachConfirmResponse */
-        CoachConfirmResponse: {
-            /**
-             * Session Id
-             * Format: uuid
-             */
-            session_id: string;
-            /** Confirmed */
-            confirmed: boolean;
-            handoff: components["schemas"]["PublicHandoff"] | null;
-            /** Report */
-            report: components["schemas"]["AnalysisReport"] | components["schemas"]["ExpressionReport"] | components["schemas"]["BlockedReport"] | components["schemas"]["PublicPracticeNote"];
-        };
-        /** RefreshRequest */
-        RefreshRequest: {
-            /** Refresh Token */
-            refresh_token: string;
-        };
-        /** RefreshTokenResponse */
-        RefreshTokenResponse: {
-            /** Access Token */
-            access_token: string;
-            /** Refresh Token */
-            refresh_token: string;
-            /** Token Type */
-            token_type: string;
-            /** Expires In */
-            expires_in: number;
-        };
-        /** HTTPValidationError */
-        HTTPValidationError: {
-            /** Detail */
-            detail?: components["schemas"]["ValidationError"][];
-        };
-        /** ValidationError */
-        ValidationError: {
-            /** Location */
-            loc: (string | number)[];
-            /** Message */
-            msg: string;
-            /** Error Type */
-            type: string;
-            /** Input */
-            input?: unknown;
-            /** Context */
-            ctx?: Record<string, never>;
-        };
-        /** LogoutRequest */
-        LogoutRequest: {
-            /** Refresh Token */
-            refresh_token: string;
-        };
-        /** LoginRequest */
-        LoginRequest: {
-            /** Provider */
-            provider: string;
-            /** Id Token */
-            id_token: string;
+        /** SignupRequest */
+        SignupRequest: {
+            /** Signup Token */
+            signup_token: string;
+            /** Decisions */
+            decisions: components["schemas"]["SignupDecision"][];
         };
         /** AuthUser */
         AuthUser: {
@@ -1381,9 +3429,14 @@ export interface components {
          * ConsentType
          * @enum {string}
          */
-        ConsentType: "terms" | "privacy" | "ai_analysis";
-        /** TokenPairResponse */
-        TokenPairResponse: {
+        ConsentType: "terms" | "privacy" | "ai_analysis" | "retention";
+        /** SignedInResponse */
+        SignedInResponse: {
+            /**
+             * Result
+             * @enum {string}
+             */
+            result: "signed_in";
             /** Access Token */
             access_token: string;
             /** Refresh Token */
@@ -1396,108 +3449,268 @@ export interface components {
             /** Pending Consents */
             pending_consents: components["schemas"]["ConsentDocument"][];
         };
-        /** UpdateMeRequest */
-        UpdateMeRequest: {
-            /** Nickname */
-            nickname: string;
+        /** AccountExistsError */
+        AccountExistsError: {
+            /**
+             * Detail
+             * @enum {string}
+             */
+            detail: "account_exists_with_different_provider";
+            /** Providers */
+            providers: string[];
         };
-        /** MeResponse */
-        MeResponse: {
+        /** HTTPValidationError */
+        HTTPValidationError: {
+            /** Detail */
+            detail?: components["schemas"]["ValidationError"][];
+        };
+        /** ValidationError */
+        ValidationError: {
+            /** Location */
+            loc: (string | number)[];
+            /** Message */
+            msg: string;
+            /** Error Type */
+            type: string;
+            /** Input */
+            input?: unknown;
+            /** Context */
+            ctx?: Record<string, never>;
+        };
+        /** RefreshRequest */
+        RefreshRequest: {
+            /** Refresh Token */
+            refresh_token: string;
+        };
+        /** RefreshTokenResponse */
+        RefreshTokenResponse: {
+            /** Access Token */
+            access_token: string;
+            /** Refresh Token */
+            refresh_token: string;
+            /** Token Type */
+            token_type: string;
+            /** Expires In */
+            expires_in: number;
+        };
+        /** LogoutRequest */
+        LogoutRequest: {
+            /** Refresh Token */
+            refresh_token: string;
+        };
+        /** LoginRequest */
+        LoginRequest: {
+            /** Provider */
+            provider: string;
+            /** Id Token */
+            id_token?: string;
+            /** Authorization Code */
+            authorization_code?: string;
+            /** Code Verifier */
+            code_verifier?: string;
+            /** Redirect Uri */
+            redirect_uri?: string;
+            /** State */
+            state?: string;
+        };
+        /** LoginResponse */
+        LoginResponse: components["schemas"]["SignedInResponse"] | components["schemas"]["SignupRequiredResponse"];
+        /** SignupRequiredResponse */
+        SignupRequiredResponse: {
+            /**
+             * Result
+             * @enum {string}
+             */
+            result: "signup_required";
+            /** Signup Token */
+            signup_token: string;
+            /** Expires In */
+            expires_in: number;
+            /** Documents */
+            documents: components["schemas"]["ConsentDocument"][];
+        };
+        /** GuestResponse */
+        GuestResponse: {
+            /** Access Token */
+            access_token: string;
+            /** Refresh Token */
+            refresh_token: string;
+            /** Token Type */
+            token_type: string;
+            /** Expires In */
+            expires_in: number;
+            user: components["schemas"]["AuthUser"];
+            /**
+             * Account Type
+             * @enum {string}
+             */
+            account_type: "guest";
+        };
+        /** VideoPatch */
+        VideoPatch: {
+            /** Favorite */
+            favorite: boolean;
+        };
+        /**
+         * ReadingLineOutcomeInput
+         * @enum {string}
+         */
+        ReadingLineOutcomeInput: "passed" | "unmatched" | "skipped";
+        /** ReadingLineResultInput */
+        ReadingLineResultInput: {
+            /**
+             * Line Id
+             * Format: uuid
+             */
+            line_id: string;
+            outcome: components["schemas"]["ReadingLineOutcomeInput"];
+            /** Misses */
+            misses: number;
+        };
+        /** ReadingSessionProgressRequest */
+        ReadingSessionProgressRequest: {
+            /** Progress Seq */
+            progress_seq: number;
+            /** Current Line Id */
+            current_line_id?: string | null;
+            /** Elapsed Seconds */
+            elapsed_seconds?: number | null;
+            /** Line Results */
+            line_results?: components["schemas"]["ReadingLineResultInput"][] | null;
+            /** Complete */
+            complete?: boolean | null;
+        };
+        /** ReadingSessionProgress */
+        ReadingSessionProgress: {
+            /** Current Line Id */
+            current_line_id: string | null;
+            /** Elapsed Seconds */
+            elapsed_seconds: number;
+            /** Progress Seq */
+            progress_seq: number;
+            status: components["schemas"]["ReadingSessionStatus"];
+        };
+        /** ReadingScriptCharacterPatch */
+        ReadingScriptCharacterPatch: {
             /**
              * Id
              * Format: uuid
              */
             id: string;
-            /** Email */
-            email: string | null;
-            /** Nickname */
-            nickname: string | null;
+            /** Name */
+            name?: string | null;
+            /** Voice Preset */
+            voice_preset?: string | null;
+        };
+        /** ReadingScriptPatch */
+        ReadingScriptPatch: {
+            /** Title */
+            title?: string | null;
+            /** Characters */
+            characters?: components["schemas"]["ReadingScriptCharacterPatch"][];
+        };
+        /** PracticeGroupPatch */
+        PracticeGroupPatch: {
+            /** Favorite */
+            favorite?: boolean | null;
+            /** Hidden */
+            hidden?: boolean | null;
+            /** Title */
+            title?: string | null;
+        };
+        /** PracticeGroup */
+        PracticeGroup: {
+            /**
+             * Root Id
+             * Format: uuid
+             */
+            root_id: string;
+            /** Title */
+            title?: string | null;
+            /** Ordinal Count */
+            ordinal_count: number;
+            /** Last Conversation At */
+            last_conversation_at?: string | null;
+            /** Tags */
+            tags: string[];
+            /** Favorite */
+            favorite: boolean;
+            /** Hidden At */
+            hidden_at?: string | null;
+            /** In Progress Practice Id */
+            in_progress_practice_id?: string | null;
+            /** Practices */
+            practices: components["schemas"]["Practice"][];
+        };
+        /** PortfolioCreditPatch */
+        PortfolioCreditPatch: {
+            /** Title */
+            title?: string;
+            /** Role */
+            role?: string;
+            /** Year */
+            year?: number;
+            kind?: components["schemas"]["PortfolioCreditKindInput"];
+        };
+        /** NotificationSettingsPatch */
+        NotificationSettingsPatch: {
+            /** Analysis Done */
+            analysis_done?: boolean;
+            /** Challenge */
+            challenge?: boolean;
+            /** Evening Reminder */
+            evening_reminder?: boolean;
+        };
+        /** NotificationSettings */
+        NotificationSettings: {
+            /** Analysis Done */
+            analysis_done: boolean;
+            /** Challenge */
+            challenge: boolean;
+            /** Evening Reminder */
+            evening_reminder: boolean;
+        };
+        /** ChallengeEntryPatchRequest */
+        ChallengeEntryPatchRequest: {
+            /** Caption */
+            caption?: string | null;
+            /** Visibility */
+            visibility?: ("public" | "private") | null;
+        };
+        /** VideoList */
+        VideoList: {
+            /** Videos */
+            videos: components["schemas"]["Video"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+        };
+        /** ReadingScriptCard */
+        ReadingScriptCard: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Title */
+            title: string;
+            /** My Character Names */
+            my_character_names: string[];
+            /** Dialogue Count */
+            dialogue_count: number;
+            /** Recording Count */
+            recording_count: number;
+            /** Last Practiced At */
+            last_practiced_at: string | null;
+            /**
+             * Last Activity At
+             * Format: date-time
+             */
+            last_activity_at: string;
             /**
              * Status
              * @enum {string}
              */
-            status: "active" | "deactivated";
-        };
-        /** PostUpdateRequest */
-        PostUpdateRequest: {
-            /** Title */
-            title: string;
-            /** Body */
-            body: string;
-        };
-        /** ReportHistoryResponse */
-        ReportHistoryResponse: {
-            /** Count */
-            count: number;
-            /** Reports */
-            reports: components["schemas"]["ReportRecord"][];
-        };
-        /** ReportRecord */
-        ReportRecord: {
-            /**
-             * Practice Session Id
-             * Format: uuid
-             */
-            practice_session_id: string;
-            /**
-             * Report Type
-             * @enum {string}
-             */
-            report_type: "analysis" | "expression" | "practice_note";
-            /** Title */
-            title: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-        };
-        /** ReportDetailResponse */
-        ReportDetailResponse: {
-            /**
-             * Practice Session Id
-             * Format: uuid
-             */
-            practice_session_id: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Report */
-            report: components["schemas"]["AnalysisReport"] | components["schemas"]["ExpressionReport"] | components["schemas"]["PublicPracticeNote"];
-            /** Playback Url */
-            playback_url: string;
-        };
-        /** PracticeSessionListItem */
-        PracticeSessionListItem: {
-            /**
-             * Session Id
-             * Format: uuid
-             */
-            session_id: string;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "analyzing" | "analyzed" | "failed";
-            /** Situation */
-            situation: string;
-            /** Character Context */
-            character_context: string;
-            /** Goal */
-            goal: string;
-            /**
-             * Blockage Kind
-             * @enum {string}
-             */
-            blockage_kind: "분석" | "표현" | "그 외";
-            /** Sub Branch */
-            sub_branch: string;
-            /** Blockage Detail */
-            blockage_detail?: string | null;
-            /** Continued From */
-            continued_from?: string | null;
+            status: "reading" | "completed" | "no_cast";
             /**
              * Created At
              * Format: date-time
@@ -1509,73 +3722,383 @@ export interface components {
              */
             updated_at: string;
         };
-        /** PracticeSessionListResponse */
-        PracticeSessionListResponse: {
+        /** ReadingScriptList */
+        ReadingScriptList: {
+            /** Scripts */
+            scripts: components["schemas"]["ReadingScriptCard"][];
+            /** Total Count */
+            total_count: number;
+            /** In Progress Count */
+            in_progress_count: number;
+        };
+        /** ReadingSessionCard */
+        ReadingSessionCard: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Ordinal */
+            ordinal: number;
+            status: components["schemas"]["ReadingSessionStatus"];
+            /** My Character Ids */
+            my_character_ids: string[];
+            /** My Character Names */
+            my_character_names: string[];
+            range: components["schemas"]["ReadingSessionRange"];
+            /** My Dialogue Count */
+            my_dialogue_count: number;
+            /** Recorded Line Count */
+            recorded_line_count: number;
+            /** Elapsed Seconds */
+            elapsed_seconds: number;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Ended At */
+            ended_at: string | null;
+        };
+        /** ReadingSessionList */
+        ReadingSessionList: {
             /** Sessions */
-            sessions: components["schemas"]["PracticeSessionListItem"][];
+            sessions: components["schemas"]["ReadingSessionCard"][];
         };
-        /** PracticeSessionDetail */
-        PracticeSessionDetail: {
+        /** PublicPortfolio */
+        PublicPortfolio: {
+            /** Name */
+            name: string;
+            /** Photo Url */
+            photo_url: string | null;
+            /** Gender */
+            gender: ("female" | "male") | null;
+            /** Age */
+            age: number;
+            /** Intro */
+            intro: string | null;
+            /** Credits */
+            credits: components["schemas"]["PublicPortfolioCredit"][];
+            /** Photos */
+            photos: components["schemas"]["PublicPortfolioPhoto"][];
+        };
+        /** PublicPortfolioCredit */
+        PublicPortfolioCredit: {
+            /** Title */
+            title: string;
+            /** Role */
+            role: string;
+            /** Year */
+            year: number;
+            kind: components["schemas"]["PortfolioCreditKind"];
+        };
+        /** PublicPortfolioPhoto */
+        PublicPortfolioPhoto: {
+            /** Url */
+            url: string | null;
+        };
+        /** PublicChallengeEntry */
+        PublicChallengeEntry: {
+            /** Work */
+            work: string;
+            /** Line */
+            line: string;
+            /** Character */
+            character: string | null;
+            /** Poster Url */
+            poster_url: string | null;
+        };
+        /** PracticeGroupList */
+        PracticeGroupList: {
+            /** Groups */
+            groups: components["schemas"]["PracticeGroup"][];
+        };
+        /** ObservationItem */
+        ObservationItem: {
+            /** Start Ms */
+            start_ms: number;
+            /** End Ms */
+            end_ms: number;
+            /** Label */
+            label: string;
+            /** Confidence */
+            confidence: number;
+        };
+        /** ObservationPackResponse */
+        ObservationPackResponse: {
             /**
-             * Session Id
+             * Summary Id
              * Format: uuid
              */
-            session_id: string;
+            summary_id: string;
+            /** Observations */
+            observations: components["schemas"]["ObservationItem"][];
+            /** Uncertainties */
+            uncertainties: string[];
+        };
+        /** PracticeAnalysis */
+        PracticeAnalysis: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Format
+             * @enum {string}
+             */
+            format: "legacy" | "video_record_v1";
             /**
              * Status
              * @enum {string}
              */
-            status: "analyzing" | "analyzed" | "failed";
-            /** Situation */
-            situation: string;
-            /** Character Context */
-            character_context: string;
-            /** Goal */
-            goal: string;
+            status: "ready" | "partial";
+            /** Summary */
+            summary: components["schemas"]["ObservationPackResponse"] | components["schemas"]["VideoRecordSummaryResponse"];
+        };
+        /** VideoRecordLimit */
+        VideoRecordLimit: {
+            /** Start Ms */
+            start_ms: number;
+            /** End Ms */
+            end_ms: number;
+            /** Description */
+            description: string;
+        };
+        /** VideoRecordRange */
+        VideoRecordRange: {
+            /** Start Ms */
+            start_ms: number;
+            /** End Ms */
+            end_ms: number;
+        };
+        /** VideoRecordSummaryResponse */
+        VideoRecordSummaryResponse: {
             /**
-             * Blockage Kind
+             * Schema Version
+             * @constant
+             */
+            schema_version: "acttub.video_record_summary.v1";
+            /**
+             * Record Id
+             * Format: uuid
+             */
+            record_id: string;
+            /** Record Version */
+            record_version: number;
+            /** Duration Ms */
+            duration_ms: number;
+            /**
+             * Status
              * @enum {string}
              */
-            blockage_kind: "분석" | "표현" | "그 외";
-            /** Sub Branch */
-            sub_branch: string;
-            /** Blockage Detail */
-            blockage_detail?: string | null;
+            status: "ready" | "partial";
+            /** Processed Ranges */
+            processed_ranges: components["schemas"]["VideoRecordRange"][];
+            /** Missing Ranges */
+            missing_ranges: components["schemas"]["VideoRecordRange"][];
+            /** Observed Scene */
+            observed_scene: string[];
+            /** Spoken Content */
+            spoken_content: string[];
+            /** Limitations */
+            limitations: components["schemas"]["VideoRecordLimit"][];
+        };
+        /** ChallengeEntry */
+        ChallengeEntry: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Challenge Id
+             * Format: uuid
+             */
+            challenge_id: string;
+            author: components["schemas"]["ChallengeParticipant"];
+            /** Caption */
+            caption: string | null;
+            /** Like Count */
+            like_count: number;
+            /** Comment Count */
+            comment_count: number;
+            /** View Count */
+            view_count: number;
+            /** Rank */
+            rank: number | null;
+            /** Final Like Count */
+            final_like_count: number | null;
+            /** Published At */
+            published_at: string | null;
+            /** Playback Url */
+            playback_url: string | null;
+            /** Liked */
+            liked: boolean;
+            /** Saved */
+            saved: boolean;
+            /** Is Mine */
+            is_mine: boolean;
+            /**
+             * Is New
+             * @description 최신순 첫 항목
+             */
+            is_new: boolean;
+        };
+        /** SavedChallengeEntries */
+        SavedChallengeEntries: {
+            /** Entries */
+            entries: components["schemas"]["ChallengeEntry"][];
+            /**
+             * My Entry Count
+             * @description 삭제되지 않은 내 참여작 수
+             */
+            my_entry_count: number;
+            /**
+             * Saved Count
+             * @description 지금 보이는 저장한 참여작 수
+             */
+            saved_count: number;
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** ChallengeNotificationGroup */
+        ChallengeNotificationGroup: {
+            /** Group Key */
+            group_key: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "entry_liked" | "entry_commented" | "challenge_ended" | "entry_ai_report_ready";
+            /**
+             * Actor Count
+             * @description 유효한 서로 다른 행동자 수(시스템 사건은 0)
+             */
+            actor_count: number;
+            /**
+             * Event Count
+             * @description 유효한 사건 수(댓글 묶음은 댓글 수)
+             */
+            event_count: number;
+            /** Actor Name */
+            actor_name: string | null;
+            /**
+             * Challenge Id
+             * Format: uuid
+             */
+            challenge_id: string;
+            /** Entry Id */
+            entry_id: string | null;
+            /** Comment Id */
+            comment_id: string | null;
+            /** Comment Excerpt */
+            comment_excerpt: string | null;
+            /**
+             * Latest At
+             * Format: date-time
+             */
+            latest_at: string;
+            /** Read */
+            read: boolean;
+            /**
+             * Target Available
+             * @description 대상이 삭제·비공개·숨김으로 볼 수 없으면 false(본인 AI 리포트는 예외)
+             */
+            target_available: boolean;
+        };
+        /** ChallengeNotifications */
+        ChallengeNotifications: {
+            /** Groups */
+            groups: components["schemas"]["ChallengeNotificationGroup"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** NotificationUnreadCount */
+        NotificationUnreadCount: {
+            /**
+             * Count
+             * @description 읽지 않은 묶음 수
+             */
+            count: number;
+        };
+        /** ActorMemoryResponse */
+        ActorMemoryResponse: {
+            /** Items */
+            items: components["schemas"]["ActorMemoryItem"][];
+        };
+        /** MyChallengeEntries */
+        MyChallengeEntries: {
+            counts: components["schemas"]["MyChallengeEntryCounts"];
+            /** Entries */
+            entries: components["schemas"]["MyChallengeEntry"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** MyChallengeEntryCounts */
+        MyChallengeEntryCounts: {
+            /** All */
+            all: number;
+            /** Public */
+            public: number;
+            /** Private */
+            private: number;
+            /** Under Review */
+            under_review: number;
+        };
+        /** BlockedUser */
+        BlockedUser: {
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /** Name */
+            name: string;
             /**
              * Created At
              * Format: date-time
              */
             created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-            /** Playback Url */
-            playback_url: string;
-            summary?: components["schemas"]["ObservationPackResponse"] | components["schemas"]["VideoRecordSummaryResponse"] | null;
-            /** Error Code */
-            error_code?: ("gemini_timeout" | "gemini_parse_error" | "unsupported_media" | "max_attempts_exceeded") | null;
         };
-        /** PracticeSessionStatusResponse */
-        PracticeSessionStatusResponse: {
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "analyzing" | "analyzed" | "failed";
-            /** Error Code */
-            error_code?: ("gemini_timeout" | "gemini_parse_error" | "unsupported_media" | "max_attempts_exceeded") | null;
+        /** BlockedUsers */
+        BlockedUsers: {
+            /** Users */
+            users: components["schemas"]["BlockedUser"][];
         };
         /** MemoryResponse */
         MemoryResponse: {
             /** Items */
             items: components["schemas"]["MemoryItem"][];
         };
+        /** EntryCommentPage */
+        EntryCommentPage: {
+            /** Comments */
+            comments: components["schemas"]["EntryComment"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
         /** ConsentDocumentsResponse */
         ConsentDocumentsResponse: {
             /** Documents */
             documents: components["schemas"]["ConsentDocument"][];
+        };
+        /** ConsentNotice */
+        ConsentNotice: {
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "privacy_policy";
+            /** Title */
+            title: string;
+            /** Body */
+            body: string;
+        };
+        /** ConsentNoticesResponse */
+        ConsentNoticesResponse: {
+            /** Notices */
+            notices: components["schemas"]["ConsentNotice"][];
         };
         /** ConsentEntryDocument */
         ConsentEntryDocument: {
@@ -1598,7 +4121,10 @@ export interface components {
              * Format: date-time
              */
             published_at: string;
-            current_decision: components["schemas"]["ConsentAction"] | null;
+            /** Current Decision */
+            current_decision: ("granted" | "declined") | null;
+            /** Decided At */
+            decided_at: string | null;
         };
         /** ConsentEntryResponse */
         ConsentEntryResponse: {
@@ -1612,49 +4138,28 @@ export interface components {
          * ConsentEntryStatus
          * @enum {string}
          */
-        ConsentEntryStatus: "allowed" | "decision_required" | "blocked";
-        /** PostListResponse */
-        PostListResponse: {
-            /** Posts */
-            posts: components["schemas"]["PostPayload"][];
+        ConsentEntryStatus: "allowed" | "decision_required";
+        /** ChallengeList */
+        ChallengeList: {
+            featured: components["schemas"]["Challenge"] | null;
+            /** Challenges */
+            challenges: components["schemas"]["Challenge"][];
             /** Next Cursor */
             next_cursor: string | null;
         };
-        /** CommentListResponse */
-        CommentListResponse: {
-            /** Comments */
-            comments: components["schemas"]["CommentPayload"][];
+        /** ChallengeEntryPage */
+        ChallengeEntryPage: {
+            /** Entries */
+            entries: components["schemas"]["ChallengeEntry"][];
             /** Next Cursor */
             next_cursor: string | null;
+            /** Ranking State */
+            ranking_state: ("pending" | "final") | null;
         };
-        /** CategoryListResponse */
-        CategoryListResponse: {
-            /** Categories */
-            categories: components["schemas"]["CategoryPayload"][];
-        };
-        /** CategoryPayload */
-        CategoryPayload: {
-            /** Slug */
-            slug: string;
-            /** Name */
-            name: string;
-            /** Description */
-            description: string | null;
-        };
-        /** BlockListResponse */
-        BlockListResponse: {
-            /** Blocks */
-            blocks: components["schemas"]["BlockPayload"][];
-        };
-        /** BlockPayload */
-        BlockPayload: {
-            /**
-             * User Id
-             * Format: uuid
-             */
-            user_id: string;
-            /** Nickname */
-            nickname: string | null;
+        /** AuthProvidersResponse */
+        AuthProvidersResponse: {
+            /** Providers */
+            providers: string[];
         };
         /** AdmissionNotice */
         AdmissionNotice: {
@@ -1957,76 +4462,280 @@ export interface components {
             /** Token */
             token: string;
         };
-        /** ObservationItem */
-        ObservationItem: {
-            /** Start Ms */
-            start_ms: number;
-            /** End Ms */
-            end_ms: number;
-            /** Label */
-            label: string;
-            /** Confidence */
-            confidence: number;
-        };
-        /** ObservationPackResponse */
-        ObservationPackResponse: {
-            /**
-             * Summary Id
-             * Format: uuid
-             */
-            summary_id: string;
-            /** Observations */
-            observations: components["schemas"]["ObservationItem"][];
-            /** Uncertainties */
-            uncertainties: string[];
-        };
-        /** VideoRecordLimit */
-        VideoRecordLimit: {
-            /** Start Ms */
-            start_ms: number;
-            /** End Ms */
-            end_ms: number;
-            /** Description */
-            description: string;
-        };
-        /** VideoRecordRange */
-        VideoRecordRange: {
-            /** Start Ms */
-            start_ms: number;
-            /** End Ms */
-            end_ms: number;
-        };
-        /** VideoRecordSummaryResponse */
-        VideoRecordSummaryResponse: {
-            /**
-             * Schema Version
-             * @constant
-             */
-            schema_version: "acttub.video_record_summary.v1";
-            /**
-             * Record Id
-             * Format: uuid
-             */
-            record_id: string;
-            /** Record Version */
-            record_version: number;
-            /** Duration Ms */
-            duration_ms: number;
+        /** WithdrawnResponse */
+        WithdrawnResponse: {
             /**
              * Status
              * @enum {string}
              */
-            status: "ready" | "partial";
-            /** Processed Ranges */
-            processed_ranges: components["schemas"]["VideoRecordRange"][];
-            /** Missing Ranges */
-            missing_ranges: components["schemas"]["VideoRecordRange"][];
-            /** Observed Scene */
-            observed_scene: string[];
-            /** Spoken Content */
-            spoken_content: string[];
-            /** Limitations */
-            limitations: components["schemas"]["VideoRecordLimit"][];
+            status: "deactivated";
+            /**
+             * Deactivated At
+             * Format: date-time
+             */
+            deactivated_at: string;
+        };
+        /** AnalysisNextTake */
+        AnalysisNextTake: {
+            /** Direction */
+            direction: string;
+            /**
+             * Tested
+             * @constant
+             */
+            tested: false;
+        };
+        /** AnalysisReport */
+        AnalysisReport: {
+            /**
+             * Report Type
+             * @constant
+             */
+            report_type: "analysis";
+            /** Title */
+            title: string;
+            /** Actor Discovery */
+            actor_discovery: string;
+            /** Line Meaning */
+            line_meaning: string;
+            /** Timing Reason */
+            timing_reason: string;
+            /** Target Effect */
+            target_effect: string;
+            next_take: components["schemas"]["AnalysisNextTake"];
+            /** Acting Caution */
+            acting_caution: string;
+            /** Evidence */
+            evidence: string[];
+            /** Uncertainties */
+            uncertainties: string[];
+            /** Source Handoff Id */
+            source_handoff_id: string;
+        };
+        /** ActorTraining */
+        ActorTraining: {
+            /** Title */
+            title: string;
+            /** Purpose */
+            purpose: string;
+            /** Duration Minutes */
+            duration_minutes: number;
+            /** Steps */
+            steps: string[];
+            /** Focus */
+            focus: string;
+            /** Success Check */
+            success_check: string;
+            /**
+             * Tested
+             * @constant
+             */
+            tested: false;
+        };
+        /** EffectiveExperiment */
+        EffectiveExperiment: {
+            /** Instruction */
+            instruction: string;
+            /**
+             * Tested
+             * @constant
+             */
+            tested: true;
+        };
+        /** ExpressionReport */
+        ExpressionReport: {
+            /**
+             * Report Type
+             * @constant
+             */
+            report_type: "expression";
+            /** Title */
+            title: string;
+            /** Blocked Point */
+            blocked_point: string;
+            /** Expression Core */
+            expression_core: string;
+            /** Line Meaning */
+            line_meaning: string;
+            /** Timing Reason */
+            timing_reason: string;
+            /** Playable Action */
+            playable_action: string;
+            effective_experiment: components["schemas"]["EffectiveExperiment"];
+            /** Observed Change */
+            observed_change: string;
+            /** Next Take */
+            next_take: string;
+            /** Acting Trap */
+            acting_trap: string;
+            actor_training: components["schemas"]["ActorTraining"];
+            /** Evidence */
+            evidence: string[];
+            /** Actor Words */
+            actor_words: string[];
+            /** Uncertainties */
+            uncertainties: string[];
+            source_handoff_ids: components["schemas"]["SourceHandoffIds"];
+        };
+        /** SourceHandoffIds */
+        SourceHandoffIds: {
+            /** Analysis */
+            analysis: string | null;
+            /** Expression */
+            expression: string;
+        };
+        /** PracticeNoteAttempt */
+        PracticeNoteAttempt: {
+            /** Attempt Id */
+            attempt_id: string;
+            /** Proposal Id */
+            proposal_id: string;
+            /** Instruction */
+            instruction: string;
+            /**
+             * Execution
+             * @enum {string}
+             */
+            execution: "unknown" | "not_tried" | "reported_tried";
+            result: components["schemas"]["PracticeNoteResult"] | null;
+        };
+        /** PracticeNoteDirection */
+        PracticeNoteDirection: {
+            /** Text */
+            text: string;
+            /**
+             * Origin
+             * @enum {string}
+             */
+            origin: "actor_stated" | "actor_selected" | "coach_proposed";
+        };
+        /** PracticeNoteEvidence */
+        PracticeNoteEvidence: {
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "video_utterance" | "video_observation" | "record_limitation";
+            /** Text */
+            text: string;
+            /** Start Ms */
+            start_ms: number | null;
+            /** End Ms */
+            end_ms: number | null;
+        };
+        /** PracticeNoteFocus */
+        PracticeNoteFocus: {
+            /** Label */
+            label: string;
+            /** Start Ms */
+            start_ms: number | null;
+            /** End Ms */
+            end_ms: number | null;
+            /** Quote */
+            quote: string | null;
+        };
+        /** PracticeNotePractice */
+        PracticeNotePractice: {
+            /** Proposal Id */
+            proposal_id: string;
+            /**
+             * Selection
+             * @enum {string}
+             */
+            selection: "proposed" | "selected";
+            /** Instruction */
+            instruction: string;
+            /** Comparison */
+            comparison: string;
+            /** Keep */
+            keep: string | null;
+        };
+        /** PracticeNoteRecordRef */
+        PracticeNoteRecordRef: {
+            /** Record Id */
+            record_id: string;
+            /** Version */
+            version: number;
+            /** Duration Ms */
+            duration_ms: number;
+        };
+        /** PracticeNoteResult */
+        PracticeNoteResult: {
+            /**
+             * Direction
+             * @enum {string}
+             */
+            direction: "closer" | "further" | "mixed" | "same" | "unclear";
+            /** Statement */
+            statement: string;
+            /**
+             * Basis
+             * @constant
+             */
+            basis: "actor_report";
+        };
+        /** PublicPracticeNote */
+        PublicPracticeNote: {
+            /**
+             * Schema Version
+             * @constant
+             */
+            schema_version: "acttub.public_practice_note.v1";
+            /**
+             * Report Type
+             * @constant
+             */
+            report_type: "practice_note";
+            /** Note Id */
+            note_id: string;
+            /** Revision */
+            revision: number;
+            /** Title */
+            title: string;
+            /** Summary */
+            summary: string | null;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "action" | "observation" | "record_only";
+            /**
+             * End Reason
+             * @enum {string}
+             */
+            end_reason: "actor_finished" | "turn_budget" | "interrupted" | "system_failure";
+            record_ref: components["schemas"]["PracticeNoteRecordRef"] | null;
+            /**
+             * Lifecycle
+             * @enum {string}
+             */
+            lifecycle: "draft" | "saved";
+            direction: components["schemas"]["PracticeNoteDirection"] | null;
+            focus: components["schemas"]["PracticeNoteFocus"] | null;
+            /** Reading */
+            reading: string | null;
+            practice: components["schemas"]["PracticeNotePractice"] | null;
+            /** Attempts */
+            attempts: components["schemas"]["PracticeNoteAttempt"][];
+            /** Open Points */
+            open_points: string[];
+            /** Evidence */
+            evidence: components["schemas"]["PracticeNoteEvidence"][];
+        };
+        /** BlockedReport */
+        BlockedReport: {
+            /**
+             * Report Type
+             * @constant
+             */
+            report_type: "blocked";
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "confirmed_analysis_handoff_required" | "confirmed_expression_handoff_required";
         };
     };
     responses: never;
@@ -2037,7 +4746,350 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    update_memory_v2_me_memory__field__put: {
+    set_line_memorization_v2_reading_lines__line_id__memorization_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                line_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadingMemorizationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingLineMemorization"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rate_practice_note_v2_practices__practice_id__note_rating_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                practice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NoteRatingRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoteRating"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_portfolio_share_v2_portfolio_share_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortfolioShareRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortfolioShare"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    order_portfolio_photos_v2_portfolio_photos_order_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortfolioOrderRequest"];
+            };
+        };
+        responses: {
+            /** @description 포트폴리오 본문 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Portfolio"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_intro_v2_portfolio_intro_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortfolioIntroRequest"];
+            };
+        };
+        responses: {
+            /** @description 포트폴리오 본문 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Portfolio"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    order_credits_v2_portfolio_credits_order_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortfolioOrderRequest"];
+            };
+        };
+        responses: {
+            /** @description 포트폴리오 본문 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Portfolio"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_profile_v2_me_profile_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProfileRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_actor_memory_v2_me_memory__field__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                field: "goal" | "blockage" | "speech_self" | "speech_actual";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateActorMemoryRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActorMemoryItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_actor_memory_field_v2_me_memory__field__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                field: "goal" | "blockage" | "speech_self" | "speech_actual";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    block_user_v2_me_blocks__user_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserBlockState"];
+                };
+            };
+        };
+    };
+    unblock_user_v2_me_blocks__user_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserBlockState"];
+                };
+            };
+        };
+    };
+    update_memory_v2_legacy_me_memory__field__put: {
         parameters: {
             query?: never;
             header?: never;
@@ -2072,7 +5124,7 @@ export interface operations {
             };
         };
     };
-    delete_memory_field_v2_me_memory__field__delete: {
+    delete_memory_field_v2_legacy_me_memory__field__delete: {
         parameters: {
             query?: never;
             header?: never;
@@ -2101,16 +5153,128 @@ export interface operations {
             };
         };
     };
-    create_intent_v2_uploads_intents_post: {
+    save_entry_v2_entries__id__save_put: {
         parameters: {
             query?: never;
             header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntrySaveState"];
+                };
+            };
+        };
+    };
+    unsave_entry_v2_entries__id__save_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntrySaveState"];
+                };
+            };
+        };
+    };
+    like_entry_v2_entries__id__like_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntryLikeState"];
+                };
+            };
+        };
+    };
+    unlike_entry_v2_entries__id__like_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntryLikeState"];
+                };
+            };
+        };
+    };
+    purge_video_file_v2_videos__video_id__purge_file_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Video"];
+                };
+            };
+        };
+    };
+    create_video_intent_v2_videos_intents_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Request-Id"?: string;
+            };
             path?: never;
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["UploadIntentRequest"];
+                "application/json": components["schemas"]["VideoIntentRequest"];
             };
         };
         responses: {
@@ -2120,7 +5284,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UploadIntentResponse"];
+                    "application/json": components["schemas"]["VideoIntent"];
                 };
             };
             /** @description Validation Error */
@@ -2134,7 +5298,7 @@ export interface operations {
             };
         };
     };
-    complete_intent_v2_uploads_intents__intent_id__complete_post: {
+    complete_video_intent_v2_videos_intents__intent_id__complete_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -2146,12 +5310,12 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Successful Response */
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UploadCompleteResponse"];
+                    "application/json": components["schemas"]["Video"];
                 };
             };
             /** @description Validation Error */
@@ -2165,9 +5329,92 @@ export interface operations {
             };
         };
     };
-    report_history_v2_reports_get: {
+    create_challenge_report_v2_reports_post: {
         parameters: {
             query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChallengeReportRequest"];
+            };
+        };
+        responses: {
+            /** @description Replay */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportReceipt"];
+                };
+            };
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportReceipt"];
+                };
+            };
+        };
+    };
+    upload_reading_recording_v2_reading_sessions__session_id__recordings_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description 본문의 request_id 와 같은 값. 실으면 같아야 하고 다르면 422 다 */
+                "X-Request-Id"?: string;
+            };
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["ReadingRecordingUploadForm"];
+            };
+        };
+        responses: {
+            /** @description 같은 요청의 재전송이거나 더 작은 시도 번호 — 현재 값 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingSessionRecording"];
+                };
+            };
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingSessionRecording"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_scripts_v2_reading_scripts_get: {
+        parameters: {
+            query?: {
+                /** @description 제목·배역 이름 검색어 */
+                q?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2180,25 +5427,66 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ReportHistoryResponse"];
+                    "application/json": components["schemas"]["ReadingScriptList"];
                 };
             };
         };
     };
-    create_report_v2_reports_post: {
+    create_script_v2_reading_scripts_post: {
         parameters: {
             query?: never;
             header?: {
-                "X-Request-Id"?: string | null;
+                /** @description 본문의 request_id 와 같은 값. 실으면 같아야 하고 다르면 422 다 */
+                "X-Request-Id"?: string;
             };
             path?: never;
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ReportReq"];
+                "application/json": components["schemas"]["ReadingScriptCreateRequest"];
             };
         };
+        responses: {
+            /** @description 같은 요청의 재전송 — 먼저 만든 대본 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingScript"];
+                };
+            };
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingScript"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_reading_sessions_v2_reading_scripts__script_id__sessions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                script_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -2206,7 +5494,45 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AnalysisReport"] | components["schemas"]["ExpressionReport"] | components["schemas"]["PublicPracticeNote"] | components["schemas"]["BlockedReport"];
+                    "application/json": components["schemas"]["ReadingSessionList"];
+                };
+            };
+        };
+    };
+    start_reading_session_v2_reading_scripts__script_id__sessions_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description 본문의 request_id 와 같은 값. 실으면 같아야 하고 다르면 422 다 */
+                "X-Request-Id"?: string;
+            };
+            path: {
+                script_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadingSessionCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description 같은 요청의 재전송 — 먼저 만든 회차 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingSession"];
+                };
+            };
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingSession"];
                 };
             };
             /** @description Validation Error */
@@ -2282,7 +5608,283 @@ export interface operations {
             };
         };
     };
-    list_sessions_v2_practice_sessions_get: {
+    list_practice_groups_v2_practices_get: {
+        parameters: {
+            query?: {
+                filter?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeGroupList"];
+                };
+            };
+        };
+    };
+    start_practice_v2_practices_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Request-Id"?: string;
+                "X-Acttub-Contract"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PracticeCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Practice"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    continue_practice_v2_practices__practice_id__continue_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Request-Id"?: string;
+                "X-Acttub-Contract"?: string;
+            };
+            path: {
+                practice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PracticeContinueRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Practice"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_practice_analysis_v2_practices__practice_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                practice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeStatus"];
+                };
+            };
+        };
+    };
+    retry_practice_analysis_v2_practices__practice_id__analyze_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Request-Id"?: string;
+            };
+            path: {
+                practice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PracticeAnalyzeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Practice"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_practice_feedback_v2_practice_feedback_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PracticeFeedbackRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeFeedbackResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    begin_portfolio_photo_v2_portfolio_photos_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortfolioPhotoUploadRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortfolioPhotoUploadResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    complete_portfolio_photo_v2_portfolio_photos__photo_id__complete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                photo_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 포트폴리오 본문 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Portfolio"];
+                };
+            };
+        };
+    };
+    add_credit_v2_portfolio_credits_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortfolioCreditRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortfolioCredit"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    claim_practice_feedback_v2_me_practice_feedback_claim_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -2297,42 +5899,31 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PracticeSessionListResponse"];
+                    "application/json": components["schemas"]["PracticeFeedbackStatus"];
                 };
             };
         };
     };
-    create_session_v2_practice_sessions_post: {
+    create_photo_upload_v2_me_photo_post: {
         parameters: {
             query?: never;
-            header?: {
-                "X-Request-Id"?: string | null;
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["PracticeSessionRequest"];
+                "application/json": components["schemas"]["PhotoUploadRequest"];
             };
         };
         responses: {
             /** @description Successful Response */
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PracticeSessionCreateResponse"];
-                };
-            };
-            /** @description Accepted */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PracticeSessionAcceptedResponse"];
+                    "application/json": components["schemas"]["PhotoUploadResponse"];
                 };
             };
             /** @description Validation Error */
@@ -2346,15 +5937,29 @@ export interface operations {
             };
         };
     };
-    reanalyze_session_v2_practice_sessions__session_id__analyze_post: {
+    delete_photo_v2_me_photo_delete: {
         parameters: {
             query?: never;
-            header?: {
-                "X-Request-Id"?: string | null;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
-            path: {
-                session_id: string;
-            };
+        };
+    };
+    complete_photo_upload_v2_me_photo_complete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
@@ -2365,16 +5970,73 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PracticeSessionCreateResponse"];
+                    "application/json": components["schemas"]["MeResponse"];
                 };
             };
-            /** @description Accepted */
-            202: {
+        };
+    };
+    read_notifications_v2_me_notifications_read_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationReadRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    issue_transfer_code_v2_guest_transfer_code_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PracticeSessionAcceptedResponse"];
+                    "application/json": components["schemas"]["TransferCodeResponse"];
+                };
+            };
+        };
+    };
+    transfer_guest_v2_guest_transfers_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuestTransferRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuestTransferResponse"];
                 };
             };
             /** @description Validation Error */
@@ -2384,6 +6046,146 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_view_v2_entries__id__views_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChallengeEntryViewRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_comments_v2_entries__id__comments_get: {
+        parameters: {
+            query?: {
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntryCommentPage"];
+                };
+            };
+        };
+    };
+    create_comment_v2_entries__id__comments_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EntryCommentCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Replay */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntryComment"];
+                };
+            };
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EntryComment"];
+                };
+            };
+        };
+    };
+    get_ai_report_v2_entries__id__ai_report_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChallengeAiReport"];
+                };
+            };
+        };
+    };
+    request_ai_report_v2_entries__id__ai_report_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChallengeAiReportRequest"];
+            };
+        };
+        responses: {
+            /** @description Existing */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChallengeAiReport"];
+                };
+            };
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChallengeAiReport"];
                 };
             };
         };
@@ -2401,7 +6203,16 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description 지금 결정과 같은 결정이다. 행을 늘리지 않고 이미 있는 결정을 돌려준다 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsentEventResponse"];
+                };
+            };
+            /** @description 새 결정을 쌓았다 */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -2410,13 +6221,13 @@ export interface operations {
                     "application/json": components["schemas"]["ConsentEventResponse"];
                 };
             };
-            /** @description Required consent cannot be declined */
+            /** @description 현재 판이 아닌 문서에 결정을 보냈다 */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RequiredConsentDeclineError"];
+                    "application/json": components["schemas"]["ConsentDocumentOutdatedError"];
                 };
             };
             /** @description Validation Error */
@@ -2430,7 +6241,7 @@ export interface operations {
             };
         };
     };
-    create_report_v2_community_reports_post: {
+    start_coach_conversation_v2_coach_start_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -2439,40 +6250,9 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ReportRequest"];
+                "application/json": components["schemas"]["CoachStartRequest"];
             };
         };
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_posts_v2_community_posts_get: {
-        parameters: {
-            query?: {
-                category?: string | null;
-                cursor?: string | null;
-                limit?: number | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -2480,7 +6260,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PostListResponse"];
+                    "application/json": components["schemas"]["CoachTurnResult"];
                 };
             };
             /** @description Validation Error */
@@ -2494,7 +6274,7 @@ export interface operations {
             };
         };
     };
-    create_post_v2_community_posts_post: {
+    reply_to_coach_v2_coach_reply_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -2503,182 +6283,149 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["PostWriteRequest"];
+                "application/json": components["schemas"]["CoachReplyRequest"];
             };
         };
         responses: {
             /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachTurnResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_challenges_v2_challenges_get: {
+        parameters: {
+            query?: {
+                tab?: string;
+                q?: string;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChallengeList"];
+                };
+            };
+        };
+    };
+    create_challenge_v2_challenges_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChallengeCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Replay */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Challenge"];
+                };
+            };
+            /** @description Created */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PostPayload"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["Challenge"];
                 };
             };
         };
     };
-    like_post_v2_community_posts__post_id__likes_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                post_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LikeResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    unlike_post_v2_community_posts__post_id__likes_delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                post_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LikeResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_comments_v2_community_posts__post_id__comments_get: {
+    list_entries_v2_challenges__id__entries_get: {
         parameters: {
             query?: {
-                cursor?: string | null;
-                limit?: number | null;
+                sort?: string;
+                cursor?: string;
+                from_entry?: string;
             };
             header?: never;
             path: {
-                post_id: string;
+                id: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CommentListResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ChallengeEntryPage"];
                 };
             };
         };
     };
-    create_comment_v2_community_posts__post_id__comments_post: {
+    create_entry_v2_challenges__id__entries_post: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                post_id: string;
+                id: string;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CommentWriteRequest"];
+                "application/json": components["schemas"]["ChallengeEntryCreateRequest"];
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description Replay */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyChallengeEntry"];
+                };
+            };
+            /** @description Created */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CommentPayload"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["MyChallengeEntry"];
                 };
             };
         };
     };
-    list_blocks_v2_community_blocks_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BlockListResponse"];
-                };
-            };
-        };
-    };
-    block_user_v2_community_blocks_post: {
+    signup_v2_auth_signup_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -2687,120 +6434,26 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["BlockRequest"];
+                "application/json": components["schemas"]["SignupRequest"];
             };
         };
         responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    coach_start_v2_coach_start_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Request-Id"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CoachStartReq"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
+            /** @description 계정이 생겼다 */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CoachTurnResponse"];
+                    "application/json": components["schemas"]["SignedInResponse"];
                 };
             };
-            /** @description Validation Error */
-            422: {
+            /** @description 로그인과 제출 사이에 같은 이메일의 계정이 생겼다 */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    coach_reply_v2_coach_reply_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Request-Id"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CoachReplyReq"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CoachTurnResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    coach_confirm_v2_coach_confirm_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Request-Id"?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CoachConfirmReq"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CoachConfirmResponse"];
+                    "application/json": components["schemas"]["AccountExistsError"];
                 };
             };
             /** @description Validation Error */
@@ -2844,6 +6497,42 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    naver_disconnect_v2_auth_providers_naver_disconnect_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 신원을 지웠거나, 모르는 신원이다 */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    kakao_disconnect_v2_auth_providers_kakao_disconnect_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 신원을 지웠거나, 모르는 신원이다. 본문은 없다 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -2891,13 +6580,22 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description 이미 있는 계정이면 signed_in, 처음 온 신원이면 signup_required */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TokenPairResponse"];
+                    "application/json": components["schemas"]["LoginResponse"];
+                };
+            };
+            /** @description 제공자가 검증하지 않은 이메일이 기존 계정과 겹친다 */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountExistsError"];
                 };
             };
             /** @description Validation Error */
@@ -2907,6 +6605,665 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_guest_v2_auth_guest_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuestResponse"];
+                };
+            };
+        };
+    };
+    get_video_v2_videos__video_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Video"];
+                };
+            };
+        };
+    };
+    delete_video_v2_videos__video_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_video_v2_videos__video_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VideoPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Video"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_reading_progress_v2_reading_sessions__session_id__progress_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadingSessionProgressRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingSessionProgress"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_script_v2_reading_scripts__script_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                script_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingScript"];
+                };
+            };
+        };
+    };
+    delete_script_v2_reading_scripts__script_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                script_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_script_v2_reading_scripts__script_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                script_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadingScriptPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingScript"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_practice_group_v2_practices__root_id__group_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                root_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PracticeGroupPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeGroup"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_credit_v2_portfolio_credits__credit_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                credit_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_credit_v2_portfolio_credits__credit_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                credit_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortfolioCreditPatch"];
+            };
+        };
+        responses: {
+            /** @description 경력 하나 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortfolioCredit"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_notification_settings_v2_me_notification_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationSettings"];
+                };
+            };
+        };
+    };
+    update_notification_settings_v2_me_notification_settings_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationSettingsPatch"];
+            };
+        };
+        responses: {
+            /** @description 토글 셋 전체 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationSettings"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_entry_v2_entries__id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChallengeEntry"];
+                };
+            };
+        };
+    };
+    delete_entry_v2_entries__id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_entry_v2_entries__id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChallengeEntryPatchRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyChallengeEntry"];
+                };
+            };
+        };
+    };
+    list_videos_v2_videos_get: {
+        parameters: {
+            query?: {
+                filter?: string;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VideoList"];
+                };
+            };
+        };
+    };
+    get_reading_session_v2_reading_sessions__session_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingSession"];
+                };
+            };
+        };
+    };
+    delete_reading_session_v2_reading_sessions__session_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_script_memorization_v2_reading_scripts__script_id__memorization_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                script_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingLineMemorization"][];
+                };
+            };
+        };
+    };
+    get_public_portfolio_v2_public_portfolios__slug__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 응답 헤더 X-Robots-Tag: noindex */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicPortfolio"];
+                };
+            };
+        };
+    };
+    get_public_entry_v2_public_entries__id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 응답 헤더 X-Robots-Tag: noindex */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicChallengeEntry"];
+                };
+            };
+        };
+    };
+    get_practice_v2_practices__practice_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                practice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Practice"];
+                };
+            };
+        };
+    };
+    get_practice_status_v2_practices__practice_id__status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                practice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeStatus"];
+                };
+            };
+        };
+    };
+    get_practice_note_v2_practices__practice_id__note_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                practice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachNote"];
+                };
+            };
+        };
+    };
+    analysis: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                practice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Public analysis summary */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PracticeAnalysis"];
+                };
+            };
+        };
+    };
+    get_portfolio_v2_portfolio_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Portfolio"];
                 };
             };
         };
@@ -2940,27 +7297,47 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
-            204: {
+            /** @description 처음이든 다시든 같은 응답 */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["WithdrawnResponse"];
+                };
             };
         };
     };
-    update_me_v2_me_patch: {
+    list_saved_entries_v2_me_saved_entries_get: {
+        parameters: {
+            query?: {
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedChallengeEntries"];
+                };
+            };
+        };
+    };
+    get_practice_feedback_status_v2_me_practice_feedback_status_get: {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateMeRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -2968,27 +7345,58 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["MeResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["PracticeFeedbackStatus"];
                 };
             };
         };
     };
-    get_post_v2_community_posts__post_id__get: {
+    list_notifications_v2_me_notifications_get: {
+        parameters: {
+            query?: {
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChallengeNotifications"];
+                };
+            };
+        };
+    };
+    unread_notifications_v2_me_notifications_unread_count_get: {
         parameters: {
             query?: never;
             header?: never;
-            path: {
-                post_id: string;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationUnreadCount"];
+                };
             };
+        };
+    };
+    get_actor_memory_v2_me_memory_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
@@ -2999,91 +7407,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PostPayload"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["ActorMemoryResponse"];
                 };
             };
         };
     };
-    delete_post_v2_community_posts__post_id__delete: {
+    delete_actor_memory_v2_me_memory_delete: {
         parameters: {
             query?: never;
             header?: never;
-            path: {
-                post_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_post_v2_community_posts__post_id__patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                post_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PostUpdateRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PostPayload"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_comment_v2_community_comments__comment_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                comment_id: string;
-            };
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
@@ -3095,175 +7428,52 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
         };
     };
-    update_comment_v2_community_comments__comment_id__patch: {
+    list_my_entries_v2_me_challenge_entries_get: {
         parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                comment_id: string;
+            query?: {
+                visibility?: "public" | "private" | "under_review";
+                cursor?: string;
             };
+            header?: never;
+            path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CommentWriteRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CommentPayload"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["MyChallengeEntries"];
                 };
             };
         };
     };
-    report_detail_v2_reports__practice_session_id__get: {
+    list_blocks_v2_me_blocks_get: {
         parameters: {
             query?: never;
             header?: never;
-            path: {
-                practice_session_id: string;
-            };
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ReportDetailResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["BlockedUsers"];
                 };
             };
         };
     };
-    get_session_v2_practice_sessions__session_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                session_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PracticeSessionDetail"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_session_v2_practice_sessions__session_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                session_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_session_status_v2_practice_sessions__session_id__status_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                session_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PracticeSessionStatusResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_memory_v2_me_memory_get: {
+    get_memory_v2_legacy_me_memory_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -3283,7 +7493,7 @@ export interface operations {
             };
         };
     };
-    delete_memory_v2_me_memory_delete: {
+    delete_memory_v2_legacy_me_memory_delete: {
         parameters: {
             query?: never;
             header?: never;
@@ -3317,6 +7527,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConsentDocumentsResponse"];
+                };
+            };
+        };
+    };
+    list_notices_v2_consents_notices_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsentNoticesResponse"];
                 };
             };
         };
@@ -3361,7 +7591,71 @@ export interface operations {
             };
         };
     };
-    list_categories_v2_community_categories_get: {
+    get_coach_conversation_v2_coach_conversations__conversation_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoachConversation"];
+                };
+            };
+        };
+    };
+    get_challenge_v2_challenges__id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Challenge"];
+                };
+            };
+        };
+    };
+    delete_challenge_v2_challenges__id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    providers_v2_auth_providers_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -3376,7 +7670,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CategoryListResponse"];
+                    "application/json": components["schemas"]["AuthProvidersResponse"];
                 };
             };
         };
@@ -3452,12 +7746,12 @@ export interface operations {
             };
         };
     };
-    unblock_user_v2_community_blocks__blocked_id__delete: {
+    delete_reading_recording_v2_reading_recordings__recording_id__delete: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                blocked_id: string;
+                recording_id: string;
             };
             cookie?: never;
         };
@@ -3470,14 +7764,45 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Validation Error */
-            422: {
+        };
+    };
+    delete_portfolio_photo_v2_portfolio_photos__photo_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                photo_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                content?: never;
+            };
+        };
+    };
+    delete_comment_v2_comments__id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
                 };
+                content?: never;
             };
         };
     };

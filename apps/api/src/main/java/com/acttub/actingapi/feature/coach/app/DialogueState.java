@@ -136,6 +136,38 @@ final class DialogueState {
                 validateActorQuote(update.path("scene_context").path(key), catalog);
             }
         }
+        return transition(previous, response, sources, userMessage, coachId, maxChars, maxSentences, finishRequired);
+    }
+
+    /** Route generation uses data integrity checks, not the old keyword-driven coaching policy. */
+    static ObjectNode applyRouted(JsonNode previous, JsonNode response, JsonNode sources,
+            JsonNode userMessage, String coachId, int maxChars, int maxSentences, boolean finishRequired) {
+        StructuredJson.validate("layer2_dialogue_respond", response);
+        Map<String, JsonNode> catalog = CoachingStateReducer.catalog(sources);
+        for (JsonNode ref : response.path("reply_link").path("evidence_refs")) {
+            JsonNode source = catalog.get(ref.asText());
+            require(source != null && Set.of("video_observation", "video_utterance", "record_limitation")
+                    .contains(source.path("kind").asText()), "reply evidence must be delivered video material");
+        }
+        JsonNode update = response.path("context_update");
+        if (!update.isNull()) {
+            validateActorQuote(update.path("direction"), catalog);
+            for (String key : List.of("situation", "character_goal", "partner_action")) {
+                validateActorQuote(update.path("scene_context").path(key), catalog);
+            }
+        }
+        if (userMessage.isNull() && !finishRequired) {
+            require(response.path("context_update").path("focus").isObject(), "opening must retain its grounded focus");
+            require(!response.path("reply_link").path("evidence_refs").isEmpty(), "opening needs video evidence");
+        }
+        return transition(previous, response, sources, userMessage, coachId, maxChars, maxSentences, finishRequired);
+    }
+
+    private static ObjectNode transition(JsonNode previous, JsonNode response, JsonNode sources,
+            JsonNode userMessage, String coachId, int maxChars, int maxSentences, boolean finishRequired) {
+        Map<String, JsonNode> catalog = CoachingStateReducer.catalog(sources);
+        JsonNode link = response.path("reply_link");
+        String message = response.path("message").asText().strip();
         // Reuse revision, length and reference validation, without exposing legacy practice operations.
         ObjectNode adapted = response.deepCopy();
         adapted.remove("reply_link");

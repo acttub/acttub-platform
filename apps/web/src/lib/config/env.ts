@@ -6,20 +6,9 @@ export const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace
 // NEXT_PUBLIC_SITE_URL은 정식 사이트 URL이며 기본값은 https://acttub.com이다.
 // 값의 검증과 정규화는 src/lib/seo/site-metadata.ts에서 담당한다.
 
-// OAuth client ID는 공개 값이므로 클라이언트 번들에 포함해도 무방하다.
-export const GOOGLE_CLIENT_ID =
-  "462651930952-625pcnhrjib79r7990fqsdqhsterdij2.apps.googleusercontent.com";
-
-// 웹 Apple 로그인은 번들 ID가 아니라 Services ID를 client ID로 쓴다.
-// 빈 문자열이면 로그인 화면에서 Apple 버튼을 숨긴다 — 미설정 상태에서는 눌러도 실패만 하기 때문.
-// 채우기 전에 Apple Developer에서 (1) Services ID 생성, (2) Return URL에 아래
-// APPLE_REDIRECT_PATH를 붙인 절대 URL 등록, (3) 도메인 소유 검증까지 마쳐야 한다.
-// 같은 값을 백엔드 APPLE_OAUTH_CLIENT_ID에 콤마로 덧붙여야 앱·웹 두 audience가 모두 통과한다.
-export const APPLE_CLIENT_ID: string = "com.acttub.web";
-
-// Apple Developer에 등록하는 Return URL의 경로. 팝업 모드라 실제로 이 경로가 열리지는 않지만
-// init에 넘기는 값과 등록값이 정확히 일치해야 invalid_client가 나지 않는다.
-export const APPLE_REDIRECT_PATH = "/login";
+// 요청마다 보내는 클라이언트 종류와 판(X-Acttub-Client). 서버는 이 헤더가 없는 요청을
+// 1.0.0 이전 빌드로 보고 426으로 답한다(docs/requirements/00-common.md 공통 규칙).
+export const ACTTUB_CLIENT = "web/1.0.0";
 
 // S3 버킷 CORS가 설정되기 전에는 브라우저 직접 PUT이 막히므로 목킹 모드로 우회한다.
 export const MOCK_S3_UPLOAD = process.env.NEXT_PUBLIC_MOCK_S3_UPLOAD === "1";
@@ -37,10 +26,7 @@ export const MOCK_S3_UPLOAD = process.env.NEXT_PUBLIC_MOCK_S3_UPLOAD === "1";
 //                                  환경별로 다른 프로젝트 키를 넣어 통계를 나눈다.
 // 로컬에서 확인하려면 apps/web/.env.local 에 넣는다(.env* 는 커밋되지 않는다).
 
-export const LOGIN_PATH = "/login";
-
-// 연습을 마친 배우가 넘어가는 후기 페이지.
-export const REVIEW_FORM_URL = "https://acttub.github.io/review-form/";
+// 후기는 1.0.0 부터 서버에 직접 접수한다(practice.feedback). 외부 폼 주소는 더 쓰지 않는다.
 
 // 백엔드 uploads.py의 MAX_UPLOAD_BYTES(100MB)와 동일해야 한다.
 export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;

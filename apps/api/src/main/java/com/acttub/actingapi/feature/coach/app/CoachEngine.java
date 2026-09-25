@@ -22,6 +22,7 @@ import com.acttub.actingapi.platform.observability.LlmScore;
 import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.acttub.actingapi.platform.observability.LlmTokens;
+import com.acttub.actingapi.platform.web.OutputLanguage;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -49,19 +50,27 @@ public class CoachEngine {
     private final TextGenerator generate;
     private final FailureReporter failureReporter;
     private final LlmTelemetry telemetry;
+    private final boolean routedCoaching;
     private final DirectVideoCoach directVideo;
 
     public CoachEngine(
             TextGenerator generate, FailureReporter failureReporter, LlmTelemetry telemetry) {
-        this(generate, failureReporter, telemetry, java.util.Optional.empty());
+        this(generate, failureReporter, telemetry, false);
+    }
+
+    public CoachEngine(TextGenerator generate, FailureReporter failureReporter, LlmTelemetry telemetry,
+            boolean routedCoaching) {
+        this(generate, failureReporter, telemetry, routedCoaching, java.util.Optional.empty());
     }
 
     @org.springframework.beans.factory.annotation.Autowired
     public CoachEngine(TextGenerator generate, FailureReporter failureReporter, LlmTelemetry telemetry,
+            @org.springframework.beans.factory.annotation.Value("${acttub.coaching.routed-enabled:true}") boolean routedCoaching,
             java.util.Optional<DirectVideoCoach> directVideo) {
         this.generate = generate;
         this.failureReporter = failureReporter;
         this.telemetry = telemetry;
+        this.routedCoaching = routedCoaching;
         this.directVideo = directVideo.orElse(null);
     }
 
@@ -109,7 +118,7 @@ public class CoachEngine {
     public CoachResult start(CoachSessionSnapshot session, UUID operationId) {
         if (session.threeLayers() && directVideo != null) return directVideo.turn(session, null, operationId);
         if (session.threeLayers()) {
-            return new StructuredCoachEngine(generate, failureReporter, telemetry).turn(session, null, operationId);
+            return new StructuredCoachEngine(generate, failureReporter, telemetry, routedCoaching).turn(session, null, operationId);
         }
         String latest = firstActorMessage(session);
         CoachReply response = generateValidated(session, latest, operationId);
@@ -146,7 +155,7 @@ public class CoachEngine {
             CoachSessionSnapshot session, String actorText, UUID operationId) {
         if (session.threeLayers() && directVideo != null) return directVideo.turn(session, actorText, operationId);
         if (session.threeLayers()) {
-            return new StructuredCoachEngine(generate, failureReporter, telemetry).turn(session, actorText, operationId);
+            return new StructuredCoachEngine(generate, failureReporter, telemetry, routedCoaching).turn(session, actorText, operationId);
         }
         CoachReply response = generateValidated(session, actorText, operationId);
         return appendTurns(session, actorText, response);
@@ -194,7 +203,7 @@ public class CoachEngine {
             CoachSessionSnapshot session, String actorText, UUID operationId) {
         String userMessage = messageForGeneration(actorText)
                 + CoachResponsePolicy.recoveryInstruction(session, actorText);
-        String systemPrompt = CoachPrompt.select(session.blockageKind());
+        String systemPrompt = OutputLanguage.apply(CoachPrompt.select(session.blockageKind()));
         int turnNumber = CoachPrompt.turnNumber(session);
         String chatPrompt = CoachPrompt.buildChat(session, userMessage);
         GeneratedText generated = recorded(
@@ -282,6 +291,8 @@ public class CoachEngine {
         if (session.practiceSessionId() == null) {
             return generate.generate(systemPrompt, userPrompt);
         }
+        // 모델에는 userPrompt 를 그대로 보내고, 바깥으로 나가는 기록에서만 이름을 가린다 (CONTRACT.md §7-2).
+        String recordedInput = systemPrompt + "\n\n" + CoachPrompt.withoutActorName(userPrompt, session.actorProfile());
         Instant startedAt = Instant.now();
         try {
             ExternalOperationExecution.externalCall("model");
@@ -291,7 +302,7 @@ public class CoachEngine {
                     session.practiceSessionId(),
                     session.userId(),
                     generated.model(),
-                    systemPrompt + "\n\n" + userPrompt,
+                    recordedInput,
                     generated.text(),
                     tokens(generated),
                     startedAt,
@@ -305,7 +316,7 @@ public class CoachEngine {
                     session.practiceSessionId(),
                     session.userId(),
                     "",
-                    systemPrompt + "\n\n" + userPrompt,
+                    recordedInput,
                     "",
                     LlmTokens.unknown(),
                     startedAt,

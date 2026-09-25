@@ -3,6 +3,7 @@ package com.acttub.actingapi.feature.memory.adapter.sched;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import com.acttub.actingapi.feature.memory.app.ActorMemoryUpdateWorker;
 import com.acttub.actingapi.feature.memory.app.MemoryUpdateWorker;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
@@ -39,14 +40,18 @@ class MemoryWorkerScheduler {
             Logger.getLogger(MemoryWorkerScheduler.class.getName());
 
     private final MemoryUpdateWorker worker;
+    /** 1.0.0 회차의 갱신은 {@code ai_jobs} 를 집는다 — 옛 원장과 큐가 달라 워커도 따로다(practice.memory). */
+    private final ActorMemoryUpdateWorker actorWorker;
     private final ThreadPoolTaskExecutor executor;
     private final FailureReporter failureReporter;
 
     MemoryWorkerScheduler(
             ObjectProvider<MemoryUpdateWorker> worker,
+            ObjectProvider<ActorMemoryUpdateWorker> actorWorker,
             @Qualifier("memoryWorkerExecutor") ThreadPoolTaskExecutor executor,
             FailureReporter failureReporter) {
         this.worker = worker.getIfAvailable();
+        this.actorWorker = actorWorker.getIfAvailable();
         this.executor = executor;
         this.failureReporter = failureReporter;
     }
@@ -77,7 +82,7 @@ class MemoryWorkerScheduler {
             fixedDelayString = "#{@memoryWorkerPollIntervalMillis}",
             initialDelayString = "0")
     void poll() {
-        if (worker == null || executor.getActiveCount() > 0) {
+        if ((worker == null && actorWorker == null) || executor.getActiveCount() > 0) {
             return;
         }
         try {
@@ -89,8 +94,11 @@ class MemoryWorkerScheduler {
 
     private void drainQueue() {
         try {
-            while (worker.runOnce()) {
+            while (worker != null && worker.runOnce()) {
                 // 일감이 있는 동안은 대기하지 않는다.
+            }
+            while (actorWorker != null && actorWorker.runOnce()) {
+                // 1.0.0 큐도 같은 풀에서 비운다.
             }
         } catch (Exception exception) {
             // 기억 갱신이 실패해도 연습은 정상이다. 큐만 비우고 넘어간다.

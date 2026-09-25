@@ -9,6 +9,7 @@ import java.util.Locale;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.upload.app.UploadIntentRepository;
+import com.acttub.actingapi.feature.upload.app.UploadOwnership;
 import com.acttub.actingapi.feature.upload.domain.UploadIntent;
 import com.acttub.actingapi.feature.upload.schema.UploadIntentEntity;
 import com.acttub.actingapi.platform.schema.UploadStatus;
@@ -19,7 +20,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @Repository
-class PostgresUploadIntentRepository implements UploadIntentRepository {
+class PostgresUploadIntentRepository implements UploadIntentRepository, UploadOwnership {
     private final UploadIntentJpaRepository uploads;
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
@@ -138,4 +139,17 @@ class PostgresUploadIntentRepository implements UploadIntentRepository {
         return UploadStatus.valueOf(raw.toUpperCase(Locale.ROOT)).dbValue();
     }
 
+
+    /** 트랜잭션을 열지 않는다 — 부르는 쪽(이관)의 것에 참여하고, 없으면 {@code executeUpdate} 가 거절한다. */
+    @Override
+    public void reassign(UUID from, UUID to) {
+        entityManager.createNativeQuery("""
+                UPDATE upload_intents
+                SET user_id = :to
+                WHERE user_id = :from
+                """)
+                .setParameter("to", to)
+                .setParameter("from", from)
+                .executeUpdate();
+    }
 }

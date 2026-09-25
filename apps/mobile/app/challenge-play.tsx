@@ -3,8 +3,8 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
-  Image,
   Pressable,
   Share,
   StyleSheet,
@@ -21,53 +21,148 @@ import { ChallengeCommentsSheet } from '@/components/challenge-comments-sheet';
 import { ChallengeReportSheet } from '@/components/challenge-report-sheet';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
-import { CLIPS, PERFORMERS, PERF_IMAGES, TODAY_LINE, type Performer } from '@/lib/challenge-mock';
+import { api } from '@/lib/api';
+import { avatarLetter, browseFailure, browseFailureMessage, isEnded, rankEntries } from '@/lib/challenge/browse';
+import { entryShareUrl } from '@/lib/challenge/deeplink';
+import { blockFailureMessage, buildReportBody, canBlock, removeAuthored, reportDoneMessage, reportFailure, reportFailureMessage } from '@/lib/challenge/moderation';
+import { canReact, optimisticLike, optimisticSave, reactFailure, reactFailureMessage } from '@/lib/challenge/react';
+import type { ChallengeDetail, EntryCard, ReportReason, ReportTarget } from '@/lib/challenge/types';
+import { createViewTracker, VIEW_THRESHOLD_MS } from '@/lib/challenge/views';
+import { useAuth } from '@/lib/auth';
 import { translate as t } from '@/lib/i18n';
+import { newRequestId } from '@/lib/request-id';
 
 /**
- * A15 챌린지 스토리 — 연기 영상을 풀스크린으로 보고, 옆으로 넘기면 다음 연기자로 간다.
+ * A15 챌린지 피드 — 고른 챌린지 **안에서만** 참여작을 위아래로 넘겨 본다.
  *
- * 플레이어는 하나만 두고 활성 페이지에서만 VideoView를 그린다(다른 페이지는 포스터).
- * 넘길 때 player.replace로 그 연기자의 클립을 튼다. 영상은 예시 샘플이고 좋아요·댓글은
- * 로컬(시트, A15.3), 신고는 사유 시트(A15.4), 공유는 OS 공유 시트. "나도 이 대사 연기하기"는
- * 실제 연습 시작으로 이어진다.
+ * 진입한 참여작부터 상세와 같은 순서(좋아요순)로 이어지고 끝에서 종료 안내를 보여 준다. 여러
+ * 챌린지를 섞는 전체 피드는 없다. 20개씩 커서로 이어 받는다. 플레이어는 하나만 두고 활성
+ * 페이지에서만 그린다. 조회수는 3초 이상 재생된 사건마다 한 번 보내고(본인 재생·미리 불러오기·
+ * 자동 반복은 세지 않는다) 실패해도 재생을 막지 않는다.
+ *
+ * 반응(challenge.react): 좋아요는 먼저 표시를 바꾸고 서버가 실패하면 되돌려 알린다. 저장·댓글도
+ * 같은 자리에 있고 자기 참여작에는 좋아요·저장을 하지 않는다. 신고(A15.4)는 사유 다섯에 기타
+ * 메모이고, 차단하면 그 사람의 참여작이 이 화면에서 바로 사라진다(상대에게 알리지 않는다).
  */
 export default function ChallengePlayScreen() {
   const router = useRouter();
   const { width, height } = useWindowDimensions();
-  const { alert, dialog } = useAppDialog();
-  const { name, line } = useLocalSearchParams<{ name?: string; line?: string }>();
-  const startIndex = Math.max(
-    0,
-    PERFORMERS.findIndex((p) => p.name === name),
-  );
-  const [active, setActive] = useState(startIndex);
+  const { alert, confirm, sheet, dialog } = useAppDialog();
+  const { user } = useAuth();
+  const { id, entryId } = useLocalSearchParams<{ id?: string; entryId?: string }>();
+  const [challenge, setChallenge] = useState<ChallengeDetail | null>(null);
+  const [entries, setEntries] = useState<EntryCard[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [active, setActive] = useState(0);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [atEnd, setAtEnd] = useState(false);
   const [playing, setPlaying] = useState(true);
-  const [liked, setLiked] = useState<Record<number, boolean>>({});
+  // 소리는 켠 채로 튼다 — 연기 영상은 대사가 반이다. 끄고 싶으면 위의 스피커로 끈다.
+  const [muted, setMuted] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
-  const [reportOpen, setReportOpen] = useState(false);
-  const listRef = useRef<FlatList<Performer>>(null);
+  const [reportTarget, setReportTarget] = useState<{ type: ReportTarget; id: string } | null>(null);
+  const listRef = useRef<FlatList<EntryCard>>(null);
 
-  const player = useVideoPlayer(CLIPS[startIndex], (p) => {
+  const player = useVideoPlayer(null, (p) => {
     p.loop = true;
-    p.muted = true;
-    p.play();
   });
 
-  // 페이지가 바뀌면 그 연기자의 클립으로 갈아끼운다.
   useEffect(() => {
-    player.replace(CLIPS[active]);
+    player.muted = muted;
+  }, [muted, player]);
+
+  /** 조회수 사건 — 한 재생에 한 번, 실패는 삼킨다. */
+  const viewTracker = useRef(
+    createViewTracker({
+      send: (entry, eventId) => api.recordEntryView(entry, eventId),
+      newEventId: newRequestId,
+    }),
+  ).current;
+
+  useEffect(() => {
+    if (!id) return;
+    let alive = true;
+    void Promise.all([api.getChallenge(id), api.listChallengeEntries(id, { sort: 'likes', fromEntry: entryId })])
+      .then(([detail, list]) => {
+        if (!alive) return;
+        setChallenge(detail);
+        setEntries(rankEntries(list.entries, 'likes'));
+        setCursor(list.next_cursor);
+      })
+      .catch((e) => {
+        if (!alive) return;
+        setEntries([]);
+        setError(browseFailureMessage(browseFailure(e)));
+      });
+    return () => {
+      alive = false;
+    };
+  }, [entryId, id]);
+
+  // 페이지가 바뀌면 그 참여작의 영상으로 갈아끼운다.
+  useEffect(() => {
+    const entry = entries?.[active];
+    if (!entry?.playback_url) return;
+    player.replace(entry.playback_url);
     player.play();
     setPlaying(true);
     logEvent('challenge_swipe', { index: active });
-  }, [active, player]);
+  }, [active, entries, player]);
+
+  /** 다음 20개를 이어 받는다. 정렬 기준이 바뀌면(410) 처음부터 다시 읽는다. */
+  const loadMore = useCallback(async () => {
+    if (!id || !cursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const list = await api.listChallengeEntries(id, { sort: 'likes', cursor });
+      setEntries((prev) => [...(prev ?? []), ...rankEntries(list.entries, 'likes')]);
+      setCursor(list.next_cursor);
+    } catch (e) {
+      if (browseFailure(e).kind === 'cursor_expired') {
+        const fresh = await api.listChallengeEntries(id, { sort: 'likes' }).catch(() => null);
+        if (fresh) {
+          setEntries(rankEntries(fresh.entries, 'likes'));
+          setCursor(fresh.next_cursor);
+        }
+      }
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [cursor, id, loadingMore]);
+
+  // 3초 이상 본 재생만 조회수가 된다. 자동 반복으로 되감긴 뒤는 같은 재생으로 다시 세지 않는다.
+  useEffect(() => {
+    const entry = entries?.[active];
+    if (!entry || !playing) return;
+    const startedAt = Date.now();
+    const timer = setInterval(() => {
+      void viewTracker.onProgress(entry.id, {
+        elapsedMs: Date.now() - startedAt,
+        isOwn: Boolean(entry.is_mine),
+        isPreload: false,
+        isRepeat: player.currentTime < VIEW_THRESHOLD_MS / 1000 && Date.now() - startedAt > VIEW_THRESHOLD_MS,
+      });
+    }, 1_000);
+    return () => clearInterval(timer);
+  }, [active, entries, player, playing, viewTracker]);
 
   const onMomentumEnd = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const next = Math.round(e.nativeEvent.contentOffset.x / width);
-      if (next !== active && next >= 0 && next < PERFORMERS.length) setActive(next);
+      const next = Math.round(e.nativeEvent.contentOffset.y / height);
+      const total = entries?.length ?? 0;
+      if (next !== active && next >= 0 && next < total) {
+        viewTracker.leave(entries?.[active]?.id ?? '');
+        setActive(next);
+      }
+      // 끝에 닿으면 다음 20개를 받고, 더 없으면 종료 안내를 보인다.
+      if (next >= total - 2) {
+        if (cursor) void loadMore();
+        else if (next === total - 1) setAtEnd(true);
+      }
     },
-    [active, width],
+    [active, cursor, entries, height, loadMore, viewTracker],
   );
 
   const togglePlay = () => {
@@ -75,31 +170,129 @@ export default function ChallengePlayScreen() {
     else player.play();
     setPlaying((v) => !v);
   };
-  // 대사를 띄운 챌린지 촬영(pen A18)으로. 찍으면 챌린지 올리기로 이어진다.
+
   const perform = () => {
-    const theLine = line || TODAY_LINE.line;
-    logEvent('challenge_perform_tap', { line: theLine.slice(0, 40) });
-    router.push({ pathname: '/record-video', params: { mode: 'challenge', line: theLine, work: TODAY_LINE.work } });
+    if (!challenge) return;
+    logEvent('challenge_perform_tap', { id: challenge.id });
+    router.push({
+      pathname: '/record-video',
+      params: { mode: 'challenge', challengeId: challenge.id, line: challenge.line, work: challenge.work },
+    });
   };
-  const share = (performer: Performer) => {
-    logEvent('challenge_share', { name: performer.name });
+  const share = (entry: EntryCard) => {
+    logEvent('challenge_share', { id: entry.id });
+    // 공유는 참여작 딥링크다 — 회원 앱에서 열면 노출 조건을 확인한 뒤 그 참여작부터 연다.
     void Share.share({
-      message: t('profileTab.shareText', { name: performer.name, line: line || TODAY_LINE.line }),
+      message: `${t('profileTab.shareText', { name: entry.author.name, line: challenge?.line ?? '' })}\n${entryShareUrl(entry.id)}`,
     }).catch(() => {});
   };
-  const report = (reason: string) => {
-    setReportOpen(false);
-    logEvent('challenge_report', { reason });
-    void alert({ title: t('videoReport.doneTitle'), message: t('videoReport.doneMessage'), confirmLabel: t('common.confirm') });
+
+  const patchEntry = (entryId: string, patch: Partial<EntryCard>) =>
+    setEntries((prev) => (prev ?? []).map((e) => (e.id === entryId ? { ...e, ...patch } : e)));
+
+  /** 좋아요 — 먼저 표시를 바꾸고 서버가 실패하면 되돌린다. 자기 것에는 하지 않는다. */
+  const toggleLike = async (entry: EntryCard) => {
+    if (!canReact(entry) || busy) return;
+    const before = { liked: entry.liked, likeCount: entry.like_count };
+    const next = optimisticLike(before);
+    patchEntry(entry.id, { liked: next.liked, like_count: next.likeCount });
+    setBusy(true);
+    try {
+      const result = await api.likeEntry(entry.id, next.liked);
+      patchEntry(entry.id, { liked: result.liked, like_count: result.like_count });
+    } catch (e) {
+      patchEntry(entry.id, { liked: before.liked, like_count: before.likeCount });
+      void alert({ title: t('react.menuLike'), message: reactFailureMessage(reactFailure(e)) });
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const renderItem = ({ item, index }: { item: Performer; index: number }) => {
+  /** 저장 — 다시 찾아볼 개인 북마크다. 자기 것은 저장하지 않는다. */
+  const toggleSave = async (entry: EntryCard) => {
+    if (!canReact(entry) || busy) return;
+    const next = optimisticSave(entry.saved);
+    patchEntry(entry.id, { saved: next });
+    setBusy(true);
+    try {
+      const result = await api.saveEntry(entry.id, next);
+      patchEntry(entry.id, { saved: result.saved });
+    } catch (e) {
+      patchEntry(entry.id, { saved: entry.saved });
+      void alert({ title: t('react.menuSave'), message: reactFailureMessage(reactFailure(e)) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** 차단 — 그 사람의 참여작이 이 화면에서 바로 사라진다. 상대에게는 알리지 않는다. */
+  const blockAuthor = async (entry: EntryCard) => {
+    const authorId = entry.author.user_id ?? null;
+    if (!canBlock({ authorId, myId: user?.id ?? null })) return;
+    const ok = await confirm({
+      title: t('react.blockTitle'),
+      message: t('react.blockBody'),
+      confirmLabel: t('react.blockConfirm'),
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await api.blockUser(authorId as string, true);
+      setEntries((prev) => removeAuthored(prev ?? [], authorId as string));
+      setActive(0);
+      void alert({ title: t('react.menuBlock'), message: t('react.blockDone') });
+    } catch (e) {
+      void alert({ title: t('react.menuBlock'), message: blockFailureMessage(e) });
+    }
+  };
+
+  const sendReport = async (reason: ReportReason, note: string) => {
+    const target = reportTarget;
+    setReportTarget(null);
+    if (!target) return;
+    try {
+      await api.createReport(
+        buildReportBody({ requestId: newRequestId(), target: target.type, targetId: target.id, reason, note }),
+      );
+      logEvent('challenge_report', { reason, target: target.type });
+      void alert({ title: t('videoReport.doneTitle'), message: reportDoneMessage(target.type) });
+      if (target.type === 'entry') {
+        setEntries((prev) => (prev ?? []).filter((e) => e.id !== target.id));
+      }
+    } catch (e) {
+      void alert({ title: t('videoReport.title'), message: reportFailureMessage(reportFailure(e)) });
+    }
+  };
+
+  /** 반응 메뉴 — 신고·차단·공유를 한자리에 둔다. */
+  const openMenu = (entry: EntryCard) => {
+    void sheet({
+      title: entry.author.name,
+      actions: [
+        { label: t('react.menuShare'), onPress: () => share(entry) },
+        { label: t('react.menuReport'), destructive: true, onPress: () => setReportTarget({ type: 'entry', id: entry.id }) },
+        ...(challenge
+          ? [
+              {
+                label: t('react.menuReportChallenge'),
+                destructive: true,
+                onPress: () => setReportTarget({ type: 'challenge', id: challenge.id }),
+              },
+            ]
+          : []),
+        ...(canBlock({ authorId: entry.author.user_id ?? null, myId: user?.id ?? null })
+          ? [{ label: t('react.menuBlock'), destructive: true, onPress: () => void blockAuthor(entry) }]
+          : []),
+      ],
+    });
+  };
+
+  const renderItem = ({ item, index }: { item: EntryCard; index: number }) => {
     const isActive = index === active;
-    const isLiked = !!liked[index];
+    const canTouch = canReact(item);
     return (
       <View style={{ width, height }}>
-        <Image source={PERF_IMAGES[item.img]} style={StyleSheet.absoluteFill} resizeMode="cover" />
-        {isActive && (
+        {isActive && item.playback_url && (
           <VideoView style={StyleSheet.absoluteFill} player={player} contentFit="cover" nativeControls={false} />
         )}
         <Pressable style={StyleSheet.absoluteFill} onPress={togglePlay} accessibilityRole="button">
@@ -119,51 +312,70 @@ export default function ChallengePlayScreen() {
             </Pressable>
             <View style={styles.author}>
               <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{item.name.charAt(0)}</Text>
+                <Text style={styles.avatarText}>{avatarLetter(item.author.name)}</Text>
               </View>
-              <Text style={styles.authorName}>{item.name}</Text>
+              <Text style={styles.authorName}>{item.author.name}</Text>
             </View>
-            <Pressable onPress={() => setReportOpen(true)} hitSlop={10} accessibilityRole="button">
-              <Feather name="more-horizontal" size={24} color="#FFFFFF" />
-            </Pressable>
+            <View style={styles.topRight}>
+              <Pressable
+                onPress={() => setMuted((v) => !v)}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel={t(muted ? 'react.unmute' : 'react.mute')}>
+                <Feather name={muted ? 'volume-x' : 'volume-2'} size={22} color="#FFFFFF" />
+              </Pressable>
+              <Pressable onPress={() => openMenu(item)} hitSlop={10} accessibilityRole="button">
+                <Feather name="more-horizontal" size={24} color="#FFFFFF" />
+              </Pressable>
+            </View>
           </View>
 
           <View style={styles.flex} pointerEvents="none" />
 
           <View style={styles.bottom}>
-            <View style={styles.dots}>
-              {PERFORMERS.map((_, i) => (
-                <View key={i} style={[styles.dot, i === active && styles.dotOn]} />
-              ))}
-            </View>
-            <Text style={styles.storyLabel}>{t('challenges.todayLabel')}</Text>
-            <Text style={styles.line}>“{line || TODAY_LINE.line}”</Text>
-            <Text style={styles.work}>{TODAY_LINE.work}</Text>
+            <Text style={styles.storyLabel}>
+              {index + 1} / {entries?.length ?? 0}
+            </Text>
+            <Text style={styles.line}>“{challenge?.line ?? ''}”</Text>
+            <Text style={styles.work}>{challenge?.work ?? ''}</Text>
+            {!!item.caption && <Text style={styles.work}>{item.caption}</Text>}
 
             <View style={styles.actions}>
               <Pressable
-                style={styles.action}
-                onPress={() => setLiked((prev) => ({ ...prev, [index]: !prev[index] }))}
-                accessibilityRole="button">
-                <Feather name="heart" size={22} color={isLiked ? palette.danger : '#FFFFFF'} />
-                <Text style={styles.actionText}>{item.likes}{isLiked ? '+1' : ''}</Text>
+                style={[styles.action, !canTouch && styles.actionOff]}
+                onPress={() => void toggleLike(item)}
+                disabled={!canTouch}
+                accessibilityRole="button"
+                accessibilityLabel={t('react.menuLike')}>
+                <Feather name="heart" size={22} color={item.liked ? palette.danger : '#FFFFFF'} />
+                <Text style={styles.actionText}>{item.like_count}</Text>
               </Pressable>
-              <Pressable style={styles.action} onPress={() => setCommentsOpen(true)} accessibilityRole="button">
+              <Pressable
+                style={[styles.action, !canTouch && styles.actionOff]}
+                onPress={() => void toggleSave(item)}
+                disabled={!canTouch}
+                accessibilityRole="button"
+                accessibilityLabel={t('react.menuSave')}>
+                <Feather name="bookmark" size={22} color={item.saved ? '#FFD84D' : '#FFFFFF'} />
+              </Pressable>
+              <Pressable style={styles.action} onPress={() => setCommentsOpen(true)} accessibilityRole="button" accessibilityLabel={t('react.menuComment')}>
                 <Feather name="message-circle" size={22} color="#FFFFFF" />
-                <Text style={styles.actionText}>{12 + index * 7}</Text>
+                <Text style={styles.actionText}>{item.comment_count}</Text>
               </Pressable>
-              <Pressable style={styles.action} onPress={() => share(item)} accessibilityRole="button">
+              <Pressable style={styles.action} onPress={() => share(item)} accessibilityRole="button" accessibilityLabel={t('react.menuShare')}>
                 <Feather name="share-2" size={22} color="#FFFFFF" />
               </Pressable>
             </View>
 
-            <Pressable
-              style={({ pressed }) => [styles.performBtn, pressed && styles.pressed]}
-              onPress={perform}
-              accessibilityRole="button">
-              <Feather name="video" size={16} color="#FFFFFF" />
-              <Text style={styles.performText}>{t('challenges.performCta')}</Text>
-            </Pressable>
+            {challenge && !isEnded(challenge) && (
+              <Pressable
+                style={({ pressed }) => [styles.performBtn, pressed && styles.pressed]}
+                onPress={perform}
+                accessibilityRole="button">
+                <Feather name="video" size={16} color="#FFFFFF" />
+                <Text style={styles.performText}>{t('challenges.performCta')}</Text>
+              </Pressable>
+            )}
           </View>
         </SafeAreaView>
       </View>
@@ -173,27 +385,77 @@ export default function ChallengePlayScreen() {
   return (
     <View style={styles.root}>
       <Stack.Screen options={{ headerShown: false }} />
-      <FlatList
-        ref={listRef}
-        data={PERFORMERS}
-        keyExtractor={(p) => p.name}
-        renderItem={renderItem}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        initialScrollIndex={startIndex}
-        getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
-        onMomentumScrollEnd={onMomentumEnd}
-        extraData={{ active, playing, liked }}
+      {entries === null && !error && <ActivityIndicator color="#FFFFFF" style={styles.loading} />}
+      {!!error && <Text style={styles.error}>{error}</Text>}
+      {entries !== null && entries.length === 0 && !error && (
+        <SafeAreaView style={styles.emptyWrap} edges={['top', 'bottom']}>
+          <Pressable onPress={() => router.back()} hitSlop={10} accessibilityRole="button" style={styles.emptyClose}>
+            <Feather name="x" size={26} color="#FFFFFF" />
+          </Pressable>
+          <Text style={styles.line}>“{challenge?.line ?? ''}”</Text>
+          <Text style={styles.empty}>{t('challenges.emptyEntries')}</Text>
+          {challenge && !isEnded(challenge) && (
+            <Pressable style={styles.performBtn} onPress={perform} accessibilityRole="button">
+              <Feather name="video" size={16} color="#FFFFFF" />
+              <Text style={styles.performText}>{t('challenges.performCta')}</Text>
+            </Pressable>
+          )}
+        </SafeAreaView>
+      )}
+      {entries !== null && entries.length > 0 && (
+        <FlatList
+          ref={listRef}
+          data={entries}
+          keyExtractor={(entry) => entry.id}
+          renderItem={renderItem}
+          pagingEnabled
+          showsVerticalScrollIndicator={false}
+          getItemLayout={(_, index) => ({ length: height, offset: height * index, index })}
+          onMomentumScrollEnd={onMomentumEnd}
+          extraData={{ active, playing }}
+        />
+      )}
+      {atEnd && (
+        <View style={styles.endNotice} pointerEvents="none">
+          <Text style={styles.endText}>{t('challenges.feedEnd')}</Text>
+        </View>
+      )}
+      <ChallengeCommentsSheet
+        visible={commentsOpen}
+        entryId={entries?.[active]?.id ?? null}
+        onClose={() => setCommentsOpen(false)}
+        onReport={(commentId) => {
+          setCommentsOpen(false);
+          setReportTarget({ type: 'comment', id: commentId });
+        }}
       />
-      <ChallengeCommentsSheet visible={commentsOpen} onClose={() => setCommentsOpen(false)} />
-      <ChallengeReportSheet visible={reportOpen} onClose={() => setReportOpen(false)} onPick={report} />
+      <ChallengeReportSheet
+        visible={reportTarget !== null}
+        target={reportTarget?.type ?? 'entry'}
+        onClose={() => setReportTarget(null)}
+        onSubmit={(reason, note) => void sendReport(reason, note)}
+      />
       {dialog}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  loading: { flex: 1 },
+  endNotice: { position: 'absolute', left: 0, right: 0, bottom: 120, alignItems: 'center' },
+  endText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  error: { color: '#FFFFFF', textAlign: 'center', marginTop: 80, paddingHorizontal: 24 },
+  emptyWrap: { flex: 1, padding: 24, gap: 14, justifyContent: 'center' },
+  emptyClose: { position: 'absolute', top: 16, left: 16 },
+  empty: { color: 'rgba(255,255,255,0.8)', fontSize: 15, lineHeight: 24 },
   root: { flex: 1, backgroundColor: '#000000' },
   flex: { flex: 1 },
   pauseCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -213,7 +475,9 @@ const styles = StyleSheet.create({
   line: { fontSize: 22, fontWeight: '800', color: '#FFFFFF', lineHeight: 30 },
   work: { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.75)' },
   actions: { flexDirection: 'row', gap: 22, marginTop: 6 },
+  topRight: { flexDirection: 'row', alignItems: 'center', gap: 18 },
   action: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  actionOff: { opacity: 0.4 },
   actionText: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
   performBtn: {
     flexDirection: 'row',

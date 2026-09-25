@@ -21,14 +21,14 @@ test("대화가 끝나도 화면을 노트로 자동 전환하지 않는다", ()
   const pushAi = block("const pushAi = useCallback", "const openNote = useCallback");
   // 코치 응답은 대화 자리의 전이만 낸다. 노트 화면으로 넘기는 전이를 여기서 내면
   // 마지막 인사를 읽기도 전에 화면이 넘어간다.
-  // 코치 세션 id 는 응답이 준 것을 그대로 싣는다 — 화면이 그것으로 답을 보낸다.
+  // 대화 id 는 응답이 준 것을 그대로 싣는다 — 화면이 그것으로 답을 보낸다.
   assert.match(
     pushAi,
-    /dispatch\(\{\s*type: "coachTurnReceived",\s*coachId: turn\.session_id,/,
+    /dispatch\(\{\s*type: "coachTurnReceived",\s*coachId: turn\.conversation\.id,/,
   );
   assert.doesNotMatch(pushAi, /noteOpened|noteLoaded/);
   // 목록 새로고침은 노트가 딸려 온 턴에서만 한다.
-  assert.match(pushAi, /if \(completed\) void refreshList\(\);/);
+  assert.match(pushAi, /if \(turn\.note\) void refreshList\(\);/);
 });
 
 test("노트 전환과 결과 조회 집계는 배우가 누를 때만 일어난다", () => {
@@ -44,7 +44,7 @@ test("노트 전환과 결과 조회 집계는 배우가 누를 때만 일어난
     openNote,
     /if \(opened && countStepOnce\(currentSessionId\(\), "result"\)\)/,
   );
-  assert.match(openNote, /opened\.report_type/);
+  assert.match(openNote, /reportTypeOf\(opened\)/);
 });
 
 test("노트 화면은 화면이 든 노트를 그대로 받는다", () => {
@@ -83,21 +83,21 @@ test("첫 응답이 곧바로 끝나도 화면을 노트로 자동 전환하지 
   const restoreCoach = block("const restoreCoach = useCallback", "const coordinatorFor = useCallback");
   assert.match(
     restoreCoach,
-    /dispatch\(\{\s*type: "coachTurnReceived",\s*coachId: turn\.session_id,[\s\S]{0,120}report: completed,/,
+    /dispatch\(\{\s*type: "coachTurnReceived",\s*coachId: turn\.conversation\.id,[\s\S]{0,120}report: turn\.note \?\? null,/,
   );
   assert.doesNotMatch(restoreCoach, /noteOpened|noteLoaded/);
-  assert.match(restoreCoach, /if \(completed\) void refreshList\(\);/);
+  assert.match(restoreCoach, /if \(turn\.note\) void refreshList\(\);/);
 });
 
 test("대화가 끝나면 입력창 대신 정리보기 버튼이 나온다", () => {
   const chatPanel = block("function ChatPanel({", "function Bubble({");
-  assert.match(chatPanel, /noteReady \? "지금까지 이야기한 걸 정리해 뒀어요\." : "정리하고 있어요…"/);
+  assert.match(chatPanel, /noteReady \? "지금까지 이야기한 걸 정리해 뒀어요\." : "아직 정리 없음 · 오늘 나눈 대화는 남아 있어요."/);
   assert.match(chatPanel, /onClick=\{onOpenNote\}/);
   assert.match(chatPanel, /disabled=\{!noteReady\}/);
   assert.match(chatPanel, /정리보기/);
 });
 
-test("노트에서 이어서 새 연습을 누르면 되돌리기가 이어받을 연습을 함께 받는다", () => {
+test("노트에서 이어하기를 누르면 되돌리기가 이어받을 연습을 함께 받는다", () => {
   const continueFromCurrent = block(
     "const continueFromCurrent = useCallback",
     "const view = describeWorkspaceView",
@@ -108,9 +108,13 @@ test("노트에서 이어서 새 연습을 누르면 되돌리기가 이어받�
   assert.match(continueFromCurrent, /resetTo\(\{\s*id,/);
   assert.doesNotMatch(continueFromCurrent, /resetTo\(null\)|resetToPrep\(\)/);
 
-  // 노트 화면의 버튼이 실제로 그 길로 이어져 있어야 한다.
+  // 노트 화면의 두 버튼(같은 영상·새 영상, practice.resume)이 실제로 그 길로 이어져 있어야 한다.
   const notePanel = block("<NotePanel", "<ChatPanel");
-  assert.match(notePanel, /onContinueNext=\{continueFromCurrent\}/);
+  assert.match(notePanel, /onContinueSame=\{\(\) => continueFromCurrent\(true\)\}/);
+  assert.match(notePanel, /onContinueNew=\{\(\) => continueFromCurrent\(false\)\}/);
+  // 같은 영상으로 이어하기는 준비 화면이 그 영상을 보관함 영상으로 들고 선다 — 올릴 것이 없다.
+  assert.match(continueFromCurrent, /reuseVideo && detail && detail\.video_id && !detail\.video_purged/);
+  assert.match(continueFromCurrent, /libraryId: detail\.video_id/);
 });
 
 test("대화가 끝난 화면은 아직 질문 중이라고 말하지 않는다", () => {

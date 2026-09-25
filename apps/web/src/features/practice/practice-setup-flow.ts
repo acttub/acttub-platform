@@ -1,4 +1,4 @@
-import type { PracticeSessionRequest } from "@/lib/api/v2/types";
+import type { PracticeCreateRequest } from "@/lib/practice/api-types";
 
 import type { BlockageSelection } from "./blockage-flow";
 
@@ -7,6 +7,14 @@ export type SceneContextDraft = {
   characterContext: string;
   goal: string;
 };
+
+/** Scene Context 세 칸은 각 300자, 막힘 서술은 500자까지다(서버는 넘으면 422). */
+export const SCENE_FIELD_MAX = 300;
+export const BLOCKAGE_NOTE_MAX = 500;
+
+export function sceneContextTooLong(scene: SceneContextDraft): boolean {
+  return [scene.situation, scene.characterContext, scene.goal].some((v) => Array.from(v.trim()).length > SCENE_FIELD_MAX);
+}
 
 /**
  * 세 칸을 모두 비웠는가. Scene Context 는 선택 입력이고(ADR-021) 건너뛰기 버튼도,
@@ -34,21 +42,29 @@ export function formatVideoDuration(durationMs: number | null): string | null {
   return `${minutes}분 ${seconds}초`;
 }
 
-export function buildPracticeSessionRequest(
-  uploadIntentId: string,
+/**
+ * 회차 시작 요청 본문(요청 id 는 부르는 쪽이 붙인다). 상황·인물·목표는 공백을 정리해 빈 값이면 빈 문자열로
+ * 보낸다 — 자리표시자를 채우지 않는다(ADR-021). 막힘은 화면의 저장값 그대로다.
+ *
+ * 경험 판은 본문에 싣지 않는다. `X-Acttub-Contract: three_layers_v1` 헤더가 정본이고 공용 클라이언트가
+ * 모든 요청에 붙인다(헤더가 없으면 legacy). 실제 판은 서버가 정한다(practice.start).
+ */
+export function buildPracticeRequest(
+  videoId: string,
   scene: SceneContextDraft,
   blockage: BlockageSelection,
-  // 끝난 연습에서 "이어서 새 연습" 으로 왔다면 그 연습 — 코치가 그 연습의 대화를
-  // 이어받는다. 없을 때 키 자체를 빼는 이유는 요청 지문이다: null 로 실으면 이 키가
-  // 없던 시절의 지문과 갈려 같은 요청이 새 작업으로 취급된다.
-  continuedFrom?: string,
-): PracticeSessionRequest {
+): Omit<PracticeCreateRequest, "request_id"> {
   return {
-    upload_intent_id: uploadIntentId,
-    situation: scene.situation.trim(),
-    character_context: scene.characterContext.trim(),
-    goal: scene.goal.trim(),
-    ...blockage,
-    ...(continuedFrom ? { continued_from: continuedFrom } : {}),
+    video_id: videoId,
+    scene: {
+      situation: scene.situation.trim(),
+      character: scene.characterContext.trim(),
+      goal: scene.goal.trim(),
+    },
+    blockage: {
+      category: blockage.blockage_kind,
+      detail: blockage.sub_branch,
+      note: blockage.blockage_detail,
+    },
   };
 }

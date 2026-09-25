@@ -1,11 +1,12 @@
-export const ANALYSIS_SCHEMA_VERSION = 1;
+/** 2 = 1.0.0 회차(practice) 기록. 옛 세션 기록(1)은 읽지 않고 버린다. */
+export const ANALYSIS_SCHEMA_VERSION = 2;
 
 const KEY_PREFIX = 'acttub.pendingAnalysis:';
 
 export type PendingAnalysisRecord = {
   schemaVersion: number;
   owner: string;
-  session_id: string;
+  practice_id: string;
 };
 
 export type PendingAnalysisHandle = {
@@ -26,7 +27,7 @@ function isRecord(value: unknown): value is PendingAnalysisRecord {
   return (
     typeof candidate.schemaVersion === 'number' &&
     typeof candidate.owner === 'string' &&
-    typeof candidate.session_id === 'string'
+    typeof candidate.practice_id === 'string'
   );
 }
 
@@ -37,7 +38,7 @@ function createKey(record: PendingAnalysisRecord, scope: string): string {
     ':',
     encodeURIComponent(scope),
     ':',
-    encodeURIComponent(record.session_id),
+    encodeURIComponent(record.practice_id),
   ].join('');
 }
 

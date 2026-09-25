@@ -1,0 +1,33 @@
+{
+  "title": null,
+  "roles": [
+    "지수",
+    "민준"
+  ],
+  "lines": [
+    {
+      "type": "direction",
+      "text": "옥상, 밤"
+    },
+    {
+      "type": "dialogue",
+      "role": "지수",
+      "text": "하나."
+    },
+    {
+      "type": "dialogue",
+      "role": "민준",
+      "text": "둘."
+    },
+    {
+      "type": "dialogue",
+      "role": "지수",
+      "text": "셋."
+    },
+    {
+      "type": "dialogue",
+      "role": "민준",
+      "text": "넷."
+    }
+  ]
+}

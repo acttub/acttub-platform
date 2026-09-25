@@ -63,6 +63,40 @@ class NoteContinuityEvalTest {
         return handoff;
     }
 
+    /**
+     * account.profile: 프로필이 실린 노트. 실물과 같이 {@link ReportEngine} 을 지나 프로필이 handoff 밖에서
+     * 전달된다. 저장된 출력에서 사람이 볼 것 — 제안의 난이도가 경력(입시생)에 맞는지, 프로필의 최종 목표를
+     * 이 장면의 목표로 적지 않았는지, 프로필 값을 노트에 옮겨 적지 않았는지.
+     */
+    @org.junit.jupiter.api.Test
+    void profileInformsTheNoteWithoutBecomingItsContent() throws Exception {
+        var client = new OpenAiResponsesClient(StructuredJson.MAPPER);
+        var handoff = NoteContinuityFixtures.scene();
+        var output = StructuredJson.MAPPER.createObjectNode().put("case", "actor-profile").put("semantic_review", "pending");
+        output.set("handoff", handoff);
+        output.set("actor_profile", StructuredJson.MAPPER.valueToTree(NoteContinuityFixtures.profile()));
+        var calls = output.putArray("calls");
+        java.util.UUID member = java.util.UUID.randomUUID();
+        Path directory = Path.of("build", "note-continuity-eval");
+        Files.createDirectories(directory);
+        try {
+            var note = new ReportEngine((system, input) -> {
+                var generated = client.generate(system, input);
+                calls.addObject().put("model", generated.model()).put("input", input).put("output", generated.text());
+                return generated;
+            }, StructuredJson.MAPPER, new com.acttub.actingapi.support.RecordingLlmTelemetry(),
+                    userId -> NoteContinuityFixtures.profile())
+                    .generateReport("coaching", null, handoff, false, "handoff", null, null, null, member);
+            var visible = PracticeNote.publicView(note);
+            output.set("note", visible);
+            assertThat(calls).isNotEmpty().allSatisfy(call ->
+                    assertThat(StructuredJson.parse(call.path("input").asText()).has("actor_profile")).isTrue());
+            assertThat(visible.toString()).doesNotContain("김하늘");
+        } finally {
+            StructuredJson.MAPPER.writerWithDefaultPrettyPrinter().writeValue(directory.resolve("actor-profile.json").toFile(), output);
+        }
+    }
+
     @ParameterizedTest(name = "{0}") @MethodSource("scenarios")
     void keepsTheActorsCurrentWorkInTheFinalNote(Scenario scenario) throws Exception {
         var client = new OpenAiResponsesClient(StructuredJson.MAPPER);

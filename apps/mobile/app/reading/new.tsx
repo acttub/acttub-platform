@@ -1,6 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -9,49 +9,85 @@ import * as DocumentPicker from 'expo-document-picker';
 import { palette } from '@/constants/palette';
 import { useAppDialog } from '@/components/app-dialog';
 import { PdfTextExtractor } from '@/components/pdf-text-extractor';
-import { extractScriptText } from '@/lib/reading/extract-file';
-import { parseScript } from '@/lib/reading/parse';
+import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
+import { useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
+import { TARGET } from '@/lib/spotlight-targets';
+import { extractScriptText, scriptFileRejection } from '@/lib/reading/extract-file';
+import { nextTextSource } from '@/lib/reading/file-input';
 import { SAMPLE_SCRIPT } from '@/lib/reading/sample';
-import { createFromParsed } from '@/lib/reading/store';
+import { newDraft, setPendingDraft } from '@/lib/reading/store';
+import type { ScriptSource } from '@/lib/reading/types';
+import { translate as t } from '@/lib/i18n';
+
+/**
+ * 대본 넣기(R01, reading.script). 파일·붙여넣기·직접 쓰기·예시 네 길로 글을 받고, 확인 화면에서
+ * 배역을 고친 뒤 저장한다. 파일은 글자만 뽑고 파일 자체는 서버에 올리지 않는다. 20,000,000바이트를
+ * 넘는 파일과 hwp·hwpx 는 글자를 뽑기 전에 기기가 거른다.
+ */
+const PICKER_TYPES = [
+  'text/plain',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/pdf',
+  // hwp·hwpx 는 열지 못하지만 고를 수는 있게 두어 "미지원" 안내를 보여 준다.
+  'application/x-hwp',
+  'application/haansofthwp',
+  'application/vnd.hancom.hwp',
+  'application/hwp+zip',
+];
 
 export default function ReadingNew() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [raw, setRaw] = useState('');
+  // 대본 리딩 튜토리얼의 예시(SOMA-494) — 예시 대본을 채운 채 연다.
+  const sample = useLocalSearchParams<{ sample?: string }>().sample === '1';
+  const [raw, setRaw] = useState(() => (sample ? SAMPLE_SCRIPT : ''));
+  const dropTarget = useSpotlightTarget(TARGET.readingDrop);
+  const textTarget = useSpotlightTarget(TARGET.readingText);
+  const nextTarget = useSpotlightTarget(TARGET.readingNext);
+  const tutorialGuide = useTutorialSpotlight('readingNew');
   const [busy, setBusy] = useState(false);
   const { alert, dialog } = useAppDialog();
+  // 입력 경로(file·paste·typed·sample)는 글이 어떻게 들어왔는지로 정한다(file-input).
+  const sourceRef = useRef<ScriptSource | null>(sample ? 'sample' : null);
+  const rawRef = useRef(sample ? SAMPLE_SCRIPT : '');
+
+  const onChangeText = (next: string) => {
+    sourceRef.current = nextTextSource(sourceRef.current, rawRef.current, next);
+    rawRef.current = next;
+    setRaw(next);
+  };
+  const setFromOutside = (text: string, source: ScriptSource) => {
+    sourceRef.current = source;
+    rawRef.current = text;
+    setRaw(text);
+  };
 
   const onPickFile = async () => {
     try {
-      const res = await DocumentPicker.getDocumentAsync({
-        type: ['text/plain', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/pdf'],
-        copyToCacheDirectory: true,
-      });
+      const res = await DocumentPicker.getDocumentAsync({ type: PICKER_TYPES, copyToCacheDirectory: true });
       if (res.canceled || !res.assets?.[0]) return;
       const a = res.assets[0];
+      const rejection = scriptFileRejection({ name: a.name, mimeType: a.mimeType, size: a.size });
+      if (rejection) {
+        void alert({ title: t('reading.readFail'), message: rejection });
+        return;
+      }
       setBusy(true);
-      const text = await extractScriptText({ uri: a.uri, name: a.name, mimeType: a.mimeType });
-      setRaw(text);
+      const text = await extractScriptText({ uri: a.uri, name: a.name, mimeType: a.mimeType, size: a.size });
+      setFromOutside(text, 'file');
     } catch (e: any) {
-      void alert({ title: '파일을 읽지 못했어요', message: e?.message ?? '다른 파일을 고르거나 붙여넣어 주세요.' });
+      void alert({ title: t('reading.readFail'), message: e?.message ?? t('reading.readFailBody') });
     } finally {
       setBusy(false);
     }
   };
 
-  const onNext = async () => {
+  const onNext = () => {
     const text = raw.trim();
     if (!text) return;
-    const parsed = parseScript(text);
-    if (parsed.roles.length < 1) {
-      void alert({
-        title: '배역을 찾지 못했어요',
-        message: '"이름: 대사" 형식인지 확인해 주세요. 예시 대본을 참고할 수 있어요.',
-      });
-      return;
-    }
-    await createFromParsed(parsed);
-    router.replace('/reading/roles');
+    // 배역이 안 잡혀도 확인 화면으로 간다 — 거기서 이름을 직접 적게 한다(예외 규칙).
+    setPendingDraft(newDraft(text, sourceRef.current ?? 'typed'));
+    router.push('/reading/confirm');
   };
 
   return (
@@ -61,35 +97,52 @@ export default function ReadingNew() {
         <Text style={styles.title}>연습할 대본을 넣어주세요</Text>
         <Text style={styles.sub}>대본을 붙여넣으면 화자와 대사를 자동으로 나눠드려요.</Text>
 
-        <Pressable style={styles.dropzone} onPress={onPickFile} disabled={busy}>
+        <Pressable
+          ref={dropTarget.ref}
+          onLayout={dropTarget.onLayout}
+          style={styles.dropzone}
+          onPress={onPickFile}
+          disabled={busy}>
           <Feather name={busy ? 'loader' : 'upload'} size={26} color={palette.blue} />
-          <Text style={styles.dropTitle}>{busy ? '읽는 중…' : '대본 파일 첨부'}</Text>
+          <Text style={styles.dropTitle}>{busy ? t('reading.attachReading') : t('reading.attach')}</Text>
           <Text style={styles.dropSub}>TXT·DOCX·PDF 파일 선택 · 아래에 붙여넣어도 돼요</Text>
         </Pressable>
 
-        <Pressable style={styles.sampleBtn} onPress={() => setRaw(SAMPLE_SCRIPT)}>
+        <Pressable style={styles.sampleBtn} onPress={() => setFromOutside(SAMPLE_SCRIPT, 'sample')}>
           <Feather name="book" size={14} color={palette.blueDeep} />
           <Text style={styles.sampleText}>예시 대본 불러오기</Text>
         </Pressable>
 
-        <TextInput
-          style={styles.textArea}
-          value={raw}
-          onChangeText={setRaw}
-          multiline
-          placeholder={'예)\n윤서: 여기 있을 줄 알았어.\n태오: 어떻게 알았어.'}
-          placeholderTextColor={palette.textFaint}
-          textAlignVertical="top"
-        />
+        <View ref={textTarget.ref} onLayout={textTarget.onLayout}>
+          <TextInput
+            style={styles.textArea}
+            value={raw}
+            onChangeText={onChangeText}
+            multiline
+            placeholder={t('reading.pastePlaceholder')}
+            placeholderTextColor={palette.textFaint}
+            textAlignVertical="top"
+          />
+        </View>
+        <View style={styles.noteRow}>
+          <Feather name="lock" size={12} color={palette.textFaint} />
+          <Text style={styles.note}>{t('reading.copyrightNote')}</Text>
+        </View>
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
-        <Pressable style={[styles.primary, !raw.trim() && styles.primaryOff]} onPress={onNext} disabled={!raw.trim()}>
+        <Pressable
+          ref={nextTarget.ref}
+          onLayout={nextTarget.onLayout}
+          style={[styles.primary, !raw.trim() && styles.primaryOff]}
+          onPress={onNext}
+          disabled={!raw.trim()}>
           <Text style={styles.primaryText}>다음</Text>
         </Pressable>
       </View>
       <PdfTextExtractor />
       {dialog}
+      {tutorialGuide.element}
     </View>
   );
 }
@@ -106,6 +159,8 @@ const styles = StyleSheet.create({
   sampleBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', backgroundColor: palette.blueSoft, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9 },
   sampleText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
   textArea: { backgroundColor: palette.bgSubtle, borderColor: palette.border, borderWidth: 1, borderRadius: 12, padding: 14, minHeight: 200, color: palette.text, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 22 },
+  noteRow: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 2 },
+  note: { color: palette.textFaint, fontFamily: 'Pretendard', fontSize: 12, flex: 1 },
   footer: { padding: 16, borderTopColor: palette.borderSoft, borderTopWidth: 1, backgroundColor: palette.bg },
   primary: { backgroundColor: palette.blue, borderRadius: 12, paddingVertical: 15, alignItems: 'center' },
   primaryOff: { backgroundColor: palette.checkOff },

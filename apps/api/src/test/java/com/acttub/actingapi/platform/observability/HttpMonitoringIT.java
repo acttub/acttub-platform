@@ -23,6 +23,8 @@ import com.acttub.actingapi.feature.coach.adapter.db.CoachStorageFixtures;
 import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.integration.llm.TokenUsage;
+import com.acttub.actingapi.support.AccountFixtures;
+import com.acttub.actingapi.support.DefaultClientHeader;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import io.micrometer.core.instrument.MockClock;
 import org.junit.jupiter.api.AfterAll;
@@ -87,15 +89,13 @@ class HttpMonitoringIT {
             }
         }
         UUID user = fixtures.insertUser();
+        AccountFixtures.completeProfile(jdbc, user);
         String bearer = "Bearer " + context.getBean(JwtService.class).issueAccessToken(user).value();
-        var practice = fixtures.insertPractice(user);
-        UUID coach = UUID.randomUUID();
-        fixtures.insertCoachSession(coach, practice.id(), fixtures.insertSummary(practice.id()), "closed",
-                CoachStorageFixtures.NOW.atOffset(ZoneOffset.UTC), List.of());
-        UUID handoff = fixtures.insertHandoff(coach, practice.id(), CoachStorageFixtures.NOW.atOffset(ZoneOffset.UTC));
-        jdbc.update("INSERT INTO handoff_confirmations(coaching_handoff_id, confirmed) VALUES (?, true)", handoff);
+        UUID practice = currentPractice(user, true);
         for (int i = 0; i < 3; i++) {
-            var response = post("/v2/reports", bearer, UUID.randomUUID(), "{\"session_id\":\"" + coach + "\"}");
+            UUID request = UUID.randomUUID();
+            var response = post("/v2/coach/start", bearer, request,
+                    "{\"practice_id\":\"" + practice + "\",\"request_id\":\"" + request + "\"}");
             assertThat(response.statusCode()).isEqualTo(502);
         }
         assertThat(get("/health", null).statusCode()).isEqualTo(200);
@@ -106,50 +106,49 @@ class HttpMonitoringIT {
                 .mapToDouble(line -> Double.parseDouble(line.substring(line.lastIndexOf(' ') + 1))).sum();
         assertThat(total).isEqualTo(3);
         assertThat(3d / total).isGreaterThanOrEqualTo(0.05);
-        assertThat(after).doesNotContain(user.toString(), practice.id().toString(), coach.toString(), bearer);
+        assertThat(after).doesNotContain(user.toString(), practice.toString(), bearer);
     }
 
     @Test
     void scrapeCountsRealResponsesUsingTemplatesWithoutMonitoringTrafficOrSensitiveLabels() throws Exception {
         String before = scrape();
         UUID user = fixtures.insertUser();
+        AccountFixtures.completeProfile(jdbc, user);
         String bearer = "Bearer " + context.getBean(JwtService.class).issueAccessToken(user).value();
         UUID missing = UUID.randomUUID();
-        assertThat(get("/v2/reports", bearer).statusCode()).isEqualTo(200);
-        assertThat(get("/v2/reports", bearer).statusCode()).isEqualTo(200);
-        assertThat(get("/v2/reports/" + missing, bearer).statusCode()).isEqualTo(404);
-        assertThat(get("/v2/reports", "Bearer invalid-private-token").statusCode()).isEqualTo(401);
+        assertThat(get("/v2/practices", bearer).statusCode()).isEqualTo(200);
+        assertThat(get("/v2/practices", bearer).statusCode()).isEqualTo(200);
+        assertThat(get("/v2/practices/" + missing, bearer).statusCode()).isEqualTo(404);
+        assertThat(get("/v2/practices", "Bearer invalid-private-token").statusCode()).isEqualTo(401);
         assertThat(get("/unmatched-sensitive-path?token=private-query", null).statusCode()).isEqualTo(404);
         assertThat(get("/another-sensitive-path", null).statusCode()).isEqualTo(404);
         assertThat(get("/health", null).statusCode()).isEqualTo(200);
 
-        var practice = fixtures.insertPractice(user);
-        UUID summary = fixtures.insertSummary(practice.id());
-        UUID coach = UUID.randomUUID();
-        fixtures.insertCoachSession(coach, practice.id(), summary, "open",
-                CoachStorageFixtures.NOW.atOffset(ZoneOffset.UTC), List.of());
-        fixtures.insertHandoff(coach, practice.id(), CoachStorageFixtures.NOW.atOffset(ZoneOffset.UTC));
-        var failure = post("/v2/coach/confirm", bearer, UUID.randomUUID(),
-                "{\"coach_session_id\":\"" + coach + "\",\"confirmed\":true}");
+        UUID practice = currentPractice(user, true);
+        UUID request = UUID.randomUUID();
+        var failure = post("/v2/coach/start", bearer, request,
+                "{\"practice_id\":\"" + practice + "\",\"request_id\":\"" + request + "\"}");
         assertThat(failure.statusCode()).isEqualTo(502);
         assertThat(failure.body()).startsWith("{\"detail\":");
 
         String scrape = scrape();
-        assertThat(metric(scrape, "http_server_requests_seconds_count", "uri=\"/v2/reports\"", "status=\"200\"", "method=\"GET\""))
+        assertThat(metric(scrape, "http_server_requests_seconds_count", "uri=\"/v2/practices\"", "status=\"200\"", "method=\"GET\""))
                 .isEqualTo(2);
-        assertThat(metric(scrape, "http_server_requests_seconds_count", "uri=\"/v2/reports/{practice_session_id}\"",
+        assertThat(metric(scrape, "http_server_requests_seconds_count", "uri=\"/v2/practices/{practice_id}\"",
                 "status=\"404\"", "latency_class=\"ordinary\"", "environment=\"dev\""))
                 .isEqualTo(1);
-        assertThat(metric(scrape, "http_server_requests_seconds_count", "uri=\"/v2/coach/confirm\"",
+        assertThat(metric(scrape, "http_server_requests_seconds_count", "uri=\"/v2/coach/start\"",
+                "status=\"502\"", "latency_class=\"long_running\"")
+                - metric(before, "http_server_requests_seconds_count", "uri=\"/v2/coach/start\"",
                 "status=\"502\"", "latency_class=\"long_running\""))
                 .isEqualTo(1);
-        assertThat(metric(scrape, "http_server_requests_seconds_count", "uri=\"/v2/reports\"", "status=\"401\""))
+        assertThat(metric(scrape, "http_server_requests_seconds_count", "uri=\"/v2/practices\"", "status=\"401\""))
                 .isEqualTo(1);
         assertThat(metric(scrape, "http_server_requests_seconds_count", "uri=\"NOT_FOUND\"", "status=\"404\""))
                 .isEqualTo(2);
         assertThat(scrape).contains("http_server_requests_seconds_bucket{", "jvm_memory_used_bytes{",
                 "hikaricp_connections_active{");
-        assertThat(scrape).doesNotContain(missing.toString(), user.toString(), coach.toString(), TOKEN,
+        assertThat(scrape).doesNotContain(missing.toString(), user.toString(), practice.toString(), TOKEN,
                 "invalid-private-token", "unmatched-sensitive-path", "another-sensitive-path", "private-query",
                 "uri=\"/health\"", "uri=\"/actuator", "http_url=", "jdbc:postgresql");
         for (var expected : java.util.Map.of("2xx", 2d, "4xx", 4d).entrySet()) {
@@ -167,36 +166,30 @@ class HttpMonitoringIT {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"coach", "report"})
-    void activeHttpLifetimeIncludesExternalCallsAndIdempotentDatabaseWaits(String feature) throws Exception {
+    @ValueSource(strings = {"start", "reply"})
+    void activeHttpLifetimeIncludesExternalCallsAndDatabaseWaits(String feature) throws Exception {
         UUID user = fixtures.insertUser();
+        AccountFixtures.completeProfile(jdbc, user);
         String bearer = "Bearer " + context.getBean(JwtService.class).issueAccessToken(user).value();
-        var practice = fixtures.insertPractice(user);
-        UUID summary = fixtures.insertSummary(practice.id());
+        UUID practice = currentPractice(user, false);
+        UUID requestId = UUID.randomUUID();
         String path = "/v2/coach/start";
-        String body = "{\"practice_session_id\":\"" + practice.id() + "\"}";
+        String body = "{\"practice_id\":\"" + practice + "\",\"request_id\":\"" + requestId + "\"}";
         String generated = "{\"message\":\"질문\",\"status\":\"continue\",\"handoff\":null}";
-        if (feature.equals("report")) {
-            UUID coach = UUID.randomUUID();
-            fixtures.insertCoachSession(coach, practice.id(), summary, "closed",
-                    CoachStorageFixtures.NOW.atOffset(ZoneOffset.UTC), List.of());
-            UUID handoff = fixtures.insertHandoff(coach, practice.id(),
-                    CoachStorageFixtures.NOW.atOffset(ZoneOffset.UTC));
-            jdbc.update("INSERT INTO handoff_confirmations(coaching_handoff_id, confirmed) VALUES (?, true)", handoff);
-            path = "/v2/reports";
-            body = "{\"session_id\":\"" + coach + "\"}";
-            generated = """
-                    {"report_type":"analysis","title":"리포트","actor_discovery":"발견",
-                     "line_meaning":"의미","timing_reason":"타이밍","target_effect":"효과",
-                     "next_take":{"direction":"방향","tested":false},"acting_caution":"주의",
-                     "evidence":[],"uncertainties":[]}
-                    """;
+        if (feature.equals("reply")) {
+            UUID conversation = UUID.randomUUID();
+            jdbc.update("INSERT INTO coach_conversations(id,practice_id,start_request_id,status,state_revision) VALUES (?,?,?,'open',1)",
+                    conversation, practice, UUID.randomUUID());
+            jdbc.update("INSERT INTO coach_messages(id,conversation_id,turn_index,role,text) VALUES (?,?,0,'ai','앞선 질문')",
+                    UUID.randomUUID(), conversation);
+            path = "/v2/coach/reply";
+            body = "{\"conversation_id\":\"" + conversation + "\",\"request_id\":\"" + requestId
+                    + "\",\"revision\":1,\"text\":\"숨이 막혔어요\"}";
         }
         String route = "route=\"" + path + "\"";
-        String featureLabel = "feature=\"" + feature + "\"";
+        String featureLabel = "feature=\"coach\"";
         GateGenerator generator = context.getBean(GateGenerator.class);
         generator.block(generated);
-        UUID requestId = UUID.randomUUID();
         HttpRequest request = postRequest(path, bearer, requestId, body);
         CompletableFuture<HttpResponse<String>> original = CLIENT.sendAsync(request, HttpResponse.BodyHandlers.ofString());
         try {
@@ -204,11 +197,11 @@ class HttpMonitoringIT {
             assertThat(original).isNotDone();
             assertThat(metric(scrape(), "acttub_http_active_seconds_count", route, featureLabel)).isEqualTo(1);
 
-            // Hold only writes in this test database: a repeated request waits at the idempotency boundary.
+            // 조회에서 기다리는 동안도 HTTP 요청 수명에 포함된다. 바깥 모델 호출은 DB 잠금을 잡지 않는다.
             try (var connection = context.getBean(DataSource.class).getConnection()) {
                 connection.setAutoCommit(false);
                 try (var statement = connection.createStatement()) {
-                    statement.execute("LOCK TABLE external_operations IN SHARE MODE");
+                    statement.execute("LOCK TABLE users IN ACCESS EXCLUSIVE MODE");
                 }
                 var repeated = CLIENT.sendAsync(request, HttpResponse.BodyHandlers.ofString());
                 try {
@@ -220,7 +213,7 @@ class HttpMonitoringIT {
                     String active = scrape();
                     assertThat(metric(active, "acttub_http_active_seconds_max", route, featureLabel)).isEqualTo(61);
                     assertThat(metric(active, "acttub_http_active_seconds_sum", route, featureLabel)).isEqualTo(122);
-                    assertThat(active).doesNotContain(user.toString(), practice.id().toString(), requestId.toString(), bearer);
+                    assertThat(active).doesNotContain(user.toString(), practice.toString(), requestId.toString(), bearer);
                 } finally {
                     connection.commit();
                 }
@@ -243,8 +236,27 @@ class HttpMonitoringIT {
         });
     }
 
+    private UUID currentPractice(UUID owner, boolean structured) {
+        UUID id = UUID.randomUUID();
+        UUID video = UUID.randomUUID();
+        UUID analysis = UUID.randomUUID();
+        jdbc.update("INSERT INTO videos(id,user_id,object_key,content_type,byte_size,duration_ms) VALUES (?,?,?,'video/mp4',1000,8000)",
+                video, owner, "monitoring/" + video);
+        jdbc.update("""
+                INSERT INTO practices(id,user_id,video_id,root_id,ordinal,stage,experience_version,blockage_kind,sub_branch)
+                VALUES (?,?,?,?,1,'conversing',?,'분석','캐릭터 분석')
+                """, id, owner, video, id, structured ? "three_layers_v1" : "legacy");
+        var record = (com.fasterxml.jackson.databind.node.ObjectNode) com.acttub.actingapi.integration.llm.StructuredJson.resource("/coaching/record.json");
+        record.put("record_id", analysis.toString());
+        jdbc.update("INSERT INTO analyses(id,practice_id,format,status,model,record,completed_at) VALUES (?,?,?,'ready','test',CAST(? AS jsonb),now())",
+                analysis, id, structured ? "video_record_v1" : "legacy",
+                structured ? record.toString() : "{\"observations\":[],\"uncertainties\":[]}");
+        return id;
+    }
+
     private HttpResponse<String> get(String path, String bearer) throws Exception {
-        var request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path)).GET();
+        var request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
+                .header(DefaultClientHeader.NAME, DefaultClientHeader.APP).GET();
         if (bearer != null) request.header("Authorization", bearer);
         return CLIENT.send(request.build(), HttpResponse.BodyHandlers.ofString());
     }
@@ -256,6 +268,7 @@ class HttpMonitoringIT {
     private HttpRequest postRequest(String path, String bearer, UUID requestId, String body) {
         return HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
                 .timeout(Duration.ofSeconds(15)).header("Authorization", bearer)
+                .header(DefaultClientHeader.NAME, DefaultClientHeader.APP)
                 .header("Content-Type", "application/json").header("X-Request-Id", requestId.toString())
                 .POST(HttpRequest.BodyPublishers.ofString(body)).build();
     }

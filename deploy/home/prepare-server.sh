@@ -231,8 +231,8 @@ ENV_FILE=/dev/null
 # DATABASE_URL 은 적지 않는다 — compose 가 POSTGRES_PASSWORD 로 조립한다.
 # TUNNEL_TOKEN(cloudflared)·BACKUP_BUCKET(backup)은 그 서비스가 compose 에 아직 없어도 이 준비에서
 # 넣으므로 필수로 본다. 선택 키는 비어 있으면 경고만 한다.
-REQUIRED_ENV_KEYS="COMPOSE_PROJECT_NAME POSTGRES_PASSWORD JWT_SECRET ADMIN_OPS_TOKEN GEMINI_API_KEY OPENAI_API_KEY S3_BUCKET AWS_REGION AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY TUNNEL_TOKEN BACKUP_BUCKET"
-OPTIONAL_ENV_KEYS="SENTRY_DSN SENTRY_ENVIRONMENT APPLE_OAUTH_CLIENT_ID GOOGLE_OAUTH_CLIENT_ID"
+REQUIRED_ENV_KEYS="COMPOSE_PROJECT_NAME POSTGRES_PASSWORD JWT_SECRET ACCOUNT_IDENTITY_HASH_KEY ACCOUNT_TOKEN_ENCRYPTION_KEY SITE_URL ADMIN_OPS_TOKEN GEMINI_API_KEY OPENAI_API_KEY S3_BUCKET AWS_REGION AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY TUNNEL_TOKEN BACKUP_BUCKET"
+OPTIONAL_ENV_KEYS="SENTRY_DSN SENTRY_ENVIRONMENT APPLE_OAUTH_CLIENT_ID GOOGLE_OAUTH_CLIENT_ID APPLE_TEAM_ID APPLE_KEY_ID APPLE_PRIVATE_KEY"
 
 CURRENT_STAGE=""
 
@@ -607,12 +607,15 @@ guide_env_files() {
   cmd "COMPOSE_PROJECT_NAME=acttub-dev             # prod 는 acttub-prod" \
       "POSTGRES_PASSWORD=<openssl rand -hex 24>     # DATABASE_URL 은 적지 않는다 — compose 가 이 값으로 조립" \
       "JWT_SECRET=<지금 dev 의 값을 그대로 쓰면 기존 로그인이 유지됩니다>" \
+      "ACCOUNT_IDENTITY_HASH_KEY=<openssl rand -hex 32>   ACCOUNT_TOKEN_ENCRYPTION_KEY=<openssl rand -hex 32>   # 한번 정하면 바꾸지 않습니다" \
+      "SITE_URL=https://dev.acttub.com             # prod 는 https://acttub.com. 웹 빌드의 NEXT_PUBLIC_SITE_URL 과 같은 값" \
       "ADMIN_OPS_TOKEN=…   GEMINI_API_KEY=…   OPENAI_API_KEY=…" \
       "S3_BUCKET · AWS_REGION · AWS_ACCESS_KEY_ID · AWS_SECRET_ACCESS_KEY · BACKUP_BUCKET   # 5단계" \
       "TUNNEL_TOKEN                                # 4단계" \
       "DEVELOPMENT_AUTH_PROVIDER=1                 # dev 에만. prod 에는 두지 않습니다" \
       "SENTRY_DSN=…   SENTRY_ENVIRONMENT=<지금 api.env 값 그대로>        # 선택(비면 Sentry 꺼짐)" \
-      "APPLE_OAUTH_CLIENT_ID=…   GOOGLE_OAUTH_CLIENT_ID=…                # 선택(오늘 값이 있으면 옮김)"
+      "APPLE_OAUTH_CLIENT_ID=…   GOOGLE_OAUTH_CLIENT_ID=…                # 선택(오늘 값이 있으면 옮김)" \
+      "APPLE_TEAM_ID · APPLE_KEY_ID · APPLE_PRIVATE_KEY                 # 없으면 처음 온 애플 신원의 로그인이 503 입니다"
   note "지금 dev 의 값은 dev EC2 의 /etc/acttub/api.env 에 있습니다(SSM 세션에서 sudo cat). 리소스 상한(API_MEM_LIMIT 등)은 .env.example 의 기본값·주석을 따르세요."
   printf '\n'
   cmd "ssh ${DEPLOY_USER}@${SERVER_HOST}" \

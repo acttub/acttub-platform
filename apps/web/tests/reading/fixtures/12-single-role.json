@@ -1,0 +1,27 @@
+{
+  "title": "독백",
+  "roles": [
+    "나"
+  ],
+  "lines": [
+    {
+      "type": "dialogue",
+      "role": "나",
+      "text": "오늘도 아무도 오지 않았다."
+    },
+    {
+      "type": "direction",
+      "text": "창밖을 본다."
+    },
+    {
+      "type": "dialogue",
+      "role": "나",
+      "text": "그래도 내일은 오겠지."
+    },
+    {
+      "type": "dialogue",
+      "role": "나",
+      "text": "아니면 모레라도."
+    }
+  ]
+}

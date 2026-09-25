@@ -45,6 +45,19 @@ public class UploadIntentEntity extends AppGeneratedUuidEntity {
     @Column(name = "finalized_at")
     Instant finalizedAt;
 
+    /**
+     * 기기가 만든 요청 id 와 본문 지문, 그리고 확정이 만든 영상 (V14, practice.record). 예약 장부는 보관함의
+     * 올리기가 쓰고 옛 행에는 없으므로 전부 NULL 허용이다 — 마무리 재전송이 같은 영상을 돌려주는 근거가 여기다.
+     */
+    @Column(name = "request_id")
+    UUID requestId;
+
+    @Column(name = "request_fingerprint", columnDefinition = "bpchar")
+    String requestFingerprint;
+
+    @Column(name = "video_id")
+    UUID videoId;
+
     protected UploadIntentEntity() {
     }
 

@@ -21,6 +21,10 @@ const nextConfig: NextConfig = {
   // 전용 바이너리가 딸려온다(Next의 의존성 트레이싱이 무조건 포함시킨다).
   // Dockerfile은 빌드·런타임을 같은 리눅스로 맞춰 해당 바이너리도 함께 복사한다.
   images: { unoptimized: true },
+  // 참여작 공유 페이지(/e/<id>, challenge.share)는 메신저 미리보기 때문에 요청마다 서버에서 렌더하고, 그때
+  // API 에 직접 묻는다(src/lib/api/v2/public-entry.ts). 런타임 이미지에는 API_ORIGIN 환경변수가 없어
+  // rewrites 와 같은 값을 빌드 때 서버 번들에 굳힌다. 클라이언트 코드는 이 값을 읽지 않는다.
+  env: { ACTTUB_SERVER_API_ORIGIN: apiOrigin },
   // 폰 등 다른 기기에서 dev 서버를 열 때 필요 (기본은 로컬만 허용).
   // 이 값만으로는 부족하다 — dev 서버가 loopback에만 붙어 있으면 폰이 소켓에
   // 닿지 못하므로 `pnpm dev:lan`으로 LAN 주소에 바인드해야 한다.
@@ -35,13 +39,23 @@ const nextConfig: NextConfig = {
     return [
       { source: "/v2/:path*", destination: `${apiOrigin}/v2/:path*` },
       { source: "/health", destination: `${apiOrigin}/health` },
+      // 포트폴리오 공개 페이지(SOMA-528 결정 I-8). 주소는 /p/<slug> 인데 slug 는 빌드 때 알 수
+      // 없다. 프리렌더한 껍데기 하나(/p)를 서빙하고 브라우저가 경로에서 slug 를 읽는다 — slug
+      // 마다 서버 렌더나 캐시 파일이 생기지 않는다. 한 단계만 받는다(/p/a/b 는 404).
+      { source: "/p/:slug", destination: "/p" },
+      // 리딩 대본 상세(reading.session, SOMA-546). 같은 방식 — 프리렌더한 껍데기 하나(/reading/scripts)를
+      // 서빙하고 브라우저가 경로에서 대본 id 를 읽는다.
+      { source: "/reading/scripts/:id", destination: "/reading/scripts" },
+      // 영상 보관함 상세(practice.library, SOMA-546). 같은 방식 — 껍데기(/library)를 서빙하고 브라우저가 id 를 읽는다.
+      { source: "/library/:id", destination: "/library" },
     ];
   },
   // 상대역 리딩(/reading)은 브라우저 안에서 onnxruntime wasm 으로 음성을 만든다. 멀티스레드
   // wasm 에는 SharedArrayBuffer 가 필요하고, 그건 교차 출처 격리(COOP+COEP)가 켜진 문서에만 있다.
-  // **이 경로에만** 건다 — COOP same-origin 을 사이트 전체에 걸면 Google/Apple 로그인 팝업이
-  // opener 를 잃어 로그인이 끝나지 않는다(SOMA-447). credentialless 라 외부 CSS·모델(HF CDN)은
-  // CORP 헤더 없이도 자격증명 없이 받아진다.
+  // **이 경로에만** 건다 — 교차 출처 격리가 필요한 화면은 리딩뿐이다. 처음 이렇게 좁힌 까닭은
+  // 사이트 전체에 걸면 Google/Apple 로그인 팝업이 opener 를 잃어서였다(SOMA-447). 웹 로그인은
+  // 1.0.0 에서 없어졌지만(SOMA-528) 범위는 그대로 둔다 — 필요한 곳에만 거는 편이 외부 창·임베드와
+  // 덜 부딪힌다. credentialless 라 외부 CSS·모델(HF CDN)은 CORP 헤더 없이도 자격증명 없이 받아진다.
   async headers() {
     return [
       {

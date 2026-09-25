@@ -3,13 +3,12 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
-import { useRequireAuth } from "../auth/use-require-auth";
+import { useGuestSession } from "../consent/use-guest-session";
 import {
   deleteAllMemory,
   deleteMemoryField,
   getMemory,
   saveMemoryField,
-  isActorOnlyField,
   MEMORY_VALUE_MAX_LENGTH,
   type MemoryField,
   type MemoryItem,
@@ -27,10 +26,12 @@ import {
  * - **누가 적었는지** — 내가 고친 칸은 코치가 다시 덮지 않는다는 걸 알아야
  *   고치는 의미가 생긴다.
  *
- * 성별·나이는 **배우만 쓰는 칸**이다. 코치는 영상이나 말투에서 추론하지 않는다.
- * 데이터베이스가 코치의 쓰기를 막고 있어서, 이 화면이 그 칸을 채울 수 있는
- * 유일한 통로다.
+ * 성별·나이는 1.0.0 부터 여기 없다 — 프로필이 가진다(account.profile). 웹에는 프로필이 없어서
+ * (게스트뿐) 그 자리에 앱으로 옮기면 적을 수 있다고 안내한다.
  */
+
+/** 프로필로 옮긴 칸의 안내. 웹 게스트에게는 편집 링크 대신 이 말이 간다. */
+export const PROFILE_MOVE_NOTICE = "성별·나이는 앱으로 옮기면 프로필에서 적어요";
 
 const FIELDS: {
   field: MemoryField;
@@ -38,18 +39,6 @@ const FIELDS: {
   hint: string;
   placeholder: string;
 }[] = [
-  {
-    field: "gender",
-    label: "성별",
-    hint: "코치는 짐작하지 않아요. 적어 두면 참고합니다",
-    placeholder: "예) 여성",
-  },
-  {
-    field: "age",
-    label: "나이",
-    hint: "코치는 짐작하지 않아요. 적어 두면 참고합니다",
-    placeholder: "예) 19살",
-  },
   {
     field: "goal",
     label: "목표",
@@ -77,7 +66,10 @@ const FIELDS: {
 ];
 
 export function MemoryPanel() {
-  const { ready } = useRequireAuth();
+  // 게스트가 없으면 코치가 적어 둔 것도 없다. 서버에 묻지 않고 빈 상태를 그린다 —
+  // 화면을 여는 것만으로 계정이 생기면 안 된다(account.guest). 직접 적어 저장하면 그때
+  // 공용 클라이언트가 게스트를 만든다.
+  const { hasSession } = useGuestSession();
   const [items, setItems] = useState<Record<string, MemoryItem>>({});
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -90,35 +82,34 @@ export function MemoryPanel() {
   // 자리가 없어 override 표와 "전부 지웠음" 표시를 따로 들어야 하고, 그러면 상태가
   // 줄기는커녕 늘어난다.
   useEffect(() => {
-    if (!ready) return;
+    if (!hasSession) return;
     const controller = new AbortController();
     (async () => {
       try {
         const res = await getMemory({ signal: controller.signal });
         const next: Record<string, MemoryItem> = {};
         for (const item of res.items) next[item.field] = item;
-        setItems(next);
-        setDrafts(
-          Object.fromEntries(res.items.map((i) => [i.field, i.value])),
-        );
+        // 게스트 없이 적다가 첫 저장으로 게스트가 생기면 이 조회가 그 뒤에 돈다. 아직
+        // 저장하지 않은 다른 칸의 글을 서버 답으로 덮지 않게 이미 있는 것을 앞세운다.
+        setItems((prev) => ({ ...next, ...prev }));
+        setDrafts((prev) => ({
+          ...Object.fromEntries(res.items.map((i) => [i.field, i.value])),
+          ...prev,
+        }));
       } catch {
-        // 취소된 조회는 실패가 아니다. 세션이 만료되거나 다른 탭에서 로그아웃하면
-        // useRequireAuth 가 ready 를 다시 눕히고(use-require-auth.ts 의 redirectToLogin)
-        // 이 이펙트가 정리되며 조회를 끊는데, 그것을 걸러내지 않아 로그인 화면으로
-        // 넘어가기 전에 "불러오지 못했어요" 가 스쳤다.
+        // 취소된 조회는 실패가 아니다. 게스트가 끝나면(서버가 갱신을 거절하거나 다른
+        // 탭에서 토큰이 사라지면) 이 이펙트가 정리되며 조회를 끊는다.
         if (controller.signal.aborted) return;
         // 못 불러왔을 때 빈 화면과 구분돼야 한다. 빈 상태로 보이면 배우가
         // "코치가 아무것도 모르는구나" 로 잘못 읽는다.
         setError("지금은 불러오지 못했어요. 잠시 후 새로고침해 주세요.");
       } finally {
-        // 끊긴 조회는 로딩도 끄지 않는다. 다만 이것이 관측되는 길은 지금 없다 —
-        // redirectToLogin 이 곧바로 /login 으로 replace 하므로 ready 가 다시 서기 전에
-        // 이 화면이 언마운트된다. 위 catch 가드와 달리 이쪽은 방어일 뿐이다.
+        // 끊긴 조회는 로딩도 끄지 않는다.
         if (!controller.signal.aborted) setLoading(false);
       }
     })();
     return () => controller.abort();
-  }, [ready]);
+  }, [hasSession]);
 
   const save = useCallback(
     async (field: MemoryField) => {
@@ -178,8 +169,6 @@ export function MemoryPanel() {
     }
   }, []);
 
-  if (!ready) return null;
-
   const hasAny = Object.keys(items).length > 0;
 
   return (
@@ -195,13 +184,18 @@ export function MemoryPanel() {
         코치가 기억하는 것
       </h1>
       <p className="mt-3 text-[15px] leading-[1.6] text-[#6b7684]">
-        연습을 마칠 때마다 코치가 여기에 적어 둡니다. 다음 연습을 시작할 때 이 내용을
-        참고해요.
+        {/* 실제 갱신 시점은 첫 확인 연습과 그 뒤 3회마다다(1·3·6·9…). "마칠 때마다"는 사실이 아니다. */}
+        연습이 쌓이면 코치가 여기에 적어 둡니다. 다음 연습을 시작할 때 이 내용을 참고해요.
         <br />
         틀린 게 있으면 고쳐주세요.{" "}
         <strong className="font-bold text-[#4e5968]">
           고친 내용은 코치가 다시 바꾸지 않습니다.
         </strong>
+      </p>
+
+      {/* 성별·나이는 프로필로 옮겼다. 웹에는 프로필이 없어 적을 수 있는 곳을 알려 준다. */}
+      <p className="mt-3 rounded-xl bg-[#f4f6fa] px-4 py-3 text-[13.5px] font-semibold leading-[1.6] text-[#4e6183]">
+        {PROFILE_MOVE_NOTICE}
       </p>
 
       {error ? (
@@ -213,7 +207,7 @@ export function MemoryPanel() {
         </p>
       ) : null}
 
-      {loading ? (
+      {hasSession && loading ? (
         <p className="mt-8 text-[14px] text-[#8b95a1]">불러오는 중…</p>
       ) : (
         <>
@@ -234,7 +228,6 @@ export function MemoryPanel() {
               const draft = drafts[field] ?? "";
               const dirty = draft.trim() !== (item?.value ?? "");
               const canSave = dirty && draft.trim().length > 0;
-              const actorOnly = isActorOnlyField(field);
               return (
                 <section
                   key={field}
@@ -247,15 +240,14 @@ export function MemoryPanel() {
                     {item ? (
                       <span
                         className={`shrink-0 text-[12px] font-bold ${
-                          item.edited_by_me ? "text-[#4e5968]" : "text-[#3182f6]"
+                          item.written_by_actor ? "text-[#4e5968]" : "text-[#3182f6]"
                         }`}
                       >
-                        {item.edited_by_me ? "내가 적음" : "코치가 적음"}
+                        {/* 내가 적은 값은 코치가 덮지 않는다 — 그 사실이 보여야 고치는 의미가 생긴다. */}
+                        {item.written_by_actor ? "내가 적은 값" : "코치가 적음"}
                       </span>
                     ) : (
-                      <span className="shrink-0 text-[12px] text-[#b0b8c1]">
-                        {actorOnly ? "내가 적는 칸" : "비어 있음"}
-                      </span>
+                      <span className="shrink-0 text-[12px] text-[#b0b8c1]">비어 있음</span>
                     )}
                   </div>
                   <p className="mt-1 text-[13px] text-[#8b95a1]">{hint}</p>
@@ -275,9 +267,9 @@ export function MemoryPanel() {
                     className="mt-3 w-full resize-y rounded-xl border border-[#e5e8eb] px-3.5 py-3 text-[15px] leading-[1.6] text-[#191f28] outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6]"
                   />
 
-                  {item?.source_practice_session_id && !item.edited_by_me ? (
+                  {item?.source_practice_id && !item.written_by_actor ? (
                     <Link
-                      href={`/home?session=${encodeURIComponent(item.source_practice_session_id)}`}
+                      href={`/home?session=${encodeURIComponent(item.source_practice_id)}`}
                       className="mt-1 inline-block text-[13px] font-semibold text-[#3182f6] transition hover:text-[#1b64da]"
                     >
                       이 말이 나온 연습 보기

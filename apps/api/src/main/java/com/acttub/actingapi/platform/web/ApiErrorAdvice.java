@@ -60,7 +60,10 @@ public class ApiErrorAdvice {
                 Objects.requireNonNull(exception.getCause()), kind, API_EXCEPTION_CONTEXT));
         var response = ResponseEntity.status(exception.status());
         exception.headers().forEach(response::header);
-        return response.body(Map.of("detail", exception.getMessage()));
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("detail", exception.getMessage());
+        body.putAll(exception.extras());
+        return response.body(body);
     }
 
     @ExceptionHandler(ApiValidationException.class)
@@ -155,6 +158,15 @@ public class ApiErrorAdvice {
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     ResponseEntity<Map<String, Object>> method() {
         return body(405, "Method Not Allowed");
+    }
+
+    /**
+     * multipart 가 컨테이너 상한({@code spring.servlet.multipart.*})을 넘었다 — 핸들러에 닿기 전이라 규칙(리딩 녹음의
+     * 422 {@code recording_too_long})은 볼 수 없고, 프로필 사진과 같은 안전망 코드로 답한다.
+     */
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    ResponseEntity<Map<String, Object>> uploadTooLarge() {
+        return body(413, "upload_too_large");
     }
 
     @ExceptionHandler(Exception.class)

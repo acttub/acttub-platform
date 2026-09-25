@@ -23,6 +23,9 @@ public interface CoachMemory {
      */
     PriorContext priorFor(UUID userId, UUID practiceSessionId, UUID operationId);
 
+    /** 1.0.0 회차의 기억·앞 회차 맥락. 옛 대화의 테이블 존재 여부로 경로를 추측하지 않는다. */
+    PriorContext priorForPractice(UUID userId, UUID practiceId, UUID operationId);
+
     /** 배우가 지금까지 확정한 연습의 수. 기억을 갱신할 차례인지 세는 데 쓴다. */
     long countConfirmedPractices(UUID userId);
 

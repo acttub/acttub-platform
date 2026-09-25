@@ -7,17 +7,12 @@ import {
   buildOneLinerPayload,
   exitReviewCopy,
   sendableOneLiner,
-  shouldOfferExitReview,
 } from '../lib/exit-review-policy.ts';
 
-test('SOMA-433: 한 번 물어본 사람에겐 다시 띄우지 않는다', () => {
-  assert.equal(shouldOfferExitReview(false), true);
-  assert.equal(shouldOfferExitReview(true), false);
-});
-
-test('SOMA-433: 문구는 불쌍하게, 버튼만 나가기/마치기로 갈린다', () => {
-  const leave = exitReviewCopy('leave');
-  const finish = exitReviewCopy('finish');
+test('practice.feedback: 문구는 불쌍하게, 버튼만 나가기/마치기로 갈린다', () => {
+  // 계기는 x·leave·back 셋이다. 마치며 남기는 자리(leave)만 버튼 문구가 다르다.
+  const leave = exitReviewCopy('back');
+  const finish = exitReviewCopy('leave');
   assert.equal(leave.title, '잠깐만요… 한 줄만 부탁드려요 🥲');
   assert.match(leave.subtitle, /개발에 정말 큰 도움이 돼요 ㅠㅠ/);
   assert.equal(leave.submit, '한 줄 남기고 나가기');
@@ -25,6 +20,9 @@ test('SOMA-433: 문구는 불쌍하게, 버튼만 나가기/마치기로 갈린�
   assert.equal(leave.skip, '다음에 할게요');
   assert.equal(finish.title, leave.title);
   assert.match(leave.notice, /이번 한 번만/);
+  // 실제 수집 범위를 말한다 — 접수는 계정에 연결되고 운영 화면에 이름이 보이지 않는다.
+  assert.match(leave.notice, /서비스 개선/);
+  assert.doesNotMatch(leave.notice, /이름은 남지 않아요/);
 });
 
 test('SOMA-433: 빈 칸·공백은 보낼 수 없고, 앞뒤 공백은 잘라 보낸다', () => {

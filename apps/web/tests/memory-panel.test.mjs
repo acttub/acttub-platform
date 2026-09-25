@@ -23,49 +23,42 @@ test("워크스페이스에서 기억 화면으로 들어가는 길이 있다", 
   assert.match(source, /href="\/memory"/);
 });
 
-test("여섯 칸을 모두 보여준다", () => {
+test("practice.memory: 네 칸을 보여주고 성별·나이 칸은 없다", () => {
   const source = panel();
 
-  for (const field of [
-    "gender",
-    "age",
-    "goal",
-    "blockage",
-    "speech_self",
-    "speech_actual",
-  ]) {
+  for (const field of ["goal", "blockage", "speech_self", "speech_actual"]) {
     assert.match(source, new RegExp(`field: "${field}"`), `${field} 칸이 없다`);
   }
+  // 성별·나이는 프로필이 가진다(account.profile).
+  assert.doesNotMatch(source, /field: "gender"|field: "age"/);
+  assert.match(readSource("src/lib/api/v2/memory.ts"), /MEMORY_FIELDS = \[\s*"goal",/);
 });
 
-test("성별·나이는 배우만 쓰는 칸으로 다룬다", () => {
-  // 코치는 영상이나 말투에서 짐작하지 않는다. 데이터베이스가 코치의 쓰기를 막고
-  // 있어서, 이 화면이 그 칸을 채울 수 있는 유일한 통로다.
-  const api = readSource("src/lib/api/v2/memory.ts");
-
-  assert.match(api, /ACTOR_ONLY_FIELDS = \["gender", "age"\]/);
-  assert.match(panel(), /isActorOnlyField/);
-  assert.match(panel(), /내가 적는 칸/);
+test("practice.memory: 웹 게스트에게는 프로필 편집 링크 대신 앱 이관 안내가 있다", () => {
+  // 게스트에게는 프로필이 없다. 어디서 적을 수 있는지는 말해 준다.
+  assert.match(panel(), /성별·나이는 앱으로 옮기면 프로필에서 적어요/);
+  assert.match(panel(), /\{PROFILE_MOVE_NOTICE\}/);
 });
 
-test("코치가 짐작하지 않는다고 그 칸에 적어 둔다", () => {
-  assert.match(panel(), /짐작하지 않아요/);
-});
-
-test("칸마다 누가 적었는지 구분해 보여준다", () => {
+test("practice.memory: 내가 적은 값임을 칸마다 보여준다", () => {
   // 내가 고친 칸은 코치가 덮지 않는다는 걸 알아야 고치는 의미가 생긴다.
   const source = panel();
 
-  assert.match(source, /edited_by_me/);
-  assert.match(source, /내가 적음/);
+  assert.match(source, /written_by_actor/);
+  assert.match(source, /내가 적은 값/);
   assert.match(source, /코치가 적음/);
+});
+
+test("practice.memory: 갱신 시점을 사실대로 적는다", () => {
+  // 실제로는 첫 확인 연습과 그 뒤 3회마다다(1·3·6·9…). "마칠 때마다"는 사실이 아니다.
+  assert.doesNotMatch(panel(), /연습을 마칠 때마다/);
 });
 
 test("코치가 적은 칸은 근거가 된 연습으로 갈 수 있다", () => {
   // "이게 왜 이렇게 적혔지" 를 볼 수 있어야 고칠지 판단이 선다.
   const source = panel();
 
-  assert.match(source, /source_practice_session_id/);
+  assert.match(source, /source_practice_id/);
   assert.match(source, /\/home\?session=/); // 연습 화면이 세션을 여는 방식
 });
 
@@ -100,14 +93,14 @@ test("기억이 하나도 없을 때 빈 화면을 설명한다", () => {
   assert.match(panel(), /아직 적힌 게 없어요/);
 });
 
-test("저장 길이 상한이 서버와 같다", () => {
+test("practice.memory: 저장 길이 상한이 서버와 같다(1,000자)", () => {
   const source = readSource("src/lib/api/v2/memory.ts");
 
   assert.match(source, /MEMORY_VALUE_MAX_LENGTH = 1000/);
   assert.match(panel(), /maxLength=\{MEMORY_VALUE_MAX_LENGTH\}/);
 });
 
-test("로그인해야 열리는 화면이라 색인하지 않는다", () => {
+test("게스트 한 사람의 자료를 보는 화면이라 색인하지 않는다", () => {
   const source = readSource("src/app/memory/page.tsx");
 
   assert.match(source, /buildNoindexMetadata/);

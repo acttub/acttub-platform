@@ -38,43 +38,24 @@ final class RequestBodyTreeValidator {
 
         List<Map<String, Object>> errors = new ArrayList<>();
         Set<String> knownFields = new HashSet<>();
-        Object wholeBody = input(body);
+        Set<String> credentials = credentialFields(bodyType);
+        Object wholeBody = credentials.isEmpty() ? input(body) : withoutCredentials(bodyType, body, credentials);
         for (RecordComponent component : bodyType.getRecordComponents()) {
             String field = wireName(bodyType, component);
             knownFields.add(field);
             List<Object> location = List.of("body", field);
-            boolean present = body.has(field);
-            NotNull required = annotation(component, NotNull.class);
-            if (!present) {
-                if (required != null) {
-                    errors.add(ApiErrorAdvice.validationError(
-                            "missing", location, "Field required", wholeBody));
-                }
+            if (credentials.contains(field)) {
+                // 자격 칸의 오류는 같은 모양으로 내되 값은 싣지 않는다 (CredentialField).
+                // 빠진 칸의 input 은 이미 자격 값을 뺀 본문이라 그대로 둔다.
+                List<Map<String, Object>> own = new ArrayList<>();
+                validateComponent(component, body, location, wholeBody, own);
+                own.stream()
+                        .filter(error -> !"missing".equals(error.get("type")))
+                        .forEach(error -> error.computeIfPresent("input", (key, echoed) -> CredentialField.REDACTED));
+                errors.addAll(own);
                 continue;
             }
-
-            JsonNode value = body.get(field);
-            Schema schema = annotation(component, Schema.class);
-            if (value.isNull()) {
-                if (schema == null || !schema.nullable()) {
-                    errors.add(this.errors.nullTypeError(component.getType(), location));
-                }
-                continue;
-            }
-
-            if (component.getType() == String.class) {
-                if (!value.isTextual()) {
-                    errors.add(ApiErrorAdvice.validationError(
-                            "string_type",
-                            location,
-                            "Input should be a valid string",
-                            input(value)));
-                    continue;
-                }
-                validateString(schema, location, value.textValue(), errors);
-            } else if (isScalar(component.getType())) {
-                validateScalar(component, value, location, errors);
-            }
+            validateComponent(component, body, location, wholeBody, errors);
         }
         if (!ignoresUnknown(bodyType)) {
             body.fields().forEachRemaining(entry -> {
@@ -83,11 +64,77 @@ final class RequestBodyTreeValidator {
                             "extra_forbidden",
                             List.of("body", entry.getKey()),
                             "Extra inputs are not permitted",
-                            input(entry.getValue())));
+                            credentials.isEmpty() ? input(entry.getValue()) : CredentialField.REDACTED));
                 }
             });
         }
         return List.copyOf(errors);
+    }
+
+    private void validateComponent(
+            RecordComponent component,
+            JsonNode body,
+            List<Object> location,
+            Object wholeBody,
+            List<Map<String, Object>> errors) {
+        String field = (String) location.get(1);
+        NotNull required = annotation(component, NotNull.class);
+        if (!body.has(field)) {
+            if (required != null) {
+                errors.add(ApiErrorAdvice.validationError(
+                        "missing", location, "Field required", wholeBody));
+            }
+            return;
+        }
+
+        JsonNode value = body.get(field);
+        Schema schema = annotation(component, Schema.class);
+        if (value.isNull()) {
+            if (schema == null || !schema.nullable()) {
+                errors.add(this.errors.nullTypeError(component.getType(), location));
+            }
+            return;
+        }
+
+        if (component.getType() == String.class) {
+            if (!value.isTextual()) {
+                errors.add(ApiErrorAdvice.validationError(
+                        "string_type",
+                        location,
+                        "Input should be a valid string",
+                        input(value)));
+                return;
+            }
+            validateString(schema, location, value.textValue(), errors);
+        } else if (isScalar(component.getType())) {
+            validateScalar(component, value, location, errors);
+        }
+    }
+
+    /** 이 요청 본문에서 자격 값이 실리는 칸의 이름(요청에 적히는 이름). 없으면 빈 집합. */
+    private Set<String> credentialFields(Class<?> bodyType) {
+        Set<String> fields = new HashSet<>();
+        for (RecordComponent component : bodyType.getRecordComponents()) {
+            if (annotation(component, CredentialField.class) != null) {
+                fields.add(wireName(bodyType, component));
+            }
+        }
+        return fields;
+    }
+
+    /**
+     * 본문 전체를 싣는 자리에 대신 싣는 것 — 선언된 칸 가운데 자격 값이 아닌 것만. 모르는 키도 뺀다:
+     * 이름을 잘못 쓴 키({@code idToken})에 토큰이 실려 온다.
+     */
+    private Object withoutCredentials(Class<?> bodyType, JsonNode body, Set<String> credentials) {
+        Map<String, Object> kept = new java.util.LinkedHashMap<>();
+        for (RecordComponent component : bodyType.getRecordComponents()) {
+            String field = wireName(bodyType, component);
+            if (!credentials.contains(field) && body.has(field)) {
+                kept.put(field, input(body.get(field)));
+            }
+        }
+        return kept;
     }
 
     private void validateScalar(

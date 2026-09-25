@@ -29,7 +29,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Service;
 
 /**
  * 코칭 대화의 규칙 (Python {@code acting_api.coaching}). HTTP 도 SQL 도 모르며, 요청 하나가 어떤
@@ -42,7 +41,6 @@ import org.springframework.stereotype.Service;
  * <p><b>성적표는 {@code report} 에게 맡긴다.</b> 코치는 언제 성적표를 만들지·만든 것을 어디에
  * 실을지만 정하고, 무엇을 어떻게 만드는지는 {@link ReportEngine}·{@link ReportService} 가 안다.
  */
-@Service
 public class CoachService {
 
     private static final Logger LOG = LoggerFactory.getLogger(CoachService.class);
@@ -56,6 +54,7 @@ public class CoachService {
     private final CoachOperationLedger operations;
     private final CoachEngine coach;
     private final CoachMemory memory;
+    private final CoachProfile profiles;
     private final CoachResponseRenderer renderer;
     private final ReportEngine reports;
     private final ReportService reportService;
@@ -69,6 +68,7 @@ public class CoachService {
             CoachOperationLedger operations,
             CoachEngine coach,
             CoachMemory memory,
+            CoachProfile profiles,
             CoachResponseRenderer renderer,
             ReportEngine reports,
             ReportService reportService,
@@ -80,6 +80,7 @@ public class CoachService {
         this.operations = operations;
         this.coach = coach;
         this.memory = memory;
+        this.profiles = profiles;
         this.renderer = renderer;
         this.reports = reports;
         this.reportService = reportService;
@@ -145,7 +146,8 @@ public class CoachService {
                 CoachResult result = coach.start(
                         owned.newCoachSession(UUID.randomUUID())
                                 .withPrior(priorContext(
-                                        userId, owned.practiceSessionId(), claim.operationId())),
+                                        userId, owned.practiceSessionId(), claim.operationId()))
+                                .withActorProfile(actorProfile(userId, claim.operationId())),
                         claim.operationId());
                 CompletedTurn completed = completeTurn(result.session(), result.reply());
                 ObjectNode payload = renderer.turn(
@@ -223,9 +225,12 @@ public class CoachService {
                 // 않으면 배우가 대화 중에 "내 목표 기억해?" 라고 물어도 코치가 모른다 —
                 // 첫 질문에만 실리고 그 뒤로는 잃어버리는 구멍이 실제로 있었다. 턴마다
                 // 새로 읽으므로, 대화 중에 기억을 고치면 다음 답변부터 반영된다.
+                // 프로필도 같다 — 저장하지 않는 입력이라 턴마다 다시 읽는다. 설정에서 고친 값이 다음
+                // 답변부터 반영되고, 재생성도 이 스냅샷으로 프롬프트를 다시 만든다.
                 CoachSessionSnapshot session = owned.session()
                         .withPrior(priorContext(
-                                userId, owned.practiceSessionId(), claim.operationId()));
+                                userId, owned.practiceSessionId(), claim.operationId()))
+                        .withActorProfile(actorProfile(userId, claim.operationId()));
                 CoachResult result = coach.reply(session, command.text(), claim.operationId());
                 CompletedTurn completed = completeReplyTurn(result.session(), result.reply());
                 ObjectNode payload = renderer.turn(
@@ -313,7 +318,7 @@ public class CoachService {
                 JsonNode existing = command.confirmed() && source.handoffId() != null
                         ? sessions.getPracticeReportForHandoff(source.handoffId())
                         : null;
-                JsonNode report = existing == null ? reportService.reportFor(source) : existing;
+                JsonNode report = existing == null ? reportService.reportFor(userId, source) : existing;
                 ObjectNode payload = renderer.confirmation(
                         command.coachSessionId(),
                         command.confirmed(),
@@ -385,6 +390,24 @@ public class CoachService {
     }
 
     /**
+     * 배우가 저장해 둔 완성된 프로필. 없거나 다 채우지 않았으면 {@code null} 이다.
+     *
+     * <p>기억과 같은 판단이다 — <b>읽다 실패해도 대화는 이어져야 한다.</b> 프로필은 코치가 배우에게
+     * 맞춰 말하게 하는 참고 입력이지 대화의 전제가 아니다. 실패하면 프로필이 없는 것으로 간다.
+     */
+    private ActorProfile actorProfile(UUID userId, UUID operationId) {
+        try {
+            return profiles.completeFor(userId);
+        } catch (RuntimeException failure) {
+            LOG.warn("배우 프로필을 읽지 못했다: {}", userId, failure);
+            failureReporter.report(
+                    failure,
+                    new FailureContext("CoachService.actorProfile", operationId));
+            return null;
+        }
+    }
+
+    /**
      * 연습을 마쳤으면 기억 갱신을 뒤에서 돌도록 큐에 넣는다 (`coaching.py:_schedule_memory_update`).
      *
      * <p>여기서 직접 갱신하지 않는 이유는 속도다 — 이 응답은 이미 성적표를 만드느라 느린데 모델
@@ -437,11 +460,6 @@ public class CoachService {
             return new CompletedTurn(branch, null, null);
         }
         UUID handoffId = UUID.randomUUID();
-        if (session.threeLayers()) {
-            // 연습 루프 세션은 코치가 정리해 둔 버릇·한 줄·다음 테이크로 노트를 채운다.
-            JsonNode loopNote = DirectVideoPracticeLoop.practiceNote(session, reply.handoff());
-            if (loopNote != null) return new CompletedTurn(branch, handoffId, loopNote);
-        }
         JsonNode report = reports.generateReport(
                 branch,
                 observationPack(session.observationPack()),

@@ -26,7 +26,18 @@ export class UnsupportedFileError extends Error {
   }
 }
 
+/** 파일 한도. 넘으면 글자를 뽑기 전에 기기에서 거른다(reading.script). */
+export const FILE_MAX_BYTES = 20_000_000;
+
+export class FileTooLargeError extends Error {
+  constructor() {
+    super("파일이 너무 커요(20MB까지). 텍스트를 복사해 붙여넣어 주세요.");
+    this.name = "FileTooLargeError";
+  }
+}
+
 export async function extractText(file: File): Promise<string> {
+  if (file.size > FILE_MAX_BYTES) throw new FileTooLargeError();
   switch (kindOf(file)) {
     case "pdf":
       return extractPdfText(file);

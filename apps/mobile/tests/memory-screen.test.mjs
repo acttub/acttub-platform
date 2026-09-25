@@ -23,48 +23,40 @@ test('설정에서 기억 화면으로 들어가는 길이 있다', () => {
   assert.match(source, /router\.push\('\/memory'\)/);
 });
 
-test('여섯 칸을 모두 보여준다', () => {
+test('practice.memory: 연습에서 나온 네 칸만 보여주고 성별·나이는 없다', () => {
   const source = readSource('app/memory.tsx');
 
-  for (const field of [
-    'gender',
-    'age',
-    'goal',
-    'blockage',
-    'speech_self',
-    'speech_actual',
-  ]) {
-    assert.match(source, new RegExp(`'${field}'`), `${field} 칸이 없다`);
+  assert.match(source, /MEMORY_FIELDS/);
+  for (const field of ['gender', 'age']) {
+    assert.doesNotMatch(source, new RegExp(`'${field}'`), `${field} 칸이 남아 있다`);
   }
+  assert.doesNotMatch(readSource('lib/api.ts'), /ACTOR_ONLY_MEMORY_FIELDS/);
 });
 
-test('성별·나이는 배우만 쓰는 칸으로 다룬다', () => {
-  // 코치는 영상이나 말투에서 짐작하지 않는다. 데이터베이스가 코치의 쓰기를 막고
-  // 있어서, 이 화면이 그 칸을 채우는 유일한 통로다.
-  assert.match(readSource('lib/api.ts'), /ACTOR_ONLY_MEMORY_FIELDS/);
-  // 문구는 현지화(SOMA-449)로 언어 파일에 산다 — 정본인 한국어 파일 + 화면의 키 사용을 본다.
-  assert.match(readSource('app/memory.tsx'), /memory\.tagActorOnly/);
-  assert.match(readSource('locales/ko.ts'), /내가 적는 칸/);
-  assert.match(readSource('locales/ko.ts'), /짐작하지 않아요/);
-});
-
-test('칸마다 누가 적었는지 구분해 보여준다', () => {
-  // 내가 고친 칸은 코치가 덮지 않는다는 걸 알아야 고치는 의미가 생긴다.
+test('practice.memory: 성별·나이 자리에는 프로필 안내와 링크가 있다', () => {
   const source = readSource('app/memory.tsx');
 
-  assert.match(source, /edited_by_me/);
-  assert.match(source, /memory\.tagMine/);
+  assert.match(source, /profileNotice\(\)/);
+  assert.match(source, /memory\.openProfile/);
+  assert.match(source, /'\/profile-edit'/);
+  assert.match(readSource('locales/ko.ts'), /성별·나이는 프로필에서 적어요/);
+});
+
+test('practice.memory: 내가 적은 값은 그렇게 표시하고 코치가 덮지 않는다', () => {
+  const source = readSource('app/memory.tsx');
+
+  assert.match(source, /isWrittenByActor/);
+  assert.match(source, /memory\.writtenByMe/);
   assert.match(source, /memory\.tagCoach/);
-  assert.match(readSource('locales/ko.ts'), /내가 적음/);
+  assert.match(readSource('locales/ko.ts'), /내가 적은 값/);
   assert.match(readSource('locales/ko.ts'), /코치가 적음/);
 });
 
-test('코치가 적은 칸은 근거가 된 연습으로 갈 수 있다', () => {
-  // "이게 왜 이렇게 적혔지" 를 볼 수 있어야 고칠지 판단이 선다.
+test('practice.memory: 코치가 적은 칸은 근거가 된 회차로 갈 수 있다(숨겨졌으면 링크 없음)', () => {
   const source = readSource('app/memory.tsx');
 
-  assert.match(source, /source_practice_session_id/);
-  assert.match(source, /practiceSessionId/); // report-detail 이 받는 이름
+  assert.match(source, /source_practice_id/);
+  assert.match(source, /practiceId/); // 노트 화면이 받는 이름
 });
 
 test('고치는 내용이 코치에게 우선한다고 화면에 적혀 있다', () => {
@@ -107,9 +99,11 @@ test('API client 가 기억 통로 넷을 모두 연다', () => {
   assert.match(source, /deleteAllActorMemory\(/);
 });
 
-test('저장 길이 상한이 서버와 같다', () => {
-  // 서버가 1000자에서 거부한다. 화면에서 미리 막지 않으면 저장 순간에야 실패한다.
+test('practice.memory: 저장 길이 상한이 서버와 같다(1,000자)', () => {
+  // 서버가 1,000자에서 거부한다. 화면에서 미리 막지 않으면 저장 순간에야 실패한다.
   const source = readSource('app/memory.tsx');
 
-  assert.match(source, /maxLength=\{1000\}/);
+  assert.match(source, /maxLength=\{MEMORY_VALUE_MAX\}/);
+  assert.match(source, /memoryValueTooLong/);
+  assert.match(readSource('lib/practice/memory.ts'), /MEMORY_VALUE_MAX = 1_000/);
 });

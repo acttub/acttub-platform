@@ -2,78 +2,145 @@ import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
-import { api, type ReportRecord } from '@/lib/api';
+import { api } from '@/lib/api';
 import { buildWeekActivity } from '@/lib/practice-activity';
+import { practiceStreak, groupTitle, recentGroups } from '@/lib/practice/groups';
+import type { PracticeGroup } from '@/lib/practice/types';
 import { rememberPracticeDays } from '@/lib/practice-days';
 import { dismissFeedbackNudge, feedbackNudgeVisible, maybeRequestStoreReview } from '@/lib/feedback-prompts';
 import { useFeedbackSheet } from '@/hooks/use-feedback-sheet';
-import { sortReportsNewestFirst } from '@/lib/report-order';
+import { hasSeenSpotlight, hasSeenTutorial, markSpotlightSeen, markTutorialSeen } from '@/lib/guide-state';
+import { currentTutorial, startTutorial } from '@/lib/tutorial';
 import {
   localDate,
   upcomingNotices,
   type AdmissionsResponse,
 } from '@/lib/admissions';
-import { translate as t } from '@/lib/i18n';
-import { StreakCelebration } from '@/components/streak-badge';
+import { dateLocale, isKorean, translate as t } from '@/lib/i18n';
+import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
+import { TutorialIntroSheet, type TutorialChoice } from '@/components/tutorial-intro-sheet';
+import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
+import { StreakCelebrationScreen } from '@/components/streak-celebration-screen';
+import { HomeMascot } from '@/components/home-mascot';
+import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
+import { TARGET } from '@/lib/spotlight-targets';
 import {
   readLastSeenStreak,
-  shouldCelebrateStreak,
+  celebrationDots,
+  streakCelebrationStep,
   writeLastSeenStreak,
 } from '@/lib/streak-celebration';
 
 const PREVIEW_COUNT = 3;
-const MASCOT = require('@/assets/images/mascot-home.png');
 /** 연속 연습 스트립의 주황(pen). 팔레트의 amber는 글자용이라 따로 둔다. */
 const STREAK_ORANGE = '#E9A23B';
+
+/** 홈에서 처음 한 번 비추는 자리 — 연습을 시작하는 배너, 그리고 바로 찍는 버튼 (SOMA-550). */
+const HOME_STEPS: SpotlightStep[] = [
+  { target: TARGET.homeStart, text: 'guide.spotHomeStart' },
+  { target: TARGET.shoot, text: 'guide.spotShoot', round: true },
+];
 
 function recentDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
+  return d.toLocaleDateString(dateLocale(), { month: 'long', day: 'numeric' });
 }
 
 /** A1. 홈 — 히어로(마스코트) + 지금 바로 연습 + 연속 연습 + 최근 연습 + 입시 마감. */
 export default function HomeScreen() {
   const router = useRouter();
-  const [records, setRecords] = useState<ReportRecord[]>([]);
+  const [groups, setGroups] = useState<PracticeGroup[]>([]);
   // 연속일·주간 원용 날짜 — 서버 기록 ∪ 기기에 누적된 연습일(지워도 남는다).
   const [activityDays, setActivityDays] = useState<{ created_at: string }[]>([]);
+  // 기록을 한 번이라도 받았는지 — 받기 전의 연속일(0)로 축하를 판단하면 안 된다.
+  const [activityLoaded, setActivityLoaded] = useState(false);
   const [admissions, setAdmissions] = useState<AdmissionsResponse | null>(null);
   const [celebrateStreak, setCelebrateStreak] = useState<number | null>(null);
   // 연습 3회 뒤 한 번 뜨는 의견 넛지 / 5회 뒤 한 번 스토어 평점(feedback-prompts).
   const [nudge, setNudge] = useState(false);
   const feedback = useFeedbackSheet('home');
+  // 처음 한 번만 가이드 — 누를 자리를 비춰 준다. 설정의 "가이드 다시 보기"로 되살릴 수 있다.
+  const [guideOpen, setGuideOpen] = useState(false);
+  // 그보다 먼저, 처음 연 사람에게 연습 한 바퀴를 권한다(SOMA-494). 이걸 닫아야 위 가이드가 뜬다.
+  const [introOpen, setIntroOpen] = useState(false);
+  const startTarget = useSpotlightTarget(TARGET.homeStart);
+
+  const openHomeGuideIfNew = useCallback(() => {
+    void hasSeenSpotlight('home').then((seen) => {
+      if (!seen) setGuideOpen(true);
+    });
+  }, []);
+
+  const chooseTutorial = (choice: TutorialChoice) => {
+    setIntroOpen(false);
+    if (choice === 'later') {
+      void markTutorialSeen();
+      openHomeGuideIfNew();
+      return;
+    }
+    if (choice === 'sample') {
+      startTutorial('sample');
+      router.push({ pathname: '/upload', params: { sample: '1' } });
+      return;
+    }
+    startTutorial('own');
+    router.push('/upload');
+  };
 
   useFocusEffect(
     useCallback(() => {
+      // 올 때마다 본 적 있는지 묻는다(기기에서 읽는 값이라 싸다). 한 번만 묻고 말면,
+      // 설정에서 되살린 뒤 앱을 껐다 켜야 보인다 — 실기기에서 그렇게 걸렸다.
+      // 튜토리얼 중에 홈으로 돌아왔다면 루프를 벗어난 것이다 — 거기서 끝낸다.
+      if (currentTutorial()) finishTutorial('left');
+      void hasSeenTutorial().then((seen) => {
+        if (!seen) setIntroOpen(true);
+        else openHomeGuideIfNew();
+      });
       let cancelled = false;
       api
-        .reportHistory()
+        .listPracticeGroups('all')
         .then((r) => {
           if (cancelled) return;
-          setRecords(sortReportsNewestFirst(r.reports));
-          void rememberPracticeDays(r.reports).then((days) => !cancelled && setActivityDays(days));
-          void feedbackNudgeVisible(r.reports.length).then((v) => !cancelled && setNudge(v));
-          void maybeRequestStoreReview(r.reports.length);
+          setGroups(r.groups);
+          // 연습한 날은 기기에도 쌓아 둔다 — 기록을 숨겨도 "그 날 연습했다"는 사실은 남는다.
+          const practicedAt = r.groups
+            .flatMap((g) => g.practices.map((round) => round.created_at))
+            .filter((at): at is string => typeof at === 'string' && at.length > 0)
+            .map((created_at) => ({ created_at }));
+          void rememberPracticeDays(practicedAt).then((days) => {
+            if (cancelled) return;
+            setActivityDays(days);
+            setActivityLoaded(true);
+          });
+          void feedbackNudgeVisible(r.groups.length).then((v) => !cancelled && setNudge(v));
+          void maybeRequestStoreReview(r.groups.length);
         })
         .catch(() => {
           if (!cancelled) {
-            setRecords([]);
-            void rememberPracticeDays([]).then((days) => !cancelled && setActivityDays(days));
+            setGroups([]);
+            void rememberPracticeDays([]).then((days) => {
+              if (cancelled) return;
+              setActivityDays(days);
+              setActivityLoaded(true);
+            });
           }
         });
       return () => {
         cancelled = true;
       };
-    }, []),
+    }, [router, openHomeGuideIfNew]),
   );
 
   useEffect(() => {
     // 입시는 로그인과 무관하고 배포 때만 바뀐다 — 포커스마다 다시 읽지 않는다.
+    // 한국어를 안 쓰는 사람에겐 보여줄 자리가 없으니 받아오지도 않는다 (SOMA-544).
+    if (!isKorean()) return;
     let cancelled = false;
     api
       .admissions()
@@ -88,32 +155,43 @@ export default function HomeScreen() {
     };
   }, []);
 
+  // 연기 입시는 한국 대학 일정이라 한국어로 쓰는 사람에게만 쓸모가 있다 (SOMA-544).
   const deadlines = useMemo(
-    () => (admissions ? upcomingNotices(admissions, localDate(), 2) : []),
+    () => (admissions && isKorean() ? upcomingNotices(admissions, localDate(), 2) : []),
     [admissions],
   );
 
-  const { days, streak } = useMemo(() => buildWeekActivity(activityDays), [activityDays]);
+  const { days } = useMemo(() => buildWeekActivity(activityDays), [activityDays]);
+  // 연속 연습 일수는 회차 시작 날짜를 한국 시간으로 센다(practice.library).
+  const streak = useMemo(() => practiceStreak(activityDays.map((d) => d.created_at)), [activityDays]);
 
   // 연속일이 오늘 늘었으면(마지막으로 본 값보다 크면) 딱 한 번 축하한다 (SOMA-479).
+  // 기록을 받기 전엔 판단하지 않는다 — 그때의 0 을 기억하면 켤 때마다 다시 축하한다(SOMA-494).
   useEffect(() => {
+    if (!activityLoaded) return;
     let cancelled = false;
     void readLastSeenStreak().then((lastSeen) => {
       if (cancelled) return;
-      if (shouldCelebrateStreak(lastSeen, streak)) setCelebrateStreak(streak);
-      void writeLastSeenStreak(streak);
+      const step = streakCelebrationStep({ loaded: activityLoaded, lastSeen, current: streak });
+      if (step.celebrate) setCelebrateStreak(streak);
+      if (step.remember !== null) void writeLastSeenStreak(step.remember);
     });
     return () => {
       cancelled = true;
     };
-  }, [streak]);
+  }, [activityLoaded, streak]);
 
-  const recent = records.slice(0, PREVIEW_COUNT);
+  // 홈의 최근 연습은 숨기지 않은 묶음 3개다.
+  const recent = useMemo(() => recentGroups(groups, PREVIEW_COUNT), [groups]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       {celebrateStreak !== null && (
-        <StreakCelebration streak={celebrateStreak} onDone={() => setCelebrateStreak(null)} />
+        <StreakCelebrationScreen
+          streak={celebrateStreak}
+          dots={celebrationDots(days)}
+          onDone={() => setCelebrateStreak(null)}
+        />
       )}
       <ScrollView contentContainerStyle={styles.container}>
         {/* 히어로 — 큰 격려 문구 + 마스코트 */}
@@ -122,16 +200,13 @@ export default function HomeScreen() {
             <Text style={styles.heroTitle}>{t('home.heroTitle')}</Text>
             <Text style={styles.heroSub}>{t('home.heroSub')}</Text>
           </View>
-          <View style={styles.mascotCol}>
-            <View style={styles.bubble}>
-              <Text style={styles.bubbleText}>{t('home.mascotBubble')}</Text>
-            </View>
-            <Image source={MASCOT} style={styles.mascot} resizeMode="contain" />
-          </View>
+          <HomeMascot streak={streak} />
         </View>
 
         {/* 지금 바로 연습하기 — 배너 전체가 버튼 */}
         <Pressable
+          ref={startTarget.ref}
+          onLayout={startTarget.onLayout}
           style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
           accessibilityRole="button"
           accessibilityLabel={t('home.startA11y')}
@@ -215,22 +290,17 @@ export default function HomeScreen() {
           <View style={styles.recentList}>
             {recent.map((r) => (
               <Pressable
-                key={r.practice_session_id + r.created_at}
+                key={r.root_id}
                 style={({ pressed }) => [styles.recentRow, pressed && styles.recentRowPressed]}
-                onPress={() =>
-                  router.push({
-                    pathname: '/report-detail',
-                    params: { practiceSessionId: r.practice_session_id },
-                  })
-                }>
+                onPress={() => router.push({ pathname: '/practice-group', params: { rootId: r.root_id } })}>
                 <View style={styles.recentIcon}>
                   <Feather name="film" size={17} color={palette.blue} />
                 </View>
                 <View style={styles.flex}>
-                  <Text style={styles.recentTitle} numberOfLines={1}>{r.title}</Text>
+                  <Text style={styles.recentTitle} numberOfLines={1}>{groupTitle(r)}</Text>
                   <View style={styles.recentMeta}>
                     <View style={styles.recentDot} />
-                    <Text style={styles.recentMetaText}>{recentDate(r.created_at)}</Text>
+                    <Text style={styles.recentMetaText}>{recentDate(r.last_practiced_at ?? '')}</Text>
                   </View>
                 </View>
                 <Feather name="chevron-right" size={16} color={palette.checkOff} />
@@ -276,6 +346,16 @@ export default function HomeScreen() {
         )}
       </ScrollView>
       {feedback.element}
+      <TutorialIntroSheet visible={introOpen} onChoose={chooseTutorial} />
+      <SpotlightGuide
+        visible={guideOpen && !introOpen}
+        topic="home"
+        steps={HOME_STEPS}
+        onDone={() => {
+          setGuideOpen(false);
+          void markSpotlightSeen('home');
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -288,17 +368,6 @@ const styles = StyleSheet.create({
   hero: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingTop: 12 },
   heroTitle: { fontSize: 26, fontWeight: '800', color: palette.text, lineHeight: 34 },
   heroSub: { fontSize: 13, fontWeight: '600', color: palette.textDim, lineHeight: 20, marginTop: 12 },
-  mascotCol: { width: 118, alignItems: 'center', gap: 4 },
-  bubble: {
-    backgroundColor: palette.card,
-    borderColor: palette.border,
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  bubbleText: { fontSize: 11.5, fontWeight: '700', color: palette.textDim, textAlign: 'center', lineHeight: 16 },
-  mascot: { width: 96, height: 108 },
 
   cta: {
     flexDirection: 'row',

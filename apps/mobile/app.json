@@ -2,11 +2,15 @@
   "expo": {
     "name": "Acttub",
     "slug": "acting-app",
-    "version": "0.0.6",
+    "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "actingapp",
     "userInterfaceStyle": "automatic",
+    "locales": {
+      "ko": "./locales/ios/ko.json",
+      "en": "./locales/ios/en.json"
+    },
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
@@ -42,7 +46,9 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "./plugins/with-ios-only-locales.js",
       "expo-router",
+      "./plugins/with-splash-adaptive-icon.js",
       [
         "expo-build-properties",
         {

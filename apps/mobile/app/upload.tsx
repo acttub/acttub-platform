@@ -1,8 +1,9 @@
 import * as ImagePicker from 'expo-image-picker';
-import { Stack, useRouter, useFocusEffect } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { useEffect, useRef, useState, type RefObject, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,247 +13,396 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { FirstUploadGuide } from '@/components/first-upload-guide';
-import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
-import { beginAnalysisNavigation } from '@/lib/analysis-entry';
-import type { VideoFile } from '@/lib/api';
-import { useAuth } from '@/lib/auth';
-import { BLOCKAGE_CHOICES, blockageFromHelp, type BlockageKind } from '@/lib/blockage';
-import { THEORY_IDS, toggleTheoryChoice, type TheoryChoiceId } from '@/lib/theory';
-import { setPendingUpload, takePrefill } from '@/lib/practice';
-import { takeRecordedVideo } from '@/lib/recorded-video';
-import {
-  MAX_VIDEO_DURATION_MS,
-  missingUploadFieldsHint,
-  normalizeVideoDurationMs,
-} from '@/lib/upload-input';
-import { palette } from '@/constants/palette';
+import { useAppDialog } from '@/components/app-dialog';
 import { Stepper } from '@/components/practice-chrome';
+import { palette } from '@/constants/palette';
+import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
+import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
+import { useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
+import { logEvent } from '@/lib/analytics';
+import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import { translate as t } from '@/lib/i18n';
+import {
+  confirmedVideoFor,
+  flushLibraryUploads,
+  localCopyFor,
+  onLibraryChange,
+  saveRecordingToLibrary,
+} from '@/lib/library/library-runner';
+import { videoErrorMessage } from '@/lib/library/video-checks';
+import { peekPickedVideo, takePickedVideo, type PickedVideo } from '@/lib/practice/picked-video';
+import { canStart, continueVideoId, planFor, type StartPlan } from '@/lib/practice/resume';
+import {
+  BLOCKAGE_NOTE_MAX,
+  SCENE_MAX,
+  attemptFor,
+  blockageNoteOverflow,
+  buildContinueBody,
+  buildStartBody,
+  emptyBlockageDraft,
+  fingerprintOf,
+  inProgressPracticeId,
+  sceneOverflow,
+  startFailure,
+  type BlockageDraft,
+  type SceneDraft,
+  type StartAttempt,
+} from '@/lib/practice/start';
+import { takeContinueOrigin } from '@/lib/practice/session-state';
+import type { BlockageCategory, BlockageDetail } from '@/lib/practice/types';
+import { newRequestId } from '@/lib/request-id';
+import { TARGET } from '@/lib/spotlight-targets';
+import { sampleVideoUri } from '@/lib/tutorial-loop';
+import { SAMPLE_PRACTICE_ID, sampleScene } from '@/lib/tutorial-sample';
+import { normalizeVideoDurationMs } from '@/lib/upload-input';
 
 /**
- * A2. 영상 올리기 + 의도 입력 — 영상과 "이 장면에서 뭘 하려 했는지"를 받는다.
- * 기록에서 "같은 장면 다시 찍기"로 들어오면 장면 정보가 미리 채워진다(프리필만, 비교 로직 없음).
+ * A8·A8.1·A9.x 새 연습 준비(practice.start · practice.resume).
+ *
+ * 영상은 보관함에서 고르거나 새로 찍는다 — 여기서 올리지 않는다(올리기는 보관함 큐가 한다).
+ * 상황·인물·목표와 막힘은 모두 선택이고, 시작을 누르면 회차 하나와 분석 작업 하나가 생긴다.
+ * 같은 시도의 재전송은 같은 요청 id 라 회차는 하나다. 묶음에 진행 중 회차가 있으면(409) 그
+ * 회차로 돌려보낸다. 이론 선택은 1.0.0에서 뺐다.
  */
+const CATEGORIES: BlockageCategory[] = ['분석', '표현', '그 외'];
+const EXPRESSION_DETAILS: BlockageDetail[] = ['감정', '움직임', '화술', '표정', '그 외'];
+const ANALYSIS_DETAILS: BlockageDetail[] = ['캐릭터 분석', '대사 분석', '그 외'];
+
+function detailsFor(category: BlockageCategory | null): BlockageDetail[] {
+  if (category === '표현') return EXPRESSION_DETAILS;
+  if (category === '분석') return ANALYSIS_DETAILS;
+  return [];
+}
+
 export default function UploadScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { alert, confirm, dialog } = useAppDialog();
   const keyboardHeight = useKeyboardHeight();
-  // SafeAreaView가 이미 하단 인셋을 비워두므로 그만큼 빼고 올린다([[use-keyboard-height]]).
   const keyboardVisible = keyboardHeight > 0;
-  const [prefilled, setPrefilled] = useState(false);
-  // 이어서 연습 — 렌더와 무관하고 제출 시 한 번 실린다.
-  const continuedFromRef = useRef<string | null>(null);
-  const [situation, setSituation] = useState('');
-  const [character, setCharacter] = useState('');
-  const [goal, setGoal] = useState('');
-  // 도움 종류·상세·이론을 한 화면에서 받는다(웹 준비 화면과 동일). 셋 다 선택이다.
-  const [helpKind, setHelpKind] = useState<BlockageKind | null>(null);
-  const [detail, setDetail] = useState('');
-  const [theory, setTheory] = useState<TheoryChoiceId | null>(null);
-  const [video, setVideo] = useState<VideoFile | null>(null);
-  const [durationMs, setDurationMs] = useState<number | null>(null);
-  const [videoError, setVideoError] = useState<string | null>(null);
-  const [agreedRights, setAgreedRights] = useState(false);
-  const startLockRef = useRef(false);
+
+  // 튜토리얼의 예시(SOMA-494) — 예시 영상과 장면을 채워 두고, 시작하면 서버 없이 예시 회차로 간다.
+  const sample = useLocalSearchParams<{ sample?: string }>().sample === '1';
+  const [plan, setPlan] = useState<StartPlan>(() => planFor(sample ? null : takeContinueOrigin()));
+  const [picked, setPicked] = useState<PickedVideo | null>(() =>
+    sample
+      ? { videoId: null, pendingId: null, uri: sampleVideoUri(), playbackUrl: null, durationMs: null }
+      : peekPickedVideo(),
+  );
+  const [scene, setScene] = useState<SceneDraft>(() => (sample ? sampleScene() : plan.scene));
+  const [blockage, setBlockage] = useState<BlockageDraft>(emptyBlockageDraft);
+  const [agreedRights, setAgreedRights] = useState(sample);
+  const pickTarget = useSpotlightTarget(TARGET.uploadPick);
+  const sampleTarget = useSpotlightTarget(TARGET.uploadSample);
+  const sceneTarget = useSpotlightTarget(TARGET.uploadScene);
+  const startTarget = useSpotlightTarget(TARGET.uploadStart);
+  const tutorialGuide = useTutorialSpotlight('upload');
   const [starting, setStarting] = useState(false);
-  // 키보드 "다음"으로 상황 → 인물 → 목표가 이어지고, 목표를 마치면 동의 체크가 바로 보인다.
+  const [error, setError] = useState<string | null>(null);
+  const attemptRef = useRef<StartAttempt | null>(null);
+  const startLockRef = useRef(false);
   const scrollRef = useRef<ScrollView>(null);
   const characterRef = useRef<TextInput>(null);
   const goalRef = useRef<TextInput>(null);
-  // 고른 영상을 그 자리에서 확인할 수 있게 미리보기를 붙인다(목업 M5).
-  const player = useVideoPlayer(video?.uri ?? null, (p) => {
+  // 장면 칸을 누르면 그 칸이 화면 맨 위로 오게 올린다 — 키보드가 떠도 적는 칸과 그다음 칸이
+  // 한 화면에 보여, 다음 칸을 찾으러 내려가지 않는다.
+  const sceneCardY = useRef(0);
+  const fieldsY = useRef(0);
+  const fieldY = useRef({ situation: 0, character: 0, goal: 0 });
+  // 도움 갈래를 고르면 그 카드를 맨 위로 올린다 — 세부 칩과 "상세히 적어 주세요"가 바로 보이게.
+  const helpCardY = useRef(0);
+  const scrollHelpToTop = () => {
+    // 세부 칩이 새로 그려진 뒤에 올린다.
+    setTimeout(() => scrollRef.current?.scrollTo({ y: Math.max(0, helpCardY.current - 8), animated: true }), 120);
+  };
+  const scrollFieldToTop = (field: keyof typeof fieldY.current) => () => {
+    // 키보드가 올라와 화면이 줄어든 뒤에 올려야 제자리에 선다.
+    setTimeout(() => {
+      const y = sceneCardY.current + fieldsY.current + fieldY.current[field] - 8;
+      scrollRef.current?.scrollTo({ y: Math.max(0, y), animated: true });
+    }, 250);
+  };
+
+  const previewUri = picked?.uri ?? picked?.playbackUrl ?? null;
+  const player = useVideoPlayer(previewUri, (p) => {
     p.loop = false;
   });
 
-  useEffect(() => {
-    const p = takePrefill();
-    if (!p) return;
-    if (p.continuedFrom) continuedFromRef.current = p.continuedFrom;
-    if (!p.scene) return;
-    setPrefilled(true);
-    setSituation(p.scene.situation);
-    setCharacter(p.scene.character);
-    setGoal(p.scene.goal);
-  }, []);
-
-  const MAX_RAW_MB = 4096;
-
-  // 갤러리·촬영이 공통으로 쓰는 검증. 길이·용량이 상한을 넘으면 문구만 세우고 버린다.
-  const acceptVideo = (input: {
-    uri: string;
-    durationMs: number | null;
-    sizeBytes?: number | null;
-    name: string;
-    mimeType?: string | null;
-  }): void => {
-    setVideoError(null);
-    const normalizedDurationMs = normalizeVideoDurationMs(input.durationMs);
-    if (normalizedDurationMs !== null && normalizedDurationMs > MAX_VIDEO_DURATION_MS) {
-      const durationSec = normalizedDurationMs / 1000;
-      setVideoError(
-        t('upload.tooLong', {
-          min: Math.floor(durationSec / 60),
-          sec: Math.round(durationSec % 60),
-        }),
-      );
-      return;
-    }
-    const sizeMb = input.sizeBytes ? input.sizeBytes / (1024 * 1024) : 0;
-    if (sizeMb > MAX_RAW_MB) {
-      setVideoError(t('upload.tooBig', { gb: Math.round(sizeMb / 1024) }));
-      return;
-    }
-    setDurationMs(normalizedDurationMs);
-    setVideo({
-      uri: input.uri,
-      name: input.name,
-      mimeType: input.mimeType ?? 'video/mp4',
-    });
-  };
-
-  const pickVideo = async () => {
-    setVideoError(null);
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['videos'],
-      allowsEditing: true, // iOS는 선택 직후 트리밍 UI 제공 (Android는 무시됨)
-      quality: 1,
-    });
-    if (result.canceled || !result.assets[0]) return;
-    const asset = result.assets[0];
-    acceptVideo({
-      uri: asset.uri,
-      durationMs: asset.duration ?? null,
-      sizeBytes: asset.fileSize,
-      name: asset.fileName ?? 'video.mp4',
-      mimeType: asset.mimeType,
-    });
-  };
-
-  // 촬영 화면에서 돌아오면 찍은 영상을 받아 검증·적용한다 (SOMA-477).
+  // 보관함·촬영·갤러리에서 돌아오면 고른 영상을 받는다.
   useFocusEffect(
     useCallback(() => {
-      const rec = takeRecordedVideo();
-      if (rec) acceptVideo({ uri: rec.uri, durationMs: rec.durationMs, name: rec.name });
+      const next = takePickedVideo();
+      if (next) {
+        setPicked(next);
+        setError(null);
+      }
     }, []),
   );
 
-  // 장면 세 칸은 선택이다(SOMA-432) — 비우면 코치가 대화에서 물어본다.
-  const canSubmit = video && agreedRights;
+  // 올리는 중이던 영상이 확정되면 그 id로 바꾼다 — 그래야 시작할 수 있다.
+  useEffect(() => {
+    if (!picked?.pendingId || picked.videoId) return;
+    const check = () => {
+      const videoId = confirmedVideoFor(picked.pendingId as string);
+      if (videoId) setPicked((was) => (was ? { ...was, videoId } : was));
+    };
+    check();
+    return onLibraryChange(check);
+  }, [picked?.pendingId, picked?.videoId]);
 
-  const start = () => {
-    if (!canSubmit || !video) return;
-    beginAnalysisNavigation(
-      startLockRef,
-      () => {
-        setStarting(true);
-        setPendingUpload({
-          scene: {
-            situation: situation.trim(),
-            character: character.trim(),
-            goal: goal.trim(),
-          },
-          video,
-          durationMs,
-          // 도움 종류·상세를 이 화면에서 이미 받았다 — 안 고르면 '그 외'로 내려간다.
-          blockage: blockageFromHelp(helpKind, detail),
-          theory,
-          continuedFrom: continuedFromRef.current,
-        });
-      },
-      () => router.replace('/analyzing'),
-    );
+  const videoId = plan.video.kind === 'same' ? plan.video.videoId : picked?.videoId ?? null;
+  const uploading = Boolean(picked?.pendingId && !picked.videoId);
+
+  const pickFromLibrary = () => router.push({ pathname: '/archive', params: { pick: '1' } });
+  const record = () => router.push({ pathname: '/record-video', params: { mode: 'ai' } });
+
+  const pickFromGallery = async () => {
+    if (!user?.id) return;
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['videos'], allowsEditing: true, quality: 1 });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    const durationMs = normalizeVideoDurationMs(asset.duration ?? null);
+    const outcome = await saveRecordingToLibrary({ uri: asset.uri, durationMs, owner: user.id });
+    if (outcome.kind === 'rejected') {
+      void alert({ title: t('upload.titleNew'), message: videoErrorMessage(outcome.code) });
+      return;
+    }
+    setPicked({ videoId: null, pendingId: outcome.entry.id, uri: outcome.entry.uri, playbackUrl: null, durationMs });
   };
 
-  const submitDisabled = !canSubmit || starting;
-  const missingHint = missingUploadFieldsHint({
-    situation,
-    character,
-    goal,
-    hasVideo: !!video,
-    agreedRights,
-  });
+  /** A8.1 "이전 연습 이어서 하기" — 이어갈 묶음을 고른다. 진행 중 회차가 있으면 그리로 보낸다. */
+  const chooseGroup = async () => {
+    try {
+      const { groups } = await api.listPracticeGroups('all');
+      const open = inProgressPracticeId(groups);
+      if (open) {
+        void alert({ title: t('start.inProgressTitle'), message: t('start.inProgressBody') });
+        router.replace({ pathname: '/analyzing', params: { practiceId: open } });
+        return;
+      }
+      if (groups.length === 0) {
+        void alert({ title: t('start.continueTitle'), message: t('start.noGroups') });
+        return;
+      }
+      const chosen = await new Promise<string | null>((resolve) => {
+        void confirm({
+          title: t('start.continueTitle'),
+          message: t('start.continueBody', { title: groups[0].title ?? t('history.noSceneTitle'), count: groups[0].ordinal_count }),
+          confirmLabel: t('start.continueConfirm'),
+          cancelLabel: t('common.cancel'),
+        }).then((ok) => resolve(ok ? groups[0].root_id : null));
+      });
+      if (!chosen) return;
+      const group = groups.find((g) => g.root_id === chosen);
+      if (!group) return;
+      setPlan(planFor({ kind: 'group', rootId: group.root_id, practiceId: group.root_id }));
+    } catch (e) {
+      void alert({ title: t('start.continueTitle'), message: videoErrorMessage(e) });
+    }
+  };
 
-  const durationText =
-    durationMs !== null
-      ? t('common.minSec', { min: Math.floor(durationMs / 60000), sec: Math.round((durationMs % 60000) / 1000) })
-      : null;
+  const start = async () => {
+    if (startLockRef.current || starting) return;
+    if (sample) {
+      if (agreedRights) router.replace({ pathname: '/analyzing', params: { practiceId: SAMPLE_PRACTICE_ID } });
+      return;
+    }
+    if (!agreedRights || !canStart(plan, videoId)) return;
+    const overflow = sceneOverflow(scene);
+    if (overflow) {
+      setError(t('start.sceneTooLong'));
+      return;
+    }
+    if (blockageNoteOverflow(blockage)) {
+      setError(t('start.noteTooLong'));
+      return;
+    }
+    startLockRef.current = true;
+    setStarting(true);
+    setError(null);
+    try {
+      if (uploading && picked?.pendingId) {
+        // 아직 올리는 중이면 확정될 때까지 한 번 밀어 준다(422 video_not_ready 를 미리 피한다).
+        await flushLibraryUploads(user?.id ?? '');
+        const confirmed = confirmedVideoFor(picked.pendingId);
+        if (!confirmed) {
+          setError(t('start.stillUploading'));
+          return;
+        }
+        setPicked({ ...picked, videoId: confirmed });
+      }
+      const resolvedVideoId = plan.video.kind === 'same' ? plan.video.videoId : picked?.videoId ?? confirmedVideoFor(picked?.pendingId ?? '') ?? null;
+      const continueFrom = plan.continueFrom;
+      const body = continueFrom
+        ? buildContinueBody({ requestId: 'pending', videoId: continueVideoId(plan, resolvedVideoId), scene, blockage })
+        : buildStartBody({ requestId: 'pending', videoId: resolvedVideoId as string, scene, blockage });
+      if (!continueFrom && !resolvedVideoId) {
+        setError(t('start.stillUploading'));
+        return;
+      }
+      const attempt = attemptFor(attemptRef.current, fingerprintOf(body), newRequestId);
+      attemptRef.current = attempt;
+      const practice = continueFrom
+        ? await api.continuePractice(continueFrom.practiceId, { ...body, request_id: attempt.requestId })
+        : await api.createPractice({ ...body, request_id: attempt.requestId } as Parameters<typeof api.createPractice>[0]);
+      logEvent('practice_start', { ordinal: practice.ordinal, continued: Boolean(continueFrom) });
+      router.replace({ pathname: '/analyzing', params: { practiceId: practice.id } });
+    } catch (e) {
+      const failure = startFailure(e);
+      if (failure.kind === 'in_progress') {
+        const open = await api
+          .listPracticeGroups('all')
+          .then(({ groups }) => inProgressPracticeId(groups, plan.continueFrom?.rootId ?? null))
+          .catch(() => null);
+        if (open) {
+          void alert({ title: t('start.inProgressTitle'), message: t('start.inProgressBody') });
+          router.replace({ pathname: '/analyzing', params: { practiceId: open } });
+          return;
+        }
+        setError(t('start.inProgressBody'));
+        return;
+      }
+      if (failure.kind === 'fingerprint_mismatch') attemptRef.current = null;
+      setError(
+        failure.kind === 'video_not_ready'
+          ? t('start.stillUploading')
+          : failure.kind === 'daily_limit'
+            ? t('start.dailyLimit')
+            : failure.kind === 'offline'
+              ? t('start.offline')
+              : videoErrorMessage(e),
+      );
+    } finally {
+      startLockRef.current = false;
+      setStarting(false);
+    }
+  };
+
+  // 같은 영상으로 이어하기면 그 영상의 기기 복사본을 미리보기로 쓴다.
+  useEffect(() => {
+    if (plan.video.kind !== 'same' || picked) return;
+    const sameVideoId = plan.video.videoId;
+    let alive = true;
+    void localCopyFor(sameVideoId).then((uri) => {
+      if (alive && uri) setPicked({ videoId: sameVideoId, pendingId: null, uri, playbackUrl: null, durationMs: null });
+    });
+    return () => {
+      alive = false;
+    };
+  }, [plan.video, picked]);
+
+  const ready = sample ? agreedRights : agreedRights && canStart(plan, videoId) && !uploading;
+  // 준비가 끝났으면 버튼만 둔다 — 무엇이 모자란지만 알린다.
+  const hint = ready
+    ? null
+    : !sample && !canStart(plan, videoId)
+      ? t('upload.missingVideo')
+      : !sample && uploading
+        ? t('start.stillUploading')
+        : t('upload.missingRights');
 
   return (
     <SafeAreaView style={styles.safe} edges={keyboardVisible ? [] : ['bottom']}>
       <Stack.Screen
-        options={{
-          title: prefilled ? t('upload.titleRetake') : t('upload.titleNew'),
-          headerShadowVisible: false,
-        }}
+        options={{ title: plan.continueFrom ? t('start.titleContinue') : t('upload.titleNew'), headerShadowVisible: false }}
       />
-      {!prefilled && user && <FirstUploadGuide ownerId={user.id} />}
       <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
-        <ScrollView
-          ref={scrollRef}
-          contentContainerStyle={styles.container}
-          keyboardShouldPersistTaps="handled">
-          <Stepper current={video ? 2 : 1} />
+        <ScrollView ref={scrollRef} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+          <Stepper current={videoId || uploading || sample ? 2 : 1} />
 
-          {video ? (
-            <View style={styles.pickedBlock}>
-              <VideoView
-                style={styles.preview}
-                player={player}
-                nativeControls
-                contentFit="contain"
-              />
+          {previewUri || uploading ? (
+            <View
+              style={styles.pickedBlock}
+              ref={sample ? sampleTarget.ref : pickTarget.ref}
+              onLayout={sample ? sampleTarget.onLayout : pickTarget.onLayout}>
+              {previewUri ? (
+                <VideoView style={styles.preview} player={player} nativeControls contentFit="contain" />
+              ) : (
+                <View style={[styles.preview, styles.previewEmpty]}>
+                  <ActivityIndicator color="#fff" />
+                </View>
+              )}
               <View style={styles.pickedRow}>
-                <Pressable style={styles.repick} onPress={pickVideo}>
-                  <Text style={styles.repickText}>{t('upload.repick')}</Text>
-                </Pressable>
+                {sample && (
+                  <View style={styles.sampleBadge}>
+                    <Text style={styles.sampleBadgeText}>{t('tutorial.sampleBadge')}</Text>
+                  </View>
+                )}
+                {plan.video.kind !== 'same' && !sample && (
+                  <Pressable style={styles.repick} onPress={pickFromLibrary}>
+                    <Text style={styles.repickText}>{t('upload.repick')}</Text>
+                  </Pressable>
+                )}
                 <Text style={styles.pickedMeta} numberOfLines={1}>
-                  {video.name}
-                  {durationText ? ` · ${durationText}` : ''}
+                  {sample
+                    ? t('tutorial.sample.situation')
+                    : plan.video.kind === 'same'
+                    ? t('start.sameVideo')
+                    : uploading
+                      ? t('archive.statusUploading')
+                      : t('archive.statusSaved')}
                 </Text>
               </View>
             </View>
           ) : (
-            <View style={styles.dropzone}>
+            <View style={styles.dropzone} ref={pickTarget.ref} onLayout={pickTarget.onLayout}>
               <View style={styles.plusCircle}>
                 <Text style={styles.plus}>＋</Text>
               </View>
-              <Text style={styles.dropTitle}>{t('upload.dropTitle')}</Text>
+              <Text style={styles.dropTitle}>{t('start.pickTitle')}</Text>
               <Text style={styles.dropHint}>{t('upload.dropHint')}</Text>
               <View style={styles.pickActions}>
-                <Pressable style={styles.recordBtn} onPress={() => router.push('/record-video')}>
-                  <Text style={styles.recordBtnText}>{t('upload.recordCta')}</Text>
+                <Pressable style={styles.recordBtn} onPress={pickFromLibrary}>
+                  <Text style={styles.recordBtnText}>{t('start.fromLibrary')}</Text>
                 </Pressable>
-                <Pressable style={styles.galleryBtn} onPress={pickVideo}>
-                  <Text style={styles.galleryBtnText}>{t('upload.pickGallery')}</Text>
+                <Pressable style={styles.galleryBtn} onPress={record}>
+                  <Text style={styles.galleryBtnText}>{t('upload.recordCta')}</Text>
                 </Pressable>
               </View>
+              <Pressable onPress={() => void pickFromGallery()}>
+                <Text style={styles.galleryLink}>{t('upload.pickGallery')}</Text>
+              </Pressable>
             </View>
           )}
-          {videoError && <Text style={styles.errorText}>{videoError}</Text>}
 
-          <View style={styles.sceneCard}>
+          {!plan.continueFrom && !sample && (
+            <Pressable style={styles.continueRow} onPress={() => void chooseGroup()}>
+              <Text style={styles.continueText}>{t('start.continueCta')}</Text>
+            </Pressable>
+          )}
+
+          <View style={styles.sceneCard} onLayout={(e) => (sceneCardY.current = e.nativeEvent.layout.y)}>
             <Text style={styles.sceneTitle}>
               {t('upload.sceneTitle')}
               <Text style={styles.sceneOptional}>{t('upload.sceneOptional')}</Text>
             </Text>
-            <Text style={styles.sceneOptionalHint}>
-              {t('upload.sceneHint')}
-            </Text>
-            <View style={styles.fields}>
+            <Text style={styles.sceneOptionalHint}>{t('upload.sceneHint')}</Text>
+            {/* 카드 전체는 화면보다 길어 설명이 비출 곳을 가린다 — 세 칸만 비춘다. */}
+            <View
+              style={styles.fields}
+              ref={sceneTarget.ref}
+              onLayout={(e) => {
+                fieldsY.current = e.nativeEvent.layout.y;
+                sceneTarget.onLayout();
+              }}>
               <Field
                 label={t('upload.situation')}
                 placeholder={t('upload.situationPh')}
-                value={situation}
-                onChangeText={setSituation}
+                value={scene.situation}
+                onChangeText={(situation) => setScene((s) => ({ ...s, situation }))}
+                onFocus={scrollFieldToTop('situation')}
+                onY={(y) => (fieldY.current.situation = y)}
                 returnKeyType="next"
                 onSubmitEditing={() => characterRef.current?.focus()}
               />
               <Field
                 label={t('upload.character')}
                 placeholder={t('upload.characterPh')}
-                value={character}
-                onChangeText={setCharacter}
+                value={scene.character}
+                onChangeText={(character) => setScene((s) => ({ ...s, character }))}
+                onFocus={scrollFieldToTop('character')}
+                onY={(y) => (fieldY.current.character = y)}
                 inputRef={characterRef}
                 returnKeyType="next"
                 onSubmitEditing={() => goalRef.current?.focus()}
@@ -260,13 +410,14 @@ export default function UploadScreen() {
               <Field
                 label={t('upload.goal')}
                 placeholder={t('upload.goalPh')}
-                value={goal}
-                onChangeText={setGoal}
+                value={scene.goal}
+                onChangeText={(goal) => setScene((s) => ({ ...s, goal }))}
+                onFocus={scrollFieldToTop('goal')}
+                onY={(y) => (fieldY.current.goal = y)}
                 tall
                 inputRef={goalRef}
                 returnKeyType="done"
                 onSubmitEditing={() => {
-                  // 키보드를 내리고 동의 체크(이어하기면 '이대로 이어가기')가 바로 보이게 한다.
                   goalRef.current?.blur();
                   setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 120);
                 }}
@@ -274,21 +425,40 @@ export default function UploadScreen() {
             </View>
           </View>
 
-          <View style={styles.sceneCard}>
+          <View style={styles.sceneCard} onLayout={(e) => (helpCardY.current = e.nativeEvent.layout.y)}>
             <Text style={styles.sceneTitle}>{t('blockage.helpTitle')}</Text>
             <Text style={styles.sceneOptionalHint}>{t('blockage.helpHint')}</Text>
             <View style={styles.chipWrap}>
-              {BLOCKAGE_CHOICES.map((choice) => (
+              {CATEGORIES.map((category) => (
                 <Chip
-                  key={choice.value}
-                  label={t(`blockage.helpLabel.${choice.value}`)}
-                  selected={helpKind === choice.value}
-                  onPress={() =>
-                    setHelpKind((was) => (was === choice.value ? null : choice.value))
-                  }
+                  key={category}
+                  label={t(`blockage.helpLabel.${category}`)}
+                  selected={blockage.category === category}
+                  onPress={() => {
+                    const choosing = blockage.category !== category;
+                    setBlockage((was) =>
+                      was.category === category
+                        ? { ...was, category: null, detail: null }
+                        : { ...was, category, detail: null },
+                    );
+                    if (choosing) scrollHelpToTop();
+                  }}
                 />
               ))}
             </View>
+
+            {detailsFor(blockage.category).length > 0 && (
+              <View style={styles.chipWrap}>
+                {detailsFor(blockage.category).map((detail) => (
+                  <Chip
+                    key={detail}
+                    label={t(`blockage.kindLabel.${detail}`)}
+                    selected={blockage.detail === detail}
+                    onPress={() => setBlockage((was) => ({ ...was, detail: was.detail === detail ? null : detail }))}
+                  />
+                ))}
+              </View>
+            )}
 
             <Text style={[styles.sceneTitle, styles.blockGap]}>{t('blockage.detailTitle')}</Text>
             <Text style={styles.sceneOptionalHint}>{t('blockage.detailHint')}</Text>
@@ -296,76 +466,53 @@ export default function UploadScreen() {
               style={[styles.input, styles.inputTall]}
               placeholder={t('blockage.freePh')}
               placeholderTextColor={palette.checkOff}
-              value={detail}
-              onChangeText={setDetail}
+              value={blockage.note}
+              onChangeText={(note) => setBlockage((was) => ({ ...was, note }))}
+              maxLength={BLOCKAGE_NOTE_MAX}
               multiline
             />
-
-            <Text style={[styles.sceneTitle, styles.blockGap]}>{t('theory.q')}</Text>
-            <Text style={styles.sceneOptionalHint}>{t('theory.hint')}</Text>
-            <View style={styles.chipWrap}>
-              {THEORY_IDS.map((id) => (
-                <Chip
-                  key={id}
-                  label={t(`theory.label.${id}`)}
-                  selected={theory === id}
-                  onPress={() => setTheory((was) => toggleTheoryChoice(was, id))}
-                />
-              ))}
-            </View>
           </View>
 
           <Pressable style={styles.rightsRow} onPress={() => setAgreedRights((v) => !v)}>
             <View style={[styles.check, agreedRights && styles.checkOn]}>
               {agreedRights && <Text style={styles.checkMark}>✓</Text>}
             </View>
-            <Text style={styles.rightsText}>
-              {t('upload.rights')}
-            </Text>
+            <Text style={styles.rightsText}>{t('upload.rights')}</Text>
           </Pressable>
+          {error && <Text style={styles.errorText}>{error}</Text>}
         </ScrollView>
 
-        {/* 입력은 위에서 아래로, 실행은 아래에서 위로 — 버튼은 하단에 고정한다. */}
         <View style={styles.submitBar}>
           <Pressable
-            style={[styles.submit, submitDisabled && styles.submitDisabled]}
-            onPress={start}
-            disabled={submitDisabled}>
-            <Text style={styles.submitText}>{prefilled ? t('upload.submitRetake') : t('upload.submitNew')}</Text>
+            ref={startTarget.ref}
+            onLayout={startTarget.onLayout}
+            style={[styles.submit, (!ready || starting) && styles.submitDisabled]}
+            onPress={() => void start()}
+            disabled={!ready || starting}>
+            {starting ? (
+              <ActivityIndicator color={palette.bg} />
+            ) : (
+              <Text style={styles.submitText}>{plan.prefilled ? t('upload.submitRetake') : t('upload.submitNew')}</Text>
+            )}
           </Pressable>
-          <Text style={styles.submitHint}>
-            {canSubmit
-              ? t('upload.submitHintReady')
-              : missingHint || t('upload.submitHintDefault')}
-          </Text>
+          {hint && <Text style={styles.submitHint}>{hint}</Text>}
         </View>
       </View>
+      {dialog}
+      {tutorialGuide.element}
     </SafeAreaView>
   );
 }
 
-/** 도움 종류·이론을 고르는 알약 칩. 다시 누르면 선택이 풀린다(무응답). */
-function Chip({
-  label,
-  selected,
-  onPress,
-}: {
-  label: string;
-  selected: boolean;
-  onPress: () => void;
-}) {
+function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
   return (
-    <Pressable
-      style={[styles.chip, selected && styles.chipOn]}
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityState={{ selected }}>
+    <Pressable style={[styles.chip, selected && styles.chipOn]} onPress={onPress} accessibilityRole="button" accessibilityState={{ selected }}>
       <Text style={[styles.chipText, selected && styles.chipTextOn]}>{label}</Text>
     </Pressable>
   );
 }
 
-/** 라벨 위, 입력 아래. 세 칸이 같은 모양이라 하나로 묶는다. */
+/** 라벨 위, 입력 아래. 세 칸이 같은 모양이라 하나로 묶는다. 300자에서 화면이 먼저 막는다. */
 function Field({
   label,
   placeholder,
@@ -375,6 +522,8 @@ function Field({
   inputRef,
   returnKeyType,
   onSubmitEditing,
+  onFocus,
+  onY,
 }: {
   label: string;
   placeholder: string;
@@ -384,9 +533,12 @@ function Field({
   inputRef?: RefObject<TextInput | null>;
   returnKeyType?: 'next' | 'done';
   onSubmitEditing?: () => void;
+  onFocus?: () => void;
+  /** 세 칸 묶음 안에서 이 칸의 위쪽 위치 — 누르면 여기를 화면 맨 위로 올린다. */
+  onY?: (y: number) => void;
 }) {
   return (
-    <View style={styles.field}>
+    <View style={styles.field} onLayout={(e) => onY?.(e.nativeEvent.layout.y)}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
         ref={inputRef}
@@ -395,12 +547,12 @@ function Field({
         placeholderTextColor={palette.checkOff}
         value={value}
         onChangeText={onChangeText}
+        maxLength={SCENE_MAX}
         multiline
-        // 여러 줄 입력에서도 엔터가 줄바꿈 대신 "다음 칸"으로 가게 한다 —
-        // 세 칸 모두 한두 줄짜리라 줄바꿈보다 이어지는 흐름이 낫다.
         submitBehavior="submit"
         returnKeyType={returnKeyType}
         onSubmitEditing={onSubmitEditing}
+        onFocus={onFocus}
       />
     </View>
   );
@@ -417,64 +569,37 @@ const styles = StyleSheet.create({
     borderColor: '#CFE0F5',
     borderRadius: 18,
     paddingVertical: 34,
+    // 버튼 두 개가 테두리에 붙지 않게 좌우 여백을 둔다 (SOMA-494).
+    paddingHorizontal: 20,
     alignItems: 'center',
     gap: 8,
   },
   pickActions: { flexDirection: 'row', gap: 10, marginTop: 16, alignSelf: 'stretch' },
-  recordBtn: {
-    flex: 1,
-    backgroundColor: palette.blue,
-    paddingVertical: 13,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
+  recordBtn: { flex: 1, backgroundColor: palette.blue, paddingVertical: 13, borderRadius: 12, alignItems: 'center' },
   recordBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
-  galleryBtn: {
-    flex: 1,
-    backgroundColor: palette.bgSoft,
-    paddingVertical: 13,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
+  galleryBtn: { flex: 1, backgroundColor: palette.bgSoft, paddingVertical: 13, borderRadius: 12, alignItems: 'center' },
   galleryBtnText: { color: palette.textDim, fontSize: 15, fontWeight: '600' },
-  plusCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: palette.bg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  galleryLink: { color: palette.blueDeep, fontSize: 13, fontWeight: '700', marginTop: 12 },
+  plusCircle: { width: 48, height: 48, borderRadius: 24, backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center' },
   plus: { fontSize: 22, fontWeight: '900', color: palette.blue },
   dropTitle: { fontSize: 15, fontWeight: '900', color: palette.text },
   dropHint: { fontSize: 12, fontWeight: '600', color: palette.textFaint },
 
+  sampleBadge: { backgroundColor: palette.blueSoft, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
+  sampleBadgeText: { fontSize: 12.5, fontWeight: '800', color: palette.blue },
   pickedBlock: { gap: 8 },
-  preview: {
-    width: '100%',
-    aspectRatio: 16 / 9,
-    borderRadius: 18,
-    backgroundColor: palette.text,
-  },
+  preview: { width: '100%', aspectRatio: 16 / 9, borderRadius: 18, backgroundColor: palette.text },
+  previewEmpty: { alignItems: 'center', justifyContent: 'center' },
   pickedRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  repick: {
-    backgroundColor: palette.blueSoft,
-    borderRadius: 9999,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-  },
+  repick: { backgroundColor: palette.blueSoft, borderRadius: 9999, paddingVertical: 6, paddingHorizontal: 12 },
   repickText: { fontSize: 12, fontWeight: '800', color: palette.blueDeep },
   pickedMeta: { flex: 1, fontSize: 12, fontWeight: '600', color: palette.textFaint },
   errorText: { color: palette.danger, fontSize: 13, fontWeight: '700' },
 
-  sceneCard: {
-    backgroundColor: palette.bg,
-    borderWidth: 1,
-    borderColor: palette.borderSoft,
-    borderRadius: 18,
-    padding: 16,
-    gap: 12,
-  },
+  continueRow: { alignSelf: 'flex-start', paddingVertical: 6 },
+  continueText: { color: palette.blueDeep, fontSize: 13.5, fontWeight: '800' },
+
+  sceneCard: { backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.borderSoft, borderRadius: 18, padding: 16, gap: 12 },
   sceneTitle: { fontSize: 15, fontWeight: '900', color: palette.text },
   sceneOptional: { fontWeight: '700', color: palette.textFaint },
   sceneOptionalHint: { fontSize: 12.5, fontWeight: '600', color: palette.textFaint, marginTop: 2 },
@@ -496,44 +621,16 @@ const styles = StyleSheet.create({
 
   blockGap: { marginTop: 8 },
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 2 },
-  chip: {
-    borderRadius: 9999,
-    borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.bgSoft,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-  },
+  chip: { borderRadius: 9999, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bgSoft, paddingVertical: 10, paddingHorizontal: 16 },
   chipOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
   chipText: { fontSize: 14, fontWeight: '700', color: palette.textDim },
   chipTextOn: { color: palette.blueDeep },
 
-  rightsRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    padding: 14,
-    backgroundColor: palette.bgSubtle,
-    borderRadius: 14,
-  },
-  check: {
-    width: 20,
-    height: 20,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: palette.checkOff,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  rightsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 14, backgroundColor: palette.bgSubtle, borderRadius: 14 },
+  check: { width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, borderColor: palette.checkOff, alignItems: 'center', justifyContent: 'center' },
   checkOn: { backgroundColor: palette.blue, borderColor: palette.blue },
   checkMark: { color: palette.bg, fontSize: 12, fontWeight: '900' },
-  rightsText: {
-    flex: 1,
-    fontSize: 12,
-    fontWeight: '600',
-    color: palette.textDim,
-    lineHeight: 19,
-  },
+  rightsText: { flex: 1, fontSize: 12, fontWeight: '600', color: palette.textDim, lineHeight: 19 },
 
   submitBar: {
     paddingHorizontal: 16,
@@ -544,20 +641,8 @@ const styles = StyleSheet.create({
     borderTopColor: palette.borderSoft,
     backgroundColor: palette.bg,
   },
-  submit: {
-    height: 52,
-    borderRadius: 14,
-    backgroundColor: palette.blue,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  submit: { height: 52, borderRadius: 14, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
   submitDisabled: { backgroundColor: '#C9D3DF' },
   submitText: { fontSize: 15, fontWeight: '900', color: palette.bg },
-  submitHint: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: palette.textFaint,
-    textAlign: 'center',
-  },
+  submitHint: { fontSize: 12, fontWeight: '600', color: palette.textFaint, textAlign: 'center' },
 });
-

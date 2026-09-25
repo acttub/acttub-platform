@@ -39,7 +39,8 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
  * 아예 없다</b> — 한때 {@code FixedWindowRateLimiter.reset()} 이 있었지만 하네스 제어 표면이라
  * `SOMA-403` 4단계에 함께 사라졌다. 지금은 이 클래스에서 그 키를 쓰는 것이 갱신 하나뿐이라
  * 성립한다 — <b>여기에 로그인이나 갱신 케이스를 더하면 이미 깎인 창에 걸려
- * {@code isGreaterThan(60)} 이 깨진다.</b> 그때는 케이스를 클래스로 갈라 컨텍스트를 나눠야 한다.
+ * {@code isGreaterThan(60)} 이 깨진다.</b> 그때는 케이스를 클래스로 갈라 컨텍스트를 나눠야 한다 —
+ * 로그인의 IP 한도는 그래서 {@code LoginRateLimitIT} 에 따로 있다.
  */
 @SpringBootTest(properties = "JWT_SECRET=test-secret")
 @AutoConfigureMockMvc
@@ -103,6 +104,17 @@ class RateLimitContractIT {
         assertRejectedAfterTheLimit(() -> post("/v2/auth/refresh")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"refresh_token\":\"없는 토큰\"}"));
+    }
+
+    /**
+     * account.login: 가입 제출은 주체가 없는 요청이라 IP 로 센다 — 로그인·갱신과 <b>다른 키</b>라서
+     * 위의 갱신 케이스가 깎아 놓은 창에 걸리지 않는다. 가입 토큰이 틀려도 카운터는 오른다.
+     */
+    @Test
+    void signupCountsPerIpOnItsOwnBucket() throws Exception {
+        assertRejectedAfterTheLimit(() -> post("/v2/auth/signup")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"signup_token\":\"없는 토큰\",\"decisions\":[]}"));
     }
 
     private void assertRejectedAfterTheLimit(Supplier<MockHttpServletRequestBuilder> request)

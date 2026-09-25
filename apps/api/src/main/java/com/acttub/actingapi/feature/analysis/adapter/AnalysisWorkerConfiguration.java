@@ -7,6 +7,7 @@ import com.acttub.actingapi.feature.analysis.app.AnalysisCompletionListener;
 import com.acttub.actingapi.feature.analysis.app.AnalysisProcessor;
 import com.acttub.actingapi.feature.analysis.app.AnalysisStore;
 import com.acttub.actingapi.feature.analysis.app.AnalysisWorker;
+import com.acttub.actingapi.feature.analysis.app.PracticeAnalysisStore;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import org.springframework.beans.factory.ObjectProvider;
@@ -46,6 +47,30 @@ class AnalysisWorkerConfiguration {
         if (leaseSeconds <= 0) {
             throw new IllegalStateException("analysis worker settings must be positive");
         }
+        ObjectStorage objectStorage = storage.getIfAvailable();
+        if (objectStorage == null) {
+            return null;
+        }
+        return new AnalysisWorker(
+                store, objectStorage, analyzer, clock, Duration.ofSeconds(leaseSeconds), model,
+                completionListener.getIfAvailable(), failureReporter);
+    }
+
+    /**
+     * 1.0.0 회차의 분석 워커 (practice.analyze). 위와 <b>같은 워커 클래스</b>에 다른 저장소를 끼운다 — 영상을
+     * 내려받고 etag 를 견주고 실패를 분류하고 lease 를 다루는 규칙은 한 벌이어야 하기 때문이다. 갈리는 것은
+     * 무엇을 집고(=ai_jobs) 어디에 쓰는가(=analyses·video_transcripts)뿐이다.
+     */
+    @Bean
+    AnalysisWorker practiceAnalysisWorker(
+            PracticeAnalysisStore store,
+            ObjectProvider<ObjectStorage> storage,
+            AnalysisProcessor analyzer,
+            Clock clock,
+            @Value("${ANALYSIS_LEASE_SEC:1800}") long leaseSeconds,
+            @Value("${GEMINI_MODEL:gemini-2.5-flash}") String model,
+            ObjectProvider<AnalysisCompletionListener> completionListener,
+            FailureReporter failureReporter) {
         ObjectStorage objectStorage = storage.getIfAvailable();
         if (objectStorage == null) {
             return null;

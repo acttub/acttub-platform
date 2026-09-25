@@ -39,6 +39,21 @@ final class ConsentDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<ConsentDocument> documents) {
     }
 
+    /** 동의를 받지 않고 알리기만 하는 문서. 판도 결정도 없다. */
+    @Schema(name = "ConsentNotice", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    record ConsentNotice(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = "privacy_policy") String type,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String title,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String body) {
+    }
+
+    @Schema(
+            name = "ConsentNoticesResponse",
+            additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    record ConsentNoticesResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<ConsentNotice> notices) {
+    }
+
     @Schema(
             name = "ConsentEntryDocument",
             additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
@@ -57,15 +72,15 @@ final class ConsentDtos {
             @Schema(
                     requiredMode = Schema.RequiredMode.REQUIRED,
                     nullable = true,
-                    implementation = ConsentAction.class)
-            String currentDecision) {
+                    allowableValues = {"granted", "declined"})
+            String currentDecision,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) Instant decidedAt) {
     }
 
     @Schema(name = "ConsentEntryStatus")
     enum ConsentEntryStatus {
         allowed,
-        decision_required,
-        blocked
+        decision_required
     }
 
     @Schema(
@@ -92,12 +107,12 @@ final class ConsentDtos {
     }
 
     @Schema(
-            name = "RequiredConsentDeclineError",
+            name = "ConsentDocumentOutdatedError",
             additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
-    record RequiredConsentDeclineError(
+    record ConsentDocumentOutdatedError(
             @Schema(
                     requiredMode = Schema.RequiredMode.REQUIRED,
-                    allowableValues = "required_consent_cannot_be_declined")
+                    allowableValues = "consent_document_outdated")
             String detail) {
     }
 
@@ -107,13 +122,15 @@ final class ConsentDtos {
     @Schema(name = "ConsentRequest")
     record ConsentRequest(
             @NotNull @JsonProperty("document_id") String documentId,
-            @NotNull ConsentActionInput action) {
+            @NotNull ConsentActionInput action,
+            // 게스트의 첫 동의에만 필요하다 — "만 14세 이상이에요" 확인. 회원은 생년월일로 거른다.
+            @JsonProperty("age_confirmed") Boolean ageConfirmed) {
     }
 
-    @Schema(name = "ConsentAction")
+    /** 철회({@code revoked})는 입력이 아니다 — 탈퇴 뒤 운영자만 DB 에 기록한다. */
+    @Schema(name = "ConsentDecision")
     enum ConsentActionInput {
         granted,
-        declined,
-        revoked
+        declined
     }
 }

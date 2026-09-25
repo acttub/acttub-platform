@@ -1,0 +1,36 @@
+{
+  "video_summary": {
+    "scene_summary": "문 앞에서 돌아선 상대를 붙잡는다.",
+    "observations": [
+      {
+        "start_ms": 0,
+        "end_ms": 100,
+        "what": "멈춘다",
+        "quote": "가지 마",
+        "dimension": "호흡",
+        "confidence": 0.9
+      }
+    ],
+    "uncertainties": [
+      "얼굴은 안 보임"
+    ]
+  },
+  "confirmed_handoff": {
+    "blocked_point": "대사 의미"
+  },
+  "confirmation": {
+    "confirmed": true,
+    "coaching_handoff_id": "analysis-id"
+  },
+  "actor_profile": {
+    "name": "김배우",
+    "gender": "여성",
+    "age": 25,
+    "directions": [
+      "매체(TV·영화)",
+      "무대(연극·뮤지컬)"
+    ],
+    "experience": "1–3년",
+    "goal": "전문 배우"
+  }
+}

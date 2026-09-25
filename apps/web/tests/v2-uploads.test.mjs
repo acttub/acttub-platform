@@ -3,12 +3,14 @@ import { File } from "node:buffer";
 import { afterEach, test } from "node:test";
 
 import "./ts-module-loader.mjs";
+import "./guest-session-setup.mjs";
 
 process.env.NEXT_PUBLIC_API_BASE_URL = "";
 
-const { UploadError, finalizeUpload, uploadVideo } = await import(
+const { UploadError } = await import(
   "../src/lib/api/v2/uploads.ts"
 );
+const { uploadLibraryVideo: uploadVideo } = await import("../src/lib/api/v2/videos.ts");
 const { MAX_DURATION_MS, MAX_UPLOAD_BYTES } = await import("../src/lib/config/env.ts");
 
 const originalFetch = globalThis.fetch;
@@ -29,47 +31,13 @@ test("클라이언트 업로드 제한은 100MB와 5분이다", () => {
   assert.equal(MAX_DURATION_MS, 300_000);
 });
 
-test("finalize:false 는 완료 처리를 미루고 finalizeUpload 가 마저 한다", async () => {
-  // 완료된 인텐트는 만료 스윕이 회수하지 않는다(PENDING 만 본다). 배우가 연습을
-  // 시작하겠다고 하기 전에 완료해 두면 도중에 그만둔 영상이 S3 에 영영 남는다.
-  const order = [];
-  const file = new File(["video-bytes"], "take.mp4", { type: "video/mp4" });
-
-  globalThis.fetch = async (url) => {
-    if (String(url) === "/v2/uploads/intents") {
-      order.push("intent");
-      return jsonResponse({
-        intent_id: "intent-9",
-        upload_url: "https://s3.example/upload",
-        expires_at: "2026-07-18T00:00:00Z",
-      });
-    }
-    assert.equal(String(url), "/v2/uploads/intents/intent-9/complete");
-    order.push("complete");
-    return jsonResponse({ intent_id: "intent-9", status: "finalized" });
-  };
-
-  const uploader = async () => {
-    order.push("put");
-  };
-
-  assert.deepEqual(
-    await uploadVideo(file, { uploader, finalize: false }),
-    { intentId: "intent-9" },
-  );
-  assert.deepEqual(order, ["intent", "put"]);
-
-  await finalizeUpload("intent-9");
-  assert.deepEqual(order, ["intent", "put", "complete"]);
-});
-
 test("uploadVideo는 intent, S3 PUT, complete 순서와 서명 MIME을 지킨다", async () => {
   const order = [];
   const file = new File(["video-bytes"], "take.mp4", { type: "video/mp4" });
   let intentBody;
 
   globalThis.fetch = async (url, options) => {
-    if (String(url) === "/v2/uploads/intents") {
+    if (String(url) === "/v2/videos/intents") {
       order.push("intent");
       intentBody = JSON.parse(options.body);
       return jsonResponse({
@@ -79,10 +47,10 @@ test("uploadVideo는 intent, S3 PUT, complete 순서와 서명 MIME을 지킨다
       });
     }
 
-    assert.equal(String(url), "/v2/uploads/intents/intent-1/complete");
+    assert.equal(String(url), "/v2/videos/intents/intent-1/complete");
     assert.equal(options.method, "POST");
     order.push("complete");
-    return jsonResponse({ intent_id: "intent-1", status: "finalized" });
+    return jsonResponse({ id: "video-1" });
   };
 
   const uploader = async (args) => {
@@ -93,13 +61,14 @@ test("uploadVideo는 intent, S3 PUT, complete 순서와 서명 MIME을 지킨다
   };
 
   assert.deepEqual(
-    await uploadVideo(file, { durationMs: 12_345, uploader }),
-    { intentId: "intent-1" },
+    await uploadVideo(file, { requestId: "req-1", durationMs: 12_345, uploader }),
+    { id: "video-1" },
   );
   assert.deepEqual(order, ["intent", "put", "complete"]);
   assert.deepEqual(intentBody, {
-    mime_type: "video/mp4",
-    size_bytes: file.size,
+    request_id: "req-1",
+    content_type: "video/mp4",
+    byte_size: file.size,
     duration_ms: 12_345,
   });
 });
@@ -113,7 +82,7 @@ test("video가 아닌 파일은 intent 요청 전에 거부한다", async () => 
 
   const file = new File(["plain text"], "notes.txt", { type: "text/plain" });
   await assert.rejects(
-    uploadVideo(file, { uploader: async () => {} }),
+    uploadVideo(file, { requestId: "req-1", durationMs: 12_345, uploader: async () => {} }),
     (error) => error instanceof UploadError && error.stage === "intent",
   );
   assert.equal(fetchCount, 0);
@@ -132,7 +101,7 @@ test("최대 크기를 넘는 영상은 intent 요청 전에 거부한다", asyn
     size: MAX_UPLOAD_BYTES + 1,
   };
   await assert.rejects(
-    uploadVideo(oversizedFile, { uploader: async () => {} }),
+    uploadVideo(oversizedFile, { requestId: "req-1", durationMs: 12_345, uploader: async () => {} }),
     (error) => error instanceof UploadError && error.stage === "intent",
   );
   assert.equal(fetchCount, 0);
@@ -151,7 +120,7 @@ test("S3 PUT 실패는 complete를 호출하지 않고 put 단계 오류로 남�
   };
 
   await assert.rejects(
-    uploadVideo(file, {
+    uploadVideo(file, { requestId: "req-1", durationMs: 12_345,
       uploader: async () => {
         throw new Error("S3 unavailable");
       },
@@ -177,7 +146,7 @@ test("finalize 실패는 complete 단계 오류로 남긴다", async () => {
   };
 
   await assert.rejects(
-    uploadVideo(file, { uploader: async () => {} }),
+    uploadVideo(file, { requestId: "req-1", durationMs: 12_345, uploader: async () => {} }),
     (error) => error instanceof UploadError && error.stage === "complete",
   );
   assert.equal(fetchCount, 2);
@@ -194,7 +163,7 @@ test("이미 취소된 업로드는 fetch 전에 AbortError로 끝난다", async
   };
 
   await assert.rejects(
-    uploadVideo(file, { signal: controller.signal, uploader: async () => {} }),
+    uploadVideo(file, { requestId: "req-1", durationMs: 12_345, signal: controller.signal, uploader: async () => {} }),
     (error) =>
       error instanceof UploadError &&
       error.stage === "intent" &&

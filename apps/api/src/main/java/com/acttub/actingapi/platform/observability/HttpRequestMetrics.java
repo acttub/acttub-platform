@@ -50,7 +50,7 @@ public class HttpRequestMetrics implements ObservationHandler<ServerRequestObser
     public void onStart(ServerRequestObservationContext context) {
         var request = context.getCarrier();
         if (!request.getMethod().equals("POST")) return;
-        // These four POST paths have no variable segments; unrecognized paths never become labels.
+        // These POST paths have no variable segments; unrecognized paths never become labels.
         LongTaskTimer timer = timers.get(request.getServletPath());
         if (timer != null) context.put(HttpRequestMetrics.class, timer.start());
     }

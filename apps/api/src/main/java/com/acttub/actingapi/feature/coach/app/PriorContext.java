@@ -31,6 +31,20 @@ public record PriorContext(
         sceneHistory = List.copyOf(sceneHistory);
     }
 
+    /**
+     * 성별·나이를 뺀 사본. 배우가 저장한 완성된 프로필이 있을 때 <b>모델에 넘기는 쪽</b>에만 쓴다 —
+     * 같은 것을 두 번 말하지 않고, 낡은 기억이 지금 값과 다투지 않게 한다. 저장된 기억은 그대로다.
+     *
+     * <p>목표({@code goal})는 남긴다. 기억의 목표는 배우가 말한 자유 서술이고 프로필의 최종 목표는 셋
+     * 중 하나라 결이 다르다 — 서로 보완한다.
+     */
+    public PriorContext withoutDemographics() {
+        Map<String, String> kept = new LinkedHashMap<>(memory);
+        kept.remove("gender");
+        kept.remove("age");
+        return new PriorContext(kept, earlierConversation, fromSamePractice, pendingTakes, sceneHistory);
+    }
+
     public boolean isEmpty() {
         return memory.isEmpty() && earlierConversation == null && pendingTakes.isEmpty()
                 && sceneHistory.isEmpty();

@@ -90,11 +90,11 @@ test("refresh 5xx는 기존 토큰을 지우지 않는다", async () => {
   assert.equal(getRefreshToken(), "refresh-old");
 });
 
-test("동일한 refresh가 401이면 세션을 무효화하고 logout을 알린다", async () => {
+test("account.guest: 동일한 refresh가 401이면 게스트 토큰을 지우고 세션이 끝났다고 알린다", async () => {
   setTokens({ access_token: "access-old", refresh_token: "refresh-old" });
-  let logoutCount = 0;
+  let endedCount = 0;
   const unsubscribe = onSessionEvent((event) => {
-    if (event === "logout") logoutCount += 1;
+    if (event === "guest-ended") endedCount += 1;
   });
   globalThis.fetch = async () =>
     jsonResponse({ detail: "invalid_refresh_token" }, 401);
@@ -103,7 +103,7 @@ test("동일한 refresh가 401이면 세션을 무효화하고 logout을 알린�
     assert.equal(await refreshAccessToken(), null);
     assert.equal(getAccessToken(), null);
     assert.equal(getRefreshToken(), null);
-    assert.equal(logoutCount, 1);
+    assert.equal(endedCount, 1);
   } finally {
     unsubscribe();
   }

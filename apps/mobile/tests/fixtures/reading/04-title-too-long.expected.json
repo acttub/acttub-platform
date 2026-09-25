@@ -1,0 +1,33 @@
+{
+  "title": null,
+  "roles": [
+    "윤서",
+    "태오"
+  ],
+  "lines": [
+    {
+      "kind": "direction",
+      "text": "이 줄은 서른 자를 넘겨서 제목으로 보지 않는 첫 줄이에요 정말로요"
+    },
+    {
+      "kind": "dialogue",
+      "role": "윤서",
+      "text": "여기 있을 줄 알았어."
+    },
+    {
+      "kind": "dialogue",
+      "role": "태오",
+      "text": "어떻게 알았어."
+    },
+    {
+      "kind": "dialogue",
+      "role": "윤서",
+      "text": "너 힘들면 항상 높은 데로 가잖아."
+    },
+    {
+      "kind": "dialogue",
+      "role": "태오",
+      "text": "그런가."
+    }
+  ]
+}

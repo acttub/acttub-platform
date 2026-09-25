@@ -36,7 +36,7 @@ export const AI_ACTING_COACHING: KeywordPageContent = {
         { kind: "h3", text: "3. 내 연기 영상을 보고 코칭하는 도구" },
         {
           kind: "p",
-          text: "실제로 찍은 연습 영상을 올리면 그 영상에서 보이는 것을 근거로 대화를 이어가요. Acttub이 여기에 속해요. 일반론이 아니라 오늘 찍은 그 테이크에 대해 이야기한다는 점이 앞의 둘과 달라요.",
+          text: "실제로 찍은 연습 영상을 올리면 그 영상에서 보이는 것을 근거로 대화를 이어가요. Acttub(액터브)이 여기에 속해요. 일반론이 아니라 오늘 찍은 그 테이크에 대해 이야기한다는 점이 앞의 둘과 달라요.",
         },
         {
           kind: "p",
@@ -217,7 +217,7 @@ export const AI_ACTING_COACHING: KeywordPageContent = {
     {
       question: "AI 연기 코칭은 무료인가요?",
       answer:
-        "네. Acttub은 iOS 앱, Android 앱, 웹 모두 무료로 쓸 수 있어요. 같은 계정으로 로그인하면 지난 연습이 기기 사이에서 이어져요.",
+        "네. Acttub은 iOS 앱, Android 앱, 웹 모두 무료로 쓸 수 있어요. 웹은 로그인 없이 바로 써 볼 수 있고, 웹에서 한 연습은 코드 하나로 앱 계정에 옮겨 이어 갈 수 있어요.",
     },
     {
       question: "어떤 영상을 올리면 되나요?",

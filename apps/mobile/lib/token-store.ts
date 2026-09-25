@@ -1,7 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 
 import { createAuthCredentialStore } from '@/lib/auth-credentials';
-import type { AuthUser } from '@/lib/api';
+import type { AuthUser, ConsentDocument } from '@/lib/api';
 import {
   createCredentialMutationQueue,
   type CredentialExpectation,
@@ -24,18 +24,36 @@ const credentialMutationQueue = createCredentialMutationQueue(
 
 type Listener = () => void;
 type UserListener = (user: AuthUser) => void;
-const consentRequiredListeners = new Set<Listener>();
+type ConsentListener = (pendingConsents: ConsentDocument[]) => void;
+const consentRequiredListeners = new Set<ConsentListener>();
+const profileRequiredListeners = new Set<Listener>();
 const accountDeactivatedListeners = new Set<Listener>();
+const updateRequiredListeners = new Set<Listener>();
 
 /** 토큰이 비워졌을 때(로그아웃·세션 만료) 호출된다. 구독 해제 함수를 반환. */
 export function onTokensCleared(fn: Listener): () => void {
   return credentialMutationQueue.onTokensCleared(fn);
 }
 
-/** 보호 API가 필수 동의를 요구할 때 호출된다. 구독 해제 함수를 반환. */
-export function onConsentRequired(fn: Listener): () => void {
+/**
+ * 보호 API가 403 consent_required로 막혔을 때 호출된다. 미결정 문서 목록이 함께 온다
+ * (선택 문서 포함). 구독 해제 함수를 반환.
+ */
+export function onConsentRequired(fn: ConsentListener): () => void {
   consentRequiredListeners.add(fn);
   return () => consentRequiredListeners.delete(fn);
+}
+
+/** 보호 API가 403 profile_required로 막혔을 때 호출된다. 구독 해제 함수를 반환. */
+export function onProfileRequired(fn: Listener): () => void {
+  profileRequiredListeners.add(fn);
+  return () => profileRequiredListeners.delete(fn);
+}
+
+/** 서버가 426으로 답했을 때 호출된다. 이 빌드로는 더 쓸 수 없다. 구독 해제 함수를 반환. */
+export function onUpdateRequired(fn: Listener): () => void {
+  updateRequiredListeners.add(fn);
+  return () => updateRequiredListeners.delete(fn);
 }
 
 /** refresh가 legacy principal을 교정했을 때 인증 컨텍스트에 새 user를 알린다. */
@@ -43,8 +61,16 @@ export function onStoredUserChanged(fn: UserListener): () => void {
   return credentialMutationQueue.onStoredUserChanged(fn);
 }
 
-export function emitConsentRequired(): void {
-  for (const fn of consentRequiredListeners) fn();
+export function emitConsentRequired(pendingConsents: unknown[]): void {
+  for (const fn of consentRequiredListeners) fn(pendingConsents as ConsentDocument[]);
+}
+
+export function emitProfileRequired(): void {
+  for (const fn of profileRequiredListeners) fn();
+}
+
+export function emitUpdateRequired(): void {
+  for (const fn of updateRequiredListeners) fn();
 }
 
 /**

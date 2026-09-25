@@ -41,20 +41,19 @@ TBT는 반복 가능한 실험실 진단 지표이며, 필드 전용 지표인 I
 
 ## 측정 범위
 
-현재 자동 측정은 공개 비로그인 화면인 `/`만 대상으로 합니다. 다음 경로는 인증 또는
-약관 상태가 필요하므로 비로그인 Lighthouse 수집 대상에 넣지 않습니다.
+현재 자동 측정은 공개 화면인 `/`만 대상으로 합니다. 다음 경로는 게스트의 자료나 API
+응답에 의존하므로 Lighthouse 수집 대상에 넣지 않습니다.
 
 - `/home`
 - `/practice/new`
 - `/practice/history`
 - `/terms`
 
-`/home`, `/practice/new`, `/practice/history` 같은 보호 화면은 인증되지 않으면
-`/login`으로 이동하며 Google 로그인이 항상 표시되고, `next dev`에서만 development
-테스트 폼이 함께 표시됩니다. 인증 토큰은
-`localStorage`에 저장되므로 쿠키만 설정해서는 인증 상태를 재현할 수 없습니다.
-`/terms`는 API가 제공하는 약관 상태에 의존합니다. 이 경로들은 결정적인 테스트 계정,
-`localStorage` 토큰 주입, 안정적인 API 픽스처가 마련된 뒤 별도 시나리오로 추가합니다.
+웹에는 로그인이 없어 `/home`, `/practice/new`, `/practice/history`도 누구에게나 열리지만,
+지난 연습 목록과 연습 상세는 이 브라우저의 게스트 토큰(`localStorage`)이 있어야 그려집니다.
+쿠키만 설정해서는 그 상태를 재현할 수 없습니다. `/terms`는 API가 제공하는 동의 문서에
+의존합니다. 이 경로들은 결정적인 게스트, `localStorage` 토큰 주입, 안정적인 API 픽스처가
+마련된 뒤 별도 시나리오로 추가합니다.
 
 ## 실험실 점수와 Core Web Vitals
 

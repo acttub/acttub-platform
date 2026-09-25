@@ -1,9 +1,10 @@
 import { ApiError, NetworkError } from "@/lib/api/v2/errors";
-import type { PracticeReport } from "@/lib/api/v2/types";
+import type { PracticeReport } from "./workspace-state";
 
 export function isClosedCoach(error: unknown): boolean {
   return error instanceof ApiError && error.status === 409
-    && (error.code === "session is closed" || error.code === "session_closed");
+    // conversation_closed 는 1.0.0 의 코드이고 앞의 둘은 옛 코치 경로가 쓰던 말이다.
+    && (error.code === "session is closed" || error.code === "session_closed" || error.code === "conversation_closed");
 }
 
 export function coachReplyError(error: unknown): string {
@@ -17,8 +18,9 @@ export function coachReplyError(error: unknown): string {
 export async function recoverClosedCoach({ isCurrent, close, load, restore, unavailable }: {
   isCurrent: () => boolean;
   close: () => void;
-  load: () => Promise<{ report: PracticeReport }>;
-  restore: (report: PracticeReport) => void;
+  /** 노트가 없는 대화도 있다(짧게 끝난 기존 갈래) — 그때는 report 가 null 이다. */
+  load: () => Promise<{ report: PracticeReport | null }>;
+  restore: (report: PracticeReport | null) => void;
   unavailable: () => void;
 }): Promise<void> {
   if (!isCurrent()) return;

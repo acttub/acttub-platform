@@ -9,7 +9,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.integration.llm.TextGenerator;
@@ -191,11 +191,11 @@ class MemoryUpdateWorkerPayloadTest {
 
         @Override
         public void complete(
-                UUID operationId, UUID leaseToken, Supplier<JsonNode> writeMemoryAndPayload, Instant now) {
+                UUID operationId, UUID leaseToken, Function<UUID, JsonNode> writeMemoryAndPayload, Instant now) {
             if (completeFailure != null) {
                 throw completeFailure;
             }
-            payload = writeMemoryAndPayload.get();
+            payload = writeMemoryAndPayload.apply(UUID.randomUUID());
         }
 
         @Override

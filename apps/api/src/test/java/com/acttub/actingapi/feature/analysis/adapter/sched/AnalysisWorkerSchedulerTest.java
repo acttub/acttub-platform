@@ -93,7 +93,9 @@ class AnalysisWorkerSchedulerTest {
             ThreadPoolTaskExecutor executor,
             RecordingFailureReporter reporter) {
         ObjectProvider<AnalysisWorker> provider = mock(ObjectProvider.class);
-        when(provider.getIfAvailable()).thenReturn(worker);
+        // 원장마다 워커 하나다(옛 external_operations·1.0.0 ai_jobs) — 스케줄러는 있는 것을 모두 돌린다.
+        when(provider.orderedStream())
+                .thenAnswer(invocation -> worker == null ? java.util.stream.Stream.empty() : java.util.stream.Stream.of(worker));
         return new AnalysisWorkerScheduler(provider, executor, reporter);
     }
 }

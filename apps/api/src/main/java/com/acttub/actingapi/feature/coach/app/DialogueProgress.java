@@ -1,14 +1,46 @@
 package com.acttub.actingapi.feature.coach.app;
 
+import java.util.regex.Pattern;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.acttub.actingapi.integration.llm.StructuredJson;
 import com.acttub.actingapi.feature.coach.domain.ClosingIntent;
 import static com.acttub.actingapi.feature.coach.app.CoachingStateReducer.require;
+import com.acttub.actingapi.platform.web.OutputLanguage;
 
 /** Narrow conversation repair guards. These do not grade the actor's interpretation. */
 final class DialogueProgress {
     private DialogueProgress() { }
+
+    /**
+     * 영어로 쓰는 사람의 같은 뜻 (SOMA-544). 한국어 판정과 같은 기준이다 — 오탐이 미탐보다
+     * 비싸므로, 발화 전체가 마치자는 말일 때만 잡고 설명하는 문장은 건드리지 않는다.
+     */
+    private static final Pattern FINISH_EN = Pattern.compile(
+            "(?is)(?:.*[.!?]\\s*)?(?:(?:ok|okay|yes|yeah|alright|sure)[,\\s]*)?"
+                    + "(?:(?:for\\s+today|for\\s+now)\\s*)?"
+                    + "(?:that'?s\\s+(?:it|all|enough)|let'?s\\s+(?:stop|finish|wrap\\s*up|call\\s+it)"
+                    + "|wrap\\s*(?:it\\s*)?up|i'?m\\s+done|we'?re\\s+done|sum\\s*(?:it\\s*)?up"
+                    + "|summari[sz]e(?:\\s+(?:it|this|what\\s+we.{0,20}))?)"
+                    + "(?:\\s+(?:for\\s+today|for\\s+now|please))?[.!?\\s]*");
+
+    /** 질문을 못 알아들었다는 말. */
+    private static final Pattern CONFUSION_EN = Pattern.compile(
+            "(?is)(?:what\\s+do\\s+you\\s+mean|i\\s+don'?t\\s+(?:understand|get\\s+(?:it|the\\s+question))"
+                    + "|not\\s+sure\\s+what\\s+you(?:'?re)?\\s+asking|didn'?t\\s+understand"
+                    + "|come\\s+again|huh\\?|^\\s*\\?+\\s*$)");
+
+    /** 손동작을 가리키는 말. */
+    private static final Pattern HAND_EN = Pattern.compile(
+            "(?is)\\b(?:hand|hands|gesture|gestures|gesturing)\\b");
+    private static final Pattern HAND_EXCLUDE_EN = Pattern.compile(
+            "(?is)\\b(?:not|besides|except|other\\s+than|apart\\s+from)\\b[^.?!]{0,16}"
+                    + "\\b(?:hand|hands|gesture|gestures)\\b");
+    /** 그것이 어떻게 보였는지 묻는 말. */
+    private static final Pattern HAND_ASKED_EN = Pattern.compile(
+            "(?is)\\b(?:video|footage|read|reads|came\\s+across|land|landed|look|looked|looks"
+                    + "|feedback|work|worked|clear|visible|see|seen)\\b");
 
     static boolean actorFinished(String text) {
         if (text == null) return false;
@@ -17,12 +49,14 @@ final class DialogueProgress {
         String unquoted = text.replaceAll("“[^”]*”|‘[^’]*’|\"[^\"]*\"|'[^']*'", "");
         return unquoted.strip().matches("(?s)(?:.*[.!?。]\\s*)?(?:(?:네|응|ㅇㅇ|알겠어|알겠어요)[,\\s]*)?"
                 + "(?:(?:오늘은|이번 대화는)\\s*)?여기까지(?:\\s*(?:할게|할게요|하자|정리해줘|정리해 주세요))?[.!?\\s]*")
-                || unquoted.strip().matches("(?s)(?:.*[.!?。]\\s*)?(?:(?:여기까지|지금까지|오늘은|오늘 대화|이번 대화)\\s*)?정리(?:해줘|해 줘|해주세요|해 주세요)[.!?\\s]*");
+                || unquoted.strip().matches("(?s)(?:.*[.!?。]\\s*)?(?:(?:여기까지|지금까지|오늘은|오늘 대화|이번 대화)\\s*)?정리(?:해줘|해 줘|해주세요|해 주세요)[.!?\\s]*")
+                || FINISH_EN.matcher(unquoted.strip()).matches();
     }
 
     static ObjectNode controls(JsonNode input) {
         String latest = input.path("user_message").path("text").asText();
-        boolean confusion = latest.matches("(?s).*(?:무슨\\s*(?:질문|말)|뭔\\s*소리|뭐라는|이해가?\\s*안|질문.{0,12}모르겠|설명.{0,12}모르겠|^\\?+$).*");
+        boolean confusion = latest.matches("(?s).*(?:무슨\\s*(?:질문|말)|뭔\\s*소리|뭐라는|이해가?\\s*안|질문.{0,12}모르겠|설명.{0,12}모르겠|^\\?+$).*")
+                || CONFUSION_EN.matcher(latest).find();
         int acknowledgements = acknowledgement(latest) ? 1 : 0;
         JsonNode messages = input.path("recent_messages");
         boolean objectiveAsked = false;
@@ -38,6 +72,12 @@ final class DialogueProgress {
         boolean handQuestion = latest.matches("(?s).*(?:손동작|손으로|손이|손은|손을|손\\s+.{0,8}(?:보|전달|움직|연기)).*")
                 && !latest.matches("(?s).*손.{0,12}(?:말고|아니라|제외).*");
         handQuestion &= latest.matches("(?s).*(?:영상|보여|보였|보이는|전달|피드백|평가|확인|잘\\s*(?:됐|했|된|돼)).*");
+        // 영어로 물어도 같은 판정에 닿게 한다 (SOMA-544). 한국어 판정과 같은 모양으로,
+        // 손을 가리키면서 그것이 어떻게 보였는지 묻는 문장만 잡는다.
+        boolean handQuestionEn = HAND_EN.matcher(latest).find()
+                && !HAND_EXCLUDE_EN.matcher(latest).find()
+                && HAND_ASKED_EN.matcher(latest).find();
+        handQuestion |= handQuestionEn;
         var handRefs = StructuredJson.MAPPER.createArrayNode();
         boolean handUnavailable = false;
         for (JsonNode source : input.path("record_view").path("source_catalog")) {
@@ -84,7 +124,9 @@ final class DialogueProgress {
     static ObjectNode correctionTargetReply(JsonNode input) {
         var reply = StructuredJson.MAPPER.createObjectNode().put("action", "respond")
                 .put("base_state_revision", input.path("coaching_state").path("revision").asLong())
-                .put("message", "방금 저에게 한 답을 고치신다는 뜻인가요, 영상 속 대사를 실수로 말했다는 뜻인가요?")
+                .put("message", OutputLanguage.isKorean()
+                        ? "방금 저에게 한 답을 고치신다는 뜻인가요, 영상 속 대사를 실수로 말했다는 뜻인가요?"
+                        : "Do you mean you want to correct the answer you just gave me, or that you misspoke a line in the video?")
                 .putNull("context_update").putNull("style_update").put("flow", "continue");
         var actor = input.path("user_message");
         String text = actor.path("text").asText();
@@ -101,7 +143,9 @@ final class DialogueProgress {
     static ObjectNode observationLimitReply(JsonNode input) {
         var reply = StructuredJson.MAPPER.createObjectNode().put("action", "respond")
                 .put("base_state_revision", input.path("coaching_state").path("revision").asLong())
-                .put("message", "영상에서 손동작을 확인할 수 없어, 그 동작이 잘 전달됐는지는 판단하기 어려워요.")
+                .put("message", OutputLanguage.isKorean()
+                        ? "영상에서 손동작을 확인할 수 없어, 그 동작이 잘 전달됐는지는 판단하기 어려워요."
+                        : "I can't make out your hand movements in the video, so I can't judge how well that gesture landed.")
                 .putNull("context_update").putNull("style_update").put("flow", "continue");
         var actor = input.path("user_message");
         String text = actor.path("text").asText();

@@ -6,104 +6,257 @@ import "./ts-module-loader.mjs";
 process.env.NEXT_PUBLIC_API_BASE_URL = "";
 
 const { apiFetch } = await import("../src/lib/api/v2/client.ts");
-const { getPendingConsents } = await import(
-  "../src/lib/api/v2/consents.ts"
+const { registerConsentPrompt } = await import(
+  "../src/lib/api/v2/consent-prompt.ts"
 );
-const { onSessionEvent } = await import("../src/lib/auth/session-events.ts");
+const { errorMessage } = await import("../src/lib/api/v2/errors.ts");
+const { postIdempotent } = await import("../src/lib/api/v2/idempotency.ts");
 const { clearTokens, setTokens } = await import(
   "../src/lib/auth/token-store.ts"
 );
 
 const originalFetch = globalThis.fetch;
+let unregisterPrompt = () => {};
+
+function jsonResponse(payload, status = 200) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+function consentDocument(type, overrides = {}) {
+  return {
+    id: `${type}-document`,
+    type,
+    version: "2026-10-01",
+    title: `${type} 문서`,
+    body: `${type} 전문`,
+    required: true,
+    published_at: "2026-10-01T00:00:00.000000Z",
+    ...overrides,
+  };
+}
+
+function consentRequired(...types) {
+  return jsonResponse(
+    {
+      detail: "consent_required",
+      pending_consents: types.map((type) => consentDocument(type)),
+    },
+    403,
+  );
+}
 
 beforeEach(() => {
   clearTokens();
-  setTokens({ access_token: "access-token", refresh_token: "refresh-token" });
+  setTokens({ access_token: "guest-access", refresh_token: "guest-refresh" });
 });
 
 afterEach(() => {
+  unregisterPrompt();
+  unregisterPrompt = () => {};
   globalThis.fetch = originalFetch;
   clearTokens();
 });
 
-test("403 consent_required는 기존 ApiError를 유지하면서 세션 이벤트를 보낸다", async () => {
-  let fetchCount = 0;
-  let eventCount = 0;
-  const unsubscribe = onSessionEvent((event) => {
-    if (event === "consent-required") eventCount += 1;
-  });
-  globalThis.fetch = async () => {
-    fetchCount += 1;
-    return new Response(JSON.stringify({ detail: "consent_required" }), {
-      status: 403,
-      headers: { "Content-Type": "application/json" },
-    });
-  };
-
-  try {
-    await assert.rejects(
-      apiFetch("/v2/uploads/intents"),
-      (error) => error?.status === 403 && error?.code === "consent_required",
-    );
-    assert.equal(fetchCount, 1);
-    assert.equal(eventCount, 1);
-  } finally {
-    unsubscribe();
-  }
-});
-
-test("403 consent_blocked도 원 요청을 재실행하지 않고 동의 판정을 다시 읽게 한다", async () => {
-  let fetchCount = 0;
-  let eventCount = 0;
-  const unsubscribe = onSessionEvent((event) => {
-    if (event === "consent-required") eventCount += 1;
-  });
-  globalThis.fetch = async () => {
-    fetchCount += 1;
-    return new Response(JSON.stringify({ detail: "consent_blocked" }), {
-      status: 403,
-      headers: { "Content-Type": "application/json" },
-    });
-  };
-
-  try {
-    await assert.rejects(
-      apiFetch("/v2/uploads/intents"),
-      (error) => error?.status === 403 && error?.code === "consent_blocked",
-    );
-    assert.equal(fetchCount, 1);
-    assert.equal(eventCount, 1);
-  } finally {
-    unsubscribe();
-  }
-});
-
-test("getPendingConsents는 인증된 사용자 pending endpoint를 조회한다", async () => {
-  let request;
+test("account.guest: 403 consent_required를 받으면 빠진 문서로 시트를 띄우고 결정 뒤 같은 요청을 다시 보낸다", async () => {
+  const requests = [];
+  const prompted = [];
   globalThis.fetch = async (url, options) => {
-    request = { url: String(url), options };
-    return new Response(JSON.stringify({ documents: [] }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
+    requests.push({
+      url: String(url),
+      method: options.method,
+      body: options.body,
+      requestId: options.headers.get("X-Request-Id"),
     });
+    return requests.length === 1
+      ? consentRequired("terms", "privacy", "ai_analysis")
+      : jsonResponse({ intent_id: "intent-1" }, 201);
   };
+  unregisterPrompt = registerConsentPrompt(async (documents) => {
+    prompted.push(documents.map((document) => document.type));
+    return "decided";
+  });
 
-  assert.deepEqual(await getPendingConsents(), { documents: [] });
-  assert.equal(request.url, "/v2/consents/pending");
-  assert.equal(request.options.method, "GET");
-  assert.equal(request.options.headers.get("Authorization"), "Bearer access-token");
-  assert.equal(request.options.headers.get("X-Acttub-Consent-Entry"), "1");
+  const { data } = await apiFetch("/v2/videos/intents", {
+    method: "POST",
+    body: { filename: "take.mp4" },
+    headers: { "X-Request-Id": "request-1" },
+  });
+
+  assert.deepEqual(data, { intent_id: "intent-1" });
+  assert.deepEqual(prompted, [["terms", "privacy", "ai_analysis"]]);
+  assert.equal(requests.length, 2);
+  assert.deepEqual(requests[1], requests[0]);
 });
 
-// 여기 있던 소스 정규식 순찰("TermsGate는 local pending이 없을 때 …")은 걷었다. 단언이
-// 다섯이었고 그중 넷 — 기기에 남은 것을 읽는다 · 서버에도 묻는다 · 로그인일 때만 묻는다 ·
-// 서버가 준 것이 있으면 거기서 멈춘다 — 은 이제 tests/consent-documents.test.mjs 가
-// 실제로 돌려 본다.
-//
-// ⚠ 다섯째("?consent= 쿼리로 모드를 정하지 않는다")는 **덮이지 않는다.** 파이프라인이
-// signal 하나만 받게 되어 그쪽이 URL 을 볼 길은 없어졌지만, TermsGateContent 는 여전히
-// searchParams 를 쥐고 있고 mode 를 읽는 것도 컴포넌트 안이라(isPendingMode) 거기서
-// 쿼리로 덮어쓰는 것을 막는 것은 없다. 실제 커버리지 상실 한 건이다.
-//
-// 옛 순찰이 배선(화면이 그 파이프라인을 실제로 부르는가)까지 잡았던 것은 아니다. 정규식이
-// import 문의 존재만 보므로 import 를 남기고 호출을 지워도 초록이었다.
+test("account.guest: 시트를 닫으면 요청을 다시 보내지 않고 403 consent_required와 빠진 문서를 그대로 돌려준다", async () => {
+  let fetchCount = 0;
+  globalThis.fetch = async () => {
+    fetchCount += 1;
+    return consentRequired("terms", "privacy", "ai_analysis");
+  };
+  unregisterPrompt = registerConsentPrompt(async () => "dismissed");
+
+  let caught;
+  try {
+    await apiFetch("/v2/videos/intents", { method: "POST", body: {} });
+  } catch (error) {
+    caught = error;
+  }
+
+  assert.equal(caught?.status, 403);
+  assert.equal(caught?.code, "consent_required");
+  assert.equal(fetchCount, 1);
+  assert.equal(
+    errorMessage(caught, "기본 문구"),
+    "동의해야 계속할 수 있어요. 다시 시도하면 동의 문서를 볼 수 있어요.",
+  );
+});
+
+test("account.guest: 연습에 동의한 뒤에는 서버가 빠졌다고 알린 문서만 묻는다", async () => {
+  const prompted = [];
+  let fetchCount = 0;
+  globalThis.fetch = async () => {
+    fetchCount += 1;
+    return fetchCount === 1
+      ? consentRequired("ai_analysis")
+      : jsonResponse({ ok: true });
+  };
+  unregisterPrompt = registerConsentPrompt(async (documents) => {
+    prompted.push(documents.map((document) => document.type));
+    return "decided";
+  });
+
+  await apiFetch("/v2/videos/intents", { method: "POST", body: {} });
+
+  assert.deepEqual(prompted, [["ai_analysis"]]);
+});
+
+test("account.guest: 동시에 막힌 요청 둘은 시트 하나를 함께 기다리고 둘 다 다시 보낸다", async () => {
+  let promptCount = 0;
+  let decide;
+  const decided = new Promise((resolve) => {
+    decide = resolve;
+  });
+  let consented = false;
+  let fetchCount = 0;
+  globalThis.fetch = async () => {
+    fetchCount += 1;
+    return consented
+      ? jsonResponse({ ok: true })
+      : consentRequired("terms", "privacy");
+  };
+  unregisterPrompt = registerConsentPrompt(async () => {
+    promptCount += 1;
+    await decided;
+    consented = true;
+    return "decided";
+  });
+
+  const both = Promise.all([
+    apiFetch("/v2/scripts", { method: "POST", body: { title: "대본 1" } }),
+    apiFetch("/v2/scripts", { method: "POST", body: { title: "대본 2" } }),
+  ]);
+  await new Promise((resolve) => setImmediate(resolve));
+  decide();
+  const results = await both;
+
+  assert.equal(promptCount, 1);
+  assert.equal(fetchCount, 4);
+  assert.deepEqual(results.map((result) => result.data), [{ ok: true }, { ok: true }]);
+});
+
+test("account.consent: 다시 보낸 요청이 또 막히면(그 사이 새 판) 시트를 한 번 더 띄우고, 그래도 막히면 403을 돌려준다", async () => {
+  let promptCount = 0;
+  let fetchCount = 0;
+  globalThis.fetch = async () => {
+    fetchCount += 1;
+    return consentRequired("terms");
+  };
+  unregisterPrompt = registerConsentPrompt(async () => {
+    promptCount += 1;
+    return "decided";
+  });
+
+  await assert.rejects(
+    apiFetch("/v2/videos/intents", { method: "POST", body: {} }),
+    (error) => error?.status === 403 && error?.code === "consent_required",
+  );
+
+  assert.equal(promptCount, 2);
+  assert.equal(fetchCount, 3);
+});
+
+test("account.guest: 시트가 떠 있지 않은 화면에서는 403 consent_required를 그대로 돌려준다", async () => {
+  let fetchCount = 0;
+  globalThis.fetch = async () => {
+    fetchCount += 1;
+    return consentRequired("terms");
+  };
+
+  await assert.rejects(
+    apiFetch("/v2/videos/intents", { method: "POST", body: {} }),
+    (error) => error?.status === 403 && error?.code === "consent_required",
+  );
+  assert.equal(fetchCount, 1);
+});
+
+test("account.consent: consent_blocked 분기는 없다 — 시트를 띄우지도 다시 보내지도 않는다", async () => {
+  let promptCount = 0;
+  let fetchCount = 0;
+  globalThis.fetch = async () => {
+    fetchCount += 1;
+    return jsonResponse({ detail: "consent_blocked" }, 403);
+  };
+  unregisterPrompt = registerConsentPrompt(async () => {
+    promptCount += 1;
+    return "decided";
+  });
+
+  await assert.rejects(
+    apiFetch("/v2/videos/intents", { method: "POST", body: {} }),
+    (error) => error?.status === 403 && error?.code === "consent_blocked",
+  );
+  assert.equal(promptCount, 0);
+  assert.equal(fetchCount, 1);
+});
+
+test("account.guest: 회원 전용 403 member_only에는 시트를 띄우지 않는다", async () => {
+  let promptCount = 0;
+  globalThis.fetch = async () => jsonResponse({ detail: "member_only" }, 403);
+  unregisterPrompt = registerConsentPrompt(async () => {
+    promptCount += 1;
+    return "decided";
+  });
+
+  await assert.rejects(
+    apiFetch("/v2/portfolio"),
+    (error) => error?.status === 403 && error?.code === "member_only",
+  );
+  assert.equal(promptCount, 0);
+});
+
+test("account.guest: 하루 네 번째 분석(429 guest_daily_analysis_limit)은 기다렸다 다시 보내지 않고 안내 문구를 돌려준다", async () => {
+  let fetchCount = 0;
+  globalThis.fetch = async () => {
+    fetchCount += 1;
+    return jsonResponse({ detail: "guest_daily_analysis_limit" }, 429);
+  };
+
+  let caught;
+  try {
+    await postIdempotent("/v2/practices", { upload_intent_id: "intent-1" });
+  } catch (error) {
+    caught = error;
+  }
+
+  assert.equal(caught?.status, 429);
+  assert.equal(caught?.code, "guest_daily_analysis_limit");
+  assert.equal(fetchCount, 1);
+  assert.equal(
+    errorMessage(caught, "기본 문구"),
+    "오늘은 세 번까지 분석할 수 있어요. 앱으로 옮기면 계속할 수 있어요.",
+  );
+});
