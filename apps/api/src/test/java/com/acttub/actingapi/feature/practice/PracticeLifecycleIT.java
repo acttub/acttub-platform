@@ -139,14 +139,14 @@ class PracticeLifecycleIT {
     }
 
     @Test
-    @DisplayName("practice.start: 상황과 막힘(표현 › 감정)을 적고 시작 — 저장값이 그대로이고 experience_version 은 legacy 다. 헤더가 없어도 legacy. "
-            + "시작 뒤 상황을 바꾸는 API 는 없다")
-    void practiceStart_anyInputMakesItLegacy() throws Exception {
+    @DisplayName("practice.start: 상황과 막힘(표현 › 감정)을 적고 시작 — 저장값이 그대로이고 experience_version 은 three_layers_v1 이다"
+            + "(새 코치가 적은 것을 받는다). 헤더가 없으면 legacy. 시작 뒤 상황을 바꾸는 API 는 없다")
+    void practiceStart_writtenInputStillGetsTheNewCoach() throws Exception {
         JsonNode typed = json(post("/v2/practices").header("X-Acttub-Contract", "three_layers_v1")
                 .content(startBody(UUID.randomUUID(), video,
                         scene("문 앞에서 돌아선다", "니나", "설득한다"), blockage("표현", "감정", "감정이 안 올라와요"))), 201);
 
-        assertThat(typed.path("experience_version").textValue()).isEqualTo("legacy");
+        assertThat(typed.path("experience_version").textValue()).isEqualTo("three_layers_v1");
         assertThat(typed.path("situation").textValue()).isEqualTo("문 앞에서 돌아선다");
         assertThat(typed.path("character").textValue()).isEqualTo("니나");
         assertThat(typed.path("goal").textValue()).isEqualTo("설득한다");

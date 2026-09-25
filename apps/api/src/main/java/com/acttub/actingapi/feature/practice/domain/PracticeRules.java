@@ -40,18 +40,12 @@ public final class PracticeRules {
     }
 
     /**
-     * 그 회차가 신형인가 — 서버 플래그가 켜져 있고, 계약 헤더가 신형이며, <b>영상만 올리고 장면·막힘을 적지
-     * 않은</b> 무입력 조건일 때만이다(practice.start). 그 밖은 전부 legacy 다.
+     * 그 회차가 신형인가 — 서버 플래그가 켜져 있고 계약 헤더가 신형이면 신형이다(practice.start). 배우가 장면·막힘을
+     * 적었어도 같다 — 새 코치(연습 루프)가 적은 것을 받아 쓴다(SOMA-508). 예전에는 무입력일 때만 신형이었다.
      */
     public static boolean threeLayers(
             boolean enabled, String contractHeader, String situation, String characterContext, String goal,
             String blockageKind, String blockageNote) {
-        return enabled
-                && "three_layers_v1".equals(contractHeader)
-                && scene(situation).isEmpty()
-                && scene(characterContext).isEmpty()
-                && scene(goal).isEmpty()
-                && UNSPECIFIED.equals(blockage(blockageKind))
-                && note(blockageNote) == null;
+        return enabled && "three_layers_v1".equals(contractHeader);
     }
 }

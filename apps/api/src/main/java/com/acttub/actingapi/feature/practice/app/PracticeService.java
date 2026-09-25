@@ -28,7 +28,7 @@ import com.acttub.actingapi.platform.web.ApiException;
  * 회차가 있으면 만들지 않고 409 {@code practice_in_progress} 다(본문은 코드 하나, 회차 id 는 묶음 조회에서 얻는다).
  *
  * <p>Scene Context 는 셋 모두 선택이고 시작 뒤 바꾸지 않는다. 막힘을 고르지 않으면 "그 외/그 외"다. 이론 선택은
- * 1.0.0 에 없다. 코칭 갈래({@code experience_version})는 서버 플래그·계약 헤더·무입력 조건이 모두 맞을 때만 신형이다.
+ * 1.0.0 에 없다. 코칭 갈래({@code experience_version})는 서버 플래그와 계약 헤더가 맞으면 신형이다(적은 것과 무관).
  */
 public class PracticeService {
 

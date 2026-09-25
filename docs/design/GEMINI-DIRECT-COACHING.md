@@ -82,7 +82,8 @@ dev(`SITE_URL=https://dev.acttub.com`)의 직접 영상 코칭은 분류·지침
 
 ### 배우가 적은 것도 새 코치로 (2026-09-25, SOMA-508 hotfix)
 
-새 연습은 배우가 상황·인물·목표나 막힘을 적어도 `three_layers_v1`(새 코치)로 연다(`PracticeExperience.select`).
+새 연습은 배우가 상황·인물·목표나 막힘을 적어도 `three_layers_v1`(새 코치)로 연다(1.0 `POST /v2/practices` 는
+`PracticeRules.threeLayers`, 옛 `POST /v2/practice-sessions` 는 `PracticeExperience.select`).
 예전에는 아무것도 적지 않은 연습에만 새 코치가 붙고, 하나라도 적으면 예전 코치로 빠졌다.
 연습 루프는 적은 것을 `## 배우가 적은 것`(상황·인물·목표·막힌 곳·막힌 곳 설명) 칸으로 프로필·지난 연습 칸 뒤,
 루프 프롬프트 앞에 붙인다(`DirectVideoPracticeLoop.actorMaterial`). 빈 칸과 건너뛴 막힘(`그 외`)은 싣지 않으므로
