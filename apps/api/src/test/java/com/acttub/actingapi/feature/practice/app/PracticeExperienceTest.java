@@ -5,12 +5,15 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class PracticeExperienceTest {
-    @Test void newContractRequiresCapabilityFlagAndVideoOnlyInput() {
+    @Test void newContractRequiresCapabilityFlagEvenWhenTheActorWroteSomething() {
         NewPracticeSession input = new NewPracticeSession(UUID.randomUUID(), "", "", "", "그 외", "그 외", null, null);
         assertThat(PracticeExperience.select("three_layers_v1", true, input)).isEqualTo("three_layers_v1");
         assertThat(PracticeExperience.select(null, true, input)).isEqualTo("legacy");
         assertThat(PracticeExperience.select("three_layers_v1", false, input)).isEqualTo("legacy");
         NewPracticeSession withGoal = new NewPracticeSession(input.uploadIntentId(), "", "", "상대를 붙잡고 싶다", "그 외", "그 외", null, null);
-        assertThat(PracticeExperience.select("three_layers_v1", true, withGoal)).isEqualTo("legacy");
+        assertThat(PracticeExperience.select("three_layers_v1", true, withGoal)).isEqualTo("three_layers_v1");
+        NewPracticeSession withBlockage = new NewPracticeSession(input.uploadIntentId(), "빚 독촉", "태식", "", "표현", "화술", "다 똑같이 들려요", null);
+        assertThat(PracticeExperience.select("three_layers_v1", true, withBlockage)).isEqualTo("three_layers_v1");
+        assertThat(PracticeExperience.select(null, true, withBlockage)).isEqualTo("legacy");
     }
 }
