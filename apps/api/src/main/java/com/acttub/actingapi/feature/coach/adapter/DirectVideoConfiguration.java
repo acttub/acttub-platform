@@ -31,11 +31,9 @@ public class DirectVideoConfiguration {
             com.acttub.actingapi.feature.coach.app.CoachVideoSource videos,
             com.acttub.actingapi.integration.storage.ObjectStorage storage,
             FailureReporter failures, com.acttub.actingapi.platform.observability.LlmTelemetry telemetry,
-            @Value("${SITE_URL:}") String siteUrl,
-            @Value("${ACTTUB_DIRECT_VIDEO_PRACTICE_LOOP:}") String practiceLoop) {
-        // 연습 루프는 dev 에서만 기본으로 켠다. 운영은 분류·과제 조립 경로를 그대로 쓴다. 명시하면 그 값을 따른다.
-        boolean loop = practiceLoop.isBlank() ? "https://dev.acttub.com".equals(siteUrl) : Boolean.parseBoolean(practiceLoop);
-        return new com.acttub.actingapi.feature.coach.app.DirectVideoCoach(model, videos, storage, failures, telemetry, loop);
+            // 연습 루프가 기본이다 — 운영도 핫픽스(#388)로 이미 켜져 있다. false 를 명시하면 분류·과제 조립 경로로 돌아간다(롤백).
+            @Value("${ACTTUB_DIRECT_VIDEO_PRACTICE_LOOP:true}") boolean practiceLoop) {
+        return new com.acttub.actingapi.feature.coach.app.DirectVideoCoach(model, videos, storage, failures, telemetry, practiceLoop);
     }
 
     @Bean(destroyMethod = "close")
