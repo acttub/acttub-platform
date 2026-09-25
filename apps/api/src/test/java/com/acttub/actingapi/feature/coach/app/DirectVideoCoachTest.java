@@ -190,6 +190,32 @@ class DirectVideoCoachTest {
         assertThat(telemetry.calls()).hasSize(3);
     }
 
+    CoachSessionSnapshot writtenSession() {
+        return new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                StructuredJson.MAPPER.createObjectNode(), "빚 독촉 장면", "태식. 센 척함", ".", 8000, "표현", "화술",
+                " 화내는 게 다 똑같이 들려요 ", List.of(), "", null, "open", "", List.of())
+                .withCoachingState("three_layers_v1", 0, null, "open", "");
+    }
+
+    @Test void practiceLoopGetsWhatTheActorWroteBeforeItsPrompt() {
+        var loopEngine = practiceLoopEngine();
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING);
+        loopEngine.start(writtenSession(), UUID.randomUUID());
+        verify(model).reply(eq(file), anyList(), eq("""
+                ## 배우가 적은 것
+                이번 연습을 올리며 배우가 적은 것이다. 영상 근거가 아니다.
+                - 상황: 빚 독촉 장면
+                - 인물: 태식. 센 척함
+                - 막힌 곳: 표현 · 화술
+                - 막힌 곳 설명: 화내는 게 다 똑같이 들려요
+
+                """ + DirectVideoPrompts.practiceLoop()));
+    }
+
+    @Test void videoOnlySessionGetsNoActorMaterialBlock() {
+        assertThat(DirectVideoPracticeLoop.actorMaterial(session())).isEmpty();
+    }
+
     @Test void practiceLoopClosesWhenCoachFinishesOrActorStops() {
         var loopEngine = practiceLoopEngine();
         when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING,
