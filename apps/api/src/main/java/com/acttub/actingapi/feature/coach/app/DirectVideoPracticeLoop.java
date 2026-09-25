@@ -49,6 +49,42 @@ final class DirectVideoPracticeLoop {
                 && session.coachingState().path(STATE_KEY).isObject();
     }
 
+    /**
+     * 배우가 이번 연습에 적은 것(상황·인물·목표·막힘)을 연습 루프 프롬프트 앞에 붙일 칸으로 만든다.
+     *
+     * <p>프롬프트는 "배우가 적은 것" 이라는 이름으로 이 칸을 찾는다. <b>빈 칸은 줄을 만들지 않고, 모두 비면
+     * 칸 자체를 만들지 않는다</b> — 빈 제목만 남으면 모델이 그 자리를 지어낸다. 그래서 영상만 올린 연습은
+     * 예전과 똑같은 프롬프트를 받는다. 막힘을 건너뛴 값 {@code 그 외} 는 배우가 적은 것이 아니므로 싣지 않는다.
+     */
+    static String actorMaterial(CoachSessionSnapshot session) {
+        var lines = new ArrayList<String>();
+        field(lines, "상황", session.situation());
+        field(lines, "인물", session.characterContext());
+        field(lines, "목표", session.goal());
+        if (!skipped(session.blockageKind())) {
+            lines.add("- 막힌 곳: " + session.blockageKind().strip()
+                    + (skipped(session.subBranch()) ? "" : " · " + session.subBranch().strip()));
+        }
+        field(lines, "막힌 곳 설명", session.blockageDetail());
+        if (lines.isEmpty()) return "";
+        return "## 배우가 적은 것\n이번 연습을 올리며 배우가 적은 것이다. 영상 근거가 아니다.\n"
+                + String.join("\n", lines) + "\n\n";
+    }
+
+    private static void field(List<String> lines, String label, String value) {
+        if (!blank(value)) lines.add("- " + label + ": " + value.strip());
+    }
+
+    /** 배우가 고르지 않은 막힘. 웹·앱은 건너뛰면 {@code 그 외} 를 보낸다. */
+    private static boolean skipped(String value) {
+        return blank(value) || "그 외".equals(value.strip());
+    }
+
+    /** 빈 칸. {@code "."} 은 입력 칸을 넘기려고 찍은 점이라 빈 것으로 본다. */
+    private static boolean blank(String value) {
+        return value == null || value.isBlank() || ".".equals(value.strip());
+    }
+
     /** 저장된 표시용 대화에 숨은 칸을 되붙여 모델에 넘길 기록을 만든다. */
     static List<DirectVideoModel.Message> history(List<CoachTurnSnapshot> turns, JsonNode state, String actorText) {
         JsonNode loop = state == null ? null : state.path(STATE_KEY);
