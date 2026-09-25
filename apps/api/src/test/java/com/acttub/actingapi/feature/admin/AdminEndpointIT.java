@@ -3,11 +3,14 @@ package com.acttub.actingapi.feature.admin;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -223,6 +226,58 @@ class AdminEndpointIT {
     }
 
     /**
+     * ops 코어는 수집기 CORE_SQL 을 운영 DB 에서 바로 돈다. 팀 계정은 빼지 않고 표시만 하고,
+     * 사람은 user_id 의 md5 앞 8자리 가명으로만 나간다 — 이메일·user_id 원본은 응답에 없다.
+     */
+    @Test
+    void opsCoreCountsTheLiveDatabaseWithTeamFlagsAndPseudonyms() throws Exception {
+        assertThat(json(mvc.perform(get("/v2/admin/ops-core")), 401))
+                .isEqualTo(mapper.readTree("{\"detail\":\"Unauthorized\"}"));
+
+        JsonNode core = authorized("/v2/admin/ops-core", 200);
+        assertThat(core.path("source").textValue()).isEqualTo("live");
+        assertThat(core.path("as_of").textValue()).endsWith("+09:00");
+
+        JsonNode signups = core.path("metrics").get(0);
+        assertThat(signups.path("label").textValue()).isEqualTo("가입자");
+        assertThat(signups.path("total").intValue()).isEqualTo(2);
+        assertThat(signups.path("total_real").intValue()).isEqualTo(1);
+
+        JsonNode daily = core.path("daily_active");
+        assertThat(daily).hasSize(42);
+        int signupsReal = 0;
+        for (JsonNode day : daily) {
+            signupsReal += day.path("signups_real").intValue();
+        }
+        assertThat(signupsReal).isEqualTo(1);
+
+        // 최근 순: 팀(10분 전) → 실제 배우 두 번째(20분 전) → 첫 번째(30분 전)
+        JsonNode sessions = core.path("sessions");
+        assertThat(sessions).hasSize(3);
+        assertThat(sessions.get(0).path("is_team").booleanValue()).isTrue();
+        JsonNode second = sessions.get(1);
+        assertThat(second.path("is_team").booleanValue()).isFalse();
+        assertThat(second.path("actor").textValue()).isEqualTo("배우 " + md5(REAL_USER.toString()).substring(0, 8));
+        assertThat(second.path("nth").intValue()).isEqualTo(2);
+        assertThat(second.path("total").intValue()).isEqualTo(2);
+        assertThat(second.path("coach_session_id").textValue()).isEqualTo(realPendingCoach.toString());
+        assertThat(second.path("coach_status").textValue()).isEqualTo("open");
+        assertThat(second.path("turns_ai").intValue()).isEqualTo(1);
+        JsonNode first = sessions.get(2);
+        assertThat(first.path("coach_status").textValue()).isEqualTo("closed");
+        assertThat(first.path("close_reason").textValue()).isEqualTo("gap_stated");
+        assertThat(first.path("turns_actor").intValue()).isEqualTo(1);
+
+        assertThat(core.toString()).doesNotContain(
+                "actor@example.com", "Team@Acttub.com", REAL_USER.toString(), TEAM_USER.toString());
+    }
+
+    private static String md5(String value) throws Exception {
+        return HexFormat.of().formatHex(
+                MessageDigest.getInstance("MD5").digest(value.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    /**
      * 관리자 경로는 <b>커밋된 스펙에 없다</b> — 조건부 빈이라 토큰 없이 뜨는 기본 컨텍스트의
      * springdoc 출력에 나오지 않고, 그래서 {@code OpenApiSnapshotIT} 도 여기를 못 본다.
      * 관리자를 켠 이 컨텍스트가 스펙에 <b>정확히 무엇을 더하는지</b>는 여기서만 센다.
@@ -238,7 +293,8 @@ class AdminEndpointIT {
                 added.add(path);
             }
         });
-        assertThat(added).containsExactlyInAnyOrder("/v2/admin/sessions", "/v2/admin/practice-migration",
+        assertThat(added).containsExactlyInAnyOrder("/v2/admin/sessions", "/v2/admin/ops-core",
+                "/v2/admin/practice-migration",
                 "/v2/admin/challenges", "/v2/admin/challenges/{id}/moderation",
                 "/v2/admin/reports", "/v2/admin/reports/{id}");
         assertThat(actual.at("/paths/~1v2~1admin~1sessions/get/parameters/0/schema/type")
