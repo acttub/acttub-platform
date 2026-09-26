@@ -6,9 +6,12 @@
 --
 -- 바뀐 것은 셋뿐이다. 나머지 글자는 정본과 같다 — 고칠 때는 두 곳을 같이 고친다.
 --   1. 맨 앞 SET 두 줄을 뺐다. 읽기 전용·시간 제한은 저장소가 트랜잭션에 건다.
---   2. psql 변수 excl 을 JDBC 위치 바인드로 바꿨다. 바인드 자리는 team CTE 한 곳뿐이다.
+--   2. psql 변수 excl 을 JDBC 위치 바인드로 바꿨다. 바인드 자리는 team CTE 두 곳뿐이다
+--      (① 팀 이메일 목록, ② 팀 배우 가명 목록 — 아래 5).
 --   3. 이 머리말.
---   4. 1.0 연습 테이블을 함께 읽는다(SOMA-566) — 아래 "1.0 전환" CTE 다섯 개. 수집기 정본에는 아직 없다.
+--   4. 1.0 연습 테이블을 함께 읽는다(SOMA-566) — 아래 "1.0 전환" CTE 다섯 개.
+--   5. 팀을 가명으로도 뺀다(SOMA-569). 게스트는 이메일이 없어 ① 로는 못 거른다 — 화면의 "배우 xxxxxxxx"
+--      8자리(md5(user_id) 앞 8자리)를 쉼표로 받는다. 비면 아무도 더 안 빠진다.
 -- now() 는 트랜잭션 시작 시각이다. 백업 경로는 이것을 백업 시각으로 바꿔 돌렸다.
 WITH b AS (SELECT (now() AT TIME ZONE 'Asia/Seoul')::date AS d),
 -- 분석 기준 셋. '어제'(달력)가 아니라 '최근 24시간'(구르는 창)이다 —
@@ -24,6 +27,7 @@ team AS (
   SELECT id FROM users
   WHERE lower(email) = ANY(
     SELECT btrim(e) FROM unnest(string_to_array(lower(?), ',')) AS e)
+     OR left(md5(id::text), 8) = ANY(string_to_array(?, ','))
 ),
 -- ── 1.0 전환 (SOMA-566) ─────────────────────────────────────────────
 -- 1.0 부터 연습은 practices · analyses · coach_conversations · coach_messages · ai_jobs 에 쌓인다.
