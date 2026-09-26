@@ -20,6 +20,7 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminTurn;
 import com.acttub.actingapi.feature.admin.app.AdminMetricsRepository;
+import com.acttub.actingapi.feature.admin.app.AdminMetricsRepository.FeedbackRow;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
 import jakarta.persistence.Tuple;
@@ -174,6 +175,80 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                                 : row.get("text", String.class)));
         }
         return turnsBySession;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<FeedbackRow> feedback(
+            int limit,
+            List<String> excludeEmails,
+            List<String> excludeActors,
+            boolean includeTeam) {
+        String emails = String.join(",", excludeEmails.stream()
+                .map(email -> email.toLowerCase(Locale.ROOT))
+                .toList());
+        String actors = String.join(",", excludeActors);
+        return list(entityManager.createNativeQuery("""
+                WITH combined AS (
+                    SELECT
+                        feedback.id,
+                        'exit_survey' AS kind,
+                        feedback.created_at,
+                        feedback.user_id,
+                        feedback.body,
+                        CAST(NULL AS text) AS rating,
+                        CASE WHEN feedback.body IS NULL THEN 'dismissed' ELSE 'answered' END AS status,
+                        feedback.screen AS source,
+                        feedback.trigger,
+                        feedback.practice_id
+                    FROM practice_feedback AS feedback
+                    UNION ALL
+                    SELECT
+                        rating.id,
+                        'note_rating' AS kind,
+                        rating.created_at,
+                        rating.user_id,
+                        rating.comment AS body,
+                        rating.rating,
+                        CAST(NULL AS text) AS status,
+                        'practice_note' AS source,
+                        CAST(NULL AS text) AS trigger,
+                        rating.practice_id
+                    FROM note_ratings AS rating
+                ), marked AS (
+                    SELECT
+                        combined.*,
+                        left(md5(CAST(combined.user_id AS text)), 8) AS actor_key,
+                        (lower(COALESCE(app_user.email, '')) = ANY(string_to_array(:excludeEmails, ','))
+                         OR left(md5(CAST(combined.user_id AS text)), 8) = ANY(string_to_array(:excludeActors, ','))) AS is_team
+                    FROM combined
+                    JOIN users AS app_user ON app_user.id=combined.user_id
+                )
+                SELECT
+                    id,kind,created_at,'배우 ' || actor_key AS actor,is_team,body,rating,status,source,trigger,practice_id
+                FROM marked
+                WHERE :includeTeam OR NOT is_team
+                ORDER BY created_at DESC, kind ASC, id ASC
+                LIMIT :limit
+                """, Tuple.class)
+                .setParameter("excludeEmails", emails)
+                .setParameter("excludeActors", actors)
+                .setParameter("includeTeam", includeTeam)
+                .setParameter("limit", limit)).stream()
+                .map(Tuple.class::cast)
+                .map(row -> new FeedbackRow(
+                        row.get("id", UUID.class),
+                        row.get("kind", String.class),
+                        row.get("created_at", Instant.class).atOffset(ZoneOffset.UTC),
+                        row.get("actor", String.class),
+                        row.get("is_team", Boolean.class),
+                        row.get("body", String.class),
+                        row.get("rating", String.class),
+                        row.get("status", String.class),
+                        row.get("source", String.class),
+                        row.get("trigger", String.class),
+                        row.get("practice_id", UUID.class)))
+                .toList();
     }
 
     @Override
