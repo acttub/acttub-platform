@@ -23,6 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminFeedbackPage;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminSessions;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.acttub.actingapi.feature.admin.app.AdminService;
@@ -49,6 +50,7 @@ import org.springframework.web.bind.annotation.RestController;
 @ConditionalOnExpression(AdminService.ENABLED_WHEN)
 class AdminController {
     private static final int MAX_SESSIONS = 50;
+    private static final int MAX_FEEDBACK = 100;
     /** 한 묶음이 한 트랜잭션이다 — 너무 크면 그 트랜잭션이 길어진다. */
     private static final int MAX_BATCH = 1000;
 
@@ -226,8 +228,47 @@ class AdminController {
             @RequestHeader(name = "authorization", defaultValue = "") String authorization) {
         requireToken(authorization);
         int limit = parseLimit(rawLimit);
-        validateLimit(limit);
+        validateLimit(limit, MAX_SESSIONS);
         return admin.sessions(limit);
+    }
+
+    @Operation(
+            summary = "Feedback",
+            description = """
+                    이탈 설문과 연습 노트 평가를 최신순으로 합쳐 읽는다. 기본적으로 팀 이메일과
+                    exclude_actors 가 가리키는 배우는 제외한다. include_team=true 면 팀 테스트도 함께 보되
+                    is_team 으로 표시한다. 연락처·원본 user id·이메일은 응답하지 않는다.""",
+            operationId = "feedback_v2_admin_feedback_get",
+            tags = "admin")
+    @ApiResponses({
+        @ApiResponse(
+                responseCode = "200",
+                description = "Successful Response",
+                content = @Content(schema = @Schema(implementation = AdminFeedbackPage.class))),
+        @ApiResponse(
+                responseCode = "422",
+                description = "Validation Error",
+                content = @Content(schema = @Schema(ref = "#/components/schemas/HTTPValidationError")))
+    })
+    @GetMapping("/feedback")
+    AdminFeedbackPage feedback(
+            @Parameter(schema = @Schema(
+                    type = "integer",
+                    minimum = "1",
+                    maximum = "100",
+                    exclusiveMinimum = false,
+                    exclusiveMaximum = false,
+                    defaultValue = "50"))
+            @RequestParam(name = "limit", defaultValue = "50") String rawLimit,
+            @Parameter(description = "팀으로 볼 배우 가명(8자리 16진)을 쉼표로", schema = @Schema(type = "string"))
+            @RequestParam(name = "exclude_actors", required = false) String rawExcludeActors,
+            @Parameter(schema = @Schema(type = "boolean", defaultValue = "false"))
+            @RequestParam(name = "include_team", defaultValue = "false") String rawIncludeTeam,
+            @RequestHeader(name = "authorization", defaultValue = "") String authorization) {
+        requireToken(authorization);
+        int limit = parseLimit(rawLimit);
+        validateLimit(limit, MAX_FEEDBACK);
+        return admin.feedback(limit, parseActors(rawExcludeActors), parseBoolean(rawIncludeTeam));
     }
 
     @Operation(
@@ -298,7 +339,23 @@ class AdminController {
         }
     }
 
-    private static void validateLimit(int limit) {
+    private static boolean parseBoolean(String raw) {
+        String normalized = raw.strip().toLowerCase(java.util.Locale.ROOT);
+        if ("true".equals(normalized)) {
+            return true;
+        }
+        if ("false".equals(normalized)) {
+            return false;
+        }
+        Map<String, Object> error = new LinkedHashMap<>();
+        error.put("type", "bool_parsing");
+        error.put("loc", List.of("query", "include_team"));
+        error.put("msg", "Input should be a valid boolean, unable to interpret input");
+        error.put("input", raw);
+        throw new ApiValidationException(List.of(error));
+    }
+
+    private static void validateLimit(int limit, int maximum) {
         if (limit < 1) {
             throw queryError(
                     "greater_than_equal",
@@ -307,13 +364,13 @@ class AdminController {
                     "ge",
                     1);
         }
-        if (limit > MAX_SESSIONS) {
+        if (limit > maximum) {
             throw queryError(
                     "less_than_equal",
-                    "Input should be less than or equal to 50",
+                    "Input should be less than or equal to " + maximum,
                     Integer.toString(limit),
                     "le",
-                    MAX_SESSIONS);
+                    maximum);
         }
     }
 
