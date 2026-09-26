@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -74,7 +74,7 @@ export default function RecordVideoScreen() {
   const [lineHidden, setLineHidden] = useState(false);
   // 종료 처리가 겹쳐 두 번 도는 것을 막는다(자동 정지 + 사용자 정지).
   const finishedRef = useRef(false);
-  const { confirm, alert, dialog } = useAppDialog();
+  const { alert, dialog } = useAppDialog();
   const { user } = useAuth();
   // 권한 요청은 화면에 들어오자마자 한 번만 — OS 팝업이 곧바로 뜬다.
   const askedRef = useRef(false);
@@ -87,25 +87,23 @@ export default function RecordVideoScreen() {
 
   const ready = !!(camPerm?.granted && micPerm?.granted);
 
-  // 들어오자마자 OS 권한 팝업(카메라 → 마이크)을 띄운다. 거절하면 작은 안내 팝업에서
-  // 설정으로 보내거나 되돌아간다 — 별도 안내 화면은 두지 않는다.
+  // 들어오자마자 OS 권한 팝업(카메라 → 마이크)을 한 번 띄운다. 거절했거나 전에 거절해 팝업이 다시
+  // 안 뜨면 화면 안의 버튼으로 다시 묻거나 설정으로 보낸다 — iOS 전체화면 모달 위에서는 우리 안내
+  // 팝업이 안 떠서 검은 화면에 갇힌 적이 있다.
+  const askPermissions = useCallback(async () => {
+    const cam = camPerm?.granted ? camPerm : await requestCam();
+    const mic = micPerm?.granted ? micPerm : await requestMic();
+    return cam.granted && mic.granted;
+  }, [camPerm, micPerm, requestCam, requestMic]);
+
   useEffect(() => {
     if (ready || askedRef.current || !camPerm || !micPerm) return;
     askedRef.current = true;
-    void (async () => {
-      const cam = camPerm.granted ? camPerm : await requestCam();
-      const mic = micPerm.granted ? micPerm : await requestMic();
-      if (cam.granted && mic.granted) return;
-      const toSettings = await confirm({
-        title: t('record.permissionTitle'),
-        message: t('record.permissionBody'),
-        confirmLabel: t('record.openSettings'),
-        cancelLabel: t('common.cancel'),
-      });
-      if (toSettings) void Linking.openSettings();
-      router.back();
-    })();
-  }, [ready, camPerm, micPerm, requestCam, requestMic, confirm, router]);
+    void askPermissions();
+  }, [ready, camPerm, micPerm, askPermissions]);
+
+  // 다시 물어도 팝업이 안 뜨는 상태(거절 후 "다시 묻지 않음")면 설정으로 보낸다.
+  const blocked = (!!camPerm && !camPerm.granted && !camPerm.canAskAgain) || (!!micPerm && !micPerm.granted && !micPerm.canAskAgain);
 
   /** 촬영·선택한 영상을 보관함(기기 저장 + 업로드 대기)에 넣는다. 너무 길면 안내하고 넣지 않는다. */
   const saveToLibrary = useCallback(async (): Promise<{ id: string; uri: string } | null> => {
@@ -270,13 +268,30 @@ export default function RecordVideoScreen() {
     goNext();
   }, [goNext]);
 
-  // 권한이 아직 없으면 카메라 자리만 검게 두고 팝업(OS·안내)이 뜨길 기다린다.
+  // 권한이 아직 없으면 화면 안에서 직접 묻는다 — 닫기·권한 버튼이 늘 보인다.
   if (!ready) {
     return (
-      <View style={styles.safe}>
-        <Stack.Screen options={{ title: t('record.screenTitle') }} />
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.topRow}>
+          <Pressable style={styles.closeBtn} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel={t('common.close')}>
+            <Feather name="x" size={22} color="#FFFFFF" />
+          </Pressable>
+        </View>
+        {camPerm && micPerm && (
+          <View style={styles.permBox}>
+            <Feather name="video" size={34} color="#FFFFFF" />
+            <Text style={styles.permTitle}>{t('record.permissionTitle')}</Text>
+            <Text style={styles.permBody}>{t('record.permissionBody')}</Text>
+            <Pressable
+              style={styles.permBtn}
+              onPress={() => (blocked ? void Linking.openSettings() : void askPermissions())}
+              accessibilityRole="button">
+              <Text style={styles.permBtnText}>{t(blocked ? 'record.openSettings' : 'record.permissionAllow')}</Text>
+            </Pressable>
+          </View>
+        )}
         {dialog}
-      </View>
+      </SafeAreaView>
     );
   }
 
@@ -287,7 +302,6 @@ export default function RecordVideoScreen() {
   if (isChallenge) {
     return (
       <View style={styles.safe}>
-        <Stack.Screen options={{ title: t('record.screenTitle'), headerShown: false }} />
         <CameraView ref={cameraRef} style={styles.camera} facing={facing} mode="video" />
         {/* 넘기기는 여기서 받는다 — 위 겹침은 box-none 이라 빈 곳 터치를 자기가 받지 않는다. */}
         <View style={StyleSheet.absoluteFill} {...swipe.panHandlers} />
@@ -363,7 +377,6 @@ export default function RecordVideoScreen() {
 
   return (
     <View style={styles.safe}>
-      <Stack.Screen options={{ title: t('record.screenTitle'), headerShown: false }} />
       <CameraView ref={cameraRef} style={styles.camera} facing={facing} mode="video" />
       {/* 넘기기는 여기서 받는다 — 위 겹침은 box-none 이라 빈 곳 터치를 자기가 받지 않는다. */}
       <View style={StyleSheet.absoluteFill} {...swipe.panHandlers} />
@@ -415,6 +428,11 @@ export default function RecordVideoScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#000' },
+  permBox: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, paddingBottom: 80, gap: 12 },
+  permTitle: { color: '#FFFFFF', fontSize: 18, fontWeight: '800', textAlign: 'center' },
+  permBody: { color: 'rgba(255,255,255,0.75)', fontSize: 14, lineHeight: 21, textAlign: 'center' },
+  permBtn: { marginTop: 8, backgroundColor: palette.blue, borderRadius: 12, paddingHorizontal: 22, paddingVertical: 13 },
+  permBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
   camera: { ...StyleSheet.absoluteFillObject },
   overlay: { flex: 1, justifyContent: 'space-between' },
   topRow: { flexDirection: 'row', justifyContent: 'flex-start', padding: 16 },
