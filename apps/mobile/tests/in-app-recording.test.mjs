@@ -44,3 +44,21 @@ test('SOMA-477: 카메라 권한·플러그인이 설정에 있다', () => {
   assert.match(appJson, /NSCameraUsageDescription/);
   assert.match(appJson, /android\.permission\.CAMERA/);
 });
+
+// iOS 0.1.0에서 촬영 화면이 초당 여러 번 깜빡였다 — 레이아웃은 헤더를 보이게, 화면은 숨기게 서로 다른
+// 옵션을 주고 있어 다시 그릴 때마다 헤더가 뒤집히고 카메라가 다시 자리를 잡았다. 헤더는 레이아웃 한 곳에서
+// 숨김으로 고정하고, 화면 안에서는 헤더 옵션을 바꾸지 않는다.
+test('촬영 화면은 헤더 옵션을 바꾸지 않고, 레이아웃이 한 곳에서 숨긴다', () => {
+  const screen = read('app/record-video.tsx');
+  const layout = read('app/_layout.tsx');
+  assert.doesNotMatch(screen, /<Stack\.Screen/);
+  assert.match(layout, /name="record-video"[\s\S]{0,300}?headerShown: false/);
+});
+
+// 권한이 없을 때 팝업에만 기대면(iOS 전체화면 모달 위에서 안 뜨는 경우) 검은 화면에 갇힌다.
+test('권한이 없으면 화면 안에 닫기와 권한 버튼을 직접 보여 준다', () => {
+  const screen = read('app/record-video.tsx');
+  assert.match(screen, /record\.permissionTitle/);
+  assert.match(screen, /record\.permissionAllow/);
+  assert.match(screen, /Linking\.openSettings/);
+});

@@ -377,7 +377,11 @@ function RootNavigator() {
         options={{ title: t('stack.withdraw'), headerBackTitle: t('stack.backToSettings') }}
       />
       <Stack.Screen name="upload" options={{ title: t('stack.upload') }} />
-      <Stack.Screen name="record-video" options={{ title: t('record.screenTitle'), presentation: 'fullScreenModal' }} />
+      <Stack.Screen
+        name="record-video"
+        // 헤더는 여기 한 곳에서 숨긴다 — 화면이 따로 바꾸면 iOS에서 다시 그릴 때마다 뒤집혀 깜빡였다.
+        options={{ title: t('record.screenTitle'), presentation: 'fullScreenModal', headerShown: false }}
+      />
       <Stack.Screen name="analyzing" options={{ title: t('stack.analyzing') }} />
       <Stack.Screen name="coach" options={{ title: t('stack.coach') }} />
       <Stack.Screen name="report" options={{ title: t('stack.report') }} />
