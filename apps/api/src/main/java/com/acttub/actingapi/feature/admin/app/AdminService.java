@@ -84,9 +84,9 @@ public class AdminService {
      * ops 코어 지표를 운영 DB 에서 바로 센다. 모양은 수집기 CORE_SQL 의 JSON 그대로이고,
      * 백업 경로({@code source=backup})와 구분되도록 {@code source=live} 와 기준 시각을 붙인다.
      */
-    public ObjectNode opsCore() {
+    public ObjectNode opsCore(List<String> excludeActors) {
         try {
-            ObjectNode core = (ObjectNode) JSON.readTree(metrics.opsCore(excludeEmails));
+            ObjectNode core = (ObjectNode) JSON.readTree(metrics.opsCore(excludeEmails, excludeActors));
             core.put("source", "live");
             core.put("as_of", OffsetDateTime.now(KST).truncatedTo(ChronoUnit.MINUTES).toString());
             return core;
