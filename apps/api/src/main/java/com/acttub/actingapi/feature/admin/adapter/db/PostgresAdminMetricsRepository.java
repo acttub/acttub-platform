@@ -52,27 +52,60 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
 
     @Override
     public List<SessionRow> sessions(int limit, List<String> excludeEmails) {
+        // 1.0 대화(coach_conversations)와 아직 옮겨지지 않은 옛 코치 세션을 함께 본다. 이관은 같은 id 로
+        // 옮기므로 새 표에 있는 옛 행은 뺀다(SOMA-566). 영상은 1.0 이 videos, 옛 행이 확정된 업로드다.
         StringBuilder sql = new StringBuilder("""
                 SELECT
                     coach.id,
                     coach.created_at,
                     coach.status,
                     coach.close_reason,
-                    practice.situation,
-                    practice.character_context,
-                    practice.goal,
-                    upload.object_key
-                FROM coach_sessions AS coach
-                LEFT JOIN practice_sessions AS practice
-                  ON practice.id = coach.practice_session_id
-                LEFT JOIN upload_intents AS upload
-                  ON upload.id = practice.upload_intent_id
-                 AND upload.status = 'finalized'
+                    coach.situation,
+                    coach.character_context,
+                    coach.goal,
+                    coach.object_key
+                FROM (
+                    SELECT
+                        conversation.id,
+                        conversation.created_at,
+                        conversation.status,
+                        conversation.close_reason,
+                        practice.situation,
+                        practice.character_context,
+                        practice.goal,
+                        video.object_key,
+                        practice.user_id
+                    FROM coach_conversations AS conversation
+                    JOIN practices AS practice
+                      ON practice.id = conversation.practice_id
+                    LEFT JOIN videos AS video
+                      ON video.id = practice.video_id
+                     AND video.purged_at IS NULL
+                    UNION ALL
+                    SELECT
+                        legacy.id,
+                        legacy.created_at,
+                        legacy.status::text,
+                        legacy.close_reason::text,
+                        practice.situation,
+                        practice.character_context,
+                        practice.goal,
+                        upload.object_key,
+                        practice.user_id
+                    FROM coach_sessions AS legacy
+                    LEFT JOIN practice_sessions AS practice
+                      ON practice.id = legacy.practice_session_id
+                    LEFT JOIN upload_intents AS upload
+                      ON upload.id = practice.upload_intent_id
+                     AND upload.status = 'finalized'
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM coach_conversations AS moved WHERE moved.id = legacy.id)
+                ) AS coach
                 """);
         if (!excludeEmails.isEmpty()) {
             sql.append("""
                     LEFT JOIN users AS app_user
-                      ON app_user.id = practice.user_id
+                      ON app_user.id = coach.user_id
                     WHERE app_user.email IS NULL
                        OR lower(app_user.email) NOT IN (
                     """);
@@ -120,9 +153,15 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
         }
         Map<UUID, List<AdminTurn>> turnsBySession = new HashMap<>();
         for (Tuple row : list(entityManager.createNativeQuery("""
-                SELECT session_id, turn_index, role, text
+                SELECT conversation_id AS session_id, turn_index, role, text
+                FROM coach_messages
+                WHERE conversation_id IN (:coachSessionIds)
+                UNION ALL
+                SELECT session_id, turn_index, role::text, text
                 FROM coach_turns
                 WHERE session_id IN (:coachSessionIds)
+                  AND NOT EXISTS (
+                      SELECT 1 FROM coach_conversations AS moved WHERE moved.id = coach_turns.session_id)
                 ORDER BY session_id, turn_index
                 """, Tuple.class)
                 .setParameter("coachSessionIds", coachSessionIds))) {

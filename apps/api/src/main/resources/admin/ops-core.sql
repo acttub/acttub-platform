@@ -8,6 +8,7 @@
 --   1. 맨 앞 SET 두 줄을 뺐다. 읽기 전용·시간 제한은 저장소가 트랜잭션에 건다.
 --   2. psql 변수 excl 을 JDBC 위치 바인드로 바꿨다. 바인드 자리는 team CTE 한 곳뿐이다.
 --   3. 이 머리말.
+--   4. 1.0 연습 테이블을 함께 읽는다(SOMA-566) — 아래 "1.0 전환" CTE 다섯 개. 수집기 정본에는 아직 없다.
 -- now() 는 트랜잭션 시작 시각이다. 백업 경로는 이것을 백업 시각으로 바꿔 돌렸다.
 WITH b AS (SELECT (now() AT TIME ZONE 'Asia/Seoul')::date AS d),
 -- 분석 기준 셋. '어제'(달력)가 아니라 '최근 24시간'(구르는 창)이다 —
@@ -23,6 +24,67 @@ team AS (
   SELECT id FROM users
   WHERE lower(email) = ANY(
     SELECT btrim(e) FROM unnest(string_to_array(lower(?), ',')) AS e)
+),
+-- ── 1.0 전환 (SOMA-566) ─────────────────────────────────────────────
+-- 1.0 부터 연습은 practices · analyses · coach_conversations · coach_messages · ai_jobs 에 쌓인다.
+-- 옛 테이블(practice_sessions · summaries · coach_sessions · coach_turns · external_operations)은 남아 있고,
+-- 이관 명령(POST /v2/admin/practice-migration)이 옛 행을 <b>같은 id 로</b> 새 테이블에 옮긴다
+-- (practices.id = practice_sessions.id, coach_conversations.id = coach_sessions.id). 그래서
+-- "새 테이블 전부 + 새 테이블에 아직 없는 옛 행"은 이관 전·중·후 어느 때에도 한 번씩만 센다.
+-- 요약·작업은 새 id 로 옮겨지므로 이관 대응표(practice_migration_entries)로 옮겨진 옛 행을 뺀다.
+--
+-- 옛 행의 모양은 이 파일의 이전 쿼리가 쓰던 그대로다 — 1.0 이전 숫자는 바뀌지 않는다.
+ps_all AS (
+  SELECT p.id, p.user_id, p.created_at,
+         CASE WHEN p.close_reason = 'analysis_failed' THEN 'failed'
+              WHEN EXISTS (SELECT 1 FROM analyses a WHERE a.practice_id = p.id) THEN 'analyzed'
+              ELSE p.stage END AS status,
+         p.blockage_kind,
+         p.ordinal > 1 AS continued
+  FROM practices p
+  UNION ALL
+  SELECT ps.id, ps.user_id, ps.created_at, ps.status::text, ps.blockage_kind,
+         ps.continued_from IS NOT NULL
+  FROM practice_sessions ps
+  WHERE NOT EXISTS (SELECT 1 FROM practices p WHERE p.id = ps.id)
+),
+analysis_all AS (
+  SELECT a.id, a.practice_id AS session_id, a.created_at, a.model, false AS was_compressed
+  FROM analyses a
+  UNION ALL
+  SELECT s.id, s.session_id, s.created_at, s.model, s.was_compressed
+  FROM summaries s
+  WHERE NOT EXISTS (SELECT 1 FROM practice_migration_entries e
+                    WHERE e.source_table = 'summaries' AND e.source_id = s.id AND e.target_id IS NOT NULL)
+),
+-- 코치 대화 전부(요약 여부와 무관). 옛 행의 주인은 예전처럼 summaries → practice_sessions 로 찾는다.
+conv_all AS (
+  SELECT c.id, c.practice_id, c.status, c.close_reason, c.created_at, p.user_id
+  FROM coach_conversations c
+  JOIN practices p ON p.id = c.practice_id
+  UNION ALL
+  SELECT cs.id, cs.practice_session_id, cs.status::text, cs.close_reason::text, cs.created_at, ps.user_id
+  FROM coach_sessions cs
+  LEFT JOIN summaries s ON s.id = cs.summary_id
+  LEFT JOIN practice_sessions ps ON ps.id = s.session_id
+  WHERE NOT EXISTS (SELECT 1 FROM coach_conversations c WHERE c.id = cs.id)
+),
+turn_all AS (
+  SELECT m.conversation_id AS session_id, m.role, m.created_at
+  FROM coach_messages m
+  UNION ALL
+  SELECT t.session_id, t.role::text, t.created_at
+  FROM coach_turns t
+  WHERE NOT EXISTS (SELECT 1 FROM coach_conversations c WHERE c.id = t.session_id)
+),
+op_all AS (
+  SELECT j.kind, j.status, j.attempt_count, j.created_at, j.target_id AS session_id
+  FROM ai_jobs j
+  UNION ALL
+  SELECT o.kind::text, o.status::text, o.attempt_count, o.created_at, o.session_id
+  FROM external_operations o
+  WHERE NOT EXISTS (SELECT 1 FROM practice_migration_entries e
+                    WHERE e.source_table = 'external_operations' AND e.source_id = o.id AND e.target_id IS NOT NULL)
 ),
 -- 기기 판별의 유일한 단서는 refresh_tokens.device_info(요청의 User-Agent)다.
 -- 업로드 시점 기기는 어디에도 저장되지 않는다.
@@ -95,19 +157,14 @@ scopes AS (
 ),
 events AS (
   SELECT '가입자' AS label, 1 AS ord, u.created_at, u.id AS user_id FROM users u
-  UNION ALL SELECT '연습 세션', 2, ps.created_at, ps.user_id FROM practice_sessions ps
-  UNION ALL SELECT '코치 대화', 3, cs.created_at, ps.user_id
-    FROM coach_sessions cs
-    LEFT JOIN summaries s ON s.id = cs.summary_id
-    LEFT JOIN practice_sessions ps ON ps.id = s.session_id
-  UNION ALL SELECT '코치 발화', 4, ct.created_at, ps.user_id
-    FROM coach_turns ct
-    LEFT JOIN coach_sessions cs ON cs.id = ct.session_id
-    LEFT JOIN summaries s ON s.id = cs.summary_id
-    LEFT JOIN practice_sessions ps ON ps.id = s.session_id
-  UNION ALL SELECT '분석 요약', 5, s.created_at, ps.user_id
-    FROM summaries s
-    LEFT JOIN practice_sessions ps ON ps.id = s.session_id
+  UNION ALL SELECT '연습 세션', 2, ps.created_at, ps.user_id FROM ps_all ps
+  UNION ALL SELECT '코치 대화', 3, cv.created_at, cv.user_id FROM conv_all cv
+  UNION ALL SELECT '코치 발화', 4, ta.created_at, cv.user_id
+    FROM turn_all ta
+    LEFT JOIN conv_all cv ON cv.id = ta.session_id
+  UNION ALL SELECT '분석 요약', 5, an.created_at, ps.user_id
+    FROM analysis_all an
+    LEFT JOIN ps_all ps ON ps.id = an.session_id
 ),
 rolled AS (
   SELECT label, ord,
@@ -121,12 +178,18 @@ rolled AS (
   LEFT JOIN team t ON t.id = e.user_id
   GROUP BY label, ord
 ),
--- 코치 대화에는 user_id 가 없다. summaries → practice_sessions 를 거쳐야 주인을 안다.
+-- 코치 대화에는 user_id 가 없다. 1.0 은 practices 로, 옛 행은 summaries → practice_sessions 를 거쳐야
+-- 주인을 안다(옛 행은 예전처럼 요약이 붙은 대화만).
 chat AS (
-  SELECT cs.id, cs.status, cs.close_reason, cs.created_at, ps.user_id
+  SELECT c.id, c.status, c.close_reason, c.created_at, p.user_id
+  FROM coach_conversations c
+  JOIN practices p ON p.id = c.practice_id
+  UNION ALL
+  SELECT cs.id, cs.status::text, cs.close_reason::text, cs.created_at, ps.user_id
   FROM coach_sessions cs
   JOIN summaries s ON s.id = cs.summary_id
   JOIN practice_sessions ps ON ps.id = s.session_id
+  WHERE NOT EXISTS (SELECT 1 FROM coach_conversations c WHERE c.id = cs.id)
 ),
 -- 퍼널은 **코호트**다: 그 기간에 가입한 사람들이 어디까지 갔는가.
 -- 기간 안의 '활동'을 세면 옛 사용자의 세션이 섞여 뒷단계가 앞단계보다 커지고
@@ -155,7 +218,7 @@ funnel AS (
     UNION ALL
     SELECT 3, '연습 세션', count(DISTINCT u.id),
            count(DISTINCT u.id) FILTER (WHERE t.id IS NULL) AS users_real
-      FROM users u JOIN practice_sessions ps ON ps.user_id = u.id
+      FROM users u JOIN ps_all ps ON ps.user_id = u.id
       JOIN signup_platform sp ON sp.user_id = u.id
         AND (sc.platform = '전체' OR sp.platform = sc.platform)
       LEFT JOIN team t ON t.id = u.id
@@ -163,7 +226,7 @@ funnel AS (
     UNION ALL
     SELECT 4, '분석 완료', count(DISTINCT u.id),
            count(DISTINCT u.id) FILTER (WHERE t.id IS NULL) AS users_real
-      FROM users u JOIN practice_sessions ps ON ps.user_id = u.id AND ps.status = 'analyzed'
+      FROM users u JOIN ps_all ps ON ps.user_id = u.id AND ps.status = 'analyzed'
       JOIN signup_platform sp ON sp.user_id = u.id
         AND (sc.platform = '전체' OR sp.platform = sc.platform)
       LEFT JOIN team t ON t.id = u.id
@@ -197,7 +260,7 @@ funnel AS (
       WHERE u.created_at > sc.since
   ) s
 ),
-turns AS (SELECT session_id, count(*) AS t FROM coach_turns GROUP BY session_id),
+turns AS (SELECT session_id, count(*) AS t FROM turn_all GROUP BY session_id),
 calendar_days AS (
   SELECT day::date AS date
   FROM generate_series(
@@ -209,13 +272,13 @@ calendar_days AS (
 first_session_days AS (
   SELECT user_id,
          min((created_at AT TIME ZONE 'Asia/Seoul')::date) AS first_date
-  FROM practice_sessions
+  FROM ps_all
   GROUP BY user_id
 ),
 daily_session_users AS (
   SELECT DISTINCT user_id,
          (created_at AT TIME ZONE 'Asia/Seoul')::date AS date
-  FROM practice_sessions
+  FROM ps_all
   WHERE (created_at AT TIME ZONE 'Asia/Seoul')::date
         BETWEEN (SELECT d - 41 FROM b) AND (SELECT d FROM b)
 ),
@@ -307,7 +370,7 @@ session_device AS (
          n.gap_sec,
          COALESCE(uc.n_dev, 0) > 1 AS multi_device,
          (ps.user_id IN (SELECT id FROM team)) AS is_team
-  FROM practice_sessions ps
+  FROM ps_all ps
   LEFT JOIN LATERAL (
     -- UA 문자열 종류를 세면 같은 폰도 OS·브라우저 업데이트마다 새 기기가 된다.
     -- 분류된 기기로 센다. 반대로 okhttp 는 기종을 안 알려줘서 서로 다른
@@ -358,7 +421,7 @@ SELECT json_build_object(
   'returning', (SELECT json_build_object(
       'with_session', count(*), 'twice', count(*) FILTER (WHERE n >= 2),
       'thrice', count(*) FILTER (WHERE n >= 3))
-      FROM (SELECT user_id, count(*) n FROM practice_sessions GROUP BY 1) r),
+      FROM (SELECT user_id, count(*) n FROM ps_all GROUP BY 1) r),
   'daily_active', (SELECT json_agg(json_build_object(
       'date', to_char(date, 'YYYY-MM-DD'),
       'active', active, 'active_real', active_real, 'active_app_real', active_app_real,
@@ -404,7 +467,7 @@ SELECT json_build_object(
       'kind', kind, 'status', status, 'count', c, 'attempts', att, 'h24', h24) ORDER BY kind, status) FROM (
       SELECT kind::text AS kind, status::text AS status, count(*) AS c, round(avg(attempt_count), 2) AS att,
              count(*) FILTER (WHERE created_at > (SELECT h24 FROM w)) AS h24
-      FROM external_operations GROUP BY 1, 2) o),
+      FROM op_all GROUP BY 1, 2) o),
   'uploads', (SELECT json_agg(json_build_object('status', status, 'count', c) ORDER BY c DESC) FROM (
       SELECT status::text AS status, count(*) AS c FROM upload_intents GROUP BY 1) u),
   -- 앱 카드 분석 흐름을 GA4 대신 운영 DB로 그린다 — dev 빌드 이벤트 혼입 차단.
@@ -416,8 +479,8 @@ SELECT json_build_object(
              count(*) AS total,
              count(*) FILTER (WHERE eo.status::text='succeeded') AS ok,
              count(*) FILTER (WHERE eo.status::text='failed') AS ko
-      FROM external_operations eo
-      JOIN practice_sessions ps ON ps.id = eo.session_id
+      FROM op_all eo
+      JOIN ps_all ps ON ps.id = eo.session_id
       JOIN LATERAL (
         SELECT rt.device_info FROM refresh_tokens rt
         WHERE rt.user_id = ps.user_id
@@ -432,7 +495,7 @@ SELECT json_build_object(
   'models', (SELECT json_agg(json_build_object('model', model, 'count', c, 'compressed', z) ORDER BY c DESC) FROM (
       SELECT COALESCE(model, '(미기록)') AS model, count(*) AS c,
              count(*) FILTER (WHERE was_compressed) AS z
-      FROM summaries GROUP BY 1) m),
+      FROM analysis_all GROUP BY 1) m),
   'observations', (SELECT json_build_object(
       'total', count(*),
       'per_summary', round(count(*)::numeric / GREATEST(1, (SELECT count(*) FROM summaries)), 1))
@@ -508,7 +571,7 @@ SELECT json_build_object(
         FROM signup_device s
         LEFT JOIN LATERAL (SELECT count(*) n FROM upload_intents x
                            WHERE x.user_id = s.user_id AND x.status::text = 'finalized') ui ON TRUE
-        LEFT JOIN LATERAL (SELECT count(*) n FROM practice_sessions x WHERE x.user_id = s.user_id) ps ON TRUE
+        LEFT JOIN LATERAL (SELECT count(*) n FROM ps_all x WHERE x.user_id = s.user_id) ps ON TRUE
         WHERE NOT s.is_team GROUP BY s.device) f),
     'by_browser', (SELECT json_agg(json_build_object(
         'browser', browser, 'signups', signups, 'uploaded', uploaded, 'sessions', sessions_n)
@@ -519,7 +582,7 @@ SELECT json_build_object(
         FROM signup_device s
         LEFT JOIN LATERAL (SELECT count(*) n FROM upload_intents x
                            WHERE x.user_id = s.user_id AND x.status::text = 'finalized') ui ON TRUE
-        LEFT JOIN LATERAL (SELECT count(*) n FROM practice_sessions x WHERE x.user_id = s.user_id) ps ON TRUE
+        LEFT JOIN LATERAL (SELECT count(*) n FROM ps_all x WHERE x.user_id = s.user_id) ps ON TRUE
         WHERE NOT s.is_team GROUP BY s.browser) f)
   ),
   -- 세션마다 '누가' 를 붙인다. ⚠️ 이메일·user_id 원본은 넣지 않는다 —
@@ -560,33 +623,33 @@ SELECT json_build_object(
              count(*) OVER (PARTITION BY ps.user_id) AS total,
              sd.is_team, sp.platform, sd.device,
              date_trunc('hour', u.created_at) AS signup_at,
-             ps.status::text AS status, ps.blockage_kind,
-             ps.continued_from IS NOT NULL AS continued,
-             EXISTS (SELECT 1 FROM summaries s WHERE s.session_id = ps.id) AS has_summary,
-             cs.id AS coach_session_id, cs.status::text AS coach_status,
-             cs.close_reason::text AS close_reason,
+             ps.status, ps.blockage_kind,
+             ps.continued,
+             EXISTS (SELECT 1 FROM analysis_all s WHERE s.session_id = ps.id) AS has_summary,
+             cs.id AS coach_session_id, cs.status AS coach_status,
+             cs.close_reason AS close_reason,
              COALESCE(ct.turns_actor, 0) AS turns_actor,
              COALESCE(ct.turns_ai, 0) AS turns_ai
-      FROM practice_sessions ps
+      FROM ps_all ps
       JOIN users u ON u.id = ps.user_id
       LEFT JOIN signup_platform sp ON sp.user_id = ps.user_id
       LEFT JOIN session_device sd ON sd.id = ps.id
       -- 연습 세션마다 가장 최근 코치 세션 하나만 가져온다.
       LEFT JOIN LATERAL (
         SELECT c.id, c.status, c.close_reason
-        FROM coach_sessions c WHERE c.practice_session_id = ps.id
+        FROM conv_all c WHERE c.practice_id = ps.id
         ORDER BY c.created_at DESC LIMIT 1
       ) cs ON TRUE
       -- 코치 세션이 없으면 필드는 NULL, 턴 수는 0으로 둔다.
       LEFT JOIN LATERAL (
         SELECT count(*) FILTER (WHERE ct.role = 'actor') AS turns_actor,
                count(*) FILTER (WHERE ct.role = 'ai') AS turns_ai
-        FROM coach_turns ct WHERE ct.session_id = cs.id
+        FROM turn_all ct WHERE ct.session_id = cs.id
       ) ct ON TRUE
       ORDER BY ps.created_at DESC LIMIT 1000) sessions),
   'db_size', (SELECT pg_size_pretty(pg_database_size(current_database()))),
   'active_7d', (
-    SELECT count(DISTINCT user_id) FROM practice_sessions
+    SELECT count(DISTINCT user_id) FROM ps_all
     WHERE (created_at AT TIME ZONE 'Asia/Seoul')::date > (SELECT d - 7 FROM b)
   ),
   'signups_7d', (
@@ -606,11 +669,11 @@ SELECT json_build_object(
       AND id NOT IN (SELECT id FROM team)
   ),
   'active_yesterday', (
-    SELECT count(DISTINCT user_id) FROM practice_sessions
+    SELECT count(DISTINCT user_id) FROM ps_all
     WHERE (created_at AT TIME ZONE 'Asia/Seoul')::date = (SELECT d - 1 FROM b)
   ),
   'active_yesterday_real', (
-    SELECT count(DISTINCT user_id) FROM practice_sessions
+    SELECT count(DISTINCT user_id) FROM ps_all
     WHERE (created_at AT TIME ZONE 'Asia/Seoul')::date = (SELECT d - 1 FROM b)
       AND user_id NOT IN (SELECT id FROM team)
   ),
@@ -619,5 +682,5 @@ SELECT json_build_object(
   -- git 이력에 개인 행동 흔적이 영구히 쌓인다. 여기서 필요한 건 "숫자가 언제까지
   -- 것인가"뿐이라 시간 단위면 충분하다.
   'last_signup_hour', (SELECT date_trunc('hour', max(created_at)) FROM users),
-  'last_session_hour', (SELECT date_trunc('hour', max(created_at)) FROM practice_sessions)
+  'last_session_hour', (SELECT date_trunc('hour', max(created_at)) FROM ps_all)
 );
