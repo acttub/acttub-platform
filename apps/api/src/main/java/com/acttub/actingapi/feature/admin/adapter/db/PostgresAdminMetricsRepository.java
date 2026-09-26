@@ -36,7 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Repository
 class PostgresAdminMetricsRepository implements AdminMetricsRepository {
     /**
-     * ops 수집기 CORE_SQL 을 옮긴 것. 위치 바인드 {@code ?} 는 팀 이메일 목록 한 자리뿐이다.
+     * ops 수집기 CORE_SQL 을 옮긴 것. 위치 바인드 {@code ?} 는 팀 이메일 목록·팀 배우 가명 목록 두 자리다.
      * Hibernate 의 이름 파라미터 해석을 거치지 않도록 JDBC 로 직접 돈다 — 600줄짜리 SQL 의
      * {@code ::} 캐스트와 주석 속 따옴표·콜론을 Hibernate 가 다시 읽을 이유가 없다.
      */
@@ -178,10 +178,11 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
 
     @Override
     @Transactional(readOnly = true)
-    public String opsCore(List<String> excludeEmails) {
+    public String opsCore(List<String> excludeEmails, List<String> excludeActors) {
         String excluded = String.join(",", excludeEmails.stream()
                 .map(email -> email.toLowerCase(Locale.ROOT))
                 .toList());
+        String actors = String.join(",", excludeActors);
         return entityManager.unwrap(Session.class).doReturningWork(connection -> {
             try (Statement guard = connection.createStatement()) {
                 guard.execute(OPS_CORE_TIMEOUT);
@@ -189,6 +190,7 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
             }
             try (PreparedStatement statement = connection.prepareStatement(OPS_CORE_SQL)) {
                 statement.setString(1, excluded);
+                statement.setString(2, actors);
                 try (ResultSet result = statement.executeQuery()) {
                     if (!result.next()) {
                         throw new IllegalStateException("ops core query returned no row");
