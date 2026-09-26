@@ -120,9 +120,10 @@ class HealthAndBootIT {
     void defaultInventoryExcludesAdminOperations() throws Exception {
         JsonNode generated = MAPPER.readTree(get("/v3/api-docs"));
 
-        // admin 둘은 ADMIN_OPS_TOKEN 이 있을 때만 등록된다 (apps/api/CONTRACT.md §6-2).
+        // admin 경로는 ADMIN_OPS_TOKEN 이 있을 때만 등록된다 (apps/api/CONTRACT.md §6-2).
         assertThat(generated.at("/paths/~1v2~1admin~1stats").isMissingNode()).isTrue();
         assertThat(generated.at("/paths/~1v2~1admin~1sessions").isMissingNode()).isTrue();
+        assertThat(generated.at("/paths/~1v2~1admin~1feedback").isMissingNode()).isTrue();
 
         // M4 라우트 넷은 §C 에서 열렸다 — 이제 있어야 한다.
         assertThat(generated.at("/paths/~1v2~1practices~1{practice_id}~1note/get").isMissingNode()).isFalse();
