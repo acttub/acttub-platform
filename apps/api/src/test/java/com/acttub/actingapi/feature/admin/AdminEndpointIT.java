@@ -372,6 +372,28 @@ class AdminEndpointIT {
                 """, UUID.randomUUID(), conversationId, index, role, text, NOW);
     }
 
+    /** 이메일이 없는 게스트도 화면의 가명으로 팀에 넣는다(SOMA-569). 형식이 틀리면 422. */
+    @Test
+    void opsCoreTreatsExcludedActorPseudonymsAsTeam() throws Exception {
+        String realActor = md5(REAL_USER.toString()).substring(0, 8);
+        JsonNode core = authorized("/v2/admin/ops-core?exclude_actors=" + realActor.toUpperCase() + "," + realActor, 200);
+        JsonNode signups = core.path("metrics").get(0);
+        assertThat(signups.path("total").intValue()).isEqualTo(2);
+        assertThat(signups.path("total_real").intValue()).isEqualTo(0);
+        for (JsonNode session : core.path("sessions")) {
+            assertThat(session.path("is_team").booleanValue()).isTrue();
+        }
+        assertThat(core.at("/devices/team_excluded").intValue()).isEqualTo(2);
+
+        JsonNode none = authorized("/v2/admin/ops-core?exclude_actors=", 200);
+        assertThat(none.path("metrics").get(0).path("total_real").intValue()).isEqualTo(1);
+
+        JsonNode invalid = authorized("/v2/admin/ops-core?exclude_actors=nothex12", 422);
+        assertThat(invalid.at("/detail/0/loc/1").textValue()).isEqualTo("exclude_actors");
+        JsonNode injected = authorized("/v2/admin/ops-core?exclude_actors=" + realActor + "'--", 422);
+        assertThat(injected.at("/detail/0/type").textValue()).isEqualTo("value_error");
+    }
+
     private static String md5(String value) throws Exception {
         return HexFormat.of().formatHex(
                 MessageDigest.getInstance("MD5").digest(value.getBytes(StandardCharsets.UTF_8)));
