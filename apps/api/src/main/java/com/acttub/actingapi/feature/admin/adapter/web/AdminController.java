@@ -235,7 +235,9 @@ class AdminController {
             description = """
                     ops.acttub.com 코어 지표 한 벌(지표·퍼널·일별 활동·세션 가명 목록)을 운영 DB 에서 바로 센다.
                     ops 수집기가 하루 한 번 백업에서 돌리던 SQL(resources/admin/ops-core.sql)과 같은 JSON 에
-                    source=live 와 as_of(한국 시각, 분 단위)를 더한다. 팀 계정은 빼지 않고 표시만 한다.""",
+                    source=live 와 as_of(한국 시각, 분 단위)를 더한다. 팀 계정은 빼지 않고 표시만 한다.
+                    exclude_actors 는 팀으로 볼 배우 가명(화면의 8자리, md5(user_id) 앞 8자리)을 쉼표로 받는다 —
+                    이메일이 없는 게스트 테스트 계정을 거르는 자리다(최대 100개, 소문자 16진 8자리).""",
             operationId = "ops_core_v2_admin_ops_core_get",
             tags = "admin")
     @ApiResponse(
@@ -243,9 +245,36 @@ class AdminController {
             description = "Successful Response",
             content = @Content(schema = @Schema(type = "object")))
     @GetMapping("/ops-core")
-    ObjectNode opsCore(@RequestHeader(name = "authorization", defaultValue = "") String authorization) {
+    ObjectNode opsCore(
+            @Parameter(description = "팀으로 볼 배우 가명(8자리 16진)을 쉼표로", schema = @Schema(type = "string"))
+            @RequestParam(name = "exclude_actors", required = false) String rawExcludeActors,
+            @RequestHeader(name = "authorization", defaultValue = "") String authorization) {
         requireToken(authorization);
-        return admin.opsCore();
+        return admin.opsCore(parseActors(rawExcludeActors));
+    }
+
+    private static final java.util.regex.Pattern ACTOR = java.util.regex.Pattern.compile("[0-9a-f]{8}");
+    private static final int MAX_ACTORS = 100;
+
+    /** 비었거나 없으면 빈 목록. 형식이 하나라도 틀리면 422 — SQL 에는 검증된 값만 간다. */
+    private static List<String> parseActors(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return List.of();
+        }
+        List<String> actors = java.util.Arrays.stream(raw.split(","))
+                .map(value -> value.strip().toLowerCase(java.util.Locale.ROOT))
+                .filter(value -> !value.isEmpty())
+                .distinct()
+                .toList();
+        if (actors.size() > MAX_ACTORS || actors.stream().anyMatch(value -> !ACTOR.matcher(value).matches())) {
+            Map<String, Object> error = new LinkedHashMap<>();
+            error.put("type", "value_error");
+            error.put("loc", List.of("query", "exclude_actors"));
+            error.put("msg", "Value error, exclude_actors must be up to 100 comma-separated 8-digit lowercase hex pseudonyms");
+            error.put("input", raw);
+            throw new ApiValidationException(List.of(error));
+        }
+        return actors;
     }
 
     /** 길이가 달라도 같은 시간이 걸리도록 {@link MessageDigest#isEqual} 로 견준다. */
