@@ -28,8 +28,9 @@ public interface AdminMetricsRepository {
     /**
      * ops 코어 지표 한 벌 — {@code resources/admin/ops-core.sql} 이 만든 JSON 문자열 그대로.
      * 팀 계정은 빼지 않고 {@code *_real}·{@code is_team} 으로 표시만 한다(수집기 계약).
+     * 팀은 이메일 목록과, 이메일이 없는 게스트를 위한 가명 목록(md5(user_id) 앞 8자리) 둘로 정한다.
      */
-    String opsCore(List<String> excludeEmails);
+    String opsCore(List<String> excludeEmails, List<String> excludeActors);
 
     /** 세션 한 줄. 재생 주소는 아직 붙지 않았다 — 그것은 서비스가 스토리지에 물어 채운다. */
     record SessionRow(
