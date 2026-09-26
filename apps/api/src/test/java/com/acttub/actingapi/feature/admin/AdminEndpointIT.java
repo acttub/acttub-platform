@@ -272,6 +272,106 @@ class AdminEndpointIT {
                 "actor@example.com", "Team@Acttub.com", REAL_USER.toString(), TEAM_USER.toString());
     }
 
+    /**
+     * 1.0 은 연습을 practices · coach_conversations · coach_messages · analyses 에 쓴다(SOMA-566). ops 코어와
+     * 세션 목록은 새 표 전부와 아직 옮겨지지 않은 옛 행을 함께 읽는다. 이관은 같은 id 로 옮기므로 옮겨진
+     * 옛 행(여기서는 realFinal)은 한 번만 센다.
+     */
+    @Test
+    void opsCoreAndSessionsReadThePractice1TablesWithoutDoubleCountingMigratedRows() throws Exception {
+        UUID migratedPractice = jdbc.queryForObject(
+                "SELECT practice_session_id FROM coach_sessions WHERE id=?", UUID.class, realFinalCoach);
+        UUID migratedVideo = insertVideo(REAL_USER, "real-v.mp4", NOW.minusMinutes(30));
+        insertPractice1(migratedPractice, REAL_USER, migratedVideo, "closed", "conversation_closed",
+                "legacy", NOW.minusMinutes(30));
+        insertConversation(realFinalCoach, migratedPractice, "closed", "gap_stated", NOW.minusMinutes(30));
+        insertMessage(realFinalCoach, 0, "actor", "첫 질문");
+
+        UUID newVideo = insertVideo(REAL_USER, "new.mp4", NOW.minusMinutes(5));
+        UUID newPractice = UUID.randomUUID();
+        insertPractice1(newPractice, REAL_USER, newVideo, "conversing", null, "three_layers_v1", NOW.minusMinutes(5));
+        jdbc.update("""
+                INSERT INTO analyses (id,practice_id,format,status,model,record,created_at,completed_at)
+                VALUES (?, ?, 'video_record_v1', 'ready', 'gemini-test', '{}'::jsonb, ?, ?)
+                """, UUID.randomUUID(), newPractice, NOW.minusMinutes(5), NOW.minusMinutes(5));
+        UUID newConversation = UUID.randomUUID();
+        insertConversation(newConversation, newPractice, "open", null, NOW.minusMinutes(4));
+        insertMessage(newConversation, 1, "actor", "1.0 답");
+        insertMessage(newConversation, 0, "ai", "1.0 질문");
+
+        JsonNode core = authorized("/v2/admin/ops-core", 200);
+        JsonNode practices = core.path("metrics").get(1);
+        assertThat(practices.path("label").textValue()).isEqualTo("연습 세션");
+        assertThat(practices.path("total").intValue()).isEqualTo(4);
+        assertThat(practices.path("total_real").intValue()).isEqualTo(3);
+        assertThat(core.path("metrics").get(2).path("total").intValue()).isEqualTo(4);
+
+        JsonNode sessions = core.path("sessions");
+        assertThat(sessions).hasSize(4);
+        JsonNode newest = sessions.get(0);
+        assertThat(newest.path("practice_session_id").textValue()).isEqualTo(newPractice.toString());
+        assertThat(newest.path("coach_session_id").textValue()).isEqualTo(newConversation.toString());
+        assertThat(newest.path("status").textValue()).isEqualTo("analyzed");
+        assertThat(newest.path("has_summary").booleanValue()).isTrue();
+        assertThat(newest.path("continued").booleanValue()).isFalse();
+        assertThat(newest.path("nth").intValue()).isEqualTo(3);
+        assertThat(newest.path("turns_actor").intValue()).isEqualTo(1);
+        assertThat(newest.path("turns_ai").intValue()).isEqualTo(1);
+        JsonNode migrated = sessions.get(3);
+        assertThat(migrated.path("practice_session_id").textValue()).isEqualTo(migratedPractice.toString());
+        assertThat(migrated.path("coach_status").textValue()).isEqualTo("closed");
+        assertThat(migrated.path("turns_actor").intValue()).isEqualTo(1);
+
+        JsonNode list = authorized("/v2/admin/sessions", 200).path("sessions");
+        assertThat(list).hasSize(3);
+        assertThat(list.get(0).path("coach_session_id").textValue()).isEqualTo(newConversation.toString());
+        assertThat(list.get(0).path("video_url").textValue()).isEqualTo("admin:new.mp4:3600");
+        assertThat(list.get(0).path("turns")).isEqualTo(mapper.readTree("""
+                [{"turn_index":0,"role":"ai","text":"1.0 질문"},
+                 {"turn_index":1,"role":"actor","text":"1.0 답"}]
+                """));
+        JsonNode moved = list.get(2);
+        assertThat(moved.path("coach_session_id").textValue()).isEqualTo(realFinalCoach.toString());
+        assertThat(moved.path("video_url").textValue()).isEqualTo("admin:real-v.mp4:3600");
+        assertThat(moved.path("turns")).hasSize(1);
+    }
+
+    private UUID insertVideo(UUID userId, String objectKey, OffsetDateTime createdAt) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO videos (id,user_id,object_key,content_type,byte_size,duration_ms,created_at,updated_at)
+                VALUES (?, ?, ?, 'video/mp4', 1, 1000, ?, ?)
+                """, id, userId, objectKey, createdAt, createdAt);
+        return id;
+    }
+
+    private void insertPractice1(
+            UUID id, UUID userId, UUID videoId, String stage, String closeReason,
+            String experienceVersion, OffsetDateTime createdAt) {
+        jdbc.update("""
+                INSERT INTO practices (
+                    id,user_id,video_id,root_id,ordinal,stage,close_reason,experience_version,
+                    blockage_kind,sub_branch,created_at,updated_at
+                ) VALUES (?, ?, ?, ?, 1, ?, ?, ?, '분석', '캐릭터 분석', ?, ?)
+                """, id, userId, videoId, id, stage, closeReason, experienceVersion, createdAt, createdAt);
+    }
+
+    private void insertConversation(
+            UUID id, UUID practiceId, String status, String closeReason, OffsetDateTime createdAt) {
+        jdbc.update("""
+                INSERT INTO coach_conversations (
+                    id,practice_id,start_request_id,status,close_reason,created_at,updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, id, practiceId, id, status, closeReason, createdAt, createdAt);
+    }
+
+    private void insertMessage(UUID conversationId, int index, String role, String text) {
+        jdbc.update("""
+                INSERT INTO coach_messages (id,conversation_id,turn_index,role,text,created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """, UUID.randomUUID(), conversationId, index, role, text, NOW);
+    }
+
     private static String md5(String value) throws Exception {
         return HexFormat.of().formatHex(
                 MessageDigest.getInstance("MD5").digest(value.getBytes(StandardCharsets.UTF_8)));
