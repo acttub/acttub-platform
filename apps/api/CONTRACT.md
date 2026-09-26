@@ -1204,6 +1204,17 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     설문 id·새 순번으로 시트에 다시 보낸다(시트의 연락처도 지운다). 탈퇴 때도 같다. **본문은 사람과 끊어 남는다.**
   - 시트 구현이 아직 없다. 자리 지킴이(`adapter/sheet/LoggingExitSurveySheet`)는 **보낸 척하지 않고 실패로 남긴다** —
     성공을 돌려주면 그 설문이 재전송 대상에서 빠져 시트가 붙는 날 영영 복제되지 않는다.
+- **운영 피드백 조회**(`GET /v2/admin/feedback`) — 같은 `ADMIN_OPS_TOKEN` 으로 이탈 설문과 노트 평가를
+  최신순 한 목록으로 읽는다. 기본 50개, 최대 100개이고 응답은 `{items, limit, has_more}` 다.
+  - 한 항목은 `id`·`kind`(`exit_survey`·`note_rating`)·`created_at`·`actor`·`is_team`·`body`·`rating`·
+    `status`·`source`·`trigger`·`practice_id`를 항상 싣고 해당 없는 값은 null 이다. 설문은 body 유무에 따라
+    `answered`·`dismissed`, source 는 `coach`·`report`다. 평가는 comment 를 `body`, 평가값을 `rating`, source 를
+    `practice_note`로 낸다. 정렬은 `created_at DESC, kind ASC, id ASC`라 같은 시각에도 고정된다.
+  - 배우는 `배우 ` + `md5(user_id)` 앞 8자리뿐이다. 연락처·원본 user id·이메일은 projection 과 DTO 에 없다.
+    `ADMIN_OPS_EXCLUDE_EMAILS`와 `exclude_actors`(ops-core와 같은 검증)를 팀으로 보고 기본적으로 제외한다.
+    `include_team=true`일 때만 팀 테스트를 포함하고 `is_team=true`로 표시한다.
+  - 이 자유 입력 조회는 **별도 실시간 경로뿐**이다. `ops-core` JSON·백업 스냅샷·git 산출물에는 body나 평가
+    comment를 넣지 않는다.
 - **연습 자료의 이관·삭제·탈퇴** — 정본은 02-practice 의 처리표다.
   - **이관**은 `user_id` 가 있는 행을 한 트랜잭션에서 옮긴다: 예약 장부 → `videos` → `practice_sessions`·`practices`
     → `external_operations`·`ai_jobs` → 배우 기억 → 리딩 → 설문 → 노트 평가 순이다(§6-9의 잠금 순서에 이어진다). 분석·대화·노트·

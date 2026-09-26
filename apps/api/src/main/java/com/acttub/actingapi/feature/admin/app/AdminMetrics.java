@@ -2,6 +2,7 @@ package com.acttub.actingapi.feature.admin.app;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.UUID;
 
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
@@ -48,5 +49,38 @@ public final class AdminMetrics {
     public record AdminSessions(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<AdminSession> sessions,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int playbackExpiresInSec) {
+    }
+
+    @Schema(name = "AdminFeedbackItem", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record AdminFeedbackItem(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID id,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"exit_survey", "note_rating"})
+            String kind,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) OffsetDateTime createdAt,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String actor,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean isTeam,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String body,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true,
+                    allowableValues = {"helpful", "not_helpful"})
+            String rating,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true,
+                    allowableValues = {"answered", "dismissed"})
+            String status,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                    allowableValues = {"coach", "report", "practice_note"})
+            String source,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true,
+                    allowableValues = {"x", "leave", "back"})
+            String trigger,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) UUID practiceId) {
+    }
+
+    @Schema(name = "AdminFeedbackPage", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record AdminFeedbackPage(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<AdminFeedbackItem> items,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "1", maximum = "100") int limit,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean hasMore) {
     }
 }

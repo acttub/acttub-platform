@@ -225,6 +225,137 @@ class AdminEndpointIT {
                 mapper.readTree("{\"detail\":\"Unauthorized\"}"));
     }
 
+    @Test
+    void feedbackRequiresAdminTokenBeforeValidationOrDatabaseAccess() throws Exception {
+        RecordingInspector.STATEMENTS.get().clear();
+        JsonNode response = json(mvc.perform(get("/v2/admin/feedback?limit=nope&include_team=nope")), 401);
+        assertThat(response).isEqualTo(mapper.readTree("{\"detail\":\"Unauthorized\"}"));
+        assertThat(RecordingInspector.STATEMENTS.get()).isEmpty();
+    }
+
+    @Test
+    void feedbackCombinesSurveysAndRatingsWithoutPersonalIdentifiersAndFiltersTeamByDefault()
+            throws Exception {
+        UUID realVideo = insertVideo(REAL_USER, "feedback-real.mp4", NOW.plusMinutes(1));
+        UUID realPractice = UUID.randomUUID();
+        insertPractice1(realPractice, REAL_USER, realVideo, "closed", "conversation_closed",
+                "three_layers_v1", NOW.plusMinutes(1));
+        UUID conversation = UUID.randomUUID();
+        insertConversation(conversation, realPractice, "closed", "gap_stated", NOW.plusMinutes(1));
+        UUID note = UUID.randomUUID();
+        jdbc.update("INSERT INTO coach_notes (id,conversation_id,format,kind,source_revision) VALUES (?,?,'v2','action',0)",
+                note, conversation);
+
+        UUID answered = UUID.fromString("00000000-0000-4000-8000-000000000711");
+        UUID dismissed = UUID.fromString("00000000-0000-4000-8000-000000000712");
+        UUID rating = UUID.fromString("00000000-0000-4000-8000-000000000713");
+        jdbc.update("""
+                INSERT INTO practice_feedback (
+                    id,user_id,practice_id,screen,trigger,body,contact_email,contact_phone,created_at,updated_at
+                ) VALUES (?, ?, ?, 'report', 'leave', '떠난 이유', 'private@example.com', '010-0000-0000', ?, ?)
+                """, answered, REAL_USER, realPractice, NOW.plusMinutes(3), NOW.plusMinutes(3));
+        jdbc.update("""
+                INSERT INTO practice_feedback (
+                    id,user_id,practice_id,screen,trigger,body,created_at,updated_at
+                ) VALUES (?, ?, ?, 'coach', 'back', NULL, ?, ?)
+                """, dismissed, REAL_USER, realPractice, NOW.plusMinutes(3), NOW.plusMinutes(3));
+        jdbc.update("""
+                INSERT INTO note_ratings (
+                    id,practice_id,note_id,user_id,rating,comment,request_id,created_at,updated_at
+                ) VALUES (?, ?, ?, ?, 'not_helpful', '노트 평가 코멘트', ?, ?, ?)
+                """, rating, realPractice, note, REAL_USER, UUID.randomUUID(),
+                NOW.plusMinutes(4), NOW.plusMinutes(4));
+
+        UUID teamVideo = insertVideo(TEAM_USER, "feedback-team.mp4", NOW.plusMinutes(5));
+        UUID teamPractice = UUID.randomUUID();
+        insertPractice1(teamPractice, TEAM_USER, teamVideo, "closed", "conversation_closed",
+                "three_layers_v1", NOW.plusMinutes(5));
+        UUID teamFeedback = UUID.fromString("00000000-0000-4000-8000-000000000714");
+        jdbc.update("""
+                INSERT INTO practice_feedback (
+                    id,user_id,practice_id,screen,trigger,body,contact_email,created_at,updated_at
+                ) VALUES (?, ?, ?, 'coach', 'x', '팀 테스트 본문', 'team-private@example.com', ?, ?)
+                """, teamFeedback, TEAM_USER, teamPractice, NOW.plusMinutes(5), NOW.plusMinutes(5));
+
+        JsonNode page = authorized("/v2/admin/feedback", 200);
+        assertThat(page.path("limit").intValue()).isEqualTo(50);
+        assertThat(page.path("has_more").booleanValue()).isFalse();
+        assertThat(page.path("items")).hasSize(3);
+
+        JsonNode ratingItem = page.path("items").get(0);
+        assertThat(ratingItem.fieldNames()).toIterable().containsExactly(
+                "id", "kind", "created_at", "actor", "is_team", "body", "rating", "status",
+                "source", "trigger", "practice_id");
+        assertThat(ratingItem.path("id").textValue()).isEqualTo(rating.toString());
+        assertThat(ratingItem.path("kind").textValue()).isEqualTo("note_rating");
+        assertThat(ratingItem.path("actor").textValue())
+                .isEqualTo("배우 " + md5(REAL_USER.toString()).substring(0, 8));
+        assertThat(ratingItem.path("is_team").booleanValue()).isFalse();
+        assertThat(ratingItem.path("body").textValue()).isEqualTo("노트 평가 코멘트");
+        assertThat(ratingItem.path("rating").textValue()).isEqualTo("not_helpful");
+        assertThat(ratingItem.path("status").isNull()).isTrue();
+        assertThat(ratingItem.path("source").textValue()).isEqualTo("practice_note");
+        assertThat(ratingItem.path("trigger").isNull()).isTrue();
+        assertThat(ratingItem.path("practice_id").textValue()).isEqualTo(realPractice.toString());
+
+        // 같은 created_at 의 설문 둘은 id 오름차순으로 고정된다.
+        JsonNode answeredItem = page.path("items").get(1);
+        assertThat(answeredItem.path("id").textValue()).isEqualTo(answered.toString());
+        assertThat(answeredItem.path("status").textValue()).isEqualTo("answered");
+        assertThat(answeredItem.path("source").textValue()).isEqualTo("report");
+        assertThat(answeredItem.path("trigger").textValue()).isEqualTo("leave");
+
+        JsonNode dismissedItem = page.path("items").get(2);
+        assertThat(dismissedItem.path("kind").textValue()).isEqualTo("exit_survey");
+        assertThat(dismissedItem.path("body").isNull()).isTrue();
+        assertThat(dismissedItem.path("status").textValue()).isEqualTo("dismissed");
+        assertThat(dismissedItem.path("source").textValue()).isEqualTo("coach");
+        assertThat(dismissedItem.path("trigger").textValue()).isEqualTo("back");
+
+        assertThat(page.toString()).doesNotContain(
+                REAL_USER.toString(), TEAM_USER.toString(), "actor@example.com", "Team@Acttub.com",
+                "private@example.com", "010-0000-0000", "team-private@example.com", "팀 테스트 본문");
+
+        JsonNode limited = authorized("/v2/admin/feedback?limit=2", 200);
+        assertThat(limited.path("items")).hasSize(2);
+        assertThat(limited.path("has_more").booleanValue()).isTrue();
+        assertThat(limited.path("items").get(0).path("id").textValue()).isEqualTo(rating.toString());
+
+        JsonNode withTeam = authorized("/v2/admin/feedback?include_team=true", 200);
+        assertThat(withTeam.path("items")).hasSize(4);
+        assertThat(withTeam.path("items").get(0).path("id").textValue()).isEqualTo(teamFeedback.toString());
+        assertThat(withTeam.path("items").get(0).path("is_team").booleanValue()).isTrue();
+        assertThat(withTeam.toString()).doesNotContain(
+                REAL_USER.toString(), TEAM_USER.toString(), "actor@example.com", "Team@Acttub.com",
+                "private@example.com", "010-0000-0000", "team-private@example.com");
+
+        String realActor = md5(REAL_USER.toString()).substring(0, 8);
+        JsonNode excludedActor = authorized("/v2/admin/feedback?exclude_actors=" + realActor, 200);
+        assertThat(excludedActor.path("items")).hasSize(0);
+        JsonNode inspectExcluded = authorized(
+                "/v2/admin/feedback?exclude_actors=" + realActor.toUpperCase() + "&include_team=true", 200);
+        assertThat(inspectExcluded.path("items")).hasSize(4);
+        for (JsonNode item : inspectExcluded.path("items")) {
+            assertThat(item.path("is_team").booleanValue()).isTrue();
+        }
+    }
+
+    @Test
+    void feedbackQueryParametersUseBoundedValidation() throws Exception {
+        assertThat(authorized("/v2/admin/feedback?limit=0", 422).at("/detail/0/type").textValue())
+                .isEqualTo("greater_than_equal");
+        JsonNode above = authorized("/v2/admin/feedback?limit=101", 422);
+        assertThat(above.at("/detail/0/type").textValue()).isEqualTo("less_than_equal");
+        assertThat(above.at("/detail/0/ctx/le").intValue()).isEqualTo(100);
+        assertThat(authorized("/v2/admin/feedback?limit=nope", 422).at("/detail/0/type").textValue())
+                .isEqualTo("int_parsing");
+        JsonNode bool = authorized("/v2/admin/feedback?include_team=maybe", 422);
+        assertThat(bool.at("/detail/0/type").textValue()).isEqualTo("bool_parsing");
+        assertThat(bool.at("/detail/0/loc/1").textValue()).isEqualTo("include_team");
+        JsonNode actor = authorized("/v2/admin/feedback?exclude_actors=nothex12", 422);
+        assertThat(actor.at("/detail/0/loc/1").textValue()).isEqualTo("exclude_actors");
+    }
+
     /**
      * ops 코어는 수집기 CORE_SQL 을 운영 DB 에서 바로 돈다. 팀 계정은 빼지 않고 표시만 하고,
      * 사람은 user_id 의 md5 앞 8자리 가명으로만 나간다 — 이메일·user_id 원본은 응답에 없다.
@@ -525,13 +656,17 @@ class AdminEndpointIT {
             }
         });
         assertThat(added).containsExactlyInAnyOrder("/v2/admin/sessions", "/v2/admin/ops-core",
-                "/v2/admin/practice-migration",
+                "/v2/admin/feedback", "/v2/admin/practice-migration",
                 "/v2/admin/challenges", "/v2/admin/challenges/{id}/moderation",
                 "/v2/admin/reports", "/v2/admin/reports/{id}");
         assertThat(actual.at("/paths/~1v2~1admin~1sessions/get/parameters/0/schema/type")
                 .textValue()).isEqualTo("integer");
         assertThat(actual.at("/paths/~1v2~1admin~1sessions/get/parameters/0/schema/default")
                 .intValue()).isEqualTo(20);
+        assertThat(actual.at("/paths/~1v2~1admin~1feedback/get/parameters/0/schema/maximum")
+                .intValue()).isEqualTo(100);
+        assertThat(actual.at("/paths/~1v2~1admin~1feedback/get/responses/200/content/application~1json/schema/$ref")
+                .textValue()).isEqualTo("#/components/schemas/AdminFeedbackPage");
     }
 
     private void assertUnauthorized(String authorization) throws Exception {

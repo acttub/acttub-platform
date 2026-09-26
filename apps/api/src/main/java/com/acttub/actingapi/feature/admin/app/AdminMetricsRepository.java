@@ -32,6 +32,16 @@ public interface AdminMetricsRepository {
      */
     String opsCore(List<String> excludeEmails, List<String> excludeActors);
 
+    /**
+     * 이탈 설문과 노트 평가를 한 시간순 목록으로 읽는다. 연락처·원본 user id·이메일은 projection 에
+     * 넣지 않는다. {@code limit} 은 has_more 판정을 위한 요청 상한보다 한 건 큰 값이다.
+     */
+    List<FeedbackRow> feedback(
+            int limit,
+            List<String> excludeEmails,
+            List<String> excludeActors,
+            boolean includeTeam);
+
     /** 세션 한 줄. 재생 주소는 아직 붙지 않았다 — 그것은 서비스가 스토리지에 물어 채운다. */
     record SessionRow(
             UUID coachSessionId,
@@ -43,5 +53,19 @@ public interface AdminMetricsRepository {
             String goal,
             List<AdminMetrics.AdminTurn> turns,
             String objectKey) {
+    }
+
+    record FeedbackRow(
+            UUID id,
+            String kind,
+            OffsetDateTime createdAt,
+            String actor,
+            boolean team,
+            String body,
+            String rating,
+            String status,
+            String source,
+            String trigger,
+            UUID practiceId) {
     }
 }

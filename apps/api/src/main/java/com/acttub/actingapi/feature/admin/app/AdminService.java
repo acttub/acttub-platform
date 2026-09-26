@@ -7,6 +7,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminFeedbackItem;
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminFeedbackPage;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminSession;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminSessions;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -78,6 +80,27 @@ public class AdminService {
                             : playback.url(row.objectKey(), PLAYBACK_TTL_SECONDS)));
         }
         return new AdminSessions(List.copyOf(sessions), PLAYBACK_TTL_SECONDS);
+    }
+
+    public AdminFeedbackPage feedback(int limit, List<String> excludeActors, boolean includeTeam) {
+        var rows = metrics.feedback(limit + 1, excludeEmails, excludeActors, includeTeam);
+        boolean hasMore = rows.size() > limit;
+        List<AdminFeedbackItem> items = rows.stream()
+                .limit(limit)
+                .map(row -> new AdminFeedbackItem(
+                        row.id(),
+                        row.kind(),
+                        row.createdAt(),
+                        row.actor(),
+                        row.team(),
+                        row.body(),
+                        row.rating(),
+                        row.status(),
+                        row.source(),
+                        row.trigger(),
+                        row.practiceId()))
+                .toList();
+        return new AdminFeedbackPage(items, limit, hasMore);
     }
 
     /**
