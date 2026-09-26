@@ -12,6 +12,7 @@
 --   4. 1.0 연습 테이블을 함께 읽는다(SOMA-566) — 아래 "1.0 전환" CTE 다섯 개.
 --   5. 팀을 가명으로도 뺀다(SOMA-569). 게스트는 이메일이 없어 ① 로는 못 거른다 — 화면의 "배우 xxxxxxxx"
 --      8자리(md5(user_id) 앞 8자리)를 쉼표로 받는다. 비면 아무도 더 안 빠진다.
+--   6. 기능별 사용('features' — 대본 리딩·챌린지·노트 평가·이탈 설문·커뮤니티·계정, SOMA-570). 수집기 정본에는 없다.
 -- now() 는 트랜잭션 시작 시각이다. 백업 경로는 이것을 백업 시각으로 바꿔 돌렸다.
 WITH b AS (SELECT (now() AT TIME ZONE 'Asia/Seoul')::date AS d),
 -- 분석 기준 셋. '어제'(달력)가 아니라 '최근 24시간'(구르는 창)이다 —
@@ -651,6 +652,181 @@ SELECT json_build_object(
         FROM turn_all ct WHERE ct.session_id = cs.id
       ) ct ON TRUE
       ORDER BY ps.created_at DESC LIMIT 1000) sessions),
+  -- ── 기능별 사용 (SOMA-570) ─────────────────────────────────────────
+  -- 전부 팀 제외(team CTE). ⚠️ 자유 글은 싣지 않는다 — 설문 본문·연락처·노트 평가 코멘트·대본·댓글은
+  -- 있는지만 센다. 이 JSON 은 수집기를 거쳐 git(ops-data)에 영구히 남는다.
+  'features', json_build_object(
+    'reading', json_build_object(
+      'scripts', (SELECT json_build_object(
+          'total', count(*),
+          'd7', count(*) FILTER (WHERE created_at > (SELECT d7 FROM w)),
+          'users', count(DISTINCT user_id),
+          'sample', count(*) FILTER (WHERE source = 'sample'),
+          'file', count(*) FILTER (WHERE source = 'file'),
+          'paste', count(*) FILTER (WHERE source = 'paste'),
+          'typed', count(*) FILTER (WHERE source = 'typed'))
+        FROM scripts WHERE user_id NOT IN (SELECT id FROM team)),
+      'sessions', (SELECT json_build_object(
+          'total', count(*),
+          'd7', count(*) FILTER (WHERE started_at > (SELECT d7 FROM w)),
+          'users', count(DISTINCT user_id),
+          'users_d7', count(DISTINCT user_id) FILTER (WHERE started_at > (SELECT d7 FROM w)),
+          'completed', count(*) FILTER (WHERE status = 'completed'),
+          'stopped', count(*) FILTER (WHERE status = 'stopped'),
+          'in_progress', count(*) FILTER (WHERE status = 'in_progress'),
+          'read', count(*) FILTER (WHERE mode = 'read'),
+          'quiz', count(*) FILTER (WHERE mode = 'quiz'),
+          'recorded', count(*) FILTER (WHERE record),
+          'avg_minutes', round((avg(elapsed_seconds) FILTER (WHERE status <> 'in_progress')) / 60.0, 1))
+        FROM reading_sessions WHERE user_id NOT IN (SELECT id FROM team)),
+      'recordings', (SELECT json_build_object(
+          'total', count(*),
+          'd7', count(*) FILTER (WHERE created_at > (SELECT d7 FROM w)),
+          'users', count(DISTINCT user_id),
+          'matched', count(*) FILTER (WHERE matched),
+          'unmatched', count(*) FILTER (WHERE matched = false),
+          'minutes', round(COALESCE(sum(duration_ms), 0) / 60000.0, 1))
+        FROM reading_recordings WHERE user_id NOT IN (SELECT id FROM team)),
+      'memorization', (SELECT json_build_object(
+          'memorized', count(*) FILTER (WHERE status = 'memorized'),
+          'not_yet', count(*) FILTER (WHERE status = 'not_yet'),
+          'users', count(DISTINCT user_id))
+        FROM line_memorization WHERE user_id NOT IN (SELECT id FROM team)),
+      'daily', (SELECT json_agg(json_build_object(
+          'date', to_char(d.date, 'YYYY-MM-DD'),
+          'sessions', COALESCE(rs.n, 0), 'users', COALESCE(rs.u, 0), 'completed', COALESCE(rs.done, 0),
+          'scripts', COALESCE(sc.n, 0), 'recordings', COALESCE(rr.n, 0)) ORDER BY d.date)
+        FROM calendar_days d
+        LEFT JOIN (SELECT (started_at AT TIME ZONE 'Asia/Seoul')::date AS date, count(*) AS n,
+                          count(DISTINCT user_id) AS u, count(*) FILTER (WHERE status = 'completed') AS done
+                   FROM reading_sessions WHERE user_id NOT IN (SELECT id FROM team) GROUP BY 1) rs ON rs.date = d.date
+        LEFT JOIN (SELECT (created_at AT TIME ZONE 'Asia/Seoul')::date AS date, count(*) AS n
+                   FROM scripts WHERE user_id NOT IN (SELECT id FROM team) GROUP BY 1) sc ON sc.date = d.date
+        LEFT JOIN (SELECT (created_at AT TIME ZONE 'Asia/Seoul')::date AS date, count(*) AS n
+                   FROM reading_recordings WHERE user_id NOT IN (SELECT id FROM team) GROUP BY 1) rr ON rr.date = d.date)
+    ),
+    'challenges', json_build_object(
+      'challenges', (SELECT json_build_object(
+          'total', count(*),
+          'team', count(*) FILTER (WHERE origin = 'team'),
+          'member', count(*) FILTER (WHERE origin = 'member'),
+          'active', count(*) FILTER (WHERE starts_at <= now() AND ends_at > now()),
+          'd7', count(*) FILTER (WHERE starts_at > (SELECT d7 FROM w)))
+        FROM challenges
+        WHERE deleted_at IS NULL AND (host_user_id IS NULL OR host_user_id NOT IN (SELECT id FROM team))),
+      'entries', (SELECT json_build_object(
+          'total', count(*),
+          'public', count(*) FILTER (WHERE visibility = 'public'),
+          'd7', count(*) FILTER (WHERE created_at > (SELECT d7 FROM w)),
+          'users', count(DISTINCT user_id),
+          'users_d7', count(DISTINCT user_id) FILTER (WHERE created_at > (SELECT d7 FROM w)),
+          'hidden_by_report', count(*) FILTER (WHERE status = 'hidden_by_report'),
+          'views', COALESCE(sum(view_count), 0))
+        FROM challenge_entries WHERE deleted_at IS NULL AND user_id NOT IN (SELECT id FROM team)),
+      'likes', (SELECT json_build_object('total', count(*), 'd7', count(*) FILTER (WHERE created_at > (SELECT d7 FROM w)),
+                                         'users', count(DISTINCT user_id))
+        FROM entry_likes WHERE user_id NOT IN (SELECT id FROM team)),
+      'comments', (SELECT json_build_object('total', count(*), 'd7', count(*) FILTER (WHERE created_at > (SELECT d7 FROM w)),
+                                            'users', count(DISTINCT user_id))
+        FROM entry_comments WHERE deleted_at IS NULL AND user_id NOT IN (SELECT id FROM team)),
+      'saves', (SELECT json_build_object('total', count(*), 'd7', count(*) FILTER (WHERE created_at > (SELECT d7 FROM w)))
+        FROM entry_saves WHERE user_id NOT IN (SELECT id FROM team)),
+      'views', (SELECT json_build_object('total', count(*), 'd7', count(*) FILTER (WHERE created_at > (SELECT d7 FROM w)),
+                                         'users_d7', count(DISTINCT user_id) FILTER (WHERE created_at > (SELECT d7 FROM w)))
+        FROM entry_view_events WHERE user_id NOT IN (SELECT id FROM team)),
+      'reports', (SELECT json_build_object('total', count(*), 'received', count(*) FILTER (WHERE status = 'received'),
+                                           'd7', count(*) FILTER (WHERE created_at > (SELECT d7 FROM w)))
+        FROM entry_reports WHERE reporter_id NOT IN (SELECT id FROM team)),
+      'ai_reports', (SELECT json_build_object('ready', count(*) FILTER (WHERE status = 'ready'),
+                                              'failed', count(*) FILTER (WHERE status = 'failed'),
+                                              'pending', count(*) FILTER (WHERE status = 'pending'))
+        FROM entry_ai_reports WHERE user_id NOT IN (SELECT id FROM team)),
+      'daily', (SELECT json_agg(json_build_object(
+          'date', to_char(d.date, 'YYYY-MM-DD'),
+          'entries', COALESCE(e.n, 0), 'likes', COALESCE(l.n, 0), 'comments', COALESCE(c.n, 0), 'views', COALESCE(v.n, 0)) ORDER BY d.date)
+        FROM calendar_days d
+        LEFT JOIN (SELECT (created_at AT TIME ZONE 'Asia/Seoul')::date AS date, count(*) AS n FROM challenge_entries
+                   WHERE deleted_at IS NULL AND user_id NOT IN (SELECT id FROM team) GROUP BY 1) e ON e.date = d.date
+        LEFT JOIN (SELECT (created_at AT TIME ZONE 'Asia/Seoul')::date AS date, count(*) AS n FROM entry_likes
+                   WHERE user_id NOT IN (SELECT id FROM team) GROUP BY 1) l ON l.date = d.date
+        LEFT JOIN (SELECT (created_at AT TIME ZONE 'Asia/Seoul')::date AS date, count(*) AS n FROM entry_comments
+                   WHERE deleted_at IS NULL AND user_id NOT IN (SELECT id FROM team) GROUP BY 1) c ON c.date = d.date
+        LEFT JOIN (SELECT (created_at AT TIME ZONE 'Asia/Seoul')::date AS date, count(*) AS n FROM entry_view_events
+                   WHERE user_id NOT IN (SELECT id FROM team) GROUP BY 1) v ON v.date = d.date)
+    ),
+    'feedback', json_build_object(
+      'notes', (SELECT json_build_object(
+          'total', count(*),
+          'd7', count(*) FILTER (WHERE n.created_at > (SELECT d7 FROM w)),
+          'fallback', count(*) FILTER (WHERE n.fallback),
+          'v2', count(*) FILTER (WHERE n.format = 'v2'),
+          'action', count(*) FILTER (WHERE n.kind = 'action'),
+          'observation', count(*) FILTER (WHERE n.kind = 'observation'),
+          'record_only', count(*) FILTER (WHERE n.kind = 'record_only'),
+          'legacy', count(*) FILTER (WHERE n.format = 'legacy'))
+        FROM coach_notes n
+        JOIN coach_conversations c ON c.id = n.conversation_id
+        JOIN practices p ON p.id = c.practice_id
+        WHERE p.user_id NOT IN (SELECT id FROM team)),
+      'ratings', (SELECT json_build_object(
+          'helpful', count(*) FILTER (WHERE rating = 'helpful'),
+          'not_helpful', count(*) FILTER (WHERE rating = 'not_helpful'),
+          'with_comment', count(*) FILTER (WHERE comment IS NOT NULL),
+          'd7_helpful', count(*) FILTER (WHERE rating = 'helpful' AND created_at > (SELECT d7 FROM w)),
+          'd7_not_helpful', count(*) FILTER (WHERE rating = 'not_helpful' AND created_at > (SELECT d7 FROM w)),
+          'users', count(DISTINCT user_id))
+        FROM note_ratings WHERE user_id NOT IN (SELECT id FROM team)),
+      'exit_survey', (SELECT json_build_object(
+          'total', count(*),
+          'd7', count(*) FILTER (WHERE created_at > (SELECT d7 FROM w)),
+          'answered', count(*) FILTER (WHERE body IS NOT NULL),
+          'dismissed', count(*) FILTER (WHERE body IS NULL),
+          'with_contact', count(*) FILTER (WHERE contact_email IS NOT NULL OR contact_phone IS NOT NULL),
+          'coach', count(*) FILTER (WHERE screen = 'coach'),
+          'report', count(*) FILTER (WHERE screen = 'report'),
+          'x', count(*) FILTER (WHERE trigger = 'x'),
+          'leave', count(*) FILTER (WHERE trigger = 'leave'),
+          'back', count(*) FILTER (WHERE trigger = 'back'))
+        FROM practice_feedback WHERE user_id NOT IN (SELECT id FROM team)),
+      'daily', (SELECT json_agg(json_build_object(
+          'date', to_char(d.date, 'YYYY-MM-DD'),
+          'notes', COALESCE(nt.n, 0), 'helpful', COALESCE(r.h, 0), 'not_helpful', COALESCE(r.nh, 0),
+          'surveys', COALESCE(f.n, 0), 'answered', COALESCE(f.a, 0)) ORDER BY d.date)
+        FROM calendar_days d
+        LEFT JOIN (SELECT (n.created_at AT TIME ZONE 'Asia/Seoul')::date AS date, count(*) AS n
+                   FROM coach_notes n JOIN coach_conversations c ON c.id = n.conversation_id
+                   JOIN practices p ON p.id = c.practice_id
+                   WHERE p.user_id NOT IN (SELECT id FROM team) GROUP BY 1) nt ON nt.date = d.date
+        LEFT JOIN (SELECT (created_at AT TIME ZONE 'Asia/Seoul')::date AS date,
+                          count(*) FILTER (WHERE rating = 'helpful') AS h,
+                          count(*) FILTER (WHERE rating = 'not_helpful') AS nh
+                   FROM note_ratings WHERE user_id NOT IN (SELECT id FROM team) GROUP BY 1) r ON r.date = d.date
+        LEFT JOIN (SELECT (created_at AT TIME ZONE 'Asia/Seoul')::date AS date, count(*) AS n,
+                          count(*) FILTER (WHERE body IS NOT NULL) AS a
+                   FROM practice_feedback WHERE user_id NOT IN (SELECT id FROM team) GROUP BY 1) f ON f.date = d.date)
+    ),
+    'community', json_build_object(
+      'posts', (SELECT json_build_object('total', count(*), 'd7', count(*) FILTER (WHERE created_at > (SELECT d7 FROM w)),
+                                         'users', count(DISTINCT author_id))
+        FROM community_posts WHERE status::text <> 'deleted' AND author_id NOT IN (SELECT id FROM team)),
+      'comments', (SELECT json_build_object('total', count(*), 'd7', count(*) FILTER (WHERE created_at > (SELECT d7 FROM w)))
+        FROM community_comments WHERE status::text <> 'deleted' AND author_id NOT IN (SELECT id FROM team)),
+      'likes', (SELECT json_build_object('total', count(*), 'd7', count(*) FILTER (WHERE created_at > (SELECT d7 FROM w)))
+        FROM community_post_likes WHERE user_id NOT IN (SELECT id FROM team)),
+      'reports', (SELECT json_build_object('total', count(*), 'pending', count(*) FILTER (WHERE status::text = 'pending'))
+        FROM community_reports WHERE reporter_id NOT IN (SELECT id FROM team))
+    ),
+    'accounts', json_build_object(
+      'withdrawn', (SELECT count(*) FROM users WHERE status::text = 'deactivated' AND id NOT IN (SELECT id FROM team)),
+      'withdrawn_d7', (SELECT count(*) FROM users
+                       WHERE status::text = 'deactivated' AND deactivated_at > (SELECT d7 FROM w) AND id NOT IN (SELECT id FROM team)),
+      'guests', (SELECT count(DISTINCT user_id) FROM user_identities
+                 WHERE provider::text = 'guest' AND user_id NOT IN (SELECT id FROM team)),
+      'guest_transfers', (SELECT count(*) FROM guest_transfer_codes WHERE used_at IS NOT NULL AND user_id NOT IN (SELECT id FROM team)),
+      'portfolios', (SELECT count(*) FROM portfolios WHERE user_id NOT IN (SELECT id FROM team)),
+      'portfolios_shared', (SELECT count(*) FROM portfolios WHERE share_enabled AND user_id NOT IN (SELECT id FROM team))
+    )
+  ),
   'db_size', (SELECT pg_size_pretty(pg_database_size(current_database()))),
   'active_7d', (
     SELECT count(DISTINCT user_id) FROM ps_all

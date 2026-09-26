@@ -394,6 +394,115 @@ class AdminEndpointIT {
         assertThat(injected.at("/detail/0/type").textValue()).isEqualTo("value_error");
     }
 
+    /**
+     * 기능별 사용(SOMA-570): 대본 리딩·챌린지·노트 평가·이탈 설문을 팀 제외로 센다. 자유 글(설문 본문·연락처·
+     * 평가 코멘트·대본)은 응답에 실리지 않는다 — 이 JSON 은 수집기를 거쳐 git 에 남는다.
+     */
+    @Test
+    void opsCoreCountsFeatureUsageWithoutFreeText() throws Exception {
+        UUID script = insertScript(REAL_USER, "sample", "비밀 대본 본문");
+        insertScript(TEAM_USER, "paste", "팀 대본");
+        UUID character = UUID.randomUUID();
+        jdbc.update("INSERT INTO script_characters (id,script_id,name,sort_order) VALUES (?,?,'수아',0)", character, script);
+        UUID line1 = UUID.randomUUID();
+        UUID line2 = UUID.randomUUID();
+        jdbc.update("INSERT INTO script_lines (id,script_id,ordinal,kind,character_id,text) VALUES (?,?,1,'dialogue',?,'됐어')",
+                line1, script, character);
+        jdbc.update("INSERT INTO script_lines (id,script_id,ordinal,kind,character_id,text) VALUES (?,?,2,'dialogue',?,'가')",
+                line2, script, character);
+        UUID reading = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO reading_sessions (
+                    id,script_id,user_id,my_character_ids,mode,start_line_id,end_line_id,advance,record,status,
+                    elapsed_seconds,started_at,ended_at,updated_at
+                ) VALUES (?, ?, ?, ARRAY[CAST(? AS uuid)], 'read', ?, ?, 'manual', true, 'completed', 120, ?, ?, ?)
+                """, reading, script, REAL_USER, character, line1, line2, NOW.minusMinutes(40), NOW.minusMinutes(38), NOW);
+        jdbc.update("""
+                INSERT INTO reading_recordings (
+                    id,user_id,reading_session_id,line_id,request_id,attempt_no,object_key,content_type,byte_size,
+                    duration_ms,transcript_source,matched,created_at,updated_at
+                ) VALUES (?, ?, ?, ?, ?, 1, 'rec.m4a', 'audio/mp4', 1, 3000, 'none', true, ?, ?)
+                """, UUID.randomUUID(), REAL_USER, reading, line1, UUID.randomUUID(), NOW.minusMinutes(39), NOW);
+        jdbc.update("INSERT INTO line_memorization (id,user_id,line_id,status) VALUES (?,?,?,'memorized')",
+                UUID.randomUUID(), REAL_USER, line1);
+
+        UUID video = insertVideo(REAL_USER, "note.mp4", NOW.minusMinutes(15));
+        UUID practice = UUID.randomUUID();
+        insertPractice1(practice, REAL_USER, video, "closed", "conversation_closed", "three_layers_v1", NOW.minusMinutes(15));
+        UUID conversation = UUID.randomUUID();
+        insertConversation(conversation, practice, "closed", "gap_stated", NOW.minusMinutes(14));
+        UUID note = UUID.randomUUID();
+        jdbc.update("INSERT INTO coach_notes (id,conversation_id,format,kind,source_revision) VALUES (?,?,'v2','action',0)",
+                note, conversation);
+        jdbc.update("""
+                INSERT INTO note_ratings (id,practice_id,note_id,user_id,rating,comment,request_id)
+                VALUES (?, ?, ?, ?, 'not_helpful', '평가 코멘트 비밀', ?)
+                """, UUID.randomUUID(), practice, note, REAL_USER, UUID.randomUUID());
+        jdbc.update("""
+                INSERT INTO practice_feedback (id,user_id,practice_id,screen,trigger,body,contact_email)
+                VALUES (?, ?, ?, 'coach', 'x', '설문 본문 비밀', 'secret@example.com')
+                """, UUID.randomUUID(), REAL_USER, practice);
+
+        UUID challenge = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO challenges (id,line,work,duration_days,origin,request_id,request_fingerprint,starts_at,ends_at)
+                VALUES (?, '됐어, 그냥 가', '작품', 7, 'team', ?, ?, ?, ?)
+                """, challenge, UUID.randomUUID(), "a".repeat(64), NOW.minusDays(1), NOW.plusDays(6));
+        UUID entryVideo = insertVideo(REAL_USER, "entry.mp4", NOW.minusMinutes(10));
+        UUID entry = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO challenge_entries (id,challenge_id,user_id,video_id,visibility,request_id,request_fingerprint,created_at)
+                VALUES (?, ?, ?, ?, 'private', ?, ?, ?)
+                """, entry, challenge, REAL_USER, entryVideo, UUID.randomUUID(), "b".repeat(64), NOW.minusMinutes(10));
+        jdbc.update("INSERT INTO entry_likes (id,entry_id,user_id) VALUES (?,?,?)", UUID.randomUUID(), entry, REAL_USER);
+        jdbc.update("INSERT INTO entry_likes (id,entry_id,user_id) VALUES (?,?,?)", UUID.randomUUID(), entry, TEAM_USER);
+        jdbc.update("INSERT INTO entry_view_events (event_id,entry_id,user_id) VALUES (?,?,?)", UUID.randomUUID(), entry, REAL_USER);
+
+        JsonNode features = authorized("/v2/admin/ops-core", 200).path("features");
+        JsonNode reading1 = features.path("reading");
+        assertThat(reading1.at("/scripts/total").intValue()).isEqualTo(1);
+        assertThat(reading1.at("/scripts/sample").intValue()).isEqualTo(1);
+        assertThat(reading1.at("/sessions/total").intValue()).isEqualTo(1);
+        assertThat(reading1.at("/sessions/completed").intValue()).isEqualTo(1);
+        assertThat(reading1.at("/sessions/avg_minutes").doubleValue()).isEqualTo(2.0);
+        assertThat(reading1.at("/recordings/matched").intValue()).isEqualTo(1);
+        assertThat(reading1.at("/memorization/memorized").intValue()).isEqualTo(1);
+        assertThat(reading1.path("daily")).hasSize(42);
+        int dailySessions = 0;
+        for (JsonNode day : reading1.path("daily")) {
+            dailySessions += day.path("sessions").intValue();
+        }
+        assertThat(dailySessions).isEqualTo(1);
+
+        JsonNode challenges = features.path("challenges");
+        assertThat(challenges.at("/challenges/active").intValue()).isEqualTo(1);
+        assertThat(challenges.at("/entries/total").intValue()).isEqualTo(1);
+        assertThat(challenges.at("/likes/total").intValue()).isEqualTo(1);
+        assertThat(challenges.at("/views/total").intValue()).isEqualTo(1);
+
+        JsonNode feedback = features.path("feedback");
+        assertThat(feedback.at("/notes/total").intValue()).isEqualTo(1);
+        assertThat(feedback.at("/notes/action").intValue()).isEqualTo(1);
+        assertThat(feedback.at("/ratings/not_helpful").intValue()).isEqualTo(1);
+        assertThat(feedback.at("/ratings/with_comment").intValue()).isEqualTo(1);
+        assertThat(feedback.at("/exit_survey/answered").intValue()).isEqualTo(1);
+        assertThat(feedback.at("/exit_survey/with_contact").intValue()).isEqualTo(1);
+        assertThat(feedback.at("/exit_survey/x").intValue()).isEqualTo(1);
+        assertThat(features.at("/accounts/withdrawn").intValue()).isEqualTo(0);
+
+        assertThat(features.toString()).doesNotContain(
+                "설문 본문 비밀", "secret@example.com", "평가 코멘트 비밀", "비밀 대본 본문", "됐어, 그냥 가");
+    }
+
+    private UUID insertScript(UUID userId, String source, String rawText) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO scripts (id,user_id,title,raw_text,source,request_id,request_fingerprint)
+                VALUES (?, ?, '제목', ?, ?, ?, ?)
+                """, id, userId, rawText, source, UUID.randomUUID(), "c".repeat(64));
+        return id;
+    }
+
     private static String md5(String value) throws Exception {
         return HexFormat.of().formatHex(
                 MessageDigest.getInstance("MD5").digest(value.getBytes(StandardCharsets.UTF_8)));
