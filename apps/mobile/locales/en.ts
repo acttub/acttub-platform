@@ -402,7 +402,7 @@ const en: DeepStringShape<typeof ko> = {
     deleteMessage: 'Deleting from the archive cannot be undone.',
     deletedTitle: 'Deleted',
     deletedMessage: 'This is a preview, so the list stays as is.',
-    // 1.0.0 server library (practice.record · practice.library)
+    // 0.1.0 server library (practice.record · practice.library)
     statusPending: 'Saved on device · waiting to upload',
     statusUploading: 'Uploading…',
     statusSaved: 'Saved to library',

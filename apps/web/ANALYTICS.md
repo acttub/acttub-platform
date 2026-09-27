@@ -188,7 +188,7 @@ GA4는 `isMeasuredHost()`로 로컬 트래픽을 막지만, Amplitude는 그 가
 
 `practice_blockage_submitted`는 도움 갈래를 실제로 고른 사람만 세며, 자동으로 채우는 `그 외` 기본값은 포함하지 않는다. 업로드는 준비 화면의 시작 버튼을 누른 뒤 바로 시작하고, 실패는 같은 진행 자리에서 안내한다.
 
-`theory_choice`는 1.0.0에서 준비 화면의 이론 선택과 함께 사라졌다(SOMA-546). 옛 이벤트에 남은 값은 그대로 두고 새 이벤트는 이 속성을 만들지 않는다.
+`theory_choice`는 0.1.0에서 준비 화면의 이론 선택과 함께 사라졌다(SOMA-546). 옛 이벤트에 남은 값은 그대로 두고 새 이벤트는 이 속성을 만들지 않는다.
 
 
 `error_code`는 `PracticeSessionDetail.error_code`의 4종 enum(`gemini_timeout`·`gemini_parse_error`·`unsupported_media`·`max_attempts_exceeded`)을 그대로 싣는다. 지금 화면은 이 값을 전혀 쓰지 않는다.

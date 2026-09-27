@@ -129,7 +129,7 @@ export function permissionPrompt(input: {
 }
 
 /**
- * 1.0.0 이전에는 알림 토글이 기기에만 있었다('acttub.push.enabled'). 그때 꺼 둔 사람이
+ * 0.1.0 이전에는 알림 토글이 기기에만 있었다('acttub.push.enabled'). 그때 꺼 둔 사람이
  * 업데이트했다고 서버 기본값(모두 켜짐)으로 알림을 받기 시작하면 안 된다 — 한 번만 서버에 옮긴다.
  */
 export function legacyOptOutPatch(rawEnabled: string | null): NotificationSettings | null {

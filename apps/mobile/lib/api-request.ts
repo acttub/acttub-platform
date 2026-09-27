@@ -56,7 +56,7 @@ export type RequestClock = {
 
 export type ApiRequestDependencies = {
   baseUrl: string;
-  /** 요청마다 보내는 클라이언트 종류와 판. 예: app/1.0.0. 없으면 서버가 426으로 답한다. */
+  /** 요청마다 보내는 클라이언트 종류와 판. 예: app/0.1.0. 없으면 서버가 426으로 답한다. */
   clientHeader: string;
   fetchImpl: typeof fetch;
   /**

@@ -8,7 +8,7 @@ import com.acttub.actingapi.feature.practice.app.PracticeViews.PracticeView;
 import com.acttub.actingapi.feature.practice.app.PracticeViews.PreviousConversation;
 
 /**
- * 아직 옮기지 않은 옛 연습을 <b>새 응답 모양</b>으로 읽는다 (specs/practice 「1.0.0 스키마 전환」 ②).
+ * 아직 옮기지 않은 옛 연습을 <b>새 응답 모양</b>으로 읽는다 (specs/practice 「0.1.0 스키마 전환」 ②).
  *
  * <p>넓히기와 새 쓰기 사이에는 같은 배우의 자료가 두 표에 나뉘어 있다. 새 조회 API 는 새 표를 먼저 보고
  * 없으면 여기로 온다 — 화면은 어느 표에서 왔는지 알 필요가 없다.

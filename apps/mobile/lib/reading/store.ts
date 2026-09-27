@@ -2,7 +2,7 @@
  * 대본 리딩 저장소(reading.script) — 서버가 정본이다(ADR-031). 목록·상세·저장·수정·삭제는 리딩 API로
  * 가고, 화면 사이에 동기로 넘겨야 하는 "현재 대본" 하나만 메모리에 든다.
  *
- * 1.0.0 이전에는 대본이 AsyncStorage(`acttub.reading.scripts`)에만 있었다. 그 키는 이제 옛 대본을
+ * 0.1.0 이전에는 대본이 AsyncStorage(`acttub.reading.scripts`)에만 있었다. 그 키는 이제 옛 대본을
  * 서버로 옮기는 legacy-migration 만 읽고, 여기서는 쓰지 않는다.
  *
  * 회차가 서버에 오기 전까지(RM2) 기기가 대본마다 기억하는 것 — 가리기·내 배역·진행 위치 — 은

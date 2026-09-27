@@ -38,7 +38,7 @@ class AnalysisWorkerWiringIT {
                     .isNotNull();
             assertThat(context.getBeanProvider(AnalysisWorker.class).orderedStream().toList())
                     .describedAs("스토리지가 있는데 워커가 없으면 분석 큐를 아무도 소비하지 않는다 — "
-                            + "원장마다 하나이므로 옛 external_operations 와 1.0.0 ai_jobs 로 둘이다")
+                            + "원장마다 하나이므로 옛 external_operations 와 0.1.0 ai_jobs 로 둘이다")
                     .hasSize(2);
         }
     }

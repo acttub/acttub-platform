@@ -53,8 +53,8 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
 
     @Override
     public List<SessionRow> sessions(int limit, List<String> excludeEmails) {
-        // 1.0 대화(coach_conversations)와 아직 옮겨지지 않은 옛 코치 세션을 함께 본다. 이관은 같은 id 로
-        // 옮기므로 새 표에 있는 옛 행은 뺀다(SOMA-566). 영상은 1.0 이 videos, 옛 행이 확정된 업로드다.
+        // 0.1.0 대화(coach_conversations)와 아직 옮겨지지 않은 옛 코치 세션을 함께 본다. 이관은 같은 id 로
+        // 옮기므로 새 표에 있는 옛 행은 뺀다(SOMA-566). 영상은 0.1.0 이 videos, 옛 행이 확정된 업로드다.
         StringBuilder sql = new StringBuilder("""
                 SELECT
                     coach.id,

@@ -1,5 +1,5 @@
 /**
- * 구간(reading.session). 웹 1.0.0 은 전체 구간으로 시작한다 — 시작은 첫 대사 줄, 끝은 마지막 대사 줄이다.
+ * 구간(reading.session). 웹 0.1.0 은 전체 구간으로 시작한다 — 시작은 첫 대사 줄, 끝은 마지막 대사 줄이다.
  * 진행 "K / N" 의 N 은 구간 안 대사 줄 수(모든 배역, 지문·장면 제외)다.
  */
 import type { ScriptLine } from "@/lib/reading/script/parse";

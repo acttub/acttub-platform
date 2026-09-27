@@ -20,7 +20,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 1.0.0 코치 대화의 저장소. 엔진이 쓰는 {@link CoachSessionSnapshot} 을 {@code practices}·{@code analyses}·
+ * 0.1.0 코치 대화의 저장소. 엔진이 쓰는 {@link CoachSessionSnapshot} 을 {@code practices}·{@code analyses}·
  * {@code videos}·{@code coach_conversations}·{@code coach_messages} 에서 만들어 준다 — 그래야 행동 규칙(상한·첫 응답·
  * 상태 json)을 그대로 쓰면서 저장만 새 표로 옮길 수 있다.
  *

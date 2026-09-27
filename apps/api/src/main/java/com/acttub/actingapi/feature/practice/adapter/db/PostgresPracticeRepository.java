@@ -27,7 +27,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 1.0.0 회차·묶음과 분석 작업의 저장소.
+ * 0.1.0 회차·묶음과 분석 작업의 저장소.
  *
  * <p><b>잠그는 순서가 규칙을 세운다.</b> 시작은 <b>영상 행</b>을 잡고(보관함의 삭제·파기가 같은 행을 잡으므로
  * "회차 시작과 영상 삭제가 동시: 하나만 성공"이 선다), 이어하기·재시도는 <b>묶음의 첫 행</b>을 잡는다(서로 다른

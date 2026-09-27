@@ -2,7 +2,7 @@
 
 [공통 규칙](../common.md) · [영역 개요](README.md)
 
-- 도입: 1.0.0
+- 도입: 0.1.0
 - 화면: A15(피드 반응 메뉴), A15.3(댓글 모달), A15.5(저장한 영상), A4(프로필의 저장한 영상 진입)
 - 테이블: entry_likes, entry_saves, entry_comments, user_blocks, challenge_entries
 
@@ -12,7 +12,7 @@
 
 ## 의도
 좋아요·저장은 (entry_id, user_id) 유일인 연결 표이고 요청은 멱등이다(ERD). 좋아요 수는 재집계다(CONTRACT §7). 댓글은 작성자가 탈퇴해도
-남고 이름만 "탈퇴한 사용자"로 바뀐다(account.withdraw, community 보관 결정). 댓글 좋아요·답글은 1.0.0에 없다.
+남고 이름만 "탈퇴한 사용자"로 바뀐다(account.withdraw, community 보관 결정). 댓글 좋아요·답글은 0.1.0에 없다.
 
 ## 목적
 배우가 다른 배우의 연기에 반응을 남기고, 참고할 영상을 모아 둔다.
@@ -89,5 +89,5 @@ entry_comments.status와 삭제 표시(deleted_at). entry_likes·entry_saves는 
 - 저장의 랭킹·작성자 알림 반영.
 
 ## 열린 질문
-- [공통 규칙](../common.md#범위-밖)은 "챌린지 공유 링크의 웹 공개 페이지"를 1.0.0 범위 밖에 두는데, 이 문서의 규칙·제약과 코드
+- [공통 규칙](../common.md#범위-밖)은 "챌린지 공유 링크의 웹 공개 페이지"를 0.1.0 범위 밖에 두는데, 이 문서의 규칙·제약과 코드
   (`PublicEntryController`, `GET /v2/public/entries/{id}`, CONTRACT §6-17)는 웹 주소 `/e/<id>`의 중간 페이지를 둔다. 어느 쪽이 맞는지 정한다.

@@ -2,7 +2,7 @@
 
 [공통 규칙](../common.md) · [영역 개요](README.md)
 
-- 도입: 1.0.0
+- 도입: 0.1.0
 - 결정 기록: ADR-005(개정 2026-09-21)
 - 화면: A14·A14.1·A14.2(시작 안내), A15(챌린지 피드), A16(대사 목록·내 챌린지), A16.1(대사 검색), A17(좋아요순 랭킹), A17.1(최신순), P03(프로필 챌린지 기록)
 - 테이블: challenges, challenge_entries, entry_likes, user_blocks, entry_view_events(ERD에 추가)

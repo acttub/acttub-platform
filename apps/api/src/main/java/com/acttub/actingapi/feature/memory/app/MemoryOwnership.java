@@ -9,8 +9,8 @@ import java.util.UUID;
  * 배우가 고른 쪽만 남긴다 — 칸마다 섞으면 누구의 것도 아닌 기억이 된다. <b>부르는 쪽의 트랜잭션에
  * 참여한다.</b>
  *
- * <p>구현은 1.0.0 표({@code actor_memories})와 옛 표({@code actor_memory_entries})를 <b>함께</b> 다룬다 —
- * 이관은 한 트랜잭션이고 옛 자료를 잃지 않아야 한다(specs/practice 「1.0.0 스키마 전환」).
+ * <p>구현은 0.1.0 표({@code actor_memories})와 옛 표({@code actor_memory_entries})를 <b>함께</b> 다룬다 —
+ * 이관은 한 트랜잭션이고 옛 자료를 잃지 않아야 한다(specs/practice 「0.1.0 스키마 전환」).
  */
 public interface MemoryOwnership {
 

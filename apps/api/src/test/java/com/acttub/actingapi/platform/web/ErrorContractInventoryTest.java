@@ -381,7 +381,7 @@ class ErrorContractInventoryTest {
                     "feature.reading.ReadingRecordingIT"),
             covered("feature.reading.app.RecordingService|503|audio_conversion_failed", 1,
                     "feature.reading.ReadingRecordingIT"),
-            // 1.0.0 코치 대화·노트(practice.coach, practice.note). 저장만 새 표로 옮겼고 행동 규칙은 그대로다.
+            // 0.1.0 코치 대화·노트(practice.coach, practice.note). 저장만 새 표로 옮겼고 행동 규칙은 그대로다.
             covered("feature.coach.app.ConversationService|404|conversation_not_found", 1,
                     "feature.coach.CoachConversationIT"),
             covered("feature.coach.app.ConversationService|404|note_not_found", 1,

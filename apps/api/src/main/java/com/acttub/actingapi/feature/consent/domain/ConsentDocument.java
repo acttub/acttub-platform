@@ -25,7 +25,7 @@ public record ConsentDocument(
      * @param lastAction 이 판에 대한 <b>마지막</b> 행위. 한 번도 없었으면 {@code null}
      *
      * <p>동의는 언제나 결정이다. 거절은 <b>선택 문서에서만</b> 결정이다 — 필수 문서는 거절할 길이
-     * 없고, 1.0.0 이전에 남은 필수 문서의 거절·철회 기록은 미결정과 같게 다룬다. 철회는 탈퇴 뒤
+     * 없고, 0.1.0 이전에 남은 필수 문서의 거절·철회 기록은 미결정과 같게 다룬다. 철회는 탈퇴 뒤
      * 운영자만 기록하므로 회원에게는 결정이 아니다.
      */
     public boolean decidedBy(String lastAction) {

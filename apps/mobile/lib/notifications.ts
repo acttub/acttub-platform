@@ -49,7 +49,7 @@ try {
 
 /** 'acttub.' 접두사 — 탈퇴 시 local-account-data 가 이 접두사를 통째로 지운다. */
 const SETTINGS_KEY = 'acttub.push.settings';
-/** 1.0.0 이전의 기기 토글. 한 번 서버로 옮기고 지운다(legacyOptOutPatch). */
+/** 0.1.0 이전의 기기 토글. 한 번 서버로 옮기고 지운다(legacyOptOutPatch). */
 const LEGACY_ENABLED_KEY = 'acttub.push.enabled';
 
 const pushTokens = createPushTokenLifecycle({
@@ -140,7 +140,7 @@ async function cacheSettings(settings: NotificationSettings): Promise<void> {
 }
 
 /**
- * 서버의 토글 셋을 읽는다. 1.0.0 이전에 기기에서 알림을 꺼 둔 사람은 그 선택을 먼저 서버로
+ * 서버의 토글 셋을 읽는다. 0.1.0 이전에 기기에서 알림을 꺼 둔 사람은 그 선택을 먼저 서버로
  * 옮긴다 — 업데이트했다고 서버 기본값(모두 켜짐)으로 알림을 받기 시작하면 안 된다.
  *
  * 응답을 기다리는 사이 계정이 떠났으면(isCurrent 가 거짓) 읽은 값을 기기에 적지 않는다.

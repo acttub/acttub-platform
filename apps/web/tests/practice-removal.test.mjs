@@ -44,7 +44,7 @@ test("지우고 나서도 그 연습이 지금 화면이면 되돌릴 자리가 
   const result = await removePractice(removeInput());
 
   assert.deepEqual(result, { kind: "removed" });
-  // 1.0.0 의 "삭제"는 묶음 숨김이다 — 노트·대화·기억은 남고 영상은 보관함에 남는다.
+  // 0.1.0 의 "삭제"는 묶음 숨김이다 — 노트·대화·기억은 남고 영상은 보관함에 남는다.
   assert.deepEqual(calls, [
     { path: "/v2/practices/practice-1/group", method: "PATCH", body: { hidden: true } },
   ]);

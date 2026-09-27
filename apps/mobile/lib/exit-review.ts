@@ -14,7 +14,7 @@ import { createFeedbackQueue } from '@/lib/practice/feedback';
 /**
  * 의견 시트(설정·홈)의 저장소 — Apps Script 웹 앱이 시트에 행을 쌓는다.
  *
- * 이탈 설문(A7, coach·report)은 1.0.0에서 서버가 정본이고 시트는 서버가 복제한다
+ * 이탈 설문(A7, coach·report)은 0.1.0에서 서버가 정본이고 시트는 서버가 복제한다
  * (practice.feedback). 앱은 그 경로에서 시트를 직접 부르지 않는다 — `practiceFeedback` 를 쓴다.
  */
 export const EXIT_REVIEW_ENDPOINT =

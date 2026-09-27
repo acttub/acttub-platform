@@ -105,7 +105,7 @@ export { ApiError, NetworkError, RequestAbortError } from '@/lib/api-request';
  */
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://dev.acttub.com';
 // 요청마다 보내는 클라이언트 종류와 판(X-Acttub-Client). 판은 app.json의 version이다.
-// 이 헤더가 없으면 서버는 1.0.0 이전 빌드로 보고 426으로 답한다.
+// 이 헤더가 없으면 서버는 0.1.0 이전 빌드로 보고 426으로 답한다.
 const CLIENT_HEADER = `app/${Constants.expoConfig?.version ?? '0.0.0'}`;
 const requestClient = createApiRequestClient({
   baseUrl: BASE_URL,
@@ -155,7 +155,7 @@ export type MemoryItem = {
 };
 
 /**
- * 화면에 여는 칸. 성별·나이는 1.0.0에서 프로필로 옮겼다(practice.memory) — 코치는 영상이나
+ * 화면에 여는 칸. 성별·나이는 0.1.0에서 프로필로 옮겼다(practice.memory) — 코치는 영상이나
  * 말투에서 그것을 추론하지 않고, 기억 화면은 연습에서 나온 넷만 다룬다.
  */
 export type MemoryField = 'goal' | 'blockage' | 'speech_self' | 'speech_actual';

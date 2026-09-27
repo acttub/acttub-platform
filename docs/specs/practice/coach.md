@@ -2,7 +2,7 @@
 
 [공통 규칙](../common.md) · [영역 개요](README.md)
 
-- 도입: 1.0.0
+- 도입: 0.1.0
 - 결정 기록: ADR-027
 - 화면: A11(질문 대화), A11.1(영상과 장면 펼침), D7.1.1, W7-R, W7-R-b, M7. D7.1.2·M7.1·M7.2(분석 확인 대화·확정)는 기존 갈래 전용이며 신형에는 확인·후보 선택을 강제하지 않는다
 - 테이블: coach_conversations, coach_messages
@@ -280,7 +280,7 @@ ACTTUB_ROUTE_LIVE_TEST=1 OPENAI_CHAT_MODEL=gpt-5.6-luna ./gradlew test --tests '
 
 ## Gemini 직접 영상 코칭
 
-운영 `main`을 기준으로 Gemini 코치 변경만 반영한다. 계정 1.0.0, 새 인증·동의 게이트,
+운영 `main`을 기준으로 Gemini 코치 변경만 반영한다. 계정 0.1.0, 새 인증·동의 게이트,
 웹·앱 화면 변경, DB 마이그레이션은 이번 배포에 포함하지 않는다.
 
 기존 화면에서 장면 정보를 비워 영상만 올리는 새 연습은 기존 `three_layers_v1` 계약으로 생성한다.
@@ -360,7 +360,7 @@ dev(`SITE_URL=https://dev.acttub.com`)의 직접 영상 코칭은 분류·지침
 
 #### 배우가 적은 것도 새 코치로 (2026-09-25, SOMA-508 hotfix)
 
-새 연습은 배우가 상황·인물·목표나 막힘을 적어도 `three_layers_v1`(새 코치)로 연다(1.0 `POST /v2/practices` 는
+새 연습은 배우가 상황·인물·목표나 막힘을 적어도 `three_layers_v1`(새 코치)로 연다(0.1.0 `POST /v2/practices` 는
 `PracticeRules.threeLayers`, 옛 `POST /v2/practice-sessions` 는 `PracticeExperience.select`).
 예전에는 아무것도 적지 않은 연습에만 새 코치가 붙고, 하나라도 적으면 예전 코치로 빠졌다.
 연습 루프는 적은 것을 `## 배우가 적은 것`(상황·인물·목표·막힌 곳·막힌 곳 설명) 칸으로 프로필·지난 연습 칸 뒤,

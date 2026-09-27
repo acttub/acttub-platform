@@ -107,7 +107,7 @@ class ChallengeIT {
                     ready.countDown();
                     assertThat(go.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
                     return mvc.perform(post("/v2/challenges").header("Authorization", bearer)
-                            .header("X-Acttub-Client", "app/1.0.0").header("Accept-Language", "ko")
+                            .header("X-Acttub-Client", "app/0.1.0").header("Accept-Language", "ko")
                             .contentType(MediaType.APPLICATION_JSON).content(body)).andReturn().getResponse();
                 }));
             }
@@ -204,7 +204,7 @@ class ChallengeIT {
     }
 
     @Test void challengeAccess_requiresAKoreanAppMember() throws Exception {
-        for (String[] context : new String[][]{{"web/1.0.0", "ko"}, {"app/1.0.0", "en"}}) {
+        for (String[] context : new String[][]{{"web/0.1.0", "ko"}, {"app/0.1.0", "en"}}) {
             var response = mvc.perform(get("/v2/challenges").header("Authorization", bearer)
                     .header("X-Acttub-Client", context[0]).header("Accept-Language", context[1]))
                     .andReturn().getResponse();
@@ -224,7 +224,7 @@ class ChallengeIT {
                 int locker = jdbc.queryForObject("SELECT pg_backend_pid()", Integer.class);
                 jdbc.queryForObject("SELECT id FROM users WHERE id=? FOR UPDATE", UUID.class, user);
                 var request = executor.submit(() -> mvc.perform(post("/v2/challenges").contentType(MediaType.APPLICATION_JSON)
-                        .header("Authorization", bearer).header("X-Acttub-Client", "app/1.0.0")
+                        .header("Authorization", bearer).header("X-Acttub-Client", "app/0.1.0")
                         .header("Accept-Language", "ko").content(body)).andReturn().getResponse());
                 org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(10)).until(() ->
                         jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE ?=ANY(pg_blocking_pids(pid)))",
@@ -241,7 +241,7 @@ class ChallengeIT {
     }
 
     private JsonNode response(MockHttpServletRequestBuilder request, int expected, String authorization) throws Exception {
-        var result = mvc.perform(request.header("Authorization", authorization).header("X-Acttub-Client", "app/1.0.0")
+        var result = mvc.perform(request.header("Authorization", authorization).header("X-Acttub-Client", "app/0.1.0")
                 .header("Accept-Language", "ko").contentType(MediaType.APPLICATION_JSON)).andReturn();
         var response = result.getResponse();
         assertThat(response.getStatus()).as("%s (%s)", response.getContentAsString(), result.getResolvedException()).isEqualTo(expected);

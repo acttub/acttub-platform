@@ -84,7 +84,7 @@ class AccountStatusContractIT {
     }
 
     /**
-     * 커뮤니티는 1.0.0 에서 내렸다({@code docs/specs/community/README.md}) — 테이블과 글은 남고
+     * 커뮤니티는 0.1.0 에서 내렸다({@code docs/specs/community/README.md}) — 테이블과 글은 남고
      * API 만 없다. 인증이 <b>선택</b>이던 경로는 그것뿐이었고, 헤더 없이 익명으로 지나가던 자리는
      * 이제 404 다. 헤더가 오면 여전히 읽고, 읽었으면 상태를 본다.
      */

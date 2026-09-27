@@ -23,7 +23,7 @@ function jsonResponse(payload, status = 200) {
   });
 }
 
-// 1.0.0 의 노트(practice.note). 회차 경로로 온다.
+// 0.1.0 의 노트(practice.note). 회차 경로로 온다.
 const REPORT = {
   id: "n-1",
   format: "v2",

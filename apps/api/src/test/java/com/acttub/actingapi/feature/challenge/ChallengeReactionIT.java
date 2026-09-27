@@ -259,7 +259,7 @@ class ChallengeReactionIT {
 
     private org.springframework.mock.web.MockHttpServletResponse raw(MockHttpServletRequestBuilder request, String authorization)
             throws Exception {
-        return mvc.perform(request.header("Authorization", authorization).header("X-Acttub-Client", "app/1.0.0")
+        return mvc.perform(request.header("Authorization", authorization).header("X-Acttub-Client", "app/0.1.0")
                 .header("Accept-Language", "ko").contentType(MediaType.APPLICATION_JSON)).andReturn().getResponse();
     }
 
@@ -345,7 +345,7 @@ class ChallengeReactionIT {
                 int locker = jdbc.queryForObject("SELECT pg_backend_pid()", Integer.class);
                 jdbc.queryForObject("SELECT id FROM users WHERE id=? FOR UPDATE", UUID.class, me);
                 var request = executor.submit(() -> mvc.perform(put("/v2/entries/{id}/like", entry).header("Authorization", bearer)
-                        .header("X-Acttub-Client", "app/1.0.0").header("Accept-Language", "ko")).andReturn().getResponse());
+                        .header("X-Acttub-Client", "app/0.1.0").header("Accept-Language", "ko")).andReturn().getResponse());
                 org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(10)).until(() ->
                         jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE ?=ANY(pg_blocking_pids(pid)))",
                                 Boolean.class, locker));
@@ -543,7 +543,7 @@ class ChallengeReactionIT {
     }
 
     private JsonNode response(MockHttpServletRequestBuilder request, int expected, String authorization) throws Exception {
-        var result = mvc.perform(request.header("Authorization", authorization).header("X-Acttub-Client", "app/1.0.0")
+        var result = mvc.perform(request.header("Authorization", authorization).header("X-Acttub-Client", "app/0.1.0")
                 .header("Accept-Language", "ko").contentType(MediaType.APPLICATION_JSON)).andReturn();
         var response = result.getResponse();
         assertThat(response.getStatus()).as("%s (%s)", response.getContentAsString(), result.getResolvedException()).isEqualTo(expected);

@@ -25,7 +25,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 /**
  * 공통 규칙: 클라이언트 판 헤더 없는 {@code /v2} 요청은 426 과 업데이트 안내 문장이다.
  *
- * <p>다른 테스트는 1.0.0 앱처럼 헤더를 기본으로 싣는다({@code DefaultClientHeader}). 여기만 그것을
+ * <p>다른 테스트는 0.1.0 앱처럼 헤더를 기본으로 싣는다({@code DefaultClientHeader}). 여기만 그것을
  * 끄고 헤더가 <b>없는</b> 요청을 본다.
  */
 @SpringBootTest(properties = {
@@ -77,7 +77,7 @@ class ClientVersionContractIT {
             var response = mvc.perform(request).andReturn().getResponse();
             assertThat(response.getStatus()).isEqualTo(426);
             assertThat(mapper.readTree(response.getContentAsString()))
-                    .as("1.0.0 이전 앱은 모르는 상태 코드에 실린 문장을 그대로 보여 준다")
+                    .as("0.1.0 이전 앱은 모르는 상태 코드에 실린 문장을 그대로 보여 준다")
                     .isEqualTo(mapper.readTree(UPGRADE));
         }
     }
@@ -85,7 +85,7 @@ class ClientVersionContractIT {
     @Test
     void appAndWebBuildsThatSendTheHeaderAreJudgedAsUsual() throws Exception {
         UUID member = member();
-        for (String client : List.of("app/1.0.0", "web/1.0.0")) {
+        for (String client : List.of("app/0.1.0", "web/0.1.0")) {
             assertThat(mvc.perform(get("/v2/practices")
                             .header("X-Acttub-Client", client)
                             .header("Authorization", bearer(member)))

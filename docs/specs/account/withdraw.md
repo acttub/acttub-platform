@@ -2,7 +2,7 @@
 
 [공통 규칙](../common.md) · [영역 개요](README.md)
 
-- 도입: 1.0.0
+- 도입: 0.1.0
 - 결정 기록: ADR-029
 - 화면: A5
 - 테이블: users, user_profiles, user_identities, refresh_tokens, push_tokens, actor_memories, videos, reading_recordings, challenge_entries, ai_jobs, portfolios, portfolio_credits, portfolio_photos, guest_transfer_codes, user_consents, user_profile_directions, entry_comments, entry_likes, practice_feedback, account_cleanup_operations(ERD에 추가)

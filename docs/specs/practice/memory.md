@@ -2,7 +2,7 @@
 
 [공통 규칙](../common.md) · [영역 개요](README.md)
 
-- 도입: 1.0.0
+- 도입: 0.1.0
 - 화면: A4.1(코치가 기억하는 것), D14, WM, A4(프로필의 진입점), 이관 기억 선택 팝업(account.guest, 미설계)
 - 테이블: actor_memories, ai_jobs
 

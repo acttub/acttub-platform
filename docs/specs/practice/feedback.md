@@ -2,7 +2,7 @@
 
 [공통 규칙](../common.md) · [영역 개요](README.md)
 
-- 도입: 1.0.0
+- 도입: 0.1.0
 - 화면: A7(이탈 설문, coach·report 공통 시트), 웹 대응 화면(없음, 디자인에 반영할 것)
 - 테이블: practice_feedback, practices
 

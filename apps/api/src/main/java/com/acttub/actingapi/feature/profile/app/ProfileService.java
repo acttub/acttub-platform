@@ -89,7 +89,7 @@ public class ProfileService implements ProfileGate {
             if (before.profileComplete()) {
                 throw new ApiException(422, "under_14");
             }
-            // 연습이 있는 1.0.0 이전 회원은 탈퇴와 같은 절차로 닫히고, 보관 동의와 무관하게 영상을
+            // 연습이 있는 0.1.0 이전 회원은 탈퇴와 같은 절차로 닫히고, 보관 동의와 무관하게 영상을
             // 파기한다. 객체 삭제와 제공자 해제는 탈퇴와 같이 트랜잭션 밖에서 시도한다.
             ProfileRepository.Closed closed = profiles.closeUnderage(userId, clock.instant(), today());
             if (closed != null) {

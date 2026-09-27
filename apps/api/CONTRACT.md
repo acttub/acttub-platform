@@ -89,7 +89,7 @@ Schema Entity는 활성 영속 경로를 매핑하고 `actor_memory_entries`·`p
 - `users.role`: 현재 관리자 인증은 별도 운영 토큰이며 사용자 역할 컬럼을 사용하지 않는다.
 - `community_*` 일곱 테이블(`community_categories`·`community_posts`·`community_comments`·
   `community_post_likes`·`community_anonymous_aliases`·`community_reports`·`community_blocks`):
-  1.0.0에서 커뮤니티의 API와 코드를 내렸다([community](../../docs/specs/community/README.md)).
+  0.1.0에서 커뮤니티의 API와 코드를 내렸다([community](../../docs/specs/community/README.md)).
   `/v2/community/**`는 404다. 글·댓글·차단·신고·카테고리 데이터와 CHECK 값 검사
   (`ValueCheckCatalogIT`)는 그대로 두고, 되살릴 때는 git 이력에서 `feature/community`를 가져온다.
 - `users.nickname`: 이름은 `user_profiles.name`이 정본이다. V9가 옛 값을 복사했고 Schema Entity는
@@ -349,10 +349,10 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 | 13 | `X-Request-Id` 응답 헤더 | 바디만 맞추면 놓친다 |
 | 14 | v1 경로 404 | `/summarize`, `/coach/start`, `/coach/reply`, `/report`, `/report/history/{id}` 5개 |
 | 15 | 숫자 파싱 | `size_bytes: 12.0`(정수형 float) → **201**, `12.5` → **422** |
-| 16 | 커뮤니티 API 은퇴 | `/v2/community/**` 는 **404** 다(1.0.0, 테이블은 보존 §5-1). 인증이 선택이던 경로는 이것뿐이었다. `Authorization` 헤더가 오면 없는 경로에서도 먼저 검증한다 — 탈퇴한 계정의 토큰은 403 |
+| 16 | 커뮤니티 API 은퇴 | `/v2/community/**` 는 **404** 다(0.1.0, 테이블은 보존 §5-1). 인증이 선택이던 경로는 이것뿐이었다. `Authorization` 헤더가 오면 없는 경로에서도 먼저 검증한다 — 탈퇴한 계정의 토큰은 403 |
 | 17 | 미처리 예외 500 | `{"detail":"internal_server_error"}` |
 | 18 | 5xx `ApiException` | `ApiException.external(...)`·`ApiException.unexpected(...)` 팩토리로만 원인과 함께 만든다 |
-| 19 | 클라이언트 판 426 | `X-Acttub-Client`(예: `app/1.0.0`) 없는 `/v2` 요청은 **426** 이고 `detail` 이 코드가 아니라 **안내 문장**이다. 토큰 검증보다 먼저다(§6-5) |
+| 19 | 클라이언트 판 426 | `X-Acttub-Client`(예: `app/0.1.0`) 없는 `/v2` 요청은 **426** 이고 `detail` 이 코드가 아니라 **안내 문장**이다. 토큰 검증보다 먼저다(§6-5) |
 | 20 | 회원 게이트 | `/v2` 는 표에 적힌 **게이트 밖** 말고 전부 보호 기능이다. 동의 → 프로필 순으로 요청마다 DB 상태로 판정한다(§6-5) |
 | 21 | 로그인은 계정을 만들지 않는다 | 처음 온 신원은 200 `signup_required` 와 가입 토큰만 받는다. 계정·신원·동의 행은 가입 제출이 통과한 순간 **한 트랜잭션**으로 생긴다(§6-6) |
 | 22 | 제공자 장애는 처음 온 사람에게만 | 서버가 제공자에 물어야 하는 자리(카카오 사용자 정보 API, 애플 코드 교환)가 답하지 않으면 **502 `provider_unavailable`** 이고 아무 행도 없다. 제공자 ID 로 찾아지는 기존 회원은 묻지 않고 로그인된다. **네이버만 예외** — 로그인마다 서버가 코드를 교환하므로 기존 회원도 502 다(§6-7) |
@@ -373,7 +373,7 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 
 | 동작 | 대상 |
 |---|---|
-| **required + `null` 값을 실어 보냄** | `AuthUser.email`, `MeResponse.email`/`.profile`, `Profile` 의 `directions` 를 뺀 전 항목(1.0.0 이전 회원은 `name` 만 차 있다), `CoachTurnResponse.handoff`/`.report`, `CoachConfirmResponse.handoff`, `SourceHandoffIds.analysis`, `MemoryItem.source_practice_session_id`, `ConsentEntryDocument.current_decision`/`.decided_at`, `Portfolio.intro`, `PortfolioPhoto.url`, `PortfolioShare.slug`/`.url`, `PublicPortfolio.photo_url`/`.gender`/`.intro`, `PublicPortfolioPhoto.url`, `PublicChallengeEntry.character`/`.poster_url`, 연습 노트의 `PracticeNote*`·`PublicPracticeNote` 항목들 |
+| **required + `null` 값을 실어 보냄** | `AuthUser.email`, `MeResponse.email`/`.profile`, `Profile` 의 `directions` 를 뺀 전 항목(0.1.0 이전 회원은 `name` 만 차 있다), `CoachTurnResponse.handoff`/`.report`, `CoachConfirmResponse.handoff`, `SourceHandoffIds.analysis`, `MemoryItem.source_practice_session_id`, `ConsentEntryDocument.current_decision`/`.decided_at`, `Portfolio.intro`, `PortfolioPhoto.url`, `PortfolioShare.slug`/`.url`, `PublicPortfolio.photo_url`/`.gender`/`.intro`, `PublicPortfolioPhoto.url`, `PublicChallengeEntry.character`/`.poster_url`, 연습 노트의 `PracticeNote*`·`PublicPracticeNote` 항목들 |
 | **optional + 조건부로 키를 추가** | `PracticeSessionDetail.summary`(status 가 `analyzed` 이고 summary 가 있을 때만), `.error_code`(`failed` 일 때만) |
 | **optional 인데 항상 포함** | `PracticeSessionStatusResponse.error_code`, `Video.purged_at`/`.playback_url`/`.playback_expires_at`/`.poster_url` |
 
@@ -449,7 +449,7 @@ POST /v2/auth/login      POST /v2/auth/logout     POST /v2/auth/refresh
 POST /v2/consents        POST /v2/uploads/intents
 ```
 
-나머지 22개는 `additionalProperties: false` 다. 1.0.0 에서 더한 요청 바디(리딩의 등록·수정 포함)는 전부 닫혀 있다.
+나머지 22개는 `additionalProperties: false` 다. 0.1.0 에서 더한 요청 바디(리딩의 등록·수정 포함)는 전부 닫혀 있다.
 
 **전역 `fail-on-unknown-properties: true` + 허용할 5개에
 `@JsonIgnoreProperties(ignoreUnknown = true)`.**
@@ -492,10 +492,10 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 
 **426**(`platform/security/ClientVersionFilter`): `X-Acttub-Client` 가 없거나 비어 있는 `/v2` 요청은
 무엇을 부르든 426 이고 본문은 `{"detail":"새 버전이 나왔어요. 스토어에서 업데이트해 주세요."}` 다.
-1.0.0 이전 앱이 모르는 상태 코드의 `detail` 을 그대로 보여 주기 때문에 **여기만 `detail` 이 코드가
+0.1.0 이전 앱이 모르는 상태 코드의 `detail` 을 그대로 보여 주기 때문에 **여기만 `detail` 이 코드가
 아니라 문장이다** — 문구를 고치면 옛 앱의 화면이 바뀐다. 헤더를 보지 않는 자리는 `/v2` 밖
 (`/health`·관리 포트), 제공자가 부르는 `/v2/auth/providers/*/disconnect`, 운영 토큰으로 여는
-`/v2/admin/**` 다. 서버에 1.0.0 이전의 규칙(로그인 즉시 계정 생성, 필수 문서만 보는 게이트, 닉네임)은
+`/v2/admin/**` 다. 서버에 0.1.0 이전의 규칙(로그인 즉시 계정 생성, 필수 문서만 보는 게이트, 닉네임)은
 남기지 않는다.
 
 **회원 게이트**(`platform/security/ConsentGateInterceptor`·`AccessGate`): 표는 보호 기능이 아니라
@@ -510,7 +510,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 
 - 동의 게이트는 **현재 판 문서 가운데 미결정이 하나라도 있으면** 막는다. **선택 문서도 센다** — 거절도
   결정이고, 결정하지 않은 것만 막는다. 결정은 판 단위라 새 판이 나오면 그 문서만 다시 미결정이 된다.
-- 1.0.0 이전에 필수 문서를 거절·철회한 기록은 **미결정과 같게** 다룬다. 둘을 가르던
+- 0.1.0 이전에 필수 문서를 거절·철회한 기록은 **미결정과 같게** 다룬다. 둘을 가르던
   `consent_blocked`, `X-Acttub-Consent-Entry` 요청 헤더, `entry_status` 의 `blocked` 는 없다.
 - 프로필 게이트는 여섯 항목(이름·성별·생년월일·방향 하나 이상·경력·목표)이 다 찼는지 본다. 사진과
   소개는 세지 않는다. 판정은 요청마다 DB 상태로 하므로 토큰을 갱신해도 열리지 않는다.
@@ -580,7 +580,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 - **애플 authorization code** 는 처음 온 신원일 때 로그인 요청에서 바로 바꾼다(5분·1회용). 이메일 겹침
   409 를 먼저 가르므로 409 로 끝날 요청에는 코드를 쓰지 않는다. 바꿔 온 값은 가입 토큰에 실려 가입 제출 때
   `apple_token_encrypted` 로 저장된다. 교환과 폐기의 `client_id` 는 ID 토큰의 `aud` 다. 토큰이 없는 기존
-  애플 회원(1.0.0 이전 가입)은 다음 로그인 때 채우되 **실패해도 로그인은 된다.** 그때 애플의 무응답은 삼키지
+  애플 회원(0.1.0 이전 가입)은 다음 로그인 때 채우되 **실패해도 로그인은 된다.** 그때 애플의 무응답은 삼키지
   않고 보고한다(`AuthService.keepProviderToken` — 계속 못 채우면 탈퇴 때 폐기할 토큰이 없다). 이미 쓰인 코드
   같은 예상된 거절은 보고하지 않는다.
 - **연결 끊기 알림**(`POST /v2/auth/providers/{naver|kakao}/disconnect`): 제공자가 부른다. 클라이언트 판
@@ -607,17 +607,17 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   `users.nickname=NULL` 포함), 프로필의 이름·사진·소개 파기와 생년월일 → 5세 단위 `age_band`(아래 끝),
   알림 토글 끄기, 포트폴리오 행째 삭제, 이관 코드 삭제, 리프레시 폐기·푸시 토큰 삭제, 진행 중
   `external_operations` 와 `ai_jobs` 를 `failed`/`account_deactivated` 로 닫고 lease 떼기(분석 중이던 연습도
-  `failed`, 1.0.0 작업은 결과 본문도 비운다), **1.0.0 영상에 `purged_at` 찍기**, `practice_feedback` 의 연락처
+  `failed`, 0.1.0 작업은 결과 본문도 비운다), **0.1.0 영상에 `purged_at` 찍기**, `practice_feedback` 의 연락처
   비우고 시트 재전송 예약, `note_ratings` 의 한 줄 비우기(평가 값은 남는다), 신원의 `provider_uid`·토큰을 비우고 `uid_hash` 채우기. 성별·연령대·방향·경력·목표와
   배우 기억은 남는다(§6-15 「연습 자료의 이관·삭제·탈퇴」).
 - **신원 행은 지우지 않는다.** `uid_hash` = HMAC-SHA256(provider, provider_uid) 만 남긴다
   (`ck_user_identities_uid_or_hash`). 서버는 해시로 옛 계정을 찾지 않는다 — 같은 제공자로 다시 오면 처음 온
   신원이다. 해시의 쓰임은 보관 동의 철회 요청의 본인 확인 하나다.
-- **영상 객체**는 옛 예약 장부(`upload_intents`)와 1.0.0 보관함(`videos`)의 키를 함께 모은다 — 보관함 영상의
+- **영상 객체**는 옛 예약 장부(`upload_intents`)와 0.1.0 보관함(`videos`)의 키를 함께 모은다 — 보관함 영상의
   **포스터**(`videos.poster_key`, V23)도 함께다. 포스터 워커는 붙일 때 같은 `users` 행을 잡으므로 탈퇴가 키를 모은 뒤에
   붙는 포스터는 없다(§6-15 보관함 「포스터」). "탈퇴 후
   영상·녹음 보관·활용"(`retention`)의 **현재 판에 대한 마지막 결정이 동의**인 사람 것만 남긴다. 현재 판에 답하지 않았으면 거절로 본다. 사진 객체(프로필·포트폴리오)는 언제나 지운다.
-  만 14세 미만으로 드러난 1.0.0 이전 회원은 동의와 무관하게 영상을 파기한다.
+  만 14세 미만으로 드러난 0.1.0 이전 회원은 동의와 무관하게 영상을 파기한다.
 - **리딩 자료는 같은 트랜잭션에서 행째 지운다**(`PostgresProfileRepository#eraseReading`, §6-14). 연습 기록과
   달리 사람과 끊어 남기지 않는다 — 대본·배역·줄·회차·암기 상태가 그렇다. **녹음만 보관 동의를 따른다**: 동의가
   있으면 행을 남기고 `reading_session_id`·`line_id` 를 NULL 로 비운 채 `user_id` 를 유지해 3년 파기가 지우고,
@@ -675,7 +675,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   동의, 리딩
   (`/v2/reading/**`)은 약관·수집·이용 동의 둘이다(서버가 대본·음성을 분석하지 않아 AI 분석 동의는 없다 —
   ADR-031, §6-14). **영상을 보관만 하는 데에도 AI 분석 동의를 받는다** — 보관함의 다음 길이 분석이기 때문이고
-  1.0.0 은 이를 받아들인다(practice.record, §6-15). **프로필은 보지 않고 선택 문서는 묻지 않는다.** 403
+  0.1.0 은 이를 받아들인다(practice.record, §6-15). **프로필은 보지 않고 선택 문서는 묻지 않는다.** 403
   `consent_required` 의 `pending_consents` 에는 **그 기능에 빠진 문서만** 싣는다. 어느 기능에도 적히지 않은
   경로는 **403 `member_only`** 다 — 적지 않은 새 경로는 게스트에게 닫힌 채로 시작한다.
 - **동의**: 게스트의 **첫** 동의에는 `age_confirmed: true` 가 실려야 한다. 없으면 **422
@@ -989,11 +989,11 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - **객체 삭제 장부**는 성공할 때까지 키를 지키고 7일마다 알린다(§6-8) — 대본·회차·녹음 삭제, 대체된 녹음, 탈퇴
   파기가 모두 같은 `reading_recording_delete` 를 쓴다.
 
-### 6-15. 연습 1.0.0 — 스키마(V14)와 영상 보관함 (SOMA-546)
+### 6-15. 연습 0.1.0 — 스키마(V14)와 영상 보관함 (SOMA-546)
 
 정본은 [specs/practice/](../../docs/specs/practice/README.md) 와 README 「연습 자료의 이관·삭제·탈퇴」 표다. 회차·분석·
 대화·노트·기억·설문의 API 는 뒤 티켓이 이 절에 이어 쓴다. **코치의 행동 규칙(§7·§8-5·§8-6, ADR-027)은 바꾸지
-않는다** — 1.0.0 이 바꾸는 것은 저장이다.
+않는다** — 0.1.0 이 바꾸는 것은 저장이다.
 
 - **넓히기만 한 V14**: 새 테이블 열(`videos`·`video_transcripts`·`practices`·`analyses`·`coach_conversations`·
   `coach_messages`·`coach_notes`·`actor_memories`·`practice_feedback`·`ai_jobs`)과, `upload_intents` 에 NULL 허용
@@ -1001,7 +1001,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   테이블은 건드리지 않는다** — `practice_sessions`·`transcripts`·`summaries`·`anomalies`·`coach_sessions`·
   `coach_turns`·`coaching_handoffs`·`practice_reports`·`actor_memory_entries`·`external_operations` 가 그대로 돈다.
   데이터 전환은 Flyway 가 아니라 재실행 가능한 애플리케이션 명령이고, 옛 테이블의 삭제는 읽기·쓰기를 모두 중단한
-  버전을 배포한 **다음** 릴리스부터다(specs/practice 「1.0.0 스키마 전환」).
+  버전을 배포한 **다음** 릴리스부터다(specs/practice 「0.1.0 스키마 전환」).
   - 값 목록은 text + CHECK 이고 Java enum 은 `platform/schema` 에 있다(`PracticeStage`·`PracticeCloseReason`·
     `ExperienceVersion`·`AnalysisFormat`·`AnalysisStatus`·`NoteFormat`·`NoteKind`·`MemoryField`·`FeedbackScreen`·
     `FeedbackTrigger`·`AiJobKind`·`TranscriptStatus`·`ConversationCloseReason`). 옛 테이블의 값 목록은 그대로 두고
@@ -1062,7 +1062,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   - **즐겨찾기** `PATCH /v2/videos/{id}` `{favorite}` → `Video`.
   - **이관**은 `video/app/VideoOwnership` 이 `videos` 와 **예약 장부**를 함께 옮긴다(§6-9의 순서에서 올린 영상 바로
     뒤다). 예약을 두고 가면 옛 게스트의 대기 업로드가 마무리될 자리를 잃는다.
-- **회차**(`/v2/practices/**`, `feature/practice` 의 1.0.0 코드) — 영상 하나로 시작하는 연습의 단위다.
+- **회차**(`/v2/practices/**`, `feature/practice` 의 0.1.0 코드) — 영상 하나로 시작하는 연습의 단위다.
   - **시작** `POST /v2/practices`: 본문 `request_id`·`video_id`·`scene{situation, character, goal}`·
     `blockage{category, detail, note}`. **회차 하나와 분석 작업 하나가 한 트랜잭션**이다 — 도중에 실패하면 둘 다
     없다. 첫 회차는 `root_id = 자기`·`ordinal = 1`·`stage analyzing` 이고 `ai_jobs` 에 `analyze` 가 `pending` 으로
@@ -1071,7 +1071,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
       이어하기·재시도는 **묶음의 첫 행**을 잡으며, 게스트의 하루 한도는 **사용자 행**을 잡고 센다.
     - Scene Context 는 셋 모두 선택이고 각 300자, 막힘 서술은 500자다(넘으면 422 **배열**). 비우면 빈 문자열로
       저장하고 **시작 뒤에는 바꾸지 않는다** — 고치는 API 가 없다. 막힘을 고르지 않으면 "그 외/그 외"이고 큰 갈래와
-      세부의 조합은 옛 CHECK 와 같다. **이론 선택은 1.0.0 에 없다.**
+      세부의 조합은 옛 CHECK 와 같다. **이론 선택은 0.1.0 에 없다.**
     - **경험 판**(`experience_version`)은 서버 플래그(`ACTTUB_THREE_LAYERS_ENABLED`)가 켜져 있고 계약 헤더
       `X-Acttub-Contract: three_layers_v1` 이며 **장면·막힘을 하나도 적지 않았을 때만** `three_layers_v1` 이다. 그 밖은
       전부 `legacy` — 본문에 `client_experience` 같은 필드는 없다(헤더가 정본이다).
@@ -1101,7 +1101,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   재선점 전이면 완료를 받고, 토큰이 바뀌었으면 거절하며, `release` 는 `attempt_count` 를 되돌리지 않고, 3회 뒤
   sweep 이 닫는다. `failure_reason` 에는 CHECK 가 없다(분류가 열린 목록이다).
 - **분석 결과**(`analyses`, `feature/analysis`): 워커는 **한 클래스**(`AnalysisWorker`)이고 원장마다 저장소·빈이
-  하나다 — 옛 `AnalysisStore`(={`external_operations`} + `summaries`)와 1.0.0 `PracticeAnalysisStore`
+  하나다 — 옛 `AnalysisStore`(={`external_operations`} + `summaries`)와 0.1.0 `PracticeAnalysisStore`
   (={`ai_jobs`} + `analyses`·`video_transcripts`). 영상을 내려받고 검증값을 견주고 실패를 분류하고 lease 를 다루는
   규칙이 한 벌이어야 하기 때문이다. 스케줄러는 등록된 워커를 모두 돌린다.
   - **공개 요약 조회** `GET /v2/practices/{id}/analysis`: `{id, format, status, summary}`다. 기존 갈래의 summary는
@@ -1120,7 +1120,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   - **받아쓰기는 영상당 묶음 하나**다(`uq_video_transcripts_video`). 같은 영상의 다음 회차는 새로 만들지 않고 먼저
     만든 묶음을 재사용한다.
   - 예약 장부에 **검증값이 없는 영상은 견주지 않는다** — 없는 것을 불일치로 보면 그 회차가 재큐만 되풀이하다 실패한다.
-- **코치 대화**(`/v2/coach/**`, `feature/coach` 의 1.0.0 코드) — 회차에 대화는 하나다(`coach_conversations.practice_id`
+- **코치 대화**(`/v2/coach/**`, `feature/coach` 의 0.1.0 코드) — 회차에 대화는 하나다(`coach_conversations.practice_id`
   유일). 열린 대화는 같은 id 로 재개하고 닫힌 뒤 다시 코칭하려면 새 회차다.
   - **바꾼 것은 저장뿐이다.** 코치의 행동 규칙(응답 상한 8/10, 첫 응답 경로, 도움 버튼, 상태 json 의 출처 분리,
     프로필 조건부 입력)은 `CoachEngine`·`CoachPrompt` 가 그대로 갖고 있고(§7·§8, ADR-027), 새 저장소는 엔진이 쓰는
@@ -1161,7 +1161,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     두지 않고 저장된 값과 견준다. 기기는 노트마다 마지막 요청 하나만 들고 있다가 다시 보낸다 — 옛 요청이 새 평가를
     덮지 않게 하는 것은 기기의 몫이다.
   - **게이트·소유권은 노트 조회와 같다**: 없는 회차·남의 회차·노트가 아직 없는 회차는 모두 404 `note_not_found`.
-    평가가 가리키는 것은 1.0.0 노트(`coach_notes`)뿐이라 **아직 옮기지 않은 옛 노트(`practice_reports`)는 조회는 되지만
+    평가가 가리키는 것은 0.1.0 노트(`coach_notes`)뿐이라 **아직 옮기지 않은 옛 노트(`practice_reports`)는 조회는 되지만
     평가는 404** 이고 `my_rating` 은 언제나 null 이다(전환 명령이 옮기면 받는다).
   - 쓰기는 탈퇴와 같은 `users` 행을 `FOR UPDATE` 로 잡고 활성인지 다시 본다(§6-8) — 게이트 뒤에 탈퇴가 끝났으면 403
     `account_deactivated`. 평가는 노트·대화·기억 상태를 바꾸지 않는다. 구현은 `coach/app/NoteRatingService`·
@@ -1228,9 +1228,9 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     `video_transcripts` 는 **사람과 끊어 남긴다**.
   - **대화 중 탈퇴**: 코치 응답의 저장은 대화 행과 함께 `users.status` 를 본다 — 바깥 호출이 도는 사이에 탈퇴가
     끝났으면 아무것도 쓰지 않고 403 `account_deactivated` 다(분석의 완료가 같은 자리에서 같은 확인을 한다).
-- **데이터 전환**(`POST /v2/admin/practice-migration`, `platform/migration`) — 옛 표의 자료를 1.0.0 표로 옮기는
+- **데이터 전환**(`POST /v2/admin/practice-migration`, `platform/migration`) — 옛 표의 자료를 0.1.0 표로 옮기는
   <b>재실행 가능한 명령</b>이다. Flyway 가 아니라 애플리케이션 명령인 것은 전환이 배포를 멈추면 안 되고 되돌릴
-  수도 없기 때문이다(specs/practice 「1.0.0 스키마 전환」 ③).
+  수도 없기 때문이다(specs/practice 「0.1.0 스키마 전환」 ③).
   - **단계는 순서대로 끝까지 돈다**: 영상 → 회차 → 받아쓰기 → 관찰 기록 → 대화 → 메시지 → 노트 → 기억 →
     작업 장부. 뒤 단계가 앞 단계가 만든 행을 가리키므로 한 단계를 남김없이 끝낸 뒤에 다음으로 간다. 한 묶음
     (기본 200)이 한 트랜잭션이고 **고르기와 옮기기가 그 안에 함께** 있다.
@@ -1262,7 +1262,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   - **구형 관찰은 요약만이다** — 새 모양에 담기는 것은 기록의 상태(`ready`·`partial`)까지다. 구형 분리 배열을
     신형 기록으로 위장하지 않는다.
   - 호환 읽기는 **옛 표를 고치거나 지우지 않는다.**
-- **되돌리기**(specs/practice 「1.0.0 스키마 전환」, BRANCHING-STRATEGY 「DB와 배포 안전성」) — 내리기 마이그레이션은
+- **되돌리기**(specs/practice 「0.1.0 스키마 전환」, BRANCHING-STRATEGY 「DB와 배포 안전성」) — 내리기 마이그레이션은
   없다. 대신 **더하기만 한다**: V14·V15 는 새 표와, 예약 장부의 NULL 허용 컬럼 셋, `users` 의 둘만 더했고 옛 표의
   모양은 한 칸도 바뀌지 않았다(`flyway/PracticeRollbackCompatibilityTest` 가 V13 과 최신의 fingerprint 를 옛 표만
   추려 견준다). Hibernate 의 `ddl-auto: validate` 는 **매핑이 없는 여분 표를 보지 않으므로** 직전 태그의 서버가
@@ -1285,7 +1285,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   `UpdateMemoryRequest` 는 `/v2/legacy-me/memory` 가 계속 쓴다), 설문은 `PracticeFeedbackRequest`·
   `PracticeFeedbackResponse`·`PracticeFeedbackStatus`, 노트 평가는 `NoteRatingRequest`·`NoteRating`(`CoachNote.my_rating`).
 
-### 6-16. 챌린지 개설·목록 (1.0.0)
+### 6-16. 챌린지 개설·목록 (0.1.0)
 
 - 정본은 [specs/challenge/](../../docs/specs/challenge/README.md)다. `/v2/challenges`는 동의·프로필을
   마친 회원, `X-Acttub-Client: app/...`, 한국어 요청에만 열리고 나머지는 403 `member_only`다.
@@ -1316,7 +1316,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - V16은 `challenges`, V17은 공개 집계의 기반인 `challenge_entries`·`entry_likes`·`user_blocks`를 더한다.
   기존 표·컬럼은 축소하지 않는다. 값 CHECK와 Schema Entity 매핑도 함께 검증한다.
 
-### 6-17. 챌린지 참여·랭킹·조회수 (1.0.0)
+### 6-17. 챌린지 참여·랭킹·조회수 (0.1.0)
 
 - 게이트는 6-16과 같다. `POST /v2/challenges/{id}/entries`는 `request_id`·`video_id`·`visibility`(public·private,
   필수)와 선택 `caption`(앞뒤 공백을 걷고 코드 포인트 300자)을 받는다. 생성 201, 같은 요청·같은 본문 200,
@@ -1363,7 +1363,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   싣지 않는다**(제품 결정: 미리보기는 작품·대사·장면만). `X-Robots-Tag: noindex, nofollow`를 싣고 보는 사람의
   IP 별 분당 60회다(§6-13 — 웹 서버가 받은 `X-Forwarded-For`를 그대로 넘긴다).
 
-### 6-18. 챌린지 반응·차단·신고 (1.0.0)
+### 6-18. 챌린지 반응·차단·신고 (0.1.0)
 
 - 게이트는 6-16과 같다. 반응(좋아요·저장·댓글 쓰기)은 보는 사람에게 보이는 참여작(6-17 개인 노출 조건)에만 되고
   그 밖(비공개·삭제·신고 숨김·review·hidden 챌린지·양방향 차단)은 404 `entry_not_found`다. 저장은 행동하는 사람·작성자
@@ -1397,7 +1397,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - POST `/v2/reports`는 옛 연습 리포트 작업(`create_report_v2_reports_post`)이 아니라 챌린지 신고
   (`create_challenge_report_v2_reports_post`)다. V19는 `entry_saves`·`entry_comments`·`entry_reports`를 더한다.
 
-### 6-19. 챌린지 AI 리포트 (1.0.0)
+### 6-19. 챌린지 AI 리포트 (0.1.0)
 
 - 게이트는 6-16과 같다. `POST /v2/entries/{id}/ai-report`(`request_id`)는 본인 참여작(공개·비공개)만 되고 남의·삭제된
   참여작은 404 `entry_not_found`, 파일이 파기된 참여작은 422 `video_not_ready`다. 결과가 있으면 그 리포트(200), 만드는
@@ -1424,7 +1424,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - 참여작 삭제는 리포트 본문을 파기하고(`purged_at`) 진행 중 작업을 `cancelled`로 닫는다. V20은 `ck_ai_jobs_kind`에
   `challenge_report`를 더하고 `entry_ai_reports`(참여작당 한 행)를 만든다.
 
-### 6-20. 챌린지 알림함·푸시와 탈퇴 연결 (1.0.0)
+### 6-20. 챌린지 알림함·푸시와 탈퇴 연결 (0.1.0)
 
 - 사건은 넷이다: `entry_liked`(새 좋아요 행, event_key `like:<좋아요 id>`), `entry_commented`(`comment:<댓글 id>`,
   `comment_id` 필수), `challenge_ended`(마감 집계 때 삭제되지 않은 참여작을 가진 활성 참여자마다 챌린지당 하나, `entry_id`
@@ -1456,7 +1456,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 1. **좋아요 카운트는 재집계다.** 증감 방식이 "두 번 눌리면 2 증가" 하던 버그 때문에 의도적으로
    선택됐다. 성능 명목으로 증감으로 되돌리면 버그가 부활한다. (1·2는 커뮤니티의 규칙이다. 코드는
-   1.0.0에서 내렸고 git 이력의 `feature/community/adapter/db/PostgresCommunityRepository`에 있다 —
+   0.1.0에서 내렸고 git 이력의 `feature/community/adapter/db/PostgresCommunityRepository`에 있다 —
    되살릴 때와 챌린지의 좋아요·댓글 집계를 만들 때 같은 규칙을 지킨다.)
 2. **댓글 수 증감은 원자적이어야 한다.** `post.setCommentCount(get()+1)` 형태로 옮기면 lost
    update 가 새로 생긴다. 벌크 UPDATE 로 분리한다.

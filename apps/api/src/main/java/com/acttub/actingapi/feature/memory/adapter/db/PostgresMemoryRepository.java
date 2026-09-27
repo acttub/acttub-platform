@@ -216,7 +216,7 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
     }
 
     /**
-     * 1.0.0 이어하기는 같은 root의 앞선 회차만 읽는다. 다른 묶음의 최근 대화를 대신 넣지 않으며,
+     * 0.1.0 이어하기는 같은 root의 앞선 회차만 읽는다. 다른 묶음의 최근 대화를 대신 넣지 않으며,
      * 숨김은 목록 표시일 뿐이라 숨긴 묶음에서 이어할 때도 맥락은 남는다(practice.resume).
      */
     private PriorContext practiceContext(UUID userId, UUID practiceId, Map<String, String> memory, UUID operationId) {

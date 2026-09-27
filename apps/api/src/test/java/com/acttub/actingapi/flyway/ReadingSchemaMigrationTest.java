@@ -19,7 +19,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * 리딩 스키마(V13)가 <b>계정 1.0.0 까지 온 DB</b> 위에서 넓히기만 하는지 본다 (SOMA-546, ADR-031).
+ * 리딩 스키마(V13)가 <b>계정 0.1.0 까지 온 DB</b> 위에서 넓히기만 하는지 본다 (SOMA-546, ADR-031).
  *
  * <p>V13 은 새 테이블 여섯을 만들고 정리 장부의 값 목록에 종류 하나를 더한다. 그래서 지키는 것은 둘이다 —
  * 옛 서버가 쓰던 장부 INSERT 가 그대로 통하는가, 그리고 새 테이블이 값 목록·배역 이름·대사의 배역·열린 회차

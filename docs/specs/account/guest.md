@@ -2,7 +2,7 @@
 
 [공통 규칙](../common.md) · [영역 개요](README.md)
 
-- 도입: 1.0.0
+- 도입: 0.1.0
 - 결정 기록: ADR-028
 - 화면: 게스트 시작 안내, 기능별 동의 시트, 이관 코드, 옮긴 뒤 안내, 앱의 코드 입력과 기억 선택 팝업(모두 미설계)
 - 테이블: users, user_identities, refresh_tokens, user_consents, consent_documents, guest_transfer_codes(ERD에 추가), practices, videos, scripts, reading_sessions, line_memorization, ai_jobs, actor_memories, reading_recordings, practice_feedback
@@ -118,7 +118,7 @@ guest_transfer_codes:
 - 게스트 토큰이 만료(30일)되면 그 게스트에 다시 닿을 수 없고 자료는 파기 일정대로 사라진다.
 - 옮기기 도중 실패하면 아무것도 옮겨지지 않고 코드는 살아 있다.
 - 게스트가 분석 중일 때 옮기면 진행 중 작업도 따라가고, 완료 알림은 회원의 폰으로 간다.
-- 회원이 웹을 열어도 게스트다. 회원 자료는 웹에서 보이지 않는다. 1.0.0은 이를 받아들인다. 현재
+- 회원이 웹을 열어도 게스트다. 회원 자료는 웹에서 보이지 않는다. 0.1.0은 이를 받아들인다. 현재
   웹으로 로그인해 쓰던 사람은 배포 뒤 웹 세션이 끝나고 자료는 계정에 그대로 있다.
 
 ## 검증 방법

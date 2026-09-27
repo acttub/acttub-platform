@@ -29,13 +29,13 @@
 
 ### 클라이언트 판과 강제 업데이트
 
-- 앱과 웹은 요청마다 자기 종류와 판을 헤더(X-Acttub-Client, 예: app/1.0.0)로 보낸다.
-- 이 헤더가 없는 요청은 1.0.0 이전 빌드로 보고 426과 업데이트 안내 문장으로 답한다. 1.0.0 이전 앱은
+- 앱과 웹은 요청마다 자기 종류와 판을 헤더(X-Acttub-Client, 예: app/0.1.0)로 보낸다.
+- 이 헤더가 없는 요청은 0.1.0 이전 빌드로 보고 426과 업데이트 안내 문장으로 답한다. 0.1.0 이전 앱은
   모르는 상태 코드에 실린 문장을 그대로 보여 준다. 서버에 옛 규칙(로그인 즉시 계정 생성, 필수 문서만
-  보는 게이트, 닉네임)을 남기지 않는다. 1.0.0이 막으려는 구멍을 옛 빌드 때문에 열어 두지 않기 위해서다.
+  보는 게이트, 닉네임)을 남기지 않는다. 0.1.0이 막으려는 구멍을 옛 빌드 때문에 열어 두지 않기 위해서다.
 - 상태 확인과 제공자가 부르는 콜백은 이 헤더를 보지 않는다.
-- 서버 배포부터 새 앱 출시까지(스토어 심사 기간) 1.0.0 이전 앱은 쓸 수 없다. 심사 제출 직전에 배포하고
-  통과 즉시 출시해 줄인다. 1.0.0은 이를 받아들인다.
+- 서버 배포부터 새 앱 출시까지(스토어 심사 기간) 0.1.0 이전 앱은 쓸 수 없다. 심사 제출 직전에 배포하고
+  통과 즉시 출시해 줄인다. 0.1.0은 이를 받아들인다.
 - 새 앱은 426을 받으면 업데이트 안내 화면을 보여 준다. 뒤에 최소 판을 올려 같은 방식으로 안내할 수 있다.
 
 ### 탈퇴·삭제
@@ -78,7 +78,7 @@ lease 반납과 만료 회수)는 [CONTRACT §5-7](../../apps/api/CONTRACT.md#5-
 | 값 | user_identities.provider에 guest 추가 | account.guest |
 | 값 | users.status에서 suspended 제거 (V4에서 이미 반영됨) | account.login |
 | 삭제 | users.signup_* 아홉 컬럼 (V4에서 이미 삭제됨) | account.login |
-| 삭제 | users.nickname (user_profiles.name으로). 1.0.0은 값을 옮기고 읽기·쓰기를 끊는다. 탈퇴만 예외로 옛 닉네임을 계속 비운다(파기 공백을 두지 않기 위해서다). 다음 릴리스에서 그 쓰기를 없애고 그다음 릴리스에서 컬럼을 삭제한다. 삭제와 그것을 안 쓰는 코드를 한 릴리스에 묶지 않기 때문이다([DB와 배포 안전성](../BRANCHING-STRATEGY.md#db와-배포-안전성)) | account.profile |
+| 삭제 | users.nickname (user_profiles.name으로). 0.1.0은 값을 옮기고 읽기·쓰기를 끊는다. 탈퇴만 예외로 옛 닉네임을 계속 비운다(파기 공백을 두지 않기 위해서다). 다음 릴리스에서 그 쓰기를 없애고 그다음 릴리스에서 컬럼을 삭제한다. 삭제와 그것을 안 쓰는 코드를 한 릴리스에 묶지 않기 때문이다([DB와 배포 안전성](../BRANCHING-STRATEGY.md#db와-배포-안전성)) | account.profile |
 | 컬럼 | user_profiles 알림 토글 둘 → 셋(챌린지 알림 추가) | account.notification |
 | 컬럼 | user_profiles 나이는 생년월일로 받고, 탈퇴 때 5세 단위 연령대로 뭉개 남긴다 | account.profile, account.withdraw |
 | 컬럼 | user_identities에 애플 토큰(암호화) | account.login |
@@ -103,7 +103,7 @@ lease 반납과 만료 회수)는 [CONTRACT §5-7](../../apps/api/CONTRACT.md#5-
 | 값 | ai_jobs.kind에 analyze·memory_update(리딩·설문·정리 장부는 넣지 않음). status failed의 사유에 cancelled·account_deactivated | practice.analyze, practice.memory |
 | 컬럼 | practice_feedback: user_id, practice_id, screen(coach·report), trigger(x·leave·back), body(NULL이면 dismissed), contact_email·contact_phone(90일 뒤 NULL, DB·시트 모두), sheet_synced_at, sheet_seq(변경 순번), request_id. 이관 때 여러 행 보존 | practice.feedback |
 | 컬럼 | users.exit_survey_asked_at(이탈 설문 노출 선점 시각). actor_memories 소유자 기준 memory_epoch(기억 세대; 삭제·이관 선택 때 증가, 갱신 작업은 예약 시점 세대를 갖고 다르면 미반영) | practice.feedback, practice.memory |
-| 삭제 조건 | 옛 테이블(practice_sessions, transcripts, summaries, anomalies, coach_sessions, coach_turns, coaching_handoffs, handoff_confirmations, practice_reports, reports, actor_memory_entries, external_operations)은 1.0.0에서 삭제하지 않고 호환 읽기 경로가 쓴다(upload_intents는 계속 쓴다). 삭제는 그 테이블의 읽기·쓰기를 모두 중단한 버전을 배포한 다음 릴리스부터이며, 무손실 대응이 확인되지 않은 자료(구형 분석·복수 대화)의 테이블은 시점을 정하지 않는다 | practice 스키마 전환 |
+| 삭제 조건 | 옛 테이블(practice_sessions, transcripts, summaries, anomalies, coach_sessions, coach_turns, coaching_handoffs, handoff_confirmations, practice_reports, reports, actor_memory_entries, external_operations)은 0.1.0에서 삭제하지 않고 호환 읽기 경로가 쓴다(upload_intents는 계속 쓴다). 삭제는 그 테이블의 읽기·쓰기를 모두 중단한 버전을 배포한 다음 릴리스부터이며, 무손실 대응이 확인되지 않은 자료(구형 분석·복수 대화)의 테이블은 시점을 정하지 않는다 | practice 스키마 전환 |
 | 값 | account_cleanup_operations의 객체 삭제 종류에 영상 객체·미확정 업로드 객체·파일만 파기 | practice.record, practice.library |
 | 컬럼 | challenges: line(1~200자), work(1~100자, 창작은 "창작"), character(100자), scene_note(500자), duration_days(7·14, API 상수), origin(team·member, 불변), host_user_id(team은 NULL, 탈퇴 시 NULL), request_id((host_user_id, request_id) 유일)·request_fingerprint, featured_on(team만, 날짜당 하나), starts_at·ends_at(기간 상태는 시각으로 판정, 컬럼 없음), moderation(visible·review·hidden) | challenge.create |
 | 컬럼 | challenge_entries: video_id(삭제 뒤 NULL 허용), caption(300자, 수정 가능)·content_version, published_at(최초 공개, 재공개 유지), visibility(public·private), status(visible·hidden_by_report·deleted), view_count, final_like_count·final_eligible(마감 집계, 첫 변경 전 확정)·final_rank(검토 끝난 뒤 일괄 확정), request_id((user_id, request_id) 유일)·request_fingerprint, deleted_at, (challenge_id, video_id) 유일(deleted 제외). 영상 길이 60초 이내 | challenge.entry, challenge.browse |
@@ -142,7 +142,7 @@ pen을 고칠 목록이다. 규칙은 출처 기능의 본문이 정본이고 �
 | R03 시작 위치 | 방식 선택(읽어주기·암기 대조), 녹음 켬·끔과 "내 차례 녹음은 내 계정에 저장돼요" | reading.session, reading.recording |
 | R03.2 나가기 확인 | 문구 "지금 나가면 N번 대사까지 진행한 걸로 저장돼요. 상세에서 이어서 할 수 있어요". "끝 위치를 정하지 않았어요" 삭제 | reading.session |
 | R05 완료 | 코치 카드(촬영으로) 추가, 다시 볼 대사가 없으면 절 숨김, 암기 대조 완료는 "맞춘 줄 K / 시도 N · 아직 안 나온 줄 P" | reading.session |
-| R00.2 대본 연습 | 1.0.0에서 쓰지 않음(R03.x와 겹침, 대사별 메모는 범위 밖) | reading.session |
+| R00.2 대본 연습 | 0.1.0에서 쓰지 않음(R03.x와 겹침, 대사별 메모는 범위 밖) | reading.session |
 | D13 대본 넣기 | 최근 대본 목록, "서버로 보내지 않아요"·"이 기기에만 저장돼요"·"어디로 가나요" 삭제, 저작권 안내 한 줄 | reading.script |
 | D16 대본 확인 | 배역 칩으로 이름 고치기·빼기(지금은 다시 넣기만) | reading.script |
 | D17 설정 | 내 배역 여러 개, 가리기 셋, 녹음 켬·끔, "소리는 어디에도 안 나가요" 삭제, 모델 용량 표시, 구간 선택(후속 가능) | reading.cast, reading.session, reading.recording |
@@ -228,7 +228,7 @@ pen을 고칠 목록이다. 규칙은 출처 기능의 본문이 정본이고 �
 | 운영 배포 체크리스트 | 배포 뒤 IP 제한이 방문자마다 따로 걸리는지 한 번 확인한다(한 회선에서 61번째 공개 조회가 429, 다른 회선은 404) | account.guest, account.portfolio |
 | 운영 절차 문서 | 보관 동의 철회 절차는 docs/deploy/RETENTION-REVOCATION.md에 있다 | account.withdraw |
 | 법무·번역 | 개인정보 수집·이용 동의 v5와 탈퇴 후 보관 동의 v1의 영어판이 아직 없다. 영어 사용자에게는 한국어 본문이 보인다. 법무 확인 뒤 번역본을 manifest에 `en` 행으로 더한다 | account.consent |
-| 운영 배포 체크리스트 | 1.0.0 서버는 새 앱의 심사 제출 직전에 배포한다. 그때부터 1.0.0 이전 앱은 426이다 | 공통 규칙 |
+| 운영 배포 체크리스트 | 0.1.0 서버는 새 앱의 심사 제출 직전에 배포한다. 그때부터 0.1.0 이전 앱은 426이다 | 공통 규칙 |
 | 개인정보 처리방침 | 대본 원문·배역·줄, 리딩 회차, 내 대사 줄 단위 녹음과 전사가 서버에 저장됨(연습 목적, 본인만 봄, 지우면 즉시 삭제) | reading.script, reading.recording |
 | 개인정보 처리방침 | 웹의 말한 것 글자로 바꾸기는 브라우저 음성인식을 써 말소리가 브라우저 제공자에게 전달됨. 앱은 기기 안 처리를 보장하는 음성인식만 씀. 배우가 고른 기기 음성 대체는 OS·브라우저 음성 서비스로 대사가 갈 수 있음. 서버는 음성을 분석하지 않고 형식 변환만 함 | reading.cast, reading.session, reading.memorization |
 | 개인정보 처리방침 | 삭제는 즉시 조회 차단·DB 삭제이고 객체 삭제는 재시도, 백업 덤프 30일은 별도 | reading.script, reading.recording, account.withdraw |
@@ -266,11 +266,11 @@ pen을 고칠 목록이다. 규칙은 출처 기능의 본문이 정본이고 �
 
 ## 범위 밖
 
-1.0.0에서 하지 않는 것.
+0.1.0에서 하지 않는 것.
 
-- 커뮤니티(게시판)는 1.0.0에서 뺀다. 요구사항과 결정은 [커뮤니티](community/README.md)에
+- 커뮤니티(게시판)는 0.1.0에서 뺀다. 요구사항과 결정은 [커뮤니티](community/README.md)에
   보관하고 후속에서 잇는다. 테이블 7개와 기존 글 데이터는 남기고 API·화면만 내린다.
-- 계정 정지·운영 차단. 1.0.0에는 신고·운영 숨김·사람 차단(user_blocks, ADR-032)만 있다.
+- 계정 정지·운영 차단. 0.1.0에는 신고·운영 숨김·사람 차단(user_blocks, ADR-032)만 있다.
 - 챌린지의 댓글 좋아요·답글, 사용자당 하루 한 번 조회수(entry_views), 챌린지 공유 링크의 웹 공개 페이지, 랭킹 캐시 컬럼, 오늘의 챌린지·
   순위 변동·새 참여 푸시, 사용자 개설의 사전 검토, 여러 챌린지를 섞는 전체 피드.
 - 가입 유입 경로 추적. users의 signup_* 컬럼은 지우고 signup_attributions 테이블은 만들지 않는다.
@@ -280,7 +280,7 @@ pen을 고칠 목록이다. 규칙은 출처 기능의 본문이 정본이고 �
 ERD 세션(2026-09-14)에서 이월한 것.
 
 - 연기 입시: notices.json 정적 유지 vs 테이블.
-- 이론 선택은 1.0.0에서 뺐다(practice.start, 2026-09-21).
+- 이론 선택은 0.1.0에서 뺐다(practice.start, 2026-09-21).
 - "작업·잡·job"과 ai_jobs: 테이블 이름 ai_jobs를 유지하고 용어집에 AI Job(비동기 AI 요청, External Operation의 한 종류)을 더했다
   (2026-09-21). 계정 정리 장부·설문 시트 전송은 AI Job이 아니다.
 - 리딩 관련은 2026-09-21에 해소했다(reading): 예시 대본은 내장 리소스, 온보딩·가이드 플래그는 기기 저장소,
@@ -288,15 +288,15 @@ ERD 세션(2026-09-14)에서 이월한 것.
 
 리딩 요구사항(2026-09-21)에서 후속으로 남긴 것.
 
-- 웹의 구간 선택 UI(1.0.0 웹은 전체 구간만).
+- 웹의 구간 선택 UI(0.1.0 웹은 전체 구간만).
 - 한국어 밖 대본의 대조. STT 언어는 앱·브라우저 표시 언어를 따르고 그 밖은 정하지 않았다.
-- 녹음 시도를 모두 남기는 것(1.0.0은 같은 줄을 다시 말하면 대체).
+- 녹음 시도를 모두 남기는 것(0.1.0은 같은 줄을 다시 말하면 대체).
 - 대본 저장 뒤 다시 나누기(원문은 이를 위해 남긴다).
 
 계정 검토(2026-09-19)에서 나온 것.
 
-- 앱 심사 지침 1.2·Google Play UGC(신고·악성 사용자 차단): 챌린지 1.0.0에 신고(참여작·댓글·챌린지)와 사람 차단(user_blocks)을 함께
+- 앱 심사 지침 1.2·Google Play UGC(신고·악성 사용자 차단): 챌린지 0.1.0에 신고(참여작·댓글·챌린지)와 사람 차단(user_blocks)을 함께
   넣어 충족한다(challenge.report, challenge.block, ADR-032, 2026-09-21). 계정 정지는 두지 않는다.
 - PRD·ADR-005의 랭킹 금지와 챌린지 좋아요 랭킹: ADR-005 개정(2026-09-21)으로 반응 순서만 예외로 허용했다. PRD의 챌린지 절은 사람이 쓴다.
-- 용어집은 "작업·잡·job"을 피하고 External Operation을 쓰는데 1.0.0 ERD의 테이블 이름은 ai_jobs다.
+- 용어집은 "작업·잡·job"을 피하고 External Operation을 쓰는데 0.1.0 ERD의 테이블 이름은 ai_jobs다.
   연습 문서를 쓸 때 용어집을 고칠지 테이블 이름을 바꿀지 정한다.

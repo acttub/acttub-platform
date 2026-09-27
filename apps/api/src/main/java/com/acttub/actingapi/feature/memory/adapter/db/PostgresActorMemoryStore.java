@@ -31,10 +31,10 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 1.0.0 배우 기억의 Postgres 구현 — {@code actor_memories}·{@code users.memory_epoch}·{@code ai_jobs} (V14).
+ * 0.1.0 배우 기억의 Postgres 구현 — {@code actor_memories}·{@code users.memory_epoch}·{@code ai_jobs} (V14).
  *
  * <p>옛 {@link PostgresMemoryRepository}({@code actor_memory_entries})와 다른 표를 본다. <b>이관의 주인
- * 바꾸기는 여기로 옮겼다</b> — 이관은 두 표를 함께 다뤄야 하는데, 그 앎을 1.0.0 저장소 한 곳에 두는 편이
+ * 바꾸기는 여기로 옮겼다</b> — 이관은 두 표를 함께 다뤄야 하는데, 그 앎을 0.1.0 저장소 한 곳에 두는 편이
  * 옛 저장소에 새 표를 알리는 것보다 짧다.
  *
  * <p>기억 세대는 {@code users} 행에 있다. 삭제와 이관 선택이 올리고, 갱신 작업은 예약 시점의 세대를 들고

@@ -498,7 +498,7 @@ class PostgresProfileRepository implements ProfileRepository {
      *
      * <p>⚠ <b>남의 테이블을 여기서 함께 치는 것은 탈퇴와 같은 이유다</b> — 파기의 원자성이 트랜잭션
      * 하나를 요구한다. 자료가 있는지 보는 표는 {@code users} 를 FK 로 물고 있으면서 지우면 안 되는
-     * 것들이다(연습·업로드·작업 장부·배우 기억, 그리고 1.0.0 이전에 쓴 커뮤니티 행). 하나라도 있으면
+     * 것들이다(연습·업로드·작업 장부·배우 기억, 그리고 0.1.0 이전에 쓴 커뮤니티 행). 하나라도 있으면
      * 행을 지울 수 없어 탈퇴와 같은 절차로 닫는다 — 그때는 보관 동의와 무관하게 영상을 파기한다.
      */
     @Override
@@ -720,7 +720,7 @@ class PostgresProfileRepository implements ProfileRepository {
      * 이 사람이 올린 영상의 객체 키. 연습 행은 남기고 객체만 지운다 — 얼굴과 목소리는 가명처리가 안
      * 된다. 리딩 녹음은 {@link #eraseReading} 이 따로 다룬다(행째 지우거나 보관).
      *
-     * <p>장부 두 벌을 함께 본다: 옛 흐름의 {@code upload_intents} 와 1.0.0 보관함의 {@code videos} 다
+     * <p>장부 두 벌을 함께 본다: 옛 흐름의 {@code upload_intents} 와 0.1.0 보관함의 {@code videos} 다
      * (specs/practice 「이관·삭제·탈퇴」). 이미 파일만 파기된 영상은 객체가 없으므로 빼고, 미확정 업로드의
      * 객체는 그대로 지운다 — 예약만 하고 올리지 않았으면 그 키에 객체가 없고 S3 의 삭제는 멱등이다.
      *
@@ -747,7 +747,7 @@ class PostgresProfileRepository implements ProfileRepository {
     }
 
     /**
-     * 1.0.0 연습 자료의 파기 (specs/practice 「연습 자료의 이관·삭제·탈퇴」).
+     * 0.1.0 연습 자료의 파기 (specs/practice 「연습 자료의 이관·삭제·탈퇴」).
      *
      * <ul>
      *   <li>{@code videos}: <b>행을 지우지 않고</b> {@code purged_at} 을 찍는다 — 회차·참여작의 기록이

@@ -46,7 +46,7 @@
 > `ConsentType` enum은 이 4종을 지원한다(`platform/schema/ConsentType.java` + `ck_consent_documents_type`).
 > 종류를 더하려면 enum 과 Flyway 마이그레이션의 CHECK 를 함께 넓힌다(`ValueCheckCatalogIT` 가 대조한다).
 >
-> **`privacy` 는 1.0.0 부터 "개인정보 수집·이용 동의"다.** 처리방침은 동의를 받는 문서가 아니라 고지라서
+> **`privacy` 는 0.1.0 부터 "개인정보 수집·이용 동의"다.** 처리방침은 동의를 받는 문서가 아니라 고지라서
 > 이 목록에 없다(`docs/specs/account/consent.md`). `privacy_v5.md` 의 "프로필 필수 항목"
 > 표는 프로필 API 의 필수 항목과 같아야 하고 `ProfileConsentParityTest` 가 둘을 대조한다 — 항목을 늘리거나
 > 선택을 필수로 바꾸면 **새 판**을 낸다.
@@ -96,7 +96,7 @@ jar 에 실린다(`build.gradle.kts` 의 `processResources`).
 
 ## 검증
 ```bash
-curl -s -H 'X-Acttub-Client: web/1.0.0' https://dev.acttub.com/v2/consents/documents   # documents 4개
+curl -s -H 'X-Acttub-Client: web/0.1.0' https://dev.acttub.com/v2/consents/documents   # documents 4개
 ```
 그 후 앱에서 소셜 로그인 → 동의 화면에 필수 3종과 선택 1종이 뜨는지 확인.
 
@@ -120,11 +120,11 @@ curl -s -H 'X-Acttub-Client: web/1.0.0' https://dev.acttub.com/v2/consents/docum
   - `privacy_v4`(2026-08-11) — v3 내용을 전부 포함하고 이용 행태 분석(Amplitude)과
     **화면 기록(세션 리플레이)** 을 추가한 개정. **현재 발행 대상.**
 
-## 1.0.0 발행 순서 (privacy v5 · retention v1 · 처리방침 고지)
+## 0.1.0 발행 순서 (privacy v5 · retention v1 · 처리방침 고지)
 
 ⚠️ **배포가 곧 발행이다.** `manifest.json` 이 v5 를 가리키는 채로 운영에 api 를 배포하면 그 순간
 `privacy v5`(개인정보 수집·이용 동의)와 `retention v1`(선택)이 발행되고 **기존 회원 전원에게 동의 화면이 다시
-뜬다.** 1.0.0 은 앱도 강제 업데이트라 같은 배포에서 함께 일어난다.
+뜬다.** 0.1.0 은 앱도 강제 업데이트라 같은 배포에서 함께 일어난다.
 
 1. **서비스 내 공지를 먼저 띄운다** — 처리방침이 "개정 사유 및 시행일을 명시하여 공지"를 약속한다.
 2. `privacy_policy.md`·`privacy_v5.md`·`retention_v1.md` 의 시행일 문구와 법무 검토를 마친다(지금 본문은 초안이다).

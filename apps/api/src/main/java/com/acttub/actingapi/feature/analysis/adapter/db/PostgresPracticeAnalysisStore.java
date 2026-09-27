@@ -22,7 +22,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 1.0.0 회차의 분석 저장소 — 큐는 {@code ai_jobs}, 결과는 {@code analyses}·{@code video_transcripts} 다.
+ * 0.1.0 회차의 분석 저장소 — 큐는 {@code ai_jobs}, 결과는 {@code analyses}·{@code video_transcripts} 다.
  *
  * <p><b>완료는 한 트랜잭션이고 그 안에서 주인과 계정 상태를 다시 본다</b>(specs/practice 「연습 자료의 이관·삭제·
  * 탈퇴」). 이관이 먼저 끝났으면 회차의 주인이 이미 회원이라 결과는 회원의 것이 되고, 탈퇴가 먼저 끝났으면

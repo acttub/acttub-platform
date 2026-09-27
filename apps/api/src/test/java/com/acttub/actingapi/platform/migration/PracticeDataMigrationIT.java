@@ -17,7 +17,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * specs/practice 「1.0.0 스키마 전환」 ③ — 재실행 가능한 전환 명령을 <b>고정 자료</b>로 본다.
+ * specs/practice 「0.1.0 스키마 전환」 ③ — 재실행 가능한 전환 명령을 <b>고정 자료</b>로 본다.
  *
  * <p>고정 자료는 요구사항이 이름을 든 네 갈래다: 신형 raw(관찰 기록), 구형 분리 배열(ObservationPack),
  * 한 연습의 복수 대화, 이어하기 체인 셋. 여기서 보는 것은 "무엇이 옮겨졌고 무엇이 왜 남았는가" 와

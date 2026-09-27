@@ -26,7 +26,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 /**
- * specs/practice 「1.0.0 스키마 전환」 ② — <b>호환 읽기 경로</b>를 HTTP 로 본다.
+ * specs/practice 「0.1.0 스키마 전환」 ② — <b>호환 읽기 경로</b>를 HTTP 로 본다.
  *
  * <p>넓히기와 새 쓰기 사이에는 같은 배우의 자료가 두 표에 나뉘어 있다. 새 조회 API 가 새 표에 없으면 옛 표를
  * 읽어 <b>같은 응답 모양</b>을 내는지, 그리고 그 과정에서 <b>옛 테이블을 건드리지 않는지</b>가 여기서 보는

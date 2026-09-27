@@ -58,7 +58,7 @@ class LegacyStorageCompatibilityIT {
                     """);
             jdbc.execute("ALTER TABLE practice_sessions DROP COLUMN subtext");
             jdbc.execute("ALTER TABLE users DROP COLUMN role");
-            // 커뮤니티는 1.0.0 에서 코드를 내리고 테이블만 남겼다. 한 문장이라 서로의 FK 가 막지 않는다.
+            // 커뮤니티는 0.1.0 에서 코드를 내리고 테이블만 남겼다. 한 문장이라 서로의 FK 가 막지 않는다.
             jdbc.execute("""
                     DROP TABLE community_reports, community_post_likes, community_anonymous_aliases,
                         community_comments, community_blocks, community_posts, community_categories

@@ -24,7 +24,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * 1.0.0 회차의 코치 대화 (practice.coach, practice.note).
+ * 0.1.0 회차의 코치 대화 (practice.coach, practice.note).
  *
  * <p><b>바꾸는 것은 저장뿐이다.</b> 코치의 행동 규칙(응답 상한 8/10, 첫 응답 경로, 도움 버튼, 상태 json 의 출처
  * 분리, 프로필 조건부 입력)은 {@link CoachEngine}·{@link CoachPrompt} 가 그대로 갖고 있고, 이 서비스는 엔진이 쓰는

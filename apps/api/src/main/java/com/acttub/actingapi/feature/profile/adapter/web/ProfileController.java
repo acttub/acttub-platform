@@ -254,7 +254,7 @@ class ProfileController {
      * 422 본문의 모양이 곧 계약이라 이 판정은 요청을 받는 자리에 남는다. 무엇이 어긋났는지를
      * 아는 것은 {@link ProfileName} 이고, 그것을 pydantic 과 같은 형태로 옮기는 것이 여기다.
      *
-     * <p>길이를 <b>원본</b>으로 재고 공백 접기를 그 뒤에 보는 순서가 1.0.0 이전의 닉네임 규칙과 같다.
+     * <p>길이를 <b>원본</b>으로 재고 공백 접기를 그 뒤에 보는 순서가 0.1.0 이전의 닉네임 규칙과 같다.
      */
     private static void validate(ProfileName name) {
         if (name.tooShort()) {

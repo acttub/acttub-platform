@@ -2,7 +2,7 @@
 
 [공통 규칙](../common.md) · [영역 개요](README.md)
 
-- 도입: 1.0.0
+- 도입: 0.1.0
 - 결정 기록: ADR-032
 - 화면: A15.4(영상 신고 모달), A15.3(댓글 신고, 메뉴 추가), A17(챌린지 신고, 메뉴 추가)
 - 테이블: entry_reports, challenge_entries, entry_comments, challenges
