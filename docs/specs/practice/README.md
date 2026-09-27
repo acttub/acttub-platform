@@ -5,7 +5,7 @@
 가로질러 남는다. 이미 배포돼 돌고 있는 기능이라 이 문서는 현행 동작을 문장으로 옮기고 1.0.0에서 바꾸는 것만 드러낸다.
 바꾸는 것은 크게 셋이다. 영상을 연습에서 독립한 자산으로 두고(보관함), 연습을 회차(묶음의 n차)로 다시 세우고, 분석·대화·노트를
 세 테이블로 나눈다. 코치의 행동 규칙(연기를 채점하지 않음, 첫 응답 정책, 도움 버튼, 노트 생성 조건, 배우가 쓴 기억 우선)은
-CONTRACT §7·§8-5·§8-6, ADR-027, COACHING-NOTE-V2가 정본이고 여기서는 그대로 잇는다.
+CONTRACT §7·§8-5·§8-6, ADR-027, 아래 「영상만 올리는 연습」과 coach·note의 SOMA-531 절이 정본이고 여기서는 그대로 잇는다.
 
 ## 1.0.0 스키마 전환
 
@@ -52,3 +52,35 @@ CONTRACT §7·§8-5·§8-6, ADR-027, COACHING-NOTE-V2가 정본이고 여기서�
 객체 삭제(영상·미확정 업로드 객체)는 삭제 장부(account_cleanup_operations)가 성공까지 재시도한다. 탈퇴한 계정의 일반 API는 403이고
 재가입 계정이 옛 자료 id로 조회하면 남의 것과 같은 404다(account.withdraw). 영상 재생 불가와 기록 열람 권한은 별개다. 활성 소유자에게
 열람 권한이 있는 기록만 노트·대화를 돌려주고, 영상이 파기됐으면 재생만 막는다.
+
+## 영상만 올리는 연습 (`three_layers_v1`)
+
+SOMA-526. 영상 외 입력을 건너뛴 배우가 현재 표현을 살펴보고, 바라는 전달에 맞춰 다음에 무엇을 달리해볼지 가져가는 흐름이다.
+1층은 [practice.analyze](analyze.md), 2층은 [practice.coach](coach.md), 3층은 [practice.note](note.md)에 있다. v1의 2·3층 기록은 [archive/three-layers-v1.md](../../archive/three-layers-v1.md)에 보관한다.
+
+### 적용 범위
+웹·앱은 `X-Acttub-Contract: three_layers_v1`을 보낸다. 서버의 `ACTTUB_THREE_LAYERS_ENABLED=true`이고 상황·인물·목표·막힘 상세가 비어 있으며 막힘 대분류가 `그 외`인 신규 연습만 `experience_version=three_layers_v1`로 고정한다. 기존 입력 경로와 구형 클라이언트는 `legacy`다.
+
+기능 플래그의 애플리케이션 기본값은 false다. dev 배포는 영상만 올리는 연습이 새 2·3층을 사용하도록 `DEPLOY_THREE_LAYERS_ENABLED=true`를 전달한다. 배포 스크립트가 이를 release.env에 기록하고 실제 API 컨테이너 값을 확인한다. 운영 배포는 이 값을 지정하지 않고 서버의 기존 설정을 유지한다. 플래그를 꺼도 이미 만든 새 연습과 노트는 읽을 수 있으며 기존 데이터를 다시 분석하지 않는다. 신형 reader가 없는 예전 서버 바이너리로 되돌리는 방식은 사용하지 않는다.
+
+### 2·3층 개정 (SOMA-531, 2026-09-14)
+2026-09-14 합의. 1층 영상 기록은 유지한다. 2층은 직전 답변에 이어 현재 연기를 이해하고,
+3층이 처음으로 다음 촬영 제안을 만든다. 결과 화면은 **짧은 요약 → 촬영 아이템 하나 → 응원**이다.
+프롬프트의 실행 정본은 아래 파일이며 모델에게 실제 JSON Schema를 함께 제공한다.
+
+| 대상 | 실행 파일 |
+|---|---|
+| 2층 프롬프트 | `apps/api/src/main/resources/coaching/coach-prompt.txt` |
+| 2층 응답·2→3 전달 스키마 | 같은 디렉터리 `three-layer-contracts.schema.json`의 `layer2_dialogue_turn`, `coach_handoff_v2` |
+| 3층 프롬프트 | 같은 디렉터리 `note-prompt.txt` |
+| 3층 생성 스키마 | `layer3_note` |
+| 이전 handoff의 노트 생성 | `note-legacy-prompt.txt`, 기존 `layer3_copy` |
+
+### DB·트랜잭션·호환성
+V5는 experience_version, coaching_state_json, state_revision을 추가하고 기존 CHECK 허용값을 확장한다. handoff의 `(coach_session_id, state_revision)`은 새 계약에 한해 유일하다. 기존 Flyway 파일은 수정하지 않는다.
+
+LLM과 미디어 처리는 DB 트랜잭션 밖이다. 코치 메시지·state/revision·handoff·note·멱등 응답을 기존 완료 트랜잭션에서 함께 저장한다. revision 충돌은 409이며, lease 소유권을 잃으면 전체 쓰기가 롤백된다. note_id는 practice_reports 행의 id다. 닫히는 reply의 재전송도 저장한 응답을 그대로 반환한다.
+
+구형 클라이언트 목록에서 새 연습/노트는 제외하고 직접 조회는 `client_contract_required` 409로 처리한다. 새 서버는 구형 raw와 노트를 계속 읽는다. 생성 플래그를 끄는 것과 reader를 제거하는 것은 다르다.
+
+새 노트의 이어하기 이력은 제안·선택을 구분한다. 실행 여부 미확정을 미실행으로 바꾸지 않는다. 기존 '확인한 연습 수'에 따른 전역 기억 자동 갱신에는 새 노트를 가짜 확인으로 추가하지 않는다. 지난 연습은 참고 맥락이며 이번 영상이나 이번 의도의 증거로 승격하지 않는다.

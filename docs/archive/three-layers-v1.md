@@ -1,31 +1,14 @@
-# 영상만 올리는 3층 코칭 계약
+# 영상만 올리는 3층 코칭 — v1 2·3층 기록
+
+> 보관 기록이다. `docs/ACTTUB-THREE-LAYERS.md`에서 옮겼다(2026-09-27). 현행 정본은
+> `docs/specs/practice/`의 README(적용 범위·DB), analyze(1층), coach(2층), note(3층)다.
+> `three_layers_v1`로 저장된 v1 상태·노트를 읽는 경로가 남아 있어 보관한다.
 
 SOMA-526. 영상 외 입력을 건너뛴 배우가 현재 표현을 살펴보고, 바라는 전달에 맞춰 다음에 무엇을 달리해볼지 가져가는 흐름이다.
 
 **2·3층 개정 정본(2026-09-14, SOMA-531): [대화와 촬영 노트](design/COACHING-NOTE-V2.md).**
 이 문서의 1층과 적용 조건은 유지한다. 아래 2·3층 설명 및 해당 프롬프트 부록은 v1 구현 기록이다.
 현재 2층은 대화 중 과제를 내지 않고 직전 답변을 이어받으며, v2 handoff를 받은 3층이 촬영 제안 하나를 만든다.
-
-## 적용 범위
-
-웹·앱은 `X-Acttub-Contract: three_layers_v1`을 보낸다. 서버의 `ACTTUB_THREE_LAYERS_ENABLED=true`이고 상황·인물·목표·막힘 상세가 비어 있으며 막힘 대분류가 `그 외`인 신규 연습만 `experience_version=three_layers_v1`로 고정한다. 기존 입력 경로와 구형 클라이언트는 `legacy`다.
-
-기능 플래그의 애플리케이션 기본값은 false다. dev 배포는 영상만 올리는 연습이 새 2·3층을 사용하도록 `DEPLOY_THREE_LAYERS_ENABLED=true`를 전달한다. 배포 스크립트가 이를 release.env에 기록하고 실제 API 컨테이너 값을 확인한다. 운영 배포는 이 값을 지정하지 않고 서버의 기존 설정을 유지한다. 플래그를 꺼도 이미 만든 새 연습과 노트는 읽을 수 있으며 기존 데이터를 다시 분석하지 않는다. 신형 reader가 없는 예전 서버 바이너리로 되돌리는 방식은 사용하지 않는다.
-
-## 1층: 시간축이 있는 영상 기록
-
-정본은 `summaries.raw`의 `acttub.video_record.v1`이다. 기존 `observations_json`, `uncertainties_json`은 새 기록에서 빈 배열이며 기존 행은 변경하지 않는다. `summaries.id = record_id`이고 정본은 분석 완료 후 덮어쓰지 않는다.
-
-- 원본을 최대 30초 청크로 분석하고 지역 시각·ID를 원본 기준으로 조립한다. 청크마다 최대 6회 생성 예산을 독립적으로 둔다. 구조 오류는 재생성하고, 필요하면 최소 7.5초까지 분할한다. 앞 청크의 실패가 뒤 청크의 예산을 소모하지 않는다.
-- 영상 파트에 6 FPS 샘플링을 명시하고 프레임 사이 미세 변화·추정 시각의 한계를 기록한다. LOW thinking으로 청크별 생성 예산을 유지한다. [Gemini 영상 문서](https://ai.google.dev/gemini-api/docs/video-understanding)의 기본 샘플링 한계를 고려한 설정이며 실제 영상으로 비용·시각 품질을 확인한다.
-- 전체 대사, 발성·호흡·리듬·시선·얼굴·움직임·환경의 관찰, 변화가 없는 상태, 관찰 한계를 저장한다. 상위 15개 등의 개수 제한을 두지 않는다. 각 구간의 참조와 처음부터 끝까지의 시간축을 검증한다.
-- 받아쓰기의 모든 단어 시각과 단어 사이 간격을 보존한다. 무음으로 단정하지 않고 `word_gap`으로 기록한다. ASR와 영상 대사가 충돌하면 양쪽을 보존하고 한계를 남긴다. 모델 추정 시각은 `estimated`, ASR 단어 시각은 `aligned`다.
-- 부분 실패는 `processing.status=partial`, `processed_ranges`, `missing_ranges`와 한계로 기록한다. 모든 청크가 실패하면 기존 분석 실패 흐름을 따른다. 2층은 분석 실패 시에도 근거가 없다는 상태로 대화를 열 수 있다.
-- 영상 전체를 손실 없이 텍스트로 복원한다고 보장하지 않는다. 보이지 않거나 들리지 않는 부분은 설명을 만들어 채우지 않는다.
-
-프롬프트: `apps/api/src/main/resources/coaching/video-record-prompt.txt`.
-출력 스키마: 같은 디렉터리 `three-layer-contracts.schema.json`의 `layer1_chunk`.
-공개 상세 응답의 `summary`는 새 기록일 때 `VideoRecordSummaryResponse`다. 원본 기록 전체를 공개 API로 내보내지 않는다.
 
 ## 2층: 짧은 메시지와 누적 상태
 
@@ -65,16 +48,6 @@ SOMA-526. 영상 외 입력을 건너뛴 배우가 현재 표현을 살펴보고
 공개 응답은 `acttub.public_practice_note.v1`, `report_type=practice_note`다. 제목·방향·구간·연습·비교 기준·실행 보고·열어 둔 부분을 표시하며 내부 상태와 과거 메시지 원문 카탈로그는 제외한다. 웹과 앱은 새 타입과 기존 analysis/expression 노트를 각각 렌더링한다. 웹 장면 패널은 새 기록의 요약(장면·대사·한계·처리 상태)을 보여준다. 모르는 타입을 expression으로 취급하지 않는다.
 
 프롬프트: `note-prompt.txt`. 모델 출력: `layer3_copy`. 저장 정본: `practice_note`.
-
-## DB·트랜잭션·호환성
-
-V5는 experience_version, coaching_state_json, state_revision을 추가하고 기존 CHECK 허용값을 확장한다. handoff의 `(coach_session_id, state_revision)`은 새 계약에 한해 유일하다. 기존 Flyway 파일은 수정하지 않는다.
-
-LLM과 미디어 처리는 DB 트랜잭션 밖이다. 코치 메시지·state/revision·handoff·note·멱등 응답을 기존 완료 트랜잭션에서 함께 저장한다. revision 충돌은 409이며, lease 소유권을 잃으면 전체 쓰기가 롤백된다. note_id는 practice_reports 행의 id다. 닫히는 reply의 재전송도 저장한 응답을 그대로 반환한다.
-
-구형 클라이언트 목록에서 새 연습/노트는 제외하고 직접 조회는 `client_contract_required` 409로 처리한다. 새 서버는 구형 raw와 노트를 계속 읽는다. 생성 플래그를 끄는 것과 reader를 제거하는 것은 다르다.
-
-새 노트의 이어하기 이력은 제안·선택을 구분한다. 실행 여부 미확정을 미실행으로 바꾸지 않는다. 기존 '확인한 연습 수'에 따른 전역 기억 자동 갱신에는 새 노트를 가짜 확인으로 추가하지 않는다. 지난 연습은 참고 맥락이며 이번 영상이나 이번 의도의 증거로 승격하지 않는다.
 
 ## 검증과 적용 순서
 

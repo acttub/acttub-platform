@@ -1571,7 +1571,7 @@ Docker API 버전 협상이 실패하면 소켓 접근이 가능해도 `/info`�
 설정을 끈 뒤에는 분석을 생략한 세션 대신 영상을 새로 올린다.
 
 아래 첫 질문·단일 프롬프트 설명은 legacy 및 `acttub.coaching.routed-enabled=false` 롤백 경로에 해당한다.
-Gemini 직접 영상 코칭이 꺼진 환경의 기본 2층은 [Luna 분류와 코드 기반 선택](../../docs/design/LAYER2-LUNA-ROUTES.md)을 따른다.
+Gemini 직접 영상 코칭이 꺼진 환경의 기본 2층은 [Luna 분류와 코드 기반 선택](../../docs/specs/practice/coach.md#2층-대화-동작-분류와-코드-기반-프롬프트-선택)을 따른다.
 첫 질문 개정(SOMA-531): 기존 기본 코치와 구조화 코치는 공통 `coach/coach-opening-policy.txt`를 사용한다.
 전체 흐름에서 중요한 지점을 고르고 답에 따라 살펴볼 기준이 달라지는 쉬운 질문 하나로 시작한다.
 기본 코치에 있던 질문 없는 관찰·해석 시작은 폐기한다. 근거가 있는 첫 응답은 질문 누락·중복과
@@ -1579,13 +1579,13 @@ Gemini 직접 영상 코칭이 꺼진 환경의 기본 2층은 [Luna 분류와 �
 대사 인용 안의 물음표는 배우에게 묻는 질문 수에서 제외한다. 의미적 관련성과 선정의 적절성은
 자동 검사만으로 보장하지 않는다. 공개 JSON과 DB는 유지한다.
 
-2026-09-14의 2·3층 개정은 [대화와 촬영 노트](../../docs/design/COACHING-NOTE-V2.md)를 따른다.
+2026-09-14의 2·3층 개정은 대화와 촬영 노트([practice.coach](../../docs/specs/practice/coach.md#2층-대화-soma-531)·[practice.note](../../docs/specs/practice/note.md#3층-촬영-노트-soma-531))를 따른다.
 2층 내부 출력은 직전 답변 인용을 포함한 `acttub.layer2_turn.v2`이며 과제/실행 변경을 허용하지 않는다.
 서버는 현재 맥락·원문 대화·근거를 `acttub.coach_handoff.v2`로 전달하고 3층이 다음 촬영 제안 하나를 생성한다.
 요약은 확인된 배우 말·관찰의 발췌이고, 제안은 선택·실행으로 승격하지 않는다.
 공개 `PublicPracticeNote`와 저장 노트 v1의 필드는 유지한다. v1 handoff는 이전 프롬프트로 처리한다.
 
-`X-Acttub-Contract: three_layers_v1`과 서버 생성 플래그로 선택한 신규 연습은 [3층 계약](../../docs/ACTTUB-THREE-LAYERS.md)을 따른다. 기존 입력 갈래의 응답과 legacy 저장 행은 유지한다. 새 공개 타입은 `VideoRecordSummaryResponse`, `PublicPracticeNote`, handoff branch `coaching`이다. 이 타입을 지원하지 않는 클라이언트에는 목록 필터와 직접 접근 409를 적용한다.
+`X-Acttub-Contract: three_layers_v1`과 서버 생성 플래그로 선택한 신규 연습은 [3층 계약](../../docs/specs/practice/README.md#영상만-올리는-연습-three_layers_v1)을 따른다. 기존 입력 갈래의 응답과 legacy 저장 행은 유지한다. 새 공개 타입은 `VideoRecordSummaryResponse`, `PublicPracticeNote`, handoff branch `coaching`이다. 이 타입을 지원하지 않는 클라이언트에는 목록 필터와 직접 접근 409를 적용한다.
 
 새 계약은 배우가 하지 않은 첫 발화를 만들지 않고, state/revision을 누적한다. 보고서 작성 여부나 턴 수를 배우의 실행·확인 증거로 쓰지 않는다. 새 노트는 handoff_confirmation 없이 생성된다. 모델 출력·참조 검증과 레코드 조회, 조립, 상태 전이의 단위 테스트에 더해 `CoachSessionRepositoryIT`에서 새 필드의 원자적 저장과 충돌을 확인한다.
 

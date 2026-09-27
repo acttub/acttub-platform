@@ -98,7 +98,7 @@
 
 ### 대화
 
-영상만 올리는 `three_layers_v1` 경험의 2026-09-14 개정은 [대화와 촬영 노트](design/COACHING-NOTE-V2.md)를 따른다.
+영상만 올리는 `three_layers_v1` 경험의 2026-09-14 개정은 대화와 촬영 노트([practice.coach](specs/practice/coach.md)·[practice.note](specs/practice/note.md))를 따른다.
 이 경로는 직전 답변에 이어 실제 관찰과 배우가 원하는 방향을 살피며, 대화 중 연습 실행이나 결과 보고를 요구하지 않는다.
 아래 기존 분석·표현 갈래의 설명과 구분한다.
 

@@ -18,6 +18,8 @@ MVP 핵심 기능의 정상 작동을 목표로 빠르게 개발한다. 단, AI 
 > 문서 경로도 옮겨졌다(2026-09-27). 본문의 옛 경로는 아래처럼 읽는다.
 > - `docs/requirements/00-common.md` → `docs/specs/common.md`
 > - `docs/requirements/0N-<영역>.md` → `docs/specs/<영역>/` (기능 하나가 파일 하나)
+> - `docs/ACTTUB-THREE-LAYERS.md`, `docs/design/`의 코칭 설계 문서 → `docs/specs/practice/`의 README·analyze·coach·note
+>   (v1 2·3층 기록은 `docs/archive/three-layers-v1.md`)
 
 ---
 
