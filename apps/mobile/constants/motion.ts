@@ -1,7 +1,7 @@
 import { Easing } from 'react-native-reanimated';
 
 /**
- * 움직임 값 — Toss 디자인 시스템 motion 표(docs/design/Toss-DESIGN.md §15)를 옮긴 것.
+ * 움직임 값 — Toss 디자인 시스템 motion 표에서 옮긴 것(원문 문서는 2026-09-27에 지웠다).
  *
  * <p>화면에서 숫자를 직접 적지 않는다. 기기에서 "동작 줄이기"를 켜 두면 reanimated 가
  * (기본값 ReduceMotion.System) 애니메이션 없이 끝 상태로 바로 옮긴다.

@@ -21,8 +21,8 @@
 ## 조건부 정본
 
 - **제품 행동·범위**를 정할 때 → [docs/PRD.md](docs/PRD.md)와 [CONTEXT.md](CONTEXT.md)
-- **화면·컴포넌트·카피**를 만들 때 → [UI_GUIDE.md](docs/design/UI_GUIDE.md).
-  시각 수치와 화면 구조는 이 가이드의 작업별 레퍼런스를 이어서 읽습니다.
+- **화면·컴포넌트·카피**를 만들 때 → [acttub/pen](https://github.com/acttub/pen)의 `acttub 디자인.pen`과
+  [PRD 「디자인」](docs/PRD.md#디자인). 기능별 화면 번호는 [docs/specs/](docs/specs/README.md)의 `화면` 줄에 있습니다.
 - **폴더·패키지 배치나 층 경계**를 정할 때 → [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - **API·DB·마이그레이션**을 바꿀 때 → [apps/api/CONTRACT.md](apps/api/CONTRACT.md).
   API 계약 변경과 소비 중인 필드·컬럼 축소는 [계약 변경 절차](apps/api/CONTRACT.md#계약-변경-절차)를
@@ -49,8 +49,9 @@
   lockfile을 추가하지 않습니다.
 - 생성물과 로컬 디렉터리(`node_modules/`, `.next/`, `apps/api/build/`)는 수정 대상이 아닙니다.
 - 크로스앱 문서는 `docs/`, 앱 상세 문서는 각 앱 디렉터리에 둡니다. `docs/` 최상위에는
-  `ADR.md`·`PRD.md`·`BRANCHING-STRATEGY.md`만 두고, 디자인은 `docs/design/`, 배포는
-  `docs/deploy/`, 끝난 계획·이관 사양은 `docs/archive/`에 둡니다.
+  `PRD.md`·`ARCHITECTURE.md`·`ADR.md`·`BRANCHING-STRATEGY.md`만 둡니다. 기능 스펙은
+  `docs/specs/<영역>/<기능>.md`, 배포는 `docs/deploy/`, 에이전트 작업 규칙은 `docs/agents/`, 끝난 계획·이관
+  사양 중 코드·문서가 근거로 인용하는 것은 `docs/archive/`에 둡니다. 인용되지 않는 기록은 git 이력에 맡깁니다.
 - 에이전트 실행 계획은 이슈마다 `.scratch/<이슈키>.md` 하나에 기록합니다. `.scratch/`는
   추적되지 않으므로 이어받을 때 경로를 직접 확인합니다.
 

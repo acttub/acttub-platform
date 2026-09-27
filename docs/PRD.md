@@ -2,7 +2,7 @@
 
 배우가 연습 영상을 올리면 관찰을 뽑아내고, 코치와의 대화를 거쳐 근거 기반 연습 노트를 남기는 연습 도구다.
 
-용어는 루트 [CONTEXT.md](../CONTEXT.md)가 정본이고, 되돌리기 어려운 결정의 기록은 [docs/ADR.md](ADR.md)에 있다. 화면 규칙은 [docs/design/UI_GUIDE.md](design/UI_GUIDE.md), API 계약의 판정 기준은 [apps/api/CONTRACT.md](../apps/api/CONTRACT.md)다. 이 문서는 그 넷이 답하지 않는 것 — **제품이 무엇이고 누구를 위한 것인가** — 만 적는다.
+용어는 루트 [CONTEXT.md](../CONTEXT.md)가 정본이고, 되돌리기 어려운 결정의 기록은 [docs/ADR.md](ADR.md)에 있다. 화면 규칙은 이 문서의 「디자인」 절과 pen 파일, 구조는 [docs/ARCHITECTURE.md](ARCHITECTURE.md), API 계약의 판정 기준은 [apps/api/CONTRACT.md](../apps/api/CONTRACT.md)다. 이 문서는 그 넷이 답하지 않는 것 — **제품이 무엇이고 누구를 위한 것인가** — 만 적는다.
 
 ## 목표
 
@@ -66,7 +66,7 @@
 
 ## 연습 도구
 
-연습 하나는 **Practice Stage** 여섯을 지난다. 화면이 어떻게 나뉘는지는 [docs/design/UI_GUIDE.md](design/UI_GUIDE.md)에 있다.
+연습 하나는 **Practice Stage** 여섯을 지난다. 화면이 어떻게 나뉘는지는 [docs/ARCHITECTURE.md](ARCHITECTURE.md#연습-화면의-전환)에 있다.
 
 ```text
 준비 -> 막힘 선택 -> 업로드 -> 분석 -> 대화 -> 연습 노트
@@ -183,8 +183,26 @@
 
 ## 디자인
 
-- 과한 UI보다 조용한 연습실 톤 우선.
-- 제품 화면은 마케팅 랜딩이 아니라 매일 쓰는 연습 도구처럼 보여야 한다.
-- "Powered by AI" 같은 장식 배지, 보라색 AI SaaS 느낌, gradient orb, glassmorphism, 과한 glow animation은 사용하지 않는다.
+화면 정본은 [acttub/pen](https://github.com/acttub/pen)의 `acttub 디자인.pen`이다. 색상·간격·컴포넌트 수치는
+pen 파일과 옆 화면이 쓰는 값을 따르고, 여기에는 제품 정체성에서 나오는 규칙만 둔다.
 
-적용 규칙과 금지 표현의 전문은 [docs/design/UI_GUIDE.md](design/UI_GUIDE.md)에 있고, 색상값·컴포넌트 수치는 [docs/design/Toss-DESIGN.md](design/Toss-DESIGN.md)를, 랜딩·대화 화면 구조는 [docs/design/telta-interview-pro.md](design/telta-interview-pro.md)를 참조한다(ADR-012).
+- 과한 UI보다 조용한 연습실 톤 우선. 마케팅 랜딩이 아니라 매일 쓰는 연습 도구처럼 보여야 한다.
+- 평가표처럼 보이면 실패다. 점수 원형·레이더 차트, 강점·약점·개선점 카드, 판정을 내리는 코치 아바타를
+  만들지 않는다(ADR-005). "좋음/나쁨"처럼 평가를 암시하는 색 매핑도 쓰지 않는다.
+- AI 템플릿 장식을 쓰지 않는다: "Powered by AI" 배지, 보라·인디고 AI 팔레트, gradient로 칠한 글자, 배경
+  gradient orb, glass morphism 카드, box-shadow 글로우 애니메이션, AI·magic·sparkle 아이콘, 과한
+  confetti·emoji. 스크롤 헤더의 반투명, 랜딩 히어로 배경처럼 이미 있는 실물은 문자열만 보고 위반으로 판정하지
+  말고 무엇을 하는 코드인지 먼저 본다.
+- 애니메이션은 상태 변화를 이해시키는 데만 쓴다. 예외로 연속 연습일(streak)이 늘어난 순간의 전체화면
+  축하는 습관 보상이라 스프링 등장·숫자 바뀜·칸 차오름을 허용하되, 글로우·그라데이션 흐름은 쓰지
+  않는다(SOMA-494).
+
+카피:
+
+- 용어 정본은 [CONTEXT.md](../CONTEXT.md)이고, 화면 문장은 한국어 존댓말("~해요")로 쓴다.
+- 연습의 산출물은 "리포트"가 아니라 **연습 노트**다.
+- 연습 화면 안에서 배우와 마주 앉은 상대는 "AI"가 아니라 "코치"다. 유입 표면(웹 랜딩, 앱 홈 카드,
+  스토어 리스팅)은 아직 "AI"를 쓰며 어느 쪽으로 모을지 정하지 않았다. 새 화면은 그 화면이 속한 쪽을 따른다.
+- 쓰지 않는 말: "평가 받기" · "점수 확인" · "약점 보기" · "정답 보기" · "AI 피드백 받기".
+- 웹은 금지어 가드 테스트가 이 규칙을 기계로 막고([apps/web/CLAUDE.md](../apps/web/CLAUDE.md)), 모바일은
+  가드가 없어 손으로 지킨다.
