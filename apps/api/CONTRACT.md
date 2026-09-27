@@ -89,7 +89,7 @@ Schema Entity는 활성 영속 경로를 매핑하고 `actor_memory_entries`·`p
 - `users.role`: 현재 관리자 인증은 별도 운영 토큰이며 사용자 역할 컬럼을 사용하지 않는다.
 - `community_*` 일곱 테이블(`community_categories`·`community_posts`·`community_comments`·
   `community_post_likes`·`community_anonymous_aliases`·`community_reports`·`community_blocks`):
-  1.0.0에서 커뮤니티의 API와 코드를 내렸다([05-community.md](../../docs/requirements/05-community.md)).
+  1.0.0에서 커뮤니티의 API와 코드를 내렸다([community](../../docs/specs/community/README.md)).
   `/v2/community/**`는 404다. 글·댓글·차단·신고·카테고리 데이터와 CHECK 값 검사
   (`ValueCheckCatalogIT`)는 그대로 두고, 되살릴 때는 git 이력에서 `feature/community`를 가져온다.
 - `users.nickname`: 이름은 `user_profiles.name`이 정본이다. V9가 옛 값을 복사했고 Schema Entity는
@@ -488,7 +488,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 
 판정 순서는 **426 → 토큰(401) → 계정 상태(403 `account_deactivated`) → 분당 한도(429) → 동의
 (403 `consent_required`) → 프로필(403 `profile_required`)** 이다. 요구사항의 정본은
-[00-common.md](../../docs/requirements/00-common.md) 「클라이언트 판과 강제 업데이트」·「게이트와 보호 기능」.
+[specs/common.md](../../docs/specs/common.md) 「클라이언트 판과 강제 업데이트」·「게이트와 보호 기능」.
 
 **426**(`platform/security/ClientVersionFilter`): `X-Acttub-Client` 가 없거나 비어 있는 `/v2` 요청은
 무엇을 부르든 426 이고 본문은 `{"detail":"새 버전이 나왔어요. 스토어에서 업데이트해 주세요."}` 다.
@@ -642,7 +642,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   있지 않는다. **객체 삭제**(`object_delete`·`reading_recording_delete`)는 **성공할 때까지 대상 키를 지우지
   않는다**: `expires_at` 이 지나도 계속 집어 시도하고, 그때마다 `ObjectDeletionOverdue` 로 운영자에게 알린 뒤
   다음 알림을 7일 뒤로 미룬다(같은 작업을 일주일에 한 번보다 자주 알리지 않는다). 키를 먼저 버리면 그 객체를
-  아는 곳이 없어 복구할 수 없다(03-reading 「리딩 자료의 이관·삭제·탈퇴」).
+  아는 곳이 없어 복구할 수 없다(specs/reading 「리딩 자료의 이관·삭제·탈퇴」).
 - **`object_delete` 는 탈퇴만 쓰는 것이 아니다.** 객체 키를 DB 에서 덮거나 그 행을 지우는 자리는 전부 같은
   트랜잭션에서 장부에 남긴다(`PostgresObjectCleanupLedger`): 프로필 사진의 교체·삭제, **올리다 만 프로필 사진의
   주소를 다시 받을 때 덮이는 앞의 키**, 포트폴리오 사진의 삭제와 시한이 지난 올리기 찌꺼기. 키를 먼저 잃으면
@@ -825,7 +825,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 ### 6-14. 대본 리딩 — 대본·회차·녹음·암기와 그 생애 (SOMA-546)
 
-정본은 [03-reading.md](../../docs/requirements/03-reading.md) 의 각 기능과 「리딩 자료의 이관·삭제·탈퇴」 표다. 서버는 대본·음성을 분석하지 않는다
+정본은 [specs/reading/](../../docs/specs/reading/README.md) 의 각 기능과 README 「리딩 자료의 이관·삭제·탈퇴」 표다. 서버는 대본·음성을 분석하지 않는다
 (ADR-031) — 배역 나누기는 기기의 파서가 하고 배우가 확인한 결과가 그대로 온다.
 
 - **경로**는 전부 `/v2/reading/**` 이고 보호 기능이다. 게스트의 기능 표 `READING` 은 약관·수집·이용 동의 둘이며
@@ -961,7 +961,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - OpenAPI 컴포넌트: `ReadingMemorizationRequest`·`ReadingMemorizationStatusInput`·`ReadingLineMemorization`(`status` 는
   `MemorizationStatus`).
 
-**생애 — 이관·삭제·탈퇴·파기 (SOMA-546 RA5)** — 정본은 03-reading 「리딩 자료의 이관·삭제·탈퇴」 표다. 다섯 기능이
+**생애 — 이관·삭제·탈퇴·파기 (SOMA-546 RA5)** — 정본은 specs/reading 「리딩 자료의 이관·삭제·탈퇴」 표다. 다섯 기능이
 서로 다르게 말하지 않도록 **그 표 하나가 판정한다.** 표의 다섯 칸을 코드의 자리와 이어 둔다.
 
 | 대상 | 이관(§6-9) | 대본 삭제 | 회차 삭제 | 탈퇴·미이관 게스트 30일 파기(§6-8) |
@@ -991,7 +991,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 ### 6-15. 연습 1.0.0 — 스키마(V14)와 영상 보관함 (SOMA-546)
 
-정본은 [02-practice.md](../../docs/requirements/02-practice.md) 와 「연습 자료의 이관·삭제·탈퇴」 표다. 회차·분석·
+정본은 [specs/practice/](../../docs/specs/practice/README.md) 와 README 「연습 자료의 이관·삭제·탈퇴」 표다. 회차·분석·
 대화·노트·기억·설문의 API 는 뒤 티켓이 이 절에 이어 쓴다. **코치의 행동 규칙(§7·§8-5·§8-6, ADR-027)은 바꾸지
 않는다** — 1.0.0 이 바꾸는 것은 저장이다.
 
@@ -1001,7 +1001,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   테이블은 건드리지 않는다** — `practice_sessions`·`transcripts`·`summaries`·`anomalies`·`coach_sessions`·
   `coach_turns`·`coaching_handoffs`·`practice_reports`·`actor_memory_entries`·`external_operations` 가 그대로 돈다.
   데이터 전환은 Flyway 가 아니라 재실행 가능한 애플리케이션 명령이고, 옛 테이블의 삭제는 읽기·쓰기를 모두 중단한
-  버전을 배포한 **다음** 릴리스부터다(02-practice 「1.0.0 스키마 전환」).
+  버전을 배포한 **다음** 릴리스부터다(specs/practice 「1.0.0 스키마 전환」).
   - 값 목록은 text + CHECK 이고 Java enum 은 `platform/schema` 에 있다(`PracticeStage`·`PracticeCloseReason`·
     `ExperienceVersion`·`AnalysisFormat`·`AnalysisStatus`·`NoteFormat`·`NoteKind`·`MemoryField`·`FeedbackScreen`·
     `FeedbackTrigger`·`AiJobKind`·`TranscriptStatus`·`ConversationCloseReason`). 옛 테이블의 값 목록은 그대로 두고
@@ -1215,7 +1215,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     `include_team=true`일 때만 팀 테스트를 포함하고 `is_team=true`로 표시한다.
   - 이 자유 입력 조회는 **별도 실시간 경로뿐**이다. `ops-core` JSON·백업 스냅샷·git 산출물에는 body나 평가
     comment를 넣지 않는다.
-- **연습 자료의 이관·삭제·탈퇴** — 정본은 02-practice 의 처리표다.
+- **연습 자료의 이관·삭제·탈퇴** — 정본은 specs/practice 의 처리표다.
   - **이관**은 `user_id` 가 있는 행을 한 트랜잭션에서 옮긴다: 예약 장부 → `videos` → `practice_sessions`·`practices`
     → `external_operations`·`ai_jobs` → 배우 기억 → 리딩 → 설문 → 노트 평가 순이다(§6-9의 잠금 순서에 이어진다). 분석·대화·노트·
     받아쓰기는 그 행에 매달려 따라간다. 기억은 합치지 않고 양쪽에 있으면 409 `memory_choice_required` 이며, 고른
@@ -1230,7 +1230,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     끝났으면 아무것도 쓰지 않고 403 `account_deactivated` 다(분석의 완료가 같은 자리에서 같은 확인을 한다).
 - **데이터 전환**(`POST /v2/admin/practice-migration`, `platform/migration`) — 옛 표의 자료를 1.0.0 표로 옮기는
   <b>재실행 가능한 명령</b>이다. Flyway 가 아니라 애플리케이션 명령인 것은 전환이 배포를 멈추면 안 되고 되돌릴
-  수도 없기 때문이다(02-practice 「1.0.0 스키마 전환」 ③).
+  수도 없기 때문이다(specs/practice 「1.0.0 스키마 전환」 ③).
   - **단계는 순서대로 끝까지 돈다**: 영상 → 회차 → 받아쓰기 → 관찰 기록 → 대화 → 메시지 → 노트 → 기억 →
     작업 장부. 뒤 단계가 앞 단계가 만든 행을 가리키므로 한 단계를 남김없이 끝낸 뒤에 다음으로 간다. 한 묶음
     (기본 200)이 한 트랜잭션이고 **고르기와 옮기기가 그 안에 함께** 있다.
@@ -1249,7 +1249,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   - **이름을 바꾸지 않는다**: 기존 갈래 노트는 `legacy` 형식에 옛 종류(analysis·expression) 그대로이고, 구형
     관찰은 `legacy` 형식에 원문 그대로다. 대화의 종료 사유만 새 어휘로 옮긴다(`actor_finished`→`user_ended`,
     `turn_budget`→`limit`, `interrupted`→`exhausted`). 옛 대화에는 시작 요청 id 가 없어 **세션 id 를 그대로** 쓴다.
-- **호환 읽기 경로**(02-practice ②) — 넓히기와 새 쓰기 사이에는 같은 배우의 자료가 두 표에 나뉘어 있다. 새 조회
+- **호환 읽기 경로**(specs/practice ②) — 넓히기와 새 쓰기 사이에는 같은 배우의 자료가 두 표에 나뉘어 있다. 새 조회
   API 는 **새 표를 먼저 보고 없으면 옛 표를 읽어 같은 응답 모양**을 낸다. 화면은 어느 표에서 왔는지 모른다.
   - `GET /v2/practices/{id}`·`/status`·`GET /v2/practices` 는 `practice/adapter/db/PostgresLegacyPracticeReader`
     로 간다. 차수는 `continued_from` 체인을 그때그때 펴서 만들고 **전환 명령과 같은 규칙**이라 옮기기 전후의
@@ -1262,7 +1262,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   - **구형 관찰은 요약만이다** — 새 모양에 담기는 것은 기록의 상태(`ready`·`partial`)까지다. 구형 분리 배열을
     신형 기록으로 위장하지 않는다.
   - 호환 읽기는 **옛 표를 고치거나 지우지 않는다.**
-- **되돌리기**(02-practice 「1.0.0 스키마 전환」, BRANCHING-STRATEGY 「DB와 배포 안전성」) — 내리기 마이그레이션은
+- **되돌리기**(specs/practice 「1.0.0 스키마 전환」, BRANCHING-STRATEGY 「DB와 배포 안전성」) — 내리기 마이그레이션은
   없다. 대신 **더하기만 한다**: V14·V15 는 새 표와, 예약 장부의 NULL 허용 컬럼 셋, `users` 의 둘만 더했고 옛 표의
   모양은 한 칸도 바뀌지 않았다(`flyway/PracticeRollbackCompatibilityTest` 가 V13 과 최신의 fingerprint 를 옛 표만
   추려 견준다). Hibernate 의 `ddl-auto: validate` 는 **매핑이 없는 여분 표를 보지 않으므로** 직전 태그의 서버가
@@ -1271,7 +1271,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - **옛 쓰기 경로는 내렸다** — `/v2/uploads/**` 와 `/v2/practice-sessions/**` 는 사라졌다. 영상은
   `/v2/videos/**` 가, 회차는 `/v2/practices/**` 가 받고, 그 표에 없는 옛 자료는 **호환 읽기 경로**가 같은 모양으로
   보여 준다(위 「호환 읽기 경로」). 옛 표는 그대로 남아 있고 지우지 않았다 — 삭제는 읽기·쓰기를 모두 중단한
-  버전을 배포한 다음 릴리스부터다(02-practice ④). 게스트 기능표에서도 두 경로를 뺐다.
+  버전을 배포한 다음 릴리스부터다(specs/practice ④). 게스트 기능표에서도 두 경로를 뺐다.
 - **옛 코치·리포트 경로도 내렸다** — `/v2/legacy-coach/**`와 옛 연습의 `/v2/reports/**`는 등록하지 않는다.
   코치는 `/v2/coach/start`·`/v2/coach/reply`, 노트 읽기는 `/v2/practices/{id}/note`를 쓴다. 새 코치는 §7-2의
   프로필과 배우 기억을 매 턴 읽으며, 같은 묶음의 앞 회차 대화·노트만 참고한다. 복수 대화 전환에서 옛 표에
@@ -1287,7 +1287,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 ### 6-16. 챌린지 개설·목록 (1.0.0)
 
-- 정본은 [04-challenge.md](../../docs/requirements/04-challenge.md)다. `/v2/challenges`는 동의·프로필을
+- 정본은 [specs/challenge/](../../docs/specs/challenge/README.md)다. `/v2/challenges`는 동의·프로필을
   마친 회원, `X-Acttub-Client: app/...`, 한국어 요청에만 열리고 나머지는 403 `member_only`다.
 - `POST /v2/challenges`는 `request_id`·대사·작품·기간(7·14일)을 받고 인물·장면 메모는 선택이다.
   대사는 공백을 한 칸으로 정리하고 나머지는 앞뒤 공백만 걷는다. 코드 포인트 기준 대사 1~200,
@@ -1480,7 +1480,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 ### 7-2. 코치 대화와 노트가 읽는 배우 프로필 (2026-09-19)
 
 코치 대화(시작·후속·재생성)와 노트의 모델 입력에 배우가 저장한 **완성된** 프로필을 조건부로 싣는다
-([01-account.md](../../docs/requirements/01-account.md) account.profile). §7-1 의 계약은 그대로다 — 요청·응답 DTO,
+([account.profile](../../docs/specs/account/profile.md)). §7-1 의 계약은 그대로다 — 요청·응답 DTO,
 저장 스키마, handoff·report 계약을 바꾸지 않는다.
 
 - **부재 시 동일성이 계약이다.** 프로필이 없거나(게스트) 여섯 항목 가운데 하나라도 비어 있으면 포트가 `null` 을 주고,

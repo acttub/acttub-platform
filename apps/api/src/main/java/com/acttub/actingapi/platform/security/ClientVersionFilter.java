@@ -14,7 +14,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
  * 클라이언트 판 헤더({@code X-Acttub-Client}, 예: {@code app/1.0.0})가 없는 {@code /v2} 요청을
- * 426 으로 돌려보낸다 ({@code docs/requirements/00-common.md} 「클라이언트 판과 강제 업데이트」).
+ * 426 으로 돌려보낸다 ({@code docs/specs/common.md} 「클라이언트 판과 강제 업데이트」).
  *
  * <p>헤더가 없으면 1.0.0 이전 빌드다. 그 빌드들은 로그인 즉시 계정이 생기고 필수 문서만 게이트에
  * 걸리던 옛 규칙을 전제로 하므로, 서버에 옛 규칙을 남기는 대신 업데이트로 보낸다. 옛 앱은 모르는

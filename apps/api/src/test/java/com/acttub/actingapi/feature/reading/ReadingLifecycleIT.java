@@ -67,7 +67,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 /**
- * 리딩 자료의 생애 — 03-reading 「리딩 자료의 이관·삭제·탈퇴」 표와 account.guest·account.withdraw 의 리딩 항목을 HTTP 와
+ * 리딩 자료의 생애 — specs/reading 「리딩 자료의 이관·삭제·탈퇴」 표와 account.guest·account.withdraw 의 리딩 항목을 HTTP 와
  * 실제 Postgres 로 본다. 이관·탈퇴·30일 파기·3년 파기·정리 장부의 7일 규칙이 여기 있다. 대본·회차 삭제는 각 기능의 IT 가 본다.
  *
  * <p>오브젝트 스토리지는 메모리의 가짜이고, 매일 도는 일은 스케줄러를 끄고 {@link AccountHousekeeping#runDaily} 를 직접 부른다.

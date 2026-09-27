@@ -19,7 +19,7 @@ import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
 
 /**
- * 옛 연습 테이블을 새 응답 모양으로 읽는 <b>호환 경로</b> (02-practice ②).
+ * 옛 연습 테이블을 새 응답 모양으로 읽는 <b>호환 경로</b> (specs/practice ②).
  *
  * <p>같은 포트를 두 번 구현하는 대신 <b>따로 선 어댑터</b>다 — 두 구현이 같은 타입이면 주입이 모호해지고,
  * "새 표를 먼저 보고 없으면 옛 표" 라는 순서를 어디선가 한 번은 적어야 한다. 그 순서는
@@ -134,7 +134,7 @@ class PostgresLegacyPracticeReader implements LegacyPracticeReader {
     }
 
     /**
-     * 옛 개별 숨김은 그 회차만 뺀다 — 묶음을 숨기지 않는다(02-practice). 다 빠지면 묶음도 보이지 않는다.
+     * 옛 개별 숨김은 그 회차만 뺀다 — 묶음을 숨기지 않는다(specs/practice). 다 빠지면 묶음도 보이지 않는다.
      *
      * <p>옛 묶음에는 제목·태그·즐겨찾기가 없다. 그래서 {@code favorite} 필터에는 하나도 걸리지 않고 제목은
      * 비어 온다 — 화면이 상황 문장으로 채우는 그 자리다(practice.library).

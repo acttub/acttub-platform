@@ -26,7 +26,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 /**
- * 02-practice 「1.0.0 스키마 전환」 ② — <b>호환 읽기 경로</b>를 HTTP 로 본다.
+ * specs/practice 「1.0.0 스키마 전환」 ② — <b>호환 읽기 경로</b>를 HTTP 로 본다.
  *
  * <p>넓히기와 새 쓰기 사이에는 같은 배우의 자료가 두 표에 나뉘어 있다. 새 조회 API 가 새 표에 없으면 옛 표를
  * 읽어 <b>같은 응답 모양</b>을 내는지, 그리고 그 과정에서 <b>옛 테이블을 건드리지 않는지</b>가 여기서 보는
@@ -152,7 +152,7 @@ class PracticeCompatibilityIT {
     }
 
     @Test
-    @DisplayName("02-practice ②: 옮긴 뒤에도 같은 응답이다 — 옮긴 회차는 새 표에서 오고, 전환이 남겨 둔 옛 대화는 "
+    @DisplayName("specs/practice ②: 옮긴 뒤에도 같은 응답이다 — 옮긴 회차는 새 표에서 오고, 전환이 남겨 둔 옛 대화는 "
             + "이전 대화 목록으로 그대로 보인다")
     void practiceLibrary_answersTheSameShapeBeforeAndAfterTheMigration() throws Exception {
         UUID practice = session(intent("videos/same.mp4"), null, "analyzed");

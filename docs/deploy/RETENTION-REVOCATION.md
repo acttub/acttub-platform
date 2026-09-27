@@ -2,7 +2,7 @@
 
 탈퇴한 사람이 "탈퇴 후 영상·녹음 보관·활용" 동의를 거두겠다고 요청했을 때 개발자가 DB와 저장소에서 직접
 처리하는 절차다. 앱 안에 철회 화면은 없고 운영 도구도 만들지 않는다 — 요청이 드물기 때문이다
-([01-account.md](../requirements/01-account.md) account.withdraw, [ADR-029](../ADR.md)).
+([account.withdraw](../specs/account/withdraw.md), [ADR-029](../ADR.md)).
 
 끝났다고 말할 수 있는 조건은 셋이다: **본인 확인을 했고, 그 계정의 영상 객체가 저장소에 없고, 동의 기록의
 마지막 줄이 `revoked` 다.**

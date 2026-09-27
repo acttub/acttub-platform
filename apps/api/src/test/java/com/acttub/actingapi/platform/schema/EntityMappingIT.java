@@ -102,7 +102,7 @@ class EntityMappingIT {
 
     /**
      * 매핑을 은퇴시키고 DB 에는 남긴 테이블 (apps/api/CONTRACT.md §5-1). 구형 {@code reports} 와,
-     * 1.0.0 에서 API·코드를 내린 커뮤니티 일곱이다({@code docs/requirements/05-community.md}).
+     * 1.0.0 에서 API·코드를 내린 커뮤니티 일곱이다({@code docs/specs/community/README.md}).
      */
     private static final Set<String> RETIRED_TABLES = Set.of(
             "reports",

@@ -7,7 +7,7 @@ export const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace
 // 값의 검증과 정규화는 src/lib/seo/site-metadata.ts에서 담당한다.
 
 // 요청마다 보내는 클라이언트 종류와 판(X-Acttub-Client). 서버는 이 헤더가 없는 요청을
-// 1.0.0 이전 빌드로 보고 426으로 답한다(docs/requirements/00-common.md 공통 규칙).
+// 1.0.0 이전 빌드로 보고 426으로 답한다(docs/specs/common.md 공통 규칙).
 export const ACTTUB_CLIENT = "web/1.0.0";
 
 // S3 버킷 CORS가 설정되기 전에는 브라우저 직접 PUT이 막히므로 목킹 모드로 우회한다.

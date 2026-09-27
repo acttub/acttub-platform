@@ -204,7 +204,7 @@ class LegacyStorageCompatibilityIT {
         return session;
     }
 
-    /** 묶음 목록을 회차 id 로 편다 — 옛 묶음도 호환 읽기가 같은 모양으로 낸다(02-practice ②). */
+    /** 묶음 목록을 회차 id 로 편다 — 옛 묶음도 호환 읽기가 같은 모양으로 낸다(specs/practice ②). */
     private static List<String> practiceIds(JsonNode groups) {
         List<String> ids = new java.util.ArrayList<>();
         groups.path("groups").forEach(group ->

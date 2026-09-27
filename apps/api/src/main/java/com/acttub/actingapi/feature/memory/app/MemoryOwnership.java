@@ -10,7 +10,7 @@ import java.util.UUID;
  * 참여한다.</b>
  *
  * <p>구현은 1.0.0 표({@code actor_memories})와 옛 표({@code actor_memory_entries})를 <b>함께</b> 다룬다 —
- * 이관은 한 트랜잭션이고 옛 자료를 잃지 않아야 한다(02-practice 「1.0.0 스키마 전환」).
+ * 이관은 한 트랜잭션이고 옛 자료를 잃지 않아야 한다(specs/practice 「1.0.0 스키마 전환」).
  */
 public interface MemoryOwnership {
 

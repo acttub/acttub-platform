@@ -225,7 +225,7 @@ class PostgresConversationRepository implements ConversationRepository {
         return transaction.execute(tx -> {
             if (!lockActiveOwner(conversationId)) return null;
             // 대화 행과 함께 계정 상태를 본다 — 바깥 호출이 도는 사이에 다른 기기의 탈퇴가 끝났으면 그 뒤에
-            // 도착한 코치 응답을 저장하지 않는다(practice.coach, 02-practice 「이관·삭제·탈퇴」). 분석의
+            // 도착한 코치 응답을 저장하지 않는다(practice.coach, specs/practice 「이관·삭제·탈퇴」). 분석의
             // `PostgresPracticeAnalysisStore.complete` 가 같은 자리에서 같은 확인을 한다.
             List<Tuple> locked = NativeTuples.list(entityManager.createNativeQuery("""
                     SELECT c.state_revision,c.status
@@ -377,7 +377,7 @@ class PostgresConversationRepository implements ConversationRepository {
     }
 
     /**
-     * 아직 옮기지 않은 옛 노트를 <b>새 봉투에 담아</b> 낸다 (02-practice ②).
+     * 아직 옮기지 않은 옛 노트를 <b>새 봉투에 담아</b> 낸다 (specs/practice ②).
      *
      * <p>기존 갈래는 {@code legacy} 형식에 옛 종류(analysis·expression)를 그대로 두고, 신형 노트만 {@code v2}
      * 다 — 이름만 바꾸지 않는다. 원문은 {@code report} 로 그대로 나가 옛 공개 필드를 읽던 화면이 그대로 쓴다.
@@ -521,7 +521,7 @@ class PostgresConversationRepository implements ConversationRepository {
     }
 
     /**
-     * 아직 옮기지 않은 옛 대화 (02-practice ②). <b>한 연습에 대화가 여럿인 옛 자료</b>의 "이전 대화" 가 이
+     * 아직 옮기지 않은 옛 대화 (specs/practice ②). <b>한 연습에 대화가 여럿인 옛 자료</b>의 "이전 대화" 가 이
      * 경로로 열린다 — 최근 하나로 자르지 않는다(practice.coach).
      *
      * <p>종료 사유는 옛 어휘를 그대로 낸다. 전환 명령은 새 어휘로 옮기지만, 여기서 읽는 것은 아직 옛 표에

@@ -47,7 +47,7 @@
 > 종류를 더하려면 enum 과 Flyway 마이그레이션의 CHECK 를 함께 넓힌다(`ValueCheckCatalogIT` 가 대조한다).
 >
 > **`privacy` 는 1.0.0 부터 "개인정보 수집·이용 동의"다.** 처리방침은 동의를 받는 문서가 아니라 고지라서
-> 이 목록에 없다(`docs/requirements/01-account.md` account.consent). `privacy_v5.md` 의 "프로필 필수 항목"
+> 이 목록에 없다(`docs/specs/account/consent.md`). `privacy_v5.md` 의 "프로필 필수 항목"
 > 표는 프로필 API 의 필수 항목과 같아야 하고 `ProfileConsentParityTest` 가 둘을 대조한다 — 항목을 늘리거나
 > 선택을 필수로 바꾸면 **새 판**을 낸다.
 >

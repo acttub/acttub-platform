@@ -14,6 +14,10 @@ MVP 핵심 기능의 정상 작동을 목표로 빠르게 개발한다. 단, AI 
 > `SOMA-403` 5단계에서 **`apps/api`가 됐고**, 같은 이름이던 FastAPI 트리는 사라졌다. 결정
 > 시점의 이름이라 본문은 그대로 두었으니, 경로를 따라갈 때는 `apps/api`로 읽는다. 이관
 > 자체의 사양·기록은 `docs/archive/soma287/`에 있다.
+>
+> 문서 경로도 옮겨졌다(2026-09-27). 본문의 옛 경로는 아래처럼 읽는다.
+> - `docs/requirements/00-common.md` → `docs/specs/common.md`
+> - `docs/requirements/0N-<영역>.md` → `docs/specs/<영역>/` (기능 하나가 파일 하나)
 
 ---
 

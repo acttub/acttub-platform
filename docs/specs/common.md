@@ -1,73 +1,7 @@
-# 요구사항
+# 공통 요구사항
 
-**작성 중.** 지금 쓰는 것은 1.0.0 목표 상태이고, 배포된 제품의 동작은 아직 `docs/PRD.md`가 말한다.
-네 영역을 다 쓰면 루트 CLAUDE.md의 조건부 정본에 이 폴더를 넣는다.
-
-기능마다 무엇을 하고, 왜 하고, 실패하면 어떻게 되고, 어떻게 확인하는지를 적는 문서 묶음이다.
-1.0.0에서는 스키마의 컬럼과 API를 정하는 근거가 된다. 테이블과 관계는 ERD에서 합의했다.
-
-요구사항은 경로에 판을 두지 않고 그 자리에서 고친다. 판은 기능의 `도입` 줄이 말하고, 지난 상태는
-git 이력이 보관한다. 동작을 바꾸는 PR이 그 기능의 요구사항도 함께 고친다.
-
-## 관련 정본
-
-- ERD 결정 기록: 워크트리의 `.scratch/SOMA-528.md`(추적되지 않음),
-  ERD 아티팩트 https://claude.ai/code/artifact/7161a549-3af9-4adf-99af-39798fabd10c
-- 화면 정본: https://github.com/acttub/pen 의 `acttub 디자인.pen`
-- 제품 범위·API·DB 규칙은 루트 CLAUDE.md의 조건부 정본을 따른다.
-
-## 읽는 순서
-
-이 파일 다음에 영역 파일을 읽는다. 기능 목록은 각 파일의 `##` 헤딩이 정본이다.
-
-| 파일 | 영역 |
-|---|---|
-| [01-account.md](01-account.md) | 계정 |
-| [02-practice.md](02-practice.md) | 연습 |
-| [03-reading.md](03-reading.md) | 대본 리딩 |
-| [04-challenge.md](04-challenge.md) | 챌린지 |
-| [05-community.md](05-community.md) | 커뮤니티 (상태: 후속) |
-
-## 쓰는 법
-
-기능 하나가 아래 틀 하나다. 기본 절은 다섯이고, 나머지 절은 필요할 때만 붙인다.
-
-```markdown
-## <영역>.<기능> <기능 이름>
-- 도입: <판>
-- 화면: <pen 화면 번호>
-- 테이블: <ERD 테이블명>
-
-### 기능
-### 의도
-### 목적
-### 예외
-### 검증 방법
-```
-
-- **id**: `<영역>.<기능>`, 영문 소문자와 하이픈만 쓴다. 이슈·테스트·ADR에서 이 id로 가리킨다.
-- **도입**: 이 기능 id가 요구사항에 처음 들어간 판. 이미 있던 기능도 이 문서 묶음이 시작된 1.0.0으로
-  적는다. 뒤에 규칙이 바뀌어도 이 줄은 그대로 둔다.
-- **상태**: 판에서 뺀 기능에만 `- 상태: 후속`을 적는다. 버린 요구사항은 `docs/archive/`로 옮긴다.
-- **결정 기록**: 이 기능에 닿는 ADR 번호. 있을 때만 적는다.
-- **화면**: pen 파일의 화면 번호. 예: A1.2, A8.1. 아직 없으면 비워 둔다.
-- **테이블**: ERD의 테이블명. 이 줄로 요구사항이 없는 테이블을 찾는다.
-- **기능**: 무엇을 하는지 한두 문장.
-- **의도**: 왜 넣는지. 어떤 문제나 상황에서 출발했는지.
-- **목적**: 배우가 얻는 결과. 성공한 상태를 문장으로 쓴다.
-- **예외**: 실패·중단·되돌리기·탈퇴 때 어떻게 되는지.
-- **검증 방법**: 완료를 확인하는 방법. 무엇을 넣으면 무엇이 나와야 하는지.
-
-필요할 때만 붙이는 절: 행위자·진입점, 흐름(상태 전이), 데이터(저장·조회·공개 범위), 규칙·제약,
-완료 조건, 범위 밖, 열린 질문.
-
-(결정 필요)가 붙은 문장은 권장안이다. 사용자가 정하면 표시를 떼고 그 문장이 규칙이 된다. 구현은
-표시가 떼진 문장만 따른다.
-
-기능 하나가 끝난 기준: 다섯 절이 다 있고, 테이블 줄의 이름이 전부 ERD에 있고, 검증 방법의 각
-항목이 입력과 기대 결과 한 쌍이고, (결정 필요)가 남아 있지 않다. 문서 묶음이 끝난 기준: ERD의
-테이블과 아래 "ERD에 반영할 변경"의 추가 테이블이 모두 어느 기능의 테이블 줄에 나온다. 구현이 끝난 기준: 검증 방법의 항목마다
-테스트 하나가 대응한다.
+옛 경로는 `docs/requirements/00-common.md`다. 적용된 Flyway 마이그레이션(V9·V13·V14)의 주석이 그 이름으로 부르며, 마이그레이션은 checksum 때문에 고치지 않는다.
+쓰는 법과 기능 목록은 [README.md](README.md)에 있다.
 
 ## 공통 규칙
 
@@ -163,7 +97,7 @@ git 이력이 보관한다. 동작을 바꾸는 PR이 그 기능의 요구사항
 | 값 | ai_jobs.kind에 analyze·memory_update(리딩·설문·정리 장부는 넣지 않음). status failed의 사유에 cancelled·account_deactivated | practice.analyze, practice.memory |
 | 컬럼 | practice_feedback: user_id, practice_id, screen(coach·report), trigger(x·leave·back), body(NULL이면 dismissed), contact_email·contact_phone(90일 뒤 NULL, DB·시트 모두), sheet_synced_at, sheet_seq(변경 순번), request_id. 이관 때 여러 행 보존 | practice.feedback |
 | 컬럼 | users.exit_survey_asked_at(이탈 설문 노출 선점 시각). actor_memories 소유자 기준 memory_epoch(기억 세대; 삭제·이관 선택 때 증가, 갱신 작업은 예약 시점 세대를 갖고 다르면 미반영) | practice.feedback, practice.memory |
-| 삭제 조건 | 옛 테이블(practice_sessions, transcripts, summaries, anomalies, coach_sessions, coach_turns, coaching_handoffs, handoff_confirmations, practice_reports, reports, actor_memory_entries, external_operations)은 1.0.0에서 삭제하지 않고 호환 읽기 경로가 쓴다(upload_intents는 계속 쓴다). 삭제는 그 테이블의 읽기·쓰기를 모두 중단한 버전을 배포한 다음 릴리스부터이며, 무손실 대응이 확인되지 않은 자료(구형 분석·복수 대화)의 테이블은 시점을 정하지 않는다 | 02-practice 스키마 전환 |
+| 삭제 조건 | 옛 테이블(practice_sessions, transcripts, summaries, anomalies, coach_sessions, coach_turns, coaching_handoffs, handoff_confirmations, practice_reports, reports, actor_memory_entries, external_operations)은 1.0.0에서 삭제하지 않고 호환 읽기 경로가 쓴다(upload_intents는 계속 쓴다). 삭제는 그 테이블의 읽기·쓰기를 모두 중단한 버전을 배포한 다음 릴리스부터이며, 무손실 대응이 확인되지 않은 자료(구형 분석·복수 대화)의 테이블은 시점을 정하지 않는다 | practice 스키마 전환 |
 | 값 | account_cleanup_operations의 객체 삭제 종류에 영상 객체·미확정 업로드 객체·파일만 파기 | practice.record, practice.library |
 | 컬럼 | challenges: line(1~200자), work(1~100자, 창작은 "창작"), character(100자), scene_note(500자), duration_days(7·14, API 상수), origin(team·member, 불변), host_user_id(team은 NULL, 탈퇴 시 NULL), request_id((host_user_id, request_id) 유일)·request_fingerprint, featured_on(team만, 날짜당 하나), starts_at·ends_at(기간 상태는 시각으로 판정, 컬럼 없음), moderation(visible·review·hidden) | challenge.create |
 | 컬럼 | challenge_entries: video_id(삭제 뒤 NULL 허용), caption(300자, 수정 가능)·content_version, published_at(최초 공개, 재공개 유지), visibility(public·private), status(visible·hidden_by_report·deleted), view_count, final_like_count·final_eligible(마감 집계, 첫 변경 전 확정)·final_rank(검토 끝난 뒤 일괄 확정), request_id((user_id, request_id) 유일)·request_fingerprint, deleted_at, (challenge_id, video_id) 유일(deleted 제외). 영상 길이 60초 이내 | challenge.entry, challenge.browse |
@@ -194,7 +128,7 @@ pen을 고칠 목록이다. 규칙은 출처 기능의 본문이 정본이고 �
 | 새 화면(앱) | 포트폴리오 편집, 이관 코드 입력, 기억 선택 팝업, 업데이트 안내(426) | account.portfolio, account.guest, 공통 규칙 |
 | 새 화면(웹) | 게스트 시작 안내, 기능별 동의 시트("만 14세 이상이에요" 확인 줄 포함), 이관 코드, 옮긴 뒤 안내, 포트폴리오 공개 페이지 | account.guest, account.portfolio |
 | 없앨 화면(웹) | W2 로그인, D3.1 동의 결정, 상단 탐색의 아바타 | account.guest |
-| 내릴 화면 | 커뮤니티 A3·A3.1·A3.2, D11·D12·D15, WC·WC2·WC3 | 05-community |
+| 내릴 화면 | 커뮤니티 A3·A3.1·A3.2, D11·D12·D15, WC·WC2·WC3 | community |
 | R00 대본 목록 | "분석 완료" 칩 삭제(칩은 연습 중·연습 완료·배역 선택 셋), 검색은 제목·배역만, 카드의 "암기" 칩 | reading.script, reading.memorization |
 | R00.3 더보기 | "제목·배역 수정" 시트(제목과 배역 이름만) | reading.script |
 | 새 화면(앱) | 대본 확인 화면(배역 이름 고치기·빼기·더하기), 옛 대본 옮기기 안내, 이동통신 모델 내려받기 확인, 회차 삭제·개별 녹음 삭제 | reading.script, reading.cast, reading.recording |
@@ -247,7 +181,7 @@ pen을 고칠 목록이다. 규칙은 출처 기능의 본문이 정본이고 �
 | A18.1·A18.2 | 공개 범위 미리 선택 없음, 공개 시 "다른 참여자의 AI 리포트 비교에 쓰일 수 있어요" 한 줄, "올리면 자동 준비" 문구를 "요청하면 준비" 로 | challenge.entry, challenge.ai-report |
 | A4 설정 | 차단 목록·풀기 | challenge.block |
 | 챌린지 카드 | 주최자 탈퇴 표시("주최자 탈퇴"), 기획팀 챌린지 표시 | challenge.create |
-| 새 문서 | PRD에 챌린지 절(리텐션 부가 기능, ADR-005 예외, 회원·앱·한국어 전용)을 사람이 추가한다 | 04-challenge |
+| 새 문서 | PRD에 챌린지 절(리텐션 부가 기능, ADR-005 예외, 회원·앱·한국어 전용)을 사람이 추가한다 | challenge |
 | A14 | "좌우로 넘겨보세요" → "위아래로 넘겨보세요"(피드는 세로) | challenge.browse |
 | A15·A17·P03 | 종료 "집계 중"·검토 대기·최종 확정 구분, 최종 순위와 현재 좋아요 구분, 커서 만료 뒤 새로 조회 | challenge.browse |
 | A16·A17 | 오늘의 챌린지 고정은 인기·최신 탭에만, 종료·내 챌린지 탭은 고정 없음 | challenge.browse |
@@ -277,7 +211,7 @@ pen을 고칠 목록이다. 규칙은 출처 기능의 본문이 정본이고 �
 | 개인정보 처리방침 | 포트폴리오 공유 링크로 공개되는 항목 | account.portfolio |
 | 이용약관 | 가입 방식에 카카오·네이버, 웹은 로그인 없이 게스트로 이용 | account.login, account.guest |
 | 탈퇴 후 영상·녹음 보관·활용(신설, 선택) | 목적(서비스 개선과 AI 모델 학습 둘 다), 기간 3년, 철회 방법, 거절해도 서비스는 같음 | account.withdraw |
-| AI 분석 동의 | 리딩에는 필요 없다. 서버가 대본·음성을 분석하지 않는다(03-reading, ADR-031) | account.guest, reading.recording |
+| AI 분석 동의 | 리딩에는 필요 없다. 서버가 대본·음성을 분석하지 않는다(reading, ADR-031) | account.guest, reading.recording |
 | 법무 확인 | 가명처리 보관과 동의 기반 보관의 문구, 자유 글(배우 기억·대화·받아쓰기) 보존, 해시 보관 | account.withdraw |
 | 운영 절차 문서 | 보관 동의 철회 요청을 처리하는 절차(해시 대조, 영상·녹음 파기, revoked 기록) | account.withdraw |
 | 운영 배포 체크리스트 | 카카오·네이버는 검수 승인 뒤에만 운영에서 켠다 | account.login |
@@ -328,7 +262,7 @@ pen을 고칠 목록이다. 규칙은 출처 기능의 본문이 정본이고 �
 
 1.0.0에서 하지 않는 것.
 
-- 커뮤니티(게시판)는 1.0.0에서 뺀다. 요구사항과 결정은 [05-community.md](05-community.md)에
+- 커뮤니티(게시판)는 1.0.0에서 뺀다. 요구사항과 결정은 [커뮤니티](community/README.md)에
   보관하고 후속에서 잇는다. 테이블 7개와 기존 글 데이터는 남기고 API·화면만 내린다.
 - 계정 정지·운영 차단. 1.0.0에는 신고·운영 숨김·사람 차단(user_blocks, ADR-032)만 있다.
 - 챌린지의 댓글 좋아요·답글, 사용자당 하루 한 번 조회수(entry_views), 챌린지 공유 링크의 웹 공개 페이지, 랭킹 캐시 컬럼, 오늘의 챌린지·
@@ -343,7 +277,7 @@ ERD 세션(2026-09-14)에서 이월한 것.
 - 이론 선택은 1.0.0에서 뺐다(practice.start, 2026-09-21).
 - "작업·잡·job"과 ai_jobs: 테이블 이름 ai_jobs를 유지하고 용어집에 AI Job(비동기 AI 요청, External Operation의 한 종류)을 더했다
   (2026-09-21). 계정 정리 장부·설문 시트 전송은 AI Job이 아니다.
-- 리딩 관련은 2026-09-21에 해소했다(03-reading): 예시 대본은 내장 리소스, 온보딩·가이드 플래그는 기기 저장소,
+- 리딩 관련은 2026-09-21에 해소했다(reading): 예시 대본은 내장 리소스, 온보딩·가이드 플래그는 기기 저장소,
   script_characters 유지, 서버 TTS 캐시(script_lines.audio_key)는 후속.
 
 리딩 요구사항(2026-09-21)에서 후속으로 남긴 것.
