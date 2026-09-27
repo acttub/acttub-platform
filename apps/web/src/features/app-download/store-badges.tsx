@@ -1,11 +1,18 @@
+"use client";
+
 import Image from "next/image";
 
 import {
+  APP_DOWNLOAD_ATTR,
+  APP_DOWNLOAD_STORE_ATTR,
+  buildAppDownloadBootstrapScript,
   goHref,
   STORE_ORDER,
   type AppStore,
   type StoreLinkSurface,
 } from "@/lib/app-download/store-links";
+
+import { useCampaignSearch } from "./use-campaign-search";
 
 // 애플·구글이 배포하는 한국어 공식 배지를 그대로 쓴다(직접 그린 대체 배지는 두 회사의
 // 브랜드 지침 위반). 원본 비율은 App Store 129.7:40, Google Play 646:192이고,
@@ -46,28 +53,40 @@ export function StoreBadges({
   className?: string;
 }) {
   const height = BADGE_HEIGHT[size];
+  const search = useCampaignSearch();
 
   return (
-    <div className={`flex flex-wrap items-center gap-3 ${className}`}>
-      {STORE_ORDER.map((store) => {
+    <>
+      {/* 키워드 페이지처럼 상위 페이지에 bootstrap이 없어도 배지보다 먼저 capture를 건다.
+          이미 상위에서 실행됐다면 스크립트 안의 전역 가드가 중복 리스너를 막는다. */}
+      <script
+        dangerouslySetInnerHTML={{ __html: buildAppDownloadBootstrapScript() }}
+      />
+      <div className={`flex flex-wrap items-center gap-3 ${className}`}>
+        {STORE_ORDER.map((store) => {
         const art = BADGE_ART[store];
 
-        return (
-          <a
-            key={store}
-            href={goHref(store, surface)}
-            className="inline-flex rounded-[10px] transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#3182f6]"
-          >
-            <Image
-              src={art.src}
-              alt={art.alt}
-              width={Math.round(height * art.aspect)}
-              height={height}
-              priority={size === "lg"}
-            />
-          </a>
-        );
-      })}
-    </div>
+          return (
+            <a
+              key={store}
+              href={goHref(store, surface, search)}
+              {...{
+                [APP_DOWNLOAD_ATTR]: surface,
+                [APP_DOWNLOAD_STORE_ATTR]: store,
+              }}
+              className="inline-flex rounded-[10px] transition hover:-translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#3182f6]"
+            >
+              <Image
+                src={art.src}
+                alt={art.alt}
+                width={Math.round(height * art.aspect)}
+                height={height}
+                priority={size === "lg"}
+              />
+            </a>
+          );
+        })}
+      </div>
+    </>
   );
 }
