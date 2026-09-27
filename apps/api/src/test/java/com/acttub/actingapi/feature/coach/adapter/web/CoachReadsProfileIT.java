@@ -233,7 +233,7 @@ class CoachReadsProfileIT {
 
         UUID session = UUID.fromString(started.path("conversation").path("id").asText());
         JsonNode resumed = successful(get("/v2/coach/conversations/{id}", session).header("Authorization", bearer()));
-        assertThat(resumed.path("reply_limit").asInt()).as("신형 대화 재조회도 10회 상한이다").isEqualTo(10);
+        assertThat(resumed.path("reply_limit").asInt()).as("신형 대화 재조회도 16회 상한이다").isEqualTo(16);
         // 마무리 턴은 분류를 건너뛴다: 생성 → 노트.
         generator.enqueue(structuredDraft("오늘 나눈 내용까지만 남겨둘게요.", false));
         generator.enqueue("{\"summary\":[],\"next_take\":null}");
