@@ -1,4 +1,8 @@
-import { goHref, type MobileOs } from "@/lib/app-download/store-links";
+import {
+  downloadHrefFor,
+  goHref,
+  type MobileOs,
+} from "@/lib/app-download/store-links";
 
 // 참여작 공유 페이지의 "앱에서 보기"(challenge.share). 클라이언트 번들에 들어간다.
 // 앱은 참여작을 actingapp://entry/<id> 로 연다(apps/mobile/lib/challenge/deeplink.ts).
@@ -23,12 +27,16 @@ export function openInAppTarget(
   os: MobileOs | null,
   id: string,
   origin: string,
+  search = "",
 ): { href: string; fallback: string | null } {
   if (os === "ios") {
-    return { href: appEntryUrl(id), fallback: goHref("app_store", "entry_share") };
+    return {
+      href: appEntryUrl(id),
+      fallback: goHref("app_store", "entry_share", search),
+    };
   }
   if (os === "android") {
-    const fallback = `${origin}${goHref("google_play", "entry_share")}`;
+    const fallback = `${origin}${goHref("google_play", "entry_share", search)}`;
     return {
       href:
         `intent://entry/${encodeURIComponent(id)}#Intent;scheme=${APP_SCHEME};package=${ANDROID_PACKAGE};` +
@@ -36,5 +44,8 @@ export function openInAppTarget(
       fallback: null,
     };
   }
-  return { href: "/app", fallback: null };
+  return {
+    href: downloadHrefFor(null, "entry_share", search),
+    fallback: null,
+  };
 }

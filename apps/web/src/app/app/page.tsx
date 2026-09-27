@@ -1,4 +1,5 @@
 import AppDownloadView from "./app-download-view";
+import { buildAppDownloadBootstrapScript } from "@/lib/app-download/store-links";
 import {
   buildMobileApplicationJsonLd,
   buildOrganizationJsonLd,
@@ -22,6 +23,10 @@ export default function AppDownloadPage() {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(value) }}
         />
       ))}
+      {/* 인스타그램 UTM을 배지가 그려지는 즉시 /go까지 이어 준다. */}
+      <script
+        dangerouslySetInnerHTML={{ __html: buildAppDownloadBootstrapScript() }}
+      />
       <AppDownloadView />
     </>
   );

@@ -1,4 +1,6 @@
 import {
+  buildAppDownloadBootstrapScript,
+  STORE_LINK_SURFACES,
   type AppStore,
   type MobileOs,
   type StoreLinkSurface,
@@ -7,14 +9,6 @@ import { buildNoindexMetadata } from "@/lib/seo/site-metadata";
 import StoreRedirect from "./store-redirect";
 
 const MOBILE_OSES = ["ios", "android"] as const satisfies readonly MobileOs[];
-const STORE_LINK_SURFACES = [
-  "landing_hero",
-  "landing_app_section",
-  "landing_footer",
-  "app_page",
-  "keyword_page",
-  "entry_share",
-] as const satisfies readonly StoreLinkSurface[];
 const STORE_BY_OS = {
   ios: "app_store",
   android: "google_play",
@@ -35,5 +29,13 @@ export default async function GoToStorePage({
   params: Promise<{ os: MobileOs; surface: StoreLinkSurface }>;
 }) {
   const { os, surface } = await params;
-  return <StoreRedirect store={STORE_BY_OS[os]} surface={surface} />;
+  return (
+    <>
+      {/* 하이드레이션 전에 바로 이동 링크도 현재 URL의 안전한 UTM을 보존한다. */}
+      <script
+        dangerouslySetInnerHTML={{ __html: buildAppDownloadBootstrapScript() }}
+      />
+      <StoreRedirect store={STORE_BY_OS[os]} surface={surface} />
+    </>
+  );
 }

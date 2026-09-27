@@ -126,9 +126,9 @@ class StructuredCoachEngineTest {
         assertThat(calls).hasValue(2);
         assertThat(result.session().turns()).hasSize(1);
     }
-    @Test void malformedOutputNeverLeaksAndTenthReplyCanAlwaysFinish() {
+    @Test void malformedOutputNeverLeaksAndSixteenthReplyCanAlwaysFinish() {
         List<CoachTurnSnapshot> turns = new ArrayList<>();
-        for (int i = 0; i < 9; i++) turns.add(new CoachTurnSnapshot("ai", "확인한 구간이에요."));
+        for (int i = 0; i < 15; i++) turns.add(new CoachTurnSnapshot("ai", "확인한 구간이에요."));
         AtomicInteger calls = new AtomicInteger();
         CoachResult result = engine((system, text) -> {
             calls.incrementAndGet();

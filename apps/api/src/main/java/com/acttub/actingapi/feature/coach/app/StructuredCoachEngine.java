@@ -65,7 +65,8 @@ final class StructuredCoachEngine {
         CoachingStateReducer.require(state.path("revision").asLong() == session.stateRevision(), "stored revision mismatch");
         long replyCount = session.turns().stream().filter(t -> "ai".equals(t.role())).count();
         boolean actorFinished = DialogueProgress.actorFinished(actorText);
-        boolean finish = actorFinished || replyCount >= 9;
+        // ConversationService.THREE_LAYERS_REPLY_LIMIT 을 따른다 — 이번 응답이 그 상한을 채우면 강제 종료한다.
+        boolean finish = actorFinished || replyCount >= ConversationService.THREE_LAYERS_REPLY_LIMIT - 1;
         String actorId = actorText == null ? null : turnId(session, session.turns().size());
         String coachId = turnId(session, session.turns().size() + (actorText == null ? 0 : 1));
         String style = responseStyle(state.path("response_style").asText(), actorText);
@@ -97,7 +98,7 @@ final class StructuredCoachEngine {
         ObjectNode controls = input.putObject("controls").put("max_message_chars", maxChars)
                 .put("max_sentences", maxSentences).put("max_questions",
                         finish || input.path("dialogue_progress").path("explain_instead_of_repeating_question").asBoolean() ? 0 : 1)
-                .put("coach_replies_remaining", Math.max(0, 10 - replyCount))
+                .put("coach_replies_remaining", Math.max(0, ConversationService.THREE_LAYERS_REPLY_LIMIT - replyCount))
                 .put("lookup_calls_remaining", MAX_LOOKUPS).put("finish_required", finish);
         CoachingRoute route = null;
         if (pipeline != null && !finish) {
@@ -163,7 +164,8 @@ final class StructuredCoachEngine {
                 next.put("response_style", responseStyle(state.path("response_style").asText(), actorText));
                 boolean done = "finish".equals(response.path("flow").asText());
                 return result(session, actorText, response.path("message").asText().strip(), next,
-                        done ? (actorFinished ? "actor_finished" : replyCount >= 9 ? "turn_budget" : "interrupted") : null);
+                        done ? (actorFinished ? "actor_finished"
+                                : replyCount >= ConversationService.THREE_LAYERS_REPLY_LIMIT - 1 ? "turn_budget" : "interrupted") : null);
             } catch (RuntimeException failure) {
                 failures.report(failure, FailureKind.EXTERNAL,
                         new FailureContext("StructuredCoachEngine.validation", operationId));
