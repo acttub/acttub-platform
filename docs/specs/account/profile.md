@@ -20,6 +20,23 @@
 ## 목적
 첫 연습부터 코치가 배우의 방향과 경력에 맞춰 말하고, 배우는 같은 것을 두 번 입력하지 않는다.
 
+## 입력·출력
+| 입구 | 입력 | 출력 | 오류 |
+|---|---|---|---|
+| `GET /v2/me` | 헤더 `Authorization`. 게이트 밖 | `MeResponse` 200 | 401, `account_deactivated` 403, 주체 한도 429 |
+| `PUT /v2/me/profile` | 헤더 `Authorization`(동의까지 끝난 회원), `ProfileRequest`: `name`·`gender`·`birth_date`·`directions`·`experience`·`goal`, 선택 `bio` | `MeResponse` 200 | 게스트 `member_only` 403, `consent_required` 403, 값 형태 422 배열, `under_14` 422, `under_14_account_closed` 422, 주체 한도 429 |
+| `POST /v2/me/photo` | 헤더 `Authorization`(게이트 통과), `PhotoUploadRequest`: `content_type`·`size_bytes` | `PhotoUploadResponse` 201(올릴 주소) | `upload_too_large` 413, `unsupported_media_type` 415, 422 배열 |
+| `POST /v2/me/photo/complete` | 헤더 `Authorization`(게이트 통과) | `MeResponse` 200 | `upload_intent_expired`·`upload_not_found`·`upload_size_mismatch` 409 |
+| `DELETE /v2/me/photo` | 헤더 `Authorization`(게이트 통과) | 204. 객체 삭제는 정리 장부로 간다 | — |
+
+`/v2` 요청은 `X-Acttub-Client` 헤더가 없으면 426이다. 게이트를 지나야 하는 입구는 공통 규칙의 401·403·429를
+함께 따른다. 탈퇴와 겹친 쓰기는 403 `account_deactivated`다.
+
+## 상태
+- 연습이 없는 계정의 가입 게이트에 만 14세 미만 생년월일 → users 행 없음 (정본: [account.login](login.md#상태))
+- 연습이 있는 1.0.0 이전 회원의 만 14세 미만 입력 → deactivated (정본: [account.login](login.md#상태))
+- 프로필이 찼는지는 저장하는 상태가 아니라 요청마다 여섯 항목으로 판정한다.
+
 ## 데이터
 | 항목 | 형식 | 필수 |
 |---|---|---|
@@ -104,3 +121,12 @@ user_profile_directions(user_id, direction)에 고른 값마다 한 행씩 둔�
   참여작의 작성자도 바뀐다.
 - 개인정보 수집·이용 동의 문서 본문의 필수 항목을 프로필 API의 필수 항목과 대조하면: 여섯 항목이
   같고 문서에 없는 필수 항목이 없다.
+
+## 범위 밖
+- 만 14세 미만 가입. 법정대리인 동의가 필요한 나이라 1.0.0은 받지 않는다.
+- 포트폴리오. A4 프로필의 "포트폴리오 편집"은 다른 기능이다. (account.portfolio)
+
+## 열린 질문
+- account.guest는 게스트가 프로필을 부르면 403 `member_only`라고 적지만, 코드의 `GET /v2/me`는 게이트 밖이라
+  게스트에게도 200 `MeResponse`(`account_type: guest`)를 준다. 프로필 저장·사진은 403이다. 코드가 맞으면
+  account.guest의 "프로필"을 "프로필 저장·사진"으로 좁힌다.

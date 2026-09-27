@@ -20,6 +20,38 @@
 배우가 링크 하나로 자기 경력과 사진을 보여 주고, 내용을 고치면 링크를 다시 보내지 않아도 최신이
 보인다.
 
+## 입력·출력
+| 입구 | 입력 | 출력 | 오류 |
+|---|---|---|---|
+| `GET /v2/portfolio` | 헤더 `Authorization`(게이트 통과 회원) | `Portfolio` 200. 편집 전이면 빈 모양 | 게스트 `member_only` 403 |
+| `PUT /v2/portfolio/intro` | `PortfolioIntroRequest`: `intro` | `Portfolio` 200 | 422 배열 |
+| `POST /v2/portfolio/credits` | `PortfolioCreditRequest`: `title`·`role`·`year`·`kind` | `PortfolioCredit` 201 | 422 배열, `portfolio_credit_limit_exceeded` 422 |
+| `PATCH /v2/portfolio/credits/{credit_id}` | `credit_id`, `PortfolioCreditPatch` | `PortfolioCredit` 200 | `portfolio_credit_not_found` 404, 422 배열 |
+| `DELETE /v2/portfolio/credits/{credit_id}` | `credit_id` | 204 | `portfolio_credit_not_found` 404 |
+| `PUT /v2/portfolio/credits/order` | `PortfolioOrderRequest`: `ids` | `Portfolio` 200 | `order_mismatch` 422 |
+| `POST /v2/portfolio/photos` | `PortfolioPhotoUploadRequest`: `content_type`·`size_bytes` | `PortfolioPhotoUploadResponse` 201 | `upload_too_large` 413, `unsupported_media_type` 415, `portfolio_photo_limit_exceeded` 422 |
+| `POST /v2/portfolio/photos/{photo_id}/complete` | `photo_id` | `Portfolio` 200. 멱등 | `portfolio_photo_not_found` 404, `upload_intent_expired`·`upload_not_found`·`upload_size_mismatch` 409 |
+| `DELETE /v2/portfolio/photos/{photo_id}` | `photo_id` | 204. 객체 삭제는 정리 장부로 간다 | `portfolio_photo_not_found` 404 |
+| `PUT /v2/portfolio/photos/order` | `PortfolioOrderRequest`: `ids` | `Portfolio` 200 | `order_mismatch` 422 |
+| `PUT /v2/portfolio/share` | `PortfolioShareRequest`: `enabled` | `PortfolioShare` 200 | 422 배열 |
+| `GET /v2/public/portfolios/{slug}` | `slug`. 로그인 없음, 게이트 밖 | `PublicPortfolio` 200, `X-Robots-Tag: noindex, nofollow` | `portfolio_not_found` 404, IP 한도 429 |
+
+`/v2` 요청은 `X-Acttub-Client` 헤더가 없으면 426이다. 공개 조회를 뺀 입구는 모두 헤더 `Authorization`을 받고
+공통 규칙의 401·403·429를 함께 따른다. 탈퇴와 겹친 쓰기는 403 `account_deactivated`다.
+
+## 상태
+portfolio_photos:
+
+| 상태 | 들어오는 전이(조건) | 일으키는 기능 |
+|---|---|---|
+| 올리는 중(`uploaded_at` 없음, 시한 전) | 사진 주소 받기 | account.portfolio |
+| 올림(`uploaded_at`, `sort_order`) | 끝 알리기 | account.portfolio |
+| 시한 지남 | 주소를 받고 30분 안에 끝 알리기 없음 | — |
+| 행 없음 | 삭제, 시한 지난 올리기는 다음 주소 받기 때, 탈퇴 | account.portfolio, account.withdraw |
+
+불변 조건: 올린 사진은 순서를 가진다(`ck_portfolio_photos_uploaded_has_order`). 끝 상태는 행 없음이다.
+portfolios 행은 처음 저장할 때 생기고 탈퇴 때 행째 지운다. 공유 링크는 켬·끔 값이며 상태 전이가 없다.
+
 ## 데이터
 | 항목 | 형식 | 필수 |
 |---|---|---|
@@ -74,10 +106,10 @@
 - 성별이 "선택 안 함"인 회원의 공개 페이지: 성별 칸이 없다.
 - 게스트 토큰으로 포트폴리오 API: 403.
 
-## 열린 질문
-- 편집 화면과 공개 페이지가 pen에 없다.
-
 ## 범위 밖
 - PDF 내보내기. 공개 페이지와 같은 내용을 파일 하나로 내는 기능이며 후속에서 요구사항을 정한다.
 - 공유 링크의 주소 바꾸기. 링크가 원치 않는 사람에게 넘어가면 1.0.0에서는 링크를 끈다. 다시 켜면
   같은 주소라 그 사람에게도 다시 열리며, 1.0.0은 이를 받아들인다. 후속.
+
+## 열린 질문
+- 편집 화면과 공개 페이지가 pen에 없다.

@@ -19,6 +19,44 @@
 배우가 무엇에 동의했는지 한 화면에서 보고, 마음이 바뀌면 그 자리에서 바꾸며, 바뀐 결정이 바로
 적용된다.
 
+## 입력·출력
+| 입구 | 입력 | 출력 | 오류 |
+|---|---|---|---|
+| `GET /v2/consents/documents` | 없음. 공개 조회라 토큰을 보지 않는다 | `ConsentDocumentsResponse` 200(현재 판 전문) | — |
+| `GET /v2/consents/notices` | 없음. 공개 조회라 토큰을 보지 않는다 | `ConsentNoticesResponse` 200(개인정보 처리방침 같은 고지) | — |
+| `GET /v2/consents/pending` | 헤더 `Authorization` | `ConsentDocumentsResponse` 200(미결정 문서, 게스트는 필수만) | 401, `account_deactivated` 403, 주체 한도 429 |
+| `GET /v2/consents/entry` | 헤더 `Authorization` | `ConsentEntryResponse` 200(문서마다 현재 판 결정) | 401, `account_deactivated` 403, 주체 한도 429 |
+| `POST /v2/consents` | 헤더 `Authorization`, `ConsentRequest`: `document_id`, `action`(granted·declined) | `ConsentEventResponse` 201, 같은 결정이면 200 | 401, `account_deactivated` 403, `consent_document_not_found` 404, `consent_document_outdated` 409(`ConsentDocumentOutdatedError`), `required_consent_cannot_be_declined` 422, 허용 밖 `action`(revoked 포함) 422 배열, 주체 한도 429. 게스트의 오류는 account.guest |
+| `ConsentDocumentPublisher` (서버 시작 때) | 배포에 든 동의 문서 파일 | 판이 DB보다 새로우면 새 판 행, 같은 판이면 본문 덮어쓰기 | 실패는 보고한다 |
+
+`/v2` 요청은 `X-Acttub-Client` 헤더가 없으면 426이다. (공통 규칙)
+
+## 상태
+문서마다 현재 판에 대한 결정(user_consents의 마지막 행):
+
+| 상태 | 들어오는 전이(조건) | 일으키는 기능 |
+|---|---|---|
+| 미결정 | 현재 판에 행이 없음(새 판 발행), 1.0.0 이전의 필수 문서 거절·철회 기록 | account.consent |
+| granted | 가입 제출의 동의, 설정·게이트의 동의, 게스트의 동의 시트 | account.login, account.consent, account.guest |
+| declined | 가입 제출·설정의 선택 문서 거절 | account.login, account.consent |
+| revoked | 탈퇴 뒤 운영자가 처리한 보관 동의 철회 | account.withdraw |
+
+회원의 진입 판정(`ConsentEntry.Status`)은 저장하지 않고 요청마다 계산한다. 현재 판을 모두 결정했으면
+ALLOWED, 하나라도 미결정이면 DECISION_REQUIRED다.
+
+불변 조건: user_consents는 추가만 하고 고치지 않으며 탈퇴해도 남는다. 끝 상태는 없다. 새 판이 나오면 그
+문서는 다시 미결정이 된다.
+
+- 결정 값은 granted, declined, revoked 셋이다. 가입 때와 설정에서 고른 동의는 granted, 거절은
+  declined이고, 탈퇴 뒤 운영자가 처리한 철회만 revoked다.
+- type마다 현재 판이 하나다. 새 판은 version을 올려 발행하고 옛 판 행은 남긴다. 결정은 판 단위로
+  기록한다(user_consents는 추가만 하고 고치지 않는다). 현재 결정은 그 판에 대한 마지막 행이다.
+- 새 판이 나오면 옛 판의 결정은 옛 판에만 유효하고 새 판은 미결정이 된다. 필수·선택 모두 같아서
+  선택 문서의 새 판도 게이트에 나온다. 거절해도 결정이므로 통과한다.
+- 1.0.0 이전에 필수 문서를 거절하거나 철회한 기록이 있는 회원은 미결정과 같게 다룬다. 게이트는
+  consent_required로 답하고 동의 화면이 뜬다. 거절·철회를 따로 가르던 사유(consent_blocked)와 그 요청
+  헤더는 없앤다. 필수 문서를 거절할 길이 없어 새로 생기지 않기 때문이다.
+
 ## 데이터
 | 문서 | type | 필수 |
 |---|---|---|
@@ -35,12 +73,6 @@
 있어 선택 문서 줄을 더해야 한다.
 
 ## 규칙·제약
-- 결정 값은 granted, declined, revoked 셋이다. 가입 때와 설정에서 고른 동의는 granted, 거절은
-  declined이고, 탈퇴 뒤 운영자가 처리한 철회만 revoked다.
-- type마다 현재 판이 하나다. 새 판은 version을 올려 발행하고 옛 판 행은 남긴다. 결정은 판 단위로
-  기록한다(user_consents는 추가만 하고 고치지 않는다). 현재 결정은 그 판에 대한 마지막 행이다.
-- 새 판이 나오면 옛 판의 결정은 옛 판에만 유효하고 새 판은 미결정이 된다. 필수·선택 모두 같아서
-  선택 문서의 새 판도 게이트에 나온다. 거절해도 결정이므로 통과한다.
 - 필수 문서는 설정에서 내용만 보고 바꿀 수 없다. 필수 동의를 거두는 길은 탈퇴뿐이며 화면에 그렇게
   적는다.
 - 선택 문서는 설정에서 동의와 거절을 오간다. 바꾸는 즉시 저장하고, 되돌리려면 다시 바꾼다. 선택
@@ -57,9 +89,6 @@
 - 결정 제출은 문서 하나씩이다. 가입 제출만 모든 문서를 한 번에 담는다. (account.login) 결정은 쌓이기만
   하고 같은 결정의 재전송은 200이므로, 여러 문서를 차례로 보내다 끊겨도 빠진 문서만 게이트에 다시
   나온다.
-- 1.0.0 이전에 필수 문서를 거절하거나 철회한 기록이 있는 회원은 미결정과 같게 다룬다. 게이트는
-  consent_required로 답하고 동의 화면이 뜬다. 거절·철회를 따로 가르던 사유(consent_blocked)와 그 요청
-  헤더는 없앤다. 필수 문서를 거절할 길이 없어 새로 생기지 않기 때문이다.
 - 공개 페이지(D3·W3)는 누구에게나 모든 동의 문서의 현재 판 전문을 보여 주고 결정 버튼이 없다. 옛
   판은 보이지 않는다. 이 주소는 언제나 열람용이고 게스트의 결정은 기능 안의 시트에서
   받는다. (account.guest)
@@ -96,3 +125,8 @@
 - 필수 문서의 새 판이 미결정인 회원이 동의 화면의 탈퇴 링크로 들어가 탈퇴: 된다.
 - 배포 파일의 판이 DB보다 새로운 채로 서버 시작: 새 판 행이 생긴다. 같은 판이면 행이 늘지 않는다.
 - 같은 판의 본문만 고쳐 배포: 판이 그대로고 재동의 게이트가 뜨지 않는다.
+
+## 범위 밖
+- 광고성 정보 수신 문서. (데이터)
+- 동의 문서 관리 화면. 발행은 배포에 든 파일로 한다.
+- 배우가 보내는 철회. revoked는 탈퇴 뒤 운영자만 기록한다.

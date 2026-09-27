@@ -49,6 +49,12 @@
 
 누가 무엇을 볼 수 있는지의 기본값. 기능별로 다른 점만 각 기능의 절에 적는다.
 
+### 공통 상태
+
+여러 영역이 함께 쓰는 비동기 작업 원장 `external_operations`의 상태 전이(pending → running → succeeded·failed,
+lease 반납과 만료 회수)는 [CONTRACT §5-7](../../apps/api/CONTRACT.md#5-7-external_operations-lease-상태-전이--고정-계약)이
+정본이다. 각 기능의 「상태」 절에는 그 원장을 쓴다는 사실과 링크만 적는다.
+
 ### 검증 방법 공통
 
 기능마다 반복되는 확인 방법을 여기에 모은다. 각 기능의 검증 방법에는 그 기능에만 있는 확인만 남긴다.

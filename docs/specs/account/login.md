@@ -21,6 +21,51 @@
 어떤 제공자로 들어와도 한 사람은 한 계정이고, 두 번째 로그인부터는 자기 연습·노트·기억이 그대로
 보인다.
 
+## 입력·출력
+| 입구 | 입력 | 출력 | 오류 |
+|---|---|---|---|
+| `GET /v2/auth/providers` | 없음. 공개 조회라 토큰을 보지 않는다 | `AuthProvidersResponse` 200 | — |
+| `POST /v2/auth/login` | `LoginRequest`: `provider`, 제공자별 `id_token`(네이버 말고 필수), `authorization_code`(애플·네이버), `code_verifier`(네이버) | `LoginResponse`(`SignedInResponse` 또는 `SignupRequiredResponse`) 200 | `unsupported_provider` 400, `invalid_provider_token` 401, `account_exists_with_different_provider` 409(`AccountExistsError`), `authorization_code_required` 422, 빠진 자격 칸 422 배열, IP 한도 429, `provider_unavailable` 502, `provider_not_configured` 503 |
+| `POST /v2/auth/signup` | `SignupRequest`: `signup_token`, `decisions[]`(현재 판 모든 문서) | `SignedInResponse` 200 | `invalid_signup_token` 401, `consent_document_not_found` 404, `consent_document_outdated` 409, `account_exists_with_different_provider` 409, `consent_decisions_incomplete`·`required_consent_cannot_be_declined` 422, IP 한도 429 |
+| `POST /v2/auth/refresh` | `RefreshRequest`: `refresh_token` | `RefreshTokenResponse` 200 | `invalid_refresh_token` 401(소진된 토큰이면 그 회원의 세션 전부 폐기), `guest_transferred` 401, IP·주체 한도 429 |
+| `POST /v2/auth/providers/naver/disconnect` | 폼 `clientId`·`encryptUniqueId`·`timestamp`·`signature`. 클라이언트 판 헤더와 액세스 토큰을 보지 않는다 | 204(모르는 신원도 같다) | `invalid_provider_signature` 401, `provider_not_configured` 503 |
+| `POST /v2/auth/providers/kakao/disconnect` | `app_id`·`user_id`, 헤더 `Authorization: KakaoAK <어드민 키>`. 클라이언트 판 헤더를 보지 않는다 | 200 본문 없음(모르는 신원도 같다) | `invalid_provider_signature` 401, `provider_not_configured` 503 |
+| `AccountHousekeeping#runDaily` 리프레시 토큰 정리 (매일 한국 시간 4시 30분, `ACCOUNT_HOUSEKEEPING_CRON`) | 만료·폐기 30일 지난 `refresh_tokens` 행 | 행 삭제 | 실패는 보고하고 다른 정리는 계속 돈다 |
+
+제공자 콜백 말고 모든 `/v2` 요청은 `X-Acttub-Client` 헤더가 없으면 426이다. 게이트에 막힌 보호 기능의
+응답(403 `consent_required`·`profile_required`·`account_deactivated`)은 [공통 규칙](../common.md)을 따른다.
+
+## 상태
+`users.status`(`ck_users_status`):
+
+| 상태 | 들어오는 전이(조건) | 일으키는 기능 |
+|---|---|---|
+| active | 가입 제출 통과 | account.login |
+| active(게스트) | 웹 게스트 만들기 | account.guest |
+| deactivated(`deactivated_at`) | 탈퇴, 연습이 있는 1.0.0 이전 회원의 만 14세 미만 입력, 게스트 옮기기 완료, 옮기지 않은 게스트의 30일 파기 | account.withdraw, account.profile, account.guest |
+| deactivated + `retention_purged_at` | 탈퇴 3년 뒤 보관 파기를 마침 | account.withdraw |
+| 행 없음 | 연습이 없는 계정의 만 14세 미만 가입 게이트 입력 | account.profile |
+
+`refresh_tokens`:
+
+| 상태 | 들어오는 전이(조건) | 일으키는 기능 |
+|---|---|---|
+| 살아 있음 | 가입 제출·로그인·게스트 만들기·갱신으로 발급 | account.login, account.guest |
+| 소진(`revoked_at`, `replaced_by_id`) | 갱신으로 새 토큰에 자리를 넘김 | account.login |
+| 폐기(`revoked_at`) | 로그아웃(그 토큰 하나), 소진된 토큰 재사용(그 회원 전부), 탈퇴(전부), 게스트 옮기기(게스트 전부), 만료된 토큰으로 갱신 시도 | account.logout, account.login, account.withdraw, account.guest |
+| 만료 | 발급 30일 뒤 `expires_at` 지남 | — |
+| 행 없음 | 만료·폐기 30일 뒤 매일 정리 | account.login |
+
+불변 조건: deactivated 계정의 행은 지우지 않는다(만 14세 미만 가입 게이트만 예외). 탈퇴 절차로 deactivated가 되면(게스트
+옮기기는 아니다) 진행 중 `ai_jobs`·`external_operations`는 `failed`/`account_deactivated`로 닫힌다. 끝 상태는 users가
+deactivated + `retention_purged_at`, refresh_tokens가 행 없음이다.
+
+- users.status 허용값은 active와 deactivated다. 계정 정지는 1.0.0에 없다.
+- 액세스 토큰은 30분, 리프레시 토큰은 30일이다. 갱신할 때마다 리프레시 토큰을 새로 주고 옛 것은
+  소진된다. 소진된 토큰이 다시 오면 탈취로 보고 그 회원의 세션을 전부 끊는다.
+- 만료되거나 폐기된 지 30일이 지난 refresh_tokens 행은 하루 한 번 지운다. 그 전까지는 소진된
+  토큰의 재사용 탐지와 문제 추적에 쓴다.
+
 ## 규칙·제약
 - 계정을 찾는 순서가 계약이다. ① 제공자와 제공자 ID로 찾는다. ② 없으면 제공자가 검증했다고
   알린 이메일로 기존 계정을 찾아 그 계정에 새 신원을 붙인다. ③ 그것도 없으면 새 계정을 만든다.
@@ -40,7 +85,6 @@
   서버는 이를 애플 토큰으로 바꿔 user_identities에 암호화해 저장하고, 탈퇴 때 폐기 API에 쓴다.
   네이버도 교환으로 받은 토큰을 같은 방식으로 저장해 탈퇴 때 연결 해제에 쓴다.
 - provider 허용값은 google, apple, kakao, naver, 웹 게스트용 guest, 개발용 development다.
-- users.status 허용값은 active와 deactivated다. 계정 정지는 1.0.0에 없다.
 - 제공자 제공 범위: iOS는 넷 다. 안드로이드는 애플을 뺀 셋. 웹에는 로그인이 없다.
 - iOS와 안드로이드 앱은 제공자마다 같은 애플리케이션 등록을 쓴다. 네이버와 카카오의 사용자 ID는
   애플리케이션 단위로 발급되므로 등록을 나누면 같은 사람이 다른 신원이 된다.
@@ -77,13 +121,9 @@
   사라진다. 서버는 관여하지 않는다.
 - 로그인 때 제공자가 검증된 이메일을 주면 users.email을 그 값으로 갱신한다. 다른 계정이 이미 쓰는
   주소면 그대로 둔다.
-- 액세스 토큰은 30분, 리프레시 토큰은 30일이다. 갱신할 때마다 리프레시 토큰을 새로 주고 옛 것은
-  소진된다. 소진된 토큰이 다시 오면 탈취로 보고 그 회원의 세션을 전부 끊는다.
 - 액세스 토큰이 만료되면 앱이 리프레시로 한 번 갱신하고 요청을 다시 보낸다. 서버가 리프레시를
   거부하면 기기의 토큰을 지우고 로그인 화면으로 보낸다. 네트워크 오류는 로그아웃 사유가 아니다.
 - 30일 동안 앱을 한 번도 열지 않으면 다시 로그인해야 한다.
-- 만료되거나 폐기된 지 30일이 지난 refresh_tokens 행은 하루 한 번 지운다. 그 전까지는 소진된
-  토큰의 재사용 탐지와 문제 추적에 쓴다.
 
 ## 예외
 - 제공자 토큰이 잘못됐거나 만료됐으면 401. 지원하지 않는 제공자는 400. 제공자 설정이 없으면 503.
@@ -174,3 +214,4 @@
 - 웹 로그인. (account.guest)
 - 가입 유입 경로 추적. users의 signup_* 아홉 컬럼은 아무 코드도 쓰지 않으므로 1.0.0에서 지우고
   테이블도 만들지 않는다.
+- 계정 정지·운영 차단. 1.0.0에는 신고·운영 숨김·사람 차단(user_blocks, ADR-032)만 있다. (공통 규칙)

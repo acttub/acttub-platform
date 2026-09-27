@@ -21,6 +21,39 @@
 탈퇴한 사람의 신원·연락처·얼굴이 서비스에 남지 않고, 다른 사용자의 화면은 그대로다. 돌아오면
 새 계정으로 처음부터 시작한다.
 
+## 입력·출력
+| 입구 | 입력 | 출력 | 오류 |
+|---|---|---|---|
+| `DELETE /v2/me` | 헤더 `Authorization`. 게이트 밖이고 탈퇴한 계정과 게스트의 토큰도 받는다 | `WithdrawnResponse` 200. 처음이든 다시든 같고 시각은 최초 탈퇴 시각 | 401, 옮겨진 게스트 `guest_transferred` 403, 주체 한도 429 |
+| `AccountCleanup#attempt` (탈퇴 커밋 직후) | 방금 올린 정리 장부 행 | 객체 삭제·제공자 해제를 한 번 시도 | 실패는 보고하고 장부에 남긴다. 탈퇴 응답은 200 그대로 |
+| `AccountCleanupScheduler.run` (5분마다, `ACCOUNT_CLEANUP_INTERVAL_MS`) → `AccountCleanup#runDue`. 매일 도는 `AccountHousekeeping#runDaily`도 부른다 | 때가 된 account_cleanup_operations 행 | 성공하면 행 삭제, 실패하면 다음 시도를 늦춘다 | 7일 지난 제공자 해제는 값과 함께 지우고 애플이면 `AppleRevocationAbandoned`를 보고한다. 7일 넘게 실패한 객체 삭제는 `ObjectDeletionOverdue`로 알린다 |
+| `AccountHousekeeping#runDaily` 탈퇴 3년 파기 (매일 한국 시간 4시 30분) | `deactivated_at`이 달력으로 3년 지났고 `retention_purged_at`이 빈 계정 | 신원 해시 행 삭제, 보관하던 영상·리딩 녹음의 삭제를 장부에 올림, `retention_purged_at` 기록 | 실패는 보고하고 다른 정리는 계속 돈다. 다음 날 다시 고른다 |
+
+`/v2` 요청은 `X-Acttub-Client` 헤더가 없으면 426이다. (공통 규칙)
+
+## 상태
+- 탈퇴 → users가 deactivated(`deactivated_at`), 3년 파기 → `retention_purged_at` (정본: [account.login](login.md#상태))
+- 탈퇴 → 신원 행은 `provider_uid`를 비우고 `uid_hash`를 채운다(`ck_user_identities_uid_or_hash`). 3년 파기 → 행 없음.
+  게스트 신원은 해시 없이 행째 지운다. (정본: [account.guest](guest.md#상태))
+
+account_cleanup_operations(상태 컬럼 없음, 종류는 `ck_account_cleanup_operations_kind`의 object_delete·
+apple_revoke·kakao_unlink·naver_revoke·reading_recording_delete):
+
+| 상태 | 들어오는 전이(조건) | 일으키는 기능 |
+|---|---|---|
+| 대기(`next_attempt_at`) | 탈퇴 트랜잭션이 해제 값·객체 키를 옮김. 프로필 사진·포트폴리오 사진의 교체·삭제도 object_delete를 올린다 | account.withdraw, account.profile, account.portfolio |
+| 재시도(`attempt_count`, `last_error`) | 시도 실패. 5분에서 두 배씩 늘려 최대 12시간 뒤 | account.withdraw |
+| 기한 넘김(객체 삭제만, `expires_at` 지남) | 7일 동안 성공하지 못함. 계속 시도하고 7일마다 운영자에게 알린다 | account.withdraw |
+| 행 없음 | 성공, 제공자 해제의 7일 경과 | account.withdraw |
+
+불변 조건: 끝난 정리는 장부에 남지 않는다. 객체 삭제는 성공하기 전에는 대상 키를 지우지 않는다. 끝 상태는
+행 없음이다.
+
+- 서버 해제에 필요한 값(애플 토큰, 카카오 대상 ID, 네이버 토큰)과 지울 영상·녹음 객체의 목록은 파기
+  전에 탈퇴 정리 장부(account_cleanup_operations)에 암호화해 옮긴다. 제공자 해제 값은 해제가 성공하거나 7일이
+  지나면 지운다. 객체 삭제 작업은 삭제가 성공할 때까지 대상 키를 유지하고, 7일 연속 실패하면 운영자에게 알리고
+  복구 대상으로 남긴다(reading). 처리방침에 적는다. 연습 영역의 비동기 작업 장부와 합치는 것은 후속이다.
+
 ## 규칙·제약
 - 파기 대상(바로 알아보게 하는 것): users의 이메일, 프로필의 이름·사진·소개, 신원(user_identities의
   provider_uid와 애플 토큰), 리프레시·푸시 토큰, 살아 있는 이관 코드, 포트폴리오·경력·사진. 소개는
@@ -30,10 +63,6 @@
   어드민 키로 서버가 연결을 끊는다(카카오 정책 필수). 네이버는 로그인 때 저장해 둔 토큰으로 서버가
   연결을 해제한다. 구글은 서버가 ID 토큰만 받으므로 앱이 탈퇴 요청 직전에 SDK의 연결 해제를 부른다.
   앱의 해제가 실패해도 탈퇴는 진행한다.
-- 서버 해제에 필요한 값(애플 토큰, 카카오 대상 ID, 네이버 토큰)과 지울 영상·녹음 객체의 목록은 파기
-  전에 탈퇴 정리 장부(account_cleanup_operations)에 암호화해 옮긴다. 제공자 해제 값은 해제가 성공하거나 7일이
-  지나면 지운다. 객체 삭제 작업은 삭제가 성공할 때까지 대상 키를 유지하고, 7일 연속 실패하면 운영자에게 알리고
-  복구 대상으로 남긴다(reading). 처리방침에 적는다. 연습 영역의 비동기 작업 장부와 합치는 것은 후속이다.
 - 신원 해시: 탈퇴할 때 신원마다 서버 비밀키로 만든 HMAC(provider, provider_uid)을
   user_identities.uid_hash에 채우고 provider_uid는 비운다. 행은 탈퇴 3년 뒤 지운다. 3년은 한국 시간
   달력의 3년이다. 해시만으로는
@@ -104,6 +133,11 @@
   없고 옛 계정의 보관 동의에 revoked 행이 는다.
 - 탈퇴 3년 뒤: user_identities 행과 보관하던 영상 객체가 없다.
 - 탈퇴 뒤 폰의 앱 저장소: 계정 자료 키가 하나도 없다.
+
+## 범위 밖
+- 탈퇴 유예 기간과 계정 복구 요청.
+- 앱 안의 보관 동의 철회 화면과 철회 운영 도구.
+- 탈퇴 정리 장부와 연습 영역 비동기 작업 장부의 통합. 후속.
 
 ## 열린 질문
 - 처리방침 검토 때 법무 확인. 가명처리 보관과 동의 기반 보관의 문구, 그리고 사람과 끊어 남기는 자유

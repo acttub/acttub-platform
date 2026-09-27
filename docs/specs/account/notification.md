@@ -19,6 +19,24 @@
 ## 목적
 분석이 끝난 순간 배우가 알고, 연습 안 한 날 저녁에 한 번 떠올리며, 끄고 싶으면 한 번에 꺼진다.
 
+## 입력·출력
+| 입구 | 입력 | 출력 | 오류 |
+|---|---|---|---|
+| `GET /v2/me/notification-settings` | 헤더 `Authorization`(게이트 통과 회원) | `NotificationSettings` 200 | 게스트 `member_only` 403 |
+| `PATCH /v2/me/notification-settings` | 헤더 `Authorization`(게이트 통과 회원), `NotificationSettingsPatch`: 바꿀 토글만 | `NotificationSettings` 200(토글 셋 전체) | 게스트 `member_only` 403, 빈 본문·모르는 키·불리언 아닌 값 422 배열 |
+| `POST /v2/push-tokens` | 헤더 `Authorization`(게이트 통과 회원), `RegisterPushTokenRequest`: `token`·`platform` | 204. 푸시 토글 둘이 다 꺼졌거나 탈퇴와 겹치면 저장하지 않고 204 | 게스트 `member_only` 403, `consent_required`·`profile_required` 403, 422 배열 |
+| `DELETE /v2/push-tokens` | `UnregisterPushTokenRequest`: `token`. 로그인 없이 받고 `Authorization`을 보지 않는다 | 204 | 422 배열, IP 한도 429 |
+| `PushService#onAnalysisComplete` (분석 워커가 분석을 끝낼 때) | 분석 세션 | 분석 완료 토글이 켜진 회원의 토큰 전부에 Expo 푸시 | 실패는 밖으로 내보내지 않고 보고한다. `DeviceNotRegistered` 토큰은 지운다 |
+| 챌린지 알림 발송 | 챌린지 사건 | 챌린지 토글이 켜진 회원에게 푸시 | 정본은 challenge.notification |
+| 앱의 저녁 리마인드 알람 | 앱 열기, 그날 연습, 리마인드 토글 | 폰에 30일치 밤 10시 알람 | 없음 — 서버를 거치지 않는다 |
+
+`/v2` 요청은 `X-Acttub-Client` 헤더가 없으면 426이다. 게이트를 지나야 하는 입구는 공통 규칙의 401·403·429를
+함께 따른다.
+
+## 상태
+없음. 토글은 켬·끔 값이고 push_tokens 행은 있거나 없을 뿐 생애가 없다. 탈퇴는 토글을 끄고 토큰을
+지운다. (account.withdraw)
+
 ## 규칙·제약
 - 푸시 토큰은 폰이 알림 권한을 허용하면 등록한다. 한 사람에 폰 여러 대, 1:N이다. 등록은 보호 기능이라
   동의와 프로필이 끝난 뒤에만 받는다. 동의 전에는 기기 정보를 받지 않기 위해서다. 앱은 게이트를 통과한
@@ -74,3 +92,7 @@
 - Expo가 "등록되지 않은 기기"로 답하면: 그 토큰 행이 지워진다.
 - 알림 권한이 꺼진 폰에서 토글을 켜면: 권한 설정 안내가 뜬다.
 - 가입 직후 설정을 열면: 토글 셋이 모두 켜져 있다.
+
+## 범위 밖
+- 광고성 알림. (규칙·제약)
+- 웹 알림. 알림은 앱에만 있다.
