@@ -24,7 +24,7 @@
 | `GET /v2/practices/{practice_id}/analysis` | practice_id | `PracticeAnalysis` 200 | `analysis_not_found` 404, `practice_not_found` 404 |
 | `POST /v2/practices/{practice_id}/cancel` | practice_id | `PracticeStatus` 200(stage closed) | `analysis_already_finished` 409, `practice_not_found` 404 |
 | `AnalysisWorkerScheduler.poll` (`ANALYSIS_WORKER_POLL_INTERVAL_SEC`, 기본 2초) | `pending` analyze 작업, lease `ANALYSIS_LEASE_SEC`(기본 1800초) | analyses·video_transcripts 저장, 작업 succeeded | timeout·parse·unsupported는 즉시 `failed`, 바깥 의존 실패는 `pending`으로 되돌린다 |
-| `AnalysisWorkerScheduler.sweep` (`ANALYSIS_SWEEP_INTERVAL_SEC`, 기본 60초) | 3회 시도한 `pending` 작업 | 작업 `failed`(max_attempts), analyze면 회차 closed | — |
+| `AnalysisWorkerScheduler.sweep` (`ANALYSIS_SWEEP_INTERVAL_SEC`, 기본 60초) | 3회 시도한 `pending` 작업 | 작업 `failed`(앞서 적힌 failure_reason을 유지하고 없을 때만 max_attempts), analyze면 회차 closed | — |
 | `PushService.onAnalysisComplete` | 분석 완료 | 앱 완료 푸시(account.notification) | — |
 
 ## 상태
@@ -35,7 +35,7 @@ ai_jobs.status — 비동기 AI 작업 장부. 종류는 analyze·memory_update(
 | pending | 시작·이어하기·재시도가 analyze를 만든다, 대화 종료 뒤 memory_update 예약, running에서 일시 실패로 놓기(시도 수 유지) | practice.start, practice.resume, practice.memory, practice.analyze |
 | running | pending을 선점(시도 수 +1, lease_token·만료 시각), 시도 수가 3 미만일 때만 | practice.analyze, practice.memory |
 | succeeded | running에서 완료, lease_token이 그대로일 때 | practice.analyze, practice.memory |
-| failed | running에서 즉시 실패(timeout·parse·unsupported), 3회 소진 뒤 정리(max_attempts), 취소(cancelled), 탈퇴(account_deactivated), 기억 세대 불일치(memory_epoch_stale) | practice.analyze, practice.memory, account.withdraw |
+| failed | running에서 즉시 실패(timeout·parse·unsupported), 3회 소진 뒤 정리(앞서 놓을 때 적힌 사유를 유지하고, 없을 때만 max_attempts), 취소(cancelled), 탈퇴(account_deactivated), 기억 세대 불일치(memory_epoch_stale) | practice.analyze, practice.memory, account.withdraw |
 
 - 불변 조건: (user_id, request_id)당 작업 하나(`uq_ai_jobs_user_request`). 완료·실패·놓기는 lease_token이 그대로일 때만 통하고, 바뀌었으면
   저장 전체를 되돌린다. 놓기는 시도 수를 되돌리지 않는다(`AiJobLedger.MAX_ATTEMPTS` = 3).
@@ -116,13 +116,14 @@ video_transcripts.status — 영상 단위 받아쓰기.
 
 ## 1층: 시간축이 있는 영상 기록 (SOMA-526)
 
-정본은 `summaries.raw`의 `acttub.video_record.v1`이다. 기존 `observations_json`, `uncertainties_json`은 새 기록에서 빈 배열이며 기존 행은 변경하지 않는다. `summaries.id = record_id`이고 정본은 분석 완료 후 덮어쓰지 않는다.
+정본은 `analyses.record`(format `video_record_v1`)의 `acttub.video_record.v1`이다(PostgresPracticeAnalysisStore). 정본은 분석 완료 후 덮어쓰지 않는다.
+(v1 당시: `summaries.raw`에 저장하고 `summaries.id = record_id`였으며, 기존 `observations_json`, `uncertainties_json`은 새 기록에서 빈 배열이었다. 옛 행은 호환 읽기 경로로만 읽는다.)
 
 - 원본을 최대 30초 청크로 분석하고 지역 시각·ID를 원본 기준으로 조립한다. 청크마다 최대 6회 생성 예산을 독립적으로 둔다. 구조 오류는 재생성하고, 필요하면 최소 7.5초까지 분할한다. 앞 청크의 실패가 뒤 청크의 예산을 소모하지 않는다.
 - 영상 파트에 6 FPS 샘플링을 명시하고 프레임 사이 미세 변화·추정 시각의 한계를 기록한다. LOW thinking으로 청크별 생성 예산을 유지한다. [Gemini 영상 문서](https://ai.google.dev/gemini-api/docs/video-understanding)의 기본 샘플링 한계를 고려한 설정이며 실제 영상으로 비용·시각 품질을 확인한다.
 - 전체 대사, 발성·호흡·리듬·시선·얼굴·움직임·환경의 관찰, 변화가 없는 상태, 관찰 한계를 저장한다. 상위 15개 등의 개수 제한을 두지 않는다. 각 구간의 참조와 처음부터 끝까지의 시간축을 검증한다.
 - 받아쓰기의 모든 단어 시각과 단어 사이 간격을 보존한다. 무음으로 단정하지 않고 `word_gap`으로 기록한다. ASR와 영상 대사가 충돌하면 양쪽을 보존하고 한계를 남긴다. 모델 추정 시각은 `estimated`, ASR 단어 시각은 `aligned`다.
-- 부분 실패는 `processing.status=partial`, `processed_ranges`, `missing_ranges`와 한계로 기록한다. 모든 청크가 실패하면 기존 분석 실패 흐름을 따른다. 2층은 분석 실패 시에도 근거가 없다는 상태로 대화를 열 수 있다.
+- 부분 실패는 `processing.status=partial`, `processed_ranges`, `missing_ranges`와 한계로 기록한다. 모든 청크가 실패하면 기존 분석 실패 흐름을 따른다. 분석이 전부 실패한 회차는 대화를 열 수 없다(409 `analysis_not_ready`, 위 「규칙·제약」). (v1 당시 설계는 근거 없는 상태로 대화를 여는 것이었다.)
 - 영상 전체를 손실 없이 텍스트로 복원한다고 보장하지 않는다. 보이지 않거나 들리지 않는 부분은 설명을 만들어 채우지 않는다.
 
 프롬프트: `apps/api/src/main/resources/coaching/video-record-prompt.txt`.

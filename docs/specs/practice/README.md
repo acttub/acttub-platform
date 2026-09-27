@@ -59,7 +59,7 @@ SOMA-526. 영상 외 입력을 건너뛴 배우가 현재 표현을 살펴보고
 1층은 [practice.analyze](analyze.md), 2층은 [practice.coach](coach.md), 3층은 [practice.note](note.md)에 있다. v1의 2·3층 기록은 커밋 c2b76b09의 [ACTTUB-THREE-LAYERS.md](https://github.com/acttub/acttub-platform/blob/c2b76b09/docs/ACTTUB-THREE-LAYERS.md)에서 본다.
 
 ### 적용 범위
-웹·앱은 `X-Acttub-Contract: three_layers_v1`을 보낸다. 서버의 `ACTTUB_THREE_LAYERS_ENABLED=true`이고 상황·인물·목표·막힘 상세가 비어 있으며 막힘 대분류가 `그 외`인 신규 연습만 `experience_version=three_layers_v1`로 고정한다. 기존 입력 경로와 구형 클라이언트는 `legacy`다.
+웹·앱은 `X-Acttub-Contract: three_layers_v1`을 보낸다. 서버의 `ACTTUB_THREE_LAYERS_ENABLED=true`인 신규 연습은 입력과 무관하게 `experience_version=three_layers_v1`로 고정한다(SOMA-508 hotfix, practice.start). (v1 당시: 상황·인물·목표·막힘 상세가 비어 있고 막힘 대분류가 `그 외`일 때만이었다.) 기존 입력 경로와 구형 클라이언트는 `legacy`다.
 
 기능 플래그의 애플리케이션 기본값은 false다. dev 배포는 영상만 올리는 연습이 새 2·3층을 사용하도록 `DEPLOY_THREE_LAYERS_ENABLED=true`를 전달한다. 배포 스크립트가 이를 release.env에 기록하고 실제 API 컨테이너 값을 확인한다. 운영 배포는 이 값을 지정하지 않고 서버의 기존 설정을 유지한다. 플래그를 꺼도 이미 만든 새 연습과 노트는 읽을 수 있으며 기존 데이터를 다시 분석하지 않는다. 신형 reader가 없는 예전 서버 바이너리로 되돌리는 방식은 사용하지 않는다.
 
@@ -79,7 +79,7 @@ SOMA-526. 영상 외 입력을 건너뛴 배우가 현재 표현을 살펴보고
 ### DB·트랜잭션·호환성
 V5는 experience_version, coaching_state_json, state_revision을 추가하고 기존 CHECK 허용값을 확장한다. handoff의 `(coach_session_id, state_revision)`은 새 계약에 한해 유일하다. 기존 Flyway 파일은 수정하지 않는다.
 
-LLM과 미디어 처리는 DB 트랜잭션 밖이다. 코치 메시지·state/revision·handoff·note·멱등 응답을 기존 완료 트랜잭션에서 함께 저장한다. revision 충돌은 409이며, lease 소유권을 잃으면 전체 쓰기가 롤백된다. note_id는 practice_reports 행의 id다. 닫히는 reply의 재전송도 저장한 응답을 그대로 반환한다.
+LLM과 미디어 처리는 DB 트랜잭션 밖이다. 코치 메시지·state/revision·handoff·note·멱등 응답을 기존 완료 트랜잭션에서 함께 저장한다. revision 충돌은 409이며, lease 소유권을 잃으면 전체 쓰기가 롤백된다. note_id는 `coach_notes` 행의 id다(v1 당시: practice_reports 행의 id). 닫히는 reply의 재전송도 저장한 응답을 그대로 반환한다.
 
 구형 클라이언트 목록에서 새 연습/노트는 제외하고 직접 조회는 `client_contract_required` 409로 처리한다. 새 서버는 구형 raw와 노트를 계속 읽는다. 생성 플래그를 끄는 것과 reader를 제거하는 것은 다르다.
 

@@ -66,8 +66,12 @@ docs/                     PRD·ARCHITECTURE·ADR·BRANCHING-STRATEGY, specs/(기
   └── 업로드 예약으로 받은 URL로 S3에 직접 올림
 ```
 
-- LLM과 미디어 처리는 DB 트랜잭션 밖에서 돈다. 분석·코치·노트 같은 비동기 작업은 `external_operations`
-  원장이 lease로 소유권을 관리한다 → [CONTRACT](../apps/api/CONTRACT.md) §5-7.
+- LLM과 미디어 처리는 DB 트랜잭션 밖에서 돈다.
+  - 분석·배우 기억 갱신·챌린지 AI 리포트는 `ai_jobs` 원장의 비동기 작업이고, lease로 소유권을 관리한다
+    → [practice.analyze](specs/practice/analyze.md#상태).
+  - 코치 답변과 연습 노트는 요청 안에서 만들고, `state_revision` 검사와 요청 멱등 처리로 저장한다
+    → [practice.coach](specs/practice/coach.md#상태).
+  - `external_operations`는 옛 연습 흐름의 호환 원장이다 → [CONTRACT](../apps/api/CONTRACT.md) §5-7.
 - 코칭은 세 층이다. 1층 영상 기록 → 2층 대화 → 3층 연습 노트
   → [specs/practice/](specs/practice/README.md).
 - 웹의 API 타입은 API가 낸 `apps/api/spec/openapi.json`에서 생성한다(`pnpm --filter web generate:v2-schema`).

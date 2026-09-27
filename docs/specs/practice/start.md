@@ -57,8 +57,9 @@ practices.stage — 회차 진행 상태의 정본이다.
 - 막힘은 큰 갈래(분석·표현·그 외)와 세부(표현의 감정·움직임·화술·표정·그 외), 서술(500자, 선택)이다. 고르지 않으면 그 외/그 외이고
   막힘 미특정으로 부른다. 받아쓰기는 갈래와 무관하게 돈다.
 - 이론 선택(스타니슬랍스키 등)은 0.1.0에서 뺀다. 웹 D4의 이론 줄은 없앤다. (디자인에 반영할 것)
-- 코칭 갈래는 experience_version(legacy·three_layers_v1)으로 남긴다. 서버의 신형 생성 플래그가 켜져 있고 계약 헤더가 three_layers_v1이며
-  영상만 올리고 장면·막힘을 적지 않은 현행 무입력 조건일 때만 three_layers_v1(영상부터 시작하는 기본 코치)이고, 그 밖은 legacy다.
+- 코칭 갈래는 experience_version(legacy·three_layers_v1)으로 남긴다. 서버의 신형 생성 플래그가 켜져 있고 계약 헤더가 three_layers_v1이면
+  장면·막힘을 적었는지와 무관하게 three_layers_v1(새 코치)이고, 그 밖은 legacy다(SOMA-508 hotfix, `PracticeRules.threeLayers`).
+  적은 장면·막힘은 새 코치가 받아 쓴다(practice.coach). 예전에는 무입력일 때만 신형이었다.
   legacy 안의 분석·표현·기본 코치 선택은 막힘 입력으로 정한다(현행). 플래그를 꺼도 이미 만든 신형 자료의 읽기는 유지한다. 전체를
   신형으로 바꾸는 것은 별도 결정이다.
 - 이미 사용 가능한 영상(보관함)으로 시작하면 업로드 단계가 없다. 새 영상이면 practice.record의 올리기를 먼저 마친다.
@@ -74,7 +75,8 @@ practices.stage — 회차 진행 상태의 정본이다.
 - 플래그 켬·헤더 three_layers_v1·영상만 고르고 시작: practices 1행(root_id = 자기, ordinal 1, stage analyzing, 막힘 그 외/그 외, 상황·인물·목표
   빈 문자열, experience_version three_layers_v1), ai_jobs 1행(kind analyze, pending).
 - 같은 조건에 플래그 끔: experience_version legacy. 헤더 없음: legacy.
-- 상황·막힘(표현 › 감정)을 적고 시작: 저장값이 그대로이고 experience_version legacy, 표현 갈래.
+- 플래그 켬·헤더 three_layers_v1·상황·막힘(표현 › 감정)을 적고 시작: 저장값이 그대로이고 experience_version three_layers_v1.
+- 헤더 없이 상황·막힘(표현 › 감정)을 적고 시작: experience_version legacy, 표현 갈래.
 - 같은 요청 id·같은 본문 두 번: 행 하나. 같은 id·다른 본문: 422 request_fingerprint_mismatch. 설정 화면만 다녀감: 행 없음.
 - 확정 안 된 영상: 422 video_not_ready.
 - 게스트 4번째: 429 guest_daily_analysis_limit. 자정(한국 시간) 뒤: 된다.
@@ -87,7 +89,7 @@ practices.stage — 회차 진행 상태의 정본이다.
 ## 범위 밖
 - 이론 선택(스타니슬랍스키 등). 0.1.0에서 뺀다.
 - 시작 뒤 Scene Context 수정, 건너뛴 Scene Context를 나중에 채우는 화면(PRD 「지금 하지 않는 것」, ADR-021).
-- 전체 코칭을 신형(three_layers_v1)으로 바꾸는 것. 별도 결정이다.
+- 계약 헤더가 없는 구형 클라이언트나 플래그가 꺼진 서버까지 신형(three_layers_v1)으로 바꾸는 것. 별도 결정이다.
 
 ## 열린 질문
 - 재시도가 close_reason을 보지 않는다. `PostgresPracticeRepository.retryAnalysis`는 stage가 closed이기만 하면 받아 cancelled·

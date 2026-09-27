@@ -58,7 +58,8 @@ entry_ai_reports.status와 파기 표시(purged_at).
 - entry_ai_reports는 참여작당 한 행이고 status(pending·ready·failed), model, format_version, attempt_count, result(jsonb: 관찰·한계·제안과 견주기
   문장마다 근거 표본 참여작 id — 내부 전용), requested_at, completed_at을 가진다. 저장 직전과 조회 때 표본 선정 조건 전체(공개 조건·파일 있음·
   차단 관계·다른 작성자)를 다시 검사해, 부적격이 된 표본에 기댄 견주기 문장은 응답에서 뺀다. 표본 id는 사용자 응답에 넣지 않는다.
-- 실패 분류는 practice.analyze의 ai_jobs 규칙(즉시 실패 분류, 바깥 의존 실패 재큐)과 같되 시도 수는 위 3번 규칙을 따른다. 저장 직전에 계정·
+- 실패는 practice.analyze와 달리 즉시 실패 분류가 없다. 모델 호출 실패와 쓸 수 없는 출력(모양·금지 어휘로 거절된 파싱)은 모두 바깥 의존
+  실패로 보고, 세 번째 시도 전까지는 재큐하고 세 번째 실패에서 failed로 닫는다(`ChallengeReportWorker`, `ChallengeReportRules.MAX_RUNS`). 저장 직전에 계정·
   참여작·표본 권한을 다시 확인하고 탈퇴·삭제가 먼저 끝났으면 저장하지 않는다.
 - 본인만 본다. 남의 리포트 id는 404. 비공개 참여작의 리포트도 본인은 본다. 참여작을 지우면 본문·비교 자료를 파기한다. 탈퇴하면 본문·비교 자료를
   파기하고 생성 이력(요청·완료 시각, 상태)만 탈퇴일부터 90일 남긴다.

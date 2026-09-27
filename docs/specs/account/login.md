@@ -52,8 +52,8 @@
 |---|---|---|
 | 살아 있음 | 가입 제출·로그인·게스트 만들기·갱신으로 발급 | account.login, account.guest |
 | 소진(`revoked_at`, `replaced_by_id`) | 갱신으로 새 토큰에 자리를 넘김 | account.login |
-| 폐기(`revoked_at`) | 로그아웃(그 토큰 하나), 소진된 토큰 재사용(그 회원 전부), 탈퇴(전부), 게스트 옮기기(게스트 전부), 만료된 토큰으로 갱신 시도 | account.logout, account.login, account.withdraw, account.guest |
-| 만료 | 발급 30일 뒤 `expires_at` 지남 | — |
+| 폐기(`revoked_at`) | 로그아웃(그 토큰 하나), 소진된 토큰 재사용(그 회원 전부), 탈퇴(전부), 게스트 옮기기(게스트 전부) | account.logout, account.login, account.withdraw, account.guest |
+| 만료 | 발급 30일 뒤 `expires_at` 지남. 만료된 토큰으로 갱신하면 JWT 검사(`JwtService`)에서 401로 끊겨 행은 그대로 만료 상태다 | — |
 | 행 없음 | 만료·폐기 30일 뒤 매일 정리 | account.login |
 
 불변 조건: deactivated 계정의 행은 지우지 않는다(만 14세 미만 가입 게이트만 예외). 탈퇴 절차로 deactivated가 되면(게스트
