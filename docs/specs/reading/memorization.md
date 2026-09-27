@@ -20,11 +20,30 @@
 ## 목적
 배우가 아직 못 외운 줄만 골라 반복하고, 외웠다고 표시한 줄이 어느 기기에서나 같게 보인다.
 
-## 규칙·제약
+## 입력·출력
+| 입구 | 입력 | 출력 | 오류 |
+|---|---|---|---|
+| `PUT /v2/reading/lines/{line_id}/memorization` | `line_id`, `ReadingMemorizationRequest`(status memorized·not_yet) | `ReadingLineMemorization` 200(만들든 바꾸든) | 없는 줄·남의 줄 `line_not_found` 404, 지문·장면 줄 `invalid_line` 422, 값·키 오류 422 배열 |
+| `GET /v2/reading/scripts/{script_id}/memorization` | `script_id` | `ReadingLineMemorization` 배열 200(줄 순서, 표시 없는 줄은 빠짐) | `script_not_found` 404 |
+
+## 상태
+line_memorization.status가 이 기능의 정본이다. 저장은 (user_id, line_id) upsert 한 문장이다(`PostgresMemorizationRepository`).
+
+| 상태 | 들어오는 전이(조건) | 일으키는 기능 |
+|---|---|---|
+| (행 없음) | 아직 표시하지 않은 줄 | — |
+| memorized | "이 대사 외웠어요"(행 없음·not_yet에서) | reading.memorization |
+| not_yet | "아직 헷갈려요", "외운 대사도 보기"에서 되돌림(행 없음·memorized에서) | reading.memorization |
+
+불변 조건: (사람, 줄)마다 행 하나다(`uq_line_memorization_user_line`). 끝 상태는 없고 두 값 사이를 오간다. 행은
+대본 삭제·탈퇴로 지워진다.
+
 - line_memorization은 (user_id, line_id) 유일이고 status(memorized·not_yet)와 updated_at을 둔다. 행이 없으면
   아직 표시하지 않은 줄이다. 상태는 배우의 "이 대사 외웠어요"(memorized)와 "아직 헷갈려요"(not_yet)로만
   바뀐다. 같은 상태 재전송은 updated_at을 바꾸지 않는다. 대조 결과는 여기에 쓰지 않고 녹음의 matched와
   회차의 review_lines에만 남는다.
+
+## 규칙·제약
 - 암기 화면의 대상은 진입 경로가 정한다. 대본에서 들어오면 화면이 고른 배역(기본은 마지막 회차의 내 배역)의
   대사 가운데 status가 memorized가 아닌 줄(행 없음 포함)이다. 완료 화면(R05)의 다시 볼 대사에서 들어오면 그
   회차의 내 배역과 다시 볼 줄(unmatched·skipped)이며 이미 memorized인 줄도 열고 표시를 자동으로 바꾸지 않는다.
@@ -81,3 +100,13 @@
 - 지문 줄 id로 갱신: 422 invalid_line. 장면 줄 id: 422 invalid_line. 상대역 대사 줄 id: 200. 남의 줄 id: 404.
 - 오프라인에서 토글 뒤 연결: 서버 값이 기기 값과 같다. 탈퇴: line_memorization 행이 없다.
 - 암기 화면: 점수·등급·칭찬·"틀렸어요" 문구가 없다.
+
+## 범위 밖
+- 대조 통과를 "외웠어요"로 자동 표시하기.
+- 암기 화면에서 회차·녹음 만들기.
+- 시도 횟수 컬럼, 대본 카드(R00)의 암기 진행 표시.
+- 수치·맞음·틀림·점수·등급 결과(README).
+
+## 열린 질문
+- 이 문서는 대조 결과가 "회차의 review_lines에만 남는다"고 하지만 회차의 컬럼·API 필드는 `line_results`다(V13,
+  `PostgresSessionRepository`, reading.session). `review_lines`는 없다.

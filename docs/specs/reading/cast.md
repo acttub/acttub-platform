@@ -20,6 +20,16 @@
 ## 목적
 배우가 배역을 고르는 것만으로 리딩을 시작하고, 상대역이 언제나 같은 목소리로 읽는다.
 
+## 입력·출력
+| 입구 | 입력 | 출력 | 오류 |
+|---|---|---|---|
+| `GET /v2/reading/scripts/{script_id}` | `script_id` | `ReadingScript` 200(배역의 voice_preset·대사 수, `last_session`의 내 배역이 기본 선택) | `script_not_found` 404 |
+| `PATCH /v2/reading/scripts/{script_id}`(목소리) | `ReadingScriptPatch`의 `characters[{id, voice_preset}]`, 키가 있을 때만 바꾸고 null은 자동 | `ReadingScript` 200 | 33자 이상 프리셋·이 대본에 없는 배역 id `invalid_characters` 422, `script_not_found` 404 |
+| `POST /v2/reading/scripts/{script_id}/sessions`(내 배역) | `ReadingSessionCreateRequest`의 `my_character_ids` | `ReadingSession` 201 | 비었거나 겹치거나 다른 대본의 배역 `invalid_characters` 422. 나머지는 reading.session |
+
+## 상태
+없음 — 배역에 생애 상태가 없다. 내 배역은 회차 속성이라 시작 뒤 바뀌지 않고, voice_preset의 NULL은 "자동"이라는 값이다.
+
 ## 규칙·제약
 - 내 배역은 회차의 속성이다. reading_sessions.my_character_ids에 배역 id 배열로 둔다. 하나 이상이어야
   하고 모두 그 대본의 배역이어야 한다. 아니면 422 invalid_characters. 시작한 회차의 배역 구성은 바꾸지
@@ -70,3 +80,9 @@
 - 시작한 회차의 배역을 바꾸는 요청: 없다(속성 불변). 같은 프리셋을 두 배역에: 허용. 33자 프리셋: 422 invalid_characters.
 - 목소리 저장이 실패한 채 회차 시작: 이번 회차는 고른 목소리로 읽고 다음 진입 때 다시 저장한다.
 - 앱에서 이동통신으로 처음 시작: 용량 확인 팝업이 뜬다. Wi-Fi: 뜨지 않는다.
+
+## 범위 밖
+- 시작한 회차의 배역 구성 바꾸기.
+- 저장 뒤 배역 빼기·더하기와 배역 이름 수정(reading.script).
+- 서버의 프리셋 목록 검증. 서버는 32자 이내 문자열이면 받는다.
+- 목소리 모델을 준비하지 못했을 때 다른 음성으로 자동 전환.

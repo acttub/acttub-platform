@@ -21,6 +21,20 @@
 ## 목적
 배우가 자기 대본 목록을 어디서 넣었든 앱에서 보고, 넣어 둔 대본으로 바로 리딩을 시작한다.
 
+## 입력·출력
+| 입구 | 입력 | 출력 | 오류 |
+|---|---|---|---|
+| `POST /v2/reading/scripts` | `X-Request-Id`(선택, 있으면 본문 `request_id`와 같아야 한다), `ReadingScriptCreateRequest`(request_id·title·source·raw_text·characters·lines) | `ReadingScript` 201, 같은 요청 재전송 200 | `no_characters`·`invalid_characters`·`script_too_long`·`script_limit`·`request_fingerprint_mismatch` 422, 형태 오류 422 배열, `account_deactivated` 403, 게스트 동의 전 `consent_required` 403 |
+| `GET /v2/reading/scripts` | `q`(선택, 제목·배역 이름) | `ReadingScriptList` 200 | — |
+| `GET /v2/reading/scripts/{script_id}` | `script_id` | `ReadingScript` 200 | `script_not_found` 404 |
+| `PATCH /v2/reading/scripts/{script_id}` | `script_id`, `ReadingScriptPatch`(title?·characters?) | `ReadingScript` 200 | `invalid_characters` 422, 줄 등 모르는 키 422 배열, `script_not_found` 404, `account_deactivated` 403 |
+| `DELETE /v2/reading/scripts/{script_id}` | `script_id` | 204 | `script_not_found` 404 |
+| `ReadingRecordingCleanup.attempt`(삭제 커밋 직후), `AccountCleanupScheduler.run`(`ACCOUNT_CLEANUP_INTERVAL_MS`, 기본 5분) | 삭제 장부의 `reading_recording_delete` | 녹음 객체 삭제 | 실패하면 장부에 남아 재시도 |
+| 앱 1.0.0 첫 실행의 옛 대본 올리기(기기) | AsyncStorage의 옛 대본·암기 표시 | `POST /v2/reading/scripts`와 암기 갱신 | `script_limit` 422면 그 대본은 기기에 남는다 |
+
+## 상태
+없음 — scripts·script_characters·script_lines에 상태·삭제 표시 컬럼이 없다. 목록의 상태 칩은 회차에서 집계한다(reading.session).
+
 ## 규칙·제약
 - 입력 경로는 넷이다. 파일, 붙여넣기, 직접 쓰기, 예시 대본. 파일에서 글자를 뽑는 일은 기기에서 하고
   파일 자체는 서버에 올리지 않는다. 웹은 txt·pdf·docx·hwp를, 앱은 txt·pdf·docx를 연다. hwpx는 둘 다
@@ -147,3 +161,14 @@
 - 옛 앱에 대본 둘(하나에 외운 줄 셋)과 녹음 하나가 있는 기기에서 1.0.0을 처음 열어 로그인: 서버에 대본 둘이 생기고(입력
   경로 paste, 원문은 줄에서 되살린 글) 외운 줄 셋이 memorized이며 기기 저장소의 대본·녹음 파일이 없다.
 - 옛 대본 둘 중 하나가 한도에 걸림: 성공한 대본만 기기에서 지워지고 걸린 대본은 남아 다음 실행에 다시 시도한다.
+
+## 범위 밖
+- 저장 뒤 다시 나누기. 1.0.0에는 없고 새 대본으로 넣는다.
+- 서버의 배역 추출·대본 분석. 배역 나누기는 기기 파서가 한다(README).
+- 파일 자체의 서버 업로드와 hwpx 열기.
+- 대본의 공유·공개·검색 노출과 대사 본문 검색.
+- 목록 카드의 "분석 완료" 칩.
+
+## 열린 질문
+- 등록·수정이 게이트를 지난 뒤 계정이 닫혔으면 코드는 403 `account_deactivated`(`ScriptService`)를 주지만 이 문서의
+  예외에는 없다.

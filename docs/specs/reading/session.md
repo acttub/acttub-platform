@@ -20,6 +20,36 @@
 ## 목적
 배우가 상대 없이도 장면의 흐름 안에서 자기 대사를 말해 보고, 중단해도 그 자리에서 이어 간다.
 
+## 입력·출력
+| 입구 | 입력 | 출력 | 오류 |
+|---|---|---|---|
+| `POST /v2/reading/scripts/{script_id}/sessions` | `X-Request-Id`(선택, 있으면 본문과 같아야 한다), `ReadingSessionCreateRequest`(request_id·my_character_ids·mode·start_line_id·end_line_id·advance·record) | `ReadingSession` 201, 같은 요청 재전송 200 | `invalid_characters`·`invalid_line`·`empty_range`·`request_fingerprint_mismatch` 422, 형태 오류 422 배열, `script_not_found` 404 |
+| `GET /v2/reading/scripts/{script_id}/sessions` | `script_id` | `ReadingSessionList` 200 | `script_not_found` 404 |
+| `GET /v2/reading/sessions/{session_id}` | `session_id` | `ReadingSession` 200 | `session_not_found` 404 |
+| `PATCH /v2/reading/sessions/{session_id}/progress` | `ReadingSessionProgressRequest`(progress_seq 필수, current_line_id·elapsed_seconds·line_results·complete 선택) | `ReadingSessionProgress` 200(옛 progress_seq도 현재 값) | `session_closed` 409, `invalid_line` 422, `session_not_found` 404 |
+| `DELETE /v2/reading/sessions/{session_id}` | `session_id` | 204, 녹음 객체는 삭제 장부로(reading.recording) | `session_not_found` 404 |
+
+## 상태
+reading_sessions.status가 이 기능의 정본이다.
+
+| 상태 | 들어오는 전이(조건) | 일으키는 기능 |
+|---|---|---|
+| in_progress | 회차 시작. 나가기·진행 저장은 이 상태에 머문다 | reading.session |
+| completed | 진행 저장의 complete=true(구간의 끝 대사를 지남), ended_at을 찍는다 | reading.session |
+| stopped | 같은 대본에 새 회차를 시작함(같은 트랜잭션, `PostgresSessionRepository`) | reading.session |
+
+불변 조건: 대본당 in_progress 회차는 하나다(`uq_reading_sessions_open_script`). 끝 상태는 completed·stopped이고,
+행은 회차 삭제·대본 삭제·탈퇴로 지워진다.
+
+- 열린 회차는 대본당 하나다(script_id, status = in_progress 부분 유일 인덱스). 상세(R00.5)의 "새로운
+  연습"은 열린 회차를 stopped로 바꾸고 새 회차를 만든다(한 트랜잭션). "이어서 연습 · K / N"은 열린 회차를
+  current_line부터 다시 연다.
+- 상태는 in_progress에서 completed(구간의 끝 대사를 지남) 또는 stopped(새 회차가 닫음)로 간다. 나가기
+  (R03.2)는 위치를 저장하고 in_progress로 남긴다. 나가기 확인 문구는 "지금 나가면 N번 대사까지 진행한
+  걸로 저장돼요. 상세에서 이어서 할 수 있어요"로 하고 "끝 위치를 정하지 않았어요"는 뺀다. (디자인에 반영할
+  것) completed·stopped는 되돌리지 않고, "다시 리딩"은 같은 설정의 새 회차다. 일시정지는 화면 상태이며
+  서버에 없다.
+
 ## 규칙·제약
 - 회차는 배역·구간을 정하고 "시작"을 누를 때 한 번 만든다. 설정 화면만 다녀가면 아무것도 남지 않는다.
   시작 요청에도 기기 요청 id(UUID)를 싣고 (user_id, request_id)로 유일하게 둬 재전송이 회차를 둘 만들지
@@ -50,14 +80,6 @@
   않는다. 앱은 지금 수동만이라 침묵 감지를 더한다. (확정 결정 7)
 - 진행 "K / N · mm:ss": N은 구간 안 대사 줄 수(모든 배역, 지문·장면 제외), K는 지난 대사 수, 시간은 일시정지
   를 뺀 흐른 시간이다. 지문은 화면에만 보이고 진행에서는 건너뛴다. 앱이 지문을 세는 것은 고친다.
-- 열린 회차는 대본당 하나다(script_id, status = in_progress 부분 유일 인덱스). 상세(R00.5)의 "새로운
-  연습"은 열린 회차를 stopped로 바꾸고 새 회차를 만든다(한 트랜잭션). "이어서 연습 · K / N"은 열린 회차를
-  current_line부터 다시 연다.
-- 상태는 in_progress에서 completed(구간의 끝 대사를 지남) 또는 stopped(새 회차가 닫음)로 간다. 나가기
-  (R03.2)는 위치를 저장하고 in_progress로 남긴다. 나가기 확인 문구는 "지금 나가면 N번 대사까지 진행한
-  걸로 저장돼요. 상세에서 이어서 할 수 있어요"로 하고 "끝 위치를 정하지 않았어요"는 뺀다. (디자인에 반영할
-  것) completed·stopped는 되돌리지 않고, "다시 리딩"은 같은 설정의 새 회차다. 일시정지는 화면 상태이며
-  서버에 없다.
 - 진행 위치 current_line_id는 다음에 할 대사 줄의 id다(completed에서는 NULL, stopped는 중단 위치 유지). 줄이
   바뀔 때마다(상대 줄 포함), 일시정지·나가기·완료 때 기기가 흐른 시간(elapsed_seconds, 누적)과 순번
   (progress_seq, 기기가 1씩 늘림)을 함께 저장한다. 서버는 progress_seq가 저장된 값보다 큰 요청만 반영하고 작거나
@@ -137,3 +159,16 @@
 - 대본 카드 칩: 열린 회차가 있으면 "연습 중", 마지막 회차가 completed면 "연습 완료".
 - 웹 게스트가 회차를 중간까지 하고 앱으로 옮김: 앱 상세에 그 회차가 "이어서 연습"으로 보이고 같은 줄부터
   이어진다.
+
+## 범위 밖
+- 대사별 메모(R00.2).
+- 가리기·일시정지의 서버 저장.
+- completed·stopped 회차 되돌리기.
+- 리딩 회차를 앱 홈·연습 기록(A1.1)에 섞기, 코치 카드로 리딩 자료 보내기.
+- 점수·등급·칭찬 반응(README).
+
+## 열린 질문
+- 코드는 같은 request_id에 속성이 다른 시작 요청을 422 `request_fingerprint_mismatch`로, 구간의 줄이 그 대본의 대사
+  줄이 아닌 시작 요청을 422 `invalid_line`으로 거절한다(`SessionService`). 이 문서의 예외에는 둘 다 없다.
+- 진행 저장의 위치·줄 결과가 구간 안 대사 줄이 아니면 코드는 422 `invalid_line`이다. 이 문서는 "위치는 구간 안 대사
+  줄만 받고"라고만 하고 사유 코드를 적지 않는다.

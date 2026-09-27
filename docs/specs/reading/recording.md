@@ -20,6 +20,19 @@
 ## 목적
 배우가 회차가 끝난 뒤 자기 대사를 줄마다 다시 듣고, 웹에서 남긴 녹음을 앱으로 옮긴 뒤에도 듣는다.
 
+## 입력·출력
+| 입구 | 입력 | 출력 | 오류 |
+|---|---|---|---|
+| `POST /v2/reading/sessions/{session_id}/recordings` | multipart `ReadingRecordingUploadForm`(request_id·line_id·attempt_no·audio·duration_ms·transcript_source, transcript·matched 선택), `X-Request-Id`(선택, 있으면 본문과 같아야 한다). 서버가 받아 m4a가 아니면 변환하고 객체 저장소에 올린 뒤 행을 만든다. 올릴 자리를 따로 받지 않는다 | `ReadingSessionRecording` 201(생성·대체), 200(같은 요청 재전송·더 작은 attempt_no, 현재 값) | `recording_too_long`·`invalid_line`·`recording_quota` 422, 칸 형태 422 배열, `session_not_found` 404, `audio_conversion_failed`·`storage_not_configured` 503, 25MB 초과 `upload_too_large` 413 |
+| `GET /v2/reading/sessions/{session_id}`(재생) | `session_id` | `ReadingSession`의 `recordings`(줄 순서, 10분 서명 `playback_url`) 200 | `session_not_found` 404 |
+| `DELETE /v2/reading/recordings/{recording_id}` | `recording_id` | 204, 객체는 삭제 장부로 | `recording_not_found` 404 |
+| `ReadingRecordingCleanup.attempt`(삭제·대체 커밋 직후), `AccountCleanupScheduler.run`(`ACCOUNT_CLEANUP_INTERVAL_MS`, 기본 5분) | 삭제 장부의 `reading_recording_delete` | 녹음 객체 삭제 | 실패하면 장부에 남아 재시도, 7일마다 운영자 알림 |
+| 탈퇴·미이관 게스트 30일 파기(`PostgresProfileRepository#eraseReading`, account.withdraw) | 그 사람의 녹음 행 | 보관 동의자만 행을 남기고 회차·줄 연결을 비움, 나머지는 행·전사 삭제와 객체 장부 | — |
+| `AccountHousekeepingScheduler.run`(`ACCOUNT_HOUSEKEEPING_CRON`, 매일 04:30 KST)의 3년 파기(`purgeRetained`) | 최초 탈퇴 뒤 3년 지난 보관 녹음 | 행 삭제와 객체 장부 | — |
+
+## 상태
+없음 — reading_recordings에 상태 컬럼이 없다. attempt_no(1 이상)는 대체 순서를, transcript_source(stt·none)는 전사 출처를 가를 뿐이다.
+
 ## 규칙·제약
 - 녹음은 회차 속성 record(켬·끔)로 시작할 때 정한다. 시작 화면이 "내 차례 녹음은 내 계정에 저장돼요"를
   보여 준다. 마이크 권한이 있으면 기본은 켬이다. quiz 방식도 켤 수 있고 끌 수 있다. 내 차례에만 녹음하고
@@ -103,3 +116,14 @@
 - 마이크 거부 상태로 시작: 화면에 녹음 표시가 없고 행이 생기지 않는다.
 - 일시정지 중에 말함: 녹음에 들어가지 않는다.
 - 응답만 유실된 올리기를 재시도: 같은 녹음 하나. 이관 처리 중 옛 게스트로 올리기: 옛 계정에 행이 없다.
+
+## 범위 밖
+- 시도마다 녹음 남기기. 같은 줄은 마지막 시도 하나만 남는다.
+- 서버의 음성 분석·전사. 서버는 형식 변환만 하고 내용을 읽지 않는다(README).
+- 점수·거리 저장.
+- 영상처럼 올릴 자리를 따로 받는 업로드.
+- 옛 앱의 회차 전체 녹음 옮기기(reading.script).
+
+## 열린 질문
+- 코드는 multipart 컨테이너 상한(25MB)을 넘으면 핸들러 전에 413 `upload_too_large`, 스토리지 설정이 없으면 503
+  `storage_not_configured`를 준다(CONTRACT §6-14). 이 문서의 예외에는 둘 다 없다.
