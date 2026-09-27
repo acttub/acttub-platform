@@ -20,6 +20,28 @@
 ## 목적
 배우가 같은 대사를 남들은 어떻게 했는지, 내 것은 무엇이 다른지 관찰로 본다.
 
+## 입력·출력
+| 입구 | 입력 | 출력 | 오류 |
+|---|---|---|---|
+| `POST /v2/entries/{id}/ai-report` | `ChallengeAiReportRequest`(request_id) | `ChallengeAiReport` 202(새 생성·생성 중), 200(결과 있음) | `member_only` 403, `entry_not_found` 404, `video_not_ready` 422, `request_fingerprint_mismatch` 422, `daily_report_request_limit` 429 |
+| `GET /v2/entries/{id}/ai-report` | id | `ChallengeAiReport` 200 | `member_only` 403, `ai_report_not_found` 404 |
+| `ChallengeReportScheduler.poll` → `ChallengeReportWorker.runOnce` (`CHALLENGE_REPORT_POLL_INTERVAL_MS`, 기본 5초, 스위치 `ANALYSIS_WORKER_ENABLED`) | `ai_jobs` kind challenge_report 대기 작업 | entry_ai_reports ready, entry_ai_report_ready 알림 | 실행 실패·거절 출력은 재큐, 세 번째 실패면 failed. 참여작 삭제·탈퇴면 저장하지 않고 작업 cancelled |
+| 보관 기간 정리 (`ChallengeSettlementScheduler.run` 안, 매시) | purged_at이 90일 지난 행 | 행 삭제 | — |
+
+## 상태
+entry_ai_reports.status와 파기 표시(purged_at).
+
+| 상태 | 들어오는 전이(조건) | 일으키는 기능 |
+|---|---|---|
+| pending | 새 생성 요청(행 없음, 또는 failed 뒤 "다시 시도" — 같은 행에 새 job_id, attempt_count 0, result 비움) | challenge.ai-report |
+| ready | 워커 저장 성공(리포트가 이 생성의 것이고 참여작·계정이 살아 있음) | challenge.ai-report |
+| failed | 세 번째 실행 실패(attempt_count 3) | challenge.ai-report |
+| 파기(purged_at, result NULL) | 참여작 삭제. 탈퇴 | challenge.entry, account.withdraw |
+
+- 불변 조건: 참여작당 한 행(`uq_entry_ai_reports_entry`). attempt_count 0~3(`ck_entry_ai_reports_attempts`). ready면 result가 있거나 파기됨
+  (`ck_entry_ai_reports_ready`). 파기면 result NULL(`ck_entry_ai_reports_purged`). 파기는 status를 바꾸지 않는다.
+- 끝 상태: ready(다시 요청해도 기존 결과). failed는 "다시 시도"로 pending이 된다. 파기된 행은 90일 뒤 지운다.
+
 ## 규칙·제약
 - 생성은 "AI 리포트 받기"를 눌렀을 때 ai_jobs(kind challenge_report) 하나를 만든다. 결과가 이미 있으면 기존 결과를 연다(참여작과 1:1). 참여작당
   실행 중인 생성은 하나이고 같은 요청 id의 재전송은 기존 작업을 돌려준다. 회원은 하루 3회의 새 생성이고 넘으면 429 daily_report_request_limit.
@@ -63,3 +85,9 @@
 - 파일만 파기한 참여작 요청: 422 video_not_ready. 못 본 구간이 있는 영상: 한계에 적히고 채워지지 않는다.
 - 참여작 삭제: entry_ai_reports 본문 없음, 진행 중 작업 취소. 탈퇴: 본문 없음, 이력만 남고 91일 뒤 없음. 남의 리포트 조회: 404.
 - 입력 조립에 코치 대화·장면 입력·배우 기억이 없다(단위 테스트).
+
+## 범위 밖
+- 점수·등급·순위 같은 평가(ADR-005, [PRD](../../PRD.md) 「지금 하지 않는 것」).
+- 전후 영상 비교(ADR-007).
+- 참여 때 자동 생성.
+- 코치 대화·장면 입력·배우 기억을 입력으로 쓰는 것.

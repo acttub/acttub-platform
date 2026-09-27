@@ -17,6 +17,30 @@
 ## 목적
 배우가 다른 배우의 연기에 반응을 남기고, 참고할 영상을 모아 둔다.
 
+## 입력·출력
+| 입구 | 입력 | 출력 | 오류 |
+|---|---|---|---|
+| `PUT /v2/entries/{id}/like`, `DELETE /v2/entries/{id}/like` | id | `EntryLikeState` 200 | `member_only` 403, `entry_not_found` 404, `self_like` 422 |
+| `PUT /v2/entries/{id}/save`, `DELETE /v2/entries/{id}/save` | id | `EntrySaveState` 200 | `member_only` 403, `entry_not_found` 404, `self_save` 422 |
+| `GET /v2/me/saved-entries` (A15.5) | `cursor` | `SavedChallengeEntries` 200 | `member_only` 403, cursor 422 |
+| `GET /v2/entries/{id}/comments` | `cursor` | `EntryCommentPage` 200 | `member_only` 403, `entry_not_found` 404 |
+| `POST /v2/entries/{id}/comments` | `EntryCommentCreateRequest`(request_id·body 필수) | `EntryComment` 201, 같은 요청 재전송 200 | `member_only` 403, `entry_not_found` 404, 길이 422, `request_fingerprint_mismatch` 422, `daily_comment_limit` 429 |
+| `DELETE /v2/comments/{id}` | id | 204 | `member_only` 403, `comment_not_found` 404 |
+| `GET /v2/public/entries/{id}` (공유 링크 미리보기, 로그인 없음, 웹 서버가 부름) | id, `X-Forwarded-For` | `PublicChallengeEntry` 200 | `entry_not_found` 404, 429(IP별 분당 60회) |
+
+## 상태
+entry_comments.status와 삭제 표시(deleted_at). entry_likes·entry_saves는 행이 있거나 없을 뿐 상태가 없다.
+
+| 상태 | 들어오는 전이(조건) | 일으키는 기능 |
+|---|---|---|
+| visible | 작성. hidden에서 신고 판정 restored·dismissed이고 남은 received 신고 없음 | challenge.react, challenge.report |
+| hidden | visible 댓글의 유효한 첫 신고 | challenge.report |
+| 삭제(deleted_at, body NULL) | 본인 삭제. 부모 참여작 삭제 | challenge.react, challenge.entry |
+
+- 불변 조건: status는 visible·hidden뿐이다(`ck_entry_comments_status`). 삭제 ⇔ body NULL(`ck_entry_comments_deleted`). (user_id, request_id) 유일
+  (`uq_entry_comments_request`).
+- 끝 상태: 삭제. 삭제는 status를 바꾸지 않고 본문만 파기한다.
+
 ## 규칙·제약
 - 반응은 개인 노출 조건을 만족하는 참여작에만 된다. 비공개·삭제·숨김 참여작, review·hidden 챌린지의 참여작, 차단 관계의 참여작에는 404다
   (공통 규칙). 반응 저장은 참여작·차단 행을 잠근 채 조건을 다시 확인한다.
@@ -58,3 +82,12 @@
 - 작성자 탈퇴: 댓글 남고 "탈퇴한 사용자".
 - 공유 링크를 회원 앱에서 열기: 그 참여작부터 피드가 열린다. 비공개된 뒤 열기: "볼 수 없는 영상" 안내.
 - 게스트 토큰: 403 member_only.
+
+## 범위 밖
+- 댓글 좋아요·답글([공통 규칙](../common.md#범위-밖)).
+- 댓글 수정.
+- 저장의 랭킹·작성자 알림 반영.
+
+## 열린 질문
+- [공통 규칙](../common.md#범위-밖)은 "챌린지 공유 링크의 웹 공개 페이지"를 1.0.0 범위 밖에 두는데, 이 문서의 규칙·제약과 코드
+  (`PublicEntryController`, `GET /v2/public/entries/{id}`, CONTRACT §6-17)는 웹 주소 `/e/<id>`의 중간 페이지를 둔다. 어느 쪽이 맞는지 정한다.

@@ -20,6 +20,33 @@
 ## 목적
 배우가 자기 영상에 온 반응을 놓치지 않는다.
 
+## 입력·출력
+| 입구 | 입력 | 출력 | 오류 |
+|---|---|---|---|
+| `GET /v2/me/notifications` | `cursor` | `ChallengeNotifications` 200 | `member_only` 403, cursor 422 |
+| `POST /v2/me/notifications/read` | `NotificationReadRequest`(group_keys 또는 all_before) | 204 | `member_only` 403, 둘 다 없음 422 |
+| `GET /v2/me/notifications/unread-count` | — | `NotificationUnreadCount` 200 | `member_only` 403 |
+| 사건 기록 `NotificationEvents.record` (좋아요·댓글 쓰기, 마감 집계, AI 리포트 저장과 같은 트랜잭션) | 원인 사건 | notifications 1행(push_status pending 또는 skipped) | 같은 event_key 재전송은 한 행 |
+| `NotificationPushScheduler.run` → `NotificationPushWorker.runOnce` (`CHALLENGE_NOTIFICATION_PUSH_INTERVAL_MS`, 기본 1분, `CHALLENGE_NOTIFICATION_PUSH_ENABLED`) | push_after가 지난 pending 알림 묶음 | 최초·요약 푸시, push_status attempted·skipped | 전송 실패는 운영 보고, "등록되지 않은 기기" 토큰 삭제 |
+| 만료 정리 (`ChallengeSettlementScheduler.run` 안, 매시) | expires_at이 지난 알림, 지난 notification_pushes | 행 삭제 | — |
+
+토글(`PATCH /v2/me/notification-settings`)과 푸시 토큰(`/v2/push-tokens`)은 account.notification이다.
+
+## 상태
+notifications.push_status와 읽음(read_at).
+
+| 상태 | 들어오는 전이(조건) | 일으키는 기능 |
+|---|---|---|
+| push pending | 사건 기록 때 토글 켬·토큰 있음(push_after 지정) | challenge.notification |
+| push skipped | 사건 기록 때 토글 꺼짐·토큰 없음. 발송 때 재확인 실패 | challenge.notification |
+| push attempted(+push_attempted_at) | 발송 워커가 보냄 | challenge.notification |
+| 읽지 않음(read_at NULL) → 읽음(read_at) | 묶음 열람, 모두 읽음(그 시각·id까지) | challenge.notification |
+
+- 불변 조건: pending이면 push_after가 있다(`ck_notifications_pending`). (user_id, event_key) 유일(`uq_notifications_event`). challenge_ended ⇔ entry_id NULL
+  (`ck_notifications_entry`), entry_commented ⇔ comment_id 있음(`ck_notifications_comment`). notification_pushes는 stage first·summary이고
+  (group_key, stage) 유일(`uq_notification_pushes_stage`)이라 묶음마다 최초·요약을 한 번씩만 선점한다.
+- 끝 상태: attempted·skipped. 행은 expires_at(생성 + 90일)이 지나거나, 참여작이 삭제되거나, 수신자가 탈퇴하면 지운다.
+
 ## 규칙·제약
 - 사건 kind는 entry_liked(내 참여작에 좋아요, 수신 = 참여작 작성자), entry_commented(내 참여작에 댓글), challenge_ended(내가 삭제되지 않은
   참여작을 가진 챌린지 종료, 챌린지당 한 번), entry_ai_report_ready(내가 요청한 리포트 완료) 넷이다. 자기 행동은 알리지 않고 차단 관계의
@@ -72,3 +99,12 @@
   알림: actor "탈퇴한 사용자".
 - 푸시 서비스가 실패해도 좋아요 저장 응답은 200이고 운영 보고가 남는다.
 - 게스트 토큰으로 알림함: 403 member_only.
+
+## 범위 밖
+- 오늘의 챌린지 소개·순위 변동·내 챌린지의 새 참여 푸시(후속, [공통 규칙](../common.md#범위-밖)).
+- 푸시 전달을 ai_jobs에 넣는 것.
+- 알림 토글과 푸시 토큰 관리(account.notification).
+
+## 열린 질문
+- 규칙·제약은 90일 지난 알림을 "매일 도는 일"이 지운다고 하지만, 코드는 매시 도는 `ChallengeSettlementScheduler.run`
+  (`PostgresEntryRepository.settle`)에서 지운다(CONTRACT §6-20도 매시). 코드를 따라 문서를 고칠지 정한다.

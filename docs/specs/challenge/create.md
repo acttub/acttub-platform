@@ -19,6 +19,35 @@ ERD는 챌린지를 "대사 한 줄 + 기간"으로, 사용자 개설과 기획�
 ## 목적
 배우가 찾는 대사가 없으면 스스로 챌린지를 열어 다른 배우를 부른다.
 
+## 입력·출력
+| 입구 | 입력 | 출력 | 오류 |
+|---|---|---|---|
+| `POST /v2/challenges` | `X-Acttub-Client: app/…`, `ChallengeCreateRequest`(request_id·line·work·duration_days 필수, character·scene_note 선택) | `Challenge` 201, 같은 요청 재전송 200 | `member_only` 403, `account_deactivated` 403, 길이·모르는 필드 422, `invalid_duration` 422, `request_fingerprint_mismatch` 422, `duplicate_challenge` 422, `daily_challenge_limit` 429 |
+| `DELETE /v2/challenges/{id}` | id | 204(이미 삭제한 것도 204) | `member_only` 403, `challenge_not_found` 404(없음·남의 것·visible 아님), `challenge_has_entries` 422 |
+| `POST /v2/admin/challenges` (운영 토큰, openapi.json에 없음) | `Authorization: Bearer <ADMIN_OPS_TOKEN>`, `AdminChallengeCreateRequest`(request_id·line·work·duration_days 필수, featured_on 선택) | `Challenge` 201, 재전송 200 | 401, origin이 team 아님 422, `invalid_duration` 422, `featured_date_conflict` 422, `request_fingerprint_mismatch` 422 |
+| `PATCH /v2/admin/challenges/{id}/moderation` (운영 토큰, openapi.json에 없음) | `ChallengeModerationRequest`(moderation visible·review·hidden) | `Challenge` 200 | 401, 값 밖 422, `challenge_not_found` 404(없음·삭제됨) |
+
+조회(`GET /v2/challenges`, `GET /v2/challenges/{id}`)는 [challenge.browse](browse.md#입력출력)다.
+
+## 상태
+challenges.moderation과 삭제 표시(deleted_at). 기간 상태는 계산값이라 컬럼이 없다.
+
+| 상태 | 들어오는 전이(조건) | 일으키는 기능 |
+|---|---|---|
+| visible | 개설(회원·기획팀)의 시작값. review에서 신고 판정 restored·dismissed이고 그 챌린지에 남은 received 신고 없음. 운영 moderation 변경 | challenge.create, challenge.report |
+| review | 처리 전 신고의 서로 다른 신고자 수가 `CHALLENGE_REPORT_THRESHOLD`(3)에 닿음(`PostgresEntryReportRepository`, 챌린지 행 잠금). 운영 moderation 변경 | challenge.report, challenge.create(운영) |
+| hidden | 운영 moderation 변경(`PATCH /v2/admin/challenges/{id}/moderation`)만 | challenge.create(운영) |
+| 삭제(deleted_at) | 주최자 삭제. visible이고 참여 이력(삭제된 참여작 포함)이 0 | challenge.create |
+
+- 기간 상태: ends_at 이전은 진행 중, 지나면 종료다. 종료되면 새 참여를 막고 기존 정상 공개 참여작은 남으며 랭킹이 굳는다
+  (challenge.browse). 같은 대사를 다시 띄우려면 새 행이고 이전 참여작·좋아요·랭킹은 이전 챌린지에 남는다.
+- 운영 상태: visible ↔ review(신고 누적으로 운영 검토, 목록·피드에서 제외, 참여작은 유지)·hidden(운영 숨김, 하위 참여작 노출 중단).
+  review·hidden에서 visible로 되돌릴 때 기간이 지났으면 종료 상태의 visible이다. hidden은 되돌릴 수 있다(운영 판단).
+- 불변 조건: ends_at > starts_at(`ck_challenges_period`). team은 host_user_id NULL(`ck_challenges_team`), featured_on은 team만
+  (`ck_challenges_featured_team`)이고 날짜당 하나(`uq_challenges_featured`). 삭제된 행의 moderation은 바꾸지 않는다(`PostgresChallengeRepository.moderate`가 404).
+- 끝 상태: 삭제(deleted_at)다. 되돌리는 경로가 없다. hidden은 끝 상태가 아니다.
+- 마감 뒤 순위 확정 ranking_state NULL → pending → final (정본: [challenge.browse](browse.md#상태)).
+
 ## 규칙·제약
 - 챌린지는 대사(1~200자, 필수), 작품(1~100자, 필수, 창작이면 "창작"), 인물(100자, 선택), 장면 메모(500자, 선택), 기간(7일·14일 선택지,
   API 상수), 개설 구분 origin(team·member, 불변), 주최자 host_user_id(team은 NULL), starts_at(공개 개설 시각)·ends_at(서버 계산),
@@ -34,10 +63,6 @@ ERD는 챌린지를 "대사 한 줄 + 기간"으로, 사용자 개설과 기획�
 - "오늘의 챌린지"는 기획팀 챌린지(origin team) 가운데 featured_on이 오늘(한국 날짜)이고 visible·진행 중인 것이다(미래 날짜는 제외). 없으면
   가장 최근 과거 featured_on의 visible·진행 중 챌린지, 그것도 없으면 참여작이 가장 많은 visible·진행 중 챌린지다. 피드(A15)의 머리와 대사 목록의
   인기·최신 탭 맨 위에 "오늘의 챌린지 · D-N"으로 보인다(종료·내 챌린지 탭에는 고정하지 않는다). 선정일과 참여 기간은 다르다.
-- 기간 상태: ends_at 이전은 진행 중, 지나면 종료다. 종료되면 새 참여를 막고 기존 정상 공개 참여작은 남으며 랭킹이 굳는다
-  (challenge.browse). 같은 대사를 다시 띄우려면 새 행이고 이전 참여작·좋아요·랭킹은 이전 챌린지에 남는다.
-- 운영 상태: visible ↔ review(신고 누적으로 운영 검토, 목록·피드에서 제외, 참여작은 유지)·hidden(운영 숨김, 하위 참여작 노출 중단).
-  review·hidden에서 visible로 되돌릴 때 기간이 지났으면 종료 상태의 visible이다. hidden은 되돌릴 수 있다(운영 판단).
 - 주최자가 탈퇴하면 host_user_id를 NULL로 돌리고 origin member는 그대로다(기획팀 챌린지로 보이지 않고 "주최자 탈퇴"로 표시).
   users 행은 지워지지 않으므로 애플리케이션이 탈퇴 트랜잭션에서 수행한다.
 - 게스트 토큰: 403 member_only. 한국어 설정이 아닌 회원의 개설: 403 member_only와 같은 처리다(탭이 없다).
@@ -70,3 +95,8 @@ ERD는 챌린지를 "대사 한 줄 + 기간"으로, 사용자 개설과 기획�
 - 운영이 review로 바꿈: 목록·피드에서 빠지고 참여작은 남는다. 기간이 지난 뒤 visible로 되돌림: 종료 상태로 보인다.
 - 주최자 탈퇴: host_user_id NULL, origin member, 화면에 "주최자 탈퇴", 행·참여작 그대로.
 - 게스트 토큰으로 개설: 403 member_only. 한국어가 아닌 회원: 403 member_only.
+
+## 범위 밖
+- 사용자 개설의 사전 검토([공통 규칙](../common.md#범위-밖)).
+- 공개 개설 뒤 대사·작품·기간 수정.
+- 계정 정지·운영 차단([공통 규칙](../common.md#범위-밖)).

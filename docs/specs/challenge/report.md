@@ -18,6 +18,30 @@
 ## 목적
 배우가 부적절한 콘텐츠를 바로 안 보게 하고, 운영이 사후에 판단한다.
 
+## 입력·출력
+| 입구 | 입력 | 출력 | 오류 |
+|---|---|---|---|
+| `POST /v2/reports` | `ChallengeReportRequest`(request_id·target_type·target_id·reason 필수, note 선택) | `ReportReceipt` 201, 같은 요청 재전송·같은 대상 재신고 200 | `member_only` 403, `entry_not_found`·`comment_not_found`·`challenge_not_found` 404, `self_report` 422, `request_fingerprint_mismatch` 422, note 길이·값 밖 422, `daily_report_limit` 429 |
+| `GET /v2/admin/reports` (운영 토큰, openapi.json에 없음) | `Authorization: Bearer <ADMIN_OPS_TOKEN>`, `status`(received·reviewed), `cursor` | `AdminChallengeReportPage` 200 | 401, status·cursor 422 |
+| `PATCH /v2/admin/reports/{id}` (운영 토큰, openapi.json에 없음) | `AdminReportResolution`(resolution·reviewer 필수, note 선택) | `AdminChallengeReport` 200 | 401, `report_not_found` 404, `report_already_reviewed` 422, resolution·reviewer 값 422 |
+| 보관 기간 정리 (`ChallengeSettlementScheduler.run` 안, 매시) | reviewed_at이 90일 지난 reviewed 신고 | 행 삭제 | — |
+
+## 상태
+entry_reports.status.
+
+| 상태 | 들어오는 전이(조건) | 일으키는 기능 |
+|---|---|---|
+| received | 신고 접수 | challenge.report |
+| reviewed(+resolution restored·kept_hidden·dismissed, reviewed_by, reviewed_at) | 운영 판정. received일 때만 | challenge.report |
+
+- 불변 조건: reviewed ⇔ resolution·reviewed_at 있음(`ck_entry_reports_reviewed`). (target_type, target_id, reporter_id) 유일(`uq_entry_reports_target`) —
+  한 사람은 한 대상을 한 번 신고한다. (reporter_id, request_id) 유일(`uq_entry_reports_request`).
+- 끝 상태: reviewed. 처리 뒤 90일이 지나면 행을 지운다.
+- 이 기능이 일으키는 다른 행의 전이:
+  - 참여작 visible → hidden_by_report(첫 신고), hidden_by_report → visible(restored·dismissed, 남은 received 없음) (정본: [challenge.entry](entry.md#상태)).
+  - 댓글 visible → hidden, hidden → visible(같은 조건) (정본: [challenge.react](react.md#상태)).
+  - 챌린지 visible → review(서로 다른 신고자 3명), review → visible(같은 조건) (정본: [challenge.create](create.md#상태)).
+
 ## 규칙·제약
 - 신고는 target_type(entry·comment·challenge)·target_id·reporter_id·reason·note(200자, 선택)·status(received·reviewed)·resolution(restored·
   kept_hidden·dismissed)·reviewed_by·reviewed_at·resolution_note·target_version(신고 당시 대상의 content_version; 참여작은 캡션 수정, 댓글·
@@ -62,3 +86,9 @@
 - 작성자가 신고된 참여작을 삭제: status deleted, entry_reports 행은 남는다. 신고자 탈퇴: 행 남음. 처리 완료 91일 뒤: 행 없음.
 - 신고자·작성자 응답에 서로의 이름·id가 없다. 처리 목표 시각(24시간·72시간)이 운영 화면에 보인다.
 - 게스트 토큰: 403 member_only.
+
+## 범위 밖
+- 계정 정지·운영 차단([공통 규칙](../common.md#범위-밖)).
+- 신고자에게 처리 결과 알림.
+- 이미 내려받은 영상의 회수.
+- 기각(dismissed)만으로 허위 신고 확정.

@@ -18,6 +18,17 @@
 ## 목적
 배우가 불쾌한 사람을 자기 화면에서 지우고, 그 사람이 내 영상에 반응하지 못하게 한다.
 
+## 입력·출력
+| 입구 | 입력 | 출력 | 오류 |
+|---|---|---|---|
+| `PUT /v2/me/blocks/{user_id}` | user_id | `UserBlockState` 200(이미 차단이어도 200) | `member_only` 403, `self_block` 422, `user_not_found` 404(없음·비활성) |
+| `DELETE /v2/me/blocks/{user_id}` | user_id | `UserBlockState` 200(없는 차단을 풀어도 200) | `member_only` 403, `self_block` 422 |
+| `GET /v2/me/blocks` (A4 차단 목록) | — | `BlockedUsers` 200 | `member_only` 403 |
+
+## 상태
+없음 — user_blocks는 행이 있거나 없을 뿐이다((blocker_id, blocked_id) 유일 `uq_user_blocks_pair`, 자기 자신 금지 `ck_user_blocks_other`).
+탈퇴는 양쪽 행을 지운다(account.withdraw).
+
 ## 규칙·제약
 - user_blocks는 (blocker_id, blocked_id) 유일이고 created_at을 가진다. 자기 자신은 차단할 수 없다(422 self_block). 켜기·풀기는 멱등이다.
 - 차단 효과(양방향 숨김): 내가 차단한 사람과 나를 차단한 사람의 참여작·댓글은 내 목록·피드·랭킹 표시·검색·저장 목록에서 빠진다(개인 노출
@@ -39,3 +50,7 @@
 - 자기 자신: 422 self_block. 두 번 차단: 행 하나. 없는 회원: 404.
 - A가 탈퇴: 내가 건 차단 행과 A가 건 차단 행이 모두 없다.
 - 설정 차단 목록: 차단한 사람이 이름(첫 글자 아바타)으로 보이고 풀기 버튼이 있다. A의 어느 화면에도 차단 표시가 없다.
+
+## 범위 밖
+- 계정 정지·운영 차단([공통 규칙](../common.md#범위-밖)).
+- 상대에게 차단 사실 알림·표시.

@@ -18,6 +18,39 @@
 ## 목적
 배우가 같은 대사를 다른 배우가 어떻게 연기했는지 보고, 자기 영상이 어디쯤인지 안다.
 
+## 입력·출력
+| 입구 | 입력 | 출력 | 오류 |
+|---|---|---|---|
+| `GET /v2/challenges` | `tab`(popular·latest·ended·mine), `q`, `cursor` | `ChallengeList` 200 | `member_only` 403, tab·cursor 422 |
+| `GET /v2/challenges/{id}` | id | `Challenge` 200 | `member_only` 403, `challenge_not_found` 404 |
+| `GET /v2/challenges/{id}/entries` | `sort`(likes·latest), `cursor`, `from_entry` | `ChallengeEntryPage` 200 | `member_only` 403, `challenge_not_found` 404, `entry_not_found` 404(from_entry), `cursor_expired` 410, sort·cursor 422 |
+| `GET /v2/entries/{id}` | id | `ChallengeEntry` 200 | `member_only` 403, `entry_not_found` 404 |
+| `POST /v2/entries/{id}/views` | `ChallengeEntryViewRequest`(event_id) | 204 | `member_only` 403, `entry_not_found` 404 |
+| `GET /v2/me/challenge-entries` (P03) | `visibility`(public·private·under_review), `cursor` | `MyChallengeEntries` 200 | `member_only` 403, visibility·cursor 422 |
+| `ChallengeSettlementScheduler.run` (`CHALLENGE_SETTLEMENT_INTERVAL_MS`, 기본 1시간, `CHALLENGE_SETTLEMENT_ENABLED`) | 마감이 지났고 ranking_state NULL이거나 pending인 챌린지(한 번에 200개) | `ChallengeSettlement.settle`로 마감 집계·순위 확정, 7일 지난 조회 사건·지난 커서 등 보관 기간 정리 | 챌린지별 실패는 운영 보고, 나머지는 계속 |
+| 마감 뒤 첫 변경·목록 조회 (`ChallengeSettlement.settle`·`aggregateIfDue`) | 참여작 수정·삭제, 반응, 신고·판정, 운영 moderation 변경, 탈퇴(`ChallengeWithdrawal`), 랭킹 조회 | 같은 트랜잭션에서 마감 집계(조회는 집계만) | — |
+
+## 상태
+challenges.ranking_state(마감 순위). 행을 만드는 곳은 challenge.create지만 이 상태는 이 기능이 정본이다.
+
+| 상태 | 들어오는 전이(조건) | 일으키는 기능 |
+|---|---|---|
+| NULL(집계 전) | 개설 | challenge.create |
+| pending | ends_at ≤ 지금이고 NULL인 챌린지에 첫 변경·조회·매시 일이 닿음 → 마감 집계(final_like_count·final_eligible 저장, challenge_ended 알림) | challenge.browse(entry·react·report·account.withdraw가 부름) |
+| final(+finalized_at) | pending이고 챌린지가 review가 아니며 처리 전 신고가 남은 자격 있는 hidden_by_report 참여작이 없음 → final_rank 매김 | challenge.browse, challenge.report(판정 뒤), challenge.create(운영 moderation 변경 뒤) |
+
+- 종료 랭킹: 마감(ends_at) 뒤 그 챌린지에 처음 닿는 변경(좋아요·취소·비공개·삭제·신고·탈퇴)이나 매시 도는 일 가운데 먼저 오는 것이 챌린지
+  행을 잠그고 마감 집계를 한 번 한다. 마감 집계는 삭제되지 않은 모든 참여작(검토 중·비공개 포함)의 그 시점 좋아요 수와 참가 자격(공개 조건
+  충족 여부)을 final_like_count·final_eligible로 저장한다. 순위(final_rank)는 마감 당시 검토 중(hidden_by_report)인 참여작이나 review인 챌린지
+  가 없으면 즉시, 있으면 관련 검토가 모두 끝난 뒤 한 번에 확정한다(ranking_state pending → final). 확정 전 화면은 "집계 중"이다. 종료 뒤
+  좋아요·취소는 좋아요 수를 바꾸되 final 값에 반영하지 않고, 확정 뒤 비공개·삭제된 참여작은 순위에서 가리되 나머지를 당겨 매기지 않는다.
+  종료 화면의 배지·순위는 저장된 final 값을 쓴다.
+- 불변 조건: ranking_state는 NULL·pending·final뿐이다(`ck_challenges_ranking_state`). 집계·확정은 챌린지 행을 잠그고 한다. 탈퇴는 계정을
+  비활성으로 바꾸기 전에 밀린 마감 집계를 먼저 한다(`ChallengeWithdrawal`).
+- 끝 상태: final.
+- entry_ranking_snapshots.basis(live·pending·final)는 좋아요순 첫 조회 때의 기준 표시일 뿐 상태 전이가 아니다. 기준이 바뀌면 커서가
+  410 cursor_expired다.
+
 ## 규칙·제약
 - 공개 조건과 개인 노출 조건은 머리말대로다. 전체 집계(참여작 수·좋아요 합·순위)는 공개 조건으로 계산하고 차단과 무관하며, 목록·피드·랭킹
   표시·검색은 개인 노출 조건으로 걸러 보여 준다(차단한 사람의 참여작은 내 화면에서 빠지고 순위 숫자는 전체 기준 그대로). 본인의 비공개·확인 중
@@ -34,12 +67,6 @@
   같으면 공동 순위이고 같은 순위 안에서는 published_at·id 순이다. 좋아요가 모두 0이면 1위 배지를 보이지 않는다.
 - 커서: 최신순은 published_at·id 기준이다. 좋아요순은 처음 조회한 순서를 10분 고정해 페이지 사이에 순위가 튀지 않게 하되 매 페이지에서 개인
   노출 조건을 다시 확인한다. 진행 중이던 챌린지가 종료·최종 확정돼 정렬 기준이 바뀌면 커서를 만료하고(410 cursor_expired) 새로 조회한다.
-- 종료 랭킹: 마감(ends_at) 뒤 그 챌린지에 처음 닿는 변경(좋아요·취소·비공개·삭제·신고·탈퇴)이나 매시 도는 일 가운데 먼저 오는 것이 챌린지
-  행을 잠그고 마감 집계를 한 번 한다. 마감 집계는 삭제되지 않은 모든 참여작(검토 중·비공개 포함)의 그 시점 좋아요 수와 참가 자격(공개 조건
-  충족 여부)을 final_like_count·final_eligible로 저장한다. 순위(final_rank)는 마감 당시 검토 중(hidden_by_report)인 참여작이나 review인 챌린지
-  가 없으면 즉시, 있으면 관련 검토가 모두 끝난 뒤 한 번에 확정한다(ranking_state pending → final). 확정 전 화면은 "집계 중"이다. 종료 뒤
-  좋아요·취소는 좋아요 수를 바꾸되 final 값에 반영하지 않고, 확정 뒤 비공개·삭제된 참여작은 순위에서 가리되 나머지를 당겨 매기지 않는다.
-  종료 화면의 배지·순위는 저장된 final 값을 쓴다.
 - 조회수는 참여작 영상이 3초 이상 재생된 사건마다 1 더한다. 본인 재생·미리 불러오기·자동 반복은 세지 않는다. 사건 id를 entry_view_events
   (event_id 유일, 7일 보관)에 조회수 증가와 한 트랜잭션으로 남겨 같은 사건은 한 번만 반영한다. 사용자당 하루 한 번은 후속이다.
 - 시작 안내(A14~A14.2)는 기기당 처음 챌린지 탭에 들어올 때 한 번이다. 플래그는 기기 저장소.
@@ -86,3 +113,9 @@
 - P03: 공개 6·비공개 2·확인 중 1이면 전체 9. 비공개이면서 신고 숨김인 참여작: 확인 중에만 센다.
 - 다른 사람의 카드·댓글 응답: 이름만 있고 사진·소개 필드가 없다.
 - 게스트 토큰으로 피드: 403 member_only.
+
+## 범위 밖
+- 여러 챌린지를 섞는 전체 피드([공통 규칙](../common.md#범위-밖)).
+- 사용자당 하루 한 번 조회수(후속, [공통 규칙](../common.md#범위-밖)).
+- 랭킹 캐시 컬럼([공통 규칙](../common.md#범위-밖)).
+- 다른 사람의 프로필 사진·소개·경력 표시.
