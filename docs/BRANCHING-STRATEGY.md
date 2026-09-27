@@ -5,7 +5,7 @@
 브랜치의 내용이 갈라지는 일을 막는 것입니다.
 
 현재 배포·복구 절차는 [홈서버 배포](deploy/DEPLOY-HOME.md)에 있습니다. 자동 배포를 도입한
-배경은 [이전 AWS 배포 기록](archive/soma489/DEPLOY-VPC.md) 6-5에 보존합니다.
+배경은 [이전 AWS 배포 기록](https://github.com/acttub/acttub-platform/blob/c2b76b09/docs/archive/soma489/DEPLOY-VPC.md) 6-5에 보존합니다.
 
 ## 원칙
 

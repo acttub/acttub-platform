@@ -17,7 +17,7 @@
 | Gradle·dotenv·Testcontainers·부팅 | 실제 설정과 대응 테스트 | dotenv를 끄고 필요한 키를 명시한 격리 부팅과 CI 환경 재현 |
 
 FastAPI와 응답 바이트를 대조하던 parity harness는 폐기됐습니다. 그 계약의 현재 테스트 위치를
-찾을 때만 [M6-contract-migration.md](../../docs/archive/soma287/M6-contract-migration.md)를
+찾을 때만 [M6-contract-migration.md](https://github.com/acttub/acttub-platform/blob/c2b76b09/docs/archive/soma287/M6-contract-migration.md)를
 읽습니다. 현재 계약 방어선은 Java 테스트이며 실행 범위와 required check는 루트 지침을
 따릅니다.
 

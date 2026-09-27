@@ -11,7 +11,7 @@
 > 밖이라 빠뜨리기 쉽다**). 번호를 정리하면 그 인용이 전부 조용히 어긋나므로,
 > 이관 사양(`SOMA-287`)에서 쓰던 번호를 그대로 이어받았다. §1·§3·§9~§12 가 없는 것은 그 장들이
 > 이관 절차였기 때문이다(`SOMA-403` 6단계에서 폐기). 원문은
-> [docs/archive/soma287/SPEC.md](../../docs/archive/soma287/SPEC.md) 에 있다.
+> [docs/archive/soma287/SPEC.md](https://github.com/acttub/acttub-platform/blob/c2b76b09/docs/archive/soma287/SPEC.md) 에 있다.
 
 **행동 계약은 이 문서와 대응하는 Java 테스트가 판정한다.** `spec/openapi.json`은 springdoc이
 만드는 요청·응답 스키마 산출물이자 웹 타입 생성원이다. 오류와 상태 전이 전체를 표현하지

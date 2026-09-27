@@ -14,8 +14,8 @@ docs/        크로스커팅 문서 (PRD · 아키텍처 · ADR · 배포)
 deploy/      배포 스크립트
 ```
 
-끝난 계획과 이관 사양은 `docs/archive/`에 있습니다 — FastAPI에서 Spring Boot로 옮긴
-`SOMA-287` 이관 기록은 `docs/archive/soma287/`입니다.
+끝난 계획과 이관 사양은 git 이력에 있습니다. 코드 주석이 가리키는 `docs/archive/...`(FastAPI에서 Spring
+Boot로 옮긴 `SOMA-287` 기록 등)는 커밋 `c2b76b09`에서 봅니다.
 
 ## 로컬 개발
 

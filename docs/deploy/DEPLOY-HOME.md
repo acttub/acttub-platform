@@ -3,7 +3,7 @@
 dev와 운영의 웹·API·PostgreSQL은 홈서버의 별도 Docker Compose 프로젝트로 배포한다.
 현재 배포 경로는 GHCR → Tailscale SSH → 홈서버다. AWS에는 영상·DB 백업 S3와 이를 사용하는
 환경별 IAM 권한을 유지한다. 기존 AWS 인프라를 재시작하는 복구 경로는 폐기하며, 코드 복구는
-§4, DB와 호스트 복구는 §7을 따른다. 이전 절차와 AWS 구성은 [보관 기록](../archive/soma489/README.md)에 있다.
+§4, DB와 호스트 복구는 §7을 따른다. 이전 절차와 AWS 구성은 [보관 기록](https://github.com/acttub/acttub-platform/blob/c2b76b09/docs/archive/soma489/README.md)에 있다.
 
 ## 1. 구조와 범위
 

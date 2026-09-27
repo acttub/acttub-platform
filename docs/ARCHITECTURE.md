@@ -23,7 +23,7 @@ apps/
     └── lib/              api·auth·기능별 상태 모듈
 packages/                 두 번째 사용처가 생길 때만 채운다
 deploy/                   홈서버 배포 스크립트·모니터링 설정
-docs/                     PRD·ARCHITECTURE·ADR·BRANCHING-STRATEGY, specs/(기능 스펙), deploy/, agents/, archive/
+docs/                     PRD·ARCHITECTURE·ADR·BRANCHING-STRATEGY, specs/(기능 스펙), deploy/, agents/
 ```
 
 ## 패턴

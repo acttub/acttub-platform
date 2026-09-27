@@ -56,7 +56,7 @@ CONTRACT §7·§8-5·§8-6, ADR-027, 아래 「영상만 올리는 연습」과 
 ## 영상만 올리는 연습 (`three_layers_v1`)
 
 SOMA-526. 영상 외 입력을 건너뛴 배우가 현재 표현을 살펴보고, 바라는 전달에 맞춰 다음에 무엇을 달리해볼지 가져가는 흐름이다.
-1층은 [practice.analyze](analyze.md), 2층은 [practice.coach](coach.md), 3층은 [practice.note](note.md)에 있다. v1의 2·3층 기록은 [archive/three-layers-v1.md](../../archive/three-layers-v1.md)에 보관한다.
+1층은 [practice.analyze](analyze.md), 2층은 [practice.coach](coach.md), 3층은 [practice.note](note.md)에 있다. v1의 2·3층 기록은 커밋 c2b76b09의 [ACTTUB-THREE-LAYERS.md](https://github.com/acttub/acttub-platform/blob/c2b76b09/docs/ACTTUB-THREE-LAYERS.md)에서 본다.
 
 ### 적용 범위
 웹·앱은 `X-Acttub-Contract: three_layers_v1`을 보낸다. 서버의 `ACTTUB_THREE_LAYERS_ENABLED=true`이고 상황·인물·목표·막힘 상세가 비어 있으며 막힘 대분류가 `그 외`인 신규 연습만 `experience_version=three_layers_v1`로 고정한다. 기존 입력 경로와 구형 클라이언트는 `legacy`다.

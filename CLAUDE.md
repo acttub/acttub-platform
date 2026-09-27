@@ -35,7 +35,7 @@
   목록을 따로 가집니다.
 - **dev·운영 배포**를 바꿀 때 → [DEPLOY-HOME.md](docs/deploy/DEPLOY-HOME.md)와
   `.github/workflows/deploy.yml`을 읽습니다.
-  이전 AWS 구성의 배경이 필요할 때만 [보관 기록](docs/archive/soma489/README.md)을 읽습니다.
+  이전 AWS 구성의 배경이 필요할 때만 [보관 기록](https://github.com/acttub/acttub-platform/blob/c2b76b09/docs/archive/soma489/README.md)을 읽습니다.
 - **이슈를 제안·착수하거나 브랜치·PR을 연결**할 때 →
   [issue-tracker.md](docs/agents/issue-tracker.md). Jira 본문은 사람이 쓰고 에이전트는 초안만
   넘깁니다.
@@ -51,7 +51,8 @@
 - 크로스앱 문서는 `docs/`, 앱 상세 문서는 각 앱 디렉터리에 둡니다. `docs/` 최상위에는
   `PRD.md`·`ARCHITECTURE.md`·`ADR.md`·`BRANCHING-STRATEGY.md`만 둡니다. 기능 스펙은
   `docs/specs/<영역>/<기능>.md`, 배포는 `docs/deploy/`, 에이전트 작업 규칙은 `docs/agents/`, 끝난 계획·이관
-  사양 중 코드·문서가 근거로 인용하는 것은 `docs/archive/`에 둡니다. 인용되지 않는 기록은 git 이력에 맡깁니다.
+  사양은 지우고 git 이력에 맡깁니다. 코드 주석이 가리키는 `docs/archive/...` 경로는 커밋 `c2b76b09`에서
+  봅니다(`git show c2b76b09:docs/archive/<경로>`).
 - 에이전트 실행 계획은 이슈마다 `.scratch/<이슈키>.md` 하나에 기록합니다. `.scratch/`는
   추적되지 않으므로 이어받을 때 경로를 직접 확인합니다.
 

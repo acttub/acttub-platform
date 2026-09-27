@@ -13,13 +13,14 @@ MVP 핵심 기능의 정상 작동을 목표로 빠르게 개발한다. 단, AI 
 > 📌 **경로 표기에 관하여.** 아래 기록 중 일부는 `apps/api-java`를 가리킨다. 그 디렉토리는
 > `SOMA-403` 5단계에서 **`apps/api`가 됐고**, 같은 이름이던 FastAPI 트리는 사라졌다. 결정
 > 시점의 이름이라 본문은 그대로 두었으니, 경로를 따라갈 때는 `apps/api`로 읽는다. 이관
-> 자체의 사양·기록은 `docs/archive/soma287/`에 있다.
+> 자체의 사양·기록은 `docs/archive/soma287/`에 있었고, 지금은 커밋 `c2b76b09`에서 본다.
 >
 > 문서 경로도 옮겨졌다(2026-09-27). 본문의 옛 경로는 아래처럼 읽는다.
 > - `docs/requirements/00-common.md` → `docs/specs/common.md`
 > - `docs/requirements/0N-<영역>.md` → `docs/specs/<영역>/` (기능 하나가 파일 하나)
 > - `docs/ACTTUB-THREE-LAYERS.md`, `docs/design/`의 코칭 설계 문서 → `docs/specs/practice/`의 README·analyze·coach·note
->   (v1 2·3층 기록은 `docs/archive/three-layers-v1.md`)
+>   (v1 2·3층 원문은 커밋 `c2b76b09`의 `docs/ACTTUB-THREE-LAYERS.md`)
+> - `docs/archive/` → 삭제(2026-09-27). 커밋 `c2b76b09`에서 본다.
 > - `docs/design/UI_GUIDE.md` → PRD 「디자인」 절, 연습 화면 전환은 `docs/ARCHITECTURE.md`
 
 ---
@@ -302,11 +303,11 @@ MVP 핵심 기능의 정상 작동을 목표로 빠르게 개발한다. 단, AI 
 ## 배포 (2026-09-06)
 
 ### ADR-026: dev·운영을 환경별 Compose로 홈서버에 배포하고 S3에 DB를 백업한다
-> **개정 (2026-09-07, AWS 정리 승인)**: 사용자가 홈서버 이전 후 기존 AWS 자원 정리를 승인했다. 아래 원래 결정의 AWS 복구용 보존 범위를 바꿔, 삭제 전 확보한 백업·스냅샷을 남기고 기존 EC2·RDS·ALB·NAT·CloudFront와 전용 배포 S3·IAM을 정리한다. 서비스가 사용하는 영상 S3·DB 백업 S3와 환경별 홈서버 IAM 사용자는 유지한다. 저장소의 AWS 수동 배포 경로는 폐기하고 [홈서버 배포](deploy/DEPLOY-HOME.md)를 일상 배포·복구의 정본으로 삼는다. 이전 절차는 [보관 기록](archive/soma489/README.md)에 남긴다. 자원별 실제 삭제 완료는 실행 기록과 AWS 실조회로 확인한다.
+> **개정 (2026-09-07, AWS 정리 승인)**: 사용자가 홈서버 이전 후 기존 AWS 자원 정리를 승인했다. 아래 원래 결정의 AWS 복구용 보존 범위를 바꿔, 삭제 전 확보한 백업·스냅샷을 남기고 기존 EC2·RDS·ALB·NAT·CloudFront와 전용 배포 S3·IAM을 정리한다. 서비스가 사용하는 영상 S3·DB 백업 S3와 환경별 홈서버 IAM 사용자는 유지한다. 저장소의 AWS 수동 배포 경로는 폐기하고 [홈서버 배포](deploy/DEPLOY-HOME.md)를 일상 배포·복구의 정본으로 삼는다. 이전 절차는 [보관 기록](https://github.com/acttub/acttub-platform/blob/c2b76b09/docs/archive/soma489/README.md)에 남긴다. 자원별 실제 삭제 완료는 실행 기록과 AWS 실조회로 확인한다.
 >
 > **이유와 대가**: 쓰지 않는 컴퓨트·네트워크의 비용과 배포 권한을 줄인다. 기존 AWS 호스트를 재시작하는 복구는 더 이상 운영 절차가 아니며, 호스트 장애 시 서버·시크릿·이미지를 준비하고 검증된 S3 백업에서 복원해야 한다. 남긴 AWS 스냅샷은 전환 이후의 홈서버 쓰기를 포함하지 않는 과거 보존본이다.
 
-**결정**: dev와 운영의 웹·API·PostgreSQL을 홈서버의 별도 Docker Compose 프로젝트로 실행한다. 두 환경은 Compose 정의를 공유하되 DB·볼륨·시크릿·터널·자원 상한을 분리한다. GitHub Actions가 이미지를 GHCR에 게시하고 Tailscale 임시 노드에서 전용 `deploy` 계정으로 배포한다. 공개 요청은 환경별 Cloudflare Tunnel이 받으며 호스트 포트는 공개하지 않는다. 영상 S3는 유지하고, PostgreSQL은 매일 S3에 덤프해 30일 보존하며 실제 복원으로 검증한다. 운영 전환은 현재 `main`의 앱 기능을 유지한 인프라 변경으로 진행하고, 쓰기 차단·기존 작업 완료·최종 덤프·행 내용과 스키마 대조 후 도메인을 전환한다. 기존 dev 2주 관찰 계획은 사용자의 2026-09-06 승인으로 앞당기되 검증 조건은 유지한다. AWS 자원 삭제는 별도 작업이며 이번에는 복구용으로 보존한다. 당시 실행 절차는 [홈서버 배포](deploy/DEPLOY-HOME.md)와 [운영 전환·복구 보관본](archive/soma489/DEPLOY-HOME-CUTOVER.md)이 맡았다.
+**결정**: dev와 운영의 웹·API·PostgreSQL을 홈서버의 별도 Docker Compose 프로젝트로 실행한다. 두 환경은 Compose 정의를 공유하되 DB·볼륨·시크릿·터널·자원 상한을 분리한다. GitHub Actions가 이미지를 GHCR에 게시하고 Tailscale 임시 노드에서 전용 `deploy` 계정으로 배포한다. 공개 요청은 환경별 Cloudflare Tunnel이 받으며 호스트 포트는 공개하지 않는다. 영상 S3는 유지하고, PostgreSQL은 매일 S3에 덤프해 30일 보존하며 실제 복원으로 검증한다. 운영 전환은 현재 `main`의 앱 기능을 유지한 인프라 변경으로 진행하고, 쓰기 차단·기존 작업 완료·최종 덤프·행 내용과 스키마 대조 후 도메인을 전환한다. 기존 dev 2주 관찰 계획은 사용자의 2026-09-06 승인으로 앞당기되 검증 조건은 유지한다. AWS 자원 삭제는 별도 작업이며 이번에는 복구용으로 보존한다. 당시 실행 절차는 [홈서버 배포](deploy/DEPLOY-HOME.md)와 [운영 전환·복구 보관본](https://github.com/acttub/acttub-platform/blob/c2b76b09/docs/archive/soma489/DEPLOY-HOME-CUTOVER.md)이 맡았다.
 **이유**: AWS 컴퓨트와 네트워크 구성 비용을 줄이고 로컬·CI·서버의 실행 형상을 이미지로 맞춘다. 브랜치 머지와 배포의 연결을 유지하면서 dev와 운영을 같은 절차로 검증한다. 데이터 이동 중 두 DB에 쓰기가 갈라지는 것을 막기 위해 원본을 멈추고 단일 시점의 덤프를 검증하며, 운영 복사본의 워커는 전환 전까지 끈다.
 **트레이드오프**: 운영 가용성이 가정 회선·전원·단일 호스트와 디스크에 의존하고 dev 및 다른 서비스와 자원을 공유한다. 일일 논리 백업은 RDS의 시점 복구를 대체하지 못하므로 마지막 성공 백업 뒤 쓰기는 장애 시 손실될 수 있다. 웹 설정은 빌드 시점에 고정돼 환경별 이미지가 필요하다. 홈서버에는 EC2 instance role이 없어 환경별 최소 권한 AWS 키를 관리한다. 전환 후 쓰기가 생기면 DNS만 되돌릴 수 없고, 홈서버의 최종 데이터를 AWS에 역복원·검증하는 추가 점검 시간이 필요하다. 이 결정은 운영 전환 완료나 AWS 자원 삭제 승인을 뜻하지 않는다.
 
