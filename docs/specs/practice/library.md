@@ -17,6 +17,33 @@
 ## 목적
 배우가 찍은 영상과 연습 기록을 각각의 단위로 찾고, 지운 것이 무엇인지 안다.
 
+## 입력·출력
+| 입구 | 입력 | 출력 | 오류 |
+|---|---|---|---|
+| `GET /v2/videos` | `filter`(all·recent7·favorite), `cursor` | `VideoList` 200 | 필터 값 오류 422(배열) |
+| `GET /v2/videos/{video_id}` | video_id | `Video` 200(10분 서명 재생 주소·사용처) | `video_not_found` 404 |
+| `PATCH /v2/videos/{video_id}` | 필수 `favorite` (`VideoPatch`) | `Video` 200 | `video_not_found` 404 |
+| `DELETE /v2/videos/{video_id}` | video_id | 204 | `video_in_use` 422, `video_not_found` 404 |
+| `POST /v2/videos/{video_id}/purge-file` | video_id | `Video` 200(이미 파기됐어도 200) | `video_not_found` 404 |
+| `GET /v2/practices` | `filter`(all·favorite·recent30) | `PracticeGroupList` 200(묶음마다 회차 요약·진행 중 회차 id) | 필터 값 오류 422(배열) |
+| `GET /v2/practices/{practice_id}` | practice_id | `Practice` 200 | `practice_not_found` 404 |
+| `PATCH /v2/practices/{root_id}/group` | 첫 회차 id, `favorite`·`hidden`·`title` 중 보낸 것만 (`PracticeGroupPatch`) | `PracticeGroup` 200 | `practice_not_found` 404 |
+| `VideoPosterScheduler.poll` (`VIDEO_POSTER_POLL_INTERVAL_MS`, 기본 10초) | 포스터가 빈 영상 | 첫 장면 JPEG(poster_key), 목록·상세의 `poster_url` | 실패는 poster_attempts를 올리고 상한까지 다시 한다 |
+
+## 상태
+practices.hidden_at — 묶음 숨김. 첫 회차 행(root)에만 있다.
+
+| 상태 | 들어오는 전이(조건) | 일으키는 기능 |
+|---|---|---|
+| 보임(hidden_at 없음) | 첫 회차 생성, `hidden: false` | practice.start, practice.library |
+| 숨김(hidden_at 있음) | `hidden: true`, 이미 숨김이면 처음 시각을 둔다 | practice.library |
+
+- 불변 조건: 묶음 속성(즐겨찾기·숨김·제목)은 root 행에만 쓴다. 숨김은 노트·대화·기억·영상을 바꾸지 않는다. legacy_hidden_at은 옛 앱의
+  세션 숨김을 옮길 때만 회차 행에 차고 API로 바꾸지 않는다.
+- 끝 상태: 없음(오간다).
+
+영상 삭제 → 행 삭제, 파일만 파기 → 파일 파기 (정본: [practice.record](record.md#상태))
+
 ## 규칙·제약
 - 보관함(A2.2)은 내 videos를 최신 저장순으로 보여 준다. 필터는 전체·최근 7일·즐겨찾기다("이번 주"는 최근 7일이다). 비어 있으면
   예시 영상을 섞지 않고 빈 상태를 보여 준다. 영상 즐겨찾기는 videos.favorite다.
@@ -61,3 +88,12 @@
 - 홈의 연속 연습 일수: 어제·오늘 회차가 있으면 2일. 한국 시간 자정을 넘긴 회차는 다음 날로 센다.
 - 웹 게스트가 영상 둘·묶음 하나를 만들고 앱으로 옮김: 앱 보관함·기록에 그대로 보인다.
 - 옛 앱에서 숨긴 세션이 있는 묶음을 옮김: 그 회차는 legacy_hidden_at으로 목록에서 빠지고 묶음 hidden_at은 비어 묶음은 보인다.
+
+## 범위 밖
+- 개별 회차 숨김.
+- 보관함에 예시 영상을 섞는 것.
+- 대본 리딩 회차를 연습 기록에 섞는 것. 대본 탭의 대본 상세에서 본다.
+
+## 열린 질문
+- 규칙은 공개 참여작이 참조하는 영상의 "파일만 파기"를 422 video_in_use로 막지만, `PostgresVideoRepository.purgeFile`은 참조를 보지 않고
+  파기한다. 막는 검사를 더할지 규칙을 고칠지 정한다.

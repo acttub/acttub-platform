@@ -17,6 +17,35 @@
 ## 목적
 배우가 나가는 순간의 소감을 부담 없이 남기고, 운영은 시트에서 그대로 읽는다.
 
+## 입력·출력
+| 입구 | 입력 | 출력 | 오류 |
+|---|---|---|---|
+| `GET /v2/me/practice-feedback/status` | — | `PracticeFeedbackStatus` 200(asked, asked_now false) | — |
+| `POST /v2/me/practice-feedback/claim` | — | `PracticeFeedbackStatus` 200, 선점한 기기만 asked_now true | — |
+| `POST /v2/practice-feedback` | 필수 `request_id`·`screen`(coach·report)·`trigger`(x·leave·back), 선택 `practice_id`·`body`(없으면 dismissed)·`contact_email`·`contact_phone` (`PracticeFeedbackRequest`) | `PracticeFeedbackResponse` 201, 재전송 200 | `feedback_body_required` 422(공백뿐인 본문), 길이 초과 422(배열), `practice_not_found` 404, `account_deactivated` 403 |
+| `ExitSurveySyncScheduler.run` (`EXIT_SURVEY_SYNC_INTERVAL_MS`, 기본 하루) | sheet_synced_at 없는 행, 90일 지난 연락처 | 시트 전송 뒤 sheet_synced_at, 연락처 NULL·sheet_seq +1 | 전송 실패는 NULL로 두고 다음 실행에 다시 보낸다 |
+
+## 상태
+users.exit_survey_asked_at — 계정에 한 번 묻기.
+
+| 상태 | 들어오는 전이(조건) | 일으키는 기능 |
+|---|---|---|
+| 묻지 않음(NULL) | 계정 생성 | — |
+| 물어봄(시각) | 자동 노출 직전 선점(`WHERE exit_survey_asked_at IS NULL` 한 문장, 이긴 기기 하나), 이관에서 게스트가 물어봤으면 이른 시각 | practice.feedback, account.guest |
+
+- 불변 조건: 한 번 차면 비우지 않는다.
+- 끝 상태: 물어봄.
+
+practice_feedback.sheet_synced_at — 시트 복제.
+
+| 상태 | 들어오는 전이(조건) | 일으키는 기능 |
+|---|---|---|
+| 미전송(NULL) | 접수, 연락처 파기(90일·탈퇴) 때 sheet_seq +1과 함께 비움 | practice.feedback, account.withdraw |
+| 전송됨(시각) | 시트 전송 성공, 보낸 sheet_seq가 그대로일 때만 | practice.feedback |
+
+- 불변 조건: (user_id, request_id)당 행 하나(`uq_practice_feedback_user_request`).
+- 끝 상태: 없음. 연락처 파기가 미전송으로 되돌린다.
+
 ## 규칙·제약
 - 대상은 coach·report 화면에서의 이탈이고, 계기는 x·leave·back 셋이다. 홈 의견·스토어 평점·노트 미니 평가는 이 기능이 아니다.
 - 한 계정에 한 번만 묻는다. 자동 노출 직전에 서버가 계정의 노출 표식(users.exit_survey_asked_at)을 원자적으로 선점하고, 선점한 기기만
@@ -52,3 +81,8 @@
 - 이관: 게스트가 물어봤으면 회원도 뜨지 않고 설문 행은 회원 것이 된다.
 - 제출 API 실패 상태에서 나가기: 화면이 닫힌다.
 - 웹에서 나가기: 같은 시트가 뜨고 외부 폼이 없다.
+
+## 범위 밖
+- 홈 의견·스토어 평점·노트 미니 평가.
+- 웹의 "7일 뒤 다시" 규칙.
+- 시트 전송을 ai_jobs에 넣는 것.

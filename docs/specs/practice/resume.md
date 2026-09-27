@@ -17,6 +17,17 @@ PRD는 끝난 연습에서 새 연습을 시작하고 코치가 대화를 이어
 ## 목적
 배우가 같은 장면을 다시 찍거나 같은 영상으로 다시 물어보되, 같은 이야기를 처음부터 되묻지 않는다.
 
+## 입력·출력
+| 입구 | 입력 | 출력 | 오류 |
+|---|---|---|---|
+| `POST /v2/practices/{practice_id}/continue` | `X-Request-Id`, `X-Acttub-Contract`, 필수 `request_id`, 선택 `video_id`(없으면 이어받을 회차의 영상)·`scene`·`blockage` (`PracticeContinueRequest`) | `Practice` 201(같은 root_id, 다음 ordinal) | `practice_in_progress` 409, `video_not_ready` 422, `request_fingerprint_mismatch` 422, `guest_daily_analysis_limit` 429, `practice_not_found` 404 |
+
+진행 중 회차 id는 묶음 조회(`GET /v2/practices`, practice.library)의 `in_progress_practice_id`로 얻는다.
+
+## 상태
+- 이어하기 → 같은 묶음에 새 회차 analyzing, 묶음의 다른 회차가 모두 closed일 때만 (정본: [practice.start](start.md#상태))
+- 이어하기 → 새 analyze 작업 pending (정본: [practice.analyze](analyze.md#상태))
+
 ## 규칙·제약
 - 두 진입점은 모두 같은 root_id에 다음 ordinal 행을 만든다. A1.2는 고른 회차의 video_id를 그대로 쓰고, A8.1은 새로 확정한
   영상을 쓴다. 웹의 버튼 문구도 영상을 다시 쓰는지 드러낸다.
@@ -46,3 +57,7 @@ PRD는 끝난 연습에서 새 연습을 시작하고 코치가 대화를 이어
 - 다른 묶음의 최근 대화: 새 회차의 코치 입력에 없다. 같은 묶음의 이전 노트: 참고 맥락으로 들어간다.
 - 앱에서 A13의 다음 연습: 준비 화면에 이전 상황·인물·목표가 채워져 있다. 지난 기록에서 이어하기: 비어 있다.
 - 게스트가 하루 3회를 쓴 뒤 이어하기: 429 guest_daily_analysis_limit.
+
+## 범위 밖
+- 전/후 비교. 영상 비교도, 노트끼리의 비교도 없다(PRD 「지금 하지 않는 것」, ADR-007).
+- 같은 묶음이 아닌 최근 대화를 코치 입력에 넣는 것.

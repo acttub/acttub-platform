@@ -18,6 +18,38 @@
 ## 목적
 배우가 찍은 영상이 어디로 보낼지 정하지 않아도 보관함에 남고, 뒤에 코칭·챌린지로 이어진다.
 
+## 입력·출력
+| 입구 | 입력 | 출력 | 오류 |
+|---|---|---|---|
+| `POST /v2/videos/intents` | `X-Request-Id`, 필수 `request_id`·`content_type`(video/mp4·video/quicktime)·`byte_size`·`duration_ms` (`VideoIntentRequest`) | `VideoIntent` 201(올릴 주소·만료 시각), 같은 요청 id는 같은 자리 | `video_too_large` 422, `video_too_long` 422, `video_quota` 422, `request_fingerprint_mismatch` 422, `consent_required` 403 |
+| `POST /v2/videos/intents/{intent_id}/complete` | intent_id | `Video` 201(새로 만듦)·200(재전송) | `upload_expired` 422, `video_not_ready` 422(아직 안 올라옴·크기 불일치), `video_quota` 422, `upload_intent_not_found` 404, `consent_required` 403 |
+| `AnalysisWorkerScheduler.sweep` (`ANALYSIS_SWEEP_INTERVAL_SEC`, 기본 60초) | 시한이 지난 `pending` 예약 | 예약 `expired`, 미확정 객체 삭제 | 객체 삭제 실패는 보고만 한다(열린 질문) |
+
+## 상태
+upload_intents.status — 올릴 자리 예약.
+
+| 상태 | 들어오는 전이(조건) | 일으키는 기능 |
+|---|---|---|
+| pending | 올릴 자리 받기 | practice.record |
+| finalized | 시한 안에 마무리하고 객체가 확인됨, video_id가 찬다 | practice.record |
+| expired | 시한이 지난 마무리, 또는 시한 지난 pending을 정리 작업이 닫음 | practice.record |
+
+- 불변 조건: (user_id, request_id)당 예약 하나(`uq_upload_intents_user_request`).
+- 끝 상태: finalized·expired.
+
+videos — 보관함 영상 행.
+
+| 상태 | 들어오는 전이(조건) | 일으키는 기능 |
+|---|---|---|
+| 보관(purged_at 없음) | 마무리가 행을 만든다 | practice.record |
+| 파일 파기(purged_at 있음) | "파일만 파기"(객체·받아쓰기 삭제), 탈퇴 파기 | practice.library, account.withdraw |
+| 행 삭제 | 참조(회차·챌린지 참여작)가 없을 때 보관함에서 삭제, 보관·파기 어느 쪽에서도 | practice.library |
+
+- 불변 조건: 총량은 purged_at 없는 행의 byte_size 합이다. 파기된 행은 보관으로 돌아가지 않는다. 참조가 있는 행은 지우지 않는다.
+- 끝 상태: 행 삭제. 참조가 남아 있으면 파일 파기에서 멈춘다.
+
+받아쓰기(video_transcripts.status)는 첫 분석이 만든다 (정본: [practice.analyze](analyze.md#상태)).
+
 ## 규칙·제약
 - 권한은 촬영 화면에 들어갈 때 카메라·마이크를 받는다(A0.3). 거절하면 갤러리에서 고르는 길로 돌아간다.
 - 촬영이 끝나면 기기에 먼저 안전하게 저장하고 서버로 올린다. 서버 확정 전에는 "기기에 저장 · 업로드 대기"로, 확정 뒤에는
@@ -66,3 +98,11 @@
 - 옛 보관함 영상 셋이 있는 기기에서 1.0.0 첫 실행: 확인 팝업이 뜬다. 확인: videos 3행. 취소: 기기에 남고 행 없음, 다음 실행에 다시 묻는다.
 - 오프라인에서 촬영 뒤 연결: 큐가 올리고 같은 요청 id라 행은 하나다. 앱을 다시 열어도 큐가 남아 이어 올린다. 7일 지난 대기 파일: 버리고 알린다.
 - 카메라 권한 거절: 갤러리 선택 화면으로 간다. 웹에서 마무리 전 탭 닫기: 경고가 뜬다.
+
+## 범위 밖
+- 원본 영상의 서버 보관. 서버에는 720px로 줄인 업로드본만 둔다.
+
+## 열린 질문
+- 시한 지난 예약의 정리 경로가 규칙과 다르다. `VideoService.sweepExpiredIntents`(expired로 닫고 객체 삭제를 장부에 올림)는 부르는 곳이
+  없다. 지금은 옛 분석 워커의 정리(`AnalysisWorkerScheduler.sweep` → `PostgresAnalysisStore.sweepExpiredUploads`)가 시한 지난 pending
+  예약을 모두 expired로 닫고 객체를 장부 없이 바로 지운다. 삭제가 실패하면 다시 지우지 않고, 옛 워커가 사라지면 정리하는 곳이 없다.

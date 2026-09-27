@@ -18,6 +18,32 @@
 ## 목적
 배우가 영상만 올려도 코칭이 시작되고, 적은 만큼만 코치가 참고한다.
 
+## 입력·출력
+| 입구 | 입력 | 출력 | 오류 |
+|---|---|---|---|
+| `POST /v2/practices` | `X-Request-Id`(본문 request_id와 같아야 한다), `X-Acttub-Contract`, 필수 `request_id`·`video_id`, 선택 `scene`·`blockage` (`PracticeCreateRequest`) | `Practice` 201, 같은 요청 id 재전송도 같은 회차 | `video_not_ready` 422, `request_fingerprint_mismatch` 422, `guest_daily_analysis_limit` 429, `consent_required` 403, 값 모양 오류 422(배열) |
+| `POST /v2/practices/{practice_id}/analyze` (닫힌 회차 재시도) | `X-Request-Id`, 필수 `request_id` (`PracticeAnalyzeRequest`) | `Practice` 201, 새 analyze 작업 | `analysis_not_failed` 409, `practice_in_progress` 409, `guest_daily_analysis_limit` 429, `practice_not_found` 404 |
+
+## 상태
+practices.stage — 회차 진행 상태의 정본이다.
+
+| 상태 | 들어오는 전이(조건) | 일으키는 기능 |
+|---|---|---|
+| analyzing | 시작·이어하기로 회차 생성, closed 회차의 재시도(묶음에 다른 진행 중 회차가 없을 때) | practice.start, practice.resume |
+| conversing | analyzing에서 분석 결과(ready·partial) 저장 | practice.analyze |
+| closed (close_reason analysis_failed) | analyzing에서 분석 즉시 실패 또는 3회 소진 | practice.analyze |
+| closed (close_reason cancelled) | 대기·진행 중인 분석 작업을 "그만두기"로 취소 | practice.analyze |
+| closed (close_reason conversation_closed) | 코치 대화가 닫힘 | practice.coach |
+
+- 불변 조건: 묶음당 closed가 아닌 회차는 하나다(`uq_practices_open_root`). conversing은 analyzing에서만 들어오고 closed
+  회차를 conversing으로 되살리지 않는다. close_reason은 closed일 때만 차고 재시도가 비운다.
+- 끝 상태: closed. 재시도만 analyzing으로 되돌린다.
+
+- 회차 진행 상태(practices.stage)는 analyzing·conversing·closed 셋이고 분석 결과의 상태(analyses.status)와 다르다. 시작은 analyzing,
+  분석 결과가 ready·partial로 저장되면 conversing, 분석 최종 실패(3회 소진)·명시적 취소·대화 종료면 closed다. 실패한 회차를 명시적으로
+  다시 시도하면 새 작업과 함께 analyzing으로 돌아간다(다른 진행 중 회차가 없을 때만). 묶음당 closed가 아닌 회차는 하나다(부분 유일).
+  코치 시작은 그 경험 판의 사용 가능한 분석 결과가 있는지 본다.
+
 ## 규칙·제약
 - 게이트: 회원은 공통 게이트, 게스트는 연습 동의 셋(account.guest). 게스트 분석은 하루 3회다(429 guest_daily_analysis_limit, 현행 코드
   유지, practice.analyze).
@@ -35,10 +61,6 @@
   영상만 올리고 장면·막힘을 적지 않은 현행 무입력 조건일 때만 three_layers_v1(영상부터 시작하는 기본 코치)이고, 그 밖은 legacy다.
   legacy 안의 분석·표현·기본 코치 선택은 막힘 입력으로 정한다(현행). 플래그를 꺼도 이미 만든 신형 자료의 읽기는 유지한다. 전체를
   신형으로 바꾸는 것은 별도 결정이다.
-- 회차 진행 상태(practices.stage)는 analyzing·conversing·closed 셋이고 분석 결과의 상태(analyses.status)와 다르다. 시작은 analyzing,
-  분석 결과가 ready·partial로 저장되면 conversing, 분석 최종 실패(3회 소진)·명시적 취소·대화 종료면 closed다. 실패한 회차를 명시적으로
-  다시 시도하면 새 작업과 함께 analyzing으로 돌아간다(다른 진행 중 회차가 없을 때만). 묶음당 closed가 아닌 회차는 하나다(부분 유일).
-  코치 시작은 그 경험 판의 사용 가능한 분석 결과가 있는지 본다.
 - 이미 사용 가능한 영상(보관함)으로 시작하면 업로드 단계가 없다. 새 영상이면 practice.record의 올리기를 먼저 마친다.
 
 ## 예외
@@ -61,3 +83,12 @@
 - 시작 뒤 상황 수정 API: 없다(속성 불변). 대화에서 장면을 답함: practices의 상황은 그대로다.
 - 분석 최종 실패: stage closed. 그 회차 재시도: 새 ai_jobs, stage analyzing. 다른 진행 중 회차가 있으면 재시도: 409 practice_in_progress.
 - 웹 D4에 이론 선택이 없다.
+
+## 범위 밖
+- 이론 선택(스타니슬랍스키 등). 1.0.0에서 뺀다.
+- 시작 뒤 Scene Context 수정, 건너뛴 Scene Context를 나중에 채우는 화면(PRD 「지금 하지 않는 것」, ADR-021).
+- 전체 코칭을 신형(three_layers_v1)으로 바꾸는 것. 별도 결정이다.
+
+## 열린 질문
+- 재시도가 close_reason을 보지 않는다. `PostgresPracticeRepository.retryAnalysis`는 stage가 closed이기만 하면 받아 cancelled·
+  conversation_closed 회차도 analyzing으로 돌린다. 규칙은 "실패한 회차"만 다시 시도한다고 하므로 analysis_failed만 받을지 정한다.

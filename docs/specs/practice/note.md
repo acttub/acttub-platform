@@ -19,6 +19,17 @@
 ## 목적
 배우가 대화에서 스스로 말한 것이 가장 크게 보이는 기록을 얻고, 다음에 해볼 한 가지를 가져간다.
 
+## 입력·출력
+| 입구 | 입력 | 출력 | 오류 |
+|---|---|---|---|
+| 대화 종료 턴(`POST /v2/coach/reply`가 대화를 닫을 때, practice.coach) | 종료 revision과 대화 상태 | coach_notes 1행, 응답의 `note` | 생성 실패는 한 번 재시도 뒤 폴백(기존 갈래는 노트 없음) |
+| `GET /v2/practices/{practice_id}/note` | practice_id | `CoachNote` 200(`my_rating` 포함) | `note_not_found` 404 |
+| `PUT /v2/practices/{practice_id}/note/rating` | 필수 `request_id`·`rating`(helpful·not_helpful), 선택 `comment` (`NoteRatingRequest`) | `NoteRating` 200 | `note_not_found` 404, `comment_too_long` 422, `request_fingerprint_mismatch` 422, `account_deactivated` 403 |
+
+## 상태
+- 대화 closed → 노트 한 번 생성, 뒤에 바뀌지 않는다 (정본: [practice.coach](coach.md#상태))
+- 노트 평가(note_ratings)는 노트당 한 행이고 다시 누르면 값을 덮어쓴다. 상태 전이는 없다.
+
 ## 규칙·제약
 - 노트는 대화가 닫힌 뒤 한 번 만든다. 고정된 종료 revision(source_revision)으로 만들고 이미 있는 노트를 다시 만들지 않는다. 생성
   실패는 한 번 재시도하고 그래도 실패하면 확인된 내용만 담은 폴백을 저장한다(fallback 표시).
@@ -63,6 +74,12 @@
 - 노트 평가: 도움 됐어요 → note_ratings 1행(helpful). 아쉬웠어요로 다시 누름 → 같은 행이 not_helpful. 같은 요청 재전송 → 200 같은
   응답, 행 그대로. 같은 요청 id 에 다른 값 → 422. 노트 조회 → my_rating 이 그 값. 탈퇴 → 한 줄 NULL, 값은 남음. 게스트 이관 → 회원
   것.
+
+## 범위 밖
+- 이전 연습·노트끼리의 비교(PRD 「지금 하지 않는 것」, ADR-007).
+- 강점·약점·개선점 카드, 점수·평가(PRD).
+- 다음 촬영 제안을 선택·실행으로 바꾸는 API.
+- 노트 평가를 구글 시트로 보내는 것.
 
 ## 3층 촬영 노트 (SOMA-531)
 
