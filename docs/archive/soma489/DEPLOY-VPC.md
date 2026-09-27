@@ -7,7 +7,7 @@
 
 CloudFront → front alb → front svc(Next 서버) → back alb → back svc(Spring Boot) → DB
 구조로 배포한다. **운영(`acttub.com`)이 쓰는 형태다.** 개발 서버는 같은 프로세스 구성을
-EC2 한 대에 올린 축소판이므로([`DEPLOY-DEV.md`](./DEPLOY-DEV.md)) 배포 스크립트와 systemd
+EC2 한 대에 올린 축소판이므로(`DEPLOY-DEV.md`(2026-09-27 삭제, git 이력)) 배포 스크립트와 systemd
 유닛을 양쪽이 공유한다.
 
 가장 큰 차이는 **백엔드가 private subnet에 있어 브라우저가 직접 닿지 못한다**는 점이다.
@@ -438,7 +438,7 @@ Actions 탭의 수동 실행(`workflow_dispatch`)은 재배포와 부분 배포�
 
 같은 워크플로가 개발 서버 배포도 담당한다. 환경별로 다른 값은 GitHub Environments의
 variables가 담당하므로 워크플로 안에는 환경 분기가 없다 — 개발 서버 쪽 절차는
-[`DEPLOY-DEV.md`](./DEPLOY-DEV.md)를 본다.
+`DEPLOY-DEV.md`(2026-09-27 삭제, git 이력)를 본다.
 
 **runner는 인스턴스에 접속하지 않는다.** SSM Run Command로 AWS에 실행을 위임하므로
 private subnet이어도 되고, SSH 키나 VPN이 필요 없다.
