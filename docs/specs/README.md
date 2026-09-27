@@ -68,8 +68,8 @@ git 이력이 보관한다. 동작을 바꾸는 PR이 그 기능의 요구사항
 
   | 입구 | 입력 | 출력 | 오류 |
   |---|---|---|---|
-  | `POST /v2/practices` | 헤더·필수 필드 | `PracticeResponse` 201 | `video_not_ready` 422, … |
-  | 매 1분 `AiJobWorker` | `pending` 작업 | 분석 결과 저장 | 3회 실패 시 `failed` |
+  | `POST /v2/practices` | 헤더·필수 필드 | `Practice` 201 | `video_not_ready` 422, … |
+  | `AnalysisWorkerScheduler.poll` (주기 설정값) | `pending` 분석 작업 | 분석 결과 저장 | 3회 실패 시 `failed` |
 
 - **상태**: 이 기능이 다루는 행이 거치는 상태다(DDD의 aggregate 생애). 상태 표는 그 행을 **만드는 기능
   한 곳**에만 두고 정본으로 삼는다. 상태를 바꾸기만 하는 기능은 자기가 일으키는 전이 한두 줄과 정본 링크를
