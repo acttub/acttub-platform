@@ -94,11 +94,44 @@ class DirectVideoCoachTest {
         assertThat(note.path("schema_version").asText()).isEqualTo("acttub.practice_note.v1");
     }
 
-    @Test void tenthReplyClosesAtExistingTurnBudget() {
+    @Test void sixteenthReplyClosesAtExistingTurnBudget() {
         var turns = new ArrayList<CoachTurnSnapshot>();
-        for (int i = 0; i < 9; i++) turns.add(new CoachTurnSnapshot("ai", "이전 코칭 " + i));
+        for (int i = 0; i < 15; i++) turns.add(new CoachTurnSnapshot("ai", "이전 코칭 " + i));
         var result = engine.reply(session().withTurns(turns), "알겠어", UUID.randomUUID());
         assertThat(result.session().closeReason()).isEqualTo("turn_budget");
+        assertThat(result.reply().status()).isEqualTo("complete");
+    }
+
+    @Test void tenthAndFifteenthReplyStayOpenBeforeTheTurnBudget() {
+        for (int existing : List.of(9, 14)) {
+            var turns = new ArrayList<CoachTurnSnapshot>();
+            for (int i = 0; i < existing; i++) turns.add(new CoachTurnSnapshot("ai", "이전 코칭 " + i));
+            var result = engine.reply(session().withTurns(turns), "알겠어", UUID.randomUUID());
+            assertThat(result.session().closeReason()).as("기존 %d번째 응답 뒤에는 열려 있어야 한다", existing + 1)
+                    .isEmpty();
+            assertThat(result.reply().status()).isEqualTo("continue");
+        }
+    }
+
+    @Test void practiceLoopPromptUsesSixteenAsACeilingInsteadOfAFiveTurnTarget() {
+        assertThat(DirectVideoPrompts.practiceLoop())
+                .contains("코치 응답 최대 " + ConversationService.THREE_LAYERS_REPLY_LIMIT + "턴",
+                        "16턴은 채워야 할 목표가 아니라 상한이다", "이번이 응답 15번째", "이번이 응답 16번째")
+                .doesNotContain("이 세션은 약 5턴이다", "이번이 응답 5번째일 때");
+    }
+
+    @Test void practiceLoopStillClosesAtTheServerTurnBudgetEvenWhenTheModelKeepsGoing() throws Exception {
+        var loopEngine = practiceLoopEngine();
+        var turns = new ArrayList<CoachTurnSnapshot>();
+        for (int i = 0; i < 15; i++) turns.add(new CoachTurnSnapshot("ai", "이전 코칭 " + i));
+        var loopState = (com.fasterxml.jackson.databind.node.ObjectNode) StructuredJson.MAPPER
+                .readTree("{\"revision\":0,\"practice_loop\":{\"design\":\"\"}}");
+        var loopSession = session().withTurns(turns).withCoachingState("three_layers_v1", 0, loopState, "open", "");
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(
+                "<상태>이어보기 · 응답 16번째</상태>\n그때는 어떤 마음이었어요?");
+        var result = loopEngine.reply(loopSession, "알겠어", UUID.randomUUID());
+        assertThat(result.session().closeReason()).as("practiceLoop=true어도 서버 상한이 강제된다")
+                .isEqualTo("turn_budget");
         assertThat(result.reply().status()).isEqualTo("complete");
     }
 
