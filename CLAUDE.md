@@ -23,6 +23,7 @@
 - **제품 행동·범위**를 정할 때 → [docs/PRD.md](docs/PRD.md)와 [CONTEXT.md](CONTEXT.md)
 - **화면·컴포넌트·카피**를 만들 때 → [UI_GUIDE.md](docs/design/UI_GUIDE.md).
   시각 수치와 화면 구조는 이 가이드의 작업별 레퍼런스를 이어서 읽습니다.
+- **폴더·패키지 배치나 층 경계**를 정할 때 → [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - **API·DB·마이그레이션**을 바꿀 때 → [apps/api/CONTRACT.md](apps/api/CONTRACT.md).
   API 계약 변경과 소비 중인 필드·컬럼 축소는 [계약 변경 절차](apps/api/CONTRACT.md#계약-변경-절차)를
   함께 따릅니다.
