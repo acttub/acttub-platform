@@ -120,12 +120,13 @@ class DirectVideoCoachTest {
                 .doesNotContain("이 세션은 약 5턴이다", "이번이 응답 5번째일 때");
     }
 
-    @Test void practiceLoopStillClosesAtTheServerTurnBudgetEvenWhenTheModelKeepsGoing() throws Exception {
+    @Test void practiceLoopStillClosesAtTheServerTurnBudgetEvenWhenTheModelKeepsGoing() {
         var loopEngine = practiceLoopEngine();
         var turns = new ArrayList<CoachTurnSnapshot>();
         for (int i = 0; i < 15; i++) turns.add(new CoachTurnSnapshot("ai", "이전 코칭 " + i));
-        var loopState = (com.fasterxml.jackson.databind.node.ObjectNode) StructuredJson.MAPPER
-                .readTree("{\"revision\":0,\"practice_loop\":{\"design\":\"\"}}");
+        // 종료 handoff도 검증하므로 실제 세션처럼 context와 source_catalog를 포함한다.
+        var loopState = CoachingStateReducer.empty();
+        loopState.putObject("practice_loop").put("design", "버릇: 말이 빠른 편이에요");
         var loopSession = session().withTurns(turns).withCoachingState("three_layers_v1", 0, loopState, "open", "");
         when(model.reply(eq(file), anyList(), anyString())).thenReturn(
                 "<상태>이어보기 · 응답 16번째</상태>\n그때는 어떤 마음이었어요?");
