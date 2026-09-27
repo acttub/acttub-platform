@@ -10,25 +10,25 @@ import {
   type StoreLinkSurface,
 } from "@/lib/app-download/store-links";
 
+import { useCampaignSearch } from "./use-campaign-search";
+
 // 기기는 한 번만 판별하면 된다 — 브라우저를 쓰는 도중에 바뀌지 않는다.
 let detected: MobileOs | null | undefined;
 
-function clientHref(surface: StoreLinkSurface): string {
+function clientOs(): MobileOs | null {
   if (detected === undefined) {
     detected = detectMobileOs(navigator.userAgent, navigator.maxTouchPoints);
   }
-  return downloadHrefFor(detected, surface);
+  return detected;
 }
 
 // 값이 바뀔 일이 없으니 구독은 빈 껍데기다. 모듈 상수로 둬서 렌더마다 다시 구독하지 않는다.
 const subscribe = () => () => {};
 
 export function useAppDownloadHref(surface: StoreLinkSurface): string {
-  return useSyncExternalStore(
-    subscribe,
-    () => clientHref(surface),
-    () => "/app",
-  );
+  const search = useCampaignSearch();
+  const os = useSyncExternalStore(subscribe, clientOs, () => null);
+  return downloadHrefFor(os, surface, search);
 }
 
 // 높이·모서리·글자 크기는 여기서만 정한다 — className 으로 h-* 를 덧씌우면 Tailwind 가
