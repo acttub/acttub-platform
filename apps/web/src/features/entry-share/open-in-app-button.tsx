@@ -1,6 +1,7 @@
 "use client";
 
-import { detectMobileOs } from "@/lib/app-download/store-links";
+import { useCampaignSearch } from "@/features/app-download/use-campaign-search";
+import { detectMobileOs, downloadHrefFor } from "@/lib/app-download/store-links";
 
 import { openInAppTarget } from "./open-in-app";
 
@@ -13,9 +14,11 @@ const APP_OPEN_WAIT_MS = 1500;
  * 보이면 스토어로 보내고, 안드로이드는 intent 주소가 스스로 스토어로 넘어간다.
  */
 export function OpenInAppButton({ entryId }: { entryId: string }) {
+  const search = useCampaignSearch();
+
   function open(event: React.MouseEvent<HTMLAnchorElement>) {
     const os = detectMobileOs(navigator.userAgent, navigator.maxTouchPoints ?? 0);
-    const target = openInAppTarget(os, entryId, window.location.origin);
+    const target = openInAppTarget(os, entryId, window.location.origin, search);
     event.preventDefault();
     window.location.href = target.href;
     const fallback = target.fallback;
@@ -27,7 +30,7 @@ export function OpenInAppButton({ entryId }: { entryId: string }) {
 
   return (
     <a
-      href="/app"
+      href={downloadHrefFor(null, "entry_share", search)}
       onClick={open}
       className="flex h-14 w-full items-center justify-center rounded-2xl bg-[#3182f6] text-base font-bold text-white transition-colors hover:bg-[#1b64da]"
     >
