@@ -67,7 +67,9 @@ public final class DirectVideoCoach {
         String route = "";
         boolean routeFallback = false;
         boolean actorFinished = DialogueProgress.actorFinished(actorText);
-        boolean turnBudget = session.turns().stream().filter(t -> "ai".equals(t.role())).count() >= 9;
+        // ConversationService.THREE_LAYERS_REPLY_LIMIT 을 따른다 — 이번 응답이 그 상한을 채우면 강제 종료한다.
+        boolean turnBudget = session.turns().stream().filter(t -> "ai".equals(t.role())).count()
+                >= ConversationService.THREE_LAYERS_REPLY_LIMIT - 1;
         try {
             var source = videos.find(session.userId(), session.practiceSessionId());
             if (source == null) throw new IllegalStateException("owned video is unavailable");
