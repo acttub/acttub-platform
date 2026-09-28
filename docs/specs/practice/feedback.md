@@ -23,6 +23,7 @@
 | `GET /v2/me/practice-feedback/status` | — | `PracticeFeedbackStatus` 200(asked, asked_now false) | — |
 | `POST /v2/me/practice-feedback/claim` | — | `PracticeFeedbackStatus` 200, 선점한 기기만 asked_now true | — |
 | `POST /v2/practice-feedback` | 필수 `request_id`·`screen`(coach·report)·`trigger`(x·leave·back), 선택 `practice_id`·`body`(없으면 dismissed)·`contact_email`·`contact_phone` (`PracticeFeedbackRequest`) | `PracticeFeedbackResponse` 201, 재전송 200 | `feedback_body_required` 422(공백뿐인 본문), 길이 초과 422(배열), `practice_not_found` 404, `account_deactivated` 403 |
+| `GET /v2/admin/feedback` (운영, `ADMIN_OPS_TOKEN`) | 선택 `limit`(1~100, 기본 50)·`exclude_actors`(팀으로 볼 배우 가명, 쉼표)·`include_team` | `AdminFeedbackPage` 200(`{items, limit, has_more}`). 이탈 설문과 노트 평가(practice.note)를 최신순 한 목록으로 | 토큰이 다르면 401, 값 오류 422(배열) |
 | `ExitSurveySyncScheduler.run` (`EXIT_SURVEY_SYNC_INTERVAL_MS`, 기본 하루) | sheet_synced_at 없는 행, 90일 지난 연락처 | 시트 전송 뒤 sheet_synced_at, 연락처 NULL·sheet_seq +1 | 전송 실패는 NULL로 두고 다음 실행에 다시 보낸다 |
 
 ## 상태
@@ -62,6 +63,12 @@ practice_feedback.sheet_synced_at — 시트 복제.
 - 연락처는 접수 90일 뒤 DB에서 지우고 같은 설문 id·새 순번으로 시트에 다시 보내 시트의 연락처도 지운다(성공까지 재시도). 탈퇴 때도
   같다. 본문은 사람과 끊어 남긴다. 연락처 컬럼을 지워도 본문에 식별 정보가 있을 수 있다는 점은 법무 확인에 둔다.
 - 웹은 외부 폼 대신 같은 시트 화면을 쓴다. (디자인에 반영할 것)
+- 운영 피드백 조회: 한 항목은 `id`·`kind`(exit_survey·note_rating)·`created_at`·`actor`·`is_team`·`body`·`rating`·`status`·`source`·
+  `trigger`·`practice_id`를 항상 싣고 해당 없는 값은 null이다. 설문은 body 유무에 따라 status answered·dismissed, source는 coach·report다.
+  평가는 한 줄을 body, 평가 값을 rating, source를 practice_note로 낸다. 정렬은 `created_at DESC, kind ASC, id ASC`라 같은 시각에도 고정된다.
+  배우는 `배우 ` + md5(user_id) 앞 8자리로만 보이고 연락처·원본 user id·이메일은 싣지 않는다. 팀 계정(운영 제외 이메일·제외 배우)은
+  기본으로 빼고 `include_team=true`일 때만 넣어 `is_team=true`로 표시한다. 이 자유 입력은 이 실시간 조회로만 본다 — ops-core JSON·백업
+  스냅샷·git 산출물에는 본문이나 평가 한 줄을 넣지 않는다.
 
 ## 예외
 - 오프라인 제출: 기기가 들고 있다가 다시 보낸다. 같은 설문 id라 행 하나.

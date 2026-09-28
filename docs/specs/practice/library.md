@@ -20,15 +20,15 @@
 ## 입력·출력
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
-| `GET /v2/videos` | `filter`(all·recent7·favorite), `cursor` | `VideoList` 200 | 필터 값 오류 422(배열) |
-| `GET /v2/videos/{video_id}` | video_id | `Video` 200(10분 서명 재생 주소·사용처) | `video_not_found` 404 |
+| `GET /v2/videos` | `filter`(all·recent7·favorite), `cursor` | `VideoList` 200(`{videos, next_cursor}`, 포스터 주소 있음, 재생 주소 없음) | 필터 값 오류 422(배열) |
+| `GET /v2/videos/{video_id}` | video_id | `Video` 200(10분 서명 `playback_url`·`playback_expires_at`, `poster_url`, 사용처 `usage{practice_count, entry_count}`. 조회마다 새 주소) | `video_not_found` 404 |
 | `PATCH /v2/videos/{video_id}` | 필수 `favorite` (`VideoPatch`) | `Video` 200 | `video_not_found` 404 |
 | `DELETE /v2/videos/{video_id}` | video_id | 204 | `video_in_use` 422, `video_not_found` 404 |
 | `POST /v2/videos/{video_id}/purge-file` | video_id | `Video` 200(이미 파기됐어도 200) | `video_not_found` 404 |
 | `GET /v2/practices` | `filter`(all·favorite·recent30) | `PracticeGroupList` 200(묶음마다 회차 요약·진행 중 회차 id) | 필터 값 오류 422(배열) |
 | `GET /v2/practices/{practice_id}` | practice_id | `Practice` 200 | `practice_not_found` 404 |
 | `PATCH /v2/practices/{root_id}/group` | 첫 회차 id, `favorite`·`hidden`·`title` 중 보낸 것만 (`PracticeGroupPatch`) | `PracticeGroup` 200 | `practice_not_found` 404 |
-| `VideoPosterScheduler.poll` (`VIDEO_POSTER_POLL_INTERVAL_MS`, 기본 10초) | 포스터가 빈 영상 | 첫 장면 JPEG(poster_key), 목록·상세의 `poster_url` | 실패는 poster_attempts를 올리고 상한까지 다시 한다 |
+| `VideoPosterScheduler.poll` (`VIDEO_POSTER_POLL_INTERVAL_MS`, 기본 10초) | 포스터가 빈 영상 | 첫 장면 JPEG(poster_key), 목록·상세·즐겨찾기 응답의 `poster_url` | 실패는 보고만 하고 다음 주기에 다시 집는다. 세 번 집힌 영상은 더 고르지 않는다 |
 
 ## 상태
 practices.hidden_at — 묶음 숨김. 첫 회차 행(root)에만 있다.
@@ -53,16 +53,25 @@ practices.hidden_at — 묶음 숨김. 첫 회차 행(root)에만 있다.
   하나, 사용처는 조회 응답에서). 참조 확인과 삭제, 참조 생성(회차 시작·참여)은 영상 행을 잠근 채 한다. 삭제되면 객체는 장부로 지우고
   받아쓰기도 함께 지운다.
 - 참조가 있는 영상은 "파일만 파기"할 수 있다. 회차·참여작 기록은 남기고 객체와 받아쓰기를 지우며(장부), 그 영상은 재생 불가로 표시되고
-  총량에서 빠진다. 공개 참여작이 참조하면 먼저 참여작을 비공개·삭제해야 한다(422 video_in_use와 사용처 안내). 총량이 가득한 계정이 공간을
+  총량에서 빠진다. 파기했어도 참조가 있으면 삭제는 여전히 422 video_in_use다. 공개 참여작이 참조하면 먼저 참여작을 비공개·삭제해야 한다(422 video_in_use와 사용처 안내). 총량이 가득한 계정이 공간을
   되찾는 길이다.
-- 연습 기록(A1.1)은 묶음 단위다. 묶음의 제목은 마지막 회차 노트의 제목(없으면 상황 문장, 그것도 없으면 "제목 없는 연습")이고
-  회차 수·마지막 대화·태그·즐겨찾기를 보여 준다. 필터는 전체·즐겨찾기·최근 30일, 월별로 묶는다. 묶음 즐겨찾기·숨김은 첫 회차
+- 연습 기록(A1.1)은 묶음 단위다. 서버는 묶음 제목으로 첫 행의 title만 주고, 없으면 화면이 마지막 회차 노트의 제목 → 상황 문장 →
+  "제목 없는 연습" 순으로 채운다. 목록은 숨긴 묶음을 빼고 묶음마다 회차 요약(노트 제목·대화 수 포함)과 진행 중 회차 id를 준다. 회차 수·마지막 대화·태그·즐겨찾기를 보여 준다. 필터는 전체·즐겨찾기·최근 30일, 월별로 묶는다. 묶음 즐겨찾기·숨김은 첫 회차
   행(root)의 속성이다. 기록은 AI 코치와 한 연습만 보인다 — 대본 리딩 회차는 섞지 않고 대본 탭의 대본 상세에서 본다(SOMA-494).
 - 연습 기록 상세(A1.2)는 묶음의 영상, 회차 흐름(n차 · 시각 · 대화 수 · 노트 제목 · 노트 보기), 마지막 대화, "이어서 연습하기"를
   보여 준다.
 - 연습 숨김은 묶음 전체(hidden_at)이며 노트·대화·기억은 지우지 않는다. 개별 회차 숨김은 없다. 화면 문구는 "기록에서 숨겨요.
   영상은 보관함에 남아요"로 실제 범위를 말한다. 옛 앱의 세션 숨김 자료는 그 세션이 속한 묶음의 첫 행으로 옮길 때 승격하지 않고
   회차 hidden_at으로 남겨 목록에서만 뺀다.
+- 옛 표에만 있는 묶음(호환 읽기)은 제목·태그·즐겨찾기가 없어 즐겨찾기 필터에 걸리지 않는다. 회차 상세의 이전 대화 목록
+  (`previous_conversations`)은 새 표에서는 언제나 빈 배열이고(회차당 대화 하나), 한 연습에 대화가 여럿인 옛 자료만 채운다. 구형 관찰은
+  기록의 상태(ready·partial)까지만 새 모양에 담고 신형 기록으로 위장하지 않는다.
+- 포스터: 보관함 목록의 미리보기인 첫 장면 JPEG 한 장이다. 올리기를 막지 않는다 — 마무리는 포스터를 기다리지 않고 `poster_url: null`로
+  영상을 돌려주고, 서버가 뒤에서 포스터가 없는 영상을 최신 저장순으로 하나씩 만든다(이 기능 이전에 올라온 영상도 같은 길). 0.5초 자리
+  (1초 미만이거나 길이를 모르면 맨 앞)의 한 장면을 폭 480px 이하로 뽑는다. 파기됐거나 활성 계정의 것이 아닌 영상은 만들지 않고, 만드는
+  사이 영상이 지워졌거나 파기됐거나 주인이 바뀌었거나 계정이 활성이 아니면 붙이지 않고 지운다(주인이 바뀐 영상은 다음 주기에 다시 만든다).
+  `poster_url`은 재생 주소와 같은 10분 서명 주소이고, 아직 없거나 파기됐거나 스토리지가 없는 기동이면 null이다. 화면은 null을
+  "미리보기 없음"으로 그린다. 실패해도 목록은 `poster_url` 없이 열린다.
 - 홈(A1)의 최근 연습은 숨기지 않은 묶음 3개, 연속 연습 일수는 회차 시작 날짜(한국 시간)로 센다.
 - 웹에는 영상 보관함 진입이 없다. 지난 연습 목록(D4·D8)만 있으며 보관함 화면은 더한다. (디자인에 반영할 것)
 - 게스트도 웹에서 보관함·기록을 본다. 이관 뒤 회원 앱에 같은 것이 보인다.

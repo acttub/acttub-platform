@@ -21,7 +21,7 @@
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
 | `GET /v2/practices/{practice_id}/status` | practice_id | `PracticeStatus` 200(stage·close_reason·analysis_status·job) | `practice_not_found` 404 |
-| `GET /v2/practices/{practice_id}/analysis` | practice_id | `PracticeAnalysis` 200 | `analysis_not_found` 404, `practice_not_found` 404 |
+| `GET /v2/practices/{practice_id}/analysis` | practice_id | `PracticeAnalysis` 200(`{id, format, status, summary}`) | `analysis_not_found` 404, `practice_not_found` 404 |
 | `POST /v2/practices/{practice_id}/cancel` | practice_id | `PracticeStatus` 200(stage closed) | `analysis_already_finished` 409, `practice_not_found` 404 |
 | `AnalysisWorkerScheduler.poll` (`ANALYSIS_WORKER_POLL_INTERVAL_SEC`, 기본 2초) | `pending` analyze 작업, lease `ANALYSIS_LEASE_SEC`(기본 1800초) | analyses·video_transcripts 저장, 작업 succeeded | timeout·parse·unsupported는 즉시 `failed`, 바깥 의존 실패는 `pending`으로 되돌린다 |
 | `AnalysisWorkerScheduler.sweep` (`ANALYSIS_SWEEP_INTERVAL_SEC`, 기본 60초) | 3회 시도한 `pending` 작업 | 작업 `failed`(앞서 적힌 failure_reason을 유지하고 없을 때만 max_attempts), analyze면 회차 closed | — |
@@ -70,12 +70,16 @@ video_transcripts.status — 영상 단위 받아쓰기.
 - analyses는 format으로 갈린다. 신형(video_record_v1)은 acttub.video_record.v1 기록 전체를 jsonb 한 컬럼에 두고 id = record_id다. 기존
   갈래(legacy)는 현행 ObservationPack 원문을 그대로 두고 기존 응답 모양을 유지한다. 둘 다 완료 뒤 덮어쓰지 않고 워커 재시도로 기록
   version을 올리지 않는다. 기존 결과를 신형 형식으로 위장하지 않는다.
+- 분석 조회(`GET …/analysis`)는 공개 요약만 준다. 기존 갈래의 summary는 `ObservationPackResponse`, 신형은
+  `VideoRecordSummaryResponse`이고 전체 내부 원문·출처 목록은 내보내지 않는다. 새 분석이 없으면 옛 분석을 소유권을 확인해 읽는다.
+  없는·남의 회차는 404 practice_not_found, 내 회차에 아직 분석이 없으면 404 analysis_not_found다. 영상 파일을 파기해도 저장된
+  요약은 읽을 수 있다.
 - 받아쓰기는 영상 단위로 만들고(원문·단어 시각·간격·처리 구간) 같은 영상의 다음 회차가 재사용한다.
 - 폴링은 앱 4초, 웹 10초다. 화면을 떠나면 조회만 멈추고 돌아오면 서버 상태부터 읽는다. 앱은 완료 푸시를 받는다(account.notification).
 - 실패 분류는 현행대로다. timeout·parse·unsupported는 즉시 failed, 저장소·ETag 같은 바깥 의존 실패는 다시 큐에 넣고 최대 3회다.
   같은 회차의 완료된 분석을 다시 돌리지 않는다.
 - 게스트 하루 3회는 한국 시간 하루의 새 분석 요청 수다(코드 guest_daily_analysis_limit). 같은 요청 id 재전송·워커 재시도·폴링은 세지
-  않는다. 회원은 한도가 없다.
+  않는다. 회원은 한도가 없다. 두 흐름이 공존하는 동안 옛 external_operations의 분석 요청도 같은 하루에 센다.
 - 명시적 취소("그만두기")는 failed/cancelled로 종결하고 lease를 지워 늦은 완료·재큐를 막는다. 화면 이탈은 취소가 아니다. 앱의 옛
   "분석 포기 = 연습 숨김"은 없앤다.
 - 분석이 전부 실패하면 코치 대화를 시작할 수 없다(409, practice.coach). 근거 없는 대화를 허용하는 것은 별도 제품 결정이다.

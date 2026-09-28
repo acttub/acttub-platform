@@ -794,9 +794,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 ### 6-15. 연습 0.1.0 — 스키마(V14)와 영상 보관함 (SOMA-546)
 
-정본은 [specs/practice/](../../docs/specs/practice/README.md) 와 README 「연습 자료의 이관·삭제·탈퇴」 표다. 회차·분석·
-대화·노트·기억·설문의 API 는 뒤 티켓이 이 절에 이어 쓴다. **코치의 행동 규칙(§7·§8-5·§8-6, ADR-027)은 바꾸지
-않는다** — 0.1.0 이 바꾸는 것은 저장이다.
+> 제품 규칙의 정본: [practice/](../../docs/specs/practice/README.md)(「0.1.0 스키마 전환」, 「연습 자료의 이관·삭제·탈퇴」 표, 옛 경로를 내린 것), [practice.record](../../docs/specs/practice/record.md)(올리기 세 단계·한도·시한), [practice.library](../../docs/specs/practice/library.md)(보관함·상세·삭제·파일만 파기·포스터, 묶음 목록·속성), [practice.start](../../docs/specs/practice/start.md)(시작·재시도, 경험 판, 판정 순서), [practice.resume](../../docs/specs/practice/resume.md)(이어하기), [practice.analyze](../../docs/specs/practice/analyze.md)(상태·취소, 분석 조회, 하루 3회), [practice.coach](../../docs/specs/practice/coach.md)(대화 시작·답장·조회, `reply_limit`), [practice.note](../../docs/specs/practice/note.md)(노트·평가, `my_rating`), [practice.memory](../../docs/specs/practice/memory.md)(배우 기억), [practice.feedback](../../docs/specs/practice/feedback.md)(이탈 설문, 운영 피드백 조회)
 
 - **넓히기만 한 V14**: 새 테이블 열(`videos`·`video_transcripts`·`practices`·`analyses`·`coach_conversations`·
   `coach_messages`·`coach_notes`·`actor_memories`·`practice_feedback`·`ai_jobs`)과, `upload_intents` 에 NULL 허용
@@ -814,91 +812,40 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     여기서 나온다)와 `uq_upload_intents_user_request`(옛 행의 NULL 요청 id 들이 서로 부딪히지 않는다).
   - **테이블이 먼저 서고 코드가 뒤에 선다.** Schema Entity 가 아직 없는 아홉은 `EntityMappingIT.AWAITING_MAPPING`
     에 적혀 있고, 각 기능을 붙이는 티켓이 거기서 빼고 엔티티 수를 올린다.
-- **보관함**(`/v2/videos/**`, `feature/video`) — 영상은 연습에서 독립한 자산이다. 코칭 회차와 챌린지 참여작이 같은
-  `id` 를 가리키고 객체는 하나다("보내기는 복사가 아니라 참조다").
-  - **올리기는 세 단계다**: `POST /v2/videos/intents`(201 `{intent_id, upload_url, expires_at}`) → 기기가 그 주소로
-    PUT → `POST /v2/videos/intents/{id}/complete`. 예약 장부(`upload_intents`)가 요청 id·지문·객체 키·시한·확정
-    `video_id` 를 들고 있어 **마무리 재전송이 같은 영상**을 돌려준다(만들면 201, 재전송이면 200). 예약은
-    `request_id` 로 멱등하고 같은 id 에 다른 본문이면 422 `request_fingerprint_mismatch` 다. `X-Request-Id` 헤더는
-    대본 등록과 같은 규칙이다(있으면 본문과 같아야 한다).
-  - **한도**: 파일 100MiB·길이 5분(넘으면 422 `video_too_large`·`video_too_long`), 총량은 회원 5GiB·게스트 500MiB
-    이고 `purged_at` 없는 행의 `byte_size` 합이다(넘으면 422 `video_quota`, 기존은 보존). 형식은 MP4·MOV 뿐이고
-    그 밖은 값 오류(422 **배열**)다. 기기도 같은 값을 검사하지만 서버가 다시 본다.
+- **보관함**(`/v2/videos/**`, `feature/video`)
+  - 예약 장부(`upload_intents`)가 요청 id·지문·객체 키·시한·확정 `video_id` 를 들고 있어 마무리 재전송이 같은 영상을
+    돌려준다.
   - **총량 검사와 확정은 `users` 행을 `FOR UPDATE` 로 잡은 한 트랜잭션**이다 — 한도 직전에 겹쳐 온 확정 둘 가운데
     하나만 통과한다. **바깥 호출(저장소)은 그 트랜잭션 밖이다**(§5-4): 주소를 받고 올라온 객체를 확인하는 일은
-    서비스가 하고, 아직 안 올라왔거나 크기가 예약과 다르면 422 `video_not_ready` 다.
-  - **시한은 30분**이다. 지난 뒤의 마무리는 422 `upload_expired` 이고 예약을 `expired` 로 닫으며 **미확정 객체의
-    삭제를 같은 트랜잭션에서 장부**(`object_delete`)에 올린다.
-  - **목록** `GET /v2/videos?filter=all·recent7·favorite&cursor=`: `{videos, next_cursor}` 로 최신 저장순이다(커서는
-    저장 시각과 id). 예시 영상을 섞지 않는다. **재생 주소는 상세에만** 있다 — 한 쪽에서 서른 개의 주소를 만들 이유가
-    없다. **포스터 주소(`poster_url`)는 목록에도 있다** — 목록이 미리보기를 보여 주는 자리다(아래 「포스터」).
-  - **상세** `GET /v2/videos/{id}`: `Video` + 10분 서명 `playback_url`·`playback_expires_at` + `poster_url` +
-    `usage{practice_count, entry_count}`. 조회할 때마다 새 주소다. 없는 것과 남의 것은 같은 **404 `video_not_found`**(수정·삭제·파기도 같다).
-  - **삭제** `DELETE /v2/videos/{id}`: **참조가 없을 때만** 204 다. 회차나 참여작이 참조하면 422 `video_in_use` 이고
-    아무것도 지우지 않는다 — 오류 본문은 코드 하나이고 **사용처는 상세 조회에서** 본다. 지우면 받아쓰기도 함께
-    지우고 객체(영상과 포스터)는 장부로 간다. 참조 확인과 삭제는 **영상 행을 잠근 채** 한다(회차 시작과 겹쳐도 하나만
-    성공한다).
-  - **파일만 파기** `POST /v2/videos/{id}/purge-file`: 회차·참여작의 기록은 남기고 객체(영상과 포스터)·받아쓰기만
-    지운다(`purged_at`). 그 영상은 재생 불가로 표시되고 `poster_url` 도 `null` 이며 **총량에서 빠진다** — 총량이 가득한
-    계정이 공간을 되찾는 길이다. 이미 파기된 영상에 다시 걸면 같은 답이고, 파기했어도 참조가 있으면 삭제는 여전히
-    422 다. `poster_key` 는 `object_key` 처럼 행에 남지만 객체는 없다.
-  - **포스터**(`videos.poster_key`·`poster_attempts`, V23, SOMA-562) — 목록의 미리보기인 첫 장면 JPEG 한 장이다.
-    - **올리기를 막지 않는다.** 마무리는 포스터를 기다리지 않고 `poster_url: null` 로 영상을 돌려준다.
-      `video/app/VideoPosterWorker` 가 뒤에서 `poster_key` 가 빈 영상을 **최신 저장순으로 하나씩** 집는다 — 새 영상과
-      이 기능 이전에 올라온 영상(백필)이 같은 길이다. 스케줄러(`adapter/sched/VideoPosterScheduler`)는 10초마다
-      (`VIDEO_POSTER_POLL_INTERVAL_MS`) 자기 스레드 하나에서 일감이 없을 때까지 비운다.
+    서비스가 한다.
+  - 시한이 지난 마무리는 예약을 `expired` 로 닫으며 **미확정 객체의 삭제를 같은 트랜잭션에서 장부**(`object_delete`)에
+    올린다.
+  - 목록의 커서는 저장 시각과 id 다.
+  - 삭제는 참조 확인과 삭제를 **영상 행을 잠근 채** 한다(회차 시작과 겹쳐도 하나만 성공한다). 지운 영상과 포스터
+    객체는 장부로 간다. 파일만 파기해도 `poster_key` 는 `object_key` 처럼 행에 남지만 객체는 없다.
+  - **포스터**(`videos.poster_key`·`poster_attempts`, V23, SOMA-562): `video/app/VideoPosterWorker` 가 뒤에서
+    `poster_key` 가 빈 영상을 하나씩 집는다. 스케줄러(`adapter/sched/VideoPosterScheduler`)는 10초마다
+    (`VIDEO_POSTER_POLL_INTERVAL_MS`) 자기 스레드 하나에서 일감이 없을 때까지 비운다.
     - **한 번은 집기 · 받기 · 뽑기 · 올리기 · 붙이기다.** 집기는 `FOR UPDATE SKIP LOCKED` 로 한 행을 잡아
-      `poster_attempts` 를 올리고 커밋한다 — 도중에 죽은 시도도 세고, **세 번 집힌 영상은 더 고르지 않는다**
-      (`VideoRules.POSTER_MAX_ATTEMPTS`). 파기됐거나 활성 계정의 것이 아닌 영상은 고르지 않는다. 받기·ffmpeg·올리기는
-      트랜잭션 밖이다(§5-4). ffmpeg 는 0.5초 자리(1초 미만·길이 모름이면 맨 앞)의 한 장면을 폭 480px 이하 JPEG 로 뽑고
-      (`integration/media/PosterFrameExtractor`, 분석과 같은 `FfmpegLock`), 키는 영상 옆 `videos/{사용자}/{요청}.poster.jpg`
-      (`VideoRules.posterKey`)라 다시 만들어도 같은 키에 덮어쓴다. 실패는 보고(`VideoPosterWorker.generate`)만 하고 목록은
-      `poster_url` 없이 그대로 열린다.
-    - **붙이기는 주인의 `users` 행 → 영상 행 순서로 잡는다**(탈퇴·3년 파기와 같은 순서). 그 사이에 영상이 지워졌거나
-      파기됐거나 주인이 바뀌었거나 계정이 활성이 아니면 붙이지 않고 **올린 포스터의 삭제를 같은 트랜잭션에서 장부에**
-      올린다 — 늦게 만든 포스터가 남지 않는다. 주인이 바뀐(이관) 영상은 다음 주기에 다시 만든다.
-    - `poster_url` 은 재생 주소와 같은 **10분 서명 GET** 이고 목록·상세·즐겨찾기 응답에 실린다. 아직 없거나 파기됐거나
-      스토리지가 없는 기동이면 `null` 이다. 화면은 `null` 을 "미리보기 없음" 으로 그린다.
+      `poster_attempts` 를 올리고 커밋한다 — 도중에 죽은 시도도 센다(`VideoRules.POSTER_MAX_ATTEMPTS`). 받기·ffmpeg·올리기는
+      트랜잭션 밖이다(§5-4). 추출은 `integration/media/PosterFrameExtractor`(분석과 같은 `FfmpegLock`)이고, 키는 영상 옆
+      `videos/{사용자}/{요청}.poster.jpg`(`VideoRules.posterKey`)라 다시 만들어도 같은 키에 덮어쓴다. 실패는
+      `VideoPosterWorker.generate` 가 보고한다.
+    - **붙이기는 주인의 `users` 행 → 영상 행 순서로 잡는다**(탈퇴·3년 파기와 같은 순서). 붙이지 못하면 올린 포스터의
+      삭제를 같은 트랜잭션에서 장부에 올린다.
     - **스위치가 둘이고 둘 다 켜져야 돈다**: `ANALYSIS_WORKER_ENABLED`(분석·기억·챌린지 리포트 워커와 공유 — 격리 복원
       검증이 이것 하나로 뒤에서 쓰는 일을 모두 멈춘다)와 `VIDEO_POSTER_ENABLED`(포스터만). 테스트는 후자를 전역으로
       끄고 워커를 직접 부른다.
-  - **즐겨찾기** `PATCH /v2/videos/{id}` `{favorite}` → `Video`.
   - **이관**은 `video/app/VideoOwnership` 이 `videos` 와 **예약 장부**를 함께 옮긴다(§6-9의 순서에서 올린 영상 바로
     뒤다). 예약을 두고 가면 옛 게스트의 대기 업로드가 마무리될 자리를 잃는다.
-- **회차**(`/v2/practices/**`, `feature/practice` 의 0.1.0 코드) — 영상 하나로 시작하는 연습의 단위다.
-  - **시작** `POST /v2/practices`: 본문 `request_id`·`video_id`·`scene{situation, character, goal}`·
-    `blockage{category, detail, note}`. **회차 하나와 분석 작업 하나가 한 트랜잭션**이다 — 도중에 실패하면 둘 다
-    없다. 첫 회차는 `root_id = 자기`·`ordinal = 1`·`stage analyzing` 이고 `ai_jobs` 에 `analyze` 가 `pending` 으로
-    선다. 응답은 **201** `Practice`.
-    - **잠그는 순서가 규칙을 세운다**: 시작은 **영상 행**(보관함의 삭제·파기와 같은 행, §6-15 보관함)을 잡고,
-      이어하기·재시도는 **묶음의 첫 행**을 잡으며, 게스트의 하루 한도는 **사용자 행**을 잡고 센다.
-    - Scene Context 는 셋 모두 선택이고 각 300자, 막힘 서술은 500자다(넘으면 422 **배열**). 비우면 빈 문자열로
-      저장하고 **시작 뒤에는 바꾸지 않는다** — 고치는 API 가 없다. 막힘을 고르지 않으면 "그 외/그 외"이고 큰 갈래와
-      세부의 조합은 옛 CHECK 와 같다. **이론 선택은 0.1.0 에 없다.**
-    - **경험 판**(`experience_version`)은 서버 플래그(`ACTTUB_THREE_LAYERS_ENABLED`)가 켜져 있고 계약 헤더
-      `X-Acttub-Contract: three_layers_v1` 이면 장면·막힘을 적었는지와 무관하게 `three_layers_v1` 이다(SOMA-508 hotfix,
-      `PracticeRules.threeLayers` — 예전에는 무입력일 때만이었다). 그 밖은 전부 `legacy` — 본문에 `client_experience` 같은 필드는 없다(헤더가 정본이다).
-    - 영상이 없거나 남의 것이거나 `purged_at` 이 찼으면 422 `video_not_ready`. 게스트가 하루 세 번을 넘기면 429
-      `guest_daily_analysis_limit`(한국 시간 자정에 끊고, 두 흐름이 공존하는 동안 옛 `external_operations` 의 요청도
-      같은 하루에 든다). 같은 `request_id` 에 다른 본문이면 422 `request_fingerprint_mismatch`.
-  - **이어하기** `POST /v2/practices/{id}/continue`: 같은 묶음의 다음 차수다. `video_id` 를 보내지 않으면 이어받을
-    회차의 영상을 그대로 쓴다. **묶음에 닫히지 않은 회차가 있으면 409 `practice_in_progress`** 이고 본문은 코드
-    하나다 — 그 회차 id 는 묶음 조회의 `in_progress_practice_id` 에서 얻는다. 차수는 묶음 잠금과
-    `uq_practices_root_ordinal` 로 발급하므로 겹쳐 온 요청 둘 가운데 하나만 받는다.
-  - **재시도** `POST /v2/practices/{id}/analyze`(본문 `request_id`): 실패로 닫힌 회차에 새 작업을 걸고 `analyzing` 으로
-    돌린다. 아직 실패하지 않았으면 409 `analysis_not_failed`, 묶음에 다른 진행 중 회차가 있으면 409
-    `practice_in_progress` 다. 웹이 가정한 `/retry` 가 아니라 **옛 `/v2/practice-sessions/{id}/analyze` 와 같은 꼴**이다.
-  - **묶음 목록** `GET /v2/practices?filter=all·favorite·recent30`: `{ groups: [...] }`. 숨긴 묶음은 빠지고 묶음마다
-    회차 요약(`note_title`·`conversation_count` 포함)과 `in_progress_practice_id` 가 온다. **제목은 서버가 첫 행의
-    `title` 만 준다** — 없으면 화면이 마지막 회차 노트 제목 → 상황 문장 → "제목 없는 연습" 순으로 채운다.
-  - **상세·상태** `GET /v2/practices/{id}`·`GET /v2/practices/{id}/status`: `stage` 는 회차의 진행이고
-    `analysis_status` 는 관찰 기록의 상태다(**다른 것이다**). 폴링은 앱 4초·웹 10초다. 없는 것과 남의 것은 같은
-    **404 `practice_not_found`**.
-  - **취소** `POST /v2/practices/{id}/cancel`: "그만두기"다. 작업을 `failed`/`cancelled` 로 닫고 **lease 를 지워** 늦은
-    완료와 재큐를 막으며 회차는 `closed` 다. 화면을 떠나는 것은 취소가 아니다. 이미 끝난 분석은 409
-    `analysis_already_finished`.
-  - **묶음 속성** `PATCH /v2/practices/{root_id}/group` `{favorite?, hidden?, title?}`: 보낸 것만 바꾼다. 숨김은 묶음
-    전체이고 **개별 회차 숨김은 없다** — 노트·대화·기억은 지우지 않고 영상은 보관함에 남는다.
+- **회차**(`/v2/practices/**`, `feature/practice` 의 0.1.0 코드)
+  - 시작은 **회차 하나와 분석 작업 하나를 한 트랜잭션**에서 만든다.
+  - **잠그는 순서가 규칙을 세운다**: 시작은 **영상 행**(보관함의 삭제·파기와 같은 행)을 잡고, 이어하기·재시도는
+    **묶음의 첫 행**을 잡으며, 게스트의 하루 한도는 **사용자 행**을 잡고 센다(`PostgresPracticeRepository#overQuota`,
+    `ai_jobs` 와 옛 `external_operations` 의 `analyze` 를 함께 센다).
+  - 경험 판은 `PracticeRules.threeLayers` 가 정한다.
+  - 차수는 묶음 잠금과 `uq_practices_root_ordinal` 로 발급한다.
+  - 취소는 작업의 **lease 를 지워** 늦은 완료와 재큐를 막는다.
 - **`ai_jobs` 장부**(`platform/ledger/AiJobLedger`, `platform/operation/PostgresAiJobLedger`): 종류는
   `analyze`·`memory_update` 둘이다. **lease 상태 전이는 `external_operations` 와 같은 고정 계약**이다(§5-7): 만료돼도
   재선점 전이면 완료를 받고, 토큰이 바뀌었으면 거절하며, `release` 는 `attempt_count` 를 되돌리지 않고, 3회 뒤
@@ -907,130 +854,35 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   하나다 — 옛 `AnalysisStore`(={`external_operations`} + `summaries`)와 0.1.0 `PracticeAnalysisStore`
   (={`ai_jobs`} + `analyses`·`video_transcripts`). 영상을 내려받고 검증값을 견주고 실패를 분류하고 lease 를 다루는
   규칙이 한 벌이어야 하기 때문이다. 스케줄러는 등록된 워커를 모두 돌린다.
-  - **공개 요약 조회** `GET /v2/practices/{id}/analysis`: `{id, format, status, summary}`다. 기존 갈래의 summary는
-    `ObservationPackResponse`, 신형은 `VideoRecordSummaryResponse`다. 전체 내부 원문·출처 목록은 내보내지 않는다.
-    새 분석이 없으면 소유권을 확인하는 옛 분석 읽기로 이어진다. 없는/남의 회차는 404 `practice_not_found`,
-    소유한 회차에 아직 분석이 없으면 404 `analysis_not_found`다. 영상 파일을 파기해도 저장된 요약은 읽을 수 있다.
-  - **완료는 한 트랜잭션이고 그 안에서 주인과 계정 상태를 다시 본다**: 탈퇴가 먼저 끝났으면 결과를 저장하지 않고
-    작업을 `failed`/`account_deactivated` 로 닫으며, 이관이 먼저 끝났으면 회차의 주인이 이미 회원이라 결과가 회원의
-    것이 된다. lease 가 재선점됐으면 완료가 거절되고 트랜잭션이 통째로 되돌아간다.
-  - **기록은 완료 뒤 불변이다** — 같은 회차에 두 번째 분석이 끝나도 덮지 않는다(`ON CONFLICT DO NOTHING`). 형식은
-    `experience_version` 이 정한다: 신형은 `video_record_v1` 이고 **행의 id 가 `record_id`**, 기존 갈래는 `legacy` 로
-    ObservationPack 원문을 그대로 둔다(구형을 신형으로 위장하지 않는다). **못 본 구간이 있으면 `partial`** 이고 그
-    구간을 채우지 않는다 — 부분 완료여도 대화는 시작된다.
-  - 결과가 저장되면 회차가 `conversing` 으로, 최종 실패(3회 소진·즉시 실패)면 `closed`/`analysis_failed` 로 간다.
-    **코치 시작은 이 `stage` 가 답한다** — `conversing` 이 아니면 409 `analysis_not_ready` 다.
-  - **받아쓰기는 영상당 묶음 하나**다(`uq_video_transcripts_video`). 같은 영상의 다음 회차는 새로 만들지 않고 먼저
-    만든 묶음을 재사용한다.
+  - **완료는 한 트랜잭션이고 그 안에서 주인과 계정 상태를 다시 본다.** lease 가 재선점됐으면 완료가 거절되고
+    트랜잭션이 통째로 되돌아간다.
+  - 기록의 불변은 `ON CONFLICT DO NOTHING` 이 지킨다. 받아쓰기의 영상당 하나는 `uq_video_transcripts_video` 다.
   - 예약 장부에 **검증값이 없는 영상은 견주지 않는다** — 없는 것을 불일치로 보면 그 회차가 재큐만 되풀이하다 실패한다.
-- **코치 대화**(`/v2/coach/**`, `feature/coach` 의 0.1.0 코드) — 회차에 대화는 하나다(`coach_conversations.practice_id`
-  유일). 열린 대화는 같은 id 로 재개하고 닫힌 뒤 다시 코칭하려면 새 회차다.
-  - **바꾼 것은 저장뿐이다.** 코치의 행동 규칙(응답 상한 8/10, 첫 응답 경로, 도움 버튼, 상태 json 의 출처 분리,
-    프로필 조건부 입력)은 `CoachEngine`·`CoachPrompt` 가 그대로 갖고 있고(§7·§8, ADR-027), 새 저장소는 엔진이 쓰는
+- **코치 대화**(`/v2/coach/**`, `feature/coach` 의 0.1.0 코드)
+  - 코치의 행동 규칙은 `CoachEngine`·`CoachPrompt` 가 그대로 갖고 있고(§7·§8, ADR-027), 새 저장소는 엔진이 쓰는
     `CoachSessionSnapshot` 을 `practices`·`analyses`·`videos`·`coach_*` 에서 만들어 건넨다.
-  - **시작** `POST /v2/coach/start` `{practice_id, request_id}`: 회차의 `stage` 가 `conversing` 이 아니면 409
-    `analysis_not_ready` 다 — 분석이 결과를 저장할 때 그 값이 된다(§6-15 분석). `start_request_id` 로 멱등하다.
-  - **답장** `POST /v2/coach/reply` `{conversation_id, request_id, text, revision}`: 배우 답은 300자까지다.
-    `(conversation_id, request_id)` 로 멱등하고 같은 id 에 다른 본문이면 422 `request_fingerprint_mismatch`,
-    `revision` 이 다르면 409 `conversation_conflict`, 닫힌 대화면 409 `conversation_closed` 다. **바깥 호출(LLM)은
-    트랜잭션 밖**이고 저장할 때 대화 행을 잠가 `state_revision` 을 다시 본다(§5-4).
-  - 응답은 `{conversation, message, note}` 이고 `conversation` 에 `status`·`revision`·`coach_reply_count`·
-    `reply_limit`·`messages` 가 있다 — 화면이 남은 응답 수와 마무리 예고를 그린다.
-  - **대화 조회** `GET /v2/coach/conversations/{id}`: 409 뒤 최신 상태를 다시 읽는 자리이자 회차의 이전 대화를
-    펼치는 자리다. 없는 것과 남의 것은 같은 404. `reply_limit`은 저장된 경험 판을 읽어 기존 갈래는 8,
-    신형은 10을 반환하며 시작·후속 응답과 같다.
-- **연습 노트**(`coach_notes`, `GET /v2/practices/{id}/note`) — 대화와 1:1 이고 닫힐 때 **한 번** 만든다(고정된 종료
-  `source_revision`). 재생성 요청은 같은 노트를 돌려받는다.
-  - **만들지 않는 조건**이 갈래마다 다르다: 기존 갈래는 종료어·도움말을 뺀 배우 답이 2개 미만이면 만들지 않고
-    (화면은 "아직 정리 없음"), 신형은 조기 종료에도 남긴다 — 제안이 있으면 `action`, 초점만 남았으면
-    `observation`, 초점도 없으면 `record_only` 이고 그때 **제목은 NULL** 이다.
-  - 생성이 실패하면 **한 번 재시도**하고 그래도 실패하면 기존 갈래는 노트가 없고 신형은 확인된 것만 담은 폴백
-    (`fallback = true`)을 남긴다. 내부 재시도가 성공하면 `fallback = false`이고, 거듭 실패해도 이미 확인된
-    초점·근거는 보존한다. 배우의 방향(`direction`)과 촬영 제안(`practice.instruction.text`)을 혼동하지 않는다.
-  - 생성기가 낸 **원문 전체**를 `legacy_report` 에 함께 둔다 — 컬럼 이름은 옛 것이지만 신형도 여기에 둔다. 옛 공개
-    필드를 읽던 화면이 그대로 쓰는 호환 응답의 재료다.
-  - 응답의 `summary_quotes`는 `{quote, kind, source_ref}` 배열이고 `kind`는 actor·observation이다.
-    `actor_words`·`corrections`·`tags`는 문자열 배열이다. 응답의 `report`는 기존 공개 리포트 또는
-    `acttub.public_practice_note.v1`이며 내부 출처 목록·대화 상태를 보내지 않는다. 원문은 DB에 그대로 보존한다.
-  - 응답의 `my_rating` 은 이 사람이 이 노트에 남긴 평가(`NoteRating`)이고 없으면 null 이다. **노트 조회만 채운다** —
-    코치 응답(`CoachTurnResult.note`)에 실린 노트는 방금 만든 것이라 언제나 null 이다(SOMA-558, 키 추가만).
-- **노트 평가**(`note_ratings`, V22, `PUT /v2/practices/{id}/note/rating`, SOMA-558) — "도움 됐어요·아쉬웠어요" 를 누르는
-  순간 노트 단위로 남긴다. 본문 `{request_id, rating, comment?}`, 응답 200 `{rating, comment, updated_at}`.
-  - **노트 하나에 사람 하나가 한 행**이다(`uq_note_ratings_note_user`). 다시 보내면 값·한 줄·`request_id`·`updated_at` 을
-    덮어쓰고, `comment` 를 빼면 한 줄도 비운다. `rating` 은 `helpful`·`not_helpful` 이고 밖의 값은 422 **배열**이다.
-    한 줄은 앞뒤 공백을 걷은 1~100자(코드 포인트)이고 비었으면 NULL, 넘으면 422 `comment_too_long` 이다.
-  - **멱등은 행의 `request_id` 가 한다.** 같은 id·같은 본문(다듬은 값으로 견준다)의 재전송은 200 같은 응답이고 행을
-    바꾸지 않으며, 같은 id 에 다른 본문은 422 `request_fingerprint_mismatch` 다. 행이 덮어쓰이므로 지문 칸을 따로
-    두지 않고 저장된 값과 견준다. 기기는 노트마다 마지막 요청 하나만 들고 있다가 다시 보낸다 — 옛 요청이 새 평가를
-    덮지 않게 하는 것은 기기의 몫이다.
-  - **게이트·소유권은 노트 조회와 같다**: 없는 회차·남의 회차·노트가 아직 없는 회차는 모두 404 `note_not_found`.
-    평가가 가리키는 것은 0.1.0 노트(`coach_notes`)뿐이라 **아직 옮기지 않은 옛 노트(`practice_reports`)는 조회는 되지만
-    평가는 404** 이고 `my_rating` 은 언제나 null 이다(전환 명령이 옮기면 받는다).
-  - 쓰기는 탈퇴와 같은 `users` 행을 `FOR UPDATE` 로 잡고 활성인지 다시 본다(§6-8) — 게이트 뒤에 탈퇴가 끝났으면 403
-    `account_deactivated`. 평가는 노트·대화·기억 상태를 바꾸지 않는다. 구현은 `coach/app/NoteRatingService`·
+  - 답장의 **바깥 호출(LLM)은 트랜잭션 밖**이고 저장할 때 대화 행을 잠가 `state_revision` 을 다시 본다(§5-4).
+- **연습 노트**(`coach_notes`) — 생성기가 낸 **원문 전체**를 `legacy_report` 에 함께 둔다. 컬럼 이름은 옛 것이지만
+  신형도 여기에 둔다. 옛 공개 필드를 읽던 화면이 그대로 쓰는 호환 응답의 재료다.
+- **노트 평가**(`note_ratings`, V22, SOMA-558)
+  - **노트 하나에 사람 하나가 한 행**이다(`uq_note_ratings_note_user`). **멱등은 행의 `request_id` 가 한다** — 행이
+    덮어쓰이므로 지문 칸을 따로 두지 않고 저장된 값과 견준다.
+  - 쓰기는 탈퇴와 같은 `users` 행을 `FOR UPDATE` 로 잡고 활성인지 다시 본다(§6-8). 구현은 `coach/app/NoteRatingService`·
     `coach/adapter/db/PostgresNoteRatingStore`, 실 DB 검증은 `NoteRatingIT` 다.
-  - **이관**은 회차를 따라 `user_id` 를 회원으로 바꾼다(`NoteRatingOwnership`, 설문 다음). **탈퇴**는 한 줄(자유 입력)을
-    비우고 평가 값은 사람과 끊어 남긴다(`PostgresProfileRepository#erasePractice`).
-- **배우 기억**(`/v2/me/memory`, `actor_memories`) — 칸은 **넷**(`goal`·`blockage`·`speech_self`·`speech_actual`)이고
-  `(user_id, field)` 유일이다. **성별·나이 칸은 없다** — 프로필로 옮겼다(account.profile). 옛 여섯 칸 화면은
-  `/v2/legacy-me/memory` 로 옮겨 옛 표(`actor_memory_entries`)를 그대로 읽는다.
-  - `GET` 은 칸마다 `field`·`value`·`written_by_actor`·`source_practice_id`·`updated_at` 을 준다. **출처 회차가 숨겨진
-    묶음이면 값은 그대로고 `source_practice_id` 만 비운다**(링크만 사라진다).
-  - `PUT /v2/me/memory/{field}` 는 공백을 정리한 뒤 1~1,000자다. 다듬고 나서 빈 값이면 422 **배열**
-    (`value must not be blank`), 1,001자도 422 배열이다. 여기서 쓴 칸은 `written_by = actor` 이고 **워커가 덮지
-    않는다**. `DELETE` 는 칸 하나든 전체든 **멱등**(204)이고 누적 확인 연습 횟수를 초기화하지 않는다.
-  - **기억 세대**(`users.memory_epoch`)가 늦은 갱신을 막는다. 삭제와 **이관 선택**이 세대를 올리고, 갱신 작업은
-    예약 시점의 세대를 `ai_jobs.memory_epoch` 에 들고 있다가 완료 때 다르면 `memory_epoch_stale` 로 닫고 **아무것도
-    쓰지 않는다** — 지운 기억이 되살아나거나 버린 쪽의 작업이 덮지 못한다.
-  - **갱신 예약**은 대화가 닫히고 노트까지 남은 뒤다(`coach/app/ConversationClosedListener` → `memory`). 확인 연습은
-    **노트가 남은 회차**이고 `record_only` 는 세지 않는다 — 첫 회차와 그 뒤 3의 배수(1·3·6·9…)에만 `ai_jobs` 에
-    `memory_update` 가 선다. 요청 id 를 회차에서 만들어 **같은 회차는 작업 하나**다.
-  - 워커는 분석과 **같은 추출기·같은 재시도 규칙**이다(근거는 배우 발화·받아쓰기·관찰뿐, 바깥 실패는 재큐이고 3회
-    뒤 sweep 이 닫는다). 저장은 한 트랜잭션에서 **지금의 주인**에게 하고 계정 상태와 세대를 다시 본다. **회차 상태는
-    건드리지 않는다** — 기억이 없다고 연습이 망가질 것은 아니다.
-- **이탈 설문**(`/v2/practice-feedback`, `/v2/me/practice-feedback/**`, `practice_feedback`) — **DB 가 정본이고 시트는
-  복제본이다**(ERD).
-  - **접수** `POST /v2/practice-feedback`: `request_id`·`practice_id?`·`screen`(coach·report)·`trigger`(x·leave·back)·
-    `body?`·`contact_email?`·`contact_phone?`. 본문은 공백 정리 뒤 1~100자이고 **없으면 건너뛰기**(`dismissed`)다 —
-    공백만 보낸 본문은 건너뛰기가 아니라 422 `feedback_body_required`. 연락처는 각각 80자이고 없이도 보낼 수 있다.
-    길이는 유니코드 코드 포인트로 세며 본문은 공백 정리 뒤 센다. 초과는 422 배열이며 이모지 100개를 UTF-16 길이로 거절하지 않는다.
-    남의 회차를 가리키면 404 `practice_not_found`. 만들면 **201**, 같은 `request_id` 의 재전송이면 **200** 이고 같은
-    설문 id 다(오프라인에서 들고 있다 다시 보내도 행 하나).
-  - **한 계정에 한 번만 묻는다.** `GET /v2/me/practice-feedback/status` 는 `{asked, asked_now}` 로 이미 물어봤는지만
-    보고 표식을 건드리지 않는다. 자동 노출 직전에는 `POST /v2/me/practice-feedback/claim` 으로 **선점**하고
-    `asked_now` 가 참인 기기만 시트를 띄운다 — `UPDATE users … WHERE exit_survey_asked_at IS NULL` 한 문장이라 두
-    기기가 동시에 물어도 하나만 이긴다. 오프라인에서는 선점을 부르지 않는다(새 자동 노출 없음).
-  - **시트 복제는 뒤의 일이다.** 저장은 DB 커밋으로 끝나고 전송이 실패하면 `sheet_synced_at` 이 NULL 로 남아 매일
-    도는 일이 다시 보낸다. 시트는 설문 id 로 **한 줄**이고 `sheet_seq` 가 작은 전송은 무시한다 — 오래된 전송이 파기한
-    연락처를 되살리지 못한다. **이 전송은 AI 작업이 아니라 `ai_jobs` 에 넣지 않는다.**
-  - **연락처는 접수 90일 뒤에 비운다**: DB 를 비우고 `sheet_seq` 를 올린 뒤 `sheet_synced_at` 을 NULL 로 되돌려 같은
-    설문 id·새 순번으로 시트에 다시 보낸다(시트의 연락처도 지운다). 탈퇴 때도 같다. **본문은 사람과 끊어 남는다.**
-  - 시트 구현이 아직 없다. 자리 지킴이(`adapter/sheet/LoggingExitSurveySheet`)는 **보낸 척하지 않고 실패로 남긴다** —
-    성공을 돌려주면 그 설문이 재전송 대상에서 빠져 시트가 붙는 날 영영 복제되지 않는다.
-- **운영 피드백 조회**(`GET /v2/admin/feedback`) — 같은 `ADMIN_OPS_TOKEN` 으로 이탈 설문과 노트 평가를
-  최신순 한 목록으로 읽는다. 기본 50개, 최대 100개이고 응답은 `{items, limit, has_more}` 다.
-  - 한 항목은 `id`·`kind`(`exit_survey`·`note_rating`)·`created_at`·`actor`·`is_team`·`body`·`rating`·
-    `status`·`source`·`trigger`·`practice_id`를 항상 싣고 해당 없는 값은 null 이다. 설문은 body 유무에 따라
-    `answered`·`dismissed`, source 는 `coach`·`report`다. 평가는 comment 를 `body`, 평가값을 `rating`, source 를
-    `practice_note`로 낸다. 정렬은 `created_at DESC, kind ASC, id ASC`라 같은 시각에도 고정된다.
-  - 배우는 `배우 ` + `md5(user_id)` 앞 8자리뿐이다. 연락처·원본 user id·이메일은 projection 과 DTO 에 없다.
-    `ADMIN_OPS_EXCLUDE_EMAILS`와 `exclude_actors`(ops-core와 같은 검증)를 팀으로 보고 기본적으로 제외한다.
-    `include_team=true`일 때만 팀 테스트를 포함하고 `is_team=true`로 표시한다.
-  - 이 자유 입력 조회는 **별도 실시간 경로뿐**이다. `ops-core` JSON·백업 스냅샷·git 산출물에는 body나 평가
-    comment를 넣지 않는다.
-- **연습 자료의 이관·삭제·탈퇴** — 정본은 specs/practice 의 처리표다.
+  - **이관**은 `NoteRatingOwnership`(설문 다음), **탈퇴**는 `PostgresProfileRepository#erasePractice` 다.
+- **배우 기억**(`actor_memories`) — 갱신 예약은 `coach/app/ConversationClosedListener` → `memory` 이고 요청 id 를
+  회차에서 만든다. 워커는 분석과 같은 추출기·같은 재시도 규칙이며 저장은 한 트랜잭션에서 지금의 주인에게 하고 계정
+  상태와 세대(`ai_jobs.memory_epoch`)를 다시 본다.
+- **이탈 설문**(`practice_feedback`) — 선점은 `UPDATE users … WHERE exit_survey_asked_at IS NULL` 한 문장이다. 시트
+  구현이 아직 없다. 자리 지킴이(`adapter/sheet/LoggingExitSurveySheet`)는 **보낸 척하지 않고 실패로 남긴다** — 성공을
+  돌려주면 그 설문이 재전송 대상에서 빠져 시트가 붙는 날 영영 복제되지 않는다.
+- **운영 피드백 조회**(`GET /v2/admin/feedback`) — 연락처·원본 user id·이메일은 projection 과 DTO 에 없다. 팀 판정은
+  `ADMIN_OPS_EXCLUDE_EMAILS` 와 `exclude_actors`(ops-core 와 같은 검증)다.
+- **연습 자료의 이관·삭제·탈퇴** — 제품 규칙은 specs/practice 의 처리표다.
   - **이관**은 `user_id` 가 있는 행을 한 트랜잭션에서 옮긴다: 예약 장부 → `videos` → `practice_sessions`·`practices`
     → `external_operations`·`ai_jobs` → 배우 기억 → 리딩 → 설문 → 노트 평가 순이다(§6-9의 잠금 순서에 이어진다). 분석·대화·노트·
-    받아쓰기는 그 행에 매달려 따라간다. 기억은 합치지 않고 양쪽에 있으면 409 `memory_choice_required` 이며, 고른
-    뒤 **회원의 기억 세대가 오른다**. 설문 이력은 모두 회원 것이 되고 **어느 쪽이든 물어봤으면 회원도 물어본 것**이다.
-  - **탈퇴·30일 파기**: `videos` 는 **행을 지우지 않고** `purged_at` 을 찍어 최소 메타만 남긴다(재생은 막히고 총량에서
-    빠지며 회차·참여작의 기록은 깨지지 않는다). 객체(포스터 포함)는 정리 장부로 가고, 보관 동의자의 영상은 탈퇴 3년 뒤 같은 자리에서
-    파기된다. 진행 중인 `ai_jobs`(분석·기억 갱신)는 `failed`/`account_deactivated` 로 닫고 lease 를 떼며 결과 본문을
-    비운다. `practice_feedback` 의 연락처는 비우고 시트에 다시 보낸다. `note_ratings` 는 한 줄만 비우고 값은 남긴다.
-    `practices`·`analyses`·`coach_*`·
-    `video_transcripts` 는 **사람과 끊어 남긴다**.
-  - **대화 중 탈퇴**: 코치 응답의 저장은 대화 행과 함께 `users.status` 를 본다 — 바깥 호출이 도는 사이에 탈퇴가
-    끝났으면 아무것도 쓰지 않고 403 `account_deactivated` 다(분석의 완료가 같은 자리에서 같은 확인을 한다).
+    받아쓰기는 그 행에 매달려 따라간다.
+  - **대화 중 탈퇴**: 코치 응답의 저장은 대화 행과 함께 `users.status` 를 본다(분석의 완료가 같은 자리에서 같은 확인을 한다).
 - **데이터 전환**(`POST /v2/admin/practice-migration`, `platform/migration`) — 옛 표의 자료를 0.1.0 표로 옮기는
   <b>재실행 가능한 명령</b>이다. Flyway 가 아니라 애플리케이션 명령인 것은 전환이 배포를 멈추면 안 되고 되돌릴
   수도 없기 때문이다(specs/practice 「0.1.0 스키마 전환」 ③).
@@ -1053,17 +905,15 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     관찰은 `legacy` 형식에 원문 그대로다. 대화의 종료 사유만 새 어휘로 옮긴다(`actor_finished`→`user_ended`,
     `turn_budget`→`limit`, `interrupted`→`exhausted`). 옛 대화에는 시작 요청 id 가 없어 **세션 id 를 그대로** 쓴다.
 - **호환 읽기 경로**(specs/practice ②) — 넓히기와 새 쓰기 사이에는 같은 배우의 자료가 두 표에 나뉘어 있다. 새 조회
-  API 는 **새 표를 먼저 보고 없으면 옛 표를 읽어 같은 응답 모양**을 낸다. 화면은 어느 표에서 왔는지 모른다.
+  API 는 **새 표를 먼저 보고 없으면 옛 표를 읽어 같은 응답 모양**을 낸다.
   - `GET /v2/practices/{id}`·`/status`·`GET /v2/practices` 는 `practice/adapter/db/PostgresLegacyPracticeReader`
     로 간다. 차수는 `continued_from` 체인을 그때그때 펴서 만들고 **전환 명령과 같은 규칙**이라 옮기기 전후의
-    응답이 같다. 옛 묶음에는 제목·태그·즐겨찾기가 없어 `favorite` 필터에는 하나도 걸리지 않는다.
+    응답이 같다.
   - `GET /v2/practices/{id}/note` 는 `practice_reports` 를 새 봉투에 담아 낸다. `GET /v2/coach/conversations/{id}`
-    는 `coach_sessions`·`coach_turns` 를 읽는다 — **한 연습에 대화가 여럿인 옛 자료의 "이전 대화" 가 이 경로로
-    열린다.**
-  - **회차 상세의 `previous_conversations`** 는 새 표에서는 언제나 빈 배열이다(회차당 대화 하나). 채워지는 것은
-    옛 자료뿐이고, **옮긴 뒤에도 채워진다** — 전환이 최신 하나만 옮기고 나머지를 옛 표에 남기기 때문이다.
-  - **구형 관찰은 요약만이다** — 새 모양에 담기는 것은 기록의 상태(`ready`·`partial`)까지다. 구형 분리 배열을
-    신형 기록으로 위장하지 않는다.
+    는 `coach_sessions`·`coach_turns` 를 읽는다. `GET /v2/practices/{id}/analysis` 도 새 분석이 없으면 소유권을
+    확인하는 옛 분석 읽기로 이어진다.
+  - 회차 상세의 `previous_conversations` 가 **옮긴 뒤에도 채워지는** 것은 전환이 최신 대화 하나만 옮기고 나머지를 옛
+    표에 남기기 때문이다.
   - 호환 읽기는 **옛 표를 고치거나 지우지 않는다.**
 - **되돌리기**(specs/practice 「0.1.0 스키마 전환」, BRANCHING-STRATEGY 「DB와 배포 안전성」) — 내리기 마이그레이션은
   없다. 대신 **더하기만 한다**: V14·V15 는 새 표와, 예약 장부의 NULL 허용 컬럼 셋, `users` 의 둘만 더했고 옛 표의
@@ -1071,15 +921,9 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   추려 견준다). Hibernate 의 `ddl-auto: validate` 는 **매핑이 없는 여분 표를 보지 않으므로** 직전 태그의 서버가
   새 표가 있는 DB 에서 그대로 뜬다. 배포 절차는 [DEPLOY-HOME.md](../../docs/deploy/DEPLOY-HOME.md) 의 롤백 절과
   같고, 사람이 밟아야 하는 확인(직전 태그 이미지로 옛 화면 읽기)은 배포 파이프라인의 일이다.
-- **옛 쓰기 경로는 내렸다** — `/v2/uploads/**` 와 `/v2/practice-sessions/**` 는 사라졌다. 영상은
-  `/v2/videos/**` 가, 회차는 `/v2/practices/**` 가 받고, 그 표에 없는 옛 자료는 **호환 읽기 경로**가 같은 모양으로
-  보여 준다(위 「호환 읽기 경로」). 옛 표는 그대로 남아 있고 지우지 않았다 — 삭제는 읽기·쓰기를 모두 중단한
-  버전을 배포한 다음 릴리스부터다(specs/practice ④). 게스트 기능표에서도 두 경로를 뺐다.
-- **옛 코치·리포트 경로도 내렸다** — `/v2/legacy-coach/**`와 옛 연습의 `/v2/reports/**`는 등록하지 않는다.
-  코치는 `/v2/coach/start`·`/v2/coach/reply`, 노트 읽기는 `/v2/practices/{id}/note`를 쓴다. 새 코치는 §7-2의
-  프로필과 배우 기억을 매 턴 읽으며, 같은 묶음의 앞 회차 대화·노트만 참고한다. 복수 대화 전환에서 옛 표에
-  남긴 노트도 소유권을 확인해 읽는다. `CoachReadsProfileIT`는 새 경로에서 이 규칙과 조회 실패의 폴백을 검증한다.
-  옛 저장 형식의 회귀 검사는 테스트 전용 어댑터로 유지하며 이 어댑터는 운영 산출물에 포함하지 않는다.
+- **옛 경로를 내린 뒤**: 게스트 기능표에서도 `/v2/uploads/**`·`/v2/practice-sessions/**` 를 뺐다.
+  `CoachReadsProfileIT` 는 새 코치 경로에서 프로필·기억을 읽는 규칙과 조회 실패의 폴백을 검증한다. 옛 저장 형식의
+  회귀 검사는 테스트 전용 어댑터로 유지하며 이 어댑터는 운영 산출물에 포함하지 않는다.
 - OpenAPI 컴포넌트: 보관함은 `Video`·`VideoList`·`VideoUsage`·`VideoIntent`·`VideoIntentRequest`·`VideoPatch`, 회차는
   `Practice`·`PracticeGroup`·`PracticeGroupList`·`PracticeStatus`·`PracticeJob`·`PracticeScene`·`PracticeBlockage`·
   `PracticeCreateRequest`·`PracticeContinueRequest`·`PracticeAnalyzeRequest`·`PracticeGroupPatch`·
@@ -1153,53 +997,46 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
    update 가 새로 생긴다. 벌크 UPDATE 로 분리한다.
 3. **상관 서브쿼리에서 앵커 테이블을 명시한다.** 명시하지 않으면 같은 테이블이 FROM 에 두 번
    들어가 Postgres 가 거부한다. 실제로 한 번 사고가 났던 자리다.
-4. **`SKIP LOCKED` 는 현재 0건이다.** 경합 시 블로킹 대기 → 조건 재평가 실패 → 폴링 재시도
-   구조다. 정확하지만 처리량이 낮다. 바꾸려면 두 방식을 **구분하는 테스트**를 먼저 세운다 —
-   기존 테스트는 구분하지 못한다.
+4. **옛 `external_operations` 선점(`ExternalOperationClaimer`)에는 `SKIP LOCKED` 가 없다.** 경합 시 블로킹 대기 →
+   조건 재평가 실패 → 폴링 재시도 구조다. 정확하지만 처리량이 낮다. 바꾸려면 두 방식을 **구분하는 테스트**를 먼저
+   세운다 — 기존 테스트는 구분하지 못한다. 뒤에 생긴 큐는 `FOR UPDATE SKIP LOCKED` 로 집는다
+   (`PostgresAiJobLedger`, `PostgresAccountCleanupRepository`, `PostgresVideoRepository` 의 만료 예약 정리·포스터,
+   `PostgresNotificationRepository`).
 
 ### 7-1. 코칭 응답과 종료 (2026-09-10)
 
-- 요청·응답 DTO와 저장 스키마는 유지한다. 웹·모바일의 도움 버튼은 명확한 텍스트 요청을 준비하며 전송은 별도 동작이다.
+> 제품 규칙의 정본: [practice.coach](../../docs/specs/practice/coach.md)(「규칙·제약」의 도움 버튼과 기존 갈래·이전 경로의 응답 규칙: `그 외`의 기본 코치, 재생성 사유, 숨은 심리를 만들지 않음), [practice.note](../../docs/specs/practice/note.md)(「규칙·제약」의 기존 갈래: `completion_level=unavailable`, 내용이 확보된 답변)
+
+- 요청·응답 DTO와 저장 스키마는 유지한다.
 - `CoachPrompt:buildChat`은 1층 관찰 팩 전체(장면 요약·전체 흐름·소리 측정값·대사 인용·불확실성)·이전 분석 입력과 현재 세션의 대화 원문 전체를 전달한다. `CoachPrompt:select`의 공통 정책이 갈래별 질문 순서보다 우선한다.
-- 막힘을 건너뛴 `그 외`는 `coach-video-first-prompt.txt`를 사용한다. 장면 맥락이 모두 비어도 첫 1~2회 장면 질문이나 고정된 질문 구간을 붙이지 않는다. 시작·후속 응답·재생성 모두 같은 기본 코치를 쓰며, 명시적인 분석·표현 선택의 프롬프트와 기존 analysis handoff·report 계약은 유지한다.
-- `CoachResponsePolicy:failures`는 빈 응답, 화면에 그대로 노출될 Markdown 강조·제목·코드 기호와 `JSON need` 형태의 내부 형식 메모, 도움 요청 뒤 직전 응답의 완전 반복, 영어 대화에서 완전히 한국어로 돌아온 설명, 종료 요청·8번째 이후의 continue를 재생성 사유로 삼는다. 두 번 실패하면 확인하지 못한 결론을 만들지 않는 대체 응답을 사용한다.
-- 종료 시 생성 실패로 만든 handoff는 `completion_level=unavailable`이다. `ReportEngine:buildReportInput`은 이 상태를 두 갈래 모두에서 차단한다. 저장한 handoff로 다시 요청해도 모델을 호출하지 않는다.
-- `HandoffReadiness:hasEnoughAnswers`는 초기 폼 발화·종료어·명확한 도움 요청만인 발화를 내용이 확보된 답변에서 제외한다. 구체적인 문제 설명에 "모르겠어요"가 들어 있다는 이유만으로 제외하지 않는다.
+- 막힘을 건너뛴 `그 외`의 프롬프트는 `coach-video-first-prompt.txt`다. 명시적인 분석·표현 선택의 프롬프트와 기존 analysis handoff·report 계약은 유지한다.
+- 재생성 사유는 `CoachResponsePolicy:failures`, 생성 실패 handoff의 차단은 `ReportEngine:buildReportInput`(두 갈래 모두), 내용이 확보된 답변의 판정은 `HandoffReadiness:hasEnoughAnswers` 한 곳이다.
 - 코칭은 `TextValidator:validateCoachTurn`으로 근거 설명용 어휘를 허용한다. 다른 표면은 기존 `validateTurn`과 `scanGeneratedStrings`를 유지한다.
-- 분석은 표면적인 뜻으로 충분한 장면에 숨은 심리를 강제하지 않는다. 모름 응답을 설명할 때도 새 관계 갈등·과거사·심리 원인을 추가하지 않으며, 불확실하다는 단서를 붙인 것만으로 근거 없는 해석을 허용하지 않는다.
 
 ### 7-2. 코치 대화와 노트가 읽는 배우 프로필 (2026-09-19)
 
-코치 대화(시작·후속·재생성)와 노트의 모델 입력에 배우가 저장한 **완성된** 프로필을 조건부로 싣는다
-([account.profile](../../docs/specs/account/profile.md)). §7-1 의 계약은 그대로다 — 요청·응답 DTO,
-저장 스키마, handoff·report 계약을 바꾸지 않는다.
+> 제품 규칙의 정본: [account.profile](../../docs/specs/account/profile.md)(「규칙·제약」의 코치에 넘기는 프로필: 싣는 조건, 부재 시 동일성, 만 나이, 턴마다 다시 읽기, 기억 사본에서 성별·나이 빼기, 저장하지 않음, 노트 재생성 없음)
 
-- **부재 시 동일성이 계약이다.** 프로필이 없거나(게스트) 여섯 항목 가운데 하나라도 비어 있으면 포트가 `null` 을 주고,
-  그때 프롬프트와 모델 입력은 이 기능이 생기기 전과 **바이트 단위로 같다.** 그래서 시스템 프롬프트 본문을 조건 없이
-  바꾸지 않는다 — 프로필을 어떻게 쓸지의 지시는 프로필이 실린 호출에만 붙는다. 기존 고정값
-  (`frozen/coach-chat-prompt*.txt`·`coach-regeneration-prompt.txt`·`report-input-*.txt`)이 이것을 지킨다.
+§7-1 의 계약은 그대로다 — 요청·응답 DTO, 저장 스키마, handoff·report 계약을 바꾸지 않는다.
+
+- **부재 시 동일성은 고정값이 지킨다.** 시스템 프롬프트 본문을 조건 없이 바꾸지 않는다 — 프로필을 어떻게 쓸지의
+  지시는 프로필이 실린 호출에만 붙는다. 기존 고정값(`frozen/coach-chat-prompt*.txt`·`coach-regeneration-prompt.txt`·
+  `report-input-*.txt`)이 이것을 지킨다.
 - **이음매**는 읽는 쪽의 포트 둘이다: `coach/app/CoachProfile`, `report/app/ReportProfile`. 구현은
   `profile/adapter/reader` 에 있고 간선은 `profile → coach.app`·`profile → report.app` 한 방향이다. 교환 타입은
-  소비자의 것이고 값은 표시말이다. **생년월일은 넘기지 않는다** — 제공자가 한국 시간의 오늘로 센 만 나이만 간다.
+  소비자의 것이고 값은 표시말이다. 프로필이 없거나 여섯 항목 가운데 하나라도 비어 있으면 포트가 `null` 을 준다.
 - **코치**: 문자열 경로는 `CoachPrompt:actorProfileBlock` 이 맨 앞의 독립 블록(`## 배우 프로필`)으로, 구조화 경로는
   `StructuredCoachEngine:input` 이 독립 키 `actor_profile` 로 싣는다. 기억 블록의 1,200자 상한과 분리돼 있다.
-  라우팅 경로(`dialogue_actions_v2`)에서는 그 입력이 **생성 호출**(`CoachingPipeline:generate`)에 실리고 프로필 지시도 그
-  호출에만 붙는다 — 분류 호출은 프로필을 받지 않는다. 별도의 문장 다듬기 호출은 없다.
-  `ConversationService` 가 **턴마다 다시 읽는다** — 설정에서 고친 값이 다음 코치 대화부터 반영된다. 읽다 실패하면 보고하고
-  프로필 없이 대화를 잇는다(기억과 같은 판단).
-- **기억과 겹침**: 완성된 프로필이 있으면 모델에 넘기는 기억 **사본**에서 `gender`·`age` 를 뺀다
-  (`CoachSessionSnapshot:priorForModel`). 저장된 기억은 바꾸지 않고, 프로필 성별이 "선택 안 함"이어도 옛 기억으로
-  보충하지 않는다. 배우가 말한 목표(`goal`)는 남긴다 — 프로필의 최종 목표(셋 중 하나)와 결이 달라 서로 보완한다.
-- **저장하지 않는 입력이다.** 프로필은 대화 turn·코칭 상태·handoff·노트·공개 응답·원장의 응답 어디에도 남지 않는다.
-  그래서 배우 발화만 읽는 기억 추출(`memory_update`)로 되먹임되지 않는다.
+  라우팅 경로(`dialogue_actions_v2`)에서는 그 입력이 **생성 호출**(`CoachingPipeline:generate`)에 실린다.
+  `ConversationService` 가 턴마다 다시 읽는다.
+- **기억과 겹침**: 모델에 넘기는 기억 사본에서 `gender`·`age` 를 빼는 자리는 `CoachSessionSnapshot:priorForModel` 이다.
 - **텔레메트리에는 이름을 가려 보낸다.** 모델에 보내는 입력은 그대로 두고, 같은 입력을 바깥 수탁사(Langfuse)에
   기록할 때만 이름 자리에 `[redacted]` 를 싣는다 — 문자열 경로는 프로필 블록의 이름 줄
   (`CoachPrompt:withoutActorName`), 구조화 경로(라우팅 경로의 생성 호출 포함)와 노트는 최상위 `actor_profile.name`
   (`platform/observability/ActorNameRedaction`). 탈퇴는 이름을 지체 없이 파기하는데 거기 남은 기록은 서버가 지울 수
   없다. 성별·만 나이·방향·경력·목표는 남긴다. 프로필이 없는 호출의 기록은 글자 하나 바뀌지 않는다.
 - **노트**: `ReportEngine:generateReport` 가 받는 사람의 ID 로 프로필을 읽어 `buildReportInput` 의 **최상위**
-  `actor_profile` 로(handoff 밖), 구조화 노트의 생성 입력에도 나란히 싣는다. 이미 만든 노트는 프로필이 바뀌어도 다시
-  만들지 않는다.
+  `actor_profile` 로(handoff 밖), 구조화 노트의 생성 입력에도 나란히 싣는다.
 - 입력이 맞다는 것까지가 자동 검증이다. 모델이 그 입력으로 잘 말하는지는 실제 모델로 돌리는 coach eval 과 사람의
   의미 검토가 본다.
 
@@ -1238,69 +1075,24 @@ Docker API 버전 협상이 실패하면 소켓 접근이 가능해도 `/info`�
 
 ### 8-5. 영상만 올리는 새 코칭 계약 (SOMA-526)
 
-**Gemini 직접 영상 코칭(2026-09-21):** 배포가 `ACTTUB_THREE_LAYERS_ENABLED=true`와
-`ACTTUB_DIRECT_VIDEO_ENABLED=true`를 명시하면 영상 전용 신규 연습은 1층 AI 분석을 생략한다.
-업로드 무결성과 길이를 확인하고 빈 관찰 팩으로 분석 작업을 완료한다. `/v2/coach` API가
-소유한 원본 영상과 해당 세션의 실제 대화 원문을 Gemini에 전달한다. 시스템 지시는
-`DirectVideoPrompts.common()`의 공통 원칙과 서비스가 선택한 응답별 지침을 붙인다. §7-2의 프로필과 같은 묶음의
-이전 맥락은 생성 호출에만 별도 블록으로 싣고, 텔레메트리에서 프로필 이름을 가린다. 분류에는 싣지 않는다.
-후속 발화는 영상 없이 실제 대화 원문으로 별도 Gemini 분류를 거친다. 분류기는 의도·정정·모름·방법 요청·수긍·기타를
-허용된 JSON 신호로만 반환하고, 코드는 정정 → 이해 보조 → 방법 → 의도 → 수긍 순으로 지침을 선택한다.
-정정과 방법 요청 또는 정정과 이해 어려움이 함께 있으면 해당 두 지침만 순서대로 붙인다.
-첫 응답과 기존 규칙의 명시적 종료·횟수 제한은 서비스가 직접 선택한다. 단순 수긍은 세션을 닫지 않는다.
-예상 밖의 질문·사실·감정·화제 전환이나 확신하기 어려운 답은 기타(`other`) 지침으로 받으며 기존 흐름에 억지로 맞추지 않는다.
-빈 신호 배열도 기타로 받는다. 분류 실패·잘못된 JSON은 원인을 보고하고 별도 기본 답변(`general`)으로 이어간다.
-분류 결과는 배우에게 표시하거나 대화·확정된 배우 의도로 저장하지 않는다. 코칭 출력은 평문이다.
-서버는 모델 응답에서 Markdown 제목·강조·목록 기호·표·코드 블록 기호를 걷어 낸 평문을 대화 턴·handoff·응답에 같은 값으로 저장한다(`PlainCoachText`). 기호를 걷은 뒤 비어 있으면 빈 응답과 같은 생성 실패로 처리한다.
-첫 응답은 장면 전체 인상, 중요한 보완점 최대 두 개와 구체적인 근거, 개선 방향을 짧은 문단으로 설명한다.
-모든 답을 한두 문장으로 제한하지 않으며, 부족함이나 화면 밖 상대의 반응을 지어내지 않는다.
-후속 대화는 기존 진단과 최신 발화를 연결하며, 끝의 질문은 필요한 경우에만 한다.
-코치 응답은 기존 turn/revision/멱등 저장 계약을 따른다. 종료와 10회 제한, handoff v2 및 3층 노트는
-유지한다. 자유 형식 응답을 구조화된 관찰·확인된 배우 의도로 승격하지 않는다.
-매 요청의 Gemini 파일과 로컬 임시 파일은 성공·실패 모두 정리한다.
-직접 영상 코칭은 §6-15의 회차·대화 저장 계약을 쓴다. legacy 연습과 설정이 꺼진 환경은 아래 모델 경로를 유지한다.
-설정을 끈 뒤에는 분석을 생략한 세션 대신 영상을 새로 올린다.
+> 제품 규칙의 정본: [practice/](../../docs/specs/practice/README.md)(「영상만 올리는 연습」: 적용 범위·플래그, 새 공개 타입, 지원하지 않는 클라이언트의 409), [practice.coach](../../docs/specs/practice/coach.md)(「Gemini 직접 영상 코칭」, 「2층 대화 (SOMA-531)」의 첫 질문 개정), [practice.note](../../docs/specs/practice/note.md)(「3층 촬영 노트 (SOMA-531)」)
 
-아래 첫 질문·단일 프롬프트 설명은 legacy 및 `acttub.coaching.routed-enabled=false` 롤백 경로에 해당한다.
-Gemini 직접 영상 코칭이 꺼진 환경의 기본 2층은 [Luna 분류와 코드 기반 선택](../../docs/specs/practice/coach.md#2층-대화-동작-분류와-코드-기반-프롬프트-선택)을 따른다.
-첫 질문 개정(SOMA-531): 기존 기본 코치와 구조화 코치는 공통 `coach/coach-opening-policy.txt`를 사용한다.
-전체 흐름에서 중요한 지점을 고르고 답에 따라 살펴볼 기준이 달라지는 쉬운 질문 하나로 시작한다.
-기본 코치에 있던 질문 없는 관찰·해석 시작은 폐기한다. 근거가 있는 첫 응답은 질문 누락·중복과
-대표적인 모호한 해석 문구를 재생성 사유로 삼고, 새 경로는 근거 참조·focus 저장·즉시 종료도 검증한다.
-대사 인용 안의 물음표는 배우에게 묻는 질문 수에서 제외한다. 의미적 관련성과 선정의 적절성은
-자동 검사만으로 보장하지 않는다. 공개 JSON과 DB는 유지한다.
-
-2026-09-14의 2·3층 개정은 대화와 촬영 노트([practice.coach](../../docs/specs/practice/coach.md#2층-대화-soma-531)·[practice.note](../../docs/specs/practice/note.md#3층-촬영-노트-soma-531))를 따른다.
-2층 내부 출력은 직전 답변 인용을 포함한 `acttub.layer2_turn.v2`이며 과제/실행 변경을 허용하지 않는다.
-서버는 현재 맥락·원문 대화·근거를 `acttub.coach_handoff.v2`로 전달하고 3층이 다음 촬영 제안 하나를 생성한다.
-요약은 확인된 배우 말·관찰의 발췌이고, 제안은 선택·실행으로 승격하지 않는다.
-공개 `PublicPracticeNote`와 저장 노트 v1의 필드는 유지한다. v1 handoff는 이전 프롬프트로 처리한다.
-
-`X-Acttub-Contract: three_layers_v1`과 서버 생성 플래그로 선택한 신규 연습은 [3층 계약](../../docs/specs/practice/README.md#영상만-올리는-연습-three_layers_v1)을 따른다. 기존 입력 갈래의 응답과 legacy 저장 행은 유지한다. 새 공개 타입은 `VideoRecordSummaryResponse`, `PublicPracticeNote`, handoff branch `coaching`이다. 이 타입을 지원하지 않는 클라이언트에는 목록 필터와 직접 접근 409를 적용한다.
-
-새 계약은 배우가 하지 않은 첫 발화를 만들지 않고, state/revision을 누적한다. 보고서 작성 여부나 턴 수를 배우의 실행·확인 증거로 쓰지 않는다. 새 노트는 handoff_confirmation 없이 생성된다. 모델 출력·참조 검증과 레코드 조회, 조립, 상태 전이의 단위 테스트에 더해 `CoachSessionRepositoryIT`에서 새 필드의 원자적 저장과 충돌을 확인한다.
+- **Gemini 직접 영상 코칭**: 시스템 지시는 `DirectVideoPrompts.common()`의 공통 원칙에 서비스가 고른 지침을 붙인다.
+  모델 응답의 Markdown 기호를 걷어 내는 자리는 `PlainCoachText` 이고 걷은 평문을 대화 턴·handoff·응답에 같은 값으로
+  저장한다.
+- 첫 질문 개정(SOMA-531)의 실행 정본은 공통 `coach/coach-opening-policy.txt` 이고 기존 기본 코치와 구조화 코치가 함께
+  쓴다. 공개 JSON과 DB는 유지한다.
+- 2·3층 개정(2026-09-14): 2층 내부 출력은 `acttub.layer2_turn.v2`, 2→3 전달은 `acttub.coach_handoff.v2` 다. 공개
+  `PublicPracticeNote`와 저장 노트 v1의 필드는 유지하고, v1 handoff는 이전 프롬프트로 처리한다.
+- 새 계약의 검증은 모델 출력·참조 검증과 레코드 조회, 조립, 상태 전이의 단위 테스트에 더해 `CoachSessionRepositoryIT`에서
+  새 필드의 원자적 저장과 충돌을 확인한다.
 
 ### 8-6. 코드에서 선택하는 네 가지 코칭 프롬프트
 
-**dev 직접 영상 실험:** `SITE_URL=https://dev.acttub.com`이고 `ACTTUB_DIRECT_VIDEO_ENABLED=true`로
-명시한 환경에서만 `/v2/coach/direct-video/**` 임시 세션 API가 열린다(공개 OpenAPI에서는 제외).
-운영의 영속 코칭과 같은 Gemini 분류·지침 선택을 사용하며, 임시 세션의 명시적 종료는 `finished`다.
-영속 코칭은 위 §8-5를 따른다. 이 설정의 애플리케이션 기본값은 false다.
+> 제품 규칙의 정본: [practice.coach](../../docs/specs/practice/coach.md)(「2층 대화 동작 분류와 코드 기반 프롬프트 선택」: 네 분류, 첫 응답, 입력·출력, 문장 수 세기, 실패 처리 / 「Gemini 직접 영상 코칭」: dev 임시 세션 API와 연습 루프)
 
-`three_layers_v1`의 기본 경로는 Luna 분류 → Java의 프롬프트 선택 → 문장 생성이다.
-생성 모델에는 선택된 분류의 지침 하나만 전달한다. 이전 `dialogue_progress` 키워드 분기와 고정 답변은 적용하지 않는다.
-첫 발화가 null인 시작은 코드가 `opening.txt`를 선택한다. 전체 흐름에서 함께 풀 가치가 있는 지점 하나를 골라
-구체적인 영상 피드백 한 문장과 질문 한 문장으로 연다. 가능한 의도 두 가지를 근거에서 유추해 번호 없이
-자연스럽게 묻되, 근거가 부족하면 필요한 사실 하나만 확인한다. 이미 제공된 의도·관계는 다시 묻지 않는다.
-목소리·시선 변화 자체를 결점으로 삼지 않으며, 잘된 선택은 발전을 돕는다. 후속 답에는 해석·피드백·실행 가능한
-연기 선택 중 필요한 도움 하나를 먼저 제공하고, 매번 선택형 질문으로 끝내지 않는다.
-첫 focus는 함께 풀 주제와 근거를 저장하며, 확인하지 않은 인물의 의도나 문제를 결론으로 저장하지 않는다.
-후속 턴은 네 분류의 지침을 사용한다. 첫 응답용 지침은 후속 요청이나 종료 지침에 섞지 않는다.
-생성 모델은 message·context_update·evidence_refs만 출력하며, 서버가 기존 저장 계약의 revision·reply_link·flow를 조립한다.
-영상 텍스트 기록 전체·현재 세션 원문 대화·현재 발화를 전달하고, 질문/종료/실행을 사용자 발화와 혼동하지 않는다.
-분류는 `advance`(답변 반영), `scaffold`(막힘 지원), `repair`(대화 복구), `respond`(요청 답변)이다.
-분류기는 현재 맥락·직전 교환도 함께 읽는다. 이전 분류보다 최신 정정과 현재 요청을 우선한다.
-별도 한국어 편집 호출 없이 생성 원문을 대화·출처·3층 전달에 동일하게 저장한다.
-별도 LLM 가드레일 검토는 없다. JSON 형식·근거 참조·원문 인용·길이·revision 검사는 저장 무결성 검사로 유지한다.
-문장 수는 인용 대사 안의 문장 부호를 제외하고 코치가 배우에게 건네는 문장으로 센다. 인용을 포함한 전체 글자 수 제한은 유지한다.
-공개 API, DB 스키마, 3층 handoff v2는 유지한다. 종료 요청과 턴 한도는 코드가 관리하고 종료 때는 분류를 생략한다.
+- 분류는 Luna, 선택은 Java 의 enum/switch 다. 첫 발화가 null인 시작은 코드가 `opening.txt`를 선택한다.
+- dev 임시 세션 API(`/v2/coach/direct-video/**`, `DirectVideoController`)는 `SITE_URL=https://dev.acttub.com` 이고
+  `ACTTUB_DIRECT_VIDEO_ENABLED=true` 일 때만 등록되고 공개 OpenAPI에서 빠진다(`@Hidden`). 임시 세션
+  (`DirectVideoSessions`)은 `DirectVideoRouting` 의 분류·지침 선택을 쓰고, 영속 코칭(`DirectVideoCoach`)은
+  `ACTTUB_DIRECT_VIDEO_PRACTICE_LOOP`(기본 true)가 켜져 있으면 연습 루프(`DirectVideoPracticeLoop`)를 쓴다.

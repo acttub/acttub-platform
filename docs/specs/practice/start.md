@@ -60,12 +60,15 @@ practices.stage — 회차 진행 상태의 정본이다.
 - 코칭 갈래는 experience_version(legacy·three_layers_v1)으로 남긴다. 서버의 신형 생성 플래그가 켜져 있고 계약 헤더가 three_layers_v1이면
   장면·막힘을 적었는지와 무관하게 three_layers_v1(새 코치)이고, 그 밖은 legacy다(SOMA-508 hotfix, `PracticeRules.threeLayers`).
   적은 장면·막힘은 새 코치가 받아 쓴다(practice.coach). 예전에는 무입력일 때만 신형이었다.
-  legacy 안의 분석·표현·기본 코치 선택은 막힘 입력으로 정한다(현행). 플래그를 꺼도 이미 만든 신형 자료의 읽기는 유지한다. 전체를
+  본문에 `client_experience` 같은 필드는 없다(헤더가 정본이다). legacy 안의 분석·표현·기본 코치 선택은 막힘 입력으로 정한다(현행). 플래그를 꺼도 이미 만든 신형 자료의 읽기는 유지한다. 전체를
   신형으로 바꾸는 것은 별도 결정이다.
+- 판정 순서: 시작은 같은 요청 id 재생 → 영상 확인(422 video_not_ready) → 게스트 하루 한도(429)다. 재시도는 같은 요청 id 재생 →
+  없는·남의 회차(404) → 닫히지 않은 회차(409 analysis_not_failed) → 묶음에 진행 중 회차(409 practice_in_progress) → 게스트 하루
+  한도(429)다. 재시도에서는 409가 429보다 먼저다(옛 `/v2/practice-sessions/{id}/analyze`는 429가 먼저였다).
 - 이미 사용 가능한 영상(보관함)으로 시작하면 업로드 단계가 없다. 새 영상이면 practice.record의 올리기를 먼저 마친다.
 
 ## 예외
-- 영상이 확정되지 않은 채 시작: 422 video_not_ready.
+- 영상이 없거나 남의 것이거나 파일이 파기된 채 시작: 422 video_not_ready.
 - 같은 요청 id 재전송: 같은 회차 하나. 이중 탭도 같다.
 - 게스트의 하루 4번째 시작: 429 guest_daily_analysis_limit, 회차·작업이 생기지 않는다.
 - 트랜잭션 실패: 회차도 작업도 없다.
@@ -84,6 +87,7 @@ practices.stage — 회차 진행 상태의 정본이다.
 - 상황 300자: 200. 301자: 422. 막힘 서술 500자: 200. 501자: 422.
 - 시작 뒤 상황 수정 API: 없다(속성 불변). 대화에서 장면을 답함: practices의 상황은 그대로다.
 - 분석 최종 실패: stage closed. 그 회차 재시도: 새 ai_jobs, stage analyzing. 다른 진행 중 회차가 있으면 재시도: 409 practice_in_progress.
+- 하루 3회를 쓴 게스트가 아직 분석 중인 회차를 재시도: 429가 아니라 409 analysis_not_failed.
 - 웹 D4에 이론 선택이 없다.
 
 ## 범위 밖

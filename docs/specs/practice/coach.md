@@ -12,7 +12,7 @@
 마친다. 회차에 대화는 하나다.
 
 ## 의도
-코치의 행동 규칙(CONTRACT §7·§8-5·§8-6, 아래 「2층 대화 (SOMA-531)」)은 바꾸지 않는다. 바꾸는 것은 저장이다. 회차와 1:1인 대화, 쌓이기만 하는
+코치의 행동 규칙(아래 「규칙·제약」과 「2층 대화 (SOMA-531)」 이하 절)은 0.1.0에서 바꾸지 않는다. 바꾸는 것은 저장이다. 회차와 1:1인 대화, 쌓이기만 하는
 메시지, 낙관적 잠금과 request_id 멱등이다. 현행은 한 연습에 대화를 여럿 만들 수 있어 ERD와 어긋난다.
 
 ## 목적
@@ -21,9 +21,9 @@
 ## 입력·출력
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
-| `POST /v2/coach/start` | 필수 `practice_id`·`request_id` (`CoachStartRequest`) | `CoachTurnResult` 200, 이미 열린 대화면 같은 대화 | `analysis_not_ready` 409, `conversation_closed` 409, `practice_not_found` 404, `coach_response_unavailable` 502, `account_deactivated` 403, `request is still processing` 409 |
+| `POST /v2/coach/start` | 필수 `practice_id`·`request_id` (`CoachStartRequest`) | `CoachTurnResult` 200(`{conversation, message, note}`), 이미 열린 대화면 같은 대화 | `analysis_not_ready` 409, `conversation_closed` 409, `practice_not_found` 404, `coach_response_unavailable` 502, `account_deactivated` 403, `request is still processing` 409 |
 | `POST /v2/coach/reply` | 필수 `conversation_id`·`request_id`, `text`(300자까지)·`revision` (`CoachReplyRequest`) | `CoachTurnResult` 200, 닫히면 `note` 포함 | `conversation_closed` 409, `conversation_conflict` 409, `request_fingerprint_mismatch` 422, `practice_not_found` 404, `coach_response_unavailable` 502, `account_deactivated` 403, `request is still processing` 409, 301자 422(배열) |
-| `GET /v2/coach/conversations/{conversation_id}` | conversation_id | `CoachConversation` 200 | `conversation_not_found` 404 |
+| `GET /v2/coach/conversations/{conversation_id}` | conversation_id | `CoachConversation` 200(`reply_limit` 포함) | `conversation_not_found` 404 |
 | `POST /v2/coach/direct-video`, `GET·DELETE /v2/coach/direct-video/{id}`, `POST /v2/coach/direct-video/{id}/messages` (dev 전용, openapi 밖) | 영상 파일(50MiB까지), 메시지 2,000자까지 | 아래 「Gemini 직접 영상 코칭」 | `unsupported_media_type` 415, `upload_too_large` 413, `empty_video` 422, `direct_video_session_limit` 429, `direct_video_turn_limit`·`direct_video_not_ready` 409, `direct_video_not_found` 404 |
 
 ## 상태
@@ -44,9 +44,13 @@ coach_conversations.status — 회차의 코치 대화.
 - 시작 요청에는 request_id를 싣고 coach_conversations.start_request_id로 멱등하다(영상만 올린 첫 시작에는 배우 메시지가 없다).
   배우 메시지는 (conversation_id, request_id) 유일이고 본문 지문을 함께 둔다. 같은 id·같은 지문 재전송은 그 요청이 만든 코치 응답·
   종료·노트 결과를 그대로 돌려주고, 다른 지문은 422 request_fingerprint_mismatch.
-- 코치 응답 상한은 시작 응답을 포함한 코치 응답 수로 기존 갈래 8개, 신형 10개다(§7-1, §8-5). 기존 갈래는 코치 응답 7개가 저장된 열린
+- 코치 응답 상한은 시작 응답을 포함한 코치 응답 수로 기존 갈래 8개, 신형 10개다. 기존 갈래는 코치 응답 7개가 저장된 열린
   대화에 답이 오면 8번째 응답으로 마무리하고, 신형은 9개 뒤 다음 응답으로 마무리한다. 종료 뒤 답은 409 conversation_closed다.
-- 첫 응답 정책은 경로별이다. 이전 경로는 질문 하나로 시작하고(§8-5), 기본 라우팅은 제공할 수 있는 도움을 우선한다(§8-6). "모든
+- 응답의 `conversation`에는 status·revision·coach_reply_count·reply_limit·messages가 있어 화면이 남은 응답 수와 마무리 예고를 그린다.
+  reply_limit은 저장된 경험 판을 읽어 기존 갈래 8, 신형 10이고 시작·답장·대화 조회가 같다. 대화 조회는 409 뒤 최신 상태를 다시 읽는
+  자리이자 회차의 이전 대화를 펼치는 자리다.
+- 첫 응답 정책은 경로별이다. 이전 경로는 질문 하나로 시작하고(「첫 질문 개정」), 기본 라우팅은 제공할 수 있는 도움을 우선한다(「2층 대화
+  동작 분류」). "모든
   첫 응답은 질문"이라고 적지 않는다.
 - 도움 버튼("잘 모르겠어요", "제가 되물을게요", "나중에 연습")은 입력을 준비만 하고 배우가 보내야 전송된다. 버튼만으로 응답 횟수를
   쓰지 않는다.
@@ -54,12 +58,20 @@ coach_conversations.status — 회차의 코치 대화.
 - 동시 요청은 state_revision으로 가른다. 바깥 호출(LLM)은 트랜잭션 밖에서 하고 저장 때 revision이 다르면 409 conversation_conflict.
   화면은 입력을 보존하고 최신 대화를 다시 읽는다.
 - 상태 json에는 배우의 말·정정·영상 근거·코치 제안·실행 보고를 출처별로 나눠 두고, 동의·종료를 실행·효과로 승격하지 않는다. lookup은
-  화면 턴이 아니라 상태에만 남긴다. 프로필은 매 턴 조건부 입력이며 스냅샷을 저장하지 않는다(§7-2).
-- 게스트는 프로필 없이 현행과 같이 동작한다.
+  화면 턴이 아니라 상태에만 남긴다. 프로필은 매 턴 조건부 입력이며 스냅샷을 저장하지 않는다(account.profile).
+- 프로필을 모델에 싣는 조건과 방식은 account.profile 「규칙·제약」이 정본이다. 게스트는 프로필 없이 현행과 같이 동작한다.
+- 기존 갈래·이전 경로의 응답 규칙(2026-09-10):
+  - 막힘을 건너뛴 `그 외`는 영상 우선 기본 코치를 쓴다. 장면 맥락이 모두 비어도 첫 1~2회 장면 질문이나 고정된 질문 구간을 붙이지
+    않는다. 시작·후속 응답·재생성 모두 같은 기본 코치를 쓴다.
+  - 재생성 사유는 빈 응답, 화면에 그대로 노출될 Markdown 강조·제목·코드 기호와 `JSON need` 형태의 내부 형식 메모, 도움 요청 뒤
+    직전 응답의 완전 반복, 영어 대화에서 완전히 한국어로 돌아온 설명, 종료 요청·8번째 이후의 continue다. 두 번 실패하면 확인하지
+    못한 결론을 만들지 않는 대체 응답을 쓴다.
+  - 표면적인 뜻으로 충분한 장면에 숨은 심리를 강제하지 않는다. 모름 응답을 설명할 때도 새 관계 갈등·과거사·심리 원인을 추가하지
+    않으며, 불확실하다는 단서를 붙인 것만으로 근거 없는 해석을 허용하지 않는다.
 - 이관 중 대화 저장은 현재 소유자를 다시 확인하고, 탈퇴 뒤 늦게 온 응답은 저장하지 않는다.
 
 ## 예외
-- 분석이 analyzed가 아닌 회차에서 시작: 409 analysis_not_ready.
+- 회차 stage가 conversing이 아닌 채 시작(분석 전·분석 실패): 409 analysis_not_ready.
 - 닫힌 대화에 답: 409 conversation_closed.
 - revision 충돌: 409 conversation_conflict, 입력 보존.
 - LLM 실패: 바깥 의존 실패로 다시 시도를 안내하고 revision·메시지는 늘지 않는다. 종료 응답 생성이 거듭 실패하면 기존 갈래는 노트를
@@ -74,13 +86,13 @@ coach_conversations.status — 회차의 코치 대화.
 - 기존 갈래에서 코치 응답 7개가 저장된 대화에 답: 8번째 코치 응답이 마무리이고 대화가 닫힌다. 신형에서 9개 뒤 답: 10번째가 마무리. 그 뒤
   답: 409 conversation_closed, 응답이 늘지 않는다.
 - 300자 답: 200. 301자: 422. 같은 요청 id·다른 본문: 422 request_fingerprint_mismatch.
-- 이전 경로 회차의 첫 응답: 질문 하나로 시작. 기본 라우팅 회차: 제공 가능한 도움을 우선한다(§8-6). 응답에 lookup 턴이 없고 상태에만 있다.
+- 이전 경로 회차의 첫 응답: 질문 하나로 시작. 기본 라우팅 회차: 제공 가능한 도움을 우선한다. 응답에 lookup 턴이 없고 상태에만 있다.
 - 프로필을 바꾼 뒤 다음 턴: 새 값이 입력에 들어가고 대화 행에 프로필 스냅샷이 없다.
 - 옛 자료의 복수 대화 회차 조회: 가장 최근 대화가 "대화", 나머지가 "이전 대화" 목록으로 보인다.
 - 도움 버튼만 누름: 메시지 행 없음.
 - 닫힌 대화에 답: 409 conversation_closed. 닫힌 뒤 "다시 코칭": 새 회차가 만들어진다(practice.resume).
 - 게스트 대화: 프로필이 없어도 200.
-- 대화 중 탈퇴: 그 뒤 도착한 코치 응답이 저장되지 않는다.
+- 대화 중 탈퇴: 그 뒤 도착한 코치 응답이 저장되지 않고 403 account_deactivated.
 
 ## 범위 밖
 - 점수·등급·레벨·랭킹·평가표(PRD 「지금 하지 않는 것」, ADR-005).
@@ -88,16 +100,12 @@ coach_conversations.status — 회차의 코치 대화.
 - 관찰 확인(맞음/아님/모르겠음) 화면(PRD, ADR-014). 신형에는 확인·후보 선택을 강제하지 않는다.
 - 대화 도중 재분석(PRD).
 
-## 열린 질문
-- `POST /v2/coach/reply`의 openapi 설명은 revision이 다르면 409 conversation_closed라고 하지만 코드(`ConversationService`)는 409
-  conversation_conflict다. 설명을 고친다.
-- 예외의 "분석이 analyzed가 아닌 회차"는 옛 practice_sessions.status 값이다. 코드는 회차 stage가 conversing이 아니면 409
-  analysis_not_ready다.
-
 ## 2층 대화 (SOMA-531)
 
 
 ### 첫 질문 개정
+이 절은 legacy와 `acttub.coaching.routed-enabled=false` 롤백 경로의 첫 질문이다. `three_layers_v1`의 기본 경로는 아래
+「2층 대화 동작 분류와 코드 기반 프롬프트 선택」을, 직접 영상 코칭이 켜진 환경은 「Gemini 직접 영상 코칭」을 따른다.
 실행 정본 `coach/coach-opening-policy.txt`를 새 구조화 코치와 기존 영상 우선 코치에 함께 넣는다.
 기존 `coach/coach-video-first-prompt.txt`의 질문 없는 관찰·해석 첫 응답 지시도 제거한다.
 
@@ -108,6 +116,8 @@ coach_conversations.status — 회차의 코치 대화.
   이미 받은 목표를 되묻거나 AI가 만든 해석에 동의하게 하지 않는다.
 - 새 경로의 첫 `continue`는 질문 하나, 실제 대사/관찰 참조, 해당 참조를 포함하는 `context_update.focus`를 요구한다.
   `controls.min_questions`는 현재 전달된 영상 근거에 따라 갱신되며 조회 후에도 적용된다.
+- 근거가 있는 첫 응답은 질문 누락·중복과 대표적인 모호한 해석 문구를 재생성 사유로 삼는다. 새 경로는 근거 참조·focus 저장·즉시
+  종료도 검증한다.
 - 대사 인용의 물음표는 질문 개수에 넣지 않는다. 인용만 물음표이고 배우에게 묻는 말은 없으면 거부한다.
 - 모델 응답을 반복해 검증해도 실패하면 그 해석을 보여주지 않는다. 영상 근거는 있지만 첫 질문 생성이
   실패한 경우 실패 사실을 알리고 배우가 원한 모습을 묻는 단순 대체 질문을 쓴다. 자료 자체가 없으면 의도를 강제로 묻지 않는다.
@@ -167,7 +177,8 @@ move는 open/clarify/explain/correct/acknowledge/close이며 질문 횟수·성�
 
 생성된 응답을 그대로 전달한다. 별도의 한국어 스킬 검토·문장 다듬기 호출은 없다.
 
-별도의 LLM 가드레일 검토나 ML 분류기를 호출하지 않는다. 종료 요청·턴 한도는 코드가 먼저 처리하며, 종료할 때에는 분류를 생략한다.
+별도의 LLM 가드레일 검토나 ML 분류기를 호출하지 않는다. JSON 형식·근거 참조·원문 인용·길이·revision 검사는 저장 무결성 검사로 유지한다.
+문장 수는 인용 대사 안의 문장 부호를 빼고 코치가 배우에게 건네는 문장으로 센다. 인용을 포함한 전체 글자 수 제한은 유지한다. 종료 요청·턴 한도는 코드가 먼저 처리하며, 종료할 때에는 분류를 생략한다.
 
 ### 네 가지 분류
 | route | 생성 목적 |
@@ -189,6 +200,7 @@ move는 open/clarify/explain/correct/acknowledge/close이며 질문 횟수·성�
 첫 focus는 함께 풀 주제이며 인물의 의도·결점에 대한 확정 진단이 아니다. 후속 응답은 답을 활용한 도움을
 먼저 제공하며 모든 분기를 선택형 질문으로 끝내지 않는다.
 단순 수락에는 새 과제나 질문을 붙이지 않아도 된다. 네 분류는 연기 주제가 아니라 다음 응답의 주목적이다.
+첫 응답용 지침은 후속 요청이나 종료 지침에 섞지 않는다.
 
 ### 입력과 출력
 분류 입력은 `video_record`, `conversation_history`, `user_message`, `actor_context`, `coaching_state`, `last_exchange`다.
@@ -204,9 +216,9 @@ move는 open/clarify/explain/correct/acknowledge/close이며 질문 횟수·성�
 ```
 
 생성에는 같은 영상 기록·원문 대화·현재 발화와 기존 맥락, 허용 근거 ID, 길이 제한을 전달한다.
-Luna의 판단 이유나 다른 세 분류의 지침은 전달하지 않는다.
+Luna의 판단 이유나 다른 세 분류의 지침은 전달하지 않는다. 질문·종료·실행을 사용자 발화와 혼동하지 않는다.
 배우의 완성된 프로필이 있으면 생성 입력에만 최상위 `actor_profile`로 싣고 프로필 지시를 프롬프트 끝에 붙인다.
-분류 입력에는 싣지 않으며, 텔레메트리에는 생성 호출의 이름을 가려 보낸다(apps/api/CONTRACT.md §7-2).
+분류 입력에는 싣지 않으며, 텔레메트리에는 생성 호출의 이름을 가려 보낸다(account.profile).
 
 생성 출력:
 
@@ -289,9 +301,14 @@ ACTTUB_ROUTE_LIVE_TEST=1 OPENAI_CHAT_MODEL=gpt-5.6-luna ./gradlew test --tests '
 Gemini에 직접 전달한다. 응답 프롬프트는 공통 원칙과 서비스가 고른 작업 지침으로 조합한다.
 
 API와 화면, 대화 저장·재개·멱등 요청·10회 제한·종료·3층 노트는 기존 것을 사용한다.
-별도 실험 페이지는 배포하지 않는다. 임시 세션 API(`/v2/coach/direct-video/**`)는 dev(`SITE_URL`이 dev 주소)에서 직접 영상 플래그가 켜졌을 때만 열린다(`DirectVideoController`, 공개 스키마 밖). 구조화된 영상 관찰은 생성하지 않으며,
-코치의 자유 형식 응답을 확정된 배우 의도·실행 기록으로 바꾸지 않는다.
-매 턴의 Gemini 파일은 응답 뒤 정리한다. 원본 재전송으로 지연이 추가될 수 있다.
+별도 실험 페이지는 배포하지 않는다. 임시 세션 API(`/v2/coach/direct-video/**`)는 dev(`SITE_URL=https://dev.acttub.com`)에서 직접
+영상 플래그가 켜졌을 때만 열린다(공개 스키마 밖, 직접 영상 플래그의 기본값은 false). 임시 세션의 명시적 종료는 `finished`다.
+구조화된 영상 관찰은 생성하지 않으며, 코치의 자유 형식 응답을 확정된 배우 의도·실행 기록으로 바꾸지 않는다.
+account.profile의 프로필과 같은 묶음의 이전 맥락은 생성 호출에만 별도 블록으로 싣고 분류에는 싣지 않는다. 텔레메트리에서는 프로필
+이름을 가린다. 코칭 출력은 평문이다. 서버는 모델 응답에서 Markdown 제목·강조·목록 기호·표·코드 블록 기호를 걷어 낸 평문을 대화
+턴·handoff·응답에 같은 값으로 저장하고, 걷은 뒤 비어 있으면 빈 응답과 같은 생성 실패로 처리한다.
+매 요청의 Gemini 파일과 로컬 임시 파일은 성공·실패 모두 정리한다. 원본 재전송으로 지연이 추가될 수 있다.
+legacy 연습과 직접 영상 플래그가 꺼진 환경은 기존 모델 경로를 유지한다.
 
 ### 응답 분류와 지침 선택 (2026-09-22)
 첫 응답은 전체 인상 → 가장 크게 보완할 점과 영상 속 근거 → 개선 방향으로 제공한다.
@@ -316,7 +333,7 @@ API와 화면, 대화 저장·재개·멱등 요청·10회 제한·종료·3층 
 
 단순 수긍은 `acknowledgement`로 짧게 받아주되 세션을 닫지 않는다.
 기존 종료 판정과 10회 제한만 `closing`을 선택하고 세션 종료를 결정한다.
-임시 dev 세션도 같은 분류·선택 코드를 사용하고 명시적 종료 시 `finished`가 된다.
+dev 임시 세션은 언제나 이 분류·선택 코드를 쓴다. 영속 코칭은 아래 연습 루프가 꺼졌을 때(`ACTTUB_DIRECT_VIDEO_PRACTICE_LOOP=false`)만 쓴다.
 
 분류 호출 제한은 15초, 출력 제한은 1024토큰이다. 후속 응답에는 분류 호출 비용과 지연이 추가된다.
 모르는 라벨·중복·잘못된 형식 또는 제공자 실패는 원인을 보고하고 `general`로 답한다.
@@ -337,10 +354,10 @@ API와 화면, 대화 저장·재개·멱등 요청·10회 제한·종료·3층 
 분석을 생략한 테스트 세션은 기존 코치 경로로 이어갈 수 없으므로 새 영상을 올린다.
 DB 마이그레이션이 없으므로 기존 운영 데이터 구조는 바뀌지 않는다.
 
-### dev 연습 루프 (2026-09-24, SOMA-508)
-dev(`SITE_URL=https://dev.acttub.com`)의 직접 영상 코칭은 분류·지침 조합 대신
-`coaching/direct-video/practice-loop.txt` 하나로 대화 전체를 이끈다. 운영은 위의 분류·지침 경로를 그대로 쓴다.
-`ACTTUB_DIRECT_VIDEO_PRACTICE_LOOP=true|false`를 명시하면 환경과 무관하게 그 값을 따른다.
+### 연습 루프 (2026-09-24, SOMA-508)
+직접 영상 코칭(영속 코칭)은 분류·지침 조합 대신 `coaching/direct-video/practice-loop.txt` 하나로 대화 전체를 이끈다.
+환경과 무관하게 기본이다(`ACTTUB_DIRECT_VIDEO_PRACTICE_LOOP` 기본 true, 운영도 핫픽스 #388로 켜져 있다).
+false를 명시하면 위의 분류·지침 경로로 돌아간다(롤백). dev 임시 세션 API는 연습 루프를 쓰지 않는다.
 
 코치는 이 테이크에서 두 곳 이상 반복된 배우 자신의 버릇 하나를 비춰 주고(소리 쪽 — 빠르기·말끝·크기·쉬는 곳 — 을
 먼저, 혼자 찍은 영상에서 흔한 시선은 뒷순위), 질문으로 배우가 그 버릇을 들여다보게 한다.
