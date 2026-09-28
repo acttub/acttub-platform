@@ -1090,170 +1090,58 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 ### 6-16. 챌린지 개설·목록 (0.1.0)
 
-- 정본은 [specs/challenge/](../../docs/specs/challenge/README.md)다. `/v2/challenges`는 동의·프로필을
-  마친 회원, `X-Acttub-Client: app/...`, 한국어 요청에만 열리고 나머지는 403 `member_only`다.
-- `POST /v2/challenges`는 `request_id`·대사·작품·기간(7·14일)을 받고 인물·장면 메모는 선택이다.
-  대사는 공백을 한 칸으로 정리하고 나머지는 앞뒤 공백만 걷는다. 코드 포인트 기준 대사 1~200,
-  작품 1~100, 인물 100, 메모 500자다. 기간 밖 값은 422 `invalid_duration`이다. 생성은 201,
-  같은 요청·같은 정규화 본문은 200이며 다른 본문은 422 `request_fingerprint_mismatch`다.
-- 회원의 한국 날짜 하루 개설은 3회이며 삭제한 것도 센다(429 `daily_challenge_limit`). 같은 사람의
-  진행 중 같은 대사는 422 `duplicate_challenge`다. 성공한 요청의 재전송을 한도보다 먼저 확인한다.
-  검사·쓰기는 활성 사용자 행 잠금 아래 하므로 동시 개설·탈퇴 뒤 늦은 쓰기가 새 행을 만들지 않는다.
-- `DELETE /v2/challenges/{id}`는 자기 챌린지에 참여 이력이 전혀 없을 때만 204다. 삭제된 참여작도
-  이력에 포함한다(422 `challenge_has_entries`). 챌린지는 삭제 표시만 남겨 요청 이력·한도를 보존하며
-  같은 삭제는 204, 삭제한 개설 요청을 다시 보내도 새 챌린지를 만들지 않는다. 없는·남의·숨긴 대상은 404다.
-- 목록 `GET /v2/challenges?tab=popular|latest|ended|mine&q=&cursor=`와 상세 `GET /v2/challenges/{id}`는
-  visible이고 삭제하지 않은 챌린지만 낸다. 목록은 20개씩이고 커서는 요청자·탭·정리된 검색어에 묶인
-  마지막 정렬 값이다. 검색은 2자부터 대사·작품·노출 가능한 참여자의 현재 이름만 찾으며 인물·메모는 찾지 않는다.
-- 집계의 공개 조건은 참여작 public·visible, 활성 작성자, 파기하지 않은 본인 영상, visible·미삭제 챌린지다.
-  `entry_count`·`like_sum`은 차단과 무관한 전체 값이다. 참여자 이름(서로 다른 작성자 최대 셋)·검색에는
-  양방향 차단도 적용하며 `more_count`는 같은 개인 노출 조건으로 센다. 사진·소개는 응답에 없다.
-- 인기는 좋아요 합 → 참여작 수, 최신은 개설 시각, 종료는 종료 시각의 역순이다. 내 챌린지는 내가 삭제되지
-  않은 참여작을 가진 서로 다른 챌린지다. 동률은 개설 시각·id로 안정화한다. 오늘의 챌린지는 진행 중인 오늘
-  선정 → 가장 최근 과거 선정 → 공개 참여작 최다 순으로 고르고, 미래 선정은 고정하지 않는다. 인기·최신의
-  검색 없는 목록에서만 `featured`로 분리해 주며 일반 목록에서 중복하지 않는다.
-- 기존 운영 토큰이 있는 환경의 `POST /v2/admin/challenges`는 team 개설과 `featured_on`(ISO 날짜)을 받는다.
-  팀 요청은 별도 멱등 범위이며 날짜당 선정 하나다(422 `featured_date_conflict`).
-  `PATCH /v2/admin/challenges/{id}/moderation`은 visible·review·hidden을 바꾼다. 기간을 바꾸지 않으므로
-  만료 후 복구하면 종료 목록에 보인다. 일반 회원 토큰으로 이 운영 경로를 사용할 수 없다.
+> 제품 규칙의 정본: [challenge/](../../docs/specs/challenge/README.md)(게이트, 삭제·탈퇴 표, 공개 조건·개인 노출 조건), [challenge.create](../../docs/specs/challenge/create.md)(개설·삭제·운영 개설·moderation, 정규화·한도·오류 코드, 오늘의 챌린지), [challenge.browse](../../docs/specs/challenge/browse.md)(목록 탭·정렬·커서·검색, `featured`·`more_count`)
+
+- 게이트는 `adapter/web/ChallengeMembers` 한 곳이다. 이후 챌린지 절(6-17~6-20)의 회원 경로도 이것을 지난다.
+- 개설의 검사·쓰기는 활성 사용자 행 잠금 아래 하므로 동시 개설·탈퇴 뒤 늦은 쓰기가 새 행을 만들지 않는다.
 - V16은 `challenges`, V17은 공개 집계의 기반인 `challenge_entries`·`entry_likes`·`user_blocks`를 더한다.
   기존 표·컬럼은 축소하지 않는다. 값 CHECK와 Schema Entity 매핑도 함께 검증한다.
 
 ### 6-17. 챌린지 참여·랭킹·조회수 (0.1.0)
 
-- 게이트는 6-16과 같다. `POST /v2/challenges/{id}/entries`는 `request_id`·`video_id`·`visibility`(public·private,
-  필수)와 선택 `caption`(앞뒤 공백을 걷고 코드 포인트 300자)을 받는다. 생성 201, 같은 요청·같은 본문 200,
-  다른 본문 422 `request_fingerprint_mismatch`. 재전송 확인이 한도보다 먼저다(삭제된 참여작의 옛 요청도 새 행을
-  만들지 않고 그 행을 돌려준다).
-- 영상은 확정된 본인 `videos` 행이어야 한다. 없는·남의 영상 404 `video_not_found`, 아직 확정되지 않은 본인 업로드
-  예약 id와 파일 파기 영상은 422 `video_not_ready`. 길이는 기기가 적은 값과 **서버가 객체를 ffprobe로 읽은 실제 값**
-  모두 초 단위 반올림으로 60초 이하(60.5초 미만)여야 한다 — 60초 상한 촬영본이 60.02초처럼 재어져도 통과하고 61초는
-  422 `video_too_long`이다. 객체를 읽을 수 없으면 422 `video_not_ready`.
-- visible·진행 중 챌린지에만 참여한다. review·hidden·삭제·없는 챌린지 404 `challenge_not_found`, 마감(저장 시점의
-  서버 시각) 뒤 422 `challenge_closed`. 같은 챌린지의 같은 영상(삭제되지 않은 참여작 사이) 422 `duplicate_entry`,
-  한국 날짜 하루 네 번째 429 `daily_entry_limit`(삭제한 것도 센다). 검사·쓰기는 사용자 → 챌린지 → 영상 행을 잠근
-  한 트랜잭션이라 챌린지 삭제·영상 파기·보관함 삭제·탈퇴와 겹쳐도 한쪽만 성공한다.
-- `PATCH /v2/entries/{id}`는 작성자만(남의·삭제된 것 404 `entry_not_found`). `caption` 빈 문자열은 지우기이고 값이
-  바뀌면 `content_version`이 오른다. 비공개 전환은 언제든 된다. 공개 전환은 진행 중 visible 챌린지(아니면 422
-  `challenge_closed`), 신고 숨김이 아닌 참여작(422 `entry_hidden`), 파일이 남은 영상(422 `video_not_ready`)만 되고
-  `published_at`은 처음 공개 시각을 유지한다. 비공개로 가도 좋아요 행은 남는다.
-- `DELETE /v2/entries/{id}`는 204(같은 삭제도 204). 행은 `status=deleted`로 남기고 캡션·영상 참조를 비우며 좋아요를
-  지운다. 영상은 보관함에 남고, 보관함 삭제는 삭제되지 않은 참여작이 참조하면 422 `video_in_use`다.
-- `GET /v2/challenges/{id}/entries?sort=likes|latest&cursor=&from_entry=`는 20개씩이다. 목록은 개인 노출 조건
-  (6-16의 공개 조건 + 양방향 차단 없음), 순위는 공개 조건 전체 기준의 공동 순위(좋아요 같으면 같은 순위, 안에서는
-  `published_at`·id 순)다. 좋아요가 모두 0이면 `rank`는 null이다. likes의 첫 조회는 전체 순서와 순위를
-  `entry_ranking_snapshots`에 굳히고 커서는 그 위치다 — 10분 안의 다음 쪽은 처음 순서를 잇고 매 쪽에서 개인 노출
-  조건을 다시 본다. 기준(진행 중 → 집계 중 → 확정)이 바뀌었거나 10분이 지난 커서는 410 `cursor_expired`, 모양이
-  틀린 커서는 422다. latest는 `published_at`·id 역순이고 순위가 없으며 가장 최근 하나만 `is_new`다.
-- 종료 랭킹: 마감 뒤 그 챌린지에 처음 닿는 변경(현재는 참여작 수정·삭제, 운영 검토 변경)이나 목록 조회, 매시 도는
-  일(`CHALLENGE_SETTLEMENT_ENABLED`)이 챌린지 행을 잠그고 한 번 집계한다 — 삭제되지 않은 참여작의
-  `final_like_count`와 `final_eligible`(신고 숨김은 통과로 셈한 공개 조건)을 저장하고 `ranking_state=pending`.
-  챌린지가 review가 아니고 자격 있는 신고 숨김 참여작이 없으면 자격 있고 visible인 참여작에 `final_rank`를 매겨
-  `final`로 바꾼다. 확정 뒤의 좋아요·비공개·삭제는 저장된 값을 바꾸지 않고 순위를 당겨 매기지 않는다. 종료 목록의
-  `rank`는 `final_rank`, 집계 중에는 null이며 응답의 `ranking_state`로 구분한다.
-- `POST /v2/entries/{id}/views`(`event_id`)는 204. 볼 수 없는 참여작 404, 본인 재생과 같은 사건 재전송은 세지 않는다.
-  사건은 `entry_view_events`에 조회수 증가와 한 트랜잭션으로 남기고 매시 일이 7일 지난 것을 지운다.
-- `GET /v2/entries/{id}`는 본인 것이거나 개인 노출 조건을 지난 참여작 하나(그 밖 404). `GET /v2/me/challenge-entries
-  ?visibility=public|private|under_review&cursor=`는 삭제되지 않은 내 참여작을 확인 중(신고 숨김 또는 부모 챌린지
-  review·hidden) → 비공개 → 공개 순으로 한 분류에만 넣어 `counts`(all = 셋의 합)와 20개씩의 목록을 낸다.
-- 카드에는 작성자의 현재 이름만 있고 사진·소개가 없다. `comment_count`는 보는 사람에게 보이는 댓글 수, `saved`는
-  보는 사람의 저장 여부다. V18은 `entry_view_events`·`entry_ranking_snapshots`를 더하고 기존 표는 바꾸지 않는다.
-- **공유 링크**(challenge.share): 앱은 `<SITE_URL>/e/<entry id>`를 공유하고 웹이 그 주소에서 메신저 미리보기(OG)를
-  그린다. 웹 서버가 `GET /v2/public/entries/{id}`를 부른다 — 로그인 없음·게이트 밖·`Authorization`을 보지 않는다.
-  보는 사람이 없으므로 차단은 따지지 않고 **6-16의 공개 조건만** 본다. 그 밖(비공개·신고 숨김·삭제·탈퇴한 작성자·
-  파일 파기 영상·review·hidden·삭제 챌린지)과 없는 id는 같은 404 `entry_not_found`. 응답은 챌린지의 `work`·`line`·
-  `character`(nullable)와 `poster_url`(nullable, 아직 만들지 않아 언제나 null)뿐이다 — **작성자의 이름·사진은
-  싣지 않는다**(제품 결정: 미리보기는 작품·대사·장면만). `X-Robots-Tag: noindex, nofollow`를 싣고 보는 사람의
-  IP 별 분당 60회다(§6-13 — 웹 서버가 받은 `X-Forwarded-For`를 그대로 넘긴다).
+> 제품 규칙의 정본: [challenge.entry](../../docs/specs/challenge/entry.md)(참여·수정·삭제, 영상 길이, 오류 코드·한도), [challenge.browse](../../docs/specs/challenge/browse.md)(참여작 목록·순위·스냅숏 커서, 종료 랭킹 `ranking_state`, 조회수, P03), [challenge.react](../../docs/specs/challenge/react.md)(공유 링크 `/e/<id>`와 `GET /v2/public/entries/{id}`)
+
+- 참여의 검사·쓰기는 사용자 → 챌린지 → 영상 행을 잠근 한 트랜잭션이라 챌린지 삭제·영상 파기·보관함 삭제·탈퇴와
+  겹쳐도 한쪽만 성공한다.
+- 종료 랭킹 집계는 챌린지 행을 잠그고 한 번 한다(매시 일은 `CHALLENGE_SETTLEMENT_ENABLED`). likes 정렬의 첫 조회는
+  전체 순서와 순위를 `entry_ranking_snapshots`에 굳히고 커서는 그 위치다.
+- 조회 사건은 `entry_view_events`에 조회수 증가와 한 트랜잭션으로 남긴다.
+- 공유 조회(`GET /v2/public/entries/{id}`)의 IP별 한도는 웹 서버가 받은 `X-Forwarded-For`를 그대로 넘긴 값으로 센다(§6-13).
+- V18은 `entry_view_events`·`entry_ranking_snapshots`를 더하고 기존 표는 바꾸지 않는다.
 
 ### 6-18. 챌린지 반응·차단·신고 (0.1.0)
 
-- 게이트는 6-16과 같다. 반응(좋아요·저장·댓글 쓰기)은 보는 사람에게 보이는 참여작(6-17 개인 노출 조건)에만 되고
-  그 밖(비공개·삭제·신고 숨김·review·hidden 챌린지·양방향 차단)은 404 `entry_not_found`다. 저장은 행동하는 사람·작성자
-  `users` 행(id 순)과 참여작 행을 잠근 채 조건을 다시 본다. 마감 뒤 첫 반응은 쓰기 전에 마감 집계를 한다(6-17).
-- `PUT|DELETE /v2/entries/{id}/like`는 `{like_count, liked}`, `PUT|DELETE /v2/entries/{id}/save`는 `{saved}`이며 멱등이다
-  (두 번 켜도 한 행, 없는 것을 꺼도 200). 자기 참여작은 422 `self_like`·`self_save`. 좋아요 수는 연결 행을 다시 센다.
-- `GET /v2/me/saved-entries?cursor=`는 저장순 20개씩 지금 보이는 저장만 내고 `my_entry_count`(삭제되지 않은 내 참여작)·
-  `saved_count`(지금 보이는 저장)를 함께 준다. 비공개·숨김·차단된 저장은 행을 남긴 채 빠지고, 참여작 삭제는 행을 지운다.
-- 댓글: `POST /v2/entries/{id}/comments`(`request_id`, 앞뒤 공백을 걷은 1~500자)는 생성 201·재전송 200·다른 본문 422
-  `request_fingerprint_mismatch`. 자기 참여작에도 쓸 수 있고 한국 날짜 하루 100개(429 `daily_comment_limit`). 재전송 확인이
-  한도·노출 검사보다 먼저다. `GET …/comments?cursor=`는 최신순 20개씩이고 차단 관계·숨긴 남의 댓글·삭제된 댓글을 뺀다.
-  신고로 숨겨진 내 댓글은 `status: hidden`으로 나에게만 온다. 작성자 이름은 현재 프로필 이름, 탈퇴했으면 "탈퇴한 사용자"
-  (`author_withdrawn`). `DELETE /v2/comments/{id}`는 본인만(남의 것 404 `comment_not_found`) 본문을 파기하고 표시만 남긴다.
-- 차단: `PUT|DELETE /v2/me/blocks/{user_id}`는 `{user_id, blocked}`이고 멱등이다. 자기 자신 422 `self_block`, 없는 회원
-  404 `user_not_found`. 두 사람 행을 id 순으로 잠근다. `GET /v2/me/blocks`는 이름·차단 시각만 준다. 상대에게 알리지 않고
-  이전 좋아요 행은 남아 전체 수에 든다.
-- 신고: `POST /v2/reports`(`request_id`, `target_type` entry·comment·challenge, `target_id`, `reason` copyright·
-  inappropriate·spam·duplicate·other, 선택 `note` 200자)는 201 `{id, status}`. 같은 요청 재전송·같은 사람의 같은 대상
-  재신고는 먼저 낸 신고 200(처리 뒤라도 다시 숨기지 않는다), 같은 요청 id의 다른 본문 422. 신고자에게 지금 보이지 않는
-  대상은 404, 본인 것은 422 `self_report`, 하루 21번째는 429 `daily_report_limit`. 참여작은 신고와 함께 `hidden_by_report`,
-  댓글은 `hidden`(한 트랜잭션, 대상 행 잠금). 챌린지는 처리 전 신고의 서로 다른 신고자가 셋이 되면 `review`다.
-  `target_version`은 신고 당시 참여작 `content_version`(댓글·챌린지는 1), `target_text`는 당시 캡션·댓글·대사다.
-  참여작·댓글 본문이 파기되면 `target_text`도 비운다. 처리 완료 신고는 90일 뒤 매시 일이 지운다.
-- 운영(`ADMIN_OPS_TOKEN`): `GET /v2/admin/reports?status=received|reviewed&cursor=`는 접수순 50개씩 신고 당시·현재
-  버전과 본문, 대상 상태, 남은 처리 전 신고 수, 24·72시간 목표 시각을 준다(신고자 신원은 없다). `PATCH
-  /v2/admin/reports/{id}`(`resolution`, `reviewer`, 선택 `note`)는 대상 행을 잠그고 그 신고를 처리한다.
-  restored·dismissed는 그 대상에 처리 전 신고가 남지 않았을 때만 운영 숨김을 풀며 작성자의 비공개·삭제와 챌린지 종료는
-  그대로다. kept_hidden은 숨김(챌린지는 review)을 그대로 둔다 — 챌린지를 내릴지는 운영이 moderation 경로로 정한다. 이미 처리한 신고 422 `report_already_reviewed`,
-  없는 신고 404. 참여작·챌린지 판정 뒤 순위 확정을 다시 시도한다 — 확정을 기다리는 참여작은 마감 자격이 있고 처리 전
-  신고가 남은 신고 숨김뿐이라 kept_hidden으로 끝난 참여작은 순위 밖에서 확정된다.
+> 제품 규칙의 정본: [challenge.react](../../docs/specs/challenge/react.md)(좋아요·저장·댓글, 저장 목록), [challenge.block](../../docs/specs/challenge/block.md)(차단), [challenge.report](../../docs/specs/challenge/report.md)(신고·운영 판정·`target_version`·`target_text`)
+
+- 반응 저장은 행동하는 사람·작성자 `users` 행(id 순)과 참여작 행을 잠근 채 조건을 다시 본다. 차단은 두 사람 행을
+  id 순으로 잠근다. 신고 저장과 숨김은 대상 행을 잠근 한 트랜잭션이고, 운영 판정도 대상 행을 잠그고 한다.
+- 좋아요 수는 연결 행을 다시 센다(§7 머리말 1번).
 - POST `/v2/reports`는 옛 연습 리포트 작업(`create_report_v2_reports_post`)이 아니라 챌린지 신고
   (`create_challenge_report_v2_reports_post`)다. V19는 `entry_saves`·`entry_comments`·`entry_reports`를 더한다.
 
 ### 6-19. 챌린지 AI 리포트 (0.1.0)
 
-- 게이트는 6-16과 같다. `POST /v2/entries/{id}/ai-report`(`request_id`)는 본인 참여작(공개·비공개)만 되고 남의·삭제된
-  참여작은 404 `entry_not_found`, 파일이 파기된 참여작은 422 `video_not_ready`다. 결과가 있으면 그 리포트(200), 만드는
-  중이면 그 작업(202)이고 같은 `request_id`의 재전송도 같다 — 참여작당 실행 중인 생성은 하나다. 없거나 failed 뒤의 요청은
-  새 생성이라 `ai_jobs`(kind `challenge_report`) 한 행을 만들고 202이며 한국 날짜 하루 3회다(429
-  `daily_report_request_limit`). 같은 `request_id`를 다른 참여작·다른 종류 작업에 쓰면 422 `request_fingerprint_mismatch`.
-  요청은 참여작 행을 잠가 같은 참여작의 동시 요청과 삭제를 줄 세운다.
-- `GET /v2/entries/{id}/ai-report`는 본인만(그 밖 404 `ai_report_not_found`) `{entry_id, status(pending·ready·failed),
-  observations[{start_ms,end_ms,text}], comparisons[], limits[], suggestion, sample_count, attempt_count, requested_at,
-  completed_at}`를 낸다. 표본 참여작의 id·이름은 싣지 않는다.
-- 워커(`ANALYSIS_WORKER_ENABLED` 스위치를 공유)는 `AiJobLedger`로 작업을 집고, 표본으로 같은 챌린지의 공개 조건
-  참여작 가운데 요청자와 차단이 없는 다른 작성자의 작성자당 최신 하나씩 `published_at` 최근 다섯을 고른다(좋아요 수는
-  기준이 아니다). 셋 미만이면 표본 없이 관찰만 만들고 한계 첫 줄에 "비교할 영상이 아직 부족해요"를 적는다. 모델 포트
-  (`ChallengeReportModel`)는 영상과 챌린지 대사만 받는다 — 코치 대화·장면 입력·배우 기억을 실을 자리가 없다. 요구사항의
-  "받아쓰기" 입력은 모델이 영상의 소리를 직접 듣는 것으로 대신한다(참여작 영상은 분석을 거치지 않아 받아쓰기가 없다). Gemini
-  구현은 저장소에서 받은 영상들을 라벨(내 영상·S1…)과 함께 한 번에 보인다.
-- 출력은 JSON 관찰(근거 구간)·견주기(문장마다 근거 표본 라벨)·한계·제안 하나다. 모양이 틀리거나 관찰이 없거나 금지
-  어휘(점수·백분위·등급·순위·칭찬·재능·합격 등, `ChallengeReportRules`)가 든 출력은 저장하지 않는다. 모델 실패와 거절한
-  출력은 한 실행으로 세어 다시 대기로 돌리고, 세 번째 실행이 실패하면 작업·리포트를 failed로 닫는다(`attempt_count` 3).
-- 저장 직전에 리포트가 여전히 이 생성의 것인지, 참여작이 지워지지 않았는지, 계정이 활성인지 다시 보고 아니면 저장하지
-  않고 작업을 `cancelled`로 닫는다. 저장·조회 때 표본 조건(공개 조건·요청자와 차단 없음·다른 작성자)을 다시 검사해
-  부적격이 된 표본에 기댄 견주기 문장을 빼고 `sample_count`도 지금 조건을 지키는 수로 낸다. 결과의 문장별 표본 id는
-  `entry_ai_reports.result`에만 있다.
-- 참여작 삭제는 리포트 본문을 파기하고(`purged_at`) 진행 중 작업을 `cancelled`로 닫는다. V20은 `ck_ai_jobs_kind`에
-  `challenge_report`를 더하고 `entry_ai_reports`(참여작당 한 행)를 만든다.
+> 제품 규칙의 정본: [challenge.ai-report](../../docs/specs/challenge/ai-report.md)(요청·조회, 한도, 표본 선정, 입력은 영상과 대사, 출력 모양·금지 어휘, 3회 실행, 저장 직전 재확인, 파기)
+
+- 요청은 참여작 행을 잠가 같은 참여작의 동시 요청과 삭제를 줄 세운다.
+- 워커(`ANALYSIS_WORKER_ENABLED` 스위치를 공유)는 `AiJobLedger`로 작업을 집는다. 모델 포트(`ChallengeReportModel`)는
+  영상과 챌린지 대사만 받는다 — 코치 대화·장면 입력·배우 기억을 실을 자리가 없다. Gemini 구현은 저장소에서 받은
+  영상들을 라벨(내 영상·S1…)과 함께 한 번에 보인다.
+- 금지 어휘 목록과 실행 상한은 `ChallengeReportRules` 한 곳이다. 문장별 표본 id는 `entry_ai_reports.result`에만 있다.
+- V20은 `ck_ai_jobs_kind`에 `challenge_report`를 더하고 `entry_ai_reports`(참여작당 한 행)를 만든다.
 
 ### 6-20. 챌린지 알림함·푸시와 탈퇴 연결 (0.1.0)
 
-- 사건은 넷이다: `entry_liked`(새 좋아요 행, event_key `like:<좋아요 id>`), `entry_commented`(`comment:<댓글 id>`,
-  `comment_id` 필수), `challenge_ended`(마감 집계 때 삭제되지 않은 참여작을 가진 활성 참여자마다 챌린지당 하나, `entry_id`
-  NULL), `entry_ai_report_ready`(`ai_report:<작업 id>`). 원인 행동과 같은 트랜잭션에서 `notifications`에 남기고
-  `(user_id, event_key)`로 재전송을 한 행으로 막는다. 자기 행동은 남기지 않고, 차단 관계의 반응은 애초에 404라 사건이 없다.
-  이름·캡션·본문·주소는 복사하지 않는다. 참조의 부모 관계(`comment_id`의 참여작, `entry_id`의 챌린지)는 FK로 묶는다.
-- 묶음(`group_key`)은 수신자·종류·참여작(없으면 챌린지)·10분 구간이다. 토글(`user_profiles.notify_challenge`)이 꺼졌거나
-  푸시 토큰이 없으면 `push_status=skipped`로 알림함에만 쌓는다. 아니면 묶음의 첫 사건은 지금, 뒤따르는 사건은 구간 끝이
-  `push_after`이고 한국 시간 21시~09시는 예외 없이 다음 09시다.
-- 발송은 커밋 뒤 따로 돈다(`CHALLENGE_NOTIFICATION_PUSH_ENABLED`, 1분). 때가 된 묶음을 잠그고 활성 계정·토글·지금 그
-  사람 것인 한국어 토큰과 사건의 현재 조건(좋아요가 남음, 댓글이 삭제·숨김 아님, 행동자–수신자 차단 없음, 반응 알림은
-  공개 조건의 참여작, 종료는 보이는 챌린지, AI 완료는 본인의 남은 참여작)을 다시 본다. `notification_pushes`의
-  `(group_key, stage first·summary)`를 한 번만 선점해 첫 푸시와 요약 푸시를 하나씩 보낸다. 보낸 사건은 `attempted`,
-  나머지는 `skipped`다. 잠금 화면 문구는 일반 문구이고 data 에는 묶음 키·종류·챌린지·참여작 id 만 싣는다. 전송 실패는
-  운영 보고뿐이고 원래 행동은 이미 성공이다. "등록되지 않은 기기" 답이 온 토큰은 지운다.
-- `GET /v2/me/notifications?cursor=`는 묶음 20개씩 묶음의 최신 사건 시각 역순이다. 인원(`actor_count`)·수는 지금도
-  유효한 사건만 세고 유효한 사건이 없는 묶음은 뺀다. 대표 행동자는 현재 이름, 탈퇴했으면 "탈퇴한 사용자"다.
-  `target_available`이 거짓이면 대상이 삭제·비공개·숨김이다(본인 AI 리포트는 예외). `POST /v2/me/notifications/read`는
-  `group_keys`(그 묶음의 지금까지 사건 전부) 또는 `all_before{created_at, id?}`(그 시각까지, id 가 UUID면 그 id 까지)를
-  읽음으로 하고 204, 둘 다 없으면 422. `GET …/unread-count`는 읽지 않은 묶음 수다. 90일 지난 알림은 매시 일이 지운다.
-- 탈퇴 트랜잭션(account.withdraw)은 참여작을 비공개로(공개 전환은 활성 계정만 된다), 개설한 챌린지의 주최자를 NULL로
-  (origin 은 그대로), 건 차단·받은 차단·저장·받은 알림을 지우고, AI 리포트 본문을 파기한다(이력은 90일 뒤 매시 일이 지운다).
-  진행 중 리포트 생성은 기존 `ai_jobs` 취소가 닫는다. 탈퇴도 마감 뒤 첫 변경이라, 계정을 비활성으로 바꾸기 전에 이 사람의
-  참여작이 있는 챌린지의 밀린 마감 집계를 먼저 한다(`ChallengeWithdrawal`). 남긴 좋아요·댓글은 남아 "탈퇴한 사용자"로 보인다. 챌린지 표에 자료가
-  있는 계정은 행째 지우지 않고 비활성으로 닫는다. V21은 `notifications`·`notification_pushes`와 `entry_comments (id, entry_id)`
-  유일 제약을 더한다.
+> 제품 규칙의 정본: [challenge.notification](../../docs/specs/challenge/notification.md)(사건 넷, 묶음·`group_key`, 발송 시각·재확인, 알림함·읽음·`target_available`, 90일 정리), [challenge/](../../docs/specs/challenge/README.md)의 삭제·탈퇴 표와 [account.withdraw](../../docs/specs/account/withdraw.md)(탈퇴 연결)
+
+- event_key는 `like:<좋아요 id>`·`comment:<댓글 id>`·`ai_report:<작업 id>`이고 `challenge_ended`는 챌린지당 하나다.
+  사건은 원인 행동과 같은 트랜잭션에서 `notifications`에 남기고 `(user_id, event_key)`로 재전송을 한 행으로 막는다.
+  참조의 부모 관계(`comment_id`의 참여작, `entry_id`의 챌린지)는 FK로 묶는다.
+- 발송(`CHALLENGE_NOTIFICATION_PUSH_ENABLED`)은 커밋 뒤 따로 돈다. 때가 된 묶음을 잠그고 `notification_pushes`의
+  `(group_key, stage first·summary)`를 한 번만 선점해 첫 푸시와 요약 푸시를 하나씩 보낸다.
+- 탈퇴는 계정을 비활성으로 바꾸기 전에 이 사람의 참여작이 있는 챌린지의 밀린 마감 집계를 먼저 한다
+  (`ChallengeWithdrawal`). 진행 중 리포트 생성은 기존 `ai_jobs` 취소가 닫는다.
+- V21은 `notifications`·`notification_pushes`와 `entry_comments (id, entry_id)` 유일 제약을 더한다.
 
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 

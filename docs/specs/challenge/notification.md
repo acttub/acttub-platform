@@ -53,7 +53,7 @@ notifications.push_status와 읽음(read_at).
   사건은 생기지 않는다.
 - 한 행 = 수신자 한 명의 원인 사건 하나. 컬럼: id, user_id, kind, actor_user_id(반응한 사람, 시스템 사건은 NULL), challenge_id, entry_id
   (challenge_ended는 NULL), comment_id(entry_commented는 필수, 그 밖은 NULL), event_key((user_id, event_key) 유일; 좋아요는 좋아요 행의 원인
-  식별자라 취소 뒤 재등록은 새 사건), group_key(수신자·kind·entry·10분 구간), created_at, read_at, expires_at(생성 + 90일), push_after(발송 예정
+  식별자라 취소 뒤 재등록은 새 사건), group_key(수신자·kind·entry(없으면 challenge)·10분 구간), created_at, read_at, expires_at(생성 + 90일), push_after(발송 예정
   시각, 대상 아니면 NULL), push_status(pending·attempted·skipped), push_attempted_at. 참조는 부모 관계가 맞아야 한다(comment_id의 참여작 =
   entry_id). 이름·캡션·댓글 본문·영상 주소는 복사하지 않고 조회 때 현재 권한과 원본으로 조립한다.
 - 묶기: 같은 group_key(10분 구간)의 좋아요·댓글은 알림함에서 묶음 한 줄("N명이 좋아해요", "N개의 댓글")로 보인다. N은 현재 유효한(취소·삭제되지
@@ -64,10 +64,12 @@ notifications.push_status와 읽음(read_at).
 - 토글(user_profiles.notify_challenge)이 꺼져 있거나 푸시 토큰이 없으면 push_status skipped로 알림함에만 쌓인다. 발송 직전에 활성 계정·토글·
   토큰의 현재 주인·한국어 여부와 사건의 현재 노출 조건(반응 알림은 참여작·댓글의 개인 노출 조건과 행동자–수신자 차단, 종료 알림은 챌린지 조회
   권한, AI 완료 알림은 본인 열람 권한)을 다시 확인한다. 잠금 화면 문구는 일반 문구("내 참여작에 새 반응이 있어요")와 알림 식별자만이고
-  이름·본문을 넣지 않는다.
+  이름·본문을 넣지 않는다. 푸시 data에는 묶음 키·종류·챌린지·참여작 id만 싣는다. 보낸 사건은 attempted, 나머지는 skipped다.
 - 알림함은 묶음 단위로 20개씩, 묶음의 최신 사건 시각·id 역순이다. 묶음을 누르면 그때까지 포함된 사건 전부가 읽음이 되고 참여작·챌린지·리포트로
   간다(AI 완료 알림은 비공개 참여작이어도 본인 리포트가 열린다). "모두 읽음"은 요청 시각·id까지의 본인 알림만 읽음으로 바꾸고 그 뒤 도착한 것은
-  읽지 않음으로 남는다. 읽지 않은 수(사건 수 아닌 묶음 수)는 탭 배지다.
+  읽지 않음으로 남는다. 읽지 않은 수(사건 수 아닌 묶음 수)는 탭 배지다. 읽음 요청은 `group_keys`(그 묶음의 지금까지 사건 전부) 또는
+  `all_before{created_at, id?}`(그 시각까지, id가 UUID면 그 id까지)이고 둘 다 없으면 422다. 인원(`actor_count`)·수는 지금도 유효한 사건만
+  세고 유효한 사건이 없는 묶음은 뺀다. `target_available`이 거짓이면 대상이 삭제·비공개·숨김이다(본인 AI 리포트는 예외).
 - 90일이 지나면 읽음과 무관하게 매시 도는 정리(`ChallengeSettlementScheduler.run`)가 지운다. 대상이 삭제·비공개·숨김·차단으로 보이지 않으면 내용을 보이지 않고 "볼 수 없는 영상"
   안내다(본인 AI 리포트는 예외).
 - 푸시 발송은 원래 행동(좋아요 저장 등)과 알림함 기록을 커밋한 뒤 별도로 한 번 시도한다. 실패해도 원래 행동은 성공이고 운영에 보고한다.

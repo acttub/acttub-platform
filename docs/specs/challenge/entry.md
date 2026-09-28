@@ -41,7 +41,8 @@ challenge_entries.visibility(작성자의 공개 선택)와 status(운영·삭�
   challenge_closed, 신고 숨김 중 422 entry_hidden, 파일 파기 뒤 422 video_not_ready). 비공개로 바꾸면 랭킹·피드·표본에서 빠지고 좋아요·댓글·
   저장 행은 남는다(다시 공개하면 돌아온다). 운영 숨김은 작성자가 풀 수 없다. 공개 전환과 영상 파기는 같은 영상 잠금을 쓴다.
 - 참여작 삭제는 status deleted(행 유지)이고 캡션을 파기하고 video_id를 NULL로 풀어 영상 참조를 해제하며, 좋아요·저장·댓글(본문 파기)·AI
-  리포트·알림을 지운다. 영상은 보관함에 남고 그 영상의 보관함 삭제는 다른 참조가 없으면 된다. 삭제는 되돌리지 않는다.
+  리포트·알림을 지운다. 영상은 보관함에 남고 그 영상의 보관함 삭제는 다른 참조가 없으면 된다(삭제되지 않은 참여작이 참조하면 422
+  video_in_use, practice.library). 삭제는 되돌리지 않는다.
 - 탈퇴하면 참여작은 visibility private로 바뀌고 다시 공개할 수 없다(account.withdraw).
 - 불변 조건: public이면 published_at이 있다(`ck_challenge_entries_published`). published_at은 처음 공개 시각을 유지한다. deleted ⇔ deleted_at 있음
   (`ck_challenge_entries_deleted`) ⇔ video_id NULL(`ck_challenge_entries_video`), deleted면 caption NULL(`ck_challenge_entries_purged_caption`).
@@ -49,13 +50,15 @@ challenge_entries.visibility(작성자의 공개 선택)와 status(운영·삭�
 - 끝 상태: deleted. 삭제 트랜잭션은 댓글 본문 파기, AI 리포트 파기(purged_at), 진행 중 challenge_report 작업 취소를 함께 한다.
 
 ## 규칙·제약
-- 참여작은 challenge_id·user_id·video_id(삭제 뒤 NULL)·caption(300자, 선택, 작성자 수정 가능, 고치면 content_version 증가)·visibility(public·
+- 참여작은 challenge_id·user_id·video_id(삭제 뒤 NULL)·caption(앞뒤 공백을 걷고 코드 포인트 300자, 선택, 작성자 수정 가능, 빈 문자열은 지우기, 값이 바뀌면 content_version 증가)·visibility(public·
   private)·published_at(최초 공개 시각, 비공개 생성이면 NULL, 재공개해도 유지)·status(visible·hidden_by_report·deleted)·view_count·
   final_like_count·final_eligible·final_rank·request_id·request_fingerprint·created_at·deleted_at을 가진다. (user_id, request_id) 유일, deleted가
   아닌 행 사이에서 (challenge_id, video_id) 유일.
 - 영상은 파일이 남아 있는(purged_at 없는) 확정된 본인 videos 행이어야 한다. 없는 영상과 남의 영상은 404, 본인 영상이 미확정이거나 파일만
-  파기됐으면 422 video_not_ready. 길이 60초 이내(서버가 ffprobe로 실제 길이를 재고 반올림해 60.5초 미만이면 통과, 넘으면 422 video_too_long). 챌린지 촬영(A18)의 상한도 60초다. 다른
-  영상으로 같은 챌린지에 여러 번 참여할 수 있다. 하루 참여는 3개까지(429 daily_entry_limit).
+  파기됐으면 422 video_not_ready. 길이 60초 이내(기기가 적은 값과 서버가 ffprobe로 잰 실제 길이 모두 초 단위로 반올림해 60.5초 미만이면 통과,
+  넘으면 422 video_too_long). 서버가 영상 객체를 읽을 수 없으면 422 video_not_ready. 챌린지 촬영(A18)의 상한도 60초다. 다른
+  영상으로 같은 챌린지에 여러 번 참여할 수 있다. 하루 참여는 3개까지(429 daily_entry_limit, 삭제한 것도 센다). 같은 요청의 재전송 확인이
+  한도보다 먼저이고, 삭제된 참여작의 옛 요청은 새 행을 만들지 않고 그 행을 돌려준다.
 - visible·진행 중인 챌린지에만 참여한다. review·hidden·deleted 챌린지는 404, 조회 가능한 종료 챌린지는 422 challenge_closed. 마감은 저장
   시점의 서버 시각으로 본다(촬영 중에 마감되면 영상은 보관함에 남고 참여작은 만들어지지 않는다). 참여 생성과 영상 파기·챌린지 삭제는 같은
   잠금을 쓴다.

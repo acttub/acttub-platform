@@ -45,7 +45,7 @@ entry_reports.status.
 ## 규칙·제약
 - 신고는 target_type(entry·comment·challenge)·target_id·reporter_id·reason·note(200자, 선택)·status(received·reviewed)·resolution(restored·
   kept_hidden·dismissed)·reviewed_by·reviewed_at·resolution_note·target_version(신고 당시 대상의 content_version; 참여작은 캡션 수정, 댓글·
-  챌린지는 불변이라 1)을 가진다. (target_type, target_id, reporter_id) 유일. 사유는 copyright(저작권 침해 — 대사·영상 출처), inappropriate
+  챌린지는 불변이라 1)·target_text(신고 당시 캡션·댓글·대사, 참여작·댓글 본문이 파기되면 비운다)를 가진다. (target_type, target_id, reporter_id) 유일. 사유는 copyright(저작권 침해 — 대사·영상 출처), inappropriate
   (부적절한 콘텐츠 — 괴롭힘·성적·개인정보 노출 포함), spam(스팸), duplicate(중복 업로드), other(기타, 메모)다. 화면(A15.4)은 다섯을 각각
   선택지로 둔다.
 - 신고할 수 있는 대상은 신고자가 지금 볼 수 있는 것(개인 노출 조건)이다. 볼 수 없는 대상·없는 대상의 새 신고는 404이고, 본인이 이미 접수한
@@ -58,7 +58,10 @@ entry_reports.status.
 - 운영은 관리 경로에서 신고를 처리한다. 첫 확인 24시간, 처리 또는 지연 안내 72시간이 초기 목표다. 판정은 대상 행을 잠그고 현재 content_version과
   남은 received 신고를 확인한 뒤 적용한다. restored·dismissed는 그 대상에 남은 received 신고가 없을 때 운영 숨김을 해제하고, kept_hidden은 숨김을
   유지한다. 해제해도 작성자의 비공개·삭제·탈퇴와 챌린지 종료는 그대로다. 해제 뒤 같은 사람의 재신고는 유일 제약으로 200이고 다시 숨기지
-  않는다(다른 사람의 새 신고는 다시 숨긴다). 캡션이 신고 뒤 바뀌었으면 운영 화면에 두 버전을 보여 준다.
+  않는다(다른 사람의 새 신고는 다시 숨긴다). 캡션이 신고 뒤 바뀌었으면 운영 화면에 두 버전을 보여 준다. 챌린지의 kept_hidden은 review를
+  그대로 두고, 챌린지를 내릴지는 운영이 moderation 경로(challenge.create)로 정한다.
+- 운영 목록은 접수순 50개씩이고 신고 당시·현재 버전과 본문, 대상 상태, 남은 처리 전 신고 수, 24·72시간 목표 시각을 준다. 신고자 신원은
+  없다.
 - 본인 콘텐츠는 신고할 수 없다(422 self_report). 하루 20건까지(429 daily_report_limit). 기각(dismissed)만으로 허위 신고를 확정하지 않고 고의
   반복은 운영자가 판단한다.
 - 신고자에게 처리 결과를 알리지 않고, 작성자·신고자에게 서로의 신원을 보이지 않는다. 처리 기록은 완료 뒤 90일 보관하고 영상 원본을 따로
