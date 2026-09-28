@@ -405,11 +405,12 @@ class AdminEndpointIT {
         assertThat(activities).hasSize(2);
         JsonNode newestActivity = activities.get(0);
         assertThat(newestActivity.fieldNames()).toIterable().containsExactly(
-                "activity_id", "feature", "created_at", "actor", "signup_at",
+                "activity_id", "feature", "created_at", "actor", "signup_at", "signup_d7",
                 "platform", "device", "status", "is_team");
         assertThat(newestActivity.path("feature").textValue()).isEqualTo("coaching");
         assertThat(newestActivity.path("created_at").textValue()).isEqualTo(utc(NOW.minusMinutes(20).truncatedTo(ChronoUnit.MINUTES)));
         assertThat(newestActivity.path("signup_at").textValue()).isEqualTo(utc(NOW.minusHours(2).truncatedTo(ChronoUnit.HOURS)));
+        assertThat(newestActivity.path("signup_d7").booleanValue()).isTrue();
         assertThat(newestActivity.path("platform").textValue()).isEqualTo("웹");
         assertThat(newestActivity.path("device").textValue()).isEqualTo("기록 없음");
         assertThat(newestActivity.path("status").textValue()).isEqualTo("analyzed");
@@ -543,9 +544,10 @@ class AdminEndpointIT {
         int challengeEntries = 0;
         for (JsonNode activity : activities) {
             assertThat(activity.path("actor").textValue()).isEqualTo(actor);
+            assertThat(activity.path("signup_d7").booleanValue()).isFalse();
             assertThat(activity.path("is_team").booleanValue()).isFalse();
             assertThat(activity.fieldNames()).toIterable().containsExactly(
-                    "activity_id", "feature", "created_at", "actor", "signup_at",
+                    "activity_id", "feature", "created_at", "actor", "signup_at", "signup_d7",
                     "platform", "device", "status", "is_team");
             switch (activity.path("feature").textValue()) {
                 case "coaching" -> coaching++;
@@ -567,6 +569,18 @@ class AdminEndpointIT {
         JsonNode challengeRow = findActivity(activities, "challenge:" + realEntry);
         assertThat(challengeRow.path("created_at").textValue()).isEqualTo(utc(NOW.minusMinutes(10).truncatedTo(ChronoUnit.MINUTES)));
         assertThat(challengeRow.path("status").textValue()).isEqualTo("visible");
+    }
+
+    @Test
+    void opsCoreActivitySignupCohortUsesUnroundedTimestamp() throws Exception {
+        jdbc.update("UPDATE users SET created_at=now()-interval '7 days'+interval '15 minutes' WHERE id=?", REAL_USER);
+        JsonNode inside = authorized("/v2/admin/ops-core", 200).path("activity_rows");
+        assertThat(inside).hasSize(2);
+        for (JsonNode row : inside) assertThat(row.path("signup_d7").booleanValue()).isTrue();
+        jdbc.update("UPDATE users SET created_at=now()-interval '7 days'-interval '15 minutes' WHERE id=?", REAL_USER);
+        JsonNode outside = authorized("/v2/admin/ops-core", 200).path("activity_rows");
+        assertThat(outside).hasSize(2);
+        for (JsonNode row : outside) assertThat(row.path("signup_d7").booleanValue()).isFalse();
     }
 
     @Test
