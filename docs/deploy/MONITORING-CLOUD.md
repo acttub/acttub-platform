@@ -12,7 +12,7 @@
 | `versions.tf`, `.terraform.lock.hcl` | Terraform 1.16.2, 공식 `grafana/grafana` provider 4.46.0 고정 |
 | `main.tf`, `rules.json` | 전용 폴더·PDC 데이터 소스·Slack 수신점·1분 평가 규칙 |
 | `external.tf` | 선택한 dev/prod 공개 `/health`, 외부 위치 1곳, 60초 간격·10초 제한 |
-| `dashboards/*.json`, `dashboards.tf` | 서비스 전체·분석/코치·서버/DB/백업, KST·최근 1시간 |
+| `dashboards/*.json`, `dashboards.tf` | 서비스 전체·분석/코치·서버/DB/백업, KST·최근 1시간. 맨 위 한 줄 요약 + 접히는 구역 배치. 서버 화면의 API 프로세스 이하 구역은 grafana.com 대시보드 [19004](https://grafana.com/grafana/dashboards/19004)를 acttub 라벨(`job="api"`·`environment`)로 옮긴 것이다 |
 | `slack.tmpl` | 환경·대상·조건·관측값·시각·확인 링크·해제 의미·일시 중지 링크 |
 | `manage.py` | 실제 설정 차이 미리보기, 소유권 충돌/적용 전 변경 확인, 저장된 Terraform 계획 적용 |
 | `check.sh` | 시크릿·실제 stack 없이 실행하는 CI/로컬 검증 |
@@ -132,7 +132,7 @@ API 요청량은 HTTP 재요청·폴링·멱등 응답 재사용도 포함한다
 수집 실패/대상 누락은 2분 지속 규칙으로, 오래된 표본은 마지막 갱신에서 120초가 지나면 별도 규칙으로 확인한다. 90초 넘은 낡은 값은 서비스 조건 평가에서 제외한다. 개별 서비스는 Error/No Data에서 직전 상태를 유지한다. 정상 표본이 돌아오기 전에 복구로 해석하지 않는다.
 정상 수집 중 요청량 0은 무사용이다. p95의 `표본 없음`은 완료 표본이 없다는 뜻이다. 수집 상태가 실패·수집 전이거나 조회 자체가 Error이면 빈 화면을 정상으로 읽지 않는다.
 외부 실패가 최근 5분 3건 미만으로 줄어도 최신 점검이 실패이면 쿼리는 No Data를 반환한다. 수집 공백 전의 성공을 복구 근거로 쓰지 않으며, 최신의 신선한 성공 표본이 있어야 실패 조건 해소를 반환한다. 일반 API 지연은 확인된 5분 요청 수가 20건 미만이면 조건을 해소하지만, 20건 이상인데 histogram이 없거나 계산할 수 없으면 No Data를 반환한다. 별도 histogram 누락 규칙은 `+Inf` 버킷까지 확인한다.
-필수 API 지표 규칙은 HTTP 카운터의 12개 조합과 코치 3경로·리포트 1경로의 active count/sum/max를 확인한다. 수집 중인 다른 경로나 상태의 지표가 누락을 가리지 않으며 유휴 상태의 0은 정상적인 지표 존재로 취급한다.
+필수 API 지표 규칙은 HTTP 카운터의 12개 조합과 코치 2경로(`/v2/coach/start`·`reply`)의 active count/sum/max를 확인한다. 이 경로 목록은 `HttpMonitoringConfiguration.ACTIVE_POST_ROUTES`와 같아야 한다. 수집 중인 다른 경로나 상태의 지표가 누락을 가리지 않으며 유휴 상태의 0은 정상적인 지표 존재로 취급한다.
 
 ## operations
 
