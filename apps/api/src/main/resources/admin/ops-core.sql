@@ -163,6 +163,7 @@ activity_rows AS (
   SELECT a.activity_id, a.feature, a.created_at,
          '배우 ' || left(md5(a.user_id::text), 8) AS actor,
          u.created_at AS signup_at,
+         (u.created_at > now() - interval '7 days' AND u.created_at <= now()) AS signup_d7,
          sp.platform, sd.device, a.status
   FROM (
     SELECT 'coaching:' || ps.id::text AS activity_id,
@@ -697,6 +698,7 @@ SELECT json_build_object(
       'created_at', to_char(date_trunc('minute', created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
       'actor', actor,
       'signup_at', to_char(date_trunc('hour', signup_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+      'signup_d7', signup_d7,
       'platform', platform,
       'device', device,
       'status', status,
