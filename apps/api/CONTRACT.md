@@ -13,7 +13,10 @@
 > 이관 절차였기 때문이다(`SOMA-403` 6단계에서 폐기). 원문은
 > [docs/archive/soma287/SPEC.md](https://github.com/acttub/acttub-platform/blob/c2b76b09/docs/archive/soma287/SPEC.md) 에 있다.
 
-**행동 계약은 이 문서와 대응하는 Java 테스트가 판정한다.** `spec/openapi.json`은 springdoc이
+**기능의 행동(누가 무엇을 할 수 있는지, 오류 코드, 한도, 응답의 뜻, 상태 전이)은 [docs/specs/](../../docs/specs/README.md)가
+정본이다.** 이 문서는 백엔드 공통 규칙(스택, 영속·트랜잭션·락, 스키마, 오류 계약의 모양, 검증)과 기능 절마다의
+구현 규칙만 둔다. 기능 절(§6-5 이후)은 첫 줄에 정본 스펙을 가리킨다. 둘 다 대응하는 Java 테스트가 판정한다.
+`spec/openapi.json`은 springdoc이
 만드는 요청·응답 스키마 산출물이자 웹 타입 생성원이다. 오류와 상태 전이 전체를 표현하지
 않으므로, 스키마가 같아도 행동 계약의 검증은 별도로 필요하다.
 
@@ -407,7 +410,7 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 **배열**이고, 규칙에 걸린 것은 다른 오류와 같이 **코드 문자열 하나**다: `under_14`,
 `under_14_account_closed`, `authorization_code_required`, `consent_decisions_incomplete`,
 `required_consent_cannot_be_declined`, `age_confirmation_required`, `order_mismatch`,
-`portfolio_credit_limit_exceeded`, `portfolio_photo_limit_exceeded`, 노트 평가의 `comment_too_long`(§6-15), 그리고 리딩의 `no_characters`,
+`portfolio_credit_limit_exceeded`, `portfolio_photo_limit_exceeded`, 노트 평가의 `comment_too_long`([practice.note](../../docs/specs/practice/note.md)), 그리고 리딩의 `no_characters`,
 `invalid_characters`, `script_too_long`, `script_limit`, `request_fingerprint_mismatch`, `invalid_line`, `empty_range`,
 `recording_too_long`, `recording_quota`(§6-14; 회차의 409 는 `session_closed`, 녹음 변환 실패는 503
 `audio_conversion_failed`). (네이버 로그인에 `authorization_code`·`code_verifier` 가 빠진 것은
@@ -558,12 +561,12 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   비우고 시트 재전송 예약, `note_ratings` 의 한 줄 비우기(평가 값은 남는다), 신원의 `provider_uid`·토큰을 비우고 `uid_hash` 채우기,
   챌린지 자료 정리(`PostgresProfileRepository#eraseChallenge` — 마감이 지났는데 집계되지 않은 챌린지를 먼저
   집계하고(`ChallengeWithdrawal#settleBeforeWithdrawal`), 참여작 비공개·주최 해제·차단·저장·알림함 삭제·AI 리포트
-  본문 파기, §6-16~§6-20). 성별·연령대·방향·경력·목표와 배우 기억은 남는다(§6-15 「연습 자료의 이관·삭제·탈퇴」).
+  본문 파기, §6-16~§6-20). 성별·연령대·방향·경력·목표와 배우 기억은 남는다([practice 「연습 자료의 이관·삭제·탈퇴」](../../docs/specs/practice/README.md#연습-자료의-이관삭제탈퇴)).
 - **신원 행은 지우지 않는다.** `uid_hash` = HMAC-SHA256(provider, provider_uid) 만 남긴다
   (`ck_user_identities_uid_or_hash`).
 - **영상 객체**는 옛 예약 장부(`upload_intents`)와 0.1.0 보관함(`videos`)의 키를 함께 모은다 — 보관함 영상의
   **포스터**(`videos.poster_key`, V23)도 함께다. 포스터 워커는 붙일 때 같은 `users` 행을 잡으므로 탈퇴가 키를 모은 뒤에
-  붙는 포스터는 없다(§6-15 보관함 「포스터」). 남길지는 `retention` 의 **현재 판에 대한 마지막 결정**으로 가른다.
+  붙는 포스터는 없다([practice.library](../../docs/specs/practice/library.md)). 남길지는 `retention` 의 **현재 판에 대한 마지막 결정**으로 가른다.
 - **리딩 자료는 같은 트랜잭션에서 행째 지운다**(`PostgresProfileRepository#eraseReading`, §6-14). 보관 동의가
   있으면 녹음 행을 남기고 `reading_session_id`·`line_id` 를 NULL 로 비운 채 `user_id` 를 유지해 3년 파기가 지우고,
   없으면 행(음성과 **전사**)을 지우고 객체 키를 장부(`reading_recording_delete`)에 올린다. 지우기 전에 그
@@ -695,7 +698,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 
 | 일 | 구현 규칙 |
 |---|---|
-| 설문 연락처 | 연락처를 비우고 `sheet_seq` 를 올린 뒤 `sheet_synced_at` 을 NULL 로 되돌린다 — 같은 설문 id·새 순번으로 시트에 다시 보낸다(§6-15) |
+| 설문 연락처 | 연락처를 비우고 `sheet_seq` 를 올린 뒤 `sheet_synced_at` 을 NULL 로 되돌린다 — 같은 설문 id·새 순번으로 시트에 다시 보낸다([practice.feedback](../../docs/specs/practice/feedback.md)) |
 | 설문 시트 전송 | `sheet_synced_at` 이 NULL 인 행을 오래된 순으로 보낸다. 한 묶음에서 하나도 보내지 못하면 멈춘다(시트가 죽은 동안 같은 묶음을 영원히 돌지 않는다) |
 
 ### 6-13. 방문자 IP

@@ -24,7 +24,9 @@
 - **화면·컴포넌트·카피**를 만들 때 → [acttub/pen](https://github.com/acttub/pen)의 `acttub 디자인.pen`과
   [PRD 「디자인」](docs/PRD.md#디자인). 기능별 화면 번호는 [docs/specs/](docs/specs/README.md)의 `화면` 줄에 있습니다.
 - **폴더·패키지 배치나 층 경계**를 정할 때 → [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- **API·DB·마이그레이션**을 바꿀 때 → [apps/api/CONTRACT.md](apps/api/CONTRACT.md).
+- **기능의 행동**(권한·오류 코드·한도·응답의 뜻·상태 전이)을 정하거나 바꿀 때 → [docs/specs/](docs/specs/README.md)의
+  해당 기능 파일.
+- **API·DB·마이그레이션**의 구현(영속·트랜잭션·락·스키마·오류 계약의 모양)을 바꿀 때 → [apps/api/CONTRACT.md](apps/api/CONTRACT.md).
   API 계약 변경과 소비 중인 필드·컬럼 축소는 [계약 변경 절차](apps/api/CONTRACT.md#계약-변경-절차)를
   함께 따릅니다.
 - **브랜치·릴리스·hotfix·revert**를 다룰 때 →

@@ -2,14 +2,15 @@
 
 ## 판정 순서
 
-1. [CONTRACT.md](CONTRACT.md)를 읽습니다. 이 문서는 API·영속·스키마의 행동 판정 기준입니다.
+1. 바꾸는 기능의 [스펙](../../docs/specs/README.md)과 [CONTRACT.md](CONTRACT.md)를 읽습니다. 기능의 행동(권한·오류 코드·한도·
+   응답의 뜻·상태 전이)은 스펙이, API·영속·스키마의 구현 규칙은 CONTRACT가 판정합니다.
 2. 아래 표에서 변경 갈래에 맞는 정본과 검증을 확인합니다.
 3. 구조 결정의 이유를 인용할 때는 [domain.md](../../docs/agents/domain.md)의 방식으로 해당 ADR의
    개정 블록까지 읽습니다.
 
 | 변경 갈래 | 먼저 읽을 정본 | 최소 완료 기준 |
 |---|---|---|
-| DTO·직렬화·검증·오류 | `CONTRACT.md` §4·§6 및 [계약 변경 절차](CONTRACT.md#계약-변경-절차) | 관련 MockMvc/계약 테스트와 계약 변경 절차의 완료 기준 통과 |
+| DTO·직렬화·검증·오류 | 해당 기능 스펙, `CONTRACT.md` §4·§6 및 [계약 변경 절차](CONTRACT.md#계약-변경-절차) | 관련 MockMvc/계약 테스트와 계약 변경 절차의 완료 기준 통과 |
 | 예외·보고 | `CONTRACT.md` §6·[ADR-025](../../docs/ADR.md) | 변경한 모든 예외 처리 지점에서 원인·분류·보고 여부와 기존 응답·폴백 보존을 테스트로 확인 |
 | 저장소·SQL·트랜잭션 | `CONTRACT.md` §5 | 실제 Postgres를 쓰는 통합 테스트로 쿼리와 커밋 경계 확인 |
 | Entity·Flyway·제약 | `CONTRACT.md` §5-3·§5-5·§5-8 | migration·fingerprint·baseline·forward 경로 확인 |
