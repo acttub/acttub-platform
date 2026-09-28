@@ -23,7 +23,7 @@
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
 | `GET /v2/me/notification-settings` | 헤더 `Authorization`(게이트 통과 회원) | `NotificationSettings` 200 | 게스트 `member_only` 403 |
-| `PATCH /v2/me/notification-settings` | 헤더 `Authorization`(게이트 통과 회원), `NotificationSettingsPatch`: 바꿀 토글만 | `NotificationSettings` 200(토글 셋 전체) | 게스트 `member_only` 403, 빈 본문·모르는 키·불리언 아닌 값 422 배열 |
+| `PATCH /v2/me/notification-settings` | 헤더 `Authorization`(게이트 통과 회원), `NotificationSettingsPatch`: 바꿀 토글만 | `NotificationSettings` 200(토글 셋 전체: `analysis_done`·`challenge`·`evening_reminder`) | 게스트 `member_only` 403, 빈 본문·모르는 키·불리언 아닌 값 422 배열 |
 | `POST /v2/push-tokens` | 헤더 `Authorization`(게이트 통과 회원), `RegisterPushTokenRequest`: `token`·`platform` | 204. 푸시 토글 둘이 다 꺼졌거나 탈퇴와 겹치면 저장하지 않고 204 | 게스트 `member_only` 403, `consent_required`·`profile_required` 403, 422 배열 |
 | `DELETE /v2/push-tokens` | `UnregisterPushTokenRequest`: `token`. 로그인 없이 받고 `Authorization`을 보지 않는다 | 204 | 422 배열, IP 한도 429 |
 | `PushService#onAnalysisComplete` (분석 워커가 분석을 끝낼 때) | 분석 세션 | 분석 완료 토글이 켜진 회원의 토큰 전부에 Expo 푸시 | 실패는 밖으로 내보내지 않고 보고한다. `DeviceNotRegistered` 토큰은 지운다 |

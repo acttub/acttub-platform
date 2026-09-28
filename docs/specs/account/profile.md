@@ -125,8 +125,3 @@ user_profile_directions(user_id, direction)에 고른 값마다 한 행씩 둔�
 ## 범위 밖
 - 만 14세 미만 가입. 법정대리인 동의가 필요한 나이라 0.1.0은 받지 않는다.
 - 포트폴리오. A4 프로필의 "포트폴리오 편집"은 다른 기능이다. (account.portfolio)
-
-## 열린 질문
-- account.guest는 게스트가 프로필을 부르면 403 `member_only`라고 적지만, 코드의 `GET /v2/me`는 게이트 밖이라
-  게스트에게도 200 `MeResponse`(`account_type: guest`)를 준다. 프로필 저장·사진은 403이다. 코드가 맞으면
-  account.guest의 "프로필"을 "프로필 저장·사진"으로 좁힌다.

@@ -486,108 +486,55 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 
 ### 6-5. 클라이언트 판과 회원 게이트
 
-판정 순서는 **426 → 토큰(401) → 계정 상태(403 `account_deactivated`) → 분당 한도(429) → 동의
-(403 `consent_required`) → 프로필(403 `profile_required`)** 이다. 요구사항의 정본은
-[specs/common.md](../../docs/specs/common.md) 「클라이언트 판과 강제 업데이트」·「게이트와 보호 기능」.
+> 제품 규칙의 정본: [common.md](../../docs/specs/common.md) 「게이트와 보호 기능」·「클라이언트 판과 강제 업데이트」(판정 순서, 게이트 밖 경로 표, 426 문장, `account_deactivated` 의 예외), [account.consent](../../docs/specs/account/consent.md)·[account.profile](../../docs/specs/account/profile.md)(동의·프로필 게이트가 세는 것)
 
-**426**(`platform/security/ClientVersionFilter`): `X-Acttub-Client` 가 없거나 비어 있는 `/v2` 요청은
-무엇을 부르든 426 이고 본문은 `{"detail":"새 버전이 나왔어요. 스토어에서 업데이트해 주세요."}` 다.
-0.1.0 이전 앱이 모르는 상태 코드의 `detail` 을 그대로 보여 주기 때문에 **여기만 `detail` 이 코드가
-아니라 문장이다** — 문구를 고치면 옛 앱의 화면이 바뀐다. 헤더를 보지 않는 자리는 `/v2` 밖
-(`/health`·관리 포트), 제공자가 부르는 `/v2/auth/providers/*/disconnect`, 운영 토큰으로 여는
-`/v2/admin/**` 다. 서버에 0.1.0 이전의 규칙(로그인 즉시 계정 생성, 필수 문서만 보는 게이트, 닉네임)은
-남기지 않는다.
-
-**회원 게이트**(`platform/security/ConsentGateInterceptor`·`AccessGate`): 표는 보호 기능이 아니라
-**게이트 밖**을 적는다. 적지 않은 새 경로는 닫힌 채로 시작한다.
-
-| 단계 | 경로 |
-|---|---|
-| 게이트 밖 | `/v2/auth/**`, `/v2/consents/**`, `GET`·`DELETE /v2/me`, `DELETE /v2/push-tokens`, 공개 `/v2/admissions/**`·`GET /v2/public/**`(포트폴리오 §6-11·참여작 공유 §6-17), 운영 `/v2/admin/**` |
-| 게스트 전용 | `/v2/guest/**`(이관 코드 받기) — 필요한 동의 문서가 없다. 회원이 부르면 403 `guest_only` |
-| 동의까지만 | `PUT /v2/me/profile` — 개인정보를 받기 전에 수집 동의가 끝나 있어야 하고, 프로필이 빈 사람이 채우는 자리다 |
-| 동의 + 프로필 | 그 밖의 모든 `/v2` |
-
-- 동의 게이트는 **현재 판 문서 가운데 미결정이 하나라도 있으면** 막는다. **선택 문서도 센다** — 거절도
-  결정이고, 결정하지 않은 것만 막는다. 결정은 판 단위라 새 판이 나오면 그 문서만 다시 미결정이 된다.
-- 0.1.0 이전에 필수 문서를 거절·철회한 기록은 **미결정과 같게** 다룬다. 둘을 가르던
-  `consent_blocked`, `X-Acttub-Consent-Entry` 요청 헤더, `entry_status` 의 `blocked` 는 없다.
-- 프로필 게이트는 여섯 항목(이름·성별·생년월일·방향 하나 이상·경력·목표)이 다 찼는지 본다. 사진과
-  소개는 세지 않는다. 판정은 요청마다 DB 상태로 하므로 토큰을 갱신해도 열리지 않는다.
-- 어느 경우에도 막힌 원 요청을 서버가 재실행하지 않는다.
-- 위 표는 **회원**의 규칙이다. 웹 게스트는 다른 규칙으로 막힌다(§6-9) — 같은 `AccessGate#gatedUser` 가
-  주체를 보고 가른다.
-- 토큰 없이 여는 공개 조회(`GET /v2/consents/documents`·`/v2/consents/notices`, `/v2/admissions/**`,
-  `GET /v2/auth/providers`, `GET /v2/public/**`)는 `Authorization` 헤더가 와도 검증하지 않는다
-  (`AccessTokenFilter#shouldNotFilter`) — 만료된 토큰을 전역으로 붙이는 클라이언트가 게이트 앞의 공개
-  콘텐츠(동의 문서·입시 정보)에서 401 을 받지 않게 한다. 제공자가 부르는 `/v2/auth/providers/*/disconnect` 도 같다 — 카카오는
-  `Authorization: KakaoAK <어드민 키>` 를 싣는데, 그것을 액세스 토큰으로 검증하면 알림이 전부 401 이 된다.
-- **`account_deactivated` 의 예외는 `DELETE /v2/me` 하나다**(`CurrentUserService`). 탈퇴 도중 앱이 죽어 다시
-  누른 사람이 403 을 받으면 기기의 자료를 지우는 다음 단계로 가지 못한다. 그 밖의 모든 경로는 남은 액세스
-  토큰을 요청마다 403 으로 막는다.
-
-**고지 문서는 동의 문서가 아니다.** 개인정보 처리방침은 `consent_documents` 의 행이 아니라 배포에 든 고정 파일
-(`consent-docs/privacy_policy.md`)이고 `GET /v2/consents/notices` 가 전문을 내준다. 결정할 수 없고 게이트에
-걸리지 않는다. 동의 문서 `privacy` 는 "개인정보 수집·이용 동의"다. 새 수집이 생기는 변경은 고지만 고치지 않고
-`privacy` 의 판도 올린다(`consent-docs/README.md`) — 웹은 `GET /v2/consents/entry` 의 privacy 행
-`current_decision` 하나로 계측을 켜며, 그 값은 **현재 판**에 대한 결정이다.
+- **426** 은 `platform/security/ClientVersionFilter` 가 토큰 검증보다 먼저 낸다. 헤더를 보지 않는 경로는
+  `ClientVersionFilter#shouldNotFilter` 한 곳에 있다.
+- **회원 게이트**는 `platform/security/ConsentGateInterceptor` 의 경로 목록(`OUTSIDE_THE_GATE`·`GUEST_ONLY`·
+  `CONSENT_ONLY`)과 `AccessGate` 다. common.md 의 표와 이 목록은 같이 바꾼다. 회원과 웹 게스트(§6-9)는 같은
+  `AccessGate#gatedUser` 가 주체를 보고 가른다.
+- 공개 조회에서 `Authorization` 을 검증하지 않는 자리는 `AccessTokenFilter#shouldNotFilter` 다. 제공자가 부르는
+  `/v2/auth/providers/*/disconnect` 도 여기서 뺀다 — 카카오는 `Authorization: KakaoAK <어드민 키>` 를 싣는데, 그것을
+  액세스 토큰으로 검증하면 알림이 전부 401 이 된다.
+- `account_deactivated` 의 `DELETE /v2/me` 예외는 `CurrentUserService` 에 있다.
+- **고지 문서는 동의 문서가 아니다.** 개인정보 처리방침은 `consent_documents` 의 행이 아니라 배포에 든 고정 파일
+  (`consent-docs/privacy_policy.md`)이고 `GET /v2/consents/notices` 가 전문을 내준다. 판을 올리는 절차는
+  `consent-docs/README.md` 다.
 
 ### 6-6. 로그인과 가입 제출
 
-- `POST /v2/auth/login` 은 어느 쪽이든 **200** 이고 본문의 `result` 로 가른다: 이미 있는 계정은
-  `signed_in`(토큰·`user`·`pending_consents`), 처음 온 신원은 `signup_required`(`signup_token`·
-  `expires_in`·현재 판 `documents`). **`signup_required` 는 어떤 행도 만들지 않는다.**
-- 계정을 찾는 순서가 계약이다: ① 제공자 + 제공자 ID → ② 제공자가 **검증했다고 알린** 이메일(그 계정에
-  신원을 붙인다) → ③ 처음 온 신원. 검증되지 않은 이메일이 기존 계정과 겹치면 409 다. 로그인할 때
-  검증된 이메일이 바뀌어 있으면 `users.email` 을 따라 바꾸되 다른 계정이 쓰는 주소면 그대로 둔다.
-- 요청의 자격 값은 제공자마다 다르다: `id_token`(네이버 말고는 필수 — 빠지면 422 배열),
-  애플의 `authorization_code`(없으면 422 `authorization_code_required`), 네이버의
-  `authorization_code`·`code_verifier`(둘 다 필수 — 빠지면 422 배열)·`redirect_uri`·`state`(선택).
-  자격 값은 422 의 `input` 으로 되돌려 보내지 않고 로그에도 남기지 않는다.
+> 제품 규칙의 정본: [account.login](../../docs/specs/account/login.md)(로그인 응답의 두 갈래, 계정을 찾는 순서, 자격 값, 가입 토큰의 수명과 내용, 가입 제출, 분당 한도, 리프레시 30일)
+
 - **자격 칸**(`platform/web/CredentialField`)은 로그인의 `provider` 말고 전부(`id_token`·`authorization_code`·
   `code_verifier`·`redirect_uri`·`state`), 가입 제출의 `signup_token`, 갱신·로그아웃의 `refresh_token`, 옮기기의
   `code`, 푸시 토큰의 `token` 이다. 이 표시가 하나라도 붙은 요청 본문의 422 배열은: 빠진 칸의 `input`(본문 전체가
   실리는 자리)에 **선언된 칸 가운데 자격 값이 아닌 것만** 싣고(이름을 잘못 쓴 `idToken` 같은 모르는 키도 뺀다),
-  자격 칸 자체와 모르는 키의 `input` 은 `"[redacted]"` 다. 무엇이 틀렸는지는 `loc`·`type` 이 말한다
-  (`RequestBodyTreeValidator`, `CredentialInputContractIT`).
-- **가입 토큰**(`feature/auth/app/SignupTokens`)은 서버가 저장하지 않는 **암호화** 토큰(JWE
-  `dir`+`A256GCM`)이고 30분 산다. 제공자·제공자 ID·검증된 이메일·(애플·네이버) 탈퇴 때 연결을 끊는 데 쓸
-  토큰을 담으며 앱은 읽을 수 없다. 키는 `JWT_SECRET` 에서 용도를 못박아 뽑는다.
-- `POST /v2/auth/signup` 은 현재 판 **모든** 문서의 결정(`decisions[]`, 선택 문서 포함)을 받아 계정·신원·
-  동의 행을 한 트랜잭션에서 만든다. 결정의 확인이 먼저라 빠진 것이 있으면 어떤 행도 생기지 않는다.
-  같은 신원의 계정이 이미 있으면(재시도·동시 제출의 진 쪽) 그 계정의 토큰을 준다.
-- 분당 한도는 로그인·가입 제출 모두 **IP 로만** 센다(각각 60회, 키가 다르다). 갱신은 IP 와 주체 둘 다.
-- 리프레시 토큰은 30일이다.
+  자격 칸 자체와 모르는 키의 `input` 은 `"[redacted]"` 다(`RequestBodyTreeValidator`, `CredentialInputContractIT`).
+- **가입 토큰**(`feature/auth/app/SignupTokens`)은 JWE `dir`+`A256GCM` 이다. 키는 `JWT_SECRET` 에서 용도를 못박아
+  뽑는다.
+- `POST /v2/auth/signup` 은 계정·신원·동의 행을 **한 트랜잭션**에서 만든다. 결정의 확인이 먼저라 빠진 것이 있으면
+  어떤 행도 생기지 않는다.
+- 로그인과 가입 제출의 IP 한도는 키가 다르다.
 
 ### 6-7. 제공자와 연결 끊기 알림
 
-- **켜 둔 제공자**(`integration/oidc/ProviderRegistry`): `AUTH_ENABLED_PROVIDERS`(기본 `google,apple`)에 든
-  것만 로그인된다. 꺼 둔 제공자는 모르는 제공자와 같은 **400 `unsupported_provider`** 이고 그 제공자를
-  부르지도 않는다. 켜 두었는데 설정(키)이 빠진 것은 **503 `provider_not_configured`** 다 — 앞은 의도한
-  상태, 뒤는 운영 사고다. 카카오·네이버는 검수 승인 뒤에 이 값에 이름을 더해 켠다.
-  `GET /v2/auth/providers` 는 켜 둔 것을 늘 `google, apple, kakao, naver` 순서로 준다. 개발용 제공자는
-  이 스위치와 무관하고 목록에 나오지 않는다.
-- **이메일 검증 근거**: 구글·애플은 ID 토큰의 `email_verified`. 카카오는 ID 토큰에 그 표시가 없어
-  **처음 온 신원에 한해** 사용자 정보 API(어드민 키, `target_id` = `sub`)의 `is_email_valid` 와
-  `is_email_verified` 를 본다 — ID 토큰의 이메일과 같은 주소일 때만 검증으로 친다. 이메일이 없는 카카오
-  신원은 물을 것이 없어 부르지 않는다. 네이버는 표시가 없어 `@naver.com` 주소만 검증된 것으로 본다
-  (`feature/auth/domain/NaverEmail`).
+> 제품 규칙의 정본: [account.login](../../docs/specs/account/login.md)(켜 둔 제공자와 400·503, 제공자 목록, 이메일 검증 근거, 네이버·애플의 토큰 교환, 연결 끊기 알림의 응답·401·503)
+
+- **켜 둔 제공자**(`integration/oidc/ProviderRegistry`): `AUTH_ENABLED_PROVIDERS`(기본 `google,apple`)에 든 것만
+  로그인된다. 카카오·네이버는 검수 승인 뒤에 이 값에 이름을 더해 켠다.
+- 카카오의 이메일 검증은 사용자 정보 API(어드민 키, `target_id` = `sub`)로 묻는다. 네이버의 `@naver.com` 판정은
+  `feature/auth/domain/NaverEmail` 이다.
 - **네이버는 서버가 코드를 교환한다**(SOMA-528 결정 I-5): `POST https://nid.naver.com/oauth2/token` 에
   client secret 과 함께 보내 받은 `id_token` 을 JWKS(`https://nid.naver.com/oauth2/jwks`, 발급자
-  `https://nid.naver.com`, `aud` = 우리 Client ID)로 검증한다. 앱에 client secret 을 두지 않기 위해서다.
-  그래서 네이버의 무응답은 기존 회원에게도 502 다. 함께 받은 refresh token 은 암호화해
+  `https://nid.naver.com`, `aud` = 우리 Client ID)로 검증한다. 함께 받은 refresh token 은 암호화해
   `user_identities.naver_token_encrypted` 에 두고 로그인마다 새 값으로 바꾼다.
-- **애플 authorization code** 는 처음 온 신원일 때 로그인 요청에서 바로 바꾼다(5분·1회용). 이메일 겹침
-  409 를 먼저 가르므로 409 로 끝날 요청에는 코드를 쓰지 않는다. 바꿔 온 값은 가입 토큰에 실려 가입 제출 때
-  `apple_token_encrypted` 로 저장된다. 교환과 폐기의 `client_id` 는 ID 토큰의 `aud` 다. 토큰이 없는 기존
-  애플 회원(0.1.0 이전 가입)은 다음 로그인 때 채우되 **실패해도 로그인은 된다.** 그때 애플의 무응답은 삼키지
-  않고 보고한다(`AuthService.keepProviderToken` — 계속 못 채우면 탈퇴 때 폐기할 토큰이 없다). 이미 쓰인 코드
-  같은 예상된 거절은 보고하지 않는다.
-- **연결 끊기 알림**(`POST /v2/auth/providers/{naver|kakao}/disconnect`): 제공자가 부른다. 클라이언트 판
-  헤더도 액세스 토큰도 보지 않는다. **그 신원 행만 지우고 계정은 그대로 둔다.** 응답 코드도 제공자가
-  정한다 — 네이버는 **204**, 카카오는 **200**(사용자 정보가 없어도 200 으로 답하라고 하고, 다른 응답은
-  발송 실패로 본다). 모르는 신원도 같은 응답이다(탈퇴로 이미 해시가 된 신원). 보낸 쪽을 확인하지 못하면
-  **401 `invalid_provider_signature`** 이고 아무것도 지우지 않는다. 설정이 없으면 503.
+- **애플 authorization code**: 이메일 겹침 409 를 먼저 가르므로 409 로 끝날 요청에는 코드를 쓰지 않는다. 바꿔 온
+  값은 가입 토큰에 실려 가입 제출 때 `apple_token_encrypted` 로 저장된다. 교환과 폐기의 `client_id` 는 ID 토큰의
+  `aud` 다. 토큰이 없는 기존 애플 회원의 채우기가 실패하면 애플의 무응답은 삼키지 않고 보고한다
+  (`AuthService.keepProviderToken` — 계속 못 채우면 탈퇴 때 폐기할 토큰이 없다). 이미 쓰인 코드 같은 예상된 거절은
+  보고하지 않는다.
+- **연결 끊기 알림**(`POST /v2/auth/providers/{naver|kakao}/disconnect`): 응답 코드는 제공자가 정한다 — 카카오는
+  사용자 정보가 없어도 200 으로 답하라고 하고 다른 응답은 발송 실패로 본다.
   - 네이버(개발가이드 §4.4): 폼으로 `clientId`·`encryptUniqueId`·`timestamp`·`signature`. 키는
     `MD5(client secret)` 앞 16바이트, 서명은 `HmacSHA256("clientId=…&encryptUniqueId=…&timestamp=…")` 의
     URL-safe Base64, 식별자는 `base64(iv + AES128/CBC/PKCS5)` 다. MD5·CBC 는 네이버가 정한 규격이다.
@@ -601,26 +548,24 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 
 ### 6-8. 탈퇴
 
-- `DELETE /v2/me` 는 **200** 과 `{ "status": "deactivated", "deactivated_at": … }` 다. 처음이든 다시든 같은
-  본문이고 시각은 **최초 탈퇴 시각**이다. 게스트의 토큰도 받는다.
+> 제품 규칙의 정본: [account.withdraw](../../docs/specs/account/withdraw.md)(응답, 파기·가명처리·남기는 것, 보관 동의, 제공자 해제, 신원 해시의 쓰임), [common.md](../../docs/specs/common.md) 「탈퇴·삭제」
+
 - **한 트랜잭션**(`PostgresProfileRepository#withdraw`)에서: 상태 전환, 이메일 파기(I-3 예외로
-  `users.nickname=NULL` 포함), 프로필의 이름·사진·소개 파기와 생년월일 → 5세 단위 `age_band`(아래 끝),
+  `users.nickname=NULL` 포함), 프로필의 이름·사진·소개 파기와 생년월일 → 5세 단위 `age_band`,
   알림 토글 끄기, 포트폴리오 행째 삭제, 이관 코드 삭제, 리프레시 폐기·푸시 토큰 삭제, 진행 중
   `external_operations` 와 `ai_jobs` 를 `failed`/`account_deactivated` 로 닫고 lease 떼기(분석 중이던 연습도
   `failed`, 0.1.0 작업은 결과 본문도 비운다), **0.1.0 영상에 `purged_at` 찍기**, `practice_feedback` 의 연락처
-  비우고 시트 재전송 예약, `note_ratings` 의 한 줄 비우기(평가 값은 남는다), 신원의 `provider_uid`·토큰을 비우고 `uid_hash` 채우기. 성별·연령대·방향·경력·목표와
-  배우 기억은 남는다(§6-15 「연습 자료의 이관·삭제·탈퇴」).
+  비우고 시트 재전송 예약, `note_ratings` 의 한 줄 비우기(평가 값은 남는다), 신원의 `provider_uid`·토큰을 비우고 `uid_hash` 채우기,
+  챌린지 자료 정리(`PostgresProfileRepository#eraseChallenge` — 마감이 지났는데 집계되지 않은 챌린지를 먼저
+  집계하고(`ChallengeWithdrawal#settleBeforeWithdrawal`), 참여작 비공개·주최 해제·차단·저장·알림함 삭제·AI 리포트
+  본문 파기, §6-16~§6-20). 성별·연령대·방향·경력·목표와 배우 기억은 남는다(§6-15 「연습 자료의 이관·삭제·탈퇴」).
 - **신원 행은 지우지 않는다.** `uid_hash` = HMAC-SHA256(provider, provider_uid) 만 남긴다
-  (`ck_user_identities_uid_or_hash`). 서버는 해시로 옛 계정을 찾지 않는다 — 같은 제공자로 다시 오면 처음 온
-  신원이다. 해시의 쓰임은 보관 동의 철회 요청의 본인 확인 하나다.
+  (`ck_user_identities_uid_or_hash`).
 - **영상 객체**는 옛 예약 장부(`upload_intents`)와 0.1.0 보관함(`videos`)의 키를 함께 모은다 — 보관함 영상의
   **포스터**(`videos.poster_key`, V23)도 함께다. 포스터 워커는 붙일 때 같은 `users` 행을 잡으므로 탈퇴가 키를 모은 뒤에
-  붙는 포스터는 없다(§6-15 보관함 「포스터」). "탈퇴 후
-  영상·녹음 보관·활용"(`retention`)의 **현재 판에 대한 마지막 결정이 동의**인 사람 것만 남긴다. 현재 판에 답하지 않았으면 거절로 본다. 사진 객체(프로필·포트폴리오)는 언제나 지운다.
-  만 14세 미만으로 드러난 0.1.0 이전 회원은 동의와 무관하게 영상을 파기한다.
-- **리딩 자료는 같은 트랜잭션에서 행째 지운다**(`PostgresProfileRepository#eraseReading`, §6-14). 연습 기록과
-  달리 사람과 끊어 남기지 않는다 — 대본·배역·줄·회차·암기 상태가 그렇다. **녹음만 보관 동의를 따른다**: 동의가
-  있으면 행을 남기고 `reading_session_id`·`line_id` 를 NULL 로 비운 채 `user_id` 를 유지해 3년 파기가 지우고,
+  붙는 포스터는 없다(§6-15 보관함 「포스터」). 남길지는 `retention` 의 **현재 판에 대한 마지막 결정**으로 가른다.
+- **리딩 자료는 같은 트랜잭션에서 행째 지운다**(`PostgresProfileRepository#eraseReading`, §6-14). 보관 동의가
+  있으면 녹음 행을 남기고 `reading_session_id`·`line_id` 를 NULL 로 비운 채 `user_id` 를 유지해 3년 파기가 지우고,
   없으면 행(음성과 **전사**)을 지우고 객체 키를 장부(`reading_recording_delete`)에 올린다. 지우기 전에 그
   사람의 `scripts`·`reading_sessions` 행을 `FOR UPDATE` 로 잡는다 — 리딩의 쓰기가 같은 행을 잡으므로 겹쳐도
   순서가 정해진다(먼저 온 쓰기는 함께 지워지고, 늦게 온 쓰기는 없는 행을 보고 404 다).
@@ -629,14 +574,13 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   `FOR UPDATE` 로 잡고 활성인지 다시 본다**(`PostgresProfileRepository#lockActive`,
   `PostgresPortfolioRepository#lockOrCreate`, `PostgresPushTokenRepository#register`). 탈퇴는 `users` 행을 남기므로
   FK 는 뒤늦은 쓰기를 막지 못한다 — 이 확인이 없으면 파기한 이름·생년월일이 다시 차고 지운 포트폴리오 행이
-  되살아난다. 쓰기가 먼저면 탈퇴가 그 뒤에 파기하고, 탈퇴가 먼저면 쓰지 않고 게이트가 했을 답
-  **403 `account_deactivated`** 를 준다(푸시 토큰 등록은 조용히 204).
+  되살아난다. 쓰기가 먼저면 탈퇴가 그 뒤에 파기하고, 탈퇴가 먼저면 쓰지 않는다(응답은 각 스펙).
 - **바깥 호출은 트랜잭션 밖이다**(`feature/profile/app/AccountCleanup`). 탈퇴 트랜잭션은 해제에 쓸 값을
   **파기 전에** `account_cleanup_operations`(V11)로 옮겨 두기만 한다 — `object_delete`(객체 키 목록),
   `apple_revoke`(애플 토큰), `kakao_unlink`(회원번호), `naver_revoke`(refresh token), 그리고 `reading_recording_delete`
   (리딩 녹음 객체 키 목록, V13·§6-14 — 실행은 `object_delete` 와 같다). 커밋 뒤 바로 한 번
   시도하고, 실패하면 5분에서 두 배씩(최대 12시간) 늘려 다시 시도한다. 성공하면 행을 값과 함께 지운다 —
-  **끝난 것은 장부에 남지 않는다.** 구글의 연결 해제는 앱이 SDK 로 한다.
+  **끝난 것은 장부에 남지 않는다.**
 - **7일이 지난 뒤는 종류가 가른다**(`AccountCleanupRepository.OBJECT_DELETE_KINDS`). **제공자 해제**
   (`apple_revoke`·`kakao_unlink`·`naver_revoke`)는 포기하고 값과 함께 지운다 — 해제에 쓸 값을 그보다 오래 들고
   있지 않는다. **객체 삭제**(`object_delete`·`reading_recording_delete`)는 **성공할 때까지 대상 키를 지우지
@@ -646,8 +590,8 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 - **`object_delete` 는 탈퇴만 쓰는 것이 아니다.** 객체 키를 DB 에서 덮거나 그 행을 지우는 자리는 전부 같은
   트랜잭션에서 장부에 남긴다(`PostgresObjectCleanupLedger`): 프로필 사진의 교체·삭제, **올리다 만 프로필 사진의
   주소를 다시 받을 때 덮이는 앞의 키**, 포트폴리오 사진의 삭제와 시한이 지난 올리기 찌꺼기. 키를 먼저 잃으면
-  저장소가 실패했을 때 그 객체를 아는 곳이 없어 탈퇴의 파기도 찾지 못한다. 저장소 삭제가 실패해도 요청은 끝나고
-  (204·200) 장부가 보고하며 다시 시도한다. 올리기 주소가 아직 살아 있는 객체는 **그 시한 뒤에** 지운다
+  저장소가 실패했을 때 그 객체를 아는 곳이 없어 탈퇴의 파기도 찾지 못한다. 저장소 삭제가 실패하면 장부가
+  보고하며 다시 시도한다. 올리기 주소가 아직 살아 있는 객체는 **그 시한 뒤에** 지운다
   (`next_attempt_at`) — 먼저 지우면 그 뒤에 올라온 객체가 다시 남는다.
 - 실패는 묻지 않는다: 시도가 실패할 때마다 `FailureReporter` 로 보고하고, **애플 폐기를 7일 뒤에도 못 하면
   `AppleRevocationAbandoned` 를 따로 보고한다**(App Store 필수). 값은 보고에 싣지 않는다.
@@ -660,54 +604,36 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   운영자는 철회 요청의 본인 확인에서 두 키 모두로 해시를 계산해 대조한다(`identityHashCandidates`). 절차는
   [RETENTION-REVOCATION.md](../../docs/deploy/RETENTION-REVOCATION.md) 이고, 그 문서의 셸 계산과 서버의 해시가 같은
   값임을 `AccountSecretsTest` 가 고정한다.
-- 챌린지 참여작 비공개는 그 테이블이 생길 때 탈퇴 트랜잭션에 더한다. 탈퇴 3년 뒤의 파기(해시 행, 보관하던
-  영상)는 매일 도는 일이다(§6-12).
+- 탈퇴 3년 뒤의 파기(해시 행, 보관하던 영상)는 매일 도는 일이다(§6-12).
 
 ### 6-9. 웹 게스트와 이관
 
-- **게스트**는 보통의 `users` 행 + `provider=guest` 신원(서버가 만든 난수)이다. 게스트 여부는 **신원이 전부
-  `guest`** 인 것으로 판정하고 `users` 에 컬럼을 늘리지 않는다(`AuthenticatedUser#guest`, 요청마다 한 질의).
-  `POST /v2/auth/guest` 는 **201** 이고 `user.id`·`account_type: "guest"` 를 준다. 한 IP 에서 **시간당 10개**다.
-  토큰의 구조·갱신·만료는 회원과 같다. 끝난 게스트의 토큰이 붙어 와도 401 로 막지 않는다.
-- **게스트의 게이트**(`platform/security/GuestFeature`): 경로가 속한 **기능의 문서만** 본다. 연습
-  (`/v2/uploads/**`·`/v2/videos/**`·`/v2/practices/**`·`/v2/practice-sessions/**`·`/v2/practice-feedback/**`·
-  `/v2/me/practice-feedback/**`·`/v2/coach/**`·`/v2/me/memory/**`)은 약관·수집·이용 동의·AI 분석
-  동의, 리딩
-  (`/v2/reading/**`)은 약관·수집·이용 동의 둘이다(서버가 대본·음성을 분석하지 않아 AI 분석 동의는 없다 —
-  ADR-031, §6-14). **영상을 보관만 하는 데에도 AI 분석 동의를 받는다** — 보관함의 다음 길이 분석이기 때문이고
-  0.1.0 은 이를 받아들인다(practice.record, §6-15). **프로필은 보지 않고 선택 문서는 묻지 않는다.** 403
-  `consent_required` 의 `pending_consents` 에는 **그 기능에 빠진 문서만** 싣는다. 어느 기능에도 적히지 않은
-  경로는 **403 `member_only`** 다 — 적지 않은 새 경로는 게스트에게 닫힌 채로 시작한다.
-- **동의**: 게스트의 **첫** 동의에는 `age_confirmed: true` 가 실려야 한다. 없으면 **422
-  `age_confirmation_required`**, 있으면 `users.age_confirmed_at` 에 시각을 남기고 그 뒤로는 묻지 않는다.
-  게스트가 선택 문서에 결정을 보내면 403 `member_only`. `GET /v2/consents/pending`·`/entry` 는 게스트에게도
-  열려 있고 **필수 문서만** 싣는다 — 웹은 `entry` 의 `privacy` 행 `current_decision`(현재 판 기준) 하나로
-  계측을 켠다.
+> 제품 규칙의 정본: [account.guest](../../docs/specs/account/guest.md)(게스트 만들기, 기능별 동의 문서, `member_only`·`guest_only`, 첫 동의의 나이 확인, 이관 코드, 옮기기와 기억 선택, `guest_transferred`), [account.consent](../../docs/specs/account/consent.md)(게스트의 조회), [practice.analyze](../../docs/specs/practice/analyze.md)(게스트 분석 하루 3회)
+
+- 게스트 여부는 `AuthenticatedUser#guest` 가 요청마다 한 질의로 본다(신원이 전부 `guest`). `users` 에 컬럼을
+  늘리지 않는다.
+- **게스트의 게이트**(`platform/security/GuestFeature`): 경로가 속한 기능의 문서만 본다. 연습은
+  `/v2/videos/**`·`/v2/practices/**`·`/v2/practice-feedback/**`·`/v2/me/practice-feedback/**`·`/v2/coach/**`·
+  `/v2/me/memory/**`, 리딩은 `/v2/reading/**` 다(서버가 대본·음성을 분석하지 않아 AI 분석 동의는 없다 —
+  ADR-031, §6-14). 이 목록에 없는 경로가 `member_only` 다.
 - **dev 분석 한도 예외**: `ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=false`이면 새 연습·재분석 모두 일일 횟수 제한 없이 처리한다. 배포 워크플로는 dev에 false, 운영에 true를 명시한다. 기본값은 true이며 회원 정책과 요청 ID 멱등성은 유지한다.
-- **분석 하루 3회**: 게스트의 분석 요청(새 연습 + 재분석)은 **한국 시간 자정**에 끊는 하루에 3회까지다. 넘으면
-  **429 `guest_daily_analysis_limit`**. 작업 장부의 `analyze` 행을 세고 같은 요청 ID 의 재시도는 세지 않는다.
-  **세는 일과 작업을 만드는 일은 한 트랜잭션이다**(`PostgresPracticeSessionLedger#overQuota`): 그 게스트의 `users`
-  행을 잡은 채 세므로 겹쳐 온 분석 둘이 같은 수를 보고 함께 지나가지 못한다. 같은 요청 ID 의 재전송은 한도보다
-  **먼저** 갈라 재생한다. 재분석에서는 한도(429)가 "실패 상태가 아님"(409)보다 먼저다. 잠금 순서는 올린 영상·연습
-  행 → `users` 다(이관과 같은 방향).
-- **이관 코드**(`POST /v2/guest/transfer-code`, 게스트 전용, **201** `code`·`expires_in`·`expires_at`): 여섯 자리
-  숫자, 10분, 1회용, 새로 받으면 이전 코드는 무효다. **해시로만 저장한다**(HMAC — 키는 `JWT_SECRET` 에서
-  용도를 못박아 뽑는다). 다른 게스트의 살아 있는 코드와 해시가 겹치면 다시 뽑는다. **유일성은 DB 가 지킨다**
+- **분석 하루 3회**는 작업 장부의 `analyze` 행을 센다. **세는 일과 작업을 만드는 일은 한 트랜잭션이다**
+  (`PostgresPracticeSessionLedger#overQuota`): 그 게스트의 `users` 행을 잡은 채 세므로 겹쳐 온 분석 둘이 같은 수를
+  보고 함께 지나가지 못한다. 같은 요청 ID 의 재전송은 한도보다 **먼저** 갈라 재생한다. 재분석에서는 한도(429)가
+  "실패 상태가 아님"(409)보다 먼저다. 잠금 순서는 올린 영상·연습 행 → `users` 다(이관과 같은 방향).
+- **이관 코드**(`POST /v2/guest/transfer-code`): 해시는 HMAC 이고 키는 `JWT_SECRET` 에서 용도를 못박아 뽑는다.
+  다른 게스트의 살아 있는 코드와 해시가 겹치면 다시 뽑는다. **유일성은 DB 가 지킨다**
   (V12 의 부분 유니크 인덱스 둘 — 쓰지 않은 코드는 게스트마다 하나, 숫자마다 하나). 겹쳐 온 발급은 뒤의 INSERT 가
   앞의 커밋을 기다렸다가 `ON CONFLICT DO NOTHING` 의 0행으로 끝나고 다시 뽑으면서 앞의 코드를 지운다 — 둘 다 201
   이지만 살아 있는 코드는 하나다. 발급은 코드 행만 잠근다(`users` 행을 잡으면 옮기기와 순서가 엇갈려 교착한다).
-- **옮기기**(`POST /v2/guest-transfers`, 게이트를 지난 회원만, **200** `{"transferred":true}`): 코드가 틀림·
-  만료·사용·무효는 가르지 않고 **404 `transfer_code_not_found`**. **틀린 시도만** 센다 — 회원당 분당 5회,
-  IP 당 분당 10회. 한도를 채운 뒤에는 **맞는 코드도 평가하지 않는다**(429). 모양이 틀린 코드(422 배열)와
-  409 는 틀린 시도가 아니다. **자리를 먼저 잡고 평가한다**(`FixedWindowRateLimiter#reserve`): 평가 중인 시도도
+- **옮기기의 틀린 시도 한도**는 **자리를 먼저 잡고 평가한다**(`FixedWindowRateLimiter#reserve`): 평가 중인 시도도
   자리를 차지하므로 겹쳐 보낸 추측 스무 개가 같은 수를 보고 함께 평가되지 못한다. 맞은 코드·409·서버 쪽 실패는
   자리를 되돌려 준다.
 - **한 트랜잭션**(`feature/transfer/app/GuestTransferService`): 코드 행을 `FOR UPDATE` 로 잡고(같은 코드를 든
   두 요청 가운데 하나만 받는다), 올린 영상·연습·작업 장부·배우 기억과 리딩 자료(대본·회차·녹음·암기 상태)의
   `user_id` 를 회원으로 바꾸고, 게스트를
-  닫는다(`deactivated`, **신원 행 삭제**, 리프레시 폐기 — **행은 남긴다**), 코드를 쓴 것으로 적는다. 분석·
-  대화·노트는 연습 행에 매달려 따라간다. 동의 기록은 게스트 행에 남는다. 진행 중 작업은 상태와 lease 를
-  건드리지 않아 돌던 워커가 그대로 끝내고, 완료 알림은 **그때의 주인(회원)** 에게 간다.
+  닫는다(`deactivated`, **신원 행 삭제**, 리프레시 폐기 — **행은 남긴다**), 코드를 쓴 것으로 적는다. 진행 중 작업은
+  상태와 lease 를 건드리지 않아 돌던 워커가 그대로 끝낸다.
   - **순서는 올린 영상 → 연습 → 작업 장부 → 기억 → 리딩이다.** 앞의 셋은 새 연습을 만드는 쪽과 같은 방향이라(올린
     영상 행을 먼저 잡는다) 겹쳐 만들어진 연습과 작업을 놓치지 않는다. 기억을 작업 장부 **뒤**에 보는 것은 기억
     갱신 워커 때문이다 — 워커는 완료 트랜잭션에서 작업 행을 잡고 **그 행의 지금 주인**에게 기억을 쓴다
@@ -721,85 +647,56 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
     `platform/ledger/OperationOwnership`·`auth/app/GuestAccounts`·`reading/app/ReadingOwnership`)는 **자기 `TransactionTemplate` 을 쓰지
     않는다.** 몇몇 저장소의 템플릿은 `REQUIRES_NEW` 라(§5-4) 거기에 얹으면 이관과 따로 커밋돼, 도중에 실패해도
     그 행만 회원에게 넘어간 채로 남는다 — 실제로 그렇게 새는 것을 `GuestTransferIT` 가 잡았다.
-  - 배우 기억은 **합치지 않는다.** 회원에게 없으면 옮기고, 둘 다 있으면 `memory_choice`(`member`·`guest`)로
-    고른 쪽만 남긴다. 고르지 않았으면 **아무것도 옮기지 않고 409 `memory_choice_required`** — 코드는 살아 있다.
-- **옮겨진 게스트의 토큰**: 액세스 **403**·갱신 **401**, 둘 다 `detail: "guest_transferred"` 이고
-  `account_deactivated` 보다 **먼저**다(`DELETE /v2/me` 도 예외가 아니다). 표식은 **쓰인 이관 코드 행**이다 —
-  신원 행을 지우므로 신원으로는 알 수 없다. 그래서 탈퇴의 파기는 **쓰지 않은** 코드만 지운다. 탈퇴로 닫힌
-  게스트는 쓰인 코드가 없어 `account_deactivated` 다. 게스트 신원은 탈퇴 때도 **해시 없이 행째 지운다.**
+- **옮겨진 게스트의 표식**은 **쓰인 이관 코드 행**이다 — 신원 행을 지우므로 신원으로는 알 수 없다. 그래서 탈퇴의
+  파기는 **쓰지 않은** 코드만 지운다.
 
 ### 6-10. 알림 토글, 푸시 토큰, 로그아웃
 
-- `GET`·`PATCH /v2/me/notification-settings`(보호 기능, 회원만): 토글 셋 `analysis_done`·`challenge`·
-  `evening_reminder`. 기본은 모두 켜짐. `PATCH` 는 **보낸 토글만** 바꾸고 **셋 전체**를 돌려준다(앱이 응답으로
-  화면과 캐시를 덮는다). 빈 본문·모르는 키·불리언이 아닌 값은 422 배열.
-- 분석 완료와 챌린지가 **둘 다** 꺼지면 같은 트랜잭션에서 그 회원의 푸시 토큰을 **전부** 지운다. 그동안에는
-  `POST /v2/push-tokens` 가 와도 저장하지 않는다(204) — 그러지 않으면 다른 기기가 앱을 여는 것만으로 토큰이
-  되살아난다. **"둘 다 꺼짐" 확인과 저장은 한 트랜잭션이다**(`PostgresPushTokenRepository#register`): 토글 끄기·
-  탈퇴와 같은 `users` 행을 잡아 줄을 선 뒤에 읽은 토글로 거른다. 따로 읽고 쓰면 끄는 도중에 끼어든 등록이 살아남는다. 하나만 꺼져 있으면 토큰은 두고 **보내기 직전에** 프로필의 토글을 읽어 거른다.
-- `POST /v2/push-tokens` 는 **보호 기능**이다 — 동의와 프로필이 끝난 회원만(동의 전에는 기기 정보를 받지
-  않는다). 게스트는 403 `member_only`. `DELETE /v2/push-tokens` 는 **로그인 없이** 받는다: 푸시 토큰을 갖고
-  있다는 것이 본인 확인이고 주인을 따지지 않고 그 토큰 행을 지운다. IP 별 분당 60회. `Authorization` 헤더가
-  와도 검증하지 않는다 — 막 만료된 토큰을 붙인 로그아웃이 401 로 막히면 옛 계정의 알림이 그 폰에 계속 온다.
-- 발송(`PushService#onAnalysisComplete`)은 **어떤 실패도 밖으로 내보내지 않는다.** 분석 완료 처리는 그대로
-  끝나고 실패는 `FailureReporter` 로 간다. Expo 의 ticket 이 `DeviceNotRegistered` 인 토큰은 지운다(ticket 은
-  보낸 순서대로 온다). 읽을 수 없는 답과 그 밖의 ticket 오류는 종류만 실어 보고한다(`ExpoPushSender.tickets` —
+> 제품 규칙의 정본: [account.notification](../../docs/specs/account/notification.md)(토글 셋과 `PATCH`, 토큰 등록·삭제, 발송), [account.logout](../../docs/specs/account/logout.md)(멱등 204)
+
+- **"둘 다 꺼짐" 확인과 저장은 한 트랜잭션이다**(`PostgresPushTokenRepository#register`): 토글 끄기·
+  탈퇴와 같은 `users` 행을 잡아 줄을 선 뒤에 읽은 토글로 거른다. 따로 읽고 쓰면 끄는 도중에 끼어든 등록이
+  살아남는다 — 다른 기기가 앱을 여는 것만으로 토큰이 되살아난다. 토큰 전부 삭제는 토글을 끄는 트랜잭션에서 한다.
+- 발송(`PushService#onAnalysisComplete`)의 실패는 `FailureReporter` 로 간다. Expo 의 ticket 은 보낸 순서대로
+  온다. 읽을 수 없는 답과 `DeviceNotRegistered` 밖의 ticket 오류는 종류만 실어 보고한다(`ExpoPushSender.tickets` —
   본문과 토큰은 싣지 않는다). receipt 는 읽지 않는다.
-- `POST /v2/auth/logout` 은 **멱등**이다: 요청에 실린 리프레시 토큰 **하나만** 폐기하고, 이미 폐기됐거나
-  모르는 토큰·위조된 토큰·**남의 토큰**이면 아무것도 폐기하지 않고 같은 **204** 다(그 토큰이 실재하는지도
-  알려 주지 않는다). 본문의 모양(422 배열)과 액세스 토큰(401)은 그대로 본다. 게이트 밖이다.
 
 ### 6-11. 포트폴리오
 
-- 회원당 하나이고 **처음 저장할 때** 행이 생긴다. `GET /v2/portfolio` 는 한 번도 편집하지 않았어도 빈 모양으로
-  **200** 이다(404 아님). 전부 보호 기능이고 회원만 쓴다 — 게스트의 기능 표에 없어 403 `member_only`.
-- 항목마다 따로 저장한다. 소개글·순서 바꾸기·사진 올리기 끝은 **포트폴리오 본문 전체**를 돌려준다(앱이 응답으로
-  화면을 덮는다). 경력 추가는 201 과 경력 하나, 수정은 경력 하나, 삭제는 204, 사진 주소 받기는 201
-  `photo_id`·`upload_url`·`expires_at`, 공유는 `share` 객체 하나(`enabled`·`slug`·`url`).
-- **값의 형태는 422 배열**이다: 소개글 2,000자, 작품명·역할 1~100자(빈 값 포함), 연도 1900~**내년**(한국
-  시간의 오늘에서 센다), 종류가 `film·drama·play·musical·ad·other` 밖. 길이는 code point 로 센다.
-  **규칙은 사유 코드 하나**다: 쉰한 번째 경력 `portfolio_credit_limit_exceeded`, 열한 번째 사진
-  `portfolio_photo_limit_exceeded`, 순서 불일치 `order_mismatch`(빠짐·중복·모르는 id — 아무것도 바꾸지 않는다).
-- 이미 지운 경력·사진을 다시 지우면 **404**(`portfolio_credit_not_found`·`portfolio_photo_not_found`). 없는 것과
-  남의 것을 가르지 않는다.
-- **사진은 프로필 사진과 같은 길**이다(주소 받기 → 직접 올리기 → 끝 알리기, 형식·크기 규칙은
-  `integration/storage/PhotoUploadType` 한 벌). 415 가 413 보다 먼저다. 장수는 올리기가 끝난 사진과 **아직 끝나지
-  않은 올리기**를 합쳐 센다. 시한(30분)이 지난 올리기는 세지 않고 다음 주소 받기 때 지운다. 끝 알리기는
-  멱등이다. 삭제는 행을 지우면서 객체 삭제를 **같은 트랜잭션에서 정리 장부에 올리고** 커밋 뒤에 시도한다
-  (`portfolio/app/PortfolioPhotoCleanup` — 구현은 장부의 주인인 `profile`, §6-8). 저장소가 실패해도 204 다.
+> 제품 규칙의 정본: [account.portfolio](../../docs/specs/account/portfolio.md)(입구와 응답, 값의 형태·상한·사유 코드, 사진, 공유 링크, 공개 조회)
+
+- **사진은 프로필 사진과 같은 길**이다. 형식·크기 규칙은 `integration/storage/PhotoUploadType` 한 벌이다. 삭제는
+  행을 지우면서 객체 삭제를 **같은 트랜잭션에서 정리 장부에 올리고** 커밋 뒤에 시도한다
+  (`portfolio/app/PortfolioPhotoCleanup` — 구현은 장부의 주인인 `profile`, §6-8).
 - 상한과 순서는 **포트폴리오 행을 `FOR UPDATE` 로 잡은 채** 센다(`PostgresPortfolioRepository#lockOrCreate`).
-- **공유 링크**: 기본은 꺼짐. slug 는 처음 켤 때 생기는 128비트 난수(base64url, `/`·`+`·`=` 없음)이고 **꺼도
-  남는다.** 같은 값을 다시 보내도 200 이다. "새 링크 만들기"는 없다. `url` 은 `<SITE_URL>/p/<slug>` 이고
+- **공유 slug** 는 128비트 난수(base64url, `/`·`+`·`=` 없음)다. `url` 은 `<SITE_URL>/p/<slug>` 이고
   `SITE_URL` 이 비어 있으면 `null` 이다 — 주소를 코드에 박아 두지 않는다(SOMA-528 결정 I-8).
-- **공개 조회**(`GET /v2/public/portfolios/{slug}`): 로그인 없음·게이트 밖·`Authorization` 을 보지 않는다.
-  브라우저가 직접 부르므로 **보는 사람의 IP 별** 분당 60회다. 꺼진 링크·없는 slug·탈퇴한 사람의 slug 는 같은
-  404 `portfolio_not_found`. 응답은 이름·프로필 사진·성별·만 나이·소개글·경력(id 없음)·사진(`url` 만)이고
-  `X-Robots-Tag: noindex, nofollow` 를 싣는다. 성별이 `unspecified` 면 **`null`** 이다. 추구하는 방향·경력
-  구간·목표와 연습·분석은 없다. 프로필의 것은 `portfolio/app/PortfolioOwners` 포트로 받는다(구현은 `profile`).
-- 탈퇴하면 포트폴리오를 행째 지우고 사진 객체는 정리 장부로 간다(§6-8).
+- 공개 조회는 프로필의 것을 `portfolio/app/PortfolioOwners` 포트로 받는다(구현은 `profile`).
 
 ### 6-12. 매일 도는 일
+
+> 제품 규칙의 정본: 보관 기간과 대상은 [account.login](../../docs/specs/account/login.md#상태)(리프레시 토큰 30일), [account.guest](../../docs/specs/account/guest.md)(게스트 30일, 이관 코드 30일), [account.withdraw](../../docs/specs/account/withdraw.md)(탈퇴 3년, 해제 재시도), [practice.feedback](../../docs/specs/practice/feedback.md)(설문 연락처 90일, 시트 전송)
 
 `feature/profile/app/AccountHousekeeping#runDaily` — 한국 시간 새벽 4시 30분(`ACCOUNT_HOUSEKEEPING_CRON`).
 설정이 없으면 켜져 있고 `ACCOUNT_HOUSEKEEPING_ENABLED=false` 로 끈다. **전부 멱등**이고 한 가지가 실패해도
 나머지는 돈다(실패는 `AccountHousekeeping.<일 이름>` 으로 보고).
 
-| 일 | 규칙 |
+| 일 | 구현 규칙 |
 |---|---|
-| 리프레시 토큰 | 만료되거나 폐기된 지 **30일** 지난 행을 지운다. 그 전까지는 재사용 탐지와 문제 추적에 쓴다. 한 문장으로 지운다 — 회전된 옛 토큰이 새 토큰을 `replaced_by_id` 로 가리킨다 |
-| 게스트 | 마지막 활동 **30일** 지난 **활성** 게스트를 `ProfileService#withdraw` 로 파기한다. 마지막 활동은 가입·토큰 발급·올리기·연습과 **리딩의 쓰기**(대본 등록 `scripts.created_at`, 회차 시작·진행 저장 `reading_sessions.updated_at`, 녹음 올리기 `reading_recordings.updated_at`, 암기 갱신 `line_memorization.updated_at`) 가운데 가장 늦은 것이다(§6-14). 옮겨진 게스트는 이미 닫혀 있어 고르지 않는다 |
-| 탈퇴 3년 | 탈퇴한 지 달력으로 **3년** 지난 계정의 신원 해시 행을 지우고, 보관 동의로 남겨 둔 영상 객체와 **리딩 녹음**(행째 지우고 객체는 장부로, §6-14)의 삭제를 정리 장부에 올린다. 한 트랜잭션이다 — 해시 보관 기간이 곧 영상 보관 기간이다(ADR-029). **고르는 기준은 신원이 아니라 `users.deactivated_at` 과 `users.retention_purged_at`(V10)이다** — 제공자의 연결 끊기로 마지막 신원이 먼저 지워진 회원에게는 해시 행이 없다. 파기를 마친 시각을 적으므로 다시 고르지 않는다 |
-| 해제 재시도 | `AccountCleanup#runDue`(5분마다도 돈다) — 7일 지난 **제공자 해제**는 값과 함께 지우고, 7일 넘게 실패한 **객체 삭제**는 키를 지키며 운영자에게 알린다(§6-8) |
-| 이관 코드 | 쓰였거나 시한이 지난 지 **30일** 지난 행을 지운다. ⚠ 쓰인 코드는 `guest_transferred` 의 표식이라 그 게스트의 리프레시 토큰이 살 수 있는 30일 동안은 지우면 안 된다(§6-9) |
+| 리프레시 토큰 | 한 문장으로 지운다 — 회전된 옛 토큰이 새 토큰을 `replaced_by_id` 로 가리킨다 |
+| 게스트 | 활성 게스트를 `ProfileService#withdraw` 로 파기한다. 리딩의 쓰기는 `scripts.created_at`, `reading_sessions.updated_at`, `reading_recordings.updated_at`, `line_memorization.updated_at` 로 센다(§6-14). 옮겨진 게스트는 이미 닫혀 있어 고르지 않는다 |
+| 탈퇴 3년 | 해시 행 삭제와 영상 객체·리딩 녹음(행째 지우고 객체는 장부로, §6-14) 삭제의 장부 올리기는 한 트랜잭션이다 — 해시 보관 기간이 곧 영상 보관 기간이다(ADR-029). **고르는 기준은 신원이 아니라 `users.deactivated_at` 과 `users.retention_purged_at`(V10)이다** — 제공자의 연결 끊기로 마지막 신원이 먼저 지워진 회원에게는 해시 행이 없다. 파기를 마친 시각을 적으므로 다시 고르지 않는다 |
+| 해제 재시도 | `AccountCleanup#runDue`(5분마다도 돈다, §6-8) |
+| 이관 코드 | ⚠ 쓰인 코드는 `guest_transferred` 의 표식이라 그 게스트의 리프레시 토큰이 살 수 있는 30일 동안은 지우면 안 된다(§6-9) |
 
 `feature/feedback/app/ExitSurveySync#runDaily` — **이탈 설문의 매일 도는 일은 따로다**(`EXIT_SURVEY_SYNC_ENABLED`,
 기본 하루). 시트가 죽어 있는 동안 계정 정리까지 멈추면 안 되기 때문이다. 순서는 **연락처 파기 → 시트 전송**이다 —
 먼저 비워야 그날 안에 시트의 연락처까지 사라진다.
 
-| 일 | 규칙 |
+| 일 | 구현 규칙 |
 |---|---|
-| 설문 연락처 | 접수 **90일** 지난 행의 연락처를 비우고 `sheet_seq` 를 올린 뒤 `sheet_synced_at` 을 NULL 로 되돌린다 — 같은 설문 id·새 순번으로 시트에 다시 보내 시트의 연락처도 지운다(§6-15) |
-| 설문 시트 전송 | `sheet_synced_at` 이 NULL 인 행을 오래된 순으로 보낸다. 실패하면 그대로 두고 다음 날 다시 본다 — 한 묶음에서 하나도 보내지 못하면 멈춘다(시트가 죽은 동안 같은 묶음을 영원히 돌지 않는다) |
+| 설문 연락처 | 연락처를 비우고 `sheet_seq` 를 올린 뒤 `sheet_synced_at` 을 NULL 로 되돌린다 — 같은 설문 id·새 순번으로 시트에 다시 보낸다(§6-15) |
+| 설문 시트 전송 | `sheet_synced_at` 이 NULL 인 행을 오래된 순으로 보낸다. 한 묶음에서 하나도 보내지 못하면 멈춘다(시트가 죽은 동안 같은 묶음을 영원히 돌지 않는다) |
 
 ### 6-13. 방문자 IP
 

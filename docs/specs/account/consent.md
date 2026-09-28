@@ -25,7 +25,7 @@
 | `GET /v2/consents/documents` | 없음. 공개 조회라 토큰을 보지 않는다 | `ConsentDocumentsResponse` 200(현재 판 전문) | — |
 | `GET /v2/consents/notices` | 없음. 공개 조회라 토큰을 보지 않는다 | `ConsentNoticesResponse` 200(개인정보 처리방침 같은 고지) | — |
 | `GET /v2/consents/pending` | 헤더 `Authorization` | `ConsentDocumentsResponse` 200(미결정 문서, 게스트는 필수만) | 401, `account_deactivated` 403, 주체 한도 429 |
-| `GET /v2/consents/entry` | 헤더 `Authorization` | `ConsentEntryResponse` 200(문서마다 현재 판 결정) | 401, `account_deactivated` 403, 주체 한도 429 |
+| `GET /v2/consents/entry` | 헤더 `Authorization` | `ConsentEntryResponse` 200(문서마다 현재 판 결정, 게스트는 필수만) | 401, `account_deactivated` 403, 주체 한도 429 |
 | `POST /v2/consents` | 헤더 `Authorization`, `ConsentRequest`: `document_id`, `action`(granted·declined) | `ConsentEventResponse` 201, 같은 결정이면 200 | 401, `account_deactivated` 403, `consent_document_not_found` 404, `consent_document_outdated` 409(`ConsentDocumentOutdatedError`), `required_consent_cannot_be_declined` 422, 허용 밖 `action`(revoked 포함) 422 배열, 주체 한도 429. 게스트의 오류는 account.guest |
 | `ConsentDocumentPublisher` (서버 시작 때) | 배포에 든 동의 문서 파일 | 판이 DB보다 새로우면 새 판 행, 같은 판이면 본문 덮어쓰기 | 실패는 보고한다 |
 
@@ -55,7 +55,7 @@ ALLOWED, 하나라도 미결정이면 DECISION_REQUIRED다.
   선택 문서의 새 판도 게이트에 나온다. 거절해도 결정이므로 통과한다.
 - 0.1.0 이전에 필수 문서를 거절하거나 철회한 기록이 있는 회원은 미결정과 같게 다룬다. 게이트는
   consent_required로 답하고 동의 화면이 뜬다. 거절·철회를 따로 가르던 사유(consent_blocked)와 그 요청
-  헤더는 없앤다. 필수 문서를 거절할 길이 없어 새로 생기지 않기 때문이다.
+  헤더(X-Acttub-Consent-Entry), `entry_status`의 blocked 값은 없앤다. 필수 문서를 거절할 길이 없어 새로 생기지 않기 때문이다.
 
 ## 데이터
 | 문서 | type | 필수 |
@@ -96,6 +96,9 @@ ALLOWED, 하나라도 미결정이면 DECISION_REQUIRED다.
   관리 화면은 없다. 같은 판의 본문만 고치면 DB 본문을 덮어쓰고 재동의는 없다. 뜻이 바뀌는 수정은
   판을 올리며, 그 판단은 사람이 한다.
 - 웹과 앱은 현재 판을 API로 받는다. 클라이언트에 판 번호를 박아 두지 않는다.
+- 웹은 `GET /v2/consents/entry`의 privacy 행 `current_decision` 하나로 계측을 켜며, 그 값은 현재 판에 대한
+  결정이다. 그래서 새 수집이 생기는 변경은 고지(개인정보 처리방침)만 고치지 않고 privacy의 판도 올린다.
+- 고지는 결정할 수 없고 게이트에 걸리지 않는다.
 - 동의 조회와 제출은 게이트 밖이다. (공통 규칙)
 
 ## 예외

@@ -25,7 +25,7 @@
 ## 입력·출력
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
-| `POST /v2/auth/guest` | 없음. 토큰 없이 부른다 | `GuestResponse` 201 | IP 시간당 10개 넘으면 429 |
+| `POST /v2/auth/guest` | 없음. 토큰 없이 부른다. 끝난 게스트의 토큰이 붙어 와도 401로 막지 않는다 | `GuestResponse` 201 | IP 시간당 10개 넘으면 429 |
 | `POST /v2/consents` (게스트의 동의 시트) | 헤더 `Authorization`(게스트 토큰), `ConsentRequest`: `document_id`, `action`, 첫 동의의 `age_confirmed` | `ConsentEventResponse` 201, 같은 결정이면 200 | 선택 문서 `member_only` 403, `age_confirmation_required` 422 (나머지는 account.consent) |
 | `POST /v2/guest/transfer-code` | 헤더 `Authorization`(게스트 토큰) | `TransferCodeResponse` 201 | 회원 토큰 `guest_only` 403, 주체 한도 429 |
 | `POST /v2/guest-transfers` | 헤더 `Authorization`(게이트를 지난 회원), `GuestTransferRequest`: `code`, 둘 다 기억이 있으면 `memory_choice` | `GuestTransferResponse` 200 | 게스트 토큰 `member_only` 403, `transfer_code_not_found` 404, `memory_choice_required` 409, 코드 모양 422 배열, 틀린 시도 한도 429 |
@@ -64,7 +64,8 @@ guest_transfer_codes:
   새로 요청하면 이전 코드는 무효다. 게스트마다 살아 있는 코드는 하나다.
 - 옮기기는 한 트랜잭션이다. 끝나면 게스트 계정을 deactivated로 닫고 신원 행을 지우며 게스트의
   리프레시 토큰을 폐기한다. 토큰 행은 지우지 않는다. 옮겨진 게스트의 토큰으로 온 요청에는 사유
-  guest_transferred를 실어 액세스 토큰에는 403, 갱신에는 401을 준다. 웹은 이 사유를 보고 "옮겼어요"
+  guest_transferred를 실어 액세스 토큰에는 403, 갱신에는 401을 준다. 이 사유는 account_deactivated보다 먼저이고
+  탈퇴(`DELETE /v2/me`)도 예외가 아니다. 탈퇴로 닫힌 게스트는 쓰인 코드가 없어 account_deactivated다. 웹은 이 사유를 보고 "옮겼어요"
   안내와 새로 시작 버튼을 보여 주며, 다른 기기에서 옮겼어도 같다.
 - 회원 계정은 여러 게스트를 차례로 받을 수 있다. 게스트 하나는 한 번만 옮겨진다.
 
@@ -92,7 +93,8 @@ guest_transfer_codes:
   돌려주고, 웹은 그 목록으로 시트를 띄운 뒤 같은 요청을 다시 보낸다. 회원(앱)은 가입 때 문서를 모두
   결정하므로 이 시트가 뜰 일이 없다.
 - 게스트는 연습·리딩을 쓴다. 챌린지는 보기와 참여 모두 회원만이고 앱에만 있다. 게스트가 회원 전용
-  기능(챌린지, 포트폴리오, 프로필, 알림, 옮기기)을 부르면 403이고 사유는 member_only다. 회원이 이관 코드
+  기능(챌린지, 포트폴리오, 프로필 저장·사진, 알림, 옮기기)을 부르면 403이고 사유는 member_only다. 위 표의 어느 기능에도
+  적히지 않은 경로는 member_only다. 적지 않은 새 경로는 게스트에게 닫힌 채로 시작한다. 회원이 이관 코드
   발급을 부르면 403이고 사유는 guest_only다.
 - 남용 제한: 게스트 만들기는 IP당 시간당 10개, 게스트의 분석 요청은 게스트당 하루 3회다. 하루는 한국
   시간 자정에 끊는다.
@@ -114,7 +116,8 @@ guest_transfer_codes:
 
 ## 예외
 - 코드가 틀리거나 만료·사용됐으면 같은 404. 화면 문구는 "코드가 맞지 않거나 만료됐어요". 틀린
-  시도는 회원당 분당 5회, IP당 분당 10회로 제한한다.
+  시도는 회원당 분당 5회, IP당 분당 10회로 제한한다. 한도를 채운 뒤에는 맞는 코드도 평가하지 않고 429다.
+  모양이 틀린 코드(422 배열)와 409는 틀린 시도로 세지 않는다.
 - 게스트 토큰이 만료(30일)되면 그 게스트에 다시 닿을 수 없고 자료는 파기 일정대로 사라진다.
 - 옮기기 도중 실패하면 아무것도 옮겨지지 않고 코드는 살아 있다.
 - 게스트가 분석 중일 때 옮기면 진행 중 작업도 따라가고, 완료 알림은 회원의 폰으로 간다.

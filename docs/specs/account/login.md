@@ -25,7 +25,7 @@
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
 | `GET /v2/auth/providers` | 없음. 공개 조회라 토큰을 보지 않는다 | `AuthProvidersResponse` 200 | — |
-| `POST /v2/auth/login` | `LoginRequest`: `provider`, 제공자별 `id_token`(네이버 말고 필수), `authorization_code`(애플·네이버), `code_verifier`(네이버) | `LoginResponse`(`SignedInResponse` 또는 `SignupRequiredResponse`) 200 | `unsupported_provider` 400, `invalid_provider_token` 401, `account_exists_with_different_provider` 409(`AccountExistsError`), `authorization_code_required` 422, 빠진 자격 칸 422 배열, IP 한도 429, `provider_unavailable` 502, `provider_not_configured` 503 |
+| `POST /v2/auth/login` | `LoginRequest`: `provider`, 제공자별 `id_token`(네이버 말고 필수), `authorization_code`(애플·네이버), `code_verifier`(네이버), `redirect_uri`·`state`(네이버, 선택) | `LoginResponse`(`SignedInResponse` 또는 `SignupRequiredResponse`) 200 | `unsupported_provider` 400, `invalid_provider_token` 401, `account_exists_with_different_provider` 409(`AccountExistsError`), `authorization_code_required` 422, 빠진 자격 칸 422 배열, IP 한도 429, `provider_unavailable` 502, `provider_not_configured` 503 |
 | `POST /v2/auth/signup` | `SignupRequest`: `signup_token`, `decisions[]`(현재 판 모든 문서) | `SignedInResponse` 200 | `invalid_signup_token` 401, `consent_document_not_found` 404, `consent_document_outdated` 409, `account_exists_with_different_provider` 409, `consent_decisions_incomplete`·`required_consent_cannot_be_declined` 422, IP 한도 429 |
 | `POST /v2/auth/refresh` | `RefreshRequest`: `refresh_token` | `RefreshTokenResponse` 200 | `invalid_refresh_token` 401(소진된 토큰이면 그 회원의 세션 전부 폐기), `guest_transferred` 401, IP·주체 한도 429 |
 | `POST /v2/auth/providers/naver/disconnect` | 폼 `clientId`·`encryptUniqueId`·`timestamp`·`signature`. 클라이언트 판 헤더와 액세스 토큰을 보지 않는다 | 204(모르는 신원도 같다) | `invalid_provider_signature` 401, `provider_not_configured` 503 |
@@ -73,7 +73,9 @@ deactivated + `retention_purged_at`, refresh_tokens가 행 없음이다.
 - 검증 안 된 이메일이 기존 계정과 겹치면 로그인을 막고 이미 쓰는 방식으로 안내한다. 검증 안 된
   주소만 대고 남의 계정에 들어가는 것을 막기 위해서다.
 - 제공자별 이메일 검증 근거: 구글·애플은 ID 토큰의 email_verified. 카카오는 ID 토큰에 검증
-  여부가 없어 사용자 정보 API의 is_email_verified로 확인한다. 네이버는 검증 표시가 없다. 주소가
+  여부가 없어 처음 온 신원에 한해 사용자 정보 API의 is_email_valid와 is_email_verified를 본다. 둘 다 참이고
+  ID 토큰의 이메일과 같은 주소일 때만 검증된 것으로 친다. 이메일이 없는 카카오 신원은 물을 것이 없어 부르지
+  않는다. 네이버는 검증 표시가 없다. 주소가
   @naver.com이면 그 계정의 메일함이므로 검증된 것으로 보고, 외부 메일이면 검증되지 않은 것으로
   본다. 네이버가 준 표시가 아니라 계정 구조에 따른 우리 판단이다.
 - 이메일은 앞뒤 공백을 떼고 소문자로 맞춘다. 검증된 이메일만 저장한다. 이메일 없는 계정도
@@ -92,7 +94,9 @@ deactivated + `retention_purged_at`, refresh_tokens가 행 없음이다.
 - 카카오·네이버는 검수 승인 뒤에만 운영에서 켠다. 승인 전에는 등록한 테스트 계정만 로그인된다. 운영
   배포 체크리스트에 넣는다.
 - 앱은 서버가 알려 주는 켜져 있는 제공자 목록으로 로그인 버튼을 그린다. 승인 뒤 서버 설정만 바꾸면
-  버튼이 나오고 앱을 다시 배포하지 않는다.
+  버튼이 나오고 앱을 다시 배포하지 않는다. 목록은 켜 둔 것을 늘 google, apple, kakao, naver 순서로 준다.
+  개발용 제공자는 이 설정과 무관하고 목록에 나오지 않는다. 꺼 둔 제공자로 로그인하면 그 제공자를 부르지도
+  않는다.
 - 같은 신원으로 동시에 두 요청이 오면 하나만 계정을 만들고 다른 하나는 그 계정을 쓴다.
 - 로그인과 가입 제출은 각각 IP별로 분당 60회까지다. 넘으면 429.
 - 로그인 응답은 어느 쪽이든 200이고 본문의 result로 가른다. 이미 있는 계정은 signed_in과 토큰을, 처음
@@ -101,8 +105,9 @@ deactivated + `retention_purged_at`, refresh_tokens가 행 없음이다.
   담는다. 그 전에는 제공자 신원과 이메일을 저장하지 않고, 동의 화면을 위한 짧은 가입 토큰만
   발급한다. 동의 화면에서 나가면 아무것도 남지 않는다. 동의 없이 개인정보를 갖고 있지 않기 위해서다.
 - 가입 토큰은 30분 유효하다. 만료하면 로그인 버튼부터 다시 시작한다.
-- 가입 토큰은 서버가 저장하지 않는 암호화 토큰이다. 제공자, 제공자 ID, 검증된 이메일, 그리고 애플이면
-  로그인 때 바꿔 온 애플 토큰을 담으며 앱은 내용을 읽을 수 없다. 애플 authorization code는 5분 동안
+- 가입 토큰은 서버가 저장하지 않는 암호화 토큰이다. 제공자, 제공자 ID, 검증된 이메일, 그리고 탈퇴 때
+  연결을 끊는 데 쓸 토큰(애플은 로그인 때 바꿔 온 애플 토큰, 네이버는 코드 교환으로 받은 토큰)을 담으며 앱은
+  내용을 읽을 수 없다. 애플 authorization code는 5분 동안
   한 번만 쓸 수 있어 동의 화면을 기다리지 않고 로그인 요청에서 바로 바꾼다. 프로필은 담지 않는다.
   계정이 생긴 뒤에 입력하므로 맡아 둘 것이 없다.
 - 동의 화면의 저장 버튼은 필수 문서 셋에 동의하고 선택 문서마다 동의·거절 중 하나를 고른 뒤에야
@@ -124,12 +129,16 @@ deactivated + `retention_purged_at`, refresh_tokens가 행 없음이다.
 - 액세스 토큰이 만료되면 앱이 리프레시로 한 번 갱신하고 요청을 다시 보낸다. 서버가 리프레시를
   거부하면 기기의 토큰을 지우고 로그인 화면으로 보낸다. 네트워크 오류는 로그아웃 사유가 아니다.
 - 30일 동안 앱을 한 번도 열지 않으면 다시 로그인해야 한다.
+- 자격 값(제공자 토큰·코드, 가입 토큰, 리프레시 토큰, 이관 코드, 푸시 토큰)은 422 배열의 `input`으로
+  되돌려 보내지 않고 로그에도 남기지 않는다. 무엇이 틀렸는지는 `loc`·`type`이 말한다.
 
 ## 예외
 - 제공자 토큰이 잘못됐거나 만료됐으면 401. 지원하지 않는 제공자는 400. 제공자 설정이 없으면 503.
   운영에서 꺼 둔 제공자(검수 승인 전의 카카오·네이버)도 400이다. 꺼 둔 것은 의도한 상태이고 설정이
   빠진 503은 운영 사고라 구분한다.
 - 애플 로그인 요청에 authorization code가 없으면 422.
+- 토큰이 없는 기존 애플 회원(0.1.0 이전 가입)은 다음 로그인 때 authorization code로 토큰을 채운다. 채우기에
+  실패해도 로그인은 된다.
 - 서버가 제공자에 물어야 하는데(카카오 사용자 정보 API, 애플 토큰 교환, 네이버 코드 교환) 제공자가
   답하지 않으면 502이고 계정을 만들지 않는다. 제공자 ID로 찾아지는 기존 회원은 이메일 검증 확인이 필요
   없으므로 묻지 않고 로그인된다. 제공자 장애는 처음 온 사람에게만 닿는다. 네이버만 예외다. 네이버는
