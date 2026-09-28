@@ -1073,8 +1073,8 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
       저장하고 **시작 뒤에는 바꾸지 않는다** — 고치는 API 가 없다. 막힘을 고르지 않으면 "그 외/그 외"이고 큰 갈래와
       세부의 조합은 옛 CHECK 와 같다. **이론 선택은 0.1.0 에 없다.**
     - **경험 판**(`experience_version`)은 서버 플래그(`ACTTUB_THREE_LAYERS_ENABLED`)가 켜져 있고 계약 헤더
-      `X-Acttub-Contract: three_layers_v1` 이며 **장면·막힘을 하나도 적지 않았을 때만** `three_layers_v1` 이다. 그 밖은
-      전부 `legacy` — 본문에 `client_experience` 같은 필드는 없다(헤더가 정본이다).
+      `X-Acttub-Contract: three_layers_v1` 이면 장면·막힘을 적었는지와 무관하게 `three_layers_v1` 이다(SOMA-508 hotfix,
+      `PracticeRules.threeLayers` — 예전에는 무입력일 때만이었다). 그 밖은 전부 `legacy` — 본문에 `client_experience` 같은 필드는 없다(헤더가 정본이다).
     - 영상이 없거나 남의 것이거나 `purged_at` 이 찼으면 422 `video_not_ready`. 게스트가 하루 세 번을 넘기면 429
       `guest_daily_analysis_limit`(한국 시간 자정에 끊고, 두 흐름이 공존하는 동안 옛 `external_operations` 의 요청도
       같은 하루에 든다). 같은 `request_id` 에 다른 본문이면 422 `request_fingerprint_mismatch`.
