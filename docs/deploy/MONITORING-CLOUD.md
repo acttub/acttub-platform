@@ -12,7 +12,7 @@
 | `versions.tf`, `.terraform.lock.hcl` | Terraform 1.16.2, 공식 `grafana/grafana` provider 4.46.0 고정 |
 | `main.tf`, `rules.json` | 전용 폴더·PDC 데이터 소스·Slack 수신점·1분 평가 규칙 |
 | `external.tf` | 선택한 dev/prod 공개 `/health`, 외부 위치 1곳, 60초 간격·10초 제한 |
-| `dashboards/*.json`, `dashboards.tf` | 서비스 전체·분석/코치·서버/DB/백업, KST·최근 1시간 |
+| `dashboards/*.json`, `dashboards.tf` | 서비스 전체·분석/코치·서버/DB/백업, KST·최근 1시간. 맨 위 한 줄 요약 + 접히는 구역 배치. 서버 화면의 API 프로세스 이하 구역은 grafana.com 대시보드 [19004](https://grafana.com/grafana/dashboards/19004)를 acttub 라벨(`job="api"`·`environment`)로 옮긴 것이다 |
 | `slack.tmpl` | 환경·대상·조건·관측값·시각·확인 링크·해제 의미·일시 중지 링크 |
 | `manage.py` | 실제 설정 차이 미리보기, 소유권 충돌/적용 전 변경 확인, 저장된 Terraform 계획 적용 |
 | `check.sh` | 시크릿·실제 stack 없이 실행하는 CI/로컬 검증 |

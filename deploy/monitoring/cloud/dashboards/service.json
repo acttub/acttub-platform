@@ -50,48 +50,15 @@
   },
   "panels": [
     {
-      "id": 1,
-      "title": "읽는 방법",
-      "type": "text",
-      "description": "",
-      "gridPos": {
-        "x": 0,
-        "y": 0,
-        "w": 12,
-        "h": 8
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "noValue": "수집 전·중단",
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "환경과 기간은 상단에서 선택합니다. **수집 중**일 때 요청량 0은 요청 없음, p95의 **표본 없음**은 완료 표본 없음입니다. **수집 실패·수집 전**을 정상으로 해석하지 않습니다. 조회 Error는 PDC/데이터 소스 알림을 확인합니다. Sentry·Langfuse에서는 같은 환경과 기간을 선택합니다. 로컬 지표는 30일, Cloud 외부 점검은 14일 보관 기준입니다."
-      }
-    },
-    {
       "id": 2,
       "title": "API 수집 상태",
       "type": "stat",
       "description": "",
       "gridPos": {
-        "x": 12,
+        "x": 0,
         "y": 0,
-        "w": 12,
-        "h": 8
+        "w": 4,
+        "h": 5
       },
       "fieldConfig": {
         "defaults": {
@@ -137,7 +104,11 @@
         },
         "colorMode": "value",
         "graphMode": "none",
-        "justifyMode": "auto"
+        "justifyMode": "auto",
+        "text": {
+          "titleSize": 13,
+          "valueSize": 26
+        }
       },
       "datasource": {
         "type": "prometheus",
@@ -163,10 +134,10 @@
       "type": "stat",
       "description": "",
       "gridPos": {
-        "x": 0,
-        "y": 8,
-        "w": 12,
-        "h": 8
+        "x": 4,
+        "y": 0,
+        "w": 4,
+        "h": 5
       },
       "fieldConfig": {
         "defaults": {
@@ -194,7 +165,11 @@
         },
         "colorMode": "value",
         "graphMode": "none",
-        "justifyMode": "auto"
+        "justifyMode": "auto",
+        "text": {
+          "titleSize": 13,
+          "valueSize": 26
+        }
       },
       "datasource": {
         "type": "prometheus",
@@ -215,59 +190,15 @@
       ]
     },
     {
-      "id": 4,
-      "title": "활성 알림",
-      "type": "alertlist",
-      "description": "",
-      "gridPos": {
-        "x": 12,
-        "y": 8,
-        "w": 12,
-        "h": 8
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "noValue": "수집 전·중단",
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "viewMode": "list",
-        "groupMode": "default",
-        "maxItems": 30,
-        "sortOrder": 1,
-        "stateFilter": {
-          "firing": true,
-          "pending": true,
-          "error": true,
-          "noData": true,
-          "normal": false
-        },
-        "alertInstanceLabelFilter": "{owner=\"acttub-monitoring\"}",
-        "dashboardAlerts": false
-      }
-    },
-    {
       "id": 5,
       "title": "공개 health 상태",
       "type": "stat",
       "description": "외부 1개 위치, 60초 간격, HTTP 200과 정상 health JSON. DB·분석 성공 확인은 별도입니다.",
       "gridPos": {
-        "x": 0,
-        "y": 16,
-        "w": 12,
-        "h": 8
+        "x": 8,
+        "y": 0,
+        "w": 4,
+        "h": 5
       },
       "fieldConfig": {
         "defaults": {
@@ -309,7 +240,11 @@
         },
         "colorMode": "value",
         "graphMode": "none",
-        "justifyMode": "auto"
+        "justifyMode": "auto",
+        "text": {
+          "titleSize": 13,
+          "valueSize": 26
+        }
       },
       "datasource": {
         "type": "prometheus",
@@ -336,9 +271,9 @@
       "description": "",
       "gridPos": {
         "x": 12,
-        "y": 16,
-        "w": 12,
-        "h": 8
+        "y": 0,
+        "w": 4,
+        "h": 5
       },
       "fieldConfig": {
         "defaults": {
@@ -366,7 +301,11 @@
         },
         "colorMode": "value",
         "graphMode": "none",
-        "justifyMode": "auto"
+        "justifyMode": "auto",
+        "text": {
+          "titleSize": 13,
+          "valueSize": 26
+        }
       },
       "datasource": {
         "type": "prometheus",
@@ -387,15 +326,59 @@
       ]
     },
     {
+      "id": 4,
+      "title": "활성 알림",
+      "type": "alertlist",
+      "description": "",
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 8,
+        "h": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "수집 전·중단",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "viewMode": "list",
+        "groupMode": "default",
+        "maxItems": 30,
+        "sortOrder": 1,
+        "stateFilter": {
+          "firing": true,
+          "pending": true,
+          "error": true,
+          "noData": true,
+          "normal": false
+        },
+        "alertInstanceLabelFilter": "{owner=\"acttub-monitoring\"}",
+        "dashboardAlerts": false
+      }
+    },
+    {
       "id": 7,
       "title": "API 요청량 / 5분",
       "type": "timeseries",
       "description": "폴링·멱등 응답 재사용 포함. 0은 수집 정상일 때의 무사용입니다.",
       "gridPos": {
         "x": 0,
-        "y": 24,
-        "w": 12,
-        "h": 8
+        "y": 5,
+        "w": 8,
+        "h": 7
       },
       "fieldConfig": {
         "defaults": {
@@ -416,8 +399,10 @@
       },
       "options": {
         "legend": {
+          "showLegend": false,
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "calcs": []
         },
         "tooltip": {
           "mode": "multi"
@@ -447,10 +432,10 @@
       "type": "timeseries",
       "description": "",
       "gridPos": {
-        "x": 12,
-        "y": 24,
-        "w": 12,
-        "h": 8
+        "x": 8,
+        "y": 5,
+        "w": 8,
+        "h": 7
       },
       "fieldConfig": {
         "defaults": {
@@ -471,8 +456,10 @@
       },
       "options": {
         "legend": {
+          "showLegend": false,
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "calcs": []
         },
         "tooltip": {
           "mode": "multi"
@@ -502,10 +489,10 @@
       "type": "timeseries",
       "description": "",
       "gridPos": {
-        "x": 0,
-        "y": 32,
-        "w": 12,
-        "h": 8
+        "x": 16,
+        "y": 5,
+        "w": 8,
+        "h": 7
       },
       "fieldConfig": {
         "defaults": {
@@ -526,8 +513,10 @@
       },
       "options": {
         "legend": {
+          "showLegend": false,
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "calcs": []
         },
         "tooltip": {
           "mode": "multi"
@@ -557,10 +546,10 @@
       "type": "timeseries",
       "description": "",
       "gridPos": {
-        "x": 12,
-        "y": 32,
-        "w": 12,
-        "h": 8
+        "x": 0,
+        "y": 12,
+        "w": 8,
+        "h": 7
       },
       "fieldConfig": {
         "defaults": {
@@ -591,8 +580,10 @@
       },
       "options": {
         "legend": {
+          "showLegend": false,
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "calcs": []
         },
         "tooltip": {
           "mode": "multi"
@@ -622,10 +613,10 @@
       "type": "timeseries",
       "description": "표본이 없으면 표본 없음. health·metrics·분석·코치·리포트 장시간 경로 제외. 알림에는 5분 20요청 조건을 적용합니다.",
       "gridPos": {
-        "x": 0,
-        "y": 40,
-        "w": 12,
-        "h": 8
+        "x": 8,
+        "y": 12,
+        "w": 8,
+        "h": 7
       },
       "fieldConfig": {
         "defaults": {
@@ -656,8 +647,10 @@
       },
       "options": {
         "legend": {
+          "showLegend": false,
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "calcs": []
         },
         "tooltip": {
           "mode": "multi"
@@ -687,10 +680,10 @@
       "type": "timeseries",
       "description": "",
       "gridPos": {
-        "x": 12,
-        "y": 40,
-        "w": 12,
-        "h": 8
+        "x": 16,
+        "y": 12,
+        "w": 8,
+        "h": 7
       },
       "fieldConfig": {
         "defaults": {
@@ -732,6 +725,53 @@
           "datasource": {
             "type": "prometheus",
             "uid": "${local_uid}"
+          }
+        }
+      ]
+    },
+    {
+      "id": 90,
+      "type": "row",
+      "title": "읽는 방법",
+      "collapsed": true,
+      "gridPos": {
+        "x": 0,
+        "y": 19,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [
+        {
+          "id": 1,
+          "title": "읽는 방법",
+          "type": "text",
+          "description": "",
+          "gridPos": {
+            "x": 0,
+            "y": 20,
+            "w": 24,
+            "h": 4
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "noValue": "수집 전·중단",
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "mode": "markdown",
+            "content": "환경과 기간은 상단에서 선택합니다. **수집 중**일 때 요청량 0은 요청 없음, p95의 **표본 없음**은 완료 표본 없음입니다. **수집 실패·수집 전**을 정상으로 해석하지 않습니다. 조회 Error는 PDC/데이터 소스 알림을 확인합니다. Sentry·Langfuse에서는 같은 환경과 기간을 선택합니다. 로컬 지표는 30일, Cloud 외부 점검은 14일 보관 기준입니다."
           }
         }
       ]
