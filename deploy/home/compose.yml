@@ -91,6 +91,9 @@ services:
       timeout: 5s
       retries: 5
       start_period: 120s
+    # 호스트 메모리가 바닥나면 커널이 점수 높은 프로세스부터 죽인다. 같은 박스의 다른 스택보다
+    # 늦게 죽도록 낮추되, 데이터를 쥔 db 보다는 먼저다.
+    oom_score_adj: -500
     deploy:
       resources:
         limits:
@@ -118,6 +121,8 @@ services:
       timeout: 3s
       retries: 12
       start_period: 10s
+    # 박스에서 가장 마지막에 죽어야 한다(위 api 의 oom_score_adj 참고).
+    oom_score_adj: -800
     deploy:
       resources:
         limits:
@@ -180,6 +185,11 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          # 실측 20MB 안팎. 상한 없는 컨테이너가 호스트 메모리를 다 먹는 일을 막는다.
+          memory: 128m
     logging: *logging
 
   backup:
