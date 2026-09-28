@@ -19,7 +19,7 @@ PostgreSQL → 매일 pg_dump → S3 백업 / 영상 → 기존 S3 영상 버킷
 | 서버 디렉터리 | `/svc/acttub/dev` | `/svc/acttub/prod` |
 | DB 볼륨 | `acttub-dev_pgdata` | `acttub-prod_pgdata` |
 | 터널 / 공개 주소 | `acttub-dev` / `https://dev.acttub.com` | `acttub-prod` / `https://acttub.com` |
-| API 메모리 / 웹 메모리 / DB 메모리 | `1536m` / `512m` / `512m` | `3g` / `1g` / `1536m` |
+| API 메모리 / 웹 메모리 / DB 메모리 | `1536m` / `512m` / `512m` | `2g` / `1g` / `1536m` |
 
 [`compose.yml`](../../deploy/home/compose.yml) 하나를 쓰되 DB·볼륨·시크릿·터널은 공유하지 않는다.
 호스트 포트는 공개하지 않는다. 영상 S3 버킷과 OAuth의 운영 도메인은 유지한다.
@@ -49,7 +49,7 @@ DB는 PostgreSQL 18 계열이며 실제 서버 버전과 이미지 ID는 작업�
 | 영상 저장소 | 해당 환경의 `S3_BUCKET`, `AWS_REGION`, 그 버킷만 허용하는 AWS 자격증명 |
 | 터널 | 환경별 `TUNNEL_TOKEN`; Cloudflare 서비스 주소는 `http://web:3000` |
 | 백업 | 백업 버킷과 환경별 prefix, AWS 권한, §5의 주기·실제 업로드 확인 |
-| 운영 자원 | `API_MEM_LIMIT=3g`, `WEB_MEM_LIMIT=1g`, `DB_MEM_LIMIT=1536m` |
+| 운영 자원 | `API_MEM_LIMIT=2g`, `WEB_MEM_LIMIT=1g`, `DB_MEM_LIMIT=1536m` |
 | 워커·인증 | 운영 워커는 활성화하며, 격리 복원 검증 중에는 `ANALYSIS_WORKER_ENABLED=false`. 운영에서 `DEVELOPMENT_AUTH_PROVIDER` 비활성 |
 
 JWT 서명 키를 유지해야 기존 로그인 세션을 이어받는다. `.env`의 존재나 Compose 기동만으로
