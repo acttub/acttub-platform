@@ -54,7 +54,7 @@ challenge_entries.visibility(작성자의 공개 선택)와 status(운영·삭�
   final_like_count·final_eligible·final_rank·request_id·request_fingerprint·created_at·deleted_at을 가진다. (user_id, request_id) 유일, deleted가
   아닌 행 사이에서 (challenge_id, video_id) 유일.
 - 영상은 파일이 남아 있는(purged_at 없는) 확정된 본인 videos 행이어야 한다. 없는 영상과 남의 영상은 404, 본인 영상이 미확정이거나 파일만
-  파기됐으면 422 video_not_ready. 길이 60초 이내(서버가 실제 길이 확인, 넘으면 422 video_too_long). 챌린지 촬영(A18)의 상한도 60초다. 다른
+  파기됐으면 422 video_not_ready. 길이 60초 이내(서버가 ffprobe로 실제 길이를 재고 반올림해 60.5초 미만이면 통과, 넘으면 422 video_too_long). 챌린지 촬영(A18)의 상한도 60초다. 다른
   영상으로 같은 챌린지에 여러 번 참여할 수 있다. 하루 참여는 3개까지(429 daily_entry_limit).
 - visible·진행 중인 챌린지에만 참여한다. review·hidden·deleted 챌린지는 404, 조회 가능한 종료 챌린지는 422 challenge_closed. 마감은 저장
   시점의 서버 시각으로 본다(촬영 중에 마감되면 영상은 보관함에 남고 참여작은 만들어지지 않는다). 참여 생성과 영상 파기·챌린지 삭제는 같은
@@ -67,7 +67,7 @@ challenge_entries.visibility(작성자의 공개 선택)와 status(운영·삭�
 ## 예외
 - 같은 요청 id·같은 지문 재전송: 같은 참여작. 다른 지문: 422 request_fingerprint_mismatch. 같은 영상 같은 챌린지: 422 duplicate_entry.
 - 하루 4번째 참여: 429 daily_entry_limit.
-- 종료 챌린지 참여: 422 challenge_closed. review·hidden·deleted 챌린지: 404. 61초 영상: 422 video_too_long. 본인 미확정·파일 파기 영상: 422
+- 종료 챌린지 참여: 422 challenge_closed. review·hidden·deleted 챌린지: 404. 60.5초 이상 영상: 422 video_too_long. 본인 미확정·파일 파기 영상: 422
   video_not_ready. 남의 영상·없는 영상: 404.
 - 참여작 삭제 뒤 같은 영상으로 다시 참여: 된다(새 행).
 - 응답 유실 뒤 재전송: 같은 참여작 하나.
@@ -79,7 +79,7 @@ challenge_entries.visibility(작성자의 공개 선택)와 status(운영·삭�
 - 비공개 저장: published_at NULL, 목록에 없고 P03에 "비공개 저장", 완료 문구 "비공개로 저장했어요". 공개 완료 문구: "무대에 올렸어요".
 - 공개 범위를 고르지 않고 올리기: 버튼이 켜지지 않는다.
 - 같은 요청 id·같은 지문 두 번: 행 하나. 다른 지문: 422. 같은 영상 같은 챌린지: 422 duplicate_entry. 다른 영상: 두 번째 행.
-- 하루 4번째: 429 daily_entry_limit. 종료 챌린지: 422 challenge_closed. review 챌린지: 404. 61초: 422 video_too_long. 본인 미확정 영상: 422
+- 하루 4번째: 429 daily_entry_limit. 종료 챌린지: 422 challenge_closed. review 챌린지: 404. 60.5초: 422 video_too_long. 60.4초: 200. 본인 미확정 영상: 422
   video_not_ready. 파일만 파기한 본인 영상: 422 video_not_ready. 남의 영상: 404.
 - 마감 1초 뒤 저장 요청: 422 challenge_closed, 영상은 보관함에 있다.
 - 공개 → 비공개: 랭킹에서 빠지고 entry_likes·entry_comments·entry_saves 행은 남는다. 다시 공개(진행 중): 좋아요 수·댓글 그대로 돌아오고

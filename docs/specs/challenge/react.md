@@ -88,6 +88,3 @@ entry_comments.status와 삭제 표시(deleted_at). entry_likes·entry_saves는 
 - 댓글 수정.
 - 저장의 랭킹·작성자 알림 반영.
 
-## 열린 질문
-- [공통 규칙](../common.md#범위-밖)은 "챌린지 공유 링크의 웹 공개 페이지"를 0.1.0 범위 밖에 두는데, 이 문서의 규칙·제약과 코드
-  (`PublicEntryController`, `GET /v2/public/entries/{id}`, CONTRACT §6-17)는 웹 주소 `/e/<id>`의 중간 페이지를 둔다. 어느 쪽이 맞는지 정한다.
