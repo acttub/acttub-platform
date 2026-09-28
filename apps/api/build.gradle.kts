@@ -65,7 +65,7 @@ tasks.withType<Test>().configureEach {
     maxHeapSize = "1g"
     // 클래스마다 Spring 컨텍스트·Flyway 가 새로 떠서 한 줄로 돌면 7분이 넘는다(SOMA-552).
     // fork 마다 JVM 이 따로라 PostgresContainerSupport 의 컨테이너도 fork 마다 따로 뜬다.
-    maxParallelForks = 2
+    maxParallelForks = 3
     systemProperty("file.encoding", "UTF-8")
 
     // 로컬 .env 를 테스트가 읽지 못하게 막는다(DotenvEnvironmentPostProcessor). 이 가드가
