@@ -53,7 +53,8 @@ reading_sessions.status가 이 기능의 정본이다.
 ## 규칙·제약
 - 회차는 배역·구간을 정하고 "시작"을 누를 때 한 번 만든다. 설정 화면만 다녀가면 아무것도 남지 않는다.
   시작 요청에도 기기 요청 id(UUID)를 싣고 (user_id, request_id)로 유일하게 둬 재전송이 회차를 둘 만들지
-  않게 한다.
+  않게 한다. 같은 request_id라도 저장된 속성 여섯(내 배역·방식·시작 줄·끝 줄·넘김·녹음)과 대본이 모두 같아야
+  재전송이고, 하나라도 다르면 422 request_fingerprint_mismatch다. `X-Request-Id` 헤더는 reading.script와 같은 규칙이다.
 - 회차 속성은 시작할 때 정하고 뒤에 바꾸지 않는다. 내 배역(reading.cast), 방식 mode(read 읽어주기·quiz
   암기 대조), 구간(start_line_id·end_line_id), 넘김 advance(silence·manual), 녹음 record(켬·끔,
   reading.recording).
@@ -66,7 +67,8 @@ reading_sessions.status가 이 기능의 정본이다.
   - 앱은 지금 read만 있다. quiz를 더한다. (디자인에 반영할 것, R03에 방식 선택)
 - 구간은 시작 대사와 끝 대사(둘 다 포함)이고 저장은 줄 id 둘이다. 화면(R03)은 "장면으로 찾기"(장면 줄
   경계, 없으면 지문 경계)와 "대사로 찾기"(대사 번호)로 고르며, 장면을 고르면 그 장면 안 첫·마지막 대사로
-  바꾼다. 기본은 처음부터 끝까지다. 구간 안에 내 대사가 없으면 422 empty_range. 웹 D17에는 구간 선택이
+  바꾼다. 기본은 처음부터 끝까지다. 구간의 줄이 그 대본의 대사 줄이 아니면(지문·장면·남의 줄·없는 줄) 422
+  invalid_line, 시작 줄이 끝 줄 뒤이거나 구간 안에 내 대사가 없으면 422 empty_range. 웹 D17에는 구간 선택이
   없어 웹은 0.1.0에서 전체 구간으로 시작한다. (디자인에 반영할 것, 후속 가능)
 - 가리기(모든 대사 보기·내 대사만 가리기·모든 대사 가리기)는 서버에 저장하지 않는다. R03에서 고른 값으로
   시작하고 실행 중 헤더로 바꾼다. 기기가 대본마다 마지막 값을 기억한다. 가림은 현재·이전·다음 대사와
@@ -85,9 +87,11 @@ reading_sessions.status가 이 기능의 정본이다.
   (progress_seq, 기기가 1씩 늘림)을 함께 저장한다. 서버는 progress_seq가 저장된 값보다 큰 요청만 반영하고 작거나
   같으면 무시하고 200으로 현재 값을 돌려준다(늦게 온 옛 요청이 최신을 덮지 못한다). 위치는 구간 안 대사 줄만 받고
   시간은 줄지 않는다. 이어하기는 current_line_id부터 시작하고 그 줄 직전의 상대 대사 하나를 먼저 읽어 흐름을
-  잡아 준다.
+  잡아 준다. 진행 저장은 보낸 항목만 바꾸고, 판정 순서는 없는·남의 회차 404 session_not_found → completed·stopped
+  409 session_closed → progress_seq가 크지 않으면 바꾸지 않고 200 → 위치·줄 결과의 줄이 구간 안 대사 줄이 아니면 422
+  invalid_line(아무것도 바꾸지 않음) → 반영이다.
 - 줄별 결과는 회차에 남긴다. reading_sessions.line_results(jsonb, [{line_id, outcome, misses}])는 줄마다 하나이고
-  마지막 사건이 이긴다. outcome은 passed(대조 통과)·unmatched(2회 미달 뒤 넘어감, read에서는 1회 미달)·skipped(quiz의
+  마지막 사건이 이긴다(진행 저장은 보낸 줄만 갈아 끼우고 보내지 않은 줄은 남긴다). outcome은 passed(대조 통과)·unmatched(2회 미달 뒤 넘어감, read에서는 1회 미달)·skipped(quiz의
   넘어가기)이고 misses는 미달 횟수다. 녹음을 꺼도, 마이크가 없어 입력하기로 대조해도 여기에 남는다. STT 인식 불가·
   무발화·길이 상한 초과는 넣지 않는다. 다시 볼 대사는 outcome이 unmatched·skipped인 줄이다. 기기가 진행 저장에
   함께 보내고 progress_seq 규칙을 따른다.
@@ -99,7 +103,11 @@ reading_sessions.status가 이 기능의 정본이다.
   앱 R05에 코치 카드를 더한다. (디자인에 반영할 것)
 - 회차 목록(R00.5)은 최근순이고 항목마다 회차 번호(그 대본에서 시작 순, 집계), 시작 날짜, 상태(진행 중·
   완료·중단), 내 배역, 진행(내 대사 N개 중 K개 녹음, reading.recording), 걸린 시간을 보여 준다. 회차를 지우면
-  그 회차의 녹음(파일 포함)이 함께 지워지고 암기 상태는 남는다.
+  그 회차의 녹음(파일 포함)이 함께 지워지고 암기 상태는 남는다. 카드의 `range{start_dialogue_no, end_dialogue_no}`로
+  "이어서 연습 · K / N"의 N = end − start + 1을, K는 현재 줄의 대사 번호에서 센다.
+- 대본 카드의 `status`·`my_character_names`·`last_practiced_at`과 상세의 `open_session_id`·`last_session`은 회차에서
+  집계한다(reading.script). 마지막 회차는 가장 늦게 시작한 회차이고 시작 시각이 같으면 id가 큰 쪽이다
+  (`started_at DESC, id DESC`).
 - 리딩 회차는 앱 홈·연습 기록(A1.1)에 섞지 않는다. 연습 기록은 AI 코치와 한 연습만이고, 리딩 기록은
   대본 상세에서 본다(SOMA-494). 서버는 두 목록을 잇지 않는다. (ERD)
 - 가이드(R03.0)는 기기당 처음 한 번 보여 준다. 플래그는 기기 저장소에 둔다.
@@ -117,7 +125,11 @@ reading_sessions.status가 이 기능의 정본이다.
   마지막으로 저장에 성공한 위치부터 이어 간다.
 - 회차 시작 도중 실패: 열린 회차도 그대로고 새 회차도 없다. 같은 요청 id로 다시 보내면 같은 회차 하나다.
 - completed·stopped 회차에 진행 저장: 409 session_closed. 녹음 올리기는 막지 않는다(reading.recording).
-- 구간에 내 대사가 없음: 422 empty_range. 시작 줄이 끝 줄 뒤: 422 empty_range.
+- 구간에 내 대사가 없음: 422 empty_range. 시작 줄이 끝 줄 뒤: 422 empty_range. 구간의 줄이 그 대본의 대사 줄이
+  아님: 422 invalid_line.
+- 같은 request_id에 속성이 다른 시작 요청: 422 request_fingerprint_mismatch.
+- 진행 저장의 위치·줄 결과가 구간 안 대사 줄이 아님: 422 invalid_line이고 아무것도 바뀌지 않는다.
+- 없는 회차와 남의 회차는 상세·진행 저장·삭제 모두 같은 404 session_not_found다.
 - 이관·탈퇴·회차 삭제가 먼저 끝난 뒤 도착한 진행 저장: 404이고 옛 계정에 아무것도 남지 않는다.
 - 대본이 지워진 뒤 회차 조회: 404.
 - 상대역 음성 준비 실패: reading.cast의 예외를 따른다.
@@ -166,9 +178,3 @@ reading_sessions.status가 이 기능의 정본이다.
 - completed·stopped 회차 되돌리기.
 - 리딩 회차를 앱 홈·연습 기록(A1.1)에 섞기, 코치 카드로 리딩 자료 보내기.
 - 점수·등급·칭찬 반응(README).
-
-## 열린 질문
-- 코드는 같은 request_id에 속성이 다른 시작 요청을 422 `request_fingerprint_mismatch`로, 구간의 줄이 그 대본의 대사
-  줄이 아닌 시작 요청을 422 `invalid_line`으로 거절한다(`SessionService`). 이 문서의 예외에는 둘 다 없다.
-- 진행 저장의 위치·줄 결과가 구간 안 대사 줄이 아니면 코드는 422 `invalid_line`이다. 이 문서는 "위치는 구간 안 대사
-  줄만 받고"라고만 하고 사유 코드를 적지 않는다.

@@ -722,11 +722,10 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 ### 6-14. 대본 리딩 — 대본·회차·녹음·암기와 그 생애 (SOMA-546)
 
-정본은 [specs/reading/](../../docs/specs/reading/README.md) 의 각 기능과 README 「리딩 자료의 이관·삭제·탈퇴」 표다. 서버는 대본·음성을 분석하지 않는다
-(ADR-031) — 배역 나누기는 기기의 파서가 하고 배우가 확인한 결과가 그대로 온다.
+> 제품 규칙의 정본: [reading/](../../docs/specs/reading/README.md)(「리딩 자료의 이관·삭제·탈퇴」 표, 최종 저장 직전의 재확인, 게스트의 마지막 활동), [reading.script](../../docs/specs/reading/script.md)(등록·목록·검색·상세·수정·삭제, 사유 코드·한도·재전송, 카드 필드), [reading.cast](../../docs/specs/reading/cast.md)(내 배역, 목소리 프리셋), [reading.session](../../docs/specs/reading/session.md)(시작·재전송, 진행 저장의 판정 순서, 마지막 회차), [reading.recording](../../docs/specs/reading/recording.md)(올리기의 검사 순서·한도·총량·대체, 재생, 보관), [reading.memorization](../../docs/specs/reading/memorization.md)(갱신 판정, 조회)
 
-- **경로**는 전부 `/v2/reading/**` 이고 보호 기능이다. 게스트의 기능 표 `READING` 은 약관·수집·이용 동의 둘이며
-  AI 분석 동의는 없다(§6-9). 회원은 회원의 게이트(§6-5)를 지난다.
+- **경로**는 전부 `/v2/reading/**` 이고 게스트의 기능 표 `READING`(`platform/security/GuestFeature`, §6-9)에 든다.
+  회원은 회원의 게이트(§6-5)를 지난다.
 - **스키마(V13)**: `scripts`·`script_characters`·`script_lines`·`reading_sessions`·`reading_recordings`·
   `line_memorization`. 값 목록은 text + CHECK 이고 Java enum 은 `platform/schema` 에 있다(`ScriptSource`·
   `ScriptLineKind`·`ReadingMode`·`ReadingAdvance`·`ReadingSessionStatus`·`TranscriptSource`·`MemorizationStatus`).
@@ -734,157 +733,64 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   `reading_sessions.request_id` 는 (user_id, request_id) 유일이고 이관 충돌 때만 NULL 이다.
   `uq_script_characters_script_name` 은 DEFERRABLE 이다 — 이름 수정이 두 배역의 이름을 맞바꿀 때 문장 사이에서
   잠시 겹치므로 수정 트랜잭션이 `SET CONSTRAINTS … DEFERRED` 로 커밋까지 미룬다.
-- **등록** `POST /v2/reading/scripts`: 본문은 `request_id`(UUID)·`title`(1~200자)·`source`(`file`·`paste`·`typed`·
-  `sample`)·`raw_text`·`characters[{name}]`·`lines[{ordinal, kind, character_index, text}]`. `ordinal` 은 1부터 배열
-  순서와 같아야 하고, `character_index` 는 `characters` 의 자리(0부터)로 대사 줄에만 있다 — 어긋나면 422 배열.
-  웹은 같은 값을 `X-Request-Id` 헤더에도 싣는다: 헤더는 없어도 되지만 있으면 본문과 같아야 하고 다르면 422 배열
-  (`loc: ["header","X-Request-Id"]`). 만들면 **201**, 같은 요청의 재전송이면 **200** 으로 먼저 만든 대본이다.
-  응답은 `ReadingScript`(원문은 싣지 않는다).
-  - **재전송은 지문으로 가른다.** 생성 요청의 정규화한 본문(제목·입력 경로·원문·배역 이름·줄)의 SHA-256 을
-    `request_fingerprint` 에 저장하고 뒤에 제목·배역 이름을 고쳐도 바꾸지 않는다. 같은 `request_id` 에 같은 지문이면
-    먼저 만든 대본, 다른 지문이면 422 `request_fingerprint_mismatch`. 대본을 지운 뒤 같은 id 는 새 대본이다.
-  - **규칙은 사유 코드 하나**다: 배역 0 `no_characters`, 비거나(공백 정리 뒤) 같은 대본 안에서 겹치는 이름
-    `invalid_characters`, 원문 100,000자·줄 본문 총량 100,000자·줄 3,000·배역 50 초과 `script_too_long`, 대본 수
-    회원 100·게스트 20 이상 `script_limit`(`domain/ScriptRules`). **재전송은 개수 검사보다 먼저다** — 마지막 허용
-    대본의 재시도가 실패하지 않는다. 거절하면 행이 남지 않는다.
-  - **쓰기는 `users` 행을 `FOR UPDATE` 로 잡고 활성인지 본다**(`PostgresScriptRepository#lockActive`, §6-8 과 같은
-    형태). 게이트를 지난 뒤 탈퇴·이관이 먼저 끝났으면 쓰지 않고 403 `account_deactivated` 다. 같은 회원의 등록이
-    겹쳐도 여기서 줄을 서므로 개수 한도가 정확하다.
-- **목록** `GET /v2/reading/scripts?q=`: `{ scripts: ReadingScriptCard[], total_count, in_progress_count }`. 최근 고친
-  순(`updated_at DESC`)이고 `q` 는 제목과 배역 이름을 ILIKE 로 찾는다(`%`·`_` 는 글자 그대로, 대사 본문은 찾지
-  않는다). 머리의 수는 검색과 무관하다. 카드의 `my_character_names` 는 마지막 회차(가장 늦게 시작한 회차)의 내
-  배역이고 회차가 없으면 빈 배열, `status` 는 열린 회차가 있으면 `reading`, 없고 마지막 회차가 completed 면
-  `completed`, 그 밖(회차 없음·stopped 만 남음)은 `no_cast`, `last_practiced_at` 은 회차의 마지막 갱신 시각
-  (없으면 null), `last_activity_at` 은 그것 아니면 등록 시각이다. `dialogue_count`·`recording_count` 는 집계다.
-- **상세** `GET /v2/reading/scripts/{id}`: `ReadingScript` — 배역(`voice_preset`, `dialogue_count`), 줄(`dialogue_no`
-  는 대사 줄만 센 순번, 지문·장면은 null), `recording_count`, `open_session_id`, `last_session`(id·status·
-  my_character_ids·my_character_names·started_at·ended_at). 없는 것과 남의 것은 같은 **404 `script_not_found`**
-  (수정·삭제도 같다).
-- **수정** `PATCH /v2/reading/scripts/{id}`: `title?`·`characters?[{id, name?, voice_preset?}]` 만. 줄은 받지 않는다
-  (모르는 키라 422 배열). 이름은 앞뒤 공백을 정리하고 비거나 겹치면, 이 대본에 없는 배역 id·같은 id 둘·33자 이상
-  프리셋이면 422 `invalid_characters`. `voice_preset` 은 **키가 있을 때만** 바꾸고 null 은 "자동"이다. 배역 id·줄의
-  연결·지문은 그대로이고 `updated_at` 이 는다. 응답은 상세와 같은 `ReadingScript`.
-- **삭제** `DELETE /v2/reading/scripts/{id}`: 배역·줄·회차·녹음·암기 상태를 행째 지우고 **204**. 녹음 객체의 삭제는
-  행을 지운 트랜잭션이 정리 장부(`reading_recording_delete`)에 올리고 커밋 뒤에 시도한다(`reading/app/
-  ReadingRecordingCleanup`, 구현은 `profile` 의 `PostgresObjectCleanupLedger`). 저장소가 실패해도 204 이고 장부가
-  다시 시도한다. DB 가 도중에 실패하면 아무것도 지워지지 않는다.
-- **이관**: §6-9. 대본·회차·녹음·암기 상태의 `user_id` 가 바뀌고 `request_id` 충돌은 게스트 쪽을 비운다.
 
-**리딩 회차 (SOMA-546 RA2)** — 정본은 reading.cast·reading.session.
+**대본**
 
-- **시작** `POST /v2/reading/scripts/{id}/sessions`: 본문은 `request_id`·`my_character_ids[]`·`mode`(`read`·`quiz`)·
-  `start_line_id`·`end_line_id`·`advance`(`silence`·`manual`)·`record`. `X-Request-Id` 헤더는 대본 등록과 같은 규칙이다.
-  만들면 **201**, 같은 `request_id` 의 재전송이면 **200** 으로 먼저 만든 회차다(`reading_sessions` 에는 지문 컬럼이 없어
-  저장된 속성 여섯과 대본이 모두 같아야 재전송이고, 하나라도 다르면 422 `request_fingerprint_mismatch`). 응답은
-  `ReadingSession`(카드 필드 + `script_id`·속성·`current_line_id`·`progress_seq`·`line_results`·`recordings`).
-  - **한 트랜잭션에서 대본 행을 `FOR UPDATE` 로 잡고**(같은 대본의 시작이 여기서 줄을 선다) 열린 회차를 `stopped` 로
-    바꾼 뒤 새 회차를 만든다 — 열린 회차는 대본당 하나다(`uq_reading_sessions_open_script` 가 그물). 도중에 실패하면
-    닫으려던 회차도 그대로다. `current_line_id` 는 구간의 첫 대사 줄(= `start_line_id`), `started_at` 은 앱 시계다.
-  - **규칙은 사유 코드 하나**: 내 배역이 없거나 겹치거나 그 대본의 배역이 아니면 `invalid_characters`, 구간의 줄이 그
-    대본의 대사 줄이 아니면(지문·장면·남의 줄·없는 줄) `invalid_line`, 시작 줄이 끝 줄 뒤이거나 구간 안에 내 대사가
-    없으면 `empty_range`, 없는 대본·남의 대본 404 `script_not_found`. 모든 배역을 내 배역으로 골라도 된다.
-- **목록** `GET /v2/reading/scripts/{id}/sessions`: `{ sessions: ReadingSessionCard[] }`, 최근순(`started_at DESC`). 카드는
-  `ordinal`(그 대본에서 시작한 순, 집계)·`status`·`my_character_ids`·`my_character_names`·`range{start_dialogue_no,
-  end_dialogue_no}`·`my_dialogue_count`(구간 안 내 대사 수)·`recorded_line_count`(녹음된 줄 수)·`elapsed_seconds`·
-  `started_at`·`ended_at`. "이어서 연습 · K / N" 의 N 은 `end_dialogue_no − start_dialogue_no + 1`, K 는 현재 줄의 대사
-  번호에서 센다. 없는 대본·남의 대본은 404 `script_not_found`.
-- **상세** `GET /v2/reading/sessions/{id}`: `ReadingSession`. `recordings` 는 줄 순서의 녹음 행이고 `playback_url`·
-  `playback_expires_at` 은 녹음 기능(RA3)이 채우기 전까지 `null` 이다. 없는 것과 남의 것은 404 `session_not_found`
-  (진행 저장·삭제도 같다). 대본이 지워지면 회차도 없다.
-- **진행 저장** `PATCH /v2/reading/sessions/{id}/progress`: `progress_seq`(필수, 0 이상)·`current_line_id?`·
-  `elapsed_seconds?`(0 이상)·`line_results?[{line_id, outcome passed·unmatched·skipped, misses}]`·`complete?`. 응답은
-  `ReadingSessionProgress{current_line_id, elapsed_seconds, progress_seq, status}` 로 **언제나 현재 값**이다.
-  - 판정 순서: 404 → completed·stopped 면 **409 `session_closed`** → `progress_seq` 가 저장된 값보다 크지 않으면 아무것도
-    바꾸지 않고 200(늦게 온 옛 요청이 최신을 덮지 못한다) → 위치·줄 결과의 줄이 구간 안 대사 줄이 아니면 422
-    `invalid_line`(아무것도 바꾸지 않는다) → 반영.
-  - 반영: 보낸 항목만 바꾼다. 시간은 `GREATEST(저장값, 보낸 값)` 로 줄지 않고, 줄 결과는 **줄마다 하나, 마지막 사건이
-    이긴다**(보낸 줄만 갈아 끼우고 보내지 않은 줄은 남는다). `complete=true` 면 `completed`·`ended_at`(앱 시계)·
-    `current_line_id=null`. 회차 행을 `FOR UPDATE` 로 잡은 채 한다 — 이관·삭제가 먼저 끝났으면 남의 것이라 404 이고
-    옛 계정에 아무것도 남지 않는다(계정 상태를 따로 보지 않는다 — 행의 주인이 그 답이다).
-- **삭제** `DELETE /v2/reading/sessions/{id}`: 회차와 그 녹음 행을 지우고 객체 삭제를 같은 트랜잭션에서 장부
-  (`reading_recording_delete`)에 올린 뒤 **204**. 암기 상태는 줄에 매달려 있어 남는다.
-- **대본 카드**(§6-14 대본 절)의 `status`·`my_character_names`·`last_practiced_at` 과 상세의 `open_session_id`·
-  `last_session` 이 이 회차들로 집계된다. 마지막 회차는 `started_at DESC, id DESC` 의 첫 행이다(같은 시각이면 id 순).
+- `request_fingerprint` 는 정규화한 생성 본문의 SHA-256 이다(`ScriptService`). 사유 코드와 한도는
+  `domain/ScriptRules` 한 곳이다.
+- **등록·수정은 `users` 행을 `FOR UPDATE` 로 잡고 활성인지 본다**(`PostgresScriptRepository#lockActive`, §6-8 과 같은
+  형태). 활성이 아니면 저장소가 `OwnerNotActive` 를 알리고 `ScriptService#activeOnly` 가 403 으로 바꾼다. 같은 회원의
+  등록이 겹쳐도 여기서 줄을 서므로 개수 한도가 정확하다.
+- 검색은 `%`·`_`·`\` 를 풀어(`escapeLike`) `ILIKE … ESCAPE '\'` 로 제목과 배역 이름만 본다(`PostgresScriptRepository`).
+- **삭제**: 줄·회차·녹음·암기 행은 `PostgresScriptRepository#delete` 가 한 트랜잭션에서 지운다. 녹음 객체의 삭제는 행을
+  지운 트랜잭션이 정리 장부(`reading_recording_delete`)에 올리고 커밋 뒤에 시도한다(`reading/app/
+  ReadingRecordingCleanup`, 구현은 `profile` 의 `PostgresObjectCleanupLedger`).
 
-**줄 단위 녹음 (SOMA-546 RA3)** — 정본은 reading.recording. 서버가 음성을 건드리는 유일한 일은 형식 변환이다(ADR-031).
+**리딩 회차 (SOMA-546 RA2)**
 
-- **올리기** `POST /v2/reading/sessions/{id}/recordings` — **유일한 multipart 요청**이다: `request_id`·`line_id`·`attempt_no`
-  (1부터)·`audio`(파일)·`duration_ms`·`transcript_source`(`stt`·`none`)·`transcript?`·`matched?`(`true`·`false`).
-  `X-Request-Id` 헤더는 대본 등록과 같은 규칙이다. 칸의 모양(필수·UUID·정수·값 목록, none 인데 전사·대조가 실림)은
-  핸들러가 직접 422 **배열**로 만든다 — JSON 본문의 검증기가 닿지 않는 자리다(`RecordingController`).
-  `RequestBodyCachingFilter` 는 multipart 를 캐시하지 않는다(컨테이너의 파트 파싱이 원 스트림을 읽는다 —
-  `ReadingRecordingUploadServerIT` 가 실제 서버로 본다). 컨테이너 상한은 `spring.servlet.multipart.*`(25MB)이고 넘으면
-  핸들러 전이라 **413 `upload_too_large`**(advice) 다.
-  - **순서**: 크기·길이 한도(10,000,000바이트·180,000ms 초과 → 422 `recording_too_long`) → 잠그지 않는 사전 확인(회차
-    404 `session_not_found`, 구간 안 내 대사 줄이 아니면 422 `invalid_line`, 같은 `request_id` 는 200 현재 값, 같은 줄에
-    더 큰(같은) `attempt_no` 가 있으면 200 현재 값) → `audio/mp4`·`audio/m4a`·`audio/x-m4a`·`audio/aac` 가 아니면 ffmpeg
-    로 m4a(AAC) 변환(`integration/media/AudioTranscoder`, 실패 → **503 `audio_conversion_failed`**, 행·객체 없음) →
-    객체 올림(`reading/{user_id}/{session_id}/{line_id}/{request_id}.m4a`, 스토리지가 없으면 503
-    `storage_not_configured`) → **회차 행을 `FOR UPDATE` 로 잡은 최종 저장**(같은 확인을 다시 하고 총량을 본다).
-    바깥 호출(변환·올림)은 트랜잭션 밖이다(§5-4).
-  - **총량**은 저장된(변환 뒤) `byte_size` 합으로 회원 1,000,000,000·게스트 100,000,000 바이트다. 대체는 앞 녹음의 바이트를
-    빼고 센다. 넘으면 422 `recording_quota` 이고 기존은 그대로다(이관으로 넘어도 보존). 최종 저장이 거절(404·422)하거나
-    재전송·작은 시도 번호로 끝나면 방금 올린 객체의 키를 **같은 트랜잭션에서** 장부(`reading_recording_delete`)에 올린다.
-  - **대체**: 같은 (회차, 줄)에 더 큰 `attempt_no` 가 오면 **행은 하나**(id 그대로)이고 앞 객체는 장부로 지운다. 만들거나
-    대체하면 **201**, 재전송·작은 번호는 **200**. 응답은 `ReadingSessionRecording`(재생 주소 포함).
-  - 올리기는 회차의 진행 상태와 분리된다 — completed·stopped 에도 받는다(`session_closed` 는 진행 저장에만). 회차·대본이
-    지워졌으면 404 이고 녹음은 되살아나지 않는다. 이관이 먼저 끝났으면 회차가 남의 것이라 404 이고 올린 객체는 장부가 지운다.
-  - `transcript_source=none` 이면 `transcript`·`matched` 는 NULL 이다. `matched` 는 기기 결과 그대로(인식 불가·무발화 NULL).
-- **재생**: 회차 상세와 올리기 응답의 `playback_url` 은 10분 서명 주소이고 `playback_expires_at` 이 만료 시각이다
-  (`reading/app/RecordingPlayback`, 조회할 때마다 새로 만든다). 스토리지가 없으면 둘 다 `null`.
-- **삭제** `DELETE /v2/reading/recordings/{id}`: 행을 지우고 객체 삭제를 장부에 올린 뒤 **204**. 회차 진행·암기 상태는 그대로다.
-  없는 것과 남의 것은 404 `recording_not_found`.
+- **시작**: `reading_sessions` 에는 지문 컬럼이 없어 저장된 속성 여섯과 대본을 비교해 재전송을 가른다.
+  **한 트랜잭션에서 대본 행을 `FOR UPDATE` 로 잡고**(같은 대본의 시작이 여기서 줄을 선다) 열린 회차를 `stopped` 로
+  바꾼 뒤 새 회차를 만든다 — `uq_reading_sessions_open_script` 가 그물이다. `started_at`·`ended_at` 은 앱 시계다.
+- **진행 저장**: 시간은 `GREATEST(저장값, 보낸 값)` 로 쓴다. 회차 행을 `FOR UPDATE` 로 잡은 채 하고, 계정 상태를 따로
+  보지 않는다 — 이관·삭제가 먼저 끝났으면 행의 주인이 바뀌었거나 행이 없어 404 다.
+- **회차 삭제**는 녹음 행을 지우고 객체 삭제를 같은 트랜잭션에서 장부(`reading_recording_delete`)에 올린다.
+- 마지막 회차는 `ORDER BY started_at DESC, id DESC` 의 첫 행이다(`PostgresScriptRepository`·`PostgresSessionRepository`).
+
+**줄 단위 녹음 (SOMA-546 RA3)**
+
+- **유일한 multipart 요청**이다. 칸의 모양 검사는 핸들러가 직접 422 **배열**로 만든다 — JSON 본문의 검증기가 닿지
+  않는 자리다(`RecordingController`). `RequestBodyCachingFilter` 는 multipart 를 캐시하지 않는다(컨테이너의 파트
+  파싱이 원 스트림을 읽는다 — `ReadingRecordingUploadServerIT` 가 실제 서버로 본다). 컨테이너 상한은
+  `spring.servlet.multipart.*`(25MB)이고 넘으면 핸들러 전이라 413 은 advice(`ApiErrorAdvice`)가 낸다.
+- 사전 확인은 잠그지 않는다. 변환은 `integration/media/AudioTranscoder`(ffmpeg), 객체 키는
+  `reading/{user_id}/{session_id}/{line_id}/{request_id}.m4a` 다. **최종 저장은 회차 행을 `FOR UPDATE` 로 잡고**
+  같은 확인을 다시 한 뒤 총량(저장된 `byte_size` 합)을 본다. 바깥 호출(변환·올림)은 트랜잭션 밖이다(§5-4).
+- 최종 저장이 거절(404·422)하거나 재전송·작은 시도 번호로 끝나면 방금 올린 객체의 키를 **같은 트랜잭션에서** 장부
+  (`reading_recording_delete`)에 올린다. 대체된 앞 객체도 같다.
+- 재생 주소는 `reading/app/RecordingPlayback` 이 조회마다 만든다.
 - 저장소 포트 `ObjectStorage` 에 `upload(objectKey, mimeType, Path)` 가 생겼다(서버가 직접 올리는 유일한 객체).
 
-**암기 표시 (SOMA-546 RA4)** — 정본은 reading.memorization. 표시는 (사람, 줄)마다 하나이고 회차·녹음과 무관하다.
-외웠는지는 배우가 정한다 — 대조 통과(회차의 `line_results`·녹음의 `matched`)를 서버가 표시로 옮기지 않는다.
+**암기 표시 (SOMA-546 RA4)**
 
-- **갱신** `PUT /v2/reading/lines/{line_id}/memorization`: 본문 `{ status }`(`memorized`·`not_yet`, 모르는 값·빠짐·모르는
-  키는 422 배열). `request_id` 가 없다 — 같은 값을 다시 보내면 같은 결과라 멱등 지문이 필요 없다. 응답은
-  `ReadingLineMemorization{line_id, status, updated_at}` 로 **200** 하나다(만들든 바꾸든).
-  - **판정**: 그 줄이 없거나 남의 대본의 줄이면 **404 `line_not_found`** → 지문·장면 줄이면 **422 `invalid_line`** → 대사
-    줄이면 배역과 무관하게 받는다(상대역 대사 줄도 200 — 배역 선택은 기기의 것이다). 회차가 있든 없든 같다.
-  - **저장**은 `INSERT … ON CONFLICT (user_id, line_id) DO UPDATE` 한 문장이다 — 두 기기의 상반된 갱신은 **마지막 요청이
-    남는다**. 같은 상태의 재전송은 `updated_at` 을 바꾸지 않는다(CASE 로 옛 값을 유지). 판정과 저장은 그 줄의 **대본 행을
-    `FOR UPDATE` 로 잡은** 트랜잭션 안이다(`PostgresMemorizationRepository`) — 이관이 대본을 옮긴 뒤 옛 게스트의 늦은
-    갱신은 남의 것이라 404 이고(게이트가 먼저 403 `guest_transferred` 로 막는 게 보통이다) 닫힌 계정에 행이 남지 않는다.
-- **조회** `GET /v2/reading/scripts/{script_id}/memorization`: 그 대본 줄에 남긴 표시의 **배열**(`ReadingLineMemorization[]`)
-  이고 줄 순서(`script_lines.ordinal`)다. 행이 없는 줄은 아직 표시하지 않은 줄이라 배열에 없다(표시가 없으면 `[]`).
-  없는 대본·남의 대본은 **404 `script_not_found`**. 대상 계산("암기하지 못한 대사 N개", 배역 고르기, 다시 볼 줄)은 기기가
-  이 배열과 대본 상세로 한다.
-- **생애**: 회차·개별 녹음 삭제는 건드리지 않고(§6-14 회차·녹음 절), 대본 삭제가 그 줄의 행을 함께 지운다
-  (`PostgresScriptRepository#delete`). 이관은 `ReadingOwnership.reassign` 이 `user_id` 를 옮긴다. 탈퇴 때 행째 지우는 것은
-  RA5 다.
+- **저장**은 `INSERT … ON CONFLICT (user_id, line_id) DO UPDATE` 한 문장이다. 같은 상태의 재전송은 CASE 로 옛
+  `updated_at` 을 유지한다. 판정과 저장은 그 줄의 **대본 행을 `FOR UPDATE` 로 잡은** 트랜잭션 안이다
+  (`PostgresMemorizationRepository`).
 - OpenAPI 컴포넌트: `ReadingMemorizationRequest`·`ReadingMemorizationStatusInput`·`ReadingLineMemorization`(`status` 는
   `MemorizationStatus`).
 
-**생애 — 이관·삭제·탈퇴·파기 (SOMA-546 RA5)** — 정본은 specs/reading 「리딩 자료의 이관·삭제·탈퇴」 표다. 다섯 기능이
-서로 다르게 말하지 않도록 **그 표 하나가 판정한다.** 표의 다섯 칸을 코드의 자리와 이어 둔다.
+**생애 — 이관·삭제·탈퇴·파기 (SOMA-546 RA5)**
 
-| 대상 | 이관(§6-9) | 대본 삭제 | 회차 삭제 | 탈퇴·미이관 게스트 30일 파기(§6-8) |
-|---|---|---|---|---|
-| `scripts`·`script_characters`·`script_lines` | `user_id` 만(겹친 `request_id` 는 게스트 쪽 NULL) | 행째 | 그대로 | 행째 |
-| `reading_sessions` | `user_id` 만(같은 규칙) | 행째 | 행째 | 행째 |
-| `reading_recordings` 행 | `user_id` 만 | 삭제 | 삭제 | 보관 동의자만 남김(`user_id` 유지, 회차·줄 NULL), 나머지 삭제 |
-| 녹음 객체 | 그대로 | 장부 | 장부 | 보관 동의자는 3년 뒤, 나머지는 곧바로 장부 |
-| `line_memorization` | `user_id` 만 | 삭제 | 그대로 | 행째 |
-
-- **DB 삭제는 한 트랜잭션이고 객체 삭제는 커밋 뒤 장부가 재시도한다.** "삭제 도중 실패하면 아무것도 지워지지
-  않는다"는 DB 트랜잭션에만 해당한다 — 커밋 뒤 객체 삭제의 실패는 화면에서 이미 지워진 채 장부에 남는다.
-- **쓰기는 최종 저장 직전에 다시 본다.** 소유자·계정 상태·부모 행의 존재를 같은 트랜잭션에서 확인하고, 이관·탈퇴·
-  삭제가 먼저 끝났으면 옛 계정으로 쓰지 않으며 이미 만든 객체는 장부로 정리한다. 이관·탈퇴·삭제는 **리딩 행을 잠근
-  뒤** 진행하므로 둘이 겹쳐도 순서가 정해진다: 대본 등록은 `users` 행(§6-14 등록), 회차 시작·암기 갱신은 대본 행,
-  진행 저장·녹음 저장은 회차 행, 탈퇴는 `users` 와 그 사람의 대본·회차 행을 잡는다.
-- **게스트의 마지막 활동**에 리딩의 쓰기 다섯이 든다(대본 등록·회차 시작·진행 저장·녹음 올리기·암기 갱신,
-  `PostgresProfileRepository#idleGuests`). 웹에서 리딩만 하는 게스트가 30일 파기에 걸리지 않는다.
-- **탈퇴·30일 파기**는 `PostgresProfileRepository#eraseReading` 하나다(§6-8). 보관 동의가 없으면 녹음의 **전사도**
-  함께 지운다 — 영상 연습의 받아쓰기 보존 규칙과 다르다. 보관 행은 회차·줄 연결이 없어 회차를 조인하는 모든 읽기
-  (`PostgresSessionRepository#recordings`·대본의 `recording_count`·녹음 삭제의 소유 확인)에서 자연히 빠진다 —
-  **일반 API 에 보이지 않는다**(별도 필터가 아니라 구조가 그렇다).
-- **3년 파기**는 영상과 같은 흐름이다(`purgeRetained`, `users.retention_purged_at`). 보관하던 녹음 행을 지우고 객체
-  키를 장부에 올린다. 동의 철회는 운영자가 DB 에서 처리하는 절차라 API 가 없다(account.withdraw).
-- **객체 삭제 장부**는 성공할 때까지 키를 지키고 7일마다 알린다(§6-8) — 대본·회차·녹음 삭제, 대체된 녹음, 탈퇴
-  파기가 모두 같은 `reading_recording_delete` 를 쓴다.
+- 코드의 자리: 이관은 `reading/app/ReadingOwnership.reassign`(§6-9), 대본 삭제는 `PostgresScriptRepository#delete`,
+  탈퇴·미이관 게스트 30일 파기는 `PostgresProfileRepository#eraseReading` 하나(§6-8), 3년 파기는 영상과 같은
+  `purgeRetained`(`users.retention_purged_at`)다.
+- **쓰기가 잠그는 행**: 대본 등록·수정은 `users` 행, 회차 시작·암기 갱신은 대본 행, 진행 저장·녹음 저장은 회차 행,
+  탈퇴는 `users` 와 그 사람의 대본·회차 행을 잡는다. 이관·탈퇴·삭제가 리딩 행을 잠근 뒤 진행하므로 둘이 겹쳐도
+  순서가 정해진다.
+- **게스트의 마지막 활동**은 `PostgresProfileRepository#idleGuests` 가 리딩의 쓰기 다섯까지 센다(§6-12).
+- 보관 행은 회차·줄 연결이 없어 회차를 조인하는 모든 읽기(`PostgresSessionRepository#recordings`·대본의
+  `recording_count`·녹음 삭제의 소유 확인)에서 자연히 빠진다 — 일반 API 에 보이지 않는 것은 별도 필터가 아니라
+  구조가 그렇다.
+- 대본·회차·녹음 삭제, 대체된 녹음, 탈퇴 파기가 모두 같은 장부 종류 `reading_recording_delete` 를 쓴다(§6-8).
 
 ### 6-15. 연습 0.1.0 — 스키마(V14)와 영상 보관함 (SOMA-546)
 
