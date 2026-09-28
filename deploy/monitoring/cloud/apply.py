@@ -2,9 +2,10 @@
 """Render rules.json·dashboards/*.json for the Grafana Cloud stack and show or apply the difference.
 
 The repository files are the source of truth. Writes are uid-keyed upserts of the owned objects only:
-the `acttub-monitoring` rule group, the three `acttub-*` dashboards and the `acttub-health-<env>`
-Synthetic Monitoring checks. Nothing outside them is changed or deleted. The Slack contact point,
-the PDC datasource and the Synthetic Monitoring datasource are one-time setup (docs) and only checked.
+the `acttub-monitoring` rule group, the three `acttub-*` dashboards, the `acttub-health-<env>`
+Synthetic Monitoring checks and the `acttub-slack` notification template. Nothing outside them is changed
+or deleted. The Slack contact point (it holds the webhook), the PDC datasource and the Synthetic Monitoring
+datasource are one-time setup (docs) and only checked.
 """
 import argparse
 import datetime
@@ -19,6 +20,9 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 ROOT = Path(__file__).resolve().parent
 FOLDER, GROUP, LOCAL_UID, CONTACT = "acttub-monitoring", "acttub-monitoring", "acttub-local-prometheus", "acttub-monitoring-slack"
+TEMPLATE = "acttub-slack"
+# The contact point's title/text must call these, so slack.tmpl edits reach Slack with `apply` alone.
+TEMPLATE_CALLS = ('{{ template "acttub.slack.title" . }}', '{{ template "acttub.slack.text" . }}')
 DASHBOARDS = ("service", "operations", "infrastructure")
 CHECK_BUDGET = 100000  # Free plan Synthetic Monitoring executions per month
 JSON_STRING = r'"([^"\\\x00-\x1f]|\\(["\\/bfnrt]|u[0-9a-fA-F]{4}))*"'
@@ -55,6 +59,31 @@ def number(n):
     return str(int(n)) if float(n).is_integer() else str(n)
 
 
+OP_WORDS = {">=": "이상", ">": "초과", "<": "미만", "<=": "이하"}
+# How Slack shows the observed value per rules.json `unit`. Rules without a unit are 0/1 flags: the title says it all.
+OBSERVED = {"%": '{{ printf "%.1f" $values.A.Value }}%', "초": "{{ humanizeDuration $values.A.Value }}",
+            **{u: '{{ printf "%.0f" $values.A.Value }}' + u for u in ("건", "회", "개")}}
+
+
+def korean_duration(seconds):
+    for size, word in ((3600, "시간"), (60, "분"), (1, "초")):
+        if seconds >= size and seconds % size == 0:
+            return number(seconds // size) + word
+    return number(seconds) + "초"
+
+
+def criterion(d):
+    wait = int(d["for"][:-1]) * {"s": 1, "m": 60, "h": 3600}[d["for"][-1]]
+    parts = [f"{korean_duration(wait)} 지속"] if wait else []
+    op, threshold = d["op"], d["threshold"]
+    if d["unit"] in ("건", "회", "개") and op == ">":  # whole counts: "> 0" reads better as "1개 이상"
+        op, threshold = ">=", threshold + 1
+    if d["unit"]:
+        value = korean_duration(threshold) if d["unit"] == "초" else number(threshold) + d["unit"]
+        parts.insert(0, f"{value} {OP_WORDS[op]}")
+    return ", ".join(parts) or "즉시"
+
+
 def render_group(c):
     envs, default = environments(c), default_environment(c)
     rules = []
@@ -70,7 +99,10 @@ def render_group(c):
                 "labels": {"owner": "acttub-monitoring", "environment": env, "site": c["site"], "datasource": ds,
                            "target": d["target"], "severity": d["severity"]},
                 "annotations": {
-                    "summary": d["title"], "condition": d["condition"], "observed_value": "{{ $values.A.Value }}",
+                    "summary": d["title"], "condition": d["condition"], "criterion": criterion(d),
+                    **({"observed_value": OBSERVED[d["unit"]]} if d["unit"] else {}),
+                    # Conditions generated as "<title>: 관측값 ..." only repeat the title and criterion; prose ones explain.
+                    **({} if d["condition"].startswith(d["title"] + ": 관측값") else {"detail": d["condition"]}),
                     "description": f"{d['condition']}; 관측값={{{{ $values.A.Value }}}}. {d['recovery']}",
                     "recovery_meaning": d["recovery"],
                     "dashboard_url": f"{c['grafana_url']}/d/acttub-{d['dashboard']}?var-environment={default if env == 'shared' else env}"
@@ -149,13 +181,16 @@ def read_cloud(g):
     """Everything apply may touch or depends on. Raises before any write if one-time setup is missing."""
     if g.call("GET", "/api/datasources/uid/" + LOCAL_UID, optional=True) is None:
         raise RuntimeError("missing PDC datasource " + LOCAL_UID + " (one-time setup, see MONITORING-CLOUD.md)")
-    if not any(p["name"] == CONTACT for p in g.call("GET", "/api/v1/provisioning/contact-points")):
+    contact = next((p for p in g.call("GET", "/api/v1/provisioning/contact-points") if p["name"] == CONTACT), None)
+    if contact is None:
         raise RuntimeError("missing contact point " + CONTACT + " (one-time setup, see MONITORING-CLOUD.md)")
     sm = next((d for d in g.call("GET", "/api/datasources") if d["type"] == "synthetic-monitoring-datasource"), None)
     if sm is None:
         raise RuntimeError("Synthetic Monitoring is not initialised on this stack")
     sm_path = f"/api/datasources/proxy/uid/{sm['uid']}/sm"
     return {
+        "contact": contact,
+        "template": g.call("GET", "/api/v1/provisioning/templates/" + TEMPLATE, optional=True),
         "folder": g.call("GET", "/api/folders/" + FOLDER, optional=True),
         "group": g.call("GET", f"/api/v1/provisioning/folder/{FOLDER}/rule-groups/{GROUP}", optional=True),
         "rules": g.call("GET", "/api/v1/provisioning/alert-rules"),
@@ -180,6 +215,7 @@ def plan(c, cloud):
     if probe is None or not probe.get("public") or probe.get("deprecated"):
         raise RuntimeError("probe_id is not a current public probe")
     group, dashboards, checks = render_group(c), render_dashboards(c), render_checks(c)
+    template = (ROOT / "slack.tmpl").read_text().strip()  # Grafana stores it without the trailing newline
     wanted = {r["uid"] for r in group["rules"]}
     elsewhere = sorted(r["uid"] for r in cloud["rules"] if r["uid"] in wanted and (r["folderUID"], r["ruleGroup"]) != (FOLDER, GROUP))
     if elsewhere:
@@ -199,12 +235,15 @@ def plan(c, cloud):
         "checks_changed": sorted(job for job, want in checks.items() if any(x["job"] == job and not contains(want, x) for x in cloud["checks"])),
         # Checks for environments dropped from the config are reported, never deleted by this tool.
         "checks_unmanaged": sorted(x["job"] for x in cloud["checks"] if x["job"].startswith("acttub-health-") and x["job"] not in checks),
+        "template": (cloud["template"] or {}).get("template") != template,
+        # The contact point holds the webhook, so it is reported for a one-time UI edit, never written.
+        "contact_unwired": [(cloud["contact"].get("settings") or {}).get(k) for k in ("title", "text")] != list(TEMPLATE_CALLS),
     }
-    return changes, {"group": group, "dashboards": dashboards, "checks": checks}
+    return changes, {"group": group, "dashboards": dashboards, "checks": checks, "template": template}
 
 
 def empty(changes):
-    return not any(v for k, v in changes.items() if k != "checks_unmanaged")
+    return not any(v for k, v in changes.items() if k not in ("checks_unmanaged", "contact_unwired"))
 
 
 def apply(g, cloud, changes, desired, backup_dir):
@@ -223,6 +262,10 @@ def apply(g, cloud, changes, desired, backup_dir):
     if changes["rules_added"] or changes["rules_removed"] or changes["rules_changed"]:
         # No provenance header: the rules stay editable in the UI, as they were when first created.
         g.call("PUT", f"/api/v1/provisioning/folder/{FOLDER}/rule-groups/{GROUP}", desired["group"], headers={"X-Disable-Provenance": "true"})
+    if changes["template"]:
+        version = (cloud["template"] or {}).get("version")
+        g.call("PUT", "/api/v1/provisioning/templates/" + TEMPLATE, {"template": desired["template"], **({"version": version} if version else {})},
+               headers={"X-Disable-Provenance": "true"})
     for uid in changes["dashboards"]:
         current = cloud["dashboards"][uid]
         body = dict(desired["dashboards"][uid], id=current["dashboard"]["id"] if current else None,

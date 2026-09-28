@@ -12,7 +12,7 @@
 | `cloud.json` | 비밀이 아닌 stack 값: stack 주소, 환경별 공개 origin(`health_origins`), 외부 점검 위치(probe), Cloud Metrics 데이터 소스 UID, 디스크 경로 |
 | `rules.json` | 1분 평가 알림 규칙. 환경별 규칙은 `health_origins`의 환경마다, 공유 규칙은 한 번 만든다 |
 | `dashboards/*.json` | 서비스 전체·분석/코치·서버/DB/백업, KST·최근 1시간. 맨 위 한 줄 요약 + 접히는 구역 배치. 서버 화면의 API 프로세스 이하 구역은 grafana.com 대시보드 [19004](https://grafana.com/grafana/dashboards/19004)를 acttub 라벨(`job="api"`·`environment`)로 옮긴 것이다 |
-| `slack.tmpl` | Slack 메시지 형식(수신점을 처음 만들 때 붙여 넣는다) |
+| `slack.tmpl` | Slack 메시지 제목·본문. `apply.py`가 알림 템플릿 `acttub-slack`으로 올린다 |
 | `apply.py` | 렌더링 → Cloud와의 차이(`diff`) → 적용(`apply`). 적용 직전 Cloud 설정을 `.backups/`에 저장 |
 | `check.sh` | 토큰·실제 stack 없이 실행하는 CI/로컬 검증 |
 
@@ -25,6 +25,9 @@
 - `acttub-monitoring` 폴더와 동명 규칙 그룹(그룹 전체를 `rules.json` 기준으로 교체하므로 UI에서 이 그룹에 추가한 규칙은 사라진다)
 - `acttub-service`/`acttub-operations`/`acttub-infrastructure` 대시보드
 - `acttub-health-<환경>` 외부 점검. `health_origins`에서 뺀 환경의 점검은 `checks_unmanaged`로 보고만 하고 지우지 않는다
+- `acttub-slack` 알림 템플릿(`slack.tmpl`). 수신점은 webhook을 담고 있어 쓰지 않는다. 수신점이 이 템플릿을 부르지 않으면 `contact_unwired`로 보고만 한다
+
+규칙의 `unit`(`%`·`초`·`건`·`회`·`개`, 0/1 신호는 빈 값)으로 Slack의 관측값 표기(반올림·단위)와 `기준` 문구를 만든다. `condition`이 `<제목>: 관측값 …` 형태면 제목·기준과 겹치므로 본문에서 빼고, 설명이 담긴 문장일 때만 `조건`으로 보인다.
 
 `acttub-local-prometheus` 데이터 소스(PDC), `acttub-monitoring-slack` 수신점, Synthetic Monitoring 초기화는 **처음 한 번 사람이 만든다**(아래 절). `apply.py`는 이들이 있는지만 확인하고 없으면 쓰기 전에 멈춘다. 전체 `notification_policy`는 만들지 않는다. [전체 정책 트리는 하나의 리소스](https://grafana.com/docs/grafana/latest/alerting/set-up/provision-alerting-resources/file-provisioning/)여서 다른 정책을 덮을 수 있기 때문이다. 각 규칙의 `notification_settings`로 전용 Slack 수신점에 직접 연결한다.
 
@@ -39,10 +42,10 @@
 
 1. Grafana Cloud stack이 실제 **Free 플랜**인지 확인한다. 체험판·Pro 전환, 초과 사용 설정이 없는지 계정 화면에서 본다.
 2. 세 사람이 각자 개인 계정으로 접속하고 stack 권한은 **Admin 1명, Viewer 2명**이다. [Portal 역할과 stack 역할은 연결될 수 있다](https://grafana.com/docs/grafana-cloud/platform/security-and-account-management/security-and-access/authentication-and-permissions/).
-3. `apply.py`용 stack 서비스 계정 토큰을 **만료 기한을 두고** 만든다. 폴더·대시보드·알림 규칙 쓰기와 데이터 소스 조회가 필요하다(2026-09-14부터 `acttub-setup` 서비스 계정을 쓴다). Synthetic Monitoring은 stack의 SM 데이터 소스 프록시로 호출하므로 별도 SM 토큰은 없다.
+3. `apply.py`용 stack 서비스 계정 토큰을 **만료 기한을 두고** 만든다. 폴더·대시보드·알림 규칙·알림 템플릿 쓰기와 데이터 소스 조회가 필요하다(2026-09-14부터 `acttub-setup` 서비스 계정을 쓴다). Synthetic Monitoring은 stack의 SM 데이터 소스 프록시로 호출하므로 별도 SM 토큰은 없다.
 4. Synthetic Monitoring을 초기화하고 **공개 probe ID 한 개**와 수집 중인 **Cloud Metrics 데이터 소스 UID**를 `cloud.json`에 적는다(현재 probe 13 Seoul, `grafanacloud-prom`).
 5. PDC network를 만들고 [공식 PDC 절차](https://grafana.com/docs/grafana-cloud/observe-and-act/connect-externally-hosted/private-data-source-connect/configure-pdc/)대로 agent를 준비한다. 대상은 `prometheus:9090`만 허용한다. Cloud에 Prometheus 데이터 소스를 uid `acttub-local-prometheus`, URL `http://prometheus:9090`, 해당 PDC network, 기본 데이터 소스 아님으로 만든다. 수집 구성은 [홈서버 배포 문서](DEPLOY-HOME.md)와 `deploy/monitoring` 절차를 따른다.
-6. Slack incoming webhook을 **#서비스-장애**에 연결하고, 이름 `acttub-monitoring-slack`인 Slack 수신점을 만든다. 제목은 `[{{ .Status | toUpper }}] Acttub {{ .CommonLabels.environment }} / {{ .CommonLabels.site }}`, 본문은 `slack.tmpl`, 복구 메시지 켬. 실제 대상 채널은 webhook이 정한다.
+6. Slack incoming webhook을 **#서비스-장애**에 연결하고, 이름 `acttub-monitoring-slack`인 Slack 수신점을 만든다. 제목은 `{{ template "acttub.slack.title" . }}`, 본문은 `{{ template "acttub.slack.text" . }}`, 복구 메시지 켬. 템플릿 내용은 `apply.py`가 올린다. 실제 대상 채널은 webhook이 정한다.
 
 토큰은 레포 밖 권한 `0600` 파일이나 비밀 관리 도구에서 환경변수로 공급한다. 셸의 `set -x`, 명령행 인수, 스크린샷, PR·로그에 토큰을 남기지 않는다. PDC signing token·환경별 수집 토큰은 홈서버 측에만 둔다.
 

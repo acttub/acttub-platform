@@ -63,6 +63,18 @@ class RenderTest(unittest.TestCase):
             self.assertEqual((n["receiver"], n["group_wait"], n["group_interval"], n["repeat_interval"]), ("acttub-monitoring-slack", "10s", "1m", "1h"))
             self.assertTrue({"environment", "site", "datasource"} <= set(n["group_by"]))
 
+    def test_slack_annotations_carry_unit_criterion_and_only_explanatory_conditions(self):
+        rules = {r["uid"]: r["annotations"] for r in apply.render_group(config())["rules"]}
+        memory, missing, flag, backup = (rules["acttub-" + k] for k in ("memory-shared", "api-metric-dev", "collect-api-dev", "backup-age-prod"))
+        self.assertEqual((memory["criterion"], memory["observed_value"]), ("10% 미만, 5분 지속", '{{ printf "%.1f" $values.A.Value }}%'))
+        self.assertNotIn("detail", memory)
+        self.assertEqual((missing["criterion"], missing["observed_value"]), ("1개 이상, 2분 지속", '{{ printf "%.0f" $values.A.Value }}개'))
+        self.assertIn("Hikari", missing["detail"])
+        self.assertEqual(flag["criterion"], "2분 지속")
+        self.assertNotIn("observed_value", flag)
+        self.assertEqual(backup["criterion"], "26시간 초과")
+        self.assertEqual({d["unit"] for d in json.loads((ROOT / "rules.json").read_text())} - {"", "%", "초", "건", "회", "개"}, set())
+
     def test_health_check_accepts_only_the_real_health_contract(self):
         pattern = apply.render_checks(config())["acttub-health-prod"]["settings"]["http"]["failIfBodyNotMatchesRegexp"][0]
         ok = '{"status":"ok","services":["summary","coach","report"],"model":"test","keep_alive":false,"commit":"unknown"}'
@@ -106,7 +118,7 @@ class FakeGrafana(BaseHTTPRequestHandler):
         if path in routes:
             return self.reply(routes[path])
         for prefix, table in (("/api/datasources/uid/", "ds_by_uid"), ("/api/folders/", "folders"), ("/api/dashboards/uid/", "dashboards"),
-                              ("/api/v1/provisioning/folder/acttub-monitoring/rule-groups/", "groups")):
+                              ("/api/v1/provisioning/folder/acttub-monitoring/rule-groups/", "groups"), ("/api/v1/provisioning/templates/", "templates")):
             if path.startswith(prefix):
                 value = s[table].get(path[len(prefix):])
                 return self.reply(value, 200) if value is not None else self.reply({"message": "not found"}, 404)
@@ -134,6 +146,9 @@ class FakeGrafana(BaseHTTPRequestHandler):
         elif path.startswith("/api/v1/provisioning/folder/acttub-monitoring/rule-groups/"):
             body["rules"] = [dict(r, id=i, orgID=1, updated="now") for i, r in enumerate(body["rules"])]
             s["groups"][path.rsplit("/", 1)[-1]] = body
+        elif path.startswith("/api/v1/provisioning/templates/"):
+            name = path.rsplit("/", 1)[-1]
+            s["templates"][name] = {"name": name, "template": body["template"].strip(), "version": "v%d" % len(s["writes"])}
         elif path == SM + "/check/add":
             s["checks"][body["job"]] = dict(body, id=len(s["checks"]) + 1, tenantId=9, created=1.0)
         elif path == SM + "/check/update":
@@ -151,7 +166,7 @@ class ApplyTest(unittest.TestCase):
             "ds_by_uid": {"acttub-local-prometheus": {"uid": "acttub-local-prometheus"}},
             "contacts": [{"name": "acttub-monitoring-slack", "uid": "slack"}],
             "folders": {}, "dashboards": {"foreign": {"dashboard": {"uid": "foreign", "id": 7, "version": 3}, "meta": {"folderUid": "finance"}}},
-            "groups": {}, "checks": {"other": {"job": "other", "id": 99}}, "writes": [],
+            "groups": {}, "templates": {}, "checks": {"other": {"job": "other", "id": 99}}, "writes": [],
         }
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
         self.work = tempfile.TemporaryDirectory()
@@ -185,6 +200,7 @@ class ApplyTest(unittest.TestCase):
         self.assertEqual(sorted(k for k in s["dashboards"] if k != "foreign"), ["acttub-infrastructure", "acttub-operations", "acttub-service"])
         self.assertEqual(sorted(k for k in s["checks"] if k != "other"), ["acttub-health-dev", "acttub-health-prod"])
         self.assertEqual((s["dashboards"]["foreign"], s["checks"]["other"]), foreign)
+        self.assertEqual(s["templates"]["acttub-slack"]["template"], (ROOT / "slack.tmpl").read_text().strip())
         writes = len(s["writes"])
         self.assertIn("No changes.", self.run_cli("apply"))
         self.assertEqual(len(s["writes"]), writes)
@@ -195,6 +211,16 @@ class ApplyTest(unittest.TestCase):
         self.assertIn('"acttub-service"', self.run_cli("diff"))
         self.run_cli("apply")
         self.assertEqual(self.server.state["dashboards"]["acttub-service"]["dashboard"]["title"], "Acttub · 서비스 전체")
+
+    def test_contact_point_not_calling_the_template_is_reported_never_written(self):
+        output = self.run_cli("diff")
+        self.assertTrue(json.loads(output[:output.index("}") + 1])["contact_unwired"])
+        self.server.state["contacts"][0]["settings"] = {"title": apply.TEMPLATE_CALLS[0], "text": apply.TEMPLATE_CALLS[1]}
+        self.run_cli("apply")
+        output = self.run_cli("diff")
+        self.assertFalse(json.loads(output[:output.index("}") + 1])["contact_unwired"])
+        self.assertIn("No changes.", output)
+        self.assertFalse(any("contact-points" in path for _, path in self.server.state["writes"]))
 
     def test_missing_one_time_setup_stops_before_any_write(self):
         self.server.state["contacts"] = []
