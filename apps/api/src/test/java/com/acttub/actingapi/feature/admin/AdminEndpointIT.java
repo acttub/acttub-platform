@@ -8,6 +8,8 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.HexFormat;
@@ -399,6 +401,24 @@ class AdminEndpointIT {
         assertThat(first.path("close_reason").textValue()).isEqualTo("gap_stated");
         assertThat(first.path("turns_actor").intValue()).isEqualTo(1);
 
+        JsonNode activities = core.path("activity_rows");
+        assertThat(activities).hasSize(2);
+        JsonNode newestActivity = activities.get(0);
+        assertThat(newestActivity.fieldNames()).toIterable().containsExactly(
+                "activity_id", "feature", "created_at", "actor", "signup_at",
+                "platform", "device", "status", "is_team");
+        assertThat(newestActivity.path("feature").textValue()).isEqualTo("coaching");
+        assertThat(newestActivity.path("created_at").textValue()).isEqualTo(utc(NOW.minusMinutes(20).truncatedTo(ChronoUnit.MINUTES)));
+        assertThat(newestActivity.path("signup_at").textValue()).isEqualTo(utc(NOW.minusHours(2).truncatedTo(ChronoUnit.HOURS)));
+        assertThat(newestActivity.path("platform").textValue()).isEqualTo("웹");
+        assertThat(newestActivity.path("device").textValue()).isEqualTo("기록 없음");
+        assertThat(newestActivity.path("status").textValue()).isEqualTo("analyzed");
+        assertThat(newestActivity.path("is_team").booleanValue()).isFalse();
+        for (JsonNode activity : activities) {
+            assertThat(activity.path("actor").textValue())
+                    .isEqualTo("배우 " + md5(REAL_USER.toString()).substring(0, 8));
+        }
+
         assertThat(core.toString()).doesNotContain(
                 "actor@example.com", "Team@Acttub.com", REAL_USER.toString(), TEAM_USER.toString());
     }
@@ -465,6 +485,96 @@ class AdminEndpointIT {
         assertThat(moved.path("coach_session_id").textValue()).isEqualTo(realFinalCoach.toString());
         assertThat(moved.path("video_url").textValue()).isEqualTo("admin:real-v.mp4:3600");
         assertThat(moved.path("turns")).hasSize(1);
+
+        JsonNode activities = core.path("activity_rows");
+        assertThat(activities).hasSize(3);
+        String migratedActivityId = "coaching:" + migratedPractice;
+        int migratedRows = 0;
+        for (JsonNode activity : activities) {
+            if (activity.path("activity_id").textValue().equals(migratedActivityId)) {
+                migratedRows++;
+            }
+        }
+        assertThat(migratedRows).isEqualTo(1);
+    }
+
+    @Test
+    void opsCoreActivityRowsUnifyFeaturesAndExcludeTeamDeletedAndFutureRows() throws Exception {
+        jdbc.update("UPDATE users SET created_at=?, updated_at=? WHERE id=?",
+                NOW.minusYears(2), NOW.minusYears(2), REAL_USER);
+        UUID oldReading = insertReadingSession(
+                REAL_USER, NOW.minusYears(1), "오래된 리딩 자유텍스트", "stopped");
+        UUID realReading = insertReadingSession(
+                REAL_USER, NOW.minusMinutes(40), "리딩 자유텍스트 비밀", "completed");
+        UUID teamReading = insertReadingSession(
+                TEAM_USER, NOW.minusMinutes(35), "팀 리딩 자유텍스트", "completed");
+        UUID futureReading = insertReadingSession(
+                REAL_USER, NOW.plusDays(1), "미래 리딩 자유텍스트", "completed");
+
+        UUID challenge = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO challenges (id,line,work,duration_days,origin,request_id,request_fingerprint,starts_at,ends_at)
+                VALUES (?, '챌린지 대사 비밀', '작품 비밀', 7, 'team', ?, ?, ?, ?)
+                """, challenge, UUID.randomUUID(), "d".repeat(64), NOW.minusDays(1), NOW.plusDays(6));
+        UUID realEntry = insertChallengeEntry(challenge, REAL_USER, "real-entry.mp4", "챌린지 캡션 비밀",
+                "visible", NOW.minusMinutes(10), null);
+        UUID teamEntry = insertChallengeEntry(challenge, TEAM_USER, "team-entry.mp4", "팀 캡션 비밀",
+                "visible", NOW.minusMinutes(9), null);
+        UUID futureEntry = insertChallengeEntry(challenge, REAL_USER, "future-entry.mp4", "미래 캡션 비밀",
+                "visible", NOW.plusDays(1), null);
+        UUID deletedEntry = insertChallengeEntry(challenge, REAL_USER, null, null,
+                "deleted", NOW.minusMinutes(8), NOW.minusMinutes(7));
+        UUID futureCoaching = insertPractice(
+                REAL_USER, "future-coaching.mp4", "finalized", NOW.plusDays(1));
+
+        JsonNode activities = authorized("/v2/admin/ops-core", 200).path("activity_rows");
+        assertThat(activities).hasSize(5);
+        assertThat(activities.toString()).doesNotContain(
+                teamReading.toString(), futureReading.toString(), teamEntry.toString(),
+                futureEntry.toString(), deletedEntry.toString(), futureCoaching.toString(),
+                "오래된 리딩 자유텍스트", "리딩 자유텍스트 비밀", "팀 리딩 자유텍스트", "미래 리딩 자유텍스트",
+                "대사 자유텍스트", "챌린지 대사 비밀", "작품 비밀",
+                "챌린지 캡션 비밀", "팀 캡션 비밀", "미래 캡션 비밀",
+                "actor@example.com", "Team@Acttub.com", REAL_USER.toString(), TEAM_USER.toString());
+
+        String actor = "배우 " + md5(REAL_USER.toString()).substring(0, 8);
+        int coaching = 0;
+        int reading = 0;
+        int challengeEntries = 0;
+        for (JsonNode activity : activities) {
+            assertThat(activity.path("actor").textValue()).isEqualTo(actor);
+            assertThat(activity.path("is_team").booleanValue()).isFalse();
+            assertThat(activity.fieldNames()).toIterable().containsExactly(
+                    "activity_id", "feature", "created_at", "actor", "signup_at",
+                    "platform", "device", "status", "is_team");
+            switch (activity.path("feature").textValue()) {
+                case "coaching" -> coaching++;
+                case "reading" -> reading++;
+                case "challenge" -> challengeEntries++;
+                default -> throw new AssertionError("unexpected activity feature: " + activity);
+            }
+        }
+        assertThat(coaching).isEqualTo(2);
+        assertThat(reading).isEqualTo(2);
+        assertThat(challengeEntries).isEqualTo(1);
+
+        JsonNode oldReadingRow = findActivity(activities, "reading:" + oldReading);
+        assertThat(oldReadingRow.path("created_at").textValue()).isEqualTo(utc(NOW.minusYears(1).truncatedTo(ChronoUnit.MINUTES)));
+        assertThat(oldReadingRow.path("status").textValue()).isEqualTo("stopped");
+        JsonNode readingRow = findActivity(activities, "reading:" + realReading);
+        assertThat(readingRow.path("created_at").textValue()).isEqualTo(utc(NOW.minusMinutes(40).truncatedTo(ChronoUnit.MINUTES)));
+        assertThat(readingRow.path("status").textValue()).isEqualTo("completed");
+        JsonNode challengeRow = findActivity(activities, "challenge:" + realEntry);
+        assertThat(challengeRow.path("created_at").textValue()).isEqualTo(utc(NOW.minusMinutes(10).truncatedTo(ChronoUnit.MINUTES)));
+        assertThat(challengeRow.path("status").textValue()).isEqualTo("visible");
+    }
+
+    @Test
+    void opsCoreActivityRowsAreAnEmptyArrayWhenThereAreNoActivities() throws Exception {
+        jdbc.execute("TRUNCATE TABLE practices, practice_sessions, reading_sessions, challenge_entries CASCADE");
+
+        JsonNode activities = authorized("/v2/admin/ops-core", 200).path("activity_rows");
+        assertThat(activities).isEqualTo(mapper.readTree("[]"));
     }
 
     private UUID insertVideo(UUID userId, String objectKey, OffsetDateTime createdAt) {
@@ -515,6 +625,7 @@ class AdminEndpointIT {
             assertThat(session.path("is_team").booleanValue()).isTrue();
         }
         assertThat(core.at("/devices/team_excluded").intValue()).isEqualTo(2);
+        assertThat(core.path("activity_rows")).isEqualTo(mapper.readTree("[]"));
 
         JsonNode none = authorized("/v2/admin/ops-core?exclude_actors=", 200);
         assertThat(none.path("metrics").get(0).path("total_real").intValue()).isEqualTo(1);
@@ -632,6 +743,57 @@ class AdminEndpointIT {
                 VALUES (?, ?, '제목', ?, ?, ?, ?)
                 """, id, userId, rawText, source, UUID.randomUUID(), "c".repeat(64));
         return id;
+    }
+
+    private UUID insertReadingSession(
+            UUID userId, OffsetDateTime startedAt, String rawText, String status) {
+        UUID script = insertScript(userId, "typed", rawText);
+        UUID character = UUID.randomUUID();
+        jdbc.update("INSERT INTO script_characters (id,script_id,name,sort_order) VALUES (?,?,'배역',0)",
+                character, script);
+        UUID line = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO script_lines (id,script_id,ordinal,kind,character_id,text)
+                VALUES (?,?,1,'dialogue',?,'대사 자유텍스트')
+                """, line, script, character);
+        UUID reading = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO reading_sessions (
+                    id,script_id,user_id,my_character_ids,mode,start_line_id,end_line_id,advance,record,status,
+                    elapsed_seconds,started_at,ended_at,updated_at
+                ) VALUES (?, ?, ?, ARRAY[CAST(? AS uuid)], 'read', ?, ?, 'manual', false, ?, 60, ?, ?, ?)
+                """, reading, script, userId, character, line, line, status,
+                startedAt, startedAt.plusMinutes(1), startedAt.plusMinutes(1));
+        return reading;
+    }
+
+    private UUID insertChallengeEntry(
+            UUID challengeId, UUID userId, String objectKey, String caption,
+            String status, OffsetDateTime createdAt, OffsetDateTime deletedAt) {
+        UUID videoId = objectKey == null ? null : insertVideo(userId, objectKey, createdAt);
+        UUID entry = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO challenge_entries (
+                    id,challenge_id,user_id,video_id,caption,visibility,status,
+                    request_id,request_fingerprint,created_at,updated_at,deleted_at
+                ) VALUES (?, ?, ?, ?, ?, 'private', ?, ?, ?, ?, ?, ?)
+                """, entry, challengeId, userId, videoId, caption, status,
+                UUID.randomUUID(), "e".repeat(64), createdAt, createdAt, deletedAt);
+        return entry;
+    }
+
+    private static JsonNode findActivity(JsonNode activities, String activityId) {
+        for (JsonNode activity : activities) {
+            if (activity.path("activity_id").textValue().equals(activityId)) {
+                return activity;
+            }
+        }
+        throw new AssertionError("activity not found: " + activityId);
+    }
+
+    private static String utc(OffsetDateTime value) {
+        return value.withOffsetSameInstant(ZoneOffset.UTC)
+                .format(DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSSSSS'Z'"));
     }
 
     private static String md5(String value) throws Exception {
