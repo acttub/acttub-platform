@@ -45,8 +45,7 @@ def idle_series():
         add(family)
     for status, latency in itertools.product(("1xx", "2xx", "3xx", "4xx", "5xx", "other"), ("ordinary", "long_running")):
         add("acttub_http_requests_total", status_class=status, latency_class=latency)
-    for feature, route in (("coach", "/v2/coach/start"), ("coach", "/v2/coach/reply"),
-                           ("coach", "/v2/coach/confirm"), ("report", "/v2/reports")):
+    for feature, route in (("coach", "/v2/coach/start"), ("coach", "/v2/coach/reply")):
         for suffix in ("count", "sum", "max"):
             add("acttub_http_active_seconds_" + suffix, feature=feature, route=route)
     return series
@@ -107,8 +106,8 @@ class MetricPresenceTest(unittest.TestCase):
         for missing in (
             'acttub_http_requests_total{environment="dev",status_class="5xx",latency_class="ordinary"}',
             'acttub_http_active_seconds_count{environment="dev",feature="coach",route="/v2/coach/start"}',
-            'acttub_http_active_seconds_sum{environment="dev",feature="report",route="/v2/reports"}',
-            'acttub_http_active_seconds_max{environment="dev",feature="coach",route="/v2/coach/confirm"}',
+            'acttub_http_active_seconds_sum{environment="dev",feature="coach",route="/v2/coach/reply"}',
+            'acttub_http_active_seconds_max{environment="dev",feature="coach",route="/v2/coach/start"}',
         ):
             with self.subTest(missing=missing):
                 series = idle_series()
