@@ -8,7 +8,6 @@ import { useAppDialog } from '@/components/app-dialog';
 import type { MicButtonProps } from '@/components/mic-button';
 import { SceneFoldBody, SceneFoldLink } from '@/components/practice-chrome';
 import { palette } from '@/constants/palette';
-import { useExitReview } from '@/hooks/use-exit-review';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { translate as t } from '@/lib/i18n';
 import {
@@ -97,8 +96,6 @@ export default function CoachScreen() {
     }, 0);
   }, []);
 
-  const exitReview = useExitReview('back', 'coach', practice?.practiceId);
-  const finishReview = useExitReview('leave', 'coach', practice?.practiceId);
 
   const goToNote = useCallback(() => {
     leaveThen(() => router.replace('/report'));
@@ -198,7 +195,7 @@ export default function CoachScreen() {
       leaveThen(() => navigation.dispatch(data.action));
       return;
     }
-    void exitReview.offer(() => leaveThen(() => navigation.dispatch(data.action)));
+    leaveThen(() => navigation.dispatch(data.action));
   });
 
   useEffect(() => {
@@ -253,10 +250,8 @@ export default function CoachScreen() {
   };
 
   const finishWithoutNote = () => {
-    void finishReview.offer(() => {
-      clearPractice();
-      leaveThen(() => router.dismissAll());
-    });
+    clearPractice();
+    leaveThen(() => router.dismissAll());
   };
 
   const pressHelp = (button: HelpButton) => {
@@ -417,8 +412,6 @@ export default function CoachScreen() {
         )}
       </View>
       {dialog}
-      {exitReview.element}
-      {finishReview.element}
       {tutorialGuide.element}
     </SafeAreaView>
   );
