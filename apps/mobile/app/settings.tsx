@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
+import { useCloudVoice } from '@/hooks/use-cloud-voice';
 import { Markdown } from '@/components/markdown';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
@@ -77,6 +78,10 @@ export default function SettingsScreen() {
   const [updatingConsentId, setUpdatingConsentId] = useState<string | null>(null);
   const [updatingToggle, setUpdatingToggle] = useState<keyof NotificationSettings | null>(null);
   const { confirm, alert, dialog } = useAppDialog();
+  const cloudVoice = useCloudVoice();
+  const cloudVoiceDate = cloudVoice.status?.free_until
+    ? new Date(cloudVoice.status.free_until).toLocaleDateString(isKorean() ? 'ko-KR' : 'en-US', { month: 'long', day: 'numeric' })
+    : '';
 
   const loadConsents = useCallback(async () => {
     setRows(consentSettingsRows(await api.consentEntry()));
@@ -245,6 +250,28 @@ export default function SettingsScreen() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.list}>
+          {cloudVoice.status?.available && (
+            <>
+              <Text style={styles.sectionTitle}>{t('cloudVoice.readingSection')}</Text>
+              <View style={styles.card}>
+                <View style={styles.cardRow}>
+                  <View style={styles.iconCircle}><Feather name="volume-2" size={18} color={palette.flame} /></View>
+                  <View style={styles.cardBody}>
+                    <Text style={styles.cardTitle}>{t('cloudVoice.settingsTitle')}</Text>
+                    <Text style={styles.cardSub}>{t('cloudVoice.settingsBody', { date: cloudVoiceDate })}</Text>
+                  </View>
+                  <Switch
+                    value={cloudVoice.enabled && cloudVoice.status.consent === 'granted'}
+                    onValueChange={(value) => void (value ? cloudVoice.enable('settings') : cloudVoice.disable())}
+                    disabled={cloudVoice.busy}
+                    trackColor={{ true: palette.flame, false: palette.border }}
+                    thumbColor={palette.onAccent}
+                    ios_backgroundColor={palette.border}
+                  />
+                </View>
+              </View>
+            </>
+          )}
           {/* 프로필 — 여섯 항목과 사진·한 줄 소개를 고치는 진입점. */}
           <Text style={styles.sectionTitle}>{t('settings.profile')}</Text>
           <Pressable style={styles.card} onPress={() => router.push('/profile-edit')} accessibilityRole="button">
@@ -439,6 +466,7 @@ export default function SettingsScreen() {
         </ScrollView>
       )}
       {dialog}
+      {cloudVoice.consentSheet}
     </SafeAreaView>
   );
 }

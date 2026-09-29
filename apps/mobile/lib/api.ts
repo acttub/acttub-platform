@@ -92,6 +92,7 @@ import type {
   SessionRecording,
   StartSessionBody,
 } from '@/lib/reading/types';
+import type { CloudVoicePreset, CloudVoiceStatus } from '@/lib/reading/cloud-voice';
 import { currentLanguage, translate } from './i18n.ts';
 
 export { ApiError, NetworkError, RequestAbortError } from '@/lib/api-request';
@@ -281,6 +282,8 @@ export type MeResponse = AuthUser & {
   profile: ServerProfile | null;
 };
 
+export type CloudVoiceResponse = { audio_url: string; cached: boolean; expires_in: number };
+
 // ─── 공통 요청 ────────────────────────────────────────────────────────────────
 
 type ReqOpts = {
@@ -387,6 +390,14 @@ export const api = {
     return request<void>('/v2/consents', jsonInit({ document_id: documentId, action }), {
       requestId: true,
     });
+  },
+
+  getCloudVoiceStatus(): Promise<CloudVoiceStatus> {
+    return request('/v2/reading/voice/status', {}, { auth: true, timeoutMs: 10_000 });
+  },
+
+  synthesizeCloudVoice(text: string, voice: CloudVoicePreset): Promise<CloudVoiceResponse> {
+    return request('/v2/reading/voice', jsonInit({ text: text.trim(), voice }), { auth: true, timeoutMs: 30_000 });
   },
 
   // 내 계정 ---------------------------------------------------------------------

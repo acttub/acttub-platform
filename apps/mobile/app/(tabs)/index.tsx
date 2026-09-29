@@ -23,6 +23,8 @@ import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide
 import { TutorialIntroSheet, type TutorialChoice } from '@/components/tutorial-intro-sheet';
 import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
 import { StreakCelebrationScreen } from '@/components/streak-celebration-screen';
+import { CloudVoicePromo } from '@/components/cloud-voice-promo';
+import { useAuth } from '@/lib/auth';
 import { HomeMascot } from '@/components/home-mascot';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { TARGET } from '@/lib/spotlight-targets';
@@ -52,6 +54,7 @@ function recentDate(iso: string): string {
 /** A1. 홈 — 히어로(마스코트) + 지금 바로 연습 + 연속 연습 + 최근 연습 + 입시 마감. */
 export default function HomeScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const [groups, setGroups] = useState<PracticeGroup[]>([]);
   // 연속일·주간 원용 날짜 — 서버 기록 ∪ 기기에 누적된 연습일(지워도 남는다).
   const [activityDays, setActivityDays] = useState<{ created_at: string }[]>([]);
@@ -63,6 +66,8 @@ export default function HomeScreen() {
   const [guideOpen, setGuideOpen] = useState(false);
   // 그보다 먼저, 처음 연 사람에게 연습 한 바퀴를 권한다(SOMA-494). 이걸 닫아야 위 가이드가 뜬다.
   const [introOpen, setIntroOpen] = useState(false);
+  const [introChecked, setIntroChecked] = useState(false);
+  const [onboardingJustFinished, setOnboardingJustFinished] = useState(false);
   const startTarget = useSpotlightTarget(TARGET.homeStart);
 
   const openHomeGuideIfNew = useCallback(() => {
@@ -73,6 +78,7 @@ export default function HomeScreen() {
 
   const chooseTutorial = (choice: TutorialChoice) => {
     setIntroOpen(false);
+    setOnboardingJustFinished(true);
     if (choice === 'later') {
       void markTutorialSeen();
       openHomeGuideIfNew();
@@ -94,6 +100,7 @@ export default function HomeScreen() {
       // 튜토리얼 중에 홈으로 돌아왔다면 루프를 벗어난 것이다 — 거기서 끝낸다.
       if (currentTutorial()) finishTutorial('left');
       void hasSeenTutorial().then((seen) => {
+        setIntroChecked(true);
         if (!seen) setIntroOpen(true);
         else openHomeGuideIfNew();
       });
@@ -318,6 +325,11 @@ export default function HomeScreen() {
           setGuideOpen(false);
           void markSpotlightSeen('home');
         }}
+      />
+      <CloudVoicePromo
+        loggedIn={!!user}
+        blocked={!introChecked || introOpen || guideOpen || celebrateStreak !== null}
+        onboardingJustFinished={onboardingJustFinished}
       />
     </SafeAreaView>
   );
