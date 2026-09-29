@@ -572,6 +572,40 @@ class AdminEndpointIT {
     }
 
     @Test
+    void opsCoreRecentChallengeEntriesExcludeTeamDeletedFutureRowsAndCaptions() throws Exception {
+        UUID challenge = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO challenges (id,line,work,duration_days,origin,request_id,request_fingerprint,starts_at,ends_at)
+                VALUES (?, '챌린지 대사 비밀', '작품 비밀', 7, 'member', ?, ?, ?, ?)
+                """, challenge, UUID.randomUUID(), "f".repeat(64), NOW.minusDays(1), NOW.plusDays(6));
+        UUID realEntry = insertChallengeEntry(challenge, REAL_USER, "real-entry.mp4", "챌린지 캡션 비밀",
+                "visible", NOW.minusMinutes(10), null);
+        UUID hiddenEntry = insertChallengeEntry(challenge, REAL_USER, "hidden-entry.mp4", "숨긴 캡션 비밀",
+                "hidden_by_report", NOW.minusMinutes(20), null);
+        UUID teamEntry = insertChallengeEntry(challenge, TEAM_USER, "team-entry.mp4", "팀 캡션 비밀",
+                "visible", NOW.minusMinutes(9), null);
+        UUID futureEntry = insertChallengeEntry(challenge, REAL_USER, "future-entry.mp4", "미래 캡션 비밀",
+                "visible", NOW.plusDays(1), null);
+        UUID deletedEntry = insertChallengeEntry(challenge, REAL_USER, null, null,
+                "deleted", NOW.minusMinutes(8), NOW.minusMinutes(7));
+
+        JsonNode challenges = authorized("/v2/admin/ops-core", 200).at("/features/challenges");
+        assertThat(challenges.at("/entries/total").intValue()).isEqualTo(2);
+        assertThat(challenges.at("/entries/private").intValue()).isEqualTo(2);
+        JsonNode recent = challenges.path("recent_entries");
+        assertThat(recent).hasSize(2);
+        assertThat(recent.get(0).path("entry_id").textValue()).isEqualTo(realEntry.toString().substring(0, 8));
+        assertThat(recent.get(0).path("challenge_origin").textValue()).isEqualTo("member");
+        assertThat(recent.get(1).path("entry_id").textValue()).isEqualTo(hiddenEntry.toString().substring(0, 8));
+        assertThat(recent.get(1).path("status").textValue()).isEqualTo("hidden_by_report");
+        assertThat(recent.toString()).doesNotContain(
+                teamEntry.toString().substring(0, 8), futureEntry.toString().substring(0, 8),
+                deletedEntry.toString().substring(0, 8),
+                "챌린지 대사 비밀", "작품 비밀", "챌린지 캡션 비밀", "숨긴 캡션 비밀", "팀 캡션 비밀", "미래 캡션 비밀",
+                "actor@example.com", "Team@Acttub.com", REAL_USER.toString(), TEAM_USER.toString());
+    }
+
+    @Test
     void opsCoreActivitySignupCohortUsesUnroundedTimestamp() throws Exception {
         jdbc.update("UPDATE users SET created_at=now()-interval '7 days'+interval '15 minutes' WHERE id=?", REAL_USER);
         JsonNode inside = authorized("/v2/admin/ops-core", 200).path("activity_rows");
@@ -733,8 +767,29 @@ class AdminEndpointIT {
         JsonNode challenges = features.path("challenges");
         assertThat(challenges.at("/challenges/active").intValue()).isEqualTo(1);
         assertThat(challenges.at("/entries/total").intValue()).isEqualTo(1);
+        assertThat(challenges.at("/entries/public").intValue()).isEqualTo(0);
+        assertThat(challenges.at("/entries/private").intValue()).isEqualTo(1);
         assertThat(challenges.at("/likes/total").intValue()).isEqualTo(1);
         assertThat(challenges.at("/views/total").intValue()).isEqualTo(1);
+        JsonNode recent = challenges.path("recent_entries");
+        assertThat(recent).hasSize(1);
+        JsonNode recentEntry = recent.get(0);
+        assertThat(recentEntry.fieldNames()).toIterable().containsExactlyInAnyOrder(
+                "entry_id", "challenge_id", "challenge_origin", "actor", "visibility", "status", "has_video",
+                "created_at", "published_at", "views", "likes", "comments", "ai_report");
+        assertThat(recentEntry.path("entry_id").textValue()).isEqualTo(entry.toString().substring(0, 8));
+        assertThat(recentEntry.path("challenge_id").textValue()).isEqualTo(challenge.toString().substring(0, 8));
+        assertThat(recentEntry.path("challenge_origin").textValue()).isEqualTo("team");
+        assertThat(recentEntry.path("actor").textValue()).isEqualTo("배우 " + md5(REAL_USER.toString()).substring(0, 8));
+        assertThat(recentEntry.path("visibility").textValue()).isEqualTo("private");
+        assertThat(recentEntry.path("status").textValue()).isEqualTo("visible");
+        assertThat(recentEntry.path("has_video").booleanValue()).isTrue();
+        assertThat(recentEntry.path("created_at").textValue()).isEqualTo(utc(NOW.minusMinutes(10).truncatedTo(ChronoUnit.MINUTES)));
+        assertThat(recentEntry.path("published_at").isNull()).isTrue();
+        assertThat(recentEntry.path("views").intValue()).isEqualTo(0);
+        assertThat(recentEntry.path("likes").intValue()).isEqualTo(1);
+        assertThat(recentEntry.path("comments").intValue()).isEqualTo(0);
+        assertThat(recentEntry.path("ai_report").isNull()).isTrue();
 
         JsonNode feedback = features.path("feedback");
         assertThat(feedback.at("/notes/total").intValue()).isEqualTo(1);
