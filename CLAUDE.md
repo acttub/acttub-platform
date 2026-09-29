@@ -20,7 +20,8 @@
 
 ## 조건부 정본
 
-- **제품 행동·범위**를 정할 때 → [docs/PRD.md](docs/PRD.md)와 [CONTEXT.md](CONTEXT.md)
+- **제품 범위**를 정할 때 → [docs/PRD.md](docs/PRD.md)
+- **제품 개념의 이름**을 짓거나 코드·문서·이슈에 쓸 때 → 용어집 [CONTEXT.md](CONTEXT.md)
 - **화면·컴포넌트·카피**를 만들 때 → [acttub/pen](https://github.com/acttub/pen)의 `acttub 디자인.pen`과
   [PRD 「디자인」](docs/PRD.md#디자인). 기능별 화면 번호는 [docs/specs/](docs/specs/README.md)의 `화면` 줄에 있습니다.
 - **폴더·패키지 배치나 층 경계**를 정할 때 → [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
