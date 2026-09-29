@@ -918,6 +918,7 @@ const ko = {
     laterMessage: '지금은 연습하기 어려워요. 다음에 해볼 방법을 설명해 주세요.',
     thinking: '답을 듣고 생각 중이에요…',
     nextQuestion: '보내기 →',
+    coachLabel: 'ACTTUB 코치',
     endHint: '그만하고 정리 만들기',
     ordinal: ['첫 질문', '첫 질문', '두 번째 질문', '세 번째 질문', '네 번째 질문', '마지막 질문'],
     ordinalFallback: '질문',

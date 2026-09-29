@@ -39,6 +39,7 @@ export const palette = {
   flameDeep: '#E8590C',
   flameSoft: '#FFF1E8',
   amberSoft: '#FFF8EC',
+  hintIcon: '#F5A524', // 코치 힌트 전구 — 마스코트 주황
   danger: '#E42939',
   dangerSoft: '#FFF0F0',
 

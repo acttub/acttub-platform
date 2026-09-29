@@ -117,3 +117,21 @@ test('practice.coach: 화면은 turn_index 순서로 그린다', () => {
   assert.deepEqual(messages.map((m) => m.turn_index), [0, 1, 2]);
   assert.equal(messages[0].text, '첫 질문');
 });
+
+test('splitCoachQuestion: 마지막 물음 문장만 질문으로 크게, 앞의 관찰은 힌트로 나눈다', async () => {
+  const { splitCoachQuestion } = await import('../lib/practice/coach.ts');
+
+  assert.deepEqual(
+    splitCoachQuestion('첫 대사 직전에 컵을 내려놓는 순간이 있었어요. 그때 서연은 무엇을 결심하고 있었나요?'),
+    { question: '그때 서연은 무엇을 결심하고 있었나요?', hint: '첫 대사 직전에 컵을 내려놓는 순간이 있었어요.' },
+  );
+  // 따옴표 안의 마침표·줄바꿈이 있어도 마지막 물음 문장 기준이다
+  assert.deepEqual(
+    splitCoachQuestion('"우리 그만하자"를 말하고 바로 시선을 피했어요.\n상대의 얼굴을 보지 않은 건 의도한 선택이었나요?'),
+    { question: '상대의 얼굴을 보지 않은 건 의도한 선택이었나요?', hint: '"우리 그만하자"를 말하고 바로 시선을 피했어요.' },
+  );
+  // 한 문장이거나 물음으로 끝나지 않으면 나누지 않는다
+  assert.deepEqual(splitCoachQuestion('지금 연기에서 어느 쪽이 더 막히나요?'), { question: '지금 연기에서 어느 쪽이 더 막히나요?', hint: null });
+  assert.deepEqual(splitCoachQuestion('좋아요. 노트로 정리할게요.'), { question: '좋아요. 노트로 정리할게요.', hint: null });
+  assert.deepEqual(splitCoachQuestion('  '), { question: '', hint: null });
+});

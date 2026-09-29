@@ -929,6 +929,7 @@ const en: DeepStringShape<typeof ko> = {
     laterMessage: 'I can’t practice now. Please explain what I can try later.',
     thinking: 'Thinking about your answer…',
     nextQuestion: 'Send →',
+    coachLabel: 'ACTTUB COACH',
     endHint: 'Stop and make the summary',
     ordinal: [
       'First question',
