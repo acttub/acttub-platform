@@ -98,7 +98,7 @@ class PackageLayerTest {
             Map.entry("push", Set.of("app", "adapter", "schema")));
 
     /**
-     * {@code domain}이 알아서는 안 되는 것들. CONTEXT.md의 <b>Domain Model</b>은 "프레임워크를
+     * {@code domain}이 알아서는 안 되는 것들. docs/ARCHITECTURE.md의 <b>Domain Model</b>은 "프레임워크를
      * 모른다"로 정의돼 있고, 그 정의가 성립해야 스프링 컨텍스트나 DB 없이 규칙을 시험할 수 있다.
      */
     private static final String[] FRAMEWORKS_DOMAIN_MUST_NOT_KNOW = {
@@ -169,7 +169,7 @@ class PackageLayerTest {
                 .should()
                 .dependOnClassesThat()
                 .resideInAnyPackage(FRAMEWORKS_DOMAIN_MUST_NOT_KNOW)
-                .because("Domain Model은 스프링 컨텍스트 없이 세울 수 있어야 한다 (CONTEXT.md, ADR-017)")
+                .because("Domain Model은 스프링 컨텍스트 없이 세울 수 있어야 한다 (ARCHITECTURE.md, ADR-017)")
                 .check(CLASSES);
     }
 
@@ -182,7 +182,7 @@ class PackageLayerTest {
                 .should()
                 .dependOnClassesThat()
                 .resideInAnyPackage(PERSISTENCE_FRAMEWORKS_APP_MUST_NOT_KNOW)
-                .because("app의 Port와 서비스는 영속 기술을 몰라야 한다 (CONTEXT.md, ADR-024)")
+                .because("app의 Port와 서비스는 영속 기술을 몰라야 한다 (ARCHITECTURE.md, ADR-024)")
                 .check(CLASSES);
     }
 
@@ -246,7 +246,7 @@ class PackageLayerTest {
                 .should()
                 .dependOnClassesThat()
                 .resideInAPackage(layerOf(feature, "schema"))
-                .because("Schema Entity는 자기 feature의 Adapter 안에서만 사용한다 (CONTEXT.md, ADR-024)")
+                .because("Schema Entity는 자기 feature의 Adapter 안에서만 사용한다 (ARCHITECTURE.md, ADR-024)")
                 .check(CLASSES);
     }
 

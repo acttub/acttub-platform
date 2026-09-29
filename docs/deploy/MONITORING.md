@@ -319,7 +319,7 @@ PDC·Prometheus 조회의 Error·No Data를 2분 지속 시 알리는 전용 규
 
 ### 저장소 정본과 외부 근거
 
-[홈서버 배포](DEPLOY-HOME.md), [API 계약](../../apps/api/CONTRACT.md), [도메인 용어](../../CONTEXT.md),
+[홈서버 배포](DEPLOY-HOME.md), [API 계약](../../apps/api/CONTRACT.md), [실패 분류](../ARCHITECTURE.md#용어),
 [기존 ADR](../ADR.md), [CI 검증 범위](../../.github/workflows/ci.yml)를 따른다.
 ADR-023·ADR-024의 저장·영속 규칙, ADR-025의 실패 보고, 개정된 ADR-026의 배포 경계를 유지한다.
 새 제품 도메인 용어는 없으며 선언 설정으로 교체 가능한 관측 구성에 별도 ADR을 추가하지 않는다.

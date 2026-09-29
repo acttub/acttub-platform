@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * 동의 문서 한 판. CONTEXT.md 가 말하는 Domain Model 이며 {@code consent_documents} 행을
+ * 동의 문서 한 판. docs/ARCHITECTURE.md 가 말하는 Domain Model 이며 {@code consent_documents} 행을
  * 옮겨 담는다.
  *
  * <p>{@code type} 을 {@code ConsentType} 이 아니라 문자열로 들고 있다 — 그 열거형은

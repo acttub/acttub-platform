@@ -41,7 +41,15 @@ docs/                     PRD·ARCHITECTURE·ADR·BRANCHING-STRATEGY, specs/(기
 ### 연습 화면의 전환
 
 연습 하나는 **Practice Stage** 여섯을 지난다(`준비 → 막힘 선택 → 업로드 → 분석 → 대화 → 연습 노트`).
-이름은 [CONTEXT.md](../CONTEXT.md)가 정본이다.
+"단계"라는 말이 이 제품에서 다섯 가지를 뜻해서 아래 이름으로 가르고, 수식 없이 "단계"라고만 쓰지 않는다.
+
+| 용어 | 뜻 | 피할 말 |
+|---|---|---|
+| Practice Stage | 연습 하나가 지나가는 화면의 단계. 사람이 "지금 어디까지 왔나"로 읽는 단위다. | 단계(수식 없이), 모드, step, phase |
+| Setup Step | 준비 화면 안에서 채우는 순서(영상 올리기 · 장면 적기 · 질문 받기). 화면이 바뀌지 않는다. | 단계(수식 없이), stage |
+| Blockage Selection | 무엇에 막혔는지 고르는 갈래(큰 갈래 · 하위 갈래 · 상세). 고르지 않은 회차는 막힘 미특정이다([practice.start](specs/practice/start.md)). | 단계, 막힘 단계 |
+| Analysis Status | 서버가 영상 분석의 진행을 말하는 값. 화면과 1:1이 아니다 — 실패는 화면을 바꾸지만 시작 전과 분석 중은 같은 화면이다. | 단계, 상태(수식 없이) |
+| Upload Stage | 영상을 스토리지에 올리는 내부 구간(올릴 자리 받기 · 올리기 · 마무리). 사람에게 보이지 않고 실패 메시지를 가른다. 업로드 화면 하나에 셋이 다 들어간다. | 단계, 업로드 단계 |
 
 - **웹**은 이 여섯이 **라우터 네비게이션 없이** 같은 컴포넌트 안에서 바뀐다
   (`features/workspace/workspace-state.ts`의 `WorkspaceScreen`). `/home`·`/practice/new`·`/practice/history`
@@ -52,8 +60,7 @@ docs/                     PRD·ARCHITECTURE·ADR·BRANCHING-STRATEGY, specs/(기
   실제 업로드는 `analyzing`에서 분석과 함께 돈다:
   `app/upload`(준비) → `blockage`(막힘 선택) → `analyzing`(업로드·분석) → `coach`(대화) → `report`(연습 노트).
 
-준비 화면 안에서 사람이 채우는 순서는 **Setup Step**이고(`CONTEXT.md`), 화면이 바뀌지 않고 같은 자리에서
-진행되므로 Practice Stage와 다른 층이다. 진행 표시를 만들 때 둘을 섞지 않는다.
+진행 표시를 만들 때 Practice Stage와 Setup Step을 섞지 않는다.
 
 ## 데이터 흐름
 
@@ -86,3 +93,26 @@ docs/                     PRD·ARCHITECTURE·ADR·BRANCHING-STRATEGY, specs/(기
   남길 값은 `expo-secure-store`(자격증명)와 AsyncStorage에 둔다. 나머지는 `lib/`의 기능별 모듈과
   화면 state다.
 - **server** — 사용자에게 보존을 약속하는 데이터의 정본은 PostgreSQL이다 → [ADR-008](ADR.md).
+
+## 용어
+
+기능 영역의 용어는 각 [스펙 영역](specs/README.md) README의 「용어」에 있다. 여기에는 영역을 가로지르는 구조 용어만 둔다.
+
+| 용어 | 뜻 | 피할 말 |
+|---|---|---|
+| Domain Model | 비즈니스 규칙과 그 규칙이 다루는 값을 담은 객체. 프레임워크를 모른다 — 스프링·JPA·Jackson을 import하지 않으므로 스프링 컨텍스트나 DB 없이 세울 수 있다. 저장 형태(Schema Entity·SQL 행)나 전송 형태(요청·응답 DTO)와 별개이고, 그 사이의 변환은 어댑터가 한다(ADR-017). | 엔티티, 도메인 객체(수식 없이), VO |
+| Port | 한 도메인이 바깥에 요구하는 것을 **쓰는 쪽**이 선언한 인터페이스. 쓰는 쪽이 배관일 수도 있다 — 요청 게이트가 사용자 조회를 요구하면 배관이 포트를 선언하고 도메인이 구현한다(ADR-017). 구현은 제공하는 쪽에 두고 구현 기술을 이름 앞에 단다(`PostgresPracticeSessionRepository`). 하네스 스텁 때문에 구현이 둘인 포트가 여럿이라 `Impl` 접미사는 쓰지 않는다. 시그니처에 제공자 패키지의 타입이 보이면 아직 안 끊긴 것이다. | 인터페이스(수식 없이), 추상화, DAO |
+| Schema Entity | 테이블 모양을 그대로 나타내는 JPA 영속 객체. 스키마 검증과 런타임 읽기·쓰기에 함께 쓰이고, FK ID가 기본이며 승인된 단방향 FK 탐색 매핑만 허용한다. Domain Model과 분리한다(ADR-024). | 도메인 모델, 엔티티(수식 없이) |
+| External Operation | 외부 호출(LLM·S3·영상 분석)을 수반해 한 트랜잭션 안에서 끝낼 수 없는 처리. 멱등키로 중복 생성을 막는다. 저장은 종류에 따라 갈린다 — 비동기 AI 요청은 AI Job, 탈퇴 뒤 객체 삭제·제공자 해제는 정리 장부(`account_cleanup_operations`)다. | 작업, 잡, 태스크, job |
+| AI Job | 뒤에서 도는 AI 요청 하나(영상 분석·배우 기억 갱신·챌린지 AI 리포트, `AiJobKind`). `ai_jobs` 큐의 한 행이다. 코치 대화는 동기 요청이라 여기 속하지 않는다. 한국어로는 "AI 작업"이다. | 잡, 태스크, 백그라운드 작업(수식 없이) |
+| Lease | 워커가 작업을 점유했다는 표식. 만료되면 다른 워커가 회수할 수 있고, 리스를 잃은 워커의 완료 처리는 거부된다. | 락, 점유권, lock |
+| Report Source | 소유권 검증이 끝난, 리포트 생성에 필요한 코치 세션 문맥. 리포트 쪽이 요구하고 코치 쪽이 제공한다(`ReportSourceProvider`). | 리포트 컨텍스트, 세션 데이터 |
+| Admissions | 대학 입시 공고 카탈로그. 인증의 admission control과 무관하다. | admission(단수형), 입장, 입장 제어 |
+
+실패는 상태 코드의 다른 이름이 아니라, 받는 쪽이 할 일과 운영자에게 알릴지를 가르는 분류다(`platform/observability`).
+
+| 용어 | 뜻 | 피할 말 |
+|---|---|---|
+| Expected Rejection (예상된 거절) | 요청이 규칙에 맞지 않아 서버가 거절한 것. 받는 쪽이 고칠 수 있거나(입력·토큰·동의) 정상적인 갈래다(없음·이미 있음·잠시 뒤). 운영자에게 알리지 않는다. | 클라이언트 오류, 4xx(수식 없이), 에러 |
+| External Failure (바깥 의존 실패) | 네트워크를 건너는 호출(LLM·영상 분석·오브젝트 스토리지·로그인 제공자·푸시·DB)이 실패하거나 쓸 수 없는 답을 준 것. 받는 쪽은 잠시 뒤 다시 시도하고, 운영자에게 알린다. 같은 프로세스 안에서 도는 것(ffmpeg)의 실패는 여기 속하지 않는다. | 외부 오류, 인프라 장애, 502(수식 없이) |
+| Unexpected Failure (예상 밖 실패) | 위 둘 어디에도 속하지 않는 실패 — 코드 결함, 깨진 불변식, 빠진 설정. 받는 쪽은 메시지만 받는다. 운영자에게 알린다. | 버그, 500(수식 없이), 서버 오류 |
