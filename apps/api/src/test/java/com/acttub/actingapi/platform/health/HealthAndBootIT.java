@@ -124,6 +124,10 @@ class HealthAndBootIT {
         assertThat(generated.at("/paths/~1v2~1admin~1stats").isMissingNode()).isTrue();
         assertThat(generated.at("/paths/~1v2~1admin~1sessions").isMissingNode()).isTrue();
         assertThat(generated.at("/paths/~1v2~1admin~1feedback").isMissingNode()).isTrue();
+        assertThat(generated.at("/paths/~1v2~1admin~1reading-sessions").isMissingNode()).isTrue();
+        assertThat(generated.at("/paths/~1v2~1admin~1reading-sessions~1{id}").isMissingNode()).isTrue();
+        assertThat(generated.at("/paths/~1v2~1admin~1reading-recordings~1{id}~1playback")
+                .isMissingNode()).isTrue();
 
         // M4 라우트 넷은 §C 에서 열렸다 — 이제 있어야 한다.
         assertThat(generated.at("/paths/~1v2~1practices~1{practice_id}~1note/get").isMissingNode()).isFalse();

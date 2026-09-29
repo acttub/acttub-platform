@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import java.time.format.DateTimeParseException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
@@ -27,6 +28,9 @@ import java.util.Map;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengePlayback;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengeVideoPage;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminFeedbackPage;
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminReadingPlayback;
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminReadingSessionDetail;
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminReadingSessionPage;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminSessions;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.acttub.actingapi.feature.admin.app.AdminService;
@@ -55,6 +59,7 @@ class AdminController {
     private static final int MAX_SESSIONS = 50;
     private static final int MAX_FEEDBACK = 100;
     private static final int MAX_CHALLENGE_VIDEOS = 100;
+    private static final int MAX_READING_SESSIONS = 100;
     /** 한 묶음이 한 트랜잭션이다 — 너무 크면 그 트랜잭션이 길어진다. */
     private static final int MAX_BATCH = 1000;
 
@@ -340,6 +345,97 @@ class AdminController {
     }
 
     @Operation(
+            summary = "Reading Sessions",
+            description = """
+                    활성 계정의 리딩 회차를 최신순으로 읽는다. 팀 이메일과 exclude_actors 배우는
+                    항상 제외하며, 자유 본문·원본 user id·이메일·오브젝트 키는 싣지 않는다.""",
+            operationId = "reading_sessions_v2_admin_reading_sessions_get",
+            tags = "admin")
+    @ApiResponses({
+        @ApiResponse(
+                responseCode = "200",
+                description = "Successful Response",
+                content = @Content(schema = @Schema(implementation = AdminReadingSessionPage.class))),
+        @ApiResponse(
+                responseCode = "422",
+                description = "Validation Error",
+                content = @Content(schema = @Schema(ref = "#/components/schemas/HTTPValidationError")))
+    })
+    @GetMapping("/reading-sessions")
+    ResponseEntity<AdminReadingSessionPage> readingSessions(
+            @Parameter(schema = @Schema(
+                    type = "integer",
+                    minimum = "1",
+                    maximum = "100",
+                    exclusiveMinimum = false,
+                    exclusiveMaximum = false,
+                    defaultValue = "50"))
+            @RequestParam(name = "limit", defaultValue = "50") String rawLimit,
+            @Parameter(schema = @Schema(type = "string",
+                    allowableValues = {"all", "in_progress", "completed", "stopped"},
+                    defaultValue = "all"))
+            @RequestParam(name = "status", defaultValue = "all") String rawStatus,
+            @Parameter(description = "제외할 배우 가명(8자리 16진)을 쉼표로", schema = @Schema(type = "string"))
+            @RequestParam(name = "exclude_actors", required = false) String rawExcludeActors,
+            @RequestHeader(name = "authorization", defaultValue = "") String authorization,
+            HttpServletResponse response) {
+        privateNoStore(response);
+        requireToken(authorization);
+        int limit = parseLimit(rawLimit);
+        validateLimit(limit, MAX_READING_SESSIONS);
+        return privateNoStore(admin.readingSessions(
+                limit,
+                parseReadingStatus(rawStatus),
+                parseActors(rawExcludeActors)));
+    }
+
+    @Operation(
+            summary = "Reading Session Detail",
+            description = """
+                    회차 메타데이터와 대본 전체 줄, 그 회차에 저장된 사용자 대사 녹음을 읽는다.
+                    대본·전사는 이 라이브 관리자 응답에서만 제공한다.""",
+            operationId = "reading_session_v2_admin_reading_sessions__id__get",
+            tags = "admin")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Successful Response",
+            content = @Content(schema = @Schema(implementation = AdminReadingSessionDetail.class)))
+    @GetMapping("/reading-sessions/{id}")
+    ResponseEntity<AdminReadingSessionDetail> readingSession(
+            @PathVariable UUID id,
+            @Parameter(description = "제외할 배우 가명(8자리 16진)을 쉼표로", schema = @Schema(type = "string"))
+            @RequestParam(name = "exclude_actors", required = false) String rawExcludeActors,
+            @RequestHeader(name = "authorization", defaultValue = "") String authorization,
+            HttpServletResponse response) {
+        privateNoStore(response);
+        requireToken(authorization);
+        return privateNoStore(admin.readingSession(id, parseActors(rawExcludeActors)));
+    }
+
+    @Operation(
+            summary = "Reading Recording Playback",
+            description = """
+                    목록의 raw 녹음 id 하나를 받아 m4a 재생용 600초 URL을 만든다. 팀 이메일·
+                    exclude_actors, 비활성 계정, 연결이 끊긴 보관 녹음은 존재를 구분하지 않고 404다.""",
+            operationId = "reading_recording_playback_v2_admin_reading_recordings__id__playback_get",
+            tags = "admin")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Successful Response",
+            content = @Content(schema = @Schema(implementation = AdminReadingPlayback.class)))
+    @GetMapping("/reading-recordings/{id}/playback")
+    ResponseEntity<AdminReadingPlayback> readingRecordingPlayback(
+            @PathVariable UUID id,
+            @Parameter(description = "제외할 배우 가명(8자리 16진)을 쉼표로", schema = @Schema(type = "string"))
+            @RequestParam(name = "exclude_actors", required = false) String rawExcludeActors,
+            @RequestHeader(name = "authorization", defaultValue = "") String authorization,
+            HttpServletResponse response) {
+        privateNoStore(response);
+        requireToken(authorization);
+        return privateNoStore(admin.readingRecordingPlayback(id, parseActors(rawExcludeActors)));
+    }
+
+    @Operation(
             summary = "Ops Core",
             description = """
                     ops.acttub.com 코어 지표 한 벌(지표·퍼널·일별 활동·세션 가명 목록)을 운영 DB 에서 바로 센다.
@@ -368,6 +464,10 @@ class AdminController {
                 .body(body);
     }
 
+    private static void privateNoStore(HttpServletResponse response) {
+        response.setHeader(HttpHeaders.CACHE_CONTROL, "private, no-store");
+    }
+
     private static String parseVisibility(String raw) {
         String visibility = raw.strip().toLowerCase(java.util.Locale.ROOT);
         if ("all".equals(visibility) || "public".equals(visibility) || "private".equals(visibility)) {
@@ -379,6 +479,21 @@ class AdminController {
         error.put("msg", "Input should be 'all', 'public' or 'private'");
         error.put("input", raw);
         error.put("ctx", Map.of("expected", "'all', 'public' or 'private'"));
+        throw new ApiValidationException(List.of(error));
+    }
+
+    private static String parseReadingStatus(String raw) {
+        String status = raw.strip().toLowerCase(java.util.Locale.ROOT);
+        if ("all".equals(status) || "in_progress".equals(status)
+                || "completed".equals(status) || "stopped".equals(status)) {
+            return status;
+        }
+        Map<String, Object> error = new LinkedHashMap<>();
+        error.put("type", "literal_error");
+        error.put("loc", List.of("query", "status"));
+        error.put("msg", "Input should be 'all', 'in_progress', 'completed' or 'stopped'");
+        error.put("input", raw);
+        error.put("ctx", Map.of("expected", "'all', 'in_progress', 'completed' or 'stopped'"));
         throw new ApiValidationException(List.of(error));
     }
 

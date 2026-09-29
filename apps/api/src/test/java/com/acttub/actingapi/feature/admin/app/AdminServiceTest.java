@@ -60,6 +60,59 @@ class AdminServiceTest {
         assertPlaybackUnavailable(new IllegalStateException("signing failed"));
     }
 
+    @Test
+    void readingPlaybackUsesRequiredSignerWithSixHundredSecondTtl() {
+        AdminMetricsRepository metrics = mock(AdminMetricsRepository.class);
+        AdminPlayback playback = mock(AdminPlayback.class);
+        AdminService service = new AdminService(metrics, playback, "Team@Acttub.com");
+        UUID recordingId = UUID.randomUUID();
+        List<String> actors = List.of("1234abcd");
+        when(metrics.readingRecordingObjectKey(recordingId, List.of("Team@Acttub.com"), actors))
+                .thenReturn(Optional.of("reading/session/line/take.m4a"));
+        when(playback.requiredUrl("reading/session/line/take.m4a", 600))
+                .thenReturn("https://signed.test/audio");
+
+        assertThat(service.readingRecordingPlayback(recordingId, actors))
+                .isEqualTo(new AdminMetrics.AdminReadingPlayback("https://signed.test/audio", 600));
+        verify(playback).requiredUrl("reading/session/line/take.m4a", 600);
+    }
+
+    @Test
+    void readingPlaybackUsesTheSameNotFoundForMissingOrExcludedRows() {
+        AdminMetricsRepository metrics = mock(AdminMetricsRepository.class);
+        AdminPlayback playback = mock(AdminPlayback.class);
+        AdminService service = new AdminService(metrics, playback, "team@acttub.com");
+        UUID recordingId = UUID.randomUUID();
+        when(metrics.readingRecordingObjectKey(recordingId, List.of("team@acttub.com"), List.of()))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.readingRecordingPlayback(recordingId, List.of()))
+                .isInstanceOfSatisfying(ApiException.class, failure -> {
+                    assertThat(failure.status()).isEqualTo(404);
+                    assertThat(failure.getMessage()).isEqualTo("reading_recording_not_found");
+                });
+        verifyNoInteractions(playback);
+    }
+
+    @Test
+    void readingPlaybackMapsSigningFailureToServiceUnavailable() {
+        AdminMetricsRepository metrics = mock(AdminMetricsRepository.class);
+        AdminPlayback playback = mock(AdminPlayback.class);
+        AdminService service = new AdminService(metrics, playback, "");
+        UUID recordingId = UUID.randomUUID();
+        IllegalStateException cause = new IllegalStateException("signing failed");
+        when(metrics.readingRecordingObjectKey(recordingId, List.of(), List.of()))
+                .thenReturn(Optional.of("reading/session/line/take.m4a"));
+        when(playback.requiredUrl("reading/session/line/take.m4a", 600)).thenThrow(cause);
+
+        assertThatThrownBy(() -> service.readingRecordingPlayback(recordingId, List.of()))
+                .isInstanceOfSatisfying(ApiException.class, failure -> {
+                    assertThat(failure.status()).isEqualTo(503);
+                    assertThat(failure.getMessage()).isEqualTo("playback_unavailable");
+                    assertThat(failure.getCause()).isSameAs(cause);
+                });
+    }
+
     private static void assertPlaybackUnavailable(RuntimeException cause) {
         AdminMetricsRepository metrics = mock(AdminMetricsRepository.class);
         AdminPlayback playback = mock(AdminPlayback.class);
