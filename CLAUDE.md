@@ -13,8 +13,8 @@
 
 | 범위 | 지켜야 할 경계 |
 |---|---|
-| `apps/web` | Next.js 화면과 `/v2/*`·`/health` 프록시. API·서버 로직은 `apps/api`에 둡니다. |
-| `apps/api` | dev·운영이 함께 쓰는 유일한 Spring Boot 백엔드. 계약은 `apps/api/CONTRACT.md`가 판정합니다. |
+| `apps/web` | Next.js 화면과 API 프록시. API·서버 로직은 `apps/api`에 둡니다([서버 경계](apps/web/CLAUDE.md#서버-경계)). |
+| `apps/api` | dev·운영이 함께 쓰는 유일한 Spring Boot 백엔드. |
 | `apps/mobile` | Expo 앱. npm/EAS로 자립하며 pnpm 워크스페이스 밖에 있습니다. |
 | `packages/*` | 실제 두 번째 사용처가 생긴 뒤에만 공유 패키지로 분리합니다. |
 
@@ -32,15 +32,12 @@
 - **브랜치·릴리스·hotfix·revert**를 다룰 때 →
   [docs/BRANCHING-STRATEGY.md](docs/BRANCHING-STRATEGY.md). `main` 머지는 운영 배포를 시작하며
   `main`·`dev`에는 직접 push하지 않습니다.
-- **CI 잡을 추가·삭제·개명**할 때 → `.github/workflows/ci.yml`과 GitHub ruleset을 함께
-  확인합니다. required check의 context는 잡 id가 아니라 `name:` 전체이고 `main`·`dev`가 같은
-  목록을 따로 가집니다.
+- **CI 잡을 추가·삭제·개명**할 때 → `.github/workflows/ci.yml` 머리 주석대로 GitHub ruleset을 함께 고칩니다.
 - **dev·운영 배포**를 바꿀 때 → [DEPLOY-HOME.md](docs/deploy/DEPLOY-HOME.md)와
   `.github/workflows/deploy.yml`을 읽습니다.
   이전 AWS 구성의 배경이 필요할 때만 [보관 기록](https://github.com/acttub/acttub-platform/blob/c2b76b09/docs/archive/soma489/README.md)을 읽습니다.
-- **이슈를 제안·착수하거나 브랜치·PR을 연결**할 때 →
-  [issue-tracker.md](docs/agents/issue-tracker.md). Jira 본문은 사람이 쓰고 에이전트는 초안만
-  넘깁니다.
+- **이슈를 제안·착수하거나 브랜치·PR을 연결하거나 실행 계획(`.scratch/<이슈키>.md`)을 쓰고 이어받을** 때 →
+  [issue-tracker.md](docs/agents/issue-tracker.md)
 - **트리아지 라벨을 판단**할 때 → [triage-labels.md](docs/agents/triage-labels.md)
 - **제품 개념의 이름을 짓거나 쓸 때, ADR을 제안·인용·변경하고 되돌리기 어려운 결정**을 다룰 때 →
   [domain.md](docs/agents/domain.md)(용어 표가 있는 곳과 ADR 절차)
@@ -55,8 +52,6 @@
   `docs/specs/<영역>/<기능>.md`, 배포는 `docs/deploy/`, 에이전트 작업 규칙은 `docs/agents/`, 끝난 계획·이관
   사양은 지우고 git 이력에 맡깁니다. 코드 주석이 가리키는 `docs/archive/...` 경로는 커밋 `c2b76b09`에서
   봅니다(`git show c2b76b09:docs/archive/<경로>`).
-- 에이전트 실행 계획은 이슈마다 `.scratch/<이슈키>.md` 하나에 기록합니다. `.scratch/`는
-  추적되지 않으므로 이어받을 때 경로를 직접 확인합니다.
 
 ## 커밋
 
@@ -65,6 +60,6 @@
   `mobile`입니다. 루트·크로스커팅 변경은 스코프를 생략합니다.
 - 릴리스 PR 제목은 위 목록에 없는 `release` 타입을 쓰며, 형식은 [BRANCHING-STRATEGY 「PR과 Jira」](docs/BRANCHING-STRATEGY.md#pr과-jira)가
   정합니다.
-- 이슈 키는 브랜치와 PR 제목에만 두고 커밋 메시지에는 넣지 않습니다.
+- 커밋 메시지에는 이슈 키를 넣지 않습니다. 브랜치·PR 제목의 키는 [PR과 Jira](docs/BRANCHING-STRATEGY.md#pr과-jira)가 정합니다.
 - API 계약을 깨면 타입 뒤에 `!`를 붙이고 `BREAKING CHANGE:` footer에 호환 배포 순서를
   기록합니다.

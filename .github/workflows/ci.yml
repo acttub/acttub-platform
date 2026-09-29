@@ -1,5 +1,6 @@
 # PR 게이트 CI — dev·main으로 향하는 PR에서 웹·API·모바일을 검증합니다.
 # 이 잡들을 ruleset 의 required status check 로 넣어야 초록불이어야만 머지가 됩니다.
+# check 의 context 는 잡 id 가 아니라 `name:` 전체라, 잡 이름을 바꾸면 아래 ruleset 둘을 함께 고칩니다.
 # ⚠ ruleset 은 하나가 아닙니다 — "Require merge commits for main (release)"(main)과
 # "Require pull requests for dev"(dev)가 같은 목록을 따로 들고 있어 둘 다 고쳐야 합니다.
 name: CI

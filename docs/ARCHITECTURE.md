@@ -52,6 +52,8 @@ ArchUnit 테스트 `PackageLayerTest`가 강제한다. 이렇게 정한 이유�
 - `platform`(배관)과 `integration`(외부 연동)은 어느 도메인이든 쓸 수 있고, 배관이 도메인의 Port를 구현하기도 한다.
 - Port 구현은 제공하는 쪽에 두고 구현 기술을 이름 앞에 단다(`PostgresPracticeSessionRepository`). `Impl` 접미사는
   쓰지 않는다. Port 시그니처에 제공자 패키지의 타입이 보이면 아직 안 끊긴 것이다.
+- `apps/api`는 Gradle 모듈 하나다. 패키지 사이 순환은 모듈 경계가 아니라 `PackageCycleTest`가 막고, 공유 타입을 위한
+  커널 패키지를 따로 만들지 않고 각자 제 역할의 패키지에 둔다.
 
 ### 연습 화면의 전환
 
