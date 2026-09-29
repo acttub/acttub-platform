@@ -19,12 +19,12 @@ PostgreSQL → 매일 pg_dump → S3 백업 / 영상 → 기존 S3 영상 버킷
 | 서버 디렉터리 | `/svc/acttub/dev` | `/svc/acttub/prod` |
 | DB 볼륨 | `acttub-dev_pgdata` | `acttub-prod_pgdata` |
 | 터널 / 공개 주소 | `acttub-dev` / `https://dev.acttub.com` | `acttub-prod` / `https://acttub.com` |
-| API 메모리 / 웹 메모리 / DB 메모리 | `1536m` / `512m` / `512m` | `3g` / `1g` / `1536m` |
 
-[`compose.yml`](../../deploy/home/compose.yml) 하나를 쓰되 DB·볼륨·시크릿·터널은 공유하지 않는다.
+[`compose.yml`](../../deploy/home/compose.yml) 하나를 쓰되 DB·볼륨·시크릿·터널·자원 상한은 공유하지 않는다.
 호스트 포트는 공개하지 않는다. 영상 S3 버킷과 OAuth의 운영 도메인은 유지한다.
 API 이미지는 `api:<sha>`, 웹 이미지는 빌드 시점의 공개 설정을 담은 `web:<env>-<sha>`, 백업은 `backup:<sha>`다.
-DB는 PostgreSQL 18 계열이며 실제 서버 버전과 이미지 ID는 작업할 때 다시 확인한다.
+DB 이미지는 `compose.yml`이 정하고(버전 규칙은 [CONTRACT §2](../../apps/api/CONTRACT.md#2-기술-스택-확정-변경-금지)),
+실제 서버 버전과 이미지 ID는 작업할 때 다시 확인한다.
 
 ## 2. 서버 준비와 시크릿
 
@@ -42,14 +42,15 @@ DB는 PostgreSQL 18 계열이며 실제 서버 버전과 이미지 ID는 작업�
 | 기존 운영 인증 | `JWT_SECRET`, `ADMIN_OPS_TOKEN`, Apple·Google OAuth client ID를 기존 운영과 대조 |
 | 계정 비밀 | `ACCOUNT_IDENTITY_HASH_KEY`, `ACCOUNT_TOKEN_ENCRYPTION_KEY`. 첫 배포 전에 넣고 바꾸지 않는다. 없으면 배포가 멈춘다 |
 | 웹 공개 주소 | `SITE_URL`. 웹 빌드의 `NEXT_PUBLIC_SITE_URL`과 같은 값. 포트폴리오 공유 링크를 만든다. 없으면 배포가 멈춘다 |
-| 방문자 IP | `CLIENT_IP_TRUSTED_PROXIES`(선택). 보통 비워 둔다. IP 제한은 web이 Cloudflare를 거친 요청만 받는다는 전제 위에 선다. 배포 뒤 한 번 확인한다: 한 회선에서 공개 포트폴리오 조회를 61번 부르면 61번째가 429이고, 직후 다른 회선에서는 404여야 한다 |
+| 방문자 IP | `CLIENT_IP_TRUSTED_PROXIES`(선택). 보통 비워 둔다. 전제는 [CONTRACT §6-13](../../apps/api/CONTRACT.md#6-13-방문자-ip)이다. 배포 뒤 한 번 확인한다: 한 회선에서 공개 포트폴리오 조회를 분당 한도([account.portfolio](../specs/account/portfolio.md#규칙제약))보다 한 번 더 부르면 마지막이 429이고, 직후 다른 회선에서는 404여야 한다 |
 | 운영 절차 | 보관 동의 철회 요청은 [RETENTION-REVOCATION.md](RETENTION-REVOCATION.md)대로 처리한다 |
-| 로그인 제공자 | `AUTH_ENABLED_PROVIDERS`(기본 `google,apple`), 애플 키 셋(`APPLE_TEAM_ID`·`APPLE_KEY_ID`·`APPLE_PRIVATE_KEY`), 카카오·네이버 값은 검수 승인 뒤 |
-| 외부 서비스 | `GEMINI_API_KEY`, `OPENAI_API_KEY`, 모델 설정, `SENTRY_DSN`, `SENTRY_ENVIRONMENT` |
+| 로그인 제공자 | `AUTH_ENABLED_PROVIDERS`, 애플 키 셋(`APPLE_TEAM_ID`·`APPLE_KEY_ID`·`APPLE_PRIVATE_KEY`. 없으면 처음 온 애플 신원의 로그인이 503). 카카오·네이버는 검수 승인 뒤에만 켜고, 그때 두 개발자 콘솔에 연결 끊기 콜백 주소를 등록한다(카카오는 POST·기본 어드민 키, [account.login](../specs/account/login.md#규칙제약)) |
+| 외부 서비스 | `GEMINI_API_KEY`, `OPENAI_API_KEY`, 모델 설정, `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `LANGFUSE_*`(선택. 비우면 LLM 기록만 꺼진다) |
+| 모니터링 | `MONITORING_TOKEN`·`MONITORING_ENVIRONMENT`(선택). 값과 짝은 [수집 구성 「최초 준비」](../../deploy/monitoring/README.md#최초-준비)를 따른다 |
 | 영상 저장소 | 해당 환경의 `S3_BUCKET`, `AWS_REGION`, 그 버킷만 허용하는 AWS 자격증명 |
 | 터널 | 환경별 `TUNNEL_TOKEN`; Cloudflare 서비스 주소는 `http://web:3000` |
 | 백업 | 백업 버킷과 환경별 prefix, AWS 권한, §5의 주기·실제 업로드 확인 |
-| 운영 자원 | `API_MEM_LIMIT=3g`, `WEB_MEM_LIMIT=1g`, `DB_MEM_LIMIT=1536m` |
+| 운영 자원 | 운영 `.env`에 `.env.example`의 prod 값으로 `API_MEM_LIMIT`·`WEB_MEM_LIMIT`·`DB_MEM_LIMIT`을 적는다. 비우면 dev 크기다 |
 | 워커·인증 | 운영의 워커·정리 작업은 켜 둔다(복원 중에는 [§7](#7-db와-호스트-복구) 2단계의 스위치를 끈다). 운영에서 `DEVELOPMENT_AUTH_PROVIDER` 비활성 |
 
 JWT 서명 키를 유지해야 기존 로그인 세션을 이어받는다. `.env`의 존재나 Compose 기동만으로
@@ -58,7 +59,7 @@ JWT 서명 키를 유지해야 기존 로그인 세션을 이어받는다. `.env
 
 ## 3. Actions와 일상 배포
 
-브랜치와 PR은 [브랜치 전략](../BRANCHING-STRATEGY.md)을 따른다. `main`·`dev`에 직접 push하지 않는다.
+브랜치와 PR은 [브랜치 전략](../BRANCHING-STRATEGY.md#원칙)을 따른다.
 운영 수동 배포는 반드시 `main` ref에서 실행한다. DB 복구 중에는 배포와 새 `main` 머지를
 멈춰 복원할 데이터와 앱 버전의 기준을 고정한다.
 
@@ -89,28 +90,40 @@ docker compose --env-file .env --env-file release.env logs --since 10m --tail 10
 curl -fsS https://acttub.com/health
 ```
 
-dev 배포는 `ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=false`를 릴리스 설정에 기록해 게스트의 영상 분석·재분석 일일 횟수를 제한하지 않는다. 운영 배포는 true로 하루 3회 제한을 유지하며, 설정 미지정 기본값도 true다. 배포 스크립트는 API 컨테이너에 실제 반영된 값을 대조한다.
+배포 워크플로는 `deploy.sh`에 기능 스위치를 `DEPLOY_` 접두사로 넘기고(예: `DEPLOY_THREE_LAYERS_ENABLED`), 스크립트는
+받은 값을 `release.env`에 `ACTTUB_` 이름으로 기록한 뒤 API 컨테이너에 실제 반영된 값을 대조한다. 넘기지 않은 스위치는
+`.env`·`compose.yml`·앱의 기본값을 따른다.
+
+- `ACTTUB_THREE_LAYERS_ENABLED`·`ACTTUB_DIRECT_VIDEO_ENABLED`: 두 환경 모두 true로 넘겨 영상 전용 연습을 Gemini 직접
+  코칭에 연결한다([practice.coach 「Gemini 직접 영상 코칭」](../specs/practice/coach.md#gemini-직접-영상-코칭)).
+- `ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED`: dev는 false로 넘겨 게스트의 영상 분석·재분석 일일 한도([practice.analyze](../specs/practice/analyze.md#규칙제약))를
+  걸지 않는다. 운영은 true로 한도를 유지하며, 설정 미지정 기본값도 true다.
 
 ## 4. 코드 배포 복구
 
-DB 스키마와 호환되는 직전 운영 SHA 및 이미지로 `deploy.sh`를 다시 실행한다. 현재 이미지와
+DB 스키마와 호환되는 직전 운영 SHA(직전 운영 태그) 및 이미지로 `deploy.sh`를 다시 실행한다. 현재 이미지와
 `release.env`의 SHA를 먼저 기록한다. 실패했다고 자동으로 직전 이미지가 복구되지는 않는다.
-같은 SHA 재배포는 멱등이지만 DB 마이그레이션이나 사용자 쓰기를 되돌리지는 않는다.
+같은 SHA 재배포는 멱등이다. 마이그레이션은 앱 기동의 일부라([CONTRACT §5-5](../../apps/api/CONTRACT.md#5-5-flyway-가-스키마를-소유한다))
+직전 SHA 재배포도 Git revert도 이미 적용된 DB 마이그레이션이나 사용자 쓰기를 되돌리지 않는다.
+실패한 마이그레이션은 부분 적용도 이력도 남기지 않으므로(`FlywayForwardMigrationTest`) 원인을 고쳐 다시 배포한다.
+§3의 기능 스위치로 켠 경로는 같은 이미지에 그 값을 false로 넘겨 `deploy.sh`를 다시 실행하면 끈다. 다음
+워크플로 배포는 워크플로의 값을 다시 넘긴다.
 Git revert는 [브랜치 전략의 운영 롤백](../BRANCHING-STRATEGY.md#운영-롤백)에 따라 `dev` 역병합까지 한다.
 
-코드 복구는 데이터 복구와 다르다. DB를 백업 시점으로 되돌려야 하거나 호스트가 손실됐다면
-§7에 따라 복원할 백업·앱 버전과 데이터 손실 범위를 먼저 정한다.
+코드 복구는 데이터 복구와 다르다. 적용된 마이그레이션과 데이터의 안전성은 따로 판단하고, DB를 백업 시점으로
+되돌려야 하거나 호스트가 손실됐다면 §7에 따라 복원할 백업·앱 버전과 데이터 손실 범위를 먼저 정한다.
 
 ## 5. 자동 백업과 복원 검증
 
-dev·운영 모두 매일 04:00 KST에 `pg_dump -Fc`를 S3의 환경별 경로에 올리고 30일 보관한다.
+dev·운영 모두 매일 `pg_dump -Fc`를 S3의 환경별 경로에 올리고 30일 보관한다.
 백업에는 사용자 데이터와 인증 정보가 포함되므로 S3의 공개 접근을 차단하고 환경별 권한을 둔다.
-S3 lifecycle의 30일 만료 규칙은 AWS 설정이며 컨테이너가 뜬 것만으로 생기지 않는다.
+30일은 S3 lifecycle의 만료 규칙(AWS 설정)이며 컨테이너가 뜬 것만으로 생기지 않는다.
+[account.withdraw](../specs/account/withdraw.md)와 개인정보 처리방침이 이 기간을 인용하므로 바꿀 때 함께 고친다.
 
 백업 이미지는 `backup:<sha>`이며 `release.env`의 `BACKUP_IMAGE`로 고정한다.
 `.env`에 `BACKUP_S3_BUCKET=acttub-db-backups`, `BACKUP_S3_PREFIX=dev/` 또는 `prod/`를 설정한다.
-`BACKUP_SCHEDULE`을 생략하면 `04:00`이다. 백업은 `schedule` 모드로 실행하며 첫 실행, 실패 후,
-성공한 지 26시간이 지났거나 중단 중 예약을 놓쳤을 때 바로 한 번 백업한다.
+실행 시각은 `BACKUP_SCHEDULE`(한국 시간, 생략하면 `compose.yml`의 기본값)이다. 백업은 `schedule` 모드로 실행하며
+기동할 때 아래 health가 실패이거나(첫 실행·실패 후·오래된 성공) 중단 중 예약을 놓쳤으면 바로 한 번 백업한다.
 
 ```bash
 cd /svc/acttub/prod
@@ -122,6 +135,7 @@ docker compose --env-file .env --env-file release.env logs --since 26h --tail 10
 업로드에는 S3의 AES256 서버 암호화와 SHA-256 metadata를 사용하고, HEAD로 크기와 metadata를 대조한다.
 `backup_state` 볼륨의 `/var/lib/acttub-backup/status.json`에는 마지막 성공 시각·객체 주소·해시와 실패 상태가
 남는다. 최근 성공이 26시간 이내이고 백업 목적지가 현재 설정과 같으며 미해결 실패가 없을 때만 health가 성공한다.
+이 26시간은 `backup.py`의 `healthy`와 모니터링 규칙(`rules.json`의 `backup-age`)에 따로 적혀 있어 바꿀 때 둘을 함께 바꾼다.
 실패 시 Docker 재시작과 unhealthy 상태를 확인한다. S3에서 받은 파일은 metadata의 SHA-256과 다시 대조한다.
 
 백업 설정을 바꿨거나 복원 가능성을 검증할 때 즉시 백업을 실행하고 업로드된 객체를
@@ -141,13 +155,15 @@ docker compose --env-file .env --env-file release.env logs --since 26h --tail 10
 변경한 배포 스크립트·Compose·백업을 가장 좁은 검사부터 확인하고,
 [CI 워크플로](../../.github/workflows/ci.yml)의 해당 잡 범위를 실행한다. Docker 기동·복원 검사와
 실제 서버 검증은 구분해서 기록한다. 서버에서는 이미지 SHA, 터널 경유 `/health`, DB를 읽는 경로,
-백업 업로드·복원, 로그인·업로드·분석을 확인한다. `/health` 200만으로 이 전부가 검증되지는 않는다.
+백업 업로드·복원, 로그인·업로드·분석, 리딩 녹음 업로드(ffmpeg 오디오 변환과 녹음 객체 저장)를 확인한다.
+`/health` 200만으로 이 전부가 검증되지는 않는다.
 
-지속 모니터링의 도입 범위·알림 기준·추가 검증은 [모니터링 명세](MONITORING.md)를 따른다.
+지속 모니터링의 배경과 범위는 [수집 구성](../../deploy/monitoring/README.md#배경과-범위), 알림 기준은
+[`rules.json`](../../deploy/monitoring/cloud/rules.json)을 따른다.
 [수집 구성과 적용 절차](../../deploy/monitoring/README.md)는 앱과 다른 Compose 프로젝트를 사용하고,
 [Cloud 설정 절차](MONITORING-CLOUD.md)는 대시보드·알림·외부 점검을 별도로 적용한다.
-앱 배포가 이 모니터링 프로젝트를 기동하거나 갱신하지 않는다. 저장소의 자동 검증과 실제
-홈서버 설치·Cloud 권한·Slack 알림 수신은 구분해서 확인한다.
+앱 배포가 이 모니터링 프로젝트를 기동하거나 갱신하지 않는다. 저장소의 자동 검증과 실제 운영 검증의 구분은
+[수집 쪽](../../deploy/monitoring/README.md#자동-검증과-남은-운영-검증)과 [Cloud 쪽](MONITORING-CLOUD.md#실제-stack-인수-검증-기록)을 따른다.
 
 ## 7. DB와 호스트 복구
 
