@@ -590,8 +590,10 @@ class AdminEndpointIT {
                 "deleted", NOW.minusMinutes(8), NOW.minusMinutes(7));
 
         JsonNode challenges = authorized("/v2/admin/ops-core", 200).at("/features/challenges");
-        assertThat(challenges.at("/entries/total").intValue()).isEqualTo(2);
-        assertThat(challenges.at("/entries/private").intValue()).isEqualTo(2);
+        // 합계는 기존처럼 미래 시각 행도 센다(팀·삭제만 뺀다). 목록은 activity_rows 와 같이 미래 행을 뺀다.
+        assertThat(challenges.at("/entries/total").intValue()).isEqualTo(3);
+        assertThat(challenges.at("/entries/private").intValue()).isEqualTo(3);
+        assertThat(challenges.at("/entries/public").intValue()).isEqualTo(0);
         JsonNode recent = challenges.path("recent_entries");
         assertThat(recent).hasSize(2);
         assertThat(recent.get(0).path("entry_id").textValue()).isEqualTo(realEntry.toString().substring(0, 8));
