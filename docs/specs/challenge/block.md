@@ -2,7 +2,7 @@
 
 [공통 규칙](../common.md) · [영역 개요](README.md)
 
-- 도입: 1.0.0
+- 도입: 0.1.0
 - 결정 기록: ADR-032
 - 화면: A15(반응 메뉴의 "이 사용자 차단"), A4 설정의 차단 목록(미설계)
 - 테이블: user_blocks(ERD에 추가), challenge_entries, entry_comments, notifications
