@@ -14,6 +14,7 @@
 --      8자리(md5(user_id) 앞 8자리)를 쉼표로 받는다. 비면 아무도 더 안 빠진다.
 --   6. 기능별 사용('features' — 대본 리딩·챌린지·노트 평가·이탈 설문·커뮤니티·계정, SOMA-570). 수집기 정본에는 없다.
 --   7. 연습 활동 원장('activity_rows' — 코칭·리딩·챌린지). 기능별 합계와 별개인 additive 데이터다.
+--   8. 챌린지 참여작 목록('features.challenges.recent_entries', SOMA-578) — 비공개 참여작도 가명으로 싣는다.
 -- now() 는 트랜잭션 시작 시각이다. 백업 경로는 이것을 백업 시각으로 바꿔 돌렸다.
 WITH b AS (SELECT (now() AT TIME ZONE 'Asia/Seoul')::date AS d),
 -- 분석 기준 셋. '어제'(달력)가 아니라 '최근 24시간'(구르는 창)이다 —
@@ -769,12 +770,36 @@ SELECT json_build_object(
       'entries', (SELECT json_build_object(
           'total', count(*),
           'public', count(*) FILTER (WHERE visibility = 'public'),
+          'private', count(*) FILTER (WHERE visibility = 'private'),
           'd7', count(*) FILTER (WHERE created_at > (SELECT d7 FROM w)),
           'users', count(DISTINCT user_id),
           'users_d7', count(DISTINCT user_id) FILTER (WHERE created_at > (SELECT d7 FROM w)),
           'hidden_by_report', count(*) FILTER (WHERE status = 'hidden_by_report'),
           'views', COALESCE(sum(view_count), 0))
         FROM challenge_entries WHERE deleted_at IS NULL AND user_id NOT IN (SELECT id FROM team)),
+      -- 참여작별 목록(SOMA-578). 비공개 참여작도 운영이 봐야 하므로 공개 여부를 그대로 싣는다.
+      -- ⚠️ 캡션·챌린지 대사는 싣지 않는다. 사람은 sessions 와 같은 가명, 시각은 분 단위다.
+      'recent_entries', (SELECT COALESCE(json_agg(json_build_object(
+          'entry_id', left(ce.id::text, 8),
+          'challenge_id', left(ce.challenge_id::text, 8),
+          'challenge_origin', c.origin,
+          'actor', '배우 ' || left(md5(ce.user_id::text), 8),
+          'visibility', ce.visibility,
+          'status', ce.status,
+          'has_video', ce.video_id IS NOT NULL,
+          'created_at', to_char(date_trunc('minute', ce.created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+          'published_at', CASE WHEN ce.published_at IS NULL THEN NULL
+                               ELSE to_char(date_trunc('minute', ce.published_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') END,
+          'views', ce.view_count,
+          'likes', (SELECT count(*) FROM entry_likes el WHERE el.entry_id = ce.id AND el.user_id NOT IN (SELECT id FROM team)),
+          'comments', (SELECT count(*) FROM entry_comments ec
+                       WHERE ec.entry_id = ce.id AND ec.deleted_at IS NULL AND ec.user_id NOT IN (SELECT id FROM team)),
+          'ai_report', (SELECT ar.status FROM entry_ai_reports ar WHERE ar.entry_id = ce.id)
+        ) ORDER BY ce.created_at DESC, ce.id), '[]'::json)
+        FROM (SELECT * FROM challenge_entries
+              WHERE deleted_at IS NULL AND created_at <= now() AND user_id NOT IN (SELECT id FROM team)
+              ORDER BY created_at DESC LIMIT 50) ce
+        JOIN challenges c ON c.id = ce.challenge_id),
       'likes', (SELECT json_build_object('total', count(*), 'd7', count(*) FILTER (WHERE created_at > (SELECT d7 FROM w)),
                                          'users', count(DISTINCT user_id))
         FROM entry_likes WHERE user_id NOT IN (SELECT id FROM team)),
