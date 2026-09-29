@@ -35,7 +35,7 @@ challenges.moderation과 삭제 표시(deleted_at). 기간 상태는 계산값�
 | 상태 | 들어오는 전이(조건) | 일으키는 기능 |
 |---|---|---|
 | visible | 개설(회원·기획팀)의 시작값. review에서 신고 판정 restored·dismissed이고 그 챌린지에 남은 received 신고 없음. 운영 moderation 변경 | challenge.create, challenge.report |
-| review | 처리 전 신고의 서로 다른 신고자 수가 `CHALLENGE_REPORT_THRESHOLD`(3)에 닿음(`PostgresEntryReportRepository`, 챌린지 행 잠금). 운영 moderation 변경 | challenge.report, challenge.create(운영) |
+| review | 처리 전 신고의 서로 다른 신고자 수가 임계값에 닿음([challenge.report](report.md#규칙제약)). 운영 moderation 변경 | challenge.report, challenge.create(운영) |
 | hidden | 운영 moderation 변경(`PATCH /v2/admin/challenges/{id}/moderation`)만 | challenge.create(운영) |
 | 삭제(deleted_at) | 주최자 삭제. visible이고 참여 이력(삭제된 참여작 포함)이 0 | challenge.create |
 
@@ -44,7 +44,7 @@ challenges.moderation과 삭제 표시(deleted_at). 기간 상태는 계산값�
 - 운영 상태: visible ↔ review(신고 누적으로 운영 검토, 목록·피드에서 제외, 참여작은 유지)·hidden(운영 숨김, 하위 참여작 노출 중단).
   review·hidden에서 visible로 되돌릴 때 기간이 지났으면 종료 상태의 visible이다. hidden은 되돌릴 수 있다(운영 판단).
 - 불변 조건: ends_at > starts_at(`ck_challenges_period`). team은 host_user_id NULL(`ck_challenges_team`), featured_on은 team만
-  (`ck_challenges_featured_team`)이고 날짜당 하나(`uq_challenges_featured`). 삭제된 행의 moderation은 바꾸지 않는다(`PostgresChallengeRepository.moderate`가 404).
+  (`ck_challenges_featured_team`)이고 날짜당 하나(`uq_challenges_featured`). 삭제된 행의 moderation은 바꾸지 않는다(404).
 - 끝 상태: 삭제(deleted_at)다. 되돌리는 경로가 없다. hidden은 끝 상태가 아니다.
 - 마감 뒤 순위 확정 ranking_state NULL → pending → final (정본: [challenge.browse](browse.md#상태)).
 
@@ -54,24 +54,22 @@ challenges.moderation과 삭제 표시(deleted_at). 기간 상태는 계산값�
   featured_on(team만, 날짜당 하나), 운영 상태 moderation(visible·review·hidden)을 가진다. 기간 상태(진행·종료)는 ends_at과 현재
   시각으로 정하고 컬럼을 두지 않는다. 글자 수는 앱·서버가 같은 유니코드 코드 포인트 기준으로 센다. 대사는 공백을 한 칸으로
   정리하고 나머지(작품·인물·메모)는 앞뒤 공백만 걷은 뒤 센다.
-- 사용자 개설은 A16.2의 세 단계(대사 → 작품·인물·메모 → 기간)로 받고 마지막에 한 요청으로 만든다. request_id 멱등((host_user_id,
-  request_id) 유일, 본문 지문 저장, 같은 id·다른 지문은 422 request_fingerprint_mismatch). 회원은 하루(한국 시간) 3개까지 열 수 있고 넘으면
+- 사용자 개설은 A16.2의 세 단계(대사 → 작품·인물·메모 → 기간)로 받고 마지막에 한 요청으로 만든다. 요청은
+  [요청 재전송](../common.md#요청-재전송) 규칙을 따르고 유일 범위는 (host_user_id, request_id)다. 회원은 하루(한국 시간) 3개까지 열 수 있고 넘으면
   429 daily_challenge_limit. 같은 사람이 같은 대사(공백 정리 뒤 같은 글)로 진행 중 챌린지를 이미 열었으면 422 duplicate_challenge.
   기획팀 개설 요청(운영 경로)은 회원 개설과 별도의 멱등 범위다.
 - 사용자 개설은 즉시 공개(visible)다. 사전 검토는 두지 않는다.
 - 개설한 사람은 자동으로 참여하지 않는다. 공개 개설 뒤 대사·작품·기간은 고칠 수 없다. 참여작이 한 번도 생기지 않은 자기 챌린지는 주최자가
-  지울 수 있다(deleted_at 표시, 행·요청 이력·한도 계산은 남고 어디에도 보이지 않음). 참여작이 생기면 지울 수 없고 운영 숨김만 있다. 삭제와 첫
-  참여는 챌린지 행을 잠가 하나만 성공한다.
+  지울 수 있다(24시간 제한 없음). 삭제는 deleted_at 표시이고 어디에도 보이지 않는다(행을 남기는 이유는
+  [영역 개요](README.md#챌린지-자료의-삭제탈퇴)). 참여작이 생기면 지울 수 없고 운영 숨김만 있다. 삭제와 첫 참여가 겹치면 하나만 성공한다.
 - "오늘의 챌린지"는 기획팀 챌린지(origin team) 가운데 featured_on이 오늘(한국 날짜)이고 visible·진행 중인 것이다(미래 날짜는 제외). 없으면
   가장 최근 과거 featured_on의 visible·진행 중 챌린지, 그것도 없으면 참여작이 가장 많은 visible·진행 중 챌린지다. 피드(A15)의 머리와 대사 목록의
   인기·최신 탭 맨 위에 "오늘의 챌린지 · D-N"으로 보인다(종료·내 챌린지 탭에는 고정하지 않는다). 선정일과 참여 기간은 다르다.
-- 주최자가 탈퇴하면 host_user_id를 NULL로 돌리고 origin member는 그대로다(기획팀 챌린지로 보이지 않고 "주최자 탈퇴"로 표시).
-  users 행은 지워지지 않으므로 애플리케이션이 탈퇴 트랜잭션에서 수행한다.
-- 게스트 토큰: 403 member_only. 한국어 설정이 아닌 회원의 개설: 403 member_only와 같은 처리다(탭이 없다).
+- 주최자가 탈퇴하면 [영역 표](README.md#챌린지-자료의-삭제탈퇴)대로 주최자를 비우고 origin member는 그대로라, 카드에는 기획팀 챌린지가
+  아니라 "주최자 탈퇴"로 보인다.
 
 ## 예외
 - 대사 201자·빈 대사·빈 작품: 422. 기간 선택지 밖 값: 422 invalid_duration.
-- 같은 요청 id·같은 지문 재전송: 같은 챌린지 하나. 다른 지문: 422 request_fingerprint_mismatch.
 - 하루 4번째 개설: 429 daily_challenge_limit. 자정(한국 시간) 뒤: 된다.
 - 참여작이 생긴 뒤 삭제: 422 challenge_has_entries. 삭제와 첫 참여가 동시: 하나만 성공한다.
 - 공개 개설 뒤 대사 수정 요청: 없다(속성 불변).

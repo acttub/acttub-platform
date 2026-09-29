@@ -26,9 +26,9 @@
 | `GET /v2/me/notifications` | `cursor` | `ChallengeNotifications` 200 | `member_only` 403, cursor 422 |
 | `POST /v2/me/notifications/read` | `NotificationReadRequest`(group_keys 또는 all_before) | 204 | `member_only` 403, 둘 다 없음 422 |
 | `GET /v2/me/notifications/unread-count` | — | `NotificationUnreadCount` 200 | `member_only` 403 |
-| 사건 기록 `NotificationEvents.record` (좋아요·댓글 쓰기, 마감 집계, AI 리포트 저장과 같은 트랜잭션) | 원인 사건 | notifications 1행(push_status pending 또는 skipped) | 같은 event_key 재전송은 한 행 |
+| 사건 기록 (좋아요·댓글 쓰기, 마감 집계, AI 리포트 저장과 함께 남고 원인이 저장되지 않으면 남지 않는다) | 원인 사건 | notifications 1행(push_status pending 또는 skipped) | 같은 event_key 재전송은 한 행 |
 | `NotificationPushScheduler.run` → `NotificationPushWorker.runOnce` (`CHALLENGE_NOTIFICATION_PUSH_INTERVAL_MS`, 기본 1분, `CHALLENGE_NOTIFICATION_PUSH_ENABLED`) | push_after가 지난 pending 알림 묶음 | 최초·요약 푸시, push_status attempted·skipped | 전송 실패는 운영 보고, "등록되지 않은 기기" 토큰 삭제 |
-| 만료 정리 (`ChallengeSettlementScheduler.run` 안, 매시) | expires_at이 지난 알림, 지난 notification_pushes | 행 삭제 | — |
+| 만료 정리 ([challenge.browse](browse.md#입력출력)의 `ChallengeSettlementScheduler.run` 안) | expires_at이 지난 알림, 지난 notification_pushes | 행 삭제 | — |
 
 토글(`PATCH /v2/me/notification-settings`)과 푸시 토큰(`/v2/push-tokens`)은 account.notification이다.
 
@@ -49,20 +49,20 @@ notifications.push_status와 읽음(read_at).
 
 ## 규칙·제약
 - 사건 kind는 entry_liked(내 참여작에 좋아요, 수신 = 참여작 작성자), entry_commented(내 참여작에 댓글), challenge_ended(내가 삭제되지 않은
-  참여작을 가진 챌린지 종료, 챌린지당 한 번), entry_ai_report_ready(내가 요청한 리포트 완료) 넷이다. 자기 행동은 알리지 않고 차단 관계의
-  사건은 생기지 않는다.
+  참여작을 가진 챌린지 종료, 챌린지당 한 번), entry_ai_report_ready(내가 요청한 리포트 완료) 넷이다. 자기 행동은 알리지 않고, 차단 관계의
+  사건은 [challenge.block](block.md#규칙제약)대로 생기지 않는다.
 - 한 행 = 수신자 한 명의 원인 사건 하나. 컬럼: id, user_id, kind, actor_user_id(반응한 사람, 시스템 사건은 NULL), challenge_id, entry_id
   (challenge_ended는 NULL), comment_id(entry_commented는 필수, 그 밖은 NULL), event_key((user_id, event_key) 유일; 좋아요는 좋아요 행의 원인
-  식별자라 취소 뒤 재등록은 새 사건), group_key(수신자·kind·entry(없으면 challenge)·10분 구간), created_at, read_at, expires_at(생성 + 90일), push_after(발송 예정
+  식별자라 취소 뒤 재등록은 새 사건), group_key(수신자·kind·entry(없으면 challenge)·10분 구간), created_at, read_at, expires_at(보관 만료, 「상태」), push_after(발송 예정
   시각, 대상 아니면 NULL), push_status(pending·attempted·skipped), push_attempted_at. 참조는 부모 관계가 맞아야 한다(comment_id의 참여작 =
   entry_id). 이름·캡션·댓글 본문·영상 주소는 복사하지 않고 조회 때 현재 권한과 원본으로 조립한다.
 - 묶기: 같은 group_key(10분 구간)의 좋아요·댓글은 알림함에서 묶음 한 줄("N명이 좋아해요", "N개의 댓글")로 보인다. N은 현재 유효한(취소·삭제되지
-  않은) 서로 다른 행동자 수·댓글 수다. 푸시는 묶음마다 최초 1건(첫 사건 즉시)과 요약 1건(구간 끝, 추가 사건이 있을 때만)이며 (group_key, 발송
-  단계)로 한 번만 선점한다(notification_pushes). 발송 전에 취소된 좋아요·삭제된 댓글·차단된 관계·숨겨진 참여작·댓글은 뺀다.
+  않은) 서로 다른 행동자 수·댓글 수다. 푸시는 묶음마다 최초 1건(첫 사건 즉시)과 요약 1건(구간 끝, 추가 사건이 있을 때만)이고, 단계마다 한 번만
+  보낸다(「상태」의 notification_pushes 불변 조건). 발송 전에 취소된 좋아요·삭제된 댓글·차단된 관계·숨겨진 참여작·댓글은 뺀다.
 - 밤 시간: 한국 시간 21시~09시의 푸시는 최초 발송 예외 없이 모아 09시에 보낸다(push_after). 알림함에는 즉시 쌓인다. 폰의 저녁 리마인드
   (account.notification)는 별도 규칙이다.
 - 토글(user_profiles.notify_challenge)이 꺼져 있거나 푸시 토큰이 없으면 push_status skipped로 알림함에만 쌓인다. 발송 직전에 활성 계정·토글·
-  토큰의 현재 주인·한국어 여부와 사건의 현재 노출 조건(반응 알림은 참여작·댓글의 개인 노출 조건과 행동자–수신자 차단, 종료 알림은 챌린지 조회
+  토큰의 현재 주인·한국어 여부와 사건의 현재 노출 조건(반응 알림은 참여작·댓글의 [개인 노출 조건](README.md#노출-조건)과 행동자–수신자 차단, 종료 알림은 챌린지 조회
   권한, AI 완료 알림은 본인 열람 권한)을 다시 확인한다. 잠금 화면 문구는 일반 문구("내 참여작에 새 반응이 있어요")와 알림 식별자만이고
   이름·본문을 넣지 않는다. 푸시 data에는 묶음 키·종류·챌린지·참여작 id만 싣는다. 보낸 사건은 attempted, 나머지는 skipped다.
 - 알림함은 묶음 단위로 20개씩, 묶음의 최신 사건 시각·id 역순이다. 묶음을 누르면 그때까지 포함된 사건 전부가 읽음이 되고 참여작·챌린지·리포트로
@@ -70,11 +70,12 @@ notifications.push_status와 읽음(read_at).
   읽지 않음으로 남는다. 읽지 않은 수(사건 수 아닌 묶음 수)는 탭 배지다. 읽음 요청은 `group_keys`(그 묶음의 지금까지 사건 전부) 또는
   `all_before{created_at, id?}`(그 시각까지, id가 UUID면 그 id까지)이고 둘 다 없으면 422다. 인원(`actor_count`)·수는 지금도 유효한 사건만
   세고 유효한 사건이 없는 묶음은 뺀다. `target_available`이 거짓이면 대상이 삭제·비공개·숨김이다(본인 AI 리포트는 예외).
-- 90일이 지나면 읽음과 무관하게 매시 도는 정리(`ChallengeSettlementScheduler.run`)가 지운다. 대상이 삭제·비공개·숨김·차단으로 보이지 않으면 내용을 보이지 않고 "볼 수 없는 영상"
+- 보관 기간(「상태」)이 지나면 읽음과 무관하게 만료 정리가 지운다. 대상이 삭제·비공개·숨김·차단으로 보이지 않으면 내용을 보이지 않고 "볼 수 없는 영상"
   안내다(본인 AI 리포트는 예외).
-- 푸시 발송은 원래 행동(좋아요 저장 등)과 알림함 기록을 커밋한 뒤 별도로 한 번 시도한다. 실패해도 원래 행동은 성공이고 운영에 보고한다.
+- 푸시 발송은 원래 행동(좋아요 저장 등)과 알림함 기록이 저장된 뒤 따로 한 번 시도한다. 실패해도 원래 행동은 성공이고 운영에 보고한다.
   푸시 전달은 ai_jobs에 넣지 않는다.
-- 탈퇴하면 notifications를 행째 지운다. 행동한 사람이 탈퇴하면 actor는 "탈퇴한 사용자"로 조립된다.
+- 탈퇴 때의 처리(수신자의 행 삭제, 행동한 사람의 표시)는 [영역 표](README.md#챌린지-자료의-삭제탈퇴)와
+  [탈퇴·삭제](../common.md#탈퇴삭제)다.
 
 ## 예외
 - 푸시 발송 실패(토큰 만료): 토큰을 지우고(account.notification) 알림함에는 남는다.

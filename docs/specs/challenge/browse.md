@@ -27,8 +27,8 @@
 | `GET /v2/entries/{id}` | id | `ChallengeEntry` 200 | `member_only` 403, `entry_not_found` 404 |
 | `POST /v2/entries/{id}/views` | `ChallengeEntryViewRequest`(event_id) | 204 | `member_only` 403, `entry_not_found` 404 |
 | `GET /v2/me/challenge-entries` (P03) | `visibility`(public·private·under_review), `cursor` | `MyChallengeEntries` 200 | `member_only` 403, visibility·cursor 422 |
-| `ChallengeSettlementScheduler.run` (`CHALLENGE_SETTLEMENT_INTERVAL_MS`, 기본 1시간, `CHALLENGE_SETTLEMENT_ENABLED`) | 마감이 지났고 ranking_state NULL이거나 pending인 챌린지(한 번에 200개) | `ChallengeSettlement.settle`로 마감 집계·순위 확정, 7일 지난 조회 사건·지난 커서 등 보관 기간 정리 | 챌린지별 실패는 운영 보고, 나머지는 계속 |
-| 마감 뒤 첫 변경·목록 조회 (`ChallengeSettlement.settle`·`aggregateIfDue`) | 참여작 수정·삭제, 반응, 신고·판정, 운영 moderation 변경, 탈퇴(`ChallengeWithdrawal`), 랭킹 조회 | 같은 트랜잭션에서 마감 집계(조회는 집계만) | — |
+| `ChallengeSettlementScheduler.run` (`CHALLENGE_SETTLEMENT_INTERVAL_MS`, 기본 1시간, `CHALLENGE_SETTLEMENT_ENABLED`) | 마감이 지났고 ranking_state NULL이거나 pending인 챌린지(한 번에 200개) | 마감 집계·순위 확정, 보관 기간이 지난 조회 사건·순위 커서와 신고·AI 리포트 이력·알림의 정리(각 기간은 그 기능의 「상태」) | 챌린지별 실패는 운영 보고, 나머지는 계속 |
+| 마감 뒤 첫 변경·목록 조회 | 참여작 수정·삭제, 반응, 신고·판정, 운영 moderation 변경, 탈퇴, 랭킹 조회 | 그 변경을 반영하기 전에 마감 집계(조회는 집계만) | — |
 
 ## 상태
 challenges.ranking_state(마감 순위). 행을 만드는 곳은 challenge.create지만 이 상태는 이 기능이 정본이다.
@@ -36,25 +36,24 @@ challenges.ranking_state(마감 순위). 행을 만드는 곳은 challenge.creat
 | 상태 | 들어오는 전이(조건) | 일으키는 기능 |
 |---|---|---|
 | NULL(집계 전) | 개설 | challenge.create |
-| pending | ends_at ≤ 지금이고 NULL인 챌린지에 첫 변경·조회·매시 일이 닿음 → 마감 집계(final_like_count·final_eligible 저장, challenge_ended 알림) | challenge.browse(entry·react·report·account.withdraw가 부름) |
+| pending | ends_at ≤ 지금이고 NULL인 챌린지에 첫 변경·조회·예약 작업이 닿음 → 마감 집계(final_like_count·final_eligible 저장, challenge_ended 알림) | challenge.browse(entry·react·report·account.withdraw가 부름) |
 | final(+finalized_at) | pending이고 챌린지가 review가 아니며 처리 전 신고가 남은 자격 있는 hidden_by_report 참여작이 없음 → final_rank 매김 | challenge.browse, challenge.report(판정 뒤), challenge.create(운영 moderation 변경 뒤) |
 
-- 종료 랭킹: 마감(ends_at) 뒤 그 챌린지에 처음 닿는 변경(좋아요·취소·비공개·삭제·신고·탈퇴)이나 매시 도는 일 가운데 먼저 오는 것이 챌린지
-  행을 잠그고 마감 집계를 한 번 한다. 마감 집계는 삭제되지 않은 모든 참여작(검토 중·비공개 포함)의 그 시점 좋아요 수와 참가 자격(공개 조건
+- 종료 랭킹: 마감(ends_at) 뒤 그 챌린지에 처음 닿는 변경(좋아요·취소·비공개·삭제·신고·탈퇴)이나 예약 작업 가운데 먼저 오는 것이 마감
+  집계를 한 번 한다. 마감 집계는 삭제되지 않은 모든 참여작(검토 중·비공개 포함)의 그 시점 좋아요 수와 참가 자격(공개 조건
   충족 여부, 신고 숨김은 통과로 셈)을 final_like_count·final_eligible로 저장한다. 순위(final_rank)는 마감 당시 검토 중(hidden_by_report)인 참여작이나 review인 챌린지
   가 없으면 즉시, 있으면 관련 검토가 모두 끝난 뒤 한 번에 확정한다(ranking_state pending → final). 확정 전 화면은 "집계 중"이다. 종료 뒤
   좋아요·취소는 좋아요 수를 바꾸되 final 값에 반영하지 않고, 확정 뒤 비공개·삭제된 참여작은 순위에서 가리되 나머지를 당겨 매기지 않는다.
   종료 화면의 배지·순위는 저장된 final 값을 쓴다.
-- 불변 조건: ranking_state는 NULL·pending·final뿐이다(`ck_challenges_ranking_state`). 집계·확정은 챌린지 행을 잠그고 한다. 탈퇴는 계정을
-  비활성으로 바꾸기 전에 밀린 마감 집계를 먼저 한다(`ChallengeWithdrawal`).
+- 불변 조건: ranking_state는 NULL·pending·final뿐이다(`ck_challenges_ranking_state`). 탈퇴도 마감 뒤 첫 변경이라, 탈퇴가 참여작을
+  비공개로 바꾸기 전에 밀린 마감 집계를 먼저 한다.
 - 끝 상태: final.
 - entry_ranking_snapshots.basis(live·pending·final)는 좋아요순 첫 조회 때의 기준 표시일 뿐 상태 전이가 아니다. 기준이 바뀌면 커서가
   410 cursor_expired다.
 
 ## 규칙·제약
-- 공개 조건과 개인 노출 조건은 머리말대로다. 전체 집계(참여작 수·좋아요 합·순위)는 공개 조건으로 계산하고 차단과 무관하며, 목록·피드·랭킹
-  표시·검색은 개인 노출 조건으로 걸러 보여 준다(차단한 사람의 참여작은 내 화면에서 빠지고 순위 숫자는 전체 기준 그대로). 본인의 비공개·확인 중
-  참여작은 P03에서만 보인다.
+- 공개 조건과 개인 노출 조건은 [영역 개요](README.md#노출-조건)대로다. 랭킹 표시도 목록이라 개인 노출 조건으로 거르고, 순위 숫자는
+  전체 기준 그대로다([challenge.block](block.md#규칙제약)). 본인의 비공개·확인 중 참여작은 P03에서만 보인다.
 - 피드(A15): 고른 챌린지(기본은 오늘의 챌린지) 안에서 진입한 참여작부터 상세의 정렬 순서(좋아요순)로 위아래로 넘겨 보고 끝에서 종료 안내를
   보여 준다(A14의 "좌우로" 안내는 "위아래로"로 고친다, 디자인에 반영할 것). 여러 챌린지를 섞는 전체 피드는 없다. 카드에 작성자 이름, 공개 시각,
   "오늘의 챌린지 · D-N", 대사, 1위 참여작에 "현재 1위 · 좋아요 N"(종료 뒤에는 저장된 값), 캡션, 조회수, 댓글 수, 공유(참여작 딥링크), 반응 메뉴
@@ -69,21 +68,20 @@ challenges.ranking_state(마감 순위). 행을 만드는 곳은 challenge.creat
   개인 노출 조건으로 센다.
 - 대사 상세(A17): 참여작 수·좋아요 합·D-N, 랭킹 좋아요순과 최신순(공개 시각 published_at 역순, 가장 최근 하나에 NEW, 순위 숫자 없음). 좋아요가
   같으면 공동 순위이고 같은 순위 안에서는 published_at·id 순이다. 좋아요가 모두 0이면 `rank`가 null이라 1위 배지를 보이지 않는다.
+  랭킹은 반응의 집계이지 연기의 평가가 아니므로 화면 문구는 "좋아요 N"과 순위까지만 쓴다(ADR-005 개정).
   NEW는 `is_new`다. 종료된 챌린지의 `rank`는 final_rank이고 집계 중(pending)에는 null이며 응답의 `ranking_state`로 구분한다.
   참여작 목록은 20개씩이다.
 - 커서: 최신순은 published_at·id 기준이다. 좋아요순은 처음 조회한 순서를 10분 고정해 페이지 사이에 순위가 튀지 않게 하되 매 페이지에서 개인
   노출 조건을 다시 확인한다. 진행 중이던 챌린지가 종료·최종 확정돼 정렬 기준이 바뀌었거나 10분이 지난 커서는 만료하고(410 cursor_expired)
   새로 조회한다.
 - 조회수는 참여작 영상이 3초 이상 재생된 사건마다 1 더한다. 본인 재생·미리 불러오기·자동 반복은 세지 않는다. 사건 id를 entry_view_events
-  (event_id 유일, 7일 보관)에 조회수 증가와 한 트랜잭션으로 남겨 같은 사건은 한 번만 반영한다. 사용자당 하루 한 번은 후속이다.
+  (event_id 유일, 7일 보관)에 남겨 같은 사건은 한 번만 반영한다. 사용자당 하루 한 번은 후속이다.
 - 참여작 하나(`GET /v2/entries/{id}`)는 본인 것이거나 개인 노출 조건을 지난 것만 보이고 그 밖은 404다. 카드의 `comment_count`는 보는
   사람에게 보이는 댓글 수, `saved`는 보는 사람의 저장 여부다.
 - 시작 안내(A14~A14.2)는 기기당 처음 챌린지 탭에 들어올 때 한 번이다. 플래그는 기기 저장소.
 - 프로필 챌린지 기록(P03): 내 삭제되지 않은 참여작을 한 분류에만 넣어 "전체 N · 공개 N · 비공개 N · 확인 중 N"으로 센다(우선순위: 확인 중
   (hidden_by_report 또는 부모 review·hidden) → 비공개 → 공개, 전체 = 셋의 합, 목록은 20개씩). 참여작마다 작품·인물, 날짜, 조회·좋아요(비공개는 "비공개 저장",
   확인 중은 "확인 중").
-- 다른 사람의 프로필은 현재 이름만 보인다(account.profile). 사진·소개·경력은 보이지 않는다.
-- 게스트: 403 member_only.
 
 ## 예외
 - 오늘의 챌린지에 노출 가능한 참여작이 없음: 피드에 챌린지 카드와 "첫 번째로 참여해 보세요"만.

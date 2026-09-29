@@ -24,7 +24,7 @@
 | `POST /v2/reports` | `ChallengeReportRequest`(request_id·target_type·target_id·reason 필수, note 선택) | `ReportReceipt` 201, 같은 요청 재전송·같은 대상 재신고 200 | `member_only` 403, `entry_not_found`·`comment_not_found`·`challenge_not_found` 404, `self_report` 422, `request_fingerprint_mismatch` 422, note 길이·값 밖 422, `daily_report_limit` 429 |
 | `GET /v2/admin/reports` (운영 토큰, openapi.json에 없음) | `Authorization: Bearer <ADMIN_OPS_TOKEN>`, `status`(received·reviewed), `cursor` | `AdminChallengeReportPage` 200 | 401, status·cursor 422 |
 | `PATCH /v2/admin/reports/{id}` (운영 토큰, openapi.json에 없음) | `AdminReportResolution`(resolution·reviewer 필수, note 선택) | `AdminChallengeReport` 200 | 401, `report_not_found` 404, `report_already_reviewed` 422, resolution·reviewer 값 422 |
-| 보관 기간 정리 (`ChallengeSettlementScheduler.run` 안, 매시) | reviewed_at이 90일 지난 reviewed 신고 | 행 삭제 | — |
+| 보관 기간 정리 ([challenge.browse](browse.md#입력출력)의 `ChallengeSettlementScheduler.run` 안) | 보관 기간(「상태」의 끝 상태)이 지난 reviewed 신고 | 행 삭제 | — |
 
 ## 상태
 entry_reports.status.
@@ -40,22 +40,22 @@ entry_reports.status.
 - 이 기능이 일으키는 다른 행의 전이:
   - 참여작 visible → hidden_by_report(첫 신고), hidden_by_report → visible(restored·dismissed, 남은 received 없음) (정본: [challenge.entry](entry.md#상태)).
   - 댓글 visible → hidden, hidden → visible(같은 조건) (정본: [challenge.react](react.md#상태)).
-  - 챌린지 visible → review(서로 다른 신고자 3명), review → visible(같은 조건) (정본: [challenge.create](create.md#상태)).
+  - 챌린지 visible → review(서로 다른 신고자 수가 임계값에 닿음, 「규칙·제약」), review → visible(같은 조건) (정본: [challenge.create](create.md#상태)).
 
 ## 규칙·제약
 - 신고는 target_type(entry·comment·challenge)·target_id·reporter_id·reason·note(200자, 선택)·status(received·reviewed)·resolution(restored·
   kept_hidden·dismissed)·reviewed_by·reviewed_at·resolution_note·target_version(신고 당시 대상의 content_version; 참여작은 캡션 수정, 댓글·
-  챌린지는 불변이라 1)·target_text(신고 당시 캡션·댓글·대사, 참여작·댓글 본문이 파기되면 비운다)를 가진다. (target_type, target_id, reporter_id) 유일. 사유는 copyright(저작권 침해 — 대사·영상 출처), inappropriate
+  챌린지는 불변이라 1)·target_text(신고 당시 캡션·댓글·대사, 참여작·댓글 본문이 파기되면 비운다)를 가진다. 사유는 copyright(저작권 침해 — 대사·영상 출처), inappropriate
   (부적절한 콘텐츠 — 괴롭힘·성적·개인정보 노출 포함), spam(스팸), duplicate(중복 업로드), other(기타, 메모)다. 화면(A15.4)은 다섯을 각각
   선택지로 둔다.
-- 신고할 수 있는 대상은 신고자가 지금 볼 수 있는 것(개인 노출 조건)이다. 볼 수 없는 대상·없는 대상의 새 신고는 404이고, 본인이 이미 접수한
-  같은 신고의 재전송만 기존 결과(200)를 돌려준다.
-- 참여작·댓글은 유효한 첫 신고의 저장과 숨김(참여작 status hidden_by_report, 댓글 status hidden)을 대상 행을 잠근 한 트랜잭션으로 해 모든
-  일반 회원의 목록·상세·새 재생 요청에서 뺀다(이미 발급된 재생 URL은 만료까지 남는다). 작성자 본인은 참여작은 프로필(P03)에서, 댓글은 원래
-  자리에서 "확인 중"으로 본다.
-- 챌린지는 즉시 숨기지 않는다. 처리되지 않은(received) 신고가 서로 다른 신고자 3명이 되는 순간(챌린지 행 잠금 아래 계산) moderation review로
-  올려 목록·피드에서 뺀다(참여작은 유지). 처리 완료된 신고는 다시 세지 않는다.
-- 운영은 관리 경로에서 신고를 처리한다. 첫 확인 24시간, 처리 또는 지연 안내 72시간이 초기 목표다. 판정은 대상 행을 잠그고 현재 content_version과
+- 신고할 수 있는 대상은 신고자가 지금 볼 수 있는 것([개인 노출 조건](README.md#노출-조건))이다. 볼 수 없는 대상·없는 대상의 새 신고는
+  404이고, 본인이 이미 접수한 같은 신고의 재전송만 기존 결과(200)를 돌려준다. 요청은 [요청 재전송](../common.md#요청-재전송) 규칙을 따르고
+  유일 범위는 (reporter_id, request_id)다.
+- 참여작·댓글은 유효한 첫 신고가 저장되는 순간 숨겨(참여작 status hidden_by_report, 댓글 status hidden) 모든 일반 회원의 목록·상세·새 재생
+  요청에서 뺀다(이미 발급된 재생 URL은 만료까지 남는다). 작성자 본인은 참여작은 프로필(P03)에서, 댓글은 원래 자리에서 "확인 중"으로 본다.
+- 챌린지는 즉시 숨기지 않는다. 처리되지 않은(received) 신고가 서로 다른 신고자 3명이 되는 순간 moderation review로 올려 목록·피드에서
+  뺀다(참여작은 유지). 동시에 3번째가 둘 와도 한 번만 바뀐다. 처리 완료된 신고는 다시 세지 않는다.
+- 운영은 관리 경로에서 신고를 처리한다. 첫 확인 24시간, 처리 또는 지연 안내 72시간이 초기 목표다. 판정은 적용하는 순간의 content_version과
   남은 received 신고를 확인한 뒤 적용한다. restored·dismissed는 그 대상에 남은 received 신고가 없을 때 운영 숨김을 해제하고, kept_hidden은 숨김을
   유지한다. 해제해도 작성자의 비공개·삭제·탈퇴와 챌린지 종료는 그대로다. 해제 뒤 같은 사람의 재신고는 유일 제약으로 200이고 다시 숨기지
   않는다(다른 사람의 새 신고는 다시 숨긴다). 캡션이 신고 뒤 바뀌었으면 운영 화면에 두 버전을 보여 준다. 챌린지의 kept_hidden은 review를
@@ -64,8 +64,8 @@ entry_reports.status.
   없다.
 - 본인 콘텐츠는 신고할 수 없다(422 self_report). 하루 20건까지(429 daily_report_limit). 기각(dismissed)만으로 허위 신고를 확정하지 않고 고의
   반복은 운영자가 판단한다.
-- 신고자에게 처리 결과를 알리지 않고, 작성자·신고자에게 서로의 신원을 보이지 않는다. 처리 기록은 완료 뒤 90일 보관하고 영상 원본을 따로
-  복제하지 않는다.
+- 신고자에게 처리 결과를 알리지 않고, 작성자·신고자에게 서로의 신원을 보이지 않는다. 처리 기록에 영상 원본을 따로 복제하지 않는다
+  (보관 기간은 「상태」의 끝 상태).
 - 작성자가 대상을 지우거나 비공개로 바꿔도 신고 행은 남는다.
 
 ## 예외
