@@ -491,6 +491,260 @@ class AdminEndpointIT {
                 .isEqualTo(mapper.readTree("{\"detail\":\"playback_unavailable\"}"));
     }
 
+    @Test
+    void readingRoutesRequireAdminTokenBeforeQueryValidationOrDatabaseAccess() throws Exception {
+        RecordingInspector.STATEMENTS.get().clear();
+        var unauthorized = mvc.perform(get("/v2/admin/reading-sessions?limit=nope&status=nope"))
+                .andReturn().getResponse();
+        assertThat(unauthorized.getStatus()).isEqualTo(401);
+        assertThat(unauthorized.getHeader("Cache-Control")).isEqualTo("private, no-store");
+        assertThat(mapper.readTree(unauthorized.getContentAsString()))
+                .isEqualTo(mapper.readTree("{\"detail\":\"Unauthorized\"}"));
+        assertThat(json(mvc.perform(get("/v2/admin/reading-sessions/{id}", UUID.randomUUID())
+                .param("exclude_actors", "nothex12")), 401))
+                .isEqualTo(mapper.readTree("{\"detail\":\"Unauthorized\"}"));
+        assertThat(json(mvc.perform(get("/v2/admin/reading-recordings/{id}/playback", UUID.randomUUID())
+                .param("exclude_actors", "nothex12")), 401))
+                .isEqualTo(mapper.readTree("{\"detail\":\"Unauthorized\"}"));
+        assertThat(RecordingInspector.STATEMENTS.get()).isEmpty();
+    }
+
+    @Test
+    void readingSessionsListUsesStableOrderingFiltersAndNoSensitiveFields() throws Exception {
+        UUID deactivated = UUID.fromString("00000000-0000-4000-8000-000000000603");
+        UUID purged = UUID.fromString("00000000-0000-4000-8000-000000000604");
+        insertUser(deactivated, "closed@example.com", NOW.minusHours(3));
+        insertUser(purged, "purged@example.com", NOW.minusHours(3));
+
+        ReadingFixture older = insertReading(
+                REAL_USER,
+                UUID.fromString("00000000-0000-4000-8000-000000000801"),
+                "오래된 대본 비밀",
+                NOW.plusMinutes(10),
+                "in_progress",
+                "read");
+        ReadingFixture tiedLow = insertReading(
+                REAL_USER,
+                UUID.fromString("00000000-0000-4000-8000-000000000802"),
+                "동시 대본 하나",
+                NOW.plusMinutes(20),
+                "completed",
+                "quiz");
+        ReadingFixture tiedHigh = insertReading(
+                REAL_USER,
+                UUID.fromString("00000000-0000-4000-8000-000000000803"),
+                "동시 대본 둘",
+                NOW.plusMinutes(20),
+                "stopped",
+                "read");
+        UUID validRecording = insertReadingRecording(
+                REAL_USER, tiedHigh.sessionId(), tiedHigh.lines().get(1), "reading/visible.m4a",
+                "stt", "관리자 상세에서만 보는 전사", true, NOW.plusMinutes(21));
+        ReadingFixture foreign = insertReading(
+                REAL_USER,
+                UUID.fromString("00000000-0000-4000-8000-000000000804"),
+                "다른 대본",
+                NOW.plusMinutes(1),
+                "completed",
+                "read");
+        insertReadingRecording(
+                REAL_USER, tiedHigh.sessionId(), foreign.lines().get(1), "reading/cross.m4a",
+                "none", null, null, NOW.plusMinutes(22));
+
+        insertReading(TEAM_USER, UUID.randomUUID(), "팀 대본", NOW.plusMinutes(30), "completed", "read");
+        insertReading(deactivated, UUID.randomUUID(), "탈퇴 대본", NOW.plusMinutes(40), "completed", "read");
+        jdbc.update("UPDATE users SET deactivated_at=? WHERE id=?", NOW, deactivated);
+        insertReading(purged, UUID.randomUUID(), "파기 대본", NOW.plusMinutes(50), "completed", "read");
+        jdbc.update("UPDATE users SET retention_purged_at=? WHERE id=?", NOW, purged);
+
+        ReadingFixture invalidParent = insertReading(
+                REAL_USER, UUID.randomUUID(), "부모 불일치 대본", NOW.plusMinutes(60), "completed", "read");
+        jdbc.update("UPDATE reading_sessions SET start_line_id=? WHERE id=?",
+                foreign.lines().get(0), invalidParent.sessionId());
+
+        var response = mvc.perform(get("/v2/admin/reading-sessions")
+                .header("Authorization", "Bearer admin-secret")).andReturn().getResponse();
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(response.getHeader("Cache-Control")).isEqualTo("private, no-store");
+        JsonNode page = mapper.readTree(response.getContentAsString());
+        assertThat(page.path("count").intValue()).isEqualTo(4);
+        assertThat(page.path("sessions")).hasSize(4);
+        assertThat(page.path("sessions").get(0).path("id").textValue())
+                .isEqualTo(tiedHigh.sessionId().toString());
+        assertThat(page.path("sessions").get(1).path("id").textValue())
+                .isEqualTo(tiedLow.sessionId().toString());
+        assertThat(page.path("sessions").get(2).path("id").textValue())
+                .isEqualTo(older.sessionId().toString());
+
+        JsonNode first = page.path("sessions").get(0);
+        assertThat(first.fieldNames()).toIterable().containsExactly(
+                "id", "actor", "script_title", "started_at", "ended_at", "status", "mode",
+                "elapsed_seconds", "recording_count");
+        assertThat(first.path("actor").textValue()).isEqualTo(md5(REAL_USER.toString()).substring(0, 8));
+        assertThat(first.path("status").textValue()).isEqualTo("stopped");
+        assertThat(first.path("mode").textValue()).isEqualTo("read");
+        assertThat(first.path("recording_count").intValue()).isEqualTo(1);
+        assertThat(first.path("ended_at").isNull()).isFalse();
+        assertThat(page.toString()).doesNotContain(
+                REAL_USER.toString(), TEAM_USER.toString(), deactivated.toString(), purged.toString(),
+                "actor@example.com", "Team@Acttub.com", "관리자 상세에서만 보는 전사",
+                "reading/visible.m4a", "reading/cross.m4a", validRecording.toString());
+
+        JsonNode completed = authorized("/v2/admin/reading-sessions?status=completed", 200);
+        assertThat(completed.path("sessions")).hasSize(2);
+        for (JsonNode session : completed.path("sessions")) {
+            assertThat(session.path("status").textValue()).isEqualTo("completed");
+        }
+        JsonNode limited = authorized("/v2/admin/reading-sessions?limit=1", 200);
+        assertThat(limited.path("sessions")).hasSize(1);
+        assertThat(limited.path("count").intValue()).isEqualTo(1);
+        String actor = md5(REAL_USER.toString()).substring(0, 8);
+        assertThat(authorized("/v2/admin/reading-sessions?exclude_actors=" + actor.toUpperCase(), 200)
+                .path("sessions")).hasSize(0);
+    }
+
+    @Test
+    void readingSessionDetailReturnsWholeScriptAndOnlyValidSessionRecordings() throws Exception {
+        ReadingFixture fixture = insertReading(
+                REAL_USER, UUID.randomUUID(), "상세 대본", NOW.plusMinutes(10), "completed", "quiz");
+        UUID playable = insertReadingRecording(
+                REAL_USER, fixture.sessionId(), fixture.lines().get(1), "reading/detail.m4a",
+                "stt", "전사 원문", false, NOW.plusMinutes(11));
+        ReadingFixture foreign = insertReading(
+                REAL_USER, UUID.randomUUID(), "외부 대본", NOW, "completed", "read");
+        UUID crossJoined = insertReadingRecording(
+                REAL_USER, fixture.sessionId(), foreign.lines().get(1), "reading/cross-detail.m4a",
+                "none", null, null, NOW.plusMinutes(12));
+        UUID ttsLike = insertReadingRecording(
+                REAL_USER, fixture.sessionId(), fixture.lines().get(3), "reading/tts-should-not-exist.m4a",
+                "none", null, null, NOW.plusMinutes(13));
+
+        var response = mvc.perform(get("/v2/admin/reading-sessions/{id}", fixture.sessionId())
+                .header("Authorization", "Bearer admin-secret")).andReturn().getResponse();
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(response.getHeader("Cache-Control")).isEqualTo("private, no-store");
+        JsonNode detail = mapper.readTree(response.getContentAsString());
+        assertThat(detail.fieldNames()).toIterable().containsExactly("session", "lines", "recordings");
+        assertThat(detail.path("session").path("recording_count").intValue()).isEqualTo(1);
+        assertThat(detail.path("lines")).hasSize(5);
+        assertThat(detail.path("recordings")).hasSize(1);
+
+        assertThat(detail.path("lines").get(0)).isEqualTo(mapper.readTree("""
+                {"id":"%s","ordinal":1,"kind":"scene","character_name":null,
+                 "text":"1막","in_range":false,"is_mine":false}
+                """.formatted(fixture.lines().get(0))));
+        assertThat(detail.path("lines").get(1).path("kind").textValue()).isEqualTo("dialogue");
+        assertThat(detail.path("lines").get(1).path("character_name").textValue()).isEqualTo("나");
+        assertThat(detail.path("lines").get(1).path("in_range").booleanValue()).isTrue();
+        assertThat(detail.path("lines").get(1).path("is_mine").booleanValue()).isTrue();
+        assertThat(detail.path("lines").get(2).path("kind").textValue()).isEqualTo("direction");
+        assertThat(detail.path("lines").get(2).path("character_name").isNull()).isTrue();
+        assertThat(detail.path("lines").get(2).path("in_range").booleanValue()).isTrue();
+        assertThat(detail.path("lines").get(3).path("is_mine").booleanValue()).isFalse();
+        assertThat(detail.path("lines").get(4).path("in_range").booleanValue()).isFalse();
+
+        JsonNode recording = detail.path("recordings").get(0);
+        assertThat(recording.fieldNames()).toIterable().containsExactly(
+                "id", "line_id", "attempt_no", "duration_ms", "created_at",
+                "transcript_source", "transcript", "matched");
+        assertThat(recording.path("id").textValue()).isEqualTo(playable.toString());
+        assertThat(recording.path("transcript_source").textValue()).isEqualTo("stt");
+        assertThat(recording.path("transcript").textValue()).isEqualTo("전사 원문");
+        assertThat(recording.path("matched").booleanValue()).isFalse();
+        assertThat(detail.toString()).doesNotContain(
+                crossJoined.toString(), ttsLike.toString(), "reading/detail.m4a",
+                "reading/cross-detail.m4a", "reading/tts-should-not-exist.m4a");
+
+        assertThat(authorized("/v2/admin/reading-sessions/" + UUID.randomUUID(), 404))
+                .isEqualTo(mapper.readTree("{\"detail\":\"reading_session_not_found\"}"));
+        ReadingFixture team = insertReading(
+                TEAM_USER, UUID.randomUUID(), "팀 상세", NOW.plusMinutes(20), "completed", "read");
+        assertThat(authorized("/v2/admin/reading-sessions/" + team.sessionId(), 404))
+                .isEqualTo(mapper.readTree("{\"detail\":\"reading_session_not_found\"}"));
+        UUID deactivated = UUID.fromString("00000000-0000-4000-8000-000000000606");
+        insertUser(deactivated, "closed-detail@example.com", NOW.minusHours(3));
+        ReadingFixture closed = insertReading(
+                deactivated, UUID.randomUUID(), "탈퇴 상세", NOW.plusMinutes(19), "completed", "read");
+        jdbc.update("UPDATE users SET deactivated_at=? WHERE id=?", NOW, deactivated);
+        assertThat(authorized("/v2/admin/reading-sessions/" + closed.sessionId(), 404))
+                .isEqualTo(mapper.readTree("{\"detail\":\"reading_session_not_found\"}"));
+        String actor = md5(REAL_USER.toString()).substring(0, 8);
+        assertThat(authorized("/v2/admin/reading-sessions/" + fixture.sessionId()
+                + "?exclude_actors=" + actor, 404))
+                .isEqualTo(mapper.readTree("{\"detail\":\"reading_session_not_found\"}"));
+    }
+
+    @Test
+    void readingPlaybackUsesM4aSignerAndHidesInactiveDetachedOrInvalidParents() throws Exception {
+        UUID deactivated = UUID.fromString("00000000-0000-4000-8000-000000000605");
+        insertUser(deactivated, "closed-reading@example.com", NOW.minusHours(3));
+        ReadingFixture fixture = insertReading(
+                REAL_USER, UUID.randomUUID(), "재생 대본", NOW.plusMinutes(10), "completed", "read");
+        UUID playable = insertReadingRecording(
+                REAL_USER, fixture.sessionId(), fixture.lines().get(1), "reading/playable.m4a",
+                "none", null, null, NOW.plusMinutes(11));
+        ReadingFixture failureFixture = insertReading(
+                REAL_USER, UUID.randomUUID(), "서명 실패 대본", NOW.plusMinutes(8), "completed", "read");
+        UUID signingFailure = insertReadingRecording(
+                REAL_USER, failureFixture.sessionId(), failureFixture.lines().get(1), "reading/signing.fail.m4a",
+                "none", null, null, NOW.plusMinutes(12));
+
+        ReadingFixture closed = insertReading(
+                deactivated, UUID.randomUUID(), "탈퇴 재생", NOW.plusMinutes(9), "completed", "read");
+        UUID closedRecording = insertReadingRecording(
+                deactivated, closed.sessionId(), closed.lines().get(1), "reading/closed.m4a",
+                "none", null, null, NOW.plusMinutes(10));
+        jdbc.update("UPDATE users SET deactivated_at=? WHERE id=?", NOW, deactivated);
+
+        UUID detached = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO reading_recordings (
+                    id,user_id,reading_session_id,line_id,request_id,attempt_no,object_key,content_type,
+                    byte_size,duration_ms,transcript_source,created_at,updated_at
+                ) VALUES (?, ?, NULL, NULL, ?, 1, 'reading/detached.m4a', 'audio/mp4', 10, 1000, 'none', ?, ?)
+                """, detached, REAL_USER, UUID.randomUUID(), NOW, NOW);
+
+        var response = mvc.perform(get("/v2/admin/reading-recordings/{id}/playback", playable)
+                .header("Authorization", "Bearer admin-secret")).andReturn().getResponse();
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(response.getHeader("Cache-Control")).isEqualTo("private, no-store");
+        assertThat(mapper.readTree(response.getContentAsString())).isEqualTo(mapper.readTree("""
+                {"playback_url":"admin:reading/playable.m4a:600","expires_in":600}
+                """));
+
+        for (UUID hidden : List.of(UUID.randomUUID(), closedRecording, detached)) {
+            assertThat(authorized("/v2/admin/reading-recordings/" + hidden + "/playback", 404))
+                    .isEqualTo(mapper.readTree("{\"detail\":\"reading_recording_not_found\"}"));
+        }
+        String actor = md5(REAL_USER.toString()).substring(0, 8);
+        assertThat(authorized("/v2/admin/reading-recordings/" + playable
+                + "/playback?exclude_actors=" + actor, 404))
+                .isEqualTo(mapper.readTree("{\"detail\":\"reading_recording_not_found\"}"));
+        assertThat(authorized("/v2/admin/reading-recordings/" + signingFailure + "/playback", 503))
+                .isEqualTo(mapper.readTree("{\"detail\":\"playback_unavailable\"}"));
+    }
+
+    @Test
+    void readingFiltersUseBoundedValidation() throws Exception {
+        assertThat(authorized("/v2/admin/reading-sessions?limit=0", 422).at("/detail/0/type").textValue())
+                .isEqualTo("greater_than_equal");
+        assertThat(authorized("/v2/admin/reading-sessions?limit=101", 422).at("/detail/0/type").textValue())
+                .isEqualTo("less_than_equal");
+        assertThat(authorized("/v2/admin/reading-sessions?limit=nope", 422).at("/detail/0/type").textValue())
+                .isEqualTo("int_parsing");
+        JsonNode status = authorized("/v2/admin/reading-sessions?status=paused", 422);
+        assertThat(status.at("/detail/0/type").textValue()).isEqualTo("literal_error");
+        assertThat(status.at("/detail/0/loc/1").textValue()).isEqualTo("status");
+        assertThat(authorized("/v2/admin/reading-sessions?exclude_actors=nothex12", 422)
+                .at("/detail/0/loc/1").textValue()).isEqualTo("exclude_actors");
+        assertThat(authorized("/v2/admin/reading-sessions/" + UUID.randomUUID()
+                + "?exclude_actors=nothex12", 422).at("/detail/0/loc/1").textValue())
+                .isEqualTo("exclude_actors");
+        assertThat(authorized("/v2/admin/reading-recordings/" + UUID.randomUUID()
+                + "/playback?exclude_actors=nothex12", 422).at("/detail/0/loc/1").textValue())
+                .isEqualTo("exclude_actors");
+    }
+
     /**
      * ops 코어는 수집기 CORE_SQL 을 운영 DB 에서 바로 돈다. 팀 계정은 빼지 않고 표시만 하고,
      * 사람은 user_id 의 md5 앞 8자리 가명으로만 나간다 — 이메일·user_id 원본은 응답에 없다.
@@ -1006,6 +1260,82 @@ class AdminEndpointIT {
         return entry;
     }
 
+    private ReadingFixture insertReading(
+            UUID userId,
+            UUID sessionId,
+            String title,
+            OffsetDateTime startedAt,
+            String status,
+            String mode) {
+        UUID scriptId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO scripts (
+                    id,user_id,title,raw_text,source,request_id,request_fingerprint,created_at,updated_at
+                ) VALUES (?, ?, ?, '대본 원문 비밀', 'typed', ?, ?, ?, ?)
+                """, scriptId, userId, title, UUID.randomUUID(), "a".repeat(64), startedAt, startedAt);
+        UUID mine = UUID.randomUUID();
+        UUID other = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO script_characters (id,script_id,name,sort_order,created_at,updated_at)
+                VALUES (?, ?, '나', 0, ?, ?), (?, ?, '상대', 1, ?, ?)
+                """, mine, scriptId, startedAt, startedAt, other, scriptId, startedAt, startedAt);
+        List<UUID> lines = List.of(
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
+        jdbc.update("""
+                INSERT INTO script_lines (id,script_id,ordinal,kind,character_id,text,created_at)
+                VALUES
+                    (?, ?, 1, 'scene', NULL, '1막', ?),
+                    (?, ?, 2, 'dialogue', ?, '내 대사', ?),
+                    (?, ?, 3, 'direction', NULL, '지문', ?),
+                    (?, ?, 4, 'dialogue', ?, '상대 대사', ?),
+                    (?, ?, 5, 'scene', NULL, '2막', ?)
+                """,
+                lines.get(0), scriptId, startedAt,
+                lines.get(1), scriptId, mine, startedAt,
+                lines.get(2), scriptId, startedAt,
+                lines.get(3), scriptId, other, startedAt,
+                lines.get(4), scriptId, startedAt);
+        OffsetDateTime endedAt = "in_progress".equals(status) ? null : startedAt.plusMinutes(3);
+        jdbc.update("""
+                INSERT INTO reading_sessions (
+                    id,script_id,user_id,request_id,my_character_ids,mode,start_line_id,end_line_id,
+                    advance,record,status,current_line_id,elapsed_seconds,progress_seq,line_results,
+                    started_at,ended_at,updated_at
+                ) VALUES (?, ?, ?, ?, CAST(? AS uuid[]), ?, ?, ?, 'manual', true, ?, NULL, 180, 1,
+                    '[]'::jsonb, ?, ?, ?)
+                """, sessionId, scriptId, userId, UUID.randomUUID(), "{" + mine + "}", mode,
+                lines.get(1), lines.get(3), status, startedAt, endedAt, startedAt);
+        return new ReadingFixture(scriptId, sessionId, mine, other, lines);
+    }
+
+    private UUID insertReadingRecording(
+            UUID userId,
+            UUID sessionId,
+            UUID lineId,
+            String objectKey,
+            String transcriptSource,
+            String transcript,
+            Boolean matched,
+            OffsetDateTime createdAt) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO reading_recordings (
+                    id,user_id,reading_session_id,line_id,request_id,attempt_no,object_key,content_type,
+                    byte_size,duration_ms,transcript,transcript_source,matched,created_at,updated_at
+                ) VALUES (?, ?, ?, ?, ?, 1, ?, 'audio/mp4', 10, 1500, ?, ?, ?, ?, ?)
+                """, id, userId, sessionId, lineId, UUID.randomUUID(), objectKey,
+                transcript, transcriptSource, matched, createdAt, createdAt);
+        return id;
+    }
+
+    private record ReadingFixture(
+            UUID scriptId,
+            UUID sessionId,
+            UUID mineCharacter,
+            UUID otherCharacter,
+            List<UUID> lines) {
+    }
+
     private static JsonNode findActivity(JsonNode activities, String activityId) {
         for (JsonNode activity : activities) {
             if (activity.path("activity_id").textValue().equals(activityId)) {
@@ -1045,7 +1375,9 @@ class AdminEndpointIT {
                 "/v2/admin/feedback", "/v2/admin/practice-migration",
                 "/v2/admin/challenges", "/v2/admin/challenges/{id}/moderation",
                 "/v2/admin/reports", "/v2/admin/reports/{id}",
-                "/v2/admin/challenge-videos", "/v2/admin/challenge-videos/{id}/playback");
+                "/v2/admin/challenge-videos", "/v2/admin/challenge-videos/{id}/playback",
+                "/v2/admin/reading-sessions", "/v2/admin/reading-sessions/{id}",
+                "/v2/admin/reading-recordings/{id}/playback");
         assertThat(actual.at("/paths/~1v2~1admin~1sessions/get/parameters/0/schema/type")
                 .textValue()).isEqualTo("integer");
         assertThat(actual.at("/paths/~1v2~1admin~1sessions/get/parameters/0/schema/default")
@@ -1060,6 +1392,16 @@ class AdminEndpointIT {
                 .textValue()).isEqualTo("#/components/schemas/AdminChallengeVideoPage");
         assertThat(actual.at("/paths/~1v2~1admin~1challenge-videos~1{id}~1playback/get/responses/200/content/application~1json/schema/$ref")
                 .textValue()).isEqualTo("#/components/schemas/AdminChallengePlayback");
+        assertThat(actual.at("/paths/~1v2~1admin~1reading-sessions/get/parameters/0/schema/default")
+                .intValue()).isEqualTo(50);
+        assertThat(actual.at("/paths/~1v2~1admin~1reading-sessions/get/parameters/0/schema/maximum")
+                .intValue()).isEqualTo(100);
+        assertThat(actual.at("/paths/~1v2~1admin~1reading-sessions/get/responses/200/content/application~1json/schema/$ref")
+                .textValue()).isEqualTo("#/components/schemas/AdminReadingSessionPage");
+        assertThat(actual.at("/paths/~1v2~1admin~1reading-sessions~1{id}/get/responses/200/content/application~1json/schema/$ref")
+                .textValue()).isEqualTo("#/components/schemas/AdminReadingSessionDetail");
+        assertThat(actual.at("/paths/~1v2~1admin~1reading-recordings~1{id}~1playback/get/responses/200/content/application~1json/schema/$ref")
+                .textValue()).isEqualTo("#/components/schemas/AdminReadingPlayback");
     }
 
     private void assertUnauthorized(String authorization) throws Exception {
@@ -1148,7 +1490,7 @@ class AdminEndpointIT {
 
                 @Override
                 public String presignPlayback(String objectKey, int expiresInSeconds) {
-                    if (objectKey.endsWith(".fail")) {
+                    if (objectKey.contains("signing.fail")) {
                         throw new RuntimeException("fixture failure");
                     }
                     return "admin:" + objectKey + ":" + expiresInSeconds;
