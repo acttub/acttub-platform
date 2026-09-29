@@ -894,8 +894,6 @@ const ko = {
     endMsg: '지금까지 나눈 대화로 오늘의 정리를 만들어요.',
     endConfirm: '마치기',
     fallbackTitle: '질문 대화',
-    statusDone: '정리 중',
-    statusAsking: '질문 중',
     stripTitle: '영상과 장면 보기',
     noScene: '장면을 적지 않았어요',
     pastToggle: '지난 문답 {{count}}',

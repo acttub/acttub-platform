@@ -277,11 +277,6 @@ export default function CoachScreen() {
       <Stack.Screen
         options={{ title: practice.scene.situation.trim() || t('coach.fallbackTitle'), headerShadowVisible: false }}
       />
-      <View style={styles.statusRow}>
-        <View style={styles.statusChip}>
-          <Text style={styles.statusChipText}>{closed ? t('coach.statusDone') : t('coach.statusAsking')}</Text>
-        </View>
-      </View>
 
       <View style={styles.strip}>
         <View style={styles.stripRow}>
@@ -440,10 +435,6 @@ export default function CoachScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1 },
-
-  statusRow: { alignItems: 'flex-end', paddingHorizontal: 16, paddingBottom: 8 },
-  statusChip: { backgroundColor: palette.blueSoft, borderRadius: 9999, paddingVertical: 5, paddingHorizontal: 10 },
-  statusChipText: { fontSize: 11, fontWeight: '900', color: palette.blue },
 
   stripRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   stripText: { flex: 1, gap: 2 },

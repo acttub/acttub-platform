@@ -904,8 +904,6 @@ const en: DeepStringShape<typeof ko> = {
     endMsg: 'We’ll turn today’s conversation into your summary.',
     endConfirm: 'Finish',
     fallbackTitle: 'Question session',
-    statusDone: 'Summarizing',
-    statusAsking: 'Asking',
     stripTitle: 'View video & scene',
     noScene: 'No scene written',
     pastToggle: 'Past Q&A {{count}}',
