@@ -358,6 +358,139 @@ class AdminEndpointIT {
         assertThat(actor.at("/detail/0/loc/1").textValue()).isEqualTo("exclude_actors");
     }
 
+    @Test
+    void challengeVideoRoutesRequireAdminTokenBeforeQueryValidationOrDatabaseAccess() throws Exception {
+        RecordingInspector.STATEMENTS.get().clear();
+        assertThat(json(mvc.perform(get("/v2/admin/challenge-videos?limit=nope&visibility=nope")), 401))
+                .isEqualTo(mapper.readTree("{\"detail\":\"Unauthorized\"}"));
+        assertThat(json(mvc.perform(get("/v2/admin/challenge-videos/{id}/playback", UUID.randomUUID())
+                .param("exclude_actors", "nothex12")), 401))
+                .isEqualTo(mapper.readTree("{\"detail\":\"Unauthorized\"}"));
+        assertThat(RecordingInspector.STATEMENTS.get()).isEmpty();
+    }
+
+    @Test
+    void challengeVideosFilterVisibilityTeamAndDeletedRowsWithoutLeakingPrivateData() throws Exception {
+        UUID memberChallenge = insertChallenge("member", null);
+        UUID teamChallenge = insertChallenge("team", null);
+        UUID deletedChallenge = insertChallenge("member", NOW.minusMinutes(1));
+
+        UUID publicEntry = insertChallengeEntry(memberChallenge, REAL_USER, "public-secret.mp4",
+                "공개 캡션 비밀", "public", "visible", NOW.plusMinutes(5), null);
+        UUID privateEntry = insertChallengeEntry(teamChallenge, REAL_USER, "private-secret.mp4",
+                "비공개 캡션 비밀", "private", "hidden_by_report", NOW.plusMinutes(4), null);
+        UUID purgedEntry = insertChallengeEntry(memberChallenge, REAL_USER, "purged-secret.mp4",
+                "파기 캡션 비밀", "private", "visible", NOW.plusMinutes(3), null);
+        jdbc.update("UPDATE videos SET purged_at=? WHERE id=(SELECT video_id FROM challenge_entries WHERE id=?)",
+                NOW, purgedEntry);
+        UUID teamEntry = insertChallengeEntry(memberChallenge, TEAM_USER, "team-secret.mp4",
+                "팀 캡션 비밀", "public", "visible", NOW.plusMinutes(6), null);
+        UUID deletedEntry = insertChallengeEntry(memberChallenge, REAL_USER, null, null,
+                "private", "deleted", NOW.plusMinutes(2), NOW.plusMinutes(2));
+        UUID deletedChallengeEntry = insertChallengeEntry(deletedChallenge, REAL_USER, "deleted-challenge.mp4",
+                "삭제 챌린지 캡션", "private", "visible", NOW.plusMinutes(1), null);
+
+        var result = mvc.perform(get("/v2/admin/challenge-videos")
+                .header("Authorization", "Bearer admin-secret")).andReturn().getResponse();
+        assertThat(result.getStatus()).isEqualTo(200);
+        assertThat(result.getHeader("Cache-Control")).isEqualTo("private, no-store");
+        JsonNode all = mapper.readTree(result.getContentAsString());
+        assertThat(all.path("count").intValue()).isEqualTo(3);
+        assertThat(all.path("entries")).hasSize(3);
+
+        JsonNode first = all.path("entries").get(0);
+        assertThat(first.fieldNames()).toIterable().containsExactly(
+                "id", "actor", "created_at", "visibility", "status",
+                "challenge_kind", "challenge_ref", "has_video");
+        assertThat(first.path("id").textValue()).isEqualTo(publicEntry.toString());
+        assertThat(first.path("actor").textValue()).isEqualTo(md5(REAL_USER.toString()).substring(0, 8));
+        assertThat(first.path("challenge_kind").textValue()).isEqualTo("member");
+        assertThat(first.path("challenge_ref").textValue())
+                .isEqualTo(md5(memberChallenge.toString()).substring(0, 8));
+        assertThat(first.path("has_video").booleanValue()).isTrue();
+
+        JsonNode second = all.path("entries").get(1);
+        assertThat(second.path("id").textValue()).isEqualTo(privateEntry.toString());
+        assertThat(second.path("visibility").textValue()).isEqualTo("private");
+        assertThat(second.path("status").textValue()).isEqualTo("hidden_by_report");
+        assertThat(second.path("challenge_kind").textValue()).isEqualTo("team");
+        assertThat(all.path("entries").get(2).path("id").textValue()).isEqualTo(purgedEntry.toString());
+        assertThat(all.path("entries").get(2).path("has_video").booleanValue()).isFalse();
+
+        assertThat(all.toString()).doesNotContain(
+                teamEntry.toString(), deletedEntry.toString(), deletedChallengeEntry.toString(),
+                memberChallenge.toString(), teamChallenge.toString(), deletedChallenge.toString(),
+                REAL_USER.toString(), TEAM_USER.toString(), "actor@example.com", "Team@Acttub.com",
+                "공개 캡션 비밀", "비공개 캡션 비밀", "파기 캡션 비밀", "팀 캡션 비밀",
+                "public-secret.mp4", "private-secret.mp4", "purged-secret.mp4", "admin:", "http");
+
+        JsonNode publicOnly = authorized("/v2/admin/challenge-videos?visibility=public", 200);
+        assertThat(publicOnly.path("entries")).hasSize(1);
+        assertThat(publicOnly.at("/entries/0/id").textValue()).isEqualTo(publicEntry.toString());
+        JsonNode privateOnly = authorized("/v2/admin/challenge-videos?visibility=private", 200);
+        assertThat(privateOnly.path("entries")).hasSize(2);
+        JsonNode limited = authorized("/v2/admin/challenge-videos?limit=1", 200);
+        assertThat(limited.path("entries")).hasSize(1);
+        assertThat(limited.path("count").intValue()).isEqualTo(1);
+
+        String actor = md5(REAL_USER.toString()).substring(0, 8);
+        assertThat(authorized("/v2/admin/challenge-videos?exclude_actors=" + actor.toUpperCase(), 200)
+                .path("entries")).hasSize(0);
+    }
+
+    @Test
+    void challengeVideoFiltersUseBoundedValidation() throws Exception {
+        assertThat(authorized("/v2/admin/challenge-videos?limit=0", 422).at("/detail/0/type").textValue())
+                .isEqualTo("greater_than_equal");
+        assertThat(authorized("/v2/admin/challenge-videos?limit=101", 422).at("/detail/0/type").textValue())
+                .isEqualTo("less_than_equal");
+        assertThat(authorized("/v2/admin/challenge-videos?limit=nope", 422).at("/detail/0/type").textValue())
+                .isEqualTo("int_parsing");
+        JsonNode visibility = authorized("/v2/admin/challenge-videos?visibility=friends", 422);
+        assertThat(visibility.at("/detail/0/type").textValue()).isEqualTo("literal_error");
+        assertThat(visibility.at("/detail/0/loc/1").textValue()).isEqualTo("visibility");
+        JsonNode actor = authorized("/v2/admin/challenge-videos?exclude_actors=nothex12", 422);
+        assertThat(actor.at("/detail/0/loc/1").textValue()).isEqualTo("exclude_actors");
+    }
+
+    @Test
+    void challengePlaybackUsesMockStorageForSixHundredSecondsAndHidesForbiddenEntries() throws Exception {
+        UUID challenge = insertChallenge("member", null);
+        UUID deletedChallenge = insertChallenge("member", NOW.minusMinutes(1));
+        UUID playable = insertChallengeEntry(challenge, REAL_USER, "playable.mp4", "비밀 캡션",
+                "private", "visible", NOW.plusMinutes(5), null);
+        UUID signingFailure = insertChallengeEntry(challenge, REAL_USER, "signing.fail", "서명 실패 캡션",
+                "private", "visible", NOW.plusMinutes(4), null);
+        UUID team = insertChallengeEntry(challenge, TEAM_USER, "team-playback.mp4", "팀 캡션",
+                "private", "visible", NOW.plusMinutes(3), null);
+        UUID deleted = insertChallengeEntry(challenge, REAL_USER, null, null,
+                "private", "deleted", NOW.plusMinutes(2), NOW.plusMinutes(2));
+        UUID purged = insertChallengeEntry(challenge, REAL_USER, "purged-playback.mp4", "파기 캡션",
+                "private", "visible", NOW.plusMinutes(1), null);
+        jdbc.update("UPDATE videos SET purged_at=? WHERE id=(SELECT video_id FROM challenge_entries WHERE id=?)",
+                NOW, purged);
+        UUID challengeDeleted = insertChallengeEntry(deletedChallenge, REAL_USER, "challenge-deleted.mp4", "삭제 캡션",
+                "private", "visible", NOW, null);
+
+        var response = mvc.perform(get("/v2/admin/challenge-videos/{id}/playback", playable)
+                .header("Authorization", "Bearer admin-secret")).andReturn().getResponse();
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(response.getHeader("Cache-Control")).isEqualTo("private, no-store");
+        assertThat(mapper.readTree(response.getContentAsString())).isEqualTo(mapper.readTree("""
+                {"playback_url":"admin:playable.mp4:600","expires_in":600}
+                """));
+
+        for (UUID hidden : List.of(UUID.randomUUID(), team, deleted, purged, challengeDeleted)) {
+            assertThat(authorized("/v2/admin/challenge-videos/" + hidden + "/playback", 404))
+                    .isEqualTo(mapper.readTree("{\"detail\":\"challenge_video_not_found\"}"));
+        }
+        String actor = md5(REAL_USER.toString()).substring(0, 8);
+        assertThat(authorized("/v2/admin/challenge-videos/" + playable + "/playback?exclude_actors=" + actor, 404))
+                .isEqualTo(mapper.readTree("{\"detail\":\"challenge_video_not_found\"}"));
+        assertThat(authorized("/v2/admin/challenge-videos/" + signingFailure + "/playback", 503))
+                .isEqualTo(mapper.readTree("{\"detail\":\"playback_unavailable\"}"));
+    }
+
     /**
      * ops 코어는 수집기 CORE_SQL 을 운영 DB 에서 바로 돈다. 팀 계정은 빼지 않고 표시만 하고,
      * 사람은 user_id 의 md5 앞 8자리 가명으로만 나간다 — 이메일·user_id 원본은 응답에 없다.
@@ -838,17 +971,37 @@ class AdminEndpointIT {
         return reading;
     }
 
+    private UUID insertChallenge(String origin, OffsetDateTime deletedAt) {
+        UUID challenge = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO challenges (
+                    id,line,work,duration_days,origin,request_id,request_fingerprint,
+                    starts_at,ends_at,deleted_at
+                ) VALUES (?, '챌린지 대사 비밀', '작품 비밀', 7, ?, ?, ?, ?, ?, ?)
+                """, challenge, origin, UUID.randomUUID(), "d".repeat(64),
+                NOW.minusDays(1), NOW.plusDays(6), deletedAt);
+        return challenge;
+    }
+
     private UUID insertChallengeEntry(
             UUID challengeId, UUID userId, String objectKey, String caption,
             String status, OffsetDateTime createdAt, OffsetDateTime deletedAt) {
+        return insertChallengeEntry(
+                challengeId, userId, objectKey, caption, "private", status, createdAt, deletedAt);
+    }
+
+    private UUID insertChallengeEntry(
+            UUID challengeId, UUID userId, String objectKey, String caption,
+            String visibility, String status, OffsetDateTime createdAt, OffsetDateTime deletedAt) {
         UUID videoId = objectKey == null ? null : insertVideo(userId, objectKey, createdAt);
         UUID entry = UUID.randomUUID();
+        OffsetDateTime publishedAt = "public".equals(visibility) ? createdAt : null;
         jdbc.update("""
                 INSERT INTO challenge_entries (
-                    id,challenge_id,user_id,video_id,caption,visibility,status,
+                    id,challenge_id,user_id,video_id,caption,published_at,visibility,status,
                     request_id,request_fingerprint,created_at,updated_at,deleted_at
-                ) VALUES (?, ?, ?, ?, ?, 'private', ?, ?, ?, ?, ?, ?)
-                """, entry, challengeId, userId, videoId, caption, status,
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, entry, challengeId, userId, videoId, caption, publishedAt, visibility, status,
                 UUID.randomUUID(), "e".repeat(64), createdAt, createdAt, deletedAt);
         return entry;
     }
@@ -891,7 +1044,8 @@ class AdminEndpointIT {
         assertThat(added).containsExactlyInAnyOrder("/v2/admin/sessions", "/v2/admin/ops-core",
                 "/v2/admin/feedback", "/v2/admin/practice-migration",
                 "/v2/admin/challenges", "/v2/admin/challenges/{id}/moderation",
-                "/v2/admin/reports", "/v2/admin/reports/{id}");
+                "/v2/admin/reports", "/v2/admin/reports/{id}",
+                "/v2/admin/challenge-videos", "/v2/admin/challenge-videos/{id}/playback");
         assertThat(actual.at("/paths/~1v2~1admin~1sessions/get/parameters/0/schema/type")
                 .textValue()).isEqualTo("integer");
         assertThat(actual.at("/paths/~1v2~1admin~1sessions/get/parameters/0/schema/default")
@@ -900,6 +1054,12 @@ class AdminEndpointIT {
                 .intValue()).isEqualTo(100);
         assertThat(actual.at("/paths/~1v2~1admin~1feedback/get/responses/200/content/application~1json/schema/$ref")
                 .textValue()).isEqualTo("#/components/schemas/AdminFeedbackPage");
+        assertThat(actual.at("/paths/~1v2~1admin~1challenge-videos/get/parameters/0/schema/maximum")
+                .intValue()).isEqualTo(100);
+        assertThat(actual.at("/paths/~1v2~1admin~1challenge-videos/get/responses/200/content/application~1json/schema/$ref")
+                .textValue()).isEqualTo("#/components/schemas/AdminChallengeVideoPage");
+        assertThat(actual.at("/paths/~1v2~1admin~1challenge-videos~1{id}~1playback/get/responses/200/content/application~1json/schema/$ref")
+                .textValue()).isEqualTo("#/components/schemas/AdminChallengePlayback");
     }
 
     private void assertUnauthorized(String authorization) throws Exception {

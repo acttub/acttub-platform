@@ -16,10 +16,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminTurn;
 import com.acttub.actingapi.feature.admin.app.AdminMetricsRepository;
+import com.acttub.actingapi.feature.admin.app.AdminMetricsRepository.ChallengeVideoRow;
 import com.acttub.actingapi.feature.admin.app.AdminMetricsRepository.FeedbackRow;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
@@ -253,6 +255,88 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
 
     @Override
     @Transactional(readOnly = true)
+    public List<ChallengeVideoRow> challengeVideos(
+            int limit,
+            List<String> excludeEmails,
+            List<String> excludeActors,
+            String visibility) {
+        return list(entityManager.createNativeQuery("""
+                SELECT
+                    entry.id,
+                    left(md5(CAST(entry.user_id AS text)), 8) AS actor,
+                    entry.created_at,
+                    entry.visibility,
+                    entry.status,
+                    challenge.origin AS challenge_kind,
+                    left(md5(CAST(entry.challenge_id AS text)), 8) AS challenge_ref,
+                    (video.id IS NOT NULL) AS has_video
+                FROM challenge_entries AS entry
+                JOIN challenges AS challenge ON challenge.id=entry.challenge_id
+                JOIN users AS app_user ON app_user.id=entry.user_id
+                LEFT JOIN videos AS video
+                  ON video.id=entry.video_id
+                 AND video.purged_at IS NULL
+                WHERE entry.deleted_at IS NULL
+                  AND entry.status<>'deleted'
+                  AND challenge.deleted_at IS NULL
+                  AND (:visibility='all' OR entry.visibility=:visibility)
+                  AND NOT (
+                    lower(COALESCE(app_user.email, '')) = ANY(string_to_array(:excludeEmails, ','))
+                    OR left(md5(CAST(entry.user_id AS text)), 8) = ANY(string_to_array(:excludeActors, ','))
+                  )
+                ORDER BY entry.created_at DESC, entry.id DESC
+                LIMIT :limit
+                """, Tuple.class)
+                .setParameter("visibility", visibility)
+                .setParameter("excludeEmails", normalizedEmails(excludeEmails))
+                .setParameter("excludeActors", String.join(",", excludeActors))
+                .setParameter("limit", limit)).stream()
+                .map(Tuple.class::cast)
+                .map(row -> new ChallengeVideoRow(
+                        row.get("id", UUID.class),
+                        row.get("actor", String.class),
+                        row.get("created_at", Instant.class).atOffset(ZoneOffset.UTC),
+                        row.get("visibility", String.class),
+                        row.get("status", String.class),
+                        row.get("challenge_kind", String.class),
+                        row.get("challenge_ref", String.class),
+                        row.get("has_video", Boolean.class)))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<String> challengeVideoObjectKey(
+            UUID entryId,
+            List<String> excludeEmails,
+            List<String> excludeActors) {
+        return list(entityManager.createNativeQuery("""
+                SELECT video.object_key
+                FROM challenge_entries AS entry
+                JOIN challenges AS challenge ON challenge.id=entry.challenge_id
+                JOIN users AS app_user ON app_user.id=entry.user_id
+                JOIN videos AS video
+                  ON video.id=entry.video_id
+                 AND video.purged_at IS NULL
+                WHERE entry.id=:entryId
+                  AND entry.deleted_at IS NULL
+                  AND entry.status<>'deleted'
+                  AND challenge.deleted_at IS NULL
+                  AND NOT (
+                    lower(COALESCE(app_user.email, '')) = ANY(string_to_array(:excludeEmails, ','))
+                    OR left(md5(CAST(entry.user_id AS text)), 8) = ANY(string_to_array(:excludeActors, ','))
+                  )
+                """, Tuple.class)
+                .setParameter("entryId", entryId)
+                .setParameter("excludeEmails", normalizedEmails(excludeEmails))
+                .setParameter("excludeActors", String.join(",", excludeActors)))
+                .stream()
+                .findFirst()
+                .map(row -> row.get("object_key", String.class));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public String opsCore(List<String> excludeEmails, List<String> excludeActors) {
         String excluded = String.join(",", excludeEmails.stream()
                 .map(email -> email.toLowerCase(Locale.ROOT))
@@ -285,6 +369,12 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
         } catch (IOException exc) {
             throw new IllegalStateException("failed to read admin sql: " + resource, exc);
         }
+    }
+
+    private static String normalizedEmails(List<String> excludeEmails) {
+        return String.join(",", excludeEmails.stream()
+                .map(email -> email.toLowerCase(Locale.ROOT))
+                .toList());
     }
 
     private static String namedParameters(String prefix, int count) {

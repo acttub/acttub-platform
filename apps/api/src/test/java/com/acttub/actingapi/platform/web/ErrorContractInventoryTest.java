@@ -202,6 +202,10 @@ class ErrorContractInventoryTest {
                     "feature.coach.adapter.web.CoachReportEndpointIT"),
             covered("feature.admin.adapter.web.AdminController|401|Unauthorized", 1,
                     "feature.admin.AdminEndpointIT"),
+            covered("feature.admin.app.AdminService|404|challenge_video_not_found", 1,
+                    "feature.admin.AdminEndpointIT"),
+            covered("feature.admin.app.AdminService|503|playback_unavailable", 1,
+                    "feature.admin.AdminEndpointIT"),
             covered("feature.admissions.app.AdmissionsService|404|university_not_found", 1,
                     "feature.admissions.AdmissionsEndpointIT"),
 
