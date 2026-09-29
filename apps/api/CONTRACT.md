@@ -1468,6 +1468,24 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   있는 계정은 행째 지우지 않고 비활성으로 닫는다. V21은 `notifications`·`notification_pushes`와 `entry_comments (id, entry_id)`
   유일 제약을 더한다.
 
+### 6-21. 운영용 챌린지 영상 목록·재생
+
+- `GET /v2/admin/challenge-videos?limit=50&exclude_actors=…&visibility=all|public|private`는
+  `limit` 1~100, 기본 50이다. 응답은 `entries`와 그 응답 묶음의 크기인 `count`다. 각 행은
+  `id`(참여작 UUID)·`actor`(`md5(user_id)` 앞 8자리)·`created_at`·`visibility`·`status`·
+  `challenge_kind`(`challenges.origin`)·`challenge_ref`(`md5(challenge_id)` 앞 8자리)·`has_video`만
+  포함한다. raw 참여작 id는 이 live 운영 응답에서만 허용하며, user UUID·이메일·대사·작품·캡션 같은
+  자유 텍스트·원본 object key·재생 URL은 목록에 넣지 않는다.
+- `GET /v2/admin/challenge-videos/{id}/playback?exclude_actors=…`는
+  `{"playback_url":…,"expires_in":600}`을 반환한다. 스토리지 서명 TTL은 반드시 600초다.
+- 두 경로 모두 기존 `ADMIN_OPS_TOKEN`을 먼저 검사하고, `ADMIN_OPS_EXCLUDE_EMAILS`와
+  `exclude_actors`에 걸린 배우를 제외한다. 삭제된 참여작·삭제된 챌린지는 목록과 재생에서 제외한다.
+  재생에서는 없음·팀·삭제·영상 없음 또는 파기를 모두 404 `challenge_video_not_found`로 합친다.
+  스토리지 부재나 서명 실패는 503 `playback_unavailable`이다. 성공 응답은
+  `Cache-Control: private, no-store`다.
+- 관리자 빈은 토큰이 있을 때만 서므로 커밋된 기본 `spec/openapi.json`에는 이 경로가 없다.
+  `AdminEndpointIT`의 조건부 관리자 경로 명시 목록과 응답 스키마 검사가 이 계약을 지킨다.
+
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 
 1. **좋아요 카운트는 재집계다.** 증감 방식이 "두 번 눌리면 2 증가" 하던 버그 때문에 의도적으로

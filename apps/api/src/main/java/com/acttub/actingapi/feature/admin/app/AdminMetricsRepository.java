@@ -2,6 +2,7 @@ package com.acttub.actingapi.feature.admin.app;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -42,6 +43,19 @@ public interface AdminMetricsRepository {
             List<String> excludeActors,
             boolean includeTeam);
 
+    /** 공개·비공개 챌린지 참여 영상. 개인 식별자와 원본 저장소 정보는 projection 에 넣지 않는다. */
+    List<ChallengeVideoRow> challengeVideos(
+            int limit,
+            List<String> excludeEmails,
+            List<String> excludeActors,
+            String visibility);
+
+    /** 재생이 허용된 참여작의 오브젝트 키. 없음·팀·삭제·파기된 영상은 모두 빈 값이다. */
+    Optional<String> challengeVideoObjectKey(
+            UUID entryId,
+            List<String> excludeEmails,
+            List<String> excludeActors);
+
     /** 세션 한 줄. 재생 주소는 아직 붙지 않았다 — 그것은 서비스가 스토리지에 물어 채운다. */
     record SessionRow(
             UUID coachSessionId,
@@ -67,5 +81,16 @@ public interface AdminMetricsRepository {
             String source,
             String trigger,
             UUID practiceId) {
+    }
+
+    record ChallengeVideoRow(
+            UUID id,
+            String actor,
+            OffsetDateTime createdAt,
+            String visibility,
+            String status,
+            String challengeKind,
+            String challengeRef,
+            boolean hasVideo) {
     }
 }

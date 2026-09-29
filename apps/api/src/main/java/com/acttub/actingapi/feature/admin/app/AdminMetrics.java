@@ -83,4 +83,36 @@ public final class AdminMetrics {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "1", maximum = "100") int limit,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean hasMore) {
     }
+
+    @Schema(name = "AdminChallengeVideo", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record AdminChallengeVideo(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID id,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, pattern = "^[0-9a-f]{8}$") String actor,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) OffsetDateTime createdAt,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"public", "private"})
+            String visibility,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                    allowableValues = {"visible", "hidden_by_report"})
+            String status,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"team", "member"})
+            String challengeKind,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, pattern = "^[0-9a-f]{8}$")
+            String challengeRef,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean hasVideo) {
+    }
+
+    @Schema(name = "AdminChallengeVideoPage", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record AdminChallengeVideoPage(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<AdminChallengeVideo> entries,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "0") int count) {
+    }
+
+    @Schema(name = "AdminChallengePlayback", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record AdminChallengePlayback(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String playbackUrl,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"600"}) int expiresIn) {
+    }
 }

@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import java.time.format.DateTimeParseException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.Valid;
@@ -23,6 +24,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengePlayback;
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengeVideoPage;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminFeedbackPage;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminSessions;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -51,6 +54,7 @@ import org.springframework.web.bind.annotation.RestController;
 class AdminController {
     private static final int MAX_SESSIONS = 50;
     private static final int MAX_FEEDBACK = 100;
+    private static final int MAX_CHALLENGE_VIDEOS = 100;
     /** 한 묶음이 한 트랜잭션이다 — 너무 크면 그 트랜잭션이 길어진다. */
     private static final int MAX_BATCH = 1000;
 
@@ -272,6 +276,70 @@ class AdminController {
     }
 
     @Operation(
+            summary = "Challenge Videos",
+            description = """
+                    공개·비공개 챌린지 참여 영상을 최신순으로 읽는다. 팀 이메일과 exclude_actors 배우는
+                    항상 제외하며, 삭제된 참여작·삭제된 챌린지도 제외한다. raw user id·이메일·자유 텍스트·
+                    원본 object key·재생 URL은 목록에 싣지 않는다.""",
+            operationId = "challenge_videos_v2_admin_challenge_videos_get",
+            tags = "admin")
+    @ApiResponses({
+        @ApiResponse(
+                responseCode = "200",
+                description = "Successful Response",
+                content = @Content(schema = @Schema(implementation = AdminChallengeVideoPage.class))),
+        @ApiResponse(
+                responseCode = "422",
+                description = "Validation Error",
+                content = @Content(schema = @Schema(ref = "#/components/schemas/HTTPValidationError")))
+    })
+    @GetMapping("/challenge-videos")
+    ResponseEntity<AdminChallengeVideoPage> challengeVideos(
+            @Parameter(schema = @Schema(
+                    type = "integer",
+                    minimum = "1",
+                    maximum = "100",
+                    exclusiveMinimum = false,
+                    exclusiveMaximum = false,
+                    defaultValue = "50"))
+            @RequestParam(name = "limit", defaultValue = "50") String rawLimit,
+            @Parameter(description = "제외할 배우 가명(8자리 16진)을 쉼표로", schema = @Schema(type = "string"))
+            @RequestParam(name = "exclude_actors", required = false) String rawExcludeActors,
+            @Parameter(schema = @Schema(type = "string", allowableValues = {"all", "public", "private"},
+                    defaultValue = "all"))
+            @RequestParam(name = "visibility", defaultValue = "all") String rawVisibility,
+            @RequestHeader(name = "authorization", defaultValue = "") String authorization) {
+        requireToken(authorization);
+        int limit = parseLimit(rawLimit);
+        validateLimit(limit, MAX_CHALLENGE_VIDEOS);
+        return privateNoStore(admin.challengeVideos(
+                limit,
+                parseActors(rawExcludeActors),
+                parseVisibility(rawVisibility)));
+    }
+
+    @Operation(
+            summary = "Challenge Video Playback",
+            description = """
+                    목록의 raw 참여작 id 하나를 받아 600초 재생 URL을 만든다. 팀 이메일·exclude_actors,
+                    삭제된 참여작·삭제된 챌린지·없거나 파기된 영상은 존재를 구분하지 않고 404다.""",
+            operationId = "challenge_video_playback_v2_admin_challenge_videos__id__playback_get",
+            tags = "admin")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Successful Response",
+            content = @Content(schema = @Schema(implementation = AdminChallengePlayback.class)))
+    @GetMapping("/challenge-videos/{id}/playback")
+    ResponseEntity<AdminChallengePlayback> challengeVideoPlayback(
+            @PathVariable UUID id,
+            @Parameter(description = "제외할 배우 가명(8자리 16진)을 쉼표로", schema = @Schema(type = "string"))
+            @RequestParam(name = "exclude_actors", required = false) String rawExcludeActors,
+            @RequestHeader(name = "authorization", defaultValue = "") String authorization) {
+        requireToken(authorization);
+        return privateNoStore(admin.challengeVideoPlayback(id, parseActors(rawExcludeActors)));
+    }
+
+    @Operation(
             summary = "Ops Core",
             description = """
                     ops.acttub.com 코어 지표 한 벌(지표·퍼널·일별 활동·세션 가명 목록)을 운영 DB 에서 바로 센다.
@@ -292,6 +360,26 @@ class AdminController {
             @RequestHeader(name = "authorization", defaultValue = "") String authorization) {
         requireToken(authorization);
         return admin.opsCore(parseActors(rawExcludeActors));
+    }
+
+    private static <T> ResponseEntity<T> privateNoStore(T body) {
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CACHE_CONTROL, "private, no-store")
+                .body(body);
+    }
+
+    private static String parseVisibility(String raw) {
+        String visibility = raw.strip().toLowerCase(java.util.Locale.ROOT);
+        if ("all".equals(visibility) || "public".equals(visibility) || "private".equals(visibility)) {
+            return visibility;
+        }
+        Map<String, Object> error = new LinkedHashMap<>();
+        error.put("type", "literal_error");
+        error.put("loc", List.of("query", "visibility"));
+        error.put("msg", "Input should be 'all', 'public' or 'private'");
+        error.put("input", raw);
+        error.put("ctx", Map.of("expected", "'all', 'public' or 'private'"));
+        throw new ApiValidationException(List.of(error));
     }
 
     private static final java.util.regex.Pattern ACTOR = java.util.regex.Pattern.compile("[0-9a-f]{8}");
