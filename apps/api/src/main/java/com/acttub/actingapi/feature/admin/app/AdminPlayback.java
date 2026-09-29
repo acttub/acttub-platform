@@ -9,6 +9,11 @@ package com.acttub.actingapi.feature.admin.app;
  */
 public interface AdminPlayback {
 
-    /** 만들 수 없으면 {@code null}. */
+    /** 만들 수 없으면 {@code null}. 목록에서 재생 주소가 곁가지일 때 쓴다. */
     String url(String objectKey, int expiresInSeconds);
+
+    /**
+     * 전용 재생 응답에 넣을 주소. 스토리지 부재나 서명 실패를 숨기지 않고 호출자에게 전달한다.
+     */
+    String requiredUrl(String objectKey, int expiresInSeconds);
 }
