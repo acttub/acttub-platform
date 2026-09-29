@@ -87,3 +87,4 @@ import './challenge-notification-center.test.mjs';
 import './challenge-notify-screens.test.mjs';
 import './time-label.test.mjs';
 import './mascot-lines.test.mjs';
+import './android-release-config.test.mjs';
