@@ -62,6 +62,7 @@ import type { VadEvent } from '@/lib/reading/vad';
 import { formatMegabytes, modelDownloadPrompt, type PartnerVoiceEngine } from '@/lib/reading/voice-policy';
 import { assignVoices } from '@/lib/reading/voices';
 import { translate as t } from '@/lib/i18n';
+import { useAppRating } from '@/hooks/use-app-rating';
 
 /**
  * 리딩 실행(R03.0 가이드 · R03.1 상대가 읽는 중 · R03.2 내 차례·나가기 확인, reading.session).
@@ -142,6 +143,9 @@ export default function ReadingPlay() {
   const queueRef = useRef<ProgressQueue | null>(null);
   const speechQueue = useRef<engine.SpeechQueueHandle | null>(null);
   const mounted = useRef(true);
+  // 대본을 끝까지 읽으면 앱 평가를 묻는다(7일 간격·최대 3번, SOMA-494). 튜토리얼 대본은 세지 않는다.
+  const { after: askRating, element: ratingSheet } = useAppRating();
+  const fromTutorialRef = useRef(false);
   const sttActive = useRef(false);
   /** 줄별 시도 번호 — 같은 줄을 다시 말하면 1씩 늘어 이전 녹음을 대체한다(reading.recording). */
   const attempts = useRef<Record<string, number>>({});
@@ -247,11 +251,12 @@ export default function ReadingPlay() {
     if (next.status === 'done') {
       queueRef.current?.push(progressPayload(next));
       setPhase('done');
+      if (!fromTutorialRef.current) void askRating({ kind: 'reading' });
       return;
     }
     // 이어하기의 앞 상대 대사(leadIn)는 저장하지 않는다 — 서버 위치가 뒤로 가지 않게.
     if (next.index !== prev.index && next.leadInUntil === null) queueRef.current?.push(progressPayload(next));
-  }, []);
+  }, [askRating]);
 
   const goNext = useCallback(
     (from: number) => {
@@ -269,6 +274,7 @@ export default function ReadingPlay() {
     // 대본 리딩 튜토리얼(SOMA-494)은 여기서 끝난다 — 이 화면의 첫 안내가 나머지를 맡는다.
     // 튜토리얼로 들어왔으면 전에 봤더라도 그 안내를 한 번 더 보여 준다.
     const fromTutorial = currentTutorial()?.track === 'reading';
+    fromTutorialRef.current = fromTutorial;
     if (fromTutorial) finishTutorial('done');
     void (async () => {
       const [seenBefore, micOk] = await Promise.all([hasSeenReadingGuide(), hasMicPermission()]);
@@ -772,6 +778,7 @@ export default function ReadingPlay() {
           <Text style={styles.doneLink}>{t('reading.toDetail')}</Text>
         </Pressable>
         {dialog}
+        {ratingSheet}
       </ScrollView>
     );
   }

@@ -18,7 +18,7 @@ import { useAppDialog } from '@/components/app-dialog';
 import { Markdown } from '@/components/markdown';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
-import { useFeedbackSheet } from '@/hooks/use-feedback-sheet';
+import { openStoreReviewPage } from '@/lib/store-review';
 import { useAuth } from '@/lib/auth';
 import {
   consentChangeFailureAction,
@@ -77,7 +77,6 @@ export default function SettingsScreen() {
   const [updatingConsentId, setUpdatingConsentId] = useState<string | null>(null);
   const [updatingToggle, setUpdatingToggle] = useState<keyof NotificationSettings | null>(null);
   const { confirm, alert, dialog } = useAppDialog();
-  const feedback = useFeedbackSheet('settings');
 
   const loadConsents = useCallback(async () => {
     setRows(consentSettingsRows(await api.consentEntry()));
@@ -336,16 +335,16 @@ export default function SettingsScreen() {
             </View>
           ))}
 
-          {/* 의견 보내기 — 나갈 때 한 번 묻는 한줄평과 달리 언제든 남길 수 있는 자리. */}
+          {/* 앱 평가하기 — 스토어의 리뷰 쓰기 화면을 바로 연다(한줄평은 SOMA-494에서 걷었다). */}
           <Text style={styles.sectionTitle}>{t('settings.feedbackSection')}</Text>
-          <Pressable style={styles.card} onPress={feedback.open} accessibilityRole="button">
+          <Pressable style={styles.card} onPress={() => void openStoreReviewPage()} accessibilityRole="button">
             <View style={styles.cardRow}>
               <View style={styles.iconCircle}>
-                <Feather name="message-square" size={18} color={palette.blue} />
+                <Feather name="star" size={18} color={palette.blue} />
               </View>
               <View style={styles.cardBody}>
-                <Text style={styles.cardTitle}>{t('settings.feedbackTitle')}</Text>
-                <Text style={styles.cardSub}>{t('settings.feedbackSub')}</Text>
+                <Text style={styles.cardTitle}>{t('settings.storeReviewTitle')}</Text>
+                <Text style={styles.cardSub}>{t('settings.storeReviewSub')}</Text>
               </View>
               <Feather name="chevron-right" size={18} color={palette.checkOff} />
             </View>
@@ -439,7 +438,6 @@ export default function SettingsScreen() {
           </Pressable>
         </ScrollView>
       )}
-      {feedback.element}
       {dialog}
     </SafeAreaView>
   );

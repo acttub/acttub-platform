@@ -11,8 +11,6 @@ import { buildWeekActivity } from '@/lib/practice-activity';
 import { practiceStreak, groupTitle, recentGroups } from '@/lib/practice/groups';
 import type { PracticeGroup } from '@/lib/practice/types';
 import { rememberPracticeDays } from '@/lib/practice-days';
-import { dismissFeedbackNudge, feedbackNudgeVisible, maybeRequestStoreReview } from '@/lib/feedback-prompts';
-import { useFeedbackSheet } from '@/hooks/use-feedback-sheet';
 import { hasSeenSpotlight, hasSeenTutorial, markSpotlightSeen, markTutorialSeen } from '@/lib/guide-state';
 import { currentTutorial, startTutorial } from '@/lib/tutorial';
 import {
@@ -61,9 +59,6 @@ export default function HomeScreen() {
   const [activityLoaded, setActivityLoaded] = useState(false);
   const [admissions, setAdmissions] = useState<AdmissionsResponse | null>(null);
   const [celebrateStreak, setCelebrateStreak] = useState<number | null>(null);
-  // 연습 3회 뒤 한 번 뜨는 의견 넛지 / 5회 뒤 한 번 스토어 평점(feedback-prompts).
-  const [nudge, setNudge] = useState(false);
-  const feedback = useFeedbackSheet('home');
   // 처음 한 번만 가이드 — 누를 자리를 비춰 준다. 설정의 "가이드 다시 보기"로 되살릴 수 있다.
   const [guideOpen, setGuideOpen] = useState(false);
   // 그보다 먼저, 처음 연 사람에게 연습 한 바퀴를 권한다(SOMA-494). 이걸 닫아야 위 가이드가 뜬다.
@@ -118,8 +113,6 @@ export default function HomeScreen() {
             setActivityDays(days);
             setActivityLoaded(true);
           });
-          void feedbackNudgeVisible(r.groups.length).then((v) => !cancelled && setNudge(v));
-          void maybeRequestStoreReview(r.groups.length);
         })
         .catch(() => {
           if (!cancelled) {
@@ -244,35 +237,6 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* 의견 넛지 — 연습 3회 뒤 한 번. 닫든 남기든 다시 안 뜬다. */}
-        {nudge && (
-          <View style={styles.nudge}>
-            <View style={styles.flex}>
-              <Text style={styles.nudgeTitle}>{t('home.feedbackNudgeTitle')}</Text>
-              <Text style={styles.nudgeBody}>{t('home.feedbackNudgeBody')}</Text>
-            </View>
-            <Pressable
-              style={styles.nudgeCta}
-              onPress={() => {
-                setNudge(false);
-                void dismissFeedbackNudge();
-                feedback.open();
-              }}
-              accessibilityRole="button">
-              <Text style={styles.nudgeCtaText}>{t('home.feedbackNudgeCta')}</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => {
-                setNudge(false);
-                void dismissFeedbackNudge();
-              }}
-              hitSlop={10}
-              accessibilityRole="button"
-              accessibilityLabel={t('common.close')}>
-              <Feather name="x" size={18} color={palette.textFaint} />
-            </Pressable>
-          </View>
-        )}
 
         {/* 최근 연습 */}
         <View style={styles.sectionHeader}>
@@ -345,7 +309,6 @@ export default function HomeScreen() {
           </>
         )}
       </ScrollView>
-      {feedback.element}
       <TutorialIntroSheet visible={introOpen} onChoose={chooseTutorial} />
       <SpotlightGuide
         visible={guideOpen && !introOpen}
@@ -417,20 +380,6 @@ const styles = StyleSheet.create({
   dayLabelOn: { color: '#FFFFFF' },
   dayLabelOff: { color: palette.textFaint },
 
-  nudge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: palette.blueSoft,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    marginTop: 16,
-  },
-  nudgeTitle: { fontSize: 14, fontWeight: '800', color: palette.blueDeep },
-  nudgeBody: { fontSize: 12, color: palette.textDim, marginTop: 2 },
-  nudgeCta: { backgroundColor: palette.blue, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
-  nudgeCtaText: { fontSize: 12.5, fontWeight: '800', color: '#FFFFFF' },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'flex-end',

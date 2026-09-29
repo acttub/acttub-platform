@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { SceneFoldBody, SceneFoldLink, SceneSummary } from '@/components/practice-chrome';
 import { ReportRating } from '@/components/report-rating';
 import { palette } from '@/constants/palette';
-import { useExitReview } from '@/hooks/use-exit-review';
+import { useAppRating } from '@/hooks/use-app-rating';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { finishTutorial, useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
 import { TARGET } from '@/lib/spotlight-targets';
@@ -32,7 +32,7 @@ export default function ReportScreen() {
   // 튜토리얼 예시(SOMA-494) — 노트는 미리 써 둔 것이고, 서버에 남는 것이 없다.
   const sample = isSamplePracticeId(practice?.practiceId);
   const noteTarget = useSpotlightTarget(TARGET.reportNote);
-  const exitReview = useExitReview('leave', 'report', practice?.practiceId);
+  const rating = useAppRating();
   const [note, setNote] = useState<PracticeNote | null>(() => practice?.note ?? null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(!practice?.note);
@@ -108,10 +108,16 @@ export default function ReportScreen() {
       return;
     }
     finishTutorial('done');
-    void exitReview.offer(() => {
+    // AI 코칭을 마칠 때 — 두 번에 한 번(7일 간격·최대 3번) 앱 평가를 묻고 닫힌 뒤 나간다 (SOMA-494).
+    const leave = () => {
       clearPractice();
       router.dismissAll();
-    });
+    };
+    if (!practice) {
+      leave();
+      return;
+    }
+    void rating.after({ kind: 'coach', practiceId: practice.practiceId }, leave);
   };
 
   const sections = note ? noteSections(note) : [];
@@ -213,7 +219,7 @@ export default function ReportScreen() {
           </ScrollView>
         </>
       )}
-      {exitReview.element}
+      {rating.element}
       {tutorialGuide.element}
     </SafeAreaView>
   );
