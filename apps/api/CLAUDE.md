@@ -14,7 +14,7 @@
 | 예외·보고 | `CONTRACT.md` §6·[ADR-025](../../docs/ADR.md) | 변경한 모든 예외 처리 지점에서 원인·분류·보고 여부와 기존 응답·폴백 보존을 테스트로 확인 |
 | 저장소·SQL·트랜잭션 | `CONTRACT.md` §5 | 실제 Postgres를 쓰는 통합 테스트로 쿼리와 커밋 경계 확인 |
 | Entity·Flyway·제약 | `CONTRACT.md` §5-3·§5-5·§5-8 | migration·fingerprint·baseline·forward 경로 확인 |
-| feature·layer·port·패키지 의존 | [ADR-016~020](../../docs/ADR.md)과 구조 테스트 | `PackageLayerTest`·`PackageCycleTest`의 목록·비공허성 및 조건부 빈의 부팅 검사 확인 |
+| feature·layer·port·패키지 의존 | [ARCHITECTURE 「api 층 규칙」](../../docs/ARCHITECTURE.md#api-층-규칙)과 구조 테스트(이유는 ADR-016~020) | `PackageLayerTest`·`PackageCycleTest`의 목록·비공허성 및 조건부 빈의 부팅 검사 확인 |
 | Gradle·dotenv·Testcontainers·부팅 | 실제 설정과 대응 테스트 | dotenv를 끄고 필요한 키를 명시한 격리 부팅과 CI 환경 재현 |
 
 FastAPI와 응답 바이트를 대조하던 parity harness는 폐기됐습니다. 그 계약의 현재 테스트 위치를

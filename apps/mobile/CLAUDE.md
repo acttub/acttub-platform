@@ -33,10 +33,12 @@
 - `EXPO_PUBLIC_*`는 앱 번들에 들어가는 공개값입니다. 비밀을 넣지 않습니다.
 - API URL을 바꾸면 요청 대상뿐 아니라 `lib/analytics.ts`의 운영 계측 판정도 함께 확인합니다.
 
-## 백엔드 호출
+## 백엔드 호출·상태
 
 - 화면은 `lib/api.ts`와 `lib/api-request.ts`를 통해 acting-api를 호출합니다. 토큰·refresh·멱등
   재시도는 공용 요청 계층에 둡니다.
+- 전역 상태 라이브러리는 없습니다. 로그인 상태는 `lib/auth.tsx`의 React Context가 들고, 기기에 남길 값은
+  `expo-secure-store`(자격증명)와 AsyncStorage에 둡니다. 나머지는 `lib/`의 기능별 모듈과 화면 state입니다.
 
 ## 완료 기준
 
