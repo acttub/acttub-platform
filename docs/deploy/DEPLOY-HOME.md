@@ -94,8 +94,8 @@ curl -fsS https://acttub.com/health
 받은 값을 `release.env`에 `ACTTUB_` 이름으로 기록한 뒤 API 컨테이너에 실제 반영된 값을 대조한다. 넘기지 않은 스위치는
 `.env`·`compose.yml`·앱의 기본값을 따른다.
 
-- `ACTTUB_THREE_LAYERS_ENABLED`·`ACTTUB_DIRECT_VIDEO_ENABLED`: 두 환경 모두 true로 넘겨 영상 전용 연습을 Gemini 직접
-  코칭에 연결한다([practice.coach 「Gemini 직접 영상 코칭」](../specs/practice/coach.md#gemini-직접-영상-코칭)).
+- `ACTTUB_THREE_LAYERS_ENABLED`·`ACTTUB_DIRECT_VIDEO_ENABLED`: 두 환경 모두 true로 넘겨 새 연습(`three_layers_v1`, 입력과 무관, [practice.start](../specs/practice/start.md#규칙제약))을
+  새 코치와 Gemini 직접 코칭에 연결한다([practice.coach 「Gemini 직접 영상 코칭」](../specs/practice/coach.md#gemini-직접-영상-코칭)).
 - `ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED`: dev는 false로 넘겨 게스트의 영상 분석·재분석 일일 한도([practice.analyze](../specs/practice/analyze.md#규칙제약))를
   걸지 않는다. 운영은 true로 한도를 유지하며, 설정 미지정 기본값도 true다.
 
@@ -107,7 +107,12 @@ DB 스키마와 호환되는 직전 운영 SHA(직전 운영 태그) 및 이미�
 직전 SHA 재배포도 Git revert도 이미 적용된 DB 마이그레이션이나 사용자 쓰기를 되돌리지 않는다.
 실패한 마이그레이션은 부분 적용도 이력도 남기지 않으므로(`FlywayForwardMigrationTest`) 원인을 고쳐 다시 배포한다.
 §3의 기능 스위치로 켠 경로는 같은 이미지에 그 값을 false로 넘겨 `deploy.sh`를 다시 실행하면 끈다. 다음
-워크플로 배포는 워크플로의 값을 다시 넘긴다.
+워크플로 배포는 워크플로의 값을 다시 넘긴다. 새 연습 경로(`three_layers_v1`·직접 영상 코칭)를 끄면:
+- 이미 만든 신형 연습·노트는 계속 읽고 다시 분석하지 않는다([practice.start](../specs/practice/start.md#규칙제약)).
+- 분석을 건너뛴 직접 영상 회차는 기존 코치 경로로 이어갈 수 없어 새 영상을 올려야 한다([practice.coach](../specs/practice/coach.md#gemini-직접-영상-코칭)).
+
+이미지를 되돌릴 때는 신형 기록·노트를 읽는 코드(신형 reader)가 있는 이미지로만 되돌린다. 내부 handoff v2는 구버전 API가 만들 수
+없으므로 열린 v2 대화와 끝나지 않은 노트 작업을 먼저 확인한다([practice.note 「적용 범위와 호환」](../specs/practice/note.md#적용-범위와-호환)).
 Git revert는 [브랜치 전략의 운영 롤백](../BRANCHING-STRATEGY.md#운영-롤백)에 따라 `dev` 역병합까지 한다.
 
 코드 복구는 데이터 복구와 다르다. 적용된 마이그레이션과 데이터의 안전성은 따로 판단하고, DB를 백업 시점으로

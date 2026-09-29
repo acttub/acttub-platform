@@ -38,9 +38,8 @@ API의 요청·응답·오류·상태 전이를 바꿀 때 아래 순서를 따�
    요청·응답 타입과 모든 호출부를 직접 검색해 호환성을 확인한다.
 4. 백엔드 코드 → OpenAPI → 웹 타입 → 웹 수정과 필요한 모바일 수정을 한 PR에 담는다.
 
-**호환 배포:** DB·API 축소는 **expand → compatible code → contract** 순서로 여러 배포에
-나누며, 소비 중인 컬럼·필드를 한 배포에서 제거하지 않는다. DB의 데이터 전환과 릴리스 순서는
-[DB와 배포 안전성](../../docs/BRANCHING-STRATEGY.md#db와-배포-안전성)을 따른다.
+**호환 배포:** DB·API 축소는 여러 배포에 나누며, 소비 중인 컬럼·필드를 한 배포에서 제거하지 않는다.
+단계(expand → contract)와 릴리스 순서는 [DB와 배포 안전성](../../docs/BRANCHING-STRATEGY.md#db와-배포-안전성)을 따른다.
 
 **완료 기준:** 행동 계약 테스트와 갱신 변수 없는 스냅샷 검사가 통과했고, 생성물 diff 및
 웹·모바일의 모든 영향받는 소비자를 확인했다. 축소 변경은 구·신 버전의 호환 배포 순서가 정해졌다.
@@ -342,8 +341,8 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 | 3 | null 필드 **포함** | `@JsonInclude(NON_NULL)` **전역 사용 금지**(§6-1) |
 | 4 | datetime | 전 엔드포인트 `Z` + 마이크로초 6자리(§4). **JDBC 바인딩은 `OffsetDateTime`**(§5-8) |
 | 5 | 상태값 표기 | text 컬럼 + CHECK. 종마다 `AttributeConverter`, **`@Enumerated` 금지**(§5-3-1) |
-| 6 | refresh 회전 | 소진 토큰 재사용 시 **해당 유저 전 세션 무효화**(의도된 동작) |
-| 7 | 404 | "없음" 과 "남의 리소스" 를 구분하지 않는다(존재 노출 방지) |
+| 6 | refresh 회전 | 소진 토큰 재사용의 전 세션 무효화는 의도된 동작이다 — [account.login 「상태」](../../docs/specs/account/login.md#상태) |
+| 7 | 404 | [common.md 「오류 응답」](../../docs/specs/common.md#오류-응답) |
 | 8 | S3 presign | **리전 엔드포인트 고정.** 글로벌 엔드포인트는 신규 버킷에 307 |
 | 9 | ffmpeg | 동시 실행 1개 락, 600초 타임아웃, 실패·부재 시 원본 폴백 |
 | 10 | 제약명 문자열 의존 | **`consent_documents` 유니크 위반** 판정을 `PSQLException.getServerErrorMessage().getConstraint()` 로 한다. 그래서 `org.postgresql:postgresql` 이 `runtimeOnly` 가 아니라 `implementation` 이다. 리포트 멱등은 제약명을 보지 않는다(`uq_practice_reports_source_handoff` 에 대한 `ON CONFLICT DO NOTHING`) |
@@ -355,20 +354,20 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 | 16 | 커뮤니티 API 은퇴 | `/v2/community/**` 는 **404** 다(0.1.0, 테이블은 보존 §5-1). 인증이 선택이던 경로는 이것뿐이었다. `Authorization` 헤더가 오면 없는 경로에서도 먼저 검증한다 — 탈퇴한 계정의 토큰은 403 |
 | 17 | 미처리 예외 500 | `{"detail":"internal_server_error"}` |
 | 18 | 5xx `ApiException` | `ApiException.external(...)`·`ApiException.unexpected(...)` 팩토리로만 원인과 함께 만든다 |
-| 19 | 클라이언트 판 426 | `X-Acttub-Client`(예: `app/0.1.0`) 없는 `/v2` 요청은 **426** 이고 `detail` 이 코드가 아니라 **안내 문장**이다. 토큰 검증보다 먼저다(§6-5) |
-| 20 | 회원 게이트 | `/v2` 는 표에 적힌 **게이트 밖** 말고 전부 보호 기능이다. 동의 → 프로필 순으로 요청마다 DB 상태로 판정한다(§6-5) |
-| 21 | 로그인은 계정을 만들지 않는다 | 처음 온 신원은 200 `signup_required` 와 가입 토큰만 받는다. 계정·신원·동의 행은 가입 제출이 통과한 순간 **한 트랜잭션**으로 생긴다(§6-6) |
-| 22 | 제공자 장애는 처음 온 사람에게만 | 서버가 제공자에 물어야 하는 자리(카카오 사용자 정보 API, 애플 코드 교환)가 답하지 않으면 **502 `provider_unavailable`** 이고 아무 행도 없다. 제공자 ID 로 찾아지는 기존 회원은 묻지 않고 로그인된다. **네이버만 예외** — 로그인마다 서버가 코드를 교환하므로 기존 회원도 502 다(§6-7) |
-| 23 | 탈퇴는 200 과 최초 탈퇴 시각 | `DELETE /v2/me` 만 **탈퇴한 계정의 토큰을 받는다.** 다시 불러도 같은 본문이다. 바깥 호출(객체 삭제·제공자 해제)이 실패해도 200 이고 7일 동안 다시 시도한다(§6-8) |
+| 19 | 클라이언트 판 426 | `ClientVersionFilter` 가 토큰 검증보다 먼저 낸다(§6-5). 행동은 [common.md 「클라이언트 판과 강제 업데이트」](../../docs/specs/common.md#클라이언트-판과-강제-업데이트) |
+| 20 | 회원 게이트 | 경로 목록은 `ConsentGateInterceptor` 한 곳이다(§6-5). 규칙은 [common.md 「게이트와 보호 기능」](../../docs/specs/common.md#게이트와-보호-기능) |
+| 21 | 로그인은 계정을 만들지 않는다 | 계정·신원·동의 행은 가입 제출의 **한 트랜잭션**에서 생긴다(§6-6). 행동은 [account.login](../../docs/specs/account/login.md#규칙제약) |
+| 22 | 제공자 장애는 처음 온 사람에게만 | 행동은 [account.login 「예외」](../../docs/specs/account/login.md#예외)(§6-7) |
+| 23 | 탈퇴는 200 과 최초 탈퇴 시각 | 탈퇴한 계정의 토큰을 받는 예외 자리는 `CurrentUserService` 다(§6-5). 바깥 호출이 실패해도 200 이고 정리 장부가 다시 시도한다(§6-8). 행동은 [account.withdraw](../../docs/specs/account/withdraw.md#상태) |
 | 24 | 저장하는 비밀에는 키 판 접두사 | `uid_hash`·토큰 암호문·정리 장부의 payload 는 `k1:`(전용 키)·`d1:`(`JWT_SECRET` 파생) 로 시작한다. 읽을 때 접두사로 키를 고른다. **접두사 없는 값은 없다**(§6-8) |
-| 25 | 게스트의 게이트는 다른 규칙 | 웹 게스트는 **그 기능의 문서만** 보고 프로필을 면제한다. 회원의 규칙과 합치지 않는다(ADR-028). 어느 기능에도 적히지 않은 경로는 게스트에게 **403 `member_only`** 다(§6-9) |
-| 26 | 옮겨진 게스트의 사유가 먼저 | 액세스 **403**·갱신 **401** 둘 다 `guest_transferred` 이고 `account_deactivated` 보다 먼저다. `DELETE /v2/me` 도 예외가 아니다(§6-9) |
+| 25 | 게스트의 게이트는 다른 규칙 | 회원의 규칙과 합치지 않는다(`GuestFeature`, §6-9). 규칙은 [account.guest](../../docs/specs/account/guest.md#규칙제약) |
+| 26 | 옮겨진 게스트의 사유가 먼저 | 규칙은 [account.guest 「상태」](../../docs/specs/account/guest.md#상태)(§6-9) |
 | 27 | 이관은 한 트랜잭션 | 도메인마다의 "주인 바꾸기" 포트는 **자기 트랜잭션을 열지 않는다.** 도중에 실패하면 어느 행의 주인도 바뀌지 않는다(§6-9) |
-| 28 | 로그아웃은 멱등 | 모르는·폐기된·위조된·**남의** 리프레시 토큰이어도 **204** 이고 아무것도 폐기하지 않는다. 푸시 토큰 삭제는 **로그인 없이** 받는다(§6-10) |
-| 29 | 포트폴리오 공개 조회는 같은 404 | 꺼진 링크·없는 slug·탈퇴한 사람의 slug 를 가르지 않는다(`portfolio_not_found`). 로그인 없이, **보는 사람의 IP 별** 분당 60회, 응답에 `X-Robots-Tag: noindex`(§6-11) |
-| 30 | slug 는 꺼도 남는다 | 처음 켤 때 생긴 난수 slug 를 다시 만들지 않는다 — 껐다 켜도 같은 주소다. `/`·`+`·`=` 가 없는 글자다(웹의 `/p/<slug>` 는 한 단계만 받는다)(§6-11) |
-| 31 | 매일 도는 일은 멱등이고 서로를 막지 않는다 | 한 가지가 실패해도 나머지는 돈다. **쓰인 이관 코드는 30일 안에 지우지 않는다**(`guest_transferred` 의 표식)(§6-12) |
-| 32 | 회원 자료는 활성 계정에만 쓴다 | 프로필·알림 토글·사진·포트폴리오·푸시 토큰을 쓰는 트랜잭션은 **탈퇴와 같은 `users` 행을 잡고** 상태를 다시 본다. 게이트를 지난 뒤 탈퇴가 끝났으면 쓰지 않는다(403 `account_deactivated`)(§6-8) |
+| 28 | 로그아웃은 멱등 | 행동은 [account.logout](../../docs/specs/account/logout.md#규칙제약)과 [account.notification](../../docs/specs/account/notification.md#규칙제약)(§6-10) |
+| 29 | 포트폴리오 공개 조회는 같은 404 | 행동(같은 404, IP 한도, `X-Robots-Tag`)은 [account.portfolio](../../docs/specs/account/portfolio.md#입력출력)(§6-11). IP 의 열쇠는 §6-13 |
+| 30 | slug 는 꺼도 남는다 | 글자 규칙은 §6-11. 껐다 켜도 같은 주소라는 행동은 [account.portfolio](../../docs/specs/account/portfolio.md#규칙제약) |
+| 31 | 매일 도는 일은 멱등이고 서로를 막지 않는다 | 한 가지가 실패해도 나머지는 돈다(§6-12). 쓰인 이관 코드를 지우는 때는 [account.guest 「상태」](../../docs/specs/account/guest.md#상태) |
+| 32 | 회원 자료는 활성 계정에만 쓴다 | 프로필·알림 토글·사진·포트폴리오·푸시 토큰을 쓰는 트랜잭션은 **탈퇴와 같은 `users` 행을 잡고** 상태를 다시 본다. 게이트를 지난 뒤 탈퇴가 끝났으면 쓰지 않는다(응답은 [common.md 「탈퇴와 겹친 쓰기」](../../docs/specs/common.md#탈퇴와-겹친-쓰기))(§6-8) |
 | 33 | 객체 키를 DB 에서 먼저 잃지 않는다 | 사진 키를 덮거나 행을 지우는 트랜잭션이 `object_delete` 를 **같은 트랜잭션에서** 정리 장부에 남긴다. 저장소 삭제가 실패해도 요청은 끝나고 장부가 다시 시도한다(§6-8·§6-11) |
 | 34 | IP 제한의 열쇠는 방문자 주소다 | `platform/security/ClientAddress` 한 자리가 구한다. **신뢰하는 프록시가 붙인** `X-Forwarded-For` 만 믿고 오른쪽부터 읽는다(§6-13) |
 
@@ -407,15 +406,11 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 셋째를 더하기 전에 이 표부터 고친다.
 
 **422 는 두 모양이다.** 본문의 모양이 틀린 것(필수 키 빠짐·타입·값 목록 밖·길이 상한)은 `detail` 이
-**배열**이고, 규칙에 걸린 것은 다른 오류와 같이 **코드 문자열 하나**다: `under_14`,
-`under_14_account_closed`, `authorization_code_required`, `consent_decisions_incomplete`,
-`required_consent_cannot_be_declined`, `age_confirmation_required`, `order_mismatch`,
-`portfolio_credit_limit_exceeded`, `portfolio_photo_limit_exceeded`, 노트 평가의 `comment_too_long`([practice.note](../../docs/specs/practice/note.md)), 그리고 리딩의 `no_characters`,
-`invalid_characters`, `script_too_long`, `script_limit`, `request_fingerprint_mismatch`, `invalid_line`, `empty_range`,
-`recording_too_long`, `recording_quota`(§6-14; 회차의 409 는 `session_closed`, 녹음 변환 실패는 503
-`audio_conversion_failed`). (네이버 로그인에 `authorization_code`·`code_verifier` 가 빠진 것은
-본문의 모양이 틀린 것이라 **배열**이다 — 애플의 `authorization_code_required` 와 다르다.) 클라이언트는 `detail` 이 문자열이면 사유로 가르고 배열이면
-자기 버그로 다룬다. 선례는 `request_fingerprint_mismatch` 다.
+**배열**이고, 규칙에 걸린 것은 다른 오류와 같이 **코드 문자열 하나**다. 선례는 `request_fingerprint_mismatch` 다. 어떤 규칙
+코드가 있는지는 각 스펙의 「입력·출력」 표가 정하고, 코드 전체의 집합은 `ErrorContractInventoryTest` 가 판정한다(아래 "숫자를
+완료 조건으로 쓰지 않는다"). (네이버 로그인에 `authorization_code`·`code_verifier` 가 빠진 것은 본문의 모양이 틀린 것이라
+**배열**이다 — 애플의 `authorization_code_required` 와 다르다.) 클라이언트는 `detail` 이 문자열이면 사유로 가르고 배열이면
+자기 버그로 다룬다.
 
 불규칙에 주의한다 — 대부분 snake_case(`upload_not_found`)인데 일부는 공백 포함 문장이다:
 `invalid or missing access token`, `session not found`, `practice session not found`,
@@ -433,6 +428,16 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 `ApiException`은 분류와 원인을 빠뜨리지 않도록 `ApiException.external(...)`·
 `ApiException.unexpected(...)` 팩토리로만 만든다. 일반 생성자에 500 이상을 넣으면
 `IllegalArgumentException`으로 거부한다. 4xx 응답은 기존 생성자를 그대로 쓴다.
+
+**실패 보고.** 실패는 HTTP 상태 코드와 따로 Expected Rejection·External Failure·Unexpected Failure로 가른다(뜻은
+[ARCHITECTURE 「용어」](../../docs/ARCHITECTURE.md#용어), 이유는 ADR-025). Expected Rejection 은 보고하지 않고, 나머지
+둘은 `platform/observability` 의 Port `FailureReporter.report(...)` 로 보고한다. HTTP 실패는 `ApiErrorAdvice` 가,
+예외를 삼키는 워커·어댑터는 그 자리에서 이 Port 를 직접 부른다. Sentry 를 아는 구현은 `SentryFailureReporter`
+하나다. 우리가 만든 바깥 의존 예외는 표시 인터페이스 `ExternalFailure` 를 구현하고, `FailureClassifier` 가 원인
+예외를 따라가며 그 표시와 남이 만든 네트워크·DB 예외(목록은 그 클래스)를 External Failure 로, 나머지를
+Unexpected Failure 로 가른다. `SentryFailureReporter` 는 보고 자리와 예외 클래스가 같은 반복을 프로세스
+메모리에서 `SUPPRESSION_WINDOW`(10분) 동안 억제한다 — 재시작하면 초기화되고 인스턴스끼리 공유하지 않는다.
+검증은 `FailureClassifierTest`·`SentryFailureReporterTest`·`ApiErrorAdviceTest` 다.
 
 **숫자를 완료 조건으로 쓰지 않는다** — 추출 방식에 따라 흔들린다(동적 502, admin 기본 401,
 멀티라인 detail). 인벤토리의 **집합 동등성**으로 판정한다. `ErrorContractInventoryTest` 가 그
@@ -500,7 +505,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   `/v2/auth/providers/*/disconnect` 도 여기서 뺀다 — 카카오는 `Authorization: KakaoAK <어드민 키>` 를 싣는데, 그것을
   액세스 토큰으로 검증하면 알림이 전부 401 이 된다.
 - `account_deactivated` 의 `DELETE /v2/me` 예외는 `CurrentUserService` 에 있다.
-- **고지 문서는 동의 문서가 아니다.** 개인정보 처리방침은 `consent_documents` 의 행이 아니라 배포에 든 고정 파일
+- **고지**(동의 문서와 가르는 규칙은 account.consent): 개인정보 처리방침은 `consent_documents` 의 행이 아니라 배포에 든 고정 파일
   (`consent-docs/privacy_policy.md`)이고 `GET /v2/consents/notices` 가 전문을 내준다. 판을 올리는 절차는
   `consent-docs/README.md` 다.
 
@@ -523,8 +528,8 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 
 > 제품 규칙의 정본: [account.login](../../docs/specs/account/login.md)(켜 둔 제공자와 400·503, 제공자 목록, 이메일 검증 근거, 네이버·애플의 토큰 교환, 연결 끊기 알림의 응답·401·503)
 
-- **켜 둔 제공자**(`integration/oidc/ProviderRegistry`): `AUTH_ENABLED_PROVIDERS`(기본 `google,apple`)에 든 것만
-  로그인된다. 카카오·네이버는 검수 승인 뒤에 이 값에 이름을 더해 켠다.
+- **켜 둔 제공자**(`integration/oidc/ProviderRegistry`): `AUTH_ENABLED_PROVIDERS`(기본 `google,apple`). 언제 켜는지는
+  [account.login](../../docs/specs/account/login.md#규칙제약).
 - 카카오의 이메일 검증은 사용자 정보 API(어드민 키, `target_id` = `sub`)로 묻는다. 네이버의 `@naver.com` 판정은
   `feature/auth/domain/NaverEmail` 이다.
 - **네이버는 서버가 코드를 교환한다**(SOMA-528 결정 I-5): `POST https://nid.naver.com/oauth2/token` 에
@@ -553,20 +558,18 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 
 > 제품 규칙의 정본: [account.withdraw](../../docs/specs/account/withdraw.md)(응답, 파기·가명처리·남기는 것, 보관 동의, 제공자 해제, 신원 해시의 쓰임), [common.md](../../docs/specs/common.md) 「탈퇴·삭제」
 
-- **한 트랜잭션**(`PostgresProfileRepository#withdraw`)에서: 상태 전환, 이메일 파기(I-3 예외로
-  `users.nickname=NULL` 포함), 프로필의 이름·사진·소개 파기와 생년월일 → 5세 단위 `age_band`,
-  알림 토글 끄기, 포트폴리오 행째 삭제, 이관 코드 삭제, 리프레시 폐기·푸시 토큰 삭제, 진행 중
-  `external_operations` 와 `ai_jobs` 를 `failed`/`account_deactivated` 로 닫고 lease 떼기(분석 중이던 연습도
-  `failed`, 0.1.0 작업은 결과 본문도 비운다), **0.1.0 영상에 `purged_at` 찍기**, `practice_feedback` 의 연락처
-  비우고 시트 재전송 예약, `note_ratings` 의 한 줄 비우기(평가 값은 남는다), 신원의 `provider_uid`·토큰을 비우고 `uid_hash` 채우기,
-  챌린지 자료 정리(`PostgresProfileRepository#eraseChallenge` — 마감이 지났는데 집계되지 않은 챌린지를 먼저
-  집계하고(`ChallengeWithdrawal#settleBeforeWithdrawal`), 참여작 비공개·주최 해제·차단·저장·알림함 삭제·AI 리포트
-  본문 파기, §6-16~§6-20). 성별·연령대·방향·경력·목표와 배우 기억은 남는다([practice 「연습 자료의 이관·삭제·탈퇴」](../../docs/specs/practice/README.md#연습-자료의-이관삭제탈퇴)).
-- **신원 행은 지우지 않는다.** `uid_hash` = HMAC-SHA256(provider, provider_uid) 만 남긴다
-  (`ck_user_identities_uid_or_hash`).
+- **한 트랜잭션**(`PostgresProfileRepository#withdraw`)에서 파기와 상태 전환을 한다. 무엇을 지우고 남기는지는
+  [account.withdraw](../../docs/specs/account/withdraw.md#규칙제약)와 영역 표(연습·리딩·챌린지)가 정본이다. 구현만의 것:
+  `users.nickname=NULL`(I-3 예외), 진행 중 `external_operations`·`ai_jobs` 의 lease 떼기(분석 중이던 연습도 `failed`,
+  0.1.0 작업은 결과 본문도 비운다), 0.1.0 영상의 `purged_at`, `practice_feedback` 의 시트 재전송 예약(`sheet_seq`),
+  챌린지 자료 정리(`PostgresProfileRepository#eraseChallenge` — 밀린 마감 집계를 먼저 한다(`ChallengeWithdrawal#settleBeforeWithdrawal`), §6-20).
+- **신원 행은 지우지 않는다.** `uid_hash` 만 남긴다(`ck_user_identities_uid_or_hash`). 값은 `platform/security/AccountSecrets#identityHash`
+  가 만들고(조회 후보는 `#identityHashCandidates`), 운영 셸로 같은 값을 내는 계산은
+  [RETENTION-REVOCATION 2단계](../../docs/deploy/RETENTION-REVOCATION.md#2-옛-계정을-해시로-찾는다--본인-확인)에 있다. 둘이 같음을
+  `AccountSecretsTest` 가 고정한다.
 - **영상 객체**는 옛 예약 장부(`upload_intents`)와 0.1.0 보관함(`videos`)의 키를 함께 모은다 — 보관함 영상의
   **포스터**(`videos.poster_key`, V23)도 함께다. 포스터 워커는 붙일 때 같은 `users` 행을 잡으므로 탈퇴가 키를 모은 뒤에
-  붙는 포스터는 없다([practice.library](../../docs/specs/practice/library.md)). 남길지는 `retention` 의 **현재 판에 대한 마지막 결정**으로 가른다.
+  붙는 포스터는 없다([practice.library](../../docs/specs/practice/library.md)). 남길지는 [account.withdraw](../../docs/specs/account/withdraw.md#규칙제약)가 정하고 `PostgresProfileRepository#retentionGranted` 가 판정한다.
 - **리딩 자료는 같은 트랜잭션에서 행째 지운다**(`PostgresProfileRepository#eraseReading`, §6-14). 보관 동의가
   있으면 녹음 행을 남기고 `reading_session_id`·`line_id` 를 NULL 로 비운 채 `user_id` 를 유지해 3년 파기가 지우고,
   없으면 행(음성과 **전사**)을 지우고 객체 키를 장부(`reading_recording_delete`)에 올린다. 지우기 전에 그
@@ -577,7 +580,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   `FOR UPDATE` 로 잡고 활성인지 다시 본다**(`PostgresProfileRepository#lockActive`,
   `PostgresPortfolioRepository#lockOrCreate`, `PostgresPushTokenRepository#register`). 탈퇴는 `users` 행을 남기므로
   FK 는 뒤늦은 쓰기를 막지 못한다 — 이 확인이 없으면 파기한 이름·생년월일이 다시 차고 지운 포트폴리오 행이
-  되살아난다. 쓰기가 먼저면 탈퇴가 그 뒤에 파기하고, 탈퇴가 먼저면 쓰지 않는다(응답은 각 스펙).
+  되살아난다. 쓰기가 먼저면 탈퇴가 그 뒤에 파기하고, 탈퇴가 먼저면 쓰지 않는다(응답은 [common.md 「탈퇴와 겹친 쓰기」](../../docs/specs/common.md#탈퇴와-겹친-쓰기)).
 - **바깥 호출은 트랜잭션 밖이다**(`feature/profile/app/AccountCleanup`). 탈퇴 트랜잭션은 해제에 쓸 값을
   **파기 전에** `account_cleanup_operations`(V11)로 옮겨 두기만 한다 — `object_delete`(객체 키 목록),
   `apple_revoke`(애플 토큰), `kakao_unlink`(회원번호), `naver_revoke`(refresh token), 그리고 `reading_recording_delete`
@@ -589,7 +592,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   있지 않는다. **객체 삭제**(`object_delete`·`reading_recording_delete`)는 **성공할 때까지 대상 키를 지우지
   않는다**: `expires_at` 이 지나도 계속 집어 시도하고, 그때마다 `ObjectDeletionOverdue` 로 운영자에게 알린 뒤
   다음 알림을 7일 뒤로 미룬다(같은 작업을 일주일에 한 번보다 자주 알리지 않는다). 키를 먼저 버리면 그 객체를
-  아는 곳이 없어 복구할 수 없다(specs/reading 「리딩 자료의 이관·삭제·탈퇴」).
+  아는 곳이 없어 복구할 수 없다([account.withdraw 「상태」](../../docs/specs/account/withdraw.md#상태)).
 - **`object_delete` 는 탈퇴만 쓰는 것이 아니다.** 객체 키를 DB 에서 덮거나 그 행을 지우는 자리는 전부 같은
   트랜잭션에서 장부에 남긴다(`PostgresObjectCleanupLedger`): 프로필 사진의 교체·삭제, **올리다 만 프로필 사진의
   주소를 다시 받을 때 덮이는 앞의 키**, 포트폴리오 사진의 삭제와 시한이 지난 올리기 찌꺼기. 키를 먼저 잃으면
@@ -617,21 +620,21 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   늘리지 않는다.
 - **게스트의 게이트**(`platform/security/GuestFeature`): 경로가 속한 기능의 문서만 본다. 연습은
   `/v2/videos/**`·`/v2/practices/**`·`/v2/practice-feedback/**`·`/v2/me/practice-feedback/**`·`/v2/coach/**`·
-  `/v2/me/memory/**`, 리딩은 `/v2/reading/**` 다(서버가 대본·음성을 분석하지 않아 AI 분석 동의는 없다 —
-  ADR-031, §6-14). 이 목록에 없는 경로가 `member_only` 다.
-- **dev 분석 한도 예외**: `ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=false`이면 새 연습·재분석 모두 일일 횟수 제한 없이 처리한다. 배포 워크플로는 dev에 false, 운영에 true를 명시한다. 기본값은 true이며 회원 정책과 요청 ID 멱등성은 유지한다.
+  `/v2/me/memory/**`, 리딩은 `/v2/reading/**` 다(기능마다의 문서는 [account.guest](../../docs/specs/account/guest.md#규칙제약)).
+  이 목록에 없는 경로가 `member_only` 다.
+- **dev 분석 한도 예외**: `ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=false`이면 새 연습·재분석 모두 일일 횟수 제한 없이 처리한다. 환경별 값은 [DEPLOY-HOME §3](../../docs/deploy/DEPLOY-HOME.md#3-actions와-일상-배포)이 정한다. 기본값은 true이며 회원 정책과 요청 ID 멱등성은 유지한다.
 - **분석 하루 3회**는 작업 장부의 `analyze` 행을 센다. **세는 일과 작업을 만드는 일은 한 트랜잭션이다**
-  (`PostgresPracticeSessionLedger#overQuota`): 그 게스트의 `users` 행을 잡은 채 세므로 겹쳐 온 분석 둘이 같은 수를
-  보고 함께 지나가지 못한다. 같은 요청 ID 의 재전송은 한도보다 **먼저** 갈라 재생한다. 재분석에서는 한도(429)가
-  "실패 상태가 아님"(409)보다 먼저다. 잠금 순서는 올린 영상·연습 행 → `users` 다(이관과 같은 방향).
+  (`PostgresPracticeRepository#overQuota`, §6-15): 그 게스트의 `users` 행을 잡은 채 세므로 겹쳐 온 분석 둘이 같은 수를
+  보고 함께 지나가지 못한다. 같은 요청 ID 의 재전송은 한도보다 **먼저** 갈라 재생한다. 판정 순서는
+  [practice.start](../../docs/specs/practice/start.md#규칙제약)다. 잠금 순서는 올린 영상·연습 행 → `users` 다(이관과 같은 방향).
 - **이관 코드**(`POST /v2/guest/transfer-code`): 해시는 HMAC 이고 키는 `JWT_SECRET` 에서 용도를 못박아 뽑는다.
   다른 게스트의 살아 있는 코드와 해시가 겹치면 다시 뽑는다. **유일성은 DB 가 지킨다**
   (V12 의 부분 유니크 인덱스 둘 — 쓰지 않은 코드는 게스트마다 하나, 숫자마다 하나). 겹쳐 온 발급은 뒤의 INSERT 가
   앞의 커밋을 기다렸다가 `ON CONFLICT DO NOTHING` 의 0행으로 끝나고 다시 뽑으면서 앞의 코드를 지운다 — 둘 다 201
   이지만 살아 있는 코드는 하나다. 발급은 코드 행만 잠근다(`users` 행을 잡으면 옮기기와 순서가 엇갈려 교착한다).
 - **옮기기의 틀린 시도 한도**는 **자리를 먼저 잡고 평가한다**(`FixedWindowRateLimiter#reserve`): 평가 중인 시도도
-  자리를 차지하므로 겹쳐 보낸 추측 스무 개가 같은 수를 보고 함께 평가되지 못한다. 맞은 코드·409·서버 쪽 실패는
-  자리를 되돌려 준다.
+  자리를 차지하므로 겹쳐 보낸 추측 스무 개가 같은 수를 보고 함께 평가되지 못한다. 세지 않는 시도는 자리를 되돌려
+  준다(무엇을 세는지는 [account.guest 「예외」](../../docs/specs/account/guest.md#예외)).
 - **한 트랜잭션**(`feature/transfer/app/GuestTransferService`): 코드 행을 `FOR UPDATE` 로 잡고(같은 코드를 든
   두 요청 가운데 하나만 받는다), 올린 영상·연습·작업 장부·배우 기억과 리딩 자료(대본·회차·녹음·암기 상태)의
   `user_id` 를 회원으로 바꾸고, 게스트를
@@ -650,7 +653,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
     `platform/ledger/OperationOwnership`·`auth/app/GuestAccounts`·`reading/app/ReadingOwnership`)는 **자기 `TransactionTemplate` 을 쓰지
     않는다.** 몇몇 저장소의 템플릿은 `REQUIRES_NEW` 라(§5-4) 거기에 얹으면 이관과 따로 커밋돼, 도중에 실패해도
     그 행만 회원에게 넘어간 채로 남는다 — 실제로 그렇게 새는 것을 `GuestTransferIT` 가 잡았다.
-- **옮겨진 게스트의 표식**은 **쓰인 이관 코드 행**이다 — 신원 행을 지우므로 신원으로는 알 수 없다. 그래서 탈퇴의
+- **옮겨진 게스트의 표식**은 **쓰인 이관 코드 행**이다([account.guest 「상태」](../../docs/specs/account/guest.md#상태)). 그래서 탈퇴의
   파기는 **쓰지 않은** 코드만 지운다.
 
 ### 6-10. 알림 토글, 푸시 토큰, 로그아웃
@@ -672,8 +675,8 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   행을 지우면서 객체 삭제를 **같은 트랜잭션에서 정리 장부에 올리고** 커밋 뒤에 시도한다
   (`portfolio/app/PortfolioPhotoCleanup` — 구현은 장부의 주인인 `profile`, §6-8).
 - 상한과 순서는 **포트폴리오 행을 `FOR UPDATE` 로 잡은 채** 센다(`PostgresPortfolioRepository#lockOrCreate`).
-- **공유 slug** 는 128비트 난수(base64url, `/`·`+`·`=` 없음)다. `url` 은 `<SITE_URL>/p/<slug>` 이고
-  `SITE_URL` 이 비어 있으면 `null` 이다 — 주소를 코드에 박아 두지 않는다(SOMA-528 결정 I-8).
+- **공유 slug** 는 128비트 난수(base64url, `/`·`+`·`=` 없음)다. `url` 은 `SITE_URL` 로 만든다 — 주소를 코드에 박아 두지
+  않는다(SOMA-528 결정 I-8). 응답의 뜻은 [account.portfolio](../../docs/specs/account/portfolio.md#규칙제약).
 - 공개 조회는 프로필의 것을 `portfolio/app/PortfolioOwners` 포트로 받는다(구현은 `profile`).
 
 ### 6-12. 매일 도는 일
@@ -698,7 +701,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 
 | 일 | 구현 규칙 |
 |---|---|
-| 설문 연락처 | 연락처를 비우고 `sheet_seq` 를 올린 뒤 `sheet_synced_at` 을 NULL 로 되돌린다 — 같은 설문 id·새 순번으로 시트에 다시 보낸다([practice.feedback](../../docs/specs/practice/feedback.md)) |
+| 설문 연락처 | 연락처를 비우고 `sheet_seq` 를 올린 뒤 `sheet_synced_at` 을 NULL 로 되돌린다(시트에서 연락처를 지우는 동작은 [practice.feedback](../../docs/specs/practice/feedback.md)) |
 | 설문 시트 전송 | `sheet_synced_at` 이 NULL 인 행을 오래된 순으로 보낸다. 한 묶음에서 하나도 보내지 못하면 멈춘다(시트가 죽은 동안 같은 묶음을 영원히 돌지 않는다) |
 
 ### 6-13. 방문자 IP
@@ -725,7 +728,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 ### 6-14. 대본 리딩 — 대본·회차·녹음·암기와 그 생애 (SOMA-546)
 
-> 제품 규칙의 정본: [reading/](../../docs/specs/reading/README.md)(「리딩 자료의 이관·삭제·탈퇴」 표, 최종 저장 직전의 재확인, 게스트의 마지막 활동), [reading.script](../../docs/specs/reading/script.md)(등록·목록·검색·상세·수정·삭제, 사유 코드·한도·재전송, 카드 필드), [reading.cast](../../docs/specs/reading/cast.md)(내 배역, 목소리 프리셋), [reading.session](../../docs/specs/reading/session.md)(시작·재전송, 진행 저장의 판정 순서, 마지막 회차), [reading.recording](../../docs/specs/reading/recording.md)(올리기의 검사 순서·한도·총량·대체, 재생, 보관), [reading.memorization](../../docs/specs/reading/memorization.md)(갱신 판정, 조회)
+> 제품 규칙의 정본: [reading/](../../docs/specs/reading/README.md)(「리딩 자료의 이관·삭제·탈퇴」 표), [common.md](../../docs/specs/common.md)(「요청 재전송」, 「저장 직전 재확인」), [account.guest](../../docs/specs/account/guest.md#규칙제약)(게스트의 마지막 활동), [reading.script](../../docs/specs/reading/script.md)(등록·목록·검색·상세·수정·삭제, 사유 코드·한도·재전송, 카드 필드), [reading.cast](../../docs/specs/reading/cast.md)(내 배역, 목소리 프리셋), [reading.session](../../docs/specs/reading/session.md)(시작·재전송, 진행 저장의 판정 순서, 마지막 회차), [reading.recording](../../docs/specs/reading/recording.md)(올리기의 검사 순서·한도·총량·대체, 재생, 보관), [reading.memorization](../../docs/specs/reading/memorization.md)(갱신 판정, 조회)
 
 - **경로**는 전부 `/v2/reading/**` 이고 게스트의 기능 표 `READING`(`platform/security/GuestFeature`, §6-9)에 든다.
   회원은 회원의 게이트(§6-5)를 지난다.
@@ -744,7 +747,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - **등록·수정은 `users` 행을 `FOR UPDATE` 로 잡고 활성인지 본다**(`PostgresScriptRepository#lockActive`, §6-8 과 같은
   형태). 활성이 아니면 저장소가 `OwnerNotActive` 를 알리고 `ScriptService#activeOnly` 가 403 으로 바꾼다. 같은 회원의
   등록이 겹쳐도 여기서 줄을 서므로 개수 한도가 정확하다.
-- 검색은 `%`·`_`·`\` 를 풀어(`escapeLike`) `ILIKE … ESCAPE '\'` 로 제목과 배역 이름만 본다(`PostgresScriptRepository`).
+- 검색은 `%`·`_`·`\` 를 풀어(`escapeLike`) `ILIKE … ESCAPE '\'` 로 찾는다(`PostgresScriptRepository`). 찾는 칸은 reading.script.
 - **삭제**: 줄·회차·녹음·암기 행은 `PostgresScriptRepository#delete` 가 한 트랜잭션에서 지운다. 녹음 객체의 삭제는 행을
   지운 트랜잭션이 정리 장부(`reading_recording_delete`)에 올리고 커밋 뒤에 시도한다(`reading/app/
   ReadingRecordingCleanup`, 구현은 `profile` 의 `PostgresObjectCleanupLedger`).
@@ -755,7 +758,8 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   **한 트랜잭션에서 대본 행을 `FOR UPDATE` 로 잡고**(같은 대본의 시작이 여기서 줄을 선다) 열린 회차를 `stopped` 로
   바꾼 뒤 새 회차를 만든다 — `uq_reading_sessions_open_script` 가 그물이다. `started_at`·`ended_at` 은 앱 시계다.
 - **진행 저장**: 시간은 `GREATEST(저장값, 보낸 값)` 로 쓴다. 회차 행을 `FOR UPDATE` 로 잡은 채 하고, 계정 상태를 따로
-  보지 않는다 — 이관·삭제가 먼저 끝났으면 행의 주인이 바뀌었거나 행이 없어 404 다.
+  보지 않는다 — 이관·삭제가 먼저 끝났으면 행의 주인이 바뀌었거나 행이 없어 회차를 찾지 못하는 것으로 충분하다(응답은
+  reading.session 「예외」, 규칙은 common.md 「저장 직전 재확인」).
 - **회차 삭제**는 녹음 행을 지우고 객체 삭제를 같은 트랜잭션에서 장부(`reading_recording_delete`)에 올린다.
 - 마지막 회차는 `ORDER BY started_at DESC, id DESC` 의 첫 행이다(`PostgresScriptRepository`·`PostgresSessionRepository`).
 
@@ -764,7 +768,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - **유일한 multipart 요청**이다. 칸의 모양 검사는 핸들러가 직접 422 **배열**로 만든다 — JSON 본문의 검증기가 닿지
   않는 자리다(`RecordingController`). `RequestBodyCachingFilter` 는 multipart 를 캐시하지 않는다(컨테이너의 파트
   파싱이 원 스트림을 읽는다 — `ReadingRecordingUploadServerIT` 가 실제 서버로 본다). 컨테이너 상한은
-  `spring.servlet.multipart.*`(25MB)이고 넘으면 핸들러 전이라 413 은 advice(`ApiErrorAdvice`)가 낸다.
+  `spring.servlet.multipart.*`(값과 응답은 reading.recording)이고 넘으면 핸들러 전이라 413 은 advice(`ApiErrorAdvice`)가 낸다.
 - 사전 확인은 잠그지 않는다. 변환은 `integration/media/AudioTranscoder`(ffmpeg), 객체 키는
   `reading/{user_id}/{session_id}/{line_id}/{request_id}.m4a` 다. **최종 저장은 회차 행을 `FOR UPDATE` 로 잡고**
   같은 확인을 다시 한 뒤 총량(저장된 `byte_size` 합)을 본다. 바깥 호출(변환·올림)은 트랜잭션 밖이다(§5-4).
@@ -797,7 +801,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 ### 6-15. 연습 0.1.0 — 스키마(V14)와 영상 보관함 (SOMA-546)
 
-> 제품 규칙의 정본: [practice/](../../docs/specs/practice/README.md)(「0.1.0 스키마 전환」, 「연습 자료의 이관·삭제·탈퇴」 표, 옛 경로를 내린 것), [practice.record](../../docs/specs/practice/record.md)(올리기 세 단계·한도·시한), [practice.library](../../docs/specs/practice/library.md)(보관함·상세·삭제·파일만 파기·포스터, 묶음 목록·속성), [practice.start](../../docs/specs/practice/start.md)(시작·재시도, 경험 판, 판정 순서), [practice.resume](../../docs/specs/practice/resume.md)(이어하기), [practice.analyze](../../docs/specs/practice/analyze.md)(상태·취소, 분석 조회, 하루 3회), [practice.coach](../../docs/specs/practice/coach.md)(대화 시작·답장·조회, `reply_limit`), [practice.note](../../docs/specs/practice/note.md)(노트·평가, `my_rating`), [practice.memory](../../docs/specs/practice/memory.md)(배우 기억), [practice.feedback](../../docs/specs/practice/feedback.md)(이탈 설문, 운영 피드백 조회)
+> 제품 규칙의 정본: [practice/](../../docs/specs/practice/README.md)(「0.1.0 스키마 전환」, 「연습 자료의 이관·삭제·탈퇴」 표, 옛 경로를 내린 것), [practice.record](../../docs/specs/practice/record.md)(올리기 세 구간·한도·시한), [practice.library](../../docs/specs/practice/library.md)(보관함·상세·삭제·파일만 파기·포스터, 묶음 목록·속성), [practice.start](../../docs/specs/practice/start.md)(시작·재시도, 경험 판, 판정 순서), [practice.resume](../../docs/specs/practice/resume.md)(이어하기), [practice.analyze](../../docs/specs/practice/analyze.md)(상태·취소, 분석 조회, 하루 3회), [practice.coach](../../docs/specs/practice/coach.md)(대화 시작·답장·조회, `reply_limit`), [practice.note](../../docs/specs/practice/note.md)(노트·평가, `my_rating`), [practice.memory](../../docs/specs/practice/memory.md)(배우 기억), [practice.feedback](../../docs/specs/practice/feedback.md)(이탈 설문, 운영 피드백 조회)
 
 - **넓히기만 한 V14**: 새 테이블 열(`videos`·`video_transcripts`·`practices`·`analyses`·`coach_conversations`·
   `coach_messages`·`coach_notes`·`actor_memories`·`practice_feedback`·`ai_jobs`)과, `upload_intents` 에 NULL 허용
@@ -863,13 +867,13 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   - 기록의 불변은 `ON CONFLICT DO NOTHING` 이 지킨다. 받아쓰기의 영상당 하나는 `uq_video_transcripts_video` 다.
   - 예약 장부에 **검증값이 없는 영상은 견주지 않는다** — 없는 것을 불일치로 보면 그 회차가 재큐만 되풀이하다 실패한다.
 - **코치 대화**(`/v2/coach/**`, `feature/coach` 의 0.1.0 코드)
-  - 코치의 행동 규칙은 `CoachEngine`·`CoachPrompt` 가 그대로 갖고 있고(§7·§8, ADR-027), 새 저장소는 엔진이 쓰는
+  - 코치의 행동 규칙은 `CoachEngine`·`CoachPrompt` 가 그대로 갖고 있고(제품 규칙은 [practice.coach](../../docs/specs/practice/coach.md), 구현은 §7·§8), 새 저장소는 엔진이 쓰는
     `CoachSessionSnapshot` 을 `practices`·`analyses`·`videos`·`coach_*` 에서 만들어 건넨다.
   - 답장의 **바깥 호출(LLM)은 트랜잭션 밖**이고 저장할 때 대화 행을 잠가 `state_revision` 을 다시 본다(§5-4).
 - **연습 노트**(`coach_notes`) — 생성기가 낸 **원문 전체**를 `legacy_report` 에 함께 둔다. 컬럼 이름은 옛 것이지만
   신형도 여기에 둔다. 옛 공개 필드를 읽던 화면이 그대로 쓰는 호환 응답의 재료다.
 - **노트 평가**(`note_ratings`, V22, SOMA-558)
-  - **노트 하나에 사람 하나가 한 행**이다(`uq_note_ratings_note_user`). **멱등은 행의 `request_id` 가 한다** — 행이
+  - 한 행은 `uq_note_ratings_note_user` 가 지킨다(행동은 [practice.note](../../docs/specs/practice/note.md)). **멱등은 행의 `request_id` 가 한다** — 행이
     덮어쓰이므로 지문 칸을 따로 두지 않고 저장된 값과 견준다.
   - 쓰기는 탈퇴와 같은 `users` 행을 `FOR UPDATE` 로 잡고 활성인지 다시 본다(§6-8). 구현은 `coach/app/NoteRatingService`·
     `coach/adapter/db/PostgresNoteRatingStore`, 실 DB 검증은 `NoteRatingIT` 다.
@@ -941,7 +945,8 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 > 제품 규칙의 정본: [challenge/](../../docs/specs/challenge/README.md)(게이트, 삭제·탈퇴 표, 공개 조건·개인 노출 조건), [challenge.create](../../docs/specs/challenge/create.md)(개설·삭제·운영 개설·moderation, 정규화·한도·오류 코드, 오늘의 챌린지), [challenge.browse](../../docs/specs/challenge/browse.md)(목록 탭·정렬·커서·검색, `featured`·`more_count`)
 
 - 게이트는 `adapter/web/ChallengeMembers` 한 곳이다. 이후 챌린지 절(6-17~6-20)의 회원 경로도 이것을 지난다.
-- 개설의 검사·쓰기는 활성 사용자 행 잠금 아래 하므로 동시 개설·탈퇴 뒤 늦은 쓰기가 새 행을 만들지 않는다.
+- 개설의 검사·쓰기는 활성 사용자 행 잠금 아래 하므로 동시 개설·탈퇴 뒤 늦은 쓰기가 새 행을 만들지 않는다. 삭제된 챌린지의
+  moderation 변경은 `PostgresChallengeRepository.moderate` 가 404 로 막는다.
 - V16은 `challenges`, V17은 공개 집계의 기반인 `challenge_entries`·`entry_likes`·`user_blocks`를 더한다.
   기존 표·컬럼은 축소하지 않는다. 값 CHECK와 Schema Entity 매핑도 함께 검증한다.
 
@@ -949,9 +954,10 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 > 제품 규칙의 정본: [challenge.entry](../../docs/specs/challenge/entry.md)(참여·수정·삭제, 영상 길이, 오류 코드·한도), [challenge.browse](../../docs/specs/challenge/browse.md)(참여작 목록·순위·스냅숏 커서, 종료 랭킹 `ranking_state`, 조회수, P03), [challenge.react](../../docs/specs/challenge/react.md)(공유 링크 `/e/<id>`와 `GET /v2/public/entries/{id}`)
 
-- 참여의 검사·쓰기는 사용자 → 챌린지 → 영상 행을 잠근 한 트랜잭션이라 챌린지 삭제·영상 파기·보관함 삭제·탈퇴와
-  겹쳐도 한쪽만 성공한다.
-- 종료 랭킹 집계는 챌린지 행을 잠그고 한 번 한다(매시 일은 `CHALLENGE_SETTLEMENT_ENABLED`). likes 정렬의 첫 조회는
+- 참여와 공개 전환의 검사·쓰기는 사용자 → 챌린지 → 영상 행을 잠근 한 트랜잭션이라 챌린지 삭제·영상 파기·보관함 삭제·탈퇴와
+  겹쳐도 한쪽만 성공한다(`PostgresEntryRepository`).
+- 종료 랭킹 집계는 챌린지 행을 잠그고 한 번 한다(`ChallengeSettlement.settle` 은 집계와 확정 시도, `aggregateIfDue` 는 집계만 —
+  반응(`EntryLocks`)과 목록 조회가 부른다. 매시 일은 `CHALLENGE_SETTLEMENT_ENABLED`). likes 정렬의 첫 조회는
   전체 순서와 순위를 `entry_ranking_snapshots`에 굳히고 커서는 그 위치다.
 - 조회 사건은 `entry_view_events`에 조회수 증가와 한 트랜잭션으로 남긴다.
 - 공유 조회(`GET /v2/public/entries/{id}`)의 IP별 한도는 웹 서버가 받은 `X-Forwarded-For`를 그대로 넘긴 값으로 센다(§6-13).
@@ -961,8 +967,12 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 > 제품 규칙의 정본: [challenge.react](../../docs/specs/challenge/react.md)(좋아요·저장·댓글, 저장 목록), [challenge.block](../../docs/specs/challenge/block.md)(차단), [challenge.report](../../docs/specs/challenge/report.md)(신고·운영 판정·`target_version`·`target_text`)
 
-- 반응 저장은 행동하는 사람·작성자 `users` 행(id 순)과 참여작 행을 잠근 채 조건을 다시 본다. 차단은 두 사람 행을
-  id 순으로 잠근다. 신고 저장과 숨김은 대상 행을 잠근 한 트랜잭션이고, 운영 판정도 대상 행을 잠그고 한다.
+- 반응·신고의 잠금 순서는 사람(`users`, id 순 — 행동하는 사람은 쓰기, 작성자는 읽기) → 챌린지(마감 뒤 첫 변경이면 마감 집계)
+  → 참여작이다(`EntryLocks`). 참여작 수정·삭제도 사용자 → 챌린지 → 참여작 순서라 서로 기다려도 원을 만들지 않는다. 행동하는
+  사람이 활성이 아니면 여기서 403 이다. **차단 행은 잠그지 않는다** — 차단 켜기가 두 사람의 `users` 행을 같은 순서로 잠그므로
+  반응과 차단이 겹치면 먼저 잡은 쪽이 끝난 뒤 다른 쪽이 조건을 다시 본다. 신고 저장과 숨김은 대상 행을 잠근 한 트랜잭션이고,
+  운영 판정도 대상 행을 잠그고 한다. 챌린지 신고는 챌린지 행을 잠근 채 처리 전 신고의 서로 다른 신고자 수를 세어 임계값
+  (`ChallengeRules.CHALLENGE_REPORT_THRESHOLD`)에 닿으면 `review` 로 올린다(`PostgresEntryReportRepository`).
 - 좋아요 수는 연결 행을 다시 센다(§7 머리말 1번).
 - POST `/v2/reports`는 옛 연습 리포트 작업(`create_report_v2_reports_post`)이 아니라 챌린지 신고
   (`create_challenge_report_v2_reports_post`)다. V19는 `entry_saves`·`entry_comments`·`entry_reports`를 더한다.
@@ -982,13 +992,13 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 > 제품 규칙의 정본: [challenge.notification](../../docs/specs/challenge/notification.md)(사건 넷, 묶음·`group_key`, 발송 시각·재확인, 알림함·읽음·`target_available`, 90일 정리), [challenge/](../../docs/specs/challenge/README.md)의 삭제·탈퇴 표와 [account.withdraw](../../docs/specs/account/withdraw.md)(탈퇴 연결)
 
-- event_key는 `like:<좋아요 id>`·`comment:<댓글 id>`·`ai_report:<작업 id>`이고 `challenge_ended`는 챌린지당 하나다.
-  사건은 원인 행동과 같은 트랜잭션에서 `notifications`에 남기고 `(user_id, event_key)`로 재전송을 한 행으로 막는다.
+- event_key는 `like:<좋아요 id>`·`comment:<댓글 id>`·`ai_report:<작업 id>`·`ended:<챌린지 id>`다(`ChallengeSettlement`).
+  사건은 원인 행동과 같은 트랜잭션에서 `NotificationEvents` 가 `notifications`에 남기고 `(user_id, event_key)`로 재전송을 한 행으로 막는다.
   참조의 부모 관계(`comment_id`의 참여작, `entry_id`의 챌린지)는 FK로 묶는다.
 - 발송(`CHALLENGE_NOTIFICATION_PUSH_ENABLED`)은 커밋 뒤 따로 돈다. 때가 된 묶음을 잠그고 `notification_pushes`의
   `(group_key, stage first·summary)`를 한 번만 선점해 첫 푸시와 요약 푸시를 하나씩 보낸다.
 - 탈퇴는 계정을 비활성으로 바꾸기 전에 이 사람의 참여작이 있는 챌린지의 밀린 마감 집계를 먼저 한다
-  (`ChallengeWithdrawal`). 진행 중 리포트 생성은 기존 `ai_jobs` 취소가 닫는다.
+  (`ChallengeWithdrawal`). 진행 중 리포트 생성은 탈퇴의 `ai_jobs` 정리(`failed`/`account_deactivated`, §6-8)가 닫는다.
 - V21은 `notifications`·`notification_pushes`와 `entry_comments (id, entry_id)` 유일 제약을 더한다.
 
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
@@ -1023,9 +1033,8 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 §7-1 의 계약은 그대로다 — 요청·응답 DTO, 저장 스키마, handoff·report 계약을 바꾸지 않는다.
 
-- **부재 시 동일성은 고정값이 지킨다.** 시스템 프롬프트 본문을 조건 없이 바꾸지 않는다 — 프로필을 어떻게 쓸지의
-  지시는 프로필이 실린 호출에만 붙는다. 기존 고정값(`frozen/coach-chat-prompt*.txt`·`coach-regeneration-prompt.txt`·
-  `report-input-*.txt`)이 이것을 지킨다.
+- **부재 시 동일성은 고정값이 지킨다**(규칙은 account.profile). 시스템 프롬프트 본문을 조건 없이 바꾸지 않는다. 기존
+  고정값(`frozen/coach-chat-prompt*.txt`·`coach-regeneration-prompt.txt`·`report-input-*.txt`)이 이것을 지킨다.
 - **이음매**는 읽는 쪽의 포트 둘이다: `coach/app/CoachProfile`, `report/app/ReportProfile`. 구현은
   `profile/adapter/reader` 에 있고 간선은 `profile → coach.app`·`profile → report.app` 한 방향이다. 교환 타입은
   소비자의 것이고 값은 표시말이다. 프로필이 없거나 여섯 항목 가운데 하나라도 비어 있으면 포트가 `null` 을 준다.
@@ -1037,8 +1046,8 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - **텔레메트리에는 이름을 가려 보낸다.** 모델에 보내는 입력은 그대로 두고, 같은 입력을 바깥 수탁사(Langfuse)에
   기록할 때만 이름 자리에 `[redacted]` 를 싣는다 — 문자열 경로는 프로필 블록의 이름 줄
   (`CoachPrompt:withoutActorName`), 구조화 경로(라우팅 경로의 생성 호출 포함)와 노트는 최상위 `actor_profile.name`
-  (`platform/observability/ActorNameRedaction`). 탈퇴는 이름을 지체 없이 파기하는데 거기 남은 기록은 서버가 지울 수
-  없다. 성별·만 나이·방향·경력·목표는 남긴다. 프로필이 없는 호출의 기록은 글자 하나 바뀌지 않는다.
+  (`platform/observability/ActorNameRedaction`). 무엇을 가리고 왜 가리는지는 account.profile 이 정한다. 프로필이 없는 호출의
+  기록은 글자 하나 바뀌지 않는다.
 - **노트**: `ReportEngine:generateReport` 가 받는 사람의 ID 로 프로필을 읽어 `buildReportInput` 의 **최상위**
   `actor_profile` 로(handoff 밖), 구조화 노트의 생성 입력에도 나란히 싣는다.
 - 입력이 맞다는 것까지가 자동 검증이다. 모델이 그 입력으로 잘 말하는지는 실제 모델로 돌리는 coach eval 과 사람의
@@ -1079,13 +1088,20 @@ Docker API 버전 협상이 실패하면 소켓 접근이 가능해도 `/info`�
 
 ### 8-5. 영상만 올리는 새 코칭 계약 (SOMA-526)
 
-> 제품 규칙의 정본: [practice/](../../docs/specs/practice/README.md)(「영상만 올리는 연습」: 적용 범위·플래그, 새 공개 타입, 지원하지 않는 클라이언트의 409), [practice.coach](../../docs/specs/practice/coach.md)(「Gemini 직접 영상 코칭」, 「2층 대화 (SOMA-531)」의 첫 질문 개정), [practice.note](../../docs/specs/practice/note.md)(「3층 촬영 노트 (SOMA-531)」)
+> 제품 규칙의 정본: [practice.start](../../docs/specs/practice/start.md)(경험 판·신형 생성 플래그), [practice.analyze](../../docs/specs/practice/analyze.md)(1층 기록·공개 요약, 직접 영상 코칭의 분석), [practice.coach](../../docs/specs/practice/coach.md)(「Gemini 직접 영상 코칭」, 「2층 대화 (SOMA-531)」의 첫 질문 개정), [practice.note](../../docs/specs/practice/note.md)(「3층 촬영 노트 (SOMA-531)」·공개 응답)
 
-- **Gemini 직접 영상 코칭**: 시스템 지시는 `DirectVideoPrompts.common()`의 공통 원칙에 서비스가 고른 지침을 붙인다.
-  모델 응답의 Markdown 기호를 걷어 내는 자리는 `PlainCoachText` 이고 걷은 평문을 대화 턴·handoff·응답에 같은 값으로
-  저장한다.
-- 첫 질문 개정(SOMA-531)의 실행 정본은 공통 `coach/coach-opening-policy.txt` 이고 기존 기본 코치와 구조화 코치가 함께
-  쓴다. 공개 JSON과 DB는 유지한다.
+- **Gemini 직접 영상 코칭**: 공통 원칙은 `DirectVideoPrompts.common()`, Markdown 기호를 걷어 내는 자리는 `PlainCoachText` 다.
+- 층마다의 실행 파일(`apps/api/src/main/resources/`)과 모델에 함께 주는 JSON Schema(`coaching/three-layer-contracts.schema.json`의
+  정의)는 아래 표다. 스펙은 이 표를 가리킨다. 공개 JSON과 DB는 유지한다.
+
+  | 쓰임 | 프롬프트 | 스키마 |
+  |---|---|---|
+  | 1층 영상 기록(`GeminiVideoRecordAnalyzer`) | `coaching/video-record-prompt.txt` | `layer1_chunk` |
+  | 2층 구조화 코치(`StructuredCoachEngine`) | 라우팅 끔: `coaching/coach-prompt.txt` + 첫 질문 정책 `coach/coach-opening-policy.txt`, 라우팅 켬(`CoachingPipeline`): `coaching/routes/*.txt` | 응답 `layer2_dialogue_turn`, 2→3 전달 `coach_handoff_v2` |
+  | 3층 노트(`DialogueNote`) | `coaching/note-prompt.txt` | `layer3_note` |
+  | 이전 handoff의 노트(`PracticeNote`) | `coaching/note-legacy-prompt.txt` | `layer3_copy` |
+  | 기존 갈래 코치(`CoachPrompt`) | `coach/coach-v2-prompt.txt`·`coach-v3-prompt.txt`·`coach-response-policy.txt`, 막힘 `그 외`는 `coach-video-first-prompt.txt` + `coach-opening-policy.txt` | — |
+  | Gemini 직접 영상 코칭(`DirectVideoPrompts`) | `coaching/direct-video/*.txt`(`common`, 분류 `classifier`, 신호별 지침, 연습 루프 `practice-loop`) | — |
 - 2·3층 개정(2026-09-14): 2층 내부 출력은 `acttub.layer2_turn.v2`, 2→3 전달은 `acttub.coach_handoff.v2` 다. 공개
   `PublicPracticeNote`와 저장 노트 v1의 필드는 유지하고, v1 handoff는 이전 프롬프트로 처리한다.
 - 새 계약의 검증은 모델 출력·참조 검증과 레코드 조회, 조립, 상태 전이의 단위 테스트에 더해 `CoachSessionRepositoryIT`에서
@@ -1095,8 +1111,7 @@ Docker API 버전 협상이 실패하면 소켓 접근이 가능해도 `/info`�
 
 > 제품 규칙의 정본: [practice.coach](../../docs/specs/practice/coach.md)(「2층 대화 동작 분류와 코드 기반 프롬프트 선택」: 네 분류, 첫 응답, 입력·출력, 문장 수 세기, 실패 처리 / 「Gemini 직접 영상 코칭」: dev 임시 세션 API와 연습 루프)
 
-- 분류는 Luna, 선택은 Java 의 enum/switch 다. 첫 발화가 null인 시작은 코드가 `opening.txt`를 선택한다.
-- dev 임시 세션 API(`/v2/coach/direct-video/**`, `DirectVideoController`)는 `SITE_URL=https://dev.acttub.com` 이고
-  `ACTTUB_DIRECT_VIDEO_ENABLED=true` 일 때만 등록되고 공개 OpenAPI에서 빠진다(`@Hidden`). 임시 세션
-  (`DirectVideoSessions`)은 `DirectVideoRouting` 의 분류·지침 선택을 쓰고, 영속 코칭(`DirectVideoCoach`)은
-  `ACTTUB_DIRECT_VIDEO_PRACTICE_LOOP`(기본 true)가 켜져 있으면 연습 루프(`DirectVideoPracticeLoop`)를 쓴다.
+- 2층 분류는 Luna, 선택은 Java 의 enum/switch 다(`CoachingPipeline`).
+- 직접 영상: dev 임시 세션 API는 `DirectVideoController`(조건부 등록, 공개 OpenAPI에서 `@Hidden`), 임시 세션은
+  `DirectVideoSessions` → `DirectVideoRouting`, 영속 코칭은 `DirectVideoCoach` → 연습 루프 `DirectVideoPracticeLoop`다. 열리는 조건과
+  경로 선택은 practice.coach 「규칙·제약」의 경로 표와 「Gemini 직접 영상 코칭」에 있다.

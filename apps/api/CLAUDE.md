@@ -10,7 +10,7 @@
 | 변경 갈래 | 먼저 읽을 정본 | 최소 완료 기준 |
 |---|---|---|
 | DTO·직렬화·검증·오류 | 해당 기능 스펙, `CONTRACT.md` §4·§6 및 [계약 변경 절차](CONTRACT.md#계약-변경-절차) | 관련 MockMvc/계약 테스트와 계약 변경 절차의 완료 기준 통과 |
-| 예외·보고 | `CONTRACT.md` §6, 실패 분류의 뜻은 [ARCHITECTURE 「용어」](../../docs/ARCHITECTURE.md#용어)(보고 구조와 이유는 [ADR-025](../../docs/ADR.md)) | 변경한 모든 예외 처리 지점에서 원인·분류·보고 여부와 기존 응답·폴백 보존을 테스트로 확인 |
+| 예외·보고 | `CONTRACT.md` §6-2(5xx 팩토리와 실패 보고), 실패 분류의 뜻은 [ARCHITECTURE 「용어」](../../docs/ARCHITECTURE.md#용어)(이유는 [ADR-025](../../docs/ADR.md)) | 변경한 모든 예외 처리 지점에서 원인·분류·보고 여부와 기존 응답·폴백 보존을 테스트로 확인 |
 | 저장소·SQL·트랜잭션 | `CONTRACT.md` §5 | 실제 Postgres를 쓰는 통합 테스트로 쿼리와 커밋 경계 확인 |
 | Entity·Flyway·제약 | `CONTRACT.md` §5-3·§5-5·§5-8 | `./gradlew test --tests '*Flyway*'`로 migration·fingerprint·baseline·forward 경로 확인 |
 | feature·layer·port·패키지 의존 | [ARCHITECTURE 「api 층 규칙」](../../docs/ARCHITECTURE.md#api-층-규칙)과 구조 테스트(이유는 ADR-016~020) | `PackageLayerTest`·`PackageCycleTest`의 목록·비공허성 및 조건부 빈의 부팅 검사 확인 |
