@@ -1486,6 +1486,38 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - 관리자 빈은 토큰이 있을 때만 서므로 커밋된 기본 `spec/openapi.json`에는 이 경로가 없다.
   `AdminEndpointIT`의 조건부 관리자 경로 명시 목록과 응답 스키마 검사가 이 계약을 지킨다.
 
+### 6-22. 운영용 리딩 회차·대본·녹음 조회와 재생
+
+- 세 경로는 기존 조건부 관리자 빈과 `ADMIN_OPS_TOKEN`을 쓴다. 토큰을 질의값 검증보다 먼저 확인하고,
+  `ADMIN_OPS_EXCLUDE_EMAILS`와 요청의 `exclude_actors`(쉼표로 나눈 `md5(user_id)` 앞 8자리, 최대 100개)를
+  목록·상세·재생에 똑같이 적용한다. 성공 응답은 모두 `Cache-Control: private, no-store`다. 관리자 빈은
+  토큰이 있을 때만 서므로 기본 `spec/openapi.json`에는 실리지 않으며 `AdminEndpointIT`의 조건부 경로 명시
+  목록과 직렬화 검사가 이 계약을 지킨다.
+- `GET /v2/admin/reading-sessions?limit=50&status=all&exclude_actors=…`는 `limit` 1~100, 기본 50이고
+  `status`는 `all`·`in_progress`·`completed`·`stopped`다. 응답은 `{sessions, count}`이며 `count`는 지금
+  반환한 묶음의 크기다. 각 행은 `id`(회차 UUID)·`actor`(접두사 없는 8자리 가명)·`script_title`·
+  `started_at`·`ended_at`(항상 포함, 없으면 null)·`status`·`mode`(`read`·`quiz`)·`elapsed_seconds`·
+  `recording_count`만 가진다. `started_at DESC, id DESC`로 고정 정렬한다. 대본 본문·전사·원본 user id·이메일·
+  object key·재생 URL은 목록에 넣지 않는다.
+- `GET /v2/admin/reading-sessions/{id}?exclude_actors=…`는 `{session, lines, recordings}`다. `session`은 목록과
+  같은 메타데이터다. `lines`는 대본 전체를 원래 `ordinal ASC`로 내며 각 줄은 `id`·`ordinal`·`kind`·
+  `character_name`·`text`·`in_range`·`is_mine`이다. 실제 저장 enum은 `dialogue`·`direction`·`scene`이다
+  (`stage_direction`·`scene_header`로 다시 이름 붙이지 않는다). `in_range`는 회차의 시작·끝 줄 ordinal을
+  포함한 범위이고, `is_mine`은 줄의 배역이 회차 `my_character_ids`에 들었는지다. `recordings`는 그 회차의
+  내 배역 대사 녹음만 가지며 `id`·`line_id`·`attempt_no`·`duration_ms`·`created_at`·`transcript_source`
+  (`stt`·`none`)·`transcript`·`matched`를 싣는다. transcript·matched는 항상 포함하고 없으면 null이다.
+  대본과 전사는 git 스냅샷에 남기지 않는 이 live 상세 응답에서만 허용한다.
+- `GET /v2/admin/reading-recordings/{id}/playback?exclude_actors=…`는 저장된 m4a 녹음에
+  `AdminPlayback#requiredUrl`을 사용해 `{"playback_url":…, "expires_in":600}`을 반환한다. TTL은 고정 600초다.
+  없음·팀·비활성 계정·탈퇴 보관으로 회차/줄 연결이 끊긴 녹음·유효한 회차/대본/줄 부모와 맞지 않는 녹음·
+  내 배역 대사가 아닌 녹음·m4a가 아닌 녹음은 모두 404 `reading_recording_not_found`다. 스토리지 부재나
+  서명 실패는 원인을 보존한 503 `playback_unavailable`이다.
+- 세 조회는 `users.deactivated_at IS NULL`과 `users.retention_purged_at IS NULL`인 계정만 읽고,
+  `reading_sessions.user_id = scripts.user_id`, 시작·끝 줄이 그 대본 소속, 녹음의 user/session/line이 같은
+  회차·대본 소속이라는 부모 연결을 SQL에서 확인한다. 상세 회차가 없거나 제외되거나 부모가 어긋나면
+  404 `reading_session_not_found`다. 삭제된 리딩 자료는 행째 없어 자연히 보이지 않는다. 상대역 음성은 기기
+  TTS라 저장 대상이 아니므로 녹음 수·상세·재생 모두 `my_character_ids`에 속한 대사 줄만 센다.
+
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 
 1. **좋아요 카운트는 재집계다.** 증감 방식이 "두 번 눌리면 2 증가" 하던 버그 때문에 의도적으로
