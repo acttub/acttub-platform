@@ -16,10 +16,10 @@
   숨깁니다.
 - 일반 릴리스는 검증된 `dev` 전체를 `main`으로 승격합니다. 커밋을 골라
   cherry-pick해서 별도의 릴리스 이력을 만들지 않습니다.
-- `release/*`는 QA 중에도 `dev`에 다음 개발을 계속 합쳐야 할 때만 만드는 임시
+- `release/*`는 [안정화가 필요한 릴리스](#안정화가-필요한-릴리스)의 조건에서만 만드는 임시
   안정화 브랜치입니다.
 - `hotfix/*`는 미출시 변경이 섞이지 않도록 반드시 `main`에서 시작합니다.
-- `main`과 `dev`에는 직접 push하지 않고 CI를 통과한 PR로만 합칩니다.
+- `main`과 `dev`에는 직접 push·force push하지 않고 CI를 통과한 PR로만 합칩니다.
 - `main`에서 시작한 변경(hotfix, revert)은 반드시 `dev`로 역병합합니다.
 
 ## 브랜치 역할과 수명
@@ -72,7 +72,7 @@ flowchart LR
 3. 출시 범위가 확정되면 `dev`에서 `main`으로 릴리스 PR을 엽니다. 아래 링크로
    열면 릴리스 전용 템플릿이 붙습니다.
    <https://github.com/acttub/acttub-platform/compare/main...dev?template=release.md>
-4. CI, DB 마이그레이션 순서, 프론트/API 호환성, 롤백 지점을 확인합니다.
+4. CI 통과를 확인하고 릴리스 템플릿의 항목을 모두 채웁니다([PR과 Jira](#pr과-jira)).
 5. Merge commit으로 합칩니다. 이 시점에 운영 자동 배포가 시작됩니다.
 6. 성공한 운영 커밋에 `prod-YYYY.MM.DD.N` 형식의 annotated tag를 붙입니다.
 
@@ -84,7 +84,6 @@ flowchart LR
 
 ## 안정화가 필요한 릴리스
 
-QA가 진행되는 동안 다음 릴리스 개발을 `dev`에 계속 합쳐야 할 때만 사용합니다.
 기본은 [일반 릴리스](#일반-릴리스)입니다. 다음 중 하나일 때만 `release/*`를 만듭니다.
 
 - `dev`에 이번에 내보내면 안 되는 변경이 이미 합쳐져 있고 feature flag로 숨길 수 없을 때
@@ -162,45 +161,35 @@ flowchart LR
 
 1. `main`에서 revert PR을 열고 Merge commit으로 합칩니다.
 2. 운영 배포와 장애 해소를 확인합니다.
-3. **즉시** `main` → `dev` PR을 Merge commit으로 합칩니다. 이 단계를 건너뛰면
-   위 사고가 그대로 발생합니다.
+3. **즉시** `main` → `dev` PR을 Merge commit으로 합칩니다. 같은 revert를 `dev`에
+   따로 만들지 않습니다([Merge 방식](#merge-방식)). 이 단계를 건너뛰면 위 사고가
+   그대로 발생합니다.
 4. 열려 있는 `release/*`가 있다면 거기에도 `main`을 Merge commit으로 합칩니다.
 5. 되돌린 변경을 다시 넣을 때는 `dev`에서 revert를 revert하는 PR을 새로 엽니다.
    원본 커밋을 cherry-pick하지 않습니다.
 
-같은 revert를 `main`과 `dev`에 각각 따로 만들지 않습니다. 동일한 변경을 다른
-SHA로 복제하면 이후 충돌 판단이 어려워집니다.
-
 ## PR과 Jira
 
-- 작업 및 hotfix 브랜치와 PR에는 `SOMA-123` 형식의 이슈 키를 넣습니다.
+- 작업 및 hotfix 브랜치 이름과 PR 제목에는 `SOMA-123` 형식의 이슈 키를 넣습니다.
+  PR 제목은 `SOMA-123 <한국어 요약>`입니다.
 - 여러 이슈를 묶는 릴리스 브랜치는 Jira 단일 키 규칙의 예외입니다.
-- 릴리스 PR 제목은 `release: YYYY-MM-DD <요약>`으로 쓰고, 본문에 포함한 Jira
-  이슈 키와 제외·연기한 항목을 나열합니다.
-- 릴리스 PR에는 최소한 다음 정보를 남깁니다.
-  `.github/PULL_REQUEST_TEMPLATE/release.md`가 이 형태입니다.
-  - 포함한 변경과 Jira 이슈
-  - 사용자 영향과 수동 확인 결과
-  - Flyway 파일 및 expand/contract 단계
-  - 프론트/API 간 하위 호환 여부
-  - 직전 운영 태그와 코드 롤백 지점
+- 릴리스 PR 제목은 `release: YYYY-MM-DD <요약>`으로 쓰고, 본문은 릴리스 템플릿
+  [`.github/PULL_REQUEST_TEMPLATE/release.md`](../.github/PULL_REQUEST_TEMPLATE/release.md)의
+  항목을 모두 채웁니다.
 
 ## DB와 배포 안전성
 
-- Flyway 마이그레이션은 애플리케이션 기동의 일부이므로 Git revert가 DB까지
-  되돌리지는 않습니다.
 - 스키마 변경은 expand → 호환 코드 배포 → 데이터 전환 → contract 순으로 여러
   릴리스에 나눕니다.
 - 컬럼·테이블 삭제와 이를 사용하지 않는 코드를 한 릴리스에 묶지 않습니다.
 - 프론트와 API는 병렬 배포되어도 구버전과 신버전 조합이 동작해야 합니다.
-- 운영 배포 실패 시 직전 운영 태그로 코드를 되돌리되, 적용된 마이그레이션과
-  데이터는 별도로 안전성을 판단합니다.
-- `main`에서 revert로 되돌렸다면 [운영 롤백](#운영-롤백)의 역병합까지가 한
-  묶음입니다. 코드만 되돌리고 멈추면 `dev`와 운영이 갈립니다.
+- 코드를 되돌려도(revert·직전 운영 태그 재배포) 적용된 마이그레이션과 데이터는 그대로입니다
+  ([CONTRACT §5-5](../apps/api/CONTRACT.md#5-5-flyway-가-스키마를-소유한다)). 운영 배포가 실패했을 때
+  되돌리는 절차는 [홈서버 배포 §4](deploy/DEPLOY-HOME.md#4-코드-배포-복구)를 따릅니다.
 
 ## 보호 규칙
 
-- `main`, `dev`: direct push와 force push 금지, required CI 통과 후 PR merge
+- `main`, `dev`의 push 금지와 CI 조건은 [원칙](#원칙), 브랜치 삭제 시점은
+  [브랜치 역할과 수명](#브랜치-역할과-수명)을 따릅니다.
 - `main` 대상 PR: 운영 영향과 롤백 계획을 리뷰한 뒤 merge
-- `release/*`, `hotfix/*`: 목적 달성 후 원격 브랜치 삭제
 - 운영 태그: 이동하거나 재사용하지 않음

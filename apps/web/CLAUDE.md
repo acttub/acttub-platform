@@ -6,7 +6,7 @@
 2. 작업 갈래에 맞는 문서를 먼저 읽습니다.
    - **테스트를 추가·수정하거나 실패를 진단**할 때 → [TESTING.md](TESTING.md)
    - **계측·이벤트·동의**를 바꿀 때 → [ANALYTICS.md](ANALYTICS.md)
-   - **번들러**를 바꿀 때 → [번들러 변경 검증](ANALYTICS.md#번들러-변경-검증)
+   - **번들러**(`build` 스크립트의 번들러 플래그)를 바꿀 때 → [번들러 변경 검증](ANALYTICS.md#번들러-변경-검증)
    - **성능 예산·Lighthouse**를 바꿀 때 → [PERFORMANCE.md](PERFORMANCE.md)
 3. API 계약을 바꾸면 [계약 변경 절차](../api/CONTRACT.md#계약-변경-절차)를 함께 따릅니다.
 
@@ -26,8 +26,6 @@
 
 - 배포 빌드는 `package.json`의 `build` 스크립트를 그대로 사용하고 `build`를 `typecheck`보다
   먼저 실행합니다. Next 빌드가 `next-env.d.ts`와 `.next/types`를 만듭니다.
-  `build`의 번들러 플래그를 바꿀 때는 [번들러 변경 검증](ANALYTICS.md#번들러-변경-검증)을
-  통과합니다.
 - `API_ORIGIN`은 빌드 시 `routes-manifest.json`에 굳습니다. 배포 프록시 대상을 런타임
   환경변수로 바꿀 수 있다고 가정하지 않습니다.
 - 페이지 프리렌더를 유지합니다. `useSearchParams`는 `<Suspense>` 안에서 사용하고, 모듈

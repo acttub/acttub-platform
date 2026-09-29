@@ -1,36 +1,12 @@
 # 마이그레이션
 
-**스키마 정본은 여기다**(`apps/api/CONTRACT.md` §5-5, `SOMA-403` 3단계). API 이미지는 실행 jar를 포함하며,
-앱이 뜨는 도중에 Flyway 가 이 디렉토리를 적용한다 — 별도 마이그레이션 명령이 없다.
+API가 기동하는 도중에 Flyway가 이 디렉토리를 적용한다. 스키마 소유·V1 동결·fingerprint 갱신 규칙의 정본은
+[CONTRACT §5-5](../../../../../CONTRACT.md#5-5-flyway-가-스키마를-소유한다)다.
 
-## 스키마를 바꾸려면
-
-1. `V<다음 번호>__<설명>.sql` 로 **새 파일**을 만든다 (이 디렉토리에서 가장 큰 번호 다음, 설명은 소문자 snake_case)
-2. `scripts/regen-fingerprint.sh` 를 돌려 `baseline-schema-fingerprint.txt` 를 갱신한다
-3. `./gradlew test --tests '*Flyway*'` 로 확인하고 둘을 함께 커밋한다
-4. 배포는 PR을 `main`/`dev`에 머지하면 시작된다. **되돌리기 어려우므로 스키마를 먼저 넓히고
-   호환 코드를 배포한 뒤 좁힌다** — 컬럼 삭제·이름 변경은 호환 배포 순서를 따른다
-   (`docs/BRANCHING-STRATEGY.md`의 「DB와 배포 안전성」)
-
-## 🔥 `V1__baseline.sql` 은 동결이다 — 한 글자도 고치지 않는다
-
-**주석 한 줄을 더해도 안 된다.** 두 경로의 이력이 다르기 때문이다.
-
-| | 이력 | checksum |
-|---|---|---|
-| dev·운영 | `<< Flyway Baseline >>` type=**BASELINE** | **없음** |
-| 신규 환경·재해복구 | `baseline` type=**SQL** | `-1135202796` |
-
-**V1 을 수정하면 dev·운영은 멀쩡한데 신규 환경만 `Migration checksum mismatch` 로 기동하지
-못한다.** 지금은 신규 환경이 없어 아무도 모르고, 재해복구가 필요한 바로 그 순간에 드러난다.
-관측이 아니라 재현한 것이다 — `docs/archive/soma287/M6-findings.md` 발견 1·§C-2.
-
-`FlywayBaselineTest.baselineIsFrozen` 이 위 checksum 을 못박아 이 실수를 CI 에서 잡는다.
-**값의 정본은 그 테스트의 `FROZEN_BASELINE_CHECKSUM` 이다** — 위 표는 설명이고, 어긋나면
-테스트가 이긴다.
-
-### ⚠ 그래서 V1 의 헤더 주석은 낡은 채로 있다
-
-파일 안에 `scripts/regen-baseline.sh 가 만든다` 는 안내가 남아 있는데, **그 스크립트는
-없다**(alembic 이 정본이던 시절의 도구라 3단계에서 은퇴했다). 고치고 싶겠지만 고치면 위의
-일이 벌어진다. **낡은 주석을 안고 가는 것이 동결의 값이다.** 대신 이 파일이 정본이다.
+- 스키마를 바꿀 때는 이 디렉토리에서 가장 큰 번호 다음으로 `V<번호>__<설명>.sql` 새 파일을 만든다(설명은
+  소문자 snake_case).
+- 🔥 **`V1__baseline.sql`은 주석까지 한 글자도 고치지 않는다.** 그래서 V1 머리 주석의
+  `scripts/regen-baseline.sh 가 만든다`는 낡은 채로 남아 있다 — 그 스크립트는 alembic이 정본이던 시절의 도구라
+  `SOMA-403` 3단계에서 은퇴했다. 그 주석 대신 CONTRACT §5-5를 믿는다.
+- 컬럼 삭제·이름 변경은 [DB와 배포 안전성](../../../../../../../docs/BRANCHING-STRATEGY.md#db와-배포-안전성)의
+  순서로 여러 릴리스에 나눈다.

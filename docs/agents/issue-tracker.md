@@ -33,9 +33,10 @@ Jira `SOMA`가 이슈의 정본입니다. **사람이 이슈를 만들고 본문
    나타나지 않습니다.
 3. 계획이 없고 Jira 본문도 제공되지 않았다면 필요한 배경·원하는 상태·완료 조건을
    사용자에게 요청합니다.
-4. 브랜치의 시작점·merge 방식·릴리스 흐름은
-   [BRANCHING-STRATEGY.md](../BRANCHING-STRATEGY.md)를 따릅니다. 작업·hotfix 브랜치와 PR에는
-   대문자 이슈 키를 넣고, 커밋 메시지에는 넣지 않습니다.
+4. 브랜치·PR의 이슈 키, 브랜치 시작점, merge 방식, 릴리스 흐름은
+   [BRANCHING-STRATEGY.md](../BRANCHING-STRATEGY.md)를 따릅니다(키는
+   [「PR과 Jira」](../BRANCHING-STRATEGY.md#pr과-jira)). 커밋 메시지에 키를 넣지 않는 규칙은 루트
+   `CLAUDE.md` 「커밋」에 있습니다.
 
 **완료 기준:** 착수한 키와 계획 파일명이 같고, 계획의 모든 단계와 선행 관계가 현재 코드와
 다시 대조됐습니다.
@@ -80,8 +81,9 @@ GitHub Issues는 외부 제보용 인박스입니다. 참고 자료로 읽을 �
 
 ## ADR-022를 되돌릴 때만
 
-사람이 ADR-022의 되돌릴 조건이 충족됐다고 판단해 Jira 읽기 연결을 복원하기로 결정한 경우에만
-아래 절차를 사용합니다. 연결 복원은 이슈 생성 권한을 에이전트에 주는 결정이 아닙니다.
+평소에는 Atlassian MCP를 등록하지 않습니다. 사람이 ADR-022의 되돌릴 조건이 충족됐다고 판단해
+Jira 읽기 연결을 복원하기로 결정한 경우에만 아래 절차를 사용합니다. 연결 복원은 이슈 생성 권한을
+에이전트에 주는 결정이 아닙니다.
 
 ```bash
 claude mcp add --scope user --transport http atlassian https://mcp.atlassian.com/v1/mcp/authv2

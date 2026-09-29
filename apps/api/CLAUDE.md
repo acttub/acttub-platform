@@ -2,25 +2,21 @@
 
 ## 판정 순서
 
-1. 바꾸는 기능의 [스펙](../../docs/specs/README.md)과 [CONTRACT.md](CONTRACT.md)를 읽습니다. 기능의 행동(권한·오류 코드·한도·
-   응답의 뜻·상태 전이)은 스펙이, API·영속·스키마의 구현 규칙은 CONTRACT가 판정합니다.
+1. 바꾸는 기능의 [스펙](../../docs/specs/README.md)과 [CONTRACT.md](CONTRACT.md)를 읽습니다. 둘이 무엇을
+   판정하는지는 루트 [CLAUDE.md 「조건부 정본」](../../CLAUDE.md#조건부-정본)을 따릅니다.
 2. 아래 표에서 변경 갈래에 맞는 정본과 검증을 확인합니다.
-3. 구조 결정의 이유를 인용할 때는 [domain.md](../../docs/agents/domain.md)의 방식으로 해당 ADR의
-   개정 블록까지 읽습니다.
+3. 구조 결정의 이유로 ADR을 인용할 때는 [domain.md 「읽는 순서」](../../docs/agents/domain.md#읽는-순서)를 따릅니다.
 
 | 변경 갈래 | 먼저 읽을 정본 | 최소 완료 기준 |
 |---|---|---|
 | DTO·직렬화·검증·오류 | 해당 기능 스펙, `CONTRACT.md` §4·§6 및 [계약 변경 절차](CONTRACT.md#계약-변경-절차) | 관련 MockMvc/계약 테스트와 계약 변경 절차의 완료 기준 통과 |
-| 예외·보고 | `CONTRACT.md` §6·[ADR-025](../../docs/ADR.md) | 변경한 모든 예외 처리 지점에서 원인·분류·보고 여부와 기존 응답·폴백 보존을 테스트로 확인 |
+| 예외·보고 | `CONTRACT.md` §6, 실패 분류의 뜻은 [ARCHITECTURE 「용어」](../../docs/ARCHITECTURE.md#용어)(보고 구조와 이유는 [ADR-025](../../docs/ADR.md)) | 변경한 모든 예외 처리 지점에서 원인·분류·보고 여부와 기존 응답·폴백 보존을 테스트로 확인 |
 | 저장소·SQL·트랜잭션 | `CONTRACT.md` §5 | 실제 Postgres를 쓰는 통합 테스트로 쿼리와 커밋 경계 확인 |
-| Entity·Flyway·제약 | `CONTRACT.md` §5-3·§5-5·§5-8 | migration·fingerprint·baseline·forward 경로 확인 |
+| Entity·Flyway·제약 | `CONTRACT.md` §5-3·§5-5·§5-8 | `./gradlew test --tests '*Flyway*'`로 migration·fingerprint·baseline·forward 경로 확인 |
 | feature·layer·port·패키지 의존 | [ARCHITECTURE 「api 층 규칙」](../../docs/ARCHITECTURE.md#api-층-규칙)과 구조 테스트(이유는 ADR-016~020) | `PackageLayerTest`·`PackageCycleTest`의 목록·비공허성 및 조건부 빈의 부팅 검사 확인 |
 | Gradle·dotenv·Testcontainers·부팅 | 실제 설정과 대응 테스트 | dotenv를 끄고 필요한 키를 명시한 격리 부팅과 CI 환경 재현 |
 
-FastAPI와 응답 바이트를 대조하던 parity harness는 폐기됐습니다. 그 계약의 현재 테스트 위치를
-찾을 때만 [M6-contract-migration.md](https://github.com/acttub/acttub-platform/blob/c2b76b09/docs/archive/soma287/M6-contract-migration.md)를
-읽습니다. 현재 계약 방어선은 Java 테스트이며 실행 범위와 required check는 루트 지침을
-따릅니다.
+현재 계약 방어선은 Java 테스트입니다.
 
 ## 로컬 설정
 
