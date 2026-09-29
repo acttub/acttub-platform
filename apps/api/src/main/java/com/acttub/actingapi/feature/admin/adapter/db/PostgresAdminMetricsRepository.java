@@ -337,6 +337,268 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
 
     @Override
     @Transactional(readOnly = true)
+    public List<ReadingSessionRow> readingSessions(
+            int limit,
+            String status,
+            List<String> excludeEmails,
+            List<String> excludeActors) {
+        return list(entityManager.createNativeQuery("""
+                SELECT
+                    session.id,
+                    left(md5(CAST(session.user_id AS text)), 8) AS actor,
+                    script.title AS script_title,
+                    session.started_at,
+                    session.ended_at,
+                    session.status,
+                    session.mode,
+                    session.elapsed_seconds,
+                    CAST((
+                        SELECT count(*)
+                        FROM reading_recordings AS recording
+                        JOIN script_lines AS recording_line
+                          ON recording_line.id=recording.line_id
+                         AND recording_line.script_id=script.id
+                        WHERE recording.reading_session_id=session.id
+                          AND recording.user_id=session.user_id
+                          AND recording_line.character_id=ANY(session.my_character_ids)
+                    ) AS integer) AS recording_count
+                FROM reading_sessions AS session
+                JOIN scripts AS script
+                  ON script.id=session.script_id
+                 AND script.user_id=session.user_id
+                JOIN users AS app_user
+                  ON app_user.id=session.user_id
+                 AND app_user.deactivated_at IS NULL
+                 AND app_user.retention_purged_at IS NULL
+                JOIN script_lines AS start_line
+                  ON start_line.id=session.start_line_id
+                 AND start_line.script_id=script.id
+                JOIN script_lines AS end_line
+                  ON end_line.id=session.end_line_id
+                 AND end_line.script_id=script.id
+                WHERE (:status='all' OR session.status=:status)
+                  AND NOT (
+                    lower(COALESCE(app_user.email, '')) = ANY(string_to_array(:excludeEmails, ','))
+                    OR left(md5(CAST(session.user_id AS text)), 8) = ANY(string_to_array(:excludeActors, ','))
+                  )
+                ORDER BY session.started_at DESC, session.id DESC
+                LIMIT :limit
+                """, Tuple.class)
+                .setParameter("status", status)
+                .setParameter("excludeEmails", normalizedEmails(excludeEmails))
+                .setParameter("excludeActors", String.join(",", excludeActors))
+                .setParameter("limit", limit)).stream()
+                .map(Tuple.class::cast)
+                .map(PostgresAdminMetricsRepository::readingSessionRow)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<ReadingSessionDetailRow> readingSession(
+            UUID sessionId,
+            List<String> excludeEmails,
+            List<String> excludeActors) {
+        Optional<ReadingSessionRow> session = list(entityManager.createNativeQuery("""
+                SELECT
+                    session.id,
+                    left(md5(CAST(session.user_id AS text)), 8) AS actor,
+                    script.title AS script_title,
+                    session.started_at,
+                    session.ended_at,
+                    session.status,
+                    session.mode,
+                    session.elapsed_seconds,
+                    CAST((
+                        SELECT count(*)
+                        FROM reading_recordings AS recording
+                        JOIN script_lines AS recording_line
+                          ON recording_line.id=recording.line_id
+                         AND recording_line.script_id=script.id
+                        WHERE recording.reading_session_id=session.id
+                          AND recording.user_id=session.user_id
+                          AND recording_line.character_id=ANY(session.my_character_ids)
+                    ) AS integer) AS recording_count
+                FROM reading_sessions AS session
+                JOIN scripts AS script
+                  ON script.id=session.script_id
+                 AND script.user_id=session.user_id
+                JOIN users AS app_user
+                  ON app_user.id=session.user_id
+                 AND app_user.deactivated_at IS NULL
+                 AND app_user.retention_purged_at IS NULL
+                JOIN script_lines AS start_line
+                  ON start_line.id=session.start_line_id
+                 AND start_line.script_id=script.id
+                JOIN script_lines AS end_line
+                  ON end_line.id=session.end_line_id
+                 AND end_line.script_id=script.id
+                WHERE session.id=:sessionId
+                  AND NOT (
+                    lower(COALESCE(app_user.email, '')) = ANY(string_to_array(:excludeEmails, ','))
+                    OR left(md5(CAST(session.user_id AS text)), 8) = ANY(string_to_array(:excludeActors, ','))
+                  )
+                """, Tuple.class)
+                .setParameter("sessionId", sessionId)
+                .setParameter("excludeEmails", normalizedEmails(excludeEmails))
+                .setParameter("excludeActors", String.join(",", excludeActors)))
+                .stream()
+                .findFirst()
+                .map(PostgresAdminMetricsRepository::readingSessionRow);
+        if (session.isEmpty()) {
+            return Optional.empty();
+        }
+
+        List<ReadingLineRow> lines = list(entityManager.createNativeQuery("""
+                SELECT
+                    line.id,
+                    line.ordinal,
+                    line.kind,
+                    character.name AS character_name,
+                    line.text,
+                    (line.ordinal BETWEEN start_line.ordinal AND end_line.ordinal) AS in_range,
+                    COALESCE(line.character_id=ANY(session.my_character_ids), false) AS is_mine
+                FROM reading_sessions AS session
+                JOIN scripts AS script
+                  ON script.id=session.script_id
+                 AND script.user_id=session.user_id
+                JOIN users AS app_user
+                  ON app_user.id=session.user_id
+                 AND app_user.deactivated_at IS NULL
+                 AND app_user.retention_purged_at IS NULL
+                JOIN script_lines AS start_line
+                  ON start_line.id=session.start_line_id
+                 AND start_line.script_id=script.id
+                JOIN script_lines AS end_line
+                  ON end_line.id=session.end_line_id
+                 AND end_line.script_id=script.id
+                JOIN script_lines AS line ON line.script_id=script.id
+                LEFT JOIN script_characters AS character
+                  ON character.id=line.character_id
+                 AND character.script_id=script.id
+                WHERE session.id=:sessionId
+                  AND NOT (
+                    lower(COALESCE(app_user.email, '')) = ANY(string_to_array(:excludeEmails, ','))
+                    OR left(md5(CAST(session.user_id AS text)), 8) = ANY(string_to_array(:excludeActors, ','))
+                  )
+                ORDER BY line.ordinal ASC
+                """, Tuple.class)
+                .setParameter("sessionId", sessionId)
+                .setParameter("excludeEmails", normalizedEmails(excludeEmails))
+                .setParameter("excludeActors", String.join(",", excludeActors))).stream()
+                .map(Tuple.class::cast)
+                .map(row -> new ReadingLineRow(
+                        row.get("id", UUID.class),
+                        row.get("ordinal", Integer.class),
+                        row.get("kind", String.class),
+                        row.get("character_name", String.class),
+                        row.get("text", String.class),
+                        row.get("in_range", Boolean.class),
+                        row.get("is_mine", Boolean.class)))
+                .toList();
+
+        List<ReadingRecordingRow> recordings = list(entityManager.createNativeQuery("""
+                SELECT
+                    recording.id,
+                    recording.line_id,
+                    recording.attempt_no,
+                    recording.duration_ms,
+                    recording.created_at,
+                    recording.transcript_source,
+                    recording.transcript,
+                    recording.matched
+                FROM reading_recordings AS recording
+                JOIN reading_sessions AS session
+                  ON session.id=recording.reading_session_id
+                 AND session.user_id=recording.user_id
+                JOIN scripts AS script
+                  ON script.id=session.script_id
+                 AND script.user_id=session.user_id
+                JOIN users AS app_user
+                  ON app_user.id=session.user_id
+                 AND app_user.deactivated_at IS NULL
+                 AND app_user.retention_purged_at IS NULL
+                JOIN script_lines AS start_line
+                  ON start_line.id=session.start_line_id
+                 AND start_line.script_id=script.id
+                JOIN script_lines AS end_line
+                  ON end_line.id=session.end_line_id
+                 AND end_line.script_id=script.id
+                JOIN script_lines AS line
+                  ON line.id=recording.line_id
+                 AND line.script_id=script.id
+                WHERE session.id=:sessionId
+                  AND line.character_id=ANY(session.my_character_ids)
+                  AND NOT (
+                    lower(COALESCE(app_user.email, '')) = ANY(string_to_array(:excludeEmails, ','))
+                    OR left(md5(CAST(session.user_id AS text)), 8) = ANY(string_to_array(:excludeActors, ','))
+                  )
+                ORDER BY line.ordinal ASC, recording.created_at ASC, recording.id ASC
+                """, Tuple.class)
+                .setParameter("sessionId", sessionId)
+                .setParameter("excludeEmails", normalizedEmails(excludeEmails))
+                .setParameter("excludeActors", String.join(",", excludeActors))).stream()
+                .map(Tuple.class::cast)
+                .map(row -> new ReadingRecordingRow(
+                        row.get("id", UUID.class),
+                        row.get("line_id", UUID.class),
+                        row.get("attempt_no", Integer.class),
+                        row.get("duration_ms", Integer.class),
+                        row.get("created_at", Instant.class).atOffset(ZoneOffset.UTC),
+                        row.get("transcript_source", String.class),
+                        row.get("transcript", String.class),
+                        row.get("matched", Boolean.class)))
+                .toList();
+        return Optional.of(new ReadingSessionDetailRow(session.orElseThrow(), lines, recordings));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<String> readingRecordingObjectKey(
+            UUID recordingId,
+            List<String> excludeEmails,
+            List<String> excludeActors) {
+        return list(entityManager.createNativeQuery("""
+                SELECT recording.object_key
+                FROM reading_recordings AS recording
+                JOIN reading_sessions AS session
+                  ON session.id=recording.reading_session_id
+                 AND session.user_id=recording.user_id
+                JOIN scripts AS script
+                  ON script.id=session.script_id
+                 AND script.user_id=session.user_id
+                JOIN users AS app_user
+                  ON app_user.id=session.user_id
+                 AND app_user.deactivated_at IS NULL
+                 AND app_user.retention_purged_at IS NULL
+                JOIN script_lines AS start_line
+                  ON start_line.id=session.start_line_id
+                 AND start_line.script_id=script.id
+                JOIN script_lines AS end_line
+                  ON end_line.id=session.end_line_id
+                 AND end_line.script_id=script.id
+                JOIN script_lines AS line
+                  ON line.id=recording.line_id
+                 AND line.script_id=script.id
+                WHERE recording.id=:recordingId
+                  AND line.character_id=ANY(session.my_character_ids)
+                  AND recording.content_type='audio/mp4'
+                  AND right(recording.object_key, 4)='.m4a'
+                  AND NOT (
+                    lower(COALESCE(app_user.email, '')) = ANY(string_to_array(:excludeEmails, ','))
+                    OR left(md5(CAST(session.user_id AS text)), 8) = ANY(string_to_array(:excludeActors, ','))
+                  )
+                """, Tuple.class)
+                .setParameter("recordingId", recordingId)
+                .setParameter("excludeEmails", normalizedEmails(excludeEmails))
+                .setParameter("excludeActors", String.join(",", excludeActors)))
+                .stream()
+                .findFirst()
+                .map(row -> row.get("object_key", String.class));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public String opsCore(List<String> excludeEmails, List<String> excludeActors) {
         String excluded = String.join(",", excludeEmails.stream()
                 .map(email -> email.toLowerCase(Locale.ROOT))
@@ -381,6 +643,21 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
         return java.util.stream.IntStream.range(0, count)
                 .mapToObj(index -> ":" + prefix + index)
                 .collect(java.util.stream.Collectors.joining(","));
+    }
+
+    private static ReadingSessionRow readingSessionRow(Tuple row) {
+        return new ReadingSessionRow(
+                row.get("id", UUID.class),
+                row.get("actor", String.class),
+                row.get("script_title", String.class),
+                row.get("started_at", Instant.class).atOffset(ZoneOffset.UTC),
+                row.get("ended_at", Instant.class) == null
+                        ? null
+                        : row.get("ended_at", Instant.class).atOffset(ZoneOffset.UTC),
+                row.get("status", String.class),
+                row.get("mode", String.class),
+                row.get("elapsed_seconds", Integer.class),
+                row.get("recording_count", Integer.class));
     }
 
     private record SessionBaseRow(

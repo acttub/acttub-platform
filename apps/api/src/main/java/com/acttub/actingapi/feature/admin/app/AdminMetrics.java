@@ -115,4 +115,71 @@ public final class AdminMetrics {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String playbackUrl,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"600"}) int expiresIn) {
     }
+
+    @Schema(name = "AdminReadingSession", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record AdminReadingSession(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID id,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, pattern = "^[0-9a-f]{8}$") String actor,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String scriptTitle,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) OffsetDateTime startedAt,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) OffsetDateTime endedAt,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                    allowableValues = {"in_progress", "completed", "stopped"})
+            String status,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"read", "quiz"})
+            String mode,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "0") int elapsedSeconds,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "0") int recordingCount) {
+    }
+
+    @Schema(name = "AdminReadingSessionPage", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record AdminReadingSessionPage(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<AdminReadingSession> sessions,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "0") int count) {
+    }
+
+    @Schema(name = "AdminReadingLine", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record AdminReadingLine(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID id,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "1") int ordinal,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                    allowableValues = {"dialogue", "direction", "scene"})
+            String kind,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String characterName,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String text,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean inRange,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean isMine) {
+    }
+
+    @Schema(name = "AdminReadingRecording", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record AdminReadingRecording(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID id,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID lineId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "1") int attemptNo,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, minimum = "0") int durationMs,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) OffsetDateTime createdAt,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"stt", "none"})
+            String transcriptSource,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String transcript,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) Boolean matched) {
+    }
+
+    @Schema(name = "AdminReadingSessionDetail", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record AdminReadingSessionDetail(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) AdminReadingSession session,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<AdminReadingLine> lines,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<AdminReadingRecording> recordings) {
+    }
+
+    @Schema(name = "AdminReadingPlayback", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record AdminReadingPlayback(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String playbackUrl,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"600"}) int expiresIn) {
+    }
 }
