@@ -672,6 +672,7 @@ const ko = {
     changeFailTitle: '변경 실패',
     requiredConsent: '필수 동의',
     agreedTag: '동의됨',
+    optionalConsent: '선택 동의',
     requiredWithdrawNote: '필수 동의는 내용만 볼 수 있어요. 동의를 거두려면 회원 탈퇴를 해야 해요.',
     optionalHint: '언제든 바꿀 수 있어요. 거절해도 서비스는 똑같이 쓸 수 있어요.',
     docVersion: '판 {{version}}',

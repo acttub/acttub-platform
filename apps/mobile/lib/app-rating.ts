@@ -85,5 +85,5 @@ export function parseRatingState(raw: string | null): RatingState {
 export function storeReviewUrl(platform: string): string {
   return platform === 'ios'
     ? 'itms-apps://apps.apple.com/app/id6793056855?action=write-review'
-    : 'market://details?id=com.acttub.app&showAllReviews=true';
+    : 'https://play.google.com/store/apps/details?id=com.acttub.app&showAllReviews=true';
 }

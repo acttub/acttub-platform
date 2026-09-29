@@ -681,6 +681,7 @@ const en: DeepStringShape<typeof ko> = {
     changeFailTitle: 'Update failed',
     requiredConsent: 'Required consents',
     agreedTag: 'Agreed',
+    optionalConsent: 'Optional consents',
     requiredWithdrawNote: 'Required consents are view-only. To take one back, you need to delete your account.',
     optionalHint: 'You can change these anytime. Declining does not change how the service works.',
     docVersion: 'Version {{version}}',
