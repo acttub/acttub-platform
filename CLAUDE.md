@@ -21,8 +21,6 @@
 ## 조건부 정본
 
 - **제품 범위**를 정할 때 → [docs/PRD.md](docs/PRD.md)
-- **제품 개념의 이름**을 짓거나 코드·문서·이슈에 쓸 때 → [docs/specs/](docs/specs/README.md) 영역 README의
-  「용어」와 [ARCHITECTURE 「용어」](docs/ARCHITECTURE.md#용어)
 - **화면·컴포넌트·카피**를 만들 때 → [acttub/pen](https://github.com/acttub/pen)의 `acttub 디자인.pen`과
   [PRD 「디자인」](docs/PRD.md#디자인). 기능별 화면 번호는 [docs/specs/](docs/specs/README.md)의 `화면` 줄에 있습니다.
 - **폴더·패키지 배치나 층 경계**를 정할 때 → [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
@@ -44,8 +42,8 @@
   [issue-tracker.md](docs/agents/issue-tracker.md). Jira 본문은 사람이 쓰고 에이전트는 초안만
   넘깁니다.
 - **트리아지 라벨을 판단**할 때 → [triage-labels.md](docs/agents/triage-labels.md)
-- **도메인 용어를 정하거나 ADR을 제안·인용·변경하고 되돌리기 어려운 결정**을 다룰 때 →
-  [domain.md](docs/agents/domain.md)
+- **제품 개념의 이름을 짓거나 쓸 때, ADR을 제안·인용·변경하고 되돌리기 어려운 결정**을 다룰 때 →
+  [domain.md](docs/agents/domain.md)(용어 표가 있는 곳과 ADR 절차)
 
 ## 저장소·문서 규칙
 
@@ -65,8 +63,8 @@
 - 형식은 `<타입>(<스코프>): <한국어 평서형 요약>`이며 마침표를 붙이지 않습니다.
 - 타입은 `feat` `fix` `chore` `docs` `ci` `style` `refactor` `test`, 스코프는 `web` `api`
   `mobile`입니다. 루트·크로스커팅 변경은 스코프를 생략합니다.
-- `main`으로 가는 릴리스 PR(`dev`·`release/*` → `main`)의 merge commit은 `release: YYYY-MM-DD <요약>`
-  형식을 씁니다([PR과 Jira](docs/BRANCHING-STRATEGY.md#pr과-jira)).
+- 릴리스 PR 제목은 위 목록에 없는 `release` 타입을 쓰며, 형식은 [BRANCHING-STRATEGY 「PR과 Jira」](docs/BRANCHING-STRATEGY.md#pr과-jira)가
+  정합니다.
 - 이슈 키는 브랜치와 PR 제목에만 두고 커밋 메시지에는 넣지 않습니다.
 - API 계약을 깨면 타입 뒤에 `!`를 붙이고 `BREAKING CHANGE:` footer에 호환 배포 순서를
   기록합니다.
