@@ -350,7 +350,7 @@ jobs:
           API_IMAGE: ${{ needs.guard.outputs.api_image }}
           WEB_IMAGE: ${{ needs.guard.outputs.web_image }}
           BACKUP_IMAGE: ${{ needs.guard.outputs.backup_image }}
-          # 기존 화면의 영상 전용 연습을 Gemini 직접 코칭에 연결한다.
+          # 새 연습(입력과 무관)을 새 코치와 Gemini 직접 코칭에 연결한다(docs/deploy/DEPLOY-HOME.md §3).
           THREE_LAYERS_ENABLED: 'true'
           DIRECT_VIDEO_ENABLED: 'true'
           GUEST_DAILY_LIMIT_ENABLED: ${{ needs.guard.outputs.environment == 'dev' && 'false' || 'true' }}

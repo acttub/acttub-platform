@@ -18,7 +18,7 @@
 # 들지 않고 서버의 GET /v2/consents/entry 가 현재 판 기준으로 답한 결정만 본다
 # (apps/web/ANALYTICS.md). 그래서 새 수집이 생기는 변경은 고지만 고치지 말고 수집·이용 동의의
 # 판도 올려야 한다 — 그래야 기존 동의자가 다시 결정하고 그 전까지 계측이 꺼진다
-# (consent-docs/README.md 의 발행 규칙).
+# (규칙은 docs/specs/account/consent.md, 발행 절차는 consent-docs/README.md).
 # 실패 이유는 Actions 의 잡 요약($GITHUB_STEP_SUMMARY, 있을 때)에도 적는다.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."

@@ -277,7 +277,7 @@ export default function HomeScreen() {
         {/* 최근 연습 */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>{t('home.recentTitle')}</Text>
-          {/* 기록이 없어도 늘 보인다 — 전체 보기(A1.1)엔 대본 리딩 녹음도 함께 쌓인다. */}
+          {/* 기록이 없어도 늘 보인다. 대본 리딩 기록은 A1.1에 섞지 않는다(practice.library). */}
           <Pressable onPress={() => router.push('/history')}>
             <Text style={styles.sectionLink}>{t('common.viewAll')} ›</Text>
           </Pressable>
