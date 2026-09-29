@@ -63,7 +63,8 @@
 - 형식은 `<타입>(<스코프>): <한국어 평서형 요약>`이며 마침표를 붙이지 않습니다.
 - 타입은 `feat` `fix` `chore` `docs` `ci` `style` `refactor` `test`, 스코프는 `web` `api`
   `mobile`입니다. 루트·크로스커팅 변경은 스코프를 생략합니다.
-- 릴리스 브랜치의 merge commit은 `release` 타입을 사용합니다.
+- `main`으로 가는 릴리스 PR(`dev`·`release/*` → `main`)의 merge commit은 `release: YYYY-MM-DD <요약>`
+  형식을 씁니다([PR과 Jira](docs/BRANCHING-STRATEGY.md#pr과-jira)).
 - 이슈 키는 브랜치와 PR 제목에만 두고 커밋 메시지에는 넣지 않습니다.
 - API 계약을 깨면 타입 뒤에 `!`를 붙이고 `BREAKING CHANGE:` footer에 호환 배포 순서를
   기록합니다.
