@@ -25,12 +25,9 @@
 |---|---|---|---|
 | `GET /v2/me` | 헤더 `Authorization`. 게이트 밖 | `MeResponse` 200 | 401, `account_deactivated` 403, 주체 한도 429 |
 | `PUT /v2/me/profile` | 헤더 `Authorization`(동의까지 끝난 회원), `ProfileRequest`: `name`·`gender`·`birth_date`·`directions`·`experience`·`goal`, 선택 `bio` | `MeResponse` 200 | 게스트 `member_only` 403, `consent_required` 403, 값 형태 422 배열, `under_14` 422, `under_14_account_closed` 422, 주체 한도 429 |
-| `POST /v2/me/photo` | 헤더 `Authorization`(게이트 통과), `PhotoUploadRequest`: `content_type`·`size_bytes` | `PhotoUploadResponse` 201(올릴 주소) | `upload_too_large` 413, `unsupported_media_type` 415, 422 배열 |
-| `POST /v2/me/photo/complete` | 헤더 `Authorization`(게이트 통과) | `MeResponse` 200 | `upload_intent_expired`·`upload_not_found`·`upload_size_mismatch` 409 |
-| `DELETE /v2/me/photo` | 헤더 `Authorization`(게이트 통과) | 204. 객체 삭제는 정리 장부로 간다 | — |
-
-`/v2` 요청은 `X-Acttub-Client` 헤더가 없으면 426이다. 게이트를 지나야 하는 입구는 공통 규칙의 401·403·429를
-함께 따른다. 탈퇴와 겹친 쓰기는 403 `account_deactivated`다.
+| `POST /v2/me/photo` | 헤더 `Authorization`(게이트 통과), `PhotoUploadRequest`: `content_type`·`size_bytes` | `PhotoUploadResponse` 201(올릴 주소) | 게스트 `member_only` 403, `unsupported_media_type` 415, `upload_too_large` 413, 422 배열 |
+| `POST /v2/me/photo/complete` | 헤더 `Authorization`(게이트 통과) | `MeResponse` 200 | 게스트 `member_only` 403, `upload_intent_expired`·`upload_not_found`·`upload_size_mismatch` 409 |
+| `DELETE /v2/me/photo` | 헤더 `Authorization`(게이트 통과) | 204. 객체 삭제는 정리 장부로 간다 | 게스트 `member_only` 403 |
 
 ## 상태
 - 연습이 없는 계정의 가입 게이트에 만 14세 미만 생년월일 → users 행 없음 (정본: [account.login](login.md#상태))
@@ -77,20 +74,18 @@ user_profile_directions(user_id, direction)에 고른 값마다 한 행씩 둔�
   - 완성된 프로필이 있으면 모델에 넘기는 배우 기억 사본에서 성별·나이를 뺀다. 저장된 기억은 바꾸지 않고, 프로필 성별이 "선택 안
     함"이어도 옛 기억으로 보충하지 않는다. 배우가 말한 목표(goal)는 남긴다 — 프로필의 최종 목표와 결이 달라 서로 보완한다.
   - 프로필은 대화 turn·코칭 상태·handoff·노트·공개 응답·원장의 응답 어디에도 저장하지 않는다. 그래서 배우 발화만 읽는 기억 추출로
-    되먹임되지 않는다. 모델 호출을 바깥 수탁사(Langfuse)에 기록할 때는 이름만 가리고 나머지는 남긴다.
+    되먹임되지 않는다. 모델 호출을 바깥 수탁사(Langfuse)에 기록할 때는 이름만 가리고 나머지는 남긴다. 탈퇴하면 이름을 지체 없이
+    파기해야 하는데 거기 남은 기록은 서버가 지울 수 없기 때문이다.
   - 이미 만든 노트는 프로필이 바뀌어도 다시 만들지 않는다.
-- 게이트 순서는 동의 → 프로필이다. 개인정보를 받기 전에 수집 동의가 끝나 있어야 한다.
 - 개인정보 수집·이용 동의 문서(privacy)의 필수 항목은 이 여섯 항목과 같다. 문서에는 항목마다 코칭에
   쓰이는 이유를 한 줄씩 적는다. 필수로 받을 수 있는 것은 서비스 제공에 실제로 쓰이는 항목뿐이고, 그
   입증은 우리 몫이다. 탈퇴 후 영상 보관은 선택으로 남긴다. 광고성 정보 수신 문서는 0.1.0에
   없다. (account.consent)
-- 항목을 늘리거나 선택을 필수로 바꾸면 동의 문서를 새 판으로 낸다. 기존 회원은 게이트에서 다시
-  결정한다.
-- 게이트는 요청마다 DB의 프로필 상태로 판정한다. 필수 항목이 하나라도 비어 있으면 토큰을
-  갱신해도 보호 기능은 막힌다.
+- 항목을 늘리거나 선택을 필수로 바꾸면 동의 문서를 새 판으로 낸다. 새 판에 다시 결정받는 규칙은
+  [account.consent](consent.md#상태)에 있다.
 - 제공자가 준 이름은 이름 칸을 미리 채우는 값으로만 쓴다. 저장되는 것은 배우가 확인한 값이다.
 - 성별·나이는 프로필이 정본이다. 배우 기억(actor_memories)에는 두지 않는다. (ERD 결정)
-- 이름은 공개 이름이다. 챌린지 참여작과 댓글의 작성자 이름으로 보이며, 입력 칸에 "다른 사람에게
+- 이름은 공개 이름이다. 챌린지 참여작과 댓글(되살릴 때는 커뮤니티 글·댓글도)의 작성자 이름으로 보이며, 입력 칸에 "다른 사람에게
   보이는 이름이에요"를 적는다. 이름을 바꾸면 이미 올린 참여작·댓글도 현재 이름으로 보인다. 참여작·댓글
   행에 이름을 복사해 두지 않는다. 이름 말고는 본인만 본다. 예외는 공유 링크를 켠 포트폴리오 공개
   페이지로, 사진·성별·만 나이가 함께 보인다. (account.portfolio)
@@ -98,7 +93,8 @@ user_profile_directions(user_id, direction)에 고른 값마다 한 행씩 둔�
   이미지 파일만 받는다. 소개는 80자까지다.
 - 큰 사진은 거절하지 않는다. 앱이 정사각으로 자르면서 긴 변 2048px의 JPEG로 항상 줄여서 올린다.
   서버의 10MB 제한과 이미지 검사는 앱을 거치지 않은 올리기를 막는 안전망으로 남기며, 영상 올리기와
-  같게 크기는 413, 형식은 415로 답한다. 받는 형식은 JPEG·PNG·WebP·HEIC다.
+  같게 크기는 413, 형식은 415로 답한다. 형식을 먼저 보므로 415가 413보다 먼저다. 받는 형식은
+  JPEG·PNG·WebP·HEIC다. 포트폴리오 사진도 이 규칙을 따른다. (account.portfolio)
 - 디자인에는 여섯 항목을 고치는 진입점이 없어 설정이나 프로필 탭에 더해야 한다. A4 프로필의
   "포트폴리오 편집"은 다른 기능이다. (account.portfolio)
 
@@ -106,11 +102,11 @@ user_profile_directions(user_id, direction)에 고른 값마다 한 행씩 둔�
 - 입력 도중 앱을 닫으면 다음에 앱을 열 때 입력 화면을 처음부터 다시 시작한다. 여섯 항목을 한 번에
   저장하고 부분 저장은 하지 않는다.
 - 값 목록에 없는 값이 오면 422로 거절한다.
-- 탈퇴하면 이름·사진·소개를 지우고 나머지는 가명처리해 남긴다. (account.withdraw)
+- 탈퇴: 프로필에서 지우는 것과 가명처리해 남기는 것은 [account.withdraw](withdraw.md#규칙제약)가 정한다.
+- 다른 기기의 탈퇴와 겹친 저장은 [공통 규칙](../common.md#탈퇴와-겹친-쓰기)을 따른다.
 
 ## 검증 방법
-- 첫 로그인 뒤 동의를 모두 결정하면 프로필 화면이 나오고, 필수 항목을 다 채우기 전 연습 API
-  호출: 403과 사유 profile_required가 온다. 다 채우면 같은 토큰으로 허용된다.
+- 첫 로그인 뒤 동의를 모두 결정하면: 프로필 화면이 나온다.
 - 0.1.0 이전 회원이 로그인: 프로필 화면이 나오고 옛 닉네임이 이름 칸에 채워져 있다.
 - 추구하는 방향을 둘 이상 선택해 저장: 둘 다 저장되고 다시 열면 둘 다 선택돼 있다.
 - 생년월일을 저장한 뒤 조회: 만 나이가 오늘 기준으로 계산돼 온다. 생일 전날과 당일에 한 살 차이가

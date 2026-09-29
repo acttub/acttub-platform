@@ -24,18 +24,14 @@
 |---|---|---|---|
 | `GET /v2/me/notification-settings` | 헤더 `Authorization`(게이트 통과 회원) | `NotificationSettings` 200 | 게스트 `member_only` 403 |
 | `PATCH /v2/me/notification-settings` | 헤더 `Authorization`(게이트 통과 회원), `NotificationSettingsPatch`: 바꿀 토글만 | `NotificationSettings` 200(토글 셋 전체: `analysis_done`·`challenge`·`evening_reminder`) | 게스트 `member_only` 403, 빈 본문·모르는 키·불리언 아닌 값 422 배열 |
-| `POST /v2/push-tokens` | 헤더 `Authorization`(게이트 통과 회원), `RegisterPushTokenRequest`: `token`·`platform` | 204. 푸시 토글 둘이 다 꺼졌거나 탈퇴와 겹치면 저장하지 않고 204 | 게스트 `member_only` 403, `consent_required`·`profile_required` 403, 422 배열 |
-| `DELETE /v2/push-tokens` | `UnregisterPushTokenRequest`: `token`. 로그인 없이 받고 `Authorization`을 보지 않는다 | 204 | 422 배열, IP 한도 429 |
+| `POST /v2/push-tokens` | 헤더 `Authorization`(게이트 통과 회원), `RegisterPushTokenRequest`: `token`·`platform` | 204. 푸시 토글 둘이 다 꺼졌거나 다른 기기의 탈퇴와 겹치면 저장하지 않고 204 | 게스트 `member_only` 403, 422 배열 |
+| `DELETE /v2/push-tokens` | `UnregisterPushTokenRequest`: `token`. 로그인 없이 받는다(공통 규칙) | 204 | 422 배열, IP 한도 429 |
 | `PushService#onAnalysisComplete` (분석 워커가 분석을 끝낼 때) | 분석 세션 | 분석 완료 토글이 켜진 회원의 토큰 전부에 Expo 푸시 | 실패는 밖으로 내보내지 않고 보고한다. `DeviceNotRegistered` 토큰은 지운다 |
 | 챌린지 알림 발송 | 챌린지 사건 | 챌린지 토글이 켜진 회원에게 푸시 | 정본은 challenge.notification |
 | 앱의 저녁 리마인드 알람 | 앱 열기, 그날 연습, 리마인드 토글 | 폰에 30일치 밤 10시 알람 | 없음 — 서버를 거치지 않는다 |
 
-`/v2` 요청은 `X-Acttub-Client` 헤더가 없으면 426이다. 게이트를 지나야 하는 입구는 공통 규칙의 401·403·429를
-함께 따른다.
-
 ## 상태
-없음. 토글은 켬·끔 값이고 push_tokens 행은 있거나 없을 뿐 생애가 없다. 탈퇴는 토글을 끄고 토큰을
-지운다. (account.withdraw)
+없음. 토글은 켬·끔 값이고 push_tokens 행은 있거나 없을 뿐 생애가 없다.
 
 ## 규칙·제약
 - 푸시 토큰은 폰이 알림 권한을 허용하면 등록한다. 한 사람에 폰 여러 대, 1:N이다. 등록은 보호 기능이라
@@ -51,9 +47,8 @@
   둘을 다 끄면 서버가 그 회원의 토큰을 전부 지운다. 다른 기기는 다음에 앱을 열 때 다시 등록한다.
 - 분석 완료 푸시는 분석이 끝나는 순간 그 사람의 토큰 전부에 한 번 보낸다. 토큰이 없으면 조용히
   건너뛴다. 서버는 Expo에만 맡기고 애플·구글에 직접 보내지 않는다.
-- 챌린지 알림은 내 참여작의 좋아요·댓글과 참여한 챌린지의 마감이다. 어떤 사건에 언제 보내고 어떻게
-  묶는지, 알림함 화면과 notifications 테이블은 challenge.notification에서 정한다. 이 절은 토글과
-  토큰만 맡는다.
+- 챌린지 알림이 어떤 사건에 언제 가고 어떻게 묶이는지, 알림함 화면과 notifications 테이블은
+  [challenge.notification](../challenge/notification.md#규칙제약)이 정한다. 이 절은 토글과 토큰만 맡는다.
 - 저녁 리마인드는 폰이 앞으로 30일치 밤 10시 알람을 맞춘다. 그날 연습하면 그날 알람을 끄고, 앱을
   열 때마다 30일치를 다시 맞춘다. 30일 동안 앱을 안 열면 알람도 멈춘다. 서버와 토큰은 쓰지 않는다.
   iOS는 앱마다 예약 알림을 64개까지만 두므로 30일치가 그 안에 든다.
@@ -70,7 +65,9 @@
   앱은 다음 실행 때 삭제를 다시 시도한다. 다음 사람이 이 폰으로 로그인하면 그 사람의 토큰으로 바뀐다.
   새 로그인으로 등록에 성공하면 앱은 밀린 삭제를 버린다. 순서가 뒤집혀 새 회원의 등록을 지우지 않기
   위해서다.
-- 탈퇴하면 토큰을 지우고 알람도 취소한다.
+- 탈퇴: 서버는 토글을 끄고 토큰을 지운다([account.withdraw](withdraw.md#규칙제약)). 앱은 알람도 취소한다.
+- 다른 기기의 탈퇴와 겹친 토글 저장은 [공통 규칙](../common.md#탈퇴와-겹친-쓰기)을 따른다. 푸시 토큰 등록은 그
+  예외다(입구 표).
 - 폰의 시간대가 바뀌면 알람은 폰 시각 기준 밤 10시다.
 
 ## 검증 방법
@@ -82,6 +79,7 @@
 - 폰 두 대에 로그인한 회원이 한 대에서 푸시 토글 둘을 끄면: 서버에 그 회원의 토큰이 하나도 없다. 하나를
   다시 켠 뒤 다른 폰에서 앱을 열면: 그 폰의 토큰이 다시 생긴다.
 - 동의를 결정하기 전에 토큰 등록 요청: 403. 게스트 토큰으로 등록: 403.
+- 게이트를 지난 토큰 등록보다 다른 기기의 탈퇴가 먼저 끝나면: 204이고 push_tokens 행이 없다.
 - 액세스 토큰 없이 토큰 삭제 요청: 204이고 그 토큰 행이 없다.
 - Expo 발송이 실패해도: 분석 상태가 완료이고 결과가 조회된다. 토큰 없는 회원의 분석 완료: 오류 없이
   끝난다.

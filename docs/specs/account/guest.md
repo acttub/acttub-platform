@@ -25,24 +25,22 @@
 ## 입력·출력
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
-| `POST /v2/auth/guest` | 없음. 토큰 없이 부른다. 끝난 게스트의 토큰이 붙어 와도 401로 막지 않는다 | `GuestResponse` 201 | IP 시간당 10개 넘으면 429 |
+| `POST /v2/auth/guest` | 없음. 토큰 없이 부르며 끝난 게스트의 토큰이 붙어 와도 보지 않는다(공통 규칙) | `GuestResponse` 201 | IP 시간당 10개 넘으면 429 |
 | `POST /v2/consents` (게스트의 동의 시트) | 헤더 `Authorization`(게스트 토큰), `ConsentRequest`: `document_id`, `action`, 첫 동의의 `age_confirmed` | `ConsentEventResponse` 201, 같은 결정이면 200 | 선택 문서 `member_only` 403, `age_confirmation_required` 422 (나머지는 account.consent) |
 | `POST /v2/guest/transfer-code` | 헤더 `Authorization`(게스트 토큰) | `TransferCodeResponse` 201 | 회원 토큰 `guest_only` 403, 주체 한도 429 |
 | `POST /v2/guest-transfers` | 헤더 `Authorization`(게이트를 지난 회원), `GuestTransferRequest`: `code`, 둘 다 기억이 있으면 `memory_choice` | `GuestTransferResponse` 200 | 게스트 토큰 `member_only` 403, `transfer_code_not_found` 404, `memory_choice_required` 409, 코드 모양 422 배열, 틀린 시도 한도 429 |
-| `AccountHousekeeping#runDaily` 게스트 정리 (매일 한국 시간 4시 30분) | 마지막 활동 30일 지난 활성 게스트 | `ProfileService#withdraw`로 파기 | 실패는 보고하고 다른 게스트·정리는 계속 돈다 |
-| `AccountHousekeeping#runDaily` 이관 코드 정리 | 쓰였거나 시한이 지난 지 30일 지난 `guest_transfer_codes` 행 | 행 삭제 | 실패는 보고하고 다른 정리는 계속 돈다 |
+| `AccountHousekeeping#runDaily` 게스트 정리 (매일, 시각과 실패 처리는 [CONTRACT §6-12](../../../apps/api/CONTRACT.md#6-12-매일-도는-일)) | 마지막 활동 30일 지난 활성 게스트 | `ProfileService#withdraw`로 파기 | — |
+| `AccountHousekeeping#runDaily` 이관 코드 정리 (위와 같음) | 쓰였거나 시한이 지난 지 30일 지난 `guest_transfer_codes` 행 | 행 삭제 | — |
 
-`/v2` 요청은 `X-Acttub-Client` 헤더가 없으면 426이다. 게스트가 보호 기능을 부를 때의 403
-`consent_required`·`member_only`는 아래 규칙을 따른다.
+게스트가 보호 기능을 부를 때의 403 `consent_required`·`member_only`는 아래 규칙을 따른다.
 
 ## 상태
-게스트 계정(users + provider=guest 신원):
+게스트 계정(users + provider=guest 신원). users 상태 전체는 [account.login](login.md#상태)이 정본이고, 이 기능은 아래
+전이를 일으킨다. 옮겨짐과 파기는 쓰인 이관 코드가 있는지로 가른다.
 
-| 상태 | 들어오는 전이(조건) | 일으키는 기능 |
-|---|---|---|
-| 게스트(active, 신원이 guest뿐) | 게스트 만들기 | account.guest |
-| 옮겨짐(deactivated, 신원 행 없음, 쓰인 이관 코드 있음) | 옮기기 완료 | account.guest |
-| 파기(deactivated, 신원 행 없음, 쓰인 코드 없음) | 게스트 토큰의 탈퇴 요청, 마지막 활동 30일 | account.withdraw, account.guest |
+- 게스트 만들기 → 게스트(active, 신원이 guest뿐)
+- 옮기기 완료 → 옮겨짐(deactivated, 신원 행 없음, 쓰인 이관 코드 있음)
+- 마지막 활동 30일, 게스트 토큰의 탈퇴 요청(account.withdraw) → 파기(deactivated, 신원 행 없음, 쓰인 코드 없음)
 
 guest_transfer_codes:
 
@@ -56,13 +54,13 @@ guest_transfer_codes:
 불변 조건: 쓰지 않은 코드는 게스트마다 하나, 숫자(해시)마다 하나다(V12의 부분 유니크 인덱스
 `uq_guest_transfer_codes_unused_user`·`uq_guest_transfer_codes_unused_code_hash`). 쓰인 코드 행이
 `guest_transferred`의 표식이라 30일 동안 지우지 않는다. 옮겨짐과 파기는 끝 상태이고 다시 active가 되지
-않는다. users 상태 전체는 [account.login](login.md#상태)이 정본이다.
+않는다.
 
 - 게스트 계정은 보통의 users 행이고, user_identities에 provider=guest, provider_uid=서버가 만든
-  난수로 신원을 둔다. 게스트 여부는 신원이 guest뿐인 것으로 판정하며 users에 컬럼을 늘리지 않는다.
+  난수로 신원을 둔다. 게스트 여부는 신원이 guest뿐인 것으로 판정한다.
 - 이관 코드는 웹이 요청하면 서버가 6자리 숫자를 만들어 해시로 저장한다. 10분 유효, 한 번 쓰면 끝,
   새로 요청하면 이전 코드는 무효다. 게스트마다 살아 있는 코드는 하나다.
-- 옮기기는 한 트랜잭션이다. 끝나면 게스트 계정을 deactivated로 닫고 신원 행을 지우며 게스트의
+- 옮기기가 끝나면 게스트 계정을 deactivated로 닫고 신원 행을 지우며 게스트의
   리프레시 토큰을 폐기한다. 토큰 행은 지우지 않는다. 옮겨진 게스트의 토큰으로 온 요청에는 사유
   guest_transferred를 실어 액세스 토큰에는 403, 갱신에는 401을 준다. 이 사유는 account_deactivated보다 먼저이고
   탈퇴(`DELETE /v2/me`)도 예외가 아니다. 탈퇴로 닫힌 게스트는 쓰인 코드가 없어 account_deactivated다. 웹은 이 사유를 보고 "옮겼어요"
@@ -92,12 +90,11 @@ guest_transfer_codes:
 - 서버는 요청마다 그 기능의 문서가 결정됐는지 본다. 빠진 문서가 있으면 403과 빠진 문서 목록을
   돌려주고, 웹은 그 목록으로 시트를 띄운 뒤 같은 요청을 다시 보낸다. 회원(앱)은 가입 때 문서를 모두
   결정하므로 이 시트가 뜰 일이 없다.
-- 게스트는 연습·리딩을 쓴다. 챌린지는 보기와 참여 모두 회원만이고 앱에만 있다. 게스트가 회원 전용
-  기능(챌린지, 포트폴리오, 프로필 저장·사진, 알림, 옮기기)을 부르면 403이고 사유는 member_only다. 위 표의 어느 기능에도
-  적히지 않은 경로는 member_only다. 적지 않은 새 경로는 게스트에게 닫힌 채로 시작한다. 회원이 이관 코드
-  발급을 부르면 403이고 사유는 guest_only다.
-- 남용 제한: 게스트 만들기는 IP당 시간당 10개, 게스트의 분석 요청은 게스트당 하루 3회다. 하루는 한국
-  시간 자정에 끊는다.
+- 게스트는 연습·리딩을 쓴다. 챌린지는 보기와 참여 모두 회원만이고 앱에만 있다. 게스트가 위 표의 어느
+  기능에도 적히지 않은 경로를 부르면 403이고 사유는 member_only다. 적지 않은 새 경로는 게스트에게 닫힌 채로
+  시작한다. 회원이 이관 코드 발급을 부르면 403이고 사유는 guest_only다.
+- 남용 제한: 게스트 만들기는 IP당 시간당 10개다. 게스트의 분석 한도는 [practice.analyze](../practice/analyze.md#규칙제약)가
+  정한다.
 - 게스트도 탈퇴 API를 부를 수 있다. 웹에 버튼은 없고, 자료를 지워 달라는 요청을 같은 절차로 처리하기
   위해서다. (account.withdraw)
 - 옮기기: 앱에서 로그인한 회원이 코드를 넣으면 서버는 user_id 컬럼이 있는 게스트의 모든 자료
@@ -109,16 +106,15 @@ guest_transfer_codes:
 - 옮긴 연습은 회원의 연습 목록에 시간순으로 섞여 보이고 따로 표시하지 않는다.
 - 옮기지 않은 게스트는 마지막 활동 30일 뒤 탈퇴와 같은 절차로 파기한다. (account.withdraw) 마지막 활동은
   게스트 시작, 토큰 갱신, 영상 올리기, 연습 만들기, 대본 등록, 리딩 회차 시작·진행 저장, 녹음 올리기, 암기 상태
-  갱신 가운데 가장 늦은 시각이다. (reading) 게스트는
-  챌린지를 쓰지 않으므로 다른 사람의 화면에 얽힌 행이 없다. 연습·분석·대화 행은 탈퇴와 같이 사람과
-  끊어 남긴다. 게스트 신원은 해시 없이 행째 지운다.
+  갱신 가운데 가장 늦은 시각이다. 게스트는 챌린지를 쓰지 않으므로 다른 사람의 화면에 얽힌 행이 없다. 게스트
+  신원은 해시 없이 행째 지운다.
 - 게스트 토큰은 웹에서만 쓴다. 앱이 게스트를 만드는 길은 없다.
 
 ## 예외
 - 코드가 틀리거나 만료·사용됐으면 같은 404. 화면 문구는 "코드가 맞지 않거나 만료됐어요". 틀린
   시도는 회원당 분당 5회, IP당 분당 10회로 제한한다. 한도를 채운 뒤에는 맞는 코드도 평가하지 않고 429다.
-  모양이 틀린 코드(422 배열)와 409는 틀린 시도로 세지 않는다.
-- 게스트 토큰이 만료(30일)되면 그 게스트에 다시 닿을 수 없고 자료는 파기 일정대로 사라진다.
+  틀린 시도는 404로 끝난 시도만 센다. 모양이 틀린 코드(422 배열), 409, 맞은 코드, 서버 쪽 실패는 세지 않는다.
+- 게스트 토큰이 만료되면 그 게스트에 다시 닿을 수 없고 자료는 파기 일정대로 사라진다.
 - 옮기기 도중 실패하면 아무것도 옮겨지지 않고 코드는 살아 있다.
 - 게스트가 분석 중일 때 옮기면 진행 중 작업도 따라가고, 완료 알림은 회원의 폰으로 간다.
 - 회원이 웹을 열어도 게스트다. 회원 자료는 웹에서 보이지 않는다. 0.1.0은 이를 받아들인다. 현재
@@ -142,8 +138,7 @@ guest_transfer_codes:
 - 틀린 코드를 1분 안에 6번: 여섯 번째는 429. 한 IP에서 여러 회원으로 1분 안에 11번: 열한 번째는 429.
 - 브라우저 저장소를 지우고 다시 열면: 새 게스트가 생기고 이전 연습은 보이지 않는다.
 - 마지막 활동 31일 지난 게스트: 파기 뒤 영상 객체가 없고 users 행은 deactivated다.
-- 한 IP에서 한 시간에 게스트 11개: 열한 번째는 429. 한 게스트가 하루 4번째 분석: 429. 한국 시간 자정이
-  지나면: 다시 된다.
+- 한 IP에서 한 시간에 게스트 11개: 열한 번째는 429.
 - 회원 토큰으로 이관 코드 발급: 403.
 - 게스트 토큰으로 챌린지 목록·참여 API: 403.
 - 기억이 있는 회원 계정에 기억이 있는 게스트를 옮기면: 팝업이 뜬다. 웹 것을 고르면 회원의 옛 기억이
