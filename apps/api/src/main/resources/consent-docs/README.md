@@ -37,13 +37,17 @@
 | `privacy_v5.md` | `privacy` | `v5` | `ko` | 개인정보 수집·이용 동의 | ✅ |
 | `ai_analysis_v1.md` | `ai_analysis` | `v1` | `ko` | AI 분석 동의 | ✅ |
 | `retention_v1.md` | `retention` | `v1` | `ko` | 탈퇴 후 영상·녹음 보관·활용 | 선택 |
+| `cloud_voice_v1.md` | `cloud_voice` | `v1` | `ko` | 대본 리딩 고품질 목소리(선택) | 선택 |
 | `terms_v1_en.md` | `terms` | `v1` | `en` | Terms of Service | ✅ |
 | `ai_analysis_v1_en.md` | `ai_analysis` | `v1` | `en` | AI Analysis Consent | ✅ |
+| `privacy_v5_en.md` | `privacy` | `v5` | `en` | Consent to Collection and Use of Personal Information | ✅ |
+| `retention_v1_en.md` | `retention` | `v1` | `en` | Retention and Use of Video/Recordings After Withdrawal | 선택 |
+| `cloud_voice_v1_en.md` | `cloud_voice` | `v1` | `en` | Premium reading voice (optional) | 선택 |
 
 > 개인정보 수집·이용 동의 v5 와 보관 동의 v1 의 영어판은 아직 없다 — 영어 사용자에게는 한국어가 보인다(아래
 > 「말」). `privacy_v4_en.md` 는 v4 의 번역본이라 v5 가 현행인 지금은 싣지 않는다.
 
-> `ConsentType` enum은 이 4종을 지원한다(`platform/schema/ConsentType.java` + `ck_consent_documents_type`).
+> `ConsentType` enum은 이 5종을 지원한다(`platform/schema/ConsentType.java` + `ck_consent_documents_type`).
 > 종류를 더하려면 enum 과 Flyway 마이그레이션의 CHECK 를 함께 넓힌다(`ValueCheckCatalogIT` 가 대조한다).
 >
 > **`privacy` 는 1.0.0 부터 "개인정보 수집·이용 동의"다.** 처리방침은 동의를 받는 문서가 아니라 고지라서
@@ -96,7 +100,7 @@ jar 에 실린다(`build.gradle.kts` 의 `processResources`).
 
 ## 검증
 ```bash
-curl -s -H 'X-Acttub-Client: web/1.0.0' https://dev.acttub.com/v2/consents/documents   # documents 4개
+curl -s -H 'X-Acttub-Client: web/1.0.0' https://dev.acttub.com/v2/consents/documents   # documents 5개
 ```
 그 후 앱에서 소셜 로그인 → 동의 화면에 필수 3종과 선택 1종이 뜨는지 확인.
 

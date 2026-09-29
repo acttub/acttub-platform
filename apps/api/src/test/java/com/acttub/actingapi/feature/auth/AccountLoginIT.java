@@ -127,7 +127,7 @@ class AccountLoginIT {
                 .containsExactlyInAnyOrder("result", "signup_token", "expires_in", "documents");
         assertThat(first.path("expires_in").longValue()).isEqualTo(1800);
         assertThat(first.path("documents")).extracting(document -> document.path("type").textValue())
-                .containsExactly("terms", "privacy", "ai_analysis", "retention");
+                .containsExactly("terms", "privacy", "ai_analysis", "retention", "cloud_voice");
         assertThat(count("users")).as("가입 제출 전에는 아무 행도 없다").isZero();
         assertThat(count("user_identities")).isZero();
 

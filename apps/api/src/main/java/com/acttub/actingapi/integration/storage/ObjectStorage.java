@@ -21,5 +21,10 @@ public interface ObjectStorage {
      */
     void upload(String objectKey, String mimeType, Path source);
 
+    /** 작고 이미 메모리에 있는 생성 음성 객체를 직접 올린다. */
+    default void upload(String objectKey, String mimeType, byte[] content) {
+        throw new UnsupportedOperationException("byte array upload is not implemented");
+    }
+
     void delete(String objectKey);
 }

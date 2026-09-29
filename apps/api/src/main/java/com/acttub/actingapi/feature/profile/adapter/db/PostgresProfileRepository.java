@@ -623,6 +623,9 @@ class PostgresProfileRepository implements ProfileRepository {
             cleanups.addAll(eraseReading(userId, retainMedia, now));
             erasePractice(userId, retainMedia, now);
             eraseChallenge(userId, now);
+            entityManager.createNativeQuery("DELETE FROM reading_voice_usage WHERE user_id=:userId")
+                    .setParameter("userId", userId)
+                    .executeUpdate();
             cleanups.addAll(hashIdentities(userId, now));
 
             // ⚠ 새 코드가 `users.nickname` 을 건드리는 곳은 이 한 줄뿐이다 (SOMA-528 결정 I-3).
