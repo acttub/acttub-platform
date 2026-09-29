@@ -13,6 +13,7 @@ import {
 import { APP_HIGHLIGHTS } from "../features/app-download/app-highlights";
 import { StickyDownloadBar } from "../features/app-download/sticky-download-bar";
 import { StoreBadges } from "../features/app-download/store-badges";
+import { LANDING_GUIDE_LINKS } from "../features/keyword-pages/guide-links";
 import { hasGuestSession } from "../lib/auth/token-store";
 
 const COPY = {
@@ -82,6 +83,7 @@ const COPY = {
   footer: {
     description:
       "Acttub(액터브)은 질문으로 다시 보는 연기 연습 도구예요. 웹에서 해 본 연습은 코드 하나로 앱에 옮겨 이어서 해요.",
+    guides: "많이 찾는 연습 가이드",
     instagram: "인스타그램",
     email: "acttub0527@gmail.com",
   },
@@ -432,6 +434,22 @@ export default function LandingClient() {
                   <p className="mt-3 max-w-sm text-sm font-semibold leading-6 text-[#b0b8c1] sm:text-base sm:leading-7">
                     {COPY.footer.description}
                   </p>
+                  <p className="mt-5 text-xs font-bold text-[#8b95a1]">
+                    {COPY.footer.guides}
+                  </p>
+                  <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-sm font-semibold text-[#b0b8c1]">
+                    {LANDING_GUIDE_LINKS.map((link) => (
+                      <li key={link.href}>
+                        <Link
+                          href={link.href}
+                          prefetch={false}
+                          className="transition hover:text-white"
+                        >
+                          {link.label}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
                 <nav className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm font-bold text-[#b0b8c1] md:grid-cols-1">
                   <Link href="/app" className="transition hover:text-white">
