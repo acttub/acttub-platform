@@ -138,11 +138,8 @@ JSON 연산, 상관 서브쿼리 조건부 갱신은 Spring Data `save()`나 조
 
 ### 5-3. 엔티티 매핑 함정
 
-1. **값 목록은 text 컬럼 + CHECK 다** (SOMA-462). 네이티브 Postgres enum 열아홉을 걷어냈다 —
-   Postgres 가 enum **값 삭제를 지원하지 않아**(`dropping an enum value is not implemented`)
-   죽은 값 하나를 빼려면 타입을 통째로 갈아야 했고, 값 목록이 바뀌는 것이 정상인 도메인에
-   맞지 않는 그릇이었다. 이 레포는 그 전에도 `ck_practice_reports_report_type` 처럼
-   text + CHECK 를 쓰고 있었고, 이제 그쪽으로 통일됐다.
+1. **값 목록은 text 컬럼 + CHECK 다** (SOMA-462). 네이티브 Postgres enum 열아홉을 걷어낸 이유는
+   [ADR-023](../../docs/ADR.md)이다.
 
    **`@Enumerated(EnumType.STRING)` 은 여전히 금지다.** 이유가 바뀌었을 뿐이다 — 그것은
    Java enum **상수 이름**을 저장하는데, DB 값은 소문자이고 `IntentImpact` 는 **한글**
