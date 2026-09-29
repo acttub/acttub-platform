@@ -19,6 +19,7 @@ import { File, Paths } from 'expo-file-system';
 import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 
 import { currentLanguage, translate as t } from '../../i18n.ts';
+import { shouldStopCloudVoiceForSession } from '../cloud-voice.ts';
 
 import { currentNetworkType } from '../network';
 import { assetsPresent, downloadAssets, downloadVoiceStyle, MODEL_KINDS, type Variant } from './assets';
@@ -173,6 +174,7 @@ export function keyFor(text: string, preset = cfg.preset, speed = cfg.speed): st
   });
 }
 
+
 /**
  * 프리셋의 스타일과 실제로 쓰게 된 프리셋. 처음이면 받아서 로드한다. 받지 못하면 기본 스타일로 읽고 그 사실을
  * 돌려준다 — 부르는 쪽이 대체 음성을 요청한 목소리의 저장본으로 남기지 않게 하려는 것이다.
@@ -262,9 +264,19 @@ export type SpeechQueueHandle = SpeechQueue & {
 /**
  * 이 대본의 미리 만들기 큐. 만드는 일은 엔진이 하고, 순서와 취소는 큐가 본다 (SOMA-547).
  */
-export function createQueueFor(scriptId: string): SpeechQueueHandle {
+export function createQueueFor(scriptId: string, options: { cloud?: boolean; synthesizeCloud?: (text: string, scriptId: string, preset: string) => Promise<string>; onCloudFailure?: (blocked: boolean) => void } = {}): SpeechQueueHandle {
+  let cloudBlocked = false;
   const queue = createSpeechQueue({
     synthesize: async (text, _key, preset) => {
+      if (options.cloud && options.synthesizeCloud && !cloudBlocked) {
+        try {
+          return await options.synthesizeCloud(text, scriptId, preset);
+        } catch (error) {
+          cloudBlocked = shouldStopCloudVoiceForSession(error as { status?: number });
+          options.onCloudFailure?.(cloudBlocked);
+          if (!isReady()) throw error;
+        }
+      }
       const uri = await synthesize(text, scriptId, preset);
       if (!uri) throw new Error('빈 문장');
       return uri;

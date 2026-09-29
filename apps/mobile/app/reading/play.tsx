@@ -63,6 +63,9 @@ import { formatMegabytes, modelDownloadPrompt, type PartnerVoiceEngine } from '@
 import { assignVoices } from '@/lib/reading/voices';
 import { translate as t } from '@/lib/i18n';
 import { useAppRating } from '@/hooks/use-app-rating';
+import { api } from '@/lib/api';
+import { loadCloudVoiceEnabled, shouldUseCloudVoice } from '@/lib/reading/cloud-voice';
+import { synthesizeCloudSpeech } from '@/lib/reading/cloud-voice-runtime';
 
 /**
  * 리딩 실행(R03.0 가이드 · R03.1 상대가 읽는 중 · R03.2 내 차례·나가기 확인, reading.session).
@@ -153,6 +156,8 @@ export default function ReadingPlay() {
   /** 180초에 이르러 이미 녹음을 멈추고 올린 줄 — 줄이 끝날 때 다시 올리지 않는다. */
   const recordingClosed = useRef(false);
   const [pendingUploads, setPendingUploads] = useState(0);
+  const [cloudActive, setCloudActive] = useState(false);
+  const cloudActiveRef = useRef(false);
 
   const voices = useMemo(
     () => (script && session ? assignVoices(script.characters, session.my_character_ids) : {}),
@@ -163,7 +168,10 @@ export default function ReadingPlay() {
 
   const primeSpeech = useCallback((from: number) => {
     if (!script || !config) return null;
-    if (!speechQueue.current) speechQueue.current = engine.createQueueFor(script.id);
+    if (!speechQueue.current) speechQueue.current = engine.createQueueFor(script.id, {
+      cloud: cloudActiveRef.current,
+      synthesizeCloud: synthesizeCloudSpeech,
+    });
     const upcoming = config.lines.slice(from, config.endIndex + 1)
       .filter((line): line is DialogueLine => line.type === 'dialogue' && !config.myRoles.includes(line.role))
       .map((line) => ({ text: speakableText(line.text), preset: presetFor(line.role) }));
@@ -277,10 +285,15 @@ export default function ReadingPlay() {
     fromTutorialRef.current = fromTutorial;
     if (fromTutorial) finishTutorial('done');
     void (async () => {
-      const [seenBefore, micOk] = await Promise.all([hasSeenReadingGuide(), hasMicPermission()]);
+      const [seenBefore, micOk, cloudEnabled, cloudStatus] = await Promise.all([
+        hasSeenReadingGuide(), hasMicPermission(), loadCloudVoiceEnabled(), api.getCloudVoiceStatus().catch(() => null),
+      ]);
       const seen = seenBefore && !fromTutorial;
       if (!mounted.current) return;
       setMicAllowed(micOk);
+      const useCloud = shouldUseCloudVoice({ enabled: cloudEnabled, status: cloudStatus });
+      cloudActiveRef.current = useCloud;
+      setCloudActive(useCloud);
       if (micOk) setSttMode(await detectSttPolicy());
       setGuideChecked(true);
       if (seen) void prepare();
@@ -310,6 +323,11 @@ export default function ReadingPlay() {
     // 모든 배역이 내 배역이면 상대 대사가 없어 모델 준비를 기다리지 않는다.
     if (!hasPartnerLines || partnerEngine !== 'supertonic') {
       setPhase('running');
+      return;
+    }
+    if (cloudActiveRef.current) {
+      setPhase('running');
+      await primeSpeech(runRef.current?.index ?? 0)?.first();
       return;
     }
     const present = assetsPresent('fp32', 'M1');
@@ -353,10 +371,10 @@ export default function ReadingPlay() {
   }, [confirm, hasPartnerLines, partnerEngine, primeSpeech]);
 
   useEffect(() => {
-    if (phase === 'running' && partnerEngine === 'supertonic' && engine.isReady()) {
+    if (phase === 'running' && partnerEngine === 'supertonic' && (engine.isReady() || cloudActive)) {
       primeSpeech(run?.index ?? 0);
     }
-  }, [phase, partnerEngine, run?.index, primeSpeech]);
+  }, [phase, partnerEngine, run?.index, primeSpeech, cloudActive]);
 
   const startAfterGuide = async () => {
     await markReadingGuideSeen();
@@ -379,6 +397,8 @@ export default function ReadingPlay() {
           const ready = await primeSpeech(from)?.take({ text, preset });
           if (cancelled || !mounted.current) return;
           if (ready) await engine.play(ready);
+          // 서버 음성을 못 받았고 기기 모델도 없으면 이 줄은 글로 보여 주고 "다음"을 기다린다.
+          else if (cloudActive && !engine.isReady()) return;
           else await engine.speak(text, preset, { scriptId: script?.id });
         } else await speakWithDevice(text, presetFor(line.role));
       } catch (e) {
@@ -392,7 +412,7 @@ export default function ReadingPlay() {
       engine.stop();
       stopDeviceVoice();
     };
-  }, [phase, run?.index, run?.status, partnerEngine, goNext, presetFor, primeSpeech, script?.id]);
+  }, [phase, run?.index, run?.status, partnerEngine, goNext, presetFor, primeSpeech, script?.id, cloudActive]);
 
   // ── 내 차례: 마이크(침묵 감지)와 STT ─────────────────────────────────────────
   const onSilenceEnd = useCallback(

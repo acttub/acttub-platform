@@ -42,6 +42,8 @@ export const palette = {
   hintIcon: '#F5A524', // 코치 힌트 전구 — 마스코트 주황
   danger: '#E42939',
   dangerSoft: '#FFF0F0',
+  onAccent: '#FFFFFF',
+  scrim: '#0F141E73',
 
   // 예전 토큰 — 아직 참조하는 화면이 있어 남긴다. 새 화면에서는 쓰지 않는다.
   navy: '#191F28',

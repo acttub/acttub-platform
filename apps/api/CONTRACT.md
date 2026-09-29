@@ -989,6 +989,24 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - **객체 삭제 장부**는 성공할 때까지 키를 지키고 7일마다 알린다(§6-8) — 대본·회차·녹음 삭제, 대체된 녹음, 탈퇴
   파기가 모두 같은 `reading_recording_delete` 를 쓴다.
 
+**고품질 목소리 (SOMA-500)**
+
+- `GET /v2/reading/voice/status`는 회원 access token이 필요한 보호 경로다. 응답은
+  `{available,free_until,consent,daily_limit,daily_used}`다. `available`은 `GEMINI_API_KEY`와
+  `GEMINI_TTS_MODEL`, 오브젝트 스토리지가 모두 설정되고 현재 시각이 무료 종료 시각 이하이며 해당 월의
+  새 합성이 월 한도 미만일 때만 참이다. `consent`는 선택 문서 `cloud_voice` 현재 판에 대한
+  `granted`·`denied`·`undecided` 중 하나이고, 사용량 날짜는 Asia/Seoul 기준이다.
+- `POST /v2/reading/voice`는 `{text,voice}`를 받는다. `text`는 trim 뒤 1~500자, `voice`는
+  `M1`~`M5`·`F1`~`F5`다. 응답은 `{audio_url,cached,expires_in}`이고 WAV(24kHz, 16-bit, mono)의
+  재생 서명 주소는 600초다. 캐시 키는 `sha256(model + "\n" + geminiVoice + "\n" + text)`이고 객체 키는
+  `reading-voice/{hash}.wav`다. 캐시 적중은 합성과 사용량 증가 없이 성공하며 일 한도 뒤에도 허용한다.
+  새 합성 성공만 일 사용량을 1 올린다.
+- 오류는 400 `invalid_voice_request`, 403 `cloud_voice_consent_required`, 429
+  `cloud_voice_daily_limit`, 503 `cloud_voice_unavailable`이다. 503은 설정 없음·무료 기간 종료·월 상한·
+  Gemini 또는 저장소 실패를 포함한다. 실제 모델 호출에는 대사 원문 하나와 선택한 prebuilt voice만 전달한다.
+- V24의 `reading_voice_cache(hash PK,model,voice,byte_size,created_at)`는 사용자와 연결하지 않는다.
+  `reading_voice_usage(user_id,day,lines,PK(user_id,day))`는 탈퇴 때 즉시 삭제한다.
+
 ### 6-15. 연습 1.0.0 — 스키마(V14)와 영상 보관함 (SOMA-546)
 
 정본은 [02-practice.md](../../docs/requirements/02-practice.md) 와 「연습 자료의 이관·삭제·탈퇴」 표다. 회차·분석·
