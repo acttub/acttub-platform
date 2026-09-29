@@ -4,9 +4,9 @@
 연습은 제품의 본체다(PRD). 영상을 올리고, 관찰을 받고, 코치와 대화하고, 연습 노트를 남기는 한 바퀴이며, 배우 기억이 연습을
 가로질러 남는다. 이미 배포돼 돌고 있는 기능이라 이 문서는 현행 동작을 문장으로 옮기고 0.1.0에서 바꾸는 것만 드러낸다.
 바꾸는 것은 크게 셋이다. 영상을 연습에서 독립한 자산으로 두고(보관함), 연습을 회차(묶음의 n차)로 다시 세우고, 분석·대화·노트를
-세 테이블로 나눈다. 코치의 행동 규칙(연기를 채점하지 않음, 첫 응답 정책, 도움 버튼, 노트 생성 조건, 배우가 쓴 기억 우선)은
-ADR-027, 아래 「영상만 올리는 연습」과 [practice.coach](coach.md)·[practice.note](note.md)가 정본이고 여기서는 그대로 잇는다.
-구현 규칙(락·트랜잭션·원장·데이터 전환 명령)은 CONTRACT §6-15·§7·§8-5·§8-6에 있다.
+세 테이블로 나눈다. 코치의 행동 규칙은 [practice.coach](coach.md), 노트는 [practice.note](note.md), 배우 기억은
+[practice.memory](memory.md)의 「규칙·제약」이 정본이다. 구현 규칙(락·트랜잭션·원장·데이터 전환 명령)은
+[CONTRACT](../../../apps/api/CONTRACT.md) §6-15·§7·§8-5·§8-6에 있다.
 
 
 ## 용어
@@ -67,15 +67,18 @@ ADR-027, 아래 「영상만 올리는 연습」과 [practice.coach](coach.md)·
 | practices | user_id 바뀜 | 그대로(영상 삭제가 막힘) | 첫 행의 hidden_at | 남긴다(접근 차단) |
 | analyses, coach_conversations, coach_messages, coach_notes | 회차를 따라감 | 그대로 | 그대로(숨김만) | 사람과 끊어 남긴다. 진행 중 대화의 늦은 저장 차단 |
 | actor_memories | account.guest의 팝업 규칙 | 그대로 | 그대로 | 가명처리해 남긴다 |
-| ai_jobs | user_id 바뀜, 완료 알림은 회원 폰 | 그대로 | 그대로 | 진행 중인 작업은 failed/account_deactivated로 닫고 lease를 떼며 결과 본문(result)을 비운다. 이력은 남긴다 |
+| ai_jobs | user_id 바뀜, 완료 알림은 회원 폰 | 그대로 | 그대로 | 진행 중인 작업은 failed/account_deactivated로 닫고 결과 본문(result)을 비운다. 이력은 남긴다 |
 | practice_feedback | user_id 바뀜 | 그대로 | 그대로 | 연락처 파기, 본문은 사람과 끊어 남긴다 |
 | note_ratings | user_id 바뀜 | 그대로 | 그대로 | 한 줄 파기, 평가 값은 사람과 끊어 남긴다 |
 | 기기 자료(보관함 복사본·대기 업로드) | 옛 게스트의 쓰기·재시도 중단 | 해당 파일 삭제 | 그대로 | 탈퇴를 실행한 기기는 성공 직후, 다른 기기는 다음 실행이나 계정 종료 확인 때 계정 자료 전부 삭제 |
 
-쓰기의 최종 저장 직전에 현재 소유자·계정 상태·부모 행·lease를 같은 트랜잭션에서 다시 확인한다(reading 공통 규칙과 같다).
-객체 삭제(영상·미확정 업로드 객체)는 삭제 장부(account_cleanup_operations)가 성공까지 재시도한다. 탈퇴한 계정의 일반 API는 403이고
-재가입 계정이 옛 자료 id로 조회하면 남의 것과 같은 404다(account.withdraw). 영상 재생 불가와 기록 열람 권한은 별개다. 활성 소유자에게
-열람 권한이 있는 기록만 노트·대화를 돌려주고, 영상이 파기됐으면 재생만 막는다.
+- 바깥 호출을 기다린 뒤의 저장(분석 완료·코치 응답·기억 갱신)은 [공통 규칙 「저장 직전 재확인」](../common.md#저장-직전-재확인),
+  탈퇴와 겹친 쓰기는 [「탈퇴와 겹친 쓰기」](../common.md#탈퇴와-겹친-쓰기)를 따른다.
+- 객체 삭제(영상·미확정 업로드 객체)는 삭제 장부(account_cleanup_operations)가 성공까지 재시도한다([account.withdraw](../account/withdraw.md#상태)).
+- 탈퇴한 계정의 요청은 403이고([게이트와 보호 기능](../common.md#게이트와-보호-기능)), 재가입 계정에게 옛 자료는 남의 것이라
+  404다([오류 응답](../common.md#오류-응답)).
+- 영상 재생 불가와 기록 열람 권한은 별개다. 활성 소유자에게 열람 권한이 있는 기록만 노트·대화·분석 요약을 돌려주고, 영상이 파기됐으면
+  재생만 막는다.
 
 ## 영상만 올리는 연습 (`three_layers_v1`)
 
@@ -83,28 +86,11 @@ SOMA-526. 영상 외 입력을 건너뛴 배우가 현재 표현을 살펴보고
 1층은 [practice.analyze](analyze.md), 2층은 [practice.coach](coach.md), 3층은 [practice.note](note.md)에 있다. v1의 2·3층 기록은 커밋 c2b76b09의 [ACTTUB-THREE-LAYERS.md](https://github.com/acttub/acttub-platform/blob/c2b76b09/docs/ACTTUB-THREE-LAYERS.md)에서 본다.
 
 ### 적용 범위
-웹·앱은 `X-Acttub-Contract: three_layers_v1`을 보낸다. 서버의 `ACTTUB_THREE_LAYERS_ENABLED=true`인 신규 연습은 입력과 무관하게 `experience_version=three_layers_v1`로 고정한다(SOMA-508 hotfix, practice.start). (v1 당시: 상황·인물·목표·막힘 상세가 비어 있고 막힘 대분류가 `그 외`일 때만이었다.) 기존 입력 경로와 구형 클라이언트는 `legacy`다.
-
-기능 플래그의 애플리케이션 기본값은 false다. dev 배포는 영상만 올리는 연습이 새 2·3층을 사용하도록 `DEPLOY_THREE_LAYERS_ENABLED=true`를 전달한다. 배포 스크립트가 이를 release.env에 기록하고 실제 API 컨테이너 값을 확인한다. 운영 배포는 이 값을 지정하지 않고 서버의 기존 설정을 유지한다. 플래그를 꺼도 이미 만든 새 연습과 노트는 읽을 수 있으며 기존 데이터를 다시 분석하지 않는다. 신형 reader가 없는 예전 서버 바이너리로 되돌리는 방식은 사용하지 않는다.
+웹·앱이 보내는 계약 헤더와 서버의 신형 생성 플래그로 새 연습의 경험 판(`three_layers_v1`·`legacy`)을 정한다. 규칙은
+[practice.start](start.md#규칙제약), 배포 환경의 플래그 값은 [DEPLOY-HOME §3](../../deploy/DEPLOY-HOME.md#3-actions와-일상-배포), 롤백은 [§4](../../deploy/DEPLOY-HOME.md#4-코드-배포-복구)에 있다.
 
 ### 2·3층 개정 (SOMA-531, 2026-09-14)
 2026-09-14 합의. 1층 영상 기록은 유지한다. 2층은 직전 답변에 이어 현재 연기를 이해하고,
-3층이 처음으로 다음 촬영 제안을 만든다. 결과 화면은 **짧은 요약 → 촬영 아이템 하나 → 응원**이다.
-프롬프트의 실행 정본은 아래 파일이며 모델에게 실제 JSON Schema를 함께 제공한다.
-
-| 대상 | 실행 파일 |
-|---|---|
-| 2층 프롬프트 | `apps/api/src/main/resources/coaching/coach-prompt.txt` |
-| 2층 응답·2→3 전달 스키마 | 같은 디렉터리 `three-layer-contracts.schema.json`의 `layer2_dialogue_turn`, `coach_handoff_v2` |
-| 3층 프롬프트 | 같은 디렉터리 `note-prompt.txt` |
-| 3층 생성 스키마 | `layer3_note` |
-| 이전 handoff의 노트 생성 | `note-legacy-prompt.txt`, 기존 `layer3_copy` |
-
-### DB·트랜잭션·호환성
-V5는 experience_version, coaching_state_json, state_revision을 추가하고 기존 CHECK 허용값을 확장한다. handoff의 `(coach_session_id, state_revision)`은 새 계약에 한해 유일하다. 기존 Flyway 파일은 수정하지 않는다.
-
-LLM과 미디어 처리는 DB 트랜잭션 밖이다. 코치 메시지·state/revision·handoff·note·멱등 응답을 기존 완료 트랜잭션에서 함께 저장한다. revision 충돌은 409이며, lease 소유권을 잃으면 전체 쓰기가 롤백된다. note_id는 `coach_notes` 행의 id다(v1 당시: practice_reports 행의 id). 닫히는 reply의 재전송도 저장한 응답을 그대로 반환한다.
-
-새 공개 타입은 `VideoRecordSummaryResponse`, `PublicPracticeNote`, handoff branch `coaching`이다. 이 타입을 지원하지 않는 구형 클라이언트 목록에서 새 연습/노트는 제외하고 직접 조회는 `client_contract_required` 409로 처리한다. 새 서버는 구형 raw와 노트를 계속 읽는다. 생성 플래그를 끄는 것과 reader를 제거하는 것은 다르다.
-
-새 노트의 이어하기 이력은 제안·선택을 구분한다. 실행 여부 미확정을 미실행으로 바꾸지 않는다. 기존 '확인한 연습 수'에 따른 전역 기억 자동 갱신에는 새 노트를 가짜 확인으로 추가하지 않는다. 지난 연습은 참고 맥락이며 이번 영상이나 이번 의도의 증거로 승격하지 않는다.
+3층이 처음으로 다음 촬영 제안을 만든다. 결과 화면의 순서는 [practice.note](note.md#규칙제약)에 있다.
+프롬프트의 실행 정본은 파일이며 모델에게 실제 JSON Schema를 함께 제공한다. 층마다의 프롬프트·스키마 파일은
+[CONTRACT §8-5](../../../apps/api/CONTRACT.md#8-5-영상만-올리는-새-코칭-계약-soma-526)에 있다.

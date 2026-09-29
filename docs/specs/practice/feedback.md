@@ -32,7 +32,7 @@ users.exit_survey_asked_at — 계정에 한 번 묻기.
 | 상태 | 들어오는 전이(조건) | 일으키는 기능 |
 |---|---|---|
 | 묻지 않음(NULL) | 계정 생성 | — |
-| 물어봄(시각) | 자동 노출 직전 선점(`WHERE exit_survey_asked_at IS NULL` 한 문장, 이긴 기기 하나), 이관에서 게스트가 물어봤으면 이른 시각 | practice.feedback, account.guest |
+| 물어봄(시각) | 자동 노출 직전 선점(이긴 기기 하나), 이관에서 게스트가 물어봤으면 이른 시각 | practice.feedback, account.guest |
 
 - 불변 조건: 한 번 차면 비우지 않는다.
 - 끝 상태: 물어봄.
@@ -61,7 +61,8 @@ practice_feedback.sheet_synced_at — 시트 복제.
   이 전송은 AI 작업이 아니라 ai_jobs에 넣지 않는다.
 - 제출 실패가 나가기를 막지 않는다. 설문 결과로 대화·노트 상태가 바뀌지 않는다.
 - 연락처는 접수 90일 뒤 DB에서 지우고 같은 설문 id·새 순번으로 시트에 다시 보내 시트의 연락처도 지운다(성공까지 재시도). 탈퇴 때도
-  같다. 본문은 사람과 끊어 남긴다. 연락처 컬럼을 지워도 본문에 식별 정보가 있을 수 있다는 점은 법무 확인에 둔다.
+  같다([연습 README 「연습 자료의 이관·삭제·탈퇴」](README.md#연습-자료의-이관삭제탈퇴)). 연락처 컬럼을 지워도 본문에 식별 정보가 있을 수
+  있다는 점은 법무 확인에 둔다.
 - 웹은 외부 폼 대신 같은 시트 화면을 쓴다. (디자인에 반영할 것)
 - 운영 피드백 조회: 한 항목은 `id`·`kind`(exit_survey·note_rating)·`created_at`·`actor`·`is_team`·`body`·`rating`·`status`·`source`·
   `trigger`·`practice_id`를 항상 싣고 해당 없는 값은 null이다. 설문은 body 유무에 따라 status answered·dismissed, source는 coach·report다.

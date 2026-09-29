@@ -38,40 +38,36 @@ practices.stage — 회차 진행 상태의 정본이다.
 - 불변 조건: 묶음당 closed가 아닌 회차는 하나다(`uq_practices_open_root`). conversing은 analyzing에서만 들어오고 closed
   회차를 conversing으로 되살리지 않는다. close_reason은 closed일 때만 차고 재시도가 비운다.
 - 끝 상태: closed. 재시도만 analyzing으로 되돌린다.
-
-- 회차 진행 상태(practices.stage)는 analyzing·conversing·closed 셋이고 분석 결과의 상태(analyses.status)와 다르다. 시작은 analyzing,
-  분석 결과가 ready·partial로 저장되면 conversing, 분석 최종 실패(3회 소진)·명시적 취소·대화 종료면 closed다. 실패한 회차를 명시적으로
-  다시 시도하면 새 작업과 함께 analyzing으로 돌아간다(다른 진행 중 회차가 없을 때만). 묶음당 closed가 아닌 회차는 하나다(부분 유일).
-  코치 시작은 그 경험 판의 사용 가능한 분석 결과가 있는지 본다.
+- 회차 진행 상태는 분석 결과의 상태(analyses.status, practice.analyze)와 다르다.
 
 ## 규칙·제약
-- 게이트: 회원은 공통 게이트, 게스트는 연습 동의 셋(account.guest). 게스트 분석은 하루 3회다(429 guest_daily_analysis_limit, 현행 코드
-  유지, practice.analyze).
-- 회차와 분석 작업은 "시작"을 눌러 영상이 확정돼 있을 때 한 트랜잭션으로 만든다. 요청에 기기 request_id를 싣고 (user_id,
-  request_id) 유일로 두 번 만들지 않으며, 생성 본문의 지문(request_fingerprint)을 저장해 같은 id·다른 지문은 422
-  request_fingerprint_mismatch다(현행 계약). 이관으로 게스트·회원의 request_id가 겹치면 게스트 쪽을 비우고 회차·작업·자료는 보존한다.
-  설정 화면만 다녀가면 아무것도 남지 않는다.
-- 첫 회차는 root_id = 자기 id, ordinal = 1이다. 묶음 속성(제목·태그·즐겨찾기·숨김)은 첫 행에 둔다.
+- 게이트: 회원은 [공통 게이트](../common.md#게이트와-보호-기능), 게스트는 연습 동의 셋(account.guest). 게스트의 하루 분석 한도는
+  [practice.analyze](analyze.md#규칙제약)가 정한다(429 guest_daily_analysis_limit).
+- 회차와 분석 작업은 "시작"을 눌러 영상이 확정돼 있을 때 함께 만든다 — 하나만 생기지 않는다. 요청 id는 (user_id, request_id)
+  유일이고 재전송은 [공통 규칙 「요청 재전송」](../common.md#요청-재전송)을 따른다. 설정 화면만 다녀가면 아무것도 남지 않는다.
+- 첫 회차는 root_id = 자기 id, ordinal = 1이다. 묶음 속성은 첫 행에 둔다([practice.library](library.md#상태)).
 - Scene Context(상황·인물·목표)는 셋 모두 선택이고 각 300자까지다. 비우면 빈 문자열로 저장하고 시작 뒤에는 바꾸지 않는다.
   코치가 대화에서 장면을 물어도 그 답은 Scene Context가 되지 않는다.
-- 막힘은 큰 갈래(분석·표현·그 외)와 세부(표현의 감정·움직임·화술·표정·그 외), 서술(500자, 선택)이다. 고르지 않으면 그 외/그 외이고
-  막힘 미특정으로 부른다. 받아쓰기는 갈래와 무관하게 돈다.
+- 막힘은 큰 갈래(분석·표현·그 외)와 세부(분석의 캐릭터 분석·대사 분석·그 외, 표현의 감정·움직임·화술·표정·그 외), 서술(500자,
+  선택)이다. 고르지 않으면 그 외/그 외이고 막힘 미특정으로 부른다. 받아쓰기는 갈래와 무관하게 돈다.
 - 이론 선택(스타니슬랍스키 등)은 0.1.0에서 뺀다. 웹 D4의 이론 줄은 없앤다. (디자인에 반영할 것)
-- 코칭 갈래는 experience_version(legacy·three_layers_v1)으로 남긴다. 서버의 신형 생성 플래그가 켜져 있고 계약 헤더가 three_layers_v1이면
-  장면·막힘을 적었는지와 무관하게 three_layers_v1(새 코치)이고, 그 밖은 legacy다(SOMA-508 hotfix, `PracticeRules.threeLayers`).
-  적은 장면·막힘은 새 코치가 받아 쓴다(practice.coach). 예전에는 무입력일 때만 신형이었다.
-  본문에 `client_experience` 같은 필드는 없다(헤더가 정본이다). legacy 안의 분석·표현·기본 코치 선택은 막힘 입력으로 정한다(현행). 플래그를 꺼도 이미 만든 신형 자료의 읽기는 유지한다. 전체를
-  신형으로 바꾸는 것은 별도 결정이다.
+- 코칭 갈래는 experience_version(legacy·three_layers_v1)으로 남긴다. 서버의 신형 생성 플래그(`ACTTUB_THREE_LAYERS_ENABLED`, 기본
+  false)가 켜져 있고 계약 헤더(`X-Acttub-Contract`)가 three_layers_v1이면 장면·막힘을 적었는지와 무관하게 three_layers_v1(새 코치)이고,
+  그 밖은 legacy다(SOMA-508 hotfix). 웹·앱은 이 헤더를 보낸다. 적은 장면·막힘은 새 코치가 받아 쓴다(practice.coach). (v1 당시에는
+  상황·인물·목표·막힘 서술이 비어 있고 막힘 큰 갈래가 `그 외`일 때만 신형이었다.)
+  본문에 `client_experience` 같은 필드는 없다(헤더가 정본이다). legacy 안의 분석·표현·기본 코치 선택은 막힘 입력으로 정한다(현행).
+  플래그를 꺼도 이미 만든 신형 자료는 계속 읽고 다시 분석하지 않는다. 전체를 신형으로 바꾸는 것은 별도 결정이다. 배포 환경의 플래그
+  값은 [DEPLOY-HOME §3](../../deploy/DEPLOY-HOME.md#3-actions와-일상-배포)에 있다.
 - 판정 순서: 시작은 같은 요청 id 재생 → 영상 확인(422 video_not_ready) → 게스트 하루 한도(429)다. 재시도는 같은 요청 id 재생 →
   없는·남의 회차(404) → 닫히지 않은 회차(409 analysis_not_failed) → 묶음에 진행 중 회차(409 practice_in_progress) → 게스트 하루
-  한도(429)다. 재시도에서는 409가 429보다 먼저다(옛 `/v2/practice-sessions/{id}/analyze`는 429가 먼저였다).
-- 이미 사용 가능한 영상(보관함)으로 시작하면 업로드 단계가 없다. 새 영상이면 practice.record의 올리기를 먼저 마친다.
+  한도(429)다. 재시도에서는 409가 429보다 먼저다.
+- 이미 사용 가능한 영상(보관함)으로 시작하면 업로드를 거치지 않는다. 새 영상이면 practice.record의 올리기를 먼저 마친다.
 
 ## 예외
 - 영상이 없거나 남의 것이거나 파일이 파기된 채 시작: 422 video_not_ready.
 - 같은 요청 id 재전송: 같은 회차 하나. 이중 탭도 같다.
 - 게스트의 하루 4번째 시작: 429 guest_daily_analysis_limit, 회차·작업이 생기지 않는다.
-- 트랜잭션 실패: 회차도 작업도 없다.
+- 만들다 실패: 회차도 작업도 없다.
 - 상황·인물·목표 301자, 막힘 서술 501자: 422. 같은 요청 id·다른 본문: 422 request_fingerprint_mismatch.
 
 ## 검증 방법
