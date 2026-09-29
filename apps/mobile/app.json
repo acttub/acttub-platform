@@ -55,6 +55,11 @@
           "ios": {
             "useFrameworks": "static",
             "deploymentTarget": "16.4"
+          },
+          "android": {
+            "enableProguardInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "extraProguardRules": "-keep class ai.onnxruntime.** { *; }\n-dontwarn ai.onnxruntime.**"
           }
         }
       ],
