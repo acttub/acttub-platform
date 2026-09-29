@@ -65,7 +65,7 @@ memory_update 작업의 전이 (정본: [practice.analyze](analyze.md#상태))
 - 워커가 대기 중일 때 배우가 같은 항목 수정: 워커 완료 뒤에도 배우 값·written_by = actor 유지.
 - 삭제 직후 늦게 끝난 갱신, 삭제 전에 예약만 된 갱신: 반영되지 않는다. 이관에서 회원 기억을 고른 뒤 게스트 쪽 작업 완료: 덮지 않는다.
 - 1,001자: 422.
-- 기억 갱신 작업 실패: 재시도 규칙은 practice.analyze의 ai_jobs와 같고 사용자 화면에는 드러나지 않는다.
+- 기억 갱신 작업 실패: 재시도 규칙은 [공통 상태](../common.md#공통-상태)의 ai_jobs와 같고 사용자 화면에는 드러나지 않는다.
 
 ## 검증 방법
 - 기존 갈래 확인 연습 1회 완료: ai_jobs memory_update 1행, 완료 뒤 actor_memories에 written_by = agent 값. 2회: 갱신 없음. 3회: 갱신. 6회·9회: 갱신.

@@ -28,18 +28,8 @@
 | `PushService.onAnalysisComplete` | 분석 완료 | 앱 완료 푸시(account.notification) | — |
 
 ## 상태
-ai_jobs.status — 비동기 AI 작업 장부. 종류는 analyze·memory_update(이 영역)와 challenge_report(challenge.ai-report)다.
-
-| 상태 | 들어오는 전이(조건) | 일으키는 기능 |
-|---|---|---|
-| pending | 시작·이어하기·재시도가 analyze를 만든다, 대화 종료 뒤 memory_update 예약, running에서 일시 실패로 놓기(시도 수 유지) | practice.start, practice.resume, practice.memory, practice.analyze |
-| running | pending을 선점(시도 수 +1, lease_token·만료 시각), 시도 수가 3 미만일 때만 | practice.analyze, practice.memory |
-| succeeded | running에서 완료, lease_token이 그대로일 때 | practice.analyze, practice.memory |
-| failed | running에서 즉시 실패(timeout·parse·unsupported), 3회 소진 뒤 정리(앞서 놓을 때 적힌 사유를 유지하고, 없을 때만 max_attempts), 취소(cancelled), 탈퇴(account_deactivated), 기억 세대 불일치(memory_epoch_stale) | practice.analyze, practice.memory, account.withdraw |
-
-- 불변 조건: (user_id, request_id)당 작업 하나(`uq_ai_jobs_user_request`). 완료·실패·놓기는 lease_token이 그대로일 때만 통하고, 바뀌었으면
-  저장 전체를 되돌린다. 놓기는 시도 수를 되돌리지 않는다(`AiJobLedger.MAX_ATTEMPTS` = 3).
-- 끝 상태: succeeded·failed. 재시도는 같은 행을 되살리지 않고 새 작업을 만든다.
+ai_jobs.status — 표는 [공통 규칙 「공통 상태」](../common.md#공통-상태). 이 기능의 analyze 작업은 즉시 실패(timeout·parse·unsupported)와
+취소(failed/cancelled)를 일으킨다(아래 「규칙·제약」).
 
 analyses.status — 분석 결과.
 
@@ -63,8 +53,7 @@ video_transcripts.status — 영상 단위 받아쓰기.
 
 분석 결과 저장 → 회차 conversing, 최종 실패 → closed/analysis_failed, 취소 → closed/cancelled (정본: [practice.start](start.md#상태))
 
-- ai_jobs.status는 pending·running·succeeded·failed이고 failed에는 사유(timeout·parse·unsupported·cancelled·account_deactivated 등)가
-  붙는다. analyses.status는 ready·partial이다. 부분 실패는 partial로 남기고 못 본 구간을 채우지 않는다.
+- 부분 실패는 partial로 남기고 못 본 구간을 채우지 않는다.
 
 ## 규칙·제약
 - analyses는 format으로 갈린다. 신형(video_record_v1)은 acttub.video_record.v1 기록 전체를 jsonb 한 컬럼에 두고 id = record_id다. 기존
@@ -83,7 +72,6 @@ video_transcripts.status — 영상 단위 받아쓰기.
 - 명시적 취소("그만두기")는 failed/cancelled로 종결하고 lease를 지워 늦은 완료·재큐를 막는다. 화면 이탈은 취소가 아니다. 앱의 옛
   "분석 포기 = 연습 숨김"은 없앤다.
 - 분석이 전부 실패하면 코치 대화를 시작할 수 없다(409, practice.coach). 근거 없는 대화를 허용하는 것은 별도 제품 결정이다.
-- lease 규칙은 CONTRACT §5-7 그대로다(다른 워커가 선점하기 전에는 만료 뒤 완료도 허용, 토큰이 바뀌면 완료 거절).
 
 ## 예외
 - 워커의 lease가 다른 워커에게 넘어간 뒤 이전 워커가 완료: 저장이 전부 롤백된다.

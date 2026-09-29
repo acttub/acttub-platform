@@ -24,8 +24,9 @@
 | 동의 + 프로필 | 그 밖의 모든 `/v2`. 보호 기능이며 게이트를 통과하기 전에는 쓸 수 없다 |
 
 - 위 표는 회원의 규칙이다. 게스트의 규칙은 아래 문단과 account.guest에 있다.
-- 토큰 없이 여는 공개 조회(동의 문서·고지, 입시 정보, 제공자 목록, `GET /v2/public/**`)와 제공자가 부르는
-  연결 끊기 알림은 `Authorization` 헤더가 와도 검증하지 않는다. 만료된 토큰을 전역으로 붙이는 클라이언트가
+- 토큰 없이 여는 공개 조회(동의 문서·고지, 입시 정보, 제공자 목록, `GET /v2/public/**`), 게스트 시작
+  (`POST /v2/auth/guest`), 푸시 토큰 삭제(`DELETE /v2/push-tokens`), 제공자가 부르는 연결 끊기 알림은 `Authorization`
+  헤더가 와도 검증하지 않는다. 만료된 토큰을 전역으로 붙이는 클라이언트가
   게이트 앞의 공개 콘텐츠에서 401을 받지 않게 한다.
 - `account_deactivated`의 예외는 탈퇴(`DELETE /v2/me`) 하나다. 탈퇴 도중 앱이 죽어 다시 누른 사람이 403을
   받으면 기기의 자료를 지우는 다음 단계로 가지 못한다. 그 밖의 모든 경로는 남은 액세스 토큰을 요청마다
@@ -38,10 +39,7 @@
 
 ### 오류 응답
 
-- 오류 본문은 사유 코드 하나다. 규칙에 걸린 요청의 422도 같은 모양이고, 본문의 모양이 틀린 422만 항목
-  배열이다. 앱은 코드가 글자면 사유로 가르고 배열이면 앱 버그로 다룬다.
-- 코드 말고 정보를 더 싣는 오류는 둘뿐이다. 게이트의 consent_required는 미결정 문서 목록을, 로그인의
-  이메일 겹침은 기존 계정의 제공자 이름을 함께 싣는다. (account.login)
+- 오류 본문의 모양(사유 코드 하나, 422의 두 모양, 형제 필드를 싣는 오류)은 [CONTRACT §6-2](../../apps/api/CONTRACT.md#6-2-오류-계약은-대부분-openapijson-에-없다)가 정본이다.
 - 없는 것과 남의 것은 같은 404다. 존재 여부를 알려 주지 않는다.
 
 ### 클라이언트 판과 강제 업데이트
@@ -67,13 +65,29 @@
 
 ### 공개 범위
 
-누가 무엇을 볼 수 있는지의 기본값. 기능별로 다른 점만 각 기능의 절에 적는다.
+다른 사람에게 무엇이 보이는지의 기본값(이름만 공개, 나머지는 본인만)은 [account.profile](account/profile.md#규칙제약)이
+정한다. 기능별로 다른 점만 각 기능의 절에 적는다.
 
 ### 공통 상태
 
-여러 영역이 함께 쓰는 비동기 작업 원장 `external_operations`의 상태 전이(pending → running → succeeded·failed,
-lease 반납과 만료 회수)는 [CONTRACT §5-7](../../apps/api/CONTRACT.md#5-7-external_operations-lease-상태-전이--고정-계약)이
-정본이다. 각 기능의 「상태」 절에는 그 원장을 쓴다는 사실과 링크만 적는다.
+ai_jobs.status — 연습과 챌린지가 함께 쓰는 비동기 AI 작업 장부(AI Job). 종류는 `AiJobKind`이고, 종류마다 무엇을
+하고 어떤 실패가 즉시 끝나는지는 그 기능 파일(practice.analyze, practice.memory, challenge.ai-report)이 적는다. 각 기능의
+「상태」 절에는 이 표를 쓴다는 사실과 자기 전이만 적는다.
+
+| 상태 | 들어오는 전이(조건) | 일으키는 기능 |
+|---|---|---|
+| pending | 작업 생성(분석 시작·이어하기·재시도, 대화 종료 뒤 기억 갱신 예약, AI 리포트 요청), running에서 일시 실패로 놓기(시도 수 유지) | practice.start, practice.resume, practice.analyze, practice.memory, challenge.ai-report |
+| running | pending 선점(시도 수 +1, lease_token·만료 시각). 시도 수가 3 미만일 때만 | practice.analyze, practice.memory, challenge.ai-report |
+| succeeded | running에서 완료. lease_token이 그대로일 때 | practice.analyze, practice.memory, challenge.ai-report |
+| failed | running에서 즉시 실패(사유는 종류별), 3회 소진 뒤 정리(앞서 놓을 때 적힌 사유를 유지하고, 없을 때만 max_attempts), 취소(cancelled — 분석 그만두기·참여작 삭제), 탈퇴(account_deactivated), 기억 세대 불일치(memory_epoch_stale) | practice.analyze, practice.memory, challenge.entry, challenge.ai-report, account.withdraw |
+
+- 불변 조건: (user_id, request_id)당 작업 하나(`uq_ai_jobs_user_request`). 완료·실패·놓기는 lease_token이 그대로일 때만 통하고,
+  바뀌었으면 저장 전체를 되돌린다. 만료가 지나도 토큰이 그대로면 완료를 받는다. 놓기는 시도 수를 되돌리지 않는다(최대 3회).
+- 선점은 pending만 집는다. 만료된 running을 다시 집지 않는다(practice.analyze 「열린 질문」).
+- 끝 상태: succeeded·failed. 재시도는 같은 행을 되살리지 않고 새 작업을 만든다.
+
+옛 연습 흐름의 호환 원장 `external_operations`의 상태 전이(만료된 running의 회수 포함)는
+[CONTRACT §5-7](../../apps/api/CONTRACT.md#5-7-external_operations-lease-상태-전이--고정-계약)이 정본이다.
 
 ### 검증 방법 공통
 
@@ -86,58 +100,35 @@ lease 반납과 만료 회수)는 [CONTRACT §5-7](../../apps/api/CONTRACT.md#5-
 ## ERD에 반영할 변경
 
 계정 요구사항(2026-09-17 검토)에서 ERD 합의 뒤에 생긴 변경이다. ERD 아티팩트는 아직 이 목록을
-반영하지 않았다.
+반영하지 않았다. 컬럼·값·제약의 정본은 마이그레이션(`apps/api/src/main/resources/db/migration/`)이고, 그 값이
+무엇을 뜻하는지는 출처 기능 파일이 정한다.
 
-| 변경 | 내용 | 출처 |
+| 변경 | 테이블 | 출처 |
 |---|---|---|
-| 추가 | user_profile_directions(user_id, direction) | account.profile |
-| 추가 | portfolios(1:1), portfolio_credits, portfolio_photos | account.portfolio |
-| 추가 | guest_transfer_codes(user_id, code_hash, expires_at, used_at) | account.guest |
-| 추가 | notifications(알림함). 컬럼은 challenge.notification에서 정한다 | challenge.notification |
-| 컬럼 | user_identities.uid_hash, provider_uid는 NULL 허용 | account.withdraw |
-| 값 | user_identities.provider에 guest 추가 | account.guest |
-| 값 | users.status에서 suspended 제거 (V4에서 이미 반영됨) | account.login |
-| 삭제 | users.signup_* 아홉 컬럼 (V4에서 이미 삭제됨) | account.login |
-| 삭제 | users.nickname (user_profiles.name으로). 0.1.0은 값을 옮기고 읽기·쓰기를 끊는다. 탈퇴만 예외로 옛 닉네임을 계속 비운다(파기 공백을 두지 않기 위해서다). 다음 릴리스에서 그 쓰기를 없애고 그다음 릴리스에서 컬럼을 삭제한다. 삭제와 그것을 안 쓰는 코드를 한 릴리스에 묶지 않기 때문이다([DB와 배포 안전성](../BRANCHING-STRATEGY.md#db와-배포-안전성)) | account.profile |
-| 컬럼 | user_profiles 알림 토글 둘 → 셋(챌린지 알림 추가) | account.notification |
-| 컬럼 | user_profiles 나이는 생년월일로 받고, 탈퇴 때 5세 단위 연령대로 뭉개 남긴다 | account.profile, account.withdraw |
-| 컬럼 | user_identities에 애플 토큰(암호화) | account.login |
-| 컬럼 | users.age_confirmed_at(게스트의 만 14세 이상 확인 시각) | account.guest |
-| 컬럼 | user_identities에 네이버 토큰(암호화). 탈퇴 때 연결 해제에 쓴다 | account.login, account.withdraw |
-| 추가 | account_cleanup_operations(탈퇴 뒤 객체 삭제와 제공자 연결 해제의 7일 재시도 장부) | account.withdraw |
-| 컬럼 | scripts에 원문, 입력 경로(file·paste·typed·sample), request_id(기기 UUID, 이관 충돌 때 NULL 허용), request_fingerprint(생성 본문 지문, 불변). (user_id, request_id) 유일. ERD 초안의 "줄 수"·"삭제 시각" 컬럼은 두지 않는다(집계·행째 삭제) | reading.script |
-| 제약 | script_characters.name은 공백 정리 뒤 비어 있지 않고 같은 script_id 안에서 유일 | reading.script |
-| 컬럼 | script_characters.voice_preset(NULL이면 자동). "대사 수" 컬럼은 두지 않는다 | reading.cast |
-| 값 | script_lines.kind에 scene(막·장 머리 줄) | reading.script |
-| 컬럼 | reading_sessions: my_character_ids(배역 id 배열), mode(read·quiz), start_line_id·end_line_id, advance(silence·manual), record(켬·끔), status(in_progress·completed·stopped), current_line_id(completed면 NULL), elapsed_seconds, progress_seq, line_results(jsonb, 줄마다 {line_id, outcome passed·unmatched·skipped, misses}), request_id(이관 충돌 때 NULL 허용), started_at·ended_at. (user_id, request_id) 유일. ERD 초안의 "목소리"·"읽은 줄 수" 컬럼은 두지 않는다. (script_id) WHERE status = 'in_progress' 부분 유일 | reading.session |
-| 컬럼 | reading_recordings: user_id(현재 소유자, 이관 때 갱신·탈퇴 보관 때 유지), object_key(요청마다 다른 키, 재사용 없음), content_type, byte_size(변환 뒤), duration_ms, transcript, transcript_source(stt·none), matched(NULL 가능), request_id, attempt_no. (reading_session_id, line_id) 유일. 탈퇴 보관을 위해 reading_session_id·line_id는 NULL 허용 | reading.recording |
-| 컬럼 | line_memorization: status(memorized·not_yet), updated_at. (user_id, line_id) 유일 | reading.memorization |
-| 값 | account_cleanup_operations의 작업 종류에 리딩 녹음 객체 삭제(대체·삭제·탈퇴·변환 미반영 객체). 객체 삭제 작업은 성공 전까지 대상 키를 유지하고 7일 연속 실패면 운영자 알림·복구 대상으로 남긴다(제공자 해제 비밀값의 7일 보관과 분리) | reading.recording, account.withdraw |
-| 컬럼 | videos: user_id, object_key, content_type, byte_size, duration_ms, width·height, favorite, created_at, purged_at(파일만 파기·탈퇴 파기 뒤 최소 메타만, 재생 불가·총량 제외). 총량은 purged_at 없는 행의 byte_size 합 | practice.record, practice.library |
-| 유지·컬럼 | upload_intents는 예약 장부로 새 쓰기를 계속한다. request_id, request_fingerprint, expires_at, 확정 video_id, 객체 검증값(etag) | practice.record |
-| 컬럼 | practices: root_id·ordinal((root_id, ordinal) 유일), stage(analyzing·conversing·closed와 종료 사유; 분석 최종 실패·취소·대화 종료 → closed, 재시도 → analyzing; 묶음당 closed 아닌 회차 하나 부분 유일), experience_version(legacy·three_layers_v1), request_id((user_id, request_id) 유일, 이관 충돌 때 NULL 허용), request_fingerprint, 막힘 대분류·세부·서술, 상황·인물·목표(빈 문자열 허용), hidden_at·favorite·title·tags(첫 행), legacy_hidden_at(옛 개별 숨김) | practice.start, practice.resume, practice.library |
-| 컬럼 | analyses: practice_id(1:1), format(video_record_v1·legacy), id = record_id(신형), status(ready·partial), model, record(jsonb, 불변; legacy는 ObservationPack 원문), completed_at | practice.analyze |
-| 컬럼 | video_transcripts: 영상당 전사 묶음 하나(순서 있는 행), 원본 출처·처리 상태, 생성 예약 공유로 동시 생성 방지 | practice.record, practice.analyze |
-| 컬럼 | coach_conversations: start_request_id((practice_id) 1:1), status, close_reason, state(jsonb), state_revision. coach_messages: (conversation_id, turn_index)·(conversation_id, request_id) 유일, request_fingerprint | practice.coach |
-| 컬럼 | coach_notes: conversation_id(1:1), format(legacy·v2), title(초점 원문, record_only는 NULL), kind(legacy: analysis·expression / v2: action·observation·record_only), summary_quotes(출처 포함), next_take, actor_words, corrections, tags, fallback, source_revision, legacy 원문 | practice.note |
-| 값 | ai_jobs.kind에 analyze·memory_update(리딩·설문·정리 장부는 넣지 않음). status failed의 사유에 cancelled·account_deactivated | practice.analyze, practice.memory |
-| 컬럼 | practice_feedback: user_id, practice_id, screen(coach·report), trigger(x·leave·back), body(NULL이면 dismissed), contact_email·contact_phone(90일 뒤 NULL, DB·시트 모두), sheet_synced_at, sheet_seq(변경 순번), request_id. 이관 때 여러 행 보존 | practice.feedback |
-| 컬럼 | users.exit_survey_asked_at(이탈 설문 노출 선점 시각). actor_memories 소유자 기준 memory_epoch(기억 세대; 삭제·이관 선택 때 증가, 갱신 작업은 예약 시점 세대를 갖고 다르면 미반영) | practice.feedback, practice.memory |
-| 삭제 조건 | 옛 테이블(practice_sessions, transcripts, summaries, anomalies, coach_sessions, coach_turns, coaching_handoffs, handoff_confirmations, practice_reports, reports, actor_memory_entries, external_operations)은 0.1.0에서 삭제하지 않고 호환 읽기 경로가 쓴다(upload_intents는 계속 쓴다). 삭제는 그 테이블의 읽기·쓰기를 모두 중단한 버전을 배포한 다음 릴리스부터이며, 무손실 대응이 확인되지 않은 자료(구형 분석·복수 대화)의 테이블은 시점을 정하지 않는다 | practice 스키마 전환 |
-| 값 | account_cleanup_operations의 객체 삭제 종류에 영상 객체·미확정 업로드 객체·파일만 파기 | practice.record, practice.library |
-| 컬럼 | challenges: line(1~200자), work(1~100자, 창작은 "창작"), character(100자), scene_note(500자), duration_days(7·14, API 상수), origin(team·member, 불변), host_user_id(team은 NULL, 탈퇴 시 NULL), request_id((host_user_id, request_id) 유일)·request_fingerprint, featured_on(team만, 날짜당 하나), starts_at·ends_at(기간 상태는 시각으로 판정, 컬럼 없음), moderation(visible·review·hidden) | challenge.create |
-| 컬럼 | challenge_entries: video_id(삭제 뒤 NULL 허용), caption(300자, 수정 가능)·content_version, published_at(최초 공개, 재공개 유지), visibility(public·private), status(visible·hidden_by_report·deleted), view_count, final_like_count·final_eligible(마감 집계, 첫 변경 전 확정)·final_rank(검토 끝난 뒤 일괄 확정), request_id((user_id, request_id) 유일)·request_fingerprint, deleted_at, (challenge_id, video_id) 유일(deleted 제외). 영상 길이 60초 이내 | challenge.entry, challenge.browse |
-| 컬럼 | challenges에 deleted_at(주최자 삭제는 표시만, 요청 이력·한도 유지)과 ranking_state(pending·final)·finalized_at | challenge.create, challenge.browse |
-| 추가 | entry_view_events(event_id 유일, entry_id, user_id, created_at; 조회수 증가와 한 트랜잭션, 7일 보관) | challenge.browse |
-| 컬럼·제약 | entry_comments에 request_id·request_fingerprint, (user_id, request_id) 유일 | challenge.react |
-| 컬럼·제약 | entry_ai_reports.attempt_count(생성당 실행 최대 3), 참여작당 실행 중 생성 하나(부분 유일), result의 문장별 표본 id는 내부 전용 | challenge.ai-report |
-| 추가 | notification_pushes(group_key, stage first·summary) 유일 — 묶음별 최초·요약 발송 선점 | challenge.notification |
-| 컬럼·제약 | entry_reports: target_type(entry·comment·challenge)·target_id로 대상 확장, (target_type, target_id, reporter_id) 유일, reason(copyright·inappropriate·spam·duplicate·other), note(200자), status(received·reviewed), resolution(restored·kept_hidden·dismissed), reviewed_by·reviewed_at·resolution_note, target_version. 처리 완료 90일 뒤 삭제 | challenge.report |
-| 컬럼 | entry_comments: deleted_at(본문 파기·삭제 표시), status(visible·hidden) | challenge.react, challenge.report |
-| 추가 | user_blocks(blocker_id, blocked_id, created_at), (blocker_id, blocked_id) 유일. 챌린지 노출 조건과 반응 차단에 쓴다 | challenge.block |
-| 컬럼 | entry_ai_reports: status(pending·ready·failed), model, format_version, result(jsonb: 관찰·차이·한계·제안·표본 참여작 id), requested_at, completed_at. 요청 시 생성(하루 3회), 표본 최대 5개 | challenge.ai-report |
-| 값 | ai_jobs.kind에 challenge_report | challenge.ai-report |
-| 추가 | notifications: id, user_id, kind(entry_liked·entry_commented·challenge_ended·entry_ai_report_ready), actor_user_id(NULL 가능), challenge_id, entry_id(challenge_ended는 NULL), comment_id(entry_commented는 필수), event_key((user_id, event_key) 유일, 좋아요는 원인 행 식별자), group_key(10분 구간 묶기), created_at, read_at, expires_at(90일), push_after, push_status(pending·attempted·skipped), push_attempted_at. 참조의 부모 관계 일치 CHECK. 이름·본문·주소는 복사하지 않고 조회 때 조립 | challenge.notification |
+| 추가 | user_profile_directions | account.profile |
+| 추가 | portfolios, portfolio_credits, portfolio_photos | account.portfolio |
+| 추가 | guest_transfer_codes | account.guest |
+| 추가 | account_cleanup_operations | account.withdraw |
+| 추가 | entry_view_events | challenge.browse |
+| 추가 | notification_pushes | challenge.notification |
+| 추가 | notifications | challenge.notification |
+| 추가 | user_blocks | challenge.block |
+| 컬럼·값 | users | account.login, account.guest, practice.feedback |
+| 컬럼·값 | user_identities | account.login, account.guest, account.withdraw |
+| 컬럼 | user_profiles | account.profile, account.notification, account.withdraw |
+| 삭제 | users.nickname([CONTRACT §5-1](../../apps/api/CONTRACT.md#5-1-운영-db-접근은-jpa-로-일원화한다)의 순서로) | account.profile |
+| 컬럼·제약 | scripts, script_characters, script_lines | reading.script, reading.cast |
+| 컬럼 | reading_sessions, reading_recordings, line_memorization | reading.session, reading.recording, reading.memorization |
+| 컬럼 | videos, upload_intents | practice.record, practice.library |
+| 컬럼 | practices | practice.start, practice.resume, practice.library |
+| 컬럼 | analyses, video_transcripts | practice.analyze |
+| 컬럼 | coach_conversations, coach_messages, coach_notes | practice.coach, practice.note |
+| 컬럼 | practice_feedback | practice.feedback |
+| 컬럼 | actor_memories | practice.memory |
+| 값 | ai_jobs, account_cleanup_operations | practice.analyze, practice.memory, challenge.ai-report, reading.recording |
+| 컬럼 | challenges, challenge_entries | challenge.create, challenge.entry, challenge.browse |
+| 컬럼·제약 | entry_comments, entry_reports, entry_ai_reports | challenge.react, challenge.report, challenge.ai-report |
+| 삭제 조건 | 옛 연습 테이블 | [practice 「0.1.0 스키마 전환」](practice/README.md#010-스키마-전환) |
 
 ## 디자인에 반영할 것
 
@@ -207,7 +198,6 @@ pen을 고칠 목록이다. 규칙은 출처 기능의 본문이 정본이고 �
 | A18.1·A18.2 | 공개 범위 미리 선택 없음, 공개 시 "다른 참여자의 AI 리포트 비교에 쓰일 수 있어요" 한 줄, "올리면 자동 준비" 문구를 "요청하면 준비" 로 | challenge.entry, challenge.ai-report |
 | A4 설정 | 차단 목록·풀기 | challenge.block |
 | 챌린지 카드 | 주최자 탈퇴 표시("주최자 탈퇴"), 기획팀 챌린지 표시 | challenge.create |
-| 새 문서 | PRD에 챌린지 절(리텐션 부가 기능, ADR-005 예외, 회원·앱·한국어 전용)을 사람이 추가한다 | challenge |
 | A14 | "좌우로 넘겨보세요" → "위아래로 넘겨보세요"(피드는 세로) | challenge.browse |
 | A15·A17·P03 | 종료 "집계 중"·검토 대기·최종 확정 구분, 최종 순위와 현재 좋아요 구분, 커서 만료 뒤 새로 조회 | challenge.browse |
 | A16·A17 | 오늘의 챌린지 고정은 인기·최신 탭에만, 종료·내 챌린지 탭은 고정 없음 | challenge.browse |
@@ -288,23 +278,14 @@ pen을 고칠 목록이다. 규칙은 출처 기능의 본문이 정본이고 �
 
 0.1.0에서 하지 않는 것.
 
-- 커뮤니티(게시판)는 0.1.0에서 뺀다. 요구사항과 결정은 [커뮤니티](community/README.md)에
-  보관하고 후속에서 잇는다. 테이블 7개와 기존 글 데이터는 남기고 API·화면만 내린다.
+- 커뮤니티(게시판). 보관한 결정은 [커뮤니티](community/README.md)에 있다.
 - 계정 정지·운영 차단. 0.1.0에는 신고·운영 숨김·사람 차단(user_blocks, ADR-032)만 있다.
 - 챌린지의 댓글 좋아요·답글, 사용자당 하루 한 번 조회수(entry_views), 랭킹 캐시 컬럼, 오늘의 챌린지·
   순위 변동·새 참여 푸시, 사용자 개설의 사전 검토, 여러 챌린지를 섞는 전체 피드.
-- 가입 유입 경로 추적. users의 signup_* 컬럼은 지우고 signup_attributions 테이블은 만들지 않는다.
 
 ## 열린 질문
 
-ERD 세션(2026-09-14)에서 이월한 것.
-
-- 연기 입시: notices.json 정적 유지 vs 테이블.
-- 이론 선택은 0.1.0에서 뺐다(practice.start, 2026-09-21).
-- "작업·잡·job"과 ai_jobs: 테이블 이름 ai_jobs를 유지하고 용어집에 AI Job(비동기 AI 요청, External Operation의 한 종류)을 더했다
-  (2026-09-21). 계정 정리 장부·설문 시트 전송은 AI Job이 아니다.
-- 리딩 관련은 2026-09-21에 해소했다(reading): 예시 대본은 내장 리소스, 온보딩·가이드 플래그는 기기 저장소,
-  script_characters 유지, 서버 TTS 캐시(script_lines.audio_key)는 후속.
+- 연기 입시: notices.json 정적 유지 vs 테이블(ERD 세션 2026-09-14에서 이월).
 
 리딩 요구사항(2026-09-21)에서 후속으로 남긴 것.
 
@@ -312,11 +293,3 @@ ERD 세션(2026-09-14)에서 이월한 것.
 - 한국어 밖 대본의 대조. STT 언어는 앱·브라우저 표시 언어를 따르고 그 밖은 정하지 않았다.
 - 녹음 시도를 모두 남기는 것(0.1.0은 같은 줄을 다시 말하면 대체).
 - 대본 저장 뒤 다시 나누기(원문은 이를 위해 남긴다).
-
-계정 검토(2026-09-19)에서 나온 것.
-
-- 앱 심사 지침 1.2·Google Play UGC(신고·악성 사용자 차단): 챌린지 0.1.0에 신고(참여작·댓글·챌린지)와 사람 차단(user_blocks)을 함께
-  넣어 충족한다(challenge.report, challenge.block, ADR-032, 2026-09-21). 계정 정지는 두지 않는다.
-- PRD·ADR-005의 랭킹 금지와 챌린지 좋아요 랭킹: ADR-005 개정(2026-09-21)으로 반응 순서만 예외로 허용했다. PRD의 챌린지 절은 사람이 쓴다.
-- 용어집은 "작업·잡·job"을 피하고 External Operation을 쓰는데 0.1.0 ERD의 테이블 이름은 ai_jobs다.
-  연습 문서를 쓸 때 용어집을 고칠지 테이블 이름을 바꿀지 정한다.

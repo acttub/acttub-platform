@@ -836,8 +836,8 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
       `VideoPosterWorker.generate` 가 보고한다.
     - **붙이기는 주인의 `users` 행 → 영상 행 순서로 잡는다**(탈퇴·3년 파기와 같은 순서). 붙이지 못하면 올린 포스터의
       삭제를 같은 트랜잭션에서 장부에 올린다.
-    - **스위치가 둘이고 둘 다 켜져야 돈다**: `ANALYSIS_WORKER_ENABLED`(분석·기억·챌린지 리포트 워커와 공유 — 격리 복원
-      검증이 이것 하나로 뒤에서 쓰는 일을 모두 멈춘다)와 `VIDEO_POSTER_ENABLED`(포스터만). 테스트는 후자를 전역으로
+    - **스위치가 둘이고 둘 다 켜져야 돈다**: `ANALYSIS_WORKER_ENABLED`(분석·기억·챌린지 리포트 워커와 공유 — 격리 복원 때 함께 끄는 스위치는
+      [DEPLOY-HOME §7](../../docs/deploy/DEPLOY-HOME.md#7-db와-호스트-복구))와 `VIDEO_POSTER_ENABLED`(포스터만). 테스트는 후자를 전역으로
       끄고 워커를 직접 부른다.
   - **이관**은 `video/app/VideoOwnership` 이 `videos` 와 **예약 장부**를 함께 옮긴다(§6-9의 순서에서 올린 영상 바로
     뒤다). 예약을 두고 가면 옛 게스트의 대기 업로드가 마무리될 자리를 잃는다.
@@ -849,10 +849,11 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   - 경험 판은 `PracticeRules.threeLayers` 가 정한다.
   - 차수는 묶음 잠금과 `uq_practices_root_ordinal` 로 발급한다.
   - 취소는 작업의 **lease 를 지워** 늦은 완료와 재큐를 막는다.
-- **`ai_jobs` 장부**(`platform/ledger/AiJobLedger`, `platform/operation/PostgresAiJobLedger`): 종류는
-  `analyze`·`memory_update` 둘이다. **lease 상태 전이는 `external_operations` 와 같은 고정 계약**이다(§5-7): 만료돼도
-  재선점 전이면 완료를 받고, 토큰이 바뀌었으면 거절하며, `release` 는 `attempt_count` 를 되돌리지 않고, 3회 뒤
-  sweep 이 닫는다. `failure_reason` 에는 CHECK 가 없다(분류가 열린 목록이다).
+- **`ai_jobs` 장부**(`platform/ledger/AiJobLedger`, `platform/operation/PostgresAiJobLedger`): 상태와 lease 의 뜻은
+  [공통 규칙 「공통 상태」](../../docs/specs/common.md#공통-상태)가 정본이다. 종류는 `platform/schema/AiJobKind`.
+  선점(`claimNext`)은 `pending` 만 `FOR UPDATE SKIP LOCKED` 로 집는다 — 만료된 `running` 을 다시 집지 않는 점이 §5-7 과
+  다르다. `release` 는 `attempt_count` 를 되돌리지 않고, 3회 뒤 `sweepMaxAttempts` 가 닫는다. `failure_reason` 에는
+  CHECK 가 없다(분류가 열린 목록이다).
 - **분석 결과**(`analyses`, `feature/analysis`): 워커는 **한 클래스**(`AnalysisWorker`)이고 원장마다 저장소·빈이
   하나다 — 옛 `AnalysisStore`(={`external_operations`} + `summaries`)와 0.1.0 `PracticeAnalysisStore`
   (={`ai_jobs`} + `analyses`·`video_transcripts`). 영상을 내려받고 검증값을 견주고 실패를 분류하고 lease 를 다루는

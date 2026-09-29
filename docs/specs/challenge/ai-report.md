@@ -25,7 +25,7 @@
 |---|---|---|---|
 | `POST /v2/entries/{id}/ai-report` | `ChallengeAiReportRequest`(request_id) | `ChallengeAiReport` 202(새 생성·생성 중), 200(결과 있음) | `member_only` 403, `entry_not_found` 404, `video_not_ready` 422, `request_fingerprint_mismatch` 422, `daily_report_request_limit` 429 |
 | `GET /v2/entries/{id}/ai-report` | id | `ChallengeAiReport` 200 | `member_only` 403, `ai_report_not_found` 404 |
-| `ChallengeReportScheduler.poll` → `ChallengeReportWorker.runOnce` (`CHALLENGE_REPORT_POLL_INTERVAL_MS`, 기본 5초, 스위치 `ANALYSIS_WORKER_ENABLED`) | `ai_jobs` kind challenge_report 대기 작업 | entry_ai_reports ready, entry_ai_report_ready 알림 | 실행 실패·거절 출력은 재큐, 세 번째 실패면 failed. 참여작 삭제·탈퇴면 저장하지 않고 작업 cancelled |
+| `ChallengeReportScheduler.poll` → `ChallengeReportWorker.runOnce` (`CHALLENGE_REPORT_POLL_INTERVAL_MS`, 기본 5초, 스위치 `ANALYSIS_WORKER_ENABLED`) | `ai_jobs` kind challenge_report 대기 작업 | entry_ai_reports ready, entry_ai_report_ready 알림 | 실행 실패·거절 출력은 재큐, 세 번째 실패면 failed. 참여작 삭제면 저장하지 않고 failed/cancelled, 탈퇴면 failed/account_deactivated([공통 상태](../common.md#공통-상태)) |
 | 보관 기간 정리 (`ChallengeSettlementScheduler.run` 안, 매시) | purged_at이 90일 지난 행 | 행 삭제 | — |
 
 ## 상태
