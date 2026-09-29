@@ -1215,6 +1215,11 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     읽는 `ps_all`을 재사용한다. 단순 참여작 조회·좋아요·댓글은 연습 이용으로 합치지 않는다.
   - 행 제한 없이 전체 이력을 제공하며 실제 기록이 없으면 `[]`다. 필드가 없는 구버전·결측 응답을 0으로 해석하거나
     코칭 전용 숫자를 통합 수치로 대체하면 안 된다. 운영 개요 소비자는 동일 actor 기준 인원·반복·재방문을 계산한다.
+- **챌린지 참여작 목록**(`GET /v2/admin/ops-core`의 `features.challenges`) — `entries.private` 수와 `recent_entries`
+  (삭제되지 않은 최신 50건)를 더한다. 비공개 참여작도 운영이 봐야 하므로 `visibility`를 그대로 싣는다.
+  - 한 항목은 `entry_id`·`challenge_id`(둘 다 앞 8자리)·`challenge_origin`·`actor`(기존 가명)·`visibility`·`status`·
+    `has_video`·`created_at`·`published_at`(분 단위)·`views`·`likes`·`comments`(팀 제외)·`ai_report`(없으면 null)다.
+    캡션·챌린지 대사·이메일·원본 id 는 넣지 않는다(git 에 남는 JSON 이다). 팀·미래 시각 행은 제외한다.
 - **운영 피드백 조회**(`GET /v2/admin/feedback`) — 같은 `ADMIN_OPS_TOKEN` 으로 이탈 설문과 노트 평가를
   최신순 한 목록으로 읽는다. 기본 50개, 최대 100개이고 응답은 `{items, limit, has_more}` 다.
   - 한 항목은 `id`·`kind`(`exit_survey`·`note_rating`)·`created_at`·`actor`·`is_team`·`body`·`rating`·
