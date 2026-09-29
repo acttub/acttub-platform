@@ -76,7 +76,7 @@ class ConsentPublisherIT {
                 .hasSize(manifestEntryCount())
                 .allSatisfy(row -> {
                     // 필수 셋과 선택 하나(탈퇴 후 영상·녹음 보관·활용).
-                    assertThat(row.get("required")).isEqualTo(!"retention".equals(row.get("type")));
+                    assertThat(row.get("required")).isEqualTo(!java.util.Set.of("retention", "cloud_voice").contains(row.get("type")));
                     assertThat(((Number) row.get("body_length")).intValue()).isPositive();
                 });
         assertThat(jdbc.queryForObject(

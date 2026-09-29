@@ -16,8 +16,8 @@ import jakarta.persistence.Table;
 @IdClass(ReadingVoiceUsageEntity.Key.class)
 class ReadingVoiceUsageEntity {
     @Id @Column(name = "user_id") UUID userId;
-    @Id LocalDate day;
-    int lines;
+    @Id @Column(name = "day") LocalDate day;
+    @Column(name = "lines") int lines;
     protected ReadingVoiceUsageEntity() {}
     public static final class Key implements Serializable {
         public UUID userId;

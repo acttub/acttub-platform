@@ -48,7 +48,8 @@ class PracticeRollbackCompatibilityTest {
             "coach_messages", "coach_notes", "actor_memories", "practice_feedback", "ai_jobs",
             "practice_migration_entries", "challenges", "challenge_entries", "entry_likes", "user_blocks",
             "entry_view_events", "entry_ranking_snapshots", "entry_saves", "entry_comments", "entry_reports",
-            "entry_ai_reports", "notifications", "notification_pushes", "note_ratings");
+            "entry_ai_reports", "notifications", "notification_pushes", "note_ratings",
+            "reading_voice_cache", "reading_voice_usage");
 
     @Test
     @DisplayName("1.0.0 은 옛 표를 한 칸도 바꾸지 않았다 — 예약 장부에 더한 NULL 허용 컬럼 셋과 users 의 둘 "
@@ -99,8 +100,8 @@ class PracticeRollbackCompatibilityTest {
         }
     }
 
-    /** V14~V23 — 연습·챌린지·노트 평가·보관함 포스터가 더한 마이그레이션의 수. 더 늘면 이 값을 함께 올린다. */
-    private static final int NEW_MIGRATIONS = 10;
+    /** V14~V24 — 연습·챌린지·노트 평가·보관함 포스터·고품질 목소리가 더한 마이그레이션의 수. 더 늘면 이 값을 함께 올린다. */
+    private static final int NEW_MIGRATIONS = 11;
 
     private static List<String> fingerprintAt(String target) throws Exception {
         String jdbcUrl = PostgresContainerSupport.createDatabase(
@@ -131,6 +132,15 @@ class PracticeRollbackCompatibilityTest {
      */
     private static List<String> withExpectedAdditions(List<String> legacyBefore) {
         List<String> expected = new java.util.ArrayList<>(legacyBefore);
+        // V24 가 동의 문서 종류에 cloud_voice 를 더했다(ADR-033). CHECK 는 옛 서버의 validate 가 보지 않고,
+        // 넓히기만 했으므로 옛 값은 그대로 통한다.
+        String consentTypesBefore = "CONSTRAINT consent_documents ck_consent_documents_type CHECK ((type = ANY "
+                + "(ARRAY['terms'::text, 'privacy'::text, 'ai_analysis'::text, 'retention'::text])))";
+        if (expected.remove(consentTypesBefore)) {
+            expected.add("CONSTRAINT consent_documents ck_consent_documents_type CHECK ((type = ANY "
+                    + "(ARRAY['terms'::text, 'privacy'::text, 'ai_analysis'::text, 'retention'::text, "
+                    + "'cloud_voice'::text])))");
+        }
         expected.addAll(List.of(
                 "COLUMN upload_intents.request_id ord=13 type=uuid len=- null=YES default=-",
                 "COLUMN upload_intents.request_fingerprint ord=14 type=bpchar len=64 null=YES default=-",

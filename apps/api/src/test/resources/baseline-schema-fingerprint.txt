@@ -459,6 +459,14 @@ COLUMN reading_sessions.started_at ord=16 type=timestamptz len=- null=NO default
 COLUMN reading_sessions.status ord=11 type=text len=- null=NO default=-
 COLUMN reading_sessions.updated_at ord=18 type=timestamptz len=- null=NO default=now()
 COLUMN reading_sessions.user_id ord=3 type=uuid len=- null=NO default=-
+COLUMN reading_voice_cache.byte_size ord=4 type=int4 len=- null=NO default=-
+COLUMN reading_voice_cache.created_at ord=5 type=timestamptz len=- null=NO default=-
+COLUMN reading_voice_cache.hash ord=1 type=text len=- null=NO default=-
+COLUMN reading_voice_cache.model ord=2 type=text len=- null=NO default=-
+COLUMN reading_voice_cache.voice ord=3 type=text len=- null=NO default=-
+COLUMN reading_voice_usage.day ord=2 type=date len=- null=NO default=-
+COLUMN reading_voice_usage.lines ord=3 type=int4 len=- null=NO default=-
+COLUMN reading_voice_usage.user_id ord=1 type=uuid len=- null=NO default=-
 COLUMN refresh_tokens.device_info ord=5 type=text len=- null=YES default=-
 COLUMN refresh_tokens.expires_at ord=7 type=timestamptz len=- null=NO default=-
 COLUMN refresh_tokens.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
@@ -902,7 +910,7 @@ CONSTRAINT community_reports community_reports_status_not_null NOT NULL status
 CONSTRAINT community_reports community_reports_target_id_not_null NOT NULL target_id
 CONSTRAINT community_reports community_reports_target_type_not_null NOT NULL target_type
 CONSTRAINT community_reports uq_community_reports_reporter_target UNIQUE (reporter_id, target_type, target_id)
-CONSTRAINT consent_documents ck_consent_documents_type CHECK ((type = ANY (ARRAY['terms'::text, 'privacy'::text, 'ai_analysis'::text, 'retention'::text])))
+CONSTRAINT consent_documents ck_consent_documents_type CHECK ((type = ANY (ARRAY['terms'::text, 'privacy'::text, 'ai_analysis'::text, 'retention'::text, 'cloud_voice'::text])))
 CONSTRAINT consent_documents consent_documents_body_not_null NOT NULL body
 CONSTRAINT consent_documents consent_documents_id_not_null NOT NULL id
 CONSTRAINT consent_documents consent_documents_locale_not_null NOT NULL locale
@@ -1254,6 +1262,19 @@ CONSTRAINT reading_sessions reading_sessions_updated_at_not_null NOT NULL update
 CONSTRAINT reading_sessions reading_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
 CONSTRAINT reading_sessions reading_sessions_user_id_not_null NOT NULL user_id
 CONSTRAINT reading_sessions uq_reading_sessions_user_request UNIQUE (user_id, request_id)
+CONSTRAINT reading_voice_cache reading_voice_cache_byte_size_check CHECK ((byte_size > 0))
+CONSTRAINT reading_voice_cache reading_voice_cache_byte_size_not_null NOT NULL byte_size
+CONSTRAINT reading_voice_cache reading_voice_cache_created_at_not_null NOT NULL created_at
+CONSTRAINT reading_voice_cache reading_voice_cache_hash_not_null NOT NULL hash
+CONSTRAINT reading_voice_cache reading_voice_cache_model_not_null NOT NULL model
+CONSTRAINT reading_voice_cache reading_voice_cache_pkey PRIMARY KEY (hash)
+CONSTRAINT reading_voice_cache reading_voice_cache_voice_not_null NOT NULL voice
+CONSTRAINT reading_voice_usage reading_voice_usage_day_not_null NOT NULL day
+CONSTRAINT reading_voice_usage reading_voice_usage_lines_check CHECK ((lines >= 0))
+CONSTRAINT reading_voice_usage reading_voice_usage_lines_not_null NOT NULL lines
+CONSTRAINT reading_voice_usage reading_voice_usage_pkey PRIMARY KEY (user_id, day)
+CONSTRAINT reading_voice_usage reading_voice_usage_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+CONSTRAINT reading_voice_usage reading_voice_usage_user_id_not_null NOT NULL user_id
 CONSTRAINT refresh_tokens refresh_tokens_expires_at_not_null NOT NULL expires_at
 CONSTRAINT refresh_tokens refresh_tokens_id_not_null NOT NULL id
 CONSTRAINT refresh_tokens refresh_tokens_issued_at_not_null NOT NULL issued_at
@@ -1468,6 +1489,7 @@ INDEX CREATE INDEX idx_push_tokens_user ON public.push_tokens USING btree (user_
 INDEX CREATE INDEX idx_reading_recordings_user ON public.reading_recordings USING btree (user_id)
 INDEX CREATE INDEX idx_reading_sessions_script_started ON public.reading_sessions USING btree (script_id, started_at DESC)
 INDEX CREATE INDEX idx_reading_sessions_user ON public.reading_sessions USING btree (user_id)
+INDEX CREATE INDEX idx_reading_voice_usage_day ON public.reading_voice_usage USING btree (day)
 INDEX CREATE INDEX idx_refresh_tokens_user_expires ON public.refresh_tokens USING btree (user_id, expires_at)
 INDEX CREATE INDEX idx_reports_created ON public.reports USING btree (created_at DESC)
 INDEX CREATE INDEX idx_script_lines_character ON public.script_lines USING btree (character_id)
@@ -1549,6 +1571,8 @@ INDEX CREATE UNIQUE INDEX push_tokens_pkey ON public.push_tokens USING btree (id
 INDEX CREATE UNIQUE INDEX push_tokens_token_key ON public.push_tokens USING btree (token)
 INDEX CREATE UNIQUE INDEX reading_recordings_pkey ON public.reading_recordings USING btree (id)
 INDEX CREATE UNIQUE INDEX reading_sessions_pkey ON public.reading_sessions USING btree (id)
+INDEX CREATE UNIQUE INDEX reading_voice_cache_pkey ON public.reading_voice_cache USING btree (hash)
+INDEX CREATE UNIQUE INDEX reading_voice_usage_pkey ON public.reading_voice_usage USING btree (user_id, day)
 INDEX CREATE UNIQUE INDEX refresh_tokens_pkey ON public.refresh_tokens USING btree (id)
 INDEX CREATE UNIQUE INDEX refresh_tokens_token_hash_key ON public.refresh_tokens USING btree (token_hash)
 INDEX CREATE UNIQUE INDEX reports_pkey ON public.reports USING btree (id)
@@ -1676,6 +1700,8 @@ TABLE practices
 TABLE push_tokens
 TABLE reading_recordings
 TABLE reading_sessions
+TABLE reading_voice_cache
+TABLE reading_voice_usage
 TABLE refresh_tokens
 TABLE reports
 TABLE script_characters

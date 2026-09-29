@@ -9,9 +9,9 @@ import jakarta.persistence.Table;
 @Entity
 @Table(name = "reading_voice_cache")
 class ReadingVoiceCacheEntity {
-    @Id String hash;
-    String model;
-    String voice;
+    @Id @Column(name = "hash") String hash;
+    @Column(name = "model") String model;
+    @Column(name = "voice") String voice;
     @Column(name = "byte_size") int byteSize;
     @Column(name = "created_at") Instant createdAt;
     protected ReadingVoiceCacheEntity() {}
