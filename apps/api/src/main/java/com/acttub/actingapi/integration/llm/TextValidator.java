@@ -9,7 +9,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-/** acting-llm의 금지어·시각·가시 길이 검증 계약. */
+/** acting-llm의 금지어·시각 검증 계약. */
 public final class TextValidator {
 
     private static final int UNICODE = Pattern.UNICODE_CHARACTER_CLASS;

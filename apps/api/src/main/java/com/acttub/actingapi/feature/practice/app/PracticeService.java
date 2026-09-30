@@ -18,6 +18,7 @@ import com.acttub.actingapi.feature.practice.app.PracticeViews.GroupView;
 import com.acttub.actingapi.feature.practice.app.PracticeViews.PracticeView;
 import com.acttub.actingapi.feature.practice.app.PracticeViews.StatusView;
 import com.acttub.actingapi.feature.practice.domain.PracticeRules;
+import com.acttub.actingapi.platform.schema.ExperienceVersion;
 import com.acttub.actingapi.platform.web.ApiException;
 
 /**
@@ -177,8 +178,8 @@ public class PracticeService {
         String subBranch = PracticeRules.blockage(draft.subBranch());
         String blockageNote = PracticeRules.note(draft.blockageNote());
         String experienceVersion = PracticeRules.threeLayers(threeLayersEnabled, contractHeader)
-                ? "three_layers_v1"
-                : "legacy";
+                ? ExperienceVersion.THREE_LAYERS_V1.dbValue()
+                : ExperienceVersion.LEGACY.dbValue();
         return new NewPractice(
                 draft.requestId(),
                 fingerprint(String.join("|", "practice_start",

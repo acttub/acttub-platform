@@ -318,7 +318,7 @@ class PostgresProfileRepository implements ProfileRepository {
     }
 
     /**
-     * ⚠ {@code push_tokens} 의 주인은 {@code push} 다. 그래도 여기서 지우는 것은 "둘 다 꺼짐"과 "토큰
+     * ⚠ {@code push_tokens} 의 주인은 {@code push} 다. 그래도 여기서 지우는 것은 "셋 다 꺼짐"과 "토큰
      * 없음"이 한 트랜잭션이어야 하기 때문이다 — 나누면 꺼 놓고도 알림이 오는 틈이 생긴다. 탈퇴의 교차
      * 도메인 정리와 같은 형태로 명시적 native DML 로 남긴다.
      */
