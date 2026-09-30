@@ -132,7 +132,10 @@ class ValueCheckCatalogIT {
             // 좋아요순 커서의 기준(live·pending·final)은 저장소 SQL 만 읽고 쓰는 장부 칸이다.
             "ck_entry_ranking_snapshots_basis",
             // 행동자가 있는 알림은 좋아요·댓글뿐이라는 조합 검사다(값 목록 하나가 아니다).
-            "ck_notifications_actor");
+            "ck_notifications_actor",
+            // 가입 유입 광고의 플랫폼(ios·android, V26)은 컨트롤러가 SignupAttribution.PLATFORMS 로 거르고
+            // 저장소 native SQL 만 쓰는 칸이라 Java enum 이 없다(푸시 토큰의 플랫폼과 같은 판단).
+            "ck_user_signup_attributions_platform");
 
     /** {@code CHECK ((col = ANY (ARRAY['a'::text, 'b'::text])))} 에서 값만 뽑는다. */
     private static final Pattern LITERAL = Pattern.compile("'((?:[^']|'')*)'::text");
