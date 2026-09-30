@@ -1,6 +1,5 @@
 package com.acttub.actingapi.integration.oidc;
 
-import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -12,7 +11,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientException;
 
 /**
  * 네이버 토큰 API 의 실물.
@@ -61,7 +59,7 @@ public class HttpNaverTokenClient implements NaverTokenClient {
         if (redirectUri != null && !redirectUri.isBlank()) {
             form.add("redirect_uri", redirectUri);
         }
-        Reply reply = post(TOKEN_URL, form);
+        ProviderHttp.Reply reply = post(TOKEN_URL, form);
         JsonNode body = json(reply.body());
         String error = body.path("error").isTextual() ? body.path("error").asText() : null;
         // 네이버는 실패도 200 과 error 필드로 답하는 일이 있다. 상태와 필드를 둘 다 본다.
@@ -87,7 +85,7 @@ public class HttpNaverTokenClient implements NaverTokenClient {
         MultiValueMap<String, String> form = credentials();
         form.add("token", refreshToken);
         form.add("token_type_hint", "refresh_token");
-        Reply reply = post(REVOKE_URL, form);
+        ProviderHttp.Reply reply = post(REVOKE_URL, form);
         if (reply.status() == 401) {
             throw new ProviderConfigurationError("naver rejected the client credentials");
         }
@@ -106,18 +104,11 @@ public class HttpNaverTokenClient implements NaverTokenClient {
         return form;
     }
 
-    private Reply post(String url, MultiValueMap<String, String> form) {
-        try {
-            return http.post()
-                    .uri(url)
-                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                    .body(form)
-                    .exchange((request, response) -> new Reply(
-                            response.getStatusCode().value(),
-                            new String(response.getBody().readAllBytes(), StandardCharsets.UTF_8)));
-        } catch (RestClientException failure) {
-            throw new ProviderUnavailable("naver did not answer", failure);
-        }
+    private ProviderHttp.Reply post(String url, MultiValueMap<String, String> form) {
+        return ProviderHttp.send(http.post()
+                .uri(url)
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .body(form), "naver");
     }
 
     private static JsonNode json(String body) {
@@ -127,8 +118,5 @@ public class HttpNaverTokenClient implements NaverTokenClient {
         } catch (Exception notJson) {
             return JSON.createObjectNode();
         }
-    }
-
-    private record Reply(int status, String body) {
     }
 }
