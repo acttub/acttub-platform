@@ -12,7 +12,6 @@ export type ApiFetchOptions = {
   headers?: HeadersInit;
   signal?: AbortSignal;
   auth?: boolean;
-  retryOn401?: boolean;
   /** false 면 403 consent_required 에 시트를 띄우지 않고 그대로 던진다. */
   consentPrompt?: boolean;
   /**
@@ -25,7 +24,6 @@ export type ApiFetchOptions = {
 export type ApiResponse<T> = {
   status: number;
   data: T;
-  headers: Headers;
 };
 
 function apiUrl(path: string): string {
@@ -170,7 +168,6 @@ async function sendWithSession(
   body: RequestBody,
 ): Promise<{ response: Response; payload: unknown }> {
   const auth = options.auth ?? true;
-  const retryOn401 = options.retryOn401 ?? true;
   // 게스트가 이미 있으면 기다리지 않는다 — 요청은 부른 그 틱에 나가야 호출자가 곧바로
   // 건 취소가 진행 중인 fetch 에 닿는다.
   const session = auth ? sessionAccess(options) : null;
@@ -179,7 +176,7 @@ async function sendWithSession(
   let response = await fetchResponse(path, options, body, failedAccess);
   let payload = await responsePayload(response);
 
-  if (response.status === 401 && auth && retryOn401) {
+  if (response.status === 401 && auth) {
     let renewedAccess = await refreshAccessToken(failedAccess ?? undefined);
     // 갱신이 거절된 게스트에는 다시 닿을 수 없다. 하려던 일은 새 게스트로 잇는다.
     if (!renewedAccess && startsGuest(options)) {
@@ -222,7 +219,6 @@ export async function apiFetch<T>(
       return {
         status: response.status,
         data: payload as T,
-        headers: response.headers,
       };
     }
 

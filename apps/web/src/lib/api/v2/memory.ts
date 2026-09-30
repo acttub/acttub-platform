@@ -20,9 +20,6 @@ export const MEMORY_FIELDS = [
 
 export type MemoryField = (typeof MEMORY_FIELDS)[number];
 
-/** 기억 화면에서 뺀 칸. 프로필로 안내한다. */
-export const PROFILE_FIELDS = ["gender", "age"] as const;
-
 /** 서버가 거부하는 길이. 화면에서 미리 막지 않으면 저장 순간에야 실패한다. */
 export const MEMORY_VALUE_MAX_LENGTH = 1000;
 

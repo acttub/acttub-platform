@@ -3,17 +3,10 @@ import { consentPromptElapsedMs, whenConsentPromptCloses } from "./consent-promp
 import { isRateLimited, isStillProcessing, NetworkError } from "./errors";
 import { newRequestId } from "../../reading/request-id";
 
-export type RetryWaitReason = "processing" | "rate_limited" | "network";
-
 export type PostIdempotentOptions = {
   requestId?: string;
   signal?: AbortSignal;
   deadlineMs?: number;
-  onWait?: (info: {
-    reason: RetryWaitReason;
-    attempt: number;
-    delayMs: number;
-  }) => void;
 };
 
 export function abortReason(signal: AbortSignal): unknown {
@@ -133,31 +126,21 @@ export async function postIdempotent<T>(
       }
     } catch (error) {
       lastError = error;
-      let reason: RetryWaitReason;
-      let attempt: number;
       let delayMs: number;
 
       if (isStillProcessing(error)) {
-        reason = "processing";
-        attempt = ++processingAttempts;
-        delayMs = Math.min(10_000, 2_000 * 1.5 ** (attempt - 1));
+        delayMs = Math.min(10_000, 2_000 * 1.5 ** processingAttempts++);
       } else if (isRateLimited(error) && rateLimitAttempts < 4) {
-        reason = "rate_limited";
-        attempt = ++rateLimitAttempts;
-        delayMs = Math.min(30_000, 2_000 * 2 ** (attempt - 1)) + Math.random() * 500;
+        delayMs = Math.min(30_000, 2_000 * 2 ** rateLimitAttempts++) + Math.random() * 500;
       } else if (error instanceof NetworkError && networkAttempts < 3) {
-        reason = "network";
-        attempt = ++networkAttempts;
-        delayMs = 1_000 * 2 ** (attempt - 1);
+        delayMs = 1_000 * 2 ** networkAttempts++;
       } else {
         throw error;
       }
 
       const leftMs = remainingMs();
       if (leftMs <= 0) throw error;
-      const boundedDelayMs = Math.min(delayMs, leftMs);
-      options.onWait?.({ reason, attempt, delayMs: boundedDelayMs });
-      await wait(boundedDelayMs, options.signal);
+      await wait(Math.min(delayMs, leftMs), options.signal);
     }
   }
 }
