@@ -94,6 +94,8 @@
       "expo-video",
       "@react-native-firebase/app",
       "@react-native-firebase/analytics",
+      "@react-native-firebase/crashlytics",
+      "./plugins/with-crashlytics-dsym.js",
       [
         "@react-native-google-signin/google-signin",
         {
