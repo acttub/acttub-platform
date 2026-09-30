@@ -166,17 +166,16 @@ JSON 연산, 상관 서브쿼리 조건부 갱신은 Spring Data `save()`나 조
    (`src/test/java/com/acttub/actingapi/platform/schema/EntityManagerNativeSqlIT:pushUpsertReturnsDatabaseGeneratedIdAndRebindsTheSameRow`).
 3. **`server_default` vs 앱 측 default 이원화.** JPA 에는 "앱 측 default" 개념이 없다. 필드
    초기화값을 주면 항상 INSERT 에 실려 `server_default` 가 발동하지 않는다. 컬럼별로 판정한다.
-   활성 매핑의 `coach_sessions.conversation_summary`는 `''` 기본값이며
-   null 로 두면 NOT NULL 위반이다. `summaries.observations_json`/`.uncertainties_json`도
-   같은 부류다. 구형 `reports.comparison`의 DB 기본값도 그대로 보존한다.
+   활성 매핑의 `summaries.observations_json`/`.uncertainties_json`은 DB 기본값이 있고
+   null 로 두면 NOT NULL 위반이다. 매핑을 내린 `coach_sessions.conversation_summary`(`''`)와
+   구형 `reports.comparison`의 DB 기본값도 그대로 보존한다.
 4. **활성 JSONB 매핑** — `summaries.raw`/`.observations_json`/`.uncertainties_json`,
-   `coaching_handoffs.handoff_json`, `practice_reports.report_json`,
    `external_operations.response_payload`(NULL 허용). 구형 `summaries.observation`과
    `reports.biggest_problem`은 DB에 보존하며 활성 매핑에서 제외한다.
    **JSON null(`'null'::jsonb`)과 SQL NULL 을 구분한다.** External Operation 신규 행의 아직 없는
    응답은 SQL NULL이고, claim·release·fail·resume·sweep가 이전 응답을 비우는 값은 Python
    SQLAlchemy JSONB `None`과 같은 JSON null이다. 완료 응답은 JSON 객체다.
-5. **BIGSERIAL PK 2개** — `Anomaly.id`, `CoachTurn.id`. `IDENTITY` 전략은 JDBC 배치 INSERT 를
+5. **BIGSERIAL PK** — 활성 매핑에서는 `Anomaly.id` 하나다. `IDENTITY` 전략은 JDBC 배치 INSERT 를
    막는다.
 6. **부분 인덱스와 CHECK 제약**은 Hibernate 가 만들 수도 검증할 수도 없다. Flyway 가 DDL 을
    소유해야 하는 결정적 이유다.
@@ -346,8 +345,8 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 | 7 | 404 | [common.md 「오류 응답」](../../docs/specs/common.md#오류-응답) |
 | 8 | S3 presign | **리전 엔드포인트 고정.** 글로벌 엔드포인트는 신규 버킷에 307 |
 | 9 | ffmpeg | 동시 실행 1개 락, 600초 타임아웃, 실패·부재 시 원본 폴백 |
-| 10 | 제약명 문자열 의존 | **`consent_documents` 유니크 위반** 판정을 `PSQLException.getServerErrorMessage().getConstraint()` 로 한다. 그래서 `org.postgresql:postgresql` 이 `runtimeOnly` 가 아니라 `implementation` 이다. 리포트 멱등은 제약명을 보지 않는다(`uq_practice_reports_source_handoff` 에 대한 `ON CONFLICT DO NOTHING`) |
-| 11 | 테이블 락 획득 순서 | `upload_intents`→`external_operations`, `practice_sessions`→`practice_reports`. 바꾸면 데드락 |
+| 10 | 제약명 문자열 의존 | **`consent_documents` 유니크 위반** 판정을 `PSQLException.getServerErrorMessage().getConstraint()` 로 한다. 그래서 `org.postgresql:postgresql` 이 `runtimeOnly` 가 아니라 `implementation` 이다 |
+| 11 | (은퇴) 테이블 락 획득 순서 | 옛 연습 원장·리포트 원장의 순서였고 두 원장과 함께 지웠다. 번호는 테스트 주석의 `§6 #N` 인용 때문에 당기지 않는다 |
 | 12 | canonical JSON | 멱등 replay 는 키 정렬 + 공백 없음 + 한글 raw UTF-8 |
 | 13 | `X-Request-Id` 응답 헤더 | 바디만 맞추면 놓친다 |
 | 14 | v1 경로 404 | `/summarize`, `/coach/start`, `/coach/reply`, `/report`, `/report/history/{id}` 5개 |
@@ -823,7 +822,8 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   `coach_messages`·`coach_notes`·`actor_memories`·`practice_feedback`·`ai_jobs`)과, `upload_intents` 에 NULL 허용
   컬럼 셋(`request_id`·`request_fingerprint`·`video_id`), `users` 에 `exit_survey_asked_at`·`memory_epoch`. **옛
   테이블은 건드리지 않는다** — `practice_sessions`·`transcripts`·`summaries`·`anomalies`·`coach_sessions`·
-  `coach_turns`·`coaching_handoffs`·`practice_reports`·`actor_memory_entries`·`external_operations` 가 그대로 돈다.
+  `coach_turns`·`coaching_handoffs`·`practice_reports`·`actor_memory_entries`·`external_operations` 는 V14 뒤에도
+  구조가 그대로다(옛 연습 흐름의 Java 쓰기 경로는 뒤에 지웠다, §5-1).
   데이터 전환은 Flyway 가 아니라 재실행 가능한 애플리케이션 명령이고, 옛 테이블의 삭제는 읽기·쓰기를 모두 중단한
   버전을 배포한 **다음** 릴리스부터다(specs/practice 「0.1.0 스키마 전환」).
   - 값 목록은 text + CHECK 이고 Java enum 은 `platform/schema` 에 있다(`PracticeStage`·`PracticeCloseReason`·
@@ -1104,8 +1104,8 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 > 제품 규칙의 정본: [practice.coach](../../docs/specs/practice/coach.md)(「규칙·제약」의 도움 버튼과 기존 갈래·이전 경로의 응답 규칙: `그 외`의 기본 코치, 재생성 사유, 숨은 심리를 만들지 않음), [practice.note](../../docs/specs/practice/note.md)(「규칙·제약」의 기존 갈래: `completion_level=unavailable`, 내용이 확보된 답변)
 
 - 요청·응답 DTO와 저장 스키마는 유지한다.
-- `CoachPrompt:buildChat`은 1층 관찰 팩 전체(장면 요약·전체 흐름·소리 측정값·대사 인용·불확실성)·이전 분석 입력과 현재 세션의 대화 원문 전체를 전달한다. `CoachPrompt:select`의 공통 정책이 갈래별 질문 순서보다 우선한다.
-- 막힘을 건너뛴 `그 외`의 프롬프트는 `coach-video-first-prompt.txt`다. 명시적인 분석·표현 선택의 프롬프트와 기존 analysis handoff·report 계약은 유지한다.
+- `CoachPrompt:buildChat`은 1층 관찰 팩 전체(장면 요약·전체 흐름·소리 측정값·대사 인용·불확실성)와 현재 세션의 대화 원문 전체를 전달한다. `CoachPrompt:select`의 공통 정책이 갈래별 질문 순서보다 우선한다.
+- 막힘을 건너뛴 `그 외`의 프롬프트는 `coach-video-first-prompt.txt`다. 명시적인 분석·표현 선택의 프롬프트와 대화가 끝날 때 만드는 handoff·분석/표현 리포트 계약은 유지한다. 이전 분석 세션의 handoff를 표현 세션 입력으로 넘기는 경로는 없다(`NoteWriter`가 `ReportEngine:generateReport`의 `analysisHandoff`에 `null`을 넘긴다).
 - 재생성 사유는 `CoachResponsePolicy:failures`, 생성 실패 handoff의 차단은 `ReportEngine:buildReportInput`(두 갈래 모두) 한 곳이다.
 - 코칭은 `TextValidator:validateCoachTurn`으로 근거 설명용 어휘를 허용한다. 다른 표면은 기존 `validateTurn`과 `scanGeneratedStrings`를 유지한다.
 

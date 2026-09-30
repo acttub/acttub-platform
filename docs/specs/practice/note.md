@@ -175,7 +175,7 @@
 
 ### 적용 범위와 호환
 - 기존 `three_layers_v1` 경험의 다음 코치 호출부터 v2 내부 응답을 사용한다. 원래의 1층 기록은 그대로 쓴다.
-- 이미 끝난 v1 handoff의 재생성은 이전 편집 프롬프트를 사용하고 저장된 노트를 다시 생성하지 않는다.
+- v1 handoff를 만드는 경로는 없다. 노트는 v2 handoff에서만 조립하고, 예전에 v1 handoff로 만든 저장 노트는 `PracticeNote.publicView`로 읽기만 한다.
 - 신규 경험 선택은 [practice.start](start.md#규칙제약)가 정한다.
 - 기존 저장 노트와 공개 응답은 구형 클라이언트에서도 같은 v1 형식이다. 내부 handoff v2는 구버전 API가 만들 수 없다 — 코드 롤백 때의
   확인은 [DEPLOY-HOME §4](../../deploy/DEPLOY-HOME.md#4-코드-배포-복구)에 있다.
