@@ -19,6 +19,7 @@ import com.acttub.actingapi.feature.profile.domain.Account;
 import com.acttub.actingapi.feature.profile.domain.AgeBand;
 import com.acttub.actingapi.feature.profile.domain.NotificationSettings;
 import com.acttub.actingapi.feature.profile.domain.Profile;
+import com.acttub.actingapi.feature.profile.domain.SignupAttribution;
 import com.acttub.actingapi.platform.schema.ActingDirection;
 import com.acttub.actingapi.platform.schema.ActingExperience;
 import com.acttub.actingapi.platform.schema.ActingGoal;
@@ -315,6 +316,41 @@ class PostgresProfileRepository implements ProfileRepository {
                 """, Tuple.class)
                 .setParameter("userId", userId));
         return rows.isEmpty() ? null : settings(rows.getFirst());
+    }
+
+    /**
+     * 처음 온 값만 남긴다 — {@code ON CONFLICT DO NOTHING}. 탈퇴와 겹치면 같은 {@code users} 행을 잡고
+     * 활성인지 본다({@link #lockActive}): 탈퇴가 먼저면 쓰지 않는다. 탈퇴는 이 표의 행을 지우므로, 확인 없이 쓰면
+     * 파기한 유입 기록이 다시 생긴다.
+     */
+    @Override
+    public boolean recordSignupAttribution(UUID userId, SignupAttribution attribution) {
+        return Boolean.TRUE.equals(transaction.execute(status -> {
+            if (!lockActive(userId)) {
+                return false;
+            }
+            entityManager.createNativeQuery("""
+                    INSERT INTO user_signup_attributions
+                        (user_id,source,platform,channel,campaign,ad_group,ad_creative,content,term,sub_publisher)
+                    VALUES
+                        (:userId,:source,:platform,:channel,
+                         CAST(:campaign AS text),CAST(:adGroup AS text),CAST(:adCreative AS text),
+                         CAST(:content AS text),CAST(:term AS text),CAST(:subPublisher AS text))
+                    ON CONFLICT (user_id) DO NOTHING
+                    """)
+                    .setParameter("userId", userId)
+                    .setParameter("source", attribution.source())
+                    .setParameter("platform", attribution.platform())
+                    .setParameter("channel", attribution.channel())
+                    .setParameter("campaign", attribution.campaign())
+                    .setParameter("adGroup", attribution.adGroup())
+                    .setParameter("adCreative", attribution.adCreative())
+                    .setParameter("content", attribution.content())
+                    .setParameter("term", attribution.term())
+                    .setParameter("subPublisher", attribution.subPublisher())
+                    .executeUpdate();
+            return true;
+        }));
     }
 
     /**
@@ -624,6 +660,10 @@ class PostgresProfileRepository implements ProfileRepository {
             erasePractice(userId, retainMedia, now);
             eraseChallenge(userId, now);
             entityManager.createNativeQuery("DELETE FROM reading_voice_usage WHERE user_id=:userId")
+                    .setParameter("userId", userId)
+                    .executeUpdate();
+            // 가입 유입 기록(SOMA-588)은 사람과 끊어 남기지 않고 행째 지운다 — 통계는 탈퇴 전 값으로 충분하다.
+            entityManager.createNativeQuery("DELETE FROM user_signup_attributions WHERE user_id=:userId")
                     .setParameter("userId", userId)
                     .executeUpdate();
             cleanups.addAll(hashIdentities(userId, now));
