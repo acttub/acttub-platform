@@ -542,7 +542,7 @@ class GuestTransferIT {
     @DisplayName("account.guest: 분석 중에 옮기면 진행 중 작업도 따라가고 완료 알림은 회원의 폰으로 간다. 한 회원이 게스트 둘을 차례로 옮기면 둘 다 목록에 보인다")
     void accountGuest_workInProgressFollowsAndTheMemberIsNotified() throws Exception {
         UUID member = member();
-        pushTokens.register(member, "ExponentPushToken[member-phone]", "ios");
+        pushTokens.register(member, "ExponentPushToken[member-phone]", "ios", null);
         Guest first = guest();
         UUID analyzing = practice(first.id());
         jdbc.update("UPDATE practice_sessions SET status='analyzing' WHERE id=?", analyzing);

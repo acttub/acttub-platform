@@ -91,3 +91,9 @@ test('challenge.notification: 탭 배지는 읽지 않은 묶음 수이고 푸�
   assert.match(root, /challengePushTarget/);
   assert.match(root, /'\/notifications'/);
 });
+
+test('account.notification: 저녁 리마인드 푸시를 누르면 홈 탭으로 간다', () => {
+  const root = read('app/_layout.tsx');
+  assert.match(root, /evening_reminder/);
+  assert.match(root, /router\.replace\('\/\(tabs\)'\)/);
+});

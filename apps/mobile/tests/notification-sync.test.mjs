@@ -113,21 +113,6 @@ test('account.logout: 설정 조회가 세션이 끊겨 실패해도 기기에 �
   assert.equal(scheduler.live.size, 0);
 });
 
-test('account.logout: 30일치 알람을 맞추는 도중에 로그아웃해도 취소가 마지막에 끝나 예약된 알람은 0개다', async () => {
-  const { sync, scheduler } = harness();
-  let leaving = null;
-  scheduler.onSchedule = (count) => {
-    // 세 번째 알람을 맞추는 순간 로그아웃이 시작된다(기다리지 않는다 — 두 흐름이 겹친다).
-    if (count === 3) leaving = sync.leave();
-  };
-
-  await sync.afterGate();
-  await leaving;
-
-  assert.ok(leaving, '로그아웃이 예약 도중에 시작되지 않았다');
-  assert.equal(scheduler.live.size, 0);
-});
-
 test('account.logout: 로그아웃이 시작된 뒤에는 옛 동기화가 이 폰의 푸시 토큰을 다시 등록하지 않는다', async () => {
   const { sync, calls, state } = harness();
   state.pendingSettings = deferred();
@@ -154,7 +139,7 @@ test('account.logout: 로그아웃 뒤에는 옛 계정의 알림 설정을 기�
   assert.equal(isCurrent(), false);
 });
 
-test('account.logout: 다시 로그인해 게이트를 통과하면 30일치를 다시 맞춘다', async () => {
+test('account.logout: 다시 로그인해 게이트를 통과해도 로컬 리마인드를 만들지 않는다', async () => {
   const { sync, scheduler } = harness();
 
   await sync.afterGate();
@@ -162,22 +147,19 @@ test('account.logout: 다시 로그인해 게이트를 통과하면 30일치를 
   assert.equal(scheduler.live.size, 0);
   await sync.afterGate();
 
-  assert.equal(scheduler.live.size, 30);
+  assert.equal(scheduler.live.size, 0);
 });
 
-test('account.notification: 앱이 배경에서 돌아오면 게이트를 통과한 계정의 밀린 삭제·알림 설정·토큰 등록·30일 리마인드를 다시 맞춘다', async () => {
+test('account.notification: 앱이 배경에서 돌아오면 토큰을 다시 등록하고 로컬 리마인드는 비워 둔다', async () => {
   const { sync, scheduler, calls, state } = harness();
   await sync.afterGate();
   calls.length = 0;
-  const before = [...scheduler.live];
-
   state.clock += FOREGROUND_SYNC_MIN_INTERVAL_MS;
   await sync.onForeground({ gatePassed: true });
 
   // 배경 복귀 때는 알림 권한을 새로 묻지 않는다. 이미 허용한 폰만 다시 등록한다.
   assert.deepEqual(calls, ['flush', 'settings', 'register:quiet']);
-  assert.equal(scheduler.live.size, 30);
-  assert.equal(before.some((id) => scheduler.live.has(id)), false, '30일치를 새로 맞추지 않았다');
+  assert.equal(scheduler.live.size, 0);
 });
 
 test('account.notification: 다른 기기에서 푸시 토글 둘을 껐다 켜 토큰이 지워졌어도 앱을 다시 열면 이 폰을 다시 등록한다', async () => {
