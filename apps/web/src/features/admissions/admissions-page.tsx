@@ -43,11 +43,11 @@ export function AdmissionsPage({ initial }: { initial: AdmissionsResponse }) {
   const { payload, today } = answeredAdmissions(admissions, initial);
 
   const groups = useMemo(
-    () => (payload ? groupByUniversity(payload, today) : []),
+    () => groupByUniversity(payload, today),
     [payload, today],
   );
   const facets = useMemo(
-    () => (payload ? availableFacets(payload) : null),
+    () => availableFacets(payload),
     [payload],
   );
 
@@ -129,188 +129,180 @@ export function AdmissionsPage({ initial }: { initial: AdmissionsResponse }) {
           </p>
         </section>
 
-        {payload && (
-          <p className="mt-4 rounded-2xl bg-[#fff4e6] px-4 py-3 text-[13px] font-bold leading-5 text-[#b45309]">
-            ⓘ {payload.disclaimer}
-          </p>
-        )}
+        <p className="mt-4 rounded-2xl bg-[#fff4e6] px-4 py-3 text-[13px] font-bold leading-5 text-[#b45309]">
+          ⓘ {payload.disclaimer}
+        </p>
 
         {admissions.state === "failed" && (
           <StatusLine tone="error">{admissions.message}</StatusLine>
         )}
 
-        {admissions.state === "loading" && !initial && (
-          <StatusLine tone="muted">불러오는 중이에요…</StatusLine>
-        )}
-
-        {payload && (
-          <>
-            {upcoming.length > 0 && (
-              <section className="mt-6">
-                <h2 className="text-[13px] font-black text-[#8b95a1]">다가오는 마감</h2>
-                <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
-                  {upcoming.map(({ university, notice }) => {
-                    const remaining = countdown(notice, today as string);
-                    return (
-                      <div
-                        key={notice.id}
-                        className="min-w-[168px] flex-1 rounded-2xl bg-[#191f28] px-4 py-3 text-white"
-                      >
-                        <p className="text-[11px] font-bold text-[#b0b8c1]">
-                          {remaining?.label}
-                        </p>
-                        <p className="mt-0.5 text-[22px] font-black leading-none">
-                          D-{remaining?.days === 0 ? "DAY" : remaining?.days}
-                        </p>
-                        <p className="mt-2 truncate text-[12px] font-black">
-                          {university.name}
-                        </p>
-                        <p className="truncate text-[11px] font-semibold text-[#b0b8c1]">
-                          {notice.department ?? ""}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            )}
-
-            <div className="mt-6 flex flex-wrap items-center gap-2">
-              <input
-                value={filters.query}
-                onChange={(event) =>
-                  setFilters((was) => ({ ...was, query: event.target.value }))
-                }
-                placeholder="대학·학과·지역 검색"
-                className="min-w-[200px] flex-1 rounded-xl border border-[#e5e8eb] bg-white px-4 py-2.5 text-[14px] font-semibold text-[#191f28] outline-none placeholder:text-[#b0b8c1] focus:border-[#3182f6]"
-              />
-              <button
-                type="button"
-                onClick={() =>
-                  setFilters((was) => ({ ...was, openOnly: !was.openOnly }))
-                }
-                className={`rounded-xl px-4 py-2.5 text-[13px] font-black ${
-                  filters.openOnly
-                    ? "bg-[#3182f6] text-white"
-                    : "border border-[#e5e8eb] bg-white text-[#4e5968]"
-                }`}
-              >
-                접수 가능만
-              </button>
-              <button
-                type="button"
-                onClick={() => setFilterOpen((was) => !was)}
-                className={`rounded-xl px-4 py-2.5 text-[13px] font-black ${
-                  activeCount > 0
-                    ? "bg-[#191f28] text-white"
-                    : "border border-[#e5e8eb] bg-white text-[#4e5968]"
-                }`}
-              >
-                필터{activeCount > 0 ? ` ${activeCount}` : ""}
-              </button>
-            </div>
-
-            {filterOpen && facets && (
-              <div className="mt-2 space-y-3 rounded-2xl border border-[#e5e8eb] bg-white p-4">
-                <FilterRow label="지역" values={facets.regions}>
-                  {facets.regions.map((region) => (
-                    <Chip
-                      key={region}
-                      label={region}
-                      on={filters.regions.includes(region)}
-                      onClick={() => toggle("regions", region)}
-                    />
-                  ))}
-                </FilterRow>
-                <FilterRow label="전형" values={facets.tracks}>
-                  {facets.tracks.map((track) => (
-                    <Chip
-                      key={track}
-                      label={track}
-                      on={filters.tracks.includes(track)}
-                      onClick={() => toggle("tracks", track)}
-                    />
-                  ))}
-                </FilterRow>
-                <FilterRow label="계열" values={facets.disciplines}>
-                  {facets.disciplines.map((discipline) => (
-                    <Chip
-                      key={discipline}
-                      label={DISCIPLINE_LABEL[discipline] ?? discipline}
-                      on={filters.disciplines.includes(discipline)}
-                      onClick={() => toggle("disciplines", discipline)}
-                    />
-                  ))}
-                </FilterRow>
-                <FilterRow label="실기 종목" values={facets.practicals}>
-                  {facets.practicals.map((category) => (
-                    <Chip
-                      key={category}
-                      label={PRACTICAL_LABEL[category] ?? category}
-                      on={filters.practicals.includes(category)}
-                      onClick={() => toggle("practicals", category)}
-                    />
-                  ))}
-                </FilterRow>
-                <FilterRow label="학교" values={["always"]}>
-                  {facets.types.map((type) => (
-                    <Chip
-                      key={type}
-                      label={TYPE_LABEL[type] ?? type}
-                      on={filters.types.includes(type)}
-                      onClick={() => toggle("types", type)}
-                    />
-                  ))}
-                  <Chip
-                    label="수능 최저 없음"
-                    on={filters.noCsatOnly}
-                    onClick={() =>
-                      setFilters((was) => ({ ...was, noCsatOnly: !was.noCsatOnly }))
-                    }
-                  />
-                </FilterRow>
-                {activeCount > 0 && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setFilters((was) => ({ ...EMPTY_FILTERS, query: was.query }))
-                    }
-                    className="text-[12px] font-black text-[#3182f6] hover:underline"
-                  >
-                    필터 초기화
-                  </button>
-                )}
+        <>
+          {upcoming.length > 0 && (
+            <section className="mt-6">
+              <h2 className="text-[13px] font-black text-[#8b95a1]">다가오는 마감</h2>
+              <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+                {upcoming.map(({ university, notice }) => {
+                  const remaining = countdown(notice, today as string);
+                  return (
+                    <div
+                      key={notice.id}
+                      className="min-w-[168px] flex-1 rounded-2xl bg-[#191f28] px-4 py-3 text-white"
+                    >
+                      <p className="text-[11px] font-bold text-[#b0b8c1]">
+                        {remaining?.label}
+                      </p>
+                      <p className="mt-0.5 text-[22px] font-black leading-none">
+                        D-{remaining?.days === 0 ? "DAY" : remaining?.days}
+                      </p>
+                      <p className="mt-2 truncate text-[12px] font-black">
+                        {university.name}
+                      </p>
+                      <p className="truncate text-[11px] font-semibold text-[#b0b8c1]">
+                        {notice.department ?? ""}
+                      </p>
+                    </div>
+                  );
+                })}
               </div>
-            )}
+            </section>
+          )}
 
-            <p className="mt-3 text-[12px] font-bold text-[#8b95a1]">
-              대학 {visible.length}곳
-            </p>
+          <div className="mt-6 flex flex-wrap items-center gap-2">
+            <input
+              value={filters.query}
+              onChange={(event) =>
+                setFilters((was) => ({ ...was, query: event.target.value }))
+              }
+              placeholder="대학·학과·지역 검색"
+              className="min-w-[200px] flex-1 rounded-xl border border-[#e5e8eb] bg-white px-4 py-2.5 text-[14px] font-semibold text-[#191f28] outline-none placeholder:text-[#b0b8c1] focus:border-[#3182f6]"
+            />
+            <button
+              type="button"
+              onClick={() =>
+                setFilters((was) => ({ ...was, openOnly: !was.openOnly }))
+              }
+              className={`rounded-xl px-4 py-2.5 text-[13px] font-black ${
+                filters.openOnly
+                  ? "bg-[#3182f6] text-white"
+                  : "border border-[#e5e8eb] bg-white text-[#4e5968]"
+              }`}
+            >
+              접수 가능만
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterOpen((was) => !was)}
+              className={`rounded-xl px-4 py-2.5 text-[13px] font-black ${
+                activeCount > 0
+                  ? "bg-[#191f28] text-white"
+                  : "border border-[#e5e8eb] bg-white text-[#4e5968]"
+              }`}
+            >
+              필터{activeCount > 0 ? ` ${activeCount}` : ""}
+            </button>
+          </div>
 
-            <div className="mt-2 space-y-3">
-              {visible.map(({ university, notices }) => (
-                <UniversityCard
-                  key={university.id}
-                  university={university}
-                  notices={notices}
-                  today={today}
+          {filterOpen && (
+            <div className="mt-2 space-y-3 rounded-2xl border border-[#e5e8eb] bg-white p-4">
+              <FilterRow label="지역" values={facets.regions}>
+                {facets.regions.map((region) => (
+                  <Chip
+                    key={region}
+                    label={region}
+                    on={filters.regions.includes(region)}
+                    onClick={() => toggle("regions", region)}
+                  />
+                ))}
+              </FilterRow>
+              <FilterRow label="전형" values={facets.tracks}>
+                {facets.tracks.map((track) => (
+                  <Chip
+                    key={track}
+                    label={track}
+                    on={filters.tracks.includes(track)}
+                    onClick={() => toggle("tracks", track)}
+                  />
+                ))}
+              </FilterRow>
+              <FilterRow label="계열" values={facets.disciplines}>
+                {facets.disciplines.map((discipline) => (
+                  <Chip
+                    key={discipline}
+                    label={DISCIPLINE_LABEL[discipline] ?? discipline}
+                    on={filters.disciplines.includes(discipline)}
+                    onClick={() => toggle("disciplines", discipline)}
+                  />
+                ))}
+              </FilterRow>
+              <FilterRow label="실기 종목" values={facets.practicals}>
+                {facets.practicals.map((category) => (
+                  <Chip
+                    key={category}
+                    label={PRACTICAL_LABEL[category] ?? category}
+                    on={filters.practicals.includes(category)}
+                    onClick={() => toggle("practicals", category)}
+                  />
+                ))}
+              </FilterRow>
+              <FilterRow label="학교" values={["always"]}>
+                {facets.types.map((type) => (
+                  <Chip
+                    key={type}
+                    label={TYPE_LABEL[type] ?? type}
+                    on={filters.types.includes(type)}
+                    onClick={() => toggle("types", type)}
+                  />
+                ))}
+                <Chip
+                  label="수능 최저 없음"
+                  on={filters.noCsatOnly}
+                  onClick={() =>
+                    setFilters((was) => ({ ...was, noCsatOnly: !was.noCsatOnly }))
+                  }
                 />
-              ))}
-              {visible.length === 0 && (
-                <p className="py-10 text-center text-sm font-semibold text-[#8b95a1]">
-                  조건에 맞는 대학이 없어요.
-                </p>
+              </FilterRow>
+              {activeCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setFilters((was) => ({ ...EMPTY_FILTERS, query: was.query }))
+                  }
+                  className="text-[12px] font-black text-[#3182f6] hover:underline"
+                >
+                  필터 초기화
+                </button>
               )}
             </div>
+          )}
 
-            <p className="mt-8 text-[12px] font-semibold leading-5 text-[#8b95a1]">
-              {payload.updated_at} 기준 · 확인한 곳부터 차례로 채우고 있어요
-              <br />
-              입시결과에 적힌 학생부 숫자는 최종등록자의 교과 성적이에요. 실기 성적은
-              대부분의 대학이 공개하지 않지만, 공개한 곳은 함께 적어 뒀어요.
-            </p>
-          </>
-        )}
+          <p className="mt-3 text-[12px] font-bold text-[#8b95a1]">
+            대학 {visible.length}곳
+          </p>
+
+          <div className="mt-2 space-y-3">
+            {visible.map(({ university, notices }) => (
+              <UniversityCard
+                key={university.id}
+                university={university}
+                notices={notices}
+                today={today}
+              />
+            ))}
+            {visible.length === 0 && (
+              <p className="py-10 text-center text-sm font-semibold text-[#8b95a1]">
+                조건에 맞는 대학이 없어요.
+              </p>
+            )}
+          </div>
+
+          <p className="mt-8 text-[12px] font-semibold leading-5 text-[#8b95a1]">
+            {payload.updated_at} 기준 · 확인한 곳부터 차례로 채우고 있어요
+            <br />
+            입시결과에 적힌 학생부 숫자는 최종등록자의 교과 성적이에요. 실기 성적은
+            대부분의 대학이 공개하지 않지만, 공개한 곳은 함께 적어 뒀어요.
+          </p>
+        </>
 
         </div>
       </main>

@@ -20,11 +20,11 @@ function localDate(at: number): string {
  */
 export function answeredAdmissions(
   resource: Resource<AdmissionsResponse>,
-  initial?: AdmissionsResponse,
+  initial: AdmissionsResponse,
 ): {
-  payload: AdmissionsResponse | null;
+  payload: AdmissionsResponse;
   today: string | null;
 } {
-  if (resource.state !== "ready") return { payload: initial ?? null, today: null };
+  if (resource.state !== "ready") return { payload: initial, today: null };
   return { payload: resource.data, today: localDate(resource.receivedAt) };
 }
