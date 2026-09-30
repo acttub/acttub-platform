@@ -56,6 +56,16 @@ const STATS_KEY = "reading.stats";
 const PREFS_KEY = "reading.run_prefs";
 const MEMORIZE_KEY = "reading.memorize";
 
+/** 브라우저 저장소. 서버 렌더 중이거나 저장이 막힌 환경(시크릿 등)이면 null. */
+export function webStorage(kind: "localStorage" | "sessionStorage"): Storage | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window[kind];
+  } catch {
+    return null;
+  }
+}
+
 function read<T>(key: string): T | null {
   try {
     const v = sessionStorage.getItem(key);

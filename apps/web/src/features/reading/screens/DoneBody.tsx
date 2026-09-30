@@ -8,14 +8,10 @@
  */
 import { quizSummaryLabel, reviewLines } from "@/lib/reading/session/results";
 import type { RunStats, StoredScript } from "@/lib/reading/storage";
+import { clockLabel } from "@/features/reading/session-copy";
 import { Button, Icon } from "@/features/reading/ui";
 
 export const REVIEW_HEADING = (n: number) => `암기 필요 ${n}`;
-
-function fmt(ms: number) {
-  const s = Math.floor(ms / 1000);
-  return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
-}
 
 export const SAVING_COPY = "저장 중";
 
@@ -49,7 +45,7 @@ export function DoneBody({
   const items: [string, string][] = [
     [stats.myCharacterNames.join(", ") || "배역 미선택", "내 배역"],
     [`${stats.lineCount}줄`, "읽은 대사"],
-    [fmt(stats.elapsedMs), "걸린 시간"],
+    [clockLabel(stats.elapsedMs), "걸린 시간"],
   ];
   return (
     <div className="flex-1 flex flex-col items-center justify-center gap-4 md:gap-[18px] px-5 py-8 md:max-w-[560px] md:mx-auto w-full">

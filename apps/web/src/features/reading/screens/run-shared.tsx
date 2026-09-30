@@ -11,7 +11,7 @@ import { progress, type RehearsalState } from "@/lib/reading/rehearsal/machine";
 import { dialogueNumbers, type DialogueLine, type ScriptLine } from "@/lib/reading/script/parse";
 import { isMasked, MASK_MODES, maskLabel, saveMask, type MaskMode } from "@/lib/reading/session/mask";
 import type { PartnerVoice } from "@/features/reading/hooks/useRehearsalRunner";
-import { exitConfirmCopy, guideCopy, guideSeen, markGuideSeen, NO_SPEECH_NOTICE } from "@/features/reading/session-copy";
+import { clockLabel, exitConfirmCopy, guideCopy, guideSeen, markGuideSeen, NO_SPEECH_NOTICE } from "@/features/reading/session-copy";
 import { Button, Icon } from "@/features/reading/ui";
 import { VoiceSetup } from "@/features/reading/voice-setup";
 
@@ -170,6 +170,5 @@ export function NoSpeechNote() {
 
 export function progressLabel(state: RehearsalState, elapsedMs: number): string {
   const p = progress(state);
-  const s = Math.floor(elapsedMs / 1000);
-  return `${p.done} / ${p.total} · ${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+  return `${p.done} / ${p.total} · ${clockLabel(elapsedMs)}`;
 }

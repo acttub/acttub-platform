@@ -5,7 +5,8 @@ import { test } from "node:test";
 
 import "./ts-module-loader.mjs";
 
-const { assignPresets, isVoicePreset, PRESET_CYCLE, voicesFor } = await import("../src/lib/reading/session/cast.ts");
+const { assignPresets, isVoicePreset, voicesFor } = await import("../src/lib/reading/session/cast.ts");
+const { PRESET_CYCLE } = await import("../src/lib/reading/audio/supertonic/models.ts");
 const { fullRange, indexOfLine, myDialogueCount, partnerLineBefore } = await import("../src/lib/reading/session/range.ts");
 const { createElapsedClock, createProgressSync } = await import("../src/lib/reading/session/progress.ts");
 const { createLineResults, quizSummaryLabel, reviewLines } = await import("../src/lib/reading/session/results.ts");

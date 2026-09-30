@@ -13,7 +13,8 @@ import { recordingSummary } from "@/lib/reading/recording/playback";
 import { Page } from "@/features/reading/page-shell";
 import { resumeProgress, sessionDateLabel } from "@/features/reading/session-cards";
 import { SessionRecordings } from "@/features/reading/screens/SessionRecordings";
-import { myCharactersLabel, resumeLabel, sessionStatusLabel } from "@/features/reading/session-copy";
+import { myCharactersLabel } from "@/features/reading/script-list";
+import { resumeLabel, sessionStatusLabel } from "@/features/reading/session-copy";
 import { Button, Card, CardTitle, StatusPill, TopBar } from "@/features/reading/ui";
 
 const DELETE_FAILED_COPY = "회차를 지우지 못했어요. 다시 시도해 주세요.";
@@ -110,7 +111,7 @@ export function ScriptDetailScreen({
                           <span className="text-[12px] font-semibold text-ink-4">{sessionDateLabel(card.started_at)}</span>
                         </p>
                         <p className="text-[12px] text-ink-4 mt-1">
-                          {myCharactersLabel(card.my_character_names)} · {recordingSummary(card)}
+                          {myCharactersLabel(card)} · {recordingSummary(card)}
                         </p>
                       </div>
                       <div className="shrink-0 flex items-center gap-3">

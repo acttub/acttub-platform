@@ -4,23 +4,15 @@
  * 보내지 못한 값은 대본별로 기기 저장소에 둔다.
  */
 import { updateScript } from "@/lib/api/v2/reading-scripts";
+import { webStorage } from "@/lib/reading/storage";
 
 const PENDING_KEY = "acttub.reading.pending_voices";
 
 type Pending = Record<string, Record<string, string | null>>;
 
-function store(): Storage | null {
-  if (typeof window === "undefined") return null;
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
-}
-
 function readPending(): Pending {
   try {
-    const raw = store()?.getItem(PENDING_KEY);
+    const raw = webStorage("localStorage")?.getItem(PENDING_KEY);
     return raw ? (JSON.parse(raw) as Pending) : {};
   } catch {
     return {};
@@ -29,7 +21,7 @@ function readPending(): Pending {
 
 function writePending(p: Pending): void {
   try {
-    store()?.setItem(PENDING_KEY, JSON.stringify(p));
+    webStorage("localStorage")?.setItem(PENDING_KEY, JSON.stringify(p));
   } catch {
     /* 저장이 막힌 환경이면 이번 회차만 기억한다 */
   }

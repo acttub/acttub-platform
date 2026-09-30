@@ -10,7 +10,7 @@
 import { speakableText } from "@/lib/reading/script/parse";
 import { synthesize, load as loadSupertonic } from "@/lib/reading/audio/supertonic/engine";
 import { playSynthesized, unlockAudio } from "@/lib/reading/audio/supertonic/play";
-import type { VoicePreset } from "@/lib/reading/audio/supertonic/models";
+import { PRESET_CYCLE, type VoicePreset } from "@/lib/reading/audio/supertonic/models";
 
 export type Engine = "supertonic" | "device";
 
@@ -39,9 +39,6 @@ const DEVICE_STYLES: VoiceStyle[] = [
   { pitch: 0.95 },
 ];
 
-/** 남녀가 번갈아 나오도록 섞어 둔다 — 등장 순서대로 집으면 대개 대화처럼 들린다. */
-const PRESET_ORDER: VoicePreset[] = ["F1", "M1", "F2", "M2", "F3", "M3", "F4", "M4", "F5", "M5"];
-
 /**
  * 배역 목록을 받아 배역마다 목소리를 정한다.
  * 순서만 보고 정하므로, 같은 대본이면 다시 들어와도 같은 목소리가 나온다.
@@ -51,7 +48,7 @@ export function assignVoices(roles: string[]): Record<string, RoleVoice> {
   roles.forEach((role, i) => {
     out[role] = {
       device: DEVICE_STYLES[i % DEVICE_STYLES.length],
-      preset: PRESET_ORDER[i % PRESET_ORDER.length],
+      preset: PRESET_CYCLE[i % PRESET_CYCLE.length],
     };
   });
   return out;
