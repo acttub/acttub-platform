@@ -54,7 +54,7 @@ const nextConfig: NextConfig = {
   // wasm 에는 SharedArrayBuffer 가 필요하고, 그건 교차 출처 격리(COOP+COEP)가 켜진 문서에만 있다.
   // **이 경로에만** 건다 — 교차 출처 격리가 필요한 화면은 리딩뿐이다. 처음 이렇게 좁힌 까닭은
   // 사이트 전체에 걸면 Google/Apple 로그인 팝업이 opener 를 잃어서였다(SOMA-447). 웹 로그인은
-  // 1.0.0 에서 없어졌지만(SOMA-528) 범위는 그대로 둔다 — 필요한 곳에만 거는 편이 외부 창·임베드와
+  // 0.1.0 에서 없어졌지만(SOMA-528) 범위는 그대로 둔다 — 필요한 곳에만 거는 편이 외부 창·임베드와
   // 덜 부딪힌다. credentialless 라 외부 CSS·모델(HF CDN)은 CORP 헤더 없이도 자격증명 없이 받아진다.
   async headers() {
     return [

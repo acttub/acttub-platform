@@ -26,7 +26,7 @@ class AnalysisWorkerScheduler {
             Logger.getLogger(AnalysisWorkerScheduler.class.getName());
 
     /**
-      * 원장마다 워커 하나다 — 옛 {@code external_operations} 와 1.0.0 의 {@code ai_jobs} (practice.analyze).
+      * 원장마다 워커 하나다 — 옛 {@code external_operations} 와 0.1.0 의 {@code ai_jobs} (practice.analyze).
       * 둘은 서로 다른 큐를 집고 서로 다른 표에 쓰지만 lease·실패 분류 규칙은 한 벌이다(CONTRACT §5-7).
       * PA4 가 코치·노트를 회차로 옮기면 옛 워커가 사라진다.
       */

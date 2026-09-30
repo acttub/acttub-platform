@@ -5,7 +5,7 @@ import java.util.Map;
 
 /**
  * 프로필의 저장 값을 사람이 읽는 말로 푼다 — 가입 화면(A0.2)의 선택지 그대로다
- * ({@code docs/requirements/01-account.md} account.profile 「데이터」).
+ * ({@code docs/specs/account/profile.md} 「데이터」).
  *
  * <p>저장 값({@code y1_to_3})은 DB 와 API 의 어휘이고, 코치와 노트의 모델에는 배우가 화면에서 고른
  * 말("1–3년")로 넘긴다. 어휘의 주인이 여기라서 표시말도 여기 한 벌만 둔다 — 읽는 쪽마다 따로 두면

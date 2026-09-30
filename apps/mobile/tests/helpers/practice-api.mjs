@@ -4,7 +4,7 @@ import { registerHooks } from 'node:module';
 
 // Only native boundaries are replaced. api.ts, request/auth layers and screen rules run unchanged.
 const nativeModules = {
-  'expo-constants': 'export default { expoConfig: { version: "1.0.0" } };',
+  'expo-constants': 'export default { expoConfig: { version: "0.1.0" } };',
   'expo-file-system/legacy': 'export const FileSystemUploadType = { BINARY_CONTENT: 0 }; export const createUploadTask = () => { throw new Error("native upload is not part of this test"); };',
   'expo-secure-store': 'const values = new Map(); export const getItemAsync = async k => values.get(k) ?? null; export const setItemAsync = async (k,v) => { values.set(k,v); }; export const deleteItemAsync = async k => { values.delete(k); };',
 };

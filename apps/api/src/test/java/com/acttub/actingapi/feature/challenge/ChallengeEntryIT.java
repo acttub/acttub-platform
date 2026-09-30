@@ -458,7 +458,7 @@ class ChallengeEntryIT {
     @Test void challengeBrowse_guestsAndWebClientsAreRefused() throws Exception {
         UUID challenge = challenge(NOW.plus(Duration.ofDays(7)));
         var result = mvc.perform(get("/v2/challenges/{id}/entries", challenge).header("Authorization", bearer)
-                .header("X-Acttub-Client", "web/1.0.0").header("Accept-Language", "ko")).andReturn().getResponse();
+                .header("X-Acttub-Client", "web/0.1.0").header("Accept-Language", "ko")).andReturn().getResponse();
         assertThat(result.getStatus()).isEqualTo(403);
         assertThat(json.readTree(result.getContentAsString()).path("detail").asText()).isEqualTo("member_only");
     }
@@ -479,7 +479,7 @@ class ChallengeEntryIT {
         // 보는 사람이 없으니 차단은 따지지 않는다. 만료된 토큰이 붙어 와도 검증하지 않는다.
         jdbc.update("INSERT INTO user_blocks(id,blocker_id,blocked_id) VALUES (?,?,?)", UUID.randomUUID(), user, author);
         var withStaleToken = mvc.perform(get("/v2/public/entries/{id}", shown).header("Authorization", "Bearer expired")
-                .header("X-Acttub-Client", "web/1.0.0")).andReturn().getResponse();
+                .header("X-Acttub-Client", "web/0.1.0")).andReturn().getResponse();
         assertThat(withStaleToken.getStatus()).isEqualTo(200);
 
         UUID secret = seeded(challenge, member("비공개"), 2, 0);
@@ -515,7 +515,7 @@ class ChallengeEntryIT {
 
     /** 로그인 없는 웹 서버의 조회 — 토큰을 싣지 않는다. */
     private org.springframework.mock.web.MockHttpServletResponse publicLookup(UUID entry) throws Exception {
-        return mvc.perform(get("/v2/public/entries/{id}", entry).header("X-Acttub-Client", "web/1.0.0")
+        return mvc.perform(get("/v2/public/entries/{id}", entry).header("X-Acttub-Client", "web/0.1.0")
                 .header("Accept-Language", "ko")).andReturn().getResponse();
     }
 
@@ -596,7 +596,7 @@ class ChallengeEntryIT {
 
     private org.springframework.mock.web.MockHttpServletResponse raw(MockHttpServletRequestBuilder request, String authorization)
             throws Exception {
-        return mvc.perform(request.header("Authorization", authorization).header("X-Acttub-Client", "app/1.0.0")
+        return mvc.perform(request.header("Authorization", authorization).header("X-Acttub-Client", "app/0.1.0")
                 .header("Accept-Language", "ko").contentType(MediaType.APPLICATION_JSON)).andReturn().getResponse();
     }
 
@@ -605,7 +605,7 @@ class ChallengeEntryIT {
     }
 
     private JsonNode response(MockHttpServletRequestBuilder request, int expected, String authorization) throws Exception {
-        var result = mvc.perform(request.header("Authorization", authorization).header("X-Acttub-Client", "app/1.0.0")
+        var result = mvc.perform(request.header("Authorization", authorization).header("X-Acttub-Client", "app/0.1.0")
                 .header("Accept-Language", "ko").contentType(MediaType.APPLICATION_JSON)).andReturn();
         var response = result.getResponse();
         assertThat(response.getStatus()).as("%s (%s)", response.getContentAsString(), result.getResolvedException()).isEqualTo(expected);

@@ -85,7 +85,7 @@ test('account.notification: 알림 권한이 꺼진 폰에서 토글을 켜면 �
   assert.equal(permissionPrompt({ turningOn: false, granted: false, canAskAgain: false }), 'none');
 });
 
-test('account.notification: 1.0.0 이전에 알림을 꺼 둔 사람은 업데이트 뒤에도 셋 다 꺼진 채로 시작한다', () => {
+test('account.notification: 0.1.0 이전에 알림을 꺼 둔 사람은 업데이트 뒤에도 셋 다 꺼진 채로 시작한다', () => {
   assert.deepEqual(legacyOptOutPatch('false'), {
     analysis_done: false,
     challenge: false,

@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * 업로드 의도 하나. CONTEXT.md 가 말하는 Domain Model 이며 {@code upload_intents} 행을 옮겨 담는다.
+ * 업로드 의도 하나. docs/ARCHITECTURE.md 가 말하는 Domain Model 이며 {@code upload_intents} 행을 옮겨 담는다.
  *
  * <p>{@code status} 를 {@code UploadStatus} 가 아니라 문자열로 들고 있는다. 그 열거형은
  * {@code jakarta.persistence.Converter} 를 끌고 있어 여기로 들이면 Domain Model 이

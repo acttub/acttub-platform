@@ -50,7 +50,7 @@ export interface RunStats {
   lineResults: LineResult[];
 }
 
-// 1.0.0 이전의 "rehearsal.script"(서버 저장 전, id 없음)와 키를 달리 해 옛 값을 읽지 않는다.
+// 0.1.0 이전의 "rehearsal.script"(서버 저장 전, id 없음)와 키를 달리 해 옛 값을 읽지 않는다.
 const DRAFT_KEY = "reading.draft";
 const SCRIPT_KEY = "reading.script";
 const SESSION_KEY = "reading.session";

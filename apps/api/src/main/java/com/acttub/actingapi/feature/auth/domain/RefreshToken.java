@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * 저장돼 있는 refresh 토큰 하나. CONTEXT.md 가 말하는 Domain Model 이며
+ * 저장돼 있는 refresh 토큰 하나. docs/ARCHITECTURE.md 가 말하는 Domain Model 이며
  * {@code refresh_tokens} 행을 옮겨 담는다.
  *
  * <p>회전의 판정이 여기 산다. 판정을 <b>부르는 자리</b>는 저장소의 트랜잭션 안이다 —

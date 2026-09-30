@@ -7,8 +7,8 @@ export const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace
 // 값의 검증과 정규화는 src/lib/seo/site-metadata.ts에서 담당한다.
 
 // 요청마다 보내는 클라이언트 종류와 판(X-Acttub-Client). 서버는 이 헤더가 없는 요청을
-// 1.0.0 이전 빌드로 보고 426으로 답한다(docs/requirements/00-common.md 공통 규칙).
-export const ACTTUB_CLIENT = "web/1.0.0";
+// 0.1.0 이전 빌드로 보고 426으로 답한다(docs/specs/common.md 공통 규칙).
+export const ACTTUB_CLIENT = "web/0.1.0";
 
 // S3 버킷 CORS가 설정되기 전에는 브라우저 직접 PUT이 막히므로 목킹 모드로 우회한다.
 export const MOCK_S3_UPLOAD = process.env.NEXT_PUBLIC_MOCK_S3_UPLOAD === "1";
@@ -26,7 +26,7 @@ export const MOCK_S3_UPLOAD = process.env.NEXT_PUBLIC_MOCK_S3_UPLOAD === "1";
 //                                  환경별로 다른 프로젝트 키를 넣어 통계를 나눈다.
 // 로컬에서 확인하려면 apps/web/.env.local 에 넣는다(.env* 는 커밋되지 않는다).
 
-// 후기는 1.0.0 부터 서버에 직접 접수한다(practice.feedback). 외부 폼 주소는 더 쓰지 않는다.
+// 후기는 0.1.0 부터 서버에 직접 접수한다(practice.feedback). 외부 폼 주소는 더 쓰지 않는다.
 
 // 백엔드 uploads.py의 MAX_UPLOAD_BYTES(100MB)와 동일해야 한다.
 export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;

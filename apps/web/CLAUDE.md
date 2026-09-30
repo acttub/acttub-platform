@@ -6,7 +6,7 @@
 2. 작업 갈래에 맞는 문서를 먼저 읽습니다.
    - **테스트를 추가·수정하거나 실패를 진단**할 때 → [TESTING.md](TESTING.md)
    - **계측·이벤트·동의**를 바꿀 때 → [ANALYTICS.md](ANALYTICS.md)
-   - **번들러**를 바꿀 때 → [번들러 변경 검증](ANALYTICS.md#번들러-변경-검증)
+   - **번들러**(`build` 스크립트의 번들러 플래그)를 바꿀 때 → [번들러 변경 검증](ANALYTICS.md#번들러-변경-검증)
    - **성능 예산·Lighthouse**를 바꿀 때 → [PERFORMANCE.md](PERFORMANCE.md)
 3. API 계약을 바꾸면 [계약 변경 절차](../api/CONTRACT.md#계약-변경-절차)를 함께 따릅니다.
 
@@ -19,24 +19,33 @@
 빌드가 서버 코드를 허용하더라도 이 경계는 그대로입니다. 백엔드가 Next와 Spring Boot로
 갈리면 인증·권한·계약 검증도 두 벌이 됩니다.
 
+예외는 참여작 공유 페이지 `src/app/e/[id]` 하나입니다. 메신저 미리보기 수집기가 JS를 돌리지 않으므로
+요청마다 서버에서 렌더하고(`dynamic = "force-dynamic"`) API를 부를 뿐, 서버 로직은 두지 않습니다.
+
 ## 빌드·프리렌더
 
 - 배포 빌드는 `package.json`의 `build` 스크립트를 그대로 사용하고 `build`를 `typecheck`보다
   먼저 실행합니다. Next 빌드가 `next-env.d.ts`와 `.next/types`를 만듭니다.
-  `build`의 번들러 플래그를 바꿀 때는 [번들러 변경 검증](ANALYTICS.md#번들러-변경-검증)을
-  통과합니다.
 - `API_ORIGIN`은 빌드 시 `routes-manifest.json`에 굳습니다. 배포 프록시 대상을 런타임
   환경변수로 바꿀 수 있다고 가정하지 않습니다.
 - 페이지 프리렌더를 유지합니다. `useSearchParams`는 `<Suspense>` 안에서 사용하고, 모듈
   최상위의 `window`·`navigator` 접근을 피하며, 클라이언트 번들에는 공개값만 넣습니다.
 - 보안 컨텍스트 전용 브라우저 API는 HTTP로 여는 LAN 개발 환경에서도 동작할 폴백을 둡니다.
 
+## 연습 화면
+
+- 연습의 Practice Stage 여섯은 라우터 이동 없이 같은 컴포넌트 안에서 바뀝니다
+  (`features/workspace/workspace-state.ts`의 `WorkspaceScreen`). `/home`·`/practice/new`·`/practice/history`
+  셋이 같은 `WorkspaceApp`을 렌더합니다.
+- 화면이 바뀔 때 주소는 `history.replaceState`로 갈아끼웁니다. `router.replace`를 쓰면 `useSearchParams`를
+  감싼 Suspense가 다시 걸려 흰 화면이 깜빡입니다. 로그인·로그아웃처럼 화면을 실제로 옮기는 이동만 `router`를 씁니다.
+
 ## 데이터·API
 
 - 화면은 `src/lib/api/v2/*`를 통해 호출합니다. 토큰·refresh·멱등 재시도·429 백오프는 공용
   클라이언트가 맡고 UI에서 다시 구현하지 않습니다.
-- 서버 응답 하나가 화면의 단일 상태라면 `src/lib/react/use-resource.ts`의 `useResource`를
-  사용합니다. 조회 키는 원시값 하나로 주고 `null`은 조회 게이트로 씁니다.
+- 전역 상태 라이브러리는 없습니다. 서버 응답 하나가 화면의 단일 상태라면
+  `src/lib/react/use-resource.ts`의 `useResource`를 사용합니다. 조회 키는 원시값 하나로 주고 `null`은 조회 게이트로 씁니다.
 - 목록 누적, 폼 초기값, 편집 상태, 같은 응답을 세우는 경로가 둘 이상인 화면은 별도 state를
   유지합니다. 기존 예외 자리의 코드 주석이 그 판단의 정본입니다.
 - 화면 오류 문구는 `src/lib/api/v2/errors.ts:errorMessage`로 만들고, 404는 리소스 존재 여부를
@@ -46,14 +55,15 @@
 
 - 프레젠테이션 컴포넌트는 같은 파일의 로컬 함수로 둡니다. 두 화면이 실제로 공유할 때만 해당
   feature의 가장 가까운 공통 파일로 올립니다.
-- 사용자 카피와 제품 언어 가드의 적용 범위는 [UI 가이드의 카피](../../docs/design/UI_GUIDE.md#카피)를
-  따릅니다.
+- 사용자 카피는 [PRD 「디자인」](../../docs/PRD.md#디자인)의 카피 규칙을 따릅니다.
+- `tests/product-language-guard.test.mjs`가 `pnpm --filter web test` 안에서 금지어를 막습니다. 목록은 그 파일의
+  `forbiddenProductLanguage`가 정본입니다. `src` 전체를 훑으므로 주석과 변수 이름도 걸립니다.
 
 ## 완료 기준
 
 - 시작 순서에서 해당하는 모든 갈래의 문서와 실제 설정을 확인합니다.
 - 빌드·프록시 변경은 `build → typecheck`와 배포 산출물에서 검증하고, 번들러 변경은 계측
   런타임까지 확인합니다.
-- API 변경은 공용 클라이언트 경계와 계약 변경 절차를, 화면·카피 변경은 UI 가이드와
+- API 변경은 공용 클라이언트 경계와 계약 변경 절차를, 화면·카피 변경은 pen 파일·PRD 「디자인」과
   영향받는 흐름을 확인합니다.
 - 테스트는 [TESTING.md](TESTING.md)의 완료 기준과 루트 CI의 web 잡 범위를 통과합니다.

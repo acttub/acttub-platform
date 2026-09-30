@@ -18,7 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 1.0.0 회차가 끝난 뒤 배우 기억을 뒤에서 갱신한다 ({@code ai_jobs} 종류 {@code memory_update}, practice.memory).
+ * 0.1.0 회차가 끝난 뒤 배우 기억을 뒤에서 갱신한다 ({@code ai_jobs} 종류 {@code memory_update}, practice.memory).
  *
  * <p>대화 응답 안에서 처리하지 않는 이유는 속도다 — 그 화면은 이미 노트를 만드느라 느린데 모델 호출을 하나 더
  * 얹으면 배우가 그만큼 더 기다린다.

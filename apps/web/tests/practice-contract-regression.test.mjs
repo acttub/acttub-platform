@@ -23,7 +23,7 @@ const {
   updateBlockageDetail,
 } = await import("../src/features/practice/blockage-flow.ts");
 
-// 1.0.0 의 회차 생성 본문(practice.start): 영상은 보관함 id 로 가리키고, 장면·막힘은 묶음으로 실린다.
+// 0.1.0 의 회차 생성 본문(practice.start): 영상은 보관함 id 로 가리키고, 장면·막힘은 묶음으로 실린다.
 // 경험 판은 본문이 아니라 X-Acttub-Contract 헤더로 간다 — 실제 판은 서버가 정한다(experience_version).
 test("영상만 고른 시작은 빈 장면과 그 외 기본값으로 조립한다", () => {
   const blockage = completeBlockageFlowWithDefault(initialBlockageFlowState);

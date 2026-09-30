@@ -107,7 +107,7 @@ class ActorProfileReaderIT {
         assertThat(report.completeFor(user)).isNull();
         assertThat(coach.completeFor(UUID.randomUUID())).as("없는 사용자").isNull();
 
-        // 1.0.0 이전 회원 — 옛 닉네임만 이름 칸에 있다.
+        // 0.1.0 이전 회원 — 옛 닉네임만 이름 칸에 있다.
         jdbc.update("INSERT INTO user_profiles(user_id,name) VALUES (?,'옛 닉네임')", user);
         assertThat(coach.completeFor(user)).isNull();
         assertThat(report.completeFor(user)).isNull();

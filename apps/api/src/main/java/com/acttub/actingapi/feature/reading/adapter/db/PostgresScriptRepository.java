@@ -36,7 +36,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 대본의 쓰기는 <b>탈퇴·이관과 같은 {@code users} 행을 {@code FOR UPDATE} 로 잡은 채</b> 한다
- * (apps/api/CONTRACT.md §6-8, 03-reading 「리딩 자료의 이관·삭제·탈퇴」). 그 행이 활성이 아니면 아무것도
+ * (apps/api/CONTRACT.md §6-8, specs/reading 「리딩 자료의 이관·삭제·탈퇴」). 그 행이 활성이 아니면 아무것도
  * 쓰지 않는다 — 게이트를 지난 뒤에 끝난 탈퇴·이관 뒤로 옛 계정에 대본이 생기지 않는다. 같은 회원의 등록이
  * 겹쳐도 여기서 줄을 서므로 개수 한도가 정확하다.
  *

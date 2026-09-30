@@ -1,6 +1,6 @@
 import type { KeywordPageContent } from "../types";
 
-// 제품 사실(입력·흐름·결과물)은 랜딩 카피와 CONTEXT.md가 정본이다. 여기에 없는 기능을
+// 제품 사실(입력·흐름·결과물)은 랜딩 카피와 docs/specs/practice가 정본이다. 여기에 없는 기능을
 // 적지 않는다. 제품 언어 가드가 이 파일도 훑는다 — 가드 목록의 말은 본문에서도 쓰지 않는다.
 export const AI_ACTING_COACHING: KeywordPageContent = {
   path: "/ai-acting-coaching",

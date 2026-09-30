@@ -64,7 +64,7 @@ test("challenge.share: 웹 서버가 토큰 없이 API 에 직접 묻고 방문�
       url: "http://api:8080/v2/public/entries/a%2Fb%20c",
       method: "GET",
       authorization: null,
-      client: "web/1.0.0",
+      client: "web/0.1.0",
       forwardedFor: "203.0.113.7",
       cache: "no-store",
     },

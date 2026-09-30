@@ -1,5 +1,5 @@
 /**
- * 챌린지 계약 타입(04-challenge). 챌린지는 대사 한 줄과 기간이고, 영상은 연습과 같은 videos 를 쓴다.
+ * 챌린지 계약 타입(specs/challenge). 챌린지는 대사 한 줄과 기간이고, 영상은 연습과 같은 videos 를 쓴다.
  *
  * 서버 계약(apps/api/spec/openapi.json, CONTRACT §6-16~§6-20)과 칸을 맞춘다. tests/challenge-api-contract 가
  * 실제 api.ts 호출을 서버 스키마로 대조한다.

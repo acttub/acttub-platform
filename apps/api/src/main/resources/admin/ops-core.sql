@@ -9,7 +9,7 @@
 --   2. psql 변수 excl 을 JDBC 위치 바인드로 바꿨다. 바인드 자리는 team CTE 두 곳뿐이다
 --      (① 팀 이메일 목록, ② 팀 배우 가명 목록 — 아래 5).
 --   3. 이 머리말.
---   4. 1.0 연습 테이블을 함께 읽는다(SOMA-566) — 아래 "1.0 전환" CTE 다섯 개.
+--   4. 0.1.0 연습 테이블을 함께 읽는다(SOMA-566) — 아래 "0.1.0 전환" CTE 다섯 개.
 --   5. 팀을 가명으로도 뺀다(SOMA-569). 게스트는 이메일이 없어 ① 로는 못 거른다 — 화면의 "배우 xxxxxxxx"
 --      8자리(md5(user_id) 앞 8자리)를 쉼표로 받는다. 비면 아무도 더 안 빠진다.
 --   6. 기능별 사용('features' — 대본 리딩·챌린지·노트 평가·이탈 설문·커뮤니티·계정, SOMA-570). 수집기 정본에는 없다.
@@ -32,15 +32,15 @@ team AS (
     SELECT btrim(e) FROM unnest(string_to_array(lower(?), ',')) AS e)
      OR left(md5(id::text), 8) = ANY(string_to_array(?, ','))
 ),
--- ── 1.0 전환 (SOMA-566) ─────────────────────────────────────────────
--- 1.0 부터 연습은 practices · analyses · coach_conversations · coach_messages · ai_jobs 에 쌓인다.
+-- ── 0.1.0 전환 (SOMA-566) ─────────────────────────────────────────────
+-- 0.1.0 부터 연습은 practices · analyses · coach_conversations · coach_messages · ai_jobs 에 쌓인다.
 -- 옛 테이블(practice_sessions · summaries · coach_sessions · coach_turns · external_operations)은 남아 있고,
 -- 이관 명령(POST /v2/admin/practice-migration)이 옛 행을 <b>같은 id 로</b> 새 테이블에 옮긴다
 -- (practices.id = practice_sessions.id, coach_conversations.id = coach_sessions.id). 그래서
 -- "새 테이블 전부 + 새 테이블에 아직 없는 옛 행"은 이관 전·중·후 어느 때에도 한 번씩만 센다.
 -- 요약·작업은 새 id 로 옮겨지므로 이관 대응표(practice_migration_entries)로 옮겨진 옛 행을 뺀다.
 --
--- 옛 행의 모양은 이 파일의 이전 쿼리가 쓰던 그대로다 — 1.0 이전 숫자는 바뀌지 않는다.
+-- 옛 행의 모양은 이 파일의 이전 쿼리가 쓰던 그대로다 — 0.1.0 이전 숫자는 바뀌지 않는다.
 ps_all AS (
   SELECT p.id, p.user_id, p.created_at,
          CASE WHEN p.close_reason = 'analysis_failed' THEN 'failed'
@@ -223,7 +223,7 @@ rolled AS (
   LEFT JOIN team t ON t.id = e.user_id
   GROUP BY label, ord
 ),
--- 코치 대화에는 user_id 가 없다. 1.0 은 practices 로, 옛 행은 summaries → practice_sessions 를 거쳐야
+-- 코치 대화에는 user_id 가 없다. 0.1.0 은 practices 로, 옛 행은 summaries → practice_sessions 를 거쳐야
 -- 주인을 안다(옛 행은 예전처럼 요약이 붙은 대화만).
 chat AS (
   SELECT c.id, c.status, c.close_reason, c.created_at, p.user_id

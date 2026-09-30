@@ -1,3 +1,3 @@
-# Packages
+# packages
 
-Shared packages can live here later, such as shared types, utilities, or UI primitives.
+공유 패키지 자리입니다. 여기로 분리하는 조건은 [루트 지침 「앱 경계」](../CLAUDE.md#앱-경계)를 따릅니다.

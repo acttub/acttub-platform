@@ -9,7 +9,7 @@ import { enqueueLibraryUpload, flushLibraryUploads } from '@/lib/library/library
 import { newRequestId } from '@/lib/request-id';
 
 /**
- * 옛 앱의 기기 보관함(계정 구분 없는 목록)을 1.0.0 첫 실행 때 "이 영상들을 지금 계정의 보관함으로 옮길까요?"로 한 번
+ * 옛 앱의 기기 보관함(계정 구분 없는 목록)을 0.1.0 첫 실행 때 "이 영상들을 지금 계정의 보관함으로 옮길까요?"로 한 번
  * 묻는다(practice.record). 확인하면 업로드 대기 큐에 넣고 옛 목록을 비우며, 나중에를 고르면 기기에 남겨 다음 실행에 다시
  * 묻는다. 탭 레이아웃(게이트를 지난 뒤)에 붙어 실행마다 한 번만 묻는다.
  */

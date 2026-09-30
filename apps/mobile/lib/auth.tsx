@@ -305,7 +305,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (gatePassed) void syncNotificationsAfterGate().catch(() => undefined);
   }, [gatePassed, user?.id]);
 
-  // 1.0.0 이전 앱이 기기에 남긴 대본은 게이트를 지난 뒤 한 번 서버로 옮긴다(reading.script). 보호 기능이라
+  // 0.1.0 이전 앱이 기기에 남긴 대본은 게이트를 지난 뒤 한 번 서버로 옮긴다(reading.script). 보호 기능이라
   // 그 전에는 서버가 받지 않는다. 실패한 대본은 기기에 남아 다음 실행에 다시 한다. 기다리지 않는다.
   useEffect(() => {
     if (gatePassed) void runLegacyScriptMigrationOnce();

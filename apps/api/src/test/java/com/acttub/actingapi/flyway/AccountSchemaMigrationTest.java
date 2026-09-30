@@ -23,7 +23,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * 계정 1.0.0 스키마(V9)가 <b>이미 회원이 있는 DB</b> 위에서 넓히기만 하는지 본다 (SOMA-528).
+ * 계정 0.1.0 스키마(V9)가 <b>이미 회원이 있는 DB</b> 위에서 넓히기만 하는지 본다 (SOMA-528).
  *
  * <p>V9 은 세 가지를 한다 — 새 테이블을 더하고, 기존 테이블을 넓히고, 옛 닉네임을
  * {@code user_profiles.name} 으로 복사한다. {@code users.nickname} 은 지우지 않는다: 직전 운영
@@ -31,7 +31,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
  * 묶지 않는다({@code docs/BRANCHING-STRATEGY.md} 「DB와 배포 안전성」).
  *
  * <p>그래서 이 테스트가 지키는 것은 둘이다. <b>자료가 옮겨졌는가</b>(account.profile 의
- * "1.0.0 이전 회원은 옛 닉네임이 이름 칸에 채워진 프로필 화면을 만난다"), 그리고 <b>옛 서버로
+ * "0.1.0 이전 회원은 옛 닉네임이 이름 칸에 채워진 프로필 화면을 만난다"), 그리고 <b>옛 서버로
  * 되돌려도 그 서버의 INSERT 가 계속 통하는가</b>.
  */
 class AccountSchemaMigrationTest {

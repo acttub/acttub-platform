@@ -52,7 +52,7 @@ class ValueCheckCatalogIT {
         BY_CONSTRAINT.put("ck_coach_sessions_status", SessionStatus.class);
         BY_CONSTRAINT.put("ck_coach_sessions_close_reason", CloseReason.class);
         BY_CONSTRAINT.put("ck_coach_turns_role", TurnRole.class);
-        // 커뮤니티는 코드를 내리고 테이블을 남겼다(1.0.0). 되살릴 때 값이 어긋나 있지 않게 계속 본다.
+        // 커뮤니티는 코드를 내리고 테이블을 남겼다(0.1.0). 되살릴 때 값이 어긋나 있지 않게 계속 본다.
         BY_CONSTRAINT.put("ck_community_comments_status", ContentStatus.class);
         BY_CONSTRAINT.put("ck_community_posts_status", ContentStatus.class);
         BY_CONSTRAINT.put("ck_community_reports_target_type", ReportTargetType.class);

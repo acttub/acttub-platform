@@ -1,7 +1,7 @@
 import type { PracticeReport } from '../api';
 
 /**
- * 회차(practice) 계약 타입 — 1.0.0에서 연습은 묶음의 n차이고, 영상은 보관함의 독립 자산이다.
+ * 회차(practice) 계약 타입 — 0.1.0에서 연습은 묶음의 n차이고, 영상은 보관함의 독립 자산이다.
  *
  * 서버 PracticeDtos·ConversationDtos와 OpenAPI가 요청·응답의 정본이다.
  * 화면용 scene·blockage와 묶음 요약은 api.ts가 서버의 평평한 응답에서 구성한다.

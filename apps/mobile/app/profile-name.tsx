@@ -77,7 +77,7 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
   const prefilled = useRef(false);
 
   const me = profile.me;
-  // 서버에서 받은 값으로 한 번만 채운다. 1.0.0 이전 회원은 옛 닉네임이 이름 칸에 채워져 오고,
+  // 서버에서 받은 값으로 한 번만 채운다. 0.1.0 이전 회원은 옛 닉네임이 이름 칸에 채워져 오고,
   // 이름이 없으면 로그인 제공자가 준 이름을 첫 값으로 쓴다(저장은 버튼을 눌러야).
   useEffect(() => {
     if (prefilled.current || !me) return;

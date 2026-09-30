@@ -63,7 +63,7 @@ import { normalizeVideoDurationMs } from '@/lib/upload-input';
  * 영상은 보관함에서 고르거나 새로 찍는다 — 여기서 올리지 않는다(올리기는 보관함 큐가 한다).
  * 상황·인물·목표와 막힘은 모두 선택이고, 시작을 누르면 회차 하나와 분석 작업 하나가 생긴다.
  * 같은 시도의 재전송은 같은 요청 id 라 회차는 하나다. 묶음에 진행 중 회차가 있으면(409) 그
- * 회차로 돌려보낸다. 이론 선택은 1.0.0에서 뺐다.
+ * 회차로 돌려보낸다. 이론 선택은 0.1.0에서 뺐다.
  */
 const CATEGORIES: BlockageCategory[] = ['분석', '표현', '그 외'];
 const EXPRESSION_DETAILS: BlockageDetail[] = ['감정', '움직임', '화술', '표정', '그 외'];

@@ -649,7 +649,7 @@ class GuestTransferIT {
 
     /** 웹이 하듯 게스트를 만들고, 동의 하나를 남긴다(동의 기록은 옮겨지지 않는다는 것을 보려고). */
     @Test
-    @DisplayName("account.guest: 1.0.0 연습 자료도 함께 옮긴다 — 회차·AI 작업·배우 기억·이탈 설문·노트 평가가 회원 것이 되고, "
+    @DisplayName("account.guest: 0.1.0 연습 자료도 함께 옮긴다 — 회차·AI 작업·배우 기억·이탈 설문·노트 평가가 회원 것이 되고, "
             + "게스트가 이미 설문을 봤으면 회원에게도 다시 뜨지 않는다")
     void accountGuest_transferMovesPracticeRoundsJobsMemoriesAndSurveys() throws Exception {
         Guest guest = guest();
@@ -699,7 +699,7 @@ class GuestTransferIT {
                 .isEqualTo("회원의 목표");
     }
 
-    /** 1.0.0 회차 하나 — 영상과 함께 만든다. 분석·대화·노트는 이 행에 매달려 따라간다. */
+    /** 0.1.0 회차 하나 — 영상과 함께 만든다. 분석·대화·노트는 이 행에 매달려 따라간다. */
     private UUID practiceRound(UUID owner) {
         UUID videoId = UUID.randomUUID();
         jdbc.update("""
@@ -904,7 +904,7 @@ class GuestTransferIT {
                 UUID.randomUUID(), owner, field, value);
     }
 
-    /** 묶음 목록을 회차 id 로 편다 — 옛 묶음도 새 묶음도 같은 모양으로 온다(02-practice ②). */
+    /** 묶음 목록을 회차 id 로 편다 — 옛 묶음도 새 묶음도 같은 모양으로 온다(specs/practice ②). */
     private static List<String> practiceIds(JsonNode groups) {
         List<String> ids = new java.util.ArrayList<>();
         groups.path("groups").forEach(group ->

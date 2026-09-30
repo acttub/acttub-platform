@@ -132,7 +132,7 @@ class ReadingRecordingUploadServerIT {
 
         HttpResponse<String> malformed = http.send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/v2/reading/scripts"))
                 .header("Authorization", bearer)
-                .header("X-Acttub-Client", "web/1.0.0")
+                .header("X-Acttub-Client", "web/0.1.0")
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString("{\"title\":123}"))
                 .build(), HttpResponse.BodyHandlers.ofString());
@@ -160,7 +160,7 @@ class ReadingRecordingUploadServerIT {
         body.write(("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
         return HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/v2/reading/sessions/" + session + "/recordings"))
                 .header("Authorization", bearer)
-                .header("X-Acttub-Client", "web/1.0.0")
+                .header("X-Acttub-Client", "web/0.1.0")
                 .header("X-Request-Id", requestId.toString())
                 .header("Content-Type", "multipart/form-data; boundary=" + boundary)
                 .POST(HttpRequest.BodyPublishers.ofByteArray(body.toByteArray()))

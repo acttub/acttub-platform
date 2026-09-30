@@ -135,7 +135,7 @@ public class GuestTransferService {
             // 어디서 나든 트랜잭션 전체를 되돌린다.
             moveMemory(guestId, memberId, memoryChoice);
             // 리딩(대본·회차·녹음·암기 상태)은 게스트의 users 행을 잡은 뒤 옮긴다 — 리딩의 쓰기가 같은 행을 잡고
-            // 활성인지 보므로, 옮기는 사이에 커밋된 대본이 닫힌 게스트에게 남지 않는다(03-reading).
+            // 활성인지 보므로, 옮기는 사이에 커밋된 대본이 닫힌 게스트에게 남지 않는다(specs/reading).
             readings.reassign(guestId, memberId);
             // 설문 이력은 회원 것이 되고, 어느 쪽이든 물어봤으면 회원도 물어본 것이다(practice.feedback).
             surveys.reassign(guestId, memberId);

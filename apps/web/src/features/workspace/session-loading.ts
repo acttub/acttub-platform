@@ -29,7 +29,7 @@ export type SessionLoadOutcome =
   | { kind: "superseded" }
   /**
    * 아직 훑어보는 중이다. 폴링을 건다. 서버가 "시작 전"이라 답한 것도 여기로 온다 —
-   * 그 둘은 사람에게 같은 화면이다(CONTEXT.md 의 Analysis Status).
+   * 그 둘은 사람에게 같은 화면이다(docs/ARCHITECTURE.md 의 Analysis Status).
    */
   | { kind: "analyzing" }
   /** 훑어보기가 실패한 연습. 그 자리에서 멈춘다 — 노트도 코치도 부르지 않는다. */

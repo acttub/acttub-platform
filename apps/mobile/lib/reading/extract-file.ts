@@ -26,7 +26,7 @@ export interface PickedFile extends PickedScriptFile {
 
 /**
  * 파일 검사 실패의 안내 문구. 크기(20,000,000바이트)는 글자를 뽑기 전에 거르고, hwp·hwpx 는 앱이 열지
- * 않는다(1.0.0이 받아들인 한계). 어느 쪽도 서버에는 아무것도 남지 않는다.
+ * 않는다(0.1.0이 받아들인 한계). 어느 쪽도 서버에는 아무것도 남지 않는다.
  */
 export function scriptFileRejection(f: PickedScriptFile): string | null {
   const check = checkScriptFile(f);

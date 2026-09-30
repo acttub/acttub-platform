@@ -20,7 +20,7 @@ function createClient(fetchImpl, overrides = {}) {
   const events = { consent: [], profile: 0, deactivated: 0, update: 0 };
   const client = createApiRequestClient({
     baseUrl: 'https://api.test',
-    clientHeader: 'app/1.0.0',
+    clientHeader: 'app/0.1.0',
     fetchImpl,
     waitForCredentialReady: async () => {},
     getAccessToken: () => 'access',
@@ -57,7 +57,7 @@ test('공통 규칙: 로그인한 요청과 로그인 없는 요청 모두 X-Act
 
   assert.equal(seen.length, 2);
   for (const headers of seen) {
-    assert.equal(headers.get('X-Acttub-Client'), 'app/1.0.0');
+    assert.equal(headers.get('X-Acttub-Client'), 'app/0.1.0');
     assert.equal(headers.get('X-Acttub-Consent-Entry'), null);
   }
 });
@@ -79,7 +79,7 @@ test('공통 규칙: 토큰 갱신 요청에도 X-Acttub-Client가 실린다', a
   await client.request('/v2/protected');
 
   assert.equal(refreshHeaders.length, 1);
-  assert.equal(refreshHeaders[0].get('X-Acttub-Client'), 'app/1.0.0');
+  assert.equal(refreshHeaders[0].get('X-Acttub-Client'), 'app/0.1.0');
 });
 
 test('공통 규칙: 426을 받으면 업데이트 안내를 알리고 안내 문장을 그대로 담은 오류를 던진다', async () => {

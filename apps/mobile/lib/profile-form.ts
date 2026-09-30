@@ -29,7 +29,7 @@ export const NAME_MAX_LENGTH = 20;
 /** 한 줄 소개. 선택 항목이며 설정에서만 받는다. */
 export const BIO_MAX_LENGTH = 80;
 
-/** GET /v2/me의 profile. 1.0.0 이전 회원은 name(옛 닉네임)만 있고 나머지는 null이다. */
+/** GET /v2/me의 profile. 0.1.0 이전 회원은 name(옛 닉네임)만 있고 나머지는 null이다. */
 export type ServerProfile = {
   name: string | null;
   gender: Gender | null;
@@ -63,7 +63,7 @@ export type ProfilePayload = {
 };
 
 /**
- * 이름 칸의 첫 값: 서버에 있는 이름(1.0.0 이전 회원의 옛 닉네임)이 먼저고, 없으면 제공자가
+ * 이름 칸의 첫 값: 서버에 있는 이름(0.1.0 이전 회원의 옛 닉네임)이 먼저고, 없으면 제공자가
  * 준 이름이다. 미리 채우는 값일 뿐이고 저장되는 것은 배우가 확인한 값이다.
  */
 export function initialProfileForm(

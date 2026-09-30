@@ -102,7 +102,7 @@ class EntityMappingIT {
 
     /**
      * 매핑을 은퇴시키고 DB 에는 남긴 테이블 (apps/api/CONTRACT.md §5-1). 구형 {@code reports} 와,
-     * 1.0.0 에서 API·코드를 내린 커뮤니티 일곱이다({@code docs/requirements/05-community.md}).
+     * 0.1.0 에서 API·코드를 내린 커뮤니티 일곱이다({@code docs/specs/community/README.md}).
      */
     private static final Set<String> RETIRED_TABLES = Set.of(
             "reports",
@@ -110,7 +110,7 @@ class EntityMappingIT {
             "community_comments", "community_post_likes", "community_posts", "community_reports");
 
     /**
-     * 테이블이 먼저 서고 코드가 뒤에 서는 것들 (SOMA-546 연습 1.0.0, V14). 스키마는 넓히기로 한 번에 들어가고
+     * 테이블이 먼저 서고 코드가 뒤에 서는 것들 (SOMA-546 연습 0.1.0, V14). 스키마는 넓히기로 한 번에 들어가고
      * 각 기능이 붙을 때 Schema Entity 가 생긴다 — 붙이는 티켓이 여기서 빼고 위의 수를 올린다.
      *
      * <p>{@code videos} 는 여기 없다 — 보관함(PA1)이 이미 매핑을 갖는다.

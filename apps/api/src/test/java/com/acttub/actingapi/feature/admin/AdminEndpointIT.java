@@ -812,7 +812,7 @@ class AdminEndpointIT {
     }
 
     /**
-     * 1.0 은 연습을 practices · coach_conversations · coach_messages · analyses 에 쓴다(SOMA-566). ops 코어와
+     * 0.1.0 은 연습을 practices · coach_conversations · coach_messages · analyses 에 쓴다(SOMA-566). ops 코어와
      * 세션 목록은 새 표 전부와 아직 옮겨지지 않은 옛 행을 함께 읽는다. 이관은 같은 id 로 옮기므로 옮겨진
      * 옛 행(여기서는 realFinal)은 한 번만 센다.
      */
@@ -835,8 +835,8 @@ class AdminEndpointIT {
                 """, UUID.randomUUID(), newPractice, NOW.minusMinutes(5), NOW.minusMinutes(5));
         UUID newConversation = UUID.randomUUID();
         insertConversation(newConversation, newPractice, "open", null, NOW.minusMinutes(4));
-        insertMessage(newConversation, 1, "actor", "1.0 답");
-        insertMessage(newConversation, 0, "ai", "1.0 질문");
+        insertMessage(newConversation, 1, "actor", "0.1.0 답");
+        insertMessage(newConversation, 0, "ai", "0.1.0 질문");
 
         JsonNode core = authorized("/v2/admin/ops-core", 200);
         JsonNode practices = core.path("metrics").get(1);
@@ -866,8 +866,8 @@ class AdminEndpointIT {
         assertThat(list.get(0).path("coach_session_id").textValue()).isEqualTo(newConversation.toString());
         assertThat(list.get(0).path("video_url").textValue()).isEqualTo("admin:new.mp4:3600");
         assertThat(list.get(0).path("turns")).isEqualTo(mapper.readTree("""
-                [{"turn_index":0,"role":"ai","text":"1.0 질문"},
-                 {"turn_index":1,"role":"actor","text":"1.0 답"}]
+                [{"turn_index":0,"role":"ai","text":"0.1.0 질문"},
+                 {"turn_index":1,"role":"actor","text":"0.1.0 답"}]
                 """));
         JsonNode moved = list.get(2);
         assertThat(moved.path("coach_session_id").textValue()).isEqualTo(realFinalCoach.toString());

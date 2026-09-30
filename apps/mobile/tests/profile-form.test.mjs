@@ -117,7 +117,7 @@ test('account.profile: 생년월일 입력은 숫자만 받아 YYYY-MM-DD로 끊
   assert.equal(formatBirthDateInput('200103149'), '2001-03-14');
 });
 
-test('account.profile: 1.0.0 이전 회원은 옛 닉네임이 이름 칸에 채워져 있다', () => {
+test('account.profile: 0.1.0 이전 회원은 옛 닉네임이 이름 칸에 채워져 있다', () => {
   const form = initialProfileForm(
     { name: '옛닉네임', gender: null, birth_date: null, directions: [], experience: null, goal: null },
     '애플이 준 이름',

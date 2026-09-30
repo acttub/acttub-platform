@@ -25,7 +25,7 @@ function phone(list = OLD) {
   };
 }
 
-test('practice.record: 옛 보관함 영상 셋이 있는 기기에서 1.0.0 첫 실행이면 확인 팝업을 띄울 대상이 셋이다', async () => {
+test('practice.record: 옛 보관함 영상 셋이 있는 기기에서 0.1.0 첫 실행이면 확인 팝업을 띄울 대상이 셋이다', async () => {
   const p = phone();
   assert.equal((await readLegacyArchive(p.storage)).length, 3);
   assert.equal((await readLegacyArchive(phone([]).storage)).length, 0, '없으면 묻지 않는다');

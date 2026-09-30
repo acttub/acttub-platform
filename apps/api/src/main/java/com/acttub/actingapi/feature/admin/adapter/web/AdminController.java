@@ -159,7 +159,7 @@ class AdminController {
     @Operation(
             summary = "Practice Migration",
             description = """
-                    옛 연습 테이블의 자료를 1.0.0 테이블로 옮긴다 (02-practice 「1.0.0 스키마 전환」 ③).
+                    옛 연습 테이블의 자료를 0.1.0 테이블로 옮긴다 (specs/practice 「0.1.0 스키마 전환」 ③).
 
                     작은 묶음으로 나눠 돌고 남은 것이 없을 때까지 되풀이한다. 몇 번을 돌려도 같은 결과다 —
                     한 번 고른 원본은 대응표에 적혀 다시 고르지 않는다. 옮기지 않은 자료는 사유와 함께

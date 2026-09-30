@@ -91,7 +91,7 @@ class MemoryWorkerSchedulerTest {
             RecordingFailureReporter reporter) {
         ObjectProvider<MemoryUpdateWorker> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(worker);
-        // 1.0.0 워커는 여기서 보지 않는다 — 이 시험은 폴·거절·보고의 형태만 본다.
+        // 0.1.0 워커는 여기서 보지 않는다 — 이 시험은 폴·거절·보고의 형태만 본다.
         ObjectProvider<ActorMemoryUpdateWorker> actorProvider = mock(ObjectProvider.class);
         when(actorProvider.getIfAvailable()).thenReturn(null);
         return new MemoryWorkerScheduler(provider, actorProvider, executor, reporter);

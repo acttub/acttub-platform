@@ -109,7 +109,7 @@ test('account.withdraw: 탈퇴 화면은 지워지는 것과 남는 것을 챌�
   assert.match(text.keptPractice, /연습 기록/);
   assert.match(text.keptChallenge, /비공개/);
   assert.match(text.keptComment, /탈퇴한 사용자/);
-  // 서버는 행을 지우지 않는다. 지운다고 약속하면 거짓이 된다. 커뮤니티는 1.0.0에 없다.
+  // 서버는 행을 지우지 않는다. 지운다고 약속하면 거짓이 된다. 커뮤니티는 0.1.0에 없다.
   const all = Object.values(text).join(' ');
   assert.doesNotMatch(all, /전부 삭제|모두 삭제|모든 (글|기록)이 삭제|커뮤니티|게시판/);
   assert.match(text.failBody, /계정은 그대로 있어요/);

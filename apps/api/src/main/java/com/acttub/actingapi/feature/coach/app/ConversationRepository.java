@@ -7,7 +7,7 @@ import java.util.UUID;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
- * 1.0.0 회차의 코치 대화 저장소 — {@code coach_conversations}·{@code coach_messages}·{@code coach_notes} (practice.coach,
+ * 0.1.0 회차의 코치 대화 저장소 — {@code coach_conversations}·{@code coach_messages}·{@code coach_notes} (practice.coach,
  * practice.note). 옛 {@link CoachSessionRepository}(={@code coach_sessions} + {@code coach_turns})와 다른 포트다.
  *
  * <p><b>회차에 대화는 하나다.</b> 열린 대화는 같은 id 로 재개하고, 닫힌 뒤 다시 코칭하려면 새 회차다(practice.resume).

@@ -393,7 +393,7 @@ const ko = {
     deleteMessage: '보관함에서 지우면 되돌릴 수 없어요.',
     deletedTitle: '지웠어요',
     deletedMessage: '지금은 예시 화면이라 목록은 그대로예요.',
-    // 1.0.0 서버 보관함(practice.record · practice.library)
+    // 0.1.0 서버 보관함(practice.record · practice.library)
     statusPending: '기기에 저장 · 업로드 대기',
     statusUploading: '올리는 중…',
     statusSaved: '보관함 저장',

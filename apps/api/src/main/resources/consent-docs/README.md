@@ -4,79 +4,38 @@
 
 이 디렉토리가 **발행 정본**이다. 같은 자리의 `manifest.json`이 "지금 발행 중인 판"을 가리키고,
 백엔드가 기동할 때 그것을 읽어 아직 없는 문서를 DB에 심는다
-(`consent/adapter/ConsentDocumentPublisher`). 옛 버전 `.md`도 함께 실린다 — 빈 DB 재구축 경로가 쓴다.
+(`consent/adapter/ConsentDocumentPublisher`). 옛 판 `.md`도 지우지 않고 함께 싣는다 — 그 판에 동의한 기록이 남아 있다.
 
-## 두 종류의 문서
+규칙은 [account.consent](../../../../../../docs/specs/account/consent.md)가 정본이다 — 동의 문서와 고지의 구분, 문서
+종류와 필수 여부(「데이터」), 판을 올릴지와 재동의, 말(locale). 이 문서는 파일을 더하고 발행·확인하는 절차만 적는다.
 
-| | 동의 문서 | 고지 문서 |
-| --- | --- | --- |
-| 무엇 | 이용자가 **결정**하는 문서(동의·거절) | **알리기만** 하는 문서 — 개인정보 처리방침 |
-| 파일 | `manifest.json` 이 가리키는 `.md` | `privacy_policy.md` (**이름 고정**) |
-| DB | 판마다 `consent_documents` 행 | 행이 없다 |
-| 게이트 | 현재 판이 미결정이면 보호 기능이 막힌다 | 걸리지 않는다 |
-| 공개 API | `GET /v2/consents/documents` | `GET /v2/consents/notices` → `{"notices":[{"type":"privacy_policy","title":"개인정보 처리방침","body":"…"}]}` |
+## 파일
 
-수탁사(위탁) 고지는 **처리방침(`privacy_policy.md`)에 있다.** 배포 가드(`deploy/consent-gate.sh`)가 계측 키를
-넣기 전에 그 파일에 수탁사 고지가 있는지 본다 — 파일 이름을 바꾸면 가드도 함께 고쳐야 한다.
+- **동의 문서**: `manifest.json`이 가리키는 `.md`. 지금 발행 중인 판과 말은 `manifest.json`이 유일한 목록이다. 파일
+  이름은 어디에도 하드코딩돼 있지 않고 `.md` 전부가 jar 에 실린다(`build.gradle.kts` 의 `processResources`).
+- **고지**: 개인정보 처리방침 `privacy_policy.md`. DB 행 없이 `GET /v2/consents/notices`가 전문을 내준다
+  (`{"notices":[{"type":"privacy_policy","title":"개인정보 처리방침","body":"…"}]}`). 수탁사(위탁) 고지는 이 파일에 있다.
+  **이름이 고정이다** — `DeployedConsentNotices`와 배포 가드(`deploy/consent-gate.sh`)가 이 이름을 본다. 이름을 바꾸면
+  둘 다 고친다.
+- 종류(`type`)를 더하려면 `ConsentType` enum(`platform/schema/ConsentType.java`)과 Flyway 마이그레이션의 CHECK
+  (`ck_consent_documents_type`)를 함께 넓힌다(`ValueCheckCatalogIT` 가 대조한다).
+- `privacy` 문서의 "프로필 필수 항목" 표는 `ProfileConsentParityTest` 가 프로필 API 의 필수 항목과 대조한다(규칙은
+  [account.profile](../../../../../../docs/specs/account/profile.md)).
+- ⚠ `privacy_v5`·`retention_v1` 의 본문은 요구사항이 정한 항목을 담은 **초안**이고 법무 확인 전이다. 얼굴/감정은
+  민감정보 소지가 있어 법률 검토를 권장한다. 자리표시자는 MVP 기본값으로 채웠다: 운영자 `Acttub`, 시행일
+  `2026-07-22`, 문의 `acttub0527@gmail.com`, 개인정보 보호책임자는 운영자로 통합, 기타 수탁자 행 삭제. 정식
+  법인명·대표자·시행일이 확정되면 값을 갱신한다.
 
-### ⚠ 새 수집이 생기면 처리방침만 고쳐서는 안 된다
+## 말(locale) (SOMA-544)
 
-새 수탁사를 더하거나 수집 항목을 늘리는 것처럼 **새 수집**이 생기는 변경은 ① `privacy_policy.md` 에 고지하고
-② **`privacy`(개인정보 수집·이용 동의)의 판도 올린다.** 고지는 게이트에 걸리지 않아서, ①만 하면 기존 동의자는
-아무것도 다시 결정하지 않은 채 새 수집의 대상이 된다. 판을 올리면 기존 동의자가 게이트에서 다시 결정하고,
-그 전까지 그 사람의 계측은 꺼져 있다 — 웹은 `GET /v2/consents/entry` 의 privacy 행
-`current_decision === "granted"` 하나로 계측을 켤지 정하고, 그 값은 **현재 판**에 대한 결정이다
-(`ConsentEndpointIT` 가 회원·게스트 둘 다 고정한다).
+같은 판의 번역본이 나란히 선다(`V7__consent_document_locale.sql`). 한국어가 정본이라는 규칙과 번역본이 없을 때의
+폴백은 account.consent 가 정한다. 파일 쪽에서 할 일은 셋이다.
 
-문구만 다듬는 수정(오탈자, 표현)은 판을 올리지 않는다. 아래 「발행」 참고.
-
-## 문서
-| 파일 | type | version | locale | title | required |
-| --- | --- | --- | --- | --- | --- |
-| `terms_v1.md` | `terms` | `v1` | `ko` | 이용약관 | ✅ |
-| `privacy_v5.md` | `privacy` | `v5` | `ko` | 개인정보 수집·이용 동의 | ✅ |
-| `ai_analysis_v1.md` | `ai_analysis` | `v1` | `ko` | AI 분석 동의 | ✅ |
-| `retention_v1.md` | `retention` | `v1` | `ko` | 탈퇴 후 영상·녹음 보관·활용 | 선택 |
-| `cloud_voice_v1.md` | `cloud_voice` | `v1` | `ko` | 대본 리딩 고품질 목소리(선택) | 선택 |
-| `terms_v1_en.md` | `terms` | `v1` | `en` | Terms of Service | ✅ |
-| `ai_analysis_v1_en.md` | `ai_analysis` | `v1` | `en` | AI Analysis Consent | ✅ |
-| `privacy_v5_en.md` | `privacy` | `v5` | `en` | Consent to Collection and Use of Personal Information | ✅ |
-| `retention_v1_en.md` | `retention` | `v1` | `en` | Retention and Use of Video/Recordings After Withdrawal | 선택 |
-| `cloud_voice_v1_en.md` | `cloud_voice` | `v1` | `en` | Premium reading voice (optional) | 선택 |
-
-> 개인정보 수집·이용 동의 v5 와 보관 동의 v1 의 영어판은 아직 없다 — 영어 사용자에게는 한국어가 보인다(아래
-> 「말」). `privacy_v4_en.md` 는 v4 의 번역본이라 v5 가 현행인 지금은 싣지 않는다.
-
-> `ConsentType` enum은 이 5종을 지원한다(`platform/schema/ConsentType.java` + `ck_consent_documents_type`).
-> 종류를 더하려면 enum 과 Flyway 마이그레이션의 CHECK 를 함께 넓힌다(`ValueCheckCatalogIT` 가 대조한다).
->
-> **`privacy` 는 1.0.0 부터 "개인정보 수집·이용 동의"다.** 처리방침은 동의를 받는 문서가 아니라 고지라서
-> 이 목록에 없다(`docs/requirements/01-account.md` account.consent). `privacy_v5.md` 의 "프로필 필수 항목"
-> 표는 프로필 API 의 필수 항목과 같아야 하고 `ProfileConsentParityTest` 가 둘을 대조한다 — 항목을 늘리거나
-> 선택을 필수로 바꾸면 **새 판**을 낸다.
->
-> ⚠ `privacy_v5`·`retention_v1` 의 본문은 요구사항이 정한 항목을 담은 **초안**이고 법무 확인 전이다.
-
-## 말(locale) — **한국어가 정본이다** (SOMA-544)
-
-미국 출시를 위해 같은 판의 번역본이 나란히 설 수 있다(`V7__consent_document_locale.sql`).
-
-- **어느 판이 현행인지는 한국어 문서가 정한다.** 번역본은 그 판에 딸린 것이고, 한국어에
-  없는 판은 존재할 수 없다.
-- **문서의 신원(문서 번호)도 한국어 행이 쥔다.** 번역본은 보이는 글만 바꾸고 번호는
-  한국어 행의 것을 그대로 내보낸다. 그래서 동의 기록이 말과 무관하게 한 벌로 남는다.
-- **번역본이 없으면 한국어를 보여준다.** 동의 화면이 비는 것보다 낫다.
-- **말은 요청의 `Accept-Language` 에서 온다.** 아는 말(`ko`·`en`)이 아니면 한국어로 본다
-  (`feature/consent/domain/ConsentLocale.java`).
-- **동의 여부는 말을 건너 성립한다.** 문서 번호가 하나뿐이라 기기 말을 바꿔도 다시 묻지
-  않는다. 테스트에서 동의를 직접 심을 때는 `WHERE locale = 'ko'` 로 그 번호를 집어야 한다.
-
-### 새 판을 낼 때
-**한국어와 번역본을 같은 배포에 함께 올린다.** 한국어만 먼저 올리면 그 순간부터 영어
-사용자도 한국어 문서를 보게 된다(폴백). 틀린 것은 아니지만, 영어로 쓰는 사람에게 한국어
-약관에 동의하라고 묻는 상태가 된다.
-
-`manifest.json` 항목에 `locale` 을 적는다. 빠지면 한국어로 본다.
+- 새 판을 낼 때 **한국어와 번역본을 같은 배포에 함께 올린다.** 한국어만 올리면 영어 사용자에게 한국어 문서가
+  나간다. `ConsentManifestLocaleTest` 가 CI 에서 막는다 — 정말 번역하지 않기로 했다면 그 테스트에 그 판을 예외로
+  적고 이유를 남긴다.
+- `manifest.json` 항목에 `locale` 을 적는다. 빠지면 한국어로 본다.
+- 테스트에서 동의를 직접 심을 때는 `WHERE locale = 'ko'` 로 문서 번호를 집는다.
 
 ## 발행 — **배포가 곧 발행이다**
 
@@ -87,20 +46,31 @@
 
 그래서 새 판을 내는 절차는 이렇다.
 
-1. `.md` 파일을 이 디렉토리에 추가한다 (옛 파일은 **지우지 않는다**)
+1. `.md` 파일을 이 디렉토리에 추가한다 (옛 파일은 **지우지 않는다**). 번역본도 함께 더한다(위 「말」).
 2. `manifest.json` 의 해당 항목을 새 파일·새 버전으로 고친다
-3. 배포한다 — **그 순간 발행된다**
+3. 배포한다 — **그 순간 발행된다.** dev 를 먼저 배포해 동의 화면이 정상으로 뜨는지 확인한다.
 
-**오탈자만 고칠 때는 판을 올리지 않는다.** 같은 판의 `.md`(또는 `title`)를 고쳐 배포하면 기동할 때 DB 의
-제목·본문을 그 자리에서 덮어쓰고 재동의는 없다. 뜻이 바뀌는 수정은 판을 올린다 — 그 판단은 사람이 한다.
-`required` 는 같은 판에서 바꾸지 않는다(경고만 남긴다).
+판을 올리면 기존 회원에게 동의 화면이 다시 뜬다(account.consent). 그런 판은 배포 전에 **서비스 내 공지를 먼저
+띄우고**(처리방침이 "개정 사유 및 시행일을 명시하여 공지"를 약속한다), 본문의 시행일 문구와 법무 검토를 마친다.
 
-파일 이름은 어디에도 하드코딩돼 있지 않다. `manifest.json` 이 유일한 목록이고, `.md` 전부가
-jar 에 실린다(`build.gradle.kts` 의 `processResources`).
+- **새 수집**(수탁사 추가, 수집 항목 추가)이 생기면 `privacy_policy.md` 에 고지하고 `privacy`(개인정보 수집·이용
+  동의)의 판도 올린다. 이유는 account.consent 에 있고, 웹의 계측이 현재 판의 결정을 따르는 것은 `ConsentEndpointIT`
+  가 회원·게스트 둘 다 고정한다.
+- **오탈자만 고칠 때는 판을 올리지 않는다.** 같은 판의 `.md`(또는 `title`)를 고쳐 배포하면 기동할 때 DB 의
+  제목·본문을 그 자리에서 덮어쓴다. 판을 올릴지는 사람이 판단한다(account.consent).
+- `required` 는 같은 판에서 바꾸지 않는다(경고만 남긴다).
+
+### 계측 키와 고지의 순서
+
+계측 키(`AMPLITUDE_API_KEY_WEB`)는 그 수탁사를 고지·동의 문서에 **발행한 뒤에** 넣는다. 순서가 뒤집히면 되돌릴 수
+없다 — 고지 없이 이용 기록과 화면 녹화가 수탁사로 넘어간다. 배포 가드 `deploy/consent-gate.sh` 가 키가 있을 때
+**처리방침(`privacy_policy.md`)과 manifest 가 가리키는 한국어 `privacy` 문서 둘 다에** 그 수탁사(Amplitude)가
+적혀 있는지를 배포 시점에 본다. 가드는 마지막 방어선이지 절차가 아니다. 웹이 계측을 켜는 조건은
+[ANALYTICS.md](../../../../../web/ANALYTICS.md) §1(1)이다.
 
 ## 검증
 ```bash
-curl -s -H 'X-Acttub-Client: web/1.0.0' https://dev.acttub.com/v2/consents/documents   # documents 5개
+curl -s -H 'X-Acttub-Client: web/0.1.0' https://dev.acttub.com/v2/consents/documents   # documents 5개
 ```
 그 후 앱에서 소셜 로그인 → 동의 화면에 필수 3종과 선택 1종이 뜨는지 확인.
 
@@ -110,70 +80,3 @@ curl -s -H 'X-Acttub-Client: web/1.0.0' https://dev.acttub.com/v2/consents/docum
 (`ConsentDocumentPublisher.seed`). 그래도 **배포는 초록으로 끝나므로** 위 curl 로 확인한다:
 발행이 안 되면 API 가 옛 판을 현재 판으로 돌려주고, 그러면 새 수집이 옛 동의로 켜질 수 있다.
 `manifest.json` 의 판과 `/v2/consents/documents` 의 판이 같은지 본다.
-
-## ⚠️ 배포 전 필수
-- 자리표시자는 **MVP 기본값으로 채움**: 운영자 `Acttub`, 시행일 `2026-07-22`, 문의 `acttub0527@gmail.com`, 개인정보 보호책임자는 운영자로 통합, 기타 수탁자 행 삭제. 정식 법인명·대표자·시행일이 확정되면 값 갱신.
-- 본문은 **법률 자문 아닌 실무 초안** — 특히 얼굴/감정 = 민감정보 소지가 있어 배포 전 법률 검토 권장.
-- 본문 수정 시 `--version`을 올려(v2 …) 재발행하면 최신본이 노출된다.
-  ⚠️ **버전을 올리면 기존 동의자 전원에게 재동의가 뜬다.** 옛 버전 문서 파일은 지우지 않는다 —
-  그 버전에 동의한 기록이 남아 있다.
-
-  - `privacy_v2`(2026-07-29) — 웹 이용 통계(Google Analytics) 위탁 추가
-  - `privacy_v3`(2026-08-15 시행 예정) — 오류 기록(Sentry) 추가. **시행 전에 v4로 대체됐다.**
-    파일은 남겨 둔다: 이 버전으로 발행돼 있던 동안 동의한 기록이 있다.
-  - `privacy_v4`(2026-08-11) — v3 내용을 전부 포함하고 이용 행태 분석(Amplitude)과
-    **화면 기록(세션 리플레이)** 을 추가한 개정. **현재 발행 대상.**
-
-## 1.0.0 발행 순서 (privacy v5 · retention v1 · 처리방침 고지)
-
-⚠️ **배포가 곧 발행이다.** `manifest.json` 이 v5 를 가리키는 채로 운영에 api 를 배포하면 그 순간
-`privacy v5`(개인정보 수집·이용 동의)와 `retention v1`(선택)이 발행되고 **기존 회원 전원에게 동의 화면이 다시
-뜬다.** 1.0.0 은 앱도 강제 업데이트라 같은 배포에서 함께 일어난다.
-
-1. **서비스 내 공지를 먼저 띄운다** — 처리방침이 "개정 사유 및 시행일을 명시하여 공지"를 약속한다.
-2. `privacy_policy.md`·`privacy_v5.md`·`retention_v1.md` 의 시행일 문구와 법무 검토를 마친다(지금 본문은 초안이다).
-3. **운영에 배포한다** — 이 시점에 새 판이 발행되고 재동의가 시작된다. dev 를 먼저 배포해 동의 화면을 확인한다.
-
-계측 키(`AMPLITUDE_API_KEY_WEB`)를 넣는 것과 고지는 순서를 틀리면 되돌릴 수 없다 — 고지 없이 이용 기록과 화면
-녹화가 수탁사로 넘어간다. 배포 가드 `deploy/consent-gate.sh` 가 **`privacy_policy.md` 에 그 수탁사 고지가
-있는지**를 배포 시점에 본다. 가드는 마지막 방어선이지 절차가 아니다.
-
-> 웹이 방침 판을 상수(`EXPECTED_PRIVACY_VERSION`)로 들고 있던 구조는 없어졌다. 웹은 판 번호를 박아 두지 않고
-> 서버가 알려 주는 현재 판의 결정(`/v2/consents/entry`)만 본다. 그래서 웹과 api 의 배포 순서가 어긋나도
-> "기대한 판이 아직 없다"는 창이 생기지 않는다.
-
-## 지난 기록 — v4 발행 절차 (2026-08-11)
-
-> 아래는 `privacy v4`("개인정보처리방침"이라는 이름의 동의 문서였던 시절)를 낼 때의 기록이다. 지금 구조와 다른
-> 부분(`EXPECTED_PRIVACY_VERSION`, 방침 자체가 동의 대상)은 위 절이 대신한다.
-
-⚠️ **배포가 곧 발행이다.** `manifest.json` 이 v4 를 가리키는 채로 **운영에 be 를 배포하면
-그 순간 v4 가 발행되고 기존 동의자 175명 전원에게 동의 화면이 다시 뜬다.**
-
-그래서 순서는 이렇다:
-
-1. **서비스 내 공지를 먼저 띄운다** — 14항이 "개정 사유 및 시행일을 명시하여 공지"를
-   약속한다. 시행일은 `2026-08-11`. 바꾸려면 본문 3곳(상단·개정 이력·하단)을 함께 고친다.
-2. **운영에 배포한다** — 이 시점에 v4 가 발행되고 재동의가 시작된다.
-   dev 는 먼저 배포해서 동의 화면이 정상으로 뜨는지 확인한다.
-3. **운영 Environment 변수 `AMPLITUDE_API_KEY_WEB` 주입 후 다시 배포한다** — 이때부터
-   수집이 시작된다. dev·운영에 **서로 다른 프로젝트 키**를 넣는다(호스트로 거르지 않아
-   같은 키면 통계가 섞인다).
-
-> `EXPECTED_PRIVACY_VERSION`(fe)과 manifest(be)는 나란히 배포돼 순서가 정해져 있지 않다.
-> fe 가 먼저 뜨면 v4 를 기대하는데 아직 v3 만 발행된 창이 잠깐 생기고, 그동안은 아무도
-> 동의자로 인정되지 않아 계측이 꺼진다. 재동의를 띄우는 개정에서는 어차피 전원이 다시
-> 동의하므로 그대로 둔다(`pending-consents.ts` 주석 참고).
-
-> 🔁 **계약 하네스의 시드를 함께 올리라는 항목이 여기 있었다.** 하네스는 `SOMA-403`
-> 4단계에서 폐기됐고 그 시드도 함께 사라졌으므로 더 지킬 것이 없다
-> (docs/archive/soma287/M6-harness-retirement.md).
-
-⚠️ **순서가 뒤집히면 안 된다.** 방침이 발행되지 않은 상태에서 키를 먼저 넣으면 고지 없이
-이용 기록과 화면 녹화를 제3자에게 넘기게 된다. `deploy.yml` 의 `계측 키가 방침 고지보다
-앞서지 않는지` 가드가 이 조합을 배포 시점에 막지만, 가드는 마지막 방어선이지 절차가 아니다.
-
-> Grafana 는 v4 에 넣지 않았다(2026-08-11 결정). 아직 코드에 없어 무엇을 보낼지 정해지지
-> 않았고, 기다리면 Amplitude 까지 같이 늦어진다. 실제로 붙이고 **Grafana Cloud 로 사용자
-> 식별자가 섞인 로그를 보내게 되면** 그때 v5 로 낸다. 자체 호스팅이거나 서버 지표만 보내면
-> 위탁이 아니라 방침을 건드릴 필요가 없다.

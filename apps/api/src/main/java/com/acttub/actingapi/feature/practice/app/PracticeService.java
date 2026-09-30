@@ -28,14 +28,14 @@ import com.acttub.actingapi.platform.web.ApiException;
  * 회차가 있으면 만들지 않고 409 {@code practice_in_progress} 다(본문은 코드 하나, 회차 id 는 묶음 조회에서 얻는다).
  *
  * <p>Scene Context 는 셋 모두 선택이고 시작 뒤 바꾸지 않는다. 막힘을 고르지 않으면 "그 외/그 외"다. 이론 선택은
- * 1.0.0 에 없다. 코칭 갈래({@code experience_version})는 서버 플래그와 계약 헤더가 맞으면 신형이다(적은 것과 무관).
+ * 0.1.0 에 없다. 코칭 갈래({@code experience_version})는 서버 플래그와 계약 헤더가 맞으면 신형이다(적은 것과 무관).
  */
 public class PracticeService {
 
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
 
     private final PracticeRepository practices;
-    /** 아직 옮기지 않은 옛 연습을 같은 모양으로 읽는 자리 (02-practice ②). */
+    /** 아직 옮기지 않은 옛 연습을 같은 모양으로 읽는 자리 (specs/practice ②). */
     private final LegacyPracticeReader legacy;
     private final boolean threeLayersEnabled;
     private final boolean guestDailyAnalysisLimitEnabled;
@@ -78,7 +78,7 @@ public class PracticeService {
     }
 
     /**
-     * 회차 하나. <b>새 표를 먼저 보고 없으면 옛 표를 읽는다</b>(02-practice ②) — 화면은 어느 표에서 왔는지
+     * 회차 하나. <b>새 표를 먼저 보고 없으면 옛 표를 읽는다</b>(specs/practice ②) — 화면은 어느 표에서 왔는지
      * 알 필요가 없다. 없는 것과 남의 것은 두 표 모두에서 같은 404 다.
      */
     public PracticeView find(UUID userId, UUID practiceId) {

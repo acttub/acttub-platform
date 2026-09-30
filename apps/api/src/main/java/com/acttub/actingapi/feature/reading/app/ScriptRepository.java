@@ -12,7 +12,7 @@ import com.acttub.actingapi.feature.reading.domain.ScriptDraft;
  * reading 이 저장소에 요구하는 것 — 대본 (reading.script).
  *
  * <p>없음을 {@code null} 로 알린다(ADR-018). "없는 것"과 "남의 것"을 가르지 않는다 — 모든 연산이 그 회원의
- * 것만 본다. 쓰기는 최종 저장 직전에 {@code users} 행을 잡고 계정이 활성인지 다시 본다(03-reading 「리딩
+ * 것만 본다. 쓰기는 최종 저장 직전에 {@code users} 행을 잡고 계정이 활성인지 다시 본다(specs/reading 「리딩
  * 자료의 이관·삭제·탈퇴」) — 이관·탈퇴가 먼저 끝났으면 옛 계정에 쓰지 않고 {@link OwnerNotActive} 다.
  */
 public interface ScriptRepository {

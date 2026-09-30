@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * 1.0.0 회차 서비스의 조립. 신형 생성 플래그는 옛 흐름과 같은 환경변수를 읽는다 — 두 흐름이 공존하는 동안
+ * 0.1.0 회차 서비스의 조립. 신형 생성 플래그는 옛 흐름과 같은 환경변수를 읽는다 — 두 흐름이 공존하는 동안
  * 한 스위치로 켜고 끈다(practice.start).
  */
 @Configuration

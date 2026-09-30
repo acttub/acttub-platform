@@ -137,7 +137,7 @@ public class NoteWriter {
     /**
      * 종료어와 도움말을 뺀 배우 답의 수. 기존 갈래가 노트를 만들지 판정하는 기준이다.
      *
-     * <p>옛 흐름은 첫 배우 턴이 폼의 막힘 상세라 그것을 뺐다. <b>1.0.0 은 영상만 올리고 시작하므로 시작에
+     * <p>옛 흐름은 첫 배우 턴이 폼의 막힘 상세라 그것을 뺐다. <b>0.1.0 은 영상만 올리고 시작하므로 시작에
      * 배우 메시지가 없다</b> — 저장된 배우 턴은 처음부터 진짜 답이다(practice.start).
      */
     private static int validAnswers(CoachSessionSnapshot session) {

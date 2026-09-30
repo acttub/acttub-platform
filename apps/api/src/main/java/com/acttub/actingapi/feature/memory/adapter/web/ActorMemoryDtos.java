@@ -10,7 +10,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
-/** 1.0.0 배우 기억의 요청·응답 (practice.memory). 셋 다 unknown key 를 거부한다. */
+/** 0.1.0 배우 기억의 요청·응답 (practice.memory). 셋 다 unknown key 를 거부한다. */
 final class ActorMemoryDtos {
     private ActorMemoryDtos() {
     }

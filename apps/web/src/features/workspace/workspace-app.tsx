@@ -283,7 +283,7 @@ function WorkspaceInner() {
   useEffect(() => {
     setGuestUsed(guestAnalysisUsed());
   }, []);
-  // 묶음 숨김 확인. "삭제"는 1.0.0 부터 묶음 숨김이다 — 노트·대화·기억은 남고 영상은 보관함에 남는다.
+  // 묶음 숨김 확인. "삭제"는 0.1.0 부터 묶음 숨김이다 — 노트·대화·기억은 남고 영상은 보관함에 남는다.
   const [hideConfirm, setHideConfirm] = useState(false);
   /** 기록 목록의 최근 30일 필터. 켠 시각을 들고 있다가 그 시각을 기준으로 자른다(practice.library). */
   const [recentOnly, setRecentOnly] = useState<Date | null>(null);
