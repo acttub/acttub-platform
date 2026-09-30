@@ -51,20 +51,6 @@ export function myDialogueCount(script: RangeSource, myRoles: string[], range: L
   return n;
 }
 
-/** 구간의 시작·끝 대사 번호(카드 표시용). */
-export function rangeDialogueNos(script: RangeSource, startLineId: string, endLineId: string): { start: number; end: number } {
-  let n = 0;
-  let start = 0;
-  let end = 0;
-  script.lines.forEach((l, i) => {
-    if (l.type !== "dialogue") return;
-    n++;
-    if (script.lineIds[i] === startLineId) start = n;
-    if (script.lineIds[i] === endLineId) end = n;
-  });
-  return { start, end };
-}
-
 /**
  * 이어하기: 현재 줄 직전의 상대 대사 하나(의 인덱스). 흐름을 잡아 주려고 먼저 읽는다.
  * 없으면 -1. 구간 시작 앞으로는 가지 않는다.

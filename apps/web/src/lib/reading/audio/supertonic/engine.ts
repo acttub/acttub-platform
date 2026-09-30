@@ -167,13 +167,3 @@ export function currentBackend(): Backend | null {
 export function currentVariant(): Variant | null {
   return info?.variant ?? null;
 }
-
-/** 테스트에서 상태를 되돌리기 위한 것. */
-export function _reset() {
-  worker?.terminate();
-  worker = null;
-  info = null;
-  loading = null;
-  pending.clear();
-  audioCache.clear();
-}

@@ -6,7 +6,7 @@ import { test } from "node:test";
 import "./ts-module-loader.mjs";
 
 const { assignPresets, isVoicePreset, PRESET_CYCLE, voicesFor } = await import("../src/lib/reading/session/cast.ts");
-const { fullRange, indexOfLine, myDialogueCount, partnerLineBefore, rangeDialogueNos } = await import("../src/lib/reading/session/range.ts");
+const { fullRange, indexOfLine, myDialogueCount, partnerLineBefore } = await import("../src/lib/reading/session/range.ts");
 const { createElapsedClock, createProgressSync } = await import("../src/lib/reading/session/progress.ts");
 const { createLineResults, quizSummaryLabel, reviewLines } = await import("../src/lib/reading/session/results.ts");
 const { isMasked, MASK_MODES, maskLabel } = await import("../src/lib/reading/session/mask.ts");
@@ -73,7 +73,6 @@ test("reading.cast: 기기가 모르는 프리셋 값은 자동으로 다루고,
 
 test("reading.session: 웹은 전체 구간으로 시작한다 — 시작·끝은 첫·마지막 대사 줄 id 이고 지문·장면은 구간 안 대사 수에 들지 않는다", () => {
   assert.deepEqual(fullRange(script), { startLineId: "l-1", endLineId: "l-6" });
-  assert.deepEqual(rangeDialogueNos(script, "l-1", "l-6"), { start: 1, end: 5 });
   assert.equal(myDialogueCount(script, ["니나"], { startLineId: "l-1", endLineId: "l-6" }), 2);
   assert.equal(myDialogueCount(script, ["니나", "트리고린"], { startLineId: "l-1", endLineId: "l-6" }), 3);
   assert.equal(myDialogueCount(script, ["없는역"], { startLineId: "l-1", endLineId: "l-6" }), 0);

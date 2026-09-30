@@ -5,12 +5,12 @@
  *  device     — 기기 내장 speechSynthesis. 모델을 받기 전이거나 받을 수 없을 때 쓴다.
  *
  * 둘 다 대본을 밖으로 보내지 않는다 — 단, 기기에 원격 음성밖에 없으면
- * speechSynthesis 는 텍스트를 브라우저 음성 서비스로 넘긴다. `isRemoteOnly()` 로 알린다.
+ * speechSynthesis 는 텍스트를 브라우저 음성 서비스로 넘긴다.
  */
 import { speakableText } from "@/lib/reading/script/parse";
 import { synthesize, load as loadSupertonic } from "@/lib/reading/audio/supertonic/engine";
 import { playSynthesized, unlockAudio } from "@/lib/reading/audio/supertonic/play";
-import { VOICE_PRESETS, type VoicePreset } from "@/lib/reading/audio/supertonic/models";
+import type { VoicePreset } from "@/lib/reading/audio/supertonic/models";
 
 export type Engine = "supertonic" | "device";
 
@@ -98,12 +98,6 @@ export function getKoreanVoices(): SpeechSynthesisVoice[] {
   return rankKoreanVoices(window.speechSynthesis.getVoices() as unknown as VoiceLike[]) as unknown as SpeechSynthesisVoice[];
 }
 
-/** 한국어 음성이 있는데 전부 원격이면 true — 화면에서 알려 준다 */
-export function isRemoteOnly(): boolean {
-  const voices = getKoreanVoices();
-  return voices.length > 0 && voices.every((v) => !v.localService);
-}
-
 /** Chrome은 getVoices()가 처음엔 빈 배열이라 voiceschanged를 기다린다 */
 export function waitForVoices(timeoutMs = 1500): Promise<SpeechSynthesisVoice[]> {
   if (!ttsSupported()) return Promise.resolve([]);
@@ -178,12 +172,6 @@ let playing: AbortController | null = null;
 
 export function getEngine(): Engine {
   return engine;
-}
-
-export function setEngine(next: Engine): void {
-  if (next === engine) return;
-  cancelSpeech();
-  engine = next;
 }
 
 /**
@@ -315,5 +303,3 @@ export function setPrefetchPaused(paused: boolean): void {
 export function clearPrefetch(): void {
   prefetchQueue = [];
 }
-
-export { VOICE_PRESETS, type VoicePreset };

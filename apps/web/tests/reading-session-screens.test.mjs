@@ -10,7 +10,7 @@ process.env.NEXT_PUBLIC_API_BASE_URL = "";
 const React = await import("react");
 const { renderToStaticMarkup } = await import("react-dom/server");
 const { DoneBody, REVIEW_HEADING } = await import("../src/features/reading/screens/DoneBody.tsx");
-const { elapsedLabel, resumeProgress, sessionCardLine, sessionDateLabel } = await import("../src/features/reading/session-cards.ts");
+const { resumeProgress, sessionDateLabel } = await import("../src/features/reading/session-cards.ts");
 
 const script = {
   id: "script-1",
@@ -95,11 +95,7 @@ test("reading.session: 완료 화면의 코치 카드는 촬영 준비로 잇고
   assert.equal(text(html).includes("리딩 자료는 보내지 않아요"), true);
 });
 
-test("reading.session: 회차 카드는 회차 번호·상태·내 배역·녹음 진행·걸린 시간을 보여 주고, 열린 회차의 \"이어서 연습 · K / N\" 은 지난 대사 수다", () => {
-  const card = { id: "s-1", ordinal: 2, status: "completed", my_character_ids: ["c-a"], my_character_names: ["니나"], range: { start_dialogue_no: 1, end_dialogue_no: 5 }, my_dialogue_count: 3, recorded_line_count: 2, elapsed_seconds: 65, started_at: "2026-09-21T03:00:00+09:00", ended_at: null };
-  assert.equal(sessionCardLine(card), "2회차 · 완료 · 니나 · 내 대사 3개 중 2개 녹음 · 01:05");
-  assert.equal(sessionCardLine({ ...card, status: "in_progress", my_character_names: [] }), "2회차 · 진행 중 · 배역 미선택 · 내 대사 3개 중 2개 녹음 · 01:05");
-  assert.equal(elapsedLabel(0), "00:00");
+test("reading.session: 회차 카드의 날짜는 한국 날짜로 보이고, 열린 회차의 \"이어서 연습 · K / N\" 은 지난 대사 수다", () => {
   assert.equal(sessionDateLabel("2026-05-25T12:00:00+09:00", "Asia/Seoul"), "5월 25일");
   // 13번 대사를 지나 다음이 l-3(대사 3) 이면 지난 대사는 2
   assert.deepEqual(resumeProgress(script, { start_line_id: "l-1", end_line_id: "l-5", current_line_id: "l-3" }), { done: 2, total: 5 });
