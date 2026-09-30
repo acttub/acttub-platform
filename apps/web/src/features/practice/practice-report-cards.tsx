@@ -3,9 +3,7 @@ import type {
   AnalysisReport,
   ExpressionReport,
   PracticeReport,
-  PublicPracticeNote,
 } from "@/lib/api/v2/types";
-import { renderablePracticeReport } from "./coach-contract";
 import {
   FALLBACK_NOTICE,
   isNoteV2,
@@ -31,22 +29,9 @@ export function PracticeReportCards({
     if (legacy) return <PracticeReportCards report={legacy} groupTitle={groupTitle} />;
     return <PracticeNoteV2Cards note={report} groupTitle={groupTitle} />;
   }
-  const visibleReport = renderablePracticeReport(report);
-  if (!visibleReport) {
-    return (
-      <section className="px-6 py-10 text-center">
-        <h2 className="text-xl font-black text-[#191f28]">오늘은 여기까지 나눴어요</h2>
-        <p className="mt-3 text-sm font-semibold leading-6 text-[#4e5968]">
-          노트로 남기기엔 짧아서, 다음에 이어서 해요.
-        </p>
-      </section>
-    );
-  }
-
-  switch (visibleReport.report_type) {
-    case "analysis": return <AnalysisCards report={visibleReport} />;
-    case "expression": return <ExpressionCards report={visibleReport} />;
-    case "practice_note": return <PracticeNoteCards report={visibleReport} />;
+  switch (report.report_type) {
+    case "analysis": return <AnalysisCards report={report} />;
+    case "expression": return <ExpressionCards report={report} />;
     default: return <p className="p-6 text-sm">새로고침하면 이 연습 노트를 다시 불러올 수 있어요.</p>;
   }
 }
@@ -96,26 +81,6 @@ function PracticeNoteV2Cards({ note, groupTitle }: { note: PracticeNote; groupTi
       ) : null}
       <p className="border-t border-[#e5e8eb] py-6 text-sm font-medium leading-6 text-[#4e5968]">
         {noteCheer(note) || "오늘 촬영도 수고했어요."}
-      </p>
-    </div>
-  );
-}
-
-function PracticeNoteCards({ report }: { report: PublicPracticeNote }) {
-  const summary = report.summary?.trim()
-    || (report.focus ? `${report.focus.label} 부분을 함께 살펴봤어요.` : "이번에는 구체적인 촬영 방향을 정하지 않았어요.");
-  return (
-    <div className="mx-auto grid w-full min-w-0 max-w-[68ch]">
-      <ReportHeading title={report.title} />
-      <TextCard title="이번 대화 요약" body={summary} />
-      <article className="min-w-0 border-t border-[#e5e8eb] py-6">
-        <h3 className="text-xs font-black text-[#4e5968]">다음 촬영에서 해볼 것</h3>
-        <p className="mt-3 break-words whitespace-pre-wrap text-lg font-bold leading-7 text-[#191f28]">
-          {report.practice?.instruction || "이번에는 촬영 아이템을 정하지 않았어요."}
-        </p>
-      </article>
-      <p className="border-t border-[#e5e8eb] py-6 text-sm font-medium leading-6 text-[#4e5968]">
-        오늘 촬영도 수고했어요.<br />다음 촬영도 응원할게요.
       </p>
     </div>
   );

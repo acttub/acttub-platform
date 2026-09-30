@@ -12,9 +12,6 @@ const {
   completeBlockageFlowWithDefault,
   initialBlockageFlowState,
 } = await import("../src/features/practice/blockage-flow.ts");
-const {
-  renderablePracticeReport,
-} = await import("../src/features/practice/coach-contract.ts");
 const { isConversationDone } = await import(
   "../src/features/practice/conversation-view.ts"
 );
@@ -136,16 +133,6 @@ test("practice.coach: complete 응답의 노트를 확인 단계 없이 바로 �
   assert.equal(isConversationDone({ conversation: { ...head, status: "closed" }, message: "여기서 정리할게.", note }), true);
   // 대화가 닫혔다는 것은 대화 상태로도 온다.
   assert.equal(isConversationDone({ conversation: { ...head, status: "closed" }, message: "", status: "continue", note }), true);
-});
-
-test("blocked 결과는 카드에 넘기지 않는다", () => {
-  assert.equal(
-    renderablePracticeReport({
-      report_type: "blocked",
-      reason: "confirmed_expression_handoff_required",
-    }),
-    null,
-  );
 });
 
 test("새 선택 화면과 오늘 정리 화면에 금지 문구가 없다", () => {

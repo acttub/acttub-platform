@@ -1,8 +1,4 @@
-import type {
-  PracticeReport,
-  PracticeSessionStatus,
-  SavedPracticeReport,
-} from "@/lib/api/v2/types";
+import type { PracticeSessionStatus } from "@/lib/api/v2/types";
 
 export type CoachStartResult = "waiting" | "failed" | "started";
 
@@ -57,10 +53,4 @@ export function isCoachInputEnabled({
   sending: boolean;
 }): boolean {
   return coachReady && !sending;
-}
-
-export function renderablePracticeReport(
-  report: PracticeReport,
-): SavedPracticeReport | null {
-  return report.report_type === "blocked" ? null : report;
 }
