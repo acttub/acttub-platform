@@ -52,7 +52,7 @@ export function ChallengeCommentsSheet({
   visible: boolean;
   entryId: string | null;
   onClose: () => void;
-  onReport?: (commentId: string) => void;
+  onReport: (commentId: string) => void;
 }) {
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
@@ -193,11 +193,9 @@ export function ChallengeCommentsSheet({
                       <Text style={styles.action}>{t('comments.delete')}</Text>
                     </Pressable>
                   ) : (
-                    onReport && (
-                      <Pressable onPress={() => onReport(item.id)} hitSlop={8} accessibilityRole="button">
-                        <Text style={styles.action}>{t('comments.report')}</Text>
-                      </Pressable>
-                    )
+                    <Pressable onPress={() => onReport(item.id)} hitSlop={8} accessibilityRole="button">
+                      <Text style={styles.action}>{t('comments.report')}</Text>
+                    </Pressable>
                   )}
                 </View>
               </View>
