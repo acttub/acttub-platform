@@ -2,7 +2,6 @@
  * 서명 주소로 파일을 PUT 하는 업로더. 영상 보관함(src/lib/api/v2/videos.ts)이 쓴다.
  * 보관함 업로드(src/lib/api/v2/videos.ts)가 사용한다.
  */
-import { MOCK_S3_UPLOAD } from "../config/env";
 
 export type UploadProgress = {
   loadedBytes: number;
@@ -108,29 +107,4 @@ export const browserS3Uploader: S3Uploader = ({ url, file, contentType, signal, 
     }
   });
 
-/** S3 CORS 가 없는 개발 환경용 — 올린 척만 한다. */
-export const fakeS3Uploader: S3Uploader = async ({ file, signal, onProgress }) => {
-  const steps = 10;
-  for (let step = 1; step <= steps; step += 1) {
-    await new Promise<void>((resolve, reject) => {
-      if (signal?.aborted) {
-        const error = abortError(signal);
-        reject(new S3PutError(error.message, error));
-        return;
-      }
-      const timer = setTimeout(resolve, 40);
-      signal?.addEventListener(
-        "abort",
-        () => {
-          clearTimeout(timer);
-          const error = abortError(signal);
-          reject(new S3PutError(error.message, error));
-        },
-        { once: true },
-      );
-    });
-    onProgress?.({ loadedBytes: step === steps ? file.size : Math.round((file.size * step) / steps), totalBytes: file.size, percent: step * 10 });
-  }
-};
-
-export const defaultUploader: S3Uploader = MOCK_S3_UPLOAD ? fakeS3Uploader : browserS3Uploader;
+export const defaultUploader: S3Uploader = browserS3Uploader;
