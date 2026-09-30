@@ -128,7 +128,7 @@ export default function ReadingRange() {
           record: micGranted ? record : false,
         }),
       );
-      await updateCurrent({ startIndex: start, endIndex: end, maskMode: mask, status: 'reading', index: start });
+      await updateCurrent({ maskMode: mask });
       router.replace('/reading/play');
     } catch (e) {
       const code = (e as { code?: string })?.code;

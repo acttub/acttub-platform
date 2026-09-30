@@ -15,6 +15,7 @@ import { getCurrent, updateCurrent, updateScriptMeta } from '@/lib/reading/store
 import * as engine from '@/lib/reading/tts/engine';
 import { assetsPresent } from '@/lib/reading/tts/assets';
 import { VOICE_PRESETS, assignVoices, isKnownPreset, normalizePresetValue, type VoicePreset } from '@/lib/reading/voices';
+import type { ScriptCharacter } from '@/lib/reading/types';
 import { translate as t } from '@/lib/i18n';
 
 /**
@@ -22,6 +23,8 @@ import { translate as t } from '@/lib/i18n';
  * 목소리 드롭다운(자동 + M1~M5·F1~F5)과 미리 듣기가 있고, 고른 값은 대본에 저장돼(PATCH voice_preset) 다음
  * 회차도 같다. 저장이 실패하면 이번 회차에서만 그 목소리로 읽고 다음에 다시 저장한다.
  */
+const NO_CHARACTERS: ScriptCharacter[] = [];
+
 export default function ReadingRoles() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -33,14 +36,11 @@ export default function ReadingRoles() {
   /** 저장에 실패한 목소리 — 이번 회차에서만 쓴다. */
   const [overrides, setOverrides] = useState<Record<string, string | null>>({});
   const [previewing, setPreviewing] = useState<string | null>(null);
-  const [characters, setCharacters] = useState(script?.characters ?? []);
+  // 목소리를 저장하면 updateScriptMeta 가 현재 대본을 새로 올린다 — 그 배역을 그대로 읽는다.
+  const characters = script?.characters ?? NO_CHARACTERS;
   const roleListTarget = useSpotlightTarget(TARGET.readingRoleList);
   const roleStartTarget = useSpotlightTarget(TARGET.readingRoleStart);
   const tutorialGuide = useTutorialSpotlight('readingRoles', { ready: !!script });
-
-  useEffect(() => {
-    if (script) setCharacters(script.characters);
-  }, [script]);
 
   // Wi-Fi 면 상대역 목소리를 미리 받아 둔다 — 실행 화면에서 기다리지 않게. 화면을 막지 않고 실패도 알리지 않는다.
   useEffect(() => {
@@ -74,8 +74,7 @@ export default function ReadingRoles() {
     const preset = normalizePresetValue(value);
     setOverrides((prev) => ({ ...prev, [characterId]: preset }));
     try {
-      const detail = await updateScriptMeta(script.id, { characters: [{ id: characterId, voice_preset: preset }] });
-      setCharacters(detail.characters);
+      await updateScriptMeta(script.id, { characters: [{ id: characterId, voice_preset: preset }] });
       setOverrides((prev) => {
         const next = { ...prev };
         delete next[characterId];
