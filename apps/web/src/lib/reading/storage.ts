@@ -3,7 +3,7 @@
  * ADR-031) 여기에는 서버가 돌려준 대본·회차의 기기 캐시와, 확인 화면까지만 잠시 드는 초안, 완료 화면이
  * 보여 줄 결과가 있다. 모두 sessionStorage 라 탭을 닫으면 사라진다 — 대본·회차는 서버에서 다시 받는다.
  */
-import type { LineResult, ReadingMode, SessionDetail, SessionStatus } from "@/lib/reading/api-types";
+import type { LineResult, ReadingMode, SessionDetail } from "@/lib/reading/api-types";
 import type { ScriptDraft } from "@/lib/reading/draft";
 import type { ScriptLine } from "@/lib/reading/script/parse";
 
@@ -18,10 +18,8 @@ export interface StoredScript {
   characters: { id: string; name: string; voicePreset: string | null }[];
   /** lines 와 같은 순서의 줄 id — 회차의 구간·진행 저장이 쓴다 */
   lineIds: string[];
-  /** 열린 회차. 상세의 "이어서 연습"이 쓴다. */
-  openSessionId: string | null;
   /** 마지막 회차 요약. 배역 화면의 기본 선택이 이것의 내 배역이다. */
-  lastSession: { id: string; status: SessionStatus; myCharacterIds: string[] } | null;
+  lastSession: { myCharacterIds: string[] } | null;
 }
 
 /** 배역 화면에서 정한 기기 쪽 설정. 실행 화면이 읽는다. */

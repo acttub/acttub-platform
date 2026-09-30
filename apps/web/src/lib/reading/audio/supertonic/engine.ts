@@ -78,9 +78,9 @@ function send<T>(msg: WithoutId<ToWorker>, onProgress?: (p: LoadProgress) => voi
 }
 
 /** 모델을 받아 워커를 준비시킨다. 여러 번 불러도 실제 작업은 한 번만 한다. */
-export function load(onProgress?: (p: LoadProgress) => void, prefer?: Backend) {
+export function load(onProgress?: (p: LoadProgress) => void) {
   if (info) return Promise.resolve(info);
-  loading ??= send<{ backend: Backend; variant: Variant }>({ type: "load", prefer }, onProgress)
+  loading ??= send<{ backend: Backend; variant: Variant }>({ type: "load" }, onProgress)
     .then((got) => {
       info = got;
       return got;

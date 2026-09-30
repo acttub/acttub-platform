@@ -71,7 +71,6 @@ test("reading.script: 서버가 돌려준 대본은 배역 순서·줄 순서대
   assert.equal(stored.title, "옥상, 밤");
   assert.deepEqual(stored.roles, ["윤서", "태오"]);
   assert.deepEqual(stored.characters, [{ id: "c-1", name: "윤서", voicePreset: null }, { id: "c-2", name: "태오", voicePreset: null }]);
-  assert.equal(stored.openSessionId, null);
   assert.equal(stored.lastSession, null);
   assert.deepEqual(stored.lines, [
     { type: "direction", text: "바람 소리." },

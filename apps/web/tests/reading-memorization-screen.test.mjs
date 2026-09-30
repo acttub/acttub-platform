@@ -29,7 +29,6 @@ const script = {
   ],
   lineIds: ["l-0", "l-1", "l-2"],
   raw: "",
-  openSessionId: null,
   lastSession: null,
 };
 const noop = () => {};

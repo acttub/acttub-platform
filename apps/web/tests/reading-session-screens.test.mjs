@@ -30,7 +30,6 @@ const script = {
   ],
   lineIds: ["l-0", "l-1", "l-2", "l-3", "l-4", "l-5"],
   raw: "",
-  openSessionId: null,
   lastSession: null,
 };
 
