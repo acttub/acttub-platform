@@ -2,6 +2,7 @@ package com.acttub.actingapi.feature.admin;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -1402,6 +1403,40 @@ class AdminEndpointIT {
                 .textValue()).isEqualTo("#/components/schemas/AdminReadingSessionDetail");
         assertThat(actual.at("/paths/~1v2~1admin~1reading-recordings~1{id}~1playback/get/responses/200/content/application~1json/schema/$ref")
                 .textValue()).isEqualTo("#/components/schemas/AdminReadingPlayback");
+    }
+
+    /** 관리자 422 본문은 pydantic 모양이 곧 계약이라 바이트 그대로 고정한다(키 순서·ctx 유무 포함). */
+    @Test
+    void validationBodiesStayByteIdentical() throws Exception {
+        String[][] cases = {
+            {"POST", "/v2/admin/practice-migration?batch=nope",
+                    "{\"detail\":[{\"type\":\"int_parsing\",\"loc\":[\"query\",\"batch\"],\"msg\":\"Input should be a valid integer, unable to parse string as an integer\",\"input\":\"nope\"}]}"},
+            {"POST", "/v2/admin/practice-migration?batch=0",
+                    "{\"detail\":[{\"type\":\"greater_than_equal\",\"loc\":[\"query\",\"batch\"],\"msg\":\"Input should be greater than or equal to 1\",\"input\":\"0\",\"ctx\":{\"ge\":1}}]}"},
+            {"POST", "/v2/admin/practice-migration?batch=1001",
+                    "{\"detail\":[{\"type\":\"less_than_equal\",\"loc\":[\"query\",\"batch\"],\"msg\":\"Input should be less than or equal to 1000\",\"input\":\"1001\",\"ctx\":{\"le\":1000}}]}"},
+            {"GET", "/v2/admin/sessions?limit=nope",
+                    "{\"detail\":[{\"type\":\"int_parsing\",\"loc\":[\"query\",\"limit\"],\"msg\":\"Input should be a valid integer, unable to parse string as an integer\",\"input\":\"nope\"}]}"},
+            {"GET", "/v2/admin/sessions?limit=0",
+                    "{\"detail\":[{\"type\":\"greater_than_equal\",\"loc\":[\"query\",\"limit\"],\"msg\":\"Input should be greater than or equal to 1\",\"input\":\"0\",\"ctx\":{\"ge\":1}}]}"},
+            {"GET", "/v2/admin/sessions?limit=51",
+                    "{\"detail\":[{\"type\":\"less_than_equal\",\"loc\":[\"query\",\"limit\"],\"msg\":\"Input should be less than or equal to 50\",\"input\":\"51\",\"ctx\":{\"le\":50}}]}"},
+            {"GET", "/v2/admin/feedback?include_team=maybe",
+                    "{\"detail\":[{\"type\":\"bool_parsing\",\"loc\":[\"query\",\"include_team\"],\"msg\":\"Input should be a valid boolean, unable to interpret input\",\"input\":\"maybe\"}]}"},
+            {"GET", "/v2/admin/feedback?exclude_actors=nothex12",
+                    "{\"detail\":[{\"type\":\"value_error\",\"loc\":[\"query\",\"exclude_actors\"],\"msg\":\"Value error, exclude_actors must be up to 100 comma-separated 8-digit lowercase hex pseudonyms\",\"input\":\"nothex12\"}]}"},
+            {"GET", "/v2/admin/challenge-videos?visibility=friends",
+                    "{\"detail\":[{\"type\":\"literal_error\",\"loc\":[\"query\",\"visibility\"],\"msg\":\"Input should be 'all', 'public' or 'private'\",\"input\":\"friends\",\"ctx\":{\"expected\":\"'all', 'public' or 'private'\"}}]}"},
+            {"GET", "/v2/admin/reading-sessions?status=done",
+                    "{\"detail\":[{\"type\":\"literal_error\",\"loc\":[\"query\",\"status\"],\"msg\":\"Input should be 'all', 'in_progress', 'completed' or 'stopped'\",\"input\":\"done\",\"ctx\":{\"expected\":\"'all', 'in_progress', 'completed' or 'stopped'\"}}]}"},
+        };
+        for (String[] item : cases) {
+            var request = "POST".equals(item[0]) ? post(item[1]) : get(item[1]);
+            var response = mvc.perform(request.header("Authorization", "Bearer admin-secret"))
+                    .andReturn().getResponse();
+            assertThat(response.getStatus()).as(item[1]).isEqualTo(422);
+            assertThat(response.getContentAsString(StandardCharsets.UTF_8)).as(item[1]).isEqualTo(item[2]);
+        }
     }
 
     private void assertUnauthorized(String authorization) throws Exception {
