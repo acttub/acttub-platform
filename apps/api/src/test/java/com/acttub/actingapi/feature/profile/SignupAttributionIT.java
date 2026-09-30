@@ -1,10 +1,14 @@
 package com.acttub.actingapi.feature.profile;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -13,6 +17,8 @@ import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.profile.app.ProfileService;
 import com.acttub.actingapi.support.AccountFixtures;
 import com.acttub.actingapi.support.PostgresContainerSupport;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,7 +36,12 @@ import org.springframework.test.web.servlet.MockMvc;
  * 가입 계정의 유입 광고(SOMA-588) — {@code PUT /v2/me/signup-attribution} 을 HTTP 와 실제 Postgres 로 본다.
  * 처음 온 값만 남는지, 값 규칙이 422 로 막히는지, 탈퇴가 기록을 지우는지.
  */
-@SpringBootTest(properties = {"JWT_SECRET=test-secret", "ACCOUNT_CLEANUP_ENABLED=false"})
+@SpringBootTest(properties = {
+    "JWT_SECRET=test-secret",
+    "ACCOUNT_CLEANUP_ENABLED=false",
+    "ADMIN_OPS_TOKEN=admin-secret",
+    "ADMIN_OPS_EXCLUDE_EMAILS=team@acttub.com"
+})
 @AutoConfigureMockMvc
 class SignupAttributionIT {
 
@@ -53,6 +64,9 @@ class SignupAttributionIT {
 
     @Autowired
     ProfileService profiles;
+
+    @Autowired
+    ObjectMapper mapper;
 
     private UUID member;
     private String bearer;
@@ -145,6 +159,41 @@ class SignupAttributionIT {
                 {"source":"airbridge","platform":"ios","channel":"facebook.business"}
                 """).getStatus()).isEqualTo(403);
         assertThat(count()).isZero();
+    }
+
+    @Test
+    @DisplayName("ops-core 는 가명과 광고 이름만 싣고 팀 계정은 뺀다")
+    void opsCoreListsAttributionsByPseudonymWithoutTheTeam() throws Exception {
+        assertThat(record("""
+                {"source":"airbridge","platform":"ios","channel":"facebook.business",
+                 "campaign":"ACTTUB | iOS 앱 설치 릴스","ad_group":"iOS 앱 설치 | 연기","ad_creative":"대사분석 릴스"}
+                """).getStatus()).isEqualTo(204);
+        UUID team = UUID.randomUUID();
+        jdbc.update("INSERT INTO users(id,email,status) VALUES (?,'team@acttub.com','active')", team);
+        jdbc.update("""
+                INSERT INTO user_signup_attributions(user_id,source,platform,channel)
+                VALUES (?,'airbridge','android','unattributed')
+                """, team);
+
+        var response = mvc.perform(get("/v2/admin/ops-core").header("Authorization", "Bearer admin-secret"))
+                .andReturn().getResponse();
+        assertThat(response.getStatus()).isEqualTo(200);
+        JsonNode rows = mapper.readTree(response.getContentAsString()).path("signup_attributions");
+
+        assertThat(rows.isArray()).isTrue();
+        assertThat(rows).hasSize(1);
+        JsonNode row = rows.get(0);
+        assertThat(row.fieldNames()).toIterable().containsExactly(
+                "actor", "signup_at", "platform", "channel", "campaign", "ad_group", "ad_creative");
+        assertThat(row.path("actor").asText()).isEqualTo("배우 " + md5(member.toString()).substring(0, 8));
+        assertThat(row.path("platform").asText()).isEqualTo("ios");
+        assertThat(row.path("campaign").asText()).isEqualTo("ACTTUB | iOS 앱 설치 릴스");
+        assertThat(row.path("signup_at").asText()).matches("\\d{4}-\\d{2}-\\d{2}T\\d{2}:00:00\\.000000Z");
+    }
+
+    private static String md5(String value) throws Exception {
+        return HexFormat.of().formatHex(
+                MessageDigest.getInstance("MD5").digest(value.getBytes(StandardCharsets.UTF_8)));
     }
 
     private MockHttpServletResponse record(String body) throws Exception {
