@@ -123,7 +123,7 @@ public class AccessGate {
 
     /** 403 의 {@code pending_consents} 에는 <b>그 기능에 빠진 문서만</b> 싣는다. 웹은 그 목록으로 시트를 띄운다. */
     private void requireGuestFeature(AuthenticatedUser guest, HttpServletRequest request) {
-        GuestFeature feature = request == null ? null : GuestFeature.of(normalizedPath(request.getRequestURI()));
+        GuestFeature feature = request == null ? null : GuestFeature.of(RequestPath.normalized(request.getRequestURI()));
         if (feature == null) {
             throw new ApiException(403, "member_only");
         }
@@ -132,12 +132,5 @@ public class AccessGate {
         if (!missing.isEmpty()) {
             throw new ApiException(403, "consent_required").with("pending_consents", missing);
         }
-    }
-
-    private static String normalizedPath(String path) {
-        if (path.length() > 1 && path.endsWith("/")) {
-            return path.substring(0, path.length() - 1);
-        }
-        return path;
     }
 }
