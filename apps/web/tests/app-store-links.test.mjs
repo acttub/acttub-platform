@@ -75,8 +75,8 @@ test("스토어 주소의 앱 식별자는 모바일 제출 설정과 같다", (
 
 test("UTM이 없으면 기존 acttub_web과 원래 surface를 유지한다", () => {
   assert.equal(
-    playInstallReferrer("landing_footer"),
-    "utm_source=acttub_web&utm_medium=landing_footer",
+    playInstallReferrer("landing_cta"),
+    "utm_source=acttub_web&utm_medium=landing_cta",
   );
   assert.equal(
     playReferrer(storeHref("google_play", "landing_sticky")),
@@ -166,7 +166,6 @@ test("모든 다운로드 surface가 /go 정적 경로 목록의 단일 정본�
     "landing_app_section",
     "landing_sticky",
     "landing_cta",
-    "landing_footer",
     "app_page",
     "keyword_page",
     "entry_share",

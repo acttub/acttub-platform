@@ -9,7 +9,6 @@ const DEFAULT_SITE_URL = "https://acttub.com";
  * "엑터브"는 사람들이 실제로 치는 오타 변형이라 구조화 데이터의 alternateName 에만 둔다
  * (본문에 둘 다 적으면 문서가 지저분해지고, 구글은 alternateName 으로 같은 브랜드임을 안다).
  */
-export const BRAND_NAME_KO = "액터브";
 export const BRAND_ALTERNATE_NAMES = ["액터브", "엑터브"] as const;
 
 const DEFAULT_TITLE =
@@ -19,9 +18,9 @@ export const SITE_DESCRIPTION =
   "AI 연기 코칭 앱 Acttub(액터브). 내 연기 영상을 올리면 장면 맥락에서 확인한 단서가 질문으로 돌아와요. 질문으로 연기 장면을 다시 생각하는 연기 연습 도구예요.";
 
 // 검색엔진 소유권 확인 값은 페이지 소스에 그대로 공개되는 값이라 코드에 둔다.
-export const GOOGLE_SITE_VERIFICATION =
+const GOOGLE_SITE_VERIFICATION =
   "zABzA1FHYUFDJR1hJmCKZqAdJDjZ7-Tz_zhWpOZ8hzg";
-export const NAVER_SITE_VERIFICATION =
+const NAVER_SITE_VERIFICATION =
   "697b757ca85289cefc70141c0a879284c3ef8563";
 
 export function buildVerification(google: string, naver: string) {
@@ -145,9 +144,9 @@ export function buildLandingMetadata(siteUrl?: string): Metadata {
 // "앱 다운로드"만으로는 검색 결과에서 무엇을 하는 앱인지 안 보인다. 이 페이지가 가장 많이
 // 노출되는데(서치콘솔 2026-09-24 노출 17) 그 검색어는 브랜드와 "AI 연기 코칭"이다.
 // 루트 템플릿이 " | Acttub"을 붙이므로 영문 브랜드는 여기서 반복하지 않는다.
-export const APP_DOWNLOAD_TITLE = "AI 연기 코칭 앱 액터브 — iOS·Android 무료";
+const APP_DOWNLOAD_TITLE = "AI 연기 코칭 앱 액터브 — iOS·Android 무료";
 
-export const APP_DOWNLOAD_DESCRIPTION =
+const APP_DOWNLOAD_DESCRIPTION =
   "연기 영상을 폰에서 올리면 AI가 장면 속 순간을 짚어 질문해요. 말로 답하면 다음 테이크에서 붙잡을 문장이 연습 노트로 남아요. App Store·Google Play 무료.";
 
 /**
