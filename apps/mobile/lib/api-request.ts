@@ -180,7 +180,7 @@ function toApiError(status: number, body: unknown): ApiError {
   return new ApiError(status, friendlyError(status, body), code, detail, body);
 }
 
-/** 오류의 사유 코드. ApiError 가 아니어도 모양만 본다(테스트·옛 호출부가 평범한 객체를 던진다). */
+/** 오류의 사유 코드와 상태. ApiError 가 아니어도 code·status 칸의 모양만 본다. */
 export function errorCode(error: unknown): string | null {
   if (error === null || typeof error !== 'object') return null;
   const code = (error as { code?: unknown }).code;
@@ -193,7 +193,7 @@ export function errorStatus(error: unknown): number | null {
   return typeof status === 'number' ? status : null;
 }
 
-/** 연결이 끊겼거나 상태가 없거나 서버 5xx — 화면은 "연결이 끊겼어요"로 보이고 같은 요청으로 다시 보낸다. */
+/** 연결 실패로 본다 — 끊겼거나(NetworkError) 상태가 없거나 서버 5xx. 시간 초과·취소(RequestAbortError)는 아니다. */
 export function isOfflineError(error: unknown): boolean {
   const name = error !== null && typeof error === 'object' ? (error as { name?: unknown }).name : null;
   const status = errorStatus(error);
