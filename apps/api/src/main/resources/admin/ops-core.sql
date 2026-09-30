@@ -15,6 +15,8 @@
 --   6. 기능별 사용('features' — 대본 리딩·챌린지·노트 평가·이탈 설문·커뮤니티·계정, SOMA-570). 수집기 정본에는 없다.
 --   7. 연습 활동 원장('activity_rows' — 코칭·리딩·챌린지). 기능별 합계와 별개인 additive 데이터다.
 --   8. 챌린지 참여작 목록('features.challenges.recent_entries', SOMA-578) — 비공개 참여작도 가명으로 싣는다.
+--   9. 가입 유입 광고('signup_attributions', SOMA-588) — 앱이 새로 가입한 계정에 붙인 Airbridge 설치 귀속.
+--      수집기 정본에는 없다.
 -- now() 는 트랜잭션 시작 시각이다. 백업 경로는 이것을 백업 시각으로 바꿔 돌렸다.
 WITH b AS (SELECT (now() AT TIME ZONE 'Asia/Seoul')::date AS d),
 -- 분석 기준 셋. '어제'(달력)가 아니라 '최근 24시간'(구르는 창)이다 —
@@ -705,6 +707,21 @@ SELECT json_build_object(
       'status', status,
       'is_team', false
     ) ORDER BY created_at DESC, activity_id), '[]'::json) FROM activity_rows),
+  -- ── 가입 유입 광고 (SOMA-588) ─────────────────────────────────────
+  -- 앱이 새로 가입한 계정에 붙인 Airbridge 설치 귀속. 팀 제외. 가명과 광고 이름만 싣는다 — 광고 식별자는
+  -- 애초에 받지 않는다. 가입 시각은 activity_rows 와 같이 시간 단위로 뭉갠다(git 이력에 영구히 남는다).
+  'signup_attributions', (SELECT COALESCE(json_agg(json_build_object(
+      'actor', '배우 ' || left(md5(sa.user_id::text), 8),
+      'signup_at', to_char(date_trunc('hour', u.created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+      'platform', sa.platform,
+      'channel', sa.channel,
+      'campaign', sa.campaign,
+      'ad_group', sa.ad_group,
+      'ad_creative', sa.ad_creative
+    ) ORDER BY u.created_at DESC, sa.user_id), '[]'::json)
+    FROM user_signup_attributions sa
+    JOIN users u ON u.id = sa.user_id
+    WHERE sa.user_id NOT IN (SELECT id FROM team)),
   -- ── 기능별 사용 (SOMA-570) ─────────────────────────────────────────
   -- 전부 팀 제외(team CTE). ⚠️ 자유 글은 싣지 않는다 — 설문 본문·연락처·노트 평가 코멘트·대본·댓글은
   -- 있는지만 센다. 이 JSON 은 수집기를 거쳐 git(ops-data)에 영구히 남는다.
