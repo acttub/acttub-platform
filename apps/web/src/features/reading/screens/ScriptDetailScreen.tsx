@@ -2,7 +2,7 @@
 
 /**
  * 대본 상세(웹의 R00.5 대응, reading.session). 회차 목록(최근순)과 "이어서 연습 · K / N", "새로운 연습",
- * 회차 삭제. 회차의 녹음 재생·이어 듣기는 RW3 가 더한다.
+ * 회차 삭제, 회차별 녹음(SessionRecordings).
  */
 import { useState } from "react";
 import { deleteSession } from "@/lib/api/v2/reading-sessions";
