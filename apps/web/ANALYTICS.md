@@ -229,10 +229,10 @@ GA4는 `isMeasuredHost()`로 로컬 트래픽을 막지만, Amplitude는 그 가
 
 `turn_count`는 **실측이 유일한 진실**이다. 코치 응답 상한([practice.coach 「규칙·제약」](../../docs/specs/practice/coach.md#규칙제약))은 마지막 자리일 뿐이고, 배우가 먼저 끝내거나 코치가 먼저 마무리하면 더 일찍 닫히므로 실제 턴 수는 세션마다 다르다.
 
-`report_type`의 `blocked`는 대화를 시작했지만 노트를 만들 실질 답변이 부족한 경우다.
-답변 판정과 최소 개수는
-[HandoffReadiness](../api/src/main/java/com/acttub/actingapi/feature/coach/domain/HandoffReadiness.java)의
-`hasEnoughAnswers`·`MIN_ANSWERS_FOR_REPORT`에서 확인한다.
+`report_type`의 `blocked`는 대화를 시작했지만 노트를 만들 근거가 부족한 경우다.
+판정은
+[ReportEngine](../api/src/main/java/com/acttub/actingapi/feature/report/app/ReportEngine.java)의
+`buildReportInput`이 모델 입력을 만들지 못할 때(`generateReport`가 `blockedReport`를 낼 때)다.
 
 `practice_dialogue_turn_failed`는 `workspace-app.tsx:send`의 답장 실패 catch에서 발생한다.
 화면에는 연결 실패 안내 말풍선이 표시되므로, 이 이벤트로 답장 실패를 대화 내용과 구분해 센다.

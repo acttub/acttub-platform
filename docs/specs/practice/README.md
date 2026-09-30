@@ -53,7 +53,7 @@
 정하지 않는다.
 
 옛 쓰기 경로는 내렸다. `/v2/uploads/**`와 `/v2/practice-sessions/**`는 없고 영상은 `/v2/videos/**`가, 회차는
-`/v2/practices/**`가 받는다. 옛 코치·리포트 경로(`/v2/legacy-coach/**`, 옛 연습의 `/v2/reports/**`)도 등록하지 않는다. 코치는
+`/v2/practices/**`가 받는다. 옛 코치·리포트 경로(옛 연습의 `/v2/reports/**`)도 없고 그 코드도 지웠다. 코치는
 `/v2/coach/start`·`/v2/coach/reply`, 노트 읽기는 `/v2/practices/{practice_id}/note`를 쓴다. 두 표에 나뉜 자료는 새 조회 API가 새
 표를 먼저 보고 없으면 옛 표를 읽어 같은 응답 모양으로 낸다(호환 읽기). 화면은 어느 표에서 왔는지 모른다. 옛 표는 그대로 남아
 있고 삭제는 ④부터다.
