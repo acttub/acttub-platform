@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import "./ts-module-loader.mjs";
@@ -194,4 +195,25 @@ test("공고가 없는 대학 상세 metadata는 중립 설명을 쓴다", () =>
     metadata.description,
     "빈대학교 연기 전공 입시 정보를 정리했어요. 최종 확인은 대학 입학처 공고로 해주세요.",
   );
+});
+
+test("공개 페이지 metadata 빌더 여섯의 결과를 글자 그대로 고정한다", () => {
+  const site = "https://example.com/";
+  const actual = {
+    keyword: buildKeywordPageMetadata(AI_ACTING_COACHING, site),
+    guideIndex: buildGuideIndexMetadata(site),
+    landing: buildLandingMetadata(site),
+    appDownload: buildAppDownloadMetadata(site),
+    admissionsIndex: buildAdmissionsIndexMetadata(site),
+    university: buildUniversityAdmissionsMetadata(loadUniversityAdmissionsStatic("cau"), site),
+  };
+  for (const metadata of Object.values(actual)) {
+    assert.ok(metadata.metadataBase instanceof URL);
+    metadata.metadataBase = metadata.metadataBase.href;
+  }
+  // 값이 undefined 인 키가 끼어도 틀린다 — 루트의 title 템플릿을 덮으면 화면 제목이 바뀐다.
+  const expected = JSON.parse(
+    readFileSync(new URL("./fixtures/seo-page-metadata.json", import.meta.url), "utf8"),
+  );
+  assert.deepEqual(actual, expected);
 });
