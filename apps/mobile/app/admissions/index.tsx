@@ -156,7 +156,7 @@ export default function AdmissionsScreen() {
                   />
                 ))}
               </FilterRow>
-              <FilterRow label="학교" values={facets.types}>
+              <FilterRow label="학교" values={["always"]}>
                 {facets.types.map((type) => (
                   <Chip
                     key={type}
