@@ -1,7 +1,12 @@
 package com.acttub.actingapi.feature.reading.adapter;
 
 import java.time.Clock;
+import java.time.OffsetDateTime;
 
+import com.acttub.actingapi.feature.reading.app.CloudVoiceRepository;
+import com.acttub.actingapi.feature.reading.app.CloudVoiceService;
+import com.acttub.actingapi.feature.reading.app.CloudVoiceSettings;
+import com.acttub.actingapi.feature.reading.app.CloudVoiceStorage;
 import com.acttub.actingapi.feature.reading.app.MemorizationRepository;
 import com.acttub.actingapi.feature.reading.app.MemorizationService;
 import com.acttub.actingapi.feature.reading.app.ReadingRecordingCleanup;
@@ -13,8 +18,12 @@ import com.acttub.actingapi.feature.reading.app.ScriptRepository;
 import com.acttub.actingapi.feature.reading.app.ScriptService;
 import com.acttub.actingapi.feature.reading.app.SessionRepository;
 import com.acttub.actingapi.feature.reading.app.SessionService;
+import com.acttub.actingapi.feature.reading.app.VoiceSynthesizer;
 import com.acttub.actingapi.integration.media.AudioTranscoder;
+import com.acttub.actingapi.feature.reading.adapter.voice.GeminiVoiceSynthesizer;
 import com.acttub.actingapi.platform.web.CanonicalJson;
+import com.google.genai.Client;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -25,6 +34,28 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration
 class ReadingConfiguration {
+
+    @Bean
+    CloudVoiceSettings cloudVoiceSettings(
+            @Value("${GEMINI_TTS_MODEL:}") String model,
+            @Value("${GEMINI_API_KEY:}") String apiKey,
+            @Value("${READING_VOICE_FREE_UNTIL:2026-11-30T23:59:59+09:00}") String freeUntil,
+            @Value("${READING_VOICE_DAILY_LINE_CAP:300}") int dailyCap,
+            @Value("${READING_VOICE_MONTHLY_LINE_CAP:75000}") int monthlyCap) {
+        return new CloudVoiceSettings(model, apiKey,
+                freeUntil == null || freeUntil.isBlank() ? null : OffsetDateTime.parse(freeUntil), dailyCap, monthlyCap);
+    }
+
+    @Bean
+    VoiceSynthesizer voiceSynthesizer(Client client, CloudVoiceSettings settings) {
+        return new GeminiVoiceSynthesizer(client, settings.model());
+    }
+
+    @Bean
+    CloudVoiceService cloudVoiceService(CloudVoiceRepository repository, CloudVoiceStorage storage,
+            VoiceSynthesizer synthesizer, CloudVoiceSettings settings, Clock clock) {
+        return new CloudVoiceService(repository, storage, synthesizer, settings, clock);
+    }
 
     @Bean
     ScriptService scriptService(

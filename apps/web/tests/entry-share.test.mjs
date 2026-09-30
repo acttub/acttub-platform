@@ -175,6 +175,26 @@ test("challenge.share: 앱에서 보기 — 기기를 못 가리면 두 스토�
   });
 });
 
+test("challenge.share: 안전한 UTM은 앱 열기 실패 뒤 /go 또는 /app까지 이어진다", () => {
+  const search =
+    "?utm_source=instagram&utm_medium=paid_social&utm_campaign=share_reel&fbclid=private";
+  const query =
+    "?utm_source=instagram&utm_medium=paid_social&utm_campaign=share_reel";
+
+  assert.equal(
+    openInAppTarget("ios", ENTRY_ID, "https://acttub.com", search).fallback,
+    `/go/ios/entry_share${query}`,
+  );
+  assert.match(
+    openInAppTarget("android", ENTRY_ID, "https://acttub.com", search).href,
+    new RegExp(encodeURIComponent(`https://acttub.com/go/android/entry_share${query}`)),
+  );
+  assert.deepEqual(
+    openInAppTarget(null, ENTRY_ID, "https://acttub.com", search),
+    { href: `/app${query}`, fallback: null },
+  );
+});
+
 test("challenge.share: 스토어 주소는 기존 정본에서 표면 이름만 더해 만든다", () => {
   assert.equal(
     storeHref("google_play", "entry_share"),

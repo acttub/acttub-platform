@@ -94,18 +94,16 @@ test('practice.library: 묶음 상세는 회차 흐름과 이어서 연습하기
   assert.match(group, /kind: 'history'/);
 });
 
-test('practice.feedback: 설문은 서버가 선점·접수하고 앱은 시트를 직접 부르지 않는다', () => {
-  const hook = read('hooks/use-exit-review.tsx');
-
-  assert.match(hook, /claimFeedbackAsk\(\)/);
-  assert.match(hook, /shouldOfferFeedback/);
-  assert.match(hook, /practiceFeedback\.send/);
-  // 건너뛰기도 본문 없는 행으로 남는다.
-  assert.match(hook, /const skip = useCallback/);
-  // 옛 Apps Script 직접 전송은 이탈 설문 경로에 없다.
-  assert.doesNotMatch(hook, /submitOneLiner|EXIT_REVIEW_ENDPOINT/);
-  // 제출을 기다리지 않는다 — 실패해도 나가기를 막지 않는다.
-  assert.match(hook, /void practiceFeedback\.send/);
+// 한줄평·이탈 설문은 SOMA-494에서 걷고 앱 평가 요청으로 바꿨다 — 코치·노트 화면은 나갈 때 붙잡지 않는다.
+test('코치·노트는 나갈 때 설문을 띄우지 않고, 노트를 마치면 앱 평가를 묻는다', () => {
+  const coach = read('app/coach.tsx');
+  const report = read('app/report.tsx');
+  assert.doesNotMatch(coach, /useExitReview|exitReview/);
+  assert.doesNotMatch(report, /useExitReview|exitReview/);
+  assert.match(report, /rating\.after\(\{ kind: 'coach', practiceId: practice\.practiceId \}/);
+  assert.match(read('app/reading/play.tsx'), /askRating\(\{ kind: 'reading' \}\)/);
+  assert.doesNotMatch(read('app/(tabs)/index.tsx'), /feedbackNudge|useFeedbackSheet/);
+  assert.match(read('app/settings.tsx'), /openStoreReviewPage/);
 });
 
 test('practice.feedback: 밀린 접수는 게이트를 지난 뒤 다시 보낸다', () => {

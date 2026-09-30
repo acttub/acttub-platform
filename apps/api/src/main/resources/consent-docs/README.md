@@ -70,7 +70,7 @@
 
 ## 검증
 ```bash
-curl -s -H 'X-Acttub-Client: web/0.1.0' https://dev.acttub.com/v2/consents/documents   # documents 4개
+curl -s -H 'X-Acttub-Client: web/0.1.0' https://dev.acttub.com/v2/consents/documents   # documents 5개
 ```
 그 후 앱에서 소셜 로그인 → 동의 화면에 필수 3종과 선택 1종이 뜨는지 확인.
 

@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Linking,
@@ -15,10 +15,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
+import { useCloudVoice } from '@/hooks/use-cloud-voice';
 import { Markdown } from '@/components/markdown';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
-import { useFeedbackSheet } from '@/hooks/use-feedback-sheet';
+import { openStoreReviewPage } from '@/lib/store-review';
 import { useAuth } from '@/lib/auth';
 import {
   consentChangeFailureAction,
@@ -77,11 +78,26 @@ export default function SettingsScreen() {
   const [updatingConsentId, setUpdatingConsentId] = useState<string | null>(null);
   const [updatingToggle, setUpdatingToggle] = useState<keyof NotificationSettings | null>(null);
   const { confirm, alert, dialog } = useAppDialog();
-  const feedback = useFeedbackSheet('settings');
+  const cloudVoice = useCloudVoice();
+  const refreshVoice = cloudVoice.refresh;
+  const cloudVoiceDate = cloudVoice.status?.free_until
+    ? new Date(cloudVoice.status.free_until).toLocaleDateString(isKorean() ? 'ko-KR' : 'en-US', { month: 'long', day: 'numeric' })
+    : '';
 
   const loadConsents = useCallback(async () => {
     setRows(consentSettingsRows(await api.consentEntry()));
   }, []);
+
+  // 목소리 스위치로 동의하면 아래 선택 동의 목록도 다시 받는다 — 처음 읽어 온 때는 빼고.
+  const voiceConsent = cloudVoice.status?.consent ?? null;
+  const seenVoiceConsent = useRef<string | null>(null);
+  useEffect(() => {
+    if (voiceConsent === null) return;
+    if (seenVoiceConsent.current !== null && seenVoiceConsent.current !== voiceConsent) {
+      void loadConsents().catch(() => undefined);
+    }
+    seenVoiceConsent.current = voiceConsent;
+  }, [voiceConsent, loadConsents]);
 
   const loadSettings = useCallback(async () => {
     setLoading(true);
@@ -142,8 +158,9 @@ export default function SettingsScreen() {
       ); // 낙관적 업데이트
       try {
         await api.recordConsent(row.id, decision);
-        // 결정 시각은 서버가 정한다. 다시 받아 그린다.
+        // 결정 시각은 서버가 정한다. 다시 받아 그린다. 목소리 스위치도 같은 동의를 보므로 함께 다시 읽는다.
         await loadConsents().catch(() => undefined);
+        void refreshVoice().catch(() => undefined);
       } catch (err) {
         if (consentChangeFailureAction(err) === 'reload') {
           // 보는 사이 새 판이 나왔다. 목록을 다시 받아 현재 판을 보여 준다.
@@ -162,7 +179,7 @@ export default function SettingsScreen() {
         setUpdatingConsentId(null);
       }
     },
-    [updatingConsentId, loadConsents, alert],
+    [updatingConsentId, loadConsents, alert, refreshVoice],
   );
 
   const required = rows.filter((row) => row.required);
@@ -246,6 +263,28 @@ export default function SettingsScreen() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.list}>
+          {cloudVoice.status?.available && (
+            <>
+              <Text style={styles.sectionTitle}>{t('cloudVoice.readingSection')}</Text>
+              <View style={styles.card}>
+                <View style={styles.cardRow}>
+                  <View style={styles.iconCircle}><Feather name="volume-2" size={18} color={palette.flame} /></View>
+                  <View style={styles.cardBody}>
+                    <Text style={styles.cardTitle}>{t('cloudVoice.settingsTitle')}</Text>
+                    <Text style={styles.cardSub}>{t('cloudVoice.settingsBody', { date: cloudVoiceDate })}</Text>
+                  </View>
+                  <Switch
+                    value={cloudVoice.enabled && cloudVoice.status.consent === 'granted'}
+                    onValueChange={(value) => void (value ? cloudVoice.enable('settings') : cloudVoice.disable())}
+                    disabled={cloudVoice.busy}
+                    trackColor={{ true: palette.flame, false: palette.border }}
+                    thumbColor={palette.onAccent}
+                    ios_backgroundColor={palette.border}
+                  />
+                </View>
+              </View>
+            </>
+          )}
           {/* 프로필 — 여섯 항목과 사진·한 줄 소개를 고치는 진입점. */}
           <Text style={styles.sectionTitle}>{t('settings.profile')}</Text>
           <Pressable style={styles.card} onPress={() => router.push('/profile-edit')} accessibilityRole="button">
@@ -336,16 +375,16 @@ export default function SettingsScreen() {
             </View>
           ))}
 
-          {/* 의견 보내기 — 나갈 때 한 번 묻는 한줄평과 달리 언제든 남길 수 있는 자리. */}
+          {/* 앱 평가하기 — 스토어의 리뷰 쓰기 화면을 바로 연다(한줄평은 SOMA-494에서 걷었다). */}
           <Text style={styles.sectionTitle}>{t('settings.feedbackSection')}</Text>
-          <Pressable style={styles.card} onPress={feedback.open} accessibilityRole="button">
+          <Pressable style={styles.card} onPress={() => void openStoreReviewPage()} accessibilityRole="button">
             <View style={styles.cardRow}>
               <View style={styles.iconCircle}>
-                <Feather name="message-square" size={18} color={palette.blue} />
+                <Feather name="star" size={18} color={palette.blue} />
               </View>
               <View style={styles.cardBody}>
-                <Text style={styles.cardTitle}>{t('settings.feedbackTitle')}</Text>
-                <Text style={styles.cardSub}>{t('settings.feedbackSub')}</Text>
+                <Text style={styles.cardTitle}>{t('settings.storeReviewTitle')}</Text>
+                <Text style={styles.cardSub}>{t('settings.storeReviewSub')}</Text>
               </View>
               <Feather name="chevron-right" size={18} color={palette.checkOff} />
             </View>
@@ -439,8 +478,8 @@ export default function SettingsScreen() {
           </Pressable>
         </ScrollView>
       )}
-      {feedback.element}
       {dialog}
+      {cloudVoice.consentSheet}
     </SafeAreaView>
   );
 }

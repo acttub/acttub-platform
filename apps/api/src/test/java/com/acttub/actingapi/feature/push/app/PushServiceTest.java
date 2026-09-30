@@ -85,7 +85,7 @@ class PushServiceTest {
         private final List<String> removed = new ArrayList<>();
 
         @Override
-        public void register(UUID userId, String token, String platform) {
+        public void register(UUID userId, String token, String platform, String appVersion) {
             registered.add(token);
         }
 

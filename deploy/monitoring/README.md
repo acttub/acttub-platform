@@ -15,7 +15,7 @@ Langfuse 수치는 완전한 비용 정산 자료가 아니다.
   연결)로 그것을 직접 조회해 대시보드·규칙 평가·통지를 맡는다.
 - 감시를 홈서버에만 두면 전원·회선 장애 때 알림도 함께 멈춘다. 그래서 규칙 평가와 통지는 Cloud가 하고,
   Cloud 외부 점검이 두 환경의 공개 접근을 따로 확인한다.
-- 추가 월 비용 없이 Grafana Cloud Free로 운영한다. 사람 계정과 권한은 [MONITORING-CLOUD.md](../../docs/deploy/MONITORING-CLOUD.md#처음-준비할-실제-값과-시크릿)를
+- 추가 월 비용 없이 Grafana Cloud Free로 운영한다. 사람 계정과 권한은 [MONITORING-CLOUD.md](../../docs/deploy/MONITORING-CLOUD.md#처음-한-번-사람이-준비하는-것)를
   따른다.
 - 화면은 Cloud 계정 로그인으로 연다. 초기의 Tailscale 전용 화면 접근 결정은 이 방식으로 대체했고, Tailscale은
   서버 관리·배포에 유지한다. PDC는 브라우저 접속을 Tailscale로 제한하는 기능이 아니다.

@@ -1,11 +1,4 @@
-.terraform/
-*.tfstate*
-*.tfplan
-*.tfplan.*
-*.tfvars
-*.tfvars.json
-!example.tfvars
-!example.tfvars.json
-crash.log
 __pycache__/
 .validation/
+# apply.py 가 적용 직전 Cloud 설정을 저장한다(0600). Slack 설정 등 운영 정보가 들어 있다.
+.backups/

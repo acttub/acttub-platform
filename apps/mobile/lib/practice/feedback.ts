@@ -1,4 +1,3 @@
-import { translate } from '../i18n.ts';
 import { FEEDBACK_BODY_MAX, FEEDBACK_CONTACT_MAX, type FeedbackBody, type FeedbackScreen, type FeedbackTrigger } from './types.ts';
 
 /**
@@ -71,10 +70,6 @@ export function isDismissed(body: FeedbackBody): boolean {
  */
 export function shouldOfferFeedback(input: { online: boolean; claimedNow: boolean }): boolean {
   return input.online && input.claimedNow;
-}
-
-export function feedbackNotice(): string {
-  return translate('exitReview.notice');
 }
 
 // ─── 밀린 제출 ────────────────────────────────────────────────────────────────

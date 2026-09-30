@@ -1,6 +1,8 @@
 import { useNavigation, usePreventRemove } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { Image } from 'expo-image';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -8,7 +10,6 @@ import { useAppDialog } from '@/components/app-dialog';
 import type { MicButtonProps } from '@/components/mic-button';
 import { SceneFoldBody, SceneFoldLink } from '@/components/practice-chrome';
 import { palette } from '@/constants/palette';
-import { useExitReview } from '@/hooks/use-exit-review';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { translate as t } from '@/lib/i18n';
 import {
@@ -24,6 +25,7 @@ import {
   nextReplyWraps,
   orderedMessages,
   remainingCoachReplies,
+  splitCoachQuestion,
   type HelpButton,
 } from '@/lib/practice/coach';
 import { clearPractice, getPractice, setContinueOrigin } from '@/lib/practice/session-state';
@@ -97,8 +99,6 @@ export default function CoachScreen() {
     }, 0);
   }, []);
 
-  const exitReview = useExitReview('back', 'coach', practice?.practiceId);
-  const finishReview = useExitReview('leave', 'coach', practice?.practiceId);
 
   const goToNote = useCallback(() => {
     leaveThen(() => router.replace('/report'));
@@ -198,7 +198,7 @@ export default function CoachScreen() {
       leaveThen(() => navigation.dispatch(data.action));
       return;
     }
-    void exitReview.offer(() => leaveThen(() => navigation.dispatch(data.action)));
+    leaveThen(() => navigation.dispatch(data.action));
   });
 
   useEffect(() => {
@@ -253,10 +253,8 @@ export default function CoachScreen() {
   };
 
   const finishWithoutNote = () => {
-    void finishReview.offer(() => {
-      clearPractice();
-      leaveThen(() => router.dismissAll());
-    });
+    clearPractice();
+    leaveThen(() => router.dismissAll());
   };
 
   const pressHelp = (button: HelpButton) => {
@@ -267,6 +265,7 @@ export default function CoachScreen() {
   };
 
   const latestQuestion = [...messages].reverse().find((m) => m.role === 'coach')?.text ?? null;
+  const latest = splitCoachQuestion(latestQuestion ?? '');
   const askedCount = messages.filter((m) => m.role === 'coach').length;
   const past = messages.slice(0, Math.max(0, messages.length - (latestQuestion ? 1 : 0)));
   const canSend = canSendAnswer({ text: input, waiting, closed, conversationId: conversation?.id ?? null });
@@ -278,11 +277,6 @@ export default function CoachScreen() {
       <Stack.Screen
         options={{ title: practice.scene.situation.trim() || t('coach.fallbackTitle'), headerShadowVisible: false }}
       />
-      <View style={styles.statusRow}>
-        <View style={styles.statusChip}>
-          <Text style={styles.statusChipText}>{closed ? t('coach.statusDone') : t('coach.statusAsking')}</Text>
-        </View>
-      </View>
 
       <View style={styles.strip}>
         <View style={styles.stripRow}>
@@ -335,7 +329,23 @@ export default function CoachScreen() {
             </View>
           ) : (
             <View style={styles.questionBlock} ref={questionTarget.ref} onLayout={questionTarget.onLayout}>
-              {latestQuestion && <Text style={styles.question}>{latestQuestion}</Text>}
+              {latestQuestion && (
+                <>
+                  <View style={styles.questionHead}>
+                    <View style={styles.questionMain}>
+                      <Text style={styles.coachLabel}>{t('coach.coachLabel')}</Text>
+                      <Text style={styles.question}>{latest.question}</Text>
+                    </View>
+                    <Image source={require('@/assets/images/mascot-coach.png')} style={styles.mascot} contentFit="contain" />
+                  </View>
+                  {latest.hint && (
+                    <View style={styles.hint}>
+                      <Ionicons name="bulb" size={18} color={palette.hintIcon} style={styles.hintIcon} />
+                      <Text style={styles.hintText}>{latest.hint}</Text>
+                    </View>
+                  )}
+                </>
+              )}
             </View>
           )}
 
@@ -417,8 +427,6 @@ export default function CoachScreen() {
         )}
       </View>
       {dialog}
-      {exitReview.element}
-      {finishReview.element}
       {tutorialGuide.element}
     </SafeAreaView>
   );
@@ -427,10 +435,6 @@ export default function CoachScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1 },
-
-  statusRow: { alignItems: 'flex-end', paddingHorizontal: 16, paddingBottom: 8 },
-  statusChip: { backgroundColor: palette.blueSoft, borderRadius: 9999, paddingVertical: 5, paddingHorizontal: 10 },
-  statusChipText: { fontSize: 11, fontWeight: '900', color: palette.blue },
 
   stripRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   stripText: { flex: 1, gap: 2 },
@@ -465,8 +469,22 @@ const styles = StyleSheet.create({
   loading: { alignItems: 'center', gap: 12, paddingTop: 24 },
   loadingText: { fontSize: 13.5, fontWeight: '600', color: palette.textFaint },
 
-  questionBlock: { gap: 14 },
-  question: { fontSize: 19, fontWeight: '800', color: palette.text, lineHeight: 28 },
+  questionBlock: { gap: 16 },
+  questionHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  questionMain: { flex: 1, gap: 10 },
+  coachLabel: { fontSize: 13, fontWeight: '900', color: palette.flameDeep, letterSpacing: 0.3 },
+  question: { fontSize: 23, fontWeight: '900', color: palette.text, lineHeight: 33, letterSpacing: -0.5 },
+  mascot: { width: 84, height: 98, marginTop: 4 },
+  hint: {
+    flexDirection: 'row',
+    gap: 10,
+    backgroundColor: palette.amberSoft,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+  },
+  hintIcon: { marginTop: 2 },
+  hintText: { flex: 1, fontSize: 14.5, fontWeight: '600', color: palette.textStrong, lineHeight: 23 },
 
   pastAi: { gap: 4 },
   pastMine: { gap: 4, paddingLeft: 14, borderLeftWidth: 2, borderLeftColor: palette.blueLine },

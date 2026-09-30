@@ -864,6 +864,37 @@
         } ]
       }
     },
+    "/v2/reading/voice" : {
+      "post" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "Synthesize a reading line",
+        "operationId" : "synthesize",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SynthesizeRequest"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SynthesizeResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/reading/sessions/{session_id}/recordings" : {
       "post" : {
         "tags" : [ "v2-reading" ],
@@ -3186,6 +3217,28 @@
         } ]
       }
     },
+    "/v2/reading/voice/status" : {
+      "get" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "Cloud voice status",
+        "operationId" : "status",
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/reading/sessions/{session_id}" : {
       "get" : {
         "tags" : [ "v2-reading" ],
@@ -4906,6 +4959,38 @@
         },
         "required" : [ "id", "status" ],
         "title" : "ReportReceipt"
+      },
+      "SynthesizeRequest" : {
+        "type" : "object",
+        "properties" : {
+          "text" : {
+            "type" : "string",
+            "title" : "Text"
+          },
+          "voice" : {
+            "type" : "string",
+            "title" : "Voice"
+          }
+        },
+        "title" : "SynthesizeRequest"
+      },
+      "SynthesizeResponse" : {
+        "type" : "object",
+        "properties" : {
+          "audio_url" : {
+            "type" : "string",
+            "title" : "Audio Url"
+          },
+          "cached" : {
+            "type" : "boolean",
+            "title" : "Cached"
+          },
+          "expires_in" : {
+            "type" : "integer",
+            "title" : "Expires In"
+          }
+        },
+        "title" : "SynthesizeResponse"
       },
       "ReadingRecordingUploadForm" : {
         "type" : "object",
@@ -7225,7 +7310,7 @@
       },
       "ConsentType" : {
         "type" : "string",
-        "enum" : [ "terms", "privacy", "ai_analysis", "retention" ],
+        "enum" : [ "terms", "privacy", "ai_analysis", "retention", "cloud_voice" ],
         "title" : "ConsentType"
       },
       "SignedInResponse" : {
@@ -7856,6 +7941,33 @@
         },
         "required" : [ "videos" ],
         "title" : "VideoList"
+      },
+      "StatusResponse" : {
+        "type" : "object",
+        "properties" : {
+          "available" : {
+            "type" : "boolean",
+            "title" : "Available"
+          },
+          "free_until" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Free Until"
+          },
+          "consent" : {
+            "type" : "string",
+            "title" : "Consent"
+          },
+          "daily_limit" : {
+            "type" : "integer",
+            "title" : "Daily Limit"
+          },
+          "daily_used" : {
+            "type" : "integer",
+            "title" : "Daily Used"
+          }
+        },
+        "title" : "StatusResponse"
       },
       "ReadingScriptCard" : {
         "type" : "object",

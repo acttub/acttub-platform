@@ -170,9 +170,12 @@ ai_jobs.status — 연습과 챌린지가 함께 쓰는 비동기 AI 작업 장�
 | 추가 | notification_pushes | challenge.notification |
 | 추가 | notifications | challenge.notification |
 | 추가 | user_blocks | challenge.block |
+| 추가 | evening_reminder_sends | account.notification |
+| 추가 | reading_voice_cache, reading_voice_usage | reading.cloud-voice |
 | 컬럼·값 | users | account.login, account.guest, practice.feedback |
 | 컬럼·값 | user_identities | account.login, account.guest, account.withdraw |
 | 컬럼 | user_profiles | account.profile, account.notification, account.withdraw |
+| 컬럼 | push_tokens | account.notification |
 | 삭제 | users.nickname([CONTRACT §5-1](../../apps/api/CONTRACT.md#5-1-운영-db-접근은-jpa-로-일원화한다)의 순서로) | account.profile |
 | 컬럼·제약 | scripts, script_characters, script_lines | reading.script, reading.cast |
 | 컬럼 | reading_sessions, reading_recordings, line_memorization | reading.session, reading.recording, reading.memorization |
@@ -196,7 +199,7 @@ pen을 고칠 목록이다. 무엇을 어떻게 바꾸는지(문구·수치)는 
 | A0 로그인 | 제공자 버튼 목록, 마지막 제공자 강조, 이메일 겹침 안내 | account.login |
 | A0.1 동의 | 선택 문서 줄, 저장 버튼 문구, privacy 문서 이름, 재동의 때 탈퇴 링크 | account.login, account.consent |
 | A0.2 프로필 설정 | 생년월일 칸, 이름 칸 안내 문구, 만 14세 미만 안내 | account.profile |
-| A4 설정 | 알림 토글과 리마인드 시각, 문서별 동의 현황, 선택 동의 바꾸기, 차단 목록·풀기 | account.notification, account.consent, challenge.block |
+| A4 설정 | 알림 토글, 문서별 동의 현황, 선택 동의 바꾸기, 차단 목록·풀기 | account.notification, account.consent, challenge.block |
 | A4 설정·프로필 | 프로필 수정 진입점 | account.profile |
 | A5 탈퇴 | 안내 문구(지워지는 것·남는 것) | account.withdraw, reading.recording |
 | 새 화면(앱) | 포트폴리오 편집, 이관 코드 입력, 기억 선택 팝업, 업데이트 안내(426) | account.portfolio, account.guest, 공통 규칙 |

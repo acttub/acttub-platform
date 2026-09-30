@@ -2,6 +2,7 @@ package com.acttub.actingapi.feature.admin.app;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -42,6 +43,38 @@ public interface AdminMetricsRepository {
             List<String> excludeActors,
             boolean includeTeam);
 
+    /** 공개·비공개 챌린지 참여 영상. 개인 식별자와 원본 저장소 정보는 projection 에 넣지 않는다. */
+    List<ChallengeVideoRow> challengeVideos(
+            int limit,
+            List<String> excludeEmails,
+            List<String> excludeActors,
+            String visibility);
+
+    /** 재생이 허용된 참여작의 오브젝트 키. 없음·팀·삭제·파기된 영상은 모두 빈 값이다. */
+    Optional<String> challengeVideoObjectKey(
+            UUID entryId,
+            List<String> excludeEmails,
+            List<String> excludeActors);
+
+    /** 활성 계정의 리딩 회차 목록. 자유 본문과 저장소 키는 projection 에 넣지 않는다. */
+    List<ReadingSessionRow> readingSessions(
+            int limit,
+            String status,
+            List<String> excludeEmails,
+            List<String> excludeActors);
+
+    /** 활성 계정의 리딩 회차와 그 대본·녹음. 부모 연결이 하나라도 어긋나면 빈 값이다. */
+    Optional<ReadingSessionDetailRow> readingSession(
+            UUID sessionId,
+            List<String> excludeEmails,
+            List<String> excludeActors);
+
+    /** 재생이 허용된 리딩 녹음의 m4a 오브젝트 키. 탈퇴 보관으로 연결이 끊긴 행은 빈 값이다. */
+    Optional<String> readingRecordingObjectKey(
+            UUID recordingId,
+            List<String> excludeEmails,
+            List<String> excludeActors);
+
     /** 세션 한 줄. 재생 주소는 아직 붙지 않았다 — 그것은 서비스가 스토리지에 물어 채운다. */
     record SessionRow(
             UUID coachSessionId,
@@ -67,5 +100,55 @@ public interface AdminMetricsRepository {
             String source,
             String trigger,
             UUID practiceId) {
+    }
+
+    record ChallengeVideoRow(
+            UUID id,
+            String actor,
+            OffsetDateTime createdAt,
+            String visibility,
+            String status,
+            String challengeKind,
+            String challengeRef,
+            boolean hasVideo) {
+    }
+
+    record ReadingSessionRow(
+            UUID id,
+            String actor,
+            String scriptTitle,
+            OffsetDateTime startedAt,
+            OffsetDateTime endedAt,
+            String status,
+            String mode,
+            int elapsedSeconds,
+            int recordingCount) {
+    }
+
+    record ReadingLineRow(
+            UUID id,
+            int ordinal,
+            String kind,
+            String characterName,
+            String text,
+            boolean inRange,
+            boolean mine) {
+    }
+
+    record ReadingRecordingRow(
+            UUID id,
+            UUID lineId,
+            int attemptNo,
+            int durationMs,
+            OffsetDateTime createdAt,
+            String transcriptSource,
+            String transcript,
+            Boolean matched) {
+    }
+
+    record ReadingSessionDetailRow(
+            ReadingSessionRow session,
+            List<ReadingLineRow> lines,
+            List<ReadingRecordingRow> recordings) {
     }
 }

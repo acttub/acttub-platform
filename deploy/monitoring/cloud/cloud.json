@@ -1,0 +1,12 @@
+{
+  "grafana_url": "https://nimbleimpatiens1951.grafana.net",
+  "health_origins": {
+    "dev": "https://dev.acttub.com",
+    "prod": "https://acttub.com"
+  },
+  "probe_id": 13,
+  "synthetic_datasource_uid": "grafanacloud-prom",
+  "site": "home",
+  "disk_mountpoint": "/",
+  "runbook_url": "https://github.com/acttub/acttub-platform/blob/dev/docs/deploy/MONITORING-CLOUD.md"
+}

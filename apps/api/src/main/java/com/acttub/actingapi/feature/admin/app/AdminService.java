@@ -6,14 +6,25 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengePlayback;
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengeVideo;
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengeVideoPage;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminFeedbackItem;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminFeedbackPage;
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminReadingLine;
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminReadingPlayback;
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminReadingRecording;
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminReadingSession;
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminReadingSessionDetail;
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminReadingSessionPage;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminSession;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminSessions;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.acttub.actingapi.platform.web.ApiException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Service;
@@ -40,8 +51,14 @@ public class AdminService {
     public static final String ENABLED_WHEN =
             "T(org.springframework.util.StringUtils).hasText('${ADMIN_OPS_TOKEN:}')";
 
-    /** 재생 주소의 수명. 파이썬 정본과 같은 1시간이고, 응답에 그대로 실린다. */
+    /** 세션 목록 재생 주소의 수명. 파이썬 정본과 같은 1시간이고, 응답에 그대로 실린다. */
     public static final int PLAYBACK_TTL_SECONDS = 3600;
+
+    /** 챌린지 영상 전용 재생 주소의 고정 수명. */
+    public static final int CHALLENGE_PLAYBACK_TTL_SECONDS = 600;
+
+    /** 리딩 녹음 전용 재생 주소의 고정 수명. */
+    public static final int READING_PLAYBACK_TTL_SECONDS = 600;
 
     /** ops 화면이 날짜를 한국 시각으로 끊는다. 수집기 백업 경로의 as_of 와 같은 모양으로 낸다. */
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
@@ -101,6 +118,109 @@ public class AdminService {
                         row.practiceId()))
                 .toList();
         return new AdminFeedbackPage(items, limit, hasMore);
+    }
+
+    public AdminChallengeVideoPage challengeVideos(
+            int limit,
+            List<String> excludeActors,
+            String visibility) {
+        List<AdminChallengeVideo> entries = metrics.challengeVideos(
+                        limit, excludeEmails, excludeActors, visibility)
+                .stream()
+                .map(row -> new AdminChallengeVideo(
+                        row.id(),
+                        row.actor(),
+                        row.createdAt(),
+                        row.visibility(),
+                        row.status(),
+                        row.challengeKind(),
+                        row.challengeRef(),
+                        row.hasVideo()))
+                .toList();
+        return new AdminChallengeVideoPage(entries, entries.size());
+    }
+
+    public AdminChallengePlayback challengeVideoPlayback(UUID entryId, List<String> excludeActors) {
+        String objectKey = metrics.challengeVideoObjectKey(entryId, excludeEmails, excludeActors)
+                .orElseThrow(() -> new ApiException(404, "challenge_video_not_found"));
+        try {
+            String playbackUrl = playback.requiredUrl(objectKey, CHALLENGE_PLAYBACK_TTL_SECONDS);
+            if (playbackUrl == null || playbackUrl.isBlank()) {
+                throw new IllegalStateException("admin playback signer returned no URL");
+            }
+            return new AdminChallengePlayback(playbackUrl, CHALLENGE_PLAYBACK_TTL_SECONDS);
+        } catch (Exception failure) {
+            throw ApiException.external(503, "playback_unavailable", failure);
+        }
+    }
+
+    public AdminReadingSessionPage readingSessions(
+            int limit,
+            String status,
+            List<String> excludeActors) {
+        List<AdminReadingSession> sessions = metrics.readingSessions(
+                        limit, status, excludeEmails, excludeActors)
+                .stream()
+                .map(AdminService::readingSession)
+                .toList();
+        return new AdminReadingSessionPage(sessions, sessions.size());
+    }
+
+    public AdminReadingSessionDetail readingSession(UUID sessionId, List<String> excludeActors) {
+        var row = metrics.readingSession(sessionId, excludeEmails, excludeActors)
+                .orElseThrow(() -> new ApiException(404, "reading_session_not_found"));
+        List<AdminReadingLine> lines = row.lines().stream()
+                .map(line -> new AdminReadingLine(
+                        line.id(),
+                        line.ordinal(),
+                        line.kind(),
+                        line.characterName(),
+                        line.text(),
+                        line.inRange(),
+                        line.mine()))
+                .toList();
+        List<AdminReadingRecording> recordings = row.recordings().stream()
+                .map(recording -> new AdminReadingRecording(
+                        recording.id(),
+                        recording.lineId(),
+                        recording.attemptNo(),
+                        recording.durationMs(),
+                        recording.createdAt(),
+                        recording.transcriptSource(),
+                        recording.transcript(),
+                        recording.matched()))
+                .toList();
+        return new AdminReadingSessionDetail(readingSession(row.session()), lines, recordings);
+    }
+
+    public AdminReadingPlayback readingRecordingPlayback(
+            UUID recordingId,
+            List<String> excludeActors) {
+        String objectKey = metrics.readingRecordingObjectKey(
+                        recordingId, excludeEmails, excludeActors)
+                .orElseThrow(() -> new ApiException(404, "reading_recording_not_found"));
+        try {
+            String playbackUrl = playback.requiredUrl(objectKey, READING_PLAYBACK_TTL_SECONDS);
+            if (playbackUrl == null || playbackUrl.isBlank()) {
+                throw new IllegalStateException("admin playback signer returned no URL");
+            }
+            return new AdminReadingPlayback(playbackUrl, READING_PLAYBACK_TTL_SECONDS);
+        } catch (Exception failure) {
+            throw ApiException.external(503, "playback_unavailable", failure);
+        }
+    }
+
+    private static AdminReadingSession readingSession(AdminMetricsRepository.ReadingSessionRow row) {
+        return new AdminReadingSession(
+                row.id(),
+                row.actor(),
+                row.scriptTitle(),
+                row.startedAt(),
+                row.endedAt(),
+                row.status(),
+                row.mode(),
+                row.elapsedSeconds(),
+                row.recordingCount());
     }
 
     /**

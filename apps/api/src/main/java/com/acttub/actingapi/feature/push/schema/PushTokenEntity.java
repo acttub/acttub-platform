@@ -35,6 +35,9 @@ public class PushTokenEntity {
     @Column(name = "locale", nullable = false)
     private String locale;
 
+    @Column(name = "app_version")
+    private String appVersion;
+
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private Instant createdAt;
 
@@ -63,6 +66,8 @@ public class PushTokenEntity {
     public String getPlatform() {
         return platform;
     }
+
+    public String getAppVersion() { return appVersion; }
 
     public Instant getCreatedAt() {
         return createdAt;

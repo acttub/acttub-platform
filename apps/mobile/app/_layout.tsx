@@ -20,7 +20,6 @@ import { logScreenView } from '@/lib/analytics';
 import { initMetaSdk } from '@/lib/meta-events';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
 import { challengePushTarget } from '@/lib/challenge/notification-center';
-import { onPushTapped } from '@/lib/notifications';
 import {
   recoveryStatusForConsentGate,
   routeAllowedDuringConsentGate,
@@ -36,6 +35,7 @@ import { AuthProvider, useAuth } from '@/lib/auth';
 import {
   configureNotificationHandling,
   flushPendingPushTokenDeletions,
+  onPushTapped,
 } from '@/lib/notifications';
 import type { PendingAnalysisHandle } from '@/lib/pending-analysis';
 import { palette } from '@/constants/palette';
@@ -182,6 +182,10 @@ function RootNavigator() {
   // 푸시를 누르면 알림 식별자로 알림함을 연다(잠금 화면 문구에는 이름·본문이 없다).
   useEffect(() => {
     return onPushTapped((data) => {
+      if (data && typeof data === 'object' && 'kind' in data && data.kind === 'evening_reminder') {
+        router.replace('/(tabs)');
+        return;
+      }
       if (challengePushTarget(data)) router.push('/notifications');
     });
   }, [router]);

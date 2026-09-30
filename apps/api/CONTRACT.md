@@ -655,14 +655,20 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 
 ### 6-10. 알림 토글, 푸시 토큰, 로그아웃
 
-> 제품 규칙의 정본: [account.notification](../../docs/specs/account/notification.md)(토글 셋과 `PATCH`, 토큰 등록·삭제, 발송), [account.logout](../../docs/specs/account/logout.md)(멱등 204)
+> 제품 규칙의 정본: [account.notification](../../docs/specs/account/notification.md)(토글 셋과 `PATCH`, 토큰 등록·삭제, 발송, 저녁 리마인드), [account.logout](../../docs/specs/account/logout.md)(멱등 204)
 
-- **"둘 다 꺼짐" 확인과 저장은 한 트랜잭션이다**(`PostgresPushTokenRepository#register`): 토글 끄기·
+- **"셋 다 꺼짐" 확인과 저장은 한 트랜잭션이다**(`PostgresPushTokenRepository#register`): 토글 끄기·
   탈퇴와 같은 `users` 행을 잡아 줄을 선 뒤에 읽은 토글로 거른다. 따로 읽고 쓰면 끄는 도중에 끼어든 등록이
   살아남는다 — 다른 기기가 앱을 여는 것만으로 토큰이 되살아난다. 토큰 전부 삭제는 토글을 끄는 트랜잭션에서 한다.
 - 발송(`PushService#onAnalysisComplete`)의 실패는 `FailureReporter` 로 간다. Expo 의 ticket 은 보낸 순서대로
   온다. 읽을 수 없는 답과 `DeviceNotRegistered` 밖의 ticket 오류는 종류만 실어 보고한다(`ExpoPushSender.tickets` —
   본문과 토큰은 싣지 않는다). receipt 는 읽지 않는다.
+- **저녁 리마인드**(`EveningReminderScheduler` → `EveningReminderService#sendDaily`, V25): 토큰 등록 때
+  `X-Acttub-Client` 의 앱 판을 `push_tokens.app_version` 에 남기고(`ClientAppVersion`), 판을 모르거나
+  `EVENING_REMINDER_MIN_APP_VERSION`(기본 0.1.2)보다 낮은 토큰에는 보내지 않는다. 활동은 영상·연습·코치 메시지와
+  대본·리딩 회차·리딩 녹음·암기 상태의 생성·갱신 시각으로 판정한다(`PostgresEveningReminderRepository#claimTargets`).
+  `evening_reminder_sends(user_id, day)` 를 먼저 선점해 같은 날 두 번 보내지 않는다. 실패는 보고하고
+  `DeviceNotRegistered` 토큰은 지운다.
 
 ### 6-11. 포트폴리오
 
@@ -725,7 +731,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 ### 6-14. 대본 리딩 — 대본·회차·녹음·암기와 그 생애 (SOMA-546)
 
-> 제품 규칙의 정본: [reading/](../../docs/specs/reading/README.md)(「리딩 자료의 이관·삭제·탈퇴」 표), [common.md](../../docs/specs/common.md)(「요청 재전송」, 「저장 직전 재확인」), [account.guest](../../docs/specs/account/guest.md#규칙제약)(게스트의 마지막 활동), [reading.script](../../docs/specs/reading/script.md)(등록·목록·검색·상세·수정·삭제, 사유 코드·한도·재전송, 카드 필드), [reading.cast](../../docs/specs/reading/cast.md)(내 배역, 목소리 프리셋), [reading.session](../../docs/specs/reading/session.md)(시작·재전송, 진행 저장의 판정 순서, 마지막 회차), [reading.recording](../../docs/specs/reading/recording.md)(올리기의 검사 순서·한도·총량·대체, 재생, 보관), [reading.memorization](../../docs/specs/reading/memorization.md)(갱신 판정, 조회)
+> 제품 규칙의 정본: [reading/](../../docs/specs/reading/README.md)(「리딩 자료의 이관·삭제·탈퇴」 표), [common.md](../../docs/specs/common.md)(「요청 재전송」, 「저장 직전 재확인」), [account.guest](../../docs/specs/account/guest.md#규칙제약)(게스트의 마지막 활동), [reading.script](../../docs/specs/reading/script.md)(등록·목록·검색·상세·수정·삭제, 사유 코드·한도·재전송, 카드 필드), [reading.cast](../../docs/specs/reading/cast.md)(내 배역, 목소리 프리셋), [reading.session](../../docs/specs/reading/session.md)(시작·재전송, 진행 저장의 판정 순서, 마지막 회차), [reading.recording](../../docs/specs/reading/recording.md)(올리기의 검사 순서·한도·총량·대체, 재생, 보관), [reading.memorization](../../docs/specs/reading/memorization.md)(갱신 판정, 조회), [reading.cloud-voice](../../docs/specs/reading/cloud-voice.md)(고품질 목소리)
 
 - **경로**는 전부 `/v2/reading/**` 이고 게스트의 기능 표 `READING`(`platform/security/GuestFeature`, §6-9)에 든다.
   회원은 회원의 게이트(§6-5)를 지난다.
@@ -795,6 +801,16 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   `recording_count`·녹음 삭제의 소유 확인)에서 자연히 빠진다 — 일반 API 에 보이지 않는 것은 별도 필터가 아니라
   구조가 그렇다.
 - 대본·회차·녹음 삭제, 대체된 녹음, 탈퇴 파기가 모두 같은 장부 종류 `reading_recording_delete` 를 쓴다(§6-8).
+
+**고품질 목소리 (SOMA-500)** — 제품 규칙의 정본: [reading.cloud-voice](../../docs/specs/reading/cloud-voice.md)(두 경로의 입력·출력·오류, 한도, 동의)
+
+- `available` 은 `GEMINI_API_KEY`·`GEMINI_TTS_MODEL`·오브젝트 스토리지가 모두 설정되고, 현재 시각이 무료 종료 시각
+  (`READING_VOICE_FREE_UNTIL`) 이하이며, 그 달의 새 합성이 월 한도 미만일 때만 참이다. 사용량 날짜는 Asia/Seoul 기준이다.
+- 캐시 키는 `sha256(model + "\n" + geminiVoice + "\n" + text)` 이고 객체 키는 `reading-voice/{hash}.wav` 다. 캐시 적중은
+  합성과 사용량 증가 없이 성공하고, 새 합성 성공만 일 사용량을 1 올린다(`PostgresCloudVoiceRepository`).
+- 모델 호출에는 대사 원문 하나와 고른 prebuilt voice만 싣는다(`CloudVoiceService`).
+- V24 의 `reading_voice_cache(hash PK, model, voice, byte_size, created_at)` 는 사용자와 연결하지 않는다.
+  `reading_voice_usage(user_id, day, lines, PK(user_id, day))` 는 탈퇴 때 바로 지운다(`PostgresProfileRepository`).
 
 ### 6-15. 연습 0.1.0 — 스키마(V14)와 영상 보관함 (SOMA-546)
 
@@ -881,6 +897,22 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - **이탈 설문**(`practice_feedback`) — 선점은 `UPDATE users … WHERE exit_survey_asked_at IS NULL` 한 문장이다. 시트
   구현이 아직 없다. 자리 지킴이(`adapter/sheet/LoggingExitSurveySheet`)는 **보낸 척하지 않고 실패로 남긴다** — 성공을
   돌려주면 그 설문이 재전송 대상에서 빠져 시트가 붙는 날 영영 복제되지 않는다.
+- **운영 통합 이용 기록**(`GET /v2/admin/ops-core`의 `activity_rows`) — 코칭 세션·대본 리딩 세션·삭제되지 않은
+  챌린지 참여작의 전체 기록을 한 목록으로 추가 제공한다. 기존 `sessions`·`features`의 의미와 인증은 바꾸지 않는다.
+  - 각 행은 `activity_id`(`coaching:`·`reading:`·`challenge:` + 원천 행 id), `feature`, `created_at`, `actor`,
+    `signup_at`, `signup_d7`, `platform`, `device`, `status`, `is_team`만 가진다. `actor`는 기존과 같은 `배우 ` +
+    `md5(user_id)` 앞 8자리여서 기능을 넘나드는 사람도 중복 제거할 수 있다. 이메일·원본 user id·대본·평가·댓글 등
+    자유 입력은 넣지 않는다. 활동 시각은 분, 가입 시각은 시간 단위로 뭉개 기존 스냅샷의 정밀도를 유지한다.
+    `signup_d7`은 뭉개기 전 시각으로 최근 7일 가입 여부를 계산해 SQL 퍼널과 정확히 같은 가입 코호트를 유지한다.
+  - 세 기능 모두 공통 `team` 제외 기준을 적용하고 미래 시각은 제외한다. 코칭은 0.1.0 이관 전후 같은 id를 한 번만
+    읽는 `ps_all`을 재사용한다. 단순 참여작 조회·좋아요·댓글은 연습 이용으로 합치지 않는다.
+  - 행 제한 없이 전체 이력을 제공하며 실제 기록이 없으면 `[]`다. 필드가 없는 구버전·결측 응답을 0으로 해석하거나
+    코칭 전용 숫자를 통합 수치로 대체하면 안 된다. 운영 개요 소비자는 동일 actor 기준 인원·반복·재방문을 계산한다.
+- **챌린지 참여작 목록**(`GET /v2/admin/ops-core`의 `features.challenges`) — `entries.private` 수와 `recent_entries`
+  (삭제되지 않은 최신 50건)를 더한다. 비공개 참여작도 운영이 봐야 하므로 `visibility`를 그대로 싣는다.
+  - 한 항목은 `entry_id`·`challenge_id`(둘 다 앞 8자리)·`challenge_origin`·`actor`(기존 가명)·`visibility`·`status`·
+    `has_video`·`created_at`·`published_at`(분 단위)·`views`·`likes`·`comments`(팀 제외)·`ai_report`(없으면 null)다.
+    캡션·챌린지 대사·이메일·원본 id 는 넣지 않는다(git 에 남는 JSON 이다). 팀·미래 시각 행은 제외한다.
 - **운영 피드백 조회**(`GET /v2/admin/feedback`) — 연락처·원본 user id·이메일은 projection 과 DTO 에 없다. 팀 판정은
   `ADMIN_OPS_EXCLUDE_EMAILS` 와 `exclude_actors`(ops-core 와 같은 검증)다.
 - **연습 자료의 이관·삭제·탈퇴** — 제품 규칙은 specs/practice 의 처리표다.
@@ -997,6 +1029,56 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - 탈퇴는 계정을 비활성으로 바꾸기 전에 이 사람의 참여작이 있는 챌린지의 밀린 마감 집계를 먼저 한다
   (`ChallengeWithdrawal`). 진행 중 리포트 생성은 탈퇴의 `ai_jobs` 정리(`failed`/`account_deactivated`, §6-8)가 닫는다.
 - V21은 `notifications`·`notification_pushes`와 `entry_comments (id, entry_id)` 유일 제약을 더한다.
+
+### 6-21. 운영용 챌린지 영상 목록·재생
+
+- `GET /v2/admin/challenge-videos?limit=50&exclude_actors=…&visibility=all|public|private`는
+  `limit` 1~100, 기본 50이다. 응답은 `entries`와 그 응답 묶음의 크기인 `count`다. 각 행은
+  `id`(참여작 UUID)·`actor`(`md5(user_id)` 앞 8자리)·`created_at`·`visibility`·`status`·
+  `challenge_kind`(`challenges.origin`)·`challenge_ref`(`md5(challenge_id)` 앞 8자리)·`has_video`만
+  포함한다. raw 참여작 id는 이 live 운영 응답에서만 허용하며, user UUID·이메일·대사·작품·캡션 같은
+  자유 텍스트·원본 object key·재생 URL은 목록에 넣지 않는다.
+- `GET /v2/admin/challenge-videos/{id}/playback?exclude_actors=…`는
+  `{"playback_url":…,"expires_in":600}`을 반환한다. 스토리지 서명 TTL은 반드시 600초다.
+- 두 경로 모두 기존 `ADMIN_OPS_TOKEN`을 먼저 검사하고, `ADMIN_OPS_EXCLUDE_EMAILS`와
+  `exclude_actors`에 걸린 배우를 제외한다. 삭제된 참여작·삭제된 챌린지는 목록과 재생에서 제외한다.
+  재생에서는 없음·팀·삭제·영상 없음 또는 파기를 모두 404 `challenge_video_not_found`로 합친다.
+  스토리지 부재나 서명 실패는 503 `playback_unavailable`이다. 성공 응답은
+  `Cache-Control: private, no-store`다.
+- 관리자 빈은 토큰이 있을 때만 서므로 커밋된 기본 `spec/openapi.json`에는 이 경로가 없다.
+  `AdminEndpointIT`의 조건부 관리자 경로 명시 목록과 응답 스키마 검사가 이 계약을 지킨다.
+
+### 6-22. 운영용 리딩 회차·대본·녹음 조회와 재생
+
+- 세 경로는 기존 조건부 관리자 빈과 `ADMIN_OPS_TOKEN`을 쓴다. 토큰을 질의값 검증보다 먼저 확인하고,
+  `ADMIN_OPS_EXCLUDE_EMAILS`와 요청의 `exclude_actors`(쉼표로 나눈 `md5(user_id)` 앞 8자리, 최대 100개)를
+  목록·상세·재생에 똑같이 적용한다. 성공 응답은 모두 `Cache-Control: private, no-store`다. 관리자 빈은
+  토큰이 있을 때만 서므로 기본 `spec/openapi.json`에는 실리지 않으며 `AdminEndpointIT`의 조건부 경로 명시
+  목록과 직렬화 검사가 이 계약을 지킨다.
+- `GET /v2/admin/reading-sessions?limit=50&status=all&exclude_actors=…`는 `limit` 1~100, 기본 50이고
+  `status`는 `all`·`in_progress`·`completed`·`stopped`다. 응답은 `{sessions, count}`이며 `count`는 지금
+  반환한 묶음의 크기다. 각 행은 `id`(회차 UUID)·`actor`(접두사 없는 8자리 가명)·`script_title`·
+  `started_at`·`ended_at`(항상 포함, 없으면 null)·`status`·`mode`(`read`·`quiz`)·`elapsed_seconds`·
+  `recording_count`만 가진다. `started_at DESC, id DESC`로 고정 정렬한다. 대본 본문·전사·원본 user id·이메일·
+  object key·재생 URL은 목록에 넣지 않는다.
+- `GET /v2/admin/reading-sessions/{id}?exclude_actors=…`는 `{session, lines, recordings}`다. `session`은 목록과
+  같은 메타데이터다. `lines`는 대본 전체를 원래 `ordinal ASC`로 내며 각 줄은 `id`·`ordinal`·`kind`·
+  `character_name`·`text`·`in_range`·`is_mine`이다. 실제 저장 enum은 `dialogue`·`direction`·`scene`이다
+  (`stage_direction`·`scene_header`로 다시 이름 붙이지 않는다). `in_range`는 회차의 시작·끝 줄 ordinal을
+  포함한 범위이고, `is_mine`은 줄의 배역이 회차 `my_character_ids`에 들었는지다. `recordings`는 그 회차의
+  내 배역 대사 녹음만 가지며 `id`·`line_id`·`attempt_no`·`duration_ms`·`created_at`·`transcript_source`
+  (`stt`·`none`)·`transcript`·`matched`를 싣는다. transcript·matched는 항상 포함하고 없으면 null이다.
+  대본과 전사는 git 스냅샷에 남기지 않는 이 live 상세 응답에서만 허용한다.
+- `GET /v2/admin/reading-recordings/{id}/playback?exclude_actors=…`는 저장된 m4a 녹음에
+  `AdminPlayback#requiredUrl`을 사용해 `{"playback_url":…, "expires_in":600}`을 반환한다. TTL은 고정 600초다.
+  없음·팀·비활성 계정·탈퇴 보관으로 회차/줄 연결이 끊긴 녹음·유효한 회차/대본/줄 부모와 맞지 않는 녹음·
+  내 배역 대사가 아닌 녹음·m4a가 아닌 녹음은 모두 404 `reading_recording_not_found`다. 스토리지 부재나
+  서명 실패는 원인을 보존한 503 `playback_unavailable`이다.
+- 세 조회는 `users.deactivated_at IS NULL`과 `users.retention_purged_at IS NULL`인 계정만 읽고,
+  `reading_sessions.user_id = scripts.user_id`, 시작·끝 줄이 그 대본 소속, 녹음의 user/session/line이 같은
+  회차·대본 소속이라는 부모 연결을 SQL에서 확인한다. 상세 회차가 없거나 제외되거나 부모가 어긋나면
+  404 `reading_session_not_found`다. 삭제된 리딩 자료는 행째 없어 자연히 보이지 않는다. 상대역 음성은 기기
+  TTS라 저장 대상이 아니므로 녹음 수·상세·재생 모두 `my_character_ids`에 속한 대사 줄만 센다.
 
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 

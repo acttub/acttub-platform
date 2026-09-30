@@ -1,10 +1,17 @@
-{{ range .Alerts }}
-환경: {{ .Labels.environment }} · 대상: {{ .Labels.target }} · 위치: {{ .Labels.site }}
-조건: {{ .Annotations.condition }}
-관측값: {{ .Annotations.observed_value }}
-발생 시각(UTC): {{ .StartsAt }}
-{{ if eq .Status "resolved" }}해제 시각(UTC): {{ .EndsAt }}
-해제 의미: {{ .Annotations.recovery_meaning }}{{ end }}
-<{{ .Annotations.dashboard_url }}|대시보드 (한국 시간)> · <{{ .Annotations.runbook_url }}|확인 절차>
-{{ if .SilenceURL }}<{{ .SilenceURL }}|종료 시각을 지정해 알림 일시 중지>{{ end }}
+{{ define "acttub.slack.title" -}}
+{{ if eq .Status "firing" }}{{ if eq .CommonLabels.severity "critical" }}🔴{{ else }}🟠{{ end }} [발생]{{ else }}✅ [해제]{{ end }} {{ .CommonLabels.alertname }}
+{{- end }}
+
+{{ define "acttub.slack.text" -}}
+{{ range .Alerts -}}
+{{ $a := . -}}
+{{ if eq .Labels.severity "critical" }}심각{{ else }}경고{{ end }} · {{ .Labels.environment }} · {{ .Labels.target }} · {{ .Labels.site }}
+{{ with .Annotations.detail }}조건: {{ . }}
+{{ end -}}
+{{ with .Annotations.observed_value }}{{ if eq $a.Status "resolved" }}해제 시점 {{ end }}관측값: {{ . }} (기준: {{ $a.Annotations.criterion }}){{ else }}기준: {{ .Annotations.criterion }}{{ end }}
+시작: {{ .StartsAt | tz "Asia/Seoul" | date "01-02 15:04" }}{{ if eq .Status "resolved" }} → 해제: {{ .EndsAt | tz "Asia/Seoul" | date "01-02 15:04" }}{{ end }} (한국 시간)
+{{ if eq .Status "resolved" }}의미: {{ .Annotations.recovery_meaning }}
+{{ end -}}
+<{{ .Annotations.dashboard_url }}|대시보드> · <{{ .Annotations.runbook_url }}|확인 절차>{{ if and (eq .Status "firing") .SilenceURL }} · <{{ .SilenceURL }}|알림 일시 중지>{{ end }}
+{{ end -}}
 {{ end }}

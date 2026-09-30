@@ -76,8 +76,10 @@
 - **이어하기** — 끝난 연습에서 같은 영상이나 새 영상으로 다음 회차를 만든다. → [practice.resume](specs/practice/resume.md)
 - **보관함** — 영상은 연습과 따로 남는 자산이라 다시 골라 쓸 수 있다. →
   [practice.record](specs/practice/record.md), [practice.library](specs/practice/library.md)
-- **이탈 설문** — 대화나 노트에서 나갈 때 서비스 사용 소감을 한 번 묻는다. 연기 평가가 아니다.
+- **이탈 설문** — 웹에서 대화나 노트를 나갈 때 서비스 사용 소감을 한 번 묻는다. 연기 평가가 아니다.
   → [practice.feedback](specs/practice/feedback.md)
+- **앱 평가 요청** — 앱은 이탈 설문 대신 코칭·대본 리딩을 마친 뒤 가끔 스토어 별점과 리뷰를 부탁한다.
+  → [practice.rating](specs/practice/rating.md)
 
 ### Actor Memory
 
@@ -86,7 +88,7 @@
 
 ### 대본 리딩
 
-대본을 넣으면 기기가 배역과 줄을 나누고, 상대역 대사를 기기 목소리로 읽어 주며 내 차례에서 기다린다. 내 대사를 녹음하고
+대본을 넣으면 기기가 배역과 줄을 나누고, 상대역 대사를 기기 목소리로(켜면 서버의 고품질 목소리로) 읽어 주며 내 차례에서 기다린다. 내 대사를 녹음하고
 외웠는지 스스로 표시한다. 리딩도 연기를 판정하지 않는다. → [대본 리딩 스펙](specs/reading/README.md)
 
 ### Admissions
@@ -102,7 +104,7 @@
 
 ### 푸시 알림
 
-분석이 끝났을 때, 챌린지에 반응이 왔을 때 서버가 부르고, 연습이 뜸한 날 저녁에는 폰이 스스로 부른다. 앱에만 있다.
+분석이 끝났을 때, 챌린지에 반응이 왔을 때, 연습이 뜸한 날 저녁에 서버가 부른다. 앱에만 있다.
 → [account.notification](specs/account/notification.md)
 
 ### 계정

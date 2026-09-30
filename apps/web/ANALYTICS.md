@@ -16,6 +16,23 @@ GA4는 유입용 서브프로젝트 6개(voice·acti·stage·mono·pick·link)�
 경로 집계는 아래 GA4·Amplitude의 동의 게이트와 별개다.
 랜딩은 `landing_*`, 앱 안내는 `app_page`, 검색 유입 안내는 `keyword_page` surface로 구분한다.
 
+### 다운로드 캠페인 전달
+
+현재 주소의 수동 태깅 UTM 6종(`utm_source`, `utm_medium`, `utm_campaign`, `utm_id`,
+`utm_term`, `utm_content`)만 `/app`과 `/go`를 지나 Google Play Install Referrer까지 전달한다.
+각 값은 영문자·숫자·점·밑줄·하이픈으로 된 1~64자 캠페인 토큰만 허용한다. `fbclid`, `gclid`,
+세션 id와 그 밖의 임의 쿼리는 전달하지 않는다. 이 값은 링크를 만드는 동안 현재 URL에서만
+읽으며 localStorage, sessionStorage, cookie에 저장하지 않는다.
+
+유효한 값이 없으면 기존 귀속인 `utm_source=acttub_web`, `utm_medium=<surface>`를 쓴다.
+`utm_source=instagram`만으로 광고라고 추정하지 않는다. **인스타그램 유료 광고는 원래 URL에
+`utm_medium=paid_social`이 명시된 경우에만** 그렇게 분류할 수 있다. `document.referrer`는
+유료 여부 판단에 쓰지 않는다.
+
+App Store 주소는 그대로다. Apple 제공자 토큰(`pt`)을 확인하지 않았으므로 캠페인 토큰(`ct`)을
+임의로 만들지 않고, iOS 설치 기여를 이 링크만으로 확인할 수 있다고 해석하지 않는다.
+다운로드 관련 기존 이벤트에도 원문 쿼리, referrer, 클릭 식별자를 새 속성으로 싣지 않는다.
+
 ---
 
 ## 1. 지켜야 하는 것

@@ -26,7 +26,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 /**
  * 0.1.0 회차의 코치 대화 (practice.coach, practice.note).
  *
- * <p><b>바꾸는 것은 저장뿐이다.</b> 코치의 행동 규칙(응답 상한 8/10, 첫 응답 경로, 도움 버튼, 상태 json 의 출처
+ * <p><b>바꾸는 것은 저장뿐이다.</b> 코치의 행동 규칙(응답 상한 8/16, 첫 응답 경로, 도움 버튼, 상태 json 의 출처
  * 분리, 프로필 조건부 입력)은 {@link CoachEngine}·{@link CoachPrompt} 가 그대로 갖고 있고, 이 서비스는 엔진이 쓰는
  * {@link CoachSessionSnapshot} 을 새 표에서 만들어 건네고 결과를 새 표에 쓴다(ADR-027, CONTRACT §7·§8).
  *
@@ -43,7 +43,7 @@ public class ConversationService {
 
     /** 코치 응답 수의 상한 — 시작 응답을 포함한다(§7-1, §8-5). */
     public static final int LEGACY_REPLY_LIMIT = 8;
-    public static final int THREE_LAYERS_REPLY_LIMIT = 10;
+    public static final int THREE_LAYERS_REPLY_LIMIT = 16;
 
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final String COMPLETE = "complete";
