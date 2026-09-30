@@ -48,7 +48,10 @@ test('practice.note: 노트 화면은 새 노트 계약을 읽고 확인을 강�
   const report = read('app/report.tsx');
 
   assert.match(report, /loopApiFor\(practice\.practiceId\)\.getPracticeNote/);
-  assert.match(report, /noteSections/);
+  // 본문 칸은 지난 노트(report-detail)와 같은 컴포넌트가 noteSections 로 그린다.
+  assert.match(report, /<NoteSections note=\{note\} \/>/);
+  assert.match(read('app/report-detail.tsx'), /<NoteSections note=\{note\} \/>/);
+  assert.match(read('components/note-sections.tsx'), /noteSections\(note\)/);
   assert.match(report, /noteKindLabel/);
   assert.match(report, /noteFallbackNotice/);
   // "분석 확정 · 배우님과 맞춘 내용"처럼 확인·비교를 강제하는 카피는 없앴다.
