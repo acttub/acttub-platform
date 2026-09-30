@@ -30,3 +30,10 @@ test('클라우드와 기기 음성 캐시 키는 같은 대사여도 섞이지 
   const base = { text: '여기 있을 줄 알았어.', locale: 'ko', preset: 'F1', variant: 'fp32', steps: 8, speed: 1 };
   assert.notEqual(speechKey({ ...base, source: 'device' }), speechKey({ ...base, source: 'cloud' }));
 });
+
+test('consentBodyWithoutTitle: 시트가 제목을 따로 보여 주므로 문서 첫 줄의 # 제목은 뗀다', async () => {
+  const { consentBodyWithoutTitle } = await import('../lib/reading/cloud-voice.ts');
+  assert.equal(consentBodyWithoutTitle('# 대본 리딩 고품질 목소리 동의 (선택)\n\n시행일: 오늘\n\n## 1. 무엇'), '시행일: 오늘\n\n## 1. 무엇');
+  assert.equal(consentBodyWithoutTitle('시행일: 오늘'), '시행일: 오늘');
+  assert.equal(consentBodyWithoutTitle('## 소제목은 남긴다'), '## 소제목은 남긴다');
+});
