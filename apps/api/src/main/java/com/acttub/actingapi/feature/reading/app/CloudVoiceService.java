@@ -68,8 +68,6 @@ public final class CloudVoiceService {
             storage.upload(entry.objectKey(), wav);
             repository.recordSuccess(userId, today, entry, settings.model(), voice, wav.length, clock.instant());
             return result(entry.objectKey(), false);
-        } catch (ApiException error) {
-            throw error;
         } catch (RuntimeException error) {
             throw unavailable(error);
         }

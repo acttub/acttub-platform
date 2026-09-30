@@ -341,8 +341,4 @@ public class LangfuseTelemetry implements LlmTelemetry {
     long droppedCount() {
         return dropped.get();
     }
-
-    Map<String, String> configuredHost() {
-        return Map.of("host", host);
-    }
 }

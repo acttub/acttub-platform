@@ -176,8 +176,7 @@ public class PracticeService {
         String blockageKind = PracticeRules.blockage(draft.blockageKind());
         String subBranch = PracticeRules.blockage(draft.subBranch());
         String blockageNote = PracticeRules.note(draft.blockageNote());
-        String experienceVersion = PracticeRules.threeLayers(
-                threeLayersEnabled, contractHeader, situation, characterContext, goal, blockageKind, blockageNote)
+        String experienceVersion = PracticeRules.threeLayers(threeLayersEnabled, contractHeader)
                 ? "three_layers_v1"
                 : "legacy";
         return new NewPractice(

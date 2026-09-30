@@ -52,7 +52,7 @@ class PostgresEntryReportRepository implements ReportRepository {
                         .setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", report.targetId()).executeUpdate();
             }
             case "comment" -> {
-                var comment = lockVisibleComment(reporter, report.targetId(), now);
+                var comment = lockVisibleComment(reporter, report.targetId());
                 if ((prior = guarded(reporter, requestId, fingerprint, report, now)) != null) return prior;
                 if (reporter.equals(comment.get("user_id", UUID.class))) throw new ApiException(422, "self_report");
                 insert(id, reporter, requestId, fingerprint, report, 1, comment.get("body", String.class), now);
@@ -112,7 +112,7 @@ class PostgresEntryReportRepository implements ReportRepository {
     }
 
     @Override @Transactional(readOnly = true)
-    public AdminReportPage list(String status, String cursor, Instant now) {
+    public AdminReportPage list(String status, String cursor) {
         Instant at = null;
         UUID after = null;
         if (cursor != null && !cursor.isBlank()) {
@@ -191,7 +191,7 @@ class PostgresEntryReportRepository implements ReportRepository {
     }
 
     /** 신고자에게 보이는 댓글(부모 참여작 노출 + 댓글 노출)을 잠근다. 본인 숨김 댓글은 이미 숨겨져 신고할 것이 없다. */
-    private Tuple lockVisibleComment(UUID reporter, UUID commentId, Instant now) {
+    private Tuple lockVisibleComment(UUID reporter, UUID commentId) {
         var found = NativeTuples.list(em.createNativeQuery("SELECT entry_id,user_id FROM entry_comments WHERE id=:id", Tuple.class)
                 .setParameter("id", commentId));
         if (found.isEmpty()) throw new ApiException(404, "comment_not_found");

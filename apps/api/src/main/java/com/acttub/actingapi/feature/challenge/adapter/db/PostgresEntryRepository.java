@@ -31,7 +31,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Repository
 class PostgresEntryRepository implements EntryRepository {
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
-    /** 카드 한 장에 필요한 것. 영상·챌린지가 사라진 행(삭제된 참여작)도 본인 조회를 위해 LEFT JOIN 한다. */
     private final EntityManager em;
     private final ChallengeSettlement settlement;
     private final EntryCards cards;
@@ -222,7 +221,7 @@ class PostgresEntryRepository implements EntryRepository {
     }
 
     @Override @Transactional(readOnly = true)
-    public EntryCard find(UUID viewer, UUID entryId, Instant now) {
+    public EntryCard find(UUID viewer, UUID entryId) {
         var visible = NativeTuples.list(em.createNativeQuery(
                 "SELECT e.id " + ChallengeVisibility.ENTRY_FROM + " WHERE e.id=:id AND " + ChallengeVisibility.PUBLIC_ENTRY
                         + " AND " + ChallengeVisibility.UNBLOCKED, Tuple.class)
@@ -247,7 +246,7 @@ class PostgresEntryRepository implements EntryRepository {
     }
 
     @Override @Transactional(readOnly = true)
-    public MyEntries mine(UUID owner, String category, String cursor, Instant now) {
+    public MyEntries mine(UUID owner, String category, String cursor) {
         Tuple counts = NativeTuples.list(em.createNativeQuery("""
                 SELECT count(*) AS all_count,
                        count(*) FILTER (WHERE category='public') AS public_count,
@@ -256,7 +255,7 @@ class PostgresEntryRepository implements EntryRepository {
                 FROM (SELECT %s AS category FROM challenge_entries e JOIN challenges c ON c.id=e.challenge_id
                       WHERE e.user_id=:owner AND e.status<>'deleted') mine
                 """.formatted(EntryCards.CATEGORY), Tuple.class).setParameter("owner", owner)).getFirst();
-        String[] after = cursor == null || cursor.isBlank() ? null : decode(cursor, "M", 3, "cursor");
+        String[] after = cursor == null || cursor.isBlank() ? null : decode(cursor, "M", 3);
         if (after != null && !after[1].equals(owner.toString())) throw invalidCursor(cursor);
         var query = em.createNativeQuery("""
                 SELECT e.id FROM challenge_entries e JOIN challenges c ON c.id=e.challenge_id
@@ -322,7 +321,7 @@ class PostgresEntryRepository implements EntryRepository {
         UUID after = null;
         boolean inclusive = false;
         if (cursor != null && !cursor.isBlank()) {
-            String[] parts = decode(cursor, "L", 4, "cursor");
+            String[] parts = decode(cursor, "L", 4);
             if (!parts[1].equals(challengeId.toString()) || !parts[2].equals(viewer.toString())) throw invalidCursor(cursor);
             try { at = Instant.parse(parts[3]); after = UUID.fromString(parts[4]); }
             catch (RuntimeException invalid) { throw invalidCursor(cursor); }
@@ -360,7 +359,7 @@ class PostgresEntryRepository implements EntryRepository {
         List<Integer> ranks;
         int offset;
         if (cursor != null && !cursor.isBlank()) {
-            String[] parts = decode(cursor, "S", 2, "cursor");
+            String[] parts = decode(cursor, "S", 2);
             try { snapshot = UUID.fromString(parts[1]); offset = Integer.parseInt(parts[2]); }
             catch (RuntimeException invalid) { throw invalidCursor(cursor); }
             var held = NativeTuples.list(em.createNativeQuery("""
@@ -506,7 +505,7 @@ class PostgresEntryRepository implements EntryRepository {
                 (kind + "|" + String.join("|", parts)).getBytes(StandardCharsets.UTF_8));
     }
 
-    private static String[] decode(String raw, String kind, int size, String field) {
+    private static String[] decode(String raw, String kind, int size) {
         try {
             if (raw.length() > 512) throw new IllegalArgumentException();
             String[] parts = new String(Base64.getUrlDecoder().decode(raw), StandardCharsets.UTF_8).split("\\|", -1);

@@ -77,7 +77,7 @@ public class EntryService {
         return entries.list(viewer, challengeId, sort, cursor, fromEntry, clock.instant());
     }
 
-    public EntryCard find(UUID viewer, UUID entryId) { return entries.find(viewer, entryId, clock.instant()); }
+    public EntryCard find(UUID viewer, UUID entryId) { return entries.find(viewer, entryId); }
 
     /** 공유 링크의 공개 조회. 비공개·숨김·삭제·탈퇴한 사람의 것과 없는 id 는 같은 404 다. */
     public EntryRepository.PublicEntry publicView(UUID entryId) {
@@ -90,7 +90,7 @@ public class EntryService {
         if (category != null && !Set.of("public", "private", "under_review").contains(category)) {
             throw ApiValidationException.valueError(List.of("query", "visibility"), "Value error, invalid visibility", category);
         }
-        return entries.mine(owner, category, cursor, clock.instant());
+        return entries.mine(owner, category, cursor);
     }
 
     /** 앞뒤 공백만 뗀다. 비면 캡션 없음이고 길이는 코드 포인트로 센다. */

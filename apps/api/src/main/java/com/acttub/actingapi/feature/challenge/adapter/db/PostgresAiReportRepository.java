@@ -149,7 +149,7 @@ class PostgresAiReportRepository implements AiReportRepository {
                 ChallengeReportRules.MAX_SAMPLES), Tuple.class)
                 .setParameter("challenge", row.get("challenge_id", UUID.class)).setParameter("viewer", owner)).stream()
                 .map(sample -> new Sample(sample.get("id", UUID.class), video(sample))).toList();
-        return new Material(owner, entryId, row.get("line", String.class), video(row), samples);
+        return new Material(row.get("line", String.class), video(row), samples);
     }
 
     @Override @Transactional

@@ -82,7 +82,7 @@ public class ReactionService {
         if (!Set.of("received", "reviewed").contains(status)) {
             throw ApiValidationException.valueError(List.of("query", "status"), "Value error, invalid status", status);
         }
-        return reports.list(status, cursor, clock.instant());
+        return reports.list(status, cursor);
     }
 
     public AdminReport resolve(UUID id, String resolution, String reviewer, String rawNote) {

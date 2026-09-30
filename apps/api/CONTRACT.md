@@ -1109,7 +1109,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - `CoachPrompt:buildChat`은 1층 관찰 팩 전체(장면 요약·전체 흐름·소리 측정값·대사 인용·불확실성)와 현재 세션의 대화 원문 전체를 전달한다. `CoachPrompt:select`의 공통 정책이 갈래별 질문 순서보다 우선한다.
 - 막힘을 건너뛴 `그 외`의 프롬프트는 `coach-video-first-prompt.txt`다. 명시적인 분석·표현 선택의 프롬프트와 대화가 끝날 때 만드는 handoff·분석/표현 리포트 계약은 유지한다. 이전 분석 세션의 handoff를 표현 세션 입력으로 넘기는 경로는 없다(`NoteWriter`가 `ReportEngine:generateReport`의 `analysisHandoff`에 `null`을 넘긴다).
 - 재생성 사유는 `CoachResponsePolicy:failures`, 생성 실패 handoff의 차단은 `ReportEngine:buildReportInput`(두 갈래 모두) 한 곳이다.
-- 코칭은 `TextValidator:validateCoachTurn`으로 근거 설명용 어휘를 허용한다. 다른 표면은 기존 `validateTurn`과 `scanGeneratedStrings`를 유지한다.
+- 코칭은 `TextValidator:validateCoachTurn`으로 근거 설명용 어휘를 허용한다. 기억 추출은 기존 `validateTurn`을 유지한다. 두 검증 모두 글자 수는 보지 않는다.
 
 ### 7-2. 코치 대화와 노트가 읽는 배우 프로필 (2026-09-19)
 

@@ -59,15 +59,7 @@ public interface VideoRepository {
     IntentView findIntent(UUID userId, UUID intentId);
 
     /** @param videoId 이미 확정된 예약이면 그 영상. 아직이면 {@code null} */
-    record IntentView(
-            UUID id,
-            UUID requestId,
-            String objectKey,
-            String contentType,
-            long byteSize,
-            int durationMs,
-            Instant expiresAt,
-            UUID videoId) {
+    record IntentView(String objectKey, Instant expiresAt, UUID videoId) {
     }
 
     /**

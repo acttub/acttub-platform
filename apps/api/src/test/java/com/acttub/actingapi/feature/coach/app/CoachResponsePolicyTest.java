@@ -95,7 +95,7 @@ class CoachResponsePolicyTest {
     void coachAllowsDescriptiveFeedbackWhileKeepingOtherValidatorsAndProhibitions() {
         String feedback = "개선점은 말끝의 길이를 일정하게 정하는 것이에요.";
         assertThat(TextValidator.validateCoachTurn(feedback).failures()).isEmpty();
-        assertThat(TextValidator.validateTurn(feedback, false).forbiddenHits()).contains("개선점");
+        assertThat(TextValidator.validateTurn(feedback).forbiddenHits()).contains("개선점");
         for (String invalid : List.of("점수는 90점", "그건 성격 때문이에요", "실제 가족 상처를 떠올려 보세요", "1:23의 대사")) {
             assertThat(TextValidator.validateCoachTurn(invalid).failures()).as(invalid).isNotEmpty();
         }
