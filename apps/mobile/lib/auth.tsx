@@ -56,6 +56,7 @@ import {
   type ProfilePayload,
 } from '@/lib/profile-form';
 import { disconnectProviders, providerAdapter, signOutProviders } from '@/lib/provider-sdk';
+import { identifySignupAttributionAccount } from '@/lib/signup-attribution-runtime';
 import { translate as t } from '@/lib/i18n';
 import {
   clearTokens,
@@ -218,6 +219,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // 홈 인사말과 프로필 탭이 읽는 기기 캐시. 정본은 서버의 profile.name이다.
     const name = me.profile?.name?.trim();
     if (me.profile_complete && name) void saveUserName(name).catch(() => undefined);
+    // 가입을 마친 회원만 Airbridge 계정으로 잇고, 보내지 못한 유입 광고가 있으면 보낸다(SOMA-588).
+    identifySignupAttributionAccount(
+      me.account_type === 'member' && me.profile_complete ? me.id : null,
+    );
   }, []);
 
   const reloadProfile = useCallback(async () => {
@@ -429,6 +434,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // 서버가 계정을 행째 지웠고 토큰도 죽었다. 기기의 계정 자료를 지우고 로그인으로 보낸다.
     setLoginNotice(t('profileName.under14Closed'));
     await wipeClosedAccount(CLOSED_ACCOUNT_STEPS);
+    identifySignupAttributionAccount(null);
   }, []);
 
   const signOut = useCallback(async () => {
@@ -450,6 +456,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await clearTokens();
       },
     });
+    identifySignupAttributionAccount(null);
     setUser(null);
     setStatus('signedOut');
   }, []);
@@ -467,6 +474,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       ...CLOSED_ACCOUNT_STEPS,
     });
+    identifySignupAttributionAccount(null);
     setUser(null);
     setStatus('signedOut');
   }, []);
