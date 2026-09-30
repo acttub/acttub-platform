@@ -605,7 +605,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   본문이고 시각은 **최초 탈퇴 시각**이다. 게스트의 토큰도 받는다.
 - **한 트랜잭션**(`PostgresProfileRepository#withdraw`)에서: 상태 전환, 이메일 파기(I-3 예외로
   `users.nickname=NULL` 포함), 프로필의 이름·사진·소개 파기와 생년월일 → 5세 단위 `age_band`(아래 끝),
-  알림 토글 끄기, 포트폴리오 행째 삭제, 이관 코드 삭제, 리프레시 폐기·푸시 토큰 삭제, 진행 중
+  알림 토글 끄기, 포트폴리오 행째 삭제, 가입 유입 기록(`user_signup_attributions`, §6-23) 행째 삭제, 이관 코드 삭제, 리프레시 폐기·푸시 토큰 삭제, 진행 중
   `external_operations` 와 `ai_jobs` 를 `failed`/`account_deactivated` 로 닫고 lease 떼기(분석 중이던 연습도
   `failed`, 1.0.0 작업은 결과 본문도 비운다), **1.0.0 영상에 `purged_at` 찍기**, `practice_feedback` 의 연락처
   비우고 시트 재전송 예약, `note_ratings` 의 한 줄 비우기(평가 값은 남는다), 신원의 `provider_uid`·토큰을 비우고 `uid_hash` 채우기. 성별·연령대·방향·경력·목표와
@@ -1540,6 +1540,20 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   회차·대본 소속이라는 부모 연결을 SQL에서 확인한다. 상세 회차가 없거나 제외되거나 부모가 어긋나면
   404 `reading_session_not_found`다. 삭제된 리딩 자료는 행째 없어 자연히 보이지 않는다. 상대역 음성은 기기
   TTS라 저장 대상이 아니므로 녹음 수·상세·재생 모두 `my_character_ids`에 속한 대사 줄만 센다.
+
+### 6-23. 가입 유입 광고 (SOMA-588)
+
+- `PUT /v2/me/signup-attribution` 은 **204** 다. 보호 기능이라 동의와 프로필을 끝낸 회원만 부른다(게스트 403
+  `member_only`). 본문은 `source`(`airbridge`)·`platform`(`ios`·`android`)·`channel`(비어 있지 않음)이 필수이고
+  `campaign`·`ad_group`·`ad_creative`·`content`·`term`·`sub_publisher` 는 선택이다. 값마다 앞뒤 공백을 걷고 비면
+  NULL, 200자를 넘으면 422 다. 모르는 키(광고 식별자 등)는 전역 정책대로 422 다(§6-3).
+- **처음 온 값만 남는다**(`ON CONFLICT DO NOTHING`). 다시 보내면 바꾸지 않은 채 204 다 — 앱의 재시도에 안전하다.
+- 앱은 Airbridge SDK 의 설치 귀속 결과를 그 기기에서 **새로 가입한** 계정에만 한 번 보낸다. 기존 회원이 앱을
+  업데이트해 SDK 가 처음 돌 때의 귀속은 보내지 않는다.
+- 쓰기는 회원 자료 쓰기와 같이 `users` 행을 잡고 활성인지 본다(`PostgresProfileRepository#lockActive`) — 탈퇴가
+  먼저면 쓰지 않고 403 `account_deactivated` 다. 탈퇴는 이 행을 지운다(§6-8). 만 14세 미만 종료로 계정 행을
+  지우면 CASCADE 가 함께 지운다.
+- 읽는 곳은 ops 사용자 화면이다. 광고 관리자는 가입을 수로만 센다.
 
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 
