@@ -41,6 +41,7 @@ import {
 import { getVideo } from "@/lib/api/v2/videos";
 import type { PracticeGroup } from "@/lib/practice/api-types";
 import { newRequestId } from "@/lib/reading/request-id";
+import { APP_DOWNLOAD_ATTR } from "@/lib/app-download/store-links";
 import type { Conversation, ConversationTurnResponse } from "@/lib/practice/api-types";
 import {
   actorTurnCount,
@@ -1448,6 +1449,7 @@ function WorkspaceInner() {
                   길이라 눈에 걸려야 해서다. */}
               <Link
                 href="/app"
+                {...{ [APP_DOWNLOAD_ATTR]: "app_page" }}
                 className="flex h-8 items-center rounded-[10px] px-2 text-xs font-black text-[#3182f6] transition hover:bg-[#e8f3ff]"
               >
                 앱
@@ -1842,6 +1844,7 @@ const SessionRail = memo(function SessionRail({
       {drawer ? (
         <Link
           href="/app"
+          {...{ [APP_DOWNLOAD_ATTR]: "app_page" }}
           className="flex items-center gap-3 border-t border-[#edf0f3] px-4 py-3.5 transition hover:bg-[#eef2f6]"
         >
           <span
