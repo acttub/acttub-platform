@@ -43,12 +43,13 @@ class AudioExtractorTest {
             Files.writeString(output.get(), "partial");
             throw failure;
         });
-        assertThatThrownBy(() -> extractor.extract(video)).hasCause(failure);
+        assertThatThrownBy(() -> extractor.extract(video)).isInstanceOf(IllegalStateException.class).hasCause(failure);
         assertThat(output.get()).doesNotExist();
         assertThat(video).exists();
 
         var empty = new AudioExtractor((command, timeout) -> output.set(Path.of(command.getLast())));
-        assertThatThrownBy(() -> empty.extract(video)).hasRootCauseMessage("ffmpeg produced empty audio");
+        assertThatThrownBy(() -> empty.extract(video)).isInstanceOf(IllegalStateException.class)
+                .hasRootCauseMessage("ffmpeg produced empty audio");
         assertThat(output.get()).doesNotExist();
     }
 }

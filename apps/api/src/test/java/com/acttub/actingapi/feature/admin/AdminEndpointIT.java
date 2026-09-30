@@ -323,6 +323,10 @@ class AdminEndpointIT {
         assertThat(limited.path("items")).hasSize(2);
         assertThat(limited.path("has_more").booleanValue()).isTrue();
         assertThat(limited.path("items").get(0).path("id").textValue()).isEqualTo(rating.toString());
+        // 경계: 남은 행 수가 상한과 정확히 같으면 다음 쪽이 없다.
+        JsonNode exact = authorized("/v2/admin/feedback?limit=3", 200);
+        assertThat(exact.path("items")).hasSize(3);
+        assertThat(exact.path("has_more").booleanValue()).isFalse();
 
         JsonNode withTeam = authorized("/v2/admin/feedback?include_team=true", 200);
         assertThat(withTeam.path("items")).hasSize(4);

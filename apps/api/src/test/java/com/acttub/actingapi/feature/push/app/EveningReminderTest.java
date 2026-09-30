@@ -14,4 +14,12 @@ class EveningReminderTest {
         assertThat(en.body()).isEqualTo("Five minutes is enough. Shoot one scene or run a script?");
         assertThat(ko.data()).containsExactlyEntriesOf(java.util.Map.of("kind", "evening_reminder"));
     }
+
+    /** 말이 비었거나(옛 토큰) 공백뿐이면 한국어로 본다. */
+    @Test void unknownLocaleFallsBackToKorean() {
+        for (String locale : new String[] {null, "", "  "}) {
+            assertThat(EveningReminder.message(new PushTarget("token", locale)).title())
+                    .as("%s", locale).isEqualTo("오늘 연습 아직이에요");
+        }
+    }
 }
