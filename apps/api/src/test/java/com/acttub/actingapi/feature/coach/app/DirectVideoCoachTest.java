@@ -74,6 +74,12 @@ class DirectVideoCoachTest {
         verify(model, times(2)).delete(file);
         assertThat(temporary).allSatisfy(path -> assertThat(path).doesNotExist());
         assertThat(telemetry.calls()).hasSize(3);
+        // 기록마다 실제로 보낸 과제 템플릿이 붙는다 — 앞에 붙는 배우 정보는 빠진 정적 본문이다(SOMA-585).
+        assertThat(telemetry.calls()).extracting(call -> call.prompt().name())
+                .containsExactly("coach.direct.opening", "coach.direct.classifier", "coach.direct.intention");
+        assertThat(telemetry.calls().get(1).prompt().text()).isEqualTo(DirectVideoPrompts.classifier());
+        assertThat(telemetry.calls().get(2).prompt().text())
+                .isEqualTo(DirectVideoPrompts.forRoutes(List.of(DirectVideoRoute.INTENTION)));
     }
 
     @Test void explicitEndPreservesExistingHandoffAndNoteContract() {
@@ -222,6 +228,10 @@ class DirectVideoCoachTest {
                         "<상태>순간1 · 과제 · 누적 0줄 0번 · 응답 2번째</상태>\n붙잡게 두 번, 물러나게 한 번 해 보세요."),
                 new DirectVideoModel.Message("user", "해봤어요"));
         assertThat(telemetry.calls()).hasSize(3);
+        assertThat(telemetry.calls()).allSatisfy(call ->
+                assertThat(call.prompt()).isEqualTo(
+                        new com.acttub.actingapi.platform.observability.LlmPrompt(
+                                "coach.practice-loop", DirectVideoPrompts.practiceLoop())));
     }
 
     CoachSessionSnapshot writtenSession() {

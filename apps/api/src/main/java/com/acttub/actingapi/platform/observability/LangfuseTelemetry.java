@@ -1,11 +1,17 @@
 package com.acttub.actingapi.platform.observability;
 
+import java.net.URI;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.HexFormat;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -22,6 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
 /**
@@ -67,6 +74,8 @@ public class LangfuseTelemetry implements LlmTelemetry {
     private final Executor sender;
     private final String tracingEnvironment;
     private final AtomicLong dropped = new AtomicLong();
+    /** (프롬프트 이름, 본문 해시) → Langfuse 버전. 알아낸 것만 담는다 — 실패는 담지 않는다. */
+    private final Map<String, Integer> promptVersions = new ConcurrentHashMap<>();
 
     @Autowired
     public LangfuseTelemetry(ObjectMapper mapper) {
@@ -102,7 +111,9 @@ public class LangfuseTelemetry implements LlmTelemetry {
         if (!enabled || call == null || call.practiceSessionId() == null) {
             return;
         }
-        submit(() -> post("/api/public/otel/v1/traces", tracePayload(call)), "record");
+        // 버전 확인도 일꾼 안에서 한다 — 처음 보는 프롬프트여도 부르는 쪽은 기다리지 않는다.
+        submit(() -> post("/api/public/otel/v1/traces", tracePayload(call, promptVersion(call.prompt()))),
+                "record");
     }
 
     @Override
@@ -155,13 +166,95 @@ public class LangfuseTelemetry implements LlmTelemetry {
         }
     }
 
+    // --- 프롬프트 버전 (SOMA-585) --------------------------------------------
+
+    /**
+     * 이 프롬프트 본문이 Langfuse 에서 몇 번째 버전인지. 모르면 null — 그러면 연결만 빠진다.
+     *
+     * <p>원본은 코드다. 여기서는 코드의 본문을 Langfuse 에 <b>맞춰 둘</b> 뿐이다: 같은 환경 라벨이
+     * 가리키는 버전의 본문이 같으면 그 번호를 쓰고, 다르거나 없으면 그 라벨로 새 버전을 만든다.
+     * 최신 버전과 비교하지 않는 이유 — dev 와 운영이 한 프로젝트를 써서, 두 환경의 본문이 다를 때
+     * 서로 번갈아 새 버전을 만들게 된다.
+     *
+     * <p>알아낸 번호만 기억한다. 실패를 기억하면 Langfuse 가 살아난 뒤에도 영영 연결되지 않는다.
+     */
+    Integer promptVersion(LlmPrompt prompt) {
+        if (prompt == null) {
+            return null;
+        }
+        return promptVersions.computeIfAbsent(prompt.name() + "\n" + sha256(prompt.text()),
+                ignored -> resolvePromptVersion(prompt));
+    }
+
+    private Integer resolvePromptVersion(LlmPrompt prompt) {
+        String label = tracingEnvironment.isEmpty() ? "default" : tracingEnvironment;
+        try {
+            JsonNode current = currentPrompt(prompt.name(), label);
+            if (current != null && current.path("version").isInt()
+                    && prompt.text().equals(current.path("prompt").asText(null))) {
+                return current.path("version").asInt();
+            }
+            ObjectNode create = mapper.createObjectNode();
+            create.put("name", prompt.name());
+            create.put("type", "text");
+            create.put("prompt", prompt.text());
+            create.putArray("labels").add(label);
+            String created = client.post()
+                    .uri(URI.create(host + "/api/public/v2/prompts"))
+                    .header("Authorization", authorization)
+                    .header("Content-Type", "application/json")
+                    .body(mapper.writeValueAsString(create))
+                    .retrieve()
+                    .body(String.class);
+            JsonNode version = mapper.readTree(created).path("version");
+            return version.isInt() ? version.asInt() : null;
+        } catch (Exception failure) {
+            // 응답 본문에는 무엇이 섞였을지 모른다. 이름과 종류만 남긴다.
+            LOG.warn("프롬프트 버전 확인 실패 ({}): {}", prompt.name(), failure.getClass().getSimpleName());
+            return null;
+        }
+    }
+
+    /** 그 라벨이 가리키는 버전. 없으면 null. */
+    private JsonNode currentPrompt(String name, String label) throws Exception {
+        try {
+            String body = client.get()
+                    .uri(URI.create(host + "/api/public/v2/prompts/" + encodePathSegment(name)
+                            + "?label=" + encodePathSegment(label)))
+                    .header("Authorization", authorization)
+                    .retrieve()
+                    .body(String.class);
+            return body == null ? null : mapper.readTree(body);
+        } catch (HttpClientErrorException.NotFound missing) {
+            return null;
+        }
+    }
+
+    /** 이름의 {@code +} 같은 문자가 경로를 깨지 않게 한다. 공백은 {@code %20} 으로. */
+    private static String encodePathSegment(String raw) {
+        return URLEncoder.encode(raw, StandardCharsets.UTF_8).replace("+", "%20");
+    }
+
+    private static String sha256(String text) {
+        try {
+            return HexFormat.of().formatHex(
+                    MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException(impossible);
+        }
+    }
+
     // --- OTLP 조립 ----------------------------------------------------------
+
+    JsonNode tracePayload(LlmCall call) {
+        return tracePayload(call, null);
+    }
 
     /**
      * OTLP/JSON 한 건. 바이트 필드(추적 ID·구간 ID)는 이 형식에서 16진수 문자열이고,
      * 나노초 시각은 64비트라 문자열로 싣는다 — 숫자로 실으면 큰 값이 깨진다.
      */
-    JsonNode tracePayload(LlmCall call) {
+    JsonNode tracePayload(LlmCall call, Integer promptVersion) {
         ObjectNode span = mapper.createObjectNode();
         span.put("traceId", traceId(call.practiceSessionId()));
         span.put("spanId", randomSpanId());
@@ -191,6 +284,14 @@ public class LangfuseTelemetry implements LlmTelemetry {
         attribute(attributes, "langfuse.observation.metadata.step", call.step().name());
         call.metadata().forEach((key, metadataValue) ->
                 attribute(attributes, "langfuse.observation.metadata." + key, metadataValue));
+        if (call.prompt() != null) {
+            // 이름은 늘 남긴다 — 버전을 못 알아내도 어느 프롬프트였는지로 걸러 볼 수 있다.
+            attribute(attributes, "langfuse.observation.metadata.prompt", call.prompt().name());
+            if (promptVersion != null) {
+                attribute(attributes, "langfuse.observation.prompt.name", call.prompt().name());
+                intAttribute(attributes, "langfuse.observation.prompt.version", promptVersion);
+            }
+        }
 
         ObjectNode status = span.putObject("status");
         if (call.failed()) {
@@ -241,6 +342,13 @@ public class LangfuseTelemetry implements LlmTelemetry {
         ObjectNode entry = attributes.addObject();
         entry.put("key", key);
         entry.putObject("value").put("stringValue", value);
+    }
+
+    /** OTLP/JSON 의 64비트 정수는 문자열로 싣는다. */
+    private void intAttribute(ArrayNode attributes, String key, long value) {
+        ObjectNode entry = attributes.addObject();
+        entry.put("key", key);
+        entry.putObject("value").put("intValue", Long.toString(value));
     }
 
     private String usage(LlmTokens tokens) {

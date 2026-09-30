@@ -10,6 +10,7 @@ import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.platform.ledger.ExternalOperationExecution;
 import com.acttub.actingapi.platform.observability.ActorNameRedaction;
 import com.acttub.actingapi.platform.observability.LlmCall;
+import com.acttub.actingapi.platform.observability.LlmPrompt;
 import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.acttub.actingapi.platform.observability.LlmTokens;
@@ -44,7 +45,8 @@ final class CoachingPipeline {
         request.set("coaching_state", input.path("coaching_state"));
         request.set("last_exchange", input.path("last_exchange"));
         JsonNode result = StructuredJson.parse(call(session, LlmStep.COACH_ROUTE, CLASSIFIER, request,
-                new GenerationOptions(CLASSIFIER_MODEL, "low", 512, "coaching_route", ROUTE_SCHEMA), null));
+                new GenerationOptions(CLASSIFIER_MODEL, "low", 512, "coaching_route", ROUTE_SCHEMA), null,
+                new LlmPrompt("coach.pipeline.classifier", CLASSIFIER)));
         if (result.size() != 1 || !result.path("route").isTextual()) {
             throw new IllegalArgumentException("invalid coaching route response");
         }
@@ -75,8 +77,11 @@ final class CoachingPipeline {
         // 답할 말 지시(SOMA-544)는 맨 마지막이다. 한국어면 아무것도 붙지 않는다.
         String prompt = OutputLanguage.apply(prompt(route, finish, opening)
                 + (payload.has("actor_profile") ? StructuredCoachEngine.ACTOR_PROFILE_INSTRUCTION : ""));
+        // 기록에 잇는 것은 언어·프로필 지시를 붙이기 전의 템플릿이다 — 그 둘은 요청마다 달라진다.
+        LlmPrompt template = new LlmPrompt(
+                "coach.pipeline." + (finish ? "closing" : opening ? "opening" : route.id), prompt(route, finish, opening));
         JsonNode draft = StructuredJson.parse(call(session, attempt == 0 ? LlmStep.COACH_TURN : LlmStep.COACH_REGENERATION,
-                prompt, payload, new GenerationOptions(null, "low", 3000, null, null), route));
+                prompt, payload, new GenerationOptions(null, "low", 3000, null, null), route, template));
         if (draft.size() != 3 || !draft.path("message").isTextual() || !draft.has("context_update")
                 || !draft.path("evidence_refs").isArray()) throw new IllegalArgumentException("invalid coaching draft");
         ObjectNode response = StructuredJson.MAPPER.createObjectNode().put("action", "respond")
@@ -103,7 +108,7 @@ final class CoachingPipeline {
     }
 
     private String call(CoachSessionSnapshot session, LlmStep step, String prompt, JsonNode input,
-            GenerationOptions options, CoachingRoute route) {
+            GenerationOptions options, CoachingRoute route, LlmPrompt template) {
         Instant start = Instant.now();
         String payload = input.toString();
         // 모델에는 payload 를 그대로 보내고, 바깥으로 나가는 기록에서만 배우의 이름을 가린다 (CONTRACT.md §7-2).
@@ -115,12 +120,12 @@ final class CoachingPipeline {
             var usage = output.usage();
             telemetry.record(new LlmCall(step, session.practiceSessionId(), session.userId(), output.model(), recorded,
                     output.text(), usage == null ? LlmTokens.unknown() : LlmTokens.of(usage.prompt(), usage.completion(), usage.total()),
-                    start, Duration.between(start, Instant.now()), null, metadata));
+                    start, Duration.between(start, Instant.now()), null, metadata).withPrompt(template));
             return output.text();
         } catch (RuntimeException failure) {
             telemetry.record(new LlmCall(step, session.practiceSessionId(), session.userId(), options.model() == null ? "" : options.model(),
                     recorded, "", LlmTokens.unknown(), start, Duration.between(start, Instant.now()),
-                    failure.getClass().getSimpleName(), metadata));
+                    failure.getClass().getSimpleName(), metadata).withPrompt(template));
             throw failure;
         }
     }
