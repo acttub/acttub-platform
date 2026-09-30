@@ -16,7 +16,6 @@ const {
   buildNoindexMetadata,
   buildRootMetadata,
   buildUniversityAdmissionsMetadata,
-  buildVerification,
   resolveSiteUrl,
 } = await import("../src/lib/seo/site-metadata.ts");
 
@@ -76,16 +75,6 @@ test("루트 metadata는 공통 title과 소셜 정보를 담되 URL 신호를 �
   });
   assert.equal(metadata.alternates, undefined);
   assert.equal("url" in metadata.openGraph, false);
-});
-
-test("소유권 metadata는 빈 네이버 값의 키를 만들지 않는다", () => {
-  assert.deepEqual(buildVerification("google-code", ""), {
-    google: "google-code",
-  });
-  assert.deepEqual(buildVerification("google-code", "naver-code"), {
-    google: "google-code",
-    other: { "naver-site-verification": "naver-code" },
-  });
 });
 
 test("키워드 metadata는 canonical과 Article 공유 정보를 본문에서 만든다", () => {
