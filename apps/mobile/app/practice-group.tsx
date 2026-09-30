@@ -129,11 +129,7 @@ export default function PracticeGroupScreen() {
     }
   };
 
-  const openNote = (practiceId: string, hasNote: boolean) => {
-    if (!hasNote) {
-      void alert({ title: t('note.title'), message: t('history.noteMissing') });
-      return;
-    }
+  const openNote = (practiceId: string) => {
     router.push({ pathname: '/report-detail', params: { practiceId } });
   };
 
@@ -189,7 +185,7 @@ export default function PracticeGroupScreen() {
                 </Text>
               </View>
               {round.note && (
-                <Pressable style={styles.round} onPress={() => openNote(round.id, true)} accessibilityRole="button">
+                <Pressable style={styles.round} onPress={() => openNote(round.id)} accessibilityRole="button">
                   <Text style={styles.openNote}>{t('history.openNote')}</Text>
                   <Feather name="chevron-right" size={18} color={palette.checkOff} />
                 </Pressable>

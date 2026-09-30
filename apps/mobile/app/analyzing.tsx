@@ -59,7 +59,6 @@ export default function AnalyzingScreen() {
   const [error, setError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
   const [stopping, setStopping] = useState(false);
-  const [stage, setStage] = useState(0);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [sceneOpen, setSceneOpen] = useState(false);
   const [videoUri, setVideoUri] = useState<VideoSource | null>(null);
@@ -72,6 +71,7 @@ export default function AnalyzingScreen() {
   // 튜토리얼 예시(SOMA-494) — 조회도 분석도 없이 몇 초 뒤 코치로 넘어간다.
   // 설명(스포트라이트)을 다 본 뒤에 넘긴다 — 읽는 도중에 화면이 바뀌면 안 된다.
   const sample = isSamplePracticeId(practiceId);
+  const [sampleStage, setSampleStage] = useState(0);
   const [sampleReady, setSampleReady] = useState(false);
   const [guideDone, setGuideDone] = useState(false);
   const progressTarget = useSpotlightTarget(TARGET.analyzingProgress);
@@ -82,7 +82,7 @@ export default function AnalyzingScreen() {
     let alive = true;
     void (async () => {
       for (let i = 0; i < SAMPLE_ANALYZING_STEP_MS.length; i += 1) {
-        setStage(Math.min(i, STAGES.length - 1));
+        setSampleStage(Math.min(i, STAGES.length - 1));
         await new Promise((resolve) => setTimeout(resolve, SAMPLE_ANALYZING_STEP_MS[i]));
         if (!alive) return;
       }
@@ -116,7 +116,7 @@ export default function AnalyzingScreen() {
         if (!signal.aborted) setError(t('analyzing.statusUnavailable'));
         return;
       }
-      const localUri = loaded?.video_id && !loaded.video_purged ? await localCopyFor(loaded.video_id).catch(() => null) : null;
+      const localUri = loaded.video_id && !loaded.video_purged ? await localCopyFor(loaded.video_id).catch(() => null) : null;
       if (pendingHandleRef.current) {
         await pendingAnalysisStore.remove(pendingHandleRef.current).catch(() => undefined);
         pendingHandleRef.current = null;
@@ -129,16 +129,16 @@ export default function AnalyzingScreen() {
       finishedRef.current = true;
       startPractice({
         practiceId,
-        rootId: loaded?.root_id ?? practiceId,
-        ordinal: loaded?.ordinal ?? 1,
-        conversationId: loaded?.conversation_id,
+        rootId: loaded.root_id ?? practiceId,
+        ordinal: loaded.ordinal ?? 1,
+        conversationId: loaded.conversation_id,
         scene: {
-          situation: loaded?.scene.situation ?? '',
-          character: loaded?.scene.character ?? '',
-          goal: loaded?.scene.goal ?? '',
+          situation: loaded.scene.situation ?? '',
+          character: loaded.scene.character ?? '',
+          goal: loaded.scene.goal ?? '',
         },
         videoUri: localUri ?? '',
-        playbackUrl: loaded?.playback_url ?? null,
+        playbackUrl: loaded.playback_url ?? null,
       });
       logEvent('analysis_complete', { analysis });
       logMetaEvent('practice_analysis_complete');
@@ -258,12 +258,6 @@ export default function AnalyzingScreen() {
     return () => clearInterval(timer);
   }, [error]);
 
-  useEffect(() => {
-    if (error) return;
-    const timer = setInterval(() => setStage((s) => Math.min(s + 1, STAGES.length - 1)), 20_000);
-    return () => clearInterval(timer);
-  }, [error]);
-
   /** "그만두기" — 작업을 취소로 끝낸다. 영상은 보관함에 그대로 있고 연습을 숨기지 않는다. */
   const stop = useCallback(async () => {
     if (!practiceId || stopping) return;
@@ -338,6 +332,8 @@ export default function AnalyzingScreen() {
   }, [detail?.root_id, practiceId, retrying, router, run, status]);
 
   const jobStatus = status?.job?.status ?? 'pending';
+  // 단계 문구는 20초마다 넘긴다. 예시 튜토리얼은 정해 둔 박자로 직접 넘긴다.
+  const stage = sample ? sampleStage : Math.min(Math.floor(elapsedSec / 20), STAGES.length - 1);
   const stageText = jobStatus === 'pending' && !sample ? t('analyzing.queued') : STAGES[stage];
   const elapsedText =
     elapsedSec < 60
