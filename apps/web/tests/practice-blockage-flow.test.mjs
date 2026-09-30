@@ -7,14 +7,10 @@ import "./ts-module-loader.mjs";
 
 const {
   BLOCKAGE_CHOICES,
-  changeBlockageKind,
   chooseBlockageKind,
-  chooseBlockageSubBranch,
   completeBlockageFlow,
   completeBlockageFlowWithDefault,
-  effectiveSubBranch,
   initialBlockageFlowState,
-  subBranchChoices,
 } = await import("../src/features/practice/blockage-flow.ts");
 const {
   renderablePracticeReport,
@@ -43,19 +39,6 @@ function detailPanelSource() {
   );
 }
 
-test("큰 갈래를 고르면 해당 하위 갈래 선택지만 제공한다", () => {
-  assert.deepEqual(
-    subBranchChoices("분석").map((choice) => choice.value),
-    ["캐릭터 분석", "대사 분석", "그 외"],
-  );
-  assert.deepEqual(
-    subBranchChoices("표현").map((choice) => choice.value),
-    ["감정", "움직임", "화술", "표정", "그 외"],
-  );
-  // "그 외"는 좁힐 것이 없다 — 목록이 비어 하위 갈래 자리가 아예 서지 않는다.
-  assert.deepEqual(subBranchChoices("그 외"), []);
-});
-
 test("화면에 그리는 라벨은 저장값과 다른 문장이다", () => {
   // 라벨 자리에 저장값을 그대로 쓰면 배우가 카드 제목으로 "그 외"를 읽는다(SOMA-454).
   // 값은 서버가 코치를 가르는 데 쓰고, 화면은 문장을 쓴다.
@@ -65,18 +48,9 @@ test("화면에 그리는 라벨은 저장값과 다른 문장이다", () => {
   }
 });
 
-test("하위 갈래 「그 외」도 저장값을 그대로 보여주지 않는다", () => {
-  // 대분류만 고치면 다음 화면에서 배우가 카드 제목으로 "그 외"를 읽는다(SOMA-454).
-  for (const kind of ["분석", "표현"]) {
-    const other = subBranchChoices(kind).find((choice) => choice.value === "그 외");
-    assert.notEqual(other.label, "그 외", kind);
-  }
-});
-
 test("대분류만 골라도 완성되고 하위 갈래는 '특정하지 않음'으로 간다", () => {
   const state = chooseBlockageKind(initialBlockageFlowState, "표현");
 
-  assert.equal(state.subBranch, null);
   // "그 외"는 서버가 이미 아는 값이고, 직접 고른 사람과 안 고른 사람 모두에게
   // 참인 표현이다. CHECK 제약이 빈 문자열을 거부해 중립값을 새로 만들 수 없다.
   assert.deepEqual(completeBlockageFlow(state), {
@@ -89,15 +63,11 @@ test("대분류만 골라도 완성되고 하위 갈래는 '특정하지 않음'
 test("좁힐 것이 없는 대분류는 하위 갈래 자리 없이 그대로 완성된다", () => {
   const state = chooseBlockageKind(initialBlockageFlowState, "그 외");
 
-  assert.deepEqual(subBranchChoices("그 외"), []);
-  assert.equal(effectiveSubBranch(state), "그 외");
   assert.deepEqual(completeBlockageFlow(state), {
     blockage_kind: "그 외",
     sub_branch: "그 외",
     blockage_detail: null,
   });
-  // 목록이 없으니 고를 수도 없다 — 눌러 봐야 아무 일도 일어나지 않는다.
-  assert.deepEqual(chooseBlockageSubBranch(state, "감정"), state);
 });
 
 test("대분류를 고르기 전에는 완성되지 않는다", () => {
@@ -129,66 +99,6 @@ test("도움을 고르지 않아도 그 외 기본값으로 완성한다", () =>
   );
 });
 
-test("화면이 말하는 하위 갈래와 저장되는 값이 같은 답을 본다", () => {
-  const main = chooseBlockageKind(initialBlockageFlowState, "표현");
-
-  // 안 고른 사람의 화면 제목·예시가 이 답을 따라간다. 갈라 적으면 "화면은 그 외인데
-  // 저장은 다른 것"이 되고, 그 어긋남은 마크업을 못 보는 테스트에 안 걸린다.
-  assert.equal(effectiveSubBranch(main), "그 외");
-  assert.equal(completeBlockageFlow(main)?.sub_branch, effectiveSubBranch(main));
-
-  const chosen = chooseBlockageSubBranch(main, "화술");
-  assert.equal(effectiveSubBranch(chosen), "화술");
-  assert.equal(completeBlockageFlow(chosen)?.sub_branch, effectiveSubBranch(chosen));
-
-  // 화면은 이제 하위 갈래로 제목·예시를 가르지 않는다(상세 문안 한 벌, SOMA-454).
-  // 갈릴 표면이 없어져 그것을 지키던 소스 순찰도 함께 걷었다.
-});
-
-test("하위 갈래를 고르면 그 값이 실린다", () => {
-  const main = chooseBlockageKind(initialBlockageFlowState, "표현");
-  const chosen = chooseBlockageSubBranch(main, "표정");
-
-  assert.deepEqual(completeBlockageFlow(chosen), {
-    blockage_kind: "표현",
-    sub_branch: "표정",
-    blockage_detail: null,
-  });
-});
-
-test("대분류를 되돌리면 하위 갈래도 함께 지운다", () => {
-  const chosen = chooseBlockageSubBranch(
-    chooseBlockageKind(initialBlockageFlowState, "표현"),
-    "감정",
-  );
-
-  assert.deepEqual(changeBlockageKind(chosen), initialBlockageFlowState);
-  // 적어 둔 서술은 남긴다 — 대분류를 다시 고르는 것과 적은 것을 버리는 것은 다르다.
-  const withDetail = { ...chosen, detail: "2분 언저리에서 얼굴이 굳어요" };
-  assert.equal(changeBlockageKind(withDetail).detail, "2분 언저리에서 얼굴이 굳어요");
-});
-
-test("대분류를 갈아타면 앞서 고른 하위 갈래는 따라가지 않는다", () => {
-  const chosen = chooseBlockageSubBranch(
-    chooseBlockageKind(initialBlockageFlowState, "표현"),
-    "감정",
-  );
-
-  // "감정"은 분석의 선택지가 아니다. 남겨 두면 목록에 없는 값이 실려 나간다.
-  assert.equal(chooseBlockageKind(chosen, "분석").subBranch, null);
-});
-
-test("이미 고른 대분류를 다시 탭해도 하위 갈래는 남는다", () => {
-  const chosen = chooseBlockageSubBranch(
-    chooseBlockageKind(initialBlockageFlowState, "표현"),
-    "감정",
-  );
-
-  // 준비 화면에는 선택지가 상시 떠 있다 — 재탭이 갈아타기로 처리되면
-  // 고른 하위 갈래가 소리 없이 "그 외"로 바뀌어 제출된다.
-  assert.equal(chooseBlockageKind(chosen, "표현"), chosen);
-});
-
 test("서술 자리는 예시·펼치기 없이 상세 칸 하나만 둔다", () => {
   // 2026-09-01 결정 — 하위 갈래·예시 접기·글자 수를 걷어내고 상세 서술 한 칸만 남겼다.
   assert.match(blockageSelectionSource, /상세히 적어 주세요/);
@@ -199,9 +109,8 @@ test("서술 자리는 예시·펼치기 없이 상세 칸 하나만 둔다", ()
 
 test("서술을 비워도 고른 도움은 완성된다", () => {
   const main = chooseBlockageKind(initialBlockageFlowState, "표현");
-  const detail = chooseBlockageSubBranch(main, "감정");
 
-  assert.equal(completeBlockageFlow(detail)?.blockage_detail, null);
+  assert.equal(completeBlockageFlow(main)?.blockage_detail, null);
 });
 
 test("고른 선택 표시가 남아 있고 글자 수 표시는 없다", () => {
