@@ -5,16 +5,18 @@
  *   등록과 옛 로컬 리마인드 취소를 맞춘다.
  * - 계정이 이 기기를 떠나면(로그아웃·탈퇴·세션 끊김) 계정 세대를 올린다. 그 전에 시작한 동기화는
  *   단계 사이마다 세대를 확인하고 멈춘다 — 늦게 돌아온 설정 조회가 로그아웃 뒤에 토큰을 다시
- *   등록하거나 알람을 다시 만들지 않는다. 다음 게이트 통과 전까지는 새 동기화도 시작하지 않는다.
+ *   등록하지 않는다. 다음 게이트 통과 전까지는 새 동기화도 시작하지 않는다.
  *
  * 네이티브 모듈 없이 성립하는 부분만 여기 산다(notifications.ts 가 실제 호출을 넣어 쓴다).
  */
 import { wantsServerPush, type NotificationSettings } from './push-policy.ts';
-import type { IsCurrent } from './reminder-schedule.ts';
+
+/** 이 계정이 아직 이 기기에 있는가. 로그아웃·탈퇴가 시작되면 거짓이 된다. */
+export type IsCurrent = () => boolean;
 
 /**
  * 배경 복귀 때 다시 맞추는 최소 간격. 권한 창·공유 시트·사진 고르기처럼 잠깐 나갔다 오는
- * 것마다 서버를 부르고 알람 30개를 다시 깔지 않는다.
+ * 것마다 서버를 부르지 않는다.
  */
 export const FOREGROUND_SYNC_MIN_INTERVAL_MS = 5 * 60_000;
 
@@ -27,10 +29,8 @@ export type NotificationSyncDependencies = {
   forgetToken: () => Promise<void>;
   /** 로그아웃 때 지우지 못한 푸시 토큰을 다시 보낸다. 로그인 여부와 무관하다. */
   flushPendingDeletions: () => Promise<void>;
-  reminders: {
-    sync: (settings: NotificationSettings, isCurrent: IsCurrent) => Promise<void>;
-    cancelAll: () => Promise<void>;
-  };
+  /** 옛 판이 기기에 예약한 로컬 리마인드를 전부 취소한다. */
+  clearLocalReminders: () => Promise<void>;
   now: () => number;
 };
 
@@ -41,7 +41,7 @@ export function createNotificationSync(dependencies: NotificationSyncDependencie
     registerDevice,
     forgetToken,
     flushPendingDeletions,
-    reminders,
+    clearLocalReminders,
     now,
   } = dependencies;
   /** 계정 세대. 계정이 이 기기를 떠날 때마다 오른다. */
@@ -68,8 +68,7 @@ export function createNotificationSync(dependencies: NotificationSyncDependencie
     if (!isCurrent()) return;
     if (wantsServerPush(settings)) await registerDevice({ askPermission, isCurrent });
     else await forgetToken();
-    if (!isCurrent()) return;
-    await reminders.sync(settings, isCurrent);
+    await clearLocalReminders();
   }
 
   return {
@@ -91,18 +90,18 @@ export function createNotificationSync(dependencies: NotificationSyncDependencie
     },
 
     /**
-     * 계정이 이 기기를 떠난다(로그아웃·탈퇴·세션 끊김). 진행 중인 동기화를 무효로 하고 리마인드를
-     * 전부 취소한다. 취소는 멈춘 맞추기 뒤에 돌아 마지막에 끝난다.
+     * 계정이 이 기기를 떠난다(로그아웃·탈퇴·세션 끊김). 진행 중인 동기화를 무효로 하고 옛 로컬
+     * 리마인드를 전부 취소한다.
      */
     leave(): Promise<void> {
       invalidate();
-      return reminders.cancelAll();
+      return clearLocalReminders();
     },
 
     /** 진행 중인 동기화만 무효로 한다. 로그아웃의 첫 단계(푸시 토큰 삭제)가 부른다. */
     invalidate,
 
-    /** 연습 완료·토글처럼 동기화 밖에서 알람을 맞추는 흐름이 쓰는 확인. */
+    /** 토글처럼 동기화 밖에서 토큰을 등록하는 흐름이 쓰는 확인. */
     guard,
   };
 }

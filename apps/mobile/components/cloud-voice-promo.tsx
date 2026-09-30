@@ -26,7 +26,7 @@ export function CloudVoicePromo({ loggedIn, blocked = false, onboardingJustFinis
     void AsyncStorage.getItem(CLOUD_VOICE_PROMO_KEY).then((raw) => {
       const now = Date.now();
       const promo = parseCloudVoicePromoState(raw);
-      const show = shouldShowCloudVoicePromo({ loggedIn, available: cloud.status!.available, consent: cloud.status!.consent, enabled: cloud.enabled, freeUntil: cloud.status!.free_until, promo, today: koreaDay(now), now, otherModalOpen: blocked, onboardingJustFinished });
+      const show = shouldShowCloudVoicePromo({ loggedIn, available: cloud.status!.available, consent: cloud.status!.consent, enabled: cloud.enabled, freeUntil: cloud.status!.free_until, promo, today: koreaDay(now), now, onboardingJustFinished });
       if (!cancelled && show) {
         setVisible(true);
         void AsyncStorage.setItem(CLOUD_VOICE_PROMO_KEY, JSON.stringify({ ...promo, lastShownDay: koreaDay(now) }));

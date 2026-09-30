@@ -46,7 +46,7 @@ export default function UiPreviewScreen() {
       label: '질문 대화',
       hint: '질문 하나 + 지난 문답 접기',
       go: () => {
-        seedPractice({ withTurns: true });
+        seedPractice();
         router.push('/coach');
       },
     },
@@ -55,7 +55,7 @@ export default function UiPreviewScreen() {
       label: '분석 결과',
       hint: '구분선 섹션 · 다음 테이크 · 영상 보기',
       go: () => {
-        seedPractice({ withTurns: true, withReport: true });
+        seedPractice({ withReport: true });
         router.push('/report?preview=1');
       },
     },

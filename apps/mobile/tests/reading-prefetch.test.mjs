@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { createSpeechQueue } from '../lib/reading/tts/prefetch.ts';
-import { isSpeechFileName, speechFileName, speechScriptFileName }
+import { isSpeechFileName, speechScriptFileName }
   from '../lib/reading/tts/speech-file.ts';
 
 /**
@@ -159,7 +159,7 @@ test('새 파일 이름은 탈퇴 정리가 찾을 수 있고, 남의 파일은 
   const made = speechScriptFileName('script-1', 'abc123');
   assert.equal(isSpeechFileName(made), true);
   // 예전 이름도 계속 찾는다 — 옛 빌드가 남긴 파일이 기기에 있다.
-  assert.equal(isSpeechFileName(speechFileName(1758000000000)), true);
+  assert.equal(isSpeechFileName('reading-1758000000000.wav'), true);
 
   for (const other of ['practice.mp4', 'reading.wav', 'reading-.wav', 'reading-abc.wav.txt', 'note.txt']) {
     assert.equal(isSpeechFileName(other), false, other);

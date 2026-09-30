@@ -1,6 +1,5 @@
 import { translate } from '../i18n.ts';
 import {
-  AI_REPORT_DAILY_LIMIT,
   AI_REPORT_MIN_SAMPLES,
   type AiReport,
   type AiReportStatus,
@@ -15,7 +14,7 @@ import {
  * 않는다**(ADR-005 개정). 표본이 3개 미만이면 견주기 없이 관찰만 보이고 "비교할 영상이 아직
  * 부족해요"라고 말한다. 표본은 이름·id 없이 "다른 참여작들"로만 나온다.
  */
-export { AI_REPORT_DAILY_LIMIT, AI_REPORT_MIN_SAMPLES };
+export { AI_REPORT_MIN_SAMPLES };
 
 export type ReportSection =
   | { kind: 'observations'; label: string; items: ReportEvidence[] }
@@ -41,11 +40,6 @@ export function reportSections(report: AiReport): ReportSection[] {
 /** 표본이 모자라면 그렇게 말한다. 없는 비교를 만들어 내지 않는다. */
 export function sampleNotice(report: Pick<AiReport, 'sample_count'>): string | null {
   return report.sample_count < AI_REPORT_MIN_SAMPLES ? translate('aiReport.notEnoughSamples') : null;
-}
-
-/** 근거 구간을 그 자리부터 다시 보게 하는 시작 시각(초). */
-export function evidenceStartSeconds(evidence: Pick<ReportEvidence, 'start_ms'>): number {
-  return Math.max(0, Math.floor(evidence.start_ms / 1000));
 }
 
 export function evidenceLabel(evidence: Pick<ReportEvidence, 'start_ms' | 'end_ms'>): string {

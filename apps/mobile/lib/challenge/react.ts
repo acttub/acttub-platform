@@ -17,11 +17,6 @@ export function optimisticLike(state: LikeState): LikeState {
     : { liked: true, likeCount: state.likeCount + 1 };
 }
 
-/** 서버가 실패했다 — 누르기 전 값으로 되돌린다. */
-export function revertLike(before: LikeState): LikeState {
-  return { ...before };
-}
-
 /** 자기 참여작에는 좋아요·저장을 할 수 없다. 버튼은 보이되 눌러도 보내지 않는다. */
 export function canReact(entry: { is_mine?: boolean }): boolean {
   return !entry.is_mine;

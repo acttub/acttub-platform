@@ -80,7 +80,7 @@ export function useCloudVoice() {
       <View style={styles.backdrop}>
         <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}>
           <Text style={styles.title}>{document?.title}</Text>
-          <ScrollView style={styles.body}><Markdown source={consentBodyWithoutTitle(document?.body ?? '')} variant="compact" /></ScrollView>
+          <ScrollView style={styles.body}><Markdown source={consentBodyWithoutTitle(document?.body ?? '')} /></ScrollView>
           <Pressable style={styles.primary} disabled={busy} onPress={() => void decide(true)}><Text style={styles.primaryText}>{t('cloudVoice.consentAgree')}</Text></Pressable>
           <Pressable style={styles.ghost} disabled={busy} onPress={() => void decide(false)}><Text style={styles.ghostText}>{t('cloudVoice.consentDecline')}</Text></Pressable>
         </View>

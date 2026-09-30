@@ -8,7 +8,6 @@ import {
   devicePitchFor,
   isKnownPreset,
   normalizePresetValue,
-  presetError,
 } from '../lib/reading/voices.ts';
 
 const ch = (id, name, voice_preset = null) => ({ id, name, order: 0, voice_preset, dialogue_count: 1 });
@@ -45,10 +44,7 @@ test('reading.cast: 기기가 모르는 프리셋 값은 자동으로 다루고,
   assert.equal(VOICE_PRESETS.length, 10);
 });
 
-test('reading.cast: 프리셋 값은 32자 이내 문자열이고 33자는 invalid_characters, 빈 값·"자동"은 null이다', () => {
-  assert.equal(presetError('M3'), null);
-  assert.equal(presetError('x'.repeat(32)), null);
-  assert.equal(presetError('x'.repeat(33)), 'invalid_characters');
+test('reading.cast: 빈 값·"자동"은 null이다', () => {
   assert.equal(normalizePresetValue('auto'), null);
   assert.equal(normalizePresetValue(''), null);
   assert.equal(normalizePresetValue(' F2 '), 'F2');

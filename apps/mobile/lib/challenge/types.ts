@@ -234,9 +234,6 @@ export type AiReport = {
   completed_at: string | null;
 };
 
-/** 하루에 새로 만들 수 있는 리포트 수. */
-export const AI_REPORT_DAILY_LIMIT = 3;
-
 /** 견주기를 만들려면 표본이 이만큼은 있어야 한다. */
 export const AI_REPORT_MIN_SAMPLES = 3;
 
@@ -286,35 +283,3 @@ export type BlockedUser = {
   name: string;
   created_at: string;
 };
-
-export const CHALLENGE_ERROR_CODES = [
-  'duplicate_challenge',
-  'duplicate_entry',
-  'video_not_ready',
-  'video_too_long',
-  'daily_entry_limit',
-  'entry_hidden',
-  'self_like',
-  'self_save',
-  'self_block',
-  'self_report',
-  'daily_comment_limit',
-  'daily_report_limit',
-  'invalid_duration',
-  'daily_challenge_limit',
-  'request_fingerprint_mismatch',
-  'challenge_has_entries',
-  'challenge_closed',
-  'member_only',
-  'cursor_expired',
-  'daily_report_request_limit',
-  'entry_not_found',
-  'video_not_found',
-  'comment_not_found',
-  'user_not_found',
-  'ai_report_not_found',
-  'challenge_not_found',
-  'account_deactivated',
-] as const;
-
-export type ChallengeErrorCode = (typeof CHALLENGE_ERROR_CODES)[number];

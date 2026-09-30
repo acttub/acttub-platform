@@ -20,15 +20,6 @@ export function isWrittenByActor(item: { written_by_actor: boolean }): boolean {
   return item.written_by_actor;
 }
 
-export function writtenByLabel(item: { written_by_actor: boolean }): string | null {
-  return isWrittenByActor(item) ? translate('memory.writtenByMe') : null;
-}
-
-/** 출처 연습이 숨겨졌으면 링크가 없다 — 값은 그대로다. */
-export function sourceLink(item: { source_practice_id?: string | null }): string | null {
-  return item.source_practice_id ?? null;
-}
-
 /** 성별·나이 자리에 대신 두는 안내. */
 export function profileNotice(): string {
   return translate('memory.profileNotice');

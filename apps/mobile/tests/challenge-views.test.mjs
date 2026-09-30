@@ -13,7 +13,6 @@ import {
 const signal = (over = {}) => ({
   elapsedMs: 3_500,
   isOwn: false,
-  isPreload: false,
   isRepeat: false,
   alreadySent: false,
   ...over,
@@ -25,9 +24,8 @@ test('challenge.browse: 3초 이상 재생한 사건만 조회수가 된다', ()
   assert.equal(shouldCountView(signal({ elapsedMs: 2_000 })), false);
 });
 
-test('challenge.browse: 본인 재생·미리 불러오기·자동 반복은 세지 않는다', () => {
+test('challenge.browse: 본인 재생·자동 반복은 세지 않는다', () => {
   assert.equal(shouldCountView(signal({ isOwn: true })), false);
-  assert.equal(shouldCountView(signal({ isPreload: true })), false);
   assert.equal(shouldCountView(signal({ isRepeat: true })), false);
 });
 

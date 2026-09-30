@@ -81,11 +81,6 @@ export function isReady(): boolean {
   return !!tts;
 }
 
-/** 지금 받거나 불러오는 중인가. */
-export function isPreparing(): boolean {
-  return !tts && !!readyPromise;
-}
-
 export function configure(next: EngineConfig) {
   cfg = { ...cfg, ...next };
 }
@@ -264,7 +259,7 @@ export type SpeechQueueHandle = SpeechQueue & {
 /**
  * 이 대본의 미리 만들기 큐. 만드는 일은 엔진이 하고, 순서와 취소는 큐가 본다 (SOMA-547).
  */
-export function createQueueFor(scriptId: string, options: { cloud?: boolean; synthesizeCloud?: (text: string, scriptId: string, preset: string) => Promise<string>; onCloudFailure?: (blocked: boolean) => void } = {}): SpeechQueueHandle {
+export function createQueueFor(scriptId: string, options: { cloud?: boolean; synthesizeCloud?: (text: string, scriptId: string, preset: string) => Promise<string> } = {}): SpeechQueueHandle {
   let cloudBlocked = false;
   const queue = createSpeechQueue({
     synthesize: async (text, _key, preset) => {
@@ -273,7 +268,6 @@ export function createQueueFor(scriptId: string, options: { cloud?: boolean; syn
           return await options.synthesizeCloud(text, scriptId, preset);
         } catch (error) {
           cloudBlocked = shouldStopCloudVoiceForSession(error as { status?: number });
-          options.onCloudFailure?.(cloudBlocked);
           if (!isReady()) throw error;
         }
       }

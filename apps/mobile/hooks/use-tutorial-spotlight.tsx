@@ -75,5 +75,5 @@ export function useTutorialSpotlight(
     />
   );
 
-  return { active, mode: active ? (tutorial?.mode ?? null) : null, element };
+  return { active, element };
 }

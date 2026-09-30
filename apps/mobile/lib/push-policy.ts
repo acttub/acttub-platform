@@ -18,7 +18,7 @@ export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   evening_reminder: true,
 };
 
-/** 기기에 적어 둔 마지막 서버 값. 앱을 열 때 서버를 못 읽어도 리마인드를 맞출 수 있게 둔다. */
+/** 기기에 적어 둔 마지막 서버 값. 앱을 열 때 서버를 못 읽어도 토큰 등록을 판단할 수 있게 둔다. */
 export function parseNotificationSettings(raw: string | null): NotificationSettings {
   if (!raw) return { ...DEFAULT_NOTIFICATION_SETTINGS };
   try {
@@ -36,7 +36,7 @@ export function parseNotificationSettings(raw: string | null): NotificationSetti
   }
 }
 
-/** 서버가 보내는 푸시(분석 완료·챌린지)를 하나라도 받는가. 둘 다 꺼지면 토큰이 필요 없다. */
+/** 서버가 보내는 푸시(분석 완료·챌린지·저녁 리마인드)를 하나라도 받는가. 셋 다 꺼지면 토큰이 필요 없다. */
 export function wantsServerPush(settings: NotificationSettings): boolean {
   return settings.analysis_done || settings.challenge || settings.evening_reminder;
 }
@@ -53,14 +53,10 @@ export function notificationEffects(
 ): {
   registerToken: boolean;
   forgetToken: boolean;
-  scheduleReminders: boolean;
-  cancelReminders: boolean;
 } {
   return {
     registerToken: !wantsServerPush(previous) && wantsServerPush(next),
     forgetToken: wantsServerPush(previous) && !wantsServerPush(next),
-    scheduleReminders: false,
-    cancelReminders: previous.evening_reminder && !next.evening_reminder,
   };
 }
 

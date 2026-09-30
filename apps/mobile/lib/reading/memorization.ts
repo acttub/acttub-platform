@@ -112,13 +112,6 @@ export function maskTokens(text: string, mode: MemoMode, options: { hint?: boole
   });
 }
 
-/** 글자 하나를 밑줄 하나로 — 화면과 테스트가 같은 모양을 본다. */
-export function renderMasked(text: string, mode: MemoMode, options: { hint?: boolean } = {}): string {
-  return maskTokens(text, mode, options)
-    .map((tok) => (tok.masked ? tok.shown + '_'.repeat(Math.max(0, Array.from(tok.text).length - Array.from(tok.shown).length)) : tok.text))
-    .join(' ');
-}
-
 // ─── 외워서 말해보기 ──────────────────────────────────────────────────────────
 
 export const MAX_RECITAL_MISS = 2;

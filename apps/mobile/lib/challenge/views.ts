@@ -13,8 +13,6 @@ export type ViewSignal = {
   elapsedMs: number;
   /** 본인 참여작을 본 것. */
   isOwn: boolean;
-  /** 다음 것을 미리 불러오느라 돌린 재생. */
-  isPreload: boolean;
   /** 자동 반복(루프)으로 다시 처음부터 돈 재생. */
   isRepeat: boolean;
   /** 이 재생에서 이미 보냈다. */
@@ -23,7 +21,7 @@ export type ViewSignal = {
 
 export function shouldCountView(signal: ViewSignal): boolean {
   if (signal.alreadySent) return false;
-  if (signal.isOwn || signal.isPreload || signal.isRepeat) return false;
+  if (signal.isOwn || signal.isRepeat) return false;
   return signal.elapsedMs >= VIEW_THRESHOLD_MS;
 }
 

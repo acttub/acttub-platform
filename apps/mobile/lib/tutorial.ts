@@ -24,7 +24,6 @@ type PracticeStage = 'upload' | 'analyzing' | 'coach' | 'report';
 type ReadingStage = 'readingNew' | 'readingConfirm' | 'readingRoles' | 'readingRange';
 export type TutorialStage = PracticeStage | ReadingStage;
 
-export const TUTORIAL_STAGES: PracticeStage[] = ['upload', 'analyzing', 'coach', 'report'];
 /**
  * 대본 리딩은 범위 화면까지 비춘다. 읽기 화면에는 제 첫 안내(R03.0)가 이미 있어 겹치지 않게
  * 거기서 튜토리얼을 마친다.

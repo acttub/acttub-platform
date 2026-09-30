@@ -13,6 +13,10 @@ function memoryStorage() {
   };
 }
 
+/** 기기에 적힌 이 폰의 토큰과 밀린 삭제. 키는 lib/push-token-lifecycle.ts 의 저장 자리다. */
+const storedToken = (storage) => storage.items.get('acttub.push.token') ?? null;
+const storedPendingDeletions = (storage) => JSON.parse(storage.items.get('device.pendingPushTokenDeletions') ?? '[]');
+
 /** 서버 흉내. online=false면 비행기 모드처럼 모든 요청이 실패한다. */
 function fakeServer() {
   const state = { online: true, tokens: new Map(), calls: [] };
@@ -44,8 +48,8 @@ test('account.logout: 로그아웃의 첫 단계는 이 폰의 푸시 토큰을 
   await lifecycle.detach();
 
   assert.equal(server.state.tokens.has('T1'), false);
-  assert.equal(await lifecycle.currentToken(), null);
-  assert.deepEqual(await lifecycle.pendingDeletions(), []);
+  assert.equal(storedToken(storage), null);
+  assert.deepEqual(storedPendingDeletions(storage), []);
 });
 
 test('account.logout: 비행기 모드에서 로그아웃하면 지우지 못한 토큰을 기기에 적어 두고, 네트워크가 돌아온 뒤 앱을 열면 서버에 그 폰의 토큰이 없다', async () => {
@@ -57,8 +61,8 @@ test('account.logout: 비행기 모드에서 로그아웃하면 지우지 못한
   server.state.online = false;
   await lifecycle.detach(); // 실패해도 던지지 않는다 — 로그아웃은 계속 간다.
 
-  assert.equal(await lifecycle.currentToken(), null);
-  assert.deepEqual(await lifecycle.pendingDeletions(), ['T1']);
+  assert.equal(storedToken(storage), null);
+  assert.deepEqual(storedPendingDeletions(storage), ['T1']);
   assert.equal(server.state.tokens.has('T1'), true);
 
   // 다음 실행. 같은 저장소로 새로 만든다 — 로그인 없이 다시 보낸다.
@@ -67,7 +71,7 @@ test('account.logout: 비행기 모드에서 로그아웃하면 지우지 못한
   await nextLaunch.flushPending();
 
   assert.equal(server.state.tokens.has('T1'), false);
-  assert.deepEqual(await nextLaunch.pendingDeletions(), []);
+  assert.deepEqual(storedPendingDeletions(storage), []);
 });
 
 test('account.notification: 다음 실행의 재시도도 실패하면 밀린 삭제를 그대로 두고 그다음 실행에 다시 보낸다', async () => {
@@ -79,11 +83,11 @@ test('account.notification: 다음 실행의 재시도도 실패하면 밀린 �
   await lifecycle.detach();
 
   await lifecycle.flushPending();
-  assert.deepEqual(await lifecycle.pendingDeletions(), ['T1']);
+  assert.deepEqual(storedPendingDeletions(storage), ['T1']);
 
   server.state.online = true;
   await lifecycle.flushPending();
-  assert.deepEqual(await lifecycle.pendingDeletions(), []);
+  assert.deepEqual(storedPendingDeletions(storage), []);
 });
 
 test('account.notification: 새 로그인으로 등록에 성공하면 밀린 삭제를 버려 새 회원의 등록을 지우지 않는다', async () => {
@@ -97,7 +101,7 @@ test('account.notification: 새 로그인으로 등록에 성공하면 밀린 �
 
   // 다음 사람이 이 폰으로 로그인해 게이트를 통과했다. 같은 폰이라 토큰도 같다.
   await lifecycle.register('T1', 'ios');
-  assert.deepEqual(await lifecycle.pendingDeletions(), []);
+  assert.deepEqual(storedPendingDeletions(storage), []);
 
   await lifecycle.flushPending();
   assert.equal(server.state.tokens.has('T1'), true, '밀린 삭제가 새 등록을 지웠다');
@@ -114,8 +118,8 @@ test('account.notification: 등록에 실패하면 밀린 삭제는 남아 옛 �
 
   await assert.rejects(lifecycle.register('T1', 'ios'));
 
-  assert.deepEqual(await lifecycle.pendingDeletions(), ['T1']);
-  assert.equal(await lifecycle.currentToken(), null);
+  assert.deepEqual(storedPendingDeletions(storage), ['T1']);
+  assert.equal(storedToken(storage), null);
 });
 
 test('account.notification: 앱을 열 때의 재시도와 새 등록이 겹쳐도 삭제가 등록 뒤에 도착하지 않는다', async () => {
@@ -146,9 +150,9 @@ test('account.notification: 푸시 토글 둘을 다 꺼 서버가 토큰을 지
 
   await lifecycle.forget();
 
-  assert.equal(await lifecycle.currentToken(), null);
+  assert.equal(storedToken(storage), null);
   assert.deepEqual(server.state.calls, []);
-  assert.deepEqual(await lifecycle.pendingDeletions(), []);
+  assert.deepEqual(storedPendingDeletions(storage), []);
 });
 
 test('account.logout: 밀린 삭제는 계정 자료를 쓸어 내는 acttub. 접두사 밖에 적어 로그아웃 뒤에도 남는다', async () => {
@@ -172,7 +176,8 @@ test('account.notification: 저장소가 깨져 있어도 로그아웃과 재시
 
   await lifecycle.flushPending();
   await lifecycle.detach();
-  assert.deepEqual(await lifecycle.pendingDeletions(), []);
+  // 읽을 수 없는 기록은 밀린 삭제가 없는 것으로 본다 — 깨진 값을 토큰으로 보내지 않는다.
+  assert.deepEqual(server.state.calls, []);
 });
 
 test('account.logout: 로그아웃의 토큰 삭제가 줄을 선 뒤에 도착한 옛 동기화의 등록은 서버에 가지 않는다 — 로그아웃 뒤 그 폰에 알림이 오지 않는다', async () => {
@@ -190,6 +195,6 @@ test('account.logout: 로그아웃의 토큰 삭제가 줄을 선 뒤에 도착�
   await Promise.all([detaching, registering]);
 
   assert.equal(server.state.tokens.has('T1'), false);
-  assert.equal(await lifecycle.currentToken(), null);
+  assert.equal(storedToken(storage), null);
   assert.deepEqual(server.state.calls, ['POST T1', 'DELETE T1']);
 });

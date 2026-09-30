@@ -5,9 +5,9 @@
  * 0.1.0 이전에는 대본이 AsyncStorage(`acttub.reading.scripts`)에만 있었다. 그 키는 이제 옛 대본을
  * 서버로 옮기는 legacy-migration 만 읽고, 여기서는 쓰지 않는다.
  *
- * 회차가 서버에 오기 전까지(RM2) 기기가 대본마다 기억하는 것 — 가리기·내 배역·진행 위치 — 은
- * `acttub.reading.devicePrefs` 에 둔다. 가리기는 요구사항대로 계속 기기 것이고, 나머지는 서버 회차가
- * 대신하게 될 임시다. 녹음은 줄 단위로 서버에 있다(reading.recording) — 옛 회차 전체 녹음은 없다.
+ * 기기가 대본마다 기억하는 것 — 가리기·내 배역·진행 위치 — 은 `acttub.reading.devicePrefs` 에 둔다.
+ * 회차는 서버에 있다(reading.session). 녹음은 줄 단위로 서버에 있다(reading.recording) — 옛 회차 전체
+ * 녹음은 없다.
  *
  * CI mobile 잡이 무설치 node --test 라 AsyncStorage·api 는 함수 안에서 lazy require 하고, 테스트는
  * configureScriptTransport 로 가짜 서버를 넣는다.
@@ -362,18 +362,6 @@ export async function startSession(scriptId: string, body: StartSessionBody): Pr
     };
   }
   return session;
-}
-
-/** 열린 회차를 다시 읽어 현재 회차로 올린다(이어하기). 없거나 남의 것이면 null. */
-export async function loadSession(sessionId: string): Promise<SessionDetail | null> {
-  const get = server().getSession;
-  if (!get) return null;
-  try {
-    currentSession = await get(sessionId);
-    return currentSession;
-  } catch {
-    return null;
-  }
 }
 
 export function saveProgress(sessionId: string, body: ProgressBody): Promise<ProgressResponse> {

@@ -156,22 +156,3 @@ export function createDeviceFileLedger(dependencies: {
     },
   };
 }
-
-/**
- * 올리기 한 번이 만든 임시 파일을 모았다가, 올리기가 끝나면(성공·실패·취소 모두) 지운다.
- * 파일 정리의 실패는 올리기의 결과를 바꾸지 않는다.
- */
-export async function withTemporaryFiles<T>(
-  ledger: Pick<ReturnType<typeof createDeviceFileLedger>, 'trackTemporary' | 'discard'>,
-  run: (trackTemporary: (uri: string) => Promise<void>) => Promise<T>,
-): Promise<T> {
-  const uris: string[] = [];
-  try {
-    return await run(async (uri) => {
-      uris.push(uri);
-      await ledger.trackTemporary(uri).catch(() => undefined);
-    });
-  } finally {
-    await ledger.discard(uris).catch(() => undefined);
-  }
-}

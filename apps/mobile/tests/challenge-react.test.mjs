@@ -14,7 +14,6 @@ import {
   optimisticLike,
   optimisticSave,
   reactFailure,
-  revertLike,
 } from '../lib/challenge/react.ts';
 import { COMMENT_MAX } from '../lib/challenge/types.ts';
 
@@ -27,8 +26,6 @@ test('challenge.react: 좋아요는 눌린 즉시 표시가 바뀌고 서버가 
   assert.deepEqual(after, { liked: true, likeCount: 6 });
   // 다시 누르면 꺼지고 수가 준다(멱등하게 보인다).
   assert.deepEqual(optimisticLike(after), { liked: false, likeCount: 5 });
-  // 실패하면 누르기 전 값으로 돌아간다.
-  assert.deepEqual(revertLike(before), before);
   // 0에서 취소해도 음수가 되지 않는다.
   assert.deepEqual(optimisticLike({ liked: true, likeCount: 0 }), { liked: false, likeCount: 0 });
 });

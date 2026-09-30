@@ -15,7 +15,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
-import { markGuideSeen } from '@/lib/guide-state';
 import { isKorean, translate as t } from '@/lib/i18n';
 
 type Slide = { key: string; icon: React.ComponentProps<typeof Ionicons>['name']; tint: string; bg: string };
@@ -37,7 +36,7 @@ const SLIDES: Slide[] = [
 ];
 
 /**
- * 첫 시작 가이드 — 4장 슬라이드. 홈에 처음 들어올 때 한 번 뜨고(guide-state), 설정에서 다시 볼 수 있다.
+ * 앱 가이드 — 4장 슬라이드. 설정의 "가이드 다시 보기"로 연다.
  * 찍기 → 질문으로 되짚기 → 다음 한 가지 → 대본 리딩·챌린지 순으로 앱의 뼈대만 짚는다.
  */
 export default function GuideScreen() {
@@ -49,7 +48,6 @@ export default function GuideScreen() {
 
   const finish = (how: 'skip' | 'done') => {
     logEvent('guide_finish', { how, at: index });
-    void markGuideSeen();
     if (router.canGoBack()) router.back();
     else router.replace('/');
   };

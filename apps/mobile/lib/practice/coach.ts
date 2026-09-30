@@ -46,11 +46,6 @@ export function answerTooLong(text: string): boolean {
   return text.trim().length > COACH_ANSWER_MAX;
 }
 
-/** "그만"이라고 쓰면 언제든 마친다. 버튼으로 마치는 것도 같은 말을 보낸다. */
-export function isEndWord(text: string): boolean {
-  return text.trim() === COACH_END_WORD;
-}
-
 export function buildReplyBody(input: {
   conversation: Pick<CoachConversation, 'id' | 'revision'>;
   requestId: string;

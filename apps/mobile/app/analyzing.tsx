@@ -14,7 +14,7 @@ import { useAuth } from '@/lib/auth';
 import { translate as t, translateList } from '@/lib/i18n';
 import { localCopyFor } from '@/lib/library/library-runner';
 import { logMetaEvent } from '@/lib/meta-events';
-import { markPracticedToday, onPushReceived } from '@/lib/notifications';
+import { onPushReceived } from '@/lib/notifications';
 import type { PendingAnalysisHandle } from '@/lib/pending-analysis';
 import {
   analysisFailureMessage,
@@ -187,7 +187,7 @@ export default function AnalyzingScreen() {
     if (preview) {
       const seed = (require('@/lib/ui-preview') as typeof import('@/lib/ui-preview')).seedPreviewAnalyzing();
       setDetail(seed.detail);
-      setVideoUri(previewVideoSource(true));
+      setVideoUri(previewVideoSource());
       return;
     }
     if (!practiceId) {
@@ -195,12 +195,11 @@ export default function AnalyzingScreen() {
       return;
     }
     if (sample) {
-      // 예시는 서버에 회차가 없다 — 연습일·복구 기록도 남기지 않는다.
+      // 예시는 서버에 회차가 없다 — 복구 기록도 남기지 않는다.
       setDetail(sampleDetail());
       setVideoUri(sampleVideoUri());
       return;
     }
-    void markPracticedToday();
     void api
       .getPractice(practiceId)
       .then(async (loaded) => {

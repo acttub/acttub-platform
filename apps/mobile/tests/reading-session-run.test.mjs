@@ -39,7 +39,7 @@ function run(overrides = {}) {
 test('reading.session: 진행 "K / N"은 대사 줄만 센다 — 대사 5개·지문 2개 구간은 N = 5', () => {
   const r = run();
   assert.deepEqual(progressOf(r), { done: 0, total: 5 });
-  assert.equal(formatProgress(r, 0), '0 / 5 · 00:00');
+  assert.equal(formatProgress(r), '0 / 5 · 00:00');
   assert.equal(r.index, 1, '구간의 첫 대사 줄에서 시작');
   assert.equal(turnOf(r), 'mine');
 });
@@ -79,7 +79,7 @@ test('reading.session: 흐른 시간은 일시정지를 빼고 잰다', () => {
   r = { ...r, status: 'mine' };
   r = tickElapsed(r, 500);
   assert.equal(r.elapsedMs, 1500);
-  assert.equal(formatProgress(r, r.elapsedMs), '0 / 5 · 00:01');
+  assert.equal(formatProgress(r), '0 / 5 · 00:01');
 });
 
 test('reading.session: quiz에서 한 줄을 2회 미달하면 다음 줄로 가고 line_results에 {unmatched, misses 2}', () => {

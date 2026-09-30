@@ -298,7 +298,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // 푸시 토큰 등록은 보호 기능이다. 동의와 프로필이 끝난 뒤에만 서버가 받으므로, 게이트를
   // 통과한 순간과 (게이트가 이미 끝난 회원은) 앱을 열 때 등록한다. 서버의 알림 토글을 읽어
-  // 저녁 리마인드 30일치도 함께 맞춘다. 최선 노력이라 기다리지 않는다.
+  // 옛 판이 남긴 로컬 리마인드도 취소한다. 최선 노력이라 기다리지 않는다.
   const gatePassed =
     status === 'signedIn' && consentEntry.status === 'allowed' && profile.status === 'complete';
   useEffect(() => {
@@ -332,7 +332,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [gatePassed, user?.id]);
 
   // "앱을 열 때"는 새로 켤 때만이 아니다. 배경에서 돌아올 때도 밀린 토큰 삭제를 다시 보내고,
-  // 게이트를 통과한 계정이면 알림 설정·토큰 등록·리마인드 30일치를 다시 맞춘다. 다른 기기에서
+  // 게이트를 통과한 계정이면 알림 설정·토큰 등록을 다시 맞춘다. 다른 기기에서
   // 푸시 토글 둘을 껐다 켜면 이 폰의 토큰도 지워져 있다. 너무 잦지 않게 최소 간격을 둔다
   // (notification-sync).
   const gatePassedRef = useRef(gatePassed);

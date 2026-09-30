@@ -736,7 +736,7 @@ export default function ReadingPlay() {
     const review = reviewLines({ lines: run.lines, lineIds: run.lineIds, lineResults: results });
     const quiz = session.mode === 'quiz' ? quizSummary(results) : null;
     const goMemorize = () =>
-      router.replace({ pathname: '/reading/memorize', params: { sessionId: session.id, lineIds: review.map((r) => r.lineId).join(',') } });
+      router.replace({ pathname: '/reading/memorize', params: { lineIds: review.map((r) => r.lineId).join(',') } });
     return (
       <ScrollView style={styles.root} contentContainerStyle={[styles.doneContent, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
         <View style={styles.doneIcon}>
@@ -882,7 +882,7 @@ export default function ReadingPlay() {
           </View>
         )}
         {pendingUploads > 0 && !listening && <Text style={styles.pendingText}>{t('reading.recordingPending', { count: pendingUploads })}</Text>}
-        <Text style={styles.counter}>{formatProgress(run, run.elapsedMs)}</Text>
+        <Text style={styles.counter}>{formatProgress(run)}</Text>
       </View>
       <View style={styles.maskBar}>
         {MASKS.map((m) => (

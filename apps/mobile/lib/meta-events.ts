@@ -43,28 +43,6 @@ export function metaEventsEnabled(
   return normalized === PRODUCTION_API_URL;
 }
 
-export type TrackingDecision = {
-  /** Meta SDK를 초기화할지 */
-  initialize: boolean;
-  /** 광고 식별자(IDFA/AAID) 수집을 허용할지 */
-  advertiserTracking: boolean;
-};
-
-/**
- * 전송 게이트와 ATT 응답을 합쳐 무엇을 할지 정한다.
- * ATT는 iOS 전용이지만 expo-tracking-transparency가 Android·웹에서 항상 granted를 돌려주므로
- * 플랫폼 분기 없이 같은 경로를 탄다.
- */
-export function resolveTrackingDecision(input: {
-  enabled: boolean;
-  granted: boolean;
-}): TrackingDecision {
-  if (!input.enabled) {
-    return { initialize: false, advertiserTracking: false };
-  }
-  return { initialize: true, advertiserTracking: input.granted };
-}
-
 let started = false;
 let initialized = false;
 
@@ -94,6 +72,8 @@ export async function initMetaSdk(): Promise<void> {
   const enabled = metaEventsEnabled(API_URL, META_EVENTS_OVERRIDE);
   if (!enabled) return;
 
+  // ATT 를 허용했을 때만 광고 식별자(IDFA/AAID)를 모은다. ATT 는 iOS 전용이지만
+  // expo-tracking-transparency 가 Android·웹에서 항상 granted 를 돌려주므로 플랫폼 분기가 없다.
   let granted = false;
   try {
     const tracking = require('expo-tracking-transparency');
@@ -104,14 +84,11 @@ export async function initMetaSdk(): Promise<void> {
     granted = false;
   }
 
-  const decision = resolveTrackingDecision({ enabled, granted });
-  if (!decision.initialize) return;
-
   try {
     const { Settings } = require('react-native-fbsdk-next');
     Settings.initializeSDK();
     initialized = true;
-    await Settings.setAdvertiserTrackingEnabled(decision.advertiserTracking);
+    await Settings.setAdvertiserTrackingEnabled(granted);
   } catch {
     // 네이티브 모듈 없음(Expo Go·웹) — no-op
   }

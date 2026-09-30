@@ -10,7 +10,6 @@ import {
   coachFailure,
   helpButtonDraft,
   isClosed,
-  isEndWord,
   nextReplyWraps,
   orderedMessages,
   remainingCoachReplies,
@@ -79,8 +78,7 @@ test('practice.coach: 닫힌 대화에는 보낼 수 없고 "그만"은 언제�
   const closed = conversation({ status: 'closed' });
   assert.equal(isClosed(closed), true);
   assert.equal(canSendAnswer({ text: '답', waiting: false, closed: true, conversationId: 'conv-1' }), false);
-  assert.equal(isEndWord(` ${COACH_END_WORD} `), true);
-  assert.equal(isEndWord('그만두고 싶진 않아요'), false);
+  assert.equal(COACH_END_WORD, '그만');
 });
 
 test('practice.coach: 도움 버튼은 입력만 준비하고 보내지 않는다', () => {

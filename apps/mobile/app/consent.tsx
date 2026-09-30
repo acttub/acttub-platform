@@ -230,7 +230,7 @@ export default function ConsentScreen() {
         )}
         {open && (
           <View style={styles.docBody}>
-            <Markdown source={document.body} variant="compact" />
+            <Markdown source={document.body} />
           </View>
         )}
       </View>
@@ -354,21 +354,6 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   rowLocked: { opacity: 0.6 },
-  optionalRow: { paddingVertical: 16, gap: 12 },
-  optionalHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  choiceRow: { flexDirection: 'row', gap: 8 },
-  choice: {
-    flex: 1,
-    alignItems: 'center',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.bg,
-    paddingVertical: 12,
-  },
-  choiceOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
-  choiceText: { fontSize: 14, fontWeight: '700', color: palette.textDim },
-  choiceTextOn: { color: palette.blueDeep },
   rowLabel: { flex: 1, fontSize: 15, fontWeight: '600', color: palette.textDim },
   rowLabelOn: { color: palette.text },
   docBody: { paddingBottom: 12 },

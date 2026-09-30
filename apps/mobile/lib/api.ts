@@ -134,16 +134,6 @@ export type SceneContext = {
   goal: string;
 };
 
-/**
- * 배우가 고른 막히는 지점. 서버가 이걸로 분석 코치와 표현 코치를 가른다.
- * 값의 정의와 단계 규칙은 `lib/blockage.ts`(웹과 동일)에 있다.
- */
-export type BlockageSelection = {
-  blockage_kind: string;
-  sub_branch: string;
-  blockage_detail: string | null;
-};
-
 /** 코치가 배우에 대해 기억하고 있는 한 칸. */
 export type MemoryItem = {
   field: MemoryField;
@@ -376,10 +366,6 @@ export const api = {
   // 약관 -----------------------------------------------------------------------
   consentDocuments(): Promise<{ documents: ConsentDocument[] }> {
     return request('/v2/consents/documents', {}, { auth: false });
-  },
-
-  pendingConsents(): Promise<{ documents: ConsentDocument[] }> {
-    return request('/v2/consents/pending', {}, { auth: true });
   },
 
   consentEntry(): Promise<ConsentEntryResponse> {
@@ -1085,18 +1071,6 @@ export const api = {
   },
 
   // 이탈 설문(practice.feedback) --------------------------------------------------
-  /**
-   * 자동 노출 표식을 원자적으로 선점한다. 선점한 기기만 시트를 띄운다(두 기기가 동시에
-   * 물어도 하나만). 이미 물어본 계정이면 asked_now 가 거짓이다.
-   */
-  claimFeedbackAsk(): Promise<{ asked: boolean; asked_now: boolean }> {
-    return request<{ asked: boolean; asked_now: boolean }>(
-      '/v2/me/practice-feedback/claim',
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
-      { requestId: true, timeoutMs: 15_000 },
-    );
-  },
-
   /** 소감 접수. 건너뛰기도 본문 없는 행으로 남는다. 실패해도 나가기를 막지 않는다. */
   submitPracticeFeedback(body: FeedbackBody): Promise<{ id: string }> {
     return postIdempotent<{ id: string }>('/v2/practice-feedback', body, {
@@ -1364,5 +1338,3 @@ export const api = {
     return normalizeAdmissions(data);
   },
 };
-
-export type VideoFile = { uri: string; name: string; mimeType: string };

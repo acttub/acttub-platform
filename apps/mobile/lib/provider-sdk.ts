@@ -39,15 +39,6 @@ const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '';
 // 없으면(안드로이드) undefined → 무시됨.
 const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || undefined;
 
-/**
- * 카카오·네이버 SDK가 쓸 공개 설정값의 자리. 카카오 네이티브 앱 키와 네이버 client id는
- * 앱 번들에 들어가도 되는 공개값이다. SDK를 연결할 때 어댑터가 여기서 읽는다.
- */
-export const PROVIDER_PUBLIC_CONFIG = {
-  kakaoNativeAppKey: process.env.EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY ?? '',
-  naverClientId: process.env.EXPO_PUBLIC_NAVER_CLIENT_ID ?? '',
-};
-
 // 네이티브 모듈이 없는 환경(재빌드 전 dev client·웹)에서도 앱이 뜨도록 가드해서 로드.
 type GoogleSigninModule = typeof import('@react-native-google-signin/google-signin');
 let google: GoogleSigninModule | null = null;
@@ -151,7 +142,8 @@ const appleAdapter: ProviderAdapter = {
 
 /**
  * 아직 연결하지 않은 제공자. 쓸 수 없다고 답하므로 버튼이 그려지지 않고 signIn에 닿는 길이 없다.
- * 연결하면 isAvailable을 "모듈이 있고 PROVIDER_PUBLIC_CONFIG 값이 채워져 있는가"로 바꾼다.
+ * 연결하면 isAvailable을 "모듈이 있고 SDK의 공개 설정값(카카오 네이티브 앱 키·네이버 client id)이
+ * 채워져 있는가"로 바꾼다.
  */
 function notLinkedAdapter(): ProviderAdapter {
   return {
