@@ -1,3 +1,4 @@
+import { errorCode, errorStatus, isOfflineError } from '../api-request.ts';
 import { translate } from '../i18n.ts';
 import { SEARCH_MIN_LENGTH, type ChallengeCard, type ChallengeDetail, type ChallengeTab, type EntryCard, type EntrySort, type Participant } from './types.ts';
 
@@ -122,13 +123,12 @@ export function canDelete(challenge: Pick<ChallengeCard, 'is_host' | 'entry_coun
 export type BrowseFailure = { kind: 'member_only' } | { kind: 'cursor_expired' } | { kind: 'not_found' } | { kind: 'offline' } | { kind: 'other' };
 
 export function browseFailure(error: unknown): BrowseFailure {
-  const code = error !== null && typeof error === 'object' ? (error as { code?: unknown }).code : null;
-  const status = error !== null && typeof error === 'object' ? (error as { status?: unknown }).status : null;
+  const code = errorCode(error);
+  const status = errorStatus(error);
   if (code === 'member_only' || status === 403) return { kind: 'member_only' };
   if (code === 'cursor_expired' || status === 410) return { kind: 'cursor_expired' };
   if (status === 404) return { kind: 'not_found' };
-  const name = error !== null && typeof error === 'object' ? (error as { name?: unknown }).name : null;
-  if (name === 'NetworkError' || typeof status !== 'number' || (status >= 500 && status <= 599)) return { kind: 'offline' };
+  if (isOfflineError(error)) return { kind: 'offline' };
   return { kind: 'other' };
 }
 

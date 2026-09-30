@@ -23,16 +23,14 @@ import {
   buildCommentBody,
   canDeleteComment,
   canSendComment,
-  commentAttemptFor,
   commentAuthorName,
   commentText,
   reactFailure,
   reactFailureMessage,
-  type CommentAttempt,
 } from '@/lib/challenge/react';
 import { COMMENT_MAX, type EntryComment } from '@/lib/challenge/types';
 import { translate as t } from '@/lib/i18n';
-import { newRequestId } from '@/lib/request-id';
+import { attemptFor, newRequestId, type RequestAttempt } from '@/lib/request-id';
 import { postedAtLabel } from '@/lib/time-label';
 
 /**
@@ -65,7 +63,7 @@ export function ChallengeCommentsSheet({
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [attempt, setAttempt] = useState<CommentAttempt | null>(null);
+  const [attempt, setAttempt] = useState<RequestAttempt | null>(null);
 
   const load = useCallback(async () => {
     if (!entryId) return;
@@ -97,7 +95,7 @@ export function ChallengeCommentsSheet({
     setSending(true);
     setError(null);
     const body = buildCommentBody('pending', draft);
-    const next = commentAttemptFor(attempt, body.body, newRequestId);
+    const next = attemptFor(attempt, body.body, newRequestId);
     setAttempt(next);
     try {
       const created = await api.createComment(entryId, { ...body, request_id: next.requestId });
