@@ -695,7 +695,7 @@ const en: DeepStringShape<typeof ko> = {
     notifChallengeTitle: 'Challenge alerts',
     notifChallengeBody: 'Likes and comments on your entries, and deadlines of challenges you joined.',
     notifReminderTitle: 'Evening reminder',
-    notifReminderBody: 'If you have not practiced today, we remind you once at 10 PM.',
+    notifReminderBody: "If you haven't practiced today, we'll remind you once at 8 PM.",
     notifPermissionTitle: 'Notifications are turned off',
     notifPermissionBody: 'Allow Acttub notifications in your phone settings to receive them.',
     notifPermissionOpen: 'Open settings',

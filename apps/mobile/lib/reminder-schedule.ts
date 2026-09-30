@@ -1,13 +1,11 @@
 /**
  * 저녁 리마인드 알람을 맞추고 취소하는 순서(account.notification · account.logout).
  *
- * 맞추기와 취소를 한 줄로 세워 서로 끼어들지 않게 한다. 30일치를 맞추는 도중에 로그아웃이
- * 오면 맞추기가 멈추고 그때까지의 예약 id 를 적어 둔 뒤, 줄 뒤에 선 취소가 전부 걷는다 —
- * 취소가 마지막에 끝나야 로그아웃 뒤 예약된 알람이 0개다.
+ * 업데이트 전에 남긴 로컬 예약과 로그아웃 취소를 한 줄로 세워 모두 걷는다.
  *
  * 네이티브 모듈 없이 성립하는 부분만 여기 산다(notifications.ts 가 저장소와 예약 함수를 넣어 쓴다).
  */
-import { nudgeFireDates, practicedToday, type NotificationSettings } from './push-policy.ts';
+import type { NotificationSettings } from './push-policy.ts';
 
 type Storage = {
   getItem(key: string): Promise<string | null>;
@@ -25,7 +23,6 @@ export type ReminderScheduler = {
 
 /** 'acttub.' 접두사 — 탈퇴 시 local-account-data 가 이 접두사를 통째로 지운다. */
 export const NUDGE_IDS_KEY = 'acttub.push.nudgeIds';
-export const LAST_PRACTICE_KEY = 'acttub.push.lastPracticeDay';
 
 /** 이 계정이 아직 이 기기에 있는가. 로그아웃·탈퇴가 시작되면 거짓이 된다(notification-sync). */
 export type IsCurrent = () => boolean;
@@ -72,37 +69,17 @@ export function createReminderSchedule(dependencies: {
     await scheduler.cancelAll();
   }
 
-  async function scheduleWindow(isCurrent: IsCurrent): Promise<void> {
-    const current = now();
-    const last = await storage.getItem(LAST_PRACTICE_KEY);
-    const dates = nudgeFireDates(current, practicedToday(last, current));
-    const ids: string[] = [];
-    try {
-      for (const date of dates) {
-        if (!isCurrent()) return;
-        ids.push(await scheduler.schedule(date));
-      }
-    } finally {
-      // 도중에 멈추거나 실패해도 그때까지 맞춘 알람의 id 를 적어 둔다 — 다음 취소가 찾아 걷는다.
-      if (ids.length > 0) await storage.setItem(NUDGE_IDS_KEY, JSON.stringify(ids));
-    }
-  }
-
   return {
     /**
-     * 저녁 리마인드를 현재 상태에 맞게 다시 깐다. 게이트 통과·앱 열기·연습 완료·토글에서 부른다.
-     * 반복 트리거로는 "오늘만 건너뛰기" 가 안 되어 앞으로 30일치를 낱개로 예약한다.
+     * 게이트 통과·앱 열기·토글에서 부르며, 옛 앱이 남긴 로컬 리마인드를 취소만 한다.
      */
     sync(settings: NotificationSettings, isCurrent: IsCurrent = () => true): Promise<void> {
       return enqueue(async () => {
         if (!isCurrent()) return;
         try {
-          if (!settings.evening_reminder) {
-            await cancelEverything();
-            return;
-          }
-          await cancelStored();
-          await scheduleWindow(isCurrent);
+          void settings;
+          void now;
+          await cancelEverything();
         } catch {
           // 리마인드는 부가 기능 — 실패해도 흐름을 막지 않는다.
         }

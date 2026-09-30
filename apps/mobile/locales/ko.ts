@@ -686,7 +686,7 @@ const ko = {
     notifChallengeTitle: '챌린지 알림',
     notifChallengeBody: '내 참여작의 좋아요·댓글과 참여한 챌린지의 마감을 알려드려요.',
     notifReminderTitle: '저녁 리마인드',
-    notifReminderBody: '오늘 연습이 없으면 밤 10시에 한 번 알려드려요.',
+    notifReminderBody: '오늘 연습이 없으면 저녁 8시에 한 번 알려드려요.',
     notifPermissionTitle: '알림 권한이 꺼져 있어요',
     notifPermissionBody: '휴대폰 설정에서 Acttub 알림을 허용해야 알림이 와요.',
     notifPermissionOpen: '설정 열기',

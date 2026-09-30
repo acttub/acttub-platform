@@ -264,6 +264,9 @@ COLUMN entry_view_events.created_at ord=4 type=timestamptz len=- null=NO default
 COLUMN entry_view_events.entry_id ord=2 type=uuid len=- null=NO default=-
 COLUMN entry_view_events.event_id ord=1 type=uuid len=- null=NO default=-
 COLUMN entry_view_events.user_id ord=3 type=uuid len=- null=NO default=-
+COLUMN evening_reminder_sends.day ord=2 type=date len=- null=NO default=-
+COLUMN evening_reminder_sends.sent_at ord=3 type=timestamptz len=- null=NO default=now()
+COLUMN evening_reminder_sends.user_id ord=1 type=uuid len=- null=NO default=-
 COLUMN external_operations.attempt_count ord=7 type=int4 len=- null=NO default=0
 COLUMN external_operations.created_at ord=13 type=timestamptz len=- null=NO default=now()
 COLUMN external_operations.error_code ord=11 type=text len=- null=YES default=-
@@ -419,6 +422,7 @@ COLUMN practices.title ord=17 type=text len=- null=YES default=-
 COLUMN practices.updated_at ord=23 type=timestamptz len=- null=NO default=now()
 COLUMN practices.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN practices.video_id ord=3 type=uuid len=- null=NO default=-
+COLUMN push_tokens.app_version ord=8 type=text len=- null=YES default=-
 COLUMN push_tokens.created_at ord=5 type=timestamptz len=- null=NO default=now()
 COLUMN push_tokens.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
 COLUMN push_tokens.locale ord=7 type=text len=- null=NO default='ko'::text
@@ -1009,6 +1013,11 @@ CONSTRAINT entry_view_events entry_view_events_event_id_not_null NOT NULL event_
 CONSTRAINT entry_view_events entry_view_events_pkey PRIMARY KEY (event_id)
 CONSTRAINT entry_view_events entry_view_events_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
 CONSTRAINT entry_view_events entry_view_events_user_id_not_null NOT NULL user_id
+CONSTRAINT evening_reminder_sends evening_reminder_sends_day_not_null NOT NULL day
+CONSTRAINT evening_reminder_sends evening_reminder_sends_pkey PRIMARY KEY (user_id, day)
+CONSTRAINT evening_reminder_sends evening_reminder_sends_sent_at_not_null NOT NULL sent_at
+CONSTRAINT evening_reminder_sends evening_reminder_sends_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+CONSTRAINT evening_reminder_sends evening_reminder_sends_user_id_not_null NOT NULL user_id
 CONSTRAINT external_operations ck_external_operations_kind CHECK ((kind = ANY (ARRAY['analyze'::text, 'coach_start'::text, 'coach_reply'::text, 'report'::text, 'memory_update'::text])))
 CONSTRAINT external_operations ck_external_operations_last_failure_classification CHECK ((last_failure_classification = ANY (ARRAY['expected'::text, 'external'::text, 'unexpected'::text])))
 CONSTRAINT external_operations ck_external_operations_status CHECK ((status = ANY (ARRAY['pending'::text, 'running'::text, 'succeeded'::text, 'failed'::text])))
@@ -1551,6 +1560,7 @@ INDEX CREATE UNIQUE INDEX entry_ranking_snapshots_pkey ON public.entry_ranking_s
 INDEX CREATE UNIQUE INDEX entry_reports_pkey ON public.entry_reports USING btree (id)
 INDEX CREATE UNIQUE INDEX entry_saves_pkey ON public.entry_saves USING btree (id)
 INDEX CREATE UNIQUE INDEX entry_view_events_pkey ON public.entry_view_events USING btree (event_id)
+INDEX CREATE UNIQUE INDEX evening_reminder_sends_pkey ON public.evening_reminder_sends USING btree (user_id, day)
 INDEX CREATE UNIQUE INDEX external_operations_pkey ON public.external_operations USING btree (id)
 INDEX CREATE UNIQUE INDEX guest_transfer_codes_pkey ON public.guest_transfer_codes USING btree (id)
 INDEX CREATE UNIQUE INDEX handoff_confirmations_pkey ON public.handoff_confirmations USING btree (coaching_handoff_id)
@@ -1682,6 +1692,7 @@ TABLE entry_ranking_snapshots
 TABLE entry_reports
 TABLE entry_saves
 TABLE entry_view_events
+TABLE evening_reminder_sends
 TABLE external_operations
 TABLE guest_transfer_codes
 TABLE handoff_confirmations

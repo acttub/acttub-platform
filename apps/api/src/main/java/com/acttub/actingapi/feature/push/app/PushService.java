@@ -35,12 +35,12 @@ public class PushService implements AnalysisCompletionListener {
     }
 
     /**
-     * 서버 푸시 둘을 다 꺼 둔 회원의 토큰은 받지 않는다(조용히 지나간다). 그러지 않으면 한 기기에서 둘을
+     * 서버 푸시 셋을 다 꺼 둔 회원의 토큰은 받지 않는다(조용히 지나간다). 그러지 않으면 한 기기에서 셋을
      * 끈 뒤 다른 기기가 앱을 여는 것만으로 토큰이 되살아난다. 거르는 일은 저장과 한 트랜잭션이어야 해서
      * 저장소가 한다({@link PushTokenRepository#register}).
      */
-    public void register(UUID userId, String token, String platform) {
-        tokens.register(userId, token, platform);
+    public void register(UUID userId, String token, String platform, String appVersion) {
+        tokens.register(userId, token, platform, appVersion);
     }
 
     public void unregister(String token) {

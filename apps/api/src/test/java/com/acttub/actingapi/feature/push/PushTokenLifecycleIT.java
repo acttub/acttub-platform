@@ -48,14 +48,14 @@ class PushTokenLifecycleIT {
         UUID second = insertUser("push-second@example.com");
         String token = "ExponentPushToken[lifecycle]";
 
-        tokens.register(first, token, "ios");
+        tokens.register(first, token, "ios", "0.1.2");
         UUID id = tokenId(token);
-        tokens.register(first, token, "ios");
+        tokens.register(first, token, "ios", "0.1.2");
         assertThat(countTokens(first)).isEqualTo(1);
         assertThat(tokenId(token)).isEqualTo(id);
 
         // 같은 폰에 다른 계정이 로그인하면 단말의 주인이 바뀐다.
-        tokens.register(second, token, "android");
+        tokens.register(second, token, "android", "0.1.2");
         assertThat(countTokens(first)).isZero();
         assertThat(countTokens(second)).isEqualTo(1);
         assertThat(tokenId(token)).isEqualTo(id);
@@ -74,9 +74,9 @@ class PushTokenLifecycleIT {
     void sessionOwnerLookupFindsEveryDeviceOfTheOwnerOnly() {
         UUID owner = insertUser("push-owner@example.com");
         UUID bystander = insertUser("push-bystander@example.com");
-        tokens.register(owner, "ExponentPushToken[owner-phone]", "ios");
-        tokens.register(owner, "ExponentPushToken[owner-tablet]", "android");
-        tokens.register(bystander, "ExponentPushToken[bystander]", "ios");
+        tokens.register(owner, "ExponentPushToken[owner-phone]", "ios", "0.1.2");
+        tokens.register(owner, "ExponentPushToken[owner-tablet]", "android", "0.1.2");
+        tokens.register(bystander, "ExponentPushToken[bystander]", "ios", "0.1.2");
         UUID sessionId = insertPracticeSession(owner);
 
         List<String> found = tokens.analysisDoneTargets(sessionId).stream()
@@ -96,7 +96,7 @@ class PushTokenLifecycleIT {
     @Test
     void deactivationDestroysEveryPushToken() {
         UUID user = insertUser("push-deactivate@example.com");
-        tokens.register(user, "ExponentPushToken[to-destroy]", "ios");
+        tokens.register(user, "ExponentPushToken[to-destroy]", "ios", "0.1.2");
 
         profiles.withdraw(user);
 
