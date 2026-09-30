@@ -133,6 +133,22 @@ final class ProfileDtos {
             @Schema(nullable = true, maxLength = 80) String bio) {
     }
 
+    /**
+     * 가입 계정의 유입 광고(SOMA-588). 앱이 Airbridge SDK 의 설치 귀속 결과를 옮겨 싣는다. 광고 식별자는 받지 않는다.
+     */
+    @Schema(name = "SignupAttributionRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    record SignupAttributionRequest(
+            @NotNull @Schema(allowableValues = {"airbridge"}) String source,
+            @NotNull @Schema(allowableValues = {"ios", "android"}) String platform,
+            @NotNull @Schema(minLength = 1, maxLength = 200) String channel,
+            @Schema(nullable = true, maxLength = 200) String campaign,
+            @JsonProperty("ad_group") @Schema(nullable = true, maxLength = 200) String adGroup,
+            @JsonProperty("ad_creative") @Schema(nullable = true, maxLength = 200) String adCreative,
+            @Schema(nullable = true, maxLength = 200) String content,
+            @Schema(nullable = true, maxLength = 200) String term,
+            @JsonProperty("sub_publisher") @Schema(nullable = true, maxLength = 200) String subPublisher) {
+    }
+
     @Schema(name = "PhotoUploadRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     record PhotoUploadRequest(
             @NotNull @JsonProperty("content_type") String contentType,
