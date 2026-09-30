@@ -14,7 +14,6 @@ import com.acttub.actingapi.feature.challenge.app.ChallengeService;
 import com.acttub.actingapi.feature.challenge.app.EntryService;
 import com.acttub.actingapi.feature.challenge.app.ReactionService;
 import com.acttub.actingapi.feature.coach.app.ConversationService;
-import com.acttub.actingapi.feature.memory.adapter.db.PostgresActorMemoryStore;
 import com.acttub.actingapi.feature.practice.app.PracticeService;
 import com.acttub.actingapi.feature.reading.app.CloudVoiceService;
 import com.acttub.actingapi.feature.reading.app.ScriptService;
@@ -71,8 +70,7 @@ class RequestFingerprintPinTest {
         assertThat(callStatic(CloudVoiceService.class, "hash",
                 new Class<?>[] {String.class, String.class, String.class}, "gemini-tts", "Kore", "안녕하세요"))
                 .isEqualTo("971ed1b44c2c09d08baf05bd71d4e9151a97677b37f84a58c158b2d23867a28b");
-        assertThat(callStatic(PostgresActorMemoryStore.class, "sha256Hex",
-                new Class<?>[] {String.class}, "memory_update:" + A))
+        assertThat(Hashing.sha256Hex("memory_update:" + A))
                 .isEqualTo("f1da15b8f665e2a09c0cc05a8f80b948e7f1105d7c3d6b4002640c7df77b0abb");
         assertThat(JwtService.hashToken("refresh-token-value"))
                 .isEqualTo("e65009f6e0ae9fc204adcb73a208f63c582b7839bde7fe836da36a3df6ae7a85");

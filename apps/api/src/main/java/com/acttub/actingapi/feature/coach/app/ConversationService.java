@@ -1,10 +1,7 @@
 package com.acttub.actingapi.feature.coach.app;
 
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Instant;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
 import java.util.Set;
@@ -20,6 +17,7 @@ import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.web.ApiException;
+import com.acttub.actingapi.platform.web.Hashing;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -326,12 +324,7 @@ public class ConversationService {
     }
 
     static String fingerprint(String payload) {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest(payload.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 is unavailable", exception);
-        }
+        return Hashing.sha256Hex(payload);
     }
 
     /** 코치 갈래 이름 — 노트의 기존 종류(analysis·expression)가 여기서 나온다. */
