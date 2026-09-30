@@ -130,7 +130,7 @@ class PostgresProfileRepository implements ProfileRepository {
 
     /**
      * 프로필 행은 처음 저장할 때 생기므로 upsert 다. 이름은 {@code user_profiles.name} 에만 쓴다 —
-     * {@code users.nickname} 은 보지 않는다 (V7, apps/api/CONTRACT.md §5-1).
+     * {@code users.nickname} 은 보지 않는다 (V9, apps/api/CONTRACT.md §5-1).
      *
      * <p>{@code INSERT … SELECT FROM users} 인 것은 없는 사용자를 FK 위반이 아니라 <b>0행</b>으로
      * 돌려받기 위해서다. 그래야 "없으면 {@code null}" 이 그대로 성립한다. 방향은 같은 트랜잭션에서
@@ -224,7 +224,7 @@ class PostgresProfileRepository implements ProfileRepository {
      *
      * <p>고르는 기준은 <b>신원이 아니다.</b> 제공자의 연결 끊기 알림은 신원을 행째 지우므로, 마지막 신원이
      * 끊긴 뒤 탈퇴한 회원에게는 해시 행이 없다 — 해시 행의 유무로 고르면 그 사람의 보관 영상은 영영 남는다.
-     * 탈퇴 시각과 {@code users.retention_purged_at}(V10) 으로 고르고, 같은 트랜잭션에서 그 시각을 적는다.
+     * 탈퇴 시각과 {@code users.retention_purged_at}(V12) 으로 고르고, 같은 트랜잭션에서 그 시각을 적는다.
      */
     @Override
     public List<UUID> purgeRetained(Instant deactivatedBefore, Instant now) {
@@ -629,7 +629,7 @@ class PostgresProfileRepository implements ProfileRepository {
             cleanups.addAll(hashIdentities(userId, now));
 
             // ⚠ 새 코드가 `users.nickname` 을 건드리는 곳은 이 한 줄뿐이다 (SOMA-528 결정 I-3).
-            // V7 은 옛 닉네임을 `user_profiles.name` 으로 복사만 해서 값이 이 컬럼에도 남아 있고,
+            // V9 는 옛 닉네임을 `user_profiles.name` 으로 복사만 해서 값이 이 컬럼에도 남아 있고,
             // 탈퇴는 이름을 지체 없이 파기해야 한다. 컬럼을 지우려면 먼저 이 쓰기를 걷어낸 릴리스를
             // 내고(N+1), 그다음 릴리스에서 DROP COLUMN 한다(N+2) — 삭제와 그것을 안 쓰는 코드를
             // 한 릴리스에 묶지 않는다(docs/BRANCHING-STRATEGY.md 「DB와 배포 안전성」).

@@ -65,7 +65,7 @@ public interface ScriptRepository {
 
     enum UpdateOutcome {
         UPDATED,
-        /** 이 대본에 없는 배역 id, 같은 id 둘, 비거나 겹치는 이름, 32자를 넘는 프리셋. */
+        /** 이 대본에 없는 배역 id, 같은 id 둘, 비거나 겹치는 이름. 프리셋 길이는 서비스가 먼저 거른다. */
         INVALID_CHARACTERS
     }
 
