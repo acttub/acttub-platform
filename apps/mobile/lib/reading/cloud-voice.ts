@@ -38,3 +38,8 @@ export async function loadCloudVoiceEnabled(): Promise<boolean> {
 export async function saveCloudVoiceEnabled(enabled: boolean): Promise<void> {
   await storage().setItem(CLOUD_VOICE_KEY, enabled ? 'on' : 'off');
 }
+
+/** 동의 시트가 제목을 따로 보여 주므로 문서 첫 줄의 `# 제목` 은 떼고 본문만 그린다. */
+export function consentBodyWithoutTitle(body: string): string {
+  return body.replace(/^#\s[^\n]*\n+/, '');
+}
