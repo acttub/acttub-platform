@@ -20,9 +20,8 @@ import org.junit.jupiter.params.provider.EnumSource;
 
 class CoachingPipelineTest {
     static CoachSessionSnapshot session() {
-        return new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                StructuredJson.resource("/coaching/record.json"), "", "", "", 8000, "그 외", "그 외", null,
-                List.of(), "", null, "open", "", List.of()).withCoachingState("three_layers_v1", 0, null, "open", "");
+        return new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                StructuredJson.resource("/coaching/record.json"), "", "", "", 8000, "그 외", "그 외", null, "open", "", List.of(), PriorContext.EMPTY, "legacy", 0, null, null).withCoachingState("three_layers_v1", 0, null, "open", "");
     }
     static ObjectNode draft(JsonNode input, String message) {
         ObjectNode legacy = StructuredCoachEngineTest.respond(input, message, "continue");
@@ -136,8 +135,8 @@ class CoachingPipelineTest {
         var source = session();
         ObjectNode failed = source.observationPack().deepCopy();
         ((ObjectNode) failed.path("processing")).putArray("processed_ranges");
-        var noVideo = new CoachSessionSnapshot(source.sessionId(), source.practiceSessionId(), source.summaryId(), source.userId(),
-                failed, "", "", "", 8000, "그 외", "그 외", null, List.of(), "", null, "open", "", List.of())
+        var noVideo = new CoachSessionSnapshot(source.sessionId(), source.practiceSessionId(), source.userId(),
+                failed, "", "", "", 8000, "그 외", "그 외", null, "open", "", List.of(), PriorContext.EMPTY, "legacy", 0, null, null)
                 .withCoachingState("three_layers_v1", 0, null, "open", "");
         assertThatThrownBy(() -> engine((p,t) -> { throw new AssertionError("must not call model"); })
                 .start(noVideo, UUID.randomUUID())).isInstanceOf(CoachReplyUnavailable.class);

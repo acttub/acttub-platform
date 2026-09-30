@@ -77,7 +77,7 @@ public class NoteWriter {
                         result.reply().handoff(),
                         !threeLayers,
                         loaded.conversationId().toString(),
-                        result.session().analysisHandoff(),
+                        null,
                         null,
                         loaded.practiceId(),
                         result.session().userId());

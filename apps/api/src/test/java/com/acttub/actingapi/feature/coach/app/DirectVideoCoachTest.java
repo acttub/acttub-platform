@@ -49,9 +49,8 @@ class DirectVideoCoachTest {
     }
 
     CoachSessionSnapshot session() {
-        return new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                StructuredJson.MAPPER.createObjectNode(), "", "", "", 8000, "그 외", "그 외", null,
-                List.of(), "", null, "open", "", List.of()).withCoachingState("three_layers_v1", 0, null, "open", "");
+        return new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                StructuredJson.MAPPER.createObjectNode(), "", "", "", 8000, "그 외", "그 외", null, "open", "", List.of(), PriorContext.EMPTY, "legacy", 0, null, null).withCoachingState("three_layers_v1", 0, null, "open", "");
     }
 
     @Test void existingEngineRoutesActualConversationAndPassesOnlySelectedPrompts() {
@@ -225,9 +224,9 @@ class DirectVideoCoachTest {
     }
 
     CoachSessionSnapshot writtenSession() {
-        return new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+        return new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 StructuredJson.MAPPER.createObjectNode(), "빚 독촉 장면", "태식. 센 척함", ".", 8000, "표현", "화술",
-                " 화내는 게 다 똑같이 들려요 ", List.of(), "", null, "open", "", List.of())
+                " 화내는 게 다 똑같이 들려요 ", "open", "", List.of(), PriorContext.EMPTY, "legacy", 0, null, null)
                 .withCoachingState("three_layers_v1", 0, null, "open", "");
     }
 

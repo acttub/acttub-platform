@@ -301,9 +301,7 @@ public final class CoachPrompt {
     }
 
     /**
-     * 빈 칸 판정. {@link #empty} 와 갈라 두는 이유는 대상이 다르기 때문이다 — 저쪽은
-     * {@code conversationSummary} 가 쓰는 {@code isEmpty()} 이고, 이쪽은 배우가 쓴 칸이라
-     * 공백만 든 값도 "안 적었다" 로 본다. 웹이 {@code .trim()} 해 보내지만 서버가 그 보장에
+     * 빈 칸 판정. 배우가 쓴 칸이라 공백만 든 값도 "안 적었다" 로 본다. 웹이 {@code .trim()} 해 보내지만 서버가 그 보장에
      * 기대지 않는다.
      *
      * <p>{@code CoachEngine:firstActorMessage} 가 같은 판정을 쓴다 — 프롬프트에서 뺀 칸이
@@ -321,9 +319,6 @@ public final class CoachPrompt {
         if (history.isEmpty()) {
             history = "이전 대화 없음";
         }
-        String conversationSummary = empty(session.conversationSummary())
-                ? "아직 없음"
-                : session.conversationSummary();
         return actorProfileBlock(session.actorProfile())
                 + priorContextBlock(session.priorForModel(), CoachBranch.isBlockageUnspecified(session.blockageKind()))
                 + actorMaterialBlock(session)
@@ -332,9 +327,8 @@ public final class CoachPrompt {
                 + "## 영상에서 확인된 것\n"
                 + "이 팩만 영상 근거로 쓴다. 이 호출에는 영상이 첨부되지 않았고 새 영상 사실을 만들면 안 된다.\n"
                 + videoFacts(session) + "\n\n"
-                + "## 지금까지\n" + conversationSummary + "\n\n"
+                + "## 지금까지\n아직 없음\n\n"
                 + "## 최근 대화\n" + history + "\n\n"
-                + analysisHandoffBlock(session)
                 + expressionInputBlock(session)
                 + "## 배우의 최신 말\n" + userMessage + "\n\n"
                 + turnBudgetBlock(session);
@@ -420,23 +414,6 @@ public final class CoachPrompt {
         return ordered;
     }
 
-    private static String analysisHandoffBlock(CoachSessionSnapshot session) {
-        JsonNode handoff = session.analysisHandoff();
-        if (!CoachBranch.isExpressionBlockage(session.blockageKind())
-                || !hasUsableAnalysisHandoff(session)) {
-            return "";
-        }
-        String evidenceLines = indentedItems(handoff.get("scene_evidence"));
-        String actorWordLines = indentedItems(handoff.get("actor_words"));
-        return "## 이전 분석 세션에서 전달받은 입력 정보\n"
-                + "- blocked_point: " + pythonString(handoff.get("blocked_point")) + "\n"
-                + "- line_meaning: " + pythonString(handoff.get("line_meaning")) + "\n"
-                + "- timing_reason: " + pythonString(handoff.get("timing_reason")) + "\n"
-                + "- target_effect: " + pythonString(handoff.get("target_effect")) + "\n"
-                + "- scene_evidence:\n" + evidenceLines + "\n"
-                + "- actor_words:\n" + actorWordLines + "\n\n";
-    }
-
     private static String expressionInputBlock(CoachSessionSnapshot session) {
         JsonNode pack = session.observationPack();
         JsonNode observations = pack == null ? null : pack.get("observations");
@@ -448,16 +425,7 @@ public final class CoachPrompt {
         }
         List<String> lines = new ArrayList<>();
         observations.forEach(observation -> lines.add("  - " + compactJson(observation)));
-        String heading = !hasUsableAnalysisHandoff(session)
-                ? "## 표현 세션 입력 정보\n"
-                : "";
-        return heading + "- video_observations:\n" + String.join("\n", lines) + "\n\n";
-    }
-
-    private static boolean hasUsableAnalysisHandoff(CoachSessionSnapshot session) {
-        JsonNode handoff = session.analysisHandoff();
-        return handoff != null && !handoff.isNull()
-                && !"unavailable".equals(handoff.path("completion_level").asText());
+        return "## 표현 세션 입력 정보\n- video_observations:\n" + String.join("\n", lines) + "\n\n";
     }
 
     private static String phaseLabel(int turnNumber, String blockageKind) {
@@ -495,15 +463,6 @@ public final class CoachPrompt {
         return String.join("\n", lines);
     }
 
-    private static String indentedItems(JsonNode values) {
-        if (values == null || !values.isArray() || values.isEmpty()) {
-            return "  - 없음";
-        }
-        List<String> lines = new ArrayList<>();
-        values.forEach(value -> lines.add("  - " + pythonString(value)));
-        return String.join("\n", lines);
-    }
-
     private static String joinText(JsonNode values, String delimiter) {
         if (values == null || !values.isArray()) {
             return "";
@@ -535,10 +494,6 @@ public final class CoachPrompt {
         } catch (JsonProcessingException exc) {
             throw new IllegalStateException("코치 입력 JSON을 직렬화하지 못했습니다.", exc);
         }
-    }
-
-    private static boolean empty(String value) {
-        return value == null || value.isEmpty();
     }
 
     private static String load(String resource) {

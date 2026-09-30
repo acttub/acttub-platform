@@ -61,8 +61,8 @@ class DialogueContinuityEvalTest {
         var record = VideoRecord.empty(UUID.randomUUID(), 12000, true, new ActorMaterial("", "", "", "그 외", "", 12000));
         VideoRecord.append(record, VideoRecord.prepareChunk(chunk, chunk.path("chunk_id").asText(), 12000), 0);
         VideoRecord.finish(record, null);
-        var session = new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                record, "", "", "", 12000, "그 외", "그 외", null, List.of(), "", null, "open", "", List.of())
+        var session = new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                record, "", "", "", 12000, "그 외", "그 외", null, "open", "", List.of(), PriorContext.EMPTY, "legacy", 0, null, null)
                 .withCoachingState("three_layers_v1", 0, null, "open", "");
         var failures = new RecordingFailureReporter();
         var output = StructuredJson.MAPPER.createObjectNode().put("case", name).put("semantic_review", "pending");
