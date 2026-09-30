@@ -491,9 +491,6 @@ class PostgresEntryRepository implements EntryRepository {
         return rows.getFirst();
     }
 
-    // ── 커서 ─────────────────────────────────────────────────────────────────
-
-
     private static List<String> split(String joined) {
         return joined == null || joined.isEmpty() ? List.of() : List.of(joined.split(","));
     }

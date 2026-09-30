@@ -222,5 +222,4 @@ class PostgresReactionRepository implements ReactionRepository {
                 row.get("body", String.class), row.get("created_at", Instant.class), viewer.equals(author), withdrawn,
                 row.get("status", String.class));
     }
-
 }
