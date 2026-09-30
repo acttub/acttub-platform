@@ -68,7 +68,6 @@ class PackageLayerTest {
             // 받아쓰기를 걷어내면서(SOMA-490) 그 규칙이 함께 사라졌다. 관찰은 영상을 보는 모델이
             // 통째로 내주는 것이라 우리가 걸 행위 규칙이 없다 — 남은 층이 셋이다.
             Map.entry("analysis", Set.of("app", "adapter", "schema")),
-            Map.entry("upload", FOUR_LAYERS),
             // `users` 행의 Schema Entity 는 `auth/schema/UserEntity` 다 — 행을 만드는 쪽이
             // 갖는다(SOMA-397 12단계). 프로필은 `user_profiles`·`user_profile_directions` 를 갖는다.
             Map.entry("profile", FOUR_LAYERS),
