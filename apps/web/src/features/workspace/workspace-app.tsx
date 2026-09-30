@@ -924,8 +924,8 @@ function WorkspaceInner() {
     replyRequestIdsRef.current.set(key, created);
     return created;
   }, []);
-  const send = useCallback(async (reply?: string) => {
-    const text = (reply ?? answer).trim();
+  const send = useCallback(async () => {
+    const text = answer.trim();
     const practiceId = currentSessionId();
     const coachId = coachIdRef.current;
     if (!text || sending || replyPendingRef.current || !coachId || !practiceId || screen.kind !== "chat") return;
@@ -1273,10 +1273,6 @@ function WorkspaceInner() {
   const activeGroup = activeId ? groupOfPractice(groups, activeId) : null;
   const noteGroupTitle = activeGroup ? groupTitle(activeGroup) : detail?.situation ?? "";
 
-  const noteBySession = useMemo(
-    () => new Set(groups.flatMap((g) => g.practices.filter((p) => p.note_id).map((p) => p.id))),
-    [groups],
-  );
   // 게스트가 끝나면(서버가 갱신을 거절) 그 게스트의 목록은 더 이상 열 수 없다. 받아 둔
   // 목록을 지우는 대신 여기서 가린다 — 이펙트에서 동기 setState 를 하지 않기 위해서다.
   // 목록은 묶음·회차다(practice.library). 숨긴 묶음은 빠진다.
@@ -1305,7 +1301,6 @@ function WorkspaceInner() {
       running={running}
       finished={finished}
       activeId={activeId}
-      hasNote={noteBySession}
       recentOnly={recentOnly !== null}
       onToggleRecent={() => setRecentOnly((on) => (on ? null : new Date()))}
       listError={hasSession && listError}
@@ -1336,7 +1331,6 @@ function WorkspaceInner() {
               running={running}
               finished={finished}
               activeId={activeId}
-              hasNote={noteBySession}
               recentOnly={recentOnly !== null}
               onToggleRecent={() => setRecentOnly((on) => (on ? null : new Date()))}
               listError={hasSession && listError}
@@ -1513,7 +1507,7 @@ function WorkspaceInner() {
                   sending,
                 })}
                 scrollRef={chatScrollRef}
-                onSend={(reply) => void send(reply)}
+                onSend={() => void send()}
                 done={body.done}
                 noteReady={body.noteReady}
                 onOpenNote={openNote}
@@ -1637,7 +1631,6 @@ const SessionRail = memo(function SessionRail({
   running,
   finished,
   activeId,
-  hasNote,
   recentOnly,
   onToggleRecent,
   listError,
@@ -1651,7 +1644,6 @@ const SessionRail = memo(function SessionRail({
   running: RailGroup[];
   finished: RailGroup[];
   activeId: string | null;
-  hasNote: Set<string>;
   /** 지난 연습을 최근 30일로 좁혀 보는 중인가(practice.library) */
   recentOnly: boolean;
   onToggleRecent: () => void;
@@ -1758,7 +1750,7 @@ const SessionRail = memo(function SessionRail({
                     <RailItem
                       title={`${g.favorite ? "★ " : ""}${g.title}`}
                       meta={`${whenLabel(g.newestAt)}${
-                        single ? (head && hasNote.has(head.id) ? " · 문장 남김" : "") : ` · 회차 ${g.practices.length}개`
+                        single ? (head?.hasNote ? " · 문장 남김" : "") : ` · 회차 ${g.practices.length}개`
                       }`}
                       active={single ? isActiveGroup(g) : false}
                       onClick={() => (single ? onOpen(headOf(g)) : toggleGroup(g.rootId))}
@@ -1787,7 +1779,7 @@ const SessionRail = memo(function SessionRail({
                                 <RailItem
                                   title={practice.title}
                                   meta={`${practice.ordinal}차 · ${whenLabel(practice.createdAt)}${
-                                    hasNote.has(practice.id) ? " · 문장 남김" : ""
+                                    practice.hasNote ? " · 문장 남김" : ""
                                   }`}
                                   active={practice.id === activeId}
                                   onClick={() => onOpen(practice.id)}
@@ -2463,7 +2455,7 @@ function ChatPanel({
   sending: boolean;
   inputEnabled: boolean;
   scrollRef: React.RefObject<HTMLDivElement | null>;
-  onSend: (reply?: string) => void;
+  onSend: () => void;
   done: boolean;
   noteReady: boolean;
   onOpenNote: () => void;
@@ -2485,7 +2477,7 @@ function ChatPanel({
         <div className="flex items-center gap-3 border-b border-[#edf0f3] px-4 py-3 sm:px-5">
           <span className="flex items-center gap-2 text-xs font-black text-[#4e5968] sm:text-[13.5px]">
             <span className="h-1.5 w-1.5 rounded-full bg-[#03b26c]" />
-            {done ? "이번 대화는 여기까지예요" : "현재 장면을 바탕으로 질문하고 있어요"}
+            이번 대화는 여기까지예요
           </span>
         </div>
       ) : (
@@ -2575,7 +2567,7 @@ function ChatPanel({
             setAnswer={setAnswer}
             sending={sending}
             inputEnabled={inputEnabled}
-            onSend={() => onSend()}
+            onSend={onSend}
           />
         )}
       </div>
