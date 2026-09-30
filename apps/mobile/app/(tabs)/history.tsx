@@ -12,7 +12,6 @@ import { translate as t } from '@/lib/i18n';
 import {
   filterGroups,
   groupTitle,
-  hideNotice,
   mergeHistoryRows,
   type HistoryRow,
 } from '@/lib/practice/groups';
@@ -65,7 +64,7 @@ export default function HistoryScreen() {
   const hideGroup = async (group: PracticeGroup) => {
     const ok = await confirm({
       title: t('history.hideTitle'),
-      message: hideNotice(),
+      message: t('history.hideNotice'),
       confirmLabel: t('history.hideConfirm'),
       destructive: true,
     });

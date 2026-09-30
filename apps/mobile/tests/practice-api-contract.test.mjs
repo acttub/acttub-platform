@@ -4,7 +4,6 @@ import { api, httpResponses, id, practice, video } from './helpers/practice-api.
 import { analysisRecoveryAction, watchAnalysis } from '../lib/practice/analysis-run.ts';
 import { groupTitle, roundSummary } from '../lib/practice/groups.ts';
 import { noteKindLabel, noteSections, quoteSourceLabel, readOptionalPracticeNote } from '../lib/practice/note.ts';
-import { isWrittenByActor } from '../lib/practice/memory.ts';
 import { videoPlaybackSource } from '../lib/library/library-view.ts';
 import { buildContinueBody, buildStartBody, emptyBlockageDraft, emptySceneDraft } from '../lib/practice/start.ts';
 import { buildNoteRatingBody } from '../lib/practice/note-rating.ts';
@@ -132,7 +131,7 @@ test('완료된 대화의 회차로 돌아오면 분석을 실패로 바꾸지 �
 test('저장한 배우 기억의 written_by_actor로 내가 적은 값을 표시한다', async t => {
   httpResponses(t, [{ body: { field: 'goal', value: '상대에게 전하기', written_by_actor: true, source_practice_id: null, updated_at: '2026-09-21T02:00:00Z' } }]);
   const memory = await api.saveActorMemory('goal', '상대에게 전하기');
-  assert.equal(isWrittenByActor(memory), true);
+  assert.equal(memory.written_by_actor, true);
 });
 
 test('legacy 노트 봉투가 비어 있어도 원문 배우 발견과 촬영 제안을 보여준다', async t => {

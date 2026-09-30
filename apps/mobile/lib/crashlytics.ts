@@ -7,10 +7,11 @@
  * ⚠️ lib/meta-events.ts 와 같은 규칙 — 네이티브 모듈이 없는 환경(Node 테스트·옛 빌드)에서 조용히
  * no-op 이 되도록 최상위 import 없이 함수 안 require 로만 닿는다.
  */
-const API_URL = process.env.EXPO_PUBLIC_API_URL;
-const PRODUCTION_API_URL = 'https://acttub.com';
+import { PRODUCTION_API_URL } from './api-env.ts';
 
-/** 크래시에 붙일 환경 이름. */
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
+
+/** 크래시에 붙일 환경 이름. 계측 판정(isProductionApiUrl)과 달리 공백·끝 슬래시를 정리하지 않고 글자 그대로 비교한다. */
 export function crashEnvironment(apiUrl: string | undefined): 'prod' | 'dev' {
   return apiUrl === PRODUCTION_API_URL ? 'prod' : 'dev';
 }

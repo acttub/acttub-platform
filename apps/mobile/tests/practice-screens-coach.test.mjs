@@ -73,7 +73,7 @@ test('practice.library: 기록은 묶음을 읽고 숨김은 묶음 전체이며
   assert.match(history, /groupTitle/);
   assert.match(history, /filterGroups/);
   assert.match(history, /patchPracticeGroup\(group\.root_id, \{ hidden: true \}\)/);
-  assert.match(history, /hideNotice\(\)/);
+  assert.match(history, /t\('history\.hideNotice'\)/);
   assert.match(history, /mergeHistoryRows/);
   // 기록은 AI 코치와 한 연습만이다 — 리딩 기록은 대본 탭에서 본다(SOMA-494).
   assert.doesNotMatch(history, /readingHistoryRows|listSessions/);
