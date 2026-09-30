@@ -8,6 +8,7 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.profile.domain.Account;
 import com.acttub.actingapi.feature.profile.domain.NotificationSettings;
 import com.acttub.actingapi.feature.profile.domain.Profile;
+import com.acttub.actingapi.feature.profile.domain.SignupAttribution;
 
 /**
  * profile 이 저장소에 요구하는 것.
@@ -114,6 +115,14 @@ public interface ProfileRepository {
      */
     NotificationSettings updateNotificationSettings(
             UUID userId, Boolean analysisDone, Boolean challenge, Boolean eveningReminder);
+
+    /**
+     * 가입 계정의 유입 광고를 <b>처음 한 번만</b> 적는다(SOMA-588). 이미 있으면 그대로 두고 바꾸지 않는다 —
+     * 같은 기기가 다시 보내거나 두 번째 귀속이 와도 첫 값이 남는다.
+     *
+     * @return 계정이 활성이면 {@code true}(새로 적었든 이미 있었든). 없거나 활성이 아니면 {@code false}
+     */
+    boolean recordSignupAttribution(UUID userId, SignupAttribution attribution);
 
     /**
      * 새로 받은 올리기 자리를 적는다. 앞의 대기 중인 올리기는 덮어쓰되, 그 객체의 삭제를 같은 트랜잭션에서
