@@ -55,7 +55,7 @@ class PostgresConversationRepository implements ConversationRepository {
                        p.blockage_kind,p.sub_branch,p.blockage_detail,p.experience_version,
                        v.duration_ms,
                        a.id AS analysis_id,CAST(a.record AS text) AS record,
-                       c.id AS conversation_id,c.start_request_id,c.status,c.close_reason,
+                       c.id AS conversation_id,c.status,c.close_reason,
                        c.state_revision,CAST(c.state AS text) AS state
                 FROM practices p
                 JOIN videos v ON v.id=p.video_id
@@ -82,7 +82,6 @@ class PostgresConversationRepository implements ConversationRepository {
         return new Loaded(
                 practiceId,
                 conversationId,
-                row.get("start_request_id", UUID.class),
                 row.get("stage", String.class),
                 new CoachSessionSnapshot(
                         conversationId == null ? UUID.randomUUID() : conversationId,

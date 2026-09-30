@@ -15,8 +15,7 @@ import org.springframework.stereotype.Component;
  * <p>{@code Optional} 로 받는 이유는 스토리지 빈이 없는 기동 형태가 실재하기 때문이다 —
  * {@code S3_BUCKET}·{@code AWS_REGION} 이 없으면 경계가 서지 않고, 그때 스토리지를 만지는
  * 요청은 예외로 떨어져야 한다.
- * 없음을 여기서 예외로 바꾸므로 서비스는 스토리지가 설정됐는지를 묻지 않는다
- * ({@code practice/adapter/storage/ObjectStoragePlayback} 과 같은 형태).
+ * 없음을 여기서 예외로 바꾸므로 서비스는 스토리지가 설정됐는지를 묻지 않는다.
  */
 @Component
 class ObjectStorageUploadTarget implements UploadTarget {

@@ -49,9 +49,7 @@ class ValueCheckCatalogIT {
         BY_CONSTRAINT.put("ck_actor_memory_entries_written_by", ActorMemoryAuthor.class);
         BY_CONSTRAINT.put("ck_anomalies_intent_impact", IntentImpact.class);
         BY_CONSTRAINT.put("ck_anomalies_severity", Severity.class);
-        BY_CONSTRAINT.put("ck_coach_sessions_status", SessionStatus.class);
         BY_CONSTRAINT.put("ck_coach_sessions_close_reason", CloseReason.class);
-        BY_CONSTRAINT.put("ck_coach_turns_role", TurnRole.class);
         // 커뮤니티는 코드를 내리고 테이블을 남겼다(0.1.0). 되살릴 때 값이 어긋나 있지 않게 계속 본다.
         BY_CONSTRAINT.put("ck_community_comments_status", ContentStatus.class);
         BY_CONSTRAINT.put("ck_community_posts_status", ContentStatus.class);
@@ -76,9 +74,7 @@ class ValueCheckCatalogIT {
         BY_CONSTRAINT.put("ck_practices_experience_version", ExperienceVersion.class);
         BY_CONSTRAINT.put("ck_analyses_format", AnalysisFormat.class);
         BY_CONSTRAINT.put("ck_analyses_status", AnalysisStatus.class);
-        BY_CONSTRAINT.put("ck_coach_conversations_status", SessionStatus.class);
         BY_CONSTRAINT.put("ck_coach_conversations_close_reason", ConversationCloseReason.class);
-        BY_CONSTRAINT.put("ck_coach_messages_role", TurnRole.class);
         BY_CONSTRAINT.put("ck_coach_notes_format", NoteFormat.class);
         BY_CONSTRAINT.put("ck_coach_notes_kind", NoteKind.class);
         BY_CONSTRAINT.put("ck_actor_memories_field", MemoryField.class);
@@ -132,7 +128,12 @@ class ValueCheckCatalogIT {
             // 좋아요순 커서의 기준(live·pending·final)은 저장소 SQL 만 읽고 쓰는 장부 칸이다.
             "ck_entry_ranking_snapshots_basis",
             // 행동자가 있는 알림은 좋아요·댓글뿐이라는 조합 검사다(값 목록 하나가 아니다).
-            "ck_notifications_actor");
+            "ck_notifications_actor",
+            // 코치 대화 상태·말한 쪽은 저장소 SQL 만 쓴다. 옛 JPA 매핑과 함께 enum 을 지웠다(SOMA-589).
+            "ck_coach_sessions_status",
+            "ck_coach_turns_role",
+            "ck_coach_conversations_status",
+            "ck_coach_messages_role");
 
     /** {@code CHECK ((col = ANY (ARRAY['a'::text, 'b'::text])))} 에서 값만 뽑는다. */
     private static final Pattern LITERAL = Pattern.compile("'((?:[^']|'')*)'::text");
@@ -149,7 +150,7 @@ class ValueCheckCatalogIT {
     JdbcTemplate jdbc;
 
     @Test
-    @DisplayName("값 CHECK 마흔아홉 개가 각각 자기 Java enum 과 같은 값 목록을 갖는다")
+    @DisplayName("표에 적은 값 CHECK 가 각각 자기 Java enum 과 같은 값 목록을 갖는다")
     void everyValueCheckHasExactlyTheValuesOfItsJavaEnum() {
         Map<String, Set<String>> actual = valueChecks();
 

@@ -57,7 +57,7 @@ class CoachingPipelineTest {
                     return out(StructuredJson.MAPPER.createObjectNode().put("route", route.id));
                 }
                 stages.add("generate");
-                assertThat(prompt).isEqualTo(CoachingPipeline.prompt(route, false));
+                assertThat(prompt).isEqualTo(CoachingPipeline.prompt(route, false, false));
                 assertThat(prompt).doesNotContain(StructuredJson.textResource("/coaching/routes/opening.txt"));
                 assertThat(prompt).doesNotContain("route 하나", "unobservable_hand_requested", "dialogue_progress");
                 for (CoachingRoute other : CoachingRoute.values()) {
@@ -256,7 +256,7 @@ class CoachingPipelineTest {
                 return out(StructuredJson.MAPPER.createObjectNode().put("route", call == 2 ? "repair" : "advance"));
             }
             if (call == 1 || call == 3) {
-                assertThat(prompt).isEqualTo(CoachingPipeline.prompt(call == 3 ? CoachingRoute.REPAIR : CoachingRoute.ADVANCE, false));
+                assertThat(prompt).isEqualTo(CoachingPipeline.prompt(call == 3 ? CoachingRoute.REPAIR : CoachingRoute.ADVANCE, false, false));
                 ObjectNode result = draft(input, call == 3 ? repairedMessage : "잘못을 이해받고 싶다는 뜻이군요.");
                 ObjectNode context = input.path("coaching_state").path("context").deepCopy();
                 ObjectNode goal = ((ObjectNode) context.path("scene_context")).putObject("character_goal");

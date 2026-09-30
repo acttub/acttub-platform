@@ -38,8 +38,7 @@ import org.junit.jupiter.api.Test;
  *   <li><b>422 검증 오류</b> — {@code ApiValidationException} 과 Bean Validation 메시지는
  *       상수가 어노테이션 기본값이나 호출 인자 안에 흩어져 있어 표로 세지 않는다. 지키는 것은
  *       {@code ValidationErrorContractIT}(형상 + 실물 {@code value must not be blank}) ·
- *       {@code CoachReportEndpointIT}({@code rebuttal_text …}) · {@code AccountProfileIT}
- *       ({@code name …}) · {@code PracticeSessionEndpointIT}({@code sub_branch …}) 다.
+ *       {@code AccountProfileIT}({@code name …}) 다.
  * </ul>
  *
  * <p>표는 {@code new ApiException} 과, {@code ApiErrorAdvice} 가 예외를 거치지 않고 응답을 직접
@@ -190,16 +189,6 @@ class ErrorContractInventoryTest {
                     "feature.coach.app.DirectVideoLimitsTest"),
             covered("feature.coach.app.DirectVideoSessions|429|direct_video_session_limit", 1,
                     "feature.coach.app.DirectVideoLimitsTest"),
-            covered("feature.coach.app.CoachService|502|coach_response_unavailable", 2,
-                    "feature.coach.app.CoachServiceTest"),
-            covered("feature.coach.app.CoachService|409|client_contract_required", 1,
-                    "feature.coach.adapter.web.CoachReportEndpointIT"),
-            covered("feature.coach.app.CoachService|409|practice_note_does_not_require_confirmation", 1,
-                    "feature.coach.adapter.web.CoachReportEndpointIT"),
-            covered("feature.report.app.ReportService|409|client_contract_required", 1,
-                    "feature.coach.adapter.web.CoachReportEndpointIT"),
-            covered("feature.report.app.ReportService|409|coaching_session_is_open", 1,
-                    "feature.coach.adapter.web.CoachReportEndpointIT"),
             covered("feature.admin.adapter.web.AdminController|401|Unauthorized", 1,
                     "feature.admin.AdminEndpointIT"),
             covered("feature.admin.app.AdminService|404|challenge_video_not_found", 1,
@@ -239,24 +228,6 @@ class ErrorContractInventoryTest {
             covered("feature.auth.adapter.web.ProviderDisconnectController|503|provider_not_configured", 1,
                     "feature.auth.AccountDisabledProvidersIT"),
 
-            covered("feature.coach.app.CoachService|404|practice session not found", 2,
-                    "feature.coach.adapter.web.CoachReportEndpointIT"),
-            covered("feature.coach.app.CoachService|404|session not found", 3,
-                    "feature.coach.app.CoachServiceTest"),
-            covered("feature.coach.app.CoachService|409|practice session analysis is not settled", 1,
-                    "feature.coach.adapter.web.CoachReportEndpointIT"),
-            covered("feature.coach.app.CoachService|409|report already exists", 1,
-                    "feature.coach.adapter.web.CoachReportEndpointIT"),
-            covered("feature.coach.app.CoachService|409|report already exists for practice session",
-                    2, "feature.coach.adapter.web.CoachReportEndpointIT"),
-            covered("feature.coach.app.CoachService|409|request is still processing", 3,
-                    "feature.coach.adapter.web.CoachReportEndpointIT"),
-            covered("feature.coach.app.CoachService|409|session changed concurrently", 1,
-                    "feature.coach.app.CoachServiceTest"),
-            covered("feature.coach.app.CoachService|409|session is closed", 2,
-                    "feature.coach.adapter.web.CoachReportEndpointIT"),
-            covered("feature.coach.app.CoachService|502|" + DYNAMIC, 3,
-                    "feature.coach.app.CoachServiceTest"),
 
             covered("feature.consent.app.ConsentService|404|consent_document_not_found", 2,
                     "feature.consent.ConsentEndpointIT"),
@@ -292,26 +263,8 @@ class ErrorContractInventoryTest {
             covered("feature.profile.app.ProfileService|422|under_14_account_closed", 1,
                     "feature.profile.AccountProfileIT"),
 
-            covered("feature.report.app.ReportService|404|report_not_found", 1,
-                    "feature.report.adapter.web.ReportEndpointIT"),
-            covered("feature.report.app.ReportService|404|session not found", 1,
-                    "feature.coach.adapter.web.CoachReportEndpointIT"),
-            covered("feature.report.app.ReportService|409|report already exists", 1,
-                    "feature.coach.adapter.web.CoachReportEndpointIT"),
-            covered("feature.report.app.ReportService|409|request is still processing", 1,
-                    "feature.coach.adapter.web.CoachReportEndpointIT"),
-            covered("feature.report.app.ReportService|502|" + DYNAMIC, 1,
-                    "feature.coach.adapter.web.CoachReportEndpointIT"),
 
 
-            covered("platform.operation.SyncOperationService|409|request is still processing", 1,
-                    "feature.coach.adapter.web.CoachReportEndpointIT"),
-            covered("platform.operation.SyncOperationService|409|request retry exhausted", 1,
-                    "feature.coach.adapter.web.CoachReportEndpointIT"),
-            covered("platform.operation.SyncOperationService|422|invalid X-Request-Id", 1,
-                    "feature.practice.PracticeLifecycleIT"),
-            covered("platform.operation.SyncOperationService|422|request_fingerprint_mismatch", 1,
-                    "feature.practice.PracticeLifecycleIT"),
 
             covered("feature.portfolio.adapter.web.PublicPortfolioController|429|rate limit exceeded", 1,
                     "feature.portfolio.AccountPortfolioIT"),

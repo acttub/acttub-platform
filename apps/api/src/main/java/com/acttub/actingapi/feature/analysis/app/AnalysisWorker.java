@@ -47,17 +47,6 @@ public class AnalysisWorker {
             Clock clock,
             Duration leaseDuration,
             String model,
-            FailureReporter failureReporter) {
-        this(store, storage, analyzer, clock, leaseDuration, model, null, failureReporter);
-    }
-
-    public AnalysisWorker(
-            AnalysisStore store,
-            ObjectStorage storage,
-            AnalysisProcessor analyzer,
-            Clock clock,
-            Duration leaseDuration,
-            String model,
             AnalysisCompletionListener completionListener,
             FailureReporter failureReporter) {
         this.store = store;

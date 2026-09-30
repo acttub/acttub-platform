@@ -2,112 +2,16 @@ package com.acttub.actingapi.feature.practice.adapter.web;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.practice.domain.ObservationPack;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.NotNull;
 
 public final class PracticeSessionDtos {
     private PracticeSessionDtos() {
-    }
-
-    @ValidBlockageBranch
-    @Schema(
-            name = "PracticeSessionRequest",
-            additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
-    // 값 하나짜리 허용 목록은 컨트롤러가, 둘의 조합은 이 애노테이션이 본다. 둘 다 근거는
-    // domain/BlockageBranch 이고, 나뉘어 있는 이유는 오류 형태다 — 조합 위반은 pydantic 이
-    // 모델 검증 오류로 내던 것이라 loc 이 다르다.
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    record PracticeSessionRequest(
-            @NotNull UUID uploadIntentId,
-            // Scene Context 셋은 최소 길이가 없다 — 빈 문자열이 "적지 않았다"이다(ADR-021).
-            // 키가 없는 것과 값이 null 인 것은 서로 다른 장치가 막고 오류 형태도 다르다 —
-            // 키 부재는 @NotNull 이 missing 으로, null 값은 @Schema(nullable) 이 없다는
-            // 사실이 string_type 으로 낸다(RequestBodyTreeValidator:validate). null 분기는
-            // @NotNull 을 읽지 않으므로, 여기에 nullable 을 붙이면 null 이 통과한다.
-            @NotNull String situation,
-            @NotNull String characterContext,
-            @NotNull String goal,
-            @NotNull @Schema(allowableValues = {"분석", "표현", "그 외"}) String blockageKind,
-            @NotNull @Schema(allowableValues = {
-                "캐릭터 분석", "대사 분석", "감정", "움직임", "화술", "표정", "그 외"
-            }) String subBranch,
-            @Schema(nullable = true) String blockageDetail,
-            @Schema(nullable = true) UUID continuedFrom) {
-    }
-
-    @Schema(
-            name = "PracticeSessionAcceptedResponse",
-            additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    record PracticeSessionAcceptedResponse(
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID sessionId,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, _const = "analyzing") String status) {
-    }
-
-    @Schema(
-            name = "PracticeSessionCreateResponse",
-            additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    record PracticeSessionCreateResponse(
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID sessionId,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
-                    allowableValues = {"analyzing", "analyzed", "failed"})
-            String status,
-            @Schema(nullable = true) UUID summaryId) {
-    }
-
-    @Schema(
-            name = "PracticeSessionListItem",
-            additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    record PracticeSessionListItem(
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID sessionId,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
-                    allowableValues = {"analyzing", "analyzed", "failed"})
-            String status,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String situation,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String characterContext,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String goal,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
-                    allowableValues = {"분석", "표현", "그 외"})
-            String blockageKind,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String subBranch,
-            @Schema(nullable = true) String blockageDetail,
-            @Schema(nullable = true) UUID continuedFrom,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) OffsetDateTime createdAt,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) OffsetDateTime updatedAt) {
-    }
-
-    @Schema(
-            name = "PracticeSessionListResponse",
-            additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
-    record PracticeSessionListResponse(
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<PracticeSessionListItem> sessions) {
-    }
-
-    @Schema(
-            name = "PracticeSessionStatusResponse",
-            additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    record PracticeSessionStatusResponse(
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
-                    allowableValues = {"analyzing", "analyzed", "failed"})
-            String status,
-            @Schema(nullable = true, allowableValues = {
-                "gemini_timeout", "gemini_parse_error", "unsupported_media", "max_attempts_exceeded"
-            })
-            @JsonProperty("error_code")
-            @JsonInclude(JsonInclude.Include.ALWAYS)
-            String errorCode) {
     }
 
     @Schema(
@@ -129,33 +33,6 @@ public final class PracticeSessionDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID summaryId,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<ObservationItem> observations,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<String> uncertainties) {
-    }
-
-    @Schema(
-            name = "PracticeSessionDetail",
-            additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
-    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-    public record PracticeSessionDetail(
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID sessionId,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
-                    allowableValues = {"analyzing", "analyzed", "failed"})
-            String status,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String situation,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String characterContext,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String goal,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
-                    allowableValues = {"분석", "표현", "그 외"})
-            String blockageKind,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String subBranch,
-            @Schema(nullable = true) String blockageDetail,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) OffsetDateTime createdAt,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) OffsetDateTime updatedAt,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String playbackUrl,
-            @Schema(nullable = true, anyOf = {ObservationPackResponse.class, VideoRecordSummaryResponse.class})
-            com.fasterxml.jackson.databind.JsonNode summary,
-            @Schema(nullable = true, allowableValues = {
-                "gemini_timeout", "gemini_parse_error", "unsupported_media", "max_attempts_exceeded"
-            }) String errorCode) {
     }
 
     static ObservationPackResponse observationPack(ObservationPack pack) {

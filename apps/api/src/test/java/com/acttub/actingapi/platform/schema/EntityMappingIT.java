@@ -11,11 +11,6 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.acttub.actingapi.feature.analysis.schema.AnomalyEntity;
 import com.acttub.actingapi.feature.analysis.schema.SummaryEntity;
 import com.acttub.actingapi.feature.analysis.schema.TranscriptEntity;
-import com.acttub.actingapi.feature.coach.schema.CoachSessionEntity;
-import com.acttub.actingapi.feature.coach.schema.CoachTurnEntity;
-import com.acttub.actingapi.feature.coach.schema.CoachingHandoffEntity;
-import com.acttub.actingapi.feature.coach.schema.HandoffConfirmationEntity;
-import com.acttub.actingapi.feature.report.schema.PracticeReportEntity;
 import com.acttub.actingapi.feature.auth.schema.UserEntity;
 import com.acttub.actingapi.feature.auth.schema.UserIdentityEntity;
 import com.acttub.actingapi.feature.auth.schema.RefreshTokenEntity;
@@ -25,7 +20,6 @@ import com.acttub.actingapi.feature.memory.schema.ActorMemoryEntryEntity;
 import com.acttub.actingapi.feature.portfolio.schema.PortfolioCreditEntity;
 import com.acttub.actingapi.feature.portfolio.schema.PortfolioEntity;
 import com.acttub.actingapi.feature.portfolio.schema.PortfolioPhotoEntity;
-import com.acttub.actingapi.feature.practice.schema.PracticeSessionEntity;
 import com.acttub.actingapi.feature.profile.schema.UserProfileDirectionEntity;
 import com.acttub.actingapi.feature.profile.schema.UserProfileEntity;
 import com.acttub.actingapi.feature.push.schema.PushTokenEntity;
@@ -101,11 +95,14 @@ class EntityMappingIT {
     EntityManager entityManager;
 
     /**
-     * 매핑을 은퇴시키고 DB 에는 남긴 테이블 (apps/api/CONTRACT.md §5-1). 구형 {@code reports} 와,
-     * 0.1.0 에서 API·코드를 내린 커뮤니티 일곱이다({@code docs/specs/community/README.md}).
+     * 매핑을 은퇴시키고 DB 에는 남긴 테이블 (apps/api/CONTRACT.md §5-1). 구형 {@code reports}, 0.1.0 에서
+     * API·코드를 내린 커뮤니티 일곱({@code docs/specs/community/README.md}), 그리고 옛 연습 흐름의 여섯이다.
+     * 옛 연습 여섯은 이관·호환 읽기가 native SQL 로만 읽는다.
      */
     private static final Set<String> RETIRED_TABLES = Set.of(
             "reports",
+            "practice_sessions", "coach_sessions", "coach_turns", "coaching_handoffs",
+            "handoff_confirmations", "practice_reports",
             "community_anonymous_aliases", "community_blocks", "community_categories",
             "community_comments", "community_post_likes", "community_posts", "community_reports");
 
@@ -126,12 +123,12 @@ class EntityMappingIT {
             "note_ratings");
 
     @Test
-    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 45개 활성 엔티티를 포함한다")
-    void mapsExactlyFortyFiveActiveEntities() {
+    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 39개 활성 엔티티를 포함한다")
+    void mapsExactlyThirtyNineActiveEntities() {
         Set<Class<?>> entities = entityManager.getMetamodel().getEntities().stream()
                 .map(jakarta.persistence.metamodel.Type::getJavaType)
                 .collect(java.util.stream.Collectors.toSet());
-        assertThat(entities).hasSize(45);
+        assertThat(entities).hasSize(39);
         assertThat(entities).contains(ActorMemoryEntryEntity.class, PushTokenEntity.class);
         assertThat(entities).allMatch(type -> type.getSimpleName().endsWith("Entity"));
         assertThat(entities).allMatch(type -> java.util.Arrays.stream(type.getDeclaredFields())
@@ -141,8 +138,8 @@ class EntityMappingIT {
         long jsonNodes = entities.stream().flatMap(type -> java.util.Arrays.stream(type.getDeclaredFields()))
                 .filter(field -> field.getType().equals(com.fasterxml.jackson.databind.JsonNode.class))
                 .count();
-        // 리딩 회차의 line_results 가 여덟 번째(V13), 챌린지 AI 리포트의 result 가 아홉 번째다(V20).
-        assertThat(jsonNodes).isEqualTo(9);
+        // 리딩 회차의 line_results(V13)와 챌린지 AI 리포트의 result(V20)가 여기 든다.
+        assertThat(jsonNodes).isEqualTo(6);
     }
 
     @Test
@@ -169,7 +166,6 @@ class EntityMappingIT {
                 .collect(java.util.stream.Collectors.toSet())).isEqualTo(activeTables);
         var retiredColumns = java.util.Map.of(
                 "summaries", Set.of("observation", "summary", "intent_alignment", "key_moment", "key_dimension"),
-                "practice_sessions", Set.of("subtext"),
                 // nickname: 이름은 `user_profiles.name` 이 정본이다. 컬럼은 직전 릴리스의 서버를
                 // 위해 남아 있고, 새 코드가 건드리는 곳은 탈퇴의 파기 하나다(결정 I-3).
                 "users", Set.of("role", "nickname"));
@@ -286,39 +282,6 @@ class EntityMappingIT {
 
     @Test
     @Transactional
-    @DisplayName("practice_sessions: 부분 인덱스가 걸린 테이블도 정상 매핑된다")
-    void practiceSessionRoundTrip() {
-        UUID userId = UUID.randomUUID();
-        entityManager.persist(new UserEntity(userId, null, UserStatus.ACTIVE));
-
-        UUID uploadIntentId = UUID.randomUUID();
-        entityManager.flush();
-        jdbc.update("INSERT INTO upload_intents "
-                + "(id, user_id, status, storage_provider, object_key, mime_type, size_bytes, expires_at) "
-                + "VALUES (?, ?, 'pending', 's3', 'k', 'video/mp4', 1, now())",
-                uploadIntentId, userId);
-
-        UUID id = UUID.randomUUID();
-        // blockage_kind/sub_branch 는 ck_practice_sessions_blockage_branch 가 묶는 조합만 받는다.
-        entityManager.persist(new PracticeSessionEntity(id, userId, uploadIntentId,
-                PracticeStatus.ANALYZING, "상황", "인물",
-                "분석", "캐릭터 분석", "목표"));
-        entityManager.flush();
-        entityManager.clear();
-
-        PracticeSessionEntity loaded = entityManager.find(PracticeSessionEntity.class, id);
-        assertThat(loaded.getStatus()).isEqualTo(PracticeStatus.ANALYZING);
-        assertThat(loaded.getHiddenAt()).isNull();
-        assertThat(loaded.getBlockageKind()).isEqualTo("분석");
-        assertThat(loaded.getSubBranch()).isEqualTo("캐릭터 분석");
-        assertThat(loaded.getGoal()).isEqualTo("목표");
-        assertThat(loaded.getBlockageDetail()).isNull();
-        assertThat(jdbc.queryForObject("SELECT status FROM practice_sessions WHERE id = ?",
-                String.class, id)).isEqualTo("analyzing");
-    }
-
-    @Test
-    @Transactional
     @DisplayName("Persistable 구현 덕분에 신규 INSERT 앞에 SELECT 가 붙지 않는다 (apps/api/CONTRACT.md §5-3-2)")
     void newEntityDoesNotSelectBeforeInsert() {
         RecordingInspector.STATEMENTS.clear();
@@ -342,12 +305,11 @@ class EntityMappingIT {
 
     @Test
     @Transactional
-    @DisplayName("앱 생성 UUID 활성 엔티티 24종의 실제 Spring Data save()가 INSERT 전 SELECT를 내지 않는다")
+    @DisplayName("앱 생성 UUID 활성 엔티티 21종의 실제 Spring Data save()가 INSERT 전 SELECT를 내지 않는다")
     void allActiveAppGeneratedIdsUsePersistOnSave() {
         RecordingInspector.STATEMENTS.clear();
         UUID userId=UUID.randomUUID(), documentId=UUID.randomUUID();
         UUID uploadId=UUID.randomUUID(), practiceId=UUID.randomUUID(), summaryId=UUID.randomUUID();
-        UUID coachId=UUID.randomUUID(), handoffId=UUID.randomUUID();
         var object=JsonNodeFactory.instance.objectNode().put("k","v");
         var array=JsonNodeFactory.instance.arrayNode().add("v");
 
@@ -360,17 +322,12 @@ class EntityMappingIT {
         save(ActorMemoryEntryEntity.class,new ActorMemoryEntryEntity(UUID.randomUUID(),userId,
                 ActorMemoryField.GOAL,"목표",ActorMemoryAuthor.ACTOR,null));
         save(UploadIntentEntity.class,new UploadIntentEntity(uploadId,userId,UploadStatus.PENDING,"s3","key-"+userId,"video/mp4",1,java.time.Instant.now().plusSeconds(60)));
-        save(PracticeSessionEntity.class,new PracticeSessionEntity(practiceId,userId,uploadId,PracticeStatus.ANALYZING,"s","c","분석","캐릭터 분석","g"));
+        entityManager.flush();
+        insertLegacyPractice(practiceId,userId,uploadId);
         save(TranscriptEntity.class,new TranscriptEntity(UUID.randomUUID(),practiceId,0,"text"));
         save(SummaryEntity.class,new SummaryEntity(summaryId,practiceId,"model",object,array,array));
         entityManager.flush();
 
-        CoachSessionEntity coach=new CoachSessionEntity(coachId,practiceId,SessionStatus.OPEN); coach.close(CloseReason.USER_ENDED);
-        entityManager.persist(coach); entityManager.persist(new CoachTurnEntity(coachId,0,TurnRole.AI,"text")); entityManager.flush();
-        save(CoachingHandoffEntity.class,new CoachingHandoffEntity(handoffId,coachId,practiceId,"analysis",object));
-        entityManager.flush();
-        entityManager.persist(new HandoffConfirmationEntity(handoffId,true,null));
-        save(PracticeReportEntity.class,new PracticeReportEntity(UUID.randomUUID(),practiceId,"analysis",object,handoffId));
         save(ExternalOperationEntity.class,new ExternalOperationEntity(UUID.randomUUID(),practiceId,userId,UUID.randomUUID(),OperationKind.ANALYZE,OperationStatus.PENDING,"b".repeat(64)));
         entityManager.persist(new UserProfileEntity(userId,"이름",ProfileGender.UNSPECIFIED,
                 java.time.LocalDate.of(2001,3,14),ActingExperience.Y1_TO_3,ActingGoal.AUDITION));
@@ -406,7 +363,7 @@ class EntityMappingIT {
 
         List<String> statements=List.copyOf(RecordingInspector.STATEMENTS);
         assertThat(statements.stream().filter(sql->sql.startsWith("insert into "))
-                .map(sql->sql.substring("insert into ".length()).split(" ")[0]).distinct()).hasSize(31);
+                .map(sql->sql.substring("insert into ".length()).split(" ")[0]).distinct()).hasSize(25);
         assertThat(statements).noneMatch(sql->sql.stripLeading().toLowerCase().startsWith("select"));
         assertThat(jdbc.queryForObject("SELECT intent_impact FROM anomalies WHERE summary_id=?",String.class,summaryId)).isEqualTo("반전");
     }
@@ -419,8 +376,8 @@ class EntityMappingIT {
         UUID sqlNullPractice=UUID.randomUUID(),jsonNullPractice=UUID.randomUUID();
         entityManager.persist(new UserEntity(user,"json-"+user+"@example.test",UserStatus.ACTIVE)); entityManager.flush();
         jdbc.update("INSERT INTO upload_intents(id,user_id,status,storage_provider,object_key,mime_type,size_bytes,expires_at) VALUES (?,?, 'pending','s3',?,'video/mp4',1,now()), (?,?, 'pending','s3',?,'video/mp4',1,now())",sqlNullUpload,user,"json-sql-null-"+user,jsonNullUpload,user,"json-null-"+user);
-        entityManager.persist(new PracticeSessionEntity(sqlNullPractice,user,sqlNullUpload,PracticeStatus.ANALYZING,"s","c","분석","캐릭터 분석","g"));
-        entityManager.persist(new PracticeSessionEntity(jsonNullPractice,user,jsonNullUpload,PracticeStatus.ANALYZING,"s","c","분석","캐릭터 분석","g")); entityManager.flush();
+        insertLegacyPractice(sqlNullPractice,user,sqlNullUpload);
+        insertLegacyPractice(jsonNullPractice,user,jsonNullUpload);
         UUID sqlNull=UUID.randomUUID(),jsonNull=UUID.randomUUID();
         ExternalOperationEntity first = new ExternalOperationEntity(sqlNull, sqlNullPractice, user,
                 UUID.randomUUID(), OperationKind.ANALYZE, OperationStatus.PENDING, "a".repeat(64));
@@ -445,6 +402,15 @@ class EntityMappingIT {
                 .isEqualTo(JsonNodeFactory.instance.objectNode().put("scene_summary", "장면"));
         assertThat(entityManager.find(SummaryEntity.class, summaryId).getObservationsJson())
                 .isEqualTo(JsonNodeFactory.instance.arrayNode().add("관찰"));
+    }
+
+    /** 옛 연습은 매핑이 없다 — 그 행에 매달리는 활성 엔티티를 위해 SQL 로 심는다. */
+    private void insertLegacyPractice(UUID id, UUID userId, UUID uploadId) {
+        jdbc.update("""
+                INSERT INTO practice_sessions (id,user_id,upload_intent_id,status,situation,character_context,goal,
+                    blockage_kind,sub_branch)
+                VALUES (?,?,?,'analyzing','s','c','g','분석','캐릭터 분석')
+                """, id, userId, uploadId);
     }
 
     private <T> T save(Class<T> type,T entity){

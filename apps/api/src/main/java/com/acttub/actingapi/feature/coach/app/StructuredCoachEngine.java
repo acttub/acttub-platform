@@ -48,10 +48,6 @@ final class StructuredCoachEngine {
     private final CoachRecordLookup records = new CoachRecordLookup();
     private final CoachingPipeline pipeline;
 
-    StructuredCoachEngine(TextGenerator generate, FailureReporter failures, LlmTelemetry telemetry) {
-        this(generate, failures, telemetry, false);
-    }
-
     StructuredCoachEngine(TextGenerator generate, FailureReporter failures, LlmTelemetry telemetry, boolean routed) {
         this.generate = generate;
         this.failures = failures;

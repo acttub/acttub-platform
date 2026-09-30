@@ -388,11 +388,26 @@ class CoachReadsProfileIT {
     void practiceNote_nextTakeKeepsTheProposedActionDistinctFromActorDirection() throws Exception {
         UUID practice = structuredPractice();
         UUID conversation = insertConversation(practice, List.of());
-        var handoff = (com.fasterxml.jackson.databind.node.ObjectNode) StructuredJson.resource("/coaching/handoff.json");
+        var stored = (com.fasterxml.jackson.databind.node.ObjectNode) StructuredJson.resource("/coaching/handoff.json");
+        var handoff = stored.deepCopy();
+        handoff.put("schema_version", "acttub.coach_handoff.v2");
+        var context = (com.fasterxml.jackson.databind.node.ObjectNode) stored.path("coaching_state").path("context").deepCopy();
+        context.putNull("reading");
+        handoff.set("context", context);
+        handoff.remove("coaching_state");
+        handoff.putArray("conversation").addObject().put("id", "m1").put("role", "actor")
+                .put("text", "붙잡고는 싶은데 애원하는 것처럼 보이긴 싫어.");
         var loaded = conversations.loadByConversation(user, conversation);
         var ended = loaded.session().withCoachingState("three_layers_v1", 3,
-                handoff.path("coaching_state"), "closed", "user_ended");
-        generator.enqueue("{\"title\":\"말끝\",\"summary\":null}");
+                stored.path("coaching_state"), "closed", "user_ended");
+        String instruction = "'가지 마'에서 마지막 음절을 길게 늘이지 않고 찍어보세요.";
+        generator.enqueue("""
+                {"summary":[
+                  {"source_ref":"m1","quote":"붙잡고는 싶은데 애원하는 것처럼 보이긴 싫어."},
+                  {"source_ref":"e4","quote":"마지막 음절 ‘마’의 소리가 앞선 음절들보다 길게 이어진다."}],
+                 "next_take":{"instruction":"%s",
+                   "comparison":"같은 대목에서 말끝의 길이와 원했던 말투를 비교해보세요.","basis_refs":["m1","e4"]}}
+                """.formatted(instruction));
         notes.write(loaded, new com.acttub.actingapi.feature.coach.app.CoachResult(ended,
                 new com.acttub.actingapi.feature.coach.app.CoachReply("여기까지 남길게요", "complete", handoff)),
                 3, CoachStorageFixtures.NOW);
@@ -400,7 +415,7 @@ class CoachReadsProfileIT {
         JsonNode note = successful(get("/v2/practices/{id}/note", practice).header("Authorization", bearer()));
 
         assertThat(note.path("kind").asText()).isEqualTo("action");
-        assertThat(note.path("next_take").asText()).isEqualTo("같은 대사를 말끝만 짧게 끝내서 한 번 해보세요.");
+        assertThat(note.path("next_take").asText()).isEqualTo(instruction);
         assertThat(note.path("next_take")).isNotEqualTo(note.at("/report/direction/text"));
         assertThat(note.at("/report/practice/instruction").asText()).isEqualTo(note.path("next_take").asText());
     }

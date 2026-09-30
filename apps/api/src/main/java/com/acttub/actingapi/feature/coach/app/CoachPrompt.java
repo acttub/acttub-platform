@@ -145,10 +145,6 @@ public final class CoachPrompt {
      * <p><b>없으면 칸 자체를 만들지 않는다</b> — 빈 제목만 남기면 모델이 그 자리를 지어내
      * 채운다. 첫 연습에서는 지금까지와 똑같은 프롬프트가 나가야 한다.
      */
-    static String priorContextBlock(PriorContext prior) {
-        return priorContextBlock(prior, false);
-    }
-
     static String priorContextBlock(PriorContext prior, boolean videoFirst) {
         if (prior == null || prior.isEmpty()) {
             return "";

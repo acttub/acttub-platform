@@ -80,14 +80,18 @@ Jackson 설정: `WRITE_DATES_AS_TIMESTAMPS=false`, `Instant` 또는 `OffsetDateT
 §5-2의 `EntityManager` native SQL로 구현한다. 서비스·Domain Model은 Spring Data interface,
 Schema Entity, JPA 타입을 알지 않는다.
 
-Schema Entity는 활성 영속 경로를 매핑하고 `actor_memory_entries`·`push_tokens`도
+Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블만 매핑한다. 아무 코드도 쓰지 않는 매핑을
+`ddl-auto: validate` 스키마 검증만을 위해 두지 않는다(2026-10-01 결정). `actor_memory_entries`·`push_tokens`도
 `ddl-auto: validate` 대상이다. 명시적으로 은퇴한 매핑은 아래 목록으로 한정하며,
 `EntityMappingIT`가 나머지 테이블·컬럼의 매핑과 검증 대상의 비공허성을 확인한다.
 
-- 구형 `reports`: 현재 `/v2/reports`와 연습 노트는 `practice_reports`를 사용한다.
+- 구형 `reports`: 옛 연습 노트는 `practice_reports`, 0.1.0 노트는 `coach_notes`가 갖는다.
+- 옛 연습 흐름의 여섯 테이블(`practice_sessions`·`coach_sessions`·`coach_turns`·`coaching_handoffs`·
+  `handoff_confirmations`·`practice_reports`): Java 쓰기 경로를 내렸다. 연습 데이터 이관
+  (`platform/migration`)과 호환 읽기(`PostgresLegacyPracticeReader`, 이어하기 맥락)가 native SQL로만 읽으므로
+  테이블과 값 CHECK는 그대로 둔다.
 - `summaries.observation`·`summary`·`intent_alignment`·`key_moment`·`key_dimension`:
   현재 분석 저장자와 관찰 소비자는 사용하지 않는다.
-- `practice_sessions.subtext`: 현재 입력·코칭에서 소비하지 않아 내부 전달도 종료했다.
 - `users.role`: 현재 관리자 인증은 별도 운영 토큰이며 사용자 역할 컬럼을 사용하지 않는다.
 - `community_*` 일곱 테이블(`community_categories`·`community_posts`·`community_comments`·
   `community_post_likes`·`community_anonymous_aliases`·`community_reports`·`community_blocks`):
@@ -372,9 +376,8 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 
 | 동작 | 대상 |
 |---|---|
-| **required + `null` 값을 실어 보냄** | `AuthUser.email`, `MeResponse.email`/`.profile`, `Profile` 의 `directions` 를 뺀 전 항목(0.1.0 이전 회원은 `name` 만 차 있다), `CoachTurnResponse.handoff`/`.report`, `CoachConfirmResponse.handoff`, `SourceHandoffIds.analysis`, `MemoryItem.source_practice_session_id`, `ConsentEntryDocument.current_decision`/`.decided_at`, `Portfolio.intro`, `PortfolioPhoto.url`, `PortfolioShare.slug`/`.url`, `PublicPortfolio.photo_url`/`.gender`/`.intro`, `PublicPortfolioPhoto.url`, `PublicChallengeEntry.character`/`.poster_url`, 연습 노트의 `PracticeNote*`·`PublicPracticeNote` 항목들 |
-| **optional + 조건부로 키를 추가** | `PracticeSessionDetail.summary`(status 가 `analyzed` 이고 summary 가 있을 때만), `.error_code`(`failed` 일 때만) |
-| **optional 인데 항상 포함** | `PracticeSessionStatusResponse.error_code`, `Video.purged_at`/`.playback_url`/`.playback_expires_at`/`.poster_url` |
+| **required + `null` 값을 실어 보냄** | `AuthUser.email`, `MeResponse.email`/`.profile`, `Profile` 의 `directions` 를 뺀 전 항목(0.1.0 이전 회원은 `name` 만 차 있다), `SourceHandoffIds.analysis`, `MemoryItem.source_practice_session_id`, `ConsentEntryDocument.current_decision`/`.decided_at`, `Portfolio.intro`, `PortfolioPhoto.url`, `PortfolioShare.slug`/`.url`, `PublicPortfolio.photo_url`/`.gender`/`.intro`, `PublicPortfolioPhoto.url`, `PublicChallengeEntry.character`/`.poster_url`, 연습 노트의 `PracticeNote*`·`PublicPracticeNote` 항목들 |
+| **optional 인데 항상 포함** | `Video.purged_at`/`.playback_url`/`.playback_expires_at`/`.poster_url` |
 
 같은 이름의 필드가 엔드포인트마다 다르게 동작한다. DTO 를 분리하거나 직렬화를 수동 제어한다.
 
@@ -1103,7 +1106,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - 요청·응답 DTO와 저장 스키마는 유지한다.
 - `CoachPrompt:buildChat`은 1층 관찰 팩 전체(장면 요약·전체 흐름·소리 측정값·대사 인용·불확실성)·이전 분석 입력과 현재 세션의 대화 원문 전체를 전달한다. `CoachPrompt:select`의 공통 정책이 갈래별 질문 순서보다 우선한다.
 - 막힘을 건너뛴 `그 외`의 프롬프트는 `coach-video-first-prompt.txt`다. 명시적인 분석·표현 선택의 프롬프트와 기존 analysis handoff·report 계약은 유지한다.
-- 재생성 사유는 `CoachResponsePolicy:failures`, 생성 실패 handoff의 차단은 `ReportEngine:buildReportInput`(두 갈래 모두), 내용이 확보된 답변의 판정은 `HandoffReadiness:hasEnoughAnswers` 한 곳이다.
+- 재생성 사유는 `CoachResponsePolicy:failures`, 생성 실패 handoff의 차단은 `ReportEngine:buildReportInput`(두 갈래 모두) 한 곳이다.
 - 코칭은 `TextValidator:validateCoachTurn`으로 근거 설명용 어휘를 허용한다. 다른 표면은 기존 `validateTurn`과 `scanGeneratedStrings`를 유지한다.
 
 ### 7-2. 코치 대화와 노트가 읽는 배우 프로필 (2026-09-19)
@@ -1178,13 +1181,12 @@ Docker API 버전 협상이 실패하면 소켓 접근이 가능해도 `/info`�
   | 1층 영상 기록(`GeminiVideoRecordAnalyzer`) | `coaching/video-record-prompt.txt` | `layer1_chunk` |
   | 2층 구조화 코치(`StructuredCoachEngine`) | 라우팅 끔: `coaching/coach-prompt.txt` + 첫 질문 정책 `coach/coach-opening-policy.txt`, 라우팅 켬(`CoachingPipeline`): `coaching/routes/*.txt` | 응답 `layer2_dialogue_turn`, 2→3 전달 `coach_handoff_v2` |
   | 3층 노트(`DialogueNote`) | `coaching/note-prompt.txt` | `layer3_note` |
-  | 이전 handoff의 노트(`PracticeNote`) | `coaching/note-legacy-prompt.txt` | `layer3_copy` |
   | 기존 갈래 코치(`CoachPrompt`) | `coach/coach-v2-prompt.txt`·`coach-v3-prompt.txt`·`coach-response-policy.txt`, 막힘 `그 외`는 `coach-video-first-prompt.txt` + `coach-opening-policy.txt` | — |
   | Gemini 직접 영상 코칭(`DirectVideoPrompts`) | `coaching/direct-video/*.txt`(`common`, 분류 `classifier`, 신호별 지침, 연습 루프 `practice-loop`) | — |
 - 2·3층 개정(2026-09-14): 2층 내부 출력은 `acttub.layer2_turn.v2`, 2→3 전달은 `acttub.coach_handoff.v2` 다. 공개
-  `PublicPracticeNote`와 저장 노트 v1의 필드는 유지하고, v1 handoff는 이전 프롬프트로 처리한다.
-- 새 계약의 검증은 모델 출력·참조 검증과 레코드 조회, 조립, 상태 전이의 단위 테스트에 더해 `CoachSessionRepositoryIT`에서
-  새 필드의 원자적 저장과 충돌을 확인한다.
+  `PublicPracticeNote`와 저장 노트 v1의 필드는 유지한다. v1 handoff를 만드는 경로가 없어 노트는 v2 handoff에서만 조립한다.
+- 새 계약의 검증은 모델 출력·참조 검증과 레코드 조회, 조립, 상태 전이의 단위 테스트에 더해 `CoachConversationIT`에서
+  대화 상태의 원자적 저장과 낡은 revision 충돌을 확인한다.
 
 ### 8-6. 코드에서 선택하는 네 가지 코칭 프롬프트
 

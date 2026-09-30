@@ -41,8 +41,7 @@ public interface MemoryUpdateQueue {
      * 외부 호출은 이 콜백 전에 끝내야 하며, 저장 또는 완료 실패 시 전체를 롤백한다.
      * 다음 재시도는 저장된 본문을 받는다.
      *
-     * <p>본문을 만드는 것은 <b>부르는 쪽</b>이다 — {@code coach/app/CoachOperationLedger}·
-     * {@code report/app/ReportOperationLedger} 와 같은 형태다. 그 바이트가 곧 계약이라
+     * <p>본문을 만드는 것은 <b>부르는 쪽</b>이다. 그 바이트가 곧 계약이라
      * 조립을 원장으로 넘기면 계약이 도메인 밖으로 나간다.
      *
      * @throws LeaseOwnershipException 리스를 이미 다른 워커가 재선점했다

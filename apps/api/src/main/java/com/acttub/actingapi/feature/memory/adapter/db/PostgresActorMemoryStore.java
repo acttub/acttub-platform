@@ -406,8 +406,11 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
                 row.get("updated_at", Instant.class));
     }
 
-    /** RFC 4122 v5 (SHA-1). 같은 회차가 언제나 같은 요청 id 를 갖는다. */
-    private static UUID uuid5(UUID namespace, String name) {
+    /**
+     * RFC 4122 v5 (SHA-1). 같은 회차가 언제나 같은 요청 id 를 갖는다. {@code UUID.nameUUIDFromBytes} 는
+     * v3(MD5)라 쓰지 않는다.
+     */
+    static UUID uuid5(UUID namespace, String name) {
         byte[] nameBytes = name.getBytes(StandardCharsets.UTF_8);
         ByteBuffer buffer = ByteBuffer.allocate(16 + nameBytes.length);
         buffer.putLong(namespace.getMostSignificantBits());

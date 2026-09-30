@@ -1,22 +1,16 @@
 package com.acttub.actingapi.feature.practice.adapter.db;
 
 import java.time.Instant;
-import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.practice.app.PracticeOwnership;
 import com.acttub.actingapi.feature.practice.app.PracticeSessionRepository;
-import com.acttub.actingapi.feature.practice.domain.AnalysisStatus;
-import com.acttub.actingapi.feature.practice.domain.Observation;
 import com.acttub.actingapi.feature.practice.domain.ObservationPack;
 import com.acttub.actingapi.feature.practice.domain.PracticeSession;
 import com.acttub.actingapi.feature.practice.domain.SessionDetail;
-import com.acttub.actingapi.feature.practice.domain.VideoRecordSummary;
 import com.acttub.actingapi.integration.observation.VideoRecord;
-import com.acttub.actingapi.feature.practice.schema.PracticeSessionEntity;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
 import com.acttub.actingapi.integration.observation.StoredObservationPack;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -25,89 +19,19 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
-import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 기본 세션 읽기는 Spring Data로, 복합 projection·조건부 상태 전이는 native SQL로 구현한다.
+ * 옛 {@code practice_sessions} 한 건을 native SQL projection 으로 읽는다.
  * JSONB를 도메인 타입으로 옮기는 일은 Jackson을 아는 이 Adapter에 남는다.
  */
 @Repository
 class PostgresPracticeSessionRepository implements PracticeSessionRepository, PracticeOwnership {
-    private final PracticeSessionJpaRepository sessions;
     private final EntityManager entityManager;
     private final ObjectMapper mapper;
-    private final TransactionTemplate transaction;
 
-    PostgresPracticeSessionRepository(
-            PracticeSessionJpaRepository sessions,
-            EntityManager entityManager,
-            ObjectMapper mapper,
-            PlatformTransactionManager transactionManager) {
-        this.sessions = sessions;
+    PostgresPracticeSessionRepository(EntityManager entityManager, ObjectMapper mapper) {
         this.entityManager = entityManager;
         this.mapper = mapper;
-        this.transaction = new TransactionTemplate(transactionManager);
-        this.transaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
-    }
-
-    @Override
-    public boolean uploadExists(UUID userId, UUID uploadId) {
-        return !NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT id AS id
-                FROM upload_intents
-                WHERE id = :uploadId AND user_id = :userId
-                """, Tuple.class)
-                .setParameter("uploadId", uploadId)
-                .setParameter("userId", userId)).isEmpty();
-    }
-
-    @Override
-    public PracticeSession find(UUID userId, UUID sessionId) {
-        return sessions.findByIdAndUserIdAndHiddenAtIsNull(sessionId, userId)
-                .map(PostgresPracticeSessionRepository::session)
-                .orElse(null);
-    }
-
-    @Override
-    public List<PracticeSession> list(UUID userId) {
-        return sessions.findByUserIdAndHiddenAtIsNullOrderByCreatedAtDescIdDesc(userId)
-                .stream()
-                .map(PostgresPracticeSessionRepository::session)
-                .toList();
-    }
-
-    @Override
-    public UUID parentOf(UUID userId, UUID sessionId) {
-        return sessions.findParent(userId, sessionId).orElse(null);
-    }
-
-    @Override
-    public AnalysisStatus status(UUID userId, UUID sessionId) {
-        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT ps.status,
-                    CASE WHEN ps.status = 'failed' THEN (
-                        SELECT eo.error_code
-                        FROM external_operations eo
-                        WHERE eo.session_id = ps.id
-                          AND eo.kind = 'analyze'
-                        ORDER BY eo.created_at DESC, eo.id DESC
-                        LIMIT 1
-                    ) END AS error_code
-                FROM practice_sessions ps
-                WHERE ps.id = :sessionId
-                  AND ps.user_id = :userId
-                  AND ps.hidden_at IS NULL
-                """, Tuple.class)
-                .setParameter("sessionId", sessionId)
-                .setParameter("userId", userId));
-        if (rows.isEmpty()) {
-            return null;
-        }
-        Tuple row = rows.getFirst();
-        return new AnalysisStatus(
-                row.get("status", String.class), row.get("error_code", String.class));
     }
 
     @Override
@@ -152,9 +76,9 @@ class PostgresPracticeSessionRepository implements PracticeSessionRepository, Pr
     /**
      * 분석·대화·노트는 연습 행에 매달려 함께 따라간다.
      *
-     * <p>⚠ <b>이 클래스의 {@code transaction} 을 쓰지 않는다.</b> 그것은 {@code REQUIRES_NEW} 라 여기서 쓰면
-     * 이관의 트랜잭션과 따로 커밋돼, 이관이 도중에 실패해도 연습만 회원에게 넘어간 채로 남는다. 트랜잭션을
-     * 열지 않으므로 부르는 쪽에 없으면 {@code executeUpdate} 가 거절한다.
+     * <p>⚠ <b>트랜잭션을 따로 열지 않는다.</b> {@code REQUIRES_NEW} 로 열면 이관의 트랜잭션과 따로 커밋돼,
+     * 이관이 도중에 실패해도 연습만 회원에게 넘어간 채로 남는다. 부르는 쪽에 트랜잭션이 없으면
+     * {@code executeUpdate} 가 거절한다.
      */
     @Override
     public void reassign(UUID from, UUID to) {
@@ -167,93 +91,6 @@ class PostgresPracticeSessionRepository implements PracticeSessionRepository, Pr
                     .setParameter("from", from)
                     .executeUpdate();
         }
-    }
-
-    @Override
-    public boolean hide(UUID userId, UUID sessionId, OffsetDateTime now) {
-        return Boolean.TRUE.equals(transaction.execute(status ->
-                entityManager.createNativeQuery("""
-                        UPDATE practice_sessions
-                        SET hidden_at = :now, updated_at = :now
-                        WHERE id = :sessionId
-                          AND user_id = :userId
-                          AND hidden_at IS NULL
-                        """)
-                        .setParameter("now", now)
-                        .setParameter("sessionId", sessionId)
-                        .setParameter("userId", userId)
-                        .executeUpdate() > 0));
-    }
-
-    @Override
-    public boolean resumeFailedOperation(UUID userId, UUID operationId, OffsetDateTime now) {
-        return Boolean.TRUE.equals(transaction.execute(status -> {
-            List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
-                    SELECT eo.session_id AS session_id
-                    FROM external_operations eo
-                    WHERE eo.id = :operationId
-                      AND eo.user_id = :userId
-                      AND eo.kind = 'analyze'
-                      AND eo.status = 'failed'
-                      AND eo.attempt_count < 3
-                      AND eo.lease_token IS NULL
-                    FOR UPDATE
-                    """, Tuple.class)
-                    .setParameter("operationId", operationId)
-                    .setParameter("userId", userId));
-            if (rows.isEmpty()) {
-                return false;
-            }
-            UUID sessionId = rows.getFirst().get("session_id", UUID.class);
-            int session = entityManager.createNativeQuery("""
-                    UPDATE practice_sessions
-                    SET status = 'analyzing', updated_at = :now
-                    WHERE id = :sessionId
-                      AND user_id = :userId
-                      AND hidden_at IS NULL
-                      AND status = 'failed'
-                    """)
-                    .setParameter("now", now)
-                    .setParameter("sessionId", sessionId)
-                    .setParameter("userId", userId)
-                    .executeUpdate();
-            if (session == 0) {
-                return false;
-            }
-            entityManager.createNativeQuery("""
-                    UPDATE external_operations
-                    SET status = 'pending',
-                        waiting_since = CURRENT_TIMESTAMP,
-                        execution_started_at = NULL,
-                        monitoring_updated_at = :now,
-                        monitoring_lease_token = NULL,
-                        error_code = NULL,
-                        response_payload = 'null'::jsonb,
-                        updated_at = :now
-                    WHERE id = :operationId
-                    """)
-                    .setParameter("now", now)
-                    .setParameter("operationId", operationId)
-                    .executeUpdate();
-            return true;
-        }));
-    }
-
-    private static PracticeSession session(PracticeSessionEntity entity) {
-        return new PracticeSession(
-                entity.getId(),
-                entity.getUserId(),
-                entity.getUploadIntentId(),
-                entity.getStatus().dbValue(),
-                entity.getSituation(),
-                entity.getCharacterContext(),
-                entity.getGoal(),
-                entity.getBlockageKind(),
-                entity.getSubBranch(),
-                entity.getBlockageDetail(),
-                entity.getContinuedFrom(),
-                entity.getCreatedAt().atOffset(ZoneOffset.UTC),
-                entity.getUpdatedAt().atOffset(ZoneOffset.UTC), entity.getExperienceVersion());
     }
 
     private static PracticeSession session(Tuple row) {

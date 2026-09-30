@@ -8,7 +8,6 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.coach.domain.CoachHelpIntent;
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
-import com.acttub.actingapi.feature.coach.domain.HandoffReadiness;
 import com.acttub.actingapi.feature.report.app.ReportEngine;
 import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.integration.llm.TextGenerator;
@@ -99,18 +98,12 @@ class CoachResponsePolicyTest {
     }
 
     @Test
-    void helpShortcutsDontBecomeReportEvidenceButSpecificAnswersStillCount() {
-        List<CoachTurnSnapshot> turns = new ArrayList<>(List.of(actor("막힘 상세")));
+    void helpShortcutsAreRecognizedAsHelpOnly() {
         for (String help : List.of("잘 모르겠어요!", "I’m not sure.", "예시로 설명해 주세요.",
                 "제가 되물을게요", "지금은 연습하기 어려워요. 다음에 해볼 방법을 설명해 주세요.",
                 "I can’t practice now. Please explain what I can try later.")) {
             assertThat(CoachHelpIntent.isHelpOnly(help)).as(help).isTrue();
-            turns.add(actor(help));
         }
-        assertThat(HandoffReadiness.hasEnoughAnswers(turns)).isFalse();
-        turns.add(actor("내일 만날 수 있을지 모르겠어요"));
-        turns.add(actor("그래도 다시 만나고 싶다는 뜻이에요"));
-        assertThat(HandoffReadiness.hasEnoughAnswers(turns)).isTrue();
     }
 
     @Test

@@ -28,7 +28,7 @@ class DirectVideoCoachTest {
     final RecordingLlmTelemetry telemetry = new RecordingLlmTelemetry();
     final DirectVideoModel.Video file = new DirectVideoModel.Video("files/test", "gemini://test", "video/mp4");
     final List<Path> temporary = new ArrayList<>();
-    final DirectVideoCoach direct = new DirectVideoCoach(model, videos, storage, failures, telemetry);
+    final DirectVideoCoach direct = new DirectVideoCoach(model, videos, storage, failures, telemetry, false);
     final CoachEngine engine = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(direct));
 
     DirectVideoCoachTest() {

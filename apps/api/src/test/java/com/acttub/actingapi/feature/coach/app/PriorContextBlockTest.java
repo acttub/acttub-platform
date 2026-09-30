@@ -20,7 +20,7 @@ class PriorContextBlockTest {
         PriorContext prior = new PriorContext(
                 Map.of("goal", "입시 합격"), null, true, List.of(), List.of());
 
-        String block = CoachPrompt.priorContextBlock(prior);
+        String block = CoachPrompt.priorContextBlock(prior, false);
 
         assertThat(block)
                 .contains("배우가 말한 목표: 입시 합격")
@@ -31,7 +31,7 @@ class PriorContextBlockTest {
     @Test
     @DisplayName("지난 것이 하나도 없으면 블록 자체가 없다 — 빈 제목은 지어냄을 부른다")
     void emptyPriorMakesNoBlock() {
-        assertThat(CoachPrompt.priorContextBlock(PriorContext.EMPTY)).isEmpty();
+        assertThat(CoachPrompt.priorContextBlock(PriorContext.EMPTY, false)).isEmpty();
     }
 
     /**
