@@ -1283,6 +1283,13 @@ function WorkspaceInner() {
   const toggleRail = useCallback(() => setRailOpen((v) => !v), []);
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
   const reselectVideo = useCallback(() => fileInputRef.current?.click(), []);
+  // 아래 둘도 memo 한 SessionRail·VideoBox 로 간다. 인라인 함수로 넘기면 분석 진행률이
+  // 1초마다 다시 그릴 때 memo 가 매번 풀린다.
+  const toggleRecent = useCallback(() => setRecentOnly((on) => (on ? null : new Date())), []);
+  const reportVideoDuration = useCallback(
+    (durationMs: number) => reportProgress({ type: "duration", videoDurationMs: durationMs }),
+    [reportProgress],
+  );
 
   const questionCount = messages.filter((message) => message.role === "ai").length;
   const visibleScene = {
@@ -1301,7 +1308,7 @@ function WorkspaceInner() {
       finished={finished}
       activeId={activeId}
       recentOnly={recentOnly !== null}
-      onToggleRecent={() => setRecentOnly((on) => (on ? null : new Date()))}
+      onToggleRecent={toggleRecent}
       listError={hasSession && listError}
       canTransfer={hasSession}
     />
@@ -1331,7 +1338,7 @@ function WorkspaceInner() {
               finished={finished}
               activeId={activeId}
               recentOnly={recentOnly !== null}
-              onToggleRecent={() => setRecentOnly((on) => (on ? null : new Date()))}
+              onToggleRecent={toggleRecent}
               listError={hasSession && listError}
               canTransfer={hasSession}
             />
@@ -1539,9 +1546,7 @@ function WorkspaceInner() {
                 <VideoBox
                   src={body.video.src}
                   caption={body.video.caption}
-                  onDuration={(durationMs) =>
-                    reportProgress({ type: "duration", videoDurationMs: durationMs })
-                  }
+                  onDuration={reportVideoDuration}
                   onReselect={body.video.reselectable ? reselectVideo : undefined}
                 />
               ) : body.video.kind === "upload-zone" ? (
