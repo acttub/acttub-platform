@@ -123,7 +123,6 @@ export function SelectCard({
   title,
   sub,
   icon,
-  className = "",
   compact = false,
 }: {
   selected: boolean;
@@ -131,7 +130,6 @@ export function SelectCard({
   title: string;
   sub?: string;
   icon?: IconName;
-  className?: string;
   /** 한 줄 배치 — 배역처럼 항목이 많아 격자에 놓을 때. 이름은 꺾이지 않고 넘치면 말줄임. */
   compact?: boolean;
 }) {
@@ -142,7 +140,7 @@ export function SelectCard({
         onClick={onClick}
         className={`min-w-0 flex items-center gap-2 text-left rounded-[14px] px-3.5 py-3 border transition-colors ${
           selected ? "bg-blue-soft border-blue border-[1.5px]" : "bg-surface border-line active:bg-gray-bg-2"
-        } ${className}`}
+        }`}
       >
         <span className={`script-text min-w-0 flex-1 truncate text-[15px] font-black [word-break:keep-all] ${selected ? "text-blue" : "text-ink"}`}>{title}</span>
         {sub && <span className={`shrink-0 text-[12px] ${selected ? "text-blue-dark" : "text-ink-4"}`}>{sub}</span>}
@@ -156,7 +154,7 @@ export function SelectCard({
       onClick={onClick}
       className={`flex-1 text-left rounded-[14px] px-3.5 py-3 border transition-colors ${
         selected ? "bg-blue-soft border-blue border-[1.5px]" : "bg-surface border-line active:bg-gray-bg-2"
-      } ${className}`}
+      }`}
     >
       {icon && <Icon name={icon} size={20} className={`mb-1.5 ${selected ? "text-blue" : "text-ink-3"}`} />}
       <span className="flex items-center justify-between">
@@ -168,12 +166,12 @@ export function SelectCard({
   );
 }
 
-export function StatusPill({ label, tone = "blue", dot = true }: { label: string; tone?: "blue" | "warn" | "neutral"; dot?: boolean }) {
+export function StatusPill({ label, tone = "blue" }: { label: string; tone?: "blue" | "warn" | "neutral" }) {
   const cls = tone === "blue" ? "bg-blue-soft text-blue" : tone === "warn" ? "bg-warn-bg text-warn" : "bg-gray-bg text-ink-3";
   const dotCls = tone === "blue" ? "bg-blue" : tone === "warn" ? "bg-warn" : "bg-ink-5";
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-extrabold ${cls}`}>
-      {dot && <span className={`w-1.5 h-1.5 rounded-full ${dotCls}`} />}
+      <span className={`w-1.5 h-1.5 rounded-full ${dotCls}`} />
       {label}
     </span>
   );
@@ -197,8 +195,7 @@ export type IconName =
   | "mic"
   | "volume"
   | "eye-off"
-  | "timer"
-  | "book";
+  | "timer";
 
 const PATHS: Record<IconName, string> = {
   "chevron-left": "m15 18-6-6 6-6",
@@ -214,7 +211,6 @@ const PATHS: Record<IconName, string> = {
   volume: "M11 5 6 9H2v6h4l5 4V5ZM15.5 8.5a5 5 0 0 1 0 7M19 5a9 9 0 0 1 0 14",
   "eye-off": "M9.9 4.2A10 10 0 0 1 12 4c7 0 10 8 10 8a17 17 0 0 1-3 4M6.6 6.6A16 16 0 0 0 2 12s3 8 10 8a10 10 0 0 0 5.4-1.6M2 2l20 20M9.9 9.9a3 3 0 0 0 4.2 4.2",
   timer: "M10 2h4M12 14l3-3M12 22a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z",
-  book: "M4 19.5A2.5 2.5 0 0 1 6.5 17H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15ZM4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5M8 7h8M8 11h6",
 };
 
 export function Icon({ name, size = 20, className = "" }: { name: IconName; size?: number; className?: string }) {

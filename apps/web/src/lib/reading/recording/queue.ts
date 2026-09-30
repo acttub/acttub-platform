@@ -152,7 +152,7 @@ export function createRecordingQueue(deps: {
 }
 
 /** 줄마다 시도 번호. 저장된 회차의 녹음(attempt_no)에서 이어 센다. */
-export function attemptCounter(existing: Pick<SessionRecording, "line_id" | "attempt_no">[]): { next(lineId: string): number; current(lineId: string): number } {
+export function attemptCounter(existing: Pick<SessionRecording, "line_id" | "attempt_no">[]): { next(lineId: string): number } {
   const last = new Map<string, number>();
   for (const r of existing) last.set(r.line_id, Math.max(last.get(r.line_id) ?? 0, r.attempt_no));
   return {
@@ -161,7 +161,6 @@ export function attemptCounter(existing: Pick<SessionRecording, "line_id" | "att
       last.set(lineId, n);
       return n;
     },
-    current: (lineId) => last.get(lineId) ?? 0,
   };
 }
 
