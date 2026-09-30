@@ -1,7 +1,6 @@
 package com.acttub.actingapi.feature.challenge.adapter.db;
 
 import java.time.Instant;
-import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -10,6 +9,7 @@ import java.util.Set;
 import java.util.UUID;
 import com.acttub.actingapi.feature.challenge.app.AiReportRepository;
 import com.acttub.actingapi.feature.challenge.domain.ChallengeReportRules;
+import com.acttub.actingapi.feature.challenge.domain.ChallengeRules;
 import com.acttub.actingapi.platform.ledger.AiJobLedger;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
 import com.acttub.actingapi.platform.web.ApiException;
@@ -28,7 +28,6 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Repository
 class PostgresAiReportRepository implements AiReportRepository {
-    private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private static final String KIND = com.acttub.actingapi.platform.schema.AiJobKind.CHALLENGE_REPORT.dbValue();
     private final EntityManager em;
     private final EntryLocks locks;
@@ -68,7 +67,7 @@ class PostgresAiReportRepository implements AiReportRepository {
         if (!existing.isEmpty() && !"failed".equals(existing.getFirst().get("status", String.class))) {
             return new Requested(find(owner, entryId), false);
         }
-        Instant midnight = now.atZone(SEOUL).toLocalDate().atStartOfDay(SEOUL).toInstant();
+        Instant midnight = ChallengeRules.koreanMidnight(now);
         long today = ((Number) em.createNativeQuery(
                 "SELECT count(*) FROM ai_jobs WHERE user_id=:owner AND kind='challenge_report' AND created_at>=:since")
                 .setParameter("owner", owner).setParameter("since", midnight.atOffset(ZoneOffset.UTC)).getSingleResult()).longValue();

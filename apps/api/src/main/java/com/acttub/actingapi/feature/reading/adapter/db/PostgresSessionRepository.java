@@ -1,9 +1,11 @@
 package com.acttub.actingapi.feature.reading.adapter.db;
 
+import static com.acttub.actingapi.feature.reading.adapter.db.JoinedColumn.SEPARATOR;
+import static com.acttub.actingapi.feature.reading.adapter.db.JoinedColumn.split;
+
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -47,8 +49,6 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @Repository
 class PostgresSessionRepository implements SessionRepository {
-    /** 이름·id 목록을 한 칸에 이어 붙일 때 쓰는 구분자. 이름에 나올 수 없는 제어 문자다. */
-    private static final String SEPARATOR = "\u001f";
     private static final TypeReference<List<StoredLineResult>> LINE_RESULTS = new TypeReference<>() { };
 
     private final EntityManager entityManager;
@@ -440,9 +440,6 @@ class PostgresSessionRepository implements SessionRepository {
         return split(joined).stream().map(UUID::fromString).toList();
     }
 
-    private static List<String> split(String joined) {
-        return joined == null || joined.isEmpty() ? List.of() : Arrays.asList(joined.split(SEPARATOR, -1));
-    }
 
     private static String uuidArray(List<UUID> ids) {
         return "{" + String.join(",", ids.stream().map(UUID::toString).toList()) + "}";

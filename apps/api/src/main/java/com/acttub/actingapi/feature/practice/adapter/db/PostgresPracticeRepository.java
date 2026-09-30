@@ -285,18 +285,15 @@ class PostgresPracticeRepository implements PracticeRepository {
         }
         List<GroupView> groups = new ArrayList<>();
         byRoot.forEach((rootId, rows) -> {
-            List<PracticeView> practices = rows.stream().map(PostgresPracticeRepository::view).toList();
             Tuple first = rows.getFirst();
-            groups.add(new GroupView(
+            groups.add(groupView(
                     rootId,
                     first.get("group_title", String.class),
-                    practices.size(),
                     first.get("last_conversation_at", Instant.class),
-                    tags(first.get("group_tags", String.class)),
+                    first.get("group_tags", String.class),
                     first.get("group_favorite", Boolean.class),
                     first.get("group_hidden_at", Instant.class),
-                    practices.stream().filter(p -> !"closed".equals(p.stage())).map(PracticeView::id).findFirst().orElse(null),
-                    practices));
+                    rows));
         });
         return List.copyOf(groups);
     }
@@ -391,15 +388,28 @@ class PostgresPracticeRepository implements PracticeRepository {
                 """, Tuple.class)
                 .setParameter("rootId", rootId));
         Tuple root = rootRow.getFirst();
+        return groupView(
+                rootId,
+                root.get("title", String.class),
+                root.get("last_conversation_at", Instant.class),
+                root.get("tags", String.class),
+                root.get("favorite", Boolean.class),
+                root.get("hidden_at", Instant.class),
+                rows);
+    }
+
+    /** 묶음 속성과 그 회차 행들로 묶음 하나를 짓는다. 진행 중 회차는 닫히지 않은 첫 회차다. */
+    private static GroupView groupView(UUID rootId, String title, Instant lastConversationAt, String tags,
+                                       Boolean favorite, Instant hiddenAt, List<Tuple> rows) {
         List<PracticeView> practices = rows.stream().map(PostgresPracticeRepository::view).toList();
         return new GroupView(
                 rootId,
-                root.get("title", String.class),
+                title,
                 practices.size(),
-                root.get("last_conversation_at", Instant.class),
-                tags(root.get("tags", String.class)),
-                root.get("favorite", Boolean.class),
-                root.get("hidden_at", Instant.class),
+                lastConversationAt,
+                tags(tags),
+                favorite,
+                hiddenAt,
                 practices.stream().filter(p -> !"closed".equals(p.stage())).map(PracticeView::id).findFirst().orElse(null),
                 practices);
     }

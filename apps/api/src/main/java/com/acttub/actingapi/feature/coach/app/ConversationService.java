@@ -16,6 +16,7 @@ import com.acttub.actingapi.feature.coach.domain.CoachBranch;
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
+import com.acttub.actingapi.platform.schema.ExperienceVersion;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.Hashing;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -255,7 +256,8 @@ public class ConversationService {
     }
 
     public static int replyLimit(String experienceVersion) {
-        return "three_layers_v1".equals(experienceVersion) ? THREE_LAYERS_REPLY_LIMIT : LEGACY_REPLY_LIMIT;
+        return ExperienceVersion.THREE_LAYERS_V1.dbValue().equals(experienceVersion)
+                ? THREE_LAYERS_REPLY_LIMIT : LEGACY_REPLY_LIMIT;
     }
 
     /** 상한에 닿아 끝났는지, 배우가 마쳤는지. 엔진이 사유를 주지 않으면 소진으로 본다. */
