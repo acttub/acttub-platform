@@ -123,7 +123,9 @@ class EntityMappingIT {
             // 조회수 사건·좋아요순 커서(V18)는 참여작 저장소의 native SQL 만 쓰는 장부다.
             "entry_view_events", "entry_ranking_snapshots",
             // 노트 평가(V22)는 코치 저장소의 native SQL(upsert·잠금)만 읽고 쓴다.
-            "note_ratings");
+            "note_ratings",
+            // 가입 유입 광고(V26, SOMA-588)는 프로필 저장소의 native SQL(처음 한 번 적기·탈퇴 파기)만 쓴다.
+            "user_signup_attributions");
 
     @Test
     @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 45개 활성 엔티티를 포함한다")
