@@ -14,12 +14,14 @@ import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.PhotoUploadR
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.PhotoUploadResponse;
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.ProfilePayload;
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.ProfileRequest;
+import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.SignupAttributionRequest;
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.WithdrawnResponse;
 import com.acttub.actingapi.feature.profile.app.ProfileService;
 import com.acttub.actingapi.feature.profile.domain.Account;
 import com.acttub.actingapi.feature.profile.domain.NotificationSettings;
 import com.acttub.actingapi.feature.profile.domain.Profile;
 import com.acttub.actingapi.feature.profile.domain.ProfileName;
+import com.acttub.actingapi.feature.profile.domain.SignupAttribution;
 import com.acttub.actingapi.platform.security.AccessGate;
 import com.acttub.actingapi.platform.web.ApiValidationException;
 import io.swagger.v3.oas.annotations.Operation;
@@ -115,6 +117,30 @@ class ProfileController {
                 body.goal().name(),
                 null,
                 bio)));
+    }
+
+    @Operation(
+            summary = "Record Signup Attribution",
+            description = """
+                    이 기기에서 새로 가입한 계정의 유입 광고(Airbridge 설치 귀속 결과)를 적는다. 계정마다 처음 온
+                    값만 남고, 다시 보내도 바꾸지 않은 채 204 다 — 재시도에 안전하다. 보호 기능이라 동의와 프로필이
+                    끝난 회원만 부를 수 있다. 게스트는 403 member_only.""",
+            operationId = "record_signup_attribution_v2_me_signup_attribution_put",
+            tags = "v2-me",
+            security = @SecurityRequirement(name = "HTTPBearer"))
+    @ApiResponses({
+        @ApiResponse(responseCode = "204", description = "Successful Response"),
+        @ApiResponse(
+                responseCode = "422",
+                description = "Validation Error",
+                content = @Content(schema = @Schema(ref = "#/components/schemas/HTTPValidationError")))
+    })
+    @PutMapping("/signup-attribution")
+    ResponseEntity<Void> recordSignupAttribution(
+            @Valid @RequestBody SignupAttributionRequest body, HttpServletRequest request) {
+        var user = auth.gatedUser(request);
+        profiles.recordSignupAttribution(user.id(), signupAttribution(body));
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(
@@ -329,5 +355,49 @@ class ProfileController {
                         profile.goal(),
                         view.photoUrl(),
                         profile.bio()));
+    }
+
+    private static SignupAttribution signupAttribution(SignupAttributionRequest body) {
+        if (!SignupAttribution.SOURCES.contains(body.source())) {
+            throw ApiValidationException.valueError(
+                    List.of("body", "source"), "source must be one of: airbridge", body.source());
+        }
+        if (!SignupAttribution.PLATFORMS.contains(body.platform())) {
+            throw ApiValidationException.valueError(
+                    List.of("body", "platform"), "platform must be one of: ios, android", body.platform());
+        }
+        String channel = attributionValue("channel", body.channel());
+        if (channel == null) {
+            throw ApiValidationException.valueError(
+                    List.of("body", "channel"), "channel must be a non-empty string", body.channel());
+        }
+        return new SignupAttribution(
+                body.source(),
+                body.platform(),
+                channel,
+                attributionValue("campaign", body.campaign()),
+                attributionValue("ad_group", body.adGroup()),
+                attributionValue("ad_creative", body.adCreative()),
+                attributionValue("content", body.content()),
+                attributionValue("term", body.term()),
+                attributionValue("sub_publisher", body.subPublisher()));
+    }
+
+    /** 앞뒤 공백을 걷고, 비었으면 {@code null}. {@link SignupAttribution#MAX_LENGTH} 를 넘으면 422 다. */
+    private static String attributionValue(String field, String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String value = raw.strip();
+        if (value.isEmpty()) {
+            return null;
+        }
+        if (value.codePointCount(0, value.length()) > SignupAttribution.MAX_LENGTH) {
+            throw ApiValidationException.valueError(
+                    List.of("body", field),
+                    field + " must be at most " + SignupAttribution.MAX_LENGTH + " characters",
+                    raw);
+        }
+        return value;
     }
 }
