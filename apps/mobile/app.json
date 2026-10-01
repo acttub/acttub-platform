@@ -134,6 +134,7 @@
         }
       ],
       "expo-audio",
+      "./plugins/with-remove-audio-foreground-service.js",
       "onnxruntime-react-native",
       "./plugins/with-ort-16kb.js",
       "./plugins/with-ort-newarch.js",
