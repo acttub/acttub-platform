@@ -1,3 +1,4 @@
+import { errorCode, errorStatus, isOfflineError } from '../api-request.ts';
 import { translate } from '../i18n.ts';
 import {
   CHALLENGE_DURATIONS,
@@ -73,23 +74,8 @@ export function buildCreateBody(requestId: string, draft: ChallengeDraft): Creat
   return body;
 }
 
-export type CreateAttempt = { requestId: string; fingerprint: string };
-
 export function fingerprintOf(body: CreateChallengeBody): string {
   return JSON.stringify([body.line, body.work, body.character ?? '', body.scene_note ?? '', body.duration_days]);
-}
-
-/**
- * 이번 시도에 쓸 요청 id. 같은 본문을 다시 보내면(이중 탭·재시도) 같은 id 라 챌린지가 하나이고,
- * 본문을 고쳐 보내면 새 id 다 — 같은 id 에 다른 본문은 422 request_fingerprint_mismatch 다.
- */
-export function attemptFor(
-  previous: CreateAttempt | null,
-  fingerprint: string,
-  makeId: () => string,
-): CreateAttempt {
-  if (previous && previous.fingerprint === fingerprint) return previous;
-  return { requestId: makeId(), fingerprint };
 }
 
 export type CreateFailure =
@@ -107,29 +93,16 @@ export type CreateFailure =
   | { kind: 'offline' }
   | { kind: 'other' };
 
-function codeOf(error: unknown): string | null {
-  if (error === null || typeof error !== 'object') return null;
-  const code = (error as { code?: unknown }).code;
-  return typeof code === 'string' ? code : null;
-}
-
-function statusOf(error: unknown): number | null {
-  if (error === null || typeof error !== 'object') return null;
-  const status = (error as { status?: unknown }).status;
-  return typeof status === 'number' ? status : null;
-}
-
 export function createFailure(error: unknown): CreateFailure {
-  const code = codeOf(error);
-  const status = statusOf(error);
+  const code = errorCode(error);
+  const status = errorStatus(error);
   if (code === 'duplicate_challenge') return { kind: 'duplicate' };
   if (code === 'invalid_duration') return { kind: 'invalid_duration' };
   if (code === 'daily_challenge_limit' || status === 429) return { kind: 'daily_limit' };
   if (code === 'request_fingerprint_mismatch') return { kind: 'fingerprint_mismatch' };
   if (code === 'member_only' || status === 403) return { kind: 'member_only' };
   if (status === 422) return { kind: 'invalid' };
-  const name = error !== null && typeof error === 'object' ? (error as { name?: unknown }).name : null;
-  if (name === 'NetworkError' || status === null || (status >= 500 && status <= 599)) return { kind: 'offline' };
+  if (isOfflineError(error)) return { kind: 'offline' };
   return { kind: 'other' };
 }
 

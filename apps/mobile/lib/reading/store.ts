@@ -12,6 +12,7 @@
  * CI mobile 잡이 무설치 node --test 라 AsyncStorage·api 는 함수 안에서 lazy require 하고, 테스트는
  * configureScriptTransport 로 가짜 서버를 넣는다.
  */
+import { newRequestId } from '../request-id.ts';
 import { LEGACY_SCRIPTS_KEY } from './legacy-migration.ts';
 import type { ScriptLine } from './parse.ts';
 import { createDraft, validateDraft, type ScriptDraft } from './script-draft.ts';
@@ -144,14 +145,6 @@ function server(): ScriptTransport {
 function storage() {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   return require('@react-native-async-storage/async-storage').default;
-}
-
-/** 요청 id(UUID). 초안마다 하나라 연결이 끊겨 다시 보내도 대본이 둘이 되지 않는다. */
-export function newRequestId(): string {
-  const cryptoApi = globalThis.crypto;
-  if (typeof cryptoApi?.randomUUID === 'function') return cryptoApi.randomUUID();
-  const part = () => Math.floor(Math.random() * 0x10000).toString(16).padStart(4, '0');
-  return `${part()}${part()}-${part()}-4${part().slice(1)}-${part()}-${part()}${part()}${part()}`;
 }
 
 // ── 기기 설정 ─────────────────────────────────────────────────────────────────

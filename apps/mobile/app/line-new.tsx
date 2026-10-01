@@ -10,7 +10,6 @@ import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import {
-  attemptFor,
   buildCreateBody,
   createFailure,
   createFailureMessage,
@@ -20,7 +19,6 @@ import {
   fingerprintOf,
   stepComplete,
   type ChallengeDraft,
-  type CreateAttempt,
 } from '@/lib/challenge/create';
 import {
   CHALLENGE_DURATIONS,
@@ -28,7 +26,7 @@ import {
   type ChallengeDuration,
 } from '@/lib/challenge/types';
 import { translate as t } from '@/lib/i18n';
-import { newRequestId } from '@/lib/request-id';
+import { attemptFor, newRequestId, type RequestAttempt } from '@/lib/request-id';
 
 /**
  * A16.2 새 대사 등록(challenge.create) — 세 단계(대사 → 작품·인물·메모 → 기간)를 한 요청으로 만든다.
@@ -45,7 +43,7 @@ export default function LineNewScreen() {
   const [draft, setDraft] = useState<ChallengeDraft>({ ...emptyChallengeDraft, line: params.line ?? '' });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const attemptRef = useRef<CreateAttempt | null>(null);
+  const attemptRef = useRef<RequestAttempt | null>(null);
   const lockRef = useRef(false);
 
   const set = (patch: Partial<ChallengeDraft>) => setDraft((d) => ({ ...d, ...patch }));

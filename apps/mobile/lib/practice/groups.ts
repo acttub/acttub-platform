@@ -116,8 +116,3 @@ export function roundSummary(round: Pick<PracticeRound, 'ordinal' | 'message_cou
   ];
   return parts.join(' · ');
 }
-
-/** 숨김이 무엇을 하는지 그대로 말한다. */
-export function hideNotice(): string {
-  return translate('history.hideNotice');
-}

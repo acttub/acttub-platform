@@ -6,7 +6,6 @@ import {
   canDeleteComment,
   canReact,
   canSendComment,
-  commentAttemptFor,
   commentAuthorName,
   commentBody,
   commentText,
@@ -15,6 +14,7 @@ import {
   optimisticSave,
   reactFailure,
 } from '../lib/challenge/react.ts';
+import { attemptFor } from '../lib/request-id.ts';
 import { COMMENT_MAX } from '../lib/challenge/types.ts';
 
 const apiError = (status, code) => Object.assign(new Error(code ?? String(status)), { status, code });
@@ -59,11 +59,11 @@ test('challenge.react: 같은 댓글의 재전송은 같은 요청 id 다 — �
   let n = 0;
   const makeId = () => `req-${(n += 1)}`;
 
-  const first = commentAttemptFor(null, '한 줄', makeId);
-  const again = commentAttemptFor(first, '한 줄', makeId);
+  const first = attemptFor(null, '한 줄', makeId);
+  const again = attemptFor(first, '한 줄', makeId);
   assert.deepEqual(again, first);
   assert.equal(n, 1);
-  assert.notEqual(commentAttemptFor(again, '다른 줄', makeId).requestId, first.requestId);
+  assert.notEqual(attemptFor(again, '다른 줄', makeId).requestId, first.requestId);
 });
 
 test('challenge.react: 탈퇴한 작성자는 "탈퇴한 사용자"로 보이고 이름 말고는 없다', () => {
