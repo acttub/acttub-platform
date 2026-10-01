@@ -9,12 +9,12 @@ import {
   GOAL_VALUES,
   DIRECTION_VALUES,
   buildProfilePayload,
+  checkBirthDate,
   formatBirthDateInput,
   initialProfileForm,
   isBioValid,
   isProfileFormComplete,
   normalizeBio,
-  parseBirthDate,
   profileGateStatus,
   profileSaveFailure,
 } from '../lib/profile-form.ts';
@@ -91,20 +91,36 @@ test('account.profile: 채우지 않은 폼은 서버에 보내지 않는다', (
   assert.throws(() => buildProfilePayload({ ...filled, goal: null }, today));
 });
 
-test('account.profile: 생년월일은 실제로 있는 지난 날짜만 받는다', () => {
-  assert.equal(parseBirthDate('2001-03-14', today), '2001-03-14');
-  assert.equal(parseBirthDate('2004-02-29', today), '2004-02-29');
-  assert.equal(parseBirthDate('2001-02-29', today), null); // 없는 날짜
-  assert.equal(parseBirthDate('2001-13-01', today), null);
-  assert.equal(parseBirthDate('2001-3-14', today), null);
-  assert.equal(parseBirthDate('20010314', today), null);
-  assert.equal(parseBirthDate('2026-09-20', today), null); // 미래
-  assert.equal(parseBirthDate('1899-12-31', today), null);
+test('account.profile: 생년월일은 실제로 있는 지난 날짜만 받고, 10자 전에는 오류로 보지 않는다', () => {
+  assert.deepEqual(checkBirthDate('2001-03-14', today), { kind: 'ok', value: '2001-03-14' });
+  assert.deepEqual(checkBirthDate('2004-02-29', today), { kind: 'ok', value: '2004-02-29' });
+  assert.deepEqual(checkBirthDate('', today), { kind: 'incomplete' });
+  assert.deepEqual(checkBirthDate('2001-03-1', today), { kind: 'incomplete' });
+  assert.deepEqual(checkBirthDate('2001-02-29', today), { kind: 'invalid' }); // 없는 날짜
+  assert.deepEqual(checkBirthDate('2001-13-01', today), { kind: 'invalid' });
+  assert.deepEqual(checkBirthDate('2001/03/14', today), { kind: 'invalid' });
+  assert.deepEqual(checkBirthDate('2026-09-20', today), { kind: 'invalid' }); // 미래
+  assert.deepEqual(checkBirthDate('1899-12-31', today), { kind: 'invalid' });
 });
 
-test('account.profile: 만 14세 미만인지는 앱이 미리 막지 않고 서버가 한국 시간으로 판정한다', () => {
-  // 오늘 기준 만 13세인 생년월일도 형식이 맞으면 제출할 수 있다. 거르는 것은 서버다.
-  assert.equal(isProfileFormComplete({ ...filled, birthDate: '2013-01-01' }, today), true);
+test('account.profile: 한국 날짜로 만 14세가 되는 날부터 받고, 그 전날까지는 막는다', () => {
+  // today는 한국 시간 2026-09-19.
+  assert.deepEqual(checkBirthDate('2012-09-19', today), { kind: 'ok', value: '2012-09-19' });
+  assert.deepEqual(checkBirthDate('2012-09-20', today), { kind: 'under_minimum' });
+  assert.deepEqual(checkBirthDate('2013-01-01', today), { kind: 'under_minimum' });
+  // 한국은 이미 9월 19일이지만 UTC로는 아직 18일인 시각.
+  const earlyKst = new Date('2026-09-19T00:30:00+09:00');
+  assert.deepEqual(checkBirthDate('2012-09-19', earlyKst), { kind: 'ok', value: '2012-09-19' });
+  // 2월 29일생은 평년의 2월 28일에는 아직 13세, 3월 1일에 14세다(서버 Period.between과 같다).
+  assert.deepEqual(checkBirthDate('2012-02-29', new Date('2026-02-28T12:00:00+09:00')), {
+    kind: 'under_minimum',
+  });
+  assert.deepEqual(checkBirthDate('2012-02-29', new Date('2026-03-01T12:00:00+09:00')), {
+    kind: 'ok',
+    value: '2012-02-29',
+  });
+  assert.equal(isProfileFormComplete({ ...filled, birthDate: '2013-01-01' }, today), false);
+  assert.throws(() => buildProfilePayload({ ...filled, birthDate: '2013-01-01' }, today));
 });
 
 test('account.profile: 생년월일 입력은 숫자만 받아 YYYY-MM-DD로 끊어 준다', () => {
