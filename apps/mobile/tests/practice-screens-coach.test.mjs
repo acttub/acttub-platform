@@ -96,6 +96,16 @@ test('practice.library: 묶음 상세는 회차 흐름과 이어서 연습하기
   assert.match(group, /kind: 'history'/);
 });
 
+test('practice.library: 묶음 상세 헤더에서 바로 숨기고 목록으로 돌아간다 — 영상은 보관함에 남는다', () => {
+  const group = read('app/practice-group.tsx');
+
+  assert.match(group, /headerRight/);
+  assert.match(group, /toggleHidden\(\{ leave: true \}\)/);
+  assert.match(group, /patchPracticeGroup\(group\.root_id, \{ hidden: hiding \}\)/);
+  assert.match(group, /router\.back\(\)/);
+  assert.match(group, /history\.hideNotice/);
+});
+
 // 한줄평·이탈 설문은 SOMA-494에서 걷고 앱 평가 요청으로 바꿨다 — 코치·노트 화면은 나갈 때 붙잡지 않는다.
 test('코치·노트는 나갈 때 설문을 띄우지 않고, 노트를 마치면 앱 평가를 묻는다', () => {
   const coach = read('app/coach.tsx');
