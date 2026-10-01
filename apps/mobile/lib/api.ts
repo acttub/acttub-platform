@@ -97,6 +97,7 @@ import type { CloudVoicePreset, CloudVoiceStatus } from '@/lib/reading/cloud-voi
 import { currentLanguage, translate } from './i18n.ts';
 
 export { ApiError, NetworkError, RequestAbortError } from '@/lib/api-request';
+import type { SignupAttributionPayload } from '@/lib/signup-attribution';
 
 /**
  * acttub v2 API (https://dev.acttub.com).
@@ -697,6 +698,18 @@ export const api = {
   },
 
   // 푸시 알림 -------------------------------------------------------------------
+  /**
+   * 이 기기에서 새로 가입한 계정의 유입 광고(Airbridge 설치 귀속)를 적는다(SOMA-588). 계정마다 처음 온 값만
+   * 남고 다시 보내도 204 다. 보내는 때는 lib/signup-attribution.ts 가 정한다.
+   */
+  recordSignupAttribution(payload: SignupAttributionPayload): Promise<void> {
+    return request<void>(
+      '/v2/me/signup-attribution',
+      { ...jsonInit(payload), method: 'PUT' },
+      { timeoutMs: 15_000 },
+    );
+  },
+
   /**
    * 이 단말의 Expo push token 을 내 것으로 등록. 서버가 토큰 기준 upsert 라 멱등하다.
    * 보호 기능이라 동의와 프로필이 끝난 뒤에만 받는다(그 전에는 403).
