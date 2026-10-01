@@ -4,12 +4,12 @@ import test from 'node:test';
 import {
   filterGroups,
   groupTitle,
-  hideNotice,
   kstDayKey,
   practiceStreak,
   recentGroups,
   roundSummary,
 } from '../lib/practice/groups.ts';
+import { translate } from '../lib/i18n.ts';
 
 const group = (over = {}) => ({
   root_id: 'root-1',
@@ -46,7 +46,7 @@ test('practice.library: 숨긴 묶음은 목록에서 빠지고 필터는 전체
   assert.deepEqual(filterGroups(groups, 'favorite', now).map((g) => g.root_id), ['a']);
   assert.deepEqual(filterGroups(groups, 'recent30', now).map((g) => g.root_id), ['a']);
   // 숨김 문구는 실제 범위를 말한다 — 영상은 보관함에 남는다.
-  assert.match(hideNotice(), /보관함/);
+  assert.match(translate('history.hideNotice'), /보관함/);
 });
 
 test('practice.library: 홈의 최근 연습은 숨기지 않은 묶음 3개다', () => {

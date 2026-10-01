@@ -3,9 +3,17 @@
  * 상태 칩은 셋뿐이다 — pen의 "분석 완료"는 리딩에 분석이 없으므로 없다.
  */
 import type { ScriptCard, ScriptCardStatus, ScriptListResponse } from './types.ts';
+import { palette } from '../../constants/palette.ts';
 import { dateLocale, translate as t } from '../i18n.ts';
 
 export type StatusChip = { label: string; tone: ScriptCardStatus };
+
+/** 칩 색. 목록 카드와 대본 상세가 같은 색을 쓴다(상세는 진행 막대에도 쓴다). */
+export const CHIP_TONE: Record<ScriptCardStatus, { color: string; bg: string }> = {
+  reading: { color: palette.blue, bg: palette.blueSoft },
+  completed: { color: palette.green, bg: palette.greenSoft },
+  no_cast: { color: palette.textDim, bg: palette.bgSoft },
+};
 
 export function listHeader(list: Pick<ScriptListResponse, 'total_count' | 'in_progress_count'>): string {
   return t('reading.listHeader', { total: list.total_count, inProgress: list.in_progress_count });
@@ -49,15 +57,14 @@ export function relativeDay(iso: string, now: number): string {
 
 /**
  * 마지막 활동 — "어제 연습", "5월 25일 업로드". 서버가 회차의 마지막 갱신 시각(last_practiced_at)을 주면
- * 연습이고, 없으면 등록(업로드)이 마지막 활동이다(RA1 계약). 옛 응답처럼 그 필드가 없으면 내 배역 유무로 본다.
+ * 연습이고, null 이면 등록(업로드)이 마지막 활동이다(RA1 계약).
  */
 export function lastActivityLabel(
-  card: Pick<ScriptCard, 'last_activity_at' | 'my_character_names'> & { last_practiced_at?: string | null },
+  card: Pick<ScriptCard, 'last_activity_at' | 'last_practiced_at'>,
   now: number = Date.now(),
 ): string {
   if (!card.last_activity_at) return '';
   const when = relativeDay(card.last_activity_at, now);
   if (!when) return '';
-  const practiced = card.last_practiced_at !== undefined ? card.last_practiced_at !== null : card.my_character_names.length > 0;
-  return practiced ? t('reading.activityPractice', { when }) : t('reading.activityUpload', { when });
+  return card.last_practiced_at !== null ? t('reading.activityPractice', { when }) : t('reading.activityUpload', { when });
 }

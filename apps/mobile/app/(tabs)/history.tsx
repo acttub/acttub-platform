@@ -9,7 +9,7 @@ import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { formatKoreanDate } from '@/lib/format';
 import { translate as t } from '@/lib/i18n';
-import { filterGroups, groupTitle, hideNotice } from '@/lib/practice/groups';
+import { filterGroups, groupTitle } from '@/lib/practice/groups';
 import type { PracticeGroup, PracticeGroupFilter } from '@/lib/practice/types';
 
 type Row = {
@@ -63,7 +63,7 @@ export default function HistoryScreen() {
   const hideGroup = async (group: PracticeGroup) => {
     const ok = await confirm({
       title: t('history.hideTitle'),
-      message: hideNotice(),
+      message: t('history.hideNotice'),
       confirmLabel: t('history.hideConfirm'),
       destructive: true,
     });

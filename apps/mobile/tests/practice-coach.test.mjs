@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { attemptFor, fingerprintOf } from '../lib/practice/start.ts';
+import { fingerprintOf } from '../lib/practice/start.ts';
+import { attemptFor } from '../lib/request-id.ts';
 import {
   COACH_END_WORD,
   answerTooLong,

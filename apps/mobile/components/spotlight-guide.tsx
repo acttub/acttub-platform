@@ -16,9 +16,7 @@ import { logEvent } from '@/lib/analytics';
 import {
   captionPlacement,
   holeOf,
-  rectStyle,
   relativeTo,
-  shroudRects,
   stepAfter,
   type SpotlightStep,
 } from '@/lib/guide-spotlight';
@@ -248,7 +246,7 @@ export function SpotlightHost() {
         </>
       ) : (
         // 아직 못 잰 자리 — 전체를 덮고 설명만 보여 준다.
-        <View style={[styles.shroud, rectStyle(shroudRects(null, screen)[0])]} />
+        <View style={[styles.shroud, { left: 0, top: 0, width: screen.width, height: screen.height }]} />
       )}
 
       <View

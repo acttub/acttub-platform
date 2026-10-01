@@ -13,30 +13,17 @@
  * 컴파일 충돌을 $RNFirebaseAsStaticFramework=true(plugins/with-rnfirebase-static)로 해결.
  * 네이티브 모듈이 없거나 초기화 실패한 환경(Expo Go·웹)은 아래 try 가드로 조용히 no-op이 된다.
  */
+import { isProductionApiUrl } from './api-env.ts';
+
 let resolved = false;
 let instance: unknown = null;
 let mod: any = null;
 
-/**
- * 운영 API를 보는 빌드에서만 이벤트를 보낸다(SOMA-439).
- * ⚠️ eas.json의 production/preview-prod 프로필 EXPO_PUBLIC_API_URL과 같은 값이어야 한다 —
- * 운영 API 주소를 바꾸면 여기도 같이 바꾼다. 안 그러면 계측이 조용히 멈춘다.
- * lib/api.ts와 같은 폴백 규칙(미설정 = dev)이라 값이 없으면 전송하지 않는다.
- */
-const PRODUCTION_API_URL = 'https://acttub.com';
-
-function isProductionApiBuild(): boolean {
-  const apiBaseUrl = (process.env.EXPO_PUBLIC_API_URL ?? 'https://dev.acttub.com')
-    .trim()
-    .replace(/\/+$/, '')
-    .toLowerCase();
-  return apiBaseUrl === PRODUCTION_API_URL;
-}
-
 function getAnalytics(): unknown {
   if (resolved) return instance;
   resolved = true;
-  if (!isProductionApiBuild()) return instance;
+  // 운영 API를 보는 빌드에서만 이벤트를 보낸다(lib/api-env.ts).
+  if (!isProductionApiUrl(process.env.EXPO_PUBLIC_API_URL)) return instance;
   try {
     mod = require('@react-native-firebase/analytics');
     const factory = mod.getAnalytics ?? mod.default;

@@ -26,6 +26,7 @@ import {
   createApiRequestClient,
   type PostIdempotentOptions,
 } from '@/lib/api-request';
+import { newRequestId } from '@/lib/request-id';
 import type { SignupDecision } from '@/lib/consent-entry-submission';
 import type { TransferRequestBody } from '@/lib/guest-transfer';
 import type { LoginRequestBody, LoginResponse } from '@/lib/login-flow';
@@ -283,11 +284,6 @@ type ReqOpts = {
   signal?: AbortSignal;
 };
 
-function randomId(): string {
-  const s = () => Math.floor(Math.random() * 0x10000).toString(16).padStart(4, '0');
-  return `${s()}${s()}-${s()}-${s()}-${s()}-${s()}${s()}${s()}`;
-}
-
 async function request<T>(
   path: string,
   init: RequestInit = {},
@@ -295,7 +291,7 @@ async function request<T>(
 ): Promise<T> {
   const headers = new Headers(init.headers);
   if (opts.requestId && !headers.has('X-Request-Id')) {
-    headers.set('X-Request-Id', randomId());
+    headers.set('X-Request-Id', newRequestId());
   }
   return requestClient.request<T>(
     path,
@@ -308,9 +304,9 @@ async function request<T>(
   );
 }
 
-function jsonInit(body: unknown): RequestInit {
+function jsonInit(body: unknown, method: 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'POST'): RequestInit {
   return {
-    method: 'POST',
+    method,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   };
@@ -396,11 +392,7 @@ export const api = {
   saveProfile(payload: ProfilePayload): Promise<MeResponse> {
     return request<MeResponse>(
       '/v2/me/profile',
-      {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      },
+      jsonInit(payload, 'PUT'),
       { timeoutMs: 15_000 },
     );
   },
@@ -448,11 +440,7 @@ export const api = {
   savePortfolioIntro(intro: string | null): Promise<Portfolio> {
     return request<Portfolio>(
       '/v2/portfolio/intro',
-      {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ intro }),
-      },
+      jsonInit({ intro }, 'PUT'),
       { timeoutMs: 20_000 },
     );
   },
@@ -471,11 +459,7 @@ export const api = {
   ): Promise<PortfolioCredit> {
     return request<PortfolioCredit>(
       `/v2/portfolio/credits/${encodeURIComponent(creditId)}`,
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(patch),
-      },
+      jsonInit(patch, 'PATCH'),
       { timeoutMs: 20_000 },
     );
   },
@@ -493,11 +477,7 @@ export const api = {
   reorderPortfolioCredits(order: { ids: string[] }): Promise<Portfolio> {
     return request<Portfolio>(
       '/v2/portfolio/credits/order',
-      {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(order),
-      },
+      jsonInit(order, 'PUT'),
       { timeoutMs: 20_000 },
     );
   },
@@ -530,11 +510,7 @@ export const api = {
   reorderPortfolioPhotos(order: { ids: string[] }): Promise<Portfolio> {
     return request<Portfolio>(
       '/v2/portfolio/photos/order',
-      {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(order),
-      },
+      jsonInit(order, 'PUT'),
       { timeoutMs: 20_000 },
     );
   },
@@ -546,11 +522,7 @@ export const api = {
   setPortfolioShare(enabled: boolean): Promise<PortfolioShare> {
     return request<PortfolioShare>(
       '/v2/portfolio/share',
-      {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled }),
-      },
+      jsonInit({ enabled }, 'PUT'),
       { timeoutMs: 20_000 },
     );
   },
@@ -584,11 +556,7 @@ export const api = {
   updateReadingScript(scriptId: string, body: PatchScriptBody): Promise<ScriptDetail> {
     return request<ScriptDetail>(
       `/v2/reading/scripts/${encodeURIComponent(scriptId)}`,
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      },
+      jsonInit(body, 'PATCH'),
       { timeoutMs: 20_000 },
     );
   },
@@ -631,11 +599,7 @@ export const api = {
   saveReadingProgress(sessionId: string, body: ProgressBody): Promise<ProgressResponse> {
     return request<ProgressResponse>(
       `/v2/reading/sessions/${encodeURIComponent(sessionId)}/progress`,
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      },
+      jsonInit(body, 'PATCH'),
       { timeoutMs: 15_000 },
     );
   },
@@ -700,11 +664,7 @@ export const api = {
   setLineMemorization(lineId: string, status: MemorizationStatus): Promise<LineMemorization> {
     return request<LineMemorization>(
       `/v2/reading/lines/${encodeURIComponent(lineId)}/memorization`,
-      {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-      },
+      jsonInit({ status }, 'PUT'),
       { timeoutMs: 15_000 },
     );
   },
@@ -731,11 +691,7 @@ export const api = {
   updateNotificationSettings(patch: Partial<NotificationSettings>): Promise<NotificationSettings> {
     return request(
       '/v2/me/notification-settings',
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(patch),
-      },
+      jsonInit(patch, 'PATCH'),
       { timeoutMs: 15_000 },
     );
   },
@@ -759,7 +715,7 @@ export const api = {
   unregisterPushToken(token: string): Promise<void> {
     return request<void>(
       '/v2/push-tokens',
-      { ...jsonInit({ token }), method: 'DELETE' },
+      jsonInit({ token }, 'DELETE'),
       { auth: false, timeoutMs: 15_000 },
     );
   },
@@ -778,11 +734,7 @@ export const api = {
   saveActorMemory(field: MemoryField, value: string): Promise<MemoryItem> {
     return request(
       `/v2/me/memory/${encodeURIComponent(field)}`,
-      {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value }),
-      },
+      jsonInit({ value }, 'PUT'),
       { timeoutMs: 15_000 },
     );
   },
@@ -838,7 +790,7 @@ export const api = {
   setVideoFavorite(videoId: string, favorite: boolean): Promise<Video> {
     return request<Video>(
       `/v2/videos/${encodeURIComponent(videoId)}`,
-      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ favorite }) },
+      jsonInit({ favorite }, 'PATCH'),
       { timeoutMs: 15_000 },
     );
   },
@@ -852,7 +804,7 @@ export const api = {
   purgeVideoFile(videoId: string): Promise<Video> {
     return request<Video>(
       `/v2/videos/${encodeURIComponent(videoId)}/purge-file`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
+      jsonInit({}),
       { timeoutMs: 20_000 },
     );
   },
@@ -974,7 +926,7 @@ export const api = {
   async patchPracticeGroup(rootId: string, patch: GroupPatch): Promise<PracticeGroupDetail> {
     const group = await request<PracticeGroupResponse>(
       `/v2/practices/${encodeURIComponent(rootId)}/group`,
-      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) },
+      jsonInit(patch, 'PATCH'),
       { timeoutMs: 20_000 },
     );
     return practiceGroupFromResponse(group);
@@ -993,7 +945,7 @@ export const api = {
   cancelPractice(practiceId: string, options: ApiCallOptions = {}): Promise<PracticeStatus> {
     return request<PracticeStatus>(
       `/v2/practices/${encodeURIComponent(practiceId)}/cancel`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
+      jsonInit({}),
       { requestId: true, timeoutMs: 20_000, signal: options.signal },
     );
   },
@@ -1003,7 +955,7 @@ export const api = {
    * 다른 진행 중 회차가 있으면 409 practice_in_progress.
    */
   retryPracticeAnalysis(practiceId: string, options: ApiCallOptions & { requestId?: string } = {}): Promise<Practice> {
-    const requestId = options.requestId ?? randomId();
+    const requestId = options.requestId ?? newRequestId();
     return postIdempotent<Practice>(
       `/v2/practices/${encodeURIComponent(practiceId)}/analyze`,
       { request_id: requestId },
@@ -1061,11 +1013,7 @@ export const api = {
   putNoteRating(practiceId: string, body: NoteRatingBody): Promise<NoteRating> {
     return request<NoteRating>(
       `/v2/practices/${encodeURIComponent(practiceId)}/note/rating`,
-      {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      },
+      jsonInit(body, 'PUT'),
       { timeoutMs: 15_000 },
     );
   },
@@ -1157,7 +1105,7 @@ export const api = {
   updateEntry(entryId: string, patch: EntryPatch): Promise<MyEntryCard> {
     return request<MyEntryCard>(
       `/v2/entries/${encodeURIComponent(entryId)}`,
-      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) },
+      jsonInit(patch, 'PATCH'),
       { timeoutMs: 20_000 },
     );
   },
@@ -1174,7 +1122,7 @@ export const api = {
   recordEntryView(entryId: string, eventId: string): Promise<void> {
     return request<void>(
       `/v2/entries/${encodeURIComponent(entryId)}/views`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId }) },
+      jsonInit({ event_id: eventId }),
       { timeoutMs: 10_000 },
     );
   },
@@ -1287,7 +1235,7 @@ export const api = {
   readNotifications(body: { group_keys?: string[]; all_before?: { created_at: string; id: string } }): Promise<void> {
     return request<void>(
       '/v2/me/notifications/read',
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
+      jsonInit(body),
       { requestId: true, timeoutMs: 15_000 },
     );
   },

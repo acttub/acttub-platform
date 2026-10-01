@@ -9,7 +9,7 @@ import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { formatKoreanDate } from '@/lib/format';
 import { translate as t } from '@/lib/i18n';
-import { groupTitle, hideNotice, roundSummary } from '@/lib/practice/groups';
+import { groupTitle, roundSummary } from '@/lib/practice/groups';
 import { orderedMessages } from '@/lib/practice/coach';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
@@ -113,7 +113,7 @@ export default function PracticeGroupScreen() {
     if (hiding) {
       const ok = await confirm({
         title: t('history.hideTitle'),
-        message: hideNotice(),
+        message: t('history.hideNotice'),
         confirmLabel: t('history.hideConfirm'),
         destructive: true,
       });
@@ -214,7 +214,7 @@ export default function PracticeGroupScreen() {
           <Pressable onPress={() => void toggleHidden()} accessibilityRole="button">
             <Text style={styles.hideLink}>{group.hidden_at ? t('history.unhide') : t('history.hideConfirm')}</Text>
           </Pressable>
-          <Text style={styles.hideNotice}>{hideNotice()}</Text>
+          <Text style={styles.hideNotice}>{t('history.hideNotice')}</Text>
         </ScrollView>
       )}
       {dialog}
