@@ -583,6 +583,17 @@ COLUMN user_profiles.photo_upload_mime_type ord=16 type=text len=- null=YES defa
 COLUMN user_profiles.photo_upload_size_bytes ord=17 type=int8 len=- null=YES default=-
 COLUMN user_profiles.updated_at ord=14 type=timestamptz len=- null=NO default=now()
 COLUMN user_profiles.user_id ord=1 type=uuid len=- null=NO default=-
+COLUMN user_signup_attributions.ad_creative ord=7 type=text len=- null=YES default=-
+COLUMN user_signup_attributions.ad_group ord=6 type=text len=- null=YES default=-
+COLUMN user_signup_attributions.campaign ord=5 type=text len=- null=YES default=-
+COLUMN user_signup_attributions.channel ord=4 type=text len=- null=NO default=-
+COLUMN user_signup_attributions.content ord=8 type=text len=- null=YES default=-
+COLUMN user_signup_attributions.platform ord=3 type=text len=- null=NO default=-
+COLUMN user_signup_attributions.recorded_at ord=11 type=timestamptz len=- null=NO default=now()
+COLUMN user_signup_attributions.source ord=2 type=text len=- null=NO default=-
+COLUMN user_signup_attributions.sub_publisher ord=10 type=text len=- null=YES default=-
+COLUMN user_signup_attributions.term ord=9 type=text len=- null=YES default=-
+COLUMN user_signup_attributions.user_id ord=1 type=uuid len=- null=NO default=-
 COLUMN users.age_confirmed_at ord=9 type=timestamptz len=- null=YES default=-
 COLUMN users.created_at ord=4 type=timestamptz len=- null=NO default=now()
 COLUMN users.deactivated_at ord=7 type=timestamptz len=- null=YES default=-
@@ -1422,6 +1433,15 @@ CONSTRAINT user_profiles user_profiles_pkey PRIMARY KEY (user_id)
 CONSTRAINT user_profiles user_profiles_updated_at_not_null NOT NULL updated_at
 CONSTRAINT user_profiles user_profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 CONSTRAINT user_profiles user_profiles_user_id_not_null NOT NULL user_id
+CONSTRAINT user_signup_attributions ck_user_signup_attributions_platform CHECK ((platform = ANY (ARRAY['ios'::text, 'android'::text])))
+CONSTRAINT user_signup_attributions ck_user_signup_attributions_source CHECK ((source = 'airbridge'::text))
+CONSTRAINT user_signup_attributions user_signup_attributions_channel_not_null NOT NULL channel
+CONSTRAINT user_signup_attributions user_signup_attributions_pkey PRIMARY KEY (user_id)
+CONSTRAINT user_signup_attributions user_signup_attributions_platform_not_null NOT NULL platform
+CONSTRAINT user_signup_attributions user_signup_attributions_recorded_at_not_null NOT NULL recorded_at
+CONSTRAINT user_signup_attributions user_signup_attributions_source_not_null NOT NULL source
+CONSTRAINT user_signup_attributions user_signup_attributions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+CONSTRAINT user_signup_attributions user_signup_attributions_user_id_not_null NOT NULL user_id
 CONSTRAINT users ck_users_role CHECK ((role = ANY (ARRAY['user'::text, 'admin'::text])))
 CONSTRAINT users ck_users_status CHECK ((status = ANY (ARRAY['active'::text, 'deactivated'::text])))
 CONSTRAINT users users_created_at_not_null NOT NULL created_at
@@ -1656,6 +1676,7 @@ INDEX CREATE UNIQUE INDEX user_consents_pkey ON public.user_consents USING btree
 INDEX CREATE UNIQUE INDEX user_identities_pkey ON public.user_identities USING btree (id)
 INDEX CREATE UNIQUE INDEX user_profile_directions_pkey ON public.user_profile_directions USING btree (id)
 INDEX CREATE UNIQUE INDEX user_profiles_pkey ON public.user_profiles USING btree (user_id)
+INDEX CREATE UNIQUE INDEX user_signup_attributions_pkey ON public.user_signup_attributions USING btree (user_id)
 INDEX CREATE UNIQUE INDEX users_email_key ON public.users USING btree (email)
 INDEX CREATE UNIQUE INDEX users_pkey ON public.users USING btree (id)
 INDEX CREATE UNIQUE INDEX ux_coaching_handoffs_session_revision ON public.coaching_handoffs USING btree (coach_session_id, state_revision) WHERE (state_revision IS NOT NULL)
@@ -1726,6 +1747,7 @@ TABLE user_consents
 TABLE user_identities
 TABLE user_profile_directions
 TABLE user_profiles
+TABLE user_signup_attributions
 TABLE users
 TABLE video_transcripts
 TABLE videos
