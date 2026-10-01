@@ -186,10 +186,26 @@ final class DirectVideoPracticeLoop {
         if (selfLine != null) quotes.addObject().put("quote", selfLine).put("kind", "actor").put("source_ref", selfRef);
         if (reason != null) quotes.addObject().put("quote", reason).put("kind", "actor").put("source_ref", reasonRef);
         String title = habit.isBlank() ? null : shorten(habit, TITLE_MAX);
+        // 마무리2의 상태 칸에 다시 정한 다음 테이크가 있으면 그것을 쓴다 — 배우가 그 버릇을 지키겠다고 했으면 설계의 "반대쪽"과 다르다.
+        String closingNext = closingNextTake(loop.path("statuses"));
+        if (!closingNext.isBlank()) next = closingNext;
         String nextTake = next.isBlank() ? null : next;
         var empty = com.acttub.actingapi.integration.llm.StructuredJson.MAPPER.createArrayNode();
         return new ConversationRepository.NewNote("v2", nextTake == null ? "observation" : "action", title, quotes,
                 nextTake, empty, empty, empty, false, sourceRevision, null);
+    }
+
+    private static final Pattern NEXT_TAKE_PREFIX = Pattern.compile("^(?:지키며|반대로)\\s*:\\s*");
+
+    /** 마지막으로 상태 칸에 적힌 다음 테이크("지키며: …", "반대로: …"). 없거나 "없음"이면 빈 문자열. */
+    static String closingNextTake(JsonNode statuses) {
+        if (statuses == null || !statuses.isArray()) return "";
+        for (int i = statuses.size() - 1; i >= 0; i--) {
+            String value = statusField(statuses.get(i).asText(""), "다음 테이크");
+            if (value.isEmpty() || value.startsWith("없음")) continue;
+            return NEXT_TAKE_PREFIX.matcher(value).replaceFirst("").strip();
+        }
+        return "";
     }
 
     /** 상태 줄에서 이번 응답이 한 일. 첫 턴(상태 없음)은 비추기다. */
@@ -213,7 +229,7 @@ final class DirectVideoPracticeLoop {
         return (space > max / 2 ? value.substring(0, space) : value.substring(0, cut)).strip() + "…";
     }
 
-    private static final Pattern HABIT_CATEGORY = Pattern.compile("소리\\s*(?:빠르기|말끝|크기|쉬는\\s*곳)|몸");
+    private static final Pattern HABIT_CATEGORY = Pattern.compile("소리\\s*(?:빠르기|말끝|크기|쉬는\\s*곳|강조)|몸");
 
     /** 설계의 버릇. 모델이 설명 대신 항목 이름("소리 빠르기")을 적었으면 그 항목 줄의 설명을 쓴다. */
     static String habit(String design) {

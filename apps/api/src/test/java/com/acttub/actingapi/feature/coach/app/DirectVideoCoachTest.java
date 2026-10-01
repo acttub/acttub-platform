@@ -208,7 +208,8 @@ class DirectVideoCoachTest {
                 .noneMatch(text -> text.contains("<설계>") || text.contains("<상태>") || text.contains("<코치>"));
 
         var histories = org.mockito.ArgumentCaptor.forClass(List.class);
-        verify(model, times(3)).reply(eq(file), histories.capture(), eq(DirectVideoPrompts.practiceLoop()));
+        verify(model, times(3)).reply(eq(file), histories.capture(),
+                eq(DirectVideoPrompts.practiceLoop(first.session().practiceSessionId())));
         verify(model, never()).classify(anyList(), anyString(), anyList());
         assertThat(histories.getAllValues().get(0)).isEmpty();
         assertThat(histories.getAllValues().get(1)).containsExactly(
@@ -233,7 +234,8 @@ class DirectVideoCoachTest {
     @Test void practiceLoopGetsWhatTheActorWroteBeforeItsPrompt() {
         var loopEngine = practiceLoopEngine();
         when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING);
-        loopEngine.start(writtenSession(), UUID.randomUUID());
+        var written = writtenSession();
+        loopEngine.start(written, UUID.randomUUID());
         verify(model).reply(eq(file), anyList(), eq("""
                 ## 배우가 적은 것
                 이번 연습을 올리며 배우가 적은 것이다. 영상 근거가 아니다.
@@ -242,7 +244,7 @@ class DirectVideoCoachTest {
                 - 막힌 곳: 표현 · 화술
                 - 막힌 곳 설명: 화내는 게 다 똑같이 들려요
 
-                """ + DirectVideoPrompts.practiceLoop()));
+                """ + DirectVideoPrompts.practiceLoop(written.practiceSessionId())));
     }
 
     @Test void videoOnlySessionGetsNoActorMaterialBlock() {
@@ -372,12 +374,43 @@ class DirectVideoCoachTest {
         assertThat(note.nextTake()).isEqualTo("문장 사이에 한 번씩 쉬기");
     }
 
+    @Test void practiceLoopShufflesTheFourSoundLinesPerPracticeAndKeepsSpeedLast() {
+        var practice = UUID.fromString("00000000-0000-0000-0000-000000000001");
+        assertThat(DirectVideoPrompts.practiceLoop(practice)).isEqualTo(DirectVideoPrompts.practiceLoop(practice));
+        assertThat(DirectVideoPrompts.practiceLoop(null)).isEqualTo(DirectVideoPrompts.practiceLoop());
+        var names = List.of("소리 쉬는 곳: [", "소리 말끝: [", "소리 크기: [", "소리 강조: [");
+        var orders = new java.util.HashSet<String>();
+        for (long i = 1; i <= 24; i++) {
+            String prompt = DirectVideoPrompts.practiceLoop(new UUID(i, i * 31));
+            int speed = prompt.indexOf("소리 빠르기: [");
+            for (String name : names) {
+                assertThat(prompt.indexOf(name)).as(name).isPositive().isLessThan(speed);
+                assertThat(prompt.indexOf(name)).isEqualTo(prompt.lastIndexOf(name));
+            }
+            String order = names.stream().sorted(java.util.Comparator.comparingInt(prompt::indexOf))
+                    .map(name -> name.substring(3, name.indexOf(':'))).collect(java.util.stream.Collectors.joining("·"));
+            assertThat(prompt).as("버릇 칸도 같은 순서를 말한다").contains("소리 " + order + " 네 줄");
+            orders.add(order);
+        }
+        assertThat(orders).hasSizeGreaterThan(3);
+    }
+
+    @Test void practiceLoopNoteUsesTheNextTakeTheCoachSettledOnWhenClosing() throws Exception {
+        var statuses = (com.fasterxml.jackson.databind.node.ArrayNode) StructuredJson.MAPPER.readTree("""
+                ["", "배우의 말: 답\\n할 일: 파고들기\\n다음 테이크: 없음",
+                 "배우의 말: 자기 한 줄\\n할 일: 마무리2\\n다음 테이크: 지키며: 침묵은 그대로 두고 상대를 끝까지 보기"]
+                """);
+        assertThat(DirectVideoPracticeLoop.closingNextTake(statuses)).isEqualTo("침묵은 그대로 두고 상대를 끝까지 보기");
+        assertThat(DirectVideoPracticeLoop.closingNextTake(StructuredJson.MAPPER.readTree("[\"파고들기 · 응답 2번째\"]"))).isEmpty();
+    }
+
     @Test void habitTitleFallsBackToTheDescriptionWhenTheModelWritesACategoryName() {
         String design = "소리 빠르기: 처음부터 끝까지 일정하고 빠른 편이에요. \"손도 막 떨더라고요\"도요.\n소리 말끝: 없음\n"
                 + "버릇: 소리 빠르기 | 곳1: \"손도\" | 곳2: \"살아야\"\n다음 테이크: 문장 사이 쉬기";
         assertThat(DirectVideoPracticeLoop.habit(design)).isEqualTo("처음부터 끝까지 일정하고 빠른 편이에요");
         assertThat(DirectVideoPracticeLoop.habit("버릇: 말끝을 툭 떨어뜨려요 | 곳1: x")).isEqualTo("말끝을 툭 떨어뜨려요");
         assertThat(DirectVideoPracticeLoop.habit("소리 크기: 없음\n버릇: 소리 크기 | 곳1: x")).isEqualTo("소리 크기");
+        assertThat(DirectVideoPracticeLoop.habit("소리 강조: 모든 말에 힘을 줘요. \"x\"\n버릇: 소리 강조 | 곳1: x")).isEqualTo("모든 말에 힘을 줘요");
     }
 
     @Test void markdownReplyIsStoredAndReturnedAsPlainText() {
