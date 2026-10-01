@@ -61,7 +61,7 @@ const en: DeepStringShape<typeof ko> = {
   updateRequired: {
     title: 'Please update to the new version',
     body: 'This version can no longer be used. After updating, your practices and notes will be right where you left them.',
-    cta: 'Update in the store',
+    cta: 'Update',
     manual: 'Please find Acttub in the store and update it.',
     openFail: 'Couldn’t open the store. Please find Acttub in the store yourself.',
   },
