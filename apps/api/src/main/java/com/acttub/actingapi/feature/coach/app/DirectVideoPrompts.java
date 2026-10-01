@@ -16,14 +16,14 @@ final class DirectVideoPrompts {
     /** 분류·과제 조립 없이 대화 전체를 끄는 연습 루프 프롬프트. */
     static String practiceLoop() { return resource("practice-loop"); }
 
-    private static final List<String> SOUND_LINES = List.of("소리 쉬는 곳", "소리 말끝", "소리 크기", "소리 강조");
-    private static final String SOUND_ORDER = "소리 쉬는 곳·말끝·크기·강조 네 줄";
+    /** {@code <설계>}에서 버릇 후보가 되는 네 칸. 모델은 맨 위 칸을 고르는 쪽으로 쏠리므로 연습마다 순서를 섞는다. */
+    private static final List<String> HABIT_LINES = List.of("감정의 변화", "상대와 주고받기", "원하는 것과 행동", "몸·시선·표정");
 
     /**
-     * 연습마다 {@code <설계>}의 소리 네 칸(쉬는 곳·말끝·크기·강조) 순서를 섞은 연습 루프 프롬프트.
+     * 연습마다 {@code <설계>}의 버릇 후보 네 칸 순서를 섞은 연습 루프 프롬프트.
      *
-     * <p>모델은 맨 위 칸을 버릇으로 고르는 쪽으로 쏠린다(실험: 순서를 고정하면 맨 위 칸이 73%).
-     * 같은 연습은 매 턴 기록을 다시 보내므로 연습 id로 순서를 고정한다. 말 빠르기 칸은 늘 마지막이다.
+     * <p>순서를 고정하면 모델이 맨 위 칸을 버릇으로 고르는 쪽으로 쏠린다(실험: 맨 위 칸 73%).
+     * 같은 연습은 매 턴 기록을 다시 보내므로 연습 id로 순서를 고정한다.
      * 칸을 다 찾지 못하면(프롬프트가 바뀐 경우) 섞지 않고 그대로 돌려준다.
      */
     static String practiceLoop(UUID practiceId) {
@@ -33,16 +33,14 @@ final class DirectVideoPrompts {
         var at = new ArrayList<Integer>();
         for (int i = 0; i < lines.size(); i++) {
             String line = lines.get(i);
-            if (SOUND_LINES.stream().anyMatch(name -> line.startsWith(name + ": ["))) at.add(i);
+            if (HABIT_LINES.stream().anyMatch(name -> line.startsWith(name + ": ["))) at.add(i);
         }
-        if (at.size() != SOUND_LINES.size()) return base;
+        if (at.size() != HABIT_LINES.size()) return base;
         var picked = new ArrayList<String>();
         for (int i : at) picked.add(lines.get(i));
         Collections.shuffle(picked, new Random(practiceId.getMostSignificantBits() ^ practiceId.getLeastSignificantBits()));
         for (int k = 0; k < at.size(); k++) lines.set(at.get(k), picked.get(k));
-        String order = picked.stream().map(line -> line.substring("소리 ".length(), line.indexOf(": [")))
-                .collect(Collectors.joining("·"));
-        return String.join("\n", lines).replace(SOUND_ORDER, "소리 " + order + " 네 줄");
+        return String.join("\n", lines);
     }
     static String forRoutes(List<DirectVideoRoute> routes) {
         return common() + "\n\n" + routes.stream().map(route -> resource(route.id))
