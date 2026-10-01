@@ -133,6 +133,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/me/signup-attribution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Record Signup Attribution
+         * @description 이 기기에서 새로 가입한 계정의 유입 광고(Airbridge 설치 귀속 결과)를 적는다. 계정마다 처음 온
+         *     값만 남고, 다시 보내도 바꾸지 않은 채 204 다 — 재시도에 안전하다. 보호 기능이라 동의와 프로필이
+         *     끝난 회원만 부를 수 있다. 게스트는 403 member_only.
+         */
+        put: operations["record_signup_attribution_v2_me_signup_attribution_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/me/profile": {
         parameters: {
             query?: never;
@@ -361,6 +383,23 @@ export interface paths {
          *     검토로 넘어간다. 같은 대상의 재신고는 먼저 낸 신고(200)다.
          */
         post: operations["create_challenge_report_v2_reports_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/reading/voice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Synthesize a reading line */
+        post: operations["synthesize"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1286,6 +1325,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/reading/voice/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Cloud voice status */
+        get: operations["status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/reading/sessions/{session_id}": {
         parameters: {
             query?: never;
@@ -2034,6 +2090,33 @@ export interface components {
             /** Intro */
             intro?: string | null;
         };
+        /** SignupAttributionRequest */
+        SignupAttributionRequest: {
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "airbridge";
+            /**
+             * Platform
+             * @enum {string}
+             */
+            platform: "ios" | "android";
+            /** Channel */
+            channel: string;
+            /** Campaign */
+            campaign?: string | null;
+            /** Ad Group */
+            ad_group?: string | null;
+            /** Ad Creative */
+            ad_creative?: string | null;
+            /** Content */
+            content?: string | null;
+            /** Term */
+            term?: string | null;
+            /** Sub Publisher */
+            sub_publisher?: string | null;
+        };
         /**
          * ActingDirection
          * @enum {string}
@@ -2272,6 +2355,22 @@ export interface components {
              * @enum {string}
              */
             status: "received" | "reviewed";
+        };
+        /** SynthesizeRequest */
+        SynthesizeRequest: {
+            /** Text */
+            text?: string;
+            /** Voice */
+            voice?: string;
+        };
+        /** SynthesizeResponse */
+        SynthesizeResponse: {
+            /** Audio Url */
+            audio_url?: string;
+            /** Cached */
+            cached?: boolean;
+            /** Expires In */
+            expires_in?: number;
         };
         /** ReadingRecordingUploadForm */
         ReadingRecordingUploadForm: {
@@ -3428,7 +3527,7 @@ export interface components {
          * ConsentType
          * @enum {string}
          */
-        ConsentType: "terms" | "privacy" | "ai_analysis" | "retention";
+        ConsentType: "terms" | "privacy" | "ai_analysis" | "retention" | "cloud_voice";
         /** SignedInResponse */
         SignedInResponse: {
             /**
@@ -3682,6 +3781,22 @@ export interface components {
             videos: components["schemas"]["Video"][];
             /** Next Cursor */
             next_cursor?: string | null;
+        };
+        /** StatusResponse */
+        StatusResponse: {
+            /** Available */
+            available?: boolean;
+            /**
+             * Free Until
+             * Format: date-time
+             */
+            free_until?: string;
+            /** Consent */
+            consent?: string;
+            /** Daily Limit */
+            daily_limit?: number;
+            /** Daily Used */
+            daily_used?: number;
         };
         /** ReadingScriptCard */
         ReadingScriptCard: {
@@ -4947,6 +5062,37 @@ export interface operations {
             };
         };
     };
+    record_signup_attribution_v2_me_signup_attribution_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignupAttributionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     save_profile_v2_me_profile_put: {
         parameters: {
             query?: never;
@@ -5357,6 +5503,30 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReportReceipt"];
+                };
+            };
+        };
+    };
+    synthesize: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SynthesizeRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SynthesizeResponse"];
                 };
             };
         };
@@ -7047,6 +7217,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VideoList"];
+                };
+            };
+        };
+    };
+    status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatusResponse"];
                 };
             };
         };
