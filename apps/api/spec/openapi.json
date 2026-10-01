@@ -284,6 +284,42 @@
         } ]
       }
     },
+    "/v2/me/signup-attribution" : {
+      "put" : {
+        "tags" : [ "v2-me" ],
+        "summary" : "Record Signup Attribution",
+        "description" : "이 기기에서 새로 가입한 계정의 유입 광고(Airbridge 설치 귀속 결과)를 적는다. 계정마다 처음 온\n값만 남고, 다시 보내도 바꾸지 않은 채 204 다 — 재시도에 안전하다. 보호 기능이라 동의와 프로필이\n끝난 회원만 부를 수 있다. 게스트는 403 member_only.",
+        "operationId" : "record_signup_attribution_v2_me_signup_attribution_put",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SignupAttributionRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "Successful Response"
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/me/profile" : {
       "put" : {
         "tags" : [ "v2-me" ],
@@ -4434,6 +4470,84 @@
           }
         },
         "title" : "PortfolioIntroRequest"
+      },
+      "SignupAttributionRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "source" : {
+            "type" : "string",
+            "enum" : [ "airbridge" ],
+            "title" : "Source"
+          },
+          "platform" : {
+            "type" : "string",
+            "enum" : [ "ios", "android" ],
+            "title" : "Platform"
+          },
+          "channel" : {
+            "type" : "string",
+            "maxLength" : 200,
+            "minLength" : 1,
+            "title" : "Channel"
+          },
+          "campaign" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 200
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Campaign"
+          },
+          "ad_group" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 200
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Ad Group"
+          },
+          "ad_creative" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 200
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Ad Creative"
+          },
+          "content" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 200
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Content"
+          },
+          "term" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 200
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Term"
+          },
+          "sub_publisher" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 200
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Sub Publisher"
+          }
+        },
+        "required" : [ "channel", "platform", "source" ],
+        "title" : "SignupAttributionRequest"
       },
       "ActingDirection" : {
         "type" : "string",
