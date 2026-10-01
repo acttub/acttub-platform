@@ -121,8 +121,11 @@ final class DirectVideoPracticeLoop {
     /**
      * 코치가 마무리를 마쳤는지. 상태 줄의 칸 중 하나(이번 응답이 하는 일)가 마무리2 또는 끝이다.
      * 프롬프트 판마다 그 칸의 자리가 다르다("순간2 · 마무리2 · …", "마무리2 · 응답 6번째").
+     * 여러 줄 상태 칸("배우의 말: …" · "할 일: 마무리2")은 {@code 할 일} 줄만 본다.
      */
     static boolean finished(Parsed parsed) {
+        String doing = statusField(parsed.status(), "할 일");
+        if (!doing.isEmpty()) return doing.startsWith("마무리2") || doing.startsWith("끝");
         for (String part : parsed.status().split("·")) {
             String action = part.strip();
             if (action.startsWith("마무리2") || action.startsWith("끝")) return true;
@@ -168,7 +171,10 @@ final class DirectVideoPracticeLoop {
             String text = turn.text() == null ? "" : turn.text().strip();
             if (text.isEmpty() || VAGUE.matcher(text).matches()
                     || com.acttub.actingapi.feature.coach.domain.ClosingIntent.isClosing(text)) continue;
-            if (lastAction.startsWith("마무리1") && selfLine == null) {
+            // 다음 코치 턴이 이 답을 "자기 한 줄"로 받았으면(배우가 청하기 전에 먼저 말한 경우) 그것도 자기 문장이다.
+            boolean volunteered = statusField(loop.path("statuses").path(coachIndex).asText(""), "배우의 말")
+                    .startsWith("자기 한 줄");
+            if ((lastAction.startsWith("마무리1") || volunteered) && selfLine == null) {
                 selfLine = text;
                 selfRef = StructuredCoachEngine.turnId(session, i);
             } else if (lastAction.startsWith("파고들기")) {
@@ -189,6 +195,8 @@ final class DirectVideoPracticeLoop {
     /** 상태 줄에서 이번 응답이 한 일. 첫 턴(상태 없음)은 비추기다. */
     private static String action(String status) {
         if (status.isBlank()) return "비추기";
+        String doing = statusField(status, "할 일");
+        if (!doing.isEmpty()) return doing;
         for (String part : status.split("·")) {
             String value = part.strip();
             if (!value.startsWith("응답") && !value.startsWith("순간") && !value.startsWith("장면")
@@ -215,6 +223,17 @@ final class DirectVideoPracticeLoop {
         if (!line.find()) return habit;
         String described = line.group(1).split("[.\"“]", 2)[0].strip();
         return described.isBlank() || described.equals("없음") ? habit : described;
+    }
+
+    /**
+     * 여러 줄 상태 칸의 {@code 키: 값} 줄에서 값을 읽는다. 모델이 양식의 대괄호를 남겨도 벗긴다. 없으면 빈 문자열.
+     * 한 줄 상태("파고들기 · 응답 2번째")에는 이 줄이 없으므로 호출하는 쪽이 기존 해석으로 돌아간다.
+     */
+    static String statusField(String status, String key) {
+        if (status == null || status.isBlank()) return "";
+        Matcher line = Pattern.compile("(?m)^\\s*" + Pattern.quote(key) + "\\s*:\\s*(.*?)\\s*$").matcher(status);
+        if (!line.find()) return "";
+        return line.group(1).replaceAll("^\\[|\\]$", "").strip();
     }
 
     private static String first(Pattern pattern, String text) {

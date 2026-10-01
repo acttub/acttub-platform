@@ -325,6 +325,53 @@ class DirectVideoCoachTest {
         assertThat(DirectVideoPracticeLoop.parse("ㅋㅋ\n그랬군요").message()).isEqualTo("ㅋㅋ\n그랬군요");
     }
 
+    @Test void practiceLoopReadsTheActionFromTheMultiLineStatus() {
+        var closing = DirectVideoPracticeLoop.parse("""
+                <상태>
+                배우의 말: 자기 한 줄
+                지금까지: 같은 버릇 질문 3번 · 짚어주기 1번 · 응답 6번째
+                피할 것: 없음
+                할 일: 마무리2
+                물을 것: 없음
+                </상태>
+                그대로 적어 둘게요.""");
+        assertThat(DirectVideoPracticeLoop.finished(closing)).isTrue();
+        assertThat(closing.message()).isEqualTo("그대로 적어 둘게요.");
+        assertThat(DirectVideoPracticeLoop.finished(DirectVideoPracticeLoop.parse(
+                "<상태>\n배우의 말: 그만\n할 일: [끝]\n물을 것: 없음\n</상태>\n오늘은 여기까지 해요."))).isTrue();
+        // 지금까지 줄의 "짚어주기 1번"이나 배우의 말이 아니라 할 일 줄만 본다.
+        assertThat(DirectVideoPracticeLoop.finished(DirectVideoPracticeLoop.parse("""
+                <상태>
+                배우의 말: 반박
+                지금까지: 같은 버릇 질문 3번 · 짚어주기 0번 · 응답 5번째
+                피할 것: 말 빠르기
+                할 일: 짚어주기(다른 쪽)
+                물을 것: 이 장점을 어느 대사에서 더 쓰고 싶어요?
+                </상태>
+                이 장점을 어느 대사에서 더 쓰고 싶어요?"""))).isFalse();
+    }
+
+    @Test void practiceLoopNoteKeepsASelfLineTheActorOfferedBeforeBeingAsked() throws Exception {
+        var state = (com.fasterxml.jackson.databind.node.ObjectNode) StructuredJson.MAPPER.readTree("""
+                {"revision":4,"practice_loop":{"design":"버릇: 말이 내내 같은 속도로 빨라요 | 곳1: x\\n다음 테이크: 문장 사이에 한 번씩 쉬기",
+                "statuses":["",
+                "배우의 말: 답\\n지금까지: 같은 버릇 질문 2번 · 짚어주기 0번 · 응답 2번째\\n피할 것: 없음\\n할 일: 파고들기\\n물을 것: 속으로는 어땠어요?",
+                "배우의 말: 답\\n지금까지: 같은 버릇 질문 3번 · 짚어주기 0번 · 응답 3번째\\n피할 것: 없음\\n할 일: 이어보기\\n물을 것: 인물에게 맞을까요?",
+                "배우의 말: 자기 한 줄\\n지금까지: 같은 버릇 질문 3번 · 짚어주기 0번 · 응답 4번째\\n피할 것: 없음\\n할 일: 마무리2\\n물을 것: 없음"]}}
+                """);
+        var turns = List.of(new CoachTurnSnapshot("ai", "말이 내내 빨라요."), new CoachTurnSnapshot("actor", "원래 빨라서 지적을 받아요"),
+                new CoachTurnSnapshot("ai", "속으로는 어땠어요?"), new CoachTurnSnapshot("actor", "사이가 비면 연기가 끊긴 것 같아서요"),
+                new CoachTurnSnapshot("ai", "인물에게 맞을까요?"), new CoachTurnSnapshot("actor", "빈틈이 무서워서 말로 채우는 배우"),
+                new CoachTurnSnapshot("ai", "그대로 적어 둘게요."));
+        var closed = session().withTurns(turns).withCoachingState("three_layers_v1", 4, state, "closed", "interrupted");
+        var note = DirectVideoPracticeLoop.note(closed, 4);
+        assertThat(note.summaryQuotes()).hasSize(2);
+        assertThat(note.summaryQuotes().get(0).path("quote").asText()).isEqualTo("빈틈이 무서워서 말로 채우는 배우");
+        assertThat(note.summaryQuotes().get(0).path("source_ref").asText()).isEqualTo(StructuredCoachEngine.turnId(closed, 5));
+        assertThat(note.summaryQuotes().get(1).path("quote").asText()).isEqualTo("사이가 비면 연기가 끊긴 것 같아서요");
+        assertThat(note.nextTake()).isEqualTo("문장 사이에 한 번씩 쉬기");
+    }
+
     @Test void habitTitleFallsBackToTheDescriptionWhenTheModelWritesACategoryName() {
         String design = "소리 빠르기: 처음부터 끝까지 일정하고 빠른 편이에요. \"손도 막 떨더라고요\"도요.\n소리 말끝: 없음\n"
                 + "버릇: 소리 빠르기 | 곳1: \"손도\" | 곳2: \"살아야\"\n다음 테이크: 문장 사이 쉬기";
