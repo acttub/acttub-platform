@@ -6,7 +6,7 @@ public final class EveningReminder {
     private EveningReminder() {}
 
     public static PushMessage message(PushTarget target) {
-        boolean korean = target.locale() == null || target.locale().isBlank() || "ko".equals(target.locale());
+        boolean korean = target.korean();
         return new PushMessage(
                 target.token(),
                 korean ? "오늘 연습 아직이에요" : "No practice yet today",

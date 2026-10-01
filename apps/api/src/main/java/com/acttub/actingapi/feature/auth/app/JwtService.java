@@ -16,6 +16,7 @@ import javax.crypto.spec.SecretKeySpec;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.acttub.actingapi.platform.security.AccessTokenVerifier;
+import com.acttub.actingapi.platform.web.Hashing;
 import com.nimbusds.jwt.SignedJWT;
 
 /**
@@ -68,7 +69,7 @@ public final class JwtService implements AccessTokenVerifier {
         }catch(TokenValidationException e){throw e;}catch(Exception e){throw invalid("invalid token");}
     }
     public static String hashToken(String token){
-        try{return java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8)));}catch(Exception e){throw new IllegalStateException(e);}
+        return Hashing.sha256Hex(token);
     }
     private byte[] hmac(byte[] input)throws Exception{Mac mac=Mac.getInstance("HmacSHA256");mac.init(new SecretKeySpec(secret,"HmacSHA256"));return mac.doFinal(input);}
     private static String b64(byte[] value){return Base64.getUrlEncoder().withoutPadding().encodeToString(value);} private static String pad(String s){return s+"=".repeat((4-s.length()%4)%4);}

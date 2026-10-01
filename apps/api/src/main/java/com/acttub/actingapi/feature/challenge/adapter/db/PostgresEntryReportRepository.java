@@ -3,7 +3,6 @@ package com.acttub.actingapi.feature.challenge.adapter.db;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Base64;
 import java.util.List;
@@ -25,7 +24,6 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Repository
 class PostgresEntryReportRepository implements ReportRepository {
-    private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private static final int PAGE = 50;
     private final EntityManager em;
     private final EntryLocks locks;
@@ -104,7 +102,7 @@ class PostgresEntryReportRepository implements ReportRepository {
     private Filed guarded(UUID reporter, UUID requestId, String fingerprint, NewReport report, Instant now) {
         Filed prior = prior(reporter, requestId, fingerprint, report);
         if (prior != null) return prior;
-        Instant midnight = now.atZone(SEOUL).toLocalDate().atStartOfDay(SEOUL).toInstant();
+        Instant midnight = ChallengeRules.koreanMidnight(now);
         long today = ((Number) em.createNativeQuery("SELECT count(*) FROM entry_reports WHERE reporter_id=:reporter AND created_at>=:since")
                 .setParameter("reporter", reporter).setParameter("since", midnight.atOffset(ZoneOffset.UTC)).getSingleResult()).longValue();
         if (today >= ChallengeRules.DAILY_REPORTS) throw new ApiException(429, "daily_report_limit");

@@ -73,8 +73,6 @@ class ErrorContractInventoryTest {
      * 이관 중에 500 이던 자리가 404 로 바뀐 사고가 둘 있었고, 그때 응답 diff 는 0 이었다.
      */
     private static final Map<String, Coverage> EXPECTED = Map.ofEntries(
-            covered("feature.challenge.adapter.db.PostgresChallengeRepository|403|account_deactivated", 1,
-                    "feature.challenge.ChallengeIT"),
             covered("feature.challenge.adapter.db.PostgresChallengeRepository|422|duplicate_challenge", 1,
                     "feature.challenge.ChallengeIT"),
             covered("feature.challenge.adapter.db.PostgresChallengeRepository|422|challenge_has_entries", 1,
@@ -85,8 +83,6 @@ class ErrorContractInventoryTest {
                     "feature.challenge.ChallengeIT"),
             covered("feature.challenge.adapter.db.PostgresChallengeRepository|429|daily_challenge_limit", 1,
                     "feature.challenge.ChallengeIT"),
-            covered("feature.challenge.adapter.db.PostgresEntryRepository|403|account_deactivated", 1,
-                    "feature.challenge.ChallengeEntryIT"),
             covered("feature.challenge.adapter.db.PostgresEntryRepository|404|challenge_not_found", 2,
                     "feature.challenge.ChallengeEntryIT"),
             covered("feature.challenge.adapter.db.PostgresEntryRepository|404|entry_not_found", 7,
@@ -121,7 +117,8 @@ class ErrorContractInventoryTest {
                     "feature.challenge.ChallengeEntryIT"),
             covered("feature.challenge.app.EntryService|422|video_too_long", 1,
                     "feature.challenge.ChallengeEntryIT"),
-            covered("feature.challenge.adapter.db.EntryLocks|403|account_deactivated", 1,
+            // 쓰는 사람 잠금(active, ChallengeIT·ChallengeEntryIT)과 반응하는 사람 잠금(people) 두 곳.
+            covered("feature.challenge.adapter.db.EntryLocks|403|account_deactivated", 2,
                     "feature.challenge.ChallengeReactionIT"),
             covered("feature.challenge.adapter.db.EntryLocks|404|entry_not_found", 2,
                     "feature.challenge.ChallengeReactionIT"),

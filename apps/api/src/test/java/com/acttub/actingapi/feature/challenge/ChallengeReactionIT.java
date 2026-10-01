@@ -47,6 +47,9 @@ class ChallengeReactionIT {
     static final Instant NOW = Instant.parse("2026-09-23T03:00:00Z");
     static final String OPS = "Bearer reaction-test-ops";
 
+    private static final String INVALID_CURSOR = "{\"detail\":[{\"type\":\"value_error\",\"loc\":[\"query\",\"cursor\"],"
+            + "\"msg\":\"Value error, invalid cursor\",\"input\":\"not-a-cursor\",\"ctx\":{\"error\":{}}}]}";
+
     @TestConfiguration
     static class Media {
         @Bean @Primary EntryMedia stubReactionMedia() {
@@ -538,6 +541,15 @@ class ChallengeReactionIT {
         return response(request, expected, authorization).path("detail").asText();
     }
 
+    /** 읽을 수 없는 커서의 422 본문은 바이트 그대로다 — 댓글·저장 목록 둘 다. */
+    @Test void challengeReact_invalidCursorBodyStaysByteIdentical() throws Exception {
+        UUID entry = entry(challenge, member("배우"));
+        assertThat(raw(get("/v2/entries/{id}/comments", entry).param("cursor", "not-a-cursor"), 422))
+                .isEqualTo(INVALID_CURSOR);
+        assertThat(raw(get("/v2/me/saved-entries").param("cursor", "not-a-cursor"), 422))
+                .isEqualTo(INVALID_CURSOR);
+    }
+
     private JsonNode response(MockHttpServletRequestBuilder request, int expected) throws Exception {
         return response(request, expected, bearer);
     }
@@ -548,5 +560,13 @@ class ChallengeReactionIT {
         var response = result.getResponse();
         assertThat(response.getStatus()).as("%s (%s)", response.getContentAsString(), result.getResolvedException()).isEqualTo(expected);
         return response.getContentAsString().isBlank() ? json.nullNode() : json.readTree(response.getContentAsString());
+    }
+
+    /** 본문을 바이트 그대로 돌려준다 — 422 본문의 키 순서까지 견줄 때 쓴다. */
+    private String raw(MockHttpServletRequestBuilder request, int expected) throws Exception {
+        var response = mvc.perform(request.header("Authorization", bearer).header("X-Acttub-Client", "app/0.1.0")
+                .header("Accept-Language", "ko").contentType(MediaType.APPLICATION_JSON)).andReturn().getResponse();
+        assertThat(response.getStatus()).as(response.getContentAsString()).isEqualTo(expected);
+        return response.getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
     }
 }

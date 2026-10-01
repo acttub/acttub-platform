@@ -40,6 +40,28 @@ class PushServiceTest {
         assertThat(sender.sent.getFirst().body()).isNotBlank();
     }
 
+    /** 단말의 말이 비었거나(옛 토큰) 공백뿐이거나 ko 면 한국어, 그 밖에는 영어 문구다. */
+    @Test
+    void analysisCompletionCopyFollowsTheDeviceLocale() {
+        tokens.forSession = java.util.Arrays.asList(
+                new PushTarget("null", null),
+                new PushTarget("empty", ""),
+                new PushTarget("blank", "  "),
+                new PushTarget("ko", "ko"),
+                new PushTarget("en", "en"));
+
+        service.onAnalysisComplete(UUID.randomUUID());
+
+        assertThat(sender.sent).extracting(PushMessage::title).containsExactly(
+                "분석이 끝났어요", "분석이 끝났어요", "분석이 끝났어요", "분석이 끝났어요", "Your analysis is ready");
+        assertThat(sender.sent).extracting(PushMessage::body).containsExactly(
+                "질문이 준비됐어요. 이어서 확인해 볼까요?",
+                "질문이 준비됐어요. 이어서 확인해 볼까요?",
+                "질문이 준비됐어요. 이어서 확인해 볼까요?",
+                "질문이 준비됐어요. 이어서 확인해 볼까요?",
+                "The coach has questions waiting. Shall we pick it up?");
+    }
+
     @Test
     void analysisCompletionWithoutTokensSendsNothing() {
         tokens.forSession = List.of();
