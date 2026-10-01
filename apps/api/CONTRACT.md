@@ -913,6 +913,11 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     읽는 `ps_all`을 재사용한다. 단순 참여작 조회·좋아요·댓글은 연습 이용으로 합치지 않는다.
   - 행 제한 없이 전체 이력을 제공하며 실제 기록이 없으면 `[]`다. 필드가 없는 구버전·결측 응답을 0으로 해석하거나
     코칭 전용 숫자를 통합 수치로 대체하면 안 된다. 운영 개요 소비자는 동일 actor 기준 인원·반복·재방문을 계산한다.
+- **가입 코호트 원장**(`GET /v2/admin/ops-core`의 `signup_rows`, SOMA-591) — 팀을 뺀 가입자 한 명당 한 행이다.
+  `actor`(기존 가명)·`signup_at`(시간 단위)·`platform`(`앱`·`웹`)·`device`(가입 기기 분류)·`first_upload_at`
+  (가장 이른 `finalized` 업로드, 분 단위, 없으면 null)만 가진다. 미래 행은 뺀다. 운영 화면은 이를 `activity_rows`·
+  `signup_attributions`와 가명으로 이어 플랫폼×유입 소스 퍼널을 같은 기간 가입 코호트로 계산한다. 필드가 없는
+  구버전 응답을 0명으로 해석하면 안 된다.
 - **챌린지 참여작 목록**(`GET /v2/admin/ops-core`의 `features.challenges`) — `entries.private` 수와 `recent_entries`
   (삭제되지 않은 최신 50건)를 더한다. 비공개 참여작도 운영이 봐야 하므로 `visibility`를 그대로 싣는다.
   - 한 항목은 `entry_id`·`challenge_id`(둘 다 앞 8자리)·`challenge_origin`·`actor`(기존 가명)·`visibility`·`status`·
