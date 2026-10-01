@@ -1,4 +1,4 @@
-import { toApiError } from "../api/v2/errors";
+import { responseError } from "../api/v2/errors";
 import type { GuestResponse } from "../api/v2/types";
 import { postAuth } from "./auth-request";
 import { emitSessionEvent } from "./session-events";
@@ -32,11 +32,7 @@ async function createGuestInsideLock(): Promise<string> {
 
   const { response, payload } = await postAuth("/v2/auth/guest", "게스트 시작");
   if (!response.ok) {
-    throw toApiError(
-      response.status,
-      payload,
-      response.headers.get("X-Request-Id") ?? undefined,
-    );
+    throw responseError(response, payload);
   }
 
   // POST /v2/auth/guest 는 201 이다. 성공 여부는 위에서 response.ok 로 본다.

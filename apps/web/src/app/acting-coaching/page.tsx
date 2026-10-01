@@ -6,6 +6,7 @@ import {
   buildKeywordArticleJsonLd,
   buildOrganizationJsonLd,
 } from "@/lib/seo/json-ld";
+import { JsonLd } from "@/lib/seo/json-ld-scripts";
 import { buildKeywordPageMetadata } from "@/lib/seo/site-metadata";
 
 export const metadata = buildKeywordPageMetadata(ACTING_COACHING);
@@ -20,13 +21,7 @@ export default function ActingCoachingPage() {
 
   return (
     <>
-      {jsonLdValues.map((value) => (
-        <script
-          key={value["@id"]}
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(value) }}
-        />
-      ))}
+      <JsonLd values={jsonLdValues} />
       <KeywordPageView content={ACTING_COACHING} />
     </>
   );

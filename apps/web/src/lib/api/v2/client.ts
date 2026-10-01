@@ -1,9 +1,10 @@
 import { ACTTUB_CLIENT, API_BASE_URL } from "../../config/env";
 import { endGuestSession, ensureGuestSession } from "../../auth/guest-session";
 import { refreshAccessToken } from "../../auth/refresh";
+import { parsePayload } from "../../auth/auth-request";
 import { getAccessToken, hasGuestSession } from "../../auth/token-store";
 import { askConsent } from "./consent-prompt";
-import { ApiError, NetworkError, toApiError } from "./errors";
+import { ApiError, NetworkError, responseError } from "./errors";
 import type { ConsentDocument } from "./types";
 
 export type ApiFetchOptions = {
@@ -85,33 +86,8 @@ async function fetchResponse(
   }
 }
 
-async function responsePayload(response: Response): Promise<unknown> {
-  if (response.status === 204) return undefined;
-  let text: string;
-  try {
-    text = await response.text();
-  } catch (error) {
-    if (error instanceof TypeError) {
-      throw new NetworkError("API 응답을 읽는 중 네트워크 연결이 끊어졌습니다.", {
-        cause: error,
-      });
-    }
-    throw error;
-  }
-  if (!text) return undefined;
-  try {
-    return JSON.parse(text) as unknown;
-  } catch {
-    return text;
-  }
-}
-
-function throwResponseError(response: Response, payload: unknown): never {
-  throw toApiError(
-    response.status,
-    payload,
-    response.headers.get("X-Request-Id") ?? undefined,
-  );
+function responsePayload(response: Response): Promise<unknown> {
+  return parsePayload(response, "API");
 }
 
 // 한 요청이 시트를 띄우는 횟수. 결정하는 사이 새 판이 나오면 한 번 더 묻고, 그래도
@@ -182,7 +158,7 @@ async function sendWithSession(
     if (!renewedAccess && startsGuest(options)) {
       renewedAccess = await ensureGuestSession();
     }
-    if (!renewedAccess) throwResponseError(response, payload);
+    if (!renewedAccess) throw responseError(response, payload);
 
     response = await fetchResponse(path, options, body, renewedAccess);
     payload = await responsePayload(response);
@@ -230,7 +206,7 @@ export async function apiFetch<T>(
       prompts >= MAX_CONSENT_PROMPTS ||
       (await askConsent(pending)) !== "decided"
     ) {
-      throwResponseError(response, payload);
+      throw responseError(response, payload);
     }
   }
 }
