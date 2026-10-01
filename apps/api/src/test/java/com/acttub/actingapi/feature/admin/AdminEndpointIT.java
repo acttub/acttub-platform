@@ -812,6 +812,19 @@ class AdminEndpointIT {
                     .isEqualTo("배우 " + md5(REAL_USER.toString()).substring(0, 8));
         }
 
+        // 가입 코호트 원장(SOMA-591): 팀을 빼고 사람 한 명당 한 행. 첫 업로드 확정은 finalized 중 가장 이른 것.
+        JsonNode signupRows = core.path("signup_rows");
+        assertThat(signupRows).hasSize(1);
+        JsonNode signupRow = signupRows.get(0);
+        assertThat(signupRow.fieldNames()).toIterable().containsExactly(
+                "actor", "signup_at", "platform", "device", "first_upload_at");
+        assertThat(signupRow.path("actor").textValue()).isEqualTo("배우 " + md5(REAL_USER.toString()).substring(0, 8));
+        assertThat(signupRow.path("signup_at").textValue()).isEqualTo(utc(NOW.minusHours(2).truncatedTo(ChronoUnit.HOURS)));
+        assertThat(signupRow.path("platform").textValue()).isEqualTo("웹");
+        assertThat(signupRow.path("device").textValue()).isEqualTo("기록 없음");
+        assertThat(signupRow.path("first_upload_at").textValue())
+                .isEqualTo(utc(NOW.minusMinutes(30).truncatedTo(ChronoUnit.MINUTES)));
+
         assertThat(core.toString()).doesNotContain(
                 "actor@example.com", "Team@Acttub.com", REAL_USER.toString(), TEAM_USER.toString());
     }
@@ -1068,6 +1081,7 @@ class AdminEndpointIT {
         }
         assertThat(core.at("/devices/team_excluded").intValue()).isEqualTo(2);
         assertThat(core.path("activity_rows")).isEqualTo(mapper.readTree("[]"));
+        assertThat(core.path("signup_rows")).isEqualTo(mapper.readTree("[]"));
 
         JsonNode none = authorized("/v2/admin/ops-core?exclude_actors=", 200);
         assertThat(none.path("metrics").get(0).path("total_real").intValue()).isEqualTo(1);
