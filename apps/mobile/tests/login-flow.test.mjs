@@ -5,8 +5,9 @@ import { ApiError } from '../lib/api-request.ts';
 import { createLastProviderStore } from '../lib/last-provider.ts';
 import {
   highlightedProvider,
+  emailConflictDialog,
+  emailConflictNotice,
   isSignupExpired,
-  loginErrorMessage,
   loginRequestBody,
   resolveLoginOutcome,
   visibleLoginProviders,
@@ -263,43 +264,43 @@ test('account.login: 가입 토큰은 30분 뒤 만료로 본다', () => {
   assert.equal(isSignupExpired(signup, 1_000 + 1800 * 1000), true);
 });
 
-test('account.login: 이메일 겹침 409는 "이미 OO로 가입한 이메일이에요"로 기존 제공자를 알려 준다', () => {
+test('account.login: 이메일 겹침 409는 서버 목록의 첫 제공자를 담은 팝업 안내가 된다', () => {
   const conflict = (providers) =>
     new ApiError(409, 'x', 'account_exists_with_different_provider', 'x', {
       detail: 'account_exists_with_different_provider',
       providers,
     });
 
-  assert.equal(loginErrorMessage(conflict(['google'])), '이미 구글로 가입한 이메일이에요');
-  assert.equal(
-    loginErrorMessage(conflict(['kakao', 'naver'])),
-    '이미 카카오·네이버로 가입한 이메일이에요',
-  );
-  // 제공자 이름이 실리지 않았어도 막힌 이유는 말해 준다.
-  assert.match(loginErrorMessage(conflict([])), /이미 다른 방식으로 가입한 이메일이에요/);
+  assert.deepEqual(emailConflictNotice(conflict(['google'])), {
+    kind: 'email_conflict',
+    provider: 'google',
+  });
+  assert.deepEqual(emailConflictNotice(conflict(['kakao', 'naver'])), {
+    kind: 'email_conflict',
+    provider: 'kakao',
+  });
+  assert.deepEqual(emailConflictNotice(conflict([])), { kind: 'email_conflict', provider: null });
+  assert.equal(emailConflictNotice(new ApiError(400, 'x', 'unsupported_provider')), null);
+  assert.equal(emailConflictNotice(new Error('network')), null);
 });
 
-test('account.login: 꺼 둔 제공자 400, 잘못된 토큰 401, 제공자 무응답 502는 각각 다른 안내다', () => {
-  const disabled = loginErrorMessage(new ApiError(400, 'x', 'unsupported_provider'));
-  const invalid = loginErrorMessage(new ApiError(401, 'x', 'invalid_provider_token'));
-  const unavailable = loginErrorMessage(new ApiError(502, 'x', 'provider_unavailable'));
-
-  assert.match(disabled, /다른 방식/);
-  assert.match(invalid, /다시 시도/);
-  assert.match(unavailable, /잠시 (뒤|후)/);
-  assert.equal(new Set([disabled, invalid, unavailable]).size, 3);
-  // 그 밖의 오류는 요청 계층이 만든 문장을 그대로 쓴다.
-  assert.equal(loginErrorMessage(new ApiError(429, '잠시 몰렸어요', 'rate limit exceeded')), '잠시 몰렸어요');
-});
-
-test('account.login: 제공자 SDK 가 없거나 토큰을 못 받았을 때의 안내는 한국어·영어 언어 파일에 모두 있다', async () => {
-  const { default: ko } = await import('../locales/ko.ts');
-  const { default: en } = await import('../locales/en.ts');
-
-  // provider-sdk 가 던지는 오류는 loginErrorMessage 가 message 그대로 화면에 띄운다.
-  for (const key of ['googleUnavailable', 'appleUnavailable', 'appleNoToken', 'providerUnsupportedBuild']) {
-    assert.match(ko.login[key], /[가-힣]/, key);
-    assert.equal(typeof en.login[key], 'string', key);
-    assert.doesNotMatch(en.login[key], /[가-힣]/, key);
-  }
+test('account.login: 이메일 겹침 팝업은 이 빌드가 쓸 수 있는 제공자일 때만 계속하기를 둔다', () => {
+  assert.deepEqual(emailConflictDialog('google', ['google', 'apple']), {
+    title: '이미 가입한 계정이 있어요',
+    message: '이 이메일은 Google로 가입돼 있어요.\nGoogle로 계속할까요?',
+    continueWith: 'google',
+  });
+  // 안드로이드에서 애플로 가입한 계정 — 눌러서 실패하는 버튼을 만들지 않는다.
+  assert.deepEqual(emailConflictDialog('apple', ['google']), {
+    title: '이미 가입한 계정이 있어요',
+    message: '이 이메일은 Apple로 가입돼 있어요.',
+    continueWith: null,
+  });
+  const unknown = {
+    title: '이미 가입한 계정이 있어요',
+    message: '이 이메일은 다른 방식으로 가입돼 있어요.',
+    continueWith: null,
+  };
+  assert.deepEqual(emailConflictDialog(null, ['google', 'apple']), unknown);
+  assert.deepEqual(emailConflictDialog('facebook', ['google', 'apple']), unknown);
 });

@@ -24,7 +24,6 @@ import {
   type ConsentChoice,
 } from '@/lib/consent-entry-submission';
 import { translate as t } from '@/lib/i18n';
-import { loginErrorMessage } from '@/lib/login-flow';
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
@@ -138,14 +137,7 @@ export default function ConsentScreen() {
     try {
       await submitSignup(choiceMap);
     } catch (cause) {
-      const action = signupFailureAction(cause);
-      if (action === 'restart_login') {
-        // 가입 토큰 만료(30분)나 이메일 겹침. 로그인 버튼부터 다시 시작한다.
-        const expired = (cause as { code?: string })?.code === 'invalid_signup_token';
-        cancelSignup(expired ? t('login.signupExpired') : loginErrorMessage(cause));
-        return;
-      }
-      if (action === 'reload_documents') {
+      if (signupFailureAction(cause) === 'reload_documents') {
         // 보는 사이 새 판이 나왔다. 문서를 다시 받아 화면을 새로 그린다.
         setError(t('consent.outdated'));
         await reloadSignupDocuments().catch(() => undefined);

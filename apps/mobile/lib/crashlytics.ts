@@ -25,3 +25,14 @@ export async function initCrashlytics(): Promise<void> {
     // 모듈이 없는 빌드 — 크래시 수집 없이 간다.
   }
 }
+
+/** 화면이 처리해 사용자에게는 뭉뚱그려 보인 오류의 원인을 남긴다. */
+export function recordHandledError(error: unknown): void {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { getCrashlytics, recordError } = require('@react-native-firebase/crashlytics');
+    recordError(getCrashlytics(), error instanceof Error ? error : new Error(String(error)));
+  } catch {
+    // 모듈이 없는 빌드 — 남기지 않고 간다.
+  }
+}

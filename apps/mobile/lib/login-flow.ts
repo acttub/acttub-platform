@@ -180,18 +180,56 @@ export function providerLabel(provider: string): string {
   return isLoginProvider(provider) ? translate(`login.providerName.${provider}`) : provider;
 }
 
-/** 로그인·가입 제출이 실패했을 때 화면에 보일 문장. */
-export function loginErrorMessage(error: unknown): string {
-  if (error instanceof ApiError) {
-    if (error.code === 'account_exists_with_different_provider') {
-      const providers = conflictProviders(error).map(providerLabel);
-      return providers.length > 0
-        ? translate('login.emailConflict', { providers: providers.join('·') })
-        : translate('login.emailConflictUnknown');
-    }
-    if (error.code === 'unsupported_provider') return translate('login.providerDisabled');
-    if (error.code === 'invalid_provider_token') return translate('login.invalidToken');
-    if (error.code === 'provider_unavailable') return translate('login.providerUnavailable');
+/** 로그인 화면으로 돌려보내며 남기는 것. */
+export type LoginNotice =
+  /** 회색 상자. 만 14세 미만으로 계정이 닫혔을 때의 안전망. */
+  | { kind: 'notice'; message: string }
+  /** 팝업. provider는 서버 목록의 첫 번째. */
+  | { kind: 'email_conflict'; provider: string | null };
+
+type EmailConflictNotice = Extract<LoginNotice, { kind: 'email_conflict' }>;
+
+/**
+ * 이메일 겹침 409를 팝업 안내로 바꾼다. 아니면 null.
+ *
+ * 서버 목록의 첫 번째만 쓴다 — 여럿이면 가장 최근에 쓴 것을 앞에 두는 것은 서버의 몫이다.
+ */
+export function emailConflictNotice(error: unknown): EmailConflictNotice | null {
+  if (
+    !(error instanceof ApiError) ||
+    error.status !== 409 ||
+    error.code !== 'account_exists_with_different_provider'
+  ) {
+    return null;
   }
-  return error instanceof Error ? error.message : translate('login.failed');
+  return { kind: 'email_conflict', provider: conflictProviders(error)[0] ?? null };
+}
+
+/**
+ * 이메일 겹침 팝업의 문구와 "계속하기"로 시작할 제공자.
+ *
+ * 이 빌드가 못 쓰는 제공자(안드로이드의 애플 등)나 모르는 값이면 계속하기를 두지 않는다 —
+ * 눌러서 실패하는 버튼을 만들지 않기 위해서다.
+ */
+export function emailConflictDialog(
+  provider: string | null,
+  supported: readonly LoginProvider[],
+): { title: string; message: string; continueWith: LoginProvider | null } {
+  const title = translate('login.emailConflictTitle');
+  if (provider === null || !isLoginProvider(provider)) {
+    return { title, message: translate('login.emailConflictUnknown'), continueWith: null };
+  }
+  const name = providerLabel(provider);
+  if (!supported.includes(provider)) {
+    return {
+      title,
+      message: translate('login.emailConflictUnavailable', { provider: name }),
+      continueWith: null,
+    };
+  }
+  return {
+    title,
+    message: translate('login.emailConflictBody', { provider: name }),
+    continueWith: provider,
+  };
 }
