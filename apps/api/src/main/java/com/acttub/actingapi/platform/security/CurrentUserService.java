@@ -56,10 +56,7 @@ public class CurrentUserService {
      * 토큰을 요청마다 403 {@code account_deactivated} 로 막는다.
      */
     private static boolean acceptsDeactivated(HttpServletRequest request) {
-        String path = request.getRequestURI();
-        if (path.length() > 1 && path.endsWith("/")) {
-            path = path.substring(0, path.length() - 1);
-        }
-        return "DELETE".equalsIgnoreCase(request.getMethod()) && "/v2/me".equals(path);
+        return "DELETE".equalsIgnoreCase(request.getMethod())
+                && "/v2/me".equals(RequestPath.normalized(request.getRequestURI()));
     }
 }

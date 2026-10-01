@@ -3039,7 +3039,7 @@
       "patch" : {
         "tags" : [ "v2-me" ],
         "summary" : "Update Notification Settings",
-        "description" : "바꿀 토글만 보내고 토글 셋 전체를 돌려받는다. 분석 완료와 챌린지가 둘 다 꺼지면 서버가 그\n회원의 푸시 토큰을 전부 지운다(토글은 회원 단위다). 저녁 리마인드는 서버가 값만 기억하고\n알람은 폰이 맞춘다.",
+        "description" : "바꿀 토글만 보내고 토글 셋 전체를 돌려받는다. 셋이 다 꺼지면 서버가 그 회원의 푸시\n토큰을 전부 지운다(토글은 회원 단위다). 저녁 리마인드도 서버가 푸시로 보낸다.",
         "operationId" : "update_notification_settings_v2_me_notification_settings_patch",
         "requestBody" : {
           "content" : {

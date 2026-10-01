@@ -1,8 +1,10 @@
 package com.acttub.actingapi.feature.reading.adapter.db;
 
+import static com.acttub.actingapi.feature.reading.adapter.db.JoinedColumn.SEPARATOR;
+import static com.acttub.actingapi.feature.reading.adapter.db.JoinedColumn.split;
+
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -45,8 +47,6 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @Repository
 class PostgresScriptRepository implements ScriptRepository {
-    /** 이름·id 목록을 한 칸에 이어 붙일 때 쓰는 구분자. 이름에 나올 수 없는 제어 문자다. */
-    private static final String SEPARATOR = "\u001f";
 
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
@@ -418,9 +418,6 @@ class PostgresScriptRepository implements ScriptRepository {
         return "no_cast";
     }
 
-    private static List<String> split(String joined) {
-        return joined == null || joined.isEmpty() ? List.of() : Arrays.asList(joined.split(SEPARATOR, -1));
-    }
 
     /** {@code %}·{@code _}·{@code \} 를 글자 그대로 찾는다. */
     private static String escapeLike(String value) {

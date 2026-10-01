@@ -1,12 +1,9 @@
 package com.acttub.actingapi.feature.practice.app;
 
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
 
@@ -18,7 +15,9 @@ import com.acttub.actingapi.feature.practice.app.PracticeViews.GroupView;
 import com.acttub.actingapi.feature.practice.app.PracticeViews.PracticeView;
 import com.acttub.actingapi.feature.practice.app.PracticeViews.StatusView;
 import com.acttub.actingapi.feature.practice.domain.PracticeRules;
+import com.acttub.actingapi.platform.schema.ExperienceVersion;
 import com.acttub.actingapi.platform.web.ApiException;
+import com.acttub.actingapi.platform.web.Hashing;
 
 /**
  * 회차·묶음의 규칙 (practice.start, practice.resume, practice.analyze).
@@ -176,10 +175,9 @@ public class PracticeService {
         String blockageKind = PracticeRules.blockage(draft.blockageKind());
         String subBranch = PracticeRules.blockage(draft.subBranch());
         String blockageNote = PracticeRules.note(draft.blockageNote());
-        String experienceVersion = PracticeRules.threeLayers(
-                threeLayersEnabled, contractHeader, situation, characterContext, goal, blockageKind, blockageNote)
-                ? "three_layers_v1"
-                : "legacy";
+        String experienceVersion = PracticeRules.threeLayers(threeLayersEnabled, contractHeader)
+                ? ExperienceVersion.THREE_LAYERS_V1.dbValue()
+                : ExperienceVersion.LEGACY.dbValue();
         return new NewPractice(
                 draft.requestId(),
                 fingerprint(String.join("|", "practice_start",
@@ -221,11 +219,6 @@ public class PracticeService {
     }
 
     static String fingerprint(String payload) {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest(payload.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 is unavailable", exception);
-        }
+        return Hashing.sha256Hex(payload);
     }
 }

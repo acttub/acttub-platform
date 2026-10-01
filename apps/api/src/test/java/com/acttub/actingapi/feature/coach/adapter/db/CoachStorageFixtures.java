@@ -1,6 +1,7 @@
 package com.acttub.actingapi.feature.coach.adapter.db;
 
 import com.acttub.actingapi.feature.coach.app.CoachSessionSnapshot;
+import com.acttub.actingapi.feature.coach.app.PriorContext;
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -245,7 +246,6 @@ public final class CoachStorageFixtures {
         return new CoachSessionSnapshot(
                 sessionId,
                 practice.id(),
-                summaryId,
                 practice.userId(),
                 JsonNodeFactory.instance.objectNode()
                         .set("observations", JsonNodeFactory.instance.arrayNode()),
@@ -256,12 +256,9 @@ public final class CoachStorageFixtures {
                 "분석",
                 "대사 분석",
                 "대사의 목적이 흐리다",
-                List.of(),
-                "",
-                null,
                 "open",
                 "",
-                turns);
+                turns, PriorContext.EMPTY, "legacy", 0, null, null);
     }
 
     public String coachStatus(UUID sessionId) {

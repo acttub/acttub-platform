@@ -19,6 +19,7 @@ import com.acttub.actingapi.feature.practice.domain.BlockageBranch;
 import com.acttub.actingapi.platform.security.AccessGate;
 import com.acttub.actingapi.platform.security.AuthenticatedUser;
 import com.acttub.actingapi.platform.web.ApiValidationException;
+import com.acttub.actingapi.platform.web.RequestIdHeader;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;

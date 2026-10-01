@@ -54,8 +54,8 @@ class PostgresConversationRepository implements ConversationRepository {
                 SELECT p.id AS practice_id,p.user_id,p.stage,p.situation,p.character_context,p.goal,
                        p.blockage_kind,p.sub_branch,p.blockage_detail,p.experience_version,
                        v.duration_ms,
-                       a.id AS analysis_id,CAST(a.record AS text) AS record,
-                       c.id AS conversation_id,c.start_request_id,c.status,c.close_reason,
+                       CAST(a.record AS text) AS record,
+                       c.id AS conversation_id,c.status,c.close_reason,
                        c.state_revision,CAST(c.state AS text) AS state
                 FROM practices p
                 JOIN videos v ON v.id=p.video_id
@@ -82,12 +82,10 @@ class PostgresConversationRepository implements ConversationRepository {
         return new Loaded(
                 practiceId,
                 conversationId,
-                row.get("start_request_id", UUID.class),
                 row.get("stage", String.class),
                 new CoachSessionSnapshot(
                         conversationId == null ? UUID.randomUUID() : conversationId,
                         practiceId,
-                        row.get("analysis_id", UUID.class),
                         userId,
                         json(row.get("record", String.class)),
                         row.get("situation", String.class),
@@ -97,10 +95,6 @@ class PostgresConversationRepository implements ConversationRepository {
                         row.get("blockage_kind", String.class),
                         row.get("sub_branch", String.class),
                         row.get("blockage_detail", String.class),
-                        // 받아쓰기는 관찰 기록 안의 speech 로 들어간다 — 옛 흐름의 문장 목록과 달리 따로 싣지 않는다.
-                        List.of(),
-                        "",
-                        null,
                         row.get("status", String.class) == null ? "open" : row.get("status", String.class),
                         row.get("close_reason", String.class),
                         conversationId == null ? List.of() : turnsOf(conversationId),

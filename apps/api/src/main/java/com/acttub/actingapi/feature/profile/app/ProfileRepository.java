@@ -107,7 +107,7 @@ public interface ProfileRepository {
     NotificationSettings notificationSettings(UUID userId);
 
     /**
-     * 보낸 토글만 바꾼다({@code null} 은 그대로 둔다). 분석 완료와 챌린지가 <b>둘 다</b> 꺼지면 같은
+     * 보낸 토글만 바꾼다({@code null} 은 그대로 둔다). 토글 <b>셋이 다</b> 꺼지면 같은
      * 트랜잭션에서 그 회원의 푸시 토큰을 전부 지운다 — 토글은 회원 단위라 기기마다가 아니다.
      *
      * @return 바꾼 뒤의 토글 셋. 프로필 행이 없거나 계정이 활성이 아니면 {@code null}

@@ -107,11 +107,10 @@ ArchUnit 테스트 `PackageLayerTest`가 강제한다. 이렇게 정한 이유�
 |---|---|---|
 | Domain Model | 비즈니스 규칙과 그 규칙이 다루는 값을 담은 객체. 프레임워크(스프링·JPA·Jackson)를 모르므로 스프링 컨텍스트나 DB 없이 세울 수 있다. 저장 형태(Schema Entity·SQL 행)나 전송 형태(요청·응답 DTO)와 별개이고, 그 사이의 변환은 어댑터가 한다. | 엔티티, 도메인 객체(수식 없이), VO |
 | Port | 한 도메인이 바깥에 요구하는 것을 **쓰는 쪽**이 선언한 인터페이스. 쓰는 쪽이 배관일 수도 있다 — 요청 게이트가 사용자 조회를 요구하면 배관이 Port를 선언하고 도메인이 구현한다. 이름 규칙은 「api 층 규칙」. | 인터페이스(수식 없이), 추상화, DAO |
-| Schema Entity | 테이블 모양을 그대로 나타내는 JPA 영속 객체. 스키마 검증과 런타임 읽기·쓰기에 함께 쓴다. 관계 매핑 규칙은 [CONTRACT](../apps/api/CONTRACT.md) §5-1. | 도메인 모델, 엔티티(수식 없이) |
+| Schema Entity | 테이블 모양을 그대로 나타내는 JPA 영속 객체. 런타임 읽기·쓰기와 스키마 검증에 함께 쓴다. 코드가 JPA로 읽고 쓰지 않는 테이블은 스키마 검증만을 위해 매핑하지 않는다. 은퇴 목록과 관계 매핑 규칙은 [CONTRACT](../apps/api/CONTRACT.md) §5-1. | 도메인 모델, 엔티티(수식 없이) |
 | External Operation | 외부 호출(LLM·S3·영상 분석)을 수반해 한 트랜잭션 안에서 끝낼 수 없는 처리. 저장은 종류에 따라 AI Job 또는 정리 장부(`account_cleanup_operations`)다. | 작업, 잡, 태스크, job |
 | AI Job | 뒤에서 도는 AI 요청 하나. `ai_jobs` 큐의 한 행이고 종류는 `AiJobKind`다. 코치 대화는 동기 요청이라 여기 속하지 않는다. 한국어로는 "AI 작업"이다. | 잡, 태스크, 백그라운드 작업(수식 없이) |
 | Lease | 워커가 작업을 점유했다는 표식. 만료·회수·완료 거절 규칙은 원장마다 다르다 → [공통 규칙 「공통 상태」](specs/common.md#공통-상태)(`ai_jobs`), [CONTRACT](../apps/api/CONTRACT.md) §5-7(`external_operations`). | 락, 점유권, lock |
-| Report Source | 소유권 검증이 끝난, 리포트 생성에 필요한 코치 세션 문맥. 리포트 쪽이 요구하고 코치 쪽이 제공한다(`ReportSourceProvider`). | 리포트 컨텍스트, 세션 데이터 |
 | Admissions | 대학 입시 공고 카탈로그. 인증의 admission control과 무관하다. | admission(단수형), 입장, 입장 제어 |
 
 실패는 상태 코드의 다른 이름이 아니라, 받는 쪽이 할 일과 운영자에게 알릴지를 가르는 분류다(`platform/observability`).

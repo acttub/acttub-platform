@@ -20,7 +20,6 @@ import com.acttub.actingapi.feature.analysis.app.AnalysisResult;
 import com.acttub.actingapi.feature.analysis.app.AnalysisStore;
 import com.acttub.actingapi.feature.analysis.app.AnalysisWorker;
 import com.acttub.actingapi.feature.analysis.app.SummaryAnalyzer;
-import com.acttub.actingapi.feature.coach.app.CoachSessionRepository;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.RecordingFailureReporter;
@@ -89,9 +88,6 @@ class PostgresAnalysisStoreIT {
     @Autowired
     ObjectMapper mapper;
 
-    @Autowired
-    CoachSessionRepository coaches;
-
     @BeforeEach
     void clearDatabase() {
         jdbc.execute("TRUNCATE TABLE users RESTART IDENTITY CASCADE");
@@ -139,9 +135,9 @@ class PostgresAnalysisStoreIT {
                     assertThat(practiceId).isEqualTo(sessionId);
                     assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
                     return result().observationPack().speech();
-                }, reporter);
+                }, reporter, null);
         AnalysisWorker worker = new AnalysisWorker(store, storage, analyzer,
-                Clock.fixed(NOW, ZoneOffset.UTC), Duration.ofMinutes(5), MODEL, reporter);
+                Clock.fixed(NOW, ZoneOffset.UTC), Duration.ofMinutes(5), MODEL, null, reporter);
 
         assertThat(worker.runOnce()).isTrue();
 
@@ -149,9 +145,9 @@ class PostgresAnalysisStoreIT {
         assertThat(observationCalls.count()).isEqualTo(observationBefore + 1);
         assertThat(speechCalls.count()).isEqualTo(speechBefore + 1);
         assertThat(operation(operationId).get("status")).isEqualTo("succeeded");
-        assertThat(coaches.getOwnedPracticeSessionContext(userId, sessionId).durationMs())
+        assertThat(practiceDuration(sessionId))
                 .isEqualTo(expectedDurationMs);
-        assertThat(coaches.getOwnedCoachSession(userId, waitingCoach).session().durationMs())
+        assertThat(coachDuration(waitingCoach))
                 .isEqualTo(expectedDurationMs);
     }
 
@@ -184,7 +180,7 @@ class PostgresAnalysisStoreIT {
                 throw new IllegalStateException(interrupted);
             }
             return result(); // The video is 12.345 seconds; this execution is much shorter.
-        }, Clock.systemUTC(), Duration.ofMinutes(5), MODEL, new RecordingFailureReporter());
+        }, Clock.systemUTC(), Duration.ofMinutes(5), MODEL, null, new RecordingFailureReporter());
         var timer = meters.get("acttub.external.operations.execution").tags(
                 "kind", "analyze", "outcome", "succeeded").timer();
         double elapsedBefore = timer.totalTime(java.util.concurrent.TimeUnit.SECONDS);
@@ -230,7 +226,7 @@ class PostgresAnalysisStoreIT {
         }
         AnalysisWorker worker = new AnalysisWorker(store, storage, (path, context) -> {
             throw new IllegalStateException("broken invariant");
-        }, Clock.systemUTC(), Duration.ofMinutes(5), MODEL, new RecordingFailureReporter());
+        }, Clock.systemUTC(), Duration.ofMinutes(5), MODEL, null, new RecordingFailureReporter());
         int attempts = "expected".equals(classification) ? 1 : 3;
         for (int attempt = 0; attempt < attempts; attempt++) {
             assertThat(worker.runOnce()).isTrue();
@@ -255,7 +251,7 @@ class PostgresAnalysisStoreIT {
         when(storage.downloadToPath(anyString(), any())).thenThrow(
                 new IllegalStateException("network unavailable", new java.net.ConnectException()));
         AnalysisWorker worker = new AnalysisWorker(store, storage, (path, context) -> result(),
-                Clock.fixed(NOW, ZoneOffset.UTC), Duration.ofMinutes(5), MODEL, new RecordingFailureReporter());
+                Clock.fixed(NOW, ZoneOffset.UTC), Duration.ofMinutes(5), MODEL, null, new RecordingFailureReporter());
 
         for (int attempt = 0; attempt < 3; attempt++) {
             assertThat(worker.runOnce()).isTrue();
@@ -293,8 +289,8 @@ class PostgresAnalysisStoreIT {
         store.complete(secondOperation, secondLease,
                 new AnalysisResult(result().observationPack(), false, 23456), MODEL, NOW.plusSeconds(2));
 
-        assertThat(coaches.getOwnedPracticeSessionContext(userId, firstSession).durationMs()).isEqualTo(12345);
-        assertThat(coaches.getOwnedPracticeSessionContext(userId, secondSession).durationMs()).isEqualTo(12345);
+        assertThat(practiceDuration(firstSession)).isEqualTo(12345);
+        assertThat(practiceDuration(secondSession)).isEqualTo(12345);
         assertThat(operation(firstOperation).get("status")).isEqualTo("succeeded");
         assertThat(operation(secondOperation).get("status")).isEqualTo("succeeded");
         assertThat(store.getContext(secondOperation).durationMs()).isEqualTo(12345);
@@ -330,14 +326,14 @@ class PostgresAnalysisStoreIT {
         assertThat(count("SELECT count(*) FROM summaries WHERE session_id = ?", sessionId)).isZero();
         assertThat(count("SELECT count(*) FROM transcripts WHERE session_id = ?", sessionId)).isZero();
         assertThat(store.getContext(operationId).durationMs()).isNull();
-        assertThat(coaches.getOwnedCoachSession(userId, waitingCoach).session().durationMs()).isZero();
+        assertThat(coachDuration(waitingCoach)).isNull();
 
         assertThat(successes.count()).isEqualTo(before);
         // 만료됐어도 재선점되지 않은 현재 Lease는 완료 가능하다.
         store.complete(operationId, currentLease,
                 new AnalysisResult(result().observationPack(), false, 23456), MODEL, NOW.plusSeconds(602));
-        assertThat(coaches.getOwnedPracticeSessionContext(userId, sessionId).durationMs()).isEqualTo(23456);
-        assertThat(coaches.getOwnedCoachSession(userId, waitingCoach).session().durationMs()).isEqualTo(23456);
+        assertThat(practiceDuration(sessionId)).isEqualTo(23456);
+        assertThat(coachDuration(waitingCoach)).isEqualTo(23456);
         assertThat(operation(operationId).get("status")).isEqualTo("succeeded");
         assertThat(successes.count()).isEqualTo(before + 1);
         assertThatThrownBy(() -> store.complete(operationId, currentLease, result(), MODEL, NOW.plusSeconds(603)))
@@ -624,5 +620,23 @@ class PostgresAnalysisStoreIT {
 
     private int count(String sql, UUID argument) {
         return jdbc.queryForObject(sql, Integer.class, argument);
+    }
+
+    /** 옛 연습 흐름이 읽는 영상 길이. 분석 완료가 업로드 행에 채운다. */
+    private Integer practiceDuration(UUID sessionId) {
+        return jdbc.queryForObject("""
+                SELECT ui.duration_ms FROM practice_sessions ps
+                JOIN upload_intents ui ON ui.id = ps.upload_intent_id
+                WHERE ps.id = ?
+                """, Integer.class, sessionId);
+    }
+
+    private Integer coachDuration(UUID coachSessionId) {
+        return jdbc.queryForObject("""
+                SELECT ui.duration_ms FROM coach_sessions c
+                JOIN practice_sessions ps ON ps.id = c.practice_session_id
+                JOIN upload_intents ui ON ui.id = ps.upload_intent_id
+                WHERE c.id = ?
+                """, Integer.class, coachSessionId);
     }
 }

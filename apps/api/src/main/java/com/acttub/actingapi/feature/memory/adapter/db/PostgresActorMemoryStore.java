@@ -8,7 +8,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +21,7 @@ import com.acttub.actingapi.feature.memory.app.MemoryUpdateMaterial;
 import com.acttub.actingapi.feature.memory.domain.AgentMemoryWrites;
 import com.acttub.actingapi.platform.ledger.AiJobLedger;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
+import com.acttub.actingapi.platform.web.Hashing;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
@@ -215,7 +215,7 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
                     .setParameter("id", UUID.randomUUID())
                     .setParameter("practiceId", practiceId)
                     .setParameter("requestId", requestId)
-                    .setParameter("fingerprint", sha256Hex("memory_update:" + practiceId))
+                    .setParameter("fingerprint", Hashing.sha256Hex("memory_update:" + practiceId))
                     .setParameter("userId", userId)
                     .setParameter("now", now.atOffset(ZoneOffset.UTC))).isEmpty();
         }));
@@ -406,8 +406,11 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
                 row.get("updated_at", Instant.class));
     }
 
-    /** RFC 4122 v5 (SHA-1). 같은 회차가 언제나 같은 요청 id 를 갖는다. */
-    private static UUID uuid5(UUID namespace, String name) {
+    /**
+     * RFC 4122 v5 (SHA-1). 같은 회차가 언제나 같은 요청 id 를 갖는다. {@code UUID.nameUUIDFromBytes} 는
+     * v3(MD5)라 쓰지 않는다.
+     */
+    static UUID uuid5(UUID namespace, String name) {
         byte[] nameBytes = name.getBytes(StandardCharsets.UTF_8);
         ByteBuffer buffer = ByteBuffer.allocate(16 + nameBytes.length);
         buffer.putLong(namespace.getMostSignificantBits());
@@ -418,10 +421,6 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
         hash[8] = (byte) ((hash[8] & 0x3f) | 0x80);
         ByteBuffer out = ByteBuffer.wrap(hash, 0, 16);
         return new UUID(out.getLong(), out.getLong());
-    }
-
-    private static String sha256Hex(String value) {
-        return HexFormat.of().formatHex(digest("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
     }
 
     private static MessageDigest digest(String algorithm) {

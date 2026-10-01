@@ -24,7 +24,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientException;
 
 /**
  * 애플 토큰 API 의 실물. 요청마다 client secret(ES256 JWT)을 새로 만든다 — 애플 문서
@@ -72,7 +71,7 @@ public class HttpAppleTokenClient implements AppleTokenClient {
         form.add("client_secret", clientSecret(clientId));
         form.add("code", authorizationCode);
         form.add("grant_type", "authorization_code");
-        Reply reply = post(TOKEN_URL, form);
+        ProviderHttp.Reply reply = post(TOKEN_URL, form);
         if (reply.status() == 200) {
             String refreshToken = text(reply.body(), "refresh_token");
             if (refreshToken == null) {
@@ -113,24 +112,17 @@ public class HttpAppleTokenClient implements AppleTokenClient {
         form.add("client_secret", clientSecret(clientId));
         form.add("token", refreshToken);
         form.add("token_type_hint", "refresh_token");
-        Reply reply = post(REVOKE_URL, form);
+        ProviderHttp.Reply reply = post(REVOKE_URL, form);
         if (reply.status() != 200) {
             throw new ProviderUnavailable("apple revoke endpoint answered " + reply.status());
         }
     }
 
-    private Reply post(String url, MultiValueMap<String, String> form) {
-        try {
-            return http.post()
-                    .uri(url)
-                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                    .body(form)
-                    .exchange((request, response) -> new Reply(
-                            response.getStatusCode().value(),
-                            new String(response.getBody().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)));
-        } catch (RestClientException failure) {
-            throw new ProviderUnavailable("apple did not answer", failure);
-        }
+    private ProviderHttp.Reply post(String url, MultiValueMap<String, String> form) {
+        return ProviderHttp.send(http.post()
+                .uri(url)
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .body(form), "apple");
     }
 
     private String clientSecret(String clientId) {
@@ -174,8 +166,5 @@ public class HttpAppleTokenClient implements AppleTokenClient {
         } catch (Exception notJson) {
             return null;
         }
-    }
-
-    private record Reply(int status, String body) {
     }
 }

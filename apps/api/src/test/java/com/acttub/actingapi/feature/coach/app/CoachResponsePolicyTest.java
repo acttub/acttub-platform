@@ -8,7 +8,6 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.coach.domain.CoachHelpIntent;
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
-import com.acttub.actingapi.feature.coach.domain.HandoffReadiness;
 import com.acttub.actingapi.feature.report.app.ReportEngine;
 import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.integration.llm.TextGenerator;
@@ -39,8 +38,7 @@ class CoachResponsePolicyTest {
                     "내일 다시 만나자", "말끝에서 고개를 돌린다", "약속을 확인한 뒤 돌아선다",
                     "\"avg_syllables_per_sec\":5.0", "\"quote\":\"내일 다시 만나자\"",
                     "음질 때문에 말끝의 발음은 확인하기 어려움", "현재 응답: 8번째");
-            if (branch.equals("표현")) assertThat(input).contains("이전 분석 세션에서 전달받은 입력 정보", "다시 만날 약속");
-            else assertThat(input).doesNotContain("이전 분석 세션에서 전달받은 입력 정보");
+            assertThat(input).doesNotContain("이전 분석 세션에서 전달받은 입력 정보");
             assertThat(CoachPrompt.select(branch)).contains(
                     "채팅에 쓴 문장은 기본적으로 코치에게 하는 말이다",
                     "질문에는 먼저 답한다", "원하는 결과와 가능한 결과는 다르다",
@@ -48,20 +46,6 @@ class CoachResponsePolicyTest {
                     "현재 대화 원문이 지난 요약", "배우가 쓰는 언어로",
                     "\"네\", \"맞아\", \"알겠어\"만으로 실험을 했거나 좋아졌다고 기록하지 않는다");
         }
-    }
-
-    @Test
-    void failedPriorAnalysisIsNotPresentedAsConfirmedContextForExpression() throws Exception {
-        CoachSessionSnapshot source = session("표현", List.of());
-        CoachSessionSnapshot session = new CoachSessionSnapshot(
-                source.sessionId(), source.practiceSessionId(), source.summaryId(), source.userId(),
-                source.observationPack(), source.situation(), source.characterContext(), source.goal(),
-                source.durationMs(), source.blockageKind(), source.subBranch(), source.blockageDetail(),
-                source.transcripts(), source.conversationSummary(),
-                MAPPER.readTree("{\"completion_level\":\"unavailable\"}"), source.status(), source.closeReason(), source.turns());
-        assertThat(CoachPrompt.buildChat(session, "말끝이 궁금해요"))
-                .contains("표현 세션 입력 정보", "말끝에서 고개를 돌린다", "내일 다시 만나자")
-                .doesNotContain("이전 분석 세션에서 전달받은 입력 정보");
     }
 
     @Test
@@ -99,25 +83,19 @@ class CoachResponsePolicyTest {
     }
 
     @Test
-    void helpShortcutsDontBecomeReportEvidenceButSpecificAnswersStillCount() {
-        List<CoachTurnSnapshot> turns = new ArrayList<>(List.of(actor("막힘 상세")));
+    void helpShortcutsAreRecognizedAsHelpOnly() {
         for (String help : List.of("잘 모르겠어요!", "I’m not sure.", "예시로 설명해 주세요.",
                 "제가 되물을게요", "지금은 연습하기 어려워요. 다음에 해볼 방법을 설명해 주세요.",
                 "I can’t practice now. Please explain what I can try later.")) {
             assertThat(CoachHelpIntent.isHelpOnly(help)).as(help).isTrue();
-            turns.add(actor(help));
         }
-        assertThat(HandoffReadiness.hasEnoughAnswers(turns)).isFalse();
-        turns.add(actor("내일 만날 수 있을지 모르겠어요"));
-        turns.add(actor("그래도 다시 만나고 싶다는 뜻이에요"));
-        assertThat(HandoffReadiness.hasEnoughAnswers(turns)).isTrue();
     }
 
     @Test
     void coachAllowsDescriptiveFeedbackWhileKeepingOtherValidatorsAndProhibitions() {
         String feedback = "개선점은 말끝의 길이를 일정하게 정하는 것이에요.";
         assertThat(TextValidator.validateCoachTurn(feedback).failures()).isEmpty();
-        assertThat(TextValidator.validateTurn(feedback, false).forbiddenHits()).contains("개선점");
+        assertThat(TextValidator.validateTurn(feedback).forbiddenHits()).contains("개선점");
         for (String invalid : List.of("점수는 90점", "그건 성격 때문이에요", "실제 가족 상처를 떠올려 보세요", "1:23의 대사")) {
             assertThat(TextValidator.validateCoachTurn(invalid).failures()).as(invalid).isNotEmpty();
         }
@@ -199,7 +177,7 @@ class CoachResponsePolicyTest {
     }
 
     private static CoachSessionSnapshot session(String branch, List<CoachTurnSnapshot> turns) throws Exception {
-        return new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+        return new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 MAPPER.readTree("""
                         {"scene_summary":"동료와 다음 만남을 약속한다", "timeline":"약속을 확인한 뒤 돌아선다",
                         "speech":{"transcript":"내일 다시 만나자", "avg_syllables_per_sec":5.0,
@@ -208,9 +186,7 @@ class CoachResponsePolicyTest {
                                          "quote":"내일 다시 만나자", "dimension":"시선","confidence":0.8}],
                         "uncertainties":["음질 때문에 말끝의 발음은 확인하기 어려움"]}
                         """),
-                "헤어지기 전 약속", "동료", "다시 만날 약속", 5000, branch, "말끝", "말끝이 길어져요",
-                List.of("내일 다시 만나자"), "상대의 목적을 찾아본다는 이전 요약",
-                MAPPER.readTree("{\"line_meaning\":\"다시 만날 약속\"}"), "open", "", turns);
+                "헤어지기 전 약속", "동료", "다시 만날 약속", 5000, branch, "말끝", "말끝이 길어져요", "open", "", turns, PriorContext.EMPTY, "legacy", 0, null, null);
     }
 
     private static CoachTurnSnapshot actor(String text) { return new CoachTurnSnapshot("actor", text); }

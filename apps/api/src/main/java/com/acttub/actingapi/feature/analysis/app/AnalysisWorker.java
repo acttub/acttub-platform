@@ -27,8 +27,6 @@ import com.acttub.actingapi.integration.observation.SummaryParseError;
 
 /** 단일 분석 operation 을 동기 처리하는 진입점. 백그라운드 스케줄러가 이것을 반복 호출한다. */
 public class AnalysisWorker {
-    public static final Duration DEFAULT_LEASE = Duration.ofSeconds(1800);
-
     private static final Logger LOGGER = Logger.getLogger(AnalysisWorker.class.getName());
 
     private final AnalysisStore store;
@@ -39,17 +37,6 @@ public class AnalysisWorker {
     private final String model;
     private final AnalysisCompletionListener completionListener;
     private final FailureReporter failureReporter;
-
-    public AnalysisWorker(
-            AnalysisStore store,
-            ObjectStorage storage,
-            AnalysisProcessor analyzer,
-            Clock clock,
-            Duration leaseDuration,
-            String model,
-            FailureReporter failureReporter) {
-        this(store, storage, analyzer, clock, leaseDuration, model, null, failureReporter);
-    }
 
     public AnalysisWorker(
             AnalysisStore store,

@@ -118,7 +118,7 @@ class DirectVideoPracticeIT {
 
     @Test void migratedPracticeNeverFallsBackToPurgedOrForeignLegacyUpload() {
         var legacy = fixtures.insertPractice(user);
-        assertThat(videos.find(user, legacy.id())).isNotNull();
+        assertThat(videos.find(user, legacy.id())).as("대화는 practices 만 가리킨다 — 옛 업로드로 가지 않는다").isNull();
         practice(legacy.id());
         var video = videos.find(user, legacy.id());
         assertThat(video.objectKey()).startsWith("videos/");
@@ -160,7 +160,7 @@ class DirectVideoPracticeIT {
         @Bean @Primary RecordingLlmTelemetry recordingTelemetry() { return new RecordingLlmTelemetry(); }
         @Bean DirectVideoCoach directVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
                 FailureReporter failures, RecordingLlmTelemetry telemetry) {
-            return new DirectVideoCoach(model, videos, storage, failures, telemetry);
+            return new DirectVideoCoach(model, videos, storage, failures, telemetry, false);
         }
     }
 }

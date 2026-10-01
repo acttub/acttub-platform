@@ -11,11 +11,8 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengePlayback;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengeVideo;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengeVideoPage;
-import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminFeedbackItem;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminFeedbackPage;
-import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminReadingLine;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminReadingPlayback;
-import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminReadingRecording;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminReadingSession;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminReadingSessionDetail;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminReadingSessionPage;
@@ -101,23 +98,7 @@ public class AdminService {
 
     public AdminFeedbackPage feedback(int limit, List<String> excludeActors, boolean includeTeam) {
         var rows = metrics.feedback(limit + 1, excludeEmails, excludeActors, includeTeam);
-        boolean hasMore = rows.size() > limit;
-        List<AdminFeedbackItem> items = rows.stream()
-                .limit(limit)
-                .map(row -> new AdminFeedbackItem(
-                        row.id(),
-                        row.kind(),
-                        row.createdAt(),
-                        row.actor(),
-                        row.team(),
-                        row.body(),
-                        row.rating(),
-                        row.status(),
-                        row.source(),
-                        row.trigger(),
-                        row.practiceId()))
-                .toList();
-        return new AdminFeedbackPage(items, limit, hasMore);
+        return new AdminFeedbackPage(rows.stream().limit(limit).toList(), limit, rows.size() > limit);
     }
 
     public AdminChallengeVideoPage challengeVideos(
@@ -125,18 +106,7 @@ public class AdminService {
             List<String> excludeActors,
             String visibility) {
         List<AdminChallengeVideo> entries = metrics.challengeVideos(
-                        limit, excludeEmails, excludeActors, visibility)
-                .stream()
-                .map(row -> new AdminChallengeVideo(
-                        row.id(),
-                        row.actor(),
-                        row.createdAt(),
-                        row.visibility(),
-                        row.status(),
-                        row.challengeKind(),
-                        row.challengeRef(),
-                        row.hasVideo()))
-                .toList();
+                limit, excludeEmails, excludeActors, visibility);
         return new AdminChallengeVideoPage(entries, entries.size());
     }
 
@@ -159,38 +129,13 @@ public class AdminService {
             String status,
             List<String> excludeActors) {
         List<AdminReadingSession> sessions = metrics.readingSessions(
-                        limit, status, excludeEmails, excludeActors)
-                .stream()
-                .map(AdminService::readingSession)
-                .toList();
+                limit, status, excludeEmails, excludeActors);
         return new AdminReadingSessionPage(sessions, sessions.size());
     }
 
     public AdminReadingSessionDetail readingSession(UUID sessionId, List<String> excludeActors) {
-        var row = metrics.readingSession(sessionId, excludeEmails, excludeActors)
+        return metrics.readingSession(sessionId, excludeEmails, excludeActors)
                 .orElseThrow(() -> new ApiException(404, "reading_session_not_found"));
-        List<AdminReadingLine> lines = row.lines().stream()
-                .map(line -> new AdminReadingLine(
-                        line.id(),
-                        line.ordinal(),
-                        line.kind(),
-                        line.characterName(),
-                        line.text(),
-                        line.inRange(),
-                        line.mine()))
-                .toList();
-        List<AdminReadingRecording> recordings = row.recordings().stream()
-                .map(recording -> new AdminReadingRecording(
-                        recording.id(),
-                        recording.lineId(),
-                        recording.attemptNo(),
-                        recording.durationMs(),
-                        recording.createdAt(),
-                        recording.transcriptSource(),
-                        recording.transcript(),
-                        recording.matched()))
-                .toList();
-        return new AdminReadingSessionDetail(readingSession(row.session()), lines, recordings);
     }
 
     public AdminReadingPlayback readingRecordingPlayback(
@@ -208,19 +153,6 @@ public class AdminService {
         } catch (Exception failure) {
             throw ApiException.external(503, "playback_unavailable", failure);
         }
-    }
-
-    private static AdminReadingSession readingSession(AdminMetricsRepository.ReadingSessionRow row) {
-        return new AdminReadingSession(
-                row.id(),
-                row.actor(),
-                row.scriptTitle(),
-                row.startedAt(),
-                row.endedAt(),
-                row.status(),
-                row.mode(),
-                row.elapsedSeconds(),
-                row.recordingCount());
     }
 
     /**

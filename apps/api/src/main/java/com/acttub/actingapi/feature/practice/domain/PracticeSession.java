@@ -26,13 +26,6 @@ public record PracticeSession(
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt,
         String experienceVersion) {
-    public PracticeSession(UUID id, UUID userId, UUID uploadIntentId, String status, String situation,
-            String characterContext, String goal, String blockageKind, String subBranch,
-            String blockageDetail, UUID continuedFrom, OffsetDateTime createdAt, OffsetDateTime updatedAt) {
-        this(id, userId, uploadIntentId, status, situation, characterContext, goal, blockageKind, subBranch,
-                blockageDetail, continuedFrom, createdAt, updatedAt, "legacy");
-    }
-
 
     /** 분석이 끝나 관찰 묶음을 함께 보여줄 상태인지. */
     public boolean analyzed() {

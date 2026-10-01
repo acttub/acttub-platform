@@ -5,14 +5,12 @@ import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
-import java.util.HexFormat;
 import java.util.UUID;
 import com.acttub.actingapi.feature.challenge.domain.ChallengeRules;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.CanonicalJson;
+import com.acttub.actingapi.platform.web.Hashing;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -78,7 +76,6 @@ public class ChallengeService {
     }
 
     private String fingerprint(Object draft) {
-        try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(canonical.bytes(draft))); }
-        catch (NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
+        return Hashing.sha256Hex(canonical.bytes(draft));
     }
 }

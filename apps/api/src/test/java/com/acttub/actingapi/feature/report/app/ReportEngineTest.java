@@ -45,7 +45,7 @@ class ReportEngineTest {
         JsonNode speech = MAPPER.readTree("{\"transcript\":\"가지 마\",\"avg_syllables_per_sec\":7.0}");
         pack.set("speech", speech);
         var engine = new ReportEngine(new RecordingGenerator(), MAPPER, new RecordingLlmTelemetry());
-        var input = engine.buildReportInput("analysis", pack, handoff(), true, "id", null);
+        var input = engine.buildReportInput("analysis", pack, handoff(), true, "id", null, null);
         assertThat(input.at("/video_summary/timeline").asText()).isEqualTo("0:01에 멈춘다");
         assertThat(input.at("/video_summary/speech")).isEqualTo(speech);
     }
@@ -88,7 +88,7 @@ class ReportEngineTest {
     void expressionDoesNotReuseAFailedAnalysisAsConfirmedInput() throws Exception {
         JsonNode input = new ReportEngine(new RecordingGenerator(), MAPPER, new RecordingLlmTelemetry()).buildReportInput(
                 "expression", pack(), expressionHandoff(true, "실험", "변화"), true, "expression-id",
-                MAPPER.readTree("{\"completion_level\":\"unavailable\"}"));
+                MAPPER.readTree("{\"completion_level\":\"unavailable\"}"), null);
 
         assertThat(input.path("analysis_handoff").isNull()).isTrue();
         assertThat(input.at("/expression_handoff/experiment/tested").asBoolean()).isTrue();

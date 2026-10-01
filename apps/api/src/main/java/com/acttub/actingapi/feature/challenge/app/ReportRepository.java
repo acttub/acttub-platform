@@ -16,7 +16,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
  */
 public interface ReportRepository {
     Filed file(UUID reporter, UUID requestId, String fingerprint, NewReport report, Instant now);
-    AdminReportPage list(String status, String cursor, Instant now);
+    AdminReportPage list(String status, String cursor);
     AdminReport resolve(UUID id, String resolution, String reviewer, String note, Instant now);
 
     record NewReport(String targetType, UUID targetId, String reason, String note) { }

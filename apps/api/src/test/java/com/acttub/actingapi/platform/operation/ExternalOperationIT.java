@@ -11,25 +11,13 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 
 import javax.sql.DataSource;
 
-import com.acttub.actingapi.feature.coach.app.CoachOperationLedger;
 import com.acttub.actingapi.feature.memory.app.MemoryUpdateQueue;
 import com.acttub.actingapi.platform.ledger.LeaseOwnershipException;
-import com.acttub.actingapi.platform.ledger.SyncOperationBegin;
-import com.acttub.actingapi.platform.ledger.SyncOperationClaim;
-import com.acttub.actingapi.platform.ledger.ExternalOperationExecution;
-import com.acttub.actingapi.feature.practice.app.PracticeSessionLedger;
-import com.acttub.actingapi.feature.practice.app.PracticeSessionOperation;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import com.acttub.actingapi.support.MonitoringFailureFixture;
-import com.acttub.actingapi.platform.web.ApiException;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -82,9 +70,6 @@ class ExternalOperationIT {
 
     private static final Instant NOW = Instant.parse("2026-08-08T01:02:03.456789Z");
     private static final String FINGERPRINT = "a".repeat(64);
-    private static final String OTHER_FINGERPRINT = "b".repeat(64);
-    private static final long CREATION_LOCK = 287001L;
-    private static final long RETRY_LOCK = 287002L;
 
     @DynamicPropertySource
     static void datasource(DynamicPropertyRegistry registry) {
@@ -104,18 +89,6 @@ class ExternalOperationIT {
     ExternalOperationClaimer claimer;
 
     @Autowired
-    PracticeSessionLedger store;
-
-    @Autowired
-    com.acttub.actingapi.feature.practice.app.PracticeSessionRepository practices;
-
-    @Autowired
-    com.acttub.actingapi.feature.analysis.app.AnalysisStore analyses;
-
-    @Autowired
-    CoachOperationLedger syncOperations;
-
-    @Autowired
     MemoryUpdateQueue memoryQueue;
 
     @Autowired
@@ -123,9 +96,6 @@ class ExternalOperationIT {
 
     @Autowired
     MonitoringFailureFixture.Sink reporting;
-
-    @Autowired
-    MonitoringFailureFixture.MetricClock metricClock;
 
     @BeforeEach
     void clearDatabase() {
@@ -136,32 +106,28 @@ class ExternalOperationIT {
     void removeTestTriggers() {
         jdbc.execute("DROP TRIGGER IF EXISTS fail_claim_session_update ON practice_sessions");
         jdbc.execute("DROP FUNCTION IF EXISTS fail_claim_session_update()");
-        jdbc.execute("DROP TRIGGER IF EXISTS block_creation_session_insert ON practice_sessions");
-        jdbc.execute("DROP FUNCTION IF EXISTS block_creation_session_insert()");
-        jdbc.execute("DROP TRIGGER IF EXISTS block_retry_operation_insert ON external_operations");
-        jdbc.execute("DROP FUNCTION IF EXISTS block_retry_operation_insert()");
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"claim", "claim-next", "requeue", "complete", "fail", "sweep"})
+    @ValueSource(strings = {"claim-next", "requeue", "fail", "sweep"})
     void stateTransitionsDoNotDependOnAdditionalObservationReads(String transition) {
         UUID user = insertUser();
         UUID session = insertSession(user, insertFinalizedUpload(user), "analyzing", NOW);
         UUID operation = insertOperation(user, session, "coach_start", "pending", NOW.minusSeconds(10));
         UUID lease = UUID.randomUUID();
         if (!transition.startsWith("claim") && !transition.equals("sweep")) {
-            claimer.claimById(operation, lease, Duration.ofMinutes(5), NOW);
+            claimer.claimNext("coach_start", lease, Duration.ofMinutes(5), NOW);
         }
         if (transition.equals("sweep")) {
             jdbc.update("UPDATE external_operations SET attempt_count=3 WHERE id=?", operation);
         }
         java.util.function.DoubleSupplier observations = switch (transition) {
-            case "claim", "claim-next" -> () -> meters.get("acttub.external.operations.wait")
+            case "claim-next" -> () -> meters.get("acttub.external.operations.wait")
                     .tags("kind", "coach_start", "waiting", "initial").timer().count();
             case "requeue" -> () -> meters.get("acttub.external.operations.requeues").tag("kind", "coach_start").counter().count();
             default -> () -> meters.get("acttub.external.operations.terminal").tags("kind", "coach_start",
-                    "outcome", transition.equals("complete") ? "succeeded" : "failed",
-                    "classification", transition.equals("complete") ? "none" : transition.equals("fail") ? "external" : "unclassified")
+                    "outcome", "failed",
+                    "classification", transition.equals("fail") ? "external" : "unclassified")
                     .counter().count();
         };
         double before = observations.getAsDouble();
@@ -170,11 +136,8 @@ class ExternalOperationIT {
         TransitionInspector.REMAINING.set(transition.equals("fail") ? 1 : 0);
         try {
             switch (transition) {
-                case "claim" -> assertThat(claimer.claimById(operation, lease, Duration.ofMinutes(5), NOW)).isEqualTo(operation);
                 case "claim-next" -> assertThat(claimer.claimNext("coach_start", lease, Duration.ofMinutes(5), NOW)).isEqualTo(operation);
                 case "requeue" -> assertThat(claimer.release(operation, lease, "external", NOW)).isTrue();
-                case "complete" -> syncOperations.complete(new SyncOperationClaim(operation, lease, UUID.randomUUID()),
-                        JsonNodeFactory.instance.objectNode().put("saved", true));
                 case "fail" -> assertThat(claimer.fail(operation, lease, "fixture_failure", false, "external", NOW)).isTrue();
                 case "sweep" -> assertThat(claimer.sweepMaxAttempts(NOW)).isEqualTo(1);
                 default -> throw new AssertionError(transition);
@@ -183,151 +146,11 @@ class ExternalOperationIT {
             TransitionInspector.REMAINING.remove();
         }
         assertThat(operation(operation).get("status")).isEqualTo(switch (transition) {
-            case "claim", "claim-next" -> "running";
+            case "claim-next" -> "running";
             case "requeue" -> "pending";
-            case "complete" -> "succeeded";
             default -> "failed";
         });
         assertThat(observations.getAsDouble()).isEqualTo(before + 1);
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {"start", "complete"})
-    void failedObservationTimingAndReportingCannotChangeTheSuccessfulCommit(String phase) {
-        UUID user = insertUser();
-        UUID session = insertSession(user, insertFinalizedUpload(user), "analyzing", NOW);
-        UUID operation = insertOperation(user, session, "coach_start", "pending", NOW);
-        UUID lease = UUID.randomUUID();
-        claimer.claimById(operation, lease, Duration.ofMinutes(5), NOW);
-        SyncOperationClaim claim = new SyncOperationClaim(operation, lease, UUID.randomUUID());
-        var successes = meters.get("acttub.external.operations.terminal").tags(
-                "kind", "coach_start", "outcome", "succeeded", "classification", "none").counter();
-        double before = successes.count();
-        RuntimeException cause = phase.equals("start")
-                ? new IllegalStateException("start clock fixture failure")
-                : new IllegalArgumentException("completion clock fixture failure");
-        reporting.throwOnReport = true;
-        try {
-            try (var observation = syncOperations.execution(claim)) {
-                if (phase.equals("start")) metricClock.failure.set(cause);
-                ExternalOperationExecution.externalCall("model");
-                metricClock.failure.set(phase.equals("complete") ? cause : null);
-                syncOperations.complete(claim, JsonNodeFactory.instance.objectNode().put("saved", true));
-            }
-            assertThat(operation(operation).get("status")).isEqualTo("succeeded");
-            assertThat(successes.count()).isEqualTo(before + 1);
-            org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(3)).untilAsserted(() -> {
-                assertThat(reporting.at("ExternalOperationMetrics.executionTime"))
-                        .anySatisfy(report -> {
-                            assertThat(report.cause()).isSameAs(cause);
-                            assertThat(report.tags()).containsEntry("failure_kind", "unexpected");
-                        });
-            });
-        } finally {
-            metricClock.failure.remove();
-            reporting.throwOnReport = false;
-        }
-    }
-
-    @Test
-    void committedFailureIsRecordedEvenWhenAnotherTransactionResumesBeforeObservation() {
-        UUID user = insertUser();
-        UUID session = insertSession(user, insertFinalizedUpload(user), "analyzing", NOW);
-        UUID operation = insertOperation(user, session, "analyze", "pending", NOW);
-        UUID lease = UUID.randomUUID();
-        claimer.claimById(operation, lease, Duration.ofMinutes(5), NOW);
-        var failures = meters.get("acttub.external.operations.terminal").tags(
-                "kind", "analyze", "outcome", "failed", "classification", "external").counter();
-        double before = failures.count();
-        try (var executor = Executors.newSingleThreadExecutor()) {
-            // Install this at the real first SQL statement, before the observation callback.
-            // Commit releases the row lock; another thread then resumes through the real Port.
-            TransitionInspector.AFTER_COMMIT.set(() -> {
-                try {
-                    assertThat(executor.submit(() -> practices.resumeFailedOperation(user, operation,
-                            NOW.plusSeconds(1).atOffset(ZoneOffset.UTC))).get(3, TimeUnit.SECONDS)).isTrue();
-                } catch (Exception failure) {
-                    throw new AssertionError("concurrent resume failed", failure);
-                }
-            });
-            try {
-                assertThat(claimer.fail(operation, lease, "fixture_external_failure", true, "external", NOW)).isTrue();
-            } finally {
-                TransitionInspector.AFTER_COMMIT.remove();
-            }
-        }
-        assertThat(operation(operation).get("status")).isEqualTo("pending");
-        assertThat(failures.count()).isEqualTo(before + 1);
-    }
-
-    @Test
-    void unrepresentableHistoricalDurationReportsAfterCommitWithoutLosingSuccess() {
-        UUID user = insertUser();
-        UUID session = insertSession(user, insertFinalizedUpload(user), "analyzing", NOW);
-        UUID operation = insertOperation(user, session, "coach_start", "pending", NOW);
-        UUID lease = UUID.randomUUID();
-        claimer.claimById(operation, lease, Duration.ofMinutes(5), NOW);
-        jdbc.update("UPDATE external_operations SET created_at=? WHERE id=?",
-                Instant.parse("1500-01-01T00:00:00Z").atOffset(ZoneOffset.UTC), operation);
-        var successes = meters.get("acttub.external.operations.terminal").tags(
-                "kind", "coach_start", "outcome", "succeeded", "classification", "none").counter();
-        double before = successes.count();
-        reporting.throwOnReport = true;
-        try {
-            syncOperations.complete(new SyncOperationClaim(operation, lease, UUID.randomUUID()),
-                    JsonNodeFactory.instance.objectNode().put("saved", true));
-            assertThat(operation(operation).get("status")).isEqualTo("succeeded");
-            assertThat(successes.count()).isEqualTo(before + 1);
-            org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(3)).untilAsserted(() ->
-                    assertThat(reporting.at("ExternalOperationMetrics.afterCommit")).anySatisfy(report -> {
-                        assertThat(report.cause()).isInstanceOf(ArithmeticException.class);
-                        assertThat(report.tags()).containsEntry("failure_kind", "unexpected");
-                    }));
-        } finally {
-            reporting.throwOnReport = false;
-        }
-    }
-
-    @Test
-    void failedExecutionObservationReportsItsCauseWithoutDelayingOrAbortingTheOperation() {
-        UUID user = insertUser();
-        UUID session = insertSession(user, insertFinalizedUpload(user), "analyzing", NOW);
-        UUID operation = insertOperation(user, session, "coach_start", "pending", NOW);
-        UUID lease = UUID.randomUUID();
-        claimer.claimById(operation, lease, Duration.ofMinutes(5), NOW);
-        var success = meters.get("acttub.external.operations.terminal").tags(
-                "kind", "coach_start", "outcome", "succeeded", "classification", "none").counter();
-        double before = success.count();
-        jdbc.execute("""
-                CREATE FUNCTION reject_monitoring_start() RETURNS trigger LANGUAGE plpgsql AS $$
-                BEGIN
-                    RAISE EXCEPTION 'monitoring start fixture failure' USING ERRCODE = '57014';
-                END $$;
-                CREATE TRIGGER reject_monitoring_start BEFORE UPDATE OF execution_started_at ON external_operations
-                FOR EACH ROW WHEN (NEW.execution_started_at IS NOT NULL) EXECUTE FUNCTION reject_monitoring_start();
-                """);
-        reporting.release = new CountDownLatch(1);
-        try {
-            long began = System.nanoTime();
-            try (var observation = syncOperations.execution(new SyncOperationClaim(operation, lease, UUID.randomUUID()))) {
-                ExternalOperationExecution.externalCall("model");
-                syncOperations.complete(new SyncOperationClaim(operation, lease, UUID.randomUUID()),
-                        JsonNodeFactory.instance.objectNode().put("saved", true));
-            }
-            assertThat(Duration.ofNanos(System.nanoTime() - began)).isLessThan(Duration.ofSeconds(2));
-            assertThat(operation(operation).get("status")).isEqualTo("succeeded");
-            assertThat(success.count()).isEqualTo(before + 1);
-            org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(3)).untilAsserted(() -> {
-                var reports = reporting.at("ExternalOperationMetrics.startExecution");
-                assertThat(reports).hasSize(1);
-                assertThat(reports.getFirst().cause()).hasStackTraceContaining("monitoring start fixture failure");
-                assertThat(reports.getFirst().tags()).containsEntry("failure_kind", "external");
-            });
-        } finally {
-            reporting.release.countDown();
-            jdbc.execute("DROP TRIGGER reject_monitoring_start ON external_operations");
-            jdbc.execute("DROP FUNCTION reject_monitoring_start()");
-        }
     }
 
     @Test
@@ -396,44 +219,6 @@ class ExternalOperationIT {
     }
 
     @Test
-    void resumedOperationHasANewWaitAndTerminalEventButIsNotANewUniqueOperation() {
-        var accepted = meters.get("acttub.external.operations.accepted").tag("kind", "analyze").counter();
-        var failed = meters.get("acttub.external.operations.terminal").tags(
-                "kind", "analyze", "outcome", "failed", "classification", "external").counter();
-        var succeeded = meters.get("acttub.external.operations.terminal").tags(
-                "kind", "analyze", "outcome", "succeeded", "classification", "none").counter();
-        double acceptedBefore = accepted.count(), failedBefore = failed.count(), successBefore = succeeded.count();
-        UUID user = insertUser();
-        var created = create(user, insertFinalizedUpload(user), UUID.randomUUID(), FINGERPRINT);
-        UUID operation = created.operation().id();
-        UUID lease = UUID.randomUUID();
-        claimer.claimNext("analyze", lease, Duration.ofMinutes(5), Instant.now());
-        claimer.fail(operation, lease, "gemini_timeout", true, "external", Instant.now());
-        assertThat(failed.count()).isEqualTo(failedBefore + 1);
-        assertThatThrownBy(() -> claimer.fail(operation, lease, "duplicate", true, "unexpected", Instant.now()))
-                .isInstanceOf(LeaseOwnershipException.class);
-        assertThat(practices.resumeFailedOperation(user, operation, Instant.now().atOffset(ZoneOffset.UTC))).isTrue();
-        org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(3)).untilAsserted(() -> {
-            assertThat(meters.get("acttub.external.operations.current").tags(
-                    "kind", "analyze", "state", "pending", "waiting", "retry").gauge().value()).isEqualTo(1);
-            assertThat(meters.get("acttub.external.operations.unmeasured").tags(
-                    "kind", "analyze", "state", "pending", "waiting", "retry").gauge().value()).isZero();
-        });
-        UUID nextLease = UUID.randomUUID();
-        assertThat(claimer.claimNext("analyze", nextLease, Duration.ofMinutes(5), Instant.now())).isEqualTo(operation);
-        var pack = new com.acttub.actingapi.integration.observation.ObservationPack("scene",
-                java.util.List.of(new com.acttub.actingapi.integration.observation.ObservationItem(
-                        0, 500, "pause", "line", "breath", 0.8)), java.util.List.of());
-        analyses.complete(operation, nextLease,
-                new com.acttub.actingapi.feature.analysis.app.AnalysisResult(pack, false, 500), "fixture", Instant.now());
-        assertThat(accepted.count()).isEqualTo(acceptedBefore + 1);
-        assertThat(failed.count()).isEqualTo(failedBefore + 1);
-        assertThat(succeeded.count()).isEqualTo(successBefore + 1);
-        assertThat(meters.get("acttub.external.operations.wait").tags(
-                "kind", "analyze", "waiting", "retry").timer().count()).isGreaterThan(0);
-    }
-
-    @Test
     void sweepCountsOnlyNewTerminalFailuresAndNeverOldFailedHistory() {
         var unknown = meters.find("acttub.external.operations.terminal").tags(
                 "kind", "analyze", "outcome", "failed", "classification", "unclassified").counter();
@@ -454,25 +239,6 @@ class ExternalOperationIT {
         assertThat(external.count()).isEqualTo(externalBefore);
         assertThat(claimer.sweepMaxAttempts(NOW.plusSeconds(1))).isZero();
         assertThat(unknown.count()).isEqualTo(before + 1);
-    }
-
-    @Test
-    void newAcceptedOperationsAreCountedOnceAndFailedCreationDoesNotCount() {
-        var counter = meters.find("acttub.external.operations.accepted").tag("kind", "analyze").counter();
-        assertThat(counter).as("zero counter exists before the first request").isNotNull();
-        double before = counter.count();
-        UUID user = insertUser();
-        UUID upload = insertFinalizedUpload(user);
-        UUID request = UUID.randomUUID();
-        create(user, upload, request, FINGERPRINT);
-        create(user, upload, request, FINGERPRINT);
-        assertThat(counter.count()).isEqualTo(before + 1);
-        assertThat(create(user, UUID.randomUUID(), UUID.randomUUID(), FINGERPRINT)).isNull();
-        UUID failedSession = insertSession(user, upload, "failed", NOW);
-        installFailingSessionUpdateTrigger(failedSession);
-        assertThatThrownBy(() -> store.createAnalysisRetry(user, failedSession, UUID.randomUUID(), FINGERPRINT, NOW, null))
-                .isInstanceOf(DataAccessException.class);
-        assertThat(counter.count()).isEqualTo(before + 1);
     }
 
     @Test
@@ -550,52 +316,6 @@ class ExternalOperationIT {
             assertThat(sessionUpdatedAt(sessionId))
                     .isEqualTo(originalUpdatedAt.atOffset(ZoneOffset.UTC));
         }
-    }
-
-    @Test
-    void claimByIdReclaimsFailedOperationWhileClaimNextSkipsItAndUsesSeparateLeaseDurations() {
-        UUID userId = insertUser();
-        UUID failedSessionId = insertSession(
-                userId, insertFinalizedUpload(userId), "failed", NOW.minusSeconds(30));
-        UUID failedOperationId = insertOperation(
-                userId, failedSessionId, "analyze", "failed", NOW.minusSeconds(20));
-        jdbc.update("""
-                UPDATE external_operations
-                SET error_code = 'gemini_timeout',
-                    response_payload = '{"stale":true}'::jsonb
-                WHERE id = ?
-                """, failedOperationId);
-
-        assertThat(claimer.claimNext(
-                "analyze", UUID.randomUUID(), Duration.ofSeconds(1800), NOW))
-                .as("worker claim-next must not immediately reclaim failed work")
-                .isNull();
-
-        UUID syncLeaseToken = UUID.randomUUID();
-        assertThat(claimer.claimById(
-                failedOperationId, syncLeaseToken, Duration.ofMinutes(15), NOW))
-                .isEqualTo(failedOperationId);
-        Map<String, Object> syncOperation = operation(failedOperationId);
-        assertThat(syncOperation.get("status")).isEqualTo("running");
-        assertThat(syncOperation.get("attempt_count")).isEqualTo(1);
-        assertThat(syncOperation.get("lease_token")).isEqualTo(syncLeaseToken);
-        assertThat(syncOperation.get("error_code")).isNull();
-        assertThat(syncOperation.get("response_payload")).isEqualTo("null");
-        assertThat(operationLeaseExpiresAt(failedOperationId))
-                .isEqualTo(NOW.plus(Duration.ofMinutes(15)).atOffset(ZoneOffset.UTC));
-        assertThat(operationUpdatedAt(failedOperationId))
-                .isEqualTo(NOW.atOffset(ZoneOffset.UTC));
-
-        UUID workerSessionId = insertSession(
-                userId, insertFinalizedUpload(userId), "failed", NOW.minusSeconds(10));
-        UUID workerOperationId = insertOperation(
-                userId, workerSessionId, "analyze", "pending", NOW.minusSeconds(5));
-        UUID workerLeaseToken = UUID.randomUUID();
-        assertThat(claimer.claimNext(
-                "analyze", workerLeaseToken, Duration.ofSeconds(1800), NOW))
-                .isEqualTo(workerOperationId);
-        assertThat(operationLeaseExpiresAt(workerOperationId))
-                .isEqualTo(NOW.plusSeconds(1800).atOffset(ZoneOffset.UTC));
     }
 
     @Test
@@ -735,8 +455,8 @@ class ExternalOperationIT {
                 "analyze", oldLeaseToken, Duration.ofSeconds(1), NOW))
                 .isEqualTo(operationId);
         UUID newLeaseToken = UUID.randomUUID();
-        assertThat(claimer.claimById(
-                operationId, newLeaseToken, Duration.ofMinutes(15), NOW.plusSeconds(2)))
+        assertThat(claimer.claimNext(
+                "analyze", newLeaseToken, Duration.ofMinutes(15), NOW.plusSeconds(2)))
                 .isEqualTo(operationId);
 
         assertThatThrownBy(() -> claimer.fail(
@@ -758,215 +478,6 @@ class ExternalOperationIT {
                 String.class, operationId)).isNull();
         assertThat(meters.find("acttub.external.operations.terminal").counters().stream()
                 .mapToDouble(io.micrometer.core.instrument.Counter::count).sum()).isEqualTo(before);
-    }
-
-    @Test
-    void practiceCreationCreatesSessionAndOperation() {
-        UUID userId = insertUser();
-        UUID uploadId = insertFinalizedUpload(userId);
-
-        PracticeSessionOperation result = create(userId, uploadId, UUID.randomUUID(), FINGERPRINT);
-
-        assertThat(result).isNotNull();
-        assertThat(result.created()).isTrue();
-        assertThat(result.fingerprintMismatch()).isFalse();
-        assertThat(result.session().status()).isEqualTo("analyzing");
-        assertThat(result.session().uploadIntentId()).isEqualTo(uploadId);
-        assertThat(result.operation().sessionId()).isEqualTo(result.session().id());
-        assertThat(result.operation().kind()).isEqualTo("analyze");
-        assertThat(result.operation().status()).isEqualTo("pending");
-    }
-
-    @Test
-    void practiceCreationReplayReturnsExistingPairWithoutSecondSessionAndDetectsFingerprintMismatch() {
-        UUID userId = insertUser();
-        UUID uploadId = insertFinalizedUpload(userId);
-        UUID requestId = UUID.randomUUID();
-        PracticeSessionOperation created = create(userId, uploadId, requestId, FINGERPRINT);
-
-        PracticeSessionOperation replay = create(userId, uploadId, requestId, FINGERPRINT);
-        PracticeSessionOperation mismatch = create(
-                userId, uploadId, requestId, OTHER_FINGERPRINT);
-
-        assertThat(replay.created()).isFalse();
-        assertThat(replay.session().id()).isEqualTo(created.session().id());
-        assertThat(replay.operation().id()).isEqualTo(created.operation().id());
-        assertThat(replay.fingerprintMismatch()).isFalse();
-        assertThat(mismatch.fingerprintMismatch()).isTrue();
-        assertThat(sessionCount(userId)).isEqualTo(1);
-    }
-
-    @Test
-    void concurrentPracticeCreationDeletesTheLosingNewSession() throws Exception {
-        UUID userId = insertUser();
-        UUID losingUploadId = insertFinalizedUpload(userId);
-        UUID winningUploadId = insertFinalizedUpload(userId);
-        UUID requestId = UUID.randomUUID();
-        installBlockingSessionInsertTrigger(losingUploadId, CREATION_LOCK);
-
-        try (Connection blocker = dataSource.getConnection()) {
-            advisoryLock(blocker, CREATION_LOCK);
-            ExecutorService executor = Executors.newSingleThreadExecutor();
-            try {
-                Future<PracticeSessionOperation> loser = executor.submit(
-                        () -> create(userId, losingUploadId, requestId, FINGERPRINT));
-                awaitBlockedQuery("insert into practice_sessions");
-
-                PracticeSessionOperation winner = create(
-                        userId, winningUploadId, requestId, FINGERPRINT);
-                advisoryUnlock(blocker, CREATION_LOCK);
-                PracticeSessionOperation replay = loser.get(5, TimeUnit.SECONDS);
-
-                assertThat(winner.created()).isTrue();
-                assertThat(replay.created()).isFalse();
-                assertThat(replay.session().id()).isEqualTo(winner.session().id());
-                assertThat(replay.operation().id()).isEqualTo(winner.operation().id());
-                assertThat(sessionCount(userId))
-                        .as("충돌에서 패배한 트랜잭션이 먼저 만든 세션을 삭제해야 한다")
-                        .isEqualTo(1);
-            } finally {
-                advisoryUnlock(blocker, CREATION_LOCK);
-                executor.shutdownNow();
-                executor.awaitTermination(5, TimeUnit.SECONDS);
-            }
-        }
-    }
-
-    @Test
-    void retryConflictKeepsLosingSessionFailedAndReplaysWinningOperation() throws Exception {
-        UUID userId = insertUser();
-        UUID losingSessionId = insertSession(
-                userId, insertFinalizedUpload(userId), "failed", NOW.minusSeconds(60));
-        UUID winningSessionId = insertSession(
-                userId, insertFinalizedUpload(userId), "failed", NOW.minusSeconds(50));
-        UUID requestId = UUID.randomUUID();
-        installBlockingOperationInsertTrigger(losingSessionId, RETRY_LOCK);
-
-        try (Connection blocker = dataSource.getConnection()) {
-            advisoryLock(blocker, RETRY_LOCK);
-            ExecutorService executor = Executors.newSingleThreadExecutor();
-            try {
-                Future<PracticeSessionOperation> loser = executor.submit(() ->
-                        store.createAnalysisRetry(
-                                userId, losingSessionId, requestId, FINGERPRINT, NOW, null));
-                awaitBlockedQuery("INSERT INTO external_operations");
-
-                PracticeSessionOperation winner = store.createAnalysisRetry(
-                        userId, winningSessionId, requestId, FINGERPRINT, NOW, null);
-                advisoryUnlock(blocker, RETRY_LOCK);
-                PracticeSessionOperation replay = loser.get(5, TimeUnit.SECONDS);
-
-                assertThat(winner.created()).isTrue();
-                assertThat(winner.session().status()).isEqualTo("analyzing");
-                assertThat(replay.created()).isFalse();
-                assertThat(replay.operation().id()).isEqualTo(winner.operation().id());
-                assertThat(replay.session().id()).isEqualTo(winningSessionId);
-                assertThat(replay.fingerprintMismatch())
-                        .as("retry mismatch는 요청 fingerprint뿐 아니라 session_id도 비교한다")
-                        .isTrue();
-                assertThat(session(losingSessionId).get("status")).isEqualTo("failed");
-                assertThat(sessionUpdatedAt(losingSessionId))
-                        .isEqualTo(NOW.minusSeconds(60).atOffset(ZoneOffset.UTC));
-                assertThat(operationCount(userId, requestId)).isEqualTo(1);
-            } finally {
-                advisoryUnlock(blocker, RETRY_LOCK);
-                executor.shutdownNow();
-                executor.awaitTermination(5, TimeUnit.SECONDS);
-            }
-        }
-    }
-
-    @Test
-    void retryReplayIsResolvedBeforeNonFailedStatusCheck() {
-        UUID userId = insertUser();
-        UUID sessionId = insertSession(
-                userId, insertFinalizedUpload(userId), "failed", NOW.minusSeconds(30));
-        UUID requestId = UUID.randomUUID();
-        PracticeSessionOperation created = store.createAnalysisRetry(
-                userId, sessionId, requestId, FINGERPRINT, NOW, null);
-        jdbc.update("""
-                UPDATE practice_sessions
-                SET status = 'analyzed'
-                WHERE id = ?
-                """, sessionId);
-
-        PracticeSessionOperation replay = store.createAnalysisRetry(
-                userId, sessionId, requestId, FINGERPRINT, NOW.plusSeconds(1), null);
-
-        assertThat(created.created()).isTrue();
-        assertThat(replay).isNotNull();
-        assertThat(replay.created()).isFalse();
-        assertThat(replay.operation().id()).isEqualTo(created.operation().id());
-        assertThat(replay.session().status()).isEqualTo("analyzed");
-        assertThat(replay.fingerprintMismatch()).isFalse();
-    }
-
-    @Test
-    void concurrentSyncBeginsCreateOneOperationAndOnlyOneOwnsTheLease() throws Exception {
-        UUID userId = insertUser();
-        UUID sessionId = insertSession(
-                userId, insertFinalizedUpload(userId), "analyzed", NOW.minusSeconds(30));
-        UUID requestId = UUID.randomUUID();
-        CountDownLatch start = new CountDownLatch(1);
-        ExecutorService executor = Executors.newFixedThreadPool(2);
-        try {
-            var work = (java.util.concurrent.Callable<BeginOutcome>) () -> {
-                start.await();
-                try {
-                    return new BeginOutcome(syncOperations.begin(
-                            userId, sessionId, requestId, "coach_start", FINGERPRINT), null);
-                } catch (ApiException exception) {
-                    return new BeginOutcome(null, exception);
-                }
-            };
-            Future<BeginOutcome> first = executor.submit(work);
-            Future<BeginOutcome> second = executor.submit(work);
-            start.countDown();
-            BeginOutcome left = first.get(5, TimeUnit.SECONDS);
-            BeginOutcome right = second.get(5, TimeUnit.SECONDS);
-
-            assertThat(java.util.stream.Stream.of(left, right)
-                    .filter(outcome -> outcome.begin() != null)
-                    .toList())
-                    .singleElement()
-                    .satisfies(outcome -> assertThat(outcome.begin().claim()).isNotNull());
-            assertThat(java.util.stream.Stream.of(left, right)
-                    .filter(outcome -> outcome.error() != null)
-                    .toList())
-                    .singleElement()
-                    .satisfies(outcome -> {
-                        assertThat(outcome.error().status()).isEqualTo(409);
-                        assertThat(outcome.error()).hasMessage("request is still processing");
-                    });
-            assertThat(operationCount(userId, requestId)).isEqualTo(1);
-        } finally {
-            executor.shutdownNow();
-            executor.awaitTermination(5, TimeUnit.SECONDS);
-        }
-    }
-
-    @Test
-    void completedSyncOperationReplaysAndStillRejectsAFingerprintMismatch() {
-        UUID userId = insertUser();
-        UUID sessionId = insertSession(
-                userId, insertFinalizedUpload(userId), "analyzed", NOW.minusSeconds(30));
-        UUID requestId = UUID.randomUUID();
-        SyncOperationBegin started = syncOperations.begin(
-                userId, sessionId, requestId, "coach_start", FINGERPRINT);
-        var payload = JsonNodeFactory.instance.objectNode().put("reply", "저장된 응답");
-
-        syncOperations.complete(started.claim(), payload);
-
-        SyncOperationBegin replay = syncOperations.begin(
-                userId, sessionId, requestId, "coach_start", FINGERPRINT);
-        assertThat(replay.isReplay()).isTrue();
-        assertThat(replay.replayPayload()).isEqualTo(payload);
-        assertThatThrownBy(() -> syncOperations.begin(
-                userId, sessionId, requestId, "coach_start", OTHER_FINGERPRINT))
-                .isInstanceOf(ApiException.class)
-                .satisfies(exception -> assertThat(((ApiException) exception).status())
-                        .isEqualTo(422))
-                .hasMessage("request_fingerprint_mismatch");
     }
 
     @Test
@@ -1018,26 +529,6 @@ class ExternalOperationIT {
                 .containsEntry("error_code", "gemini_timeout")
                 .containsEntry("lease_token", null);
         assertThat(session(sessionId)).containsEntry("status", "analyzed");
-    }
-
-    private PracticeSessionOperation create(
-            UUID userId,
-            UUID uploadId,
-            UUID requestId,
-            String fingerprint) {
-        return store.createWithAnalysis(
-                userId,
-                uploadId,
-                "상황",
-                "인물",
-                "목표",
-                "분석",
-                "캐릭터 분석",
-                null,
-                null,
-                requestId,
-                fingerprint,
-                null);
     }
 
     private UUID insertUser() {
@@ -1161,37 +652,12 @@ class ExternalOperationIT {
                 """, OffsetDateTime.class, operationId);
     }
 
-    private OffsetDateTime operationLeaseExpiresAt(UUID operationId) {
-        return jdbc.queryForObject("""
-                SELECT lease_expires_at
-                FROM external_operations
-                WHERE id = ?
-                """, OffsetDateTime.class, operationId);
-    }
-
     private OffsetDateTime sessionUpdatedAt(UUID sessionId) {
         return jdbc.queryForObject("""
                 SELECT updated_at
                 FROM practice_sessions
                 WHERE id = ?
                 """, OffsetDateTime.class, sessionId);
-    }
-
-    private long sessionCount(UUID userId) {
-        Long count = jdbc.queryForObject(
-                "SELECT count(*) FROM practice_sessions WHERE user_id = ?",
-                Long.class,
-                userId);
-        return count == null ? 0L : count;
-    }
-
-    private long operationCount(UUID userId, UUID requestId) {
-        Long count = jdbc.queryForObject("""
-                SELECT count(*)
-                FROM external_operations
-                WHERE user_id = ? AND request_id = ?
-                """, Long.class, userId, requestId);
-        return count == null ? 0L : count;
     }
 
     private void installFailingSessionUpdateTrigger(UUID sessionId) {
@@ -1213,76 +679,4 @@ class ExternalOperationIT {
                 """);
     }
 
-    private void installBlockingSessionInsertTrigger(UUID uploadId, long lockKey) {
-        jdbc.execute("""
-                CREATE FUNCTION block_creation_session_insert() RETURNS trigger
-                LANGUAGE plpgsql AS $$
-                BEGIN
-                    IF NEW.upload_intent_id = '%s'::uuid THEN
-                        PERFORM pg_advisory_lock(%d);
-                        PERFORM pg_advisory_unlock(%d);
-                    END IF;
-                    RETURN NEW;
-                END
-                $$
-                """.formatted(uploadId, lockKey, lockKey));
-        jdbc.execute("""
-                CREATE TRIGGER block_creation_session_insert
-                BEFORE INSERT ON practice_sessions
-                FOR EACH ROW EXECUTE FUNCTION block_creation_session_insert()
-                """);
-    }
-
-    private void installBlockingOperationInsertTrigger(UUID sessionId, long lockKey) {
-        jdbc.execute("""
-                CREATE FUNCTION block_retry_operation_insert() RETURNS trigger
-                LANGUAGE plpgsql AS $$
-                BEGIN
-                    IF NEW.session_id = '%s'::uuid THEN
-                        PERFORM pg_advisory_lock(%d);
-                        PERFORM pg_advisory_unlock(%d);
-                    END IF;
-                    RETURN NEW;
-                END
-                $$
-                """.formatted(sessionId, lockKey, lockKey));
-        jdbc.execute("""
-                CREATE TRIGGER block_retry_operation_insert
-                BEFORE INSERT ON external_operations
-                FOR EACH ROW EXECUTE FUNCTION block_retry_operation_insert()
-                """);
-    }
-
-    private void advisoryLock(Connection connection, long key) throws Exception {
-        try (Statement statement = connection.createStatement()) {
-            statement.execute("SELECT pg_advisory_lock(" + key + ")");
-        }
-    }
-
-    private void advisoryUnlock(Connection connection, long key) throws Exception {
-        try (Statement statement = connection.createStatement()) {
-            statement.execute("SELECT pg_advisory_unlock(" + key + ")");
-        }
-    }
-
-    private void awaitBlockedQuery(String fragment) throws Exception {
-        Instant deadline = Instant.now().plusSeconds(5);
-        while (Instant.now().isBefore(deadline)) {
-            Integer count = jdbc.queryForObject("""
-                    SELECT count(*)
-                    FROM pg_stat_activity
-                    WHERE datname = current_database()
-                      AND wait_event_type = 'Lock'
-                      AND query LIKE ?
-                    """, Integer.class, "%" + fragment + "%");
-            if (count != null && count > 0) {
-                return;
-            }
-            Thread.sleep(10);
-        }
-        throw new AssertionError("query did not block: " + fragment);
-    }
-
-    private record BeginOutcome(SyncOperationBegin begin, ApiException error) {
-    }
 }

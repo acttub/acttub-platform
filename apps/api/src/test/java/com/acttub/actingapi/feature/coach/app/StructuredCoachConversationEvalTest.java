@@ -35,9 +35,8 @@ class StructuredCoachConversationEvalTest {
         evaluate(name, replies, null, PriorContext.EMPTY);
     }
     private void evaluate(String name, List<String> replies, ActorProfile profile, PriorContext prior) throws Exception {
-        var session = new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                StructuredJson.resource("/coaching/record.json"), "", "", "", 8000, "그 외", "그 외", null,
-                List.of(), "", null, "open", "", List.of()).withCoachingState("three_layers_v1", 0, null, "open", "")
+        var session = new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                StructuredJson.resource("/coaching/record.json"), "", "", "", 8000, "그 외", "그 외", null, "open", "", List.of(), PriorContext.EMPTY, "legacy", 0, null, null).withCoachingState("three_layers_v1", 0, null, "open", "")
                 .withPrior(prior).withActorProfile(profile);
         var output = StructuredJson.MAPPER.createObjectNode().put("case", name).put("semantic_review", "pending");
         var failures = new RecordingFailureReporter();

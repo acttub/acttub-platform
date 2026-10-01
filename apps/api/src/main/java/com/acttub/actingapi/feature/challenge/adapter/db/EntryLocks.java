@@ -21,6 +21,15 @@ class EntryLocks {
     private final ChallengeSettlement settlement;
     EntryLocks(EntityManager em, ChallengeSettlement settlement) { this.em = em; this.settlement = settlement; }
 
+    /** 쓰는 사람 하나를 쓰기로 잠근다(챌린지 만들기·참여작 쓰기). 활성이 아니면 403. */
+    void active(UUID owner) {
+        var owners = NativeTuples.list(em.createNativeQuery("SELECT status FROM users WHERE id=:owner FOR UPDATE", Tuple.class)
+                .setParameter("owner", owner));
+        if (owners.isEmpty() || !"active".equals(owners.getFirst().get("status", String.class))) {
+            throw new ApiException(403, "account_deactivated");
+        }
+    }
+
     /**
      * 행동하는 사람은 쓰기로, 상대는 읽기로 잠근다(같은 사람이면 한 번). 행동하는 사람이 활성이 아니면 403, 상대가
      * 없으면 {@code false}.

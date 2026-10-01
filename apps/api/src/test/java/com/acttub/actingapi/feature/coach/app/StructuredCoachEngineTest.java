@@ -17,9 +17,8 @@ import org.junit.jupiter.api.Test;
 
 class StructuredCoachEngineTest {
     private CoachSessionSnapshot session() {
-        return new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                StructuredJson.resource("/coaching/record.json"), "", "", "", 8000, "그 외", "그 외", null,
-                List.of(), "", null, "open", "", List.of()).withCoachingState("three_layers_v1", 0, null, "open", "");
+        return new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                StructuredJson.resource("/coaching/record.json"), "", "", "", 8000, "그 외", "그 외", null, "open", "", List.of(), PriorContext.EMPTY, "legacy", 0, null, null).withCoachingState("three_layers_v1", 0, null, "open", "");
     }
     private CoachEngine engine(TextGenerator generator) {
         return new CoachEngine(generator, new RecordingFailureReporter(), new RecordingLlmTelemetry());

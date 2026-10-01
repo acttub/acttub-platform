@@ -199,18 +199,8 @@ class PostgresPracticeAnalysisStore implements PracticeAnalysisStore {
     }
 
     @Override
-    public boolean fail(UUID jobId, UUID leaseToken, String errorCode, Instant now) {
-        return fail(jobId, leaseToken, errorCode, null, now);
-    }
-
-    @Override
     public void release(UUID jobId, UUID leaseToken, String classification, Instant now) {
         jobs.release(jobId, leaseToken, classification, now);
-    }
-
-    @Override
-    public void release(UUID jobId, UUID leaseToken, Instant now) {
-        release(jobId, leaseToken, null, now);
     }
 
     /** 만료된 미확정 업로드는 보관함(PA1)의 일이다 — 이 워커는 치우지 않는다. */

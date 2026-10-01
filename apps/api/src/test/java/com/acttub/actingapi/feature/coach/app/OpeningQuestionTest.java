@@ -18,11 +18,10 @@ class OpeningQuestionTest {
     private static final String REPORTED = "“평생 식물인간으로 살아야 된대요” 뒤에 고개를 숙이고 약 1초 멈춰요. 이 대목이 말의 무게를 잠깐 받아들이는 것처럼 읽혀요.";
 
     private CoachSessionSnapshot session(boolean structured) {
-        var session = new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+        var session = new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 structured ? StructuredJson.resource("/coaching/record.json")
                         : StructuredJson.parse("{\"observations\":[{\"what\":\"말하기 전에 멈춘다\",\"quote\":\"가지 마\"}]}"),
-                "", "", "", 8000, "그 외", "그 외", null,
-                List.of("가지 마"), "", null, "open", "", List.of());
+                "", "", "", 8000, "그 외", "그 외", null, "open", "", List.of(), PriorContext.EMPTY, "legacy", 0, null, null);
         return structured ? session.withCoachingState("three_layers_v1", 0, null, "open", "") : session;
     }
 
@@ -93,7 +92,7 @@ class OpeningQuestionTest {
         assertThat(OpeningQuestion.failures("말의 무게를 받아들이는 것처럼 읽혀요. 그런 의도였어요?")).isNotEmpty();
     }
 
-    @Test void legacyMaterialUsesDeliveredObservationsOrSpeechInsteadOfUnusedTranscripts() {
+    @Test void legacyMaterialUsesDeliveredObservationsOrSpeech() {
         var session = session(false);
         assertThat(OpeningQuestion.legacyMaterial(session)).isTrue();
         ObjectNode pack = (ObjectNode) session.observationPack();
@@ -101,7 +100,6 @@ class OpeningQuestionTest {
         pack.putObject("speech").put("transcript", "가지 마");
         assertThat(OpeningQuestion.legacyMaterial(session)).isTrue();
         pack.removeAll();
-        assertThat(session.transcripts()).isNotEmpty();
         assertThat(OpeningQuestion.legacyMaterial(session)).isFalse();
     }
 

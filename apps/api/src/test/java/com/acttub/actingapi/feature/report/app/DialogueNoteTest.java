@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.acttub.actingapi.integration.llm.StructuredJson;
+import com.acttub.actingapi.platform.web.OutputLanguage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
@@ -15,7 +16,7 @@ class DialogueNoteTest {
         ObjectNode source = handoff();
         ((com.fasterxml.jackson.databind.node.ArrayNode) source.path("conversation")).addObject()
                 .put("id", "question").put("role", "actor").put("text", "그래서 어떻게 하면 돼?");
-        ObjectNode note = PracticeNote.assemble(source, text -> output().toString());
+        ObjectNode note = DialogueNote.assembleResult(source, text -> output().toString(), failure -> { }).note();
         assertThat(PracticeNote.publicView(note).path("summary").asText()).contains("애원하는 것처럼 보이긴 싫어");
         assertThat(note.path("practice").isObject()).isTrue();
     }
@@ -32,24 +33,24 @@ class DialogueNoteTest {
         ObjectNode generated = output();
         generated.putNull("next_take");
         generated.putArray("summary").addObject().put("source_ref", "experience").put("quote", "상대에게 말을 건네는 느낌이 편했어.");
-        ObjectNode note = PracticeNote.assemble(source, text -> {
+        ObjectNode note = DialogueNote.assembleResult(source, text -> {
             assertThat(StructuredJson.parse(text).path("controls").path("can_propose").asBoolean()).isFalse();
             return generated.toString();
-        });
+        }, failure -> { }).note();
         assertThat(PracticeNote.publicView(note).path("summary").asText()).contains("편했어", "라고 했어요");
         assertThat(note.path("direction").isNull()).isTrue();
         assertThat(note.path("practice").isNull()).isTrue();
 
         ObjectNode omitted = generated.deepCopy();
         omitted.putArray("summary");
-        assertThat(PracticeNote.publicView(PracticeNote.assemble(source, text -> omitted.toString()))
+        assertThat(PracticeNote.publicView(DialogueNote.assembleResult(source, text -> omitted.toString(), failure -> { }).note())
                 .path("summary").asText()).contains("편했어");
-        assertThat(PracticeNote.publicView(PracticeNote.assemble(source, text -> { throw new IllegalStateException("offline"); }))
+        assertThat(PracticeNote.publicView(DialogueNote.assembleResult(source, text -> { throw new IllegalStateException("offline"); }, failure -> { }).note())
                 .path("summary").asText()).contains("편했어");
 
         conversation.insertObject(1).put("id", "correction").put("role", "actor").put("text", "아니, 편했던 건 아니야.");
         var errors = new ArrayList<RuntimeException>();
-        ObjectNode corrected = PracticeNote.assemble(source, text -> generated.toString(), errors::add);
+        ObjectNode corrected = DialogueNote.assembleResult(source, text -> generated.toString(), errors::add).note();
         assertThat(errors).hasSize(2);
         assertThat(PracticeNote.publicView(corrected).path("summary").asText()).doesNotContain("편했어");
     }
@@ -79,13 +80,13 @@ class DialogueNoteTest {
 
     @Test void generatesOneNewProposalFromDialogueWithoutInventingSelectionOrAttempts() {
         ObjectNode source = handoff();
-        ObjectNode note = PracticeNote.assemble(source, text -> {
+        ObjectNode note = DialogueNote.assembleResult(source, text -> {
             JsonNode input = StructuredJson.parse(text);
             assertThat(input.path("coach_handoff").path("conversation")).hasSize(1);
             assertThat(input.path("controls").path("can_propose").asBoolean()).isTrue();
             assertThat(input.has("note_data")).isFalse();
             return output().toString();
-        });
+        }, failure -> { }).note();
         StructuredJson.validate("practice_note", note);
         JsonNode visible = PracticeNote.publicView(note);
         assertThat(visible.path("summary").asText()).contains("라고 했어요", "마지막 음절");
@@ -105,7 +106,7 @@ class DialogueNoteTest {
             if (kind.equals("coach")) excerpt.put("source_ref", "c1").put("quote", "부탁하는 쪽으로 읽힐 수 있어요.");
             if (kind.equals("old_focus")) excerpt.put("source_ref", "e1").put("quote", "고개를 아래로 기울이고 시선도 화면 아래쪽으로 향한다.");
             var failures = new ArrayList<RuntimeException>();
-            ObjectNode note = PracticeNote.assemble(handoff(), input -> invalid.toString(), failures::add);
+            ObjectNode note = DialogueNote.assembleResult(handoff(), input -> invalid.toString(), failures::add).note();
             assertThat(failures).hasSize(2);
             assertThat(note.path("practice").isNull()).isTrue();
             assertThat(note.path("copy").path("summary").path("text").asText()).doesNotContain("향상", "읽힐");
@@ -115,34 +116,34 @@ class DialogueNoteTest {
     @Test void missingDirectionEarlyEndAndGenerationFailureDoNotCreateHomework() {
         ObjectNode handoff = handoff();
         ((ObjectNode) handoff.path("context")).putNull("direction").putNull("focus");
-        ObjectNode note = PracticeNote.assemble(handoff, text -> {
+        ObjectNode note = DialogueNote.assembleResult(handoff, text -> {
             assertThat(StructuredJson.parse(text).path("controls").path("can_propose").asBoolean()).isFalse();
             return "{\"summary\":[],\"next_take\":null}";
-        });
+        }, failure -> { }).note();
         assertThat(note.path("mode").asText()).isEqualTo("record_only");
         assertThat(note.path("practice").isNull()).isTrue();
-        ObjectNode failed = PracticeNote.assemble(handoff(), input -> { throw new IllegalStateException("offline"); });
+        ObjectNode failed = DialogueNote.assembleResult(handoff(), input -> { throw new IllegalStateException("offline"); }, failure -> { }).note();
         assertThat(failed.path("practice").isNull()).isTrue();
         assertThat(failed.path("copy").path("summary").path("text").asText()).contains("애원하는 것처럼 보이긴 싫어");
     }
 
     @Test void invalidNextTakeRetriesWithoutPartiallySavingAndUsesTheCorrectPrompt() {
         AtomicInteger calls = new AtomicInteger();
-        ObjectNode note = PracticeNote.assemble(handoff(), text -> {
+        ObjectNode note = DialogueNote.assembleResult(handoff(), text -> {
             ObjectNode output = output();
             if (calls.getAndIncrement() == 0) ((ObjectNode) output.path("next_take")).put("selection", "selected");
             else assertThat(StructuredJson.parse(text).has("validation_error")).isTrue();
             return output.toString();
-        });
+        }, failure -> { }).note();
         assertThat(calls).hasValue(2);
         assertThat(note.path("practice").path("selection").asText()).isEqualTo("proposed");
-        assertThat(PracticeNote.prompt(handoff())).contains("여기서 처음 제안해도 된다").doesNotContain("note_data에 이미 있는");
+        assertThat(OutputLanguage.apply(DialogueNote.PROMPT)).contains("여기서 처음 제안해도 된다");
     }
 
     @Test void nextTakeCannotUseAnUnrelatedObservationOrIgnoreTheCurrentDirection() {
         ObjectNode invalid = output();
         ((ObjectNode) invalid.path("next_take")).putArray("basis_refs").add("c2").add("e1");
-        ObjectNode note = PracticeNote.assemble(handoff(), text -> invalid.toString());
+        ObjectNode note = DialogueNote.assembleResult(handoff(), text -> invalid.toString(), failure -> { }).note();
         assertThat(note.path("practice").isNull()).isTrue();
     }
 
@@ -161,10 +162,10 @@ class DialogueNoteTest {
         ObjectNode invalid = output();
         invalid.putArray("summary");
         var failures = new ArrayList<RuntimeException>();
-        ObjectNode note = PracticeNote.assemble(early, text -> {
+        ObjectNode note = DialogueNote.assembleResult(early, text -> {
             assertThat(StructuredJson.parse(text).path("controls").path("can_propose").asBoolean()).isFalse();
             return invalid.toString(); // Even a model that supplies a plausible exercise is rejected.
-        }, failures::add);
+        }, failures::add).note();
         assertThat(failures).hasSize(2).allSatisfy(failure -> assertThat(failure)
                 .hasMessageContaining("next take requires actor direction"));
         assertThat(note.path("mode").asText()).isEqualTo("observation");

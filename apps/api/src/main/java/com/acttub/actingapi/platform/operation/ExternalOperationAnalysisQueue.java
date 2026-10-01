@@ -42,16 +42,6 @@ class ExternalOperationAnalysisQueue implements AnalysisOperationQueue {
     }
 
     @Override
-    public boolean fail(UUID operationId, UUID leaseToken, String errorCode, Instant now) {
-        return claimer.fail(operationId, leaseToken, errorCode, true, now);
-    }
-
-    @Override
-    public void release(UUID operationId, UUID leaseToken, Instant now) {
-        claimer.release(operationId, leaseToken, now);
-    }
-
-    @Override
     public int sweepMaxAttempts(Instant now) {
         return claimer.sweepMaxAttempts(now);
     }

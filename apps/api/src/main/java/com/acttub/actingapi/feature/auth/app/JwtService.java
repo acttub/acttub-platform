@@ -16,10 +16,12 @@ import javax.crypto.spec.SecretKeySpec;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.acttub.actingapi.platform.security.AccessTokenVerifier;
+import com.acttub.actingapi.platform.web.Hashing;
 import com.nimbusds.jwt.SignedJWT;
 
 /**
- * Python {@code auth/jwt.py:JwtService}와 byte-level 호환되는 HS256 JWT.
+ * HS256 JWT. 헤더·패딩·클레임 모양을 이관 전 파이썬 서버가 발급하던 토큰과 같게 두고, 그 서버가 발급한 토큰도
+ * 받는다({@code JwtServiceTest}).
  *
  * <p>토큰을 <b>발급</b>하는 것은 이 도메인의 일이라 여기 남고, 요청마다 그것을 <b>검증</b>하는
  * 배관에는 {@link AccessTokenVerifier} 로만 보인다 (ADR-017).
@@ -67,7 +69,7 @@ public final class JwtService implements AccessTokenVerifier {
         }catch(TokenValidationException e){throw e;}catch(Exception e){throw invalid("invalid token");}
     }
     public static String hashToken(String token){
-        try{return java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8)));}catch(Exception e){throw new IllegalStateException(e);}
+        return Hashing.sha256Hex(token);
     }
     private byte[] hmac(byte[] input)throws Exception{Mac mac=Mac.getInstance("HmacSHA256");mac.init(new SecretKeySpec(secret,"HmacSHA256"));return mac.doFinal(input);}
     private static String b64(byte[] value){return Base64.getUrlEncoder().withoutPadding().encodeToString(value);} private static String pad(String s){return s+"=".repeat((4-s.length()%4)%4);}

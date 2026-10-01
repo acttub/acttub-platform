@@ -32,7 +32,7 @@ public interface AiReportRepository {
     record Requested(Report report, boolean created) { }
 
     /** @param samples 표본 참여작. 라벨(S1…)은 워커가 붙이고 모델에게 이름·id 를 주지 않는다 */
-    record Material(UUID owner, UUID entryId, String line, Video mine, List<Sample> samples) { }
+    record Material(String line, Video mine, List<Sample> samples) { }
     record Video(String objectKey, String contentType, int durationMs) { }
     record Sample(UUID entryId, Video video) { }
 

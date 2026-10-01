@@ -59,14 +59,15 @@ class PackageLayerTest {
      * {@link #everyRuleActuallyHasSomethingToCheck}가 양쪽을 다 본다.
      */
     private static final Map<String, Set<String>> FEATURE_LAYERS = Map.ofEntries(
-            Map.entry("practice", FOUR_LAYERS),
-            Map.entry("report", FOUR_LAYERS),
-            Map.entry("coach", FOUR_LAYERS),
+            // 옛 연습 흐름의 Schema Entity 를 걷어낸 뒤(SOMA-589) 연습·코치는 옛 표를 native SQL 로만 읽는다.
+            // 리포트는 저장소도 함께 내려 app 의 노트 조립·공개 투영과 domain 규칙만 남았다.
+            Map.entry("practice", Set.of("domain", "app", "adapter")),
+            Map.entry("report", Set.of("domain", "app")),
+            Map.entry("coach", Set.of("domain", "app", "adapter")),
             // 분석의 Domain Model 은 받아쓴 대사를 문장으로 자르던 `TranscriptSegments` 하나였고,
             // 받아쓰기를 걷어내면서(SOMA-490) 그 규칙이 함께 사라졌다. 관찰은 영상을 보는 모델이
             // 통째로 내주는 것이라 우리가 걸 행위 규칙이 없다 — 남은 층이 셋이다.
             Map.entry("analysis", Set.of("app", "adapter", "schema")),
-            Map.entry("upload", FOUR_LAYERS),
             // `users` 행의 Schema Entity 는 `auth/schema/UserEntity` 다 — 행을 만드는 쪽이
             // 갖는다(SOMA-397 12단계). 프로필은 `user_profiles`·`user_profile_directions` 를 갖는다.
             Map.entry("profile", FOUR_LAYERS),
