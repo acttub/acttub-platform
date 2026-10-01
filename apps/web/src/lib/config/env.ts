@@ -10,9 +10,6 @@ export const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace
 // 0.1.0 이전 빌드로 보고 426으로 답한다(docs/specs/common.md 공통 규칙).
 export const ACTTUB_CLIENT = "web/0.1.0";
 
-// S3 버킷 CORS가 설정되기 전에는 브라우저 직접 PUT이 막히므로 목킹 모드로 우회한다.
-export const MOCK_S3_UPLOAD = process.env.NEXT_PUBLIC_MOCK_S3_UPLOAD === "1";
-
 // Sentry는 세 변수를 빌드 시점에 읽는다(src/lib/observability/sentry-shared.ts).
 // 여기서 값을 내보내지 않고 위치만 적어 둔다 — 계측 코드 밖에서 참조할 일이 없다.
 //   NEXT_PUBLIC_SENTRY_DSN   비어 있으면 Sentry를 켜지 않는다. 로컬 개발의 기본값이다.
@@ -25,8 +22,6 @@ export const MOCK_S3_UPLOAD = process.env.NEXT_PUBLIC_MOCK_S3_UPLOAD === "1";
 //   NEXT_PUBLIC_AMPLITUDE_API_KEY  비어 있으면 계측을 켜지 않고 콘솔에 경고를 남긴다.
 //                                  환경별로 다른 프로젝트 키를 넣어 통계를 나눈다.
 // 로컬에서 확인하려면 apps/web/.env.local 에 넣는다(.env* 는 커밋되지 않는다).
-
-// 후기는 0.1.0 부터 서버에 직접 접수한다(practice.feedback). 외부 폼 주소는 더 쓰지 않는다.
 
 // 백엔드 uploads.py의 MAX_UPLOAD_BYTES(100MB)와 동일해야 한다.
 export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;

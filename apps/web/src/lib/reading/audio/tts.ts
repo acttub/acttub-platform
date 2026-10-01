@@ -5,12 +5,12 @@
  *  device     — 기기 내장 speechSynthesis. 모델을 받기 전이거나 받을 수 없을 때 쓴다.
  *
  * 둘 다 대본을 밖으로 보내지 않는다 — 단, 기기에 원격 음성밖에 없으면
- * speechSynthesis 는 텍스트를 브라우저 음성 서비스로 넘긴다. `isRemoteOnly()` 로 알린다.
+ * speechSynthesis 는 텍스트를 브라우저 음성 서비스로 넘긴다.
  */
 import { speakableText } from "@/lib/reading/script/parse";
 import { synthesize, load as loadSupertonic } from "@/lib/reading/audio/supertonic/engine";
 import { playSynthesized, unlockAudio } from "@/lib/reading/audio/supertonic/play";
-import { VOICE_PRESETS, type VoicePreset } from "@/lib/reading/audio/supertonic/models";
+import { PRESET_CYCLE, type VoicePreset } from "@/lib/reading/audio/supertonic/models";
 
 export type Engine = "supertonic" | "device";
 
@@ -39,9 +39,6 @@ const DEVICE_STYLES: VoiceStyle[] = [
   { pitch: 0.95 },
 ];
 
-/** 남녀가 번갈아 나오도록 섞어 둔다 — 등장 순서대로 집으면 대개 대화처럼 들린다. */
-const PRESET_ORDER: VoicePreset[] = ["F1", "M1", "F2", "M2", "F3", "M3", "F4", "M4", "F5", "M5"];
-
 /**
  * 배역 목록을 받아 배역마다 목소리를 정한다.
  * 순서만 보고 정하므로, 같은 대본이면 다시 들어와도 같은 목소리가 나온다.
@@ -51,7 +48,7 @@ export function assignVoices(roles: string[]): Record<string, RoleVoice> {
   roles.forEach((role, i) => {
     out[role] = {
       device: DEVICE_STYLES[i % DEVICE_STYLES.length],
-      preset: PRESET_ORDER[i % PRESET_ORDER.length],
+      preset: PRESET_CYCLE[i % PRESET_CYCLE.length],
     };
   });
   return out;
@@ -96,12 +93,6 @@ export function ttsSupported(): boolean {
 export function getKoreanVoices(): SpeechSynthesisVoice[] {
   if (!ttsSupported()) return [];
   return rankKoreanVoices(window.speechSynthesis.getVoices() as unknown as VoiceLike[]) as unknown as SpeechSynthesisVoice[];
-}
-
-/** 한국어 음성이 있는데 전부 원격이면 true — 화면에서 알려 준다 */
-export function isRemoteOnly(): boolean {
-  const voices = getKoreanVoices();
-  return voices.length > 0 && voices.every((v) => !v.localService);
 }
 
 /** Chrome은 getVoices()가 처음엔 빈 배열이라 voiceschanged를 기다린다 */
@@ -178,12 +169,6 @@ let playing: AbortController | null = null;
 
 export function getEngine(): Engine {
   return engine;
-}
-
-export function setEngine(next: Engine): void {
-  if (next === engine) return;
-  cancelSpeech();
-  engine = next;
 }
 
 /**
@@ -315,5 +300,3 @@ export function setPrefetchPaused(paused: boolean): void {
 export function clearPrefetch(): void {
   prefetchQueue = [];
 }
-
-export { VOICE_PRESETS, type VoicePreset };

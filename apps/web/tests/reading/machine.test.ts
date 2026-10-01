@@ -6,7 +6,6 @@ import {
   createRehearsal,
   pause,
   progress,
-  restart,
   resume,
   turnOf,
   window,
@@ -76,7 +75,7 @@ describe("pause / resume", () => {
   });
 });
 
-describe("progress / window / restart", () => {
+describe("progress / window", () => {
   it("대사 기준으로 진행률을 센다", () => {
     let s = begin(createRehearsal(cfg));
     expect(progress(s)).toEqual({ done: 0, total: 5 });
@@ -90,13 +89,6 @@ describe("progress / window / restart", () => {
     expect(w.past.map((l) => l.text)).toEqual(["카페. 저녁.", "오래 기다렸어?"]);
     expect(w.current?.text).toBe("아니, 나도 방금 왔어.");
     expect(w.next?.text).toBe("다행이다.");
-  });
-
-  it("restart는 같은 범위를 처음부터 다시 시작한다", () => {
-    const s = advance(advance(begin(createRehearsal(cfg))));
-    const r = restart(s);
-    expect(r.index).toBe(1);
-    expect(r.status).toBe("ai");
   });
 
   it("turnOf", () => {

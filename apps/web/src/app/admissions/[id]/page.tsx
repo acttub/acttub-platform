@@ -6,6 +6,7 @@ import {
   buildAdmissionsWebPageJsonLd,
   buildOrganizationJsonLd,
 } from "@/lib/seo/json-ld";
+import { JsonLd } from "@/lib/seo/json-ld-scripts";
 import { buildUniversityAdmissionsMetadata } from "@/lib/seo/site-metadata";
 import { notFound } from "next/navigation";
 
@@ -52,13 +53,7 @@ export default async function Page({
 
   return (
     <>
-      {jsonLdValues.map((value) => (
-        <script
-          key={value["@id"]}
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(value) }}
-        />
-      ))}
+      <JsonLd values={jsonLdValues} />
       <UniversityDetailPage universityId={id} initial={initial} />
     </>
   );

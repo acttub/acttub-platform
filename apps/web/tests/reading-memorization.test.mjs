@@ -8,7 +8,7 @@ import "./ts-module-loader.mjs";
 const { EMPTY_TARGETS_COPY, memorizationHeading, memorizationProgress, memorizationTargets } = await import(
   "../src/lib/reading/memorization/targets.ts"
 );
-const { maskTokens, MEMO_MODES, renderMasked } = await import("../src/lib/reading/memorization/masking.ts");
+const { maskTokens, MEMO_MODES } = await import("../src/lib/reading/memorization/masking.ts");
 const { createMemorizationSync } = await import("../src/lib/reading/memorization/sync.ts");
 const { judgeRecital, MAX_RECITAL_MISS } = await import("../src/lib/reading/memorization/recital.ts");
 
@@ -72,7 +72,6 @@ test("reading.memorization: 빈칸 연습은 둘째·넷째… 어절을 가리�
   assert.deepEqual(maskTokens(text, "hidden").map((t) => t.masked), [true, true, true, true, true, true]);
   // 첫 글자 힌트(가리고·빈칸에서)
   assert.deepEqual(maskTokens(text, "hidden", { hint: true }).map((t) => t.shown), ["너", "힘", "항", "높", "데", "가"]);
-  assert.equal(renderMasked(text, "blanks"), "너 ___ 항상 __ 데로 ___");
 });
 
 test("reading.memorization: 괄호 지문은 가리지 않고 대조에도 들어가지 않는다", () => {

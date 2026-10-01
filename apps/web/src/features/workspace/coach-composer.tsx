@@ -43,7 +43,7 @@ export function CoachComposer({
           className="h-[104px] w-full resize-none rounded-[16px] border border-[#e5e8eb] bg-[#f8fbff] px-4 pb-3 pt-8 text-base font-semibold outline-none transition placeholder:text-[#b0b8c1] focus:border-[#3182f6] focus:bg-white disabled:bg-[#f2f4f6]"
         />
         <span className="pointer-events-none absolute right-4 top-3 text-[11.5px] font-semibold tabular-nums text-[#8b95a1]">
-          {answer.length} / 300
+          {answer.length} / {ACTOR_REPLY_MAX}
         </span>
       </div>
       <div className="flex flex-wrap gap-2 [@media(max-height:560px)]:hidden">

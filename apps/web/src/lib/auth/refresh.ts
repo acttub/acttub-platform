@@ -1,4 +1,4 @@
-import { isGuestTransferred, toApiError } from "../api/v2/errors";
+import { isGuestTransferred, responseError } from "../api/v2/errors";
 import type { RefreshTokenResponse } from "../api/v2/types";
 import { postAuth } from "./auth-request";
 import { endGuestSession } from "./guest-session";
@@ -27,11 +27,7 @@ async function refreshInsideLock(failedAccess?: string): Promise<string | null> 
     }
     // 앱으로 옮겨진 게스트다. 새 게스트로 이어 가지 않게 사유를 그대로 던진다 —
     // 공용 클라이언트는 null 이면 하려던 일을 새 게스트로 잇는다.
-    const rejection = toApiError(
-      response.status,
-      payload,
-      response.headers.get("X-Request-Id") ?? undefined,
-    );
+    const rejection = responseError(response, payload);
     if (isGuestTransferred(rejection)) {
       endGuestSession("transferred");
       throw rejection;
@@ -40,11 +36,7 @@ async function refreshInsideLock(failedAccess?: string): Promise<string | null> 
   }
 
   if (!response.ok) {
-    throw toApiError(
-      response.status,
-      payload,
-      response.headers.get("X-Request-Id") ?? undefined,
-    );
+    throw responseError(response, payload);
   }
 
   // 요청 도중 게스트가 끝났거나 다른 회전이 끝났다면 늦은 응답으로 최신 세션을 덮지 않는다.

@@ -76,10 +76,6 @@ export function resume(state: RehearsalState): RehearsalState {
   return { ...state, status: state.resumeTo, resumeTo: null };
 }
 
-export function restart(state: RehearsalState): RehearsalState {
-  return begin(createRehearsal({ ...state, from: undefined }));
-}
-
 export function progress(state: RehearsalState): { done: number; total: number } {
   let done = 0;
   let total = 0;

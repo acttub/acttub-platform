@@ -10,8 +10,7 @@ import type { NextConfig } from "next";
 // 기본값은 로컬 Spring Boot(:8080)다. 이관 기간에는 FastAPI(:8000)를 가리켰고,
 // 파이썬이 사라진 뒤로도 8000이 남아 있으면 **로컬 개발 루프만** 조용히 죽는다 —
 // 배포는 API_ORIGIN을 명시로 주고 CI는 컴파일만 보므로 어디서도 안 걸린다.
-const apiOrigin =
-  process.env.API_ORIGIN ?? process.env.DEV_API_ORIGIN ?? "http://127.0.0.1:8080";
+const apiOrigin = process.env.API_ORIGIN ?? "http://127.0.0.1:8080";
 
 const nextConfig: NextConfig = {
   // 런타임 이미지에 필요한 의존성만 담는 자립 실행 번들(.next/standalone).

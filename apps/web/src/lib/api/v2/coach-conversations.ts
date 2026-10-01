@@ -36,11 +36,7 @@ export function isConversationConflict(cause: unknown): boolean {
   return cause instanceof ApiError && cause.status === 409 && cause.code === "conversation_conflict";
 }
 
-export function isClosedConversation(cause: unknown): boolean {
-  return cause instanceof ApiError && cause.status === 409 && cause.code === "conversation_closed";
-}
-
-export function isFingerprintMismatch(cause: unknown): boolean {
+function isFingerprintMismatch(cause: unknown): boolean {
   return cause instanceof ApiError && cause.status === 422 && cause.code === "request_fingerprint_mismatch";
 }
 

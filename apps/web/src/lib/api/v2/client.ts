@@ -1,9 +1,10 @@
 import { ACTTUB_CLIENT, API_BASE_URL } from "../../config/env";
 import { endGuestSession, ensureGuestSession } from "../../auth/guest-session";
 import { refreshAccessToken } from "../../auth/refresh";
+import { parsePayload } from "../../auth/auth-request";
 import { getAccessToken, hasGuestSession } from "../../auth/token-store";
 import { askConsent } from "./consent-prompt";
-import { ApiError, NetworkError, toApiError } from "./errors";
+import { ApiError, NetworkError, responseError } from "./errors";
 import type { ConsentDocument } from "./types";
 
 export type ApiFetchOptions = {
@@ -12,7 +13,6 @@ export type ApiFetchOptions = {
   headers?: HeadersInit;
   signal?: AbortSignal;
   auth?: boolean;
-  retryOn401?: boolean;
   /** false 면 403 consent_required 에 시트를 띄우지 않고 그대로 던진다. */
   consentPrompt?: boolean;
   /**
@@ -25,7 +25,6 @@ export type ApiFetchOptions = {
 export type ApiResponse<T> = {
   status: number;
   data: T;
-  headers: Headers;
 };
 
 function apiUrl(path: string): string {
@@ -87,33 +86,8 @@ async function fetchResponse(
   }
 }
 
-async function responsePayload(response: Response): Promise<unknown> {
-  if (response.status === 204) return undefined;
-  let text: string;
-  try {
-    text = await response.text();
-  } catch (error) {
-    if (error instanceof TypeError) {
-      throw new NetworkError("API 응답을 읽는 중 네트워크 연결이 끊어졌습니다.", {
-        cause: error,
-      });
-    }
-    throw error;
-  }
-  if (!text) return undefined;
-  try {
-    return JSON.parse(text) as unknown;
-  } catch {
-    return text;
-  }
-}
-
-function throwResponseError(response: Response, payload: unknown): never {
-  throw toApiError(
-    response.status,
-    payload,
-    response.headers.get("X-Request-Id") ?? undefined,
-  );
+function responsePayload(response: Response): Promise<unknown> {
+  return parsePayload(response, "API");
 }
 
 // 한 요청이 시트를 띄우는 횟수. 결정하는 사이 새 판이 나오면 한 번 더 묻고, 그래도
@@ -170,7 +144,6 @@ async function sendWithSession(
   body: RequestBody,
 ): Promise<{ response: Response; payload: unknown }> {
   const auth = options.auth ?? true;
-  const retryOn401 = options.retryOn401 ?? true;
   // 게스트가 이미 있으면 기다리지 않는다 — 요청은 부른 그 틱에 나가야 호출자가 곧바로
   // 건 취소가 진행 중인 fetch 에 닿는다.
   const session = auth ? sessionAccess(options) : null;
@@ -179,13 +152,13 @@ async function sendWithSession(
   let response = await fetchResponse(path, options, body, failedAccess);
   let payload = await responsePayload(response);
 
-  if (response.status === 401 && auth && retryOn401) {
+  if (response.status === 401 && auth) {
     let renewedAccess = await refreshAccessToken(failedAccess ?? undefined);
     // 갱신이 거절된 게스트에는 다시 닿을 수 없다. 하려던 일은 새 게스트로 잇는다.
     if (!renewedAccess && startsGuest(options)) {
       renewedAccess = await ensureGuestSession();
     }
-    if (!renewedAccess) throwResponseError(response, payload);
+    if (!renewedAccess) throw responseError(response, payload);
 
     response = await fetchResponse(path, options, body, renewedAccess);
     payload = await responsePayload(response);
@@ -222,7 +195,6 @@ export async function apiFetch<T>(
       return {
         status: response.status,
         data: payload as T,
-        headers: response.headers,
       };
     }
 
@@ -234,7 +206,7 @@ export async function apiFetch<T>(
       prompts >= MAX_CONSENT_PROMPTS ||
       (await askConsent(pending)) !== "decided"
     ) {
-      throwResponseError(response, payload);
+      throw responseError(response, payload);
     }
   }
 }

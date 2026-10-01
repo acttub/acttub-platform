@@ -29,7 +29,6 @@ const script = {
   ],
   lineIds: ["l-0", "l-1", "l-2"],
   raw: "",
-  openSessionId: null,
   lastSession: null,
 };
 const noop = () => {};
@@ -77,4 +76,16 @@ test("reading.session: 완료 저장이 끝나기 전에는 완료 화면이 \"�
   const done = text(renderToStaticMarkup(React.createElement(DoneBody, { script, stats, repeating: false, error: null, saving: false, onRepeat: noop, onChangeSetup: noop, onNewScript: noop, onDetail: noop })));
   assert.equal(done.includes(SAVING_COPY), false);
   assert.equal(done.includes("전체보기"), false);
+});
+
+test("reading.session: 완료 화면의 걸린 시간과 실행 화면의 진행 시계는 같은 두 자리 mm:ss 다", async () => {
+  const { progressLabel } = await import("../src/features/reading/screens/run-shared.tsx");
+  const { createRehearsal } = await import("../src/lib/reading/rehearsal/machine.ts");
+  const state = createRehearsal({ lines: script.lines, myRoles: ["니나"], start: 0, end: 2 });
+  for (const [elapsedMs, clock] of [[0, "00:00"], [65_999, "01:05"], [3_661_000, "61:01"]]) {
+    const stats = { mode: "read", elapsedMs, lineCount: 3, myCharacterNames: ["니나"], lineResults: [] };
+    const done = text(renderToStaticMarkup(React.createElement(DoneBody, { script, stats, repeating: false, error: null, saving: false, onRepeat: noop, onChangeSetup: noop, onNewScript: noop, onDetail: noop })));
+    assert.equal(done.includes(`${clock}걸린 시간`), true, clock);
+    assert.equal(progressLabel(state, elapsedMs), `0 / 3 · ${clock}`);
+  }
 });

@@ -1,0 +1,153 @@
+{
+  "keyword": {
+    "metadataBase": "https://example.com/",
+    "title": "AI 연기 코칭 — 연기 영상 올리면 질문으로 돌아오는 연기 연습",
+    "description": "AI 연기 코칭이 무엇인지, 혼자 하는 연기 연습에 어떻게 쓰는지 정리했어요. Acttub은 연기 영상에서 확인한 관찰을 근거로 한 번에 하나씩 질문하고, 답을 모아 연습 노트로 남겨요. iOS·Android·웹 무료.",
+    "openGraph": {
+      "siteName": "Acttub",
+      "locale": "ko_KR",
+      "type": "article",
+      "url": "https://example.com/ai-acting-coaching",
+      "title": "AI 연기 코칭 — 연기 영상 올리면 질문으로 돌아오는 연기 연습 | Acttub",
+      "description": "AI 연기 코칭이 무엇인지, 혼자 하는 연기 연습에 어떻게 쓰는지 정리했어요. Acttub은 연기 영상에서 확인한 관찰을 근거로 한 번에 하나씩 질문하고, 답을 모아 연습 노트로 남겨요. iOS·Android·웹 무료."
+    },
+    "twitter": {
+      "card": "summary_large_image"
+    },
+    "verification": {
+      "google": "zABzA1FHYUFDJR1hJmCKZqAdJDjZ7-Tz_zhWpOZ8hzg",
+      "other": {
+        "naver-site-verification": "697b757ca85289cefc70141c0a879284c3ef8563"
+      }
+    },
+    "alternates": {
+      "canonical": "/ai-acting-coaching"
+    }
+  },
+  "guideIndex": {
+    "metadataBase": "https://example.com/",
+    "title": "혼자 하는 연기 연습 방법 — 독백·셀프테이프·입시 준비",
+    "description": "학원 없이 혼자 하는 연기 연습을 순서대로 정리했어요. 독백 6단계, 폰으로 찍는 셀프테이프, 자유연기 작품 고르기, 매일 30분 독학 루틴까지 따라 해 보세요.",
+    "openGraph": {
+      "siteName": "Acttub",
+      "locale": "ko_KR",
+      "type": "website",
+      "url": "https://example.com/guide",
+      "title": "혼자 하는 연기 연습 방법 — 독백·셀프테이프·입시 준비 | Acttub",
+      "description": "학원 없이 혼자 하는 연기 연습을 순서대로 정리했어요. 독백 6단계, 폰으로 찍는 셀프테이프, 자유연기 작품 고르기, 매일 30분 독학 루틴까지 따라 해 보세요."
+    },
+    "twitter": {
+      "card": "summary_large_image"
+    },
+    "verification": {
+      "google": "zABzA1FHYUFDJR1hJmCKZqAdJDjZ7-Tz_zhWpOZ8hzg",
+      "other": {
+        "naver-site-verification": "697b757ca85289cefc70141c0a879284c3ef8563"
+      }
+    },
+    "alternates": {
+      "canonical": "/guide"
+    }
+  },
+  "landing": {
+    "metadataBase": "https://example.com/",
+    "title": {
+      "default": "Acttub(액터브) — AI 연기 코칭, 질문으로 다시 보는 연기 연습",
+      "template": "%s | Acttub"
+    },
+    "description": "AI 연기 코칭 앱 Acttub(액터브). 내 연기 영상을 올리면 장면 맥락에서 확인한 단서가 질문으로 돌아와요. 질문으로 연기 장면을 다시 생각하는 연기 연습 도구예요.",
+    "openGraph": {
+      "siteName": "Acttub",
+      "locale": "ko_KR",
+      "type": "website",
+      "url": "https://example.com/"
+    },
+    "twitter": {
+      "card": "summary_large_image"
+    },
+    "verification": {
+      "google": "zABzA1FHYUFDJR1hJmCKZqAdJDjZ7-Tz_zhWpOZ8hzg",
+      "other": {
+        "naver-site-verification": "697b757ca85289cefc70141c0a879284c3ef8563"
+      }
+    },
+    "alternates": {
+      "canonical": "/"
+    }
+  },
+  "appDownload": {
+    "metadataBase": "https://example.com/",
+    "title": "AI 연기 코칭 앱 액터브 — iOS·Android 무료",
+    "description": "연기 영상을 폰에서 올리면 AI가 장면 속 순간을 짚어 질문해요. 말로 답하면 다음 테이크에서 붙잡을 문장이 연습 노트로 남아요. App Store·Google Play 무료.",
+    "openGraph": {
+      "siteName": "Acttub",
+      "locale": "ko_KR",
+      "type": "website",
+      "url": "https://example.com/app",
+      "title": "AI 연기 코칭 앱 액터브 — iOS·Android 무료 | Acttub",
+      "description": "연기 영상을 폰에서 올리면 AI가 장면 속 순간을 짚어 질문해요. 말로 답하면 다음 테이크에서 붙잡을 문장이 연습 노트로 남아요. App Store·Google Play 무료."
+    },
+    "twitter": {
+      "card": "summary_large_image"
+    },
+    "verification": {
+      "google": "zABzA1FHYUFDJR1hJmCKZqAdJDjZ7-Tz_zhWpOZ8hzg",
+      "other": {
+        "naver-site-verification": "697b757ca85289cefc70141c0a879284c3ef8563"
+      }
+    },
+    "alternates": {
+      "canonical": "/app"
+    }
+  },
+  "admissionsIndex": {
+    "metadataBase": "https://example.com/",
+    "title": "연극영화과 입시 정보 — 대학별 모집요강·실기·일정 정리",
+    "description": "전국 연극영화과·연기 전공 66개 대학의 모집요강, 실기 과제, 원서 접수 일정을 한곳에 정리했어요. 최종 확인은 각 대학 입학처 공고로 해주세요.",
+    "openGraph": {
+      "siteName": "Acttub",
+      "locale": "ko_KR",
+      "type": "website",
+      "url": "https://example.com/admissions",
+      "title": "연극영화과 입시 정보 — 대학별 모집요강·실기·일정 정리 | Acttub",
+      "description": "전국 연극영화과·연기 전공 66개 대학의 모집요강, 실기 과제, 원서 접수 일정을 한곳에 정리했어요. 최종 확인은 각 대학 입학처 공고로 해주세요."
+    },
+    "twitter": {
+      "card": "summary_large_image"
+    },
+    "verification": {
+      "google": "zABzA1FHYUFDJR1hJmCKZqAdJDjZ7-Tz_zhWpOZ8hzg",
+      "other": {
+        "naver-site-verification": "697b757ca85289cefc70141c0a879284c3ef8563"
+      }
+    },
+    "alternates": {
+      "canonical": "/admissions"
+    }
+  },
+  "university": {
+    "metadataBase": "https://example.com/",
+    "title": "중앙대학교 연기 입시 정보 — 모집요강·실기·일정",
+    "description": "중앙대학교 공연영상창작학부 연극전공 (연기·뮤지컬) 2027학년도 수시 전형의 실기 과제와 접수 일정을 정리했어요. 최종 확인은 대학 입학처 공고로 해주세요.",
+    "openGraph": {
+      "siteName": "Acttub",
+      "locale": "ko_KR",
+      "type": "website",
+      "url": "https://example.com/admissions/cau",
+      "title": "중앙대학교 연기 입시 정보 — 모집요강·실기·일정 | Acttub",
+      "description": "중앙대학교 공연영상창작학부 연극전공 (연기·뮤지컬) 2027학년도 수시 전형의 실기 과제와 접수 일정을 정리했어요. 최종 확인은 대학 입학처 공고로 해주세요."
+    },
+    "twitter": {
+      "card": "summary_large_image"
+    },
+    "verification": {
+      "google": "zABzA1FHYUFDJR1hJmCKZqAdJDjZ7-Tz_zhWpOZ8hzg",
+      "other": {
+        "naver-site-verification": "697b757ca85289cefc70141c0a879284c3ef8563"
+      }
+    },
+    "alternates": {
+      "canonical": "/admissions/cau"
+    }
+  }
+}

@@ -5,6 +5,7 @@ import {
   buildGuideItemListJsonLd,
   buildOrganizationJsonLd,
 } from "@/lib/seo/json-ld";
+import { JsonLd } from "@/lib/seo/json-ld-scripts";
 import { buildGuideIndexMetadata } from "@/lib/seo/site-metadata";
 
 export const metadata = buildGuideIndexMetadata();
@@ -18,13 +19,7 @@ export default function GuideIndexPage() {
 
   return (
     <>
-      {jsonLdValues.map((value) => (
-        <script
-          key={value["@id"]}
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(value) }}
-        />
-      ))}
+      <JsonLd values={jsonLdValues} />
       <GuideIndexView guides={GUIDES} />
     </>
   );

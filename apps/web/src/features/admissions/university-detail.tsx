@@ -42,7 +42,7 @@ export function UniversityDetailPage({
 
   const { payload, today } = answeredAdmissions(admissions, initial);
 
-  const university = payload?.universities[0] ?? null;
+  const university = payload.universities[0] ?? null;
 
   return (
     <RailLayout>
@@ -66,15 +66,11 @@ export function UniversityDetailPage({
             </StatusLine>
           )}
 
-          {admissions.state === "loading" && !initial && (
-            <StatusLine tone="muted">불러오는 중이에요…</StatusLine>
-          )}
-
-          {payload && !university && (
+          {!university && (
             <StatusLine tone="muted">해당 대학을 찾을 수 없어요.</StatusLine>
           )}
 
-          {payload && university && (
+          {university && (
             <>
               <Header university={university} />
 

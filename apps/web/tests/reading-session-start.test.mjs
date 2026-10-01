@@ -23,13 +23,12 @@ const script = {
     { type: "dialogue", role: "니나", text: "넷." },
   ],
   lineIds: ["l-0", "l-1", "l-2", "l-3", "l-4"],
-  openSessionId: null,
   lastSession: null,
 };
 
 test("reading.cast: 첫 회차의 배역 화면은 아무것도 선택돼 있지 않고, 두 번째 회차는 첫 회차의 내 배역이 선택돼 있다", () => {
   assert.deepEqual(defaultMyCharacterIds(script), []);
-  const withLast = { ...script, lastSession: { id: "s-1", status: "completed", myCharacterIds: ["c-b", "c-zzz"] } };
+  const withLast = { ...script, lastSession: { myCharacterIds: ["c-b", "c-zzz"] } };
   assert.deepEqual(defaultMyCharacterIds(withLast), ["c-b"]);
 });
 
