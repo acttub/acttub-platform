@@ -17,6 +17,8 @@
 --   8. 챌린지 참여작 목록('features.challenges.recent_entries', SOMA-578) — 비공개 참여작도 가명으로 싣는다.
 --   9. 가입 유입 광고('signup_attributions', SOMA-588) — 앱이 새로 가입한 계정에 붙인 Airbridge 설치 귀속.
 --      수집기 정본에는 없다.
+--  10. 가입 코호트 원장('signup_rows', SOMA-591) — 사람 단위 가입 행(가명·기기·첫 업로드 확정 시각).
+--      ops 가 플랫폼(iOS·안드로이드·웹)×유입 소스 퍼널을 같은 기간 코호트로 계산한다. 수집기 정본에는 없다.
 -- now() 는 트랜잭션 시작 시각이다. 백업 경로는 이것을 백업 시각으로 바꿔 돌렸다.
 WITH b AS (SELECT (now() AT TIME ZONE 'Asia/Seoul')::date AS d),
 -- 분석 기준 셋. '어제'(달력)가 아니라 '최근 24시간'(구르는 창)이다 —
@@ -722,6 +724,23 @@ SELECT json_build_object(
     FROM user_signup_attributions sa
     JOIN users u ON u.id = sa.user_id
     WHERE sa.user_id NOT IN (SELECT id FROM team)),
+  -- ── 가입 코호트 원장 (SOMA-591) ───────────────────────────────────
+  -- 퍼널 칸(funnel)은 앱/웹 두 갈래 합계라 iOS·안드로이드를 나누거나 유입 광고와 잇지 못한다. 사람 단위 행을
+  -- 내보내 ops 가 activity_rows·signup_attributions 와 가명으로 잇는다. 팀·미래 행 제외. 가명·기기 분류와
+  -- 시간 단위 가입 시각, 분 단위 첫 업로드 확정 시각만 싣는다(git 이력에 영구히 남는다).
+  -- 업로드 확정은 퍼널 '업로드 확정' 칸과 같은 정의다(upload_intents.status = 'finalized').
+  'signup_rows', (SELECT COALESCE(json_agg(json_build_object(
+      'actor', '배우 ' || left(md5(sd.user_id::text), 8),
+      'signup_at', to_char(date_trunc('hour', sd.created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+      'platform', sp.platform,
+      'device', sd.device,
+      'first_upload_at', (SELECT to_char(date_trunc('minute', min(ui.created_at) AT TIME ZONE 'UTC'), 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')
+          FROM upload_intents ui
+          WHERE ui.user_id = sd.user_id AND ui.status = 'finalized' AND ui.created_at <= now())
+    ) ORDER BY sd.created_at DESC, sd.user_id), '[]'::json)
+    FROM signup_device sd
+    JOIN signup_platform sp ON sp.user_id = sd.user_id
+    WHERE sd.user_id NOT IN (SELECT id FROM team) AND sd.created_at <= now()),
   -- ── 기능별 사용 (SOMA-570) ─────────────────────────────────────────
   -- 전부 팀 제외(team CTE). ⚠️ 자유 글은 싣지 않는다 — 설문 본문·연락처·노트 평가 코멘트·대본·댓글은
   -- 있는지만 센다. 이 JSON 은 수집기를 거쳐 git(ops-data)에 영구히 남는다.
