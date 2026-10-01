@@ -1,26 +1,18 @@
 import Feather from '@expo/vector-icons/Feather';
-import { Stack, useRouter, type Href } from 'expo-router';
+import { Stack } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ConsentRow } from '@/components/consent-row';
 import { Markdown } from '@/components/markdown';
 import { palette } from '@/constants/palette';
-import { api, type ConsentDocument } from '@/lib/api';
+import type { ConsentDocument } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import {
   canSubmitConsentDecisions,
-  documentsForConsentEntry,
   grantAllRequired,
   signupFailureAction,
-  submitConsentDecisions,
   type ConsentChoice,
 } from '@/lib/consent-entry-submission';
 import { translate as t } from '@/lib/i18n';
@@ -30,70 +22,42 @@ function errorMessage(error: unknown, fallback: string): string {
 }
 
 /**
- * A0.1 동의 — 문서마다 한 줄. 필수 문서는 체크 · [필수] 제목 · 화살표이고 거절이 없다. 선택
- * 문서는 기본값 없이 동의·거절 두 버튼이다. 필수 셋에 동의하고 선택 문서를 결정해야
- * "동의하고 계속하기"가 켜진다. 화살표를 누르면 본문이 펼쳐진다.
+ * A0.1 가입 동의 — 처음 온 신원만 본다. 이미 있는 계정의 새 판 동의는 홈 위 재동의 팝업이 묻는다.
  *
- * 두 경우에 뜬다.
- * - 가입 중(처음 온 신원): 로그인 응답의 문서를 보여 주고, 제출이 통과하는 순간 계정이
- *   생긴다(POST /v2/auth/signup, 모든 결정을 한 번에). 나가면 아무것도 남지 않는다.
- * - 재동의(이미 있는 계정에 새 판): 미결정 문서만 보여 주고 문서 하나씩 기록한다
- *   (consent-entry-submission). 동의하지 않는 사람이 떠날 길로 탈퇴 링크를 둔다.
+ * 맨 위에 만 14세 확인 줄, 그 아래 문서마다 체크 한 줄(필수를 먼저). 만 14세 확인과 필수 문서에
+ * 모두 동의해야 "동의하고 계속하기"가 켜진다. 화살표를 누르면 본문이 펼쳐진다.
+ * 로그인 응답의 문서를 보여 주고, 제출이 통과하는 순간 계정이 생긴다(POST /v2/auth/signup,
+ * 모든 결정을 한 번에). 나가면 아무것도 남지 않는다.
  */
 export default function ConsentScreen() {
-  const router = useRouter();
-  const {
-    status,
-    consentEntry,
-    refreshConsentEntry,
-    signup,
-    submitSignup,
-    reloadSignupDocuments,
-    cancelSignup,
-  } = useAuth();
+  const { signup, submitSignup, reloadSignupDocuments, cancelSignup } = useAuth();
   const [choices, setChoices] = useState<Record<string, ConsentChoice>>({});
-  const [completedDocumentIds, setCompletedDocumentIds] = useState<Set<string>>(
-    new Set(),
-  );
+  // 서버가 아직 받지 않는다(계약 변경 절차 ①). 화면에서 CTA만 막고 가입 요청에는 싣지 않는다.
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
-  const [verificationOnly, setVerificationOnly] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const signingUp = signup !== null;
-  const entry = consentEntry.entry;
-  const signupDocuments = signup?.documents;
-  const documents = useMemo<ConsentDocument[]>(
-    () => signupDocuments ?? (entry ? documentsForConsentEntry(entry) : []),
-    [signupDocuments, entry],
-  );
+  const documents = useMemo<ConsentDocument[]>(() => signup?.documents ?? [], [signup?.documents]);
   // 필수를 먼저, 선택을 뒤에 — 한 목록으로 보여준다.
   const ordered = useMemo(
     () => [...documents.filter((d) => d.required), ...documents.filter((d) => !d.required)],
     [documents],
   );
-  const choiceMap = useMemo(
-    () => new Map(Object.entries(choices)),
-    [choices],
-  );
-  const canProceed = canSubmitConsentDecisions(documents, choiceMap);
+  const choiceMap = useMemo(() => new Map(Object.entries(choices)), [choices]);
+  const canProceed = canSubmitConsentDecisions(documents, choiceMap) && ageConfirmed;
   const requiredDocuments = documents.filter((d) => d.required);
   const allRequiredGranted =
-    requiredDocuments.length > 0 && requiredDocuments.every((d) => choices[d.id] === 'granted');
+    ageConfirmed && requiredDocuments.every((d) => choices[d.id] === 'granted');
 
   useEffect(() => {
     setChoices({});
-    setCompletedDocumentIds(new Set());
-    setVerificationOnly(false);
     setError(null);
-  }, [entry, signupDocuments]);
+  }, [documents]);
 
-  const locked = (id: string) => busy || completedDocumentIds.has(id);
-
-  // 필수 문서는 동의만 된다. 다시 누르면 동의를 거둔다.
   /** 필수·선택 모두 같은 토글이다. 체크하면 동의, 지우면 결정을 비운다. */
   const toggleDocument = (document: ConsentDocument) => {
-    if (locked(document.id)) return;
+    if (busy) return;
     setChoices((current) => {
       const next = { ...current };
       if (current[document.id] === 'granted') delete next[document.id];
@@ -104,34 +68,18 @@ export default function ConsentScreen() {
 
   const toggleAllRequired = () => {
     if (busy) return;
+    setAgeConfirmed(!allRequiredGranted);
     setChoices((current) => {
       if (allRequiredGranted) {
         const next = { ...current };
-        for (const d of requiredDocuments) {
-          if (!completedDocumentIds.has(d.id)) delete next[d.id];
-        }
+        for (const d of requiredDocuments) delete next[d.id];
         return next;
       }
-      return Object.fromEntries(
-        grantAllRequired(documents, new Map(Object.entries(current)), completedDocumentIds),
-      );
+      return Object.fromEntries(grantAllRequired(documents, new Map(Object.entries(current))));
     });
   };
 
-  const reload = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      await refreshConsentEntry();
-      setVerificationOnly(false);
-    } catch (cause) {
-      setError(errorMessage(cause, t('consent.docFail')));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const proceedSignup = async () => {
+  const proceed = async () => {
     setBusy(true);
     setError(null);
     try {
@@ -149,166 +97,89 @@ export default function ConsentScreen() {
     }
   };
 
-  const proceed = async () => {
-    if (signingUp) return proceedSignup();
-    if (!entry) return;
-    setBusy(true);
-    setError(null);
-    const result = await submitConsentDecisions({
-      documents: documentsForConsentEntry(entry),
-      choices: choiceMap,
-      completedDocumentIds,
-      recordDecision: (documentId, action) =>
-        api.recordConsent(documentId, action),
-      refreshEntry: refreshConsentEntry,
-    });
-    setCompletedDocumentIds(new Set(result.completedDocumentIds));
-
-    if (result.kind === 'partial') {
-      setError(t('consent.partialFail'));
-    } else if (result.kind === 'verification_failed') {
-      setVerificationOnly(true);
-      setError(errorMessage(result.cause, t('consent.verifyFail')));
-    }
-    setBusy(false);
-  };
+  if (!signup) return null;
 
   const renderRow = (document: ConsentDocument) => {
-    const granted = choices[document.id] === 'granted';
-    const isLocked = locked(document.id);
     const open = !!expanded[document.id];
-    const label = `${t(document.required ? 'consent.requiredTag' : 'consent.optionalTag')} ${document.title}`;
-    const chevron = (
-      <Pressable
-        hitSlop={10}
-        onPress={() =>
-          setExpanded((current) => ({ ...current, [document.id]: !current[document.id] }))
-        }
-        accessibilityRole="button"
-        accessibilityLabel={open ? t('common.fold') : t('common.view')}>
-        <Feather name={open ? 'chevron-down' : 'chevron-right'} size={18} color={palette.checkOff} />
-      </Pressable>
-    );
     return (
-      <View key={document.id} style={styles.rowWrap}>
-        {/* 필수·선택 문서 모두 체크 한 줄이다 — 선택 문서는 체크하면 동의, 비워 두면 거절 (SOMA-544).
-            거절 버튼을 두면 안 고르고 지나갈 수가 없어 '선택'이라는 말과 어긋났다. */}
-        <Pressable
-          style={[styles.row, isLocked && styles.rowLocked]}
-          onPress={() => toggleDocument(document)}
-          disabled={isLocked}
-          accessibilityRole="checkbox"
-          accessibilityState={{ checked: granted, disabled: isLocked }}>
-          <Feather name="check" size={18} color={granted ? palette.blue : palette.checkOff} />
-          <Text style={[styles.rowLabel, granted && styles.rowLabelOn]} numberOfLines={1}>
-            {label}
-          </Text>
-          {chevron}
-        </Pressable>
+      <ConsentRow
+        key={document.id}
+        label={`${t(document.required ? 'consent.requiredTag' : 'consent.optionalTag')} ${document.title}`}
+        checked={choices[document.id] === 'granted'}
+        locked={busy}
+        onToggle={() => toggleDocument(document)}
+        arrow={{
+          icon: open ? 'chevron-down' : 'chevron-right',
+          onPress: () =>
+            setExpanded((current) => ({ ...current, [document.id]: !current[document.id] })),
+          accessibilityLabel: open ? t('common.fold') : t('common.view'),
+        }}>
         {open && (
           <View style={styles.docBody}>
             <Markdown source={document.body} />
           </View>
         )}
-      </View>
+      </ConsentRow>
     );
   };
-
-  const waiting = !signingUp && status === 'signedIn' && consentEntry.status === 'checking';
-  const loadFailed = !signingUp && consentEntry.status === 'error';
 
   return (
     <SafeAreaView style={styles.safe}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
-        {signingUp && (
-          // 가입 중에는 나가면 아무것도 남지 않는다. 계정도, 제공자가 준 이름도.
-          <Pressable
-            style={styles.exit}
-            onPress={() => cancelSignup()}
-            disabled={busy}
-            hitSlop={12}
-            accessibilityRole="button"
-            accessibilityLabel={t('consent.exit')}>
-            <Feather name="chevron-left" size={26} color={palette.text} />
-          </Pressable>
-        )}
+        {/* 나가면 아무것도 남지 않는다. 계정도, 제공자가 준 이름도. */}
+        <Pressable
+          style={styles.exit}
+          onPress={() => cancelSignup()}
+          disabled={busy}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel={t('consent.exit')}>
+          <Feather name="chevron-left" size={26} color={palette.text} />
+        </Pressable>
         <Text style={styles.title}>{t('consent.title')}</Text>
-        <Text style={styles.subtitle}>
-          {signingUp ? t('consent.subtitle') : t('consent.reconsentSubtitle')}
-        </Text>
+        <Text style={styles.subtitle}>{t('consent.subtitle')}</Text>
       </View>
 
-      {waiting ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={palette.blue} />
-        </View>
-      ) : loadFailed ? (
-        <View style={styles.center}>
-          <Text style={styles.error}>
-            {error ?? errorMessage(consentEntry.error, t('consent.docFail'))}
-          </Text>
-          <Pressable style={styles.retry} onPress={() => void reload()} disabled={busy}>
-            <Text style={styles.retryText}>{t('consent.reload')}</Text>
-          </Pressable>
-        </View>
-      ) : (
-        <>
-          <ScrollView contentContainerStyle={styles.list}>
-            <Text style={styles.sectionTitle}>{t('consent.itemsLabel')}</Text>
-            {ordered.map(renderRow)}
-            {documents.some((d) => !d.required) && (
-              <Text style={styles.sectionHint}>{t('consent.optionalHint')}</Text>
-            )}
-          </ScrollView>
+      <ScrollView contentContainerStyle={styles.list}>
+        <Text style={styles.sectionTitle}>{t('consent.itemsLabel')}</Text>
+        <ConsentRow
+          label={`${t('consent.requiredTag')} ${t('consent.ageConfirm')}`}
+          checked={ageConfirmed}
+          locked={busy}
+          onToggle={() => setAgeConfirmed((current) => !current)}
+        />
+        {ordered.map(renderRow)}
+      </ScrollView>
 
-          <View style={styles.footer}>
-            {error && <Text style={styles.error}>{error}</Text>}
-            {requiredDocuments.length > 0 && (
-              <Pressable
-                style={[styles.allRow, allRequiredGranted && styles.allRowOn]}
-                onPress={toggleAllRequired}
-                disabled={busy}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: allRequiredGranted }}>
-                <Feather
-                  name="check-circle"
-                  size={20}
-                  color={allRequiredGranted ? palette.blue : palette.checkOff}
-                />
-                <Text style={[styles.allLabel, allRequiredGranted && styles.allLabelOn]}>
-                  {t('consent.allAgreeShort')}
-                </Text>
-              </Pressable>
-            )}
-            <Pressable
-              style={[
-                styles.cta,
-                ((!canProceed && !verificationOnly) || busy) && styles.ctaDisabled,
-              ]}
-              onPress={() => void (verificationOnly ? reload() : proceed())}
-              disabled={(!canProceed && !verificationOnly) || busy}>
-              {busy ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.ctaText}>
-                  {verificationOnly ? t('consent.verifyAgain') : t('consent.cta')}
-                </Text>
-              )}
-            </Pressable>
-            {!signingUp && (
-              // 필수 문서에 거절이 없고 설정은 이 화면 뒤에 있다. 떠나는 길은 이것뿐이다.
-              <Pressable
-                style={styles.withdrawLink}
-                onPress={() => router.push('/delete-account' as Href)}
-                disabled={busy}
-                accessibilityRole="link">
-                <Text style={styles.withdrawText}>{t('consent.withdrawLink')}</Text>
-              </Pressable>
-            )}
-          </View>
-        </>
-      )}
+      <View style={styles.footer}>
+        {error && <Text style={styles.error}>{error}</Text>}
+        <Pressable
+          style={[styles.allRow, allRequiredGranted && styles.allRowOn]}
+          onPress={toggleAllRequired}
+          disabled={busy}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: allRequiredGranted }}>
+          <Feather
+            name="check-circle"
+            size={20}
+            color={allRequiredGranted ? palette.blue : palette.checkOff}
+          />
+          <Text style={[styles.allLabel, allRequiredGranted && styles.allLabelOn]}>
+            {t('consent.allAgreeShort')}
+          </Text>
+        </Pressable>
+        <Pressable
+          style={[styles.cta, (!canProceed || busy) && styles.ctaDisabled]}
+          onPress={() => void proceed()}
+          disabled={!canProceed || busy}>
+          {busy ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.ctaText}>{t('consent.cta')}</Text>
+          )}
+        </Pressable>
+      </View>
     </SafeAreaView>
   );
 }
@@ -318,21 +189,9 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 24, paddingTop: 24, paddingBottom: 8 },
   title: { fontSize: 24, fontWeight: '800', color: palette.text },
   subtitle: { fontSize: 14, color: palette.textDim, marginTop: 6, lineHeight: 20 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
   list: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 16 },
   sectionTitle: { fontSize: 12.5, fontWeight: '800', color: palette.textDim, marginBottom: 6 },
-  sectionHint: { fontSize: 12, color: palette.textFaint, marginTop: 10 },
   exit: { alignSelf: 'flex-start', marginLeft: -6, marginBottom: 12 },
-  rowWrap: { borderBottomWidth: 1, borderBottomColor: palette.borderSoft },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 16,
-  },
-  rowLocked: { opacity: 0.6 },
-  rowLabel: { flex: 1, fontSize: 15, fontWeight: '600', color: palette.textDim },
-  rowLabelOn: { color: palette.text },
   docBody: { paddingBottom: 12 },
   footer: { paddingHorizontal: 20, paddingBottom: 16, gap: 12 },
   allRow: {
@@ -348,8 +207,6 @@ const styles = StyleSheet.create({
   allLabel: { fontSize: 15, fontWeight: '800', color: palette.textDim },
   allLabelOn: { color: palette.blueDeep },
   error: { color: palette.danger, textAlign: 'center', paddingHorizontal: 4 },
-  retry: { paddingHorizontal: 16, paddingVertical: 8 },
-  retryText: { color: palette.blue, fontSize: 14, fontWeight: '700' },
   cta: {
     backgroundColor: palette.blue,
     borderRadius: 16,
@@ -358,6 +215,4 @@ const styles = StyleSheet.create({
   },
   ctaDisabled: { opacity: 0.4 },
   ctaText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
-  withdrawLink: { alignSelf: 'center', paddingVertical: 6, paddingHorizontal: 12 },
-  withdrawText: { color: palette.textDim, fontSize: 13, textDecorationLine: 'underline' },
 });
