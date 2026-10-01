@@ -45,7 +45,6 @@ import {
 import {
   getCurrent,
   getCurrentSession,
-  newRequestId,
   saveProgress,
   setCurrentSession,
   startSession,
@@ -66,6 +65,7 @@ import { useAppRating } from '@/hooks/use-app-rating';
 import { api } from '@/lib/api';
 import { loadCloudVoiceEnabled, shouldUseCloudVoice } from '@/lib/reading/cloud-voice';
 import { synthesizeCloudSpeech } from '@/lib/reading/cloud-voice-runtime';
+import { newRequestId } from '@/lib/request-id';
 
 /**
  * 리딩 실행(R03.0 가이드 · R03.1 상대가 읽는 중 · R03.2 내 차례·나가기 확인, reading.session).

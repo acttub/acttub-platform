@@ -14,21 +14,16 @@
  * ATT 답을 받기 전에 SDK가 붙고, 아래 운영 빌드 게이트도 무력화된다.
  */
 
+import { isProductionApiUrl } from './api-env.ts';
+
 // Metro는 `process.env.EXPO_PUBLIC_*` 리터럴만 빌드 시점에 치환한다.
 // 변수로 우회해서 읽으면 값이 사라지므로 여기서 리터럴 그대로 한 번 읽어 순수 함수에 넘긴다.
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 const META_EVENTS_OVERRIDE = process.env.EXPO_PUBLIC_META_EVENTS;
 
 /**
- * 운영 API를 보는 빌드에서만 이벤트를 보낸다(lib/analytics.ts와 같은 규칙, SOMA-439).
- * 개발 빌드가 같은 Meta App ID로 이벤트를 쏘면 설치 광고 최적화 데이터가 오염된다.
- * ⚠️ eas.json의 production/preview-prod 프로필 EXPO_PUBLIC_API_URL과 같은 값이어야 한다.
- */
-const PRODUCTION_API_URL = 'https://acttub.com';
-const DEFAULT_API_URL = 'https://dev.acttub.com';
-
-/**
- * 운영 빌드면 전송한다. `EXPO_PUBLIC_META_EVENTS=1`은 검증용 탈출구 —
+ * 운영 빌드면 전송한다(lib/api-env.ts) — 개발 빌드가 같은 Meta App ID로 이벤트를 쏘면 설치 광고
+ * 최적화 데이터가 오염된다. `EXPO_PUBLIC_META_EVENTS=1`은 검증용 탈출구 —
  * dev API를 보는 내부 빌드로 Events Manager 유입을 확인할 때만 쓴다.
  */
 export function metaEventsEnabled(
@@ -36,11 +31,7 @@ export function metaEventsEnabled(
   override: string | undefined,
 ): boolean {
   if ((override ?? '').trim() === '1') return true;
-  const normalized = (apiUrl ?? DEFAULT_API_URL)
-    .trim()
-    .replace(/\/+$/, '')
-    .toLowerCase();
-  return normalized === PRODUCTION_API_URL;
+  return isProductionApiUrl(apiUrl);
 }
 
 let started = false;

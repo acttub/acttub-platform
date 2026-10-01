@@ -1,3 +1,4 @@
+import { errorCode, errorStatus, isOfflineError } from '../api-request.ts';
 import { translate } from '../i18n.ts';
 import {
   CAPTION_MAX,
@@ -84,21 +85,9 @@ export type EntryFailure =
   | { kind: 'offline' }
   | { kind: 'other' };
 
-function codeOf(error: unknown): string | null {
-  if (error === null || typeof error !== 'object') return null;
-  const code = (error as { code?: unknown }).code;
-  return typeof code === 'string' ? code : null;
-}
-
-function statusOf(error: unknown): number | null {
-  if (error === null || typeof error !== 'object') return null;
-  const status = (error as { status?: unknown }).status;
-  return typeof status === 'number' ? status : null;
-}
-
 export function entryFailure(error: unknown): EntryFailure {
-  const code = codeOf(error);
-  const status = statusOf(error);
+  const code = errorCode(error);
+  const status = errorStatus(error);
   if (code === 'challenge_closed') return { kind: 'closed' };
   if (code === 'duplicate_entry') return { kind: 'duplicate' };
   if (code === 'video_not_ready') return { kind: 'video_not_ready' };
@@ -107,8 +96,7 @@ export function entryFailure(error: unknown): EntryFailure {
   if (code === 'request_fingerprint_mismatch') return { kind: 'fingerprint_mismatch' };
   if (code === 'entry_hidden') return { kind: 'entry_hidden' };
   if (status === 404) return { kind: 'not_found' };
-  const name = error !== null && typeof error === 'object' ? (error as { name?: unknown }).name : null;
-  if (name === 'NetworkError' || status === null || (status >= 500 && status <= 599)) return { kind: 'offline' };
+  if (isOfflineError(error)) return { kind: 'offline' };
   return { kind: 'other' };
 }
 

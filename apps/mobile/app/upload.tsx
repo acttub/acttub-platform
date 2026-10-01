@@ -36,7 +36,6 @@ import { canStart, continueVideoId, planFor, type StartPlan } from '@/lib/practi
 import {
   BLOCKAGE_NOTE_MAX,
   SCENE_MAX,
-  attemptFor,
   blockageNoteOverflow,
   buildContinueBody,
   buildStartBody,
@@ -47,11 +46,10 @@ import {
   startFailure,
   type BlockageDraft,
   type SceneDraft,
-  type StartAttempt,
 } from '@/lib/practice/start';
 import { takeContinueOrigin } from '@/lib/practice/session-state';
 import type { BlockageCategory, BlockageDetail } from '@/lib/practice/types';
-import { newRequestId } from '@/lib/request-id';
+import { attemptFor, newRequestId, type RequestAttempt } from '@/lib/request-id';
 import { TARGET } from '@/lib/spotlight-targets';
 import { sampleVideoUri } from '@/lib/tutorial-loop';
 import { SAMPLE_PRACTICE_ID, sampleScene } from '@/lib/tutorial-sample';
@@ -100,7 +98,7 @@ export default function UploadScreen() {
   const tutorialGuide = useTutorialSpotlight('upload');
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const attemptRef = useRef<StartAttempt | null>(null);
+  const attemptRef = useRef<RequestAttempt | null>(null);
   const startLockRef = useRef(false);
   const scrollRef = useRef<ScrollView>(null);
   const characterRef = useRef<TextInput>(null);
@@ -185,17 +183,14 @@ export default function UploadScreen() {
         void alert({ title: t('start.continueTitle'), message: t('start.noGroups') });
         return;
       }
-      const chosen = await new Promise<string | null>((resolve) => {
-        void confirm({
-          title: t('start.continueTitle'),
-          message: t('start.continueBody', { title: groups[0].title ?? t('history.noSceneTitle'), count: groups[0].ordinal_count }),
-          confirmLabel: t('start.continueConfirm'),
-          cancelLabel: t('common.cancel'),
-        }).then((ok) => resolve(ok ? groups[0].root_id : null));
+      const group = groups[0];
+      const ok = await confirm({
+        title: t('start.continueTitle'),
+        message: t('start.continueBody', { title: group.title ?? t('history.noSceneTitle'), count: group.ordinal_count }),
+        confirmLabel: t('start.continueConfirm'),
+        cancelLabel: t('common.cancel'),
       });
-      if (!chosen) return;
-      const group = groups.find((g) => g.root_id === chosen);
-      if (!group) return;
+      if (!ok) return;
       setPlan(planFor({ kind: 'group', rootId: group.root_id, practiceId: group.root_id }));
     } catch (e) {
       void alert({ title: t('start.continueTitle'), message: videoErrorMessage(e) });

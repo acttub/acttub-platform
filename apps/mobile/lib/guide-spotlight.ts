@@ -4,12 +4,10 @@
  * <p>슬라이드 넉 장을 먼저 읽히던 방식은 앱을 아직 못 본 사람에게 글만 읽히는 셈이었다.
  * 대신 첫 화면에서 누를 자리를 바로 비춘다 — 게임의 첫 조작 안내와 같다.
  *
- * <p>구멍은 이렇게 낸다. 비출 자리를 뺀 나머지를 검정 사각형 <b>넷</b>으로 덮는다.
- * 위·아래·왼쪽·오른쪽이다. 마스크(SVG·클리핑)가 필요 없어 안드로이드·아이폰이 같게 나오고,
- * 새 라이브러리도 들이지 않는다. 대신 조각끼리 겹치면 그 자리만 진해지므로 겹치지 않게 나눈다.
+ * <p>구멍은 비출 자리를 뺀 나머지를 검정 사각형 <b>넷</b>(위·아래·왼쪽·오른쪽)으로 덮어 낸다.
+ * 덮개는 구멍을 따라 움직여야 해서 {@code components/spotlight-guide} 의 애니메이션 스타일이 직접 나눈다.
  *
- * <p>자리 계산만 여기 둔다. 그려 주는 일은 {@code components/spotlight-guide} 가 한다 —
- * 그래야 화면 없이 시험할 수 있다.
+ * <p>구멍·설명 카드의 자리 계산은 여기 둔다 — 그래야 화면 없이 시험할 수 있다.
  */
 
 export type Rect = { x: number; y: number; width: number; height: number };
@@ -46,30 +44,13 @@ export function relativeTo(rect: Rect | null, origin: { x: number; y: number }):
 }
 
 /** 재어 온 자리를 여유만큼 넓히고 화면 안으로 자른다. 아직 못 쟀으면 null. */
-export function holeOf(target: Rect | null, screen: Screen, padding = HOLE_PADDING): Rect | null {
+export function holeOf(target: Rect | null, screen: Screen): Rect | null {
   if (!target) return null;
-  const left = clamp(target.x - padding, 0, screen.width);
-  const top = clamp(target.y - padding, 0, screen.height);
-  const right = clamp(target.x + target.width + padding, 0, screen.width);
-  const bottom = clamp(target.y + target.height + padding, 0, screen.height);
+  const left = clamp(target.x - HOLE_PADDING, 0, screen.width);
+  const top = clamp(target.y - HOLE_PADDING, 0, screen.height);
+  const right = clamp(target.x + target.width + HOLE_PADDING, 0, screen.width);
+  const bottom = clamp(target.y + target.height + HOLE_PADDING, 0, screen.height);
   return { x: left, y: top, width: right - left, height: bottom - top };
-}
-
-/**
- * 비출 자리를 뺀 나머지를 덮을 사각형들. 비어 있는 조각(가장자리에 붙은 경우)은 버린다.
- *
- * <p>왼쪽·오른쪽 조각은 구멍의 높이만큼만 차지한다 — 위·아래 조각과 겹치지 않게.
- */
-export function shroudRects(hole: Rect | null, screen: Screen): Rect[] {
-  if (!hole) return [{ x: 0, y: 0, width: screen.width, height: screen.height }];
-  const holeBottom = hole.y + hole.height;
-  const holeRight = hole.x + hole.width;
-  return [
-    { x: 0, y: 0, width: screen.width, height: hole.y },
-    { x: 0, y: holeBottom, width: screen.width, height: screen.height - holeBottom },
-    { x: 0, y: hole.y, width: hole.x, height: hole.height },
-    { x: holeRight, y: hole.y, width: screen.width - holeRight, height: hole.height },
-  ].filter((r) => r.width > 0 && r.height > 0);
 }
 
 /**
@@ -85,11 +66,10 @@ export function captionPlacement(
   hole: Rect | null,
   screen: Screen,
   captionHeight: number,
-  gap = HOLE_GAP,
 ): { top: number } | { bottom: number } {
   if (!hole) return { top: Math.max(0, (screen.height - captionHeight) / 2) };
-  const below = hole.y + hole.height + gap;
-  const aboveEdge = hole.y - gap;
+  const below = hole.y + hole.height + HOLE_GAP;
+  const aboveEdge = hole.y - HOLE_GAP;
   if (below + captionHeight <= screen.height) return { top: below };
   if (aboveEdge - captionHeight >= 0) return { bottom: screen.height - aboveEdge };
   // 비출 자리가 화면을 거의 다 차지한다 — 넓은 쪽에 두고, 가리더라도 화면 안에는 둔다.
@@ -97,22 +77,6 @@ export function captionPlacement(
     return { bottom: screen.height - Math.max(aboveEdge, captionHeight) };
   }
   return { top: Math.max(0, Math.min(below, screen.height - captionHeight)) };
-}
-
-/**
- * 사각형을 화면에 놓을 스타일로 바꾼다.
- *
- * <p><b>x·y 를 그대로 스타일에 넘기면 안 된다.</b> 리액트 네이티브에는 x·y 라는 스타일이 없어
- * 조용히 무시되고, 모든 조각이 왼쪽 위 구석(0,0)에 겹쳐 그려진다 — 실기기에서 화면 맨 위가
- * 비치던 것이 이것이었다. 자리 이름을 바꾸는 일을 한곳에 모아 다시 틀리지 않게 한다.
- */
-export function rectStyle(rect: Rect): {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-} {
-  return { left: rect.x, top: rect.y, width: rect.width, height: rect.height };
 }
 
 /** 다음 단계. 마지막이면 null(끝). */

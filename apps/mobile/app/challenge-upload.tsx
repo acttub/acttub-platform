@@ -50,9 +50,8 @@ export default function ChallengeUploadScreen() {
   const [visibility, setVisibility] = useState<EntryVisibility | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<EntryVisibility | null>(null);
-  /** 방금 만든 참여작 — 완료 화면의 "AI 리포트 받기"가 쓴다. */
-  const [entryId, setEntryId] = useState<string | null>(null);
+  /** 방금 만든 참여작 — 있으면 완료 화면이고, "AI 리포트 받기"가 id 를 쓴다. */
+  const [created, setCreated] = useState<{ id: string; visibility: EntryVisibility } | null>(null);
   const attemptRef = useRef<EntryAttempt | null>(null);
   const lockRef = useRef(false);
 
@@ -124,9 +123,8 @@ export default function ChallengeUploadScreen() {
       const attempt = entryAttemptFor(attemptRef.current, entryFingerprint(body), () => `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
       attemptRef.current = attempt;
       const entry = await api.createEntry(challengeId, { ...body, request_id: attempt.requestId });
-      setEntryId(entry.id);
       logEvent('challenge_entry_created', { visibility });
-      setDone(visibility);
+      setCreated({ id: entry.id, visibility });
     } catch (e) {
       const failure = entryFailure(e);
       if (failure.kind === 'fingerprint_mismatch') attemptRef.current = null;
@@ -137,21 +135,16 @@ export default function ChallengeUploadScreen() {
     }
   }, [caption, challengeId, pendingId, submitting, user?.id, videoId, visibility]);
 
-  /**
-   * "AI 리포트 받기"(A18.3) — 같은 대사의 다른 참여작과 견주는 챌린지 리포트로 간다.
-   * 공개·비공개 참여작 모두 요청할 수 있다(challenge.ai-report).
-   */
-  const getReport = () => {
-    logEvent('challenge_upload_report', { visibility: done ?? 'none' });
-    if (!entryId) {
-      router.replace('/challenges');
-      return;
-    }
-    router.replace({ pathname: '/ai-report', params: { entryId } });
-  };
-
-  if (done) {
-    const copy = doneCopy(done);
+  if (created) {
+    const copy = doneCopy(created.visibility);
+    /**
+     * "AI 리포트 받기"(A18.3) — 같은 대사의 다른 참여작과 견주는 챌린지 리포트로 간다.
+     * 공개·비공개 참여작 모두 요청할 수 있다(challenge.ai-report).
+     */
+    const getReport = () => {
+      logEvent('challenge_upload_report', { visibility: created.visibility });
+      router.replace({ pathname: '/ai-report', params: { entryId: created.id } });
+    };
     return (
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <Stack.Screen options={{ headerShown: false }} />

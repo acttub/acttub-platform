@@ -1,3 +1,4 @@
+import { errorCode, errorStatus, isOfflineError } from '../api-request.ts';
 import { translate } from '../i18n.ts';
 import { COMMENT_MAX, type CreateCommentBody, type EntryComment } from './types.ts';
 
@@ -47,18 +48,6 @@ export function buildCommentBody(requestId: string, text: string): CreateComment
   return { request_id: requestId, body: commentBody(text) ?? '' };
 }
 
-export type CommentAttempt = { requestId: string; body: string };
-
-/** 같은 댓글의 재전송은 같은 요청 id 다 — 행이 둘로 늘지 않는다. */
-export function commentAttemptFor(
-  previous: CommentAttempt | null,
-  body: string,
-  makeId: () => string,
-): CommentAttempt {
-  if (previous && previous.body === body) return previous;
-  return { requestId: makeId(), body };
-}
-
 /** 작성자 이름 — 탈퇴했으면 "탈퇴한 사용자"다(이름 말고는 아무것도 보이지 않는다). */
 export function commentAuthorName(comment: Pick<EntryComment, 'author' | 'author_withdrawn'>): string {
   return comment.author_withdrawn ? translate('comments.withdrawn') : comment.author.name;
@@ -85,28 +74,15 @@ export type ReactFailure =
   | { kind: 'offline' }
   | { kind: 'other' };
 
-function codeOf(error: unknown): string | null {
-  if (error === null || typeof error !== 'object') return null;
-  const code = (error as { code?: unknown }).code;
-  return typeof code === 'string' ? code : null;
-}
-
-function statusOf(error: unknown): number | null {
-  if (error === null || typeof error !== 'object') return null;
-  const status = (error as { status?: unknown }).status;
-  return typeof status === 'number' ? status : null;
-}
-
 export function reactFailure(error: unknown): ReactFailure {
-  const code = codeOf(error);
-  const status = statusOf(error);
+  const code = errorCode(error);
+  const status = errorStatus(error);
   if (code === 'self_like' || code === 'self_save') return { kind: 'self' };
   if (code === 'daily_comment_limit' || status === 429) return { kind: 'daily_limit' };
   if (code === 'member_only' || status === 403) return { kind: 'member_only' };
   if (status === 404) return { kind: 'not_found' };
   if (status === 422) return { kind: 'too_long' };
-  const name = error !== null && typeof error === 'object' ? (error as { name?: unknown }).name : null;
-  if (name === 'NetworkError' || status === null || (status >= 500 && status <= 599)) return { kind: 'offline' };
+  if (isOfflineError(error)) return { kind: 'offline' };
   return { kind: 'other' };
 }
 

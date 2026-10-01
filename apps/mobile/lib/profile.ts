@@ -3,7 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 /**
  * 사용자 이름의 기기 캐시(SecureStore).
  * 정본은 서버의 프로필 이름(GET /v2/me의 profile.name)이다. 인증 컨텍스트가 프로필을 읽거나
- * 저장할 때마다 여기에 옮겨 적고, 홈 인사말과 프로필 탭이 서버를 기다리지 않고 읽는다.
+ * 저장할 때마다 여기에 옮겨 적고, 프로필 탭이 서버를 기다리지 않고 읽는다.
  * 프로필 게이트는 이 값을 보지 않는다.
  */
 const NAME_KEY = 'acttub.userName';

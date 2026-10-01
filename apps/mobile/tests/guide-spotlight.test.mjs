@@ -6,18 +6,14 @@ import {
   HOLE_PADDING,
   captionPlacement,
   holeOf,
-  rectStyle,
   relativeTo,
-  shroudRects,
   spotlightKey,
   stepAfter,
 } from '../lib/guide-spotlight.ts';
 
 /**
- * 스포트라이트 가이드의 자리 계산 (SOMA-550).
- *
- * <p>비출 자리를 뺀 나머지를 검정 사각형 넷으로 덮는다. 계산만 여기서 시험한다 — 화면은
- * 실기기에서 본다.
+ * 스포트라이트 가이드의 자리 계산 (SOMA-550). 계산만 여기서 시험한다 — 덮개 넷은 컴포넌트의
+ * 애니메이션 스타일이 그리므로 화면은 실기기에서 본다.
  */
 
 const SCREEN = { width: 390, height: 844 };
@@ -40,42 +36,8 @@ test('넓힌 자리가 화면을 넘어가면 화면 안으로 자른다', () =>
   assert.equal(hole.height, 40 + HOLE_PADDING);
 });
 
-test('비출 자리가 없으면 화면 전체를 덮는다', () => {
+test('비출 자리를 아직 못 쟀으면 구멍이 없다 — 화면 전체를 덮는다', () => {
   assert.equal(holeOf(null, SCREEN), null);
-  const shroud = shroudRects(null, SCREEN);
-  assert.equal(shroud.length, 1);
-  assert.deepEqual(shroud[0], { x: 0, y: 0, width: 390, height: 844 });
-});
-
-test('네 조각이 비출 자리를 뺀 나머지를 빈틈없이 덮는다', () => {
-  const hole = { x: 100, y: 200, width: 80, height: 50 };
-  const shroud = shroudRects(hole, SCREEN);
-  assert.equal(shroud.length, 4);
-  const covered = shroud.reduce((sum, r) => sum + r.width * r.height, 0);
-  assert.equal(covered, SCREEN.width * SCREEN.height - hole.width * hole.height);
-  // 조각끼리 겹치지 않는다 — 반투명 검정이 겹치면 그 자리만 진해진다.
-  for (let i = 0; i < shroud.length; i += 1) {
-    for (let j = i + 1; j < shroud.length; j += 1) {
-      const a = shroud[i];
-      const b = shroud[j];
-      const overlapX = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
-      const overlapY = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
-      assert.ok(overlapX <= 0 || overlapY <= 0, `${i}번과 ${j}번이 겹친다`);
-    }
-  }
-});
-
-test('비출 자리가 화면 가장자리에 붙으면 빈 조각은 버린다', () => {
-  const shroud = shroudRects({ x: 0, y: 0, width: 390, height: 60 }, SCREEN);
-  assert.equal(shroud.length, 1);
-  assert.deepEqual(shroud[0], { x: 0, y: 60, width: 390, height: 784 });
-});
-
-test('화면에 놓을 때는 자리 이름이 left·top 이다 — x·y 는 조용히 무시된다', () => {
-  const style = rectStyle({ x: 12, y: 238, width: 387, height: 93 });
-  assert.deepEqual(style, { left: 12, top: 238, width: 387, height: 93 });
-  assert.equal('x' in style, false);
-  assert.equal('y' in style, false);
 });
 
 test('덮개 판의 원점만큼 빼서 같은 기준으로 맞춘다', () => {

@@ -60,39 +60,12 @@ export function createViewTracker(dependencies: ViewTrackerDeps) {
 
 // ─── P03 내 참여작 분류 ───────────────────────────────────────────────────────
 
-export type EntryBucket = 'under_review' | 'private' | 'public';
-
-/**
- * 참여작 하나는 **한 분류에만** 든다. 우선순위는 확인 중(신고 숨김이거나 부모 챌린지가
- * 검토·숨김) → 비공개 → 공개다. 그래서 비공개이면서 신고 숨김인 참여작은 확인 중에만 센다.
- */
-export function bucketOf(
-  entry: Pick<MyEntryCard, 'status' | 'visibility' | 'challenge_hidden'>,
-): EntryBucket {
-  if (entry.status === 'hidden_by_report' || entry.challenge_hidden) return 'under_review';
-  return entry.visibility === 'private' ? 'private' : 'public';
-}
-
-export type EntryCounts = { all: number; public: number; private: number; under_review: number };
-
-/** 전체는 셋의 합이다. 삭제된 참여작은 세지 않는다. */
-export function entryCounts(
-  entries: readonly Pick<MyEntryCard, 'status' | 'visibility' | 'challenge_hidden'>[],
-): EntryCounts {
-  const counts: EntryCounts = { all: 0, public: 0, private: 0, under_review: 0 };
-  for (const entry of entries) {
-    if (entry.status === 'deleted') continue;
-    counts[bucketOf(entry)] += 1;
-  }
-  counts.all = counts.public + counts.private + counts.under_review;
-  return counts;
-}
+/** 분류는 서버가 매긴다(`category`) — 확인 중 → 비공개 → 공개 순으로 한 곳에만 든다. 분류별 수도 서버가 센다. */
+export type EntryBucket = MyEntryCard['category'];
 
 /** 카드 오른쪽에 붙는 상태 — 비공개는 "비공개 저장", 확인 중은 "확인 중", 공개는 조회·좋아요다. */
-export function entryStatusLabel(
-  entry: Pick<MyEntryCard, 'status' | 'visibility' | 'challenge_hidden' | 'view_count' | 'like_count'>,
-): string {
-  const bucket = bucketOf(entry);
+export function entryStatusLabel(entry: Pick<MyEntryCard, 'category' | 'view_count' | 'like_count'>): string {
+  const bucket = entry.category;
   if (bucket === 'under_review') return translate('challengeEntries.underReview');
   if (bucket === 'private') return translate('challengeEntries.privateSaved');
   return translate('challengeEntries.publicStat', { views: entry.view_count, likes: entry.like_count });

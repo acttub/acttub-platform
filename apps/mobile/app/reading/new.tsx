@@ -49,16 +49,13 @@ export default function ReadingNew() {
   const { alert, dialog } = useAppDialog();
   // 입력 경로(file·paste·typed·sample)는 글이 어떻게 들어왔는지로 정한다(file-input).
   const sourceRef = useRef<ScriptSource | null>(sample ? 'sample' : null);
-  const rawRef = useRef(sample ? SAMPLE_SCRIPT : '');
 
   const onChangeText = (next: string) => {
-    sourceRef.current = nextTextSource(sourceRef.current, rawRef.current, next);
-    rawRef.current = next;
+    sourceRef.current = nextTextSource(sourceRef.current, raw, next);
     setRaw(next);
   };
   const setFromOutside = (text: string, source: ScriptSource) => {
     sourceRef.current = source;
-    rawRef.current = text;
     setRaw(text);
   };
 

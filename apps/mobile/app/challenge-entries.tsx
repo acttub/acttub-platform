@@ -11,7 +11,7 @@ import { api } from '@/lib/api';
 import { browseFailure, browseFailureMessage, isEnded } from '@/lib/challenge/browse';
 import { canGoPublic, deleteNotice, entryFailure, entryFailureMessage } from '@/lib/challenge/entry';
 import { CAPTION_MAX, type MyEntriesResponse, type MyEntryCard } from '@/lib/challenge/types';
-import { bucketOf, entryCounts, entryStatusLabel, type EntryBucket } from '@/lib/challenge/views';
+import { entryStatusLabel, type EntryBucket } from '@/lib/challenge/views';
 import { formatKoreanDate } from '@/lib/format';
 import { translate as t } from '@/lib/i18n';
 
@@ -29,6 +29,7 @@ type Filter = 'all' | EntryBucket;
  * 있다고 알린다 — 분류 수는 서버가 전체로 세므로 목록과 숫자가 말없이 어긋나지 않게 한다.
  */
 const MAX_PAGES = 100;
+const NO_COUNTS: MyEntriesResponse['counts'] = { all: 0, public: 0, private: 0, under_review: 0 };
 
 export default function ChallengeEntriesScreen() {
   const router = useRouter();
@@ -68,9 +69,9 @@ export default function ChallengeEntriesScreen() {
     }, [load]),
   );
 
-  const counts = serverCounts ?? entryCounts(entries ?? []);
+  const counts = serverCounts ?? NO_COUNTS;
   const visible = (entries ?? []).filter((entry) => entry.status !== 'deleted');
-  const shown = filter === 'all' ? visible : visible.filter((entry) => bucketOf(entry) === filter);
+  const shown = filter === 'all' ? visible : visible.filter((entry) => entry.category === filter);
 
   const saveCaption = async () => {
     if (!editing) return;

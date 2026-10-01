@@ -1,3 +1,4 @@
+import { errorCode, errorStatus, isOfflineError } from '../api-request.ts';
 import { sceneValueForSubmit } from '../upload-input.ts';
 import type {
   BlockageCategory,
@@ -109,36 +110,15 @@ export type StartFailure =
   | { kind: 'offline' }
   | { kind: 'other'; status: number | null; code: string | null };
 
-function codeOf(error: unknown): string | null {
-  if (error === null || typeof error !== 'object') return null;
-  const code = (error as { code?: unknown }).code;
-  return typeof code === 'string' ? code : null;
-}
-
-function statusOf(error: unknown): number | null {
-  if (error === null || typeof error !== 'object') return null;
-  const status = (error as { status?: unknown }).status;
-  return typeof status === 'number' ? status : null;
-}
-
-function nameOf(error: unknown): string | null {
-  if (error === null || typeof error !== 'object') return null;
-  const name = (error as { name?: unknown }).name;
-  return typeof name === 'string' ? name : null;
-}
-
 /** 시작·이어하기가 실패한 까닭. 409의 본문은 코드뿐이라 회차 id는 묶음 조회에서 얻는다. */
 export function startFailure(error: unknown): StartFailure {
-  const code = codeOf(error);
-  const status = statusOf(error);
+  const code = errorCode(error);
+  const status = errorStatus(error);
   if (code === 'practice_in_progress' || status === 409) return { kind: 'in_progress' };
   if (code === 'video_not_ready') return { kind: 'video_not_ready' };
   if (code === 'guest_daily_analysis_limit' || status === 429) return { kind: 'daily_limit' };
   if (code === 'request_fingerprint_mismatch') return { kind: 'fingerprint_mismatch' };
-  const name = nameOf(error);
-  if (name === 'NetworkError' || status === null || (status >= 500 && status <= 599)) {
-    return { kind: 'offline' };
-  }
+  if (isOfflineError(error)) return { kind: 'offline' };
   return { kind: 'other', status, code };
 }
 
@@ -157,12 +137,6 @@ export function inProgressPracticeId(
   return null;
 }
 
-export type StartAttempt = {
-  requestId: string;
-  /** 보낸 본문의 지문. 본문이 바뀌면 새 요청 id 로 간다. */
-  fingerprint: string;
-};
-
 export function fingerprintOf(body: CreatePracticeBody | ContinuePracticeBody): string {
   return JSON.stringify([
     'video_id' in body ? body.video_id : null,
@@ -173,17 +147,4 @@ export function fingerprintOf(body: CreatePracticeBody | ContinuePracticeBody): 
     body.blockage.detail,
     body.blockage.note,
   ]);
-}
-
-/**
- * 이번 시도에 쓸 요청 id. 같은 본문을 다시 보내면(이중 탭·재시도) 같은 id 라 회차는 하나이고,
- * 본문을 고쳐 다시 보내면 새 id 다 — 같은 id 에 다른 본문은 422 request_fingerprint_mismatch 다.
- */
-export function attemptFor(
-  previous: StartAttempt | null,
-  fingerprint: string,
-  makeId: () => string,
-): StartAttempt {
-  if (previous && previous.fingerprint === fingerprint) return previous;
-  return { requestId: makeId(), fingerprint };
 }

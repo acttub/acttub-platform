@@ -15,10 +15,10 @@ import { TARGET } from '@/lib/spotlight-targets';
 import { useAppDialog } from '@/components/app-dialog';
 import { dismissLegacyScriptNotice, readLegacyScriptNotice } from '@/lib/reading/legacy-migration-runner';
 import type { LegacyNotice } from '@/lib/reading/legacy-migration';
-import { cardMeta, lastActivityLabel, listHeader, myCharactersLabel, statusChip } from '@/lib/reading/script-cards';
+import { CHIP_TONE, cardMeta, lastActivityLabel, listHeader, myCharactersLabel, statusChip } from '@/lib/reading/script-cards';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import { deleteScript, listScripts, loadIntoCurrent } from '@/lib/reading/store';
-import type { ScriptCard, ScriptCardStatus, ScriptListResponse } from '@/lib/reading/types';
+import type { ScriptCard, ScriptListResponse } from '@/lib/reading/types';
 import { translate as t } from '@/lib/i18n';
 
 /**
@@ -30,12 +30,6 @@ const SEARCH_DEBOUNCE_MS = 300;
 
 /** 대본 탭에서 처음 한 번 비추는 자리 — 대본을 들이는 버튼 하나뿐이다 (SOMA-550). */
 const READING_STEPS: SpotlightStep[] = [{ target: TARGET.readingNew, text: 'guide.spotReadingNew' }];
-
-const CHIP_TONE: Record<ScriptCardStatus, { color: string; bg: string }> = {
-  reading: { color: palette.blue, bg: palette.blueSoft },
-  completed: { color: palette.green, bg: palette.greenSoft },
-  no_cast: { color: palette.textDim, bg: palette.bgSoft },
-};
 
 export default function ReadingList() {
   const router = useRouter();

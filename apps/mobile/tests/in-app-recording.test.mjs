@@ -30,7 +30,7 @@ test('practice.start: 고른 영상은 보관함을 거쳐 오고 준비 화면�
 
 test('SOMA-477: 촬영 화면이 5분 상한과 핸드오프를 지킨다', () => {
   const screen = read('app/record-video.tsx');
-  assert.match(screen, /MAX_VIDEO_DURATION_MS/); // 서버·업로드 상한과 같은 값
+  assert.match(screen, /VIDEO_MAX_MS/); // 서버·업로드 상한과 같은 값
   assert.match(screen, /maxDuration/);
   assert.match(screen, /setRecordedVideo/);
   // 촬영본은 보관함에 저장한 뒤 그 항목을 새 연습으로 넘긴다.

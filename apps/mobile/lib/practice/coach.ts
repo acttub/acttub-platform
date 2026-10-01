@@ -1,3 +1,4 @@
+import { errorCode, errorStatus, isOfflineError } from '../api-request.ts';
 import { translate } from '../i18n.ts';
 import type { CoachConversation, CoachMessage, CoachReplyBody, CoachTurnResult, PracticeDetail, PracticeNote } from './types.ts';
 import { COACH_ANSWER_MAX } from './types.ts';
@@ -116,28 +117,15 @@ export type CoachFailure =
   | { kind: 'offline' }
   | { kind: 'other' };
 
-function codeOf(error: unknown): string | null {
-  if (error === null || typeof error !== 'object') return null;
-  const code = (error as { code?: unknown }).code;
-  return typeof code === 'string' ? code : null;
-}
-
-function statusOf(error: unknown): number | null {
-  if (error === null || typeof error !== 'object') return null;
-  const status = (error as { status?: unknown }).status;
-  return typeof status === 'number' ? status : null;
-}
-
 export function coachFailure(error: unknown): CoachFailure {
-  const code = codeOf(error);
-  const status = statusOf(error);
+  const code = errorCode(error);
+  const status = errorStatus(error);
   if (code === 'conversation_conflict') return { kind: 'conflict' };
   if (code === 'conversation_closed') return { kind: 'closed' };
   if (code === 'analysis_not_ready') return { kind: 'not_ready' };
   if (code === 'request_fingerprint_mismatch') return { kind: 'fingerprint_mismatch' };
   if (status === 422) return { kind: 'too_long' };
-  const name = error !== null && typeof error === 'object' ? (error as { name?: unknown }).name : null;
-  if (name === 'NetworkError' || status === null || (status >= 500 && status <= 599)) return { kind: 'offline' };
+  if (isOfflineError(error)) return { kind: 'offline' };
   return { kind: 'other' };
 }
 
