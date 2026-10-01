@@ -18,6 +18,7 @@ import 'react-native-reanimated';
 import '@/lib/global-font';
 import { logScreenView } from '@/lib/analytics';
 import { initMetaSdk } from '@/lib/meta-events';
+import { startSignupAttributionListener } from '@/lib/signup-attribution-runtime';
 import { initCrashlytics } from '@/lib/crashlytics';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
 import { challengePushTarget } from '@/lib/challenge/notification-center';
@@ -441,6 +442,8 @@ export default function RootLayout() {
   // Meta SDK 초기화(SOMA-481). iOS ATT 팝업은 앱이 활성 상태일 때만 뜨므로,
   // 아직 활성이 아니면 활성이 되는 순간까지 기다렸다가 한 번만 부른다.
   useEffect(() => {
+    // 설치 귀속 결과는 SDK 초기화 뒤 곧 온다. 받는 쪽은 먼저 세워 둔다(SOMA-588).
+    startSignupAttributionListener();
     if (AppState.currentState === 'active') {
       void initMetaSdk();
       return;
