@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 /** challenge.ai-report: 입력은 영상과 챌린지 대사뿐이다 — 코치 대화·장면 입력·배우 기억이 실릴 자리가 없다. */
 class ChallengeReportPromptTest {
     @Test void challengeAiReport_inputCarriesOnlyVideosAndTheLine() {
-        assertThat(names(AiReportRepository.Material.class)).containsExactly("owner", "entryId", "line", "mine", "samples");
+        assertThat(names(AiReportRepository.Material.class)).containsExactly("line", "mine", "samples");
         assertThat(names(AiReportRepository.Video.class)).containsExactly("objectKey", "contentType", "durationMs");
         assertThat(names(AiReportRepository.Sample.class)).containsExactly("entryId", "video");
         String prompt = ChallengeReportPrompt.instruction("가지 마.", 5);

@@ -42,11 +42,6 @@ public class ProviderRegistry {
                 .collect(Collectors.toUnmodifiableSet());
     }
 
-    /** 가진 검증기를 전부 켠다. */
-    public ProviderRegistry(List<ProviderVerifier> values) {
-        this(values, String.join(",", SOCIAL));
-    }
-
     public ProviderIdentity verify(String provider, String token) {
         return verifier(provider).verify(token);
     }
@@ -64,10 +59,6 @@ public class ProviderRegistry {
         return SOCIAL.stream()
                 .filter(name -> enabled.contains(name) && verifiers.containsKey(name))
                 .toList();
-    }
-
-    public Set<String> providers() {
-        return Set.copyOf(verifiers.keySet());
     }
 
     private ProviderVerifier verifier(String provider) {

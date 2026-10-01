@@ -43,9 +43,7 @@ public final class PracticeRules {
      * 그 회차가 신형인가 — 서버 플래그가 켜져 있고 계약 헤더가 신형이면 신형이다(practice.start). 배우가 장면·막힘을
      * 적었어도 같다 — 새 코치(연습 루프)가 적은 것을 받아 쓴다(SOMA-508). 예전에는 무입력일 때만 신형이었다.
      */
-    public static boolean threeLayers(
-            boolean enabled, String contractHeader, String situation, String characterContext, String goal,
-            String blockageKind, String blockageNote) {
+    public static boolean threeLayers(boolean enabled, String contractHeader) {
         return enabled && "three_layers_v1".equals(contractHeader);
     }
 }

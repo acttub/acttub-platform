@@ -5,6 +5,11 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengeVideo;
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminFeedbackItem;
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminReadingSession;
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminReadingSessionDetail;
+
 /**
  * admin 이 저장소에 요구하는 것 — 최근 코치 세션.
  *
@@ -37,14 +42,14 @@ public interface AdminMetricsRepository {
      * 이탈 설문과 노트 평가를 한 시간순 목록으로 읽는다. 연락처·원본 user id·이메일은 projection 에
      * 넣지 않는다. {@code limit} 은 has_more 판정을 위한 요청 상한보다 한 건 큰 값이다.
      */
-    List<FeedbackRow> feedback(
+    List<AdminFeedbackItem> feedback(
             int limit,
             List<String> excludeEmails,
             List<String> excludeActors,
             boolean includeTeam);
 
     /** 공개·비공개 챌린지 참여 영상. 개인 식별자와 원본 저장소 정보는 projection 에 넣지 않는다. */
-    List<ChallengeVideoRow> challengeVideos(
+    List<AdminChallengeVideo> challengeVideos(
             int limit,
             List<String> excludeEmails,
             List<String> excludeActors,
@@ -57,14 +62,14 @@ public interface AdminMetricsRepository {
             List<String> excludeActors);
 
     /** 활성 계정의 리딩 회차 목록. 자유 본문과 저장소 키는 projection 에 넣지 않는다. */
-    List<ReadingSessionRow> readingSessions(
+    List<AdminReadingSession> readingSessions(
             int limit,
             String status,
             List<String> excludeEmails,
             List<String> excludeActors);
 
     /** 활성 계정의 리딩 회차와 그 대본·녹음. 부모 연결이 하나라도 어긋나면 빈 값이다. */
-    Optional<ReadingSessionDetailRow> readingSession(
+    Optional<AdminReadingSessionDetail> readingSession(
             UUID sessionId,
             List<String> excludeEmails,
             List<String> excludeActors);
@@ -86,69 +91,5 @@ public interface AdminMetricsRepository {
             String goal,
             List<AdminMetrics.AdminTurn> turns,
             String objectKey) {
-    }
-
-    record FeedbackRow(
-            UUID id,
-            String kind,
-            OffsetDateTime createdAt,
-            String actor,
-            boolean team,
-            String body,
-            String rating,
-            String status,
-            String source,
-            String trigger,
-            UUID practiceId) {
-    }
-
-    record ChallengeVideoRow(
-            UUID id,
-            String actor,
-            OffsetDateTime createdAt,
-            String visibility,
-            String status,
-            String challengeKind,
-            String challengeRef,
-            boolean hasVideo) {
-    }
-
-    record ReadingSessionRow(
-            UUID id,
-            String actor,
-            String scriptTitle,
-            OffsetDateTime startedAt,
-            OffsetDateTime endedAt,
-            String status,
-            String mode,
-            int elapsedSeconds,
-            int recordingCount) {
-    }
-
-    record ReadingLineRow(
-            UUID id,
-            int ordinal,
-            String kind,
-            String characterName,
-            String text,
-            boolean inRange,
-            boolean mine) {
-    }
-
-    record ReadingRecordingRow(
-            UUID id,
-            UUID lineId,
-            int attemptNo,
-            int durationMs,
-            OffsetDateTime createdAt,
-            String transcriptSource,
-            String transcript,
-            Boolean matched) {
-    }
-
-    record ReadingSessionDetailRow(
-            ReadingSessionRow session,
-            List<ReadingLineRow> lines,
-            List<ReadingRecordingRow> recordings) {
     }
 }

@@ -32,7 +32,6 @@ import com.acttub.actingapi.feature.reading.schema.ScriptEntity;
 import com.acttub.actingapi.feature.video.schema.VideoEntity;
 import com.acttub.actingapi.feature.reading.schema.ScriptLineEntity;
 import com.acttub.actingapi.feature.transfer.schema.GuestTransferCodeEntity;
-import com.acttub.actingapi.feature.upload.schema.UploadIntentEntity;
 import com.acttub.actingapi.support.PostgresContainerSupport;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -96,13 +95,14 @@ class EntityMappingIT {
 
     /**
      * 매핑을 은퇴시키고 DB 에는 남긴 테이블 (apps/api/CONTRACT.md §5-1). 구형 {@code reports}, 0.1.0 에서
-     * API·코드를 내린 커뮤니티 일곱({@code docs/specs/community/README.md}), 그리고 옛 연습 흐름의 여섯이다.
-     * 옛 연습 여섯은 이관·호환 읽기가 native SQL 로만 읽는다.
+     * API·코드를 내린 커뮤니티 일곱({@code docs/specs/community/README.md}), 옛 연습 흐름의 여섯, 그리고
+     * 예약 장부({@code upload_intents})다. 옛 연습 여섯은 이관·호환 읽기가, 예약 장부는 보관함 저장소가
+     * native SQL 로만 읽고 쓴다.
      */
     private static final Set<String> RETIRED_TABLES = Set.of(
             "reports",
             "practice_sessions", "coach_sessions", "coach_turns", "coaching_handoffs",
-            "handoff_confirmations", "practice_reports",
+            "handoff_confirmations", "practice_reports", "upload_intents",
             "community_anonymous_aliases", "community_blocks", "community_categories",
             "community_comments", "community_post_likes", "community_posts", "community_reports");
 
@@ -123,12 +123,12 @@ class EntityMappingIT {
             "note_ratings");
 
     @Test
-    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 39개 활성 엔티티를 포함한다")
-    void mapsExactlyThirtyNineActiveEntities() {
+    @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 38개 활성 엔티티를 포함한다")
+    void mapsExactlyThirtyEightActiveEntities() {
         Set<Class<?>> entities = entityManager.getMetamodel().getEntities().stream()
                 .map(jakarta.persistence.metamodel.Type::getJavaType)
                 .collect(java.util.stream.Collectors.toSet());
-        assertThat(entities).hasSize(39);
+        assertThat(entities).hasSize(38);
         assertThat(entities).contains(ActorMemoryEntryEntity.class, PushTokenEntity.class);
         assertThat(entities).allMatch(type -> type.getSimpleName().endsWith("Entity"));
         assertThat(entities).allMatch(type -> java.util.Arrays.stream(type.getDeclaredFields())
@@ -305,7 +305,7 @@ class EntityMappingIT {
 
     @Test
     @Transactional
-    @DisplayName("앱 생성 UUID 활성 엔티티 21종의 실제 Spring Data save()가 INSERT 전 SELECT를 내지 않는다")
+    @DisplayName("앱 생성 UUID 활성 엔티티 20종의 실제 Spring Data save()가 INSERT 전 SELECT를 내지 않는다")
     void allActiveAppGeneratedIdsUsePersistOnSave() {
         RecordingInspector.STATEMENTS.clear();
         UUID userId=UUID.randomUUID(), documentId=UUID.randomUUID();
@@ -321,8 +321,8 @@ class EntityMappingIT {
         save(UserConsentEntity.class,new UserConsentEntity(UUID.randomUUID(),userId,documentId,ConsentAction.GRANTED,java.time.Instant.now()));
         save(ActorMemoryEntryEntity.class,new ActorMemoryEntryEntity(UUID.randomUUID(),userId,
                 ActorMemoryField.GOAL,"목표",ActorMemoryAuthor.ACTOR,null));
-        save(UploadIntentEntity.class,new UploadIntentEntity(uploadId,userId,UploadStatus.PENDING,"s3","key-"+userId,"video/mp4",1,java.time.Instant.now().plusSeconds(60)));
         entityManager.flush();
+        jdbc.update("INSERT INTO upload_intents(id,user_id,status,storage_provider,object_key,mime_type,size_bytes,expires_at) VALUES (?,?,'pending','s3',?,'video/mp4',1,now())",uploadId,userId,"key-"+userId);
         insertLegacyPractice(practiceId,userId,uploadId);
         save(TranscriptEntity.class,new TranscriptEntity(UUID.randomUUID(),practiceId,0,"text"));
         save(SummaryEntity.class,new SummaryEntity(summaryId,practiceId,"model",object,array,array));
@@ -363,7 +363,7 @@ class EntityMappingIT {
 
         List<String> statements=List.copyOf(RecordingInspector.STATEMENTS);
         assertThat(statements.stream().filter(sql->sql.startsWith("insert into "))
-                .map(sql->sql.substring("insert into ".length()).split(" ")[0]).distinct()).hasSize(25);
+                .map(sql->sql.substring("insert into ".length()).split(" ")[0]).distinct()).hasSize(24);
         assertThat(statements).noneMatch(sql->sql.stripLeading().toLowerCase().startsWith("select"));
         assertThat(jdbc.queryForObject("SELECT intent_impact FROM anomalies WHERE summary_id=?",String.class,summaryId)).isEqualTo("반전");
     }

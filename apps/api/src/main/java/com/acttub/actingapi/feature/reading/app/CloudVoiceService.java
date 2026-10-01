@@ -1,19 +1,16 @@
 package com.acttub.actingapi.feature.reading.app;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.reading.app.CloudVoiceRepository.CacheEntry;
 import com.acttub.actingapi.platform.web.ApiException;
+import com.acttub.actingapi.platform.web.Hashing;
 
 public final class CloudVoiceService {
     public static final int EXPIRES_IN_SECONDS = 600;
@@ -68,8 +65,6 @@ public final class CloudVoiceService {
             storage.upload(entry.objectKey(), wav);
             repository.recordSuccess(userId, today, entry, settings.model(), voice, wav.length, clock.instant());
             return result(entry.objectKey(), false);
-        } catch (ApiException error) {
-            throw error;
         } catch (RuntimeException error) {
             throw unavailable(error);
         }
@@ -91,10 +86,7 @@ public final class CloudVoiceService {
     }
 
     private static String hash(String model, String voice, String text) {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest((model + "\n" + voice + "\n" + text).getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
+        return Hashing.sha256Hex(model + "\n" + voice + "\n" + text);
     }
 
     public record Status(boolean available, java.time.OffsetDateTime freeUntil, String consent, int dailyLimit, int dailyUsed) {}

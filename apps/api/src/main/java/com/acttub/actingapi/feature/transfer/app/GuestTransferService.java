@@ -18,7 +18,6 @@ import com.acttub.actingapi.feature.feedback.app.ExitSurveyOwnership;
 import com.acttub.actingapi.feature.memory.app.MemoryOwnership;
 import com.acttub.actingapi.feature.practice.app.PracticeOwnership;
 import com.acttub.actingapi.feature.reading.app.ReadingOwnership;
-import com.acttub.actingapi.feature.upload.app.UploadOwnership;
 import com.acttub.actingapi.feature.video.app.VideoOwnership;
 import com.acttub.actingapi.platform.ledger.OperationOwnership;
 import com.acttub.actingapi.platform.web.ApiException;
@@ -46,7 +45,6 @@ public class GuestTransferService {
 
     private final TransferCodeRepository codes;
     private final GuestAccounts guests;
-    private final UploadOwnership uploads;
     private final PracticeOwnership practices;
     private final OperationOwnership operations;
     private final MemoryOwnership memories;
@@ -61,7 +59,6 @@ public class GuestTransferService {
     public GuestTransferService(
             TransferCodeRepository codes,
             GuestAccounts guests,
-            UploadOwnership uploads,
             PracticeOwnership practices,
             OperationOwnership operations,
             MemoryOwnership memories,
@@ -76,7 +73,6 @@ public class GuestTransferService {
         }
         this.codes = codes;
         this.guests = guests;
-        this.uploads = uploads;
         this.practices = practices;
         this.operations = operations;
         this.memories = memories;
@@ -122,10 +118,8 @@ public class GuestTransferService {
                 return Outcome.CODE_NOT_FOUND;
             }
             UUID guestId = live.guestId();
-            // 올린 영상 → 연습 → 작업 장부 순서는 그대로다(새 연습을 만드는 쪽이 올린 영상 행을 먼저 잡으므로,
-            // 그 행에서 줄을 서야 겹쳐 만들어진 연습과 작업을 놓치지 않는다).
-            uploads.reassign(guestId, memberId);
-            // 보관함은 올린 영상 바로 뒤다 — 새 연습을 만드는 쪽이 영상 행을 먼저 잡으므로 그 행에서 줄을 선다.
+            // 올린 영상(예약 장부 → 보관함) → 연습 → 작업 장부 순서는 그대로다(새 연습을 만드는 쪽이 영상 행을
+            // 먼저 잡으므로, 그 행에서 줄을 서야 겹쳐 만들어진 연습과 작업을 놓치지 않는다).
             videos.reassign(guestId, memberId);
             practices.reassign(guestId, memberId);
             operations.reassign(guestId, memberId);

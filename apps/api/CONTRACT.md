@@ -90,6 +90,8 @@ Schema Entity는 Java 코드가 JPA로 읽고 쓰는 테이블만 매핑한다. 
   `handoff_confirmations`·`practice_reports`): Java 쓰기 경로를 내렸다. 연습 데이터 이관
   (`platform/migration`)과 호환 읽기(`PostgresLegacyPracticeReader`, 이어하기 맥락)가 native SQL로만 읽으므로
   테이블과 값 CHECK는 그대로 둔다.
+- `upload_intents`(예약 장부): 옛 올리기 저장소(`feature/upload`)를 내렸다. 보관함 저장소(`PostgresVideoRepository`)와
+  이관(`PostgresVideoOwnership`)이 native SQL로만 읽고 쓰므로 테이블과 값 CHECK는 그대로 둔다.
 - `summaries.observation`·`summary`·`intent_alignment`·`key_moment`·`key_dimension`:
   현재 분석 저장자와 관찰 소비자는 사용하지 않는다.
 - `users.role`: 현재 관리자 인증은 별도 운영 토큰이며 사용자 역할 컬럼을 사용하지 않는다.
@@ -648,7 +650,7 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
   - 리딩은 맨 뒤다(`reading/app/ReadingOwnership`, §6-14). 옮기기 전에 **게스트의 `users` 행을 `FOR UPDATE` 로
     잡는다** — 리딩의 쓰기가 같은 행을 잡고 활성인지 보므로, 옮기는 사이에 커밋된 대본이 닫힌 게스트에게 남지
     않는다. 게스트와 회원의 `request_id` 가 겹치면 게스트 쪽 값을 NULL 로 비우고 옮긴다.
-  - 🔥 각 도메인의 주인 바꾸기 포트(`UploadOwnership`·`PracticeOwnership`·`MemoryOwnership`·
+  - 🔥 각 도메인의 주인 바꾸기 포트(`video/app/VideoOwnership`·`PracticeOwnership`·`MemoryOwnership`·
     `platform/ledger/OperationOwnership`·`auth/app/GuestAccounts`·`reading/app/ReadingOwnership`)는 **자기 `TransactionTemplate` 을 쓰지
     않는다.** 몇몇 저장소의 템플릿은 `REQUIRES_NEW` 라(§5-4) 거기에 얹으면 이관과 따로 커밋돼, 도중에 실패해도
     그 행만 회원에게 넘어간 채로 남는다 — 실제로 그렇게 새는 것을 `GuestTransferIT` 가 잡았다.
@@ -1107,7 +1109,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - `CoachPrompt:buildChat`은 1층 관찰 팩 전체(장면 요약·전체 흐름·소리 측정값·대사 인용·불확실성)와 현재 세션의 대화 원문 전체를 전달한다. `CoachPrompt:select`의 공통 정책이 갈래별 질문 순서보다 우선한다.
 - 막힘을 건너뛴 `그 외`의 프롬프트는 `coach-video-first-prompt.txt`다. 명시적인 분석·표현 선택의 프롬프트와 대화가 끝날 때 만드는 handoff·분석/표현 리포트 계약은 유지한다. 이전 분석 세션의 handoff를 표현 세션 입력으로 넘기는 경로는 없다(`NoteWriter`가 `ReportEngine:generateReport`의 `analysisHandoff`에 `null`을 넘긴다).
 - 재생성 사유는 `CoachResponsePolicy:failures`, 생성 실패 handoff의 차단은 `ReportEngine:buildReportInput`(두 갈래 모두) 한 곳이다.
-- 코칭은 `TextValidator:validateCoachTurn`으로 근거 설명용 어휘를 허용한다. 다른 표면은 기존 `validateTurn`과 `scanGeneratedStrings`를 유지한다.
+- 코칭은 `TextValidator:validateCoachTurn`으로 근거 설명용 어휘를 허용한다. 기억 추출은 기존 `validateTurn`을 유지한다. 두 검증 모두 글자 수는 보지 않는다.
 
 ### 7-2. 코치 대화와 노트가 읽는 배우 프로필 (2026-09-19)
 

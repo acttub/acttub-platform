@@ -86,7 +86,6 @@ class ValueCheckCatalogIT {
         BY_CONSTRAINT.put("ck_ai_jobs_status", OperationStatus.class);
         BY_CONSTRAINT.put("ck_portfolio_credits_kind", PortfolioCreditKind.class);
         BY_CONSTRAINT.put("ck_practice_sessions_status", PracticeStatus.class);
-        BY_CONSTRAINT.put("ck_upload_intents_status", UploadStatus.class);
         BY_CONSTRAINT.put("ck_user_consents_action", ConsentAction.class);
         BY_CONSTRAINT.put("ck_user_identities_provider", IdentityProvider.class);
         BY_CONSTRAINT.put("ck_user_profile_directions_direction", ActingDirection.class);
@@ -133,7 +132,9 @@ class ValueCheckCatalogIT {
             "ck_coach_sessions_status",
             "ck_coach_turns_role",
             "ck_coach_conversations_status",
-            "ck_coach_messages_role");
+            "ck_coach_messages_role",
+            // 예약 장부의 상태는 보관함 저장소 SQL 만 쓴다. JPA 매핑과 함께 enum 을 지웠다(SOMA-589).
+            "ck_upload_intents_status");
 
     /** {@code CHECK ((col = ANY (ARRAY['a'::text, 'b'::text])))} 에서 값만 뽑는다. */
     private static final Pattern LITERAL = Pattern.compile("'((?:[^']|'')*)'::text");

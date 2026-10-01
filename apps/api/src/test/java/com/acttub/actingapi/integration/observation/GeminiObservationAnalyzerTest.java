@@ -342,8 +342,7 @@ class GeminiObservationAnalyzerTest {
             return polledFiles.removeFirst();
         }
 
-        @Override
-        public String generate(
+        private String generate(
                 String requestedModel,
                 Content requestedContents,
                 GenerateContentConfig requestedConfig) {

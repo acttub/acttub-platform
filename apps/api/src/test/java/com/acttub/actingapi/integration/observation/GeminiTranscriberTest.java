@@ -214,9 +214,6 @@ class GeminiTranscriberTest {
             return new GeminiFile("files/audio", "https://files.test/audio", storedMime == null ? mime : storedMime, "ACTIVE");
         }
         @Override public GeminiFile get(String name) { throw new AssertionError("already active"); }
-        @Override public String generate(String model, Content contents, GenerateContentConfig config) {
-            throw new AssertionError("transcription must not read response.text()");
-        }
         @Override public GenerateContentResponse generateResponse(
                 String model, Content contents, GenerateContentConfig config) {
             this.model = model;

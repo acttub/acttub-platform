@@ -14,7 +14,10 @@ import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 
-/** {@code acting-summary/compress.py:compress_for_gemini} 대응. */
+/**
+ * 영상 분석에 올리기 전에 큰 영상을 줄인다. {@link #MIN_BYTES} 이하이거나 ffmpeg 가 없거나, 줄이는 데 실패하거나
+ * 결과가 원본보다 작지 않으면 원본을 그대로 쓴다.
+ */
 public final class GeminiVideoCompressor {
 
     public static final long MIN_BYTES = 15L * 1024 * 1024;

@@ -1,10 +1,7 @@
 package com.acttub.actingapi.feature.video.app;
 
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Instant;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
 
@@ -18,6 +15,7 @@ import com.acttub.actingapi.feature.video.app.VideoViews.VideoPage;
 import com.acttub.actingapi.feature.video.app.VideoViews.VideoView;
 import com.acttub.actingapi.feature.video.domain.VideoRules;
 import com.acttub.actingapi.platform.web.ApiException;
+import com.acttub.actingapi.platform.web.Hashing;
 
 /**
  * 보관함의 규칙 — 영상은 연습에서 독립한 자산이다 (practice.record, practice.library).
@@ -212,12 +210,6 @@ public class VideoService {
 
     /** 형식·크기·길이를 묶은 지문. 같은 요청 id 로 다른 영상을 올리려는 것을 가른다. */
     static String fingerprint(String contentType, long byteSize, int durationMs) {
-        String payload = "video_intent|" + contentType + "|" + byteSize + "|" + durationMs;
-        try {
-            return HexFormat.of().formatHex(
-                    MessageDigest.getInstance("SHA-256").digest(payload.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 is unavailable", exception);
-        }
+        return Hashing.sha256Hex("video_intent|" + contentType + "|" + byteSize + "|" + durationMs);
     }
 }

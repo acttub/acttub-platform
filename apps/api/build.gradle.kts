@@ -92,19 +92,6 @@ tasks.withType<Test>().configureEach {
         showStandardStreams = false
         exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
     }
-    // 로컬 .env 의 GEMINI_API_KEY 를 실호출 스파이크로 전달한다(있을 때만).
-    // 키가 없으면 GeminiSdkSpikeTest 의 실호출 케이스는 @EnabledIfEnvironmentVariable 로 건너뛴다.
-    System.getenv("GEMINI_API_KEY")?.let {
-        environment("GEMINI_API_KEY", it)
-        // 실호출을 돌릴 참이면 샘플 영상도 있어야 한다. clean 뒤에도 자동으로 만들어진다.
-        dependsOn("prepareSpikeVideo")
-    }
-    // 관문 ③ 은 100MB 급 영상을 만들고 실제로 올린다. 비싸고 느려서 기본으로 돌지 않는다 —
-    // `-PenvelopeSpike` 를 줄 때만 켠다(`ProductionEnvelopeSpikeTest` 는 이 변수를 본다).
-    if (project.hasProperty("envelopeSpike")) {
-        environment("M4_ENVELOPE_SPIKE", "1")
-        dependsOn("prepareEnvelopeVideos")
-    }
 }
 
 tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
@@ -124,99 +111,4 @@ tasks.named<org.gradle.language.jvm.tasks.ProcessResources>("processResources") 
     // 발행 절차 문서는 문서일 뿐이라 싣지 않는다. 파일들 옆에 두는 이유는 절차와 대상이
     // 갈리면 방침을 올릴 때 절차를 안 보게 되기 때문이다.
     exclude("consent-docs/README.md", "admissions/README.md")
-}
-
-/**
- * M0 Gemini 스파이크용 샘플 영상을 만든다. 저장소에 커밋하지 않는다(M0-spike.md 미결 사항).
- * 로컬에 ffmpeg 이 없어도 되도록 Docker 이미지를 쓴다 — Testcontainers 때문에 어차피 Docker 가 떠 있다.
- */
-tasks.register("prepareSpikeVideo") {
-    val output = layout.buildDirectory.file("spike/sample.mp4")
-    outputs.file(output)
-    doLast {
-        val target = output.get().asFile
-        target.parentFile.mkdirs()
-        if (target.exists() && target.length() > 0) {
-            logger.lifecycle("샘플 영상이 이미 있다: ${target.absolutePath}")
-            return@doLast
-        }
-        providers.exec {
-            commandLine(
-                "docker", "run", "--rm",
-                "-v", "${target.parentFile.absolutePath}:/out",
-                "jrottenberg/ffmpeg:6.1-alpine",
-                "-f", "lavfi", "-i", "testsrc=duration=6:size=320x240:rate=12",
-                "-f", "lavfi", "-i", "sine=frequency=440:duration=6",
-                "-pix_fmt", "yuv420p", "-c:v", "libx264", "-c:a", "aac", "-shortest",
-                "/out/${target.name}"
-            )
-        }.result.get()
-        logger.lifecycle("샘플 영상 생성: ${target.absolutePath} (${target.length()} bytes)")
-    }
-}
-
-/**
- * M4 관문 ③(production-envelope) 용 영상 둘을 만든다. 저장소에 커밋하지 않는다.
- *
- * M0 의 PASS 는 6초·80KB 한 건이었다 — 실제 봉투는 그보다 세 자릿수 크다.
- *   - `envelope-raw.mp4`  : 업로드 상한(uploads.py:MAX_UPLOAD_BYTES = 100MB)에 근접한 원본.
- *     압축이 실패했을 때 이것이 그대로 Files API 로 간다 — SDK 의 다중 chunk 경로.
- *   - `envelope-compressed.mp4` : 위를 `compress.py:compress_for_gemini` 와 **같은 파라미터**로
- *     줄인 것. 운영에서 Gemini 로 가는 것은 보통 이쪽이다.
- *
- * 합성 영상이라 분석 품질은 볼 수 없다. 이 스파이크가 보는 것은 전송·실패 경로다.
- */
-tasks.register("prepareEnvelopeVideos") {
-    val rawFile = layout.buildDirectory.file("spike/envelope-raw.mp4")
-    val compressedFile = layout.buildDirectory.file("spike/envelope-compressed.mp4")
-    outputs.files(rawFile, compressedFile)
-    doLast {
-        val raw = rawFile.get().asFile
-        val compressed = compressedFile.get().asFile
-        val dir = raw.parentFile
-        dir.mkdirs()
-
-        // 크기를 crf 로 맞추려 하면 소스 내용에 따라 세 자릿수로 튄다(실측: testsrc 는 14MB,
-        // 노이즈는 초당 35MB). 그래서 **비트레이트를 강제**한다 — 실제 봉투인
-        // "120초 · 100MB" 는 곧 6.5Mbps 이고, 그것이 스마트폰 1080p 의 전형값이다.
-        if (!raw.exists() || raw.length() == 0L) {
-            providers.exec {
-                commandLine(
-                    "docker", "run", "--rm",
-                    "-v", "${dir.absolutePath}:/out",
-                    "jrottenberg/ffmpeg:6.1-alpine",
-                    "-f", "lavfi", "-i", "testsrc=duration=120:size=1920x1080:rate=30",
-                    "-f", "lavfi", "-i", "sine=frequency=440:duration=120",
-                    "-pix_fmt", "yuv420p", "-c:v", "libx264", "-preset", "ultrafast",
-                    // nal-hrd=cbr 이 없으면 libx264 가 단순한 소스에서 지정 비트레이트를
-                    // 채우지 않는다 — 실측으로 6500k 를 줬는데 1.6Mbps 가 나왔다.
-                    "-b:v", "6500k", "-x264-params", "nal-hrd=cbr:force-cfr=1",
-                    "-minrate", "6500k", "-maxrate", "6500k", "-bufsize", "13000k",
-                    "-c:a", "aac", "-b:a", "64k", "-shortest",
-                    "/out/${raw.name}"
-                )
-            }.result.get()
-        }
-        logger.lifecycle("원본 영상: ${raw.absolutePath} (${raw.length()} bytes)")
-
-        // acting-summary/compress.py:compress_for_gemini 와 **값까지 같은** 파라미터.
-        // 하나라도 다르면 여기서 잰 크기가 운영을 대표하지 못한다.
-        if (!compressed.exists() || compressed.length() == 0L) {
-            providers.exec {
-                commandLine(
-                    "docker", "run", "--rm",
-                    "-v", "${dir.absolutePath}:/out",
-                    "jrottenberg/ffmpeg:6.1-alpine",
-                    "-threads", "1", "-i", "/out/${raw.name}",
-                    "-vf", "scale=w=768:h=768:force_original_aspect_ratio=decrease:force_divisible_by=2",
-                    "-r", "10", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
-                    "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "64k", "-ac", "1",
-                    "-movflags", "+faststart", "-threads", "1",
-                    "/out/${compressed.name}"
-                )
-            }.result.get()
-        }
-        logger.lifecycle("압축 영상: ${compressed.absolutePath} (${compressed.length()} bytes)")
-        logger.lifecycle("압축률: ${"%.1f".format(100.0 * compressed.length() / raw.length())}%")
-    }
 }

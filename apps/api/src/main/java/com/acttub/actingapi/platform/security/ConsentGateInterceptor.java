@@ -57,7 +57,7 @@ public final class ConsentGateInterceptor implements HandlerInterceptor {
         if (!(handler instanceof HandlerMethod)) {
             return true;
         }
-        switch (gateFor(request.getMethod(), normalizedPath(request.getRequestURI()))) {
+        switch (gateFor(request.getMethod(), RequestPath.normalized(request.getRequestURI()))) {
             case FULL -> auth.gatedUser(request);
             case CONSENT_ONLY -> auth.consentedUser(request);
             case GUEST_ONLY -> auth.guestUser(request);
@@ -85,13 +85,6 @@ public final class ConsentGateInterceptor implements HandlerInterceptor {
 
     private static boolean matches(List<Route> routes, String method, String path) {
         return routes.stream().anyMatch(route -> route.matches(method, path));
-    }
-
-    private static String normalizedPath(String path) {
-        if (path.length() > 1 && path.endsWith("/")) {
-            return path.substring(0, path.length() - 1);
-        }
-        return path;
     }
 
     private static Route route(HttpMethod method, String pattern) {

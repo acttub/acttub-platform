@@ -166,7 +166,7 @@ public final class MemoryExtractor {
      * 그 밖의 실패(판정 어휘·타임코드 등)는 목표 칸에서도 그대로 막는다.
      */
     private static List<String> languageFailures(String name, String text) {
-        TextValidation validation = TextValidator.validateTurn(text, false);
+        TextValidation validation = TextValidator.validateTurn(text);
         if (validation.failures().isEmpty()) {
             return List.of();
         }

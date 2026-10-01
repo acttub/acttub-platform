@@ -4,7 +4,6 @@ import com.acttub.actingapi.feature.challenge.domain.ChallengeRules;
 import com.acttub.actingapi.platform.schema.ChallengeModeration;
 import jakarta.persistence.LockModeType;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.Locale;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -13,11 +12,9 @@ import com.acttub.actingapi.feature.challenge.app.ChallengeRepository;
 import com.acttub.actingapi.feature.challenge.app.ChallengeCursor;
 import com.acttub.actingapi.feature.challenge.app.ChallengeService.Draft;
 import com.acttub.actingapi.feature.challenge.schema.ChallengeEntity;
-import com.acttub.actingapi.platform.persistence.NativeTuples;
 import com.acttub.actingapi.platform.schema.ChallengeOrigin;
 import com.acttub.actingapi.platform.web.ApiException;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,13 +23,15 @@ class PostgresChallengeRepository implements ChallengeRepository {
     private final EntityManager em;
     private final PostgresChallengeBrowse browse;
     private final ChallengeSettlement settlement;
-    PostgresChallengeRepository(EntityManager em, PostgresChallengeBrowse browse, ChallengeSettlement settlement) {
-        this.em = em; this.browse = browse; this.settlement = settlement;
+    private final EntryLocks locks;
+    PostgresChallengeRepository(EntityManager em, PostgresChallengeBrowse browse, ChallengeSettlement settlement,
+                                EntryLocks locks) {
+        this.em = em; this.browse = browse; this.settlement = settlement; this.locks = locks;
     }
 
     @Override @Transactional
     public Creation create(UUID owner, UUID requestId, String fingerprint, Draft draft, Instant now) {
-        lockActive(owner);
+        locks.active(owner);
         var previous = em.createQuery("SELECT c FROM ChallengeEntity c WHERE c.hostUserId=:owner AND c.requestId=:request",
                 ChallengeEntity.class).setParameter("owner", owner).setParameter("request", requestId).getResultList();
         if (!previous.isEmpty()) {
@@ -44,8 +43,7 @@ class PostgresChallengeRepository implements ChallengeRepository {
                 + "AND c.line=:line AND c.deletedAt IS NULL AND c.endsAt>:now", Long.class)
                 .setParameter("owner", owner).setParameter("line", draft.line()).setParameter("now", now).getSingleResult();
         if (duplicates > 0) throw new ApiException(422, "duplicate_challenge");
-        Instant midnight = now.atZone(ZoneId.of("Asia/Seoul")).toLocalDate()
-                .atStartOfDay(ZoneId.of("Asia/Seoul")).toInstant();
+        Instant midnight = ChallengeRules.koreanMidnight(now);
         long count = em.createQuery("SELECT count(c) FROM ChallengeEntity c WHERE c.hostUserId=:owner AND c.startsAt>=:since", Long.class)
                 .setParameter("owner", owner).setParameter("since", midnight).getSingleResult();
         if (count >= ChallengeRules.DAILY_CREATIONS) {
@@ -98,7 +96,7 @@ class PostgresChallengeRepository implements ChallengeRepository {
 
     @Override @Transactional
     public boolean delete(UUID owner, UUID id, Instant now) {
-        lockActive(owner);
+        locks.active(owner);
         var c = em.find(ChallengeEntity.class, id, LockModeType.PESSIMISTIC_WRITE);
         if (c == null || !owner.equals(c.getHostUserId())) return false;
         if (c.getDeletedAt() != null) return true;
@@ -108,14 +106,6 @@ class PostgresChallengeRepository implements ChallengeRepository {
         if (entries > 0) throw new ApiException(422, "challenge_has_entries");
         c.delete(now);
         return true;
-    }
-
-    private void lockActive(UUID owner) {
-        var owners = NativeTuples.list(em.createNativeQuery("SELECT status FROM users WHERE id=:owner FOR UPDATE", Tuple.class)
-                .setParameter("owner", owner));
-        if (owners.isEmpty() || !"active".equals(owners.getFirst().get("status", String.class))) {
-            throw new ApiException(403, "account_deactivated");
-        }
     }
 
     @Override @Transactional(readOnly = true)
