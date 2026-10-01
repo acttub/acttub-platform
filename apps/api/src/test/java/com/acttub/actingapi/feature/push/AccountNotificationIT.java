@@ -136,8 +136,8 @@ class AccountNotificationIT {
     }
 
     @Test
-    @DisplayName("account.notification: 폰 두 대에 로그인한 회원이 푸시 토글 둘을 끄면 서버에 그 회원의 토큰이 하나도 없다. 하나를 다시 켠 뒤 다른 폰에서 앱을 열면 그 폰의 토큰이 다시 생긴다")
-    void accountNotification_turningBothPushesOffForgetsEveryDevice() throws Exception {
+    @DisplayName("account.notification: 폰 두 대에 로그인한 회원이 토글 셋을 끄면 서버 토큰이 모두 사라지고 하나를 켜면 다시 등록된다")
+    void accountNotification_turningAllPushesOffForgetsEveryDevice() throws Exception {
         UUID other = member();
         register(bearer, "ExponentPushToken[phone]");
         register(bearer, "ExponentPushToken[tablet]");
@@ -146,6 +146,8 @@ class AccountNotificationIT {
         patchSettings("{\"analysis_done\":false}", 200);
         assertThat(tokensOf(member)).hasSize(2);
         patchSettings("{\"challenge\":false}", 200);
+        assertThat(tokensOf(member)).hasSize(2);
+        patchSettings("{\"evening_reminder\":false}", 200);
 
         assertThat(tokensOf(member)).isEmpty();
         assertThat(tokensOf(other)).as("남의 토큰은 그대로다").containsExactly("ExponentPushToken[someone-else]");
@@ -154,16 +156,17 @@ class AccountNotificationIT {
         register(bearer, "ExponentPushToken[tablet]");
         assertThat(tokensOf(member)).isEmpty();
 
-        patchSettings("{\"challenge\":true}", 200);
+        patchSettings("{\"evening_reminder\":true}", 200);
         register(bearer, "ExponentPushToken[tablet]");
         assertThat(tokensOf(member)).containsExactly("ExponentPushToken[tablet]");
     }
 
     @Test
-    @DisplayName("account.notification: 푸시 둘을 끄는 도중에 다른 폰이 앱을 열어도 그 폰의 토큰이 살아남지 않는다 — 확인과 저장이 끄기와 줄을 선다")
+    @DisplayName("account.notification: 토글 셋을 끄는 도중 다른 폰이 등록해도 토큰이 살아남지 않는다")
     void accountNotification_aRegistrationOverlappingTheSwitchOffDoesNotSurvive() throws Exception {
         register(bearer, "ExponentPushToken[phone]");
         patchSettings("{\"analysis_done\":false}", 200);
+        patchSettings("{\"evening_reminder\":false}", 200);
         // 끄기 트랜잭션이 토글을 바꾼 뒤, 토큰을 지우는 문장 앞에서 멈춘다.
         jdbc.execute("""
                 CREATE OR REPLACE FUNCTION hold_token_delete() RETURNS trigger AS $$
@@ -237,6 +240,8 @@ class AccountNotificationIT {
 
         AccountFixtures.completeProfile(jdbc, undecided);
         assertThat(postToken(token, "ExponentPushToken[early]").getStatus()).isEqualTo(204);
+        assertThat(jdbc.queryForObject("SELECT app_version FROM push_tokens WHERE token=?", String.class,
+                "ExponentPushToken[early]")).isEqualTo("0.1.2");
     }
 
     @Test
@@ -302,6 +307,7 @@ class AccountNotificationIT {
     private MockHttpServletResponse postToken(String authorization, String token) throws Exception {
         return mvc.perform(post("/v2/push-tokens")
                         .header("Authorization", authorization)
+                        .header("X-Acttub-Client", "app/0.1.2")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"token\":\"" + token + "\",\"platform\":\"ios\"}"))
                 .andReturn().getResponse();

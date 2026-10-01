@@ -44,6 +44,7 @@ public record ConsentEntry(
                 .toList();
         List<DocumentDecision> undecidedDocuments = documents.stream()
                 .filter(DocumentDecision::isUndecided)
+                .filter(decision -> decision.document().askedAtEntry())
                 .toList();
         return new ConsentEntry(
                 undecidedDocuments.isEmpty() ? Status.ALLOWED : Status.DECISION_REQUIRED,

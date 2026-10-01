@@ -1,9 +1,11 @@
 package com.acttub.actingapi.feature.reading.adapter.db;
 
+import static com.acttub.actingapi.feature.reading.adapter.db.JoinedColumn.SEPARATOR;
+import static com.acttub.actingapi.feature.reading.adapter.db.JoinedColumn.split;
+
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -37,7 +39,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * 회차의 쓰기는 <b>회차 행(시작은 대본 행)을 {@code FOR UPDATE} 로 잡고 주인이 맞는지 다시 본다</b>. 이관은 게스트의
  * {@code users} 행을 잡은 뒤 리딩 행의 주인을 바꾸고 탈퇴·삭제는 행을 지우므로, 잠금을 기다린 뒤 다시 본 행이 없거나
- * 남의 것이면 그대로 404 다 — 옛 계정에 아무것도 남지 않는다(03-reading 「리딩 자료의 이관·삭제·탈퇴」).
+ * 남의 것이면 그대로 404 다 — 옛 계정에 아무것도 남지 않는다(specs/reading 「리딩 자료의 이관·삭제·탈퇴」).
  *
  * <p>같은 대본의 시작이 겹치면 대본 행에서 줄을 선다 — 뒤의 것이 앞의 회차를 {@code stopped} 로 닫고 자기 회차를 만들어
  * 열린 회차는 언제나 하나다(부분 유일 인덱스 {@code uq_reading_sessions_open_script} 가 그물이다).
@@ -47,8 +49,6 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @Repository
 class PostgresSessionRepository implements SessionRepository {
-    /** 이름·id 목록을 한 칸에 이어 붙일 때 쓰는 구분자. 이름에 나올 수 없는 제어 문자다. */
-    private static final String SEPARATOR = "\u001f";
     private static final TypeReference<List<StoredLineResult>> LINE_RESULTS = new TypeReference<>() { };
 
     private final EntityManager entityManager;
@@ -440,9 +440,6 @@ class PostgresSessionRepository implements SessionRepository {
         return split(joined).stream().map(UUID::fromString).toList();
     }
 
-    private static List<String> split(String joined) {
-        return joined == null || joined.isEmpty() ? List.of() : Arrays.asList(joined.split(SEPARATOR, -1));
-    }
 
     private static String uuidArray(List<UUID> ids) {
         return "{" + String.join(",", ids.stream().map(UUID::toString).toList()) + "}";

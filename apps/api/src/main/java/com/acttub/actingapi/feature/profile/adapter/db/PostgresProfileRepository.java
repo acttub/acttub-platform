@@ -130,7 +130,7 @@ class PostgresProfileRepository implements ProfileRepository {
 
     /**
      * 프로필 행은 처음 저장할 때 생기므로 upsert 다. 이름은 {@code user_profiles.name} 에만 쓴다 —
-     * {@code users.nickname} 은 보지 않는다 (V7, apps/api/CONTRACT.md §5-1).
+     * {@code users.nickname} 은 보지 않는다 (V9, apps/api/CONTRACT.md §5-1).
      *
      * <p>{@code INSERT … SELECT FROM users} 인 것은 없는 사용자를 FK 위반이 아니라 <b>0행</b>으로
      * 돌려받기 위해서다. 그래야 "없으면 {@code null}" 이 그대로 성립한다. 방향은 같은 트랜잭션에서
@@ -224,7 +224,7 @@ class PostgresProfileRepository implements ProfileRepository {
      *
      * <p>고르는 기준은 <b>신원이 아니다.</b> 제공자의 연결 끊기 알림은 신원을 행째 지우므로, 마지막 신원이
      * 끊긴 뒤 탈퇴한 회원에게는 해시 행이 없다 — 해시 행의 유무로 고르면 그 사람의 보관 영상은 영영 남는다.
-     * 탈퇴 시각과 {@code users.retention_purged_at}(V10) 으로 고르고, 같은 트랜잭션에서 그 시각을 적는다.
+     * 탈퇴 시각과 {@code users.retention_purged_at}(V12) 으로 고르고, 같은 트랜잭션에서 그 시각을 적는다.
      */
     @Override
     public List<UUID> purgeRetained(Instant deactivatedBefore, Instant now) {
@@ -256,7 +256,7 @@ class PostgresProfileRepository implements ProfileRepository {
                         .setParameter("now", now.atOffset(ZoneOffset.UTC))
                         .setParameter("userId", userId)
                         .executeUpdate();
-                // 보관 동의로 남겨 두었던 리딩 녹음(음성과 전사)은 행째 지우고 객체는 장부로 간다(03-reading).
+                // 보관 동의로 남겨 두었던 리딩 녹음(음성과 전사)은 행째 지우고 객체는 장부로 간다(specs/reading).
                 List<String> recordings = deleteRecordings(userId);
                 if (!recordings.isEmpty()) {
                     cleanups.add(this.cleanups.schedule(userId, recordings, now));
@@ -318,7 +318,7 @@ class PostgresProfileRepository implements ProfileRepository {
     }
 
     /**
-     * ⚠ {@code push_tokens} 의 주인은 {@code push} 다. 그래도 여기서 지우는 것은 "둘 다 꺼짐"과 "토큰
+     * ⚠ {@code push_tokens} 의 주인은 {@code push} 다. 그래도 여기서 지우는 것은 "셋 다 꺼짐"과 "토큰
      * 없음"이 한 트랜잭션이어야 하기 때문이다 — 나누면 꺼 놓고도 알림이 오는 틈이 생긴다. 탈퇴의 교차
      * 도메인 정리와 같은 형태로 명시적 native DML 로 남긴다.
      */
@@ -498,7 +498,7 @@ class PostgresProfileRepository implements ProfileRepository {
      *
      * <p>⚠ <b>남의 테이블을 여기서 함께 치는 것은 탈퇴와 같은 이유다</b> — 파기의 원자성이 트랜잭션
      * 하나를 요구한다. 자료가 있는지 보는 표는 {@code users} 를 FK 로 물고 있으면서 지우면 안 되는
-     * 것들이다(연습·업로드·작업 장부·배우 기억, 그리고 1.0.0 이전에 쓴 커뮤니티 행). 하나라도 있으면
+     * 것들이다(연습·업로드·작업 장부·배우 기억, 그리고 0.1.0 이전에 쓴 커뮤니티 행). 하나라도 있으면
      * 행을 지울 수 없어 탈퇴와 같은 절차로 닫는다 — 그때는 보관 동의와 무관하게 영상을 파기한다.
      */
     @Override
@@ -574,7 +574,7 @@ class PostgresProfileRepository implements ProfileRepository {
      *       맞지 않아 통째로 롤백되므로 결과가 저장되지 않는다.</li>
      * </ul>
      *
-     * <p>챌린지 자료는 {@link #eraseChallenge} 가 같은 트랜잭션에서 정리한다(04-challenge 「챌린지 자료의 삭제·탈퇴」).
+     * <p>챌린지 자료는 {@link #eraseChallenge} 가 같은 트랜잭션에서 정리한다(specs/challenge 「챌린지 자료의 삭제·탈퇴」).
      *
      * <p>⚠ <b>여기서 남의 테이블을 함께 치는 것은 의도한 것이다.</b> 테이블 주인은 각각 {@code auth}·
      * {@code push}·{@code portfolio}·{@code transfer}·{@code consent}·{@code upload}·작업 장부지만
@@ -623,10 +623,13 @@ class PostgresProfileRepository implements ProfileRepository {
             cleanups.addAll(eraseReading(userId, retainMedia, now));
             erasePractice(userId, retainMedia, now);
             eraseChallenge(userId, now);
+            entityManager.createNativeQuery("DELETE FROM reading_voice_usage WHERE user_id=:userId")
+                    .setParameter("userId", userId)
+                    .executeUpdate();
             cleanups.addAll(hashIdentities(userId, now));
 
             // ⚠ 새 코드가 `users.nickname` 을 건드리는 곳은 이 한 줄뿐이다 (SOMA-528 결정 I-3).
-            // V7 은 옛 닉네임을 `user_profiles.name` 으로 복사만 해서 값이 이 컬럼에도 남아 있고,
+            // V9 는 옛 닉네임을 `user_profiles.name` 으로 복사만 해서 값이 이 컬럼에도 남아 있고,
             // 탈퇴는 이름을 지체 없이 파기해야 한다. 컬럼을 지우려면 먼저 이 쓰기를 걷어낸 릴리스를
             // 내고(N+1), 그다음 릴리스에서 DROP COLUMN 한다(N+2) — 삭제와 그것을 안 쓰는 코드를
             // 한 릴리스에 묶지 않는다(docs/BRANCHING-STRATEGY.md 「DB와 배포 안전성」).
@@ -676,7 +679,7 @@ class PostgresProfileRepository implements ProfileRepository {
     }
 
     /**
-     * 챌린지 자료 (04-challenge 「챌린지 자료의 삭제·탈퇴」). 참여작은 비공개로 내려 집계·표본에서 빠지고(다시 공개할 수 없다 —
+     * 챌린지 자료 (specs/challenge 「챌린지 자료의 삭제·탈퇴」). 참여작은 비공개로 내려 집계·표본에서 빠지고(다시 공개할 수 없다 —
      * 공개 전환은 활성 계정만 된다), 개설한 챌린지는 주최자를 비운다. 건 차단·받은 차단, 개인 북마크(저장), 받은 알림은
      * 행째 지우고, AI 리포트는 본문·비교 자료를 파기해 생성 이력만 남긴다(90일 뒤 매시 일이 지운다). 진행 중인 리포트
      * 생성은 위 {@code ai_jobs} 취소가 닫는다. 남긴 좋아요·댓글은 남아 "탈퇴한 사용자"로 보인다.
@@ -720,8 +723,8 @@ class PostgresProfileRepository implements ProfileRepository {
      * 이 사람이 올린 영상의 객체 키. 연습 행은 남기고 객체만 지운다 — 얼굴과 목소리는 가명처리가 안
      * 된다. 리딩 녹음은 {@link #eraseReading} 이 따로 다룬다(행째 지우거나 보관).
      *
-     * <p>장부 두 벌을 함께 본다: 옛 흐름의 {@code upload_intents} 와 1.0.0 보관함의 {@code videos} 다
-     * (02-practice 「이관·삭제·탈퇴」). 이미 파일만 파기된 영상은 객체가 없으므로 빼고, 미확정 업로드의
+     * <p>장부 두 벌을 함께 본다: 옛 흐름의 {@code upload_intents} 와 0.1.0 보관함의 {@code videos} 다
+     * (specs/practice 「이관·삭제·탈퇴」). 이미 파일만 파기된 영상은 객체가 없으므로 빼고, 미확정 업로드의
      * 객체는 그대로 지운다 — 예약만 하고 올리지 않았으면 그 키에 객체가 없고 S3 의 삭제는 멱등이다.
      *
      * <p>보관함 영상의 <b>포스터</b>(V23, 첫 장면 JPEG)도 함께다 — 얼굴이 담긴 한 장이다. 포스터 워커는 같은
@@ -747,7 +750,7 @@ class PostgresProfileRepository implements ProfileRepository {
     }
 
     /**
-     * 1.0.0 연습 자료의 파기 (02-practice 「연습 자료의 이관·삭제·탈퇴」).
+     * 0.1.0 연습 자료의 파기 (specs/practice 「연습 자료의 이관·삭제·탈퇴」).
      *
      * <ul>
      *   <li>{@code videos}: <b>행을 지우지 않고</b> {@code purged_at} 을 찍는다 — 회차·참여작의 기록이
@@ -811,7 +814,7 @@ class PostgresProfileRepository implements ProfileRepository {
     }
 
     /**
-     * 리딩 자료의 파기 (03-reading 「리딩 자료의 이관·삭제·탈퇴」, account.withdraw). 대본·배역·줄·회차·암기 상태는
+     * 리딩 자료의 파기 (specs/reading 「리딩 자료의 이관·삭제·탈퇴」, account.withdraw). 대본·배역·줄·회차·암기 상태는
      * <b>행째</b> 지운다 — 연습 기록과 달리 사람과 끊어 남기지 않는다. 녹음은 보관 동의자 것만 남긴다: 회차·줄
      * 연결을 비우고 {@code user_id} 를 유지해 3년 파기({@link #purgeRetained})가 지운다. 동의가 없으면 행(음성과
      * 전사)을 지우고 객체 키를 같은 트랜잭션에서 장부({@code reading_recording_delete})에 올린다.

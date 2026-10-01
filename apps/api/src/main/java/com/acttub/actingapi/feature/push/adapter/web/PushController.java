@@ -70,7 +70,8 @@ class PushController {
                     "platform must be one of: ios, android",
                     body.platform());
         }
-        push.register(user.id(), token, body.platform());
+        push.register(user.id(), token, body.platform(),
+                ClientAppVersion.parse(request.getHeader("X-Acttub-Client")));
         return ResponseEntity.noContent().build();
     }
 

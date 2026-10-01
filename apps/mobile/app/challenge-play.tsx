@@ -141,7 +141,6 @@ export default function ChallengePlayScreen() {
       void viewTracker.onProgress(entry.id, {
         elapsedMs: Date.now() - startedAt,
         isOwn: Boolean(entry.is_mine),
-        isPreload: false,
         isRepeat: player.currentTime < VIEW_THRESHOLD_MS / 1000 && Date.now() - startedAt > VIEW_THRESHOLD_MS,
       });
     }, 1_000);
@@ -468,9 +467,6 @@ const styles = StyleSheet.create({
   avatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontSize: 14, fontWeight: '800', color: '#FFFFFF' },
   bottom: { paddingHorizontal: 20, paddingBottom: 16, gap: 10 },
-  dots: { flexDirection: 'row', gap: 6, marginBottom: 2 },
-  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.35)' },
-  dotOn: { width: 18, backgroundColor: '#FFFFFF' },
   storyLabel: { fontSize: 12, fontWeight: '800', color: 'rgba(255,255,255,0.8)' },
   line: { fontSize: 22, fontWeight: '800', color: '#FFFFFF', lineHeight: 30 },
   work: { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.75)' },

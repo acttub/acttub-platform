@@ -10,8 +10,7 @@ import type { NextConfig } from "next";
 // 기본값은 로컬 Spring Boot(:8080)다. 이관 기간에는 FastAPI(:8000)를 가리켰고,
 // 파이썬이 사라진 뒤로도 8000이 남아 있으면 **로컬 개발 루프만** 조용히 죽는다 —
 // 배포는 API_ORIGIN을 명시로 주고 CI는 컴파일만 보므로 어디서도 안 걸린다.
-const apiOrigin =
-  process.env.API_ORIGIN ?? process.env.DEV_API_ORIGIN ?? "http://127.0.0.1:8080";
+const apiOrigin = process.env.API_ORIGIN ?? "http://127.0.0.1:8080";
 
 const nextConfig: NextConfig = {
   // 런타임 이미지에 필요한 의존성만 담는 자립 실행 번들(.next/standalone).
@@ -54,7 +53,7 @@ const nextConfig: NextConfig = {
   // wasm 에는 SharedArrayBuffer 가 필요하고, 그건 교차 출처 격리(COOP+COEP)가 켜진 문서에만 있다.
   // **이 경로에만** 건다 — 교차 출처 격리가 필요한 화면은 리딩뿐이다. 처음 이렇게 좁힌 까닭은
   // 사이트 전체에 걸면 Google/Apple 로그인 팝업이 opener 를 잃어서였다(SOMA-447). 웹 로그인은
-  // 1.0.0 에서 없어졌지만(SOMA-528) 범위는 그대로 둔다 — 필요한 곳에만 거는 편이 외부 창·임베드와
+  // 0.1.0 에서 없어졌지만(SOMA-528) 범위는 그대로 둔다 — 필요한 곳에만 거는 편이 외부 창·임베드와
   // 덜 부딪힌다. credentialless 라 외부 CSS·모델(HF CDN)은 CORP 헤더 없이도 자격증명 없이 받아진다.
   async headers() {
     return [

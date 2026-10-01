@@ -247,7 +247,7 @@ test("account.guest: 갱신 요청이 네트워크 오류로 실패하면 게스
   assert.equal(getRefreshToken(), "guest-refresh-old");
 });
 
-test("공통 규칙: 보호 요청·공개 요청·갱신·게스트 만들기 모두 X-Acttub-Client가 web/1.0.0이다", async () => {
+test("공통 규칙: 보호 요청·공개 요청·갱신·게스트 만들기 모두 X-Acttub-Client가 web/0.1.0이다", async () => {
   setTokens({ access_token: "guest-access-old", refresh_token: "guest-refresh-old" });
   const calls = recordFetch((call) => {
     if (call.route === "POST /v2/auth/refresh") {
@@ -283,7 +283,7 @@ test("공통 규칙: 보호 요청·공개 요청·갱신·게스트 만들기 �
     "POST /v2/videos/intents",
   ]);
   for (const call of calls) {
-    assert.equal(call.headers.get("X-Acttub-Client"), "web/1.0.0", call.route);
+    assert.equal(call.headers.get("X-Acttub-Client"), "web/0.1.0", call.route);
     assert.equal(call.headers.has("X-Acttub-Consent-Entry"), false, call.route);
   }
 });

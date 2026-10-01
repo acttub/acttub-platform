@@ -31,7 +31,7 @@ public interface NoteRatingStore {
         REPLAYED,
         /** 같은 요청 id 에 다른 본문. */
         MISMATCH,
-        /** 이 사람의 회차가 아니거나 그 회차에 1.0.0 노트가 없다. */
+        /** 이 사람의 회차가 아니거나 그 회차에 0.1.0 노트가 없다. */
         NOTE_NOT_FOUND,
         /** 게이트를 지난 뒤 탈퇴가 끝났다. */
         INACTIVE

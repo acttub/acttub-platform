@@ -22,10 +22,6 @@ public class FixedWindowRateLimiter {
     private final ConcurrentHashMap<String, Counter> counters = new ConcurrentHashMap<>();
     private final LongSupplier nanoClock;
 
-    public FixedWindowRateLimiter() {
-        this(System::nanoTime);
-    }
-
     public FixedWindowRateLimiter(LongSupplier nanoClock) {
         this.nanoClock = nanoClock;
     }

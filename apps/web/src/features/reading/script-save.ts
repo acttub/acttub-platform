@@ -2,7 +2,7 @@
  * 확인 화면의 "저장" 과 목록 카드의 "열기" 가 하는 일. 서버에 저장하거나 받은 대본을 기기 캐시에
  * 두고, 이전 대본의 설정·결과를 버린다. 화면은 이 둘을 부르고 결과로 옮겨 가기만 한다.
  */
-import { createScript, getScript } from "@/lib/api/v2/reading-scripts";
+import { createScript } from "@/lib/api/v2/reading-scripts";
 import { READING_SCRIPT_MESSAGES } from "@/lib/api/v2/errors";
 import type { ScriptDetail } from "@/lib/reading/api-types";
 import { toCreateRequest, type DraftCheck, type ScriptDraft } from "@/lib/reading/draft";
@@ -45,9 +45,4 @@ export async function saveScriptDraft(
   const stored = adoptScript(script);
   storage.saveDraft(null);
   return stored;
-}
-
-/** 목록에서 고른 대본을 서버에서 받아 지금 대본으로 든다. */
-export async function openScript(scriptId: string, options: { signal?: AbortSignal } = {}): Promise<StoredScript> {
-  return adoptScript(await getScript(scriptId, options));
 }

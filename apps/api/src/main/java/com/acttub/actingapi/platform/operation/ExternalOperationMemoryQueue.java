@@ -27,7 +27,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  *
  * <p>작업 종류 문자열과 "연습을 실패시키지 않는다"는 선택이 여기서 고정된다. 워커는 호출할
  * 때마다 그 둘을 다시 정하지 않는다. <b>응답 본문은 받아서 그대로 싣기만 한다</b> — 그 바이트가
- * 곧 계약이므로 조립은 부르는 쪽에 남는다({@code coach}·{@code report} 의 원장 포트와 같다).
+ * 곧 계약이므로 조립은 부르는 쪽에 남는다.
  */
 @Component
 class ExternalOperationMemoryQueue implements MemoryUpdateQueue {

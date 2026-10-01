@@ -113,7 +113,7 @@ test("practice.library: 지난 연습은 묶음·회차로 서고 달마다 나�
 
 test("practice.library: 삭제 자리는 묶음 숨김이고 무엇이 남는지 말한다", () => {
   assert.match(source, /\{HIDE_GROUP_COPY\}/);
-  const remove = block("const removeSession = useCallback", "const noteBySession");
+  const remove = block("const removeSession = useCallback", "const activeGroup");
   assert.match(remove, /rootId: detail\?\.root_id/);
 });
 

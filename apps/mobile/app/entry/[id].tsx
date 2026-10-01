@@ -12,7 +12,7 @@ import { translate as t } from '@/lib/i18n';
  * 참여작 공유 링크로 들어오는 자리(challenge.react).
  *
  * 회원 앱에서 열면 노출 조건을 서버가 확인한 뒤 그 참여작부터 피드를 연다. 그 사이 비공개·삭제·
- * 숨김이 됐거나 차단 관계면 404 라 "볼 수 없는 영상" 안내만 한다(웹 공개 페이지는 없다).
+ * 숨김이 됐거나 차단 관계면 404 라 "볼 수 없는 영상" 안내만 한다.
  */
 export default function EntryLinkScreen() {
   const router = useRouter();

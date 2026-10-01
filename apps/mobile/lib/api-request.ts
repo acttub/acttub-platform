@@ -1,4 +1,5 @@
 import { translate } from './i18n.ts';
+import { newRequestId } from './request-id.ts';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -56,7 +57,7 @@ export type RequestClock = {
 
 export type ApiRequestDependencies = {
   baseUrl: string;
-  /** 요청마다 보내는 클라이언트 종류와 판. 예: app/1.0.0. 없으면 서버가 426으로 답한다. */
+  /** 요청마다 보내는 클라이언트 종류와 판. 예: app/0.1.0. 없으면 서버가 426으로 답한다. */
   clientHeader: string;
   fetchImpl: typeof fetch;
   /**
@@ -179,6 +180,26 @@ function toApiError(status: number, body: unknown): ApiError {
   return new ApiError(status, friendlyError(status, body), code, detail, body);
 }
 
+/** 오류의 사유 코드와 상태. ApiError 가 아니어도 code·status 칸의 모양만 본다. */
+export function errorCode(error: unknown): string | null {
+  if (error === null || typeof error !== 'object') return null;
+  const code = (error as { code?: unknown }).code;
+  return typeof code === 'string' ? code : null;
+}
+
+export function errorStatus(error: unknown): number | null {
+  if (error === null || typeof error !== 'object') return null;
+  const status = (error as { status?: unknown }).status;
+  return typeof status === 'number' ? status : null;
+}
+
+/** 연결 실패로 본다 — 끊겼거나(NetworkError) 상태가 없거나 서버 5xx. 시간 초과·취소(RequestAbortError)는 아니다. */
+export function isOfflineError(error: unknown): boolean {
+  const name = error !== null && typeof error === 'object' ? (error as { name?: unknown }).name : null;
+  const status = errorStatus(error);
+  return name === 'NetworkError' || status === null || (status >= 500 && status <= 599);
+}
+
 function siblingList(error: unknown, key: string): unknown[] {
   if (!(error instanceof ApiError)) return [];
   const body = error.body;
@@ -212,16 +233,6 @@ export function classifyUnprocessable(error: unknown): UnprocessableKind | null 
   return typeof error.detail === 'string'
     ? { kind: 'reason', code: error.detail }
     : { kind: 'client_bug' };
-}
-
-function randomId(random: () => number): string {
-  const cryptoApi = globalThis.crypto;
-  if (typeof cryptoApi?.randomUUID === 'function') return cryptoApi.randomUUID();
-  const part = () =>
-    Math.floor(random() * 0x10000)
-      .toString(16)
-      .padStart(4, '0');
-  return `${part()}${part()}-${part()}-${part()}-${part()}-${part()}${part()}${part()}`;
 }
 
 function throwIfCancelled(signal?: AbortSignal): void {
@@ -518,7 +529,7 @@ export function createApiRequestClient(dependencies: ApiRequestDependencies) {
     }
     const authSessionEpoch =
       options.auth === false ? undefined : dependencies.getAuthSessionEpoch();
-    const requestId = options.requestId ?? randomId(random);
+    const requestId = options.requestId ?? newRequestId();
     const serializedBody =
       body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body);
     const deadlineMs = options.deadlineMs ?? 120_000;

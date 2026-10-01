@@ -140,13 +140,10 @@ public class ReportEngine {
     public PracticeNote.Generated generatePracticeNote(JsonNode confirmedHandoff, UUID practiceSessionId, UUID userId) {
         ReportProfile.ActorProfile actorProfile = userId == null ? null : profiles.completeFor(userId);
         boolean[] copyFailed = {false};
-        PracticeNote.Generated generated = PracticeNote.assembleResult(confirmedHandoff, input -> recorded(
-                PracticeNote.prompt(confirmedHandoff)
+        PracticeNote.Generated generated = DialogueNote.assembleResult(confirmedHandoff, input -> recorded(
+                OutputLanguage.apply(DialogueNote.PROMPT)
                         + (actorProfile == null ? "" : ACTOR_PROFILE_INSTRUCTION),
-                noteModelInput(
-                        "acttub.coach_handoff.v2".equals(confirmedHandoff.path("schema_version").asText())
-                                ? input : "{\"note_data\":" + input + "}",
-                        actorProfile),
+                noteModelInput(input, actorProfile),
                 "practice_note", practiceSessionId, userId, actorProfile != null),
                 failure -> copyFailed[0] = true);
         if (practiceSessionId != null) {
@@ -215,18 +212,6 @@ public class ReportEngine {
         } catch (com.fasterxml.jackson.core.JsonProcessingException malformed) {
             throw new IllegalStateException("note model input is not a JSON object", malformed);
         }
-    }
-
-    public JsonNode buildReportInput(
-            String reportType,
-            JsonNode videoSummary,
-            JsonNode confirmedHandoff,
-            boolean confirmed,
-            String coachingHandoffId,
-            JsonNode analysisHandoff) {
-        return buildReportInput(
-                reportType, videoSummary, confirmedHandoff, confirmed, coachingHandoffId,
-                analysisHandoff, null);
     }
 
     /**

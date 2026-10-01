@@ -1,6 +1,5 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,7 +11,6 @@ import { api } from '@/lib/api';
 import {
   canRequest,
   evidenceLabel,
-  evidenceStartSeconds,
   reportRequestFailure,
   reportRequestFailureMessage,
   reportSections,
@@ -27,23 +25,18 @@ import { newRequestId } from '@/lib/request-id';
  * 챌린지 AI 리포트(challenge.ai-report) — 같은 대사의 다른 참여작을 표본으로 둔 관찰이다.
  *
  * 점수·순위·등급을 내지 않는다(ADR-005 개정). 관찰 → 견주기 → 한계 → 다음 시도 순으로 보여 주고,
- * 관찰의 근거 구간은 그 자리부터 다시 볼 수 있다. 표본이 3개 미만이면 견주기 없이 관찰만 두고
+ * 관찰에는 근거 구간의 시각을 단다. 표본이 3개 미만이면 견주기 없이 관찰만 두고
  * "비교할 영상이 아직 부족해요"를 보인다. 본인만 보고, 비공개 참여작의 리포트도 본인은 본다.
  */
 export default function AiReportScreen() {
   const router = useRouter();
   const { alert, dialog } = useAppDialog();
-  const { entryId, playbackUrl } = useLocalSearchParams<{ entryId?: string; playbackUrl?: string }>();
+  const { entryId } = useLocalSearchParams<{ entryId?: string }>();
   const [report, setReport] = useState<AiReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [requesting, setRequesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef<string | null>(null);
-
-  const player = useVideoPlayer(typeof playbackUrl === 'string' && playbackUrl ? playbackUrl : null, (p) => {
-    p.loop = false;
-    p.muted = false;
-  });
 
   const load = useCallback(async () => {
     if (!entryId) return;
@@ -90,12 +83,6 @@ export default function AiReportScreen() {
     }
   };
 
-  const playFrom = (startMs: number) => {
-    if (!playbackUrl) return;
-    player.currentTime = evidenceStartSeconds({ start_ms: startMs });
-    player.play();
-  };
-
   const sections = report && report.status === 'ready' ? reportSections(report) : [];
 
   return (
@@ -104,8 +91,6 @@ export default function AiReportScreen() {
       <ScrollView contentContainerStyle={styles.body}>
         {/* 랭킹과 다른 것이라는 사실을 머리에 둔다. */}
         <Text style={styles.notRanking}>{t('aiReport.notRanking')}</Text>
-
-        {!!playbackUrl && <VideoView style={styles.video} player={player} contentFit="contain" nativeControls />}
 
         {loading && <ActivityIndicator color={palette.blue} style={{ marginTop: 24 }} />}
         {!!error && <Text style={styles.error}>{error}</Text>}
@@ -121,11 +106,7 @@ export default function AiReportScreen() {
               section.items.map((evidence, index) => (
                 <View key={`${index}-${evidence.start_ms}`} style={styles.evidence}>
                   <Text style={styles.evidenceText}>{evidence.text}</Text>
-                  <Pressable onPress={() => playFrom(evidence.start_ms)} accessibilityRole="button">
-                    <Text style={styles.evidenceLink}>
-                      {evidenceLabel(evidence)} · {t('aiReport.evidencePlay')}
-                    </Text>
-                  </Pressable>
+                  <Text style={styles.evidenceTime}>{evidenceLabel(evidence)}</Text>
                 </View>
               ))}
 
@@ -185,7 +166,6 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   body: { padding: 20, paddingBottom: 48, gap: 16 },
   notRanking: { fontSize: 12.5, fontWeight: '700', color: palette.blueDeep, lineHeight: 19 },
-  video: { width: '100%', aspectRatio: 9 / 16, maxHeight: 320, borderRadius: 16, backgroundColor: palette.text },
   status: { fontSize: 14, fontWeight: '700', color: palette.textDim, textAlign: 'center', paddingVertical: 12 },
   error: { fontSize: 13.5, fontWeight: '700', color: palette.danger },
   empty: { fontSize: 14.5, color: palette.textDim, textAlign: 'center', paddingVertical: 24 },
@@ -196,7 +176,7 @@ const styles = StyleSheet.create({
   suggestion: { fontSize: 16.5, fontWeight: '700', lineHeight: 26, color: palette.text },
   evidence: { gap: 4, backgroundColor: palette.bgSubtle, borderRadius: 12, padding: 14 },
   evidenceText: { fontSize: 15, lineHeight: 23, color: palette.text },
-  evidenceLink: { fontSize: 12.5, fontWeight: '800', color: palette.blueDeep },
+  evidenceTime: { fontSize: 12.5, fontWeight: '800', color: palette.blueDeep },
   notice: { fontSize: 12.5, color: palette.textFaint, lineHeight: 19 },
   requestBlock: { gap: 10, marginTop: 8 },
   primary: { height: 52, borderRadius: 14, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },

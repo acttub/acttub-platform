@@ -97,7 +97,7 @@ class PostgresVideoRepository implements VideoRepository {
     @Override
     public IntentView findIntent(UUID userId, UUID intentId) {
         List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT id,request_id,object_key,mime_type,size_bytes,duration_ms,expires_at,video_id
+                SELECT object_key,expires_at,video_id
                 FROM upload_intents
                 WHERE id=:intentId
                   AND user_id=:userId
@@ -108,14 +108,8 @@ class PostgresVideoRepository implements VideoRepository {
             return null;
         }
         Tuple row = rows.getFirst();
-        Integer durationMs = row.get("duration_ms", Integer.class);
         return new IntentView(
-                row.get("id", UUID.class),
-                row.get("request_id", UUID.class),
                 row.get("object_key", String.class),
-                row.get("mime_type", String.class),
-                row.get("size_bytes", Long.class),
-                durationMs == null ? 0 : durationMs,
                 row.get("expires_at", Instant.class),
                 row.get("video_id", UUID.class));
     }

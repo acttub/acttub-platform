@@ -23,9 +23,6 @@ export function toStoredScript(detail: ScriptDetail): StoredScript {
     lines,
     characters: characters.map((c) => ({ id: c.id, name: c.name, voicePreset: c.voice_preset })),
     lineIds: sorted.map((l) => l.id),
-    openSessionId: detail.open_session_id,
-    lastSession: detail.last_session
-      ? { id: detail.last_session.id, status: detail.last_session.status, myCharacterIds: detail.last_session.my_character_ids }
-      : null,
+    lastSession: detail.last_session ? { myCharacterIds: detail.last_session.my_character_ids } : null,
   };
 }

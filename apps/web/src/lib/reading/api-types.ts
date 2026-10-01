@@ -11,28 +11,13 @@ import type { components } from "../api/v2-schema";
 /** 대본을 넣은 길. 서버는 예시(sample)를 구분하지 않고 보통 대본으로 둔다. */
 export type ScriptSource = components["schemas"]["ScriptSource"];
 
-/** 줄의 종류. 대사는 배역 하나에 매달리고 지문·장면은 배역이 없다. */
-export type ScriptLineKind = components["schemas"]["ScriptLineKind"];
-
-/** 목록 카드의 상태 칩. 열린 회차 → reading, 없고 마지막 회차가 완료 → completed, 그 밖 → no_cast. */
-export type ScriptStatus = components["schemas"]["ReadingScriptCard"]["status"];
-
-export type ScriptCharacterRequest = components["schemas"]["ReadingScriptCharacterInput"];
-
-export type ScriptLineRequest = components["schemas"]["ReadingScriptLineInput"];
-
 /** POST /v2/reading/scripts */
 export type ScriptCreateRequest = components["schemas"]["ReadingScriptCreateRequest"];
 
 /** PATCH /v2/reading/scripts/{id} — 제목·배역 이름·목소리만. 줄은 저장 뒤 고정이다. */
 export type ScriptUpdateRequest = components["schemas"]["ReadingScriptPatch"];
 
-export type ScriptCharacter = components["schemas"]["ReadingScriptCharacter"];
-
 export type ScriptLine = components["schemas"]["ReadingScriptLine"];
-
-/** 대본 상세의 마지막 회차 요약 */
-export type ScriptLastSession = components["schemas"]["ReadingScriptLastSession"];
 
 /**
  * GET /v2/reading/scripts/{id}, POST·PATCH 의 응답.

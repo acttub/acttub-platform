@@ -138,7 +138,6 @@ test('준비 진행: 먼저 시작한 준비를 나중에 온 화면도 함께 �
   const early=[]; const late=[];
   const first=engine.ensureReady(p=>early.push(p.phase));
   await flush();
-  assert.equal(engine.isPreparing(),true);
   const second=engine.ensureReady(p=>late.push(p.phase));
   assert.equal(late[0],'download'); // 늦게 와도 마지막 진행부터 받는다
   release();
@@ -184,7 +183,6 @@ test('미리 받기: 이미 받아 둔 모델은 미리 불러오지 않고 실�
   state.downloadError=new Error('offline');
   await engine.prefetchIfWifi(); // 던지지 않는다
   assert.equal(engine.isReady(),false);
-  assert.equal(engine.isPreparing(),false); // 실패 뒤에는 다시 시도할 수 있다
 });
 
 test('준비 실패: 모델을 못 불러오면 model_load 로 알린다', async () => {

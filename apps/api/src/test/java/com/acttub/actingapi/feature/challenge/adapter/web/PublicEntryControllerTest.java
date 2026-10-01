@@ -35,7 +35,7 @@ class PublicEntryControllerTest {
     private final EntryService service =
             new EntryService(entries, mock(EntryMedia.class), new CanonicalJson(JSON), Clock.systemUTC());
     private final MockMvc mvc = MockMvcBuilders
-            .standaloneSetup(new PublicEntryController(service, new FixedWindowRateLimiter(), new ClientAddress("")))
+            .standaloneSetup(new PublicEntryController(service, new FixedWindowRateLimiter(System::nanoTime), new ClientAddress("")))
             .setControllerAdvice(new ApiErrorAdvice(JSON, new RecordingFailureReporter()))
             .build();
 

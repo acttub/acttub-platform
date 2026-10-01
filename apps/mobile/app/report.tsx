@@ -4,16 +4,17 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SceneFoldBody, SceneFoldLink, SceneSummary } from '@/components/practice-chrome';
+import { NoteSections } from '@/components/note-sections';
 import { ReportRating } from '@/components/report-rating';
 import { palette } from '@/constants/palette';
-import { useExitReview } from '@/hooks/use-exit-review';
+import { useAppRating } from '@/hooks/use-app-rating';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { finishTutorial, useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
 import { TARGET } from '@/lib/spotlight-targets';
 import { loopApiFor } from '@/lib/tutorial-loop';
 import { isSamplePracticeId } from '@/lib/tutorial-sample';
 import { translate as t } from '@/lib/i18n';
-import { noteFallbackNotice, noteKindLabel, noteSections, noteTitle, quoteSourceLabel, readOptionalPracticeNote } from '@/lib/practice/note';
+import { noteFallbackNotice, noteKindLabel, noteTitle, readOptionalPracticeNote } from '@/lib/practice/note';
 import { clearPractice, getPractice, setContinueOrigin } from '@/lib/practice/session-state';
 import type { PracticeNote } from '@/lib/practice/types';
 
@@ -32,10 +33,11 @@ export default function ReportScreen() {
   // 튜토리얼 예시(SOMA-494) — 노트는 미리 써 둔 것이고, 서버에 남는 것이 없다.
   const sample = isSamplePracticeId(practice?.practiceId);
   const noteTarget = useSpotlightTarget(TARGET.reportNote);
-  const exitReview = useExitReview('leave', 'report', practice?.practiceId);
+  const rating = useAppRating();
   const [note, setNote] = useState<PracticeNote | null>(() => practice?.note ?? null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(!practice?.note);
+  // 노트도 오류도 아직 없으면 읽는 중이다.
+  const loading = !note && !error;
   const [sceneOpen, setSceneOpen] = useState(false);
   const mountedRef = useRef(true);
   const sceneVideo = practice?.videoUri || practice?.playbackUrl || null;
@@ -43,11 +45,9 @@ export default function ReportScreen() {
   const loadNote = useCallback(async () => {
     if (!practice) {
       setError(t('report.noPractice'));
-      setLoading(false);
       return;
     }
     setError(null);
-    setLoading(true);
     try {
       const loaded = await readOptionalPracticeNote(loopApiFor(practice.practiceId).getPracticeNote, practice.practiceId);
       if (!mountedRef.current) return;
@@ -55,10 +55,7 @@ export default function ReportScreen() {
       setNote(loaded);
       if (!loaded) setError(t('note.none'));
     } catch {
-      if (!mountedRef.current) return;
-      setError(t('note.loadFail'));
-    } finally {
-      if (mountedRef.current) setLoading(false);
+      if (mountedRef.current) setError(t('note.loadFail'));
     }
   }, [practice]);
 
@@ -70,7 +67,7 @@ export default function ReportScreen() {
     };
   }, [loadNote, practice?.note]);
 
-  const tutorialGuide = useTutorialSpotlight('report', { ready: !!note && !loading });
+  const tutorialGuide = useTutorialSpotlight('report', { ready: !!note });
 
   // 예시를 다 돈 사람 — 이번엔 내 영상으로.
   const startOwn = () => {
@@ -108,13 +105,18 @@ export default function ReportScreen() {
       return;
     }
     finishTutorial('done');
-    void exitReview.offer(() => {
+    // AI 코칭을 마칠 때 — 두 번에 한 번(7일 간격·최대 3번) 앱 평가를 묻고 닫힌 뒤 나간다 (SOMA-494).
+    const leave = () => {
       clearPractice();
       router.dismissAll();
-    });
+    };
+    if (!practice) {
+      leave();
+      return;
+    }
+    void rating.after({ kind: 'coach', practiceId: practice.practiceId }, leave);
   };
 
-  const sections = note ? noteSections(note) : [];
   const fallbackNotice = note ? noteFallbackNotice(note) : null;
   const title = noteTitle(note, practice?.scene.situation.trim() || t('history.noSceneTitle'));
 
@@ -122,16 +124,16 @@ export default function ReportScreen() {
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen options={{ title: t('note.title'), headerBackVisible: false, headerShadowVisible: false }} />
 
-      {loading && !note && (
+      {loading && (
         <View style={styles.center}>
           <ActivityIndicator color={palette.blue} size="large" />
           <Text style={styles.loadingText}>{t('report.making')}</Text>
         </View>
       )}
 
-      {!loading && !note && (
+      {error && !note && (
         <View style={styles.center}>
-          <Text style={styles.errorText}>{error ?? t('note.none')}</Text>
+          <Text style={styles.errorText}>{error}</Text>
           <Pressable style={styles.primary} onPress={() => void loadNote()}>
             <Text style={styles.primaryText}>{t('common.retry')}</Text>
           </Pressable>
@@ -160,27 +162,7 @@ export default function ReportScreen() {
               {fallbackNotice && <Text style={styles.fallback}>{fallbackNotice}</Text>}
             </View>
 
-            {sections.map((section) => (
-              <View style={styles.section} key={section.kind}>
-                {!!section.label && <Text style={styles.label}>{section.label}</Text>}
-                {section.kind === 'summary' ? (
-                  section.quotes.length > 0 ? (
-                    section.quotes.map((quote, index) => (
-                      <View style={styles.quote} key={`${index}-${quote.quote.slice(0, 8)}`}>
-                        <Text style={styles.quoteText}>{quote.quote}</Text>
-                        <Text style={styles.quoteSource}>{quoteSourceLabel(quote.kind)}</Text>
-                      </View>
-                    ))
-                  ) : (
-                    <Text style={styles.text}>{section.text}</Text>
-                  )
-                ) : (
-                  <Text style={[styles.text, section.kind === 'next' && styles.next, section.kind === 'cheer' && styles.cheer]}>
-                    {section.text}
-                  </Text>
-                )}
-              </View>
-            ))}
+            <NoteSections note={note} />
             </View>
 
             {/* 노트 평가 — 누르는 순간 서버에 저장하고 한 줄(선택)을 덧붙인다. 이탈 설문과 다른 기능이다.
@@ -213,7 +195,7 @@ export default function ReportScreen() {
           </ScrollView>
         </>
       )}
-      {exitReview.element}
+      {rating.element}
       {tutorialGuide.element}
     </SafeAreaView>
   );
@@ -240,14 +222,6 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: '900', color: palette.text, lineHeight: 34 },
   fallback: { fontSize: 12.5, fontWeight: '700', color: palette.amber },
 
-  section: { borderTopWidth: 1, borderTopColor: palette.borderSoft, paddingTop: 16, gap: 8 },
-  label: { fontSize: 12, fontWeight: '800', color: palette.textDim },
-  text: { fontSize: 16, lineHeight: 26, color: palette.text },
-  next: { fontSize: 18, fontWeight: '700', lineHeight: 29 },
-  cheer: { fontSize: 14, lineHeight: 23, color: palette.textDim },
-  quote: { gap: 4, backgroundColor: palette.bgSubtle, borderRadius: 12, padding: 14 },
-  quoteText: { fontSize: 15.5, lineHeight: 25, color: palette.text },
-  quoteSource: { fontSize: 11.5, fontWeight: '800', color: palette.textFaint },
 
   buttonRow: { gap: 10, marginTop: 8 },
   // 스크롤 본문의 gap(섹션 사이)을 노트 안에서도 그대로 둔다 — 비추려고 한 번 감쌌을 뿐이다.

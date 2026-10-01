@@ -20,9 +20,14 @@ function jsonResponse(payload, status = 200) {
   });
 }
 
+let timerDelays = [];
+
 async function withImmediateTimers(run) {
-  globalThis.setTimeout = (callback, _delay, ...args) =>
-    originalSetTimeout(callback, 0, ...args);
+  timerDelays = [];
+  globalThis.setTimeout = (callback, delay, ...args) => {
+    timerDelays.push(delay);
+    return originalSetTimeout(callback, 0, ...args);
+  };
   try {
     return await run();
   } finally {
@@ -49,16 +54,11 @@ test("processing 재시도는 같은 request id와 body 문자열을 재사용�
     return jsonResponse({ completed: true });
   };
 
-  const waits = [];
   const response = await withImmediateTimers(() =>
     postIdempotent(
       "/v2/example",
       { scene: "same", count: 1 },
-      {
-        requestId: "request-fixed",
-        deadlineMs: 10_000,
-        onWait: (info) => waits.push(info),
-      },
+      { requestId: "request-fixed", deadlineMs: 10_000 },
     ),
   );
 
@@ -70,7 +70,7 @@ test("processing 재시도는 같은 request id와 body 문자열을 재사용�
   ]);
   assert.equal(requests[0].body, JSON.stringify({ scene: "same", count: 1 }));
   assert.equal(requests[1].body, requests[0].body);
-  assert.equal(waits[0].reason, "processing");
+  assert.ok(timerDelays.includes(2000), "처리 중 응답 뒤 2초 기다린다");
 });
 
 test("429 응답은 rate limit 대기 후 재시도한다", async () => {
@@ -83,21 +83,16 @@ test("429 응답은 rate limit 대기 후 재시도한다", async () => {
       : jsonResponse({ completed: true });
   };
 
-  const waits = [];
   await withImmediateTimers(() =>
     postIdempotent(
       "/v2/example",
       { scene: "rate-limited" },
-      { requestId: "request-rate", deadlineMs: 10_000, onWait: (info) => waits.push(info) },
+      { requestId: "request-rate", deadlineMs: 10_000 },
     ),
   );
 
   assert.equal(fetchCount, 2);
-  assert.equal(waits.length, 1);
-  assert.deepEqual(
-    { reason: waits[0].reason, attempt: waits[0].attempt, delayMs: waits[0].delayMs },
-    { reason: "rate_limited", attempt: 1, delayMs: 2000 },
-  );
+  assert.ok(timerDelays.includes(2000), "첫 429 뒤 2초 기다린다");
 });
 
 test("request fingerprint 불일치는 즉시 throw한다", async () => {

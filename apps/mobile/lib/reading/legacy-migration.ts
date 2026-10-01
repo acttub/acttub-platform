@@ -1,5 +1,5 @@
 /**
- * 1.0.0 이전 앱이 기기(AsyncStorage)에 남긴 대본을 서버로 옮긴다(reading.script 「옛 대본」).
+ * 0.1.0 이전 앱이 기기(AsyncStorage)에 남긴 대본을 서버로 옮긴다(reading.script 「옛 대본」).
  *
  * - 옛 대본에는 원문이 없다. 줄에서 "이름: 대사" 꼴로 되살린 글을 원문으로 두고 입력 경로는 paste다.
  * - 옛 암기 표시(memorized 줄 번호)는 새 줄 id에 대응해 memorized로 올린다(reading.memorization).

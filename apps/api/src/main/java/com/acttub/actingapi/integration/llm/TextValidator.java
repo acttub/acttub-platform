@@ -9,16 +9,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-/** acting-llm의 금지어·시각·가시 길이 검증 계약. */
+/** acting-llm의 금지어·시각 검증 계약. */
 public final class TextValidator {
-
-    public static final String SAFE_RUNTIME_REPLACEMENT =
-            "이 문장은 지금 보여드리지 않고, 더 안전한 방식으로 다시 바꿔볼게요.";
 
     private static final int UNICODE = Pattern.UNICODE_CHARACTER_CLASS;
 
-    private static final List<String> VALIDATION_KEYS = List.of(
-            "sentence_limit", "forbidden_language", "timecode");
+    private static final List<String> VALIDATION_KEYS = List.of("forbidden_language", "timecode");
 
     private static final List<Pattern> TIMECODE_PATTERNS = List.of(
             Pattern.compile("[0-9]{1,2}\\s*:\\s*[0-9]{2}", UNICODE),
@@ -83,9 +79,6 @@ public final class TextValidator {
                             "(정신상태|성격|트라우마).{0,12}(입니다|이에요|예요|때문)",
                             Pattern.CASE_INSENSITIVE | UNICODE)));
 
-    private static final Pattern WHITESPACE =
-            Pattern.compile("\\s+", Pattern.UNICODE_CHARACTER_CLASS);
-
     private TextValidator() {
     }
 
@@ -106,44 +99,28 @@ public final class TextValidator {
         return List.copyOf(hits);
     }
 
-    public static List<String> scanGeneratedStrings(List<String> strings) {
-        LinkedHashSet<String> hits = new LinkedHashSet<>();
-        strings.forEach(value -> hits.addAll(scanForbidden(value)));
-        return List.copyOf(hits);
-    }
-
-    public static int visibleLength(String text) {
-        String visible = WHITESPACE.matcher(text).replaceAll(" ").strip();
-        return visible.codePointCount(0, visible.length());
-    }
-
     public static boolean hasTimecode(String text) {
         return TIMECODE_PATTERNS.stream()
                 .anyMatch(pattern -> pattern.matcher(text).find());
     }
 
-    public static TextValidation validateTurn(
-            String visibleMessage, boolean enforceSentenceLimit) {
-        return validate(visibleMessage, enforceSentenceLimit, scanForbidden(visibleMessage));
+    public static TextValidation validateTurn(String visibleMessage) {
+        return validate(visibleMessage, scanForbidden(visibleMessage));
     }
 
     /** 코칭에서는 근거를 설명하는 어휘를 허용한다. 관찰·노트의 기존 검증은 유지한다. */
     public static TextValidation validateCoachTurn(String visibleMessage) {
         List<String> descriptiveTerms = List.of("강점", "약점", "개선점", "자연스러움");
-        return validate(visibleMessage, false, scanForbidden(visibleMessage).stream()
+        return validate(visibleMessage, scanForbidden(visibleMessage).stream()
                 .filter(hit -> !descriptiveTerms.contains(hit)).toList());
     }
 
-    private static TextValidation validate(
-            String visibleMessage, boolean enforceSentenceLimit, List<String> forbiddenHits) {
-        int length = visibleLength(visibleMessage);
+    private static TextValidation validate(String visibleMessage, List<String> forbiddenHits) {
         LinkedHashMap<String, Boolean> checks = new LinkedHashMap<>();
-        checks.put("sentence_limit", !enforceSentenceLimit || length <= 170);
         checks.put("forbidden_language", forbiddenHits.isEmpty());
         checks.put("timecode", !hasTimecode(visibleMessage));
 
         Map<String, String> labels = Map.of(
-                "sentence_limit", "응답이 " + length + "자입니다. 170자 이내여야 합니다.",
                 "forbidden_language", "금지어가 노출됐습니다: " + String.join(", ", forbiddenHits),
                 "timecode", "응답에 시각이 들어 있습니다. 숫자를 빼고 대사나 동작으로 그 순간을 가리킵니다.");
         List<String> failures = new ArrayList<>();

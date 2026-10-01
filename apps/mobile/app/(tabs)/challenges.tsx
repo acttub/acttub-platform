@@ -282,29 +282,27 @@ function TodayHero({
 
 function Card({
   challenge,
-  featured,
   onOpen,
   onPerform,
 }: {
   challenge: ChallengeCard;
-  featured?: boolean;
   onOpen: () => void;
   onPerform: () => void;
 }) {
   const meta = [challenge.work, challenge.character].filter(Boolean).join(' · ');
   return (
-    <View style={[styles.card, featured && styles.cardFeatured]}>
+    <View style={styles.card}>
       <Pressable onPress={onOpen} accessibilityRole="button">
-        <Text style={[styles.line, featured && styles.lineFeatured]} numberOfLines={3}>
+        <Text style={styles.line} numberOfLines={3}>
           “{challenge.line}”
         </Text>
-        <Text style={[styles.meta, featured && styles.metaFeatured]}>{meta}</Text>
+        <Text style={styles.meta}>{meta}</Text>
         {!!challenge.scene_note && (
-          <Text style={[styles.note, featured && styles.metaFeatured]} numberOfLines={2}>
+          <Text style={styles.note} numberOfLines={2}>
             {challenge.scene_note}
           </Text>
         )}
-        <Text style={[styles.host, featured && styles.metaFeatured]}>{hostLabel(challenge)}</Text>
+        <Text style={styles.host}>{hostLabel(challenge)}</Text>
       </Pressable>
 
       <View style={styles.statRow}>
@@ -315,11 +313,11 @@ function Card({
             </View>
           ))}
         </View>
-        <Text style={[styles.stat, featured && styles.metaFeatured]} numberOfLines={1}>
+        <Text style={styles.stat} numberOfLines={1}>
           {participantsLabel(challenge.participants, challenge.more_count)}
         </Text>
       </View>
-      <Text style={[styles.stat, featured && styles.metaFeatured]}>
+      <Text style={styles.stat}>
         {t('challenges.entryCount', { count: challenge.entry_count })} ·{' '}
         {t('challenges.likeSum', { count: challenge.like_sum })} · {dDayLabel(challenge)}
       </Text>
@@ -381,8 +379,6 @@ const styles = StyleSheet.create({
   tabUnderline: { height: 2, width: '100%', borderRadius: 1, backgroundColor: palette.text },
   body: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 130, gap: 12 },
   error: { color: palette.danger, fontSize: 13.5, fontWeight: '700', textAlign: 'center', paddingVertical: 12 },
-  sectionLabel: { fontSize: 13, fontWeight: '800', color: palette.textMuted },
-  featuredWrap: { gap: 8 },
   hero: { backgroundColor: palette.navy, borderRadius: 24, padding: 20, gap: 14 },
   heroChip: {
     alignSelf: 'flex-start',
@@ -428,11 +424,8 @@ const styles = StyleSheet.create({
     padding: 18,
     gap: 10,
   },
-  cardFeatured: { backgroundColor: palette.navy, borderColor: palette.navy },
   line: { fontSize: 17, fontWeight: '800', color: palette.text, lineHeight: 26 },
-  lineFeatured: { color: '#FFFFFF' },
   meta: { fontSize: 12.5, fontWeight: '600', color: palette.textMuted },
-  metaFeatured: { color: '#9FB0C9' },
   note: { fontSize: 12.5, color: palette.textFaint, lineHeight: 19 },
   host: { fontSize: 12, fontWeight: '600', color: palette.textFaint },
   statRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },

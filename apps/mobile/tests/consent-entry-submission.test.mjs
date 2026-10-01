@@ -121,7 +121,7 @@ test('최종 재확인 실패는 저장 성공을 보존하고 조회만 다시 
   assert.equal(recordCalls, 1);
 });
 
-test('account.consent: 동의 화면은 미결정 문서만 다루고, 1.0.0 이전에 필수 문서를 거절한 회원도 미결정으로 나온다', () => {
+test('account.consent: 동의 화면은 미결정 문서만 다루고, 0.1.0 이전에 필수 문서를 거절한 회원도 미결정으로 나온다', () => {
   assert.deepEqual(
     documentsForConsentEntry({
       entry_status: 'decision_required',

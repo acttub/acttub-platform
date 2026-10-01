@@ -12,7 +12,7 @@ import java.util.UUID;
  * 결과를 적는 쪽이다. 성공한 것은 지운다. 7일이 지난 뒤는 종류에 따라 다르다: <b>제공자 해제 값</b>
  * ({@code apple_revoke}·{@code kakao_unlink}·{@code naver_revoke})은 값과 함께 지우고, <b>객체 삭제</b>
  * ({@code object_delete}·{@code reading_recording_delete})는 성공할 때까지 키를 지우지 않는다 — 7일 연속
- * 실패하면 운영자에게 알리고 복구 대상으로 남긴다(03-reading 「리딩 자료의 이관·삭제·탈퇴」, account.withdraw).
+ * 실패하면 운영자에게 알리고 복구 대상으로 남긴다(specs/reading 「리딩 자료의 이관·삭제·탈퇴」, account.withdraw).
  */
 public interface AccountCleanupRepository {
 

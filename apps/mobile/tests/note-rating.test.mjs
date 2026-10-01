@@ -5,7 +5,6 @@ import {
   NOTE_RATING_COMMENT_MAX,
   NOTE_RATING_PENDING_KEY,
   buildNoteRatingBody,
-  commentTooLong,
   createNoteRatingQueue,
   noteRatingCommentText,
 } from '../lib/practice/note-rating.ts';
@@ -41,11 +40,8 @@ test('practice.note: 한 줄은 앞뒤 공백을 걷고 비었으면 보내지 �
   });
 });
 
-test('practice.note: 한 줄 길이는 코드 포인트로 센다 — 이모지 100개는 된다', () => {
+test('practice.note: 한 줄은 100자까지다', () => {
   assert.equal(NOTE_RATING_COMMENT_MAX, 100);
-  assert.equal(commentTooLong('🎭'.repeat(100)), false);
-  assert.equal(commentTooLong('가'.repeat(101)), true);
-  assert.equal(commentTooLong(`  ${'가'.repeat(100)}  `), false);
 });
 
 test('practice.note: 보내기가 성공하면 대기열에 남지 않는다', async () => {

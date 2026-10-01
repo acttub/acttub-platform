@@ -6,7 +6,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
-import { hasMicPermission, useReadingMic } from '@/hooks/use-reading-mic';
+import { hasMicPermission } from '@/hooks/use-reading-mic';
 import { detectSttPolicy, useReadingStt } from '@/hooks/use-reading-stt';
 import {
   MEMO_MODES,
@@ -33,7 +33,7 @@ import { translate as t } from '@/lib/i18n';
 /**
  * 암기 화면(R04·R04.1, reading.memorization). 내 배역의 대사 가운데 아직 외웠다고 표시하지 않은 줄을 네 모드(가리고·
  * 빈칸·첫 글자·듣고 따라 하기)로 익히고 "이 대사 외웠어요/아직 헷갈려요"를 남긴다. 표시는 서버에 남아 어느 기기에서나
- * 같다. 완료 화면(R05)에서 sessionId·lineIds 로 들어오면 그 회차의 다시 볼 줄이 대상이고 memorized 여도 열되 표시는
+ * 같다. 완료 화면(R05)에서 lineIds 로 들어오면 그 회차의 다시 볼 줄이 대상이고 memorized 여도 열되 표시는
  * 바꾸지 않는다. 회차·녹음을 만들지 않고, 대조는 기기 안에서 끝나며 점수·맞음·틀림을 내지 않는다.
  * "듣고 따라 말하기"를 눌렀을 때만 재생이 끝난 뒤 음성인식을 시작하고, "원문 듣기"만 누르면 마이크를 열지 않는다.
  */
@@ -49,9 +49,8 @@ const SLOW = 0.7;
 export default function ReadingMemorize() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ sessionId?: string; lineIds?: string }>();
+  const params = useLocalSearchParams<{ lineIds?: string }>();
   const script = getCurrent();
-  const mic = useReadingMic();
   const stt = useReadingStt();
 
   const fromReview = useMemo(() => (params.lineIds ? String(params.lineIds).split(',').filter(Boolean) : null), [params.lineIds]);
@@ -110,7 +109,6 @@ export default function ReadingMemorize() {
       engine.stop();
       stopDeviceVoice();
       stt.abort();
-      void mic.stop();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [script?.id]);
@@ -135,15 +133,13 @@ export default function ReadingMemorize() {
     engine.stop();
     stopDeviceVoice();
     stt.abort();
-    void mic.stop();
     setPlaying(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cur?.lineId, mode]);
 
   const stopListening = useCallback(() => {
     stt.abort();
-    void mic.stop();
-  }, [stt, mic]);
+  }, [stt]);
 
   if (!script) {
     return (

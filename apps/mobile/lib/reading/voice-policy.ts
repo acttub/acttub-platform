@@ -17,13 +17,5 @@ export function modelDownloadPrompt(input: { assetsPresent: boolean; networkType
   return { ask: true, sizeLabel: formatMegabytes(input.bytes) };
 }
 
-export const VOICE_FAILURE_CHOICES = ['retry', 'device_voice', 'text_only'] as const;
-export type VoiceFailureChoice = (typeof VOICE_FAILURE_CHOICES)[number];
-
-/** 어느 경우에도 상대 대사를 읽은 것으로 자동 처리하지 않는다. 기본은 글로 보기다. */
-export function voiceFallbackDefault(): VoiceFailureChoice {
-  return 'text_only';
-}
-
 /** 상대 대사를 내는 방식. supertonic 이 기본, 실패 뒤 배우가 고른 대체. */
 export type PartnerVoiceEngine = 'supertonic' | 'device_voice' | 'text_only';

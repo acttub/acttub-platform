@@ -86,7 +86,7 @@ test("account.portfolio: 공개 조회는 로그인 없이 부르고 게스트�
     {
       route: `GET /v2/public/portfolios/${encodeURIComponent("a/b?c#d 김")}`,
       authorization: null,
-      client: "web/1.0.0",
+      client: "web/0.1.0",
     },
   ]);
   assert.equal(found.name, "김배우");

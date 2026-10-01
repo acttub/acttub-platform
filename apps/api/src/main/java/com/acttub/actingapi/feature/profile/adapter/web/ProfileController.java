@@ -50,8 +50,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/v2/me")
 class ProfileController {
-    private static final int BIO_MAX_LENGTH = 80;
-
     private final ProfileService profiles;
     private final AccessGate auth;
 
@@ -97,7 +95,7 @@ class ProfileController {
     MeResponse saveProfile(@Valid @RequestBody ProfileRequest body, HttpServletRequest request) {
         var user = auth.consentedUser(request);
         ProfileName name = new ProfileName(body.name());
-        validate(name);
+        requireNotBlank(name);
         String bio = validBio(body.bio());
         LocalDate birthDate = validBirthDate(body.birthDate());
         if (body.directions().isEmpty()) {
@@ -192,9 +190,8 @@ class ProfileController {
     @Operation(
             summary = "Update Notification Settings",
             description = """
-                    바꿀 토글만 보내고 토글 셋 전체를 돌려받는다. 분석 완료와 챌린지가 둘 다 꺼지면 서버가 그
-                    회원의 푸시 토큰을 전부 지운다(토글은 회원 단위다). 저녁 리마인드는 서버가 값만 기억하고
-                    알람은 폰이 맞춘다.""",
+                    바꿀 토글만 보내고 토글 셋 전체를 돌려받는다. 셋이 다 꺼지면 서버가 그 회원의 푸시
+                    토큰을 전부 지운다(토글은 회원 단위다). 저녁 리마인드도 서버가 푸시로 보낸다.""",
             operationId = "update_notification_settings_v2_me_notification_settings_patch",
             tags = "v2-me",
             security = @SecurityRequirement(name = "HTTPBearer"))
@@ -254,25 +251,10 @@ class ProfileController {
      * 422 본문의 모양이 곧 계약이라 이 판정은 요청을 받는 자리에 남는다. 무엇이 어긋났는지를
      * 아는 것은 {@link ProfileName} 이고, 그것을 pydantic 과 같은 형태로 옮기는 것이 여기다.
      *
-     * <p>길이를 <b>원본</b>으로 재고 공백 접기를 그 뒤에 보는 순서가 1.0.0 이전의 닉네임 규칙과 같다.
+     * <p>길이(1~20자)는 여기 오기 전에 {@code ProfileRequest} 의 {@code @Schema(minLength, maxLength)} 로
+     * <b>원본</b>을 잰다. 공백 접기를 그 뒤에 보는 순서가 0.1.0 이전의 닉네임 규칙과 같다.
      */
-    private static void validate(ProfileName name) {
-        if (name.tooShort()) {
-            throw lengthError(
-                    "name",
-                    "string_too_short",
-                    "String should have at least 1 character",
-                    name.raw(),
-                    Map.of("min_length", 1));
-        }
-        if (name.tooLong()) {
-            throw lengthError(
-                    "name",
-                    "string_too_long",
-                    "String should have at most 20 characters",
-                    name.raw(),
-                    Map.of("max_length", ProfileName.MAX_LENGTH));
-        }
+    private static void requireNotBlank(ProfileName name) {
         if (name.blankAfterFolding()) {
             throw ApiValidationException.valueError(
                     List.of("body", "name"),
@@ -301,18 +283,13 @@ class ProfileController {
         return birthDate;
     }
 
-    /** 소개는 선택이다. 비어 있으면 없는 것으로 저장하고, 80자(코드포인트)를 넘으면 거절한다. */
+    /**
+     * 소개는 선택이다. 비어 있으면 없는 것으로 저장한다. 80자(코드포인트) 상한은 {@code ProfileRequest} 의
+     * {@code @Schema(maxLength)} 가 먼저 거른다.
+     */
     private static String validBio(String raw) {
         if (raw == null) {
             return null;
-        }
-        if (raw.codePointCount(0, raw.length()) > BIO_MAX_LENGTH) {
-            throw lengthError(
-                    "bio",
-                    "string_too_long",
-                    "String should have at most 80 characters",
-                    raw,
-                    Map.of("max_length", BIO_MAX_LENGTH));
         }
         String stripped = raw.strip();
         return stripped.isEmpty() ? null : stripped;

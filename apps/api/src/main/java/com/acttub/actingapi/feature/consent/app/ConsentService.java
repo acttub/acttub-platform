@@ -63,13 +63,10 @@ public class ConsentService implements PendingConsentGate, PendingConsentDocumen
                 .toList();
     }
 
-    /** 현재 판과 결정을 함께 읽어 서비스 진입 판정을 계산한다. */
-    public ConsentEntry entryFor(UUID userId) {
-        return entryFor(userId, false);
-    }
-
     /**
-     * 게스트의 현황에는 필수 문서만 있다. 웹은 이 목록의 {@code privacy} 행의 결정 하나로 계측을 켠다 —
+     * 현재 판과 결정을 함께 읽어 서비스 진입 판정을 계산한다.
+     *
+     * <p>게스트의 현황에는 필수 문서만 있다. 웹은 이 목록의 {@code privacy} 행의 결정 하나로 계측을 켠다 —
      * 그 값은 <b>현재 판</b>에 대한 결정이다.
      */
     public ConsentEntry entryFor(UUID userId, boolean guest) {
@@ -138,13 +135,8 @@ public class ConsentService implements PendingConsentGate, PendingConsentDocumen
      *
      * <p>지금 결정과 같은 결정이 다시 오면 <b>행을 늘리지 않고</b> 이미 있는 행을 돌려준다. 여러
      * 문서를 차례로 보내다 끊긴 앱이 처음부터 다시 보내도 증빙이 부풀지 않는다.
-     */
-    public Recorded record(UUID userId, String rawDocumentId, String action) {
-        return record(userId, rawDocumentId, action, false, false);
-    }
-
-    /**
-     * 게스트의 결정에는 규칙이 둘 더 있다 (account.guest).
+     *
+     * <p>게스트의 결정에는 규칙이 둘 더 있다 (account.guest).
      *
      * <ul>
      *   <li>선택 문서는 회원에게만 묻는다 — 게스트가 보내면 403 {@code member_only}.</li>

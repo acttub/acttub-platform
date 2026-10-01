@@ -26,7 +26,7 @@ const BLOCKAGE: PracticeBlockage = {
 };
 
 /** 분석까지 지난 상태. 질문 대화·분석 결과 화면이 이 상태를 읽는다. */
-export function seedPractice(options: { withReport?: boolean; withTurns?: boolean } = {}) {
+export function seedPractice(options: { withReport?: boolean } = {}) {
   startPractice({
     practiceId: 'preview-practice',
     rootId: 'preview-practice',
@@ -60,9 +60,6 @@ const PREVIEW_NOTE: PracticeNote = {
   source_revision: 7,
   created_at: new Date().toISOString(),
 };
-
-export const previewScene = SCENE;
-export const previewBlockage = BLOCKAGE;
 
 /**
  * 분석 화면이 미리보기로 곧장 열렸을 때 쓸 값.

@@ -90,23 +90,6 @@ export function practiceStreak(startedAt: readonly string[], now: number = Date.
   return streak;
 }
 
-export type HistoryRow = {
-  id: string;
-  /** 정렬 기준 — 회차 시작 시각(묶음은 마지막 회차). */
-  at: string;
-  kind: 'practice' | 'reading';
-  title: string;
-  meta: string;
-};
-
-/** 연습 묶음과 리딩 회차를 한 목록으로 섞는다(최신이 위). */
-export function mergeHistoryRows(
-  practices: readonly HistoryRow[],
-  readings: readonly HistoryRow[],
-): HistoryRow[] {
-  return [...practices, ...readings].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
-}
-
 /** 회차 한 줄 — "2차 · 대화 6개 · 노트 제목". 노트가 없으면 아직 정리 없음이다. */
 export function roundSummary(round: Pick<PracticeRound, 'ordinal' | 'message_count' | 'note'>): string {
   const parts = [
@@ -115,9 +98,4 @@ export function roundSummary(round: Pick<PracticeRound, 'ordinal' | 'message_cou
     round.note ? round.note.title?.trim() || translate(`note.kind.${round.note.kind}`) : translate('note.none'),
   ];
   return parts.join(' · ');
-}
-
-/** 숨김이 무엇을 하는지 그대로 말한다. */
-export function hideNotice(): string {
-  return translate('history.hideNotice');
 }

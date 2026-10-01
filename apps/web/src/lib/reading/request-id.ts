@@ -1,7 +1,6 @@
 /**
  * 기기가 만드는 요청 id(UUID v4). 대본 등록·회차 시작이 같은 본문에 같은 id 를 다시 써
- * 재전송이 행을 둘 만들지 않게 한다(reading.script). 공용 멱등 계층(src/lib/api/v2/idempotency.ts)도
- * 같은 규칙으로 만들지만 그 함수는 그 모듈 안에 두므로 여기서 따로 만든다.
+ * 재전송이 행을 둘 만들지 않게 한다(reading.script). 공용 멱등 계층(src/lib/api/v2/idempotency.ts)도 이것을 쓴다.
  */
 export function newRequestId(): string {
   // crypto.randomUUID 는 보안 컨텍스트(HTTPS·localhost) 전용이라 http://<IP> 배포에서는

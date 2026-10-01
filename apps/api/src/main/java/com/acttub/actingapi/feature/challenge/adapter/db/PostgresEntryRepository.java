@@ -1,11 +1,13 @@
 package com.acttub.actingapi.feature.challenge.adapter.db;
 
-import java.nio.charset.StandardCharsets;
+import static com.acttub.actingapi.feature.challenge.adapter.db.Cursors.decode;
+import static com.acttub.actingapi.feature.challenge.adapter.db.Cursors.encode;
+import static com.acttub.actingapi.feature.challenge.adapter.db.Cursors.invalidCursor;
+import static com.acttub.actingapi.feature.challenge.adapter.db.EntryCards.number;
+
 import java.time.Instant;
-import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,7 +18,6 @@ import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
 import com.acttub.actingapi.platform.web.ApiException;
-import com.acttub.actingapi.platform.web.ApiValidationException;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
@@ -30,19 +31,18 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @Repository
 class PostgresEntryRepository implements EntryRepository {
-    private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
-    /** 카드 한 장에 필요한 것. 영상·챌린지가 사라진 행(삭제된 참여작)도 본인 조회를 위해 LEFT JOIN 한다. */
     private final EntityManager em;
     private final ChallengeSettlement settlement;
     private final EntryCards cards;
+    private final EntryLocks locks;
     private final TransactionTemplate transaction;
     private final FailureReporter failures;
     /** 묶음 푸시 선점은 그 10분 구간(밤이면 다음 09시)이 지나면 쓸모가 없다 — 이틀이면 넉넉하다. */
     private static final java.time.Duration NOTIFICATION_PUSH_CLAIM_RETENTION = java.time.Duration.ofDays(2);
 
-    PostgresEntryRepository(EntityManager em, ChallengeSettlement settlement, EntryCards cards,
+    PostgresEntryRepository(EntityManager em, ChallengeSettlement settlement, EntryCards cards, EntryLocks locks,
                             PlatformTransactionManager transactions, FailureReporter failures) {
-        this.em = em; this.settlement = settlement; this.cards = cards; this.failures = failures;
+        this.em = em; this.settlement = settlement; this.cards = cards; this.locks = locks; this.failures = failures;
         this.transaction = new TransactionTemplate(transactions);
     }
 
@@ -76,7 +76,7 @@ class PostgresEntryRepository implements EntryRepository {
 
     @Override @Transactional
     public Creation create(UUID owner, UUID challengeId, UUID requestId, String fingerprint, NewEntry entry, Instant now) {
-        lockActive(owner);
+        locks.active(owner);
         // 같은 요청의 재전송 확인이 한도 검사보다 먼저다 — 응답을 잃은 재전송이 두 번째 행이나 429가 되지 않는다.
         Replay replayed = replay(owner, requestId);
         if (replayed != null) {
@@ -98,7 +98,7 @@ class PostgresEntryRepository implements EntryRepository {
                 SELECT count(*) FROM challenge_entries WHERE challenge_id=:challenge AND video_id=:video AND status<>'deleted'
                 """).setParameter("challenge", challengeId).setParameter("video", entry.videoId()).getSingleResult()).longValue();
         if (duplicates > 0) throw new ApiException(422, "duplicate_entry");
-        Instant midnight = now.atZone(SEOUL).toLocalDate().atStartOfDay(SEOUL).toInstant();
+        Instant midnight = ChallengeRules.koreanMidnight(now);
         long today = ((Number) em.createNativeQuery(
                 "SELECT count(*) FROM challenge_entries WHERE user_id=:owner AND created_at>=:since")
                 .setParameter("owner", owner).setParameter("since", midnight.atOffset(ZoneOffset.UTC)).getSingleResult()).longValue();
@@ -120,7 +120,7 @@ class PostgresEntryRepository implements EntryRepository {
 
     @Override @Transactional
     public MyEntry update(UUID owner, UUID entryId, String caption, String visibility, Instant now) {
-        lockActive(owner);
+        locks.active(owner);
         Tuple entry = lockOwnEntry(owner, entryId, now);
         if (caption != null) {
             String next = caption.isEmpty() ? null : caption;
@@ -155,7 +155,7 @@ class PostgresEntryRepository implements EntryRepository {
 
     @Override @Transactional
     public void delete(UUID owner, UUID entryId, Instant now) {
-        lockActive(owner);
+        locks.active(owner);
         var found = NativeTuples.list(em.createNativeQuery(
                 "SELECT challenge_id,status FROM challenge_entries WHERE id=:id AND user_id=:owner", Tuple.class)
                 .setParameter("id", entryId).setParameter("owner", owner));
@@ -222,7 +222,7 @@ class PostgresEntryRepository implements EntryRepository {
     }
 
     @Override @Transactional(readOnly = true)
-    public EntryCard find(UUID viewer, UUID entryId, Instant now) {
+    public EntryCard find(UUID viewer, UUID entryId) {
         var visible = NativeTuples.list(em.createNativeQuery(
                 "SELECT e.id " + ChallengeVisibility.ENTRY_FROM + " WHERE e.id=:id AND " + ChallengeVisibility.PUBLIC_ENTRY
                         + " AND " + ChallengeVisibility.UNBLOCKED, Tuple.class)
@@ -247,7 +247,7 @@ class PostgresEntryRepository implements EntryRepository {
     }
 
     @Override @Transactional(readOnly = true)
-    public MyEntries mine(UUID owner, String category, String cursor, Instant now) {
+    public MyEntries mine(UUID owner, String category, String cursor) {
         Tuple counts = NativeTuples.list(em.createNativeQuery("""
                 SELECT count(*) AS all_count,
                        count(*) FILTER (WHERE category='public') AS public_count,
@@ -256,7 +256,7 @@ class PostgresEntryRepository implements EntryRepository {
                 FROM (SELECT %s AS category FROM challenge_entries e JOIN challenges c ON c.id=e.challenge_id
                       WHERE e.user_id=:owner AND e.status<>'deleted') mine
                 """.formatted(EntryCards.CATEGORY), Tuple.class).setParameter("owner", owner)).getFirst();
-        String[] after = cursor == null || cursor.isBlank() ? null : decode(cursor, "M", 3, "cursor");
+        String[] after = cursor == null || cursor.isBlank() ? null : decode(cursor, "M", 3);
         if (after != null && !after[1].equals(owner.toString())) throw invalidCursor(cursor);
         var query = em.createNativeQuery("""
                 SELECT e.id FROM challenge_entries e JOIN challenges c ON c.id=e.challenge_id
@@ -322,7 +322,7 @@ class PostgresEntryRepository implements EntryRepository {
         UUID after = null;
         boolean inclusive = false;
         if (cursor != null && !cursor.isBlank()) {
-            String[] parts = decode(cursor, "L", 4, "cursor");
+            String[] parts = decode(cursor, "L", 4);
             if (!parts[1].equals(challengeId.toString()) || !parts[2].equals(viewer.toString())) throw invalidCursor(cursor);
             try { at = Instant.parse(parts[3]); after = UUID.fromString(parts[4]); }
             catch (RuntimeException invalid) { throw invalidCursor(cursor); }
@@ -360,7 +360,7 @@ class PostgresEntryRepository implements EntryRepository {
         List<Integer> ranks;
         int offset;
         if (cursor != null && !cursor.isBlank()) {
-            String[] parts = decode(cursor, "S", 2, "cursor");
+            String[] parts = decode(cursor, "S", 2);
             try { snapshot = UUID.fromString(parts[1]); offset = Integer.parseInt(parts[2]); }
             catch (RuntimeException invalid) { throw invalidCursor(cursor); }
             var held = NativeTuples.list(em.createNativeQuery("""
@@ -461,14 +461,6 @@ class PostgresEntryRepository implements EntryRepository {
 
     // ── 잠금 ─────────────────────────────────────────────────────────────────
 
-    private void lockActive(UUID owner) {
-        var owners = NativeTuples.list(em.createNativeQuery("SELECT status FROM users WHERE id=:owner FOR UPDATE", Tuple.class)
-                .setParameter("owner", owner));
-        if (owners.isEmpty() || !"active".equals(owners.getFirst().get("status", String.class))) {
-            throw new ApiException(403, "account_deactivated");
-        }
-    }
-
     private Tuple lockChallenge(UUID id) {
         var rows = NativeTuples.list(em.createNativeQuery(
                 "SELECT id,moderation,deleted_at,starts_at,ends_at FROM challenges WHERE id=:id FOR UPDATE", Tuple.class)
@@ -498,30 +490,6 @@ class PostgresEntryRepository implements EntryRepository {
         if (rows.isEmpty()) throw new ApiException(404, "entry_not_found");
         return rows.getFirst();
     }
-
-    // ── 커서 ─────────────────────────────────────────────────────────────────
-
-    private static String encode(String kind, String... parts) {
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(
-                (kind + "|" + String.join("|", parts)).getBytes(StandardCharsets.UTF_8));
-    }
-
-    private static String[] decode(String raw, String kind, int size, String field) {
-        try {
-            if (raw.length() > 512) throw new IllegalArgumentException();
-            String[] parts = new String(Base64.getUrlDecoder().decode(raw), StandardCharsets.UTF_8).split("\\|", -1);
-            if (parts.length != size + 1 || !parts[0].equals(kind)) throw new IllegalArgumentException();
-            return parts;
-        } catch (IllegalArgumentException invalid) {
-            throw invalidCursor(raw);
-        }
-    }
-
-    private static ApiValidationException invalidCursor(String raw) {
-        return ApiValidationException.valueError(List.of("query", "cursor"), "Value error, invalid cursor", raw);
-    }
-
-    private static long number(Tuple row, String column) { return ((Number) row.get(column)).longValue(); }
 
     private static List<String> split(String joined) {
         return joined == null || joined.isEmpty() ? List.of() : List.of(joined.split(","));

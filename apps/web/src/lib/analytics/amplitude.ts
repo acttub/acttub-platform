@@ -57,10 +57,9 @@ export type PracticeStartFailurePoint = "preflight" | UploadStage | "session_cre
 let started = false;
 // SDK는 한 번만 init하되, 게스트의 끝·재동의 요구 뒤에는 남아 있는 인스턴스로 이벤트를
 // 보내지 않는다. 다시 동의 조건을 만족해 startAmplitude가 불리면 같은 인스턴스를 켠다.
+// `measuring` 은 우리가 직접 쏘는 이벤트만 막는다 — autocapture 와 세션 리플레이는 SDK 가
+// 스스로 보내므로 SDK 의 opt-out 으로 멈춘다. 그 opt-out 은 `started && !measuring` 과 같다.
 let measuring = false;
-// SDK 의 opt-out. `measuring` 은 우리가 직접 쏘는 이벤트만 막는다 — autocapture 와 세션
-// 리플레이는 SDK 가 스스로 보내므로 이것으로 멈춰야 한다(stopAmplitude).
-let optedOut = false;
 
 /**
  * Amplitude를 켠다. 호출부가 게스트의 개인정보 동의를 확인한 뒤에만 부른다.
@@ -77,15 +76,13 @@ export function startAmplitude(): void {
     return;
   }
 
-  measuring = true;
   if (started) {
-    if (optedOut) {
-      amplitude.setOptOut(false);
-      optedOut = false;
-    }
+    if (!measuring) amplitude.setOptOut(false);
+    measuring = true;
     return;
   }
   started = true;
+  measuring = true;
   // 리플레이 플러그인은 init 앞에 붙여야 첫 세션부터 잡힌다.
   // ⚠️ 여기 sampleRate 는 최종값이 아니다 — Amplitude 프로젝트의 원격 설정이 덮는다.
   //    실제 적용값은 sr-client-cfg.amplitude.com 응답에서 확인한다(ANALYTICS.md §1(2)).
@@ -117,10 +114,8 @@ export function setAmplitudeUser(userId: string): void {
  * 기기로 세면 같은 게스트가 여럿으로 갈린다. 다른 게스트로 켜질 때 setAmplitudeUser 가 끊는다.
  */
 export function stopAmplitude(): void {
+  if (started && measuring) amplitude.setOptOut(true);
   measuring = false;
-  if (!started || optedOut) return;
-  amplitude.setOptOut(true);
-  optedOut = true;
 }
 
 /** 파일 크기는 원본 byte 대신 보고서에 필요한 네 구간만 남긴다. */

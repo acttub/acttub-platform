@@ -3,7 +3,6 @@ package com.acttub.actingapi.platform.observability;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Base64;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Executor;
@@ -340,9 +339,5 @@ public class LangfuseTelemetry implements LlmTelemetry {
     /** 시험이 쓰는 자리 — 지금까지 버린 건수. */
     long droppedCount() {
         return dropped.get();
-    }
-
-    Map<String, String> configuredHost() {
-        return Map.of("host", host);
     }
 }

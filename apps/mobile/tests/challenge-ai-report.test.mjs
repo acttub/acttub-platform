@@ -2,11 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-  AI_REPORT_DAILY_LIMIT,
   AI_REPORT_MIN_SAMPLES,
   canRequest,
   evidenceLabel,
-  evidenceStartSeconds,
   reportRequestFailure,
   reportSections,
   requestNotice,
@@ -51,12 +49,8 @@ test('challenge.ai-report: 표본이 3개 미만이면 관찰만 두고 부족�
   assert.notEqual(comparisons.notice, null);
 });
 
-test('challenge.ai-report: 근거 구간은 그 자리부터 다시 볼 수 있게 시각을 준다', () => {
-  const evidence = { start_ms: 41_000, end_ms: 45_500 };
-
-  assert.equal(evidenceStartSeconds(evidence), 41);
-  assert.equal(evidenceLabel(evidence), '0:41–0:46');
-  assert.equal(evidenceStartSeconds({ start_ms: -5 }), 0);
+test('challenge.ai-report: 근거 구간은 시각으로 보인다', () => {
+  assert.equal(evidenceLabel({ start_ms: 41_000, end_ms: 45_500 }), '0:41–0:46');
 });
 
 test('challenge.ai-report: 상태마다 다른 문구를 보이고 실패 뒤에만 다시 시도가 뜬다', () => {
@@ -70,7 +64,6 @@ test('challenge.ai-report: 상태마다 다른 문구를 보이고 실패 뒤에
 });
 
 test('challenge.ai-report: 하루 세 번이고 다시 시도도 한 번을 쓴다고 알린다', () => {
-  assert.equal(AI_REPORT_DAILY_LIMIT, 3);
   assert.match(requestNotice(null), /세 번/);
   assert.match(requestNotice(report({ status: 'failed' })), /새로 만들어요/);
 });

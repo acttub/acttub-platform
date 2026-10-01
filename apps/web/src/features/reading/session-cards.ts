@@ -1,26 +1,10 @@
 /**
  * 대본 상세의 회차 카드가 보여 주는 말(reading.session). 순수 함수라 화면 없이 테스트한다.
  */
-import type { SessionCard, SessionDetail } from "@/lib/reading/api-types";
+import type { SessionDetail } from "@/lib/reading/api-types";
 import { dialogueNumbers } from "@/lib/reading/script/parse";
 import { indexOfLine } from "@/lib/reading/session/range";
 import type { StoredScript } from "@/lib/reading/storage";
-import { myCharactersLabel, sessionStatusLabel } from "@/features/reading/session-copy";
-
-export function sessionCardLine(card: SessionCard): string {
-  const parts = [
-    `${card.ordinal}회차`,
-    sessionStatusLabel(card.status),
-    myCharactersLabel(card.my_character_names),
-    `내 대사 ${card.my_dialogue_count}개 중 ${card.recorded_line_count}개 녹음`,
-    elapsedLabel(card.elapsed_seconds),
-  ];
-  return parts.join(" · ");
-}
-
-export function elapsedLabel(seconds: number): string {
-  return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
-}
 
 export function sessionDateLabel(iso: string, timeZone?: string): string {
   const d = new Date(iso);

@@ -57,7 +57,7 @@ class AnalysisWorkerConfiguration {
     }
 
     /**
-     * 1.0.0 회차의 분석 워커 (practice.analyze). 위와 <b>같은 워커 클래스</b>에 다른 저장소를 끼운다 — 영상을
+     * 0.1.0 회차의 분석 워커 (practice.analyze). 위와 <b>같은 워커 클래스</b>에 다른 저장소를 끼운다 — 영상을
      * 내려받고 etag 를 견주고 실패를 분류하고 lease 를 다루는 규칙은 한 벌이어야 하기 때문이다. 갈리는 것은
      * 무엇을 집고(=ai_jobs) 어디에 쓰는가(=analyses·video_transcripts)뿐이다.
      */

@@ -31,11 +31,6 @@ public final class DirectVideoCoach {
     private final boolean practiceLoop;
 
     public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
-            FailureReporter failures, LlmTelemetry telemetry) {
-        this(model, videos, storage, failures, telemetry, false);
-    }
-
-    public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
             FailureReporter failures, LlmTelemetry telemetry, boolean practiceLoop) {
         this.practiceLoop = practiceLoop;
         this.model = model;

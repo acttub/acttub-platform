@@ -1,10 +1,7 @@
 package com.acttub.actingapi.feature.challenge.app;
 
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.util.Arrays;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -22,6 +19,7 @@ import com.acttub.actingapi.feature.challenge.app.ReportRepository.NewReport;
 import com.acttub.actingapi.feature.challenge.domain.ChallengeRules;
 import com.acttub.actingapi.platform.web.ApiValidationException;
 import com.acttub.actingapi.platform.web.CanonicalJson;
+import com.acttub.actingapi.platform.web.Hashing;
 import org.springframework.stereotype.Service;
 
 /** 좋아요·저장·댓글·차단·신고 (challenge.react, challenge.block, challenge.report). 모양 검사와 요청 지문은 여기서 한다. */
@@ -82,7 +80,7 @@ public class ReactionService {
         if (!Set.of("received", "reviewed").contains(status)) {
             throw ApiValidationException.valueError(List.of("query", "status"), "Value error, invalid status", status);
         }
-        return reports.list(status, cursor, clock.instant());
+        return reports.list(status, cursor);
     }
 
     public AdminReport resolve(UUID id, String resolution, String reviewer, String rawNote) {
@@ -98,7 +96,6 @@ public class ReactionService {
     }
 
     private String fingerprint(Object body) {
-        try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(canonical.bytes(body))); }
-        catch (NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
+        return Hashing.sha256Hex(canonical.bytes(body));
     }
 }

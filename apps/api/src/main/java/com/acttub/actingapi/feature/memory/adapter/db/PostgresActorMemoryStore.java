@@ -8,7 +8,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +21,7 @@ import com.acttub.actingapi.feature.memory.app.MemoryUpdateMaterial;
 import com.acttub.actingapi.feature.memory.domain.AgentMemoryWrites;
 import com.acttub.actingapi.platform.ledger.AiJobLedger;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
+import com.acttub.actingapi.platform.web.Hashing;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
@@ -31,10 +31,10 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 1.0.0 배우 기억의 Postgres 구현 — {@code actor_memories}·{@code users.memory_epoch}·{@code ai_jobs} (V14).
+ * 0.1.0 배우 기억의 Postgres 구현 — {@code actor_memories}·{@code users.memory_epoch}·{@code ai_jobs} (V14).
  *
  * <p>옛 {@link PostgresMemoryRepository}({@code actor_memory_entries})와 다른 표를 본다. <b>이관의 주인
- * 바꾸기는 여기로 옮겼다</b> — 이관은 두 표를 함께 다뤄야 하는데, 그 앎을 1.0.0 저장소 한 곳에 두는 편이
+ * 바꾸기는 여기로 옮겼다</b> — 이관은 두 표를 함께 다뤄야 하는데, 그 앎을 0.1.0 저장소 한 곳에 두는 편이
  * 옛 저장소에 새 표를 알리는 것보다 짧다.
  *
  * <p>기억 세대는 {@code users} 행에 있다. 삭제와 이관 선택이 올리고, 갱신 작업은 예약 시점의 세대를 들고
@@ -215,7 +215,7 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
                     .setParameter("id", UUID.randomUUID())
                     .setParameter("practiceId", practiceId)
                     .setParameter("requestId", requestId)
-                    .setParameter("fingerprint", sha256Hex("memory_update:" + practiceId))
+                    .setParameter("fingerprint", Hashing.sha256Hex("memory_update:" + practiceId))
                     .setParameter("userId", userId)
                     .setParameter("now", now.atOffset(ZoneOffset.UTC))).isEmpty();
         }));
@@ -406,8 +406,11 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
                 row.get("updated_at", Instant.class));
     }
 
-    /** RFC 4122 v5 (SHA-1). 같은 회차가 언제나 같은 요청 id 를 갖는다. */
-    private static UUID uuid5(UUID namespace, String name) {
+    /**
+     * RFC 4122 v5 (SHA-1). 같은 회차가 언제나 같은 요청 id 를 갖는다. {@code UUID.nameUUIDFromBytes} 는
+     * v3(MD5)라 쓰지 않는다.
+     */
+    static UUID uuid5(UUID namespace, String name) {
         byte[] nameBytes = name.getBytes(StandardCharsets.UTF_8);
         ByteBuffer buffer = ByteBuffer.allocate(16 + nameBytes.length);
         buffer.putLong(namespace.getMostSignificantBits());
@@ -418,10 +421,6 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
         hash[8] = (byte) ((hash[8] & 0x3f) | 0x80);
         ByteBuffer out = ByteBuffer.wrap(hash, 0, 16);
         return new UUID(out.getLong(), out.getLong());
-    }
-
-    private static String sha256Hex(String value) {
-        return HexFormat.of().formatHex(digest("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
     }
 
     private static MessageDigest digest(String algorithm) {

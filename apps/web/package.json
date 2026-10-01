@@ -22,7 +22,6 @@
     "@amplitude/plugin-session-replay-browser": "^1.33.7",
     "@mediabunny/aac-encoder": "^1.50.9",
     "@sentry/nextjs": "10.69.0",
-    "fft.js": "^4.0.4",
     "hwp.js": "^0.0.3",
     "mammoth": "^1.12.1",
     "mediabunny": "^1.50.9",

@@ -3,11 +3,8 @@
  * 상대역을 등장 순서로 세워 F1·M1·F2·M2·… 를 순환 배정한다. 고정한 배역은 순환에서 빠지고, 같은
  * 프리셋을 여러 배역에 줄 수 있다. 기기가 모르는 값은 자동으로 다룬다.
  */
-import { VOICE_PRESETS, type VoicePreset } from "@/lib/reading/audio/supertonic/models";
+import { PRESET_CYCLE, VOICE_PRESETS, type VoicePreset } from "@/lib/reading/audio/supertonic/models";
 import { assignVoices, type RoleVoice } from "@/lib/reading/audio/tts";
-
-/** 남녀가 번갈아 나오도록 섞어 둔 순환 순서(웹 현행 방식) */
-export const PRESET_CYCLE: VoicePreset[] = ["F1", "M1", "F2", "M2", "F3", "M3", "F4", "M4", "F5", "M5"];
 
 export function isVoicePreset(value: string | null | undefined): value is VoicePreset {
   return typeof value === "string" && (VOICE_PRESETS as readonly string[]).includes(value);

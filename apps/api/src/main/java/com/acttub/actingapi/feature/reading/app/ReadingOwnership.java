@@ -3,7 +3,7 @@ package com.acttub.actingapi.feature.reading.app;
 import java.util.UUID;
 
 /**
- * 리딩 자료의 주인 바꾸기 — 웹 게스트의 자료를 앱 회원에게 옮길 때 이관이 부른다 (account.guest, 03-reading
+ * 리딩 자료의 주인 바꾸기 — 웹 게스트의 자료를 앱 회원에게 옮길 때 이관이 부른다 (account.guest, specs/reading
  * 「리딩 자료의 이관·삭제·탈퇴」).
  *
  * <p>대본·회차·녹음·암기 상태의 {@code user_id} 만 바꾸므로 배역·줄·객체가 그대로 따라간다. 게스트와 회원의

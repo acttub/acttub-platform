@@ -31,7 +31,7 @@ test("답이 오면 받은 시각의 오늘을 함께 준다", () => {
   // 사용자가 사는 시간대로 자른다. UTC 로 자르면 한국 오전에 하루가 밀린다.
   const at = new Date(2026, 7, 19, 9, 30).getTime();
 
-  const result = answeredAdmissions({ state: "ready", data: payload, receivedAt: at });
+  const result = answeredAdmissions({ state: "ready", data: payload, receivedAt: at }, payload);
 
   assert.equal(result.payload, payload);
   assert.equal(result.today, "2026-08-19");
@@ -41,7 +41,7 @@ test("한 자리 달·날은 0 을 채운다 — 서버가 주는 마감일과 �
   const at = new Date(2026, 0, 5, 23, 59).getTime();
 
   assert.equal(
-    answeredAdmissions({ state: "ready", data: payload, receivedAt: at }).today,
+    answeredAdmissions({ state: "ready", data: payload, receivedAt: at }, payload).today,
     "2026-01-05",
   );
 });

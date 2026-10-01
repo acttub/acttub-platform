@@ -22,7 +22,7 @@ export function RunPage() {
     onFinish: (st: RunStats) => {
       storage.saveStats(st);
       // 배역 화면의 기본 선택이 이번 회차의 내 배역이 되도록 캐시의 마지막 회차를 갱신한다.
-      storage.saveScript({ ...script, openSessionId: null, lastSession: { id: session.id, status: "completed", myCharacterIds: session.my_character_ids } });
+      storage.saveScript({ ...script, lastSession: { myCharacterIds: session.my_character_ids } });
       router.push(STEP_PATH.done);
     },
   };

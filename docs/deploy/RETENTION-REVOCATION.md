@@ -1,17 +1,16 @@
 # 보관 동의 철회 처리 절차
 
 탈퇴한 사람이 "탈퇴 후 영상·녹음 보관·활용" 동의를 거두겠다고 요청했을 때 개발자가 DB와 저장소에서 직접
-처리하는 절차다. 앱 안에 철회 화면은 없고 운영 도구도 만들지 않는다 — 요청이 드물기 때문이다
-([01-account.md](../requirements/01-account.md) account.withdraw, [ADR-029](../ADR.md)).
+처리하는 절차다. 창구·본인 확인 방식·무엇을 파기하는지는 [account.withdraw](../specs/account/withdraw.md#규칙제약)가
+정한다. 이 문서는 그 규칙을 손으로 실행하는 순서만 적는다.
 
-끝났다고 말할 수 있는 조건은 셋이다: **본인 확인을 했고, 그 계정의 영상 객체가 저장소에 없고, 동의 기록의
-마지막 줄이 `revoked` 다.**
+끝났다고 말할 수 있는 조건은 넷이다: **본인 확인을 했고, 그 계정의 영상·포스터·녹음 객체가 저장소에 없고,
+보관함 영상 행에 파기 표시(`purged_at`)가 찍혔고 녹음 행(전사 포함)이 없고, 동의 기록의 마지막 줄이
+`revoked` 다.** 파기하는 범위는 서버가 탈퇴 3년 뒤에 스스로 하는 파기(`PostgresProfileRepository#purgeRetained`)와
+같다.
 
-- 창구는 개인정보 처리방침의 연락처다. 요청은 그리로 들어온다.
-- 대상은 **탈퇴한 지 3년이 안 된 회원 계정**뿐이다. 3년이 지나면 매일 도는 일이 해시 행과 영상을 이미
+- 대상은 **탈퇴한 지 3년이 안 된 회원 계정**뿐이다. 3년이 지나면 매일 도는 일이 해시 행과 영상·녹음을 이미
   파기했다(`users.retention_purged_at` 이 차 있다). 게스트는 선택 문서를 묻지 않으므로 대상이 아니다.
-- 서버가 맡아 둔 **녹음은 지금 없다**(리딩의 녹음은 기기 안에 있다). 녹음이 서버에 붙으면 3단계에 그 객체를
-  더한다.
 - 이 문서에는 비밀값을 적지 않는다. 명령은 환경변수의 **이름**만 쓴다. 제공자 ID·해시·이메일을 터미널 밖
   (채팅, 이슈, 이 문서)에 옮겨 적지 않는다.
 
@@ -97,11 +96,17 @@ WHERE identities.provider = :'provider'
   않는다 — 남의 영상을 지우게 된다. 개인정보 보호책임자와 다른 확인 수단을 정한 뒤에만 진행하고, 정하지 못하면
   그 영상은 탈퇴 3년 뒤의 파기를 기다린다.
 
-## 3. 영상 객체를 파기한다
+## 3. 영상·녹음 객체를 파기한다
 
 ```sql
--- 이 계정이 올린 영상의 객체 키. 연습 행은 남기고 객체만 지운다.
-SELECT object_key FROM upload_intents WHERE user_id = :'old_user_id' ORDER BY created_at;
+-- 이 계정의 객체 키: 옛 예약 장부의 영상, 보관함 영상과 그 포스터, 보관해 둔 리딩 녹음.
+SELECT object_key FROM upload_intents WHERE user_id = :'old_user_id'
+UNION
+SELECT object_key FROM videos WHERE user_id = :'old_user_id' AND purged_at IS NULL
+UNION
+SELECT poster_key FROM videos WHERE user_id = :'old_user_id' AND purged_at IS NULL AND poster_key IS NOT NULL
+UNION
+SELECT object_key FROM reading_recordings WHERE user_id = :'old_user_id';
 
 -- 보관 동의가 실제로 살아 있었는지도 함께 본다(마지막 결정과 그 문서).
 SELECT consents.action, consents.occurred_at, documents.id AS document_id, documents.version
@@ -112,13 +117,16 @@ ORDER BY consents.occurred_at DESC, consents.id DESC
 LIMIT 1;
 ```
 
-마지막 결정이 `granted` 가 아니면(거절했거나 이미 철회했다) 영상은 탈퇴 때 이미 파기 대상이었다. 그래도 아래
+마지막 결정이 `granted` 가 아니면(거절했거나 이미 철회했다) 영상·녹음은 탈퇴 때 이미 파기 대상이었다. 그래도 아래
 확인은 끝까지 한다 — 지워졌어야 할 객체가 남아 있으면 지운다.
 
-객체는 영상 버킷(`.env` 의 `S3_BUCKET`, 리전 `AWS_REGION`)에 있다. 키마다:
+4단계가 녹음 행을 지우면 녹음 키를 다시 읽을 수 없다. **키마다 삭제하고 404 를 확인한 뒤에** 4단계로 간다.
+
+객체는 앱 버킷(`.env` 의 `S3_BUCKET`, 리전 `AWS_REGION`)에 있다. 녹음 키는 `reading/` 로 시작한다. 키마다:
 
 ```sh
 aws s3api delete-object --bucket "$S3_BUCKET" --key '<object_key>'
+aws s3api head-object --bucket "$S3_BUCKET" --key '<object_key>'   # 404 여야 한다
 ```
 
 버킷에 **버전 관리**가 켜져 있으면 위 명령은 삭제 표시만 남긴다. 먼저 확인하고, 켜져 있으면 그 키의 모든
@@ -135,12 +143,16 @@ aws s3api list-object-versions --bucket "$S3_BUCKET" --prefix '<object_key>' \
 만들 수 없다. 이미 올라가 있는 이 계정의 `object_delete` 행은 그대로 둔다(같은 키를 다시 지우는 것은 실패가
 아니다).
 
-## 4. 철회를 기록한다
+## 4. 파기 표시와 철회를 기록한다
 
-동의 기록은 고쳐 쓰지 않고 **덧붙인다.** 마지막으로 결정했던 그 문서 판에 `revoked` 한 줄을 더한다.
+보관함 영상 행은 지우지 않고 파기 표시를 찍는다(회차·참여작 기록이 깨지지 않고 재생이 막힌다). 녹음 행은 음성과
+전사째 지운다. 동의 기록은 고쳐 쓰지 않고 **덧붙인다** — 마지막으로 결정했던 그 문서 판에 `revoked` 한 줄을 더한다.
 
 ```sql
 BEGIN;
+UPDATE videos SET purged_at = now(), updated_at = now()
+WHERE user_id = :'old_user_id' AND purged_at IS NULL;
+DELETE FROM reading_recordings WHERE user_id = :'old_user_id';
 INSERT INTO user_consents (id, user_id, document_id, action, occurred_at)
 VALUES (gen_random_uuid(), :'old_user_id', :'document_id', 'revoked', now());   -- document_id 는 3단계에서 읽은 값
 -- 확인한 뒤에 COMMIT. 한 행이 더해졌는지 본다.
@@ -150,27 +162,25 @@ ORDER BY occurred_at DESC, id DESC LIMIT 2;
 COMMIT;
 ```
 
-보관 문서에 결정한 기록이 아예 없으면(3단계의 둘째 질의가 0행) 철회로 적을 동의가 없다 — 행을 만들지 않고
-5단계의 객체 확인만 한다.
+보관 문서에 결정한 기록이 아예 없으면(3단계의 둘째 질의가 0행) 철회로 적을 동의가 없다 — `INSERT` 만 빼고
+나머지는 그대로 한다.
 
 옛 계정의 다른 것은 건드리지 않는다: `users` 행, 해시 행(3년 뒤 매일 도는 일이 지운다), 연습·분석·대화·노트
 행, 가명처리해 남긴 프로필. 요청자의 **새 계정**도 건드리지 않는다.
 
 ## 5. 확인한다
 
-```sh
-# 키마다 404 여야 한다.
-aws s3api head-object --bucket "$S3_BUCKET" --key '<object_key>'
-```
-
 ```sql
--- 마지막 결정이 revoked 다.
-SELECT consents.action
-FROM user_consents AS consents
-JOIN consent_documents AS documents ON documents.id = consents.document_id
-WHERE consents.user_id = :'old_user_id' AND documents.type = 'retention'
-ORDER BY consents.occurred_at DESC, consents.id DESC
-LIMIT 1;
+-- 파기 표시가 없는 영상과 녹음 행이 0 이고, 마지막 결정이 revoked 다.
+SELECT
+  (SELECT count(*) FROM videos WHERE user_id = :'old_user_id' AND purged_at IS NULL) AS videos_left,
+  (SELECT count(*) FROM reading_recordings WHERE user_id = :'old_user_id') AS recordings_left,
+  (SELECT consents.action
+     FROM user_consents AS consents
+     JOIN consent_documents AS documents ON documents.id = consents.document_id
+    WHERE consents.user_id = :'old_user_id' AND documents.type = 'retention'
+    ORDER BY consents.occurred_at DESC, consents.id DESC
+    LIMIT 1) AS last_action;
 ```
 
 둘 다 맞으면 요청자에게 처리했다고 알린다. 처리 기록(요청 받은 날, 처리한 날, 처리한 사람, 옛 계정의
@@ -178,8 +188,9 @@ LIMIT 1;
 
 ## 알아 둘 것
 
-- **DB 백업**에는 철회 전의 동의 기록이 남아 있지만 영상 객체는 백업에 없다(백업은 `pg_dump` 다). 백업으로
-  복원했다면 복원 시점 뒤의 철회를 이 절차로 다시 적용한다.
+- **DB 백업**에는 철회 전의 동의 기록과 녹음의 전사(텍스트)가 남는다([DEPLOY-HOME §5](DEPLOY-HOME.md#5-자동-백업과-복원-검증)의
+  보관 기간 동안). 영상·녹음 객체는 백업에 없다(백업은 `pg_dump` 다). 백업으로 복원했다면 복원 시점 뒤의 철회를 이
+  절차로 다시 적용한다.
 - 영상을 지운 뒤에도 `upload_intents` 행과 그 `object_key` 는 남는다. 탈퇴 3년 뒤의 파기가 같은 키의 삭제를
   한 번 더 시도하고, 없는 객체의 삭제는 성공으로 끝난다.
 - 절차를 바꿔야 하면(해시 식, 키 판, 테이블) 서버 코드와 함께 고친다. 식이 어긋나면 `AccountSecretsTest` 의

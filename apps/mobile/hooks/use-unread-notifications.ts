@@ -10,7 +10,7 @@ import { badgeText } from '@/lib/challenge/notification-center';
  * 앱을 열 때와 배경에서 돌아올 때 읽는다. 실패하면 배지를 달지 않는다 — 배지 때문에 화면이
  * 멈추지 않는다. 챌린지가 열리지 않은 사람(게스트·한국어 아님)은 부르지 않는다.
  */
-export function useUnreadNotifications(enabled: boolean): { count: number; badge: string | null; refresh: () => void } {
+export function useUnreadNotifications(enabled: boolean): { count: number; badge: string | null } {
   const [count, setCount] = useState(0);
 
   const refresh = useCallback(() => {
@@ -32,5 +32,5 @@ export function useUnreadNotifications(enabled: boolean): { count: number; badge
     return () => subscription.remove();
   }, [refresh]);
 
-  return { count, badge: badgeText(count), refresh };
+  return { count, badge: badgeText(count) };
 }

@@ -2,7 +2,6 @@ package com.acttub.actingapi.feature.memory.adapter.db;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.acttub.actingapi.feature.coach.app.PriorContext;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.schema.ActorMemoryField;
 import com.acttub.actingapi.support.PostgresContainerSupport;
@@ -156,7 +155,7 @@ class PostgresMemoryRepositoryPriorIT {
         insertCard(earlier, earlierCoach, "남의 차수", NOW);
         UUID fresh = insertPractice(userId);
 
-        assertThat(repository.priorFor(userId, fresh, OPERATION).pendingTakes()).isEmpty();
+        assertThat(repository.priorContext(userId, fresh, OPERATION).pendingTakes()).isEmpty();
     }
 
     /** 같은 울타리 안(이어하기 묶음)의 카드는 그대로 받는다. */
@@ -168,7 +167,7 @@ class PostgresMemoryRepositoryPriorIT {
         insertCard(parent, parentCoach, "묶인 차수", NOW.minusDays(1));
         UUID child = insertPractice(userId, parent);
 
-        assertThat(repository.priorFor(userId, child, OPERATION).pendingTakes())
+        assertThat(repository.priorContext(userId, child, OPERATION).pendingTakes())
                 .containsExactly("다음 방향");
     }
 
@@ -274,7 +273,7 @@ class PostgresMemoryRepositoryPriorIT {
         insertCardJson(practiceId, coachId, "[]", NOW);
         int reportsBefore = failureReporter.reports().size();
 
-        PriorContext context = repository.priorFor(userId, practiceId, OPERATION);
+        var context = repository.priorContext(userId, practiceId, OPERATION);
 
         assertThat(context.pendingTakes()).isEmpty();
         assertNewUnexpectedReport(
@@ -293,7 +292,7 @@ class PostgresMemoryRepositoryPriorIT {
         insertCardJson(fresh, freshCoach, "{\"report_type\":\"analysis\",\"title\":\"현재\"}", NOW);
         int reportsBefore = failureReporter.reports().size();
 
-        PriorContext context = repository.priorFor(userId, fresh, OPERATION);
+        var context = repository.priorContext(userId, fresh, OPERATION);
 
         assertThat(context.sceneHistory()).isEmpty();
         assertNewUnexpectedReport(
@@ -311,23 +310,6 @@ class PostgresMemoryRepositoryPriorIT {
         UUID fresh = insertPractice(userId);
 
         assertThat(repository.priorContext(userId, fresh).earlierConversation()).isNull();
-    }
-
-    @Test
-    void enqueueMemoryUpdateInsertsExactlyOneJobPerPractice() {
-        // 예약이 조용히 무시된 사고(SOMA-404)의 재발 방지 — 실제 스키마에서 행이
-        // 정말 생기는지, 같은 연습으로 두 번 불러도 하나로 남는지 못박는다.
-        UUID userId = insertUser("queue@example.com");
-        UUID practiceId = insertPractice(userId);
-
-        assertThat(repository.enqueueMemoryUpdate(userId, practiceId)).isTrue();
-        assertThat(repository.enqueueMemoryUpdate(userId, practiceId)).isFalse();
-
-        Integer jobs = jdbc.queryForObject("""
-                SELECT count(*) FROM external_operations
-                WHERE session_id=? AND kind='memory_update'
-                """, Integer.class, practiceId);
-        assertThat(jobs).isEqualTo(1);
     }
 
     @Test

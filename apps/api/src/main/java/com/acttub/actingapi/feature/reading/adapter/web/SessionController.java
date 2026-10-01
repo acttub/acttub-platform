@@ -20,6 +20,7 @@ import com.acttub.actingapi.feature.reading.app.SessionViews;
 import com.acttub.actingapi.feature.reading.domain.LineResult;
 import com.acttub.actingapi.feature.reading.domain.SessionPlan;
 import com.acttub.actingapi.platform.security.AccessGate;
+import com.acttub.actingapi.platform.web.RequestIdHeader;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;

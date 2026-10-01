@@ -15,8 +15,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * <b>되돌릴 수 있는가</b> — 1.0.0 스키마가 올라간 DB 에서 직전 태그의 서버가 그대로 뜨고 옛 자료를 읽는지를
- * 스키마로 못박는다 (02-practice 「1.0.0 스키마 전환」, BRANCHING-STRATEGY 「DB와 배포 안전성」).
+ * <b>되돌릴 수 있는가</b> — 0.1.0 스키마가 올라간 DB 에서 직전 태그의 서버가 그대로 뜨고 옛 자료를 읽는지를
+ * 스키마로 못박는다 (specs/practice 「0.1.0 스키마 전환」, BRANCHING-STRATEGY 「DB와 배포 안전성」).
  *
  * <p>롤백은 <b>Flyway 를 되감는 것이 아니다.</b> 되감을 수 없으므로(내리기 마이그레이션이 없다) 대신
  * "새 것을 더하기만 한다" 를 지킨다. 그러면 옛 서버는 자기가 아는 표만 보고 새 표는 존재조차 모른다.
@@ -24,7 +24,7 @@ import org.junit.jupiter.api.Test;
  * <p>여기서 보는 것 둘:
  *
  * <ol>
- *   <li><b>옛 표의 모양이 한 칸도 바뀌지 않았다</b> — V13(1.0.0 직전)까지 적용한 DB 와 전부 적용한 DB 의
+ *   <li><b>옛 표의 모양이 한 칸도 바뀌지 않았다</b> — V13(0.1.0 직전)까지 적용한 DB 와 전부 적용한 DB 의
  *       fingerprint 를 옛 표만 추려 견준다. 하나라도 다르면 옛 서버의 {@code validate} 가 죽는다.</li>
  *   <li><b>새 표는 더해지기만 했다</b> — 표가 늘기만 하고 사라지지 않았다. Hibernate 의 {@code validate}
  *       는 <b>매핑이 없는 여분 표를 보지 않으므로</b>(이 저장소의 모든 @SpringBootTest 가 매 실행 증명한다 —
@@ -36,11 +36,11 @@ import org.junit.jupiter.api.Test;
  */
 class PracticeRollbackCompatibilityTest {
 
-    /** 1.0.0 이 넓히기를 시작하기 직전의 판. 이 뒤로는 <b>더하기만</b> 했다. */
+    /** 0.1.0 이 넓히기를 시작하기 직전의 판. 이 뒤로는 <b>더하기만</b> 했다. */
     private static final String BEFORE_ONE_ZERO = "13";
 
     /**
-     * 롤백한 옛 서버가 읽어야 하는 표들. 1.0.0 이 새로 만든 표와 {@code flyway_schema_history} 만 빼면
+     * 롤백한 옛 서버가 읽어야 하는 표들. 0.1.0 이 새로 만든 표와 {@code flyway_schema_history} 만 빼면
      * 나머지는 전부 여기 든다 — 굳이 이름을 적는 것은 "무엇이 옛 것인가" 가 이 검사의 전제이기 때문이다.
      */
     private static final List<String> NEW_IN_ONE_ZERO = List.of(
@@ -48,10 +48,11 @@ class PracticeRollbackCompatibilityTest {
             "coach_messages", "coach_notes", "actor_memories", "practice_feedback", "ai_jobs",
             "practice_migration_entries", "challenges", "challenge_entries", "entry_likes", "user_blocks",
             "entry_view_events", "entry_ranking_snapshots", "entry_saves", "entry_comments", "entry_reports",
-            "entry_ai_reports", "notifications", "notification_pushes", "note_ratings");
+            "entry_ai_reports", "notifications", "notification_pushes", "note_ratings",
+            "reading_voice_cache", "reading_voice_usage", "evening_reminder_sends");
 
     @Test
-    @DisplayName("1.0.0 은 옛 표를 한 칸도 바꾸지 않았다 — 예약 장부에 더한 NULL 허용 컬럼 셋과 users 의 둘 "
+    @DisplayName("0.1.0 은 옛 표를 한 칸도 바꾸지 않았다 — 예약 장부에 더한 NULL 허용 컬럼 셋과 users 의 둘 "
             + "말고는 V13 의 모양 그대로다")
     void expandingToOneZeroLeavesEveryLegacyTableUntouched() throws Exception {
         List<String> before = fingerprintAt(BEFORE_ONE_ZERO);
@@ -66,7 +67,7 @@ class PracticeRollbackCompatibilityTest {
     }
 
     @Test
-    @DisplayName("1.0.0 은 표를 더하기만 했다 — V13 에 있던 표가 하나도 사라지지 않았고 새 표는 매핑 없이 남아 "
+    @DisplayName("0.1.0 은 표를 더하기만 했다 — V13 에 있던 표가 하나도 사라지지 않았고 새 표는 매핑 없이 남아 "
             + "옛 서버의 validate 가 무시한다")
     void expandingToOneZeroOnlyAddsTables() throws Exception {
         List<String> before = tableNames(fingerprintAt(BEFORE_ONE_ZERO));
@@ -78,7 +79,7 @@ class PracticeRollbackCompatibilityTest {
     }
 
     @Test
-    @DisplayName("V13 까지만 적용한 DB 에도 1.0.0 마이그레이션을 이어 붙일 수 있다 — 되돌렸다가 다시 올리는 "
+    @DisplayName("V13 까지만 적용한 DB 에도 0.1.0 마이그레이션을 이어 붙일 수 있다 — 되돌렸다가 다시 올리는 "
             + "길이 막히지 않는다")
     void theOneZeroMigrationsApplyOnTopOfTheVersionBeforeThem() throws Exception {
         String jdbcUrl = PostgresContainerSupport.createDatabase("rollback_forward");
@@ -99,8 +100,8 @@ class PracticeRollbackCompatibilityTest {
         }
     }
 
-    /** V14~V23 — 연습·챌린지·노트 평가·보관함 포스터가 더한 마이그레이션의 수. 더 늘면 이 값을 함께 올린다. */
-    private static final int NEW_MIGRATIONS = 10;
+    /** V14~V24 — 연습·챌린지·노트 평가·보관함 포스터·고품질 목소리가 더한 마이그레이션의 수. 더 늘면 이 값을 함께 올린다. */
+    private static final int NEW_MIGRATIONS = 12;
 
     private static List<String> fingerprintAt(String target) throws Exception {
         String jdbcUrl = PostgresContainerSupport.createDatabase(
@@ -117,7 +118,7 @@ class PracticeRollbackCompatibilityTest {
         }
     }
 
-    /** 1.0.0 이 새로 만든 표의 줄을 뺀 나머지 — 롤백한 서버가 보는 것이다. */
+    /** 0.1.0 이 새로 만든 표의 줄을 뺀 나머지 — 롤백한 서버가 보는 것이다. */
     private static List<String> legacyLines(List<String> fingerprint) {
         return fingerprint.stream()
                 .filter(line -> NEW_IN_ONE_ZERO.stream().noneMatch(table -> mentions(line, table)))
@@ -131,10 +132,20 @@ class PracticeRollbackCompatibilityTest {
      */
     private static List<String> withExpectedAdditions(List<String> legacyBefore) {
         List<String> expected = new java.util.ArrayList<>(legacyBefore);
+        // V24 가 동의 문서 종류에 cloud_voice 를 더했다(ADR-033). CHECK 는 옛 서버의 validate 가 보지 않고,
+        // 넓히기만 했으므로 옛 값은 그대로 통한다.
+        String consentTypesBefore = "CONSTRAINT consent_documents ck_consent_documents_type CHECK ((type = ANY "
+                + "(ARRAY['terms'::text, 'privacy'::text, 'ai_analysis'::text, 'retention'::text])))";
+        if (expected.remove(consentTypesBefore)) {
+            expected.add("CONSTRAINT consent_documents ck_consent_documents_type CHECK ((type = ANY "
+                    + "(ARRAY['terms'::text, 'privacy'::text, 'ai_analysis'::text, 'retention'::text, "
+                    + "'cloud_voice'::text])))");
+        }
         expected.addAll(List.of(
                 "COLUMN upload_intents.request_id ord=13 type=uuid len=- null=YES default=-",
                 "COLUMN upload_intents.request_fingerprint ord=14 type=bpchar len=64 null=YES default=-",
                 "COLUMN upload_intents.video_id ord=15 type=uuid len=- null=YES default=-",
+                "COLUMN push_tokens.app_version ord=8 type=text len=- null=YES default=-",
                 "COLUMN users.exit_survey_asked_at ord=11 type=timestamptz len=- null=YES default=-",
                 "COLUMN users.memory_epoch ord=12 type=int4 len=- null=NO default=0",
                 "CONSTRAINT users users_memory_epoch_not_null NOT NULL memory_epoch",

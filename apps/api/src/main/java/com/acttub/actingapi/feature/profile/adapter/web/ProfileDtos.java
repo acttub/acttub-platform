@@ -89,7 +89,7 @@ final class ProfileDtos {
     }
 
     /**
-     * 여섯 항목과 사진·소개. 1.0.0 이전 회원은 {@code name} 에 옛 닉네임만 있고 나머지가 {@code null}
+     * 여섯 항목과 사진·소개. 0.1.0 이전 회원은 {@code name} 에 옛 닉네임만 있고 나머지가 {@code null}
      * 이다 — 그래서 전부 nullable 이고, 다 찼는지는 {@code profile_complete} 가 말한다.
      */
     @Schema(name = "Profile", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)

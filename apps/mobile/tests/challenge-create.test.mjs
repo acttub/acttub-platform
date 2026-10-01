@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-  attemptFor,
   buildCreateBody,
   createFailure,
   draftOverflow,
@@ -11,6 +10,7 @@ import {
   isDuration,
   stepComplete,
 } from '../lib/challenge/create.ts';
+import { attemptFor } from '../lib/request-id.ts';
 import { CHALLENGE_DURATIONS, CHARACTER_MAX, LINE_MAX, SCENE_NOTE_MAX, WORK_MAX } from '../lib/challenge/types.ts';
 
 const apiError = (status, code) => Object.assign(new Error(code ?? String(status)), { status, code });

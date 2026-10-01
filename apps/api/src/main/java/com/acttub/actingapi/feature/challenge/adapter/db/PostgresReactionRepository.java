@@ -1,11 +1,11 @@
 package com.acttub.actingapi.feature.challenge.adapter.db;
 
-import java.nio.charset.StandardCharsets;
+import static com.acttub.actingapi.feature.challenge.adapter.db.Cursors.decode;
+import static com.acttub.actingapi.feature.challenge.adapter.db.Cursors.encode;
+import static com.acttub.actingapi.feature.challenge.adapter.db.Cursors.invalidCursor;
+
 import java.time.Instant;
-import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.util.Base64;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import com.acttub.actingapi.feature.challenge.app.ChallengeRepository.Participant;
@@ -13,7 +13,6 @@ import com.acttub.actingapi.feature.challenge.app.ReactionRepository;
 import com.acttub.actingapi.feature.challenge.domain.ChallengeRules;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
 import com.acttub.actingapi.platform.web.ApiException;
-import com.acttub.actingapi.platform.web.ApiValidationException;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
 import org.springframework.stereotype.Repository;
@@ -25,7 +24,6 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Repository
 class PostgresReactionRepository implements ReactionRepository {
-    private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private static final String WITHDRAWN = "탈퇴한 사용자";
     private final EntityManager em;
     private final EntryLocks locks;
@@ -135,7 +133,7 @@ class PostgresReactionRepository implements ReactionRepository {
         var target = locks.entry(viewer, entryId, now, false, true);
         replayed = replayComment(viewer, requestId, fingerprint);
         if (replayed != null) return replayed;
-        Instant midnight = now.atZone(SEOUL).toLocalDate().atStartOfDay(SEOUL).toInstant();
+        Instant midnight = ChallengeRules.koreanMidnight(now);
         long today = ((Number) em.createNativeQuery("SELECT count(*) FROM entry_comments WHERE user_id=:viewer AND created_at>=:since")
                 .setParameter("viewer", viewer).setParameter("since", midnight.atOffset(ZoneOffset.UTC)).getSingleResult()).longValue();
         if (today >= ChallengeRules.DAILY_COMMENTS) throw new ApiException(429, "daily_comment_limit");
@@ -223,24 +221,5 @@ class PostgresReactionRepository implements ReactionRepository {
         return new Comment(row.get("id", UUID.class), new Participant(author, withdrawn ? WITHDRAWN : row.get("author_name", String.class)),
                 row.get("body", String.class), row.get("created_at", Instant.class), viewer.equals(author), withdrawn,
                 row.get("status", String.class));
-    }
-
-    private static String encode(String kind, String... parts) {
-        return Base64.getUrlEncoder().withoutPadding().encodeToString((kind + "|" + String.join("|", parts)).getBytes(StandardCharsets.UTF_8));
-    }
-
-    private static String[] decode(String raw, String kind, int size) {
-        try {
-            if (raw.length() > 512) throw new IllegalArgumentException();
-            String[] parts = new String(Base64.getUrlDecoder().decode(raw), StandardCharsets.UTF_8).split("\\|", -1);
-            if (parts.length != size + 1 || !parts[0].equals(kind)) throw new IllegalArgumentException();
-            return parts;
-        } catch (IllegalArgumentException invalid) {
-            throw invalidCursor(raw);
-        }
-    }
-
-    private static ApiValidationException invalidCursor(String raw) {
-        return ApiValidationException.valueError(List.of("query", "cursor"), "Value error, invalid cursor", raw);
     }
 }

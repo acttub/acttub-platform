@@ -1,10 +1,7 @@
 package com.acttub.actingapi.feature.coach.app;
 
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Instant;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
 import java.util.Set;
@@ -19,12 +16,14 @@ import com.acttub.actingapi.feature.coach.domain.CoachBranch;
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureReporter;
+import com.acttub.actingapi.platform.schema.ExperienceVersion;
 import com.acttub.actingapi.platform.web.ApiException;
+import com.acttub.actingapi.platform.web.Hashing;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
- * 1.0.0 회차의 코치 대화 (practice.coach, practice.note).
+ * 0.1.0 회차의 코치 대화 (practice.coach, practice.note).
  *
  * <p><b>바꾸는 것은 저장뿐이다.</b> 코치의 행동 규칙(응답 상한 8/16, 첫 응답 경로, 도움 버튼, 상태 json 의 출처
  * 분리, 프로필 조건부 입력)은 {@link CoachEngine}·{@link CoachPrompt} 가 그대로 갖고 있고, 이 서비스는 엔진이 쓰는
@@ -257,7 +256,8 @@ public class ConversationService {
     }
 
     public static int replyLimit(String experienceVersion) {
-        return "three_layers_v1".equals(experienceVersion) ? THREE_LAYERS_REPLY_LIMIT : LEGACY_REPLY_LIMIT;
+        return ExperienceVersion.THREE_LAYERS_V1.dbValue().equals(experienceVersion)
+                ? THREE_LAYERS_REPLY_LIMIT : LEGACY_REPLY_LIMIT;
     }
 
     /** 상한에 닿아 끝났는지, 배우가 마쳤는지. 엔진이 사유를 주지 않으면 소진으로 본다. */
@@ -326,12 +326,7 @@ public class ConversationService {
     }
 
     static String fingerprint(String payload) {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest(payload.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 is unavailable", exception);
-        }
+        return Hashing.sha256Hex(payload);
     }
 
     /** 코치 갈래 이름 — 노트의 기존 종류(analysis·expression)가 여기서 나온다. */

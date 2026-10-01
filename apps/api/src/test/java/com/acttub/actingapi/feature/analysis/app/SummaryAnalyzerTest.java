@@ -85,7 +85,7 @@ class SummaryAnalyzerTest {
                         assertThat(actorId).isEqualTo(USER);
                         assertThat(path).isEqualTo(video).exists();
                         return speech;
-                    }, reporter);
+                    }, reporter, null);
 
             var result = analyzer.analyze(video, context(kind, 1000));
 
@@ -113,7 +113,7 @@ class SummaryAnalyzerTest {
                         "장면", "0:01에 멈춘다", null, List.of(), List.of()),
                 (path, practiceId, actorId) -> {
                     throw new IllegalStateException("transcribe unavailable");
-                }, reporter);
+                }, reporter, null);
 
         var result = analyzer.analyze(video, context("분석", 1000));
 
@@ -147,7 +147,7 @@ class SummaryAnalyzerTest {
                     assertThat(path).isEqualTo(compressed);
                     assertThat(actor.durationMs()).isEqualTo(3210);
                     return new ObservationPack("장면 요약", List.of(), List.of());
-                }, (path, practiceId, actorId) -> null, new RecordingFailureReporter());
+                }, (path, practiceId, actorId) -> null, new RecordingFailureReporter(), null);
 
         AnalysisResult result = analyzer.analyze(video, context("분석", null));
 
@@ -166,7 +166,7 @@ class SummaryAnalyzerTest {
                 (path, declared) -> 1000,
                 path -> path,
                 (path, mime, actor, practiceId, actorId) -> new ObservationPack("", List.of(), List.of("불확실")),
-                (path, practiceId, actorId) -> null, new RecordingFailureReporter());
+                (path, practiceId, actorId) -> null, new RecordingFailureReporter(), null);
 
         AnalysisResult result = analyzer.analyze(video, context("표현", 1000));
 
@@ -178,6 +178,6 @@ class SummaryAnalyzerTest {
     private static AnalysisContext context(String blockageKind, Integer durationMs) {
         return new AnalysisContext(
                 null, PRACTICE, "users/u/uploads/take.mp4", "video/mp4", "etag",
-                durationMs, "상황", "인물", "목표", blockageKind, "세부", USER);
+                durationMs, "상황", "인물", "목표", blockageKind, "세부", "legacy", USER);
     }
 }

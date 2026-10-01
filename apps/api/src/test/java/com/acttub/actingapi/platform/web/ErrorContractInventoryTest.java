@@ -38,8 +38,7 @@ import org.junit.jupiter.api.Test;
  *   <li><b>422 검증 오류</b> — {@code ApiValidationException} 과 Bean Validation 메시지는
  *       상수가 어노테이션 기본값이나 호출 인자 안에 흩어져 있어 표로 세지 않는다. 지키는 것은
  *       {@code ValidationErrorContractIT}(형상 + 실물 {@code value must not be blank}) ·
- *       {@code CoachReportEndpointIT}({@code rebuttal_text …}) · {@code AccountProfileIT}
- *       ({@code name …}) · {@code PracticeSessionEndpointIT}({@code sub_branch …}) 다.
+ *       {@code AccountProfileIT}({@code name …}) 다.
  * </ul>
  *
  * <p>표는 {@code new ApiException} 과, {@code ApiErrorAdvice} 가 예외를 거치지 않고 응답을 직접
@@ -74,8 +73,6 @@ class ErrorContractInventoryTest {
      * 이관 중에 500 이던 자리가 404 로 바뀐 사고가 둘 있었고, 그때 응답 diff 는 0 이었다.
      */
     private static final Map<String, Coverage> EXPECTED = Map.ofEntries(
-            covered("feature.challenge.adapter.db.PostgresChallengeRepository|403|account_deactivated", 1,
-                    "feature.challenge.ChallengeIT"),
             covered("feature.challenge.adapter.db.PostgresChallengeRepository|422|duplicate_challenge", 1,
                     "feature.challenge.ChallengeIT"),
             covered("feature.challenge.adapter.db.PostgresChallengeRepository|422|challenge_has_entries", 1,
@@ -86,8 +83,6 @@ class ErrorContractInventoryTest {
                     "feature.challenge.ChallengeIT"),
             covered("feature.challenge.adapter.db.PostgresChallengeRepository|429|daily_challenge_limit", 1,
                     "feature.challenge.ChallengeIT"),
-            covered("feature.challenge.adapter.db.PostgresEntryRepository|403|account_deactivated", 1,
-                    "feature.challenge.ChallengeEntryIT"),
             covered("feature.challenge.adapter.db.PostgresEntryRepository|404|challenge_not_found", 2,
                     "feature.challenge.ChallengeEntryIT"),
             covered("feature.challenge.adapter.db.PostgresEntryRepository|404|entry_not_found", 7,
@@ -122,7 +117,8 @@ class ErrorContractInventoryTest {
                     "feature.challenge.ChallengeEntryIT"),
             covered("feature.challenge.app.EntryService|422|video_too_long", 1,
                     "feature.challenge.ChallengeEntryIT"),
-            covered("feature.challenge.adapter.db.EntryLocks|403|account_deactivated", 1,
+            // 쓰는 사람 잠금(active, ChallengeIT·ChallengeEntryIT)과 반응하는 사람 잠금(people) 두 곳.
+            covered("feature.challenge.adapter.db.EntryLocks|403|account_deactivated", 2,
                     "feature.challenge.ChallengeReactionIT"),
             covered("feature.challenge.adapter.db.EntryLocks|404|entry_not_found", 2,
                     "feature.challenge.ChallengeReactionIT"),
@@ -190,16 +186,6 @@ class ErrorContractInventoryTest {
                     "feature.coach.app.DirectVideoLimitsTest"),
             covered("feature.coach.app.DirectVideoSessions|429|direct_video_session_limit", 1,
                     "feature.coach.app.DirectVideoLimitsTest"),
-            covered("feature.coach.app.CoachService|502|coach_response_unavailable", 2,
-                    "feature.coach.app.CoachServiceTest"),
-            covered("feature.coach.app.CoachService|409|client_contract_required", 1,
-                    "feature.coach.adapter.web.CoachReportEndpointIT"),
-            covered("feature.coach.app.CoachService|409|practice_note_does_not_require_confirmation", 1,
-                    "feature.coach.adapter.web.CoachReportEndpointIT"),
-            covered("feature.report.app.ReportService|409|client_contract_required", 1,
-                    "feature.coach.adapter.web.CoachReportEndpointIT"),
-            covered("feature.report.app.ReportService|409|coaching_session_is_open", 1,
-                    "feature.coach.adapter.web.CoachReportEndpointIT"),
             covered("feature.admin.adapter.web.AdminController|401|Unauthorized", 1,
                     "feature.admin.AdminEndpointIT"),
             covered("feature.admin.app.AdminService|404|challenge_video_not_found", 1,
@@ -239,24 +225,6 @@ class ErrorContractInventoryTest {
             covered("feature.auth.adapter.web.ProviderDisconnectController|503|provider_not_configured", 1,
                     "feature.auth.AccountDisabledProvidersIT"),
 
-            covered("feature.coach.app.CoachService|404|practice session not found", 2,
-                    "feature.coach.adapter.web.CoachReportEndpointIT"),
-            covered("feature.coach.app.CoachService|404|session not found", 3,
-                    "feature.coach.app.CoachServiceTest"),
-            covered("feature.coach.app.CoachService|409|practice session analysis is not settled", 1,
-                    "feature.coach.adapter.web.CoachReportEndpointIT"),
-            covered("feature.coach.app.CoachService|409|report already exists", 1,
-                    "feature.coach.adapter.web.CoachReportEndpointIT"),
-            covered("feature.coach.app.CoachService|409|report already exists for practice session",
-                    2, "feature.coach.adapter.web.CoachReportEndpointIT"),
-            covered("feature.coach.app.CoachService|409|request is still processing", 3,
-                    "feature.coach.adapter.web.CoachReportEndpointIT"),
-            covered("feature.coach.app.CoachService|409|session changed concurrently", 1,
-                    "feature.coach.app.CoachServiceTest"),
-            covered("feature.coach.app.CoachService|409|session is closed", 2,
-                    "feature.coach.adapter.web.CoachReportEndpointIT"),
-            covered("feature.coach.app.CoachService|502|" + DYNAMIC, 3,
-                    "feature.coach.app.CoachServiceTest"),
 
             covered("feature.consent.app.ConsentService|404|consent_document_not_found", 2,
                     "feature.consent.ConsentEndpointIT"),
@@ -292,26 +260,8 @@ class ErrorContractInventoryTest {
             covered("feature.profile.app.ProfileService|422|under_14_account_closed", 1,
                     "feature.profile.AccountProfileIT"),
 
-            covered("feature.report.app.ReportService|404|report_not_found", 1,
-                    "feature.report.adapter.web.ReportEndpointIT"),
-            covered("feature.report.app.ReportService|404|session not found", 1,
-                    "feature.coach.adapter.web.CoachReportEndpointIT"),
-            covered("feature.report.app.ReportService|409|report already exists", 1,
-                    "feature.coach.adapter.web.CoachReportEndpointIT"),
-            covered("feature.report.app.ReportService|409|request is still processing", 1,
-                    "feature.coach.adapter.web.CoachReportEndpointIT"),
-            covered("feature.report.app.ReportService|502|" + DYNAMIC, 1,
-                    "feature.coach.adapter.web.CoachReportEndpointIT"),
 
 
-            covered("platform.operation.SyncOperationService|409|request is still processing", 1,
-                    "feature.coach.adapter.web.CoachReportEndpointIT"),
-            covered("platform.operation.SyncOperationService|409|request retry exhausted", 1,
-                    "feature.coach.adapter.web.CoachReportEndpointIT"),
-            covered("platform.operation.SyncOperationService|422|invalid X-Request-Id", 1,
-                    "feature.practice.PracticeLifecycleIT"),
-            covered("platform.operation.SyncOperationService|422|request_fingerprint_mismatch", 1,
-                    "feature.practice.PracticeLifecycleIT"),
 
             covered("feature.portfolio.adapter.web.PublicPortfolioController|429|rate limit exceeded", 1,
                     "feature.portfolio.AccountPortfolioIT"),
@@ -389,7 +339,18 @@ class ErrorContractInventoryTest {
                     "feature.reading.ReadingRecordingIT"),
             covered("feature.reading.app.RecordingService|503|audio_conversion_failed", 1,
                     "feature.reading.ReadingRecordingIT"),
-            // 1.0.0 코치 대화·노트(practice.coach, practice.note). 저장만 새 표로 옮겼고 행동 규칙은 그대로다.
+            // 고품질 목소리. 모델·스토리지·기간·월 상한과 외부 실패는 한 503 헬퍼로 모인다.
+            covered("feature.reading.app.CloudVoiceService|400|invalid_voice_request", 1,
+                    "feature.reading.app.CloudVoiceServiceTest"),
+            covered("feature.reading.app.CloudVoiceService|403|cloud_voice_consent_required", 1,
+                    "feature.reading.app.CloudVoiceServiceTest"),
+            covered("feature.reading.app.CloudVoiceService|429|cloud_voice_daily_limit", 1,
+                    "feature.reading.app.CloudVoiceServiceTest"),
+            covered("feature.reading.app.CloudVoiceService|503|cloud_voice_unavailable", 1,
+                    "feature.reading.app.CloudVoiceServiceTest"),
+            covered("feature.reading.adapter.web.VoiceController|403|member_only", 1,
+                    "feature.reading.CloudVoiceIT"),
+            // 0.1.0 코치 대화·노트(practice.coach, practice.note). 저장만 새 표로 옮겼고 행동 규칙은 그대로다.
             covered("feature.coach.app.ConversationService|404|conversation_not_found", 1,
                     "feature.coach.CoachConversationIT"),
             covered("feature.coach.app.ConversationService|404|note_not_found", 1,

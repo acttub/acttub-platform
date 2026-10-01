@@ -7,8 +7,7 @@
 3. 작업 갈래에 맞는 정본을 읽습니다.
    - **네이티브 설정·플러그인** → `app.json`, `app.config.js`, `plugins/*`
    - **EAS 빌드·제출·Firebase 파일** → `eas.json`, `.easignore`, `app.config.js`
-   - **연습 화면 대응** → [PRACTICE-FLOW.md](docs/PRACTICE-FLOW.md)의 화면 표. 검증 명령은 CI를
-     따릅니다.
+   - **연습 화면 대응** → [PRACTICE-FLOW.md](docs/PRACTICE-FLOW.md)의 화면 표
    - **테스트·CI** → 루트 `.github/workflows/ci.yml`의 `mobile` 잡
    - **API 계약 변경** → [계약 변경 절차](../api/CONTRACT.md#계약-변경-절차)의 모바일 소비자 확인
 
@@ -18,8 +17,8 @@
   제한된 경로를 전체 앱 검증으로 간주하지 않습니다.
 - `typedRoutes` 타입은 `.expo/types`에 생성됩니다. 라우트 타입 오류를 판정하기 전에 현재
   라우트에서 타입을 다시 생성하고, 오래된 `.expo/` 산출물을 코드 오류로 해석하지 않습니다.
-- 공통 검증 명령과 설치 단계는 CI의 `mobile` 잡에서 확인합니다. 테스트에 런타임 외부 의존을
-  추가하면 설치 없이 실행 가능한지 확인하고, 설치가 필요해지면 CI에 반영합니다.
+- 테스트에 런타임 외부 의존을 추가하면 CI `mobile` 잡처럼 설치 없이 실행 가능한지 확인하고,
+  설치가 필요해지면 CI에 반영합니다.
 - lint·typecheck를 실행했다면 의존성 설치와 생성된 Expo 라우트 타입 등 검증 전제를 기록하고,
   CI에 포함된 검사와 추가로 실행한 검사를 구분합니다.
 
@@ -31,12 +30,14 @@
   평가된 `app.config.js`가 함께 결정하므로 Firebase 파일 전달 방식을 바꿀 때 둘을 같이
   확인합니다.
 - `EXPO_PUBLIC_*`는 앱 번들에 들어가는 공개값입니다. 비밀을 넣지 않습니다.
-- API URL을 바꾸면 요청 대상뿐 아니라 `lib/analytics.ts`의 운영 계측 판정도 함께 확인합니다.
+- API URL을 바꾸면 요청 대상뿐 아니라 `lib/api-env.ts`의 운영 빌드 판정(계측·크래시 환경)도 함께 확인합니다.
 
-## 백엔드 호출
+## 백엔드 호출·상태
 
 - 화면은 `lib/api.ts`와 `lib/api-request.ts`를 통해 acting-api를 호출합니다. 토큰·refresh·멱등
   재시도는 공용 요청 계층에 둡니다.
+- 전역 상태 라이브러리는 없습니다. 로그인 상태는 `lib/auth.tsx`의 React Context가 들고, 기기에 남길 값은
+  `expo-secure-store`(자격증명)와 AsyncStorage에 둡니다. 나머지는 `lib/`의 기능별 모듈과 화면 state입니다.
 
 ## 완료 기준
 
@@ -44,7 +45,6 @@
 - 네이티브 설정·플러그인은 평가된 설정과 영향받는 플랫폼의 development build로 검증합니다.
 - EAS build·submit·Firebase 파일 전달은 `eas.json`·`.easignore`·평가된 앱 설정과 해당 EAS
   프로필의 실행 결과를 함께 확인합니다.
-- API 변경은 요청·응답 타입과 모든 호출부를 확인합니다.
 - 화면·카피는 typed routes를 다시 생성한 뒤 development build에서 바뀐 경로와 상태를 직접
   열어 카피·상호작용을 확인합니다.
 - CI `mobile` 잡의 검증 명령을 새 의존 조건에서도 재현합니다.

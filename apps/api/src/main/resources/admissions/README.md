@@ -52,20 +52,9 @@
 
 ### 부팅 때 걸러지는 것
 
-`admissions.py`의 `load_admissions()`가 파일을 읽으며 검사한다. 걸리면 서버가 뜨지
-않으므로 배포 전에 드러난다.
-
-- `notices[].university_id`가 `universities[].id`에 없음
-- `universities[].id` · `notices[].id` 중복
-- `discipline`이 `acting|musical`이 아님
-- `universities[].type`이 `univ|college`가 아님
-- `practical_items[].category` · `stages[].evaluates[]`가 정해진 목록 밖
-- `stages[].order` 중복, `practical_items[].stage`가 없는 단계를 가리킴
-
-허용되는 실기 종목(`category`):
-`free_acting`(자유연기) · `assigned_acting`(지정연기) · `improv`(즉흥) · `song`(노래) ·
-`dance`(무용) · `movement`(신체표현) · `special`(특기) · `interview`(면접) ·
-`essay`(작문) · `audition_etc`(그 외)
+[`ClasspathAdmissionsCatalog`](../../java/com/acttub/actingapi/feature/admissions/adapter/resource/ClasspathAdmissionsCatalog.java)가
+기동 때 파일을 읽으며 검사한다. 걸리면 서버가 뜨지 않으므로 배포 전에 드러난다. 검사 항목과 허용되는
+값 목록(실기 종목 `category` 등)은 그 클래스가 정본이다.
 
 ## 구조
 
@@ -236,7 +225,7 @@
 
 **링크만 담는다. 영상 설명이나 후기 본문은 옮기지 않는다** - 남의 저작물이다.
 
-`source_type`은 반드시 붙인다. 지금 22건 중 **12건이 입시학원 홍보 영상**이고, 제목만
+`source_type`은 반드시 붙인다. 2026-09-29 기준 227건 중 **104건이 입시학원 홍보 영상**이고, 제목만
 보면 대학 공식 자료처럼 읽히는 것도 있다(예: "[중앙대] 중앙대학교 연극학과 신입생의
 솔직한 인터뷰" - 실제로는 RAON ACTORS 채널). 구분 없이 늘어놓으면 입시생이 광고를
 정보로 읽는다.

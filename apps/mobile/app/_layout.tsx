@@ -18,9 +18,9 @@ import 'react-native-reanimated';
 import '@/lib/global-font';
 import { logScreenView } from '@/lib/analytics';
 import { initMetaSdk } from '@/lib/meta-events';
+import { initCrashlytics } from '@/lib/crashlytics';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
 import { challengePushTarget } from '@/lib/challenge/notification-center';
-import { onPushTapped } from '@/lib/notifications';
 import {
   recoveryStatusForConsentGate,
   routeAllowedDuringConsentGate,
@@ -36,6 +36,7 @@ import { AuthProvider, useAuth } from '@/lib/auth';
 import {
   configureNotificationHandling,
   flushPendingPushTokenDeletions,
+  onPushTapped,
 } from '@/lib/notifications';
 import type { PendingAnalysisHandle } from '@/lib/pending-analysis';
 import { palette } from '@/constants/palette';
@@ -182,6 +183,10 @@ function RootNavigator() {
   // 푸시를 누르면 알림 식별자로 알림함을 연다(잠금 화면 문구에는 이름·본문이 없다).
   useEffect(() => {
     return onPushTapped((data) => {
+      if (data && typeof data === 'object' && 'kind' in data && data.kind === 'evening_reminder') {
+        router.replace('/(tabs)');
+        return;
+      }
       if (challengePushTarget(data)) router.push('/notifications');
     });
   }, [router]);
@@ -427,6 +432,11 @@ export default function RootLayout() {
     'Pretendard-SemiBold': require('@/assets/fonts/Pretendard-SemiBold.subset.ttf'),
     'Pretendard-Bold': require('@/assets/fonts/Pretendard-Bold.subset.ttf'),
   });
+
+  // 크래시 수집 — 버전별 스택을 Firebase Crashlytics 로 모은다.
+  useEffect(() => {
+    void initCrashlytics();
+  }, []);
 
   // Meta SDK 초기화(SOMA-481). iOS ATT 팝업은 앱이 활성 상태일 때만 뜨므로,
   // 아직 활성이 아니면 활성이 되는 순간까지 기다렸다가 한 번만 부른다.

@@ -9,17 +9,15 @@ import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { formatKoreanDate } from '@/lib/format';
 import { translate as t } from '@/lib/i18n';
-import {
-  filterGroups,
-  groupTitle,
-  hideNotice,
-  mergeHistoryRows,
-  type HistoryRow,
-} from '@/lib/practice/groups';
+import { filterGroups, groupTitle } from '@/lib/practice/groups';
 import type { PracticeGroup, PracticeGroupFilter } from '@/lib/practice/types';
 
-type Row = HistoryRow & {
-  icon: 'video' | 'mic';
+type Row = {
+  id: string;
+  /** 월별로 묶는 기준 — 묶음의 마지막 회차 시각. */
+  at: string;
+  title: string;
+  meta: string;
   onPress: () => void;
   onLongPress?: () => void;
   chips: string[];
@@ -65,7 +63,7 @@ export default function HistoryScreen() {
   const hideGroup = async (group: PracticeGroup) => {
     const ok = await confirm({
       title: t('history.hideTitle'),
-      message: hideNotice(),
+      message: t('history.hideNotice'),
       confirmLabel: t('history.hideConfirm'),
       destructive: true,
     });
@@ -107,18 +105,17 @@ export default function HistoryScreen() {
   const dayLabel = (iso: string) => formatKoreanDate(iso, { month: 'long', day: 'numeric' });
 
   const rows = useMemo<Row[]>(() => {
-    const practices = filterGroups(groups, filter).map<Row>((group) => ({
-      id: `g:${group.root_id}`,
-      at: group.last_practiced_at ?? '',
-      kind: 'practice',
-      title: groupTitle(group),
-      meta: `${dayLabel(group.last_practiced_at ?? '')} · ${t('history.countTimes', { count: group.ordinal_count })}`,
-      icon: 'video',
-      chips: group.tags ?? [],
-      onPress: () => openGroup(group.root_id),
-      onLongPress: () => onGroupMenu(group),
-    }));
-    return mergeHistoryRows(practices, []) as Row[];
+    return filterGroups(groups, filter)
+      .map<Row>((group) => ({
+        id: `g:${group.root_id}`,
+        at: group.last_practiced_at ?? '',
+        title: groupTitle(group),
+        meta: `${dayLabel(group.last_practiced_at ?? '')} · ${t('history.countTimes', { count: group.ordinal_count })}`,
+        chips: group.tags ?? [],
+        onPress: () => openGroup(group.root_id),
+        onLongPress: () => onGroupMenu(group),
+      }))
+      .sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groups, filter]);
 
@@ -198,7 +195,7 @@ export default function HistoryScreen() {
                 onLongPress={row.onLongPress}
                 accessibilityRole="button">
                 <View style={styles.iconCircle}>
-                  <Feather name={row.icon} size={17} color={palette.blue} />
+                  <Feather name="video" size={17} color={palette.blue} />
                 </View>
                 <View style={styles.rowBody}>
                   <Text style={styles.rowTitle} numberOfLines={1}>

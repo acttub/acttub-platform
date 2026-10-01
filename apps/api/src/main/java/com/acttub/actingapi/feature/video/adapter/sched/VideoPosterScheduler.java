@@ -15,8 +15,8 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
  * 포스터가 빈 영상을 채운다 (practice.library). 새 영상과 이 기능 이전의 영상(백필)이 같은 길이다.
  *
  * <p><b>스위치가 둘이고 둘 다 켜져야 돈다.</b> {@code ANALYSIS_WORKER_ENABLED} 는 분석·기억·챌린지 리포트 워커와
- * 공유한다 — "이 프로세스가 뒤에서 도는 일의 주인인가" 가 한 질문이고, 격리 복원 검증은 그것 하나를 꺼서 저장소와
- * DB 에 쓰는 일을 모두 멈춘다(DEPLOY-HOME §7). {@code VIDEO_POSTER_ENABLED} 는 포스터만 끄는 스위치다 — 테스트가
+ * 공유한다 — "이 프로세스가 뒤에서 도는 일의 주인인가" 가 한 질문이다. 격리 복원 때 함께 끄는 스위치는
+ * DEPLOY-HOME §7 2단계에 있다. {@code VIDEO_POSTER_ENABLED} 는 포스터만 끄는 스위치다 — 테스트가
  * 전역으로 끄고 워커를 직접 부른다.
  *
  * <p>ffmpeg 가 {@code FfmpegLock} 을 기다리는 동안 공용 스케줄러 스레드를 붙잡지 않도록 자기 스레드 하나에서 돈다.

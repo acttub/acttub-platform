@@ -15,7 +15,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
  *
  * <p><b>표는 게이트 밖을 적는다.</b> 보호 기능을 하나씩 적던 종전의 표는 새 기능을 적지 않으면
  * 조용히 열려 있었다. 이제 {@code /v2} 의 모든 경로가 보호 기능이고, 밖에 있는 것만 여기 있다
- * ({@code docs/requirements/00-common.md} 「게이트와 보호 기능」): 로그인·토큰 갱신·로그아웃, 동의
+ * ({@code docs/specs/common.md} 「게이트와 보호 기능」): 로그인·토큰 갱신·로그아웃, 동의
  * 문서 조회와 제출, 내 계정 조회, 프로필 입력, 탈퇴. 로그인 없이 여는 공개 경로(입시 정보)와 운영
  * 토큰 경로도 회원 게이트와 무관하다.
  */
@@ -57,7 +57,7 @@ public final class ConsentGateInterceptor implements HandlerInterceptor {
         if (!(handler instanceof HandlerMethod)) {
             return true;
         }
-        switch (gateFor(request.getMethod(), normalizedPath(request.getRequestURI()))) {
+        switch (gateFor(request.getMethod(), RequestPath.normalized(request.getRequestURI()))) {
             case FULL -> auth.gatedUser(request);
             case CONSENT_ONLY -> auth.consentedUser(request);
             case GUEST_ONLY -> auth.guestUser(request);
@@ -85,13 +85,6 @@ public final class ConsentGateInterceptor implements HandlerInterceptor {
 
     private static boolean matches(List<Route> routes, String method, String path) {
         return routes.stream().anyMatch(route -> route.matches(method, path));
-    }
-
-    private static String normalizedPath(String path) {
-        if (path.length() > 1 && path.endsWith("/")) {
-            return path.substring(0, path.length() - 1);
-        }
-        return path;
     }
 
     private static Route route(HttpMethod method, String pattern) {

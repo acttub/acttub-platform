@@ -2,7 +2,7 @@ import { getVideo } from "./videos";
 import { ApiError } from "./errors";
 import type { PracticeAnalysis, Video } from "../../practice/api-types";
 import { apiFetch } from "./client";
-import { postIdempotent } from "./idempotency";
+import { abortReason, postIdempotent, wait } from "./idempotency";
 import { newRequestId } from "../../reading/request-id";
 import type {
   Practice,
@@ -125,25 +125,6 @@ export async function reanalyzeSession(
 export async function updatePracticeGroup(rootId: string, patch: PracticeGroupPatch): Promise<PracticeGroup> {
   const { data } = await apiFetch<PracticeGroup>(`${practicePath(rootId)}/group`, { method: "PATCH", body: patch });
   return data;
-}
-
-function abortReason(signal: AbortSignal): unknown {
-  return signal.reason ?? new DOMException("요청이 취소되었습니다.", "AbortError");
-}
-
-function wait(delayMs: number, signal?: AbortSignal): Promise<void> {
-  if (signal?.aborted) return Promise.reject(abortReason(signal));
-  return new Promise((resolve, reject) => {
-    const onAbort = () => {
-      clearTimeout(timer);
-      reject(abortReason(signal as AbortSignal));
-    };
-    const timer = setTimeout(() => {
-      signal?.removeEventListener("abort", onAbort);
-      resolve();
-    }, delayMs);
-    signal?.addEventListener("abort", onAbort, { once: true });
-  });
 }
 
 export type PollPracticeOptions = {

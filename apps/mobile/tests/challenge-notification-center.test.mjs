@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-  NOTIFICATION_PAGE_SIZE,
   badgeText,
   challengePushTarget,
   groupLabel,
@@ -12,7 +11,6 @@ import {
   targetOf,
   toggleOffNotice,
   unavailableMessage,
-  unreadBadge,
 } from '../lib/challenge/notification-center.ts';
 
 const group = (over = {}) => ({
@@ -45,17 +43,9 @@ test('challenge.notification: 목록은 묶음의 최신 사건 순이고 20개�
   ]);
 
   assert.deepEqual(sorted.map((g) => g.group_key), ['b', 'a', 'c']);
-  assert.equal(NOTIFICATION_PAGE_SIZE, 20);
 });
 
-test('challenge.notification: 배지는 읽지 않은 묶음 수다(사건 수가 아니다)', () => {
-  const groups = [
-    group({ group_key: 'a', actor_count: 30, read: false }),
-    group({ group_key: 'b', actor_count: 2, read: false }),
-    group({ group_key: 'c', read: true }),
-  ];
-
-  assert.equal(unreadBadge(groups), 2);
+test('challenge.notification: 배지 문구는 99를 넘으면 99+ 이고 0이면 달지 않는다', () => {
   assert.equal(badgeText(2), '2');
   assert.equal(badgeText(0), null);
   assert.equal(badgeText(120), '99+');

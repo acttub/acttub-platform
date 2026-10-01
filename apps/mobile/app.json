@@ -2,7 +2,7 @@
   "expo": {
     "name": "Acttub",
     "slug": "acting-app",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "actingapp",
@@ -55,6 +55,11 @@
           "ios": {
             "useFrameworks": "static",
             "deploymentTarget": "16.4"
+          },
+          "android": {
+            "enableProguardInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "extraProguardRules": "-keep class ai.onnxruntime.** { *; }\n-dontwarn ai.onnxruntime.**"
           }
         }
       ],
@@ -89,6 +94,8 @@
       "expo-video",
       "@react-native-firebase/app",
       "@react-native-firebase/analytics",
+      "@react-native-firebase/crashlytics",
+      "./plugins/with-crashlytics-dsym.js",
       [
         "@react-native-google-signin/google-signin",
         {

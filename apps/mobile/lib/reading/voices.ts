@@ -12,8 +12,6 @@ export type VoicePreset = (typeof VOICE_PRESETS)[number];
 /** 남녀가 번갈아 나오도록 섞어 둔다 — 등장 순서대로 집으면 대개 대화처럼 들린다. */
 export const AUTO_ROTATION: VoicePreset[] = ['F1', 'M1', 'F2', 'M2', 'F3', 'M3', 'F4', 'M4', 'F5', 'M5'];
 
-export const VOICE_PRESET_MAX_LENGTH = 32;
-
 export function isKnownPreset(value: unknown): value is VoicePreset {
   return typeof value === 'string' && (VOICE_PRESETS as readonly string[]).includes(value);
 }
@@ -38,11 +36,6 @@ export function assignVoices(characters: VoicedCharacter[], myCharacterIds: stri
     }
   }
   return out;
-}
-
-/** 서버 규칙과 같다 — 32자를 넘으면 422 invalid_characters. */
-export function presetError(value: string): 'invalid_characters' | null {
-  return [...value].length > VOICE_PRESET_MAX_LENGTH ? 'invalid_characters' : null;
 }
 
 /** 화면의 드롭다운 값 → 저장값. "자동"·빈 값은 null(자동). */

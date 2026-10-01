@@ -26,7 +26,7 @@ export function recorderSupported(): boolean {
   );
 }
 
-export async function startLineRecording(options: { maxMs?: number; onMaxReached?: () => void } = {}): Promise<LineRecorder> {
+export async function startLineRecording(): Promise<LineRecorder> {
   const mimeType = pickRecordingMimeType((t) => MediaRecorder.isTypeSupported(t));
   if (!mimeType) throw new Error("이 브라우저는 녹음 형식을 지원하지 않아요.");
   const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: false });
@@ -47,14 +47,12 @@ export async function startLineRecording(options: { maxMs?: number; onMaxReached
     settled?.(chunks.length === 0 ? null : { blob: new Blob(chunks, { type: recorder.mimeType || mimeType }), contentType: recorder.mimeType || mimeType, durationMs });
   };
   recorder.start(1000);
-  const maxMs = options.maxMs ?? RECORDING_MAX_MS;
   const limiter = setTimeout(() => {
     if (recorder.state === "recording") {
       stoppedAt = Date.now();
       recorder.stop();
-      options.onMaxReached?.();
     }
-  }, maxMs);
+  }, RECORDING_MAX_MS);
 
   return {
     stop() {

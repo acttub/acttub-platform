@@ -47,6 +47,9 @@ class ChallengeReactionIT {
     static final Instant NOW = Instant.parse("2026-09-23T03:00:00Z");
     static final String OPS = "Bearer reaction-test-ops";
 
+    private static final String INVALID_CURSOR = "{\"detail\":[{\"type\":\"value_error\",\"loc\":[\"query\",\"cursor\"],"
+            + "\"msg\":\"Value error, invalid cursor\",\"input\":\"not-a-cursor\",\"ctx\":{\"error\":{}}}]}";
+
     @TestConfiguration
     static class Media {
         @Bean @Primary EntryMedia stubReactionMedia() {
@@ -259,7 +262,7 @@ class ChallengeReactionIT {
 
     private org.springframework.mock.web.MockHttpServletResponse raw(MockHttpServletRequestBuilder request, String authorization)
             throws Exception {
-        return mvc.perform(request.header("Authorization", authorization).header("X-Acttub-Client", "app/1.0.0")
+        return mvc.perform(request.header("Authorization", authorization).header("X-Acttub-Client", "app/0.1.0")
                 .header("Accept-Language", "ko").contentType(MediaType.APPLICATION_JSON)).andReturn().getResponse();
     }
 
@@ -345,7 +348,7 @@ class ChallengeReactionIT {
                 int locker = jdbc.queryForObject("SELECT pg_backend_pid()", Integer.class);
                 jdbc.queryForObject("SELECT id FROM users WHERE id=? FOR UPDATE", UUID.class, me);
                 var request = executor.submit(() -> mvc.perform(put("/v2/entries/{id}/like", entry).header("Authorization", bearer)
-                        .header("X-Acttub-Client", "app/1.0.0").header("Accept-Language", "ko")).andReturn().getResponse());
+                        .header("X-Acttub-Client", "app/0.1.0").header("Accept-Language", "ko")).andReturn().getResponse());
                 org.awaitility.Awaitility.await().atMost(Duration.ofSeconds(10)).until(() ->
                         jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE ?=ANY(pg_blocking_pids(pid)))",
                                 Boolean.class, locker));
@@ -538,15 +541,32 @@ class ChallengeReactionIT {
         return response(request, expected, authorization).path("detail").asText();
     }
 
+    /** 읽을 수 없는 커서의 422 본문은 바이트 그대로다 — 댓글·저장 목록 둘 다. */
+    @Test void challengeReact_invalidCursorBodyStaysByteIdentical() throws Exception {
+        UUID entry = entry(challenge, member("배우"));
+        assertThat(raw(get("/v2/entries/{id}/comments", entry).param("cursor", "not-a-cursor"), 422))
+                .isEqualTo(INVALID_CURSOR);
+        assertThat(raw(get("/v2/me/saved-entries").param("cursor", "not-a-cursor"), 422))
+                .isEqualTo(INVALID_CURSOR);
+    }
+
     private JsonNode response(MockHttpServletRequestBuilder request, int expected) throws Exception {
         return response(request, expected, bearer);
     }
 
     private JsonNode response(MockHttpServletRequestBuilder request, int expected, String authorization) throws Exception {
-        var result = mvc.perform(request.header("Authorization", authorization).header("X-Acttub-Client", "app/1.0.0")
+        var result = mvc.perform(request.header("Authorization", authorization).header("X-Acttub-Client", "app/0.1.0")
                 .header("Accept-Language", "ko").contentType(MediaType.APPLICATION_JSON)).andReturn();
         var response = result.getResponse();
         assertThat(response.getStatus()).as("%s (%s)", response.getContentAsString(), result.getResolvedException()).isEqualTo(expected);
         return response.getContentAsString().isBlank() ? json.nullNode() : json.readTree(response.getContentAsString());
+    }
+
+    /** 본문을 바이트 그대로 돌려준다 — 422 본문의 키 순서까지 견줄 때 쓴다. */
+    private String raw(MockHttpServletRequestBuilder request, int expected) throws Exception {
+        var response = mvc.perform(request.header("Authorization", bearer).header("X-Acttub-Client", "app/0.1.0")
+                .header("Accept-Language", "ko").contentType(MediaType.APPLICATION_JSON)).andReturn().getResponse();
+        assertThat(response.getStatus()).as(response.getContentAsString()).isEqualTo(expected);
+        return response.getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
     }
 }

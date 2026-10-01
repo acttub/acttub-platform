@@ -15,10 +15,6 @@ export type ActivityDay = {
 
 export type WeekActivity = {
   days: ActivityDay[];
-  /** 이번 주(월~오늘) 연습 횟수. */
-  weekTotal: number;
-  /** 오늘 또는 어제까지 이어진 연속 연습일. */
-  streak: number;
 };
 
 /** 로컬 자정 기준 날짜 키. Date 객체 비교를 문자열 비교로 바꿔 타임존 흔들림을 없앤다. */
@@ -53,35 +49,13 @@ export function buildWeekActivity(
   const monday = new Date(today.getTime() - ((today.getDay() + 6) % 7) * DAY_MS);
 
   const days: ActivityDay[] = [];
-  let weekTotal = 0;
   for (let i = 0; i < 7; i++) {
     const date = new Date(monday.getTime() + i * DAY_MS);
     const key = dayKey(date);
     const isFuture = date.getTime() > today.getTime();
     const count = isFuture ? 0 : (counts.get(key) ?? 0);
-    weekTotal += count;
     days.push({ key, label: WEEKDAY_LABELS[i], count, isToday: key === todayKey, isFuture });
   }
 
-  let streak = 0;
-  for (let i = 0; ; i++) {
-    const day = new Date(today.getTime() - i * DAY_MS);
-    if (counts.has(dayKey(day))) streak++;
-    else if (i === 0) continue; // 오늘 아직 안 했어도 어제까지의 연속은 유지
-    else break;
-  }
-
-  return { days, weekTotal, streak };
-}
-
-/**
- * 연습 횟수 → 주간 스트립 색 단계(0=안 함, 1=1회, 2=2~3회, 3=4~5회, 4=6회 이상).
- * 색 값은 constants/palette의 weekColors가 같은 순서로 들고 있다.
- */
-export function weekColorStep(count: number): number {
-  if (!Number.isFinite(count) || count <= 0) return 0;
-  if (count === 1) return 1;
-  if (count <= 3) return 2;
-  if (count <= 5) return 3;
-  return 4;
+  return { days };
 }

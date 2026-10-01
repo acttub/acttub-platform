@@ -35,12 +35,12 @@ public class PushService implements AnalysisCompletionListener {
     }
 
     /**
-     * 서버 푸시 둘을 다 꺼 둔 회원의 토큰은 받지 않는다(조용히 지나간다). 그러지 않으면 한 기기에서 둘을
+     * 서버 푸시 셋을 다 꺼 둔 회원의 토큰은 받지 않는다(조용히 지나간다). 그러지 않으면 한 기기에서 셋을
      * 끈 뒤 다른 기기가 앱을 여는 것만으로 토큰이 되살아난다. 거르는 일은 저장과 한 트랜잭션이어야 해서
      * 저장소가 한다({@link PushTokenRepository#register}).
      */
-    public void register(UUID userId, String token, String platform) {
-        tokens.register(userId, token, platform);
+    public void register(UUID userId, String token, String platform, String appVersion) {
+        tokens.register(userId, token, platform, appVersion);
     }
 
     public void unregister(String token) {
@@ -68,21 +68,12 @@ public class PushService implements AnalysisCompletionListener {
         List<PushMessage> messages = targets.stream()
                 .map(target -> new PushMessage(
                         target.token(),
-                        korean(target) ? "분석이 끝났어요" : "Your analysis is ready",
-                        korean(target)
+                        target.korean() ? "분석이 끝났어요" : "Your analysis is ready",
+                        target.korean()
                                 ? "질문이 준비됐어요. 이어서 확인해 볼까요?"
                                 : "The coach has questions waiting. Shall we pick it up?",
                         Map.of("sessionId", sessionId.toString())))
                 .toList();
         sender.send(messages).forEach(tokens::unregister);
-    }
-
-    /**
-     * 이 단말이 한국어를 쓰는가. 값이 비었으면(옛 토큰) 한국어로 본다 — 지금까지 쓰던 사람은
-     * 전부 한국어 사용자라, 모르면 바꾸지 않는 쪽이 맞다.
-     */
-    private static boolean korean(PushTarget target) {
-        return target.locale() == null || target.locale().isBlank()
-                || "ko".equals(target.locale());
     }
 }

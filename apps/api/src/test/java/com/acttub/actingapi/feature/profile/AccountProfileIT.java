@@ -407,6 +407,51 @@ class AccountProfileIT {
         assertError(photoUpload("image/jpeg", 1_000), 403, "profile_required");
     }
 
+    /**
+     * 이름·소개 길이와 공백 이름, 빈 방향 목록의 422 본문을 고정한다. 길이는 코드포인트로 센다(이모지 스무 개는
+     * 된다). 방향 목록 본문의 ctx 는 키 순서가 정해져 있지 않아 JSON 으로 견준다.
+     */
+    @Test
+    void accountProfile_validationBodiesStayByteIdentical() throws Exception {
+        String emoji = "🎭";
+        String escapedEmoji = "\\uD83C\\uDFAD";
+        Object[][] cases = {
+            {"name", "가".repeat(21), "{\"detail\":[{\"type\":\"string_too_long\",\"loc\":[\"body\",\"name\"],"
+                    + "\"msg\":\"String should have at most 20 characters\",\"input\":\"" + "가".repeat(21)
+                    + "\",\"ctx\":{\"max_length\":20}}]}"},
+            {"name", emoji.repeat(21), "{\"detail\":[{\"type\":\"string_too_long\",\"loc\":[\"body\",\"name\"],"
+                    + "\"msg\":\"String should have at most 20 characters\",\"input\":\"" + escapedEmoji.repeat(21)
+                    + "\",\"ctx\":{\"max_length\":20}}]}"},
+            {"name", "", "{\"detail\":[{\"type\":\"string_too_short\",\"loc\":[\"body\",\"name\"],"
+                    + "\"msg\":\"String should have at least 1 character\",\"input\":\"\",\"ctx\":{\"min_length\":1}}]}"},
+            {"name", "  　 ", "{\"detail\":[{\"type\":\"value_error\",\"loc\":[\"body\",\"name\"],"
+                    + "\"msg\":\"Value error, name must not be blank\",\"input\":\"  　 \",\"ctx\":{\"error\":{}}}]}"},
+            {"bio", "나".repeat(81), "{\"detail\":[{\"type\":\"string_too_long\",\"loc\":[\"body\",\"bio\"],"
+                    + "\"msg\":\"String should have at most 80 characters\",\"input\":\"" + "나".repeat(81)
+                    + "\",\"ctx\":{\"max_length\":80}}]}"},
+        };
+        for (Object[] item : cases) {
+            Map<String, Object> body = profile();
+            body.put((String) item[0], item[1]);
+            var response = save(body);
+            assertThat(response.getStatus()).as("%s", item[1]).isEqualTo(422);
+            assertThat(response.getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
+                    .as("%s", item[1]).isEqualTo(item[2]);
+        }
+        Map<String, Object> noDirections = profile();
+        noDirections.put("directions", List.of());
+        var rejected = save(noDirections);
+        assertThat(rejected.getStatus()).isEqualTo(422);
+        assertThat(mapper.readTree(rejected.getContentAsString())).isEqualTo(mapper.readTree("""
+                {"detail":[{"type":"too_short","loc":["body","directions"],
+                "msg":"List should have at least 1 item after validation, not 0","input":[],
+                "ctx":{"field_type":"List","min_length":1,"actual_length":0}}]}
+                """));
+        Map<String, Object> twenty = profile();
+        twenty.put("name", emoji.repeat(20));
+        assertThat(save(twenty).getStatus()).isEqualTo(200);
+    }
+
     // ---- helpers ----
 
     private static Map<String, Object> profile() {

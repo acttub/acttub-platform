@@ -51,10 +51,6 @@ final class CoachingPipeline {
         return CoachingRoute.parse(result.path("route").asText());
     }
 
-    static String prompt(CoachingRoute route, boolean finish) {
-        return prompt(route, finish, false);
-    }
-
     static String prompt(CoachingRoute route, boolean finish, boolean opening) {
         // No combined routing instructions are sent to the message generator.
         String task = finish ? resource("closing") : opening ? resource("opening") : switch (route) {

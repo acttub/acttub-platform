@@ -51,17 +51,6 @@ public class ExternalOperationClaimer {
                 kind, leaseToken, claimedAt, expiresAt));
     }
 
-    public UUID claimById(
-            UUID operationId,
-            UUID leaseToken,
-            Duration duration,
-            Instant now) {
-        OffsetDateTime claimedAt = now.atOffset(ZoneOffset.UTC);
-        OffsetDateTime expiresAt = now.plus(duration).atOffset(ZoneOffset.UTC);
-        return transactionTemplate.execute(status -> claimByIdInTransaction(
-                operationId, leaseToken, claimedAt, expiresAt));
-    }
-
     public boolean fail(
             UUID operationId,
             UUID leaseToken,
@@ -123,53 +112,6 @@ public class ExternalOperationClaimer {
         Integer swept = transactionTemplate.execute(status ->
                 sweepMaxAttemptsInTransaction(sweptAt));
         return swept == null ? 0 : swept;
-    }
-
-    private UUID claimByIdInTransaction(
-            UUID operationId,
-            UUID leaseToken,
-            OffsetDateTime claimedAt,
-            OffsetDateTime expiresAt) {
-        List<Tuple> claimed = list(entityManager.createNativeQuery("""
-                WITH claimed AS (
-                    UPDATE external_operations
-                    SET status = 'running',
-                        waiting_since = CASE WHEN status = 'pending' THEN
-                            CASE WHEN attempt_count = 0 THEN created_at
-                                 WHEN monitoring_updated_at = updated_at THEN waiting_since END END,
-                        execution_started_at = NULL,
-                        monitoring_updated_at = :claimedAt,
-                        monitoring_lease_token = :leaseToken,
-                        attempt_count = attempt_count + 1,
-                        lease_token = :leaseToken,
-                        lease_expires_at = :expiresAt,
-                        error_code = NULL,
-                        response_payload = 'null'::jsonb,
-                        updated_at = :claimedAt
-                    WHERE id = :operationId
-                      AND attempt_count < :maxAttempts
-                      AND (
-                          (status = 'pending' AND lease_token IS NULL)
-                          OR (status = 'running' AND lease_expires_at < :claimedAt)
-                          OR (status = 'failed' AND lease_token IS NULL)
-                      )
-                    RETURNING id, kind, waiting_since, attempt_count
-                )
-                SELECT id, kind, waiting_since, attempt_count FROM claimed
-                """, Tuple.class)
-                .setParameter("leaseToken", leaseToken)
-                .setParameter("expiresAt", expiresAt)
-                .setParameter("claimedAt", claimedAt)
-                .setParameter("operationId", operationId)
-                .setParameter("maxAttempts", MAX_EXTERNAL_OPERATION_ATTEMPTS));
-        if (claimed.isEmpty()) {
-            return null;
-        }
-        UUID id = claimed.getFirst().get("id", UUID.class);
-        Tuple row = claimed.getFirst();
-        monitoring.claimed(new ExternalOperationMonitoring.Claimed(row.get("kind", String.class),
-                row.get("waiting_since", Instant.class), ((Number) row.get("attempt_count")).intValue(), claimedAt.toInstant()));
-        return id;
     }
 
     private UUID claimNextInTransaction(

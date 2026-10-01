@@ -34,7 +34,7 @@ test('challenge.entry: 캡션은 300자까지이고 완료 문구는 공개·비
   const upload = read('app/challenge-upload.tsx');
 
   assert.match(upload, /maxLength=\{CAPTION_MAX\}/);
-  assert.match(upload, /doneCopy\(done\)/);
+  assert.match(upload, /doneCopy\(created\.visibility\)/);
   assert.match(read('locales/ko.ts'), /무대에 올렸어요/);
   assert.match(read('locales/ko.ts'), /비공개로 저장했어요/);
 });
@@ -80,8 +80,9 @@ test('challenge.browse: 피드는 20개씩 이어 받고 끝에서 안내를 보
 test('challenge.browse: P03 은 네 분류로 세고 카드에서 고치거나 지울 수 있다', () => {
   const p03 = read('app/challenge-entries.tsx');
 
-  assert.match(p03, /entryCounts/);
-  assert.match(p03, /bucketOf/);
+  // 분류와 분류별 수는 서버가 준 값을 그대로 쓴다.
+  assert.match(p03, /first\.counts/);
+  assert.match(p03, /entry\.category === filter/);
   assert.match(p03, /entryStatusLabel/);
   assert.match(p03, /api\.updateEntry/);
   assert.match(p03, /api\.deleteEntry/);

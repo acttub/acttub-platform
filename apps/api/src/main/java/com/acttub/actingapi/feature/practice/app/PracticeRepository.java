@@ -8,7 +8,7 @@ import com.acttub.actingapi.feature.practice.app.PracticeViews.GroupView;
 import com.acttub.actingapi.feature.practice.app.PracticeViews.PracticeView;
 
 /**
- * practice 가 저장소에 요구하는 것 — 1.0.0 회차·묶음과 분석 작업 (practice.start, practice.resume,
+ * practice 가 저장소에 요구하는 것 — 0.1.0 회차·묶음과 분석 작업 (practice.start, practice.resume,
  * practice.analyze). 옛 {@code practice_sessions} 를 읽는 {@link PracticeSessionRepository} 와 다른 포트다.
  *
  * <p>없음을 {@code null} 로 알린다(ADR-018).

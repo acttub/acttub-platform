@@ -6,7 +6,6 @@ import type { BlockageKind } from "./blockage-flow";
 import { sessionStatusOf } from "./practice-analysis";
 
 export interface PracticeDetailView {
-  session_id: string;
   status: PracticeSessionStatus;
   situation: string;
   character_context: string;
@@ -14,23 +13,19 @@ export interface PracticeDetailView {
   blockage_kind: BlockageKind;
   sub_branch: string;
   blockage_detail: string | null;
-  created_at: string;
   playback_url: string;
   summary: components["schemas"]["ObservationPackResponse"] | components["schemas"]["VideoRecordSummaryResponse"] | null;
   error_code: "gemini_timeout" | "gemini_parse_error" | "unsupported_media" | "max_attempts_exceeded" | null;
   root_id: string;
-  ordinal: number;
   video_id: string | null;
   video_purged: boolean;
   analysis_status: string | null;
-  stage: Practice["stage"];
   previous_conversations: Practice["previous_conversations"];
 }
 
 export function practiceToSessionDetail(practice: Practice & { video?: Video | null; analysis?: PracticeAnalysis | null }): PracticeDetailView {
   const status = sessionStatusOf(practice);
   return {
-    session_id: practice.id,
     status,
     situation: practice.situation,
     character_context: practice.character,
@@ -38,16 +33,13 @@ export function practiceToSessionDetail(practice: Practice & { video?: Video | n
     blockage_kind: practice.blockage_category === "분석" || practice.blockage_category === "표현" ? practice.blockage_category : "그 외",
     sub_branch: practice.blockage_detail,
     blockage_detail: practice.blockage_note ?? null,
-    created_at: practice.created_at,
     playback_url: practice.video?.playback_url ?? "",
     summary: practice.analysis?.summary ?? null,
     error_code: status === "failed" ? toErrorCode(practice.job?.failure_reason ?? null) : null,
     root_id: practice.root_id,
-    ordinal: practice.ordinal,
     video_id: practice.video_id,
     video_purged: !practice.video_id || Boolean(practice.video?.purged_at),
     analysis_status: practice.analysis_status ?? null,
-    stage: practice.stage,
     previous_conversations: practice.previous_conversations ?? [],
   };
 }

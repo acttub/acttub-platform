@@ -4,10 +4,8 @@ import { api, httpResponses, id, practice, video } from './helpers/practice-api.
 import { analysisRecoveryAction, watchAnalysis } from '../lib/practice/analysis-run.ts';
 import { groupTitle, roundSummary } from '../lib/practice/groups.ts';
 import { noteKindLabel, noteSections, quoteSourceLabel, readOptionalPracticeNote } from '../lib/practice/note.ts';
-import { writtenByLabel } from '../lib/practice/memory.ts';
 import { videoPlaybackSource } from '../lib/library/library-view.ts';
 import { buildContinueBody, buildStartBody, emptyBlockageDraft, emptySceneDraft } from '../lib/practice/start.ts';
-import { buildFeedbackBody, shouldOfferFeedback } from '../lib/practice/feedback.ts';
 import { buildNoteRatingBody } from '../lib/practice/note-rating.ts';
 import { buildReplyBody, coachFailure, coachFailureMessage, isClosed, loadCoachSession, orderedMessages, remainingCoachReplies } from '../lib/practice/coach.ts';
 import { videoErrorMessage } from '../lib/library/video-checks.ts';
@@ -61,23 +59,17 @@ test('코치 시작·답장·재조회는 messages와 revision·close_reason을 
   assert.deepEqual(orderedMessages(latest).map(m => m.text), ['무엇을 기다리고 있었나요?', '그만', '여기까지 나눠요']);
 });
 
-test('설문은 asked_now 선점 결과로 열고 건너뛰기·재전송 본문을 서버 계약으로 보낸다', async t => {
+test('밀린 설문 접수는 같은 요청 id 로 다시 보내도 서버 행이 하나다', async t => {
   const calls = httpResponses(t, [
-    { body: { asked: true, asked_now: true } },
     { status: 201, body: { id: id(12) } },
     { status: 200, body: { id: id(12) } },
-    { body: { asked: true, asked_now: false } },
   ]);
-  const first = await api.claimFeedbackAsk();
-  assert.equal(shouldOfferFeedback({ online: true, claimedNow: first.asked_now }), true);
-  const body = buildFeedbackBody({ requestId: id(9), practiceId: id(1), screen: 'report', trigger: 'back' });
+  const body = { request_id: id(9), practice_id: id(1), screen: 'report', trigger: 'back' };
   const created = await api.submitPracticeFeedback(body);
   const retried = await api.submitPracticeFeedback(body);
   assert.equal(created.id, retried.id);
-  assert.equal(calls[1].body.body, undefined);
-  assert.equal(calls[1].body.contact_email, undefined);
-  const next = await api.claimFeedbackAsk();
-  assert.equal(shouldOfferFeedback({ online: true, claimedNow: next.asked_now }), false);
+  assert.equal(calls[0].body.body, undefined);
+  assert.equal(calls[0].body.contact_email, undefined);
 });
 
 test('조회 오류는 재조회하고 실패한 분석만 새 작업으로 재시도한다', () => {
@@ -139,7 +131,7 @@ test('완료된 대화의 회차로 돌아오면 분석을 실패로 바꾸지 �
 test('저장한 배우 기억의 written_by_actor로 내가 적은 값을 표시한다', async t => {
   httpResponses(t, [{ body: { field: 'goal', value: '상대에게 전하기', written_by_actor: true, source_practice_id: null, updated_at: '2026-09-21T02:00:00Z' } }]);
   const memory = await api.saveActorMemory('goal', '상대에게 전하기');
-  assert.equal(writtenByLabel(memory), '내가 적은 값');
+  assert.equal(memory.written_by_actor, true);
 });
 
 test('legacy 노트 봉투가 비어 있어도 원문 배우 발견과 촬영 제안을 보여준다', async t => {

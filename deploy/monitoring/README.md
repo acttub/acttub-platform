@@ -1,23 +1,62 @@
 # 홈서버 모니터링 수집
 
-명세는 [MONITORING.md](../../docs/deploy/MONITORING.md), 앱 배포 정본은
-[DEPLOY-HOME.md](../../docs/deploy/DEPLOY-HOME.md)다. 이 디렉터리는 별도 Compose 프로젝트의
-Prometheus·PDC·호스트·DB health·백업 수집을 담당한다. Cloud 선언 설정은 [cloud](cloud/)에 있다.
+앱 배포 정본은 [DEPLOY-HOME.md](../../docs/deploy/DEPLOY-HOME.md)다. 이 디렉터리는 별도 Compose 프로젝트의
+Prometheus·PDC·호스트·DB health·백업 수집을 담당한다. Cloud 선언 설정은 [cloud](cloud/)에 있고, 적용·확인
+절차는 [MONITORING-CLOUD.md](../../docs/deploy/MONITORING-CLOUD.md)다.
 앱 배포 스크립트와 Actions의 앱 파일 전송에는 이 프로젝트를 넣지 않는다.
+
+## 배경과 범위
+
+dev·운영의 요청량·오류·응답시간, 분석·코치·리포트 실행, 호스트·DB·백업 상태를 한곳에서 보고 Slack으로 알리려고
+둔다. Sentry와 Langfuse는 상세 조사용이다. 반복 보고 억제와 수신 누락이 있어 실제 실행량·실패율을 대신하지 않고,
+Langfuse 수치는 완전한 비용 정산 자료가 아니다.
+
+- 홈서버 Prometheus가 지표를 수집·저장하고, Grafana Cloud가 PDC(Private Data source Connect, 사설 데이터 소스
+  연결)로 그것을 직접 조회해 대시보드·규칙 평가·통지를 맡는다.
+- 감시를 홈서버에만 두면 전원·회선 장애 때 알림도 함께 멈춘다. 그래서 규칙 평가와 통지는 Cloud가 하고,
+  Cloud 외부 점검이 두 환경의 공개 접근을 따로 확인한다.
+- 추가 월 비용 없이 Grafana Cloud Free로 운영한다. 사람 계정과 권한은 [MONITORING-CLOUD.md](../../docs/deploy/MONITORING-CLOUD.md#처음-한-번-사람이-준비하는-것)를
+  따른다.
+- 화면은 Cloud 계정 로그인으로 연다. 초기의 Tailscale 전용 화면 접근 결정은 이 방식으로 대체했고, Tailscale은
+  서버 관리·배포에 유지한다. PDC는 브라우저 접속을 Tailscale로 제한하는 기능이 아니다.
+- 선언 설정으로 교체할 수 있는 관측 구성이라 별도 ADR을 두지 않는다. 설계 이유는 이 절에 둔다.
+
+알아 둘 한계:
+
+- 홈서버·회선·PDC가 끊긴 동안에는 Cloud에서 로컬의 과거 지표도 조회할 수 없고 서비스 지표 평가도 실패한다.
+  그래서 데이터 소스 연결 오류와 외부 접속 점검을 따로 감시한다.
+- Cloud·Slack의 가용성은 각 제공자에 의존한다.
+
+하지 않는 것:
+
+- 홈서버 Grafana·별도 Alertmanager 운영, 로컬 지표 전체의 Cloud Metrics 복제(`remote_write`)
+- Grafana 안의 중앙 로그 검색, 새 분산 추적·Sentry 트레이싱 활성화
+- AI 비용 정산 완성, Langfuse 토큰 누락 보정, 사용자 수·전환·재방문 분석을 Grafana로 옮기는 것
+- 전체 컨테이너 수집을 위한 cAdvisor·Docker socket 접근
+- 공개 관리 포트와 DB 공개 연결
+- 관측 지표를 정확한 정산 원장으로 쓰는 것, 사용자·프롬프트·영상 원문 수집
+- 디스크 손실에 대비한 지표의 별도 재해 복구 백업과 호스트 고가용성 구성
+- Cloud·Slack 자체 장애의 독립 감시, 유료 플랜·유료 사용자 추가
+- 운영 데이터 변경이나 운영 서버 전원 차단을 기본 검증 절차로 쓰는 것
+
+설계 근거: [PDC 공식 안내](https://grafana.com/blog/unify-and-query-private-network-data-in-grafana-cloud-private-data-source-connect-is-now-ga/),
+[PDC 문서](https://grafana.com/docs/grafana-cloud/observe-and-act/connect-externally-hosted/private-data-source-connect/).
+요금·점검 수·데이터 없음 처리의 근거는 [MONITORING-CLOUD.md](../../docs/deploy/MONITORING-CLOUD.md)에 있다.
 
 ## 구성
 
-| 서비스 | 이미지 고정 버전 | 접근 범위 |
-|---|---|---|
-| Prometheus | 3.14.0 | 전용 조회망·수집기망·선택한 환경의 수집망 |
-| PDC | 0.0.64, OpenSSH 모드 | 전용 조회망만, 전달 목적지 `prometheus:9090`만 허용 |
-| node exporter | 1.12.1 | 수집기망, `/proc`·`/sys`·호스트 루트 읽기 전용 |
-| DB health·백업 exporter | Python 3.13.12 / Alpine 3.23 | 각각 환경별 수집망·수집기망, 또는 수집기망만 |
+| 서비스 | 접근 범위 |
+|---|---|
+| Prometheus | 전용 조회망·수집기망·선택한 환경의 수집망 |
+| PDC | 전용 조회망만. OpenSSH 모드로 전달 목적지 `prometheus:9090`만 허용 |
+| node exporter | 수집기망, `/proc`·`/sys`·호스트 루트 읽기 전용 |
+| DB health·백업 exporter | 각각 환경별 수집망·수집기망, 또는 수집기망만 |
 
 모든 이미지는 [compose.yml](compose.yml)에 버전과 SHA-256 digest를 함께 고정했다.
-Prometheus는 **30초**마다 수집하고 `metrics` 볼륨에 **30일** 보관한다. `retention_size`는 필수이며
-실측하지 않은 기본 용량을 운영값으로 넣지 않는다. 용량 상한이 먼저 적용되면 30일 이전 기록도
-정리될 수 있고, WAL·index·compaction 임시 공간까지 제한하는 디스크 할당량은 아니다.
+Prometheus는 **30초**마다 수집하고(`manage.py`가 렌더하는 `scrape_interval`) `metrics` 볼륨에 **30일**
+보관한다(`compose.yml`의 `retention.time`, `check`가 대조한다). 다른 문서는 이 두 값을 여기서 가리킨다.
+`retention_size`는 필수이며 실측하지 않은 기본 용량을 운영값으로 넣지 않는다. 용량 상한이 먼저 적용되면
+보관 기간 이전 기록도 정리될 수 있고, WAL·index·compaction 임시 공간까지 제한하는 디스크 할당량은 아니다.
 
 `config.environments`는 `dev`·`prod` 중 하나 이상을 포함하는 객체다. 빈 객체나 다른 환경 이름은
 거부한다. DEV만 시작하려면 `config.example.json`을 복사한 설정에서 `environments.prod` 항목을
@@ -39,8 +78,9 @@ Prometheus 관리 변경 API·reload HTTP는 켜지 않으며 어떤 서비스�
 ## 최초 준비
 
 1. 선택한 환경의 앱 `.env`에 서로 다른 난수 `MONITORING_TOKEN`과 `MONITORING_ENVIRONMENT=dev` 또는
-   `prod`를 공급하고 기존 앱 배포를 실행한다. 관리 포트는 `9091`이며 Bearer 토큰으로
-   `/actuator/prometheus`·`/actuator/health/db`에 접근한다. 토큰이 없으면 관리 접근만 거부한다.
+   `prod`를 공급하고 기존 앱 배포를 실행한다. 수집기는 이 토큰을 Bearer로 보내 API 관리 포트의 경로를
+   읽는다(포트는 앱 `compose.yml`, 경로와 접근 규칙은 [CONTRACT §6-4](../../apps/api/CONTRACT.md#6-4-관리용-모니터링-경로)).
+   토큰이 없으면 관리 접근만 거부한다.
 2. 기존 환경별 백업 프로필이 만든 `acttub-<env>_backup_state` 볼륨과 성공 기록을 확인한다.
    관리 도구는 누락된 백업 볼륨을 새로 만들어 성공처럼 표시하지 않는다.
 3. 이 디렉터리의 버전별 소스를 홈서버에 별도로 준비하고 `config.example.json`을
@@ -129,7 +169,8 @@ python3 deploy/monitoring/manage.py rollback monitoring-v1
 `previous`를 갱신한다. 적용 실패는 자동 복구를 의미하지 않는다. 일부 컨테이너가 이미 변경됐을 수
 있으므로 기록한 이전 버전을 명시해 다시 적용한다. 복구도 같은 프로젝트의 `metrics` 볼륨을
 사용하고 DB 복원·DB/지표 볼륨 삭제를 수행하지 않는다. 디스크 자체 손실 때 과거 지표 손실을
-수용하며, 소스·별도 보호한 시크릿을 준비해 새 볼륨에서 수집을 재개한다.
+수용하며, 소스·별도 보호한 시크릿을 준비해 새 볼륨에서 수집을 재개한다. API 쪽 계측을 되돌릴 때는
+[DEPLOY-HOME §4](../../docs/deploy/DEPLOY-HOME.md#4-코드-배포-복구)의 앱 복구 절차를 쓴다.
 
 DEV 수집을 유지하며 운영을 추가할 때는 운영 앱의 토큰·수집망·기존 백업 상태 볼륨을 먼저 준비하고,
 설정에 `environments.prod`를 추가한 새 릴리스를 렌더링·검사·적용한다. 같은 `project`와
@@ -137,9 +178,10 @@ DEV 수집을 유지하며 운영을 추가할 때는 운영 앱의 토큰·수�
 거부하며, 환경을 추가하거나 이전 DEV 전용 릴리스로 복구해도 지표 볼륨을 삭제하지 않는다.
 DEV 전용으로 복구하면 새 운영 수집은 중단되지만 기존 운영 지표는 보관 정책에 따라 남는다.
 
-`verify`는 선택한 환경의 scrape·DB probe·백업 상태 읽기와 목적지 일치를 검사한다. 최신 백업 성공/26시간
-초과·미해결 실패는 아래 지표로 따로 판정한다. PDC 실제 연결, Cloud 조회/권한, Slack 알림은
-Cloud 쪽 실제 검증으로 확인해야 한다. 컨테이너가 실행 중이라는 사실만으로 이를 통과시키지 않는다.
+`verify`는 선택한 환경의 scrape·DB probe·백업 상태 읽기와 목적지 일치를 검사한다. 최신 백업의 경과
+시간·미해결 실패는 아래 지표로 따로 판정한다. PDC 실제 연결, Cloud 조회/권한, Slack 알림은
+[Cloud 쪽 실제 검증](../../docs/deploy/MONITORING-CLOUD.md#실제-stack-인수-검증-기록)으로 확인해야 한다.
+컨테이너가 실행 중이라는 사실만으로 이를 통과시키지 않는다.
 
 ## 지표 계약
 
@@ -153,11 +195,11 @@ Cloud 쪽 실제 검증으로 확인해야 한다. 컨테이너가 실행 중이
 
 API가 노출한 중복 `environment`는 scrape label로 치환하고 `exported_environment`는 제거한다.
 DB와 백업 exporter의 `up=0`은 수집기 자체 단절이다. DB probe 실패는 HTTP exporter가 살아 있어도
-`acttub_db_probe_success{environment="dev|prod"}=0`이다. probe는 DNS·본문 읽기까지 포함해 환경당
-3초의 실행 상한을 쓰고(두 환경 합계 약 6초, scrape timeout은 10초),
+`acttub_db_probe_success{environment="dev|prod"}=0`이다. probe는 DNS·본문 읽기까지 포함한 환경당
+실행 상한([exporter.py](exporter.py))을 써서 두 환경을 합쳐도 scrape timeout(`manage.py`) 안에 끝나고,
 리다이렉트·환경변수 HTTP proxy를 사용하지 않으며, 200 응답의 JSON `status=UP`만 성공이다.
-DB 점검 컨테이너는 짧은 프로세스 초기화 동안 CPU 한 개까지 사용할 수 있다. 홈서버에서 CPU를
-0.25개로 제한하면 초기화가 3초 제한을 소모해 정상 DB도 실패로 표시됐으므로 시간 제한과 별도로 여유를 둔다.
+DB 점검 컨테이너의 CPU 상한은 짧은 프로세스 초기화가 실행 상한을 다 쓰지 않도록 여유를 둔다(값과 홈서버
+실측 이유는 [compose.yml](compose.yml)의 주석).
 동시에 한 scrape만 처리하고 겹친 요청은 503으로 거부하므로 probe 프로세스가 무제한 늘지 않는다.
 `acttub_db_probe_duration_seconds`는 실제 점검 소요 시간이다.
 
@@ -177,7 +219,8 @@ DB 점검 컨테이너는 짧은 프로세스 초기화 동안 CPU 한 개까지
 `unresolved_failure`다. 목적지 불일치는 미해결 실패보다 먼저 표시되며 개별 failure 지표는 유지한다.
 2000년 이전·현재보다 5분 넘게 미래·NaN·Infinity·bool·문자열 시각은 `corrupt`다. 성공 없는 최초 실행은
 `no_success`, 성공 전 최초 실패도 `unresolved_failure`로 표시한다. `ok`는 읽기 가능한 정상 상태이며
-26시간 경과 여부는 성공 시각으로 별도 평가한다. 오류 원문·객체 주소·해시·토큰은 지표/label/로그에 넣지 않는다.
+경과 시간은 성공 시각으로 Cloud 규칙이 따로 평가한다(기준은 [DEPLOY-HOME §5](../../docs/deploy/DEPLOY-HOME.md#5-자동-백업과-복원-검증)).
+오류 원문·객체 주소·해시·토큰은 지표/label/로그에 넣지 않는다.
 
 ## 자동 검증과 남은 운영 검증
 

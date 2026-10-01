@@ -10,11 +10,11 @@ import {
   emptyBlockageDraft,
   emptySceneDraft,
   inProgressPracticeId,
-  attemptFor,
   fingerprintOf,
   sceneOverflow,
   startFailure,
 } from '../lib/practice/start.ts';
+import { attemptFor } from '../lib/request-id.ts';
 
 const apiError = (status, code) => Object.assign(new Error(code ?? String(status)), { status, code });
 const networkError = () => Object.assign(new Error('offline'), { name: 'NetworkError' });

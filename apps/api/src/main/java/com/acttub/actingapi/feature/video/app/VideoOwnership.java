@@ -3,7 +3,7 @@ package com.acttub.actingapi.feature.video.app;
 import java.util.UUID;
 
 /**
- * 보관함의 주인 바꾸기 — 웹 게스트의 영상을 앱 회원에게 옮길 때 이관이 부른다 (account.guest, 02-practice
+ * 보관함의 주인 바꾸기 — 웹 게스트의 영상을 앱 회원에게 옮길 때 이관이 부른다 (account.guest, specs/practice
  * 「연습 자료의 이관·삭제·탈퇴」).
  *
  * <p>{@code videos.user_id} 만 바꾸므로 객체는 그대로이고 받아쓰기·회차가 따라간다. 예약 장부

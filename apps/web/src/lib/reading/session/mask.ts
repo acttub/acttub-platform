@@ -4,6 +4,7 @@
  * 기기는 대본마다 마지막 값을 기억한다.
  */
 import type { ReadingMode } from "@/lib/reading/api-types";
+import { webStorage } from "@/lib/reading/storage";
 
 export type MaskMode = "show_all" | "hide_mine" | "hide_all";
 
@@ -27,18 +28,9 @@ export function isMasked(mask: MaskMode, line: { mine: boolean; mode: ReadingMod
 
 const MASK_KEY = "acttub.reading.mask";
 
-function store(): Storage | null {
-  if (typeof window === "undefined") return null;
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
-}
-
 function readAll(): Record<string, MaskMode> {
   try {
-    const raw = store()?.getItem(MASK_KEY);
+    const raw = webStorage("localStorage")?.getItem(MASK_KEY);
     return raw ? (JSON.parse(raw) as Record<string, MaskMode>) : {};
   } catch {
     return {};
@@ -53,7 +45,7 @@ export function loadMask(scriptId: string): MaskMode {
 
 export function saveMask(scriptId: string, mode: MaskMode): void {
   try {
-    store()?.setItem(MASK_KEY, JSON.stringify({ ...readAll(), [scriptId]: mode }));
+    webStorage("localStorage")?.setItem(MASK_KEY, JSON.stringify({ ...readAll(), [scriptId]: mode }));
   } catch {
     /* 저장이 막힌 환경이면 이번 회차만 기억한다 */
   }

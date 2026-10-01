@@ -16,10 +16,9 @@ const TICK_MS = 50;
 
 export type MicHandle = {
   /** 마이크를 열고 침묵 감지를 시작한다. 권한이 없으면 false. */
-  start: (onEvent: (event: VadEvent) => void, onLevel?: (rms: number) => void) => Promise<boolean>;
+  start: (onEvent: (event: VadEvent) => void) => Promise<boolean>;
   /** 마이크를 닫는다. 녹음 파일 uri 와 길이(ms). 열려 있지 않았으면 null. */
   stop: () => Promise<{ uri: string | null; durationMs: number } | null>;
-  listening: () => boolean;
 };
 
 export async function hasMicPermission(): Promise<boolean> {
@@ -60,7 +59,7 @@ export function useReadingMic(): MicHandle {
   }, [recorder]);
 
   const start = useCallback(
-    async (onEvent: (event: VadEvent) => void, onLevel?: (rms: number) => void): Promise<boolean> => {
+    async (onEvent: (event: VadEvent) => void): Promise<boolean> => {
       if (active.current) await stop();
       try {
         const perm = await getRecordingPermissionsAsync();
@@ -80,7 +79,6 @@ export function useReadingMic(): MicHandle {
         } catch {
           rms = 0;
         }
-        onLevel?.(rms);
         const event = detector.current.feed(rms, Date.now());
         if (event !== 'none') onEvent(event);
       }, TICK_MS);
@@ -96,5 +94,5 @@ export function useReadingMic(): MicHandle {
     [stop],
   );
 
-  return { start, stop, listening: () => active.current };
+  return { start, stop };
 }

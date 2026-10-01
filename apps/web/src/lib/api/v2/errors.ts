@@ -53,6 +53,15 @@ export function toApiError(
     : new ApiError(status, code, detail, requestId);
 }
 
+/** 실패 응답을 오류로 바꾼다. 서버가 붙인 X-Request-Id 를 같이 싣는다. */
+export function responseError(response: Response, payload: unknown): ApiError {
+  return toApiError(
+    response.status,
+    payload,
+    response.headers.get("X-Request-Id") ?? undefined,
+  );
+}
+
 export function isStillProcessing(error: unknown): error is ApiError {
   return (
     error instanceof ApiError &&
