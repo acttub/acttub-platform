@@ -47,6 +47,7 @@ import {
   conversationLines,
   isConversationDone,
   needsTurnHistory,
+  type ChatLine,
 } from "../practice/conversation-view";
 import {
   trackDialogueStarted,
@@ -153,14 +154,12 @@ import {
   describeWorkspaceView,
   type WorkspaceStatusChip,
 } from "./workspace-view";
-import { videoRecordRows } from "@/features/practice/video-record-rows";
+import { clock, videoRecordRows } from "@/features/practice/video-record-rows";
 
 const NEW_PRACTICE_SUBTITLE = "영상을 올리면 질문이 시작돼요";
 /** 같은 영상으로 이어할 때 준비 화면이 드는 보관함 영상의 설명 */
 const SAME_VIDEO_CAPTION = "지난 회차와 같은 영상";
 const LIBRARY_VIDEO_CAPTION = "보관함 영상";
-
-type ChatMsg = { role: "ai" | "me"; text: string };
 
 export function WorkspaceApp() {
   return (
@@ -318,7 +317,7 @@ function WorkspaceInner() {
   } = useAnalysisProgress();
 
   // 대화
-  const [messages, setMessages] = useState<ChatMsg[]>([]);
+  const [messages, setMessages] = useState<ChatLine[]>([]);
   const [answer, setAnswer] = useState("");
   const [sending, setSending] = useState(false);
   const [coachOpening, setCoachOpening] = useState(false);
@@ -1284,6 +1283,13 @@ function WorkspaceInner() {
   const toggleRail = useCallback(() => setRailOpen((v) => !v), []);
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
   const reselectVideo = useCallback(() => fileInputRef.current?.click(), []);
+  // 아래 둘도 memo 한 SessionRail·VideoBox 로 간다. 인라인 함수로 넘기면 분석 진행률이
+  // 1초마다 다시 그릴 때 memo 가 매번 풀린다.
+  const toggleRecent = useCallback(() => setRecentOnly((on) => (on ? null : new Date())), []);
+  const reportVideoDuration = useCallback(
+    (durationMs: number) => reportProgress({ type: "duration", videoDurationMs: durationMs }),
+    [reportProgress],
+  );
 
   const questionCount = messages.filter((message) => message.role === "ai").length;
   const visibleScene = {
@@ -1302,7 +1308,7 @@ function WorkspaceInner() {
       finished={finished}
       activeId={activeId}
       recentOnly={recentOnly !== null}
-      onToggleRecent={() => setRecentOnly((on) => (on ? null : new Date()))}
+      onToggleRecent={toggleRecent}
       listError={hasSession && listError}
       canTransfer={hasSession}
     />
@@ -1332,7 +1338,7 @@ function WorkspaceInner() {
               finished={finished}
               activeId={activeId}
               recentOnly={recentOnly !== null}
-              onToggleRecent={() => setRecentOnly((on) => (on ? null : new Date()))}
+              onToggleRecent={toggleRecent}
               listError={hasSession && listError}
               canTransfer={hasSession}
             />
@@ -1540,9 +1546,7 @@ function WorkspaceInner() {
                 <VideoBox
                   src={body.video.src}
                   caption={body.video.caption}
-                  onDuration={(durationMs) =>
-                    reportProgress({ type: "duration", videoDurationMs: durationMs })
-                  }
+                  onDuration={reportVideoDuration}
                   onReselect={body.video.reselectable ? reselectVideo : undefined}
                 />
               ) : body.video.kind === "upload-zone" ? (
@@ -2323,7 +2327,7 @@ function ScenePanel({
                       onClick={() => playObservation(observation.start_ms)}
                       className="rounded-full bg-[#e8f3ff] px-3 py-1.5 text-xs font-black tabular-nums text-[#1b64da]"
                     >
-                      {formatObservationTime(observation.start_ms)}
+                      {clock(observation.start_ms)}
                     </button>
                   ))}
                 </div>
@@ -2416,13 +2420,6 @@ function ScenePanel({
   );
 }
 
-function formatObservationTime(startMs: number): string {
-  const totalSeconds = Math.max(0, Math.floor(startMs / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-}
-
 function SceneRows({ rows }: { rows: [string, string][] }) {
   return (
     <dl className="mt-3 grid gap-2">
@@ -2449,7 +2446,7 @@ function ChatPanel({
   noteReady,
   onOpenNote,
 }: {
-  messages: ChatMsg[];
+  messages: ChatLine[];
   answer: string;
   setAnswer: (v: string) => void;
   sending: boolean;
@@ -2575,7 +2572,7 @@ function ChatPanel({
   );
 }
 
-function Bubble({ msg }: { msg: ChatMsg }) {
+function Bubble({ msg }: { msg: ChatLine }) {
   const mine = msg.role === "me";
   return (
     <div className={`flex items-end gap-2 ${mine ? "justify-end" : "justify-start"}`}>
@@ -2612,7 +2609,7 @@ function NotePanel({
 }: {
   report: PracticeReport;
   groupTitle: string;
-  messages: ChatMsg[];
+  messages: ChatLine[];
   /** 뒤에서 도는 일이 대화로 돌아가는 길을 막고 있는가. */
   backDisabled: boolean;
   onBackToChat: () => void;

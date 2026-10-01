@@ -151,7 +151,6 @@ export function analysisEventsForStatus(
 
 export type AnalysisProgress = {
   pct: number;
-  elapsedMs: number;
   pastDeadline: boolean;
   videoDurationMs: number | null;
   report: (event: AnalysisProgressEvent) => void;
@@ -178,7 +177,6 @@ export function useAnalysisProgress(): AnalysisProgress {
 
   return {
     pct: state.pct,
-    elapsedMs: state.elapsedMs,
     pastDeadline: isAnalysisPastDeadline(state.elapsedMs),
     videoDurationMs: state.videoDurationMs,
     report,
