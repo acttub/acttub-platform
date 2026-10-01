@@ -83,8 +83,3 @@ export function noteSections(note: PracticeNote): NoteSection[] {
     },
   ];
 }
-
-/** 노트가 없는 회차(대화가 짧아 만들지 않음)의 목록 표시. */
-export function noNoteLabel(): string {
-  return translate('note.none');
-}

@@ -43,7 +43,6 @@ test('reading.session: 저장이 실패하면 기기는 계속 진행하고 마�
   assert.equal(state.current, 'l4');
   assert.ok(state.received.length >= 1);
   assert.equal(state.received.at(-1).current_line_id, 'l4', '마지막 위치가 이긴다');
-  assert.equal(q.pending(), null);
 });
 
 test('reading.session: 뒤늦게 온 옛 요청(seq 5)은 최신(seq 7)을 덮지 못한다 — 서버가 무시하고 큐도 낮은 순번을 만들지 않는다', async () => {
@@ -66,7 +65,6 @@ test('reading.session: completed·stopped 회차에 진행 저장은 409 session
   q.push({ current_line_id: 'l2' });
   await q.flushed();
   assert.equal(closed, 1);
-  assert.equal(q.pending(), null);
 });
 
 test('reading.session: 완료 저장은 complete 와 line_results 를 함께 싣는다', async () => {

@@ -234,7 +234,7 @@ export default function SettingsScreen() {
       </Pressable>
       {expanded[row.id] && (
         <View style={styles.docBody}>
-          <Markdown source={row.body} variant="compact" />
+          <Markdown source={row.body} />
         </View>
       )}
     </View>

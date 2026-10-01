@@ -25,7 +25,6 @@ export const palette = {
 
   // 파랑
   blue: '#3182F6', // web-blue
-  blueAlt: '#2F6BFF', // web-blue-2
   blueDeep: '#1B64DA', // web-blue-dark
   blueSoft: '#E8F3FF', // web-blue-soft
   blueMist: '#F8FBFF', // web-blue-mist
@@ -47,13 +46,4 @@ export const palette = {
 
   // 예전 토큰 — 아직 참조하는 화면이 있어 남긴다. 새 화면에서는 쓰지 않는다.
   navy: '#191F28',
-  navySoft: '#333D4B',
-  purple: '#6E56CF',
-  purpleSoft: '#F0EDFA',
 };
-
-/**
- * 홈 '연습 활동' 주간 스트립 단계 색 — 0회 / 1회 / 2~3회 / 4~5회 / 6회 이상.
- * 값은 디자인 시안(스트릭_예시)에서 그대로 가져왔다. 단계 계산은 [[practice-activity]].
- */
-export const weekColors = ['#EDEFF4', '#F8D66E', '#F3AE74', '#EE837D', '#EC6A85'];

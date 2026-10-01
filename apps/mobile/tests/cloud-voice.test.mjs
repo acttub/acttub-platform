@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-  cloudVoiceFallback,
   shouldStopCloudVoiceForSession,
   shouldUseCloudVoice,
 } from '../lib/reading/cloud-voice.ts';
@@ -22,8 +21,6 @@ test('429와 503은 남은 회차 클라우드 요청을 막고 다른 실패는
   assert.equal(shouldStopCloudVoiceForSession({ status: 429 }), true);
   assert.equal(shouldStopCloudVoiceForSession({ status: 503 }), true);
   assert.equal(shouldStopCloudVoiceForSession({ status: 500 }), false);
-  assert.deepEqual(cloudVoiceFallback({ cloudAttempted: true, cloudSucceeded: false, deviceReady: true }), { useDevice: true, textOnly: false });
-  assert.deepEqual(cloudVoiceFallback({ cloudAttempted: true, cloudSucceeded: false, deviceReady: false }), { useDevice: false, textOnly: true });
 });
 
 test('클라우드와 기기 음성 캐시 키는 같은 대사여도 섞이지 않는다', () => {

@@ -30,8 +30,6 @@ test('account.notification: 토글 하나만 꺼져 있으면 이 폰의 토큰�
   assert.deepEqual(notificationEffects(ALL_ON, next), {
     registerToken: false,
     forgetToken: false,
-    scheduleReminders: false,
-    cancelReminders: false,
   });
 });
 
@@ -60,19 +58,11 @@ test('account.notification: 저녁 리마인드만 켜져 있어도 서버 푸�
   assert.equal(notificationEffects(reminderOnly, allOff).forgetToken, true);
 });
 
-test('account.notification: 리마인드 토글을 끄면 예약된 알람을 전부 취소하고, 켜면 다시 30일치를 맞춘다', () => {
+test('account.notification: 리마인드 토글 하나만 끄면 이 폰의 토큰은 두고 서버가 거른다', () => {
   const off = { ...ALL_ON, evening_reminder: false };
 
-  assert.deepEqual(notificationEffects(ALL_ON, off), {
-    registerToken: false,
-    forgetToken: false,
-    scheduleReminders: false,
-    cancelReminders: true,
-  });
-  assert.equal(notificationEffects(off, ALL_ON).scheduleReminders, false);
-  assert.equal(notificationEffects(off, ALL_ON).cancelReminders, false);
-  // 리마인드는 폰이 스스로 울린다. 서버 푸시 토큰과는 무관하다.
-  assert.equal(notificationEffects(ALL_ON, off).forgetToken, false);
+  assert.deepEqual(notificationEffects(ALL_ON, off), { registerToken: false, forgetToken: false });
+  assert.deepEqual(notificationEffects(off, ALL_ON), { registerToken: false, forgetToken: false });
 });
 
 test('account.notification: 알림 권한이 꺼진 폰에서 토글을 켜면 권한 설정 안내가 뜬다', () => {

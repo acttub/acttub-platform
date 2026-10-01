@@ -20,11 +20,6 @@ export function shouldStopCloudVoiceForSession(error: { status?: number } | null
   return error?.status === 429 || error?.status === 503;
 }
 
-export function cloudVoiceFallback(input: { cloudAttempted: boolean; cloudSucceeded: boolean; deviceReady: boolean }) {
-  const failed = input.cloudAttempted && !input.cloudSucceeded;
-  return { useDevice: failed && input.deviceReady, textOnly: failed && !input.deviceReady };
-}
-
 type Storage = { getItem(key: string): Promise<string | null>; setItem(key: string, value: string): Promise<void> };
 function storage(): Storage {
   // eslint-disable-next-line @typescript-eslint/no-require-imports

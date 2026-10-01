@@ -1,6 +1,6 @@
+import { errorCode, errorStatus, isOfflineError } from '../api-request.ts';
 import { translate } from '../i18n.ts';
 import {
-  AI_REPORT_DAILY_LIMIT,
   AI_REPORT_MIN_SAMPLES,
   type AiReport,
   type AiReportStatus,
@@ -15,7 +15,7 @@ import {
  * 않는다**(ADR-005 개정). 표본이 3개 미만이면 견주기 없이 관찰만 보이고 "비교할 영상이 아직
  * 부족해요"라고 말한다. 표본은 이름·id 없이 "다른 참여작들"로만 나온다.
  */
-export { AI_REPORT_DAILY_LIMIT, AI_REPORT_MIN_SAMPLES };
+export { AI_REPORT_MIN_SAMPLES };
 
 export type ReportSection =
   | { kind: 'observations'; label: string; items: ReportEvidence[] }
@@ -41,11 +41,6 @@ export function reportSections(report: AiReport): ReportSection[] {
 /** 표본이 모자라면 그렇게 말한다. 없는 비교를 만들어 내지 않는다. */
 export function sampleNotice(report: Pick<AiReport, 'sample_count'>): string | null {
   return report.sample_count < AI_REPORT_MIN_SAMPLES ? translate('aiReport.notEnoughSamples') : null;
-}
-
-/** 근거 구간을 그 자리부터 다시 보게 하는 시작 시각(초). */
-export function evidenceStartSeconds(evidence: Pick<ReportEvidence, 'start_ms'>): number {
-  return Math.max(0, Math.floor(evidence.start_ms / 1000));
 }
 
 export function evidenceLabel(evidence: Pick<ReportEvidence, 'start_ms' | 'end_ms'>): string {
@@ -87,26 +82,13 @@ export type ReportFailureKind =
   | { kind: 'offline' }
   | { kind: 'other' };
 
-function codeOf(error: unknown): string | null {
-  if (error === null || typeof error !== 'object') return null;
-  const code = (error as { code?: unknown }).code;
-  return typeof code === 'string' ? code : null;
-}
-
-function statusOf(error: unknown): number | null {
-  if (error === null || typeof error !== 'object') return null;
-  const status = (error as { status?: unknown }).status;
-  return typeof status === 'number' ? status : null;
-}
-
 export function reportRequestFailure(error: unknown): ReportFailureKind {
-  const code = codeOf(error);
-  const status = statusOf(error);
+  const code = errorCode(error);
+  const status = errorStatus(error);
   if (code === 'daily_report_request_limit' || status === 429) return { kind: 'daily_limit' };
   if (code === 'video_not_ready') return { kind: 'video_not_ready' };
   if (status === 404) return { kind: 'not_found' };
-  const name = error !== null && typeof error === 'object' ? (error as { name?: unknown }).name : null;
-  if (name === 'NetworkError' || status === null || (status >= 500 && status <= 599)) return { kind: 'offline' };
+  if (isOfflineError(error)) return { kind: 'offline' };
   return { kind: 'other' };
 }
 

@@ -43,20 +43,17 @@ export default function UniversityDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [payload, setPayload] = useState<AdmissionsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [today, setToday] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
     api
       .admissionsByUniversity(id)
-      .then((data) => {
-        setToday(localDate());
-        setPayload(data);
-      })
+      .then(setPayload)
       .catch(() => setError('입시 정보를 불러오지 못했어요.'));
   }, [id]);
 
   const university = payload?.universities[0] ?? null;
+  const today = localDate();
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -131,9 +128,9 @@ function UniversityHeader({ university }: { university: AdmissionUniversity }) {
   );
 }
 
-function NoticeCard({ notice, today }: { notice: AdmissionNotice; today: string | null }) {
-  const remaining = today ? countdown(notice, today) : null;
-  const closed = Boolean(today) && !isOpen(notice, today as string);
+function NoticeCard({ notice, today }: { notice: AdmissionNotice; today: string }) {
+  const remaining = countdown(notice, today);
+  const closed = !isOpen(notice, today);
   const bars = weightBars(notice.weights);
   const results = notice.results.filter((result) => result.competition_rate);
 

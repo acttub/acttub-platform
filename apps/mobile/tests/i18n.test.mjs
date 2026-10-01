@@ -48,5 +48,5 @@ test('i18n: 기기 언어가 한국어가 아니면 영어, 한국어면 한국�
   // translate 기본값이 한국어 원문 그대로인지로 폴백 경로를 잠근다.
   const { translate } = await import('../lib/i18n.ts');
   assert.equal(translate('login.google'), ko.login.google);
-  assert.equal(translate('home.helloName', { name: '지성' }), '지성님, 안녕하세요 👋');
+  assert.equal(translate('challenges.hostMember', { name: '지성' }), '지성 님이 연 대사');
 });

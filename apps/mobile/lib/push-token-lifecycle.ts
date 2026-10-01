@@ -71,9 +71,6 @@ export function createPushTokenLifecycle(dependencies: { storage: Storage; api: 
   }
 
   return {
-    currentToken: readToken,
-    pendingDeletions: readPending,
-
     /**
      * 이 폰의 토큰을 내 것으로 등록한다. 실패하면 던진다(부르는 쪽이 최선 노력으로 삼킨다).
      *

@@ -10,7 +10,6 @@ import {
   stageTrack,
   startTutorial,
   tutorialSteps,
-  TUTORIAL_STAGES,
 } from '../lib/tutorial.ts';
 import {
   createSampleLoop,
@@ -29,6 +28,9 @@ import {
   orderedMessages,
 } from '../lib/practice/coach.ts';
 import ko from '../locales/ko.ts';
+
+/** 연습 루프의 네 화면. */
+const TUTORIAL_STAGES = ['upload', 'analyzing', 'coach', 'report'];
 import en from '../locales/en.ts';
 
 /**

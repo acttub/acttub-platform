@@ -1,6 +1,6 @@
 import { Paths } from 'expo-file-system';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef } from 'react';
 
 import { speechLocale } from '@/lib/i18n';
 import { sttPolicy, type SttPolicy } from '@/lib/reading/stt-policy';
@@ -46,11 +46,9 @@ export type SttHandle = {
   abort: () => void;
   /** 마지막 듣기가 남긴 파일 uri(persist 였을 때). 가져가면 비운다. */
   takeRecordingUri: () => string | null;
-  interim: string;
 };
 
 export function useReadingStt(): SttHandle {
-  const [interim, setInterim] = useState('');
   const text = useRef('');
   const active = useRef(false);
   const detector = useRef<SilenceDetector | null>(null);
@@ -71,7 +69,6 @@ export function useReadingStt(): SttHandle {
     const transcript = event.results[0]?.transcript?.trim() ?? '';
     if (transcript) {
       text.current = transcript;
-      setInterim(transcript);
       callbacks.current?.onInterim(transcript);
     }
     if (event.isFinal && settle.current) finishNow(text.current);
@@ -94,7 +91,6 @@ export function useReadingStt(): SttHandle {
   const start = useCallback<SttHandle['start']>((next, options) => {
     text.current = '';
     recordingUri.current = null;
-    setInterim('');
     callbacks.current = next;
     detector.current = createSilenceDetector(DEFAULT_VAD, Date.now());
     try {
@@ -147,5 +143,5 @@ export function useReadingStt(): SttHandle {
     return uri;
   }, []);
 
-  return { start, finish, abort, takeRecordingUri, interim };
+  return { start, finish, abort, takeRecordingUri };
 }

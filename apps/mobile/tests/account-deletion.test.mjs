@@ -77,8 +77,7 @@ test('api.deleteMe는 DELETE /v2/me를 부른다', () => {
 
 // 탈퇴·로그아웃의 순서와 "계정이 사라졌을 때 기기 비우기"는 소스 문자열이 아니라 동작으로 검사한다:
 // 순서와 실패 허용은 auth-session.test, 기기에서 지우는 것과 남기는 것은 local-account-wipe.test ·
-// device-files.test, 알람과 푸시 토큰은 notification-sync.test · reminder-schedule.test ·
-// push-token-lifecycle.test.
+// device-files.test, 알람과 푸시 토큰은 notification-sync.test · push-token-lifecycle.test.
 
 /** 주석은 화면에 안 나온다 — 문구 검사에서 뺀다. */
 const stripComments = (source) =>

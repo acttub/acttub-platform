@@ -57,9 +57,8 @@ export default function HomeScreen() {
   const { user } = useAuth();
   const [groups, setGroups] = useState<PracticeGroup[]>([]);
   // 연속일·주간 원용 날짜 — 서버 기록 ∪ 기기에 누적된 연습일(지워도 남는다).
-  const [activityDays, setActivityDays] = useState<{ created_at: string }[]>([]);
-  // 기록을 한 번이라도 받았는지 — 받기 전의 연속일(0)로 축하를 판단하면 안 된다.
-  const [activityLoaded, setActivityLoaded] = useState(false);
+  // null 이면 기록을 아직 한 번도 못 받은 것이다 — 그때의 연속일(0)로 축하를 판단하면 안 된다.
+  const [activityDays, setActivityDays] = useState<{ created_at: string }[] | null>(null);
   const [admissions, setAdmissions] = useState<AdmissionsResponse | null>(null);
   const [celebrateStreak, setCelebrateStreak] = useState<number | null>(null);
   // 처음 한 번만 가이드 — 누를 자리를 비춰 준다. 설정의 "가이드 다시 보기"로 되살릴 수 있다.
@@ -116,18 +115,14 @@ export default function HomeScreen() {
             .filter((at): at is string => typeof at === 'string' && at.length > 0)
             .map((created_at) => ({ created_at }));
           void rememberPracticeDays(practicedAt).then((days) => {
-            if (cancelled) return;
-            setActivityDays(days);
-            setActivityLoaded(true);
+            if (!cancelled) setActivityDays(days);
           });
         })
         .catch(() => {
           if (!cancelled) {
             setGroups([]);
             void rememberPracticeDays([]).then((days) => {
-              if (cancelled) return;
-              setActivityDays(days);
-              setActivityLoaded(true);
+              if (!cancelled) setActivityDays(days);
             });
           }
         });
@@ -161,14 +156,14 @@ export default function HomeScreen() {
     [admissions],
   );
 
-  const { days } = useMemo(() => buildWeekActivity(activityDays), [activityDays]);
+  const { days } = useMemo(() => buildWeekActivity(activityDays ?? []), [activityDays]);
   // 연속 연습 일수는 회차 시작 날짜를 한국 시간으로 센다(practice.library).
-  const streak = useMemo(() => practiceStreak(activityDays.map((d) => d.created_at)), [activityDays]);
+  const streak = useMemo(() => practiceStreak((activityDays ?? []).map((d) => d.created_at)), [activityDays]);
+  const activityLoaded = activityDays !== null;
 
   // 연속일이 오늘 늘었으면(마지막으로 본 값보다 크면) 딱 한 번 축하한다 (SOMA-479).
-  // 기록을 받기 전엔 판단하지 않는다 — 그때의 0 을 기억하면 켤 때마다 다시 축하한다(SOMA-494).
+  // 기록을 받기 전엔 판단하지 않는다 — 그 판정은 streakCelebrationStep 이 한다(SOMA-494).
   useEffect(() => {
-    if (!activityLoaded) return;
     let cancelled = false;
     void readLastSeenStreak().then((lastSeen) => {
       if (cancelled) return;

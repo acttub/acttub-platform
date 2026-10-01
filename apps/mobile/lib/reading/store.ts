@@ -5,13 +5,14 @@
  * 0.1.0 이전에는 대본이 AsyncStorage(`acttub.reading.scripts`)에만 있었다. 그 키는 이제 옛 대본을
  * 서버로 옮기는 legacy-migration 만 읽고, 여기서는 쓰지 않는다.
  *
- * 회차가 서버에 오기 전까지(RM2) 기기가 대본마다 기억하는 것 — 가리기·내 배역·진행 위치 — 은
- * `acttub.reading.devicePrefs` 에 둔다. 가리기는 요구사항대로 계속 기기 것이고, 나머지는 서버 회차가
- * 대신하게 될 임시다. 녹음은 줄 단위로 서버에 있다(reading.recording) — 옛 회차 전체 녹음은 없다.
+ * 기기가 대본마다 기억하는 것 — 가리기·내 배역 — 은 `acttub.reading.devicePrefs` 에 둔다.
+ * 회차는 서버에 있다(reading.session). 녹음은 줄 단위로 서버에 있다(reading.recording) — 옛 회차 전체
+ * 녹음은 없다.
  *
  * CI mobile 잡이 무설치 node --test 라 AsyncStorage·api 는 함수 안에서 lazy require 하고, 테스트는
  * configureScriptTransport 로 가짜 서버를 넣는다.
  */
+import { newRequestId } from '../request-id.ts';
 import { LEGACY_SCRIPTS_KEY } from './legacy-migration.ts';
 import type { ScriptLine } from './parse.ts';
 import { createDraft, validateDraft, type ScriptDraft } from './script-draft.ts';
@@ -32,25 +33,18 @@ import type {
   StartSessionBody,
 } from './types.ts';
 
-/** 기기 쪽 진행 상태. 서버 회차(reading.session)가 오면 그것으로 바뀐다. */
-export type ScriptStatus = 'draft' | 'reading' | 'done';
 export type MaskMode = 'none' | 'mine' | 'all';
 
 /** 기기가 대본마다 기억하는 것. */
 export type DevicePrefs = {
   maskMode: MaskMode;
   myRoles: string[];
-  index: number;
-  startIndex: number;
-  endIndex: number;
-  status: ScriptStatus;
 };
 
 /** 화면이 쓰는 현재 대본. 서버 상세에 기기 설정을 얹은 모양이다. */
 export interface SavedScript extends DevicePrefs {
   id: string;
   title: string;
-  source: ScriptSource;
   /** 배역 이름(등장 순서). 줄의 role 과 같은 값이다. */
   roles: string[];
   characters: ScriptCharacter[];
@@ -63,8 +57,6 @@ export interface SavedScript extends DevicePrefs {
   openSessionId: string | null;
   /** 마지막 회차(그 대본에서 가장 늦게 시작한 회차). 배역 화면의 기본 선택이 이것이다. */
   lastSession: ScriptLastSession | null;
-  createdAt: number;
-  updatedAt: number;
 }
 
 /** 옛 대본 저장소 키. 탈퇴(local-account-wipe)가 녹음 파일을 찾을 때 읽는다. */
@@ -100,16 +92,16 @@ export type ScriptTransport = {
   create(body: CreateScriptBody): Promise<ScriptDetail>;
   patch(id: string, body: PatchScriptBody): Promise<ScriptDetail>;
   remove(id: string): Promise<void>;
-  /** 회차(reading.session). 테스트의 가짜 서버가 넣지 않아도 대본 기능은 돈다. */
-  startSession?(scriptId: string, body: StartSessionBody): Promise<SessionDetail>;
-  getSession?(sessionId: string): Promise<SessionDetail>;
-  saveProgress?(sessionId: string, body: ProgressBody): Promise<ProgressResponse>;
-  listSessions?(scriptId: string): Promise<{ sessions: SessionCard[] }>;
-  deleteSession?(sessionId: string): Promise<void>;
-  deleteRecording?(recordingId: string): Promise<void>;
+  /** 회차(reading.session). */
+  startSession(scriptId: string, body: StartSessionBody): Promise<SessionDetail>;
+  getSession(sessionId: string): Promise<SessionDetail>;
+  saveProgress(sessionId: string, body: ProgressBody): Promise<ProgressResponse>;
+  listSessions(scriptId: string): Promise<{ sessions: SessionCard[] }>;
+  deleteSession(sessionId: string): Promise<void>;
+  deleteRecording(recordingId: string): Promise<void>;
   /** 암기 상태(reading.memorization). 조회는 대본 단위, 갱신은 줄 단위. */
-  listMemorization?(scriptId: string): Promise<LineMemorization[]>;
-  setMemorization?(lineId: string, status: MemorizationStatus): Promise<LineMemorization>;
+  listMemorization(scriptId: string): Promise<LineMemorization[]>;
+  setMemorization(lineId: string, status: MemorizationStatus): Promise<LineMemorization>;
 };
 
 let transport: ScriptTransport | null = null;
@@ -146,17 +138,9 @@ function storage() {
   return require('@react-native-async-storage/async-storage').default;
 }
 
-/** 요청 id(UUID). 초안마다 하나라 연결이 끊겨 다시 보내도 대본이 둘이 되지 않는다. */
-export function newRequestId(): string {
-  const cryptoApi = globalThis.crypto;
-  if (typeof cryptoApi?.randomUUID === 'function') return cryptoApi.randomUUID();
-  const part = () => Math.floor(Math.random() * 0x10000).toString(16).padStart(4, '0');
-  return `${part()}${part()}-${part()}-4${part().slice(1)}-${part()}-${part()}${part()}${part()}`;
-}
-
 // ── 기기 설정 ─────────────────────────────────────────────────────────────────
 
-const DEFAULT_PREFS: DevicePrefs = { maskMode: 'none', myRoles: [], index: 0, startIndex: 0, endIndex: 0, status: 'draft' };
+const DEFAULT_PREFS: DevicePrefs = { maskMode: 'none', myRoles: [] };
 
 async function readPrefs(): Promise<Record<string, Partial<DevicePrefs>>> {
   try {
@@ -178,14 +162,7 @@ async function writePrefs(id: string, prefs: DevicePrefs | null): Promise<void> 
 }
 
 function prefsOf(script: SavedScript): DevicePrefs {
-  return {
-    maskMode: script.maskMode,
-    myRoles: script.myRoles,
-    index: script.index,
-    startIndex: script.startIndex,
-    endIndex: script.endIndex,
-    status: script.status,
-  };
+  return { maskMode: script.maskMode, myRoles: script.myRoles };
 }
 
 // ── 서버 상세 → 화면 모양 ─────────────────────────────────────────────────────
@@ -199,13 +176,11 @@ export function toSavedScript(detail: ScriptDetail, prefs: Partial<DevicePrefs> 
       ? { type: 'dialogue', role: nameOf.get(line.character_id ?? '') ?? '', text: line.text }
       : { type: line.kind, text: line.text },
   );
-  const endIndex = Math.max(0, screenLines.length - 1);
-  const merged: DevicePrefs = { ...DEFAULT_PREFS, endIndex, ...prefs };
+  const merged: DevicePrefs = { ...DEFAULT_PREFS, ...prefs };
   return {
     ...merged,
     id: detail.id,
     title: detail.title,
-    source: detail.source,
     roles: characters.map((c) => c.name),
     characters,
     lines: screenLines,
@@ -214,8 +189,6 @@ export function toSavedScript(detail: ScriptDetail, prefs: Partial<DevicePrefs> 
     recordingCount: detail.recording_count,
     openSessionId: detail.open_session_id,
     lastSession: detail.last_session ?? null,
-    createdAt: Date.parse(detail.created_at) || 0,
-    updatedAt: Date.parse(detail.updated_at) || 0,
   };
 }
 
@@ -268,7 +241,7 @@ export async function loadIntoCurrent(id: string): Promise<SavedScript | null> {
 /** 현재 대본에 부분 수정을 적용한다. 기기가 기억할 것은 저장소에도 적는다. */
 export async function updateCurrent(patch: Partial<SavedScript>): Promise<void> {
   if (!current) return;
-  current = { ...current, ...patch, updatedAt: Date.now() };
+  current = { ...current, ...patch };
   await writePrefs(current.id, prefsOf(current));
 }
 
@@ -350,9 +323,7 @@ export function setCurrentSession(session: SessionDetail | null): void {
  * 있으면 서버가 stopped 로 바꾸고 새 회차를 만든다. 시작한 회차가 현재 회차가 된다.
  */
 export async function startSession(scriptId: string, body: StartSessionBody): Promise<SessionDetail> {
-  const start = server().startSession;
-  if (!start) throw new Error('session transport missing');
-  const session = await start(scriptId, body);
+  const session = await server().startSession(scriptId, body);
   currentSession = session;
   if (current?.id === scriptId) {
     current = {
@@ -364,30 +335,14 @@ export async function startSession(scriptId: string, body: StartSessionBody): Pr
   return session;
 }
 
-/** 열린 회차를 다시 읽어 현재 회차로 올린다(이어하기). 없거나 남의 것이면 null. */
-export async function loadSession(sessionId: string): Promise<SessionDetail | null> {
-  const get = server().getSession;
-  if (!get) return null;
-  try {
-    currentSession = await get(sessionId);
-    return currentSession;
-  } catch {
-    return null;
-  }
-}
-
 export function saveProgress(sessionId: string, body: ProgressBody): Promise<ProgressResponse> {
-  const save = server().saveProgress;
-  if (!save) return Promise.reject(new Error('session transport missing'));
-  return save(sessionId, body);
+  return server().saveProgress(sessionId, body);
 }
 
 /** 회차 상세를 읽는다(현재 회차를 바꾸지 않는다). 없거나 남의 것이면 null. */
 export async function fetchSession(sessionId: string): Promise<SessionDetail | null> {
-  const get = server().getSession;
-  if (!get) return null;
   try {
-    return await get(sessionId);
+    return await server().getSession(sessionId);
   } catch {
     return null;
   }
@@ -395,33 +350,25 @@ export async function fetchSession(sessionId: string): Promise<SessionDetail | n
 
 /** 그 대본의 회차 목록(최근순). */
 export async function listSessions(scriptId: string): Promise<SessionCard[]> {
-  const list = server().listSessions;
-  if (!list) return [];
-  return (await list(scriptId)).sessions;
+  return (await server().listSessions(scriptId)).sessions;
 }
 
 /** 회차를 지운다(R00.5). 녹음(파일 포함)이 함께 지워지고 암기 상태는 남는다. */
 export async function deleteSession(sessionId: string): Promise<void> {
-  const remove = server().deleteSession;
-  if (!remove) throw new Error('session transport missing');
-  await remove(sessionId);
+  await server().deleteSession(sessionId);
   if (currentSession?.id === sessionId) currentSession = null;
   if (current?.openSessionId === sessionId) current = { ...current, openSessionId: null };
 }
 
 /** 개별 녹음 삭제. 회차 진행·암기 상태는 그대로다. */
 export async function deleteRecording(recordingId: string): Promise<void> {
-  const remove = server().deleteRecording;
-  if (!remove) throw new Error('recording transport missing');
-  await remove(recordingId);
+  await server().deleteRecording(recordingId);
 }
 
 /** 그 대본 줄의 암기 상태 행(reading.memorization). 못 읽으면 빈 목록 — 기기 값을 먼저 보여 준다. */
 export async function listMemorization(scriptId: string): Promise<LineMemorization[]> {
-  const list = server().listMemorization;
-  if (!list) return [];
   try {
-    return await list(scriptId);
+    return await server().listMemorization(scriptId);
   } catch {
     return [];
   }
@@ -429,7 +376,5 @@ export async function listMemorization(scriptId: string): Promise<LineMemorizati
 
 /** 줄 하나의 "외웠어요/아직 헷갈려요". 실패는 호출자(memorization-sync)가 들고 있다가 다시 보낸다. */
 export function setLineMemorization(lineId: string, status: MemorizationStatus): Promise<LineMemorization> {
-  const set = server().setMemorization;
-  if (!set) return Promise.reject(new Error('memorization transport missing'));
-  return set(lineId, status);
+  return server().setMemorization(lineId, status);
 }

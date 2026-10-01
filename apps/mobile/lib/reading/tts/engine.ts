@@ -36,15 +36,6 @@ import { speechKey } from './speech-key.ts';
 import { createSpeechQueue, type SpeechQueue } from './prefetch.ts';
 import { VoicePrepareError } from './voice-errors.ts';
 
-export interface EngineConfig {
-  variant?: Variant; // 기본 fp32(음질 우선)
-  preset?: string; // 음성 프리셋, 기본 M1
-  ep?: 'xnnpack' | 'cpu' | 'nnapi'; // 실행기, 기본 xnnpack
-  threads?: number; // intra-op 스레드, 기본 4
-  steps?: number; // 되돌리기 단계, 기본 8
-  speed?: number; // 말속도, 기본 1.0
-}
-
 export type ProgressFn = (progress: VoiceProgress) => void;
 
 let tts: any = null;
@@ -68,31 +59,28 @@ function report(progress: VoiceProgress) {
     } catch {}
   }
 }
-let cfg: Required<EngineConfig> = {
-  variant: 'fp32',
-  preset: 'M1',
-  ep: 'xnnpack',
-  threads: 4,
-  steps: 8,
-  speed: 1.0,
+const cfg: {
+  variant: Variant;
+  preset: string;
+  ep: 'xnnpack' | 'cpu' | 'nnapi';
+  threads: number;
+  steps: number;
+  speed: number;
+} = {
+  variant: 'fp32', // 음질 우선
+  preset: 'M1', // 기본 음성 프리셋
+  ep: 'xnnpack', // 실행기
+  threads: 4, // intra-op 스레드
+  steps: 8, // 되돌리기 단계
+  speed: 1.0, // 말속도
 };
 
 export function isReady(): boolean {
   return !!tts;
 }
 
-/** 지금 받거나 불러오는 중인가. */
-export function isPreparing(): boolean {
-  return !tts && !!readyPromise;
-}
-
-export function configure(next: EngineConfig) {
-  cfg = { ...cfg, ...next };
-}
-
 /** 모델·설정·음성 스타일을 1회 준비한다. 여러 번 불러도 실제 준비는 한 번만. */
-export function ensureReady(onProgress: ProgressFn = () => {}, next?: EngineConfig): Promise<void> {
-  if (next) configure(next);
+export function ensureReady(onProgress: ProgressFn = () => {}): Promise<void> {
   if (tts) return Promise.resolve();
   listeners.add(onProgress);
   const detach = () => {
@@ -264,7 +252,7 @@ export type SpeechQueueHandle = SpeechQueue & {
 /**
  * 이 대본의 미리 만들기 큐. 만드는 일은 엔진이 하고, 순서와 취소는 큐가 본다 (SOMA-547).
  */
-export function createQueueFor(scriptId: string, options: { cloud?: boolean; synthesizeCloud?: (text: string, scriptId: string, preset: string) => Promise<string>; onCloudFailure?: (blocked: boolean) => void } = {}): SpeechQueueHandle {
+export function createQueueFor(scriptId: string, options: { cloud?: boolean; synthesizeCloud?: (text: string, scriptId: string, preset: string) => Promise<string> } = {}): SpeechQueueHandle {
   let cloudBlocked = false;
   const queue = createSpeechQueue({
     synthesize: async (text, _key, preset) => {
@@ -273,7 +261,6 @@ export function createQueueFor(scriptId: string, options: { cloud?: boolean; syn
           return await options.synthesizeCloud(text, scriptId, preset);
         } catch (error) {
           cloudBlocked = shouldStopCloudVoiceForSession(error as { status?: number });
-          options.onCloudFailure?.(cloudBlocked);
           if (!isReady()) throw error;
         }
       }

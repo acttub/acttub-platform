@@ -199,38 +199,23 @@ export default function ConsentScreen() {
     );
     return (
       <View key={document.id} style={styles.rowWrap}>
-        {document.required ? (
-          <Pressable
-            style={[styles.row, isLocked && styles.rowLocked]}
-            onPress={() => toggleDocument(document)}
-            disabled={isLocked}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: granted, disabled: isLocked }}>
-            <Feather name="check" size={18} color={granted ? palette.blue : palette.checkOff} />
-            <Text style={[styles.rowLabel, granted && styles.rowLabelOn]} numberOfLines={1}>
-              {label}
-            </Text>
-            {chevron}
-          </Pressable>
-        ) : (
-          /* 선택 문서도 체크 한 줄이다 — 체크하면 동의, 비워 두면 거절 (SOMA-544).
-             거절 버튼을 두면 안 고르고 지나갈 수가 없어 '선택'이라는 말과 어긋났다. */
-          <Pressable
-            style={[styles.row, isLocked && styles.rowLocked]}
-            onPress={() => toggleDocument(document)}
-            disabled={isLocked}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: granted, disabled: isLocked }}>
-            <Feather name="check" size={18} color={granted ? palette.blue : palette.checkOff} />
-            <Text style={[styles.rowLabel, granted && styles.rowLabelOn]} numberOfLines={1}>
-              {label}
-            </Text>
-            {chevron}
-          </Pressable>
-        )}
+        {/* 필수·선택 문서 모두 체크 한 줄이다 — 선택 문서는 체크하면 동의, 비워 두면 거절 (SOMA-544).
+            거절 버튼을 두면 안 고르고 지나갈 수가 없어 '선택'이라는 말과 어긋났다. */}
+        <Pressable
+          style={[styles.row, isLocked && styles.rowLocked]}
+          onPress={() => toggleDocument(document)}
+          disabled={isLocked}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: granted, disabled: isLocked }}>
+          <Feather name="check" size={18} color={granted ? palette.blue : palette.checkOff} />
+          <Text style={[styles.rowLabel, granted && styles.rowLabelOn]} numberOfLines={1}>
+            {label}
+          </Text>
+          {chevron}
+        </Pressable>
         {open && (
           <View style={styles.docBody}>
-            <Markdown source={document.body} variant="compact" />
+            <Markdown source={document.body} />
           </View>
         )}
       </View>
@@ -354,21 +339,6 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   rowLocked: { opacity: 0.6 },
-  optionalRow: { paddingVertical: 16, gap: 12 },
-  optionalHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  choiceRow: { flexDirection: 'row', gap: 8 },
-  choice: {
-    flex: 1,
-    alignItems: 'center',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: palette.border,
-    backgroundColor: palette.bg,
-    paddingVertical: 12,
-  },
-  choiceOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
-  choiceText: { fontSize: 14, fontWeight: '700', color: palette.textDim },
-  choiceTextOn: { color: palette.blueDeep },
   rowLabel: { flex: 1, fontSize: 15, fontWeight: '600', color: palette.textDim },
   rowLabelOn: { color: palette.text },
   docBody: { paddingBottom: 12 },

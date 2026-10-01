@@ -36,7 +36,7 @@ test('practice.memory: 연습에서 나온 네 칸만 보여주고 성별·나�
 test('practice.memory: 성별·나이 자리에는 프로필 안내와 링크가 있다', () => {
   const source = readSource('app/memory.tsx');
 
-  assert.match(source, /profileNotice\(\)/);
+  assert.match(source, /translate\('memory\.profileNotice'\)/);
   assert.match(source, /memory\.openProfile/);
   assert.match(source, /'\/profile-edit'/);
   assert.match(readSource('locales/ko.ts'), /성별·나이는 프로필에서 적어요/);
@@ -45,7 +45,7 @@ test('practice.memory: 성별·나이 자리에는 프로필 안내와 링크가
 test('practice.memory: 내가 적은 값은 그렇게 표시하고 코치가 덮지 않는다', () => {
   const source = readSource('app/memory.tsx');
 
-  assert.match(source, /isWrittenByActor/);
+  assert.match(source, /item\.written_by_actor \? styles\.tagMine/);
   assert.match(source, /memory\.writtenByMe/);
   assert.match(source, /memory\.tagCoach/);
   assert.match(readSource('locales/ko.ts'), /내가 적은 값/);

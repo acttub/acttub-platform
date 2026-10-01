@@ -142,25 +142,6 @@ export type ContinuePracticeBody = {
   blockage: PracticeBlockage;
 };
 
-/** 시작·이어하기·분석이 내는 코드. 본문 코드만 오고 화면이 문구를 고른다. */
-export const PRACTICE_ERROR_CODES = [
-  'video_not_ready',
-  'practice_in_progress',
-  'guest_daily_analysis_limit',
-  'request_fingerprint_mismatch',
-  'analysis_not_ready',
-] as const;
-
-export type PracticeErrorCode = (typeof PRACTICE_ERROR_CODES)[number];
-
-/** 분석 작업이 실패한 사유(ai_jobs.failure_reason). 그 밖의 값은 일반 문구로 떨어진다. */
-export type AnalysisFailureReason =
-  | 'timeout'
-  | 'parse'
-  | 'unsupported'
-  | 'cancelled'
-  | 'account_deactivated';
-
 // ─── 대화(practice.coach) ────────────────────────────────────────────────────
 
 export type ConversationStatus = 'open' | 'closed';
@@ -196,8 +177,6 @@ export type CoachTurnResult = {
   message: string | null;
   note: PracticeNote | null;
 };
-
-export type CoachStartBody = { practice_id: string; request_id: string };
 
 export type CoachReplyBody = {
   conversation_id: string;
@@ -296,9 +275,6 @@ export type FeedbackScreen = 'coach' | 'report';
 
 /** 계기는 셋뿐이다. 홈 의견·스토어 평점·노트 미니 평가는 이 기능이 아니다. */
 export type FeedbackTrigger = 'x' | 'leave' | 'back';
-
-export const FEEDBACK_BODY_MAX = 100;
-export const FEEDBACK_CONTACT_MAX = 80;
 
 export type FeedbackBody = {
   request_id: string;
