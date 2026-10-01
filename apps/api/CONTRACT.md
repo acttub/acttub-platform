@@ -1085,6 +1085,20 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   404 `reading_session_not_found`다. 삭제된 리딩 자료는 행째 없어 자연히 보이지 않는다. 상대역 음성은 기기
   TTS라 저장 대상이 아니므로 녹음 수·상세·재생 모두 `my_character_ids`에 속한 대사 줄만 센다.
 
+### 6-23. 가입 유입 광고 (SOMA-588)
+
+- `PUT /v2/me/signup-attribution` 은 **204** 다. 보호 기능이라 동의와 프로필을 끝낸 회원만 부른다(게스트 403
+  `member_only`). 본문은 `source`(`airbridge`)·`platform`(`ios`·`android`)·`channel`(비어 있지 않음)이 필수이고
+  `campaign`·`ad_group`·`ad_creative`·`content`·`term`·`sub_publisher` 는 선택이다. 값마다 앞뒤 공백을 걷고 비면
+  NULL, 200자를 넘으면 422 다. 모르는 키(광고 식별자 등)는 전역 정책대로 422 다(§6-3).
+- **처음 온 값만 남는다**(`ON CONFLICT DO NOTHING`). 다시 보내면 바꾸지 않은 채 204 다 — 앱의 재시도에 안전하다.
+- 앱은 Airbridge SDK 의 설치 귀속 결과를 그 기기에서 **새로 가입한** 계정에만 한 번 보낸다. 기존 회원이 앱을
+  업데이트해 SDK 가 처음 돌 때의 귀속은 보내지 않는다.
+- 쓰기는 회원 자료 쓰기와 같이 `users` 행을 잡고 활성인지 본다(`PostgresProfileRepository#lockActive`) — 탈퇴가
+  먼저면 쓰지 않고 403 `account_deactivated` 다. 탈퇴는 이 행을 지운다(§6-8). 만 14세 미만 종료로 계정 행을
+  지우면 CASCADE 가 함께 지운다.
+- 읽는 곳은 ops 사용자 화면이다. 광고 관리자는 가입을 수로만 센다.
+
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 
 1. **좋아요 카운트는 재집계다.** 증감 방식이 "두 번 눌리면 2 증가" 하던 버그 때문에 의도적으로
