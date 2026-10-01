@@ -36,7 +36,8 @@ export default function ReportScreen() {
   const rating = useAppRating();
   const [note, setNote] = useState<PracticeNote | null>(() => practice?.note ?? null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(!practice?.note);
+  // 노트도 오류도 아직 없으면 읽는 중이다.
+  const loading = !note && !error;
   const [sceneOpen, setSceneOpen] = useState(false);
   const mountedRef = useRef(true);
   const sceneVideo = practice?.videoUri || practice?.playbackUrl || null;
@@ -44,11 +45,9 @@ export default function ReportScreen() {
   const loadNote = useCallback(async () => {
     if (!practice) {
       setError(t('report.noPractice'));
-      setLoading(false);
       return;
     }
     setError(null);
-    setLoading(true);
     try {
       const loaded = await readOptionalPracticeNote(loopApiFor(practice.practiceId).getPracticeNote, practice.practiceId);
       if (!mountedRef.current) return;
@@ -56,10 +55,7 @@ export default function ReportScreen() {
       setNote(loaded);
       if (!loaded) setError(t('note.none'));
     } catch {
-      if (!mountedRef.current) return;
-      setError(t('note.loadFail'));
-    } finally {
-      if (mountedRef.current) setLoading(false);
+      if (mountedRef.current) setError(t('note.loadFail'));
     }
   }, [practice]);
 
@@ -71,7 +67,7 @@ export default function ReportScreen() {
     };
   }, [loadNote, practice?.note]);
 
-  const tutorialGuide = useTutorialSpotlight('report', { ready: !!note && !loading });
+  const tutorialGuide = useTutorialSpotlight('report', { ready: !!note });
 
   // 예시를 다 돈 사람 — 이번엔 내 영상으로.
   const startOwn = () => {
@@ -128,16 +124,16 @@ export default function ReportScreen() {
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen options={{ title: t('note.title'), headerBackVisible: false, headerShadowVisible: false }} />
 
-      {loading && !note && (
+      {loading && (
         <View style={styles.center}>
           <ActivityIndicator color={palette.blue} size="large" />
           <Text style={styles.loadingText}>{t('report.making')}</Text>
         </View>
       )}
 
-      {!loading && !note && (
+      {error && !note && (
         <View style={styles.center}>
-          <Text style={styles.errorText}>{error ?? t('note.none')}</Text>
+          <Text style={styles.errorText}>{error}</Text>
           <Pressable style={styles.primary} onPress={() => void loadNote()}>
             <Text style={styles.primaryText}>{t('common.retry')}</Text>
           </Pressable>

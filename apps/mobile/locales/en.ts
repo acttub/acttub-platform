@@ -560,7 +560,6 @@ const en: DeepStringShape<typeof ko> = {
     lastConversation: 'Last conversation',
     continueCta: 'Continue practice',
     openNote: 'Open note',
-    noteMissing: 'This take has no note yet.',
     groupLoadFail: "Couldn't load your practice history.",
     statTotal: 'Total sessions',
     statLines: 'Lines saved',

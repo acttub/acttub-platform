@@ -183,17 +183,14 @@ export default function UploadScreen() {
         void alert({ title: t('start.continueTitle'), message: t('start.noGroups') });
         return;
       }
-      const chosen = await new Promise<string | null>((resolve) => {
-        void confirm({
-          title: t('start.continueTitle'),
-          message: t('start.continueBody', { title: groups[0].title ?? t('history.noSceneTitle'), count: groups[0].ordinal_count }),
-          confirmLabel: t('start.continueConfirm'),
-          cancelLabel: t('common.cancel'),
-        }).then((ok) => resolve(ok ? groups[0].root_id : null));
+      const group = groups[0];
+      const ok = await confirm({
+        title: t('start.continueTitle'),
+        message: t('start.continueBody', { title: group.title ?? t('history.noSceneTitle'), count: group.ordinal_count }),
+        confirmLabel: t('start.continueConfirm'),
+        cancelLabel: t('common.cancel'),
       });
-      if (!chosen) return;
-      const group = groups.find((g) => g.root_id === chosen);
-      if (!group) return;
+      if (!ok) return;
       setPlan(planFor({ kind: 'group', rootId: group.root_id, practiceId: group.root_id }));
     } catch (e) {
       void alert({ title: t('start.continueTitle'), message: videoErrorMessage(e) });

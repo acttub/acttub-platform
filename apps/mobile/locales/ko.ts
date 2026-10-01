@@ -551,7 +551,6 @@ const ko = {
     lastConversation: '마지막 대화',
     continueCta: '이어서 연습하기',
     openNote: '노트 보기',
-    noteMissing: '이 회차는 아직 정리가 없어요.',
     groupLoadFail: '연습 기록을 불러오지 못했어요.',
     title: '연습 기록',
     statTotal: '총 연습',

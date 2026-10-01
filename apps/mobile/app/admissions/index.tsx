@@ -37,20 +37,17 @@ export default function AdmissionsScreen() {
   const router = useRouter();
   const [payload, setPayload] = useState<AdmissionsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [today, setToday] = useState<string | null>(null);
   const [filters, setFilters] = useState<AdmissionFilters>(EMPTY_FILTERS);
   const [filterOpen, setFilterOpen] = useState(false);
 
   useEffect(() => {
     api
       .admissions()
-      .then((data) => {
-        setToday(localDate());
-        setPayload(data);
-      })
+      .then(setPayload)
       .catch(() => setError('입시 정보를 불러오지 못했어요.'));
   }, []);
 
+  const today = localDate();
   const groups = useMemo(
     () => (payload ? groupByUniversity(payload, today) : []),
     [payload, today],
@@ -216,7 +213,7 @@ function UniversityCard({
   onPress,
 }: {
   group: UniversityGroup;
-  today: string | null;
+  today: string;
   onPress: () => void;
 }) {
   const { university, notices } = group;

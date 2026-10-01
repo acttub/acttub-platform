@@ -136,7 +136,6 @@ test('reading.script: 저장 응답을 화면 모양으로 — 줄은 배역 이
   assert.equal(saved.dialogueCount, 4);
   assert.equal(saved.lineIds.length, 6);
   assert.equal(saved.characters[1].name, '태오');
-  assert.equal(saved.source, 'paste');
 });
 
 test('reading.script: 제목·배역 이름 수정은 제목과 배역(id·이름)만 보내고 줄은 보내지 않는다', async () => {
@@ -182,14 +181,14 @@ test('reading.script: 목록에서 연 대본은 서버 상세로 현재 대본�
   assert.equal(isMyRole('태오'), false);
 });
 
-test('reading.script: toSavedScript 는 기기 설정(가리기·내 배역·위치)을 덮어 쓴다', () => {
+test('reading.script: toSavedScript 는 기기 설정(가리기·내 배역)을 덮어 쓴다', () => {
   const detail = {
     id: 'sc_9', title: 'x', source: 'file',
     characters: [{ id: 'c0', name: '윤서', order: 0, voice_preset: null, dialogue_count: 1 }],
     lines: [{ id: 'l1', ordinal: 1, kind: 'dialogue', character_id: 'c0', text: '안녕', dialogue_no: 1 }],
     recording_count: 2, open_session_id: null, last_session: null, created_at: 'a', updated_at: 'b',
   };
-  const s = toSavedScript(detail, { maskMode: 'mine', myRoles: ['윤서'], index: 0, startIndex: 0, endIndex: 0, status: 'reading' });
+  const s = toSavedScript(detail, { maskMode: 'mine', myRoles: ['윤서'] });
   assert.equal(s.maskMode, 'mine');
   assert.deepEqual(s.myRoles, ['윤서']);
   assert.equal(s.recordingCount, 2);

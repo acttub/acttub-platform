@@ -199,35 +199,20 @@ export default function ConsentScreen() {
     );
     return (
       <View key={document.id} style={styles.rowWrap}>
-        {document.required ? (
-          <Pressable
-            style={[styles.row, isLocked && styles.rowLocked]}
-            onPress={() => toggleDocument(document)}
-            disabled={isLocked}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: granted, disabled: isLocked }}>
-            <Feather name="check" size={18} color={granted ? palette.blue : palette.checkOff} />
-            <Text style={[styles.rowLabel, granted && styles.rowLabelOn]} numberOfLines={1}>
-              {label}
-            </Text>
-            {chevron}
-          </Pressable>
-        ) : (
-          /* 선택 문서도 체크 한 줄이다 — 체크하면 동의, 비워 두면 거절 (SOMA-544).
-             거절 버튼을 두면 안 고르고 지나갈 수가 없어 '선택'이라는 말과 어긋났다. */
-          <Pressable
-            style={[styles.row, isLocked && styles.rowLocked]}
-            onPress={() => toggleDocument(document)}
-            disabled={isLocked}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: granted, disabled: isLocked }}>
-            <Feather name="check" size={18} color={granted ? palette.blue : palette.checkOff} />
-            <Text style={[styles.rowLabel, granted && styles.rowLabelOn]} numberOfLines={1}>
-              {label}
-            </Text>
-            {chevron}
-          </Pressable>
-        )}
+        {/* 필수·선택 문서 모두 체크 한 줄이다 — 선택 문서는 체크하면 동의, 비워 두면 거절 (SOMA-544).
+            거절 버튼을 두면 안 고르고 지나갈 수가 없어 '선택'이라는 말과 어긋났다. */}
+        <Pressable
+          style={[styles.row, isLocked && styles.rowLocked]}
+          onPress={() => toggleDocument(document)}
+          disabled={isLocked}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: granted, disabled: isLocked }}>
+          <Feather name="check" size={18} color={granted ? palette.blue : palette.checkOff} />
+          <Text style={[styles.rowLabel, granted && styles.rowLabelOn]} numberOfLines={1}>
+            {label}
+          </Text>
+          {chevron}
+        </Pressable>
         {open && (
           <View style={styles.docBody}>
             <Markdown source={document.body} />

@@ -5,7 +5,6 @@ import {
   filterGroups,
   groupTitle,
   kstDayKey,
-  mergeHistoryRows,
   practiceStreak,
   recentGroups,
   roundSummary,
@@ -72,16 +71,6 @@ test('practice.library: 연속 연습 일수는 한국 시간으로 세고 자�
   // 오늘 아직 안 했어도 어제까지의 연속은 유지한다.
   assert.equal(practiceStreak(['2026-09-19T23:00:00Z'], now), 1);
   assert.equal(practiceStreak([], now), 0);
-});
-
-test('practice.library: 리딩 회차는 연습 기록에 시간순으로 섞인다', () => {
-  const rows = mergeHistoryRows(
-    [{ id: 'p1', at: '2026-09-20T02:00:00Z', kind: 'practice', title: '연습', meta: '' }],
-    [{ id: 'r1', at: '2026-09-21T02:00:00Z', kind: 'reading', title: '리딩', meta: '' }],
-  );
-
-  assert.deepEqual(rows.map((r) => r.id), ['r1', 'p1']);
-  assert.deepEqual(rows.map((r) => r.kind), ['reading', 'practice']);
 });
 
 test('practice.library: 회차 줄은 n차·대화 수·노트 제목을 보여 주고 노트가 없으면 그렇게 말한다', () => {

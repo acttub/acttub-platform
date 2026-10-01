@@ -116,7 +116,7 @@ export default function AnalyzingScreen() {
         if (!signal.aborted) setError(t('analyzing.statusUnavailable'));
         return;
       }
-      const localUri = loaded?.video_id && !loaded.video_purged ? await localCopyFor(loaded.video_id).catch(() => null) : null;
+      const localUri = loaded.video_id && !loaded.video_purged ? await localCopyFor(loaded.video_id).catch(() => null) : null;
       if (pendingHandleRef.current) {
         await pendingAnalysisStore.remove(pendingHandleRef.current).catch(() => undefined);
         pendingHandleRef.current = null;
@@ -129,16 +129,16 @@ export default function AnalyzingScreen() {
       finishedRef.current = true;
       startPractice({
         practiceId,
-        rootId: loaded?.root_id ?? practiceId,
-        ordinal: loaded?.ordinal ?? 1,
-        conversationId: loaded?.conversation_id,
+        rootId: loaded.root_id ?? practiceId,
+        ordinal: loaded.ordinal ?? 1,
+        conversationId: loaded.conversation_id,
         scene: {
-          situation: loaded?.scene.situation ?? '',
-          character: loaded?.scene.character ?? '',
-          goal: loaded?.scene.goal ?? '',
+          situation: loaded.scene.situation ?? '',
+          character: loaded.scene.character ?? '',
+          goal: loaded.scene.goal ?? '',
         },
         videoUri: localUri ?? '',
-        playbackUrl: loaded?.playback_url ?? null,
+        playbackUrl: loaded.playback_url ?? null,
       });
       logEvent('analysis_complete', { analysis });
       logMetaEvent('practice_analysis_complete');
