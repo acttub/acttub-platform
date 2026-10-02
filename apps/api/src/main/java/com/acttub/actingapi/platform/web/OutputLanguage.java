@@ -50,7 +50,8 @@ public final class OutputLanguage {
         return "ko".equals(current().getLanguage());
     }
 
-    static String directiveFor(Locale locale) {
+    /** 주어진 말로 답하라는 지시. 한국어나 null이면 빈 문자열. */
+    public static String directiveFor(Locale locale) {
         if (locale == null || "ko".equals(locale.getLanguage())) return "";
         String name = languageName(locale);
         return "\n\n[Output language]\n"

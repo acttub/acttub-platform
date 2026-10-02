@@ -7,6 +7,7 @@ import java.util.regex.Pattern;
 
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import com.acttub.actingapi.integration.observation.DirectVideoModel;
+import com.acttub.actingapi.platform.web.OutputLanguage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -41,6 +42,52 @@ final class DirectVideoPracticeLoop {
         String message = coach.find() ? coach.group(1) : rest;
         message = STRAY_TAG.matcher(message).replaceAll("");
         return new Parsed(design, status, TRAILING_JAMO.matcher(message).replaceAll("").strip());
+    }
+
+    /**
+     * 이번 응답을 쓸 말. 앱이 한국어가 아닌 말로 요청했으면(Accept-Language, {@link OutputLanguage}) 그 말,
+     * 앱이 한국어면 배우가 채팅이나 연습 메모에 쓴 말({@link #actorLanguage}). 한국어면 {@code null}.
+     * 운영에서 영어로 상황을 적은 배우에게 한국어로 첫 질문을 하자 답하지 않고 떠났다.
+     */
+    static java.util.Locale replyLanguage(CoachSessionSnapshot session, String actorText) {
+        return OutputLanguage.isKorean() ? actorLanguage(session, actorText) : OutputLanguage.current();
+    }
+
+    /**
+     * 배우가 쓰는 말. 이번 답 → 지난 답(최근부터) → 연습 메모 순으로 처음 판단되는 것. 모르면 {@code null}(한국어).
+     * "그만" 같은 종료·짧은 말은 건너뛴다. 배우가 "한국어로"/"in English"라고 하면 그것을 따른다.
+     */
+    static java.util.Locale actorLanguage(CoachSessionSnapshot session, String actorText) {
+        var candidates = new ArrayList<String>();
+        if (actorText != null) candidates.add(actorText);
+        if (session != null) {
+            List<CoachTurnSnapshot> turns = session.turns();
+            for (int i = turns.size() - 1; i >= 0; i--) if (!"ai".equals(turns.get(i).role())) candidates.add(turns.get(i).text());
+            candidates.add(String.join(" ", java.util.stream.Stream.of(session.situation(), session.characterContext(),
+                    session.goal(), session.blockageDetail()).filter(v -> v != null && !blank(v)).toList()));
+        }
+        for (String text : candidates) {
+            if (text == null || text.isBlank() || com.acttub.actingapi.feature.coach.domain.ClosingIntent.isClosing(text)) continue;
+            String lowered = text.toLowerCase(java.util.Locale.ROOT);
+            if (lowered.contains("한국어로") || lowered.contains("in korean")) return null;
+            if (lowered.contains("in english") || lowered.contains("영어로")) return java.util.Locale.ENGLISH;
+            java.util.Locale found = languageOf(text);
+            if (found != UNDECIDED) return found;
+        }
+        return null;
+    }
+
+    private static final java.util.Locale UNDECIDED = java.util.Locale.ROOT;
+
+    /** 글자 수로 가린다. 한글이 있으면 한국어(null), 가나가 있으면 일본어, 로마자 단어가 충분하면 영어. */
+    static java.util.Locale languageOf(String text) {
+        long hangul = text.codePoints().filter(c -> c >= 0xAC00 && c <= 0xD7A3).count();
+        long kana = text.codePoints().filter(c -> c >= 0x3040 && c <= 0x30FF).count();
+        long latin = text.codePoints().filter(c -> (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')).count();
+        if (hangul > 0 && hangul * 3 >= latin) return null;
+        if (kana >= 2) return java.util.Locale.JAPANESE;
+        if (latin >= 8 && hangul == 0) return java.util.Locale.ENGLISH;
+        return UNDECIDED;
     }
 
     /** 이 세션이 연습 루프로 시작됐는지. 루프 전에 열린 세션은 기존 경로로 이어간다. */

@@ -27,7 +27,23 @@ final class DirectVideoPrompts {
      * 칸을 다 찾지 못하면(프롬프트가 바뀐 경우) 섞지 않고 그대로 돌려준다.
      */
     static String practiceLoop(UUID practiceId) {
-        String base = practiceLoop();
+        return practiceLoop(practiceId, null);
+    }
+
+    /** 영어판 연습 루프. 숨은 칸 이름·할 일 이름은 한국어판과 같다(서버가 읽는다). */
+    static String practiceLoopEnglish() { return resource("practice-loop.en"); }
+
+    /**
+     * 답할 말에 맞는 연습 루프 프롬프트. 말은 분류(코드)가 정하고 프롬프트는 그 말로 쓰인 것을 고른다.
+     * 한국어(null 포함)는 한국어판 그대로, 그 밖의 말은 영어판을 쓴다. 영어가 아닌 말(일본어 등)은
+     * 영어판 끝에 그 말로 답하라는 {@link com.acttub.actingapi.platform.web.OutputLanguage} 지시를 붙인다.
+     */
+    static String practiceLoop(UUID practiceId, java.util.Locale language) {
+        boolean korean = language == null || "ko".equals(language.getLanguage());
+        String base = korean ? practiceLoop() : practiceLoopEnglish();
+        if (!korean && !"en".equals(language.getLanguage())) {
+            base = base + com.acttub.actingapi.platform.web.OutputLanguage.directiveFor(language);
+        }
         if (practiceId == null) return base;
         var lines = new ArrayList<>(List.of(base.split("\n", -1)));
         var at = new ArrayList<Integer>();

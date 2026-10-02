@@ -27,6 +27,12 @@ class CloudVoiceServiceTest {
     };
 
     @Test
+    void cacheKeySkipsFilesSavedBeforeWavFix() {
+        String before = com.acttub.actingapi.platform.web.Hashing.sha256Hex("m\nCharon\n안녕");
+        assertThat(CloudVoiceService.hash("m", "Charon", "안녕")).isNotEqualTo(before);
+    }
+
+    @Test
     void statusReflectsConsentAndUsage() {
         repository.consent = "granted";
         repository.daily = 12;

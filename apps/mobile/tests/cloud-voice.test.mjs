@@ -28,6 +28,13 @@ test('클라우드와 기기 음성 캐시 키는 같은 대사여도 섞이지 
   assert.notEqual(speechKey({ ...base, source: 'device' }), speechKey({ ...base, source: 'cloud' }));
 });
 
+test('고품질 목소리 키는 WAV를 두 번 싸던 0.1.2 첫 판의 파일을 다시 쓰지 않는다', () => {
+  const base = { text: '여기 있을 줄 알았어.', locale: 'ko', preset: 'F1', variant: 'fp32', steps: 8, speed: 1 };
+  // 그 판의 키는 원문 끝에 'cloud'를 붙여 지었다 — 기기 키 원문 끝에 ' cloud'를 덧대면 똑같이 나온다.
+  const firstRelease = speechKey({ ...base, speed: '1 cloud', source: 'device' });
+  assert.notEqual(speechKey({ ...base, source: 'cloud' }), firstRelease);
+});
+
 test('consentBodyWithoutTitle: 시트가 제목을 따로 보여 주므로 문서 첫 줄의 # 제목은 뗀다', async () => {
   const { consentBodyWithoutTitle } = await import('../lib/reading/cloud-voice.ts');
   assert.equal(consentBodyWithoutTitle('# 대본 리딩 고품질 목소리 동의 (선택)\n\n시행일: 오늘\n\n## 1. 무엇'), '시행일: 오늘\n\n## 1. 무엇');
