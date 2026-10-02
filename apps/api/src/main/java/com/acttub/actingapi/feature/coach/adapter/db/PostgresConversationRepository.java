@@ -156,7 +156,8 @@ class PostgresConversationRepository implements ConversationRepository {
                     SET state=CAST(:state AS jsonb),state_revision=state_revision+1,
                         status=CASE WHEN CAST(:closeReason AS text) IS NULL THEN 'open' ELSE 'closed' END,
                         close_reason=CAST(:closeReason AS text),
-                        closed_at=CASE WHEN CAST(:closeReason AS text) IS NULL THEN NULL ELSE :now END,
+                        closed_at=CASE WHEN CAST(:closeReason AS text) IS NULL THEN closed_at
+                            ELSE CAST(:now AS timestamp with time zone) END,
                         updated_at=:now
                     WHERE id=:conversationId
                     """)
