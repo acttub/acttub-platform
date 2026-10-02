@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
@@ -393,34 +394,38 @@ class DirectVideoCoachTest {
         assertThat(orders).hasSizeGreaterThan(3);
     }
 
-    @Test void practiceLoopAnswersInTheActorsLanguageAndFollowsTheAppLanguage() {
-        assertThat(DirectVideoPrompts.practiceLoop()).contains("[답하는 말", "배우가 쓰는 말로 답한다", "번역하지 않는다",
-                "<설계>\n답하는 말: [", "[설계의 답하는 말로 쓴다.");
-        String base = DirectVideoPrompts.practiceLoop(UUID.randomUUID());
-        assertThat(DirectVideoPracticeLoop.withOutputLanguage(base, session(), null)).as("한국어·빈 메모는 그대로").isEqualTo(base);
-        assertThat(DirectVideoPracticeLoop.withOutputLanguage(base, writtenSession(), "네 그런 편이에요")).isEqualTo(base);
-
+    @Test void practiceLoopPicksThePromptByTheClassifiedLanguage() {
         var englishMemo = new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 StructuredJson.MAPPER.createObjectNode(), "In a garden with crush", "A young girl 17 out to clear her head", "",
                 8000, "그 외", "그 외", null, "open", "", List.of(), PriorContext.EMPTY, "legacy", 0, null, null)
                 .withCoachingState("three_layers_v1", 0, null, "open", "");
-        assertThat(DirectVideoPracticeLoop.withOutputLanguage(base, englishMemo, null))
-                .as("영어 메모만 있어도 첫 질문부터 영어").startsWith("## 답하는 말\n이 배우는 영어를 쓴다.")
-                .contains(base, "[Output language]", "English", "Keep their labels");
-        assertThat(DirectVideoPracticeLoop.withOutputLanguage(base, englishMemo, "그만")).as("종료 말은 건너뛰고 메모를 본다")
-                .contains("English");
-        assertThat(DirectVideoPracticeLoop.withOutputLanguage(base, englishMemo, "한국어로 해 주세요")).isEqualTo(base);
-        assertThat(DirectVideoPracticeLoop.withOutputLanguage(base, session(), "i want help making it flow better"))
-                .contains("English");
-        assertThat(DirectVideoPracticeLoop.withOutputLanguage(base, session(), "もっと自然にしたいです")).contains("일본어", "Japanese");
-        assertThat(DirectVideoPracticeLoop.withOutputLanguage(base, session(), "\"peaceful\" 부분이 어려워요")).isEqualTo(base);
-
-        org.springframework.context.i18n.LocaleContextHolder.setLocale(java.util.Locale.ENGLISH);
+        assertThat(DirectVideoPracticeLoop.replyLanguage(session(), null)).as("메모·답 없음").isNull();
+        assertThat(DirectVideoPracticeLoop.replyLanguage(writtenSession(), "네 그런 편이에요")).isNull();
+        assertThat(DirectVideoPracticeLoop.replyLanguage(englishMemo, null)).as("영어 메모만 있어도 첫 질문부터").isEqualTo(Locale.ENGLISH);
+        assertThat(DirectVideoPracticeLoop.replyLanguage(englishMemo, "그만")).as("종료 말은 건너뛴다").isEqualTo(Locale.ENGLISH);
+        assertThat(DirectVideoPracticeLoop.replyLanguage(englishMemo, "한국어로 해 주세요")).isNull();
+        assertThat(DirectVideoPracticeLoop.replyLanguage(session(), "i want help making it flow better")).isEqualTo(Locale.ENGLISH);
+        assertThat(DirectVideoPracticeLoop.replyLanguage(session(), "もっと自然にしたいです")).isEqualTo(Locale.JAPANESE);
+        assertThat(DirectVideoPracticeLoop.replyLanguage(session(), "\"peaceful\" 부분이 어려워요")).isNull();
+        org.springframework.context.i18n.LocaleContextHolder.setLocale(Locale.ENGLISH);
         try {
-            assertThat(DirectVideoPracticeLoop.withOutputLanguage(base, writtenSession(), null))
-                    .as("앱이 영어면 앱 언어").contains("[Output language]", "English", "마무리2");
+            assertThat(DirectVideoPracticeLoop.replyLanguage(writtenSession(), null)).as("앱이 영어면 앱 언어").isEqualTo(Locale.ENGLISH);
         } finally {
             org.springframework.context.i18n.LocaleContextHolder.resetLocaleContext();
+        }
+
+        var id = UUID.randomUUID();
+        assertThat(DirectVideoPrompts.practiceLoop(id, null)).as("한국어는 한국어판 그대로").isEqualTo(DirectVideoPrompts.practiceLoop(id));
+        assertThat(DirectVideoPrompts.practiceLoop(id, Locale.KOREAN)).isEqualTo(DirectVideoPrompts.practiceLoop(id));
+        String english = DirectVideoPrompts.practiceLoop(id, Locale.ENGLISH);
+        assertThat(english).contains("Every word the actor reads is in natural", "at most 16 coach replies")
+                .doesNotContain("[Output language]");
+        assertThat(DirectVideoPrompts.practiceLoop(id, Locale.JAPANESE)).contains("Every word the actor reads", "[Output language]", "Japanese");
+        // 서버가 읽는 숨은 칸 이름은 영어판에도 한국어로 있다.
+        assertThat(english).contains("<설계>", "버릇: [", "다음 테이크: [", "<상태>", "배우의 말: [", "할 일: [", "마무리2", "끝",
+                "자기 한 줄", "지키며: ", "반대로: ");
+        for (String name : List.of("감정의 변화: [", "상대와 주고받기: [", "원하는 것과 행동: [", "몸·시선·표정: [")) {
+            assertThat(english.indexOf(name)).as(name).isEqualTo(english.lastIndexOf(name)).isPositive();
         }
     }
 
