@@ -69,7 +69,8 @@ class RequestFingerprintPinTest {
                 .isEqualTo("db5856c3e1b2038f22b3662197eea6d9f276aef3e3eaf23d99943be2fc82d291");
         assertThat(callStatic(CloudVoiceService.class, "hash",
                 new Class<?>[] {String.class, String.class, String.class}, "gemini-tts", "Kore", "안녕하세요"))
-                .isEqualTo("971ed1b44c2c09d08baf05bd71d4e9151a97677b37f84a58c158b2d23867a28b");
+                // 2026-10-02 저장 형식 판(wav2)을 붙여 일부러 바꿨다 — WAV를 두 번 싸던 캐시를 버리려고.
+                .isEqualTo("a17e863c41fb9c5891b833074fc6d6ae082e5903d14e4ba07dfb0a58d4a94841");
         assertThat(Hashing.sha256Hex("memory_update:" + A))
                 .isEqualTo("f1da15b8f665e2a09c0cc05a8f80b948e7f1105d7c3d6b4002640c7df77b0abb");
         assertThat(JwtService.hashToken("refresh-token-value"))

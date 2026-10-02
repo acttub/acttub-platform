@@ -16,6 +16,7 @@ public final class CloudVoiceService {
     public static final int EXPIRES_IN_SECONDS = 600;
     public static final Map<String, String> VOICES;
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
+    private static final String CACHE_FORMAT = "wav2";
     static {
         Map<String, String> voices = new LinkedHashMap<>();
         voices.put("M1", "Charon"); voices.put("M2", "Puck"); voices.put("M3", "Orus");
@@ -85,8 +86,12 @@ public final class CloudVoiceService {
                 cause == null ? new IllegalStateException("cloud voice is unavailable") : cause);
     }
 
-    private static String hash(String model, String voice, String text) {
-        return Hashing.sha256Hex(model + "\n" + voice + "\n" + text);
+    /**
+     * 캐시 키. 끝의 {@link #CACHE_FORMAT}은 저장 파일 형식의 판이다 — 2026-10-01~02에 WAV를 두 번 싸서
+     * 저장한 파일(틱·지지직)을 다시 내주지 않으려고 올렸다.
+     */
+    static String hash(String model, String voice, String text) {
+        return Hashing.sha256Hex(model + "\n" + voice + "\n" + text + "\n" + CACHE_FORMAT);
     }
 
     public record Status(boolean available, java.time.OffsetDateTime freeUntil, String consent, int dailyLimit, int dailyUsed) {}
