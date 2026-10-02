@@ -44,29 +44,13 @@ final class DirectVideoPracticeLoop {
         return new Parsed(design, status, TRAILING_JAMO.matcher(message).replaceAll("").strip());
     }
 
-    /** 숨은 칸은 배우에게 보이지 않으므로 답하는 말이 바뀌어도 서버가 읽는 한국어 이름을 지킨다. */
-    static final String HIDDEN_BLOCKS_STAY_KOREAN = "\nThe hidden <설계> and <상태> blocks are never shown to the person. "
-            + "Keep their labels, the action names (비추기, 파고들기, 이어보기, 짚어주기, 답하기, 마무리1, 마무리2, 끝) "
-            + "and the \"지키며:\"/\"반대로:\" prefixes exactly in Korean as written above.\n";
-
     /**
-     * 연습 루프 프롬프트 끝에 답할 말 지시를 붙인다. 한국어면 받은 프롬프트를 한 글자도 바꾸지 않는다.
-     *
-     * <p>먼저 앱이 요청한 말(Accept-Language, {@link OutputLanguage})을 따른다. 앱이 한국어여도 배우가 채팅이나
-     * 연습 메모를 다른 말로 썼으면 그 말로 답하게 한다 — 운영에서 영어로 상황을 적은 배우에게 첫 질문을
-     * 한국어로 하자 답하지 않고 떠났다. 프롬프트 본문만으로는 한국어 지시문에 끌려 대부분 한국어로 답했다.
+     * 이번 응답을 쓸 말. 앱이 한국어가 아닌 말로 요청했으면(Accept-Language, {@link OutputLanguage}) 그 말,
+     * 앱이 한국어면 배우가 채팅이나 연습 메모에 쓴 말({@link #actorLanguage}). 한국어면 {@code null}.
+     * 운영에서 영어로 상황을 적은 배우에게 한국어로 첫 질문을 하자 답하지 않고 떠났다.
      */
-    static String withOutputLanguage(String prompt, CoachSessionSnapshot session, String actorText) {
-        java.util.Locale language = OutputLanguage.isKorean() ? actorLanguage(session, actorText) : OutputLanguage.current();
-        String directive = OutputLanguage.directiveFor(language);
-        if (directive.isEmpty()) return prompt;
-        // 끝의 지시만으로는 한국어 문장 틀에 끌려 첫 질문이 한국어로 나왔다(실험 4/4). 앞에도 정해 두고,
-        // 프롬프트의 <설계> 첫 칸(답하는 말)이 이 칸을 읽어 그 말로 쓰게 한다.
-        String head = "## 답하는 말\n이 배우는 " + language.getDisplayLanguage(java.util.Locale.KOREAN)
-                + "를 쓴다. <코치>와 이후 코치의 말은 처음부터 끝까지 모두 " + language.getDisplayLanguage(java.util.Locale.KOREAN)
-                + "로 쓴다. 아래 한국어 문장 틀(\"~하는 쪽으로 가요\" 등)은 뜻만 따르고 그 말의 대화체로 옮겨 쓴다. "
-                + "대사 인용은 들린 그대로 쓴다.\n\n";
-        return head + prompt + directive + HIDDEN_BLOCKS_STAY_KOREAN;
+    static java.util.Locale replyLanguage(CoachSessionSnapshot session, String actorText) {
+        return OutputLanguage.isKorean() ? actorLanguage(session, actorText) : OutputLanguage.current();
     }
 
     /**
