@@ -85,8 +85,8 @@ public final class DirectVideoCoach {
             if (loop) {
                 // 종료("그만")도 연습 루프가 해 본 횟수로 닫는다. 서버는 아래에서 세션만 닫는다.
                 route = "practice_loop";
-                task = DirectVideoPracticeLoop.withOutputLanguage(
-                        DirectVideoPrompts.practiceLoop(session.practiceSessionId()), session, actorText);
+                task = DirectVideoPrompts.practiceLoop(session.practiceSessionId(),
+                        DirectVideoPracticeLoop.replyLanguage(session, actorText));
             } else {
                 var selection = routing.select(history, actorText, actorFinished || turnBudget,
                         session.practiceSessionId(), session.userId(), operationId);
