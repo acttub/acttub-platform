@@ -821,7 +821,7 @@ const ko = {
     birthLabel: '생년월일',
     birthPlaceholder: '예: 2004-03-14 (숫자만 입력)',
     birthInvalid: '생년월일을 다시 확인해주세요.',
-    under14: '만 14세 이상인 생년월일만 넣을 수 있어요.',
+    under14: '만 14세 이상만 가입 가능해요.',
     under14Closed: '만 14세 미만은 가입할 수 없어요. 입력한 정보와 계정은 바로 지웠어요.',
     mediumLabel: '추구하는 방향 · 복수 선택 가능',
     mediumMedia: '매체 (TV·영화)',

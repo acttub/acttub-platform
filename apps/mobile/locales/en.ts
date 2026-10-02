@@ -831,7 +831,7 @@ const en: DeepStringShape<typeof ko> = {
     birthLabel: 'Date of birth',
     birthPlaceholder: 'e.g. 2004-03-14 (numbers only)',
     birthInvalid: 'Please check your date of birth.',
-    under14: 'Only birth dates for ages 14 and up can be entered.',
+    under14: 'Only people aged 14 or older can sign up.',
     under14Closed: 'You must be at least 14 to sign up. We deleted the account and what you entered right away.',
     mediumLabel: 'Focus · choose multiple',
     mediumMedia: 'Screen (TV·Film)',
