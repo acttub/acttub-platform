@@ -54,6 +54,55 @@ class DirectVideoCoachTest {
                 StructuredJson.MAPPER.createObjectNode(), "", "", "", 8000, "그 외", "그 외", null, "open", "", List.of(), PriorContext.EMPTY, "legacy", 0, null, null).withCoachingState("three_layers_v1", 0, null, "open", "");
     }
 
+    @Test void silentVideoUsesServerAudioFactsAndShowsOnlyVisualEvidence() {
+        var silent = new DirectVideoModel.Video("files/silent", "gemini://silent", "video/mp4", false);
+        when(model.upload(any(), eq("video/mp4"))).thenReturn(silent);
+        when(model.ready(silent)).thenReturn(true);
+        when(model.reply(eq(silent), anyList(), anyString())).thenReturn("""
+                <설계>
+                영상: 연기
+                대사 확인: 확인 안 됨
+                확인된 대사: 없음
+                버릇: 손을 펼 때 고개를 돌려요 | 곳1: 시작 | 곳2: 끝
+                </설계>
+                <코치>
+                손을 펼 때 고개를 돌리는 쪽으로 가요.
+                인물의 선택일 수도 있어요.
+                평소에도 그런 편인가요?
+                </코치>
+                """);
+        var first = practiceLoopEngine().start(session(), UUID.randomUUID());
+        assertThat(first.reply().message()).contains("손을 펼 때").doesNotContain("대사 확인", "확인된 대사", "\"");
+        assertThat(first.session().coachingState().path("practice_loop").path("design").asText())
+                .contains("대사 확인: 확인 안 됨", "확인된 대사: 없음");
+        verify(model).reply(eq(silent), anyList(), argThat(prompt -> prompt.contains("audio_track_present=false")));
+        verify(model).delete(silent);
+    }
+
+    @Test void silentVideoCannotReturnOrStoreAnInventedQuote() {
+        var silent = new DirectVideoModel.Video("files/silent", "gemini://silent", "video/mp4", false);
+        when(model.upload(any(), eq("video/mp4"))).thenReturn(silent);
+        when(model.ready(silent)).thenReturn(true);
+        when(model.reply(eq(silent), anyList(), anyString())).thenReturn("""
+                <설계>
+                영상: 연기
+                대사 확인: 확인 안 됨
+                확인된 대사: 없음
+                버릇: 손을 펴는 쪽으로 가요
+                </설계>
+                <코치>
+                "왜요"라고 말할 때 손을 펴요.
+                평소에도 그런 편인가요?
+                </코치>
+                """);
+        var initial = session();
+        assertThatThrownBy(() -> practiceLoopEngine().start(initial, UUID.randomUUID()))
+                .isInstanceOf(CoachReplyUnavailable.class);
+        assertThat(initial.turns()).isEmpty();
+        assertThat(initial.coachingState()).isNull();
+        verify(model).delete(silent);
+    }
+
     @Test void existingEngineRoutesActualConversationAndPassesOnlySelectedPrompts() {
         var initial = session();
         var first = engine.start(initial, UUID.randomUUID());

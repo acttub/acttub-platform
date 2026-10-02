@@ -7,12 +7,17 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import com.acttub.actingapi.integration.llm.StructuredJson;
+import com.acttub.actingapi.integration.observation.DirectVideoModel;
 
 /** Only tasks selected by application routing are sent to the coach. */
 final class DirectVideoPrompts {
     private DirectVideoPrompts() {}
     static String common() { return resource("common"); }
     static String classifier() { return resource("classifier"); }
+    static String withAudioFacts(String instruction, DirectVideoModel.Video video) {
+        return video != null && Boolean.FALSE.equals(video.hasAudioTrack())
+                ? resource("no-audio") + "\n\n" + instruction : instruction;
+    }
     /** 분류·과제 조립 없이 대화 전체를 끄는 연습 루프 프롬프트. */
     static String practiceLoop() { return resource("practice-loop"); }
 

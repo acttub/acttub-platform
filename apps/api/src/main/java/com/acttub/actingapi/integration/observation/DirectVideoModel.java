@@ -5,7 +5,12 @@ import java.util.List;
 
 /** Raw video and conversation only; no observation/record generation. */
 public interface DirectVideoModel {
-    record Video(String name, String uri, String mimeType) {}
+    record Video(String name, String uri, String mimeType, Boolean hasAudioTrack) {
+        /** Audio-track presence unknown (e.g. existing mocks/callers predating the probe). */
+        public Video(String name, String uri, String mimeType) {
+            this(name, uri, mimeType, null);
+        }
+    }
     record Message(String role, String text) {}
     Video upload(Path path, String mimeType);
     boolean ready(Video video);

@@ -108,6 +108,17 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         if: steps.changes.outputs.api == 'true'
 
+      # 원본 오디오 트랙 판별을 실제 바이너리로 검증한다. 운영 API 이미지와 같은 도구이며 유료 모델은 호출하지 않는다.
+      - name: 영상 오디오 판별 도구 확인
+        if: steps.changes.outputs.api == 'true'
+        run: |
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends ffmpeg
+          fi
+          ffmpeg -version
+          ffprobe -version
+
       # Testcontainers가 postgres:18-alpine을 띄웁니다(홈서버 PostgreSQL과 같은 메이저).
       # 러너에 Docker가 기본 탑재돼 있고, DOCKER_API_VERSION은 build.gradle.kts가 채웁니다.
       - name: Test
