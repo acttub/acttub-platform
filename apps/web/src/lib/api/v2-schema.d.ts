@@ -4497,6 +4497,8 @@ export interface components {
             verified_at?: string | null;
             /** Note */
             note?: string | null;
+            /** Year */
+            year?: number | null;
         };
         /** AdmissionUniversity */
         AdmissionUniversity: {

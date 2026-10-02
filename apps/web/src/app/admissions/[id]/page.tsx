@@ -1,5 +1,9 @@
 import { UniversityDetailPage } from "@/features/admissions/university-detail";
-import { loadUniversityAdmissionsStatic } from "@/features/admissions/admissions-static";
+import {
+  loadAdmissionsStatic,
+  loadUniversityAdmissionsStatic,
+} from "@/features/admissions/admissions-static";
+import { latestAdmissionYear } from "@/features/admissions/by-year";
 import { universityIds } from "@/features/admissions/university-ids";
 import {
   buildAdmissionsBreadcrumbJsonLd,
@@ -54,7 +58,11 @@ export default async function Page({
   return (
     <>
       <JsonLd values={jsonLdValues} />
-      <UniversityDetailPage universityId={id} initial={initial} />
+      <UniversityDetailPage
+        universityId={id}
+        initial={initial}
+        latestYear={latestAdmissionYear(loadAdmissionsStatic().notices)}
+      />
     </>
   );
 }

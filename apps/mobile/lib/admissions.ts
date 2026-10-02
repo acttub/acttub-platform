@@ -31,6 +31,8 @@ export type AdmissionTip = {
   /** 같은 말을 한 후기가 몇 건인지. 한 사람 말과 여러 사람 말은 무게가 다르다. */
   corroborations?: number | null;
   note?: string | null;
+  /** 후기가 다룬 응시 학년도(2026학년도 수시 = 2025년 가을 실기). 모르면 비어 있다. */
+  year?: number | null;
 };
 
 export type AdmissionResult = {
