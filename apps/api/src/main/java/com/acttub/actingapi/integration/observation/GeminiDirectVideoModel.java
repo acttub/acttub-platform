@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.function.Predicate;
 
 import com.acttub.actingapi.integration.media.VideoRecordChunks;
+import com.acttub.actingapi.integration.media.VideoFrameEvidence;
 import com.google.genai.Client;
 import com.google.genai.types.Content;
 import com.google.genai.types.GenerateContentConfig;
@@ -23,23 +24,46 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
     private final Client client;
     private final String model;
     private final Predicate<Path> audioProbe;
+    private final Predicate<Path> blackFrameProbe;
 
     public GeminiDirectVideoModel(Client client, String model) {
-        this(client, model, new VideoRecordChunks()::hasAudio);
+        this(client, model, new VideoRecordChunks()::hasAudio, new VideoFrameEvidence()::entirelyBlack);
     }
 
-    /** Test-only: inject a fake probe so unit tests avoid native ffprobe dependency. */
+    /** Test-only: existing upload tests do not inspect video frames. */
     GeminiDirectVideoModel(Client client, String model, Predicate<Path> audioProbe) {
+        this(client, model, audioProbe, new VideoFrameEvidence()::entirelyBlack);
+    }
+
+    GeminiDirectVideoModel(Client client, String model, Predicate<Path> audioProbe, Predicate<Path> blackFrameProbe) {
         this.client = client;
         this.model = model;
         this.audioProbe = audioProbe;
+        this.blackFrameProbe = blackFrameProbe;
+    }
+
+    @Override
+    public InputInspection inspect(Path path) {
+        boolean audio = audioProbe.test(path);
+        // An audio track is not proof of speech, but is enough to preserve audio-only acting.
+        // Decode frames only when audio is absent; probe failure is never an empty-input fact.
+        return new InputInspection(audio, audio ? null : blackFrameProbe.test(path));
+    }
+
+    @Override
+    public Video upload(Path path, String mimeType, InputInspection inspection) {
+        if (inspection == null || inspection.hasAudioTrack() == null) return upload(path, mimeType);
+        if (inspection.emptyInput()) throw new IllegalArgumentException("empty input must not be uploaded");
+        return uploadInspected(path, mimeType, inspection.hasAudioTrack());
     }
 
     @Override
     public Video upload(Path path, String mimeType) {
-        // Probe the original file before upload; a failed probe must fail the upload,
-        // never silently fall back to a false no-audio signal.
-        boolean hasAudioTrack = audioProbe.test(path);
+        // Preserve existing callers and fail before upload if the audio probe fails.
+        return uploadInspected(path, mimeType, audioProbe.test(path));
+    }
+
+    private Video uploadInspected(Path path, String mimeType, boolean hasAudioTrack) {
         try (var input = Files.newInputStream(path)) {
             var file = client.files.upload(input, Files.size(path),
                     UploadFileConfig.builder().mimeType(mimeType)

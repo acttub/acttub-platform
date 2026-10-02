@@ -54,9 +54,55 @@ class DirectVideoCoachTest {
                 StructuredJson.MAPPER.createObjectNode(), "", "", "", 8000, "그 외", "그 외", null, "open", "", List.of(), PriorContext.EMPTY, "legacy", 0, null, null).withCoachingState("three_layers_v1", 0, null, "open", "");
     }
 
+    @Test void emptyInputClosesNormallyBeforeAnyGoogleUploadOrModelCall() {
+        when(model.inspect(any())).thenReturn(new DirectVideoModel.InputInspection(false, true));
+        var result = practiceLoopEngine().start(session(), UUID.randomUUID());
+        assertThat(result.reply().status()).isEqualTo("complete");
+        assertThat(result.reply().message()).isEqualTo(
+                "이 영상에서는 연기 장면을 찾지 못했어요.\n연기한 장면이 담긴 영상을 다시 올려 주세요.");
+        assertThat(result.session().closeReason()).isEqualTo("interrupted");
+        assertThat(DirectVideoPracticeLoop.wasCut(result.session().coachingState())).isTrue();
+        assertThat(DirectVideoPracticeLoop.note(result.session(), 1)).isNull();
+        verify(model, never()).upload(any(), anyString());
+        verify(model, never()).upload(any(), anyString(), any());
+        verify(model, never()).ready(any());
+        verify(model, never()).reply(any(), anyList(), anyString());
+        verify(model, never()).classify(anyList(), anyString(), anyList());
+        verify(model, never()).delete(any());
+        assertThat(telemetry.calls()).isEmpty();
+        assertThat(failures.reports()).isEmpty();
+        assertThat(temporary).allSatisfy(path -> assertThat(path).doesNotExist());
+    }
+
+    @Test void unknownInspectionDoesNotRejectAnInputAsEmpty() {
+        when(model.inspect(any())).thenReturn(new DirectVideoModel.InputInspection(null, true));
+        var result = practiceLoopEngine().start(session(), UUID.randomUUID());
+        assertThat(result.reply().status()).isEqualTo("continue");
+        verify(model).upload(any(), eq("video/mp4"));
+        verify(model).reply(eq(file), anyList(), anyString());
+    }
+
+    @Test void failedFrameInspectionDoesNotTurnAFileIntoANonActingClaim() {
+        when(model.inspect(any())).thenThrow(new IllegalStateException("video frame inspection failed"));
+        var initial = session();
+        assertThatThrownBy(() -> practiceLoopEngine().start(initial, UUID.randomUUID()))
+                .isInstanceOf(CoachReplyUnavailable.class);
+        assertThat(initial.turns()).isEmpty();
+        assertThat(initial.coachingState()).isNull();
+        verify(model, never()).upload(any(), anyString());
+        verify(model, never()).upload(any(), anyString(), any());
+        verify(model, never()).reply(any(), anyList(), anyString());
+        assertThat(failures.reports()).singleElement().satisfies(report -> {
+            assertThat(report.kind()).isEqualTo(com.acttub.actingapi.platform.observability.FailureKind.UNEXPECTED);
+            assertThat(report.context()).startsWith("DirectVideoCoach.inspect");
+        });
+        assertThat(temporary).allSatisfy(path -> assertThat(path).doesNotExist());
+    }
+
     @Test void silentVideoUsesServerAudioFactsAndShowsOnlyVisualEvidence() {
         var silent = new DirectVideoModel.Video("files/silent", "gemini://silent", "video/mp4", false);
-        when(model.upload(any(), eq("video/mp4"))).thenReturn(silent);
+        when(model.inspect(any())).thenReturn(new DirectVideoModel.InputInspection(false, false));
+        when(model.upload(any(), eq("video/mp4"), any())).thenReturn(silent);
         when(model.ready(silent)).thenReturn(true);
         when(model.reply(eq(silent), anyList(), anyString())).thenReturn("""
                 <설계>
@@ -518,6 +564,8 @@ class DirectVideoCoachTest {
 
     @Test void audioOnlyActingCanContinueCloseAndCreateAnAudioGroundedNote() {
         var voice = new DirectVideoModel.Video("files/voice", "gemini://voice", "video/mp4", true);
+        when(model.inspect(any())).thenReturn(new DirectVideoModel.InputInspection(true, null));
+        when(model.upload(any(), eq("video/mp4"), any())).thenReturn(voice);
         when(model.upload(any(), eq("video/mp4"))).thenReturn(voice);
         when(model.ready(voice)).thenReturn(true);
         when(model.reply(eq(voice), anyList(), anyString())).thenReturn("""

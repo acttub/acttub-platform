@@ -61,6 +61,7 @@ public final class DirectVideoCoach {
         String input = "";
         String route = "";
         boolean routeFallback = false;
+        boolean inspecting = false;
         boolean actorFinished = DialogueProgress.actorFinished(actorText);
         // ConversationService.THREE_LAYERS_REPLY_LIMIT 을 따른다 — 이번 응답이 그 상한을 채우면 강제 종료한다.
         boolean turnBudget = session.turns().stream().filter(t -> "ai".equals(t.role())).count()
@@ -82,8 +83,23 @@ public final class DirectVideoCoach {
                     && !source.etag().replace("\"", "").equals(metadata.etag().replace("\"", ""))) {
                 throw new IllegalStateException("original video changed after upload");
             }
+            DirectVideoModel.InputInspection inspection = null;
+            if (loop && session.turns().isEmpty()) {
+                inspecting = true;
+                inspection = model.inspect(local);
+                inspecting = false;
+                if (inspection != null && inspection.emptyInput()) {
+                    ObjectNode cutState = nextState(session);
+                    DirectVideoPracticeLoop.markNotActing(cutState, "empty_input");
+                    return StructuredCoachEngine.result(session, actorText,
+                            DirectVideoPracticeLoop.notActingMessage(
+                                    DirectVideoPracticeLoop.replyLanguage(session, actorText)),
+                            cutState, "interrupted");
+                }
+            }
             ExternalOperationExecution.externalCall("video_upload");
-            uploaded = model.upload(local, source.mimeType());
+            uploaded = inspection == null || inspection.hasAudioTrack() == null
+                    ? model.upload(local, source.mimeType()) : model.upload(local, source.mimeType(), inspection);
             long deadline = System.nanoTime() + Duration.ofSeconds(180).toNanos();
             while (!model.ready(uploaded)) {
                 if (System.nanoTime() >= deadline) throw new IllegalStateException("video processing timed out");
@@ -140,7 +156,8 @@ public final class DirectVideoCoach {
                             : cut || loop && DirectVideoPracticeLoop.finished(parsed) ? "interrupted" : null);
         } catch (Exception failure) {
             if (failure instanceof InterruptedException) Thread.currentThread().interrupt();
-            failures.report(failure, FailureKind.EXTERNAL, new FailureContext("DirectVideoCoach.turn", operationId));
+            failures.report(failure, inspecting ? FailureKind.UNEXPECTED : FailureKind.EXTERNAL,
+                    new FailureContext(inspecting ? "DirectVideoCoach.inspect" : "DirectVideoCoach.turn", operationId));
             telemetry.record(new LlmCall(LlmStep.COACH_TURN, session.practiceSessionId(), session.userId(),
                     model.model(), input, "", LlmTokens.unknown(), started, Duration.between(started, Instant.now()),
                     failure.getClass().getSimpleName(), LlmCall.metadata("transport", "gemini_direct_video", "route", route,

@@ -11,8 +11,20 @@ public interface DirectVideoModel {
             this(name, uri, mimeType, null);
         }
     }
+    /** Local measured file facts, not model observations. Unknown facts never classify an input as empty. */
+    record InputInspection(Boolean hasAudioTrack, Boolean fullBlack) {
+        public boolean emptyInput() {
+            return Boolean.FALSE.equals(hasAudioTrack) && Boolean.TRUE.equals(fullBlack);
+        }
+    }
     record Message(String role, String text) {}
+    /** No provider call. Older/test implementations can leave both facts unknown. */
+    default InputInspection inspect(Path path) { return new InputInspection(null, null); }
     Video upload(Path path, String mimeType);
+    /** Reuses local inspection without changing existing upload callers. */
+    default Video upload(Path path, String mimeType, InputInspection inspection) {
+        return upload(path, mimeType);
+    }
     boolean ready(Video video);
     String reply(Video video, List<Message> history, String instruction);
     /** Text-only routing; the application owns the allowed categories. */
