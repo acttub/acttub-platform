@@ -26,7 +26,7 @@
 |---|---|---|---|
 | `GET /v2/auth/providers` | 없음. 공개 조회라 토큰을 보지 않는다 | `AuthProvidersResponse` 200 | — |
 | `POST /v2/auth/login` | `LoginRequest`: `provider`, 제공자별 `id_token`(네이버 말고 필수), `authorization_code`(애플·네이버), `code_verifier`(네이버), `redirect_uri`·`state`(네이버, 선택) | `LoginResponse`(`SignedInResponse` 또는 `SignupRequiredResponse`) 200 | `unsupported_provider` 400, `invalid_provider_token` 401, `account_exists_with_different_provider` 409(`AccountExistsError`), `authorization_code_required` 422, 빠진 자격 칸 422 배열, IP 한도 429, `provider_unavailable` 502, `provider_not_configured` 503 |
-| `POST /v2/auth/signup` | `SignupRequest`: `signup_token`, `decisions[]`(현재 판 모든 문서) | `SignedInResponse` 200 | `invalid_signup_token` 401, `consent_document_not_found` 404, `consent_document_outdated` 409, `account_exists_with_different_provider` 409, `consent_decisions_incomplete`·`required_consent_cannot_be_declined` 422, IP 한도 429 |
+| `POST /v2/auth/signup` | `SignupRequest`: `signup_token`, `decisions[]`(현재 판 모든 문서), `age_confirmed`(선택) | `SignedInResponse` 200 | `invalid_signup_token` 401, `consent_document_not_found` 404, `consent_document_outdated` 409, `account_exists_with_different_provider` 409, `consent_decisions_incomplete`·`required_consent_cannot_be_declined` 422, IP 한도 429 |
 | `POST /v2/auth/refresh` | `RefreshRequest`: `refresh_token` | `RefreshTokenResponse` 200 | `invalid_refresh_token` 401(소진된 토큰이면 그 회원의 세션 전부 폐기), `guest_transferred` 401, IP·주체 한도 429 |
 | `POST /v2/auth/providers/naver/disconnect` | 폼 `clientId`·`encryptUniqueId`·`timestamp`·`signature`. 클라이언트 판 헤더와 액세스 토큰을 보지 않는다 | 204(모르는 신원도 같다) | `invalid_provider_signature` 401, `provider_not_configured` 503 |
 | `POST /v2/auth/providers/kakao/disconnect` | `app_id`·`user_id`, 헤더 `Authorization: KakaoAK <어드민 키>`. 클라이언트 판 헤더를 보지 않는다 | 200 본문 없음(모르는 신원도 같다) | `invalid_provider_signature` 401, `provider_not_configured` 503 |
@@ -113,6 +113,10 @@
   켜진다. 선택 문서 줄은 기본값 없이 동의·거절 두 버튼이다. 그래서 선택 미결정은 새 판을 발행할
   때만 생긴다. 서버도 가입 제출에 현재 판 모든 문서의 결정이 담기지 않으면 422로 거절한다. 버튼
   문구는 "동의하고 계속하기"다. 디자인의 "결정 저장하기"를 바꾼다.
+- 가입 동의 화면에는 게스트 동의 시트처럼 "[필수] 만 14세 이상이에요" 줄이 있고, 체크해야 저장 버튼이 켜진다.
+  가입 제출의 `age_confirmed`가 true면 확인 시각을 users.age_confirmed_at에 남긴다. 지금은 칸이 없거나 false여도
+  받는다. 빠지면 `age_confirmation_required` 422로 거절하는 필수화는 이 줄이 있는 앱이 나가고 최소 지원 판을
+  올린 뒤의 다음 단계다. (account.guest, account.profile)
 - 게이트의 판정과 403 사유는 [공통 규칙](../common.md#게이트와-보호-기능)을 따른다. 갱신 응답에는 동의 목록이
   없으므로 앱은 시작할 때 미결정 동의를 조회한다. 동의 다음에는 프로필 입력이 이어진다. (account.profile)
 - 폰에 마지막 로그인 제공자를 기억해 두고 로그인 화면에서 그 버튼을 강조한다. 앱을 지우면 기억도
@@ -138,7 +142,7 @@
   로그인할 때마다 코드 교환이 필요해 기존 회원도 502를 받는다. 0.1.0은 이를 받아들인다.
 - 이메일 겹침은 409. 응답에 기존 계정의 제공자 이름을 함께 싣는다. 앱은 로그인 화면 위 팝업으로 묻는다.
   제목은 "이미 가입한 계정이 있어요", 본문은 "이 이메일은 {제공자}로 가입돼 있어요. {제공자}로 계속할까요?",
-  버튼은 "닫기"와 "{제공자}로 계속하기"다. 제공자는 응답 목록의 첫 번째다. 가입 제출의 409도 같은 팝업이다.
+  버튼은 "닫기"와 "{제공자}로 계속하기"다. 응답 목록은 최근에 로그인한 신원이 앞이고, 제공자는 그 첫 번째다. 가입 제출의 409도 같은 팝업이다.
 - 애플 '이메일 가리기'로 가입한 사람이 나중에 다른 제공자로 들어오면 계정이 둘이 된다. 0.1.0은
   이를 받아들인다.
 - 애플로만 가입한 사람은 안드로이드에서 로그인할 수 없다. 0.1.0은 이를 받아들인다.
