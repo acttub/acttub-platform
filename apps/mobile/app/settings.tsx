@@ -411,21 +411,19 @@ export default function SettingsScreen() {
           </Pressable>
 
           {/* 코치의 기억 — 틀린 내용을 되돌릴 수 있는 유일한 자리. */}
-          {/* 차단은 챌린지에서만 쓰이므로 챌린지가 열린 사람에게만 보인다(challenge.block). */}
-          {isKorean() && (
-            <Pressable style={styles.card} onPress={() => router.push('/blocked-users')} accessibilityRole="button">
-              <View style={styles.cardRow}>
-                <View style={styles.iconCircle}>
-                  <Feather name="slash" size={18} color={palette.blue} />
-                </View>
-                <View style={styles.cardBody}>
-                  <Text style={styles.cardTitle}>{t('block.settingsLink')}</Text>
-                  <Text style={styles.cardSub}>{t('block.settingsHint')}</Text>
-                </View>
-                <Feather name="chevron-right" size={18} color={palette.checkOff} />
+          {/* 차단은 챌린지에서만 쓰인다(challenge.block). */}
+          <Pressable style={styles.card} onPress={() => router.push('/blocked-users')} accessibilityRole="button">
+            <View style={styles.cardRow}>
+              <View style={styles.iconCircle}>
+                <Feather name="slash" size={18} color={palette.blue} />
               </View>
-            </Pressable>
-          )}
+              <View style={styles.cardBody}>
+                <Text style={styles.cardTitle}>{t('block.settingsLink')}</Text>
+                <Text style={styles.cardSub}>{t('block.settingsHint')}</Text>
+              </View>
+              <Feather name="chevron-right" size={18} color={palette.checkOff} />
+            </View>
+          </Pressable>
 
           <Text style={styles.sectionTitle}>{t('settings.memorySection')}</Text>
           <Pressable style={styles.card} onPress={() => router.push('/memory')} accessibilityRole="button">

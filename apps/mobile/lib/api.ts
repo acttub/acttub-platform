@@ -1045,7 +1045,7 @@ export const api = {
   /**
    * 대사 목록. 탭은 인기·최신·종료·내 챌린지이고 q 는 2자 이상일 때만 보낸다(대사·작품·참여작
    * 작성자 이름만 찾는다). 오늘의 챌린지는 featured 로 따로 온다(인기·최신 탭에서만 고정).
-   * 게스트·한국어가 아닌 회원은 403 member_only.
+   * 게스트는 403 member_only.
    */
   listChallenges(
     params: { tab: ChallengeTab; q?: string; cursor?: string } = { tab: 'popular' },
