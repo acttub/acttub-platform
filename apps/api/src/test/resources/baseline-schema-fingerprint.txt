@@ -556,6 +556,7 @@ COLUMN user_consents.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN user_identities.apple_token_encrypted ord=7 type=text len=- null=YES default=-
 COLUMN user_identities.created_at ord=5 type=timestamptz len=- null=NO default=now()
 COLUMN user_identities.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
+COLUMN user_identities.last_used_at ord=9 type=timestamptz len=- null=NO default=now()
 COLUMN user_identities.naver_token_encrypted ord=8 type=text len=- null=YES default=-
 COLUMN user_identities.provider ord=3 type=text len=- null=NO default=-
 COLUMN user_identities.provider_uid ord=4 type=text len=- null=YES default=-
@@ -1408,6 +1409,7 @@ CONSTRAINT user_identities ck_user_identities_uid_or_hash CHECK (((provider_uid 
 CONSTRAINT user_identities uq_user_identities_provider_uid UNIQUE (provider, provider_uid)
 CONSTRAINT user_identities user_identities_created_at_not_null NOT NULL created_at
 CONSTRAINT user_identities user_identities_id_not_null NOT NULL id
+CONSTRAINT user_identities user_identities_last_used_at_not_null NOT NULL last_used_at
 CONSTRAINT user_identities user_identities_pkey PRIMARY KEY (id)
 CONSTRAINT user_identities user_identities_provider_not_null NOT NULL provider
 CONSTRAINT user_identities user_identities_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)

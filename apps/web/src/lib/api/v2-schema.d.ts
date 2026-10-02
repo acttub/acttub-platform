@@ -3485,6 +3485,11 @@ export interface components {
             signup_token: string;
             /** Decisions */
             decisions: components["schemas"]["SignupDecision"][];
+            /**
+             * Age Confirmed
+             * @description "만 14세 이상이에요" 확인. true면 확인 시각을 남긴다. 다음 단계에서 필수가 된다.
+             */
+            age_confirmed?: boolean;
         };
         /** AuthUser */
         AuthUser: {

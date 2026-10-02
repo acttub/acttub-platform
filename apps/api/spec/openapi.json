@@ -7354,6 +7354,11 @@
               "$ref" : "#/components/schemas/SignupDecision"
             },
             "title" : "Decisions"
+          },
+          "age_confirmed" : {
+            "type" : "boolean",
+            "description" : "\"만 14세 이상이에요\" 확인. true면 확인 시각을 남긴다. 다음 단계에서 필수가 된다.",
+            "title" : "Age Confirmed"
           }
         },
         "required" : [ "decisions", "signup_token" ],

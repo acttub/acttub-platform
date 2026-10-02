@@ -349,7 +349,8 @@ export const api = {
   signup(signupToken: string, decisions: SignupDecision[]): Promise<TokenPair> {
     return request<TokenPair>(
       '/v2/auth/signup',
-      jsonInit({ signup_token: signupToken, decisions }),
+      // 가입 화면은 만 14세 줄을 체크해야 제출 버튼이 켜지므로 제출이 곧 확인이다.
+      jsonInit({ signup_token: signupToken, decisions, age_confirmed: true }),
       { auth: false, timeoutMs: 30_000 },
     );
   },

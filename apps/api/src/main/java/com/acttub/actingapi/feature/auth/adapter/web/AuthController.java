@@ -128,7 +128,8 @@ public class AuthController {
         List<SignupDecision> decisions = body.decisions().stream()
                 .map(decision -> new SignupDecision(decision.documentId(), decision.action().name()))
                 .toList();
-        return signedIn(auth.signup(body.signupToken(), decisions), request);
+        return signedIn(
+                auth.signup(body.signupToken(), decisions, Boolean.TRUE.equals(body.ageConfirmed())), request);
     }
 
     @Operation(
