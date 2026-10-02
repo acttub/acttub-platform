@@ -499,7 +499,7 @@ class DirectVideoCoachTest {
     @Test void practiceLoopCutsWhenTheModelSaysItIsNotAnActingVideo() {
         var loopEngine = practiceLoopEngine();
         when(model.reply(eq(file), anyList(), anyString())).thenReturn(
-                "<설계>\n영상: 연기 아님: 화면이 내내 검다\n</설계>\n<코치>\n없음\n</코치>");
+                "<설계>\n영상: 연기 아님: 화면이 검고 음악과 잡음만 들린다\n</설계>\n<코치>\n없음\n</코치>");
         var result = loopEngine.start(sessionWithDuration(6600), UUID.randomUUID());
         assertThat(result.reply().message()).isEqualTo("이 영상에서는 연기 장면을 찾지 못했어요.\n연기한 장면이 담긴 영상을 다시 올려 주세요.");
         assertThat(result.reply().status()).isEqualTo("complete");
@@ -514,6 +514,92 @@ class DirectVideoCoachTest {
         assertThat(DirectVideoPracticeLoop.wasCut(acting.session().coachingState())).isFalse();
         assertThat(DirectVideoPrompts.practiceLoop()).contains("영상: [연기 / 연기 아님", "애매하면 연기로 본다");
         assertThat(DirectVideoPrompts.practiceLoopEnglish()).contains("영상: [연기 / 연기 아님", "If unsure, treat it as acting");
+    }
+
+    @Test void audioOnlyActingCanContinueCloseAndCreateAnAudioGroundedNote() {
+        var voice = new DirectVideoModel.Video("files/voice", "gemini://voice", "video/mp4", true);
+        when(model.upload(any(), eq("video/mp4"))).thenReturn(voice);
+        when(model.ready(voice)).thenReturn(true);
+        when(model.reply(eq(voice), anyList(), anyString())).thenReturn("""
+                <설계>
+                영상: 연기: 화면은 검지만 독백 연기가 들린다
+                관찰 근거: 음성만
+                대사 확인: 확인됨
+                확인된 대사: 제발 / 한 번만
+                감정의 변화: 두 부탁에서 애원하는 감정이 들린다 · 뚜렷함 2
+                상대와 주고받기: 없음(화면 확인 안 됨) · 뚜렷함 0
+                원하는 것과 행동: 머물러 주기를 바라며 두 번 애원한다 · 뚜렷함 3
+                몸·시선·표정: 없음(화면 확인 안 됨) · 뚜렷함 0
+                버릇: 부탁이 거절될 때 더 애원해요 | 곳1: 제발 | 곳2: 한 번만
+                다음 테이크: 같은 부탁을 달래듯 말해 보기
+                </설계>
+                <코치>
+                두 부탁에서 더 애원하는 쪽으로 들려요.
+                이 인물의 선택일 수도 있어요.
+                평소에도 그런 편이에요?
+                </코치>
+                """, """
+                <상태>
+                관찰 근거: 음성만
+                대사 확인: 확인됨
+                배우의 말: 자기 한 줄
+                할 일: 마무리2
+                다음 테이크: 반대로: 같은 부탁을 달래듯 말해 보기
+                </상태>
+                나는 부탁이 거절되면 더 애원하는 배우다라고 적어 둘게요.
+                다음 테이크에서는 달래듯 말해 봐도 좋아요.
+                오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요.
+                """);
+        var loopEngine = practiceLoopEngine();
+        var first = loopEngine.start(session(), UUID.randomUUID());
+        assertThat(first.reply().status()).isEqualTo("continue");
+        assertThat(DirectVideoPracticeLoop.wasCut(first.session().coachingState())).isFalse();
+        assertThat(first.session().coachingState().path("practice_loop").path("design").asText())
+                .contains("관찰 근거: 음성만", "없음(화면 확인 안 됨)");
+        assertThat(first.reply().message()).contains("들려요").doesNotContain("<설계>", "표정", "시선", "고개");
+        var done = loopEngine.reply(first.session(), "나는 부탁이 거절되면 더 애원하는 배우다", UUID.randomUUID());
+        assertThat(done.reply().status()).isEqualTo("complete");
+        assertThat(done.session().coachingState().path("practice_loop").path("statuses").toString())
+                .contains("관찰 근거: 음성만");
+        var note = DirectVideoPracticeLoop.note(done.session(), 2);
+        assertThat(note).isNotNull();
+        assertThat(note.nextTake()).isEqualTo("같은 부탁을 달래듯 말해 보기");
+        assertThat(note.toString()).doesNotContain("표정", "시선", "고개");
+        verify(model, never()).classify(anyList(), anyString(), anyList());
+    }
+
+    @Test void audibleNonActingStillCutsCoachingAndDoesNotCreateANote() {
+        var voice = new DirectVideoModel.Video("files/chat", "gemini://chat", "video/mp4", true);
+        when(model.upload(any(), eq("video/mp4"))).thenReturn(voice);
+        when(model.ready(voice)).thenReturn(true);
+        when(model.reply(eq(voice), anyList(), anyString())).thenReturn(
+                "<설계>영상: 연기 아님: 인물 연기 없이 사용법을 설명하는 강의</설계><코치>없음</코치>");
+        var result = practiceLoopEngine().start(session(), UUID.randomUUID());
+        assertThat(result.reply().status()).isEqualTo("complete");
+        assertThat(DirectVideoPracticeLoop.wasCut(result.session().coachingState())).isTrue();
+        assertThat(DirectVideoPracticeLoop.note(result.session(), 1)).isNull();
+        assertThat(result.reply().message()).startsWith("이 영상에서는 연기 장면을 찾지 못했어요.");
+    }
+
+    @Test void bothPromptsSeparateScreenVisibilityFromActingAndLimitAudioOnlyObservations() {
+        String korean = DirectVideoPrompts.practiceLoop();
+        assertThat(korean).contains("화면 유무와 연기 여부는 별개다", "목소리가 있다는 이유만으로 모두 연기는 아니다",
+                "일상 잡담·정보 설명·뉴스·강의", "배경 음악·잡음만", "애매하면 연기로 본다",
+                "없음(화면 확인 안 됨) · 뚜렷함 0", "표정, 시선, 자세, 몸동작", "감정의 변화와 원하는 것과 행동",
+                "숨은 설계, 후속 평가, 반박, 마무리와 노트용 다음 테이크");
+        String english = DirectVideoPrompts.practiceLoopEnglish();
+        assertThat(english).contains("Screen visibility and acting eligibility are separate",
+                "A voice alone does not prove acting", "everyday chat, informational explanation, news or a lecture",
+                "only background music/noise", "If unsure, treat it as acting", "Never invent face, gaze, posture, movement",
+                "follow-up evaluation, pushback, closing and the next-take field used for notes");
+        for (String prompt : List.of(korean, english, DirectVideoPrompts.practiceLoop(UUID.randomUUID()))) {
+            assertThat(prompt).contains("관찰 근거: [", "음성만", "없음(화면 확인 안 됨)");
+            assertThat(prompt.indexOf("관찰 근거: [")).isLessThan(prompt.indexOf("감정의 변화: ["));
+            assertThat(prompt.substring(prompt.indexOf("<상태>\n"))).contains("관찰 근거:");
+        }
+        assertThat(korean).doesNotContain("아래는 연기가 아니다: 화면이 검거나");
+        assertThat(english).doesNotContain("These are not acting: a black screen");
+        assertThat(DirectVideoPrompts.common()).contains("음성 연기는 연기로 다룬다", "관찰할 수 없다고 두며");
     }
 
     @Test void practiceLoopPromptLooksBeyondTempo() {
