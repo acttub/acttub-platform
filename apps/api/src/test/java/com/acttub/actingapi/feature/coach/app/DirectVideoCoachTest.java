@@ -374,25 +374,30 @@ class DirectVideoCoachTest {
         assertThat(note.nextTake()).isEqualTo("문장 사이에 한 번씩 쉬기");
     }
 
-    @Test void practiceLoopShufflesTheFourSoundLinesPerPracticeAndKeepsSpeedLast() {
+    @Test void practiceLoopShufflesTheFourHabitLinesPerPractice() {
         var practice = UUID.fromString("00000000-0000-0000-0000-000000000001");
         assertThat(DirectVideoPrompts.practiceLoop(practice)).isEqualTo(DirectVideoPrompts.practiceLoop(practice));
         assertThat(DirectVideoPrompts.practiceLoop(null)).isEqualTo(DirectVideoPrompts.practiceLoop());
-        var names = List.of("소리 쉬는 곳: [", "소리 말끝: [", "소리 크기: [", "소리 강조: [");
+        var names = List.of("감정의 변화: [", "상대와 주고받기: [", "원하는 것과 행동: [", "몸·시선·표정: [");
         var orders = new java.util.HashSet<String>();
         for (long i = 1; i <= 24; i++) {
             String prompt = DirectVideoPrompts.practiceLoop(new UUID(i, i * 31));
-            int speed = prompt.indexOf("소리 빠르기: [");
+            int stuck = prompt.indexOf("막힌 곳: [");
             for (String name : names) {
-                assertThat(prompt.indexOf(name)).as(name).isPositive().isLessThan(speed);
+                assertThat(prompt.indexOf(name)).as(name).isPositive().isLessThan(stuck);
                 assertThat(prompt.indexOf(name)).isEqualTo(prompt.lastIndexOf(name));
             }
-            String order = names.stream().sorted(java.util.Comparator.comparingInt(prompt::indexOf))
-                    .map(name -> name.substring(3, name.indexOf(':'))).collect(java.util.stream.Collectors.joining("·"));
-            assertThat(prompt).as("버릇 칸도 같은 순서를 말한다").contains("소리 " + order + " 네 줄");
-            orders.add(order);
+            orders.add(names.stream().sorted(java.util.Comparator.comparingInt(prompt::indexOf))
+                    .collect(java.util.stream.Collectors.joining()));
         }
         assertThat(orders).hasSizeGreaterThan(3);
+    }
+
+    @Test void practiceLoopPromptLooksBeyondTempo() {
+        assertThat(DirectVideoPrompts.practiceLoop())
+                .contains("감정의 변화: [", "상대와 주고받기: [", "원하는 것과 행동: [", "몸·시선·표정: [",
+                        "소리와 템포는 보지 않는다")
+                .doesNotContain("소리 빠르기: [", "소리 쉬는 곳: [");
     }
 
     @Test void practiceLoopNoteUsesTheNextTakeTheCoachSettledOnWhenClosing() throws Exception {
