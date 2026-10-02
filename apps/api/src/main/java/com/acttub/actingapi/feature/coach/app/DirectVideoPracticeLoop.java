@@ -90,6 +90,45 @@ final class DirectVideoPracticeLoop {
         return UNDECIDED;
     }
 
+    /** 연기 장면을 담기에는 너무 짧은 영상(밀리초). 이보다 짧으면 모델을 부르지 않고 끊는다. */
+    static final int MIN_ACTING_MS = 3000;
+    static final String NOT_ACTING = "not_acting";
+
+    /**
+     * 첫 응답 전에 영상 길이만으로 끊을지. 운영에서 1.3초 영상으로 코치가 버릇과 대사를 지어냈다.
+     * 길이를 모르면(0) 끊지 않고 모델의 판정({@link #notActing})에 맡긴다.
+     */
+    static boolean tooShort(CoachSessionSnapshot session) {
+        return session.turns().isEmpty() && session.durationMs() > 0 && session.durationMs() < MIN_ACTING_MS;
+    }
+
+    /**
+     * 첫 응답의 {@code <설계>} 첫 칸이 "연기 아님"인지. 영상을 볼 수 있는 건 모델뿐이라 분류만 모델이 하고,
+     * 끊는 것은 서버가 한다 — 운영에서 6.6초 검은 화면으로 코치가 없는 대사를 인용해 코칭했다.
+     */
+    static boolean notActing(Parsed parsed) {
+        return statusField(parsed.design(), "영상").startsWith("연기 아님");
+    }
+
+    /** 연기 영상이 아니어서 끊을 때 배우에게 보이는 고정 문구. */
+    static String notActingMessage(java.util.Locale language) {
+        boolean korean = language == null || "ko".equals(language.getLanguage());
+        return korean
+                ? "이 영상에서는 연기 장면을 찾지 못했어요.\n연기한 장면이 담긴 영상을 다시 올려 주세요."
+                : "I couldn't find an acting scene in this video.\nPlease upload a video with your acting in it.";
+    }
+
+    /** 끊은 세션 표시. 노트를 만들지 않는 근거다. */
+    static void markNotActing(ObjectNode state, String reason) {
+        ObjectNode loop = state.path(STATE_KEY).isObject() ? (ObjectNode) state.get(STATE_KEY) : state.putObject(STATE_KEY);
+        loop.put(NOT_ACTING, reason);
+    }
+
+    /** 연기 영상이 아니어서 끊은 세션인지. */
+    static boolean wasCut(JsonNode state) {
+        return state != null && !state.path(STATE_KEY).path(NOT_ACTING).asText("").isEmpty();
+    }
+
     /** 이 세션이 연습 루프로 시작됐는지. 루프 전에 열린 세션은 기존 경로로 이어간다. */
     static boolean applies(CoachSessionSnapshot session) {
         return session.turns().isEmpty() || session.coachingState() != null
@@ -195,7 +234,7 @@ final class DirectVideoPracticeLoop {
     static ConversationRepository.NewNote note(CoachSessionSnapshot session, long sourceRevision) {
         JsonNode state = session.coachingState();
         JsonNode loop = state == null ? null : state.path(STATE_KEY);
-        if (loop == null || !loop.isObject()) return null;
+        if (loop == null || !loop.isObject() || wasCut(state)) return null;
         String design = loop.path("design").asText("");
         String habit = habit(design);
         String next = first(DESIGN_NEXT, design);
