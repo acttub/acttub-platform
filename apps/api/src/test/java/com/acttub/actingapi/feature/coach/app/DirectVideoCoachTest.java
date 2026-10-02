@@ -429,6 +429,44 @@ class DirectVideoCoachTest {
         }
     }
 
+    CoachSessionSnapshot sessionWithDuration(int durationMs) {
+        return new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                StructuredJson.MAPPER.createObjectNode(), "", "", "", durationMs, "그 외", "그 외", null, "open", "", List.of(),
+                PriorContext.EMPTY, "legacy", 0, null, null).withCoachingState("three_layers_v1", 0, null, "open", "");
+    }
+
+    @Test void practiceLoopCutsAVideoTooShortToHoldActingWithoutCallingTheModel() {
+        var loopEngine = practiceLoopEngine();
+        var result = loopEngine.start(sessionWithDuration(1300), UUID.randomUUID());
+        assertThat(result.reply().message()).startsWith("이 영상에서는 연기 장면을 찾지 못했어요.");
+        assertThat(result.session().closeReason()).isEqualTo("interrupted");
+        assertThat(DirectVideoPracticeLoop.wasCut(result.session().coachingState())).isTrue();
+        assertThat(DirectVideoPracticeLoop.note(result.session(), 1)).as("끊은 세션은 노트가 없다").isNull();
+        verify(model, never()).reply(any(), anyList(), anyString());
+        assertThat(DirectVideoPracticeLoop.tooShort(sessionWithDuration(0))).as("길이를 모르면 모델에 맡긴다").isFalse();
+        assertThat(DirectVideoPracticeLoop.tooShort(sessionWithDuration(3000))).isFalse();
+    }
+
+    @Test void practiceLoopCutsWhenTheModelSaysItIsNotAnActingVideo() {
+        var loopEngine = practiceLoopEngine();
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(
+                "<설계>\n영상: 연기 아님: 화면이 내내 검다\n</설계>\n<코치>\n없음\n</코치>");
+        var result = loopEngine.start(sessionWithDuration(6600), UUID.randomUUID());
+        assertThat(result.reply().message()).isEqualTo("이 영상에서는 연기 장면을 찾지 못했어요.\n연기한 장면이 담긴 영상을 다시 올려 주세요.");
+        assertThat(result.reply().status()).isEqualTo("complete");
+        assertThat(result.session().closeReason()).isEqualTo("interrupted");
+        assertThat(result.session().turns()).extracting(CoachTurnSnapshot::text).noneMatch(text -> text.contains("없음"));
+        assertThat(DirectVideoPracticeLoop.note(result.session(), 1)).isNull();
+
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(
+                "<설계>\n영상: 연기\n버릇: 손이 자주 가슴으로 가요 | 곳1: x | 곳2: y\n다음 테이크: 손 내리기\n</설계>\n<코치>\n손이 자주 가슴으로 가요.\n인물이라 그럴 수도 있어요.\n평소에도 그런 편이에요?\n</코치>");
+        var acting = loopEngine.start(sessionWithDuration(6600), UUID.randomUUID());
+        assertThat(acting.reply().status()).as("짧아도 연기면 코칭한다").isEqualTo("continue");
+        assertThat(DirectVideoPracticeLoop.wasCut(acting.session().coachingState())).isFalse();
+        assertThat(DirectVideoPrompts.practiceLoop()).contains("영상: [연기 / 연기 아님", "애매하면 연기로 본다");
+        assertThat(DirectVideoPrompts.practiceLoopEnglish()).contains("영상: [연기 / 연기 아님", "If unsure, treat it as acting");
+    }
+
     @Test void practiceLoopPromptLooksBeyondTempo() {
         assertThat(DirectVideoPrompts.practiceLoop())
                 .contains("감정의 변화: [", "상대와 주고받기: [", "원하는 것과 행동: [", "몸·시선·표정: [",
