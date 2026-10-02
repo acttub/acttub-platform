@@ -166,7 +166,7 @@ public class AuthService {
      * <p>같은 신원의 계정이 이미 있으면 그 계정을 돌려준다 — 같은 가입 토큰의 재시도(응답을 못 받은
      * 앱)이거나 동시에 온 두 제출 가운데 진 쪽이다. 어느 쪽이든 사용자에게는 실패가 아니다.
      */
-    public AuthenticatedUser signup(String signupToken, List<SignupDecision> decisions) {
+    public AuthenticatedUser signup(String signupToken, List<SignupDecision> decisions, boolean ageConfirmed) {
         Instant now = clock.instant();
         SignupTokens.SignupIdentity identity;
         try {
@@ -187,6 +187,7 @@ public class AuthService {
                     identity.verifiedEmail(),
                     identity.providerToken() == null ? null : secrets.encrypt(identity.providerToken()),
                     accepted,
+                    ageConfirmed,
                     now);
         } catch (DataIntegrityViolationException race) {
             AuthenticatedUser winner =

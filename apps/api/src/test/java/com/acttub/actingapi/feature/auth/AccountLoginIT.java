@@ -214,6 +214,27 @@ class AccountLoginIT {
     }
 
     @Test
+    void accountLogin_signupRecordsTheAgeConfirmationOnlyWhenTheAppSendsIt() throws Exception {
+        clock.set(java.time.Instant.parse("2026-10-02T03:04:05Z"));
+        String confirmedToken = login("google", "g-age|confirmed@example.test|verified")
+                .path("signup_token").textValue();
+        String silentToken = login("google", "g-silent|silent@example.test|verified")
+                .path("signup_token").textValue();
+
+        var confirmed = performSignup(confirmedToken, decisions("granted"), true);
+        var silent = performSignup(silentToken, decisions("granted"), null);
+
+        assertThat(confirmed.getStatus()).as(confirmed.getContentAsString()).isEqualTo(200);
+        assertThat(silent.getStatus()).as("칸이 없어도 아직은 받는다").isEqualTo(200);
+        assertThat(jdbc.queryForList("""
+                SELECT email || ' ' || coalesce(to_char(age_confirmed_at AT TIME ZONE 'UTC',
+                                                        'YYYY-MM-DD"T"HH24:MI:SS"Z"'), 'null')
+                FROM users ORDER BY email
+                """, String.class))
+                .containsExactly("confirmed@example.test 2026-10-02T03:04:05Z", "silent@example.test null");
+    }
+
+    @Test
     void accountLogin_kakaoWithoutEmailConsentCreatesAnAccountWhoseEmailIsNull() throws Exception {
         JsonNode created = signup(
                 login("kakao", "k-1").path("signup_token").textValue(), decisions("declined"));
@@ -515,16 +536,27 @@ class AccountLoginIT {
 
     private MockHttpServletResponse performSignup(String token, Map<UUID, String> decisions)
             throws Exception {
+        return performSignup(token, decisions, null);
+    }
+
+    private MockHttpServletResponse performSignup(String token, Map<UUID, String> decisions, Boolean ageConfirmed)
+            throws Exception {
         List<Map<String, String>> list = decisions.entrySet().stream()
                 .map(entry -> Map.of("document_id", entry.getKey().toString(), "action", entry.getValue()))
                 .toList();
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("signup_token", token);
+        body.put("decisions", list);
+        if (ageConfirmed != null) {
+            body.put("age_confirmed", ageConfirmed);
+        }
         return mvc.perform(post("/v2/auth/signup")
                         .with(request -> {
                             request.setRemoteAddr(address);
                             return request;
                         })
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(mapper.writeValueAsString(Map.of("signup_token", token, "decisions", list))))
+                        .content(mapper.writeValueAsString(body)))
                 .andReturn().getResponse();
     }
 

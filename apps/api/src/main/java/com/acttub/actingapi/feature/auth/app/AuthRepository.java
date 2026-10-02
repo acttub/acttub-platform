@@ -36,6 +36,7 @@ public interface AuthRepository {
      * @param email 제공자가 검증한 이메일. 없으면 {@code null}(빈 문자열이 아니다)
      * @param providerTokenEncrypted 탈퇴 때 제공자 쪽 연결을 끊는 데 쓸 토큰의 암호문 — 애플 토큰이나
      *        네이버 refresh token. 그 밖의 제공자는 {@code null}
+     * @param ageConfirmed "만 14세 이상이에요"를 확인했는가. 그러면 {@code now} 를 확인 시각으로 남긴다
      * @throws org.springframework.dao.DataIntegrityViolationException 같은 신원이나 같은 이메일의
      *         계정이 그 사이 생겼을 때. 어느 쪽인지는 부르는 쪽이 다시 조회해 가른다
      */
@@ -45,6 +46,7 @@ public interface AuthRepository {
             String email,
             String providerTokenEncrypted,
             List<AcceptedConsent> consents,
+            boolean ageConfirmed,
             Instant now);
 
     /**
