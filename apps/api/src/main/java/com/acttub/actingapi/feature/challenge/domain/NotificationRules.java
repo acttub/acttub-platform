@@ -49,12 +49,16 @@ public final class NotificationRules {
         return (time.isBefore(MORNING) ? morning : morning.plusDays(1)).toInstant();
     }
 
+    public static String pushTitle(boolean korean) {
+        return korean ? "액트텁" : "Acttub";
+    }
+
     /** 잠금 화면에 보일 일반 문구. 이름·본문을 넣지 않는다. */
-    public static String pushBody(String kind) {
+    public static String pushBody(String kind, boolean korean) {
         return switch (kind) {
-            case "entry_liked", "entry_commented" -> "내 참여작에 새 반응이 있어요";
-            case "challenge_ended" -> "참여한 챌린지가 끝났어요";
-            default -> "AI 리포트가 준비됐어요";
+            case "entry_liked", "entry_commented" -> korean ? "내 참여작에 새 반응이 있어요" : "New reactions on your entry";
+            case "challenge_ended" -> korean ? "참여한 챌린지가 끝났어요" : "A challenge you joined has ended";
+            default -> korean ? "AI 리포트가 준비됐어요" : "Your AI report is ready";
         };
     }
 }
