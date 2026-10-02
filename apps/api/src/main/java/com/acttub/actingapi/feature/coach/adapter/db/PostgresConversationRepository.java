@@ -138,7 +138,7 @@ class PostgresConversationRepository implements ConversationRepository {
     }
 
     @Override
-    public void saveOpening(UUID conversationId, String coachMessage, JsonNode state, Instant now) {
+    public void saveOpening(UUID conversationId, String coachMessage, JsonNode state, String closeReason, Instant now) {
         transaction.executeWithoutResult(tx -> {
             if (!lockActiveOwner(conversationId)) return;
             entityManager.createNativeQuery("SELECT id FROM coach_conversations WHERE id=:id FOR UPDATE")
@@ -153,13 +153,27 @@ class PostgresConversationRepository implements ConversationRepository {
             insertMessage(conversationId, 0, "ai", coachMessage, null, null, now);
             entityManager.createNativeQuery("""
                     UPDATE coach_conversations
-                    SET state=CAST(:state AS jsonb),state_revision=state_revision+1,updated_at=:now
+                    SET state=CAST(:state AS jsonb),state_revision=state_revision+1,
+                        status=CASE WHEN CAST(:closeReason AS text) IS NULL THEN 'open' ELSE 'closed' END,
+                        close_reason=CAST(:closeReason AS text),
+                        closed_at=CASE WHEN CAST(:closeReason AS text) IS NULL THEN NULL ELSE :now END,
+                        updated_at=:now
                     WHERE id=:conversationId
                     """)
                     .setParameter("state", state == null ? "{}" : text(state))
+                    .setParameter("closeReason", closeReason)
                     .setParameter("now", now.atOffset(ZoneOffset.UTC))
                     .setParameter("conversationId", conversationId)
                     .executeUpdate();
+            if (closeReason != null) {
+                entityManager.createNativeQuery("""
+                        UPDATE practices SET stage='closed',close_reason='conversation_closed',updated_at=:now
+                        WHERE id=(SELECT practice_id FROM coach_conversations WHERE id=:conversationId)
+                        """)
+                        .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                        .setParameter("conversationId", conversationId)
+                        .executeUpdate();
+            }
         });
     }
 
