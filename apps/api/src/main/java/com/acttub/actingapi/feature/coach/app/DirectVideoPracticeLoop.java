@@ -103,8 +103,8 @@ final class DirectVideoPracticeLoop {
     }
 
     /**
-     * 첫 응답의 {@code <설계>} 첫 칸이 "연기 아님"인지. 영상을 볼 수 있는 건 모델뿐이라 분류만 모델이 하고,
-     * 끊는 것은 서버가 한다 — 운영에서 6.6초 검은 화면으로 코치가 없는 대사를 인용해 코칭했다.
+     * 첫 응답의 {@code <설계>} 첫 칸이 "연기 아님"인지. 실제 영상·음성 내용의 분류는 모델이 하고,
+     * 끊는 것은 서버가 한다. 검은 화면 자체는 차단 근거가 아니며, 실제 들리는 음성 연기는 허용한다.
      */
     static boolean notActing(Parsed parsed) {
         return statusField(parsed.design(), "영상").startsWith("연기 아님");

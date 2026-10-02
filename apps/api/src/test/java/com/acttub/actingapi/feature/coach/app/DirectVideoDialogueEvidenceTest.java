@@ -23,6 +23,18 @@ class DirectVideoDialogueEvidenceTest {
                 .isEqualTo("task");
     }
 
+    @Test void silentReplyCannotClaimAudioOnlyOrMixedObservationSources() {
+        for (String source : List.of("음성만", "화면·음성", "음성만: 감정이 들린다")) {
+            assertThatThrownBy(() -> DirectVideoDialogueEvidence.requireGrounded(silent,
+                    "<설계>관찰 근거: " + source + "\n대사 확인: 확인 안 됨\n확인된 대사: 없음</설계>"
+                            + "<코치>애원하는 감정이 들려요.</코치>", ""))
+                    .isInstanceOf(IllegalStateException.class);
+        }
+        DirectVideoDialogueEvidence.requireGrounded(silent,
+                "<설계>관찰 근거: [\"화면만\"]\n대사 확인: 확인 안 됨\n확인된 대사: 없음</설계>"
+                        + "<코치>손동작이 보여요.</코치>", "");
+    }
+
     @Test void silentReplyCannotClaimConfirmedSpeech() {
         assertThatThrownBy(() -> DirectVideoDialogueEvidence.requireGrounded(silent,
                 "<설계>대사 확인: [확인됨]\n확인된 대사: [없음]</설계><코치>보이는 손동작이에요.</코치>", ""))

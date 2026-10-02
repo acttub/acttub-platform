@@ -11,7 +11,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 final class DirectVideoDialogueEvidence {
     private static final Pattern QUOTED = Pattern.compile("\"[^\"]*\"|“[^”]*”|「[^」]*」|『[^』]*』");
     private static final Pattern QUOTE_MARK = Pattern.compile("[\"“”「」『』]");
-    private static final Set<String> HIDDEN_VALUES = Set.of("없음", "연기", "연기아님", "확인안됨");
+    private static final Set<String> HIDDEN_VALUES = Set.of("없음", "연기", "연기아님", "확인안됨", "화면만");
     private DirectVideoDialogueEvidence() {}
 
     /** 예전 코치가 지어낸 대사는 새 노트·히스토리의 근거로 다시 쓰지 않는다. 원본 메시지는 보존한다. */
@@ -31,6 +31,10 @@ final class DirectVideoDialogueEvidence {
         if (video == null || !Boolean.FALSE.equals(video.hasAudioTrack())) return;
         var parsed = DirectVideoPracticeLoop.parse(reply);
         for (String hidden : new String[] {parsed.design(), parsed.status()}) {
+            String source = normalized(field(hidden, "관찰 근거"));
+            if (source.startsWith("음성만") || source.startsWith("화면·음성")) {
+                throw new IllegalStateException("no-audio video reply claims audible observation source");
+            }
             String speech = normalized(field(hidden, "대사 확인"));
             if (speech.contains("확인됨") || "confirmed".equals(speech)) {
                 throw new IllegalStateException("no-audio video reply claims confirmed speech");
