@@ -214,18 +214,25 @@ export function universityDigest(
 
   const latestResultYear = resultYears(notices)[0];
   if (latestResultYear) {
+    // 한 공고에 같은 해 결과가 여럿(연기·뮤지컬, 정원 내·외)이면 이름이 같은 문장이 겹친다.
+    // 공고마다 한 줄로 모으고, 경쟁률이 여럿이면 낮은 값~높은 값으로 적는다.
     const measured = notices
-      .flatMap((notice) =>
-        notice.results
+      .map((notice) => ({
+        notice,
+        ratios: notice.results
           .filter((result) => result.year === latestResultYear && result.competition_rate)
-          .map((result) => ({ notice, result })),
-      )
+          .map((result) => result.competition_rate as string),
+      }))
+      .filter(({ ratios }) => ratios.length > 0)
       .slice(0, DIGEST_RESULT_LIMIT);
-    for (const { notice, result } of measured) {
+    for (const { notice, ratios } of measured) {
       const name = [notice.department, notice.track].filter(Boolean).join(" ");
-      lines.push(
-        `${latestResultYear}학년도 ${name} 경쟁률은 ${result.competition_rate}이었어요.`,
+      const sorted = [...ratios].sort(
+        (a, b) => (competitionRatio(a) ?? 0) - (competitionRatio(b) ?? 0),
       );
+      const text =
+        sorted.length > 1 ? `${sorted[0]}~${sorted[sorted.length - 1]}` : sorted[0];
+      lines.push(`${latestResultYear}학년도 ${name} 경쟁률은 ${text}이었어요.`);
     }
   }
 

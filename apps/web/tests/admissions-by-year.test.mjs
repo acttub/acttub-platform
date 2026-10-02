@@ -165,6 +165,26 @@ test("한눈에 보기는 데이터로만 문장을 만든다", () => {
   ]);
 });
 
+test("한 공고에 같은 해 결과가 여럿이면 경쟁률을 범위 한 줄로 합친다", () => {
+  const lines = universityDigest(
+    [
+      notice({
+        admission_year: 2027,
+        track: "수시",
+        department: "연극전공",
+        results: [
+          { year: 2026, competition_rate: "121.5:1" },
+          { year: 2026, competition_rate: "49.3:1" },
+        ],
+      }),
+    ],
+    [],
+    2027,
+  );
+  assert.ok(lines.includes("2026학년도 연극전공 수시 경쟁률은 49.3:1~121.5:1이었어요."));
+  assert.equal(lines.filter((line) => line.includes("경쟁률")).length, 1);
+});
+
 test("한눈에 보기는 모르는 조각을 빼고, 공고가 없으면 빈 배열이다", () => {
   assert.deepEqual(universityDigest([], [], 2027), []);
   assert.deepEqual(universityDigest([notice({ admission_year: 2027, track: "정시" })], [], 2027), [
