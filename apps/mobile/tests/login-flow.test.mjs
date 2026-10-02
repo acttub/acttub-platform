@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { ApiError } from '../lib/api-request.ts';
+import { api, httpResponses, id } from './helpers/practice-api.mjs';
 import { createLastProviderStore } from '../lib/last-provider.ts';
 import {
   highlightedProvider,
@@ -303,4 +304,26 @@ test('account.login: 이메일 겹침 팝업은 이 빌드가 쓸 수 있는 제
   };
   assert.deepEqual(emailConflictDialog(null, ['google', 'apple']), unknown);
   assert.deepEqual(emailConflictDialog('facebook', ['google', 'apple']), unknown);
+});
+
+test('account.login: 가입 제출은 동의 결정과 만 14세 확인을 서버 계약대로 싣는다', async (t) => {
+  const calls = httpResponses(t, [{
+    body: {
+      result: 'signed_in',
+      access_token: 'access',
+      refresh_token: 'refresh',
+      token_type: 'bearer',
+      expires_in: 900,
+      user: { id: id(1), email: null, status: 'active' },
+      pending_consents: [],
+    },
+  }]);
+
+  await api.signup('signup-token', [{ document_id: id(2), action: 'granted' }]);
+
+  assert.deepEqual(calls[0].body, {
+    signup_token: 'signup-token',
+    decisions: [{ document_id: id(2), action: 'granted' }],
+    age_confirmed: true,
+  });
 });

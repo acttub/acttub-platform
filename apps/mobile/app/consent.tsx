@@ -32,7 +32,6 @@ function errorMessage(error: unknown, fallback: string): string {
 export default function ConsentScreen() {
   const { signup, submitSignup, reloadSignupDocuments, cancelSignup } = useAuth();
   const [choices, setChoices] = useState<Record<string, ConsentChoice>>({});
-  // 서버가 아직 받지 않는다(계약 변경 절차 ①). 화면에서 CTA만 막고 가입 요청에는 싣지 않는다.
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
