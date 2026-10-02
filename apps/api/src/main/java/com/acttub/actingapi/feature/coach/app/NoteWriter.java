@@ -47,6 +47,10 @@ public class NoteWriter {
             // "모르겠어요 → 그만": 연습 기록에 "아직 정리 없음" 으로 남는다.
             return null;
         }
+        if (threeLayers && DirectVideoPracticeLoop.wasCut(session.coachingState())) {
+            // 연기 영상이 아니어서 코칭 없이 끊은 세션 — 정리할 것이 없다.
+            return null;
+        }
         if (threeLayers) {
             // 연습 루프 세션은 코치가 정리해 둔 버릇·한 줄·다음 테이크로 노트를 채운다.
             NewNote loopNote = DirectVideoPracticeLoop.note(session, sourceRevision);
