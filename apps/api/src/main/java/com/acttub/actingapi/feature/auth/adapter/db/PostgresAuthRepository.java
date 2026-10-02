@@ -183,15 +183,30 @@ public class PostgresAuthRepository implements AuthRepository, AuthenticatedUser
     @Override
     public List<String> providersOf(UUID userId) {
         return list(entityManager.createNativeQuery("""
-                SELECT DISTINCT provider
+                SELECT provider
                 FROM user_identities
                 WHERE user_id=:userId
                   AND provider_uid IS NOT NULL
-                ORDER BY provider
+                GROUP BY provider
+                ORDER BY max(last_used_at) DESC, provider
                 """, Tuple.class)
                 .setParameter("userId", userId)).stream()
                 .map(row -> provider(row.get("provider", String.class)).dbValue())
                 .toList();
+    }
+
+    @Override
+    public void markIdentityUsed(String provider, String uid, Instant now) {
+        transaction.executeWithoutResult(status -> entityManager.createNativeQuery("""
+                UPDATE user_identities
+                SET last_used_at=:now
+                WHERE provider=:provider
+                  AND provider_uid=:providerUid
+                """)
+                .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                .setParameter("provider", provider(provider).dbValue())
+                .setParameter("providerUid", uid)
+                .executeUpdate());
     }
 
     @Override

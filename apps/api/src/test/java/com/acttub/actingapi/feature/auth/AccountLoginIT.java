@@ -191,6 +191,29 @@ class AccountLoginIT {
     }
 
     @Test
+    void accountLogin_conflictListsTheMostRecentlyUsedProviderFirst() throws Exception {
+        signUp("google", "g-1|recent@example.test|verified");
+        login("apple", "a-1|recent@example.test|verified");
+
+        clock.advance(Duration.ofMinutes(1));
+        login("apple", "a-1|recent@example.test|verified");
+
+        assertThat(mapper.readTree(perform("naver", "n-1|recent@example.test").getContentAsString()))
+                .isEqualTo(mapper.readTree("""
+                        {"detail":"account_exists_with_different_provider","providers":["apple","google"]}
+                        """));
+
+        clock.advance(Duration.ofMinutes(1));
+        login("google", "g-1|recent@example.test|verified");
+
+        assertThat(mapper.readTree(perform("naver", "n-1|recent@example.test").getContentAsString()))
+                .as("이름순이 아니다")
+                .isEqualTo(mapper.readTree("""
+                        {"detail":"account_exists_with_different_provider","providers":["google","apple"]}
+                        """));
+    }
+
+    @Test
     void accountLogin_kakaoWithoutEmailConsentCreatesAnAccountWhoseEmailIsNull() throws Exception {
         JsonNode created = signup(
                 login("kakao", "k-1").path("signup_token").textValue(), decisions("declined"));

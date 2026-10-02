@@ -54,8 +54,14 @@ public interface AuthRepository {
      */
     AuthenticatedUser createGuest(String guestUid);
 
-    /** 이 계정에 붙어 있는 제공자 이름들. 이메일 겹침 안내("이미 OO로 가입한 이메일이에요")에 쓴다. */
+    /**
+     * 이 계정에 붙어 있는 제공자 이름들, 최근에 로그인한 것 먼저. 이메일 겹침 안내("이 이메일은 OO로 가입돼
+     * 있어요")가 첫 번째를 쓴다.
+     */
     List<String> providersOf(UUID userId);
+
+    /** 그 신원으로 로그인했다 — {@link #providersOf} 의 순서를 정하는 시각을 남긴다. */
+    void markIdentityUsed(String provider, String providerUid, Instant now);
 
     /**
      * 제공자가 준 검증된 이메일로 {@code users.email} 을 맞춘다. 다른 계정이 이미 쓰는 주소면

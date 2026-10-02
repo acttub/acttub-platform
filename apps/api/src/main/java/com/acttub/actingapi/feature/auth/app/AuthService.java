@@ -149,6 +149,7 @@ public class AuthService {
             }
         }
         user.requireUsable();
+        accounts.markIdentityUsed(provider, identity.providerUid(), clock.instant());
         // 이메일은 신원이 아니라 부가 정보다. 제공자에서 주소를 바꿔도 같은 계정이고 주소만 따라간다.
         if (verifiedEmail != null && !verifiedEmail.equalsIgnoreCase(user.email())) {
             accounts.updateEmailIfFree(user.id(), verifiedEmail);
