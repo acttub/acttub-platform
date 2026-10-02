@@ -7,6 +7,7 @@ import java.util.regex.Pattern;
 
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import com.acttub.actingapi.integration.observation.DirectVideoModel;
+import com.acttub.actingapi.platform.web.OutputLanguage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -41,6 +42,68 @@ final class DirectVideoPracticeLoop {
         String message = coach.find() ? coach.group(1) : rest;
         message = STRAY_TAG.matcher(message).replaceAll("");
         return new Parsed(design, status, TRAILING_JAMO.matcher(message).replaceAll("").strip());
+    }
+
+    /** 숨은 칸은 배우에게 보이지 않으므로 답하는 말이 바뀌어도 서버가 읽는 한국어 이름을 지킨다. */
+    static final String HIDDEN_BLOCKS_STAY_KOREAN = "\nThe hidden <설계> and <상태> blocks are never shown to the person. "
+            + "Keep their labels, the action names (비추기, 파고들기, 이어보기, 짚어주기, 답하기, 마무리1, 마무리2, 끝) "
+            + "and the \"지키며:\"/\"반대로:\" prefixes exactly in Korean as written above.\n";
+
+    /**
+     * 연습 루프 프롬프트 끝에 답할 말 지시를 붙인다. 한국어면 받은 프롬프트를 한 글자도 바꾸지 않는다.
+     *
+     * <p>먼저 앱이 요청한 말(Accept-Language, {@link OutputLanguage})을 따른다. 앱이 한국어여도 배우가 채팅이나
+     * 연습 메모를 다른 말로 썼으면 그 말로 답하게 한다 — 운영에서 영어로 상황을 적은 배우에게 첫 질문을
+     * 한국어로 하자 답하지 않고 떠났다. 프롬프트 본문만으로는 한국어 지시문에 끌려 대부분 한국어로 답했다.
+     */
+    static String withOutputLanguage(String prompt, CoachSessionSnapshot session, String actorText) {
+        java.util.Locale language = OutputLanguage.isKorean() ? actorLanguage(session, actorText) : OutputLanguage.current();
+        String directive = OutputLanguage.directiveFor(language);
+        if (directive.isEmpty()) return prompt;
+        // 끝의 지시만으로는 한국어 문장 틀에 끌려 첫 질문이 한국어로 나왔다(실험 4/4). 앞에도 정해 두고,
+        // 프롬프트의 <설계> 첫 칸(답하는 말)이 이 칸을 읽어 그 말로 쓰게 한다.
+        String head = "## 답하는 말\n이 배우는 " + language.getDisplayLanguage(java.util.Locale.KOREAN)
+                + "를 쓴다. <코치>와 이후 코치의 말은 처음부터 끝까지 모두 " + language.getDisplayLanguage(java.util.Locale.KOREAN)
+                + "로 쓴다. 아래 한국어 문장 틀(\"~하는 쪽으로 가요\" 등)은 뜻만 따르고 그 말의 대화체로 옮겨 쓴다. "
+                + "대사 인용은 들린 그대로 쓴다.\n\n";
+        return head + prompt + directive + HIDDEN_BLOCKS_STAY_KOREAN;
+    }
+
+    /**
+     * 배우가 쓰는 말. 이번 답 → 지난 답(최근부터) → 연습 메모 순으로 처음 판단되는 것. 모르면 {@code null}(한국어).
+     * "그만" 같은 종료·짧은 말은 건너뛴다. 배우가 "한국어로"/"in English"라고 하면 그것을 따른다.
+     */
+    static java.util.Locale actorLanguage(CoachSessionSnapshot session, String actorText) {
+        var candidates = new ArrayList<String>();
+        if (actorText != null) candidates.add(actorText);
+        if (session != null) {
+            List<CoachTurnSnapshot> turns = session.turns();
+            for (int i = turns.size() - 1; i >= 0; i--) if (!"ai".equals(turns.get(i).role())) candidates.add(turns.get(i).text());
+            candidates.add(String.join(" ", java.util.stream.Stream.of(session.situation(), session.characterContext(),
+                    session.goal(), session.blockageDetail()).filter(v -> v != null && !blank(v)).toList()));
+        }
+        for (String text : candidates) {
+            if (text == null || text.isBlank() || com.acttub.actingapi.feature.coach.domain.ClosingIntent.isClosing(text)) continue;
+            String lowered = text.toLowerCase(java.util.Locale.ROOT);
+            if (lowered.contains("한국어로") || lowered.contains("in korean")) return null;
+            if (lowered.contains("in english") || lowered.contains("영어로")) return java.util.Locale.ENGLISH;
+            java.util.Locale found = languageOf(text);
+            if (found != UNDECIDED) return found;
+        }
+        return null;
+    }
+
+    private static final java.util.Locale UNDECIDED = java.util.Locale.ROOT;
+
+    /** 글자 수로 가린다. 한글이 있으면 한국어(null), 가나가 있으면 일본어, 로마자 단어가 충분하면 영어. */
+    static java.util.Locale languageOf(String text) {
+        long hangul = text.codePoints().filter(c -> c >= 0xAC00 && c <= 0xD7A3).count();
+        long kana = text.codePoints().filter(c -> c >= 0x3040 && c <= 0x30FF).count();
+        long latin = text.codePoints().filter(c -> (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')).count();
+        if (hangul > 0 && hangul * 3 >= latin) return null;
+        if (kana >= 2) return java.util.Locale.JAPANESE;
+        if (latin >= 8 && hangul == 0) return java.util.Locale.ENGLISH;
+        return UNDECIDED;
     }
 
     /** 이 세션이 연습 루프로 시작됐는지. 루프 전에 열린 세션은 기존 경로로 이어간다. */
