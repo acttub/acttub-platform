@@ -106,12 +106,18 @@ public class ConversationService {
             return turn(opened.session(), conversationId, null);
         }
         CoachResult result = generate(() -> coach.start(withContext(opened.session()), conversationId));
+        boolean closing = COMPLETE.equals(result.reply().status());
+        boolean rejected = DirectVideoPracticeLoop.wasCut(result.session().coachingState());
         activeOnly(() -> {
-            conversations.saveOpening(conversationId, result.reply().message(), result.session().coachingState(), clock.instant());
+            conversations.saveOpening(conversationId, result.reply().message(), result.session().coachingState(),
+                    closing ? closeReason(result) : null, clock.instant());
             return null;
         });
         Loaded saved = require(conversations.loadByConversation(userId, conversationId));
-        return turn(saved.session(), conversationId, null);
+        NoteView note = closing && !rejected
+                ? activeOnly(() -> notes.write(opened, result, saved.session().stateRevision(), clock.instant())) : null;
+        if (closing && !rejected && closedListener != null) closedListener.onConversationClosed(userId, practiceId);
+        return turn(saved.session(), conversationId, note);
     }
 
     /**
