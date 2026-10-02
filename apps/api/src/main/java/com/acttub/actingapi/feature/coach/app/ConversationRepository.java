@@ -48,9 +48,9 @@ public interface ConversationRepository {
 
     /**
      * 시작 응답(코치의 첫 말)을 저장한다. 같은 대화에 이미 턴이 있으면 아무것도 쓰지 않는다 — 시작 재전송이
-     * 턴을 늘리지 않는다.
+     * 턴을 늘리지 않는다. closeReason이 있으면 첫 안내와 함께 대화와 회차도 닫는다.
      */
-    void saveOpening(UUID conversationId, String coachMessage, JsonNode state, Instant now);
+    void saveOpening(UUID conversationId, String coachMessage, JsonNode state, String closeReason, Instant now);
 
     /**
      * 같은 요청 id 가 이미 만든 턴. 지문이 다르면 {@link Replay#mismatch()} 가 참이다.

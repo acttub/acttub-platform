@@ -65,6 +65,14 @@ public final class DirectVideoCoach {
         // ConversationService.THREE_LAYERS_REPLY_LIMIT 을 따른다 — 이번 응답이 그 상한을 채우면 강제 종료한다.
         boolean turnBudget = session.turns().stream().filter(t -> "ai".equals(t.role())).count()
                 >= ConversationService.THREE_LAYERS_REPLY_LIMIT - 1;
+        if (loop && DirectVideoPracticeLoop.tooShort(session)) {
+            // 연기가 담길 수 없는 길이 — 영상을 올리거나 모델을 부르지 않고 끊는다. 노트도 만들지 않는다.
+            ObjectNode cutState = nextState(session);
+            DirectVideoPracticeLoop.markNotActing(cutState, "too_short");
+            return StructuredCoachEngine.result(session, actorText,
+                    DirectVideoPracticeLoop.notActingMessage(DirectVideoPracticeLoop.replyLanguage(session, actorText)),
+                    cutState, "interrupted");
+        }
         try {
             var source = videos.find(session.userId(), session.practiceSessionId());
             if (source == null) throw new IllegalStateException("owned video is unavailable");
@@ -105,20 +113,21 @@ public final class DirectVideoCoach {
             var parsed = loop ? DirectVideoPracticeLoop.parse(message) : null;
             // 배우에게는 코치 본문만 저장한다. 숨은 칸(<설계>·<상태>)은 아래에서 상태에 둔다.
             String shown = loop ? parsed.message() : message.strip();
+            // 첫 응답에서 모델이 연기 영상이 아니라고 분류했으면 그 코치 문장은 버리고 끊는다.
+            boolean cut = loop && session.turns().isEmpty() && DirectVideoPracticeLoop.notActing(parsed);
+            if (cut) shown = DirectVideoPracticeLoop.notActingMessage(DirectVideoPracticeLoop.replyLanguage(session, actorText));
             if (shown.isBlank()) throw new IllegalStateException("empty video coaching reply");
             telemetry.record(new LlmCall(LlmStep.COACH_TURN, session.practiceSessionId(), session.userId(),
                     model.model(), input, message, LlmTokens.unknown(), started, Duration.between(started, Instant.now()),
                     null, LlmCall.metadata("transport", "gemini_direct_video", "route", route,
                             "route_fallback", Boolean.toString(routeFallback))));
-            ObjectNode state = session.coachingState() == null ? CoachingStateReducer.empty()
-                    : ((ObjectNode) session.coachingState()).deepCopy();
-            CoachingStateReducer.require(state.path("revision").asLong() == session.stateRevision(), "stored revision mismatch");
-            state.put("revision", session.stateRevision() + 1);
+            ObjectNode state = nextState(session);
             if (loop) DirectVideoPracticeLoop.remember(state, parsed);
+            if (cut) DirectVideoPracticeLoop.markNotActing(state, "model");
             // Plain coaching prose is not structured evidence or a confirmed actor intention.
             return StructuredCoachEngine.result(session, actorText, shown, state,
                     actorFinished ? "actor_finished" : turnBudget ? "turn_budget"
-                            : loop && DirectVideoPracticeLoop.finished(parsed) ? "interrupted" : null);
+                            : cut || loop && DirectVideoPracticeLoop.finished(parsed) ? "interrupted" : null);
         } catch (Exception failure) {
             if (failure instanceof InterruptedException) Thread.currentThread().interrupt();
             failures.report(failure, FailureKind.EXTERNAL, new FailureContext("DirectVideoCoach.turn", operationId));
@@ -141,5 +150,14 @@ public final class DirectVideoCoach {
                 }
             }
         }
+    }
+
+    /** 저장된 상태를 복사해 다음 판으로 올린다. 저장 판이 어긋나면 실패한다. */
+    private static ObjectNode nextState(CoachSessionSnapshot session) {
+        ObjectNode state = session.coachingState() == null ? CoachingStateReducer.empty()
+                : ((ObjectNode) session.coachingState()).deepCopy();
+        CoachingStateReducer.require(state.path("revision").asLong() == session.stateRevision(), "stored revision mismatch");
+        state.put("revision", session.stateRevision() + 1);
+        return state;
     }
 }
