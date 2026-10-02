@@ -25,6 +25,84 @@ import org.junit.jupiter.api.io.TempDir;
 class GeminiDirectVideoAudioUploadTest {
     @TempDir Path directory;
 
+    @Test void audibleInputSkipsFrameInspectionAndCannotBeEmpty() throws Exception {
+        var externalUploadCalls = new AtomicInteger();
+        var frameCalls = new AtomicInteger();
+        var server = resumableUploadServer(externalUploadCalls, "ACTIVE");
+        try (var client = fakeClient(server)) {
+            var model = new GeminiDirectVideoModel(client, "gemini-3-flash-preview", path -> true, path -> {
+                frameCalls.incrementAndGet();
+                throw new IllegalStateException("must not inspect audible input frames");
+            });
+            var facts = model.inspect(directory.resolve("voice.mp4"));
+            assertThat(facts.hasAudioTrack()).isTrue();
+            assertThat(facts.fullBlack()).isNull();
+            assertThat(facts.emptyInput()).isFalse();
+            assertThat(frameCalls.get()).isZero();
+            assertThat(externalUploadCalls.get()).isZero();
+        } finally { server.stop(0); }
+    }
+
+    @Test void absentAudioAndEveryFrameBlackRejectsEvenAnAccidentalUpload() throws Exception {
+        var externalUploadCalls = new AtomicInteger();
+        var server = resumableUploadServer(externalUploadCalls, "ACTIVE");
+        try (var client = fakeClient(server)) {
+            var model = new GeminiDirectVideoModel(client, "gemini-3-flash-preview", path -> false, path -> true);
+            Path source = directory.resolve("empty.mp4");
+            var facts = model.inspect(source);
+            assertThat(facts.emptyInput()).isTrue();
+            assertThatThrownBy(() -> model.upload(source, "video/mp4", facts))
+                    .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("empty input");
+            assertThat(externalUploadCalls.get()).isZero();
+        } finally { server.stop(0); }
+    }
+
+    @Test void visualInputReusesMeasuredAudioAbsenceWithoutProbingTwice() throws Exception {
+        var externalUploadCalls = new AtomicInteger();
+        var audioCalls = new AtomicInteger();
+        var server = resumableUploadServer(externalUploadCalls, "ACTIVE");
+        try (var client = fakeClient(server)) {
+            var model = new GeminiDirectVideoModel(client, "gemini-3-flash-preview", path -> {
+                audioCalls.incrementAndGet();
+                return false;
+            }, path -> false);
+            Path source = Files.write(directory.resolve("silent-acting.mp4"), new byte[]{1, 2, 3});
+            var facts = model.inspect(source);
+            assertThat(facts.emptyInput()).isFalse();
+            assertThat(model.upload(source, "video/mp4", facts).hasAudioTrack()).isFalse();
+            assertThat(audioCalls.get()).isEqualTo(1);
+            assertThat(externalUploadCalls.get()).isEqualTo(1);
+        } finally { server.stop(0); }
+    }
+
+    @Test void failedFrameInspectionDoesNotBecomeAnEmptyInputFact() throws Exception {
+        var externalUploadCalls = new AtomicInteger();
+        var server = resumableUploadServer(externalUploadCalls, "ACTIVE");
+        try (var client = fakeClient(server)) {
+            var model = new GeminiDirectVideoModel(client, "gemini-3-flash-preview", path -> false, path -> {
+                throw new IllegalStateException("frame decoder failed");
+            });
+            assertThatThrownBy(() -> model.inspect(directory.resolve("broken.mp4")))
+                    .isInstanceOf(IllegalStateException.class).hasMessageContaining("frame decoder failed");
+            assertThat(externalUploadCalls.get()).isZero();
+        } finally { server.stop(0); }
+    }
+
+    @Test void failedAudioInspectionDoesNotProceedToFrameInspection() throws Exception {
+        var externalUploadCalls = new AtomicInteger();
+        var frameCalls = new AtomicInteger();
+        var server = resumableUploadServer(externalUploadCalls, "ACTIVE");
+        try (var client = fakeClient(server)) {
+            var model = new GeminiDirectVideoModel(client, "gemini-3-flash-preview", path -> {
+                throw new IllegalStateException("audio probe failed");
+            }, path -> { frameCalls.incrementAndGet(); return true; });
+            assertThatThrownBy(() -> model.inspect(directory.resolve("broken.mp4")))
+                    .isInstanceOf(IllegalStateException.class).hasMessageContaining("audio probe failed");
+            assertThat(frameCalls.get()).isZero();
+            assertThat(externalUploadCalls.get()).isZero();
+        } finally { server.stop(0); }
+    }
+
     @Test void keepsTruePresenceProbeResultOnTheReturnedVideo() throws Exception {
         var externalUploadCalls = new AtomicInteger();
         var server = resumableUploadServer(externalUploadCalls, "ACTIVE");
