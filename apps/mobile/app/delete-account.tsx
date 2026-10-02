@@ -23,8 +23,6 @@ import { translate as t } from '@/lib/i18n';
  *
  * 실수 탈퇴는 두 번 확인으로 막는다 — "연습·노트는 돌아오지 않아요" 확인 줄을 눌러야 버튼이
  * 켜지고, 누르면 확인 창이 한 번 더 묻는다. 복구 요청은 받지 않는다.
- *
- * 새 판에 동의하지 않는 사람이 동의 화면의 탈퇴 링크로도 여기에 온다(동의 게이트 밖).
  */
 export default function DeleteAccountScreen() {
   const router = useRouter();
