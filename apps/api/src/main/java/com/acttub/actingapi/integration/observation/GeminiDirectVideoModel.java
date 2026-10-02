@@ -6,7 +6,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 
+import com.acttub.actingapi.integration.media.VideoRecordChunks;
 import com.google.genai.Client;
 import com.google.genai.types.Content;
 import com.google.genai.types.GenerateContentConfig;
@@ -20,19 +22,29 @@ import com.google.genai.types.ThinkingConfig;
 public final class GeminiDirectVideoModel implements DirectVideoModel {
     private final Client client;
     private final String model;
+    private final Predicate<Path> audioProbe;
 
     public GeminiDirectVideoModel(Client client, String model) {
+        this(client, model, new VideoRecordChunks()::hasAudio);
+    }
+
+    /** Test-only: inject a fake probe so unit tests avoid native ffprobe dependency. */
+    GeminiDirectVideoModel(Client client, String model, Predicate<Path> audioProbe) {
         this.client = client;
         this.model = model;
+        this.audioProbe = audioProbe;
     }
 
     @Override
     public Video upload(Path path, String mimeType) {
+        // Probe the original file before upload; a failed probe must fail the upload,
+        // never silently fall back to a false no-audio signal.
+        boolean hasAudioTrack = audioProbe.test(path);
         try (var input = Files.newInputStream(path)) {
             var file = client.files.upload(input, Files.size(path),
                     UploadFileConfig.builder().mimeType(mimeType)
                             .httpOptions(HttpOptions.builder().timeout(120000).build()).build());
-            return new Video(file.name().orElseThrow(), file.uri().orElseThrow(), mimeType);
+            return new Video(file.name().orElseThrow(), file.uri().orElseThrow(), mimeType, hasAudioTrack);
         } catch (IOException failure) {
             throw new UncheckedIOException(failure);
         }

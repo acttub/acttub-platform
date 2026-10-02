@@ -89,6 +89,16 @@ public final class DirectVideoCoach {
                 if (System.nanoTime() >= deadline) throw new IllegalStateException("video processing timed out");
                 Thread.sleep(1000);
             }
+            String written = DirectVideoPracticeLoop.actorMaterial(session) + "\n"
+                    + session.turns().stream().filter(turn -> !"ai".equals(turn.role()))
+                            .map(turn -> turn.text()).collect(java.util.stream.Collectors.joining("\n"))
+                    + "\n" + (actorText == null ? "" : actorText);
+            ObjectNode state = nextState(session);
+            if (loop) {
+                DirectVideoDialogueEvidence.discardUngroundedDesign(uploaded, state, written);
+                history.clear();
+                history.addAll(DirectVideoPracticeLoop.history(session.turns(), state, actorText));
+            }
             String task;
             if (loop) {
                 // 종료("그만")도 연습 루프가 해 본 횟수로 닫는다. 서버는 아래에서 세션만 닫는다.
@@ -103,13 +113,14 @@ public final class DirectVideoCoach {
                 task = selection.prompt();
             }
             // 연습 루프는 배우가 이번 연습에 적은 것(상황·인물·목표·막힘)도 받는다. 없으면 칸이 없다.
-            String prompt = CoachPrompt.actorProfileBlock(session.actorProfile())
+            String prompt = DirectVideoPrompts.withAudioFacts(CoachPrompt.actorProfileBlock(session.actorProfile())
                     + CoachPrompt.priorContextBlock(session.priorForModel(), true)
-                    + (loop ? DirectVideoPracticeLoop.actorMaterial(session) : "") + task;
+                    + (loop ? DirectVideoPracticeLoop.actorMaterial(session) : "") + task, uploaded);
             input = CoachPrompt.withoutActorName(prompt, session.actorProfile()) + "\n" + history;
             ExternalOperationExecution.externalCall("model");
             String message = model.reply(uploaded, history, prompt);
             if (message == null || message.isBlank()) throw new IllegalStateException("empty video coaching reply");
+            DirectVideoDialogueEvidence.requireGrounded(uploaded, message, written);
             var parsed = loop ? DirectVideoPracticeLoop.parse(message) : null;
             // 배우에게는 코치 본문만 저장한다. 숨은 칸(<설계>·<상태>)은 아래에서 상태에 둔다.
             String shown = loop ? parsed.message() : message.strip();
@@ -121,7 +132,6 @@ public final class DirectVideoCoach {
                     model.model(), input, message, LlmTokens.unknown(), started, Duration.between(started, Instant.now()),
                     null, LlmCall.metadata("transport", "gemini_direct_video", "route", route,
                             "route_fallback", Boolean.toString(routeFallback))));
-            ObjectNode state = nextState(session);
             if (loop) DirectVideoPracticeLoop.remember(state, parsed);
             if (cut) DirectVideoPracticeLoop.markNotActing(state, "model");
             // Plain coaching prose is not structured evidence or a confirmed actor intention.
