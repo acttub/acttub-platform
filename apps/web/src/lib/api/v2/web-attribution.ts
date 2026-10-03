@@ -1,18 +1,9 @@
 import { apiFetch } from "./client";
 
-/** 실제 URL의 안전한 UTM만 서버 계약 이름으로 옮긴다. */
-export type WebAttributionRequest = {
-  /** utm_source */
-  channel: string;
-  /** utm_medium */
-  medium?: string;
-  /** utm_campaign */
-  campaign?: string;
-  /** utm_content */
-  content?: string;
-  /** utm_term */
-  term?: string;
-};
+import type { components } from "../v2-schema";
+
+/** 실제 URL의 안전 UTM만 정식 서버 계약 이름으로 옮긴다. */
+export type WebAttributionRequest = components["schemas"]["WebAttributionRequest"];
 
 /**
  * 이 게스트의 웹 최초 유입을 저장한다. 서버가 source=web_utm, platform=web을 고정하고
