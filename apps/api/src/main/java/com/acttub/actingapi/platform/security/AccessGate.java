@@ -1,13 +1,15 @@
 package com.acttub.actingapi.platform.security;
 
 import java.util.List;
+import java.util.Set;
 
 import com.acttub.actingapi.platform.web.ApiException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Component;
 
 /**
- * 요청 주체를 얻는 네 단계. 뒤의 것이 앞의 것을 포함한다.
+ * 요청 주체를 얻는 네 단계. 뒤의 것이 앞의 것을 포함한다. 웹 유입 기록만은 회원·게스트 공통의
+ * {@link #privacyConsentedUser}로 현재 privacy 한 종류를 따로 확인한다.
  *
  * <ol>
  *   <li>{@link #currentUser} — 토큰이 멀쩡하고 계정을 쓸 수 있다.</li>
@@ -79,6 +81,19 @@ public class AccessGate {
         }
         if (request != null) {
             request.setAttribute(CONSENTED_ATTRIBUTE, user);
+        }
+        return user;
+    }
+
+    /**
+     * 웹 유입 기록의 주체. 회원·게스트 모두 허용하되 현재 판 개인정보 수집·이용 동의({@code privacy})를
+     * 실제 DB에서 확인한다. 프로필과 다른 선택 문서는 보지 않는다.
+     */
+    public AuthenticatedUser privacyConsentedUser(HttpServletRequest request) {
+        AuthenticatedUser user = rateLimitedUser(request);
+        List<PendingConsentGate.Document> missing = consents.undecidedAmong(user.id(), Set.of("privacy"));
+        if (!missing.isEmpty()) {
+            throw new ApiException(403, "consent_required").with("pending_consents", missing);
         }
         return user;
     }

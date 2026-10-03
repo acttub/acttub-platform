@@ -710,13 +710,15 @@ SELECT json_build_object(
       'is_team', false
     ) ORDER BY created_at DESC, activity_id), '[]'::json) FROM activity_rows),
   -- ── 가입 유입 광고 (SOMA-588) ─────────────────────────────────────
-  -- 앱이 새로 가입한 계정에 붙인 Airbridge 설치 귀속. 팀 제외. 가명과 광고 이름만 싣는다 — 광고 식별자는
-  -- 애초에 받지 않는다. 가입 시각은 activity_rows 와 같이 시간 단위로 뭉갠다(git 이력에 영구히 남는다).
+  -- 앱의 Airbridge 설치 귀속과 웹의 자기 보고 UTM. 팀 제외. 가명과 캠페인 토큰만 싣는다 — 광고 식별자와
+  -- URL은 애초에 받지 않는다. 가입 시각은 activity_rows 와 같이 시간 단위로 뭉갠다(git 이력에 영구히 남는다).
   'signup_attributions', (SELECT COALESCE(json_agg(json_build_object(
       'actor', '배우 ' || left(md5(sa.user_id::text), 8),
       'signup_at', to_char(date_trunc('hour', u.created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+      'source', sa.source,
       'platform', sa.platform,
       'channel', sa.channel,
+      'medium', sa.medium,
       'campaign', sa.campaign,
       'ad_group', sa.ad_group,
       'ad_creative', sa.ad_creative

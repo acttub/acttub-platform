@@ -48,7 +48,7 @@ export const STORE_CAMPAIGN_PARAMS = [
 export const STORE_CAMPAIGN_VALUE_MAX_LENGTH = 64;
 const STORE_CAMPAIGN_VALUE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
-function isSafeCampaignValue(value: string): boolean {
+export function isSafeCampaignValue(value: string): boolean {
   return (
     value.length <= STORE_CAMPAIGN_VALUE_MAX_LENGTH &&
     STORE_CAMPAIGN_VALUE_PATTERN.test(value)

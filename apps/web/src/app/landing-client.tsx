@@ -13,7 +13,9 @@ import {
 import { APP_HIGHLIGHTS } from "../features/app-download/app-highlights";
 import { StickyDownloadBar } from "../features/app-download/sticky-download-bar";
 import { StoreBadges } from "../features/app-download/store-badges";
+import { useCampaignSearch } from "../features/app-download/use-campaign-search";
 import { LANDING_GUIDE_LINKS } from "../features/keyword-pages/guide-links";
+import { preserveWebAttributionFromSearch } from "../lib/analytics/web-attribution";
 import { hasGuestSession } from "../lib/auth/token-store";
 
 const COPY = {
@@ -116,15 +118,21 @@ const waveformHeights = [8, 15, 25, 18, 10, 23, 28, 13, 20, 9, 16, 24, 11];
 const typingDotColors = ["#8b95a1", "#b0b8c1", "#d1d6db"];
 // 대화가 위에서부터 차례로 올라오는 간격. 첫 버블은 화면이 뜬 직후 바로 나온다.
 const bubbleDelay = (order: number) => 300 + order * 800;
-// 웹에는 로그인이 없다. 연습 화면이 바로 열리고, 게스트 계정은 영상을 올리려 할 때 생긴다.
-const practiceHref = "/practice/new";
-
 export default function LandingClient() {
   const router = useRouter();
+  const campaignSearch = useCampaignSearch();
+  const practiceHref = preserveWebAttributionFromSearch(
+    "/practice/new",
+    campaignSearch,
+  );
   const appDownloadHref = useAppDownloadHref("landing_header");
   useEffect(() => {
     // 이미 이 브라우저에서 연습하던 게스트는 랜딩을 건너뛰고 연습으로 보낸다.
-    if (hasGuestSession()) router.replace("/home");
+    if (hasGuestSession()) {
+      router.replace(
+        preserveWebAttributionFromSearch("/home", window.location.search),
+      );
+    }
   }, [router]);
 
   useEffect(() => {

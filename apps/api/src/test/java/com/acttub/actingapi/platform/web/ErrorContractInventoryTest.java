@@ -440,9 +440,9 @@ class ErrorContractInventoryTest {
                     "feature.auth.AccountGuestIT"),
             covered("platform.security.CurrentUserService|403|guest_transferred", 1,
                     "feature.transfer.GuestTransferIT"),
-            // 둘이다 — 회원의 규칙(미결정이 하나라도)과 게스트의 규칙(그 기능의 문서만). 합치지 않는 것이
-            // 결정이다(ADR-028). 게스트 쪽은 feature.auth.AccountGuestIT 가 본다.
-            covered("platform.security.AccessGate|403|consent_required", 2,
+            // 회원의 전체 동의, 게스트의 기능별 동의, 웹 유입의 개인정보 동의는 별도 경계다.
+            // 게스트 기능은 AccountGuestIT, 웹 유입은 SignupAttributionIT가 검증한다.
+            covered("platform.security.AccessGate|403|consent_required", 3,
                     "feature.consent.ConsentEndpointIT"),
             covered("platform.security.AccessGate|403|profile_required", 1,
                     "feature.profile.AccountProfileIT"),

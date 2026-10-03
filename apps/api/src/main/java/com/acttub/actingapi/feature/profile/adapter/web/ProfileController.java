@@ -5,6 +5,7 @@ import java.time.format.DateTimeParseException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.Direction;
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.MeResponse;
@@ -15,6 +16,7 @@ import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.PhotoUploadR
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.ProfilePayload;
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.ProfileRequest;
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.SignupAttributionRequest;
+import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.WebAttributionRequest;
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.WithdrawnResponse;
 import com.acttub.actingapi.feature.profile.app.ProfileService;
 import com.acttub.actingapi.feature.profile.domain.Account;
@@ -52,6 +54,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/v2/me")
 class ProfileController {
+    private static final Pattern WEB_ATTRIBUTION_VALUE = Pattern.compile(SignupAttribution.WEB_VALUE_PATTERN);
+
     private final ProfileService profiles;
     private final AccessGate auth;
 
@@ -140,6 +144,31 @@ class ProfileController {
             @Valid @RequestBody SignupAttributionRequest body, HttpServletRequest request) {
         var user = auth.gatedUser(request);
         profiles.recordSignupAttribution(user.id(), signupAttribution(body));
+        return ResponseEntity.noContent().build();
+    }
+
+    @Operation(
+            summary = "Record Web Attribution",
+            description = """
+                    웹 주소에서 받은 안전한 UTM을 현재 계정의 최초 유입 출처로 적는다. 인증과 현재 개인정보
+                    수집·이용 동의만 필요해 게스트도 프로필 없이 부를 수 있다. source=web_utm,
+                    platform=web은 서버가 고정한다. 같은 계정에 다시 보내면 처음 값을 유지한 채 204다.
+                    이 값은 클라이언트 자기 보고 유입이며 광고 플랫폼 귀속과 별개다.""",
+            operationId = "record_web_attribution_v2_me_web_attribution_put",
+            tags = "v2-me",
+            security = @SecurityRequirement(name = "HTTPBearer"))
+    @ApiResponses({
+        @ApiResponse(responseCode = "204", description = "Successful Response"),
+        @ApiResponse(
+                responseCode = "422",
+                description = "Validation Error",
+                content = @Content(schema = @Schema(ref = "#/components/schemas/HTTPValidationError")))
+    })
+    @PutMapping("/web-attribution")
+    ResponseEntity<Void> recordWebAttribution(
+            @Valid @RequestBody WebAttributionRequest body, HttpServletRequest request) {
+        var user = auth.privacyConsentedUser(request);
+        profiles.recordSignupAttribution(user.id(), webAttribution(body));
         return ResponseEntity.noContent().build();
     }
 
@@ -358,11 +387,11 @@ class ProfileController {
     }
 
     private static SignupAttribution signupAttribution(SignupAttributionRequest body) {
-        if (!SignupAttribution.SOURCES.contains(body.source())) {
+        if (!SignupAttribution.AIRBRIDGE_SOURCE.equals(body.source())) {
             throw ApiValidationException.valueError(
                     List.of("body", "source"), "source must be one of: airbridge", body.source());
         }
-        if (!SignupAttribution.PLATFORMS.contains(body.platform())) {
+        if (!SignupAttribution.AIRBRIDGE_PLATFORMS.contains(body.platform())) {
             throw ApiValidationException.valueError(
                     List.of("body", "platform"), "platform must be one of: ios, android", body.platform());
         }
@@ -375,12 +404,51 @@ class ProfileController {
                 body.source(),
                 body.platform(),
                 channel,
+                null,
                 attributionValue("campaign", body.campaign()),
                 attributionValue("ad_group", body.adGroup()),
                 attributionValue("ad_creative", body.adCreative()),
                 attributionValue("content", body.content()),
                 attributionValue("term", body.term()),
                 attributionValue("sub_publisher", body.subPublisher()));
+    }
+
+    private static SignupAttribution webAttribution(WebAttributionRequest body) {
+        String channel = webAttributionValue("channel", body.channel());
+        if (channel == null) {
+            throw ApiValidationException.valueError(
+                    List.of("body", "channel"), "channel must be a non-empty safe campaign value", body.channel());
+        }
+        return new SignupAttribution(
+                SignupAttribution.WEB_SOURCE,
+                SignupAttribution.WEB_PLATFORM,
+                channel,
+                webAttributionValue("medium", body.medium()),
+                webAttributionValue("campaign", body.campaign()),
+                null,
+                null,
+                webAttributionValue("content", body.content()),
+                webAttributionValue("term", body.term()),
+                null);
+    }
+
+    /** 앞뒤 공백을 걷고, 빈 선택 값은 {@code null}. URL·개인식별값을 담기 어려운 store-links 정책만 받는다. */
+    private static String webAttributionValue(String field, String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String value = raw.strip();
+        if (value.isEmpty()) {
+            return null;
+        }
+        if (value.length() > SignupAttribution.WEB_MAX_LENGTH || !WEB_ATTRIBUTION_VALUE.matcher(value).matches()) {
+            throw ApiValidationException.valueError(
+                    List.of("body", field),
+                    field + " must be 1-" + SignupAttribution.WEB_MAX_LENGTH
+                            + " ASCII letters, digits, dots, underscores, or hyphens",
+                    raw);
+        }
+        return value;
     }
 
     /** 앞뒤 공백을 걷고, 비었으면 {@code null}. {@link SignupAttribution#MAX_LENGTH} 를 넘으면 422 다. */

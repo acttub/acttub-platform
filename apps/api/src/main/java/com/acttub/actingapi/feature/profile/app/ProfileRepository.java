@@ -104,6 +104,9 @@ public interface ProfileRepository {
      */
     int deleteStaleTransferCodes(Instant before);
 
+    /** 개인정보 처리방침의 웹 이용 분석 기록 보관 상한(14개월)을 지난 web_utm 행을 지운다. */
+    int deleteExpiredWebAttributions(Instant before);
+
     /** 알림 토글 셋. 프로필 행이 없으면 {@code null}. */
     NotificationSettings notificationSettings(UUID userId);
 

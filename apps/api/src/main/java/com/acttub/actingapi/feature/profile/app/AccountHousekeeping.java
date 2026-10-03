@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
  *       하는 일이고 5분마다도 돈다.</li>
  *   <li>쓰였거나 시한이 지난 지 30일 지난 이관 코드 행을 지운다. 쓰인 코드는 "옮겨진 게스트"의 표식이라
  *       그 게스트의 리프레시 토큰이 살 수 있는 30일 동안은 남겨야 한다.</li>
+ *   <li>기록한 지 14개월 지난 웹 UTM을 지운다. Airbridge 설치 귀속의 보존 규칙은 바꾸지 않는다.</li>
  * </ol>
  *
  * <p>한 가지가 실패해도 나머지는 돈다. 실패는 보고하고 다음 날 다시 시도한다 — 모두 멱등이다.
@@ -67,6 +68,8 @@ public class AccountHousekeeping {
         step("retention", () -> cleanup.attempt(profiles.purgeRetained(threeYearsAgo, now)));
         step("cleanup", cleanup::runDue);
         step("transferCodes", () -> profiles.deleteStaleTransferCodes(now.minus(TRANSFER_CODE_RETENTION)));
+        Instant fourteenMonthsAgo = now.atZone(ProfileService.SEOUL).minusMonths(14).toInstant();
+        step("webAttributions", () -> profiles.deleteExpiredWebAttributions(fourteenMonthsAgo));
     }
 
     private void step(String name, Runnable work) {

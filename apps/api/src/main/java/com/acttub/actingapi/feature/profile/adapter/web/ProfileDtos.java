@@ -149,6 +149,26 @@ final class ProfileDtos {
             @JsonProperty("sub_publisher") @Schema(nullable = true, maxLength = 200) String subPublisher) {
     }
 
+    /**
+     * 웹이 개인정보 수집·이용 동의 뒤 보관한 안전한 UTM. source/platform은 요청에서 받지 않고 서버가 고정한다.
+     */
+    @Schema(name = "WebAttributionRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    record WebAttributionRequest(
+            @NotNull @Schema(
+                    minLength = 1,
+                    maxLength = 64,
+                    pattern = "^[A-Za-z0-9][A-Za-z0-9._-]*$")
+            String channel,
+            @Schema(nullable = true, maxLength = 64, pattern = "^[A-Za-z0-9][A-Za-z0-9._-]*$")
+            String medium,
+            @Schema(nullable = true, maxLength = 64, pattern = "^[A-Za-z0-9][A-Za-z0-9._-]*$")
+            String campaign,
+            @Schema(nullable = true, maxLength = 64, pattern = "^[A-Za-z0-9][A-Za-z0-9._-]*$")
+            String content,
+            @Schema(nullable = true, maxLength = 64, pattern = "^[A-Za-z0-9][A-Za-z0-9._-]*$")
+            String term) {
+    }
+
     @Schema(name = "PhotoUploadRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     record PhotoUploadRequest(
             @NotNull @JsonProperty("content_type") String contentType,

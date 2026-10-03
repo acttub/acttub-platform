@@ -43,6 +43,10 @@ public final class ConsentGateInterceptor implements HandlerInterceptor {
     private static final List<Route> CONSENT_ONLY = List.of(
             route(HttpMethod.PUT, "/v2/me/profile"));
 
+    /** 웹 유입 저장은 회원·게스트 공통으로 현재 개인정보 동의만 확인한다. */
+    private static final List<Route> PRIVACY_ONLY = List.of(
+            route(HttpMethod.PUT, "/v2/me/web-attribution"));
+
     private final AccessGate auth;
 
     public ConsentGateInterceptor(AccessGate auth) {
@@ -60,6 +64,7 @@ public final class ConsentGateInterceptor implements HandlerInterceptor {
         switch (gateFor(request.getMethod(), RequestPath.normalized(request.getRequestURI()))) {
             case FULL -> auth.gatedUser(request);
             case CONSENT_ONLY -> auth.consentedUser(request);
+            case PRIVACY_ONLY -> auth.privacyConsentedUser(request);
             case GUEST_ONLY -> auth.guestUser(request);
             case NONE -> { }
         }
@@ -73,6 +78,9 @@ public final class ConsentGateInterceptor implements HandlerInterceptor {
         if (matches(GUEST_ONLY, method, path)) {
             return Gate.GUEST_ONLY;
         }
+        if (matches(PRIVACY_ONLY, method, path)) {
+            return Gate.PRIVACY_ONLY;
+        }
         return matches(CONSENT_ONLY, method, path) ? Gate.CONSENT_ONLY : Gate.FULL;
     }
 
@@ -80,6 +88,7 @@ public final class ConsentGateInterceptor implements HandlerInterceptor {
         NONE,
         GUEST_ONLY,
         CONSENT_ONLY,
+        PRIVACY_ONLY,
         FULL
     }
 

@@ -916,7 +916,8 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - **가입 코호트 원장**(`GET /v2/admin/ops-core`의 `signup_rows`, SOMA-591) — 팀을 뺀 가입자 한 명당 한 행이다.
   `actor`(기존 가명)·`signup_at`(시간 단위)·`platform`(`앱`·`웹`)·`device`(가입 기기 분류)·`first_upload_at`
   (가장 이른 `finalized` 업로드, 분 단위, 없으면 null)만 가진다. 미래 행은 뺀다. 운영 화면은 이를 `activity_rows`·
-  `signup_attributions`와 가명으로 이어 플랫폼×유입 소스 퍼널을 같은 기간 가입 코호트로 계산한다. 필드가 없는
+  `signup_attributions`와 가명으로 이어 플랫폼×유입 소스 퍼널을 같은 기간 가입 코호트로 계산한다.
+  `signup_attributions`는 기존 키를 유지하면서 `source`와 nullable `medium`을 더 제공한다. 필드가 없는
   구버전 응답을 0명으로 해석하면 안 된다.
 - **챌린지 참여작 목록**(`GET /v2/admin/ops-core`의 `features.challenges`) — `entries.private` 수와 `recent_entries`
   (삭제되지 않은 최신 50건)를 더한다. 비공개 참여작도 운영이 봐야 하므로 `visibility`를 그대로 싣는다.
@@ -1090,18 +1091,31 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   404 `reading_session_not_found`다. 삭제된 리딩 자료는 행째 없어 자연히 보이지 않는다. 상대역 음성은 기기
   TTS라 저장 대상이 아니므로 녹음 수·상세·재생 모두 `my_character_ids`에 속한 대사 줄만 센다.
 
-### 6-23. 가입 유입 광고 (SOMA-588)
+### 6-23. 가입 유입 출처 (SOMA-588·SOMA-591 후속)
 
-- `PUT /v2/me/signup-attribution` 은 **204** 다. 보호 기능이라 동의와 프로필을 끝낸 회원만 부른다(게스트 403
-  `member_only`). 본문은 `source`(`airbridge`)·`platform`(`ios`·`android`)·`channel`(비어 있지 않음)이 필수이고
-  `campaign`·`ad_group`·`ad_creative`·`content`·`term`·`sub_publisher` 는 선택이다. 값마다 앞뒤 공백을 걷고 비면
-  NULL, 200자를 넘으면 422 다. 모르는 키(광고 식별자 등)는 전역 정책대로 422 다(§6-3).
-- **처음 온 값만 남는다**(`ON CONFLICT DO NOTHING`). 다시 보내면 바꾸지 않은 채 204 다 — 앱의 재시도에 안전하다.
+- 앱의 `PUT /v2/me/signup-attribution` 은 **204** 다. 기존 보호 기능 게이트를 유지해 동의와 프로필을 끝낸 회원만
+  부른다(게스트 403 `member_only`). 본문은 `source`(`airbridge`)·`platform`(`ios`·`android`)·`channel`(비어 있지
+  않음)이 필수이고 `campaign`·`ad_group`·`ad_creative`·`content`·`term`·`sub_publisher` 는 선택이다. 값마다 앞뒤
+  공백을 걷고 비면 NULL, 200자를 넘으면 422 다. 모르는 키(광고 식별자 등)는 전역 정책대로 422 다(§6-3).
+- 웹의 `PUT /v2/me/web-attribution` 도 **204** 다. 인증된 회원·게스트 모두 부를 수 있지만 서버가 현재 판
+  개인정보 수집·이용 동의(`privacy`)를 실제 DB에서 확인한다. 프로필과 다른 동의는 요구하지 않는다. 본문은
+  `channel`(`utm_source`, 필수)·`medium`·`campaign`·`content`·`term`이고 source=`web_utm`, platform=`web`은
+  서버가 고정한다. 값은 앞뒤 공백을 걷고 선택 값이 비면 NULL이다. 각 값은 1~64자의 ASCII 영문·숫자로 시작하고
+  이후 영문·숫자·점·밑줄·하이픈만 허용한다(`^[A-Za-z0-9][A-Za-z0-9._-]*$`). URL·이메일·자유 입력과 모르는 키는
+  422다. 웹 UTM은 클라이언트 자기 보고 유입이며 광고 플랫폼 귀속과 같은 뜻이 아니다.
+- **처음 온 값만 남는다**(`ON CONFLICT DO NOTHING`). 어느 경로든 다시 보내면 바꾸지 않은 채 204 다 — 재시도에
+  안전하다. DB는 `airbridge`×`ios|android`, `web_utm`×`web` 조합만 허용한다.
 - 앱은 Airbridge SDK 의 설치 귀속 결과를 그 기기에서 **새로 가입한** 계정에만 한 번 보낸다. 기존 회원이 앱을
   업데이트해 SDK 가 처음 돌 때의 귀속은 보내지 않는다.
+- 게스트 이관 때 웹 유입 행을 회원에게 옮기지 않고 닫힐 게스트의 행을 지운다. 서버는 그 회원이 게스트 뒤에 새로
+  가입한 계정인지 확실히 증명할 신호가 없으므로, 기존 회원의 과거 가입 출처를 웹 재방문 UTM으로 추정 연결하지
+  않는다. 회원에게 이미 있던 Airbridge 등 기존 출처는 그대로다.
 - 쓰기는 회원 자료 쓰기와 같이 `users` 행을 잡고 활성인지 본다(`PostgresProfileRepository#lockActive`) — 탈퇴가
   먼저면 쓰지 않고 403 `account_deactivated` 다. 탈퇴는 이 행을 지운다(§6-8). 만 14세 미만 종료로 계정 행을
   지우면 CASCADE 가 함께 지운다.
+- 탈퇴와 게스트 이관은 해당 행을 즉시 지운다. 매일 도는 `AccountHousekeeping`은 기록 시각이 한국 시간 달력 기준
+  14개월보다 오래된 `web_utm` 행만 지운다. Airbridge 행의 보존 규칙은 바꾸지 않는다. 만료 뒤 기존 계정에 새 UTM을
+  다시 붙이지 않는 경계는 웹의 신규 guest userId와 세션 결합이며, 서버가 생성 시각으로 신규 여부를 추정하지 않는다.
 - 읽는 곳은 ops 사용자 화면이다. 광고 관리자는 가입을 수로만 센다.
 
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
