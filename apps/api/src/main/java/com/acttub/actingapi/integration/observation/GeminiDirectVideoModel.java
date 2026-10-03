@@ -10,6 +10,7 @@ import java.util.function.Predicate;
 
 import com.acttub.actingapi.integration.media.VideoRecordChunks;
 import com.acttub.actingapi.integration.media.VideoFrameEvidence;
+import com.acttub.actingapi.integration.media.AudioSignalEvidence;
 import com.google.genai.Client;
 import com.google.genai.types.Content;
 import com.google.genai.types.GenerateContentConfig;
@@ -25,42 +26,62 @@ public final class GeminiDirectVideoModel implements DirectVideoModel {
     private final String model;
     private final Predicate<Path> audioProbe;
     private final Predicate<Path> blackFrameProbe;
+    private final Predicate<Path> audioSignalProbe;
 
     public GeminiDirectVideoModel(Client client, String model) {
-        this(client, model, new VideoRecordChunks()::hasAudio, new VideoFrameEvidence()::entirelyBlack);
+        this(client, model, new VideoRecordChunks()::hasAudio, new VideoFrameEvidence()::entirelyBlack,
+                new AudioSignalEvidence()::hasSignal);
     }
 
     /** Test-only: existing upload tests do not inspect video frames. */
     GeminiDirectVideoModel(Client client, String model, Predicate<Path> audioProbe) {
-        this(client, model, audioProbe, new VideoFrameEvidence()::entirelyBlack);
+        this(client, model, audioProbe, new VideoFrameEvidence()::entirelyBlack, path -> true);
     }
 
+    /** Test-only: both track/frame probes are injected; audio signal is assumed valid. */
     GeminiDirectVideoModel(Client client, String model, Predicate<Path> audioProbe, Predicate<Path> blackFrameProbe) {
+        this(client, model, audioProbe, blackFrameProbe, path -> true);
+    }
+
+    GeminiDirectVideoModel(Client client, String model, Predicate<Path> audioProbe,
+            Predicate<Path> blackFrameProbe, Predicate<Path> audioSignalProbe) {
         this.client = client;
         this.model = model;
         this.audioProbe = audioProbe;
         this.blackFrameProbe = blackFrameProbe;
+        this.audioSignalProbe = audioSignalProbe;
     }
 
     @Override
     public InputInspection inspect(Path path) {
         boolean audio = audioProbe.test(path);
-        // An audio track is not proof of speech, but is enough to preserve audio-only acting.
-        // Decode frames only when audio is absent; probe failure is never an empty-input fact.
-        return new InputInspection(audio, audio ? null : blackFrameProbe.test(path));
+        // A track is not proof of sound. Full decode failure blocks upload, never becomes silence.
+        // Real audio signal preserves audio-only acting regardless of black frames.
+        return audio ? new InputInspection(true, null, audioSignalProbe.test(path))
+                : new InputInspection(false, blackFrameProbe.test(path), null);
     }
 
     @Override
     public Video upload(Path path, String mimeType, InputInspection inspection) {
         if (inspection == null || inspection.hasAudioTrack() == null) return upload(path, mimeType);
         if (inspection.emptyInput()) throw new IllegalArgumentException("empty input must not be uploaded");
+        if (inspection.unusableAudio()) throw new IllegalArgumentException("silent audio must not be uploaded");
+        if (Boolean.TRUE.equals(inspection.hasAudioTrack()) && inspection.hasAudioSignal() == null) {
+            requireAudioSignal(path);
+        }
         return uploadInspected(path, mimeType, inspection.hasAudioTrack());
     }
 
     @Override
     public Video upload(Path path, String mimeType) {
-        // Preserve existing callers and fail before upload if the audio probe fails.
-        return uploadInspected(path, mimeType, audioProbe.test(path));
+        // Existing/rollback callers must not bypass silence or decode-failure protection.
+        boolean audio = audioProbe.test(path);
+        if (audio) requireAudioSignal(path);
+        return uploadInspected(path, mimeType, audio);
+    }
+
+    private void requireAudioSignal(Path path) {
+        if (!audioSignalProbe.test(path)) throw new IllegalArgumentException("silent audio must not be uploaded");
     }
 
     private Video uploadInspected(Path path, String mimeType, boolean hasAudioTrack) {
