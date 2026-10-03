@@ -1,0 +1,46 @@
+# 이번 작업 브랜치에서만 생성물을 회수한다. PR을 머지하기 전에 제거한다.
+name: Attribution contract snapshot (temporary)
+on:
+  push:
+    branches: [hotfix/SOMA-591-web-attribution]
+    paths: ['.github/workflows/attribution-contract-snapshot.yml']
+permissions:
+  contents: read
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Generate schema fingerprint through the existing PostgreSQL script
+        run: bash apps/api/scripts/regen-fingerprint.sh
+      - name: Generate OpenAPI through the existing integration test
+        working-directory: apps/api
+        env:
+          UPDATE_OPENAPI_SNAPSHOT: '1'
+        run: |
+          set +e
+          ./gradlew test --tests '*OpenApiSnapshotIT*' --no-daemon
+          result=$?
+          set -e
+          # UPDATE mode intentionally fails after generation. Reject missing endpoint output.
+          node -e 'const s=require("./spec/openapi.json"); if(!s.paths["/v2/me/web-attribution"]?.put) process.exit(1)'
+          echo "Generator exit (update mode intentionally fails): $result"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: attribution-generated-contract
+          path: |
+            apps/api/spec/openapi.json
+            apps/api/src/test/resources/baseline-schema-fingerprint.txt
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: attribution-generation-report
+          path: apps/api/build/reports/tests/test
+          retention-days: 1
