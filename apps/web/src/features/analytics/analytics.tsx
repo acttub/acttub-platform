@@ -21,6 +21,13 @@ import {
   stopAmplitude,
   trackScreenViewed,
 } from "@/lib/analytics/amplitude";
+import {
+  activateWebAttribution,
+  captureInitialWebAttribution,
+  pauseWebAttribution,
+  watchWebAttributionSession,
+} from "@/lib/analytics/web-attribution";
+import { createAnalyticsMeasurementSwitch } from "./measurement-switch";
 
 /**
  * 계측을 켜도 되는지는 서버가 정한다 — 게스트 토큰이 있고 GET /v2/consents/entry 의 privacy
@@ -33,20 +40,19 @@ import {
  * 끈다는 것은 실제 중단이다. GA4 는 consent 를 denied 로 되돌리고, Amplitude 는 opt-out 으로
  * autocapture 와 세션 리플레이까지 멈춘다.
  */
-export const analyticsConsentGate: AnalyticsConsentGate = createAnalyticsConsentGate({
-  on(userId) {
-    grantAnalyticsConsent();
-    // GA4처럼 denied 상태로 먼저 켜지 않는다. 동의 조건을 통과한 뒤에만 init한다.
-    startAmplitude();
-    setAnalyticsUser(userId);
-    setAmplitudeUser(userId);
-  },
-  off() {
-    revokeAnalyticsConsent();
-    clearAnalyticsUser();
-    stopAmplitude();
-  },
-});
+export const analyticsConsentGate: AnalyticsConsentGate = createAnalyticsConsentGate(
+  createAnalyticsMeasurementSwitch({
+    grant: grantAnalyticsConsent,
+    startAmplitude,
+    setAnalyticsUser,
+    setAmplitudeUser,
+    activateAttribution: activateWebAttribution,
+    revoke: revokeAnalyticsConsent,
+    clearAnalyticsUser,
+    stopAmplitude,
+    pauseAttribution: pauseWebAttribution,
+  }),
+);
 
 // 앱을 시작할 때 한 번 묻는다. 화면을 옮길 때마다 묻지 않는다.
 let firstCheck: Promise<boolean> | null = null;
@@ -64,6 +70,11 @@ let firstCheck: Promise<boolean> | null = null;
  */
 export function Analytics() {
   const pathname = usePathname();
+  // 자식 화면의 redirect effect보다 먼저 실제 최초 URL을 잡는다. 모듈 안에서 첫 호출만 받으며,
+  // 이때 이미 게스트가 있으면 재방문 UTM을 가입 출처 후보로 만들지 않는다.
+  if (typeof window !== "undefined") {
+    captureInitialWebAttribution(window.location.search);
+  }
 
   useEffect(() => {
     startAnalytics();
@@ -83,10 +94,12 @@ export function Analytics() {
     };
     // 게스트의 끝(앱으로 옮겨진 것 포함)과 새 게스트의 시작에는 묻지 않고 끈다. 다른 탭에서
     // 일어난 것도 같다.
-    const unsubscribe = watchGuestSession(analyticsConsentGate);
+    const unsubscribeGuest = watchGuestSession(analyticsConsentGate);
+    const unsubscribeAttribution = watchWebAttributionSession();
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
-      unsubscribe();
+      unsubscribeGuest();
+      unsubscribeAttribution();
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, []);
