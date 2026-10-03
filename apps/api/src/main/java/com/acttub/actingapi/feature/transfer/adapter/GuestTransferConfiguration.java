@@ -7,6 +7,7 @@ import com.acttub.actingapi.feature.coach.app.NoteRatingOwnership;
 import com.acttub.actingapi.feature.feedback.app.ExitSurveyOwnership;
 import com.acttub.actingapi.feature.memory.app.MemoryOwnership;
 import com.acttub.actingapi.feature.practice.app.PracticeOwnership;
+import com.acttub.actingapi.feature.profile.app.SignupAttributionOwnership;
 import com.acttub.actingapi.feature.reading.app.ReadingOwnership;
 import com.acttub.actingapi.feature.transfer.app.GuestTransferService;
 import com.acttub.actingapi.feature.transfer.app.TransferCodeRepository;
@@ -34,10 +35,11 @@ class GuestTransferConfiguration {
             VideoOwnership videos,
             ExitSurveyOwnership surveys,
             NoteRatingOwnership ratings,
+            SignupAttributionOwnership attributions,
             Clock clock,
             @Value("${JWT_SECRET:}") String secret) {
         return new GuestTransferService(
-                codes, guests, practices, operations, memories, readings, videos, surveys, ratings, clock,
-                secret);
+                codes, guests, practices, operations, memories, readings, videos, surveys, ratings, attributions,
+                clock, secret);
     }
 }
