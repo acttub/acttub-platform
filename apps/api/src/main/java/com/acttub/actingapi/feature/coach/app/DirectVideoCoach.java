@@ -88,6 +88,14 @@ public final class DirectVideoCoach {
                 inspecting = true;
                 inspection = model.inspect(local);
                 inspecting = false;
+                if (inspection != null && inspection.unusableAudio()) {
+                    ObjectNode cutState = nextState(session);
+                    DirectVideoPracticeLoop.markInputIssue(cutState, "silent_audio");
+                    return StructuredCoachEngine.result(session, actorText,
+                            DirectVideoPracticeLoop.audioUnavailableMessage(
+                                    DirectVideoPracticeLoop.replyLanguage(session, actorText)),
+                            cutState, "interrupted");
+                }
                 if (inspection != null && inspection.emptyInput()) {
                     ObjectNode cutState = nextState(session);
                     DirectVideoPracticeLoop.markNotActing(cutState, "empty_input");

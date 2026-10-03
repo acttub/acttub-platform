@@ -74,6 +74,44 @@ class DirectVideoCoachTest {
         assertThat(temporary).allSatisfy(path -> assertThat(path).doesNotExist());
     }
 
+    @Test void existingButSilentAudioClosesBeforeAnyUploadAndIsNotCalledNonActing() {
+        when(model.inspect(any())).thenReturn(new DirectVideoModel.InputInspection(true, null, false));
+        var result = practiceLoopEngine().start(session(), UUID.randomUUID());
+        assertThat(result.reply().status()).isEqualTo("complete");
+        assertThat(result.reply().message()).isEqualTo("영상의 소리가 녹음되지 않았어요.\n소리가 들리는 영상으로 다시 올려 주세요.");
+        assertThat(result.session().closeReason()).isEqualTo("interrupted");
+        assertThat(result.session().coachingState().path("practice_loop").path("input_issue").asText())
+                .isEqualTo("silent_audio");
+        assertThat(result.session().coachingState().path("practice_loop").has("not_acting")).isFalse();
+        assertThat(DirectVideoPracticeLoop.wasCut(result.session().coachingState())).isTrue();
+        assertThat(DirectVideoPracticeLoop.note(result.session(), 1)).isNull();
+        verify(model, never()).upload(any(), anyString());
+        verify(model, never()).upload(any(), anyString(), any());
+        verify(model, never()).ready(any());
+        verify(model, never()).reply(any(), anyList(), anyString());
+        verify(model, never()).classify(anyList(), anyString(), anyList());
+        assertThat(telemetry.calls()).isEmpty();
+        assertThat(failures.reports()).isEmpty();
+        assertThat(temporary).allSatisfy(path -> assertThat(path).doesNotExist());
+    }
+
+    @Test void audioDecodeFailureBlocksTheModelWithoutSavingAFalseNonActingState() {
+        when(model.inspect(any())).thenThrow(new IllegalStateException("audio signal inspection failed"));
+        var initial = session();
+        assertThatThrownBy(() -> practiceLoopEngine().start(initial, UUID.randomUUID()))
+                .isInstanceOf(CoachReplyUnavailable.class);
+        assertThat(initial.turns()).isEmpty();
+        assertThat(initial.coachingState()).isNull();
+        verify(model, never()).upload(any(), anyString());
+        verify(model, never()).upload(any(), anyString(), any());
+        verify(model, never()).reply(any(), anyList(), anyString());
+        assertThat(failures.reports()).singleElement().satisfies(report -> {
+            assertThat(report.kind()).isEqualTo(com.acttub.actingapi.platform.observability.FailureKind.UNEXPECTED);
+            assertThat(report.context()).startsWith("DirectVideoCoach.inspect");
+        });
+        assertThat(temporary).allSatisfy(path -> assertThat(path).doesNotExist());
+    }
+
     @Test void unknownInspectionDoesNotRejectAnInputAsEmpty() {
         when(model.inspect(any())).thenReturn(new DirectVideoModel.InputInspection(null, true));
         var result = practiceLoopEngine().start(session(), UUID.randomUUID());
