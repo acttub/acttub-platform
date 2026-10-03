@@ -15,6 +15,7 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.challenge.app.ChallengeWithdrawal;
 
 import com.acttub.actingapi.feature.profile.app.ProfileRepository;
+import com.acttub.actingapi.feature.profile.app.SignupAttributionOwnership;
 import com.acttub.actingapi.feature.profile.domain.Account;
 import com.acttub.actingapi.feature.profile.domain.AgeBand;
 import com.acttub.actingapi.feature.profile.domain.NotificationSettings;
@@ -34,7 +35,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @Repository
-class PostgresProfileRepository implements ProfileRepository {
+class PostgresProfileRepository implements ProfileRepository, SignupAttributionOwnership {
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
     private final AccountSecrets secrets;
@@ -308,6 +309,17 @@ class PostgresProfileRepository implements ProfileRepository {
     }
 
     @Override
+    public int deleteExpiredWebAttributions(Instant before) {
+        return transaction.execute(status -> entityManager.createNativeQuery("""
+                DELETE FROM user_signup_attributions
+                WHERE source='web_utm'
+                  AND recorded_at<:before
+                """)
+                .setParameter("before", before.atOffset(ZoneOffset.UTC))
+                .executeUpdate());
+    }
+
+    @Override
     public NotificationSettings notificationSettings(UUID userId) {
         List<Tuple> rows = list(entityManager.createNativeQuery("""
                 SELECT notify_analysis_done,notify_challenge,notify_evening_reminder
@@ -331,9 +343,9 @@ class PostgresProfileRepository implements ProfileRepository {
             }
             entityManager.createNativeQuery("""
                     INSERT INTO user_signup_attributions
-                        (user_id,source,platform,channel,campaign,ad_group,ad_creative,content,term,sub_publisher)
+                        (user_id,source,platform,channel,medium,campaign,ad_group,ad_creative,content,term,sub_publisher)
                     VALUES
-                        (:userId,:source,:platform,:channel,
+                        (:userId,:source,:platform,:channel,CAST(:medium AS text),
                          CAST(:campaign AS text),CAST(:adGroup AS text),CAST(:adCreative AS text),
                          CAST(:content AS text),CAST(:term AS text),CAST(:subPublisher AS text))
                     ON CONFLICT (user_id) DO NOTHING
@@ -342,6 +354,7 @@ class PostgresProfileRepository implements ProfileRepository {
                     .setParameter("source", attribution.source())
                     .setParameter("platform", attribution.platform())
                     .setParameter("channel", attribution.channel())
+                    .setParameter("medium", attribution.medium())
                     .setParameter("campaign", attribution.campaign())
                     .setParameter("adGroup", attribution.adGroup())
                     .setParameter("adCreative", attribution.adCreative())
@@ -351,6 +364,17 @@ class PostgresProfileRepository implements ProfileRepository {
                     .executeUpdate();
             return true;
         }));
+    }
+
+    /**
+     * 이관으로 닫힐 게스트의 유입 기록을 지운다. 회원이 게스트 뒤에 새로 가입한 계정인지 증명할 신호가 없으므로
+     * 회원에게 옮기지 않는다. 기존 회원의 과거 가입 출처를 웹 재방문의 UTM으로 오염시키지 않는 쪽이 안전하다.
+     */
+    @Override
+    public void discardTransferredGuest(UUID guestId) {
+        entityManager.createNativeQuery("DELETE FROM user_signup_attributions WHERE user_id=:guestId")
+                .setParameter("guestId", guestId)
+                .executeUpdate();
     }
 
     /**

@@ -133,6 +133,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/me/web-attribution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Record Web Attribution
+         * @description 웹 주소에서 받은 안전한 UTM을 현재 계정의 최초 유입 출처로 적는다. 인증과 현재 개인정보
+         *     수집·이용 동의만 필요해 게스트도 프로필 없이 부를 수 있다. source=web_utm,
+         *     platform=web은 서버가 고정한다. 같은 계정에 다시 보내면 처음 값을 유지한 채 204다.
+         *     이 값은 클라이언트 자기 보고 유입이며 광고 플랫폼 귀속과 별개다.
+         */
+        put: operations["record_web_attribution_v2_me_web_attribution_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/me/signup-attribution": {
         parameters: {
             query?: never;
@@ -2089,6 +2112,19 @@ export interface components {
         PortfolioIntroRequest: {
             /** Intro */
             intro?: string | null;
+        };
+        /** WebAttributionRequest */
+        WebAttributionRequest: {
+            /** Channel */
+            channel: string;
+            /** Medium */
+            medium?: string | null;
+            /** Campaign */
+            campaign?: string | null;
+            /** Content */
+            content?: string | null;
+            /** Term */
+            term?: string | null;
         };
         /** SignupAttributionRequest */
         SignupAttributionRequest: {
@@ -5050,6 +5086,37 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Portfolio"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_web_attribution_v2_me_web_attribution_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebAttributionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

@@ -155,6 +155,7 @@ import {
   type WorkspaceStatusChip,
 } from "./workspace-view";
 import { clock, videoRecordRows } from "@/features/practice/video-record-rows";
+import { preservePendingWebAttribution } from "@/lib/analytics/web-attribution";
 
 const NEW_PRACTICE_SUBTITLE = "영상을 올리면 질문이 시작돼요";
 /** 같은 영상으로 이어할 때 준비 화면이 드는 보관함 영상의 설명 */
@@ -173,6 +174,9 @@ export function WorkspaceApp() {
 // 그러면 useSearchParams 를 감싼 위 Suspense 가 다시 걸려 흰 화면이 한 번 깜빡인다 —
 // 업로드가 끝나는 지점에서 새로고침처럼 보이던 게 이것이다.
 function replaceUrl(path: string): void {
+  // privacy 동의와 최초 저장이 끝나기 전에는 현재 입장의 안전 UTM만 URL에 이어 둔다.
+  // 저장이 끝났거나 계정 경계가 생기면 helper가 더 붙이지 않는다.
+  path = preservePendingWebAttribution(path);
   window.history.replaceState(null, "", path);
 }
 

@@ -37,6 +37,10 @@ public class UserIdentityEntity extends AppGeneratedUuidEntity {
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     Instant createdAt;
 
+    /** 로그인 때 native UPDATE 로 갱신한다({@code PostgresAuthRepository#markIdentityUsed}). 새 행은 DB 기본값. */
+    @Column(name = "last_used_at", nullable = false, insertable = false, updatable = false)
+    Instant lastUsedAt;
+
     protected UserIdentityEntity() {
     }
 

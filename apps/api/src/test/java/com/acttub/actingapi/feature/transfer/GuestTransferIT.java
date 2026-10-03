@@ -137,6 +137,15 @@ class GuestTransferIT {
         UUID operation = operation(guest.id(), session, "report", "succeeded");
         UUID member = member();
         UUID own = practice(member);
+        jdbc.update("""
+                INSERT INTO user_signup_attributions
+                    (user_id,source,platform,channel,medium,recorded_at)
+                VALUES (?,'web_utm','web','instagram','paid_social',?)
+                """, guest.id(), clock.instant().minus(Duration.ofDays(2)).atOffset(ZoneOffset.UTC));
+        jdbc.update("""
+                INSERT INTO user_signup_attributions(user_id,source,platform,channel,recorded_at)
+                VALUES (?,'airbridge','ios','facebook.business',?)
+                """, member, clock.instant().minus(Duration.ofDays(1)).atOffset(ZoneOffset.UTC));
 
         JsonNode issued = issueCode(guest);
         assertThat(issued.fieldNames()).toIterable().containsExactlyInAnyOrder("code", "expires_in", "expires_at");
@@ -174,6 +183,37 @@ class GuestTransferIT {
                 .containsEntry("total", 1L).containsEntry("revoked", 1L);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM user_consents WHERE user_id=?", Integer.class, guest.id()))
                 .as("동의 기록은 게스트 행에 남긴다").isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM user_signup_attributions WHERE user_id=?", Integer.class, guest.id()))
+                .as("명시적으로 연결된 게스트의 유입 행은 닫힌 게스트에 남기지 않는다").isZero();
+        assertThat(jdbc.queryForMap("""
+                SELECT source,platform,channel,medium FROM user_signup_attributions WHERE user_id=?
+                """, member))
+                .as("게스트 출처가 더 일러도 기존 회원의 과거 가입 출처로 추정 이관하지 않는다")
+                .containsEntry("source", "airbridge")
+                .containsEntry("platform", "ios")
+                .containsEntry("channel", "facebook.business")
+                .containsEntry("medium", null);
+    }
+
+    @Test
+    @DisplayName("account.guest: 출처가 없는 기존 회원에게도 게스트 UTM을 가입 출처로 옮기지 않는다")
+    void accountGuest_transferDoesNotInferAttributionForAnExistingMember() throws Exception {
+        Guest guest = guest();
+        UUID member = member();
+        jdbc.update("""
+                INSERT INTO user_signup_attributions
+                    (user_id,source,platform,channel,medium,recorded_at)
+                VALUES (?,'web_utm','web','instagram','paid_social',?)
+                """, guest.id(), clock.instant().minus(Duration.ofDays(1)).atOffset(ZoneOffset.UTC));
+
+        JsonNode issued = issueCode(guest);
+        assertThat(transfer(member, issued.path("code").textValue(), null).getStatus()).isEqualTo(200);
+
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM user_signup_attributions WHERE user_id IN (?,?)", Integer.class,
+                guest.id(), member))
+                .isZero();
     }
 
     @Test

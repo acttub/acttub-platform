@@ -121,7 +121,7 @@ class EntityMappingIT {
             "entry_view_events", "entry_ranking_snapshots",
             // 노트 평가(V22)는 코치 저장소의 native SQL(upsert·잠금)만 읽고 쓴다.
             "note_ratings",
-            // 가입 유입 광고(V26, SOMA-588)는 프로필 저장소의 native SQL(처음 한 번 적기·탈퇴 파기)만 쓴다.
+            // 가입 유입 출처(V26·V28)는 프로필 저장소의 native SQL(최초 저장·이관·탈퇴 파기)만 쓴다.
             "user_signup_attributions");
 
     @Test
