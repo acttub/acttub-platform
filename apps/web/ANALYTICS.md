@@ -21,8 +21,9 @@ GA4는 유입용 서브프로젝트 6개(voice·acti·stage·mono·pick·link)�
 현재 주소의 수동 태깅 UTM 6종(`utm_source`, `utm_medium`, `utm_campaign`, `utm_id`,
 `utm_term`, `utm_content`)만 `/app`과 `/go`를 지나 Google Play Install Referrer까지 전달한다.
 각 값은 영문자·숫자·점·밑줄·하이픈으로 된 1~64자 캠페인 토큰만 허용한다. `fbclid`, `gclid`,
-세션 id와 그 밖의 임의 쿼리는 전달하지 않는다. 이 값은 링크를 만드는 동안 현재 URL에서만
-읽으며 localStorage, sessionStorage, cookie에 저장하지 않는다.
+세션 id와 그 밖의 임의 쿼리는 전달하지 않는다. 이 값은 **다운로드 링크를 만드는 경로에서는** 현재 URL에서만 읽으며 localStorage,
+sessionStorage, cookie에 저장하지 않는다. 아래 운영 유입 저장은 별도 경로이며 privacy 동의 뒤
+같은 신규 게스트에 묶인 실패 재시도 상태만 sessionStorage에 잠깐 둔다.
 
 유효한 값이 없으면 기존 귀속인 `utm_source=acttub_web`, `utm_medium=<surface>`를 쓴다.
 `utm_source=instagram`만으로 광고라고 추정하지 않는다. **인스타그램 유료 광고는 원래 URL에
@@ -32,6 +33,31 @@ GA4는 유입용 서브프로젝트 6개(voice·acti·stage·mono·pick·link)�
 App Store 주소는 그대로다. Apple 제공자 토큰(`pt`)을 확인하지 않았으므로 캠페인 토큰(`ct`)을
 임의로 만들지 않고, iOS 설치 기여를 이 링크만으로 확인할 수 있다고 해석하지 않는다.
 다운로드 관련 기존 이벤트에도 원문 쿼리, referrer, 클릭 식별자를 새 속성으로 싣지 않는다.
+
+### 운영 유입 비교용 최초 웹 UTM
+
+ops에서 실제 웹 유입별 가입을 비교하기 위해 `PUT /v2/me/web-attribution`에 최초 UTM을 한 번
+저장한다. 서버가 `source=web_utm`, `platform=web`을 고정하고, 웹은 실제 최초 URL의 안전한
+`utm_source`를 `channel`로, `utm_medium`·`utm_campaign`·`utm_content`·`utm_term`을 선택값으로
+보낸다. 값 검증은 위 다운로드 캠페인과 같은 1~64자 ASCII 토큰 정책이다. `utm_id`는 내부
+이동 URL과 스토어 전달에는 보존하지만 이 API 계약에는 보내지 않는다.
+
+- `utm_source`가 없으면 아무것도 저장하지 않는다. 미태깅 방문을 direct나 광고 아님으로
+  단정하지 않으며, referrer·`fbclid`·`gclid`로 보충하거나 과거 출처를 복원하지 않는다.
+- 페이지 최초 진입 때 이미 게스트 토큰이 있으면 재방문이다. 이번 광고 UTM을 그 게스트의 과거
+  가입 출처로 붙이지 않는다. 토큰이 없던 이번 문서에서 `guest-started`로 새로 생긴 user id와
+  일치할 때만 후보를 이어 간다.
+- privacy 동의 전에는 메모리에만 두고, `/practice/new`→`/home`과 같은 내부 이동에서는 안전
+  UTM을 URL에 보존한다. 식별 가능한 저장소 기록이나 서버 전송은 없다.
+- 서버가 현재 privacy 결정을 `granted`로 확인한 뒤에만 user id에 바인딩해 전송한다. 이때부터
+  네트워크 실패 재시도에 필요한 최소 요청값과 user id만 현재 탭의 sessionStorage에 둘 수 있다.
+  성공하면 저장 상태와 URL의 UTM을 지운다.
+- 동의 취소·조회 오류·API 오류 중에는 새로 전송하지 않는다. 게스트 종료, 다른 탭의 게스트
+  시작·종료, user id 불일치에는 진행 요청을 취소하고 후보·저장 상태·URL UTM을 폐기한다.
+  같은 게스트의 토큰 회전(값→값)은 계정 경계로 보지 않는다.
+- API 호출은 공용 v2 클라이언트를 쓰되 `startGuest:false`, `consentPrompt:false`다. 귀속 저장을
+  위해 게스트나 동의 시트를 만들지 않는다. reload 재시도는 동의 뒤 같은 user id에 묶어 둔
+  현재 탭의 pending 상태만 복원한다.
 
 ---
 
