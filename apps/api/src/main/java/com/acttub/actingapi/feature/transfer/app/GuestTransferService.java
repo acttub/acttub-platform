@@ -17,6 +17,7 @@ import com.acttub.actingapi.feature.coach.app.NoteRatingOwnership;
 import com.acttub.actingapi.feature.feedback.app.ExitSurveyOwnership;
 import com.acttub.actingapi.feature.memory.app.MemoryOwnership;
 import com.acttub.actingapi.feature.practice.app.PracticeOwnership;
+import com.acttub.actingapi.feature.profile.app.SignupAttributionOwnership;
 import com.acttub.actingapi.feature.reading.app.ReadingOwnership;
 import com.acttub.actingapi.feature.video.app.VideoOwnership;
 import com.acttub.actingapi.platform.ledger.OperationOwnership;
@@ -52,6 +53,7 @@ public class GuestTransferService {
     private final VideoOwnership videos;
     private final ExitSurveyOwnership surveys;
     private final NoteRatingOwnership ratings;
+    private final SignupAttributionOwnership attributions;
     private final Clock clock;
     private final byte[] hashKey;
     private final SecureRandom random = new SecureRandom();
@@ -66,6 +68,7 @@ public class GuestTransferService {
             VideoOwnership videos,
             ExitSurveyOwnership surveys,
             NoteRatingOwnership ratings,
+            SignupAttributionOwnership attributions,
             Clock clock,
             String secret) {
         if (secret == null || secret.isEmpty()) {
@@ -80,6 +83,7 @@ public class GuestTransferService {
         this.videos = videos;
         this.surveys = surveys;
         this.ratings = ratings;
+        this.attributions = attributions;
         this.clock = clock;
         this.hashKey = hmac(secret.getBytes(StandardCharsets.UTF_8), HASH_PURPOSE);
     }
@@ -135,6 +139,8 @@ public class GuestTransferService {
             surveys.reassign(guestId, memberId);
             // 노트 평가는 회차를 따라 회원 것이 된다 — 회원의 노트 조회에 남긴 평가가 그대로 보인다(practice.note).
             ratings.reassign(guestId, memberId);
+            // 이 회원이 게스트 뒤에 새로 가입했는지 증명할 신호가 없다. 과거 회원의 가입 출처로 추정 이관하지 않는다.
+            attributions.discardTransferredGuest(guestId);
             guests.closeTransferredGuest(guestId, now);
             codes.markUsed(live.id(), now);
             return Outcome.TRANSFERRED;
