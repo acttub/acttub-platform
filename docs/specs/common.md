@@ -198,8 +198,8 @@ pen을 고칠 목록이다. 무엇을 어떻게 바꾸는지(문구·수치)는 
 | 화면 | 바꿀 것 | 출처 |
 |---|---|---|
 | A0 로그인 | 제공자 버튼 목록, 마지막 제공자 강조, 이메일 겹침 안내 | account.login |
-| A0.1 동의 | 선택 문서 줄, 저장 버튼 문구, privacy 문서 이름, 재동의 때 탈퇴 링크 | account.login, account.consent |
-| A0.2 프로필 설정 | 생년월일 칸, 이름 칸 안내 문구, 만 14세 미만 안내 | account.profile |
+| A0.1 동의 | 선택 문서 줄, 저장 버튼 문구, privacy 문서 이름, 재동의 팝업 | account.login, account.consent |
+| A0.2 프로필 설정 | 생년월일 칸, 이름 칸 안내 문구, 만 14세 미만 생년월일 칸 아래 안내 | account.profile |
 | A4 설정 | 알림 토글, 문서별 동의 현황, 선택 동의 바꾸기, 차단 목록·풀기 | account.notification, account.consent, challenge.block |
 | A4 설정·프로필 | 프로필 수정 진입점 | account.profile |
 | A5 탈퇴 | 안내 문구(지워지는 것·남는 것) | account.withdraw, reading.recording |

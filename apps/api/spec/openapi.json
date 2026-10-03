@@ -7445,6 +7445,11 @@
               "$ref" : "#/components/schemas/SignupDecision"
             },
             "title" : "Decisions"
+          },
+          "age_confirmed" : {
+            "type" : "boolean",
+            "description" : "\"만 14세 이상이에요\" 확인. true면 확인 시각을 남긴다. 다음 단계에서 필수가 된다.",
+            "title" : "Age Confirmed"
           }
         },
         "required" : [ "decisions", "signup_token" ],
@@ -9860,6 +9865,15 @@
               "type" : "null"
             } ],
             "title" : "Note"
+          },
+          "year" : {
+            "anyOf" : [ {
+              "type" : "integer",
+              "description" : "후기가 다룬 응시 학년도(2026학년도 수시 = 2025년 가을 실기). 글에서 확인 못 하면 비운다."
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Year"
           }
         },
         "required" : [ "category", "text" ],

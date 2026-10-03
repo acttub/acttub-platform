@@ -48,7 +48,7 @@ public class UserEntity extends AppGeneratedUuidEntity {
     @Column(name = "memory_epoch", nullable = false, insertable = false, updatable = false)
     private int memoryEpoch;
 
-    /** 웹 게스트가 첫 동의 시트에서 "만 14세 이상이에요"를 확인한 시각. 회원은 생년월일로 거른다. */
+    /** "만 14세 이상이에요"를 확인한 시각 — 웹 게스트는 첫 동의 시트에서, 회원은 가입 동의 화면에서. */
     @Column(name = "age_confirmed_at")
     private Instant ageConfirmedAt;
 
@@ -63,9 +63,14 @@ public class UserEntity extends AppGeneratedUuidEntity {
     }
 
     public UserEntity(UUID id, String email, UserStatus status) {
+        this(id, email, status, null);
+    }
+
+    public UserEntity(UUID id, String email, UserStatus status, Instant ageConfirmedAt) {
         super(id);
         this.email = email;
         this.status = status;
+        this.ageConfirmedAt = ageConfirmedAt;
     }
 
     public String getEmail() {

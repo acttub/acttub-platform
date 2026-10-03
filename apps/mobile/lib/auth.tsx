@@ -32,14 +32,17 @@ import {
 import { createConsentEntrySession } from '@/lib/consent-entry';
 import {
   buildSignupDecisions,
+  signupFailureAction,
   type ConsentChoice,
 } from '@/lib/consent-entry-submission';
 import { lastProviderStore } from '@/lib/last-provider';
 import { clearAccountCache, clearLocalAccountData } from '@/lib/local-account-data';
 import {
+  emailConflictNotice,
   isSignupExpired,
   loginRequestBody,
   resolveLoginOutcome,
+  type LoginNotice,
   type LoginProvider,
   type PendingSignup,
 } from '@/lib/login-flow';
@@ -110,16 +113,20 @@ type AuthContextValue = {
   signup: PendingSignup | null;
   /** 서버가 426으로 답했다. 업데이트 안내 화면만 보여 준다. */
   updateRequired: boolean;
-  /** 로그인 화면으로 돌려보내며 남긴 안내(가입 토큰 만료, 만 14세 미만 등). */
-  loginNotice: string | null;
+  /** 로그인 화면에 띄울 안내. 이메일 겹침 팝업과 만 14세 미만으로 닫힌 계정의 회색 상자. */
+  loginNotice: LoginNotice | null;
   clearLoginNotice: () => void;
+  /** 이메일 겹침 409는 던지지 않고 loginNotice로 남긴다. 다른 실패는 던진다. */
   signInWith: (provider: LoginProvider) => Promise<void>;
-  /** 동의 화면의 "동의하고 계속하기". 통과하면 그 순간 계정이 생기고 로그인된다. */
+  /**
+   * 동의 화면의 "동의하고 계속하기". 통과하면 그 순간 계정이 생기고 로그인된다.
+   * 가입 토큰 만료와 이메일 겹침은 던지지 않고 로그인 화면으로 돌려보낸다.
+   */
   submitSignup: (choices: ReadonlyMap<string, ConsentChoice>) => Promise<void>;
   /** 보는 사이 새 판이 나왔을 때 가입 화면의 문서를 다시 받는다. */
   reloadSignupDocuments: () => Promise<void>;
   /** 가입 중의 동의 화면에서 나간다. 가입 토큰과 제공자가 준 이름을 버린다. */
-  cancelSignup: (notice?: string) => void;
+  cancelSignup: (notice?: LoginNotice) => void;
   signOut: () => Promise<void>;
   /**
    * 회원탈퇴. 서버에 파기를 요청하고, 성공하면 이 기기에 남은 것까지 지운다.
@@ -167,7 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<ProfileState>(PROFILE_CHECKING);
   const [signup, setSignup] = useState<PendingSignup | null>(null);
   const [updateRequired, setUpdateRequired] = useState(false);
-  const [loginNotice, setLoginNotice] = useState<string | null>(null);
+  const [loginNotice, setLoginNotice] = useState<LoginNotice | null>(null);
   const [consentEntrySession] = useState(() =>
     createConsentEntrySession({
       readEntry: () => api.consentEntry(),
@@ -376,7 +383,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (provider: LoginProvider) => {
       const credential = await providerAdapter(provider).signIn();
       if (!credential) return; // 사용자가 취소
-      const response = await api.login(loginRequestBody(credential));
+      let response: unknown;
+      try {
+        response = await api.login(loginRequestBody(credential));
+      } catch (cause) {
+        const conflict = emailConflictNotice(cause);
+        if (!conflict) throw cause;
+        setLoginNotice(conflict);
+        return;
+      }
       const outcome = resolveLoginOutcome(response, {
         provider,
         displayName: credential.displayName ?? null,
@@ -393,7 +408,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [finishLogin],
   );
 
-  const cancelSignup = useCallback((notice?: string) => {
+  const cancelSignup = useCallback((notice?: LoginNotice) => {
     // 동의 화면에서 나가면 제공자가 준 이름도 함께 사라진다(애플은 다시 주지 않는다).
     setProviderNameHint(null);
     setSignup(null);
@@ -404,13 +419,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (choices: ReadonlyMap<string, ConsentChoice>) => {
       if (!signup) return;
       if (isSignupExpired(signup, Date.now())) {
-        cancelSignup(t('login.signupExpired'));
+        cancelSignup();
         return;
       }
-      const pair = await api.signup(
-        signup.signupToken,
-        buildSignupDecisions(signup.documents, choices),
-      );
+      let pair: TokenPair;
+      try {
+        pair = await api.signup(
+          signup.signupToken,
+          buildSignupDecisions(signup.documents, choices),
+        );
+      } catch (cause) {
+        if (signupFailureAction(cause) !== 'restart_login') throw cause;
+        // 가입 토큰 만료는 안내 없이, 이메일 겹침은 팝업과 함께 로그인 버튼부터 다시 시작한다.
+        cancelSignup(emailConflictNotice(cause) ?? undefined);
+        return;
+      }
       await finishLogin(pair, signup.provider, signup.displayName);
     },
     [cancelSignup, finishLogin, signup],
@@ -432,7 +455,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const closeAccountUnder14 = useCallback(async () => {
     // 서버가 계정을 행째 지웠고 토큰도 죽었다. 기기의 계정 자료를 지우고 로그인으로 보낸다.
-    setLoginNotice(t('profileName.under14Closed'));
+    setLoginNotice({ kind: 'notice', message: t('profileName.under14Closed') });
     await wipeClosedAccount(CLOSED_ACCOUNT_STEPS);
     identifySignupAttributionAccount(null);
   }, []);
