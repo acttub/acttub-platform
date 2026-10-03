@@ -43,6 +43,74 @@ class GeminiDirectVideoAudioUploadTest {
         } finally { server.stop(0); }
     }
 
+    @Test void silentAudioIsRejectedByBothInspectedAndLegacyUploads() throws Exception {
+        var calls = new AtomicInteger();
+        var server = resumableUploadServer(calls, "ACTIVE");
+        try (var client = fakeClient(server)) {
+            var model = new GeminiDirectVideoModel(client, "gemini-3-flash-preview", path -> true,
+                    path -> { throw new AssertionError("audio exists; do not use frames to override silence"); }, path -> false);
+            Path source = directory.resolve("silent-track.mp4");
+            var facts = model.inspect(source);
+            assertThat(facts.hasAudioTrack()).isTrue();
+            assertThat(facts.hasAudioSignal()).isFalse();
+            assertThat(facts.emptyInput()).isFalse();
+            assertThat(facts.unusableAudio()).isTrue();
+            assertThatThrownBy(() -> model.upload(source, "video/mp4", facts)).hasMessageContaining("silent audio");
+            assertThatThrownBy(() -> model.upload(source, "video/mp4")).hasMessageContaining("silent audio");
+            assertThatThrownBy(() -> model.upload(source, "video/mp4", new DirectVideoModel.InputInspection(true, null)))
+                    .hasMessageContaining("silent audio");
+            assertThat(calls.get()).isZero();
+        } finally { server.stop(0); }
+    }
+
+    @Test void failedAudioSignalInspectionNeverReachesGoogleThroughAnyUploadPath() throws Exception {
+        var calls = new AtomicInteger();
+        var server = resumableUploadServer(calls, "ACTIVE");
+        try (var client = fakeClient(server)) {
+            var model = new GeminiDirectVideoModel(client, "gemini-3-flash-preview", path -> true,
+                    path -> false, path -> { throw new IllegalStateException("audio decoder failed"); });
+            Path source = directory.resolve("damaged-audio.mp4");
+            assertThatThrownBy(() -> model.inspect(source)).hasMessageContaining("audio decoder failed");
+            assertThatThrownBy(() -> model.upload(source, "video/mp4")).hasMessageContaining("audio decoder failed");
+            assertThatThrownBy(() -> model.upload(source, "video/mp4", new DirectVideoModel.InputInspection(true, null)))
+                    .hasMessageContaining("audio decoder failed");
+            assertThat(calls.get()).isZero();
+        } finally { server.stop(0); }
+    }
+
+    @Test void validAudioSignalIsNotMeasuredTwiceBeforeUpload() throws Exception {
+        var calls = new AtomicInteger();
+        var signals = new AtomicInteger();
+        var server = resumableUploadServer(calls, "ACTIVE");
+        try (var client = fakeClient(server)) {
+            var model = new GeminiDirectVideoModel(client, "gemini-3-flash-preview", path -> true, path -> false,
+                    path -> { signals.incrementAndGet(); return true; });
+            Path source = Files.write(directory.resolve("sound.mp4"), new byte[]{1, 2, 3});
+            var facts = model.inspect(source);
+            assertThat(facts.hasAudioSignal()).isTrue();
+            assertThat(model.upload(source, "video/mp4", facts).hasAudioTrack()).isTrue();
+            assertThat(signals.get()).isEqualTo(1);
+            assertThat(calls.get()).isEqualTo(1);
+        } finally { server.stop(0); }
+    }
+
+    @Test void realSilentAacTrackCannotBeUploadedEvenThoughFfprobeFindsATrack() throws Exception {
+        requireNativeMediaToolsOrSkip();
+        var calls = new AtomicInteger();
+        var server = resumableUploadServer(calls, "ACTIVE");
+        try (var client = fakeClient(server)) {
+            Path source = generateLocalClip(directory.resolve("silent-aac.mp4"), true,
+                    "anullsrc=r=48000:cl=stereo:d=0.2");
+            assertThat(new com.acttub.actingapi.integration.media.VideoRecordChunks().hasAudio(source)).isTrue();
+            var model = new GeminiDirectVideoModel(client, "gemini-3-flash-preview");
+            var facts = model.inspect(source);
+            assertThat(facts.unusableAudio()).isTrue();
+            assertThatThrownBy(() -> model.upload(source, "video/mp4", facts)).hasMessageContaining("silent audio");
+            assertThatThrownBy(() -> model.upload(source, "video/mp4")).hasMessageContaining("silent audio");
+            assertThat(calls.get()).isZero();
+        } finally { server.stop(0); }
+    }
+
     @Test void absentAudioAndEveryFrameBlackRejectsEvenAnAccidentalUpload() throws Exception {
         var externalUploadCalls = new AtomicInteger();
         var server = resumableUploadServer(externalUploadCalls, "ACTIVE");
@@ -244,9 +312,13 @@ class GeminiDirectVideoAudioUploadTest {
 
     /** Generates a tiny, content-free (no faces/no real footage) local clip: 16x16 black, ~0.2s. */
     private static Path generateLocalClip(Path target, boolean withAudio) throws Exception {
+        return generateLocalClip(target, withAudio, "sine=frequency=1000:duration=0.2");
+    }
+
+    private static Path generateLocalClip(Path target, boolean withAudio, String audioInput) throws Exception {
         List<String> command = withAudio
                 ? List.of("ffmpeg", "-y", "-f", "lavfi", "-i", "color=c=black:s=16x16:d=0.2",
-                        "-f", "lavfi", "-i", "sine=frequency=1000:duration=0.2",
+                        "-f", "lavfi", "-i", audioInput,
                         "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest",
                         target.toString())
                 : List.of("ffmpeg", "-y", "-f", "lavfi", "-i", "color=c=black:s=16x16:d=0.2",

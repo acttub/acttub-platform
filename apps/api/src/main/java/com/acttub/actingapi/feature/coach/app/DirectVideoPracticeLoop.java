@@ -124,9 +124,23 @@ final class DirectVideoPracticeLoop {
         loop.put(NOT_ACTING, reason);
     }
 
-    /** 연기 영상이 아니어서 끊은 세션인지. */
+    /** 오디오가 완전 무음인 입력의 안내. 연기 여부를 거짓 판정하지 않는다. */
+    static String audioUnavailableMessage(java.util.Locale language) {
+        boolean korean = language == null || "ko".equals(language.getLanguage());
+        return korean
+                ? "영상의 소리가 녹음되지 않았어요.\n소리가 들리는 영상으로 다시 올려 주세요."
+                : "The video's audio is silent.\nPlease upload a video with audible sound.";
+    }
+
+    static void markInputIssue(ObjectNode state, String reason) {
+        ObjectNode loop = state.path(STATE_KEY).isObject() ? (ObjectNode) state.get(STATE_KEY) : state.putObject(STATE_KEY);
+        loop.put("input_issue", reason);
+    }
+
+    /** 비연기 또는 입력 문제로 코칭을 시작하지 않고 끊은 세션인지. */
     static boolean wasCut(JsonNode state) {
-        return state != null && !state.path(STATE_KEY).path(NOT_ACTING).asText("").isEmpty();
+        return state != null && (!state.path(STATE_KEY).path(NOT_ACTING).asText("").isEmpty()
+                || !state.path(STATE_KEY).path("input_issue").asText("").isEmpty());
     }
 
     /** 이 세션이 연습 루프로 시작됐는지. 루프 전에 열린 세션은 기존 경로로 이어간다. */

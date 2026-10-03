@@ -12,9 +12,15 @@ public interface DirectVideoModel {
         }
     }
     /** Local measured file facts, not model observations. Unknown facts never classify an input as empty. */
-    record InputInspection(Boolean hasAudioTrack, Boolean fullBlack) {
+    record InputInspection(Boolean hasAudioTrack, Boolean fullBlack, Boolean hasAudioSignal) {
+        public InputInspection(Boolean hasAudioTrack, Boolean fullBlack) {
+            this(hasAudioTrack, fullBlack, null);
+        }
         public boolean emptyInput() {
             return Boolean.FALSE.equals(hasAudioTrack) && Boolean.TRUE.equals(fullBlack);
+        }
+        public boolean unusableAudio() {
+            return Boolean.TRUE.equals(hasAudioTrack) && Boolean.FALSE.equals(hasAudioSignal);
         }
     }
     record Message(String role, String text) {}
