@@ -21,14 +21,14 @@ export type TutorialMode = 'own' | 'sample';
 /** 어느 루프를 도는가 — AI 연습(영상→질문→노트) 또는 대본 리딩(대본→배역→범위→읽기). */
 export type TutorialTrack = 'practice' | 'reading';
 type PracticeStage = 'upload' | 'analyzing' | 'coach' | 'report';
-type ReadingStage = 'readingNew' | 'readingConfirm' | 'readingRoles' | 'readingRange';
+type ReadingStage = 'readingNew' | 'readingRoles' | 'readingRange';
 export type TutorialStage = PracticeStage | ReadingStage;
 
 /**
  * 대본 리딩은 범위 화면까지 비춘다. 읽기 화면에는 제 첫 안내(R03.0)가 이미 있어 겹치지 않게
  * 거기서 튜토리얼을 마친다.
  */
-export const READING_TUTORIAL_STAGES: ReadingStage[] = ['readingNew', 'readingConfirm', 'readingRoles', 'readingRange'];
+export const READING_TUTORIAL_STAGES: ReadingStage[] = ['readingNew', 'readingRoles', 'readingRange'];
 
 /** 화면 단계가 어느 갈래의 것인지. 다른 갈래를 도는 중이면 그 화면은 비추지 않는다. */
 export function stageTrack(stage: TutorialStage): TutorialTrack {
@@ -94,23 +94,16 @@ export function tutorialSteps(stage: TutorialStage, mode: TutorialMode): Spotlig
     case 'report':
       return [{ target: TARGET.reportNote, text: 'tutorial.reNote' }];
     case 'readingNew':
+      // 예시는 이미 글 칸에 채워져 보이므로 [다음] 한 장이다.
       return mode === 'own'
         ? [
             { target: TARGET.readingDrop, text: 'tutorial.rdDrop' },
             { target: TARGET.readingNext, text: 'tutorial.rdNext' },
           ]
-        : [
-            { target: TARGET.readingText, text: 'tutorial.rdSampleText' },
-            { target: TARGET.readingNext, text: 'tutorial.rdNext' },
-          ];
-    case 'readingConfirm':
-      return [
-        { target: TARGET.readingSummary, text: 'tutorial.rdSummary' },
-        { target: TARGET.readingSave, text: 'tutorial.rdSave' },
-      ];
+        : [{ target: TARGET.readingNext, text: 'tutorial.rdSampleText' }];
     case 'readingRoles':
       return [
-        { target: TARGET.readingRoleList, text: mode === 'sample' ? 'tutorial.rdSampleRoles' : 'tutorial.rdRoles' },
+        { target: TARGET.readingRoleList, text: 'tutorial.rdRoles' },
         { target: TARGET.readingRoleStart, text: 'tutorial.rdRoleStart' },
       ];
     case 'readingRange':

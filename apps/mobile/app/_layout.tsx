@@ -369,7 +369,6 @@ function RootNavigator() {
         <Stack.Screen name="archive" options={{ headerShown: false }} />
         <Stack.Screen name="archive-detail" options={{ headerShown: false }} />
         <Stack.Screen name="reading/new" options={{ title: t('reading.titleNew') }} />
-        <Stack.Screen name="reading/confirm" options={{ title: t('reading.titleConfirm') }} />
         <Stack.Screen name="reading/detail" options={{ title: t('reading.titleDetail') }} />
         <Stack.Screen name="reading/full" options={{ title: t('reading.titleFull') }} />
         <Stack.Screen name="reading/roles" options={{ title: t('reading.titleRoles') }} />

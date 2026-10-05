@@ -193,7 +193,6 @@ export function listScripts(q?: string): Promise<ScriptListResponse> {
 }
 
 let current: SavedScript | null = null;
-let pendingDraft: ScriptDraft | null = null;
 /** 실행 화면이 쓰는 현재 회차(reading.session). 시작·이어하기 때 채우고 실행 화면을 떠나면 비운다. */
 let currentSession: SessionDetail | null = null;
 
@@ -201,10 +200,9 @@ export function getCurrent(): SavedScript | null {
   return current;
 }
 
-/** 메모리의 현재 대본·초안을 비운다. 모듈 변수라 탈퇴로 저장소를 지워도 남기 때문이다. */
+/** 메모리의 현재 대본·회차를 비운다. 모듈 변수라 탈퇴로 저장소를 지워도 남기 때문이다. */
 export function resetReadingState(): void {
   current = null;
-  pendingDraft = null;
   currentSession = null;
 }
 
@@ -238,20 +236,11 @@ export async function updateCurrent(patch: Partial<SavedScript>): Promise<void> 
   await writePrefs(current.id, prefsOf(current));
 }
 
-// ── 초안(확인 화면) ────────────────────────────────────────────────────────────
+// ── 초안(대본 넣기) ────────────────────────────────────────────────────────────
 
 /** 넣은 글로 초안을 만든다. 요청 id 는 여기서 한 번 정해진다. */
 export function newDraft(rawText: string, source: ScriptSource): ScriptDraft {
   return createDraft(rawText, source, newRequestId());
-}
-
-/** 등록 화면이 확인 화면으로 넘기는 초안. 확인 화면을 떠나면 버린다. */
-export function setPendingDraft(draft: ScriptDraft | null): void {
-  pendingDraft = draft;
-}
-
-export function getPendingDraft(): ScriptDraft | null {
-  return pendingDraft;
 }
 
 /**
@@ -262,7 +251,6 @@ export async function saveDraft(draft: ScriptDraft): Promise<SavedScript> {
   const checked = validateDraft(draft);
   if (!checked.ok) throw new Error(checked.code);
   const detail = await server().create(checked.body);
-  pendingDraft = null;
   return openScript(detail);
 }
 
