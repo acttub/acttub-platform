@@ -7,6 +7,7 @@ import {
   checkRecordingFile,
   contentTypeFor,
   fileNameFor,
+  latestRecordings,
   nextAttemptNo,
   transcriptFields,
 } from '../lib/reading/recording-plan.ts';
@@ -36,6 +37,18 @@ test('reading.recording: 같은 줄을 다시 말하면 시도 번호가 1씩 �
   attempts.l1 = 1;
   assert.equal(nextAttemptNo(attempts, 'l1'), 2);
   assert.equal(nextAttemptNo(attempts, 'l2'), 1);
+});
+
+test('reading.recording: 같은 줄 녹음은 attempt_no 가 가장 큰 것 하나만 — 받은 순서와 상관없이', () => {
+  const recs = [
+    { id: 'a2', line_id: 'l1', attempt_no: 2 },
+    { id: 'b1', line_id: 'l2', attempt_no: 1 },
+    { id: 'a3', line_id: 'l1', attempt_no: 3 },
+    { id: 'a1', line_id: 'l1', attempt_no: 1 },
+  ];
+  const latest = latestRecordings(recs);
+  assert.deepEqual([...latest.entries()].map(([line, r]) => [line, r.id]), [['l1', 'a3'], ['l2', 'b1']]);
+  assert.equal(latest.get('l3'), undefined);
 });
 
 test('reading.recording: 전사·대조는 기기 STT 결과만 — STT 없으면 none·NULL, 인식 불가면 matched NULL, 미달 false, 통과 true', () => {

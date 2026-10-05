@@ -6,6 +6,7 @@
  * 사건이 이긴다. 대조는 흐름에 끼어들지 않는다 — 결과(통과·미달)와 말한 것만 남기고 완료 화면이 쓴다.
  */
 import type { ScriptLine } from './parse.ts';
+import { latestRecordings } from './recording-plan.ts';
 import { dialogueNumbers } from './session-plan.ts';
 import type { LineOutcome, LineResult, SessionRecording } from './types.ts';
 import type { MaskMode } from './store.ts';
@@ -137,13 +138,9 @@ export function lineResultsOf(run: RunState): LineResult[] {
  * said 가 null 이라 완료 화면이 원문만 보인다.
  */
 export function resultsFromSession(session: { line_results?: LineResult[] | null; recordings?: Pick<SessionRecording, 'line_id' | 'attempt_no' | 'transcript'>[] | null }): RunState['results'] {
-  const said = new Map<string, { attempt: number; text: string | null }>();
-  for (const r of session.recordings ?? []) {
-    const prev = said.get(r.line_id);
-    if (!prev || r.attempt_no > prev.attempt) said.set(r.line_id, { attempt: r.attempt_no, text: r.transcript });
-  }
+  const latest = latestRecordings(session.recordings ?? []);
   const results: RunState['results'] = {};
-  for (const r of session.line_results ?? []) results[r.line_id] = { outcome: r.outcome, misses: r.misses, said: said.get(r.line_id)?.text ?? null };
+  for (const r of session.line_results ?? []) results[r.line_id] = { outcome: r.outcome, misses: r.misses, said: latest.get(r.line_id)?.transcript ?? null };
   return results;
 }
 

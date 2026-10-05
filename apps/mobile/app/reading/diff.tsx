@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
 import { DiffText } from '@/components/diff-text';
+import { latestRecordings } from '@/lib/reading/recording-plan';
 import { onRecordingQueueChange } from '@/lib/reading/recording-runner';
 import { isPlaybackExpired } from '@/lib/reading/session-cards';
 import { flowRows } from '@/lib/reading/session-results';
@@ -28,6 +29,8 @@ export default function ReadingDiff() {
   const [playingLine, setPlayingLine] = useState<string | null>(null);
   const playerRef = useRef<AudioPlayer | null>(null);
   const mounted = useRef(true);
+
+  const latest = useMemo(() => latestRecordings(recordings), [recordings]);
 
   const rows = useMemo(() => {
     if (!script || !review) return [];
@@ -64,10 +67,7 @@ export default function ReadingDiff() {
     setPlayingLine(null);
   };
 
-  /** 같은 줄의 녹음은 가장 큰 attempt_no 가 지금 것이다. */
-  const latestOf = (list: SessionRecording[], lineId: string): SessionRecording | null =>
-    list.filter((r) => r.line_id === lineId).sort((a, b) => b.attempt_no - a.attempt_no)[0] ?? null;
-  const recordingOf = (lineId: string) => latestOf(recordings, lineId);
+  const recordingOf = (lineId: string) => latest.get(lineId) ?? null;
 
   const play = async (lineId: string) => {
     if (playingLine === lineId) {
@@ -77,7 +77,7 @@ export default function ReadingDiff() {
     let rec = recordingOf(lineId);
     if (!rec) return;
     // 재생 주소는 10분 서명이라 만료됐으면 회차를 다시 조회해 그 응답의 주소로 튼다.
-    if (isPlaybackExpired(rec)) rec = latestOf(await load(), lineId);
+    if (isPlaybackExpired(rec)) rec = latestRecordings(await load()).get(lineId) ?? null;
     if (!rec?.playback_url || !mounted.current) return;
     stop();
     const player = createAudioPlayer({ uri: rec.playback_url });

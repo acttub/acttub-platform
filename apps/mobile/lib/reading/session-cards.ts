@@ -3,6 +3,7 @@
  * 회차 상태는 진행 중·완료 둘이다.
  */
 import type { ScriptLine } from './parse.ts';
+import { latestRecordings } from './recording-plan.ts';
 import { relativeDay } from './script-cards.ts';
 import { dialogueNumbers, rangeName, rangeTitle } from './session-plan.ts';
 import type { SessionCard, SessionDetail, SessionRecording } from './types.ts';
@@ -96,11 +97,7 @@ export function sessionLines(
   const start = script.lineIds.indexOf(detail.start_line_id);
   const end = script.lineIds.indexOf(detail.end_line_id);
   if (start < 0 || end < start) return [];
-  const latest = new Map<string, SessionRecording>();
-  for (const rec of detail.recordings) {
-    const seen = latest.get(rec.line_id);
-    if (!seen || rec.attempt_no > seen.attempt_no) latest.set(rec.line_id, rec);
-  }
+  const latest = latestRecordings(detail.recordings);
   const mine = new Set(detail.my_character_names);
   const numbers = dialogueNumbers(script.lines);
   const resumeId = detail.status === 'completed' ? null : detail.current_line_id;
