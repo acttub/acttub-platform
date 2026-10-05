@@ -58,3 +58,16 @@ const DEVICE_PITCH: Record<VoicePreset, number> = {
 export function devicePitchFor(preset: string): number {
   return isKnownPreset(preset) ? DEVICE_PITCH[preset] : 1;
 }
+
+/** 이 배역을 자동으로 두면 받을 목소리 — 목소리 시트의 「자동 (지금 M1)」. */
+export function autoVoiceOf(characters: VoicedCharacter[], characterId: string): VoicePreset | undefined {
+  return assignVoices(characters.map((c) => (c.id === characterId ? { ...c, voice_preset: null } : c)), [])[characterId];
+}
+
+/** 화면에서 고른 값(배역 id → 프리셋, null=자동) 가운데 저장된 값과 다른 것만 — 목소리 정하기 [저장]이 보낸다. */
+export function voiceChanges(
+  characters: VoicedCharacter[],
+  chosen: Record<string, string | null>,
+): { id: string; voice_preset: string | null }[] {
+  return characters.filter((c) => c.id in chosen && chosen[c.id] !== c.voice_preset).map((c) => ({ id: c.id, voice_preset: chosen[c.id] }));
+}

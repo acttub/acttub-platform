@@ -202,7 +202,7 @@ test('화면 단계마다 갈래가 정해져 있다 — 연습 화면은 practi
   for (const stage of READING_TUTORIAL_STAGES) assert.equal(stageTrack(stage), 'reading');
 });
 
-test('대본 리딩 네 화면 모두 비출 단계가 있고, 문구는 한국어·영어 둘 다 있다', () => {
+test('대본 리딩 세 화면 모두 비출 단계가 있고, 문구는 한국어·영어 둘 다 있다', () => {
   const targets = new Set(Object.values(TARGET));
   const read = (dict, key) => key.split('.').reduce((node, part) => node?.[part], dict);
   for (const mode of ['own', 'sample']) {
@@ -233,12 +233,22 @@ test('새 연습(R8.10)은 ① 구간 ② 아래 시작 버튼을 비춘다', ()
   assert.equal(ko.tutorial.rdGoBody, '앱이 상대 대사를 읽고, 내 차례가 오면 멈춰요. 소리 내어 말하면 녹음돼요.');
 });
 
-test('예시 대본 경로는 파일 넣기 대신 채워 둔 대본을 비춘다', () => {
-  const own = tutorialSteps('readingNew', 'own').map((s) => s.target);
-  const sample = tutorialSteps('readingNew', 'sample').map((s) => s.target);
-  assert.ok(own.includes(TARGET.readingDrop));
-  assert.ok(!sample.includes(TARGET.readingDrop));
-  assert.ok(sample.includes(TARGET.readingText));
+test('대본 넣기 — 내 대본은 「글로 붙여넣기」 탭과 다음 두 장, 예시는 다음 한 장', () => {
+  assert.deepEqual(tutorialSteps('readingNew', 'own'), [
+    { target: TARGET.readingDrop, text: 'tutorial.rdDrop' },
+    { target: TARGET.readingNext, text: 'tutorial.rdNext' },
+  ]);
+  assert.deepEqual(tutorialSteps('readingNew', 'sample'), [{ target: TARGET.readingNext, text: 'tutorial.rdSampleText' }]);
+});
+
+test('목소리 정하기 — 갈래와 상관없이 배역 목소리 목록과 저장 두 장', () => {
+  for (const mode of ['own', 'sample']) {
+    assert.deepEqual(tutorialSteps('readingRoles', mode), [
+      { target: TARGET.readingRoleList, text: 'tutorial.rdRoles' },
+      { target: TARGET.readingRoleStart, text: 'tutorial.rdRoleStart' },
+    ]);
+  }
+  assert.deepEqual(READING_TUTORIAL_STAGES, ['readingNew', 'readingRoles', 'readingRange']);
 });
 
 // 예시 튜토리얼은 답도 샘플로 채워 둔다 — 영상을 모르는 사람이 무엇을 적을지 막히지 않게(SOMA-494).
