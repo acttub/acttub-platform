@@ -564,6 +564,46 @@ class DirectVideoCoachTest {
                 .doesNotContain("저의 연기적 장점과 단점은 무엇일까요?");
     }
 
+    /** SOMA-602: 세션.md — 이번 목표, 선택 설명을 우선한 이유, 배우가 아니라고 한 것이 노트와 다음 회차 줄에 남는다. */
+    @Test void practiceLoopRoundKeepsGoalChoiceReasonAndCorrections() throws Exception {
+        var state = (com.fasterxml.jackson.databind.node.ObjectNode) StructuredJson.MAPPER.readTree("""
+                {"revision":5,"practice_loop":{"design":"이번 목표: 한 문장 끝에 엄마를 끝까지 보기\\n버릇: 고개를 양옆으로 크게 움직임 | 곳1: x\\n다음 테이크: 손을 꽉 쥐고 엄마를 노려보기",
+                "statuses":["",
+                "배우의 말: 정정\\n피할 것: 시선\\n이번 목표: 한 문장 끝에 엄마를 끝까지 보기\\n할 일: 내려놓기",
+                "배우의 말: 선택 설명\\n피할 것: 시선\\n할 일: 파고들기",
+                "배우의 말: 짧은 답\\n피할 것: 시선\\n할 일: 마무리1",
+                "배우의 말: 자기 한 줄\\n할 일: 마무리2"]}}
+                """);
+        var turns = List.of(new CoachTurnSnapshot("ai", "지난번엔 엄마를 끝까지 보기로 했어요."), new CoachTurnSnapshot("actor", "렌즈 본 거예요"),
+                new CoachTurnSnapshot("ai", "그러면 제가 잘못 봤어요."), new CoachTurnSnapshot("actor", "트라우마 때문에 마주하기 어려워서 일부러 돌렸어"),
+                new CoachTurnSnapshot("ai", "언제 고개가 돌아가요?"), new CoachTurnSnapshot("actor", "그렇지"),
+                new CoachTurnSnapshot("ai", "한 줄로 적는다면요?"), new CoachTurnSnapshot("actor", "아직 행동이 자연스럽게 안 나온다"),
+                new CoachTurnSnapshot("ai", "그대로 적어 둘게요."));
+        var closed = session().withTurns(turns).withCoachingState("three_layers_v1", 5, state, "closed", "interrupted");
+        var note = DirectVideoPracticeLoop.note(closed, 5);
+        assertThat(note.summaryQuotes()).extracting(q -> q.path("quote").asText())
+                .containsExactly("아직 행동이 자연스럽게 안 나온다", "트라우마 때문에 마주하기 어려워서 일부러 돌렸어");
+        assertThat(note.corrections()).extracting(com.fasterxml.jackson.databind.JsonNode::asText).containsExactly("시선: \"렌즈 본 거예요\"");
+        var line = PracticeLoopRound.line(2, note.title(), note.nextTake(), state,
+                turns.stream().map(t -> new PracticeLoopRound.Turn(t.role(), t.text())).toList());
+        assertThat(line).isEqualTo("2차: 목표 한 문장 끝에 엄마를 끝까지 보기 — 버릇 고개를 양옆으로 크게 움직임"
+                + " (이유: \"트라우마 때문에 마주하기 어려워서 일부러 돌렸어\") — 아니라고 한 것: 시선: \"렌즈 본 거예요\""
+                + " — 제안: 손을 꽉 쥐고 엄마를 노려보기");
+    }
+
+    /** 연습 루프 상태가 없으면 예전 줄을 쓰도록 null 이다. */
+    @Test void practiceLoopRoundIsNullWithoutLoopState() throws Exception {
+        assertThat(PracticeLoopRound.line(1, "제목", "제안", StructuredJson.MAPPER.readTree("{}"), List.of())).isNull();
+    }
+
+    /** 연습 루프의 기억 머리말은 지난 기록을 목표 후보로 쓰게 한다. 다른 경로는 그대로다. */
+    @Test void priorContextHeaderTurnsIntoGoalCandidatesOnlyForThePracticeLoop() {
+        var prior = new PriorContext(java.util.Map.of("goal", "입시"), null, false, List.of(), List.of("1차: 버릇 — 제안: x"));
+        assertThat(CoachPrompt.priorContextBlock(prior, true, true)).contains("이번 연습의 목표 후보를 고르는 데 쓴다")
+                .doesNotContain("지난 기록을 이번 장면의 목표·의도로 확정하지 않는다");
+        assertThat(CoachPrompt.priorContextBlock(prior, true)).contains("지난 기록을 이번 장면의 목표·의도로 확정하지 않는다");
+    }
+
     @Test void practiceLoopShufflesTheFourHabitLinesPerPractice() {
         var practice = UUID.fromString("00000000-0000-0000-0000-000000000001");
         assertThat(DirectVideoPrompts.practiceLoop(practice)).isEqualTo(DirectVideoPrompts.practiceLoop(practice));
