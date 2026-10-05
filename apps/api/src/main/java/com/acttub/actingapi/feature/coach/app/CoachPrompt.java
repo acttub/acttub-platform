@@ -146,6 +146,14 @@ public final class CoachPrompt {
      * 채운다. 첫 연습에서는 지금까지와 똑같은 프롬프트가 나가야 한다.
      */
     static String priorContextBlock(PriorContext prior, boolean videoFirst) {
+        return priorContextBlock(prior, videoFirst, false);
+    }
+
+    /**
+     * @param goalSetting 연습 루프가 지난 기록을 이번 목표 후보로 쓰는지(SOMA-602). 그때는 "목표로 확정하지 않는다" 대신
+     *     "목표 후보를 고르고 배우에게 물어 정한다"를 싣는다 — 둘을 함께 실으면 모델이 목표를 늘 "없음"으로 적는다(실험).
+     */
+    static String priorContextBlock(PriorContext prior, boolean videoFirst, boolean goalSetting) {
         if (prior == null || prior.isEmpty()) {
             return "";
         }
@@ -153,7 +161,10 @@ public final class CoachPrompt {
         lines.add("## 배우에 대해 지금까지 알고 있는 것");
         lines.add("지난 연습에서 정리된 참고 사항이다. **영상 근거가 아니다** — 이걸로 이번"
                 + " 영상의 장면을 말하지 않는다. 배우가 지난번에 한 말이므로 그대로 읊지 않는다.");
-        if (videoFirst) {
+        if (videoFirst && goalSetting) {
+            lines.add("이번 연습의 목표 후보를 고르는 데 쓴다. 목표는 배우에게 물어서 정하며, 지난 기록만으로 확정하지"
+                    + " 않는다. 지난번에 해 보기로 한 것을 했는지 다그치지 않는다.");
+        } else if (videoFirst) {
             lines.add("이번 영상의 주제에 직접 도움이 될 때만 참고한다. 지난 목표 확인이나 과제 실행"
                     + " 확인을 의무 질문으로 만들지 않는다. 지난 기록을 이번 장면의 목표·의도로 확정하지 않는다.");
         } else {
