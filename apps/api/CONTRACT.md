@@ -377,7 +377,7 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 
 | 동작 | 대상 |
 |---|---|
-| **required + `null` 값을 실어 보냄** | `AuthUser.email`, `MeResponse.email`/`.profile`, `Profile` 의 `directions` 를 뺀 전 항목(0.1.0 이전 회원은 `name` 만 차 있다), `SourceHandoffIds.analysis`, `MemoryItem.source_practice_session_id`, `ConsentEntryDocument.current_decision`/`.decided_at`, `Portfolio.intro`, `PortfolioPhoto.url`, `PortfolioShare.slug`/`.url`, `PublicPortfolio.photo_url`/`.gender`/`.intro`, `PublicPortfolioPhoto.url`, `PublicChallengeEntry.character`/`.poster_url`, 연습 노트의 `PracticeNote*`·`PublicPracticeNote` 항목들 |
+| **required + `null` 값을 실어 보냄** | `AuthUser.email`, `MeResponse.email`/`.profile`, `Profile` 의 `directions` 를 뺀 전 항목(0.1.0 이전 회원은 `name` 만 차 있다), `SourceHandoffIds.analysis`, `MemoryItem.source_practice_session_id`, `ConsentEntryDocument.current_decision`/`.decided_at`, `Portfolio.intro`, `PortfolioPhoto.url`, `PortfolioShare.slug`/`.url`, `PublicPortfolio.photo_url`/`.gender`/`.intro`, `PublicPortfolioPhoto.url`, `PublicChallengeEntry.character`/`.poster_url`, 연습 노트의 `PracticeNote*`·`PublicPracticeNote` 항목들, `AppPoster` 의 `badge`·`body`·`image_url`·`image_asset`·`audio_asset`·`cta_label`·`cta_target` |
 | **optional 인데 항상 포함** | `Video.purged_at`/`.playback_url`/`.playback_expires_at`/`.poster_url` |
 
 같은 이름의 필드가 엔드포인트마다 다르게 동작한다. DTO 를 분리하거나 직렬화를 수동 제어한다.
@@ -1117,6 +1117,38 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   14개월보다 오래된 `web_utm` 행만 지운다. Airbridge 행의 보존 규칙은 바꾸지 않는다. 만료 뒤 기존 계정에 새 UTM을
   다시 붙이지 않는 경계는 웹의 신규 guest userId와 세션 결합이며, 서버가 생성 시각으로 신규 여부를 추정하지 않는다.
 - 읽는 곳은 ops 사용자 화면이다. 광고 관리자는 가입을 수로만 센다.
+
+### 6-24. 앱 공지 포스터 (SOMA-599)
+
+> 제품 규칙의 정본: [app.poster](../../docs/specs/app/poster.md)(고르는 규칙, 빈도·다시 보지 않기·대상, 운영자 사용법)
+
+- 표는 `app_posters`(V29)다. Schema Entity 없이 `feature/poster/adapter/db/PostgresPosterRepository` 의 native SQL
+  로만 읽고 쓴다(행이 적고 `platforms` 가 `text[]` 라서다, §5-1·`EntityMappingIT` 의 대기 목록). 값 목록(`frequency`·
+  `audience`·`cta_action`)은 Java enum 없이 `PosterRules` 상수와 CHECK 가 같은 선을 긋는다(`ValueCheckCatalogIT` 의
+  `WITHOUT_JAVA_ENUM`).
+- 유일은 `uq_app_posters_slug_locale (slug, COALESCE(locale,''))` 다 — 언어 없음(NULL)도 한 자리를 차지한다.
+  만들기는 `ON CONFLICT DO NOTHING` 의 0행, 고치기는 겹치는 다른 행이 있으면 갱신하지 않는 조건의 0행으로 알고
+  둘 다 422 `duplicate_poster` 다.
+- V29 가 지금 홍보(고품질 목소리 출시)를 `slug=cloud-voice-launch` ko·en 두 줄로 싣는다. 문구는 0.1.2 앱 번역
+  `cloudVoice.promo*` 의 값이다.
+- 앱 경로 `GET /v2/app/posters` 는 게이트(`ConsentGateInterceptor` 의 FULL)를 지난 회원·게스트 모두 받는다. 질의
+  검사는 받는 자리(`PosterController`)에서 하고 틀리면 배열 422 다 — `platform` 빠짐은 `missing`, 값이 틀리면
+  `value_error`. 기간·플랫폼·언어는 SQL 이, 판(`min_app_version`)과 5장 자르기는 `PosterRules.forApp` 이 고른다.
+  판 비교는 점으로 나눈 정수 비교다(`0.1.10 > 0.1.9`).
+- 이미지가 객체 키(`posters/<uuid>.<png|jpg|webp>`)면 기존 스토리지로 1시간 재생 주소를 서명한다. 스토리지가 없거나
+  서명이 실패하면 `image_url` 만 null 이고 목록은 그대로 나간다(서명 실패는 External Failure 로 보고,
+  `ObjectStoragePosterImages`). 소리는 번들 자산(`asset:`)만 내고 객체 키면 null 이다.
+- 운영 경로 `GET·POST /v2/admin/posters`, `PATCH /v2/admin/posters/{id}`, `POST /v2/admin/poster-images` 는 다른
+  `/v2/admin` 과 같이 `ADMIN_OPS_TOKEN` Bearer 를 상수 시간 비교로 보고(401 `Unauthorized`), 토큰이 없는 기동에는
+  경로째 없다(`AdminService.ENABLED_WHEN`) — 그래서 `spec/openapi.json` 에 실리지 않고 `AdminEndpointIT` 의 조건부
+  목록이 센다. 응답은 `Cache-Control: private, no-store` 다. 지우기 경로는 없다(끄기 = `active=false`).
+- 만들기 본문은 닫혀 있다(§6-3). PATCH 는 보낸 칸만 바꾸므로 본문을 JSON 객체로 받아 지금 값 위에 얹고, 모르는
+  칸은 `extra_forbidden`, 형태가 틀린 칸은 그 칸을 가리키는 `value_error` 422 다. `bump_revision: true` 면
+  revision 을 하나 올린다. 둘 다 `updated_at` 을 그 시각으로 둔다.
+- 이미지 올릴 자리는 `{content_type, size_bytes}` 를 받는다. 기존 `ObjectStorage#presignUpload` 가 크기를 서명에
+  넣기 때문이다(스펙 초안의 `{content_type}` 에서 `size_bytes` 를 더했다). PNG·JPEG·WebP 만 받고(415
+  `unsupported_media_type`), 10MB 를 넘으면 413 `upload_too_large`, 주소는 10분이다. 스토리지 설정은 기존 `S3_*` 를
+  그대로 쓰고 없으면 503 `storage_not_configured`(§6-2 의 advice) 다.
 
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 

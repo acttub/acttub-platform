@@ -96,7 +96,10 @@ class PackageLayerTest {
             Map.entry("feedback", Set.of("app", "adapter")),
             // 푸시 토큰에는 행위 규칙이 없다 — 등록은 upsert, 해제는 delete, 발송은 위탁이라
             // domain 에 넣을 것을 지어내야 하는 형태다(ADR-017, admissions 와 같은 판별).
-            Map.entry("push", Set.of("app", "adapter", "schema")));
+            Map.entry("push", Set.of("app", "adapter", "schema")),
+            // 앱 공지 포스터(SOMA-599). 값 규칙·판 비교·고르기가 domain 에 산다. 표는 행이 적고 플랫폼이 배열 칸이라
+            // Schema Entity 없이 native SQL 로만 읽고 쓴다(EntityMappingIT 의 대기 목록).
+            Map.entry("poster", Set.of("domain", "app", "adapter")));
 
     /**
      * {@code domain}이 알아서는 안 되는 것들. docs/ARCHITECTURE.md의 <b>Domain Model</b>은 "프레임워크를

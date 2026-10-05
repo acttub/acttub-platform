@@ -196,6 +196,17 @@ class ErrorContractInventoryTest {
                     "feature.admin.AdminEndpointIT"),
             covered("feature.admin.app.AdminService|503|playback_unavailable", 2,
                     "feature.admin.AdminEndpointIT"),
+            // 앱 공지 포스터(app.poster). 운영 경로는 다른 admin 과 같은 토큰 검사를 지닌다.
+            covered("feature.poster.adapter.web.PosterAdminController|401|Unauthorized", 1,
+                    "feature.poster.PosterEndpointIT"),
+            covered("feature.poster.app.PosterService|404|poster_not_found", 1,
+                    "feature.poster.PosterEndpointIT"),
+            covered("feature.poster.app.PosterService|413|upload_too_large", 1,
+                    "feature.poster.PosterEndpointIT"),
+            covered("feature.poster.app.PosterService|415|unsupported_media_type", 1,
+                    "feature.poster.PosterEndpointIT"),
+            covered("feature.poster.app.PosterService|422|duplicate_poster", 1,
+                    "feature.poster.PosterEndpointIT"),
             covered("feature.admissions.app.AdmissionsService|404|university_not_found", 1,
                     "feature.admissions.AdmissionsEndpointIT"),
 

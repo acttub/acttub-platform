@@ -27,6 +27,7 @@ git 이력이 보관한다. 동작을 바꾸는 PR이 그 기능의 요구사항
 | [연습](practice/README.md) | [practice.record 촬영·보관](practice/record.md)<br>[practice.library 보관함](practice/library.md)<br>[practice.start 코칭 시작](practice/start.md)<br>[practice.resume 이어하기](practice/resume.md)<br>[practice.analyze 분석](practice/analyze.md)<br>[practice.coach 코치 대화](practice/coach.md)<br>[practice.note 연습 노트](practice/note.md)<br>[practice.memory 배우 기억](practice/memory.md)<br>[practice.feedback 이탈 설문](practice/feedback.md)<br>[practice.rating 앱 평가 요청](practice/rating.md) |
 | [대본 리딩](reading/README.md) | [reading.script 대본 등록](reading/script.md)<br>[reading.cast 배역](reading/cast.md)<br>[reading.session 리딩 회차](reading/session.md)<br>[reading.recording 녹음](reading/recording.md)<br>[reading.memorization 암기](reading/memorization.md)<br>[reading.cloud-voice 고품질 목소리](reading/cloud-voice.md) |
 | [챌린지](challenge/README.md) | [challenge.create 개설](challenge/create.md)<br>[challenge.browse 둘러보기·랭킹](challenge/browse.md)<br>[challenge.entry 참여](challenge/entry.md)<br>[challenge.react 좋아요·저장·댓글](challenge/react.md)<br>[challenge.block 사용자 차단](challenge/block.md)<br>[challenge.report 신고](challenge/report.md)<br>[challenge.ai-report AI 리포트](challenge/ai-report.md)<br>[challenge.notification 챌린지 알림·알림함](challenge/notification.md) |
+| [앱 공통](app/README.md) | [app.poster 공지 포스터](app/poster.md) |
 | [커뮤니티 (진행: 후속)](community/README.md) | — |
 
 ## 쓰는 법

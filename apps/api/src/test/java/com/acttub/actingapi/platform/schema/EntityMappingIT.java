@@ -122,7 +122,9 @@ class EntityMappingIT {
             // 노트 평가(V22)는 코치 저장소의 native SQL(upsert·잠금)만 읽고 쓴다.
             "note_ratings",
             // 가입 유입 출처(V26·V28)는 프로필 저장소의 native SQL(최초 저장·이관·탈퇴 파기)만 쓴다.
-            "user_signup_attributions");
+            "user_signup_attributions",
+            // 앱 공지 포스터(V29)는 포스터 저장소의 native SQL(만들기·고치기·고르기)만 쓴다.
+            "app_posters");
 
     @Test
     @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 38개 활성 엔티티를 포함한다")
