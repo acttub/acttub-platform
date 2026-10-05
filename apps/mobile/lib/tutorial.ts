@@ -115,7 +115,7 @@ export function tutorialSteps(stage: TutorialStage, mode: TutorialMode): Spotlig
       ];
     case 'readingRange':
       return [
-        { target: TARGET.readingMode, text: 'tutorial.rdMode' },
+        { target: TARGET.readingRangePick, text: 'tutorial.rdRange' },
         { target: TARGET.readingRangeStart, text: 'tutorial.rdGo' },
       ];
   }

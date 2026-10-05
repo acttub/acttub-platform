@@ -108,8 +108,8 @@ export const TARGET = {
   readingRoleList: 'reading.roles',
   /** 배역 — 시작 버튼. */
   readingRoleStart: 'reading.roleStart',
-  /** 범위 — 읽기·외우기 방식. */
-  readingMode: 'reading.mode',
-  /** 범위 — 시작 버튼. */
+  /** 새 연습 — 구간 고르기(탭·목록). */
+  readingRangePick: 'reading.rangePick',
+  /** 새 연습 — 시작 버튼. */
   readingRangeStart: 'reading.rangeStart',
 } as const;
