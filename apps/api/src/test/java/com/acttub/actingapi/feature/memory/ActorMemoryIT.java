@@ -65,10 +65,13 @@ class ActorMemoryIT {
              "target_effect":"효과","next_take":{"direction":"방향","tested":false},
              "acting_caution":"주의","evidence":[],"uncertainties":[]}
             """;
-    /** 기억 추출기가 낸 네 칸. 워커는 이것을 받아 저장한다. */
+    /**
+     * 기억 추출기가 낸 칸. 워커는 모델이 쓰는 네 칸을 저장한다 — 옛 화법 칸과 다시 말하지 않을 것은 모델이 내도 버린다
+     * (SOMA-603).
+     */
     private static final String EXTRACTED = """
-            {"goal":"새 목표","blockage":"문 앞에서 멈춘다","speech_self":"또박또박 말한다",
-             "speech_actual":"상대를 부른 뒤 부탁을 이어 간다"}
+            {"goal":"새 목표","blockage":"문 앞에서 멈춘다","wants":"표정을 봐 달라고 했다",
+             "habits":"감정이 올라오면 고개를 돌린다","speech_self":"또박또박 말한다","avoid":"모델이 쓴 것"}
             """;
 
     @DynamicPropertySource
@@ -126,6 +129,48 @@ class ActorMemoryIT {
         assertThat(memoryJobs()).hasSize(2);
         closeConversation(analyzedPractice(member));
         assertThat(memoryJobs()).hasSize(3);
+    }
+
+    @Test
+    @DisplayName("practice.memory: 배우가 두 번 이상 답하고 떠난 열린 회차도 갱신에 세고, 아니라고 한 것은 다시 말하지 않을 것에 "
+            + "바로 쌓인다. 말투는 배우 화면에 보이지 않고 배우가 쓸 수도 없다 (SOMA-603)")
+    void practiceMemory_idleOpenRoundCountsAndCorrectionsLandInAvoid() throws Exception {
+        UUID practice = analyzedPractice(member);
+        UUID conversation = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO coach_conversations(id,practice_id,start_request_id,status,state)
+                VALUES (?,?,?,'open',CAST(? AS jsonb))
+                """, conversation, practice, UUID.randomUUID(), """
+                {"practice_loop":{"design":"버릇: 고개를 크게 돌림 | 곳1: x\\n다음 테이크: 손을 꽉 쥐기",
+                 "statuses":["","배우의 말: 정정\\n피할 것: 시선\\n할 일: 내려놓기","배우의 말: 평가 요청\\n할 일: 짚어주기"]}}""");
+        List<String> texts = List.of("고개가 돌아가요.", "렌즈 본 거예요", "알겠어요.", "그럼 제 연기 평가해 주세요", "좋아요.");
+        for (int i = 0; i < texts.size(); i++) {
+            jdbc.update("""
+                    INSERT INTO coach_messages(id,conversation_id,turn_index,role,text,created_at)
+                    VALUES (?,?,?,?,?,now()-interval '1 hour')
+                    """, UUID.randomUUID(), conversation, i, i % 2 == 0 ? "ai" : "actor", texts.get(i));
+        }
+
+        assertThat(worker.sweepIdle(java.time.Instant.now())).isEqualTo(1);
+
+        assertThat(memoryJobs()).hasSize(1);
+        assertThat(value("avoid")).isEqualTo("- 시선: \"렌즈 본 거예요\"");
+        assertThat(writtenBy("avoid")).isEqualTo("agent");
+        // 같은 회차를 다시 봐도 줄이 늘지 않는다 — 작업이 생긴 회차는 다시 고르지 않는다.
+        assertThat(worker.sweepIdle(java.time.Instant.now().plusSeconds(3600))).isZero();
+
+        assertThat(runWorker()).isTrue();
+        assertThat(rows()).extracting(row -> row.get("field"))
+                .containsExactlyInAnyOrder("goal", "blockage", "wants", "habits", "avoid");
+        assertThat(value("avoid")).isEqualTo("- 시선: \"렌즈 본 거예요\"");
+
+        jdbc.update("""
+                INSERT INTO actor_memories(id,user_id,field,value,written_by) VALUES (?,?,'tone','짧게 답한다','agent')
+                """, UUID.randomUUID(), member);
+        JsonNode memory = json(get("/v2/me/memory"), 200);
+        assertThat(memory.path("items").findValuesAsText("field")).contains("wants", "avoid").doesNotContain("tone");
+        perform(put("/v2/me/memory/tone").content(valueBody("반말")), 422);
+        perform(put("/v2/me/memory/wants").content(valueBody("방법을 알려 줘요")), 200);
     }
 
     @Test

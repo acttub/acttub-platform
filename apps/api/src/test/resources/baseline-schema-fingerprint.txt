@@ -675,7 +675,7 @@ CONSTRAINT actor_memories actor_memories_user_id_fkey FOREIGN KEY (user_id) REFE
 CONSTRAINT actor_memories actor_memories_user_id_not_null NOT NULL user_id
 CONSTRAINT actor_memories actor_memories_value_not_null NOT NULL value
 CONSTRAINT actor_memories actor_memories_written_by_not_null NOT NULL written_by
-CONSTRAINT actor_memories ck_actor_memories_field CHECK ((field = ANY (ARRAY['goal'::text, 'blockage'::text, 'speech_self'::text, 'speech_actual'::text])))
+CONSTRAINT actor_memories ck_actor_memories_field CHECK ((field = ANY (ARRAY['goal'::text, 'blockage'::text, 'speech_self'::text, 'speech_actual'::text, 'wants'::text, 'habits'::text, 'avoid'::text, 'tone'::text])))
 CONSTRAINT actor_memories ck_actor_memories_value_length CHECK ((char_length(value) <= 1000))
 CONSTRAINT actor_memories ck_actor_memories_value_not_blank CHECK ((btrim(value) <> ''::text))
 CONSTRAINT actor_memories ck_actor_memories_written_by CHECK ((written_by = ANY (ARRAY['actor'::text, 'agent'::text])))

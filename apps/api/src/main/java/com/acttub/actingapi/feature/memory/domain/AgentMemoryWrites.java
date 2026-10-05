@@ -14,8 +14,8 @@ import java.util.List;
  */
 public final class AgentMemoryWrites {
 
-    /** 에이전트가 손대는 칸 — 지금은 배우 기억의 모든 칸이다. 순서는 프롬프트에 실리는 순서다. */
-    public static final List<String> FIELDS = ActorMemoryFields.NAMES;
+    /** 에이전트가 손대는 칸 — 기억 갱신(모델)이 쓰는 칸과 코드가 덧붙이는 다시 말하지 않을 것. 순서는 프롬프트에 실리는 순서다. */
+    public static final List<String> FIELDS = List.of("goal", "blockage", "wants", "habits", "avoid", "tone");
 
     private AgentMemoryWrites() {
     }

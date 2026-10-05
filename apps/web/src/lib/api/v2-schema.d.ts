@@ -2257,7 +2257,7 @@ export interface components {
              * Field
              * @enum {string}
              */
-            field: "goal" | "blockage" | "speech_self" | "speech_actual";
+            field: "goal" | "blockage" | "wants" | "habits" | "avoid" | "speech_self" | "speech_actual";
             /** Value */
             value: string;
             /** Written By Actor */
@@ -5282,7 +5282,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                field: "goal" | "blockage" | "speech_self" | "speech_actual";
+                field: "goal" | "blockage" | "wants" | "habits" | "avoid" | "speech_self" | "speech_actual";
             };
             cookie?: never;
         };
@@ -5317,7 +5317,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                field: "goal" | "blockage" | "speech_self" | "speech_actual";
+                field: "goal" | "blockage" | "wants" | "habits" | "avoid" | "speech_self" | "speech_actual";
             };
             cookie?: never;
         };

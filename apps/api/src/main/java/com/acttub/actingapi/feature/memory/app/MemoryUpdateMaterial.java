@@ -18,5 +18,15 @@ public record MemoryUpdateMaterial(
         String blockageDetail,
         List<String> transcripts,
         List<String> actorMessages,
-        List<String> quotations) {
+        List<String> quotations,
+        List<String> sessionNotes) {
+
+    /**
+     * 노트 줄 없이 만든다 — 옛 갈래와 시험이 쓰는 모양.
+     */
+    public MemoryUpdateMaterial(UUID userId, UUID practiceSessionId, String goal, String blockageKind, String subBranch,
+            String blockageDetail, List<String> transcripts, List<String> actorMessages, List<String> quotations) {
+        this(userId, practiceSessionId, goal, blockageKind, subBranch, blockageDetail, transcripts, actorMessages,
+                quotations, List.of());
+    }
 }

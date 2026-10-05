@@ -5,7 +5,8 @@ export type MemoryItem = components["schemas"]["ActorMemoryItem"];
 export type MemoryResponse = components["schemas"]["ActorMemoryResponse"];
 
 /**
- * 배우가 화면에서 다루는 칸(practice.memory). 0.1.0 부터 넷이다.
+ * 배우가 화면에서 다루는 칸(practice.memory). SOMA-603 부터 다섯이다 — 옛 화법 두 칸은 서버에 남아 있지만
+ * 웹 화면에서는 보여 주지 않고, 말투는 코치만 쓰는 칸이라 서버가 내려보내지 않는다.
  *
  * 성별·나이는 기억이 아니라 **프로필**이다(account.profile). 코치가 영상이나 말투에서 짐작하지
  * 않는다는 규칙은 그대로이고, 적는 자리만 옮겼다 — 연습을 가로질러 남는 값(목표·막히는 지점·화법)과
@@ -14,8 +15,9 @@ export type MemoryResponse = components["schemas"]["ActorMemoryResponse"];
 export const MEMORY_FIELDS = [
   "goal",
   "blockage",
-  "speech_self",
-  "speech_actual",
+  "wants",
+  "habits",
+  "avoid",
 ] as const;
 
 export type MemoryField = (typeof MEMORY_FIELDS)[number];

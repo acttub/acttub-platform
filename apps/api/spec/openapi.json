@@ -411,7 +411,7 @@
           "required" : true,
           "schema" : {
             "type" : "string",
-            "enum" : [ "goal", "blockage", "speech_self", "speech_actual" ],
+            "enum" : [ "goal", "blockage", "wants", "habits", "avoid", "speech_self", "speech_actual" ],
             "title" : "Field"
           }
         } ],
@@ -462,7 +462,7 @@
           "required" : true,
           "schema" : {
             "type" : "string",
-            "enum" : [ "goal", "blockage", "speech_self", "speech_actual" ],
+            "enum" : [ "goal", "blockage", "wants", "habits", "avoid", "speech_self", "speech_actual" ],
             "title" : "Field"
           }
         } ],
@@ -4919,7 +4919,7 @@
         "properties" : {
           "field" : {
             "type" : "string",
-            "enum" : [ "goal", "blockage", "speech_self", "speech_actual" ],
+            "enum" : [ "goal", "blockage", "wants", "habits", "avoid", "speech_self", "speech_actual" ],
             "title" : "Field"
           },
           "value" : {
