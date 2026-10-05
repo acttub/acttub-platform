@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { TARGET } from '../lib/spotlight-targets.ts';
 import {
+  afterVoicesSaved,
   currentTutorial,
   endTutorial,
   onTutorialChanged,
@@ -231,6 +232,15 @@ test('새 연습(R8.10)은 ① 구간 ② 아래 시작 버튼을 비춘다', ()
   assert.equal(ko.tutorial.rdRangeBody, '장면이나 대사로 골라요. 연습한 적이 있으면 최근 구간에서 바로 고를 수 있어요.');
   assert.equal(ko.tutorial.rdGoTitle, '시작하면 상대 대사부터 들려요');
   assert.equal(ko.tutorial.rdGoBody, '앱이 상대 대사를 읽고, 내 차례가 오면 멈춰요. 소리 내어 말하면 녹음돼요.');
+});
+
+test('목소리 정하기 [저장] 뒤 — 대본 리딩 튜토리얼 중인 등록 흐름만 대본 상세 위에 새 연습을 얹어 튜토리얼을 잇는다', () => {
+  assert.equal(afterVoicesSaved(true, { mode: 'own', track: 'reading' }), 'detail_then_range');
+  assert.equal(afterVoicesSaved(true, { mode: 'sample', track: 'reading' }), 'detail_then_range');
+  assert.equal(afterVoicesSaved(true, null), 'detail', '튜토리얼이 아니면 대본 상세');
+  assert.equal(afterVoicesSaved(true, { mode: 'own', track: 'practice' }), 'detail', 'AI 연습 튜토리얼은 상관없다');
+  assert.equal(afterVoicesSaved(false, { mode: 'own', track: 'reading' }), 'back', '등록 흐름이 아니면 온 곳으로');
+  assert.equal(afterVoicesSaved(false, null), 'back');
 });
 
 test('대본 넣기 — 내 대본은 「글로 붙여넣기」 탭과 다음 두 장, 예시는 다음 한 장', () => {

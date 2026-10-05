@@ -10,6 +10,7 @@ import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
 import { api } from '@/lib/api';
 import { TARGET } from '@/lib/spotlight-targets';
+import { afterVoicesSaved, currentTutorial } from '@/lib/tutorial';
 import { loadCloudVoiceEnabled, shouldUseCloudVoice } from '@/lib/reading/cloud-voice';
 import { getCurrent, updateScriptMeta } from '@/lib/reading/store';
 import * as engine from '@/lib/reading/tts/engine';
@@ -145,8 +146,13 @@ export default function ReadingRoles() {
         setSaving(false);
       }
     }
-    if (fromNew) router.replace('/reading/detail');
-    else router.back();
+    const next = afterVoicesSaved(fromNew, currentTutorial());
+    if (next === 'back') {
+      router.back();
+      return;
+    }
+    router.replace('/reading/detail');
+    if (next === 'detail_then_range') router.push('/reading/range');
   };
 
   const sheetCharacter = effective.find((c) => c.id === sheetFor) ?? null;

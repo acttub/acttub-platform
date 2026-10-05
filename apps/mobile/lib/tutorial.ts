@@ -64,6 +64,18 @@ export function onTutorialChanged(fn: () => void): () => void {
   };
 }
 
+/**
+ * 목소리 정하기(readingRoles) [저장] 뒤 갈 곳. 등록 흐름은 대본 상세로 간다. 대본 리딩 튜토리얼 중이면 대본 상세엔
+ * 비출 자리가 없으니 그 위에 새 연습을 얹어 readingRange 로 잇는다(뒤로 가면 대본 상세). 그 밖엔 온 곳으로 돌아간다.
+ */
+export function afterVoicesSaved(
+  fromNew: boolean,
+  tutorial: { track: TutorialTrack } | null,
+): 'back' | 'detail' | 'detail_then_range' {
+  if (!fromNew) return 'back';
+  return tutorial?.track === 'reading' ? 'detail_then_range' : 'detail';
+}
+
 /** 화면마다 비출 자리. 문구는 `<text>Title`·`<text>Body` 를 읽는다. */
 export function tutorialSteps(stage: TutorialStage, mode: TutorialMode): SpotlightStep[] {
   switch (stage) {
