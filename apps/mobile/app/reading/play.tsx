@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, AppState, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
@@ -215,7 +215,7 @@ export default function ReadingPlay() {
       let durationMs = Math.max(0, Date.now() - turnStartedAt.current);
       let kind: 'recorder' | 'stt_persist' = 'recorder';
       if (sttUsed) {
-        uri = stt.takeRecordingUri();
+        uri = await stt.takeRecordingAsync();
         kind = 'stt_persist';
       }
       const fromMic = await mic.stop();
@@ -244,6 +244,9 @@ export default function ReadingPlay() {
         transcriptSource: fields.transcript_source,
         matched: fields.matched,
       });
+      if (outcome.kind === 'rejected' && (outcome.reason === 'empty' || outcome.reason === 'missing')) {
+        logEvent('reading_recording_empty', { kind, reason: outcome.reason, platform: Platform.OS });
+      }
       if (outcome.kind === 'rejected' && (outcome.reason === 'too_large' || outcome.reason === 'too_long')) {
         void alert({ title: t('reading.recordToggle'), message: t('reading.recordingTooLarge') });
       }
@@ -481,7 +484,9 @@ export default function ReadingPlay() {
     void (async () => {
       if (typing || !micAllowed) return;
       let opened = false;
-      if (sttMode?.kind === 'stt') {
+      // 녹음이 켜진 회차인데 이 기기의 인식기가 소리를 남기지 못하면 녹음기로 받는다 — 받아쓰기보다 녹음이 먼저다.
+      const recordOverStt = !!(session.record && !stt.canPersist());
+      if (sttMode?.kind === 'stt' && !recordOverStt) {
         const ok = stt.start({ onEvent, onInterim: setSaid }, { persist: !!session.record });
         sttActive.current = ok;
         opened = ok;
