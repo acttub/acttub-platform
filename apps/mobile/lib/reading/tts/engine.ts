@@ -35,7 +35,7 @@ import { speechScriptFileName } from './speech-file.ts';
 import { speechKey } from './speech-key.ts';
 import { createSpeechQueue, type SpeechQueue } from './prefetch.ts';
 import { VoicePrepareError } from './voice-errors.ts';
-import { markModelLoadEnded, markModelLoadStarted, readAppVoiceSupport } from '../voice-capability.ts';
+import { readAppVoiceSupport } from '../voice-capability.ts';
 
 export type ProgressFn = (progress: VoiceProgress) => void;
 
@@ -102,8 +102,6 @@ export function ensureReady(onProgress: ProgressFn = () => {}): Promise<void> {
       intraOpNumThreads: Math.max(1, cfg.threads),
     };
     report({ phase: 'load' });
-    // 불러오다 앱이 꺼지면 끝 표시가 남지 않아 다음 실행이 "앱 목소리를 못 쓰는 기기"로 본다(voice-capability).
-    await markModelLoadStarted();
     const sessions: any = {};
     try {
       for (const k of MODEL_KINDS) {
@@ -126,7 +124,6 @@ export function ensureReady(onProgress: ProgressFn = () => {}): Promise<void> {
     } catch (e) {
       throw new VoicePrepareError('model_load', 'model load failed', { cause: e });
     }
-    await markModelLoadEnded();
     await setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
     report({ phase: 'ready' });
   })();

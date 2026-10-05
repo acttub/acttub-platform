@@ -63,6 +63,8 @@ import {
   choosePartnerVoice,
   markAppVoiceNoticed,
   markAppVoiceUnsupported,
+  markModelLoadEnded,
+  markModelLoadStarted,
   readAppVoiceSupport,
   type PartnerVoiceEngine,
 } from '@/lib/reading/voice-capability';
@@ -313,10 +315,11 @@ export default function ReadingPlay() {
 
   /** 실행으로 들어간다. 자동 넘김 안내 팝업을 아직 숨기지 않았으면 그 팝업부터 — 떠 있는 동안 첫 줄을 읽지 않는다. */
   const startRunning = useCallback(() => {
-    const hold = tipHiddenRef.current ? null : 'tip';
+    // 옛 회차(advance=manual)에는 자동 넘김이 없어 팝업도 없다.
+    const hold = tipHiddenRef.current || session?.advance !== 'silence' ? null : 'tip';
     holdRef.current = hold;
     setPhase({ kind: 'running', hold });
-  }, []);
+  }, [session?.advance]);
 
   // ── 목소리 준비 → 실행 ─────────────────────────────────────────────────────
   const prepare = useCallback(async () => {
@@ -362,7 +365,12 @@ export default function ReadingPlay() {
     setPhase({ kind: 'preparing', progress: null });
     try {
       await tts.ensureReady((progress) => {
-        if (mounted.current) setPhase({ kind: 'preparing', progress });
+        if (!mounted.current) return;
+        setPhase({ kind: 'preparing', progress });
+        // 불러오는 중에 앱이 꺼지면 다음 실행이 이 표시로 알아챈다(voice-capability). 이 화면에서 기다리는 불러오기만
+        // 센다 — 배경 미리 받기 중에 사용자가 앱을 끄는 것까지 꺼짐으로 보지 않으려고. 여기서도 스와이프로 끈 경우는 가려내지 못한다.
+        if (progress.phase === 'load') void markModelLoadStarted();
+        if (progress.phase === 'ready') void markModelLoadEnded();
       });
       if (!mounted.current) return;
       chooseEngine('supertonic');
@@ -506,7 +514,7 @@ export default function ReadingPlay() {
     setPhase((p) => (p.kind === 'running' ? { kind: 'running', hold: null } : p));
     const deferred = deferredRef.current;
     deferredRef.current = null;
-    if (!deferred) return;
+    if (!deferred || runRef.current?.status === 'paused') return;
     if (deferred.kind === 'advance') goNext(deferred.from);
     else deferredTimer.current = setTimeout(() => void onSilenceEndRef.current(deferred.from), DEFAULT_VAD.silenceMs);
   }, [goNext]);
@@ -556,11 +564,14 @@ export default function ReadingPlay() {
           void (async () => {
             const text = sttActive.current ? await stt.finish() : '';
             const line = cur.lines[cur.index] as DialogueLine;
-            await endTurnRecording(cur.lineIds[cur.index], text, text ? compareLine(text, line.text) : null);
+            const match = text ? compareLine(text, line.text) : null;
+            await endTurnRecording(cur.lineIds[cur.index], text, match);
             recordingClosed.current = true;
             sttActive.current = false;
             setListening(false);
             setTurnNote('limit');
+            const now = runRef.current;
+            if (now && now.index === from && (match?.kind === 'pass' || match?.kind === 'miss')) commit(recordMatch(now, match.kind, text));
           })();
         }, RECORDING_MAX_MS);
       }
@@ -603,6 +614,10 @@ export default function ReadingPlay() {
     if (!cur || (cur.status !== 'mine' && cur.status !== 'partner')) return;
     tts.stop();
     stopDeviceVoice();
+    // 시트가 떠 있는 동안 미뤄 둔 넘김은 버린다 — 이어서는 그 줄을 처음부터 다시 한다.
+    deferredRef.current = null;
+    if (deferredTimer.current) clearTimeout(deferredTimer.current);
+    deferredTimer.current = null;
     const next = pauseRun(cur);
     runRef.current = next;
     setRun(next);

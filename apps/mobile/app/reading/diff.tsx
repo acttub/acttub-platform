@@ -34,10 +34,12 @@ export default function ReadingDiff() {
     return flowRows({ lines: script.lines, lineIds: script.lineIds, ...review });
   }, [script, review]);
 
-  const load = useCallback(async () => {
-    if (!review) return;
+  const load = useCallback(async (): Promise<SessionRecording[]> => {
+    if (!review) return [];
     const detail = await fetchSession(review.sessionId);
-    if (mounted.current && detail) setRecordings(detail.recordings);
+    if (!detail) return [];
+    if (mounted.current) setRecordings(detail.recordings);
+    return detail.recordings;
   }, [review]);
 
   useEffect(() => {
@@ -62,9 +64,10 @@ export default function ReadingDiff() {
     setPlayingLine(null);
   };
 
-  /** 같은 줄의 녹음은 가장 큰 attempt_no 가 지금 것이다. 재생 주소가 만료됐으면 회차를 다시 조회한다. */
-  const recordingOf = (lineId: string): SessionRecording | null =>
-    recordings.filter((r) => r.line_id === lineId).sort((a, b) => b.attempt_no - a.attempt_no)[0] ?? null;
+  /** 같은 줄의 녹음은 가장 큰 attempt_no 가 지금 것이다. */
+  const latestOf = (list: SessionRecording[], lineId: string): SessionRecording | null =>
+    list.filter((r) => r.line_id === lineId).sort((a, b) => b.attempt_no - a.attempt_no)[0] ?? null;
+  const recordingOf = (lineId: string) => latestOf(recordings, lineId);
 
   const play = async (lineId: string) => {
     if (playingLine === lineId) {
@@ -73,10 +76,8 @@ export default function ReadingDiff() {
     }
     let rec = recordingOf(lineId);
     if (!rec) return;
-    if (isPlaybackExpired(rec)) {
-      await load();
-      rec = recordingOf(lineId);
-    }
+    // 재생 주소는 10분 서명이라 만료됐으면 회차를 다시 조회해 그 응답의 주소로 튼다.
+    if (isPlaybackExpired(rec)) rec = latestOf(await load(), lineId);
     if (!rec?.playback_url || !mounted.current) return;
     stop();
     const player = createAudioPlayer({ uri: rec.playback_url });
