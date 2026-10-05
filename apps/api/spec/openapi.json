@@ -4097,6 +4097,67 @@
         }
       }
     },
+    "/v2/app/posters" : {
+      "get" : {
+        "tags" : [ "v2-app" ],
+        "summary" : "List App Posters",
+        "description" : "지금 앱 첫 화면에 띄울 수 있는 공지 포스터를 우선순위 큰 것, 최근에 고친 것 순으로 최대 5장.\n켜져 있고 기간 안이며 플랫폼이 맞고 언어가 없거나 같은 것만 낸다. min_app_version 이 있는 포스터는\napp_version 이 그 이상일 때만 낸다(app_version 을 보내지 않으면 빠진다). 빈도·다시 보지 않기·\n대상(audience)의 판정은 앱이 기기 상태로 한다.",
+        "operationId" : "list_posters_v2_app_posters_get",
+        "parameters" : [ {
+          "name" : "platform",
+          "in" : "query",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "ios", "android" ],
+            "title" : "Platform"
+          }
+        }, {
+          "name" : "locale",
+          "in" : "query",
+          "description" : "앱 표시 언어(두 글자). 없으면 언어 없는 포스터만",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "title" : "Locale"
+          }
+        }, {
+          "name" : "app_version",
+          "in" : "query",
+          "description" : "앱 판(점으로 이은 숫자)",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "title" : "App Version"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AppPosterList"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/admissions" : {
       "get" : {
         "tags" : [ "v2-admissions" ],
@@ -9264,6 +9325,122 @@
         },
         "required" : [ "providers" ],
         "title" : "AuthProvidersResponse"
+      },
+      "AppPoster" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "앱 첫 화면 공지 포스터 한 장. image_url 과 image_asset 은 많아야 하나가 차 있다.",
+        "properties" : {
+          "slug" : {
+            "type" : "string",
+            "description" : "기기의 봤음·다시 보지 않기 저장 키",
+            "title" : "Slug"
+          },
+          "revision" : {
+            "type" : "integer",
+            "description" : "바뀌면 기기의 봤음·다시 보지 않기가 무효",
+            "title" : "Revision"
+          },
+          "frequency" : {
+            "type" : "string",
+            "enum" : [ "daily", "once" ],
+            "title" : "Frequency"
+          },
+          "audience" : {
+            "type" : "string",
+            "enum" : [ "all", "cloud_voice_off" ],
+            "title" : "Audience"
+          },
+          "dismissible" : {
+            "type" : "boolean",
+            "title" : "Dismissible"
+          },
+          "badge" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Badge"
+          },
+          "title" : {
+            "type" : "string",
+            "title" : "Title"
+          },
+          "body" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Body"
+          },
+          "image_url" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "1시간 주소"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Image Url"
+          },
+          "image_asset" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "앱 번들 이미지 이름"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Image Asset"
+          },
+          "audio_asset" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "앱 번들 소리 이름"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Audio Asset"
+          },
+          "cta_label" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Cta Label"
+          },
+          "cta_action" : {
+            "type" : "string",
+            "enum" : [ "none", "cloud_voice_enable", "route", "url" ],
+            "title" : "Cta Action"
+          },
+          "cta_target" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Cta Target"
+          }
+        },
+        "required" : [ "audience", "audio_asset", "badge", "body", "cta_action", "cta_label", "cta_target", "dismissible", "frequency", "image_asset", "image_url", "revision", "slug", "title" ],
+        "title" : "AppPoster"
+      },
+      "AppPosterList" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "posters" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/AppPoster"
+            },
+            "title" : "Posters"
+          }
+        },
+        "required" : [ "posters" ],
+        "title" : "AppPosterList"
       },
       "AdmissionNotice" : {
         "type" : "object",

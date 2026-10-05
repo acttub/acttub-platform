@@ -86,6 +86,6 @@ import './mascot-lines.test.mjs';
 import './android-release-config.test.mjs';
 import './app-rating.test.mjs';
 import './cloud-voice.test.mjs';
-import './cloud-voice-promo.test.mjs';
+import './poster.test.mjs';
 import './cloud-voice-contract.test.mjs';
 import './crashlytics-config.test.mjs';
