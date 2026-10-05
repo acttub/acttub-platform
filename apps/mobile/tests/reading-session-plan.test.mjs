@@ -3,13 +3,18 @@ import test from 'node:test';
 
 import {
   buildStartBody,
+  castPickOrder,
   defaultMyCharacterIds,
   dialogueNumbers,
   rangeError,
   rangeName,
+  rangeOfDialogueNos,
+  rangeOfLineIds,
   rangeTitle,
+  recentRanges,
   sceneRanges,
   snapRangeToDialogues,
+  startGate,
 } from '../lib/reading/session-plan.ts';
 
 const D = (role, text) => ({ type: 'dialogue', role, text });
@@ -81,28 +86,20 @@ test('reading.session: 구간 안에 내 대사가 없거나 시작 줄이 끝 �
   assert.equal(rangeError(WITH_SCENES, ['윤서', '태오'], 1, 8), null);
 });
 
-test('reading.session: 회차 시작 본문 — 요청 id·내 배역 id·방식·구간 줄 id·넘김·녹음', () => {
-  const body = buildStartBody({
-    requestId: 'rid-1',
-    myCharacterIds: ['c1'],
-    mode: 'quiz',
-    startLineId: 'l1',
-    endLineId: 'l9',
-    advance: 'silence',
-    record: false,
-  });
+test('reading.session: 회차 시작 본문 — 앱은 늘 읽어주기·녹음·말이 끝나면 넘김', () => {
+  const body = buildStartBody({ requestId: 'rid-1', myCharacterIds: ['c1', 'c2'], startLineId: 'l1', endLineId: 'l9' });
   assert.deepEqual(body, {
     request_id: 'rid-1',
-    my_character_ids: ['c1'],
-    mode: 'quiz',
+    my_character_ids: ['c1', 'c2'],
+    mode: 'read',
     start_line_id: 'l1',
     end_line_id: 'l9',
     advance: 'silence',
-    record: false,
+    record: true,
   });
 });
 
-test('reading.cast: 배역 화면의 기본 선택은 마지막 회차의 내 배역이고 회차가 없으면 아무것도 골라 두지 않는다', () => {
+test('reading.cast: 내 배역의 기본 선택은 마지막 회차의 내 배역이고 회차가 없으면 아무것도 골라 두지 않는다', () => {
   assert.deepEqual(defaultMyCharacterIds({ last_session: null, characters: [{ id: 'a' }, { id: 'b' }] }), []);
   assert.deepEqual(
     defaultMyCharacterIds({ last_session: { my_character_ids: ['b', 'zzz'] }, characters: [{ id: 'a' }, { id: 'b' }] }),
@@ -113,4 +110,58 @@ test('reading.cast: 배역 화면의 기본 선택은 마지막 회차의 내 �
 
 test('reading.cast: 배역이 하나뿐인 대본은 그 배역이 내 배역이다', () => {
   assert.deepEqual(defaultMyCharacterIds({ last_session: null, characters: [{ id: 'only' }] }), ['only']);
+});
+
+test('reading.cast: 회차 상세에서 넘긴 배역이 있으면 지난 회차보다 그것이 먼저다', () => {
+  const script = { last_session: { my_character_ids: ['a'] }, characters: [{ id: 'a' }, { id: 'b' }, { id: 'c' }] };
+  assert.deepEqual(defaultMyCharacterIds({ ...script, rolesParam: 'c,b' }), ['c', 'b']);
+  assert.deepEqual(defaultMyCharacterIds({ ...script, rolesParam: 'zzz' }), ['a'], '대본에 없는 id 뿐이면 지난 회차');
+  assert.deepEqual(defaultMyCharacterIds({ ...script, rolesParam: '' }), ['a']);
+});
+
+test('reading.cast: 내 배역 칩은 대사 많은 순이고 같으면 대본의 배역 순서다', () => {
+  const cast = [
+    { id: 'a', name: '소린', order: 0, dialogue_count: 3 },
+    { id: 'b', name: '니나', order: 1, dialogue_count: 9 },
+    { id: 'c', name: '마샤', order: 2, dialogue_count: 3 },
+    { id: 'd', name: '트레플레프', order: 3, dialogue_count: 7 },
+  ];
+  assert.deepEqual(castPickOrder(cast).map((c) => c.name), ['니나', '트레플레프', '소린', '마샤']);
+  assert.deepEqual(cast.map((c) => c.id), ['a', 'b', 'c', 'd'], '받은 배열은 그대로');
+});
+
+test('reading.session: 대사 번호 구간을 줄 인덱스로 — 대본에 없는 번호는 null', () => {
+  assert.deepEqual(rangeOfDialogueNos(WITH_SCENES, 3, 5), { startIndex: 4, endIndex: 8 });
+  assert.deepEqual(rangeOfDialogueNos(WITH_SCENES, 2, 2), { startIndex: 2, endIndex: 2 });
+  assert.equal(rangeOfDialogueNos(WITH_SCENES, 4, 9), null);
+  assert.equal(rangeOfDialogueNos(WITH_SCENES, 4, 2), null);
+});
+
+test('reading.session: 회차 상세가 넘긴 시작·끝 줄 id를 줄 인덱스로', () => {
+  const ids = ['l0', 'l1', 'l2', 'l3'];
+  assert.deepEqual(rangeOfLineIds(ids, 'l1', 'l3'), { startIndex: 1, endIndex: 3 });
+  assert.equal(rangeOfLineIds(ids, 'l3', 'l1'), null);
+  assert.equal(rangeOfLineIds(ids, undefined, 'l1'), null);
+  assert.equal(rangeOfLineIds(ids, 'l1', 'gone'), null);
+});
+
+const card = (id, start, end, started_at) => ({ id, range: { start_dialogue_no: start, end_dialogue_no: end }, started_at });
+
+test('reading.session: 최근 구간은 같은 구간을 가장 최근 회차 하나로 모으고 최근 순이다', () => {
+  const sessions = [
+    card('s1', 1, 110, '2026-05-24T10:00:00Z'),
+    card('s4', 30, 87, '2026-10-04T10:00:00Z'),
+    card('s2', 5, 12, '2026-05-25T10:00:00Z'),
+    card('s3', 30, 87, '2026-06-01T10:00:00Z'),
+  ];
+  assert.deepEqual(recentRanges(sessions).map((s) => s.id), ['s4', 's2', 's1']);
+  assert.deepEqual(recentRanges([]), []);
+});
+
+test('reading.session: 시작 버튼 — 배역 없음 → 마이크 없음 → 아직 모름 → 시작', () => {
+  assert.equal(startGate({ roleCount: 0, micGranted: false, loading: true }), 'pickRole');
+  assert.equal(startGate({ roleCount: 1, micGranted: false, loading: false }), 'needMic');
+  assert.equal(startGate({ roleCount: 1, micGranted: null, loading: false }), 'wait');
+  assert.equal(startGate({ roleCount: 2, micGranted: true, loading: true }), 'wait');
+  assert.equal(startGate({ roleCount: 2, micGranted: true, loading: false }), 'ready');
 });

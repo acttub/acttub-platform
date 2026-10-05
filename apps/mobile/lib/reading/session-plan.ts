@@ -1,9 +1,9 @@
 /**
- * 회차 설정(R02·R03, reading.cast · reading.session)의 순수 계산 — 장면 경계, 대사 번호, 구간 당기기,
- * 기기 사전 검사, 시작 요청 본문. 화면·서버를 모른다.
+ * 새 연습(R8, reading.cast · reading.session)의 순수 계산 — 장면 경계, 대사 번호, 구간 이름·당기기, 최근 구간,
+ * 내 배역 순서·기본값, 시작 가능 여부, 기기 사전 검사, 시작 요청 본문. 화면·서버를 모른다.
  */
 import type { ScriptLine } from './parse.ts';
-import type { ReadingAdvance, ReadingMode, StartSessionBody } from './types.ts';
+import type { SessionCard, StartSessionBody } from './types.ts';
 
 export type SceneRange = {
   /** 막·장 머리 줄의 글. 지문으로 나눈 장면은 null이고 화면이 번호로 부른다. */
@@ -136,35 +136,88 @@ export function rangeError(lines: ScriptLine[], myRoles: string[], start: number
   return 'empty_range';
 }
 
+/** 앱은 늘 읽어주기·녹음·말이 끝나면 넘김으로 시작한다(암기 대조·마이크 없는 진행은 앱에 없다). */
 export function buildStartBody(input: {
   requestId: string;
   myCharacterIds: string[];
-  mode: ReadingMode;
   startLineId: string;
   endLineId: string;
-  advance: ReadingAdvance;
-  record: boolean;
 }): StartSessionBody {
   return {
     request_id: input.requestId,
     my_character_ids: input.myCharacterIds,
-    mode: input.mode,
+    mode: 'read',
     start_line_id: input.startLineId,
     end_line_id: input.endLineId,
-    advance: input.advance,
-    record: input.record,
+    advance: 'silence',
+    record: true,
   };
 }
 
 /**
- * 배역 화면의 기본 선택 — 마지막 회차의 내 배역. 회차가 없으면 아무것도 골라 두지 않는다.
- * 배역이 하나뿐인 대본은 그 배역이 내 배역이다(화면은 확인만 받는다).
+ * 내 배역의 처음 선택. 회차 상세 「이 구간으로 다시 연습」이 넘긴 배역(쉼표로 이은 id)이 있으면 그것이고, 없으면
+ * 마지막 회차의 내 배역이다. 회차가 없으면 아무것도 골라 두지 않는다. 배역이 하나뿐인 대본은 그 배역이다.
  */
 export function defaultMyCharacterIds(script: {
   last_session: { my_character_ids: string[] } | null;
   characters: { id: string }[];
+  rolesParam?: string;
 }): string[] {
-  if (script.characters.length === 1) return [script.characters[0].id];
   const known = new Set(script.characters.map((c) => c.id));
+  const fromParam = (script.rolesParam ?? '').split(',').filter((id) => known.has(id));
+  if (fromParam.length) return fromParam;
+  if (script.characters.length === 1) return [script.characters[0].id];
   return (script.last_session?.my_character_ids ?? []).filter((id) => known.has(id));
+}
+
+/**
+ * 내 배역 칩 순서 — 대사 많은 순, 같으면 대본의 배역 순서(order).
+ * 등장인물 소개 순서는 order 로 올 자리지만 지금 저장(휴대폰 파서)은 order 를 처음 나온 순으로 매긴다.
+ * 대본을 나눌 때 소개 순서를 order 에 담게 되면 이 정렬을 걷어 order 를 그대로 쓴다.
+ */
+export function castPickOrder<T extends { order: number; dialogue_count: number }>(characters: T[]): T[] {
+  return [...characters].sort((a, b) => b.dialogue_count - a.dialogue_count || a.order - b.order);
+}
+
+export type LineRange = { startIndex: number; endIndex: number };
+
+/** 대사 번호 구간(1부터, 양끝 포함) → 줄 인덱스. 대본에 없는 번호면 null. */
+export function rangeOfDialogueNos(lines: ScriptLine[], startNo: number, endNo: number): LineRange | null {
+  const numbers = dialogueNumbers(lines);
+  const startIndex = numbers.indexOf(startNo);
+  const endIndex = numbers.indexOf(endNo);
+  return startIndex < 0 || endIndex < startIndex ? null : { startIndex, endIndex };
+}
+
+/** 회차 상세가 넘긴 시작·끝 줄 id → 줄 인덱스. 없거나 뒤집혀 있으면 null. */
+export function rangeOfLineIds(lineIds: string[], startId: string | undefined, endId: string | undefined): LineRange | null {
+  const startIndex = startId ? lineIds.indexOf(startId) : -1;
+  const endIndex = endId ? lineIds.indexOf(endId) : -1;
+  return startIndex < 0 || endIndex < startIndex ? null : { startIndex, endIndex };
+}
+
+/** 「최근 구간」 — 같은 구간은 가장 최근 회차 하나만, 최근에 시작한 순. 줄마다 그 회차의 회차 번호·날짜를 보인다. */
+export function recentRanges<T extends Pick<SessionCard, 'range' | 'started_at'>>(sessions: T[]): T[] {
+  const seen = new Set<string>();
+  return [...sessions]
+    .sort((a, b) => Date.parse(b.started_at) - Date.parse(a.started_at))
+    .filter((s) => {
+      const key = `${s.range.start_dialogue_no}-${s.range.end_dialogue_no}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+/**
+ * 시작 버튼 상태. 내 배역이 없으면 고르라 하고, 녹음은 늘 하므로 마이크 권한이 없으면 시작하지 못한다.
+ * 권한·최근 구간을 아직 모르면 잠깐 꺼 둔다(기본 구간이 바뀌기 전에 시작하지 않게).
+ */
+export type StartGate = 'pickRole' | 'needMic' | 'wait' | 'ready';
+
+export function startGate(input: { roleCount: number; micGranted: boolean | null; loading: boolean }): StartGate {
+  if (input.roleCount === 0) return 'pickRole';
+  if (input.micGranted === false) return 'needMic';
+  if (input.micGranted === null || input.loading) return 'wait';
+  return 'ready';
 }

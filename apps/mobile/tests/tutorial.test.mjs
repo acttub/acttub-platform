@@ -220,6 +220,19 @@ test('대본 리딩 네 화면 모두 비출 단계가 있고, 문구는 한국�
   }
 });
 
+test('새 연습(R8.10)은 ① 구간 ② 아래 시작 버튼을 비춘다', () => {
+  for (const mode of ['own', 'sample']) {
+    assert.deepEqual(tutorialSteps('readingRange', mode), [
+      { target: TARGET.readingRangePick, text: 'tutorial.rdRange' },
+      { target: TARGET.readingRangeStart, text: 'tutorial.rdGo' },
+    ]);
+  }
+  assert.equal(ko.tutorial.rdRangeTitle, '연습할 부분을 골라요');
+  assert.equal(ko.tutorial.rdRangeBody, '장면이나 대사로 골라요. 연습한 적이 있으면 최근 구간에서 바로 고를 수 있어요.');
+  assert.equal(ko.tutorial.rdGoTitle, '시작하면 상대 대사부터 들려요');
+  assert.equal(ko.tutorial.rdGoBody, '앱이 상대 대사를 읽고, 내 차례가 오면 멈춰요. 소리 내어 말하면 녹음돼요.');
+});
+
 test('예시 대본 경로는 파일 넣기 대신 채워 둔 대본을 비춘다', () => {
   const own = tutorialSteps('readingNew', 'own').map((s) => s.target);
   const sample = tutorialSteps('readingNew', 'sample').map((s) => s.target);
