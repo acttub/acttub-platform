@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.coach.app.CoachMemory;
+import com.acttub.actingapi.feature.coach.app.PastPracticeLoop;
 import com.acttub.actingapi.feature.coach.app.PriorContext;
 import com.acttub.actingapi.feature.memory.app.MemoryEntry;
 import com.acttub.actingapi.feature.memory.app.ActorMemoryStore;
@@ -246,7 +247,64 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
             }
         }
         String excerpt = rounds.isEmpty() ? null : practiceConversationExcerpt(rounds.getLast().get("conversation_id", UUID.class));
-        return new PriorContext(memory, excerpt, false, pending, history);
+        return new PriorContext(memory, excerpt, false, pending, history, recentPracticeLoops(userId, practiceId));
+    }
+
+    /** 배우.md에 읽는 최근 연습 루프 대화 수. */
+    static final int PAST_LOOPS = 5;
+
+    /**
+     * 같은 배우의 최근 연습 루프 대화(배우.md의 재료). 이번 연습은 빼고, 묶음과 관계없이 최신 {@value #PAST_LOOPS}개를
+     * 읽는다. SOMA-525는 다른 묶음의 <b>대화 발췌</b>를 넣지 않기로 했다 — 장면이 달라 코치가 상관없는 것을
+     * 물었다. 여기서는 장면 이야기가 아니라 배우가 코치에게 바란 것·아니라고 한 것을 옮기므로 묶음을 넘는다.
+     * 숨긴 연습은 읽지 않는다 — 배우가 치운 기록이 다른 연습의 코치에게 다시 나타나지 않게 한다.
+     * 닫히지 않은 대화도 읽는다. 배우가 도중에 떠난 대화에 바란 것이 가장 뚜렷하게 남는다.
+     */
+    private List<PastPracticeLoop> recentPracticeLoops(UUID userId, UUID practiceId) {
+        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
+                SELECT c.id,c.created_at,CAST(c.state->'practice_loop' AS text) AS loop_state,note.next_take
+                FROM coach_conversations c
+                JOIN practices p ON p.id=c.practice_id
+                LEFT JOIN LATERAL (
+                    SELECT n.next_take FROM coach_notes n WHERE n.conversation_id=c.id
+                    ORDER BY n.created_at DESC LIMIT 1
+                ) note ON true
+                WHERE p.user_id=:userId AND p.id<>:practiceId AND p.hidden_at IS NULL
+                  AND jsonb_typeof(c.state->'practice_loop')='object'
+                  AND EXISTS (SELECT 1 FROM coach_messages m WHERE m.conversation_id=c.id AND m.role='actor')
+                ORDER BY c.created_at DESC,c.id DESC
+                LIMIT %d
+                """.formatted(PAST_LOOPS), Tuple.class)
+                .setParameter("userId", userId).setParameter("practiceId", practiceId));
+        if (rows.isEmpty()) return List.of();
+        List<UUID> ids = rows.stream().map(row -> row.get("id", UUID.class)).toList();
+        Map<UUID, List<PastPracticeLoop.Turn>> turns = new LinkedHashMap<>();
+        NativeTuples.list(entityManager.createNativeQuery("""
+                SELECT conversation_id,role,text FROM coach_messages
+                WHERE conversation_id IN (:ids) ORDER BY conversation_id,turn_index
+                """, Tuple.class).setParameter("ids", ids))
+                .forEach(row -> turns.computeIfAbsent(row.get("conversation_id", UUID.class), id -> new ArrayList<>())
+                        .add(new PastPracticeLoop.Turn(row.get("role", String.class), row.get("text", String.class))));
+        List<PastPracticeLoop> past = new ArrayList<>();
+        for (Tuple row : rows) {
+            UUID id = row.get("id", UUID.class);
+            JsonNode loop;
+            try {
+                loop = mapper.readTree(row.get("loop_state", String.class));
+            } catch (JsonProcessingException failure) {
+                continue;
+            }
+            past.add(new PastPracticeLoop(instant(row.get("created_at")), loop,
+                    turns.getOrDefault(id, List.of()), row.get("next_take", String.class)));
+        }
+        return past;
+    }
+
+    private static Instant instant(Object value) {
+        if (value instanceof Instant instant) return instant;
+        if (value instanceof OffsetDateTime offset) return offset.toInstant();
+        if (value instanceof java.sql.Timestamp timestamp) return timestamp.toInstant();
+        return null;
     }
 
     /** 이전 회차의 마지막 세 왕복. 이번 회차 메시지는 엔진이 따로 받으므로 다시 넣지 않는다. */
