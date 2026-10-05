@@ -48,6 +48,34 @@ class MemoryExtractorTest {
         });
     }
 
+    /** SOMA-603: 모델이 쓰는 칸은 목표·막히는 지점·바라는 것·버릇·말투다. 옛 화법 칸과 다시 말하지 않을 것은 버린다. */
+    @Test
+    void keepsOnlyTheFieldsTheModelWrites() {
+        MemoryExtractor extractor = new MemoryExtractor(new RecordingFailureReporter());
+        Map<String, String> result = extractor.extract(material(), Map.of(), (system, user) -> """
+                {"goal":"새 목표","wants":"표정을 봐 달라고 했다","habits":"감정이 올라오면 고개를 돌린다",
+                 "tone":"짧게 답한다","avoid":"지어낸 것","speech_self":"또박또박"}
+                """, OPERATION);
+        // 칸 목록은 DB 값 목록을 따른다 — 새 칸 마이그레이션이 없는 배포에서는 목표만 남는다.
+        assertThat(result.keySet()).containsExactlyInAnyOrderElementsOf(
+                java.util.List.of("goal", "wants", "habits", "tone").stream()
+                        .filter(com.acttub.actingapi.feature.memory.domain.ActorMemoryFields.EXTRACTED::contains).toList());
+    }
+
+    /** 세션.md 한 줄은 이번 회차 노트로 실린다. */
+    @Test
+    void sessionNotesReachTheExtractionPrompt() {
+        var material = new MemoryUpdateMaterial(UUID.randomUUID(), UUID.randomUUID(), "", "분석", "그 외", "",
+                java.util.List.of(), java.util.List.of("(평가 요청) 평가해 주세요"), java.util.List.of(),
+                java.util.List.of("1차: 버릇 고개를 크게 돌림 — 제안: 손을 꽉 쥐기"));
+        assertThat(MemoryExtractor.buildExtractionPrompt(material, Map.of("habits", "고개를 돌린다", "speech_self", "옛 칸")))
+                .contains("[이번 회차 노트]\n- 1차: 버릇 고개를 크게 돌림 — 제안: 손을 꽉 쥐기",
+                        "- (평가 요청) 평가해 주세요", "- 자주 짚인 버릇: 고개를 돌린다")
+                .doesNotContain("옛 칸");
+        assertThat(MemoryExtractor.SYSTEM_PROMPT).contains("\"wants\"", "\"habits\"", "\"tone\"")
+                .doesNotContain("\"speech_self\"");
+    }
+
     private static MemoryUpdateMaterial material() {
         return new MemoryUpdateMaterial(
                 UUID.randomUUID(), UUID.randomUUID(), "목표", "분석", "캐릭터 분석", null,

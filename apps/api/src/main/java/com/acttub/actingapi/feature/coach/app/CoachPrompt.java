@@ -87,6 +87,10 @@ public final class CoachPrompt {
         MEMORY_LABELS.put("age", "나이");
         MEMORY_LABELS.put("goal", "배우가 말한 목표");
         MEMORY_LABELS.put("blockage", "배우가 반복해서 고른 막히는 지점");
+        MEMORY_LABELS.put("wants", "배우가 코치에게 바라는 것");
+        MEMORY_LABELS.put("habits", "자주 짚인 버릇");
+        MEMORY_LABELS.put("avoid", "배우가 아니라고 한 것(다시 꺼내지 않는다)");
+        MEMORY_LABELS.put("tone", "배우의 말투");
         MEMORY_LABELS.put("speech_self", "배우가 스스로 말하는 자기 화법");
         MEMORY_LABELS.put("speech_actual", "실제로 말한 방식");
     }
@@ -176,6 +180,8 @@ public final class CoachPrompt {
         if (!prior.memory().isEmpty()) {
             lines.add("");
             MEMORY_LABELS.forEach((name, label) -> {
+                // 연습 루프는 옛 화법 두 칸을 읽지 않는다 — 코치를 다시 말의 속도·끝맺음 쪽으로 끈다(SOMA-603).
+                if (goalSetting && name.startsWith("speech_")) return;
                 String value = prior.memory().get(name);
                 if (value != null && !value.isEmpty()) {
                     lines.add("- " + label + ": " + value);

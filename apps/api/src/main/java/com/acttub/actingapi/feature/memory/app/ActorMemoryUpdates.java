@@ -28,6 +28,21 @@ public interface ActorMemoryUpdates {
      */
     boolean schedule(UUID userId, UUID practiceId, Instant now);
 
+    /**
+     * 그 회차에서 배우가 아니라고 한 것(정정·반박)을 기억의 다시 말하지 않을 것에 바로 덧붙인다(SOMA-603). 모델을 부르지
+     * 않는다. 이미 있는 줄은 다시 넣지 않고, 배우가 직접 고친 칸이면 건너뛴다.
+     *
+     * @return 칸을 고쳤으면 참
+     */
+    boolean appendAvoid(UUID userId, UUID practiceId, Instant now);
+
+    /** 배우가 두 번 이상 답하고 말이 끊긴 열린 회차 — 닫히지 않아도 기억 갱신에 센다(SOMA-603). */
+    record Idle(UUID userId, UUID practiceId) {
+    }
+
+    /** 아직 갱신 작업이 없는, 말이 끊긴 열린 회차들. */
+    List<Idle> idle(Instant now);
+
     /** 대기 중인 갱신 하나를 선점한다. 집을 게 없으면 {@code null}. */
     Claimed claim(UUID leaseToken, Duration lease, Instant now);
 
