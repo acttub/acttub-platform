@@ -21,7 +21,7 @@ import com.fasterxml.jackson.databind.JsonNode;
  *
  * <p>모델 호출이 없다. 분류는 그 대화의 숨은 상태 칸({@code 배우의 말})이 이미 정해 둔 것을 읽고, 상태 칸이
  * 없던 옛 대화에서만 요청을 나타내는 낱말로 바란 것을 고른다. 배우가 기억을 고칠 화면이 없으므로 요약·추론을
- * 넣지 않는 것이 이 칸의 안전판이다. 상한을 넘으면 뒤(코치가 짚은 것)부터 잘린다.
+ * 넣지 않는 것이 이 칸의 안전판이다. 상한을 넘으면 뒤(코치가 짚은 것)부터 줄 단위로 빠진다.
  */
 final class PracticeLoopMemory {
 
@@ -32,7 +32,7 @@ final class PracticeLoopMemory {
     private static final int QUOTE_MAX = 80;
     private static final int PER_SECTION = 3;
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
-    private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("M/d");
+    private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("M/d HH:mm");
 
     /** 상태 칸이 없던 옛 대화에서 배우가 코치에게 무언가를 청한 말. */
     private static final Pattern WANT = Pattern.compile(
@@ -50,6 +50,8 @@ final class PracticeLoopMemory {
         List<String> self = new ArrayList<>();
         List<String> coach = new ArrayList<>();
         Set<String> avoid = new LinkedHashSet<>();
+        // 같은 말을 되풀이한 것("표정 위주로 봐달라고요!!!" 두 번)은 한 번만 싣는다.
+        Set<String> seen = new java.util.HashSet<>();
         int evaluation = 0;
         int method = 0;
         int pushback = 0;
@@ -75,6 +77,7 @@ final class PracticeLoopMemory {
                 String text = turn.text() == null ? "" : turn.text().strip();
                 if (text.isEmpty() || DirectVideoPracticeLoop.VAGUE.matcher(text).matches()
                         || ClosingIntent.isClosing(text)) continue;
+                if (!seen.add(text.replaceAll("[\\s!?.~…ㅠㅜ]+", ""))) continue;
                 // 이 말을 받은 다음 코치 턴의 상태 칸이 배우의 말을 분류해 두었다.
                 String kind = DirectVideoPracticeLoop.statusField(status(statuses, coachIndex), "배우의 말");
                 String quote = day + ": \"" + clip(text, QUOTE_MAX) + "\"";
@@ -104,8 +107,10 @@ final class PracticeLoopMemory {
             wants.addAll(localWants);
             denied.addAll(localDenied);
             self.addAll(localSelf);
-            String avoided = lastAvoid(statuses);
-            if (!avoided.isEmpty()) avoid.add(clip(avoided, 40));
+            for (String topic : lastAvoid(statuses).split("[,·/]")) {
+                String value = topic.strip();
+                if (!value.isEmpty() && !value.startsWith("없음")) avoid.add(clip(value, 30));
+            }
             if (!habit.isBlank()) {
                 String next = practice.nextTake() == null ? "" : practice.nextTake().strip();
                 coach.add(day + ": " + clip(habit, 40) + (next.isEmpty() ? "" : " — 제안: " + clip(next, 60)));
@@ -143,7 +148,10 @@ final class PracticeLoopMemory {
             lines.add("### 코치가 지난번에 짚은 것");
             coach.stream().limit(PER_SECTION).forEach(line -> lines.add("- " + line));
         }
-        return clip(String.join("\n", lines), MAX_CHARS) + "\n\n";
+        // 상한을 넘으면 뒤(코치가 짚은 것)부터 줄 단위로 덜어 낸다. 줄 가운데서 자르지 않는다.
+        while (lines.size() > 2 && length(String.join("\n", lines)) > MAX_CHARS) lines.removeLast();
+        while (!lines.isEmpty() && (lines.getLast().isBlank() || lines.getLast().startsWith("### "))) lines.removeLast();
+        return String.join("\n", lines) + "\n\n";
     }
 
     private static String status(JsonNode statuses, int index) {
@@ -160,10 +168,14 @@ final class PracticeLoopMemory {
         return "";
     }
 
+    private static int length(String text) {
+        return text.codePointCount(0, text.length());
+    }
+
     /** 코드포인트 기준으로 자르고 말줄임표를 붙인다. 줄바꿈은 한 칸으로 편다. */
     private static String clip(String text, int max) {
         String value = text.strip();
-        if (max < MAX_CHARS) value = value.replaceAll("\\s*\\n\\s*", " ");
+        value = value.replaceAll("\\s*\\n\\s*", " ");
         if (value.codePointCount(0, value.length()) <= max) return value;
         return value.substring(0, value.offsetByCodePoints(0, max)).stripTrailing() + "…";
     }
