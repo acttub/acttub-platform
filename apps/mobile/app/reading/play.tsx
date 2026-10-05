@@ -1,5 +1,4 @@
 import Feather from '@expo/vector-icons/Feather';
-import { File } from 'expo-file-system';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -61,7 +60,7 @@ import * as engine from '@/lib/reading/tts/engine';
 import type { VadEvent } from '@/lib/reading/vad';
 import { formatMegabytes, modelDownloadPrompt, type PartnerVoiceEngine } from '@/lib/reading/voice-policy';
 import { assignVoices } from '@/lib/reading/voices';
-import { analyzeVoice, decodeWav, envelopeFromSamples, pitchTrack, type VoiceFeedback } from '@/lib/reading/voice-feedback';
+import { pronunciationNotes } from '@/lib/reading/pronunciation-notes';
 import { loadVoiceFeedbackEnabled } from '@/lib/reading/voice-feedback-setting';
 import { VoiceFeedbackSummary, type LineFeedback } from '@/components/voice-feedback-summary';
 import { translate as t } from '@/lib/i18n';
@@ -159,7 +158,7 @@ export default function ReadingPlay() {
   const turnStartedAt = useRef(0);
   /** 180초에 이르러 이미 녹음을 멈추고 올린 줄 — 줄이 끝날 때 다시 올리지 않는다. */
   const recordingClosed = useRef(false);
-  /** 발성 피드백(실험). 켜져 있으면 내 차례마다 소리를 기기 안에서 보고 끝난 화면에 칩으로 모은다. */
+  /** 발음 피드백(실험). 켜져 있으면 내 차례마다 받아쓴 글을 대본과 맞춰 끝난 화면에 다르게 들린 어구를 모은다. */
   const voiceFeedbackOn = useRef(false);
   const [lineFeedback, setLineFeedback] = useState<LineFeedback[]>([]);
   const [pendingUploads, setPendingUploads] = useState(0);
@@ -220,46 +219,21 @@ export default function ReadingPlay() {
    * 녹음이 꺼진 회차면 파일을 지우기만 한다. 올리기는 진행을 막지 않는다.
    */
   /**
-   * 발성 피드백(실험) — 내 차례 한 줄의 소리를 기기 안에서 본다. 인식기 파일(wav)이면 표본에서 크기·음높이를,
-   * 녹음기면 미터링만으로 크기를 본다. 실패해도 진행·녹음에는 영향이 없다.
+   * 발음 피드백(실험) — 기기 STT 가 받아쓴 글과 대본을 맞춰 다르게 들린 어구를 모은다. 소리는 보지 않는다.
+   * 받아쓰기가 없는 차례(입력하기·녹음기만 쓴 기기)는 건너뛴다.
    */
-  const collectVoiceFeedback = useCallback(
-    async (
-      lineId: string,
-      uri: string | null,
-      kind: 'recorder' | 'stt_persist',
-      fromMic: { levelsDb: number[]; tickMs: number } | null,
-      match: LineMatch | null,
-    ): Promise<void> => {
-      try {
-        const cur = runRef.current;
-        const idx = cur ? cur.lineIds.indexOf(lineId) : -1;
-        if (!cur || idx < 0) return;
-        const line = cur.lines[idx] as DialogueLine;
-        let result: VoiceFeedback | null = null;
-        if (kind === 'stt_persist' && uri) {
-          const decoded = decodeWav(await new File(uri).bytes());
-          if (decoded) {
-            result = analyzeVoice({
-              envelopeDb: envelopeFromSamples(decoded.samples, decoded.sampleRate, 20),
-              frameMs: 20,
-              text: line.text,
-              pitchHz: pitchTrack(decoded.samples, decoded.sampleRate, 20),
-              match,
-            });
-          }
-        } else if (fromMic && fromMic.levelsDb.length > 0) {
-          result = analyzeVoice({ envelopeDb: fromMic.levelsDb, frameMs: fromMic.tickMs, text: line.text, match });
-        }
-        if (!result) return;
-        const no = dialogueNumbers(cur.lines)[idx];
-        const item: LineFeedback = { lineId, no, text: line.text, chips: result.chips };
-        setLineFeedback((prev) => [...prev.filter((x) => x.lineId !== lineId), item].sort((a, b) => (a.no ?? 0) - (b.no ?? 0)));
-        logEvent('reading_voice_feedback', { source: kind, chips: result.chips.join(',') || 'none' });
-      } catch {}
-    },
-    [],
-  );
+  const collectPronunciation = useCallback((lineId: string, said: string) => {
+    try {
+      const cur = runRef.current;
+      const idx = cur ? cur.lineIds.indexOf(lineId) : -1;
+      if (!cur || idx < 0 || !said.trim()) return;
+      const line = cur.lines[idx] as DialogueLine;
+      const notes = pronunciationNotes(line.text, said);
+      const item: LineFeedback = { lineId, no: dialogueNumbers(cur.lines)[idx], text: line.text, notes };
+      setLineFeedback((prev) => [...prev.filter((x) => x.lineId !== lineId), item].sort((x, y) => (x.no ?? 0) - (y.no ?? 0)));
+      logEvent('reading_pronunciation_feedback', { notes: notes.length });
+    } catch {}
+  }, []);
 
   const endTurnRecording = useCallback(
     async (lineId: string, text: string, match: LineMatch | null): Promise<void> => {
@@ -277,7 +251,7 @@ export default function ReadingPlay() {
         durationMs = fromMic.durationMs || durationMs;
         kind = fromMic.uri ? 'recorder' : kind;
       }
-      if (voiceFeedbackOn.current) await collectVoiceFeedback(lineId, uri, kind, fromMic, match);
+      if (voiceFeedbackOn.current && sttUsed) collectPronunciation(lineId, text);
       if (!uri) return;
       if (!session?.record || recordingClosed.current) {
         await deleteDeviceFile(uri).catch(() => undefined);
@@ -305,7 +279,7 @@ export default function ReadingPlay() {
         void alert({ title: t('reading.recordToggle'), message: t('reading.recordingTooLarge') });
       }
     },
-    [alert, collectVoiceFeedback, mic, session, stt],
+    [alert, collectPronunciation, mic, session, stt],
   );
 
   const commit = useCallback((next: RunState) => {
@@ -541,7 +515,7 @@ export default function ReadingPlay() {
       // 녹음이 켜진 회차인데 이 기기의 인식기가 소리를 남기지 못하면 녹음기로 받는다 — 받아쓰기보다 녹음이 먼저다.
       const recordOverStt = !!(session.record && !stt.canPersist());
       if (sttMode?.kind === 'stt' && !recordOverStt) {
-        const ok = stt.start({ onEvent, onInterim: setSaid }, { persist: !!session.record || voiceFeedbackOn.current });
+        const ok = stt.start({ onEvent, onInterim: setSaid }, { persist: !!session.record });
         sttActive.current = ok;
         opened = ok;
       }
