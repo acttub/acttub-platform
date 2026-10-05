@@ -66,14 +66,13 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
     "JWT_SECRET=test-secret",
     "ACCOUNT_CLEANUP_ENABLED=false",
     "ACCOUNT_HOUSEKEEPING_ENABLED=false",
-    // 겹쳐 보낸 시작 둘과 이관 중의 저장은 저마다 커넥션을 쥔 채 잠금을 기다린다.
+    // 이관 중의 저장은 저마다 커넥션을 쥔 채 잠금을 기다린다.
     "spring.datasource.hikari.maximum-pool-size=12"
 })
 @AutoConfigureMockMvc
 @Import({MutableClock.Fixture.class, ReadingSessionIT.StorageFixture.class})
 class ReadingSessionIT {
     private static final AtomicInteger ADDRESSES = new AtomicInteger();
-    private static final long START_GATE = 546_002L;
     private static final long TRANSFER_GATE = 546_003L;
     private static final OffsetDateTime PUBLISHED = OffsetDateTime.of(2026, 10, 1, 0, 0, 0, 0, ZoneOffset.UTC);
     private static String database;
@@ -181,45 +180,37 @@ class ReadingSessionIT {
     }
 
     @Test
-    @DisplayName("reading.session: 열린 회차가 있는 대본에서 \"새로운 연습\" — 이전 회차는 stopped, 새 회차는 in_progress 이고 그 대본의 in_progress 는 하나다. 겹쳐 시작해도 하나다(부분 유일 인덱스 경합)")
-    void readingSession_aNewSessionStopsTheOpenOneEvenWhenStartsOverlap() throws Exception {
+    @DisplayName("reading.session: 열린 회차가 있는 대본에서 \"새로운 연습\" — 이전 회차는 in_progress 로 남아 위치를 지키고 둘 다 이어 할 수 있다. 대본 상세의 open_session_id 는 가장 최근에 시작한 진행 중 회차다")
+    void readingSession_aNewSessionLeavesTheOpenOneResumable() throws Exception {
         String first = startSession(List.of(script.nina)).path("id").textValue();
-        json(patch("/v2/reading/sessions/{id}/progress", first).content("{\"progress_seq\":1,\"current_line_id\":\""
-                + script.dialogue(3) + "\",\"elapsed_seconds\":30}"), 200);
+        json(patch("/v2/reading/sessions/{id}/progress", first).content(progress(1, script.dialogue(3), 30, null)), 200);
         clock.advance(Duration.ofSeconds(1));
 
-        JsonNode second = startSession(List.of(script.treplev));
+        JsonNode started = startSession(List.of(script.treplev));
+        String second = started.path("id").textValue();
 
-        assertThat(second.path("status").textValue()).isEqualTo("in_progress");
-        assertThat(second.path("ordinal").intValue()).isEqualTo(2);
-        assertThat(jdbc.queryForObject("SELECT status FROM reading_sessions WHERE id=?", String.class, UUID.fromString(first)))
-                .isEqualTo("stopped");
-        assertThat(jdbc.queryForObject("SELECT current_line_id FROM reading_sessions WHERE id=?", UUID.class, UUID.fromString(first)))
-                .as("stopped 는 중단 위치를 유지한다").isEqualTo(script.dialogue(3));
-        assertThat(openSessions()).isEqualTo(1);
+        assertThat(started.path("status").textValue()).isEqualTo("in_progress");
+        assertThat(started.path("ordinal").intValue()).isEqualTo(2);
+        JsonNode kept = json(get("/v2/reading/sessions/{id}", first), 200);
+        assertThat(kept.path("status").textValue()).isEqualTo("in_progress");
+        assertThat(kept.path("current_line_id").textValue()).isEqualTo(script.dialogue(3).toString());
+        assertThat(openSessionOf(script.id)).isEqualTo(second);
 
-        // 시작 둘을 겹쳐 보낸다 — 새 회차의 INSERT 를 문 앞에 세우고 그 사이 또 하나를 보낸다.
-        holdSessionInserts();
-        ExecutorService pool = Executors.newFixedThreadPool(2);
-        try (Connection gate = outsideConnection()) {
-            try (Statement statement = gate.createStatement()) {
-                statement.execute("SELECT pg_advisory_lock(" + START_GATE + ")");
-            }
-            Future<Integer> firstStart = pool.submit(() -> startStatus(List.of(script.nina)));
-            awaitUntil("첫 시작이 문 앞에 서기", 1, this::lockWaiters);
-            Future<Integer> secondStart = pool.submit(() -> startStatus(List.of(script.arkadina)));
-            awaitUntil("둘째 시작이 대본 행에서 줄을 서기", 2, this::lockWaiters);
-            try (Statement statement = gate.createStatement()) {
-                statement.execute("SELECT pg_advisory_unlock(" + START_GATE + ")");
-            }
-            assertThat(firstStart.get()).isEqualTo(201);
-            assertThat(secondStart.get()).isEqualTo(201);
-        } finally {
-            pool.shutdownNow();
-        }
-        assertThat(count("reading_sessions")).isEqualTo(4);
-        assertThat(openSessions()).as("열린 회차는 대본당 하나다").isEqualTo(1);
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM reading_sessions WHERE status='stopped'", Integer.class)).isEqualTo(3);
+        clock.advance(Duration.ofSeconds(1));
+        assertThat(json(patch("/v2/reading/sessions/{id}/progress", first).content(progress(2, script.dialogue(4), 40, null)), 200)
+                .path("current_line_id").textValue()).as("앞 회차를 이어 한다").isEqualTo(script.dialogue(4).toString());
+        assertThat(json(patch("/v2/reading/sessions/{id}/progress", second).content(progress(1, script.dialogue(5), 10, null)), 200)
+                .path("current_line_id").textValue()).as("새 회차도 이어 한다").isEqualTo(script.dialogue(5).toString());
+        assertThat(openSessionOf(script.id)).as("마지막으로 저장한 회차가 아니라 마지막으로 시작한 회차").isEqualTo(second);
+        assertThat(json(get("/v2/reading/scripts/{id}/sessions", script.id), 200).path("sessions"))
+                .extracting(card -> card.path("status").textValue())
+                .containsExactly("in_progress", "in_progress");
+        assertThat(cardOf(script.id).path("status").textValue()).isEqualTo("reading");
+        assertThat(json(get("/v2/reading/scripts"), 200).path("in_progress_count").intValue()).as("대본 수다").isEqualTo(1);
+
+        json(patch("/v2/reading/sessions/{id}/progress", second).content("{\"progress_seq\":2,\"elapsed_seconds\":20,\"complete\":true}"), 200);
+        assertThat(openSessionOf(script.id)).as("마지막 것을 마치면 그 앞의 진행 중 회차").isEqualTo(first);
+        assertThat(cardOf(script.id).path("status").textValue()).isEqualTo("reading");
     }
 
     @Test
@@ -245,7 +236,7 @@ class ReadingSessionIT {
 
         assertThat(failed.getStatus()).isEqualTo(500);
         assertThat(jdbc.queryForObject("SELECT status FROM reading_sessions WHERE id=?", String.class, UUID.fromString(open)))
-                .as("닫으려던 것도 되돌아간다").isEqualTo("in_progress");
+                .isEqualTo("in_progress");
         assertThat(count("reading_sessions")).isEqualTo(1);
         jdbc.execute("DROP TRIGGER fail_session_insert ON reading_sessions");
 
@@ -306,7 +297,7 @@ class ReadingSessionIT {
     }
 
     @Test
-    @DisplayName("reading.session: 구간 마지막 대사를 넘기고 complete — completed, ended_at 있음, current_line_id NULL. 그 회차에 진행 저장 — 409 session_closed. stopped 회차에 진행 저장 — 409 session_closed")
+    @DisplayName("reading.session: 구간 마지막 대사를 넘기고 complete — completed, ended_at 있음, current_line_id NULL. 그 회차에 진행 저장 — 409 session_closed")
     void readingSession_completingClosesTheSessionAndClosedSessionsRejectProgress() throws Exception {
         String session = startSession(List.of(script.nina)).path("id").textValue();
         json(patch("/v2/reading/sessions/{id}/progress", session).content(progress(1, script.dialogue(8), 200, null)), 200);
@@ -326,15 +317,6 @@ class ReadingSessionIT {
         JsonNode closed = json(patch("/v2/reading/sessions/{id}/progress", session).content(progress(3, script.dialogue(2), 300, null)), 409);
         assertThat(closed).isEqualTo(mapper.readTree("{\"detail\":\"session_closed\"}"));
         assertThat(json(get("/v2/reading/sessions/{id}", session), 200).path("progress_seq").longValue()).isEqualTo(2);
-
-        String stopped = startSession(List.of(script.nina)).path("id").textValue();
-        startSession(List.of(script.treplev));
-        assertThat(jdbc.queryForObject("SELECT status FROM reading_sessions WHERE id=?", String.class, UUID.fromString(stopped)))
-                .isEqualTo("stopped");
-        assertThat(json(patch("/v2/reading/sessions/{id}/progress", stopped).content(progress(1, script.dialogue(2), 5, null)), 409))
-                .isEqualTo(mapper.readTree("{\"detail\":\"session_closed\"}"));
-        // 대본 카드 칩 — 열린 회차가 있으면 연습 중.
-        assertThat(cardOf(script.id).path("status").textValue()).isEqualTo("reading");
     }
 
     @Test
@@ -514,7 +496,7 @@ class ReadingSessionIT {
     }
 
     @Test
-    @DisplayName("reading.session·reading.script: 대본 카드 칩 — 열린 회차가 있으면 연습 중, 마지막 회차가 completed 면 연습 완료, stopped 만 남으면 배역 선택. 내 배역은 마지막 회차의 것이다")
+    @DisplayName("reading.session·reading.script: 대본 카드 칩 — 진행 중 회차가 하나라도 있으면 연습 중, 없고 마지막 회차가 completed 면 연습 완료, 회차가 없으면 배역 선택. 내 배역은 마지막 회차의 것이다")
     void readingSession_scriptCardsFollowTheLastSession() throws Exception {
         assertThat(cardOf(script.id).path("status").textValue()).isEqualTo("no_cast");
 
@@ -530,15 +512,20 @@ class ReadingSessionIT {
         clock.advance(Duration.ofSeconds(1));
         String second = startSession(List.of(script.treplev)).path("id").textValue();
         clock.advance(Duration.ofSeconds(1));
-        startSession(List.of(script.arkadina));
-        assertThat(perform(delete("/v2/reading/sessions/{id}", jdbc.queryForObject(
-                "SELECT id FROM reading_sessions WHERE status='in_progress'", UUID.class)), bearer).getStatus()).isEqualTo(204);
-        JsonNode stoppedOnly = cardOf(script.id);
-        assertThat(stoppedOnly.path("status").textValue()).as("마지막 회차가 stopped 면 배역 선택").isEqualTo("no_cast");
-        assertThat(stoppedOnly.path("my_character_names")).extracting(JsonNode::textValue)
-                .as("내 배역은 마지막 회차(stopped)의 것").containsExactly("트레플레프");
-        assertThat(jdbc.queryForObject("SELECT status FROM reading_sessions WHERE id=?", String.class, UUID.fromString(second)))
-                .isEqualTo("stopped");
+        String third = startSession(List.of(script.arkadina)).path("id").textValue();
+        json(patch("/v2/reading/sessions/{id}/progress", third).content("{\"progress_seq\":1,\"elapsed_seconds\":1,\"complete\":true}"), 200);
+        JsonNode stillReading = cardOf(script.id);
+        assertThat(stillReading.path("status").textValue()).as("마지막 회차는 끝났어도 앞 회차가 진행 중").isEqualTo("reading");
+        assertThat(stillReading.path("my_character_names")).extracting(JsonNode::textValue)
+                .as("내 배역은 마지막 회차의 것").containsExactly("아르카디나");
+
+        assertThat(perform(delete("/v2/reading/sessions/{id}", second), bearer).getStatus()).isEqualTo(204);
+        assertThat(cardOf(script.id).path("status").textValue()).isEqualTo("completed");
+
+        for (String done : List.of(first, third)) {
+            assertThat(perform(delete("/v2/reading/sessions/{id}", done), bearer).getStatus()).isEqualTo(204);
+        }
+        assertThat(cardOf(script.id).path("status").textValue()).as("회차가 없으면 배역 선택").isEqualTo("no_cast");
     }
 
     @Test
@@ -716,12 +703,6 @@ class ReadingSessionIT {
                 start(UUID.randomUUID(), characters, "read", script.dialogue(1), script.dialogue(8), "silence", true).toString()), 201);
     }
 
-    private int startStatus(List<UUID> characters) throws Exception {
-        return perform(post("/v2/reading/scripts/{id}/sessions", script.id).contentType(MediaType.APPLICATION_JSON).content(
-                start(UUID.randomUUID(), characters, "read", script.dialogue(1), script.dialogue(8), "silence", true).toString()), bearer)
-                .getStatus();
-    }
-
     private String progress(long seq, UUID currentLine, Integer elapsed, List<ObjectNode> results) {
         ObjectNode body = mapper.createObjectNode();
         body.put("progress_seq", seq);
@@ -750,8 +731,8 @@ class ReadingSessionIT {
         throw new AssertionError("no card for " + scriptId);
     }
 
-    private int openSessions() {
-        return jdbc.queryForObject("SELECT count(*) FROM reading_sessions WHERE status='in_progress'", Integer.class);
+    private String openSessionOf(UUID scriptId) throws Exception {
+        return json(get("/v2/reading/scripts/{id}", scriptId), 200).path("open_session_id").textValue();
     }
 
     private UUID member() {
@@ -829,23 +810,6 @@ class ReadingSessionIT {
     private Connection outsideConnection() throws Exception {
         return DriverManager.getConnection(PostgresContainerSupport.jdbcUrlFor(database),
                 PostgresContainerSupport.POSTGRES.getUsername(), PostgresContainerSupport.POSTGRES.getPassword());
-    }
-
-    /** 새 회차의 INSERT 가 문(advisory lock) 앞에서 멈추게 한다 — 실행 순서만 제어하고 결과는 공개 계약에서 본다. */
-    private void holdSessionInserts() {
-        jdbc.execute("""
-                CREATE OR REPLACE FUNCTION hold_session_insert() RETURNS trigger AS $$
-                BEGIN
-                    PERFORM pg_advisory_xact_lock_shared(%d);
-                    RETURN NEW;
-                END
-                $$ LANGUAGE plpgsql
-                """.formatted(START_GATE));
-        jdbc.execute("""
-                CREATE TRIGGER hold_session_insert
-                BEFORE INSERT ON reading_sessions
-                FOR EACH ROW EXECUTE FUNCTION hold_session_insert()
-                """);
     }
 
     /** 이관이 회차의 주인을 바꾸는 문장이 문 앞에서 멈추게 한다. 행 잠금은 이미 잡힌 뒤다. */

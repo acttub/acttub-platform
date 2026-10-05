@@ -129,7 +129,8 @@ final class ScriptDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<CharacterResponse> characters,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<LineResponse> lines,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int recordingCount,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) UUID openSessionId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true,
+                    description = "가장 최근에 시작한 진행 중 회차. 진행 중 회차는 한 대본에 여럿일 수 있다") UUID openSessionId,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) LastSessionResponse lastSession,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Instant createdAt,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Instant updatedAt) {

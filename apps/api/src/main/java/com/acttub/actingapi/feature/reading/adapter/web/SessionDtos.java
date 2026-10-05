@@ -109,7 +109,7 @@ final class SessionDtos {
     /**
      * 회차 상세. 시작 응답도 이 모양이다.
      *
-     * @param currentLineId 다음에 할 대사 줄. completed 면 {@code null}, stopped 는 중단 위치
+     * @param currentLineId 다음에 할 대사 줄. completed 면 {@code null}
      * @param recordings 줄 순서의 녹음. 재생 주소는 녹음 기능이 채운다
      */
     @Schema(name = "ReadingSession", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)

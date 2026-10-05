@@ -41,8 +41,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  * {@code users} 행을 잡은 뒤 리딩 행의 주인을 바꾸고 탈퇴·삭제는 행을 지우므로, 잠금을 기다린 뒤 다시 본 행이 없거나
  * 남의 것이면 그대로 404 다 — 옛 계정에 아무것도 남지 않는다(specs/reading 「리딩 자료의 이관·삭제·탈퇴」).
  *
- * <p>같은 대본의 시작이 겹치면 대본 행에서 줄을 선다 — 뒤의 것이 앞의 회차를 {@code stopped} 로 닫고 자기 회차를 만들어
- * 열린 회차는 언제나 하나다(부분 유일 인덱스 {@code uq_reading_sessions_open_script} 가 그물이다).
+ * <p>새 회차는 같은 대본의 진행 중 회차를 건드리지 않는다 — 한 대본에 진행 중 회차가 여럿일 수 있다.
  *
  * <p>회차 번호·구간의 대사 번호·내 대사 수·녹음된 줄 수는 저장하지 않고 조회할 때 센다. 배열 컬럼과 jsonb 는 텍스트로
  * 읽는다 — Hibernate 의 네이티브 결과가 Postgres 배열·jsonb 를 어떻게 돌려주는지에 기대지 않는다.
@@ -134,16 +133,6 @@ class PostgresSessionRepository implements SessionRepository {
             if (!mine) {
                 return new Start(null, StartOutcome.EMPTY_RANGE);
             }
-            // "새로운 연습" — 열린 회차를 닫고 새 회차를 만든다. 한 트랜잭션이다.
-            entityManager.createNativeQuery("""
-                    UPDATE reading_sessions
-                    SET status='stopped',updated_at=:now
-                    WHERE script_id=:scriptId
-                      AND status='in_progress'
-                    """)
-                    .setParameter("now", now.atOffset(ZoneOffset.UTC))
-                    .setParameter("scriptId", scriptId)
-                    .executeUpdate();
             UUID sessionId = UUID.randomUUID();
             entityManager.createNativeQuery("""
                     INSERT INTO reading_sessions(id,script_id,user_id,request_id,my_character_ids,mode,start_line_id,end_line_id,

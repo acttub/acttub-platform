@@ -540,7 +540,7 @@ class AdminEndpointIT {
                 UUID.fromString("00000000-0000-4000-8000-000000000803"),
                 "동시 대본 둘",
                 NOW.plusMinutes(20),
-                "stopped",
+                "in_progress",
                 "read");
         UUID validRecording = insertReadingRecording(
                 REAL_USER, tiedHigh.sessionId(), tiedHigh.lines().get(1), "reading/visible.m4a",
@@ -586,10 +586,10 @@ class AdminEndpointIT {
                 "id", "actor", "script_title", "started_at", "ended_at", "status", "mode",
                 "elapsed_seconds", "recording_count");
         assertThat(first.path("actor").textValue()).isEqualTo(md5(REAL_USER.toString()).substring(0, 8));
-        assertThat(first.path("status").textValue()).isEqualTo("stopped");
+        assertThat(first.path("status").textValue()).isEqualTo("in_progress");
         assertThat(first.path("mode").textValue()).isEqualTo("read");
         assertThat(first.path("recording_count").intValue()).isEqualTo(1);
-        assertThat(first.path("ended_at").isNull()).isFalse();
+        assertThat(first.path("ended_at").isNull()).isTrue();
         assertThat(page.toString()).doesNotContain(
                 REAL_USER.toString(), TEAM_USER.toString(), deactivated.toString(), purged.toString(),
                 "actor@example.com", "Team@Acttub.com", "관리자 상세에서만 보는 전사",
@@ -909,7 +909,7 @@ class AdminEndpointIT {
         jdbc.update("UPDATE users SET created_at=?, updated_at=? WHERE id=?",
                 NOW.minusYears(2), NOW.minusYears(2), REAL_USER);
         UUID oldReading = insertReadingSession(
-                REAL_USER, NOW.minusYears(1), "오래된 리딩 자유텍스트", "stopped");
+                REAL_USER, NOW.minusYears(1), "오래된 리딩 자유텍스트", "in_progress");
         UUID realReading = insertReadingSession(
                 REAL_USER, NOW.minusMinutes(40), "리딩 자유텍스트 비밀", "completed");
         UUID teamReading = insertReadingSession(
@@ -967,7 +967,7 @@ class AdminEndpointIT {
 
         JsonNode oldReadingRow = findActivity(activities, "reading:" + oldReading);
         assertThat(oldReadingRow.path("created_at").textValue()).isEqualTo(utc(NOW.minusYears(1).truncatedTo(ChronoUnit.MINUTES)));
-        assertThat(oldReadingRow.path("status").textValue()).isEqualTo("stopped");
+        assertThat(oldReadingRow.path("status").textValue()).isEqualTo("in_progress");
         JsonNode readingRow = findActivity(activities, "reading:" + realReading);
         assertThat(readingRow.path("created_at").textValue()).isEqualTo(utc(NOW.minusMinutes(40).truncatedTo(ChronoUnit.MINUTES)));
         assertThat(readingRow.path("status").textValue()).isEqualTo("completed");
@@ -1447,8 +1447,8 @@ class AdminEndpointIT {
                     "{\"detail\":[{\"type\":\"value_error\",\"loc\":[\"query\",\"exclude_actors\"],\"msg\":\"Value error, exclude_actors must be up to 100 comma-separated 8-digit lowercase hex pseudonyms\",\"input\":\"nothex12\"}]}"},
             {"GET", "/v2/admin/challenge-videos?visibility=friends",
                     "{\"detail\":[{\"type\":\"literal_error\",\"loc\":[\"query\",\"visibility\"],\"msg\":\"Input should be 'all', 'public' or 'private'\",\"input\":\"friends\",\"ctx\":{\"expected\":\"'all', 'public' or 'private'\"}}]}"},
-            {"GET", "/v2/admin/reading-sessions?status=done",
-                    "{\"detail\":[{\"type\":\"literal_error\",\"loc\":[\"query\",\"status\"],\"msg\":\"Input should be 'all', 'in_progress', 'completed' or 'stopped'\",\"input\":\"done\",\"ctx\":{\"expected\":\"'all', 'in_progress', 'completed' or 'stopped'\"}}]}"},
+            {"GET", "/v2/admin/reading-sessions?status=stopped",
+                    "{\"detail\":[{\"type\":\"literal_error\",\"loc\":[\"query\",\"status\"],\"msg\":\"Input should be 'all', 'in_progress' or 'completed'\",\"input\":\"stopped\",\"ctx\":{\"expected\":\"'all', 'in_progress' or 'completed'\"}}]}"},
         };
         for (String[] item : cases) {
             var request = "POST".equals(item[0]) ? post(item[1]) : get(item[1]);

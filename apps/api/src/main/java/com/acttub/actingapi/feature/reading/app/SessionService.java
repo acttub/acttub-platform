@@ -39,8 +39,8 @@ public class SessionService {
     }
 
     /**
-     * 회차를 시작한다. 열린 회차가 있으면 같은 트랜잭션에서 {@code stopped} 로 닫는다("새로운 연습"). 연결이 끊겨 같은
-     * 요청이 다시 오면 먼저 만든 회차를 돌려준다({@code created=false}).
+     * 회차를 시작한다. 같은 대본의 진행 중 회차는 그대로 남는다. 연결이 끊겨 같은 요청이 다시 오면 먼저 만든 회차를
+     * 돌려준다({@code created=false}).
      */
     public Started start(UUID userId, UUID scriptId, UUID requestId, SessionPlan plan) {
         Start start = sessions.start(userId, scriptId, requestId, plan, clock.instant());

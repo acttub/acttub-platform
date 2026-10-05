@@ -59,7 +59,7 @@ class RecordingController {
                     같은 request_id 는 같은 행(200), 같은 줄의 더 큰 attempt_no 는 대체(201), 더 작은 번호는 200 현재 값.
                     10,000,000바이트·180초 초과 422 recording_too_long, 총량(회원 1GB·게스트 100MB) 초과 422 recording_quota,
                     구간 밖·상대역·지문 줄 422 invalid_line, 지워진 회차 404, 변환 실패 503 audio_conversion_failed.
-                    completed·stopped 회차에도 받는다.""",
+                    completed 회차에도 받는다.""",
             operationId = "upload_reading_recording_v2_reading_sessions__session_id__recordings_post",
             tags = "v2-reading",
             security = @SecurityRequirement(name = "HTTPBearer"))

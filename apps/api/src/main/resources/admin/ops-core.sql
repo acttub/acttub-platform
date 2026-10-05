@@ -763,7 +763,6 @@ SELECT json_build_object(
           'users', count(DISTINCT user_id),
           'users_d7', count(DISTINCT user_id) FILTER (WHERE started_at > (SELECT d7 FROM w)),
           'completed', count(*) FILTER (WHERE status = 'completed'),
-          'stopped', count(*) FILTER (WHERE status = 'stopped'),
           'in_progress', count(*) FILTER (WHERE status = 'in_progress'),
           'read', count(*) FILTER (WHERE mode = 'read'),
           'quiz', count(*) FILTER (WHERE mode = 'quiz'),
