@@ -22,7 +22,7 @@
 ## 입력·출력
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
-| `POST /v2/reading/sessions/{session_id}/recordings` | multipart `ReadingRecordingUploadForm`(request_id·line_id·attempt_no·audio·duration_ms·transcript_source, transcript·matched 선택), `X-Request-Id`(선택, 있으면 본문과 같아야 한다). 서버가 받아 m4a가 아니면 변환하고 객체 저장소에 올린 뒤 행을 만든다. 올릴 자리를 따로 받지 않는다 | `ReadingSessionRecording` 201(생성·대체), 200(같은 요청 재전송·더 작은 attempt_no, 현재 값) | `recording_too_long`·`invalid_line`·`recording_quota` 422, 칸 형태 422 배열, `session_not_found` 404, `audio_conversion_failed`·`storage_not_configured` 503, 25MB 초과 `upload_too_large` 413 |
+| `POST /v2/reading/sessions/{session_id}/recordings` | multipart `ReadingRecordingUploadForm`(request_id·line_id·attempt_no·audio·duration_ms·transcript_source, transcript·matched 선택), `X-Request-Id`(선택, 있으면 본문과 같아야 한다). 서버가 받아 m4a가 아니면 변환하고 객체 저장소에 올린 뒤 행을 만든다. 올릴 자리를 따로 받지 않는다 | `ReadingSessionRecording` 201(생성·대체), 200(같은 요청 재전송·더 작은 attempt_no, 현재 값) | `recording_too_long`·`recording_empty`·`invalid_line`·`recording_quota` 422, 칸 형태 422 배열, `session_not_found` 404, `audio_conversion_failed`·`storage_not_configured` 503, 25MB 초과 `upload_too_large` 413 |
 | `GET /v2/reading/sessions/{session_id}`(재생) | `session_id` | `ReadingSession`의 `recordings`(줄 순서, 10분 서명 `playback_url`) 200 | `session_not_found` 404 |
 | `DELETE /v2/reading/recordings/{recording_id}` | `recording_id` | 204, 객체는 삭제 장부로 | `recording_not_found` 404 |
 | `ReadingRecordingCleanup.attempt`(대본·회차·녹음 삭제, 대체, 반영하지 못한 올리기의 커밋 직후), `AccountCleanupScheduler.run`(주기는 [account.withdraw](../account/withdraw.md#입력출력)) | 삭제 장부의 `reading_recording_delete` | 녹음 객체 삭제 | 실패하면 장부에 남아 재시도([account.withdraw](../account/withdraw.md#상태)) |
@@ -56,6 +56,7 @@
   현재 값)·같은 줄에 같거나 큰 attempt_no(200 현재 값) → 변환 → 객체 저장(스토리지 설정이 없으면 503
   storage_not_configured) → 최종 저장(같은 확인을 다시 하고 총량을 본다).
 - 형식: 앱은 되도록 m4a(AAC)로 올리되 온디바이스 STT가 켜진 동안은 인식기가 저장한 파일을 그대로 올릴 수 있다. 웹은 브라우저가 내는
+- 인식기 녹음은 기기가 지원할 때(`supportsRecording()`, Android 13+·iOS)만 켠다. 녹음이 켜진 회차인데 지원하지 않으면 그 회차는 받아쓰기 대신 녹음기로 받는다. 인식기 파일은 `audioend` 뒤에야 다 써지므로 최대 1.5초 기다려 가져간다. 비어서 버린 녹음은 `reading_recording_empty`(kind·reason·platform)로 센다.
   형식(webm/opus 또는 mp4/aac)으로 올린다. 서버는 content_type을 보고 m4a(AAC)가 아니면(`audio/mp4`·`audio/m4a`·`audio/x-m4a`·
   `audio/aac`는 그대로 둔다) 올리는 자리에서 m4a로 바꿔 저장한다(영상에 쓰는
   ffmpeg, 내용은 읽지 않음). 저장 형식이 하나여야 이관 뒤 앱에서 웹
@@ -109,6 +110,7 @@
 - 같은 요청 id 재전송: 행 하나, 객체 하나. attempt_no 1이 attempt_no 2 뒤에 늦게 도착: 200이고 행은 2번 그대로다.
 - 웹에서 webm/opus로 올림: 저장된 객체는 m4a이고 content_type이 audio/mp4다. 이관 뒤 앱에서 재생된다.
 - 변환을 실패시킴: 503 audio_conversion_failed, 행·객체 없음. 같은 요청 id로 다시: 200.
+- 소리가 들어 있을 수 없는 파일(변환 뒤 m4a 1,000바이트 미만, 예: 머리만 있는 258바이트 m4a·44바이트 wav): 422 recording_empty, 행·객체 없음. 앱은 올리기 전에 같은 판단으로 거른다(wav 9,600바이트·그 밖 2,000바이트·0.3초 미만은 보내지 않음).
 - 10,000,001바이트 파일: 422 recording_too_long, 행 없음. 181초: 422 recording_too_long. 정확히 180초: 저장되고 녹음이 멈춘다.
 - 총량 1,000,000,000바이트를 넘긴 회원의 새 녹음: 422 recording_quota, 기존 행 그대로. 게스트 100,000,000바이트 초과도 같다.
   이관으로 총량을 넘긴 회원: 기존은 모두 보이고 새 저장만 422.
