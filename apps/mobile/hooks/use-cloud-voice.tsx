@@ -13,6 +13,8 @@ export function useCloudVoice() {
   const insets = useSafeAreaInsets();
   const [toast, setToast] = useState(false);
   const [status, setStatus] = useState<CloudVoiceStatus | null>(null);
+  /** 상태를 못 받아 왔다 — 기다리지 말고 모르는 채로 진행하라는 신호(공지 포스터가 쓴다). */
+  const [statusFailed, setStatusFailed] = useState(false);
   const [enabled, setEnabled] = useState(false);
   const [document, setDocument] = useState<ConsentEntryDocument | null>(null);
   const [busy, setBusy] = useState(false);
@@ -22,10 +24,11 @@ export function useCloudVoice() {
     const [stored, next] = await Promise.all([loadCloudVoiceEnabled(), api.getCloudVoiceStatus()]);
     setEnabled(stored);
     setStatus(next);
+    setStatusFailed(false);
     return next;
   }, []);
 
-  useEffect(() => { void refresh().catch(() => undefined); }, [refresh]);
+  useEffect(() => { void refresh().catch(() => setStatusFailed(true)); }, [refresh]);
 
   const finishEnable = useCallback(async (source: 'promo' | 'settings') => {
     await saveCloudVoiceEnabled(true);
@@ -94,7 +97,7 @@ export function useCloudVoice() {
     </>
   );
 
-  return { status, enabled, busy, refresh, enable, disable, consentSheet };
+  return { status, statusFailed, enabled, busy, refresh, enable, disable, consentSheet };
 }
 
 const styles = StyleSheet.create({

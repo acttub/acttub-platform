@@ -60,7 +60,8 @@ export function AnnouncementPoster({ loggedIn, blocked = false, onboardingJustFi
   useEffect(() => {
     if (decided.current || !loggedIn || blocked || onboardingJustFinished || !posters || posters.length === 0) return;
     // 고품질 목소리를 아직 안 켠 사람에게만 보일 포스터가 있으면 그 상태를 받은 뒤에 고른다.
-    if (!cloud.status && posters.some((item) => item.audience === 'cloud_voice_off')) return;
+    // 상태 요청이 실패했으면 기다리지 않는다 — 그 포스터만 빼고(cloudVoice null) 나머지에서 고른다.
+    if (!cloud.status && !cloud.statusFailed && posters.some((item) => item.audience === 'cloud_voice_off')) return;
     let cancelled = false;
     void loadPosterState(AsyncStorage).then((state) => {
       if (cancelled || decided.current) return;
@@ -78,7 +79,7 @@ export function AnnouncementPoster({ loggedIn, blocked = false, onboardingJustFi
       logEvent('poster_shown', { slug: picked.slug, revision: picked.revision });
     }).catch(() => undefined);
     return () => { cancelled = true; };
-  }, [blocked, cloud.enabled, cloud.status, loggedIn, onboardingJustFinished, posters]);
+  }, [blocked, cloud.enabled, cloud.status, cloud.statusFailed, loggedIn, onboardingJustFinished, posters]);
 
   useEffect(() => () => { try { player.current?.remove(); } catch {} }, []);
   useEffect(() => {

@@ -1876,6 +1876,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/app/posters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List App Posters
+         * @description 지금 앱 첫 화면에 띄울 수 있는 공지 포스터를 우선순위 큰 것, 최근에 고친 것 순으로 최대 5장.
+         *     켜져 있고 기간 안이며 플랫폼이 맞고 언어가 없거나 같은 것만 낸다. min_app_version 이 있는 포스터는
+         *     app_version 이 그 이상일 때만 낸다(app_version 을 보내지 않으면 빠진다). 빈도·다시 보지 않기·
+         *     대상(audience)의 판정은 앱이 기기 상태로 한다.
+         */
+        get: operations["list_posters_v2_app_posters_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/admissions": {
         parameters: {
             query?: never;
@@ -4315,6 +4338,60 @@ export interface components {
         AuthProvidersResponse: {
             /** Providers */
             providers: string[];
+        };
+        /**
+         * AppPoster
+         * @description 앱 첫 화면 공지 포스터 한 장. image_url 과 image_asset 은 많아야 하나가 차 있다.
+         */
+        AppPoster: {
+            /**
+             * Slug
+             * @description 기기의 봤음·다시 보지 않기 저장 키
+             */
+            slug: string;
+            /**
+             * Revision
+             * @description 바뀌면 기기의 봤음·다시 보지 않기가 무효
+             */
+            revision: number;
+            /**
+             * Frequency
+             * @enum {string}
+             */
+            frequency: "daily" | "once";
+            /**
+             * Audience
+             * @enum {string}
+             */
+            audience: "all" | "cloud_voice_off";
+            /** Dismissible */
+            dismissible: boolean;
+            /** Badge */
+            badge: string | null;
+            /** Title */
+            title: string;
+            /** Body */
+            body: string | null;
+            /** Image Url */
+            image_url: string | null;
+            /** Image Asset */
+            image_asset: string | null;
+            /** Audio Asset */
+            audio_asset: string | null;
+            /** Cta Label */
+            cta_label: string | null;
+            /**
+             * Cta Action
+             * @enum {string}
+             */
+            cta_action: "none" | "cloud_voice_enable" | "route" | "url";
+            /** Cta Target */
+            cta_target: string | null;
+        };
+        /** AppPosterList */
+        AppPosterList: {
+            /** Posters */
+            posters: components["schemas"]["AppPoster"][];
         };
         /** AdmissionNotice */
         AdmissionNotice: {
@@ -7934,6 +8011,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuthProvidersResponse"];
+                };
+            };
+        };
+    };
+    list_posters_v2_app_posters_get: {
+        parameters: {
+            query: {
+                platform: "ios" | "android";
+                /** @description 앱 표시 언어(두 글자). 없으면 언어 없는 포스터만 */
+                locale?: string;
+                /** @description 앱 판(점으로 이은 숫자) */
+                app_version?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppPosterList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
