@@ -9,7 +9,7 @@ import { useAppDialog } from '@/components/app-dialog';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
 import { TARGET } from '@/lib/spotlight-targets';
-import { hasMicPermission } from '@/hooks/use-reading-mic';
+import { hasMicPermission, micPermissionGranted } from '@/hooks/use-reading-mic';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import {
   buildStartBody,
@@ -98,13 +98,14 @@ export default function ReadingRange() {
     };
   }, [script, hasHistory]);
 
-  // 설정에서 마이크를 켜고 돌아오면 다시 확인한다.
+  // 들어올 때 한 번 묻고, 거절했으면 [설정 열기]로 보낸다(R8.7). 돌아올 때는 확인만 한다 — OS 팝업이 닫히면서도
+  // 앱이 다시 active 가 되니, 그때 또 물으면 팝업이 거듭 뜬다.
   useEffect(() => {
     let alive = true;
-    const check = () => void hasMicPermission().then((granted) => alive && setMicGranted(granted));
-    check();
+    const apply = (granted: boolean) => alive && setMicGranted(granted);
+    void hasMicPermission().then(apply);
     const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') check();
+      if (state === 'active') void micPermissionGranted().then(apply);
     });
     return () => {
       alive = false;
