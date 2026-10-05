@@ -22,7 +22,7 @@ import { RECORDING_MAX_MS, contentTypeFor, nextAttemptNo, transcriptFields } fro
 import { enqueueLineRecording, onRecordingQueueChange, pendingRecordingUploads } from '@/lib/reading/recording-runner';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import { buildStartBody } from '@/lib/reading/session-plan';
-import { differentLines, readDialogueCount } from '@/lib/reading/session-results';
+import { differentLines, directionLabel, readDialogueCount } from '@/lib/reading/session-results';
 import {
   advance,
   createRun,
@@ -943,7 +943,7 @@ export default function ReadingPlay() {
               {hiddenOf(l) ? <HiddenBars text={l.text} tone="past" /> : <Text style={styles.pastText}>{l.text}</Text>}
             </View>
           ) : (
-            <Text key={key} style={styles.direction}>{l.text}</Text>
+            <Text key={key} style={styles.direction}>{l.type === 'direction' ? directionLabel(l.text) : l.text}</Text>
           ),
         )}
 
@@ -1114,7 +1114,7 @@ const styles = StyleSheet.create({
   diffBox: { alignSelf: 'stretch', backgroundColor: palette.card, borderColor: palette.border, borderWidth: 1, borderRadius: 14, padding: 14, gap: 12 },
   diffHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', borderBottomColor: palette.borderSoft, borderBottomWidth: 1, paddingBottom: 10 },
   diffTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 15 },
-  diffCount: { color: palette.amber, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
+  diffCount: { color: palette.amber, fontFamily: 'Pretendard-SemiBold', fontSize: 13, backgroundColor: palette.amberSoft, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, overflow: 'hidden' },
   diffRow: { gap: 4 },
   diffNo: { color: palette.textFaint, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
   diffAll: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2, paddingTop: 2 },
@@ -1137,10 +1137,10 @@ const styles = StyleSheet.create({
 
   flow: { flex: 1 },
   flowContent: { flexGrow: 1, justifyContent: 'flex-end', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8, gap: 14 },
-  direction: { color: palette.textFaint, fontFamily: 'Pretendard', fontSize: 13, lineHeight: 19, textAlign: 'center' },
+  direction: { color: palette.checkOff, fontFamily: 'Pretendard', fontSize: 13, lineHeight: 19, textAlign: 'center' },
   pastRow: { gap: 3, paddingHorizontal: 8 },
-  pastRole: { color: palette.textFaint, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
-  pastText: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 22 },
+  pastRole: { color: palette.checkOff, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
+  pastText: { color: palette.checkOff, fontFamily: 'Pretendard', fontSize: 15, lineHeight: 22 },
   card: { borderRadius: 16, padding: 18, gap: 12, borderWidth: 1.5 },
   cardOther: { backgroundColor: palette.bgSoft, borderColor: palette.bgSoft },
   cardMine: { backgroundColor: palette.blueSoft, borderColor: palette.blue },

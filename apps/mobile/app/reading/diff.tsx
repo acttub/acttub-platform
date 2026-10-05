@@ -10,7 +10,7 @@ import { DiffText } from '@/components/diff-text';
 import { latestRecordings } from '@/lib/reading/recording-plan';
 import { onRecordingQueueChange } from '@/lib/reading/recording-runner';
 import { isPlaybackExpired } from '@/lib/reading/session-cards';
-import { flowRows } from '@/lib/reading/session-results';
+import { directionLabel, flowRows } from '@/lib/reading/session-results';
 import { fetchSession, getCurrent, getLastRunReview } from '@/lib/reading/store';
 import type { SessionRecording } from '@/lib/reading/types';
 import { translate as t } from '@/lib/i18n';
@@ -103,7 +103,9 @@ export default function ReadingDiff() {
   return (
     <ScrollView style={styles.root} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
       {rows.map((row) => {
-        if (row.line.type !== 'dialogue') return <Text key={row.lineId} style={styles.direction}>{row.line.text}</Text>;
+        if (row.line.type !== 'dialogue') {
+          return <Text key={row.lineId} style={styles.direction}>{row.line.type === 'direction' ? directionLabel(row.line.text) : row.line.text}</Text>;
+        }
         if (!row.different) {
           return (
             <View key={row.lineId} style={styles.row}>

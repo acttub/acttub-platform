@@ -21,6 +21,7 @@ import {
   shortTime,
   type SessionLine,
 } from '@/lib/reading/session-cards';
+import { directionLabel } from '@/lib/reading/session-results';
 import { deleteSession, fetchSession, getCurrent, setCurrentSession } from '@/lib/reading/store';
 import type { SessionDetail, SessionRecording } from '@/lib/reading/types';
 import { translate as t } from '@/lib/i18n';
@@ -221,7 +222,7 @@ export default function ReadingSession() {
     if (row.type !== 'dialogue') {
       return (
         <Text key={row.lineId} style={row.type === 'scene' ? styles.scene : styles.direction}>
-          {row.text}
+          {row.type === 'direction' ? directionLabel(row.text) : row.text}
         </Text>
       );
     }

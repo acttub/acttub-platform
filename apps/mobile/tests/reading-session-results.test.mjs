@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { differentLines, flowRows, readDialogueCount } from '../lib/reading/session-results.ts';
+import { differentLines, directionLabel, flowRows, readDialogueCount } from '../lib/reading/session-results.ts';
 
 const D = (role, text) => ({ type: 'dialogue', role, text });
 const X = (text) => ({ type: 'direction', text });
@@ -39,4 +39,9 @@ test('reading.session: 대본 흐름(R9.26)은 구간 줄 전부를 순서대로
 test('reading.session: 읽은 대사는 구간 안 대사 줄 수다(부분 구간을 대본 전체 완료로 말하지 않는다)', () => {
   assert.equal(readDialogueCount(LINES, 1, 6), 5);
   assert.equal(readDialogueCount(LINES, 4, 6), 3);
+});
+
+test('reading.session: 대본 흐름의 지문은 괄호에 싸서 보인다(이미 싸여 있으면 그대로)', () => {
+  assert.equal(directionLabel('사이. 태오가 난간에 기댄다.'), '(사이. 태오가 난간에 기댄다.)');
+  assert.equal(directionLabel('(웃으며)'), '(웃으며)');
 });

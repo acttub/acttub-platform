@@ -51,3 +51,8 @@ export function readDialogueCount(lines: ScriptLine[], startIndex: number, endIn
   for (let i = Math.max(0, startIndex); i <= endIndex && i < lines.length; i++) if (lines[i].type === 'dialogue') n += 1;
   return n;
 }
+
+/** 대본 흐름(실행·회차 상세·전체 보기)의 지문. 나눌 때 괄호를 떼어 저장하므로 보일 때 다시 싼다. */
+export function directionLabel(text: string): string {
+  return /^[(（].*[)）]$/.test(text.trim()) ? text : `(${text})`;
+}
