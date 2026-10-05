@@ -735,8 +735,6 @@ export default function ReadingPlay() {
     const results = lineResultsOf(run);
     const review = reviewLines({ lines: run.lines, lineIds: run.lineIds, lineResults: results });
     const quiz = session.mode === 'quiz' ? quizSummary(results) : null;
-    const goMemorize = () =>
-      router.replace({ pathname: '/reading/memorize', params: { lineIds: review.map((r) => r.lineId).join(',') } });
     return (
       <ScrollView style={styles.root} contentContainerStyle={[styles.doneContent, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
         <View style={styles.doneIcon}>
@@ -767,10 +765,6 @@ export default function ReadingPlay() {
                 <Text style={styles.reviewText} numberOfLines={2}>{r.text}</Text>
               </View>
             ))}
-            <Pressable style={styles.reviewAll} onPress={goMemorize}>
-              <Text style={styles.reviewAllText}>{t('common.viewAll')}</Text>
-              <Feather name="chevron-right" size={14} color={palette.blueDeep} />
-            </Pressable>
           </View>
         )}
 

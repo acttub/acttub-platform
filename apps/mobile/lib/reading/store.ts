@@ -18,8 +18,6 @@ import type { ScriptLine } from './parse.ts';
 import { createDraft, validateDraft, type ScriptDraft } from './script-draft.ts';
 import type {
   CreateScriptBody,
-  LineMemorization,
-  MemorizationStatus,
   PatchScriptBody,
   ProgressBody,
   ProgressResponse,
@@ -99,9 +97,6 @@ export type ScriptTransport = {
   listSessions(scriptId: string): Promise<{ sessions: SessionCard[] }>;
   deleteSession(sessionId: string): Promise<void>;
   deleteRecording(recordingId: string): Promise<void>;
-  /** 암기 상태(reading.memorization). 조회는 대본 단위, 갱신은 줄 단위. */
-  listMemorization(scriptId: string): Promise<LineMemorization[]>;
-  setMemorization(lineId: string, status: MemorizationStatus): Promise<LineMemorization>;
 };
 
 let transport: ScriptTransport | null = null;
@@ -127,8 +122,6 @@ function server(): ScriptTransport {
     listSessions: (scriptId) => api.listReadingSessions(scriptId),
     deleteSession: (sessionId) => api.deleteReadingSession(sessionId),
     deleteRecording: (recordingId) => api.deleteReadingRecording(recordingId),
-    listMemorization: (scriptId) => api.listLineMemorization(scriptId),
-    setMemorization: (lineId, status) => api.setLineMemorization(lineId, status),
   };
   return transport;
 }
@@ -363,18 +356,4 @@ export async function deleteSession(sessionId: string): Promise<void> {
 /** 개별 녹음 삭제. 회차 진행·암기 상태는 그대로다. */
 export async function deleteRecording(recordingId: string): Promise<void> {
   await server().deleteRecording(recordingId);
-}
-
-/** 그 대본 줄의 암기 상태 행(reading.memorization). 못 읽으면 빈 목록 — 기기 값을 먼저 보여 준다. */
-export async function listMemorization(scriptId: string): Promise<LineMemorization[]> {
-  try {
-    return await server().listMemorization(scriptId);
-  } catch {
-    return [];
-  }
-}
-
-/** 줄 하나의 "외웠어요/아직 헷갈려요". 실패는 호출자(memorization-sync)가 들고 있다가 다시 보낸다. */
-export function setLineMemorization(lineId: string, status: MemorizationStatus): Promise<LineMemorization> {
-  return server().setMemorization(lineId, status);
 }
