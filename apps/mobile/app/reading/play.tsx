@@ -1,4 +1,5 @@
 import Feather from '@expo/vector-icons/Feather';
+import { File } from 'expo-file-system';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -15,7 +16,7 @@ import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
 import { currentTutorial } from '@/lib/tutorial';
 import { compareLine, type LineMatch } from '@/lib/reading/match';
 import { currentNetworkType } from '@/lib/reading/network';
-import { speakableText, type DialogueLine } from '@/lib/reading/parse';
+import { dialogueNumbers, speakableText, type DialogueLine } from '@/lib/reading/parse';
 import { createProgressQueue, type ProgressQueue } from '@/lib/reading/progress-queue';
 import { RECORDING_MAX_MS, contentTypeFor, nextAttemptNo, transcriptFields } from '@/lib/reading/recording-plan';
 import { enqueueLineRecording, onRecordingQueueChange, pendingRecordingUploads } from '@/lib/reading/recording-runner';
@@ -60,6 +61,9 @@ import * as engine from '@/lib/reading/tts/engine';
 import type { VadEvent } from '@/lib/reading/vad';
 import { formatMegabytes, modelDownloadPrompt, type PartnerVoiceEngine } from '@/lib/reading/voice-policy';
 import { assignVoices } from '@/lib/reading/voices';
+import { analyzeVoice, decodeWav, envelopeFromSamples, pitchTrack, type VoiceFeedback } from '@/lib/reading/voice-feedback';
+import { loadVoiceFeedbackEnabled } from '@/lib/reading/voice-feedback-setting';
+import { VoiceFeedbackSummary, type LineFeedback } from '@/components/voice-feedback-summary';
 import { translate as t } from '@/lib/i18n';
 import { useAppRating } from '@/hooks/use-app-rating';
 import { api } from '@/lib/api';
@@ -155,6 +159,9 @@ export default function ReadingPlay() {
   const turnStartedAt = useRef(0);
   /** 180초에 이르러 이미 녹음을 멈추고 올린 줄 — 줄이 끝날 때 다시 올리지 않는다. */
   const recordingClosed = useRef(false);
+  /** 발성 피드백(실험). 켜져 있으면 내 차례마다 소리를 기기 안에서 보고 끝난 화면에 칩으로 모은다. */
+  const voiceFeedbackOn = useRef(false);
+  const [lineFeedback, setLineFeedback] = useState<LineFeedback[]>([]);
   const [pendingUploads, setPendingUploads] = useState(0);
   const [cloudActive, setCloudActive] = useState(false);
   const cloudActiveRef = useRef(false);
@@ -199,6 +206,10 @@ export default function ReadingPlay() {
   }, [session]);
 
   useEffect(() => {
+    void loadVoiceFeedbackEnabled().then((on) => { voiceFeedbackOn.current = on; });
+  }, []);
+
+  useEffect(() => {
     void pendingRecordingUploads().then((n) => mounted.current && setPendingUploads(n));
     return onRecordingQueueChange((n) => mounted.current && setPendingUploads(n));
   }, []);
@@ -208,6 +219,48 @@ export default function ReadingPlay() {
    * 녹음기 파일(m4a)을 쓴다(조정자 결정). 상대역 재생·일시정지 구간의 소리는 마이크가 닫혀 있어 들어가지 않는다.
    * 녹음이 꺼진 회차면 파일을 지우기만 한다. 올리기는 진행을 막지 않는다.
    */
+  /**
+   * 발성 피드백(실험) — 내 차례 한 줄의 소리를 기기 안에서 본다. 인식기 파일(wav)이면 표본에서 크기·음높이를,
+   * 녹음기면 미터링만으로 크기를 본다. 실패해도 진행·녹음에는 영향이 없다.
+   */
+  const collectVoiceFeedback = useCallback(
+    async (
+      lineId: string,
+      uri: string | null,
+      kind: 'recorder' | 'stt_persist',
+      fromMic: { levelsDb: number[]; tickMs: number } | null,
+      match: LineMatch | null,
+    ): Promise<void> => {
+      try {
+        const cur = runRef.current;
+        const idx = cur ? cur.lineIds.indexOf(lineId) : -1;
+        if (!cur || idx < 0) return;
+        const line = cur.lines[idx] as DialogueLine;
+        let result: VoiceFeedback | null = null;
+        if (kind === 'stt_persist' && uri) {
+          const decoded = decodeWav(await new File(uri).bytes());
+          if (decoded) {
+            result = analyzeVoice({
+              envelopeDb: envelopeFromSamples(decoded.samples, decoded.sampleRate, 20),
+              frameMs: 20,
+              text: line.text,
+              pitchHz: pitchTrack(decoded.samples, decoded.sampleRate, 20),
+              match,
+            });
+          }
+        } else if (fromMic && fromMic.levelsDb.length > 0) {
+          result = analyzeVoice({ envelopeDb: fromMic.levelsDb, frameMs: fromMic.tickMs, text: line.text, match });
+        }
+        if (!result) return;
+        const no = dialogueNumbers(cur.lines)[idx];
+        const item: LineFeedback = { lineId, no, text: line.text, chips: result.chips };
+        setLineFeedback((prev) => [...prev.filter((x) => x.lineId !== lineId), item].sort((a, b) => (a.no ?? 0) - (b.no ?? 0)));
+        logEvent('reading_voice_feedback', { source: kind, chips: result.chips.join(',') || 'none' });
+      } catch {}
+    },
+    [],
+  );
+
   const endTurnRecording = useCallback(
     async (lineId: string, text: string, match: LineMatch | null): Promise<void> => {
       const sttUsed = sttActive.current;
@@ -224,6 +277,7 @@ export default function ReadingPlay() {
         durationMs = fromMic.durationMs || durationMs;
         kind = fromMic.uri ? 'recorder' : kind;
       }
+      if (voiceFeedbackOn.current) await collectVoiceFeedback(lineId, uri, kind, fromMic, match);
       if (!uri) return;
       if (!session?.record || recordingClosed.current) {
         await deleteDeviceFile(uri).catch(() => undefined);
@@ -251,7 +305,7 @@ export default function ReadingPlay() {
         void alert({ title: t('reading.recordToggle'), message: t('reading.recordingTooLarge') });
       }
     },
-    [alert, mic, session, stt],
+    [alert, collectVoiceFeedback, mic, session, stt],
   );
 
   const commit = useCallback((next: RunState) => {
@@ -487,7 +541,7 @@ export default function ReadingPlay() {
       // 녹음이 켜진 회차인데 이 기기의 인식기가 소리를 남기지 못하면 녹음기로 받는다 — 받아쓰기보다 녹음이 먼저다.
       const recordOverStt = !!(session.record && !stt.canPersist());
       if (sttMode?.kind === 'stt' && !recordOverStt) {
-        const ok = stt.start({ onEvent, onInterim: setSaid }, { persist: !!session.record });
+        const ok = stt.start({ onEvent, onInterim: setSaid }, { persist: !!session.record || voiceFeedbackOn.current });
         sttActive.current = ok;
         opened = ok;
       }
@@ -759,6 +813,7 @@ export default function ReadingPlay() {
           {quiz && <Text style={styles.doneStat}>{t('reading.quizSummary', { k: quiz.matched, n: quiz.tried, p: quiz.notYet })}</Text>}
           {pendingUploads > 0 && <Text style={styles.doneStatFaint}>{t('reading.recordingPending', { count: pendingUploads })}</Text>}
         </View>
+        <VoiceFeedbackSummary items={lineFeedback} />
 
         {review.length > 0 && (
           <View style={styles.reviewBox}>

@@ -17,8 +17,11 @@ const TICK_MS = 50;
 export type MicHandle = {
   /** 마이크를 열고 침묵 감지를 시작한다. 권한이 없으면 false. */
   start: (onEvent: (event: VadEvent) => void) => Promise<boolean>;
-  /** 마이크를 닫는다. 녹음 파일 uri 와 길이(ms). 열려 있지 않았으면 null. */
-  stop: () => Promise<{ uri: string | null; durationMs: number } | null>;
+  /**
+   * 마이크를 닫는다. 녹음 파일 uri 와 길이(ms), 그 사이 미터링(dBFS, TICK_MS 간격 — 발성 피드백이 쓴다).
+   * 열려 있지 않았으면 null.
+   */
+  stop: () => Promise<{ uri: string | null; durationMs: number; levelsDb: number[]; tickMs: number } | null>;
 };
 
 export async function hasMicPermission(): Promise<boolean> {
@@ -37,8 +40,9 @@ export function useReadingMic(): MicHandle {
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const detector = useRef<SilenceDetector | null>(null);
   const active = useRef(false);
+  const levels = useRef<number[]>([]);
 
-  const stop = useCallback(async (): Promise<{ uri: string | null; durationMs: number } | null> => {
+  const stop = useCallback(async (): Promise<{ uri: string | null; durationMs: number; levelsDb: number[]; tickMs: number } | null> => {
     if (timer.current) clearInterval(timer.current);
     timer.current = null;
     detector.current = null;
@@ -50,11 +54,13 @@ export function useReadingMic(): MicHandle {
     } catch {
       durationMs = 0;
     }
+    const levelsDb = levels.current;
+    levels.current = [];
     try {
       await recorder.stop();
-      return { uri: recorder.uri ?? null, durationMs };
+      return { uri: recorder.uri ?? null, durationMs, levelsDb, tickMs: TICK_MS };
     } catch {
-      return { uri: null, durationMs };
+      return { uri: null, durationMs, levelsDb, tickMs: TICK_MS };
     }
   }, [recorder]);
 
@@ -70,12 +76,15 @@ export function useReadingMic(): MicHandle {
         return false;
       }
       active.current = true;
+      levels.current = [];
       detector.current = createSilenceDetector(DEFAULT_VAD, Date.now());
       timer.current = setInterval(() => {
         if (!active.current || !detector.current) return;
         let rms = 0;
         try {
-          rms = meteringToRms(recorder.getStatus().metering);
+          const metering = recorder.getStatus().metering;
+          rms = meteringToRms(metering);
+          if (typeof metering === 'number' && Number.isFinite(metering)) levels.current.push(metering);
         } catch {
           rms = 0;
         }
