@@ -281,18 +281,18 @@ class MemoryUpdateWorkerIT {
     void actorEditDuringExtractionWinsAndIsExcludedFromThePayload() throws Exception {
         MemoryUpdateWorker worker = worker((system, user) -> {
             memory.writeAsActor(userId, ActorMemoryField.GOAL, "직접 쓴 목표");
-            return new GeneratedText("{\"goal\":\"새 목표\",\"speech_self\":\"새 화법\"}", new TokenUsage(0, 0, 0));
+            return new GeneratedText("{\"goal\":\"새 목표\",\"blockage\":\"새 막힘\"}", new TokenUsage(0, 0, 0));
         });
 
         assertThat(worker.runOnce(NOW)).isTrue();
 
         assertThat(memory.list(userId)).containsExactly(
                 new MemoryEntry("goal", "직접 쓴 목표", true, null),
-                new MemoryEntry("speech_self", "새 화법", false, sessionId));
+                new MemoryEntry("blockage", "새 막힘", false, sessionId));
         assertThat(mapper.readTree(jdbc.queryForObject(
                 "SELECT response_payload::text FROM external_operations WHERE id=?", String.class, operationId)))
                 .isEqualTo(mapper.readTree("{\"practice_session_id\":\"" + sessionId
-                        + "\",\"updated_fields\":[\"speech_self\"]}"));
+                        + "\",\"updated_fields\":[\"blockage\"]}"));
     }
 
     @Test
