@@ -148,3 +148,14 @@ test('voice-feedback: 설정에서 켜야만(기본 꺼짐) 리딩이 끝난 화
   assert.doesNotMatch(feedback, /fetch\(|api\./, '분석은 기기 안에서만');
   assert.match(read('app/settings.tsx'), /saveVoiceFeedbackEnabled/);
 });
+
+test('voice-feedback: 말이 끝난 뒤 2초 쉬고 들어온 작은 소리(넘기기 소리·삑)는 대사가 아니다 — 멈춤·끝음 흐림으로 보지 않는다', () => {
+  // 실기기 녹음 9개 중 7개가 이 꼴이었다: 대사 → 2초 무음 → 끝에 -45dB 안팎의 작은 소리.
+  // 실녹음 수준: 목소리 -19dB, 바탕 -55dB, 끝의 작은 소리 -42dB.
+  const tail = tone(0.4, 600, 0.011);
+  const s = concat(silence(0.3, 0.0025), syllables(16, 4.5, 200, 0.15), silence(2.0, 0.0025), tail, silence(0.3, 0.0025));
+  const r = analyzeVoice({ envelopeDb: envelopeFromSamples(s, SR, 20), frameMs: 20, text: '가'.repeat(16) });
+  assert.deepEqual(r.metrics.longPauses, [], JSON.stringify(r.metrics));
+  assert.ok(!r.chips.includes('end_drop'), JSON.stringify(r.metrics));
+  assert.ok(r.metrics.speechMs < 4200, String(r.metrics.speechMs));
+});

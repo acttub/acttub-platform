@@ -64,6 +64,30 @@ function percentile(values: number[], p: number): number {
 
 const round1 = (x: number) => Math.round(x * 10) / 10;
 
+type Region = { start: number; end: number; max: number };
+
+/**
+ * 말한 덩어리들. 짧은 틈(150ms 미만)은 잇고 짧은 소리(100ms 미만)는 버린다. 앞뒤에서 1초 넘게 떨어져 있고 가장 큰
+ * 소리보다 8dB 넘게 작은 덩어리는 대사가 아니라 넘기기 소리·삑 같은 것으로 보고 뺀다 — 실기기 녹음 대부분이
+ * "대사 → 2초 무음 → 작은 소리"로 끝났다.
+ */
+function speechRegions(env: number[], voiced: boolean[], frameMs: number, peak: number): Region[] {
+  const raw: Region[] = [];
+  for (let i = 0; i < voiced.length; i += 1) {
+    if (!voiced[i]) continue;
+    const prev = raw[raw.length - 1];
+    if (prev && (i - prev.end - 1) * frameMs < 150) {
+      prev.end = i;
+      prev.max = Math.max(prev.max, env[i]);
+    } else raw.push({ start: i, end: i, max: env[i] });
+  }
+  const regions = raw.filter((r) => (r.end - r.start + 1) * frameMs >= 100);
+  const stray = (r: Region, gapFrames: number) => gapFrames * frameMs >= 1000 && r.max < peak - 8;
+  while (regions.length > 1 && stray(regions[regions.length - 1], regions[regions.length - 1].start - regions[regions.length - 2].end - 1)) regions.pop();
+  while (regions.length > 1 && stray(regions[0], regions[1].start - regions[0].end - 1)) regions.shift();
+  return regions;
+}
+
 /** 한 줄의 소리를 본다. 말한 구간이 거의 없으면 null(칩을 보이지 않는다). */
 export function analyzeVoice(input: VoiceFeedbackInput): VoiceFeedback | null {
   const T = VOICE_FEEDBACK_THRESHOLDS;
@@ -74,21 +98,18 @@ export function analyzeVoice(input: VoiceFeedbackInput): VoiceFeedback | null {
   const snrDb = peak - floor;
   const gate = Math.max(floor + Math.min(10, snrDb / 2), peak - 30);
   const voiced = input.envelopeDb.map((x) => Number.isFinite(x) && x > gate);
-  const first = voiced.indexOf(true);
-  const last = voiced.lastIndexOf(true);
-  if (first < 0) return null;
+  const regions = speechRegions(input.envelopeDb, voiced, input.frameMs, peak);
+  if (regions.length === 0) return null;
+  const first = regions[0].start;
+  const last = regions[regions.length - 1].end;
   const span = last - first + 1;
   const speechMs = span * input.frameMs;
   if (speechMs < T.minSpeechMs || snrDb < 3) return null;
 
   const longPauses: number[] = [];
-  let run = 0;
-  for (let i = first; i <= last; i += 1) {
-    if (!voiced[i]) run += 1;
-    else {
-      if (run * input.frameMs >= T.pauseMs) longPauses.push(run * input.frameMs);
-      run = 0;
-    }
+  for (let i = 1; i < regions.length; i += 1) {
+    const gapMs = (regions[i].start - regions[i - 1].end - 1) * input.frameMs;
+    if (gapMs >= T.pauseMs) longPauses.push(gapMs);
   }
 
   let endDropDb: number | null = null;
@@ -104,7 +125,7 @@ export function analyzeVoice(input: VoiceFeedbackInput): VoiceFeedback | null {
   const sps = syl >= 3 && talkMs > 0 ? round1(syl / (talkMs / 1000)) : null;
 
   let pitchRangeSt: number | null = null;
-  if (input.pitchHz) {
+  if (input.pitchHz && speechMs >= 1_500) {
     const hz = input.pitchHz.slice(first, last + 1).filter((x) => x > 0);
     if (hz.length >= 10) {
       const median = percentile(hz, 50);
