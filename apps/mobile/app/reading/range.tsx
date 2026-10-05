@@ -11,7 +11,6 @@ import { useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
 import { TARGET } from '@/lib/spotlight-targets';
 import { hasMicPermission } from '@/hooks/use-reading-mic';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
-import { sessionCardTitle } from '@/lib/reading/session-cards';
 import {
   buildStartBody,
   castPickOrder,
@@ -34,6 +33,7 @@ import * as engine from '@/lib/reading/tts/engine';
 import type { ScriptLine } from '@/lib/reading/parse';
 import type { SessionCard } from '@/lib/reading/types';
 import { newRequestId } from '@/lib/request-id';
+import { relativeDay } from '@/lib/reading/script-cards';
 import { translate as t } from '@/lib/i18n';
 
 /**
@@ -264,7 +264,7 @@ export default function ReadingRange() {
                     <Text style={[styles.rowTitle, styles.recentTitle, active && styles.rowTitleOn]} numberOfLines={1}>
                       {rangeTitle(rangeName(lines, card.range.start_dialogue_no, card.range.end_dialogue_no), t)}
                     </Text>
-                    <Text style={styles.recentMeta}>{t('reading.recentMeta', { count, session: sessionCardTitle(card) })}</Text>
+                    <Text style={styles.recentMeta}>{t('reading.recentMeta', { count, session: `${t('reading.sessionOrdinal', { n: card.ordinal })} · ${relativeDay(card.started_at, Date.now())}` })}</Text>
                     {active && <Feather name="check" size={18} color={palette.blue} />}
                   </Pressable>
                 );
