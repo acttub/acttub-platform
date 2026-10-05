@@ -94,6 +94,7 @@ import type {
   StartSessionBody,
 } from '@/lib/reading/types';
 import type { CloudVoicePreset, CloudVoiceStatus } from '@/lib/reading/cloud-voice';
+import type { PostersResponse } from '@/lib/poster';
 import { currentLanguage, translate } from './i18n.ts';
 
 export { ApiError, NetworkError, RequestAbortError } from '@/lib/api-request';
@@ -109,7 +110,8 @@ import type { SignupAttributionPayload } from '@/lib/signup-attribution';
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://dev.acttub.com';
 // 요청마다 보내는 클라이언트 종류와 판(X-Acttub-Client). 판은 app.json의 version이다.
 // 이 헤더가 없으면 서버는 0.1.0 이전 빌드로 보고 426으로 답한다.
-const CLIENT_HEADER = `app/${Constants.expoConfig?.version ?? '0.0.0'}`;
+export const APP_VERSION = Constants.expoConfig?.version ?? '0.0.0';
+const CLIENT_HEADER = `app/${APP_VERSION}`;
 const requestClient = createApiRequestClient({
   baseUrl: BASE_URL,
   clientHeader: CLIENT_HEADER,
@@ -374,6 +376,12 @@ export const api = {
     return request<void>('/v2/consents', jsonInit({ document_id: documentId, action }), {
       requestId: true,
     });
+  },
+
+  /** 앱 첫 화면 공지 포스터(app.poster). 띄울지 마지막 판정은 lib/poster 의 pickPoster 가 한다. */
+  getPosters(params: { platform: 'ios' | 'android'; locale: 'ko' | 'en'; app_version: string }): Promise<PostersResponse> {
+    const query = new URLSearchParams(params);
+    return request(`/v2/app/posters?${query.toString()}`, {}, { auth: true, timeoutMs: 10_000 });
   },
 
   getCloudVoiceStatus(): Promise<CloudVoiceStatus> {

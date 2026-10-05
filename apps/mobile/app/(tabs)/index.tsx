@@ -23,7 +23,7 @@ import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide
 import { TutorialIntroSheet, type TutorialChoice } from '@/components/tutorial-intro-sheet';
 import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
 import { StreakCelebrationScreen } from '@/components/streak-celebration-screen';
-import { CloudVoicePromo } from '@/components/cloud-voice-promo';
+import { AnnouncementPoster } from '@/components/announcement-poster';
 import { useAuth } from '@/lib/auth';
 import { HomeMascot } from '@/components/home-mascot';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
@@ -334,7 +334,7 @@ export default function HomeScreen() {
           void markSpotlightSeen('home');
         }}
       />
-      <CloudVoicePromo
+      <AnnouncementPoster
         loggedIn={!!user}
         blocked={!overlaysReady || !introChecked || introOpen || guideOpen || celebrateStreak !== null}
         onboardingJustFinished={onboardingJustFinished}
