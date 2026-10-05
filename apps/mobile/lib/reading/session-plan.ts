@@ -6,13 +6,19 @@ import type { ScriptLine } from './parse.ts';
 import type { ReadingAdvance, ReadingMode, StartSessionBody } from './types.ts';
 
 export type SceneRange = {
-  label: string;
+  /** 막·장 머리 줄의 글. 지문으로 나눈 장면은 null이고 화면이 번호로 부른다. */
+  title: string | null;
+  /** 1부터. */
+  no: number;
   /** 그 장면 안 첫 대사 줄 인덱스(lines 기준). */
   startIndex: number;
   /** 그 장면 안 마지막 대사 줄 인덱스. */
   endIndex: number;
   dialogueCount: number;
 };
+
+/** 지문으로 나눈 장면이 이보다 대사가 적으면 이웃 장면에 붙인다(장면 머리 없는 대본이 잘게 쪼개지지 않게). */
+const MIN_SCENE_DIALOGUES = 5;
 
 /** 대사 번호 — 대사 줄만 1부터, 지문·장면은 null(저장하지 않고 줄 순서에서 센다). */
 export function dialogueNumbers(lines: ScriptLine[]): (number | null)[] {
@@ -23,17 +29,19 @@ export function dialogueNumbers(lines: ScriptLine[]): (number | null)[] {
 /**
  * "장면으로 찾기"의 후보. 장면 줄(막·장 머리)이 있으면 그 줄이 경계이고, 없으면 지문이 경계다.
  * 장면을 고르면 그 장면 안 첫·마지막 대사가 구간이 되므로 대사가 없는 장면은 없앤다.
+ * 지문 경계의 짧은 장면은 앞 장면에(첫 장면이면 뒤 장면에) 붙인다.
  */
 export function sceneRanges(lines: ScriptLine[]): SceneRange[] {
-  const boundary: ScriptLine['type'] = lines.some((l) => l.type === 'scene') ? 'scene' : 'direction';
+  const byHeader = lines.some((l) => l.type === 'scene');
+  const boundary: ScriptLine['type'] = byHeader ? 'scene' : 'direction';
   const out: SceneRange[] = [];
-  let label: string | null = null;
+  let title: string | null = null;
+  let open = false;
   let first = -1;
   let last = -1;
   let count = 0;
-  let sceneNo = 0;
   const close = () => {
-    if (label !== null && first >= 0) out.push({ label, startIndex: first, endIndex: last, dialogueCount: count });
+    if (open && first >= 0) out.push({ title, no: out.length + 1, startIndex: first, endIndex: last, dialogueCount: count });
     first = -1;
     last = -1;
     count = 0;
@@ -41,21 +49,64 @@ export function sceneRanges(lines: ScriptLine[]): SceneRange[] {
   lines.forEach((l, i) => {
     if (l.type === boundary) {
       close();
-      sceneNo += 1;
-      label = boundary === 'scene' ? l.text : `장면 ${sceneNo}`;
+      open = true;
+      title = byHeader ? l.text : null;
       return;
     }
     if (l.type !== 'dialogue') return;
-    if (label === null) {
-      sceneNo += 1;
-      label = `장면 ${sceneNo}`;
+    if (!open) {
+      open = true;
+      title = null;
     }
     if (first < 0) first = i;
     last = i;
     count += 1;
   });
   close();
-  return out;
+  return byHeader ? out : mergeShortScenes(out);
+}
+
+function mergeShortScenes(scenes: SceneRange[]): SceneRange[] {
+  const join = (a: SceneRange, b: SceneRange): SceneRange => ({
+    ...a,
+    startIndex: Math.min(a.startIndex, b.startIndex),
+    endIndex: Math.max(a.endIndex, b.endIndex),
+    dialogueCount: a.dialogueCount + b.dialogueCount,
+  });
+  const merged: SceneRange[] = [];
+  for (const s of scenes) {
+    if (merged.length && s.dialogueCount < MIN_SCENE_DIALOGUES) merged[merged.length - 1] = join(merged[merged.length - 1], s);
+    else merged.push(s);
+  }
+  if (merged.length > 1 && merged[0].dialogueCount < MIN_SCENE_DIALOGUES) merged.splice(0, 2, join(merged[0], merged[1]));
+  return merged.map((s, i) => ({ ...s, no: i + 1 }));
+}
+
+/** 회차 구간의 이름. 장면 하나와 첫·끝 대사가 정확히 같을 때만 장면으로 부른다. 구간은 대사 번호(1부터, 양끝 포함). */
+export type RangeName =
+  | { kind: 'all' }
+  | { kind: 'scene'; title: string | null; no: number }
+  | { kind: 'dialogues'; start: number; end: number };
+
+export function rangeName(lines: ScriptLine[], startNo: number, endNo: number): RangeName {
+  const numbers = dialogueNumbers(lines);
+  const total = numbers.reduce<number>((n, v) => (v === null ? n : v), 0);
+  if (startNo === 1 && endNo === total) return { kind: 'all' };
+  const scene = sceneRanges(lines).find((s) => numbers[s.startIndex] === startNo && numbers[s.endIndex] === endNo);
+  if (scene) return { kind: 'scene', title: scene.title, no: scene.no };
+  return { kind: 'dialogues', start: startNo, end: endNo };
+}
+
+type Translate = (key: string, params?: Record<string, string | number>) => string;
+
+export function sceneTitle(scene: { title: string | null; no: number }, t: Translate): string {
+  return scene.title ?? t('reading.rangeScene', { n: scene.no });
+}
+
+export function rangeTitle(name: RangeName, t: Translate): string {
+  if (name.kind === 'all') return t('reading.rangeAll');
+  if (name.kind === 'scene') return sceneTitle(name, t);
+  return t('reading.rangeLines', { start: name.start, end: name.end });
 }
 
 /** 시작·끝 선택이 지문·장면에 걸리면 안쪽 대사로 당긴다. 대사가 없으면 null. */

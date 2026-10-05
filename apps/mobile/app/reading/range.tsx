@@ -11,7 +11,7 @@ import { useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
 import { TARGET } from '@/lib/spotlight-targets';
 import { hasMicPermission } from '@/hooks/use-reading-mic';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
-import { buildStartBody, dialogueNumbers, rangeError, sceneRanges, snapRangeToDialogues } from '@/lib/reading/session-plan';
+import { buildStartBody, dialogueNumbers, rangeError, sceneRanges, sceneTitle, snapRangeToDialogues } from '@/lib/reading/session-plan';
 import { getCurrent, startSession, updateCurrent, type MaskMode } from '@/lib/reading/store';
 import { newRequestId } from '@/lib/request-id';
 import type { ReadingMode } from '@/lib/reading/types';
@@ -219,7 +219,7 @@ export default function ReadingRange() {
               return (
                 <Pressable key={n} style={[styles.sceneRow, active && styles.rowIn]} onPress={() => pickScene(s.startIndex, s.endIndex)}>
                   <View style={styles.rowBody}>
-                    <Text style={styles.rowRole}>{s.label}</Text>
+                    <Text style={styles.rowRole}>{sceneTitle(s, t)}</Text>
                     <Text style={styles.rowLine} numberOfLines={1}>
                       {t('reading.dialogueCount', { count: s.dialogueCount })} · {first?.type === 'dialogue' ? `${first.role} ${first.text}` : first?.text}
                     </Text>
