@@ -530,6 +530,33 @@ class CoachReadsProfileIT {
     }
 
     @Test
+    @DisplayName("practice.resume: 연습 루프 회차는 목표·이유·아니라고 한 것·제안을 한 줄로 다음 회차에 넘긴다 (SOMA-602)")
+    void practiceResume_loopRoundCarriesGoalReasonCorrectionAndSuggestion() throws Exception {
+        UUID previous = analyzedPractice();
+        UUID conversation = insertConversation(previous, List.of(
+                "지난번엔 엄마를 끝까지 보기로 했어요.", "렌즈 본 거예요",
+                "그러면 제가 잘못 봤어요.", "트라우마 때문에 마주하기 어려워서 일부러 돌렸어",
+                "그대로 적어 둘게요."));
+        jdbc.update("UPDATE coach_conversations SET status='closed',state=CAST(? AS jsonb) WHERE id=?", """
+                {"practice_loop":{"design":"이번 목표: 엄마를 끝까지 보기\\n버릇: 고개를 크게 돌림 | 곳1: x\\n다음 테이크: 손을 꽉 쥐기",
+                 "statuses":["","배우의 말: 정정\\n피할 것: 시선\\n할 일: 내려놓기","배우의 말: 선택 설명\\n할 일: 마무리2"]}}""",
+                conversation);
+        jdbc.update("UPDATE practices SET stage='closed',close_reason='conversation_closed' WHERE id=?", previous);
+        jdbc.update("""
+                INSERT INTO coach_notes(id,conversation_id,format,kind,title,next_take,source_revision)
+                VALUES (?,?,'v2','action','고개를 크게 돌림','손을 꽉 쥐기',0)
+                """, UUID.randomUUID(), conversation);
+        UUID current = analyzedPractice();
+        jdbc.update("UPDATE practices SET root_id=?,ordinal=2 WHERE id=?", previous, current);
+        generator.enqueue(COACH_REPLY);
+
+        startPractice(current);
+
+        assertThat(generator.lastInput()).contains("목표 엄마를 끝까지 보기", "버릇 고개를 크게 돌림",
+                "이유: \"트라우마 때문에 마주하기 어려워서 일부러 돌렸어\"", "아니라고 한 것: 시선", "제안: 손을 꽉 쥐기");
+    }
+
+    @Test
     @DisplayName("practice.resume: 복수 대화 전환 후 옛 표에 남은 노트도 다음 회차의 참고 맥락에 남는다")
     void practiceResume_keepsAnOlderNoteWhenTheLatestMigratedConversationHasNone() throws Exception {
         UUID previous = fixtures.insertPractice(user).id();
