@@ -138,7 +138,7 @@ public final class DirectVideoCoach {
             }
             // 연습 루프는 배우가 이번 연습에 적은 것(상황·인물·목표·막힘)도 받는다. 없으면 칸이 없다.
             String prompt = DirectVideoPrompts.withAudioFacts(CoachPrompt.actorProfileBlock(session.actorProfile())
-                    + CoachPrompt.priorContextBlock(session.priorForModel(), true)
+                    + CoachPrompt.priorContextBlock(session.priorForModel(), true, loop)
                     + (loop ? DirectVideoPracticeLoop.actorMaterial(session) : "") + task, uploaded);
             input = CoachPrompt.withoutActorName(prompt, session.actorProfile()) + "\n" + history;
             ExternalOperationExecution.externalCall("model");
