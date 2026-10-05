@@ -656,11 +656,6 @@ export const api = {
     );
   },
 
-  /** 개별 녹음 삭제. 그 행·객체가 없어지고 회차 진행·암기 상태는 그대로다. */
-  deleteReadingRecording(recordingId: string): Promise<void> {
-    return request<void>(`/v2/reading/recordings/${encodeURIComponent(recordingId)}`, { method: 'DELETE' }, { timeoutMs: 20_000 });
-  },
-
   /** 줄 하나의 암기 상태. 그 대본의 대사 줄이면 배역과 무관하게 받고, 지문·장면 줄은 422 invalid_line. */
   setLineMemorization(lineId: string, status: MemorizationStatus): Promise<LineMemorization> {
     return request<LineMemorization>(

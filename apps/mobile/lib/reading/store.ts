@@ -96,7 +96,6 @@ export type ScriptTransport = {
   saveProgress(sessionId: string, body: ProgressBody): Promise<ProgressResponse>;
   listSessions(scriptId: string): Promise<{ sessions: SessionCard[] }>;
   deleteSession(sessionId: string): Promise<void>;
-  deleteRecording(recordingId: string): Promise<void>;
 };
 
 let transport: ScriptTransport | null = null;
@@ -121,7 +120,6 @@ function server(): ScriptTransport {
     saveProgress: (sessionId, body) => api.saveReadingProgress(sessionId, body),
     listSessions: (scriptId) => api.listReadingSessions(scriptId),
     deleteSession: (sessionId) => api.deleteReadingSession(sessionId),
-    deleteRecording: (recordingId) => api.deleteReadingRecording(recordingId),
   };
   return transport;
 }
@@ -351,9 +349,4 @@ export async function deleteSession(sessionId: string): Promise<void> {
   await server().deleteSession(sessionId);
   if (currentSession?.id === sessionId) currentSession = null;
   if (current?.openSessionId === sessionId) current = { ...current, openSessionId: null };
-}
-
-/** 개별 녹음 삭제. 회차 진행·암기 상태는 그대로다. */
-export async function deleteRecording(recordingId: string): Promise<void> {
-  await server().deleteRecording(recordingId);
 }
