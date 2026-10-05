@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
 import { useAppDialog } from '@/components/app-dialog';
+import { TitleEditDialog } from '@/components/title-edit-dialog';
 import { CHIP_TONE, statusChip } from '@/lib/reading/script-cards';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import {
@@ -50,6 +51,7 @@ export default function ReadingDetail() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<SessionDetail | null>(null);
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState(false);
   const [listeningAll, setListeningAll] = useState(false);
   const playerRef = useRef<AudioPlayer | null>(null);
   const listenRef = useRef<SessionRecording[]>([]);
@@ -122,7 +124,7 @@ export default function ReadingDetail() {
   const removeScript = async () => {
     const ok = await confirm({
       title: t('reading.deleteTitle'),
-      message: script.recordingCount > 0 ? t('reading.deleteBody', { recordings: script.recordingCount }) : t('reading.deleteBodyNoRecordings'),
+      message: t('reading.deleteBody'),
       confirmLabel: t('common.delete'),
       destructive: true,
     });
@@ -138,7 +140,7 @@ export default function ReadingDetail() {
     void sheet({
       title: script.title,
       actions: [
-        { label: t('reading.editAction'), onPress: () => router.push('/reading/edit') },
+        { label: t('reading.editAction'), onPress: () => setEditingTitle(true) },
         { label: t('reading.deleteAction'), destructive: true, onPress: () => void removeScript() },
       ],
     });
@@ -395,6 +397,13 @@ export default function ReadingDetail() {
         )}
       </View>
       {dialog}
+      <TitleEditDialog
+        script={editingTitle ? script : null}
+        onClose={(saved) => {
+          setEditingTitle(false);
+          if (saved) setScript(getCurrent());
+        }}
+      />
     </View>
   );
 }
