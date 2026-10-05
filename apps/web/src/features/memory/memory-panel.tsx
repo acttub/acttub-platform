@@ -52,16 +52,22 @@ const FIELDS: {
     placeholder: "예) 대사의 의도를 잡는 게 늘 어렵다",
   },
   {
-    field: "speech_self",
-    label: "내가 생각하는 내 화법",
-    hint: "대화에서 스스로 말한 것",
-    placeholder: "예) 차분하게 말하려고 한다",
+    field: "wants",
+    label: "코치에게 바라는 것",
+    hint: "평가, 방법, 봐 달라는 쪽",
+    placeholder: "예) 표정 위주로 봐 주세요",
   },
   {
-    field: "speech_actual",
-    label: "실제로 말한 방식",
-    hint: "영상에서 받아쓴 대사를 근거로 적힌 것",
-    placeholder: "예) 문장 끝을 흐리며 빨라진다",
+    field: "habits",
+    label: "자주 짚인 버릇",
+    hint: "코치가 짚은 것과 내가 스스로 본 것",
+    placeholder: "예) 감정이 올라오면 고개를 먼저 돌린다",
+  },
+  {
+    field: "avoid",
+    label: "다시 말하지 않을 것",
+    hint: "내가 아니라고 한 것. 코치가 다시 꺼내지 않아요",
+    placeholder: "예) 렌즈를 본 건 일부러 그런 거예요",
   },
 ];
 
