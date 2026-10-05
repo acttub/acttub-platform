@@ -375,6 +375,7 @@ function RootNavigator() {
         <Stack.Screen name="reading/roles" options={{ title: t('reading.titleRoles') }} />
         <Stack.Screen name="reading/range" options={{ title: t('reading.titleRange') }} />
         <Stack.Screen name="reading/play" options={{ headerShown: false }} />
+        <Stack.Screen name="reading/diff" options={{ title: t('reading.diffTitle') }} />
       </Stack>
       <ReconsentPopup visible={reconsentOpen} />
     </>

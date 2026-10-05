@@ -18,6 +18,7 @@ import type { ScriptLine } from './parse.ts';
 import { createDraft, validateDraft, type ScriptDraft } from './script-draft.ts';
 import type {
   CreateScriptBody,
+  LineOutcome,
   PatchScriptBody,
   ProgressBody,
   ProgressResponse,
@@ -202,6 +203,7 @@ export function getCurrent(): SavedScript | null {
 export function resetReadingState(): void {
   current = null;
   currentSession = null;
+  lastRunReview = null;
 }
 
 export function isMyRole(role: string): boolean {
@@ -337,4 +339,25 @@ export async function deleteSession(sessionId: string): Promise<void> {
   await server().deleteSession(sessionId);
   if (currentSession?.id === sessionId) currentSession = null;
   if (current?.openSessionId === sessionId) current = { ...current, openSessionId: null };
+}
+
+// ── 완료 화면 → 다르게 말한 대사 전체(R9.26) ─────────────────────────────────
+
+/** 완료 화면이 R9.26 에 넘기는 이번 회차의 대조 결과. 구간은 현재 대본의 lines 인덱스, 결과는 줄 id 별이다. */
+export type RunReview = {
+  sessionId: string;
+  startIndex: number;
+  endIndex: number;
+  myRoles: string[];
+  results: Record<string, { outcome: LineOutcome; said: string | null }>;
+};
+
+let lastRunReview: RunReview | null = null;
+
+export function setLastRunReview(review: RunReview | null): void {
+  lastRunReview = review;
+}
+
+export function getLastRunReview(): RunReview | null {
+  return lastRunReview;
 }
