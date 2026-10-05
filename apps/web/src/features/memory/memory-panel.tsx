@@ -54,7 +54,7 @@ const FIELDS: {
   {
     field: "wants",
     label: "코치에게 바라는 것",
-    hint: "평가, 방법, 봐 달라는 쪽",
+    hint: "코치가 어디를 보고 무엇을 알려 줬으면 하는지",
     placeholder: "예) 표정 위주로 봐 주세요",
   },
   {
