@@ -37,3 +37,12 @@ test('pronunciation-notes: 아무것도 못 들었으면 빈 목록, 한 줄에 
   assert.ok(notes.length <= 3);
   assert.equal(notes[0].word, '창문');
 });
+
+test('pronunciation-notes: 소리 나는 대로 받아쓴 차이(연음·ㅐ/ㅔ·받침 대표음)는 짚지 않는다 — 실녹음에서 나온 꼴', () => {
+  assert.deepEqual(pronunciationNotes('알아. 그래도 혼자 하는 것보단 낫지.', '아라 그래도 혼자 하는 것보단 낫지'), []);
+  assert.deepEqual(pronunciationNotes('대본은 내가 상대역 해줄게.', '대보는 내가 상대역 해줄게'), []);
+  assert.deepEqual(pronunciationNotes('너 힘들면 항상 높은 데로 가잖아.', '너 힘들면 항상 높은대로 가잖아'), []);
+  assert.deepEqual(pronunciationNotes('옷 입어', '옫 이버'), []);
+  // 소리가 실제로 다른 것은 그대로 짚는다.
+  assert.deepEqual(pronunciationNotes('가자. 춥다.', '가자 주다'), [{ word: '춥다', heard: '주다' }]);
+});
