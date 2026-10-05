@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.coach.app.CoachMemory;
+import com.acttub.actingapi.feature.coach.app.PracticeLoopRound;
 import com.acttub.actingapi.feature.coach.app.PriorContext;
 import com.acttub.actingapi.feature.memory.app.MemoryEntry;
 import com.acttub.actingapi.feature.memory.app.ActorMemoryStore;
@@ -203,7 +204,8 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
                             ELSE old.report_json->>'title' END AS title,
                        CASE WHEN n.id IS NOT NULL THEN n.next_take
                             ELSE old.report_json->'practice'->'instruction'->>'text' END AS next_take,
-                       CAST(CASE WHEN n.id IS NOT NULL THEN n.legacy_report ELSE old.report_json END AS text) AS report
+                       CAST(CASE WHEN n.id IS NOT NULL THEN n.legacy_report ELSE old.report_json END AS text) AS report,
+                       CAST(c.state AS text) AS state
                 FROM practices current
                 JOIN practices member ON member.root_id=current.root_id AND member.ordinal<current.ordinal
                 JOIN coach_conversations c ON c.practice_id=member.id AND c.status='closed'
@@ -238,8 +240,13 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
                 // 신형 노트의 다음 촬영 제안은 배우의 선택·실행 약속이 아니다.
                 // pendingTakes("해보기로 했지만 아직 안 해본 것")로 승격하지 않는다.
                 pending = List.of();
-                if (title != null && !title.isBlank()) {
-                    String suggestion = round.get("next_take", String.class);
+                String suggestion = round.get("next_take", String.class);
+                // 연습 루프 회차는 목표·이유·아니라고 한 것까지 한 줄로 넘긴다(세션.md, SOMA-602).
+                String loopLine = loopLine(round.get("ordinal", Integer.class), title, suggestion,
+                        round.get("state", String.class), round.get("conversation_id", UUID.class));
+                if (loopLine != null) {
+                    history.add(loopLine);
+                } else if (title != null && !title.isBlank()) {
                     history.add(round.get("ordinal", Integer.class) + "차: " + title
                             + (suggestion == null || suggestion.isBlank() ? "" : " — 제안: " + suggestion));
                 }
@@ -247,6 +254,22 @@ public class PostgresMemoryRepository implements MemoryRepository, CoachMemory {
         }
         String excerpt = rounds.isEmpty() ? null : practiceConversationExcerpt(rounds.getLast().get("conversation_id", UUID.class));
         return new PriorContext(memory, excerpt, false, pending, history);
+    }
+
+    private String loopLine(int ordinal, String title, String suggestion, String stateText, UUID conversationId) {
+        if (stateText == null || !stateText.contains("practice_loop")) return null;
+        JsonNode state;
+        try {
+            state = mapper.readTree(stateText);
+        } catch (JsonProcessingException failure) {
+            return null;
+        }
+        List<PracticeLoopRound.Turn> turns = NativeTuples.list(entityManager.createNativeQuery("""
+                SELECT role,text FROM coach_messages WHERE conversation_id=:id ORDER BY turn_index
+                """, Tuple.class).setParameter("id", conversationId)).stream()
+                .map(row -> new PracticeLoopRound.Turn(row.get("role", String.class), row.get("text", String.class)))
+                .toList();
+        return PracticeLoopRound.line(ordinal, title, suggestion, state, turns);
     }
 
     /** 이전 회차의 마지막 세 왕복. 이번 회차 메시지는 엔진이 따로 받으므로 다시 넣지 않는다. */
