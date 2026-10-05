@@ -253,56 +253,105 @@ final class DirectVideoPracticeLoop {
         String habit = habit(design);
         String next = first(DESIGN_NEXT, design);
         if (habit.isBlank() && next.isBlank()) return null;
-        var quotes = com.acttub.actingapi.integration.llm.StructuredJson.MAPPER.createArrayNode();
-        String selfLine = null;
-        String selfRef = null;
-        // 배우가 자기 한 줄로 분류된 말을 남겼으면 그것이 우선이다. 마무리1 직후의 답은 그것이 없을 때만 쓴다.
-        String askedLine = null;
-        String askedRef = null;
-        String reason = null;
-        String reasonRef = null;
-        List<CoachTurnSnapshot> turns = session.turns();
-        String lastAction = "";
-        int coachIndex = 0;
-        for (int i = 0; i < turns.size(); i++) {
-            CoachTurnSnapshot turn = turns.get(i);
-            if ("ai".equals(turn.role())) {
-                String status = loop.path("statuses").path(coachIndex++).asText("");
-                lastAction = action(status);
-                continue;
-            }
-            String text = turn.text() == null ? "" : turn.text().strip();
-            if (text.isEmpty() || VAGUE.matcher(text).matches()
-                    || com.acttub.actingapi.feature.coach.domain.ClosingIntent.isClosing(text)) continue;
-            // 다음 코치 턴이 이 답을 "자기 한 줄"로 받았으면(배우가 청하기 전에 먼저 말한 경우) 그것도 자기 문장이다.
-            String kind = statusField(loop.path("statuses").path(coachIndex).asText(""), "배우의 말");
-            if (kind.startsWith("자기 한 줄")) {
-                selfLine = text;
-                selfRef = StructuredCoachEngine.turnId(session, i);
-            } else if (lastAction.startsWith("마무리1") && askedLine == null && !request(kind, text)) {
-                // 한 줄을 청한 자리에서 배우가 평가·방법을 청하거나 반박했으면 그 말은 한 줄이 아니다(SOMA-601).
-                askedLine = text;
-                askedRef = StructuredCoachEngine.turnId(session, i);
-            } else if (lastAction.startsWith("파고들기")) {
-                // 버릇이 언제·왜 나오는지에 대한 배우의 마지막 답.
-                reason = text;
-                reasonRef = StructuredCoachEngine.turnId(session, i);
-            }
-        }
-        if (selfLine == null) {
-            selfLine = askedLine;
-            selfRef = askedRef;
-        }
-        if (selfLine != null) quotes.addObject().put("quote", selfLine).put("kind", "actor").put("source_ref", selfRef);
-        if (reason != null) quotes.addObject().put("quote", reason).put("kind", "actor").put("source_ref", reasonRef);
+        var mapper = com.acttub.actingapi.integration.llm.StructuredJson.MAPPER;
+        Round round = round(loop, session.turns());
+        var quotes = mapper.createArrayNode();
+        if (round.selfLine() != null) quotes.addObject().put("quote", round.selfLine()).put("kind", "actor")
+                .put("source_ref", StructuredCoachEngine.turnId(session, round.selfIndex()));
+        if (round.reason() != null) quotes.addObject().put("quote", round.reason()).put("kind", "actor")
+                .put("source_ref", StructuredCoachEngine.turnId(session, round.reasonIndex()));
         String title = habit.isBlank() ? null : shorten(habit, TITLE_MAX);
         // 마무리2의 상태 칸에 다시 정한 다음 테이크가 있으면 그것을 쓴다 — 배우가 그 버릇을 지키겠다고 했으면 설계의 "반대쪽"과 다르다.
         String closingNext = closingNextTake(loop.path("statuses"));
         if (!closingNext.isBlank()) next = closingNext;
         String nextTake = next.isBlank() ? null : next;
-        var empty = com.acttub.actingapi.integration.llm.StructuredJson.MAPPER.createArrayNode();
+        var empty = mapper.createArrayNode();
+        // 배우가 아니라고 한 것(정정·반박)은 노트의 corrections 에 남는다(세션.md, SOMA-602).
+        var corrections = mapper.createArrayNode();
+        round.corrections().forEach(corrections::add);
         return new ConversationRepository.NewNote("v2", nextTake == null ? "observation" : "action", title, quotes,
-                nextTake, empty, empty, empty, false, sourceRevision, null);
+                nextTake, empty, corrections, empty, false, sourceRevision, null);
+    }
+
+    /**
+     * 한 회차에서 배우가 한 말을 세션.md 칸으로 가른다(SOMA-601·602). 모델을 부르지 않고 숨은 상태 칸의 분류를 읽는다.
+     *
+     * @param selfLine 배우의 한 줄. 자기 한 줄로 분류된 말이 우선이고, 없으면 한 줄을 청한 직후의 답(요청·반박 제외)
+     * @param reason 버릇이 나온 이유. 선택 설명으로 분류된 답이 우선이고, 없으면 파고들기 직후의 답(짧은 답 제외)
+     * @param corrections 배우가 아니라고 한 것. "주제: \"원문\"" 꼴
+     * @param goal 이번 목표. 상태 칸의 이번 목표 줄, 없으면 설계의 이번 목표. 없으면 {@code null}
+     */
+    record Round(String selfLine, int selfIndex, String reason, int reasonIndex, List<String> corrections, String goal) {}
+
+    static Round round(JsonNode loop, List<CoachTurnSnapshot> turns) {
+        JsonNode statuses = loop.path("statuses");
+        String design = loop.path("design").asText("");
+        String habit = habit(design);
+        String selfLine = null;
+        int selfIndex = -1;
+        String askedLine = null;
+        int askedIndex = -1;
+        String choice = null;
+        int choiceIndex = -1;
+        String probe = null;
+        int probeIndex = -1;
+        List<String> corrections = new ArrayList<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        String lastAction = "";
+        int coachIndex = 0;
+        for (int i = 0; i < turns.size(); i++) {
+            CoachTurnSnapshot turn = turns.get(i);
+            if ("ai".equals(turn.role())) {
+                lastAction = action(statuses.path(coachIndex++).asText(""));
+                continue;
+            }
+            String text = turn.text() == null ? "" : turn.text().strip();
+            if (text.isEmpty() || VAGUE.matcher(text).matches()
+                    || com.acttub.actingapi.feature.coach.domain.ClosingIntent.isClosing(text)) continue;
+            // 이 답을 받은 다음 코치 턴의 상태 칸이 배우의 말을 분류해 두었다.
+            String status = statuses.path(coachIndex).asText("");
+            String kind = statusField(status, "배우의 말");
+            if (kind.startsWith("자기 한 줄")) {
+                selfLine = text;
+                selfIndex = i;
+            } else if (kind.startsWith("정정") || kind.startsWith("반박")) {
+                String topic = statusField(status, "피할 것");
+                if (topic.isEmpty() || topic.startsWith("없음")) topic = habit;
+                if (seen.add(text.replaceAll("[\\s!?.~…ㅠㅜ]+", ""))) {
+                    corrections.add((topic.isBlank() ? "" : shorten(topic, 30) + ": ") + "\"" + shorten(text, 80) + "\"");
+                }
+            } else if (lastAction.startsWith("마무리1") && askedLine == null && !request(kind, text)) {
+                // 한 줄을 청한 자리에서 배우가 평가·방법을 청하거나 반박했으면 그 말은 한 줄이 아니다(SOMA-601).
+                askedLine = text;
+                askedIndex = i;
+            } else if (kind.startsWith("선택 설명")) {
+                choice = text;
+                choiceIndex = i;
+            } else if (lastAction.startsWith("파고들기") && !kind.startsWith("짧은 답")) {
+                // 버릇이 언제·왜 나오는지에 대한 배우의 마지막 답.
+                probe = text;
+                probeIndex = i;
+            }
+        }
+        if (selfLine == null) {
+            selfLine = askedLine;
+            selfIndex = askedIndex;
+        }
+        String reason = choice != null ? choice : probe;
+        int reasonIndex = choice != null ? choiceIndex : probeIndex;
+        return new Round(selfLine, selfIndex, reason, reasonIndex, List.copyOf(corrections), goal(statuses, design));
+    }
+
+    /** 이번 목표. 마지막 상태 칸의 이번 목표 줄, 없으면 설계의 이번 목표. "없음"이나 빈 값이면 {@code null}. */
+    static String goal(JsonNode statuses, String design) {
+        if (statuses != null && statuses.isArray()) {
+            for (int i = statuses.size() - 1; i >= 0; i--) {
+                String value = statusField(statuses.get(i).asText(""), "이번 목표");
+                if (!value.isEmpty() && !value.startsWith("없음")) return value;
+            }
+        }
+        String designed = statusField(design, "이번 목표");
+        return designed.isEmpty() || designed.startsWith("없음") ? null : designed;
     }
 
     /** 상태 칸이 분류한 요청·반박·종료. 분류가 없던 옛 대화는 요청을 나타내는 낱말로 가른다. */
