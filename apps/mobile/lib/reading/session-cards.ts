@@ -1,6 +1,6 @@
 /**
  * 대본 상세의 연습 기록 목록과 회차 상세(R4, reading.session · reading.recording)의 표시 규칙. 수치는 서버 집계다.
- * 회차 상태는 진행 중·완료 둘로 보인다 — 완료가 아니면 진행 중이다.
+ * 회차 상태는 진행 중·완료 둘이다.
  */
 import type { ScriptLine } from './parse.ts';
 import { relativeDay } from './script-cards.ts';

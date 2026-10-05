@@ -98,10 +98,10 @@ test('reading.session: "이어서 연습 · K/N" — N은 구간 대사 수, K�
   assert.equal(sessionProgress(SCRIPT, detail({ status: 'completed' })), null);
 });
 
-test('reading.session: 상태 칩은 완료(초록)와 진행 중 · K/N(파랑) 둘이고, 옛 멈춤도 진행 중으로 보인다', () => {
+test('reading.session: 상태 칩은 완료(초록)와 진행 중 · K/N(파랑) 둘이다', () => {
   assert.deepEqual(sessionChip('completed', null), { label: '완료', tone: 'completed' });
   assert.deepEqual(sessionChip('in_progress', { k: 3, n: 7 }), { label: '진행 중 · 3/7', tone: 'reading' });
-  assert.deepEqual(sessionChip('stopped', null), { label: '진행 중', tone: 'reading' });
+  assert.deepEqual(sessionChip('in_progress', null), { label: '진행 중', tone: 'reading' });
 });
 
 test('reading.recording: 다르게 말한 표시는 인식으로 비교해 틀린 녹음만 — 맞게 말했거나 인식하지 않은 녹음은 원문만', () => {

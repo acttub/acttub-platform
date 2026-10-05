@@ -53,7 +53,6 @@ export interface SavedScript extends DevicePrefs {
   dialogueCount: number;
   /** 모든 회차의 녹음 수(서버 집계). */
   recordingCount: number;
-  openSessionId: string | null;
   /** 마지막 회차(그 대본에서 가장 늦게 시작한 회차). 배역 화면의 기본 선택이 이것이다. */
   lastSession: ScriptLastSession | null;
 }
@@ -179,7 +178,6 @@ export function toSavedScript(detail: ScriptDetail, prefs: Partial<DevicePrefs> 
     lineIds: lines.map((l) => l.id),
     dialogueCount: screenLines.filter((l) => l.type === 'dialogue').length,
     recordingCount: detail.recording_count,
-    openSessionId: detail.open_session_id,
     lastSession: detail.last_session ?? null,
   };
 }
@@ -300,8 +298,8 @@ export function setCurrentSession(session: SessionDetail | null): void {
 }
 
 /**
- * 회차를 시작한다. 요청 id 는 화면이 한 번 만들어 재시도에도 같은 값을 쓴다(같은 회차 하나). 열린 회차가
- * 있으면 서버가 stopped 로 바꾸고 새 회차를 만든다. 시작한 회차가 현재 회차가 된다.
+ * 회차를 시작한다. 요청 id 는 화면이 한 번 만들어 재시도에도 같은 값을 쓴다(같은 회차 하나). 같은 대본의
+ * 진행 중 회차는 그대로 남는다. 시작한 회차가 현재 회차가 된다.
  */
 export async function startSession(scriptId: string, body: StartSessionBody): Promise<SessionDetail> {
   const session = await server().startSession(scriptId, body);
@@ -309,7 +307,6 @@ export async function startSession(scriptId: string, body: StartSessionBody): Pr
   if (current?.id === scriptId) {
     current = {
       ...current,
-      openSessionId: session.status === 'in_progress' ? session.id : current.openSessionId,
       myRoles: current.characters.filter((c) => session.my_character_ids.includes(c.id)).map((c) => c.name),
     };
   }
@@ -338,7 +335,6 @@ export async function listSessions(scriptId: string): Promise<SessionCard[]> {
 export async function deleteSession(sessionId: string): Promise<void> {
   await server().deleteSession(sessionId);
   if (currentSession?.id === sessionId) currentSession = null;
-  if (current?.openSessionId === sessionId) current = { ...current, openSessionId: null };
 }
 
 // ── 완료 화면 → 다르게 말한 대사 전체(R9.26) ─────────────────────────────────
