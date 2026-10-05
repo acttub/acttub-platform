@@ -3,7 +3,6 @@ import test from 'node:test';
 
 import {
   buildStartBody,
-  castPickOrder,
   defaultMyCharacterIds,
   dialogueNumbers,
   rangeError,
@@ -117,17 +116,6 @@ test('reading.cast: 회차 상세에서 넘긴 배역이 있으면 지난 회차
   assert.deepEqual(defaultMyCharacterIds({ ...script, rolesParam: 'c,b' }), ['c', 'b']);
   assert.deepEqual(defaultMyCharacterIds({ ...script, rolesParam: 'zzz' }), ['a'], '대본에 없는 id 뿐이면 지난 회차');
   assert.deepEqual(defaultMyCharacterIds({ ...script, rolesParam: '' }), ['a']);
-});
-
-test('reading.cast: 내 배역 칩은 대사 많은 순이고 같으면 대본의 배역 순서다', () => {
-  const cast = [
-    { id: 'a', name: '소린', order: 0, dialogue_count: 3 },
-    { id: 'b', name: '니나', order: 1, dialogue_count: 9 },
-    { id: 'c', name: '마샤', order: 2, dialogue_count: 3 },
-    { id: 'd', name: '트레플레프', order: 3, dialogue_count: 7 },
-  ];
-  assert.deepEqual(castPickOrder(cast).map((c) => c.name), ['니나', '트레플레프', '소린', '마샤']);
-  assert.deepEqual(cast.map((c) => c.id), ['a', 'b', 'c', 'd'], '받은 배열은 그대로');
 });
 
 test('reading.session: 대사 번호 구간을 줄 인덱스로 — 대본에 없는 번호는 null', () => {

@@ -1,6 +1,6 @@
 /**
  * 새 연습(R8, reading.cast · reading.session)의 순수 계산 — 장면 경계, 대사 번호, 구간 이름·당기기, 최근 구간,
- * 내 배역 순서·기본값, 시작 가능 여부, 기기 사전 검사, 시작 요청 본문. 화면·서버를 모른다.
+ * 내 배역 기본값, 시작 가능 여부, 기기 사전 검사, 시작 요청 본문. 화면·서버를 모른다.
  */
 import type { ScriptLine } from './parse.ts';
 import type { SessionCard, StartSessionBody } from './types.ts';
@@ -168,15 +168,6 @@ export function defaultMyCharacterIds(script: {
   if (fromParam.length) return fromParam;
   if (script.characters.length === 1) return [script.characters[0].id];
   return (script.last_session?.my_character_ids ?? []).filter((id) => known.has(id));
-}
-
-/**
- * 내 배역 칩 순서 — 대사 많은 순, 같으면 대본의 배역 순서(order).
- * 등장인물 소개 순서는 order 로 올 자리지만 지금 저장(휴대폰 파서)은 order 를 처음 나온 순으로 매긴다.
- * 대본을 나눌 때 소개 순서를 order 에 담게 되면 이 정렬을 걷어 order 를 그대로 쓴다.
- */
-export function castPickOrder<T extends { order: number; dialogue_count: number }>(characters: T[]): T[] {
-  return [...characters].sort((a, b) => b.dialogue_count - a.dialogue_count || a.order - b.order);
 }
 
 export type LineRange = { startIndex: number; endIndex: number };

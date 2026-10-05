@@ -14,7 +14,7 @@ import {
 
 const ch = (id, name, voice_preset = null) => ({ id, name, order: 0, voice_preset, dialogue_count: 1 });
 
-test('reading.cast: 자동 목소리는 대본의 모든 배역에 등장 순서로 F1·M1·F2·M2를 돌려 주고 내 배역만 뺀다', () => {
+test('reading.cast: 자동 목소리는 대본의 모든 배역에 배역 순서로 F1·M1·F2·M2를 돌려 주고 내 배역만 뺀다', () => {
   const characters = [ch('a', '니나'), ch('b', '트레플레프'), ch('c', '아르카지나'), ch('d', '소린')];
   const voices = assignVoices(characters, ['a']);
   assert.deepEqual(voices, { b: 'M1', c: 'F2', d: 'M2' });
@@ -59,7 +59,7 @@ test('reading.cast: 기기 음성 대체는 프리셋마다 정해진 높낮이�
 
 test('reading.cast: 목소리 시트의 「자동 (지금 X)」 — 그 배역을 자동으로 돌리면 받을 목소리', () => {
   const cast = [ch('a', '니나'), ch('b', '트레플레프', 'F3'), ch('c', '아르카지나'), ch('d', '소린')];
-  assert.equal(autoVoiceOf(cast, 'b'), 'M1', '고정값을 풀면 등장 순서 둘째 자리 목소리');
+  assert.equal(autoVoiceOf(cast, 'b'), 'M1', '고정값을 풀면 배역 순서 둘째 자리 목소리');
   assert.equal(autoVoiceOf(cast, 'd'), 'F2', '고정값은 순환에서 빠지니 소린은 넷째(M2)가 아니라 셋째(F2) 자리');
 });
 

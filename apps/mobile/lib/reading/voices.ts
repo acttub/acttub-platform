@@ -2,7 +2,7 @@
  * 상대역 목소리(reading.cast). 값은 기기에 내장된 Supertonic 프리셋 id(M1~M5·F1~F5)이고 서버는 목록을
  * 모른다(32자 이내 문자열이면 받는다). NULL 이면 "자동"이다.
  *
- * 자동 규칙: 대본의 모든 배역을 등장 순서로 세워 F1·M1·F2·M2·… 를 순환 배정하고 내 배역만 뺀다. 그래서
+ * 자동 규칙: 대본의 모든 배역을 대본의 배역 순서(저장 순서)로 세워 F1·M1·F2·M2·… 를 순환 배정하고 내 배역만 뺀다. 그래서
  * 목소리 정하기 화면에 보인 값이 어느 배역으로 연습하든 그대로 들린다(웹은 회차마다 상대역만으로 배정해 다를 수 있다).
  * 배우가 고른 배역만 고정값이 되고 자동 배정에서 빠진다. 같은 프리셋을 여러 배역에 줄 수 있고, 기기가
  * 모르는 값은 자동으로 다룬다.
@@ -10,7 +10,7 @@
 export const VOICE_PRESETS = ['M1', 'M2', 'M3', 'M4', 'M5', 'F1', 'F2', 'F3', 'F4', 'F5'] as const;
 export type VoicePreset = (typeof VOICE_PRESETS)[number];
 
-/** 남녀가 번갈아 나오도록 섞어 둔다 — 등장 순서대로 집으면 대개 대화처럼 들린다. */
+/** 남녀가 번갈아 나오도록 섞어 둔다 — 배역 순서대로 집으면 대개 대화처럼 들린다. */
 export const AUTO_ROTATION: VoicePreset[] = ['F1', 'M1', 'F2', 'M2', 'F3', 'M3', 'F4', 'M4', 'F5', 'M5'];
 
 export function isKnownPreset(value: unknown): value is VoicePreset {
@@ -21,7 +21,7 @@ type VoicedCharacter = { id: string; voice_preset: string | null };
 
 /**
  * 회차의 상대역마다 읽을 프리셋. 내 배역은 들어 있지 않다(그 회차에서 쓰이지 않는다).
- * 배열 순서가 등장 순서다.
+ * 배열 순서가 대본의 배역 순서(저장 순서)다.
  */
 export function assignVoices(characters: VoicedCharacter[], myCharacterIds: string[]): Record<string, VoicePreset> {
   const mine = new Set(myCharacterIds);

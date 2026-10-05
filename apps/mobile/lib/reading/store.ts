@@ -44,7 +44,7 @@ export type DevicePrefs = {
 export interface SavedScript extends DevicePrefs {
   id: string;
   title: string;
-  /** 배역 이름(등장 순서). 줄의 role 과 같은 값이다. */
+  /** 배역 이름(대본의 배역 순서). 줄의 role 과 같은 값이다. */
   roles: string[];
   characters: ScriptCharacter[];
   lines: ScriptLine[];

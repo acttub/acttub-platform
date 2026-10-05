@@ -13,7 +13,6 @@ import { hasMicPermission } from '@/hooks/use-reading-mic';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import {
   buildStartBody,
-  castPickOrder,
   defaultMyCharacterIds,
   dialogueNumbers,
   rangeError,
@@ -67,7 +66,7 @@ export default function ReadingRange() {
   const numbers = useMemo(() => dialogueNumbers(lines), [lines]);
   const scenes = useMemo(() => sceneRanges(lines), [lines]);
   const dialogues = useMemo(() => lines.map((l, i) => ({ l, i })).filter((x) => x.l.type === 'dialogue'), [lines]);
-  const cast = useMemo(() => castPickOrder(script?.characters ?? []), [script]);
+  const cast = script?.characters ?? [];
   const hasHistory = !!script?.lastSession;
 
   const [selected, setSelected] = useState<string[]>(() =>
