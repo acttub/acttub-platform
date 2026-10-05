@@ -13,12 +13,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.coach.app.PracticeLoopRound;
 import com.acttub.actingapi.feature.memory.app.ActorMemory;
 import com.acttub.actingapi.feature.memory.app.ActorMemoryStore;
 import com.acttub.actingapi.feature.memory.app.ActorMemoryUpdates;
 import com.acttub.actingapi.feature.memory.app.MemoryOwnership;
 import com.acttub.actingapi.feature.memory.app.MemoryUpdateMaterial;
+import com.acttub.actingapi.feature.memory.domain.ActorMemoryFields;
 import com.acttub.actingapi.feature.memory.domain.AgentMemoryWrites;
+import com.acttub.actingapi.feature.memory.domain.MemoryValue;
 import com.acttub.actingapi.platform.ledger.AiJobLedger;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
 import com.acttub.actingapi.platform.web.Hashing;
@@ -49,8 +52,9 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
 
     /** 화면이 읽는 순서. 컬럼이 text 라 DB 는 이 순서를 모른다. */
     private static final String FIELD_ORDER = """
-            CASE m.field WHEN 'goal' THEN 1 WHEN 'blockage' THEN 2
-                         WHEN 'speech_self' THEN 3 ELSE 4 END
+            CASE m.field WHEN 'goal' THEN 1 WHEN 'blockage' THEN 2 WHEN 'wants' THEN 3
+                         WHEN 'habits' THEN 4 WHEN 'avoid' THEN 5 WHEN 'tone' THEN 6
+                         WHEN 'speech_self' THEN 7 ELSE 8 END
             """;
 
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -184,17 +188,30 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
     @Override
     public boolean schedule(UUID userId, UUID practiceId, Instant now) {
         return Boolean.TRUE.equals(transaction.execute(tx -> {
-            long confirmed = ((Number) entityManager.createNativeQuery("""
-                    SELECT count(*)
-                    FROM coach_notes n
-                    JOIN coach_conversations c ON c.id=n.conversation_id
-                    JOIN practices p ON p.id=c.practice_id
-                    WHERE p.user_id=:userId
-                      AND n.kind<>'record_only'
-                    """)
+            // 세는 회차: 노트가 남은 회차(record_only 제외)와, 열린 채 남았어도 배우가 두 번 이상 답한 회차(SOMA-603).
+            // 이 회차가 그 가운데 몇 번째인지로 정한다 — 같은 회차는 언제 다시 불려도 같은 번호다.
+            List<Tuple> counted = NativeTuples.list(entityManager.createNativeQuery("""
+                    WITH counted AS (
+                        SELECT p.id,p.created_at
+                        FROM practices p
+                        WHERE p.user_id=:userId
+                          AND (EXISTS (SELECT 1 FROM coach_notes n
+                                       JOIN coach_conversations c ON c.id=n.conversation_id
+                                       WHERE c.practice_id=p.id AND n.kind<>'record_only')
+                               OR EXISTS (SELECT 1 FROM coach_conversations c
+                                          WHERE c.practice_id=p.id
+                                            AND (SELECT count(*) FROM coach_messages m
+                                                 WHERE m.conversation_id=c.id AND m.role='actor')>=2))
+                    )
+                    SELECT (SELECT count(*) FROM counted o
+                            WHERE (o.created_at,o.id)<=(t.created_at,t.id)) AS ordinal
+                    FROM counted t
+                    WHERE t.id=:practiceId
+                    """, Tuple.class)
                     .setParameter("userId", userId)
-                    .getSingleResult()).longValue();
-            // 첫 확인 연습과 그 뒤 3의 배수(1·3·6·9…). record_only 는 위 질의가 이미 뺐다.
+                    .setParameter("practiceId", practiceId));
+            long confirmed = counted.isEmpty() ? 0 : ((Number) counted.getFirst().get("ordinal")).longValue();
+            // 첫 회차와 그 뒤 3의 배수(1·3·6·9…).
             if (confirmed == 0 || (confirmed != 1 && confirmed % 3 != 0)) {
                 return false;
             }
@@ -249,6 +266,7 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
             return null;
         }
         Tuple row = rows.getFirst();
+        List<Round> rounds = rounds(practiceId);
         return new MemoryUpdateMaterial(
                 row.get("user_id", UUID.class),
                 practiceId,
@@ -257,8 +275,117 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
                 row.get("sub_branch", String.class),
                 row.get("blockage_detail", String.class),
                 transcripts(row.get("video_id", UUID.class)),
-                actorMessages(practiceId),
-                quotations(row.get("record", String.class)));
+                rounds.stream().flatMap(round -> round.actorWords().stream()).toList(),
+                quotations(row.get("record", String.class)),
+                rounds.stream().map(Round::note).filter(java.util.Objects::nonNull).toList());
+    }
+
+    /** 한 대화의 배우 말(연습 루프면 분류를 붙여서)과 세션.md 한 줄. */
+    private record Round(List<String> actorWords, String note, List<String> corrections) {
+    }
+
+    private List<Round> rounds(UUID practiceId) {
+        List<Round> rounds = new ArrayList<>();
+        for (Tuple conversation : NativeTuples.list(entityManager.createNativeQuery("""
+                SELECT c.id,CAST(c.state AS text) AS state,n.title,n.next_take,p.ordinal
+                FROM coach_conversations c
+                JOIN practices p ON p.id=c.practice_id
+                LEFT JOIN coach_notes n ON n.conversation_id=c.id
+                WHERE c.practice_id=:practiceId
+                ORDER BY c.created_at,c.id
+                """, Tuple.class)
+                .setParameter("practiceId", practiceId))) {
+            List<PracticeLoopRound.Turn> turns = NativeTuples.list(entityManager.createNativeQuery("""
+                    SELECT role,text FROM coach_messages WHERE conversation_id=:id ORDER BY turn_index
+                    """, Tuple.class)
+                    .setParameter("id", conversation.get("id", UUID.class))).stream()
+                    .map(turn -> new PracticeLoopRound.Turn(turn.get("role", String.class), turn.get("text", String.class)))
+                    .toList();
+            JsonNode state = json(conversation.get("state", String.class));
+            Number ordinal = (Number) conversation.get("ordinal");
+            rounds.add(new Round(
+                    PracticeLoopRound.classifiedActorWords(state, turns),
+                    PracticeLoopRound.line(ordinal == null ? 1 : ordinal.intValue(),
+                            conversation.get("title", String.class), conversation.get("next_take", String.class),
+                            state, turns),
+                    PracticeLoopRound.corrections(state, turns)));
+        }
+        return rounds;
+    }
+
+    /** 다시 말하지 않을 것에 남기는 줄 수의 상한 — 넘치면 오래된 것부터 뺀다. */
+    private static final int AVOID_MAX_LINES = 12;
+
+    @Override
+    public boolean appendAvoid(UUID userId, UUID practiceId, Instant now) {
+        // 이 칸의 마이그레이션이 없는 배포에서는 쓰지 않는다.
+        if (!ActorMemoryFields.contains("avoid")) {
+            return false;
+        }
+        return Boolean.TRUE.equals(transaction.execute(tx -> {
+            List<String> corrections = rounds(practiceId).stream()
+                    .flatMap(round -> round.corrections().stream()).toList();
+            if (corrections.isEmpty()) {
+                return false;
+            }
+            List<Tuple> current = NativeTuples.list(entityManager.createNativeQuery("""
+                    SELECT m.value,m.written_by
+                    FROM users u
+                    LEFT JOIN actor_memories m ON m.user_id=u.id AND m.field='avoid'
+                    WHERE u.id=:userId AND u.status='active'
+                    FOR UPDATE OF u
+                    """, Tuple.class)
+                    .setParameter("userId", userId));
+            // 닫힌 계정이거나 배우가 직접 고친 칸이면 손대지 않는다.
+            if (current.isEmpty() || "actor".equals(current.getFirst().get("written_by", String.class))) {
+                return false;
+            }
+            String before = current.getFirst().get("value", String.class);
+            List<String> lines = new ArrayList<>(before == null ? List.of()
+                    : before.lines().map(String::strip).filter(line -> !line.isEmpty()).toList());
+            boolean added = false;
+            for (String correction : corrections) {
+                String line = "- " + correction;
+                if (!lines.contains(line)) {
+                    lines.add(line);
+                    added = true;
+                }
+            }
+            if (!added) {
+                return false;
+            }
+            while (lines.size() > AVOID_MAX_LINES
+                    || String.join("\n", lines).codePointCount(0, String.join("\n", lines).length()) > MemoryValue.MAX_LENGTH) {
+                lines.removeFirst();
+            }
+            if (lines.isEmpty()) {
+                return false;
+            }
+            return writeAsAgent(userId, "avoid", String.join("\n", lines), practiceId, now);
+        }));
+    }
+
+    @Override
+    public List<Idle> idle(Instant now) {
+        // 배우가 두 번 이상 답하고 30분 넘게 말이 없는 열린 대화. 하루가 넘은 것은 보지 않는다 — 배포 때 옛 회차를
+        // 한꺼번에 다시 읽지 않게 한다.
+        return NativeTuples.list(entityManager.createNativeQuery("""
+                SELECT p.user_id,p.id AS practice_id
+                FROM coach_conversations c
+                JOIN practices p ON p.id=c.practice_id
+                JOIN users u ON u.id=p.user_id AND u.status='active'
+                WHERE c.status='open'
+                  AND (SELECT count(*) FROM coach_messages m WHERE m.conversation_id=c.id AND m.role='actor')>=2
+                  AND (SELECT max(m.created_at) FROM coach_messages m WHERE m.conversation_id=c.id)
+                      BETWEEN :from AND :until
+                  AND NOT EXISTS (SELECT 1 FROM ai_jobs j WHERE j.kind='memory_update' AND j.target_id=p.id)
+                ORDER BY p.created_at,p.id
+                LIMIT 50
+                """, Tuple.class)
+                .setParameter("from", now.minus(Duration.ofHours(24)).atOffset(ZoneOffset.UTC))
+                .setParameter("until", now.minus(Duration.ofMinutes(30)).atOffset(ZoneOffset.UTC))).stream()
+                .map(row -> new Idle(row.get("user_id", UUID.class), row.get("practice_id", UUID.class)))
+                .toList();
     }
 
     @Override
@@ -356,19 +483,6 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
             }
         }
         return List.copyOf(texts);
-    }
-
-    private List<String> actorMessages(UUID practiceId) {
-        return NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT m.text
-                FROM coach_messages m
-                JOIN coach_conversations c ON c.id=m.conversation_id
-                WHERE c.practice_id=:practiceId AND m.role='actor'
-                ORDER BY m.turn_index
-                """, Tuple.class)
-                .setParameter("practiceId", practiceId)).stream()
-                .map(row -> row.get("text", String.class))
-                .toList();
     }
 
     /**
