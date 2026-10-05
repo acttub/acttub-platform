@@ -591,6 +591,22 @@ class DirectVideoCoachTest {
                 + " — 제안: 손을 꽉 쥐고 엄마를 노려보기");
     }
 
+    /** SOMA-603: 기억 갱신 재료 — 배우 말에 코치가 붙인 분류, 다시 말하지 않을 것에 쌓일 정정. */
+    @Test void practiceLoopRoundLabelsActorWordsAndListsCorrections() throws Exception {
+        var state = StructuredJson.MAPPER.readTree("""
+                {"practice_loop":{"design":"버릇: 고개를 크게 돌림 | 곳1: x",
+                 "statuses":["","배우의 말: 정정\\n피할 것: 시선\\n할 일: 내려놓기","배우의 말: 평가 요청(장점)\\n할 일: 짚어주기"]}}
+                """);
+        var turns = List.of(new PracticeLoopRound.Turn("ai", "a"), new PracticeLoopRound.Turn("actor", "렌즈 본 거예요"),
+                new PracticeLoopRound.Turn("ai", "b"), new PracticeLoopRound.Turn("actor", "평가해 주세요"),
+                new PracticeLoopRound.Turn("ai", "c"));
+        assertThat(PracticeLoopRound.classifiedActorWords(state, turns))
+                .containsExactly("(정정) 렌즈 본 거예요", "(평가 요청) 평가해 주세요");
+        assertThat(PracticeLoopRound.corrections(state, turns)).containsExactly("시선: \"렌즈 본 거예요\"");
+        assertThat(PracticeLoopRound.classifiedActorWords(StructuredJson.MAPPER.readTree("{}"), turns))
+                .containsExactly("렌즈 본 거예요", "평가해 주세요");
+    }
+
     /** 연습 루프 상태가 없으면 예전 줄을 쓰도록 null 이다. */
     @Test void practiceLoopRoundIsNullWithoutLoopState() throws Exception {
         assertThat(PracticeLoopRound.line(1, "제목", "제안", StructuredJson.MAPPER.readTree("{}"), List.of())).isNull();
