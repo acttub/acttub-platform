@@ -508,6 +508,62 @@ class DirectVideoCoachTest {
         assertThat(note.nextTake()).isEqualTo("문장 사이에 한 번씩 쉬기");
     }
 
+    /** SOMA-601: 한 줄을 청한 자리에서 배우가 평가를 청하면 그 말은 배우의 한 줄이 아니다(운영 5670f93d). */
+    @Test void practiceLoopNoteSkipsAnEvaluationRequestGivenWhereTheSelfLineWasAsked() throws Exception {
+        var state = (com.fasterxml.jackson.databind.node.ObjectNode) StructuredJson.MAPPER.readTree("""
+                {"revision":4,"practice_loop":{"design":"버릇: 눈을 천천히 깜빡임 | 곳1: x\\n다음 테이크: 상대를 끝까지 보기",
+                "statuses":["",
+                "배우의 말: 답\\n할 일: 마무리1",
+                "배우의 말: 평가 요청\\n할 일: 짚어주기",
+                "배우의 말: 그만\\n할 일: 끝"]}}
+                """);
+        var turns = List.of(new CoachTurnSnapshot("ai", "눈을 천천히 깜빡여요."), new CoachTurnSnapshot("actor", "상대가 있다고 생각했어요"),
+                new CoachTurnSnapshot("ai", "한 줄로 적는다면 뭐라고 쓸래요?"),
+                new CoachTurnSnapshot("actor", "모르겠습니다,,,,그리고 제 연기 전체적으로 어떤지 평가받고 싶어요"),
+                new CoachTurnSnapshot("ai", "제일 아쉬운 건 깜빡임이에요."), new CoachTurnSnapshot("actor", "그만"),
+                new CoachTurnSnapshot("ai", "오늘은 여기까지 해요."));
+        var closed = session().withTurns(turns).withCoachingState("three_layers_v1", 4, state, "closed", "interrupted");
+        var note = DirectVideoPracticeLoop.note(closed, 4);
+        assertThat(note.summaryQuotes()).extracting(q -> q.path("quote").asText())
+                .doesNotContain("모르겠습니다,,,,그리고 제 연기 전체적으로 어떤지 평가받고 싶어요");
+    }
+
+    /** SOMA-601: 한 줄을 청한 뒤 딱릴 이야기가 오고, 나중에 자기 한 줄이 따로 오면 나중 것이 한 줄이다(운영 3803ca80). */
+    @Test void practiceLoopNotePrefersALaterSelfLineOverAnOffTopicAnswerToTheAsk() throws Exception {
+        var state = (com.fasterxml.jackson.databind.node.ObjectNode) StructuredJson.MAPPER.readTree("""
+                {"revision":4,"practice_loop":{"design":"버릇: 고개를 크게 움직임 | 곳1: x\\n다음 테이크: 엄마를 끝까지 보기",
+                "statuses":["",
+                "배우의 말: 답\\n할 일: 마무리1",
+                "배우의 말: 답\\n할 일: 이어보기",
+                "배우의 말: 자기 한 줄\\n할 일: 마무리2"]}}
+                """);
+        var turns = List.of(new CoachTurnSnapshot("ai", "고개를 크게 움직여요."), new CoachTurnSnapshot("actor", "마주하기 어려워서요"),
+                new CoachTurnSnapshot("ai", "한 줄로 적는다면 뭐라고 쓸래요?"),
+                new CoachTurnSnapshot("actor", "오늘 대학교 시험을 봤는데, 뭔가 집중을 잘 못한거 같아"),
+                new CoachTurnSnapshot("ai", "집중하기 어려웠군요."),
+                new CoachTurnSnapshot("actor", "아직 인물에 맞는 행동들이 자연스럽게 나오지 않는거 같다"),
+                new CoachTurnSnapshot("ai", "그대로 적어 둘게요."));
+        var closed = session().withTurns(turns).withCoachingState("three_layers_v1", 4, state, "closed", "interrupted");
+        var note = DirectVideoPracticeLoop.note(closed, 4);
+        assertThat(note.summaryQuotes().get(0).path("quote").asText()).isEqualTo("아직 인물에 맞는 행동들이 자연스럽게 나오지 않는거 같다");
+    }
+
+    /** SOMA-601: 배우의 말 분류가 없던 옛 한 줄 상태에서도 장단점을 묻는 말은 한 줄이 아니다(운영 d72194af). */
+    @Test void practiceLoopNoteSkipsARequestInOldOneLineStatuses() throws Exception {
+        var state = (com.fasterxml.jackson.databind.node.ObjectNode) StructuredJson.MAPPER.readTree("""
+                {"revision":3,"practice_loop":{"design":"버릇: 말이 내내 빨라요 | 곳1: x\\n다음 테이크: 문장 사이 쉬기",
+                "statuses":["", "마무리1 · 응답 2번째", "끝 · 응답 3번째"]}}
+                """);
+        var turns = List.of(new CoachTurnSnapshot("ai", "말이 빨라요."), new CoachTurnSnapshot("actor", "원래 빨라요"),
+                new CoachTurnSnapshot("ai", "한 줄로 적는다면?"),
+                new CoachTurnSnapshot("actor", "저의 연기적 장점과 단점은 무엇일까요?"),
+                new CoachTurnSnapshot("ai", "오늘은 여기까지 해요."));
+        var closed = session().withTurns(turns).withCoachingState("three_layers_v1", 3, state, "closed", "interrupted");
+        var note = DirectVideoPracticeLoop.note(closed, 3);
+        assertThat(note.summaryQuotes()).extracting(q -> q.path("quote").asText())
+                .doesNotContain("저의 연기적 장점과 단점은 무엇일까요?");
+    }
+
     @Test void practiceLoopShufflesTheFourHabitLinesPerPractice() {
         var practice = UUID.fromString("00000000-0000-0000-0000-000000000001");
         assertThat(DirectVideoPrompts.practiceLoop(practice)).isEqualTo(DirectVideoPrompts.practiceLoop(practice));
