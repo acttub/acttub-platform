@@ -256,6 +256,9 @@ final class DirectVideoPracticeLoop {
         var quotes = com.acttub.actingapi.integration.llm.StructuredJson.MAPPER.createArrayNode();
         String selfLine = null;
         String selfRef = null;
+        // 배우가 자기 한 줄로 분류된 말을 남겼으면 그것이 우선이다. 마무리1 직후의 답은 그것이 없을 때만 쓴다.
+        String askedLine = null;
+        String askedRef = null;
         String reason = null;
         String reasonRef = null;
         List<CoachTurnSnapshot> turns = session.turns();
@@ -272,16 +275,23 @@ final class DirectVideoPracticeLoop {
             if (text.isEmpty() || VAGUE.matcher(text).matches()
                     || com.acttub.actingapi.feature.coach.domain.ClosingIntent.isClosing(text)) continue;
             // 다음 코치 턴이 이 답을 "자기 한 줄"로 받았으면(배우가 청하기 전에 먼저 말한 경우) 그것도 자기 문장이다.
-            boolean volunteered = statusField(loop.path("statuses").path(coachIndex).asText(""), "배우의 말")
-                    .startsWith("자기 한 줄");
-            if ((lastAction.startsWith("마무리1") || volunteered) && selfLine == null) {
+            String kind = statusField(loop.path("statuses").path(coachIndex).asText(""), "배우의 말");
+            if (kind.startsWith("자기 한 줄")) {
                 selfLine = text;
                 selfRef = StructuredCoachEngine.turnId(session, i);
+            } else if (lastAction.startsWith("마무리1") && askedLine == null && !request(kind, text)) {
+                // 한 줄을 청한 자리에서 배우가 평가·방법을 청하거나 반박했으면 그 말은 한 줄이 아니다(SOMA-601).
+                askedLine = text;
+                askedRef = StructuredCoachEngine.turnId(session, i);
             } else if (lastAction.startsWith("파고들기")) {
                 // 버릇이 언제·왜 나오는지에 대한 배우의 마지막 답.
                 reason = text;
                 reasonRef = StructuredCoachEngine.turnId(session, i);
             }
+        }
+        if (selfLine == null) {
+            selfLine = askedLine;
+            selfRef = askedRef;
         }
         if (selfLine != null) quotes.addObject().put("quote", selfLine).put("kind", "actor").put("source_ref", selfRef);
         if (reason != null) quotes.addObject().put("quote", reason).put("kind", "actor").put("source_ref", reasonRef);
@@ -293,6 +303,16 @@ final class DirectVideoPracticeLoop {
         var empty = com.acttub.actingapi.integration.llm.StructuredJson.MAPPER.createArrayNode();
         return new ConversationRepository.NewNote("v2", nextTake == null ? "observation" : "action", title, quotes,
                 nextTake, empty, empty, empty, false, sourceRevision, null);
+    }
+
+    /** 상태 칸이 분류한 요청·반박·종료. 분류가 없던 옛 대화는 요청을 나타내는 낱말로 가른다. */
+    private static final Pattern REQUEST_WORDS = Pattern.compile(
+            "평가|장점|단점|방법|예시|설명해|어떻게 해야|부족한|짚어 ?주|(?i:how (?:do|should) i|feedback|example)");
+
+    private static boolean request(String kind, String text) {
+        if (kind.startsWith("평가 요청") || kind.startsWith("방법 요청") || kind.startsWith("반박")
+                || kind.startsWith("정정") || kind.startsWith("그만")) return true;
+        return kind.isEmpty() && REQUEST_WORDS.matcher(text).find();
     }
 
     private static final Pattern NEXT_TAKE_PREFIX = Pattern.compile("^(?:지키며|반대로)\\s*:\\s*");
