@@ -101,8 +101,8 @@ class PracticeRollbackCompatibilityTest {
         }
     }
 
-    /** V14~V29 — 연습·챌린지·노트 평가·보관함 포스터·고품질 목소리·저녁 알림·가입 유입 출처·신원 마지막 로그인·앱 공지 포스터가 더한 마이그레이션의 수. 더 늘면 이 값을 함께 올린다. */
-    private static final int NEW_MIGRATIONS = 16;
+    /** V14~V30 — 연습·챌린지·노트 평가·보관함 포스터·고품질 목소리·저녁 알림·가입 유입 출처·신원 마지막 로그인·앱 공지 포스터·배우 기억 칸 개정이 더한 마이그레이션의 수. 더 늘면 이 값을 함께 올린다. */
+    private static final int NEW_MIGRATIONS = 17;
 
     private static List<String> fingerprintAt(String target) throws Exception {
         String jdbcUrl = PostgresContainerSupport.createDatabase(
