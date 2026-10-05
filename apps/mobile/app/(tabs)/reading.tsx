@@ -110,7 +110,7 @@ export default function ReadingList() {
       void load(q);
       return;
     }
-    router.push(s.my_character_names.length === 0 ? '/reading/roles' : '/reading/detail');
+    router.push('/reading/detail');
   };
   const remove = async (s: ScriptCard) => {
     const ok = await confirm({
