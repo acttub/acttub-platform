@@ -137,11 +137,8 @@ public final class DirectVideoCoach {
                 task = selection.prompt();
             }
             // 연습 루프는 배우가 이번 연습에 적은 것(상황·인물·목표·막힘)도 받는다. 없으면 칸이 없다.
-            // 최근 연습에서 배우가 직접 한 말(배우.md)도 받고, 기억의 화법 두 칸은 빼다(소리·템포를 보지 않는다).
-            var prior = loop ? session.priorForModel().withoutSpeech() : session.priorForModel();
             String prompt = DirectVideoPrompts.withAudioFacts(CoachPrompt.actorProfileBlock(session.actorProfile())
-                    + CoachPrompt.priorContextBlock(prior, true)
-                    + (loop ? PracticeLoopMemory.block(prior.pastLoops()) : "")
+                    + CoachPrompt.priorContextBlock(session.priorForModel(), true)
                     + (loop ? DirectVideoPracticeLoop.actorMaterial(session) : "") + task, uploaded);
             input = CoachPrompt.withoutActorName(prompt, session.actorProfile()) + "\n" + history;
             ExternalOperationExecution.externalCall("model");
