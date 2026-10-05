@@ -631,6 +631,9 @@ const en: DeepStringShape<typeof ko> = {
     lineNo: 'Line {{n}}',
     heardAs: '“{{word}}” sounded like “{{heard}}”',
     notHeard: '“{{word}}” was not heard',
+    soundAs: '{{expected}} like {{heard}}',
+    acousticNote: '“{{word}}” — {{sounds}}',
+    pending: 'Analyzing sounds…',
   },
   cloudVoice: {
     settingsTitle: 'Premium voice',

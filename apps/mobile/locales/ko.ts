@@ -622,6 +622,9 @@ const ko = {
     lineNo: '{{n}}번 대사',
     heardAs: '‘{{word}}’ → ‘{{heard}}’로 들렸어요',
     notHeard: '‘{{word}}’가 들리지 않았어요',
+    soundAs: '{{expected}}이(가) {{heard}}처럼',
+    acousticNote: '‘{{word}}’ — {{sounds}} 들렸어요',
+    pending: '소리 분석 중…',
   },
   cloudVoice: {
     settingsTitle: '고품질 목소리',

@@ -1,4 +1,5 @@
 import Feather from '@expo/vector-icons/Feather';
+import { File, Paths } from 'expo-file-system';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -61,6 +62,7 @@ import type { VadEvent } from '@/lib/reading/vad';
 import { formatMegabytes, modelDownloadPrompt, type PartnerVoiceEngine } from '@/lib/reading/voice-policy';
 import { assignVoices } from '@/lib/reading/voices';
 import { pronunciationNotes } from '@/lib/reading/pronunciation-notes';
+import { pronunciationServerUrl, scorePronunciation } from '@/lib/reading/pronunciation-server';
 import { loadVoiceFeedbackEnabled } from '@/lib/reading/voice-feedback-setting';
 import { VoiceFeedbackSummary, type LineFeedback } from '@/components/voice-feedback-summary';
 import { translate as t } from '@/lib/i18n';
@@ -214,27 +216,48 @@ export default function ReadingPlay() {
   }, []);
 
   /**
+   * 발음 피드백(실험) — 두 갈래로 다르게 들린 곳을 모은다.
+   * ① 기기 STT 가 받아쓴 글과 대본의 어절 대조(즉시). ② 채점 서버가 켜져 있으면 줄 녹음을 보내 음소 단위 결과(나중에 채워짐).
+   * 녹음 파일은 올리기·지우기와 다투지 않게 복사본을 보낸다. 실패해도 진행·녹음에는 영향이 없다.
+   */
+  const collectPronunciation = useCallback(
+    (lineId: string, said: string, audio: { uri: string; contentType: string } | null) => {
+      try {
+        const cur = runRef.current;
+        const idx = cur ? cur.lineIds.indexOf(lineId) : -1;
+        if (!cur || idx < 0) return;
+        const line = cur.lines[idx] as DialogueLine;
+        const no = dialogueNumbers(cur.lines)[idx];
+        const upsert = (patch: Partial<LineFeedback>) =>
+          setLineFeedback((prev) => {
+            const old = prev.find((x) => x.lineId === lineId) ?? { lineId, no, text: line.text, notes: [], acoustic: [] };
+            return [...prev.filter((x) => x.lineId !== lineId), { ...old, ...patch }].sort((x, y) => (x.no ?? 0) - (y.no ?? 0));
+          });
+        if (said.trim()) {
+          const notes = pronunciationNotes(line.text, said);
+          upsert({ notes });
+          logEvent('reading_pronunciation_feedback', { notes: notes.length });
+        }
+        if (audio && pronunciationServerUrl()) {
+          const ext = audio.contentType === 'audio/wav' ? 'wav' : 'm4a';
+          const copy = new File(Paths.cache, `pron-${Date.now()}-${lineId.slice(0, 8)}.${ext}`);
+          new File(audio.uri).copy(copy);
+          upsert({ pending: true });
+          void scorePronunciation({ uri: copy.uri, contentType: audio.contentType, text: line.text })
+            .then((acoustic) => upsert({ acoustic, pending: false }))
+            .catch(() => upsert({ pending: false }))
+            .finally(() => { try { copy.delete(); } catch {} });
+        }
+      } catch {}
+    },
+    [],
+  );
+
+  /**
    * 내 차례의 녹음을 거둬 큐에 넣는다(reading.recording). STT 가 켜져 있으면 인식기가 남긴 파일(wav)을, 아니면
    * 녹음기 파일(m4a)을 쓴다(조정자 결정). 상대역 재생·일시정지 구간의 소리는 마이크가 닫혀 있어 들어가지 않는다.
    * 녹음이 꺼진 회차면 파일을 지우기만 한다. 올리기는 진행을 막지 않는다.
    */
-  /**
-   * 발음 피드백(실험) — 기기 STT 가 받아쓴 글과 대본을 맞춰 다르게 들린 어구를 모은다. 소리는 보지 않는다.
-   * 받아쓰기가 없는 차례(입력하기·녹음기만 쓴 기기)는 건너뛴다.
-   */
-  const collectPronunciation = useCallback((lineId: string, said: string) => {
-    try {
-      const cur = runRef.current;
-      const idx = cur ? cur.lineIds.indexOf(lineId) : -1;
-      if (!cur || idx < 0 || !said.trim()) return;
-      const line = cur.lines[idx] as DialogueLine;
-      const notes = pronunciationNotes(line.text, said);
-      const item: LineFeedback = { lineId, no: dialogueNumbers(cur.lines)[idx], text: line.text, notes };
-      setLineFeedback((prev) => [...prev.filter((x) => x.lineId !== lineId), item].sort((x, y) => (x.no ?? 0) - (y.no ?? 0)));
-      logEvent('reading_pronunciation_feedback', { notes: notes.length });
-    } catch {}
-  }, []);
-
   const endTurnRecording = useCallback(
     async (lineId: string, text: string, match: LineMatch | null): Promise<void> => {
       const sttUsed = sttActive.current;
@@ -251,7 +274,7 @@ export default function ReadingPlay() {
         durationMs = fromMic.durationMs || durationMs;
         kind = fromMic.uri ? 'recorder' : kind;
       }
-      if (voiceFeedbackOn.current && sttUsed) collectPronunciation(lineId, text);
+      if (voiceFeedbackOn.current) collectPronunciation(lineId, sttUsed ? text : '', uri ? { uri, contentType: contentTypeFor(uri, kind) } : null);
       if (!uri) return;
       if (!session?.record || recordingClosed.current) {
         await deleteDeviceFile(uri).catch(() => undefined);
@@ -515,7 +538,7 @@ export default function ReadingPlay() {
       // 녹음이 켜진 회차인데 이 기기의 인식기가 소리를 남기지 못하면 녹음기로 받는다 — 받아쓰기보다 녹음이 먼저다.
       const recordOverStt = !!(session.record && !stt.canPersist());
       if (sttMode?.kind === 'stt' && !recordOverStt) {
-        const ok = stt.start({ onEvent, onInterim: setSaid }, { persist: !!session.record });
+        const ok = stt.start({ onEvent, onInterim: setSaid }, { persist: !!session.record || (voiceFeedbackOn.current && !!pronunciationServerUrl()) });
         sttActive.current = ok;
         opened = ok;
       }

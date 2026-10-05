@@ -128,7 +128,7 @@ test('voice-feedback: 칩은 많아도 세 개까지, 중요한 순서로', () =
   assert.equal(r.chips[0], 'unclear');
 });
 
-test('발음 피드백: 설정에서 켜야만(기본 꺼짐) 받아쓴 글로 어구를 짚는다 — 소리는 보지 않고 기기 밖으로 안 나간다', async () => {
+test('발음 피드백: 설정에서 켜야만(기본 꺼짐) 짚는다 — 소리는 채점 서버 주소가 있을 때만 보낸다', async () => {
   const { readFileSync } = await import('node:fs');
   const path = (await import('node:path')).default;
   const root = path.resolve(import.meta.dirname, '..');
@@ -141,11 +141,13 @@ test('발음 피드백: 설정에서 켜야만(기본 꺼짐) 받아쓴 글로 �
   assert.equal(await loadVoiceFeedbackEnabled(store), true);
 
   const play = read('app/reading/play.tsx');
-  assert.match(play, /if \(voiceFeedbackOn\.current && sttUsed\) collectPronunciation\(lineId, text\)/);
+  assert.match(play, /if \(voiceFeedbackOn\.current\) collectPronunciation\(lineId, sttUsed \? text : ''/);
   assert.match(play, /<VoiceFeedbackSummary items=\{lineFeedback\} \/>/);
-  assert.match(play, /\{ persist: !!session\.record \}/, '피드백 때문에 인식기 녹음을 켜지 않는다');
-  assert.doesNotMatch(play, /analyzeVoice|decodeWav/, '발성(소리) 분석은 붙이지 않는다');
-  assert.doesNotMatch(read('lib/reading/pronunciation-notes.ts'), /fetch\(|api\./);
+  assert.match(play, /persist: !!session\.record \|\| \(voiceFeedbackOn\.current && !!pronunciationServerUrl\(\)\)/);
+  assert.match(play, /if \(audio && pronunciationServerUrl\(\)\)/, '서버 주소가 없으면 소리를 보내지 않는다');
+  const server = read('lib/reading/pronunciation-server.ts');
+  assert.match(server, /process\.env\.EXPO_PUBLIC_PRON_URL/);
+  assert.doesNotMatch(read('eas.json'), /EXPO_PUBLIC_PRON_URL/, '정식 빌드 설정에는 채점 서버가 없다');
   assert.match(read('app/settings.tsx'), /saveVoiceFeedbackEnabled/);
 });
 

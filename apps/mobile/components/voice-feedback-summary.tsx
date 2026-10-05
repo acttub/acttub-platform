@@ -3,12 +3,23 @@ import { StyleSheet, Text, View } from 'react-native';
 import { palette } from '@/constants/palette';
 import { translate as t } from '@/lib/i18n';
 import type { PronunciationNote } from '@/lib/reading/pronunciation-notes';
+import type { AcousticNote } from '@/lib/reading/pronunciation-server';
 
-export type LineFeedback = { lineId: string; no: number | null; text: string; notes: PronunciationNote[] };
+/**
+ * 한 줄의 발음 피드백. notes: 받아쓴 글 대조(어절). acoustic: 채점 서버의 음소 단위 결과(어절·소리). pending: 서버 결과 기다리는 중.
+ */
+export type LineFeedback = {
+  lineId: string;
+  no: number | null;
+  text: string;
+  notes: PronunciationNote[];
+  acoustic?: AcousticNote[];
+  pending?: boolean;
+};
 
 const clean = (s: string) => s.replace(/[^가-힣A-Za-z0-9]/g, '');
 
-/** 대사에서 짚은 어절을 굵게 칠해 보인다. */
+/** 대사에서 짚은 어절을 칠해 보인다. */
 function Highlighted({ text, words }: { text: string; words: string[] }) {
   const marked = new Set(words);
   const parts = text.split(/(\s+)/);
@@ -19,26 +30,43 @@ function Highlighted({ text, words }: { text: string; words: string[] }) {
   );
 }
 
+type Row = { word: string; message: string };
+
+/** 소리 단위 결과를 먼저, 받아쓰기 대조는 소리 결과가 없는 어절만. */
+export function feedbackRows(item: LineFeedback): Row[] {
+  const rows: Row[] = [];
+  const seen = new Set<string>();
+  for (const a of item.acoustic ?? []) {
+    seen.add(a.word);
+    const sounds = a.phones.map((p) => t('voiceFeedback.soundAs', { expected: p.expected, heard: p.heard })).join(', ');
+    rows.push({ word: a.word, message: t('voiceFeedback.acousticNote', { word: a.word, sounds }) });
+  }
+  for (const n of item.notes) {
+    if (seen.has(n.word)) continue;
+    rows.push({ word: n.word, message: n.heard ? t('voiceFeedback.heardAs', { word: n.word, heard: n.heard }) : t('voiceFeedback.notHeard', { word: n.word }) });
+  }
+  return rows;
+}
+
 /**
- * 리딩이 끝난 화면의 "발음 피드백(실험)" — 다르게 들린 어구가 있는 내 대사만. 리딩은 칭찬·점수를 내지 않는다
- * (reading 원칙) — 짚을 곳이 없는 줄은 보이지 않고 몇 줄을 봤는지만 적는다. 받아쓴 줄이 없으면 그리지 않는다.
+ * 리딩이 끝난 화면의 "발음 피드백(실험)" — 다르게 들린 곳이 있는 내 대사만. 리딩은 칭찬·점수를 내지 않는다(reading 원칙) —
+ * 짚을 곳이 없는 줄은 보이지 않고 몇 줄을 봤는지만 적는다.
  */
 export function VoiceFeedbackSummary({ items }: { items: LineFeedback[] }) {
   if (items.length === 0) return null;
-  const noted = items.filter((item) => item.notes.length > 0);
+  const rows = items.map((item) => ({ item, rows: feedbackRows(item) }));
+  const noted = rows.filter((r) => r.rows.length > 0);
+  const pending = items.some((item) => item.pending);
   return (
     <View style={styles.box}>
       <Text style={styles.title}>{t('voiceFeedback.doneTitle')}</Text>
       <Text style={styles.note}>{t('voiceFeedback.doneNote', { n: items.length, k: noted.length })}</Text>
-      {noted.map((item) => (
+      {pending && <Text style={styles.note}>{t('voiceFeedback.pending')}</Text>}
+      {noted.map(({ item, rows: lineRows }) => (
         <View key={item.lineId} style={styles.row}>
           {item.no !== null && <Text style={styles.lineNo}>{t('voiceFeedback.lineNo', { n: item.no })}</Text>}
-          <Highlighted text={item.text} words={item.notes.map((n) => n.word)} />
-          {item.notes.map((n) => (
-            <Text key={n.word} style={styles.heard}>
-              {n.heard ? t('voiceFeedback.heardAs', { word: n.word, heard: n.heard }) : t('voiceFeedback.notHeard', { word: n.word })}
-            </Text>
-          ))}
+          <Highlighted text={item.text} words={lineRows.map((r) => r.word)} />
+          {lineRows.map((r) => <Text key={r.word} style={styles.heard}>{r.message}</Text>)}
         </View>
       ))}
     </View>
