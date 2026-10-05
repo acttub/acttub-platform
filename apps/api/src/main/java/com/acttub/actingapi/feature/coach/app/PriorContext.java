@@ -4,6 +4,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 /**
  * 이번 대화 전에 이미 있던 것들 (`acting-agent/schema.py:PriorContext`).
  *
@@ -20,7 +22,10 @@ public record PriorContext(
         List<String> pendingTakes,
         // 이어한 묶음(부모+자식들)에서 차수별 카드 한 줄 요약. 직전 대화 6턴만으로는
         // 3~4차째에 처음 찾은 것을 잃는다 — 카드는 이미 요약이라 모델 호출 없이 조립한다.
-        List<String> sceneHistory) {
+        List<String> sceneHistory,
+        // 같은 배우의 최근 연습 루프 대화(묶음 무관, 최신이 앞). 연습 루프 코치만 쓴다
+        // ({@link PracticeLoopMemory}). 구조화 코치의 모델 입력(prior_context)은 그대로여야 하므로 직렬화하지 않는다.
+        @JsonIgnore List<PastPracticeLoop> pastLoops) {
 
     public static final PriorContext EMPTY =
             new PriorContext(Map.of(), null, true, List.of(), List.of());
@@ -29,6 +34,12 @@ public record PriorContext(
         memory = Map.copyOf(new LinkedHashMap<>(memory));
         pendingTakes = List.copyOf(pendingTakes);
         sceneHistory = List.copyOf(sceneHistory);
+        pastLoops = pastLoops == null ? List.of() : List.copyOf(pastLoops);
+    }
+
+    public PriorContext(Map<String, String> memory, String earlierConversation, boolean fromSamePractice,
+            List<String> pendingTakes, List<String> sceneHistory) {
+        this(memory, earlierConversation, fromSamePractice, pendingTakes, sceneHistory, List.of());
     }
 
     /**
@@ -42,7 +53,18 @@ public record PriorContext(
         Map<String, String> kept = new LinkedHashMap<>(memory);
         kept.remove("gender");
         kept.remove("age");
-        return new PriorContext(kept, earlierConversation, fromSamePractice, pendingTakes, sceneHistory);
+        return new PriorContext(kept, earlierConversation, fromSamePractice, pendingTakes, sceneHistory, pastLoops);
+    }
+
+    /**
+     * 화법 두 칸(speech_self·speech_actual)을 뺍 사본. 연습 루프 코치는 말 빠르기·쉼 같은 소리와 템포를
+     * 보지 않는다. 같은 말이 기억으로 들어가면 코치가 다시 템포로 돌아간다. 저장된 기억은 그대로다.
+     */
+    public PriorContext withoutSpeech() {
+        Map<String, String> kept = new LinkedHashMap<>(memory);
+        kept.remove("speech_self");
+        kept.remove("speech_actual");
+        return new PriorContext(kept, earlierConversation, fromSamePractice, pendingTakes, sceneHistory, pastLoops);
     }
 
     public boolean isEmpty() {
