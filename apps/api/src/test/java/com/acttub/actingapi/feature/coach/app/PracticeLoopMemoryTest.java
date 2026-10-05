@@ -40,13 +40,13 @@ class PracticeLoopMemoryTest {
                 .isLessThan(block.indexOf("### 코치가 지난번에 짚은 것"));
         assertThat(block).contains(
                 "- 최근 연습 3개에서: 평가 요청 1번, 보는 방식에 대한 이의 1번",
-                "- 10/4: \"제 연기 전체적으로 어떤지 평가받고 싶어요. 따끔하게요\"",
-                "- 10/1: \"표정 위주로 봐달라고요!!!!\"",
-                "- 9/30: \"예시로 설명해 주세요.\"",
-                "- 10/4 (코치가 본 것: 말하기 전에 시선이 위로 감): \"카메라 렌즈 봤어용\"",
+                "- 10/4 20:48: \"제 연기 전체적으로 어떤지 평가받고 싶어요. 따끔하게요\"",
+                "- 10/1 20:33: \"표정 위주로 봐달라고요!!!!\"",
+                "- 9/30 20:36: \"예시로 설명해 주세요.\"",
+                "- 10/4 20:48 (코치가 본 것: 말하기 전에 시선이 위로 감): \"카메라 렌즈 봤어용\"",
                 "- 다시 꺼내지 않을 주제: 시선, 문장 사이 쉼",
-                "- 10/1: \"말의 힘을 믿어보자\"",
-                "- 10/1: 문장 사이를 길게 쉼 — 제안: 한 문장이 끝나면 속으로 셋까지 세고 다음 말 하기");
+                "- 10/1 20:33: \"말의 힘을 믿어보자\"",
+                "- 10/1 20:33: 문장 사이를 길게 쉼 — 제안: 한 문장이 끝나면 속으로 셋까지 세고 다음 말 하기");
         // 바란 것은 최신 대화가 앞이다.
         assertThat(block.indexOf("따끔하게요")).isLessThan(block.indexOf("표정 위주로"));
         assertThat(block.indexOf("표정 위주로")).isLessThan(block.indexOf("예시로 설명해"));
@@ -78,15 +78,36 @@ class PracticeLoopMemoryTest {
                     .add("배우의 말: 평가 요청\n할 일: 짚어주기")
                     .add("배우의 말: 자기 한 줄\n할 일: 마무리2");
             many.add(new PastPracticeLoop(OCT_4.minusSeconds(86_400L * i), loop, List.of(
-                    ai("첫 코치"), actor("평가해 주세요 ".repeat(20)), ai("짚어주기"),
-                    actor("나는 ".repeat(40) + "배우다"), ai("마무리")), "다음 제안 ".repeat(20)));
+                    ai("첫 코치"), actor(i + "번째 평가해 주세요 ".repeat(20)), ai("짚어주기"),
+                    actor(i + "나는 ".repeat(40) + "배우다"), ai("마무리")), "다음 제안 ".repeat(20)));
         }
 
         String block = PracticeLoopMemory.block(many);
 
         assertThat(block.strip().codePointCount(0, block.strip().length()))
-                .isLessThanOrEqualTo(PracticeLoopMemory.MAX_CHARS + 1);
+                .isLessThanOrEqualTo(PracticeLoopMemory.MAX_CHARS);
+        assertThat(block).doesNotContain("…\n\n").endsWith("\n\n");
         assertThat(block).contains("### 배우가 바란 것", "평가 요청 5번");
+    }
+
+    @Test
+    @DisplayName("같은 말을 되풀이하면 한 번만 싣고, 피할 주제는 낱낱이 한 번씩만 싣는다")
+    void repeatedWordsAndTopicsAppearOnce() {
+        ObjectNode loop = StructuredJson.MAPPER.createObjectNode();
+        loop.put("design", "버릇: 말이 내내 같은 속도 | 곳1: 0:01 | 곳2: 0:02");
+        loop.putArray("statuses").add("")
+                .add("배우의 말: 반박\n피할 것: 말 빠르기\n할 일: 짚어주기(다른 쪽)")
+                .add("배우의 말: 반박\n피할 것: 말 빠르기, 문장 사이 쉼\n할 일: 짚어주기(다른 쪽)");
+        var repeated = new PastPracticeLoop(OCT_1, loop, List.of(ai("첫 코치"), actor("표정 위주로 봐달라고요!!!!"),
+                ai("둘째"), actor("표정 위주로 봐달라고요!!!!!!!!"), ai("셋째")), null);
+        ObjectNode older = loop.deepCopy();
+        older.putArray("statuses").add("").add("배우의 말: 반박\n피할 것: 말 빠르기\n할 일: 짚어주기(다른 쪽)");
+        var earlier = new PastPracticeLoop(SEP_30, older, List.of(ai("첫 코치"), actor("속도 말고 다른 거 봐 줘요"), ai("둘째")), null);
+
+        String block = PracticeLoopMemory.block(List.of(repeated, earlier));
+
+        assertThat(block.split("표정 위주로", -1)).hasSize(2);
+        assertThat(block).contains("- 다시 꺼내지 않을 주제: 말 빠르기, 문장 사이 쉼\n", "보는 방식에 대한 이의 2번");
     }
 
     @Test
