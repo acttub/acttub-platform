@@ -235,7 +235,7 @@ final class DirectVideoPracticeLoop {
 
     private static final Pattern DESIGN_HABIT = Pattern.compile("(?m)^\\s*버릇\\s*:\\s*\\[?([^|\\]\\n]+)");
     private static final Pattern DESIGN_NEXT = Pattern.compile("(?m)^\\s*다음 테이크\\s*:\\s*\\[?([^\\]\\n]+)");
-    static final Pattern VAGUE = Pattern.compile("(?:잘\\s*)?(?:모르겠(?:어|어요|다|음)?|몰라(?:요)?|ㅇㅇ|ㅇㅋ|네|넵|응|아 네)[.!?~\\s]*");
+    private static final Pattern VAGUE = Pattern.compile("(?:잘\\s*)?(?:모르겠(?:어|어요|다|음)?|몰라(?:요)?|ㅇㅇ|ㅇㅋ|네|넵|응|아 네)[.!?~\\s]*");
     private static final int TITLE_MAX = 40;
 
     /**
@@ -309,7 +309,7 @@ final class DirectVideoPracticeLoop {
     }
 
     /** 상태 줄에서 이번 응답이 한 일. 첫 턴(상태 없음)은 비추기다. */
-    static String action(String status) {
+    private static String action(String status) {
         if (status.isBlank()) return "비추기";
         String doing = statusField(status, "할 일");
         if (!doing.isEmpty()) return doing;
