@@ -46,11 +46,17 @@ export default function ReadingSession() {
   const [listen, setListen] = useState<{ at: number; total: number } | null>(null);
   const playerRef = useRef<AudioPlayer | null>(null);
   const mounted = useRef(true);
+  /**
+   * 재생 차례 번호. 새 재생·멈춤·화면 떠남마다 올린다 — 만료된 재생 주소를 다시 받는 동안 멈췄거나 떠났으면
+   * 받은 뒤에 틀지도 실패를 알리지도 않는다.
+   */
+  const playRun = useRef(0);
 
   const rows = useMemo(() => (script && detail ? sessionLines(script, detail) : []), [script, detail]);
   const recorded = useMemo(() => rows.filter((r) => r.recording), [rows]);
 
   const stopPlayback = useCallback(() => {
+    playRun.current += 1;
     try {
       playerRef.current?.remove();
     } catch {}
@@ -119,9 +125,11 @@ export default function ReadingSession() {
     return next?.recordings.find((r) => r.id === rec.id) ?? null;
   };
 
-  const playOne = async (rec: SessionRecording, onDone: () => void): Promise<boolean> => {
+  const playOne = async (rec: SessionRecording, onDone: () => void): Promise<'playing' | 'failed' | 'stale'> => {
+    const run = ++playRun.current;
     const fresh = await freshRecording(rec);
-    if (!fresh?.playback_url || !mounted.current) return false;
+    if (run !== playRun.current) return 'stale';
+    if (!fresh?.playback_url) return 'failed';
     try {
       playerRef.current?.remove();
     } catch {}
@@ -132,7 +140,7 @@ export default function ReadingSession() {
     });
     player.play();
     setPlayingId(fresh.id);
-    return true;
+    return 'playing';
   };
 
   const playbackFailed = () => {
@@ -147,7 +155,7 @@ export default function ReadingSession() {
       return;
     }
     stopPlayback();
-    if (!(await playOne(rec, stopPlayback))) playbackFailed();
+    if ((await playOne(rec, stopPlayback)) === 'failed') playbackFailed();
   };
 
   const listenAll = async () => {
@@ -162,7 +170,7 @@ export default function ReadingSession() {
         return;
       }
       setListen({ at: at + 1, total: queue.length });
-      if (!(await playOne(queue[at], () => void playAt(at + 1)))) playbackFailed();
+      if ((await playOne(queue[at], () => void playAt(at + 1))) === 'failed') playbackFailed();
     };
     await playAt(0);
   };
