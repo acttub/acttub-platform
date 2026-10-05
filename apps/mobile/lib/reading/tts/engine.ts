@@ -35,6 +35,7 @@ import { speechScriptFileName } from './speech-file.ts';
 import { speechKey } from './speech-key.ts';
 import { createSpeechQueue, type SpeechQueue } from './prefetch.ts';
 import { VoicePrepareError } from './voice-errors.ts';
+import { markModelLoadEnded, markModelLoadStarted, readAppVoiceSupport } from '../voice-capability.ts';
 
 export type ProgressFn = (progress: VoiceProgress) => void;
 
@@ -101,6 +102,8 @@ export function ensureReady(onProgress: ProgressFn = () => {}): Promise<void> {
       intraOpNumThreads: Math.max(1, cfg.threads),
     };
     report({ phase: 'load' });
+    // 불러오다 앱이 꺼지면 끝 표시가 남지 않아 다음 실행이 "앱 목소리를 못 쓰는 기기"로 본다(voice-capability).
+    await markModelLoadStarted();
     const sessions: any = {};
     try {
       for (const k of MODEL_KINDS) {
@@ -123,6 +126,7 @@ export function ensureReady(onProgress: ProgressFn = () => {}): Promise<void> {
     } catch (e) {
       throw new VoicePrepareError('model_load', 'model load failed', { cause: e });
     }
+    await markModelLoadEnded();
     await setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
     report({ phase: 'ready' });
   })();
@@ -138,12 +142,13 @@ export function ensureReady(onProgress: ProgressFn = () => {}): Promise<void> {
 /**
  * Wi-Fi 에서 모델을 미리 받아 둔다(배역 화면·대본 저장 뒤). 화면을 막지 않고 실패도 알리지 않는다 — 실패하면
  * 실행 화면이 평소처럼 받거나 묻는다. 이미 받아 뒀으면 아무것도 하지 않는다(메모리 로드는 쓸 때 한다).
- * 진행 중인 준비가 있으면 그것을 나눠 쓴다.
+ * 진행 중인 준비가 있으면 그것을 나눠 쓴다. 앱 목소리를 못 쓰는 기기(voice-capability)는 받지 않는다.
  */
 export async function prefetchIfWifi(): Promise<void> {
   try {
     if (tts || readyPromise) return;
     if (assetsPresent(cfg.variant, cfg.preset)) return;
+    if ((await readAppVoiceSupport()).unsupported) return;
     if ((await currentNetworkType()) !== 'wifi') return;
     if (tts || readyPromise) return;
     await ensureReady();

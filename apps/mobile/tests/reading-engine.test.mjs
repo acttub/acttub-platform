@@ -34,6 +34,10 @@ const modules = {
       if(globalThis.__readingEngineTest.failPresets?.has(preset)) throw new Error('offline');
       return preset;
     }`,
+  '../voice-capability.ts': `const s=globalThis.__readingEngineTest;
+    export async function readAppVoiceSupport(){return s.unsupported ? {unsupported:true,noticed:false} : {unsupported:false};}
+    export async function markModelLoadStarted(){s.loadMarks.push('started');}
+    export async function markModelLoadEnded(){s.loadMarks.push('ended');}`,
   './helper.native.js': `const s=globalThis.__readingEngineTest;
     export const loadOnnx=async()=>{ if(s.loadFails) throw new Error('bad model'); return {}; };
     export const loadVoiceStyleFromObjects=styles=>styles[0];
@@ -62,6 +66,7 @@ beforeEach(async () => {
   state.files.clear(); state.players.length=0; state.calls.length=0; state.active=0; state.peak=0; state.gate=null;
   state.failPresets=new Set();
   state.downloads=0; state.downloadGate=null; state.downloadError=null; state.loadFails=false; state.present=false; state.network='wifi';
+  state.unsupported=false; state.loadMarks=[];
   await engine.ensureReady();
 });
 
@@ -185,11 +190,21 @@ test('미리 받기: 이미 받아 둔 모델은 미리 불러오지 않고 실�
   assert.equal(engine.isReady(),false);
 });
 
-test('준비 실패: 모델을 못 불러오면 model_load 로 알린다', async () => {
-  engine._reset();
+test('미리 받기: 앱 목소리를 못 쓰는 기기로 표시됐으면 Wi-Fi 여도 받지 않는다', async () => {
+  engine._reset(); state.downloads=0;
+  state.unsupported=true;
+  await engine.prefetchIfWifi();
+  assert.equal(state.downloads,0);
+  assert.equal(engine.isReady(),false);
+});
+
+test('준비 실패: 모델을 못 불러오면 model_load 로 알리고 불러오기 시작 표시만 남는다(끝 표시 없음)', async () => {
+  engine._reset(); state.loadMarks=[];
   state.loadFails=true;
   await assert.rejects(engine.ensureReady(), (e) => e.kind === 'model_load');
+  assert.deepEqual(state.loadMarks, ['started']);
   state.loadFails=false;
   await engine.ensureReady();
   assert.equal(engine.isReady(),true);
+  assert.deepEqual(state.loadMarks, ['started','started','ended'], '불러오기를 마치면 끝 표시가 남는다');
 });
