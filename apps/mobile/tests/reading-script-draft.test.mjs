@@ -118,3 +118,18 @@ test('reading.script: 등장인물 목록이 있으면 그 순서로 저장하�
     [{ name: '노라' }, { name: '헬머' }, { name: '박사' }, { name: '봅' }, { name: '키니' }],
   );
 });
+
+test('reading.script: 목록의 설명에 다른 배역 이름이 나와도 그 배역은 제 이름 줄의 순서를 따른다', () => {
+  const raw = `등장인물
+1. 영희 --- 철수의 동생
+2. 엄마
+3. 철수
+
+철수: 다녀왔습니다.
+엄마: 왔니.
+영희: 오빠 왔어?
+철수: 응.
+엄마: 밥 먹자.
+영희: 좋아.`;
+  assert.deepEqual(draftToCreateBody(createDraft(raw, 'paste', RID)).characters, [{ name: '영희' }, { name: '엄마' }, { name: '철수' }]);
+});

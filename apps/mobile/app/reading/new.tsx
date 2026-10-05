@@ -67,6 +67,7 @@ export default function ReadingNew() {
   const [input, dispatch] = useReducer(scriptInputReducer, sample, initialScriptInput);
   const [split, setSplit] = useState<Split | null>(null);
   const draftRef = useRef<ScriptDraft | null>(null);
+  const busyRef = useRef(false);
   const pasteTabTarget = useSpotlightTarget(TARGET.readingDrop);
   const nextTarget = useSpotlightTarget(TARGET.readingNext);
   const tutorialGuide = useTutorialSpotlight('readingNew');
@@ -94,23 +95,28 @@ export default function ReadingNew() {
   };
 
   const onNext = async () => {
-    if (!pending || split) return;
+    if (!pending || busyRef.current) return;
+    busyRef.current = true;
     if (!sameDraft(draftRef.current, pending)) draftRef.current = newDraft(pending.text, pending.source);
     const draft = draftRef.current;
     setSplit({ kind: 'splitting' });
     await afterPaint();
     const checked = validateDraft(draft);
     if (!checked.ok) {
+      busyRef.current = false;
       setSplit({ kind: 'failed', ...scriptSaveAlert(checked.code) });
       return;
     }
     setSplit({ kind: 'saving', lines: checked.body.lines.length });
+    // saveDraft 도 보내기 전에 한 번 더 나눈다 — 그동안 「저장하는 중」이 보이게 먼저 그린다.
+    await afterPaint();
     try {
       const saved = await saveDraft(draft);
       setSplit(null);
       if (saved.characters.length >= 2) router.replace({ pathname: '/reading/roles', params: { from: 'new' } });
       else router.replace('/reading/detail');
     } catch (e) {
+      busyRef.current = false;
       setSplit({ kind: 'failed', ...scriptSaveAlert(e) });
     }
   };

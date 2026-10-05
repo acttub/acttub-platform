@@ -1,6 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -40,6 +40,12 @@ export default function ReadingRoles() {
   const [sheetFor, setSheetFor] = useState<string | null>(null);
   const [previewing, setPreviewing] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  /**
+   * 미리 듣기 차례 번호. 멈춤·다른 미리 듣기·저장·화면 닫기마다 올린다 — 샘플·모델을 기다리는 동안 멈췄으면
+   * 기다림이 끝나도 틀지 않는다(engine.play 는 앞선 stop 을 모른다).
+   */
+  const previewRun = useRef(0);
   // 연습 화면과 같은 판정 — 고품질 목소리로 읽을 사람은 그 목소리로 미리 듣는다.
   const [cloudVoice] = useState(() =>
     Promise.all([loadCloudVoiceEnabled(), api.getCloudVoiceStatus().catch(() => null)])
@@ -53,7 +59,11 @@ export default function ReadingRoles() {
   // Wi-Fi 면 상대역 목소리를 미리 받아 둔다 — 실행 화면에서 기다리지 않게. 화면을 막지 않고 실패도 알리지 않는다.
   useEffect(() => {
     void engine.prefetchIfWifi();
-    return () => engine.stop();
+    const run = previewRun;
+    return () => {
+      run.current += 1;
+      engine.stop();
+    };
   }, []);
 
   const effective = useMemo(
@@ -73,29 +83,37 @@ export default function ReadingRoles() {
     );
   }
 
-  const preview = async (characterId: string, preset: VoicePreset) => {
+  const stopPreview = () => {
+    previewRun.current += 1;
     engine.stop();
+  };
+
+  const preview = async (characterId: string, preset: VoicePreset) => {
+    stopPreview();
+    const run = previewRun.current;
+    const current = () => run === previewRun.current;
     setPreviewing(characterId);
     try {
       if (await cloudVoice) {
-        await engine.play(await cloudVoiceSampleUri(preset));
+        const uri = await cloudVoiceSampleUri(preset);
+        if (current()) await engine.play(uri);
       } else if (!engine.isReady() && !assetsPresent('fp32', 'M1')) {
         // 모델이 없으면 미리 듣기 대신 안내한다 — 내려받기 확인은 연습 시작 때 받는다.
         void alert({ title: t('reading.voicePreview'), message: t('reading.voiceNotReady') });
       } else {
         await engine.ensureReady(() => {});
-        await engine.preview(preset);
+        if (current()) await engine.preview(preset);
       }
     } catch {
-      void alert({ title: t('reading.voicePreview'), message: t('reading.voiceNotReady') });
+      if (current()) void alert({ title: t('reading.voicePreview'), message: t('reading.voiceNotReady') });
     } finally {
-      setPreviewing((current) => (current === characterId ? null : current));
+      if (current()) setPreviewing(null);
     }
   };
 
   const togglePreview = (characterId: string) => {
     if (previewing === characterId) {
-      engine.stop();
+      stopPreview();
       setPreviewing(null);
       return;
     }
@@ -110,19 +128,23 @@ export default function ReadingRoles() {
   };
 
   const onSave = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    stopPreview();
+    setPreviewing(null);
     const changes = voiceChanges(characters, chosen);
     if (changes.length > 0) {
       setSaving(true);
       try {
         await updateScriptMeta(script.id, { characters: changes });
       } catch {
+        savingRef.current = false;
         void alert({ title: t('reading.voiceLabel'), message: t('reading.voiceSaveFailed') });
         return;
       } finally {
         setSaving(false);
       }
     }
-    engine.stop();
     if (fromNew) router.replace('/reading/detail');
     else router.back();
   };

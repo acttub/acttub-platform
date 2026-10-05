@@ -571,20 +571,28 @@ export function castOrder(raw: string, roles: string[]): string[] | null {
   const lines = normalize(raw);
   const cast = extractCast(lines);
   if (!cast) return null;
-  const at = new Map<string, number>();
+  const entries: { line: string; at: number; list: CastList }[] = [];
   for (let i = cast.start; i < cast.end; i++) {
     const line = i === cast.start ? CAST_HEADER_RE.exec(lines[i])![1].replace(/^[(（][^)）]*[)）]\s*/, "").trim() : lines[i];
     if (!line) continue;
     const entry: CastDraft = { aliases: new Set(), names: new Set(), tokenHits: new Map() };
     castEntries(line, entry);
-    const one: CastList = { aliases: entry.aliases, names: entry.names, ambiguous: cast.ambiguous, start: i, end: i + 1 };
-    for (const role of roles) {
-      if (at.has(role) || !castMatch(role, one)) continue;
-      // 한 줄에 여러 이름(`엠미, 봅, 이바르`)이면 줄 안의 위치로 가른다.
-      const column = line.indexOf(role);
-      at.set(role, i * 10_000 + (column < 0 ? 9_999 : column));
-    }
+    entries.push({ line, at: i, list: { aliases: entry.aliases, names: entry.names, ambiguous: cast.ambiguous, start: i, end: i + 1 } });
   }
+  // 이름 칸에 똑같이 적힌 줄을 먼저 찾는다 — `영희 --- 철수의 동생` 의 설명이 `철수` 를 먼저 데려가지 않게.
+  const at = new Map<string, number>();
+  const place = (match: (role: string, list: CastList) => boolean) => {
+    for (const { line, at: row, list } of entries) {
+      for (const role of roles) {
+        if (at.has(role) || !match(role, list)) continue;
+        // 한 줄에 여러 이름(`엠미, 봅, 이바르`)이면 줄 안의 위치로 가른다.
+        const column = line.indexOf(role);
+        at.set(role, row * 10_000 + (column < 0 ? 9_999 : column));
+      }
+    }
+  };
+  place((role, list) => list.names.has(squash(role)));
+  place((role, list) => castMatch(role, list) !== null);
   return roles.filter((r) => at.has(r)).sort((a, b) => at.get(a)! - at.get(b)!);
 }
 
