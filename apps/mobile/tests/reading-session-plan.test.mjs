@@ -21,7 +21,6 @@ const X = (text) => ({ type: 'direction', text });
 const S = (text) => ({ type: 'scene', text });
 
 const WITH_SCENES = [S('1막'), D('윤서', 'a'), D('태오', 'b'), X('사이'), D('윤서', 'c'), S('2막'), X('밤'), D('태오', 'd'), D('윤서', 'e')];
-const NO_SCENES = [X('옥상'), D('윤서', 'a'), D('태오', 'b'), X('사이'), D('윤서', 'c'), D('태오', 'd')];
 
 test('reading.session: 장면 "1막"을 고르면 그 장면의 첫·마지막 대사가 구간이다', () => {
   const scenes = sceneRanges(WITH_SCENES);
