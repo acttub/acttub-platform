@@ -111,7 +111,7 @@ class MemoryUpdateWorkerIT {
             assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
             instructions.set(system);
             input.set(user);
-            return new GeneratedText("{\"speech_actual\":\"상대를 부른 뒤 부탁을 이어 간다\"}", new TokenUsage(0, 0, 0));
+            return new GeneratedText("{\"blockage\":\"상대를 부른 뒤 말이 멈춘다\"}", new TokenUsage(0, 0, 0));
         });
 
         assertThat(worker.runOnce(NOW)).isTrue();
@@ -126,7 +126,7 @@ class MemoryUpdateWorkerIT {
             assertThat(input.get()).doesNotContain("[영상에서 받아쓴 실제 대사]");
         }
         assertThat(memory.list(userId)).containsExactly(
-                new MemoryEntry("speech_actual", "상대를 부른 뒤 부탁을 이어 간다", false, sessionId));
+                new MemoryEntry("blockage", "상대를 부른 뒤 말이 멈춘다", false, sessionId));
         assertThat(reporter.reports()).isEmpty();
     }
 
