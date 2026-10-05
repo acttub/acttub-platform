@@ -142,7 +142,7 @@ const styles = StyleSheet.create({
   content: { padding: 20, gap: 18 },
   direction: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 14, lineHeight: 20, fontStyle: 'italic' },
   row: { gap: 4 },
-  rowDifferent: { borderLeftWidth: 3, borderLeftColor: palette.flameDeep, backgroundColor: palette.bgSubtle, paddingLeft: 12, paddingRight: 10, paddingVertical: 10, borderRadius: 4 },
+  rowDifferent: { borderLeftWidth: 3, borderLeftColor: palette.amber, paddingLeft: 12, paddingRight: 10, paddingVertical: 10 },
   rowHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   role: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
   roleMine: { color: palette.blueDeep, fontFamily: 'Pretendard-Bold' },
