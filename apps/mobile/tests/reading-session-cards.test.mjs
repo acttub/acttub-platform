@@ -108,6 +108,7 @@ test('reading.recording: 다르게 말한 표시는 인식으로 비교해 틀�
   assert.equal(differentlySaid(rec('r', 'l', { matched: false, transcript_source: 'stt', transcript: '말하면 뭐가 달라' })), '말하면 뭐가 달라');
   assert.equal(differentlySaid(rec('r', 'l', { matched: true, transcript_source: 'stt', transcript: '말하면 뭐가 달라져' })), null);
   assert.equal(differentlySaid(rec('r', 'l', { matched: false, transcript_source: 'none', transcript: null })), null);
+  assert.equal(differentlySaid(rec('r', 'l', { matched: false, transcript_source: 'none', transcript: '말하면' })), null);
 });
 
 test('reading.session: 회차 상세 「구간 전체」는 구간의 모든 줄(지문 포함)에 내 녹음·이어 할 줄을 붙인다', () => {
