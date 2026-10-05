@@ -21,6 +21,7 @@ import { createProgressQueue, type ProgressQueue } from '@/lib/reading/progress-
 import { RECORDING_MAX_MS, contentTypeFor, nextAttemptNo, transcriptFields } from '@/lib/reading/recording-plan';
 import { enqueueLineRecording, onRecordingQueueChange, pendingRecordingUploads } from '@/lib/reading/recording-runner';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
+import { buildStartBody } from '@/lib/reading/session-plan';
 import { differentLines, readDialogueCount } from '@/lib/reading/session-results';
 import {
   advance,
@@ -176,6 +177,11 @@ export default function ReadingPlay() {
   const turnStartedAt = useRef(0);
   /** 180초에 이르러 이미 녹음을 멈추고 올린 줄 — 줄이 끝날 때 다시 올리지 않는다. */
   const recordingClosed = useRef(false);
+  /** 내 차례의 전사·녹음을 거두는 중 — 침묵 넘김·[다음]·180초가 겹쳐도 한 번만 거둔다. 새 차례가 열리면 풀린다. */
+  const turnClosing = useRef(false);
+  // [다시 연습]의 회차 요청 id — 실패 뒤 다시 눌러도 같은 회차 하나가 된다.
+  const readAgainRequestId = useRef(newRequestId());
+  const [restarting, setRestarting] = useState(false);
 
   const voices = useMemo(
     () => (script && session ? assignVoices(script.characters, session.my_character_ids) : {}),
@@ -365,12 +371,12 @@ export default function ReadingPlay() {
     setPhase({ kind: 'preparing', progress: null });
     try {
       await tts.ensureReady((progress) => {
-        if (!mounted.current) return;
-        setPhase({ kind: 'preparing', progress });
-        // 불러오는 중에 앱이 꺼지면 다음 실행이 이 표시로 알아챈다(voice-capability). 이 화면에서 기다리는 불러오기만
+        // 불러오는 중에 앱이 꺼지면 다음 실행이 이 표시로 알아챈다(voice-capability). 이 화면에서 시작한 불러오기만
         // 센다 — 배경 미리 받기 중에 사용자가 앱을 끄는 것까지 꺼짐으로 보지 않으려고. 여기서도 스와이프로 끈 경우는 가려내지 못한다.
+        // 화면을 떠난 뒤에도 불러오기는 이어지므로 끝 표시는 화면과 상관없이 남긴다 — 안 남기면 다음 실행이 「못 씀」으로 굳힌다.
         if (progress.phase === 'load') void markModelLoadStarted();
         if (progress.phase === 'ready') void markModelLoadEnded();
+        if (mounted.current) setPhase({ kind: 'preparing', progress });
       });
       if (!mounted.current) return;
       chooseEngine('supertonic');
@@ -380,10 +386,12 @@ export default function ReadingPlay() {
       // 원문(메시지·경로)은 보내지 않는다 — 종류만(SOMA-494).
       const kind = voiceErrorKind(e);
       void logEvent('reading_voice_failed', { kind });
-      if (!mounted.current) return;
       if (kind === 'model_load') {
         await markAppVoiceUnsupported();
         removeDownloadedAssets('fp32');
+      }
+      if (!mounted.current) return;
+      if (kind === 'model_load') {
         chooseEngine(choosePartnerVoice({ cloud: false, appVoice: false, deviceVoice }));
         setPhase({ kind: 'voice_unsupported' });
         return;
@@ -487,10 +495,12 @@ export default function ReadingPlay() {
   }, [phase.kind, tipOpen, run?.index, run?.status, engine, goNext, presetFor, primeSpeech, script?.id, flash]);
 
   // ── 내 차례: 마이크(침묵 감지)와 STT ─────────────────────────────────────────
-  const onSilenceEnd = useCallback(
+  /** 내 차례를 끝낸다(침묵·[다음]) — 그때까지의 녹음을 거둔 뒤 넘긴다. */
+  const endMyTurn = useCallback(
     async (from: number) => {
       const cur = runRef.current;
-      if (!cur || !session || cur.index !== from || cur.status !== 'mine') return;
+      if (!cur || !session || cur.index !== from || cur.status !== 'mine' || turnClosing.current) return;
+      turnClosing.current = true;
       const text = sttActive.current ? await stt.finish() : '';
       const line = cur.lines[cur.index] as DialogueLine;
       const match = text ? compareLine(text, line.text) : null;
@@ -498,15 +508,15 @@ export default function ReadingPlay() {
       sttActive.current = false;
       setListening(false);
       const now = runRef.current;
-      if (!now || now.index !== from) return; // 녹음을 거두는 사이 버튼으로 이미 넘어갔다
-      // 침묵 신호는 다음 줄. 대조 결과는 흐름에 끼어들지 않고 결과만 남긴다.
+      if (!now || now.index !== from) return;
+      // 대조 결과는 흐름에 끼어들지 않고 결과만 남긴다.
       if (match?.kind === 'pass' || match?.kind === 'miss') commit(recordMatch(now, match.kind, text));
       goNext(from);
     },
     [session, stt, commit, goNext, endTurnRecording],
   );
-  const onSilenceEndRef = useRef(onSilenceEnd);
-  onSilenceEndRef.current = onSilenceEnd;
+  const endMyTurnRef = useRef(endMyTurn);
+  endMyTurnRef.current = endMyTurn;
 
   /** 자동 넘김을 다시 켠다. 멈춘 동안 미뤄 둔 넘김은 지금 하고, 내 차례였으면 침묵을 한 번 더 잰 뒤 넘긴다. */
   const releaseHold = useCallback(() => {
@@ -516,7 +526,7 @@ export default function ReadingPlay() {
     deferredRef.current = null;
     if (!deferred || runRef.current?.status === 'paused') return;
     if (deferred.kind === 'advance') goNext(deferred.from);
-    else deferredTimer.current = setTimeout(() => void onSilenceEndRef.current(deferred.from), DEFAULT_VAD.silenceMs);
+    else deferredTimer.current = setTimeout(() => void endMyTurnRef.current(deferred.from), DEFAULT_VAD.silenceMs);
   }, [goNext]);
 
   useEffect(() => {
@@ -535,10 +545,11 @@ export default function ReadingPlay() {
       }
       if (event === 'speech_end' && session.advance === 'silence') {
         if (holdRef.current) deferredRef.current = { kind: 'end_turn', from };
-        else void onSilenceEnd(from);
+        else void endMyTurn(from);
       }
     };
     recordingClosed.current = false;
+    turnClosing.current = false;
     turnStartedAt.current = Date.now();
     let limitTimer: ReturnType<typeof setTimeout> | null = null;
     void (async () => {
@@ -558,9 +569,9 @@ export default function ReadingPlay() {
       if (session.record) {
         // 180초에 이르면 녹음을 멈추고 현재 줄은 그대로다 — 버튼으로 넘긴다.
         limitTimer = setTimeout(() => {
-          if (cancelled) return;
           const cur = runRef.current;
-          if (!cur || cur.index !== from) return;
+          if (cancelled || turnClosing.current || !cur || cur.index !== from) return;
+          turnClosing.current = true;
           void (async () => {
             const text = sttActive.current ? await stt.finish() : '';
             const line = cur.lines[cur.index] as DialogueLine;
@@ -572,6 +583,8 @@ export default function ReadingPlay() {
             setTurnNote('limit');
             const now = runRef.current;
             if (now && now.index === from && (match?.kind === 'pass' || match?.kind === 'miss')) commit(recordMatch(now, match.kind, text));
+            // 줄은 그대로라 [다음]으로 넘길 수 있게 푼다.
+            if (!cancelled) turnClosing.current = false;
           })();
         }, RECORDING_MAX_MS);
       }
@@ -681,21 +694,24 @@ export default function ReadingPlay() {
   };
 
   const readAgain = async () => {
-    if (!script || !session) return;
+    if (!script || !session || restarting) return;
+    setRestarting(true);
     try {
-      const next = await startSession(script.id, {
-        request_id: newRequestId(),
-        my_character_ids: session.my_character_ids,
-        mode: 'read',
-        start_line_id: session.start_line_id,
-        end_line_id: session.end_line_id,
-        advance: 'silence',
-        record: true,
-      });
+      const next = await startSession(
+        script.id,
+        buildStartBody({
+          requestId: readAgainRequestId.current,
+          myCharacterIds: session.my_character_ids,
+          startLineId: session.start_line_id,
+          endLineId: session.end_line_id,
+        }),
+      );
       setCurrentSession(next);
       router.replace('/reading/play');
     } catch (e) {
       void alert({ title: t('reading.startFailed'), message: scriptErrorMessage(e) });
+    } finally {
+      if (mounted.current) setRestarting(false);
     }
   };
 
@@ -851,8 +867,8 @@ export default function ReadingPlay() {
           </Pressable>
         </ScrollView>
         <View style={[styles.controls, { paddingBottom: insets.bottom + 12 }]}>
-          <Pressable style={[styles.ctrl, styles.ctrlGhost]} onPress={() => void readAgain()}>
-            <Feather name="rotate-ccw" size={16} color={palette.textDim} />
+          <Pressable style={[styles.ctrl, styles.ctrlGhost]} onPress={() => void readAgain()} disabled={restarting}>
+            {restarting ? <ActivityIndicator size="small" color={palette.textDim} /> : <Feather name="rotate-ccw" size={16} color={palette.textDim} />}
             <Text style={styles.ctrlGhostText}>{t('reading.readAgain')}</Text>
           </Pressable>
           <Pressable style={[styles.ctrl, styles.ctrlPrimary]} onPress={exitToDetail}>
@@ -892,22 +908,6 @@ export default function ReadingPlay() {
   })();
 
   const hint = paused ? t('reading.pausedBody') : myTurn && turnNote === 'silence' ? t('reading.silenceHint') : myTurn && turnNote === 'limit' ? t('reading.limitHint') : null;
-
-  /** 버튼으로 내 차례를 끝낸다 — 그때까지의 녹음을 거둔 뒤 넘긴다. */
-  const endMyTurnByButton = async () => {
-    const from = run.index;
-    const cur = runRef.current;
-    if (!cur || cur.index !== from || cur.status !== 'mine') return;
-    const text = sttActive.current ? await stt.finish() : '';
-    const target = (cur.lines[cur.index] as DialogueLine).text;
-    const match = text ? compareLine(text, target) : null;
-    await endTurnRecording(cur.lineIds[cur.index], text, match);
-    sttActive.current = false;
-    const now = runRef.current;
-    if (!now || now.index !== from) return;
-    if (match?.kind === 'pass' || match?.kind === 'miss') commit(recordMatch(now, match.kind, text));
-    goNext(from);
-  };
 
   const past: { key: string; line: ScriptLine }[] = [];
   for (let i = run.startIndex; i < run.index && i <= run.endIndex; i++) past.push({ key: run.lineIds[i], line: run.lines[i] });
@@ -1011,7 +1011,7 @@ export default function ReadingPlay() {
               style={[styles.ctrl, styles.ctrlPrimary, hold === 'tip' && styles.ctrlOff]}
               disabled={hold === 'tip'}
               onPress={() => {
-                if (myTurn) void endMyTurnByButton();
+                if (myTurn) void endMyTurn(run.index);
                 else goNext(run.index);
               }}>
               <Text style={styles.ctrlPrimaryText}>{t('reading.next')}</Text>
