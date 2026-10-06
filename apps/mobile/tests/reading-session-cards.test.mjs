@@ -115,7 +115,7 @@ test('reading.session: 회차 상세 「구간 전체」는 구간의 모든 줄
   );
 });
 
-test('reading.recording: 완료 회차는 이어 할 줄이 없고, 다르게 말한 표시는 녹음의 matched 가 아니라 서버 different_lines 를 따른다', () => {
+test('reading.recording: 완료 회차는 이어 할 줄이 없고, 다르게 말한 표시는 녹음 전사가 아니라 서버 different_lines 를 따른다', () => {
   const said = { line_id: 'l7', dialogue_no: 6, said: '말하면 뭐가 달라', different_words: [{ text: '말하면', differs: false }, { text: '뭐가', differs: false }, { text: '달라져.', differs: true }] };
   const rows = sessionLines(
     SCRIPT,
@@ -123,7 +123,7 @@ test('reading.recording: 완료 회차는 이어 할 줄이 없고, 다르게 �
       current_line_id: 'l7',
       recordings: [
         rec('r7', 'l7', { transcript_source: 'stt', transcript: '말하면 뭐가 달라' }),
-        rec('r4', 'l4', { matched: false, transcript_source: 'stt', transcript: '웃으며 그런가' }),
+        rec('r4', 'l4', { transcript_source: 'stt', transcript: '웃으며 그런가' }),
       ],
       different_lines: [said],
     }),

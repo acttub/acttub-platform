@@ -17,8 +17,8 @@ import { translate as t } from '@/lib/i18n';
 
 /**
  * 다르게 말한 대사 전체(R9.26, reading.session) — 완료 화면 「전체 보기」. 구간 대본을 위에서 아래로 보이고, 원문과
- * 다르게 말한 내 줄만 왼쪽 띠·노란 어절·아래 말한 것·[내 녹음]. 다르게 말한 줄은 완료 저장 응답의 것(store 의
- * RunReview)이고, 녹음은 서버에 올라간 것만 들을 수 있다 — 올리기가 늦은 줄은 큐가 비는 대로 다시 조회해 버튼이 생긴다.
+ * 다르게 말한 내 줄만 왼쪽 띠·노란 어절·아래 말한 것·[내 녹음]. 다르게 말한 줄은 완료 화면이 받은 서버 결과(store 의
+ * RunReview — 완료 저장 응답, 그 응답을 잃어 409 였으면 회차 상세의 different_lines)이고, 녹음은 서버에 올라간 것만 들을 수 있다 — 올리기가 늦은 줄은 큐가 비는 대로 다시 조회해 버튼이 생긴다.
  */
 export default function ReadingDiff() {
   const router = useRouter();
