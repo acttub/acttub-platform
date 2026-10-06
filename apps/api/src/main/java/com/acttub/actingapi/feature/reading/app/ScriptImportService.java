@@ -19,9 +19,9 @@ import com.acttub.actingapi.platform.web.Hashing;
 /**
  * 대본 나누기 요청의 규칙 — 글을 받아 작업을 접수하고 상태를 보인다 (reading.script 「나누기 작업」).
  *
- * <p>LLM 을 부르기 전에 끝낼 수 있는 것은 여기서 끝낸다: 동의 없음(403 {@code script_split_consent_required}), 원문 한도
- * (422 {@code script_too_long}), 대본 수 한도(422 {@code script_limit}), 같은 글의 대본(200 중복), 예시 대본(모델 없이 바로
- * 저장), 하루 한도(429 {@code script_split_daily_limit}). 나누기는 {@link ScriptSplitWorker} 가 뒤에서 한다.
+ * <p>LLM 을 부르기 전에 끝낼 수 있는 것은 여기서 끝낸다: 원문 한도(422 {@code script_too_long}), 예시 대본(모델 없이 바로 저장,
+ * 동의도 묻지 않는다), 동의 없음(403 {@code script_split_consent_required}), 대본 수 한도(422 {@code script_limit}), 같은 글의
+ * 대본(200 중복), 하루 한도(429 {@code script_split_daily_limit}). 나누기는 {@link ScriptSplitWorker} 가 뒤에서 한다.
  */
 public class ScriptImportService {
 
@@ -46,11 +46,12 @@ public class ScriptImportService {
         if (ScriptRules.length(rawText) > ScriptRules.TEXT_MAX) {
             throw new ApiException(422, "script_too_long");
         }
-        if (!"granted".equals(imports.consent(userId))) {
-            throw new ApiException(403, "script_split_consent_required");
-        }
         String normalizedTitle = title == null || title.isBlank() ? null : title.strip();
         ScriptDraft sample = SampleScript.matches(rawText) ? SampleScript.draft(normalizedTitle, rawText, source) : null;
+        // 동의는 「대본 글을 OpenAI 로 보낸다」에 대한 것이다. 예시 대본은 모델을 부르지 않으므로 동의 없이(게스트도) 간다 — 튜토리얼이 이 길로 돈다.
+        if (sample == null && !"granted".equals(imports.consent(userId))) {
+            throw new ApiException(403, "script_split_consent_required");
+        }
         Requested requested;
         try {
             requested = imports.request(userId, requestId,
