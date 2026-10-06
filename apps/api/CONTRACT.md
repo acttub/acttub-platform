@@ -768,8 +768,28 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - **진행 저장**: 시간은 `GREATEST(저장값, 보낸 값)` 로 쓴다. 회차 행을 `FOR UPDATE` 로 잡은 채 하고, 계정 상태를 따로
   보지 않는다 — 이관·삭제가 먼저 끝났으면 행의 주인이 바뀌었거나 행이 없어 회차를 찾지 못하는 것으로 충분하다(응답은
   reading.session 「예외」, 규칙은 common.md 「저장 직전 재확인」).
+- **대조(SOMA-593 B1)**: 진행 저장의 `said` 는 `domain/LineResult#merge` 가 `domain/LineMatch`(기기에 있던 규칙을
+  옮긴 것)로 판정하고, 말한 것은 `reading_sessions.line_said`(V32, `{line_id: said}`)에 둔다. `line_results` 원소에 넣지
+  않는 것은 전역 `fail-on-unknown-properties`(§6-3) 때문이다 — 옛 이미지로 되돌리면 모르는 키가 든 회차를 읽지 못해 500 이다.
+  원문과 다르게 말한 대사(`domain/DifferentLine`, 어절은 `domain/WordDiff`)는 저장하지 않고 상세 조회·진행 저장마다
+  구간의 대사 줄 원문으로 계산한다. 대사 번호는 표시값과 같은 `ReadingLayout#dialogueNo` 가 센다. 녹음의 `matched` 는 최종 저장 트랜잭션이 그 줄 원문으로 정한다(`RecordingRules#matched`).
 - **회차 삭제**는 녹음 행을 지우고 객체 삭제를 같은 트랜잭션에서 장부(`reading_recording_delete`)에 올린다.
 - 마지막 회차는 `ORDER BY started_at DESC, id DESC` 의 첫 행이다(`PostgresScriptRepository`·`PostgresSessionRepository`).
+
+**표시값 — 장면·자동 목소리·구간 이름·진행 K/N (SOMA-593)**
+
+- 규칙은 `domain/ReadingLayout`(대사 번호·장면·구간 이름·K/N)과 `domain/VoiceAssignment`(자동 목소리) 두 곳이고, 서버는
+  그 값을 대본·회차 응답에 싣는다. 뜻은 reading.session(장면·구간 이름·K/N)과 reading.cast(`voice`)다.
+- 저장하지 않고 조회할 때 센다. 대본 상세는 이미 읽은 줄·배역으로 세서 질의가 늘지 않는다. 회차 목록·상세·시작 응답은
+  그 대본의 줄(`id, kind`, 장면 머리 줄만 `text`)을 한 번 더 읽는다 — 목록은 카드 수와 상관없이 한 번이다
+  (`PostgresSessionRepository#lines`). 상세·시작과 진행 저장은 같은 한 번에 구간 안 대사 줄의 `text` 도 읽는다(다르게
+  말한 대사의 원문).
+- K 는 `current_line_id` 의 대사 번호에서 센다. 시작(`start_line_id`)과 진행 저장이 구간 안 대사 줄만 받으므로 API 로는 늘
+  대사 줄이다. FK 는 줄의 종류를 보지 않아, 대사가 아닌 줄이 들어 있으면 `ReadingLayout` 은 그 앞 대사로 센다.
+- `voice` 는 저장값이 프리셋 목록(M1~M5·F1~F5)에 있을 때만 그 값을 쓰고 아니면 자동 순환 값이다. 저장 검증은 여전히 길이만
+  본다(`ScriptRules.VOICE_PRESET_MAX`).
+- OpenAPI 컴포넌트: `ReadingScriptScene`(`ReadingScript.scenes`), `ReadingScriptCharacter.voice`, `ReadingSessionRangeName`·
+  `ReadingSessionProgressCount`(`ReadingSessionCard`·`ReadingSession` 의 `range_name`·`progress`, `progress` 는 completed 면 null).
 
 **줄 단위 녹음 (SOMA-546 RA3)**
 

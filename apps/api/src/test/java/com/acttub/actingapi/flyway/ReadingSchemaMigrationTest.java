@@ -177,7 +177,7 @@ class ReadingSchemaMigrationTest {
     @DisplayName("reading.script: V33 은 기존 대본의 raw_hash 를 Java 의 ScriptText.hash 와 같은 값으로 채우고, 나누기 요청·동의·작업 종류의 값 목록을 넓힌다")
     void v33BackfillsRawHashLikeJavaAndWidensTheValueLists() throws Exception {
         String url = PostgresContainerSupport.createDatabase("reading_v33");
-        Flyway.configure().dataSource(dataSource(url)).locations("classpath:db/migration").target("31").load().migrate();
+        Flyway.configure().dataSource(dataSource(url)).locations("classpath:db/migration").target("32").load().migrate();
         var jdbc = new JdbcTemplate(dataSource(url));
         jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", USER);
         // 맥의 NFD 한글, 줄 앞 U+200B, 탭·NBSP·전각 공백·CRLF, BOM — 운영 대본에서 본 모양들.

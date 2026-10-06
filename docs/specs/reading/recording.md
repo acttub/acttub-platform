@@ -70,17 +70,18 @@
   100,000,000바이트이며 넘으면 기존은 보존하고 새 저장만 422 recording_quota다. 대체는 앞 녹음의 바이트를 빼고 센다. 이관으로 넘어도 보존한다. 숫자는
   성능·사용량 근거 없는 초기 한도다.
 - 행에는 현재 소유자 user_id를 둔다.
-- 전사 transcript와 대조 matched는 기기 결과만 저장한다. transcript_source는 stt(기기 STT)·none이고 none이면
-  transcript·matched가 NULL이다. 입력하기(타이핑)로 한 대조는 녹음 행을 만들지 않고 회차의 line_results에만 남는다.
-  matched는 정상 인식 뒤 대조 미달만 false이고 인식 불가·무발화는 NULL이다. 점수·거리는 저장하지 않는다. 통과선과
-  대조 규칙은 기기 상수다([reading.memorization](memorization.md#규칙제약)).
+- 전사 transcript는 기기 결과를 저장하고, 대조 matched는 서버가 저장할 때 전사를 그 줄 원문과 비교해 정한다. 기기가
+  보낸 matched는 받기만 하고 쓰지 않는다(옛 앱 호환, 최소 지원 판을 올릴 때 걷는다). transcript_source는 stt(기기 STT)·none이고
+  none이면 transcript·matched가 NULL이다. 입력하기(타이핑)로 한 대조는 녹음 행을 만들지 않고 회차의 line_results에만 남는다.
+  matched는 정상 인식 뒤 대조 미달만 false이고 인식 불가·무발화·1,000자 초과는 NULL이다. 점수·거리는 저장하지 않는다.
+  통과선과 대조 규칙은 [reading.memorization](memorization.md#규칙제약)과 같다.
 - 재생은 짧은 서명 URL(10분)로 한다. `playback_expires_at`이 만료 시각이고 조회할 때마다 새로 만든다. 스토리지
   설정이 없으면 둘 다 null이다. 없는 녹음과 남의 녹음은 같은 404 recording_not_found다.
 - 앱 회차 상세(R4.9~R4.16)의 "전체 듣기"는 내 대사 녹음을 줄 순서로 이어 튼다(R4.12). 「대본」은 "구간 전체 | 내 녹음만"
   두 탭이고 처음엔 늘 "구간 전체"다. 구간 전체는 회차 구간의 모든 줄(지문 포함)을 보이고 녹음이 있는 내 줄에 재생 버튼을,
   진행 중 회차면 이어 할 줄에 "여기부터 이어서"를 둔다. 내 녹음만은 녹음된 내 줄을 대사 번호·길이와 함께 보인다. 두 탭
   모두 matched가 false인 내 줄은 원문에서 다르게 말한 어절을 노랗게 칠하고 아래에 말한 것을 작게 둔다(칠하는 규칙은
-  [reading.session](session.md#규칙제약)의 완료 화면과 같다). matched가 true인 줄은 전사를 숨기고, transcript_source가 none인
+  [reading.session](session.md#규칙제약)의 완료 화면과 같고, 칠할 어절은 회차 상세의 different_lines가 준다). matched가 true인 줄은 전사를 숨기고, transcript_source가 none인
   녹음은 표시 없이 녹음만 보인다. 녹음이 하나도 없으면 "이 회차에는 녹음이 없어요"(R4.16)다. 앱은 녹음을 듣기만 하고
   하나 지우기·다시 녹음이 없다. 녹음 삭제 API는 웹과 옛 앱이 쓰므로 남는다. 앱은 대본 줄(`GET /v2/reading/scripts/{id}`)과
   회차 녹음을 합쳐 그린다.
@@ -124,7 +125,8 @@
   이관으로 총량을 넘긴 회원: 기존은 모두 보이고 새 저장만 422.
 - 구간 밖 줄 id 또는 상대역 줄 id: 422 invalid_line. completed 회차에 검사를 통과한 올리기: 201. 지워진 회차: 404.
 - STT 없이 올리기: transcript_source none, transcript·matched NULL, 201. STT 인식 불가: matched NULL. 정상 인식 뒤 미달:
-  matched false. 정상 인식 뒤 통과: matched true.
+  matched false. 정상 인식 뒤 통과: matched true. 원문 "대사 7"에 전사 "안녕하세요"와 matched=true를 보냄: matched false.
+  원문과 같은 전사에 matched=false를 보냄: matched true. 전사 " ... "나 1,001자: matched NULL.
 - 녹음을 끈 회차: 행이 없다. 상대역이 읽는 동안의 소리: 내 녹음에 들어가지 않는다.
 - 회차 조회: 줄 순서 녹음 목록에 재생 URL이 있다. 11분 뒤 그 URL: 실패. 목록 재조회: 새 URL.
 - 앱 회차 상세: 처음 열면 "구간 전체" 탭이고 "전체 듣기"가 녹음 둘을 순서대로 튼다. 녹음 지우기·다시 녹음 버튼이 없다.

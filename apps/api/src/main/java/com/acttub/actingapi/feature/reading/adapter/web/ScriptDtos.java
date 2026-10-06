@@ -128,6 +128,9 @@ final class ScriptDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, implementation = ScriptSource.class) String source,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<CharacterResponse> characters,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<LineResponse> lines,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                    description = "「장면으로 찾기」의 장면, 순서대로. 장면 줄이 있으면 그 줄이 경계이고 없으면 지문이 경계다(지문 경계의 대사 5개 미만 장면은 이웃에 붙는다). 대사가 없는 장면은 없다")
+            List<SceneResponse> scenes,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int recordingCount,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true,
                     description = "가장 최근에 시작한 진행 중 회차. 진행 중 회차는 한 대본에 여럿일 수 있다") UUID openSessionId,
@@ -144,6 +147,21 @@ final class ScriptDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String name,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int order,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String voicePreset,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                    description = "내 배역이 아닐 때 읽을 목소리(M1~M5·F1~F5). voice_preset 이 프리셋이면 그 값, 아니면 대본의 모든 배역을 저장 순서로 세운 자동 순환(F1·M1·F2·M2…, 고정값은 빠짐)의 값이다")
+            String voice,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int dialogueCount) {
+    }
+
+    /** 장면 하나. 화면 이름은 {@code title}, 없으면 기기가 번호로 부른다(「장면 2」). */
+    @Schema(name = "ReadingScriptScene", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record SceneResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "1부터") int no,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true,
+                    description = "막·장 머리 줄의 글. 지문으로 나눈 장면과 첫 머리 줄 앞의 대사는 null") String title,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "장면 안 첫 대사 줄") UUID startLineId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "장면 안 마지막 대사 줄") UUID endLineId,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int dialogueCount) {
     }
 

@@ -144,8 +144,8 @@ class EntityMappingIT {
         long jsonNodes = entities.stream().flatMap(type -> java.util.Arrays.stream(type.getDeclaredFields()))
                 .filter(field -> field.getType().equals(com.fasterxml.jackson.databind.JsonNode.class))
                 .count();
-        // 리딩 회차의 line_results(V13)와 챌린지 AI 리포트의 result(V20)가 여기 든다.
-        assertThat(jsonNodes).isEqualTo(6);
+        // 리딩 회차의 line_results(V13)·line_said(V32)와 챌린지 AI 리포트의 result(V20)가 여기 든다.
+        assertThat(jsonNodes).isEqualTo(7);
     }
 
     @Test

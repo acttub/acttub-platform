@@ -15,6 +15,7 @@ import com.acttub.actingapi.feature.reading.adapter.web.ScriptDtos.LineKindInput
 import com.acttub.actingapi.feature.reading.adapter.web.ScriptDtos.LineResponse;
 import com.acttub.actingapi.feature.reading.adapter.web.ScriptDtos.ListResponse;
 import com.acttub.actingapi.feature.reading.adapter.web.ScriptDtos.PatchRequest;
+import com.acttub.actingapi.feature.reading.adapter.web.ScriptDtos.SceneResponse;
 import com.acttub.actingapi.feature.reading.adapter.web.ScriptDtos.ScriptResponse;
 import com.acttub.actingapi.feature.reading.app.ScriptRepository.CharacterPatch;
 import com.acttub.actingapi.feature.reading.app.ScriptService;
@@ -235,9 +236,12 @@ class ScriptController {
                 view.source(),
                 view.characters().stream().map(character -> new CharacterResponse(
                         character.id(), character.name(), character.order(), character.voicePreset(),
-                        character.dialogueCount())).toList(),
+                        character.voice(), character.dialogueCount())).toList(),
                 view.lines().stream().map(line -> new LineResponse(
                         line.id(), line.ordinal(), line.kind(), line.characterId(), line.text(), line.dialogueNo()))
+                        .toList(),
+                view.scenes().stream().map(scene -> new SceneResponse(
+                        scene.no(), scene.title(), scene.startLineId(), scene.endLineId(), scene.dialogueCount()))
                         .toList(),
                 view.recordingCount(),
                 view.openSessionId(),
