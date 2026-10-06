@@ -51,10 +51,8 @@ test('reading.recording: 같은 줄 녹음은 attempt_no 가 가장 큰 것 하�
   assert.equal(latest.get('l3'), undefined);
 });
 
-test('reading.recording: 전사·대조는 기기 STT 결과만 — STT 없으면 none·NULL, 인식 불가면 matched NULL, 미달 false, 통과 true', () => {
-  assert.deepEqual(transcriptFields({ sttUsed: false, text: '', match: null }), { transcript: null, transcript_source: 'none', matched: null });
-  assert.deepEqual(transcriptFields({ sttUsed: true, text: '', match: { kind: 'no_speech' } }), { transcript: null, transcript_source: 'stt', matched: null });
-  assert.deepEqual(transcriptFields({ sttUsed: true, text: '여기 있을 줄', match: { kind: 'miss', closeness: 0.3 } }), { transcript: '여기 있을 줄', transcript_source: 'stt', matched: false });
-  assert.deepEqual(transcriptFields({ sttUsed: true, text: '여기 있을 줄 알았어', match: { kind: 'pass', closeness: 0.9 } }), { transcript: '여기 있을 줄 알았어', transcript_source: 'stt', matched: true });
-  assert.deepEqual(transcriptFields({ sttUsed: true, text: '긴 말', match: { kind: 'too_long' } }), { transcript: '긴 말', transcript_source: 'stt', matched: null });
+test('reading.recording: 전사는 기기 STT 결과만 — STT 없으면 none·NULL, 인식이 비면 NULL. 대조(matched)는 보내지 않는다', () => {
+  assert.deepEqual(transcriptFields({ sttUsed: false, text: '' }), { transcript: null, transcript_source: 'none' });
+  assert.deepEqual(transcriptFields({ sttUsed: true, text: '  ' }), { transcript: null, transcript_source: 'stt' });
+  assert.deepEqual(transcriptFields({ sttUsed: true, text: ' 여기 있을 줄 ' }), { transcript: '여기 있을 줄', transcript_source: 'stt' });
 });

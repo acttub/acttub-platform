@@ -67,12 +67,12 @@ test('reading.session: completed 회차에 진행 저장은 409 session_closed �
   assert.equal(closed, 1);
 });
 
-test('reading.session: 완료 저장은 complete 와 line_results 를 함께 싣는다', async () => {
+test('reading.session: 완료 저장은 complete 와 말한 것(line_results)을 함께 싣는다', async () => {
   const { state, send } = server();
   const q = createProgressQueue({ send, retryDelayMs: 0 });
-  q.push({ current_line_id: null, elapsed_seconds: 42, complete: true, line_results: [{ line_id: 'l1', outcome: 'passed', misses: 0 }] });
+  q.push({ current_line_id: null, elapsed_seconds: 42, complete: true, line_results: [{ line_id: 'l1', said: '여기 있을 줄 알았어' }] });
   await q.flushed();
   assert.equal(state.received[0].complete, true);
-  assert.deepEqual(state.received[0].line_results, [{ line_id: 'l1', outcome: 'passed', misses: 0 }]);
+  assert.deepEqual(state.received[0].line_results, [{ line_id: 'l1', said: '여기 있을 줄 알았어' }]);
   await tick();
 });

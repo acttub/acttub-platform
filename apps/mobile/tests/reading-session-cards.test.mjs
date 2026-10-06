@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-  differentlySaid,
   isPlaybackExpired,
   practiceAgainParams,
   sessionCardMeta,
@@ -55,7 +54,6 @@ const rec = (id, line_id, o = {}) => ({
   byte_size: 30_000,
   transcript: null,
   transcript_source: 'none',
-  matched: null,
   playback_url: `https://cdn/${id}`,
   playback_expires_at: '2026-09-21T12:10:00+09:00',
   ...o,
@@ -71,8 +69,8 @@ const detail = (o = {}) => ({
   record: true,
   current_line_id: null,
   progress_seq: 3,
-  line_results: [],
   recordings: [],
+  different_lines: [],
   ...o,
 });
 
@@ -89,13 +87,6 @@ test('reading.session: 상태 칩은 완료(초록)와 진행 중 · K/N(파랑)
   assert.deepEqual(sessionChip('in_progress', null), { label: '진행 중', tone: 'reading' });
 });
 
-test('reading.recording: 다르게 말한 표시는 인식으로 비교해 틀린 녹음만 — 맞게 말했거나 인식하지 않은 녹음은 원문만', () => {
-  assert.equal(differentlySaid(rec('r', 'l', { matched: false, transcript_source: 'stt', transcript: '말하면 뭐가 달라' })), '말하면 뭐가 달라');
-  assert.equal(differentlySaid(rec('r', 'l', { matched: true, transcript_source: 'stt', transcript: '말하면 뭐가 달라져' })), null);
-  assert.equal(differentlySaid(rec('r', 'l', { matched: false, transcript_source: 'none', transcript: null })), null);
-  assert.equal(differentlySaid(rec('r', 'l', { matched: false, transcript_source: 'none', transcript: '말하면' })), null);
-});
-
 test('reading.session: 회차 상세 「구간 전체」는 구간의 모든 줄(지문 포함)에 내 녹음·이어 할 줄을 붙인다', () => {
   const rows = sessionLines(
     SCRIPT,
@@ -105,14 +96,14 @@ test('reading.session: 회차 상세 「구간 전체」는 구간의 모든 줄
       end_line_id: 'l7',
       current_line_id: 'l7',
       recordings: [
-        rec('r4', 'l4', { matched: true, transcript_source: 'stt', transcript: '웃으며 그런가' }),
-        rec('r2a', 'l2', { matched: false, transcript_source: 'stt', transcript: '어떻게 알아' }),
-        rec('r2b', 'l2', { attempt_no: 2, matched: true, transcript_source: 'stt', transcript: '어떻게 알았어' }),
+        rec('r4', 'l4', { transcript_source: 'stt', transcript: '웃으며 그런가' }),
+        rec('r2a', 'l2', { transcript_source: 'stt', transcript: '어떻게 알아' }),
+        rec('r2b', 'l2', { attempt_no: 2, transcript_source: 'stt', transcript: '어떻게 알았어' }),
       ],
     }),
   );
   assert.deepEqual(
-    rows.map((r) => [r.lineId, r.type, r.role, r.dialogueNo, r.mine, r.recording?.id ?? null, r.said, r.resumeHere]),
+    rows.map((r) => [r.lineId, r.type, r.role, r.dialogueNo, r.mine, r.recording?.id ?? null, r.different, r.resumeHere]),
     [
       ['l2', 'dialogue', '태오', 2, true, 'r2b', null, false],
       ['l3', 'dialogue', '윤서', 3, false, null, null, false],
@@ -124,16 +115,27 @@ test('reading.session: 회차 상세 「구간 전체」는 구간의 모든 줄
   );
 });
 
-test('reading.session: 완료 회차는 이어 할 줄이 없고, 다르게 말한 녹음은 말한 것을 단다', () => {
+test('reading.recording: 완료 회차는 이어 할 줄이 없고, 다르게 말한 표시는 녹음의 matched 가 아니라 서버 different_lines 를 따른다', () => {
+  const said = { line_id: 'l7', dialogue_no: 6, said: '말하면 뭐가 달라', different_words: [{ text: '말하면', differs: false }, { text: '뭐가', differs: false }, { text: '달라져.', differs: true }] };
   const rows = sessionLines(
     SCRIPT,
-    detail({ current_line_id: 'l7', recordings: [rec('r7', 'l7', { matched: false, transcript_source: 'stt', transcript: '말하면 뭐가 달라' })] }),
+    detail({
+      current_line_id: 'l7',
+      recordings: [
+        rec('r7', 'l7', { transcript_source: 'stt', transcript: '말하면 뭐가 달라' }),
+        rec('r4', 'l4', { matched: false, transcript_source: 'stt', transcript: '웃으며 그런가' }),
+      ],
+      different_lines: [said],
+    }),
   );
   assert.equal(rows.length, 7);
   assert.equal(rows.some((r) => r.resumeHere), false);
   assert.deepEqual(
-    rows.filter((r) => r.recording).map((r) => [r.dialogueNo, r.text, r.said]),
-    [[6, '말하면 뭐가 달라져.', '말하면 뭐가 달라']],
+    rows.filter((r) => r.recording).map((r) => [r.dialogueNo, r.text, r.different?.said ?? null]),
+    [
+      [4, '(웃으며) 그런가.', null],
+      [6, '말하면 뭐가 달라져.', '말하면 뭐가 달라'],
+    ],
   );
 });
 

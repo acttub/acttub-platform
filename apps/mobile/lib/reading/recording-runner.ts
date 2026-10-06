@@ -25,7 +25,6 @@ function instance(): RecordingQueue {
         duration_ms: entry.durationMs,
         transcript: entry.transcript,
         transcript_source: entry.transcriptSource,
-        matched: entry.matched,
         audio: { uri: entry.uri, name: fileNameFor(entry.contentType), type: entry.contentType },
       }),
     deleteFile: deleteDeviceFile,

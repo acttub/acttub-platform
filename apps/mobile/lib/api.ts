@@ -635,7 +635,6 @@ export const api = {
       duration_ms: number;
       transcript: string | null;
       transcript_source: 'stt' | 'none';
-      matched: boolean | null;
       audio: { uri: string; name: string; type: string };
     },
   ): Promise<SessionRecording> {
@@ -646,7 +645,6 @@ export const api = {
     form.append('duration_ms', String(input.duration_ms));
     form.append('transcript_source', input.transcript_source);
     if (input.transcript !== null) form.append('transcript', input.transcript);
-    if (input.matched !== null) form.append('matched', String(input.matched));
     // React Native 의 fetch 는 {uri, name, type} 를 파일 파트로 보낸다. Content-Type 은 경계와 함께 fetch 가 붙인다.
     form.append('audio', { uri: input.audio.uri, name: input.audio.name, type: input.audio.type } as unknown as Blob);
     return request<SessionRecording>(
