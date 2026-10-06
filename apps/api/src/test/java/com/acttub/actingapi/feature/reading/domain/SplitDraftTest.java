@@ -81,6 +81,22 @@ class SplitDraftTest {
     }
 
     @Test
+    @DisplayName("모델이 머리를 비워 보냈어도 줄이 배역 이름과 구분 부호로 시작하면 머리를 뗀다. 이름 뒤에 조사가 붙은 대사는 그대로다")
+    void infersAMissingHeaderOnlyBeforeASeparator() {
+        String raw = "MARA. (sitting) Did it answer?\n[지수] 왔어?\n지수야, 왔어?\n지수： 응.";
+        Map<Integer, Row> rows = Map.of(
+                1, new Row(1, Kind.DIALOGUE, "MARA", ""),
+                2, new Row(2, Kind.DIALOGUE, "지수", ""),
+                3, new Row(3, Kind.DIALOGUE, "민호", ""),
+                4, new Row(4, Kind.DIALOGUE, "지수", ""));
+
+        ScriptDraft draft = SplitDraft.assemble("t", raw, "paste", NumberedLine.of(raw), rows, List.of());
+
+        assertThat(draft.lines()).extracting(ScriptDraft.Line::text)
+                .containsExactly("(sitting) Did it answer?", "왔어?", "지수야, 왔어?", "응.");
+    }
+
+    @Test
     @DisplayName("줄 앞의 U+200B·BOM 은 저장되는 글과 제목에 남지 않는다")
     void invisibleCharactersDoNotSurvive() {
         String raw = "\uFEFF\u200B반지하 라디오\n\u200B(낡은 라디오에서 잡음이 난다.)\n\u200B하은: 오빠, 그거 고장 난 거 아니야?";
