@@ -79,7 +79,8 @@ test('reading.session: 흐른 시간은 일시정지를 빼고 잰다', () => {
   assert.equal(formatProgress(r), '0 / 5 · 00:01');
 });
 
-test('reading.session: 내 줄에는 말한 것만 남기고 흐름은 그대로다. 진행 저장은 줄 순서로 line_id·said 를 싣는다', () => {
+test('reading.session: 내 줄에는 말한 것만 남기고 흐름은 그대로다. 진행 저장은 이번 실행에서 말한 줄만 줄 순서로 line_id·said 를 싣는다', () => {
+  assert.deepEqual(progressPayload(resumeRun(run(), 'l4')).line_results, [], '이어하기는 앞 실행의 줄 결과를 다시 보내지 않는다(서버가 말한 것을 지우지 않게)');
   let r = run();
   r = recordSaid(r, '하나');
   assert.equal(r.index, 1);
