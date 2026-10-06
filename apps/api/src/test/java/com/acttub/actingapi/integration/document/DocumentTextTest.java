@@ -63,6 +63,66 @@ class DocumentTextTest {
     }
 
     @Test
+    @DisplayName("reading.script 원본: hwp 의 표는 칸을 탭으로, 행을 줄로 잇는다(hwplib 1.1.11 로 만든 2×2 표)")
+    void hwpTablesBecomeTabbedLines() throws IOException {
+        assertThat(read(resource("table.hwp"))).isEqualTo(new DocumentText.Text("\n윤서\t오늘은 바람이 차네.\n태오\t옥상은 원래 그래.\n\n"));
+    }
+
+    @Test
+    @DisplayName("reading.script 원본: 표 칸 하나에 한도를 넘는 글이 있어도 칸에 다 쌓기 전에 TooLong 이다 — docx(XML 210MB 를 푸는 칸)·hwp(300,000자 칸)")
+    void longTableCellsStopAtTheLimit() throws IOException {
+        Path docx = dir.resolve("bomb.docx");
+        try (ZipOutputStream out = new ZipOutputStream(Files.newOutputStream(docx))) {
+            out.putNextEntry(new ZipEntry("word/document.xml"));
+            out.write(("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body>"
+                    + "<w:tbl><w:tr><w:tc><w:p><w:r><w:t>").getBytes(StandardCharsets.UTF_8));
+            byte[] chunk = "a".repeat(1 << 20).getBytes(StandardCharsets.US_ASCII);
+            for (int i = 0; i < 210; i++) out.write(chunk);
+            out.write("</w:t></w:r></w:p></w:tc></w:tr></w:tbl></w:body></w:document>".getBytes(StandardCharsets.UTF_8));
+            out.closeEntry();
+        }
+        assertThat(Files.size(docx)).as("작은 파일이 크게 풀린다").isLessThan(1_000_000);
+        assertThat(read(docx)).isEqualTo(new DocumentText.TooLong());
+        assertThat(read(resource("table-long.hwp"))).isEqualTo(new DocumentText.TooLong());
+    }
+
+    @Test
+    @DisplayName("reading.script 원본: 본문 구역이 작게 압축돼 크게 풀리는 hwp(압축 폭탄)는 풀기 전에 읽지 못함이다")
+    void hwpDecompressionBomb() throws IOException {
+        Path bomb = dir.resolve("bomb.hwp");
+        try (InputStream in = Files.newInputStream(resource("rooftop.hwp"))) {
+            var fs = new kr.dogfoot.hwplib.org.apache.poi.poifs.filesystem.POIFSFileSystem(in);
+            var body = (kr.dogfoot.hwplib.org.apache.poi.poifs.filesystem.DirectoryEntry) fs.getRoot().getEntry("BodyText");
+            body.getEntry("Section0").delete();
+            ByteArrayOutputStream deflated = new ByteArrayOutputStream();
+            try (var deflater = new java.util.zip.DeflaterOutputStream(deflated, new java.util.zip.Deflater(9, true))) {
+                byte[] zeros = new byte[1 << 20];
+                for (int i = 0; i < 300; i++) deflater.write(zeros);
+            }
+            body.createDocument("Section0", new java.io.ByteArrayInputStream(deflated.toByteArray()));
+            try (var out = Files.newOutputStream(bomb)) {
+                fs.writeFilesystem(out);
+            }
+        }
+        assertThat(Files.size(bomb)).as("작은 파일이 크게 풀린다").isLessThan(2_000_000);
+        assertThat(read(bomb)).isEqualTo(new DocumentText.Unreadable("too_large"));
+    }
+
+    @Test
+    @DisplayName("reading.script 원본: docx 글상자의 mc:AlternateContent 는 Choice 만 읽는다 — Fallback 의 같은 글을 두 번 넣지 않는다")
+    void docxTextBoxesAreReadOnce() throws IOException {
+        String ns = "xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" "
+                + "xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\" xmlns:v=\"urn:schemas-microsoft-com:vml\"";
+        String box = p("w", "<w:r><w:t>(바람 소리)</w:t></w:r>");
+        String xml = "<w:document " + ns + "><w:body>"
+                + p("w", "<w:r><w:t>윤서</w:t><w:tab/><w:t>추워.</w:t></w:r><w:r><mc:AlternateContent><mc:Choice Requires=\"wps\"><w:drawing><w:txbxContent>"
+                        + box + "</w:txbxContent></w:drawing></mc:Choice><mc:Fallback><w:pict><v:textbox><w:txbxContent>" + box
+                        + "</w:txbxContent></v:textbox></w:pict></mc:Fallback></mc:AlternateContent></w:r>")
+                + "</w:body></w:document>";
+        assertThat(read(zip("box.docx", Map.of("word/document.xml", xml)))).isEqualTo(new DocumentText.Text("윤서\t추워.(바람 소리)\n\n"));
+    }
+
+    @Test
     @DisplayName("reading.script 원본: hwpx 는 구역 번호 순으로 읽고 hp:tab·hp:lineBreak·표를 docx 와 같이 다룬다")
     void hwpxReadsSectionsInOrder() throws IOException {
         String hp = "xmlns:hp=\"http://www.hancom.co.kr/hwpml/2011/paragraph\" xmlns:hs=\"http://www.hancom.co.kr/hwpml/2011/section\"";
