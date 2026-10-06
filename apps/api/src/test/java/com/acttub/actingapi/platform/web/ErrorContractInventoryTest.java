@@ -343,6 +343,11 @@ class ErrorContractInventoryTest {
                     "feature.reading.ReadingUploadIT"),
             covered("feature.reading.app.ScriptUploadService|422|script_upload_not_ready", 2,
                     "feature.reading.ReadingUploadIT"),
+            covered("feature.reading.app.ScriptUploadService|422|script_upload_used", 1,
+                    "feature.reading.ReadingUploadIT"),
+            // 읽기 자리를 못 얻음. 인터럽트로 기다림이 끊긴 자리도 같은 응답이다.
+            covered("feature.reading.app.ScriptUploadService|429|script_upload_busy", 2,
+                    "feature.reading.app.ScriptUploadServiceTest"),
             // 리딩 회차(reading.cast · reading.session). script_not_found 는 시작과 목록 두 자리다.
             covered("feature.reading.app.SessionService|404|script_not_found", 2,
                     "feature.reading.ReadingSessionIT"),

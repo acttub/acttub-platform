@@ -66,7 +66,8 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
     "ANALYSIS_WORKER_ENABLED=false",
     "ACCOUNT_CLEANUP_ENABLED=false",
     "ACCOUNT_HOUSEKEEPING_ENABLED=false",
-    "CHALLENGE_SETTLEMENT_ENABLED=false"
+    "CHALLENGE_SETTLEMENT_ENABLED=false",
+    "SCRIPT_UPLOAD_SWEEP_ENABLED=false"
 })
 @AutoConfigureMockMvc
 @Import({MutableClock.Fixture.class, ReadingUploadIT.Fakes.class})
@@ -224,6 +225,18 @@ class ReadingUploadIT {
                 .containsExactly("저는 갈매기예요.", "아니, 당신은 배우예요.");
         assertThat(jdbc.queryForObject("SELECT script_id FROM script_uploads", String.class)).isEqualTo(scriptId);
         assertThat(jdbc.queryForObject("SELECT raw_text FROM script_uploads", String.class)).as("글은 대본에 있어 원본 행에서 비운다").isNull();
+
+        assertThat(perform(post("/v2/reading/uploads/{id}/complete", uploadId), bearer).getStatus())
+                .as("대본에 연결된 원본은 다시 읽지 않는다").isEqualTo(204);
+        assertThat(storage.downloads.get()).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT raw_text FROM script_uploads", String.class)).isNull();
+        Map<String, Object> again = new LinkedHashMap<>();
+        again.put("request_id", UUID.randomUUID().toString());
+        again.put("upload_id", uploadId);
+        again.put("source", "file");
+        again.put("allow_duplicate", true);
+        assertThat(json(post("/v2/reading/imports").content(mapper.writeValueAsString(again)), 422, bearer).path("detail").textValue())
+                .as("이미 대본이 된 원본으로는 다시 나누지 않는다 — 파일을 다시 올린다").isEqualTo("script_upload_used");
         assertThat(jdbc.queryForObject("SELECT raw_text FROM scripts", String.class)).isEqualTo(SCENE);
     }
 

@@ -17,8 +17,11 @@ public interface ScriptUploadRepository {
     /** 없으면 {@code null}. 남의 것도 없는 것이다. */
     Upload find(UUID userId, UUID uploadId);
 
-    /** @param rawText 뽑은 글. 아직 읽지 않았으면 {@code null} */
-    record Upload(UUID id, String objectKey, long byteSize, String rawText) {
+    /**
+     * @param rawText 뽑은 글. 아직 읽지 않았거나 대본에 연결돼 비웠으면 {@code null}
+     * @param linked 대본에 연결됐다
+     */
+    record Upload(UUID id, String objectKey, long byteSize, String rawText, boolean linked) {
     }
 
     void saveText(UUID uploadId, String rawText, Instant now);

@@ -47,12 +47,13 @@ class PostgresScriptUploadRepository implements ScriptUploadRepository {
     @Override
     public Upload find(UUID userId, UUID uploadId) {
         var rows = list(em.createNativeQuery(
-                "SELECT id,object_key,byte_size,raw_text FROM script_uploads WHERE id=:id AND user_id=:userId", Tuple.class)
+                "SELECT id,object_key,byte_size,raw_text,script_id FROM script_uploads WHERE id=:id AND user_id=:userId", Tuple.class)
                 .setParameter("id", uploadId).setParameter("userId", userId));
         if (rows.isEmpty()) return null;
         Tuple row = rows.getFirst();
         return new Upload(row.get("id", UUID.class), row.get("object_key", String.class),
-                ((Number) row.get("byte_size")).longValue(), row.get("raw_text", String.class));
+                ((Number) row.get("byte_size")).longValue(), row.get("raw_text", String.class),
+                row.get("script_id", UUID.class) != null);
     }
 
     @Override

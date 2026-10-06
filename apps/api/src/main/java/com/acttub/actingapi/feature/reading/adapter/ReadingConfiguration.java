@@ -26,6 +26,7 @@ import com.acttub.actingapi.feature.reading.app.ScriptUploadService;
 import com.acttub.actingapi.feature.reading.app.SessionRepository;
 import com.acttub.actingapi.feature.reading.app.SessionService;
 import com.acttub.actingapi.feature.reading.app.VoiceSynthesizer;
+import com.acttub.actingapi.feature.reading.domain.ScriptFileRules;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.integration.media.AudioTranscoder;
 import com.acttub.actingapi.platform.ledger.AiJobLedger;
@@ -77,7 +78,8 @@ class ReadingConfiguration {
     @Bean
     ScriptUploadService scriptUploadService(ScriptUploadRepository uploads, ScriptImportRepository imports,
             ScriptFileStorage storage, ScriptFileCleanup cleanup, Clock clock) {
-        return new ScriptUploadService(uploads, imports, storage, cleanup, clock);
+        return new ScriptUploadService(uploads, imports, storage, cleanup, clock, new ScriptUploadService.ReadLimits(
+                ScriptFileRules.READ_CONCURRENCY, ScriptFileRules.READ_WAIT, ScriptFileRules.READ_TIMEOUT));
     }
 
     @Bean
