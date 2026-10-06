@@ -829,7 +829,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 **나누기 작업 (SOMA-593 C1)** — 제품 규칙의 정본: [reading.script](../../docs/specs/reading/script.md#규칙제약) 「나누기 작업」
 
-- 코드의 자리: 접수·상태는 `reading/app/ScriptImportService`(동의·원문 한도·지문·예시 판별), 저장소 `adapter/db/
+- 코드의 자리: 접수·상태는 `reading/app/ScriptImportService`(원문 한도 → 예시 판별 → 동의(예시가 아닐 때만) → 지문), 저장소 `adapter/db/
   PostgresScriptImportRepository`(V33 `script_imports`), 워커 `app/ScriptSplitWorker`, 스케줄러 `adapter/sched/ScriptSplitScheduler`,
   순수 규칙은 `domain/`(`NumberedLine` 줄 번호·조각, `SplitResponse` 답 검사, `CharacterNames` 이름 바로잡기, `SplitDraft` 조립,
   `SampleScript` 예시, `ScriptText` 같은 글, `ScriptSplitRules` 숫자). 지시문은 `app/ScriptSplitPrompt`.
@@ -855,7 +855,8 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - 요청 플래그 `allow_duplicate`(R2.7 「새로 넣기」: 같은 글의 대본·진행 중 요청을 보지 않음)·`skip_script_check`(R2.8 「그래도
   나누기」: 행에 남겨 워커가 판정 줄을 묻지 않음)는 지문에 든다. 요청 모양은 `raw_text` 에 보이는 글자가 없으면(U+3000·U+200B 만)
   422 배열, 제목 200자다.
-- 동의 조회는 고품질 목소리와 같은 질의(현재 판 `script_split` 문서의 마지막 결정)다. `ConsentDocument.askedAtEntry` 가
+- 동의 조회는 고품질 목소리와 같은 질의(현재 판 `script_split` 문서의 마지막 결정)다. 예시 대본과 같은 글은 모델을 부르지 않으므로
+  동의를 보지 않고 바로 저장한다(게스트도). `ConsentDocument.askedAtEntry` 가
   `script_split` 을 제외해 진입 게이트에 나오지 않는다. 게스트는 선택 문서를 결정할 수 없어(`ConsentService`, 403 `member_only`)
   나누기는 늘 403 `script_split_consent_required` 다.
 - 탈퇴는 `PostgresProfileRepository#eraseReading` 이 `script_imports` 를 행째 지우고 진행 중 작업은 §6-15 의 `ai_jobs` 취소가 닫는다.
