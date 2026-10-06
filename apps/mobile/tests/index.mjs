@@ -45,7 +45,6 @@ import './reading-download-progress.test.mjs';
 import './reading-download-plan.test.mjs';
 import './reading-voice-errors.test.mjs';
 import './reading-vad.test.mjs';
-import './reading-match.test.mjs';
 import './reading-session-plan.test.mjs';
 import './reading-session-run.test.mjs';
 import './reading-progress-queue.test.mjs';
