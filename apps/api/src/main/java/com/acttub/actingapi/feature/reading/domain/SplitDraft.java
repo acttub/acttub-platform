@@ -38,7 +38,8 @@ public final class SplitDraft {
         for (NumberedLine line : lines) {
             Row row = rows.get(line.no());
             Kind kind = row == null ? Kind.DIRECTION : row.kind();
-            String body = body(line.text(), row == null ? "" : row.header());
+            // 머리는 대사에서만 뗀다 — 장면 머리의 "S#1." 처럼 대사가 아닌 줄의 앞부분은 그 줄의 일부다.
+            String body = body(line.text(), kind == Kind.DIALOGUE && row != null ? row.header() : "");
             switch (kind) {
                 case DIALOGUE -> {
                     if (body.isEmpty()) {
