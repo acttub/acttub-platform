@@ -42,6 +42,12 @@ export type LineOutcome = components["schemas"]["ReadingLineResult"]["outcome"];
 /** 줄마다 하나. 마지막 사건이 이긴다. misses 는 미달 횟수. */
 export type LineResult = components["schemas"]["ReadingLineResult"];
 
+/** 진행 저장에 싣는 줄 결과 — 말한 것 said(서버가 원문과 비교한다) 또는 기기가 정한 outcome·misses */
+export type LineResultInput = components["schemas"]["ReadingLineResultInput"];
+
+/** 원문과 다르게 말한 대사 — 완료 응답과 회차 상세의 different_lines, 줄 순서 */
+export type DifferentLine = components["schemas"]["ReadingDifferentLine"];
+
 /** POST /v2/reading/scripts/{id}/sessions */
 export type SessionCreateRequest = components["schemas"]["ReadingSessionCreateRequest"];
 
