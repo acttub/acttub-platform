@@ -263,7 +263,9 @@ function fileServer({ used = [], completeErrors = [] } = {}) {
     import: {
       start: async (body) => {
         calls.push(['import', body.upload_id, body.request_id]);
-        if (used.includes(body.upload_id)) throw apiError(422, 'script_upload_used');
+        // 서버(C2 b463a275): 대본이 된 원본은 새 요청이면 그 대본으로 중복이고, allow_duplicate 일 때만 422 다.
+        if (used.includes(body.upload_id) && body.allow_duplicate) throw apiError(422, 'script_upload_used');
+        if (used.includes(body.upload_id)) return { import_id: null, duplicate_script_id: 'sc-linked' };
         return { import_id: 'imp-1', duplicate_script_id: null };
       },
       get: async (id) => ({ id, ...done }),
@@ -351,4 +353,15 @@ test('reading.script(R2.11): 화면을 떠나면(signal 끊김) 묻기를 멈추
   gone.abort();
   assert.deepEqual(await runScriptImport({ kind: 'file', file: PICKED, uploadId: 'up-1' }, {}, files.deps, () => {}, () => {}, gone.signal), { kind: 'cancelled' });
   assert.deepEqual(files.calls, [], '떠난 뒤에는 아무것도 보내지 않는다');
+});
+
+test('reading.script(R2.7): 대본이 된 원본을 플래그 없이 다시 보내면 다시 올리지 않고 그 대본으로 R2.7 이다', async () => {
+  const { calls, deps } = fileServer({ used: ['up-1'] });
+  const uploaded = [];
+
+  const stop = await runScriptImport({ kind: 'file', file: PICKED, uploadId: 'up-1' }, {}, deps, () => {}, (id) => uploaded.push(id));
+
+  assert.deepEqual(stop, { kind: 'duplicate', scriptId: 'sc-linked' });
+  assert.deepEqual(calls, [['complete', 'up-1'], ['import', 'up-1', 'rid-1']]);
+  assert.deepEqual(uploaded, []);
 });
