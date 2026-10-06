@@ -60,3 +60,18 @@ export async function logScreenView(screenName: string): Promise<void> {
     screen_class: screenName,
   });
 }
+
+/**
+ * 가입을 마친 회원의 회사 내부 회원 식별 번호를 GA 사용자 ID로 붙인다. 로그아웃·탈퇴면 `null` 로 지운다.
+ * 화면·동작 기록을 계정과 이어, 가입한 사람이 어느 화면에서 멈추는지 보기 위해서다(SOMA-588).
+ * 이름·이메일·광고 정보는 보내지 않는다 — Airbridge 와 같은 내부 번호(me.id)만 쓴다.
+ */
+export async function setAnalyticsUserId(userId: string | null): Promise<void> {
+  const a = getAnalytics();
+  if (!a || !mod) return;
+  try {
+    await mod.setUserId(a, userId);
+  } catch {
+    // 무시
+  }
+}
