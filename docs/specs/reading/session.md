@@ -24,8 +24,9 @@
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
 | `POST /v2/reading/scripts/{script_id}/sessions` | `X-Request-Id`(선택, 있으면 본문과 같아야 한다), `ReadingSessionCreateRequest`(request_id·my_character_ids·mode·start_line_id·end_line_id·advance·record) | `ReadingSession` 201, 같은 요청 재전송 200 | `invalid_characters`·`invalid_line`·`empty_range`·`request_fingerprint_mismatch` 422, 형태 오류 422 배열, `script_not_found` 404 |
-| `GET /v2/reading/scripts/{script_id}/sessions` | `script_id` | `ReadingSessionList` 200 | `script_not_found` 404 |
-| `GET /v2/reading/sessions/{session_id}` | `session_id` | `ReadingSession` 200 | `session_not_found` 404 |
+| `GET /v2/reading/scripts/{script_id}/sessions` | `script_id` | `ReadingSessionList` 200(카드마다 `range_name`·`progress`) | `script_not_found` 404 |
+| `GET /v2/reading/sessions/{session_id}` | `session_id` | `ReadingSession` 200(`range_name`·`progress` 포함) | `session_not_found` 404 |
+| `GET /v2/reading/scripts/{script_id}`(장면) | `script_id` | `ReadingScript` 200의 `scenes` | `script_not_found` 404 |
 | `PATCH /v2/reading/sessions/{session_id}/progress` | `ReadingSessionProgressRequest`(progress_seq 필수, current_line_id·elapsed_seconds·line_results·complete 선택) | `ReadingSessionProgress` 200(옛 progress_seq도 현재 값) | `session_closed` 409, `invalid_line` 422, `session_not_found` 404 |
 | `DELETE /v2/reading/sessions/{session_id}` | `session_id` | 204, 녹음 객체는 삭제 장부로(reading.recording) | `session_not_found` 404 |
 
@@ -69,11 +70,16 @@ current_line_id가 남아 있어 이어 할 수 있다.
   바꾼다. "최근 구간"은 이 대본으로 연습한 적이 있을 때만 맨 앞에 생기고, 지난 회차들의 구간을 최근 순으로 한 번씩
   보여 준다(줄마다 구간 이름·대사 수·그 구간의 회차 수·날짜). 앱이 회차 목록에서 모으므로 서버 변경이 없다. 기본은
   연습한 적이 있으면 가장 최근 구간, 없으면 처음부터 끝까지다. 지문 경계로 나눈 장면 가운데 대사가 5개보다 적은 장면은
-  앞 장면에 붙인다(첫 장면이면 뒤 장면에). 구간의 줄이 그 대본의 대사 줄이 아니면(지문·장면·남의 줄·없는 줄) 422
+  앞 장면에 붙인다(첫 장면이면 뒤 장면에). 장면은 서버가 이 규칙으로 나눠 대본 상세의
+  `scenes[{no, title, start_line_id, end_line_id, dialogue_count}]`로 준다. `title`은 막·장 머리 줄의 글이고 지문으로
+  나눈 장면(과 첫 머리 줄 앞의 대사)은 null이라 기기가 번호로 부른다. 대사가 없는 장면은 없다. 구간의 줄이 그 대본의 대사 줄이 아니면(지문·장면·남의 줄·없는 줄) 422
   invalid_line, 시작 줄이 끝 줄 뒤이거나 구간 안에 내 대사가 없으면 422 empty_range. 웹 D17에는 구간 선택이
   없어 웹은 0.1.0에서 전체 구간으로 시작한다. (디자인에 반영할 것, 후속 가능)
 - 구간 이름은 대본 전체면 "처음부터 끝까지", 위 규칙으로 나눈 장면 하나의 첫·끝 대사와 정확히 같으면 그 장면 이름
-  (예: "장면 2"), 그 밖은 "대사 5~12번"이다. 연습 기록·회차 상세·최근 구간이 같은 이름을 쓴다.
+  (예: "장면 2"), 그 밖은 "대사 5~12번"이다. 연습 기록·회차 상세·최근 구간이 같은 이름을 쓴다. 서버가 회차 카드·상세의
+  `range_name{kind, scene_no, scene_title, start, end}`로 준다. `kind`는 `all`·`scene`·`dialogues`, `start`·`end`는
+  구간의 시작·끝 대사 번호다. `scene_no`는 `kind=scene`일 때만, `scene_title`은 그 장면에 머리 줄이 있을 때만 값이
+  있고 아니면 null이다. 화면 글(번역 포함)은 기기가 만든다. 전체와 장면이 같으면 `all`이다.
 - 가리기(모든 대사 보기·내 대사만 가리기·모든 대사 가리기)는 서버에 저장하지 않는다. R8 아래 세 칩에서 고른 값으로
   시작하고 기기가 대본마다 마지막 값을 기억한다. 가림은 보이는 대사 본문(웹은 다음 대사와 옆 대본 보기 포함)에
   적용되고 배역 이름·지문·장면은 남긴다. "원문 보기"는 그 줄만 잠깐 푼다. 웹에도 같은 세 값을 두고 실행 중 헤더로
@@ -127,8 +133,10 @@ current_line_id가 남아 있어 이어 할 수 있다.
   더보기로 지운다(R4.14·R4.15). 함께 지워지는 것은 [영역 표](README.md#리딩-자료의-이관삭제탈퇴)다. 줄을 누르면 회차 상세가
   열린다. 머리에 회차 번호·구간 이름·내 배역·날짜·걸린 시간·상태가 있고, 녹음 듣기와 「대본」 탭은 reading.recording이다.
   진행 중 회차는 "이어서 연습 · K/N줄"로 R9를, 완료 회차는 "이 구간으로 다시 연습"으로 그 배역·구간이 골라진 R8을 연다.
-  대본 상세 아래 버튼은 진행 중 회차가 있어도 "연습하기" 하나다. 카드의 `range{start_dialogue_no, end_dialogue_no}`로
-  K/N의 N = end − start + 1을, K는 현재 줄의 대사 번호에서 센다.
+  대본 상세 아래 버튼은 진행 중 회차가 있어도 "연습하기" 하나다. K/N은 회차 카드·상세의 `progress{done, total}`이고
+  in_progress일 때만 있다(completed는 null). total(N)은 구간 대사 수, done(K)은 current_line의 대사 번호 − 시작 대사
+  번호다. current_line이 대사가 아니면 그 앞 대사의 번호로 센다. 그래서 대본 상세는 회차 목록 한 번으로 칩을 그리고
+  진행 중 회차마다 상세를 다시 읽지 않는다.
 - 대본 카드의 `status`·`my_character_names`·`last_practiced_at`과 상세의 `open_session_id`·`last_session`은 회차에서
   집계한다(reading.script). `open_session_id`는 가장 최근에 시작한 in_progress 회차이고 없으면 null이다. 웹과 옛 앱은
   이 회차를 이어하기로 연다. 마지막 회차는 가장 늦게 시작한 회차이고 시작 시각이 같으면 id가 큰 쪽이다.
@@ -176,6 +184,9 @@ current_line_id가 남아 있어 이어 할 수 있다.
 - 장면 "1막 · 장면 2"를 고름: 그 장면의 첫·마지막 대사가 구간이다. 장면 줄 없는 대본: 지문 경계로 장면이 나뉜다.
   지문 경계로 나뉜 둘째 장면의 대사가 3개: 첫 장면에 붙는다. 첫 장면의 대사가 3개: 둘째 장면에 붙는다.
 - 구간 이름: 대본 전체는 "처음부터 끝까지", 장면 하나와 정확히 같은 구간은 그 장면 이름, 장면 안 대사 5~12번은 "대사 5~12번".
+- 예시 대본 「옥상, 밤」의 대본 상세: `scenes`가 둘이고 대사 8·7, `title`은 null이다. 장면 2로 시작한 회차: `range_name`이
+  {scene, 2, null, 9, 15}, `progress`가 0/7이다. 12번 대사 위치를 저장: 회차 목록 카드와 상세의 `progress`가 3/7이다. 완료:
+  `progress`가 null이다.
 - 회차가 셋(장면 2 두 번, 대사 5~12번 한 번)인 대본의 R8: "최근 구간" 탭이 맨 앞에 열리고 가장 최근 구간이 골라져 있으며
   장면 2는 한 줄이다. 회차가 없는 대본: "최근 구간" 탭이 없다.
 - read·silence로 500ms 말하고 1.8초 침묵: 다음 줄로 간다. 300ms 소리 뒤 침묵: 넘어가지 않는다. 버튼: 바로
