@@ -9,7 +9,7 @@ import { FILE_ACCEPT, type ScriptInput, type TextSource } from "@/lib/reading/sc
 import { SAMPLE_SCRIPT } from "@/lib/reading/script/sample";
 import { useResource } from "@/lib/react/use-resource";
 import { activityLabel, COPYRIGHT_NOTICE, listHeadline, myCharactersLabel, statusChip } from "@/features/reading/script-list";
-import type { ImportDialog, ScriptImport } from "@/features/reading/use-script-import";
+import type { ImportDialog, ScriptImporter } from "@/features/reading/use-script-import";
 import { Button, Card, CardTitle, Icon, OptionRow, StatusPill, StepsPill } from "@/features/reading/ui";
 
 type Entry = "file" | "paste" | "write";
@@ -29,7 +29,7 @@ export function InputBody({
   importer,
   onOpen,
 }: {
-  importer: ScriptImport;
+  importer: ScriptImporter;
   /** 목록이나 중복 알림에서 대본을 골랐다 — 대본 상세로 간다 */
   onOpen: (scriptId: string) => void;
 }) {
@@ -153,7 +153,7 @@ const NOTICE_COPY: Record<Exclude<ImportDialog["kind"], "duplicate" | "not_scrip
   },
 };
 
-export function ImportDialogs({ importer, onOpen }: { importer: ScriptImport; onOpen: (scriptId: string) => void }) {
+export function ImportDialogs({ importer, onOpen }: { importer: ScriptImporter; onOpen: (scriptId: string) => void }) {
   const { view } = importer;
   if (view.kind === "idle") return null;
   if (view.kind === "splitting") {

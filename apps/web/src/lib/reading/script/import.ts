@@ -53,10 +53,10 @@ export interface ImportDeps {
   putUpload: (upload: ScriptUpload, file: File) => Promise<void>;
   completeUpload: (uploadId: string) => Promise<void>;
   startImport: (body: Omit<ImportRequest, "request_id">, requestId: string) => Promise<ImportTicket>;
-  getImport: (importId: string) => Promise<ScriptImport>;
+  getImport: (importId: string, signal?: AbortSignal) => Promise<ScriptImport>;
   listConsentDocuments: () => Promise<ConsentDocument[]>;
   grantConsent: (documentId: string) => Promise<void>;
-  wait: (ms: number) => Promise<void>;
+  wait: (ms: number, signal?: AbortSignal) => Promise<void>;
   now: () => number;
 }
 

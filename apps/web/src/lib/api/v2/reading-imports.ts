@@ -18,8 +18,8 @@ export async function startImport(
   return data;
 }
 
-export async function getImport(importId: string): Promise<ScriptImport> {
-  const { data } = await apiFetch<ScriptImport>(`/v2/reading/imports/${encodeURIComponent(importId)}`);
+export async function getImport(importId: string, signal?: AbortSignal): Promise<ScriptImport> {
+  const { data } = await apiFetch<ScriptImport>(`/v2/reading/imports/${encodeURIComponent(importId)}`, { signal });
   return data;
 }
 
