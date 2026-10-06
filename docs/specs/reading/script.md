@@ -25,7 +25,7 @@
 ## 입력·출력
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
-| `POST /v2/reading/imports` | `ReadingImportRequest`(request_id·title?·raw_text·source) | `ReadingImportTicket` — 새 작업 202 `{import_id}`, 같은 `request_id` 재전송·같은 글로 진행 중인 작업 200 `{import_id}`, 같은 글의 대본이 이미 있음 200 `{duplicate_script_id}` | `script_split_consent_required` 403, `script_too_long`(원문 100,000자 초과)·`script_limit`·`request_fingerprint_mismatch` 422, `script_split_daily_limit` 429, 형태 오류 422 배열, `account_deactivated` 403, 게스트 동의 전 `consent_required` 403 |
+| `POST /v2/reading/imports` | `ReadingImportRequest`(request_id·title?(200자)·raw_text·source·allow_duplicate?·skip_script_check?) | `ReadingImportTicket` — 새 작업 202 `{import_id}`, 같은 `request_id` 재전송·같은 글로 진행 중인 작업 200 `{import_id}`, 같은 글의 대본이 이미 있음 200 `{duplicate_script_id}` | `script_split_consent_required` 403, `script_too_long`(원문 100,000자 초과)·`script_limit`·`request_fingerprint_mismatch` 422, `script_split_daily_limit` 429, 형태 오류 422 배열, `account_deactivated` 403, 게스트 동의 전 `consent_required` 403 |
 | `GET /v2/reading/imports/{import_id}` | `import_id` | `ReadingImport` 200: `status`(pending·running·succeeded·failed), `progress{done_lines,total_lines}`, `script_id`(성공), `failure`(실패: not_script·no_characters·script_too_long·script_limit·failed) | `import_not_found` 404 |
 | `POST /v2/reading/scripts` | `X-Request-Id`(선택, 있으면 본문 `request_id`와 같아야 한다), `ReadingScriptCreateRequest`(request_id·title·source·raw_text·characters·lines). 옛 앱의 기기 나누기 결과 저장, D1에서 걷는다 | `ReadingScript` 201, 같은 요청 재전송 200 | `no_characters`·`invalid_characters`·`script_too_long`·`script_limit`·`request_fingerprint_mismatch` 422, 형태 오류 422 배열, `account_deactivated` 403, 게스트 동의 전 `consent_required` 403 |
 | `GET /v2/reading/scripts` | `q`(선택, 제목·배역 이름) | `ReadingScriptList` 200 | — |
@@ -56,9 +56,10 @@
   이상이면 앞 400줄로 말하는 배역 이름 목록을 먼저 받아 조각마다 붙인다. 모델은 줄마다 종류(대사·지문·장면 머리·제목·
   등장인물 소개·무시)와 배역, 떼어낼 머리만 답하고 글자는 쓰지 않는다 — 대사 글은 원문에서 머리를 뗀 것이다.
 - 첫 호출(150줄 이하면 나누기 호출, 넘으면 배역 목록 호출)의 첫 줄이 「대본 아니오」면 더 부르지 않고 failed `not_script`다
-  (R2.8). 판단 줄이 없거나 깨졌으면 대본으로 본다.
-- 보낸 적 없는 줄 번호, 여섯 종류 밖, 머리가 줄 시작과 다른 것, 배역이 빈 대사는 버린다. 버리거나 빠진 줄은 150줄씩 묶어
-  두 번까지 다시 묻고, 그래도 남으면 지문이다.
+  (R2.8). 판단 줄이 없거나 깨졌으면 대본으로 본다. R2.8 [그래도 나누기]는 `skip_script_check: true`로 다시 보낸다 — 판정을
+  묻지 않고 보통처럼 나눈다. 두 플래그는 요청 지문에 들어 같은 `request_id`에 플래그만 달라도 422 `request_fingerprint_mismatch`다.
+- 보낸 적 없는 줄 번호, 여섯 종류 밖, 머리가 줄 시작과 다른 것(보이지 않는 글자는 빼고 견준다), 배역이 빈 대사는 버린다. 버리거나
+  빠진 줄은 150줄씩 묶어 두 번까지 다시 묻고, 그래도 남으면 지문이다. 한 작업이 동시에 보내는 호출은 16개까지다.
 - 배역 이름은 목록 표기로 바로잡는다: 목록에 있으면 그대로 → 띄어쓰기만 다르면 목록 표기 → 다른 글자 종류가 섞였거나
   한글·영문·숫자 밖 글자가 있으면 그 글자를 빼고 편집 거리 2 이하 → 세 글자 이상이면 편집 거리 1 → 아니면 새 배역. 두 글자 이름은
   한 글자가 다르면 다른 사람으로 둔다(「기자」와 「여자」).
@@ -70,7 +71,8 @@
 - 같은 글: 같은 사람의 기존 대본과 원문이 정리 뒤 완전히 같으면(NFC → U+200B·U+FEFF 제거 → 공백류 연속을 공백 하나로 →
   앞뒤 공백 제거) LLM 없이 200 `duplicate_script_id`로 답하고 앱은 R2.7 팝업을 띄운다. 비슷한 글 찾기가 아니고 다른 사람의
   글과는 비교하지 않는다. 같은 글로 진행 중인 작업이 있으면 새 작업 없이 그 작업의 id를 돌려준다(두 번 누름). 해시는
-  scripts.raw_hash에 저장 때 함께 둔다.
+  scripts.raw_hash에 저장 때 함께 둔다. R2.7 [새로 넣기]는 `allow_duplicate: true`로 다시 보낸다 — 같은 글의 대본·진행 중
+  작업을 보지 않고 새로 나누며 하루 한도에 센다.
 - 예시 대본(「옥상, 밤」)과 정리 뒤 같은 글은 모델 없이 미리 나눈 결과를 바로 저장하고 상태가 곧 succeeded다. 불러온 뒤 고친
   글은 보통 대본처럼 나눈다.
 - 한도. 한 사람이 하루(한국 날짜)에 모델을 부를 수 있는 작업은 20개이고 넘으면 429 script_split_daily_limit. 중복·예시는 세지
@@ -78,10 +80,15 @@
   때 걸리면 failed `script_limit`. 나눈 결과가 줄 3,000·배역 50·본문 총량을 넘으면 failed `script_too_long`.
 - 저장은 대본 저장 규칙 그대로다(scripts·script_characters·script_lines 한 트랜잭션, 요청 id는 작업의 `request_id`). 모델 호출이
   연결 실패·붐빔·서버 실패·미완료 답에 두 번 다시 보내고도 안 되면 failed `failed`이고 앱은 R2.12 팝업을 띄운다. 기기 파서로
-  대신 나누지 않는다 — OpenAI가 멈추면 그동안 대본을 넣지 못한다(계획 「정한 것」 1).
+  대신 나누지 않는다 — OpenAI가 멈추면 그동안 대본을 넣지 못한다(계획 「정한 것」 1). 같은 `request_id`로 다른 대본이 이미
+  저장돼 있으면(옛 저장 API와 섞인 기기) failed `failed`.
+- 집은 워커가 죽으면 30분 lease가 지난 뒤 다른 워커가 다시 집어 끝낸다(저장이 `request_id`로 멱등이라 대본은 하나). 그동안 상태는
+  running이다. 세 번 집고도 끝내지 못한 작업은 failed `failed`로 닫힌다. 앱은 끝없이 기다리지 않게 자기 시간 초과를 둔다(권장 120초,
+  68편 실측 최대 36초).
 - 같은 `request_id`의 재전송은 [요청 재전송](../common.md#요청-재전송) 규칙을 따른다(유일 범위 script_imports의 (user_id,
-  request_id), 지문은 제목·입력 경로·원문). 작업 행은 원문을 들고 있다가 탈퇴 때 지운다. 대본을 지운 뒤 작업 상태의
-  `script_id`는 지워진 대본을 가리킨다.
+  request_id), 지문은 제목·입력 경로·원문·두 플래그). 작업 행은 나누는 동안만 원문을 들고 있고 끝나면(성공·실패) 비운다 — 글은
+  대본에 있고 같은 글 판정은 해시만 쓴다. 행 자체는 탈퇴 때 지운다. 대본을 지운 뒤 작업 상태의 `script_id`는 지워진 대본을
+  가리킨다.
 
 **대본**
 - 입력 경로는 넷이다. 파일, 붙여넣기, 직접 쓰기, 예시 대본. 파일에서 글자를 뽑는 일은 아직 기기에서 하고
@@ -198,7 +205,13 @@
 - 첫 호출의 첫 줄이 「대본<TAB>아니오」: 호출 하나로 failed not_script. 모두 지문이라 배역 0명: failed no_characters.
 - 모델이 503·429를 세 번 답함: failed `failed`, Sentry에 external 보고 하나, ai_jobs failure_reason=failed. 한 번 실패 뒤
   성공: succeeded, 호출 2. 400을 답함: 다시 보내지 않고 failed.
-- 원문 100,001자: 422 script_too_long. 대본 100개인 회원: 422 script_limit. 둘 다 모델 전이고 행이 없다.
+- 원문 100,001자: 422 script_too_long. 대본 100개인 회원: 422 script_limit. 둘 다 모델 전이고 행이 없다. 보이는 글자가 없는
+  글(U+3000·U+200B만), 201자 제목: 422 배열.
+- R2.7 뒤 `allow_duplicate: true`: 202 새 작업, 대본 둘, 하루 한도에 셈. 같은 request_id에 플래그만 다름: 422 request_fingerprint_mismatch.
+- R2.8 뒤 `skip_script_check: true`: 지시문에 판단 줄이 없고 모델이 「아니오」라 해도 나눠 succeeded.
+- 다른 워커가 집은 채 죽음: 30분 동안 running, 같은 글의 새 요청은 그 작업 id. 31분 뒤 다른 워커가 집어 succeeded(시도 2).
+  시도 셋을 다 쓴 채 lease가 지남: sweep이 failed `failed`로 닫는다.
+- 끝난 요청(성공·실패)의 script_imports.raw_text는 비어 있다.
 - 없는 import_id·남의 import_id: 404 import_not_found. 탈퇴·이관이 먼저 끝난 계정의 접수: 403 account_deactivated.
 - 옛 저장 API로 콜론 형식 대본을 저장: scripts 1행, script_characters와 script_lines의 수가 기기가 나눈
   배역 수·줄 수와 같고, 지문 줄의 character_id는 NULL이다. 앱은 확인 화면 없이 R3로 간다.

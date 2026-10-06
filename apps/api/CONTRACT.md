@@ -820,18 +820,29 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - 같은 글의 해시 `scripts.raw_hash`·`script_imports.raw_hash` 는 Java `ScriptText.hash` 가 정본이다. V33 이 기존 행을 같은 식의
   SQL 로 한 번 채웠고 `ReadingSchemaMigrationTest` 가 두 식의 일치를 실제 Postgres 로 대조한다. 공백류는 로케일에 기대지 않게
   목록으로 적었다.
-- 워커의 lease 는 10분, 선점·완료·실패는 `AiJobLedger`(§5-7)다. **한 선점 안에서 끝낸다** — 호출 하나는 연결 실패·429·5xx·미완료
-  답에 두 번 더 보내고(1초·2초 뒤) 그래도 안 되면 `script_imports.failure=failed` + `ledger.fail`. 재큐하지 않는다(사용자가 팝업에서
-  기다린다). 모델 호출은 `TextGenerator` 에 `GenerationOptions(model=gpt-6-luna, effort=low, maxOutputTokens=128000, timeout=90초)` 로
-  넘긴다 — 옵션 호출의 기본 20초와 코치 기본 모델은 그대로다. 조각은 가상 스레드로 동시에 보낸다.
+- 워커의 lease 는 30분(최악 경로 = 호출 3시도×93초가 배역 목록·조각 두 묶음(16개씩)·재요청 2판으로 다섯 번 ≈ 24분), 선점·완료·
+  실패는 `AiJobLedger`(§5-7)다. **`script_split` 만 lease 가 지난 `running` 도 다시 집는다**(`claimNext(…, reclaimExpired=true)`) —
+  집은 워커가 죽어도 작업이 영원히 running 으로 남지 않게. 완료가 요청의 request_id 로 멱등이라 두 번 돌아도 대본은 하나다.
+  시도 셋(`MAX_ATTEMPTS`)을 다 쓴 채 lease 가 지난 작업은 스케줄러의 `sweep`(`ScriptSplitWorker.sweep` → `AiJobLedger.failExpired`)이
+  `failed(max_attempts)` 로 닫고 `script_imports.failure=failed` 를 쓴다. 호출 하나는 연결 실패·429·5xx·미완료 답에 두 번 더
+  보내고(1초·2초 뒤) 그래도 안 되면 `failure=failed` + `ledger.fail`(재큐 없음). 모델 호출은 `TextGenerator` 에
+  `GenerationOptions(model=gpt-6-luna, effort=low, maxOutputTokens=128000, timeout=90초)` 로 넘긴다 — 옵션 호출의 기본 20초와 코치
+  기본 모델은 그대로다. 조각은 작업당 16개(`ScriptSplitRules.PARALLEL_CALLS`)까지 동시에 보낸다.
 - 완료는 `ScriptRepository.create(userId, 요청의 request_id, 요청의 지문, draft, 한도)` 라 같은 작업이 다시 돌아도 같은 대본이고,
-  `OVER_LIMIT` 이면 `failure=script_limit`, 계정이 닫혔으면 `cancelled` 다. `script_id` 에 FK 를 두지 않아 대본 삭제가 이 표를 모른다.
+  `OVER_LIMIT` 이면 `failure=script_limit`, `FINGERPRINT_MISMATCH`(같은 request_id 의 다른 대본이 이미 있음)면 `failure=failed`,
+  계정이 닫혔으면 `cancelled` 다. 끝난 요청(성공·실패·sweep)은 `raw_text=''` 로 비운다. `script_id` 에 FK 를 두지 않아 대본 삭제가
+  이 표를 모른다.
+- 요청 플래그 `allow_duplicate`(R2.7 「새로 넣기」: 같은 글의 대본·진행 중 요청을 보지 않음)·`skip_script_check`(R2.8 「그래도
+  나누기」: 행에 남겨 워커가 판정 줄을 묻지 않음)는 지문에 든다. 요청 모양은 `raw_text` 에 보이는 글자가 없으면(U+3000·U+200B 만)
+  422 배열, 제목 200자다.
 - 동의 조회는 고품질 목소리와 같은 질의(현재 판 `script_split` 문서의 마지막 결정)다. `ConsentDocument.askedAtEntry` 가
   `script_split` 을 제외해 진입 게이트에 나오지 않는다. 게스트는 선택 문서를 결정할 수 없어(`ConsentService`, 403 `member_only`)
   나누기는 늘 403 `script_split_consent_required` 다.
 - 탈퇴는 `PostgresProfileRepository#eraseReading` 이 `script_imports` 를 행째 지우고 진행 중 작업은 §6-15 의 `ai_jobs` 취소가 닫는다.
   `LlmStep.SCRIPT_SPLIT` 기록의 묶는 열쇠(`practiceSessionId` 자리)는 작업 id 다.
 - 검증은 `ReadingImportIT`(HTTP·Postgres·장부, 모델만 가짜)와 `reading/domain/*Test`(순수 규칙), `ReadingSchemaMigrationTest`(V33) 다.
+  실제 모델은 `ScriptSplitLiveTest`(`ACTTUB_SPLIT_LIVE_TEST=1` + `OPENAI_API_KEY` 가 있을 때만, 가짜 묶음 `src/test/resources/script-split/`)가
+  본다 — 모델이 판마다 다르게 읽는 자리가 있어 묶음마다 90% 를 하한으로 둔다.
 
 **고품질 목소리 (SOMA-500)** — 제품 규칙의 정본: [reading.cloud-voice](../../docs/specs/reading/cloud-voice.md)(두 경로의 입력·출력·오류, 한도, 동의)
 
