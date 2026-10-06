@@ -38,6 +38,20 @@ export type ScriptCharacter = {
   order: number;
   /** 상대역 목소리 프리셋 id. null이면 자동(reading.cast). */
   voice_preset: string | null;
+  /** 내 배역이 아닐 때 읽을 목소리(서버가 정함). 고정값이면 그 값, 자동이면 대본 전체 순환의 값이다. */
+  voice: string;
+  dialogue_count: number;
+};
+
+/** 「장면으로 찾기」의 한 줄(서버가 나눔). 대사가 없는 장면은 없다. */
+export type ScriptScene = {
+  /** 1부터. */
+  no: number;
+  /** 막·장 머리 줄의 글. 지문으로 나눈 장면은 null이고 화면이 번호로 부른다. */
+  title: string | null;
+  /** 장면 안 첫·마지막 대사 줄. */
+  start_line_id: string;
+  end_line_id: string;
   dialogue_count: number;
 };
 
@@ -94,6 +108,7 @@ export type ScriptDetail = {
   source: ScriptSource;
   characters: ScriptCharacter[];
   lines: ScriptLineRecord[];
+  scenes: ScriptScene[];
   recording_count: number;
   open_session_id: string | null;
   last_session: ScriptLastSession | null;
@@ -141,6 +156,14 @@ export type StartSessionBody = {
   record: boolean;
 };
 
+/** 회차 구간의 이름(서버가 정함). 화면 글(「장면 2」·「대사 5~12번」)은 기기가 번역 키로 만든다. start·end 는 대사 번호. */
+export type RangeName =
+  | { kind: 'all' | 'dialogues'; scene_no: null; scene_title: null; start: number; end: number }
+  | { kind: 'scene'; scene_no: number; scene_title: string | null; start: number; end: number };
+
+/** 진행 중 회차의 K/N. done 은 지난 대사 수, total 은 구간 대사 수. */
+export type SessionProgress = { done: number; total: number };
+
 /** 회차 목록 카드(R00.5). ordinal 은 그 대본에서 시작한 순(집계). */
 export type SessionCard = {
   id: string;
@@ -149,6 +172,9 @@ export type SessionCard = {
   my_character_ids: string[];
   my_character_names: string[];
   range: { start_dialogue_no: number; end_dialogue_no: number };
+  range_name: RangeName;
+  /** in_progress 일 때만. */
+  progress: SessionProgress | null;
   my_dialogue_count: number;
   recorded_line_count: number;
   elapsed_seconds: number;

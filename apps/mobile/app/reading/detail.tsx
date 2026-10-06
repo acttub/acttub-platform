@@ -11,17 +11,15 @@ import { useAppDialog } from '@/components/app-dialog';
 import { TitleEditDialog } from '@/components/title-edit-dialog';
 import { CHIP_TONE, relativeDay } from '@/lib/reading/script-cards';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
-import { sessionCardMeta, sessionChip, sessionProgress, sessionRangeTitle } from '@/lib/reading/session-cards';
-import { deleteScript, deleteSession, fetchSession, getCurrent, listSessions, loadIntoCurrent, type SavedScript } from '@/lib/reading/store';
+import { sessionCardMeta, sessionChip } from '@/lib/reading/session-cards';
+import { rangeTitle } from '@/lib/reading/session-plan';
+import { deleteScript, deleteSession, getCurrent, listSessions, loadIntoCurrent, type SavedScript } from '@/lib/reading/store';
 import type { SessionCard } from '@/lib/reading/types';
 import { translate as t } from '@/lib/i18n';
-
-type Progress = { k: number; n: number };
 
 /**
  * 대본 상세(R4.1~R4.8, reading.session). 제목·대사 수·「대본 보기」·연습 기록(최근순, 줄마다 회차·구간·배역·상태)·[연습하기].
  * 회차 줄을 누르면 회차 상세, 왼쪽으로 밀면 [삭제]. 머리 ⋯ 는 제목 수정·목소리 바꾸기·대본 삭제.
- * 목록 카드에는 진행 위치가 없어 진행 중 회차만 상세를 읽어 K/N 을 채운다.
  */
 export default function ReadingDetail() {
   const router = useRouter();
@@ -29,7 +27,6 @@ export default function ReadingDetail() {
   const { confirm, sheet, alert, dialog } = useAppDialog();
   const [script, setScript] = useState<SavedScript | null>(getCurrent());
   const [sessions, setSessions] = useState<SessionCard[] | null>(null);
-  const [progress, setProgress] = useState<Map<string, Progress>>(new Map());
   const [editingTitle, setEditingTitle] = useState(false);
   const mounted = useRef(true);
 
@@ -43,14 +40,6 @@ export default function ReadingDetail() {
     const list = await listSessions(s.id).catch(() => []);
     if (!mounted.current) return;
     setSessions(list);
-    const open = await Promise.all(list.filter((c) => c.status !== 'completed').map((c) => fetchSession(c.id)));
-    if (!mounted.current) return;
-    const next = new Map<string, Progress>();
-    for (const d of open) {
-      const p = d && sessionProgress(s, d);
-      if (d && p) next.set(d.id, p);
-    }
-    setProgress(next);
   }, []);
 
   useFocusEffect(
@@ -154,8 +143,6 @@ export default function ReadingDetail() {
             <SessionRow
               key={card.id}
               card={card}
-              rangeTitle={sessionRangeTitle(script.lines, card)}
-              progress={progress.get(card.id) ?? null}
               onOpen={() => router.push({ pathname: '/reading/session', params: { id: card.id } })}
               onDelete={() => void removeSession(card)}
             />
@@ -181,21 +168,9 @@ export default function ReadingDetail() {
   );
 }
 
-function SessionRow({
-  card,
-  rangeTitle,
-  progress,
-  onOpen,
-  onDelete,
-}: {
-  card: SessionCard;
-  rangeTitle: string;
-  progress: Progress | null;
-  onOpen: () => void;
-  onDelete: () => void;
-}) {
+function SessionRow({ card, onOpen, onDelete }: { card: SessionCard; onOpen: () => void; onDelete: () => void }) {
   const swipe = useRef<SwipeableMethods | null>(null);
-  const chip = sessionChip(card.status, progress);
+  const chip = sessionChip(card.status, card.progress);
   const tone = CHIP_TONE[chip.tone];
   return (
     <ReanimatedSwipeable
@@ -222,7 +197,7 @@ function SessionRow({
           <Text style={styles.rowSub}>{relativeDay(card.started_at, Date.now())}</Text>
         </View>
         <View style={styles.rowBody}>
-          <Text style={styles.rowRange} numberOfLines={1}>{rangeTitle}</Text>
+          <Text style={styles.rowRange} numberOfLines={1}>{rangeTitle(card.range_name, t)}</Text>
           <Text style={styles.rowSub} numberOfLines={1}>{sessionCardMeta(card)}</Text>
         </View>
         <View style={[styles.chip, { backgroundColor: tone.bg }]}>
