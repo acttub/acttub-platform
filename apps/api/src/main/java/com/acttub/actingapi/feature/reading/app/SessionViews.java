@@ -6,6 +6,8 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.reading.domain.DifferentLine;
 import com.acttub.actingapi.feature.reading.domain.LineResult;
+import com.acttub.actingapi.feature.reading.domain.ReadingLayout.Progress;
+import com.acttub.actingapi.feature.reading.domain.ReadingLayout.RangeName;
 
 /**
  * 리딩 회차를 응답에 실을 모양 — 카드·상세·진행 (reading.session).
@@ -22,6 +24,8 @@ public final class SessionViews {
      * @param ordinal 그 대본에서 시작한 순(1부터, 집계)
      * @param startDialogueNo 구간 시작 대사의 대사 번호
      * @param endDialogueNo 구간 끝 대사의 대사 번호
+     * @param rangeName 구간 이름 — 대본 전체·장면 하나·대사 번호
+     * @param progress 진행 K/N. 진행 중일 때만, 아니면 {@code null}
      * @param myDialogueCount 구간 안 내 대사 수
      * @param recordedLineCount 녹음된 줄 수(reading.recording)
      */
@@ -33,6 +37,8 @@ public final class SessionViews {
             List<String> myCharacterNames,
             int startDialogueNo,
             int endDialogueNo,
+            RangeName rangeName,
+            Progress progress,
             int myDialogueCount,
             int recordedLineCount,
             int elapsedSeconds,

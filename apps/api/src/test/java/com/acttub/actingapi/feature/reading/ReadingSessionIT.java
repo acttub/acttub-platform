@@ -145,8 +145,9 @@ class ReadingSessionIT {
 
         assertThat(count("reading_sessions")).isEqualTo(1);
         assertThat(started.fieldNames()).toIterable().containsExactlyInAnyOrder(
-                "id", "ordinal", "status", "my_character_ids", "my_character_names", "range", "my_dialogue_count",
-                "recorded_line_count", "elapsed_seconds", "started_at", "ended_at", "script_id", "mode", "advance", "record",
+                "id", "ordinal", "status", "my_character_ids", "my_character_names", "range", "range_name", "progress",
+                "my_dialogue_count", "recorded_line_count", "elapsed_seconds", "started_at", "ended_at", "script_id", "mode",
+                "advance", "record",
                 "start_line_id", "end_line_id", "current_line_id", "progress_seq", "line_results", "recordings",
                 "different_lines");
         assertThat(started.path("status").textValue()).isEqualTo("in_progress");
@@ -515,12 +516,15 @@ class ReadingSessionIT {
         assertThat(list.path("sessions")).extracting(row -> row.path("id").textValue()).containsExactly(second, first);
         JsonNode latest = list.path("sessions").get(0);
         assertThat(latest.fieldNames()).toIterable().containsExactlyInAnyOrder(
-                "id", "ordinal", "status", "my_character_ids", "my_character_names", "range", "my_dialogue_count",
-                "recorded_line_count", "elapsed_seconds", "started_at", "ended_at");
+                "id", "ordinal", "status", "my_character_ids", "my_character_names", "range", "range_name", "progress",
+                "my_dialogue_count", "recorded_line_count", "elapsed_seconds", "started_at", "ended_at");
         assertThat(latest.path("ordinal").intValue()).isEqualTo(2);
         assertThat(latest.path("status").textValue()).isEqualTo("in_progress");
         assertThat(latest.path("my_character_names")).extracting(JsonNode::textValue).containsExactly("니나", "트레플레프");
         assertThat(latest.path("range")).isEqualTo(mapper.readTree("{\"start_dialogue_no\":2,\"end_dialogue_no\":7}"));
+        assertThat(latest.path("range_name")).isEqualTo(mapper.readTree(
+                "{\"kind\":\"dialogues\",\"scene_no\":null,\"scene_title\":null,\"start\":2,\"end\":7}"));
+        assertThat(latest.path("progress")).isEqualTo(mapper.readTree("{\"done\":0,\"total\":6}"));
         assertThat(latest.path("my_dialogue_count").intValue()).as("2~7 가운데 니나 3·7, 트레플레프 2·6").isEqualTo(4);
         assertThat(latest.path("recorded_line_count").intValue()).isEqualTo(2);
         assertThat(latest.path("ended_at").isNull()).isTrue();
@@ -529,6 +533,9 @@ class ReadingSessionIT {
         assertThat(oldest.path("status").textValue()).isEqualTo("completed");
         assertThat(oldest.path("elapsed_seconds").intValue()).isEqualTo(60);
         assertThat(oldest.path("ended_at").isNull()).isFalse();
+        assertThat(oldest.path("range_name")).as("장면 「제1막」이 대본 전체라 전체가 이긴다").isEqualTo(mapper.readTree(
+                "{\"kind\":\"all\",\"scene_no\":null,\"scene_title\":null,\"start\":1,\"end\":8}"));
+        assertThat(oldest.path("progress").isNull()).as("완료 회차에는 진행 숫자가 없다").isTrue();
         assertThat(json(get("/v2/reading/sessions/{id}", second), 200).path("recordings")).hasSize(2);
 
         String others = "Bearer " + jwt.issueAccessToken(member()).value();
@@ -710,6 +717,51 @@ class ReadingSessionIT {
         assertThat(count("reading_sessions")).isEqualTo(1);
     }
 
+    @Test
+    @DisplayName("reading.session·reading.cast: 예시 대본 「옥상, 밤」 — 대본 상세의 scenes 는 지문 경계 둘(대사 8·7)이고 목소리는 윤서 F1·태오 M1, 윤서를 M3으로 고정하면 태오가 F1. 장면 2를 연습하면 range_name 은 scene 2, 12번 대사까지 진행하면 목록·상세의 progress 가 3/7, 완료하면 null")
+    void readingSession_sampleScriptCarriesScenesVoicesRangeNameAndProgress() throws Exception {
+        JsonNode saved = json(post("/v2/reading/scripts").content(rooftop().toString()), 201);
+        List<String> lineIds = new ArrayList<>();
+        saved.path("lines").forEach(line -> lineIds.add(line.path("id").textValue()));
+
+        assertThat(saved.path("scenes")).isEqualTo(mapper.readTree("""
+                [{"no":1,"title":null,"start_line_id":"%s","end_line_id":"%s","dialogue_count":8},
+                 {"no":2,"title":null,"start_line_id":"%s","end_line_id":"%s","dialogue_count":7}]
+                """.formatted(lineIds.get(1), lineIds.get(8), lineIds.get(10), lineIds.get(16))));
+        assertThat(saved.path("characters")).extracting(c -> c.path("name").textValue() + ":" + c.path("voice").textValue())
+                .containsExactly("윤서:F1", "태오:M1");
+        String scriptId = saved.path("id").textValue();
+        String yunseo = saved.path("characters").get(0).path("id").textValue();
+        String taeo = saved.path("characters").get(1).path("id").textValue();
+        ObjectNode fix = mapper.createObjectNode();
+        fix.putArray("characters").addObject().put("id", yunseo).put("voice_preset", "M3");
+        assertThat(json(patch("/v2/reading/scripts/{id}", scriptId).content(fix.toString()), 200).path("characters"))
+                .extracting(c -> c.path("voice_preset").textValue() + ":" + c.path("voice").textValue())
+                .containsExactly("M3:M3", "null:F1");
+
+        JsonNode started = json(post("/v2/reading/scripts/{id}/sessions", scriptId).content(start(
+                UUID.randomUUID(), List.of(UUID.fromString(taeo)), "read", UUID.fromString(lineIds.get(10)),
+                UUID.fromString(lineIds.get(16)), "silence", true).toString()), 201);
+        assertThat(started.path("range_name")).isEqualTo(mapper.readTree(
+                "{\"kind\":\"scene\",\"scene_no\":2,\"scene_title\":null,\"start\":9,\"end\":15}"));
+        assertThat(started.path("progress")).isEqualTo(mapper.readTree("{\"done\":0,\"total\":7}"));
+        String session = started.path("id").textValue();
+
+        json(patch("/v2/reading/sessions/{id}/progress", session)
+                .content(progress(1, UUID.fromString(lineIds.get(13)), 30, null)), 200);
+        JsonNode card = json(get("/v2/reading/scripts/{id}/sessions", scriptId), 200).path("sessions").get(0);
+        assertThat(card.path("progress")).as("12번 대사가 다음 줄 — 9·10·11 셋을 지났다")
+                .isEqualTo(mapper.readTree("{\"done\":3,\"total\":7}"));
+        assertThat(card.path("range_name").path("kind").textValue()).isEqualTo("scene");
+        assertThat(json(get("/v2/reading/sessions/{id}", session), 200).path("progress"))
+                .isEqualTo(mapper.readTree("{\"done\":3,\"total\":7}"));
+
+        json(patch("/v2/reading/sessions/{id}/progress", session).content("{\"progress_seq\":2,\"complete\":true}"), 200);
+        assertThat(json(get("/v2/reading/sessions/{id}", session), 200).path("progress").isNull()).isTrue();
+        assertThat(json(get("/v2/reading/scripts/{id}/sessions", scriptId), 200).path("sessions").get(0).path("progress").isNull())
+                .isTrue();
+    }
+
     // ---- helpers ----
 
     /** 저장된 대본과 그 줄·배역의 id. {@code dialogue(n)} 은 n 번 대사의 줄 id 다. */
@@ -779,6 +831,45 @@ class ReadingSessionIT {
             body.putNull("record");
         } else {
             body.put("record", record);
+        }
+        return body;
+    }
+
+    /** 앱 예시 대본 「옥상, 밤」을 앱이 나눈 그대로 — 지문, 대사 8, 지문, 대사 7. 배역은 윤서·태오 순. */
+    private ObjectNode rooftop() {
+        ObjectNode body = mapper.createObjectNode();
+        body.put("request_id", UUID.randomUUID().toString());
+        body.put("title", "옥상, 밤");
+        body.put("source", "sample");
+        body.put("raw_text", "옥상, 밤");
+        body.putArray("characters").add(mapper.createObjectNode().put("name", "윤서")).add(mapper.createObjectNode().put("name", "태오"));
+        ArrayNode lines = body.putArray("lines");
+        String[][] rows = {
+            {"direction", null, "옥상 난간. 도시 불빛. 바람 소리."},
+            {"dialogue", "0", "여기 있을 줄 알았어."},
+            {"dialogue", "1", "어떻게 알았어."},
+            {"dialogue", "0", "너 힘들면 항상 높은 데로 가잖아."},
+            {"dialogue", "1", "(웃으며) 그런가."},
+            {"dialogue", "0", "왜 말 안 했어. 오디션 떨어진 거."},
+            {"dialogue", "1", "말하면 뭐가 달라져."},
+            {"dialogue", "0", "달라지지. 나는 알잖아, 네가 그거 얼마나 준비했는지."},
+            {"dialogue", "1", "그래서 더 말하기 싫었어. 네가 그걸 아니까."},
+            {"direction", null, "사이. 태오가 난간에 기댄다."},
+            {"dialogue", "0", "다음 거 언제야."},
+            {"dialogue", "1", "모레."},
+            {"dialogue", "0", "그럼 오늘은 내려가자. 대본은 내가 상대역 해줄게."},
+            {"dialogue", "1", "너 연기 못하잖아."},
+            {"dialogue", "0", "알아. 그래도 혼자 하는 것보단 낫지."},
+            {"dialogue", "1", "(한참 보다가) 고마워."},
+            {"dialogue", "0", "가자. 춥다."},
+        };
+        for (int i = 0; i < rows.length; i++) {
+            ObjectNode line = lines.addObject().put("ordinal", i + 1).put("kind", rows[i][0]).put("text", rows[i][2]);
+            if (rows[i][1] == null) {
+                line.putNull("character_index");
+            } else {
+                line.put("character_index", Integer.parseInt(rows[i][1]));
+            }
         }
         return body;
     }
