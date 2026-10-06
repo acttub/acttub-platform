@@ -204,3 +204,14 @@ test('준비 실패: 모델을 못 불러오면 model_load 로 알린다', async
   await engine.ensureReady();
   assert.equal(engine.isReady(),true);
 });
+
+test('다 재생한 재생기는 바로 놓는다 — 남겨 두면 상태 갱신이 계속 돌아 메모리가 찬다(0.1.2 안드로이드 OOM)', async () => {
+  const playback = engine.play('file:///done.wav');
+  const player = state.players.at(-1);
+  player.listener({ isLoaded: true, didJustFinish: true, duration: 2 });
+  await playback;
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(player.removed, true);
+  // 이미 놓은 뒤 stop() 이 와도 다시 놓지 않고 조용히 지나간다.
+  engine.stop();
+});
