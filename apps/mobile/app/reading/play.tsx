@@ -16,7 +16,7 @@ import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
 import { currentTutorial } from '@/lib/tutorial';
 import { currentNetworkType } from '@/lib/reading/network';
 import { speakableText, type DialogueLine, type ScriptLine } from '@/lib/reading/parse';
-import { createProgressQueue, type ProgressQueue } from '@/lib/reading/progress-queue';
+import { closeProgressQueue, openProgressQueue, type ProgressQueue } from '@/lib/reading/progress-queue';
 import { RECORDING_MAX_MS, contentTypeFor, nextAttemptNo, transcriptFields } from '@/lib/reading/recording-plan';
 import { enqueueLineRecording, onRecordingQueueChange, pendingRecordingUploads } from '@/lib/reading/recording-runner';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
@@ -217,7 +217,7 @@ export default function ReadingPlay() {
         setLastRunReview({ sessionId: session.id, startIndex: run.startIndex, endIndex: run.endIndex, myRoles: run.myRoles, different: view.lines });
       }
     };
-    const queue = createProgressQueue({
+    const queue = openProgressQueue(session.id, {
       send: reportCompletion((body) => saveProgress(session.id, body), { fetchDetail: () => fetchSession(session.id), onView: showDifferent }),
       initialSeq: session.progress_seq ?? 0,
       onClosed: () => {
@@ -227,8 +227,8 @@ export default function ReadingPlay() {
     });
     queueRef.current = queue;
     return () => {
-      // 완료 저장이 아직 닿지 않았으면(끊김) 화면을 떠나도 큐가 계속 다시 보내 결과가 회차 상세에 남는다. 앱을 끄면 잃는다.
-      if (runRef.current?.status !== 'done') queue.dispose();
+      // 완료 저장이 아직 닿지 않았으면(끊김) 화면을 떠나도 몇 분 더 보내 결과가 회차 상세에 남는다. 앱을 끄면 잃는다.
+      closeProgressQueue(session.id, queue, { keepSending: runRef.current?.status === 'done' });
       live = false;
       queueRef.current = null;
     };
