@@ -67,3 +67,14 @@ test('reading.script(R2): 파일 크기는 1MB 아래면 KB, 넘으면 소수 �
   assert.equal(formatFileSize(300 * 1024), '300KB');
   assert.equal(formatFileSize(1_258_291), '1.2MB');
 });
+
+test('reading.script(R2): 파일을 올리는 동안에는 글 탭에 글이 있어도 [다음]이 꺼진다 — 올리기 결과 팝업이 나누는 중 팝업을 덮지 않게', () => {
+  const uploading = run(
+    initialScriptInput(false),
+    { type: 'fileReading', file: A_TXT },
+    { type: 'tab', tab: 'paste' },
+    { type: 'paste', text: PASTED },
+  );
+  assert.equal(pendingScript(uploading), null);
+  assert.deepEqual(pendingScript(run(uploading, { type: 'fileUploaded', uploadId: 'up-1' })), { kind: 'text', text: PASTED, source: 'paste' });
+});

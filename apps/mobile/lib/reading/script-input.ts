@@ -56,8 +56,12 @@ export function scriptInputReducer(state: ScriptInput, action: ScriptInputAction
   }
 }
 
-/** [다음]이 보낼 것. 보고 있는 탭에 보낼 것이 없으면 null(버튼이 꺼진다). */
+/**
+ * [다음]이 보낼 것. 보고 있는 탭에 보낼 것이 없으면 null(버튼이 꺼진다). 파일을 올리는 동안에는 어느 탭이든 null —
+ * 올리기 결과(실패·동의) 팝업이 나누는 중 팝업을 덮고 작업이 둘이 되지 않게.
+ */
 export function pendingScript(state: ScriptInput): ImportInput | null {
+  if (state.file.kind === 'reading') return null;
   if (state.tab === 'file') return state.file.kind === 'ready' ? { kind: 'file', file: state.file.file, uploadId: state.file.uploadId } : null;
   const text = state.paste.text.trim();
   return text ? { kind: 'text', text, source: state.paste.source ?? 'typed' } : null;
