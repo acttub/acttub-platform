@@ -50,11 +50,11 @@ class PracticeRollbackCompatibilityTest {
             "entry_view_events", "entry_ranking_snapshots", "entry_saves", "entry_comments", "entry_reports",
             "entry_ai_reports", "notifications", "notification_pushes", "note_ratings",
             "reading_voice_cache", "reading_voice_usage", "evening_reminder_sends", "user_signup_attributions",
-            "app_posters");
+            "app_posters", "script_imports");
 
     @Test
     @DisplayName("0.1.0 은 옛 표를 한 칸도 바꾸지 않았다 — 예약 장부에 더한 NULL 허용 컬럼 셋과 users 의 둘, "
-            + "리딩 회차의 멈춤을 없앤 V31 말고는 V13 의 모양 그대로다")
+            + "리딩 회차의 멈춤을 없앤 V31, 대본의 NULL 허용 같은 글 해시(V33) 말고는 V13 의 모양 그대로다")
     void expandingToOneZeroLeavesEveryLegacyTableUntouched() throws Exception {
         List<String> before = fingerprintAt(BEFORE_ONE_ZERO);
         List<String> after = fingerprintAt(null);
@@ -101,8 +101,8 @@ class PracticeRollbackCompatibilityTest {
         }
     }
 
-    /** V14~V31 — 연습·챌린지·노트 평가·보관함 포스터·고품질 목소리·저녁 알림·가입 유입 출처·신원 마지막 로그인·앱 공지 포스터·배우 기억 칸 개정·리딩 멈춤 없앰이 더한 마이그레이션의 수. 더 늘면 이 값을 함께 올린다. */
-    private static final int NEW_MIGRATIONS = 18;
+    /** V14~V33 — 연습·챌린지·노트 평가·보관함 포스터·고품질 목소리·저녁 알림·가입 유입 출처·신원 마지막 로그인·앱 공지 포스터·배우 기억 칸 개정·리딩 멈춤 없앰·대본 나누기가 더한 마이그레이션의 수. 더 늘면 이 값을 함께 올린다. */
+    private static final int NEW_MIGRATIONS = 19;
 
     private static List<String> fingerprintAt(String target) throws Exception {
         String jdbcUrl = PostgresContainerSupport.createDatabase(
@@ -140,7 +140,7 @@ class PracticeRollbackCompatibilityTest {
         if (expected.remove(consentTypesBefore)) {
             expected.add("CONSTRAINT consent_documents ck_consent_documents_type CHECK ((type = ANY "
                     + "(ARRAY['terms'::text, 'privacy'::text, 'ai_analysis'::text, 'retention'::text, "
-                    + "'cloud_voice'::text])))");
+                    + "'cloud_voice'::text, 'script_split'::text])))");
         }
         // V31 은 넓히기가 아니라 좁히기다. validate 는 CHECK·인덱스를 보지 않아 옛 서버가 뜨기는 하지만, 옛 서버는 새 연습을
         // 시작할 때 'stopped' 를 써서 이 CHECK 에 걸린다. 그래서 V31 앞의 이미지로는 되돌리지 않는다(V31 머리 주석).
@@ -164,7 +164,10 @@ class PracticeRollbackCompatibilityTest {
                 "COLUMN user_identities.last_used_at ord=9 type=timestamptz len=- null=NO default=now()",
                 "CONSTRAINT user_identities user_identities_last_used_at_not_null NOT NULL last_used_at",
                 "INDEX CREATE UNIQUE INDEX uq_upload_intents_user_request ON public.upload_intents "
-                        + "USING btree (user_id, request_id) WHERE (request_id IS NOT NULL)"));
+                        + "USING btree (user_id, request_id) WHERE (request_id IS NOT NULL)",
+                // V33 의 같은 글 해시. NULL 허용이라 이 칸을 모르는 옛 서버의 INSERT 도 통한다.
+                "COLUMN scripts.raw_hash ord=10 type=bpchar len=64 null=YES default=-",
+                "INDEX CREATE INDEX idx_scripts_user_raw_hash ON public.scripts USING btree (user_id, raw_hash)"));
         return expected.stream().sorted().toList();
     }
 

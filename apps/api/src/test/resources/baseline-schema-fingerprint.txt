@@ -543,7 +543,7 @@ COLUMN script_lines.script_id ord=2 type=uuid len=- null=NO default=-
 COLUMN script_lines.text ord=6 type=text len=- null=NO default=-
 COLUMN scripts.created_at ord=8 type=timestamptz len=- null=NO default=now()
 COLUMN scripts.id ord=1 type=uuid len=- null=NO default=-
-COLUMN scripts.raw_hash ord=10 type=bpchar len=64 null=NO default=-
+COLUMN scripts.raw_hash ord=10 type=bpchar len=64 null=YES default=-
 COLUMN scripts.raw_text ord=4 type=text len=- null=NO default=-
 COLUMN scripts.request_fingerprint ord=7 type=bpchar len=64 null=NO default=-
 COLUMN scripts.request_id ord=6 type=uuid len=- null=YES default=-
@@ -1430,7 +1430,6 @@ CONSTRAINT scripts ck_scripts_source CHECK ((source = ANY (ARRAY['file'::text, '
 CONSTRAINT scripts scripts_created_at_not_null NOT NULL created_at
 CONSTRAINT scripts scripts_id_not_null NOT NULL id
 CONSTRAINT scripts scripts_pkey PRIMARY KEY (id)
-CONSTRAINT scripts scripts_raw_hash_not_null NOT NULL raw_hash
 CONSTRAINT scripts scripts_raw_text_not_null NOT NULL raw_text
 CONSTRAINT scripts scripts_request_fingerprint_not_null NOT NULL request_fingerprint
 CONSTRAINT scripts scripts_source_not_null NOT NULL source

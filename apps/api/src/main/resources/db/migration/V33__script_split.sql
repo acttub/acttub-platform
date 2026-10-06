@@ -18,12 +18,13 @@ ALTER TABLE public.consent_documents ADD CONSTRAINT ck_consent_documents_type
 --    (reading/domain/ScriptText)가 같은 식으로 채우고, 여기서는 기존 행만 한 번 채운다. 두 식이 같은지는
 --    ReadingSchemaMigrationTest 가 실제 Postgres 로 대조한다. 공백류를 \s 가 아니라 목록으로 적은 것은 Postgres 의
 --    \s 가 로케일(iswspace)을 따르기 때문이다.
+--    NULL 허용이다 — 이 판 앞으로 되돌린 서버의 INSERT 가 이 칸을 모르고도 통하게(PracticeRollbackCompatibilityTest).
+--    그 사이 생긴 행은 같은 글 판정에서 빠질 뿐이다.
 ALTER TABLE public.scripts ADD COLUMN raw_hash character(64);
 UPDATE public.scripts SET raw_hash = encode(sha256(convert_to(
     btrim(regexp_replace(regexp_replace(normalize(raw_text, NFC), '[\u200B\uFEFF]', '', 'g'),
                          '[\u0009-\u000D\u0020\u0085\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]+', ' ', 'g'), ' '),
     'UTF8')), 'hex');
-ALTER TABLE public.scripts ALTER COLUMN raw_hash SET NOT NULL;
 CREATE INDEX idx_scripts_user_raw_hash ON public.scripts USING btree (user_id, raw_hash);
 
 -- ④ script_imports — 나누기 요청 하나. 원문을 들고 있다가 워커가 나눠 대본으로 저장한다.

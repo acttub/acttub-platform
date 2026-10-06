@@ -212,10 +212,11 @@ class ReadingSchemaMigrationTest {
         assertThat(jdbc.queryForList("SELECT DISTINCT raw_hash FROM scripts WHERE id IN (?,?)", String.class,
                 ids.get(1), ids.get(4))).hasSize(1);
         assertThat(jdbc.queryForList("SELECT DISTINCT raw_hash FROM scripts", String.class)).hasSize(3);
-        assertThatThrownBy(() -> jdbc.update("""
+        // 이 판 앞으로 되돌린 서버는 이 칸을 모른다 — 그 INSERT 도 통한다.
+        jdbc.update("""
                 INSERT INTO scripts(id,user_id,title,raw_text,source,request_id,request_fingerprint)
                 VALUES (gen_random_uuid(),?,'대본','원문','paste',gen_random_uuid(),?)
-                """, USER, "b".repeat(64))).as("raw_hash 없이는 저장되지 않는다").isInstanceOf(DataIntegrityViolationException.class);
+                """, USER, "b".repeat(64));
 
         UUID job = UUID.randomUUID();
         jdbc.update("""

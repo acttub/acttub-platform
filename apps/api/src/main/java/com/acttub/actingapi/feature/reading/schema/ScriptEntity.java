@@ -32,9 +32,9 @@ public class ScriptEntity extends AppGeneratedUuidEntity {
     @Column(name = "raw_text", nullable = false)
     private String rawText;
 
-    /** 정리한 원문의 해시({@code ScriptText.hash}) — 같은 사람의 같은 글을 알아본다. */
+    /** 정리한 원문의 해시({@code ScriptText.hash}) — 같은 사람의 같은 글을 알아본다. V33 앞 서버가 만든 행은 비어 있을 수 있다. */
     @JdbcTypeCode(SqlTypes.CHAR)
-    @Column(name = "raw_hash", nullable = false, columnDefinition = "char(64)")
+    @Column(name = "raw_hash", columnDefinition = "char(64)")
     private String rawHash;
 
     @Convert(converter = ScriptSource.JpaConverter.class)
