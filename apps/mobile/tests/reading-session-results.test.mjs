@@ -77,3 +77,14 @@ test('reading.session: 대본 흐름의 지문은 괄호에 싸서 보인다(이
   assert.equal(directionLabel('사이. 태오가 난간에 기댄다.'), '(사이. 태오가 난간에 기댄다.)');
   assert.equal(directionLabel('(웃으며)'), '(웃으며)');
 });
+
+test('reading.session: 완료 저장이 다시 보내도 답이 같은 오류(404·422·403)면 칸을 숨긴다 — 「연결되면」을 띄우지 않는다', async () => {
+  for (const [status, code] of [[404, 'session_not_found'], [422, 'invalid_line'], [403, 'forbidden']]) {
+    const failed = new ApiError(status, code, code);
+    const { save, views } = harness(async () => {
+      throw failed;
+    });
+    await assert.rejects(save(COMPLETE), (e) => e === failed);
+    assert.deepEqual(views, [{ kind: 'hidden' }], `${status}`);
+  }
+});

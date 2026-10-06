@@ -5,16 +5,18 @@
  */
 import { errorCode } from '../api-request.ts';
 import type { ScriptLine } from './parse.ts';
+import { isPermanentSaveError } from './progress-queue.ts';
 import type { DifferentLine, ProgressBody, ProgressResponse, SessionDetail } from './types.ts';
 
 /**
  * 완료 화면 「원문과 다르게 말한 대사」 칸. waiting 은 완료 저장 응답을 기다리는 중, later 는 저장이 닿지 않아(끊김)
- * 진행 저장 큐가 다시 보내는 중이다 — 닿으면 ready 가 되고, 화면을 떠났으면 회차 상세에서 본다.
+ * 진행 저장 큐가 다시 보내는 중이다 — 닿으면 ready 가 되고, 화면을 떠났으면 회차 상세에서 본다. hidden 은 다시 보내도
+ * 답이 같은 오류(404·422·403)라 보여 줄 결과가 없어 칸을 숨긴다.
  */
-export type DifferentView = { kind: 'waiting' } | { kind: 'later' } | { kind: 'ready'; lines: DifferentLine[] };
+export type DifferentView = { kind: 'waiting' } | { kind: 'later' } | { kind: 'hidden' } | { kind: 'ready'; lines: DifferentLine[] };
 
 /**
- * 진행 저장 send 를 감싸 완료 저장(complete)의 결과를 알린다. 응답이 오면 그 different_lines, 실패하면 later 이고 오류는
+ * 진행 저장 send 를 감싸 완료 저장(complete)의 결과를 알린다. 응답이 오면 그 different_lines, 끊기면 later 이고 오류는
  * 그대로 던져 큐가 다시 보낸다. 409 session_closed 는 앞선 완료가 닿았는데 응답만 잃은 것이라 회차 상세의 것을 쓴다.
  */
 export function reportCompletion(
@@ -31,7 +33,7 @@ export function reportCompletion(
       if (errorCode(error) === 'session_closed') {
         void deps.fetchDetail().then((detail) => deps.onView(detail ? { kind: 'ready', lines: detail.different_lines } : { kind: 'later' }));
       } else {
-        deps.onView({ kind: 'later' });
+        deps.onView({ kind: isPermanentSaveError(error) ? 'hidden' : 'later' });
       }
       throw error;
     }

@@ -849,7 +849,7 @@ export default function ReadingPlay() {
               <Feather name="wifi-off" size={16} color={palette.textMuted} />
               <Text style={styles.noteText}>{t('reading.differentLater')}</Text>
             </View>
-          ) : different.lines.length > 0 ? (
+          ) : different.kind === 'ready' && different.lines.length > 0 ? (
             <View style={styles.diffBox}>
               <View style={styles.diffHead}>
                 <Text style={styles.diffTitle}>{t('reading.differentTitle')}</Text>
