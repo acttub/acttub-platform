@@ -443,7 +443,7 @@ export interface paths {
          * @description 내 대사 한 줄의 녹음을 multipart 한 요청으로 올린다: request_id·line_id·attempt_no·audio(파일)·
          *     duration_ms·transcript_source(stt·none)·transcript?·matched?. 서버가 m4a(AAC)가 아니면 변환해 저장한다.
          *     같은 request_id 는 같은 행(200), 같은 줄의 더 큰 attempt_no 는 대체(201), 더 작은 번호는 200 현재 값.
-         *     10,000,000바이트·180초 초과 422 recording_too_long, 총량(회원 1GB·게스트 100MB) 초과 422 recording_quota,
+         *     10,000,000바이트·180초 초과 422 recording_too_long, 소리가 들어 있을 수 없는 파일(저장할 m4a 1,000바이트 미만) 422 recording_empty, 총량(회원 1GB·게스트 100MB) 초과 422 recording_quota,
          *     구간 밖·상대역·지문 줄 422 invalid_line, 지워진 회차 404, 변환 실패 503 audio_conversion_failed.
          *     completed·stopped 회차에도 받는다.
          */
@@ -2257,7 +2257,7 @@ export interface components {
              * Field
              * @enum {string}
              */
-            field: "goal" | "blockage" | "speech_self" | "speech_actual";
+            field: "goal" | "blockage" | "wants" | "habits" | "avoid" | "speech_self" | "speech_actual";
             /** Value */
             value: string;
             /** Written By Actor */
@@ -5282,7 +5282,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                field: "goal" | "blockage" | "speech_self" | "speech_actual";
+                field: "goal" | "blockage" | "wants" | "habits" | "avoid" | "speech_self" | "speech_actual";
             };
             cookie?: never;
         };
@@ -5317,7 +5317,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                field: "goal" | "blockage" | "speech_self" | "speech_actual";
+                field: "goal" | "blockage" | "wants" | "habits" | "avoid" | "speech_self" | "speech_actual";
             };
             cookie?: never;
         };

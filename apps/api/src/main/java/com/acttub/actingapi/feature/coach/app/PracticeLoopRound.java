@@ -20,6 +20,10 @@ public final class PracticeLoopRound {
 
     private static final int PART_MAX = 60;
 
+    /** 상태 칸 "배우의 말"의 보기(practice-loop.txt). 긴 이름이 앞이다 — "답"이 "답하기"류를 먼저 잡지 않게. */
+    private static final List<String> KINDS = List.of("스스로 알아챔", "자기 한 줄", "방법 요청", "평가 요청", "선택 설명",
+            "질문·설명", "짧은 답", "그만", "정정", "반박", "답");
+
     /**
      * 연습 루프 회차의 한 줄. 연습 루프 상태가 없으면 {@code null} — 부르는 쪽이 예전 줄("n차: 제목 — 제안")을 쓴다.
      *
@@ -38,6 +42,37 @@ public final class PracticeLoopRound {
         if (!round.corrections().isEmpty()) line.append(" — 아니라고 한 것: ").append(String.join(" / ", round.corrections()));
         if (nextTake != null && !nextTake.isBlank()) line.append(" — 제안: ").append(clip(nextTake));
         return line.toString();
+    }
+
+    /** 배우가 아니라고 한 것("주제: \"원문\""). 연습 루프 상태가 없으면 빈 목록. 유저.md 의 다시 말하지 않을 것에 쌓인다(SOMA-603). */
+    public static List<String> corrections(JsonNode state, List<Turn> turns) {
+        JsonNode loop = state == null ? null : state.path(DirectVideoPracticeLoop.STATE_KEY);
+        if (loop == null || !loop.isObject()) return List.of();
+        return DirectVideoPracticeLoop.round(loop,
+                turns.stream().map(t -> new CoachTurnSnapshot(t.role(), t.text())).toList()).corrections();
+    }
+
+    /**
+     * 배우의 말마다 다음 코치 턴의 상태 칸이 붙인 분류("평가 요청", "정정" …)를 앞에 붙인다. 분류가 없으면 원문 그대로.
+     * 기억 갱신이 코치에게 바라는 것과 말투를 고르는 재료다(SOMA-603).
+     */
+    public static List<String> classifiedActorWords(JsonNode state, List<Turn> turns) {
+        JsonNode statuses = state == null ? null : state.path(DirectVideoPracticeLoop.STATE_KEY).path("statuses");
+        List<String> words = new java.util.ArrayList<>();
+        int coachIndex = 0;
+        for (Turn turn : turns) {
+            if ("ai".equals(turn.role())) {
+                coachIndex++;
+                continue;
+            }
+            String text = turn.text() == null ? "" : turn.text().strip();
+            if (text.isEmpty()) continue;
+            String kind = statuses == null || !statuses.isArray() ? ""
+                    : DirectVideoPracticeLoop.statusField(statuses.path(coachIndex).asText(""), "배우의 말");
+            String label = KINDS.stream().filter(kind::startsWith).findFirst().orElse("");
+            words.add(label.isEmpty() ? text : "(" + label + ") " + text);
+        }
+        return List.copyOf(words);
     }
 
     private static String clip(String text) {
