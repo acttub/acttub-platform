@@ -258,7 +258,7 @@ test("reading.script: 동의 저장이 연결 문제로 실패하면 다시 맡�
   assert.deepEqual(flaky.calls, []);
 });
 
-test("reading.script: 들고 있던 upload_id 가 이미 대본이 됐으면(422 script_upload_used) 파일을 새로 올려 새 요청 id 로 한 번 더 맡긴다", async () => {
+test("reading.script: [새로 넣기]로 들고 있던 upload_id 가 이미 대본이 됐으면(422 script_upload_used) 파일을 새로 올려 새 요청 id 로 allow_duplicate 를 켠 채 한 번 더 맡긴다", async () => {
   let uploads = 0;
   let starts = 0;
   const { deps, calls } = fakeServer({
@@ -270,19 +270,19 @@ test("reading.script: 들고 있던 upload_id 가 이미 대본이 됐으면(422
       },
       startImport: async (body, requestId) => {
         starts += 1;
-        calls.push(["startImport", requestId, body.upload_id]);
+        calls.push(["startImport", requestId, body.upload_id, body.allow_duplicate]);
         if (starts === 1) throw new ApiError(422, "script_upload_used", "");
         return { import_id: "import-1", duplicate_script_id: null };
       },
     },
   });
-  const stale = { ...newAttempt(file()), uploadId: "upload-old" };
+  const stale = retryWith({ ...newAttempt(file()), uploadId: "upload-old" }, "allowDuplicate");
 
   const { outcome, attempt } = await runImport(stale, deps, () => {});
 
   assert.deepEqual(outcome, { kind: "saved", scriptId: "script-9" });
   const startCalls = calls.filter((c) => c[0] === "startImport");
-  assert.deepEqual(startCalls.map((c) => c[2]), ["upload-old", "upload-1"]);
+  assert.deepEqual(startCalls.map((c) => [c[2], c[3]]), [["upload-old", true], ["upload-1", true]]);
   assert.notEqual(startCalls[1][1], startCalls[0][1]);
   assert.equal(attempt.uploadId, "upload-1");
   assert.equal(attempt.requestId, startCalls[1][1]);

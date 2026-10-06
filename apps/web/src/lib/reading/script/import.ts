@@ -187,7 +187,7 @@ export async function runImport(
     try {
       ticket = await submit();
     } catch (cause) {
-      // 들고 있던 upload_id 가 그새 대본이 됐다. 원본은 대본 하나에만 붙으므로 파일을 새로 올려 한 번 더 맡긴다.
+      // [새로 넣기](allow_duplicate)로 보낸 upload_id 가 이미 대본이 됐다. 원본은 대본 하나에만 붙으므로 파일을 새로 올려 한 번 더 맡긴다.
       if (!(cause instanceof ApiError && cause.code === "script_upload_used")) throw cause;
       current = { ...current, uploadId: null, requestId: newRequestId() };
       ticket = await submit();
