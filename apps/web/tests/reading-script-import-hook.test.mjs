@@ -64,7 +64,7 @@ test("reading.script: 나누는 중에 화면을 떠나면 폴링이 멈추고, 
   assert.equal(log.polls, 1);
   assert.equal(log.scripts, 0);
   assert.equal(saved, 0);
-  assert.equal(sessionStorage.getItem("reading.script"), null);
+  assert.equal(sessionStorage.getItem("reading.script.v2"), null);
 });
 
 test("reading.script: 화면에 머물면 같은 흐름이 끝까지 가 대본을 들고 배역 정하기로 간다", async () => {
@@ -81,6 +81,6 @@ test("reading.script: 화면에 머물면 같은 흐름이 끝까지 가 대본�
   assert.equal(log.polls, 2);
   assert.equal(log.scripts, 1);
   assert.equal(saved, 1);
-  assert.equal(JSON.parse(sessionStorage.getItem("reading.script")).id, "script-9");
+  assert.equal(JSON.parse(sessionStorage.getItem("reading.script.v2")).id, "script-9");
   probe.unmount();
 });
