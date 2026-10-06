@@ -630,6 +630,28 @@ class ReadingImportIT {
     }
 
     @Test
+    @DisplayName("PDF 추출기가 매핑 없는 글자로 내는 NUL(U+0000)이 글에 섞여 와도 접수된다 — 저장 전에 지우고, 같은 글 판정에도 들어가지 않는다")
+    void nulCharactersAreDroppedBeforeStorage() throws Exception {
+        String clean = "니나: 저는 갈매기예요.\n트레플레프: 아니에요.";
+        String scriptId = split(clean);
+        JsonNode duplicate = json(post("/v2/reading/imports")
+                .content(request(UUID.randomUUID(), "갈\u0000매기", "니나: 저는 갈\u0000매기예요.\n\u0000트레플레프: 아니에요.", "paste")), 200);
+        assertThat(duplicate.path("duplicate_script_id").textValue()).as("NUL 만 다른 글은 같은 글").isEqualTo(scriptId);
+
+        String importId = json(post("/v2/reading/imports")
+                .content(request(UUID.randomUUID(), "갈\u0000매기", "니나: 저는 갈\u0000매기예요!\n\u0000트레플레프: 아니에요.", "paste")), 202)
+                .path("import_id").textValue();
+        assertThat(jdbc.queryForObject("SELECT raw_text FROM script_imports WHERE id=?::uuid", String.class, importId))
+                .isEqualTo("니나: 저는 갈매기예요!\n트레플레프: 아니에요.");
+        assertThat(worker.runOnce(clock.instant())).isTrue();
+        JsonNode done = json(get("/v2/reading/imports/{id}", importId), 200);
+        assertThat(done.path("status").textValue()).isEqualTo("succeeded");
+        JsonNode script = json(get("/v2/reading/scripts/{id}", done.path("script_id").textValue()), 200);
+        assertThat(script.path("title").textValue()).isEqualTo("갈매기");
+        assertThat(script.path("lines").get(0).path("text").textValue()).isEqualTo("저는 갈매기예요!");
+    }
+
+    @Test
     @DisplayName("요청 모양: raw_text 가 비었거나 보이는 글자가 없거나, 제목이 200자를 넘거나, source 가 목록 밖이면 422 배열")
     void shapeErrorsAreArrays() throws Exception {
         assertThat(json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, "   ", "paste")), 422).path("detail").isArray()).isTrue();
