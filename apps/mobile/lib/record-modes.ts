@@ -8,13 +8,10 @@
  *   <li>challenge — 오늘의 대사를 띄우고 60초 안에 찍어 챌린지 올리기로
  *   <li>plain — 보관함에 저장만
  * </ul>
- * 대사 챌린지는 한국어로 쓰는 사람에게만 연다(SOMA-544).
  */
 export type RecordMode = 'ai' | 'challenge' | 'plain';
 
-export function recordModes(korean: boolean): RecordMode[] {
-  return korean ? ['ai', 'challenge', 'plain'] : ['ai', 'plain'];
-}
+export const RECORD_MODES: readonly RecordMode[] = ['ai', 'challenge', 'plain'];
 
 /** 왼쪽으로 넘기면 다음, 오른쪽으로 넘기면 이전. 끝에서는 그대로다. */
 export function recordModeAfterSwipe(

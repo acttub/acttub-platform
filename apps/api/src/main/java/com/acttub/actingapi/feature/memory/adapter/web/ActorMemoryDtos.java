@@ -18,7 +18,7 @@ final class ActorMemoryDtos {
     @Schema(name = "ActorMemoryItem", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     record ActorMemoryItem(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, title = "Field",
-                    allowableValues = {"goal", "blockage", "speech_self", "speech_actual"})
+                    allowableValues = {"goal", "blockage", "wants", "habits", "avoid", "speech_self", "speech_actual"})
             String field,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, title = "Value") String value,
             // 참이면 배우가 직접 쓰거나 고친 칸이다. 화면이 "내가 적은 값"을 구분해 보여줘야

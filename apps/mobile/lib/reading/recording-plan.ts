@@ -34,10 +34,23 @@ export function fileNameFor(contentType: string): string {
 
 export type RecordingFileCheck = { ok: true } | { ok: false; reason: 'too_large' | 'too_long' | 'empty' };
 
-export function checkRecordingFile(file: { byteSize: number; durationMs: number }): RecordingFileCheck {
+/** 이보다 짧으면 말이 들어 있을 수 없다. */
+export const RECORDING_MIN_MS = 300;
+/**
+ * 형식별로 소리가 조금이라도 든 파일의 최소 크기. 머리만 있는 파일(258바이트 m4a, 44바이트 wav)을 거른다 —
+ * wav 는 16kHz·16bit 0.3초(9,600바이트), 압축 형식은 AAC 0.3초가 넉넉히 넘는 2,000바이트.
+ */
+export function minRecordingBytes(contentType: string | undefined): number {
+  if (!contentType) return 1;
+  return contentType === 'audio/wav' || contentType === 'audio/x-caf' ? 9_600 : 2_000;
+}
+
+export function checkRecordingFile(file: { byteSize: number; durationMs: number; contentType?: string }): RecordingFileCheck {
   if (file.byteSize <= 0) return { ok: false, reason: 'empty' };
   if (file.byteSize > RECORDING_MAX_BYTES) return { ok: false, reason: 'too_large' };
   if (file.durationMs > RECORDING_MAX_MS) return { ok: false, reason: 'too_long' };
+  if (file.byteSize < minRecordingBytes(file.contentType)) return { ok: false, reason: 'empty' };
+  if (file.durationMs > 0 && file.durationMs < RECORDING_MIN_MS) return { ok: false, reason: 'empty' };
   return { ok: true };
 }
 

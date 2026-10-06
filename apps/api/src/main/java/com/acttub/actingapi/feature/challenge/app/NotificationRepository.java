@@ -28,7 +28,7 @@ public interface NotificationRepository {
     /** "등록되지 않은 기기"로 답이 온 토큰을 지운다. */
     void forgetTokens(List<String> tokens);
 
-    record Outgoing(String token, String body, Map<String, String> data) { }
+    record Outgoing(String token, String title, String body, Map<String, String> data) { }
 
     @Schema(name = "ChallengeNotificationGroup", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)

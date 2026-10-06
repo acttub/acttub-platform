@@ -23,12 +23,14 @@ test("워크스페이스에서 기억 화면으로 들어가는 길이 있다", 
   assert.match(source, /href="\/memory"/);
 });
 
-test("practice.memory: 네 칸을 보여주고 성별·나이 칸은 없다", () => {
+test("practice.memory: 다섯 칸을 보여주고 성별·나이·말투·옛 화법 칸은 없다", () => {
   const source = panel();
 
-  for (const field of ["goal", "blockage", "speech_self", "speech_actual"]) {
+  for (const field of ["goal", "blockage", "wants", "habits", "avoid"]) {
     assert.match(source, new RegExp(`field: "${field}"`), `${field} 칸이 없다`);
   }
+  // 말투는 코치만 쓰고(SOMA-603), 옛 화법 두 칸은 더 채우지 않는다.
+  assert.doesNotMatch(source, /field: "tone"|field: "speech_self"|field: "speech_actual"/);
   // 성별·나이는 프로필이 가진다(account.profile).
   assert.doesNotMatch(source, /field: "gender"|field: "age"/);
   assert.match(readSource("src/lib/api/v2/memory.ts"), /MEMORY_FIELDS = \[\s*"goal",/);

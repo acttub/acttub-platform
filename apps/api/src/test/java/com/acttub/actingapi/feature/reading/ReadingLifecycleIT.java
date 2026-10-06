@@ -87,7 +87,7 @@ class ReadingLifecycleIT {
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private static final long WITHDRAW_GATE = 546_005L;
     private static final OffsetDateTime PUBLISHED = OffsetDateTime.of(2026, 10, 1, 0, 0, 0, 0, ZoneOffset.UTC);
-    private static final byte[] M4A = "m4a-bytes".getBytes(StandardCharsets.UTF_8);
+    private static final byte[] M4A = java.util.Arrays.copyOf("m4a-bytes".getBytes(StandardCharsets.UTF_8), 2048);
     private static String database;
 
     @DynamicPropertySource

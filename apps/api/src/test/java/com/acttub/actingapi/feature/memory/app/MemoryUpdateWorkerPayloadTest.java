@@ -45,11 +45,11 @@ class MemoryUpdateWorkerPayloadTest {
     @DisplayName("성공 페이로드는 연습 식별자와 갱신된 칸을 파이썬과 같은 순서로 담는다")
     void payloadKeepsPythonShape() {
         RecordingQueue queue = new RecordingQueue();
-        worker(queue, "{\"goal\":\"새 목표\",\"speech_self\":\"새 화법\"}").runOnce();
+        worker(queue, "{\"goal\":\"새 목표\",\"blockage\":\"새 막힘\"}").runOnce();
 
         assertThat(queue.payload.toString()).isEqualTo(
                 "{\"practice_session_id\":\"11111111-2222-3333-4444-555555555555\","
-                        + "\"updated_fields\":[\"goal\",\"speech_self\"]}");
+                        + "\"updated_fields\":[\"goal\",\"blockage\"]}");
     }
 
     @Test

@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { useCloudVoice } from '@/hooks/use-cloud-voice';
+import { loadVoiceFeedbackEnabled, saveVoiceFeedbackEnabled } from '@/lib/reading/voice-feedback-setting';
 import { Markdown } from '@/components/markdown';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
@@ -79,6 +80,12 @@ export default function SettingsScreen() {
   const [updatingToggle, setUpdatingToggle] = useState<keyof NotificationSettings | null>(null);
   const { confirm, alert, dialog } = useAppDialog();
   const cloudVoice = useCloudVoice();
+  const [voiceFeedback, setVoiceFeedback] = useState(false);
+  useEffect(() => { void loadVoiceFeedbackEnabled().then(setVoiceFeedback); }, []);
+  const toggleVoiceFeedback = (value: boolean) => {
+    setVoiceFeedback(value);
+    void saveVoiceFeedbackEnabled(value).catch(() => setVoiceFeedback(!value));
+  };
   const refreshVoice = cloudVoice.refresh;
   const cloudVoiceDate = cloudVoice.status?.free_until
     ? new Date(cloudVoice.status.free_until).toLocaleDateString(isKorean() ? 'ko-KR' : 'en-US', { month: 'long', day: 'numeric' })
@@ -285,6 +292,24 @@ export default function SettingsScreen() {
               </View>
             </>
           )}
+          {/* 실험 기능 — 발성 피드백. 기본 꺼짐, 기기에만 저장. */}
+          <Text style={styles.sectionTitle}>{t('voiceFeedback.settingsSection')}</Text>
+          <View style={styles.card}>
+            <View style={styles.cardRow}>
+              <View style={styles.iconCircle}><Feather name="mic" size={18} color={palette.flame} /></View>
+              <View style={styles.cardBody}>
+                <Text style={styles.cardTitle}>{t('voiceFeedback.settingsTitle')}</Text>
+                <Text style={styles.cardSub}>{t('voiceFeedback.settingsBody')}</Text>
+              </View>
+              <Switch
+                value={voiceFeedback}
+                onValueChange={toggleVoiceFeedback}
+                trackColor={{ true: palette.flame, false: palette.border }}
+                thumbColor={palette.onAccent}
+                ios_backgroundColor={palette.border}
+              />
+            </View>
+          </View>
           {/* 프로필 — 여섯 항목과 사진·한 줄 소개를 고치는 진입점. */}
           <Text style={styles.sectionTitle}>{t('settings.profile')}</Text>
           <Pressable style={styles.card} onPress={() => router.push('/profile-edit')} accessibilityRole="button">
@@ -411,21 +436,19 @@ export default function SettingsScreen() {
           </Pressable>
 
           {/* 코치의 기억 — 틀린 내용을 되돌릴 수 있는 유일한 자리. */}
-          {/* 차단은 챌린지에서만 쓰이므로 챌린지가 열린 사람에게만 보인다(challenge.block). */}
-          {isKorean() && (
-            <Pressable style={styles.card} onPress={() => router.push('/blocked-users')} accessibilityRole="button">
-              <View style={styles.cardRow}>
-                <View style={styles.iconCircle}>
-                  <Feather name="slash" size={18} color={palette.blue} />
-                </View>
-                <View style={styles.cardBody}>
-                  <Text style={styles.cardTitle}>{t('block.settingsLink')}</Text>
-                  <Text style={styles.cardSub}>{t('block.settingsHint')}</Text>
-                </View>
-                <Feather name="chevron-right" size={18} color={palette.checkOff} />
+          {/* 차단은 챌린지에서만 쓰인다(challenge.block). */}
+          <Pressable style={styles.card} onPress={() => router.push('/blocked-users')} accessibilityRole="button">
+            <View style={styles.cardRow}>
+              <View style={styles.iconCircle}>
+                <Feather name="slash" size={18} color={palette.blue} />
               </View>
-            </Pressable>
-          )}
+              <View style={styles.cardBody}>
+                <Text style={styles.cardTitle}>{t('block.settingsLink')}</Text>
+                <Text style={styles.cardSub}>{t('block.settingsHint')}</Text>
+              </View>
+              <Feather name="chevron-right" size={18} color={palette.checkOff} />
+            </View>
+          </Pressable>
 
           <Text style={styles.sectionTitle}>{t('settings.memorySection')}</Text>
           <Pressable style={styles.card} onPress={() => router.push('/memory')} accessibilityRole="button">

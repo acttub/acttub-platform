@@ -651,7 +651,7 @@ export const api = {
    * 내 대사 한 줄의 녹음을 multipart 한 요청으로 올린다(reading.recording). 같은 request_id 는 같은 결과(멱등),
    * 더 큰 attempt_no 만 같은 줄의 이전 녹음을 대체하고 작은 번호는 200 현재 값이다. 서버가 m4a 가 아니면 변환해
    * 저장하고, 변환 실패는 503 audio_conversion_failed 로 답한다(같은 request_id 로 재시도). 한도는 422
-   * recording_too_long·recording_quota, 구간 밖·상대역·지문 줄은 422 invalid_line, 지워진 회차는 404.
+   * recording_too_long·recording_empty·recording_quota, 구간 밖·상대역·지문 줄은 422 invalid_line, 지워진 회차는 404.
    * 회차의 진행 상태와 분리돼 completed 회차에도 받는다.
    */
   uploadReadingRecording(
@@ -1065,7 +1065,7 @@ export const api = {
   /**
    * 대사 목록. 탭은 인기·최신·종료·내 챌린지이고 q 는 2자 이상일 때만 보낸다(대사·작품·참여작
    * 작성자 이름만 찾는다). 오늘의 챌린지는 featured 로 따로 온다(인기·최신 탭에서만 고정).
-   * 게스트·한국어가 아닌 회원은 403 member_only.
+   * 게스트는 403 member_only.
    */
   listChallenges(
     params: { tab: ChallengeTab; q?: string; cursor?: string } = { tab: 'popular' },
