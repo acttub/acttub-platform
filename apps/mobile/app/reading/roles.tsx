@@ -16,7 +16,7 @@ import { getCurrent, updateScriptMeta } from '@/lib/reading/store';
 import * as engine from '@/lib/reading/tts/engine';
 import { assetsPresent } from '@/lib/reading/tts/assets';
 import { cloudVoiceSampleUri } from '@/lib/reading/voice-samples';
-import { assignVoices, autoVoiceOf, isKnownPreset, voiceChanges, type VoicePreset } from '@/lib/reading/voices';
+import { autoVoiceOf, isKnownPreset, shownVoices, voiceChanges, type VoicePreset } from '@/lib/reading/voices';
 import type { ScriptCharacter } from '@/lib/reading/types';
 import { translate as t } from '@/lib/i18n';
 
@@ -71,7 +71,7 @@ export default function ReadingRoles() {
     () => characters.map((c) => (c.id in chosen ? { ...c, voice_preset: chosen[c.id] } : c)),
     [characters, chosen],
   );
-  const assigned = useMemo(() => assignVoices(effective, []), [effective]);
+  const assigned = useMemo(() => shownVoices(characters, chosen), [characters, chosen]);
 
   if (!script) {
     return (
@@ -124,7 +124,7 @@ export default function ReadingRoles() {
 
   const choose = (characterId: string, value: VoicePreset | null) => {
     setChosen((prev) => ({ ...prev, [characterId]: value }));
-    const heard = value ?? autoVoiceOf(effective, characterId);
+    const heard = value ?? autoVoiceOf(characters, chosen, characterId);
     if (heard) void preview(characterId, heard);
   };
 
@@ -234,7 +234,7 @@ export default function ReadingRoles() {
               <Pressable style={[styles.autoBtn, sheetValue === null && styles.chipOn]} onPress={() => choose(sheetCharacter.id, null)}>
                 {sheetValue === null && <Feather name="check" size={15} color={palette.blueDeep} />}
                 <Text style={[styles.chipText, sheetValue === null && styles.chipTextOn]}>
-                  {t('reading.voiceAutoNow', { preset: autoVoiceOf(effective, sheetCharacter.id) ?? '-' })}
+                  {t('reading.voiceAutoNow', { preset: autoVoiceOf(characters, chosen, sheetCharacter.id) ?? '-' })}
                 </Text>
               </Pressable>
               {[

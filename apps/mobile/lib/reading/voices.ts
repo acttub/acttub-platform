@@ -2,36 +2,39 @@
  * 상대역 목소리(reading.cast). 값은 기기에 내장된 Supertonic 프리셋 id(M1~M5·F1~F5)이고 서버는 목록을
  * 모른다(32자 이내 문자열이면 받는다). NULL 이면 "자동"이다.
  *
- * 자동 규칙: 대본의 모든 배역을 대본의 배역 순서(저장 순서)로 세워 F1·M1·F2·M2·… 를 순환 배정하고 내 배역만 뺀다. 그래서
- * 목소리 정하기 화면에 보인 값이 어느 배역으로 연습하든 그대로 들린다(웹은 회차마다 상대역만으로 배정해 다를 수 있다).
- * 배우가 고른 배역만 고정값이 되고 자동 배정에서 빠진다. 같은 프리셋을 여러 배역에 줄 수 있고, 기기가
- * 모르는 값은 자동으로 다룬다.
+ * 읽을 목소리는 서버가 정해 `characters[].voice`로 준다(대본 전체 배역을 F1·M1·F2·M2·… 로 순환, 고정값은 순환에서 빠짐).
+ * 기기는 그 회차의 내 배역만 빼고 그대로 읽는다. 순환을 기기도 아는 것은 목소리 정하기(R3)가 저장 전 선택을 미리 보이기
+ * 때문이다. 같은 프리셋을 여러 배역에 줄 수 있고, 기기가 모르는 값은 자동으로 다룬다.
  */
-export const VOICE_PRESETS = ['M1', 'M2', 'M3', 'M4', 'M5', 'F1', 'F2', 'F3', 'F4', 'F5'] as const;
+const VOICE_PRESETS = ['M1', 'M2', 'M3', 'M4', 'M5', 'F1', 'F2', 'F3', 'F4', 'F5'] as const;
 export type VoicePreset = (typeof VOICE_PRESETS)[number];
 
 /** 남녀가 번갈아 나오도록 섞어 둔다 — 배역 순서대로 집으면 대개 대화처럼 들린다. */
-export const AUTO_ROTATION: VoicePreset[] = ['F1', 'M1', 'F2', 'M2', 'F3', 'M3', 'F4', 'M4', 'F5', 'M5'];
+const AUTO_ROTATION: VoicePreset[] = ['F1', 'M1', 'F2', 'M2', 'F3', 'M3', 'F4', 'M4', 'F5', 'M5'];
 
 export function isKnownPreset(value: unknown): value is VoicePreset {
   return typeof value === 'string' && (VOICE_PRESETS as readonly string[]).includes(value);
 }
 
-type VoicedCharacter = { id: string; voice_preset: string | null };
+type VoicedCharacter = { id: string; voice_preset: string | null; voice: string };
+
+/** 서버 VoiceAssignment 와 같은 순환. */
+function rotate(characters: { id: string; voice_preset: string | null }[]): Record<string, VoicePreset> {
+  let auto = 0;
+  return Object.fromEntries(
+    characters.map((c) => [c.id, isKnownPreset(c.voice_preset) ? c.voice_preset : AUTO_ROTATION[auto++ % AUTO_ROTATION.length]]),
+  );
+}
 
 /**
- * 회차의 상대역마다 읽을 프리셋. 내 배역은 들어 있지 않다(그 회차에서 쓰이지 않는다).
- * 배열 순서가 대본의 배역 순서(저장 순서)다.
+ * 목소리 정하기(R3)에 보일 목소리. 고친 것이 없으면 서버 값(`voice`) 그대로다. 저장 전 선택은 서버에 물을 수 없어 서버와
+ * 같은 순환으로 미리 센다 — 한 배역을 고정하면 뒤 배역의 자동 목소리가 당겨진다.
  */
-export function assignVoices(characters: VoicedCharacter[], myCharacterIds: string[]): Record<string, VoicePreset> {
-  const mine = new Set(myCharacterIds);
-  const out: Record<string, VoicePreset> = {};
-  let auto = 0;
-  for (const c of characters) {
-    const preset = isKnownPreset(c.voice_preset) ? c.voice_preset : AUTO_ROTATION[auto++ % AUTO_ROTATION.length];
-    if (!mine.has(c.id)) out[c.id] = preset;
+export function shownVoices(characters: VoicedCharacter[], chosen: Record<string, string | null>): Record<string, VoicePreset> {
+  if (voiceChanges(characters, chosen).length === 0) {
+    return Object.fromEntries(characters.flatMap((c) => (isKnownPreset(c.voice) ? [[c.id, c.voice]] : [])));
   }
-  return out;
+  return rotate(characters.map((c) => (c.id in chosen ? { ...c, voice_preset: chosen[c.id] } : c)));
 }
 
 /** 화면의 드롭다운 값 → 저장값. "자동"·빈 값은 null(자동). */
@@ -60,8 +63,12 @@ export function devicePitchFor(preset: string): number {
 }
 
 /** 이 배역을 자동으로 두면 받을 목소리 — 목소리 시트의 「자동 (지금 M1)」. */
-export function autoVoiceOf(characters: VoicedCharacter[], characterId: string): VoicePreset | undefined {
-  return assignVoices(characters.map((c) => (c.id === characterId ? { ...c, voice_preset: null } : c)), [])[characterId];
+export function autoVoiceOf(
+  characters: VoicedCharacter[],
+  chosen: Record<string, string | null>,
+  characterId: string,
+): VoicePreset | undefined {
+  return shownVoices(characters, { ...chosen, [characterId]: null })[characterId];
 }
 
 /** 화면에서 고른 값(배역 id → 프리셋, null=자동) 가운데 저장된 값과 다른 것만 — 목소리 정하기 [저장]이 보낸다. */

@@ -6,12 +6,11 @@ import {
   defaultMyCharacterIds,
   dialogueNumbers,
   rangeError,
-  rangeName,
   rangeOfDialogueNos,
   rangeOfLineIds,
   rangeTitle,
   recentRanges,
-  sceneRanges,
+  sceneTitle,
   snapRangeToDialogues,
   startGate,
 } from '../lib/reading/session-plan.ts';
@@ -22,49 +21,19 @@ const S = (text) => ({ type: 'scene', text });
 
 const WITH_SCENES = [S('1막'), D('윤서', 'a'), D('태오', 'b'), X('사이'), D('윤서', 'c'), S('2막'), X('밤'), D('태오', 'd'), D('윤서', 'e')];
 
-test('reading.session: 장면 "1막"을 고르면 그 장면의 첫·마지막 대사가 구간이다', () => {
-  const scenes = sceneRanges(WITH_SCENES);
-  assert.deepEqual(scenes.map((s) => s.title), ['1막', '2막']);
-  assert.deepEqual(scenes.map((s) => [s.startIndex, s.endIndex]), [[1, 4], [7, 8]]);
-  assert.deepEqual(scenes.map((s) => s.dialogueCount), [3, 2]);
-});
-
-const lines = (n, role = '윤서') => Array.from({ length: n }, (_, i) => D(i % 2 ? '태오' : role, `${i}`));
-
-test('reading.session: 장면 줄 없는 대본은 지문 경계로 장면이 나뉘고 번호가 붙는다', () => {
-  const script = [X('옥상'), ...lines(5), X('사이'), ...lines(6)];
-  const scenes = sceneRanges(script);
-  assert.deepEqual(scenes.map((s) => [s.title, s.no]), [[null, 1], [null, 2]]);
-  assert.deepEqual(scenes.map((s) => [s.startIndex, s.endIndex]), [[1, 5], [7, 12]]);
-});
-
-test('reading.session: 지문으로 끊긴 장면 가운데 대사 5개 미만은 앞 장면에 붙인다', () => {
-  const script = [X('옥상'), ...lines(6), X('사이'), ...lines(2), X('밤'), ...lines(5)];
-  const scenes = sceneRanges(script);
-  assert.deepEqual(scenes.map((s) => [s.no, s.startIndex, s.endIndex, s.dialogueCount]), [[1, 1, 9, 8], [2, 11, 15, 5]]);
-});
-
-test('reading.session: 첫 장면이 짧으면 뒤 장면에 붙인다', () => {
-  const script = [X('옥상'), ...lines(2), X('사이'), ...lines(5)];
-  const scenes = sceneRanges(script);
-  assert.deepEqual(scenes.map((s) => [s.no, s.startIndex, s.endIndex, s.dialogueCount]), [[1, 1, 8, 7]]);
-});
-
-test('reading.session: 막·장 머리로 나뉜 장면은 짧아도 합치지 않는다', () => {
-  assert.deepEqual(sceneRanges(WITH_SCENES).map((s) => s.dialogueCount), [3, 2]);
-});
-
 const t = (key, p = {}) => `${key}${JSON.stringify(p)}`;
 
-test('reading.session: 구간 이름 — 대본 전체·장면 하나와 정확히 같을 때·그 밖은 대사 번호', () => {
-  const script = [X('옥상'), ...lines(5), X('사이'), ...lines(6)];
-  assert.deepEqual(rangeName(script, 1, 11), { kind: 'all' });
-  assert.deepEqual(rangeName(script, 6, 11), { kind: 'scene', title: null, no: 2 });
-  assert.deepEqual(rangeName(script, 6, 10), { kind: 'dialogues', start: 6, end: 10 });
-  assert.equal(rangeTitle(rangeName(script, 1, 11), t), 'reading.rangeAll{}');
-  assert.equal(rangeTitle(rangeName(script, 6, 11), t), 'reading.rangeScene{"n":2}');
-  assert.equal(rangeTitle(rangeName(script, 6, 10), t), 'reading.rangeLines{"start":6,"end":10}');
-  assert.equal(rangeTitle(rangeName(WITH_SCENES, 4, 5), t), '2막');
+test('reading.session: 구간 이름의 글 — 서버 range_name 을 처음부터 끝까지·장면(머리 줄 글 또는 번호)·대사 번호로', () => {
+  const blank = { scene_no: null, scene_title: null };
+  assert.equal(rangeTitle({ kind: 'all', ...blank, start: 1, end: 11 }, t), 'reading.rangeAll{}');
+  assert.equal(rangeTitle({ kind: 'scene', scene_no: 2, scene_title: null, start: 6, end: 11 }, t), 'reading.rangeScene{"n":2}');
+  assert.equal(rangeTitle({ kind: 'scene', scene_no: 2, scene_title: '2막', start: 4, end: 5 }, t), '2막');
+  assert.equal(rangeTitle({ kind: 'dialogues', ...blank, start: 6, end: 10 }, t), 'reading.rangeLines{"start":6,"end":10}');
+});
+
+test('reading.session: 「장면으로 찾기」 줄 이름 — 서버 scenes 의 title, 없으면 번호', () => {
+  assert.equal(sceneTitle({ no: 1, title: '1막' }, t), '1막');
+  assert.equal(sceneTitle({ no: 2, title: null }, t), 'reading.rangeScene{"n":2}');
 });
 
 test('reading.session: 대사 번호는 대사 줄만 1부터 세고 지문·장면은 없다', () => {

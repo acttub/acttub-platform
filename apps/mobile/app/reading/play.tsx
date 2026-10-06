@@ -70,7 +70,6 @@ import {
   readAppVoiceSupport,
   type PartnerVoiceEngine,
 } from '@/lib/reading/voice-capability';
-import { assignVoices } from '@/lib/reading/voices';
 import { pronunciationNotes } from '@/lib/reading/pronunciation-notes';
 import { pronunciationServerUrl, scorePronunciation } from '@/lib/reading/pronunciation-server';
 import { loadVoiceFeedbackEnabled } from '@/lib/reading/voice-feedback-setting';
@@ -191,12 +190,9 @@ export default function ReadingPlay() {
   const voiceFeedbackOn = useRef(false);
   const [lineFeedback, setLineFeedback] = useState<LineFeedback[]>([]);
 
-  const voices = useMemo(
-    () => (script && session ? assignVoices(script.characters, session.my_character_ids) : {}),
-    [script, session],
-  );
-  const characterIdByName = useMemo(() => new Map((script?.characters ?? []).map((c) => [c.name, c.id] as const)), [script]);
-  const presetFor = useCallback((role: string) => voices[characterIdByName.get(role) ?? ''] ?? 'F1', [voices, characterIdByName]);
+  // 서버가 정한 「내 배역이 아닐 때 읽을 목소리」. 내 배역 줄은 읽지 않으니 빼지 않아도 된다.
+  const voiceByName = useMemo(() => new Map((script?.characters ?? []).map((c) => [c.name, c.voice] as const)), [script]);
+  const presetFor = useCallback((role: string) => voiceByName.get(role) ?? 'F1', [voiceByName]);
 
   const primeSpeech = useCallback((from: number) => {
     if (!script || !config) return null;

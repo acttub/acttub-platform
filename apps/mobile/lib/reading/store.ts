@@ -26,6 +26,7 @@ import type {
   ScriptDetail,
   ScriptLastSession,
   ScriptListResponse,
+  ScriptScene,
   ScriptSource,
   SessionCard,
   SessionDetail,
@@ -50,6 +51,8 @@ export interface SavedScript extends DevicePrefs {
   lines: ScriptLine[];
   /** lines 와 같은 순서의 서버 줄 id. 회차·녹음·암기가 이 id 를 가리킨다. */
   lineIds: string[];
+  /** 「장면으로 찾기」 후보(서버가 나눔). */
+  scenes: ScriptScene[];
   dialogueCount: number;
   /** 모든 회차의 녹음 수(서버 집계). */
   recordingCount: number;
@@ -176,6 +179,7 @@ export function toSavedScript(detail: ScriptDetail, prefs: Partial<DevicePrefs> 
     characters,
     lines: screenLines,
     lineIds: lines.map((l) => l.id),
+    scenes: detail.scenes,
     dialogueCount: screenLines.filter((l) => l.type === 'dialogue').length,
     recordingCount: detail.recording_count,
     lastSession: detail.last_session ?? null,
