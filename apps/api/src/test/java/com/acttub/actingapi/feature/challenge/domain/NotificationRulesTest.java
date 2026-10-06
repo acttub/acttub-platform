@@ -27,6 +27,13 @@ class NotificationRulesTest {
         assertThat(NotificationRules.pushAfter(justBeforeNine, true)).isEqualTo(justBeforeNine);
         assertThat(NotificationRules.pushAfter(Instant.parse("2026-09-23T11:55:00Z"), false))
                 .isEqualTo(Instant.parse("2026-09-24T00:00:00Z"));
-        assertThat(NotificationRules.pushBody("entry_commented")).doesNotContain("님");
+        assertThat(NotificationRules.pushBody("entry_commented", true)).doesNotContain("님");
+    }
+
+    @Test void challengeNotification_pushBodyFollowsTheDeviceLanguage() {
+        assertThat(NotificationRules.pushBody("entry_liked", true)).isEqualTo("내 참여작에 새 반응이 있어요");
+        assertThat(NotificationRules.pushBody("entry_liked", false)).isEqualTo("New reactions on your entry");
+        assertThat(NotificationRules.pushBody("challenge_ended", false)).isEqualTo("A challenge you joined has ended");
+        assertThat(NotificationRules.pushBody("entry_ai_report_ready", false)).isEqualTo("Your AI report is ready");
     }
 }

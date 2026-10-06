@@ -106,8 +106,13 @@ test('challenge.create: 참여작이 없는 자기 챌린지만 상세에서 지
   assert.match(detail, /challenges\.deleteHasEntries/);
 });
 
-test('challenge.browse: 챌린지 탭은 한국어 회원에게만 열리고 게스트는 안내를 본다', () => {
-  assert.match(read('app/(tabs)/_layout.tsx'), /isKorean\(\)/);
+test('challenge.browse: 챌린지 탭은 앱 언어와 상관없이 회원에게 열리고 게스트는 안내를 본다', async () => {
+  const layout = read('app/(tabs)/_layout.tsx');
+  assert.doesNotMatch(layout, /isKorean/);
+  assert.match(layout, /name="challenges"\s*options=\{\{\s*title: t\('tabs\.challenge'\)/);
   assert.match(read('app/(tabs)/challenges.tsx'), /browseFailureMessage/);
-  assert.match(read('locales/ko.ts'), /한국어로 쓰는 회원만/);
+  const { default: ko } = await import('../locales/ko.ts');
+  const { default: en } = await import('../locales/en.ts');
+  assert.equal(ko.challenges.memberOnly, '챌린지는 회원만 이용할 수 있어요.');
+  assert.equal(en.challenges.memberOnly, 'Challenges are for members only.');
 });

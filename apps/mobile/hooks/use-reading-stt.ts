@@ -44,9 +44,27 @@ export type SttHandle = {
   /** 듣기를 끝내고 최종 글을 받는다. 못 알아들었으면 빈 글. */
   finish: () => Promise<string>;
   abort: () => void;
-  /** 마지막 듣기가 남긴 파일 uri(persist 였을 때). 가져가면 비운다. */
+  /** 마지막 듣기가 남긴 파일 uri(persist 였을 때). 가져가면 비운다. 지울 때만 쓴다 — 아직 덜 써졌을 수 있다. */
   takeRecordingUri: () => string | null;
+  /**
+   * 녹음 파일을 가져간다. 인식기는 audioend 뒤에야 파일을 다 쓴다 — 안드로이드 연속 인식은 첫 확정 결과에서
+   * finish 가 끝나 audioend 보다 앞설 수 있어, 최대 1.5초 기다린다. 없으면 null.
+   */
+  takeRecordingAsync: () => Promise<string | null>;
+  /** 이 기기에서 인식기가 들은 소리를 파일로 남길 수 있는가(Android 13+·iOS). */
+  canPersist: () => boolean;
 };
+
+const AUDIOEND_WAIT_MS = 1_500;
+
+/** 인식기 녹음 지원 여부. 안 되는 기기에서 persist 를 켜면 소리 없는 파일이 남는다. */
+export function sttCanPersist(): boolean {
+  try {
+    return ExpoSpeechRecognitionModule.supportsRecording();
+  } catch {
+    return false;
+  }
+}
 
 export function useReadingStt(): SttHandle {
   const text = useRef('');
@@ -55,6 +73,9 @@ export function useReadingStt(): SttHandle {
   const callbacks = useRef<{ onEvent: (event: VadEvent) => void; onInterim: (text: string) => void } | null>(null);
   const settle = useRef<((text: string) => void) | null>(null);
   const recordingUri = useRef<string | null>(null);
+  /** persist 로 시작해 아직 audioend 를 못 받았다. */
+  const awaitingAudioEnd = useRef(false);
+  const audioEndWaiter = useRef<(() => void) | null>(null);
 
   const finishNow = (value: string) => {
     active.current = false;
@@ -80,6 +101,8 @@ export function useReadingStt(): SttHandle {
   });
   useSpeechRecognitionEvent('audioend', (event) => {
     if (event?.uri) recordingUri.current = event.uri;
+    awaitingAudioEnd.current = false;
+    audioEndWaiter.current?.();
   });
   useSpeechRecognitionEvent('end', () => {
     if (active.current || settle.current) finishNow(text.current);
@@ -91,6 +114,8 @@ export function useReadingStt(): SttHandle {
   const start = useCallback<SttHandle['start']>((next, options) => {
     text.current = '';
     recordingUri.current = null;
+    const persist = !!options?.persist && sttCanPersist();
+    awaitingAudioEnd.current = persist;
     callbacks.current = next;
     detector.current = createSilenceDetector(DEFAULT_VAD, Date.now());
     try {
@@ -100,7 +125,7 @@ export function useReadingStt(): SttHandle {
         continuous: true,
         requiresOnDeviceRecognition: true,
         volumeChangeEventOptions: { enabled: true, intervalMillis: VOLUME_INTERVAL_MS },
-        ...(options?.persist
+        ...(persist
           ? { recordingOptions: { persist: true, outputDirectory: Paths.cache.uri, outputFileName: `reading-line-${Date.now()}.wav` } }
           : {}),
       });
@@ -108,6 +133,7 @@ export function useReadingStt(): SttHandle {
       return true;
     } catch {
       active.current = false;
+      awaitingAudioEnd.current = false;
       return false;
     }
   }, []);
@@ -132,6 +158,8 @@ export function useReadingStt(): SttHandle {
     settle.current = null;
     active.current = false;
     detector.current = null;
+    awaitingAudioEnd.current = false;
+    audioEndWaiter.current?.();
     try {
       ExpoSpeechRecognitionModule.abort();
     } catch {}
@@ -143,5 +171,18 @@ export function useReadingStt(): SttHandle {
     return uri;
   }, []);
 
-  return { start, finish, abort, takeRecordingUri };
+  const takeRecordingAsync = useCallback(async (): Promise<string | null> => {
+    if (!recordingUri.current && awaitingAudioEnd.current) {
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(() => { audioEndWaiter.current = null; resolve(); }, AUDIOEND_WAIT_MS);
+        audioEndWaiter.current = () => { clearTimeout(timer); audioEndWaiter.current = null; resolve(); };
+      });
+    }
+    awaitingAudioEnd.current = false;
+    return takeRecordingUri();
+  }, [takeRecordingUri]);
+
+  const canPersist = useCallback(() => sttCanPersist(), []);
+
+  return { start, finish, abort, takeRecordingUri, takeRecordingAsync, canPersist };
 }

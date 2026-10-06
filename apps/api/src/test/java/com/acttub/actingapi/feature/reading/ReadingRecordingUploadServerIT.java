@@ -116,13 +116,13 @@ class ReadingRecordingUploadServerIT {
     @DisplayName("reading.recording: 실제 컨테이너를 거친 multipart 올리기 — 파트가 그대로 닿아 201 이고 행·객체가 있다. 상한을 넘는 파일은 413 upload_too_large. 같은 서버의 JSON 오류는 여전히 보낸 값을 되돌려 준다")
     void multipartReachesTheHandlerThroughTheRealContainer() throws Exception {
         UUID requestId = UUID.randomUUID();
-        HttpResponse<String> uploaded = http.send(multipart(requestId, "m4a-bytes".getBytes(StandardCharsets.UTF_8)),
+        HttpResponse<String> uploaded = http.send(multipart(requestId, java.util.Arrays.copyOf("m4a-bytes".getBytes(StandardCharsets.UTF_8), 2048)),
                 HttpResponse.BodyHandlers.ofString());
 
         assertThat(uploaded.statusCode()).as(uploaded.body()).isEqualTo(201);
         JsonNode body = mapper.readTree(uploaded.body());
         assertThat(body.path("line_id").textValue()).isEqualTo(line.toString());
-        assertThat(body.path("byte_size").longValue()).isEqualTo(9);
+        assertThat(body.path("byte_size").longValue()).isEqualTo(2048);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM reading_recordings", Integer.class)).isEqualTo(1);
         assertThat(storage.objects).containsKey("reading/" + member + "/" + session + "/" + line + "/" + requestId + ".m4a");
 

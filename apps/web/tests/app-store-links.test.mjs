@@ -192,6 +192,13 @@ test("스토어 배지와 /app, /go 페이지는 bootstrap과 캠페인 훅을 �
     ),
     "utf8",
   );
+  const workspace = readFileSync(
+    path.resolve(
+      import.meta.dirname,
+      "../src/features/workspace/workspace-app.tsx",
+    ),
+    "utf8",
+  );
 
   assert.match(badges, /goHref\(store, surface, search\)/);
   assert.match(badges, /APP_DOWNLOAD_STORE_ATTR/);
@@ -201,6 +208,11 @@ test("스토어 배지와 /app, /go 페이지는 bootstrap과 캠페인 훅을 �
   assert.match(goPage, /STORE_LINK_SURFACES/);
   assert.match(redirect, /storeHref\(store, surface, search\)/);
   assert.match(redirect, /APP_DOWNLOAD_FINAL_STORE_ATTR/);
+  assert.equal(
+    workspace.match(/\[APP_DOWNLOAD_ATTR\]: "app_page"/g)?.length,
+    2,
+    "홈 워크스페이스의 데스크톱·모바일 앱 링크가 현재 UTM을 보존해야 한다",
+  );
 });
 
 function runBootstrap({

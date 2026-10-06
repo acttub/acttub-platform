@@ -30,6 +30,18 @@ test('reading.recording: 파일이 10,000,000바이트를 넘으면 기기가 �
   assert.deepEqual(checkRecordingFile({ byteSize: 0, durationMs: 500 }), { ok: false, reason: 'empty' });
 });
 
+test('reading.recording: 소리가 들어 있을 수 없을 만큼 작은 파일은 비었다고 보고 올리지 않는다', () => {
+  // 0.1.2 운영 녹음의 대부분이 소리 없는 258바이트 m4a 였다 — 머리만 있는 파일.
+  assert.deepEqual(checkRecordingFile({ byteSize: 258, durationMs: 2_000, contentType: 'audio/mp4' }), { ok: false, reason: 'empty' });
+  assert.deepEqual(checkRecordingFile({ byteSize: 44, durationMs: 2_000, contentType: 'audio/wav' }), { ok: false, reason: 'empty' });
+  // 0.3초 미만으로 잡힌 녹음도 비었다고 본다.
+  assert.deepEqual(checkRecordingFile({ byteSize: 50_000, durationMs: 200, contentType: 'audio/wav' }), { ok: false, reason: 'empty' });
+  assert.deepEqual(checkRecordingFile({ byteSize: 20_000, durationMs: 1_000, contentType: 'audio/wav' }), { ok: true });
+  assert.deepEqual(checkRecordingFile({ byteSize: 6_000, durationMs: 1_000, contentType: 'audio/mp4' }), { ok: true });
+  // 길이를 모르면(0) 크기만 본다.
+  assert.deepEqual(checkRecordingFile({ byteSize: 6_000, durationMs: 0, contentType: 'audio/mp4' }), { ok: true });
+});
+
 test('reading.recording: 같은 줄을 다시 말하면 시도 번호가 1씩 는다', () => {
   const attempts = {};
   assert.equal(nextAttemptNo(attempts, 'l1'), 1);
