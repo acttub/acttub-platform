@@ -57,6 +57,6 @@ test("reading.script: 결과마다 앱 pen R2 장과 같은 뜻의 대화상자�
 test("reading.script: 동의 대화상자(R2.14)는 무엇을 보내고 보관하는지 알리고, 동의를 저장하지 못했으면 그 까닭을 함께 보인다", () => {
   const body =
     "대본을 나누려면 동의가 필요해요동의해야 대본을 넣을 수 있어요.대본 글을 OpenAI로 보내 배역과 대사를 나눠요.넣은 파일은 대본과 함께 보관하고, 대본을 지우면 같이 지워요.자세히 보기";
-  assert.equal(inDialog({ kind: "consent_required" }), `${body}취소동의하고 나누기`);
-  assert.equal(inDialog({ kind: "consent_required", error: "회원만 할 수 있어요." }), `${body}회원만 할 수 있어요.취소동의하고 나누기`);
+  assert.equal(inDialog({ kind: "consent_required" }), `${body}동의하고 나누기취소`);
+  assert.equal(inDialog({ kind: "consent_required", error: "회원만 할 수 있어요." }), `${body}회원만 할 수 있어요.동의하고 나누기취소`);
 });

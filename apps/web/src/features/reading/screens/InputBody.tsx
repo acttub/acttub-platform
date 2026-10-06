@@ -218,13 +218,12 @@ export function ImportDialogs({ importer, onOpen }: { importer: ScriptImporter; 
       return (
         <DialogShell
           title="대본을 나누려면 동의가 필요해요"
+          stacked
           actions={
             <>
-              <Button variant="secondary" className="flex-1" onClick={importer.close}>
+              <Button onClick={importer.agree}>동의하고 나누기</Button>
+              <Button variant="ghost" onClick={importer.close}>
                 취소
-              </Button>
-              <Button className="flex-1" onClick={importer.agree}>
-                동의하고 나누기
               </Button>
             </>
           }
@@ -267,13 +266,13 @@ function DuplicateTitle({ scriptId }: { scriptId: string }) {
   return <p className="script-text text-[14px] font-black">「{script.data.title}」</p>;
 }
 
-function DialogShell({ title, children, actions }: { title: string; children: ReactNode; actions?: ReactNode }) {
+function DialogShell({ title, children, actions, stacked = false }: { title: string; children: ReactNode; actions?: ReactNode; stacked?: boolean }) {
   return (
     <div role="dialog" aria-modal="true" aria-label={title} className="fixed inset-0 z-50 bg-black/40 flex items-end md:items-center justify-center p-4">
       <div className="w-full md:max-w-[420px] bg-surface rounded-[18px] p-5 flex flex-col gap-3">
         <p className="text-[15px] font-black">{title}</p>
         {children}
-        {actions && <div className="flex gap-2">{actions}</div>}
+        {actions && <div className={stacked ? "flex flex-col gap-1" : "flex gap-2"}>{actions}</div>}
       </div>
     </div>
   );

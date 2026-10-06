@@ -62,13 +62,13 @@ export interface ImportDeps {
   now: () => number;
 }
 
-export const FILE_MAX_BYTES = 50_000_000;
+const FILE_MAX_BYTES = 50_000_000;
 const FILE_EXTENSIONS = ["txt", "docx", "pdf", "hwp", "hwpx"];
 /** 파일 고르기 창의 거르개. 브라우저가 hwp 의 종류를 모르는 일이 흔해 확장자로 건다. */
 export const FILE_ACCEPT = FILE_EXTENSIONS.map((ext) => `.${ext}`).join(",");
-export const POLL_INTERVAL_MS = 1_000;
+const POLL_INTERVAL_MS = 1_000;
 /** 68편 실측 최대 36초. 워커가 죽으면 서버는 30분까지 running 이라 기기가 먼저 끊는다. */
-export const IMPORT_TIMEOUT_MS = 120_000;
+const IMPORT_TIMEOUT_MS = 120_000;
 
 /** R2.12 공용 문구 */
 export const IMPORT_FAILED_COPY = "네트워크 연결을 확인하고 다시 시도해주세요.";
@@ -84,7 +84,7 @@ export function retryWith(attempt: ImportAttempt, flag: "allowDuplicate" | "skip
 }
 
 /** 올리기 전에 기기에서 거른다. 서버도 같은 규칙으로 422 를 준다. */
-export function checkFile(file: File): ImportOutcome | null {
+function checkFile(file: File): ImportOutcome | null {
   if (file.size > FILE_MAX_BYTES) return { kind: "file_too_large" };
   const ext = file.name.toLowerCase().split(".").pop() ?? "";
   if (!file.name.includes(".") || !FILE_EXTENSIONS.includes(ext)) return { kind: "file_unreadable" };
@@ -92,7 +92,7 @@ export function checkFile(file: File): ImportOutcome | null {
 }
 
 /** 작업 상태 하나를 결과로. 아직 끝나지 않았으면 null. */
-export function outcomeOfImport(job: ScriptImport): ImportOutcome | null {
+function outcomeOfImport(job: ScriptImport): ImportOutcome | null {
   if (job.status === "succeeded" && job.script_id) return { kind: "saved", scriptId: job.script_id };
   if (job.status !== "failed") return null;
   switch (job.failure) {
