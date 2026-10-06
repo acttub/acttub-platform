@@ -314,6 +314,36 @@ class ReadingImportIT {
     }
 
     @Test
+    @DisplayName("SOMA-593 7-2 0번: 예시 대본은 모델을 부르지 않으므로 동의가 없어도(회원 미결정·게스트·문서 없음) 접수되어 곧 succeeded 다. 예시가 아닌 글은 그대로 403")
+    void sampleScriptNeedsNoConsent() throws Exception {
+        UUID undecided = member();
+        jdbc.update("DELETE FROM user_consents WHERE user_id=? AND document_id=?", undecided, documents.get("script_split"));
+        String undecidedBearer = "Bearer " + jwt.issueAccessToken(undecided).value();
+        var accepted = perform(post("/v2/reading/imports").contentType(MediaType.APPLICATION_JSON)
+                .content(request(UUID.randomUUID(), null, SampleScript.TEXT, "sample")), undecidedBearer);
+        assertThat(accepted.getStatus()).as(accepted.getContentAsString()).isEqualTo(202);
+        String importId = mapper.readTree(accepted.getContentAsString()).path("import_id").textValue();
+        var status = perform(get("/v2/reading/imports/{id}", importId), undecidedBearer);
+        assertThat(mapper.readTree(status.getContentAsString()).path("status").textValue()).isEqualTo("succeeded");
+
+        String guest = consentedGuest();
+        var guestAccepted = perform(post("/v2/reading/imports").contentType(MediaType.APPLICATION_JSON)
+                .content(request(UUID.randomUUID(), null, SampleScript.TEXT, "sample")), guest);
+        assertThat(guestAccepted.getStatus()).as(guestAccepted.getContentAsString()).isEqualTo(202);
+        var guestStatus = perform(get("/v2/reading/imports/{id}", mapper.readTree(guestAccepted.getContentAsString()).path("import_id").textValue()), guest);
+        assertThat(mapper.readTree(guestStatus.getContentAsString()).path("status").textValue()).isEqualTo("succeeded");
+
+        jdbc.update("DELETE FROM user_consents WHERE document_id=?", documents.get("script_split"));
+        jdbc.update("DELETE FROM consent_documents WHERE type='script_split'");
+        assertThat(json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, SampleScript.TEXT.replace("\n", "\r\n"), "sample")), 202)
+                .path("import_id").isTextual()).as("문서가 없어도 예시는 된다").isTrue();
+        assertThat(json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, SampleScript.TEXT.replace("고마워.", "고마워!"), "sample")), 403)
+                .path("detail").textValue()).as("한 글자 고친 예시는 보통 글").isEqualTo("script_split_consent_required");
+        assertThat(count("ai_jobs")).isZero();
+        assertThat(Model.CALLS).isEmpty();
+    }
+
+    @Test
     @DisplayName("동의: script_split 현재 판에 동의하지 않은 회원, 게스트(선택 문서를 결정할 수 없다), 문서가 아예 없을 때 모두 403 script_split_consent_required")
     void consentIsRequired() throws Exception {
         UUID undecided = member();
