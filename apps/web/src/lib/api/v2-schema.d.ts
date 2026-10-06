@@ -442,6 +442,7 @@ export interface paths {
          * Upload Line Recording
          * @description 내 대사 한 줄의 녹음을 multipart 한 요청으로 올린다: request_id·line_id·attempt_no·audio(파일)·
          *     duration_ms·transcript_source(stt·none)·transcript?·matched?. 서버가 m4a(AAC)가 아니면 변환해 저장한다.
+         *     matched 는 서버가 transcript 를 그 줄 원문과 비교해 정한다(보낸 matched 는 받기만 한다).
          *     같은 request_id 는 같은 행(200), 같은 줄의 더 큰 attempt_no 는 대체(201), 더 작은 번호는 200 현재 값.
          *     10,000,000바이트·180초 초과 422 recording_too_long, 총량(회원 1GB·게스트 100MB) 초과 422 recording_quota,
          *     구간 밖·상대역·지문 줄 422 invalid_line, 지워진 회차 404, 변환 실패 503 audio_conversion_failed.
@@ -1191,7 +1192,9 @@ export interface paths {
          * @description 진행 위치·흐른 시간·줄 결과를 저장한다. progress_seq 가 저장된 값보다 클 때만 반영하고, 작거나 같으면
          *     무시하고 200 으로 현재 값을 돌려준다. 위치와 줄 결과는 구간 안 대사 줄만 받는다(아니면 422 invalid_line).
          *     시간은 줄지 않는다. complete=true 면 completed 가 되고 ended_at 이 찍히며 current_line_id 는 null 이다.
-         *     completed 회차에는 409 session_closed.
+         *     completed 회차에는 409 session_closed. 줄 결과에 said 를 실으면 서버가 원문과 비교해 outcome·misses 를
+         *     정한다(통과 passed·0, 미달 unmatched·1, 무발화·1,000자 초과는 남기지 않음). said 가 없으면 outcome·misses 가
+         *     필수다. different_lines 는 원문과 다르게 말한 대사의 현재 값이다.
          */
         patch: operations["save_reading_progress_v2_reading_sessions__session_id__progress_patch"];
         trace?: never;
@@ -2685,6 +2688,42 @@ export interface components {
          * @enum {string}
          */
         ReadingAdvance: "silence" | "manual";
+        /**
+         * ReadingDifferentLine
+         * @description 원문과 다르게 말한 대사 하나 — 구간 안에서 결과가 unmatched 인 줄. different_lines 는 줄 순서다
+         */
+        ReadingDifferentLine: {
+            /**
+             * Line Id
+             * Format: uuid
+             */
+            line_id: string;
+            /**
+             * Dialogue No
+             * @description 대본 안 대사 번호(1부터)
+             */
+            dialogue_no: number;
+            /** Said */
+            said: string | null;
+            /**
+             * Different Words
+             * @description 원문을 공백으로 나눈 어절 전부, 원문 순서. 사이에 공백 하나를 넣어 이으면 원문이 된다(연속 공백은 하나로)
+             */
+            different_words: components["schemas"]["ReadingDifferentWord"][];
+        };
+        /**
+         * ReadingDifferentWord
+         * @description 원문 어절 하나. differs 면 그 어절에 말한 것과 맞지 않는 글자가 있다(빠뜨리거나 바꿔 말함). 띄어쓰기·문장부호·괄호 안 지시는 비교하지 않고, 더 말한 것은 어디에도 표시하지 않는다
+         */
+        ReadingDifferentWord: {
+            /**
+             * Text
+             * @description 원문 그대로(문장부호 포함)
+             */
+            text: string;
+            /** Differs */
+            differs: boolean;
+        };
         /** ReadingLineResult */
         ReadingLineResult: {
             /**
@@ -2760,6 +2799,8 @@ export interface components {
             line_results: components["schemas"]["ReadingLineResult"][];
             /** Recordings */
             recordings: components["schemas"]["ReadingSessionRecording"][];
+            /** Different Lines */
+            different_lines: components["schemas"]["ReadingDifferentLine"][];
         };
         /** ReadingSessionRange */
         ReadingSessionRange: {
@@ -3725,9 +3766,11 @@ export interface components {
              * Format: uuid
              */
             line_id: string;
-            outcome: components["schemas"]["ReadingLineOutcomeInput"];
+            outcome?: components["schemas"]["ReadingLineOutcomeInput"] | null;
             /** Misses */
-            misses: number;
+            misses?: number | null;
+            /** Said */
+            said?: string | null;
         };
         /** ReadingSessionProgressRequest */
         ReadingSessionProgressRequest: {
@@ -3751,6 +3794,8 @@ export interface components {
             /** Progress Seq */
             progress_seq: number;
             status: components["schemas"]["ReadingSessionStatus"];
+            /** Different Lines */
+            different_lines: components["schemas"]["ReadingDifferentLine"][];
         };
         /** ReadingScriptCharacterPatch */
         ReadingScriptCharacterPatch: {

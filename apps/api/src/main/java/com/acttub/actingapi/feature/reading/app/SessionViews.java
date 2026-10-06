@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.reading.domain.DifferentLine;
 import com.acttub.actingapi.feature.reading.domain.LineResult;
 
 /**
@@ -42,6 +43,7 @@ public final class SessionViews {
     /**
      * @param currentLineId 다음에 할 대사 줄. completed 면 {@code null}
      * @param recordings 줄 순서의 녹음. 재생 주소는 녹음 기능(RA3)이 채운다
+     * @param differentLines 원문과 다르게 말한 대사, 줄 순서
      */
     public record SessionDetailView(
             SessionCardView card,
@@ -54,7 +56,8 @@ public final class SessionViews {
             UUID currentLineId,
             long progressSeq,
             List<LineResult> lineResults,
-            List<RecordingView> recordings) {
+            List<RecordingView> recordings,
+            List<DifferentLine> differentLines) {
     }
 
     /**
@@ -82,6 +85,7 @@ public final class SessionViews {
     }
 
     /** 진행 저장의 답 — 반영했든 무시했든 <b>현재 값</b>이다. */
-    public record ProgressView(UUID currentLineId, int elapsedSeconds, long progressSeq, String status) {
+    public record ProgressView(
+            UUID currentLineId, int elapsedSeconds, long progressSeq, String status, List<DifferentLine> differentLines) {
     }
 }
