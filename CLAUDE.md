@@ -21,8 +21,9 @@
 ## 조건부 정본
 
 - **제품 범위**를 정할 때 → [docs/PRD.md](docs/PRD.md)
-- **화면·컴포넌트·카피**를 만들 때 → [acttub/pen](https://github.com/acttub/pen)의 `acttub 디자인.pen`과
-  [PRD 「디자인」](docs/PRD.md#디자인). 기능별 화면 번호는 [docs/specs/](docs/specs/README.md)의 `화면` 줄에 있습니다.
+- **화면·컴포넌트·카피**를 만들 때 → [acttub/pen](https://github.com/acttub/pen)의 앱은 `Acttub 모든 경우 화면.pen`,
+  웹은 `acttub 디자인.pen`과 [PRD 「디자인」](docs/PRD.md#디자인). 기능별 화면 번호는 [docs/specs/](docs/specs/README.md)의
+  `화면` 줄에 있습니다(앱 리딩부터 새 pen 번호로 옮기는 중).
 - **폴더·패키지 배치나 층 경계**를 정할 때 → [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - **기능의 행동**(권한·오류 코드·한도·응답의 뜻·상태 전이)을 정하거나 바꿀 때 → [docs/specs/](docs/specs/README.md)의
   해당 기능 파일.

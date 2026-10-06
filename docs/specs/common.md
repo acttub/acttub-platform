@@ -222,24 +222,15 @@ pen을 고칠 목록이다. 무엇을 어떻게 바꾸는지(문구·수치)는 
 | D7 계열·W7-R-b | 장면 입력의 고치기 | practice.start, practice.coach |
 | D14·WM | 게스트의 프로필 편집 자리 | practice.memory |
 | 영상 업로드 오류 | 크기 초과와 길이 초과 안내 | practice.record |
-| R00·R00.5 | 상태 칩(stopped만 남은 대본 포함)과 다음 행동, 검색 범위, 카드의 암기 칩 삭제 | reading.script, reading.session, reading.memorization |
-| R00.3 더보기 | 제목·배역 이름 수정 시트 | reading.script |
-| R01 업로드 | 입력 경로, 앱의 파일 형식 | reading.script |
-| R02 배역 선택 | 목소리 선택(자동·프리셋)과 미리 듣기 | reading.cast |
-| R03 시작 위치 | 방식 선택, 녹음 켬·끔과 저장 안내 | reading.session, reading.recording |
-| R03.0 가이드 | 녹음·넘김·방식에 따른 문구 분기 | reading.session, reading.recording |
-| R03.1·R03.2·D18·WR3 | 암기 대조의 발화 확정·미달 처리·입력하기, 음성인식·서버 저장 안내 | reading.session |
-| R03.2 나가기 확인 | 나가기 확인 문구 | reading.session |
-| R04·R04.1·웹 암기 | 완료 회차에서의 진입, 외운 대사 다시 보기(표시 취소), 원문 듣기와 따라 말하기의 마이크 구분 | reading.memorization |
-| R05 완료 | 코치 카드, 다시 볼 대사 절, 암기 대조 완료 표기 | reading.session |
-| R00.2 대본 연습 | 0.1.0 미사용 | reading.session |
+| D18·WR3 | 암기 대조의 발화 확정·미달 처리·입력하기, 음성인식·서버 저장 안내 | reading.session |
+| 웹 암기 | 완료 회차에서의 진입, 외운 대사 다시 보기(표시 취소), 원문 듣기와 따라 말하기의 마이크 구분 | reading.memorization |
 | D13 대본 넣기 | 최근 대본 목록, 기기 저장 안내 삭제, 저작권 안내 | reading.script |
 | D16 대본 확인 | 배역 이름 고치기·빼기 | reading.script |
 | D17 설정 | 내 배역 여러 개, 가리기, 녹음 켬·끔과 소리 안내 삭제, 모델 용량, 구간 선택 | reading.cast, reading.session, reading.recording |
 | D18 실행 | 나가기 확인, 가리기 토글, 녹음 표시, 말한 것 표시 | reading.session, reading.recording |
 | D19 완료 | 다시 볼 대사, 암기 대조 완료 표기 | reading.session |
-| 목소리 준비 실패 | 세 선택지 화면 | reading.cast |
-| 새 화면(앱) | 대본 확인, 옛 대본 옮기기 안내·결과, 이동통신 모델 내려받기 확인, 회차 삭제·개별 녹음 삭제, 알림함, AI 리포트 | reading.script, reading.cast, reading.recording, reading.memorization, challenge.notification, challenge.ai-report |
+| 목소리 준비 실패(웹) | 세 선택지 화면 | reading.cast |
+| 새 화면(앱) | 알림함, AI 리포트 | challenge.notification, challenge.ai-report |
 | 새 화면(웹) | 대본 상세·회차 목록·이어하기·녹음 재생, 암기 화면 | reading.session, reading.recording, reading.memorization |
 | A14 | 넘기는 방향 안내 | challenge.browse |
 | A15 반응 메뉴 | 사용자 차단 메뉴, 공유(참여작 딥링크) | challenge.block, challenge.react |
@@ -294,7 +285,8 @@ pen을 고칠 목록이다. 무엇을 어떻게 바꾸는지(문구·수치)는 
 | 운영 절차 문서 | 탈퇴 때 시트의 연락처 삭제 절차 | practice.feedback |
 | 개인정보 수집·이용 동의 | 보관만 하는 업로드의 AI 분석 동의 이유 | practice.record |
 | 개인정보 처리방침 | 리딩 자료(대본·회차·녹음·전사)의 서버 저장과 목적·열람 범위 | reading.script, reading.recording |
-| 개인정보 처리방침 | 음성인식·기기 음성으로 밖에 전달되는 범위, 서버의 형식 변환 | reading.cast, reading.session, reading.memorization |
+| 개인정보 처리방침 | 음성인식·기기 음성으로 밖에 전달되는 범위(앱이 묻지 않고 기기 기본 목소리로 읽는 경우 포함, 화면 고지 없음), 서버의 형식 변환 | reading.cast, reading.cloud-voice, reading.session, reading.memorization |
+| 개인정보 처리방침 | 앱 리딩 중 내 차례는 늘 녹음돼 계정에 저장된다(화면 안내 없음) | reading.recording |
 | 개인정보 처리방침 | 삭제의 즉시 차단과 객체 삭제 재시도, 백업 보관 | reading.script, reading.recording, account.withdraw |
 | 개인정보 처리방침 | 게스트 서버 자료와 기기 로컬 자료의 제거 시점 차이 | account.guest, reading |
 | 개인정보 수집·이용 동의 | 리딩 원문·음성·전사의 수집 항목과 목적·보유 기간 | reading.script, reading.recording |

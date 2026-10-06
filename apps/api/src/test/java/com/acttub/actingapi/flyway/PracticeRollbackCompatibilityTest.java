@@ -53,8 +53,8 @@ class PracticeRollbackCompatibilityTest {
             "app_posters");
 
     @Test
-    @DisplayName("0.1.0 은 옛 표를 한 칸도 바꾸지 않았다 — 예약 장부에 더한 NULL 허용 컬럼 셋과 users 의 둘 "
-            + "말고는 V13 의 모양 그대로다")
+    @DisplayName("0.1.0 은 옛 표를 한 칸도 바꾸지 않았다 — 예약 장부에 더한 NULL 허용 컬럼 셋과 users 의 둘, "
+            + "리딩 회차의 멈춤을 없앤 V31 말고는 V13 의 모양 그대로다")
     void expandingToOneZeroLeavesEveryLegacyTableUntouched() throws Exception {
         List<String> before = fingerprintAt(BEFORE_ONE_ZERO);
         List<String> after = fingerprintAt(null);
@@ -101,8 +101,8 @@ class PracticeRollbackCompatibilityTest {
         }
     }
 
-    /** V14~V30 — 연습·챌린지·노트 평가·보관함 포스터·고품질 목소리·저녁 알림·가입 유입 출처·신원 마지막 로그인·앱 공지 포스터·배우 기억 칸 개정이 더한 마이그레이션의 수. 더 늘면 이 값을 함께 올린다. */
-    private static final int NEW_MIGRATIONS = 17;
+    /** V14~V31 — 연습·챌린지·노트 평가·보관함 포스터·고품질 목소리·저녁 알림·가입 유입 출처·신원 마지막 로그인·앱 공지 포스터·배우 기억 칸 개정·리딩 멈춤 없앰이 더한 마이그레이션의 수. 더 늘면 이 값을 함께 올린다. */
+    private static final int NEW_MIGRATIONS = 18;
 
     private static List<String> fingerprintAt(String target) throws Exception {
         String jdbcUrl = PostgresContainerSupport.createDatabase(
@@ -142,6 +142,16 @@ class PracticeRollbackCompatibilityTest {
                     + "(ARRAY['terms'::text, 'privacy'::text, 'ai_analysis'::text, 'retention'::text, "
                     + "'cloud_voice'::text])))");
         }
+        // V31 은 넓히기가 아니라 좁히기다. validate 는 CHECK·인덱스를 보지 않아 옛 서버가 뜨기는 하지만, 옛 서버는 새 연습을
+        // 시작할 때 'stopped' 를 써서 이 CHECK 에 걸린다. 그래서 V31 앞의 이미지로는 되돌리지 않는다(V31 머리 주석).
+        String readingStatusBefore = "CONSTRAINT reading_sessions ck_reading_sessions_status CHECK ((status = ANY "
+                + "(ARRAY['in_progress'::text, 'completed'::text, 'stopped'::text])))";
+        if (expected.remove(readingStatusBefore)) {
+            expected.add("CONSTRAINT reading_sessions ck_reading_sessions_status CHECK ((status = ANY "
+                    + "(ARRAY['in_progress'::text, 'completed'::text])))");
+        }
+        expected.remove("INDEX CREATE UNIQUE INDEX uq_reading_sessions_open_script ON public.reading_sessions "
+                + "USING btree (script_id) WHERE (status = 'in_progress'::text)");
         expected.addAll(List.of(
                 "COLUMN upload_intents.request_id ord=13 type=uuid len=- null=YES default=-",
                 "COLUMN upload_intents.request_fingerprint ord=14 type=bpchar len=64 null=YES default=-",

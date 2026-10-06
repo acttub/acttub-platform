@@ -120,7 +120,9 @@ class PostgresScriptRepository implements ScriptRepository {
                         JOIN reading_sessions rs ON rs.id=r.reading_session_id
                         WHERE rs.script_id=s.id) AS recording_count,
                        (SELECT rs.id FROM reading_sessions rs
-                        WHERE rs.script_id=s.id AND rs.status='in_progress') AS open_session_id,
+                        WHERE rs.script_id=s.id AND rs.status='in_progress'
+                        ORDER BY rs.started_at DESC,rs.id DESC
+                        LIMIT 1) AS open_session_id,
                        ls.id AS last_session_id,ls.status AS last_status,ls.started_at AS last_started_at,
                        ls.ended_at AS last_ended_at,
                        (SELECT string_agg(CAST(c.id AS text),:sep ORDER BY c.sort_order) FROM script_characters c
@@ -407,7 +409,7 @@ class PostgresScriptRepository implements ScriptRepository {
                 row.get("last_ended_at", Instant.class));
     }
 
-    /** 열린 회차가 있으면 연습 중, 없고 마지막 회차가 완료면 연습 완료, 그 밖(회차 없음·중단만 남음)은 배역 선택. */
+    /** 진행 중 회차가 하나라도 있으면 연습 중, 없고 마지막 회차가 완료면 연습 완료, 회차가 없으면 배역 선택. */
     private static String chip(boolean open, String lastStatus) {
         if (open) {
             return "reading";
