@@ -6,9 +6,7 @@ import { parseScript } from '../lib/reading/parse.ts';
 import {
   LEGACY_MIGRATION_KEY,
   LEGACY_SCRIPTS_KEY,
-  dismissLegacyNotice,
   migrateLegacyScripts,
-  readLegacyNotice,
   rebuildRawText,
 } from '../lib/reading/legacy-migration.ts';
 
@@ -109,7 +107,6 @@ function phone({ scripts = [OLD_ONE, OLD_TWO], limitAfter = Infinity, networkDow
     },
     deleteFile: async (uri) => void disk.delete(uri),
     newRequestId: () => `rid-${server.posts.length + 1}-${Math.random().toString(36).slice(2, 6)}`,
-    now: () => 1_000,
   };
   return { items, disk, server, deps, remaining: () => JSON.parse(items.get(LEGACY_SCRIPTS_KEY) ?? '[]') };
 }
@@ -155,7 +152,6 @@ test('reading.script: 옛 대본 둘(하나에 외운 줄 셋)과 녹음 하나�
   assert.deepEqual(remaining(), []);
   assert.equal(items.has(LEGACY_SCRIPTS_KEY), false, '다 옮기면 옛 저장소 키가 없다');
   assert.equal(disk.size, 0, '옛 녹음 파일은 올리지 않고 지운다');
-  assert.deepEqual(await readLegacyNotice(deps.storage), { moved: 2, memorized: 3, limited: 0, failed: 0, at: 1_000 });
 });
 
 test('reading.script: 옛 대본 둘 중 하나가 한도에 걸림 — 성공한 대본만 기기에서 지워지고 걸린 대본은 남아 다음 실행에 다시 시도한다', async () => {
@@ -215,13 +211,4 @@ test('reading.script: 옛 대본이 없으면 아무 요청도 보내지 않는�
   const { server, deps } = phone({ scripts: [] });
   assert.deepEqual(await migrateLegacyScripts(deps), { moved: 0, memorized: 0, limited: 0, failed: 0 });
   assert.equal(server.posts.length, 0);
-  assert.equal(await readLegacyNotice(deps.storage), null);
-});
-
-test('reading.script: 옮기기 안내는 한 번 보여 준 뒤 닫을 수 있다', async () => {
-  const { deps } = phone();
-  await migrateLegacyScripts(deps);
-  assert.ok(await readLegacyNotice(deps.storage));
-  await dismissLegacyNotice(deps.storage);
-  assert.equal(await readLegacyNotice(deps.storage), null);
 });

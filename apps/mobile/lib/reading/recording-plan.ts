@@ -61,6 +61,16 @@ export function nextAttemptNo(attempts: Record<string, number>, lineId: string):
   return (attempts[lineId] ?? 0) + 1;
 }
 
+/** 줄 id → 지금 녹음. 같은 줄 녹음이 여럿이면 attempt_no 가 가장 큰 것이 앞의 것을 대체한다. */
+export function latestRecordings<T extends { line_id: string; attempt_no: number }>(recordings: readonly T[]): Map<string, T> {
+  const latest = new Map<string, T>();
+  for (const rec of recordings) {
+    const seen = latest.get(rec.line_id);
+    if (!seen || rec.attempt_no > seen.attempt_no) latest.set(rec.line_id, rec);
+  }
+  return latest;
+}
+
 export type TranscriptFields = {
   transcript: string | null;
   transcript_source: 'stt' | 'none';

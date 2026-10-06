@@ -58,7 +58,7 @@ test('reading.session: 뒤늦게 온 옛 요청(seq 5)은 최신(seq 7)을 덮�
   assert.equal(late.progress_seq, 7);
 });
 
-test('reading.session: completed·stopped 회차에 진행 저장은 409 session_closed 이고 큐는 버린다', async () => {
+test('reading.session: completed 회차에 진행 저장은 409 session_closed 이고 큐는 버린다', async () => {
   const { send } = server({ closed: true });
   let closed = 0;
   const q = createProgressQueue({ send, retryDelayMs: 0, onClosed: () => (closed += 1) });

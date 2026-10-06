@@ -75,7 +75,7 @@ export type ScriptListResponse = {
   in_progress_count: number;
 };
 
-export type ReadingSessionStatus = 'in_progress' | 'completed' | 'stopped';
+export type ReadingSessionStatus = 'in_progress' | 'completed';
 
 /** 대본 상세와 카드가 함께 보는 마지막 회차(그 대본에서 가장 늦게 시작한 회차). */
 export type ScriptLastSession = {
@@ -177,7 +177,7 @@ export type SessionDetail = SessionCard & {
   end_line_id: string;
   advance: ReadingAdvance;
   record: boolean;
-  /** 다음에 할 대사 줄. completed 면 null, stopped 는 중단 위치. */
+  /** 다음에 할 대사 줄. completed 면 null. */
   current_line_id: string | null;
   progress_seq: number;
   line_results: LineResult[];

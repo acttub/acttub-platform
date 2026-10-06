@@ -1,18 +1,24 @@
 /**
- * 회차 설정(R02·R03, reading.cast · reading.session)의 순수 계산 — 장면 경계, 대사 번호, 구간 당기기,
- * 기기 사전 검사, 시작 요청 본문. 화면·서버를 모른다.
+ * 새 연습(R8, reading.cast · reading.session)의 순수 계산 — 장면 경계, 대사 번호, 구간 이름·당기기, 최근 구간,
+ * 내 배역 기본값, 시작 가능 여부, 기기 사전 검사, 시작 요청 본문. 화면·서버를 모른다.
  */
 import type { ScriptLine } from './parse.ts';
-import type { ReadingAdvance, ReadingMode, StartSessionBody } from './types.ts';
+import type { SessionCard, StartSessionBody } from './types.ts';
 
 export type SceneRange = {
-  label: string;
+  /** 막·장 머리 줄의 글. 지문으로 나눈 장면은 null이고 화면이 번호로 부른다. */
+  title: string | null;
+  /** 1부터. */
+  no: number;
   /** 그 장면 안 첫 대사 줄 인덱스(lines 기준). */
   startIndex: number;
   /** 그 장면 안 마지막 대사 줄 인덱스. */
   endIndex: number;
   dialogueCount: number;
 };
+
+/** 지문으로 나눈 장면이 이보다 대사가 적으면 이웃 장면에 붙인다(장면 머리 없는 대본이 잘게 쪼개지지 않게). */
+const MIN_SCENE_DIALOGUES = 5;
 
 /** 대사 번호 — 대사 줄만 1부터, 지문·장면은 null(저장하지 않고 줄 순서에서 센다). */
 export function dialogueNumbers(lines: ScriptLine[]): (number | null)[] {
@@ -23,17 +29,19 @@ export function dialogueNumbers(lines: ScriptLine[]): (number | null)[] {
 /**
  * "장면으로 찾기"의 후보. 장면 줄(막·장 머리)이 있으면 그 줄이 경계이고, 없으면 지문이 경계다.
  * 장면을 고르면 그 장면 안 첫·마지막 대사가 구간이 되므로 대사가 없는 장면은 없앤다.
+ * 지문 경계의 짧은 장면은 앞 장면에(첫 장면이면 뒤 장면에) 붙인다.
  */
 export function sceneRanges(lines: ScriptLine[]): SceneRange[] {
-  const boundary: ScriptLine['type'] = lines.some((l) => l.type === 'scene') ? 'scene' : 'direction';
+  const byHeader = lines.some((l) => l.type === 'scene');
+  const boundary: ScriptLine['type'] = byHeader ? 'scene' : 'direction';
   const out: SceneRange[] = [];
-  let label: string | null = null;
+  let title: string | null = null;
+  let open = false;
   let first = -1;
   let last = -1;
   let count = 0;
-  let sceneNo = 0;
   const close = () => {
-    if (label !== null && first >= 0) out.push({ label, startIndex: first, endIndex: last, dialogueCount: count });
+    if (open && first >= 0) out.push({ title, no: out.length + 1, startIndex: first, endIndex: last, dialogueCount: count });
     first = -1;
     last = -1;
     count = 0;
@@ -41,21 +49,64 @@ export function sceneRanges(lines: ScriptLine[]): SceneRange[] {
   lines.forEach((l, i) => {
     if (l.type === boundary) {
       close();
-      sceneNo += 1;
-      label = boundary === 'scene' ? l.text : `장면 ${sceneNo}`;
+      open = true;
+      title = byHeader ? l.text : null;
       return;
     }
     if (l.type !== 'dialogue') return;
-    if (label === null) {
-      sceneNo += 1;
-      label = `장면 ${sceneNo}`;
+    if (!open) {
+      open = true;
+      title = null;
     }
     if (first < 0) first = i;
     last = i;
     count += 1;
   });
   close();
-  return out;
+  return byHeader ? out : mergeShortScenes(out);
+}
+
+function mergeShortScenes(scenes: SceneRange[]): SceneRange[] {
+  const join = (a: SceneRange, b: SceneRange): SceneRange => ({
+    ...a,
+    startIndex: Math.min(a.startIndex, b.startIndex),
+    endIndex: Math.max(a.endIndex, b.endIndex),
+    dialogueCount: a.dialogueCount + b.dialogueCount,
+  });
+  const merged: SceneRange[] = [];
+  for (const s of scenes) {
+    if (merged.length && s.dialogueCount < MIN_SCENE_DIALOGUES) merged[merged.length - 1] = join(merged[merged.length - 1], s);
+    else merged.push(s);
+  }
+  if (merged.length > 1 && merged[0].dialogueCount < MIN_SCENE_DIALOGUES) merged.splice(0, 2, join(merged[0], merged[1]));
+  return merged.map((s, i) => ({ ...s, no: i + 1 }));
+}
+
+/** 회차 구간의 이름. 장면 하나와 첫·끝 대사가 정확히 같을 때만 장면으로 부른다. 구간은 대사 번호(1부터, 양끝 포함). */
+export type RangeName =
+  | { kind: 'all' }
+  | { kind: 'scene'; title: string | null; no: number }
+  | { kind: 'dialogues'; start: number; end: number };
+
+export function rangeName(lines: ScriptLine[], startNo: number, endNo: number): RangeName {
+  const numbers = dialogueNumbers(lines);
+  const total = numbers.reduce<number>((n, v) => (v === null ? n : v), 0);
+  if (startNo === 1 && endNo === total) return { kind: 'all' };
+  const scene = sceneRanges(lines).find((s) => numbers[s.startIndex] === startNo && numbers[s.endIndex] === endNo);
+  if (scene) return { kind: 'scene', title: scene.title, no: scene.no };
+  return { kind: 'dialogues', start: startNo, end: endNo };
+}
+
+type Translate = (key: string, params?: Record<string, string | number>) => string;
+
+export function sceneTitle(scene: { title: string | null; no: number }, t: Translate): string {
+  return scene.title ?? t('reading.rangeScene', { n: scene.no });
+}
+
+export function rangeTitle(name: RangeName, t: Translate): string {
+  if (name.kind === 'all') return t('reading.rangeAll');
+  if (name.kind === 'scene') return sceneTitle(name, t);
+  return t('reading.rangeLines', { start: name.start, end: name.end });
 }
 
 /** 시작·끝 선택이 지문·장면에 걸리면 안쪽 대사로 당긴다. 대사가 없으면 null. */
@@ -85,35 +136,79 @@ export function rangeError(lines: ScriptLine[], myRoles: string[], start: number
   return 'empty_range';
 }
 
+/** 앱은 늘 읽어주기·녹음·말이 끝나면 넘김으로 시작한다(암기 대조·마이크 없는 진행은 앱에 없다). */
 export function buildStartBody(input: {
   requestId: string;
   myCharacterIds: string[];
-  mode: ReadingMode;
   startLineId: string;
   endLineId: string;
-  advance: ReadingAdvance;
-  record: boolean;
 }): StartSessionBody {
   return {
     request_id: input.requestId,
     my_character_ids: input.myCharacterIds,
-    mode: input.mode,
+    mode: 'read',
     start_line_id: input.startLineId,
     end_line_id: input.endLineId,
-    advance: input.advance,
-    record: input.record,
+    advance: 'silence',
+    record: true,
   };
 }
 
 /**
- * 배역 화면의 기본 선택 — 마지막 회차의 내 배역. 회차가 없으면 아무것도 골라 두지 않는다.
- * 배역이 하나뿐인 대본은 그 배역이 내 배역이다(화면은 확인만 받는다).
+ * 내 배역의 처음 선택. 회차 상세 「이 구간으로 다시 연습」이 넘긴 배역(쉼표로 이은 id)이 있으면 그것이고, 없으면
+ * 마지막 회차의 내 배역이다. 회차가 없으면 아무것도 골라 두지 않는다. 배역이 하나뿐인 대본은 그 배역이다.
  */
 export function defaultMyCharacterIds(script: {
   last_session: { my_character_ids: string[] } | null;
   characters: { id: string }[];
+  rolesParam?: string;
 }): string[] {
-  if (script.characters.length === 1) return [script.characters[0].id];
   const known = new Set(script.characters.map((c) => c.id));
+  const fromParam = (script.rolesParam ?? '').split(',').filter((id) => known.has(id));
+  if (fromParam.length) return fromParam;
+  if (script.characters.length === 1) return [script.characters[0].id];
   return (script.last_session?.my_character_ids ?? []).filter((id) => known.has(id));
+}
+
+export type LineRange = { startIndex: number; endIndex: number };
+
+/** 대사 번호 구간(1부터, 양끝 포함) → 줄 인덱스. 대본에 없는 번호면 null. */
+export function rangeOfDialogueNos(lines: ScriptLine[], startNo: number, endNo: number): LineRange | null {
+  const numbers = dialogueNumbers(lines);
+  const startIndex = numbers.indexOf(startNo);
+  const endIndex = numbers.indexOf(endNo);
+  return startIndex < 0 || endIndex < startIndex ? null : { startIndex, endIndex };
+}
+
+/** 회차 상세가 넘긴 시작·끝 줄 id → 줄 인덱스. 없거나 뒤집혀 있으면 null. */
+export function rangeOfLineIds(lineIds: string[], startId: string | undefined, endId: string | undefined): LineRange | null {
+  const startIndex = startId ? lineIds.indexOf(startId) : -1;
+  const endIndex = endId ? lineIds.indexOf(endId) : -1;
+  return startIndex < 0 || endIndex < startIndex ? null : { startIndex, endIndex };
+}
+
+/** 「최근 구간」 — 같은 구간은 가장 최근 회차 하나만, 최근에 시작한 순. 줄마다 그 회차의 회차 번호·날짜를 보인다. */
+export function recentRanges<T extends Pick<SessionCard, 'range' | 'started_at'>>(sessions: T[]): T[] {
+  const seen = new Set<string>();
+  return [...sessions]
+    .sort((a, b) => Date.parse(b.started_at) - Date.parse(a.started_at))
+    .filter((s) => {
+      const key = `${s.range.start_dialogue_no}-${s.range.end_dialogue_no}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+/**
+ * 시작 버튼 상태. 내 배역이 없으면 고르라 하고, 녹음은 늘 하므로 마이크 권한이 없으면 시작하지 못한다.
+ * 권한·최근 구간을 아직 모르면 잠깐 꺼 둔다(기본 구간이 바뀌기 전에 시작하지 않게).
+ */
+export type StartGate = 'pickRole' | 'needMic' | 'wait' | 'ready';
+
+export function startGate(input: { roleCount: number; micGranted: boolean | null; loading: boolean }): StartGate {
+  if (input.roleCount === 0) return 'pickRole';
+  if (input.micGranted === false) return 'needMic';
+  if (input.micGranted === null || input.loading) return 'wait';
+  return 'ready';
 }
