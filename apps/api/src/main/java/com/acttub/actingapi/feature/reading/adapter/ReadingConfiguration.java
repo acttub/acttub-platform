@@ -14,14 +14,19 @@ import com.acttub.actingapi.feature.reading.app.RecordingPlayback;
 import com.acttub.actingapi.feature.reading.app.RecordingRepository;
 import com.acttub.actingapi.feature.reading.app.RecordingService;
 import com.acttub.actingapi.feature.reading.app.RecordingStorage;
+import com.acttub.actingapi.feature.reading.app.ScriptFileCleanup;
+import com.acttub.actingapi.feature.reading.app.ScriptFileStorage;
 import com.acttub.actingapi.feature.reading.app.ScriptImportRepository;
 import com.acttub.actingapi.feature.reading.app.ScriptImportService;
 import com.acttub.actingapi.feature.reading.app.ScriptRepository;
 import com.acttub.actingapi.feature.reading.app.ScriptService;
 import com.acttub.actingapi.feature.reading.app.ScriptSplitWorker;
+import com.acttub.actingapi.feature.reading.app.ScriptUploadRepository;
+import com.acttub.actingapi.feature.reading.app.ScriptUploadService;
 import com.acttub.actingapi.feature.reading.app.SessionRepository;
 import com.acttub.actingapi.feature.reading.app.SessionService;
 import com.acttub.actingapi.feature.reading.app.VoiceSynthesizer;
+import com.acttub.actingapi.feature.reading.domain.ScriptFileRules;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.integration.media.AudioTranscoder;
 import com.acttub.actingapi.platform.ledger.AiJobLedger;
@@ -71,8 +76,16 @@ class ReadingConfiguration {
     }
 
     @Bean
-    ScriptImportService scriptImportService(ScriptImportRepository imports, CanonicalJson canonical, Clock clock) {
-        return new ScriptImportService(imports, canonical, clock);
+    ScriptUploadService scriptUploadService(ScriptUploadRepository uploads, ScriptImportRepository imports,
+            ScriptFileStorage storage, ScriptFileCleanup cleanup, Clock clock) {
+        return new ScriptUploadService(uploads, imports, storage, cleanup, clock, new ScriptUploadService.ReadLimits(
+                ScriptFileRules.READ_CONCURRENCY, ScriptFileRules.READ_WAIT, ScriptFileRules.READ_TIMEOUT));
+    }
+
+    @Bean
+    ScriptImportService scriptImportService(ScriptImportRepository imports, ScriptUploadService uploads,
+            CanonicalJson canonical, Clock clock) {
+        return new ScriptImportService(imports, uploads, canonical, clock);
     }
 
     @Bean

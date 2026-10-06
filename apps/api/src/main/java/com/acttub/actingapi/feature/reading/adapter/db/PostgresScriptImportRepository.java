@@ -123,13 +123,15 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
             }
             em.createNativeQuery("""
                     INSERT INTO script_imports(id,user_id,request_id,request_fingerprint,title,source,raw_text,raw_hash,job_id,script_id,
-                                               skip_script_check,done_lines,total_lines,created_at,updated_at)
-                    VALUES (:id,:userId,:requestId,:fingerprint,:title,:source,:rawText,:hash,:jobId,:scriptId,:skip,:lines,:lines,:now,:now)
+                                               skip_script_check,upload_id,done_lines,total_lines,created_at,updated_at)
+                    VALUES (:id,:userId,:requestId,:fingerprint,:title,:source,:rawText,:hash,:jobId,:scriptId,:skip,:uploadId,:lines,:lines,:now,:now)
                     """).setParameter("id", importId).setParameter("skip", submission.skipScriptCheck()).setParameter("userId", userId).setParameter("requestId", requestId)
+                    .setParameter("uploadId", submission.uploadId())
                     .setParameter("fingerprint", fingerprint).setParameter("title", submission.title())
                     .setParameter("source", submission.source()).setParameter("rawText", submission.rawText())
                     .setParameter("hash", submission.rawHash()).setParameter("jobId", jobId).setParameter("scriptId", scriptId)
                     .setParameter("lines", lines).setParameter("now", now.atOffset(ZoneOffset.UTC)).executeUpdate();
+            if (scriptId != null) linkUpload(importId, scriptId, now);
             return new Requested(importId, null, Outcome.ACCEPTED);
         });
     }
@@ -209,6 +211,7 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
                     UPDATE script_imports SET script_id=:scriptId,done_lines=total_lines,raw_text='',updated_at=:now WHERE id=:id
                     """).setParameter("scriptId", created.scriptId()).setParameter("now", now.atOffset(ZoneOffset.UTC))
                     .setParameter("id", importId).executeUpdate();
+            linkUpload(importId, created.scriptId(), now);
             if (!ledger.succeed(jobId, leaseToken, now)) throw new IllegalStateException("script split job was closed: " + jobId);
             return Completion.SAVED;
         });
@@ -223,6 +226,16 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
                     .setParameter("id", importId).executeUpdate();
             ledger.fail(jobId, leaseToken, failure.dbValue(), now);
         });
+    }
+
+    /** 원본 파일로 넣은 요청이면 그 파일을 대본에 연결하고 뽑은 글을 비운다 — 글은 대본에 있고 원본은 대본과 함께 지워진다. */
+    private void linkUpload(UUID importId, UUID scriptId, Instant now) {
+        em.createNativeQuery("""
+                UPDATE script_uploads u SET script_id=:scriptId,raw_text=NULL,updated_at=:now
+                FROM script_imports i
+                WHERE i.id=:importId AND u.id=i.upload_id AND u.script_id IS NULL
+                """).setParameter("scriptId", scriptId).setParameter("now", now.atOffset(ZoneOffset.UTC))
+                .setParameter("importId", importId).executeUpdate();
     }
 
     @Override

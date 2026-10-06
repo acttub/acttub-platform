@@ -429,6 +429,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/reading/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Script Upload
+         * @description 대본 원본 파일을 올릴 자리를 내준다. 기기는 upload_url 에 Content-Type: content_type 으로 파일을 PUT 하고
+         *     (주소는 15분, 크기는 byte_size 로 서명에 묶인다) complete 를 부른다. 50,000,000바이트 초과 422
+         *     script_file_too_large, 확장자가 txt·docx·pdf·hwp·hwpx 밖이면 422 script_file_unreadable, 동의 없음 403
+         *     script_split_consent_required, 스토리지 없음 503 storage_not_configured.
+         */
+        post: operations["create_script_upload_v2_reading_uploads_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/reading/uploads/{upload_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Complete Script Upload
+         * @description 올라온 파일을 받아 글자를 뽑아 둔다. 끝나면 204 이고 다시 불러도(대본에 연결된 뒤에도) 204 다. 그 뒤
+         *     POST /v2/reading/imports 에 upload_id 를 싣는다. 아직 안 올라왔으면 422 script_upload_not_ready, 글자를 못
+         *     뽑으면(형식 밖·한글 97·스캔한 PDF·암호·깨진 파일·빈 문서·받기와 뽑기 45초 초과) 422 script_file_unreadable,
+         *     뽑은 글이 100,000자를 넘으면 422 script_too_long, 서버의 읽기 자리(동시 둘)가 10초 안에 나지 않으면 429
+         *     script_upload_busy, 없는 것과 남의 것은 404 script_upload_not_found.
+         */
+        post: operations["complete_script_upload_v2_reading_uploads__upload_id__complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/reading/sessions/{session_id}/recordings": {
         parameters: {
             query?: never;
@@ -522,7 +569,11 @@ export interface paths {
         put?: never;
         /**
          * Import Script
-         * @description 대본 글을 받아 서버가 배역·대사로 나누는 작업을 접수한다. 새 요청은 202, 같은 request_id 의 재전송과 같은
+         * @description 대본 글(raw_text)이나 읽어 둔 원본 파일(upload_id) 하나를 받아 서버가 배역·대사로 나누는 작업을 접수한다.
+         *     upload_id 가 없거나 남의 것이면 404 script_upload_not_found, 아직 읽지 않았으면 422 script_upload_not_ready,
+         *     이미 대본이 된 원본은 그 글로 같은 글 판정을 해 200 duplicate_script_id 이고, allow_duplicate 로 새 대본을
+         *     만들려 하면 422 script_upload_used(파일을 다시 올린다).
+         *     새 요청은 202, 같은 request_id 의 재전송과 같은
          *     글로 진행 중인 요청은 200 으로 같은 import_id 를 돌려준다. 같은 글이 이미 내 대본이면 200 duplicate_script_id.
          *     예시 대본과 같은 글은 모델 없이 바로 저장돼 상태가 곧 succeeded 이고 동의도 묻지 않는다(게스트도 된다). 그 밖의
          *     글은 동의 없음 403 script_split_consent_required,
@@ -2481,6 +2532,30 @@ export interface components {
             /** Expires In */
             expires_in?: number;
         };
+        /** ReadingUploadRequest */
+        ReadingUploadRequest: {
+            /** File Name */
+            file_name: string;
+            /** Byte Size */
+            byte_size: number;
+        };
+        /** ReadingUpload */
+        ReadingUpload: {
+            /**
+             * Upload Id
+             * Format: uuid
+             */
+            upload_id: string;
+            /** Upload Url */
+            upload_url: string;
+            /** Content Type */
+            content_type: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+        };
         /** ReadingRecordingUploadForm */
         ReadingRecordingUploadForm: {
             /**
@@ -2938,7 +3013,9 @@ export interface components {
             /** Title */
             title?: string | null;
             /** Raw Text */
-            raw_text: string;
+            raw_text?: string | null;
+            /** Upload Id */
+            upload_id?: string | null;
             source: components["schemas"]["ReadingScriptSourceInput"];
             /**
              * Allow Duplicate
@@ -5904,6 +5981,59 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SynthesizeResponse"];
                 };
+            };
+        };
+    };
+    create_script_upload_v2_reading_uploads_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadingUploadRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingUpload"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    complete_script_upload_v2_reading_uploads__upload_id__complete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

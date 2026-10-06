@@ -739,8 +739,8 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 - **경로**는 전부 `/v2/reading/**` 이고 게스트의 기능 표 `READING`(`platform/security/GuestFeature`, §6-9)에 든다.
   회원은 회원의 게이트(§6-5)를 지난다.
-- **스키마(V13, V33)**: `scripts`·`script_characters`·`script_lines`·`reading_sessions`·`reading_recordings`·
-  `line_memorization`, 나누기 요청 `script_imports`(V33). 값 목록은 text + CHECK 이고 Java enum 은 `platform/schema` 에 있다(`ScriptSource`·
+- **스키마(V13, V33, V34)**: `scripts`·`script_characters`·`script_lines`·`reading_sessions`·`reading_recordings`·
+  `line_memorization`, 나누기 요청 `script_imports`(V33), 원본 파일 `script_uploads`(V34). 값 목록은 text + CHECK 이고 Java enum 은 `platform/schema` 에 있다(`ScriptSource`·
   `ScriptLineKind`·`ReadingMode`·`ReadingAdvance`·`ReadingSessionStatus`·`TranscriptSource`·`MemorizationStatus`·`ScriptImportFailure`).
   FK 에 `ON DELETE` 가 없다 — 삭제는 애플리케이션이 표대로 순서를 정해 지운다. `scripts.request_id`·
   `reading_sessions.request_id` 는 (user_id, request_id) 유일이고 이관 충돌 때만 NULL 이다.
@@ -864,6 +864,29 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - 검증은 `ReadingImportIT`(HTTP·Postgres·장부, 모델만 가짜)와 `reading/domain/*Test`(순수 규칙), `ReadingSchemaMigrationTest`(V33) 다.
   실제 모델은 `ScriptSplitLiveTest`(`ACTTUB_SPLIT_LIVE_TEST=1` + `OPENAI_API_KEY` 가 있을 때만, 가짜 묶음 `src/test/resources/script-split/`)가
   본다 — 모델이 판마다 다르게 읽는 자리가 있어 묶음마다 90% 를 하한으로 둔다.
+
+**원본 파일 (SOMA-593 C2)** — 제품 규칙의 정본: [reading.script](../../docs/specs/reading/script.md#규칙제약) 「원본 파일」
+
+- 코드의 자리: `reading/app/ScriptUploadService`(올릴 자리·읽기·정리), 저장소 `adapter/db/PostgresScriptUploadRepository`(V34
+  `script_uploads`), 스토리지 `adapter/storage/ObjectStorageScriptFiles`, 정리 스케줄러 `adapter/sched/ScriptUploadSweepScheduler`(매시
+  15분, Asia/Seoul), 숫자와 객체 키는 `domain/ScriptFileRules`. 글자 뽑기는 `integration/document/DocumentText`(pdfbox 3.0.8·hwplib 1.1.11,
+  둘 다 Apache-2.0)이고 docx·hwpx 는 zip 안 XML 을 StAX 로 직접 읽는다(DTD·외부 엔티티 끔, 풀린 XML 200MB 상한).
+- 읽기는 트랜잭션 밖에서 객체를 임시 파일로 받아(§5-4) 뽑고 `raw_text` 를 한 문장으로 쓴다. 이미 읽은 행은 다시 받지 않는다.
+  크기는 올릴 자리의 서명에 묶여 있고 읽기가 `head` 크기와 다시 견준다. PDF 는 내용 순서로 읽고 내용 캐시를 임시 파일에 둔다.
+- 나누기 접수는 `upload_id` 면 저장된 글을 `raw_text` 로 써서 같은 순서를 탄다. 대본에 연결된 원본은 행의 글을 비웠으므로
+  `PostgresScriptUploadRepository#find` 가 연결된 대본의 `scripts.raw_text` 를 돌려준다(그 글로 만든 대본이라 해시가 같다) — 그래서
+  재전송·같은 글 판정이 글 길과 같다. `allow_duplicate` 이고 연결한 요청(`script_imports.upload_id`·`script_id` 가 같은 행의
+  `request_id`)의 재전송이 아니면 422 `script_upload_used` 다. `script_imports.upload_id`(V34)를 함께 적고, 대본을
+  만드는 두 자리(예시 대본의 접수, 워커의 완료)가 같은 트랜잭션에서 `script_uploads.script_id` 를 채우고 뽑은 글(`raw_text`)을 비운다(`linkUpload`).
+- 삭제: 대본 삭제(`PostgresScriptRepository#delete`)와 탈퇴(`PostgresProfileRepository#eraseReading`)가 행을 지우며 객체 키를 같은
+  트랜잭션에서 장부 종류 `object_delete` 로 올리고 `next_attempt_at` 은 지운 행의 `expires_at` 최댓값이다(`reading/app/ScriptFileCleanup`,
+  영상과 같은 이유 — 서명 주소가 살아 있는 동안 지우면 다시 올린 객체가 장부 밖에 남는다). 미연결 정리는 `created_at` 하루 전 행을 `FOR UPDATE SKIP
+  LOCKED` 로 500개씩 지우되 pending·running 나누기 작업이 쓰는 행은 남긴다. 스위치는 `SCRIPT_UPLOAD_SWEEP_ENABLED`(기본 켬, 테스트가 끈다).
+- 읽기는 프로세스 전체 세마포어 둘(10초 기다림, 못 얻으면 429 `script_upload_busy`)을 잡고 가상 스레드에서 받기·뽑기를 하며 45초를
+  넘으면 끊고(interrupt, 뽑기는 읽을 때마다 끊김을 본다) 422 `script_file_unreadable` 이다. 자리는 일이 실제로 끝날 때 돌려준다.
+- 뽑기의 자원 상한: 표 칸까지 센 글자 수가 한도의 두 배를 넘으면 멈추고, zip 안 XML 은 풀린 200MB, hwp 는 hwplib 에 넘기기 전에
+  압축 흐름을 상한 스트림으로 풀어 합 100MB 를 넘으면 읽지 않는다(hwplib `HWPReader` 는 상한 없이 풀어 그림까지 힙에 올린다). 게스트는 동의가 없어 행이 없으므로 이관은 이 표를 옮기지 않는다.
+- 검증은 `ReadingUploadIT`(HTTP·Postgres·장부, 스토리지와 모델만 가짜)와 `DocumentTextTest`(형식별 표본) 다.
 
 **고품질 목소리 (SOMA-500)** — 제품 규칙의 정본: [reading.cloud-voice](../../docs/specs/reading/cloud-voice.md)(두 경로의 입력·출력·오류, 한도, 동의)
 

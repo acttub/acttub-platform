@@ -967,6 +967,75 @@
         } ]
       }
     },
+    "/v2/reading/uploads" : {
+      "post" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "Create Script Upload",
+        "description" : "대본 원본 파일을 올릴 자리를 내준다. 기기는 upload_url 에 Content-Type: content_type 으로 파일을 PUT 하고\n(주소는 15분, 크기는 byte_size 로 서명에 묶인다) complete 를 부른다. 50,000,000바이트 초과 422\nscript_file_too_large, 확장자가 txt·docx·pdf·hwp·hwpx 밖이면 422 script_file_unreadable, 동의 없음 403\nscript_split_consent_required, 스토리지 없음 503 storage_not_configured.",
+        "operationId" : "create_script_upload_v2_reading_uploads_post",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReadingUploadRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReadingUpload"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/reading/uploads/{upload_id}/complete" : {
+      "post" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "Complete Script Upload",
+        "description" : "올라온 파일을 받아 글자를 뽑아 둔다. 끝나면 204 이고 다시 불러도(대본에 연결된 뒤에도) 204 다. 그 뒤\nPOST /v2/reading/imports 에 upload_id 를 싣는다. 아직 안 올라왔으면 422 script_upload_not_ready, 글자를 못\n뽑으면(형식 밖·한글 97·스캔한 PDF·암호·깨진 파일·빈 문서·받기와 뽑기 45초 초과) 422 script_file_unreadable,\n뽑은 글이 100,000자를 넘으면 422 script_too_long, 서버의 읽기 자리(동시 둘)가 10초 안에 나지 않으면 429\nscript_upload_busy, 없는 것과 남의 것은 404 script_upload_not_found.",
+        "operationId" : "complete_script_upload_v2_reading_uploads__upload_id__complete_post",
+        "parameters" : [ {
+          "name" : "upload_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Upload Id"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Successful Response"
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/reading/sessions/{session_id}/recordings" : {
       "post" : {
         "tags" : [ "v2-reading" ],
@@ -1240,7 +1309,7 @@
       "post" : {
         "tags" : [ "v2-reading" ],
         "summary" : "Import Script",
-        "description" : "대본 글을 받아 서버가 배역·대사로 나누는 작업을 접수한다. 새 요청은 202, 같은 request_id 의 재전송과 같은\n글로 진행 중인 요청은 200 으로 같은 import_id 를 돌려준다. 같은 글이 이미 내 대본이면 200 duplicate_script_id.\n예시 대본과 같은 글은 모델 없이 바로 저장돼 상태가 곧 succeeded 이고 동의도 묻지 않는다(게스트도 된다). 그 밖의\n글은 동의 없음 403 script_split_consent_required,\n원문 100,000자 초과 422 script_too_long, 대본 수 한도 422 script_limit, 하루 20개 초과 429\nscript_split_daily_limit, 같은 request_id 에 다른 본문 422 request_fingerprint_mismatch. allow_duplicate(R2.7\n「새로 넣기」)는 같은 글의 대본이 있어도 새로 나누고, skip_script_check(R2.8 「그래도 나누기」)는 대본 여부\n판정을 묻지 않는다. 둘 다 요청 지문에 든다.",
+        "description" : "대본 글(raw_text)이나 읽어 둔 원본 파일(upload_id) 하나를 받아 서버가 배역·대사로 나누는 작업을 접수한다.\nupload_id 가 없거나 남의 것이면 404 script_upload_not_found, 아직 읽지 않았으면 422 script_upload_not_ready,\n이미 대본이 된 원본은 그 글로 같은 글 판정을 해 200 duplicate_script_id 이고, allow_duplicate 로 새 대본을\n만들려 하면 422 script_upload_used(파일을 다시 올린다).\n새 요청은 202, 같은 request_id 의 재전송과 같은\n글로 진행 중인 요청은 200 으로 같은 import_id 를 돌려준다. 같은 글이 이미 내 대본이면 200 duplicate_script_id.\n예시 대본과 같은 글은 모델 없이 바로 저장돼 상태가 곧 succeeded 이고 동의도 묻지 않는다(게스트도 된다). 그 밖의\n글은 동의 없음 403 script_split_consent_required,\n원문 100,000자 초과 422 script_too_long, 대본 수 한도 422 script_limit, 하루 20개 초과 429\nscript_split_daily_limit, 같은 request_id 에 다른 본문 422 request_fingerprint_mismatch. allow_duplicate(R2.7\n「새로 넣기」)는 같은 글의 대본이 있어도 새로 나누고, skip_script_check(R2.8 「그래도 나누기」)는 대본 여부\n판정을 묻지 않는다. 둘 다 요청 지문에 든다.",
         "operationId" : "import_script_v2_reading_imports_post",
         "requestBody" : {
           "content" : {
@@ -5344,6 +5413,50 @@
         },
         "title" : "SynthesizeResponse"
       },
+      "ReadingUploadRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "file_name" : {
+            "type" : "string",
+            "maxLength" : 255,
+            "minLength" : 0,
+            "title" : "File Name"
+          },
+          "byte_size" : {
+            "type" : "integer",
+            "title" : "Byte Size"
+          }
+        },
+        "required" : [ "byte_size", "file_name" ],
+        "title" : "ReadingUploadRequest"
+      },
+      "ReadingUpload" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "upload_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Upload Id"
+          },
+          "upload_url" : {
+            "type" : "string",
+            "title" : "Upload Url"
+          },
+          "content_type" : {
+            "type" : "string",
+            "title" : "Content Type"
+          },
+          "expires_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Expires At"
+          }
+        },
+        "required" : [ "content_type", "expires_at", "upload_id", "upload_url" ],
+        "title" : "ReadingUpload"
+      },
       "ReadingRecordingUploadForm" : {
         "type" : "object",
         "properties" : {
@@ -6182,9 +6295,23 @@
             "title" : "Title"
           },
           "raw_text" : {
-            "type" : "string",
-            "minLength" : 1,
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "upload_id 가 없을 때 필수"
+            }, {
+              "type" : "null"
+            } ],
             "title" : "Raw Text"
+          },
+          "upload_id" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "uuid",
+              "description" : "POST /v2/reading/uploads/{upload_id}/complete 를 마친 원본. raw_text 가 없을 때 필수"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Upload Id"
           },
           "source" : {
             "$ref" : "#/components/schemas/ReadingScriptSourceInput"
@@ -6200,7 +6327,7 @@
             "title" : "Skip Script Check"
           }
         },
-        "required" : [ "raw_text", "request_id", "source" ],
+        "required" : [ "request_id", "source" ],
         "title" : "ReadingImportRequest"
       },
       "ReadingImportTicket" : {

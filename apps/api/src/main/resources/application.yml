@@ -104,3 +104,5 @@ management:
 logging:
   level:
     org.flywaydb: INFO
+    # 대본 PDF 의 글리프마다 「No Unicode mapping」 경고를 낸다. 못 읽은 글자는 글에서 빠질 뿐이다(reading.script 원본 파일).
+    org.apache.pdfbox: ERROR

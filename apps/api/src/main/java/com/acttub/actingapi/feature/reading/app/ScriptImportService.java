@@ -26,11 +26,13 @@ import com.acttub.actingapi.platform.web.Hashing;
 public class ScriptImportService {
 
     private final ScriptImportRepository imports;
+    private final ScriptUploadService uploads;
     private final CanonicalJson canonical;
     private final Clock clock;
 
-    public ScriptImportService(ScriptImportRepository imports, CanonicalJson canonical, Clock clock) {
+    public ScriptImportService(ScriptImportRepository imports, ScriptUploadService uploads, CanonicalJson canonical, Clock clock) {
         this.imports = imports;
+        this.uploads = uploads;
         this.canonical = canonical;
         this.clock = clock;
     }
@@ -38,7 +40,9 @@ public class ScriptImportService {
     public Ticket request(UUID userId, boolean guest, UUID requestId, Submission submission) {
         // PDF 추출기가 매핑 없는 글자로 내는 NUL 은 Postgres text 가 담지 못한다(22021) — 저장·지문·같은 글 판정 전에 뺀다.
         String title = submission.title() == null ? null : submission.title().replace("\u0000", "");
-        String rawText = submission.rawText().replace("\u0000", "");
+        String rawText = (submission.uploadId() == null ? submission.rawText() : uploads.text(userId, submission.uploadId(), requestId,
+                submission.allowDuplicate()))
+                .replace("\u0000", "");
         String source = submission.source();
         if (ScriptRules.length(rawText) > ScriptRules.TEXT_MAX) {
             throw new ApiException(422, "script_too_long");
@@ -54,7 +58,7 @@ public class ScriptImportService {
             requested = imports.request(userId, requestId,
                     fingerprint(normalizedTitle, rawText, source, submission.allowDuplicate(), submission.skipScriptCheck()),
                     new ScriptImportRepository.Submission(normalizedTitle, rawText, ScriptText.hash(rawText), source,
-                            submission.allowDuplicate(), submission.skipScriptCheck()),
+                            submission.allowDuplicate(), submission.skipScriptCheck(), submission.uploadId()),
                     sample, ScriptRules.scriptLimit(guest), ScriptSplitRules.DAILY_IMPORTS, clock.instant());
         } catch (ScriptRepository.OwnerNotActive closed) {
             throw new ApiException(403, "account_deactivated", closed);
@@ -93,8 +97,10 @@ public class ScriptImportService {
      *
      * @param allowDuplicate R2.7 「새로 넣기」 — 같은 글의 대본·진행 중 요청이 있어도 새로 나눈다
      * @param skipScriptCheck R2.8 「그래도 나누기」 — 첫 호출의 대본 여부 판정을 묻지 않는다
+     * @param uploadId 원본 파일로 넣으면 그 파일에서 뽑은 글을 쓴다({@code rawText} 는 {@code null})
      */
-    public record Submission(String title, String rawText, String source, boolean allowDuplicate, boolean skipScriptCheck) {
+    public record Submission(String title, String rawText, String source, boolean allowDuplicate, boolean skipScriptCheck,
+            UUID uploadId) {
     }
 
     /**

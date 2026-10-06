@@ -1,5 +1,6 @@
 package com.acttub.actingapi.feature.reading.adapter.web;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.reading.adapter.web.ScriptDtos.SourceInput;
@@ -10,6 +11,7 @@ import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
 final class ImportDtos {
@@ -17,7 +19,8 @@ final class ImportDtos {
     }
 
     /**
-     * 대본 글 하나를 나눠 달라는 요청. 제목이 없으면 서버가 글에서 고른다.
+     * 대본 하나를 나눠 달라는 요청. 글({@code raw_text})이나 읽어 둔 원본 파일({@code upload_id}) 가운데 하나만 싣는다. 제목이
+     * 없으면 서버가 글에서 고른다.
      *
      * @param allowDuplicate R2.7 「새로 넣기」 — 같은 글의 대본이 있어도 새로 나눈다(하루 한도에 센다)
      * @param skipScriptCheck R2.8 「그래도 나누기」 — 첫 호출의 「대본이 아니다」 판정을 묻지 않고 나눈다
@@ -26,10 +29,30 @@ final class ImportDtos {
     record ImportRequest(
             @NotNull @JsonProperty("request_id") UUID requestId,
             @Schema(nullable = true, maxLength = 200) @Size(max = 200) String title,
-            @NotNull @NotBlank @JsonProperty("raw_text") String rawText,
+            @Schema(nullable = true, description = "upload_id 가 없을 때 필수") @JsonProperty("raw_text") String rawText,
+            @Schema(nullable = true, description = "POST /v2/reading/uploads/{upload_id}/complete 를 마친 원본. raw_text 가 없을 때 필수")
+            @JsonProperty("upload_id") UUID uploadId,
             @NotNull SourceInput source,
             @Schema(defaultValue = "false") @JsonProperty("allow_duplicate") Boolean allowDuplicate,
             @Schema(defaultValue = "false") @JsonProperty("skip_script_check") Boolean skipScriptCheck) {
+    }
+
+    /** 원본 파일을 올릴 자리를 달라는 요청. 확장자로 형식을 거르고 크기는 서명에 묶는다. */
+    @Schema(name = "ReadingUploadRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record UploadRequest(
+            @NotNull @NotBlank @Size(max = 255) String fileName,
+            @NotNull @Positive Long byteSize) {
+    }
+
+    /** 올릴 자리. 기기는 {@code upload_url} 에 {@code Content-Type: content_type} 으로 파일을 PUT 한다. */
+    @Schema(name = "ReadingUpload", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record UploadResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID uploadId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String uploadUrl,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String contentType,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Instant expiresAt) {
     }
 
     /**

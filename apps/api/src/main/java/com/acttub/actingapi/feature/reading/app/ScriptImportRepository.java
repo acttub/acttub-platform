@@ -30,8 +30,10 @@ public interface ScriptImportRepository {
     /**
      * @param allowDuplicate 같은 글의 대본·진행 중 요청을 보지 않는다(R2.7 「새로 넣기」)
      * @param skipScriptCheck 워커가 대본 여부 판정을 묻지 않는다(R2.8 「그래도 나누기」). 행에 남긴다
+     * @param uploadId 원본 파일. 대본이 저장되면 그 대본에 연결한다. 글로 넣었으면 {@code null}
      */
-    record Submission(String title, String rawText, String rawHash, String source, boolean allowDuplicate, boolean skipScriptCheck) {
+    record Submission(String title, String rawText, String rawHash, String source, boolean allowDuplicate, boolean skipScriptCheck,
+            UUID uploadId) {
     }
 
     /**
