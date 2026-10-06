@@ -60,6 +60,7 @@ import {
 } from '@/lib/profile-form';
 import { disconnectProviders, providerAdapter, signOutProviders } from '@/lib/provider-sdk';
 import { identifySignupAttributionAccount } from '@/lib/signup-attribution-runtime';
+import { setAnalyticsUserId } from '@/lib/analytics';
 import { translate as t } from '@/lib/i18n';
 import {
   clearTokens,
@@ -227,9 +228,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const name = me.profile?.name?.trim();
     if (me.profile_complete && name) void saveUserName(name).catch(() => undefined);
     // 가입을 마친 회원만 Airbridge 계정으로 잇고, 보내지 못한 유입 광고가 있으면 보낸다(SOMA-588).
-    identifySignupAttributionAccount(
-      me.account_type === 'member' && me.profile_complete ? me.id : null,
-    );
+    // 같은 내부 번호를 GA 사용자 ID로도 붙여 화면·동작 기록을 계정과 잇는다.
+    const memberId = me.account_type === 'member' && me.profile_complete ? me.id : null;
+    identifySignupAttributionAccount(memberId);
+    void setAnalyticsUserId(memberId);
   }, []);
 
   const reloadProfile = useCallback(async () => {
@@ -458,6 +460,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoginNotice({ kind: 'notice', message: t('profileName.under14Closed') });
     await wipeClosedAccount(CLOSED_ACCOUNT_STEPS);
     identifySignupAttributionAccount(null);
+    void setAnalyticsUserId(null);
   }, []);
 
   const signOut = useCallback(async () => {
@@ -480,6 +483,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
     });
     identifySignupAttributionAccount(null);
+    void setAnalyticsUserId(null);
     setUser(null);
     setStatus('signedOut');
   }, []);
@@ -498,6 +502,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ...CLOSED_ACCOUNT_STEPS,
     });
     identifySignupAttributionAccount(null);
+    void setAnalyticsUserId(null);
     setUser(null);
     setStatus('signedOut');
   }, []);
