@@ -27,8 +27,8 @@
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
 | `POST /v2/reading/uploads` | `ReadingUploadRequest`(file_name·byte_size) | `ReadingUpload` 201 `{upload_id, upload_url, content_type, expires_at}` — 기기는 `upload_url`에 `Content-Type: content_type`(언제나 `application/octet-stream`)으로 파일을 PUT 한다(15분, 크기는 서명에 묶임) | `script_file_too_large`(50,000,000바이트 초과)·`script_file_unreadable`(확장자가 txt·docx·pdf·hwp·hwpx 밖) 422, `script_split_consent_required` 403, 형태 오류 422 배열(빈 파일 포함), `storage_not_configured` 503 |
-| `POST /v2/reading/uploads/{upload_id}/complete` | `upload_id` | 204 — 서버가 올라온 파일을 받아 글자를 뽑아 둔다. 다시 불러도 204(다시 받지 않는다) | `script_upload_not_ready`(아직 다 안 올라옴)·`script_file_unreadable`(글자를 못 뽑음)·`script_too_long`(뽑은 글 100,000자 초과) 422, `script_upload_not_found` 404 |
-| `POST /v2/reading/imports` | `ReadingImportRequest`(request_id·title?(200자)·source·allow_duplicate?·skip_script_check?와 raw_text·upload_id 가운데 하나) | `ReadingImportTicket` — 새 작업 202 `{import_id}`, 같은 `request_id` 재전송·같은 글로 진행 중인 작업 200 `{import_id}`, 같은 글의 대본이 이미 있음 200 `{duplicate_script_id}` | `script_split_consent_required` 403, `script_too_long`(원문 100,000자 초과)·`script_limit`·`request_fingerprint_mismatch`·`script_upload_not_ready`(읽기 전) 422, `script_upload_not_found` 404, `script_split_daily_limit` 429, 형태 오류 422 배열(raw_text·upload_id 둘 다 또는 둘 다 없음 포함), `account_deactivated` 403, 게스트 동의 전 `consent_required` 403 |
+| `POST /v2/reading/uploads/{upload_id}/complete` | `upload_id` | 204 — 서버가 올라온 파일을 받아 글자를 뽑아 둔다. 다시 불러도·대본에 연결된 뒤에도 204(다시 받지 않는다) | `script_upload_not_ready`(아직 다 안 올라옴)·`script_file_unreadable`(글자를 못 뽑음, 받기와 뽑기 45초 초과 포함)·`script_too_long`(뽑은 글 100,000자 초과) 422, `script_upload_busy`(읽기 자리가 10초 안에 안 남) 429, `script_upload_not_found` 404 |
+| `POST /v2/reading/imports` | `ReadingImportRequest`(request_id·title?(200자)·source·allow_duplicate?·skip_script_check?와 raw_text·upload_id 가운데 하나) | `ReadingImportTicket` — 새 작업 202 `{import_id}`, 같은 `request_id` 재전송·같은 글로 진행 중인 작업 200 `{import_id}`, 같은 글의 대본이 이미 있음 200 `{duplicate_script_id}` | `script_split_consent_required` 403, `script_too_long`(원문 100,000자 초과)·`script_limit`·`request_fingerprint_mismatch`·`script_upload_not_ready`(읽기 전)·`script_upload_used`(이미 대본이 된 원본) 422, `script_upload_not_found` 404, `script_split_daily_limit` 429, 형태 오류 422 배열(raw_text·upload_id 둘 다 또는 둘 다 없음 포함), `account_deactivated` 403, 게스트 동의 전 `consent_required` 403 |
 | `GET /v2/reading/imports/{import_id}` | `import_id` | `ReadingImport` 200: `status`(pending·running·succeeded·failed), `progress{done_lines,total_lines}`, `script_id`(성공), `failure`(실패: not_script·no_characters·script_too_long·script_limit·failed) | `import_not_found` 404 |
 | `POST /v2/reading/scripts` | `X-Request-Id`(선택, 있으면 본문 `request_id`와 같아야 한다), `ReadingScriptCreateRequest`(request_id·title·source·raw_text·characters·lines). 옛 앱의 기기 나누기 결과 저장, D1에서 걷는다 | `ReadingScript` 201, 같은 요청 재전송 200 | `no_characters`·`invalid_characters`·`script_too_long`·`script_limit`·`request_fingerprint_mismatch` 422, 형태 오류 422 배열, `account_deactivated` 403, 게스트 동의 전 `consent_required` 403 |
 | `GET /v2/reading/scripts` | `q`(선택, 제목·배역 이름) | `ReadingScriptList` 200 | — |
@@ -100,15 +100,24 @@
   같은 글 판정·한도·예시 대본 판별이 뽑은 글에 그대로 적용된다. 읽지 못함(422 `script_file_unreadable`)은 파일을 고른 자리에서
   바로 알려 R2.4 「파일을 읽지 못했어요 · 대본을 읽지 못했어요. 스캔한 PDF이거나 지원하지 않는 형식일 수 있어요. 복사해서
   붙여넣어 주세요.」를 띄운다. 50MB 초과(422 `script_file_too_large`, 기기도 올리기 전에 거른다)는 R2.4 「파일이 너무 커요.
-  50MB까지 열 수 있어요.」, 뽑은 글이 100,000자를 넘으면(422 `script_too_long`) R2.12다. 원인은 서버 로그에 남기고 화면은 한 문구다.
+  50MB까지 열 수 있어요.」, 뽑은 글이 100,000자를 넘으면(422 `script_too_long`) R2.12다. 읽기 자리가 차 있으면(429
+  `script_upload_busy`) R2.12이고 넣은 파일은 그대로라 [다음]을 다시 누르면 된다. 원인은 서버 로그에 남기고 화면은 한 문구다.
+- 읽기는 서버 전체에서 동시에 둘까지만 돌고 자리를 10초 기다린다. 받기와 뽑기가 45초를 넘으면 끊고 읽지 못함이다. 표 칸까지
+  세어 100,000자를 넘는 순간, hwp는 압축된 흐름을 다 풀어 100MB를 넘으면(압축 폭탄) 읽기를 멈춘다.
 - 받는 형식은 txt·docx·pdf·hwp(한글 5.0 이후)·hwpx이고 앱·웹이 같다. 올릴 자리는 확장자로 거르고, 읽기는 파일 머리로 형식을
   다시 가른다(확장자와 내용이 다르면 내용을 따른다). txt는 BOM(UTF-8·UTF-16)을 보고, 없으면 UTF-8, 아니면 CP949(EUC-KR 포함)로
   푼다. 표는 칸을 탭으로, 행을 줄로 잇고(칸이 하나인 표는 문단 그대로), 배역과 대사를 가르는 탭은 공백으로 뭉개지 않는다. PDF는
   그려진 위치로 줄을 다시 세우지 않고 내용 순서로 읽는다(2단 편집이 섞이지 않는다). 탭·줄바꿈 밖의 제어 문자는 지운다.
 - 읽지 못함: 한글 97(HWP 3.0), 글자 없는 PDF(스캔), 사용자 암호가 걸린 PDF, 깨진 파일, 모르는 형식(doc·odt 등), 빈 문서.
+- docx는 본문만 읽어 각주·머리글·꼬리말이 빠진다(글상자는 넣고 옛 모양 사본은 건너뛴다). hwp는 본문 문단과 표만 읽어 머리말·
+  꼬리말·각주·글상자가 빠지고, hwpx는 구역 안에 든 문단(머리말·각주·글상자 포함)을 나온 차례로 넣는다. txt는 UTF-8로 풀다 틀린 바이트를 만나면 처음부터 CP949로 다시 풀므로 두 인코딩이 섞인 파일은 읽지 못한다.
 - 원본은 S3 `reading-source/{user_id}/{upload_id}`에 두고 script_uploads 한 행이 뽑은 글과 함께 든다. 그 글로 대본이 저장되면
   원본이 그 대본에 연결되고 뽑은 글은 비운다(글은 대본에 있다), 대본을 지우거나 탈퇴하면 행과 객체를 함께 지운다(객체는 삭제 장부, [영역 표](README.md#리딩-자료의-이관삭제탈퇴)).
   어느 대본에도 연결되지 않은 원본(중복·실패·버림)은 하루 뒤 매시간 도는 정리가 지운다. 진행 중 나누기가 쓰는 원본은 남긴다.
+  객체는 행을 지운 뒤 올리기 주소의 시한(15분)이 지나야 장부가 지운다 — 먼저 지우면 그 주소로 다시 올린 객체가 남는다.
+- 원본은 먼저 저장된 대본 하나에만 연결된다. 이미 대본이 된 원본으로 다시 나누면 422 `script_upload_used`이고 앱은 파일을 다시
+  올린다. R2.7 「새로 넣기」는 첫 요청이 중복으로 끝나 원본이 아직 연결 전이라 같은 `upload_id`로 된다. 같은 원본으로 두 요청이
+  동시에 나뉘면 나중 대본에는 원본이 없다.
 - 올리기는 나누기와 같은 동의(`script_split`)가 있어야 한다 — 원본 보관도 그 문서가 알린다. 그래서 게스트는 올리지 못한다.
 
 **대본**
@@ -248,7 +257,11 @@
   PDF·모르는 zip·이진 파일: 읽지 못함. .txt 이름의 PDF: PDF로 읽는다.
 - raw_text와 upload_id 둘 다·둘 다 없음: 422 배열. 남의 upload_id: 404 script_upload_not_found.
 - 뽑은 글이 내 대본과 같은 파일: 200 duplicate_script_id, 원본은 연결되지 않는다.
-- 대본 삭제: 연결된 원본의 행과 객체가 없다. 탈퇴: 연결 여부와 무관하게 원본의 행·객체가 없다.
+- 대본 삭제: 연결된 원본의 행이 없고, 객체는 올리기 15분이 지난 뒤 장부가 지운다. 탈퇴: 연결 여부와 무관하게 같다.
+- 대본이 된 원본: 읽기 다시 204(받지 않음), `allow_duplicate`로 다시 나누기 422 script_upload_used.
+- 표 칸 하나에 210MB로 풀리는 docx·300,000자 칸의 hwp: TooLong(쌓기 전에 멈춤). 300MB로 풀리는 본문 구역의 hwp: 읽지 못함.
+  docx 글상자(mc:AlternateContent): 글이 한 번만 나온다.
+- 받기가 끝나지 않는 저장소: 시간 상한 뒤 422 script_file_unreadable, 그 일이 자리를 쥔 동안 다음 읽기는 429 script_upload_busy.
 - 시계를 25시간 돌려 정리: 하루 지난 미연결 원본(올리지 않은 것 포함)만 행·객체가 없고, 23시간 된 것·대본에 연결된 것·진행 중
   나누기가 쓰는 것은 남는다. 다시 돌면 지울 것이 없다.
 - 같은 대본 샘플 20편을 웹·앱 파서에 넣으면: 배역·줄 종류·줄 수가 같다(공통 검증 자료).

@@ -463,10 +463,11 @@ export interface paths {
         put?: never;
         /**
          * Complete Script Upload
-         * @description 올라온 파일을 받아 글자를 뽑아 둔다. 끝나면 204 이고 다시 불러도 204 다. 그 뒤 POST /v2/reading/imports 에
-         *     upload_id 를 싣는다. 아직 안 올라왔으면 422 script_upload_not_ready, 글자를 못 뽑으면(형식 밖·한글 97·스캔한
-         *     PDF·암호·깨진 파일·빈 문서) 422 script_file_unreadable, 뽑은 글이 100,000자를 넘으면 422 script_too_long,
-         *     없는 것과 남의 것은 404 script_upload_not_found.
+         * @description 올라온 파일을 받아 글자를 뽑아 둔다. 끝나면 204 이고 다시 불러도(대본에 연결된 뒤에도) 204 다. 그 뒤
+         *     POST /v2/reading/imports 에 upload_id 를 싣는다. 아직 안 올라왔으면 422 script_upload_not_ready, 글자를 못
+         *     뽑으면(형식 밖·한글 97·스캔한 PDF·암호·깨진 파일·빈 문서·받기와 뽑기 45초 초과) 422 script_file_unreadable,
+         *     뽑은 글이 100,000자를 넘으면 422 script_too_long, 서버의 읽기 자리(동시 둘)가 10초 안에 나지 않으면 429
+         *     script_upload_busy, 없는 것과 남의 것은 404 script_upload_not_found.
          */
         post: operations["complete_script_upload_v2_reading_uploads__upload_id__complete_post"];
         delete?: never;
@@ -569,7 +570,8 @@ export interface paths {
         /**
          * Import Script
          * @description 대본 글(raw_text)이나 읽어 둔 원본 파일(upload_id) 하나를 받아 서버가 배역·대사로 나누는 작업을 접수한다.
-         *     upload_id 가 없거나 남의 것이면 404 script_upload_not_found, 아직 읽지 않았으면 422 script_upload_not_ready.
+         *     upload_id 가 없거나 남의 것이면 404 script_upload_not_found, 아직 읽지 않았으면 422 script_upload_not_ready,
+         *     이미 대본이 된 원본이면 422 script_upload_used(파일을 다시 올린다).
          *     새 요청은 202, 같은 request_id 의 재전송과 같은
          *     글로 진행 중인 요청은 200 으로 같은 import_id 를 돌려준다. 같은 글이 이미 내 대본이면 200 duplicate_script_id.
          *     예시 대본과 같은 글은 모델 없이 바로 저장돼 상태가 곧 succeeded 다. 동의 없음 403 script_split_consent_required,

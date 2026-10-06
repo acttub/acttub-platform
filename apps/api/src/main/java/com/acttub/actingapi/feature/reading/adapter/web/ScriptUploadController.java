@@ -64,10 +64,11 @@ class ScriptUploadController {
     @Operation(
             summary = "Complete Script Upload",
             description = """
-                    올라온 파일을 받아 글자를 뽑아 둔다. 끝나면 204 이고 다시 불러도 204 다. 그 뒤 POST /v2/reading/imports 에
-                    upload_id 를 싣는다. 아직 안 올라왔으면 422 script_upload_not_ready, 글자를 못 뽑으면(형식 밖·한글 97·스캔한
-                    PDF·암호·깨진 파일·빈 문서) 422 script_file_unreadable, 뽑은 글이 100,000자를 넘으면 422 script_too_long,
-                    없는 것과 남의 것은 404 script_upload_not_found.""",
+                    올라온 파일을 받아 글자를 뽑아 둔다. 끝나면 204 이고 다시 불러도(대본에 연결된 뒤에도) 204 다. 그 뒤
+                    POST /v2/reading/imports 에 upload_id 를 싣는다. 아직 안 올라왔으면 422 script_upload_not_ready, 글자를 못
+                    뽑으면(형식 밖·한글 97·스캔한 PDF·암호·깨진 파일·빈 문서·받기와 뽑기 45초 초과) 422 script_file_unreadable,
+                    뽑은 글이 100,000자를 넘으면 422 script_too_long, 서버의 읽기 자리(동시 둘)가 10초 안에 나지 않으면 429
+                    script_upload_busy, 없는 것과 남의 것은 404 script_upload_not_found.""",
             operationId = "complete_script_upload_v2_reading_uploads__upload_id__complete_post",
             tags = "v2-reading",
             security = @SecurityRequirement(name = "HTTPBearer"))
