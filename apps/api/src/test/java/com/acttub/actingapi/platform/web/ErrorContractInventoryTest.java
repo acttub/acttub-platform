@@ -344,6 +344,8 @@ class ErrorContractInventoryTest {
                     "feature.reading.ReadingRecordingIT"),
             covered("feature.reading.app.RecordingService|422|invalid_line", 1,
                     "feature.reading.ReadingRecordingIT"),
+            covered("feature.reading.app.RecordingService|422|recording_empty", 1,
+                    "feature.reading.ReadingRecordingIT"),
             covered("feature.reading.app.RecordingService|422|recording_quota", 1,
                     "feature.reading.ReadingRecordingIT"),
             covered("feature.reading.app.RecordingService|422|recording_too_long", 1,

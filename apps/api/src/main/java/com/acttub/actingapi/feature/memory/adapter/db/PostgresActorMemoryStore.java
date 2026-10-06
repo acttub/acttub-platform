@@ -19,6 +19,7 @@ import com.acttub.actingapi.feature.memory.app.ActorMemoryStore;
 import com.acttub.actingapi.feature.memory.app.ActorMemoryUpdates;
 import com.acttub.actingapi.feature.memory.app.MemoryOwnership;
 import com.acttub.actingapi.feature.memory.app.MemoryUpdateMaterial;
+import com.acttub.actingapi.feature.memory.domain.ActorMemoryFields;
 import com.acttub.actingapi.feature.memory.domain.AgentMemoryWrites;
 import com.acttub.actingapi.feature.memory.domain.MemoryValue;
 import com.acttub.actingapi.platform.ledger.AiJobLedger;
@@ -317,6 +318,10 @@ public class PostgresActorMemoryStore implements ActorMemoryStore, ActorMemoryUp
 
     @Override
     public boolean appendAvoid(UUID userId, UUID practiceId, Instant now) {
+        // 이 칸의 마이그레이션이 없는 배포에서는 쓰지 않는다.
+        if (!ActorMemoryFields.contains("avoid")) {
+            return false;
+        }
         return Boolean.TRUE.equals(transaction.execute(tx -> {
             List<String> corrections = rounds(practiceId).stream()
                     .flatMap(round -> round.corrections().stream()).toList();
