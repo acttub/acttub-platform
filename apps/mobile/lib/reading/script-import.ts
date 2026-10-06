@@ -147,14 +147,19 @@ export type UploadResult = { kind: 'uploaded'; uploadId: string } | { kind: 'unr
  */
 export async function uploadScriptFile(file: PickedScriptFile, deps: UploadDeps): Promise<UploadResult> {
   if (isScriptFileTooLarge(file.size)) return { kind: 'file_too_large' };
-  let uploadId: string;
+  let upload: ScriptUpload;
   try {
-    const upload = await deps.create({ file_name: file.name, byte_size: file.size });
-    await deps.put(upload.upload_url, file.uri, upload.content_type);
-    uploadId = upload.upload_id;
+    upload = await deps.create({ file_name: file.name, byte_size: file.size });
   } catch (error) {
     return stopOf(error);
   }
+  try {
+    await deps.put(upload.upload_url, file.uri, upload.content_type);
+  } catch {
+    // 저장소 PUT 의 오류에는 사유 코드가 없다(공용 업로드 문구·기기 영어 메시지). R2.12 공용 문구로 접는다.
+    return { kind: 'error', message: t('errors.network') };
+  }
+  const uploadId = upload.upload_id;
   try {
     await deps.complete(uploadId);
     return { kind: 'uploaded', uploadId };

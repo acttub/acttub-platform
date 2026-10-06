@@ -65,7 +65,7 @@ const DEPS: ScriptImportDeps = {
     create: (body) => api.createScriptUpload(body),
     put: async (url, uri, contentType) => {
       const upload = await api.startUploadToUrl(url, uri, contentType).result;
-      if (upload.kind !== 'uploaded') throw new Error(t('errors.network'));
+      if (upload.kind !== 'uploaded') throw new Error('cancelled');
     },
     complete: (id) => api.completeScriptUpload(id),
   },

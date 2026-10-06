@@ -307,3 +307,17 @@ test('reading.script(R2): 이미 대본이 된 원본(script_upload_used)이면 
   ]);
   assert.deepEqual(uploaded, ['up-2']);
 });
+
+test('reading.script(R2.12): 저장소 PUT 이 실패하면 영상 업로드 문구나 기기의 영어 오류 대신 공용 문구다', async () => {
+  const putFails = (error) => ({
+    create: async () => ({ upload_id: 'up-1', upload_url: 'u', content_type: 'application/octet-stream', expires_at: 'x' }),
+    put: async () => {
+      throw error;
+    },
+    complete: async () => assert.fail('PUT 이 실패하면 읽기를 부르지 않는다'),
+  });
+  const file = { uri: 'file:///a.pdf', name: 'a.pdf', size: 1_000 };
+
+  assert.deepEqual(await uploadScriptFile(file, putFails(new ApiError(403, '영상 업로드에 실패했어요. 네트워크를 확인해주세요.'))), { kind: 'error', message: NETWORK });
+  assert.deepEqual(await uploadScriptFile(file, putFails(new Error('The network connection was lost.'))), { kind: 'error', message: NETWORK });
+});
