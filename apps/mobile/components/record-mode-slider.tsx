@@ -21,7 +21,7 @@ export function RecordModeSlider({
   onChange,
   disabled,
 }: {
-  modes: RecordMode[];
+  modes: readonly RecordMode[];
   value: RecordMode;
   onChange: (mode: RecordMode) => void;
   disabled?: boolean;

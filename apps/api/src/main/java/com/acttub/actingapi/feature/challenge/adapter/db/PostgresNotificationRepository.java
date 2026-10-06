@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.UUID;
 import com.acttub.actingapi.feature.challenge.app.NotificationRepository;
 import com.acttub.actingapi.feature.challenge.domain.NotificationRules;
+import com.acttub.actingapi.feature.push.app.PushTarget;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
 import com.acttub.actingapi.platform.web.ApiValidationException;
 import jakarta.persistence.EntityManager;
@@ -145,13 +146,13 @@ class PostgresNotificationRepository implements NotificationRepository {
                     """.formatted(VALID, AVAILABLE), Tuple.class).setParameter("user", user).setParameter("group", key)
                     .setParameter("now", now.atOffset(ZoneOffset.UTC)));
             if (rows.isEmpty()) continue;
-            // 발송 직전 확인: 활성 계정, 챌린지 알림 토글, 지금 이 사람 것인 한국어 토큰.
+            // 발송 직전 확인: 활성 계정, 챌린지 알림 토글, 지금 이 사람 것인 토큰. 문구는 토큰이 쓰는 말로 고른다.
             var tokens = NativeTuples.list(em.createNativeQuery("""
-                    SELECT t.token FROM push_tokens t JOIN users u ON u.id=t.user_id JOIN user_profiles p ON p.user_id=t.user_id
+                    SELECT t.token,t.locale FROM push_tokens t JOIN users u ON u.id=t.user_id JOIN user_profiles p ON p.user_id=t.user_id
                     WHERE t.user_id=:user AND u.status='active' AND p.notify_challenge
-                      AND (t.locale IS NULL OR t.locale='' OR t.locale='ko')
                     ORDER BY t.token
-                    """, Tuple.class).setParameter("user", user)).stream().map(row -> row.get("token", String.class)).toList();
+                    """, Tuple.class).setParameter("user", user)).stream()
+                    .map(row -> new PushTarget(row.get("token", String.class), row.get("locale", String.class))).toList();
             var sendable = rows.stream().filter(row -> Boolean.TRUE.equals(row.get("deliverable", Boolean.class))).toList();
             var ids = rows.stream().map(row -> row.get("id", UUID.class)).toList();
             boolean claimed = false;
@@ -173,8 +174,9 @@ class PostgresNotificationRepository implements NotificationRepository {
                 data.put("kind", latest.get("kind", String.class));
                 data.put("challenge_id", latest.get("challenge_id", UUID.class).toString());
                 if (latest.get("entry_id") != null) data.put("entry_id", latest.get("entry_id", UUID.class).toString());
-                String body = NotificationRules.pushBody(latest.get("kind", String.class));
-                tokens.forEach(token -> outgoing.add(new Outgoing(token, body, java.util.Map.copyOf(data))));
+                String kind = latest.get("kind", String.class);
+                tokens.forEach(target -> outgoing.add(new Outgoing(target.token(), NotificationRules.pushTitle(target.korean()),
+                        NotificationRules.pushBody(kind, target.korean()), java.util.Map.copyOf(data))));
             }
             var sent = claimed ? sendable.stream().map(row -> row.get("id", UUID.class)).toList() : List.<UUID>of();
             mark(sent, "attempted", now);

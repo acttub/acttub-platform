@@ -782,8 +782,8 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   그 값을 대본·회차 응답에 싣는다. 뜻은 reading.session(장면·구간 이름·K/N)과 reading.cast(`voice`)다.
 - 저장하지 않고 조회할 때 센다. 대본 상세는 이미 읽은 줄·배역으로 세서 질의가 늘지 않는다. 회차 목록·상세·시작 응답은
   그 대본의 줄(`id, kind`, 장면 머리 줄만 `text`)을 한 번 더 읽는다 — 목록은 카드 수와 상관없이 한 번이다
-  (`PostgresSessionRepository#layout`). 상세·시작과 진행 저장은 같은 한 번에 구간 안 대사 줄의 `text` 도 읽는다(`#range`,
-  다르게 말한 대사의 원문).
+  (`PostgresSessionRepository#lines`). 상세·시작과 진행 저장은 같은 한 번에 구간 안 대사 줄의 `text` 도 읽는다(다르게
+  말한 대사의 원문).
 - K 는 `current_line_id` 의 대사 번호에서 센다. 시작(`start_line_id`)과 진행 저장이 구간 안 대사 줄만 받으므로 API 로는 늘
   대사 줄이다. FK 는 줄의 종류를 보지 않아, 대사가 아닌 줄이 들어 있으면 `ReadingLayout` 은 그 앞 대사로 센다.
 - `voice` 는 저장값이 프리셋 목록(M1~M5·F1~F5)에 있을 때만 그 값을 쓰고 아니면 자동 순환 값이다. 저장 검증은 여전히 길이만
@@ -945,6 +945,23 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   - 한 항목은 `entry_id`·`challenge_id`(둘 다 앞 8자리)·`challenge_origin`·`actor`(기존 가명)·`visibility`·`status`·
     `has_video`·`created_at`·`published_at`(분 단위)·`views`·`likes`·`comments`(팀 제외)·`ai_report`(없으면 null)다.
     캡션·챌린지 대사·이메일·원본 id 는 넣지 않는다(git 에 남는 JSON 이다). 팀·미래 시각 행은 제외한다.
+- **업로드 완료 · 연습 미시작 기록**(`GET /v2/admin/ops-core`의 `upload_only_rows`)는
+  조회 시점에 연습·챌린지와 연결되지 않은 확정 업로드를 별도 배열로 제공한다. 기존 `sessions`·
+  `activity_rows`·퍼널·코칭 지표의 계산과 의미는 바꾸지 않는다.
+  - 필드는 `upload_intent_id`·`created_at`·`actor`·`is_team`·`platform`·`device`·`duration_ms`다.
+    시각은 `finalized_at` 우선, 없으면 업로드 `created_at`을 쓰며 UTC 분 단위로 낮춘다.
+    가명과 가입 기기 분류는 기존 기준을 재사용한다. 원본 user id·이메일·파일경로·URL·자유 글은 싣지 않는다.
+    팀 행은 공통 `team` 기준으로 `is_team=true`를 표시하며 화면에서 기본 제외한다.
+  - `status='finalized'`인 업로드만 읽고 미래 완료 시각은 제외한다. 신형은 `video_id`, 구형 이관은
+    같은 소유자의 `object_key`로 영상 후보를 찾는다. 후보 중 하나라도 연습·챌린지에 연결되거나
+    `purged_at`이 있으면 제외한다. 옛 `practice_sessions.upload_intent_id` 연결도 별도로 제외한다.
+    영상 키는 유일하지 않으므로 첫 후보만 보고 판정하지 않는다. 같은 영상으로 연습을 시작하면 해당
+    업로드 전용 행은 사라지며, 동일 배우의 다른 미연결 업로드는 그대로 남는다.
+  - 업로드 목적은 저장되지 않으므로 보관용인지 이탈인지 단정하지 않는다. 삭제된 챌린지의 `video_id`나
+    삭제된 영상과의 연결은 사라질 수 있어 과거 연결 이력도 복원할 수 없다. 이는 현재 연결 상태의 조회이지
+    이탈 확정·코칭 실패·영상 재생 가능 여부의 판정이 아니다. 화면에도 이 한계를 알린다.
+  - 전체 이력을 완료 시각 내림차순, 같은 시각이면 업로드 id 내림차순으로 제공한다. 실제 기록이 없으면
+    `[]`이며 필드 누락·형식 오류는 0이 아닌 확인 불가로 처리한다. `AdminEndpointIT`에서 실 DB로 검증한다.
 - **운영 피드백 조회**(`GET /v2/admin/feedback`) — 연락처·원본 user id·이메일은 projection 과 DTO 에 없다. 팀 판정은
   `ADMIN_OPS_EXCLUDE_EMAILS` 와 `exclude_actors`(ops-core 와 같은 검증)다.
 - **연습 자료의 이관·삭제·탈퇴** — 제품 규칙은 specs/practice 의 처리표다.

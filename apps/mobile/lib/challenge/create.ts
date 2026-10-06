@@ -86,7 +86,7 @@ export type CreateFailure =
   /** 하루 3개를 다 썼다(한국 시간). */
   | { kind: 'daily_limit' }
   | { kind: 'fingerprint_mismatch' }
-  /** 게스트이거나 한국어가 아닌 회원 — 챌린지 자체가 열리지 않는다. */
+  /** 게스트 — 챌린지 자체가 열리지 않는다. */
   | { kind: 'member_only' }
   /** 글자 수·빈 칸 같은 형식 문제. */
   | { kind: 'invalid' }

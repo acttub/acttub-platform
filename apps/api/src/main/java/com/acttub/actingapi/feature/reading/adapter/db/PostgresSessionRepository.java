@@ -204,7 +204,7 @@ class PostgresSessionRepository implements SessionRepository {
         if (!owned) {
             return null;
         }
-        ReadingLayout layout = layout(scriptId);
+        ReadingLayout layout = lines(scriptId, null, null).layout();
         return NativeTuples.list(entityManager.createNativeQuery(
                 CARD_SELECT + CARD_FROM + """
                 WHERE rs.script_id=:scriptId
@@ -380,19 +380,6 @@ class PostgresSessionRepository implements SessionRepository {
                 row.get("ended_at", Instant.class));
     }
 
-    private ReadingLayout layout(UUID scriptId) {
-        return ReadingLayout.of(NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT id,kind,CASE WHEN kind='scene' THEN text END AS text
-                FROM script_lines
-                WHERE script_id=:scriptId
-                ORDER BY ordinal
-                """, Tuple.class)
-                .setParameter("scriptId", scriptId)).stream()
-                .map(line -> new ReadingLayout.Line(
-                        line.get("id", UUID.class), line.get("kind", String.class), line.get("text", String.class)))
-                .toList());
-    }
-
     /** 줄 순서의 녹음. 재생 주소는 서비스가 조회할 때마다 붙인다 — 여기서는 비어 있다. */
     private List<RecordingView> recordings(UUID sessionId) {
         List<RecordingView> recordings = new ArrayList<>();
@@ -430,24 +417,29 @@ class PostgresSessionRepository implements SessionRepository {
     private record Range(ReadingLayout layout, List<DifferentLine.Dialogue> dialogues) {
     }
 
-    /**
-     * {@code row} 의 대본 줄을 한 번 읽어 표시값과 구간 대사를 함께 만든다. 글은 장면 머리(장면 이름)와 구간 안 대사(비교)만
-     * 읽는다. 대사 번호는 {@link ReadingLayout} 이 센다 — 대본·회차 응답과 같은 번호다.
-     */
     private Range range(Tuple row) {
+        return lines(row.get("script_id", UUID.class), row.get("start_line_id", UUID.class), row.get("end_line_id", UUID.class));
+    }
+
+    /**
+     * 대본 줄을 한 번 읽어 표시값과 구간 대사를 함께 만든다. 글은 장면 머리(장면 이름)와 구간 안 대사(비교)만 읽고, 구간이
+     * 없으면({@code null}) 구간 대사도 없다. 대사 번호는 {@link ReadingLayout} 이 센다 — 대본·회차 응답과 같은 번호다.
+     */
+    private Range lines(UUID scriptId, UUID startLineId, UUID endLineId) {
         List<Tuple> lines = NativeTuples.list(entityManager.createNativeQuery("""
                 SELECT l.id,l.kind,
                        CASE WHEN l.kind='scene' THEN l.text END AS heading,
-                       CASE WHEN l.kind='dialogue' AND l.ordinal BETWEEN s.ordinal AND e.ordinal THEN l.text END AS spoken
+                       CASE WHEN l.kind='dialogue'
+                             AND l.ordinal BETWEEN (SELECT ordinal FROM script_lines WHERE id=CAST(:startLineId AS uuid))
+                                               AND (SELECT ordinal FROM script_lines WHERE id=CAST(:endLineId AS uuid))
+                            THEN l.text END AS spoken
                 FROM script_lines l
-                JOIN script_lines s ON s.id=:startLineId
-                JOIN script_lines e ON e.id=:endLineId
                 WHERE l.script_id=:scriptId
                 ORDER BY l.ordinal
                 """, Tuple.class)
-                .setParameter("scriptId", row.get("script_id", UUID.class))
-                .setParameter("startLineId", row.get("start_line_id", UUID.class))
-                .setParameter("endLineId", row.get("end_line_id", UUID.class)));
+                .setParameter("scriptId", scriptId)
+                .setParameter("startLineId", startLineId)
+                .setParameter("endLineId", endLineId));
         ReadingLayout layout = ReadingLayout.of(lines.stream()
                 .map(line -> new ReadingLayout.Line(
                         line.get("id", UUID.class), line.get("kind", String.class), line.get("heading", String.class)))

@@ -23,7 +23,7 @@ import com.acttub.actingapi.platform.web.ApiException;
  *
  * <p>순서: 한도(크기·길이) → 잠그지 않는 사전 확인(회차·줄·재전송·시도 번호) → 변환 → 객체 올림 → 회차 행을 잠근 최종
  * 저장(총량 포함). 최종 저장이 거절하면 방금 올린 객체는 장부가 지운다(apps/api/CONTRACT.md §5-4 — 바깥 호출은
- * 트랜잭션 밖이다). 여기서 거절하는 것은 규칙이고 본문은 사유 코드 하나다: {@code recording_too_long}·
+ * 트랜잭션 밖이다). 여기서 거절하는 것은 규칙이고 본문은 사유 코드 하나다: {@code recording_too_long}·{@code recording_empty}·
  * {@code recording_quota}·{@code invalid_line}·{@code session_not_found}·{@code recording_not_found}, 변환 실패는
  * 503 {@code audio_conversion_failed}.
  */
@@ -75,6 +75,9 @@ public class RecordingService {
         try {
             stored = RecordingRules.alreadyM4a(upload.contentType()) ? upload.file() : transcode(upload.file());
             long byteSize = Files.size(stored);
+            if (byteSize < RecordingRules.STORED_MIN_BYTES) {
+                throw new ApiException(422, "recording_empty");
+            }
             storage.upload(objectKey, RecordingRules.STORED_CONTENT_TYPE, stored);
             Stored result = recordings.store(userId, sessionId, new NewRecording(
                     upload.requestId(),
