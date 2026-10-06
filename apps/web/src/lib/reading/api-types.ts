@@ -8,16 +8,19 @@
 
 import type { components } from "../api/v2-schema";
 
-/** 대본을 넣은 길. 서버는 예시(sample)를 구분하지 않고 보통 대본으로 둔다. */
-export type ScriptSource = components["schemas"]["ScriptSource"];
-
-/** POST /v2/reading/scripts */
-export type ScriptCreateRequest = components["schemas"]["ReadingScriptCreateRequest"];
-
 /** PATCH /v2/reading/scripts/{id} — 제목·배역 이름·목소리만. 줄은 저장 뒤 고정이다. */
 export type ScriptUpdateRequest = components["schemas"]["ReadingScriptPatch"];
 
 export type ScriptLine = components["schemas"]["ReadingScriptLine"];
+
+/** POST /v2/reading/imports — 글(raw_text)이나 올린 파일(upload_id) 하나로 나누기를 맡긴다 */
+export type ImportRequest = components["schemas"]["ReadingImportRequest"];
+/** 새 작업이면 import_id, 같은 글의 대본이 이미 있으면 duplicate_script_id */
+export type ImportTicket = components["schemas"]["ReadingImportTicket"];
+/** GET /v2/reading/imports/{id} */
+export type ScriptImport = components["schemas"]["ReadingImport"];
+/** POST /v2/reading/uploads — 원본 파일을 올릴 서명 주소 */
+export type ScriptUpload = components["schemas"]["ReadingUpload"];
 
 /**
  * GET /v2/reading/scripts/{id}, POST·PATCH 의 응답.

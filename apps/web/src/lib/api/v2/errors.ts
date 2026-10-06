@@ -71,6 +71,7 @@ export function isStillProcessing(error: unknown): error is ApiError {
 }
 
 const GUEST_DAILY_ANALYSIS_LIMIT = "guest_daily_analysis_limit";
+const SCRIPT_SPLIT_DAILY_LIMIT = "script_split_daily_limit";
 const GUEST_TRANSFERRED = "guest_transferred";
 
 /** "옮겼어요" 안내의 본문. 막힌 요청의 오류 문구와 안내 화면이 같은 말을 쓴다. */
@@ -82,23 +83,22 @@ export function isGuestTransferred(error: unknown): error is ApiError {
   return error instanceof ApiError && error.code === GUEST_TRANSFERRED;
 }
 
-/** 잠시 기다리면 풀리는 429. 게스트의 하루 분석 횟수는 자정까지 풀리지 않으므로 뺀다. */
+/** 잠시 기다리면 풀리는 429. 게스트의 하루 분석 횟수와 하루 대본 나누기 횟수는 자정까지 풀리지 않으므로 뺀다. */
 export function isRateLimited(error: unknown): error is ApiError {
   return (
     error instanceof ApiError &&
     error.status === 429 &&
-    error.code !== GUEST_DAILY_ANALYSIS_LIMIT
+    error.code !== GUEST_DAILY_ANALYSIS_LIMIT &&
+    error.code !== SCRIPT_SPLIT_DAILY_LIMIT
   );
 }
 
 /**
- * 리딩 대본 등록·수정과 회차 시작·진행 저장의 422 사유(reading.script·reading.session). 웹은 게스트뿐이라 대본 수 한도는 게스트의 20개다.
- * 기기가 같은 한도를 먼저 검사하므로(src/lib/reading/draft.ts) 서버의 422 는 두 검사가 어긋났을 때만 온다.
+ * 리딩 대본 넣기·수정과 회차 시작·진행 저장의 422 사유(reading.script·reading.session). 웹은 게스트뿐이라 대본 수 한도는 게스트의 20개다.
  */
 export const READING_SCRIPT_MESSAGES: Record<string, string> = {
   script_too_long: "대본이 너무 길어요. 원문 100,000자·줄 3,000개·배역 50명까지 저장할 수 있어요.",
   script_limit: "대본은 20개까지 저장할 수 있어요. 안 쓰는 대본을 지우면 다시 저장할 수 있어요.",
-  no_characters: "배역이 하나도 없어요. 배역 이름을 적어 주세요.",
   invalid_characters: "배역 이름이 비어 있거나 다른 배역과 겹쳐요. 이름을 고쳐 주세요.",
   request_fingerprint_mismatch: "같은 요청으로 다른 대본이 저장돼 있어요. 대본을 다시 넣어 주세요.",
   // 회차(reading.session)

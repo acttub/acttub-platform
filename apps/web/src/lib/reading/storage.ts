@@ -1,10 +1,9 @@
 /**
  * 리딩 흐름이 페이지 사이에 넘기는 것. 대본과 회차는 서버에 저장되고(reading.script·reading.session,
- * ADR-031) 여기에는 서버가 돌려준 대본·회차의 기기 캐시와, 확인 화면까지만 잠시 드는 초안, 완료 화면이
+ * ADR-031) 여기에는 서버가 돌려준 대본·회차의 기기 캐시와 완료 화면이
  * 보여 줄 결과가 있다. 모두 sessionStorage 라 탭을 닫으면 사라진다 — 대본·회차는 서버에서 다시 받는다.
  */
 import type { LineResult, ReadingMode, SessionDetail } from "@/lib/reading/api-types";
-import type { ScriptDraft } from "@/lib/reading/draft";
 import type { ScriptLine } from "@/lib/reading/script/parse";
 
 /** 서버에 저장된 대본을 화면이 쓰는 모양으로 든 것 (src/lib/reading/script/from-server.ts) */
@@ -49,7 +48,6 @@ export interface RunStats {
 }
 
 // 0.1.0 이전의 "rehearsal.script"(서버 저장 전, id 없음)와 키를 달리 해 옛 값을 읽지 않는다.
-const DRAFT_KEY = "reading.draft";
 const SCRIPT_KEY = "reading.script";
 const SESSION_KEY = "reading.session";
 const STATS_KEY = "reading.stats";
@@ -85,9 +83,6 @@ function write(key: string, value: unknown) {
 }
 
 export const storage = {
-  /** 대본 넣기(D13) → 확인(D16) 사이에만 드는 초안. 저장하거나 화면을 떠나면 버린다. */
-  loadDraft: () => read<ScriptDraft>(DRAFT_KEY),
-  saveDraft: (d: ScriptDraft | null) => write(DRAFT_KEY, d),
   loadScript: () => read<StoredScript>(SCRIPT_KEY),
   saveScript: (s: StoredScript | null) => write(SCRIPT_KEY, s),
   /** 지금 하는 회차(서버 상세). 시작·이어하기 때 두고 완료·새 대본에서 비운다. */
