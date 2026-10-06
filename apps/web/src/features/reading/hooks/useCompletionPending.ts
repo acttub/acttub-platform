@@ -8,12 +8,16 @@ import { useEffect, useState } from "react";
 import { recordingQueue } from "@/features/reading/hooks/useLineRecorder";
 import { completionPending, resumeCompletionRetries, subscribeCompletion } from "@/lib/reading/session/completion";
 
-export function useCompletionPending(sessionId: string | null): boolean {
-  const [pending, setPending] = useState(false);
+export function useCompletionPending(sessionId: string | null): { completing: boolean; uploading: boolean } {
+  const [completing, setCompleting] = useState(() => sessionId !== null && completionPending(sessionId));
+  const [uploading, setUploading] = useState(false);
   useEffect(() => {
     resumeCompletionRetries();
     const queue = recordingQueue();
-    const compute = () => setPending((sessionId !== null && completionPending(sessionId)) || queue.pending() > 0);
+    const compute = () => {
+      setCompleting(sessionId !== null && completionPending(sessionId));
+      setUploading(queue.pending() > 0);
+    };
     compute();
     const offCompletion = subscribeCompletion(compute);
     const offQueue = queue.subscribe(compute);
@@ -22,5 +26,5 @@ export function useCompletionPending(sessionId: string | null): boolean {
       offQueue();
     };
   }, [sessionId]);
-  return pending;
+  return { completing, uploading };
 }
