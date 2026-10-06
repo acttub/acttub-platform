@@ -88,8 +88,7 @@ public class RecordingService {
                     byteSize,
                     upload.durationMs(),
                     upload.transcript(),
-                    upload.transcriptSource(),
-                    upload.matched()), RecordingRules.quotaBytes(guest), clock.instant());
+                    upload.transcriptSource()), RecordingRules.quotaBytes(guest), clock.instant());
             // 거절·대체·재전송으로 남은 객체는 장부에 있다 — 커밋 뒤에 바로 한 번 시도한다.
             cleanup.attempt(result.cleanupOperationIds());
             return switch (result.outcome()) {
@@ -150,7 +149,7 @@ public class RecordingService {
      *
      * @param file 임시 파일. 부르는 쪽이 만들고 지운다
      * @param fileSize 올린 원본의 바이트 수(한도 기준)
-     * @param transcriptSource {@code stt}·{@code none}. none 이면 {@code transcript}·{@code matched} 는 {@code null}
+     * @param transcriptSource {@code stt}·{@code none}. none 이면 {@code transcript} 는 {@code null}
      */
     public record Upload(
             UUID requestId,
@@ -161,8 +160,7 @@ public class RecordingService {
             long fileSize,
             int durationMs,
             String transcript,
-            String transcriptSource,
-            Boolean matched) {
+            String transcriptSource) {
     }
 
     /** @param created 이번에 만들었거나 대체했으면 {@code true}, 재전송·작은 시도 번호면 {@code false} */

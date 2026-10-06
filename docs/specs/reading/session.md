@@ -25,9 +25,9 @@
 |---|---|---|---|
 | `POST /v2/reading/scripts/{script_id}/sessions` | `X-Request-Id`(선택, 있으면 본문과 같아야 한다), `ReadingSessionCreateRequest`(request_id·my_character_ids·mode·start_line_id·end_line_id·advance·record) | `ReadingSession` 201, 같은 요청 재전송 200 | `invalid_characters`·`invalid_line`·`empty_range`·`request_fingerprint_mismatch` 422, 형태 오류 422 배열, `script_not_found` 404 |
 | `GET /v2/reading/scripts/{script_id}/sessions` | `script_id` | `ReadingSessionList` 200(카드마다 `range_name`·`progress`) | `script_not_found` 404 |
-| `GET /v2/reading/sessions/{session_id}` | `session_id` | `ReadingSession` 200(`range_name`·`progress` 포함) | `session_not_found` 404 |
+| `GET /v2/reading/sessions/{session_id}` | `session_id` | `ReadingSession` 200(`range_name`·`progress`, 원문과 다르게 말한 대사 `different_lines` 포함) | `session_not_found` 404 |
 | `GET /v2/reading/scripts/{script_id}`(장면) | `script_id` | `ReadingScript` 200의 `scenes` | `script_not_found` 404 |
-| `PATCH /v2/reading/sessions/{session_id}/progress` | `ReadingSessionProgressRequest`(progress_seq 필수, current_line_id·elapsed_seconds·line_results·complete 선택) | `ReadingSessionProgress` 200(옛 progress_seq도 현재 값) | `session_closed` 409, `invalid_line` 422, `session_not_found` 404 |
+| `PATCH /v2/reading/sessions/{session_id}/progress` | `ReadingSessionProgressRequest`(progress_seq 필수, current_line_id·elapsed_seconds·line_results·complete 선택, 줄 결과는 line_id와 said 또는 outcome·misses) | `ReadingSessionProgress` 200(옛 progress_seq도 현재 값, `different_lines` 포함) | `session_closed` 409, `invalid_line` 422, `session_not_found` 404 |
 | `DELETE /v2/reading/sessions/{session_id}` | `session_id` | 204, 녹음 객체는 삭제 장부로(reading.recording) | `session_not_found` 404 |
 
 ## 상태
@@ -113,15 +113,23 @@ current_line_id가 남아 있어 이어 할 수 있다.
   넘어가기)이고 misses는 미달 횟수다. 녹음을 꺼도, 마이크가 없어 입력하기로 대조해도 여기에 남는다. STT 인식 불가·
   무발화·길이 상한 초과는 넣지 않는다. 웹의 다시 볼 대사는 outcome이 unmatched·skipped인 줄이다. 기기가 진행 저장에
   함께 보내고 progress_seq 규칙을 따른다.
+- 대조는 서버가 한다. 기기는 줄 결과에 말한 것 said(기기 STT의 전사)를 싣고, 서버가 그 줄 원문과 비교해(규칙은
+  [reading.memorization](memorization.md#규칙제약)의 정규화·통과선 0.72, 원문·말한 것 각각 1,000자 상한) outcome·misses를
+  정한다. 읽어주기 규칙이라 통과는 passed·0, 미달은 unmatched·1이고, 같은 말을 다시 보내도 결과가 같다(미달을 더하지
+  않는다). 무발화·1,000자 초과면 그 줄 결과를 넣지 않는다. said가 있으면 함께 온 outcome·misses는 쓰지 않는다. said
+  없이 outcome·misses를 보내는 옛 앱과 웹 암기 대조는 그대로 받고(최소 지원 판을 올릴 때 걷는다), 둘 다 없으면 422 배열이다.
+  말한 것은 reading_sessions.line_said(jsonb, {line_id: said})에 둔다. 음성 인식을 못 하는 기기는 said를 보내지 않는다.
 - 구간 끝을 지나면 completed, ended_at. 앱 완료 화면(R9.23)은 내 배역, 읽은 대사(구간 안 대사 줄 수, 부분 구간을 대본
   전체 완료로 말하지 않음), 걸린 시간, 아직 올리는 녹음 수, 원문과 다르게 말한 대사, 코치 카드(촬영으로 잇는 안내,
   데이터는 잇지 않음), 버튼 "다시 연습"·"완료"(대본 상세 R4로)를 보여 준다. 완료 화면에서 암기 화면으로 가지 않는다.
-  - "원문과 다르게 말한 대사 N개"는 outcome이 unmatched인 내 대사다. 두 줄까지 대사 번호와 원문을 먼저 보이고 아래에
+  - "원문과 다르게 말한 대사 N개"는 outcome이 unmatched인 내 대사다. 완료 저장(complete=true) 응답과 회차 상세의
+    different_lines(줄마다 line_id·대사 번호·말한 것·원문 어절과 표시)로 그린다. 완료 응답을 받지 못했거나 409
+    session_closed면 회차 상세의 것을 쓴다. said 없이 결과만 저장된 줄은 말한 것이 null이고 칠한 어절이 없다. 두 줄까지 대사 번호와 원문을 먼저 보이고 아래에
     말한 것을 작게 둔다("말한 것"·"실제 대사" 같은 이름표는 없다). "전체 보기"는 R9.26으로 가서 구간 대본 전체를
     흐름대로 보이고 다르게 말한 내 줄에만 표시와 말한 것, 내 녹음 듣기를 둔다. 그런 줄이 없으면 절을 숨긴다.
   - 원문의 어느 어절을 칠할지는 띄어쓰기·문장부호를 무시하고 원문과 말한 것을 글자 단위로 맞춰 본 뒤, 안 맞는
     글자가 있는 원문 어절(빠뜨리거나 바꿔 말한 곳)만 노랗게 칠한다. 더 말한 것은 아래 말한 것 줄에만 보인다.
-    R9.23·R9.26과 회차 상세(reading.recording)가 같은 표시를 쓴다.
+    괄호 안 지시는 비교하지 않는다. 서버가 칠할 어절을 정해 주고 R9.23·R9.26과 회차 상세(reading.recording)가 같은 표시를 쓴다.
   - 기기가 음성 인식을 하지 못하면(기기 안 인식 미지원·음성 인식 권한 없음) 대조하지 않고, 절 자리에 "이 기기에서는
     말한 것을 글자로 바꾸지 못해 비교하지 않았어요." 한 줄을 둔다.
   - 웹 완료 화면(D19·WR4)은 내 배역, 읽은 대사, 걸린 시간, 다시 볼 대사("암기 필요 N", 원문과 대사 번호, 전체보기로
@@ -210,6 +218,10 @@ current_line_id가 남아 있어 이어 할 수 있다.
   없으면 절이 없다. 원문 "그래서 더 말하기 싫었어."를 "그래서 말하기 싫었어"로 말함: "더"만 노랗다. "말하면 뭐가
   달라져."를 "말하면 뭐가 달라"로 말함: "달라져."만 노랗다. 띄어쓰기·문장부호만 다르게 말함: 노란 곳이 없다.
   음성 인식을 못 하는 기기: 절 대신 "비교하지 않았어요" 한 줄이 보인다.
+- 원문 "나는 정말 몰랐어"인 내 줄에 said "나는 몰랐어": line_results에 {unmatched, misses 1}, 완료 응답과 회차 상세의
+  different_lines에 그 줄이 대사 번호·말한 것과 함께 있고 어절 "정말"만 differs다. 같은 said를 다음 저장에 다시 보냄:
+  misses 1 그대로. outcome passed와 said를 함께 보냈는데 said가 미달: unmatched. said " ... ": 그 줄 결과가 없다.
+  said 없이 outcome unmatched만: 그대로 저장되고 different_lines의 said는 null, 칠한 어절이 없다. said도 outcome도 없음: 422 배열.
 - 웹 완료 화면: 다시 볼 대사에는 원문과 대사 번호만 있고 unmatched·skipped가 없으면 절이 없다. quiz 완료: "맞춘 줄 K / 시도
   N · 아직 안 나온 줄 P"이고 K·N·P가 line_results와 맞다.
 - 다시 연습(웹 다시 리딩): 같은 설정의 새 회차가 생기고 이전 회차는 그대로다. 앱 완료의 "완료": 대본 상세로 가고 방금

@@ -1,53 +1,26 @@
 /**
- * 상대역 목소리 배정(reading.cast). 배역의 voice_preset 이 있으면 그대로(고정값), 없으면 내 배역을 뺀
- * 상대역을 등장 순서로 세워 F1·M1·F2·M2·… 를 순환 배정한다. 고정한 배역은 순환에서 빠지고, 같은
- * 프리셋을 여러 배역에 줄 수 있다. 기기가 모르는 값은 자동으로 다룬다.
+ * 상대역 목소리(reading.cast). 서버가 배역마다 「내 배역이 아닐 때 읽을 목소리」(characters[].voice)를 정해 주고,
+ * 기기는 이번 회차의 내 배역만 빼고 그 값으로 읽는다. 그래서 내 배역을 바꿔도 같은 배역은 같은 목소리다.
  */
-import { PRESET_CYCLE, VOICE_PRESETS, type VoicePreset } from "@/lib/reading/audio/supertonic/models";
-import { assignVoices, type RoleVoice } from "@/lib/reading/audio/tts";
-
-export function isVoicePreset(value: string | null | undefined): value is VoicePreset {
-  return typeof value === "string" && (VOICE_PRESETS as readonly string[]).includes(value);
-}
+import type { VoicePreset } from "@/lib/reading/audio/supertonic/models";
+import { deviceStyles, type RoleVoice } from "@/lib/reading/audio/tts";
 
 export interface CastCharacter {
   id: string;
   name: string;
   /** script_characters.voice_preset. null 이면 자동. */
   voicePreset: string | null;
+  /** 서버가 정한 목소리. 고정값이면 그 값, 자동이면 대본 전체 배역으로 돌린 값이다. */
+  voice: VoicePreset;
 }
 
-/**
- * 상대역마다 이번 회차에서 읽을 프리셋. 등장 순서(배열 순서)를 지킨다. 내 배역은 들지 않는다.
- * @returns Map<배역 id, 프리셋>
- */
-export function assignPresets(characters: CastCharacter[], myCharacterIds: string[]): Map<string, VoicePreset> {
-  const mine = new Set(myCharacterIds);
-  const out = new Map<string, VoicePreset>();
-  let auto = 0;
-  for (const c of characters) {
-    if (mine.has(c.id)) continue;
-    if (isVoicePreset(c.voicePreset)) {
-      out.set(c.id, c.voicePreset);
-      continue;
-    }
-    out.set(c.id, PRESET_CYCLE[auto % PRESET_CYCLE.length]);
-    auto++;
-  }
-  return out;
-}
-
-/**
- * 실행 화면이 배역 이름으로 찾는 목소리 표. 기기 음성용 말투는 상대역 순서로 돌려 쓴다(기존 방식).
- */
+/** 실행 화면이 배역 이름으로 찾는 상대역 목소리 표. 내 배역은 들지 않는다. */
 export function voicesFor(
   script: { characters: CastCharacter[] },
   myCharacterIds: string[],
 ): Record<string, RoleVoice> {
-  const presets = assignPresets(script.characters, myCharacterIds);
-  const partners = script.characters.filter((c) => presets.has(c.id));
-  const device = assignVoices(partners.map((c) => c.name));
-  const out: Record<string, RoleVoice> = {};
-  for (const c of partners) out[c.name] = { device: device[c.name].device, preset: presets.get(c.id)! };
-  return out;
+  const mine = new Set(myCharacterIds);
+  const partners = script.characters.filter((c) => !mine.has(c.id));
+  const device = deviceStyles(partners.map((c) => c.name));
+  return Object.fromEntries(partners.map((c) => [c.name, { device: device[c.name], preset: c.voice }]));
 }

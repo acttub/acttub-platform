@@ -35,6 +35,21 @@ public final class RecordingRules {
     private RecordingRules() {
     }
 
+    /**
+     * 녹음 행의 대조 결과. 전사가 원문을 통과하면 {@code true}, 미달이면 {@code false}, 전사가 없거나(음성 인식을 하지
+     * 못함) 비교하지 않는 말(무발화·한도 초과)이면 {@code null} 이다.
+     */
+    public static Boolean matched(String transcript, String line) {
+        if (transcript == null) {
+            return null;
+        }
+        return switch (LineMatch.compare(transcript, line)) {
+            case PASS -> true;
+            case MISS -> false;
+            case NO_SPEECH, TOO_LONG -> null;
+        };
+    }
+
     public static long quotaBytes(boolean guest) {
         return guest ? GUEST_QUOTA_BYTES : MEMBER_QUOTA_BYTES;
     }

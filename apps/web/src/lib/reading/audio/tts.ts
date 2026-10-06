@@ -10,7 +10,7 @@
 import { speakableText } from "@/lib/reading/script/parse";
 import { synthesize, load as loadSupertonic } from "@/lib/reading/audio/supertonic/engine";
 import { playSynthesized, unlockAudio } from "@/lib/reading/audio/supertonic/play";
-import { PRESET_CYCLE, type VoicePreset } from "@/lib/reading/audio/supertonic/models";
+import type { VoicePreset } from "@/lib/reading/audio/supertonic/models";
 
 export type Engine = "supertonic" | "device";
 
@@ -40,18 +40,11 @@ const DEVICE_STYLES: VoiceStyle[] = [
 ];
 
 /**
- * 배역 목록을 받아 배역마다 목소리를 정한다.
- * 순서만 보고 정하므로, 같은 대본이면 다시 들어와도 같은 목소리가 나온다.
+ * 배역마다 기기 음성 말투를 정한다. 순서만 보고 정하므로 같은 배역 목록이면 다시 들어와도 같다.
+ * Supertonic 프리셋은 서버가 정한다(reading.cast, characters[].voice).
  */
-export function assignVoices(roles: string[]): Record<string, RoleVoice> {
-  const out: Record<string, RoleVoice> = {};
-  roles.forEach((role, i) => {
-    out[role] = {
-      device: DEVICE_STYLES[i % DEVICE_STYLES.length],
-      preset: PRESET_CYCLE[i % PRESET_CYCLE.length],
-    };
-  });
-  return out;
+export function deviceStyles(roles: string[]): Record<string, VoiceStyle> {
+  return Object.fromEntries(roles.map((role, i) => [role, DEVICE_STYLES[i % DEVICE_STYLES.length]]));
 }
 
 /** SpeechSynthesisVoice 중 우리가 보는 부분만. 테스트에서 만들어 넣기 위해 좁혀 뒀다. */

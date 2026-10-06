@@ -9,6 +9,7 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.reading.app.ReadingRecordingCleanup;
 import com.acttub.actingapi.feature.reading.app.RecordingRepository;
 import com.acttub.actingapi.feature.reading.app.SessionViews.RecordingView;
+import com.acttub.actingapi.feature.reading.domain.RecordingRules;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
 import com.acttub.actingapi.platform.schema.TranscriptSource;
 import jakarta.persistence.EntityManager;
@@ -47,7 +48,7 @@ class PostgresRecordingRepository implements RecordingRepository {
         if (!owned(sessionId, userId, false)) {
             return new Precheck(PrecheckOutcome.NOT_FOUND, null);
         }
-        if (!myDialogueLineInRange(sessionId, lineId)) {
+        if (myDialogueLine(sessionId, lineId) == null) {
             return new Precheck(PrecheckOutcome.INVALID_LINE, null);
         }
         RecordingView replayed = byRequest(userId, requestId);
@@ -68,7 +69,8 @@ class PostgresRecordingRepository implements RecordingRepository {
             if (!owned(sessionId, userId, true)) {
                 return rejected(StoreOutcome.NOT_FOUND, userId, recording.objectKey(), now);
             }
-            if (!myDialogueLineInRange(sessionId, recording.lineId())) {
+            String line = myDialogueLine(sessionId, recording.lineId());
+            if (line == null) {
                 return rejected(StoreOutcome.INVALID_LINE, userId, recording.objectKey(), now);
             }
             RecordingView replayed = byRequest(userId, recording.requestId());
@@ -89,6 +91,7 @@ class PostgresRecordingRepository implements RecordingRepository {
             if (stored - replacedBytes + recording.byteSize() > quotaBytes) {
                 return rejected(StoreOutcome.QUOTA, userId, recording.objectKey(), now);
             }
+            Boolean matched = RecordingRules.matched(recording.transcript(), line);
             if (current == null) {
                 UUID id = UUID.randomUUID();
                 entityManager.createNativeQuery("""
@@ -110,7 +113,7 @@ class PostgresRecordingRepository implements RecordingRepository {
                         .setParameter("durationMs", recording.durationMs())
                         .setParameter("transcript", recording.transcript())
                         .setParameter("transcriptSource", recording.transcriptSource())
-                        .setParameter("matched", recording.matched())
+                        .setParameter("matched", matched)
                         .setParameter("now", now.atOffset(ZoneOffset.UTC))
                         .executeUpdate();
                 return new Stored(StoreOutcome.CREATED, byId(id), List.of());
@@ -131,7 +134,7 @@ class PostgresRecordingRepository implements RecordingRepository {
                     .setParameter("durationMs", recording.durationMs())
                     .setParameter("transcript", recording.transcript())
                     .setParameter("transcriptSource", recording.transcriptSource())
-                    .setParameter("matched", recording.matched())
+                    .setParameter("matched", matched)
                     .setParameter("now", now.atOffset(ZoneOffset.UTC))
                     .setParameter("id", current.id())
                     .executeUpdate();
@@ -171,10 +174,10 @@ class PostgresRecordingRepository implements RecordingRepository {
                 .setParameter("userId", userId)).isEmpty();
     }
 
-    /** 그 회차의 구간 안 내 대사 줄인가 — 상대역 줄·지문·구간 밖·남의 줄은 아니다. */
-    private boolean myDialogueLineInRange(UUID sessionId, UUID lineId) {
-        return !NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT l.id
+    /** 그 회차의 구간 안 내 대사 줄의 원문. 상대역 줄·지문·구간 밖·남의 줄이면 {@code null}. */
+    private String myDialogueLine(UUID sessionId, UUID lineId) {
+        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
+                SELECT l.text
                 FROM reading_sessions rs
                 JOIN script_lines s ON s.id=rs.start_line_id
                 JOIN script_lines e ON e.id=rs.end_line_id
@@ -186,7 +189,8 @@ class PostgresRecordingRepository implements RecordingRepository {
                   AND l.character_id=ANY(rs.my_character_ids)
                 """, Tuple.class)
                 .setParameter("sessionId", sessionId)
-                .setParameter("lineId", lineId)).isEmpty();
+                .setParameter("lineId", lineId));
+        return rows.isEmpty() ? null : rows.getFirst().get("text", String.class);
     }
 
     private RecordingView byRequest(UUID userId, UUID requestId) {

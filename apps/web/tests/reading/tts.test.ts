@@ -1,5 +1,5 @@
 import { describe, expect, it } from "./expect";
-import { assignVoices, rankKoreanVoices, type VoiceLike } from "../../src/lib/reading/audio/tts";
+import { deviceStyles, rankKoreanVoices, type VoiceLike } from "../../src/lib/reading/audio/tts";
 
 const v = (name: string, localService = true, lang = "ko-KR"): VoiceLike => ({ name, lang, localService });
 
@@ -42,34 +42,22 @@ describe("rankKoreanVoices", () => {
   });
 });
 
-describe("assignVoices", () => {
-  it("배역마다 다른 프리셋을 준다", () => {
-    const got = assignVoices(["윤서", "태오", "민재"]);
-    const presets = Object.values(got).map((x) => x.preset);
-    expect(new Set(presets).size).toBe(3);
-  });
-
-  it("같은 배역 목록이면 항상 같은 결과 — 다시 들어와도 목소리가 바뀌지 않는다", () => {
-    expect(assignVoices(["윤서", "태오"])).toEqual(assignVoices(["윤서", "태오"]));
-  });
-
-  it("프리셋 수보다 배역이 많으면 돌려 쓴다", () => {
-    const roles = Array.from({ length: 13 }, (_, i) => `역${i}`);
-    const got = assignVoices(roles);
-    expect(Object.keys(got)).toHaveLength(13);
-    expect(Object.values(got).every((x) => x.preset)).toBe(true);
+describe("deviceStyles", () => {
+  it("배역 순서대로 말투를 주고, 말투 수보다 배역이 많으면 돌려 쓴다", () => {
+    const got = deviceStyles(["윤서", "태오", "민재", "역3", "역4", "역5"]);
+    expect(Object.values(got).map((x) => x.pitch)).toEqual([1.0, 1.12, 0.9, 1.06, 0.95, 1.0]);
   });
 
   it("기기 음성 쪽 피치를 극단으로 벌리지 않는다", () => {
     // 포먼트 보정이 없는 엔진에서 피치를 크게 흔들면 기계 소리가 난다.
-    const got = assignVoices(Array.from({ length: 8 }, (_, i) => `역${i}`));
-    for (const { device } of Object.values(got)) {
-      expect(device.pitch).toBeGreaterThanOrEqual(0.85);
-      expect(device.pitch).toBeLessThanOrEqual(1.2);
+    const got = deviceStyles(Array.from({ length: 8 }, (_, i) => `역${i}`));
+    for (const { pitch } of Object.values(got)) {
+      expect(pitch).toBeGreaterThanOrEqual(0.85);
+      expect(pitch).toBeLessThanOrEqual(1.2);
     }
   });
 
   it("배역이 없으면 빈 것을 준다", () => {
-    expect(assignVoices([])).toEqual({});
+    expect(deviceStyles([])).toEqual({});
   });
 });

@@ -84,8 +84,8 @@ test("reading.session: 가리기는 localStorage acttub.reading.mask 에 대본�
 });
 
 test("reading.cast: 못 보낸 목소리는 localStorage acttub.reading.pending_voices 에 대본별 JSON 으로 남는다", async () => {
-  assert.equal(await saveVoicePreset("script-1", "c-nina", "M3", failingUpdate), false);
-  assert.equal(await saveVoicePreset("script-1", "c-tre", null, failingUpdate), false);
+  assert.equal(await saveVoicePreset("script-1", "c-nina", "M3", failingUpdate), null);
+  assert.equal(await saveVoicePreset("script-1", "c-tre", null, failingUpdate), null);
   assert.deepEqual(snapshot(), {
     local: { "acttub.reading.pending_voices": '{"script-1":{"c-nina":"M3","c-tre":null}}' },
     session: {},
@@ -124,7 +124,7 @@ test("reading.session: 저장소가 막혀 있으면 읽기는 기본값, 쓰기
   assert.doesNotThrow(() => saveMask("script-1", "hide_all"));
   assert.equal(loadMask("script-1"), "show_all");
 
-  assert.equal(await saveVoicePreset("script-1", "c-nina", "M3", failingUpdate), false);
+  assert.equal(await saveVoicePreset("script-1", "c-nina", "M3", failingUpdate), null);
   assert.deepEqual(pendingVoicePresets("script-1"), {});
 
   assert.doesNotThrow(() => startCompletionRetry("session-1", body, idle));
