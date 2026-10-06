@@ -22,7 +22,7 @@ export function exitConfirmCopy(lastDialogueNo: number): string {
 }
 
 export function sessionStatusLabel(status: SessionStatus): string {
-  return status === "in_progress" ? "진행 중" : status === "completed" ? "완료" : "중단";
+  return status === "in_progress" ? "진행 중" : "완료";
 }
 
 /** 걸린 시간 "mm:ss". 분도 두 자리로 채운다(1시간이 넘으면 "61:01"). */

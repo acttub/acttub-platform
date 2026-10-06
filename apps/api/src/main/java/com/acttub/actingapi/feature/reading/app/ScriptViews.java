@@ -16,7 +16,7 @@ public final class ScriptViews {
 
     /**
      * @param recordingCount 모든 회차의 녹음 수
-     * @param openSessionId 열린 회차(진행 중)의 id. 없으면 {@code null}
+     * @param openSessionId 가장 최근에 시작한 진행 중 회차의 id. 없으면 {@code null}
      * @param lastSession 마지막 회차. 회차가 없으면 {@code null}
      */
     public record ScriptView(

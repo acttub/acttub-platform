@@ -232,7 +232,7 @@ test("reading.session: 나가기 확인 문구는 \"지금 나가면 N번 대사
   assert.equal(NO_SPEECH_NOTICE, "다음을 눌러 넘길 수 있어요");
   assert.equal(RECORD_NOTICE, "내 차례 녹음은 내 계정에 저장돼요");
   assert.equal(resumeLabel({ done: 3, total: 10 }), "이어서 연습 · 3 / 10");
-  assert.deepEqual(["in_progress", "completed", "stopped"].map(sessionStatusLabel), ["진행 중", "완료", "중단"]);
+  assert.deepEqual(["in_progress", "completed"].map(sessionStatusLabel), ["진행 중", "완료"]);
 });
 
 test("reading.session: 가이드 문구는 녹음 끔·수동 넘김·암기 대조에 맞게 갈리고 \"항상 자동 녹음·자동 다음\" 을 약속하지 않는다", () => {

@@ -23,7 +23,7 @@ public interface SessionRepository {
     /**
      * 회차를 한 트랜잭션에서 시작한다 — 대본 행을 잠그고, 같은 (user_id, request_id) 가 있으면 그것으로 답하고
      * (속성이 같으면 {@link StartOutcome#REPLAYED}, 다르면 {@link StartOutcome#REQUEST_MISMATCH}), 내 배역·구간을
-     * 확인한 뒤, 열린 회차를 {@code stopped} 로 바꾸고 새 회차를 만든다. 거절이면 아무것도 쓰지 않는다.
+     * 확인한 뒤 새 회차를 만든다. 같은 대본의 진행 중 회차는 그대로 둔다. 거절이면 아무것도 쓰지 않는다.
      *
      * @return 대본이 없거나 남의 것이면 {@code null}
      */

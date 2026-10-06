@@ -8,12 +8,10 @@ import jakarta.persistence.Converter;
  * <p>값 이름은 DB CHECK 값이자 API 값이다. 한쪽만 고치면 {@code ValueCheckCatalogIT} 가 잡는다.
  */
 public enum ReadingSessionStatus implements PgEnum {
-    /** 진행 중 — 대본당 하나다. */
+    /** 진행 중 — 한 대본에 여럿일 수 있다. */
     IN_PROGRESS("in_progress"),
     /** 구간의 끝 대사를 지났다. */
-    COMPLETED("completed"),
-    /** 새 회차가 닫았다. */
-    STOPPED("stopped");
+    COMPLETED("completed");
 
     private final String dbValue;
 
