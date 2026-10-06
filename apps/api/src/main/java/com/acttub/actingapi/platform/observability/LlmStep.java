@@ -24,7 +24,7 @@ public enum LlmStep {
     MEMORY_EXTRACTION("memory.extraction"),
     /**
      * 대본 글을 배역·대사로 나눈다 (reading.script). 연습 회차가 없는 유일한 자리라 기록을 묶는 열쇠
-     * ({@code LlmCall.practiceSessionId})에 나누기 요청 id 를 넣는다.
+     * ({@code LlmCall.practiceSessionId})에 나누기 작업({@code ai_jobs}) id 를 넣는다.
      */
     SCRIPT_SPLIT("script.split");
 

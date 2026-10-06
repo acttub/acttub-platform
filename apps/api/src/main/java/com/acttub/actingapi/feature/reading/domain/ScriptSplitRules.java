@@ -14,6 +14,12 @@ public final class ScriptSplitRules {
     /** 조각이 둘 이상이면 앞 이만큼으로 배역 목록을 먼저 받는다. 없으면 화자 빈 대사가 458줄이었다. */
     public static final int ROSTER_LINES = 400;
 
+    /**
+     * 한 작업이 동시에 보내는 호출 수의 상한. 4,256줄은 조각 29개라 두 묶음이 된다 — 작업 넷이 함께 돌아도 OpenAI 로 나가는
+     * 동시 호출이 64를 넘지 않는다(Tier 1 분당 500회).
+     */
+    public static final int PARALLEL_CALLS = 16;
+
     /** 빠지거나 버린 줄을 다시 묻는 횟수. 그래도 남으면 지문이다. */
     public static final int MISSING_ROUNDS = 2;
 

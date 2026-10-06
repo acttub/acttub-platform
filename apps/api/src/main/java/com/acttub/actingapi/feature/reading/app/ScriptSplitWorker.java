@@ -192,9 +192,9 @@ public class ScriptSplitWorker {
         void run(List<NumberedLine> chunk);
     }
 
-    /** 조각을 동시에 보낸다. 하나라도 끝내 실패하면 작업 전체가 실패다. */
+    /** 조각을 동시에 보낸다(한 번에 {@link ScriptSplitRules#PARALLEL_CALLS} 개까지). 하나라도 끝내 실패하면 작업 전체가 실패다. */
     private static void inParallel(List<List<NumberedLine>> chunks, ChunkTask task) {
-        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+        try (ExecutorService executor = Executors.newFixedThreadPool(Math.max(1, Math.min(chunks.size(), ScriptSplitRules.PARALLEL_CALLS)))) {
             List<Future<?>> futures = new ArrayList<>();
             for (List<NumberedLine> chunk : chunks) {
                 futures.add(executor.submit(() -> task.run(chunk)));
@@ -248,7 +248,7 @@ public class ScriptSplitWorker {
             throw last;
         }
 
-        /** 비용·속도를 셀 수 있게 호출마다 한 줄 남긴다 — 글은 남기지 않는다. */
+        /** 비용·속도를 셀 수 있게 호출마다 로그 한 줄 — 로그에는 글을 남기지 않는다(관측 기록에는 원문이 그대로 실린다). */
         private void record(String instructions, String input, GeneratedText generated, Instant startedAt, RuntimeException failure) {
             Duration took = Duration.between(startedAt, clock.instant());
             LOG.info("script split call job={} model={} input_tokens={} output_tokens={} took_ms={} error={}", jobId,
