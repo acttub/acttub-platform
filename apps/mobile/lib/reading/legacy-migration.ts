@@ -10,8 +10,7 @@
  * 네이티브 모듈 없이 성립하도록 저장소·API·파일 삭제를 넣어 받는다(local-account-wipe 와 같은 방식).
  */
 import { ApiError, NetworkError, RequestAbortError, classifyUnprocessable } from '../api-request.ts';
-import type { ScriptLine } from './parse.ts';
-import type { CreateScriptBody, MemorizationStatus, ScriptDetail } from './types.ts';
+import type { CreateScriptBody, MemorizationStatus, ScriptDetail, ScriptLine } from './types.ts';
 
 /** 옛 저장소 키. 'acttub.' 접두사라 탈퇴 때 함께 지워진다. */
 export const LEGACY_SCRIPTS_KEY = 'acttub.reading.scripts';

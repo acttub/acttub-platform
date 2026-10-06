@@ -27,8 +27,7 @@ import {
 } from '@/lib/reading/session-plan';
 import { getCurrent, listSessions, startSession, updateCurrent, type MaskMode } from '@/lib/reading/store';
 import * as engine from '@/lib/reading/tts/engine';
-import type { ScriptLine } from '@/lib/reading/parse';
-import type { SessionCard } from '@/lib/reading/types';
+import type { ScriptLine, SessionCard } from '@/lib/reading/types';
 import { newRequestId } from '@/lib/request-id';
 import { relativeDay } from '@/lib/reading/script-cards';
 import { translate as t } from '@/lib/i18n';

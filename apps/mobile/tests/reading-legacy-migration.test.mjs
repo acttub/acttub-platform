@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { ApiError, NetworkError } from '../lib/api-request.ts';
-import { parseScript } from '../lib/reading/parse.ts';
 import {
   LEGACY_MIGRATION_KEY,
   LEGACY_SCRIPTS_KEY,
@@ -123,7 +122,7 @@ function phone({ scripts = [OLD_ONE, OLD_TWO], limitAfter = Infinity, networkDow
   return { items, disk, server, deps, remaining: () => JSON.parse(items.get(LEGACY_SCRIPTS_KEY) ?? '[]') };
 }
 
-test('reading.script: 옛 대본의 원문은 줄에서 "이름: 대사" 꼴로 되살리고, 다시 나누면 같은 배역·줄이 나온다', () => {
+test('reading.script: 옛 대본의 원문은 줄에서 "이름: 대사" 꼴로 되살린다', () => {
   const raw = rebuildRawText(OLD_ONE);
   assert.equal(
     raw,
@@ -135,10 +134,6 @@ test('reading.script: 옛 대본의 원문은 줄에서 "이름: 대사" 꼴로 
 윤서: 너 힘들면 항상 높은 데로 가잖아.
 태오: 그런가.`,
   );
-  const again = parseScript(raw);
-  assert.equal(again.title, '옥상, 밤');
-  assert.deepEqual(again.roles, OLD_ONE.roles);
-  assert.deepEqual(again.lines, OLD_ONE.lines);
 });
 
 test('reading.script: 옛 대본 둘(하나에 외운 줄 셋)과 녹음 하나가 있는 기기 — 서버에 대본 둘(paste), 외운 줄 셋이 memorized, 기기의 대본·녹음 파일이 없다', async () => {

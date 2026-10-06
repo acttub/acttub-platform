@@ -16,12 +16,13 @@ import { hideAutoAdvanceTip, isAutoAdvanceTipHidden } from '@/lib/reading/guide-
 import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
 import { currentTutorial } from '@/lib/tutorial';
 import { currentNetworkType } from '@/lib/reading/network';
-import { dialogueNumbers, speakableText, type DialogueLine, type ScriptLine } from '@/lib/reading/parse';
+import { speakableText } from '@/lib/reading/tts/speakable';
+import type { DialogueLine, ScriptLine } from '@/lib/reading/types';
 import { closeProgressQueue, openProgressQueue, type ProgressQueue } from '@/lib/reading/progress-queue';
 import { RECORDING_MAX_MS, contentTypeFor, nextAttemptNo, transcriptFields } from '@/lib/reading/recording-plan';
 import { enqueueLineRecording, onRecordingQueueChange, pendingRecordingUploads } from '@/lib/reading/recording-runner';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
-import { buildStartBody } from '@/lib/reading/session-plan';
+import { buildStartBody, dialogueNumbers } from '@/lib/reading/session-plan';
 import { directionLabel, readDialogueCount, reportCompletion, type DifferentView } from '@/lib/reading/session-results';
 import {
   advance,

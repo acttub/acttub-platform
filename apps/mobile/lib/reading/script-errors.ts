@@ -32,8 +32,3 @@ export function scriptErrorMessage(error: unknown): string {
   return error instanceof Error && error.message ? error.message : t('errors.generic', { status: '?' });
 }
 
-/** 대본 넣기(R2) 위 저장 실패 알림. 배역을 못 찾았으면 그 알림(R2.13), 나머지는 「저장」 알림(R2.12)이다. */
-export function scriptSaveAlert(error: unknown): { title: string; message: string } {
-  const title = scriptErrorCodeOf(error) === 'no_characters' ? t('reading.noCharactersTitle') : t('common.save');
-  return { title, message: scriptErrorMessage(error) };
-}

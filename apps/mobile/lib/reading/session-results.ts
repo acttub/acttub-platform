@@ -4,9 +4,8 @@
  * 화면은 그 어절 표시대로 원문을 노랗게 칠하고 아래에 말한 것을 보인다(components/diff-text).
  */
 import { errorCode } from '../api-request.ts';
-import type { ScriptLine } from './parse.ts';
 import { isPermanentSaveError } from './progress-queue.ts';
-import type { DifferentLine, ProgressBody, ProgressResponse, SessionDetail } from './types.ts';
+import type { DifferentLine, ProgressBody, ProgressResponse, ScriptLine, SessionDetail } from './types.ts';
 
 /**
  * 완료 화면 「원문과 다르게 말한 대사」 칸. waiting 은 완료 저장 응답을 기다리는 중, later 는 저장이 닿지 않아(끊김)

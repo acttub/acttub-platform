@@ -5,9 +5,8 @@
  * K 는 지난 대사 수, 시간은 일시정지를 뺀 흐른 시간이다. 내 줄마다 말한 것(음성 인식 결과)만 남겨 진행 저장에 싣고,
  * 원문과의 비교는 서버가 한다. 같은 줄을 다시 말하면 마지막 말이 이긴다. 말한 것은 흐름에 끼어들지 않는다.
  */
-import type { ScriptLine } from './parse.ts';
 import { dialogueNumbers } from './session-plan.ts';
-import type { LineSaid } from './types.ts';
+import type { LineSaid, ScriptLine } from './types.ts';
 import type { MaskMode } from './store.ts';
 import { translate as t } from '../i18n.ts';
 
