@@ -9,8 +9,8 @@ process.env.NEXT_PUBLIC_API_BASE_URL = "";
 
 const React = await import("react");
 const { renderToStaticMarkup } = await import("react-dom/server");
-const { DoneBody, REVIEW_HEADING } = await import("../src/features/reading/screens/DoneBody.tsx");
-const { resumeProgress, sessionDateLabel } = await import("../src/features/reading/session-cards.ts");
+const { DIFFERENT_LATER_COPY, DoneBody, REVIEW_HEADING } = await import("../src/features/reading/screens/DoneBody.tsx");
+const { sessionDateLabel } = await import("../src/features/reading/session-cards.ts");
 
 const script = {
   id: "script-1",
@@ -39,24 +39,23 @@ const render = (stats) =>
 const text = (html) => html.replace(/<[^>]+>/g, "");
 
 test("reading.session: 완료 화면에는 내 배역·읽은 대사·걸린 시간이 있고 점수·등급·칭찬 문구가 없다", () => {
-  const t = text(render({ mode: "read", elapsedMs: 125_000, lineCount: 5, myCharacterNames: ["니나"], lineResults: [] }));
+  const t = text(render({ mode: "read", elapsedMs: 125_000, lineCount: 5, myCharacterNames: ["니나"], lineResults: [], differentLines: [] }));
   assert.equal(t.includes("니나"), true);
   assert.equal(t.includes("5줄"), true);
   assert.equal(t.includes("02:05"), true);
   for (const banned of ["정확도", "%", "잘했어요", "훌륭"]) assert.equal(t.includes(banned), false, banned);
 });
 
-test("reading.session: 다시 볼 대사에는 원문과 대사 번호만 있고 unmatched·skipped 가 없으면 절이 없다", () => {
+const read = { mode: "read", elapsedMs: 1_000, lineCount: 5, myCharacterNames: ["니나"], lineResults: [] };
+const differentLine = (lineId, dialogueNo, said, words) => ({ line_id: lineId, dialogue_no: dialogueNo, said, different_words: words });
+
+test("reading.session: read 완료의 다시 볼 대사는 서버 different_lines 의 대사 번호와 원문이고, 없으면 절이 없다", () => {
   const withReview = text(
     render({
-      mode: "read",
-      elapsedMs: 1_000,
-      lineCount: 5,
-      myCharacterNames: ["니나"],
-      lineResults: [
-        { line_id: "l-1", outcome: "passed", misses: 0 },
-        { line_id: "l-3", outcome: "unmatched", misses: 1 },
-        { line_id: "l-5", outcome: "skipped", misses: 0 },
+      ...read,
+      differentLines: [
+        differentLine("l-3", 3, "섯", [{ text: "셋.", differs: true }]),
+        differentLine("l-5", 5, null, [{ text: "다섯.", differs: false }]),
       ],
     }),
   );
@@ -64,9 +63,40 @@ test("reading.session: 다시 볼 대사에는 원문과 대사 번호만 있고
   assert.equal(withReview.includes("3번셋."), true);
   assert.equal(withReview.includes("5번다섯."), true);
   assert.equal(withReview.includes("하나."), false);
+  assert.equal(withReview.includes(DIFFERENT_LATER_COPY), false);
 
-  const none = text(render({ mode: "read", elapsedMs: 1_000, lineCount: 5, myCharacterNames: ["니나"], lineResults: [{ line_id: "l-1", outcome: "passed", misses: 0 }] }));
+  const none = text(render({ ...read, differentLines: [] }));
   assert.equal(none.includes("암기 필요"), false);
+  assert.equal(none.includes(DIFFERENT_LATER_COPY), false);
+});
+
+test("reading.session: read 완료 응답을 받지 못했으면 다시 볼 대사 자리에 안내 한 줄만 있다", () => {
+  const t = text(render({ ...read, differentLines: null }));
+  assert.equal(t.includes("연결되면 비교 결과를 보여 드릴게요"), true);
+  assert.equal(t.includes("암기 필요"), false);
+  assert.equal(t.includes("리딩을 마쳤어요"), true);
+  assert.equal(t.includes("촬영 준비로"), true);
+});
+
+test("reading.session: quiz 완료의 다시 볼 대사는 기기가 정한 unmatched·skipped 줄이다", () => {
+  const t = text(
+    render({
+      mode: "quiz",
+      elapsedMs: 1_000,
+      lineCount: 5,
+      myCharacterNames: ["니나"],
+      lineResults: [
+        { line_id: "l-1", outcome: "passed", misses: 0 },
+        { line_id: "l-3", outcome: "unmatched", misses: 2 },
+        { line_id: "l-5", outcome: "skipped", misses: 0 },
+      ],
+      differentLines: null,
+    }),
+  );
+  assert.equal(t.includes(REVIEW_HEADING(2)), true);
+  assert.equal(t.includes("3번셋."), true);
+  assert.equal(t.includes("5번다섯."), true);
+  assert.equal(t.includes(DIFFERENT_LATER_COPY), false);
 });
 
 test("reading.session: quiz 완료는 \"맞춘 줄 K / 시도 N · 아직 안 나온 줄 P\" 를 보여 주고 대사 정확도 % 는 없다", () => {
@@ -89,15 +119,11 @@ test("reading.session: quiz 완료는 \"맞춘 줄 K / 시도 N · 아직 안 �
 });
 
 test("reading.session: 완료 화면의 코치 카드는 촬영 준비로 잇고 리딩 자료는 보내지 않는다고 말한다", () => {
-  const html = render({ mode: "read", elapsedMs: 1_000, lineCount: 5, myCharacterNames: ["니나"], lineResults: [] });
+  const html = render({ ...read, differentLines: [] });
   assert.match(html, /href="\/practice\/new"/);
   assert.equal(text(html).includes("리딩 자료는 보내지 않아요"), true);
 });
 
-test("reading.session: 회차 카드의 날짜는 한국 날짜로 보이고, 열린 회차의 \"이어서 연습 · K / N\" 은 지난 대사 수다", () => {
+test("reading.session: 회차 카드의 날짜는 한국 날짜로 보인다", () => {
   assert.equal(sessionDateLabel("2026-05-25T12:00:00+09:00", "Asia/Seoul"), "5월 25일");
-  // 13번 대사를 지나 다음이 l-3(대사 3) 이면 지난 대사는 2
-  assert.deepEqual(resumeProgress(script, { start_line_id: "l-1", end_line_id: "l-5", current_line_id: "l-3" }), { done: 2, total: 5 });
-  assert.deepEqual(resumeProgress(script, { start_line_id: "l-1", end_line_id: "l-5", current_line_id: "l-1" }), { done: 0, total: 5 });
-  assert.deepEqual(resumeProgress(script, { start_line_id: "l-1", end_line_id: "l-5", current_line_id: null }), { done: 0, total: 5 });
 });

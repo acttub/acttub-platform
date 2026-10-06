@@ -5,7 +5,7 @@
  * 완료마다 서버에 저장하고, 나가기 확인을 다룬다. 화면은 그리는 것과 자기 방식의 조작만 맡는다.
  */
 import { useEffect, useRef, useState } from "react";
-import type { SessionDetail } from "@/lib/reading/api-types";
+import type { ProgressResponse, SessionDetail } from "@/lib/reading/api-types";
 import type { RehearsalState } from "@/lib/reading/rehearsal/machine";
 import { voicesFor } from "@/lib/reading/session/cast";
 import { loadMask, type MaskMode } from "@/lib/reading/session/mask";
@@ -41,12 +41,13 @@ export function useRunSession(script: StoredScript, session: SessionDetail) {
     savedStatus.current = state.status;
   };
 
-  const stats = (mode: SessionDetail["mode"], lineCount: number): RunStats => ({
+  const stats = (mode: SessionDetail["mode"], lineCount: number, completion: ProgressResponse | null = null): RunStats => ({
     mode,
     elapsedMs: sync.clock.elapsedMs(),
     lineCount,
     myCharacterNames: session.my_character_names,
-    lineResults: sync.results.list(),
+    lineResults: sync.results.outcomes(),
+    differentLines: completion?.different_lines ?? null,
   });
 
   return { myRoles, range, from, styleFor, sync, mask, setMask, confirmExit, setConfirmExit, track, stats };

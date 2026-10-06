@@ -2,7 +2,7 @@
 
 /**
  * 읽어주기(D18, reading.session). 상대 대사는 기기가 읽고 내 대사에서 멈춰 기다린다. 진행 "K / N · mm:ss",
- * 가리기 토글과 원문 보기, STT 가 있으면 "방금 말한 것"(흐름에는 끼어들지 않고 대조 결과만 줄 결과에 남김),
+ * 가리기 토글과 원문 보기, STT 가 있으면 "방금 말한 것"(흐름에는 끼어들지 않고 줄 결과에 실어 서버가 원문과 비교),
  * 60초 무발화 안내(자동 넘김 없음), 나가기 확인, 목소리 준비 실패 → 글로 보기.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -10,7 +10,6 @@ import { useLineRecorder } from "@/features/reading/hooks/useLineRecorder";
 import { useRehearsalRunner, type PartnerVoice } from "@/features/reading/hooks/useRehearsalRunner";
 import { useRevealed, useRunSession } from "@/features/reading/hooks/useRunSession";
 import { startAutoRecognition, sttAvailable, type AutoListening } from "@/lib/reading/audio/stt";
-import { compare, MATCH_MAX_CHARS } from "@/lib/reading/quiz/match";
 import { progress, window as rehearsalWindow } from "@/lib/reading/rehearsal/machine";
 import type { DialogueLine } from "@/lib/reading/script/parse";
 import type { SessionDetail } from "@/lib/reading/api-types";
@@ -71,30 +70,25 @@ export function RehearsalScreen({
 
   useEffect(() => {
     if (state.status !== "done") return;
-    void run.sync.finish().then(() => onFinish(run.stats("read", prog.total)));
+    void run.sync.finish().then((answer) => onFinish(run.stats("read", prog.total, answer)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.status]);
 
-  // "방금 말한 것": STT 가 있으면 내 차례에 말한 것을 글자로 보여 주고 원문과 대조해 줄 결과에 남긴다.
+  // "방금 말한 것": STT 가 있으면 내 차례에 말한 것을 글자로 보여 주고 줄 결과에 싣는다. 원문과의 비교는 서버가 한다.
   // 흐름에는 끼어들지 않는다 — 넘어가는 것은 침묵 감지나 버튼이다.
   const [said, setSaid] = useState<string | null>(null);
   const recRef = useRef<AutoListening | null>(null);
   const isMe = state.status === "me";
   const listen = useCallback(
     (lineIndex: number) => {
-      const line = script.lines[lineIndex];
       const lineId = script.lineIds[lineIndex];
-      if (line?.type !== "dialogue") return;
+      if (script.lines[lineIndex]?.type !== "dialogue") return;
       recRef.current = startAutoRecognition({
         onInterim: (t) => setSaid(t),
         onText: (t) => {
           setSaid(t);
-          // 대조는 원문과 말한 것 각각 1,000자까지만. 넘으면 대조하지 않고 기록도 남기지 않는다.
-          if (!t.trim() || t.length > MATCH_MAX_CHARS || line.text.length > MATCH_MAX_CHARS) return;
-          const passed = compare(t, line.text).pass;
-          if (passed) run.sync.results.pass(lineId);
-          else run.sync.results.miss(lineId);
-          rec.noteTranscript(lineId, t, passed, "stt");
+          run.sync.results.say(lineId, t);
+          rec.noteTranscript(lineId, t, null, "stt");
         },
         onError: () => {
           /* 인식 불가·무발화는 기록하지 않는다 */

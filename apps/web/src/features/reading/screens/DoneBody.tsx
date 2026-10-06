@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * 완료(D19, reading.session)의 본문. 내 배역, 읽은 대사(구간 안 대사 줄 수), 걸린 시간, 다시 볼 대사(unmatched·
- * skipped 줄의 원문과 대사 번호, 없으면 절을 숨김), quiz 는 "맞춘 줄 K / 시도 N · 아직 안 나온 줄 P", 코치 카드
+ * 완료(D19, reading.session)의 본문. 내 배역, 읽은 대사(구간 안 대사 줄 수), 걸린 시간, 다시 볼 대사(원문과 대사 번호,
+ * 없으면 절을 숨김. read 는 서버 비교 결과라 아직 받지 못했으면 안내 한 줄), quiz 는 "맞춘 줄 K / 시도 N · 아직 안 나온 줄 P", 코치 카드
  * (촬영으로 잇는 안내, 리딩 자료는 보내지 않음), 다음 행동. 잘했는지를 말하는 문구는 없다.
  * 화면 껍데기(Page)는 DoneScreen 이 씌운다 — 문구 테스트가 이 본문만 그린다.
  */
-import { quizSummaryLabel, reviewLines } from "@/lib/reading/session/results";
+import { quizSummaryLabel, reviewFor } from "@/lib/reading/session/results";
 import type { RunStats, StoredScript } from "@/lib/reading/storage";
 import { clockLabel } from "@/features/reading/session-copy";
 import { Button, Icon } from "@/features/reading/ui";
@@ -14,6 +14,8 @@ import { Button, Icon } from "@/features/reading/ui";
 export const REVIEW_HEADING = (n: number) => `암기 필요 ${n}`;
 
 export const SAVING_COPY = "저장 중";
+
+export const DIFFERENT_LATER_COPY = "연결되면 비교 결과를 보여 드릴게요";
 
 export function DoneBody({
   script,
@@ -41,7 +43,7 @@ export function DoneBody({
   /** 다시 볼 대사 전체보기 → 암기 화면(그 회차의 배역과 다시 볼 줄) */
   onReview?: () => void;
 }) {
-  const review = reviewLines(script, stats.lineResults);
+  const review = reviewFor(script, stats);
   const items: [string, string][] = [
     [stats.myCharacterNames.join(", ") || "배역 미선택", "내 배역"],
     [`${stats.lineCount}줄`, "읽은 대사"],
@@ -79,7 +81,15 @@ export function DoneBody({
         </div>
       )}
 
-      {review.length > 0 && (
+      {review === null && (
+        <section className="w-full bg-surface border border-line rounded-[18px] p-4">
+          <p className="text-[13px] font-bold text-ink-4" role="status">
+            {DIFFERENT_LATER_COPY}
+          </p>
+        </section>
+      )}
+
+      {review && review.length > 0 && (
         <section className="w-full bg-surface border border-line rounded-[18px] p-4 flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <h2 className="text-[13px] font-black text-ink-3">{REVIEW_HEADING(review.length)}</h2>

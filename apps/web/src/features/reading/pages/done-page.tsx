@@ -5,7 +5,9 @@ import { useCompletionPending } from "@/features/reading/hooks/useCompletionPend
 import { DoneScreen } from "@/features/reading/screens/DoneScreen";
 import { useReadingStep } from "@/features/reading/use-reading-step";
 import { useSessionStart } from "@/features/reading/use-session-start";
-import { reviewLines } from "@/lib/reading/session/results";
+import { getSession } from "@/lib/api/v2/reading-sessions";
+import { useResource } from "@/lib/react/use-resource";
+import { reviewFor } from "@/lib/reading/session/results";
 import { MEMORIZE_PATH, scriptDetailPath, STEP_PATH } from "@/lib/reading/step";
 import { storage } from "@/lib/reading/storage";
 
@@ -14,17 +16,21 @@ export function DonePage() {
   const router = useRouter();
   const { script, session, stats, ready } = useReadingStep("done");
   const repeat = useSessionStart(() => router.push(STEP_PATH.run));
-  const saving = useCompletionPending(session?.id ?? null);
+  const { completing, uploading } = useCompletionPending(session?.id ?? null);
+  // read 의 완료 응답을 받지 못했다(끊김·409 session_closed). 완료 저장이 끝나면 회차 상세의 different_lines 를 읽는다.
+  const detailKey = session && stats?.mode === "read" && !stats.differentLines && !completing ? session.id : null;
+  const detail = useResource(detailKey, (id, signal) => getSession(id, { signal }), "");
   if (!ready || !script || !session || !stats) return <div className="min-h-svh" />;
+  const shown = detail.state === "ready" ? { ...stats, differentLines: detail.data.different_lines } : stats;
   return (
     <DoneScreen
       script={script}
-      stats={stats}
+      stats={shown}
       repeating={repeat.starting}
       error={repeat.error}
-      saving={saving}
+      saving={completing || uploading}
       onReview={() => {
-        storage.saveMemorizeEntry({ scriptId: script.id, roles: session.my_character_names, lineIds: reviewLines(script, stats.lineResults).map((r) => r.lineId) });
+        storage.saveMemorizeEntry({ scriptId: script.id, roles: session.my_character_names, lineIds: (reviewFor(script, shown) ?? []).map((r) => r.lineId) });
         router.push(MEMORIZE_PATH);
       }}
       onRepeat={() => {
