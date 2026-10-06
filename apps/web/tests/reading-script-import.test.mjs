@@ -238,22 +238,24 @@ test("reading.script: R2.14 [동의하고 나누기]는 현재 판 script_split 
   assert.equal(calls[2][1], calls[0][1]);
 });
 
-test("reading.script: 동의를 저장하지 못하면 다시 맡기지 않고 동의 대화상자에 까닭을 싣는다. 문서가 아직 없으면 저장 실패다", async () => {
-  const refused = fakeServer({
-    overrides: { grantConsent: async () => Promise.reject(new ApiError(403, "member_only", "회원만 결정할 수 있습니다.")) },
-  });
+test("reading.script: 게스트라 동의를 받지 않거나(403 member_only) 동의 문서가 아직 없으면 다시 맡기지 않고 웹에서는 넣을 수 없다는 안내로 끝난다", async () => {
   const attempt = newAttempt(text());
-  const { outcome } = await agreeAndRetry(attempt, refused.deps, () => {});
-  assert.equal(outcome.kind, "consent_required");
-  assert.equal(typeof outcome.error, "string");
-  assert.deepEqual(refused.calls, []);
+  const guest = fakeServer({
+    overrides: { grantConsent: async () => Promise.reject(new ApiError(403, "member_only", "member_only")) },
+  });
+  assert.deepEqual((await agreeAndRetry(attempt, guest.deps, () => {})).outcome, { kind: "split_unavailable" });
+  assert.deepEqual(guest.calls, []);
 
   const noDocument = fakeServer({ overrides: { listConsentDocuments: async () => [{ id: "doc-privacy", type: "privacy" }] } });
-  assert.deepEqual((await agreeAndRetry(attempt, noDocument.deps, () => {})).outcome, {
-    kind: "failed",
-    message: "네트워크 연결을 확인하고 다시 시도해주세요.",
-  });
+  assert.deepEqual((await agreeAndRetry(attempt, noDocument.deps, () => {})).outcome, { kind: "split_unavailable" });
   assert.deepEqual(noDocument.calls, []);
+});
+
+test("reading.script: 동의 저장이 연결 문제로 실패하면 다시 맡기지 않고 동의 대화상자에 까닭을 실어 다시 누를 수 있게 한다", async () => {
+  const flaky = fakeServer({ overrides: { grantConsent: async () => Promise.reject(new NetworkError("끊김")) } });
+  const { outcome } = await agreeAndRetry(newAttempt(text()), flaky.deps, () => {});
+  assert.deepEqual(outcome, { kind: "consent_required", error: "응답을 받지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요." });
+  assert.deepEqual(flaky.calls, []);
 });
 
 test("reading.script: 들고 있던 upload_id 가 이미 대본이 됐으면(422 script_upload_used) 파일을 새로 올려 새 요청 id 로 한 번 더 맡긴다", async () => {

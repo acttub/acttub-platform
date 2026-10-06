@@ -36,6 +36,8 @@ export type ImportOutcome =
   | { kind: "consent_required"; error?: string }
   /** R2.15 */
   | { kind: "daily_limit" }
+  /** 웹 게스트는 나누기 동의(선택 문서)를 결정할 수 없고, 동의 문서가 아직 없을 수도 있다. 게스트 동의를 열지 정해지면 바뀔 자리 */
+  | { kind: "split_unavailable" }
   /** R2.4 */
   | { kind: "file_too_large" }
   /** R2.4 */
@@ -205,9 +207,10 @@ export async function agreeAndRetry(
 ): Promise<{ outcome: ImportOutcome; attempt: ImportAttempt }> {
   try {
     const document = (await deps.listConsentDocuments()).find((d) => d.type === "script_split");
-    if (!document) return { outcome: { kind: "failed", message: IMPORT_FAILED_COPY }, attempt };
+    if (!document) return { outcome: { kind: "split_unavailable" }, attempt };
     await deps.grantConsent(document.id);
   } catch (cause) {
+    if (cause instanceof ApiError && cause.code === "member_only") return { outcome: { kind: "split_unavailable" }, attempt };
     return { outcome: { kind: "consent_required", error: errorMessage(cause, CONSENT_FAILED_COPY) }, attempt };
   }
   return runImport(attempt, deps, onProgress);

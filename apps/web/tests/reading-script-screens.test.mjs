@@ -44,6 +44,7 @@ test("reading.script: 결과마다 앱 pen R2 장과 같은 뜻의 대화상자�
     inDialog({ kind: "daily_limit" }),
     "오늘은 대본을 더 넣을 수 없어요대본은 하루 20번까지 나눌 수 있어요. 내일 다시 넣어 주세요.확인",
   );
+  assert.equal(inDialog({ kind: "split_unavailable" }), "아직 웹에서는 내 대본을 넣을 수 없어요예시 대본으로 먼저 해 볼 수 있어요.확인");
   assert.equal(inDialog({ kind: "file_too_large" }), "파일을 읽지 못했어요파일이 너무 커요. 50MB까지 열 수 있어요.확인");
   assert.equal(
     inDialog({ kind: "file_unreadable" }),

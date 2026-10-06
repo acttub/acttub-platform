@@ -146,6 +146,7 @@ function fileSizeLabel(bytes: number): string {
 const NOTICE_COPY: Record<Exclude<ImportDialog["kind"], "duplicate" | "not_script" | "consent_required" | "failed">, { title: string; body: string }> = {
   no_characters: { title: "배역을 찾지 못했어요", body: "대본에 말하는 사람 이름이 있는지 확인하고 다시 넣어 주세요." },
   daily_limit: { title: "오늘은 대본을 더 넣을 수 없어요", body: "대본은 하루 20번까지 나눌 수 있어요. 내일 다시 넣어 주세요." },
+  split_unavailable: { title: "아직 웹에서는 내 대본을 넣을 수 없어요", body: "예시 대본으로 먼저 해 볼 수 있어요." },
   file_too_large: { title: "파일을 읽지 못했어요", body: "파일이 너무 커요. 50MB까지 열 수 있어요." },
   file_unreadable: {
     title: "파일을 읽지 못했어요",
