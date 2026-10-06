@@ -14,6 +14,11 @@ public final class RecordingRules {
 
     /** 한 줄 녹음 길이의 상한(밀리초). 넘으면 {@code recording_too_long}. */
     public static final int DURATION_MAX_MS = 180_000;
+    /**
+     * 저장할 m4a 의 최소 크기. 이보다 작으면 소리가 들어 있을 수 없다 — 0.1.2 운영 녹음의 대부분이 머리만 있는
+     * 258바이트 m4a 였다(인식기가 소리를 남기지 못한 기기).
+     */
+    public static final long STORED_MIN_BYTES = 1_000;
 
     /** 회원 계정의 저장 총량(바이트). 넘으면 기존은 보존하고 새 저장만 {@code recording_quota}. */
     public static final long MEMBER_QUOTA_BYTES = 1_000_000_000L;

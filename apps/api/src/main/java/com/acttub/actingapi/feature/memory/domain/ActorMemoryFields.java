@@ -2,6 +2,8 @@ package com.acttub.actingapi.feature.memory.domain;
 
 import java.util.List;
 
+import com.acttub.actingapi.platform.schema.MemoryField;
+
 /**
  * 배우 기억(유저.md)의 칸 (practice.memory, SOMA-603).
  *
@@ -16,14 +18,24 @@ import java.util.List;
 public final class ActorMemoryFields {
 
     public static final List<String> NAMES =
-            List.of("goal", "blockage", "wants", "habits", "avoid", "tone", "speech_self", "speech_actual");
+            known("goal", "blockage", "wants", "habits", "avoid", "tone", "speech_self", "speech_actual");
 
     /** 배우가 화면에서 읽고 고치는 칸. */
     public static final List<String> ACTOR_VISIBLE =
-            List.of("goal", "blockage", "wants", "habits", "avoid", "speech_self", "speech_actual");
+            known("goal", "blockage", "wants", "habits", "avoid", "speech_self", "speech_actual");
 
     /** 기억 갱신(모델)이 쓰는 칸. 다시 말하지 않을 것은 회차가 끝날 때 코드가 덧붙이고, 옛 화법 두 칸은 더 쓰지 않는다. */
-    public static final List<String> EXTRACTED = List.of("goal", "blockage", "wants", "habits", "tone");
+    public static final List<String> EXTRACTED = known("goal", "blockage", "wants", "habits", "tone");
+
+    /**
+     * DB 값 목록({@link MemoryField}, {@code ck_actor_memories_field})에 있는 칸만 남긴다. 새 칸의 마이그레이션이 아직 없는
+     * 배포에서도 같은 코드가 돈다 — 그때는 새 칸을 읽지도 쓰지도 않는다.
+     */
+    private static List<String> known(String... names) {
+        return java.util.Arrays.stream(names)
+                .filter(name -> java.util.Arrays.stream(MemoryField.values()).anyMatch(f -> f.dbValue().equals(name)))
+                .toList();
+    }
 
     private ActorMemoryFields() {
     }
