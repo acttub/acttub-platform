@@ -1032,12 +1032,287 @@ class AdminEndpointIT {
         assertThat(activities).isEqualTo(mapper.readTree("[]"));
     }
 
+    /**
+     * 업로드 완료 · 연습 미시작 원장(upload_only_rows). 진짜 미연결 업로드만 남고, pending·expired·미래
+     * finalized·신형 연결(practices.video_id)·구형 직접 연결(practice_sessions.upload_intent_id)·이관 연결
+     * (object_key 로 다시 찾은 videos 가 practices 에 쓰임)·챌린지 연결(status<>'deleted')·파기된 영상은 범위별로
+     * 제외한다. 마지막으로 삭제된 챌린지 참여작은 알려진 사각지대(앱 코드가 삭제 시 video_id 를 NULL 로
+     * 되돌려 DB 어디에도 이력이 남지 않는다)를 그대로 보여준다 — 이 테스트가 그 한계를 명시적으로 못박는다.
+     */
+    @Test
+    void opsCoreUploadOnlyRowsExposeUnlinkedFinalizedUploadsAndExcludeConnectedOrInvalidOnes() throws Exception {
+        UUID uploaderId = UUID.fromString("00000000-0000-4000-8000-000000000801");
+        insertUser(uploaderId, "uploader@example.com", NOW.minusHours(3));
+
+        // 제외: pending·expired·미래 finalized (video_id 도 없고 어느 연습도 없지만 상태/시각만으로 바로 빠진다)
+        UUID pendingUpload = insertUploadIntent(uploaderId, "uo-pending.mp4", "pending", NOW.minusMinutes(50), null, null, null);
+        UUID expiredUpload = insertUploadIntent(
+                uploaderId, "expired.mp4", "expired", NOW.minusMinutes(49), NOW.minusMinutes(49), null, null);
+        UUID futureUpload = insertUploadIntent(
+                uploaderId, "future.mp4", "finalized", NOW.minusMinutes(48), NOW.plusDays(1), null, null);
+
+        // 노출: 진짜 미연결 업로드
+        UUID exposedUpload = insertUploadIntent(
+                uploaderId, "exposed.mp4", "finalized", NOW.minusMinutes(30), NOW.minusMinutes(29), null, 12345);
+        UUID exposedVideo = insertVideo(uploaderId, "exposed.mp4", NOW.minusMinutes(29));
+        jdbc.update("UPDATE upload_intents SET video_id=? WHERE id=?", exposedVideo, exposedUpload);
+
+        // 제외: 신형 연결 (practices.video_id = ui.video_id)
+        UUID linkedUpload = insertUploadIntent(
+                uploaderId, "linked.mp4", "finalized", NOW.minusMinutes(28), NOW.minusMinutes(27), null, 1000);
+        UUID linkedVideo = insertVideo(uploaderId, "linked.mp4", NOW.minusMinutes(27));
+        jdbc.update("UPDATE upload_intents SET video_id=? WHERE id=?", linkedVideo, linkedUpload);
+        insertPractice1(UUID.randomUUID(), uploaderId, linkedVideo, "closed", "conversation_closed",
+                "three_layers_v1", NOW.minusMinutes(26));
+
+        // 제외: 구형 직접 연결 (practice_sessions.upload_intent_id = ui.id, video_id 없음)
+        UUID legacyUpload = insertUploadIntent(
+                uploaderId, "legacy.mp4", "finalized", NOW.minusMinutes(25), NOW.minusMinutes(24), null, 2000);
+        insertLegacyPracticeSession(uploaderId, legacyUpload, NOW.minusMinutes(23));
+
+        // 제외: 이관 연결 (ui.video_id 는 NULL 이지만 같은 object_key 의 videos 가 practices 에 쓰임)
+        UUID migratedUpload = insertUploadIntent(
+                uploaderId, "migrated.mp4", "finalized", NOW.minusMinutes(22), NOW.minusMinutes(21), null, 3000);
+        UUID migratedVideo = insertVideo(uploaderId, "migrated.mp4", NOW.minusMinutes(21));
+        insertPractice1(UUID.randomUUID(), uploaderId, migratedVideo, "closed", "conversation_closed",
+                "three_layers_v1", NOW.minusMinutes(20));
+
+        // 제외: 살아 있는 챌린지 참여작 연결
+        UUID challengeUpload = insertUploadIntent(
+                uploaderId, "challenge.mp4", "finalized", NOW.minusMinutes(19), NOW.minusMinutes(18), null, 4000);
+        UUID challengeVideo = insertVideo(uploaderId, "challenge.mp4", NOW.minusMinutes(18));
+        jdbc.update("UPDATE upload_intents SET video_id=? WHERE id=?", challengeVideo, challengeUpload);
+        UUID challenge = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO challenges (id,line,work,duration_days,origin,request_id,request_fingerprint,starts_at,ends_at)
+                VALUES (?, '대사', '작품', 7, 'team', ?, ?, ?, ?)
+                """, challenge, UUID.randomUUID(), "f".repeat(64), NOW.minusDays(1), NOW.plusDays(6));
+        jdbc.update("""
+                INSERT INTO challenge_entries (id,challenge_id,user_id,video_id,visibility,request_id,request_fingerprint,created_at)
+                VALUES (?, ?, ?, ?, 'private', ?, ?, ?)
+                """, UUID.randomUUID(), challenge, uploaderId, challengeVideo, UUID.randomUUID(), "g".repeat(64), NOW.minusMinutes(18));
+
+        // 제외: 파기된 영상 (연결 여부와 무관)
+        UUID purgedUpload = insertUploadIntent(
+                uploaderId, "purged.mp4", "finalized", NOW.minusMinutes(17), NOW.minusMinutes(16), null, 5000);
+        UUID purgedVideo = insertVideo(uploaderId, "purged.mp4", NOW.minusMinutes(16), NOW.minusMinutes(10));
+        jdbc.update("UPDATE upload_intents SET video_id=? WHERE id=?", purgedVideo, purgedUpload);
+
+        // 알려진 사각지대: 챌린지 참여작을 지우면 video_id 가 NULL 로 되돌아가 이 업로드가
+        // (사실과 다르게) '연습 미시작'으로 보인다 — 맞답이 아니라 DB 자체의 한계다.
+        UUID deletedChallengeUpload = insertUploadIntent(
+                uploaderId, "deleted-challenge.mp4", "finalized", NOW.minusMinutes(15), NOW.minusMinutes(14), null, 6000);
+        UUID deletedChallengeVideo = insertVideo(uploaderId, "deleted-challenge.mp4", NOW.minusMinutes(14));
+        jdbc.update("UPDATE upload_intents SET video_id=? WHERE id=?", deletedChallengeVideo, deletedChallengeUpload);
+        UUID deletedEntry = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO challenge_entries (
+                    id,challenge_id,user_id,video_id,visibility,status,request_id,request_fingerprint,created_at
+                ) VALUES (?, ?, ?, ?, 'private', 'visible', ?, ?, ?)
+                """, deletedEntry, challenge, uploaderId, deletedChallengeVideo, UUID.randomUUID(), "h".repeat(64), NOW.minusMinutes(14));
+        // 앱 코드와 같은 소프트 삭제 모양(PostgresEntryRepository#delete): video_id 를 NULL 로 되돌린다.
+        jdbc.update("UPDATE challenge_entries SET status='deleted',caption=NULL,video_id=NULL,deleted_at=? WHERE id=?",
+                NOW.minusMinutes(13), deletedEntry);
+
+        JsonNode rows = authorized("/v2/admin/ops-core", 200).path("upload_only_rows");
+
+        Set<String> ids = new HashSet<>();
+        for (JsonNode row : rows) {
+            ids.add(row.path("upload_intent_id").textValue());
+        }
+        assertThat(ids).contains(exposedUpload.toString(), deletedChallengeUpload.toString());
+        assertThat(ids).doesNotContain(
+                pendingUpload.toString(), expiredUpload.toString(), futureUpload.toString(),
+                linkedUpload.toString(), legacyUpload.toString(), migratedUpload.toString(),
+                challengeUpload.toString(), purgedUpload.toString());
+        assertThat(rows.toString()).doesNotContain("uploader@example.com", uploaderId.toString());
+
+        JsonNode exposedRow = findUploadOnly(rows, exposedUpload);
+        assertThat(exposedRow.fieldNames()).toIterable().containsExactly(
+                "upload_intent_id", "created_at", "actor", "is_team", "platform", "device", "duration_ms");
+        assertThat(exposedRow.path("created_at").textValue())
+                .isEqualTo(utc(NOW.minusMinutes(29).truncatedTo(ChronoUnit.MINUTES)));
+        assertThat(exposedRow.path("actor").textValue())
+                .isEqualTo("배우 " + md5(uploaderId.toString()).substring(0, 8));
+        assertThat(exposedRow.path("is_team").booleanValue()).isFalse();
+        assertThat(exposedRow.path("platform").textValue()).isEqualTo("웹");
+        assertThat(exposedRow.path("device").textValue()).isEqualTo("기록 없음");
+        assertThat(exposedRow.path("duration_ms").intValue()).isEqualTo(12345);
+    }
+
+    /** 팀 행도 거르지 않고 is_team=true 로 나간다. exclude_actors 가명도 같은 team CTE 를 공유해 그대로 적용된다. */
+    @Test
+    void opsCoreUploadOnlyRowsMarkTeamAndExcludedActorsWithoutFilteringThemOut() throws Exception {
+        UUID teamOnlyUpload = insertUploadIntent(
+                TEAM_USER, "team-only.mp4", "finalized", NOW.minusMinutes(5), NOW.minusMinutes(4), null, 500);
+        UUID teamVideo = insertVideo(TEAM_USER, "team-only.mp4", NOW.minusMinutes(4));
+        jdbc.update("UPDATE upload_intents SET video_id=? WHERE id=?", teamVideo, teamOnlyUpload);
+
+        JsonNode rows = authorized("/v2/admin/ops-core", 200).path("upload_only_rows");
+        assertThat(findUploadOnly(rows, teamOnlyUpload).path("is_team").booleanValue()).isTrue();
+
+        String realActor = md5(REAL_USER.toString()).substring(0, 8);
+        UUID realOnlyUpload = insertUploadIntent(
+                REAL_USER, "real-only.mp4", "finalized", NOW.minusMinutes(3), NOW.minusMinutes(2), null, 700);
+        UUID realVideo = insertVideo(REAL_USER, "real-only.mp4", NOW.minusMinutes(2));
+        jdbc.update("UPDATE upload_intents SET video_id=? WHERE id=?", realVideo, realOnlyUpload);
+
+        JsonNode excluded = authorized("/v2/admin/ops-core?exclude_actors=" + realActor, 200).path("upload_only_rows");
+        JsonNode realRow = findUploadOnly(excluded, realOnlyUpload);
+        assertThat(realRow.path("is_team").booleanValue()).isTrue();
+        assertThat(realRow.path("actor").textValue()).isEqualTo("배우 " + realActor);
+    }
+
+    /**
+     * 시각은 분 단위·UTC 로 뭉개고(activity_rows 와 같은 정밀도), created_at 은 finalized_at 을 우선한다.
+     * 같은 배우가 여러 번 올린 업로드도 모두 따로 나간다.
+     */
+    @Test
+    void opsCoreUploadOnlyRowsAnonymizeTimestampsPreferFinalizedAtAndListRepeatedActorsSeparately() throws Exception {
+        // finalized_at 이 created_at 보다 늦다 — 출력은 finalized_at 기준이어야 한다.
+        UUID first = insertUploadIntent(
+                REAL_USER, "first.mp4", "finalized",
+                NOW.minusMinutes(10), NOW.minusMinutes(6), null, 100);
+        UUID firstVideo = insertVideo(REAL_USER, "first.mp4", NOW.minusMinutes(6));
+        jdbc.update("UPDATE upload_intents SET video_id=? WHERE id=?", firstVideo, first);
+
+        UUID second = insertUploadIntent(
+                REAL_USER, "second.mp4", "finalized", NOW.minusMinutes(2), NOW.minusMinutes(2), null, 200);
+        UUID secondVideo = insertVideo(REAL_USER, "second.mp4", NOW.minusMinutes(2));
+        jdbc.update("UPDATE upload_intents SET video_id=? WHERE id=?", secondVideo, second);
+
+        JsonNode rows = authorized("/v2/admin/ops-core", 200).path("upload_only_rows");
+        Set<String> ids = new HashSet<>();
+        String actor = "배우 " + md5(REAL_USER.toString()).substring(0, 8);
+        for (JsonNode row : rows) {
+            ids.add(row.path("upload_intent_id").textValue());
+            assertThat(row.path("actor").textValue()).isEqualTo(actor);
+        }
+        assertThat(ids).contains(first.toString(), second.toString());
+        // finalized_at(6분 전) 이 created_at(10분 전) 보다 우선하고, 분 단위로 뭉개인다.
+        assertThat(findUploadOnly(rows, first).path("created_at").textValue())
+                .isEqualTo(utc(NOW.minusMinutes(6).truncatedTo(ChronoUnit.MINUTES)));
+        // 최신순: second(2분 전) 이 first(6분 전) 보다 먼저 나온다.
+        int secondIndex = -1;
+        int firstIndex = -1;
+        for (int i = 0; i < rows.size(); i++) {
+            String id = rows.get(i).path("upload_intent_id").textValue();
+            if (id.equals(second.toString())) secondIndex = i;
+            if (id.equals(first.toString())) firstIndex = i;
+        }
+        assertThat(secondIndex).isGreaterThanOrEqualTo(0).isLessThan(firstIndex);
+    }
+
+    /**
+     * setUp() 이 만든 finalized 업로드(REAL_USER·TEAM_USER) 는 이미 practice_sessions.upload_intent_id
+     * 로 연결돼 있어 기본값은 빈 배열이다.
+     */
+    @Test
+    void opsCoreUploadOnlyRowsAreAnEmptyArrayWhenAllFinalizedUploadsAreConnected() throws Exception {
+        JsonNode rows = authorized("/v2/admin/ops-core", 200).path("upload_only_rows");
+        assertThat(rows).isEqualTo(mapper.readTree("[]"));
+    }
+
+    /**
+     * 이 원장은 기존 sessions·activity_rows·metrics·funnels 계산을 전혀 건드리지 않는 순수 additive 데이터여야
+     * 한다. 연습·챌린지를 만들지 않는 추가 finalized 업로드만 넣어 확인한다.
+     */
+    @Test
+    void opsCoreUploadOnlyRowsAreAdditiveAndLeaveSessionsActivityRowsAndMetricsUnchanged() throws Exception {
+        JsonNode before = authorized("/v2/admin/ops-core", 200);
+
+        insertUploadIntent(REAL_USER, "extra-real.mp4", "finalized", NOW.minusMinutes(1), NOW.minusMinutes(1), null, 999);
+        insertUploadIntent(TEAM_USER, "extra-team.mp4", "finalized", NOW.minusMinutes(1), NOW.minusMinutes(1), null, 999);
+        insertUploadIntent(REAL_USER, "extra-pending.mp4", "pending", NOW.minusMinutes(1), null, null, null);
+
+        JsonNode after = authorized("/v2/admin/ops-core", 200);
+        assertThat(after.path("sessions")).isEqualTo(before.path("sessions"));
+        assertThat(after.path("activity_rows")).isEqualTo(before.path("activity_rows"));
+        assertThat(after.path("metrics")).isEqualTo(before.path("metrics"));
+        assertThat(after.path("funnels")).isEqualTo(before.path("funnels"));
+
+        assertThat(after.path("upload_only_rows")).hasSize(2);
+    }
+
+    @Test
+    void opsCoreUploadOnlyChecksEveryLegacyVideoCandidate() throws Exception {
+        UUID linked = insertUploadIntent(REAL_USER, "duplicate-linked.mp4", "finalized",
+                NOW.minusMinutes(8), NOW.minusMinutes(7), null, 100);
+        insertVideo(REAL_USER, "duplicate-linked.mp4", NOW.minusMinutes(7));
+        UUID secondVideo = insertVideo(REAL_USER, "duplicate-linked.mp4", NOW.minusMinutes(6));
+        insertPractice1(UUID.randomUUID(), REAL_USER, secondVideo, "closed", "conversation_closed",
+                "three_layers_v1", NOW.minusMinutes(5));
+
+        UUID purged = insertUploadIntent(REAL_USER, "duplicate-purged.mp4", "finalized",
+                NOW.minusMinutes(8), NOW.minusMinutes(7), null, 100);
+        insertVideo(REAL_USER, "duplicate-purged.mp4", NOW.minusMinutes(7));
+        insertVideo(REAL_USER, "duplicate-purged.mp4", NOW.minusMinutes(6), NOW.minusMinutes(5));
+
+        JsonNode rows = authorized("/v2/admin/ops-core", 200).path("upload_only_rows");
+        Set<String> ids = new HashSet<>();
+        rows.forEach(row -> ids.add(row.path("upload_intent_id").asText()));
+        assertThat(ids).doesNotContain(linked.toString(), purged.toString());
+    }
+
+    @Test
+    void opsCoreUploadOnlyFallsBackToIntentTimeForUnlinkedLegacyUpload() throws Exception {
+        UUID legacy = insertUploadIntent(REAL_USER, "unlinked-legacy.mp4", "finalized",
+                NOW.minusMinutes(9), null, null, null);
+        JsonNode row = findUploadOnly(authorized("/v2/admin/ops-core", 200).path("upload_only_rows"), legacy);
+        assertThat(row.path("created_at").asText())
+                .isEqualTo(utc(NOW.minusMinutes(9).truncatedTo(ChronoUnit.MINUTES)));
+        assertThat(row.path("duration_ms").isNull()).isTrue();
+    }
+
+    private static JsonNode findUploadOnly(JsonNode rows, UUID uploadIntentId) {
+        for (JsonNode row : rows) {
+            if (row.path("upload_intent_id").textValue().equals(uploadIntentId.toString())) {
+                return row;
+            }
+        }
+        throw new AssertionError("upload_only row not found: " + uploadIntentId);
+    }
+
     private UUID insertVideo(UUID userId, String objectKey, OffsetDateTime createdAt) {
         UUID id = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO videos (id,user_id,object_key,content_type,byte_size,duration_ms,created_at,updated_at)
                 VALUES (?, ?, ?, 'video/mp4', 1, 1000, ?, ?)
                 """, id, userId, objectKey, createdAt, createdAt);
+        return id;
+    }
+
+    private UUID insertVideo(UUID userId, String objectKey, OffsetDateTime createdAt, OffsetDateTime purgedAt) {
+        UUID id = insertVideo(userId, objectKey, createdAt);
+        if (purgedAt != null) {
+            jdbc.update("UPDATE videos SET purged_at=? WHERE id=?", purgedAt, id);
+        }
+        return id;
+    }
+
+    /** upload_only_rows 전용: practice_sessions 를 함께 만들지 않는 독립 upload_intents 행. */
+    private UUID insertUploadIntent(
+            UUID userId, String objectKey, String status, OffsetDateTime createdAt,
+            OffsetDateTime finalizedAt, UUID videoId, Integer durationMs) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO upload_intents (
+                    id,user_id,status,storage_provider,object_key,mime_type,size_bytes,
+                    duration_ms,expires_at,created_at,finalized_at,video_id
+                ) VALUES (?, ?, ?, 's3', ?, 'video/mp4', 1, ?, ?, ?, ?, ?)
+                """, id, userId, status, objectKey, durationMs, createdAt.plusDays(1), createdAt, finalizedAt, videoId);
+        return id;
+    }
+
+    /** 옛 연습(practice_sessions) 이 영상 테이블을 거치지 않고 업로드를 직접 가리키는 경로. */
+    private UUID insertLegacyPracticeSession(UUID userId, UUID uploadIntentId, OffsetDateTime createdAt) {
+        UUID id = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO practice_sessions (
+                    id,user_id,upload_intent_id,status,situation,character_context,goal,
+                    blockage_kind,sub_branch,created_at,updated_at
+                ) VALUES (?, ?, ?, 'analyzed', '상황', '배우', '목표', '분석', '캐릭터 분석', ?, ?)
+                """, id, userId, uploadIntentId, createdAt, createdAt);
         return id;
     }
 
