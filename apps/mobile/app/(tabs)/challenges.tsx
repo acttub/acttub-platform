@@ -51,7 +51,7 @@ export default function ChallengesScreen() {
   const shownTab = useRef<ChallengeTab>('popular');
   const [error, setError] = useState<string | null>(null);
   const [intro, setIntro] = useState(false);
-  const unread = useUnreadNotifications(true);
+  const unread = useUnreadNotifications();
 
   const load = useCallback(async (next: ChallengeTab) => {
     shownTab.current = next;

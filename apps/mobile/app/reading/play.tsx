@@ -1,7 +1,8 @@
 import Feather from '@expo/vector-icons/Feather';
+import { File, Paths } from 'expo-file-system';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, AppState, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
@@ -15,7 +16,7 @@ import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
 import { currentTutorial } from '@/lib/tutorial';
 import { compareLine, type LineMatch } from '@/lib/reading/match';
 import { currentNetworkType } from '@/lib/reading/network';
-import { speakableText, type DialogueLine } from '@/lib/reading/parse';
+import { dialogueNumbers, speakableText, type DialogueLine } from '@/lib/reading/parse';
 import { createProgressQueue, type ProgressQueue } from '@/lib/reading/progress-queue';
 import { RECORDING_MAX_MS, contentTypeFor, nextAttemptNo, transcriptFields } from '@/lib/reading/recording-plan';
 import { enqueueLineRecording, onRecordingQueueChange, pendingRecordingUploads } from '@/lib/reading/recording-runner';
@@ -60,6 +61,10 @@ import * as engine from '@/lib/reading/tts/engine';
 import type { VadEvent } from '@/lib/reading/vad';
 import { formatMegabytes, modelDownloadPrompt, type PartnerVoiceEngine } from '@/lib/reading/voice-policy';
 import { assignVoices } from '@/lib/reading/voices';
+import { pronunciationNotes } from '@/lib/reading/pronunciation-notes';
+import { pronunciationServerUrl, scorePronunciation } from '@/lib/reading/pronunciation-server';
+import { loadVoiceFeedbackEnabled } from '@/lib/reading/voice-feedback-setting';
+import { VoiceFeedbackSummary, type LineFeedback } from '@/components/voice-feedback-summary';
 import { translate as t } from '@/lib/i18n';
 import { useAppRating } from '@/hooks/use-app-rating';
 import { api } from '@/lib/api';
@@ -155,6 +160,9 @@ export default function ReadingPlay() {
   const turnStartedAt = useRef(0);
   /** 180초에 이르러 이미 녹음을 멈추고 올린 줄 — 줄이 끝날 때 다시 올리지 않는다. */
   const recordingClosed = useRef(false);
+  /** 발음 피드백(실험). 켜져 있으면 내 차례마다 받아쓴 글을 대본과 맞춰 끝난 화면에 다르게 들린 어구를 모은다. */
+  const voiceFeedbackOn = useRef(false);
+  const [lineFeedback, setLineFeedback] = useState<LineFeedback[]>([]);
   const [pendingUploads, setPendingUploads] = useState(0);
   const [cloudActive, setCloudActive] = useState(false);
   const cloudActiveRef = useRef(false);
@@ -199,9 +207,51 @@ export default function ReadingPlay() {
   }, [session]);
 
   useEffect(() => {
+    void loadVoiceFeedbackEnabled().then((on) => { voiceFeedbackOn.current = on; });
+  }, []);
+
+  useEffect(() => {
     void pendingRecordingUploads().then((n) => mounted.current && setPendingUploads(n));
     return onRecordingQueueChange((n) => mounted.current && setPendingUploads(n));
   }, []);
+
+  /**
+   * 발음 피드백(실험) — 두 갈래로 다르게 들린 곳을 모은다.
+   * ① 기기 STT 가 받아쓴 글과 대본의 어절 대조(즉시). ② 채점 서버가 켜져 있으면 줄 녹음을 보내 음소 단위 결과(나중에 채워짐).
+   * 녹음 파일은 올리기·지우기와 다투지 않게 복사본을 보낸다. 실패해도 진행·녹음에는 영향이 없다.
+   */
+  const collectPronunciation = useCallback(
+    (lineId: string, said: string, audio: { uri: string; contentType: string } | null) => {
+      try {
+        const cur = runRef.current;
+        const idx = cur ? cur.lineIds.indexOf(lineId) : -1;
+        if (!cur || idx < 0) return;
+        const line = cur.lines[idx] as DialogueLine;
+        const no = dialogueNumbers(cur.lines)[idx];
+        const upsert = (patch: Partial<LineFeedback>) =>
+          setLineFeedback((prev) => {
+            const old = prev.find((x) => x.lineId === lineId) ?? { lineId, no, text: line.text, notes: [], acoustic: [] };
+            return [...prev.filter((x) => x.lineId !== lineId), { ...old, ...patch }].sort((x, y) => (x.no ?? 0) - (y.no ?? 0));
+          });
+        if (said.trim()) {
+          const notes = pronunciationNotes(line.text, said);
+          upsert({ notes });
+          logEvent('reading_pronunciation_feedback', { notes: notes.length });
+        }
+        if (audio && pronunciationServerUrl()) {
+          const ext = audio.contentType === 'audio/wav' ? 'wav' : 'm4a';
+          const copy = new File(Paths.cache, `pron-${Date.now()}-${lineId.slice(0, 8)}.${ext}`);
+          new File(audio.uri).copy(copy);
+          upsert({ pending: true });
+          void scorePronunciation({ uri: copy.uri, contentType: audio.contentType, text: line.text })
+            .then((acoustic) => upsert({ acoustic, pending: false }))
+            .catch(() => upsert({ pending: false }))
+            .finally(() => { try { copy.delete(); } catch {} });
+        }
+      } catch {}
+    },
+    [],
+  );
 
   /**
    * 내 차례의 녹음을 거둬 큐에 넣는다(reading.recording). STT 가 켜져 있으면 인식기가 남긴 파일(wav)을, 아니면
@@ -215,7 +265,7 @@ export default function ReadingPlay() {
       let durationMs = Math.max(0, Date.now() - turnStartedAt.current);
       let kind: 'recorder' | 'stt_persist' = 'recorder';
       if (sttUsed) {
-        uri = stt.takeRecordingUri();
+        uri = await stt.takeRecordingAsync();
         kind = 'stt_persist';
       }
       const fromMic = await mic.stop();
@@ -224,6 +274,7 @@ export default function ReadingPlay() {
         durationMs = fromMic.durationMs || durationMs;
         kind = fromMic.uri ? 'recorder' : kind;
       }
+      if (voiceFeedbackOn.current) collectPronunciation(lineId, sttUsed ? text : '', uri ? { uri, contentType: contentTypeFor(uri, kind) } : null);
       if (!uri) return;
       if (!session?.record || recordingClosed.current) {
         await deleteDeviceFile(uri).catch(() => undefined);
@@ -244,11 +295,14 @@ export default function ReadingPlay() {
         transcriptSource: fields.transcript_source,
         matched: fields.matched,
       });
+      if (outcome.kind === 'rejected' && (outcome.reason === 'empty' || outcome.reason === 'missing')) {
+        logEvent('reading_recording_empty', { kind, reason: outcome.reason, platform: Platform.OS });
+      }
       if (outcome.kind === 'rejected' && (outcome.reason === 'too_large' || outcome.reason === 'too_long')) {
         void alert({ title: t('reading.recordToggle'), message: t('reading.recordingTooLarge') });
       }
     },
-    [alert, mic, session, stt],
+    [alert, collectPronunciation, mic, session, stt],
   );
 
   const commit = useCallback((next: RunState) => {
@@ -481,8 +535,10 @@ export default function ReadingPlay() {
     void (async () => {
       if (typing || !micAllowed) return;
       let opened = false;
-      if (sttMode?.kind === 'stt') {
-        const ok = stt.start({ onEvent, onInterim: setSaid }, { persist: !!session.record });
+      // 녹음이 켜진 회차인데 이 기기의 인식기가 소리를 남기지 못하면 녹음기로 받는다 — 받아쓰기보다 녹음이 먼저다.
+      const recordOverStt = !!(session.record && !stt.canPersist());
+      if (sttMode?.kind === 'stt' && !recordOverStt) {
+        const ok = stt.start({ onEvent, onInterim: setSaid }, { persist: !!session.record || (voiceFeedbackOn.current && !!pronunciationServerUrl()) });
         sttActive.current = ok;
         opened = ok;
       }
@@ -754,6 +810,7 @@ export default function ReadingPlay() {
           {quiz && <Text style={styles.doneStat}>{t('reading.quizSummary', { k: quiz.matched, n: quiz.tried, p: quiz.notYet })}</Text>}
           {pendingUploads > 0 && <Text style={styles.doneStatFaint}>{t('reading.recordingPending', { count: pendingUploads })}</Text>}
         </View>
+        <VoiceFeedbackSummary items={lineFeedback} />
 
         {review.length > 0 && (
           <View style={styles.reviewBox}>

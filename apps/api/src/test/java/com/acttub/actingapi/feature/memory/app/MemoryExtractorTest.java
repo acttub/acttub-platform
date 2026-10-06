@@ -56,7 +56,10 @@ class MemoryExtractorTest {
                 {"goal":"새 목표","wants":"표정을 봐 달라고 했다","habits":"감정이 올라오면 고개를 돌린다",
                  "tone":"짧게 답한다","avoid":"지어낸 것","speech_self":"또박또박"}
                 """, OPERATION);
-        assertThat(result).containsOnlyKeys("goal", "wants", "habits", "tone");
+        // 칸 목록은 DB 값 목록을 따른다 — 새 칸 마이그레이션이 없는 배포에서는 목표만 남는다.
+        assertThat(result.keySet()).containsExactlyInAnyOrderElementsOf(
+                java.util.List.of("goal", "wants", "habits", "tone").stream()
+                        .filter(com.acttub.actingapi.feature.memory.domain.ActorMemoryFields.EXTRACTED::contains).toList());
     }
 
     /** 세션.md 한 줄은 이번 회차 노트로 실린다. */
