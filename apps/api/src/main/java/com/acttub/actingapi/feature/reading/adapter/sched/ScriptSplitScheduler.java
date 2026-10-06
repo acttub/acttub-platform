@@ -34,6 +34,11 @@ class ScriptSplitScheduler {
 
     @Scheduled(fixedDelayString = "${SCRIPT_SPLIT_POLL_INTERVAL_MS:1000}", initialDelayString = "${SCRIPT_SPLIT_INITIAL_DELAY_MS:15000}")
     void poll() {
+        try {
+            worker.sweep();
+        } catch (RuntimeException failure) {
+            failures.report(failure, new FailureContext("ScriptSplitScheduler.sweep"));
+        }
         while (slots.tryAcquire()) {
             executor.execute(() -> {
                 try {

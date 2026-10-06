@@ -51,8 +51,12 @@ import org.slf4j.LoggerFactory;
 public class ScriptSplitWorker {
     private static final Logger LOG = LoggerFactory.getLogger(ScriptSplitWorker.class);
     static final String KIND = AiJobKind.SCRIPT_SPLIT.dbValue();
-    /** 가장 긴 대본(4,256줄)이 조각 29개를 동시에 보내 1분 안에 끝났다. 재시도까지 넉넉히. */
-    static final Duration LEASE = Duration.ofMinutes(10);
+    /**
+     * 선점 lease. 최악 경로는 호출마다 3시도×(90초+대기 3초) ≈ 4.7분이 배역 목록 1번 + 조각 두 묶음(한도 16개씩, 4,256줄은
+     * 29조각) + 빠진 줄 재요청 2판 = 다섯 번 이어지는 약 24분이다. 보통은 1분 안에 끝난다(68편 최대 36초). lease 가 지나면
+     * 다른 워커가 다시 집고, 완료는 요청의 request_id 로 멱등이라 두 번 돌아도 대본은 하나다.
+     */
+    static final Duration LEASE = Duration.ofMinutes(30);
     /** 나누기 호출의 응답 대기. 실측 전체 벽시계 최대 57초(조각 동시)보다 조각 하나는 짧다. */
     static final Duration CALL_TIMEOUT = Duration.ofSeconds(90);
     private static final GenerationOptions OPTIONS = new GenerationOptions(ScriptSplitRules.MODEL,
@@ -82,7 +86,7 @@ public class ScriptSplitWorker {
     /** 큐에서 하나 집어 처리한다. 집을 게 없으면 거짓. */
     public boolean runOnce(Instant now) {
         UUID token = UUID.randomUUID();
-        AiJobLedger.Claimed claimed = ledger.claimNext(KIND, token, LEASE, now);
+        AiJobLedger.Claimed claimed = ledger.claimNext(KIND, token, LEASE, now, true);
         if (claimed == null) {
             return false;
         }
@@ -115,6 +119,11 @@ public class ScriptSplitWorker {
             }
         }
         return true;
+    }
+
+    /** 집은 워커가 죽은 뒤 lease 와 시도 수를 다 쓴 작업을 실패로 닫는다. 스케줄러가 돌 때마다 부른다. */
+    public int sweep() {
+        return imports.sweepExpired(clock.instant());
     }
 
     private record Split(ScriptDraft draft, ScriptImportFailure failure) {

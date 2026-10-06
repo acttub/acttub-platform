@@ -220,6 +220,18 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
         });
     }
 
+    @Override
+    public int sweepExpired(Instant now) {
+        return transaction.execute(status -> {
+            List<UUID> closed = ledger.failExpired(KIND, now);
+            if (closed.isEmpty()) return 0;
+            return em.createNativeQuery("""
+                    UPDATE script_imports SET failure='failed',updated_at=:now
+                    WHERE job_id IN (:jobs) AND script_id IS NULL AND failure IS NULL
+                    """).setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("jobs", closed).executeUpdate();
+        });
+    }
+
     private void lockActive(UUID userId) {
         List<Tuple> active = list(em.createNativeQuery(
                 "SELECT id FROM users WHERE id=:userId AND status='active' FOR UPDATE", Tuple.class)

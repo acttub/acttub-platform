@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -25,6 +26,7 @@ import java.util.regex.Pattern;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.reading.app.ScriptSplitWorker;
+import com.acttub.actingapi.platform.ledger.AiJobLedger;
 import com.acttub.actingapi.feature.reading.domain.SampleScript;
 import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.integration.llm.GenerationOptions;
@@ -162,6 +164,7 @@ class ReadingImportIT {
     @Autowired JwtService jwt;
     @Autowired MutableClock clock;
     @Autowired ScriptSplitWorker worker;
+    @Autowired AiJobLedger ledger;
     @Autowired RecordingFailureReporter failures;
 
     private final Map<String, UUID> documents = new LinkedHashMap<>();
@@ -498,6 +501,47 @@ class ReadingImportIT {
         assertThat(worker.runOnce(clock.instant())).isTrue();
         assertThat(json(get("/v2/reading/imports/{id}", rejected), 200).path("failure").textValue()).isEqualTo("failed");
         assertThat(Model.CALLS).as("우리가 잘못 보낸 것은 다시 보내지 않는다").hasSize(1);
+    }
+
+    @Test
+    @DisplayName("CONTRACT §5-7: 집은 워커가 죽어도 lease(30분)가 지나면 다른 워커가 다시 집어 끝낸다 — 그동안 상태는 running 이고 같은 글의 새 요청은 그 작업을 돌려준다")
+    void deadWorkersLeaseIsReclaimedAfterItExpires() throws Exception {
+        String importId = json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, "니나: 안녕\n트레플레프: 응", "paste")), 202)
+                .path("import_id").textValue();
+        // 다른 워커가 집고 죽었다.
+        assertThat(ledger.claimNext("script_split", UUID.randomUUID(), Duration.ofMinutes(30), clock.instant())).isNotNull();
+        assertThat(json(get("/v2/reading/imports/{id}", importId), 200).path("status").textValue()).isEqualTo("running");
+        assertThat(json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, "니나: 안녕\n트레플레프: 응", "paste")), 200)
+                .path("import_id").textValue()).as("두 번 누름은 돌고 있는 작업을 돌려준다").isEqualTo(importId);
+        assertThat(worker.runOnce(clock.instant())).as("lease 가 살아 있는 동안은 집지 않는다").isFalse();
+
+        clock.set(clock.instant().plus(Duration.ofMinutes(31)));
+        assertThat(worker.runOnce(clock.instant())).isTrue();
+
+        JsonNode done = json(get("/v2/reading/imports/{id}", importId), 200);
+        assertThat(done.path("status").textValue()).isEqualTo("succeeded");
+        assertThat(jdbc.queryForObject("SELECT attempt_count FROM ai_jobs", Integer.class)).isEqualTo(2);
+        assertThat(count("scripts")).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("CONTRACT §5-7: 시도 셋을 다 쓴 채 lease 가 지난 작업은 다시 집지 않고 sweep 이 failed 로 닫는다 — 앱은 R2.12 를 띄운다")
+    void exhaustedJobIsClosedBySweep() throws Exception {
+        String importId = json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, "니나: 안녕\n트레플레프: 응", "paste")), 202)
+                .path("import_id").textValue();
+        jdbc.update("UPDATE ai_jobs SET status='running',attempt_count=3,lease_token=gen_random_uuid(),lease_expires_at=?",
+                java.sql.Timestamp.from(clock.instant().minusSeconds(60)));
+        assertThat(worker.runOnce(clock.instant())).isFalse();
+        assertThat(json(get("/v2/reading/imports/{id}", importId), 200).path("status").textValue()).isEqualTo("running");
+
+        assertThat(worker.sweep()).isEqualTo(1);
+
+        JsonNode failed = json(get("/v2/reading/imports/{id}", importId), 200);
+        assertThat(failed.path("status").textValue()).isEqualTo("failed");
+        assertThat(failed.path("failure").textValue()).isEqualTo("failed");
+        assertThat(jdbc.queryForObject("SELECT failure_reason FROM ai_jobs", String.class)).isEqualTo("max_attempts");
+        assertThat(worker.sweep()).as("다시 쓸 것이 없다").isZero();
+        assertThat(Model.CALLS).isEmpty();
     }
 
     @Test

@@ -83,4 +83,11 @@ public interface ScriptImportRepository {
 
     /** 요청과 작업을 실패로 닫는다. */
     void fail(UUID jobId, UUID leaseToken, UUID importId, ScriptImportFailure failure, Instant now);
+
+    /**
+     * 집은 워커가 죽어 lease 가 지났고 시도 수도 소진한 작업을 {@code failed} 로 닫는다 — 앱이 끝없이 기다리지 않게.
+     *
+     * @return 닫은 요청 수
+     */
+    int sweepExpired(Instant now);
 }

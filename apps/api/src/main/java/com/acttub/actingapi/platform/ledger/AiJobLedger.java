@@ -2,11 +2,12 @@ package com.acttub.actingapi.platform.ledger;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 /**
- * 비동기 AI 요청의 장부({@code ai_jobs}, V14) — 종류는 {@code analyze}·{@code memory_update} 둘이다
- * (practice.analyze, practice.memory). 리딩·설문 전송·정리 장부는 AI 요청이 아니라 여기 들지 않는다.
+ * 비동기 AI 요청의 장부({@code ai_jobs}, V14) — 종류는 {@code AiJobKind} 의 넷이다(영상 분석·기억 갱신·챌린지 리포트·대본
+ * 나누기). 설문 전송·정리 장부는 AI 요청이 아니라 여기 들지 않는다.
  *
  * <p><b>lease 규칙은 {@code external_operations} 와 같다</b>(CONTRACT §5-7, 고정 계약):
  *
@@ -28,9 +29,17 @@ public interface AiJobLedger {
     /**
      * 대기 중인 작업 하나를 선점한다. 집을 게 없으면 {@code null}.
      *
-     * @param kind {@code analyze}·{@code memory_update}
+     * @param kind {@code AiJobKind} 의 값
      */
-    Claimed claimNext(String kind, UUID leaseToken, Duration lease, Instant now);
+    default Claimed claimNext(String kind, UUID leaseToken, Duration lease, Instant now) {
+        return claimNext(kind, leaseToken, lease, now, false);
+    }
+
+    /**
+     * @param reclaimExpired 참이면 lease 가 지난 {@code running} 작업도 다시 집는다 — 집은 워커가 죽었을 때 그 작업이 영원히
+     *        돌고 있는 것으로 남지 않게. 완료가 멱등인 종류(대본 나누기)만 켠다. 시도 수는 선점마다 하나 오른다
+     */
+    Claimed claimNext(String kind, UUID leaseToken, Duration lease, Instant now, boolean reclaimExpired);
 
     /**
      * @param targetId 분석은 회차 id, 기억 갱신은 그 갱신을 부른 회차 id
@@ -68,4 +77,12 @@ public interface AiJobLedger {
      * @return 쓸어 담은 수
      */
     int sweepMaxAttempts(Instant now);
+
+    /**
+     * lease 가 지났고 시도 횟수를 소진한 {@code running} 작업을 실패로 닫는다(사유 {@code max_attempts}) — 다시 집히지 않는
+     * 작업이 영원히 돌고 있는 것으로 보이지 않게. {@link #claimNext(String, UUID, Duration, Instant, boolean)} 의 짝이다.
+     *
+     * @return 닫은 작업의 id
+     */
+    List<UUID> failExpired(String kind, Instant now);
 }
