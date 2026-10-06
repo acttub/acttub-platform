@@ -1216,8 +1216,8 @@ class AdminEndpointIT {
     private UUID insertScript(UUID userId, String source, String rawText) {
         UUID id = UUID.randomUUID();
         jdbc.update("""
-                INSERT INTO scripts (id,user_id,title,raw_text,source,request_id,request_fingerprint)
-                VALUES (?, ?, '제목', ?, ?, ?, ?)
+                INSERT INTO scripts (id,user_id,title,raw_text,raw_hash,source,request_id,request_fingerprint)
+                VALUES (?, ?, '제목', ?, repeat('0',64), ?, ?, ?)
                 """, id, userId, rawText, source, UUID.randomUUID(), "c".repeat(64));
         return id;
     }
@@ -1289,8 +1289,8 @@ class AdminEndpointIT {
         UUID scriptId = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO scripts (
-                    id,user_id,title,raw_text,source,request_id,request_fingerprint,created_at,updated_at
-                ) VALUES (?, ?, ?, '대본 원문 비밀', 'typed', ?, ?, ?, ?)
+                    id,user_id,title,raw_text,raw_hash,source,request_id,request_fingerprint,created_at,updated_at
+                ) VALUES (?, ?, ?, '대본 원문 비밀', repeat('0',64), 'typed', ?, ?, ?, ?)
                 """, scriptId, userId, title, UUID.randomUUID(), "a".repeat(64), startedAt, startedAt);
         UUID mine = UUID.randomUUID();
         UUID other = UUID.randomUUID();

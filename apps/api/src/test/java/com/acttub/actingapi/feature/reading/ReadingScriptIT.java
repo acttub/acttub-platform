@@ -885,8 +885,8 @@ class ReadingScriptIT {
     private void seedScripts(UUID owner, int howMany) {
         for (int index = 0; index < howMany; index++) {
             jdbc.update("""
-                    INSERT INTO scripts(id,user_id,title,raw_text,source,request_id,request_fingerprint)
-                    VALUES (?,?,?,'원문','paste',?,?)
+                    INSERT INTO scripts(id,user_id,title,raw_text,raw_hash,source,request_id,request_fingerprint)
+                    VALUES (?,?,?,'원문',repeat('0',64),'paste',?,?)
                     """, UUID.randomUUID(), owner, "대본 " + index, UUID.randomUUID(), "f".repeat(64));
         }
     }

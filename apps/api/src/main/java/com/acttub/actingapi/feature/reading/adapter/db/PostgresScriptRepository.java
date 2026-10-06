@@ -23,6 +23,7 @@ import com.acttub.actingapi.feature.reading.app.ScriptViews.ScriptListView;
 import com.acttub.actingapi.feature.reading.app.ScriptViews.ScriptView;
 import com.acttub.actingapi.feature.reading.domain.ScriptDraft;
 import com.acttub.actingapi.feature.reading.domain.ScriptRules;
+import com.acttub.actingapi.feature.reading.domain.ScriptText;
 import com.acttub.actingapi.feature.reading.schema.ScriptCharacterEntity;
 import com.acttub.actingapi.feature.reading.schema.ScriptEntity;
 import com.acttub.actingapi.feature.reading.schema.ScriptLineEntity;
@@ -90,7 +91,8 @@ class PostgresScriptRepository implements ScriptRepository {
             }
             UUID scriptId = UUID.randomUUID();
             entityManager.persist(new ScriptEntity(
-                    scriptId, userId, draft.title(), draft.rawText(), source(draft.source()), requestId, fingerprint));
+                    scriptId, userId, draft.title(), draft.rawText(), ScriptText.hash(draft.rawText()), source(draft.source()),
+                    requestId, fingerprint));
             List<UUID> characterIds = new ArrayList<>();
             for (int order = 0; order < draft.characterNames().size(); order++) {
                 UUID characterId = UUID.randomUUID();

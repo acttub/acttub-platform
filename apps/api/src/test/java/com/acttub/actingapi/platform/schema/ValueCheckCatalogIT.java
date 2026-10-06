@@ -67,6 +67,9 @@ class ValueCheckCatalogIT {
         BY_CONSTRAINT.put("ck_reading_sessions_status", ReadingSessionStatus.class);
         BY_CONSTRAINT.put("ck_script_lines_kind", ScriptLineKind.class);
         BY_CONSTRAINT.put("ck_scripts_source", ScriptSource.class);
+        // 나누기 요청(V33). 입력 경로는 대본과 같은 목록이고 실패 종류는 API 값이다.
+        BY_CONSTRAINT.put("ck_script_imports_source", ScriptSource.class);
+        BY_CONSTRAINT.put("ck_script_imports_failure", ScriptImportFailure.class);
         // 연습(V14). 옛 테이블의 값 목록은 그대로 두고 새 테이블이 자기 것을 갖는다.
         BY_CONSTRAINT.put("ck_video_transcripts_status", TranscriptStatus.class);
         BY_CONSTRAINT.put("ck_practices_stage", PracticeStage.class);

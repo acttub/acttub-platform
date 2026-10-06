@@ -32,6 +32,11 @@ public class ScriptEntity extends AppGeneratedUuidEntity {
     @Column(name = "raw_text", nullable = false)
     private String rawText;
 
+    /** 정리한 원문의 해시({@code ScriptText.hash}) — 같은 사람의 같은 글을 알아본다. */
+    @JdbcTypeCode(SqlTypes.CHAR)
+    @Column(name = "raw_hash", nullable = false, columnDefinition = "char(64)")
+    private String rawHash;
+
     @Convert(converter = ScriptSource.JpaConverter.class)
     @Column(name = "source", nullable = false, columnDefinition = "text")
     private ScriptSource source;
@@ -53,12 +58,13 @@ public class ScriptEntity extends AppGeneratedUuidEntity {
     }
 
     public ScriptEntity(
-            UUID id, UUID userId, String title, String rawText, ScriptSource source, UUID requestId,
+            UUID id, UUID userId, String title, String rawText, String rawHash, ScriptSource source, UUID requestId,
             String requestFingerprint) {
         super(id);
         this.userId = userId;
         this.title = title;
         this.rawText = rawText;
+        this.rawHash = rawHash;
         this.source = source;
         this.requestId = requestId;
         this.requestFingerprint = requestFingerprint;
