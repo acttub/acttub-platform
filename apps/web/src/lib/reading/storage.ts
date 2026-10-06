@@ -6,6 +6,7 @@
 import type { DifferentLine, LineResult, ReadingMode, SessionDetail } from "@/lib/reading/api-types";
 import type { ScriptDraft } from "@/lib/reading/draft";
 import type { ScriptLine } from "@/lib/reading/script/parse";
+import type { CastCharacter } from "@/lib/reading/session/cast";
 
 /** 서버에 저장된 대본을 화면이 쓰는 모양으로 든 것 (src/lib/reading/script/from-server.ts) */
 export interface StoredScript {
@@ -14,8 +15,8 @@ export interface StoredScript {
   /** 배역 이름, 등장 순서. 실행 화면과 상태 머신은 이름으로 줄을 가른다. */
   roles: string[];
   lines: ScriptLine[];
-  /** 배역 id 와 목소리 — 회차 시작·목소리 저장이 쓴다 */
-  characters: { id: string; name: string; voicePreset: string | null }[];
+  /** 배역 id 와 목소리 — 회차 시작·목소리 저장·실행 화면이 쓴다 */
+  characters: CastCharacter[];
   /** lines 와 같은 순서의 줄 id — 회차의 구간·진행 저장이 쓴다 */
   lineIds: string[];
   /** 마지막 회차 요약. 배역 화면의 기본 선택이 이것의 내 배역이다. */
@@ -52,7 +53,8 @@ export interface RunStats {
 
 // 0.1.0 이전의 "rehearsal.script"(서버 저장 전, id 없음)와 키를 달리 해 옛 값을 읽지 않는다.
 const DRAFT_KEY = "reading.draft";
-const SCRIPT_KEY = "reading.script";
+// 배포 전에 연 탭의 대본 캐시에는 배역 voice 가 없다. 그 값으로 읽지 않고 앞 단계로 돌려보내려고 키를 바꿨다.
+const SCRIPT_KEY = "reading.script.v2";
 const SESSION_KEY = "reading.session";
 const STATS_KEY = "reading.stats";
 const PREFS_KEY = "reading.run_prefs";

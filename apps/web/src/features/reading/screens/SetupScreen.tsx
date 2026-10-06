@@ -5,12 +5,13 @@
  * 상대역마다 목소리(자동 + M1~M5·F1~F5)를 고르며, 방식·넘김·가리기·녹음을 정해 회차를 시작한다. 웹은 전체
  * 구간으로 시작한다. 여기서는 아무것도 서버에 남지 않는다 — "시작"을 눌러야 회차가 생긴다.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { micSupported } from "@/lib/reading/audio/mic";
-import { VOICE_PRESETS, type VoicePreset } from "@/lib/reading/audio/supertonic/models";
+import { isVoicePreset, VOICE_PRESETS, type VoicePreset } from "@/lib/reading/audio/supertonic/models";
 import { speak, unlockTts } from "@/lib/reading/audio/tts";
 import type { ReadingAdvance, ReadingMode } from "@/lib/reading/api-types";
-import { assignPresets, isVoicePreset, voicesFor } from "@/lib/reading/session/cast";
+import { toStoredScript } from "@/lib/reading/script/from-server";
+import { voicesFor } from "@/lib/reading/session/cast";
 import { loadMask, MASK_MODES, type MaskMode } from "@/lib/reading/session/mask";
 import { retryPendingVoicePresets, saveVoicePreset } from "@/lib/reading/session/voice-presets";
 import type { StoredScript } from "@/lib/reading/storage";
@@ -31,7 +32,7 @@ export function SetupScreen({
   starting,
   error,
   onStart,
-  onVoiceChange,
+  onCharactersChange,
   onBack,
   onReinput,
 }: {
@@ -40,7 +41,7 @@ export function SetupScreen({
   error: string | null;
   onStart: (result: SetupResult) => void;
   /** 목소리를 고쳤다 — 부모가 캐시의 대본을 갱신한다 */
-  onVoiceChange: (characterId: string, preset: string | null) => void;
+  onCharactersChange: (characters: StoredScript["characters"]) => void;
   onBack: () => void;
   onReinput: () => void;
 }) {
@@ -52,6 +53,7 @@ export function SetupScreen({
   const [mask, setMask] = useState<MaskMode>(() => loadMask(script.id));
   const [voice, setVoice] = useState<{ ready: boolean; partnerVoice: PartnerVoice }>({ ready: false, partnerVoice: "supertonic" });
   const [voiceNote, setVoiceNote] = useState<string | null>(null);
+  const latestVoiceSave = useRef(0);
 
   // 지난번에 저장하지 못한 목소리를 다시 보낸다(reading.cast 예외).
   useEffect(() => {
@@ -60,7 +62,6 @@ export function SetupScreen({
 
   const solo = script.characters.length === 1;
   const dialogueCount = (name: string) => script.lines.filter((l) => l.type === "dialogue" && l.role === name).length;
-  const presets = assignPresets(script.characters, myIds);
   const partners = hasPartnerLines(script, myIds);
   const check = checkStart(script, myIds, voice.ready || !partners);
   const myRoles = rolesOf(script, myIds);
@@ -71,9 +72,12 @@ export function SetupScreen({
   };
 
   async function changeVoice(characterId: string, value: string) {
-    const preset = value === "auto" ? null : value;
-    onVoiceChange(characterId, preset);
+    const preset = isVoicePreset(value) ? value : null;
+    // 고른 값은 바로 보인다. 다른 자동 배역의 목소리는 서버가 다시 정해 저장 응답으로 온다.
+    onCharactersChange(script.characters.map((c) => (c.id === characterId ? { ...c, voicePreset: preset, voice: preset ?? c.voice } : c)));
+    const turn = ++latestVoiceSave.current;
     const saved = await saveVoicePreset(script.id, characterId, preset);
+    if (saved && turn === latestVoiceSave.current) onCharactersChange(toStoredScript(saved).characters);
     setVoiceNote(saved ? null : "목소리를 저장하지 못했어요. 이번 회차는 고른 목소리로 읽고 다음에 다시 저장해요.");
   }
 
@@ -96,7 +100,6 @@ export function SetupScreen({
       <div className="flex flex-col gap-2 max-h-[420px] overflow-y-auto">
         {script.characters.map((c) => {
           const mine = myIds.includes(c.id);
-          const auto = presets.get(c.id);
           return (
             <div key={c.id} className="flex flex-col gap-1.5">
               <SelectCard compact selected={mine} onClick={() => toggle(c.id)} title={c.name} sub={`${dialogueCount(c.name)}줄`} />
@@ -111,7 +114,7 @@ export function SetupScreen({
                       onChange={(e) => void changeVoice(c.id, e.target.value)}
                       className="h-8 rounded-lg bg-surface border border-line px-2 text-[12.5px] font-bold text-ink"
                     >
-                      <option value="auto">자동{auto ? ` (${auto})` : ""}</option>
+                      <option value="auto">자동 ({c.voice})</option>
                       {VOICE_PRESETS.map((p: VoicePreset) => (
                         <option key={p} value={p}>
                           {p}

@@ -22,8 +22,8 @@ export function SetupPage() {
       script={script}
       starting={session.starting}
       error={session.error}
-      onVoiceChange={(characterId, preset) => {
-        const next = { ...script, characters: script.characters.map((c) => (c.id === characterId ? { ...c, voicePreset: preset } : c)) };
+      onCharactersChange={(characters) => {
+        const next = { ...script, characters };
         setScript(next);
         storage.saveScript(next);
       }}

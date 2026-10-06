@@ -2,13 +2,12 @@
  * 리딩 실행(R9, reading.session)의 진행 상태 — 순수 함수. 화면·오디오·서버를 모른다.
  *
  * 지문·장면은 화면에만 보이고 진행에서 건너뛴다. 진행 "K / N · mm:ss"의 N 은 구간 안 대사 줄 수(모든 배역),
- * K 는 지난 대사 수, 시간은 일시정지를 뺀 흐른 시간이다. 줄별 결과(line_results)는 줄마다 하나이고 마지막
- * 사건이 이긴다. 대조는 흐름에 끼어들지 않는다 — 결과(통과·미달)와 말한 것만 남기고 완료 화면이 쓴다.
+ * K 는 지난 대사 수, 시간은 일시정지를 뺀 흐른 시간이다. 내 줄마다 말한 것(음성 인식 결과)만 남겨 진행 저장에 싣고,
+ * 원문과의 비교는 서버가 한다. 같은 줄을 다시 말하면 마지막 말이 이긴다. 말한 것은 흐름에 끼어들지 않는다.
  */
 import type { ScriptLine } from './parse.ts';
-import { latestRecordings } from './recording-plan.ts';
 import { dialogueNumbers } from './session-plan.ts';
-import type { LineOutcome, LineResult, SessionRecording } from './types.ts';
+import type { LineSaid } from './types.ts';
 import type { MaskMode } from './store.ts';
 import { translate as t } from '../i18n.ts';
 
@@ -22,9 +21,6 @@ export type RunConfig = {
   endIndex: number;
 };
 
-/** 내 줄 하나의 대조 결과. said 는 말한 것(전사)이고 이어하기로 받은 옛 결과는 null 일 수 있다. */
-export type RunLineResult = { outcome: LineOutcome; misses: number; said: string | null };
-
 export type RunState = RunConfig & {
   /** 현재 줄(lines 인덱스). done 이면 endIndex + 1. */
   index: number;
@@ -32,7 +28,8 @@ export type RunState = RunConfig & {
   /** paused 에서 돌아갈 상태. */
   resumeTo: Exclude<RunStatus, 'paused' | 'done'> | null;
   elapsedMs: number;
-  results: Record<string, RunLineResult>;
+  /** 이번 실행에서 내 줄마다 말한 것(줄 id 별). 이어하기 전에 서버에 간 것은 서버가 들고 있어 다시 보내지 않는다. */
+  said: Record<string, string>;
   /** 이어하기의 앞 상대 대사 — 이 인덱스 앞까지는 진행 저장을 하지 않는다. */
   leadInUntil: number | null;
 };
@@ -55,7 +52,7 @@ export function createRun(cfg: RunConfig): RunState {
   const start = Math.max(0, cfg.startIndex);
   const end = Math.min(cfg.lines.length - 1, cfg.endIndex);
   const index = nextDialogue(cfg.lines, start, end);
-  const base = { ...cfg, startIndex: start, endIndex: end, resumeTo: null, elapsedMs: 0, results: {}, leadInUntil: null };
+  const base = { ...cfg, startIndex: start, endIndex: end, resumeTo: null, elapsedMs: 0, said: {}, leadInUntil: null };
   if (index < 0) return { ...base, index: end + 1, status: 'done' };
   const run: RunState = { ...base, index, status: 'mine' };
   return { ...run, status: turnOf(run) };
@@ -117,31 +114,10 @@ export function formatProgress(run: RunState): string {
   return `${done} / ${total} · ${mmss(run.elapsedMs)}`;
 }
 
-/** 내 줄의 대조 결과를 남긴다. 흐름은 그대로다. 미달은 misses 를 하나 늘린다. */
-export function recordMatch(run: RunState, match: 'pass' | 'miss', said: string): RunState {
+/** 지금 내 줄에 말한 것을 남긴다. 흐름은 그대로다. */
+export function recordSaid(run: RunState, said: string): RunState {
   if (run.status !== 'mine') return run;
-  const id = run.lineIds[run.index];
-  const prev = run.results[id];
-  const misses = (prev?.misses ?? 0) + (match === 'miss' ? 1 : 0);
-  return { ...run, results: { ...run.results, [id]: { outcome: match === 'pass' ? 'passed' : 'unmatched', misses, said } } };
-}
-
-/** 서버에 보낼 줄별 결과(줄 순서). 말한 것은 녹음 행의 전사로 가므로 여기 넣지 않는다. */
-export function lineResultsOf(run: RunState): LineResult[] {
-  return run.lineIds
-    .filter((id) => run.results[id])
-    .map((id) => ({ line_id: id, outcome: run.results[id].outcome, misses: run.results[id].misses }));
-}
-
-/**
- * 이어하기 — 서버가 아는 줄별 결과에 녹음의 전사를 붙인다(같은 줄은 가장 큰 attempt_no 가 이긴다). 전사가 없는 줄은
- * said 가 null 이라 완료 화면이 원문만 보인다.
- */
-export function resultsFromSession(session: { line_results?: LineResult[] | null; recordings?: Pick<SessionRecording, 'line_id' | 'attempt_no' | 'transcript'>[] | null }): RunState['results'] {
-  const latest = latestRecordings(session.recordings ?? []);
-  const results: RunState['results'] = {};
-  for (const r of session.line_results ?? []) results[r.line_id] = { outcome: r.outcome, misses: r.misses, said: latest.get(r.line_id)?.transcript ?? null };
-  return results;
+  return { ...run, said: { ...run.said, [run.lineIds[run.index]]: said } };
 }
 
 /** 가리기 — 대사에만 적용되고 배역 이름·지문·장면은 남긴다. */
@@ -187,17 +163,17 @@ export function exitMessage(run: RunState): string {
   return t('reading.exitConfirmBody', { n: last });
 }
 
-/** 진행 저장 본문(순번은 큐가 붙인다). */
+/** 진행 저장 본문(순번은 큐가 붙인다). line_results 는 이번 실행에서 말한 내 줄을 줄 순서로. */
 export function progressPayload(run: RunState): {
   current_line_id: string | null;
   elapsed_seconds: number;
-  line_results: LineResult[];
+  line_results: LineSaid[];
   complete: boolean;
 } {
   return {
     current_line_id: currentLineIdOf(run),
     elapsed_seconds: Math.floor(run.elapsedMs / 1000),
-    line_results: lineResultsOf(run),
+    line_results: run.lineIds.filter((id) => run.said[id] !== undefined).map((id) => ({ line_id: id, said: run.said[id] })),
     complete: run.status === 'done',
   };
 }

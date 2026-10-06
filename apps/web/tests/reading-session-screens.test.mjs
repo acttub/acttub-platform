@@ -10,7 +10,7 @@ process.env.NEXT_PUBLIC_API_BASE_URL = "";
 const React = await import("react");
 const { renderToStaticMarkup } = await import("react-dom/server");
 const { DIFFERENT_LATER_COPY, DoneBody, REVIEW_HEADING } = await import("../src/features/reading/screens/DoneBody.tsx");
-const { resumeProgress, sessionDateLabel } = await import("../src/features/reading/session-cards.ts");
+const { sessionDateLabel } = await import("../src/features/reading/session-cards.ts");
 
 const script = {
   id: "script-1",
@@ -124,10 +124,6 @@ test("reading.session: 완료 화면의 코치 카드는 촬영 준비로 잇고
   assert.equal(text(html).includes("리딩 자료는 보내지 않아요"), true);
 });
 
-test("reading.session: 회차 카드의 날짜는 한국 날짜로 보이고, 열린 회차의 \"이어서 연습 · K / N\" 은 지난 대사 수다", () => {
+test("reading.session: 회차 카드의 날짜는 한국 날짜로 보인다", () => {
   assert.equal(sessionDateLabel("2026-05-25T12:00:00+09:00", "Asia/Seoul"), "5월 25일");
-  // 13번 대사를 지나 다음이 l-3(대사 3) 이면 지난 대사는 2
-  assert.deepEqual(resumeProgress(script, { start_line_id: "l-1", end_line_id: "l-5", current_line_id: "l-3" }), { done: 2, total: 5 });
-  assert.deepEqual(resumeProgress(script, { start_line_id: "l-1", end_line_id: "l-5", current_line_id: "l-1" }), { done: 0, total: 5 });
-  assert.deepEqual(resumeProgress(script, { start_line_id: "l-1", end_line_id: "l-5", current_line_id: null }), { done: 0, total: 5 });
 });

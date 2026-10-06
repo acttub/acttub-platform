@@ -219,14 +219,25 @@ export async function play(uri: string): Promise<void> {
   player = current;
   await new Promise<void>((resolve, reject) => {
     let subscription: { remove(): void } | null = null;
-    const finish = () => {
+    // ended: 끝까지 재생돼 끝났다(재생기 사건). 아니면 stop() 이 끊은 것 — 그때는 stop() 이 바로 놓는다.
+    const finish = (ended = false) => {
       subscription?.remove();
       if (finishPlayback === finish) finishPlayback = null;
+      if (ended && player === current) {
+        // 다 쓴 재생기는 바로 놓는다. 남겨 두면 다음 줄까지 상태 갱신이 계속 돌아 메모리가 찬다(0.1.2 안드로이드 OOM).
+        // 사건 처리 도중에 놓지 않도록 한 박자 뒤에.
+        player = null;
+        setTimeout(() => {
+          try {
+            current.remove();
+          } catch {}
+        }, 0);
+      }
       resolve();
     };
     finishPlayback = finish;
     subscription = current.addListener('playbackStatusUpdate', (status) => {
-      if (status.didJustFinish) finish();
+      if (status.didJustFinish) finish(true);
     });
     try {
       current.play();
