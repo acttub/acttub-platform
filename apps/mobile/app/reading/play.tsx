@@ -15,15 +15,14 @@ import { deleteDeviceFile } from '@/lib/account-files';
 import { hideAutoAdvanceTip, isAutoAdvanceTipHidden } from '@/lib/reading/guide-flag';
 import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
 import { currentTutorial } from '@/lib/tutorial';
-import { compareLine, type LineMatch } from '@/lib/reading/match';
 import { currentNetworkType } from '@/lib/reading/network';
 import { dialogueNumbers, speakableText, type DialogueLine, type ScriptLine } from '@/lib/reading/parse';
-import { createProgressQueue, type ProgressQueue } from '@/lib/reading/progress-queue';
+import { closeProgressQueue, openProgressQueue, type ProgressQueue } from '@/lib/reading/progress-queue';
 import { RECORDING_MAX_MS, contentTypeFor, nextAttemptNo, transcriptFields } from '@/lib/reading/recording-plan';
 import { enqueueLineRecording, onRecordingQueueChange, pendingRecordingUploads } from '@/lib/reading/recording-runner';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import { buildStartBody } from '@/lib/reading/session-plan';
-import { differentLines, directionLabel, readDialogueCount } from '@/lib/reading/session-results';
+import { directionLabel, readDialogueCount, reportCompletion, type DifferentView } from '@/lib/reading/session-results';
 import {
   advance,
   createRun,
@@ -34,8 +33,7 @@ import {
   pause as pauseRun,
   progressOf,
   progressPayload,
-  recordMatch,
-  resultsFromSession,
+  recordSaid,
   resume as resumeRun,
   resumeRun as resumeAt,
   shownText,
@@ -44,6 +42,7 @@ import {
   type RunState,
 } from '@/lib/reading/session-run';
 import {
+  fetchSession,
   getCurrent,
   getCurrentSession,
   saveProgress,
@@ -86,13 +85,13 @@ import { newRequestId } from '@/lib/request-id';
  *
  * 화면은 「대본 흐름」 — 지나간 줄(지문 포함)이 위로 흐리게 쌓이고 지금 줄 카드가 맨 아래, 다음 대사는 보이지 않는다.
  * 상대 대사는 목소리(고품질 → 앱 모델 → 기기 기본 목소리 → 글로 보기, voice-capability)로 읽고 내 대사에서 멈춰
- * 기다린다. 내 차례는 1.8초 침묵이나 [다음]으로 넘어가고 늘 녹음된다. 말한 것은 전사해 원문과 대조하되 실행 중엔
- * 보이지 않고 완료 화면(R9.23)이 「원문과 다르게 말한 대사」로 쓴다. 대사 보기 시트가 떠 있는 동안은 자동 넘김만
- * 멈춘다(녹음·상대 읽기는 계속). 진행 위치는 줄이 바뀔 때·일시정지·나가기·완료 때 서버에 남고(progress-queue),
+ * 기다린다. 내 차례는 1.8초 침묵이나 [다음]으로 넘어가고 늘 녹음된다. 말한 것은 전사해 진행 저장에 싣고, 서버가 원문과
+ * 비교해 완료 저장 응답으로 돌려주면 완료 화면(R9.23)이 「원문과 다르게 말한 대사」로 그린다. 대사 보기 시트가 떠 있는
+ * 동안은 자동 넘김만 멈춘다(녹음·상대 읽기는 계속). 진행 위치는 줄이 바뀔 때·일시정지·나가기·완료 때 서버에 남고(progress-queue),
  * 배경으로 가면 멈추고 재개는 그 줄을 처음부터 다시 한다.
  *
  * 실기기 오디오(녹음·음성 합성·음성인식의 동시 사용)는 자동화 테스트로 검증하지 않는다 — 순수 규칙은
- * session-run·session-results·voice-capability·vad·match·progress-queue 가 지키고, 여기서는 그것들을 잇는다.
+ * session-run·session-results·voice-capability·vad·progress-queue 가 지키고, 여기서는 그것들을 잇는다.
  */
 type Phase =
   | { kind: 'preparing'; progress: VoiceProgress | null }
@@ -140,9 +139,9 @@ export default function ReadingPlay() {
   const [run, setRun] = useState<RunState | null>(() => {
     if (!config || !session) return null;
     let initial = createRun(config);
-    // 이어하기 — 서버가 아는 위치·시간·줄별 결과부터. 옛 암기 대조(quiz) 회차도 읽어주기로 이어 간다.
+    // 이어하기 — 서버가 아는 위치·시간부터(줄별 결과는 서버가 들고 있다). 옛 암기 대조(quiz) 회차도 읽어주기로 이어 간다.
     if (session.current_line_id && session.progress_seq > 0) initial = resumeAt(initial, session.current_line_id);
-    return { ...initial, results: resultsFromSession(session), elapsedMs: (session.elapsed_seconds ?? 0) * 1000 };
+    return { ...initial, elapsedMs: (session.elapsed_seconds ?? 0) * 1000 };
   });
   const runRef = useRef(run);
   runRef.current = run;
@@ -159,6 +158,7 @@ export default function ReadingPlay() {
   const [attempt, setAttempt] = useState(0);
   const [sttMode, setSttMode] = useState<SttPolicy | null>(null);
   const [pendingUploads, setPendingUploads] = useState(0);
+  const [different, setDifferent] = useState<DifferentView>({ kind: 'waiting' });
   const engineRef = useRef<PartnerVoiceEngine>('supertonic');
   const deviceVoiceRef = useRef(false);
   const tipHiddenRef = useRef(true);
@@ -216,16 +216,28 @@ export default function ReadingPlay() {
   // ── 진행 저장 큐 ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!session) return;
-    const queue = createProgressQueue({
-      send: (body) => saveProgress(session.id, body),
+    let live = true;
+    const showDifferent = (view: DifferentView) => {
+      const run = runRef.current;
+      if (!live || !run) return;
+      setDifferent(view);
+      if (view.kind === 'ready') {
+        setLastRunReview({ sessionId: session.id, startIndex: run.startIndex, endIndex: run.endIndex, myRoles: run.myRoles, different: view.lines });
+      }
+    };
+    const queue = openProgressQueue(session.id, {
+      send: reportCompletion((body) => saveProgress(session.id, body), { fetchDetail: () => fetchSession(session.id), onView: showDifferent }),
       initialSeq: session.progress_seq ?? 0,
       onClosed: () => {
-        if (mounted.current) setPhase({ kind: 'closed', message: t('reading.errorSessionClosed') });
+        // 끝낸 뒤의 409 는 응답을 잃은 완료 저장이라 완료 화면을 그대로 둔다(칸은 reportCompletion 이 회차 상세로 채운다).
+        if (mounted.current && runRef.current?.status !== 'done') setPhase({ kind: 'closed', message: t('reading.errorSessionClosed') });
       },
     });
     queueRef.current = queue;
     return () => {
-      queue.dispose();
+      // 완료 저장이 아직 닿지 않았으면(끊김) 화면을 떠나도 몇 분 더 보내 결과가 회차 상세에 남는다. 앱을 끄면 잃는다.
+      closeProgressQueue(session.id, queue, { keepSending: runRef.current?.status === 'done' });
+      live = false;
       queueRef.current = null;
     };
   }, [session]);
@@ -283,7 +295,7 @@ export default function ReadingPlay() {
    * 너무 길거나 커서 보내지 못한 녹음은 위쪽에 「녹음 N개 저장 못 함」으로 잠깐 알리고 진행은 막지 않는다.
    */
   const endTurnRecording = useCallback(
-    async (lineId: string, text: string, match: LineMatch | null): Promise<void> => {
+    async (lineId: string, text: string): Promise<void> => {
       const sttUsed = sttActive.current;
       let uri: string | null = null;
       let durationMs = Math.max(0, Date.now() - turnStartedAt.current);
@@ -306,7 +318,7 @@ export default function ReadingPlay() {
       }
       const attemptNo = nextAttemptNo(attempts.current, lineId);
       attempts.current[lineId] = attemptNo;
-      const fields = transcriptFields({ sttUsed, text, match });
+      const fields = transcriptFields({ sttUsed, text });
       const outcome = await enqueueLineRecording({
         requestId: newRequestId(),
         sessionId: session.id,
@@ -317,7 +329,6 @@ export default function ReadingPlay() {
         durationMs,
         transcript: fields.transcript,
         transcriptSource: fields.transcript_source,
-        matched: fields.matched,
       });
       if (outcome.kind === 'rejected' && (outcome.reason === 'empty' || outcome.reason === 'missing')) {
         logEvent('reading_recording_empty', { kind, reason: outcome.reason, platform: Platform.OS });
@@ -336,7 +347,6 @@ export default function ReadingPlay() {
     if (!prev || !session) return;
     if (next.status === 'done') {
       queueRef.current?.push(progressPayload(next));
-      setLastRunReview({ sessionId: session.id, startIndex: next.startIndex, endIndex: next.endIndex, myRoles: next.myRoles, results: next.results });
       setPhase({ kind: 'done' });
       if (!fromTutorialRef.current) void askRating({ kind: 'reading' });
       return;
@@ -552,15 +562,12 @@ export default function ReadingPlay() {
       if (!cur || !session || cur.index !== from || cur.status !== 'mine' || turnClosing.current) return;
       turnClosing.current = true;
       const text = sttActive.current ? await stt.finish() : '';
-      const line = cur.lines[cur.index] as DialogueLine;
-      const match = text ? compareLine(text, line.text) : null;
-      await endTurnRecording(cur.lineIds[cur.index], text, match);
+      await endTurnRecording(cur.lineIds[cur.index], text);
       sttActive.current = false;
       setListening(false);
       const now = runRef.current;
       if (!now || now.index !== from) return;
-      // 대조 결과는 흐름에 끼어들지 않고 결과만 남긴다.
-      if (match?.kind === 'pass' || match?.kind === 'miss') commit(recordMatch(now, match.kind, text));
+      if (text.trim()) commit(recordSaid(now, text));
       goNext(from);
     },
     [session, stt, commit, goNext, endTurnRecording],
@@ -626,15 +633,13 @@ export default function ReadingPlay() {
           turnClosing.current = true;
           void (async () => {
             const text = sttActive.current ? await stt.finish() : '';
-            const line = cur.lines[cur.index] as DialogueLine;
-            const match = text ? compareLine(text, line.text) : null;
-            await endTurnRecording(cur.lineIds[cur.index], text, match);
+            await endTurnRecording(cur.lineIds[cur.index], text);
             recordingClosed.current = true;
             sttActive.current = false;
             setListening(false);
             setTurnNote('limit');
             const now = runRef.current;
-            if (now && now.index === from && (match?.kind === 'pass' || match?.kind === 'miss')) commit(recordMatch(now, match.kind, text));
+            if (now && now.index === from && text.trim()) commit(recordSaid(now, text));
             // 줄은 그대로라 [다음]으로 넘길 수 있게 푼다.
             if (!cancelled) turnClosing.current = false;
           })();
@@ -865,8 +870,8 @@ export default function ReadingPlay() {
   if (phase.kind === 'done') {
     const readCount = readDialogueCount(run.lines, run.startIndex, run.endIndex);
     const wholeScript = run.startIndex <= run.lines.findIndex((l) => l.type === 'dialogue') && run.endIndex >= run.lines.length - 1;
-    const different = differentLines(run);
     const compared = sttMode?.kind === 'stt';
+    const textOf = (lineId: string) => run.lines[run.lineIds.indexOf(lineId)]?.text ?? '';
     return (
       <View style={styles.root}>
         <ScrollView contentContainerStyle={[styles.doneContent, { paddingTop: insets.top + 24 }]}>
@@ -891,16 +896,26 @@ export default function ReadingPlay() {
               <Feather name="info" size={16} color={palette.textMuted} />
               <Text style={styles.noteText}>{t('reading.noSttNote')}</Text>
             </View>
-          ) : different.length > 0 ? (
+          ) : different.kind === 'waiting' ? (
+            <View style={styles.noteBox}>
+              <ActivityIndicator size="small" color={palette.textMuted} />
+              <Text style={styles.noteText}>{t('reading.differentWaiting')}</Text>
+            </View>
+          ) : different.kind === 'later' ? (
+            <View style={styles.noteBox}>
+              <Feather name="wifi-off" size={16} color={palette.textMuted} />
+              <Text style={styles.noteText}>{t('reading.differentLater')}</Text>
+            </View>
+          ) : different.kind === 'ready' && different.lines.length > 0 ? (
             <View style={styles.diffBox}>
               <View style={styles.diffHead}>
                 <Text style={styles.diffTitle}>{t('reading.differentTitle')}</Text>
-                <Text style={styles.diffCount}>{t('reading.differentCount', { count: different.length })}</Text>
+                <Text style={styles.diffCount}>{t('reading.differentCount', { count: different.lines.length })}</Text>
               </View>
-              {different.slice(0, 2).map((d) => (
-                <View key={d.lineId} style={styles.diffRow}>
-                  <Text style={styles.diffNo}>{t('reading.lineNo', { n: d.dialogueNo })}</Text>
-                  <DiffText target={d.text} said={d.said} />
+              {different.lines.slice(0, 2).map((d) => (
+                <View key={d.line_id} style={styles.diffRow}>
+                  <Text style={styles.diffNo}>{t('reading.lineNo', { n: d.dialogue_no })}</Text>
+                  <DiffText text={textOf(d.line_id)} different={d} />
                 </View>
               ))}
               <Pressable style={styles.diffAll} onPress={() => router.push('/reading/diff')} hitSlop={6}>

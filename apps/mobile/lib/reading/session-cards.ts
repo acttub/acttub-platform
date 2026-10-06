@@ -6,7 +6,7 @@ import type { ScriptLine } from './parse.ts';
 import { latestRecordings } from './recording-plan.ts';
 import { relativeDay } from './script-cards.ts';
 import { dialogueNumbers } from './session-plan.ts';
-import type { SessionCard, SessionDetail, SessionProgress, SessionRecording } from './types.ts';
+import type { DifferentLine, SessionCard, SessionDetail, SessionProgress, SessionRecording } from './types.ts';
 import { translate as t } from '../i18n.ts';
 
 /** "0:41"·"10:05" — 분은 자리 채움 없이. */
@@ -57,25 +57,22 @@ export type SessionLine = {
   dialogueNo: number | null;
   mine: boolean;
   recording: SessionRecording | null;
-  /** 다르게 말한 것으로 인식된 녹음의 전사. 맞게 말했거나 비교하지 않은 녹음은 null(원문만 보인다). */
-  said: string | null;
+  /** 서버가 원문과 다르게 말했다고 정한 줄(different_lines). 맞게 말했거나 비교하지 않은 줄은 null(원문만 보인다). */
+  different: DifferentLine | null;
   /** 진행 중 회차가 이어 할 줄. */
   resumeHere: boolean;
 };
 
-export function differentlySaid(rec: Pick<SessionRecording, 'matched' | 'transcript_source' | 'transcript'>): string | null {
-  return rec.matched === false && rec.transcript_source === 'stt' && rec.transcript !== null ? rec.transcript : null;
-}
-
-/** 회차 구간의 모든 줄(지문·장면 포함)에 내 녹음을 붙인다. 같은 줄 녹음이 여럿이면 마지막 시도만. */
+/** 회차 구간의 모든 줄(지문·장면 포함)에 내 녹음과 다르게 말한 것을 붙인다. 같은 줄 녹음이 여럿이면 마지막 시도만. */
 export function sessionLines(
   script: { lines: ScriptLine[]; lineIds: string[] },
-  detail: Pick<SessionDetail, 'start_line_id' | 'end_line_id' | 'my_character_names' | 'status' | 'current_line_id' | 'recordings'>,
+  detail: Pick<SessionDetail, 'start_line_id' | 'end_line_id' | 'my_character_names' | 'status' | 'current_line_id' | 'recordings' | 'different_lines'>,
 ): SessionLine[] {
   const start = script.lineIds.indexOf(detail.start_line_id);
   const end = script.lineIds.indexOf(detail.end_line_id);
   if (start < 0 || end < start) return [];
   const latest = latestRecordings(detail.recordings);
+  const different = new Map(detail.different_lines.map((d) => [d.line_id, d] as const));
   const mine = new Set(detail.my_character_names);
   const numbers = dialogueNumbers(script.lines);
   const resumeId = detail.status === 'completed' ? null : detail.current_line_id;
@@ -90,7 +87,7 @@ export function sessionLines(
       dialogueNo: numbers[start + offset],
       mine: line.type === 'dialogue' && mine.has(line.role),
       recording,
-      said: recording ? differentlySaid(recording) : null,
+      different: different.get(lineId) ?? null,
       resumeHere: lineId === resumeId,
     };
   });

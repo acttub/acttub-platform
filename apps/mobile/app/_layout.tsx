@@ -19,7 +19,7 @@ import '@/lib/global-font';
 import { logScreenView } from '@/lib/analytics';
 import { initMetaSdk } from '@/lib/meta-events';
 import { startSignupAttributionListener } from '@/lib/signup-attribution-runtime';
-import { initCrashlytics } from '@/lib/crashlytics';
+import { initCrashlytics, markScreen } from '@/lib/crashlytics';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
 import { challengePushTarget } from '@/lib/challenge/notification-center';
 import {
@@ -387,7 +387,9 @@ function RootNavigator() {
 function ScreenTracker() {
   const segments = useSegments();
   useEffect(() => {
-    logScreenView('/' + segments.join('/'));
+    const screen = '/' + segments.join('/');
+    logScreenView(screen);
+    markScreen(screen);
   }, [segments]);
   return null;
 }

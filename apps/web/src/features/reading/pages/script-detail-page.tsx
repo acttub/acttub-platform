@@ -9,14 +9,14 @@ import { useRouter } from "next/navigation";
 import { getScript } from "@/lib/api/v2/reading-scripts";
 import { getSession, listSessions } from "@/lib/api/v2/reading-sessions";
 import { errorMessage } from "@/lib/api/v2/errors";
-import type { SessionCard, SessionDetail } from "@/lib/reading/api-types";
+import type { SessionCard } from "@/lib/reading/api-types";
 import { hasGuestSession } from "@/lib/auth/token-store";
 import { useResource } from "@/lib/react/use-resource";
 import { toStoredScript } from "@/lib/reading/script/from-server";
 import { MEMORIZE_PATH, scriptIdFromPath, STEP_PATH } from "@/lib/reading/step";
 import { storage, type StoredScript } from "@/lib/reading/storage";
 import { adoptStoredScript } from "@/features/reading/script-save";
-import { ScriptDetailScreen } from "@/features/reading/screens/ScriptDetailScreen";
+import { ScriptDetailScreen, type OpenSession } from "@/features/reading/screens/ScriptDetailScreen";
 import { Page } from "@/features/reading/page-shell";
 
 const LOAD_FAILED_COPY = "대본을 불러오지 못했어요.";
@@ -25,7 +25,7 @@ const RESUME_FAILED_COPY = "회차를 열지 못했어요. 다시 시도해 주�
 
 const noop = () => () => {};
 
-type Loaded = { script: StoredScript; sessions: SessionCard[]; openSession: SessionDetail | null };
+type Loaded = { script: StoredScript; sessions: SessionCard[]; openSession: OpenSession | null };
 
 export function ScriptDetailPage() {
   const router = useRouter();
@@ -38,9 +38,9 @@ export function ScriptDetailPage() {
     async (k, signal) => {
       const id = k.slice(0, k.lastIndexOf(":"));
       const [detail, list] = await Promise.all([getScript(id, { signal }), listSessions(id, { signal })]);
-      const script = toStoredScript(detail);
-      const openSession = detail.open_session_id ? await getSession(detail.open_session_id, { signal }) : null;
-      return { script, sessions: list.sessions, openSession };
+      const open = list.sessions.find((c) => c.id === detail.open_session_id);
+      const openSession = open?.progress ? { id: open.id, progress: open.progress } : null;
+      return { script: toStoredScript(detail), sessions: list.sessions, openSession };
     },
     LOAD_FAILED_COPY,
   );

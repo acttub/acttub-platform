@@ -1,4 +1,5 @@
 // reading.cast — 목소리 저장이 실패한 채 회차를 시작하면 이번 회차는 고른 목소리로 읽고 다음 진입 때 다시 저장한다.
+// 저장에 성공하면 서버가 다시 정한 대본(다른 자동 배역의 voice 포함)을 돌려준다.
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 
@@ -22,8 +23,8 @@ test("reading.cast: 목소리 저장이 실패하면 값을 기기에 남기고,
       return {};
     },
   };
-  assert.equal(await saveVoicePreset("script-1", "c-nina", "M3", deps), false);
-  assert.equal(await saveVoicePreset("script-1", "c-tre", null, deps), false);
+  assert.equal(await saveVoicePreset("script-1", "c-nina", "M3", deps), null);
+  assert.equal(await saveVoicePreset("script-1", "c-tre", null, deps), null);
   assert.deepEqual(pendingVoicePresets("script-1"), { "c-nina": "M3", "c-tre": null });
   assert.deepEqual(calls[0].body, { characters: [{ id: "c-nina", voice_preset: "M3" }] });
 
@@ -36,10 +37,11 @@ test("reading.cast: 목소리 저장이 실패하면 값을 기기에 남기고,
   assert.equal(calls.length, 3);
 });
 
-test("reading.cast: 저장에 성공하면 기기에 남긴 값도 지운다", async () => {
-  const deps = { update: async () => ({}) };
+test("reading.cast: 저장에 성공하면 서버 대본을 돌려주고 기기에 남긴 값도 지운다", async () => {
+  const saved = { id: "script-1", characters: [{ id: "c-nina", voice_preset: "F2", voice: "F2" }, { id: "c-tre", voice_preset: null, voice: "F1" }] };
+  const deps = { update: async () => saved };
   window.localStorage.setItem("acttub.reading.pending_voices", JSON.stringify({ "script-1": { "c-nina": "M3" } }));
-  assert.equal(await saveVoicePreset("script-1", "c-nina", "F2", deps), true);
+  assert.equal(await saveVoicePreset("script-1", "c-nina", "F2", deps), saved);
   assert.deepEqual(pendingVoicePresets("script-1"), {});
 });
 

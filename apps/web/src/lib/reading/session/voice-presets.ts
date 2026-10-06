@@ -4,6 +4,7 @@
  * 보내지 못한 값은 대본별로 기기 저장소에 둔다.
  */
 import { updateScript } from "@/lib/api/v2/reading-scripts";
+import type { ScriptDetail } from "@/lib/reading/api-types";
 import { webStorage } from "@/lib/reading/storage";
 
 const PENDING_KEY = "acttub.reading.pending_voices";
@@ -50,22 +51,23 @@ export type SaveVoiceDeps = { update: typeof updateScript };
 const REAL: SaveVoiceDeps = { update: updateScript };
 
 /**
- * 프리셋 하나를 저장한다. 실패해도 던지지 않고 false 를 준다 — 화면은 고른 값으로 이번 회차를 읽고,
- * 값은 다음 진입 때 `retryPendingVoicePresets` 가 다시 보낸다.
+ * 프리셋 하나를 저장하고 서버가 다시 정한 대본을 준다 — 한 배역을 고정하면 다른 자동 배역의 목소리도 바뀐다.
+ * 실패해도 던지지 않고 null 을 준다. 화면은 고른 값으로 이번 회차를 읽고, 값은 다음 진입 때
+ * `retryPendingVoicePresets` 가 다시 보낸다.
  */
 export async function saveVoicePreset(
   scriptId: string,
   characterId: string,
   preset: string | null,
   deps: SaveVoiceDeps = REAL,
-): Promise<boolean> {
+): Promise<ScriptDetail | null> {
   try {
-    await deps.update(scriptId, { characters: [{ id: characterId, voice_preset: preset }] });
+    const saved = await deps.update(scriptId, { characters: [{ id: characterId, voice_preset: preset }] });
     forgetPending(scriptId, [characterId]);
-    return true;
+    return saved;
   } catch {
     rememberPending(scriptId, characterId, preset);
-    return false;
+    return null;
   }
 }
 

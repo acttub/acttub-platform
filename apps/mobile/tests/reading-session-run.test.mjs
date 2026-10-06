@@ -8,10 +8,9 @@ import {
   exitMessage,
   formatProgress,
   isHidden,
-  lineResultsOf,
   progressOf,
-  recordMatch,
-  resultsFromSession,
+  progressPayload,
+  recordSaid,
   resumeRun,
   shownText,
   tickElapsed,
@@ -80,34 +79,24 @@ test('reading.session: 흐른 시간은 일시정지를 빼고 잰다', () => {
   assert.equal(formatProgress(r), '0 / 5 · 00:01');
 });
 
-test('reading.session: 대조 미달은 흐름을 바꾸지 않고 unmatched 와 말한 것만 남긴다. 서버 본문엔 말한 것이 없다', () => {
+test('reading.session: 내 줄에는 말한 것만 남기고 흐름은 그대로다. 진행 저장은 이번 실행에서 말한 줄만 줄 순서로 line_id·said 를 싣는다', () => {
+  assert.deepEqual(progressPayload(resumeRun(run(), 'l4')).line_results, [], '이어하기는 앞 실행의 줄 결과를 다시 보내지 않는다(서버가 말한 것을 지우지 않게)');
   let r = run();
-  r = recordMatch(r, 'miss', '하나');
+  r = recordSaid(r, '하나');
   assert.equal(r.index, 1);
-  assert.deepEqual(r.results, { l1: { outcome: 'unmatched', misses: 1, said: '하나' } });
-  assert.deepEqual(lineResultsOf(r), [{ line_id: 'l1', outcome: 'unmatched', misses: 1 }]);
-  r = recordMatch(r, 'pass', '1');
-  assert.deepEqual(r.results.l1, { outcome: 'passed', misses: 1, said: '1' }, '다시 말해 통과하면 마지막 사건이 이긴다');
+  r = recordSaid(r, '일');
   const partner = advance(r);
-  assert.equal(recordMatch(partner, 'miss', 'x'), partner, '상대 차례에는 결과를 남기지 않는다');
-});
-
-test('reading.session: 이어하기는 서버 결과에 녹음 전사를 붙인다 — 같은 줄은 attempt_no 가 큰 쪽', () => {
-  const results = resultsFromSession({
+  assert.equal(recordSaid(partner, 'x'), partner, '상대 차례에는 남기지 않는다');
+  r = recordSaid(advance(partner), '셋');
+  assert.deepEqual(progressPayload(r), {
+    current_line_id: 'l4',
+    elapsed_seconds: 0,
     line_results: [
-      { line_id: 'l1', outcome: 'unmatched', misses: 1 },
-      { line_id: 'l4', outcome: 'passed', misses: 0 },
+      { line_id: 'l1', said: '일' },
+      { line_id: 'l4', said: '셋' },
     ],
-    recordings: [
-      { line_id: 'l1', attempt_no: 1, transcript: '첫 번째' },
-      { line_id: 'l1', attempt_no: 2, transcript: '두 번째' },
-    ],
+    complete: false,
   });
-  assert.deepEqual(results, {
-    l1: { outcome: 'unmatched', misses: 1, said: '두 번째' },
-    l4: { outcome: 'passed', misses: 0, said: null },
-  });
-  assert.deepEqual(resultsFromSession({ line_results: null, recordings: null }), {});
 });
 
 test('reading.session: 가리기 — 내 대사만/모든 대사, 배역 이름·지문·장면은 남긴다', () => {

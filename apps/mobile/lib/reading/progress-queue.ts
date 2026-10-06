@@ -19,7 +19,19 @@ export type ProgressQueueDependencies = {
   maxRetryDelayMs?: number;
   /** 409 session_closed — 회차가 끝났다. 화면이 안내한다. */
   onClosed?: () => void;
+  /** 첫 저장 전에 기다린다 — 같은 회차의 앞 큐가 보내던 요청이 끝난 뒤에 보낸다. */
+  after?: Promise<void>;
 };
+
+/** 화면을 떠난 뒤 남은 저장(끊긴 채 끝낸 완료 저장)을 보내 보는 횟수(첫 시도 포함). 백오프로 약 4분이다. */
+export const RETIRED_SEND_ATTEMPTS = 12;
+
+/** 같은 본문을 다시 보내도 답이 같은 오류(409 session_closed·404·422·403). 큐는 버리고 다시 보내지 않는다. */
+export function isPermanentSaveError(error: unknown): boolean {
+  if (!(error instanceof ApiError)) return false;
+  if (error instanceof NetworkError || error instanceof RequestAbortError) return false;
+  return error.status === 409 || error.status === 404 || error.status === 422 || error.status === 403;
+}
 
 export function createProgressQueue(deps: ProgressQueueDependencies) {
   let seq = deps.initialSeq ?? 0;
@@ -28,6 +40,8 @@ export function createProgressQueue(deps: ProgressQueueDependencies) {
   let attempt = 0;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let disposed = false;
+  let retired = false;
+  let gate: Promise<void> | null = deps.after ?? null;
   const waiters: (() => void)[] = [];
   const baseDelay = deps.retryDelayMs ?? 2_000;
   const maxDelay = deps.maxRetryDelayMs ?? 30_000;
@@ -38,26 +52,27 @@ export function createProgressQueue(deps: ProgressQueueDependencies) {
     for (const w of list) w();
   }
 
-  function isPermanent(error: unknown): boolean {
-    if (!(error instanceof ApiError)) return false;
-    if (error instanceof NetworkError || error instanceof RequestAbortError) return false;
-    // 409 session_closed·404·422 는 같은 본문을 다시 보내도 답이 같다.
-    return error.status === 409 || error.status === 404 || error.status === 422 || error.status === 403;
-  }
-
   async function drain(): Promise<void> {
     if (disposed || inFlight || pending === null) return;
     inFlight = true;
+    if (gate) {
+      await gate;
+      gate = null;
+    }
+    if (disposed || pending === null) {
+      inFlight = false;
+      settleWaiters();
+      return;
+    }
     const body: ProgressBody = { progress_seq: ++seq, ...pending };
     pending = null;
     try {
       await deps.send(body);
       attempt = 0;
     } catch (error) {
-      if (isPermanent(error)) {
+      if (isPermanentSaveError(error)) {
         if (error instanceof ApiError && error.code === 'session_closed') deps.onClosed?.();
-        pending = null;
-      } else {
+      } else if (!disposed && !(retired && attempt + 1 >= RETIRED_SEND_ATTEMPTS)) {
         // 다시 시도 — 그사이 새 위치가 들어왔으면 그것이 이긴다.
         if (pending === null) pending = stripSeq(body);
         attempt += 1;
@@ -82,7 +97,7 @@ export function createProgressQueue(deps: ProgressQueueDependencies) {
   return {
     /** 마지막 위치를 들고 있다가 보낸다. 앞선 것이 아직 안 나갔으면 합친다. */
     push(payload: ProgressPayload): void {
-      if (disposed) return;
+      if (disposed || retired) return;
       pending = { ...(pending ?? {}), ...payload };
       if (timer !== null) {
         clearTimeout(timer);
@@ -90,10 +105,18 @@ export function createProgressQueue(deps: ProgressQueueDependencies) {
       }
       void drain();
     },
-    /** 밀린 저장이 다 나갈 때까지. 테스트와 나가기가 기다린다. */
+    /** 밀린 저장이 다 나갈 때까지(버린 뒤라면 보내던 요청이 끝날 때까지). 테스트와 나가기가 기다린다. */
     flushed(): Promise<void> {
       if (pending === null && !inFlight) return Promise.resolve();
       return new Promise((resolve) => waiters.push(resolve));
+    },
+    /** 지금까지 쓴 순번. 같은 회차의 다음 큐가 이보다 큰 순번부터 보낸다. */
+    seq(): number {
+      return seq;
+    },
+    /** 새 저장은 받지 않고 남은 것만 보낸다. 끊긴 채면 모두 RETIRED_SEND_ATTEMPTS 번 보내 보고 그만둔다. */
+    retire(): void {
+      retired = true;
     },
     dispose(): void {
       disposed = true;
@@ -106,3 +129,35 @@ export function createProgressQueue(deps: ProgressQueueDependencies) {
 }
 
 export type ProgressQueue = ReturnType<typeof createProgressQueue>;
+
+/**
+ * 회차마다 큐 하나. 끊긴 채 끝낸 회차는 화면을 떠나도 완료 저장을 다시 보내는데(closeProgressQueue keepSending), 그 회차를
+ * 다시 열면 남은 완료 저장은 버린다 — 서버가 아직 진행 중이라 이어서 연습하는 쪽이 배우의 마지막 뜻이다. 새 큐는 앞 큐가
+ * 보내던 요청이 끝난 뒤, 앞 큐보다 큰 순번부터 보낸다.
+ */
+const open = new Map<string, ProgressQueue>();
+
+export function openProgressQueue(sessionId: string, deps: ProgressQueueDependencies): ProgressQueue {
+  const previous = open.get(sessionId);
+  previous?.dispose();
+  const queue = createProgressQueue({
+    ...deps,
+    initialSeq: Math.max(deps.initialSeq ?? 0, previous?.seq() ?? 0),
+    after: previous?.flushed(),
+  });
+  open.set(sessionId, queue);
+  return queue;
+}
+
+export function closeProgressQueue(sessionId: string, queue: ProgressQueue, options: { keepSending: boolean }): void {
+  if (open.get(sessionId) !== queue) return;
+  if (!options.keepSending) {
+    queue.dispose();
+    open.delete(sessionId);
+    return;
+  }
+  queue.retire();
+  void queue.flushed().then(() => {
+    if (open.get(sessionId) === queue) open.delete(sessionId);
+  });
+}

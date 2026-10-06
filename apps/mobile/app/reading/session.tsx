@@ -236,7 +236,7 @@ export default function ReadingSession() {
               </View>
             )}
           </View>
-          <DiffText target={row.text} said={row.said} />
+          <DiffText text={row.text} different={row.different} />
         </View>
         {row.recording && playButton(row.recording)}
       </View>
@@ -254,7 +254,7 @@ export default function ReadingSession() {
         {playButton(rec)}
         <View style={styles.lineBody}>
           <Text style={[styles.recLabel, playing && styles.recLabelOn]}>{label}</Text>
-          <DiffText target={row.text} said={row.said} />
+          <DiffText text={row.text} different={row.different} />
         </View>
       </View>
     );

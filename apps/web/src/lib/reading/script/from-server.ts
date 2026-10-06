@@ -3,6 +3,7 @@
  * 줄을 가르므로 배역 id 를 이름으로 풀고, 회차 시작·진행 저장이 배역·줄 id 를 쓰도록 id 는 따로 든다.
  */
 import type { ScriptDetail } from "../api-types";
+import { isVoicePreset } from "../audio/supertonic/models";
 import type { StoredScript } from "../storage";
 import type { ScriptLine } from "./parse";
 
@@ -21,7 +22,8 @@ export function toStoredScript(detail: ScriptDetail): StoredScript {
     title: detail.title,
     roles: characters.map((c) => c.name),
     lines,
-    characters: characters.map((c) => ({ id: c.id, name: c.name, voicePreset: c.voice_preset })),
+    // 서버는 기기 프리셋만 준다. 이 웹이 모르는 값이면 음성 파일을 받지 못하므로 첫 프리셋으로 읽는다.
+    characters: characters.map((c) => ({ id: c.id, name: c.name, voicePreset: c.voice_preset, voice: isVoicePreset(c.voice) ? c.voice : "F1" })),
     lineIds: sorted.map((l) => l.id),
     lastSession: detail.last_session ? { myCharacterIds: detail.last_session.my_character_ids } : null,
   };

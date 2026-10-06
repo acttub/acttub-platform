@@ -1238,6 +1238,8 @@ const ko = {
     differentCount: '{{count}}개',
     seeAll: '전체 보기',
     noSttNote: '이 기기에서는 말한 것을 글자로 바꾸지 못해 비교하지 않았어요.',
+    differentWaiting: '말한 것을 원문과 비교하고 있어요.',
+    differentLater: '연결되면 비교 결과를 보여 드릴게요.',
     diffTitle: '다르게 말한 대사',
     myRecording: '내 녹음',
     finish: '완료',

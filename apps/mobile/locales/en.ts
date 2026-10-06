@@ -1250,6 +1250,8 @@ const en: DeepStringShape<typeof ko> = {
     differentCount: '{{count}}',
     seeAll: 'See all',
     noSttNote: 'This device can’t turn speech into text, so nothing was compared.',
+    differentWaiting: 'Comparing what you said with the script.',
+    differentLater: 'We’ll show the comparison once you’re back online.',
     diffTitle: 'Lines said differently',
     myRecording: 'My recording',
     finish: 'Done',

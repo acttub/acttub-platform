@@ -18,7 +18,7 @@ import type { ScriptLine } from './parse.ts';
 import { createDraft, validateDraft, type ScriptDraft } from './script-draft.ts';
 import type {
   CreateScriptBody,
-  LineOutcome,
+  DifferentLine,
   PatchScriptBody,
   ProgressBody,
   ProgressResponse,
@@ -343,13 +343,13 @@ export async function deleteSession(sessionId: string): Promise<void> {
 
 // ── 완료 화면 → 다르게 말한 대사 전체(R9.26) ─────────────────────────────────
 
-/** 완료 화면이 R9.26 에 넘기는 이번 회차의 대조 결과. 구간은 현재 대본의 lines 인덱스, 결과는 줄 id 별이다. */
+/** 완료 화면이 R9.26 에 넘기는 이번 회차의 비교 결과. 구간은 현재 대본의 lines 인덱스, different 는 완료 저장 응답의 것이다. */
 export type RunReview = {
   sessionId: string;
   startIndex: number;
   endIndex: number;
   myRoles: string[];
-  results: Record<string, { outcome: LineOutcome; said: string | null }>;
+  different: DifferentLine[];
 };
 
 let lastRunReview: RunReview | null = null;
