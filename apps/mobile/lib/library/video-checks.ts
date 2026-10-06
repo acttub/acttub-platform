@@ -29,7 +29,7 @@ export function videoErrorCodeOf(error: unknown): VideoErrorCode | null {
   return kind?.kind === 'reason' && isVideoErrorCode(kind.code) ? kind.code : null;
 }
 
-const MESSAGE_KEY: Record<VideoErrorCode | 'video_empty', string> = {
+const MESSAGE_KEY: Record<VideoErrorCode, string> = {
   video_too_large: 'archive.tooLarge',
   video_too_long: 'archive.tooLong',
   video_quota: 'archive.quota',
@@ -37,7 +37,6 @@ const MESSAGE_KEY: Record<VideoErrorCode | 'video_empty', string> = {
   video_in_use: 'archive.inUseTitle',
   upload_expired: 'archive.uploadExpired',
   request_fingerprint_mismatch: 'errors.requestChanged',
-  video_empty: 'archive.tooLarge',
 };
 
 export function videoErrorMessage(error: unknown): string {

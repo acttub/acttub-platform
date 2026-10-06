@@ -11,7 +11,7 @@ import java.time.Period;
  */
 public final class KoreanAge {
 
-    /** 이 나이 미만은 법정대리인 동의가 필요해 1.0.0 은 받지 않는다. */
+    /** 이 나이 미만은 법정대리인 동의가 필요해 0.1.0 은 받지 않는다. */
     public static final int MINIMUM = 14;
 
     private KoreanAge() {

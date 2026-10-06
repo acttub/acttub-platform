@@ -10,17 +10,18 @@ import { useAppDialog } from '@/components/app-dialog';
 import { RecordModeSlider } from '@/components/record-mode-slider';
 import { palette } from '@/constants/palette';
 import { keepDeviceFile } from '@/lib/account-files';
+import { formatClipDuration } from '@/lib/archive-format';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { isKorean, translate as t } from '@/lib/i18n';
 import { recordModeAfterSwipe, recordModes, type RecordMode } from '@/lib/record-modes';
 import { saveRecordingToLibrary } from '@/lib/library/library-runner';
-import { videoErrorMessage } from '@/lib/library/video-checks';
-import { MAX_VIDEO_DURATION_MS, normalizeVideoDurationMs } from '@/lib/upload-input';
+import { VIDEO_MAX_MS, videoErrorMessage } from '@/lib/library/video-checks';
+import { normalizeVideoDurationMs } from '@/lib/upload-input';
 import { peekRecordedVideo, setRecordedVideo, takeRecordedVideo } from '@/lib/recorded-video';
 import { setPickedVideo } from '@/lib/practice/picked-video';
 
-const MAX_SEC = Math.floor(MAX_VIDEO_DURATION_MS / 1000);
+const MAX_SEC = Math.floor(VIDEO_MAX_MS / 1000);
 /** 챌린지(오늘의 대사) 촬영은 60초 — pen A18 촬영 대기 화면과 같은 상한. */
 const CHALLENGE_MAX_SEC = 60;
 
@@ -295,7 +296,6 @@ export default function RecordVideoScreen() {
     );
   }
 
-  const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   const remaining = Math.max(0, maxSec - elapsed);
 
   // ---------- 챌린지 모드: pen A18 촬영 대기 ----------
@@ -315,7 +315,7 @@ export default function RecordVideoScreen() {
               <View style={[styles.timerPill, recording && styles.timerPillRec]}>
                 <View style={[styles.recDot, !recording && styles.recDotIdle]} />
                 <Text style={styles.timerText}>
-                  {mmss(elapsed)} / {mmss(maxSec)}
+                  {formatClipDuration(elapsed)} / {formatClipDuration(maxSec)}
                 </Text>
               </View>
               {recording ? (

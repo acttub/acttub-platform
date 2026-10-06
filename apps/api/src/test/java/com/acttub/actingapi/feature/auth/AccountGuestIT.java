@@ -226,7 +226,7 @@ class AccountGuestIT {
     }
 
     @Test
-    @DisplayName("account.guest: 회원의 동의에는 나이 확인 줄이 없다 — 회원은 생년월일로 거른다")
+    @DisplayName("account.guest: 회원의 동의 기록은 나이 확인 없이 받는다 — 회원은 가입 제출에서 확인한다")
     void accountGuest_membersAreNeverAskedToConfirmTheirAge() throws Exception {
         UUID member = member();
 
@@ -458,7 +458,7 @@ class AccountGuestIT {
         return member;
     }
 
-    /** 보관함의 영상 하나. 1.0.0 의 회차는 영상으로 시작한다(practice.start). */
+    /** 보관함의 영상 하나. 0.1.0 의 회차는 영상으로 시작한다(practice.start). */
     private UUID video(UUID owner) {
         UUID id = UUID.randomUUID();
         jdbc.update("""

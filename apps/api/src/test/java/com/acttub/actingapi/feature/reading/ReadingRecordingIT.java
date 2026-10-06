@@ -35,6 +35,7 @@ import java.util.function.IntSupplier;
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.profile.app.AccountCleanup;
 import com.acttub.actingapi.integration.media.AudioTranscoder;
+import com.acttub.actingapi.integration.media.Ffmpeg;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.integration.storage.StoredObjectMetadata;
 import com.acttub.actingapi.support.AccountFixtures;
@@ -776,7 +777,7 @@ class ReadingRecordingIT {
         }
     }
 
-    static final class FakeFfmpeg implements AudioTranscoder.CommandRunner {
+    static final class FakeFfmpeg implements Ffmpeg.CommandRunner {
         static final byte[] OUTPUT = "converted-m4a".getBytes(StandardCharsets.UTF_8);
         final AtomicBoolean failing = new AtomicBoolean();
         final List<List<String>> commands = new java.util.concurrent.CopyOnWriteArrayList<>();

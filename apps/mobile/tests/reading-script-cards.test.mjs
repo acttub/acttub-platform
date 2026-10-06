@@ -18,6 +18,7 @@ function card(overrides = {}) {
     my_character_names: ['니나'],
     dialogue_count: 42,
     recording_count: 3,
+    last_practiced_at: '2026-09-20T21:00:00+09:00',
     last_activity_at: '2026-09-20T21:00:00+09:00',
     status: 'reading',
     updated_at: '2026-09-20T21:00:00+09:00',
@@ -52,7 +53,7 @@ test('reading.script: 마지막 활동 날짜 — "어제 연습", "5월 25일 �
   assert.equal(lastActivityLabel(card({ last_activity_at: '2026-09-20T21:00:00+09:00' }), NOW), '어제 연습');
   assert.equal(lastActivityLabel(card({ last_activity_at: '2026-09-21T09:00:00+09:00' }), NOW), '오늘 연습');
   assert.equal(
-    lastActivityLabel(card({ my_character_names: [], status: 'no_cast', last_activity_at: '2026-05-25T09:00:00+09:00' }), NOW),
+    lastActivityLabel(card({ my_character_names: [], status: 'no_cast', last_practiced_at: null, last_activity_at: '2026-05-25T09:00:00+09:00' }), NOW),
     '5월 25일 업로드',
   );
   assert.equal(lastActivityLabel(card({ last_activity_at: null }), NOW), '');

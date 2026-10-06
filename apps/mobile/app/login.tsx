@@ -4,14 +4,17 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useAppDialog } from '@/components/app-dialog';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { palette } from '@/constants/palette';
+import { recordHandledError } from '@/lib/crashlytics';
 import { translate as t } from '@/lib/i18n';
 import { lastProviderStore } from '@/lib/last-provider';
 import {
+  emailConflictDialog,
   highlightedProvider,
-  loginErrorMessage,
+  providerLabel,
   visibleLoginProviders,
   type LoginProvider,
 } from '@/lib/login-flow';
@@ -51,7 +54,8 @@ export default function LoginScreen() {
   const [list, setList] = useState<ProviderList>({ status: 'loading' });
   const [lastProvider, setLastProvider] = useState<LoginProvider | null>(null);
   const [busy, setBusy] = useState<LoginProvider | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const { confirm, alert, dialog } = useAppDialog();
 
   const loadProviders = useCallback(async () => {
     setList({ status: 'loading' });
@@ -74,20 +78,48 @@ export default function LoginScreen() {
     void lastProviderStore.read().then(setLastProvider);
   }, [loadProviders]);
 
-  const run = async (provider: LoginProvider) => {
-    setError(null);
+  const run = useCallback(
+    async (provider: LoginProvider) => {
+      setFailed(false);
+      clearLoginNotice();
+      setBusy(provider);
+      try {
+        await signInWith(provider);
+      } catch (err) {
+        // 화면에는 한 문장만 보이므로 원인은 크래시 리포트에 남긴다.
+        setFailed(true);
+        recordHandledError(err);
+        // 꺼 둔 제공자(400)였을 수 있다. 목록을 다시 받아 버튼을 새로 그린다.
+        if ((err as { code?: string })?.code === 'unsupported_provider') void loadProviders();
+      } finally {
+        setBusy(null);
+      }
+    },
+    [clearLoginNotice, loadProviders, signInWith],
+  );
+
+  // 이메일 겹침은 로그인·가입 제출 어느 쪽에서 와도 이 화면 위 팝업으로 묻는다.
+  const conflictProvider =
+    loginNotice?.kind === 'email_conflict' ? loginNotice.provider : undefined;
+  useEffect(() => {
+    if (conflictProvider === undefined) return;
     clearLoginNotice();
-    setBusy(provider);
-    try {
-      await signInWith(provider);
-    } catch (err) {
-      setError(loginErrorMessage(err));
-      // 꺼 둔 제공자(400)였을 수 있다. 목록을 다시 받아 버튼을 새로 그린다.
-      if ((err as { code?: string })?.code === 'unsupported_provider') void loadProviders();
-    } finally {
-      setBusy(null);
-    }
-  };
+    void (async () => {
+      const supported = await supportedProviders();
+      const { title, message, continueWith } = emailConflictDialog(conflictProvider, supported);
+      if (!continueWith) {
+        await alert({ title, message });
+        return;
+      }
+      const accepted = await confirm({
+        title,
+        message,
+        cancelLabel: t('common.close'),
+        confirmLabel: t('login.emailConflictContinue', { provider: providerLabel(continueWith) }),
+      });
+      if (accepted) void run(continueWith);
+    })();
+  }, [alert, clearLoginNotice, confirm, conflictProvider, run]);
 
   const providers = list.status === 'ready' ? list.providers : [];
   const highlighted = highlightedProvider(providers, lastProvider);
@@ -151,7 +183,10 @@ export default function LoginScreen() {
       </View>
 
       <View style={styles.bottom}>
-        {loginNotice && <Text style={styles.notice}>{loginNotice}</Text>}
+        {loginNotice?.kind === 'notice' && (
+          <Text style={styles.notice}>{loginNotice.message}</Text>
+        )}
+        {failed && <Text style={styles.error}>{t('login.failed')}</Text>}
 
         {list.status === 'loading' ? (
           <ActivityIndicator color={palette.blue} />
@@ -167,10 +202,8 @@ export default function LoginScreen() {
         ) : (
           providers.map(renderButton)
         )}
-
-        {error && <Text style={styles.error}>{error}</Text>}
-        <Text style={styles.legal}>{t('login.legal')}</Text>
       </View>
+      {dialog}
     </SafeAreaView>
   );
 }
@@ -218,7 +251,6 @@ const styles = StyleSheet.create({
   reload: { paddingHorizontal: 16, paddingVertical: 8 },
   reloadText: { color: palette.blue, fontSize: 14, fontWeight: '700' },
   error: { color: palette.danger, fontSize: 13, textAlign: 'center' },
-  legal: { color: palette.textFaint, fontSize: 12, textAlign: 'center', lineHeight: 18 },
 });
 
 /** 제공자별 버튼 모양. 각 브랜드 가이드의 규격 색을 지킨다. */

@@ -47,6 +47,7 @@ import {
   conversationLines,
   isConversationDone,
   needsTurnHistory,
+  type ChatLine,
 } from "../practice/conversation-view";
 import {
   trackDialogueStarted,
@@ -153,14 +154,13 @@ import {
   describeWorkspaceView,
   type WorkspaceStatusChip,
 } from "./workspace-view";
-import { videoRecordRows } from "@/features/practice/video-record-rows";
+import { clock, videoRecordRows } from "@/features/practice/video-record-rows";
+import { preservePendingWebAttribution } from "@/lib/analytics/web-attribution";
 
 const NEW_PRACTICE_SUBTITLE = "영상을 올리면 질문이 시작돼요";
 /** 같은 영상으로 이어할 때 준비 화면이 드는 보관함 영상의 설명 */
 const SAME_VIDEO_CAPTION = "지난 회차와 같은 영상";
 const LIBRARY_VIDEO_CAPTION = "보관함 영상";
-
-type ChatMsg = { role: "ai" | "me"; text: string };
 
 export function WorkspaceApp() {
   return (
@@ -174,6 +174,9 @@ export function WorkspaceApp() {
 // 그러면 useSearchParams 를 감싼 위 Suspense 가 다시 걸려 흰 화면이 한 번 깜빡인다 —
 // 업로드가 끝나는 지점에서 새로고침처럼 보이던 게 이것이다.
 function replaceUrl(path: string): void {
+  // privacy 동의와 최초 저장이 끝나기 전에는 현재 입장의 안전 UTM만 URL에 이어 둔다.
+  // 저장이 끝났거나 계정 경계가 생기면 helper가 더 붙이지 않는다.
+  path = preservePendingWebAttribution(path);
   window.history.replaceState(null, "", path);
 }
 
@@ -283,7 +286,7 @@ function WorkspaceInner() {
   useEffect(() => {
     setGuestUsed(guestAnalysisUsed());
   }, []);
-  // 묶음 숨김 확인. "삭제"는 1.0.0 부터 묶음 숨김이다 — 노트·대화·기억은 남고 영상은 보관함에 남는다.
+  // 묶음 숨김 확인. "삭제"는 0.1.0 부터 묶음 숨김이다 — 노트·대화·기억은 남고 영상은 보관함에 남는다.
   const [hideConfirm, setHideConfirm] = useState(false);
   /** 기록 목록의 최근 30일 필터. 켠 시각을 들고 있다가 그 시각을 기준으로 자른다(practice.library). */
   const [recentOnly, setRecentOnly] = useState<Date | null>(null);
@@ -318,7 +321,7 @@ function WorkspaceInner() {
   } = useAnalysisProgress();
 
   // 대화
-  const [messages, setMessages] = useState<ChatMsg[]>([]);
+  const [messages, setMessages] = useState<ChatLine[]>([]);
   const [answer, setAnswer] = useState("");
   const [sending, setSending] = useState(false);
   const [coachOpening, setCoachOpening] = useState(false);
@@ -924,8 +927,8 @@ function WorkspaceInner() {
     replyRequestIdsRef.current.set(key, created);
     return created;
   }, []);
-  const send = useCallback(async (reply?: string) => {
-    const text = (reply ?? answer).trim();
+  const send = useCallback(async () => {
+    const text = answer.trim();
     const practiceId = currentSessionId();
     const coachId = coachIdRef.current;
     if (!text || sending || replyPendingRef.current || !coachId || !practiceId || screen.kind !== "chat") return;
@@ -1273,10 +1276,6 @@ function WorkspaceInner() {
   const activeGroup = activeId ? groupOfPractice(groups, activeId) : null;
   const noteGroupTitle = activeGroup ? groupTitle(activeGroup) : detail?.situation ?? "";
 
-  const noteBySession = useMemo(
-    () => new Set(groups.flatMap((g) => g.practices.filter((p) => p.note_id).map((p) => p.id))),
-    [groups],
-  );
   // 게스트가 끝나면(서버가 갱신을 거절) 그 게스트의 목록은 더 이상 열 수 없다. 받아 둔
   // 목록을 지우는 대신 여기서 가린다 — 이펙트에서 동기 setState 를 하지 않기 위해서다.
   // 목록은 묶음·회차다(practice.library). 숨긴 묶음은 빠진다.
@@ -1288,6 +1287,13 @@ function WorkspaceInner() {
   const toggleRail = useCallback(() => setRailOpen((v) => !v), []);
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
   const reselectVideo = useCallback(() => fileInputRef.current?.click(), []);
+  // 아래 둘도 memo 한 SessionRail·VideoBox 로 간다. 인라인 함수로 넘기면 분석 진행률이
+  // 1초마다 다시 그릴 때 memo 가 매번 풀린다.
+  const toggleRecent = useCallback(() => setRecentOnly((on) => (on ? null : new Date())), []);
+  const reportVideoDuration = useCallback(
+    (durationMs: number) => reportProgress({ type: "duration", videoDurationMs: durationMs }),
+    [reportProgress],
+  );
 
   const questionCount = messages.filter((message) => message.role === "ai").length;
   const visibleScene = {
@@ -1305,9 +1311,8 @@ function WorkspaceInner() {
       running={running}
       finished={finished}
       activeId={activeId}
-      hasNote={noteBySession}
       recentOnly={recentOnly !== null}
-      onToggleRecent={() => setRecentOnly((on) => (on ? null : new Date()))}
+      onToggleRecent={toggleRecent}
       listError={hasSession && listError}
       canTransfer={hasSession}
     />
@@ -1336,9 +1341,8 @@ function WorkspaceInner() {
               running={running}
               finished={finished}
               activeId={activeId}
-              hasNote={noteBySession}
               recentOnly={recentOnly !== null}
-              onToggleRecent={() => setRecentOnly((on) => (on ? null : new Date()))}
+              onToggleRecent={toggleRecent}
               listError={hasSession && listError}
               canTransfer={hasSession}
             />
@@ -1513,7 +1517,7 @@ function WorkspaceInner() {
                   sending,
                 })}
                 scrollRef={chatScrollRef}
-                onSend={(reply) => void send(reply)}
+                onSend={() => void send()}
                 done={body.done}
                 noteReady={body.noteReady}
                 onOpenNote={openNote}
@@ -1546,9 +1550,7 @@ function WorkspaceInner() {
                 <VideoBox
                   src={body.video.src}
                   caption={body.video.caption}
-                  onDuration={(durationMs) =>
-                    reportProgress({ type: "duration", videoDurationMs: durationMs })
-                  }
+                  onDuration={reportVideoDuration}
                   onReselect={body.video.reselectable ? reselectVideo : undefined}
                 />
               ) : body.video.kind === "upload-zone" ? (
@@ -1637,7 +1639,6 @@ const SessionRail = memo(function SessionRail({
   running,
   finished,
   activeId,
-  hasNote,
   recentOnly,
   onToggleRecent,
   listError,
@@ -1651,7 +1652,6 @@ const SessionRail = memo(function SessionRail({
   running: RailGroup[];
   finished: RailGroup[];
   activeId: string | null;
-  hasNote: Set<string>;
   /** 지난 연습을 최근 30일로 좁혀 보는 중인가(practice.library) */
   recentOnly: boolean;
   onToggleRecent: () => void;
@@ -1758,7 +1758,7 @@ const SessionRail = memo(function SessionRail({
                     <RailItem
                       title={`${g.favorite ? "★ " : ""}${g.title}`}
                       meta={`${whenLabel(g.newestAt)}${
-                        single ? (head && hasNote.has(head.id) ? " · 문장 남김" : "") : ` · 회차 ${g.practices.length}개`
+                        single ? (head?.hasNote ? " · 문장 남김" : "") : ` · 회차 ${g.practices.length}개`
                       }`}
                       active={single ? isActiveGroup(g) : false}
                       onClick={() => (single ? onOpen(headOf(g)) : toggleGroup(g.rootId))}
@@ -1787,7 +1787,7 @@ const SessionRail = memo(function SessionRail({
                                 <RailItem
                                   title={practice.title}
                                   meta={`${practice.ordinal}차 · ${whenLabel(practice.createdAt)}${
-                                    hasNote.has(practice.id) ? " · 문장 남김" : ""
+                                    practice.hasNote ? " · 문장 남김" : ""
                                   }`}
                                   active={practice.id === activeId}
                                   onClick={() => onOpen(practice.id)}
@@ -2331,7 +2331,7 @@ function ScenePanel({
                       onClick={() => playObservation(observation.start_ms)}
                       className="rounded-full bg-[#e8f3ff] px-3 py-1.5 text-xs font-black tabular-nums text-[#1b64da]"
                     >
-                      {formatObservationTime(observation.start_ms)}
+                      {clock(observation.start_ms)}
                     </button>
                   ))}
                 </div>
@@ -2424,13 +2424,6 @@ function ScenePanel({
   );
 }
 
-function formatObservationTime(startMs: number): string {
-  const totalSeconds = Math.max(0, Math.floor(startMs / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-}
-
 function SceneRows({ rows }: { rows: [string, string][] }) {
   return (
     <dl className="mt-3 grid gap-2">
@@ -2457,13 +2450,13 @@ function ChatPanel({
   noteReady,
   onOpenNote,
 }: {
-  messages: ChatMsg[];
+  messages: ChatLine[];
   answer: string;
   setAnswer: (v: string) => void;
   sending: boolean;
   inputEnabled: boolean;
   scrollRef: React.RefObject<HTMLDivElement | null>;
-  onSend: (reply?: string) => void;
+  onSend: () => void;
   done: boolean;
   noteReady: boolean;
   onOpenNote: () => void;
@@ -2485,7 +2478,7 @@ function ChatPanel({
         <div className="flex items-center gap-3 border-b border-[#edf0f3] px-4 py-3 sm:px-5">
           <span className="flex items-center gap-2 text-xs font-black text-[#4e5968] sm:text-[13.5px]">
             <span className="h-1.5 w-1.5 rounded-full bg-[#03b26c]" />
-            {done ? "이번 대화는 여기까지예요" : "현재 장면을 바탕으로 질문하고 있어요"}
+            이번 대화는 여기까지예요
           </span>
         </div>
       ) : (
@@ -2575,7 +2568,7 @@ function ChatPanel({
             setAnswer={setAnswer}
             sending={sending}
             inputEnabled={inputEnabled}
-            onSend={() => onSend()}
+            onSend={onSend}
           />
         )}
       </div>
@@ -2583,7 +2576,7 @@ function ChatPanel({
   );
 }
 
-function Bubble({ msg }: { msg: ChatMsg }) {
+function Bubble({ msg }: { msg: ChatLine }) {
   const mine = msg.role === "me";
   return (
     <div className={`flex items-end gap-2 ${mine ? "justify-end" : "justify-start"}`}>
@@ -2620,7 +2613,7 @@ function NotePanel({
 }: {
   report: PracticeReport;
   groupTitle: string;
-  messages: ChatMsg[];
+  messages: ChatLine[];
   /** 뒤에서 도는 일이 대화로 돌아가는 길을 막고 있는가. */
   backDisabled: boolean;
   onBackToChat: () => void;

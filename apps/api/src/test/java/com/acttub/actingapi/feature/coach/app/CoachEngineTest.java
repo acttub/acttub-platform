@@ -330,9 +330,8 @@ class CoachEngineTest {
                      "uncertainties":["표정은 확인할 수 없다"]}
                     """);
             var videoOnly = new CoachSessionSnapshot(
-                    source.sessionId(), source.practiceSessionId(), source.summaryId(), source.userId(),
-                    pack, blank, blank, blank, source.durationMs(), "그 외", "그 외", blank,
-                    List.of(), "", null, "open", "", List.of());
+                    source.sessionId(), source.practiceSessionId(), source.userId(),
+                    pack, blank, blank, blank, source.durationMs(), "그 외", "그 외", blank, "open", "", List.of(), PriorContext.EMPTY, "legacy", 0, null, null);
             RecordingGenerator generator = new RecordingGenerator(
                     "'가지 마'를 듣고 상대가 어떻게 하길 바랐어요?",
                     "**틀린 형식**", "말을 시작하기 전 멈춤만 줄여 비교해보세요.");
@@ -358,11 +357,10 @@ class CoachEngineTest {
     void missingPracticePreservesGenerationAndOriginalFailureWithoutTelemetry() {
         var source = session();
         var unlinked = new CoachSessionSnapshot(
-                source.sessionId(), null, source.summaryId(), source.userId(),
+                source.sessionId(), null, source.userId(),
                 source.observationPack(), source.situation(), source.characterContext(), source.goal(),
                 source.durationMs(), source.blockageKind(), source.subBranch(), source.blockageDetail(),
-                source.transcripts(), source.conversationSummary(), source.analysisHandoff(),
-                source.status(), source.closeReason(), source.turns());
+                source.status(), source.closeReason(), source.turns(), PriorContext.EMPTY, "legacy", 0, null, null);
         var telemetry = new RecordingLlmTelemetry();
         var generator = new RecordingGenerator("상대가 어떻게 되길 바라나요?");
 
@@ -385,7 +383,6 @@ class CoachEngineTest {
         return new CoachSessionSnapshot(
                 UUID.fromString("00000000-0000-0000-0000-000000000001"),
                 UUID.fromString("00000000-0000-0000-0000-000000000002"),
-                null,
                 UUID.fromString("00000000-0000-0000-0000-000000000003"),
                 null,
                 "연습실",
@@ -395,14 +392,11 @@ class CoachEngineTest {
                 "분석",
                 "대사의 의미",
                 "왜 지금인지 모르겠다",
-                List.of("첫 대사"),
-                "",
-                null,
                 "open",
                 "",
                 List.of(
                         new CoachTurnSnapshot("actor", "이전 질문"),
-                        new CoachTurnSnapshot("ai", "이전 답변")));
+                        new CoachTurnSnapshot("ai", "이전 답변")), PriorContext.EMPTY, "legacy", 0, null, null);
     }
 
     private static CoachSessionSnapshot sessionWithoutTurns() {
@@ -413,11 +407,10 @@ class CoachEngineTest {
     private static CoachSessionSnapshot snapshotWith(String detail, String goal) {
         CoachSessionSnapshot source = session();
         return new CoachSessionSnapshot(
-                source.sessionId(), source.practiceSessionId(), source.summaryId(), source.userId(),
+                source.sessionId(), source.practiceSessionId(), source.userId(),
                 source.observationPack(), source.situation(), source.characterContext(), goal,
                 source.durationMs(), source.blockageKind(), source.subBranch(), detail,
-                source.transcripts(), source.conversationSummary(), source.analysisHandoff(),
-                source.status(), source.closeReason(), List.of());
+                source.status(), source.closeReason(), List.of(), PriorContext.EMPTY, "legacy", 0, null, null);
     }
 
     /**
@@ -432,11 +425,10 @@ class CoachEngineTest {
             turns.add(new CoachTurnSnapshot("ai", "코치 말 " + index));
         }
         return new CoachSessionSnapshot(
-                source.sessionId(), source.practiceSessionId(), source.summaryId(), source.userId(),
+                source.sessionId(), source.practiceSessionId(), source.userId(),
                 source.observationPack(), source.situation(), source.characterContext(),
                 source.goal(), source.durationMs(), blockageKind, source.subBranch(),
-                source.blockageDetail(), source.transcripts(), source.conversationSummary(),
-                source.analysisHandoff(), source.status(), source.closeReason(), turns);
+                source.blockageDetail(), source.status(), source.closeReason(), turns, PriorContext.EMPTY, "legacy", 0, null, null);
     }
 
     private static final class RecordingGenerator implements TextGenerator {

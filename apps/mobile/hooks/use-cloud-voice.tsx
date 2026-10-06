@@ -1,15 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Markdown } from '@/components/markdown';
 import { palette } from '@/constants/palette';
 import { logEvent } from '@/lib/analytics';
 import { api, type ConsentEntryDocument } from '@/lib/api';
-import { loadCloudVoiceEnabled, saveCloudVoiceEnabled, type CloudVoiceStatus } from '@/lib/reading/cloud-voice';
+import { consentBodyWithoutTitle, loadCloudVoiceEnabled, saveCloudVoiceEnabled, type CloudVoiceStatus } from '@/lib/reading/cloud-voice';
 import { translate as t } from '@/lib/i18n';
 
 export function useCloudVoice() {
+  const insets = useSafeAreaInsets();
+  const [toast, setToast] = useState(false);
   const [status, setStatus] = useState<CloudVoiceStatus | null>(null);
+  /** 상태를 못 받아 왔다 — 기다리지 말고 모르는 채로 진행하라는 신호(공지 포스터가 쓴다). */
+  const [statusFailed, setStatusFailed] = useState(false);
   const [enabled, setEnabled] = useState(false);
   const [document, setDocument] = useState<ConsentEntryDocument | null>(null);
   const [busy, setBusy] = useState(false);
@@ -19,16 +24,19 @@ export function useCloudVoice() {
     const [stored, next] = await Promise.all([loadCloudVoiceEnabled(), api.getCloudVoiceStatus()]);
     setEnabled(stored);
     setStatus(next);
+    setStatusFailed(false);
     return next;
   }, []);
 
-  useEffect(() => { void refresh().catch(() => undefined); }, [refresh]);
+  useEffect(() => { void refresh().catch(() => setStatusFailed(true)); }, [refresh]);
 
   const finishEnable = useCallback(async (source: 'promo' | 'settings') => {
     await saveCloudVoiceEnabled(true);
     setEnabled(true);
     setStatus((current) => current ? { ...current, consent: 'granted' } : current);
     logEvent('cloud_voice_enabled', { source });
+    setToast(true);
+    setTimeout(() => setToast(false), 2200);
     return true;
   }, []);
 
@@ -70,23 +78,32 @@ export function useCloudVoice() {
   }, []);
 
   const consentSheet = (
+    <>
     <Modal visible={!!document} transparent animationType="slide" onRequestClose={() => !busy && setDocument(null)}>
       <View style={styles.backdrop}>
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}>
           <Text style={styles.title}>{document?.title}</Text>
-          <ScrollView style={styles.body}><Markdown source={document?.body ?? ''} variant="compact" /></ScrollView>
+          <ScrollView style={styles.body}><Markdown source={consentBodyWithoutTitle(document?.body ?? '')} /></ScrollView>
           <Pressable style={styles.primary} disabled={busy} onPress={() => void decide(true)}><Text style={styles.primaryText}>{t('cloudVoice.consentAgree')}</Text></Pressable>
           <Pressable style={styles.ghost} disabled={busy} onPress={() => void decide(false)}><Text style={styles.ghostText}>{t('cloudVoice.consentDecline')}</Text></Pressable>
         </View>
       </View>
     </Modal>
+    {toast && (
+      <View pointerEvents="none" style={[styles.toast, { bottom: insets.bottom + 96 }]}>
+        <Text style={styles.toastText}>{t('cloudVoice.enabledToast')}</Text>
+      </View>
+    )}
+    </>
   );
 
-  return { status, enabled, busy, refresh, enable, disable, consentSheet };
+  return { status, statusFailed, enabled, busy, refresh, enable, disable, consentSheet };
 }
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: palette.scrim, justifyContent: 'flex-end' },
+  toast: { position: 'absolute', left: 24, right: 24, borderRadius: 14, backgroundColor: palette.text, paddingVertical: 13, paddingHorizontal: 16, alignItems: 'center' },
+  toastText: { color: palette.onAccent, fontSize: 14, fontWeight: '700' },
   sheet: { maxHeight: '82%', backgroundColor: palette.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20 },
   title: { color: palette.text, fontSize: 21, fontWeight: '900', marginBottom: 12 },
   body: { maxHeight: 360 },

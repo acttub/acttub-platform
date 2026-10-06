@@ -1,6 +1,5 @@
 package com.acttub.actingapi.feature.feedback.app;
 
-import java.util.List;
 import java.util.regex.Pattern;
 
 import com.acttub.actingapi.platform.web.PythonText;
@@ -13,8 +12,6 @@ import com.acttub.actingapi.platform.web.PythonText;
  */
 public final class ExitSurveyRules {
 
-    public static final List<String> SCREENS = List.of("coach", "report");
-    public static final List<String> TRIGGERS = List.of("x", "leave", "back");
     public static final int BODY_MAX_CHARS = 100;
     public static final int CONTACT_MAX_CHARS = 80;
 

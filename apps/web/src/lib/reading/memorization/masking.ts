@@ -35,10 +35,3 @@ export function maskTokens(text: string, mode: MemoMode, options: { hint?: boole
     return { kind: "word", text: piece, masked, shown };
   });
 }
-
-/** 글자 하나를 밑줄 하나로 — 화면 밖(테스트·문구)에서 쓰는 표현 */
-export function renderMasked(text: string, mode: MemoMode, options: { hint?: boolean } = {}): string {
-  return maskTokens(text, mode, options)
-    .map((t) => (t.masked ? t.shown + "_".repeat(Math.max(0, Array.from(t.text).length - Array.from(t.shown).length)) : t.text))
-    .join(" ");
-}

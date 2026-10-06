@@ -5,7 +5,6 @@ import {
   StyleSheet,
   Text,
   View,
-  type StyleProp,
   type TextStyle,
 } from 'react-native';
 
@@ -13,24 +12,13 @@ import { parseMarkdown, type MarkdownSpan } from '@/lib/markdown';
 import { palette } from '@/constants/palette';
 
 /**
- * 마크다운 원문을 RN 텍스트로 그린다(파싱은 lib/markdown).
- * 리포트 본문은 'body', 동의 문서처럼 빽빽한 곳은 'compact'.
+ * 마크다운 원문을 RN 텍스트로 그린다(파싱은 lib/markdown). 쓰는 곳이 동의 문서 본문(동의·설정
+ * 화면, 고품질 목소리 동의 시트)뿐이라 빽빽한 작은 글자 크기 하나만 둔다.
  */
-export function Markdown({
-  source,
-  variant = 'body',
-  color,
-  style,
-}: {
-  source: string;
-  variant?: 'body' | 'compact';
-  /** 본문 글자색만 바꾸고 싶을 때(어두운 카드 위 등). */
-  color?: string;
-  style?: StyleProp<TextStyle>;
-}) {
+export function Markdown({ source }: { source: string }) {
   const blocks = useMemo(() => parseMarkdown(source), [source]);
-  const size = variant === 'compact' ? compactSizes : bodySizes;
-  const baseColor = color ?? (variant === 'compact' ? palette.textDim : palette.text);
+  const size = compactSizes;
+  const baseColor = palette.textDim;
 
   /**
    * 굵기는 각 Text가 자기 스타일로 들고 있어야 한다([[global-font]] — 굵기별 폰트 파일을 고르는
@@ -65,7 +53,6 @@ export function Markdown({
                   size.heading[block.level - 1],
                   { color: baseColor },
                   index > 0 && styles.headingSpaced,
-                  style,
                 ]}>
                 {renderSpans(block.spans, '800')}
               </Text>
@@ -73,7 +60,7 @@ export function Markdown({
           case 'quote':
             return (
               <View key={index} style={styles.quote}>
-                <Text style={[size.text, styles.quoteText, style]}>
+                <Text style={[size.text, styles.quoteText]}>
                   {renderSpans(block.spans)}
                 </Text>
               </View>
@@ -88,7 +75,7 @@ export function Markdown({
                     <Text style={[size.text, { color: baseColor }, styles.bullet]}>
                       {block.ordered ? `${i + 1}.` : '•'}
                     </Text>
-                    <Text style={[size.text, { color: baseColor }, styles.listText, style]}>
+                    <Text style={[size.text, { color: baseColor }, styles.listText]}>
                       {renderSpans(item)}
                     </Text>
                   </View>
@@ -98,7 +85,7 @@ export function Markdown({
           default:
             return (
               <Fragment key={index}>
-                <Text style={[size.text, { color: baseColor }, styles.paragraph, style]}>
+                <Text style={[size.text, { color: baseColor }, styles.paragraph]}>
                   {renderSpans(block.spans)}
                 </Text>
               </Fragment>
@@ -108,15 +95,6 @@ export function Markdown({
     </View>
   );
 }
-
-const bodySizes = {
-  text: { fontSize: 15, lineHeight: 23 },
-  heading: [
-    { fontSize: 19, lineHeight: 27 },
-    { fontSize: 17, lineHeight: 25 },
-    { fontSize: 15, lineHeight: 23 },
-  ],
-};
 
 const compactSizes = {
   text: { fontSize: 13, lineHeight: 20 },

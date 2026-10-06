@@ -1,24 +1,22 @@
 package com.acttub.actingapi.feature.reading.app;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.reading.app.CloudVoiceRepository.CacheEntry;
 import com.acttub.actingapi.platform.web.ApiException;
+import com.acttub.actingapi.platform.web.Hashing;
 
 public final class CloudVoiceService {
     public static final int EXPIRES_IN_SECONDS = 600;
     public static final Map<String, String> VOICES;
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
+    private static final String CACHE_FORMAT = "wav2";
     static {
         Map<String, String> voices = new LinkedHashMap<>();
         voices.put("M1", "Charon"); voices.put("M2", "Puck"); voices.put("M3", "Orus");
@@ -68,8 +66,6 @@ public final class CloudVoiceService {
             storage.upload(entry.objectKey(), wav);
             repository.recordSuccess(userId, today, entry, settings.model(), voice, wav.length, clock.instant());
             return result(entry.objectKey(), false);
-        } catch (ApiException error) {
-            throw error;
         } catch (RuntimeException error) {
             throw unavailable(error);
         }
@@ -90,11 +86,12 @@ public final class CloudVoiceService {
                 cause == null ? new IllegalStateException("cloud voice is unavailable") : cause);
     }
 
-    private static String hash(String model, String voice, String text) {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest((model + "\n" + voice + "\n" + text).getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
+    /**
+     * 캐시 키. 끝의 {@link #CACHE_FORMAT}은 저장 파일 형식의 판이다 — 2026-10-01~02에 WAV를 두 번 싸서
+     * 저장한 파일(틱·지지직)을 다시 내주지 않으려고 올렸다.
+     */
+    static String hash(String model, String voice, String text) {
+        return Hashing.sha256Hex(model + "\n" + voice + "\n" + text + "\n" + CACHE_FORMAT);
     }
 
     public record Status(boolean available, java.time.OffsetDateTime freeUntil, String consent, int dailyLimit, int dailyUsed) {}

@@ -74,7 +74,7 @@ test("account.consent: 처리방침 고지는 로그인 없이 부르고 게스�
   assert.deepEqual(notices, [privacyPolicy]);
   assert.deepEqual(calls.map((call) => call.route), ["GET /v2/consents/notices"]);
   assert.equal(calls[0].headers.has("Authorization"), false);
-  assert.equal(calls[0].headers.get("X-Acttub-Client"), "web/1.0.0");
+  assert.equal(calls[0].headers.get("X-Acttub-Client"), "web/0.1.0");
   assert.equal(hasGuestSession(), false);
 });
 

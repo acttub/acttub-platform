@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 1.0.0 코치 대화 (practice.coach, practice.note). 회차에 대화는 하나이고 열린 대화는 같은 id 로 재개한다.
+ * 0.1.0 코치 대화 (practice.coach, practice.note). 회차에 대화는 하나이고 열린 대화는 같은 id 로 재개한다.
  *
  * <p>값의 모양(필수·300자)은 여기서 422 배열로, 규칙(분석 상태·충돌·종료·지문)은 서비스가 사유 코드 하나로
  * 답한다(CONTRACT §6-2). <b>코치의 행동 규칙은 바뀌지 않았다</b> — 저장만 새 표로 옮겼다(ADR-027, §7·§8).

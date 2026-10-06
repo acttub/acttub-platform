@@ -54,15 +54,12 @@ export interface RailPractice {
   createdAt: string;
   title: string;
   hasNote: boolean;
-  conversationCount: number;
-  stage: PracticeSummary["stage"];
 }
 
 export interface RailGroup {
   rootId: string;
   title: string;
   favorite: boolean;
-  tags: string[];
   inProgressPracticeId: string | null;
   /** 가장 최근 회차 시작 시각 — 목록 순서와 월별 묶기가 쓴다 */
   newestAt: string;
@@ -78,14 +75,11 @@ function toRailGroup(group: PracticeGroup): RailGroup {
       createdAt: p.created_at,
       title: p.note_title?.trim() || p.situation?.trim() || `${p.ordinal}차 연습`,
       hasNote: Boolean(p.note_id),
-      conversationCount: p.conversation_count,
-      stage: p.stage,
     }));
   return {
     rootId: group.root_id,
     title: groupTitle(group),
     favorite: group.favorite,
-    tags: group.tags,
     inProgressPracticeId: group.in_progress_practice_id ?? null,
     newestAt: startedAt(group),
     practices,

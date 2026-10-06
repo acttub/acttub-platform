@@ -1,4 +1,4 @@
-/** 2 = 1.0.0 회차(practice) 기록. 옛 세션 기록(1)은 읽지 않고 버린다. */
+/** 2 = 0.1.0 회차(practice) 기록. 옛 세션 기록(1)은 읽지 않고 버린다. */
 export const ANALYSIS_SCHEMA_VERSION = 2;
 
 const KEY_PREFIX = 'acttub.pendingAnalysis:';

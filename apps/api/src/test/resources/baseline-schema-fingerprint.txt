@@ -62,6 +62,29 @@ COLUMN anomalies.start_ts ord=4 type=text len=- null=NO default=-
 COLUMN anomalies.summary_id ord=2 type=uuid len=- null=NO default=-
 COLUMN anomalies.what ord=7 type=text len=- null=NO default=-
 COLUMN anomalies.why_odd ord=8 type=text len=- null=NO default=-
+COLUMN app_posters.active ord=4 type=bool len=- null=NO default=false
+COLUMN app_posters.audience ord=12 type=text len=- null=NO default='all'::text
+COLUMN app_posters.audio ord=18 type=text len=- null=YES default=-
+COLUMN app_posters.badge ord=14 type=text len=- null=YES default=-
+COLUMN app_posters.body ord=16 type=text len=- null=YES default=-
+COLUMN app_posters.created_at ord=22 type=timestamptz len=- null=NO default=now()
+COLUMN app_posters.cta_action ord=20 type=text len=- null=NO default='none'::text
+COLUMN app_posters.cta_label ord=19 type=text len=- null=YES default=-
+COLUMN app_posters.cta_target ord=21 type=text len=- null=YES default=-
+COLUMN app_posters.dismissible ord=13 type=bool len=- null=NO default=true
+COLUMN app_posters.ends_at ord=7 type=timestamptz len=- null=YES default=-
+COLUMN app_posters.frequency ord=11 type=text len=- null=NO default='daily'::text
+COLUMN app_posters.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
+COLUMN app_posters.image ord=17 type=text len=- null=YES default=-
+COLUMN app_posters.locale ord=9 type=text len=- null=YES default=-
+COLUMN app_posters.min_app_version ord=10 type=text len=- null=YES default=-
+COLUMN app_posters.platforms ord=8 type=_text len=- null=NO default='{ios,android}'::text[]
+COLUMN app_posters.priority ord=5 type=int4 len=- null=NO default=0
+COLUMN app_posters.revision ord=3 type=int4 len=- null=NO default=1
+COLUMN app_posters.slug ord=2 type=text len=- null=NO default=-
+COLUMN app_posters.starts_at ord=6 type=timestamptz len=- null=YES default=-
+COLUMN app_posters.title ord=15 type=text len=- null=NO default=-
+COLUMN app_posters.updated_at ord=23 type=timestamptz len=- null=NO default=now()
 COLUMN challenge_entries.caption ord=5 type=text len=- null=YES default=-
 COLUMN challenge_entries.challenge_id ord=2 type=uuid len=- null=NO default=-
 COLUMN challenge_entries.content_version ord=6 type=int4 len=- null=NO default=1
@@ -264,6 +287,9 @@ COLUMN entry_view_events.created_at ord=4 type=timestamptz len=- null=NO default
 COLUMN entry_view_events.entry_id ord=2 type=uuid len=- null=NO default=-
 COLUMN entry_view_events.event_id ord=1 type=uuid len=- null=NO default=-
 COLUMN entry_view_events.user_id ord=3 type=uuid len=- null=NO default=-
+COLUMN evening_reminder_sends.day ord=2 type=date len=- null=NO default=-
+COLUMN evening_reminder_sends.sent_at ord=3 type=timestamptz len=- null=NO default=now()
+COLUMN evening_reminder_sends.user_id ord=1 type=uuid len=- null=NO default=-
 COLUMN external_operations.attempt_count ord=7 type=int4 len=- null=NO default=0
 COLUMN external_operations.created_at ord=13 type=timestamptz len=- null=NO default=now()
 COLUMN external_operations.error_code ord=11 type=text len=- null=YES default=-
@@ -419,6 +445,7 @@ COLUMN practices.title ord=17 type=text len=- null=YES default=-
 COLUMN practices.updated_at ord=23 type=timestamptz len=- null=NO default=now()
 COLUMN practices.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN practices.video_id ord=3 type=uuid len=- null=NO default=-
+COLUMN push_tokens.app_version ord=8 type=text len=- null=YES default=-
 COLUMN push_tokens.created_at ord=5 type=timestamptz len=- null=NO default=now()
 COLUMN push_tokens.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
 COLUMN push_tokens.locale ord=7 type=text len=- null=NO default='ko'::text
@@ -552,6 +579,7 @@ COLUMN user_consents.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN user_identities.apple_token_encrypted ord=7 type=text len=- null=YES default=-
 COLUMN user_identities.created_at ord=5 type=timestamptz len=- null=NO default=now()
 COLUMN user_identities.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
+COLUMN user_identities.last_used_at ord=9 type=timestamptz len=- null=NO default=now()
 COLUMN user_identities.naver_token_encrypted ord=8 type=text len=- null=YES default=-
 COLUMN user_identities.provider ord=3 type=text len=- null=NO default=-
 COLUMN user_identities.provider_uid ord=4 type=text len=- null=YES default=-
@@ -579,6 +607,18 @@ COLUMN user_profiles.photo_upload_mime_type ord=16 type=text len=- null=YES defa
 COLUMN user_profiles.photo_upload_size_bytes ord=17 type=int8 len=- null=YES default=-
 COLUMN user_profiles.updated_at ord=14 type=timestamptz len=- null=NO default=now()
 COLUMN user_profiles.user_id ord=1 type=uuid len=- null=NO default=-
+COLUMN user_signup_attributions.ad_creative ord=7 type=text len=- null=YES default=-
+COLUMN user_signup_attributions.ad_group ord=6 type=text len=- null=YES default=-
+COLUMN user_signup_attributions.campaign ord=5 type=text len=- null=YES default=-
+COLUMN user_signup_attributions.channel ord=4 type=text len=- null=NO default=-
+COLUMN user_signup_attributions.content ord=8 type=text len=- null=YES default=-
+COLUMN user_signup_attributions.medium ord=12 type=text len=- null=YES default=-
+COLUMN user_signup_attributions.platform ord=3 type=text len=- null=NO default=-
+COLUMN user_signup_attributions.recorded_at ord=11 type=timestamptz len=- null=NO default=now()
+COLUMN user_signup_attributions.source ord=2 type=text len=- null=NO default=-
+COLUMN user_signup_attributions.sub_publisher ord=10 type=text len=- null=YES default=-
+COLUMN user_signup_attributions.term ord=9 type=text len=- null=YES default=-
+COLUMN user_signup_attributions.user_id ord=1 type=uuid len=- null=NO default=-
 COLUMN users.age_confirmed_at ord=9 type=timestamptz len=- null=YES default=-
 COLUMN users.created_at ord=4 type=timestamptz len=- null=NO default=now()
 COLUMN users.deactivated_at ord=7 type=timestamptz len=- null=YES default=-
@@ -635,7 +675,7 @@ CONSTRAINT actor_memories actor_memories_user_id_fkey FOREIGN KEY (user_id) REFE
 CONSTRAINT actor_memories actor_memories_user_id_not_null NOT NULL user_id
 CONSTRAINT actor_memories actor_memories_value_not_null NOT NULL value
 CONSTRAINT actor_memories actor_memories_written_by_not_null NOT NULL written_by
-CONSTRAINT actor_memories ck_actor_memories_field CHECK ((field = ANY (ARRAY['goal'::text, 'blockage'::text, 'speech_self'::text, 'speech_actual'::text])))
+CONSTRAINT actor_memories ck_actor_memories_field CHECK ((field = ANY (ARRAY['goal'::text, 'blockage'::text, 'speech_self'::text, 'speech_actual'::text, 'wants'::text, 'habits'::text, 'avoid'::text, 'tone'::text])))
 CONSTRAINT actor_memories ck_actor_memories_value_length CHECK ((char_length(value) <= 1000))
 CONSTRAINT actor_memories ck_actor_memories_value_not_blank CHECK ((btrim(value) <> ''::text))
 CONSTRAINT actor_memories ck_actor_memories_written_by CHECK ((written_by = ANY (ARRAY['actor'::text, 'agent'::text])))
@@ -704,6 +744,31 @@ CONSTRAINT anomalies anomalies_what_not_null NOT NULL what
 CONSTRAINT anomalies anomalies_why_odd_not_null NOT NULL why_odd
 CONSTRAINT anomalies ck_anomalies_intent_impact CHECK ((intent_impact = ANY (ARRAY['반전'::text, '약화'::text, '국소'::text])))
 CONSTRAINT anomalies ck_anomalies_severity CHECK ((severity = ANY (ARRAY['high'::text, 'mid'::text, 'low'::text])))
+CONSTRAINT app_posters app_posters_active_not_null NOT NULL active
+CONSTRAINT app_posters app_posters_audience_not_null NOT NULL audience
+CONSTRAINT app_posters app_posters_created_at_not_null NOT NULL created_at
+CONSTRAINT app_posters app_posters_cta_action_not_null NOT NULL cta_action
+CONSTRAINT app_posters app_posters_dismissible_not_null NOT NULL dismissible
+CONSTRAINT app_posters app_posters_frequency_not_null NOT NULL frequency
+CONSTRAINT app_posters app_posters_id_not_null NOT NULL id
+CONSTRAINT app_posters app_posters_pkey PRIMARY KEY (id)
+CONSTRAINT app_posters app_posters_platforms_not_null NOT NULL platforms
+CONSTRAINT app_posters app_posters_priority_not_null NOT NULL priority
+CONSTRAINT app_posters app_posters_revision_not_null NOT NULL revision
+CONSTRAINT app_posters app_posters_slug_not_null NOT NULL slug
+CONSTRAINT app_posters app_posters_title_not_null NOT NULL title
+CONSTRAINT app_posters app_posters_updated_at_not_null NOT NULL updated_at
+CONSTRAINT app_posters ck_app_posters_audience CHECK ((audience = ANY (ARRAY['all'::text, 'cloud_voice_off'::text])))
+CONSTRAINT app_posters ck_app_posters_audio CHECK (((audio IS NULL) OR (audio ~ '^asset:[a-z0-9-]+$'::text) OR (audio ~ '^posters/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(png|jpg|webp)$'::text)))
+CONSTRAINT app_posters ck_app_posters_cta_action CHECK ((cta_action = ANY (ARRAY['none'::text, 'cloud_voice_enable'::text, 'route'::text, 'url'::text])))
+CONSTRAINT app_posters ck_app_posters_cta_target CHECK ((((cta_action <> 'route'::text) OR ((cta_target IS NOT NULL) AND (cta_target ~~ '/%'::text))) AND ((cta_action <> 'url'::text) OR ((cta_target IS NOT NULL) AND (cta_target ~~ 'https://%'::text)))))
+CONSTRAINT app_posters ck_app_posters_frequency CHECK ((frequency = ANY (ARRAY['daily'::text, 'once'::text])))
+CONSTRAINT app_posters ck_app_posters_image CHECK (((image IS NULL) OR (image ~ '^asset:[a-z0-9-]+$'::text) OR (image ~ '^posters/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(png|jpg|webp)$'::text)))
+CONSTRAINT app_posters ck_app_posters_locale CHECK (((locale IS NULL) OR (locale ~ '^[a-z]{2}$'::text)))
+CONSTRAINT app_posters ck_app_posters_min_app_version CHECK (((min_app_version IS NULL) OR (min_app_version ~ '^[0-9]+(\.[0-9]+)*$'::text)))
+CONSTRAINT app_posters ck_app_posters_period CHECK (((starts_at IS NULL) OR (ends_at IS NULL) OR (starts_at < ends_at)))
+CONSTRAINT app_posters ck_app_posters_platforms CHECK (((cardinality(platforms) > 0) AND (platforms <@ ARRAY['ios'::text, 'android'::text])))
+CONSTRAINT app_posters ck_app_posters_revision CHECK ((revision >= 1))
 CONSTRAINT challenge_entries challenge_entries_challenge_id_fkey FOREIGN KEY (challenge_id) REFERENCES challenges(id)
 CONSTRAINT challenge_entries challenge_entries_challenge_id_not_null NOT NULL challenge_id
 CONSTRAINT challenge_entries challenge_entries_content_version_not_null NOT NULL content_version
@@ -1009,6 +1074,11 @@ CONSTRAINT entry_view_events entry_view_events_event_id_not_null NOT NULL event_
 CONSTRAINT entry_view_events entry_view_events_pkey PRIMARY KEY (event_id)
 CONSTRAINT entry_view_events entry_view_events_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
 CONSTRAINT entry_view_events entry_view_events_user_id_not_null NOT NULL user_id
+CONSTRAINT evening_reminder_sends evening_reminder_sends_day_not_null NOT NULL day
+CONSTRAINT evening_reminder_sends evening_reminder_sends_pkey PRIMARY KEY (user_id, day)
+CONSTRAINT evening_reminder_sends evening_reminder_sends_sent_at_not_null NOT NULL sent_at
+CONSTRAINT evening_reminder_sends evening_reminder_sends_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+CONSTRAINT evening_reminder_sends evening_reminder_sends_user_id_not_null NOT NULL user_id
 CONSTRAINT external_operations ck_external_operations_kind CHECK ((kind = ANY (ARRAY['analyze'::text, 'coach_start'::text, 'coach_reply'::text, 'report'::text, 'memory_update'::text])))
 CONSTRAINT external_operations ck_external_operations_last_failure_classification CHECK ((last_failure_classification = ANY (ARRAY['expected'::text, 'external'::text, 'unexpected'::text])))
 CONSTRAINT external_operations ck_external_operations_status CHECK ((status = ANY (ARRAY['pending'::text, 'running'::text, 'succeeded'::text, 'failed'::text])))
@@ -1388,6 +1458,7 @@ CONSTRAINT user_identities ck_user_identities_uid_or_hash CHECK (((provider_uid 
 CONSTRAINT user_identities uq_user_identities_provider_uid UNIQUE (provider, provider_uid)
 CONSTRAINT user_identities user_identities_created_at_not_null NOT NULL created_at
 CONSTRAINT user_identities user_identities_id_not_null NOT NULL id
+CONSTRAINT user_identities user_identities_last_used_at_not_null NOT NULL last_used_at
 CONSTRAINT user_identities user_identities_pkey PRIMARY KEY (id)
 CONSTRAINT user_identities user_identities_provider_not_null NOT NULL provider
 CONSTRAINT user_identities user_identities_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
@@ -1413,6 +1484,17 @@ CONSTRAINT user_profiles user_profiles_pkey PRIMARY KEY (user_id)
 CONSTRAINT user_profiles user_profiles_updated_at_not_null NOT NULL updated_at
 CONSTRAINT user_profiles user_profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 CONSTRAINT user_profiles user_profiles_user_id_not_null NOT NULL user_id
+CONSTRAINT user_signup_attributions ck_user_signup_attributions_platform CHECK ((platform = ANY (ARRAY['ios'::text, 'android'::text, 'web'::text])))
+CONSTRAINT user_signup_attributions ck_user_signup_attributions_source CHECK ((source = ANY (ARRAY['airbridge'::text, 'web_utm'::text])))
+CONSTRAINT user_signup_attributions ck_user_signup_attributions_source_platform CHECK ((((source = 'airbridge'::text) AND ((platform = 'ios'::text) OR (platform = 'android'::text))) OR ((source = 'web_utm'::text) AND (platform = 'web'::text))))
+CONSTRAINT user_signup_attributions ck_user_signup_attributions_web_values CHECK (((source <> 'web_utm'::text) OR ((channel ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'::text) AND ((medium IS NULL) OR (medium ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'::text)) AND ((campaign IS NULL) OR (campaign ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'::text)) AND ((content IS NULL) OR (content ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'::text)) AND ((term IS NULL) OR (term ~ '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'::text)) AND (ad_group IS NULL) AND (ad_creative IS NULL) AND (sub_publisher IS NULL))))
+CONSTRAINT user_signup_attributions user_signup_attributions_channel_not_null NOT NULL channel
+CONSTRAINT user_signup_attributions user_signup_attributions_pkey PRIMARY KEY (user_id)
+CONSTRAINT user_signup_attributions user_signup_attributions_platform_not_null NOT NULL platform
+CONSTRAINT user_signup_attributions user_signup_attributions_recorded_at_not_null NOT NULL recorded_at
+CONSTRAINT user_signup_attributions user_signup_attributions_source_not_null NOT NULL source
+CONSTRAINT user_signup_attributions user_signup_attributions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+CONSTRAINT user_signup_attributions user_signup_attributions_user_id_not_null NOT NULL user_id
 CONSTRAINT users ck_users_role CHECK ((role = ANY (ARRAY['user'::text, 'admin'::text])))
 CONSTRAINT users ck_users_status CHECK ((status = ANY (ARRAY['active'::text, 'deactivated'::text])))
 CONSTRAINT users users_created_at_not_null NOT NULL created_at
@@ -1527,6 +1609,7 @@ INDEX CREATE UNIQUE INDEX actor_memory_entries_pkey ON public.actor_memory_entri
 INDEX CREATE UNIQUE INDEX ai_jobs_pkey ON public.ai_jobs USING btree (id)
 INDEX CREATE UNIQUE INDEX analyses_pkey ON public.analyses USING btree (id)
 INDEX CREATE UNIQUE INDEX anomalies_pkey ON public.anomalies USING btree (id)
+INDEX CREATE UNIQUE INDEX app_posters_pkey ON public.app_posters USING btree (id)
 INDEX CREATE UNIQUE INDEX challenge_entries_pkey ON public.challenge_entries USING btree (id)
 INDEX CREATE UNIQUE INDEX challenges_pkey ON public.challenges USING btree (id)
 INDEX CREATE UNIQUE INDEX coach_conversations_pkey ON public.coach_conversations USING btree (id)
@@ -1551,6 +1634,7 @@ INDEX CREATE UNIQUE INDEX entry_ranking_snapshots_pkey ON public.entry_ranking_s
 INDEX CREATE UNIQUE INDEX entry_reports_pkey ON public.entry_reports USING btree (id)
 INDEX CREATE UNIQUE INDEX entry_saves_pkey ON public.entry_saves USING btree (id)
 INDEX CREATE UNIQUE INDEX entry_view_events_pkey ON public.entry_view_events USING btree (event_id)
+INDEX CREATE UNIQUE INDEX evening_reminder_sends_pkey ON public.evening_reminder_sends USING btree (user_id, day)
 INDEX CREATE UNIQUE INDEX external_operations_pkey ON public.external_operations USING btree (id)
 INDEX CREATE UNIQUE INDEX guest_transfer_codes_pkey ON public.guest_transfer_codes USING btree (id)
 INDEX CREATE UNIQUE INDEX handoff_confirmations_pkey ON public.handoff_confirmations USING btree (coaching_handoff_id)
@@ -1589,6 +1673,7 @@ INDEX CREATE UNIQUE INDEX uq_actor_memories_user_field ON public.actor_memories 
 INDEX CREATE UNIQUE INDEX uq_actor_memory_user_field ON public.actor_memory_entries USING btree (user_id, field)
 INDEX CREATE UNIQUE INDEX uq_ai_jobs_user_request ON public.ai_jobs USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_analyses_practice ON public.analyses USING btree (practice_id)
+INDEX CREATE UNIQUE INDEX uq_app_posters_slug_locale ON public.app_posters USING btree (slug, COALESCE(locale, ''::text))
 INDEX CREATE UNIQUE INDEX uq_challenge_entries_parent ON public.challenge_entries USING btree (id, challenge_id)
 INDEX CREATE UNIQUE INDEX uq_challenge_entries_request ON public.challenge_entries USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_challenge_entries_video ON public.challenge_entries USING btree (challenge_id, video_id) WHERE (status <> 'deleted'::text)
@@ -1646,6 +1731,7 @@ INDEX CREATE UNIQUE INDEX user_consents_pkey ON public.user_consents USING btree
 INDEX CREATE UNIQUE INDEX user_identities_pkey ON public.user_identities USING btree (id)
 INDEX CREATE UNIQUE INDEX user_profile_directions_pkey ON public.user_profile_directions USING btree (id)
 INDEX CREATE UNIQUE INDEX user_profiles_pkey ON public.user_profiles USING btree (user_id)
+INDEX CREATE UNIQUE INDEX user_signup_attributions_pkey ON public.user_signup_attributions USING btree (user_id)
 INDEX CREATE UNIQUE INDEX users_email_key ON public.users USING btree (email)
 INDEX CREATE UNIQUE INDEX users_pkey ON public.users USING btree (id)
 INDEX CREATE UNIQUE INDEX ux_coaching_handoffs_session_revision ON public.coaching_handoffs USING btree (coach_session_id, state_revision) WHERE (state_revision IS NOT NULL)
@@ -1659,6 +1745,7 @@ TABLE actor_memory_entries
 TABLE ai_jobs
 TABLE analyses
 TABLE anomalies
+TABLE app_posters
 TABLE challenge_entries
 TABLE challenges
 TABLE coach_conversations
@@ -1682,6 +1769,7 @@ TABLE entry_ranking_snapshots
 TABLE entry_reports
 TABLE entry_saves
 TABLE entry_view_events
+TABLE evening_reminder_sends
 TABLE external_operations
 TABLE guest_transfer_codes
 TABLE handoff_confirmations
@@ -1715,6 +1803,7 @@ TABLE user_consents
 TABLE user_identities
 TABLE user_profile_directions
 TABLE user_profiles
+TABLE user_signup_attributions
 TABLE users
 TABLE video_transcripts
 TABLE videos

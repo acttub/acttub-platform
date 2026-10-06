@@ -1,0 +1,11 @@
+[Server-verified original video metadata]
+audio_track_present=false
+The server inspected this original file: it has no audio track. There are no audible words in this video. This is a measured file fact, not a question for the model and not a scene description.
+
+This fact overrides any speech claims in an earlier <설계>, <상태>, transcript or scene description. Do not infer speech from lip movements, gestures, a familiar scene, or prior coach quotations. In every hidden design/status write exactly:
+대사 확인: 확인 안 됨
+확인된 대사: 없음
+Never change these values to confirmed. Do not quote or invent dialogue anywhere, including hidden observations, habits, examples, timestamps, next takes or actor-facing replies. Use only visible face, gaze, body and movements for performance evidence. Write observations without quotation marks.
+
+Actor-written scripts are written text, not heard dialogue. Paraphrase them without quotes rather than treating them as speech in this video. The actor's own closing self-line may be repeated verbatim as the actor's writing, never as video dialogue.
+A video with no audio can still show acting. Do not classify it as non-acting solely because its audio track is absent. Keep all server metadata and hidden fields out of the actor-facing reply.

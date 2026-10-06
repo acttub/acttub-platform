@@ -284,6 +284,78 @@
         } ]
       }
     },
+    "/v2/me/web-attribution" : {
+      "put" : {
+        "tags" : [ "v2-me" ],
+        "summary" : "Record Web Attribution",
+        "description" : "웹 주소에서 받은 안전한 UTM을 현재 계정의 최초 유입 출처로 적는다. 인증과 현재 개인정보\n수집·이용 동의만 필요해 게스트도 프로필 없이 부를 수 있다. source=web_utm,\nplatform=web은 서버가 고정한다. 같은 계정에 다시 보내면 처음 값을 유지한 채 204다.\n이 값은 클라이언트 자기 보고 유입이며 광고 플랫폼 귀속과 별개다.",
+        "operationId" : "record_web_attribution_v2_me_web_attribution_put",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/WebAttributionRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "Successful Response"
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/me/signup-attribution" : {
+      "put" : {
+        "tags" : [ "v2-me" ],
+        "summary" : "Record Signup Attribution",
+        "description" : "이 기기에서 새로 가입한 계정의 유입 광고(Airbridge 설치 귀속 결과)를 적는다. 계정마다 처음 온\n값만 남고, 다시 보내도 바꾸지 않은 채 204 다 — 재시도에 안전하다. 보호 기능이라 동의와 프로필이\n끝난 회원만 부를 수 있다. 게스트는 403 member_only.",
+        "operationId" : "record_signup_attribution_v2_me_signup_attribution_put",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SignupAttributionRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "Successful Response"
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/me/profile" : {
       "put" : {
         "tags" : [ "v2-me" ],
@@ -339,7 +411,7 @@
           "required" : true,
           "schema" : {
             "type" : "string",
-            "enum" : [ "goal", "blockage", "speech_self", "speech_actual" ],
+            "enum" : [ "goal", "blockage", "wants", "habits", "avoid", "speech_self", "speech_actual" ],
             "title" : "Field"
           }
         } ],
@@ -390,7 +462,7 @@
           "required" : true,
           "schema" : {
             "type" : "string",
-            "enum" : [ "goal", "blockage", "speech_self", "speech_actual" ],
+            "enum" : [ "goal", "blockage", "wants", "habits", "avoid", "speech_self", "speech_actual" ],
             "title" : "Field"
           }
         } ],
@@ -3039,7 +3111,7 @@
       "patch" : {
         "tags" : [ "v2-me" ],
         "summary" : "Update Notification Settings",
-        "description" : "바꿀 토글만 보내고 토글 셋 전체를 돌려받는다. 분석 완료와 챌린지가 둘 다 꺼지면 서버가 그\n회원의 푸시 토큰을 전부 지운다(토글은 회원 단위다). 저녁 리마인드는 서버가 값만 기억하고\n알람은 폰이 맞춘다.",
+        "description" : "바꿀 토글만 보내고 토글 셋 전체를 돌려받는다. 셋이 다 꺼지면 서버가 그 회원의 푸시\n토큰을 전부 지운다(토글은 회원 단위다). 저녁 리마인드도 서버가 푸시로 보낸다.",
         "operationId" : "update_notification_settings_v2_me_notification_settings_patch",
         "requestBody" : {
           "content" : {
@@ -4025,6 +4097,67 @@
         }
       }
     },
+    "/v2/app/posters" : {
+      "get" : {
+        "tags" : [ "v2-app" ],
+        "summary" : "List App Posters",
+        "description" : "지금 앱 첫 화면에 띄울 수 있는 공지 포스터를 우선순위 큰 것, 최근에 고친 것 순으로 최대 5장.\n켜져 있고 기간 안이며 플랫폼이 맞고 언어가 없거나 같은 것만 낸다. min_app_version 이 있는 포스터는\napp_version 이 그 이상일 때만 낸다(app_version 을 보내지 않으면 빠진다). 빈도·다시 보지 않기·\n대상(audience)의 판정은 앱이 기기 상태로 한다.",
+        "operationId" : "list_posters_v2_app_posters_get",
+        "parameters" : [ {
+          "name" : "platform",
+          "in" : "query",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "ios", "android" ],
+            "title" : "Platform"
+          }
+        }, {
+          "name" : "locale",
+          "in" : "query",
+          "description" : "앱 표시 언어(두 글자). 없으면 언어 없는 포스터만",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "title" : "Locale"
+          }
+        }, {
+          "name" : "app_version",
+          "in" : "query",
+          "description" : "앱 판(점으로 이은 숫자)",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "title" : "App Version"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AppPosterList"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/admissions" : {
       "get" : {
         "tags" : [ "v2-admissions" ],
@@ -4435,6 +4568,139 @@
         },
         "title" : "PortfolioIntroRequest"
       },
+      "WebAttributionRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "channel" : {
+            "type" : "string",
+            "maxLength" : 64,
+            "minLength" : 1,
+            "pattern" : "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+            "title" : "Channel"
+          },
+          "medium" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 64,
+              "pattern" : "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Medium"
+          },
+          "campaign" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 64,
+              "pattern" : "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Campaign"
+          },
+          "content" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 64,
+              "pattern" : "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Content"
+          },
+          "term" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 64,
+              "pattern" : "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Term"
+          }
+        },
+        "required" : [ "channel" ],
+        "title" : "WebAttributionRequest"
+      },
+      "SignupAttributionRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "source" : {
+            "type" : "string",
+            "enum" : [ "airbridge" ],
+            "title" : "Source"
+          },
+          "platform" : {
+            "type" : "string",
+            "enum" : [ "ios", "android" ],
+            "title" : "Platform"
+          },
+          "channel" : {
+            "type" : "string",
+            "maxLength" : 200,
+            "minLength" : 1,
+            "title" : "Channel"
+          },
+          "campaign" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 200
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Campaign"
+          },
+          "ad_group" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 200
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Ad Group"
+          },
+          "ad_creative" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 200
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Ad Creative"
+          },
+          "content" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 200
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Content"
+          },
+          "term" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 200
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Term"
+          },
+          "sub_publisher" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 200
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Sub Publisher"
+          }
+        },
+        "required" : [ "channel", "platform", "source" ],
+        "title" : "SignupAttributionRequest"
+      },
       "ActingDirection" : {
         "type" : "string",
         "enum" : [ "media", "stage" ],
@@ -4653,7 +4919,7 @@
         "properties" : {
           "field" : {
             "type" : "string",
-            "enum" : [ "goal", "blockage", "speech_self", "speech_actual" ],
+            "enum" : [ "goal", "blockage", "wants", "habits", "avoid", "speech_self", "speech_actual" ],
             "title" : "Field"
           },
           "value" : {
@@ -7240,6 +7506,11 @@
               "$ref" : "#/components/schemas/SignupDecision"
             },
             "title" : "Decisions"
+          },
+          "age_confirmed" : {
+            "type" : "boolean",
+            "description" : "\"만 14세 이상이에요\" 확인. true면 확인 시각을 남긴다. 다음 단계에서 필수가 된다.",
+            "title" : "Age Confirmed"
           }
         },
         "required" : [ "decisions", "signup_token" ],
@@ -9055,6 +9326,122 @@
         "required" : [ "providers" ],
         "title" : "AuthProvidersResponse"
       },
+      "AppPoster" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "앱 첫 화면 공지 포스터 한 장. image_url 과 image_asset 은 많아야 하나가 차 있다.",
+        "properties" : {
+          "slug" : {
+            "type" : "string",
+            "description" : "기기의 봤음·다시 보지 않기 저장 키",
+            "title" : "Slug"
+          },
+          "revision" : {
+            "type" : "integer",
+            "description" : "바뀌면 기기의 봤음·다시 보지 않기가 무효",
+            "title" : "Revision"
+          },
+          "frequency" : {
+            "type" : "string",
+            "enum" : [ "daily", "once" ],
+            "title" : "Frequency"
+          },
+          "audience" : {
+            "type" : "string",
+            "enum" : [ "all", "cloud_voice_off" ],
+            "title" : "Audience"
+          },
+          "dismissible" : {
+            "type" : "boolean",
+            "title" : "Dismissible"
+          },
+          "badge" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Badge"
+          },
+          "title" : {
+            "type" : "string",
+            "title" : "Title"
+          },
+          "body" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Body"
+          },
+          "image_url" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "1시간 주소"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Image Url"
+          },
+          "image_asset" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "앱 번들 이미지 이름"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Image Asset"
+          },
+          "audio_asset" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "앱 번들 소리 이름"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Audio Asset"
+          },
+          "cta_label" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Cta Label"
+          },
+          "cta_action" : {
+            "type" : "string",
+            "enum" : [ "none", "cloud_voice_enable", "route", "url" ],
+            "title" : "Cta Action"
+          },
+          "cta_target" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Cta Target"
+          }
+        },
+        "required" : [ "audience", "audio_asset", "badge", "body", "cta_action", "cta_label", "cta_target", "dismissible", "frequency", "image_asset", "image_url", "revision", "slug", "title" ],
+        "title" : "AppPoster"
+      },
+      "AppPosterList" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "posters" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/AppPoster"
+            },
+            "title" : "Posters"
+          }
+        },
+        "required" : [ "posters" ],
+        "title" : "AppPosterList"
+      },
       "AdmissionNotice" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -9655,6 +10042,15 @@
               "type" : "null"
             } ],
             "title" : "Note"
+          },
+          "year" : {
+            "anyOf" : [ {
+              "type" : "integer",
+              "description" : "후기가 다룬 응시 학년도(2026학년도 수시 = 2025년 가을 실기). 글에서 확인 못 하면 비운다."
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Year"
           }
         },
         "required" : [ "category", "text" ],

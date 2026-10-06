@@ -20,9 +20,8 @@ import org.junit.jupiter.params.provider.EnumSource;
 
 class CoachingPipelineTest {
     static CoachSessionSnapshot session() {
-        return new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                StructuredJson.resource("/coaching/record.json"), "", "", "", 8000, "그 외", "그 외", null,
-                List.of(), "", null, "open", "", List.of()).withCoachingState("three_layers_v1", 0, null, "open", "");
+        return new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                StructuredJson.resource("/coaching/record.json"), "", "", "", 8000, "그 외", "그 외", null, "open", "", List.of(), PriorContext.EMPTY, "legacy", 0, null, null).withCoachingState("three_layers_v1", 0, null, "open", "");
     }
     static ObjectNode draft(JsonNode input, String message) {
         ObjectNode legacy = StructuredCoachEngineTest.respond(input, message, "continue");
@@ -57,7 +56,7 @@ class CoachingPipelineTest {
                     return out(StructuredJson.MAPPER.createObjectNode().put("route", route.id));
                 }
                 stages.add("generate");
-                assertThat(prompt).isEqualTo(CoachingPipeline.prompt(route, false));
+                assertThat(prompt).isEqualTo(CoachingPipeline.prompt(route, false, false));
                 assertThat(prompt).doesNotContain(StructuredJson.textResource("/coaching/routes/opening.txt"));
                 assertThat(prompt).doesNotContain("route 하나", "unobservable_hand_requested", "dialogue_progress");
                 for (CoachingRoute other : CoachingRoute.values()) {
@@ -142,8 +141,8 @@ class CoachingPipelineTest {
         var source = session();
         ObjectNode failed = source.observationPack().deepCopy();
         ((ObjectNode) failed.path("processing")).putArray("processed_ranges");
-        var noVideo = new CoachSessionSnapshot(source.sessionId(), source.practiceSessionId(), source.summaryId(), source.userId(),
-                failed, "", "", "", 8000, "그 외", "그 외", null, List.of(), "", null, "open", "", List.of())
+        var noVideo = new CoachSessionSnapshot(source.sessionId(), source.practiceSessionId(), source.userId(),
+                failed, "", "", "", 8000, "그 외", "그 외", null, "open", "", List.of(), PriorContext.EMPTY, "legacy", 0, null, null)
                 .withCoachingState("three_layers_v1", 0, null, "open", "");
         assertThatThrownBy(() -> engine((p,t) -> { throw new AssertionError("must not call model"); })
                 .start(noVideo, UUID.randomUUID())).isInstanceOf(CoachReplyUnavailable.class);
@@ -262,7 +261,7 @@ class CoachingPipelineTest {
                 return out(StructuredJson.MAPPER.createObjectNode().put("route", call == 2 ? "repair" : "advance"));
             }
             if (call == 1 || call == 3) {
-                assertThat(prompt).isEqualTo(CoachingPipeline.prompt(call == 3 ? CoachingRoute.REPAIR : CoachingRoute.ADVANCE, false));
+                assertThat(prompt).isEqualTo(CoachingPipeline.prompt(call == 3 ? CoachingRoute.REPAIR : CoachingRoute.ADVANCE, false, false));
                 ObjectNode result = draft(input, call == 3 ? repairedMessage : "잘못을 이해받고 싶다는 뜻이군요.");
                 ObjectNode context = input.path("coaching_state").path("context").deepCopy();
                 ObjectNode goal = ((ObjectNode) context.path("scene_context")).putObject("character_goal");

@@ -2,6 +2,7 @@ package com.acttub.actingapi.feature.admin;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -322,6 +323,10 @@ class AdminEndpointIT {
         assertThat(limited.path("items")).hasSize(2);
         assertThat(limited.path("has_more").booleanValue()).isTrue();
         assertThat(limited.path("items").get(0).path("id").textValue()).isEqualTo(rating.toString());
+        // 경계: 남은 행 수가 상한과 정확히 같으면 다음 쪽이 없다.
+        JsonNode exact = authorized("/v2/admin/feedback?limit=3", 200);
+        assertThat(exact.path("items")).hasSize(3);
+        assertThat(exact.path("has_more").booleanValue()).isFalse();
 
         JsonNode withTeam = authorized("/v2/admin/feedback?include_team=true", 200);
         assertThat(withTeam.path("items")).hasSize(4);
@@ -807,12 +812,25 @@ class AdminEndpointIT {
                     .isEqualTo("배우 " + md5(REAL_USER.toString()).substring(0, 8));
         }
 
+        // 가입 코호트 원장(SOMA-591): 팀을 빼고 사람 한 명당 한 행. 첫 업로드 확정은 finalized 중 가장 이른 것.
+        JsonNode signupRows = core.path("signup_rows");
+        assertThat(signupRows).hasSize(1);
+        JsonNode signupRow = signupRows.get(0);
+        assertThat(signupRow.fieldNames()).toIterable().containsExactly(
+                "actor", "signup_at", "platform", "device", "first_upload_at");
+        assertThat(signupRow.path("actor").textValue()).isEqualTo("배우 " + md5(REAL_USER.toString()).substring(0, 8));
+        assertThat(signupRow.path("signup_at").textValue()).isEqualTo(utc(NOW.minusHours(2).truncatedTo(ChronoUnit.HOURS)));
+        assertThat(signupRow.path("platform").textValue()).isEqualTo("웹");
+        assertThat(signupRow.path("device").textValue()).isEqualTo("기록 없음");
+        assertThat(signupRow.path("first_upload_at").textValue())
+                .isEqualTo(utc(NOW.minusMinutes(30).truncatedTo(ChronoUnit.MINUTES)));
+
         assertThat(core.toString()).doesNotContain(
                 "actor@example.com", "Team@Acttub.com", REAL_USER.toString(), TEAM_USER.toString());
     }
 
     /**
-     * 1.0 은 연습을 practices · coach_conversations · coach_messages · analyses 에 쓴다(SOMA-566). ops 코어와
+     * 0.1.0 은 연습을 practices · coach_conversations · coach_messages · analyses 에 쓴다(SOMA-566). ops 코어와
      * 세션 목록은 새 표 전부와 아직 옮겨지지 않은 옛 행을 함께 읽는다. 이관은 같은 id 로 옮기므로 옮겨진
      * 옛 행(여기서는 realFinal)은 한 번만 센다.
      */
@@ -835,8 +853,8 @@ class AdminEndpointIT {
                 """, UUID.randomUUID(), newPractice, NOW.minusMinutes(5), NOW.minusMinutes(5));
         UUID newConversation = UUID.randomUUID();
         insertConversation(newConversation, newPractice, "open", null, NOW.minusMinutes(4));
-        insertMessage(newConversation, 1, "actor", "1.0 답");
-        insertMessage(newConversation, 0, "ai", "1.0 질문");
+        insertMessage(newConversation, 1, "actor", "0.1.0 답");
+        insertMessage(newConversation, 0, "ai", "0.1.0 질문");
 
         JsonNode core = authorized("/v2/admin/ops-core", 200);
         JsonNode practices = core.path("metrics").get(1);
@@ -866,8 +884,8 @@ class AdminEndpointIT {
         assertThat(list.get(0).path("coach_session_id").textValue()).isEqualTo(newConversation.toString());
         assertThat(list.get(0).path("video_url").textValue()).isEqualTo("admin:new.mp4:3600");
         assertThat(list.get(0).path("turns")).isEqualTo(mapper.readTree("""
-                [{"turn_index":0,"role":"ai","text":"1.0 질문"},
-                 {"turn_index":1,"role":"actor","text":"1.0 답"}]
+                [{"turn_index":0,"role":"ai","text":"0.1.0 질문"},
+                 {"turn_index":1,"role":"actor","text":"0.1.0 답"}]
                 """));
         JsonNode moved = list.get(2);
         assertThat(moved.path("coach_session_id").textValue()).isEqualTo(realFinalCoach.toString());
@@ -1063,6 +1081,7 @@ class AdminEndpointIT {
         }
         assertThat(core.at("/devices/team_excluded").intValue()).isEqualTo(2);
         assertThat(core.path("activity_rows")).isEqualTo(mapper.readTree("[]"));
+        assertThat(core.path("signup_rows")).isEqualTo(mapper.readTree("[]"));
 
         JsonNode none = authorized("/v2/admin/ops-core?exclude_actors=", 200);
         assertThat(none.path("metrics").get(0).path("total_real").intValue()).isEqualTo(1);
@@ -1377,7 +1396,9 @@ class AdminEndpointIT {
                 "/v2/admin/reports", "/v2/admin/reports/{id}",
                 "/v2/admin/challenge-videos", "/v2/admin/challenge-videos/{id}/playback",
                 "/v2/admin/reading-sessions", "/v2/admin/reading-sessions/{id}",
-                "/v2/admin/reading-recordings/{id}/playback");
+                "/v2/admin/reading-recordings/{id}/playback",
+                // 앱 공지 포스터(app.poster)의 운영 경로도 같은 토큰 조건을 진다.
+                "/v2/admin/posters", "/v2/admin/posters/{id}", "/v2/admin/poster-images");
         assertThat(actual.at("/paths/~1v2~1admin~1sessions/get/parameters/0/schema/type")
                 .textValue()).isEqualTo("integer");
         assertThat(actual.at("/paths/~1v2~1admin~1sessions/get/parameters/0/schema/default")
@@ -1402,6 +1423,40 @@ class AdminEndpointIT {
                 .textValue()).isEqualTo("#/components/schemas/AdminReadingSessionDetail");
         assertThat(actual.at("/paths/~1v2~1admin~1reading-recordings~1{id}~1playback/get/responses/200/content/application~1json/schema/$ref")
                 .textValue()).isEqualTo("#/components/schemas/AdminReadingPlayback");
+    }
+
+    /** 관리자 422 본문은 pydantic 모양이 곧 계약이라 바이트 그대로 고정한다(키 순서·ctx 유무 포함). */
+    @Test
+    void validationBodiesStayByteIdentical() throws Exception {
+        String[][] cases = {
+            {"POST", "/v2/admin/practice-migration?batch=nope",
+                    "{\"detail\":[{\"type\":\"int_parsing\",\"loc\":[\"query\",\"batch\"],\"msg\":\"Input should be a valid integer, unable to parse string as an integer\",\"input\":\"nope\"}]}"},
+            {"POST", "/v2/admin/practice-migration?batch=0",
+                    "{\"detail\":[{\"type\":\"greater_than_equal\",\"loc\":[\"query\",\"batch\"],\"msg\":\"Input should be greater than or equal to 1\",\"input\":\"0\",\"ctx\":{\"ge\":1}}]}"},
+            {"POST", "/v2/admin/practice-migration?batch=1001",
+                    "{\"detail\":[{\"type\":\"less_than_equal\",\"loc\":[\"query\",\"batch\"],\"msg\":\"Input should be less than or equal to 1000\",\"input\":\"1001\",\"ctx\":{\"le\":1000}}]}"},
+            {"GET", "/v2/admin/sessions?limit=nope",
+                    "{\"detail\":[{\"type\":\"int_parsing\",\"loc\":[\"query\",\"limit\"],\"msg\":\"Input should be a valid integer, unable to parse string as an integer\",\"input\":\"nope\"}]}"},
+            {"GET", "/v2/admin/sessions?limit=0",
+                    "{\"detail\":[{\"type\":\"greater_than_equal\",\"loc\":[\"query\",\"limit\"],\"msg\":\"Input should be greater than or equal to 1\",\"input\":\"0\",\"ctx\":{\"ge\":1}}]}"},
+            {"GET", "/v2/admin/sessions?limit=51",
+                    "{\"detail\":[{\"type\":\"less_than_equal\",\"loc\":[\"query\",\"limit\"],\"msg\":\"Input should be less than or equal to 50\",\"input\":\"51\",\"ctx\":{\"le\":50}}]}"},
+            {"GET", "/v2/admin/feedback?include_team=maybe",
+                    "{\"detail\":[{\"type\":\"bool_parsing\",\"loc\":[\"query\",\"include_team\"],\"msg\":\"Input should be a valid boolean, unable to interpret input\",\"input\":\"maybe\"}]}"},
+            {"GET", "/v2/admin/feedback?exclude_actors=nothex12",
+                    "{\"detail\":[{\"type\":\"value_error\",\"loc\":[\"query\",\"exclude_actors\"],\"msg\":\"Value error, exclude_actors must be up to 100 comma-separated 8-digit lowercase hex pseudonyms\",\"input\":\"nothex12\"}]}"},
+            {"GET", "/v2/admin/challenge-videos?visibility=friends",
+                    "{\"detail\":[{\"type\":\"literal_error\",\"loc\":[\"query\",\"visibility\"],\"msg\":\"Input should be 'all', 'public' or 'private'\",\"input\":\"friends\",\"ctx\":{\"expected\":\"'all', 'public' or 'private'\"}}]}"},
+            {"GET", "/v2/admin/reading-sessions?status=done",
+                    "{\"detail\":[{\"type\":\"literal_error\",\"loc\":[\"query\",\"status\"],\"msg\":\"Input should be 'all', 'in_progress', 'completed' or 'stopped'\",\"input\":\"done\",\"ctx\":{\"expected\":\"'all', 'in_progress', 'completed' or 'stopped'\"}}]}"},
+        };
+        for (String[] item : cases) {
+            var request = "POST".equals(item[0]) ? post(item[1]) : get(item[1]);
+            var response = mvc.perform(request.header("Authorization", "Bearer admin-secret"))
+                    .andReturn().getResponse();
+            assertThat(response.getStatus()).as(item[1]).isEqualTo(422);
+            assertThat(response.getContentAsString(StandardCharsets.UTF_8)).as(item[1]).isEqualTo(item[2]);
+        }
     }
 
     private void assertUnauthorized(String authorization) throws Exception {

@@ -16,6 +16,7 @@ import { palette } from '@/constants/palette';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { logEvent } from '@/lib/analytics';
 import { logMetaEvent } from '@/lib/meta-events';
+import { recordSignupCompleted } from '@/lib/signup-attribution-runtime';
 import { useAuth } from '@/lib/auth';
 import { takeProviderNameHint } from '@/lib/profile';
 import { pickAndUploadProfilePhoto, removeProfilePhoto } from '@/lib/profile-photo-upload';
@@ -27,11 +28,11 @@ import {
   GOAL_VALUES,
   NAME_MAX_LENGTH,
   buildProfilePayload,
+  checkBirthDate,
   formatBirthDateInput,
   initialProfileForm,
   isBioValid,
   isProfileFormComplete,
-  parseBirthDate,
   profileSaveFailure,
   type Direction,
   type Gender,
@@ -72,12 +73,11 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [birthError, setBirthError] = useState<string | null>(null);
   const keyboardHeight = useKeyboardHeight();
   const prefilled = useRef(false);
 
   const me = profile.me;
-  // 서버에서 받은 값으로 한 번만 채운다. 1.0.0 이전 회원은 옛 닉네임이 이름 칸에 채워져 오고,
+  // 서버에서 받은 값으로 한 번만 채운다. 0.1.0 이전 회원은 옛 닉네임이 이름 칸에 채워져 오고,
   // 이름이 없으면 로그인 제공자가 준 이름을 첫 값으로 쓴다(저장은 버튼을 눌러야).
   useEffect(() => {
     if (prefilled.current || !me) return;
@@ -91,24 +91,22 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
   const bioTooLong = isEdit && !isBioValid(bio);
   const complete = isProfileFormComplete(form, new Date()) && !bioTooLong;
   const nameTooLong = [...form.name.trim()].length > NAME_MAX_LENGTH;
-  const birthDateTyped = form.birthDate.length === 10;
-  // 가입 게이트에서는 무엇이 비어서 시작할 수 없는지 그대로 보여준다(피드백 1차). 편집은 이미 완성된 프로필이다.
+  const birthCheck = checkBirthDate(form.birthDate, new Date());
+  const birthError =
+    birthCheck.kind === 'invalid'
+      ? t('profileName.birthInvalid')
+      : birthCheck.kind === 'under_minimum'
+        ? t('profileName.under14')
+        : null;
+  // 가입 게이트에서는 안 채운 칸의 별표를 회색으로 둔다. 편집은 이미 완성된 프로필이다.
   const missing = {
     name: !isEdit && form.name.trim().length === 0,
     gender: !isEdit && form.gender === null,
-    birthDate: !isEdit && parseBirthDate(form.birthDate, new Date()) === null,
+    birthDate: !isEdit && birthCheck.kind !== 'ok',
     directions: !isEdit && form.directions.length === 0,
     experience: !isEdit && form.experience === null,
     goal: !isEdit && form.goal === null,
   };
-  const missingLabels = [
-    missing.name && t('profileName.nameMissingLabel'),
-    missing.gender && t('profileName.genderLabel'),
-    missing.birthDate && t('profileName.birthLabel'),
-    missing.directions && t('profileName.mediumShortLabel'),
-    missing.experience && t('profileName.careerLabel'),
-    missing.goal && t('profileName.goalLabel'),
-  ].filter((label): label is string => typeof label === 'string');
 
   const update = (patch: Partial<ProfileFormState>) => setForm((prev) => ({ ...prev, ...patch }));
 
@@ -119,20 +117,9 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
         : [...form.directions, direction],
     });
 
-  const onBirthDateChange = (text: string) => {
-    const birthDate = formatBirthDateInput(text);
-    update({ birthDate });
-    setBirthError(
-      birthDate.length === 10 && parseBirthDate(birthDate, new Date()) === null
-        ? t('profileName.birthInvalid')
-        : null,
-    );
-  };
-
   const submit = async () => {
     setBusy(true);
     setError(null);
-    setBirthError(null);
     try {
       const now = new Date();
       await saveProfile(
@@ -144,7 +131,11 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
         career: form.experience ?? 'none',
         goal: form.goal ?? 'none',
       });
-      if (!isEdit) logMetaEvent('fb_mobile_complete_registration');
+      if (!isEdit) {
+        logMetaEvent('fb_mobile_complete_registration');
+        // 이 기기에서 가입을 마친 계정에만 유입 광고를 붙인다(SOMA-588).
+        if (me?.id) recordSignupCompleted(me.id);
+      }
       // 가입 게이트에서는 저장이 곧 게이트 통과라 _layout이 화면을 옮긴다. 편집은 직접 돌아간다.
       if (isEdit) router.back();
     } catch (cause) {
@@ -154,7 +145,8 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
         await closeAccountUnder14();
         return;
       }
-      if (failure.kind === 'under_14') setBirthError(t('profileName.under14'));
+      // 칸에서 이미 막으므로 여기 오는 것은 기기 날짜가 어긋난 경우 같은 안전망이다.
+      if (failure.kind === 'under_14') setError(t('profileName.under14'));
       else if (failure.kind === 'client_bug') setError(t('profileName.appBug'));
       else setError(cause instanceof Error ? cause.message : t('profileName.fail'));
     } finally {
@@ -300,11 +292,11 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
               placeholder={t('profileName.birthPlaceholder')}
               placeholderTextColor={palette.textFaint}
               value={form.birthDate}
-              onChangeText={onBirthDateChange}
+              onChangeText={(text) => update({ birthDate: formatBirthDateInput(text) })}
               keyboardType="number-pad"
               maxLength={10}
             />
-            {birthError && birthDateTyped && <Text style={styles.fieldError}>{birthError}</Text>}
+            {birthError && <Text style={styles.fieldError}>{birthError}</Text>}
           </Field>
 
           <Field label={t('profileName.mediumLabel')} required missing={missing.directions}>
@@ -365,13 +357,6 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
           )}
 
           {error && <Text style={styles.error}>{error}</Text>}
-          {!isEdit && !complete && (
-            <Text style={styles.requiredHint}>
-              {missingLabels.length > 0
-                ? t('profileName.missingHint', { fields: missingLabels.join(' · ') })
-                : t('profileName.requiredHint')}
-            </Text>
-          )}
         </KeyboardAwareScroll>
         <Pressable
           style={[styles.cta, (!complete || busy) && styles.ctaDisabled]}
@@ -406,7 +391,7 @@ function Field({
 }) {
   return (
     <View style={styles.field}>
-      <Text style={[styles.fieldLabel, missing && styles.fieldLabelMissing]}>
+      <Text style={styles.fieldLabel}>
         {label}
         {required && <Text style={missing ? styles.requiredStarMissing : styles.requiredStar}> *</Text>}
       </Text>
@@ -489,10 +474,8 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 14, fontWeight: '700', color: palette.textDim },
   chipTextOn: { color: palette.blueDeep },
   error: { color: palette.danger, fontSize: 13 },
-  requiredHint: { color: palette.textFaint, fontSize: 12.5, textAlign: 'center' },
   requiredStar: { color: palette.blue },
-  requiredStarMissing: { color: palette.danger },
-  fieldLabelMissing: { color: palette.danger },
+  requiredStarMissing: { color: palette.textFaint },
   cta: {
     backgroundColor: palette.blue,
     borderRadius: 16,

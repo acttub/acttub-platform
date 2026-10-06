@@ -77,8 +77,7 @@ test('api.deleteMe는 DELETE /v2/me를 부른다', () => {
 
 // 탈퇴·로그아웃의 순서와 "계정이 사라졌을 때 기기 비우기"는 소스 문자열이 아니라 동작으로 검사한다:
 // 순서와 실패 허용은 auth-session.test, 기기에서 지우는 것과 남기는 것은 local-account-wipe.test ·
-// device-files.test, 알람과 푸시 토큰은 notification-sync.test · reminder-schedule.test ·
-// push-token-lifecycle.test.
+// device-files.test, 알람과 푸시 토큰은 notification-sync.test · push-token-lifecycle.test.
 
 /** 주석은 화면에 안 나온다 — 문구 검사에서 뺀다. */
 const stripComments = (source) =>
@@ -109,7 +108,7 @@ test('account.withdraw: 탈퇴 화면은 지워지는 것과 남는 것을 챌�
   assert.match(text.keptPractice, /연습 기록/);
   assert.match(text.keptChallenge, /비공개/);
   assert.match(text.keptComment, /탈퇴한 사용자/);
-  // 서버는 행을 지우지 않는다. 지운다고 약속하면 거짓이 된다. 커뮤니티는 1.0.0에 없다.
+  // 서버는 행을 지우지 않는다. 지운다고 약속하면 거짓이 된다. 커뮤니티는 0.1.0에 없다.
   const all = Object.values(text).join(' ');
   assert.doesNotMatch(all, /전부 삭제|모두 삭제|모든 (글|기록)이 삭제|커뮤니티|게시판/);
   assert.match(text.failBody, /계정은 그대로 있어요/);

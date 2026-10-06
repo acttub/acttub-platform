@@ -3,8 +3,7 @@ import type { PracticeReport } from "./workspace-state";
 
 export function isClosedCoach(error: unknown): boolean {
   return error instanceof ApiError && error.status === 409
-    // conversation_closed 는 1.0.0 의 코드이고 앞의 둘은 옛 코치 경로가 쓰던 말이다.
-    && (error.code === "session is closed" || error.code === "session_closed" || error.code === "conversation_closed");
+    && error.code === "conversation_closed";
 }
 
 export function coachReplyError(error: unknown): string {

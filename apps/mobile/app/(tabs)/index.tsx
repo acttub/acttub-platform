@@ -23,7 +23,7 @@ import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide
 import { TutorialIntroSheet, type TutorialChoice } from '@/components/tutorial-intro-sheet';
 import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
 import { StreakCelebrationScreen } from '@/components/streak-celebration-screen';
-import { CloudVoicePromo } from '@/components/cloud-voice-promo';
+import { AnnouncementPoster } from '@/components/announcement-poster';
 import { useAuth } from '@/lib/auth';
 import { HomeMascot } from '@/components/home-mascot';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
@@ -54,12 +54,24 @@ function recentDate(iso: string): string {
 /** A1. 홈 — 히어로(마스코트) + 지금 바로 연습 + 연속 연습 + 최근 연습 + 입시 마감. */
 export default function HomeScreen() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, consentEntry } = useAuth();
+  // 재동의 팝업이 떠 있는 동안 홈의 첫 안내들을 띄우지 않는다. 둘 다 홈 위에 덮여 어느 쪽이 위에 올지 정해지지 않는다.
+  // 팝업(Modal)이 닫히는 동안 다른 Modal을 띄우면 iOS가 띄우지 못해, 닫힘이 끝난 뒤에 연다
+  // (iOS 시뮬레이터에서 400ms는 시트가 안 떴고 700ms는 떴다. 여유를 둔 값이다).
+  const consentAllowed = consentEntry.status === 'allowed';
+  const [overlaysReady, setOverlaysReady] = useState(consentAllowed);
+  useEffect(() => {
+    if (!consentAllowed) {
+      setOverlaysReady(false);
+      return;
+    }
+    const timer = setTimeout(() => setOverlaysReady(true), 800);
+    return () => clearTimeout(timer);
+  }, [consentAllowed]);
   const [groups, setGroups] = useState<PracticeGroup[]>([]);
   // 연속일·주간 원용 날짜 — 서버 기록 ∪ 기기에 누적된 연습일(지워도 남는다).
-  const [activityDays, setActivityDays] = useState<{ created_at: string }[]>([]);
-  // 기록을 한 번이라도 받았는지 — 받기 전의 연속일(0)로 축하를 판단하면 안 된다.
-  const [activityLoaded, setActivityLoaded] = useState(false);
+  // null 이면 기록을 아직 한 번도 못 받은 것이다 — 그때의 연속일(0)로 축하를 판단하면 안 된다.
+  const [activityDays, setActivityDays] = useState<{ created_at: string }[] | null>(null);
   const [admissions, setAdmissions] = useState<AdmissionsResponse | null>(null);
   const [celebrateStreak, setCelebrateStreak] = useState<number | null>(null);
   // 처음 한 번만 가이드 — 누를 자리를 비춰 준다. 설정의 "가이드 다시 보기"로 되살릴 수 있다.
@@ -116,18 +128,14 @@ export default function HomeScreen() {
             .filter((at): at is string => typeof at === 'string' && at.length > 0)
             .map((created_at) => ({ created_at }));
           void rememberPracticeDays(practicedAt).then((days) => {
-            if (cancelled) return;
-            setActivityDays(days);
-            setActivityLoaded(true);
+            if (!cancelled) setActivityDays(days);
           });
         })
         .catch(() => {
           if (!cancelled) {
             setGroups([]);
             void rememberPracticeDays([]).then((days) => {
-              if (cancelled) return;
-              setActivityDays(days);
-              setActivityLoaded(true);
+              if (!cancelled) setActivityDays(days);
             });
           }
         });
@@ -161,14 +169,14 @@ export default function HomeScreen() {
     [admissions],
   );
 
-  const { days } = useMemo(() => buildWeekActivity(activityDays), [activityDays]);
+  const { days } = useMemo(() => buildWeekActivity(activityDays ?? []), [activityDays]);
   // 연속 연습 일수는 회차 시작 날짜를 한국 시간으로 센다(practice.library).
-  const streak = useMemo(() => practiceStreak(activityDays.map((d) => d.created_at)), [activityDays]);
+  const streak = useMemo(() => practiceStreak((activityDays ?? []).map((d) => d.created_at)), [activityDays]);
+  const activityLoaded = activityDays !== null;
 
   // 연속일이 오늘 늘었으면(마지막으로 본 값보다 크면) 딱 한 번 축하한다 (SOMA-479).
-  // 기록을 받기 전엔 판단하지 않는다 — 그때의 0 을 기억하면 켤 때마다 다시 축하한다(SOMA-494).
+  // 기록을 받기 전엔 판단하지 않는다 — 그 판정은 streakCelebrationStep 이 한다(SOMA-494).
   useEffect(() => {
-    if (!activityLoaded) return;
     let cancelled = false;
     void readLastSeenStreak().then((lastSeen) => {
       if (cancelled) return;
@@ -186,7 +194,7 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      {celebrateStreak !== null && (
+      {celebrateStreak !== null && overlaysReady && (
         <StreakCelebrationScreen
           streak={celebrateStreak}
           dots={celebrationDots(days)}
@@ -248,7 +256,7 @@ export default function HomeScreen() {
         {/* 최근 연습 */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>{t('home.recentTitle')}</Text>
-          {/* 기록이 없어도 늘 보인다 — 전체 보기(A1.1)엔 대본 리딩 녹음도 함께 쌓인다. */}
+          {/* 기록이 없어도 늘 보인다. 대본 리딩 기록은 A1.1에 섞지 않는다(practice.library). */}
           <Pressable onPress={() => router.push('/history')}>
             <Text style={styles.sectionLink}>{t('common.viewAll')} ›</Text>
           </Pressable>
@@ -316,9 +324,9 @@ export default function HomeScreen() {
           </>
         )}
       </ScrollView>
-      <TutorialIntroSheet visible={introOpen} onChoose={chooseTutorial} />
+      <TutorialIntroSheet visible={introOpen && overlaysReady} onChoose={chooseTutorial} />
       <SpotlightGuide
-        visible={guideOpen && !introOpen}
+        visible={guideOpen && !introOpen && overlaysReady}
         topic="home"
         steps={HOME_STEPS}
         onDone={() => {
@@ -326,9 +334,9 @@ export default function HomeScreen() {
           void markSpotlightSeen('home');
         }}
       />
-      <CloudVoicePromo
+      <AnnouncementPoster
         loggedIn={!!user}
-        blocked={!introChecked || introOpen || guideOpen || celebrateStreak !== null}
+        blocked={!overlaysReady || !introChecked || introOpen || guideOpen || celebrateStreak !== null}
         onboardingJustFinished={onboardingJustFinished}
       />
     </SafeAreaView>

@@ -27,7 +27,7 @@ class CoachPromptSnapshotTest {
         assertThat(old.has("timeline")).isFalse();
         assertThat(old.has("speech")).isFalse();
         for (String kind : List.of("분석", "표현", "그 외")) {
-            var session = snapshot(old, kind, "그 외", "", List.of(), "", null, List.of());
+            var session = snapshot(old, kind, "그 외", "", List.of());
             String prompt = CoachPrompt.buildChat(session, "이유를 모르겠어요");
             assertThat(prompt).contains("여자가 문 앞에서", "가지 마", "얼굴은 확인되지 않음");
         }
@@ -38,7 +38,7 @@ class CoachPromptSnapshotTest {
         var pack = (com.fasterxml.jackson.databind.node.ObjectNode) observationPack();
         pack.put("timeline", "0:01에 멈추며 시선을 옮긴다");
         pack.set("speech", OBJECT_MAPPER.readTree("{\"transcript\":\"가지 마\",\"avg_syllables_per_sec\":7.0}"));
-        var session = snapshot(pack, "분석", "그 외", "", List.of(), "", null, List.of());
+        var session = snapshot(pack, "분석", "그 외", "", List.of());
         String prompt = CoachPrompt.buildChat(session, "모르겠어요");
         int previous = -1;
         for (String field : List.of("scene_summary", "timeline", "speech", "observations", "uncertainties")) {
@@ -55,13 +55,10 @@ class CoachPromptSnapshotTest {
                 {"timeline":"0:01에 대사가 들린다", "speech":{"transcript":"가지 마"},
                  "observations":[], "uncertainties":["사람이 화면 밖"]}
                 """);
-        var session = snapshot(pack, "분석", "그 외", "", List.of(), "", null, List.of());
+        var session = snapshot(pack, "분석", "그 외", "", List.of());
         assertThat(CoachPrompt.buildChat(session, "모르겠어요"))
                 .contains("\"speech\":{\"transcript\":\"가지 마\"}", "사람이 화면 밖");
     }
-
-    /** 두 줄짜리 받아쓴 대사 — 칸이 여러 줄을 목록으로 적는지 보이려고 둘을 쓴다. */
-    private static final List<String> TRANSCRIPTS = List.of("가지 마", "제발");
 
     private static final Map<String, String> SYSTEM_PROMPT_BY_KIND = Map.of(
             "분석", "coach-system-prompt-analysis.txt",
@@ -80,20 +77,8 @@ class CoachPromptSnapshotTest {
     @Test
     @DisplayName("buildChat 의 직렬화 문자열이 동결된 값과 완전히 같다")
     void chatPromptMatchesFrozenValue() throws Exception {
-        assertThat(CoachPrompt.buildChat(expressionSession(List.of()), "이번에는 멈춰봤어요"))
+        assertThat(CoachPrompt.buildChat(expressionSession(), "이번에는 멈춰봤어요"))
                 .isEqualTo(FrozenValue.of("coach-chat-prompt.txt"));
-    }
-
-    /**
-     * 받아쓴 대사 칸은 SOMA-490 에서 사라졌다 — 대사는 관찰의 {@code quote} 로 이미
-     * 프롬프트에 들어 있고, 같은 말을 두 번 실으면 코치가 그 목록만 붙잡고 말한다. 지난
-     * 연습에 남아 있는 대사 행이 프롬프트를 <b>바꾸지 않는다</b>는 것을 여기서 고정한다.
-     */
-    @Test
-    @DisplayName("남아 있는 받아쓴 대사는 프롬프트를 바꾸지 않는다")
-    void leftoverTranscriptsDoNotChangeThePrompt() throws Exception {
-        assertThat(CoachPrompt.buildChat(expressionSession(TRANSCRIPTS), "이번에는 멈춰봤어요"))
-                .isEqualTo(CoachPrompt.buildChat(expressionSession(List.of()), "이번에는 멈춰봤어요"));
     }
 
     /**
@@ -219,7 +204,7 @@ class CoachPromptSnapshotTest {
         assertThat(CoachPrompt.buildChat(otherSession().withActorProfile(PROFILE), "잘 모르겠어요"))
                 .as("대화를 여는 첫 응답")
                 .isEqualTo(PROFILE_BLOCK + FrozenValue.of("coach-chat-prompt-other.txt"));
-        assertThat(CoachPrompt.buildChat(expressionSession(List.of()).withActorProfile(PROFILE), "이번에는 멈춰봤어요"))
+        assertThat(CoachPrompt.buildChat(expressionSession().withActorProfile(PROFILE), "이번에는 멈춰봤어요"))
                 .as("후속 응답")
                 .isEqualTo(PROFILE_BLOCK + FrozenValue.of("coach-chat-prompt.txt"));
         assertThat(CoachPrompt.buildRegeneration(
@@ -236,7 +221,7 @@ class CoachPromptSnapshotTest {
     @DisplayName("account.profile: 프로필이 없으면 프롬프트가 바이트 단위로 전과 같다")
     void withoutAProfileThePromptIsByteForByteTheSame() throws Exception {
         assertThat(CoachPrompt.actorProfileBlock(null)).isEmpty();
-        assertThat(CoachPrompt.buildChat(expressionSession(List.of()).withActorProfile(null), "이번에는 멈춰봤어요"))
+        assertThat(CoachPrompt.buildChat(expressionSession().withActorProfile(null), "이번에는 멈춰봤어요"))
                 .isEqualTo(FrozenValue.of("coach-chat-prompt.txt"));
         assertThat(CoachPrompt.buildChat(otherSession().withActorProfile(null), "잘 모르겠어요"))
                 .isEqualTo(FrozenValue.of("coach-chat-prompt-other.txt"));
@@ -249,7 +234,7 @@ class CoachPromptSnapshotTest {
     @Test
     @DisplayName("account.profile: 프로필과 기억이 함께 있는 프롬프트가 동결된 값과 완전히 같다")
     void chatPromptWithProfileAndMemoryMatchesFrozenValue() throws Exception {
-        var session = expressionSession(List.of())
+        var session = expressionSession()
                 .withPrior(new PriorContext(
                         Map.of("gender", "남", "age", "31", "goal", "입시 합격"),
                         null, true, List.of("첫 대사 앞에서 한 박자 쉬어 보기"), List.of()))
@@ -302,7 +287,7 @@ class CoachPromptSnapshotTest {
     @DisplayName("응답 번호는 코치 turn 수에 1을 더한 값이다")
     void turnNumberCountsAiTurnsPlusOne() throws Exception {
         assertThat(CoachPrompt.turnNumber(otherSession())).isEqualTo(1);
-        assertThat(CoachPrompt.turnNumber(expressionSession(List.of()))).isEqualTo(2);
+        assertThat(CoachPrompt.turnNumber(expressionSession())).isEqualTo(2);
     }
 
     /**
@@ -324,16 +309,9 @@ class CoachPromptSnapshotTest {
                 .isEqualTo(FrozenValue.of("coach-closing-instruction.txt"));
     }
 
-    private static CoachSessionSnapshot expressionSession(List<String> transcripts)
-            throws Exception {
-        JsonNode handoff = OBJECT_MAPPER.readTree("""
-                {"blocked_point":"말의 이유","line_meaning":"떠나지 말라는 뜻",
-                 "timing_reason":"상대가 돌아섰기 때문","target_effect":"멈춰 세우기",
-                 "scene_evidence":["상대가 돌아선다"],"actor_words":["붙잡고 싶다"]}
-                """);
+    private static CoachSessionSnapshot expressionSession() throws Exception {
         return snapshot(
-                observationPack(), "표현", "속도", "자꾸 빨라진다", transcripts,
-                "앞 대사를 급히 받는다", handoff,
+                observationPack(), "표현", "속도", "자꾸 빨라진다",
                 List.of(
                         new CoachTurnSnapshot("actor", "이전 질문"),
                         new CoachTurnSnapshot("ai", "이전 답변")));
@@ -342,8 +320,7 @@ class CoachPromptSnapshotTest {
     /** 웹·앱이 막힘 선택을 건너뛰면 보내는 값 — 갈래·하위 갈래 모두 {@code 그 외}, 상세 없음. */
     private static CoachSessionSnapshot otherSession() throws Exception {
         return snapshot(
-                observationPack(), "그 외", "그 외", "", TRANSCRIPTS,
-                "", null, List.of());
+                observationPack(), "그 외", "그 외", "", List.of());
     }
 
     private static JsonNode observationPack() throws Exception {
@@ -368,7 +345,7 @@ class CoachPromptSnapshotTest {
             String subBranch,
             String blockageDetail) {
         return withScene(
-                snapshot(null, "분석", subBranch, blockageDetail, List.of("가지 마"), "", null, List.of()),
+                snapshot(null, "분석", subBranch, blockageDetail, List.of()),
                 situation, characterContext, goal);
     }
 
@@ -379,16 +356,15 @@ class CoachPromptSnapshotTest {
             String characterContext,
             String goal) {
         return new CoachSessionSnapshot(
-                source.sessionId(), source.practiceSessionId(), source.summaryId(),
+                source.sessionId(), source.practiceSessionId(),
                 source.userId(), source.observationPack(), situation, characterContext, goal,
                 source.durationMs(), source.blockageKind(), source.subBranch(),
-                source.blockageDetail(), source.transcripts(), source.conversationSummary(),
-                source.analysisHandoff(), source.status(), source.closeReason(), source.turns());
+                source.blockageDetail(), source.status(), source.closeReason(), source.turns(), PriorContext.EMPTY, "legacy", 0, null, null);
     }
 
     private static CoachSessionSnapshot analysisSession() {
         return snapshot(
-                null, "분석", "의미", "이유를 모르겠다", List.of("가지 마"), "", null, List.of());
+                null, "분석", "의미", "이유를 모르겠다", List.of());
     }
 
     private static CoachSessionSnapshot snapshot(
@@ -396,14 +372,10 @@ class CoachPromptSnapshotTest {
             String blockageKind,
             String subBranch,
             String blockageDetail,
-            List<String> transcripts,
-            String conversationSummary,
-            JsonNode analysisHandoff,
             List<CoachTurnSnapshot> turns) {
         return new CoachSessionSnapshot(
                 UUID.fromString("00000000-0000-0000-0000-000000000001"),
                 UUID.fromString("00000000-0000-0000-0000-000000000002"),
-                null,
                 UUID.fromString("00000000-0000-0000-0000-000000000003"),
                 observationPack,
                 "연습실",
@@ -413,11 +385,8 @@ class CoachPromptSnapshotTest {
                 blockageKind,
                 subBranch,
                 blockageDetail,
-                transcripts,
-                conversationSummary,
-                analysisHandoff,
                 "open",
                 "",
-                turns);
+                turns, PriorContext.EMPTY, "legacy", 0, null, null);
     }
 }

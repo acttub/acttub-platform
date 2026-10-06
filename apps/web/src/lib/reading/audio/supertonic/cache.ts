@@ -97,13 +97,3 @@ export async function isCached(urls: string[]): Promise<boolean> {
   const hits = await Promise.all(urls.map((u) => cache.match(u)));
   return hits.every(Boolean);
 }
-
-/** 사용자가 저장 공간을 되찾고 싶을 때. */
-export async function clearModelCache(): Promise<void> {
-  if (typeof caches === "undefined") return;
-  try {
-    await caches.delete(CACHE_NAME);
-  } catch {
-    // 지우지 못해도 알릴 것이 없다.
-  }
-}

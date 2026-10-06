@@ -10,7 +10,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
-/** 1.0.0 배우 기억의 요청·응답 (practice.memory). 셋 다 unknown key 를 거부한다. */
+/** 0.1.0 배우 기억의 요청·응답 (practice.memory). 셋 다 unknown key 를 거부한다. */
 final class ActorMemoryDtos {
     private ActorMemoryDtos() {
     }
@@ -18,7 +18,7 @@ final class ActorMemoryDtos {
     @Schema(name = "ActorMemoryItem", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     record ActorMemoryItem(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, title = "Field",
-                    allowableValues = {"goal", "blockage", "speech_self", "speech_actual"})
+                    allowableValues = {"goal", "blockage", "wants", "habits", "avoid", "speech_self", "speech_actual"})
             String field,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, title = "Value") String value,
             // 참이면 배우가 직접 쓰거나 고친 칸이다. 화면이 "내가 적은 값"을 구분해 보여줘야

@@ -17,13 +17,14 @@ import org.springframework.stereotype.Service;
  *       문제 추적에 쓴다 (account.login).</li>
  *   <li>마지막 활동 30일 지난 게스트를 <b>탈퇴와 같은 절차로</b> 파기한다 (account.guest). 옮겨진 게스트는
  *       이미 닫혀 있어 대상이 아니다. 마지막 활동에는 리딩의 쓰기(대본 등록·회차 시작·진행 저장·녹음 올리기·
- *       암기 갱신)도 든다(03-reading).</li>
+ *       암기 갱신)도 든다(specs/reading).</li>
  *   <li>탈퇴 3년 지난 계정의 신원 해시 행과, 보관 동의로 남겨 두었던 영상 객체·리딩 녹음(행과 객체)을 파기한다
  *       (account.withdraw, ADR-029). 객체 삭제는 탈퇴와 같은 정리 장부로 간다.</li>
  *   <li>7일 지난 해제 재시도를 치우고 7일 넘게 실패한 객체 삭제를 알린다 — {@link AccountCleanup#runDue} 가
  *       하는 일이고 5분마다도 돈다.</li>
  *   <li>쓰였거나 시한이 지난 지 30일 지난 이관 코드 행을 지운다. 쓰인 코드는 "옮겨진 게스트"의 표식이라
  *       그 게스트의 리프레시 토큰이 살 수 있는 30일 동안은 남겨야 한다.</li>
+ *   <li>기록한 지 14개월 지난 웹 UTM을 지운다. Airbridge 설치 귀속의 보존 규칙은 바꾸지 않는다.</li>
  * </ol>
  *
  * <p>한 가지가 실패해도 나머지는 돈다. 실패는 보고하고 다음 날 다시 시도한다 — 모두 멱등이다.
@@ -67,6 +68,8 @@ public class AccountHousekeeping {
         step("retention", () -> cleanup.attempt(profiles.purgeRetained(threeYearsAgo, now)));
         step("cleanup", cleanup::runDue);
         step("transferCodes", () -> profiles.deleteStaleTransferCodes(now.minus(TRANSFER_CODE_RETENTION)));
+        Instant fourteenMonthsAgo = now.atZone(ProfileService.SEOUL).minusMonths(14).toInstant();
+        step("webAttributions", () -> profiles.deleteExpiredWebAttributions(fourteenMonthsAgo));
     }
 
     private void step(String name, Runnable work) {

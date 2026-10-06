@@ -30,5 +30,3 @@ export async function markChallengeIntroSeen(): Promise<void> {
     // 못 적어도 흐름은 그대로 간다.
   }
 }
-
-export const CHALLENGE_INTRO_KEY = KEY;

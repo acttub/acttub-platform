@@ -16,17 +16,13 @@ public class HealthController {
 
     /** 영상 분석이 쓰는 Gemini 모델명. 기본값은 이관 전 파이썬 구현과 같게 두었다. */
     private final String model;
-    /** URL 이 설정돼 있으면 true — 파이썬이 {@code bool(keep_alive_url)} 로 내던 값과 같다. */
-    private final boolean keepAlive;
     /** {@code RENDER_GIT_COMMIT} 의 앞 7자, 미설정 시 {@code "unknown"}. */
     private final String commit;
 
     public HealthController(
             @Value("${GEMINI_MODEL:gemini-2.5-flash}") String model,
-            @Value("${KEEP_ALIVE_URL:}") String keepAliveUrl,
             @Value("${RENDER_GIT_COMMIT:unknown}") String renderGitCommit) {
         this.model = model;
-        this.keepAlive = !keepAliveUrl.isBlank();
         this.commit = renderGitCommit.length() > 7 ? renderGitCommit.substring(0, 7) : renderGitCommit;
     }
 
@@ -39,6 +35,7 @@ public class HealthController {
                     schema = @Schema(implementation = HealthResponse.class)))
     @GetMapping(value = "/health", produces = MediaType.APPLICATION_JSON_VALUE)
     public HealthResponse health() {
-        return new HealthResponse("ok", List.of("summary", "coach", "report"), model, keepAlive, commit);
+        // keep_alive 는 자기 주소를 부르던 핑이 사라져 늘 false 다. 응답 모양은 openapi·웹 타입·Grafana 점검이 읽어 남긴다.
+        return new HealthResponse("ok", List.of("summary", "coach", "report"), model, false, commit);
     }
 }

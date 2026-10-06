@@ -7,4 +7,12 @@ package com.acttub.actingapi.feature.push.app;
  * 알아낼 방법이 없어, 앱이 토큰을 맡길 때(그때는 요청이다) 함께 적어 둔 값을 읽는다.
  */
 public record PushTarget(String token, String locale) {
+
+    /**
+     * 이 단말이 한국어를 쓰는가. 값이 비었으면(옛 토큰) 한국어로 본다 — 지금까지 쓰던 사람은
+     * 전부 한국어 사용자라, 모르면 바꾸지 않는 쪽이 맞다.
+     */
+    public boolean korean() {
+        return locale == null || locale.isBlank() || "ko".equals(locale);
+    }
 }

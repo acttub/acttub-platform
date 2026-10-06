@@ -269,3 +269,19 @@ test("입시 상세 WebPage는 수정일과 WebSite 식별자를 담는다", () 
     },
   );
 });
+
+test("JsonLd는 값마다 JSON 그대로의 ld+json 스크립트를 순서대로 싣는다", async () => {
+  const React = await import("react");
+  const { renderToStaticMarkup } = await import("react-dom/server");
+  const { JsonLd } = await import("../src/lib/seo/json-ld-scripts.tsx");
+  const values = [
+    { "@id": "https://example.com/#a", name: "A & <B>" },
+    { "@id": "https://example.com/#b", list: [1, "둘"] },
+  ];
+
+  assert.equal(
+    renderToStaticMarkup(React.createElement(JsonLd, { values })),
+    '<script type="application/ld+json">{"@id":"https://example.com/#a","name":"A & <B>"}</script>' +
+      '<script type="application/ld+json">{"@id":"https://example.com/#b","list":[1,"둘"]}</script>',
+  );
+});

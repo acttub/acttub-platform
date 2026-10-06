@@ -26,6 +26,7 @@ import {
   createApiRequestClient,
   type PostIdempotentOptions,
 } from '@/lib/api-request';
+import { newRequestId } from '@/lib/request-id';
 import type { SignupDecision } from '@/lib/consent-entry-submission';
 import type { TransferRequestBody } from '@/lib/guest-transfer';
 import type { LoginRequestBody, LoginResponse } from '@/lib/login-flow';
@@ -93,9 +94,11 @@ import type {
   StartSessionBody,
 } from '@/lib/reading/types';
 import type { CloudVoicePreset, CloudVoiceStatus } from '@/lib/reading/cloud-voice';
+import type { PostersResponse } from '@/lib/poster';
 import { currentLanguage, translate } from './i18n.ts';
 
 export { ApiError, NetworkError, RequestAbortError } from '@/lib/api-request';
+import type { SignupAttributionPayload } from '@/lib/signup-attribution';
 
 /**
  * acttub v2 API (https://dev.acttub.com).
@@ -106,8 +109,9 @@ export { ApiError, NetworkError, RequestAbortError } from '@/lib/api-request';
  */
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://dev.acttub.com';
 // 요청마다 보내는 클라이언트 종류와 판(X-Acttub-Client). 판은 app.json의 version이다.
-// 이 헤더가 없으면 서버는 1.0.0 이전 빌드로 보고 426으로 답한다.
-const CLIENT_HEADER = `app/${Constants.expoConfig?.version ?? '0.0.0'}`;
+// 이 헤더가 없으면 서버는 0.1.0 이전 빌드로 보고 426으로 답한다.
+export const APP_VERSION = Constants.expoConfig?.version ?? '0.0.0';
+const CLIENT_HEADER = `app/${APP_VERSION}`;
 const requestClient = createApiRequestClient({
   baseUrl: BASE_URL,
   clientHeader: CLIENT_HEADER,
@@ -134,16 +138,6 @@ export type SceneContext = {
   goal: string;
 };
 
-/**
- * 배우가 고른 막히는 지점. 서버가 이걸로 분석 코치와 표현 코치를 가른다.
- * 값의 정의와 단계 규칙은 `lib/blockage.ts`(웹과 동일)에 있다.
- */
-export type BlockageSelection = {
-  blockage_kind: string;
-  sub_branch: string;
-  blockage_detail: string | null;
-};
-
 /** 코치가 배우에 대해 기억하고 있는 한 칸. */
 export type MemoryItem = {
   field: MemoryField;
@@ -156,7 +150,7 @@ export type MemoryItem = {
 };
 
 /**
- * 화면에 여는 칸. 성별·나이는 1.0.0에서 프로필로 옮겼다(practice.memory) — 코치는 영상이나
+ * 화면에 여는 칸. 성별·나이는 0.1.0에서 프로필로 옮겼다(practice.memory) — 코치는 영상이나
  * 말투에서 그것을 추론하지 않고, 기억 화면은 연습에서 나온 넷만 다룬다.
  */
 export type MemoryField = 'goal' | 'blockage' | 'speech_self' | 'speech_actual';
@@ -293,11 +287,6 @@ type ReqOpts = {
   signal?: AbortSignal;
 };
 
-function randomId(): string {
-  const s = () => Math.floor(Math.random() * 0x10000).toString(16).padStart(4, '0');
-  return `${s()}${s()}-${s()}-${s()}-${s()}-${s()}${s()}${s()}`;
-}
-
 async function request<T>(
   path: string,
   init: RequestInit = {},
@@ -305,7 +294,7 @@ async function request<T>(
 ): Promise<T> {
   const headers = new Headers(init.headers);
   if (opts.requestId && !headers.has('X-Request-Id')) {
-    headers.set('X-Request-Id', randomId());
+    headers.set('X-Request-Id', newRequestId());
   }
   return requestClient.request<T>(
     path,
@@ -318,9 +307,9 @@ async function request<T>(
   );
 }
 
-function jsonInit(body: unknown): RequestInit {
+function jsonInit(body: unknown, method: 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'POST'): RequestInit {
   return {
-    method: 'POST',
+    method,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   };
@@ -362,7 +351,8 @@ export const api = {
   signup(signupToken: string, decisions: SignupDecision[]): Promise<TokenPair> {
     return request<TokenPair>(
       '/v2/auth/signup',
-      jsonInit({ signup_token: signupToken, decisions }),
+      // 가입 화면은 만 14세 줄을 체크해야 제출 버튼이 켜지므로 제출이 곧 확인이다.
+      jsonInit({ signup_token: signupToken, decisions, age_confirmed: true }),
       { auth: false, timeoutMs: 30_000 },
     );
   },
@@ -378,10 +368,6 @@ export const api = {
     return request('/v2/consents/documents', {}, { auth: false });
   },
 
-  pendingConsents(): Promise<{ documents: ConsentDocument[] }> {
-    return request('/v2/consents/pending', {}, { auth: true });
-  },
-
   consentEntry(): Promise<ConsentEntryResponse> {
     return request('/v2/consents/entry', {}, { auth: true });
   },
@@ -390,6 +376,12 @@ export const api = {
     return request<void>('/v2/consents', jsonInit({ document_id: documentId, action }), {
       requestId: true,
     });
+  },
+
+  /** 앱 첫 화면 공지 포스터(app.poster). 띄울지 마지막 판정은 lib/poster 의 pickPoster 가 한다. */
+  getPosters(params: { platform: 'ios' | 'android'; locale: 'ko' | 'en'; app_version: string }): Promise<PostersResponse> {
+    const query = new URLSearchParams(params);
+    return request(`/v2/app/posters?${query.toString()}`, {}, { auth: true, timeoutMs: 10_000 });
   },
 
   getCloudVoiceStatus(): Promise<CloudVoiceStatus> {
@@ -410,11 +402,7 @@ export const api = {
   saveProfile(payload: ProfilePayload): Promise<MeResponse> {
     return request<MeResponse>(
       '/v2/me/profile',
-      {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      },
+      jsonInit(payload, 'PUT'),
       { timeoutMs: 15_000 },
     );
   },
@@ -462,11 +450,7 @@ export const api = {
   savePortfolioIntro(intro: string | null): Promise<Portfolio> {
     return request<Portfolio>(
       '/v2/portfolio/intro',
-      {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ intro }),
-      },
+      jsonInit({ intro }, 'PUT'),
       { timeoutMs: 20_000 },
     );
   },
@@ -485,11 +469,7 @@ export const api = {
   ): Promise<PortfolioCredit> {
     return request<PortfolioCredit>(
       `/v2/portfolio/credits/${encodeURIComponent(creditId)}`,
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(patch),
-      },
+      jsonInit(patch, 'PATCH'),
       { timeoutMs: 20_000 },
     );
   },
@@ -507,11 +487,7 @@ export const api = {
   reorderPortfolioCredits(order: { ids: string[] }): Promise<Portfolio> {
     return request<Portfolio>(
       '/v2/portfolio/credits/order',
-      {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(order),
-      },
+      jsonInit(order, 'PUT'),
       { timeoutMs: 20_000 },
     );
   },
@@ -544,11 +520,7 @@ export const api = {
   reorderPortfolioPhotos(order: { ids: string[] }): Promise<Portfolio> {
     return request<Portfolio>(
       '/v2/portfolio/photos/order',
-      {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(order),
-      },
+      jsonInit(order, 'PUT'),
       { timeoutMs: 20_000 },
     );
   },
@@ -560,11 +532,7 @@ export const api = {
   setPortfolioShare(enabled: boolean): Promise<PortfolioShare> {
     return request<PortfolioShare>(
       '/v2/portfolio/share',
-      {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled }),
-      },
+      jsonInit({ enabled }, 'PUT'),
       { timeoutMs: 20_000 },
     );
   },
@@ -598,11 +566,7 @@ export const api = {
   updateReadingScript(scriptId: string, body: PatchScriptBody): Promise<ScriptDetail> {
     return request<ScriptDetail>(
       `/v2/reading/scripts/${encodeURIComponent(scriptId)}`,
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      },
+      jsonInit(body, 'PATCH'),
       { timeoutMs: 20_000 },
     );
   },
@@ -645,11 +609,7 @@ export const api = {
   saveReadingProgress(sessionId: string, body: ProgressBody): Promise<ProgressResponse> {
     return request<ProgressResponse>(
       `/v2/reading/sessions/${encodeURIComponent(sessionId)}/progress`,
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      },
+      jsonInit(body, 'PATCH'),
       { timeoutMs: 15_000 },
     );
   },
@@ -714,11 +674,7 @@ export const api = {
   setLineMemorization(lineId: string, status: MemorizationStatus): Promise<LineMemorization> {
     return request<LineMemorization>(
       `/v2/reading/lines/${encodeURIComponent(lineId)}/memorization`,
-      {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-      },
+      jsonInit({ status }, 'PUT'),
       { timeoutMs: 15_000 },
     );
   },
@@ -745,16 +701,24 @@ export const api = {
   updateNotificationSettings(patch: Partial<NotificationSettings>): Promise<NotificationSettings> {
     return request(
       '/v2/me/notification-settings',
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(patch),
-      },
+      jsonInit(patch, 'PATCH'),
       { timeoutMs: 15_000 },
     );
   },
 
   // 푸시 알림 -------------------------------------------------------------------
+  /**
+   * 이 기기에서 새로 가입한 계정의 유입 광고(Airbridge 설치 귀속)를 적는다(SOMA-588). 계정마다 처음 온 값만
+   * 남고 다시 보내도 204 다. 보내는 때는 lib/signup-attribution.ts 가 정한다.
+   */
+  recordSignupAttribution(payload: SignupAttributionPayload): Promise<void> {
+    return request<void>(
+      '/v2/me/signup-attribution',
+      { ...jsonInit(payload), method: 'PUT' },
+      { timeoutMs: 15_000 },
+    );
+  },
+
   /**
    * 이 단말의 Expo push token 을 내 것으로 등록. 서버가 토큰 기준 upsert 라 멱등하다.
    * 보호 기능이라 동의와 프로필이 끝난 뒤에만 받는다(그 전에는 403).
@@ -773,7 +737,7 @@ export const api = {
   unregisterPushToken(token: string): Promise<void> {
     return request<void>(
       '/v2/push-tokens',
-      { ...jsonInit({ token }), method: 'DELETE' },
+      jsonInit({ token }, 'DELETE'),
       { auth: false, timeoutMs: 15_000 },
     );
   },
@@ -792,11 +756,7 @@ export const api = {
   saveActorMemory(field: MemoryField, value: string): Promise<MemoryItem> {
     return request(
       `/v2/me/memory/${encodeURIComponent(field)}`,
-      {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value }),
-      },
+      jsonInit({ value }, 'PUT'),
       { timeoutMs: 15_000 },
     );
   },
@@ -852,7 +812,7 @@ export const api = {
   setVideoFavorite(videoId: string, favorite: boolean): Promise<Video> {
     return request<Video>(
       `/v2/videos/${encodeURIComponent(videoId)}`,
-      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ favorite }) },
+      jsonInit({ favorite }, 'PATCH'),
       { timeoutMs: 15_000 },
     );
   },
@@ -866,7 +826,7 @@ export const api = {
   purgeVideoFile(videoId: string): Promise<Video> {
     return request<Video>(
       `/v2/videos/${encodeURIComponent(videoId)}/purge-file`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
+      jsonInit({}),
       { timeoutMs: 20_000 },
     );
   },
@@ -988,7 +948,7 @@ export const api = {
   async patchPracticeGroup(rootId: string, patch: GroupPatch): Promise<PracticeGroupDetail> {
     const group = await request<PracticeGroupResponse>(
       `/v2/practices/${encodeURIComponent(rootId)}/group`,
-      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) },
+      jsonInit(patch, 'PATCH'),
       { timeoutMs: 20_000 },
     );
     return practiceGroupFromResponse(group);
@@ -1007,7 +967,7 @@ export const api = {
   cancelPractice(practiceId: string, options: ApiCallOptions = {}): Promise<PracticeStatus> {
     return request<PracticeStatus>(
       `/v2/practices/${encodeURIComponent(practiceId)}/cancel`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
+      jsonInit({}),
       { requestId: true, timeoutMs: 20_000, signal: options.signal },
     );
   },
@@ -1017,7 +977,7 @@ export const api = {
    * 다른 진행 중 회차가 있으면 409 practice_in_progress.
    */
   retryPracticeAnalysis(practiceId: string, options: ApiCallOptions & { requestId?: string } = {}): Promise<Practice> {
-    const requestId = options.requestId ?? randomId();
+    const requestId = options.requestId ?? newRequestId();
     return postIdempotent<Practice>(
       `/v2/practices/${encodeURIComponent(practiceId)}/analyze`,
       { request_id: requestId },
@@ -1075,28 +1035,12 @@ export const api = {
   putNoteRating(practiceId: string, body: NoteRatingBody): Promise<NoteRating> {
     return request<NoteRating>(
       `/v2/practices/${encodeURIComponent(practiceId)}/note/rating`,
-      {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      },
+      jsonInit(body, 'PUT'),
       { timeoutMs: 15_000 },
     );
   },
 
   // 이탈 설문(practice.feedback) --------------------------------------------------
-  /**
-   * 자동 노출 표식을 원자적으로 선점한다. 선점한 기기만 시트를 띄운다(두 기기가 동시에
-   * 물어도 하나만). 이미 물어본 계정이면 asked_now 가 거짓이다.
-   */
-  claimFeedbackAsk(): Promise<{ asked: boolean; asked_now: boolean }> {
-    return request<{ asked: boolean; asked_now: boolean }>(
-      '/v2/me/practice-feedback/claim',
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
-      { requestId: true, timeoutMs: 15_000 },
-    );
-  },
-
   /** 소감 접수. 건너뛰기도 본문 없는 행으로 남는다. 실패해도 나가기를 막지 않는다. */
   submitPracticeFeedback(body: FeedbackBody): Promise<{ id: string }> {
     return postIdempotent<{ id: string }>('/v2/practice-feedback', body, {
@@ -1105,7 +1049,7 @@ export const api = {
     });
   },
 
-  // 챌린지(04-challenge) ---------------------------------------------------------
+  // 챌린지(specs/challenge) ---------------------------------------------------------
   /**
    * 대사 목록. 탭은 인기·최신·종료·내 챌린지이고 q 는 2자 이상일 때만 보낸다(대사·작품·참여작
    * 작성자 이름만 찾는다). 오늘의 챌린지는 featured 로 따로 온다(인기·최신 탭에서만 고정).
@@ -1183,7 +1127,7 @@ export const api = {
   updateEntry(entryId: string, patch: EntryPatch): Promise<MyEntryCard> {
     return request<MyEntryCard>(
       `/v2/entries/${encodeURIComponent(entryId)}`,
-      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) },
+      jsonInit(patch, 'PATCH'),
       { timeoutMs: 20_000 },
     );
   },
@@ -1200,7 +1144,7 @@ export const api = {
   recordEntryView(entryId: string, eventId: string): Promise<void> {
     return request<void>(
       `/v2/entries/${encodeURIComponent(entryId)}/views`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_id: eventId }) },
+      jsonInit({ event_id: eventId }),
       { timeoutMs: 10_000 },
     );
   },
@@ -1313,7 +1257,7 @@ export const api = {
   readNotifications(body: { group_keys?: string[]; all_before?: { created_at: string; id: string } }): Promise<void> {
     return request<void>(
       '/v2/me/notifications/read',
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
+      jsonInit(body),
       { requestId: true, timeoutMs: 15_000 },
     );
   },
@@ -1364,5 +1308,3 @@ export const api = {
     return normalizeAdmissions(data);
   },
 };
-
-export type VideoFile = { uri: string; name: string; mimeType: string };

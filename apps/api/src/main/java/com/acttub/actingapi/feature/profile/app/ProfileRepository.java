@@ -8,6 +8,7 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.profile.domain.Account;
 import com.acttub.actingapi.feature.profile.domain.NotificationSettings;
 import com.acttub.actingapi.feature.profile.domain.Profile;
+import com.acttub.actingapi.feature.profile.domain.SignupAttribution;
 
 /**
  * profile 이 저장소에 요구하는 것.
@@ -57,7 +58,7 @@ public interface ProfileRepository {
      *
      * <p>아직 아무 자료도 없는 계정은 <b>행째 지운다</b> — 탈퇴와 달리 아무것도 남기지 않는다.
      * 법정대리인 동의 없이 아동의 정보를 들고 있지 않기 위해서다. 연습 같은 자료가 이미 있는
-     * 1.0.0 이전 회원은 지울 수 없어(남의 화면에 얽힌 행이 깨진다) 탈퇴와 같은 절차로 닫고,
+     * 0.1.0 이전 회원은 지울 수 없어(남의 화면에 얽힌 행이 깨진다) 탈퇴와 같은 절차로 닫고,
      * <b>보관 동의와 무관하게</b> 영상을 파기한다.
      *
      * @return 어느 쪽으로 닫았는가. 없는 사용자면 {@code null}
@@ -103,17 +104,28 @@ public interface ProfileRepository {
      */
     int deleteStaleTransferCodes(Instant before);
 
+    /** 개인정보 처리방침의 웹 이용 분석 기록 보관 상한(14개월)을 지난 web_utm 행을 지운다. */
+    int deleteExpiredWebAttributions(Instant before);
+
     /** 알림 토글 셋. 프로필 행이 없으면 {@code null}. */
     NotificationSettings notificationSettings(UUID userId);
 
     /**
-     * 보낸 토글만 바꾼다({@code null} 은 그대로 둔다). 분석 완료와 챌린지가 <b>둘 다</b> 꺼지면 같은
+     * 보낸 토글만 바꾼다({@code null} 은 그대로 둔다). 토글 <b>셋이 다</b> 꺼지면 같은
      * 트랜잭션에서 그 회원의 푸시 토큰을 전부 지운다 — 토글은 회원 단위라 기기마다가 아니다.
      *
      * @return 바꾼 뒤의 토글 셋. 프로필 행이 없거나 계정이 활성이 아니면 {@code null}
      */
     NotificationSettings updateNotificationSettings(
             UUID userId, Boolean analysisDone, Boolean challenge, Boolean eveningReminder);
+
+    /**
+     * 가입 계정의 유입 광고를 <b>처음 한 번만</b> 적는다(SOMA-588). 이미 있으면 그대로 두고 바꾸지 않는다 —
+     * 같은 기기가 다시 보내거나 두 번째 귀속이 와도 첫 값이 남는다.
+     *
+     * @return 계정이 활성이면 {@code true}(새로 적었든 이미 있었든). 없거나 활성이 아니면 {@code false}
+     */
+    boolean recordSignupAttribution(UUID userId, SignupAttribution attribution);
 
     /**
      * 새로 받은 올리기 자리를 적는다. 앞의 대기 중인 올리기는 덮어쓰되, 그 객체의 삭제를 같은 트랜잭션에서

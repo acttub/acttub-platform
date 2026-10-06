@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Directory, Paths } from 'expo-file-system';
 import * as FileSystem from 'expo-file-system/legacy';
 
-import { createDeviceFileLedger, withTemporaryFiles } from './device-files';
+import { createDeviceFileLedger } from './device-files';
 import { isSpeechFileName, isSpeechFileOfScript } from './reading/tts/speech-file';
 
 /**
@@ -26,12 +26,6 @@ export const trackTemporaryDeviceFile = ledger.trackTemporary;
 /** 고르거나 찍은 영상의 원본 복사본. 코치 화면이 다시 틀기 때문에 두었다가 탈퇴 때 지운다. */
 export const keepDeviceFile = ledger.keep;
 export const discardDeviceFiles = ledger.discard;
-/** 올리기 한 번이 만든 임시 파일을 모았다가 올리기가 끝나면(성공·실패·취소 모두) 지운다. */
-export function withTemporaryDeviceFiles<T>(
-  run: (trackTemporary: (uri: string) => Promise<void>) => Promise<T>,
-): Promise<T> {
-  return withTemporaryFiles(ledger, run);
-}
 /** 앱을 켤 때 부른다 — 앞선 실행이 죽어 남긴 임시 파일을 지운다. */
 export const sweepDeviceFiles = ledger.sweep;
 /** 탈퇴 — 장부의 파일을 전부 지운다. */

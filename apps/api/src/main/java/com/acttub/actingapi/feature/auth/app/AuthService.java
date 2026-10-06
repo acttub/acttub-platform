@@ -149,6 +149,7 @@ public class AuthService {
             }
         }
         user.requireUsable();
+        accounts.markIdentityUsed(provider, identity.providerUid(), clock.instant());
         // 이메일은 신원이 아니라 부가 정보다. 제공자에서 주소를 바꿔도 같은 계정이고 주소만 따라간다.
         if (verifiedEmail != null && !verifiedEmail.equalsIgnoreCase(user.email())) {
             accounts.updateEmailIfFree(user.id(), verifiedEmail);
@@ -165,7 +166,7 @@ public class AuthService {
      * <p>같은 신원의 계정이 이미 있으면 그 계정을 돌려준다 — 같은 가입 토큰의 재시도(응답을 못 받은
      * 앱)이거나 동시에 온 두 제출 가운데 진 쪽이다. 어느 쪽이든 사용자에게는 실패가 아니다.
      */
-    public AuthenticatedUser signup(String signupToken, List<SignupDecision> decisions) {
+    public AuthenticatedUser signup(String signupToken, List<SignupDecision> decisions, boolean ageConfirmed) {
         Instant now = clock.instant();
         SignupTokens.SignupIdentity identity;
         try {
@@ -186,6 +187,7 @@ public class AuthService {
                     identity.verifiedEmail(),
                     identity.providerToken() == null ? null : secrets.encrypt(identity.providerToken()),
                     accepted,
+                    ageConfirmed,
                     now);
         } catch (DataIntegrityViolationException race) {
             AuthenticatedUser winner =
@@ -406,7 +408,7 @@ public class AuthService {
 
     /**
      * 기존 회원의 토큰을 최신으로 둔다. 네이버는 로그인마다 새 refresh token 이 온다. 애플은 토큰이
-     * 없을 때만(1.0.0 이전에 가입한 회원) 이번 코드를 바꿔 채운다 — <b>실패해도 로그인은 된다.</b>
+     * 없을 때만(0.1.0 이전에 가입한 회원) 이번 코드를 바꿔 채운다 — <b>실패해도 로그인은 된다.</b>
      * 기존 회원의 로그인은 애플의 장애와 무관해야 한다.
      */
     private void keepProviderToken(

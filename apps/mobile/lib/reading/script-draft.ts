@@ -43,7 +43,7 @@ export type DraftCharacter = {
   dialogueCount: number;
 };
 
-export type DraftSummary = { characters: number; dialogues: number; directions: number; scenes: number };
+export type DraftSummary = { characters: number; dialogues: number; directions: number };
 
 export type DraftValidation = { ok: true; body: CreateScriptBody } | { ok: false; code: ScriptErrorCode };
 
@@ -76,11 +76,10 @@ export function draftCharacters(draft: ScriptDraft): DraftCharacter[] {
 
 export function draftSummary(draft: ScriptDraft): DraftSummary {
   const parsed = draftParsed(draft);
-  const summary: DraftSummary = { characters: parsed.roles.length, dialogues: 0, directions: 0, scenes: 0 };
+  const summary: DraftSummary = { characters: parsed.roles.length, dialogues: 0, directions: 0 };
   for (const line of parsed.lines) {
     if (line.type === 'dialogue') summary.dialogues += 1;
     else if (line.type === 'direction') summary.directions += 1;
-    else summary.scenes += 1;
   }
   return summary;
 }
@@ -165,10 +164,4 @@ export function validateDraft(draft: ScriptDraft): DraftValidation {
       lines,
     },
   };
-}
-
-export function draftToCreateBody(draft: ScriptDraft): CreateScriptBody {
-  const result = validateDraft(draft);
-  if (!result.ok) throw new Error(result.code);
-  return result.body;
 }

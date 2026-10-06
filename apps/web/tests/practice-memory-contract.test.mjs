@@ -21,7 +21,7 @@ test("현재 기억 응답의 작성자와 숨겨지지 않은 출처만 화면�
     return new Response(JSON.stringify({ items: [
       { field: "goal", value: "내 목표", written_by_actor: true, source_practice_id: null, updated_at: "2026-09-21T00:00:00Z" },
       { field: "blockage", value: "말끝", written_by_actor: false, source_practice_id: "p1", updated_at: "2026-09-21T00:00:00Z" },
-      { field: "speech_self", value: "차분하게", written_by_actor: false, source_practice_id: null, updated_at: "2026-09-21T00:00:00Z" },
+      { field: "habits", value: "고개를 먼저 돌린다", written_by_actor: false, source_practice_id: null, updated_at: "2026-09-21T00:00:00Z" },
     ] }), { headers: { "Content-Type": "application/json" } });
   };
   let probe;

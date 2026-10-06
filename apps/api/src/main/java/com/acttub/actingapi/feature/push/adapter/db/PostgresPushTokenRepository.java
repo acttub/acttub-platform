@@ -46,7 +46,7 @@ class PostgresPushTokenRepository implements PushTokenRepository {
      * 하지 않는다).
      */
     @Override
-    public void register(UUID userId, String token, String platform) {
+    public void register(UUID userId, String token, String platform, String appVersion) {
         transaction.executeWithoutResult(status -> {
             boolean active = !list(entityManager.createNativeQuery("""
                     SELECT id
@@ -59,20 +59,22 @@ class PostgresPushTokenRepository implements PushTokenRepository {
             if (!active) {
                 return;
             }
-            // 둘 다 꺼 둔 회원이면 0행이다 — 조용히 지나간다.
+            // 셋 다 꺼 둔 회원이면 0행이다 — 조용히 지나간다.
             list(entityManager.createNativeQuery("""
                     WITH registered AS (
-                        INSERT INTO push_tokens(user_id,token,platform,locale)
-                        SELECT :userId,:token,:platform,:locale
+                        INSERT INTO push_tokens(user_id,token,platform,locale,app_version)
+                        SELECT :userId,:token,:platform,:locale,:appVersion
                         WHERE NOT EXISTS (SELECT 1
                                           FROM user_profiles
                                           WHERE user_id=:userId
                                             AND NOT notify_analysis_done
-                                            AND NOT notify_challenge)
+                                            AND NOT notify_challenge
+                                            AND NOT notify_evening_reminder)
                         ON CONFLICT(token)
                         DO UPDATE SET user_id=EXCLUDED.user_id,
                                       platform=EXCLUDED.platform,
                                       locale=EXCLUDED.locale,
+                                      app_version=EXCLUDED.app_version,
                                       updated_at=now()
                         RETURNING id
                     )
@@ -81,6 +83,7 @@ class PostgresPushTokenRepository implements PushTokenRepository {
                     .setParameter("userId", userId)
                     .setParameter("token", token)
                     .setParameter("platform", platform)
+                    .setParameter("appVersion", appVersion)
                     // 토큰을 맡기는 것은 요청이라 여기서만 받는 사람의 말을 알 수 있다 (SOMA-544).
                     .setParameter("locale", OutputLanguage.current().getLanguage()));
         });

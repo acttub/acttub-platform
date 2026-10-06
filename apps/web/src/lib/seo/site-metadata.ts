@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import type { KeywordPageContent } from "@/features/keyword-pages/types";
 import { loadAdmissionsStatic } from "@/features/admissions/admissions-static";
+import {
+  latestAdmissionYear,
+  resultYears,
+} from "@/features/admissions/by-year";
 import type { AdmissionsResponse } from "@/lib/api/v2/admissions";
 
 const DEFAULT_SITE_URL = "https://acttub.com";
@@ -9,7 +13,6 @@ const DEFAULT_SITE_URL = "https://acttub.com";
  * "엑터브"는 사람들이 실제로 치는 오타 변형이라 구조화 데이터의 alternateName 에만 둔다
  * (본문에 둘 다 적으면 문서가 지저분해지고, 구글은 alternateName 으로 같은 브랜드임을 안다).
  */
-export const BRAND_NAME_KO = "액터브";
 export const BRAND_ALTERNATE_NAMES = ["액터브", "엑터브"] as const;
 
 const DEFAULT_TITLE =
@@ -19,17 +22,10 @@ export const SITE_DESCRIPTION =
   "AI 연기 코칭 앱 Acttub(액터브). 내 연기 영상을 올리면 장면 맥락에서 확인한 단서가 질문으로 돌아와요. 질문으로 연기 장면을 다시 생각하는 연기 연습 도구예요.";
 
 // 검색엔진 소유권 확인 값은 페이지 소스에 그대로 공개되는 값이라 코드에 둔다.
-export const GOOGLE_SITE_VERIFICATION =
+const GOOGLE_SITE_VERIFICATION =
   "zABzA1FHYUFDJR1hJmCKZqAdJDjZ7-Tz_zhWpOZ8hzg";
-export const NAVER_SITE_VERIFICATION =
+const NAVER_SITE_VERIFICATION =
   "697b757ca85289cefc70141c0a879284c3ef8563";
-
-export function buildVerification(google: string, naver: string) {
-  return {
-    google,
-    ...(naver ? { other: { "naver-site-verification": naver } } : {}),
-  };
-}
 
 export function resolveSiteUrl(raw?: string): string {
   const candidate =
@@ -68,10 +64,42 @@ export function buildRootMetadata(siteUrl?: string): Metadata {
     twitter: {
       card: "summary_large_image",
     },
-    verification: buildVerification(
-      GOOGLE_SITE_VERIFICATION,
-      NAVER_SITE_VERIFICATION,
-    ),
+    verification: {
+      google: GOOGLE_SITE_VERIFICATION,
+      other: { "naver-site-verification": NAVER_SITE_VERIFICATION },
+    },
+  };
+}
+
+/**
+ * 공개 페이지 하나의 metadata. 루트 값 위에 canonical과 공유 카드(og)를 그 페이지 것으로 덮는다.
+ * 제목이 없으면(랜딩) 루트의 제목·설명을 그대로 둔다 — undefined 로 덮으면 루트 title 템플릿이 사라진다.
+ */
+function buildPageMetadata(
+  page: {
+    path: string;
+    title?: string;
+    description?: string;
+    type?: "article" | "website";
+  },
+  siteUrl?: string,
+): Metadata {
+  const resolvedSiteUrl = resolveSiteUrl(siteUrl);
+  const rootMetadata = buildRootMetadata(resolvedSiteUrl);
+  const { path, title, description, type = "website" } = page;
+
+  return {
+    ...rootMetadata,
+    ...(title === undefined ? {} : { title, description }),
+    alternates: { canonical: path },
+    openGraph: {
+      ...rootMetadata.openGraph,
+      type,
+      url: `${resolvedSiteUrl}${path}`,
+      ...(title === undefined
+        ? {}
+        : { title: `${title} | Acttub`, description }),
+    },
   };
 }
 
@@ -79,24 +107,7 @@ export function buildKeywordPageMetadata(
   content: Pick<KeywordPageContent, "path" | "title" | "description">,
   siteUrl?: string,
 ): Metadata {
-  const resolvedSiteUrl = resolveSiteUrl(siteUrl);
-  const rootMetadata = buildRootMetadata(resolvedSiteUrl);
-
-  return {
-    ...rootMetadata,
-    title: content.title,
-    description: content.description,
-    alternates: {
-      canonical: content.path,
-    },
-    openGraph: {
-      ...rootMetadata.openGraph,
-      type: "article",
-      url: `${resolvedSiteUrl}${content.path}`,
-      title: `${content.title} | Acttub`,
-      description: content.description,
-    },
-  };
+  return buildPageMetadata({ ...content, type: "article" }, siteUrl);
 }
 
 // 검색 결과 문구. 이 페이지로 노출되는 검색어가 "연기 연습"이라(서치콘솔 2026-09-24) 그 말로
@@ -108,46 +119,22 @@ const GUIDE_INDEX_DESCRIPTION =
   "학원 없이 혼자 하는 연기 연습을 순서대로 정리했어요. 독백 6단계, 폰으로 찍는 셀프테이프, 자유연기 작품 고르기, 매일 30분 독학 루틴까지 따라 해 보세요.";
 
 export function buildGuideIndexMetadata(siteUrl?: string): Metadata {
-  const resolvedSiteUrl = resolveSiteUrl(siteUrl);
-  const rootMetadata = buildRootMetadata(resolvedSiteUrl);
-
-  return {
-    ...rootMetadata,
-    title: GUIDE_INDEX_TITLE,
-    description: GUIDE_INDEX_DESCRIPTION,
-    alternates: { canonical: "/guide" },
-    openGraph: {
-      ...rootMetadata.openGraph,
-      type: "website",
-      url: `${resolvedSiteUrl}/guide`,
-      title: `${GUIDE_INDEX_TITLE} | Acttub`,
-      description: GUIDE_INDEX_DESCRIPTION,
-    },
-  };
+  return buildPageMetadata(
+    { path: "/guide", title: GUIDE_INDEX_TITLE, description: GUIDE_INDEX_DESCRIPTION },
+    siteUrl,
+  );
 }
 
 export function buildLandingMetadata(siteUrl?: string): Metadata {
-  const resolvedSiteUrl = resolveSiteUrl(siteUrl);
-  const rootMetadata = buildRootMetadata(resolvedSiteUrl);
-
-  return {
-    ...rootMetadata,
-    alternates: {
-      canonical: "/",
-    },
-    openGraph: {
-      ...rootMetadata.openGraph,
-      url: `${resolvedSiteUrl}/`,
-    },
-  };
+  return buildPageMetadata({ path: "/" }, siteUrl);
 }
 
 // "앱 다운로드"만으로는 검색 결과에서 무엇을 하는 앱인지 안 보인다. 이 페이지가 가장 많이
 // 노출되는데(서치콘솔 2026-09-24 노출 17) 그 검색어는 브랜드와 "AI 연기 코칭"이다.
 // 루트 템플릿이 " | Acttub"을 붙이므로 영문 브랜드는 여기서 반복하지 않는다.
-export const APP_DOWNLOAD_TITLE = "AI 연기 코칭 앱 액터브 — iOS·Android 무료";
+const APP_DOWNLOAD_TITLE = "AI 연기 코칭 앱 액터브 — iOS·Android 무료";
 
-export const APP_DOWNLOAD_DESCRIPTION =
+const APP_DOWNLOAD_DESCRIPTION =
   "연기 영상을 폰에서 올리면 AI가 장면 속 순간을 짚어 질문해요. 말로 답하면 다음 테이크에서 붙잡을 문장이 연습 노트로 남아요. App Store·Google Play 무료.";
 
 /**
@@ -155,23 +142,10 @@ export const APP_DOWNLOAD_DESCRIPTION =
  * 가리키므로 공유 카드(og)가 랜딩과 달라야 한다.
  */
 export function buildAppDownloadMetadata(siteUrl?: string): Metadata {
-  const resolvedSiteUrl = resolveSiteUrl(siteUrl);
-  const rootMetadata = buildRootMetadata(resolvedSiteUrl);
-
-  return {
-    ...rootMetadata,
-    title: APP_DOWNLOAD_TITLE,
-    description: APP_DOWNLOAD_DESCRIPTION,
-    alternates: {
-      canonical: "/app",
-    },
-    openGraph: {
-      ...rootMetadata.openGraph,
-      url: `${resolvedSiteUrl}/app`,
-      title: `${APP_DOWNLOAD_TITLE} | Acttub`,
-      description: APP_DOWNLOAD_DESCRIPTION,
-    },
-  };
+  return buildPageMetadata(
+    { path: "/app", title: APP_DOWNLOAD_TITLE, description: APP_DOWNLOAD_DESCRIPTION },
+    siteUrl,
+  );
 }
 
 export function buildNoindexMetadata(title?: string): Metadata {
@@ -185,35 +159,28 @@ export function buildNoindexMetadata(title?: string): Metadata {
 }
 
 export function buildAdmissionsIndexMetadata(siteUrl?: string): Metadata {
-  const resolvedSiteUrl = resolveSiteUrl(siteUrl);
-  const rootMetadata = buildRootMetadata(resolvedSiteUrl);
-  const title = "연극영화과 입시 정보 — 대학별 모집요강·실기·일정 정리";
-  const count = loadAdmissionsStatic().universities.length;
-  const description = `전국 연극영화과·연기 전공 ${count}개 대학의 모집요강, 실기 과제, 원서 접수 일정을 한곳에 정리했어요. 최종 확인은 각 대학 입학처 공고로 해주세요.`;
+  const payload = loadAdmissionsStatic();
+  const latest = latestAdmissionYear(payload.notices);
+  const past = resultYears(payload.notices)
+    .filter((year) => latest === null || year < latest)
+    .slice(0, 2);
+  const title = `연극영화과 입시 정보 — ${latest}학년도 대학별 모집요강·실기·입시결과`;
+  const description = `전국 연극영화과·연기 전공 ${payload.universities.length}개 대학의 ${latest}학년도 모집요강, 실기 과제, 원서 접수 일정${
+    past.length > 0 ? `과 ${past.join("·")}학년도 입시결과·응시 후기` : ""
+  }를 한곳에 정리했어요. 최종 확인은 각 대학 입학처 공고로 해주세요.`;
 
-  return {
-    ...rootMetadata,
-    title,
-    description,
-    alternates: { canonical: "/admissions" },
-    openGraph: {
-      ...rootMetadata.openGraph,
-      type: "website",
-      url: `${resolvedSiteUrl}/admissions`,
-      title: `${title} | Acttub`,
-      description,
-    },
-  };
+  return buildPageMetadata({ path: "/admissions", title, description }, siteUrl);
 }
 
 export function buildUniversityAdmissionsMetadata(
   payload: AdmissionsResponse,
   siteUrl?: string,
 ): Metadata {
-  const resolvedSiteUrl = resolveSiteUrl(siteUrl);
-  const rootMetadata = buildRootMetadata(resolvedSiteUrl);
   const university = payload.universities[0];
-  const title = `${university.name} 연기 입시 정보 — 모집요강·실기·일정`;
+  const latest = latestAdmissionYear(payload.notices);
+  const title = latest
+    ? `${university.name} 연기 입시 정보 — ${latest}학년도 모집요강·입시결과·후기`
+    : `${university.name} 연기 입시 정보 — 모집요강·입시결과·후기`;
   const departments = [
     ...new Set(payload.notices.map(({ department }) => department).filter(Boolean)),
   ].slice(0, 3);
@@ -223,22 +190,18 @@ export function buildUniversityAdmissionsMetadata(
   const years = payload.notices
     .map(({ admission_year }) => admission_year)
     .filter((year): year is number => typeof year === "number");
+  const past = resultYears(payload.notices).slice(0, 2);
+  const extras = [
+    past.length > 0 ? `${past.join("·")}학년도 입시결과` : "",
+    university.tips?.length ? "응시 후기" : "",
+  ].filter(Boolean);
   const description = payload.notices.length
-    ? `${university.name} ${departments.join(" · ")} ${Math.max(...years)}학년도 ${tracks.join(" · ")} 전형의 실기 과제와 접수 일정을 정리했어요. 최종 확인은 대학 입학처 공고로 해주세요.`
+    ? `${university.name} ${departments.join(" · ")} ${Math.max(...years)}학년도 ${tracks.join(" · ")} 전형의 실기 과제와 접수 일정${
+        extras.length > 0 ? `, ${extras.join("와 ")}` : ""
+      }를 정리했어요. 최종 확인은 대학 입학처 공고로 해주세요.`
     : `${university.name} 연기 전공 입시 정보를 정리했어요. 최종 확인은 대학 입학처 공고로 해주세요.`;
-  const path = `/admissions/${university.id}`;
-
-  return {
-    ...rootMetadata,
-    title,
-    description,
-    alternates: { canonical: path },
-    openGraph: {
-      ...rootMetadata.openGraph,
-      type: "website",
-      url: `${resolvedSiteUrl}${path}`,
-      title: `${title} | Acttub`,
-      description,
-    },
-  };
+  return buildPageMetadata(
+    { path: `/admissions/${university.id}`, title, description },
+    siteUrl,
+  );
 }

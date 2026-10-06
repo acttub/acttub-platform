@@ -57,7 +57,12 @@ test("목록 페이로드에서 상세 전용 값은 빠지고 120KB 아래로 �
   for (const key of ["practical_task", "note", "documents", "preparation", "weights_note", "dress_code", "source_url"]) {
     assert.ok(list.notices.every((notice) => !(key in notice)), key);
   }
-  assert.ok(list.notices.every((notice) => notice.results.length === 0));
+  const resultKeys = new Set(["year", "quota", "applicants", "competition_rate", "transcript_avg", "transcript_cut70"]);
+  full.notices.forEach((notice, index) => {
+    const slim = list.notices[index].results;
+    assert.deepEqual(slim.map(({ year }) => year), notice.results.map(({ year }) => year));
+    assert.ok(slim.every((result) => Object.keys(result).every((key) => resultKeys.has(key))));
+  });
   assert.ok(list.notices.every((notice) => notice.stages.length === 0));
   assert.ok(
     list.notices.every((notice) =>

@@ -88,6 +88,89 @@ class DirectVideoPracticeIT {
         when(text.generate(anyString(), anyString())).thenThrow(new IllegalStateException("note model unavailable"));
     }
 
+    @Test void rejectedOpeningClosesStoredConversationAndPracticeWithoutANote() throws Exception {
+        UUID practice = practice(UUID.randomUUID());
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(
+                "<설계>영상: 연기 아님: 검은 화면</설계><코치>지어낸 코칭</코치>");
+        JsonNode opened = postJson("/v2/coach/start", Map.of("practice_id", practice, "request_id", UUID.randomUUID()));
+        assertThat(opened.at("/conversation/status").asText()).isEqualTo("closed");
+        assertThat(opened.at("/conversation/close_reason").asText()).isEqualTo("exhausted");
+        assertThat(opened.at("/conversation/revision").asLong()).isEqualTo(1);
+        assertThat(opened.path("message").asText()).contains("연기 장면", "다시 올려").doesNotContain("지어낸");
+        assertThat(opened.path("note").isNull()).isTrue();
+        assertThat(jdbc.queryForObject("SELECT stage FROM practices WHERE id=?", String.class, practice)).isEqualTo("closed");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM coach_notes", Integer.class)).isZero();
+        String conversation = opened.at("/conversation/id").asText();
+        var response = mvc.perform(post("/v2/coach/reply").header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of(
+                        "conversation_id", conversation, "request_id", UUID.randomUUID(), "text", "아무 말"))))
+                .andReturn().getResponse();
+        assertThat(response.getStatus()).isEqualTo(409);
+        assertThat(json.readTree(response.getContentAsString()).path("detail").asText()).isEqualTo("conversation_closed");
+        verify(model, times(1)).reply(eq(file), anyList(), anyString());
+        verifyNoInteractions(text);
+    }
+
+    @Test void tooShortOpeningClosesWithoutUploadingVideoOrMakingNote() throws Exception {
+        UUID practice = practice(UUID.randomUUID());
+        jdbc.update("UPDATE videos SET duration_ms=1300 WHERE id=(SELECT video_id FROM practices WHERE id=?)", practice);
+        JsonNode opened = postJson("/v2/coach/start", Map.of("practice_id", practice, "request_id", UUID.randomUUID()));
+        assertThat(opened.at("/conversation/status").asText()).isEqualTo("closed");
+        assertThat(opened.path("note").isNull()).isTrue();
+        verifyNoInteractions(model, text);
+    }
+
+    @Test void silentAudioClosesConversationWithoutANoteOrAFakeNonActingClaim() throws Exception {
+        UUID practice = practice(UUID.randomUUID());
+        when(model.inspect(any())).thenReturn(new DirectVideoModel.InputInspection(true, null, false));
+        UUID request = UUID.randomUUID();
+        JsonNode opened = postJson("/v2/coach/start", Map.of("practice_id", practice, "request_id", request));
+        assertThat(opened.at("/conversation/status").asText()).isEqualTo("closed");
+        assertThat(opened.at("/conversation/revision").asLong()).isEqualTo(1);
+        assertThat(opened.path("message").asText()).contains("소리가 녹음되지", "다시 올려").doesNotContain("연기 장면");
+        assertThat(opened.path("note").isNull()).isTrue();
+        assertThat(jdbc.queryForObject("SELECT stage FROM practices WHERE id=?", String.class, practice)).isEqualTo("closed");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM coach_notes", Integer.class)).isZero();
+        String conversation = opened.at("/conversation/id").asText();
+        JsonNode state = json.readTree(jdbc.queryForObject("SELECT state::text FROM coach_conversations WHERE id=?",
+                String.class, UUID.fromString(conversation)));
+        assertThat(state.at("/practice_loop/input_issue").asText()).isEqualTo("silent_audio");
+        assertThat(state.at("/practice_loop/not_acting").isMissingNode()).isTrue();
+        var restarted = mvc.perform(post("/v2/coach/start").header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of(
+                        "practice_id", practice, "request_id", request)))).andReturn().getResponse();
+        assertThat(restarted.getStatus()).isEqualTo(409);
+        assertThat(json.readTree(restarted.getContentAsString()).path("detail").asText()).isEqualTo("conversation_closed");
+        var response = mvc.perform(post("/v2/coach/reply").header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of(
+                        "conversation_id", conversation, "request_id", UUID.randomUUID(), "text", "아무 말"))))
+                .andReturn().getResponse();
+        assertThat(response.getStatus()).isEqualTo(409);
+        assertThat(json.readTree(response.getContentAsString()).path("detail").asText()).isEqualTo("conversation_closed");
+        verify(model, never()).upload(any(), anyString());
+        verify(model, never()).upload(any(), anyString(), any());
+        verify(model, never()).reply(any(), anyList(), anyString());
+        verifyNoInteractions(text);
+    }
+
+    @Test void audioDecodeFailureCannotSaveAReplyNoteOrFalseRejection() throws Exception {
+        UUID practice = practice(UUID.randomUUID());
+        when(model.inspect(any())).thenThrow(new IllegalStateException("audio signal inspection failed"));
+        var response = mvc.perform(post("/v2/coach/start").header("Authorization", bearer)
+                .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(Map.of(
+                        "practice_id", practice, "request_id", UUID.randomUUID())))).andReturn().getResponse();
+        assertThat(response.getStatus()).isEqualTo(502);
+        assertThat(json.readTree(response.getContentAsString()).path("detail").asText()).isEqualTo("coach_response_unavailable");
+        assertThat(jdbc.queryForObject("SELECT stage FROM practices WHERE id=?", String.class, practice)).isEqualTo("conversing");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM coach_notes", Integer.class)).isZero();
+        assertThat(jdbc.queryForList("SELECT state::text FROM coach_conversations", String.class))
+                .allSatisfy(value -> { if (value != null) assertThat(value).doesNotContain("input_issue", "not_acting"); });
+        verify(model, never()).upload(any(), anyString());
+        verify(model, never()).upload(any(), anyString(), any());
+        verify(model, never()).reply(any(), anyList(), anyString());
+        verifyNoInteractions(text);
+    }
+
     @Test void newPracticeUsesItsVideoAndCurrentProfileWithoutPersistingProfile() throws Exception {
         UUID practice = practice(UUID.randomUUID());
         jdbc.update("INSERT INTO actor_memories(id,user_id,field,value,written_by) VALUES (?,?,'goal','오디션 준비','actor')",
@@ -118,7 +201,7 @@ class DirectVideoPracticeIT {
 
     @Test void migratedPracticeNeverFallsBackToPurgedOrForeignLegacyUpload() {
         var legacy = fixtures.insertPractice(user);
-        assertThat(videos.find(user, legacy.id())).isNotNull();
+        assertThat(videos.find(user, legacy.id())).as("대화는 practices 만 가리킨다 — 옛 업로드로 가지 않는다").isNull();
         practice(legacy.id());
         var video = videos.find(user, legacy.id());
         assertThat(video.objectKey()).startsWith("videos/");
@@ -160,7 +243,7 @@ class DirectVideoPracticeIT {
         @Bean @Primary RecordingLlmTelemetry recordingTelemetry() { return new RecordingLlmTelemetry(); }
         @Bean DirectVideoCoach directVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
                 FailureReporter failures, RecordingLlmTelemetry telemetry) {
-            return new DirectVideoCoach(model, videos, storage, failures, telemetry);
+            return new DirectVideoCoach(model, videos, storage, failures, telemetry, true);
         }
     }
 }

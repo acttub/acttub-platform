@@ -9,9 +9,7 @@ import { api, type MemoryField, type MemoryItem } from '@/lib/api';
 import {
   MEMORY_FIELDS,
   MEMORY_VALUE_MAX,
-  isWrittenByActor,
   memoryValueTooLong,
-  profileNotice,
 } from '@/lib/practice/memory';
 import { palette } from '@/constants/palette';
 import { translate } from '@/lib/i18n';
@@ -28,7 +26,7 @@ import { translate } from '@/lib/i18n';
  * - **누가 적었는지** — 내가 고친 칸은 코치가 다시 덮지 않는다는 걸 알아야
  *   고치는 의미가 생긴다.
  *
- * 성별·나이는 1.0.0에서 프로필로 옮겼다(practice.memory) — 코치는 그것을 추론하지 않고, 이
+ * 성별·나이는 0.1.0에서 프로필로 옮겼다(practice.memory) — 코치는 그것을 추론하지 않고, 이
  * 화면은 연습에서 나온 넷(목표·막히는 지점·화법 둘)만 다룬다. 값은 1,000자까지다.
  */
 
@@ -179,8 +177,8 @@ export default function MemoryScreen() {
                 <View style={styles.cardHead}>
                   <Text style={styles.label}>{label}</Text>
                   {item ? (
-                    <Text style={isWrittenByActor(item) ? styles.tagMine : styles.tagCoach}>
-                      {isWrittenByActor(item) ? translate('memory.writtenByMe') : translate('memory.tagCoach')}
+                    <Text style={item.written_by_actor ? styles.tagMine : styles.tagCoach}>
+                      {item.written_by_actor ? translate('memory.writtenByMe') : translate('memory.tagCoach')}
                     </Text>
                   ) : (
                     <Text style={styles.tagEmpty}>{translate('memory.tagEmpty')}</Text>
@@ -199,7 +197,7 @@ export default function MemoryScreen() {
                 />
 
                 {/* 출처 연습이 숨겨졌으면 서버가 null 을 준다 — 값은 그대로고 링크만 없다. */}
-                {item?.source_practice_id && !isWrittenByActor(item) && (
+                {item?.source_practice_id && !item.written_by_actor && (
                   <Pressable
                     onPress={() =>
                       router.push({
@@ -234,7 +232,7 @@ export default function MemoryScreen() {
 
           {/* 성별·나이는 프로필로 옮겼다 — 여기서는 어디에 적는지만 알린다. */}
           <View style={styles.profileCard}>
-            <Text style={styles.profileText}>{profileNotice()}</Text>
+            <Text style={styles.profileText}>{translate('memory.profileNotice')}</Text>
             <Pressable onPress={() => router.push('/profile-edit')} accessibilityRole="button">
               <Text style={styles.profileLink}>{translate('memory.openProfile')}</Text>
             </Pressable>

@@ -29,15 +29,6 @@ public final class SummaryAnalyzer implements AnalysisProcessor {
     private final FailureReporter failureReporter;
     private final com.acttub.actingapi.integration.observation.VideoRecordAnalyzer videoRecords;
 
-    public SummaryAnalyzer(
-            DurationResolver durationProbe,
-            VideoCompressor compressor,
-            ObservationAnalyzer observationAnalyzer,
-            SpeechAnalyzer speechAnalyzer,
-            FailureReporter failureReporter) {
-        this(durationProbe, compressor, observationAnalyzer, speechAnalyzer, failureReporter, null);
-    }
-
     public SummaryAnalyzer(DurationResolver durationProbe, VideoCompressor compressor,
             ObservationAnalyzer observationAnalyzer, SpeechAnalyzer speechAnalyzer,
             FailureReporter failureReporter,

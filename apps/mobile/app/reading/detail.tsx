@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
 import { useAppDialog } from '@/components/app-dialog';
-import { statusChip } from '@/lib/reading/script-cards';
+import { CHIP_TONE, statusChip } from '@/lib/reading/script-cards';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import {
   isPlaybackExpired,
@@ -40,12 +40,6 @@ import { translate as t } from '@/lib/i18n';
  * 순서대로), 개별 녹음 삭제, 회차 삭제. 열린 회차가 있으면 "이어서 연습 · K / N", 아니면 "새로운 연습".
  * 재생 주소는 10분 서명이라 만료됐으면 회차를 다시 조회해 새 주소를 받는다.
  */
-const CHIP_TONE = {
-  reading: { color: palette.blue, bg: palette.blueSoft },
-  completed: { color: palette.green, bg: palette.greenSoft },
-  no_cast: { color: palette.textDim, bg: palette.bgSoft },
-} as const;
-
 export default function ReadingDetail() {
   const router = useRouter();
   const insets = useSafeAreaInsets();

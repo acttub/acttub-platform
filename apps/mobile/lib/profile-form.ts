@@ -29,7 +29,7 @@ export const NAME_MAX_LENGTH = 20;
 /** 한 줄 소개. 선택 항목이며 설정에서만 받는다. */
 export const BIO_MAX_LENGTH = 80;
 
-/** GET /v2/me의 profile. 1.0.0 이전 회원은 name(옛 닉네임)만 있고 나머지는 null이다. */
+/** GET /v2/me의 profile. 0.1.0 이전 회원은 name(옛 닉네임)만 있고 나머지는 null이다. */
 export type ServerProfile = {
   name: string | null;
   gender: Gender | null;
@@ -63,7 +63,7 @@ export type ProfilePayload = {
 };
 
 /**
- * 이름 칸의 첫 값: 서버에 있는 이름(1.0.0 이전 회원의 옛 닉네임)이 먼저고, 없으면 제공자가
+ * 이름 칸의 첫 값: 서버에 있는 이름(0.1.0 이전 회원의 옛 닉네임)이 먼저고, 없으면 제공자가
  * 준 이름이다. 미리 채우는 값일 뿐이고 저장되는 것은 배우가 확인한 값이다.
  */
 export function initialProfileForm(
@@ -92,25 +92,39 @@ function koreaDate(now: Date): string {
   return new Date(now.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
-/**
- * 실제로 있는 지난 날짜면 그대로, 아니면 null. 서버에서 본문 모양 오류(422 배열)가 될 입력만
- * 거른다. 만 14세 미만인지는 여기서 보지 않는다 — 서버가 한국 시간의 날짜로 판정한다.
- */
-export function parseBirthDate(text: string, now: Date): string | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text.trim());
-  if (!match) return null;
+/** 서버(KoreanAge)와 같은 기준. 이보다 어린 생년월일은 앱이 칸에서 막는다. */
+export const MINIMUM_AGE = 14;
+
+export type BirthDateCheck =
+  /** 아직 10자 미만. 입력 중이라 오류가 아니다. */
+  | { kind: 'incomplete' }
+  /** 없는 날짜·미래·1900 이전·모양 틀림. 서버라면 본문 모양 오류(422 배열)가 될 입력이다. */
+  | { kind: 'invalid' }
+  /** 한국 날짜로 만 14세 미만. 서버의 under_14 422는 이것을 놓친 경우의 안전망이다. */
+  | { kind: 'under_minimum' }
+  | { kind: 'ok'; value: string };
+
+/** 서버의 Period.between(birth, todayKST).getYears()와 같은 만 나이. 둘 다 YYYY-MM-DD다. */
+function fullYearsOn(birthDate: string, today: string): number {
+  const years = Number(today.slice(0, 4)) - Number(birthDate.slice(0, 4));
+  return today.slice(5) < birthDate.slice(5) ? years - 1 : years;
+}
+
+export function checkBirthDate(text: string, now: Date): BirthDateCheck {
+  const trimmed = text.trim();
+  if (trimmed.length < 10) return { kind: 'incomplete' };
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+  if (!match) return { kind: 'invalid' };
   const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
-  if (year < 1900) return null;
   const date = new Date(Date.UTC(year, month - 1, day));
-  if (
-    date.getUTCFullYear() !== year ||
-    date.getUTCMonth() !== month - 1 ||
-    date.getUTCDate() !== day
-  ) {
-    return null;
-  }
-  const value = match[0];
-  return value <= koreaDate(now) ? value : null;
+  const exists =
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day;
+  const today = koreaDate(now);
+  if (year < 1900 || !exists || trimmed > today) return { kind: 'invalid' };
+  if (fullYearsOn(trimmed, today) < MINIMUM_AGE) return { kind: 'under_minimum' };
+  return { kind: 'ok', value: trimmed };
 }
 
 function trimmedName(form: ProfileFormState): string | null {
@@ -132,7 +146,7 @@ export function isProfileFormComplete(form: ProfileFormState, now: Date): boolea
   return (
     trimmedName(form) !== null &&
     form.gender !== null &&
-    parseBirthDate(form.birthDate, now) !== null &&
+    checkBirthDate(form.birthDate, now).kind === 'ok' &&
     form.directions.length > 0 &&
     form.experience !== null &&
     form.goal !== null
@@ -149,10 +163,10 @@ export function buildProfilePayload(
   extras?: { bio: string | null },
 ): ProfilePayload {
   const name = trimmedName(form);
-  const birthDate = parseBirthDate(form.birthDate, now);
+  const birthDate = checkBirthDate(form.birthDate, now);
   if (
     name === null ||
-    birthDate === null ||
+    birthDate.kind !== 'ok' ||
     form.gender === null ||
     form.directions.length === 0 ||
     form.experience === null ||
@@ -166,7 +180,7 @@ export function buildProfilePayload(
   return {
     name,
     gender: form.gender,
-    birth_date: birthDate,
+    birth_date: birthDate.value,
     directions: DIRECTION_VALUES.filter((direction) => form.directions.includes(direction)),
     experience: form.experience,
     goal: form.goal,

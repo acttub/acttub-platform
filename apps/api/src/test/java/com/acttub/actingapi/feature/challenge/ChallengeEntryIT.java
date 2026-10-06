@@ -46,6 +46,9 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 class ChallengeEntryIT {
     static final Instant NOW = Instant.parse("2026-09-23T03:00:00Z");
 
+    private static final String INVALID_CURSOR = "{\"detail\":[{\"type\":\"value_error\",\"loc\":[\"query\",\"cursor\"],"
+            + "\"msg\":\"Value error, invalid cursor\",\"input\":\"not-a-cursor\",\"ctx\":{\"error\":{}}}]}";
+
     @TestConfiguration
     static class Media {
         static final Map<String, Integer> ACTUAL = new ConcurrentHashMap<>();
@@ -458,7 +461,7 @@ class ChallengeEntryIT {
     @Test void challengeBrowse_guestsAndWebClientsAreRefused() throws Exception {
         UUID challenge = challenge(NOW.plus(Duration.ofDays(7)));
         var result = mvc.perform(get("/v2/challenges/{id}/entries", challenge).header("Authorization", bearer)
-                .header("X-Acttub-Client", "web/1.0.0").header("Accept-Language", "ko")).andReturn().getResponse();
+                .header("X-Acttub-Client", "web/0.1.0").header("Accept-Language", "ko")).andReturn().getResponse();
         assertThat(result.getStatus()).isEqualTo(403);
         assertThat(json.readTree(result.getContentAsString()).path("detail").asText()).isEqualTo("member_only");
     }
@@ -479,7 +482,7 @@ class ChallengeEntryIT {
         // 보는 사람이 없으니 차단은 따지지 않는다. 만료된 토큰이 붙어 와도 검증하지 않는다.
         jdbc.update("INSERT INTO user_blocks(id,blocker_id,blocked_id) VALUES (?,?,?)", UUID.randomUUID(), user, author);
         var withStaleToken = mvc.perform(get("/v2/public/entries/{id}", shown).header("Authorization", "Bearer expired")
-                .header("X-Acttub-Client", "web/1.0.0")).andReturn().getResponse();
+                .header("X-Acttub-Client", "web/0.1.0")).andReturn().getResponse();
         assertThat(withStaleToken.getStatus()).isEqualTo(200);
 
         UUID secret = seeded(challenge, member("비공개"), 2, 0);
@@ -515,7 +518,7 @@ class ChallengeEntryIT {
 
     /** 로그인 없는 웹 서버의 조회 — 토큰을 싣지 않는다. */
     private org.springframework.mock.web.MockHttpServletResponse publicLookup(UUID entry) throws Exception {
-        return mvc.perform(get("/v2/public/entries/{id}", entry).header("X-Acttub-Client", "web/1.0.0")
+        return mvc.perform(get("/v2/public/entries/{id}", entry).header("X-Acttub-Client", "web/0.1.0")
                 .header("Accept-Language", "ko")).andReturn().getResponse();
     }
 
@@ -596,8 +599,16 @@ class ChallengeEntryIT {
 
     private org.springframework.mock.web.MockHttpServletResponse raw(MockHttpServletRequestBuilder request, String authorization)
             throws Exception {
-        return mvc.perform(request.header("Authorization", authorization).header("X-Acttub-Client", "app/1.0.0")
+        return mvc.perform(request.header("Authorization", authorization).header("X-Acttub-Client", "app/0.1.0")
                 .header("Accept-Language", "ko").contentType(MediaType.APPLICATION_JSON)).andReturn().getResponse();
+    }
+
+    /** 읽을 수 없는 커서의 422 본문은 바이트 그대로다(키 순서·ctx 포함). */
+    @Test void challengeBrowse_invalidCursorBodyStaysByteIdentical() throws Exception {
+        UUID challenge = challenge(NOW.plus(Duration.ofDays(7)));
+        seeded(challenge, member("배우"), 0, 1);
+        assertThat(raw(get("/v2/challenges/{id}/entries", challenge).param("cursor", "not-a-cursor"), 422))
+                .isEqualTo(INVALID_CURSOR);
     }
 
     private JsonNode response(MockHttpServletRequestBuilder request, int expected) throws Exception {
@@ -605,10 +616,18 @@ class ChallengeEntryIT {
     }
 
     private JsonNode response(MockHttpServletRequestBuilder request, int expected, String authorization) throws Exception {
-        var result = mvc.perform(request.header("Authorization", authorization).header("X-Acttub-Client", "app/1.0.0")
+        var result = mvc.perform(request.header("Authorization", authorization).header("X-Acttub-Client", "app/0.1.0")
                 .header("Accept-Language", "ko").contentType(MediaType.APPLICATION_JSON)).andReturn();
         var response = result.getResponse();
         assertThat(response.getStatus()).as("%s (%s)", response.getContentAsString(), result.getResolvedException()).isEqualTo(expected);
         return response.getContentAsString().isBlank() ? json.nullNode() : json.readTree(response.getContentAsString());
+    }
+
+    /** 본문을 바이트 그대로 돌려준다 — 422 본문의 키 순서까지 견줄 때 쓴다. */
+    private String raw(MockHttpServletRequestBuilder request, int expected) throws Exception {
+        var response = mvc.perform(request.header("Authorization", bearer).header("X-Acttub-Client", "app/0.1.0")
+                .header("Accept-Language", "ko").contentType(MediaType.APPLICATION_JSON)).andReturn().getResponse();
+        assertThat(response.getStatus()).as(response.getContentAsString()).isEqualTo(expected);
+        return response.getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
     }
 }

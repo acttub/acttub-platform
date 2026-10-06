@@ -34,12 +34,8 @@ test('challenge.ai-report: 점수·순위를 매기지 않는다고 화면이 �
   }
 });
 
-test('challenge.ai-report: 근거 구간은 그 자리부터 다시 볼 수 있다', () => {
-  const screen = read('app/ai-report.tsx');
-
-  assert.match(screen, /evidenceStartSeconds/);
-  assert.match(screen, /player\.currentTime = /);
-  assert.match(screen, /aiReport\.evidencePlay/);
+test('challenge.ai-report: 관찰에는 근거 구간의 시각을 단다', () => {
+  assert.match(read('app/ai-report.tsx'), /evidenceLabel\(evidence\)/);
 });
 
 test('challenge.ai-report: 같은 요청 id 로 다시 부탁하면 기존 작업이다', () => {
@@ -90,4 +86,10 @@ test('challenge.notification: 탭 배지는 읽지 않은 묶음 수이고 푸�
   assert.match(root, /onPushTapped/);
   assert.match(root, /challengePushTarget/);
   assert.match(root, /'\/notifications'/);
+});
+
+test('account.notification: 저녁 리마인드 푸시를 누르면 홈 탭으로 간다', () => {
+  const root = read('app/_layout.tsx');
+  assert.match(root, /evening_reminder/);
+  assert.match(root, /router\.replace\('\/\(tabs\)'\)/);
 });

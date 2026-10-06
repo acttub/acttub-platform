@@ -76,23 +76,3 @@ export function compareLine(said: string, target: string): LineMatch {
   const closeness = similarity(said, target);
   return closeness >= PASS_THRESHOLD ? { kind: 'pass', closeness } : { kind: 'miss', closeness };
 }
-
-const squash = (s: string) => s.replace(/\s+/g, '');
-
-/**
- * 인식 결과 항목들을 한 문장으로 합친다. 인식기는 이어지는 조각을 주기도 하고 처음부터의 누적을 주기도
- * 한다 — 지금까지 합친 것이 새 항목의 앞부분이면 갈아 끼우고, 새 항목이 앞부분이면 버리고, 아니면 이어 붙인다.
- */
-export function mergeTranscripts(parts: string[]): string {
-  let acc = '';
-  for (const raw of parts) {
-    const t = raw.trim();
-    if (!t) continue;
-    const a = squash(acc);
-    const b = squash(t);
-    if (!a || b.startsWith(a)) acc = t;
-    else if (a.startsWith(b)) continue;
-    else acc = `${acc} ${t}`;
-  }
-  return acc.trim();
-}

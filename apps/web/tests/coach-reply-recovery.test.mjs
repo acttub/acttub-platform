@@ -5,7 +5,7 @@ const { ApiError, NetworkError } = await import("../src/lib/api/v2/errors.ts");
 const { isClosedCoach, coachReplyError, recoverClosedCoach } = await import("../src/features/workspace/coach-reply-recovery.ts");
 
 test("closed sessions are distinct from transport, rate limit and other conflicts", () => {
-  assert.equal(isClosedCoach(new ApiError(409, "session is closed", "session is closed")), true);
+  assert.equal(isClosedCoach(new ApiError(409, "conversation_closed", "conversation_closed")), true);
   assert.equal(isClosedCoach(new ApiError(409, "request is still processing", null)), false);
   assert.equal(isClosedCoach(new NetworkError()), false);
   assert.match(coachReplyError(new NetworkError()), /연결/);

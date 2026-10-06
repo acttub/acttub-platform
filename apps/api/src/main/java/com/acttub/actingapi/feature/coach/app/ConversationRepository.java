@@ -7,8 +7,8 @@ import java.util.UUID;
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**
- * 1.0.0 회차의 코치 대화 저장소 — {@code coach_conversations}·{@code coach_messages}·{@code coach_notes} (practice.coach,
- * practice.note). 옛 {@link CoachSessionRepository}(={@code coach_sessions} + {@code coach_turns})와 다른 포트다.
+ * 0.1.0 회차의 코치 대화 저장소 — {@code coach_conversations}·{@code coach_messages}·{@code coach_notes} (practice.coach,
+ * practice.note).
  *
  * <p><b>회차에 대화는 하나다.</b> 열린 대화는 같은 id 로 재개하고, 닫힌 뒤 다시 코칭하려면 새 회차다(practice.resume).
  *
@@ -33,12 +33,10 @@ public interface ConversationRepository {
 
     /**
      * @param stage 회차의 진행. 코치는 {@code conversing} 에서만 시작한다
-     * @param startRequestId 대화를 연 요청. 같은 id 의 재전송이면 같은 대화다
      */
     record Loaded(
             UUID practiceId,
             UUID conversationId,
-            UUID startRequestId,
             String stage,
             CoachSessionSnapshot session) {
     }
@@ -50,9 +48,9 @@ public interface ConversationRepository {
 
     /**
      * 시작 응답(코치의 첫 말)을 저장한다. 같은 대화에 이미 턴이 있으면 아무것도 쓰지 않는다 — 시작 재전송이
-     * 턴을 늘리지 않는다.
+     * 턴을 늘리지 않는다. closeReason이 있으면 첫 안내와 함께 대화와 회차도 닫는다.
      */
-    void saveOpening(UUID conversationId, String coachMessage, JsonNode state, Instant now);
+    void saveOpening(UUID conversationId, String coachMessage, JsonNode state, String closeReason, Instant now);
 
     /**
      * 같은 요청 id 가 이미 만든 턴. 지문이 다르면 {@link Replay#mismatch()} 가 참이다.

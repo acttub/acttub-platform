@@ -2,7 +2,7 @@
   "expo": {
     "name": "Acttub",
     "slug": "acting-app",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "actingapp",
@@ -94,6 +94,8 @@
       "expo-video",
       "@react-native-firebase/app",
       "@react-native-firebase/analytics",
+      "@react-native-firebase/crashlytics",
+      "./plugins/with-crashlytics-dsym.js",
       [
         "@react-native-google-signin/google-signin",
         {
@@ -132,6 +134,7 @@
         }
       ],
       "expo-audio",
+      "./plugins/with-remove-audio-foreground-service.js",
       "onnxruntime-react-native",
       "./plugins/with-ort-16kb.js",
       "./plugins/with-ort-newarch.js",

@@ -560,7 +560,7 @@ class PostgresPracticeDataMigration implements PracticeDataMigration {
 
     /**
      * <b>진행 중인 작업은 고르지 않는다.</b> 옛 워커가 끝내야 하고 두 큐에서 같은 작업이 동시에 돌면 안 된다
-     * (02-practice ③). 대응표에 "건너뜀" 으로 적지도 않는다 — 끝나면 다음 실행이 집어 간다.
+     * (specs/practice ③). 대응표에 "건너뜀" 으로 적지도 않는다 — 끝나면 다음 실행이 집어 간다.
      */
     private int planAiJobs(UUID batchId, int batch, Instant now) {
         return ledger("""

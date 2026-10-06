@@ -22,22 +22,20 @@ class TextValidatorTest {
     void reportsFailuresInPythonValidationOrderWithExactMessages() {
         String message = "1:23에서 점수는 " + "가".repeat(180);
 
-        TextValidation result = TextValidator.validateTurn(message, true);
+        TextValidation result = TextValidator.validateTurn(message);
 
         assertThat(result.failures()).containsExactly(
-                "응답이 191자입니다. 170자 이내여야 합니다.",
                 "금지어가 노출됐습니다: 점수",
                 "응답에 시각이 들어 있습니다. 숫자를 빼고 대사나 동작으로 그 순간을 가리킵니다.");
         assertThat(result.checks().keySet())
-                .containsExactly("sentence_limit", "forbidden_language", "timecode");
+                .containsExactly("forbidden_language", "timecode");
     }
 
     @Test
-    void coachDisablesSentenceLimit() {
-        TextValidation result = TextValidator.validateTurn("가".repeat(171), false);
+    void doesNotLimitLength() {
+        TextValidation result = TextValidator.validateTurn("가".repeat(171));
 
         assertThat(result.failures()).isEmpty();
-        assertThat(result.checks().get("sentence_limit")).isTrue();
     }
 
     @ParameterizedTest

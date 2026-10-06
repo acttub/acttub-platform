@@ -3,8 +3,8 @@ package com.acttub.actingapi.feature.profile.app;
 /**
  * profile 이 오브젝트 스토리지에 요구하는 것. 사진 객체는 영상과 같은 저장소에 두되 별개다.
  *
- * <p>스토리지의 전체 표면이 아니라 이 도메인이 실제로 쓰는 것만 선언한다({@code upload} 의
- * {@code UploadTarget} 과 같은 형태).
+ * <p>스토리지의 전체 표면이 아니라 이 도메인이 실제로 쓰는 것만 선언한다({@code video} 의
+ * {@code VideoStorage} 와 같은 형태).
  */
 public interface ProfilePhotoStorage {
 

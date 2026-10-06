@@ -6,7 +6,6 @@ import {
   canDeleteComment,
   canReact,
   canSendComment,
-  commentAttemptFor,
   commentAuthorName,
   commentBody,
   commentText,
@@ -14,8 +13,8 @@ import {
   optimisticLike,
   optimisticSave,
   reactFailure,
-  revertLike,
 } from '../lib/challenge/react.ts';
+import { attemptFor } from '../lib/request-id.ts';
 import { COMMENT_MAX } from '../lib/challenge/types.ts';
 
 const apiError = (status, code) => Object.assign(new Error(code ?? String(status)), { status, code });
@@ -27,8 +26,6 @@ test('challenge.react: 좋아요는 눌린 즉시 표시가 바뀌고 서버가 
   assert.deepEqual(after, { liked: true, likeCount: 6 });
   // 다시 누르면 꺼지고 수가 준다(멱등하게 보인다).
   assert.deepEqual(optimisticLike(after), { liked: false, likeCount: 5 });
-  // 실패하면 누르기 전 값으로 돌아간다.
-  assert.deepEqual(revertLike(before), before);
   // 0에서 취소해도 음수가 되지 않는다.
   assert.deepEqual(optimisticLike({ liked: true, likeCount: 0 }), { liked: false, likeCount: 0 });
 });
@@ -62,11 +59,11 @@ test('challenge.react: 같은 댓글의 재전송은 같은 요청 id 다 — �
   let n = 0;
   const makeId = () => `req-${(n += 1)}`;
 
-  const first = commentAttemptFor(null, '한 줄', makeId);
-  const again = commentAttemptFor(first, '한 줄', makeId);
+  const first = attemptFor(null, '한 줄', makeId);
+  const again = attemptFor(first, '한 줄', makeId);
   assert.deepEqual(again, first);
   assert.equal(n, 1);
-  assert.notEqual(commentAttemptFor(again, '다른 줄', makeId).requestId, first.requestId);
+  assert.notEqual(attemptFor(again, '다른 줄', makeId).requestId, first.requestId);
 });
 
 test('challenge.react: 탈퇴한 작성자는 "탈퇴한 사용자"로 보이고 이름 말고는 없다', () => {

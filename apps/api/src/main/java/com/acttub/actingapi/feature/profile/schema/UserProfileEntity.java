@@ -15,9 +15,9 @@ import jakarta.persistence.Table;
 
 /**
  * {@code user_profiles} — 회원당 하나. PK 가 {@code user_id} 로 <b>FK 겸 PK</b> 다
- * ({@code HandoffConfirmationEntity} 와 같은 형태, apps/api/CONTRACT.md §5-3-2).
+ * (apps/api/CONTRACT.md §5-3-2).
  *
- * <p>필수 여섯 항목의 컬럼이 NULL 을 허용한다. 1.0.0 이전 회원은 옛 닉네임만 {@code name} 에
+ * <p>필수 여섯 항목의 컬럼이 NULL 을 허용한다. 0.1.0 이전 회원은 옛 닉네임만 {@code name} 에
  * 들고 오고, 다 채웠는지는 게이트가 요청마다 판정한다. 추구하는 방향은 복수 선택이라
  * {@link UserProfileDirectionEntity} 에 따로 있다.
  *

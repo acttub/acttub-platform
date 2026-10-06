@@ -38,14 +38,6 @@ final class GoogleGenAiGateway implements GeminiGateway {
     }
 
     @Override
-    public String generate(
-            String model,
-            Content contents,
-            GenerateContentConfig config) {
-        return client.models.generateContent(model, contents, config).text();
-    }
-
-    @Override
     public GenerateContentResponse generateResponse(
             String model, Content contents, GenerateContentConfig config) {
         return client.models.generateContent(model, contents, config);

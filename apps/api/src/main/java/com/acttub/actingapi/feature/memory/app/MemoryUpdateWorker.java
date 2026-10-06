@@ -197,7 +197,9 @@ public class MemoryUpdateWorker {
         // 여러 연습이 같은 배우를 갱신해도 기억 행의 잠금을 같은 순서로 얻는다.
         for (String name : AgentMemoryWrites.FIELDS) {
             String value = updates.get(name);
-            if (value == null) {
+            // 옛 표는 성별·나이·목표·막히는 지점·화법 두 칸만 받는다 — 새 칸(SOMA-603)은 0.1.0 표에만 쓴다.
+            if (value == null || java.util.Arrays.stream(ActorMemoryField.values())
+                    .noneMatch(field -> field.dbValue().equals(name))) {
                 continue;
             }
             MemoryEntry row = memory.writeAsAgent(

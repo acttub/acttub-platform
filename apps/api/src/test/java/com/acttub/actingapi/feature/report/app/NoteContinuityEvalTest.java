@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.stream.Stream;
 import com.acttub.actingapi.integration.llm.OpenAiResponsesClient;
 import com.acttub.actingapi.integration.llm.StructuredJson;
+import com.acttub.actingapi.platform.web.OutputLanguage;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -107,11 +108,11 @@ class NoteContinuityEvalTest {
         Path directory = Path.of("build", "note-continuity-eval");
         Files.createDirectories(directory);
         try {
-            var note = PracticeNote.assemble(scenario.handoff(), input -> {
-                var generated = client.generate(PracticeNote.prompt(scenario.handoff()), input);
+            var note = DialogueNote.assembleResult(scenario.handoff(), input -> {
+                var generated = client.generate(OutputLanguage.apply(DialogueNote.PROMPT), input);
                 calls.addObject().put("model", generated.model()).put("output", generated.text());
                 return generated.text();
-            }, errors::add);
+            }, errors::add).note();
             var visible = PracticeNote.publicView(note);
             output.set("note", visible);
             assertThat(errors).hasSizeLessThan(2); // Do not count a deterministic fallback as model success.

@@ -9,7 +9,7 @@ import {
   type LegacyMigrationResult,
   type LegacyNotice,
 } from '@/lib/reading/legacy-migration';
-import { newRequestId } from '@/lib/reading/store';
+import { newRequestId } from '@/lib/request-id';
 
 /**
  * 옛 대본 옮기기의 실행 배선(reading.script). 무엇을 어떤 순서로 옮기는지는 legacy-migration 이 정하고,

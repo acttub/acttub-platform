@@ -128,11 +128,10 @@ class CoachQualityEvalTest {
         }
         pack.set("observations", scenario.path("observations"));
         pack.set("uncertainties", scenario.path("uncertainties"));
-        CoachSessionSnapshot session = new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+        CoachSessionSnapshot session = new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 pack, scenario.path("situation").asText(), scenario.path("character").asText("동료"),
                 scenario.path("goal").asText(), 12000, scenario.path("branch").asText(),
-                scenario.path("sub_branch").asText("그 외"), scenario.path("detail").asText(), transcripts,
-                scenario.path("summary").asText(), null, "open", "", turns);
+                scenario.path("sub_branch").asText("그 외"), scenario.path("detail").asText(), "open", "", turns, PriorContext.EMPTY, "legacy", 0, null, null);
         // 프로필과 기억은 handoff 밖에서 온다 — 실물에서는 턴마다 포트로 읽어 싣는 입력이다.
         if (scenario.has("memory")) {
             Map<String, String> memory = new java.util.LinkedHashMap<>();

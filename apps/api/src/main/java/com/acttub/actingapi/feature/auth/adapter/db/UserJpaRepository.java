@@ -15,13 +15,6 @@ interface UserJpaRepository extends JpaRepository<UserEntity, UUID> {
     @Query("""
             SELECT user.id AS id,user.email AS email,user.status AS status
             FROM UserEntity user
-            WHERE user.id=:id
-            """)
-    Optional<AuthenticatedUserProjection> findAuthenticatedById(@Param("id") UUID id);
-
-    @Query("""
-            SELECT user.id AS id,user.email AS email,user.status AS status
-            FROM UserEntity user
             WHERE lower(user.email)=lower(:email)
             """)
     Optional<AuthenticatedUserProjection> findAuthenticatedByEmail(

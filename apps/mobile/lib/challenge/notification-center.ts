@@ -1,5 +1,5 @@
 import { translate } from '../i18n.ts';
-import type { NotificationGroup, NotificationKind } from './types.ts';
+import type { NotificationGroup } from './types.ts';
 
 /**
  * 알림함(challenge.notification) — 한 줄은 묶음 하나다.
@@ -9,7 +9,6 @@ import type { NotificationGroup, NotificationKind } from './types.ts';
  * 대상으로 간다 — 대상이 보이지 않으면 "볼 수 없는 영상"만 알린다(본인 AI 리포트는 예외).
  * 읽지 않은 **묶음** 수가 탭 배지다. 토글을 꺼도 알림함에는 쌓인다.
  */
-export const NOTIFICATION_PAGE_SIZE = 20;
 
 /** 묶음 한 줄의 문구. 이름·본문은 조회 때 조립된 것만 쓴다. */
 export function groupLabel(group: Pick<NotificationGroup, 'kind' | 'actor_count' | 'actor_name'>): string {
@@ -32,11 +31,6 @@ export function sortGroups(groups: readonly NotificationGroup[]): NotificationGr
     const at = Date.parse(b.latest_at) - Date.parse(a.latest_at);
     return at !== 0 ? at : b.group_key.localeCompare(a.group_key);
   });
-}
-
-/** 탭 배지는 읽지 않은 사건 수가 아니라 **묶음** 수다. */
-export function unreadBadge(groups: readonly NotificationGroup[]): number {
-  return groups.filter((group) => !group.read).length;
 }
 
 /** 배지 표시 문구 — 99를 넘으면 99+ 다. 0이면 배지를 달지 않는다. */
@@ -117,11 +111,3 @@ export function challengePushTarget(data: unknown): ChallengePushTarget | null {
   }
   return null;
 }
-
-/** 알림함에서 쓰는 사건 종류 목록(테스트·문구 점검용). */
-export const NOTIFICATION_KINDS: readonly NotificationKind[] = [
-  'entry_liked',
-  'entry_commented',
-  'challenge_ended',
-  'entry_ai_report_ready',
-];

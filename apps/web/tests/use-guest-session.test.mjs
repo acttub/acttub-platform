@@ -103,7 +103,7 @@ test("account.guest: 서버가 갱신을 거절하면 게스트가 끝나고 화
   }
 });
 
-test("account.guest: 1.0.0 이전 웹 로그인이 남긴 회원 토큰은 게스트로 치지 않는다", () => {
+test("account.guest: 0.1.0 이전 웹 로그인이 남긴 회원 토큰은 게스트로 치지 않는다", () => {
   window.localStorage.setItem("acttub.refresh_token", "member-refresh");
   window.localStorage.setItem("acttub.access_token", "member-access");
 

@@ -14,7 +14,6 @@ function readSource(relativePath) {
 const internalSymbols = [
   ["src/lib/api/v2/client.ts", "apiUrl", "function"],
   ["src/lib/api/v2/errors.ts", "UnauthorizedError", "class"],
-  ["src/lib/api/v2/idempotency.ts", "newRequestId", "function"],
 ];
 
 const moduleNamespaces = new Map(

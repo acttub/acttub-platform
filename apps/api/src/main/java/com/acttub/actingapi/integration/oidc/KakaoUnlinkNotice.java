@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
  * <p>카카오는 등록해 둔 주소로 {@code app_id}·{@code user_id}·{@code referrer_type} 을 보내고, 헤더
  * {@code Authorization: KakaoAK <기본 어드민 키>} 로 자기가 보낸 것임을 알린다. 이 웹훅에는 서명이
  * 없다 — <b>어드민 키의 일치가 검증의 전부다.</b> (SET 서명을 쓰는 것은 "계정 상태 변경 웹훅"이고
- * 1.0.0 은 그것을 받지 않는다.)
+ * 0.1.0 은 그것을 받지 않는다.)
  *
  * <p>{@code KAKAO_APP_ID} 가 설정돼 있으면 {@code app_id} 도 맞춰 본다. 어드민 키가 앱마다 다르므로
  * 없어도 검증은 성립한다.

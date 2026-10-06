@@ -19,10 +19,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengeVideo;
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminFeedbackItem;
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminReadingLine;
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminReadingRecording;
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminReadingSession;
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminReadingSessionDetail;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminTurn;
 import com.acttub.actingapi.feature.admin.app.AdminMetricsRepository;
-import com.acttub.actingapi.feature.admin.app.AdminMetricsRepository.ChallengeVideoRow;
-import com.acttub.actingapi.feature.admin.app.AdminMetricsRepository.FeedbackRow;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
 import jakarta.persistence.Tuple;
@@ -55,8 +59,8 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
 
     @Override
     public List<SessionRow> sessions(int limit, List<String> excludeEmails) {
-        // 1.0 대화(coach_conversations)와 아직 옮겨지지 않은 옛 코치 세션을 함께 본다. 이관은 같은 id 로
-        // 옮기므로 새 표에 있는 옛 행은 뺀다(SOMA-566). 영상은 1.0 이 videos, 옛 행이 확정된 업로드다.
+        // 0.1.0 대화(coach_conversations)와 아직 옮겨지지 않은 옛 코치 세션을 함께 본다. 이관은 같은 id 로
+        // 옮기므로 새 표에 있는 옛 행은 뺀다(SOMA-566). 영상은 0.1.0 이 videos, 옛 행이 확정된 업로드다.
         StringBuilder sql = new StringBuilder("""
                 SELECT
                     coach.id,
@@ -181,7 +185,7 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
 
     @Override
     @Transactional(readOnly = true)
-    public List<FeedbackRow> feedback(
+    public List<AdminFeedbackItem> feedback(
             int limit,
             List<String> excludeEmails,
             List<String> excludeActors,
@@ -238,7 +242,7 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                 .setParameter("includeTeam", includeTeam)
                 .setParameter("limit", limit)).stream()
                 .map(Tuple.class::cast)
-                .map(row -> new FeedbackRow(
+                .map(row -> new AdminFeedbackItem(
                         row.get("id", UUID.class),
                         row.get("kind", String.class),
                         row.get("created_at", Instant.class).atOffset(ZoneOffset.UTC),
@@ -255,7 +259,7 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
 
     @Override
     @Transactional(readOnly = true)
-    public List<ChallengeVideoRow> challengeVideos(
+    public List<AdminChallengeVideo> challengeVideos(
             int limit,
             List<String> excludeEmails,
             List<String> excludeActors,
@@ -292,7 +296,7 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                 .setParameter("excludeActors", String.join(",", excludeActors))
                 .setParameter("limit", limit)).stream()
                 .map(Tuple.class::cast)
-                .map(row -> new ChallengeVideoRow(
+                .map(row -> new AdminChallengeVideo(
                         row.get("id", UUID.class),
                         row.get("actor", String.class),
                         row.get("created_at", Instant.class).atOffset(ZoneOffset.UTC),
@@ -337,7 +341,7 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
 
     @Override
     @Transactional(readOnly = true)
-    public List<ReadingSessionRow> readingSessions(
+    public List<AdminReadingSession> readingSessions(
             int limit,
             String status,
             List<String> excludeEmails,
@@ -389,17 +393,17 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                 .setParameter("excludeActors", String.join(",", excludeActors))
                 .setParameter("limit", limit)).stream()
                 .map(Tuple.class::cast)
-                .map(PostgresAdminMetricsRepository::readingSessionRow)
+                .map(PostgresAdminMetricsRepository::readingSession)
                 .toList();
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<ReadingSessionDetailRow> readingSession(
+    public Optional<AdminReadingSessionDetail> readingSession(
             UUID sessionId,
             List<String> excludeEmails,
             List<String> excludeActors) {
-        Optional<ReadingSessionRow> session = list(entityManager.createNativeQuery("""
+        Optional<AdminReadingSession> session = list(entityManager.createNativeQuery("""
                 SELECT
                     session.id,
                     left(md5(CAST(session.user_id AS text)), 8) AS actor,
@@ -444,12 +448,12 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                 .setParameter("excludeActors", String.join(",", excludeActors)))
                 .stream()
                 .findFirst()
-                .map(PostgresAdminMetricsRepository::readingSessionRow);
+                .map(PostgresAdminMetricsRepository::readingSession);
         if (session.isEmpty()) {
             return Optional.empty();
         }
 
-        List<ReadingLineRow> lines = list(entityManager.createNativeQuery("""
+        List<AdminReadingLine> lines = list(entityManager.createNativeQuery("""
                 SELECT
                     line.id,
                     line.ordinal,
@@ -487,7 +491,7 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                 .setParameter("excludeEmails", normalizedEmails(excludeEmails))
                 .setParameter("excludeActors", String.join(",", excludeActors))).stream()
                 .map(Tuple.class::cast)
-                .map(row -> new ReadingLineRow(
+                .map(row -> new AdminReadingLine(
                         row.get("id", UUID.class),
                         row.get("ordinal", Integer.class),
                         row.get("kind", String.class),
@@ -497,7 +501,7 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                         row.get("is_mine", Boolean.class)))
                 .toList();
 
-        List<ReadingRecordingRow> recordings = list(entityManager.createNativeQuery("""
+        List<AdminReadingRecording> recordings = list(entityManager.createNativeQuery("""
                 SELECT
                     recording.id,
                     recording.line_id,
@@ -539,7 +543,7 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                 .setParameter("excludeEmails", normalizedEmails(excludeEmails))
                 .setParameter("excludeActors", String.join(",", excludeActors))).stream()
                 .map(Tuple.class::cast)
-                .map(row -> new ReadingRecordingRow(
+                .map(row -> new AdminReadingRecording(
                         row.get("id", UUID.class),
                         row.get("line_id", UUID.class),
                         row.get("attempt_no", Integer.class),
@@ -549,7 +553,7 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                         row.get("transcript", String.class),
                         row.get("matched", Boolean.class)))
                 .toList();
-        return Optional.of(new ReadingSessionDetailRow(session.orElseThrow(), lines, recordings));
+        return Optional.of(new AdminReadingSessionDetail(session.orElseThrow(), lines, recordings));
     }
 
     @Override
@@ -645,8 +649,8 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                 .collect(java.util.stream.Collectors.joining(","));
     }
 
-    private static ReadingSessionRow readingSessionRow(Tuple row) {
-        return new ReadingSessionRow(
+    private static AdminReadingSession readingSession(Tuple row) {
+        return new AdminReadingSession(
                 row.get("id", UUID.class),
                 row.get("actor", String.class),
                 row.get("script_title", String.class),

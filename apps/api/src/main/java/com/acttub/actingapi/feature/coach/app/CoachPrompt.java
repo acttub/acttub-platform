@@ -27,7 +27,7 @@ public final class CoachPrompt {
      *
      * <p>매 요청에 남은 횟수를 전달한다. 마지막 응답의 complete 상태는 서버도 검증한다.
      */
-    static final int TURN_BUDGET = 8;
+    static final int TURN_BUDGET = ConversationService.LEGACY_REPLY_LIMIT;
     /**
      * 구간 경계 — 앞 두 구간의 마지막 응답 번호.
      */
@@ -87,6 +87,10 @@ public final class CoachPrompt {
         MEMORY_LABELS.put("age", "나이");
         MEMORY_LABELS.put("goal", "배우가 말한 목표");
         MEMORY_LABELS.put("blockage", "배우가 반복해서 고른 막히는 지점");
+        MEMORY_LABELS.put("wants", "배우가 코치에게 바라는 것");
+        MEMORY_LABELS.put("habits", "자주 짚인 버릇");
+        MEMORY_LABELS.put("avoid", "배우가 아니라고 한 것(다시 꺼내지 않는다)");
+        MEMORY_LABELS.put("tone", "배우의 말투");
         MEMORY_LABELS.put("speech_self", "배우가 스스로 말하는 자기 화법");
         MEMORY_LABELS.put("speech_actual", "실제로 말한 방식");
     }
@@ -145,11 +149,15 @@ public final class CoachPrompt {
      * <p><b>없으면 칸 자체를 만들지 않는다</b> — 빈 제목만 남기면 모델이 그 자리를 지어내
      * 채운다. 첫 연습에서는 지금까지와 똑같은 프롬프트가 나가야 한다.
      */
-    static String priorContextBlock(PriorContext prior) {
-        return priorContextBlock(prior, false);
+    static String priorContextBlock(PriorContext prior, boolean videoFirst) {
+        return priorContextBlock(prior, videoFirst, false);
     }
 
-    static String priorContextBlock(PriorContext prior, boolean videoFirst) {
+    /**
+     * @param goalSetting 연습 루프가 지난 기록을 이번 목표 후보로 쓰는지(SOMA-602). 그때는 "목표로 확정하지 않는다" 대신
+     *     "목표 후보를 고르고 배우에게 물어 정한다"를 싣는다 — 둘을 함께 실으면 모델이 목표를 늘 "없음"으로 적는다(실험).
+     */
+    static String priorContextBlock(PriorContext prior, boolean videoFirst, boolean goalSetting) {
         if (prior == null || prior.isEmpty()) {
             return "";
         }
@@ -157,7 +165,10 @@ public final class CoachPrompt {
         lines.add("## 배우에 대해 지금까지 알고 있는 것");
         lines.add("지난 연습에서 정리된 참고 사항이다. **영상 근거가 아니다** — 이걸로 이번"
                 + " 영상의 장면을 말하지 않는다. 배우가 지난번에 한 말이므로 그대로 읊지 않는다.");
-        if (videoFirst) {
+        if (videoFirst && goalSetting) {
+            lines.add("이번 연습의 목표 후보를 고르는 데 쓴다. 목표는 배우에게 물어서 정하며, 지난 기록만으로 확정하지"
+                    + " 않는다. 지난번에 해 보기로 한 것을 했는지 다그치지 않는다.");
+        } else if (videoFirst) {
             lines.add("이번 영상의 주제에 직접 도움이 될 때만 참고한다. 지난 목표 확인이나 과제 실행"
                     + " 확인을 의무 질문으로 만들지 않는다. 지난 기록을 이번 장면의 목표·의도로 확정하지 않는다.");
         } else {
@@ -169,6 +180,8 @@ public final class CoachPrompt {
         if (!prior.memory().isEmpty()) {
             lines.add("");
             MEMORY_LABELS.forEach((name, label) -> {
+                // 연습 루프는 옛 화법 두 칸을 읽지 않는다 — 코치를 다시 말의 속도·끝맺음 쪽으로 끈다(SOMA-603).
+                if (goalSetting && name.startsWith("speech_")) return;
                 String value = prior.memory().get(name);
                 if (value != null && !value.isEmpty()) {
                     lines.add("- " + label + ": " + value);
@@ -305,9 +318,7 @@ public final class CoachPrompt {
     }
 
     /**
-     * 빈 칸 판정. {@link #empty} 와 갈라 두는 이유는 대상이 다르기 때문이다 — 저쪽은
-     * {@code conversationSummary} 가 쓰는 {@code isEmpty()} 이고, 이쪽은 배우가 쓴 칸이라
-     * 공백만 든 값도 "안 적었다" 로 본다. 웹이 {@code .trim()} 해 보내지만 서버가 그 보장에
+     * 빈 칸 판정. 배우가 쓴 칸이라 공백만 든 값도 "안 적었다" 로 본다. 웹이 {@code .trim()} 해 보내지만 서버가 그 보장에
      * 기대지 않는다.
      *
      * <p>{@code CoachEngine:firstActorMessage} 가 같은 판정을 쓴다 — 프롬프트에서 뺀 칸이
@@ -325,9 +336,6 @@ public final class CoachPrompt {
         if (history.isEmpty()) {
             history = "이전 대화 없음";
         }
-        String conversationSummary = empty(session.conversationSummary())
-                ? "아직 없음"
-                : session.conversationSummary();
         return actorProfileBlock(session.actorProfile())
                 + priorContextBlock(session.priorForModel(), CoachBranch.isBlockageUnspecified(session.blockageKind()))
                 + actorMaterialBlock(session)
@@ -336,9 +344,8 @@ public final class CoachPrompt {
                 + "## 영상에서 확인된 것\n"
                 + "이 팩만 영상 근거로 쓴다. 이 호출에는 영상이 첨부되지 않았고 새 영상 사실을 만들면 안 된다.\n"
                 + videoFacts(session) + "\n\n"
-                + "## 지금까지\n" + conversationSummary + "\n\n"
+                + "## 지금까지\n아직 없음\n\n"
                 + "## 최근 대화\n" + history + "\n\n"
-                + analysisHandoffBlock(session)
                 + expressionInputBlock(session)
                 + "## 배우의 최신 말\n" + userMessage + "\n\n"
                 + turnBudgetBlock(session);
@@ -424,23 +431,6 @@ public final class CoachPrompt {
         return ordered;
     }
 
-    private static String analysisHandoffBlock(CoachSessionSnapshot session) {
-        JsonNode handoff = session.analysisHandoff();
-        if (!CoachBranch.isExpressionBlockage(session.blockageKind())
-                || !hasUsableAnalysisHandoff(session)) {
-            return "";
-        }
-        String evidenceLines = indentedItems(handoff.get("scene_evidence"));
-        String actorWordLines = indentedItems(handoff.get("actor_words"));
-        return "## 이전 분석 세션에서 전달받은 입력 정보\n"
-                + "- blocked_point: " + pythonString(handoff.get("blocked_point")) + "\n"
-                + "- line_meaning: " + pythonString(handoff.get("line_meaning")) + "\n"
-                + "- timing_reason: " + pythonString(handoff.get("timing_reason")) + "\n"
-                + "- target_effect: " + pythonString(handoff.get("target_effect")) + "\n"
-                + "- scene_evidence:\n" + evidenceLines + "\n"
-                + "- actor_words:\n" + actorWordLines + "\n\n";
-    }
-
     private static String expressionInputBlock(CoachSessionSnapshot session) {
         JsonNode pack = session.observationPack();
         JsonNode observations = pack == null ? null : pack.get("observations");
@@ -452,16 +442,7 @@ public final class CoachPrompt {
         }
         List<String> lines = new ArrayList<>();
         observations.forEach(observation -> lines.add("  - " + compactJson(observation)));
-        String heading = !hasUsableAnalysisHandoff(session)
-                ? "## 표현 세션 입력 정보\n"
-                : "";
-        return heading + "- video_observations:\n" + String.join("\n", lines) + "\n\n";
-    }
-
-    private static boolean hasUsableAnalysisHandoff(CoachSessionSnapshot session) {
-        JsonNode handoff = session.analysisHandoff();
-        return handoff != null && !handoff.isNull()
-                && !"unavailable".equals(handoff.path("completion_level").asText());
+        return "## 표현 세션 입력 정보\n- video_observations:\n" + String.join("\n", lines) + "\n\n";
     }
 
     private static String phaseLabel(int turnNumber, String blockageKind) {
@@ -499,15 +480,6 @@ public final class CoachPrompt {
         return String.join("\n", lines);
     }
 
-    private static String indentedItems(JsonNode values) {
-        if (values == null || !values.isArray() || values.isEmpty()) {
-            return "  - 없음";
-        }
-        List<String> lines = new ArrayList<>();
-        values.forEach(value -> lines.add("  - " + pythonString(value)));
-        return String.join("\n", lines);
-    }
-
     private static String joinText(JsonNode values, String delimiter) {
         if (values == null || !values.isArray()) {
             return "";
@@ -539,10 +511,6 @@ public final class CoachPrompt {
         } catch (JsonProcessingException exc) {
             throw new IllegalStateException("코치 입력 JSON을 직렬화하지 못했습니다.", exc);
         }
-    }
-
-    private static boolean empty(String value) {
-        return value == null || value.isEmpty();
     }
 
     private static String load(String resource) {

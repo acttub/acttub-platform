@@ -18,7 +18,7 @@ import java.util.UUID;
  * </ul>
  *
  * <p>이 장부가 옛 원장과 다른 점은 범위다 — 코치 시작·답·리포트의 <b>완료 응답 재생</b>은 재전송 호환이 끝날
- * 때까지 {@code external_operations} 에 남는다(02-practice 「1.0.0 스키마 전환」).
+ * 때까지 {@code external_operations} 에 남는다(specs/practice 「0.1.0 스키마 전환」).
  */
 public interface AiJobLedger {
 

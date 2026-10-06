@@ -159,7 +159,7 @@ class AdminController {
     @Operation(
             summary = "Practice Migration",
             description = """
-                    옛 연습 테이블의 자료를 1.0.0 테이블로 옮긴다 (02-practice 「1.0.0 스키마 전환」 ③).
+                    옛 연습 테이블의 자료를 0.1.0 테이블로 옮긴다 (specs/practice 「0.1.0 스키마 전환」 ③).
 
                     작은 묶음으로 나눠 돌고 남은 것이 없을 때까지 되풀이한다. 몇 번을 돌려도 같은 결과다 —
                     한 번 고른 원본은 대응표에 적혀 다시 고르지 않는다. 옮기지 않은 자료는 사유와 함께
@@ -183,34 +183,8 @@ class AdminController {
             @RequestParam(name = "batch", defaultValue = "200") String rawBatch,
             @RequestHeader(name = "authorization", defaultValue = "") String authorization) {
         requireToken(authorization);
-        int batch = parseBatch(rawBatch);
+        int batch = bounded(rawBatch, "batch", MAX_BATCH);
         return migration.run(batch);
-    }
-
-    private static int parseBatch(String rawBatch) {
-        int batch;
-        try {
-            batch = Integer.parseInt(rawBatch.strip());
-        } catch (NumberFormatException exception) {
-            Map<String, Object> error = new LinkedHashMap<>();
-            error.put("type", "int_parsing");
-            error.put("loc", List.of("query", "batch"));
-            error.put("msg", "Input should be a valid integer, unable to parse string as an integer");
-            error.put("input", rawBatch);
-            throw new ApiValidationException(List.of(error));
-        }
-        if (batch < 1 || batch > MAX_BATCH) {
-            Map<String, Object> error = new LinkedHashMap<>();
-            error.put("type", batch < 1 ? "greater_than_equal" : "less_than_equal");
-            error.put("loc", List.of("query", "batch"));
-            error.put("msg", batch < 1
-                    ? "Input should be greater than or equal to 1"
-                    : "Input should be less than or equal to " + MAX_BATCH);
-            error.put("input", Integer.toString(batch));
-            error.put("ctx", Map.of(batch < 1 ? "ge" : "le", batch < 1 ? 1 : MAX_BATCH));
-            throw new ApiValidationException(List.of(error));
-        }
-        return batch;
     }
 
     @Operation(summary = "Sessions", operationId = "sessions_v2_admin_sessions_get", tags = "admin")
@@ -236,8 +210,7 @@ class AdminController {
             @RequestParam(name = "limit", defaultValue = "20") String rawLimit,
             @RequestHeader(name = "authorization", defaultValue = "") String authorization) {
         requireToken(authorization);
-        int limit = parseLimit(rawLimit);
-        validateLimit(limit, MAX_SESSIONS);
+        int limit = bounded(rawLimit, "limit", MAX_SESSIONS);
         return admin.sessions(limit);
     }
 
@@ -275,8 +248,7 @@ class AdminController {
             @RequestParam(name = "include_team", defaultValue = "false") String rawIncludeTeam,
             @RequestHeader(name = "authorization", defaultValue = "") String authorization) {
         requireToken(authorization);
-        int limit = parseLimit(rawLimit);
-        validateLimit(limit, MAX_FEEDBACK);
+        int limit = bounded(rawLimit, "limit", MAX_FEEDBACK);
         return admin.feedback(limit, parseActors(rawExcludeActors), parseBoolean(rawIncludeTeam));
     }
 
@@ -315,8 +287,7 @@ class AdminController {
             @RequestParam(name = "visibility", defaultValue = "all") String rawVisibility,
             @RequestHeader(name = "authorization", defaultValue = "") String authorization) {
         requireToken(authorization);
-        int limit = parseLimit(rawLimit);
-        validateLimit(limit, MAX_CHALLENGE_VIDEOS);
+        int limit = bounded(rawLimit, "limit", MAX_CHALLENGE_VIDEOS);
         return privateNoStore(admin.challengeVideos(
                 limit,
                 parseActors(rawExcludeActors),
@@ -381,8 +352,7 @@ class AdminController {
             HttpServletResponse response) {
         privateNoStore(response);
         requireToken(authorization);
-        int limit = parseLimit(rawLimit);
-        validateLimit(limit, MAX_READING_SESSIONS);
+        int limit = bounded(rawLimit, "limit", MAX_READING_SESSIONS);
         return privateNoStore(admin.readingSessions(
                 limit,
                 parseReadingStatus(rawStatus),
@@ -473,13 +443,8 @@ class AdminController {
         if ("all".equals(visibility) || "public".equals(visibility) || "private".equals(visibility)) {
             return visibility;
         }
-        Map<String, Object> error = new LinkedHashMap<>();
-        error.put("type", "literal_error");
-        error.put("loc", List.of("query", "visibility"));
-        error.put("msg", "Input should be 'all', 'public' or 'private'");
-        error.put("input", raw);
-        error.put("ctx", Map.of("expected", "'all', 'public' or 'private'"));
-        throw new ApiValidationException(List.of(error));
+        throw queryError("literal_error", "visibility", "Input should be 'all', 'public' or 'private'", raw,
+                Map.of("expected", "'all', 'public' or 'private'"));
     }
 
     private static String parseReadingStatus(String raw) {
@@ -488,13 +453,8 @@ class AdminController {
                 || "completed".equals(status) || "stopped".equals(status)) {
             return status;
         }
-        Map<String, Object> error = new LinkedHashMap<>();
-        error.put("type", "literal_error");
-        error.put("loc", List.of("query", "status"));
-        error.put("msg", "Input should be 'all', 'in_progress', 'completed' or 'stopped'");
-        error.put("input", raw);
-        error.put("ctx", Map.of("expected", "'all', 'in_progress', 'completed' or 'stopped'"));
-        throw new ApiValidationException(List.of(error));
+        throw queryError("literal_error", "status", "Input should be 'all', 'in_progress', 'completed' or 'stopped'",
+                raw, Map.of("expected", "'all', 'in_progress', 'completed' or 'stopped'"));
     }
 
     private static final java.util.regex.Pattern ACTOR = java.util.regex.Pattern.compile("[0-9a-f]{8}");
@@ -511,12 +471,9 @@ class AdminController {
                 .distinct()
                 .toList();
         if (actors.size() > MAX_ACTORS || actors.stream().anyMatch(value -> !ACTOR.matcher(value).matches())) {
-            Map<String, Object> error = new LinkedHashMap<>();
-            error.put("type", "value_error");
-            error.put("loc", List.of("query", "exclude_actors"));
-            error.put("msg", "Value error, exclude_actors must be up to 100 comma-separated 8-digit lowercase hex pseudonyms");
-            error.put("input", raw);
-            throw new ApiValidationException(List.of(error));
+            throw queryError("value_error", "exclude_actors",
+                    "Value error, exclude_actors must be up to 100 comma-separated 8-digit lowercase hex pseudonyms",
+                    raw, null);
         }
         return actors;
     }
@@ -529,19 +486,6 @@ class AdminController {
         }
     }
 
-    private static int parseLimit(String rawLimit) {
-        try {
-            return Integer.parseInt(rawLimit.strip());
-        } catch (NumberFormatException exception) {
-            Map<String, Object> error = new LinkedHashMap<>();
-            error.put("type", "int_parsing");
-            error.put("loc", List.of("query", "limit"));
-            error.put("msg", "Input should be a valid integer, unable to parse string as an integer");
-            error.put("input", rawLimit);
-            throw new ApiValidationException(List.of(error));
-        }
-    }
-
     private static boolean parseBoolean(String raw) {
         String normalized = raw.strip().toLowerCase(java.util.Locale.ROOT);
         if ("true".equals(normalized)) {
@@ -550,45 +494,45 @@ class AdminController {
         if ("false".equals(normalized)) {
             return false;
         }
-        Map<String, Object> error = new LinkedHashMap<>();
-        error.put("type", "bool_parsing");
-        error.put("loc", List.of("query", "include_team"));
-        error.put("msg", "Input should be a valid boolean, unable to interpret input");
-        error.put("input", raw);
-        throw new ApiValidationException(List.of(error));
+        throw queryError("bool_parsing", "include_team", "Input should be a valid boolean, unable to interpret input",
+                raw, null);
     }
 
-    private static void validateLimit(int limit, int maximum) {
-        if (limit < 1) {
-            throw queryError(
-                    "greater_than_equal",
-                    "Input should be greater than or equal to 1",
-                    Integer.toString(limit),
-                    "ge",
-                    1);
+    /** 1 이상 {@code maximum} 이하의 정수 질의 값. 못 읽거나 범위 밖이면 422 다. */
+    private static int bounded(String raw, String field, int maximum) {
+        int value;
+        try {
+            value = Integer.parseInt(raw.strip());
+        } catch (NumberFormatException exception) {
+            throw queryError("int_parsing", field,
+                    "Input should be a valid integer, unable to parse string as an integer", raw, null);
         }
-        if (limit > maximum) {
-            throw queryError(
-                    "less_than_equal",
-                    "Input should be less than or equal to " + maximum,
-                    Integer.toString(limit),
-                    "le",
-                    maximum);
+        if (value < 1) {
+            throw queryError("greater_than_equal", field, "Input should be greater than or equal to 1",
+                    Integer.toString(value), Map.of("ge", 1));
         }
+        if (value > maximum) {
+            throw queryError("less_than_equal", field, "Input should be less than or equal to " + maximum,
+                    Integer.toString(value), Map.of("le", maximum));
+        }
+        return value;
     }
 
+    /** pydantic 모양의 질의 오류 하나. 키 순서가 곧 본문이고, {@code ctx} 가 없는 종류는 키째 뺀다. */
     private static ApiValidationException queryError(
             String type,
+            String field,
             String message,
             String input,
-            String contextKey,
-            int contextValue) {
+            Map<String, Object> context) {
         Map<String, Object> error = new LinkedHashMap<>();
         error.put("type", type);
-        error.put("loc", List.of("query", "limit"));
+        error.put("loc", List.of("query", field));
         error.put("msg", message);
         error.put("input", input);
-        error.put("ctx", Map.of(contextKey, contextValue));
+        if (context != null) {
+            error.put("ctx", context);
+        }
         return new ApiValidationException(List.of(error));
     }
 }

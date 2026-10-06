@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import "./ts-module-loader.mjs";
@@ -15,7 +16,6 @@ const {
   buildNoindexMetadata,
   buildRootMetadata,
   buildUniversityAdmissionsMetadata,
-  buildVerification,
   resolveSiteUrl,
 } = await import("../src/lib/seo/site-metadata.ts");
 
@@ -75,16 +75,6 @@ test("루트 metadata는 공통 title과 소셜 정보를 담되 URL 신호를 �
   });
   assert.equal(metadata.alternates, undefined);
   assert.equal("url" in metadata.openGraph, false);
-});
-
-test("소유권 metadata는 빈 네이버 값의 키를 만들지 않는다", () => {
-  assert.deepEqual(buildVerification("google-code", ""), {
-    google: "google-code",
-  });
-  assert.deepEqual(buildVerification("google-code", "naver-code"), {
-    google: "google-code",
-    other: { "naver-site-verification": "naver-code" },
-  });
 });
 
 test("키워드 metadata는 canonical과 Article 공유 정보를 본문에서 만든다", () => {
@@ -154,11 +144,11 @@ test("입시 목록 metadata는 데이터의 대학 수와 canonical을 담는�
 
   assert.equal(
     metadata.title,
-    "연극영화과 입시 정보 — 대학별 모집요강·실기·일정 정리",
+    "연극영화과 입시 정보 — 2027학년도 대학별 모집요강·실기·입시결과",
   );
   assert.equal(
     metadata.description,
-    "전국 연극영화과·연기 전공 66개 대학의 모집요강, 실기 과제, 원서 접수 일정을 한곳에 정리했어요. 최종 확인은 각 대학 입학처 공고로 해주세요.",
+    "전국 연극영화과·연기 전공 66개 대학의 2027학년도 모집요강, 실기 과제, 원서 접수 일정과 2026·2025학년도 입시결과·응시 후기를 한곳에 정리했어요. 최종 확인은 각 대학 입학처 공고로 해주세요.",
   );
   assert.equal(metadata.alternates.canonical, "/admissions");
   assert.equal(metadata.openGraph.url, "https://example.com/admissions");
@@ -169,10 +159,10 @@ test("대학 상세 metadata는 실제 중앙대 공고에서 만든다", () => 
   assert.ok(payload);
   const metadata = buildUniversityAdmissionsMetadata(payload, "https://example.com/");
 
-  assert.equal(metadata.title, "중앙대학교 연기 입시 정보 — 모집요강·실기·일정");
+  assert.equal(metadata.title, "중앙대학교 연기 입시 정보 — 2027학년도 모집요강·입시결과·후기");
   assert.equal(
     metadata.description,
-    "중앙대학교 공연영상창작학부 연극전공 (연기·뮤지컬) 2027학년도 수시 전형의 실기 과제와 접수 일정을 정리했어요. 최종 확인은 대학 입학처 공고로 해주세요.",
+    "중앙대학교 공연영상창작학부 연극전공 (연기·뮤지컬) 2027학년도 수시 전형의 실기 과제와 접수 일정, 2026·2025학년도 입시결과와 응시 후기를 정리했어요. 최종 확인은 대학 입학처 공고로 해주세요.",
   );
   assert.equal(metadata.alternates.canonical, "/admissions/cau");
   assert.equal(metadata.openGraph.url, "https://example.com/admissions/cau");
@@ -194,4 +184,25 @@ test("공고가 없는 대학 상세 metadata는 중립 설명을 쓴다", () =>
     metadata.description,
     "빈대학교 연기 전공 입시 정보를 정리했어요. 최종 확인은 대학 입학처 공고로 해주세요.",
   );
+});
+
+test("공개 페이지 metadata 빌더 여섯의 결과를 글자 그대로 고정한다", () => {
+  const site = "https://example.com/";
+  const actual = {
+    keyword: buildKeywordPageMetadata(AI_ACTING_COACHING, site),
+    guideIndex: buildGuideIndexMetadata(site),
+    landing: buildLandingMetadata(site),
+    appDownload: buildAppDownloadMetadata(site),
+    admissionsIndex: buildAdmissionsIndexMetadata(site),
+    university: buildUniversityAdmissionsMetadata(loadUniversityAdmissionsStatic("cau"), site),
+  };
+  for (const metadata of Object.values(actual)) {
+    assert.ok(metadata.metadataBase instanceof URL);
+    metadata.metadataBase = metadata.metadataBase.href;
+  }
+  // 값이 undefined 인 키가 끼어도 틀린다 — 루트의 title 템플릿을 덮으면 화면 제목이 바뀐다.
+  const expected = JSON.parse(
+    readFileSync(new URL("./fixtures/seo-page-metadata.json", import.meta.url), "utf8"),
+  );
+  assert.deepEqual(actual, expected);
 });

@@ -1,20 +1,15 @@
 /**
  * 가이드를 봤는지 기기에 기록한다.
  *
- * <p>두 가지다.
- * <ul>
- *   <li>{@link hasSeenGuide} — 설정의 "가이드 다시 보기"로 여는 슬라이드 넉 장. 첫 실행에는
- *       띄우지 않고, 앱을 다시 훑고 싶은 사람만 설정에서 연다.
- *   <li>{@link hasSeenSpotlight} — 화면에서 누를 자리를 비춰 주는 가이드(SOMA-550). 홈·대본
- *       <b>화면마다 따로</b> 기억한다. 홈을 봤다고 대본 가이드가 사라지면 안 된다.
- * </ul>
+ * <p>{@link hasSeenSpotlight} — 화면에서 누를 자리를 비춰 주는 가이드(SOMA-550). 홈·대본
+ * <b>화면마다 따로</b> 기억한다. 홈을 봤다고 대본 가이드가 사라지면 안 된다. 설정의 "가이드
+ * 다시 보기"로 여는 슬라이드 넉 장은 기록하지 않는다 — 첫 실행에 띄우지 않고 설정에서만 연다.
  *
  * <p>못 읽으면 본 것으로 친다 — 매번 다시 뜨는 쪽이 한 번 못 보는 쪽보다 나쁘다.
  */
 
 import { spotlightKey, type SpotlightTopic } from './guide-spotlight';
 
-const KEY = 'acttub.guide.seen';
 /** 연습 루프를 한 바퀴 돌아보는 튜토리얼(SOMA-494). 끝내거나 "나중에"를 누르면 기록한다. */
 const TUTORIAL_KEY = 'acttub.tutorial.seen';
 /** 대본 리딩 한 바퀴 튜토리얼(SOMA-494). AI 연습 튜토리얼과 따로 센다. */
@@ -48,14 +43,6 @@ async function mark(key: string): Promise<void> {
   } catch {
     // no-op
   }
-}
-
-export function hasSeenGuide(): Promise<boolean> {
-  return seen(KEY);
-}
-
-export function markGuideSeen(): Promise<void> {
-  return mark(KEY);
 }
 
 export function hasSeenSpotlight(topic: SpotlightTopic): Promise<boolean> {

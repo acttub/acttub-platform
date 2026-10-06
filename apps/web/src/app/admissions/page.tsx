@@ -7,6 +7,7 @@ import {
   buildAdmissionsBreadcrumbJsonLd,
   buildOrganizationJsonLd,
 } from "@/lib/seo/json-ld";
+import { JsonLd } from "@/lib/seo/json-ld-scripts";
 import { buildAdmissionsIndexMetadata } from "@/lib/seo/site-metadata";
 
 // 공개 입시 정보는 sitemap과 색인 허용 목록에 함께 둔다.
@@ -22,13 +23,7 @@ export default function Page() {
 
   return (
     <>
-      {jsonLdValues.map((value) => (
-        <script
-          key={value["@id"]}
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(value) }}
-        />
-      ))}
+      <JsonLd values={jsonLdValues} />
       <AdmissionsPage initial={initial} />
     </>
   );

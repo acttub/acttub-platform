@@ -11,22 +11,13 @@
 {"scene_summary":"여자가 문 앞에서 돌아선 상대를 붙잡는다.","observations":[{"start_ms":0,"end_ms":93000,"what":"멈춘 뒤 말한다","quote":"가지 마","dimension":"호흡","confidence":1.0}],"uncertainties":["얼굴은 확인되지 않음"]}
 
 ## 지금까지
-앞 대사를 급히 받는다
+아직 없음
 
 ## 최근 대화
 배우: 이전 질문
 코치: 이전 답변
 
-## 이전 분석 세션에서 전달받은 입력 정보
-- blocked_point: 말의 이유
-- line_meaning: 떠나지 말라는 뜻
-- timing_reason: 상대가 돌아섰기 때문
-- target_effect: 멈춰 세우기
-- scene_evidence:
-  - 상대가 돌아선다
-- actor_words:
-  - 붙잡고 싶다
-
+## 표현 세션 입력 정보
 - video_observations:
   - {"start_ms":0,"end_ms":93000,"what":"멈춘 뒤 말한다","quote":"가지 마","dimension":"호흡","confidence":1.0}
 

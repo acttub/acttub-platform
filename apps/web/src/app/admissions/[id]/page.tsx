@@ -1,11 +1,16 @@
 import { UniversityDetailPage } from "@/features/admissions/university-detail";
-import { loadUniversityAdmissionsStatic } from "@/features/admissions/admissions-static";
+import {
+  loadAdmissionsStatic,
+  loadUniversityAdmissionsStatic,
+} from "@/features/admissions/admissions-static";
+import { latestAdmissionYear } from "@/features/admissions/by-year";
 import { universityIds } from "@/features/admissions/university-ids";
 import {
   buildAdmissionsBreadcrumbJsonLd,
   buildAdmissionsWebPageJsonLd,
   buildOrganizationJsonLd,
 } from "@/lib/seo/json-ld";
+import { JsonLd } from "@/lib/seo/json-ld-scripts";
 import { buildUniversityAdmissionsMetadata } from "@/lib/seo/site-metadata";
 import { notFound } from "next/navigation";
 
@@ -52,14 +57,12 @@ export default async function Page({
 
   return (
     <>
-      {jsonLdValues.map((value) => (
-        <script
-          key={value["@id"]}
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(value) }}
-        />
-      ))}
-      <UniversityDetailPage universityId={id} initial={initial} />
+      <JsonLd values={jsonLdValues} />
+      <UniversityDetailPage
+        universityId={id}
+        initial={initial}
+        latestYear={latestAdmissionYear(loadAdmissionsStatic().notices)}
+      />
     </>
   );
 }

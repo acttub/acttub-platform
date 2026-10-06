@@ -17,7 +17,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * 02-practice 「1.0.0 스키마 전환」 ③ — 재실행 가능한 전환 명령을 <b>고정 자료</b>로 본다.
+ * specs/practice 「0.1.0 스키마 전환」 ③ — 재실행 가능한 전환 명령을 <b>고정 자료</b>로 본다.
  *
  * <p>고정 자료는 요구사항이 이름을 든 네 갈래다: 신형 raw(관찰 기록), 구형 분리 배열(ObservationPack),
  * 한 연습의 복수 대화, 이어하기 체인 셋. 여기서 보는 것은 "무엇이 옮겨졌고 무엇이 왜 남았는가" 와
@@ -216,7 +216,7 @@ class PracticeDataMigrationIT {
     }
 
     @Test
-    @DisplayName("02-practice ③: 새 제약에 맞지 않는 묶음은 임의로 닫거나 지우지 않고 사유와 함께 대응표에 남는다 "
+    @DisplayName("specs/practice ③: 새 제약에 맞지 않는 묶음은 임의로 닫거나 지우지 않고 사유와 함께 대응표에 남는다 "
             + "— 진행 중 회차가 둘인 묶음, 가지 친 이어하기, 확정되지 않은 업로드")
     void practiceMigration_leavesGroupsThatDoNotFitTheNewConstraints() {
         UUID openA = session(intent("videos/open-a.mp4"), null, "analyzing");
@@ -245,7 +245,7 @@ class PracticeDataMigrationIT {
     }
 
     @Test
-    @DisplayName("02-practice ③: 전환 명령은 재실행 가능하다 — 두 번째 실행은 아무것도 옮기지 않고 행 수도 "
+    @DisplayName("specs/practice ③: 전환 명령은 재실행 가능하다 — 두 번째 실행은 아무것도 옮기지 않고 행 수도 "
             + "대응표도 그대로다. 작은 묶음으로 나눠 돌려도 결과가 같다")
     void practiceMigration_isIdempotentAndBatchSizeDoesNotChangeTheResult() {
         UUID first = session(intent("videos/1.mp4"), null, "analyzed");

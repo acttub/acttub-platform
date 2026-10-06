@@ -270,7 +270,7 @@ test("지우기가 끝난 자리는 그 연습이 아직 이 화면인지부터 
   // 가 실행으로 지키고, 여기서는 이 자리가 갈림마다 다르게 구는지만 본다 —
   // 창은 다음 선언 앞에서 끊는다.
   const removeStart = workspace.indexOf("const removeSession = useCallback");
-  const removeEnd = workspace.indexOf("const noteBySession", removeStart);
+  const removeEnd = workspace.indexOf("const activeGroup", removeStart);
   assert.ok(removeStart !== -1 && removeEnd > removeStart, "지우는 자리를 못 찾았다");
   const remove = workspace.slice(removeStart, removeEnd);
   assert.match(remove, /isCurrent: \(\) => isCurrentSession\(removing\),/);

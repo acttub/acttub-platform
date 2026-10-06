@@ -1,6 +1,7 @@
 # Grafana Cloud 모니터링 적용·확인 절차
 
-이 문서는 [전체 명세](MONITORING.md)의 Cloud 설정을 적용하고 확인하는 절차다.
+이 문서는 모니터링의 Cloud 설정을 적용하고 확인하는 절차다. 구성의 배경과 범위, 홈서버 쪽 수집은
+[수집 구성](../../deploy/monitoring/README.md#배경과-범위)을 따른다.
 로컬 구현·검증과 **실제 Cloud/Slack 확인은 별개**다. Cloud stack·사용자 권한·Free 플랜·PDC 연결·Slack 수신을 확인하기 전에는 운영 적용 완료로 기록하지 않는다.
 
 ## 저장소 설정과 도구
@@ -10,8 +11,8 @@
 | 파일 | 책임 |
 |---|---|
 | `cloud.json` | 비밀이 아닌 stack 값: stack 주소, 환경별 공개 origin(`health_origins`), 외부 점검 위치(probe), Cloud Metrics 데이터 소스 UID, 디스크 경로 |
-| `rules.json` | 1분 평가 알림 규칙. 환경별 규칙은 `health_origins`의 환경마다, 공유 규칙은 한 번 만든다 |
-| `dashboards/*.json` | 서비스 전체·분석/코치·서버/DB/백업, KST·최근 1시간. 맨 위 한 줄 요약 + 접히는 구역 배치. 서버 화면의 API 프로세스 이하 구역은 grafana.com 대시보드 [19004](https://grafana.com/grafana/dashboards/19004)를 acttub 라벨(`job="api"`·`environment`)로 옮긴 것이다 |
+| `rules.json` | 알림 규칙(평가 간격·기준값 포함). 환경별 규칙은 `health_origins`의 환경마다, 공유 규칙은 한 번 만든다 |
+| `dashboards/*.json` | 서비스 전체·분석/코치·서버/DB/백업 화면(기본 시간대·기간 포함). 맨 위 한 줄 요약 + 접히는 구역 배치. 서버 화면의 API 프로세스 이하 구역은 grafana.com 대시보드 [19004](https://grafana.com/grafana/dashboards/19004)를 acttub 라벨(`job="api"`·`environment`)로 옮긴 것이다 |
 | `slack.tmpl` | Slack 메시지 제목·본문. `apply.py`가 알림 템플릿 `acttub-slack`으로 올린다 |
 | `apply.py` | 렌더링 → Cloud와의 차이(`diff`) → 적용(`apply`). 적용 직전 Cloud 설정을 `.backups/`에 저장 |
 | `check.sh` | 토큰·실제 stack 없이 실행하는 CI/로컬 검증 |
@@ -72,59 +73,61 @@ python3 apply.py apply    # 같은 차이를 반영하고, 적용 뒤 차이가 
 
 `cloud.json`의 `health_origins` 키가 외부 점검·환경별 규칙·대시보드 환경 선택의 공통 기준이다. `dev`·`prod` 중 하나 또는 둘 다를 허용하며 빈 객체와 다른 환경 이름은 거절한다. 수집 설정의 `config.environments`도 같은 환경 집합으로 맞춘다.
 
-두 환경이면 대시보드 3개·규칙 59개(환경별 22개씩 + 공유 15개)·점검 2개이고 화면 기본값은 prod다. 한 환경이면 규칙 37개·점검 1개이며 다른 환경의 점검·규칙·화면 선택값을 만들지 않는다. 환경을 빼면 그 환경 규칙은 그룹 교체로 사라지지만 외부 점검은 남으므로, 점검 삭제는 사용량과 복구를 따로 검토해 사람이 한다.
+두 환경이면 대시보드 셋과 환경마다의 규칙·점검, 공유 규칙을 만들고 화면 기본값은 prod다. 한 환경이면 다른 환경의 점검·규칙·화면 선택값을 만들지 않는다. 환경을 빼면 그 환경 규칙은 그룹 교체로 사라지지만 외부 점검은 남으므로, 점검 삭제는 사용량과 복구를 따로 검토해 사람이 한다.
 
 ## 외부 점검과 예산
 
-HTTP Basic 점검은 공개 `https://<환경 origin>/health`에 GET을 보낸다. 위치 1개, 60,000ms 간격, 10,000ms 제한, redirect 금지, HTTPS 및 HTTP **200**만 성공이다.
+HTTP Basic 점검은 공개 `https://<환경 origin>/health`에 GET을 보낸다. 위치는 `cloud.json`의 probe, 간격·제한 시간은 `apply.py`가 정하고, redirect 금지, HTTPS 및 HTTP **200**만 성공이다.
 Basic 점검은 JSONPath 대신 RE2 정규식을 지원하므로, `HealthResponse`의 기존 고정 JSON 순서와 타입 전체를 확인한다. 최상위 `status="ok"`와 services/model/keep_alive/commit의 유효한 형상을 요구하며 HTML·중첩 status·중복 키·깨진 JSON을 통과시키지 않는다. health 계약의 필드나 직렬화 순서를 바꾸면 이 선언과 검증도 함께 갱신한다.
 
 계획량은 `선택한 주소 수 × 1 위치 × 60회/시간 × 24시간 × 31일`이다. dev만 선택하면 **44,640회**, 두 환경이면 **89,280회**이며 월 100,000회 기준 여유는 각각 **55,360회**, **10,720회**다. `apply.py`는 이 계획량이 월 100,000회를 넘는 설정을 거절한다. [현재 공개 가격표](https://grafana.com/pricing/)와 실제 stack 사용량을 함께 확인한다.
 추가 위치 1곳은 같은 양을 더하므로 두 환경을 두 위치로 늘리면 178,560회가 된다. 새 주소·수동 시험·기존 다른 SM 점검도 실제 사용량에 더한다. 한도 초과 시 중단/재개 동작은 이 로컬 검증으로 확인하지 않았다.
 
-외부 장애 시간 예산은 다음 1분 점검까지 최대 60초 + 세 번째 실패까지 120초 + 10초 요청 제한 + 다음 규칙 평가 최대 60초 + 통지 묶음 10초로 **설계상 최대 약 4분 10초**다. 전송/Cloud 지연은 실제 Slack 수신으로 확인하며, 5분 이내 수신하지 못하면 완료로 판정하지 않는다.
+외부 장애 시간 예산은 다음 점검까지의 간격 + 세 번째 실패까지의 점검 + 요청 제한 시간 + 다음 규칙 평가까지의 간격 + 통지 묶음 대기의 합이다. 현재 설정으로 **설계상 최대 약 4분 10초**다. 전송/Cloud 지연은 실제 Slack 수신으로 확인하며, 5분 이내 수신하지 못하면 완료로 판정하지 않는다.
 SM의 사용자 label에 `label_` 접두어를 붙이는 기본 tenant도 있으므로 외부 규칙은 선택한 환경의 고유한 `job="acttub-health-<환경>"`로 대상을 찾고 규칙에 환경 label을 명시한다. tenant의 label 모드를 바꾸지 않는다.
-Cloud 외부 점검의 14일 보관과 로컬 Prometheus의 30일 보관은 서로 다르다. 로컬 지표를 `remote_write`로 Cloud Metrics에 복제하지 않는다.
+Cloud 외부 점검의 보관 기간(Free 플랜 14일)은 로컬 Prometheus의 보관 기간([수집 구성](../../deploy/monitoring/README.md#구성))과 다르다. 로컬 지표는 Cloud로 복제하지 않는다([하지 않는 것](../../deploy/monitoring/README.md#배경과-범위)).
 
 ## service
 
-서비스 전체 화면은 공개 health, 요청량·5xx·평균·p95, 활성 알림, 마지막 갱신 시각을 보여 준다.
+알림 기준값과 지속 시간은 `rules.json`이 정하고 Slack 메시지의 조건 문구에도 실린다. 아래는 규칙 이름(`key`)으로 가리킨다.
+
+서비스 전체 화면은 공개 health, 요청량·5xx·평균·p95(응답시간을 빠른 순서로 놓았을 때 95% 지점), 활성 알림, 마지막 갱신 시각을 보여 준다.
 API 요청량은 HTTP 재요청·폴링·멱등 응답 재사용도 포함한다. 일반 API 지연은 실제 `latency_class="ordinary"`만 사용해 health·metrics와 분석·코치·리포트의 장시간 경로를 제외한다.
-요청량·5xx 건수/비율·일반 지연의 요청 수 조건은 `acttub_http_requests_total`을 사용한다. API가 `status_class=1xx|2xx|3xx|4xx|5xx|other`와 `latency_class=ordinary|long_running`의 12개 조합을 0으로 먼저 등록하므로, 새 라우트/상태의 첫 오류도 다음 수집에서 증가량으로 관측한다. 평균·p95·라우트별 상세는 기존 `http_server_requests_seconds_*`를 사용한다.
+요청량·5xx 건수/비율·일반 지연의 요청 수 조건은 `acttub_http_requests_total`을 사용한다. API가 `status_class`·`latency_class`의 모든 조합을 0으로 먼저 등록하므로(값은 `HttpRequestMetrics`, 규칙은 [CONTRACT §6-4](../../apps/api/CONTRACT.md#6-4-관리용-모니터링-경로)), 새 라우트/상태의 첫 오류도 다음 수집에서 증가량으로 관측한다. 평균·p95·라우트별 상세는 기존 `http_server_requests_seconds_*`를 사용한다.
 
 - 공개 health 실패: Cloud SM 표본과 공개 URL을 확인한다. DB 연결은 별도 점검한다.
-- API 5xx: 5분 3건 및 5% 경계를 함께 보고 Sentry에서 같은 환경·기간을 조사한다.
-- 일반 p95: 5분 20요청 이상인지 확인한다. 2초 초과 5분 지속 기준이다.
-- 데이터 소스: `vector(0)` 정상 조회가 가능한지, PDC 연결·Prometheus가 살아 있는지 확인한다. 전용 규칙의 Error/No Data는 2분 지속 후 경고한다.
-- 필수 수집: api는 환경별, db-health·backup은 **environment 없는 공유 `up`**, node·prometheus는 `environment="shared"`다. exporter의 실제 내용은 환경별 custom 지표로 구분한다.
+- API 5xx(`api-errors`): 건수와 비율 경계를 함께 보고 Sentry에서 같은 환경·기간을 조사한다.
+- 일반 p95(`api-latency`): 최소 요청 수 조건을 넘었는지 먼저 확인한다.
+- 데이터 소스: `vector(0)` 정상 조회가 가능한지, PDC 연결·Prometheus가 살아 있는지 확인한다. 전용 규칙의 Error/No Data는 지속 시간이 지나면 경고한다.
+- 필수 수집: 대상별 `up`의 `environment` label은 [지표 계약](../../deploy/monitoring/README.md#지표-계약)을 따른다. exporter의 실제 내용은 환경별 custom 지표로 구분한다.
 
-수집 실패/대상 누락은 2분 지속 규칙으로, 오래된 표본은 마지막 갱신에서 120초가 지나면 별도 규칙으로 확인한다. 90초 넘은 낡은 값은 서비스 조건 평가에서 제외한다. 개별 서비스는 Error/No Data에서 직전 상태를 유지한다. 정상 표본이 돌아오기 전에 복구로 해석하지 않는다.
+수집 실패/대상 누락은 지속 규칙으로, 오래된 표본은 마지막 갱신 경과 규칙(`stale-*`)으로 따로 확인한다. 일정 시간 넘은 낡은 값은 서비스 조건 평가에서 제외한다. 개별 서비스는 Error/No Data에서 직전 상태를 유지한다([데이터 없음·오류 처리](https://grafana.com/docs/grafana/latest/alerting/fundamentals/alert-rule-evaluation/nodata-and-error-states/)). 정상 표본이 돌아오기 전에 복구로 해석하지 않는다.
 정상 수집 중 요청량 0은 무사용이다. p95의 `표본 없음`은 완료 표본이 없다는 뜻이다. 수집 상태가 실패·수집 전이거나 조회 자체가 Error이면 빈 화면을 정상으로 읽지 않는다.
-외부 실패가 최근 5분 3건 미만으로 줄어도 최신 점검이 실패이면 쿼리는 No Data를 반환한다. 수집 공백 전의 성공을 복구 근거로 쓰지 않으며, 최신의 신선한 성공 표본이 있어야 실패 조건 해소를 반환한다. 일반 API 지연은 확인된 5분 요청 수가 20건 미만이면 조건을 해소하지만, 20건 이상인데 histogram이 없거나 계산할 수 없으면 No Data를 반환한다. 별도 histogram 누락 규칙은 `+Inf` 버킷까지 확인한다.
-필수 API 지표 규칙은 HTTP 카운터의 12개 조합과 코치 2경로(`/v2/coach/start`·`reply`)의 active count/sum/max를 확인한다. 이 경로 목록은 `HttpMonitoringConfiguration.ACTIVE_POST_ROUTES`와 같아야 한다. 수집 중인 다른 경로나 상태의 지표가 누락을 가리지 않으며 유휴 상태의 0은 정상적인 지표 존재로 취급한다.
+외부 실패가 조건 건수 아래로 줄어도 최신 점검이 실패이면 쿼리는 No Data를 반환한다. 수집 공백 전의 성공을 복구 근거로 쓰지 않으며, 최신의 신선한 성공 표본이 있어야 실패 조건 해소를 반환한다. 일반 API 지연은 확인된 요청 수가 최소 조건보다 적으면 조건을 해소하지만, 그 이상인데 histogram이 없거나 계산할 수 없으면 No Data를 반환한다. 별도 histogram 누락 규칙은 `+Inf` 버킷까지 확인한다.
+필수 API 지표 규칙은 HTTP 카운터의 모든 조합과 코치 진행 중 경로(`/v2/coach/start`·`reply`)의 active count/sum/max를 확인한다. 이 경로 목록은 `HttpMonitoringConfiguration.ACTIVE_POST_ROUTES`와 같아야 한다. 수집 중인 다른 경로나 상태의 지표가 누락을 가리지 않으며 유휴 상태의 0은 정상적인 지표 존재로 취급한다.
 
 ## operations
 
-`kind=analyze|coach_start|coach_reply|report`를 사용한다. coach confirm은 report 원장 종류를 사용한다.
-새 고유 접수(`accepted`)·실행 시도(`attempts`)·실제 외부 호출(`external_calls`, dependency=storage/observation/speech/model)·재큐(`requeues`)·종료 사건(`terminal`)을 구분한다. 실제 외부 호출은 기존 Port 호출 경계이며 SDK 내부 네트워크 재시도 수는 아니다.
+`kind` 값과 dependency 값은 `ExternalOperationMetrics`가 정한다. coach confirm은 report 원장 종류를 사용한다.
+새 고유 접수(`accepted`)·실행 시도(`attempts`)·실제 외부 호출(`external_calls`)·재큐(`requeues`)·종료 사건(`terminal`)을 구분한다. 실행 시도는 선점 뒤 첫 외부 호출에 들어간 횟수다. 실제 외부 호출은 기존 Port 호출 경계이며 SDK 내부 네트워크 재시도 수는 아니다. 같은 실행 안의 모델 재생성은 외부 호출만 늘리고 고유 접수나 실행 시도는 늘리지 않는다. 세는 기준의 뜻은 [CONTRACT §5-7](../../apps/api/CONTRACT.md#5-7-external_operations-lease-상태-전이--고정-계약)이다.
 멱등 응답 재사용은 새 고유 접수를 늘리지 않는다. HTTP 요청 수에서 고유 접수 수를 빼 재사용 횟수로 계산하지 않는다.
 
 분석 최초 대기·재시도 대기·실제 실행·최초 접수부터 경과를 구분한다. 시간 없는 이전 행은 `unmeasured`에 표시한다. 이 값이 있으면 시간 gauge의 0을 정상 완료로 읽지 않는다. 영상 길이를 실행시간으로 쓰지 않는다.
-원장 상태의 내부 집계는 기본 5초 간격이고 Prometheus 수집은 30초 간격이다. 내부 갱신·수집·1분 평가·통지 대기가 쌓이는 시간을 고려한 값이며, 실제 Cloud/Slack의 전송 지연은 아래 인수 검증에서 측정한다.
-분석 대기 p95는 `kind="analyze"`만 집계해 빠른 코치·리포트의 선점 대기가 분석의 대기 시간을 희석하지 않는다. 필수 External Operation 지표 규칙은 네 종류별 접수·시도·재큐·종료, 의존성별 호출, 대기/실행 상태와 미측정 상태, 최장 시간, histogram의 `+Inf` 버킷, 집계 성공/시각의 조합을 확인한다.
-최장 대기는 60초부터 화면에서 주의 표시하고, 180초 초과 또는 최초 접수 후 300초 초과 미완료가 Slack 조건이다. 코치·리포트는 `acttub_http_active_seconds_max`가 60초를 넘는 **진행 중 서버 HTTP 요청**을 본다. count/sum/max는 현재 진행 중 값이므로 `rate()`를 적용하지 않는다. inflight 경로 label은 `route`, 완료 HTTP 경로 label은 `uri`다.
+원장 상태의 내부 집계 간격(`EXTERNAL_OPERATION_SNAPSHOT_MS`)과 Prometheus 수집 간격([수집 구성](../../deploy/monitoring/README.md#구성))이 따로 있다. 규칙 기준은 내부 갱신·수집·규칙 평가·통지 대기가 쌓이는 시간을 고려한 값이며, 실제 Cloud/Slack의 전송 지연은 아래 인수 검증에서 측정한다.
+분석 대기 p95는 `kind="analyze"`만 집계해 빠른 코치·리포트의 선점 대기가 분석의 대기 시간을 희석하지 않는다. 필수 External Operation 지표 규칙은 종류별 접수·시도·재큐·종료, 의존성별 호출, 대기/실행 상태와 미측정 상태, 최장 시간, histogram의 `+Inf` 버킷, 집계 성공/시각의 조합을 확인한다.
+최장 대기는 `dashboards/operations.json`의 임계값부터 화면에서 주의 표시하고, `analysis-wait`(최장 대기)·`analysis-age`(최초 접수 후 미완료)가 Slack 조건이다. 코치·리포트는 `acttub_http_active_seconds_max`가 `http-inflight` 기준을 넘는 **진행 중 서버 HTTP 요청**을 본다. 브라우저가 요청을 취소해도 서버 처리는 계속될 수 있고, 프로세스가 끝난 뒤 남은 running 행은 원장 상태·Lease 지표로 본다. count/sum/max는 현재 진행 중 값이므로 `rate()`를 적용하지 않는다. inflight 경로 label은 `route`, 완료 HTTP 경로 label은 `uri`다.
 
-최종 실패는 최근 5분의 새 `external|unexpected` 종료 사건 1건부터 경고한다. `expected`는 장애에서 제외하고 `unclassified`는 별도 관측 정보 누락 경고다. **해제는 새 실패 발생 조건이 해소된 뜻이며 해당 External Operation의 성공이 아니다.** 카운터는 관측된 재시작을 `increase()`로 처리하지만 첫 scrape 이전이나 프로세스가 꺼진 수집 공백의 사건을 복구하지 못한다. 과거 원장 행을 새 종료 사건으로 소급 통지하지 않는다.
+최종 실패는 새 `external|unexpected` 종료 사건으로 경고한다(`terminal`). `expected`는 장애에서 제외하고 `unclassified`는 별도 관측 정보 누락 경고다. **해제는 새 실패 발생 조건이 해소된 뜻이며 해당 External Operation의 성공이 아니다.** 카운터는 관측된 재시작을 `increase()`로 처리하지만 첫 scrape 이전이나 프로세스가 꺼진 수집 공백의 사건을 복구하지 못한다. 과거 원장 행을 새 종료 사건으로 소급 통지하지 않는다.
 종료 사건은 커밋 후 카운터이므로 DB 상태 집계의 성공·시각과 독립적으로 평가한다. API 수집과 해당 종류/분류 카운터가 모두 존재하고 신선해야 평가하며, DB 집계가 멈췄다는 이유로 새 실패 통지를 지연시키지 않는다.
 원장 상태/Lease와 Sentry·Langfuse의 같은 환경·기간을 대조하며 재시도·Lease 상태를 모니터링 화면에서 변경하지 않는다. 설정 가능한 조사 링크에는 토큰·사용자 ID·세션·프롬프트·원문을 넣지 않는다.
 
 ## infrastructure
 
 호스트 CPU·메모리·디스크는 공유 값 한 번만 집계한다. 디스크 `mountpoint`는 실제 데이터가 저장되는 호스트 경로와 대조한다.
-CPU 90% 이상 10분, 가용 메모리 10% 미만 5분, 디스크 여유 15% 미만 5분/5% 미만 즉시 경고다. JVM·GC·Hikari 연결 풀은 환경별로 본다.
-DB는 인증된 내부 probe 실패가 2분 지속될 때 경고한다. 공개 health만 정상이라고 DB 정상으로 판단하지 않는다.
-백업은 마지막 성공 이후 93,600초(26시간) 초과 또는 미해결 실패 5분 지속이 경고다. 상태 읽기 실패·누락·파손·목적지 불일치는 별도 경고로 보고 마지막 성공 값으로 숨기지 않는다. exporter 단절 때 백업 복구를 보내지 않는다.
-백업 복구 여부는 상태 파일뿐 아니라 기존 [복원 검증 절차](DEPLOY-HOME.md)로 확인한다. 알림을 끄려고 성공 시각을 수동 갱신하지 않는다.
+CPU·가용 메모리·디스크 여유는 `cpu`·`memory`·`disk` 규칙이, 디스크가 거의 찼을 때는 `disk-critical`이 지속 시간 없이 경고한다. JVM·GC·Hikari 연결 풀은 환경별로 본다.
+DB는 인증된 내부 probe 실패가 지속될 때 경고한다(`db`). 공개 health만 정상이라고 DB 정상으로 판단하지 않는다([CONTRACT §6-4](../../apps/api/CONTRACT.md#6-4-관리용-모니터링-경로)).
+백업은 마지막 성공 뒤 경과(`backup-age`, 기준은 [DEPLOY-HOME §5](DEPLOY-HOME.md#5-자동-백업과-복원-검증)) 또는 미해결 실패 지속(`backup-failure`)이 경고다. 상태 읽기 실패·누락·파손·목적지 불일치는 별도 경고로 보고 마지막 성공 값으로 숨기지 않는다. exporter 단절 때 백업 복구를 보내지 않는다.
+백업 복구 여부는 상태 파일뿐 아니라 기존 [복원 검증 절차](DEPLOY-HOME.md#5-자동-백업과-복원-검증)로 확인한다. 알림을 끄려고 성공 시각을 수동 갱신하지 않는다.
 
 ## 종료 시각 있는 일시 중지
 
@@ -139,18 +142,18 @@ Slack 메시지의 일시 중지 링크는 Grafana의 공식 `.SilenceURL`을 �
 | 확인 | 실제 성공 조건과 기록 |
 |---|---|
 | 계정/권한 | 세 개인 로그인, Admin 1/Viewer 2. Viewer 두 명이 세 화면·알림을 조회하고 데이터 소스/규칙/통지 설정을 바꾸지 못함. Portal 상속까지 확인 |
-| 비용/보관 | 실제 Free 플랜·활성 사용자 3명·해당 월 SM 누적 사용량, 선택한 환경의 계획량과 남은 여유, 14일/30일 구분. 추가 위치/주소 없음 |
+| 비용/보관 | 실제 Free 플랜·활성 사용자 3명·해당 월 SM 누적 사용량, 선택한 환경의 계획량과 남은 여유, Cloud·로컬 보관 기간 구분. 추가 위치/주소 없음 |
 | PDC | network ID 일치, 연결 agent 확인, Cloud에서 local `up` 조회 성공. PDC가 prometheus:9090 외 DB/다른 호스트에 연결할 수 없음 |
 | 외부 health | 선택한 환경의 공개 health 정상 200+본문, 제어된 dev/격리 대상의 500·200+비정상본문·timeout·복구. 실제 외부 위치 한 개 |
 | 통지 배선 | #서비스-장애에 최초 알림이 도착하고 환경/대상/조건/관측값/시각/대시보드/절차 링크가 올바름. webhook 채널을 실제 수신으로 확인 |
 | 시간 | 공개 연속 실패 시작~Slack 최초 수신 ≤5분. 다른 규칙은 조건/지속 시간 충족 후 ≤2분. 실제 수신 시각을 기록 |
-| 반복/해제 | 동일 장애 첫 통지 후 약 1시간 재알림, 정상 관측 뒤 해제, 해제 뒤 재발은 새 최초 통지. 실패 사건 해제를 실행 성공으로 표시하지 않음 |
-| 데이터 단절 | 격리 환경 PDC/Prometheus Error/NoData 2분 경고. 개별 서비스 직전 상태 유지, 거짓 복구 없음. 필수 대상/지표/집계 갱신을 각각 끊고 정상 관측 재개로 복구 |
-| 경계값 | HTTP 저트래픽/무표본, Expected Rejection, 새 실패 1건/미분류, 분석 180/300초, inflight 60초, 호스트·DB·백업 경계. 운영 데이터를 인위 변경하지 않음 |
+| 반복/해제 | 동일 장애 첫 통지 후 `repeat_interval`마다 재알림, 정상 관측 뒤 해제, 해제 뒤 재발은 새 최초 통지. 실패 사건 해제를 실행 성공으로 표시하지 않음 |
+| 데이터 단절 | 격리 환경 PDC/Prometheus Error/NoData 경고. 개별 서비스 직전 상태 유지, 거짓 복구 없음. 필수 대상/지표/집계 갱신을 각각 끊고 정상 관측 재개로 복구 |
+| 경계값 | HTTP 저트래픽/무표본, Expected Rejection, 새 실패 1건/미분류, 분석 대기·경과, inflight, 호스트·DB·백업의 `rules.json` 경계. 운영 데이터를 인위 변경하지 않음 |
 | Silence | 종료 날짜/시각·일치 labels·영향받는 규칙을 확인. 기간 내 미전송, 종료 후 조건이 남으면 재통지 |
 | 재적용/복구 | 실제 `diff` 검토, `apply` 뒤 `diff`가 변경 없음, 기존 타인 설정 보존, `.backups/`와 직전 커밋으로 복구 가능 |
 
-로컬 `check.sh`는 `apply.py`의 렌더링(두 환경 59개·한 환경 37개, Error/NoData 처리, Slack 라우팅, health 본문 정규식)과 로컬 대체 HTTP API에서의 첫 적용/재적용 무변경/UI 수정 되돌림/타인 객체 보존/사전 조건 누락 시 무쓰기를 검증한다. promtool은 실제 규칙식으로 threshold·지속·해제·낮은 표본 수·무표본·counter reset·Expected Rejection·분류 누락·공유 exporter·수집 갱신 중단을 평가하고 대시보드 PromQL도 파싱한다.
+로컬 `check.sh`는 `apply.py`의 렌더링(환경 수에 따른 규칙 전개, Error/NoData 처리, Slack 라우팅, health 본문 정규식)과 로컬 대체 HTTP API에서의 첫 적용/재적용 무변경/UI 수정 되돌림/타인 객체 보존/사전 조건 누락 시 무쓰기를 검증한다. promtool은 실제 규칙식으로 threshold·지속·해제·낮은 표본 수·무표본·counter reset·Expected Rejection·분류 누락·공유 exporter·수집 갱신 중단을 평가하고 대시보드 PromQL도 파싱한다.
 수집 공백 뒤 실패만 돌아오는 경우와 histogram 누락은 promtool에서 **원래 쿼리의 No Data**를 검증한다. Prometheus 알림이 사라지는 것을 Grafana의 복구로 해석하지 않는다. 렌더링된 `noDataState`/`execErrState`가 서비스 규칙에서 `KeepLast`인지 별도로 검증하며, 실제 Grafana 평가기의 시간에 따른 동작과 Slack 전송은 위 실제 stack 인수 검증 범위로 남긴다.
 Grafana Cloud의 실제 권한·과금·PDC 네트워크·Grafana 평가기의 실제 Error/NoData 상태 전이와 Slack 전달 지연/수신은 위 실제 확인의 몫이다. 최초 7일 관측 뒤 임계값과 대응 결과를 검토한다.
 

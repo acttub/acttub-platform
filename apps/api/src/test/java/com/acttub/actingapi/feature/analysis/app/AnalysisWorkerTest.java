@@ -37,7 +37,7 @@ class AnalysisWorkerTest {
         var analyzer = new SummaryAnalyzer(
                 (path, declared) -> 1000, path -> path,
                 (path, mime, actor, practiceId, actorId) -> observations,
-                (path, practiceId, actorId) -> { throw failure; }, reporter);
+                (path, practiceId, actorId) -> { throw failure; }, reporter, null);
 
         assertThat(worker(store, analyzer, reporter).runOnce(NOW)).isTrue();
 
@@ -60,7 +60,7 @@ class AnalysisWorkerTest {
         var analyzer = new SummaryAnalyzer(
                 (path, declared) -> 1000, path -> path,
                 (path, mime, actor, practiceId, actorId) -> new ObservationPack("", List.of(), List.of()),
-                (path, practiceId, actorId) -> { throw failure; }, reporter);
+                (path, practiceId, actorId) -> { throw failure; }, reporter, null);
 
         worker(store, analyzer, reporter).runOnce(NOW);
 
@@ -213,7 +213,7 @@ class AnalysisWorkerTest {
 
         AnalysisContext nonVideo = new AnalysisContext(
                 UUID.randomUUID(), UUID.randomUUID(), "object.bin", "application/octet-stream",
-                "etag", 1, "s", "c", "g", "그 외", null, UUID.randomUUID());
+                "etag", 1, "s", "c", "g", "그 외", null, "legacy", UUID.randomUUID());
         FakeStore invalid = new FakeStore(nonVideo);
         RecordingFailureReporter invalidReporter = new RecordingFailureReporter();
         assertThat(worker(invalid, (path, context) -> null, invalidReporter).runOnce(NOW)).isTrue();
@@ -284,7 +284,7 @@ class AnalysisWorkerTest {
         UUID operation = UUID.randomUUID();
         return new AnalysisContext(
                 operation, UUID.randomUUID(), "users/u/uploads/take.mp4", "video/mp4",
-                "etag", 1, "s", "c", "g", "분석", null, UUID.randomUUID());
+                "etag", 1, "s", "c", "g", "분석", null, "legacy", UUID.randomUUID());
     }
 
     private static final class FakeStore implements AnalysisStore {

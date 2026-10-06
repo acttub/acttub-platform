@@ -2,13 +2,14 @@
 
 ## 목표
 
-프로덕션 빌드의 비로그인 랜딩 페이지(`/`)는 모바일 Lighthouse Performance
-점수 90 이상을 유지합니다. Lighthouse CI는 기본적으로 세 번 측정하고 각 성능
-예산의 중앙값을 사용해 한 번의 이례적인 측정이 결과를 결정하지 않게 합니다.
+프로덕션 빌드의 랜딩 페이지(`/`)가 모바일 Lighthouse 성능 예산을 지키게 합니다. 예산 값과
+측정 횟수는 [lighthouserc.cjs](lighthouserc.cjs)가 정본입니다. 여러 번 측정한 중앙값으로
+판정해 한 번의 이례적인 측정이 결과를 결정하지 않게 합니다.
 
 저장소 루트의 성능 명령은 다음 용도로 사용합니다. Lighthouse CI(`@lhci/cli`)는 웹
 전용 도구라 `apps/web`의 devDependency이며, 루트 명령은 `--filter web`으로 위임만
-합니다. `apps/web`에서 직접 `pnpm perf`를 실행해도 같습니다.
+합니다. `apps/web`에서 직접 `pnpm perf`를 실행하면 빌드 없이 Lighthouse CI만 돌므로
+루트의 `pnpm perf:web`과 같습니다.
 
 - `pnpm perf` — 웹을 빌드한 뒤 Lighthouse CI 성능 예산을 검증합니다.
 - `pnpm perf:web` — 기존 빌드 결과를 대상으로 Lighthouse CI를 실행합니다.
@@ -27,12 +28,9 @@ Next 서버**를 3000 포트에 띄워 측정합니다. `pnpm dev`가 떠 있으
 
 ## 허용 기준
 
-Next 서버의 `/`를 측정한 모바일 중앙값은 다음 예산을 모두 만족해야 합니다.
-
-- Lighthouse Performance 점수: 90 이상
-- Largest Contentful Paint (LCP): 2.5초 이하
-- Cumulative Layout Shift (CLS): 0.1 이하
-- Total Blocking Time (TBT): 200밀리초 이하
+Next 서버의 `/`를 모바일로 측정한 결과가 [lighthouserc.cjs](lighthouserc.cjs)의 `assertions`에
+있는 예산 — Performance 점수, Largest Contentful Paint(LCP), Cumulative Layout Shift(CLS),
+Total Blocking Time(TBT) — 을 모두 만족해야 합니다.
 
 TBT는 반복 가능한 실험실 진단 지표이며, 필드 전용 지표인 INP를 대체하지 않습니다.
 이 문서는 성능 계약을 다룹니다. 일반 변경 검증은

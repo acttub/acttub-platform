@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { MATCH_INPUT_MAX, PASS_THRESHOLD, compareLine, mergeTranscripts, normalizeForMatch, similarity } from '../lib/reading/match.ts';
+import { MATCH_INPUT_MAX, PASS_THRESHOLD, compareLine, normalizeForMatch, similarity } from '../lib/reading/match.ts';
 
 test('reading.memorization: 대조는 정규화(괄호 안 제거, 문자·숫자만, 소문자) 뒤 자모 편집거리 유사도 0.72 이상이면 통과다', () => {
   assert.equal(PASS_THRESHOLD, 0.72);
@@ -33,9 +33,4 @@ test('reading.session: 원문이나 말한 것이 1,000자를 넘으면 대조�
 test('reading.session: 인식 불가·무발화는 미달로 세지 않는다', () => {
   assert.equal(compareLine('', '여기').kind, 'no_speech');
   assert.equal(compareLine('   ...', '여기').kind, 'no_speech');
-});
-
-test('reading.session: 인식 결과 조각을 한 문장으로 합친다(누적·조각 둘 다)', () => {
-  assert.equal(mergeTranscripts(['너', '너 맨날', '너 맨날 그러잖아']), '너 맨날 그러잖아');
-  assert.equal(mergeTranscripts(['너 맨날', '그러잖아']), '너 맨날 그러잖아');
 });

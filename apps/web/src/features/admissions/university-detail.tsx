@@ -6,7 +6,6 @@ import {
   countdown,
   getUniversityAdmissions,
   groupTips,
-  isOpen,
   weightBars,
   DISCIPLINE_LABEL,
   PRACTICAL_LABEL,
@@ -22,14 +21,26 @@ import { RailLayout } from "@/features/nav/app-rail";
 
 import { ADMISSIONS_GUIDE_LINKS } from "@/features/keyword-pages/guide-links";
 import { answeredAdmissions } from "./answered";
+import {
+  noticeStage,
+  resultHistory,
+  splitByYear,
+  tipsByYear,
+  universityDigest,
+  type AdmissionResultRow,
+  type YearSection,
+} from "./by-year";
 import { StatusLine } from "./status-line";
 
 export function UniversityDetailPage({
   universityId,
   initial,
+  latestYear,
 }: {
   universityId: string;
   initial: AdmissionsResponse;
+  /** 전체 데이터 기준 최신 학년도. 이 대학만 보면 올해 요강이 없는지 알 수 없다. */
+  latestYear: number | null;
 }) {
   // 키가 대학 id 라 다른 대학으로 가면 옛 답을 버리고 로딩으로 되돌아간다. 옛 코드는
   // 그러지 않았지만 갈린 것이 보이지는 않는다 — `[id]` 가 라우트 세그먼트이고
@@ -42,7 +53,7 @@ export function UniversityDetailPage({
 
   const { payload, today } = answeredAdmissions(admissions, initial);
 
-  const university = payload?.universities[0] ?? null;
+  const university = payload.universities[0] ?? null;
 
   return (
     <RailLayout>
@@ -66,15 +77,11 @@ export function UniversityDetailPage({
             </StatusLine>
           )}
 
-          {admissions.state === "loading" && !initial && (
-            <StatusLine tone="muted">불러오는 중이에요…</StatusLine>
-          )}
-
-          {payload && !university && (
+          {!university && (
             <StatusLine tone="muted">해당 대학을 찾을 수 없어요.</StatusLine>
           )}
 
-          {payload && university && (
+          {university && (
             <>
               <Header university={university} />
 
@@ -82,18 +89,27 @@ export function UniversityDetailPage({
                 ⓘ {payload.disclaimer}
               </p>
 
+              <Digest
+                lines={universityDigest(payload.notices, university.tips, latestYear)}
+              />
+
               {payload.notices.length === 0 ? (
                 <p className="mt-8 rounded-2xl bg-[#f8fbff] px-5 py-6 text-[14px] font-semibold leading-6 text-[#4e5968]">
                   {university.note ??
                     "아직 전형 정보를 확인하지 못했어요. 입학처 원문에서 확인해 주세요."}
                 </p>
               ) : (
-                <div className="mt-6 space-y-4">
-                  {payload.notices.map((notice) => (
-                    <NoticeCard key={notice.id} notice={notice} today={today} />
-                  ))}
-                </div>
+                splitByYear(payload.notices, latestYear).map((section) => (
+                  <YearNotices
+                    key={section.year ?? "unknown"}
+                    section={section}
+                    latestYear={latestYear}
+                    today={today}
+                  />
+                ))
               )}
+
+              <ResultHistory notices={payload.notices} />
 
               {university.tips.length > 0 && <TipList tips={university.tips} />}
 
@@ -155,15 +171,56 @@ function Header({ university }: { university: AdmissionUniversity }) {
   );
 }
 
+/**
+ * 학년도 한 묶음. 최신 학년도 요강이 아직 없어 지난 학년도 것을 대신 보여줄 때는
+ * 그 사실을 묶음 머리에 적는다 — 날짜·과제가 그대로 올해 것인 줄 알면 안 된다.
+ */
+function YearNotices({
+  section,
+  latestYear,
+  today,
+}: {
+  section: YearSection;
+  latestYear: number | null;
+  today: string | null;
+}) {
+  return (
+    <section className="mt-8">
+      <h2 className="text-[17px] font-black tracking-[-0.02em] text-[#191f28]">
+        {section.year ? `${section.year}학년도 모집요강` : "학년도 미확인 공고"}
+      </h2>
+      {section.standIn && (
+        <p className="mt-1.5 rounded-xl bg-[#f2f4f6] px-4 py-2.5 text-[12px] font-bold leading-5 text-[#4e5968]">
+          {latestYear}학년도 요강이 아직 나오지 않아 {section.year}학년도 요강을 옮겨 뒀어요.
+          일정과 실기 과제는 올해 바뀔 수 있으니 참고로만 봐 주세요.
+        </p>
+      )}
+      <div className="mt-3 space-y-4">
+        {section.notices.map((notice) => (
+          <NoticeCard
+            key={notice.id}
+            notice={notice}
+            today={today}
+            standIn={section.standIn}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function NoticeCard({
   notice,
   today,
+  standIn,
 }: {
   notice: AdmissionNotice;
   today: string | null;
+  standIn: boolean;
 }) {
-  const remaining = today ? countdown(notice, today) : null;
-  const closed = Boolean(today) && !isOpen(notice, today as string);
+  // 지난 학년도 공고의 날짜로 D-day나 진행 상태를 그리면 거짓말이 된다.
+  const remaining = !standIn && today ? countdown(notice, today) : null;
+  const stage = standIn ? null : noticeStage(notice, today);
   const bars = weightBars(notice.weights);
 
   return (
@@ -179,22 +236,33 @@ function NoticeCard({
             {DISCIPLINE_LABEL[notice.discipline] ?? notice.discipline}
           </span>
         )}
+        {standIn && notice.admission_year && (
+          <span className="rounded-full bg-[#fff4e6] px-2.5 py-1 text-[11px] font-black text-[#b45309]">
+            {notice.admission_year}학년도 기준
+          </span>
+        )}
         {remaining ? (
           <span className="ml-auto rounded-full bg-[#191f28] px-2.5 py-1 text-[11px] font-black text-white">
             {remaining.label} D-{remaining.days === 0 ? "DAY" : remaining.days}
           </span>
         ) : (
-          closed && (
-            <span className="ml-auto rounded-full bg-[#e5e8eb] px-2.5 py-1 text-[11px] font-black text-[#8b95a1]">
-              접수 마감
+          stage && (
+            <span
+              className={`ml-auto rounded-full px-2.5 py-1 text-[11px] font-black ${
+                stage.tone === "live"
+                  ? "bg-[#e8f3ff] text-[#3182f6]"
+                  : "bg-[#e5e8eb] text-[#8b95a1]"
+              }`}
+            >
+              {stage.label}
             </span>
           )
         )}
       </div>
 
-      <h2 className="mt-2 text-[19px] font-black tracking-[-0.02em] text-[#191f28]">
+      <h3 className="mt-2 text-[19px] font-black tracking-[-0.02em] text-[#191f28]">
         {notice.department ?? "학과 미확인"}
-      </h2>
+      </h3>
       {notice.screening && (
         <p className="mt-1 text-[13px] font-bold text-[#4e5968]">{notice.screening}</p>
       )}
@@ -248,8 +316,6 @@ function NoticeCard({
           </div>
         )}
       </div>
-
-      {notice.results.length > 0 && <ResultTable notice={notice} />}
 
       {notice.note && (
         <p className="mt-4 text-[12px] font-semibold leading-5 text-[#8b95a1]">
@@ -457,64 +523,128 @@ function PracticalItems({ notice }: { notice: AdmissionNotice }) {
   );
 }
 
-function ResultTable({ notice }: { notice: AdmissionNotice }) {
-  const measured = notice.results.filter((result) => result.competition_rate);
+/** 맨 위 요약. 데이터 필드를 템플릿에 끼운 문장뿐이다(by-year의 universityDigest). */
+function Digest({ lines }: { lines: string[] }) {
+  if (lines.length === 0) return null;
+  return (
+    <section className="mt-6 rounded-2xl border border-[#e5e8eb] bg-white px-5 py-4">
+      <h2 className="text-[15px] font-black text-[#191f28]">한눈에 보기</h2>
+      <ul className="mt-2 space-y-1">
+        {lines.map((line) => (
+          <li key={line} className="text-[13px] font-semibold leading-6 text-[#4e5968]">
+            · {line}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/**
+ * 지난 입시결과를 전형별로 학년도를 쌓아 보여준다. 공고 카드마다 흩어 두면 해마다
+ * 경쟁률이 어떻게 움직였는지 한눈에 안 들어온다.
+ */
+function ResultHistory({ notices }: { notices: AdmissionNotice[] }) {
+  const history = resultHistory(notices);
+  if (history.length === 0) return null;
 
   return (
-    <div className="mt-4 rounded-xl border border-[#e5e8eb] p-4">
-      <p className="text-[12px] font-black text-[#191f28]">전년도 입시결과</p>
-      {measured.length === 0 ? (
-        <p className="mt-1 text-[12px] font-semibold leading-5 text-[#8b95a1]">
-          {notice.results[0]?.note ?? "대학이 공개하지 않았어요."}
-        </p>
-      ) : (
-        <div className="mt-2 space-y-2">
-          {measured.map((result) => (
-            <div key={`${result.year}-${result.note ?? ""}`}>
-              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <span className="text-[12px] font-black text-[#4e5968]">
-                  {result.year}학년도
-                </span>
-                <span className="text-[15px] font-black text-[#191f28]">
-                  {result.competition_rate}
-                </span>
-                {result.transcript_avg && (
-                  <span className="text-[12px] font-bold text-[#4e5968]">
-                    학생부 평균 {result.transcript_avg}
-                    {result.transcript_cut70 && ` · 70%컷 ${result.transcript_cut70}`}
-                    {result.transcript_low && ` · 최저 ${result.transcript_low}`}
-                  </span>
-                )}
-                {result.practical_avg && (
-                  <span className="rounded bg-[#e8f3ff] px-1.5 py-0.5 text-[12px] font-bold text-[#3182f6]">
-                    실기 평균 {result.practical_avg}
-                    {result.practical_cut70 && ` · 70%컷 ${result.practical_cut70}`}
-                  </span>
-                )}
-                {result.fill_rate && (
-                  <span className="text-[12px] font-bold text-[#4e5968]">
-                    충원율 {result.fill_rate}
-                  </span>
-                )}
-                {result.waitlist_last != null && (
-                  <span className="text-[12px] font-bold text-[#4e5968]">
-                    예비 {result.waitlist_last}번
-                  </span>
-                )}
-                {result.waitlist_count != null && (
-                  <span className="text-[12px] font-bold text-[#4e5968]">
-                    추가합격 {result.waitlist_count}명
-                  </span>
-                )}
-              </div>
-              {result.note && (
-                <p className="mt-0.5 text-[11px] font-semibold leading-4 text-[#8b95a1]">
-                  {result.note}
-                </p>
-              )}
+    <section className="mt-10">
+      <h2 className="text-[17px] font-black tracking-[-0.02em] text-[#191f28]">
+        지난 입시결과
+      </h2>
+      <p className="mt-1 text-[12px] font-semibold leading-5 text-[#8b95a1]">
+        대학 입학처가 공개한 원문에서 옮겼어요. 학생부 숫자는 최종등록자의 교과
+        성적이고, 실기 성적은 공개한 대학만 적었어요.
+      </p>
+      <div className="mt-3 space-y-3">
+        {history.map(({ notice, rows }) => (
+          <div key={notice.id} className="rounded-2xl border border-[#e5e8eb] bg-white p-4">
+            <p className="text-[14px] font-black text-[#191f28]">
+              {notice.department ?? "학과 미확인"}
+            </p>
+            <p className="mt-0.5 text-[12px] font-bold text-[#8b95a1]">
+              {/* 전형명이 "정시 ⓒ군 실기우수자"처럼 이미 수시·정시로 시작하면 겹쳐 쓰지 않는다. */}
+              {(notice.track && !notice.screening?.startsWith(notice.track)
+                ? [notice.track, notice.screening]
+                : [notice.screening ?? notice.track]
+              )
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+            <div className="mt-3 divide-y divide-[#f2f4f6]">
+              {rows.map((result) => (
+                <ResultRow key={`${result.year}-${result.note ?? ""}`} result={result} />
+              ))}
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ResultRow({ result }: { result: AdmissionResultRow }) {
+  const facts = [
+    result.quota != null && `모집 ${result.quota}명`,
+    result.applicants != null && `지원 ${result.applicants.toLocaleString("ko-KR")}명`,
+    result.transcript_avg && `학생부 평균 ${result.transcript_avg}`,
+    result.transcript_cut50 && `50%컷 ${result.transcript_cut50}`,
+    result.transcript_cut70 && `70%컷 ${result.transcript_cut70}`,
+    result.transcript_low && `최저 ${result.transcript_low}`,
+    result.fill_rate && `충원율 ${result.fill_rate}`,
+    result.waitlist_last != null &&
+      (result.waitlist_last === 0 ? "추가합격 없음" : `예비 ${result.waitlist_last}번까지`),
+    result.waitlist_count != null && `추가합격 ${result.waitlist_count}명`,
+  ].filter((fact): fact is string => Boolean(fact));
+  const practical = [
+    result.practical_avg && `실기 평균 ${result.practical_avg}`,
+    result.practical_cut50 && `50%컷 ${result.practical_cut50}`,
+    result.practical_cut70 && `70%컷 ${result.practical_cut70}`,
+  ].filter((fact): fact is string => Boolean(fact));
+  const empty = !result.competition_rate && facts.length === 0 && practical.length === 0;
+
+  return (
+    <div className="py-2.5 first:pt-0 last:pb-0">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <span className="w-[72px] shrink-0 text-[12px] font-black text-[#4e5968]">
+          {result.year}학년도
+        </span>
+        <span className="text-[16px] font-black text-[#191f28]">
+          {result.competition_rate ?? (empty ? "공개 안 함" : "경쟁률 미공개")}
+        </span>
+      </div>
+      {facts.length > 0 && (
+        <p className="mt-1 text-[12px] font-bold leading-5 text-[#4e5968]">
+          {facts.join(" · ")}
+        </p>
+      )}
+      {practical.length > 0 && (
+        <p className="mt-1 inline-block rounded bg-[#e8f3ff] px-1.5 py-0.5 text-[12px] font-bold text-[#3182f6]">
+          {practical.join(" · ")}
+        </p>
+      )}
+      {(result.note || result.source_url) && (
+        <details className="mt-1">
+          <summary className="cursor-pointer text-[11px] font-black text-[#8b95a1]">
+            근거 보기
+          </summary>
+          {result.note && (
+            <p className="mt-1 text-[11px] font-semibold leading-4 text-[#8b95a1]">
+              {result.note}
+            </p>
+          )}
+          {result.source_url && (
+            <a
+              href={result.source_url}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="mt-1 block text-[11px] font-black text-[#3182f6] hover:underline"
+            >
+              입학처 원문 ↗
+            </a>
+          )}
+        </details>
       )}
     </div>
   );
@@ -528,78 +658,90 @@ function ResultTable({ notice }: { notice: AdmissionNotice }) {
  * 원문 링크를 함께 줘서 판단은 읽는 사람이 하게 한다.
  */
 function TipList({ tips }: { tips: AdmissionTip[] }) {
-  const groups = groupTips(tips);
+  const years = tipsByYear(tips);
 
   return (
-    <section className="mt-8">
-      <h2 className="text-[15px] font-black text-[#191f28]">먼저 다녀온 사람들 이야기</h2>
+    <section className="mt-10">
+      <h2 className="text-[17px] font-black tracking-[-0.02em] text-[#191f28]">
+        먼저 다녀온 사람들 이야기
+      </h2>
       <p className="mt-1 text-[12px] font-semibold leading-5 text-[#8b95a1]">
-        요강에 없는 것만 모았어요. 개인 후기에서 확인한 내용이라 저희가 검증한 건
-        아니고, 해마다 달라질 수 있어요.
+        요강에 없는 것만 응시한 학년도별로 모았어요. 후기에서 확인한 사실을 저희 말로 다시
+        쓴 것이라 원문과 표현이 다르고, 저희가 검증한 건 아니에요. 해마다 달라질 수 있어요.
       </p>
 
-      <div className="mt-3 space-y-4">
-        {groups.map((group) => (
-          <div key={group.category}>
-            <p className="text-[12px] font-black text-[#4e5968]">{group.label}</p>
-            <ul className="mt-1.5 space-y-1.5">
-              {group.items.map((tip, index) => (
-                <li
-                  key={`${group.category}-${index}`}
-                  className="rounded-xl bg-[#f8fbff] px-4 py-3"
-                >
-                  <p className="text-[13px] font-semibold leading-6 text-[#191f28]">
-                    {tip.text}
-                  </p>
-                  <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-                    {typeof tip.corroborations === "number" &&
-                      tip.corroborations > 1 && (
-                        <span className="rounded-full bg-[#e8f3ff] px-2 py-0.5 text-[10px] font-black text-[#3182f6]">
-                          후기 {tip.corroborations}건에서 확인
-                        </span>
-                      )}
-                    {/* 배지는 '누가 썼나'다. 학원 사이트에 올라온 수험생 글을
-                        학원 글로 찍으면 실제보다 신뢰도가 낮아 보인다.
-                        올라와 있는 곳은 host로 따로 밝힌다. */}
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
-                        tip.source_type === "official"
-                          ? "bg-[#e8f3ff] text-[#3182f6]"
-                          : tip.source_type === "academy"
-                            ? "bg-[#fff0f0] text-[#e5484d]"
-                            : "bg-[#f2f4f6] text-[#8b95a1]"
-                      }`}
-                    >
-                      {SOURCE_LABEL[tip.source_type] ?? tip.source_type}
-                    </span>
-                    {tip.host && (
-                      <span className="text-[10px] font-bold text-[#b0b8c1]">
-                        {tip.host}
-                      </span>
-                    )}
-                    {tip.source_url && (
-                      <a
-                        href={tip.source_url}
-                        target="_blank"
-                        rel="noreferrer noopener"
-                        className="text-[11px] font-black text-[#3182f6] hover:underline"
-                      >
-                        출처 ↗
-                      </a>
-                    )}
-                  </div>
-                  {tip.note && (
-                    <p className="mt-1 text-[11px] font-semibold leading-4 text-[#8b95a1]">
-                      {tip.note}
-                    </p>
-                  )}
-                </li>
+      <div className="mt-4 space-y-6">
+        {years.map((section) => (
+          <div key={section.year ?? "unknown"}>
+            <h3 className="text-[14px] font-black text-[#191f28]">{section.label}</h3>
+            <div className="mt-2 space-y-4">
+              {section.groups.map((group) => (
+                <TipGroup key={group.category} group={group} />
               ))}
-            </ul>
+            </div>
           </div>
         ))}
       </div>
     </section>
+  );
+}
+
+function TipGroup({ group }: { group: ReturnType<typeof groupTips>[number] }) {
+  return (
+    <div>
+      <p className="text-[12px] font-black text-[#4e5968]">{group.label}</p>
+      <ul className="mt-1.5 space-y-1.5">
+        {group.items.map((tip, index) => (
+          <li
+            key={`${group.category}-${index}`}
+            className="rounded-xl bg-[#f8fbff] px-4 py-3"
+          >
+            <p className="text-[13px] font-semibold leading-6 text-[#191f28]">
+              {tip.text}
+            </p>
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+              {typeof tip.corroborations === "number" && tip.corroborations > 1 && (
+                <span className="rounded-full bg-[#e8f3ff] px-2 py-0.5 text-[10px] font-black text-[#3182f6]">
+                  후기 {tip.corroborations}건에서 확인
+                </span>
+              )}
+              {/* 배지는 '누가 썼나'다. 학원 사이트에 올라온 수험생 글을
+                  학원 글로 찍으면 실제보다 신뢰도가 낮아 보인다.
+                  올라와 있는 곳은 host로 따로 밝힌다. */}
+              <span
+                className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
+                  tip.source_type === "official"
+                    ? "bg-[#e8f3ff] text-[#3182f6]"
+                    : tip.source_type === "academy"
+                      ? "bg-[#fff0f0] text-[#e5484d]"
+                      : "bg-[#f2f4f6] text-[#8b95a1]"
+                }`}
+              >
+                {SOURCE_LABEL[tip.source_type] ?? tip.source_type}
+              </span>
+              {tip.host && (
+                <span className="text-[10px] font-bold text-[#b0b8c1]">{tip.host}</span>
+              )}
+              {tip.source_url && (
+                <a
+                  href={tip.source_url}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="text-[11px] font-black text-[#3182f6] hover:underline"
+                >
+                  출처 ↗
+                </a>
+              )}
+            </div>
+            {tip.note && (
+              <p className="mt-1 text-[11px] font-semibold leading-4 text-[#8b95a1]">
+                {tip.note}
+              </p>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

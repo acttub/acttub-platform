@@ -7,7 +7,6 @@
   --rd-blue-mist: #f8fbff;
   --rd-blue-line: #dce9ff;
   --rd-ink: #191f28;
-  --rd-ink-strong: #333d4b;
   --rd-ink-sub: #4e5968;
   --rd-ink-3: #6b7684;
   --rd-ink-4: #8b95a1;
@@ -37,7 +36,6 @@
   --color-blue-mist: var(--rd-blue-mist);
   --color-blue-line: var(--rd-blue-line);
   --color-ink: var(--rd-ink);
-  --color-ink-strong: var(--rd-ink-strong);
   --color-ink-sub: var(--rd-ink-sub);
   --color-ink-3: var(--rd-ink-3);
   --color-ink-4: var(--rd-ink-4);

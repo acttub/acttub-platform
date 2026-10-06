@@ -1,6 +1,6 @@
 import { useNavigation, usePreventRemove } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -29,7 +29,7 @@ import {
   type HelpButton,
 } from '@/lib/practice/coach';
 import { clearPractice, getPractice, setContinueOrigin } from '@/lib/practice/session-state';
-import type { CoachConversation, CoachMessage, CoachTurnResult } from '@/lib/practice/types';
+import type { CoachConversation, CoachTurnResult } from '@/lib/practice/types';
 import { COACH_ANSWER_MAX } from '@/lib/practice/types';
 import { newRequestId } from '@/lib/request-id';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
@@ -73,7 +73,7 @@ export default function CoachScreen() {
   const startRequestIdRef = useRef<string>(newRequestId());
 
   const [conversation, setConversation] = useState<CoachConversation | null>(null);
-  const [messages, setMessages] = useState<CoachMessage[]>([]);
+  const messages = useMemo(() => (conversation ? orderedMessages(conversation) : []), [conversation]);
   const [input, setInput] = useState('');
   const inputRef = useRef<TextInput>(null);
   const [askingCoach, setAskingCoach] = useState(false);
@@ -99,7 +99,6 @@ export default function CoachScreen() {
     }, 0);
   }, []);
 
-
   const goToNote = useCallback(() => {
     leaveThen(() => router.replace('/report'));
   }, [leaveThen, router]);
@@ -107,7 +106,6 @@ export default function CoachScreen() {
   const applyResult = useCallback(
     (result: CoachTurnResult) => {
       setConversation(result.conversation);
-      setMessages(orderedMessages(result.conversation));
       if (practice) {
         practice.conversationId = result.conversation.id;
         practice.note = result.note;
@@ -172,9 +170,8 @@ export default function CoachScreen() {
         if (!mountedRef.current) return;
         const failure = coachFailure(e);
         setError(coachFailureMessage(failure));
-        // 충돌이면 입력을 보존한 채 최신 대화를 다시 읽는다.
-        if (failure.kind === 'conflict') await reloadConversation();
-        if (failure.kind === 'closed') await reloadConversation();
+        // 충돌했거나 이미 닫혔으면 입력을 보존한 채 최신 대화를 다시 읽는다.
+        if (failure.kind === 'conflict' || failure.kind === 'closed') await reloadConversation();
         if (failure.kind === 'fingerprint_mismatch') attemptRef.current = null;
       } finally {
         if (mountedRef.current) setWaiting(false);
@@ -191,13 +188,9 @@ export default function CoachScreen() {
     leaveThen(() => router.replace('/upload'));
   };
 
-  // 대화 중에 뒤로가기로 나가면 한 번만 한 줄을 묻는다(practice.feedback, trigger back).
-  usePreventRemove(!leaveAllowed && !!practice, ({ data }) => {
-    if (sample) {
-      finishTutorial('left');
-      leaveThen(() => navigation.dispatch(data.action));
-      return;
-    }
+  // 예시 튜토리얼 대화 중에 뒤로가기로 나가면 튜토리얼을 '나감'으로 끝낸다.
+  usePreventRemove(sample && !leaveAllowed, ({ data }) => {
+    finishTutorial('left');
     leaveThen(() => navigation.dispatch(data.action));
   });
 

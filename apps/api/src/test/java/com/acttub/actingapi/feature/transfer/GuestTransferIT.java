@@ -137,6 +137,15 @@ class GuestTransferIT {
         UUID operation = operation(guest.id(), session, "report", "succeeded");
         UUID member = member();
         UUID own = practice(member);
+        jdbc.update("""
+                INSERT INTO user_signup_attributions
+                    (user_id,source,platform,channel,medium,recorded_at)
+                VALUES (?,'web_utm','web','instagram','paid_social',?)
+                """, guest.id(), clock.instant().minus(Duration.ofDays(2)).atOffset(ZoneOffset.UTC));
+        jdbc.update("""
+                INSERT INTO user_signup_attributions(user_id,source,platform,channel,recorded_at)
+                VALUES (?,'airbridge','ios','facebook.business',?)
+                """, member, clock.instant().minus(Duration.ofDays(1)).atOffset(ZoneOffset.UTC));
 
         JsonNode issued = issueCode(guest);
         assertThat(issued.fieldNames()).toIterable().containsExactlyInAnyOrder("code", "expires_in", "expires_at");
@@ -174,6 +183,37 @@ class GuestTransferIT {
                 .containsEntry("total", 1L).containsEntry("revoked", 1L);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM user_consents WHERE user_id=?", Integer.class, guest.id()))
                 .as("동의 기록은 게스트 행에 남긴다").isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM user_signup_attributions WHERE user_id=?", Integer.class, guest.id()))
+                .as("명시적으로 연결된 게스트의 유입 행은 닫힌 게스트에 남기지 않는다").isZero();
+        assertThat(jdbc.queryForMap("""
+                SELECT source,platform,channel,medium FROM user_signup_attributions WHERE user_id=?
+                """, member))
+                .as("게스트 출처가 더 일러도 기존 회원의 과거 가입 출처로 추정 이관하지 않는다")
+                .containsEntry("source", "airbridge")
+                .containsEntry("platform", "ios")
+                .containsEntry("channel", "facebook.business")
+                .containsEntry("medium", null);
+    }
+
+    @Test
+    @DisplayName("account.guest: 출처가 없는 기존 회원에게도 게스트 UTM을 가입 출처로 옮기지 않는다")
+    void accountGuest_transferDoesNotInferAttributionForAnExistingMember() throws Exception {
+        Guest guest = guest();
+        UUID member = member();
+        jdbc.update("""
+                INSERT INTO user_signup_attributions
+                    (user_id,source,platform,channel,medium,recorded_at)
+                VALUES (?,'web_utm','web','instagram','paid_social',?)
+                """, guest.id(), clock.instant().minus(Duration.ofDays(1)).atOffset(ZoneOffset.UTC));
+
+        JsonNode issued = issueCode(guest);
+        assertThat(transfer(member, issued.path("code").textValue(), null).getStatus()).isEqualTo(200);
+
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM user_signup_attributions WHERE user_id IN (?,?)", Integer.class,
+                guest.id(), member))
+                .isZero();
     }
 
     @Test
@@ -542,7 +582,7 @@ class GuestTransferIT {
     @DisplayName("account.guest: 분석 중에 옮기면 진행 중 작업도 따라가고 완료 알림은 회원의 폰으로 간다. 한 회원이 게스트 둘을 차례로 옮기면 둘 다 목록에 보인다")
     void accountGuest_workInProgressFollowsAndTheMemberIsNotified() throws Exception {
         UUID member = member();
-        pushTokens.register(member, "ExponentPushToken[member-phone]", "ios");
+        pushTokens.register(member, "ExponentPushToken[member-phone]", "ios", null);
         Guest first = guest();
         UUID analyzing = practice(first.id());
         jdbc.update("UPDATE practice_sessions SET status='analyzing' WHERE id=?", analyzing);
@@ -649,7 +689,7 @@ class GuestTransferIT {
 
     /** 웹이 하듯 게스트를 만들고, 동의 하나를 남긴다(동의 기록은 옮겨지지 않는다는 것을 보려고). */
     @Test
-    @DisplayName("account.guest: 1.0.0 연습 자료도 함께 옮긴다 — 회차·AI 작업·배우 기억·이탈 설문·노트 평가가 회원 것이 되고, "
+    @DisplayName("account.guest: 0.1.0 연습 자료도 함께 옮긴다 — 회차·AI 작업·배우 기억·이탈 설문·노트 평가가 회원 것이 되고, "
             + "게스트가 이미 설문을 봤으면 회원에게도 다시 뜨지 않는다")
     void accountGuest_transferMovesPracticeRoundsJobsMemoriesAndSurveys() throws Exception {
         Guest guest = guest();
@@ -699,7 +739,7 @@ class GuestTransferIT {
                 .isEqualTo("회원의 목표");
     }
 
-    /** 1.0.0 회차 하나 — 영상과 함께 만든다. 분석·대화·노트는 이 행에 매달려 따라간다. */
+    /** 0.1.0 회차 하나 — 영상과 함께 만든다. 분석·대화·노트는 이 행에 매달려 따라간다. */
     private UUID practiceRound(UUID owner) {
         UUID videoId = UUID.randomUUID();
         jdbc.update("""
@@ -904,7 +944,7 @@ class GuestTransferIT {
                 UUID.randomUUID(), owner, field, value);
     }
 
-    /** 묶음 목록을 회차 id 로 편다 — 옛 묶음도 새 묶음도 같은 모양으로 온다(02-practice ②). */
+    /** 묶음 목록을 회차 id 로 편다 — 옛 묶음도 새 묶음도 같은 모양으로 온다(specs/practice ②). */
     private static List<String> practiceIds(JsonNode groups) {
         List<String> ids = new java.util.ArrayList<>();
         groups.path("groups").forEach(group ->

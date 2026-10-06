@@ -27,7 +27,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 1.0.0 회차·묶음과 분석 작업의 저장소.
+ * 0.1.0 회차·묶음과 분석 작업의 저장소.
  *
  * <p><b>잠그는 순서가 규칙을 세운다.</b> 시작은 <b>영상 행</b>을 잡고(보관함의 삭제·파기가 같은 행을 잡으므로
  * "회차 시작과 영상 삭제가 동시: 하나만 성공"이 선다), 이어하기·재시도는 <b>묶음의 첫 행</b>을 잡는다(서로 다른
@@ -285,18 +285,15 @@ class PostgresPracticeRepository implements PracticeRepository {
         }
         List<GroupView> groups = new ArrayList<>();
         byRoot.forEach((rootId, rows) -> {
-            List<PracticeView> practices = rows.stream().map(PostgresPracticeRepository::view).toList();
             Tuple first = rows.getFirst();
-            groups.add(new GroupView(
+            groups.add(groupView(
                     rootId,
                     first.get("group_title", String.class),
-                    practices.size(),
                     first.get("last_conversation_at", Instant.class),
-                    tags(first.get("group_tags", String.class)),
+                    first.get("group_tags", String.class),
                     first.get("group_favorite", Boolean.class),
                     first.get("group_hidden_at", Instant.class),
-                    practices.stream().filter(p -> !"closed".equals(p.stage())).map(PracticeView::id).findFirst().orElse(null),
-                    practices));
+                    rows));
         });
         return List.copyOf(groups);
     }
@@ -391,15 +388,28 @@ class PostgresPracticeRepository implements PracticeRepository {
                 """, Tuple.class)
                 .setParameter("rootId", rootId));
         Tuple root = rootRow.getFirst();
+        return groupView(
+                rootId,
+                root.get("title", String.class),
+                root.get("last_conversation_at", Instant.class),
+                root.get("tags", String.class),
+                root.get("favorite", Boolean.class),
+                root.get("hidden_at", Instant.class),
+                rows);
+    }
+
+    /** 묶음 속성과 그 회차 행들로 묶음 하나를 짓는다. 진행 중 회차는 닫히지 않은 첫 회차다. */
+    private static GroupView groupView(UUID rootId, String title, Instant lastConversationAt, String tags,
+                                       Boolean favorite, Instant hiddenAt, List<Tuple> rows) {
         List<PracticeView> practices = rows.stream().map(PostgresPracticeRepository::view).toList();
         return new GroupView(
                 rootId,
-                root.get("title", String.class),
+                title,
                 practices.size(),
-                root.get("last_conversation_at", Instant.class),
-                tags(root.get("tags", String.class)),
-                root.get("favorite", Boolean.class),
-                root.get("hidden_at", Instant.class),
+                lastConversationAt,
+                tags(tags),
+                favorite,
+                hiddenAt,
                 practices.stream().filter(p -> !"closed".equals(p.stage())).map(PracticeView::id).findFirst().orElse(null),
                 practices);
     }

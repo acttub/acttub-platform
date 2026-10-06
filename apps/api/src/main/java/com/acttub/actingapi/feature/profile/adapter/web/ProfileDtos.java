@@ -89,7 +89,7 @@ final class ProfileDtos {
     }
 
     /**
-     * 여섯 항목과 사진·소개. 1.0.0 이전 회원은 {@code name} 에 옛 닉네임만 있고 나머지가 {@code null}
+     * 여섯 항목과 사진·소개. 0.1.0 이전 회원은 {@code name} 에 옛 닉네임만 있고 나머지가 {@code null}
      * 이다 — 그래서 전부 nullable 이고, 다 찼는지는 {@code profile_complete} 가 말한다.
      */
     @Schema(name = "Profile", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
@@ -131,6 +131,42 @@ final class ProfileDtos {
             @NotNull Experience experience,
             @NotNull Goal goal,
             @Schema(nullable = true, maxLength = 80) String bio) {
+    }
+
+    /**
+     * 가입 계정의 유입 광고(SOMA-588). 앱이 Airbridge SDK 의 설치 귀속 결과를 옮겨 싣는다. 광고 식별자는 받지 않는다.
+     */
+    @Schema(name = "SignupAttributionRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    record SignupAttributionRequest(
+            @NotNull @Schema(allowableValues = {"airbridge"}) String source,
+            @NotNull @Schema(allowableValues = {"ios", "android"}) String platform,
+            @NotNull @Schema(minLength = 1, maxLength = 200) String channel,
+            @Schema(nullable = true, maxLength = 200) String campaign,
+            @JsonProperty("ad_group") @Schema(nullable = true, maxLength = 200) String adGroup,
+            @JsonProperty("ad_creative") @Schema(nullable = true, maxLength = 200) String adCreative,
+            @Schema(nullable = true, maxLength = 200) String content,
+            @Schema(nullable = true, maxLength = 200) String term,
+            @JsonProperty("sub_publisher") @Schema(nullable = true, maxLength = 200) String subPublisher) {
+    }
+
+    /**
+     * 웹이 개인정보 수집·이용 동의 뒤 보관한 안전한 UTM. source/platform은 요청에서 받지 않고 서버가 고정한다.
+     */
+    @Schema(name = "WebAttributionRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    record WebAttributionRequest(
+            @NotNull @Schema(
+                    minLength = 1,
+                    maxLength = 64,
+                    pattern = "^[A-Za-z0-9][A-Za-z0-9._-]*$")
+            String channel,
+            @Schema(nullable = true, maxLength = 64, pattern = "^[A-Za-z0-9][A-Za-z0-9._-]*$")
+            String medium,
+            @Schema(nullable = true, maxLength = 64, pattern = "^[A-Za-z0-9][A-Za-z0-9._-]*$")
+            String campaign,
+            @Schema(nullable = true, maxLength = 64, pattern = "^[A-Za-z0-9][A-Za-z0-9._-]*$")
+            String content,
+            @Schema(nullable = true, maxLength = 64, pattern = "^[A-Za-z0-9][A-Za-z0-9._-]*$")
+            String term) {
     }
 
     @Schema(name = "PhotoUploadRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)

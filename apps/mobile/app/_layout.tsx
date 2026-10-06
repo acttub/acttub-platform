@@ -18,24 +18,25 @@ import 'react-native-reanimated';
 import '@/lib/global-font';
 import { logScreenView } from '@/lib/analytics';
 import { initMetaSdk } from '@/lib/meta-events';
+import { startSignupAttributionListener } from '@/lib/signup-attribution-runtime';
+import { initCrashlytics } from '@/lib/crashlytics';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
 import { challengePushTarget } from '@/lib/challenge/notification-center';
-import { onPushTapped } from '@/lib/notifications';
 import {
   recoveryStatusForConsentGate,
-  routeAllowedDuringConsentGate,
   resolveAnalyzingBootstrapRoute,
   bootstrapSessionKey,
   resolveBootstrapStep,
-  resolvePostConsentRoute,
   type BootstrapRecoveryParams,
 } from '@/lib/app-bootstrap';
 import { sweepDeviceFiles } from '@/lib/account-files';
+import { ReconsentPopup } from '@/components/reconsent-popup';
 import { SpotlightHost } from '@/components/spotlight-guide';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import {
   configureNotificationHandling,
   flushPendingPushTokenDeletions,
+  onPushTapped,
 } from '@/lib/notifications';
 import type { PendingAnalysisHandle } from '@/lib/pending-analysis';
 import { palette } from '@/constants/palette';
@@ -84,11 +85,10 @@ function RootNavigator() {
   const signupPending = signup !== null;
   const segments = useSegments();
   const pathname = usePathname();
-  const currentRouteParams = useGlobalSearchParams<BootstrapRecoveryParams>();
   const {
     recoveryKey: currentRecoveryKey,
     practiceId: currentRecoveryPracticeId,
-  } = currentRouteParams;
+  } = useGlobalSearchParams<BootstrapRecoveryParams>();
   const router = useRouter();
   const hasConsentGate = consentEntry.status !== 'allowed';
   const consentGateRef = useRef({
@@ -102,11 +102,16 @@ function RootNavigator() {
     };
   }
   const consentGate = consentGateRef.current.generation;
+  // 재동의 팝업은 결정이 필요하거나 판정을 못 읽었을 때 열리고, 통과하거나 로그아웃하면 닫힌다.
+  // 다시 읽는 중(checking)에는 그대로 둔다 — 팝업 안에서 다시 읽는 동안 스피너로 남고,
+  // 앱을 처음 켤 때의 판정 대기에는 열리지 않는다.
+  const reconsentEligible = status === 'signedIn' && !updateRequired && !signupPending;
+  const [reconsentOpen, setReconsentOpen] = useState(false);
+  useEffect(() => {
+    if (!reconsentEligible || consentEntry.status === 'allowed') setReconsentOpen(false);
+    else if (consentEntry.status !== 'checking') setReconsentOpen(true);
+  }, [reconsentEligible, consentEntry.status]);
   const completedBootstrapRef = useRef<{
-    sessionKey: string;
-    route: Href;
-  } | null>(null);
-  const interruptedRouteRef = useRef<{
     sessionKey: string;
     route: Href;
   } | null>(null);
@@ -182,6 +187,10 @@ function RootNavigator() {
   // 푸시를 누르면 알림 식별자로 알림함을 연다(잠금 화면 문구에는 이름·본문이 없다).
   useEffect(() => {
     return onPushTapped((data) => {
+      if (data && typeof data === 'object' && 'kind' in data && data.kind === 'evening_reminder') {
+        router.replace('/(tabs)');
+        return;
+      }
       if (challengePushTarget(data)) router.push('/notifications');
     });
   }, [router]);
@@ -212,24 +221,6 @@ function RootNavigator() {
     const inConsent = first === 'consent';
     const inProfileName = first === 'profile-name';
     const inUpdateRequired = first === 'update-required';
-    // 재동의 화면의 "동의하지 않으면 탈퇴할 수 있어요"가 여는 탈퇴 화면만 게이트 밖에 둔다.
-    const inWithdrawDuringConsent = routeAllowedDuringConsentGate(
-      segments as string[],
-    );
-
-    const rememberInterruptedRoute = () => {
-      if (!sessionKey || inLogin || inConsent || inProfileName) return;
-      if (interruptedRouteRef.current?.sessionKey === sessionKey) return;
-      const params = Object.fromEntries(
-        Object.entries(currentRouteParams).filter(([, value]) => value !== undefined),
-      );
-      interruptedRouteRef.current = {
-        sessionKey,
-        route: (Object.keys(params).length > 0
-          ? { pathname, params }
-          : pathname) as Href,
-      };
-    };
 
     if (bootstrap.stage === 'update-gate') {
       completedBootstrapRef.current = null;
@@ -237,25 +228,20 @@ function RootNavigator() {
       return;
     }
     if (bootstrap.stage === 'auth-gate') {
-      if (bootstrap.route === '/login') interruptedRouteRef.current = null;
       if (bootstrap.route === '/login' && !inLogin) {
         router.replace('/login' as Href);
       }
       return;
     }
     if (bootstrap.stage === 'signup-gate') {
-      // 처음 온 신원의 동의 화면. 계정이 아직 없어 돌아갈 중단 화면도 없다.
-      interruptedRouteRef.current = null;
+      // 처음 온 신원의 동의 화면.
       if (!inConsent) router.replace('/consent' as Href);
       return;
     }
     if (bootstrap.stage === 'consent-gate') {
       completedBootstrapRef.current = null;
-      if (inWithdrawDuringConsent) return;
-      rememberInterruptedRoute();
-      if (bootstrap.route === '/consent' && !inConsent) {
-        router.replace('/consent' as Href);
-      }
+      // 재동의 팝업은 지금 화면 위에 뜬다. 로그인 직후(로그인·가입 화면)일 때만 홈을 깐다.
+      if (bootstrap.route && (inLogin || inConsent)) router.replace(bootstrap.route as Href);
       return;
     }
     if (bootstrap.stage === 'profile-gate') {
@@ -269,27 +255,11 @@ function RootNavigator() {
       return;
     }
 
-    const interruptedRoute =
-      interruptedRouteRef.current?.sessionKey === sessionKey
-        ? interruptedRouteRef.current.route
-        : null;
-    const targetRoute = resolvePostConsentRoute(
-      bootstrap.route,
-      interruptedRoute,
-    ) as Href;
-    if (interruptedRoute) interruptedRouteRef.current = null;
-
     const completed = completedBootstrapRef.current;
     if (completed?.sessionKey === sessionKey) {
       if (inLogin || inConsent || inProfileName) {
         router.replace(completed.route);
       }
-      return;
-    }
-
-    if (targetRoute !== bootstrap.route) {
-      router.replace(targetRoute);
-      completedBootstrapRef.current = { sessionKey, route: targetRoute };
       return;
     }
 
@@ -327,7 +297,6 @@ function RootNavigator() {
     pathname,
     currentRecoveryKey,
     currentRecoveryPracticeId,
-    currentRouteParams,
     router,
   ]);
 
@@ -363,51 +332,54 @@ function RootNavigator() {
   if (status === 'loading' && !updateRequired) return null;
 
   return (
-    <Stack>
-      <Stack.Screen name="update-required" options={{ headerShown: false, gestureEnabled: false }} />
-      <Stack.Screen name="login" options={{ headerShown: false }} />
-      <Stack.Screen name="consent" options={{ headerShown: false }} />
-      <Stack.Screen name="profile-name" options={{ headerShown: false }} />
-      <Stack.Screen name="profile-edit" options={{ title: t('profileName.editTitle') }} />
-      <Stack.Screen name="portfolio-edit" options={{ title: t('portfolio.title') }} />
-      <Stack.Screen name="guest-transfer" options={{ title: t('guestTransfer.title') }} />
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="delete-account"
-        options={{ title: t('stack.withdraw'), headerBackTitle: t('stack.backToSettings') }}
-      />
-      <Stack.Screen name="upload" options={{ title: t('stack.upload') }} />
-      <Stack.Screen
-        name="record-video"
-        // 헤더는 여기 한 곳에서 숨긴다 — 화면이 따로 바꾸면 iOS에서 다시 그릴 때마다 뒤집혀 깜빡였다.
-        options={{ title: t('record.screenTitle'), presentation: 'fullScreenModal', headerShown: false }}
-      />
-      <Stack.Screen name="analyzing" options={{ title: t('stack.analyzing') }} />
-      <Stack.Screen name="coach" options={{ title: t('stack.coach') }} />
-      <Stack.Screen name="report" options={{ title: t('stack.report') }} />
-      {/* 아래 둘은 화면 안에 자체 헤더가 있다. 등록해 두지 않으면 기본 헤더가
-          한 겹 더 붙어 '뒤로' 버튼이 두 개로 보인다. */}
-      <Stack.Screen name="admissions/index" options={{ headerShown: false }} />
-      <Stack.Screen name="admissions/[id]" options={{ headerShown: false }} />
-      <Stack.Screen name="challenge-detail" options={{ title: t('challenges.detailTitle') }} />
-      <Stack.Screen name="challenge-play" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
-      <Stack.Screen name="guide" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
-      <Stack.Screen name="challenge-upload" options={{ title: t('challengeUpload.title') }} />
-      <Stack.Screen name="saved-videos" options={{ headerShown: false }} />
-      <Stack.Screen name="line-search" options={{ headerShown: false }} />
-      <Stack.Screen name="line-new" options={{ headerShown: false, presentation: 'modal' }} />
-      <Stack.Screen name="archive" options={{ headerShown: false }} />
-      <Stack.Screen name="archive-detail" options={{ headerShown: false }} />
-      <Stack.Screen name="reading/new" options={{ title: t('reading.titleNew') }} />
-      <Stack.Screen name="reading/confirm" options={{ title: t('reading.titleConfirm') }} />
-      <Stack.Screen name="reading/edit" options={{ title: t('reading.titleEdit'), presentation: 'modal' }} />
-      <Stack.Screen name="reading/detail" options={{ title: t('reading.titleDetail') }} />
-      <Stack.Screen name="reading/full" options={{ title: t('reading.titleFull') }} />
-      <Stack.Screen name="reading/roles" options={{ title: t('reading.titleRoles') }} />
-      <Stack.Screen name="reading/range" options={{ title: t('reading.titleRange') }} />
-      <Stack.Screen name="reading/play" options={{ headerShown: false }} />
-      <Stack.Screen name="reading/memorize" options={{ title: t('reading.titleMemorize') }} />
-    </Stack>
+    <>
+      <Stack>
+        <Stack.Screen name="update-required" options={{ headerShown: false, gestureEnabled: false }} />
+        <Stack.Screen name="login" options={{ headerShown: false }} />
+        <Stack.Screen name="consent" options={{ headerShown: false }} />
+        <Stack.Screen name="profile-name" options={{ headerShown: false }} />
+        <Stack.Screen name="profile-edit" options={{ title: t('profileName.editTitle') }} />
+        <Stack.Screen name="portfolio-edit" options={{ title: t('portfolio.title') }} />
+        <Stack.Screen name="guest-transfer" options={{ title: t('guestTransfer.title') }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="delete-account"
+          options={{ title: t('stack.withdraw'), headerBackTitle: t('stack.backToSettings') }}
+        />
+        <Stack.Screen name="upload" options={{ title: t('stack.upload') }} />
+        <Stack.Screen
+          name="record-video"
+          // 헤더는 여기 한 곳에서 숨긴다 — 화면이 따로 바꾸면 iOS에서 다시 그릴 때마다 뒤집혀 깜빡였다.
+          options={{ title: t('record.screenTitle'), presentation: 'fullScreenModal', headerShown: false }}
+        />
+        <Stack.Screen name="analyzing" options={{ title: t('stack.analyzing') }} />
+        <Stack.Screen name="coach" options={{ title: t('stack.coach') }} />
+        <Stack.Screen name="report" options={{ title: t('stack.report') }} />
+        {/* 아래 둘은 화면 안에 자체 헤더가 있다. 등록해 두지 않으면 기본 헤더가
+            한 겹 더 붙어 '뒤로' 버튼이 두 개로 보인다. */}
+        <Stack.Screen name="admissions/index" options={{ headerShown: false }} />
+        <Stack.Screen name="admissions/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="challenge-detail" options={{ title: t('challenges.detailTitle') }} />
+        <Stack.Screen name="challenge-play" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
+        <Stack.Screen name="guide" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
+        <Stack.Screen name="challenge-upload" options={{ title: t('challengeUpload.title') }} />
+        <Stack.Screen name="saved-videos" options={{ headerShown: false }} />
+        <Stack.Screen name="line-search" options={{ headerShown: false }} />
+        <Stack.Screen name="line-new" options={{ headerShown: false, presentation: 'modal' }} />
+        <Stack.Screen name="archive" options={{ headerShown: false }} />
+        <Stack.Screen name="archive-detail" options={{ headerShown: false }} />
+        <Stack.Screen name="reading/new" options={{ title: t('reading.titleNew') }} />
+        <Stack.Screen name="reading/confirm" options={{ title: t('reading.titleConfirm') }} />
+        <Stack.Screen name="reading/edit" options={{ title: t('reading.titleEdit'), presentation: 'modal' }} />
+        <Stack.Screen name="reading/detail" options={{ title: t('reading.titleDetail') }} />
+        <Stack.Screen name="reading/full" options={{ title: t('reading.titleFull') }} />
+        <Stack.Screen name="reading/roles" options={{ title: t('reading.titleRoles') }} />
+        <Stack.Screen name="reading/range" options={{ title: t('reading.titleRange') }} />
+        <Stack.Screen name="reading/play" options={{ headerShown: false }} />
+        <Stack.Screen name="reading/memorize" options={{ title: t('reading.titleMemorize') }} />
+      </Stack>
+      <ReconsentPopup visible={reconsentOpen} />
+    </>
   );
 }
 
@@ -428,9 +400,16 @@ export default function RootLayout() {
     'Pretendard-Bold': require('@/assets/fonts/Pretendard-Bold.subset.ttf'),
   });
 
+  // 크래시 수집 — 버전별 스택을 Firebase Crashlytics 로 모은다.
+  useEffect(() => {
+    void initCrashlytics();
+  }, []);
+
   // Meta SDK 초기화(SOMA-481). iOS ATT 팝업은 앱이 활성 상태일 때만 뜨므로,
   // 아직 활성이 아니면 활성이 되는 순간까지 기다렸다가 한 번만 부른다.
   useEffect(() => {
+    // 설치 귀속 결과는 SDK 초기화 뒤 곧 온다. 받는 쪽은 먼저 세워 둔다(SOMA-588).
+    startSignupAttributionListener();
     if (AppState.currentState === 'active') {
       void initMetaSdk();
       return;

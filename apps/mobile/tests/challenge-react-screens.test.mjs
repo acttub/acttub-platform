@@ -40,8 +40,8 @@ test('challenge.react: 댓글은 서버에서 읽고 500자·본인 삭제·확�
   assert.match(sheet, /commentText\(item\)/);
   assert.match(sheet, /commentAuthorName/);
   // 같은 댓글의 재전송은 같은 요청 id 다.
-  assert.match(sheet, /commentAttemptFor/);
-  // 댓글 좋아요·답글은 1.0.0에 없다 — 하트 토글이 목록에 없다.
+  assert.match(sheet, /attemptFor\(attempt, body\.body, newRequestId\)/);
+  // 댓글 좋아요·답글은 0.1.0에 없다 — 하트 토글이 목록에 없다.
   assert.doesNotMatch(sheet, /name="heart"/);
 });
 

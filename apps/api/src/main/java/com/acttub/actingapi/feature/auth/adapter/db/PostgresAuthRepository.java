@@ -28,7 +28,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 사용자를 소유한 쪽이 배관의 포트를 <b>직접</b> 구현한다 — 위임만 하는 어댑터를 끼우지
- * 않는다 (ADR-017, SOMA-397 6단계의 {@code SyncOperationService} 와 같은 형태).
+ * 않는다 (ADR-017).
  *
  * <p>동의 여부는 여기 없다. 동의 문서와 그 이력을 소유한 쪽은 {@code consent} 이고, 게이트가
  * 묻는 것({@code PendingConsentGate})도 로그인 응답에 실리는 목록({@code auth/app/
@@ -150,10 +150,11 @@ public class PostgresAuthRepository implements AuthRepository, AuthenticatedUser
             String email,
             String providerTokenEncrypted,
             List<AcceptedConsent> consents,
+            boolean ageConfirmed,
             Instant now) {
         return transaction.execute(status -> {
             UserEntity user = users.save(new UserEntity(
-                    UUID.randomUUID(), email, UserStatus.ACTIVE));
+                    UUID.randomUUID(), email, UserStatus.ACTIVE, ageConfirmed ? now : null));
             identities.saveAndFlush(new UserIdentityEntity(
                     UUID.randomUUID(),
                     user.getId(),
@@ -183,15 +184,30 @@ public class PostgresAuthRepository implements AuthRepository, AuthenticatedUser
     @Override
     public List<String> providersOf(UUID userId) {
         return list(entityManager.createNativeQuery("""
-                SELECT DISTINCT provider
+                SELECT provider
                 FROM user_identities
                 WHERE user_id=:userId
                   AND provider_uid IS NOT NULL
-                ORDER BY provider
+                GROUP BY provider
+                ORDER BY max(last_used_at) DESC, provider
                 """, Tuple.class)
                 .setParameter("userId", userId)).stream()
                 .map(row -> provider(row.get("provider", String.class)).dbValue())
                 .toList();
+    }
+
+    @Override
+    public void markIdentityUsed(String provider, String uid, Instant now) {
+        transaction.executeWithoutResult(status -> entityManager.createNativeQuery("""
+                UPDATE user_identities
+                SET last_used_at=:now
+                WHERE provider=:provider
+                  AND provider_uid=:providerUid
+                """)
+                .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                .setParameter("provider", provider(provider).dbValue())
+                .setParameter("providerUid", uid)
+                .executeUpdate());
     }
 
     @Override

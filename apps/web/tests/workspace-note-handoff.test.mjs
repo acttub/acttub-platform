@@ -119,7 +119,8 @@ test("노트에서 이어하기를 누르면 되돌리기가 이어받을 연습
 
 test("대화가 끝난 화면은 아직 질문 중이라고 말하지 않는다", () => {
   const chatPanel = block("function ChatPanel({", "function Bubble({");
-  assert.match(chatPanel, /done \? "이번 대화는 여기까지예요" : "현재 장면을 바탕으로 질문하고 있어요"/);
+  assert.match(chatPanel, /이번 대화는 여기까지예요/);
+  assert.doesNotMatch(chatPanel, /질문하고 있어요/);
 
   // 어느 상태에서 그 칩이 뜨는지는 tests/workspace-view.test.mjs 가 실행으로 지킨다 —
   // 여기서는 그 상태에 붙는 문구를 본다.

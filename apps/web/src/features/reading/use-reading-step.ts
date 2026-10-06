@@ -28,7 +28,6 @@ export interface ReadingStep {
   stats: RunStats | null;
   /** 그려도 되는가 — 하이드레이션이 끝났고 돌려보낼 곳이 없을 때 */
   ready: boolean;
-  desktop: boolean;
 }
 
 export function useReadingStep(step: Step): ReadingStep {
@@ -49,5 +48,5 @@ export function useReadingStep(step: Step): ReadingStep {
     if (to) router.replace(to);
   }, [to, router]);
 
-  return { draft, script, session, stats, ready: hydrated && !to, desktop };
+  return { draft, script, session, stats, ready: hydrated && !to };
 }
