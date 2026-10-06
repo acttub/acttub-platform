@@ -154,8 +154,8 @@ class ReadingScriptIT {
                 .containsEntry("source", "paste").containsEntry("request_id", requestId).containsEntry("fp", 64);
 
         assertThat(saved.fieldNames()).toIterable().containsExactlyInAnyOrder(
-                "id", "title", "source", "characters", "lines", "recording_count", "open_session_id", "last_session",
-                "created_at", "updated_at");
+                "id", "title", "source", "characters", "lines", "scenes", "recording_count", "open_session_id",
+                "last_session", "created_at", "updated_at");
         assertThat(saved.path("title").textValue()).isEqualTo("갈매기");
         assertThat(saved.path("recording_count").intValue()).isZero();
         assertThat(saved.path("open_session_id").isNull()).isTrue();
@@ -165,7 +165,12 @@ class ReadingScriptIT {
         assertThat(saved.path("characters")).extracting(character -> character.path("dialogue_count").intValue())
                 .containsExactly(2, 1);
         assertThat(saved.path("characters").get(0).fieldNames()).toIterable()
-                .containsExactlyInAnyOrder("id", "name", "order", "voice_preset", "dialogue_count");
+                .containsExactlyInAnyOrder("id", "name", "order", "voice_preset", "voice", "dialogue_count");
+        assertThat(saved.path("characters")).extracting(character -> character.path("voice").textValue())
+                .as("자동이면 배역 순서로 F1·M1").containsExactly("F1", "M1");
+        assertThat(saved.path("scenes")).extracting(scene -> scene.path("title").textValue() + ":" + scene.path("dialogue_count").intValue())
+                .as("장면 줄이 경계 — 「제1막」 대사 둘, 「S#2」 대사 하나(머리로 나뉜 장면은 짧아도 합치지 않는다)")
+                .containsExactly("제1막:2", "S#2:1");
         assertThat(saved.path("lines")).extracting(line -> line.path("kind").textValue())
                 .containsExactly("scene", "direction", "dialogue", "dialogue", "scene", "dialogue");
         assertThat(saved.path("lines")).extracting(line -> line.path("dialogue_no").isNull() ? null : line.path("dialogue_no").intValue())

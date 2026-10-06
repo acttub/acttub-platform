@@ -185,7 +185,7 @@ class ReadingUploadIT {
 
     @Test
     @DisplayName("reading.script 원본: 올릴 자리 201 → 올리기 전 읽기 422 script_upload_not_ready → 올린 뒤 읽기 204(다시 불러도 204, 받기 한 번) → "
-            + "upload_id 로 나누기 202 → 워커가 저장하면 원본이 그 대본에 연결된다")
+            + "upload_id 로 나누기 202 → 워커가 저장하면 원본이 그 대본에 연결되고 뽑은 글을 비운다")
     void uploadsReadsAndSplitsAFile() throws Exception {
         byte[] cp949 = SCENE.getBytes(Charset.forName("x-windows-949"));
         JsonNode ticket = json(post("/v2/reading/uploads").content(upload("갈매기.txt", cp949.length)), 201, bearer);
@@ -221,6 +221,7 @@ class ReadingUploadIT {
         assertThat(script.path("lines")).extracting(line -> line.path("text").textValue())
                 .containsExactly("저는 갈매기예요.", "아니, 당신은 배우예요.");
         assertThat(jdbc.queryForObject("SELECT script_id FROM script_uploads", String.class)).isEqualTo(scriptId);
+        assertThat(jdbc.queryForObject("SELECT raw_text FROM script_uploads", String.class)).as("글은 대본에 있어 원본 행에서 비운다").isNull();
         assertThat(jdbc.queryForObject("SELECT raw_text FROM scripts", String.class)).isEqualTo(SCENE);
     }
 

@@ -66,7 +66,7 @@ public class SessionService {
         return new SessionDetailView(
                 session.card(), session.scriptId(), session.mode(), session.advance(), session.record(),
                 session.startLineId(), session.endLineId(), session.currentLineId(), session.progressSeq(),
-                session.lineResults(), playback.decorate(session.recordings()));
+                session.lineResults(), playback.decorate(session.recordings()), session.differentLines());
     }
 
     public List<SessionCardView> list(UUID userId, UUID scriptId) {

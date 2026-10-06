@@ -41,7 +41,10 @@ public interface RecordingRepository {
      */
     Stored store(UUID userId, UUID sessionId, NewRecording recording, long quotaBytes, Instant now);
 
-    /** @param byteSize 변환 뒤 크기 */
+    /**
+     * @param byteSize 변환 뒤 크기
+     * @param transcript 대조 결과({@code matched})는 저장할 때 이 전사를 그 줄 원문과 비교해 정한다
+     */
     record NewRecording(
             UUID requestId,
             UUID lineId,
@@ -51,8 +54,7 @@ public interface RecordingRepository {
             long byteSize,
             int durationMs,
             String transcript,
-            String transcriptSource,
-            Boolean matched) {
+            String transcriptSource) {
     }
 
     /**

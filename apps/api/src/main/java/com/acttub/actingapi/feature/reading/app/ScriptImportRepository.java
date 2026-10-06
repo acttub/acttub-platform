@@ -27,8 +27,13 @@ public interface ScriptImportRepository {
     Requested request(UUID userId, UUID requestId, String fingerprint, Submission submission, ScriptDraft sample,
             int scriptLimit, int dailyLimit, Instant now);
 
-    /** @param uploadId 원본 파일. 대본이 저장되면 그 대본에 연결한다. 글로 넣었으면 {@code null} */
-    record Submission(String title, String rawText, String rawHash, String source, UUID uploadId) {
+    /**
+     * @param allowDuplicate 같은 글의 대본·진행 중 요청을 보지 않는다(R2.7 「새로 넣기」)
+     * @param skipScriptCheck 워커가 대본 여부 판정을 묻지 않는다(R2.8 「그래도 나누기」). 행에 남긴다
+     * @param uploadId 원본 파일. 대본이 저장되면 그 대본에 연결한다. 글로 넣었으면 {@code null}
+     */
+    record Submission(String title, String rawText, String rawHash, String source, boolean allowDuplicate, boolean skipScriptCheck,
+            UUID uploadId) {
     }
 
     /**
@@ -62,7 +67,8 @@ public interface ScriptImportRepository {
     /** 워커가 나눌 재료. 요청이 이미 끝났거나 계정이 활성이 아니면 {@code null}. */
     Material material(UUID jobId, UUID importId);
 
-    record Material(UUID userId, boolean guest, UUID requestId, String fingerprint, String title, String rawText, String source) {
+    record Material(UUID userId, boolean guest, UUID requestId, String fingerprint, String title, String rawText, String source,
+            boolean skipScriptCheck) {
     }
 
     /** 화면의 「N / M줄」. 자기 트랜잭션에서 바로 쓴다. */
@@ -72,16 +78,27 @@ public interface ScriptImportRepository {
      * 나눈 대본을 저장하고 요청과 작업을 성공으로 닫는다. 대본은 요청의 request_id 로 만들어 같은 작업이 다시 돌아도 같은
      * 대본이다.
      *
-     * @return 대본 수 한도에 걸렸으면 {@link Completion#SCRIPT_LIMIT}, 그사이 계정이 닫혔으면 {@link Completion#CANCELLED}
+     * 끝난 요청의 원문은 비운다 — 글은 대본에 있고, 같은 글 판정은 해시만 쓴다.
+     *
+     * @return 대본 수 한도에 걸렸으면 {@link Completion#SCRIPT_LIMIT}, 같은 request_id 의 대본이 다른 지문으로 이미 있으면
+     *         {@link Completion#FINGERPRINT_MISMATCH}, 그사이 계정이 닫혔으면 {@link Completion#CANCELLED}
      */
     Completion complete(UUID jobId, UUID leaseToken, UUID importId, ScriptDraft draft, Instant now);
 
     enum Completion {
         SAVED,
         SCRIPT_LIMIT,
+        FINGERPRINT_MISMATCH,
         CANCELLED
     }
 
-    /** 요청과 작업을 실패로 닫는다. */
+    /** 요청과 작업을 실패로 닫고 원문을 비운다. */
     void fail(UUID jobId, UUID leaseToken, UUID importId, ScriptImportFailure failure, Instant now);
+
+    /**
+     * 집은 워커가 죽어 lease 가 지났고 시도 수도 소진한 작업을 {@code failed} 로 닫는다 — 앱이 끝없이 기다리지 않게.
+     *
+     * @return 닫은 요청 수
+     */
+    int sweepExpired(Instant now);
 }

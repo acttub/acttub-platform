@@ -54,7 +54,7 @@ class PracticeRollbackCompatibilityTest {
 
     @Test
     @DisplayName("0.1.0 은 옛 표를 한 칸도 바꾸지 않았다 — 예약 장부에 더한 NULL 허용 컬럼 셋과 users 의 둘, "
-            + "리딩 회차의 멈춤을 없앤 V31, 대본의 NULL 허용 같은 글 해시(V33) 말고는 V13 의 모양 그대로다")
+            + "리딩 회차의 멈춤을 없앤 V31·말한 것을 더한 V32·대본의 NULL 허용 같은 글 해시(V33) 말고는 V13 의 모양 그대로다")
     void expandingToOneZeroLeavesEveryLegacyTableUntouched() throws Exception {
         List<String> before = fingerprintAt(BEFORE_ONE_ZERO);
         List<String> after = fingerprintAt(null);
@@ -101,8 +101,8 @@ class PracticeRollbackCompatibilityTest {
         }
     }
 
-    /** V14~V34 — 연습·챌린지·노트 평가·보관함 포스터·고품질 목소리·저녁 알림·가입 유입 출처·신원 마지막 로그인·앱 공지 포스터·배우 기억 칸 개정·리딩 멈춤 없앰·대본 나누기·대본 원본 파일이 더한 마이그레이션의 수. 더 늘면 이 값을 함께 올린다. */
-    private static final int NEW_MIGRATIONS = 20;
+    /** V14~V34 — 연습·챌린지·노트 평가·보관함 포스터·고품질 목소리·저녁 알림·가입 유입 출처·신원 마지막 로그인·앱 공지 포스터·배우 기억 칸 개정·리딩 멈춤 없앰·리딩 말한 것·대본 나누기·대본 원본 파일이 더한 마이그레이션의 수. 더 늘면 이 값을 함께 올린다. */
+    private static final int NEW_MIGRATIONS = 21;
 
     private static List<String> fingerprintAt(String target) throws Exception {
         String jdbcUrl = PostgresContainerSupport.createDatabase(
@@ -163,6 +163,9 @@ class PracticeRollbackCompatibilityTest {
                 // V27 의 마지막 로그인 시각. NOT NULL 이지만 DB 기본값이 있어 이 칸을 모르는 옛 서버의 INSERT 도 통한다.
                 "COLUMN user_identities.last_used_at ord=9 type=timestamptz len=- null=NO default=now()",
                 "CONSTRAINT user_identities user_identities_last_used_at_not_null NOT NULL last_used_at",
+                // V32 의 회차별 말한 것. NOT NULL 이지만 DB 기본값이 있어 이 칸을 모르는 옛 서버의 INSERT 도 통한다.
+                "COLUMN reading_sessions.line_said ord=19 type=jsonb len=- null=NO default='{}'::jsonb",
+                "CONSTRAINT reading_sessions reading_sessions_line_said_not_null NOT NULL line_said",
                 "INDEX CREATE UNIQUE INDEX uq_upload_intents_user_request ON public.upload_intents "
                         + "USING btree (user_id, request_id) WHERE (request_id IS NOT NULL)",
                 // V33 의 같은 글 해시. NULL 허용이라 이 칸을 모르는 옛 서버의 INSERT 도 통한다.

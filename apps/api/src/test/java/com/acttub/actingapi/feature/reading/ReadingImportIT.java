@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -25,6 +26,7 @@ import java.util.regex.Pattern;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.reading.app.ScriptSplitWorker;
+import com.acttub.actingapi.platform.ledger.AiJobLedger;
 import com.acttub.actingapi.feature.reading.domain.SampleScript;
 import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.integration.llm.GenerationOptions;
@@ -162,6 +164,7 @@ class ReadingImportIT {
     @Autowired JwtService jwt;
     @Autowired MutableClock clock;
     @Autowired ScriptSplitWorker worker;
+    @Autowired AiJobLedger ledger;
     @Autowired RecordingFailureReporter failures;
 
     private final Map<String, UUID> documents = new LinkedHashMap<>();
@@ -233,8 +236,12 @@ class ReadingImportIT {
         assertThat(script.path("lines")).extracting(line -> line.path("kind").textValue() + "|" + line.path("text").textValue())
                 .containsExactly("direction|갈매기", "direction|(호숫가의 무대.)", "dialogue|저는 갈매기예요.", "dialogue|아니, 당신은 배우예요.",
                         "dialogue|아니에요.", "scene|제2막", "dialogue|(한참 보다가) 그래요.", "dialogue|가요.");
+        // A1 의 표시값은 저장 경로가 같아 나누기로 만든 대본에도 채워진다 — 장면 머리 「제2막」으로 장면이 갈리고 목소리는 등장 순 F1·M1.
+        assertThat(script.path("scenes")).extracting(scene -> scene.path("dialogue_count").intValue()).containsExactly(3, 2);
+        assertThat(script.path("characters")).extracting(character -> character.path("voice").textValue()).containsExactly("F1", "M1");
         assertThat(jdbc.queryForObject("SELECT status FROM ai_jobs", String.class)).isEqualTo("succeeded");
         assertThat(jdbc.queryForObject("SELECT raw_text FROM scripts", String.class)).isEqualTo(text);
+        assertThat(jdbc.queryForObject("SELECT raw_text FROM script_imports", String.class)).as("끝난 요청의 원문은 비운다").isEmpty();
         assertThat(worker.runOnce(clock.instant())).as("남은 작업이 없다").isFalse();
     }
 
@@ -454,6 +461,7 @@ class ReadingImportIT {
         assertThat(worker.runOnce(clock.instant())).isTrue();
         assertThat(json(get("/v2/reading/imports/{id}", empty), 200).path("failure").textValue()).isEqualTo("no_characters");
         assertThat(count("scripts")).isZero();
+        assertThat(jdbc.queryForList("SELECT raw_text FROM script_imports", String.class)).containsExactly("", "");
         assertThat(jdbc.queryForList("SELECT status FROM ai_jobs ORDER BY created_at", String.class)).containsExactly("failed", "failed");
         assertThat(failures.reports()).isEmpty();
     }
@@ -501,6 +509,78 @@ class ReadingImportIT {
     }
 
     @Test
+    @DisplayName("CONTRACT §5-7: 집은 워커가 죽어도 lease(30분)가 지나면 다른 워커가 다시 집어 끝낸다 — 그동안 상태는 running 이고 같은 글의 새 요청은 그 작업을 돌려준다")
+    void deadWorkersLeaseIsReclaimedAfterItExpires() throws Exception {
+        String importId = json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, "니나: 안녕\n트레플레프: 응", "paste")), 202)
+                .path("import_id").textValue();
+        // 다른 워커가 집고 죽었다.
+        assertThat(ledger.claimNext("script_split", UUID.randomUUID(), Duration.ofMinutes(30), clock.instant())).isNotNull();
+        assertThat(json(get("/v2/reading/imports/{id}", importId), 200).path("status").textValue()).isEqualTo("running");
+        assertThat(json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, "니나: 안녕\n트레플레프: 응", "paste")), 200)
+                .path("import_id").textValue()).as("두 번 누름은 돌고 있는 작업을 돌려준다").isEqualTo(importId);
+        assertThat(worker.runOnce(clock.instant())).as("lease 가 살아 있는 동안은 집지 않는다").isFalse();
+
+        clock.set(clock.instant().plus(Duration.ofMinutes(31)));
+        assertThat(worker.runOnce(clock.instant())).isTrue();
+
+        JsonNode done = json(get("/v2/reading/imports/{id}", importId), 200);
+        assertThat(done.path("status").textValue()).isEqualTo("succeeded");
+        assertThat(jdbc.queryForObject("SELECT attempt_count FROM ai_jobs", Integer.class)).isEqualTo(2);
+        assertThat(count("scripts")).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("CONTRACT §5-7: 시도 셋을 다 쓴 채 lease 가 지난 작업은 다시 집지 않고 sweep 이 failed 로 닫는다 — 앱은 R2.12 를 띄운다")
+    void exhaustedJobIsClosedBySweep() throws Exception {
+        String importId = json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, "니나: 안녕\n트레플레프: 응", "paste")), 202)
+                .path("import_id").textValue();
+        jdbc.update("UPDATE ai_jobs SET status='running',attempt_count=3,lease_token=gen_random_uuid(),lease_expires_at=?",
+                java.sql.Timestamp.from(clock.instant().minusSeconds(60)));
+        assertThat(worker.runOnce(clock.instant())).isFalse();
+        assertThat(json(get("/v2/reading/imports/{id}", importId), 200).path("status").textValue()).isEqualTo("running");
+
+        assertThat(worker.sweep()).isEqualTo(1);
+
+        JsonNode failed = json(get("/v2/reading/imports/{id}", importId), 200);
+        assertThat(failed.path("status").textValue()).isEqualTo("failed");
+        assertThat(failed.path("failure").textValue()).isEqualTo("failed");
+        assertThat(jdbc.queryForObject("SELECT failure_reason FROM ai_jobs", String.class)).isEqualTo("max_attempts");
+        assertThat(worker.sweep()).as("다시 쓸 것이 없다").isZero();
+        assertThat(Model.CALLS).isEmpty();
+    }
+
+    @Test
+    @DisplayName("R2.7 「새로 넣기」(allow_duplicate): 같은 글의 대본이 있어도 새 작업으로 나누고 하루 한도에 센다. 지문에 들어 같은 request_id 에 플래그만 달라도 422")
+    void allowDuplicateSplitsAgain() throws Exception {
+        String text = "니나: 저는 갈매기예요.\n트레플레프: 아니에요.";
+        split(text);
+        UUID requestId = UUID.randomUUID();
+        assertThat(json(post("/v2/reading/imports").content(request(requestId, null, text, "paste")), 200).path("duplicate_script_id").isTextual()).isTrue();
+        String again = json(post("/v2/reading/imports").content(request(requestId, null, text, "paste", "allow_duplicate", true)), 202)
+                .path("import_id").textValue();
+        assertThat(worker.runOnce(clock.instant())).isTrue();
+        assertThat(json(get("/v2/reading/imports/{id}", again), 200).path("status").textValue()).isEqualTo("succeeded");
+        assertThat(count("scripts")).isEqualTo(2);
+        assertThat(count("ai_jobs")).as("한도에 센다").isEqualTo(2);
+        assertThat(json(post("/v2/reading/imports").content(request(requestId, null, text, "paste")), 422).path("detail").textValue())
+                .isEqualTo("request_fingerprint_mismatch");
+    }
+
+    @Test
+    @DisplayName("R2.8 「그래도 나누기」(skip_script_check): 대본 여부를 묻지 않고 나눈다 — 지시문에 판단 줄이 없고, 모델이 아니오라 해도 멈추지 않는다")
+    void skipScriptCheckSplitsProse() throws Exception {
+        Model.answer = call -> call.judging() ? "대본\t아니오\n" : Model.oracle(call);
+        String importId = json(post("/v2/reading/imports")
+                .content(request(UUID.randomUUID(), null, "어느 날 밤이었다.\n서진: 열쇠는 맞는데 손이 안 움직여.", "paste", "skip_script_check", true)), 202)
+                .path("import_id").textValue();
+        assertThat(worker.runOnce(clock.instant())).isTrue();
+        JsonNode done = json(get("/v2/reading/imports/{id}", importId), 200);
+        assertThat(done.path("status").textValue()).isEqualTo("succeeded");
+        assertThat(Model.CALLS).singleElement().satisfies(call -> assertThat(call.judging()).isFalse());
+        assertThat(jdbc.queryForObject("SELECT skip_script_check FROM script_imports", Boolean.class)).isTrue();
+    }
+
+    @Test
     @DisplayName("한도: 원문 100,001자는 422 script_too_long, 대본 100개인 회원은 422 script_limit — 둘 다 모델 전에, 행 없이")
     void limitsAreCheckedBeforeTheModel() throws Exception {
         assertThat(json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, "니나: " + "가".repeat(99_997), "paste")), 422)
@@ -515,6 +595,23 @@ class ReadingImportIT {
                 .path("detail").textValue()).isEqualTo("script_limit");
         assertThat(count("script_imports")).isZero();
         assertThat(Model.CALLS).isEmpty();
+    }
+
+    @Test
+    @DisplayName("같은 request_id 로 다른 대본을 이미 저장해 둔 기기의 요청은 저장할 수 없어 failed 로 닫힌다")
+    void fingerprintMismatchAtCompletionFails() throws Exception {
+        UUID requestId = UUID.randomUUID();
+        String importId = json(post("/v2/reading/imports").content(request(requestId, null, "니나: 안녕\n트레플레프: 응", "paste")), 202)
+                .path("import_id").textValue();
+        jdbc.update("""
+                INSERT INTO scripts(id,user_id,title,raw_text,raw_hash,source,request_id,request_fingerprint)
+                VALUES (?,?,'다른 대본','다른 원문',repeat('1',64),'paste',?,?)
+                """, UUID.randomUUID(), member, requestId, "e".repeat(64));
+        assertThat(worker.runOnce(clock.instant())).isTrue();
+        JsonNode failed = json(get("/v2/reading/imports/{id}", importId), 200);
+        assertThat(failed.path("status").textValue()).isEqualTo("failed");
+        assertThat(failed.path("failure").textValue()).isEqualTo("failed");
+        assertThat(count("scripts")).isEqualTo(1);
     }
 
     @Test
@@ -533,9 +630,12 @@ class ReadingImportIT {
     }
 
     @Test
-    @DisplayName("요청 모양: raw_text 가 비었거나 source 가 목록 밖이면 422 배열")
+    @DisplayName("요청 모양: raw_text 가 비었거나 보이는 글자가 없거나, 제목이 200자를 넘거나, source 가 목록 밖이면 422 배열")
     void shapeErrorsAreArrays() throws Exception {
         assertThat(json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, "   ", "paste")), 422).path("detail").isArray()).isTrue();
+        assertThat(json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, "\u3000\u200B\n\u3000", "paste")), 422).path("detail").isArray()).isTrue();
+        assertThat(json(post("/v2/reading/imports").content(request(UUID.randomUUID(), "제".repeat(201), "니나: 안녕", "paste")), 422).path("detail").isArray()).isTrue();
+        assertThat(count("script_imports")).isZero();
         assertThat(json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, "니나: 안녕", "email")), 422).path("detail").isArray()).isTrue();
     }
 
@@ -549,12 +649,13 @@ class ReadingImportIT {
         return done.path("script_id").textValue();
     }
 
-    private String request(UUID requestId, String title, String rawText, String source) throws Exception {
+    private String request(UUID requestId, String title, String rawText, String source, Object... flags) throws Exception {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("request_id", requestId.toString());
         if (title != null) body.put("title", title);
         body.put("raw_text", rawText);
         body.put("source", source);
+        for (int index = 0; index < flags.length; index += 2) body.put((String) flags[index], flags[index + 1]);
         return mapper.writeValueAsString(body);
     }
 

@@ -177,7 +177,7 @@ class ReadingSchemaMigrationTest {
     @DisplayName("reading.script: V33 은 기존 대본의 raw_hash 를 Java 의 ScriptText.hash 와 같은 값으로 채우고, 나누기 요청·동의·작업 종류의 값 목록을 넓힌다")
     void v33BackfillsRawHashLikeJavaAndWidensTheValueLists() throws Exception {
         String url = PostgresContainerSupport.createDatabase("reading_v33");
-        Flyway.configure().dataSource(dataSource(url)).locations("classpath:db/migration").target("31").load().migrate();
+        Flyway.configure().dataSource(dataSource(url)).locations("classpath:db/migration").target("32").load().migrate();
         var jdbc = new JdbcTemplate(dataSource(url));
         jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", USER);
         // 맥의 NFD 한글, 줄 앞 U+200B, 탭·NBSP·전각 공백·CRLF, BOM — 운영 대본에서 본 모양들.
@@ -186,7 +186,8 @@ class ReadingSchemaMigrationTest {
                 "\u110B\u1172\u11AB\u1109\u1165: 여기 있을 줄 알았어.",
                 "\u200B윤서:\t여기\u00A0있을\u3000줄 알았어.\r\n\r\n  태오: 어떻게 알았어.  ",
                 "\uFEFF\u2028제1막\u2029\n\u0085윤서: 안녕",
-                "윤서: 여기 있을 줄 알았어.");
+                "윤서: 여기 있을 줄 알았어.",
+                "윤서: 안녕 \u001F ");
         List<UUID> ids = new ArrayList<>();
         for (String text : texts) {
             UUID id = UUID.randomUUID();
@@ -211,7 +212,7 @@ class ReadingSchemaMigrationTest {
                 ids.get(0), ids.get(2))).hasSize(1);
         assertThat(jdbc.queryForList("SELECT DISTINCT raw_hash FROM scripts WHERE id IN (?,?)", String.class,
                 ids.get(1), ids.get(4))).hasSize(1);
-        assertThat(jdbc.queryForList("SELECT DISTINCT raw_hash FROM scripts", String.class)).hasSize(3);
+        assertThat(jdbc.queryForList("SELECT DISTINCT raw_hash FROM scripts", String.class)).hasSize(4);
         // 이 판 앞으로 되돌린 서버는 이 칸을 모른다 — 그 INSERT 도 통한다.
         jdbc.update("""
                 INSERT INTO scripts(id,user_id,title,raw_text,source,request_id,request_fingerprint)

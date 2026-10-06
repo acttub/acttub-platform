@@ -13,7 +13,8 @@ import java.util.Set;
  *   <li>띄어쓰기만 다르면 목록 표기로.</li>
  *   <li>한 이름 안에서 글자 종류가 섞였거나(한글+영문·한자·키릴·아랍·가나) 한글·영문·숫자 밖 글자가 있으면 그 글자를 빼고
  *       편집 거리 2 이하의 목록 이름으로. 실제로 나온 예: {@code 맥베س}·{@code 맥베斯}·{@code 뱅коу}·{@code ロス}·{@code 부in}.</li>
- *   <li>편집 거리 1이면 목록 이름으로.</li>
+ *   <li>편집 거리 1이면 목록 이름으로 — 세 글자 이상인 이름만. 두 글자 한국어 이름은 한 글자가 다르면 대개 다른 사람이다
+ *       (운영 68편 재측정에서 「기자」가 「여자」로 합쳐졌다).</li>
  *   <li>그래도 안 맞으면 새 배역(목록을 만든 앞 400줄 뒤에 처음 나오는 인물).</li>
  * </ol>
  */
@@ -34,6 +35,9 @@ public final class CharacterNames {
         }
         boolean foreign = hasForeignLetters(name) || mixesScripts(name);
         String cleaned = foreign ? withoutForeignLetters(name) : name;
+        if (!foreign && name.codePointCount(0, name.length()) < 3) {
+            return name;
+        }
         String best = null;
         int bestDistance = Integer.MAX_VALUE;
         for (String known : roster) {

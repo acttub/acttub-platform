@@ -6,6 +6,7 @@ import static com.acttub.actingapi.feature.reading.adapter.db.JoinedColumn.split
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -20,7 +21,9 @@ import com.acttub.actingapi.feature.reading.app.SessionViews.ProgressView;
 import com.acttub.actingapi.feature.reading.app.SessionViews.RecordingView;
 import com.acttub.actingapi.feature.reading.app.SessionViews.SessionCardView;
 import com.acttub.actingapi.feature.reading.app.SessionViews.SessionDetailView;
+import com.acttub.actingapi.feature.reading.domain.DifferentLine;
 import com.acttub.actingapi.feature.reading.domain.LineResult;
+import com.acttub.actingapi.feature.reading.domain.ReadingLayout;
 import com.acttub.actingapi.feature.reading.domain.SessionPlan;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
 import com.acttub.actingapi.platform.schema.ReadingAdvance;
@@ -49,6 +52,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Repository
 class PostgresSessionRepository implements SessionRepository {
     private static final TypeReference<List<StoredLineResult>> LINE_RESULTS = new TypeReference<>() { };
+    private static final TypeReference<Map<UUID, String>> LINE_SAID = new TypeReference<>() { };
 
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
@@ -161,8 +165,8 @@ class PostgresSessionRepository implements SessionRepository {
     public SessionDetailView find(UUID userId, UUID sessionId) {
         List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery(
                 CARD_SELECT + """
-                       ,rs.script_id,rs.mode,rs.advance,rs.record,rs.start_line_id,rs.end_line_id,rs.current_line_id,
-                       rs.progress_seq,CAST(rs.line_results AS text) AS line_results
+                       ,rs.script_id,rs.mode,rs.advance,rs.record,rs.start_line_id,rs.end_line_id,
+                       rs.progress_seq,CAST(rs.line_results AS text) AS line_results,CAST(rs.line_said AS text) AS line_said
                 """ + CARD_FROM + """
                 WHERE rs.id=:sessionId
                   AND rs.user_id=:userId
@@ -174,8 +178,10 @@ class PostgresSessionRepository implements SessionRepository {
             return null;
         }
         Tuple row = rows.getFirst();
+        List<LineResult> results = lineResults(row);
+        Range range = range(row);
         return new SessionDetailView(
-                card(row),
+                card(row, range.layout()),
                 row.get("script_id", UUID.class),
                 ReadingMode.valueOf(row.get("mode", String.class).toUpperCase(Locale.ROOT)).dbValue(),
                 ReadingAdvance.valueOf(row.get("advance", String.class).toUpperCase(Locale.ROOT)).dbValue(),
@@ -184,8 +190,9 @@ class PostgresSessionRepository implements SessionRepository {
                 row.get("end_line_id", UUID.class),
                 row.get("current_line_id", UUID.class),
                 row.get("progress_seq", Number.class).longValue(),
-                lineResults(row.get("line_results", String.class)),
-                recordings(sessionId));
+                results,
+                recordings(sessionId),
+                DifferentLine.of(range.dialogues(), results));
     }
 
     @Override
@@ -197,6 +204,7 @@ class PostgresSessionRepository implements SessionRepository {
         if (!owned) {
             return null;
         }
+        ReadingLayout layout = lines(scriptId, null, null).layout();
         return NativeTuples.list(entityManager.createNativeQuery(
                 CARD_SELECT + CARD_FROM + """
                 WHERE rs.script_id=:scriptId
@@ -206,7 +214,7 @@ class PostgresSessionRepository implements SessionRepository {
                 .setParameter("sep", SEPARATOR)
                 .setParameter("scriptId", scriptId)
                 .setParameter("userId", userId)).stream()
-                .map(PostgresSessionRepository::card)
+                .map(row -> card(row, layout))
                 .toList();
     }
 
@@ -215,7 +223,8 @@ class PostgresSessionRepository implements SessionRepository {
         return transaction.execute(status -> {
             List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
                     SELECT rs.id,rs.script_id,rs.status,rs.start_line_id,rs.end_line_id,rs.current_line_id,rs.elapsed_seconds,
-                           rs.progress_seq,CAST(rs.line_results AS text) AS line_results
+                           rs.progress_seq,CAST(rs.line_results AS text) AS line_results,
+                           CAST(rs.line_said AS text) AS line_said
                     FROM reading_sessions rs
                     WHERE rs.id=:sessionId
                       AND rs.user_id=:userId
@@ -227,45 +236,39 @@ class PostgresSessionRepository implements SessionRepository {
                 return null;
             }
             Tuple row = rows.getFirst();
-            ProgressView current = new ProgressView(
-                    row.get("current_line_id", UUID.class),
-                    row.get("elapsed_seconds", Integer.class),
-                    row.get("progress_seq", Number.class).longValue(),
-                    ReadingSessionStatus.valueOf(row.get("status", String.class).toUpperCase(Locale.ROOT)).dbValue());
-            if (!ReadingSessionStatus.IN_PROGRESS.dbValue().equals(current.status())) {
-                return new Progress(current, ProgressOutcome.CLOSED);
+            UUID currentLine = row.get("current_line_id", UUID.class);
+            int currentElapsed = row.get("elapsed_seconds", Integer.class);
+            long currentSeq = row.get("progress_seq", Number.class).longValue();
+            String currentStatus =
+                    ReadingSessionStatus.valueOf(row.get("status", String.class).toUpperCase(Locale.ROOT)).dbValue();
+            if (!ReadingSessionStatus.IN_PROGRESS.dbValue().equals(currentStatus)) {
+                return new Progress(
+                        new ProgressView(currentLine, currentElapsed, currentSeq, currentStatus, List.of()),
+                        ProgressOutcome.CLOSED);
             }
-            if (change.progressSeq() <= current.progressSeq()) {
-                return new Progress(current, ProgressOutcome.IGNORED);
+            List<DifferentLine.Dialogue> range = range(row).dialogues();
+            List<LineResult> stored = lineResults(row);
+            if (change.progressSeq() <= currentSeq) {
+                return new Progress(
+                        new ProgressView(currentLine, currentElapsed, currentSeq, currentStatus, DifferentLine.of(range, stored)),
+                        ProgressOutcome.IGNORED);
             }
             // 위치와 줄 결과는 구간 안 대사 줄만 받는다.
-            Set<UUID> inRange = new HashSet<>(NativeTuples.list(entityManager.createNativeQuery("""
-                    SELECT l.id
-                    FROM script_lines l
-                    JOIN script_lines s ON s.id=:startLineId
-                    JOIN script_lines e ON e.id=:endLineId
-                    WHERE l.script_id=:scriptId
-                      AND l.kind='dialogue'
-                      AND l.ordinal BETWEEN s.ordinal AND e.ordinal
-                    """, Tuple.class)
-                    .setParameter("startLineId", row.get("start_line_id", UUID.class))
-                    .setParameter("endLineId", row.get("end_line_id", UUID.class))
-                    .setParameter("scriptId", row.get("script_id", UUID.class))).stream()
-                    .map(line -> line.get("id", UUID.class))
-                    .toList());
-            if (change.currentLineId() != null && !inRange.contains(change.currentLineId())) {
+            Map<UUID, String> texts = new HashMap<>();
+            range.forEach(line -> texts.put(line.lineId(), line.text()));
+            if (change.currentLineId() != null && !texts.containsKey(change.currentLineId())) {
                 return new Progress(null, ProgressOutcome.INVALID_LINE);
             }
-            if (change.lineResults().stream().anyMatch(result -> !inRange.contains(result.lineId()))) {
+            if (change.lineResults().stream().anyMatch(result -> !texts.containsKey(result.lineId()))) {
                 return new Progress(null, ProgressOutcome.INVALID_LINE);
             }
-            List<LineResult> merged = LineResult.merge(lineResults(row.get("line_results", String.class)), change.lineResults());
+            List<LineResult> merged = LineResult.merge(stored, change.lineResults(), texts);
             UUID position = change.complete()
                     ? null
-                    : change.currentLineId() == null ? current.currentLineId() : change.currentLineId();
+                    : change.currentLineId() == null ? currentLine : change.currentLineId();
             int elapsed = change.elapsedSeconds() == null
-                    ? current.elapsedSeconds()
-                    : Math.max(current.elapsedSeconds(), change.elapsedSeconds());
+                    ? currentElapsed
+                    : Math.max(currentElapsed, change.elapsedSeconds());
             String state = change.complete()
                     ? ReadingSessionStatus.COMPLETED.dbValue()
                     : ReadingSessionStatus.IN_PROGRESS.dbValue();
@@ -275,6 +278,7 @@ class PostgresSessionRepository implements SessionRepository {
                         elapsed_seconds=:elapsed,
                         progress_seq=:seq,
                         line_results=CAST(:lineResults AS jsonb),
+                        line_said=CAST(:lineSaid AS jsonb),
                         status=:status,
                         ended_at=CASE WHEN :complete THEN CAST(:now AS timestamptz) ELSE ended_at END,
                         updated_at=:now
@@ -284,12 +288,15 @@ class PostgresSessionRepository implements SessionRepository {
                     .setParameter("elapsed", elapsed)
                     .setParameter("seq", change.progressSeq())
                     .setParameter("lineResults", lineResultsJson(merged))
+                    .setParameter("lineSaid", lineSaidJson(merged))
                     .setParameter("status", state)
                     .setParameter("complete", change.complete())
                     .setParameter("now", now.atOffset(ZoneOffset.UTC))
                     .setParameter("sessionId", sessionId)
                     .executeUpdate();
-            return new Progress(new ProgressView(position, elapsed, change.progressSeq(), state), ProgressOutcome.APPLIED);
+            return new Progress(
+                    new ProgressView(position, elapsed, change.progressSeq(), state, DifferentLine.of(range, merged)),
+                    ProgressOutcome.APPLIED);
         });
     }
 
@@ -327,7 +334,7 @@ class PostgresSessionRepository implements SessionRepository {
 
     /** 카드의 집계 — 회차 번호, 내 배역, 구간의 대사 번호, 내 대사 수, 녹음된 줄 수. */
     private static final String CARD_SELECT = """
-            SELECT rs.id,rs.status,rs.elapsed_seconds,rs.started_at,rs.ended_at,
+            SELECT rs.id,rs.status,rs.elapsed_seconds,rs.started_at,rs.ended_at,rs.current_line_id,
                    (SELECT count(*) FROM reading_sessions o
                     WHERE o.script_id=rs.script_id AND (o.started_at,o.id) <= (rs.started_at,rs.id)) AS ordinal,
                    array_to_string(rs.my_character_ids,:sep) AS my_character_ids,
@@ -350,15 +357,22 @@ class PostgresSessionRepository implements SessionRepository {
             JOIN script_lines el ON el.id=rs.end_line_id
             """;
 
-    private static SessionCardView card(Tuple row) {
+    private static SessionCardView card(Tuple row, ReadingLayout layout) {
+        String status = ReadingSessionStatus.valueOf(row.get("status", String.class).toUpperCase(Locale.ROOT)).dbValue();
+        int startNo = row.get("start_dialogue_no", Number.class).intValue();
+        int endNo = row.get("end_dialogue_no", Number.class).intValue();
         return new SessionCardView(
                 row.get("id", UUID.class),
                 row.get("ordinal", Number.class).intValue(),
-                ReadingSessionStatus.valueOf(row.get("status", String.class).toUpperCase(Locale.ROOT)).dbValue(),
+                status,
                 uuids(row.get("my_character_ids", String.class)),
                 split(row.get("my_character_names", String.class)),
-                row.get("start_dialogue_no", Number.class).intValue(),
-                row.get("end_dialogue_no", Number.class).intValue(),
+                startNo,
+                endNo,
+                layout.rangeName(startNo, endNo),
+                ReadingSessionStatus.IN_PROGRESS.dbValue().equals(status)
+                        ? layout.progress(startNo, endNo, row.get("current_line_id", UUID.class))
+                        : null,
                 row.get("my_dialogue_count", Number.class).intValue(),
                 row.get("recorded_line_count", Number.class).intValue(),
                 row.get("elapsed_seconds", Integer.class),
@@ -399,11 +413,54 @@ class PostgresSessionRepository implements SessionRepository {
         return ScriptLineKind.DIALOGUE.dbValue().equals(line.get("kind", String.class));
     }
 
-    private List<LineResult> lineResults(String stored) {
+    /** 대본의 표시값(대사 번호·장면)과 회차 구간 안 대사 줄의 원문, 줄 순서. */
+    private record Range(ReadingLayout layout, List<DifferentLine.Dialogue> dialogues) {
+    }
+
+    private Range range(Tuple row) {
+        return lines(row.get("script_id", UUID.class), row.get("start_line_id", UUID.class), row.get("end_line_id", UUID.class));
+    }
+
+    /**
+     * 대본 줄을 한 번 읽어 표시값과 구간 대사를 함께 만든다. 글은 장면 머리(장면 이름)와 구간 안 대사(비교)만 읽고, 구간이
+     * 없으면({@code null}) 구간 대사도 없다. 대사 번호는 {@link ReadingLayout} 이 센다 — 대본·회차 응답과 같은 번호다.
+     */
+    private Range lines(UUID scriptId, UUID startLineId, UUID endLineId) {
+        List<Tuple> lines = NativeTuples.list(entityManager.createNativeQuery("""
+                SELECT l.id,l.kind,
+                       CASE WHEN l.kind='scene' THEN l.text END AS heading,
+                       CASE WHEN l.kind='dialogue'
+                             AND l.ordinal BETWEEN (SELECT ordinal FROM script_lines WHERE id=CAST(:startLineId AS uuid))
+                                               AND (SELECT ordinal FROM script_lines WHERE id=CAST(:endLineId AS uuid))
+                            THEN l.text END AS spoken
+                FROM script_lines l
+                WHERE l.script_id=:scriptId
+                ORDER BY l.ordinal
+                """, Tuple.class)
+                .setParameter("scriptId", scriptId)
+                .setParameter("startLineId", startLineId)
+                .setParameter("endLineId", endLineId));
+        ReadingLayout layout = ReadingLayout.of(lines.stream()
+                .map(line -> new ReadingLayout.Line(
+                        line.get("id", UUID.class), line.get("kind", String.class), line.get("heading", String.class)))
+                .toList());
+        List<DifferentLine.Dialogue> dialogues = lines.stream()
+                .filter(line -> line.get("spoken", String.class) != null)
+                .map(line -> new DifferentLine.Dialogue(
+                        line.get("id", UUID.class),
+                        layout.dialogueNo(line.get("id", UUID.class)),
+                        line.get("spoken", String.class)))
+                .toList();
+        return new Range(layout, dialogues);
+    }
+
+    /** {@code row} 의 {@code line_results} 에 {@code line_said} 의 말한 것을 붙인다. */
+    private List<LineResult> lineResults(Tuple row) {
         try {
+            Map<UUID, String> said = json.readValue(row.get("line_said", String.class), LINE_SAID);
             List<LineResult> results = new ArrayList<>();
-            for (StoredLineResult result : json.readValue(stored, LINE_RESULTS)) {
-                results.add(new LineResult(result.line_id(), result.outcome(), result.misses()));
+            for (StoredLineResult result : json.readValue(row.get("line_results", String.class), LINE_RESULTS)) {
+                results.add(new LineResult(result.line_id(), result.outcome(), result.misses(), said.get(result.line_id())));
             }
             return results;
         } catch (Exception unreadable) {
@@ -418,6 +475,16 @@ class PostgresSessionRepository implements SessionRepository {
                     .toList());
         } catch (Exception failure) {
             throw new IllegalStateException("failed to write line results", failure);
+        }
+    }
+
+    private String lineSaidJson(List<LineResult> results) {
+        Map<UUID, String> said = new LinkedHashMap<>();
+        results.stream().filter(result -> result.said() != null).forEach(result -> said.put(result.lineId(), result.said()));
+        try {
+            return json.writeValueAsString(said);
+        } catch (Exception failure) {
+            throw new IllegalStateException("failed to write line said", failure);
         }
     }
 

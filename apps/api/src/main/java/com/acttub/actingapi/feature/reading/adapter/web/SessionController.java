@@ -1,25 +1,33 @@
 package com.acttub.actingapi.feature.reading.adapter.web;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.CardResponse;
 import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.CreateRequest;
 import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.DetailResponse;
+import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.DifferentLineResponse;
+import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.DifferentWordResponse;
 import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.LineResultInput;
 import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.LineResultResponse;
 import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.ListResponse;
+import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.ProgressCountResponse;
 import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.ProgressRequest;
 import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.ProgressResponse;
+import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.RangeNameResponse;
 import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.RangeResponse;
 import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.RecordingResponse;
 import com.acttub.actingapi.feature.reading.app.SessionRepository.ProgressChange;
 import com.acttub.actingapi.feature.reading.app.SessionService;
 import com.acttub.actingapi.feature.reading.app.SessionViews;
-import com.acttub.actingapi.feature.reading.domain.LineResult;
+import com.acttub.actingapi.feature.reading.domain.DifferentLine;
+import com.acttub.actingapi.feature.reading.domain.LineReport;
 import com.acttub.actingapi.feature.reading.domain.SessionPlan;
 import com.acttub.actingapi.platform.security.AccessGate;
+import com.acttub.actingapi.platform.web.ApiValidationException;
 import com.acttub.actingapi.platform.web.RequestIdHeader;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -135,7 +143,9 @@ class SessionController {
                     진행 위치·흐른 시간·줄 결과를 저장한다. progress_seq 가 저장된 값보다 클 때만 반영하고, 작거나 같으면
                     무시하고 200 으로 현재 값을 돌려준다. 위치와 줄 결과는 구간 안 대사 줄만 받는다(아니면 422 invalid_line).
                     시간은 줄지 않는다. complete=true 면 completed 가 되고 ended_at 이 찍히며 current_line_id 는 null 이다.
-                    completed 회차에는 409 session_closed.""",
+                    completed 회차에는 409 session_closed. 줄 결과에 said 를 실으면 서버가 원문과 비교해 outcome·misses 를
+                    정한다(통과 passed·0, 미달 unmatched·1, 무발화·1,000자 초과는 남기지 않음). said 가 없으면 outcome·misses 가
+                    필수다. different_lines 는 원문과 다르게 말한 대사의 현재 값이다.""",
             operationId = "save_reading_progress_v2_reading_sessions__session_id__progress_patch",
             tags = "v2-reading",
             security = @SecurityRequirement(name = "HTTPBearer"))
@@ -153,11 +163,10 @@ class SessionController {
             @Valid @RequestBody ProgressRequest body,
             HttpServletRequest request) {
         UUID userId = auth.gatedUser(request).id();
-        List<LineResult> results = new ArrayList<>();
-        if (body.lineResults() != null) {
-            for (LineResultInput result : body.lineResults()) {
-                results.add(new LineResult(result.lineId(), result.outcome().name(), result.misses()));
-            }
+        List<LineReport> results = new ArrayList<>();
+        List<LineResultInput> inputs = body.lineResults() == null ? List.of() : body.lineResults();
+        for (int index = 0; index < inputs.size(); index++) {
+            results.add(report(inputs.get(index), index));
         }
         SessionViews.ProgressView progress = sessions.saveProgress(userId, sessionId, new ProgressChange(
                 body.progressSeq(),
@@ -166,7 +175,35 @@ class SessionController {
                 results,
                 Boolean.TRUE.equals(body.complete())));
         return new ProgressResponse(
-                progress.currentLineId(), progress.elapsedSeconds(), progress.progressSeq(), progress.status());
+                progress.currentLineId(), progress.elapsedSeconds(), progress.progressSeq(), progress.status(),
+                differentLines(progress.differentLines()));
+    }
+
+    private static LineReport report(LineResultInput input, int index) {
+        if (input.said() != null) {
+            return new LineReport.Said(input.lineId(), input.said());
+        }
+        String missing = input.outcome() == null ? "outcome" : input.misses() == null ? "misses" : null;
+        if (missing != null) {
+            Map<String, Object> given = new LinkedHashMap<>();
+            given.put("line_id", input.lineId().toString());
+            if (input.outcome() != null) {
+                given.put("outcome", input.outcome().name());
+            }
+            if (input.misses() != null) {
+                given.put("misses", input.misses());
+            }
+            throw ApiValidationException.missing(List.of("body", "line_results", index, missing), given);
+        }
+        return new LineReport.Reported(input.lineId(), input.outcome().name(), input.misses());
+    }
+
+    private static List<DifferentLineResponse> differentLines(List<DifferentLine> lines) {
+        return lines.stream()
+                .map(line -> new DifferentLineResponse(line.lineId(), line.dialogueNo(), line.said(), line.words().stream()
+                        .map(word -> new DifferentWordResponse(word.text(), word.differs()))
+                        .toList()))
+                .toList();
     }
 
     @Operation(
@@ -190,11 +227,22 @@ class SessionController {
                 card.myCharacterIds(),
                 card.myCharacterNames(),
                 new RangeResponse(card.startDialogueNo(), card.endDialogueNo()),
+                rangeName(card),
+                progress(card),
                 card.myDialogueCount(),
                 card.recordedLineCount(),
                 card.elapsedSeconds(),
                 card.startedAt(),
                 card.endedAt());
+    }
+
+    private static RangeNameResponse rangeName(SessionViews.SessionCardView card) {
+        var name = card.rangeName();
+        return new RangeNameResponse(name.kind(), name.sceneNo(), name.sceneTitle(), name.start(), name.end());
+    }
+
+    private static ProgressCountResponse progress(SessionViews.SessionCardView card) {
+        return card.progress() == null ? null : new ProgressCountResponse(card.progress().done(), card.progress().total());
     }
 
     private static DetailResponse detail(SessionViews.SessionDetailView view) {
@@ -206,6 +254,8 @@ class SessionController {
                 card.myCharacterIds(),
                 card.myCharacterNames(),
                 new RangeResponse(card.startDialogueNo(), card.endDialogueNo()),
+                rangeName(card),
+                progress(card),
                 card.myDialogueCount(),
                 card.recordedLineCount(),
                 card.elapsedSeconds(),
@@ -228,6 +278,7 @@ class SessionController {
                                 recording.contentType(), recording.byteSize(), recording.transcript(),
                                 recording.transcriptSource(), recording.matched(), recording.playbackUrl(),
                                 recording.playbackExpiresAt()))
-                        .toList());
+                        .toList(),
+                differentLines(view.differentLines()));
     }
 }

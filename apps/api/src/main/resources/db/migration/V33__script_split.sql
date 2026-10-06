@@ -30,7 +30,8 @@ CREATE INDEX idx_scripts_user_raw_hash ON public.scripts USING btree (user_id, r
 -- ④ script_imports — 나누기 요청 하나. 원문을 들고 있다가 워커가 나눠 대본으로 저장한다.
 --    job_id 가 NULL 이면 LLM 없이 끝난 요청(예시 대본)이다. 상태는 칸이 아니라 조합이다: script_id 가 있으면 성공,
 --    failure 가 있으면 실패, 둘 다 없으면 ai_jobs 의 상태(pending·running)를 따른다.
---    done_lines·total_lines 는 화면의 「N / M줄」이고 조각이 끝날 때마다 워커가 올린다.
+--    done_lines·total_lines 는 화면의 「N / M줄」이고 조각이 끝날 때마다 워커가 올린다. skip_script_check 는 R2.8 「그래도
+--    나누기」로 다시 온 요청이다 — 첫 호출의 대본 여부 판정을 묻지 않는다. 끝난 요청의 raw_text 는 비운다(원문은 대본에 있다).
 --    script_id 에 FK 를 두지 않는다 — 대본 삭제가 이 표를 몰라도 되게.
 CREATE TABLE public.script_imports (
     id uuid NOT NULL,
@@ -44,6 +45,7 @@ CREATE TABLE public.script_imports (
     job_id uuid,
     script_id uuid,
     failure text,
+    skip_script_check boolean DEFAULT false NOT NULL,
     done_lines integer DEFAULT 0 NOT NULL,
     total_lines integer DEFAULT 0 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,

@@ -72,20 +72,22 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
                         ? new Requested(row.get("id", UUID.class), null, Outcome.REPLAYED)
                         : new Requested(null, null, Outcome.FINGERPRINT_MISMATCH);
             }
-            var duplicate = list(em.createNativeQuery(
-                    "SELECT id FROM scripts WHERE user_id=:userId AND raw_hash=:hash ORDER BY created_at,id LIMIT 1", Tuple.class)
-                    .setParameter("userId", userId).setParameter("hash", submission.rawHash()));
-            if (!duplicate.isEmpty()) {
-                return new Requested(null, duplicate.getFirst().get("id", UUID.class), Outcome.DUPLICATE);
-            }
-            var inFlight = list(em.createNativeQuery("""
-                    SELECT i.id FROM script_imports i JOIN ai_jobs j ON j.id=i.job_id
-                    WHERE i.user_id=:userId AND i.raw_hash=:hash AND i.script_id IS NULL AND i.failure IS NULL
-                      AND j.status IN ('pending','running')
-                    ORDER BY i.created_at,i.id LIMIT 1
-                    """, Tuple.class).setParameter("userId", userId).setParameter("hash", submission.rawHash()));
-            if (!inFlight.isEmpty()) {
-                return new Requested(inFlight.getFirst().get("id", UUID.class), null, Outcome.IN_FLIGHT);
+            if (!submission.allowDuplicate()) {
+                var duplicate = list(em.createNativeQuery(
+                        "SELECT id FROM scripts WHERE user_id=:userId AND raw_hash=:hash ORDER BY created_at,id LIMIT 1", Tuple.class)
+                        .setParameter("userId", userId).setParameter("hash", submission.rawHash()));
+                if (!duplicate.isEmpty()) {
+                    return new Requested(null, duplicate.getFirst().get("id", UUID.class), Outcome.DUPLICATE);
+                }
+                var inFlight = list(em.createNativeQuery("""
+                        SELECT i.id FROM script_imports i JOIN ai_jobs j ON j.id=i.job_id
+                        WHERE i.user_id=:userId AND i.raw_hash=:hash AND i.script_id IS NULL AND i.failure IS NULL
+                          AND j.status IN ('pending','running')
+                        ORDER BY i.created_at,i.id LIMIT 1
+                        """, Tuple.class).setParameter("userId", userId).setParameter("hash", submission.rawHash()));
+                if (!inFlight.isEmpty()) {
+                    return new Requested(inFlight.getFirst().get("id", UUID.class), null, Outcome.IN_FLIGHT);
+                }
             }
             long owned = ((Number) em.createNativeQuery("SELECT count(*) FROM scripts WHERE user_id=:userId")
                     .setParameter("userId", userId).getSingleResult()).longValue();
@@ -121,9 +123,9 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
             }
             em.createNativeQuery("""
                     INSERT INTO script_imports(id,user_id,request_id,request_fingerprint,title,source,raw_text,raw_hash,job_id,script_id,
-                                               upload_id,done_lines,total_lines,created_at,updated_at)
-                    VALUES (:id,:userId,:requestId,:fingerprint,:title,:source,:rawText,:hash,:jobId,:scriptId,:uploadId,:lines,:lines,:now,:now)
-                    """).setParameter("id", importId).setParameter("userId", userId).setParameter("requestId", requestId)
+                                               skip_script_check,upload_id,done_lines,total_lines,created_at,updated_at)
+                    VALUES (:id,:userId,:requestId,:fingerprint,:title,:source,:rawText,:hash,:jobId,:scriptId,:skip,:uploadId,:lines,:lines,:now,:now)
+                    """).setParameter("id", importId).setParameter("skip", submission.skipScriptCheck()).setParameter("userId", userId).setParameter("requestId", requestId)
                     .setParameter("uploadId", submission.uploadId())
                     .setParameter("fingerprint", fingerprint).setParameter("title", submission.title())
                     .setParameter("source", submission.source()).setParameter("rawText", submission.rawText())
@@ -163,7 +165,7 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
     @Override
     public Material material(UUID jobId, UUID importId) {
         var rows = list(em.createNativeQuery("""
-                SELECT i.user_id,i.request_id,i.request_fingerprint,i.title,i.raw_text,i.source,
+                SELECT i.user_id,i.request_id,i.request_fingerprint,i.title,i.raw_text,i.source,i.skip_script_check,
                        NOT EXISTS (SELECT 1 FROM user_identities WHERE user_id=i.user_id AND provider<>'guest') AS guest
                 FROM script_imports i JOIN users u ON u.id=i.user_id
                 WHERE i.id=:id AND i.job_id=:job AND i.script_id IS NULL AND i.failure IS NULL AND u.status='active'
@@ -172,7 +174,7 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
         Tuple row = rows.getFirst();
         return new Material(row.get("user_id", UUID.class), row.get("guest", Boolean.class), row.get("request_id", UUID.class),
                 row.get("request_fingerprint", String.class).strip(), row.get("title", String.class),
-                row.get("raw_text", String.class), row.get("source", String.class));
+                row.get("raw_text", String.class), row.get("source", String.class), row.get("skip_script_check", Boolean.class));
     }
 
     @Override
@@ -202,8 +204,11 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
             if (created.outcome() == ScriptRepository.Outcome.OVER_LIMIT) {
                 return Completion.SCRIPT_LIMIT;
             }
+            if (created.outcome() == ScriptRepository.Outcome.FINGERPRINT_MISMATCH) {
+                return Completion.FINGERPRINT_MISMATCH;
+            }
             em.createNativeQuery("""
-                    UPDATE script_imports SET script_id=:scriptId,done_lines=total_lines,updated_at=:now WHERE id=:id
+                    UPDATE script_imports SET script_id=:scriptId,done_lines=total_lines,raw_text='',updated_at=:now WHERE id=:id
                     """).setParameter("scriptId", created.scriptId()).setParameter("now", now.atOffset(ZoneOffset.UTC))
                     .setParameter("id", importId).executeUpdate();
             linkUpload(importId, created.scriptId(), now);
@@ -216,21 +221,33 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
     public void fail(UUID jobId, UUID leaseToken, UUID importId, ScriptImportFailure failure, Instant now) {
         transaction.executeWithoutResult(status -> {
             em.createNativeQuery("""
-                    UPDATE script_imports SET failure=:failure,updated_at=:now WHERE id=:id AND script_id IS NULL
+                    UPDATE script_imports SET failure=:failure,raw_text='',updated_at=:now WHERE id=:id AND script_id IS NULL
                     """).setParameter("failure", failure.dbValue()).setParameter("now", now.atOffset(ZoneOffset.UTC))
                     .setParameter("id", importId).executeUpdate();
             ledger.fail(jobId, leaseToken, failure.dbValue(), now);
         });
     }
 
-    /** 원본 파일로 넣은 요청이면 그 파일을 대본에 연결한다 — 이제 대본과 함께 지워진다. */
+    /** 원본 파일로 넣은 요청이면 그 파일을 대본에 연결하고 뽑은 글을 비운다 — 글은 대본에 있고 원본은 대본과 함께 지워진다. */
     private void linkUpload(UUID importId, UUID scriptId, Instant now) {
         em.createNativeQuery("""
-                UPDATE script_uploads u SET script_id=:scriptId,updated_at=:now
+                UPDATE script_uploads u SET script_id=:scriptId,raw_text=NULL,updated_at=:now
                 FROM script_imports i
                 WHERE i.id=:importId AND u.id=i.upload_id AND u.script_id IS NULL
                 """).setParameter("scriptId", scriptId).setParameter("now", now.atOffset(ZoneOffset.UTC))
                 .setParameter("importId", importId).executeUpdate();
+    }
+
+    @Override
+    public int sweepExpired(Instant now) {
+        return transaction.execute(status -> {
+            List<UUID> closed = ledger.failExpired(KIND, now);
+            if (closed.isEmpty()) return 0;
+            return em.createNativeQuery("""
+                    UPDATE script_imports SET failure='failed',raw_text='',updated_at=:now
+                    WHERE job_id IN (:jobs) AND script_id IS NULL AND failure IS NULL
+                    """).setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("jobs", closed).executeUpdate();
+        });
     }
 
     private void lockActive(UUID userId) {

@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 class SplitDraftTest {
 
     @Test
-    @DisplayName("SOMA-593 7-2 9번: 머리를 뗀 대사, 블록 형식의 이어지는 줄 합치기, 판정 없는 줄은 지문, 제목·등장인물·무시 줄은 대본 밖")
+    @DisplayName("SOMA-593 7-2 9번: 머리를 뗀 대사, 블록 형식의 이어지는 줄 합치기, 판정 없는 줄은 지문, 제목·등장인물·무시 줄은 대본 밖, 장면 머리는 모델이 머리라 해도 통째로")
     void assemblesBlockFormatAndStripsHeaders() {
         String raw = """
                 봄날의 끝
@@ -34,7 +34,7 @@ class SplitDraftTest {
         Map<Integer, Row> rows = new LinkedHashMap<>();
         rows.put(1, new Row(1, Kind.TITLE, "", ""));
         rows.put(2, new Row(2, Kind.CAST, "", ""));
-        rows.put(4, new Row(4, Kind.SCENE, "", ""));
+        rows.put(4, new Row(4, Kind.SCENE, "", "S#1 "));
         rows.put(6, new Row(6, Kind.IGNORE, "", ""));
         rows.put(7, new Row(7, Kind.DIALOGUE, "지수", ""));
         rows.put(8, new Row(8, Kind.DIALOGUE, "지수", ""));
@@ -78,6 +78,22 @@ class SplitDraftTest {
 
         assertThat(draft.characterNames()).containsExactly("태오", "윤서", "둘", "하나");
         assertThat(draft.lines().get(0).characterIndex()).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("모델이 머리를 비워 보냈어도 줄이 배역 이름과 구분 부호로 시작하면 머리를 뗀다. 이름 뒤에 조사가 붙은 대사는 그대로다")
+    void infersAMissingHeaderOnlyBeforeASeparator() {
+        String raw = "MARA. (sitting) Did it answer?\n[지수] 왔어?\n지수야, 왔어?\n지수： 응.";
+        Map<Integer, Row> rows = Map.of(
+                1, new Row(1, Kind.DIALOGUE, "MARA", ""),
+                2, new Row(2, Kind.DIALOGUE, "지수", ""),
+                3, new Row(3, Kind.DIALOGUE, "민호", ""),
+                4, new Row(4, Kind.DIALOGUE, "지수", ""));
+
+        ScriptDraft draft = SplitDraft.assemble("t", raw, "paste", NumberedLine.of(raw), rows, List.of());
+
+        assertThat(draft.lines()).extracting(ScriptDraft.Line::text)
+                .containsExactly("(sitting) Did it answer?", "왔어?", "지수야, 왔어?", "응.");
     }
 
     @Test

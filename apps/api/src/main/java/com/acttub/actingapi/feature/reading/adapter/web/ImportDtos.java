@@ -21,15 +21,20 @@ final class ImportDtos {
     /**
      * 대본 하나를 나눠 달라는 요청. 글({@code raw_text})이나 읽어 둔 원본 파일({@code upload_id}) 가운데 하나만 싣는다. 제목이
      * 없으면 서버가 글에서 고른다.
+     *
+     * @param allowDuplicate R2.7 「새로 넣기」 — 같은 글의 대본이 있어도 새로 나눈다(하루 한도에 센다)
+     * @param skipScriptCheck R2.8 「그래도 나누기」 — 첫 호출의 「대본이 아니다」 판정을 묻지 않고 나눈다
      */
     @Schema(name = "ReadingImportRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     record ImportRequest(
             @NotNull @JsonProperty("request_id") UUID requestId,
-            @Schema(nullable = true, maxLength = 200) String title,
+            @Schema(nullable = true, maxLength = 200) @Size(max = 200) String title,
             @Schema(nullable = true, description = "upload_id 가 없을 때 필수") @JsonProperty("raw_text") String rawText,
             @Schema(nullable = true, description = "POST /v2/reading/uploads/{upload_id}/complete 를 마친 원본. raw_text 가 없을 때 필수")
             @JsonProperty("upload_id") UUID uploadId,
-            @NotNull SourceInput source) {
+            @NotNull SourceInput source,
+            @Schema(defaultValue = "false") @JsonProperty("allow_duplicate") Boolean allowDuplicate,
+            @Schema(defaultValue = "false") @JsonProperty("skip_script_check") Boolean skipScriptCheck) {
     }
 
     /** 원본 파일을 올릴 자리를 달라는 요청. 확장자로 형식을 거르고 크기는 서명에 묶는다. */

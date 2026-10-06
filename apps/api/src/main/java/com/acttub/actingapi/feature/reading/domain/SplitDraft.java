@@ -38,7 +38,8 @@ public final class SplitDraft {
         for (NumberedLine line : lines) {
             Row row = rows.get(line.no());
             Kind kind = row == null ? Kind.DIRECTION : row.kind();
-            String body = body(line.text(), row == null ? "" : row.header());
+            // 머리는 대사에서만 뗀다 — 장면 머리의 "S#1." 처럼 대사가 아닌 줄의 앞부분은 그 줄의 일부다.
+            String body = body(line.text(), kind == Kind.DIALOGUE ? headerOf(line.text(), row) : "");
             switch (kind) {
                 case DIALOGUE -> {
                     if (body.isEmpty()) {
@@ -79,13 +80,46 @@ public final class SplitDraft {
         return new ScriptDraft(title(title, modelTitle, lines), rawText, source, characters, draftLines);
     }
 
+    /**
+     * 모델이 준 떼어낼 머리. 모델이 머리를 비웠는데 줄이 그 배역 이름과 구분 부호({@code :}·{@code .}·{@code )}·{@code ]}·{@code -})로
+     * 시작하면 거기까지가 머리다 — 가짜 묶음 재측정에서 {@code MARA. } 를 비워 보내 대사 글에 이름이 남은 적이 있다. 이름 뒤에
+     * 조사가 붙은 대사({@code 지수야, …})는 부호가 없어 그대로 둔다.
+     */
+    private static String headerOf(String text, Row row) {
+        if (row == null) {
+            return "";
+        }
+        if (!row.header().isEmpty()) {
+            return row.header();
+        }
+        String stripped = ScriptText.visible(text).stripLeading();
+        String name = row.speaker();
+        int start = stripped.startsWith("[") || stripped.startsWith("(") ? 1 : 0;
+        if (name.isEmpty() || !stripped.startsWith(name, start)) {
+            return "";
+        }
+        int end = start + name.length();
+        while (end < stripped.length() && stripped.charAt(end) == ' ') {
+            end++;
+        }
+        if (end >= stripped.length()) {
+            return "";
+        }
+        char separator = stripped.charAt(end);
+        boolean closes = start == 1 && (separator == ']' || separator == ')');
+        if (!closes && "：:.-—".indexOf(separator) < 0) {
+            return "";
+        }
+        return stripped.substring(0, end + 1);
+    }
+
     /** 머리를 뗀 본문. 운영 대본 여섯에 있던 줄 앞 U+200B 같은 보이지 않는 글자도 뗀다. */
     private static String body(String text, String header) {
-        String stripped = text.stripLeading();
-        if (!header.isEmpty() && stripped.startsWith(header)) {
-            stripped = stripped.substring(header.length());
+        String stripped = ScriptText.visible(text).stripLeading();
+        if (!header.isEmpty() && stripped.startsWith(ScriptText.visible(header).stripLeading())) {
+            stripped = stripped.substring(ScriptText.visible(header).stripLeading().length());
         }
-        return ScriptText.visible(stripped).strip();
+        return stripped.strip();
     }
 
     /** 등장인물 소개 줄에 처음 나타나는 순 → 나머지는 대사 많은 순, 같으면 먼저 말한 순. */

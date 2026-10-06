@@ -24,9 +24,10 @@
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
 | `POST /v2/reading/scripts/{script_id}/sessions` | `X-Request-Id`(선택, 있으면 본문과 같아야 한다), `ReadingSessionCreateRequest`(request_id·my_character_ids·mode·start_line_id·end_line_id·advance·record) | `ReadingSession` 201, 같은 요청 재전송 200 | `invalid_characters`·`invalid_line`·`empty_range`·`request_fingerprint_mismatch` 422, 형태 오류 422 배열, `script_not_found` 404 |
-| `GET /v2/reading/scripts/{script_id}/sessions` | `script_id` | `ReadingSessionList` 200 | `script_not_found` 404 |
-| `GET /v2/reading/sessions/{session_id}` | `session_id` | `ReadingSession` 200 | `session_not_found` 404 |
-| `PATCH /v2/reading/sessions/{session_id}/progress` | `ReadingSessionProgressRequest`(progress_seq 필수, current_line_id·elapsed_seconds·line_results·complete 선택) | `ReadingSessionProgress` 200(옛 progress_seq도 현재 값) | `session_closed` 409, `invalid_line` 422, `session_not_found` 404 |
+| `GET /v2/reading/scripts/{script_id}/sessions` | `script_id` | `ReadingSessionList` 200(카드마다 `range_name`·`progress`) | `script_not_found` 404 |
+| `GET /v2/reading/sessions/{session_id}` | `session_id` | `ReadingSession` 200(`range_name`·`progress`, 원문과 다르게 말한 대사 `different_lines` 포함) | `session_not_found` 404 |
+| `GET /v2/reading/scripts/{script_id}`(장면) | `script_id` | `ReadingScript` 200의 `scenes` | `script_not_found` 404 |
+| `PATCH /v2/reading/sessions/{session_id}/progress` | `ReadingSessionProgressRequest`(progress_seq 필수, current_line_id·elapsed_seconds·line_results·complete 선택, 줄 결과는 line_id와 said 또는 outcome·misses) | `ReadingSessionProgress` 200(옛 progress_seq도 현재 값, `different_lines` 포함) | `session_closed` 409, `invalid_line` 422, `session_not_found` 404 |
 | `DELETE /v2/reading/sessions/{session_id}` | `session_id` | 204, 녹음 객체는 삭제 장부로(reading.recording) | `session_not_found` 404 |
 
 ## 상태
@@ -69,11 +70,16 @@ current_line_id가 남아 있어 이어 할 수 있다.
   바꾼다. "최근 구간"은 이 대본으로 연습한 적이 있을 때만 맨 앞에 생기고, 지난 회차들의 구간을 최근 순으로 한 번씩
   보여 준다(줄마다 구간 이름·대사 수·그 구간의 회차 수·날짜). 앱이 회차 목록에서 모으므로 서버 변경이 없다. 기본은
   연습한 적이 있으면 가장 최근 구간, 없으면 처음부터 끝까지다. 지문 경계로 나눈 장면 가운데 대사가 5개보다 적은 장면은
-  앞 장면에 붙인다(첫 장면이면 뒤 장면에). 구간의 줄이 그 대본의 대사 줄이 아니면(지문·장면·남의 줄·없는 줄) 422
+  앞 장면에 붙인다(첫 장면이면 뒤 장면에). 장면은 서버가 이 규칙으로 나눠 대본 상세의
+  `scenes[{no, title, start_line_id, end_line_id, dialogue_count}]`로 준다. `title`은 막·장 머리 줄의 글이고 지문으로
+  나눈 장면(과 첫 머리 줄 앞의 대사)은 null이라 기기가 번호로 부른다. 대사가 없는 장면은 없다. 구간의 줄이 그 대본의 대사 줄이 아니면(지문·장면·남의 줄·없는 줄) 422
   invalid_line, 시작 줄이 끝 줄 뒤이거나 구간 안에 내 대사가 없으면 422 empty_range. 웹 D17에는 구간 선택이
   없어 웹은 0.1.0에서 전체 구간으로 시작한다. (디자인에 반영할 것, 후속 가능)
 - 구간 이름은 대본 전체면 "처음부터 끝까지", 위 규칙으로 나눈 장면 하나의 첫·끝 대사와 정확히 같으면 그 장면 이름
-  (예: "장면 2"), 그 밖은 "대사 5~12번"이다. 연습 기록·회차 상세·최근 구간이 같은 이름을 쓴다.
+  (예: "장면 2"), 그 밖은 "대사 5~12번"이다. 연습 기록·회차 상세·최근 구간이 같은 이름을 쓴다. 서버가 회차 카드·상세의
+  `range_name{kind, scene_no, scene_title, start, end}`로 준다. `kind`는 `all`·`scene`·`dialogues`, `start`·`end`는
+  구간의 시작·끝 대사 번호다. `scene_no`는 `kind=scene`일 때만, `scene_title`은 그 장면에 머리 줄이 있을 때만 값이
+  있고 아니면 null이다. 화면 글(번역 포함)은 기기가 만든다. 전체와 장면이 같으면 `all`이다.
 - 가리기(모든 대사 보기·내 대사만 가리기·모든 대사 가리기)는 서버에 저장하지 않는다. R8 아래 세 칩에서 고른 값으로
   시작하고 기기가 대본마다 마지막 값을 기억한다. 가림은 보이는 대사 본문(웹은 다음 대사와 옆 대본 보기 포함)에
   적용되고 배역 이름·지문·장면은 남긴다. "원문 보기"는 그 줄만 잠깐 푼다. 웹에도 같은 세 값을 두고 실행 중 헤더로
@@ -107,15 +113,23 @@ current_line_id가 남아 있어 이어 할 수 있다.
   넘어가기)이고 misses는 미달 횟수다. 녹음을 꺼도, 마이크가 없어 입력하기로 대조해도 여기에 남는다. STT 인식 불가·
   무발화·길이 상한 초과는 넣지 않는다. 웹의 다시 볼 대사는 outcome이 unmatched·skipped인 줄이다. 기기가 진행 저장에
   함께 보내고 progress_seq 규칙을 따른다.
+- 대조는 서버가 한다. 기기는 줄 결과에 말한 것 said(기기 STT의 전사)를 싣고, 서버가 그 줄 원문과 비교해(규칙은
+  [reading.memorization](memorization.md#규칙제약)의 정규화·통과선 0.72, 원문·말한 것 각각 1,000자 상한) outcome·misses를
+  정한다. 읽어주기 규칙이라 통과는 passed·0, 미달은 unmatched·1이고, 같은 말을 다시 보내도 결과가 같다(미달을 더하지
+  않는다). 무발화·1,000자 초과면 그 줄 결과를 넣지 않는다. said가 있으면 함께 온 outcome·misses는 쓰지 않는다. said
+  없이 outcome·misses를 보내는 옛 앱과 웹 암기 대조는 그대로 받고(최소 지원 판을 올릴 때 걷는다), 둘 다 없으면 422 배열이다.
+  말한 것은 reading_sessions.line_said(jsonb, {line_id: said})에 둔다. 음성 인식을 못 하는 기기는 said를 보내지 않는다.
 - 구간 끝을 지나면 completed, ended_at. 앱 완료 화면(R9.23)은 내 배역, 읽은 대사(구간 안 대사 줄 수, 부분 구간을 대본
   전체 완료로 말하지 않음), 걸린 시간, 아직 올리는 녹음 수, 원문과 다르게 말한 대사, 코치 카드(촬영으로 잇는 안내,
   데이터는 잇지 않음), 버튼 "다시 연습"·"완료"(대본 상세 R4로)를 보여 준다. 완료 화면에서 암기 화면으로 가지 않는다.
-  - "원문과 다르게 말한 대사 N개"는 outcome이 unmatched인 내 대사다. 두 줄까지 대사 번호와 원문을 먼저 보이고 아래에
+  - "원문과 다르게 말한 대사 N개"는 outcome이 unmatched인 내 대사다. 완료 저장(complete=true) 응답과 회차 상세의
+    different_lines(줄마다 line_id·대사 번호·말한 것·원문 어절과 표시)로 그린다. 완료 응답을 받지 못했거나 409
+    session_closed면 회차 상세의 것을 쓴다. said 없이 결과만 저장된 줄은 말한 것이 null이고 칠한 어절이 없다. 두 줄까지 대사 번호와 원문을 먼저 보이고 아래에
     말한 것을 작게 둔다("말한 것"·"실제 대사" 같은 이름표는 없다). "전체 보기"는 R9.26으로 가서 구간 대본 전체를
     흐름대로 보이고 다르게 말한 내 줄에만 표시와 말한 것, 내 녹음 듣기를 둔다. 그런 줄이 없으면 절을 숨긴다.
   - 원문의 어느 어절을 칠할지는 띄어쓰기·문장부호를 무시하고 원문과 말한 것을 글자 단위로 맞춰 본 뒤, 안 맞는
     글자가 있는 원문 어절(빠뜨리거나 바꿔 말한 곳)만 노랗게 칠한다. 더 말한 것은 아래 말한 것 줄에만 보인다.
-    R9.23·R9.26과 회차 상세(reading.recording)가 같은 표시를 쓴다.
+    괄호 안 지시는 비교하지 않는다. 서버가 칠할 어절을 정해 주고 R9.23·R9.26과 회차 상세(reading.recording)가 같은 표시를 쓴다.
   - 기기가 음성 인식을 하지 못하면(기기 안 인식 미지원·음성 인식 권한 없음) 대조하지 않고, 절 자리에 "이 기기에서는
     말한 것을 글자로 바꾸지 못해 비교하지 않았어요." 한 줄을 둔다.
   - 웹 완료 화면(D19·WR4)은 내 배역, 읽은 대사, 걸린 시간, 다시 볼 대사("암기 필요 N", 원문과 대사 번호, 전체보기로
@@ -127,8 +141,10 @@ current_line_id가 남아 있어 이어 할 수 있다.
   더보기로 지운다(R4.14·R4.15). 함께 지워지는 것은 [영역 표](README.md#리딩-자료의-이관삭제탈퇴)다. 줄을 누르면 회차 상세가
   열린다. 머리에 회차 번호·구간 이름·내 배역·날짜·걸린 시간·상태가 있고, 녹음 듣기와 「대본」 탭은 reading.recording이다.
   진행 중 회차는 "이어서 연습 · K/N줄"로 R9를, 완료 회차는 "이 구간으로 다시 연습"으로 그 배역·구간이 골라진 R8을 연다.
-  대본 상세 아래 버튼은 진행 중 회차가 있어도 "연습하기" 하나다. 카드의 `range{start_dialogue_no, end_dialogue_no}`로
-  K/N의 N = end − start + 1을, K는 현재 줄의 대사 번호에서 센다.
+  대본 상세 아래 버튼은 진행 중 회차가 있어도 "연습하기" 하나다. K/N은 회차 카드·상세의 `progress{done, total}`이고
+  in_progress일 때만 있다(completed는 null). total(N)은 구간 대사 수, done(K)은 current_line의 대사 번호 − 시작 대사
+  번호다. current_line은 늘 구간 안 대사 줄이다(시작과 진행 저장이 대사 줄만 받는다). 회차 목록 한 번으로 모든 진행 중
+  회차의 K/N을 얻을 수 있다.
 - 대본 카드의 `status`·`my_character_names`·`last_practiced_at`과 상세의 `open_session_id`·`last_session`은 회차에서
   집계한다(reading.script). `open_session_id`는 가장 최근에 시작한 in_progress 회차이고 없으면 null이다. 웹과 옛 앱은
   이 회차를 이어하기로 연다. 마지막 회차는 가장 늦게 시작한 회차이고 시작 시각이 같으면 id가 큰 쪽이다.
@@ -176,6 +192,9 @@ current_line_id가 남아 있어 이어 할 수 있다.
 - 장면 "1막 · 장면 2"를 고름: 그 장면의 첫·마지막 대사가 구간이다. 장면 줄 없는 대본: 지문 경계로 장면이 나뉜다.
   지문 경계로 나뉜 둘째 장면의 대사가 3개: 첫 장면에 붙는다. 첫 장면의 대사가 3개: 둘째 장면에 붙는다.
 - 구간 이름: 대본 전체는 "처음부터 끝까지", 장면 하나와 정확히 같은 구간은 그 장면 이름, 장면 안 대사 5~12번은 "대사 5~12번".
+- 예시 대본 「옥상, 밤」의 대본 상세: `scenes`가 둘이고 대사 8·7, `title`은 null이다. 장면 2로 시작한 회차: `range_name`이
+  {scene, 2, null, 9, 15}, `progress`가 0/7이다. 12번 대사 위치를 저장: 회차 목록 카드와 상세의 `progress`가 3/7이다. 완료:
+  `progress`가 null이다.
 - 회차가 셋(장면 2 두 번, 대사 5~12번 한 번)인 대본의 R8: "최근 구간" 탭이 맨 앞에 열리고 가장 최근 구간이 골라져 있으며
   장면 2는 한 줄이다. 회차가 없는 대본: "최근 구간" 탭이 없다.
 - read·silence로 500ms 말하고 1.8초 침묵: 다음 줄로 간다. 300ms 소리 뒤 침묵: 넘어가지 않는다. 버튼: 바로
@@ -199,6 +218,10 @@ current_line_id가 남아 있어 이어 할 수 있다.
   없으면 절이 없다. 원문 "그래서 더 말하기 싫었어."를 "그래서 말하기 싫었어"로 말함: "더"만 노랗다. "말하면 뭐가
   달라져."를 "말하면 뭐가 달라"로 말함: "달라져."만 노랗다. 띄어쓰기·문장부호만 다르게 말함: 노란 곳이 없다.
   음성 인식을 못 하는 기기: 절 대신 "비교하지 않았어요" 한 줄이 보인다.
+- 원문 "나는 정말 몰랐어"인 내 줄에 said "나는 몰랐어": line_results에 {unmatched, misses 1}, 완료 응답과 회차 상세의
+  different_lines에 그 줄이 대사 번호·말한 것과 함께 있고 어절 "정말"만 differs다. 같은 said를 다음 저장에 다시 보냄:
+  misses 1 그대로. outcome passed와 said를 함께 보냈는데 said가 미달: unmatched. said " ... ": 그 줄 결과가 없다.
+  said 없이 outcome unmatched만: 그대로 저장되고 different_lines의 said는 null, 칠한 어절이 없다. said도 outcome도 없음: 422 배열.
 - 웹 완료 화면: 다시 볼 대사에는 원문과 대사 번호만 있고 unmatched·skipped가 없으면 절이 없다. quiz 완료: "맞춘 줄 K / 시도
   N · 아직 안 나온 줄 P"이고 K·N·P가 line_results와 맞다.
 - 다시 연습(웹 다시 리딩): 같은 설정의 새 회차가 생기고 이전 회차는 그대로다. 앱 완료의 "완료": 대본 상세로 가고 방금

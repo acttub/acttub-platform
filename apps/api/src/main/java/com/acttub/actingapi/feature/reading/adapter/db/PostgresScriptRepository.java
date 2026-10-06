@@ -21,9 +21,11 @@ import com.acttub.actingapi.feature.reading.app.ScriptViews.LineView;
 import com.acttub.actingapi.feature.reading.app.ScriptViews.ScriptCardView;
 import com.acttub.actingapi.feature.reading.app.ScriptViews.ScriptListView;
 import com.acttub.actingapi.feature.reading.app.ScriptViews.ScriptView;
+import com.acttub.actingapi.feature.reading.domain.ReadingLayout;
 import com.acttub.actingapi.feature.reading.domain.ScriptDraft;
 import com.acttub.actingapi.feature.reading.domain.ScriptRules;
 import com.acttub.actingapi.feature.reading.domain.ScriptText;
+import com.acttub.actingapi.feature.reading.domain.VoiceAssignment;
 import com.acttub.actingapi.feature.reading.schema.ScriptCharacterEntity;
 import com.acttub.actingapi.feature.reading.schema.ScriptEntity;
 import com.acttub.actingapi.feature.reading.schema.ScriptLineEntity;
@@ -149,12 +151,16 @@ class PostgresScriptRepository implements ScriptRepository {
             return null;
         }
         Tuple row = rows.getFirst();
+        List<LineView> lines = lines(scriptId);
         return new ScriptView(
                 scriptId,
                 row.get("title", String.class),
                 ScriptSource.valueOf(row.get("source", String.class).toUpperCase(Locale.ROOT)).dbValue(),
                 characters(scriptId),
-                lines(scriptId),
+                lines,
+                ReadingLayout.of(lines.stream()
+                        .map(line -> new ReadingLayout.Line(line.id(), line.kind(), line.text()))
+                        .toList()).scenes(),
                 row.get("recording_count", Number.class).intValue(),
                 row.get("open_session_id", UUID.class),
                 lastSession(row),
@@ -362,20 +368,25 @@ class PostgresScriptRepository implements ScriptRepository {
     }
 
     private List<CharacterView> characters(UUID scriptId) {
-        List<CharacterView> characters = new ArrayList<>();
-        for (Tuple row : NativeTuples.list(entityManager.createNativeQuery("""
+        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
                 SELECT c.id,c.name,c.sort_order,c.voice_preset,
                        (SELECT count(*) FROM script_lines l WHERE l.character_id=c.id) AS dialogue_count
                 FROM script_characters c
                 WHERE c.script_id=:scriptId
                 ORDER BY c.sort_order
                 """, Tuple.class)
-                .setParameter("scriptId", scriptId))) {
+                .setParameter("scriptId", scriptId));
+        List<String> voices = VoiceAssignment.voices(
+                rows.stream().map(row -> row.get("voice_preset", String.class)).toList());
+        List<CharacterView> characters = new ArrayList<>();
+        for (int i = 0; i < rows.size(); i++) {
+            Tuple row = rows.get(i);
             characters.add(new CharacterView(
                     row.get("id", UUID.class),
                     row.get("name", String.class),
                     row.get("sort_order", Integer.class),
                     row.get("voice_preset", String.class),
+                    voices.get(i),
                     row.get("dialogue_count", Number.class).intValue()));
         }
         return characters;

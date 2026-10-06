@@ -475,6 +475,7 @@ COLUMN reading_sessions.end_line_id ord=8 type=uuid len=- null=NO default=-
 COLUMN reading_sessions.ended_at ord=17 type=timestamptz len=- null=YES default=-
 COLUMN reading_sessions.id ord=1 type=uuid len=- null=NO default=-
 COLUMN reading_sessions.line_results ord=15 type=jsonb len=- null=NO default='[]'::jsonb
+COLUMN reading_sessions.line_said ord=19 type=jsonb len=- null=NO default='{}'::jsonb
 COLUMN reading_sessions.mode ord=6 type=text len=- null=NO default=-
 COLUMN reading_sessions.my_character_ids ord=5 type=_uuid len=- null=NO default=-
 COLUMN reading_sessions.progress_seq ord=14 type=int8 len=- null=NO default=0
@@ -519,8 +520,8 @@ COLUMN script_characters.script_id ord=2 type=uuid len=- null=NO default=-
 COLUMN script_characters.sort_order ord=4 type=int4 len=- null=NO default=-
 COLUMN script_characters.updated_at ord=7 type=timestamptz len=- null=NO default=now()
 COLUMN script_characters.voice_preset ord=5 type=text len=- null=YES default=-
-COLUMN script_imports.created_at ord=14 type=timestamptz len=- null=NO default=now()
-COLUMN script_imports.done_lines ord=12 type=int4 len=- null=NO default=0
+COLUMN script_imports.created_at ord=15 type=timestamptz len=- null=NO default=now()
+COLUMN script_imports.done_lines ord=13 type=int4 len=- null=NO default=0
 COLUMN script_imports.failure ord=11 type=text len=- null=YES default=-
 COLUMN script_imports.id ord=1 type=uuid len=- null=NO default=-
 COLUMN script_imports.job_id ord=9 type=uuid len=- null=YES default=-
@@ -529,11 +530,12 @@ COLUMN script_imports.raw_text ord=7 type=text len=- null=NO default=-
 COLUMN script_imports.request_fingerprint ord=4 type=bpchar len=64 null=NO default=-
 COLUMN script_imports.request_id ord=3 type=uuid len=- null=NO default=-
 COLUMN script_imports.script_id ord=10 type=uuid len=- null=YES default=-
+COLUMN script_imports.skip_script_check ord=12 type=bool len=- null=NO default=false
 COLUMN script_imports.source ord=6 type=text len=- null=NO default=-
 COLUMN script_imports.title ord=5 type=text len=- null=YES default=-
-COLUMN script_imports.total_lines ord=13 type=int4 len=- null=NO default=0
-COLUMN script_imports.updated_at ord=15 type=timestamptz len=- null=NO default=now()
-COLUMN script_imports.upload_id ord=16 type=uuid len=- null=YES default=-
+COLUMN script_imports.total_lines ord=14 type=int4 len=- null=NO default=0
+COLUMN script_imports.updated_at ord=16 type=timestamptz len=- null=NO default=now()
+COLUMN script_imports.upload_id ord=17 type=uuid len=- null=YES default=-
 COLUMN script_imports.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN script_lines.character_id ord=5 type=uuid len=- null=YES default=-
 COLUMN script_lines.created_at ord=7 type=timestamptz len=- null=NO default=now()
@@ -1343,6 +1345,7 @@ CONSTRAINT reading_sessions reading_sessions_end_line_id_fkey FOREIGN KEY (end_l
 CONSTRAINT reading_sessions reading_sessions_end_line_id_not_null NOT NULL end_line_id
 CONSTRAINT reading_sessions reading_sessions_id_not_null NOT NULL id
 CONSTRAINT reading_sessions reading_sessions_line_results_not_null NOT NULL line_results
+CONSTRAINT reading_sessions reading_sessions_line_said_not_null NOT NULL line_said
 CONSTRAINT reading_sessions reading_sessions_mode_not_null NOT NULL mode
 CONSTRAINT reading_sessions reading_sessions_my_character_ids_not_null NOT NULL my_character_ids
 CONSTRAINT reading_sessions reading_sessions_pkey PRIMARY KEY (id)
@@ -1418,6 +1421,7 @@ CONSTRAINT script_imports script_imports_raw_hash_not_null NOT NULL raw_hash
 CONSTRAINT script_imports script_imports_raw_text_not_null NOT NULL raw_text
 CONSTRAINT script_imports script_imports_request_fingerprint_not_null NOT NULL request_fingerprint
 CONSTRAINT script_imports script_imports_request_id_not_null NOT NULL request_id
+CONSTRAINT script_imports script_imports_skip_script_check_not_null NOT NULL skip_script_check
 CONSTRAINT script_imports script_imports_source_not_null NOT NULL source
 CONSTRAINT script_imports script_imports_total_lines_not_null NOT NULL total_lines
 CONSTRAINT script_imports script_imports_updated_at_not_null NOT NULL updated_at

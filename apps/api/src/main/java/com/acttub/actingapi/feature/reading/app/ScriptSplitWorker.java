@@ -51,8 +51,12 @@ import org.slf4j.LoggerFactory;
 public class ScriptSplitWorker {
     private static final Logger LOG = LoggerFactory.getLogger(ScriptSplitWorker.class);
     static final String KIND = AiJobKind.SCRIPT_SPLIT.dbValue();
-    /** 가장 긴 대본(4,256줄)이 조각 29개를 동시에 보내 1분 안에 끝났다. 재시도까지 넉넉히. */
-    static final Duration LEASE = Duration.ofMinutes(10);
+    /**
+     * 선점 lease. 최악 경로는 호출마다 3시도×(90초+대기 3초) ≈ 4.7분이 배역 목록 1번 + 조각 두 묶음(한도 16개씩, 4,256줄은
+     * 29조각) + 빠진 줄 재요청 2판 = 다섯 번 이어지는 약 24분이다. 보통은 1분 안에 끝난다(68편 최대 36초). lease 가 지나면
+     * 다른 워커가 다시 집고, 완료는 요청의 request_id 로 멱등이라 두 번 돌아도 대본은 하나다.
+     */
+    static final Duration LEASE = Duration.ofMinutes(30);
     /** 나누기 호출의 응답 대기. 실측 전체 벽시계 최대 57초(조각 동시)보다 조각 하나는 짧다. */
     static final Duration CALL_TIMEOUT = Duration.ofSeconds(90);
     private static final GenerationOptions OPTIONS = new GenerationOptions(ScriptSplitRules.MODEL,
@@ -82,7 +86,7 @@ public class ScriptSplitWorker {
     /** 큐에서 하나 집어 처리한다. 집을 게 없으면 거짓. */
     public boolean runOnce(Instant now) {
         UUID token = UUID.randomUUID();
-        AiJobLedger.Claimed claimed = ledger.claimNext(KIND, token, LEASE, now);
+        AiJobLedger.Claimed claimed = ledger.claimNext(KIND, token, LEASE, now, true);
         if (claimed == null) {
             return false;
         }
@@ -101,6 +105,8 @@ public class ScriptSplitWorker {
             }
             switch (imports.complete(claimed.id(), token, importId, split.draft(), clock.instant())) {
                 case SCRIPT_LIMIT -> imports.fail(claimed.id(), token, importId, ScriptImportFailure.SCRIPT_LIMIT, clock.instant());
+                // 같은 request_id 로 다른 대본을 이미 저장해 둔 기기다 — 저장할 수 없으니 실패로 닫는다.
+                case FINGERPRINT_MISMATCH -> imports.fail(claimed.id(), token, importId, ScriptImportFailure.FAILED, clock.instant());
                 case SAVED, CANCELLED -> { }
             }
         } catch (LeaseOwnershipException lost) {
@@ -115,6 +121,11 @@ public class ScriptSplitWorker {
             }
         }
         return true;
+    }
+
+    /** 집은 워커가 죽은 뒤 lease 와 시도 수를 다 쓴 작업을 실패로 닫는다. 스케줄러가 돌 때마다 부른다. */
+    public int sweep() {
+        return imports.sweepExpired(clock.instant());
     }
 
     private record Split(ScriptDraft draft, ScriptImportFailure failure) {
@@ -135,17 +146,18 @@ public class ScriptSplitWorker {
         Map<Integer, SplitResponse.Row> rows = new ConcurrentHashMap<>();
         List<String> roster = List.of();
         AtomicInteger done = new AtomicInteger();
+        boolean judge = !material.skipScriptCheck();
         if (chunks.size() == 1) {
-            SplitResponse first = SplitResponse.parse(calls.ask(ScriptSplitPrompt.split(true, roster), chunks.getFirst()), chunks.getFirst());
-            if (first.notScript()) {
+            SplitResponse first = SplitResponse.parse(calls.ask(ScriptSplitPrompt.split(judge, roster), chunks.getFirst()), chunks.getFirst());
+            if (judge && first.notScript()) {
                 return Split.failed(ScriptImportFailure.NOT_SCRIPT);
             }
             rows.putAll(first.rows());
             imports.progress(importId, lines.size(), lines.size());
         } else {
             List<NumberedLine> head = lines.subList(0, Math.min(lines.size(), ScriptSplitRules.ROSTER_LINES));
-            String answer = calls.ask(ScriptSplitPrompt.roster(), head);
-            if (SplitResponse.parse(answer, List.of()).notScript()) {
+            String answer = calls.ask(ScriptSplitPrompt.roster(judge), head);
+            if (judge && SplitResponse.parse(answer, List.of()).notScript()) {
                 return Split.failed(ScriptImportFailure.NOT_SCRIPT);
             }
             roster = SplitResponse.roster(answer);
@@ -180,9 +192,9 @@ public class ScriptSplitWorker {
         void run(List<NumberedLine> chunk);
     }
 
-    /** 조각을 동시에 보낸다. 하나라도 끝내 실패하면 작업 전체가 실패다. */
+    /** 조각을 동시에 보낸다(한 번에 {@link ScriptSplitRules#PARALLEL_CALLS} 개까지). 하나라도 끝내 실패하면 작업 전체가 실패다. */
     private static void inParallel(List<List<NumberedLine>> chunks, ChunkTask task) {
-        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+        try (ExecutorService executor = Executors.newFixedThreadPool(Math.max(1, Math.min(chunks.size(), ScriptSplitRules.PARALLEL_CALLS)))) {
             List<Future<?>> futures = new ArrayList<>();
             for (List<NumberedLine> chunk : chunks) {
                 futures.add(executor.submit(() -> task.run(chunk)));
@@ -236,7 +248,7 @@ public class ScriptSplitWorker {
             throw last;
         }
 
-        /** 비용·속도를 셀 수 있게 호출마다 한 줄 남긴다 — 글은 남기지 않는다. */
+        /** 비용·속도를 셀 수 있게 호출마다 로그 한 줄 — 로그에는 글을 남기지 않는다(관측 기록에는 원문이 그대로 실린다). */
         private void record(String instructions, String input, GeneratedText generated, Instant startedAt, RuntimeException failure) {
             Duration took = Duration.between(startedAt, clock.instant());
             LOG.info("script split call job={} model={} input_tokens={} output_tokens={} took_ms={} error={}", jobId,
