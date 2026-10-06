@@ -545,6 +545,37 @@ class ReadingImportIT {
     }
 
     @Test
+    @DisplayName("R2.7 「새로 넣기」(allow_duplicate): 같은 글의 대본이 있어도 새 작업으로 나누고 하루 한도에 센다. 지문에 들어 같은 request_id 에 플래그만 달라도 422")
+    void allowDuplicateSplitsAgain() throws Exception {
+        String text = "니나: 저는 갈매기예요.\n트레플레프: 아니에요.";
+        split(text);
+        UUID requestId = UUID.randomUUID();
+        assertThat(json(post("/v2/reading/imports").content(request(requestId, null, text, "paste")), 200).path("duplicate_script_id").isTextual()).isTrue();
+        String again = json(post("/v2/reading/imports").content(request(requestId, null, text, "paste", "allow_duplicate", true)), 202)
+                .path("import_id").textValue();
+        assertThat(worker.runOnce(clock.instant())).isTrue();
+        assertThat(json(get("/v2/reading/imports/{id}", again), 200).path("status").textValue()).isEqualTo("succeeded");
+        assertThat(count("scripts")).isEqualTo(2);
+        assertThat(count("ai_jobs")).as("한도에 센다").isEqualTo(2);
+        assertThat(json(post("/v2/reading/imports").content(request(requestId, null, text, "paste")), 422).path("detail").textValue())
+                .isEqualTo("request_fingerprint_mismatch");
+    }
+
+    @Test
+    @DisplayName("R2.8 「그래도 나누기」(skip_script_check): 대본 여부를 묻지 않고 나눈다 — 지시문에 판단 줄이 없고, 모델이 아니오라 해도 멈추지 않는다")
+    void skipScriptCheckSplitsProse() throws Exception {
+        Model.answer = call -> call.judging() ? "대본\t아니오\n" : Model.oracle(call);
+        String importId = json(post("/v2/reading/imports")
+                .content(request(UUID.randomUUID(), null, "어느 날 밤이었다.\n서진: 열쇠는 맞는데 손이 안 움직여.", "paste", "skip_script_check", true)), 202)
+                .path("import_id").textValue();
+        assertThat(worker.runOnce(clock.instant())).isTrue();
+        JsonNode done = json(get("/v2/reading/imports/{id}", importId), 200);
+        assertThat(done.path("status").textValue()).isEqualTo("succeeded");
+        assertThat(Model.CALLS).singleElement().satisfies(call -> assertThat(call.judging()).isFalse());
+        assertThat(jdbc.queryForObject("SELECT skip_script_check FROM script_imports", Boolean.class)).isTrue();
+    }
+
+    @Test
     @DisplayName("한도: 원문 100,001자는 422 script_too_long, 대본 100개인 회원은 422 script_limit — 둘 다 모델 전에, 행 없이")
     void limitsAreCheckedBeforeTheModel() throws Exception {
         assertThat(json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, "니나: " + "가".repeat(99_997), "paste")), 422)
@@ -577,9 +608,12 @@ class ReadingImportIT {
     }
 
     @Test
-    @DisplayName("요청 모양: raw_text 가 비었거나 source 가 목록 밖이면 422 배열")
+    @DisplayName("요청 모양: raw_text 가 비었거나 보이는 글자가 없거나, 제목이 200자를 넘거나, source 가 목록 밖이면 422 배열")
     void shapeErrorsAreArrays() throws Exception {
         assertThat(json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, "   ", "paste")), 422).path("detail").isArray()).isTrue();
+        assertThat(json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, "\u3000\u200B\n\u3000", "paste")), 422).path("detail").isArray()).isTrue();
+        assertThat(json(post("/v2/reading/imports").content(request(UUID.randomUUID(), "제".repeat(201), "니나: 안녕", "paste")), 422).path("detail").isArray()).isTrue();
+        assertThat(count("script_imports")).isZero();
         assertThat(json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, "니나: 안녕", "email")), 422).path("detail").isArray()).isTrue();
     }
 
@@ -593,12 +627,13 @@ class ReadingImportIT {
         return done.path("script_id").textValue();
     }
 
-    private String request(UUID requestId, String title, String rawText, String source) throws Exception {
+    private String request(UUID requestId, String title, String rawText, String source, Object... flags) throws Exception {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("request_id", requestId.toString());
         if (title != null) body.put("title", title);
         body.put("raw_text", rawText);
         body.put("source", source);
+        for (int index = 0; index < flags.length; index += 2) body.put((String) flags[index], flags[index + 1]);
         return mapper.writeValueAsString(body);
     }
 

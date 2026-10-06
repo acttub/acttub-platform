@@ -10,18 +10,26 @@ import com.fasterxml.jackson.databind.annotation.JsonNaming;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 final class ImportDtos {
     private ImportDtos() {
     }
 
-    /** 대본 글 하나를 나눠 달라는 요청. 제목이 없으면 서버가 글에서 고른다. */
+    /**
+     * 대본 글 하나를 나눠 달라는 요청. 제목이 없으면 서버가 글에서 고른다.
+     *
+     * @param allowDuplicate R2.7 「새로 넣기」 — 같은 글의 대본이 있어도 새로 나눈다(하루 한도에 센다)
+     * @param skipScriptCheck R2.8 「그래도 나누기」 — 첫 호출의 「대본이 아니다」 판정을 묻지 않고 나눈다
+     */
     @Schema(name = "ReadingImportRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     record ImportRequest(
             @NotNull @JsonProperty("request_id") UUID requestId,
-            @Schema(nullable = true, maxLength = 200) String title,
+            @Schema(nullable = true, maxLength = 200) @Size(max = 200) String title,
             @NotNull @NotBlank @JsonProperty("raw_text") String rawText,
-            @NotNull SourceInput source) {
+            @NotNull SourceInput source,
+            @Schema(defaultValue = "false") @JsonProperty("allow_duplicate") Boolean allowDuplicate,
+            @Schema(defaultValue = "false") @JsonProperty("skip_script_check") Boolean skipScriptCheck) {
     }
 
     /**

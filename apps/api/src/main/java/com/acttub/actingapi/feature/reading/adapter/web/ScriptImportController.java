@@ -1,5 +1,6 @@
 package com.acttub.actingapi.feature.reading.adapter.web;
 
+import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.reading.adapter.web.ImportDtos.ImportRequest;
@@ -8,8 +9,10 @@ import com.acttub.actingapi.feature.reading.adapter.web.ImportDtos.ProgressRespo
 import com.acttub.actingapi.feature.reading.adapter.web.ImportDtos.TicketResponse;
 import com.acttub.actingapi.feature.reading.app.ScriptImportRepository.ImportView;
 import com.acttub.actingapi.feature.reading.app.ScriptImportService;
+import com.acttub.actingapi.feature.reading.domain.ScriptText;
 import com.acttub.actingapi.platform.security.AccessGate;
 import com.acttub.actingapi.platform.security.AuthenticatedUser;
+import com.acttub.actingapi.platform.web.ApiValidationException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -47,7 +50,9 @@ class ScriptImportController {
                     글로 진행 중인 요청은 200 으로 같은 import_id 를 돌려준다. 같은 글이 이미 내 대본이면 200 duplicate_script_id.
                     예시 대본과 같은 글은 모델 없이 바로 저장돼 상태가 곧 succeeded 다. 동의 없음 403 script_split_consent_required,
                     원문 100,000자 초과 422 script_too_long, 대본 수 한도 422 script_limit, 하루 20개 초과 429
-                    script_split_daily_limit, 같은 request_id 에 다른 본문 422 request_fingerprint_mismatch.""",
+                    script_split_daily_limit, 같은 request_id 에 다른 본문 422 request_fingerprint_mismatch. allow_duplicate(R2.7
+                    「새로 넣기」)는 같은 글의 대본이 있어도 새로 나누고, skip_script_check(R2.8 「그래도 나누기」)는 대본 여부
+                    판정을 묻지 않는다. 둘 다 요청 지문에 든다.""",
             operationId = "import_script_v2_reading_imports_post",
             tags = "v2-reading",
             security = @SecurityRequirement(name = "HTTPBearer"))
@@ -66,8 +71,13 @@ class ScriptImportController {
     @PostMapping
     ResponseEntity<TicketResponse> request(@Valid @RequestBody ImportRequest body, HttpServletRequest request) {
         AuthenticatedUser user = auth.gatedUser(request);
-        ScriptImportService.Ticket ticket = imports.request(
-                user.id(), user.guest(), body.requestId(), body.title(), body.rawText(), body.source().name());
+        if (ScriptText.normalized(body.rawText()).isEmpty()) {
+            throw ApiValidationException.valueError(
+                    List.of("body", "raw_text"), "Value error, raw_text must contain visible characters", body.rawText());
+        }
+        ScriptImportService.Ticket ticket = imports.request(user.id(), user.guest(), body.requestId(),
+                new ScriptImportService.Submission(body.title(), body.rawText(), body.source().name(),
+                        Boolean.TRUE.equals(body.allowDuplicate()), Boolean.TRUE.equals(body.skipScriptCheck())));
         return ResponseEntity.status(ticket.accepted() ? 202 : 200)
                 .body(new TicketResponse(ticket.importId(), ticket.duplicateScriptId()));
     }

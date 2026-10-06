@@ -72,20 +72,22 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
                         ? new Requested(row.get("id", UUID.class), null, Outcome.REPLAYED)
                         : new Requested(null, null, Outcome.FINGERPRINT_MISMATCH);
             }
-            var duplicate = list(em.createNativeQuery(
-                    "SELECT id FROM scripts WHERE user_id=:userId AND raw_hash=:hash ORDER BY created_at,id LIMIT 1", Tuple.class)
-                    .setParameter("userId", userId).setParameter("hash", submission.rawHash()));
-            if (!duplicate.isEmpty()) {
-                return new Requested(null, duplicate.getFirst().get("id", UUID.class), Outcome.DUPLICATE);
-            }
-            var inFlight = list(em.createNativeQuery("""
-                    SELECT i.id FROM script_imports i JOIN ai_jobs j ON j.id=i.job_id
-                    WHERE i.user_id=:userId AND i.raw_hash=:hash AND i.script_id IS NULL AND i.failure IS NULL
-                      AND j.status IN ('pending','running')
-                    ORDER BY i.created_at,i.id LIMIT 1
-                    """, Tuple.class).setParameter("userId", userId).setParameter("hash", submission.rawHash()));
-            if (!inFlight.isEmpty()) {
-                return new Requested(inFlight.getFirst().get("id", UUID.class), null, Outcome.IN_FLIGHT);
+            if (!submission.allowDuplicate()) {
+                var duplicate = list(em.createNativeQuery(
+                        "SELECT id FROM scripts WHERE user_id=:userId AND raw_hash=:hash ORDER BY created_at,id LIMIT 1", Tuple.class)
+                        .setParameter("userId", userId).setParameter("hash", submission.rawHash()));
+                if (!duplicate.isEmpty()) {
+                    return new Requested(null, duplicate.getFirst().get("id", UUID.class), Outcome.DUPLICATE);
+                }
+                var inFlight = list(em.createNativeQuery("""
+                        SELECT i.id FROM script_imports i JOIN ai_jobs j ON j.id=i.job_id
+                        WHERE i.user_id=:userId AND i.raw_hash=:hash AND i.script_id IS NULL AND i.failure IS NULL
+                          AND j.status IN ('pending','running')
+                        ORDER BY i.created_at,i.id LIMIT 1
+                        """, Tuple.class).setParameter("userId", userId).setParameter("hash", submission.rawHash()));
+                if (!inFlight.isEmpty()) {
+                    return new Requested(inFlight.getFirst().get("id", UUID.class), null, Outcome.IN_FLIGHT);
+                }
             }
             long owned = ((Number) em.createNativeQuery("SELECT count(*) FROM scripts WHERE user_id=:userId")
                     .setParameter("userId", userId).getSingleResult()).longValue();
@@ -121,9 +123,9 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
             }
             em.createNativeQuery("""
                     INSERT INTO script_imports(id,user_id,request_id,request_fingerprint,title,source,raw_text,raw_hash,job_id,script_id,
-                                               done_lines,total_lines,created_at,updated_at)
-                    VALUES (:id,:userId,:requestId,:fingerprint,:title,:source,:rawText,:hash,:jobId,:scriptId,:lines,:lines,:now,:now)
-                    """).setParameter("id", importId).setParameter("userId", userId).setParameter("requestId", requestId)
+                                               skip_script_check,done_lines,total_lines,created_at,updated_at)
+                    VALUES (:id,:userId,:requestId,:fingerprint,:title,:source,:rawText,:hash,:jobId,:scriptId,:skip,:lines,:lines,:now,:now)
+                    """).setParameter("id", importId).setParameter("skip", submission.skipScriptCheck()).setParameter("userId", userId).setParameter("requestId", requestId)
                     .setParameter("fingerprint", fingerprint).setParameter("title", submission.title())
                     .setParameter("source", submission.source()).setParameter("rawText", submission.rawText())
                     .setParameter("hash", submission.rawHash()).setParameter("jobId", jobId).setParameter("scriptId", scriptId)
@@ -161,7 +163,7 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
     @Override
     public Material material(UUID jobId, UUID importId) {
         var rows = list(em.createNativeQuery("""
-                SELECT i.user_id,i.request_id,i.request_fingerprint,i.title,i.raw_text,i.source,
+                SELECT i.user_id,i.request_id,i.request_fingerprint,i.title,i.raw_text,i.source,i.skip_script_check,
                        NOT EXISTS (SELECT 1 FROM user_identities WHERE user_id=i.user_id AND provider<>'guest') AS guest
                 FROM script_imports i JOIN users u ON u.id=i.user_id
                 WHERE i.id=:id AND i.job_id=:job AND i.script_id IS NULL AND i.failure IS NULL AND u.status='active'
@@ -170,7 +172,7 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
         Tuple row = rows.getFirst();
         return new Material(row.get("user_id", UUID.class), row.get("guest", Boolean.class), row.get("request_id", UUID.class),
                 row.get("request_fingerprint", String.class).strip(), row.get("title", String.class),
-                row.get("raw_text", String.class), row.get("source", String.class));
+                row.get("raw_text", String.class), row.get("source", String.class), row.get("skip_script_check", Boolean.class));
     }
 
     @Override

@@ -26,7 +26,7 @@ public final class ScriptSplitPrompt {
             답의 첫 줄은 "대본<TAB>예" 또는 "대본<TAB>아니오"다. 배역 이름과 그 배역이 말하는 대사가 있는 글(희곡·시나리오·대본, 혼자 하는 독백 포함)이면 예, 소설·기사·논문·목록처럼 말하는 배역이 없는 글이면 아니오다. 아니오면 그 한 줄만 쓴다.""";
 
     private static final String ROSTER = """
-            대본 앞부분을 받는다. 그다음 줄부터 말하는 배역 이름 목록을 대본에 쓰인 표기 그대로 한 줄에 하나씩만 답한다. 설명 없이 이름만.""";
+            대본 앞부분을 받는다. 말하는 배역 이름 목록을 대본에 쓰인 표기 그대로 한 줄에 하나씩만 답한다. 설명 없이 이름만.""";
 
     private ScriptSplitPrompt() {
     }
@@ -47,8 +47,12 @@ public final class ScriptSplitPrompt {
         return prompt.toString();
     }
 
-    /** 조각이 둘 이상일 때 앞 400줄로 배역 목록과 대본 여부를 함께 받는다. */
-    public static String roster() {
-        return JUDGMENT + "\n" + ROSTER;
+    /**
+     * 조각이 둘 이상일 때 앞 400줄로 배역 목록을 받는다.
+     *
+     * @param judge 대본 여부 한 줄도 함께 받는가 — R2.8 「그래도 나누기」로 다시 온 요청은 묻지 않는다
+     */
+    public static String roster(boolean judge) {
+        return judge ? JUDGMENT + "\n" + ROSTER : ROSTER;
     }
 }

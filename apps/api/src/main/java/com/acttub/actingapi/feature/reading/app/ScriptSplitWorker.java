@@ -144,17 +144,18 @@ public class ScriptSplitWorker {
         Map<Integer, SplitResponse.Row> rows = new ConcurrentHashMap<>();
         List<String> roster = List.of();
         AtomicInteger done = new AtomicInteger();
+        boolean judge = !material.skipScriptCheck();
         if (chunks.size() == 1) {
-            SplitResponse first = SplitResponse.parse(calls.ask(ScriptSplitPrompt.split(true, roster), chunks.getFirst()), chunks.getFirst());
-            if (first.notScript()) {
+            SplitResponse first = SplitResponse.parse(calls.ask(ScriptSplitPrompt.split(judge, roster), chunks.getFirst()), chunks.getFirst());
+            if (judge && first.notScript()) {
                 return Split.failed(ScriptImportFailure.NOT_SCRIPT);
             }
             rows.putAll(first.rows());
             imports.progress(importId, lines.size(), lines.size());
         } else {
             List<NumberedLine> head = lines.subList(0, Math.min(lines.size(), ScriptSplitRules.ROSTER_LINES));
-            String answer = calls.ask(ScriptSplitPrompt.roster(), head);
-            if (SplitResponse.parse(answer, List.of()).notScript()) {
+            String answer = calls.ask(ScriptSplitPrompt.roster(judge), head);
+            if (judge && SplitResponse.parse(answer, List.of()).notScript()) {
                 return Split.failed(ScriptImportFailure.NOT_SCRIPT);
             }
             roster = SplitResponse.roster(answer);

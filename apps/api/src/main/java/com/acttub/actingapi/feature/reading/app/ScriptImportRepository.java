@@ -27,7 +27,11 @@ public interface ScriptImportRepository {
     Requested request(UUID userId, UUID requestId, String fingerprint, Submission submission, ScriptDraft sample,
             int scriptLimit, int dailyLimit, Instant now);
 
-    record Submission(String title, String rawText, String rawHash, String source) {
+    /**
+     * @param allowDuplicate 같은 글의 대본·진행 중 요청을 보지 않는다(R2.7 「새로 넣기」)
+     * @param skipScriptCheck 워커가 대본 여부 판정을 묻지 않는다(R2.8 「그래도 나누기」). 행에 남긴다
+     */
+    record Submission(String title, String rawText, String rawHash, String source, boolean allowDuplicate, boolean skipScriptCheck) {
     }
 
     /**
@@ -61,7 +65,8 @@ public interface ScriptImportRepository {
     /** 워커가 나눌 재료. 요청이 이미 끝났거나 계정이 활성이 아니면 {@code null}. */
     Material material(UUID jobId, UUID importId);
 
-    record Material(UUID userId, boolean guest, UUID requestId, String fingerprint, String title, String rawText, String source) {
+    record Material(UUID userId, boolean guest, UUID requestId, String fingerprint, String title, String rawText, String source,
+            boolean skipScriptCheck) {
     }
 
     /** 화면의 「N / M줄」. 자기 트랜잭션에서 바로 쓴다. */

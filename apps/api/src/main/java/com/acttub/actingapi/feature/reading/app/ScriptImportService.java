@@ -7,7 +7,6 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.reading.app.ScriptImportRepository.ImportView;
 import com.acttub.actingapi.feature.reading.app.ScriptImportRepository.Requested;
-import com.acttub.actingapi.feature.reading.app.ScriptImportRepository.Submission;
 import com.acttub.actingapi.feature.reading.domain.SampleScript;
 import com.acttub.actingapi.feature.reading.domain.ScriptDraft;
 import com.acttub.actingapi.feature.reading.domain.ScriptRules;
@@ -36,7 +35,10 @@ public class ScriptImportService {
         this.clock = clock;
     }
 
-    public Ticket request(UUID userId, boolean guest, UUID requestId, String title, String rawText, String source) {
+    public Ticket request(UUID userId, boolean guest, UUID requestId, Submission submission) {
+        String title = submission.title();
+        String rawText = submission.rawText();
+        String source = submission.source();
         if (ScriptRules.length(rawText) > ScriptRules.TEXT_MAX) {
             throw new ApiException(422, "script_too_long");
         }
@@ -47,9 +49,11 @@ public class ScriptImportService {
         ScriptDraft sample = SampleScript.matches(rawText) ? SampleScript.draft(normalizedTitle, rawText, source) : null;
         Requested requested;
         try {
-            requested = imports.request(userId, requestId, fingerprint(normalizedTitle, rawText, source),
-                    new Submission(normalizedTitle, rawText, ScriptText.hash(rawText), source), sample,
-                    ScriptRules.scriptLimit(guest), ScriptSplitRules.DAILY_IMPORTS, clock.instant());
+            requested = imports.request(userId, requestId,
+                    fingerprint(normalizedTitle, rawText, source, submission.allowDuplicate(), submission.skipScriptCheck()),
+                    new ScriptImportRepository.Submission(normalizedTitle, rawText, ScriptText.hash(rawText), source,
+                            submission.allowDuplicate(), submission.skipScriptCheck()),
+                    sample, ScriptRules.scriptLimit(guest), ScriptSplitRules.DAILY_IMPORTS, clock.instant());
         } catch (ScriptRepository.OwnerNotActive closed) {
             throw new ApiException(403, "account_deactivated", closed);
         }
@@ -71,13 +75,24 @@ public class ScriptImportService {
         return view;
     }
 
-    /** 요청 본문(제목·입력 경로·원문)의 지문. 같은 request_id 에 다른 글이 오면 422 다. */
-    String fingerprint(String title, String rawText, String source) {
+    /** 요청 본문(제목·입력 경로·원문·두 플래그)의 지문. 같은 request_id 에 다른 글이 오면 422 다. */
+    String fingerprint(String title, String rawText, String source, boolean allowDuplicate, boolean skipScriptCheck) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("title", title);
         payload.put("source", source);
         payload.put("raw_text", rawText);
+        payload.put("allow_duplicate", allowDuplicate);
+        payload.put("skip_script_check", skipScriptCheck);
         return Hashing.sha256Hex(canonical.bytes(Map.of("kind", "script_import", "payload", payload)));
+    }
+
+    /**
+     * 요청이 실어 온 것.
+     *
+     * @param allowDuplicate R2.7 「새로 넣기」 — 같은 글의 대본·진행 중 요청이 있어도 새로 나눈다
+     * @param skipScriptCheck R2.8 「그래도 나누기」 — 첫 호출의 대본 여부 판정을 묻지 않는다
+     */
+    public record Submission(String title, String rawText, String source, boolean allowDuplicate, boolean skipScriptCheck) {
     }
 
     /**
