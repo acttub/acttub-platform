@@ -135,8 +135,8 @@ current_line_id가 남아 있어 이어 할 수 있다.
   진행 중 회차는 "이어서 연습 · K/N줄"로 R9를, 완료 회차는 "이 구간으로 다시 연습"으로 그 배역·구간이 골라진 R8을 연다.
   대본 상세 아래 버튼은 진행 중 회차가 있어도 "연습하기" 하나다. K/N은 회차 카드·상세의 `progress{done, total}`이고
   in_progress일 때만 있다(completed는 null). total(N)은 구간 대사 수, done(K)은 current_line의 대사 번호 − 시작 대사
-  번호다. current_line이 대사가 아니면 그 앞 대사의 번호로 센다. 그래서 대본 상세는 회차 목록 한 번으로 칩을 그리고
-  진행 중 회차마다 상세를 다시 읽지 않는다.
+  번호다. current_line은 늘 구간 안 대사 줄이다(시작과 진행 저장이 대사 줄만 받는다). 회차 목록 한 번으로 모든 진행 중
+  회차의 K/N을 얻을 수 있다.
 - 대본 카드의 `status`·`my_character_names`·`last_practiced_at`과 상세의 `open_session_id`·`last_session`은 회차에서
   집계한다(reading.script). `open_session_id`는 가장 최근에 시작한 in_progress 회차이고 없으면 null이다. 웹과 옛 앱은
   이 회차를 이어하기로 연다. 마지막 회차는 가장 늦게 시작한 회차이고 시작 시각이 같으면 id가 큰 쪽이다.

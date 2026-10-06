@@ -104,8 +104,9 @@ class ReadingLayoutTest {
     void dialogueNumbers() {
         ReadingLayout layout = layout(WITH_SCENES);
 
-        assertThat(IntStream.range(0, WITH_SCENES.size()).mapToObj(layout::dialogueNo).toList())
-                .containsExactly(null, 1, 2, null, 3, null, null, 4, 5);
+        assertThat(layout.rangeName(1, 5).kind()).as("대사 다섯이 전체").isEqualTo("all");
+        assertThat(layout.progress(1, 5, id(4))).as("넷째 줄이 3번 대사").isEqualTo(new Progress(2, 5));
+        assertThat(layout.progress(1, 5, id(7))).as("여덟째 줄이 4번 대사").isEqualTo(new Progress(3, 5));
     }
 
     @Test
@@ -136,7 +137,7 @@ class ReadingLayoutTest {
     }
 
     @Test
-    @DisplayName("K/N 웹 규칙: 현재 줄이 지문이면 그 앞 대사의 번호로 센다(앱은 0이었다)")
+    @DisplayName("K/N: 현재 줄이 대사가 아니면(API 밖에서 들어온 행) 그 앞 대사의 번호로 센다 — 웹 규칙, 앱은 0이었다")
     void progressOnANonDialogueLineCountsFromThePreviousDialogue() {
         assertThat(layout(SCRIPT).progress(1, 6, id(5))).as("지문 「사이.」 앞이 4번 대사").isEqualTo(new Progress(3, 6));
         assertThat(layout(SCRIPT).progress(1, 6, id(0))).as("앞에 대사가 없는 지문").isEqualTo(new Progress(0, 6));

@@ -7,8 +7,8 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * 대본 줄 열에서 세는 리딩 표시값 — 대사 번호, 장면, 구간 이름, 진행 K/N (reading.session). 앱·웹은 이 값을 그리기만
- * 한다. 프레임워크를 모른다.
+ * 대본 줄 열에서 세는 리딩 표시값 — 대사 번호, 장면, 구간 이름, 진행 K/N (reading.session). 서버가 대본·회차 응답에
+ * 싣는다. 프레임워크를 모른다.
  */
 public final class ReadingLayout {
 
@@ -77,11 +77,6 @@ public final class ReadingLayout {
         return new ReadingLayout(lines);
     }
 
-    /** 대사 줄만 1부터 센 번호. 지문·장면은 {@code null}. */
-    public Integer dialogueNo(int index) {
-        return dialogueNos[index];
-    }
-
     /**
      * 「장면으로 찾기」의 후보. 장면 줄(막·장 머리)이 있으면 그 줄이 경계이고, 없으면 지문이 경계다. 대사가 없는 장면은
      * 없다. 지문 경계의 짧은 장면은 앞 장면에(첫 장면이면 뒤 장면에) 붙인다.
@@ -110,8 +105,7 @@ public final class ReadingLayout {
     }
 
     /**
-     * 진행 중 회차의 K/N. N 은 구간 대사 수, K 는 현재 줄의 대사 번호에서 시작 번호를 뺀 것이다. 현재 줄이 대사가
-     * 아니면 그 앞 대사의 번호로 센다(웹 규칙 — 이어 할 때 덜 뒤로 간 것처럼 보인다). 현재 줄을 모르면 0.
+     * 진행 중 회차의 K/N. N 은 구간 대사 수, K 는 현재 줄의 대사 번호에서 시작 번호를 뺀 것이다. 현재 줄을 모르면 0.
      */
     public Progress progress(int startNo, int endNo, UUID currentLineId) {
         int total = endNo - startNo + 1;
@@ -120,6 +114,7 @@ public final class ReadingLayout {
             return new Progress(0, total);
         }
         int currentNo = startNo;
+        // API 는 대사 줄만 현재 줄로 받지만 FK 는 줄 종류를 보지 않는다 — 대사가 아닌 줄이면 그 앞 대사로 센다.
         for (int i = index; i >= 0; i--) {
             if (dialogueNos[i] != null) {
                 currentNo = dialogueNos[i];
