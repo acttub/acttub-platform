@@ -21,8 +21,10 @@ import com.acttub.actingapi.feature.reading.app.ScriptViews.LineView;
 import com.acttub.actingapi.feature.reading.app.ScriptViews.ScriptCardView;
 import com.acttub.actingapi.feature.reading.app.ScriptViews.ScriptListView;
 import com.acttub.actingapi.feature.reading.app.ScriptViews.ScriptView;
+import com.acttub.actingapi.feature.reading.domain.ReadingLayout;
 import com.acttub.actingapi.feature.reading.domain.ScriptDraft;
 import com.acttub.actingapi.feature.reading.domain.ScriptRules;
+import com.acttub.actingapi.feature.reading.domain.VoiceAssignment;
 import com.acttub.actingapi.feature.reading.schema.ScriptCharacterEntity;
 import com.acttub.actingapi.feature.reading.schema.ScriptEntity;
 import com.acttub.actingapi.feature.reading.schema.ScriptLineEntity;
@@ -120,7 +122,9 @@ class PostgresScriptRepository implements ScriptRepository {
                         JOIN reading_sessions rs ON rs.id=r.reading_session_id
                         WHERE rs.script_id=s.id) AS recording_count,
                        (SELECT rs.id FROM reading_sessions rs
-                        WHERE rs.script_id=s.id AND rs.status='in_progress') AS open_session_id,
+                        WHERE rs.script_id=s.id AND rs.status='in_progress'
+                        ORDER BY rs.started_at DESC,rs.id DESC
+                        LIMIT 1) AS open_session_id,
                        ls.id AS last_session_id,ls.status AS last_status,ls.started_at AS last_started_at,
                        ls.ended_at AS last_ended_at,
                        (SELECT string_agg(CAST(c.id AS text),:sep ORDER BY c.sort_order) FROM script_characters c
@@ -145,12 +149,16 @@ class PostgresScriptRepository implements ScriptRepository {
             return null;
         }
         Tuple row = rows.getFirst();
+        List<LineView> lines = lines(scriptId);
         return new ScriptView(
                 scriptId,
                 row.get("title", String.class),
                 ScriptSource.valueOf(row.get("source", String.class).toUpperCase(Locale.ROOT)).dbValue(),
                 characters(scriptId),
-                lines(scriptId),
+                lines,
+                ReadingLayout.of(lines.stream()
+                        .map(line -> new ReadingLayout.Line(line.id(), line.kind(), line.text()))
+                        .toList()).scenes(),
                 row.get("recording_count", Number.class).intValue(),
                 row.get("open_session_id", UUID.class),
                 lastSession(row),
@@ -350,20 +358,25 @@ class PostgresScriptRepository implements ScriptRepository {
     }
 
     private List<CharacterView> characters(UUID scriptId) {
-        List<CharacterView> characters = new ArrayList<>();
-        for (Tuple row : NativeTuples.list(entityManager.createNativeQuery("""
+        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
                 SELECT c.id,c.name,c.sort_order,c.voice_preset,
                        (SELECT count(*) FROM script_lines l WHERE l.character_id=c.id) AS dialogue_count
                 FROM script_characters c
                 WHERE c.script_id=:scriptId
                 ORDER BY c.sort_order
                 """, Tuple.class)
-                .setParameter("scriptId", scriptId))) {
+                .setParameter("scriptId", scriptId));
+        List<String> voices = VoiceAssignment.voices(
+                rows.stream().map(row -> row.get("voice_preset", String.class)).toList());
+        List<CharacterView> characters = new ArrayList<>();
+        for (int i = 0; i < rows.size(); i++) {
+            Tuple row = rows.get(i);
             characters.add(new CharacterView(
                     row.get("id", UUID.class),
                     row.get("name", String.class),
                     row.get("sort_order", Integer.class),
                     row.get("voice_preset", String.class),
+                    voices.get(i),
                     row.get("dialogue_count", Number.class).intValue()));
         }
         return characters;
@@ -407,7 +420,7 @@ class PostgresScriptRepository implements ScriptRepository {
                 row.get("last_ended_at", Instant.class));
     }
 
-    /** 열린 회차가 있으면 연습 중, 없고 마지막 회차가 완료면 연습 완료, 그 밖(회차 없음·중단만 남음)은 배역 선택. */
+    /** 진행 중 회차가 하나라도 있으면 연습 중, 없고 마지막 회차가 완료면 연습 완료, 회차가 없으면 배역 선택. */
     private static String chip(boolean open, String lastStatus) {
         if (open) {
             return "reading";

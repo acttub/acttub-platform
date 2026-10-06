@@ -445,7 +445,7 @@ export interface paths {
          *     같은 request_id 는 같은 행(200), 같은 줄의 더 큰 attempt_no 는 대체(201), 더 작은 번호는 200 현재 값.
          *     10,000,000바이트·180초 초과 422 recording_too_long, 소리가 들어 있을 수 없는 파일(저장할 m4a 1,000바이트 미만) 422 recording_empty, 총량(회원 1GB·게스트 100MB) 초과 422 recording_quota,
          *     구간 밖·상대역·지문 줄 422 invalid_line, 지워진 회차 404, 변환 실패 503 audio_conversion_failed.
-         *     completed·stopped 회차에도 받는다.
+         *     completed 회차에도 받는다.
          */
         post: operations["upload_reading_recording_v2_reading_sessions__session_id__recordings_post"];
         delete?: never;
@@ -497,8 +497,8 @@ export interface paths {
         put?: never;
         /**
          * Start Reading Session
-         * @description 내 배역·방식·구간·넘김·녹음을 정해 회차를 시작한다. 열린 회차가 있으면 같은 트랜잭션에서 stopped 로
-         *     바꾸고 새 회차를 만든다. 같은 request_id 가 다시 오면 먼저 만든 회차를 200 으로 돌려주고, 속성이 다르면
+         * @description 내 배역·방식·구간·넘김·녹음을 정해 회차를 시작한다. 같은 대본의 진행 중 회차는 그대로 남는다(여럿일 수
+         *     있다). 같은 request_id 가 다시 오면 먼저 만든 회차를 200 으로 돌려주고, 속성이 다르면
          *     422 request_fingerprint_mismatch. 내 배역이 없거나 그 대본의 배역이 아니면 422 invalid_characters,
          *     구간의 줄이 그 대본의 대사 줄이 아니면 422 invalid_line, 시작 줄이 끝 줄 뒤이거나 구간 안에 내 대사가
          *     없으면 422 empty_range. current_line_id 는 구간의 첫 대사 줄이다.
@@ -1191,7 +1191,7 @@ export interface paths {
          * @description 진행 위치·흐른 시간·줄 결과를 저장한다. progress_seq 가 저장된 값보다 클 때만 반영하고, 작거나 같으면
          *     무시하고 200 으로 현재 값을 돌려준다. 위치와 줄 결과는 구간 안 대사 줄만 받는다(아니면 422 invalid_line).
          *     시간은 줄지 않는다. complete=true 면 completed 가 되고 ended_at 이 찍히며 current_line_id 는 null 이다.
-         *     completed·stopped 회차에는 409 session_closed.
+         *     completed 회차에는 409 session_closed.
          */
         patch: operations["save_reading_progress_v2_reading_sessions__session_id__progress_patch"];
         trace?: never;
@@ -2562,6 +2562,11 @@ export interface components {
             characters: components["schemas"]["ReadingScriptCharacter"][];
             /** Lines */
             lines: components["schemas"]["ReadingScriptLine"][];
+            /**
+             * Scenes
+             * @description 「장면으로 찾기」의 장면, 순서대로. 장면 줄이 있으면 그 줄이 경계이고 없으면 지문이 경계다(지문 경계의 대사 5개 미만 장면은 이웃에 붙는다). 대사가 없는 장면은 없다
+             */
+            scenes: components["schemas"]["ReadingScriptScene"][];
             /** Recording Count */
             recording_count: number;
             /** Open Session Id */
@@ -2591,6 +2596,11 @@ export interface components {
             order: number;
             /** Voice Preset */
             voice_preset: string | null;
+            /**
+             * Voice
+             * @description 내 배역이 아닐 때 읽을 목소리(M1~M5·F1~F5). voice_preset 이 프리셋이면 그 값, 아니면 대본의 모든 배역을 저장 순서로 세운 자동 순환(F1·M1·F2·M2…, 고정값은 빠짐)의 값이다
+             */
+            voice: string;
             /** Dialogue Count */
             dialogue_count: number;
         };
@@ -2631,11 +2641,35 @@ export interface components {
             /** Dialogue No */
             dialogue_no: number | null;
         };
+        /** ReadingScriptScene */
+        ReadingScriptScene: {
+            /**
+             * No
+             * @description 1부터
+             */
+            no: number;
+            /** Title */
+            title: string | null;
+            /**
+             * Start Line Id
+             * Format: uuid
+             * @description 장면 안 첫 대사 줄
+             */
+            start_line_id: string;
+            /**
+             * End Line Id
+             * Format: uuid
+             * @description 장면 안 마지막 대사 줄
+             */
+            end_line_id: string;
+            /** Dialogue Count */
+            dialogue_count: number;
+        };
         /**
          * ReadingSessionStatus
          * @enum {string}
          */
-        ReadingSessionStatus: "in_progress" | "completed" | "stopped";
+        ReadingSessionStatus: "in_progress" | "completed";
         /**
          * ScriptLineKind
          * @enum {string}
@@ -2720,6 +2754,8 @@ export interface components {
             /** My Character Names */
             my_character_names: string[];
             range: components["schemas"]["ReadingSessionRange"];
+            range_name: components["schemas"]["ReadingSessionRangeName"];
+            progress: components["schemas"]["ReadingSessionProgressCount"] | null;
             /** My Dialogue Count */
             my_dialogue_count: number;
             /** Recorded Line Count */
@@ -2761,12 +2797,48 @@ export interface components {
             /** Recordings */
             recordings: components["schemas"]["ReadingSessionRecording"][];
         };
+        /** ReadingSessionProgressCount */
+        ReadingSessionProgressCount: {
+            /**
+             * Done
+             * @description 지난 대사 수 — 현재 줄(current_line_id, 구간 안 대사 줄)의 대사 번호 − 시작 대사 번호
+             */
+            done: number;
+            /**
+             * Total
+             * @description 구간 안 대사 수(모든 배역)
+             */
+            total: number;
+        };
         /** ReadingSessionRange */
         ReadingSessionRange: {
             /** Start Dialogue No */
             start_dialogue_no: number;
             /** End Dialogue No */
             end_dialogue_no: number;
+        };
+        /** ReadingSessionRangeName */
+        ReadingSessionRangeName: {
+            /**
+             * Kind
+             * @description all 대본 전체 · scene 대본 상세 scenes 의 한 장면과 첫·끝 대사가 정확히 같음 · dialogues 그 밖
+             * @enum {string}
+             */
+            kind: "all" | "scene" | "dialogues";
+            /** Scene No */
+            scene_no: number | null;
+            /** Scene Title */
+            scene_title: string | null;
+            /**
+             * Start
+             * @description 시작 대사 번호
+             */
+            start: number;
+            /**
+             * End
+             * @description 끝 대사 번호
+             */
+            end: number;
         };
         /** RegisterPushTokenRequest */
         RegisterPushTokenRequest: {
@@ -3924,6 +3996,8 @@ export interface components {
             /** My Character Names */
             my_character_names: string[];
             range: components["schemas"]["ReadingSessionRange"];
+            range_name: components["schemas"]["ReadingSessionRangeName"];
+            progress: components["schemas"]["ReadingSessionProgressCount"] | null;
             /** My Dialogue Count */
             my_dialogue_count: number;
             /** Recorded Line Count */

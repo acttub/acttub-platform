@@ -1309,7 +1309,7 @@ CONSTRAINT reading_recordings uq_reading_recordings_user_request UNIQUE (user_id
 CONSTRAINT reading_sessions ck_reading_sessions_advance CHECK ((advance = ANY (ARRAY['silence'::text, 'manual'::text])))
 CONSTRAINT reading_sessions ck_reading_sessions_mode CHECK ((mode = ANY (ARRAY['read'::text, 'quiz'::text])))
 CONSTRAINT reading_sessions ck_reading_sessions_my_characters_not_empty CHECK ((cardinality(my_character_ids) >= 1))
-CONSTRAINT reading_sessions ck_reading_sessions_status CHECK ((status = ANY (ARRAY['in_progress'::text, 'completed'::text, 'stopped'::text])))
+CONSTRAINT reading_sessions ck_reading_sessions_status CHECK ((status = ANY (ARRAY['in_progress'::text, 'completed'::text])))
 CONSTRAINT reading_sessions reading_sessions_advance_not_null NOT NULL advance
 CONSTRAINT reading_sessions reading_sessions_current_line_id_fkey FOREIGN KEY (current_line_id) REFERENCES script_lines(id)
 CONSTRAINT reading_sessions reading_sessions_elapsed_seconds_not_null NOT NULL elapsed_seconds
@@ -1714,7 +1714,6 @@ INDEX CREATE UNIQUE INDEX uq_practices_root_ordinal ON public.practices USING bt
 INDEX CREATE UNIQUE INDEX uq_practices_user_request ON public.practices USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_reading_recordings_session_line ON public.reading_recordings USING btree (reading_session_id, line_id)
 INDEX CREATE UNIQUE INDEX uq_reading_recordings_user_request ON public.reading_recordings USING btree (user_id, request_id)
-INDEX CREATE UNIQUE INDEX uq_reading_sessions_open_script ON public.reading_sessions USING btree (script_id) WHERE (status = 'in_progress'::text)
 INDEX CREATE UNIQUE INDEX uq_reading_sessions_user_request ON public.reading_sessions USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_script_characters_script_name ON public.script_characters USING btree (script_id, name)
 INDEX CREATE UNIQUE INDEX uq_script_characters_script_order ON public.script_characters USING btree (script_id, sort_order)

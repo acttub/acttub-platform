@@ -971,7 +971,7 @@
       "post" : {
         "tags" : [ "v2-reading" ],
         "summary" : "Upload Line Recording",
-        "description" : "내 대사 한 줄의 녹음을 multipart 한 요청으로 올린다: request_id·line_id·attempt_no·audio(파일)·\nduration_ms·transcript_source(stt·none)·transcript?·matched?. 서버가 m4a(AAC)가 아니면 변환해 저장한다.\n같은 request_id 는 같은 행(200), 같은 줄의 더 큰 attempt_no 는 대체(201), 더 작은 번호는 200 현재 값.\n10,000,000바이트·180초 초과 422 recording_too_long, 소리가 들어 있을 수 없는 파일(저장할 m4a 1,000바이트 미만) 422 recording_empty, 총량(회원 1GB·게스트 100MB) 초과 422 recording_quota,\n구간 밖·상대역·지문 줄 422 invalid_line, 지워진 회차 404, 변환 실패 503 audio_conversion_failed.\ncompleted·stopped 회차에도 받는다.",
+        "description" : "내 대사 한 줄의 녹음을 multipart 한 요청으로 올린다: request_id·line_id·attempt_no·audio(파일)·\nduration_ms·transcript_source(stt·none)·transcript?·matched?. 서버가 m4a(AAC)가 아니면 변환해 저장한다.\n같은 request_id 는 같은 행(200), 같은 줄의 더 큰 attempt_no 는 대체(201), 더 작은 번호는 200 현재 값.\n10,000,000바이트·180초 초과 422 recording_too_long, 소리가 들어 있을 수 없는 파일(저장할 m4a 1,000바이트 미만) 422 recording_empty, 총량(회원 1GB·게스트 100MB) 초과 422 recording_quota,\n구간 밖·상대역·지문 줄 422 invalid_line, 지워진 회차 404, 변환 실패 503 audio_conversion_failed.\ncompleted 회차에도 받는다.",
         "operationId" : "upload_reading_recording_v2_reading_sessions__session_id__recordings_post",
         "parameters" : [ {
           "name" : "session_id",
@@ -1168,7 +1168,7 @@
       "post" : {
         "tags" : [ "v2-reading" ],
         "summary" : "Start Reading Session",
-        "description" : "내 배역·방식·구간·넘김·녹음을 정해 회차를 시작한다. 열린 회차가 있으면 같은 트랜잭션에서 stopped 로\n바꾸고 새 회차를 만든다. 같은 request_id 가 다시 오면 먼저 만든 회차를 200 으로 돌려주고, 속성이 다르면\n422 request_fingerprint_mismatch. 내 배역이 없거나 그 대본의 배역이 아니면 422 invalid_characters,\n구간의 줄이 그 대본의 대사 줄이 아니면 422 invalid_line, 시작 줄이 끝 줄 뒤이거나 구간 안에 내 대사가\n없으면 422 empty_range. current_line_id 는 구간의 첫 대사 줄이다.",
+        "description" : "내 배역·방식·구간·넘김·녹음을 정해 회차를 시작한다. 같은 대본의 진행 중 회차는 그대로 남는다(여럿일 수\n있다). 같은 request_id 가 다시 오면 먼저 만든 회차를 200 으로 돌려주고, 속성이 다르면\n422 request_fingerprint_mismatch. 내 배역이 없거나 그 대본의 배역이 아니면 422 invalid_characters,\n구간의 줄이 그 대본의 대사 줄이 아니면 422 invalid_line, 시작 줄이 끝 줄 뒤이거나 구간 안에 내 대사가\n없으면 422 empty_range. current_line_id 는 구간의 첫 대사 줄이다.",
         "operationId" : "start_reading_session_v2_reading_scripts__script_id__sessions_post",
         "parameters" : [ {
           "name" : "script_id",
@@ -2799,7 +2799,7 @@
       "patch" : {
         "tags" : [ "v2-reading" ],
         "summary" : "Save Reading Progress",
-        "description" : "진행 위치·흐른 시간·줄 결과를 저장한다. progress_seq 가 저장된 값보다 클 때만 반영하고, 작거나 같으면\n무시하고 200 으로 현재 값을 돌려준다. 위치와 줄 결과는 구간 안 대사 줄만 받는다(아니면 422 invalid_line).\n시간은 줄지 않는다. complete=true 면 completed 가 되고 ended_at 이 찍히며 current_line_id 는 null 이다.\ncompleted·stopped 회차에는 409 session_closed.",
+        "description" : "진행 위치·흐른 시간·줄 결과를 저장한다. progress_seq 가 저장된 값보다 클 때만 반영하고, 작거나 같으면\n무시하고 200 으로 현재 값을 돌려준다. 위치와 줄 결과는 구간 안 대사 줄만 받는다(아니면 422 invalid_line).\n시간은 줄지 않는다. complete=true 면 completed 가 되고 ended_at 이 찍히며 current_line_id 는 null 이다.\ncompleted 회차에는 409 session_closed.",
         "operationId" : "save_reading_progress_v2_reading_sessions__session_id__progress_patch",
         "parameters" : [ {
           "name" : "session_id",
@@ -5509,6 +5509,14 @@
             },
             "title" : "Lines"
           },
+          "scenes" : {
+            "type" : "array",
+            "description" : "「장면으로 찾기」의 장면, 순서대로. 장면 줄이 있으면 그 줄이 경계이고 없으면 지문이 경계다(지문 경계의 대사 5개 미만 장면은 이웃에 붙는다). 대사가 없는 장면은 없다",
+            "items" : {
+              "$ref" : "#/components/schemas/ReadingScriptScene"
+            },
+            "title" : "Scenes"
+          },
           "recording_count" : {
             "type" : "integer",
             "title" : "Recording Count"
@@ -5516,7 +5524,8 @@
           "open_session_id" : {
             "anyOf" : [ {
               "type" : "string",
-              "format" : "uuid"
+              "format" : "uuid",
+              "description" : "가장 최근에 시작한 진행 중 회차. 진행 중 회차는 한 대본에 여럿일 수 있다"
             }, {
               "type" : "null"
             } ],
@@ -5540,7 +5549,7 @@
             "title" : "Updated At"
           }
         },
-        "required" : [ "characters", "created_at", "id", "last_session", "lines", "open_session_id", "recording_count", "source", "title", "updated_at" ],
+        "required" : [ "characters", "created_at", "id", "last_session", "lines", "open_session_id", "recording_count", "scenes", "source", "title", "updated_at" ],
         "title" : "ReadingScript"
       },
       "ReadingScriptCharacter" : {
@@ -5568,12 +5577,17 @@
             } ],
             "title" : "Voice Preset"
           },
+          "voice" : {
+            "type" : "string",
+            "description" : "내 배역이 아닐 때 읽을 목소리(M1~M5·F1~F5). voice_preset 이 프리셋이면 그 값, 아니면 대본의 모든 배역을 저장 순서로 세운 자동 순환(F1·M1·F2·M2…, 고정값은 빠짐)의 값이다",
+            "title" : "Voice"
+          },
           "dialogue_count" : {
             "type" : "integer",
             "title" : "Dialogue Count"
           }
         },
-        "required" : [ "dialogue_count", "id", "name", "order", "voice_preset" ],
+        "required" : [ "dialogue_count", "id", "name", "order", "voice", "voice_preset" ],
         "title" : "ReadingScriptCharacter"
       },
       "ReadingScriptLastSession" : {
@@ -5662,9 +5676,47 @@
         "required" : [ "character_id", "dialogue_no", "id", "kind", "ordinal", "text" ],
         "title" : "ReadingScriptLine"
       },
+      "ReadingScriptScene" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "no" : {
+            "type" : "integer",
+            "description" : "1부터",
+            "title" : "No"
+          },
+          "title" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "막·장 머리 줄의 글. 지문으로 나눈 장면과 첫 머리 줄 앞의 대사는 null"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Title"
+          },
+          "start_line_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "description" : "장면 안 첫 대사 줄",
+            "title" : "Start Line Id"
+          },
+          "end_line_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "description" : "장면 안 마지막 대사 줄",
+            "title" : "End Line Id"
+          },
+          "dialogue_count" : {
+            "type" : "integer",
+            "title" : "Dialogue Count"
+          }
+        },
+        "required" : [ "dialogue_count", "end_line_id", "no", "start_line_id", "title" ],
+        "title" : "ReadingScriptScene"
+      },
       "ReadingSessionStatus" : {
         "type" : "string",
-        "enum" : [ "in_progress", "completed", "stopped" ],
+        "enum" : [ "in_progress", "completed" ],
         "title" : "ReadingSessionStatus"
       },
       "ScriptLineKind" : {
@@ -5794,6 +5846,17 @@
           "range" : {
             "$ref" : "#/components/schemas/ReadingSessionRange"
           },
+          "range_name" : {
+            "$ref" : "#/components/schemas/ReadingSessionRangeName"
+          },
+          "progress" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/ReadingSessionProgressCount",
+              "description" : "진행 K/N. in_progress 일 때만, completed 는 null"
+            }, {
+              "type" : "null"
+            } ]
+          },
           "my_dialogue_count" : {
             "type" : "integer",
             "title" : "My Dialogue Count"
@@ -5873,8 +5936,26 @@
             "title" : "Recordings"
           }
         },
-        "required" : [ "advance", "current_line_id", "elapsed_seconds", "end_line_id", "ended_at", "id", "line_results", "mode", "my_character_ids", "my_character_names", "my_dialogue_count", "ordinal", "progress_seq", "range", "record", "recorded_line_count", "recordings", "script_id", "start_line_id", "started_at", "status" ],
+        "required" : [ "advance", "current_line_id", "elapsed_seconds", "end_line_id", "ended_at", "id", "line_results", "mode", "my_character_ids", "my_character_names", "my_dialogue_count", "ordinal", "progress", "progress_seq", "range", "range_name", "record", "recorded_line_count", "recordings", "script_id", "start_line_id", "started_at", "status" ],
         "title" : "ReadingSession"
+      },
+      "ReadingSessionProgressCount" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "done" : {
+            "type" : "integer",
+            "description" : "지난 대사 수 — 현재 줄(current_line_id, 구간 안 대사 줄)의 대사 번호 − 시작 대사 번호",
+            "title" : "Done"
+          },
+          "total" : {
+            "type" : "integer",
+            "description" : "구간 안 대사 수(모든 배역)",
+            "title" : "Total"
+          }
+        },
+        "required" : [ "done", "total" ],
+        "title" : "ReadingSessionProgressCount"
       },
       "ReadingSessionRange" : {
         "type" : "object",
@@ -5891,6 +5972,48 @@
         },
         "required" : [ "end_dialogue_no", "start_dialogue_no" ],
         "title" : "ReadingSessionRange"
+      },
+      "ReadingSessionRangeName" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "kind" : {
+            "type" : "string",
+            "description" : "all 대본 전체 · scene 대본 상세 scenes 의 한 장면과 첫·끝 대사가 정확히 같음 · dialogues 그 밖",
+            "enum" : [ "all", "scene", "dialogues" ],
+            "title" : "Kind"
+          },
+          "scene_no" : {
+            "anyOf" : [ {
+              "type" : "integer",
+              "description" : "kind=scene 일 때 그 장면의 no, 아니면 null"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Scene No"
+          },
+          "scene_title" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "kind=scene 이고 장면에 머리 줄이 있을 때 그 글, 아니면 null"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Scene Title"
+          },
+          "start" : {
+            "type" : "integer",
+            "description" : "시작 대사 번호",
+            "title" : "Start"
+          },
+          "end" : {
+            "type" : "integer",
+            "description" : "끝 대사 번호",
+            "title" : "End"
+          }
+        },
+        "required" : [ "end", "kind", "scene_no", "scene_title", "start" ],
+        "title" : "ReadingSessionRangeName"
       },
       "RegisterPushTokenRequest" : {
         "type" : "object",
@@ -8358,6 +8481,17 @@
           "range" : {
             "$ref" : "#/components/schemas/ReadingSessionRange"
           },
+          "range_name" : {
+            "$ref" : "#/components/schemas/ReadingSessionRangeName"
+          },
+          "progress" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/ReadingSessionProgressCount",
+              "description" : "진행 K/N. in_progress 일 때만, completed 는 null"
+            }, {
+              "type" : "null"
+            } ]
+          },
           "my_dialogue_count" : {
             "type" : "integer",
             "title" : "My Dialogue Count"
@@ -8385,7 +8519,7 @@
             "title" : "Ended At"
           }
         },
-        "required" : [ "elapsed_seconds", "ended_at", "id", "my_character_ids", "my_character_names", "my_dialogue_count", "ordinal", "range", "recorded_line_count", "started_at", "status" ],
+        "required" : [ "elapsed_seconds", "ended_at", "id", "my_character_ids", "my_character_names", "my_dialogue_count", "ordinal", "progress", "range", "range_name", "recorded_line_count", "started_at", "status" ],
         "title" : "ReadingSessionCard"
       },
       "ReadingSessionList" : {

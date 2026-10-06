@@ -10,8 +10,10 @@ import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.DetailRespon
 import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.LineResultInput;
 import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.LineResultResponse;
 import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.ListResponse;
+import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.ProgressCountResponse;
 import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.ProgressRequest;
 import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.ProgressResponse;
+import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.RangeNameResponse;
 import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.RangeResponse;
 import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.RecordingResponse;
 import com.acttub.actingapi.feature.reading.app.SessionRepository.ProgressChange;
@@ -61,8 +63,8 @@ class SessionController {
     @Operation(
             summary = "Start Reading Session",
             description = """
-                    내 배역·방식·구간·넘김·녹음을 정해 회차를 시작한다. 열린 회차가 있으면 같은 트랜잭션에서 stopped 로
-                    바꾸고 새 회차를 만든다. 같은 request_id 가 다시 오면 먼저 만든 회차를 200 으로 돌려주고, 속성이 다르면
+                    내 배역·방식·구간·넘김·녹음을 정해 회차를 시작한다. 같은 대본의 진행 중 회차는 그대로 남는다(여럿일 수
+                    있다). 같은 request_id 가 다시 오면 먼저 만든 회차를 200 으로 돌려주고, 속성이 다르면
                     422 request_fingerprint_mismatch. 내 배역이 없거나 그 대본의 배역이 아니면 422 invalid_characters,
                     구간의 줄이 그 대본의 대사 줄이 아니면 422 invalid_line, 시작 줄이 끝 줄 뒤이거나 구간 안에 내 대사가
                     없으면 422 empty_range. current_line_id 는 구간의 첫 대사 줄이다.""",
@@ -135,7 +137,7 @@ class SessionController {
                     진행 위치·흐른 시간·줄 결과를 저장한다. progress_seq 가 저장된 값보다 클 때만 반영하고, 작거나 같으면
                     무시하고 200 으로 현재 값을 돌려준다. 위치와 줄 결과는 구간 안 대사 줄만 받는다(아니면 422 invalid_line).
                     시간은 줄지 않는다. complete=true 면 completed 가 되고 ended_at 이 찍히며 current_line_id 는 null 이다.
-                    completed·stopped 회차에는 409 session_closed.""",
+                    completed 회차에는 409 session_closed.""",
             operationId = "save_reading_progress_v2_reading_sessions__session_id__progress_patch",
             tags = "v2-reading",
             security = @SecurityRequirement(name = "HTTPBearer"))
@@ -190,11 +192,22 @@ class SessionController {
                 card.myCharacterIds(),
                 card.myCharacterNames(),
                 new RangeResponse(card.startDialogueNo(), card.endDialogueNo()),
+                rangeName(card),
+                progress(card),
                 card.myDialogueCount(),
                 card.recordedLineCount(),
                 card.elapsedSeconds(),
                 card.startedAt(),
                 card.endedAt());
+    }
+
+    private static RangeNameResponse rangeName(SessionViews.SessionCardView card) {
+        var name = card.rangeName();
+        return new RangeNameResponse(name.kind(), name.sceneNo(), name.sceneTitle(), name.start(), name.end());
+    }
+
+    private static ProgressCountResponse progress(SessionViews.SessionCardView card) {
+        return card.progress() == null ? null : new ProgressCountResponse(card.progress().done(), card.progress().total());
     }
 
     private static DetailResponse detail(SessionViews.SessionDetailView view) {
@@ -206,6 +219,8 @@ class SessionController {
                 card.myCharacterIds(),
                 card.myCharacterNames(),
                 new RangeResponse(card.startDialogueNo(), card.endDialogueNo()),
+                rangeName(card),
+                progress(card),
                 card.myDialogueCount(),
                 card.recordedLineCount(),
                 card.elapsedSeconds(),

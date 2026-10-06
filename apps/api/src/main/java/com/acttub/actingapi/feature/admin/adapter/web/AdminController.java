@@ -343,7 +343,7 @@ class AdminController {
                     defaultValue = "50"))
             @RequestParam(name = "limit", defaultValue = "50") String rawLimit,
             @Parameter(schema = @Schema(type = "string",
-                    allowableValues = {"all", "in_progress", "completed", "stopped"},
+                    allowableValues = {"all", "in_progress", "completed"},
                     defaultValue = "all"))
             @RequestParam(name = "status", defaultValue = "all") String rawStatus,
             @Parameter(description = "제외할 배우 가명(8자리 16진)을 쉼표로", schema = @Schema(type = "string"))
@@ -449,12 +449,11 @@ class AdminController {
 
     private static String parseReadingStatus(String raw) {
         String status = raw.strip().toLowerCase(java.util.Locale.ROOT);
-        if ("all".equals(status) || "in_progress".equals(status)
-                || "completed".equals(status) || "stopped".equals(status)) {
+        if ("all".equals(status) || "in_progress".equals(status) || "completed".equals(status)) {
             return status;
         }
-        throw queryError("literal_error", "status", "Input should be 'all', 'in_progress', 'completed' or 'stopped'",
-                raw, Map.of("expected", "'all', 'in_progress', 'completed' or 'stopped'"));
+        throw queryError("literal_error", "status", "Input should be 'all', 'in_progress' or 'completed'",
+                raw, Map.of("expected", "'all', 'in_progress' or 'completed'"));
     }
 
     private static final java.util.regex.Pattern ACTOR = java.util.regex.Pattern.compile("[0-9a-f]{8}");
