@@ -13,8 +13,7 @@ import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
 import { currentTutorial, startTutorial } from '@/lib/tutorial';
 import { TARGET } from '@/lib/spotlight-targets';
 import { useAppDialog } from '@/components/app-dialog';
-import { dismissLegacyScriptNotice, readLegacyScriptNotice } from '@/lib/reading/legacy-migration-runner';
-import type { LegacyNotice } from '@/lib/reading/legacy-migration';
+import { TitleEditDialog } from '@/components/title-edit-dialog';
 import { CHIP_TONE, cardMeta, lastActivityLabel, listHeader, myCharactersLabel, statusChip } from '@/lib/reading/script-cards';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import { deleteScript, listScripts, loadIntoCurrent } from '@/lib/reading/store';
@@ -39,7 +38,7 @@ export default function ReadingList() {
   const [q, setQ] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<LegacyNotice | null>(null);
+  const [editing, setEditing] = useState<ScriptCard | null>(null);
   const generation = useRef(0);
   // 대본 탭에서 처음 한 번만 — 홈 가이드와 따로 센다 (SOMA-550).
   const [guideOpen, setGuideOpen] = useState(false);
@@ -80,7 +79,6 @@ export default function ReadingList() {
   useFocusEffect(
     useCallback(() => {
       void load(q);
-      void readLegacyScriptNotice().then(setNotice).catch(() => undefined);
       // 올 때마다 묻는다 — 설정에서 되살린 뒤 앱을 다시 켜야 보이면 아무도 못 본다.
       // 대본 리딩 튜토리얼 중에 목록으로 돌아왔다면 루프를 벗어난 것이다 — 거기서 끝낸다.
       if (currentTutorial()?.track === 'reading') finishTutorial('left');
@@ -112,18 +110,12 @@ export default function ReadingList() {
       void load(q);
       return;
     }
-    router.push(s.my_character_names.length === 0 ? '/reading/roles' : '/reading/detail');
-  };
-  const memorize = async (s: ScriptCard) => {
-    if (await loadIntoCurrent(s.id)) router.push('/reading/memorize');
-  };
-  const edit = async (s: ScriptCard) => {
-    if (await loadIntoCurrent(s.id)) router.push('/reading/edit');
+    router.push('/reading/detail');
   };
   const remove = async (s: ScriptCard) => {
     const ok = await confirm({
       title: t('reading.deleteTitle'),
-      message: s.recording_count > 0 ? t('reading.deleteBody', { recordings: s.recording_count }) : t('reading.deleteBodyNoRecordings'),
+      message: t('reading.deleteBody'),
       confirmLabel: t('common.delete'),
       destructive: true,
     });
@@ -139,14 +131,10 @@ export default function ReadingList() {
     void sheet({
       title: s.title,
       actions: [
-        { label: t('reading.editAction'), onPress: () => void edit(s) },
+        { label: t('reading.editAction'), onPress: () => setEditing(s) },
         { label: t('reading.deleteAction'), destructive: true, onPress: () => void remove(s) },
       ],
     });
-  const closeNotice = () => {
-    setNotice(null);
-    void dismissLegacyScriptNotice().catch(() => undefined);
-  };
 
   const scripts = list?.scripts ?? [];
   const searching = q.trim().length > 0;
@@ -178,22 +166,6 @@ export default function ReadingList() {
           <Text style={styles.newText}>새 대본</Text>
         </Pressable>
       </View>
-
-      {notice && (
-        <View style={styles.notice}>
-          <View style={styles.noticeHead}>
-            <Text style={styles.noticeTitle}>{t('reading.legacyNoticeTitle')}</Text>
-            <Pressable onPress={closeNotice} hitSlop={8} accessibilityLabel={t('common.close')}>
-              <Feather name="x" size={16} color={palette.textDim} />
-            </Pressable>
-          </View>
-          {notice.moved > 0 && <Text style={styles.noticeLine}>{t('reading.legacyMoved', { count: notice.moved })}</Text>}
-          {notice.memorized > 0 && <Text style={styles.noticeLine}>{t('reading.legacyMemorized', { count: notice.memorized })}</Text>}
-          {notice.limited > 0 && <Text style={styles.noticeLine}>{t('reading.legacyLimited', { count: notice.limited })}</Text>}
-          {notice.failed > 0 && <Text style={styles.noticeLine}>{t('reading.legacyFailed', { count: notice.failed })}</Text>}
-          <Text style={styles.noticeLine}>{t('reading.legacyRecordingsNote')}</Text>
-        </View>
-      )}
 
       {error && (
         <View style={styles.errorBox}>
@@ -252,12 +224,6 @@ export default function ReadingList() {
                       <Feather name="more-horizontal" size={18} color={palette.textDim} />
                     </Pressable>
                   </View>
-                  {s.my_character_names.length > 0 && (
-                    <Pressable style={styles.memoChip} onPress={() => void memorize(s)}>
-                      <Feather name="edit-3" size={12} color={palette.blueDeep} />
-                      <Text style={styles.memoChipText}>암기</Text>
-                    </Pressable>
-                  )}
                 </View>
               </Pressable>
             );
@@ -266,6 +232,13 @@ export default function ReadingList() {
         </View>
       )}
       {dialog}
+      <TitleEditDialog
+        script={editing}
+        onClose={(saved) => {
+          setEditing(null);
+          if (saved) void load(q);
+        }}
+      />
 
       {/* 가이드는 제 창에 뜬다 — 목록 어디에 두든 자리를 차지하지 않는다. */}
       <TutorialIntroSheet visible={introOpen} onChoose={chooseTutorial} track="reading" />
@@ -291,10 +264,6 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, color: palette.text, fontFamily: 'Pretendard', fontSize: 14, padding: 0 },
   newBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: palette.blue, borderRadius: 12, paddingHorizontal: 14, height: 46 },
   newText: { color: '#fff', fontFamily: 'Pretendard-SemiBold', fontSize: 14 },
-  notice: { backgroundColor: palette.blueMist, borderColor: palette.blueLine, borderWidth: 1, borderRadius: 14, padding: 14, gap: 4 },
-  noticeHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
-  noticeTitle: { color: palette.blueDeep, fontFamily: 'Pretendard-Bold', fontSize: 14, flex: 1 },
-  noticeLine: { color: palette.textDim, fontFamily: 'Pretendard', fontSize: 13, lineHeight: 19 },
   errorBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: palette.dangerSoft, borderRadius: 12, padding: 12 },
   errorText: { color: palette.danger, fontFamily: 'Pretendard', fontSize: 13 },
   retry: { color: palette.danger, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
@@ -317,7 +286,5 @@ const styles = StyleSheet.create({
   pill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
   pillText: { fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
   moreBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
-  memoChip: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: palette.blueSoft, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
-  memoChipText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 11 },
   noMatch: { color: palette.textMuted, fontFamily: 'Pretendard', fontSize: 14, textAlign: 'center', paddingVertical: 24 },
 });

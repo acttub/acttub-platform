@@ -2,13 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { deleteDeviceFile } from '@/lib/account-files';
 import { api } from '@/lib/api';
-import {
-  dismissLegacyNotice,
-  migrateLegacyScripts,
-  readLegacyNotice,
-  type LegacyMigrationResult,
-  type LegacyNotice,
-} from '@/lib/reading/legacy-migration';
+import { migrateLegacyScripts, type LegacyMigrationResult } from '@/lib/reading/legacy-migration';
 import { newRequestId } from '@/lib/request-id';
 
 /**
@@ -32,13 +26,4 @@ export function runLegacyScriptMigrationOnce(): Promise<LegacyMigrationResult> |
     newRequestId,
   }).catch(() => ({ moved: 0, memorized: 0, limited: 0, failed: 0 }));
   return running;
-}
-
-/** 옮긴 결과 안내(한 번). 대본 탭이 읽고 닫는다. */
-export function readLegacyScriptNotice(): Promise<LegacyNotice | null> {
-  return readLegacyNotice(AsyncStorage);
-}
-
-export function dismissLegacyScriptNotice(): Promise<void> {
-  return dismissLegacyNotice(AsyncStorage);
 }

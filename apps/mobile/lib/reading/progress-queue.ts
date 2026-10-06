@@ -3,7 +3,7 @@
  * 저장이 실패해도(오프라인) 기기는 계속 진행하고 마지막 위치를 들고 있다가 다음 저장 때 보낸다 — 밀린
  * 저장은 하나로 합친다(서버는 순번이 큰 요청만 반영하므로 마지막 값만 의미가 있다).
  *
- * 순번(progress_seq)은 보낼 때마다 1씩 늘려 단조 증가한다. completed·stopped 회차의 409 session_closed 와
+ * 순번(progress_seq)은 보낼 때마다 1씩 늘려 단조 증가한다. completed 회차의 409 session_closed 와
  * 없어진 회차의 404 는 다시 보내지 않는다.
  */
 import { ApiError, NetworkError, RequestAbortError } from '../api-request.ts';
