@@ -873,7 +873,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - 읽기는 트랜잭션 밖에서 객체를 임시 파일로 받아(§5-4) 뽑고 `raw_text` 를 한 문장으로 쓴다. 이미 읽은 행은 다시 받지 않는다.
   크기는 올릴 자리의 서명에 묶여 있고 읽기가 `head` 크기와 다시 견준다. PDF 는 내용 순서로 읽고 내용 캐시를 임시 파일에 둔다.
 - 나누기 접수는 `upload_id` 면 저장된 글을 `raw_text` 로 써서 같은 순서를 탄다. `script_imports.upload_id`(V34)를 함께 적고, 대본을
-  만드는 두 자리(예시 대본의 접수, 워커의 완료)가 같은 트랜잭션에서 `script_uploads.script_id` 를 채운다(`linkUpload`).
+  만드는 두 자리(예시 대본의 접수, 워커의 완료)가 같은 트랜잭션에서 `script_uploads.script_id` 를 채우고 뽑은 글(`raw_text`)을 비운다(`linkUpload`).
 - 삭제: 대본 삭제(`PostgresScriptRepository#delete`)와 탈퇴(`PostgresProfileRepository#eraseReading`)가 행을 지우며 객체 키를 같은
   트랜잭션에서 녹음과 같은 장부 종류 `reading_recording_delete` 로 올린다. 미연결 정리는 `created_at` 하루 전 행을 `FOR UPDATE SKIP
   LOCKED` 로 500개씩 지우되 pending·running 나누기 작업이 쓰는 행은 남긴다. 게스트는 동의가 없어 행이 없으므로 이관은 이 표를 옮기지 않는다.
