@@ -107,7 +107,7 @@ export default function PracticeGroupScreen() {
     router.push('/upload');
   };
 
-  const toggleHidden = async () => {
+  const toggleHidden = async ({ leave = false }: { leave?: boolean } = {}) => {
     if (!group) return;
     const hiding = !group.hidden_at;
     if (hiding) {
@@ -120,7 +120,13 @@ export default function PracticeGroupScreen() {
       if (!ok) return;
     }
     try {
-      setGroup(await api.patchPracticeGroup(group.root_id, { hidden: hiding }));
+      const next = await api.patchPracticeGroup(group.root_id, { hidden: hiding });
+      // 홈 「최근 연습」에서 들어와 지우는 길 — 숨기고 나면 목록으로 돌아간다(돌아간 화면은 포커스 때 다시 읽는다).
+      if (hiding && leave && router.canGoBack()) {
+        router.back();
+        return;
+      }
+      setGroup(next);
     } catch (e) {
       await alert({
         title: t('history.deleteFailTitle'),
@@ -135,7 +141,22 @@ export default function PracticeGroupScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
-      <Stack.Screen options={{ title: group ? groupTitle(group) : t('history.title'), headerShadowVisible: false }} />
+      <Stack.Screen
+        options={{
+          title: group ? groupTitle(group) : t('history.title'),
+          headerShadowVisible: false,
+          headerRight: () =>
+            group && !group.hidden_at ? (
+              <Pressable
+                onPress={() => void toggleHidden({ leave: true })}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel={t('history.hideConfirm')}>
+                <Feather name="trash-2" size={20} color={palette.textMuted} />
+              </Pressable>
+            ) : null,
+        }}
+      />
       {loading && (
         <View style={styles.center}>
           <ActivityIndicator color={palette.blue} />

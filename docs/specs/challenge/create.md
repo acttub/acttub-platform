@@ -94,7 +94,7 @@ challenges.moderation과 삭제 표시(deleted_at). 기간 상태는 계산값�
   않는다.
 - 운영이 review로 바꿈: 목록·피드에서 빠지고 참여작은 남는다. 기간이 지난 뒤 visible로 되돌림: 종료 상태로 보인다.
 - 주최자 탈퇴: host_user_id NULL, origin member, 화면에 "주최자 탈퇴", 행·참여작 그대로.
-- 게스트 토큰으로 개설: 403 member_only. 한국어가 아닌 회원: 403 member_only.
+- 게스트 토큰으로 개설: 403 member_only. 한국어가 아닌 앱 회원은 개설할 수 있다.
 
 ## 범위 밖
 - 사용자 개설의 사전 검토([공통 규칙](../common.md#범위-밖)).
