@@ -18,7 +18,10 @@ import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.zip.Inflater;
+import java.util.zip.InflaterInputStream;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
 
 import javax.xml.stream.XMLInputFactory;
@@ -32,6 +35,11 @@ import kr.dogfoot.hwplib.object.bodytext.control.table.Cell;
 import kr.dogfoot.hwplib.object.bodytext.control.table.Row;
 import kr.dogfoot.hwplib.object.bodytext.paragraph.Paragraph;
 import kr.dogfoot.hwplib.object.bodytext.paragraph.text.HWPChar;
+import kr.dogfoot.hwplib.org.apache.poi.poifs.filesystem.DirectoryEntry;
+import kr.dogfoot.hwplib.org.apache.poi.poifs.filesystem.DocumentEntry;
+import kr.dogfoot.hwplib.org.apache.poi.poifs.filesystem.DocumentInputStream;
+import kr.dogfoot.hwplib.org.apache.poi.poifs.filesystem.Entry;
+import kr.dogfoot.hwplib.org.apache.poi.poifs.filesystem.NPOIFSFileSystem;
 import kr.dogfoot.hwplib.reader.HWPReader;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.io.IOUtils;
@@ -57,6 +65,9 @@ public final class DocumentText {
     /** zip 안 XML 을 이만큼 넘게 풀면 읽지 않는다 — 작은 파일이 끝없이 풀리는 압축 폭탄을 막는다. */
     private static final long XML_MAX_BYTES = 200L * 1024 * 1024;
     private static final Pattern CONTROL = Pattern.compile("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]");
+    private static final String COMPATIBILITY = "http://schemas.openxmlformats.org/markup-compatibility/2006";
+    /** hwp 의 압축된 흐름을 모두 풀었을 때의 상한. hwplib 은 상한 없이 풀어 전부 힙에 올린다(그림·첨부 포함). */
+    private static final long HWP_MAX_BYTES = 100L * 1024 * 1024;
     private static final Pattern HWPX_SECTION = Pattern.compile("Contents/section(\\d+)\\.xml");
 
     private DocumentText() {
@@ -150,6 +161,7 @@ public final class DocumentText {
             char[] buffer = new char[8192];
             int read;
             while ((read = reader.read(buffer)) > 0) {
+                stopIfInterrupted();
                 out.append(buffer, 0, read);
                 if (out.length() > 2L * max + 2) throw new Limit();
             }
@@ -202,8 +214,16 @@ public final class DocumentText {
             XMLStreamReader reader = factory.createXMLStreamReader(in);
             int runs = 0;
             int texts = 0;
+            int fallbacks = 0;
             while (reader.hasNext()) {
                 int event = reader.next();
+                if ((event == XMLStreamConstants.START_ELEMENT || event == XMLStreamConstants.END_ELEMENT)
+                        && COMPATIBILITY.equals(reader.getNamespaceURI()) && "Fallback".equals(reader.getLocalName())) {
+                    // 글상자는 같은 글을 새 모양(Choice)과 옛 모양(Fallback)으로 두 번 담는다. Choice 만 읽는다.
+                    fallbacks += event == XMLStreamConstants.START_ELEMENT ? 1 : -1;
+                    continue;
+                }
+                if (fallbacks > 0) continue;
                 if (event == XMLStreamConstants.START_ELEMENT || event == XMLStreamConstants.END_ELEMENT) {
                     if (!markup.namespace().equals(reader.getNamespaceURI())) continue;
                     String name = reader.getLocalName();
@@ -243,6 +263,7 @@ public final class DocumentText {
             stripper.writeText(document, new Writer() {
                 @Override
                 public void write(char[] chars, int offset, int length) {
+                    stopIfInterrupted();
                     out.append(chars, offset, length);
                     if (out.length() > 2L * max + 2) throw new Limit();
                 }
@@ -262,12 +283,57 @@ public final class DocumentText {
     // ---- hwp (5.0) ----
 
     private static String hwp(Path file, int max) throws Exception {
+        checkHwpSize(file);
         var hwp = HWPReader.fromFile(file.toFile());
         Lines lines = new Lines(max);
         for (var section : hwp.getBodyText().getSectionList()) {
             hwpParagraphs(Arrays.asList(section.getParagraphs()), lines);
         }
         return lines.text();
+    }
+
+    /**
+     * hwplib 에 넘기기 전에 압축된 흐름을 상한 있는 스트림으로 끝까지 풀어 본다(힙에 담지 않고 센다). 압축 여부는 FileHeader 의
+     * 속성 첫 비트이고, 풀리지 않는 흐름(압축 안 한 그림 등)은 그 크기 그대로 센다.
+     */
+    private static void checkHwpSize(Path file) throws IOException {
+        try (NPOIFSFileSystem fs = new NPOIFSFileSystem(file.toFile(), true)) {
+            byte[] header;
+            try (InputStream in = fs.getRoot().createDocumentInputStream("FileHeader")) {
+                header = in.readNBytes(40);
+            }
+            boolean compressed = header.length >= 37 && (header[36] & 1) != 0;
+            long[] total = {0};
+            walk(fs.getRoot(), compressed, total);
+        }
+    }
+
+    private static void walk(DirectoryEntry directory, boolean compressed, long[] total) throws IOException {
+        for (var it = directory.getEntries(); it.hasNext(); ) {
+            Entry entry = it.next();
+            if (entry instanceof DirectoryEntry child) {
+                walk(child, compressed, total);
+            } else if (entry instanceof DocumentEntry document) {
+                total[0] += compressed ? inflatedSize(document) : document.getSize();
+                if (total[0] > HWP_MAX_BYTES) throw new Refused("too_large");
+            }
+        }
+    }
+
+    private static long inflatedSize(DocumentEntry document) throws IOException {
+        byte[] buffer = new byte[64 * 1024];
+        long size = 0;
+        try (InputStream in = new InflaterInputStream(new DocumentInputStream(document), new Inflater(true))) {
+            int read;
+            while ((read = in.read(buffer)) > 0) {
+                size += read;
+                stopIfInterrupted();
+                if (size > HWP_MAX_BYTES) throw new Refused("too_large");
+            }
+        } catch (ZipException | java.io.EOFException notDeflated) {
+            return document.getSize();
+        }
+        return size;
     }
 
     private static void hwpParagraphs(Iterable<Paragraph> paragraphs, Lines lines) throws Exception {
@@ -324,6 +390,8 @@ public final class DocumentText {
         private final int max;
         private final StringBuilder out = new StringBuilder();
         private final List<List<StringBuilder>> rows = new ArrayList<>();
+        /** 표 칸에 쌓인 것까지 센 글자 수. 칸은 행이 끝나야 {@code out} 으로 가므로 {@code out} 만 재면 칸이 한도 없이 자란다. */
+        private long appended;
 
         Lines(int max) {
             this.max = max;
@@ -331,8 +399,10 @@ public final class DocumentText {
 
         void append(String text) {
             if (text.isEmpty()) return;
+            stopIfInterrupted();
+            appended += text.length();
+            if (appended > 2L * max + 2) throw new Limit();
             target().append(text);
-            if (out.length() > 2L * max + 2) throw new Limit();
         }
 
         void paragraphEnd() {
@@ -360,7 +430,7 @@ public final class DocumentText {
                 }
             }
             if (!joined.isEmpty() && joined.charAt(joined.length() - 1) != '\n') joined.append('\n');
-            append(joined.toString());
+            target().append(joined);
         }
 
         private StringBuilder target() {
@@ -384,6 +454,11 @@ public final class DocumentText {
             if (Arrays.equals(bytes, i, i + needle.length, needle, 0, needle.length)) return i;
         }
         return -1;
+    }
+
+    /** 시간을 넘겨 부르는 쪽이 끊었다(reading.script 읽기의 시간 상한). */
+    private static void stopIfInterrupted() {
+        if (Thread.currentThread().isInterrupted()) throw new Refused("interrupted");
     }
 
     /** 한도를 넘었다. 넘는 순간 읽기를 멈춘다. */
@@ -418,6 +493,7 @@ public final class DocumentText {
 
         @Override
         public int read(byte[] buffer, int offset, int length) throws IOException {
+            stopIfInterrupted();
             int read = super.read(buffer, offset, length);
             if (read > 0 && (left -= read) < 0) throw new Refused("xml_too_large");
             return read;

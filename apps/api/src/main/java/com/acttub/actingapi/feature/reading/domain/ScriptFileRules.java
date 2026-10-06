@@ -22,6 +22,15 @@ public final class ScriptFileRules {
     /** 어느 대본에도 연결되지 않은 원본은 이만큼 지나면 지운다. */
     public static final Duration UNLINKED_TTL = Duration.ofDays(1);
 
+    /** 한 번에 도는 읽기 수. 50MB PDF 하나의 작업 집합이 128MB 아래였다(SOMA-593 C2 측정). */
+    public static final int READ_CONCURRENCY = 2;
+
+    /** 읽기 자리를 기다리는 시간. 넘으면 429 로 다시 시도하게 한다. */
+    public static final Duration READ_WAIT = Duration.ofSeconds(10);
+
+    /** 받기와 뽑기를 합친 시간 상한. 50MB PDF 뽑기가 1.3초 안이었고 나머지는 S3 받기 몫이다. */
+    public static final Duration READ_TIMEOUT = Duration.ofSeconds(45);
+
     /** 형식과 무관하게 한 가지로 올린다 — 기기마다 hwp 의 MIME 이 제각각이다. */
     public static final String CONTENT_TYPE = "application/octet-stream";
 

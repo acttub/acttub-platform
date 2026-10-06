@@ -18,6 +18,8 @@ class ScriptTextTest {
         assertThat(ScriptText.hash("윤서: 여기 있을 줄 알았어.\n태오: 어떻게 알았어."))
                 .isEqualTo(ScriptText.hash(SCRIPT));
         assertThat(ScriptText.hash("​윤서: 여기 있을 줄 알았어.\n​태오: 어떻게 알았어.﻿")).isEqualTo(ScriptText.hash(SCRIPT));
+        assertThat(ScriptText.hash("니나: 저는 갈\u0000매기예요.")).as("PDF 추출기의 NUL").isEqualTo(ScriptText.hash("니나: 저는 갈매기예요."));
+        assertThat(ScriptText.visible("갈\u0000매기")).isEqualTo("갈매기");
     }
 
     @Test

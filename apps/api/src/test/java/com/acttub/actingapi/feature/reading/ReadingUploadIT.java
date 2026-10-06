@@ -25,6 +25,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
+import com.acttub.actingapi.feature.profile.app.AccountCleanup;
 import com.acttub.actingapi.feature.reading.app.ScriptSplitWorker;
 import com.acttub.actingapi.feature.reading.app.ScriptUploadService;
 import com.acttub.actingapi.integration.llm.GeneratedText;
@@ -65,7 +66,8 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
     "ANALYSIS_WORKER_ENABLED=false",
     "ACCOUNT_CLEANUP_ENABLED=false",
     "ACCOUNT_HOUSEKEEPING_ENABLED=false",
-    "CHALLENGE_SETTLEMENT_ENABLED=false"
+    "CHALLENGE_SETTLEMENT_ENABLED=false",
+    "SCRIPT_UPLOAD_SWEEP_ENABLED=false"
 })
 @AutoConfigureMockMvc
 @Import({MutableClock.Fixture.class, ReadingUploadIT.Fakes.class})
@@ -160,6 +162,7 @@ class ReadingUploadIT {
     @Autowired ScriptSplitWorker worker;
     @Autowired ScriptUploadService uploads;
     @Autowired FakeStorage storage;
+    @Autowired AccountCleanup cleanup;
 
     private UUID scriptSplitDocument;
     private UUID member;
@@ -222,6 +225,18 @@ class ReadingUploadIT {
                 .containsExactly("저는 갈매기예요.", "아니, 당신은 배우예요.");
         assertThat(jdbc.queryForObject("SELECT script_id FROM script_uploads", String.class)).isEqualTo(scriptId);
         assertThat(jdbc.queryForObject("SELECT raw_text FROM script_uploads", String.class)).as("글은 대본에 있어 원본 행에서 비운다").isNull();
+
+        assertThat(perform(post("/v2/reading/uploads/{id}/complete", uploadId), bearer).getStatus())
+                .as("대본에 연결된 원본은 다시 읽지 않는다").isEqualTo(204);
+        assertThat(storage.downloads.get()).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT raw_text FROM script_uploads", String.class)).isNull();
+        Map<String, Object> again = new LinkedHashMap<>();
+        again.put("request_id", UUID.randomUUID().toString());
+        again.put("upload_id", uploadId);
+        again.put("source", "file");
+        again.put("allow_duplicate", true);
+        assertThat(json(post("/v2/reading/imports").content(mapper.writeValueAsString(again)), 422, bearer).path("detail").textValue())
+                .as("이미 대본이 된 원본으로는 다시 나누지 않는다 — 파일을 다시 올린다").isEqualTo("script_upload_used");
         assertThat(jdbc.queryForObject("SELECT raw_text FROM scripts", String.class)).isEqualTo(SCENE);
     }
 
@@ -285,7 +300,7 @@ class ReadingUploadIT {
     }
 
     @Test
-    @DisplayName("reading.script 원본: 대본을 지우면 연결된 원본의 행과 객체가 함께 없다. 연결되지 않은 다른 원본은 남는다")
+    @DisplayName("reading.script 원본: 대본을 지우면 연결된 원본의 행이 없고 객체는 올리기 주소 시한이 지난 뒤 정리 장부가 지운다. 연결되지 않은 다른 원본은 남는다")
     void deletingTheScriptDeletesItsSource() throws Exception {
         String uploadId = readFile("갈매기.txt", SCENE);
         String scriptId = split(uploadId);
@@ -294,9 +309,13 @@ class ReadingUploadIT {
 
         assertThat(perform(delete("/v2/reading/scripts/{id}", scriptId), bearer).getStatus()).isEqualTo(204);
 
-        assertThat(storage.objects).containsOnlyKeys("reading-source/" + member + "/" + other);
         assertThat(jdbc.queryForList("SELECT id FROM script_uploads", String.class)).containsExactly(other);
-        assertThat(count("account_cleanup_operations")).as("장부는 커밋 뒤 바로 지우고 비었다").isZero();
+        assertThat(storage.objects).as("올리기 주소(15분)가 살아 있는 동안은 지우지 않는다 — 먼저 지우면 다시 올린 객체가 남는다")
+                .containsKeys(key(uploadId), key(other));
+        clock.set(NOW.plus(Duration.ofMinutes(16)));
+        cleanup.runDue();
+        assertThat(storage.objects).containsOnlyKeys(key(other));
+        assertThat(count("account_cleanup_operations")).isZero();
     }
 
     @Test
@@ -310,6 +329,9 @@ class ReadingUploadIT {
 
         assertThat(withdrawn.getStatus()).as(withdrawn.getContentAsString()).isEqualTo(200);
         assertThat(count("script_uploads")).isZero();
+        assertThat(storage.objects).as("주소 시한 전").hasSize(2);
+        clock.set(NOW.plus(Duration.ofMinutes(16)));
+        cleanup.runDue();
         assertThat(storage.objects).isEmpty();
         assertThat(count("account_cleanup_operations")).isZero();
     }

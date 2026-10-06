@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import com.acttub.actingapi.feature.reading.app.ReadingRecordingCleanup;
+import com.acttub.actingapi.feature.reading.app.ScriptFileCleanup;
 import com.acttub.actingapi.feature.reading.app.ScriptUploadRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
@@ -26,9 +26,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 class PostgresScriptUploadRepository implements ScriptUploadRepository {
     private final EntityManager em;
     private final TransactionTemplate transaction;
-    private final ReadingRecordingCleanup cleanup;
+    private final ScriptFileCleanup cleanup;
 
-    PostgresScriptUploadRepository(EntityManager em, PlatformTransactionManager manager, ReadingRecordingCleanup cleanup) {
+    PostgresScriptUploadRepository(EntityManager em, PlatformTransactionManager manager, ScriptFileCleanup cleanup) {
         this.em = em;
         this.transaction = new TransactionTemplate(manager);
         this.cleanup = cleanup;
@@ -47,12 +47,13 @@ class PostgresScriptUploadRepository implements ScriptUploadRepository {
     @Override
     public Upload find(UUID userId, UUID uploadId) {
         var rows = list(em.createNativeQuery(
-                "SELECT id,object_key,byte_size,raw_text FROM script_uploads WHERE id=:id AND user_id=:userId", Tuple.class)
+                "SELECT id,object_key,byte_size,raw_text,script_id FROM script_uploads WHERE id=:id AND user_id=:userId", Tuple.class)
                 .setParameter("id", uploadId).setParameter("userId", userId));
         if (rows.isEmpty()) return null;
         Tuple row = rows.getFirst();
         return new Upload(row.get("id", UUID.class), row.get("object_key", String.class),
-                ((Number) row.get("byte_size")).longValue(), row.get("raw_text", String.class));
+                ((Number) row.get("byte_size")).longValue(), row.get("raw_text", String.class),
+                row.get("script_id", UUID.class) != null);
     }
 
     @Override
@@ -77,17 +78,18 @@ class PostgresScriptUploadRepository implements ScriptUploadRepository {
                         FOR UPDATE OF u SKIP LOCKED
                     ), removed AS (
                         DELETE FROM script_uploads u USING stale WHERE u.id=stale.id
-                        RETURNING u.user_id,u.object_key
+                        RETURNING u.user_id,u.object_key,u.expires_at
                     )
-                    SELECT user_id,object_key FROM removed
+                    SELECT user_id,object_key,expires_at FROM removed
                     """, Tuple.class).setParameter("before", before.atOffset(ZoneOffset.UTC)));
-            Map<UUID, List<String>> keys = new LinkedHashMap<>();
+            Map<UUID, List<Tuple>> byUser = new LinkedHashMap<>();
             for (Tuple row : removed) {
-                keys.computeIfAbsent(row.get("user_id", UUID.class), user -> new ArrayList<>())
-                        .add(row.get("object_key", String.class));
+                byUser.computeIfAbsent(row.get("user_id", UUID.class), user -> new ArrayList<>()).add(row);
             }
             List<UUID> scheduled = new ArrayList<>();
-            keys.forEach((userId, objectKeys) -> scheduled.add(cleanup.schedule(userId, objectKeys, now)));
+            byUser.forEach((userId, rows) -> scheduled.add(cleanup.schedule(userId,
+                    rows.stream().map(row -> row.get("object_key", String.class)).toList(), now,
+                    rows.stream().map(row -> row.get("expires_at", Instant.class)).max(Instant::compareTo).orElseThrow())));
             return scheduled;
         });
     }
