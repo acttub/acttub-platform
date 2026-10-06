@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * 1.0.0 배우 기억의 채워진 한 칸 — {@code actor_memories} (practice.memory).
+ * 0.1.0 배우 기억의 채워진 한 칸 — {@code actor_memories} (practice.memory).
  *
  * <p>칸은 넷이다(goal·blockage·speech_self·speech_actual). 성별·나이는 프로필로 옮겼다
  * (account.profile) — 옛 여섯 칸짜리 {@link MemoryEntry} 와 다른 것이다.

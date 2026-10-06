@@ -183,6 +183,26 @@ class AccountHousekeepingIT {
     }
 
     @Test
+    @DisplayName("가입 유입: 14개월을 지난 web_utm만 지우고 경계·최근 웹 값과 Airbridge는 남긴다")
+    void webAttributionsAreDeletedAfterFourteenCalendarMonths() {
+        Instant cutoff = now.atZone(SEOUL).minusMonths(14).toInstant();
+        UUID expiredWeb = user("active", now.minus(Duration.ofDays(500)));
+        UUID boundaryWeb = user("active", now.minus(Duration.ofDays(500)));
+        UUID recentWeb = user("active", now.minus(Duration.ofDays(30)));
+        UUID oldAirbridge = user("active", now.minus(Duration.ofDays(500)));
+        attribution(expiredWeb, "web_utm", "web", cutoff.minus(Duration.ofDays(1)));
+        attribution(boundaryWeb, "web_utm", "web", cutoff);
+        attribution(recentWeb, "web_utm", "web", now.minus(Duration.ofDays(20)));
+        attribution(oldAirbridge, "airbridge", "ios", cutoff.minus(Duration.ofDays(1)));
+
+        housekeeping.runDaily();
+
+        assertThat(jdbc.queryForList("SELECT user_id FROM user_signup_attributions", UUID.class))
+                .containsExactlyInAnyOrder(boundaryWeb, recentWeb, oldAirbridge)
+                .doesNotContain(expiredWeb);
+    }
+
+    @Test
     @DisplayName("account.withdraw: 탈퇴 3년 뒤 — user_identities 행과 보관하던 영상 객체가 없다. 3년이 안 된 계정은 그대로다")
     void accountWithdraw_hashesAndRetainedVideosGoAfterThreeYears() {
         Instant threeYearsAndADay = now.atZone(SEOUL).minusYears(3).minusDays(1).toInstant();
@@ -324,6 +344,13 @@ class AccountHousekeepingIT {
         jdbc.update("INSERT INTO guest_transfer_codes(id,user_id,code_hash,expires_at,used_at) VALUES (?,?,?,?,?)",
                 id, guest, "hash-" + id, at(expiresAt), usedAt == null ? null : at(usedAt));
         return id;
+    }
+
+    private void attribution(UUID user, String source, String platform, Instant recordedAt) {
+        jdbc.update("""
+                INSERT INTO user_signup_attributions(user_id,source,platform,channel,recorded_at)
+                VALUES (?,?,?,?,?)
+                """, user, source, platform, "unattributed", at(recordedAt));
     }
 
     private UUID cleanup(UUID user, String kind, Instant createdAt) {

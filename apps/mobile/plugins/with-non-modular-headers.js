@@ -13,7 +13,7 @@ const SNIPPET = `
     installer.pods_project.targets.each do |target|
       target.build_configurations.each do |config|
         config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
-        if ['RNFBApp', 'RNFBAnalytics'].include?(target.name)
+        if ['RNFBApp', 'RNFBAnalytics', 'RNFBCrashlytics'].include?(target.name)
           config.build_settings['CLANG_ENABLE_MODULES'] = 'NO'
         end
       end

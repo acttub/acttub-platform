@@ -13,6 +13,7 @@ import com.acttub.actingapi.feature.profile.domain.Account;
 import com.acttub.actingapi.feature.profile.domain.KoreanAge;
 import com.acttub.actingapi.feature.profile.domain.NotificationSettings;
 import com.acttub.actingapi.feature.profile.domain.Profile;
+import com.acttub.actingapi.feature.profile.domain.SignupAttribution;
 import com.acttub.actingapi.integration.storage.PhotoUploadType;
 import com.acttub.actingapi.platform.security.ProfileGate;
 import com.acttub.actingapi.platform.web.ApiException;
@@ -89,7 +90,7 @@ public class ProfileService implements ProfileGate {
             if (before.profileComplete()) {
                 throw new ApiException(422, "under_14");
             }
-            // 연습이 있는 1.0.0 이전 회원은 탈퇴와 같은 절차로 닫히고, 보관 동의와 무관하게 영상을
+            // 연습이 있는 0.1.0 이전 회원은 탈퇴와 같은 절차로 닫히고, 보관 동의와 무관하게 영상을
             // 파기한다. 객체 삭제와 제공자 해제는 탈퇴와 같이 트랜잭션 밖에서 시도한다.
             ProfileRepository.Closed closed = profiles.closeUnderage(userId, clock.instant(), today());
             if (closed != null) {
@@ -136,8 +137,18 @@ public class ProfileService implements ProfileGate {
     }
 
     /**
+     * 가입 계정의 유입 광고를 적는다(SOMA-588). 처음 온 값만 남고 다시 와도 204 다 — 앱이 재시도해도 안전하다.
+     * 적을 수 없는 계정(없음·탈퇴)은 다른 회원 자료 쓰기와 같이 거절한다.
+     */
+    public void recordSignupAttribution(UUID userId, SignupAttribution attribution) {
+        if (!profiles.recordSignupAttribution(userId, attribution)) {
+            throw refused(userId);
+        }
+    }
+
+    /**
      * 탈퇴. 파기와 상태 전환은 한 트랜잭션이고, 객체 삭제와 제공자 해제는 그 <b>뒤에</b> 시도한다 —
-     * 바깥 호출이 실패해도 탈퇴는 끝났고, 실패한 것은 7일 동안 다시 시도된다 ({@link AccountCleanup}).
+     * 바깥 호출이 실패해도 탈퇴는 끝났고, 실패한 것은 장부가 다시 시도한다 — 제공자 해제는 7일까지, 객체 삭제는 성공할 때까지 ({@link AccountCleanup}).
      *
      * <p>이미 탈퇴한 계정이 다시 와도 같은 결과다. 최초 탈퇴 시각을 돌려주고 파기만 다시 돈다 —
      * 탈퇴 도중 앱이 죽어 다시 누른 경우를 위해서다.

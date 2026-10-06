@@ -418,7 +418,7 @@ class AccountWithdrawIT {
     }
 
     @Test
-    @DisplayName("account.withdraw: 1.0.0 연습 자료 — 영상은 행과 최소 메타만 남고(purged_at) 객체는 지워지며, "
+    @DisplayName("account.withdraw: 0.1.0 연습 자료 — 영상은 행과 최소 메타만 남고(purged_at) 객체는 지워지며, "
             + "진행 중이던 AI 작업은 취소되고, 회차·분석·대화·노트는 사람과 끊어 남는다")
     void accountWithdraw_purgesVideoFilesAndCancelsAiJobsWhileKeepingTheRecords() throws Exception {
         Member member = member("google", "g-1|actor@example.test|verified", "declined");
@@ -528,7 +528,7 @@ class AccountWithdrawIT {
     }
 
     @Test
-    @DisplayName("account.profile: 연습이 있는 1.0.0 이전 회원이 게이트에서 만 14세 미만 — 탈퇴와 같은 절차로 닫히고, 보관에 동의했어도 영상을 파기한다")
+    @DisplayName("account.profile: 연습이 있는 0.1.0 이전 회원이 게이트에서 만 14세 미만 — 탈퇴와 같은 절차로 닫히고, 보관에 동의했어도 영상을 파기한다")
     void accountProfile_underageLegacyMemberLosesTheVideosRegardlessOfConsent() throws Exception {
         Member member = member("kakao", "987654321", "granted");
         jdbc.update("DELETE FROM user_profile_directions WHERE user_id=?", member.id());
@@ -642,7 +642,7 @@ class AccountWithdrawIT {
                 .andReturn().getResponse();
     }
 
-    /** 1.0.0 보관함의 영상과 그것을 쓰는 회차 하나. 객체는 가짜 저장소에 둔다. */
+    /** 0.1.0 보관함의 영상과 그것을 쓰는 회차 하나. 객체는 가짜 저장소에 둔다. */
     private UUID practiceRoundWithVideo(UUID userId, String objectKey) {
         UUID videoId = UUID.randomUUID();
         jdbc.update("""

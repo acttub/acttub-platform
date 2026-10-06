@@ -17,10 +17,8 @@ export type ProgressQueueDependencies = {
   initialSeq?: number;
   retryDelayMs?: number;
   maxRetryDelayMs?: number;
-  onSaved?: (response: ProgressResponse) => void;
   /** 409 session_closed — 회차가 끝났다. 화면이 안내한다. */
   onClosed?: () => void;
-  onError?: (error: unknown) => void;
 };
 
 export function createProgressQueue(deps: ProgressQueueDependencies) {
@@ -53,13 +51,11 @@ export function createProgressQueue(deps: ProgressQueueDependencies) {
     const body: ProgressBody = { progress_seq: ++seq, ...pending };
     pending = null;
     try {
-      const response = await deps.send(body);
+      await deps.send(body);
       attempt = 0;
-      deps.onSaved?.(response);
     } catch (error) {
       if (isPermanent(error)) {
         if (error instanceof ApiError && error.code === 'session_closed') deps.onClosed?.();
-        deps.onError?.(error);
         pending = null;
       } else {
         // 다시 시도 — 그사이 새 위치가 들어왔으면 그것이 이긴다.
@@ -70,7 +66,6 @@ export function createProgressQueue(deps: ProgressQueueDependencies) {
           timer = null;
           void drain();
         }, delay);
-        deps.onError?.(error);
       }
     } finally {
       inFlight = false;
@@ -94,12 +89,6 @@ export function createProgressQueue(deps: ProgressQueueDependencies) {
         timer = null;
       }
       void drain();
-    },
-    pending(): ProgressPayload | null {
-      return pending;
-    },
-    seq(): number {
-      return seq;
     },
     /** 밀린 저장이 다 나갈 때까지. 테스트와 나가기가 기다린다. */
     flushed(): Promise<void> {

@@ -40,7 +40,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>성별·나이는 배우만 쓴다. 영상이나 목소리에서 추론하지 않는다 — 저장 계층이 막고
  * DB 제약이 최종 방어선이다.
  *
- * <p><b>1.0.0 의 기억 화면은 {@code /v2/me/memory} 로 옮겨 갔다</b>(네 칸, {@code actor_memories}).
+ * <p><b>0.1.0 의 기억 화면은 {@code /v2/me/memory} 로 옮겨 갔다</b>(네 칸, {@code actor_memories}).
  * 여기는 옛 표({@code actor_memory_entries})를 읽는 옛 경로로 남아 옛 갈래의 방어선을 지킨다 (§6-15).
  */
 @RestController

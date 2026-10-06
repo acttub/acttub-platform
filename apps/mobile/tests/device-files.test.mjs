@@ -154,28 +154,6 @@ test('account.withdraw: 장부 값이 깨져 있으면 빈 장부로 읽는다',
   assert.deepEqual(await ledger.entries(), { temporary: [], kept: [] });
 });
 
-test('account.withdraw: 올리기 한 번이 만든 임시 파일은 올리기가 성공하든 실패하든 끝나면 지운다', async () => {
-  const { withTemporaryFiles } = await import('../lib/device-files.ts');
-  for (const outcome of ['성공', '실패', '취소']) {
-    const { ledger, disk } = harness({ files: [COMPRESSED, ORIGINAL] });
-
-    const running = withTemporaryFiles(ledger, async (trackTemporary) => {
-      await trackTemporary(COMPRESSED);
-      // 올리는 동안에는 장부에 있고 파일도 그대로다.
-      assert.deepEqual(await ledger.entries(), { temporary: [COMPRESSED], kept: [] });
-      assert.equal(disk.has(COMPRESSED), true);
-      if (outcome !== '성공') throw new Error(outcome);
-      return 'session-1';
-    });
-
-    if (outcome === '성공') assert.equal(await running, 'session-1');
-    else await assert.rejects(running, new RegExp(outcome));
-    assert.equal(disk.has(COMPRESSED), false, outcome);
-    // 원본 복사본은 코치 화면이 다시 틀기 때문에 건드리지 않는다.
-    assert.equal(disk.has(ORIGINAL), true, outcome);
-  }
-});
-
 test('account.withdraw: 앱이 만든 파일(file://)만 장부에 올리고 지운다 — content:// 나 blob: 은 이 앱의 파일이 아니다', async () => {
   const foreign = ['content://media/external/video/1', 'blob:https://acttub.com/1234', 'ph://asset-1'];
   const { ledger, items, disk } = harness({ files: foreign });

@@ -4,12 +4,13 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
+import { NoteSections } from '@/components/note-sections';
 import { ReportRating } from '@/components/report-rating';
 import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { formatKoreanDate } from '@/lib/format';
 import { translate as t } from '@/lib/i18n';
-import { noteFallbackNotice, noteKindLabel, noteSections, noteTitle, quoteSourceLabel, readOptionalPracticeNote } from '@/lib/practice/note';
+import { noteFallbackNotice, noteKindLabel, noteTitle, readOptionalPracticeNote } from '@/lib/practice/note';
 import { setContinueOrigin } from '@/lib/practice/session-state';
 import type { PracticeDetail, PracticeNote } from '@/lib/practice/types';
 
@@ -72,7 +73,6 @@ export default function ReportDetailScreen() {
     router.push('/upload');
   };
 
-  const sections = note ? noteSections(note) : [];
   const fallbackNotice = note ? noteFallbackNotice(note) : null;
   const title = noteTitle(note, practice?.scene.situation?.trim() || t('history.noSceneTitle'));
 
@@ -99,27 +99,7 @@ export default function ReportDetailScreen() {
             {fallbackNotice && <Text style={styles.fallback}>{fallbackNotice}</Text>}
           </View>
 
-          {sections.map((section) => (
-            <View style={styles.section} key={section.kind}>
-              {!!section.label && <Text style={styles.label}>{section.label}</Text>}
-              {section.kind === 'summary' ? (
-                section.quotes.length > 0 ? (
-                  section.quotes.map((quote, index) => (
-                    <View style={styles.quote} key={`${index}-${quote.quote.slice(0, 8)}`}>
-                      <Text style={styles.quoteText}>{quote.quote}</Text>
-                      <Text style={styles.quoteSource}>{quoteSourceLabel(quote.kind)}</Text>
-                    </View>
-                  ))
-                ) : (
-                  <Text style={styles.text}>{section.text}</Text>
-                )
-              ) : (
-                <Text style={[styles.text, section.kind === 'next' && styles.next, section.kind === 'cheer' && styles.cheer]}>
-                  {section.text}
-                </Text>
-              )}
-            </View>
-          ))}
+          <NoteSections note={note} />
 
           {/* 지난 노트에서도 평가를 남기고 고친다 — 초기값은 이미 남긴 평가다(practice.note). */}
           {practiceId && <ReportRating practiceId={practiceId} initial={note.my_rating} key={note.id} />}
@@ -144,14 +124,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 23, fontWeight: '900', color: palette.text, lineHeight: 33 },
   date: { fontSize: 12.5, fontWeight: '600', color: palette.textFaint },
   fallback: { fontSize: 12.5, fontWeight: '700', color: palette.amber },
-  section: { borderTopWidth: 1, borderTopColor: palette.borderSoft, paddingTop: 16, gap: 8 },
   label: { fontSize: 12, fontWeight: '800', color: palette.textDim },
-  text: { fontSize: 16, lineHeight: 26, color: palette.text },
-  next: { fontSize: 18, fontWeight: '700', lineHeight: 29 },
-  cheer: { fontSize: 14, lineHeight: 23, color: palette.textDim },
-  quote: { gap: 4, backgroundColor: palette.bgSubtle, borderRadius: 12, padding: 14 },
-  quoteText: { fontSize: 15.5, lineHeight: 25, color: palette.text },
-  quoteSource: { fontSize: 11.5, fontWeight: '800', color: palette.textFaint },
   primary: {
     height: 52,
     borderRadius: 14,

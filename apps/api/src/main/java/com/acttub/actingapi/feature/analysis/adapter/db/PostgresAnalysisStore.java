@@ -116,20 +116,6 @@ public class PostgresAnalysisStore implements AnalysisStore {
     }
 
     @Override
-    public boolean fail(
-            UUID operationId,
-            UUID leaseToken,
-            String errorCode,
-            Instant now) {
-        return queue.fail(operationId, leaseToken, errorCode, now);
-    }
-
-    @Override
-    public void release(UUID operationId, UUID leaseToken, Instant now) {
-        queue.release(operationId, leaseToken, now);
-    }
-
-    @Override
     public boolean fail(UUID operationId, UUID leaseToken, String errorCode, String classification, Instant now) {
         return queue.fail(operationId, leaseToken, errorCode, classification, now);
     }

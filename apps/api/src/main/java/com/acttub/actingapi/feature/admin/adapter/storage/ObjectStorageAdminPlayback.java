@@ -3,6 +3,7 @@ package com.acttub.actingapi.feature.admin.adapter.storage;
 import java.util.Optional;
 
 import com.acttub.actingapi.feature.admin.app.AdminPlayback;
+import com.acttub.actingapi.integration.storage.NoCredentialsError;
 import com.acttub.actingapi.integration.storage.ObjectStorage;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureKind;
@@ -34,7 +35,7 @@ class ObjectStorageAdminPlayback implements AdminPlayback {
             return null;
         }
         try {
-            return configured.get().presignPlayback(objectKey, expiresInSeconds);
+            return requiredUrl(objectKey, expiresInSeconds);
         } catch (Exception exception) {
             failureReporter.report(
                     exception,
@@ -42,5 +43,12 @@ class ObjectStorageAdminPlayback implements AdminPlayback {
                     new FailureContext("ObjectStorageAdminPlayback.url"));
             return null;
         }
+    }
+
+    @Override
+    public String requiredUrl(String objectKey, int expiresInSeconds) {
+        ObjectStorage storage = configured.orElseThrow(
+                () -> new NoCredentialsError("storage is not configured"));
+        return storage.presignPlayback(objectKey, expiresInSeconds);
     }
 }

@@ -11,6 +11,9 @@ import org.springframework.stereotype.Repository;
  *
  * <p>영상과 예약 장부를 함께 옮긴다. 예약을 두고 가면 옛 게스트의 대기 업로드가 마무리될 자리를 잃는다 —
  * 기기는 같은 요청 id 로 다시 시도하므로 회원 계정에서 이어진다. 객체는 그대로고 주인만 바뀐다.
+ *
+ * <p>예약 장부를 영상보다 먼저 옮긴다. 마무리는 예약 행을 잡은 채 영상을 만들므로, 예약 행에서 줄을 서야 그
+ * 마무리가 커밋한 영상까지 옮긴다. 영상을 먼저 옮기면 아직 커밋되지 않은 영상이 닫힌 게스트에게 남는다.
  */
 @Repository
 class PostgresVideoOwnership implements VideoOwnership {
@@ -34,7 +37,7 @@ class PostgresVideoOwnership implements VideoOwnership {
                 .setParameter("from", from)
                 .setParameter("to", to)
                 .executeUpdate();
-        for (String table : java.util.List.of("videos", "upload_intents")) {
+        for (String table : java.util.List.of("upload_intents", "videos")) {
             entityManager.createNativeQuery("UPDATE " + table + " SET user_id=:to WHERE user_id=:from")
                     .setParameter("to", to)
                     .setParameter("from", from)

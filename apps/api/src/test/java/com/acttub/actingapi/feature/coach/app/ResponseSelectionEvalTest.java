@@ -49,9 +49,9 @@ class ResponseSelectionEvalTest {
     @ParameterizedTest(name = "{0}") @MethodSource("scenarios")
     void respondsToCurrentNeed(Scenario scenario) throws Exception {
         var record = StructuredJson.resource("/coaching/record.json");
-        var session = new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                record, "", "", "", 8000, "그 외", "그 외", null, List.of(), "", null, "open", "",
-                List.of(new CoachTurnSnapshot("ai", scenario.previous())))
+        var session = new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                record, "", "", "", 8000, "그 외", "그 외", null, "open", "",
+                List.of(new CoachTurnSnapshot("ai", scenario.previous())), PriorContext.EMPTY, "legacy", 0, null, null)
                 .withCoachingState("three_layers_v1", 0, null, "open", "");
         var failures = new RecordingFailureReporter();
         var output = StructuredJson.MAPPER.createObjectNode().put("case", scenario.name()).put("semantic_review", "pending");

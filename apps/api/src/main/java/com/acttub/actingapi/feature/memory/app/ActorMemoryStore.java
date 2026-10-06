@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * 1.0.0 배우 기억의 저장소 — {@code actor_memories} 와 {@code users.memory_epoch} (practice.memory, ADR-017).
+ * 0.1.0 배우 기억의 저장소 — {@code actor_memories} 와 {@code users.memory_epoch} (practice.memory, ADR-017).
  *
  * <p>옛 {@link MemoryRepository}({@code actor_memory_entries}, 여섯 칸)와 다른 포트다. 배우 쪽 경로만 여기를
  * 지나고, 워커가 쓰는 길은 {@link ActorMemoryUpdates} 다 — 지나는 규칙이 다르다(배우 것을 덮지 않는다,

@@ -199,7 +199,3 @@ export type ProgressResponse = {
   progress_seq: number;
   status: ReadingSessionStatus;
 };
-
-/** 회차의 422·409 사유 코드. */
-export const SESSION_ERROR_CODES = ['invalid_characters', 'empty_range', 'invalid_line', 'session_closed'] as const;
-export type SessionErrorCode = (typeof SESSION_ERROR_CODES)[number];

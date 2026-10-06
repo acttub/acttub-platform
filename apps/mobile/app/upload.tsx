@@ -36,7 +36,6 @@ import { canStart, continueVideoId, planFor, type StartPlan } from '@/lib/practi
 import {
   BLOCKAGE_NOTE_MAX,
   SCENE_MAX,
-  attemptFor,
   blockageNoteOverflow,
   buildContinueBody,
   buildStartBody,
@@ -47,11 +46,10 @@ import {
   startFailure,
   type BlockageDraft,
   type SceneDraft,
-  type StartAttempt,
 } from '@/lib/practice/start';
 import { takeContinueOrigin } from '@/lib/practice/session-state';
 import type { BlockageCategory, BlockageDetail } from '@/lib/practice/types';
-import { newRequestId } from '@/lib/request-id';
+import { attemptFor, newRequestId, type RequestAttempt } from '@/lib/request-id';
 import { TARGET } from '@/lib/spotlight-targets';
 import { sampleVideoUri } from '@/lib/tutorial-loop';
 import { SAMPLE_PRACTICE_ID, sampleScene } from '@/lib/tutorial-sample';
@@ -63,7 +61,7 @@ import { normalizeVideoDurationMs } from '@/lib/upload-input';
  * 영상은 보관함에서 고르거나 새로 찍는다 — 여기서 올리지 않는다(올리기는 보관함 큐가 한다).
  * 상황·인물·목표와 막힘은 모두 선택이고, 시작을 누르면 회차 하나와 분석 작업 하나가 생긴다.
  * 같은 시도의 재전송은 같은 요청 id 라 회차는 하나다. 묶음에 진행 중 회차가 있으면(409) 그
- * 회차로 돌려보낸다. 이론 선택은 1.0.0에서 뺐다.
+ * 회차로 돌려보낸다. 이론 선택은 0.1.0에서 뺐다.
  */
 const CATEGORIES: BlockageCategory[] = ['분석', '표현', '그 외'];
 const EXPRESSION_DETAILS: BlockageDetail[] = ['감정', '움직임', '화술', '표정', '그 외'];
@@ -100,7 +98,7 @@ export default function UploadScreen() {
   const tutorialGuide = useTutorialSpotlight('upload');
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const attemptRef = useRef<StartAttempt | null>(null);
+  const attemptRef = useRef<RequestAttempt | null>(null);
   const startLockRef = useRef(false);
   const scrollRef = useRef<ScrollView>(null);
   const characterRef = useRef<TextInput>(null);
@@ -185,17 +183,14 @@ export default function UploadScreen() {
         void alert({ title: t('start.continueTitle'), message: t('start.noGroups') });
         return;
       }
-      const chosen = await new Promise<string | null>((resolve) => {
-        void confirm({
-          title: t('start.continueTitle'),
-          message: t('start.continueBody', { title: groups[0].title ?? t('history.noSceneTitle'), count: groups[0].ordinal_count }),
-          confirmLabel: t('start.continueConfirm'),
-          cancelLabel: t('common.cancel'),
-        }).then((ok) => resolve(ok ? groups[0].root_id : null));
+      const group = groups[0];
+      const ok = await confirm({
+        title: t('start.continueTitle'),
+        message: t('start.continueBody', { title: group.title ?? t('history.noSceneTitle'), count: group.ordinal_count }),
+        confirmLabel: t('start.continueConfirm'),
+        cancelLabel: t('common.cancel'),
       });
-      if (!chosen) return;
-      const group = groups.find((g) => g.root_id === chosen);
-      if (!group) return;
+      if (!ok) return;
       setPlan(planFor({ kind: 'group', rootId: group.root_id, practiceId: group.root_id }));
     } catch (e) {
       void alert({ title: t('start.continueTitle'), message: videoErrorMessage(e) });

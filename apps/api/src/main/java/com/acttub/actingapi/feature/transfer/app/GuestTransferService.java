@@ -17,8 +17,8 @@ import com.acttub.actingapi.feature.coach.app.NoteRatingOwnership;
 import com.acttub.actingapi.feature.feedback.app.ExitSurveyOwnership;
 import com.acttub.actingapi.feature.memory.app.MemoryOwnership;
 import com.acttub.actingapi.feature.practice.app.PracticeOwnership;
+import com.acttub.actingapi.feature.profile.app.SignupAttributionOwnership;
 import com.acttub.actingapi.feature.reading.app.ReadingOwnership;
-import com.acttub.actingapi.feature.upload.app.UploadOwnership;
 import com.acttub.actingapi.feature.video.app.VideoOwnership;
 import com.acttub.actingapi.platform.ledger.OperationOwnership;
 import com.acttub.actingapi.platform.web.ApiException;
@@ -46,7 +46,6 @@ public class GuestTransferService {
 
     private final TransferCodeRepository codes;
     private final GuestAccounts guests;
-    private final UploadOwnership uploads;
     private final PracticeOwnership practices;
     private final OperationOwnership operations;
     private final MemoryOwnership memories;
@@ -54,6 +53,7 @@ public class GuestTransferService {
     private final VideoOwnership videos;
     private final ExitSurveyOwnership surveys;
     private final NoteRatingOwnership ratings;
+    private final SignupAttributionOwnership attributions;
     private final Clock clock;
     private final byte[] hashKey;
     private final SecureRandom random = new SecureRandom();
@@ -61,7 +61,6 @@ public class GuestTransferService {
     public GuestTransferService(
             TransferCodeRepository codes,
             GuestAccounts guests,
-            UploadOwnership uploads,
             PracticeOwnership practices,
             OperationOwnership operations,
             MemoryOwnership memories,
@@ -69,6 +68,7 @@ public class GuestTransferService {
             VideoOwnership videos,
             ExitSurveyOwnership surveys,
             NoteRatingOwnership ratings,
+            SignupAttributionOwnership attributions,
             Clock clock,
             String secret) {
         if (secret == null || secret.isEmpty()) {
@@ -76,7 +76,6 @@ public class GuestTransferService {
         }
         this.codes = codes;
         this.guests = guests;
-        this.uploads = uploads;
         this.practices = practices;
         this.operations = operations;
         this.memories = memories;
@@ -84,6 +83,7 @@ public class GuestTransferService {
         this.videos = videos;
         this.surveys = surveys;
         this.ratings = ratings;
+        this.attributions = attributions;
         this.clock = clock;
         this.hashKey = hmac(secret.getBytes(StandardCharsets.UTF_8), HASH_PURPOSE);
     }
@@ -122,10 +122,8 @@ public class GuestTransferService {
                 return Outcome.CODE_NOT_FOUND;
             }
             UUID guestId = live.guestId();
-            // 올린 영상 → 연습 → 작업 장부 순서는 그대로다(새 연습을 만드는 쪽이 올린 영상 행을 먼저 잡으므로,
-            // 그 행에서 줄을 서야 겹쳐 만들어진 연습과 작업을 놓치지 않는다).
-            uploads.reassign(guestId, memberId);
-            // 보관함은 올린 영상 바로 뒤다 — 새 연습을 만드는 쪽이 영상 행을 먼저 잡으므로 그 행에서 줄을 선다.
+            // 올린 영상(예약 장부 → 보관함) → 연습 → 작업 장부 순서는 그대로다(새 연습을 만드는 쪽이 영상 행을
+            // 먼저 잡으므로, 그 행에서 줄을 서야 겹쳐 만들어진 연습과 작업을 놓치지 않는다).
             videos.reassign(guestId, memberId);
             practices.reassign(guestId, memberId);
             operations.reassign(guestId, memberId);
@@ -135,12 +133,14 @@ public class GuestTransferService {
             // 어디서 나든 트랜잭션 전체를 되돌린다.
             moveMemory(guestId, memberId, memoryChoice);
             // 리딩(대본·회차·녹음·암기 상태)은 게스트의 users 행을 잡은 뒤 옮긴다 — 리딩의 쓰기가 같은 행을 잡고
-            // 활성인지 보므로, 옮기는 사이에 커밋된 대본이 닫힌 게스트에게 남지 않는다(03-reading).
+            // 활성인지 보므로, 옮기는 사이에 커밋된 대본이 닫힌 게스트에게 남지 않는다(specs/reading).
             readings.reassign(guestId, memberId);
             // 설문 이력은 회원 것이 되고, 어느 쪽이든 물어봤으면 회원도 물어본 것이다(practice.feedback).
             surveys.reassign(guestId, memberId);
             // 노트 평가는 회차를 따라 회원 것이 된다 — 회원의 노트 조회에 남긴 평가가 그대로 보인다(practice.note).
             ratings.reassign(guestId, memberId);
+            // 이 회원이 게스트 뒤에 새로 가입했는지 증명할 신호가 없다. 과거 회원의 가입 출처로 추정 이관하지 않는다.
+            attributions.discardTransferredGuest(guestId);
             guests.closeTransferredGuest(guestId, now);
             codes.markUsed(live.id(), now);
             return Outcome.TRANSFERRED;

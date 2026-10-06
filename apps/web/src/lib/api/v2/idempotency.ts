@@ -1,45 +1,19 @@
 import { apiFetch, type ApiResponse } from "./client";
 import { consentPromptElapsedMs, whenConsentPromptCloses } from "./consent-prompt";
 import { isRateLimited, isStillProcessing, NetworkError } from "./errors";
-
-export type RetryWaitReason = "processing" | "rate_limited" | "network";
+import { newRequestId } from "../../reading/request-id";
 
 export type PostIdempotentOptions = {
   requestId?: string;
   signal?: AbortSignal;
   deadlineMs?: number;
-  onWait?: (info: {
-    reason: RetryWaitReason;
-    attempt: number;
-    delayMs: number;
-  }) => void;
 };
 
-function newRequestId(): string {
-  // crypto.randomUUID는 보안 컨텍스트(HTTPS·localhost) 전용이라
-  // http://<IP> 배포에서는 getRandomValues 기반 UUID v4로 폴백한다.
-  if (typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-  const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
-  bytes[6] = (bytes[6] & 0x0f) | 0x40;
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0"));
-  return (
-    hex.slice(0, 4).join("") +
-    "-" + hex.slice(4, 6).join("") +
-    "-" + hex.slice(6, 8).join("") +
-    "-" + hex.slice(8, 10).join("") +
-    "-" + hex.slice(10, 16).join("")
-  );
-}
-
-function abortReason(signal: AbortSignal): unknown {
+export function abortReason(signal: AbortSignal): unknown {
   return signal.reason ?? new DOMException("요청이 취소되었습니다.", "AbortError");
 }
 
-function wait(delayMs: number, signal?: AbortSignal): Promise<void> {
+export function wait(delayMs: number, signal?: AbortSignal): Promise<void> {
   if (signal?.aborted) return Promise.reject(abortReason(signal));
 
   return new Promise((resolve, reject) => {
@@ -152,31 +126,21 @@ export async function postIdempotent<T>(
       }
     } catch (error) {
       lastError = error;
-      let reason: RetryWaitReason;
-      let attempt: number;
       let delayMs: number;
 
       if (isStillProcessing(error)) {
-        reason = "processing";
-        attempt = ++processingAttempts;
-        delayMs = Math.min(10_000, 2_000 * 1.5 ** (attempt - 1));
+        delayMs = Math.min(10_000, 2_000 * 1.5 ** processingAttempts++);
       } else if (isRateLimited(error) && rateLimitAttempts < 4) {
-        reason = "rate_limited";
-        attempt = ++rateLimitAttempts;
-        delayMs = Math.min(30_000, 2_000 * 2 ** (attempt - 1)) + Math.random() * 500;
+        delayMs = Math.min(30_000, 2_000 * 2 ** rateLimitAttempts++) + Math.random() * 500;
       } else if (error instanceof NetworkError && networkAttempts < 3) {
-        reason = "network";
-        attempt = ++networkAttempts;
-        delayMs = 1_000 * 2 ** (attempt - 1);
+        delayMs = 1_000 * 2 ** networkAttempts++;
       } else {
         throw error;
       }
 
       const leftMs = remainingMs();
       if (leftMs <= 0) throw error;
-      const boundedDelayMs = Math.min(delayMs, leftMs);
-      options.onWait?.({ reason, attempt, delayMs: boundedDelayMs });
-      await wait(boundedDelayMs, options.signal);
+      await wait(Math.min(delayMs, leftMs), options.signal);
     }
   }
 }

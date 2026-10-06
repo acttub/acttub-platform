@@ -12,7 +12,8 @@ import { TARGET } from '@/lib/spotlight-targets';
 import { hasMicPermission } from '@/hooks/use-reading-mic';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import { buildStartBody, dialogueNumbers, rangeError, sceneRanges, snapRangeToDialogues } from '@/lib/reading/session-plan';
-import { getCurrent, newRequestId, startSession, updateCurrent, type MaskMode } from '@/lib/reading/store';
+import { getCurrent, startSession, updateCurrent, type MaskMode } from '@/lib/reading/store';
+import { newRequestId } from '@/lib/request-id';
 import type { ReadingMode } from '@/lib/reading/types';
 import { translate as t } from '@/lib/i18n';
 
@@ -128,7 +129,7 @@ export default function ReadingRange() {
           record: micGranted ? record : false,
         }),
       );
-      await updateCurrent({ startIndex: start, endIndex: end, maskMode: mask, status: 'reading', index: start });
+      await updateCurrent({ maskMode: mask });
       router.replace('/reading/play');
     } catch (e) {
       const code = (e as { code?: string })?.code;

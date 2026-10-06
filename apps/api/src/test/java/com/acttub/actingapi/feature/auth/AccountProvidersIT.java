@@ -290,7 +290,7 @@ class AccountProvidersIT {
     }
 
     @Test
-    @DisplayName("account.login: 1.0.0 이전에 가입해 애플 토큰이 없는 회원은 다음 로그인 때 채우고, 그때 애플이 답하지 않아도 로그인은 된다")
+    @DisplayName("account.login: 0.1.0 이전에 가입해 애플 토큰이 없는 회원은 다음 로그인 때 채우고, 그때 애플이 답하지 않아도 로그인은 된다")
     void accountLogin_appleMemberWithoutATokenGetsOneAtTheNextLogin() throws Exception {
         String member = signUp("apple", "a-old|old@example.test|verified");
         jdbc.update("UPDATE user_identities SET apple_token_encrypted=NULL");

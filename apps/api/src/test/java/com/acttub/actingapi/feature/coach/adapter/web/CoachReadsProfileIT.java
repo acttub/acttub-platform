@@ -388,11 +388,26 @@ class CoachReadsProfileIT {
     void practiceNote_nextTakeKeepsTheProposedActionDistinctFromActorDirection() throws Exception {
         UUID practice = structuredPractice();
         UUID conversation = insertConversation(practice, List.of());
-        var handoff = (com.fasterxml.jackson.databind.node.ObjectNode) StructuredJson.resource("/coaching/handoff.json");
+        var stored = (com.fasterxml.jackson.databind.node.ObjectNode) StructuredJson.resource("/coaching/handoff.json");
+        var handoff = stored.deepCopy();
+        handoff.put("schema_version", "acttub.coach_handoff.v2");
+        var context = (com.fasterxml.jackson.databind.node.ObjectNode) stored.path("coaching_state").path("context").deepCopy();
+        context.putNull("reading");
+        handoff.set("context", context);
+        handoff.remove("coaching_state");
+        handoff.putArray("conversation").addObject().put("id", "m1").put("role", "actor")
+                .put("text", "붙잡고는 싶은데 애원하는 것처럼 보이긴 싫어.");
         var loaded = conversations.loadByConversation(user, conversation);
         var ended = loaded.session().withCoachingState("three_layers_v1", 3,
-                handoff.path("coaching_state"), "closed", "user_ended");
-        generator.enqueue("{\"title\":\"말끝\",\"summary\":null}");
+                stored.path("coaching_state"), "closed", "user_ended");
+        String instruction = "'가지 마'에서 마지막 음절을 길게 늘이지 않고 찍어보세요.";
+        generator.enqueue("""
+                {"summary":[
+                  {"source_ref":"m1","quote":"붙잡고는 싶은데 애원하는 것처럼 보이긴 싫어."},
+                  {"source_ref":"e4","quote":"마지막 음절 ‘마’의 소리가 앞선 음절들보다 길게 이어진다."}],
+                 "next_take":{"instruction":"%s",
+                   "comparison":"같은 대목에서 말끝의 길이와 원했던 말투를 비교해보세요.","basis_refs":["m1","e4"]}}
+                """.formatted(instruction));
         notes.write(loaded, new com.acttub.actingapi.feature.coach.app.CoachResult(ended,
                 new com.acttub.actingapi.feature.coach.app.CoachReply("여기까지 남길게요", "complete", handoff)),
                 3, CoachStorageFixtures.NOW);
@@ -400,7 +415,7 @@ class CoachReadsProfileIT {
         JsonNode note = successful(get("/v2/practices/{id}/note", practice).header("Authorization", bearer()));
 
         assertThat(note.path("kind").asText()).isEqualTo("action");
-        assertThat(note.path("next_take").asText()).isEqualTo("같은 대사를 말끝만 짧게 끝내서 한 번 해보세요.");
+        assertThat(note.path("next_take").asText()).isEqualTo(instruction);
         assertThat(note.path("next_take")).isNotEqualTo(note.at("/report/direction/text"));
         assertThat(note.at("/report/practice/instruction").asText()).isEqualTo(note.path("next_take").asText());
     }
@@ -512,6 +527,33 @@ class CoachReadsProfileIT {
         assertThat(generator.lastInput())
                 .contains("지난 회차에서 숨을 길게 쉬었어요", "호흡의 끝", "제안: 한 번 천천히 말해 보기")
                 .doesNotContain("다른 장면의 비밀", "무관한 노트", "무관한 제안", "해보기로 했지만 아직 안 해본 것");
+    }
+
+    @Test
+    @DisplayName("practice.resume: 연습 루프 회차는 목표·이유·아니라고 한 것·제안을 한 줄로 다음 회차에 넘긴다 (SOMA-602)")
+    void practiceResume_loopRoundCarriesGoalReasonCorrectionAndSuggestion() throws Exception {
+        UUID previous = analyzedPractice();
+        UUID conversation = insertConversation(previous, List.of(
+                "지난번엔 엄마를 끝까지 보기로 했어요.", "렌즈 본 거예요",
+                "그러면 제가 잘못 봤어요.", "트라우마 때문에 마주하기 어려워서 일부러 돌렸어",
+                "그대로 적어 둘게요."));
+        jdbc.update("UPDATE coach_conversations SET status='closed',state=CAST(? AS jsonb) WHERE id=?", """
+                {"practice_loop":{"design":"이번 목표: 엄마를 끝까지 보기\\n버릇: 고개를 크게 돌림 | 곳1: x\\n다음 테이크: 손을 꽉 쥐기",
+                 "statuses":["","배우의 말: 정정\\n피할 것: 시선\\n할 일: 내려놓기","배우의 말: 선택 설명\\n할 일: 마무리2"]}}""",
+                conversation);
+        jdbc.update("UPDATE practices SET stage='closed',close_reason='conversation_closed' WHERE id=?", previous);
+        jdbc.update("""
+                INSERT INTO coach_notes(id,conversation_id,format,kind,title,next_take,source_revision)
+                VALUES (?,?,'v2','action','고개를 크게 돌림','손을 꽉 쥐기',0)
+                """, UUID.randomUUID(), conversation);
+        UUID current = analyzedPractice();
+        jdbc.update("UPDATE practices SET root_id=?,ordinal=2 WHERE id=?", previous, current);
+        generator.enqueue(COACH_REPLY);
+
+        startPractice(current);
+
+        assertThat(generator.lastInput()).contains("목표 엄마를 끝까지 보기", "버릇 고개를 크게 돌림",
+                "이유: \"트라우마 때문에 마주하기 어려워서 일부러 돌렸어\"", "아니라고 한 것: 시선", "제안: 손을 꽉 쥐기");
     }
 
     @Test

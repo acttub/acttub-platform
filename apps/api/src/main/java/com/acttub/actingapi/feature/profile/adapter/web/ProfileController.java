@@ -5,6 +5,7 @@ import java.time.format.DateTimeParseException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.Direction;
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.MeResponse;
@@ -14,12 +15,15 @@ import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.PhotoUploadR
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.PhotoUploadResponse;
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.ProfilePayload;
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.ProfileRequest;
+import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.SignupAttributionRequest;
+import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.WebAttributionRequest;
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.WithdrawnResponse;
 import com.acttub.actingapi.feature.profile.app.ProfileService;
 import com.acttub.actingapi.feature.profile.domain.Account;
 import com.acttub.actingapi.feature.profile.domain.NotificationSettings;
 import com.acttub.actingapi.feature.profile.domain.Profile;
 import com.acttub.actingapi.feature.profile.domain.ProfileName;
+import com.acttub.actingapi.feature.profile.domain.SignupAttribution;
 import com.acttub.actingapi.platform.security.AccessGate;
 import com.acttub.actingapi.platform.web.ApiValidationException;
 import io.swagger.v3.oas.annotations.Operation;
@@ -50,7 +54,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/v2/me")
 class ProfileController {
-    private static final int BIO_MAX_LENGTH = 80;
+    private static final Pattern WEB_ATTRIBUTION_VALUE = Pattern.compile(SignupAttribution.WEB_VALUE_PATTERN);
 
     private final ProfileService profiles;
     private final AccessGate auth;
@@ -97,7 +101,7 @@ class ProfileController {
     MeResponse saveProfile(@Valid @RequestBody ProfileRequest body, HttpServletRequest request) {
         var user = auth.consentedUser(request);
         ProfileName name = new ProfileName(body.name());
-        validate(name);
+        requireNotBlank(name);
         String bio = validBio(body.bio());
         LocalDate birthDate = validBirthDate(body.birthDate());
         if (body.directions().isEmpty()) {
@@ -117,6 +121,55 @@ class ProfileController {
                 body.goal().name(),
                 null,
                 bio)));
+    }
+
+    @Operation(
+            summary = "Record Signup Attribution",
+            description = """
+                    이 기기에서 새로 가입한 계정의 유입 광고(Airbridge 설치 귀속 결과)를 적는다. 계정마다 처음 온
+                    값만 남고, 다시 보내도 바꾸지 않은 채 204 다 — 재시도에 안전하다. 보호 기능이라 동의와 프로필이
+                    끝난 회원만 부를 수 있다. 게스트는 403 member_only.""",
+            operationId = "record_signup_attribution_v2_me_signup_attribution_put",
+            tags = "v2-me",
+            security = @SecurityRequirement(name = "HTTPBearer"))
+    @ApiResponses({
+        @ApiResponse(responseCode = "204", description = "Successful Response"),
+        @ApiResponse(
+                responseCode = "422",
+                description = "Validation Error",
+                content = @Content(schema = @Schema(ref = "#/components/schemas/HTTPValidationError")))
+    })
+    @PutMapping("/signup-attribution")
+    ResponseEntity<Void> recordSignupAttribution(
+            @Valid @RequestBody SignupAttributionRequest body, HttpServletRequest request) {
+        var user = auth.gatedUser(request);
+        profiles.recordSignupAttribution(user.id(), signupAttribution(body));
+        return ResponseEntity.noContent().build();
+    }
+
+    @Operation(
+            summary = "Record Web Attribution",
+            description = """
+                    웹 주소에서 받은 안전한 UTM을 현재 계정의 최초 유입 출처로 적는다. 인증과 현재 개인정보
+                    수집·이용 동의만 필요해 게스트도 프로필 없이 부를 수 있다. source=web_utm,
+                    platform=web은 서버가 고정한다. 같은 계정에 다시 보내면 처음 값을 유지한 채 204다.
+                    이 값은 클라이언트 자기 보고 유입이며 광고 플랫폼 귀속과 별개다.""",
+            operationId = "record_web_attribution_v2_me_web_attribution_put",
+            tags = "v2-me",
+            security = @SecurityRequirement(name = "HTTPBearer"))
+    @ApiResponses({
+        @ApiResponse(responseCode = "204", description = "Successful Response"),
+        @ApiResponse(
+                responseCode = "422",
+                description = "Validation Error",
+                content = @Content(schema = @Schema(ref = "#/components/schemas/HTTPValidationError")))
+    })
+    @PutMapping("/web-attribution")
+    ResponseEntity<Void> recordWebAttribution(
+            @Valid @RequestBody WebAttributionRequest body, HttpServletRequest request) {
+        var user = auth.privacyConsentedUser(request);
+        profiles.recordSignupAttribution(user.id(), webAttribution(body));
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(
@@ -192,9 +245,8 @@ class ProfileController {
     @Operation(
             summary = "Update Notification Settings",
             description = """
-                    바꿀 토글만 보내고 토글 셋 전체를 돌려받는다. 분석 완료와 챌린지가 둘 다 꺼지면 서버가 그
-                    회원의 푸시 토큰을 전부 지운다(토글은 회원 단위다). 저녁 리마인드는 서버가 값만 기억하고
-                    알람은 폰이 맞춘다.""",
+                    바꿀 토글만 보내고 토글 셋 전체를 돌려받는다. 셋이 다 꺼지면 서버가 그 회원의 푸시
+                    토큰을 전부 지운다(토글은 회원 단위다). 저녁 리마인드도 서버가 푸시로 보낸다.""",
             operationId = "update_notification_settings_v2_me_notification_settings_patch",
             tags = "v2-me",
             security = @SecurityRequirement(name = "HTTPBearer"))
@@ -254,25 +306,10 @@ class ProfileController {
      * 422 본문의 모양이 곧 계약이라 이 판정은 요청을 받는 자리에 남는다. 무엇이 어긋났는지를
      * 아는 것은 {@link ProfileName} 이고, 그것을 pydantic 과 같은 형태로 옮기는 것이 여기다.
      *
-     * <p>길이를 <b>원본</b>으로 재고 공백 접기를 그 뒤에 보는 순서가 1.0.0 이전의 닉네임 규칙과 같다.
+     * <p>길이(1~20자)는 여기 오기 전에 {@code ProfileRequest} 의 {@code @Schema(minLength, maxLength)} 로
+     * <b>원본</b>을 잰다. 공백 접기를 그 뒤에 보는 순서가 0.1.0 이전의 닉네임 규칙과 같다.
      */
-    private static void validate(ProfileName name) {
-        if (name.tooShort()) {
-            throw lengthError(
-                    "name",
-                    "string_too_short",
-                    "String should have at least 1 character",
-                    name.raw(),
-                    Map.of("min_length", 1));
-        }
-        if (name.tooLong()) {
-            throw lengthError(
-                    "name",
-                    "string_too_long",
-                    "String should have at most 20 characters",
-                    name.raw(),
-                    Map.of("max_length", ProfileName.MAX_LENGTH));
-        }
+    private static void requireNotBlank(ProfileName name) {
         if (name.blankAfterFolding()) {
             throw ApiValidationException.valueError(
                     List.of("body", "name"),
@@ -301,18 +338,13 @@ class ProfileController {
         return birthDate;
     }
 
-    /** 소개는 선택이다. 비어 있으면 없는 것으로 저장하고, 80자(코드포인트)를 넘으면 거절한다. */
+    /**
+     * 소개는 선택이다. 비어 있으면 없는 것으로 저장한다. 80자(코드포인트) 상한은 {@code ProfileRequest} 의
+     * {@code @Schema(maxLength)} 가 먼저 거른다.
+     */
     private static String validBio(String raw) {
         if (raw == null) {
             return null;
-        }
-        if (raw.codePointCount(0, raw.length()) > BIO_MAX_LENGTH) {
-            throw lengthError(
-                    "bio",
-                    "string_too_long",
-                    "String should have at most 80 characters",
-                    raw,
-                    Map.of("max_length", BIO_MAX_LENGTH));
         }
         String stripped = raw.strip();
         return stripped.isEmpty() ? null : stripped;
@@ -352,5 +384,88 @@ class ProfileController {
                         profile.goal(),
                         view.photoUrl(),
                         profile.bio()));
+    }
+
+    private static SignupAttribution signupAttribution(SignupAttributionRequest body) {
+        if (!SignupAttribution.AIRBRIDGE_SOURCE.equals(body.source())) {
+            throw ApiValidationException.valueError(
+                    List.of("body", "source"), "source must be one of: airbridge", body.source());
+        }
+        if (!SignupAttribution.AIRBRIDGE_PLATFORMS.contains(body.platform())) {
+            throw ApiValidationException.valueError(
+                    List.of("body", "platform"), "platform must be one of: ios, android", body.platform());
+        }
+        String channel = attributionValue("channel", body.channel());
+        if (channel == null) {
+            throw ApiValidationException.valueError(
+                    List.of("body", "channel"), "channel must be a non-empty string", body.channel());
+        }
+        return new SignupAttribution(
+                body.source(),
+                body.platform(),
+                channel,
+                null,
+                attributionValue("campaign", body.campaign()),
+                attributionValue("ad_group", body.adGroup()),
+                attributionValue("ad_creative", body.adCreative()),
+                attributionValue("content", body.content()),
+                attributionValue("term", body.term()),
+                attributionValue("sub_publisher", body.subPublisher()));
+    }
+
+    private static SignupAttribution webAttribution(WebAttributionRequest body) {
+        String channel = webAttributionValue("channel", body.channel());
+        if (channel == null) {
+            throw ApiValidationException.valueError(
+                    List.of("body", "channel"), "channel must be a non-empty safe campaign value", body.channel());
+        }
+        return new SignupAttribution(
+                SignupAttribution.WEB_SOURCE,
+                SignupAttribution.WEB_PLATFORM,
+                channel,
+                webAttributionValue("medium", body.medium()),
+                webAttributionValue("campaign", body.campaign()),
+                null,
+                null,
+                webAttributionValue("content", body.content()),
+                webAttributionValue("term", body.term()),
+                null);
+    }
+
+    /** 앞뒤 공백을 걷고, 빈 선택 값은 {@code null}. URL·개인식별값을 담기 어려운 store-links 정책만 받는다. */
+    private static String webAttributionValue(String field, String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String value = raw.strip();
+        if (value.isEmpty()) {
+            return null;
+        }
+        if (value.length() > SignupAttribution.WEB_MAX_LENGTH || !WEB_ATTRIBUTION_VALUE.matcher(value).matches()) {
+            throw ApiValidationException.valueError(
+                    List.of("body", field),
+                    field + " must be 1-" + SignupAttribution.WEB_MAX_LENGTH
+                            + " ASCII letters, digits, dots, underscores, or hyphens",
+                    raw);
+        }
+        return value;
+    }
+
+    /** 앞뒤 공백을 걷고, 비었으면 {@code null}. {@link SignupAttribution#MAX_LENGTH} 를 넘으면 422 다. */
+    private static String attributionValue(String field, String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String value = raw.strip();
+        if (value.isEmpty()) {
+            return null;
+        }
+        if (value.codePointCount(0, value.length()) > SignupAttribution.MAX_LENGTH) {
+            throw ApiValidationException.valueError(
+                    List.of("body", field),
+                    field + " must be at most " + SignupAttribution.MAX_LENGTH + " characters",
+                    raw);
+        }
+        return value;
     }
 }

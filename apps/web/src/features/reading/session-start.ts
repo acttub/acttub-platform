@@ -1,6 +1,6 @@
 /**
  * 배역 화면(D17)이 회차 시작 요청을 만드는 규칙(reading.cast·reading.session). 순수 함수라 화면 없이
- * 테스트한다. 웹 1.0.0 은 전체 구간으로 시작한다(구간 선택 UI 없음).
+ * 테스트한다. 웹 0.1.0 은 전체 구간으로 시작한다(구간 선택 UI 없음).
  */
 import type { ReadingAdvance, ReadingMode, SessionCreateRequest } from "@/lib/reading/api-types";
 import type { MaskMode } from "@/lib/reading/session/mask";

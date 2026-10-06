@@ -40,7 +40,7 @@ class MemoryWorkerScheduler {
             Logger.getLogger(MemoryWorkerScheduler.class.getName());
 
     private final MemoryUpdateWorker worker;
-    /** 1.0.0 회차의 갱신은 {@code ai_jobs} 를 집는다 — 옛 원장과 큐가 달라 워커도 따로다(practice.memory). */
+    /** 0.1.0 회차의 갱신은 {@code ai_jobs} 를 집는다 — 옛 원장과 큐가 달라 워커도 따로다(practice.memory). */
     private final ActorMemoryUpdateWorker actorWorker;
     private final ThreadPoolTaskExecutor executor;
     private final FailureReporter failureReporter;
@@ -97,8 +97,12 @@ class MemoryWorkerScheduler {
             while (worker != null && worker.runOnce()) {
                 // 일감이 있는 동안은 대기하지 않는다.
             }
+            if (actorWorker != null) {
+                // 말이 끊긴 열린 회차를 10분에 한 번 본다(SOMA-603).
+                actorWorker.sweepIdle();
+            }
             while (actorWorker != null && actorWorker.runOnce()) {
-                // 1.0.0 큐도 같은 풀에서 비운다.
+                // 0.1.0 큐도 같은 풀에서 비운다.
             }
         } catch (Exception exception) {
             // 기억 갱신이 실패해도 연습은 정상이다. 큐만 비우고 넘어간다.

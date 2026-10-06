@@ -8,7 +8,7 @@
 # 고지 없이 이용 기록과 화면 녹화가 수탁사로 넘어간다. 사람이 기억할 일로 두지 않고 여기서
 # 막는다. 키가 비어 있으면 통과한다 — 계측이 꺼진 번들이 나갈 뿐이라 안전한 상태다.
 #
-# 1.0.0 부터 문서가 둘로 갈린다(SOMA-528). 개인정보 처리방침은 동의 대상이 아닌 고지
+# 0.1.0 부터 문서가 둘로 갈린다(SOMA-528). 개인정보 처리방침은 동의 대상이 아닌 고지
 # (consent-docs/privacy_policy.md, 공개 API 로 내준다)이고, 배우가 결정하는 문서는
 # manifest 의 privacy 종류인 "개인정보 수집·이용 동의"다. 판정 둘:
 #   ① 처리방침(고지)에 Amplitude 위탁 고지가 있다.
@@ -18,7 +18,7 @@
 # 들지 않고 서버의 GET /v2/consents/entry 가 현재 판 기준으로 답한 결정만 본다
 # (apps/web/ANALYTICS.md). 그래서 새 수집이 생기는 변경은 고지만 고치지 말고 수집·이용 동의의
 # 판도 올려야 한다 — 그래야 기존 동의자가 다시 결정하고 그 전까지 계측이 꺼진다
-# (consent-docs/README.md 의 발행 규칙).
+# (규칙은 docs/specs/account/consent.md, 발행 절차는 consent-docs/README.md).
 # 실패 이유는 Actions 의 잡 요약($GITHUB_STEP_SUMMARY, 있을 때)에도 적는다.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."

@@ -29,13 +29,13 @@ public interface EntryRepository {
     /** @return 사건을 새로 반영했으면 {@code true}(본인 재생·같은 사건 재전송은 {@code false}) */
     boolean view(UUID viewer, UUID entryId, UUID eventId, Instant now);
     EntryPage list(UUID viewer, UUID challengeId, String sort, String cursor, UUID fromEntry, Instant now);
-    EntryCard find(UUID viewer, UUID entryId, Instant now);
+    EntryCard find(UUID viewer, UUID entryId);
     /**
      * 공유 링크의 공개 조회(challenge.share) — 보는 사람 없이 공개 조건만 본다(차단은 보는 사람이 있어야 따진다).
      * 공개 조건을 벗어났거나 없으면 {@code null}.
      */
     PublicEntry publicEntry(UUID entryId);
-    MyEntries mine(UUID owner, String category, String cursor, Instant now);
+    MyEntries mine(UUID owner, String category, String cursor);
     /** 매시 도는 일: 마감이 지난 챌린지의 집계·확정과 기한 지난 조회수 사건·커서 정리. */
     int settle(Instant now);
 

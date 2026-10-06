@@ -66,9 +66,3 @@ export function compare(said: string, target: string): CompareResult {
   const closeness = similarity(said, target);
   return { pass: closeness >= PASS_THRESHOLD, closeness };
 }
-
-/** 완주 요약용 — 통과한 줄 비율. 진행 맞춰보기과 분리해 둔다. */
-export function accuracy(results: CompareResult[]): number {
-  if (!results.length) return 0;
-  return results.filter((r) => r.pass).length / results.length;
-}

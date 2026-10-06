@@ -56,6 +56,7 @@ import {
   type ProfilePayload,
 } from '@/lib/profile-form';
 import { disconnectProviders, providerAdapter, signOutProviders } from '@/lib/provider-sdk';
+import { identifySignupAttributionAccount } from '@/lib/signup-attribution-runtime';
 import { translate as t } from '@/lib/i18n';
 import {
   clearTokens,
@@ -218,6 +219,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // 홈 인사말과 프로필 탭이 읽는 기기 캐시. 정본은 서버의 profile.name이다.
     const name = me.profile?.name?.trim();
     if (me.profile_complete && name) void saveUserName(name).catch(() => undefined);
+    // 가입을 마친 회원만 Airbridge 계정으로 잇고, 보내지 못한 유입 광고가 있으면 보낸다(SOMA-588).
+    identifySignupAttributionAccount(
+      me.account_type === 'member' && me.profile_complete ? me.id : null,
+    );
   }, []);
 
   const reloadProfile = useCallback(async () => {
@@ -298,14 +303,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // 푸시 토큰 등록은 보호 기능이다. 동의와 프로필이 끝난 뒤에만 서버가 받으므로, 게이트를
   // 통과한 순간과 (게이트가 이미 끝난 회원은) 앱을 열 때 등록한다. 서버의 알림 토글을 읽어
-  // 저녁 리마인드 30일치도 함께 맞춘다. 최선 노력이라 기다리지 않는다.
+  // 옛 판이 남긴 로컬 리마인드도 취소한다. 최선 노력이라 기다리지 않는다.
   const gatePassed =
     status === 'signedIn' && consentEntry.status === 'allowed' && profile.status === 'complete';
   useEffect(() => {
     if (gatePassed) void syncNotificationsAfterGate().catch(() => undefined);
   }, [gatePassed, user?.id]);
 
-  // 1.0.0 이전 앱이 기기에 남긴 대본은 게이트를 지난 뒤 한 번 서버로 옮긴다(reading.script). 보호 기능이라
+  // 0.1.0 이전 앱이 기기에 남긴 대본은 게이트를 지난 뒤 한 번 서버로 옮긴다(reading.script). 보호 기능이라
   // 그 전에는 서버가 받지 않는다. 실패한 대본은 기기에 남아 다음 실행에 다시 한다. 기다리지 않는다.
   useEffect(() => {
     if (gatePassed) void runLegacyScriptMigrationOnce();
@@ -332,7 +337,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [gatePassed, user?.id]);
 
   // "앱을 열 때"는 새로 켤 때만이 아니다. 배경에서 돌아올 때도 밀린 토큰 삭제를 다시 보내고,
-  // 게이트를 통과한 계정이면 알림 설정·토큰 등록·리마인드 30일치를 다시 맞춘다. 다른 기기에서
+  // 게이트를 통과한 계정이면 알림 설정·토큰 등록을 다시 맞춘다. 다른 기기에서
   // 푸시 토글 둘을 껐다 켜면 이 폰의 토큰도 지워져 있다. 너무 잦지 않게 최소 간격을 둔다
   // (notification-sync).
   const gatePassedRef = useRef(gatePassed);
@@ -429,6 +434,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // 서버가 계정을 행째 지웠고 토큰도 죽었다. 기기의 계정 자료를 지우고 로그인으로 보낸다.
     setLoginNotice(t('profileName.under14Closed'));
     await wipeClosedAccount(CLOSED_ACCOUNT_STEPS);
+    identifySignupAttributionAccount(null);
   }, []);
 
   const signOut = useCallback(async () => {
@@ -450,6 +456,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await clearTokens();
       },
     });
+    identifySignupAttributionAccount(null);
     setUser(null);
     setStatus('signedOut');
   }, []);
@@ -467,6 +474,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       ...CLOSED_ACCOUNT_STEPS,
     });
+    identifySignupAttributionAccount(null);
     setUser(null);
     setStatus('signedOut');
   }, []);

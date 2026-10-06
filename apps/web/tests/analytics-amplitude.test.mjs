@@ -164,7 +164,7 @@ test("screen_viewed는 쿼리·해시를 버리고 경로 UUID를 가린다", ()
   assert.deepEqual(screen[2], { path: "/practice/<id>" });
 });
 
-// 이론 선택은 1.0.0 에서 준비 화면과 함께 사라졌다(practice.start). 옛 호출 모양이 남아 있어도
+// 이론 선택은 0.1.0 에서 준비 화면과 함께 사라졌다(practice.start). 옛 호출 모양이 남아 있어도
 // 그 속성을 만들지 않는다.
 test("practice_session_created는 theory_choice를 보내지 않는다", () => {
   globalThis.__amplitudeCalls.length = 0;

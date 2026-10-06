@@ -51,9 +51,6 @@ final class CoachResponsePolicy {
             failures.add("JSON 출력 형식에 대한 내부 작업 메모가 응답에 섞였다. 메모를 제거하고 배우의 요청에만 답한다.");
         }
         String explanation = reply.message();
-        for (String transcript : session.transcripts()) {
-            if (!transcript.isBlank()) explanation = explanation.replace(transcript, "");
-        }
         if (usesEnglish(session, actorText) && explanation.matches("(?s).*[가-힣].*")
                 && !explanation.matches("(?s).*[A-Za-z].*")) {
             failures.add("배우는 영어로 대화하고 있다. 대사 인용을 제외한 설명은 영어로 답한다.");

@@ -50,7 +50,7 @@ class ReportPromptSnapshotTest {
                 MAPPER.readTree("{\"blocked_point\":\"대사 의미\"}"),
                 true,
                 "analysis-id",
-                null);
+                null, null);
 
         assertThat(engine.serializeInput(input))
                 .isEqualTo(FrozenValue.of("report-input-analysis.txt"));
@@ -70,7 +70,7 @@ class ReportPromptSnapshotTest {
                 handoff,
                 true,
                 "expression-id",
-                null);
+                null, null);
 
         assertThat(engine.serializeInput(input))
                 .isEqualTo(FrozenValue.of("report-input-expression.txt"));

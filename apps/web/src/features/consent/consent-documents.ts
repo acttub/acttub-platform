@@ -3,7 +3,7 @@ import type { ConsentDocument, ConsentNotice } from "@/lib/api/v2/types";
 
 // 동의 문서 공개 페이지(/terms)가 그리는 것의 순수한 부분(account.consent).
 
-export type ConsentDocumentsPageData = {
+type ConsentDocumentsPageData = {
   /** 동의 문서의 현재 판. 판과 시행일이 있고 기능 안의 시트에서 결정을 받는다. */
   documents: ConsentDocument[];
   /** 개인정보 처리방침 같은 고지. 결정 대상이 아니라서 판도 결정 버튼도 없다(결정 I-6). */

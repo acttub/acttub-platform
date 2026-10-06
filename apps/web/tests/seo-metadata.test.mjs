@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import "./ts-module-loader.mjs";
@@ -15,7 +16,6 @@ const {
   buildNoindexMetadata,
   buildRootMetadata,
   buildUniversityAdmissionsMetadata,
-  buildVerification,
   resolveSiteUrl,
 } = await import("../src/lib/seo/site-metadata.ts");
 
@@ -75,16 +75,6 @@ test("루트 metadata는 공통 title과 소셜 정보를 담되 URL 신호를 �
   });
   assert.equal(metadata.alternates, undefined);
   assert.equal("url" in metadata.openGraph, false);
-});
-
-test("소유권 metadata는 빈 네이버 값의 키를 만들지 않는다", () => {
-  assert.deepEqual(buildVerification("google-code", ""), {
-    google: "google-code",
-  });
-  assert.deepEqual(buildVerification("google-code", "naver-code"), {
-    google: "google-code",
-    other: { "naver-site-verification": "naver-code" },
-  });
 });
 
 test("키워드 metadata는 canonical과 Article 공유 정보를 본문에서 만든다", () => {
@@ -194,4 +184,25 @@ test("공고가 없는 대학 상세 metadata는 중립 설명을 쓴다", () =>
     metadata.description,
     "빈대학교 연기 전공 입시 정보를 정리했어요. 최종 확인은 대학 입학처 공고로 해주세요.",
   );
+});
+
+test("공개 페이지 metadata 빌더 여섯의 결과를 글자 그대로 고정한다", () => {
+  const site = "https://example.com/";
+  const actual = {
+    keyword: buildKeywordPageMetadata(AI_ACTING_COACHING, site),
+    guideIndex: buildGuideIndexMetadata(site),
+    landing: buildLandingMetadata(site),
+    appDownload: buildAppDownloadMetadata(site),
+    admissionsIndex: buildAdmissionsIndexMetadata(site),
+    university: buildUniversityAdmissionsMetadata(loadUniversityAdmissionsStatic("cau"), site),
+  };
+  for (const metadata of Object.values(actual)) {
+    assert.ok(metadata.metadataBase instanceof URL);
+    metadata.metadataBase = metadata.metadataBase.href;
+  }
+  // 값이 undefined 인 키가 끼어도 틀린다 — 루트의 title 템플릿을 덮으면 화면 제목이 바뀐다.
+  const expected = JSON.parse(
+    readFileSync(new URL("./fixtures/seo-page-metadata.json", import.meta.url), "utf8"),
+  );
+  assert.deepEqual(actual, expected);
 });

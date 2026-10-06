@@ -40,6 +40,7 @@ class AccountHousekeepingTest {
         verify(accounts).withdraw(fine);
         verify(cleanup).runDue();
         verify(profiles).deleteStaleTransferCodes(any());
+        verify(profiles).deleteExpiredWebAttributions(any());
         assertThat(failures.contexts())
                 .containsExactly("AccountHousekeeping.refreshTokens", "AccountHousekeeping.idleGuest");
     }
@@ -53,5 +54,6 @@ class AccountHousekeepingTest {
         housekeeping.runDaily();
 
         verify(profiles).purgeRetained(Instant.parse("2023-10-02T19:30:00Z"), Instant.parse("2026-10-02T19:30:00Z"));
+        verify(profiles).deleteExpiredWebAttributions(Instant.parse("2025-08-02T19:30:00Z"));
     }
 }

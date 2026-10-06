@@ -13,10 +13,10 @@ import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * 클라이언트 판 헤더({@code X-Acttub-Client}, 예: {@code app/1.0.0})가 없는 {@code /v2} 요청을
- * 426 으로 돌려보낸다 ({@code docs/requirements/00-common.md} 「클라이언트 판과 강제 업데이트」).
+ * 클라이언트 판 헤더({@code X-Acttub-Client}, 예: {@code app/0.1.0})가 없는 {@code /v2} 요청을
+ * 426 으로 돌려보낸다 ({@code docs/specs/common.md} 「클라이언트 판과 강제 업데이트」).
  *
- * <p>헤더가 없으면 1.0.0 이전 빌드다. 그 빌드들은 로그인 즉시 계정이 생기고 필수 문서만 게이트에
+ * <p>헤더가 없으면 0.1.0 이전 빌드다. 그 빌드들은 로그인 즉시 계정이 생기고 필수 문서만 게이트에
  * 걸리던 옛 규칙을 전제로 하므로, 서버에 옛 규칙을 남기는 대신 업데이트로 보낸다. 옛 앱은 모르는
  * 상태 코드에 실린 {@code detail} 문장을 그대로 보여 주므로 <b>여기만 {@code detail} 이 코드가
  * 아니라 안내 문장이다.</b> 새 앱은 문장이 아니라 상태 코드 426 을 보고 안내 화면을 띄운다.
@@ -38,7 +38,7 @@ public class ClientVersionFilter extends OncePerRequestFilter {
 
     public static final String HEADER = "X-Acttub-Client";
 
-    /** 1.0.0 이전 앱이 그대로 보여 주는 문장이다. 고치면 그 화면의 문구가 바뀐다. */
+    /** 0.1.0 이전 앱이 그대로 보여 주는 문장이다. 고치면 그 화면의 문구가 바뀐다. */
     static final String UPGRADE_NOTICE = "새 버전이 나왔어요. 스토어에서 업데이트해 주세요.";
 
     private static final AntPathMatcher PATHS = new AntPathMatcher();

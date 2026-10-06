@@ -17,10 +17,6 @@ public record LoginCredentials(
         String redirectUri,
         String state) {
 
-    public LoginCredentials(String idToken, String authorizationCode, String codeVerifier, String redirectUri) {
-        this(idToken, authorizationCode, codeVerifier, redirectUri, null);
-    }
-
     @Override
     public String toString() {
         return "LoginCredentials[redacted]";

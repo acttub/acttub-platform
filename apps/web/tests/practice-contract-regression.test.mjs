@@ -17,13 +17,12 @@ const { buildPracticeRequest } = await import(
 );
 const {
   chooseBlockageKind,
-  chooseBlockageSubBranch,
   completeBlockageFlowWithDefault,
   initialBlockageFlowState,
   updateBlockageDetail,
 } = await import("../src/features/practice/blockage-flow.ts");
 
-// 1.0.0 의 회차 생성 본문(practice.start): 영상은 보관함 id 로 가리키고, 장면·막힘은 묶음으로 실린다.
+// 0.1.0 의 회차 생성 본문(practice.start): 영상은 보관함 id 로 가리키고, 장면·막힘은 묶음으로 실린다.
 // 경험 판은 본문이 아니라 X-Acttub-Contract 헤더로 간다 — 실제 판은 서버가 정한다(experience_version).
 test("영상만 고른 시작은 빈 장면과 그 외 기본값으로 조립한다", () => {
   const blockage = completeBlockageFlowWithDefault(initialBlockageFlowState);
@@ -42,8 +41,7 @@ test("영상만 고른 시작은 빈 장면과 그 외 기본값으로 조립한
 
 test("토글에서 고른 장면과 도움 값이 요청에 그대로 조립된다", () => {
   const kind = chooseBlockageKind(initialBlockageFlowState, "표현");
-  const subBranch = chooseBlockageSubBranch(kind, "표정");
-  const draft = updateBlockageDetail(subBranch, "  눈을 피하는 순간을 보고 싶어요  ");
+  const draft = updateBlockageDetail(kind, "  눈을 피하는 순간을 보고 싶어요  ");
   const body = buildPracticeRequest(
     "video-with-details",
     {
@@ -61,7 +59,7 @@ test("토글에서 고른 장면과 도움 값이 요청에 그대로 조립된�
       character: "담담한 척하는 인물",
       goal: "상대를 다시 앉게 만들기",
     },
-    blockage: { category: "표현", detail: "표정", note: "눈을 피하는 순간을 보고 싶어요" },
+    blockage: { category: "표현", detail: "그 외", note: "눈을 피하는 순간을 보고 싶어요" },
   });
 });
 

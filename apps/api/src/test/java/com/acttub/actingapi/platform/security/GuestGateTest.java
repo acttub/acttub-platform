@@ -120,6 +120,27 @@ class GuestGateTest {
     }
 
     @Test
+    @DisplayName("웹 유입 게이트는 회원·게스트 모두 현재 privacy만 확인하고 프로필은 보지 않는다")
+    void webAttributionGateRequiresOnlyCurrentPrivacy() {
+        assertThatThrownBy(() -> gate.privacyConsentedUser(request("/v2/me/web-attribution")))
+                .isInstanceOfSatisfying(ApiException.class, blocked -> {
+                    assertThat(blocked.status()).isEqualTo(403);
+                    assertThat(blocked).hasMessage("consent_required");
+                    assertThat(blocked.extras()).containsEntry("pending_consents", List.of(PRIVACY));
+                });
+
+        undecided.set(List.of(TERMS, AI_ANALYSIS, RETENTION));
+        assertThat(gate.privacyConsentedUser(request("/v2/me/web-attribution")))
+                .as("게스트는 프로필 없이 통과한다")
+                .isEqualTo(current.get());
+
+        current.set(new AuthenticatedUser(UUID.randomUUID(), null, UserStatus.ACTIVE, false));
+        assertThat(gate.privacyConsentedUser(request("/v2/me/web-attribution")))
+                .as("회원도 다른 선택 문서·프로필 상태와 무관하게 privacy만 본다")
+                .isEqualTo(current.get());
+    }
+
+    @Test
     @DisplayName("account.guest: 게스트가 회원 전용 기능을 부르면 403 member_only, 회원이 게스트 전용을 부르면 403 guest_only")
     void membersAndGuestsAreKeptOutOfEachOthersFeatures() {
         undecided.set(List.of());

@@ -41,7 +41,7 @@ class PostgresNoteRatingStore implements NoteRatingStore, NoteRatingOwnership {
                     .setParameter("userId", userId)).isEmpty()) {
                 return new Saved(Outcome.INACTIVE, null);
             }
-            // 노트 조회와 같은 소유권이다 — 회차의 주인이 이 사람이고 그 회차의 대화에 1.0.0 노트가 있어야 한다.
+            // 노트 조회와 같은 소유권이다 — 회차의 주인이 이 사람이고 그 회차의 대화에 0.1.0 노트가 있어야 한다.
             List<Tuple> notes = NativeTuples.list(entityManager.createNativeQuery("""
                     SELECT n.id
                     FROM practices p

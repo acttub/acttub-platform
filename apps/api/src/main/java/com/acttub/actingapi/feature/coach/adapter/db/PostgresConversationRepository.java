@@ -20,7 +20,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 1.0.0 코치 대화의 저장소. 엔진이 쓰는 {@link CoachSessionSnapshot} 을 {@code practices}·{@code analyses}·
+ * 0.1.0 코치 대화의 저장소. 엔진이 쓰는 {@link CoachSessionSnapshot} 을 {@code practices}·{@code analyses}·
  * {@code videos}·{@code coach_conversations}·{@code coach_messages} 에서 만들어 준다 — 그래야 행동 규칙(상한·첫 응답·
  * 상태 json)을 그대로 쓰면서 저장만 새 표로 옮길 수 있다.
  *
@@ -54,8 +54,8 @@ class PostgresConversationRepository implements ConversationRepository {
                 SELECT p.id AS practice_id,p.user_id,p.stage,p.situation,p.character_context,p.goal,
                        p.blockage_kind,p.sub_branch,p.blockage_detail,p.experience_version,
                        v.duration_ms,
-                       a.id AS analysis_id,CAST(a.record AS text) AS record,
-                       c.id AS conversation_id,c.start_request_id,c.status,c.close_reason,
+                       CAST(a.record AS text) AS record,
+                       c.id AS conversation_id,c.status,c.close_reason,
                        c.state_revision,CAST(c.state AS text) AS state
                 FROM practices p
                 JOIN videos v ON v.id=p.video_id
@@ -82,12 +82,10 @@ class PostgresConversationRepository implements ConversationRepository {
         return new Loaded(
                 practiceId,
                 conversationId,
-                row.get("start_request_id", UUID.class),
                 row.get("stage", String.class),
                 new CoachSessionSnapshot(
                         conversationId == null ? UUID.randomUUID() : conversationId,
                         practiceId,
-                        row.get("analysis_id", UUID.class),
                         userId,
                         json(row.get("record", String.class)),
                         row.get("situation", String.class),
@@ -97,10 +95,6 @@ class PostgresConversationRepository implements ConversationRepository {
                         row.get("blockage_kind", String.class),
                         row.get("sub_branch", String.class),
                         row.get("blockage_detail", String.class),
-                        // 받아쓰기는 관찰 기록 안의 speech 로 들어간다 — 옛 흐름의 문장 목록과 달리 따로 싣지 않는다.
-                        List.of(),
-                        "",
-                        null,
                         row.get("status", String.class) == null ? "open" : row.get("status", String.class),
                         row.get("close_reason", String.class),
                         conversationId == null ? List.of() : turnsOf(conversationId),
@@ -144,7 +138,7 @@ class PostgresConversationRepository implements ConversationRepository {
     }
 
     @Override
-    public void saveOpening(UUID conversationId, String coachMessage, JsonNode state, Instant now) {
+    public void saveOpening(UUID conversationId, String coachMessage, JsonNode state, String closeReason, Instant now) {
         transaction.executeWithoutResult(tx -> {
             if (!lockActiveOwner(conversationId)) return;
             entityManager.createNativeQuery("SELECT id FROM coach_conversations WHERE id=:id FOR UPDATE")
@@ -159,13 +153,28 @@ class PostgresConversationRepository implements ConversationRepository {
             insertMessage(conversationId, 0, "ai", coachMessage, null, null, now);
             entityManager.createNativeQuery("""
                     UPDATE coach_conversations
-                    SET state=CAST(:state AS jsonb),state_revision=state_revision+1,updated_at=:now
+                    SET state=CAST(:state AS jsonb),state_revision=state_revision+1,
+                        status=CASE WHEN CAST(:closeReason AS text) IS NULL THEN 'open' ELSE 'closed' END,
+                        close_reason=CAST(:closeReason AS text),
+                        closed_at=CASE WHEN CAST(:closeReason AS text) IS NULL THEN closed_at
+                            ELSE CAST(:now AS timestamp with time zone) END,
+                        updated_at=:now
                     WHERE id=:conversationId
                     """)
                     .setParameter("state", state == null ? "{}" : text(state))
+                    .setParameter("closeReason", closeReason)
                     .setParameter("now", now.atOffset(ZoneOffset.UTC))
                     .setParameter("conversationId", conversationId)
                     .executeUpdate();
+            if (closeReason != null) {
+                entityManager.createNativeQuery("""
+                        UPDATE practices SET stage='closed',close_reason='conversation_closed',updated_at=:now
+                        WHERE id=(SELECT practice_id FROM coach_conversations WHERE id=:conversationId)
+                        """)
+                        .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                        .setParameter("conversationId", conversationId)
+                        .executeUpdate();
+            }
         });
     }
 
@@ -225,7 +234,7 @@ class PostgresConversationRepository implements ConversationRepository {
         return transaction.execute(tx -> {
             if (!lockActiveOwner(conversationId)) return null;
             // 대화 행과 함께 계정 상태를 본다 — 바깥 호출이 도는 사이에 다른 기기의 탈퇴가 끝났으면 그 뒤에
-            // 도착한 코치 응답을 저장하지 않는다(practice.coach, 02-practice 「이관·삭제·탈퇴」). 분석의
+            // 도착한 코치 응답을 저장하지 않는다(practice.coach, specs/practice 「이관·삭제·탈퇴」). 분석의
             // `PostgresPracticeAnalysisStore.complete` 가 같은 자리에서 같은 확인을 한다.
             List<Tuple> locked = NativeTuples.list(entityManager.createNativeQuery("""
                     SELECT c.state_revision,c.status
@@ -377,7 +386,7 @@ class PostgresConversationRepository implements ConversationRepository {
     }
 
     /**
-     * 아직 옮기지 않은 옛 노트를 <b>새 봉투에 담아</b> 낸다 (02-practice ②).
+     * 아직 옮기지 않은 옛 노트를 <b>새 봉투에 담아</b> 낸다 (specs/practice ②).
      *
      * <p>기존 갈래는 {@code legacy} 형식에 옛 종류(analysis·expression)를 그대로 두고, 신형 노트만 {@code v2}
      * 다 — 이름만 바꾸지 않는다. 원문은 {@code report} 로 그대로 나가 옛 공개 필드를 읽던 화면이 그대로 쓴다.
@@ -521,7 +530,7 @@ class PostgresConversationRepository implements ConversationRepository {
     }
 
     /**
-     * 아직 옮기지 않은 옛 대화 (02-practice ②). <b>한 연습에 대화가 여럿인 옛 자료</b>의 "이전 대화" 가 이
+     * 아직 옮기지 않은 옛 대화 (specs/practice ②). <b>한 연습에 대화가 여럿인 옛 자료</b>의 "이전 대화" 가 이
      * 경로로 열린다 — 최근 하나로 자르지 않는다(practice.coach).
      *
      * <p>종료 사유는 옛 어휘를 그대로 낸다. 전환 명령은 새 어휘로 옮기지만, 여기서 읽는 것은 아직 옛 표에

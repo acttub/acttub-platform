@@ -14,7 +14,7 @@ import { useAuth } from '@/lib/auth';
 import { translate as t, translateList } from '@/lib/i18n';
 import { localCopyFor } from '@/lib/library/library-runner';
 import { logMetaEvent } from '@/lib/meta-events';
-import { markPracticedToday, onPushReceived } from '@/lib/notifications';
+import { onPushReceived } from '@/lib/notifications';
 import type { PendingAnalysisHandle } from '@/lib/pending-analysis';
 import {
   analysisFailureMessage,
@@ -116,7 +116,7 @@ export default function AnalyzingScreen() {
         if (!signal.aborted) setError(t('analyzing.statusUnavailable'));
         return;
       }
-      const localUri = loaded?.video_id && !loaded.video_purged ? await localCopyFor(loaded.video_id).catch(() => null) : null;
+      const localUri = loaded.video_id && !loaded.video_purged ? await localCopyFor(loaded.video_id).catch(() => null) : null;
       if (pendingHandleRef.current) {
         await pendingAnalysisStore.remove(pendingHandleRef.current).catch(() => undefined);
         pendingHandleRef.current = null;
@@ -129,16 +129,16 @@ export default function AnalyzingScreen() {
       finishedRef.current = true;
       startPractice({
         practiceId,
-        rootId: loaded?.root_id ?? practiceId,
-        ordinal: loaded?.ordinal ?? 1,
-        conversationId: loaded?.conversation_id,
+        rootId: loaded.root_id ?? practiceId,
+        ordinal: loaded.ordinal ?? 1,
+        conversationId: loaded.conversation_id,
         scene: {
-          situation: loaded?.scene.situation ?? '',
-          character: loaded?.scene.character ?? '',
-          goal: loaded?.scene.goal ?? '',
+          situation: loaded.scene.situation ?? '',
+          character: loaded.scene.character ?? '',
+          goal: loaded.scene.goal ?? '',
         },
         videoUri: localUri ?? '',
-        playbackUrl: loaded?.playback_url ?? null,
+        playbackUrl: loaded.playback_url ?? null,
       });
       logEvent('analysis_complete', { analysis });
       logMetaEvent('practice_analysis_complete');
@@ -187,7 +187,7 @@ export default function AnalyzingScreen() {
     if (preview) {
       const seed = (require('@/lib/ui-preview') as typeof import('@/lib/ui-preview')).seedPreviewAnalyzing();
       setDetail(seed.detail);
-      setVideoUri(previewVideoSource(true));
+      setVideoUri(previewVideoSource());
       return;
     }
     if (!practiceId) {
@@ -195,12 +195,11 @@ export default function AnalyzingScreen() {
       return;
     }
     if (sample) {
-      // 예시는 서버에 회차가 없다 — 연습일·복구 기록도 남기지 않는다.
+      // 예시는 서버에 회차가 없다 — 복구 기록도 남기지 않는다.
       setDetail(sampleDetail());
       setVideoUri(sampleVideoUri());
       return;
     }
-    void markPracticedToday();
     void api
       .getPractice(practiceId)
       .then(async (loaded) => {

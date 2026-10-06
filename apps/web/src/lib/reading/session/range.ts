@@ -1,5 +1,5 @@
 /**
- * 구간(reading.session). 웹 1.0.0 은 전체 구간으로 시작한다 — 시작은 첫 대사 줄, 끝은 마지막 대사 줄이다.
+ * 구간(reading.session). 웹 0.1.0 은 전체 구간으로 시작한다 — 시작은 첫 대사 줄, 끝은 마지막 대사 줄이다.
  * 진행 "K / N" 의 N 은 구간 안 대사 줄 수(모든 배역, 지문·장면 제외)다.
  */
 import type { ScriptLine } from "@/lib/reading/script/parse";
@@ -49,20 +49,6 @@ export function myDialogueCount(script: RangeSource, myRoles: string[], range: L
     if (l?.type === "dialogue" && mine.has(l.role)) n++;
   }
   return n;
-}
-
-/** 구간의 시작·끝 대사 번호(카드 표시용). */
-export function rangeDialogueNos(script: RangeSource, startLineId: string, endLineId: string): { start: number; end: number } {
-  let n = 0;
-  let start = 0;
-  let end = 0;
-  script.lines.forEach((l, i) => {
-    if (l.type !== "dialogue") return;
-    n++;
-    if (script.lineIds[i] === startLineId) start = n;
-    if (script.lineIds[i] === endLineId) end = n;
-  });
-  return { start, end };
 }
 
 /**

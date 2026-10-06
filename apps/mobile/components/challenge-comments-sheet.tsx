@@ -23,16 +23,14 @@ import {
   buildCommentBody,
   canDeleteComment,
   canSendComment,
-  commentAttemptFor,
   commentAuthorName,
   commentText,
   reactFailure,
   reactFailureMessage,
-  type CommentAttempt,
 } from '@/lib/challenge/react';
 import { COMMENT_MAX, type EntryComment } from '@/lib/challenge/types';
 import { translate as t } from '@/lib/i18n';
-import { newRequestId } from '@/lib/request-id';
+import { attemptFor, newRequestId, type RequestAttempt } from '@/lib/request-id';
 import { postedAtLabel } from '@/lib/time-label';
 
 /**
@@ -41,7 +39,7 @@ import { postedAtLabel } from '@/lib/time-label';
  *
  * 최신순 20개씩 이어 받고, 공백 정리 뒤 1~500자만 보낸다. 같은 댓글의 재전송은 같은 요청 id 라
  * 행이 늘지 않는다. 본인 댓글만 지울 수 있고, 신고로 숨겨진 내 댓글은 원래 자리에 "확인 중"으로
- * 보인다. 작성자가 탈퇴하면 이름만 "탈퇴한 사용자"로 바뀐다. 댓글 좋아요·답글은 1.0.0에 없다.
+ * 보인다. 작성자가 탈퇴하면 이름만 "탈퇴한 사용자"로 바뀐다. 댓글 좋아요·답글은 0.1.0에 없다.
  */
 export function ChallengeCommentsSheet({
   visible,
@@ -52,7 +50,7 @@ export function ChallengeCommentsSheet({
   visible: boolean;
   entryId: string | null;
   onClose: () => void;
-  onReport?: (commentId: string) => void;
+  onReport: (commentId: string) => void;
 }) {
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
@@ -65,7 +63,7 @@ export function ChallengeCommentsSheet({
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [attempt, setAttempt] = useState<CommentAttempt | null>(null);
+  const [attempt, setAttempt] = useState<RequestAttempt | null>(null);
 
   const load = useCallback(async () => {
     if (!entryId) return;
@@ -97,7 +95,7 @@ export function ChallengeCommentsSheet({
     setSending(true);
     setError(null);
     const body = buildCommentBody('pending', draft);
-    const next = commentAttemptFor(attempt, body.body, newRequestId);
+    const next = attemptFor(attempt, body.body, newRequestId);
     setAttempt(next);
     try {
       const created = await api.createComment(entryId, { ...body, request_id: next.requestId });
@@ -193,11 +191,9 @@ export function ChallengeCommentsSheet({
                       <Text style={styles.action}>{t('comments.delete')}</Text>
                     </Pressable>
                   ) : (
-                    onReport && (
-                      <Pressable onPress={() => onReport(item.id)} hitSlop={8} accessibilityRole="button">
-                        <Text style={styles.action}>{t('comments.report')}</Text>
-                      </Pressable>
-                    )
+                    <Pressable onPress={() => onReport(item.id)} hitSlop={8} accessibilityRole="button">
+                      <Text style={styles.action}>{t('comments.report')}</Text>
+                    </Pressable>
                   )}
                 </View>
               </View>

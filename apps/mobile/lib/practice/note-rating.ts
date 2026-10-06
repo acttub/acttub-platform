@@ -19,12 +19,6 @@ export function noteRatingCommentText(text: string | null | undefined): string |
   return trimmed.length > 0 ? trimmed : null;
 }
 
-/** 길이는 코드 포인트로 센다 — 서버와 같다. */
-export function commentTooLong(text: string): boolean {
-  const comment = noteRatingCommentText(text);
-  return comment !== null && [...comment].length > NOTE_RATING_COMMENT_MAX;
-}
-
 export function buildNoteRatingBody(input: {
   requestId: string;
   rating: NoteRatingBody['rating'];

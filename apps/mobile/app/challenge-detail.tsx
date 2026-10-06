@@ -72,12 +72,6 @@ export default function ChallengeDetailScreen() {
         const failure = browseFailure(e);
         setEntries([]);
         setError(browseFailureMessage(failure));
-        // 정렬 기준이 바뀌어 커서가 만료되면 처음부터 다시 읽는다.
-        if (failure.kind === 'cursor_expired') void api.listChallengeEntries(id, { sort: nextSort }).then((list) => {
-          setEntries(rankEntries(list.entries, nextSort));
-          setCursor(list.next_cursor);
-          setError(null);
-        }).catch(() => undefined);
       }
     },
     [id],

@@ -138,6 +138,13 @@ public final class AwsS3Storage implements ObjectStorage, AutoCloseable {
     }
 
     @Override
+    public void upload(String objectKey, String mimeType, byte[] content) {
+        resolveCredentials();
+        client.putObject(PutObjectRequest.builder().bucket(bucket).key(objectKey).contentType(mimeType).build(),
+                RequestBody.fromBytes(content));
+    }
+
+    @Override
     public void delete(String objectKey) {
         resolveCredentials();
         client.deleteObject(DeleteObjectRequest.builder()

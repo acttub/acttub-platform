@@ -11,9 +11,7 @@ const {
   ACTOR_REPLY_MAX,
   conversationErrorMessage,
   getConversation,
-  isClosedConversation,
   isConversationConflict,
-  isFingerprintMismatch,
   replyConversation,
   startConversation,
 } = await import("../src/lib/api/v2/coach-conversations.ts");
@@ -123,16 +121,13 @@ test("practice.coach: 충돌·종료·지문 불일치를 갈라 화면이 다�
 
   const conflictError = await reply(conflict);
   assert.equal(isConversationConflict(conflictError), true);
-  assert.equal(isClosedConversation(conflictError), false);
   // 충돌은 배우 잘못이 아니다 — 다시 읽고 그대로 보낼 수 있다고 말한다.
   assert.equal(conversationErrorMessage(conflictError), "방금 대화가 바뀌었어요. 최신 내용을 불러왔어요. 다시 보내 주세요.");
 
   const closedError = await reply(closed);
-  assert.equal(isClosedConversation(closedError), true);
   assert.equal(conversationErrorMessage(closedError), "이미 마친 대화예요. 이어서 연습하려면 새 회차를 시작해 주세요.");
 
   const mismatchError = await reply(mismatch);
-  assert.equal(isFingerprintMismatch(mismatchError), true);
   // 같은 코드를 리딩 대본 저장도 쓴다 — 대화의 문구는 대화 모듈이 고른다.
   assert.equal(conversationErrorMessage(mismatchError), "먼저 보낸 답과 달라요. 화면을 새로 고친 뒤 다시 보내 주세요.");
   assert.match(errorMessage(mismatchError, "실패"), /대본/);

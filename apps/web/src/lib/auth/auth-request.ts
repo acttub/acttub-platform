@@ -9,7 +9,8 @@ export type AuthResponse = {
   payload: unknown;
 };
 
-async function parsePayload(response: Response, what: string): Promise<unknown> {
+/** 본문을 JSON 이면 값으로, 아니면 글자로, 비었으면 undefined 로 읽는다. 공용 클라이언트도 이것을 쓴다. */
+export async function parsePayload(response: Response, what: string): Promise<unknown> {
   let text: string;
   try {
     text = await response.text();

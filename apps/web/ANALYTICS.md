@@ -21,8 +21,9 @@ GA4는 유입용 서브프로젝트 6개(voice·acti·stage·mono·pick·link)�
 현재 주소의 수동 태깅 UTM 6종(`utm_source`, `utm_medium`, `utm_campaign`, `utm_id`,
 `utm_term`, `utm_content`)만 `/app`과 `/go`를 지나 Google Play Install Referrer까지 전달한다.
 각 값은 영문자·숫자·점·밑줄·하이픈으로 된 1~64자 캠페인 토큰만 허용한다. `fbclid`, `gclid`,
-세션 id와 그 밖의 임의 쿼리는 전달하지 않는다. 이 값은 링크를 만드는 동안 현재 URL에서만
-읽으며 localStorage, sessionStorage, cookie에 저장하지 않는다.
+세션 id와 그 밖의 임의 쿼리는 전달하지 않는다. 이 값은 **다운로드 링크를 만드는 경로에서는** 현재 URL에서만 읽으며 localStorage,
+sessionStorage, cookie에 저장하지 않는다. 아래 운영 유입 저장은 별도 경로이며 privacy 동의 뒤
+같은 신규 게스트에 묶인 실패 재시도 상태만 sessionStorage에 잠깐 둔다.
 
 유효한 값이 없으면 기존 귀속인 `utm_source=acttub_web`, `utm_medium=<surface>`를 쓴다.
 `utm_source=instagram`만으로 광고라고 추정하지 않는다. **인스타그램 유료 광고는 원래 URL에
@@ -32,6 +33,31 @@ GA4는 유입용 서브프로젝트 6개(voice·acti·stage·mono·pick·link)�
 App Store 주소는 그대로다. Apple 제공자 토큰(`pt`)을 확인하지 않았으므로 캠페인 토큰(`ct`)을
 임의로 만들지 않고, iOS 설치 기여를 이 링크만으로 확인할 수 있다고 해석하지 않는다.
 다운로드 관련 기존 이벤트에도 원문 쿼리, referrer, 클릭 식별자를 새 속성으로 싣지 않는다.
+
+### 운영 유입 비교용 최초 웹 UTM
+
+ops에서 실제 웹 유입별 가입을 비교하기 위해 `PUT /v2/me/web-attribution`에 최초 UTM을 한 번
+저장한다. 서버가 `source=web_utm`, `platform=web`을 고정하고, 웹은 실제 최초 URL의 안전한
+`utm_source`를 `channel`로, `utm_medium`·`utm_campaign`·`utm_content`·`utm_term`을 선택값으로
+보낸다. 값 검증은 위 다운로드 캠페인과 같은 1~64자 ASCII 토큰 정책이다. `utm_id`는 내부
+이동 URL과 스토어 전달에는 보존하지만 이 API 계약에는 보내지 않는다.
+
+- `utm_source`가 없으면 아무것도 저장하지 않는다. 미태깅 방문을 direct나 광고 아님으로
+  단정하지 않으며, referrer·`fbclid`·`gclid`로 보충하거나 과거 출처를 복원하지 않는다.
+- 페이지 최초 진입 때 이미 게스트 토큰이 있으면 재방문이다. 이번 광고 UTM을 그 게스트의 과거
+  가입 출처로 붙이지 않는다. 토큰이 없던 이번 문서에서 `guest-started`로 새로 생긴 user id와
+  일치할 때만 후보를 이어 간다.
+- privacy 동의 전에는 메모리에만 두고, `/practice/new`→`/home`과 같은 내부 이동에서는 안전
+  UTM을 URL에 보존한다. 식별 가능한 저장소 기록이나 서버 전송은 없다.
+- 서버가 현재 privacy 결정을 `granted`로 확인한 뒤에만 user id에 바인딩해 전송한다. 이때부터
+  네트워크 실패 재시도에 필요한 최소 요청값과 user id만 현재 탭의 sessionStorage에 둘 수 있다.
+  성공하면 저장 상태와 URL의 UTM을 지운다.
+- 동의 취소·조회 오류·API 오류 중에는 새로 전송하지 않는다. 게스트 종료, 다른 탭의 게스트
+  시작·종료, user id 불일치에는 진행 요청을 취소하고 후보·저장 상태·URL UTM을 폐기한다.
+  같은 게스트의 토큰 회전(값→값)은 계정 경계로 보지 않는다.
+- API 호출은 공용 v2 클라이언트를 쓰되 `startGuest:false`, `consentPrompt:false`다. 귀속 저장을
+  위해 게스트나 동의 시트를 만들지 않는다. reload 재시도는 동의 뒤 같은 user id에 묶어 둔
+  현재 탭의 pending 상태만 복원한다.
 
 ---
 
@@ -80,7 +106,7 @@ amplitude.init(API_KEY, undefined, { autocapture: true });
 **2026-08-11 최우영 결정으로 자동 수집과 화면 녹화를 전부 켰다.** 그래서 아래가 Amplitude로 나간다 — 방침이 이걸 전부 고지해야 하고, 이 목록이 곧 방침 6항의 수집 항목이다:
 
 - **전체 주소** — autocapture 페이지뷰가 `location.href`를 통째로 싣는다: `/practice/history?session=<uuid>`, `/home?session=<uuid>`
-- **클릭한 요소의 텍스트** — 좌측 레일 항목 제목은 **사용자가 직접 쓴 상황 텍스트**다(`workspace-app.tsx`의 `headlineBySession`).
+- **클릭한 요소의 텍스트** — 좌측 레일 항목 제목에는 **사용자가 직접 쓴 상황 텍스트**가 들어간다(`practice-groups.ts`의 `groupTitle`).
 - **화면 녹화 100%** — `sampleRate: 1`. 연습 영상이 재생되는 화면, 장면 3칸, 코치 대화 전문, 연습 노트가 전부 들어간다.
 
 수동으로 쏘는 20개 이벤트는 그대로 §1(7)의 화이트리스트를 지킨다. 자동 수집을 켰다고 **우리가 만드는 payload까지 느슨해지지는 않는다** — 두 경로는 별개다.
@@ -142,15 +168,13 @@ Amplitude 가 Admin 에서 정한 개인정보 설정을 존중하도록 그렇�
 
 ### (4) 환경은 호스트가 아니라 키로 나눈다
 
-GA4는 `isMeasuredHost()`로 로컬 트래픽을 막지만, Amplitude는 그 가드를 두지 않는다. **환경별로 다른 프로젝트 키를 주입해 통계를 나눈다** — Sentry가 `NEXT_PUBLIC_SENTRY_ENV`로 하는 것과 같은 방식이고, 이래야 로컬에서 설치를 확인할 수 있다.
-
-그래서 **dev와 운영에 같은 키를 주면 두 환경의 데이터가 한 프로젝트에 섞인다.** `deploy.yml`의 `AMPLITUDE_API_KEY_WEB`을 환경별로 다르게 둘 것.
+GA4는 `isMeasuredHost()`로 로컬 트래픽을 막지만, Amplitude는 그 가드를 두지 않는다. **환경별로 다른 프로젝트 키를 주입해 통계를 나눈다** — Sentry가 `NEXT_PUBLIC_SENTRY_ENV`로 하는 것과 같은 방식이고, 이래야 로컬에서 설치를 확인할 수 있다. 키를 두는 곳은 [§5 「환경 변수」](#환경-변수)다.
 
 ### (5) 켜고 끄는 스위치는 API 키 하나다
 
 `NEXT_PUBLIC_AMPLITUDE_API_KEY`가 비어 있으면 **아무 일도 일어나지 않는다.** Sentry의 `isSentryEnabled()`와 같은 패턴이다. 별도 feature flag를 만들지 않는다 — 스위치가 둘이면 어느 쪽이 껐는지 헷갈린다.
 
-> ⚠️ **개인정보처리방침 v4가 시행되기 전에는 운영 환경에 키를 넣지 않는다.** 방침 5항 위탁표에 Amplitude가 없는 상태에서 켜면 고지 없이 제3자에게 이용 기록을 넘기는 것이 된다.
+> ⚠️ 키를 넣는 순서는 [§5 「켜는 순서」](#켜는-순서--틀리면-되돌릴-수-없다)를 따른다.
 
 ### (6) `user_id`는 백엔드 내부 식별자만
 
@@ -205,14 +229,14 @@ GA4는 `isMeasuredHost()`로 로컬 트래픽을 막지만, Amplitude는 그 가
 
 `practice_blockage_submitted`는 도움 갈래를 실제로 고른 사람만 세며, 자동으로 채우는 `그 외` 기본값은 포함하지 않는다. 업로드는 준비 화면의 시작 버튼을 누른 뒤 바로 시작하고, 실패는 같은 진행 자리에서 안내한다.
 
-`theory_choice`는 1.0.0에서 준비 화면의 이론 선택과 함께 사라졌다(SOMA-546). 옛 이벤트에 남은 값은 그대로 두고 새 이벤트는 이 속성을 만들지 않는다.
+`theory_choice`는 0.1.0에서 준비 화면의 이론 선택과 함께 사라졌다(SOMA-546). 옛 이벤트에 남은 값은 그대로 두고 새 이벤트는 이 속성을 만들지 않는다.
 
 
-`error_code`는 `PracticeSessionDetail.error_code`의 4종 enum(`gemini_timeout`·`gemini_parse_error`·`unsupported_media`·`max_attempts_exceeded`)을 그대로 싣는다. 지금 화면은 이 값을 전혀 쓰지 않는다.
+`error_code`는 회차 응답의 `job.failure_reason`을 웹이 옮긴 값([practice-view.ts](src/features/practice/practice-view.ts)의 `toErrorCode`, 값 목록은 `amplitude.ts`의 `AnalysisErrorCode`)을 그대로 싣는다. 지금 화면은 이 값을 전혀 쓰지 않는다.
 
 `reason_code`는 HTTP status 숫자 또는 `network`·`aborted` 같은 고정 문자열만. **에러 메시지 원문을 넣지 않는다** — 서버 메시지에 무엇이 실려 올지 보장할 수 없다.
 
-`stage`의 `session_create`는 업로드가 **전부 끝난 뒤** 세션 생성에서 터진 실패다. `UploadError`가 아니라서 단계를 스스로 알리지 못하므로 `begin()`이 표시를 남긴다. 이걸 `preflight`와 한 칸에 묶으면 "영상이 문제였다"와 "서버가 거절했다"가 섞인다 — 후자는 실사용자 4명이 이탈했던 자리다(`sessions.ts`의 `fillBlankScene` 주석).
+`stage`의 `session_create`는 업로드가 **전부 끝난 뒤** 세션 생성에서 터진 실패다. `UploadError`가 아니라서 단계를 스스로 알리지 못하므로 `begin()`이 표시를 남긴다. 이걸 `preflight`와 한 칸에 묶으면 "영상이 문제였다"와 "서버가 거절했다"가 섞인다 — 후자는 실사용자 4명이 이탈했던 자리다(`a0a09bb1`에서 지운 `sessions.ts`의 `fillBlankScene` 주석).
 
 `practice_video_selected`에 영상 길이를 싣지 않는 이유: 파일을 고른 순간에는 브라우저가 메타데이터를 아직 읽지 않아 **항상 `unknown`**이 된다. 늘 unknown인 속성은 진짜 미상과 구분되지 않아 없느니만 못하다. 길이는 `practice_session_created`에서 확정값으로 본다.
 
@@ -229,17 +253,17 @@ GA4는 `isMeasuredHost()`로 로컬 트래픽을 막지만, Amplitude는 그 가
 
 `with_evidence`는 분석 성공 여부다 — 분석이 실패해도 "그냥 시작"으로 대화에 들어갈 수 있고, 그 두 갈래의 완주율이 같은지는 지금 알 방법이 없다.
 
-`turn_count`는 **실측이 유일한 진실**이다. `TURN_BUDGET = 8`은 하드 컷오프가 아니라 프롬프트에 "남은 응답"으로 실려 모델이 배분할 뿐이라, 실제 턴 수는 세션마다 다르다.
+`turn_count`는 **실측이 유일한 진실**이다. 코치 응답 상한([practice.coach 「규칙·제약」](../../docs/specs/practice/coach.md#규칙제약))은 마지막 자리일 뿐이고, 배우가 먼저 끝내거나 코치가 먼저 마무리하면 더 일찍 닫히므로 실제 턴 수는 세션마다 다르다.
 
-`report_type`의 `blocked`는 대화를 시작했지만 노트를 만들 실질 답변이 부족한 경우다.
-답변 판정과 최소 개수는
-[HandoffReadiness](../api/src/main/java/com/acttub/actingapi/feature/coach/domain/HandoffReadiness.java)의
-`hasEnoughAnswers`·`MIN_ANSWERS_FOR_REPORT`에서 확인한다.
+`report_type`의 `blocked`는 대화를 시작했지만 노트를 만들 근거가 부족한 경우다.
+판정은
+[ReportEngine](../api/src/main/java/com/acttub/actingapi/feature/report/app/ReportEngine.java)의
+`buildReportInput`이 모델 입력을 만들지 못할 때(`generateReport`가 `blockedReport`를 낼 때)다.
 
 `practice_dialogue_turn_failed`는 `workspace-app.tsx:send`의 답장 실패 catch에서 발생한다.
 화면에는 연결 실패 안내 말풍선이 표시되므로, 이 이벤트로 답장 실패를 대화 내용과 구분해 센다.
 
-`ended_by`: `coach`(모델이 complete) \| `actor_closing`("그만"·"종료"·"끝"·"여기까지").
+`ended_by`: `coach`(모델이 complete) \| `actor_closing`(배우의 종료 표현).
 
 `actor_closing`은 프론트의 `workspace-app.tsx:isActorClosing`이 추정한다. 응답에 종료 사유가
 없어 백엔드 [ClosingIntent](../api/src/main/java/com/acttub/actingapi/feature/coach/domain/ClosingIntent.java)의
@@ -289,15 +313,9 @@ GA4는 `isMeasuredHost()`로 로컬 트래픽을 막지만, Amplitude는 그 가
 
 ### 켜는 순서 — 틀리면 되돌릴 수 없다
 
-**방침 발행이 먼저, 키 주입이 나중이다.** 순서가 바뀌면 고지 없이 이용 기록과 화면 녹화가 수탁사로 넘어가고, 이미 전송된 것은 되돌릴 수 없다.
+**방침 발행이 먼저, 키 주입이 나중이다.** 순서와 그것을 막는 배포 가드([`deploy/consent-gate.sh`](../../deploy/consent-gate.sh)), 발행 절차는 [consent-docs 「계측 키와 고지의 순서」](../api/src/main/resources/consent-docs/README.md#계측-키와-고지의-순서)가 정본이다. 키가 비어 있으면 가드는 그냥 통과한다. 계측이 꺼진 번들이 나갈 뿐이라 안전한 상태다.
 
-이건 기억에 맡기지 않는다 — `deploy.yml`이 부르는 `deploy/consent-gate.sh`의 **`계측 키가 방침 고지보다 앞서지 않는지`** 가드가 막는다. 키가 설정돼 있는데 발행 중인 문서에 `Amplitude` 위탁 고지가 없으면 **배포가 실패한다.**
-
-이 가드는 예전에 웹의 `EXPECTED_PRIVACY_VERSION` 상수가 manifest의 발행 판과 같은지도 대조했다. 그 상수는 없앴고(§1(1)), 그것이 지키던 것 — 옛 판 동의자에게 새 수집을 적용하지 않는다 — 은 이제 웹이 실행 중에 서버의 동의 현황을 물어 지킨다. 그래서 웹과 api의 배포 순서가 어긋나도 현재 판에 동의하지 않은 동안에는 꺼져 있을 뿐이다.
-
-키가 비어 있으면 가드는 그냥 통과한다. 계측이 꺼진 번들이 나갈 뿐이라 안전한 상태다.
-
-발행 절차 자체는 [`apps/api/src/main/resources/consent-docs/README.md`](../api/src/main/resources/consent-docs/README.md)가 정본이다.
+웹은 판 번호를 들지 않고 서버가 답한 현재 판의 결정만 보므로(§1(1)), 웹과 api의 배포 순서가 어긋나도 현재 판에 동의하지 않은 동안에는 꺼져 있을 뿐이다.
 
 ### 환경 변수
 

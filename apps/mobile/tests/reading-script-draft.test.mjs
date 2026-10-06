@@ -7,7 +7,6 @@ import {
   createDraft,
   draftCharacters,
   draftSummary,
-  draftToCreateBody,
   removeDraftCharacter,
   renameDraftCharacter,
   setDraftTitle,
@@ -16,6 +15,13 @@ import {
 import { SAMPLE_SCRIPT } from '../lib/reading/sample.ts';
 
 const RID = '11111111-2222-4333-8444-555555555555';
+
+/** 저장 본문. 검사를 통과하지 못하면 그 코드로 던진다. */
+function draftToCreateBody(draft) {
+  const result = validateDraft(draft);
+  if (!result.ok) throw new Error(result.code);
+  return result.body;
+}
 
 const COLON = `옥상, 밤
 
@@ -40,7 +46,7 @@ test('reading.script: 콜론 형식 대본의 저장 본문 — 배역 수·줄 
   assert.equal(body.title, '옥상, 밤');
   assert.deepEqual(body.characters, [{ name: '윤서' }, { name: '태오' }]);
   assert.equal(body.characters.length, summary.characters);
-  assert.equal(body.lines.length, summary.dialogues + summary.directions + summary.scenes);
+  assert.equal(body.lines.filter((l) => l.kind !== 'scene').length, summary.dialogues + summary.directions);
   assert.deepEqual(body.lines.map((l) => l.ordinal), body.lines.map((_, i) => i + 1), 'ordinal은 1부터 줄 순서');
   assert.deepEqual(body.lines[0], { ordinal: 1, kind: 'direction', character_index: null, text: '옥상 난간. 바람 소리.' });
   assert.deepEqual(body.lines[1], { ordinal: 2, kind: 'dialogue', character_index: 0, text: '여기 있을 줄 알았어.' });
@@ -51,7 +57,7 @@ test('reading.script: 콜론 형식 대본의 저장 본문 — 배역 수·줄 
 
 test('reading.script: 확인 화면의 "배역 N명 · 대사 N줄 · 지문 N개" 수치', () => {
   const summary = draftSummary(createDraft(COLON, 'paste', RID));
-  assert.deepEqual(summary, { characters: 2, dialogues: 6, directions: 1, scenes: 1 });
+  assert.deepEqual(summary, { characters: 2, dialogues: 6, directions: 1 });
   assert.deepEqual(
     draftCharacters(createDraft(COLON, 'paste', RID)),
     [

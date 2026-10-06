@@ -22,9 +22,9 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 1.0.0 회차의 분석 저장소 — 큐는 {@code ai_jobs}, 결과는 {@code analyses}·{@code video_transcripts} 다.
+ * 0.1.0 회차의 분석 저장소 — 큐는 {@code ai_jobs}, 결과는 {@code analyses}·{@code video_transcripts} 다.
  *
- * <p><b>완료는 한 트랜잭션이고 그 안에서 주인과 계정 상태를 다시 본다</b>(02-practice 「연습 자료의 이관·삭제·
+ * <p><b>완료는 한 트랜잭션이고 그 안에서 주인과 계정 상태를 다시 본다</b>(specs/practice 「연습 자료의 이관·삭제·
  * 탈퇴」). 이관이 먼저 끝났으면 회차의 주인이 이미 회원이라 결과는 회원의 것이 되고, 탈퇴가 먼저 끝났으면
  * 결과를 저장하지 않고 작업을 {@code account_deactivated} 로 닫는다. lease 는 {@link AiJobLedger} 가 본다 —
  * 다른 워커가 재선점했으면 완료가 거절되고 이 트랜잭션은 통째로 되돌아간다(CONTRACT §5-7).
@@ -199,18 +199,8 @@ class PostgresPracticeAnalysisStore implements PracticeAnalysisStore {
     }
 
     @Override
-    public boolean fail(UUID jobId, UUID leaseToken, String errorCode, Instant now) {
-        return fail(jobId, leaseToken, errorCode, null, now);
-    }
-
-    @Override
     public void release(UUID jobId, UUID leaseToken, String classification, Instant now) {
         jobs.release(jobId, leaseToken, classification, now);
-    }
-
-    @Override
-    public void release(UUID jobId, UUID leaseToken, Instant now) {
-        release(jobId, leaseToken, null, now);
     }
 
     /** 만료된 미확정 업로드는 보관함(PA1)의 일이다 — 이 워커는 치우지 않는다. */

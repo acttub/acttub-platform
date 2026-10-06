@@ -76,11 +76,11 @@ export function ProgressRow({
 export function SceneFoldLink({
   open,
   onToggle,
-  label = t('practiceChrome.videoFold'),
+  label,
 }: {
   open: boolean;
   onToggle: () => void;
-  label?: string;
+  label: string;
 }) {
   return (
     <Pressable

@@ -21,7 +21,6 @@ export const STORE_LINK_SURFACES = [
   "landing_app_section",
   "landing_sticky",
   "landing_cta",
-  "landing_footer",
   "app_page",
   "keyword_page",
   /** 참여작 공유 페이지(/e/<id>)의 "앱에서 보기". */
@@ -45,12 +44,11 @@ export const STORE_CAMPAIGN_PARAMS = [
   "utm_term",
   "utm_content",
 ] as const;
-export type StoreCampaignParam = (typeof STORE_CAMPAIGN_PARAMS)[number];
 
 export const STORE_CAMPAIGN_VALUE_MAX_LENGTH = 64;
 const STORE_CAMPAIGN_VALUE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
-function isSafeCampaignValue(value: string): boolean {
+export function isSafeCampaignValue(value: string): boolean {
   return (
     value.length <= STORE_CAMPAIGN_VALUE_MAX_LENGTH &&
     STORE_CAMPAIGN_VALUE_PATTERN.test(value)

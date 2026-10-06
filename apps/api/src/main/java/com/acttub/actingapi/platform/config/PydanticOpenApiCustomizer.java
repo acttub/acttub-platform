@@ -67,7 +67,6 @@ class PydanticOpenApiCustomizer {
             applyAdmissionsSchemaShape(schemas);
             applyReportSchemaShape(schemas);
             applyCoachSchemaShape(schemas);
-            applyPracticeSchemaShape(schemas);
         };
     }
 
@@ -350,54 +349,20 @@ class PydanticOpenApiCustomizer {
         field.setMinimum(java.math.BigDecimal.valueOf(value));
     }
 
-    private static void applyPracticeSchemaShape(Map<String, Schema> schemas) {
-        Schema<?> detail = schemas.get("PracticeSessionDetail");
-        if (detail != null && detail.getProperties() != null) {
-            ComposedSchema summary = new ComposedSchema();
-            summary.setAnyOf(new ArrayList<>(List.of(reference("ObservationPackResponse"),
-                    reference("VideoRecordSummaryResponse"), nullSchema())));
-            detail.getProperties().put("summary", summary);
-        }
-    }
-
     private static void applyCoachSchemaShape(Map<String, Schema> schemas) {
         Schema<?> note = schemas.get("CoachNote");
         if (note != null && note.getProperties() != null) {
-            note.getProperties().put("report", reportUnion(true));
-        }
-        Schema<?> turn = schemas.get("CoachTurnResponse");
-        if (turn != null && turn.getProperties() != null) {
-            turn.getProperties().put("handoff", nullableReference("PublicHandoff", null));
-            turn.getProperties().put("report", reportUnion(true));
-        }
-        Schema<?> confirm = schemas.get("CoachConfirmResponse");
-        if (confirm != null && confirm.getProperties() != null) {
-            confirm.getProperties().put("handoff", nullableReference("PublicHandoff", null));
-            confirm.getProperties().put("report", reportUnion(false));
+            note.getProperties().put("report", nullableReportUnion());
         }
         schemas.remove("JsonNode");
     }
 
-    private static Schema<?> reportUnion(boolean nullable) {
+    private static Schema<?> nullableReportUnion() {
         ComposedSchema report = new ComposedSchema();
         report.setTitle("Report");
-        List<Schema> alternatives = new ArrayList<>();
-        alternatives.add(reference("AnalysisReport"));
-        alternatives.add(reference("ExpressionReport"));
-        alternatives.add(reference("BlockedReport"));
-        alternatives.add(reference("PublicPracticeNote"));
-        if (nullable) {
-            alternatives.add(nullSchema());
-        }
-        report.setAnyOf(alternatives);
+        report.setAnyOf(new ArrayList<>(List.of(reference("AnalysisReport"), reference("ExpressionReport"),
+                reference("BlockedReport"), reference("PublicPracticeNote"), nullSchema())));
         return report;
-    }
-
-    private static Schema<?> nullableReference(String component, String title) {
-        ComposedSchema nullable = new ComposedSchema();
-        nullable.setTitle(title);
-        nullable.setAnyOf(new ArrayList<>(List.of(reference(component), nullSchema())));
-        return nullable;
     }
 
     private static Schema<?> reference(String component) {

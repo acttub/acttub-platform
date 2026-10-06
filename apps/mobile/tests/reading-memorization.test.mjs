@@ -9,7 +9,6 @@ import {
   memorizationProgress,
   memorizationTargets,
   recite,
-  renderMasked,
 } from '../lib/reading/memorization.ts';
 import { MEMORIZATION_QUEUE_KEY, createMemorizationSync } from '../lib/reading/memorization-sync.ts';
 
@@ -69,14 +68,15 @@ test('reading.memorization: 빈칸 연습은 둘째·넷째… 어절을 가리�
   const b = maskTokens(text, 'blanks');
   assert.deepEqual(a, b);
   assert.deepEqual(a.map((t) => t.masked), [false, true, false, true, false, true]);
-  assert.equal(renderMasked(text, 'blanks'), '너 ___ 항상 __ 데로 ___');
+  assert.deepEqual(a.map((t) => t.shown), ['너', '', '항상', '', '데로', '']);
 });
 
 test('reading.memorization: 첫 글자 모드는 가린 어절의 첫 글자를 남기고, 가리고 연습은 본문을 다 가리며 힌트로 첫 글자를 보여 준다', () => {
-  assert.equal(renderMasked('너 힘들면 항상 높은', 'initials'), '너 힘__ 항상 높_');
-  assert.equal(renderMasked('너 힘들면', 'hidden'), '_ ___');
-  assert.equal(renderMasked('너 힘들면', 'hidden', { hint: true }), '너 힘__');
-  assert.equal(renderMasked('너 힘들면', 'listen'), '_ ___', '듣고 따라 하기는 재생하는 동안 본문을 가린다');
+  const shown = (text, mode, options) => maskTokens(text, mode, options).map((t) => [t.shown, t.masked]);
+  assert.deepEqual(shown('너 힘들면 항상 높은', 'initials'), [['너', false], ['힘', true], ['항상', false], ['높', true]]);
+  assert.deepEqual(shown('너 힘들면', 'hidden'), [['', true], ['', true]]);
+  assert.deepEqual(shown('너 힘들면', 'hidden', { hint: true }), [['너', true], ['힘', true]]);
+  assert.deepEqual(shown('너 힘들면', 'listen'), [['', true], ['', true]], '듣고 따라 하기는 재생하는 동안 본문을 가린다');
 });
 
 test('reading.memorization: 괄호 지문이 있는 대사는 지문을 가리지 않고 대조에도 넣지 않는다', () => {

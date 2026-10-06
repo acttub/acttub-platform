@@ -1,3 +1,4 @@
+import { errorCode, errorStatus, isOfflineError } from '../api-request.ts';
 import { translate } from '../i18n.ts';
 import type { CoachConversation, CoachMessage, CoachReplyBody, CoachTurnResult, PracticeDetail, PracticeNote } from './types.ts';
 import { COACH_ANSWER_MAX } from './types.ts';
@@ -46,11 +47,6 @@ export function answerTooLong(text: string): boolean {
   return text.trim().length > COACH_ANSWER_MAX;
 }
 
-/** "그만"이라고 쓰면 언제든 마친다. 버튼으로 마치는 것도 같은 말을 보낸다. */
-export function isEndWord(text: string): boolean {
-  return text.trim() === COACH_END_WORD;
-}
-
 export function buildReplyBody(input: {
   conversation: Pick<CoachConversation, 'id' | 'revision'>;
   requestId: string;
@@ -83,6 +79,20 @@ export function orderedMessages(conversation: Pick<CoachConversation, 'messages'
   return [...conversation.messages].sort((a, b) => a.turn_index - b.turn_index);
 }
 
+/**
+ * 코치 발화를 화면용으로 나눈다 — 마지막 물음 문장은 크게 보이는 질문, 그 앞의 관찰은 힌트 박스.
+ * 코치는 "본 장면 한두 문장 + 질문" 꼴로 말한다. 물음으로 끝나지 않거나 한 문장이면 나누지 않는다.
+ */
+export function splitCoachQuestion(text: string): { question: string; hint: string | null } {
+  const trimmed = text.trim();
+  if (!trimmed.endsWith('?')) return { question: trimmed, hint: null };
+  const sentences = trimmed.split(/(?<=[.!?。])\s+/);
+  if (sentences.length < 2) return { question: trimmed, hint: null };
+  const question = sentences[sentences.length - 1];
+  const hint = sentences.slice(0, -1).join(' ').trim();
+  return { question, hint: hint || null };
+}
+
 export type HelpButton = 'explain' | 'ask_back' | 'later';
 
 /**
@@ -107,28 +117,15 @@ export type CoachFailure =
   | { kind: 'offline' }
   | { kind: 'other' };
 
-function codeOf(error: unknown): string | null {
-  if (error === null || typeof error !== 'object') return null;
-  const code = (error as { code?: unknown }).code;
-  return typeof code === 'string' ? code : null;
-}
-
-function statusOf(error: unknown): number | null {
-  if (error === null || typeof error !== 'object') return null;
-  const status = (error as { status?: unknown }).status;
-  return typeof status === 'number' ? status : null;
-}
-
 export function coachFailure(error: unknown): CoachFailure {
-  const code = codeOf(error);
-  const status = statusOf(error);
+  const code = errorCode(error);
+  const status = errorStatus(error);
   if (code === 'conversation_conflict') return { kind: 'conflict' };
   if (code === 'conversation_closed') return { kind: 'closed' };
   if (code === 'analysis_not_ready') return { kind: 'not_ready' };
   if (code === 'request_fingerprint_mismatch') return { kind: 'fingerprint_mismatch' };
   if (status === 422) return { kind: 'too_long' };
-  const name = error !== null && typeof error === 'object' ? (error as { name?: unknown }).name : null;
-  if (name === 'NetworkError' || status === null || (status >= 500 && status <= 599)) return { kind: 'offline' };
+  if (isOfflineError(error)) return { kind: 'offline' };
   return { kind: 'other' };
 }
 

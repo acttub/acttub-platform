@@ -13,6 +13,9 @@ import {
 import { APP_HIGHLIGHTS } from "../features/app-download/app-highlights";
 import { StickyDownloadBar } from "../features/app-download/sticky-download-bar";
 import { StoreBadges } from "../features/app-download/store-badges";
+import { useCampaignSearch } from "../features/app-download/use-campaign-search";
+import { LANDING_GUIDE_LINKS } from "../features/keyword-pages/guide-links";
+import { preserveWebAttributionFromSearch } from "../lib/analytics/web-attribution";
 import { hasGuestSession } from "../lib/auth/token-store";
 
 const COPY = {
@@ -82,6 +85,7 @@ const COPY = {
   footer: {
     description:
       "Acttub(액터브)은 질문으로 다시 보는 연기 연습 도구예요. 웹에서 해 본 연습은 코드 하나로 앱에 옮겨 이어서 해요.",
+    guides: "많이 찾는 연습 가이드",
     instagram: "인스타그램",
     email: "acttub0527@gmail.com",
   },
@@ -114,15 +118,21 @@ const waveformHeights = [8, 15, 25, 18, 10, 23, 28, 13, 20, 9, 16, 24, 11];
 const typingDotColors = ["#8b95a1", "#b0b8c1", "#d1d6db"];
 // 대화가 위에서부터 차례로 올라오는 간격. 첫 버블은 화면이 뜬 직후 바로 나온다.
 const bubbleDelay = (order: number) => 300 + order * 800;
-// 웹에는 로그인이 없다. 연습 화면이 바로 열리고, 게스트 계정은 영상을 올리려 할 때 생긴다.
-const practiceHref = "/practice/new";
-
 export default function LandingClient() {
   const router = useRouter();
+  const campaignSearch = useCampaignSearch();
+  const practiceHref = preserveWebAttributionFromSearch(
+    "/practice/new",
+    campaignSearch,
+  );
   const appDownloadHref = useAppDownloadHref("landing_header");
   useEffect(() => {
     // 이미 이 브라우저에서 연습하던 게스트는 랜딩을 건너뛰고 연습으로 보낸다.
-    if (hasGuestSession()) router.replace("/home");
+    if (hasGuestSession()) {
+      router.replace(
+        preserveWebAttributionFromSearch("/home", window.location.search),
+      );
+    }
   }, [router]);
 
   useEffect(() => {
@@ -432,6 +442,22 @@ export default function LandingClient() {
                   <p className="mt-3 max-w-sm text-sm font-semibold leading-6 text-[#b0b8c1] sm:text-base sm:leading-7">
                     {COPY.footer.description}
                   </p>
+                  <p className="mt-5 text-xs font-bold text-[#8b95a1]">
+                    {COPY.footer.guides}
+                  </p>
+                  <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-sm font-semibold text-[#b0b8c1]">
+                    {LANDING_GUIDE_LINKS.map((link) => (
+                      <li key={link.href}>
+                        <Link
+                          href={link.href}
+                          prefetch={false}
+                          className="transition hover:text-white"
+                        >
+                          {link.label}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
                 <nav className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm font-bold text-[#b0b8c1] md:grid-cols-1">
                   <Link href="/app" className="transition hover:text-white">

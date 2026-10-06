@@ -15,7 +15,7 @@ import com.acttub.actingapi.feature.reading.domain.SessionPlan;
  *
  * <p>없음을 {@code null} 로 알린다(ADR-018). "없는 것"과 "남의 것"을 가르지 않는다 — 모든 연산이 그 회원의 것만
  * 본다. 쓰기는 <b>회차(또는 대본) 행을 {@code FOR UPDATE} 로 잡고 주인이 맞는지 다시 본다</b> — 이관·탈퇴·삭제가
- * 먼저 끝났으면 행이 없거나 남의 것이라 404 이고 옛 계정에 아무것도 남지 않는다(03-reading 「리딩 자료의
+ * 먼저 끝났으면 행이 없거나 남의 것이라 404 이고 옛 계정에 아무것도 남지 않는다(specs/reading 「리딩 자료의
  * 이관·삭제·탈퇴」). 이관은 게스트의 {@code users} 행을 잡은 뒤 리딩 행을 옮기므로 겹쳐도 순서가 정해진다.
  */
 public interface SessionRepository {

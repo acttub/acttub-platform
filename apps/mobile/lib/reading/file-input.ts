@@ -26,7 +26,7 @@ export function scriptFileKind(file: Pick<PickedScriptFile, 'name' | 'mimeType'>
 
 export type ScriptFileCheck =
   | { ok: true; kind: Exclude<ScriptFileKind, 'hwp' | 'unknown'> }
-  /** hwp·hwpx는 앱이 열지 않는다(1.0.0이 받아들인 한계). unsupported 는 그 밖의 형식. */
+  /** hwp·hwpx는 앱이 열지 않는다(0.1.0이 받아들인 한계). unsupported 는 그 밖의 형식. */
   | { ok: false; reason: 'too_large' | 'hwp' | 'unsupported' };
 
 export function checkScriptFile(file: PickedScriptFile): ScriptFileCheck {

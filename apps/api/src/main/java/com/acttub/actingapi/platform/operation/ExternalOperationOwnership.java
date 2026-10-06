@@ -8,7 +8,7 @@ import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Component;
 
 /**
- * 작업 장부 두 벌({@code external_operations} 와 1.0.0 의 {@code ai_jobs}, V14)의 {@code user_id} 만 바꾼다.
+ * 작업 장부 두 벌({@code external_operations} 와 0.1.0 의 {@code ai_jobs}, V14)의 {@code user_id} 만 바꾼다.
  * 상태 전이와 lease 는 그대로다(CONTRACT.md §5-7) — 진행 중이던 작업은 돌던 워커가 그대로 끝내고 결과는
  * 그때의 주인(회원)에게 간다.
  * {@code (user_id, request_id)} 유니크는 요청 ID 가 난수라 부딪히지 않는다 — 부딪히면 이관이 통째로

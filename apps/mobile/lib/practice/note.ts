@@ -78,13 +78,8 @@ export function noteSections(note: PracticeNote): NoteSection[] {
     {
       kind: 'cheer',
       label: '',
-      // COACHING-NOTE-V2: 응원은 모델 응답 필드가 아니라 앱의 고정 문구다.
+      // practice.note(docs/specs/practice/note.md): 응원은 모델 응답 필드가 아니라 앱의 고정 문구다.
       text: translate('note.cheer'),
     },
   ];
-}
-
-/** 노트가 없는 회차(대화가 짧아 만들지 않음)의 목록 표시. */
-export function noNoteLabel(): string {
-  return translate('note.none');
 }

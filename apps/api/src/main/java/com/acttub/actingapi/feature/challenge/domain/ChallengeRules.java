@@ -1,6 +1,8 @@
 package com.acttub.actingapi.feature.challenge.domain;
 
 import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
 
 /** 챌린지는 대사와 기간이다. 길이는 유니코드 코드 포인트로 센다. */
 public final class ChallengeRules {
@@ -23,7 +25,13 @@ public final class ChallengeRules {
     public static final int REPORT_NOTE_MAX = 200;
     /** 챌린지는 처리되지 않은 신고가 서로 다른 이만큼의 사람에게서 모이면 검토(review)로 올린다. */
     public static final int CHALLENGE_REPORT_THRESHOLD = 3;
+    private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private ChallengeRules() { }
+
+    /** 하루 한도를 세기 시작하는 때 — 한국 시간으로 {@code now} 가 속한 날의 자정. */
+    public static Instant koreanMidnight(Instant now) {
+        return now.atZone(SEOUL).toLocalDate().atStartOfDay(SEOUL).toInstant();
+    }
 
     public static String normalize(String value) {
         return value == null ? "" : value.replaceAll("(?U)[\\s\\uFEFF]+", " ").strip();

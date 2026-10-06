@@ -11,8 +11,6 @@ interface GeminiGateway {
 
     GeminiFile get(String name);
 
-    String generate(String model, Content contents, GenerateContentConfig config);
-
     GenerateContentResponse generateResponse(String model, Content contents, GenerateContentConfig config);
 
     void delete(String name);

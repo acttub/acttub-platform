@@ -284,6 +284,78 @@
         } ]
       }
     },
+    "/v2/me/web-attribution" : {
+      "put" : {
+        "tags" : [ "v2-me" ],
+        "summary" : "Record Web Attribution",
+        "description" : "웹 주소에서 받은 안전한 UTM을 현재 계정의 최초 유입 출처로 적는다. 인증과 현재 개인정보\n수집·이용 동의만 필요해 게스트도 프로필 없이 부를 수 있다. source=web_utm,\nplatform=web은 서버가 고정한다. 같은 계정에 다시 보내면 처음 값을 유지한 채 204다.\n이 값은 클라이언트 자기 보고 유입이며 광고 플랫폼 귀속과 별개다.",
+        "operationId" : "record_web_attribution_v2_me_web_attribution_put",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/WebAttributionRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "Successful Response"
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/me/signup-attribution" : {
+      "put" : {
+        "tags" : [ "v2-me" ],
+        "summary" : "Record Signup Attribution",
+        "description" : "이 기기에서 새로 가입한 계정의 유입 광고(Airbridge 설치 귀속 결과)를 적는다. 계정마다 처음 온\n값만 남고, 다시 보내도 바꾸지 않은 채 204 다 — 재시도에 안전하다. 보호 기능이라 동의와 프로필이\n끝난 회원만 부를 수 있다. 게스트는 403 member_only.",
+        "operationId" : "record_signup_attribution_v2_me_signup_attribution_put",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SignupAttributionRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "Successful Response"
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/me/profile" : {
       "put" : {
         "tags" : [ "v2-me" ],
@@ -854,6 +926,37 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ReportReceipt"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/reading/voice" : {
+      "post" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "Synthesize a reading line",
+        "operationId" : "synthesize",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SynthesizeRequest"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SynthesizeResponse"
                 }
               }
             }
@@ -3008,7 +3111,7 @@
       "patch" : {
         "tags" : [ "v2-me" ],
         "summary" : "Update Notification Settings",
-        "description" : "바꿀 토글만 보내고 토글 셋 전체를 돌려받는다. 분석 완료와 챌린지가 둘 다 꺼지면 서버가 그\n회원의 푸시 토큰을 전부 지운다(토글은 회원 단위다). 저녁 리마인드는 서버가 값만 기억하고\n알람은 폰이 맞춘다.",
+        "description" : "바꿀 토글만 보내고 토글 셋 전체를 돌려받는다. 셋이 다 꺼지면 서버가 그 회원의 푸시\n토큰을 전부 지운다(토글은 회원 단위다). 저녁 리마인드도 서버가 푸시로 보낸다.",
         "operationId" : "update_notification_settings_v2_me_notification_settings_patch",
         "requestBody" : {
           "content" : {
@@ -3176,6 +3279,28 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/VideoList"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/reading/voice/status" : {
+      "get" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "Cloud voice status",
+        "operationId" : "status",
+        "responses" : {
+          "200" : {
+            "description" : "OK",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StatusResponse"
                 }
               }
             }
@@ -4382,6 +4507,139 @@
         },
         "title" : "PortfolioIntroRequest"
       },
+      "WebAttributionRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "channel" : {
+            "type" : "string",
+            "maxLength" : 64,
+            "minLength" : 1,
+            "pattern" : "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+            "title" : "Channel"
+          },
+          "medium" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 64,
+              "pattern" : "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Medium"
+          },
+          "campaign" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 64,
+              "pattern" : "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Campaign"
+          },
+          "content" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 64,
+              "pattern" : "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Content"
+          },
+          "term" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 64,
+              "pattern" : "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Term"
+          }
+        },
+        "required" : [ "channel" ],
+        "title" : "WebAttributionRequest"
+      },
+      "SignupAttributionRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "source" : {
+            "type" : "string",
+            "enum" : [ "airbridge" ],
+            "title" : "Source"
+          },
+          "platform" : {
+            "type" : "string",
+            "enum" : [ "ios", "android" ],
+            "title" : "Platform"
+          },
+          "channel" : {
+            "type" : "string",
+            "maxLength" : 200,
+            "minLength" : 1,
+            "title" : "Channel"
+          },
+          "campaign" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 200
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Campaign"
+          },
+          "ad_group" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 200
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Ad Group"
+          },
+          "ad_creative" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 200
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Ad Creative"
+          },
+          "content" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 200
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Content"
+          },
+          "term" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 200
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Term"
+          },
+          "sub_publisher" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 200
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Sub Publisher"
+          }
+        },
+        "required" : [ "channel", "platform", "source" ],
+        "title" : "SignupAttributionRequest"
+      },
       "ActingDirection" : {
         "type" : "string",
         "enum" : [ "media", "stage" ],
@@ -4906,6 +5164,38 @@
         },
         "required" : [ "id", "status" ],
         "title" : "ReportReceipt"
+      },
+      "SynthesizeRequest" : {
+        "type" : "object",
+        "properties" : {
+          "text" : {
+            "type" : "string",
+            "title" : "Text"
+          },
+          "voice" : {
+            "type" : "string",
+            "title" : "Voice"
+          }
+        },
+        "title" : "SynthesizeRequest"
+      },
+      "SynthesizeResponse" : {
+        "type" : "object",
+        "properties" : {
+          "audio_url" : {
+            "type" : "string",
+            "title" : "Audio Url"
+          },
+          "cached" : {
+            "type" : "boolean",
+            "title" : "Cached"
+          },
+          "expires_in" : {
+            "type" : "integer",
+            "title" : "Expires In"
+          }
+        },
+        "title" : "SynthesizeResponse"
       },
       "ReadingRecordingUploadForm" : {
         "type" : "object",
@@ -7225,7 +7515,7 @@
       },
       "ConsentType" : {
         "type" : "string",
-        "enum" : [ "terms", "privacy", "ai_analysis", "retention" ],
+        "enum" : [ "terms", "privacy", "ai_analysis", "retention", "cloud_voice" ],
         "title" : "ConsentType"
       },
       "SignedInResponse" : {
@@ -7856,6 +8146,33 @@
         },
         "required" : [ "videos" ],
         "title" : "VideoList"
+      },
+      "StatusResponse" : {
+        "type" : "object",
+        "properties" : {
+          "available" : {
+            "type" : "boolean",
+            "title" : "Available"
+          },
+          "free_until" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Free Until"
+          },
+          "consent" : {
+            "type" : "string",
+            "title" : "Consent"
+          },
+          "daily_limit" : {
+            "type" : "integer",
+            "title" : "Daily Limit"
+          },
+          "daily_used" : {
+            "type" : "integer",
+            "title" : "Daily Used"
+          }
+        },
+        "title" : "StatusResponse"
       },
       "ReadingScriptCard" : {
         "type" : "object",

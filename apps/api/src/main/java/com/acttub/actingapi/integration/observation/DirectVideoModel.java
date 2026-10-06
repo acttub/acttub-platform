@@ -5,9 +5,32 @@ import java.util.List;
 
 /** Raw video and conversation only; no observation/record generation. */
 public interface DirectVideoModel {
-    record Video(String name, String uri, String mimeType) {}
+    record Video(String name, String uri, String mimeType, Boolean hasAudioTrack) {
+        /** Audio-track presence unknown (e.g. existing mocks/callers predating the probe). */
+        public Video(String name, String uri, String mimeType) {
+            this(name, uri, mimeType, null);
+        }
+    }
+    /** Local measured file facts, not model observations. Unknown facts never classify an input as empty. */
+    record InputInspection(Boolean hasAudioTrack, Boolean fullBlack, Boolean hasAudioSignal) {
+        public InputInspection(Boolean hasAudioTrack, Boolean fullBlack) {
+            this(hasAudioTrack, fullBlack, null);
+        }
+        public boolean emptyInput() {
+            return Boolean.FALSE.equals(hasAudioTrack) && Boolean.TRUE.equals(fullBlack);
+        }
+        public boolean unusableAudio() {
+            return Boolean.TRUE.equals(hasAudioTrack) && Boolean.FALSE.equals(hasAudioSignal);
+        }
+    }
     record Message(String role, String text) {}
+    /** No provider call. Older/test implementations can leave both facts unknown. */
+    default InputInspection inspect(Path path) { return new InputInspection(null, null); }
     Video upload(Path path, String mimeType);
+    /** Reuses local inspection without changing existing upload callers. */
+    default Video upload(Path path, String mimeType, InputInspection inspection) {
+        return upload(path, mimeType);
+    }
     boolean ready(Video video);
     String reply(Video video, List<Message> history, String instruction);
     /** Text-only routing; the application owns the allowed categories. */

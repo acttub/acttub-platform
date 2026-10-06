@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
 
 import com.acttub.actingapi.integration.llm.TextValidation;
 import com.acttub.actingapi.integration.llm.TextValidator;
-import com.acttub.actingapi.feature.memory.domain.AgentMemoryWrites;
+import com.acttub.actingapi.feature.memory.domain.ActorMemoryFields;
 import com.acttub.actingapi.feature.memory.domain.MemoryValue;
 import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureKind;
@@ -24,7 +24,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
- * 연습 하나에서 배우 기억 4칸을 뽑아낸다 (`acting-agent/memory_extract.py`).
+ * 연습 하나에서 배우 기억(유저.md)의 칸을 뽑아낸다 — 목표·막히는 지점·코치에게 바라는 것·자주 짚인 버릇·말투
+ * (SOMA-603). 다시 말하지 않을 것은 여기서 쓰지 않는다 — 회차가 끝날 때 코드가 덧붙인다.
  *
  * <p><b>성별·나이는 쓰지 않는다.</b> 영상이나 말투에서 추론하는 순간 틀릴 수 있고, 틀린
  * 채로 다음 연습의 전제가 된다.
@@ -49,8 +50,10 @@ public final class MemoryExtractor {
     static {
         FIELD_LABELS.put("goal", "목표");
         FIELD_LABELS.put("blockage", "막히는 지점");
-        FIELD_LABELS.put("speech_self", "본인이 생각하는 화법");
-        FIELD_LABELS.put("speech_actual", "실제로 말하는 화법");
+        FIELD_LABELS.put("wants", "코치에게 바라는 것");
+        FIELD_LABELS.put("habits", "자주 짚인 버릇");
+        FIELD_LABELS.put("avoid", "다시 말하지 않을 것");
+        FIELD_LABELS.put("tone", "말투");
     }
 
     static final String SYSTEM_PROMPT = """
@@ -69,9 +72,14 @@ public final class MemoryExtractor {
             - 칸별로 이렇게 적는다:
               - goal: 배우가 이번에 정리한 목표를 문장 하나로 (배우의 표현을 살리되 다듬어서)
               - blockage: 어디서 반복해서 막히는지, 그 경향을 문장 하나로
-              - speech_self: 배우가 자기 화법에 대해 스스로 말한 내용의 요약
-              - speech_actual: 실제 대사에서 드러난 말하기 방식의 요약 — speech_self 와
-                차이가 있으면 그 차이가 드러나게 적는다
+              - wants: 배우가 코치에게 바란 것(평가해 달라, 방법을 알려 달라, 표정을 봐 달라 등)을
+                문장 하나로. 배우의 말을 짧게 따옴표로 붙인다. "(평가 요청)", "(방법 요청)" 으로 분류된 말이 근거다
+              - habits: 코치가 짚은 버릇과 배우가 스스로 본 것을 한두 문장으로 이어 쓴다. 지금까지 쌓인
+                기억에 이미 있으면 합쳐서 다시 쓰고, 배우의 한 줄이나 이유가 있으면 짧게 따옴표로 붙인다.
+                배우가 아니라고 한 버릇은 적지 않는다
+              - tone: 배우의 말투 — 답이 짧은지 긴지, 직설을 바라는지, 존댓말인지 반말인지를 한 문장으로.
+                말 내용은 적지 않는다
+            - 배우가 한 말 앞의 괄호("(평가 요청)", "(정정)" 등)는 코치가 대화 중에 붙인 분류다. 배우의 말이 아니다.
             - 영상 관찰의 대사 인용은 일부 구절이다. 전체 받아쓰기로 취급하거나 빠진 말을 채우지 않는다.
               인물의 대사를 배우 개인의 성격이나 심리로 추론하지 않는다.
             - 각 칸은 200자를 넘기지 않는다.
@@ -79,7 +87,7 @@ public final class MemoryExtractor {
 
             아래 JSON 만 출력한다. 적을 칸이 없으면 {} 를 출력한다.
 
-            {"goal": "...", "blockage": "...", "speech_self": "...", "speech_actual": "..."}
+            {"goal": "...", "blockage": "...", "wants": "...", "habits": "...", "tone": "..."}
             """;
 
     private final FailureReporter failureReporter;
@@ -124,6 +132,11 @@ public final class MemoryExtractor {
             lines.add("전체 받아쓰기가 아니다. 인용된 구절만 근거로 사용한다.");
             material.quotations().forEach(text -> lines.add("- " + text));
         }
+        if (!material.sessionNotes().isEmpty()) {
+            lines.add("");
+            lines.add("[이번 회차 노트]");
+            material.sessionNotes().forEach(text -> lines.add("- " + text));
+        }
         if (!material.actorMessages().isEmpty()) {
             lines.add("");
             lines.add("[대화에서 배우가 한 말]");
@@ -134,7 +147,7 @@ public final class MemoryExtractor {
         if (existing.isEmpty()) {
             lines.add("- (아직 없음)");
         } else {
-            for (String name : AgentMemoryWrites.FIELDS) {
+            for (String name : FIELD_LABELS.keySet()) {
                 String value = existing.get(name);
                 if (value != null && !value.isEmpty()) {
                     lines.add("- " + FIELD_LABELS.get(name) + ": " + value);
@@ -166,7 +179,7 @@ public final class MemoryExtractor {
      * 그 밖의 실패(판정 어휘·타임코드 등)는 목표 칸에서도 그대로 막는다.
      */
     private static List<String> languageFailures(String name, String text) {
-        TextValidation validation = TextValidator.validateTurn(text, false);
+        TextValidation validation = TextValidator.validateTurn(text);
         if (validation.failures().isEmpty()) {
             return List.of();
         }
@@ -237,7 +250,7 @@ public final class MemoryExtractor {
                 rejected.put(name, "배우 전용 칸");
                 return;
             }
-            if (!AgentMemoryWrites.allows(name)) {
+            if (!ActorMemoryFields.EXTRACTED.contains(name)) {
                 return;
             }
             JsonNode value = candidate.get(name);

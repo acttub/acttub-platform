@@ -25,7 +25,6 @@ import org.springframework.boot.autoconfigure.domain.EntityScan;
     "com.acttub.actingapi.feature.practice.schema",
     "com.acttub.actingapi.feature.report.schema",
     "com.acttub.actingapi.feature.coach.schema",
-    "com.acttub.actingapi.feature.upload.schema",
     "com.acttub.actingapi.feature.video.schema",
     "com.acttub.actingapi.feature.auth.schema",
     "com.acttub.actingapi.feature.consent.schema",

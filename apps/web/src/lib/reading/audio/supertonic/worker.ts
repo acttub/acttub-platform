@@ -24,7 +24,7 @@ import {
 export type Backend = "webgpu" | "wasm";
 
 export type ToWorker =
-  | { id: number; type: "load"; prefer?: Backend }
+  | { id: number; type: "load" }
   | { id: number; type: "synth"; text: string; preset: VoicePreset; speed: number; steps: number; gapSec: number };
 
 export type FromWorker =
@@ -52,8 +52,7 @@ const styles = new Map<VoicePreset, VoiceStyleTensors>();
  * 어느 장치로 돌릴지 먼저 정한다. 가중치를 받기 전에 알아야 하는데,
  * int8 은 WebGPU 에서 진폭이 터져 못 쓰기 때문이다(models.ts 참고).
  */
-async function pickBackend(prefer?: Backend): Promise<Backend> {
-  if (prefer) return prefer;
+async function pickBackend(): Promise<Backend> {
   const gpu = (navigator as Navigator & { gpu?: { requestAdapter(): Promise<unknown> } }).gpu;
   if (!gpu) return "wasm";
   try {
@@ -67,7 +66,7 @@ async function pickBackend(prefer?: Backend): Promise<Backend> {
 // 쓸 만하지 않았다(2026-08-27). 용량보다 소리가 먼저다. int8 정의는 남겨 두되 고르지 않는다.
 const variantFor = (): Variant => "fp32";
 
-async function doLoad(id: number, prefer?: Backend): Promise<void> {
+async function doLoad(id: number): Promise<void> {
   ort.env.wasm.wasmPaths = "/ort/";
   // 교차 출처 격리(COOP/COEP, next.config.ts headers)가 켜져 있으면 SharedArrayBuffer 가 있어
   // wasm 을 여러 스레드로 돌릴 수 있다. 폰에서 스레드 1개는 RTF 2.5 라 끊긴다.
@@ -76,7 +75,7 @@ async function doLoad(id: number, prefer?: Backend): Promise<void> {
   const cores = typeof navigator !== "undefined" ? navigator.hardwareConcurrency || 2 : 2;
   ort.env.wasm.numThreads = isolated ? Math.max(1, Math.min(4, cores - 1)) : 1;
 
-  const backend = await pickBackend(prefer);
+  const backend = await pickBackend();
   const variant = variantFor();
   const { urls, bytes: sizes } = MODEL_VARIANTS[variant];
   const total = variantBytes(variant);
@@ -153,7 +152,7 @@ self.onmessage = (e: MessageEvent<ToWorker>) => {
   void enqueue(async () => {
     try {
       if (msg.type === "load") {
-        ready ??= doLoad(msg.id, msg.prefer);
+        ready ??= doLoad(msg.id);
         await ready;
         return;
       }

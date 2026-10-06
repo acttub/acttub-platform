@@ -1,10 +1,7 @@
 package com.acttub.actingapi.feature.reading.app;
 
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,6 +17,7 @@ import com.acttub.actingapi.feature.reading.domain.ScriptDraft;
 import com.acttub.actingapi.feature.reading.domain.ScriptRules;
 import com.acttub.actingapi.platform.web.ApiException;
 import com.acttub.actingapi.platform.web.CanonicalJson;
+import com.acttub.actingapi.platform.web.Hashing;
 
 /**
  * 대본의 규칙 — 기기가 나눈 대본을 한 요청으로 저장하고, 목록·상세를 보이고, 제목·배역 이름만 고치고, 행째
@@ -141,12 +139,7 @@ public class ScriptService {
         payload.put("raw_text", draft.rawText());
         payload.put("characters", draft.characterNames());
         payload.put("lines", lines);
-        byte[] bytes = canonical.bytes(Map.of("kind", "script_create", "payload", payload));
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 is unavailable", exception);
-        }
+        return Hashing.sha256Hex(canonical.bytes(Map.of("kind", "script_create", "payload", payload)));
     }
 
     /**

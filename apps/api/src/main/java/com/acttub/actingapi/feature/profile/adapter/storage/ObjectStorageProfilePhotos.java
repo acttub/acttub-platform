@@ -11,8 +11,7 @@ import org.springframework.stereotype.Component;
 /**
  * 프로필 사진 포트를 오브젝트 스토리지로 구현한다.
  *
- * <p>{@code Optional} 로 받는 이유는 스토리지 빈이 없는 기동 형태가 실재하기 때문이다
- * ({@code upload/adapter/storage/ObjectStorageUploadTarget} 과 같은 형태). 올리기는 그때 예외로
+ * <p>{@code Optional} 로 받는 이유는 스토리지 빈이 없는 기동 형태가 실재하기 때문이다. 올리기는 그때 예외로
  * 떨어지고, 보는 주소는 {@code null} 이 된다 — 내 계정 조회가 스토리지 때문에 막히면 안 된다.
  */
 @Component

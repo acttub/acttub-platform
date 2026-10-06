@@ -59,7 +59,6 @@ function instance(): UploadQueue {
       const durationMs = entry.durationMs ?? (await measureDuration(entry.uri));
       if (durationMs !== null && durationMs > VIDEO_MAX_MS) throw rejection('video_too_long');
       const compressed = await compressVideo(entry.uri);
-      if (compressed.kind === 'cancelled') throw new ApiError(0, 'cancelled', 'cancelled');
       if (compressed.uri !== entry.uri) await trackTemporaryDeviceFile(compressed.uri).catch(() => undefined);
       const byteSize = compressed.compressedBytes ?? fileSize(compressed.uri);
       const check = checkVideoForUpload({ byteSize, durationMs });

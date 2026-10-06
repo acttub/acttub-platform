@@ -37,15 +37,3 @@ export function formatKoreanDateTime(value: string | null | undefined): string {
     return d.toISOString().slice(0, 16).replace('T', ' ');
   }
 }
-
-/** "2026년 7월" 형태의 월 라벨 (기록 섹션 그룹핑용). */
-export function formatKoreanMonth(value: string | null | undefined): string {
-  if (!value) return '';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '';
-  try {
-    return d.toLocaleDateString(dateLocale(), { year: 'numeric', month: 'long' });
-  } catch {
-    return d.toISOString().slice(0, 7);
-  }
-}

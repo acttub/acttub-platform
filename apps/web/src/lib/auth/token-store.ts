@@ -9,14 +9,14 @@ export type TokenPair = {
   refresh_token: string;
 };
 
-// 웹에는 로그인이 없고 이 토큰은 언제나 게스트의 것이다(account.guest). 1.0.0 이전에는 같은
+// 웹에는 로그인이 없고 이 토큰은 언제나 게스트의 것이다(account.guest). 0.1.0 이전에는 같은
 // 자리에 회원 토큰을 두었으므로 키를 새로 잡는다 — 옛 키의 회원 토큰을 그대로 쓰면 회원
 // 게이트(프로필 입력)에 막히는데 웹에는 그 화면이 없다.
 const ACCESS_KEY = "acttub.guest.access_token";
 export const REFRESH_KEY = "acttub.guest.refresh_token";
 const USER_KEY = "acttub.guest.user";
 
-// 1.0.0 이전 웹 로그인이 남긴 것. 배포 뒤 웹 세션은 끝나고 자료는 계정에 그대로 있다.
+// 0.1.0 이전 웹 로그인이 남긴 것. 배포 뒤 웹 세션은 끝나고 자료는 계정에 그대로 있다.
 const LEGACY_KEYS = [
   "acttub.access_token",
   "acttub.refresh_token",

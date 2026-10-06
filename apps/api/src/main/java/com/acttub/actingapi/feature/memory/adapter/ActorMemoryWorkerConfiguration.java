@@ -12,7 +12,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * 1.0.0 기억 갱신 워커의 조립 (practice.memory). 옛 워커({@code MemoryUpdateWorker})와 같은 추출기를 쓰고
+ * 0.1.0 기억 갱신 워커의 조립 (practice.memory). 옛 워커({@code MemoryUpdateWorker})와 같은 추출기를 쓰고
  * 큐와 저장만 새 것({@code ai_jobs}·{@code actor_memories})이다.
  */
 @Configuration(proxyBeanMethods = false)

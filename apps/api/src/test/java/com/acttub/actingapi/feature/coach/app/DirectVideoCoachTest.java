@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
@@ -28,7 +29,7 @@ class DirectVideoCoachTest {
     final RecordingLlmTelemetry telemetry = new RecordingLlmTelemetry();
     final DirectVideoModel.Video file = new DirectVideoModel.Video("files/test", "gemini://test", "video/mp4");
     final List<Path> temporary = new ArrayList<>();
-    final DirectVideoCoach direct = new DirectVideoCoach(model, videos, storage, failures, telemetry);
+    final DirectVideoCoach direct = new DirectVideoCoach(model, videos, storage, failures, telemetry, false);
     final CoachEngine engine = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(direct));
 
     DirectVideoCoachTest() {
@@ -49,9 +50,141 @@ class DirectVideoCoachTest {
     }
 
     CoachSessionSnapshot session() {
-        return new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                StructuredJson.MAPPER.createObjectNode(), "", "", "", 8000, "그 외", "그 외", null,
-                List.of(), "", null, "open", "", List.of()).withCoachingState("three_layers_v1", 0, null, "open", "");
+        return new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                StructuredJson.MAPPER.createObjectNode(), "", "", "", 8000, "그 외", "그 외", null, "open", "", List.of(), PriorContext.EMPTY, "legacy", 0, null, null).withCoachingState("three_layers_v1", 0, null, "open", "");
+    }
+
+    @Test void emptyInputClosesNormallyBeforeAnyGoogleUploadOrModelCall() {
+        when(model.inspect(any())).thenReturn(new DirectVideoModel.InputInspection(false, true));
+        var result = practiceLoopEngine().start(session(), UUID.randomUUID());
+        assertThat(result.reply().status()).isEqualTo("complete");
+        assertThat(result.reply().message()).isEqualTo(
+                "이 영상에서는 연기 장면을 찾지 못했어요.\n연기한 장면이 담긴 영상을 다시 올려 주세요.");
+        assertThat(result.session().closeReason()).isEqualTo("interrupted");
+        assertThat(DirectVideoPracticeLoop.wasCut(result.session().coachingState())).isTrue();
+        assertThat(DirectVideoPracticeLoop.note(result.session(), 1)).isNull();
+        verify(model, never()).upload(any(), anyString());
+        verify(model, never()).upload(any(), anyString(), any());
+        verify(model, never()).ready(any());
+        verify(model, never()).reply(any(), anyList(), anyString());
+        verify(model, never()).classify(anyList(), anyString(), anyList());
+        verify(model, never()).delete(any());
+        assertThat(telemetry.calls()).isEmpty();
+        assertThat(failures.reports()).isEmpty();
+        assertThat(temporary).allSatisfy(path -> assertThat(path).doesNotExist());
+    }
+
+    @Test void existingButSilentAudioClosesBeforeAnyUploadAndIsNotCalledNonActing() {
+        when(model.inspect(any())).thenReturn(new DirectVideoModel.InputInspection(true, null, false));
+        var result = practiceLoopEngine().start(session(), UUID.randomUUID());
+        assertThat(result.reply().status()).isEqualTo("complete");
+        assertThat(result.reply().message()).isEqualTo("영상의 소리가 녹음되지 않았어요.\n소리가 들리는 영상으로 다시 올려 주세요.");
+        assertThat(result.session().closeReason()).isEqualTo("interrupted");
+        assertThat(result.session().coachingState().path("practice_loop").path("input_issue").asText())
+                .isEqualTo("silent_audio");
+        assertThat(result.session().coachingState().path("practice_loop").has("not_acting")).isFalse();
+        assertThat(DirectVideoPracticeLoop.wasCut(result.session().coachingState())).isTrue();
+        assertThat(DirectVideoPracticeLoop.note(result.session(), 1)).isNull();
+        verify(model, never()).upload(any(), anyString());
+        verify(model, never()).upload(any(), anyString(), any());
+        verify(model, never()).ready(any());
+        verify(model, never()).reply(any(), anyList(), anyString());
+        verify(model, never()).classify(anyList(), anyString(), anyList());
+        assertThat(telemetry.calls()).isEmpty();
+        assertThat(failures.reports()).isEmpty();
+        assertThat(temporary).allSatisfy(path -> assertThat(path).doesNotExist());
+    }
+
+    @Test void audioDecodeFailureBlocksTheModelWithoutSavingAFalseNonActingState() {
+        when(model.inspect(any())).thenThrow(new IllegalStateException("audio signal inspection failed"));
+        var initial = session();
+        assertThatThrownBy(() -> practiceLoopEngine().start(initial, UUID.randomUUID()))
+                .isInstanceOf(CoachReplyUnavailable.class);
+        assertThat(initial.turns()).isEmpty();
+        assertThat(initial.coachingState()).isNull();
+        verify(model, never()).upload(any(), anyString());
+        verify(model, never()).upload(any(), anyString(), any());
+        verify(model, never()).reply(any(), anyList(), anyString());
+        assertThat(failures.reports()).singleElement().satisfies(report -> {
+            assertThat(report.kind()).isEqualTo(com.acttub.actingapi.platform.observability.FailureKind.UNEXPECTED);
+            assertThat(report.context()).startsWith("DirectVideoCoach.inspect");
+        });
+        assertThat(temporary).allSatisfy(path -> assertThat(path).doesNotExist());
+    }
+
+    @Test void unknownInspectionDoesNotRejectAnInputAsEmpty() {
+        when(model.inspect(any())).thenReturn(new DirectVideoModel.InputInspection(null, true));
+        var result = practiceLoopEngine().start(session(), UUID.randomUUID());
+        assertThat(result.reply().status()).isEqualTo("continue");
+        verify(model).upload(any(), eq("video/mp4"));
+        verify(model).reply(eq(file), anyList(), anyString());
+    }
+
+    @Test void failedFrameInspectionDoesNotTurnAFileIntoANonActingClaim() {
+        when(model.inspect(any())).thenThrow(new IllegalStateException("video frame inspection failed"));
+        var initial = session();
+        assertThatThrownBy(() -> practiceLoopEngine().start(initial, UUID.randomUUID()))
+                .isInstanceOf(CoachReplyUnavailable.class);
+        assertThat(initial.turns()).isEmpty();
+        assertThat(initial.coachingState()).isNull();
+        verify(model, never()).upload(any(), anyString());
+        verify(model, never()).upload(any(), anyString(), any());
+        verify(model, never()).reply(any(), anyList(), anyString());
+        assertThat(failures.reports()).singleElement().satisfies(report -> {
+            assertThat(report.kind()).isEqualTo(com.acttub.actingapi.platform.observability.FailureKind.UNEXPECTED);
+            assertThat(report.context()).startsWith("DirectVideoCoach.inspect");
+        });
+        assertThat(temporary).allSatisfy(path -> assertThat(path).doesNotExist());
+    }
+
+    @Test void silentVideoUsesServerAudioFactsAndShowsOnlyVisualEvidence() {
+        var silent = new DirectVideoModel.Video("files/silent", "gemini://silent", "video/mp4", false);
+        when(model.inspect(any())).thenReturn(new DirectVideoModel.InputInspection(false, false));
+        when(model.upload(any(), eq("video/mp4"), any())).thenReturn(silent);
+        when(model.ready(silent)).thenReturn(true);
+        when(model.reply(eq(silent), anyList(), anyString())).thenReturn("""
+                <설계>
+                영상: 연기
+                대사 확인: 확인 안 됨
+                확인된 대사: 없음
+                버릇: 손을 펼 때 고개를 돌려요 | 곳1: 시작 | 곳2: 끝
+                </설계>
+                <코치>
+                손을 펼 때 고개를 돌리는 쪽으로 가요.
+                인물의 선택일 수도 있어요.
+                평소에도 그런 편인가요?
+                </코치>
+                """);
+        var first = practiceLoopEngine().start(session(), UUID.randomUUID());
+        assertThat(first.reply().message()).contains("손을 펼 때").doesNotContain("대사 확인", "확인된 대사", "\"");
+        assertThat(first.session().coachingState().path("practice_loop").path("design").asText())
+                .contains("대사 확인: 확인 안 됨", "확인된 대사: 없음");
+        verify(model).reply(eq(silent), anyList(), argThat(prompt -> prompt.contains("audio_track_present=false")));
+        verify(model).delete(silent);
+    }
+
+    @Test void silentVideoCannotReturnOrStoreAnInventedQuote() {
+        var silent = new DirectVideoModel.Video("files/silent", "gemini://silent", "video/mp4", false);
+        when(model.upload(any(), eq("video/mp4"))).thenReturn(silent);
+        when(model.ready(silent)).thenReturn(true);
+        when(model.reply(eq(silent), anyList(), anyString())).thenReturn("""
+                <설계>
+                영상: 연기
+                대사 확인: 확인 안 됨
+                확인된 대사: 없음
+                버릇: 손을 펴는 쪽으로 가요
+                </설계>
+                <코치>
+                "왜요"라고 말할 때 손을 펴요.
+                평소에도 그런 편인가요?
+                </코치>
+                """);
+        var initial = session();
+        assertThatThrownBy(() -> practiceLoopEngine().start(initial, UUID.randomUUID()))
+                .isInstanceOf(CoachReplyUnavailable.class);
+        assertThat(initial.turns()).isEmpty();
+        assertThat(initial.coachingState()).isNull();
+        verify(model).delete(silent);
     }
 
     @Test void existingEngineRoutesActualConversationAndPassesOnlySelectedPrompts() {
@@ -209,7 +342,8 @@ class DirectVideoCoachTest {
                 .noneMatch(text -> text.contains("<설계>") || text.contains("<상태>") || text.contains("<코치>"));
 
         var histories = org.mockito.ArgumentCaptor.forClass(List.class);
-        verify(model, times(3)).reply(eq(file), histories.capture(), eq(DirectVideoPrompts.practiceLoop()));
+        verify(model, times(3)).reply(eq(file), histories.capture(),
+                eq(DirectVideoPrompts.practiceLoop(first.session().practiceSessionId())));
         verify(model, never()).classify(anyList(), anyString(), anyList());
         assertThat(histories.getAllValues().get(0)).isEmpty();
         assertThat(histories.getAllValues().get(1)).containsExactly(
@@ -225,16 +359,17 @@ class DirectVideoCoachTest {
     }
 
     CoachSessionSnapshot writtenSession() {
-        return new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+        return new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 StructuredJson.MAPPER.createObjectNode(), "빚 독촉 장면", "태식. 센 척함", ".", 8000, "표현", "화술",
-                " 화내는 게 다 똑같이 들려요 ", List.of(), "", null, "open", "", List.of())
+                " 화내는 게 다 똑같이 들려요 ", "open", "", List.of(), PriorContext.EMPTY, "legacy", 0, null, null)
                 .withCoachingState("three_layers_v1", 0, null, "open", "");
     }
 
     @Test void practiceLoopGetsWhatTheActorWroteBeforeItsPrompt() {
         var loopEngine = practiceLoopEngine();
         when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING);
-        loopEngine.start(writtenSession(), UUID.randomUUID());
+        var written = writtenSession();
+        loopEngine.start(written, UUID.randomUUID());
         verify(model).reply(eq(file), anyList(), eq("""
                 ## 배우가 적은 것
                 이번 연습을 올리며 배우가 적은 것이다. 영상 근거가 아니다.
@@ -243,7 +378,7 @@ class DirectVideoCoachTest {
                 - 막힌 곳: 표현 · 화술
                 - 막힌 곳 설명: 화내는 게 다 똑같이 들려요
 
-                """ + DirectVideoPrompts.practiceLoop()));
+                """ + DirectVideoPrompts.practiceLoop(written.practiceSessionId())));
     }
 
     @Test void videoOnlySessionGetsNoActorMaterialBlock() {
@@ -326,12 +461,368 @@ class DirectVideoCoachTest {
         assertThat(DirectVideoPracticeLoop.parse("ㅋㅋ\n그랬군요").message()).isEqualTo("ㅋㅋ\n그랬군요");
     }
 
+    @Test void practiceLoopReadsTheActionFromTheMultiLineStatus() {
+        var closing = DirectVideoPracticeLoop.parse("""
+                <상태>
+                배우의 말: 자기 한 줄
+                지금까지: 같은 버릇 질문 3번 · 짚어주기 1번 · 응답 6번째
+                피할 것: 없음
+                할 일: 마무리2
+                물을 것: 없음
+                </상태>
+                그대로 적어 둘게요.""");
+        assertThat(DirectVideoPracticeLoop.finished(closing)).isTrue();
+        assertThat(closing.message()).isEqualTo("그대로 적어 둘게요.");
+        assertThat(DirectVideoPracticeLoop.finished(DirectVideoPracticeLoop.parse(
+                "<상태>\n배우의 말: 그만\n할 일: [끝]\n물을 것: 없음\n</상태>\n오늘은 여기까지 해요."))).isTrue();
+        // 지금까지 줄의 "짚어주기 1번"이나 배우의 말이 아니라 할 일 줄만 본다.
+        assertThat(DirectVideoPracticeLoop.finished(DirectVideoPracticeLoop.parse("""
+                <상태>
+                배우의 말: 반박
+                지금까지: 같은 버릇 질문 3번 · 짚어주기 0번 · 응답 5번째
+                피할 것: 말 빠르기
+                할 일: 짚어주기(다른 쪽)
+                물을 것: 이 장점을 어느 대사에서 더 쓰고 싶어요?
+                </상태>
+                이 장점을 어느 대사에서 더 쓰고 싶어요?"""))).isFalse();
+    }
+
+    @Test void practiceLoopNoteKeepsASelfLineTheActorOfferedBeforeBeingAsked() throws Exception {
+        var state = (com.fasterxml.jackson.databind.node.ObjectNode) StructuredJson.MAPPER.readTree("""
+                {"revision":4,"practice_loop":{"design":"버릇: 말이 내내 같은 속도로 빨라요 | 곳1: x\\n다음 테이크: 문장 사이에 한 번씩 쉬기",
+                "statuses":["",
+                "배우의 말: 답\\n지금까지: 같은 버릇 질문 2번 · 짚어주기 0번 · 응답 2번째\\n피할 것: 없음\\n할 일: 파고들기\\n물을 것: 속으로는 어땠어요?",
+                "배우의 말: 답\\n지금까지: 같은 버릇 질문 3번 · 짚어주기 0번 · 응답 3번째\\n피할 것: 없음\\n할 일: 이어보기\\n물을 것: 인물에게 맞을까요?",
+                "배우의 말: 자기 한 줄\\n지금까지: 같은 버릇 질문 3번 · 짚어주기 0번 · 응답 4번째\\n피할 것: 없음\\n할 일: 마무리2\\n물을 것: 없음"]}}
+                """);
+        var turns = List.of(new CoachTurnSnapshot("ai", "말이 내내 빨라요."), new CoachTurnSnapshot("actor", "원래 빨라서 지적을 받아요"),
+                new CoachTurnSnapshot("ai", "속으로는 어땠어요?"), new CoachTurnSnapshot("actor", "사이가 비면 연기가 끊긴 것 같아서요"),
+                new CoachTurnSnapshot("ai", "인물에게 맞을까요?"), new CoachTurnSnapshot("actor", "빈틈이 무서워서 말로 채우는 배우"),
+                new CoachTurnSnapshot("ai", "그대로 적어 둘게요."));
+        var closed = session().withTurns(turns).withCoachingState("three_layers_v1", 4, state, "closed", "interrupted");
+        var note = DirectVideoPracticeLoop.note(closed, 4);
+        assertThat(note.summaryQuotes()).hasSize(2);
+        assertThat(note.summaryQuotes().get(0).path("quote").asText()).isEqualTo("빈틈이 무서워서 말로 채우는 배우");
+        assertThat(note.summaryQuotes().get(0).path("source_ref").asText()).isEqualTo(StructuredCoachEngine.turnId(closed, 5));
+        assertThat(note.summaryQuotes().get(1).path("quote").asText()).isEqualTo("사이가 비면 연기가 끊긴 것 같아서요");
+        assertThat(note.nextTake()).isEqualTo("문장 사이에 한 번씩 쉬기");
+    }
+
+    /** SOMA-601: 한 줄을 청한 자리에서 배우가 평가를 청하면 그 말은 배우의 한 줄이 아니다(운영 5670f93d). */
+    @Test void practiceLoopNoteSkipsAnEvaluationRequestGivenWhereTheSelfLineWasAsked() throws Exception {
+        var state = (com.fasterxml.jackson.databind.node.ObjectNode) StructuredJson.MAPPER.readTree("""
+                {"revision":4,"practice_loop":{"design":"버릇: 눈을 천천히 깜빡임 | 곳1: x\\n다음 테이크: 상대를 끝까지 보기",
+                "statuses":["",
+                "배우의 말: 답\\n할 일: 마무리1",
+                "배우의 말: 평가 요청\\n할 일: 짚어주기",
+                "배우의 말: 그만\\n할 일: 끝"]}}
+                """);
+        var turns = List.of(new CoachTurnSnapshot("ai", "눈을 천천히 깜빡여요."), new CoachTurnSnapshot("actor", "상대가 있다고 생각했어요"),
+                new CoachTurnSnapshot("ai", "한 줄로 적는다면 뭐라고 쓸래요?"),
+                new CoachTurnSnapshot("actor", "모르겠습니다,,,,그리고 제 연기 전체적으로 어떤지 평가받고 싶어요"),
+                new CoachTurnSnapshot("ai", "제일 아쉬운 건 깜빡임이에요."), new CoachTurnSnapshot("actor", "그만"),
+                new CoachTurnSnapshot("ai", "오늘은 여기까지 해요."));
+        var closed = session().withTurns(turns).withCoachingState("three_layers_v1", 4, state, "closed", "interrupted");
+        var note = DirectVideoPracticeLoop.note(closed, 4);
+        assertThat(note.summaryQuotes()).extracting(q -> q.path("quote").asText())
+                .doesNotContain("모르겠습니다,,,,그리고 제 연기 전체적으로 어떤지 평가받고 싶어요");
+    }
+
+    /** SOMA-601: 한 줄을 청한 뒤 딱릴 이야기가 오고, 나중에 자기 한 줄이 따로 오면 나중 것이 한 줄이다(운영 3803ca80). */
+    @Test void practiceLoopNotePrefersALaterSelfLineOverAnOffTopicAnswerToTheAsk() throws Exception {
+        var state = (com.fasterxml.jackson.databind.node.ObjectNode) StructuredJson.MAPPER.readTree("""
+                {"revision":4,"practice_loop":{"design":"버릇: 고개를 크게 움직임 | 곳1: x\\n다음 테이크: 엄마를 끝까지 보기",
+                "statuses":["",
+                "배우의 말: 답\\n할 일: 마무리1",
+                "배우의 말: 답\\n할 일: 이어보기",
+                "배우의 말: 자기 한 줄\\n할 일: 마무리2"]}}
+                """);
+        var turns = List.of(new CoachTurnSnapshot("ai", "고개를 크게 움직여요."), new CoachTurnSnapshot("actor", "마주하기 어려워서요"),
+                new CoachTurnSnapshot("ai", "한 줄로 적는다면 뭐라고 쓸래요?"),
+                new CoachTurnSnapshot("actor", "오늘 대학교 시험을 봤는데, 뭔가 집중을 잘 못한거 같아"),
+                new CoachTurnSnapshot("ai", "집중하기 어려웠군요."),
+                new CoachTurnSnapshot("actor", "아직 인물에 맞는 행동들이 자연스럽게 나오지 않는거 같다"),
+                new CoachTurnSnapshot("ai", "그대로 적어 둘게요."));
+        var closed = session().withTurns(turns).withCoachingState("three_layers_v1", 4, state, "closed", "interrupted");
+        var note = DirectVideoPracticeLoop.note(closed, 4);
+        assertThat(note.summaryQuotes().get(0).path("quote").asText()).isEqualTo("아직 인물에 맞는 행동들이 자연스럽게 나오지 않는거 같다");
+    }
+
+    /** SOMA-601: 배우의 말 분류가 없던 옛 한 줄 상태에서도 장단점을 묻는 말은 한 줄이 아니다(운영 d72194af). */
+    @Test void practiceLoopNoteSkipsARequestInOldOneLineStatuses() throws Exception {
+        var state = (com.fasterxml.jackson.databind.node.ObjectNode) StructuredJson.MAPPER.readTree("""
+                {"revision":3,"practice_loop":{"design":"버릇: 말이 내내 빨라요 | 곳1: x\\n다음 테이크: 문장 사이 쉬기",
+                "statuses":["", "마무리1 · 응답 2번째", "끝 · 응답 3번째"]}}
+                """);
+        var turns = List.of(new CoachTurnSnapshot("ai", "말이 빨라요."), new CoachTurnSnapshot("actor", "원래 빨라요"),
+                new CoachTurnSnapshot("ai", "한 줄로 적는다면?"),
+                new CoachTurnSnapshot("actor", "저의 연기적 장점과 단점은 무엇일까요?"),
+                new CoachTurnSnapshot("ai", "오늘은 여기까지 해요."));
+        var closed = session().withTurns(turns).withCoachingState("three_layers_v1", 3, state, "closed", "interrupted");
+        var note = DirectVideoPracticeLoop.note(closed, 3);
+        assertThat(note.summaryQuotes()).extracting(q -> q.path("quote").asText())
+                .doesNotContain("저의 연기적 장점과 단점은 무엇일까요?");
+    }
+
+    /** SOMA-602: 세션.md — 이번 목표, 선택 설명을 우선한 이유, 배우가 아니라고 한 것이 노트와 다음 회차 줄에 남는다. */
+    @Test void practiceLoopRoundKeepsGoalChoiceReasonAndCorrections() throws Exception {
+        var state = (com.fasterxml.jackson.databind.node.ObjectNode) StructuredJson.MAPPER.readTree("""
+                {"revision":5,"practice_loop":{"design":"이번 목표: 한 문장 끝에 엄마를 끝까지 보기\\n버릇: 고개를 양옆으로 크게 움직임 | 곳1: x\\n다음 테이크: 손을 꽉 쥐고 엄마를 노려보기",
+                "statuses":["",
+                "배우의 말: 정정\\n피할 것: 시선\\n이번 목표: 한 문장 끝에 엄마를 끝까지 보기\\n할 일: 내려놓기",
+                "배우의 말: 선택 설명\\n피할 것: 시선\\n할 일: 파고들기",
+                "배우의 말: 짧은 답\\n피할 것: 시선\\n할 일: 마무리1",
+                "배우의 말: 자기 한 줄\\n할 일: 마무리2"]}}
+                """);
+        var turns = List.of(new CoachTurnSnapshot("ai", "지난번엔 엄마를 끝까지 보기로 했어요."), new CoachTurnSnapshot("actor", "렌즈 본 거예요"),
+                new CoachTurnSnapshot("ai", "그러면 제가 잘못 봤어요."), new CoachTurnSnapshot("actor", "트라우마 때문에 마주하기 어려워서 일부러 돌렸어"),
+                new CoachTurnSnapshot("ai", "언제 고개가 돌아가요?"), new CoachTurnSnapshot("actor", "그렇지"),
+                new CoachTurnSnapshot("ai", "한 줄로 적는다면요?"), new CoachTurnSnapshot("actor", "아직 행동이 자연스럽게 안 나온다"),
+                new CoachTurnSnapshot("ai", "그대로 적어 둘게요."));
+        var closed = session().withTurns(turns).withCoachingState("three_layers_v1", 5, state, "closed", "interrupted");
+        var note = DirectVideoPracticeLoop.note(closed, 5);
+        assertThat(note.summaryQuotes()).extracting(q -> q.path("quote").asText())
+                .containsExactly("아직 행동이 자연스럽게 안 나온다", "트라우마 때문에 마주하기 어려워서 일부러 돌렸어");
+        assertThat(note.corrections()).extracting(com.fasterxml.jackson.databind.JsonNode::asText).containsExactly("시선: \"렌즈 본 거예요\"");
+        var line = PracticeLoopRound.line(2, note.title(), note.nextTake(), state,
+                turns.stream().map(t -> new PracticeLoopRound.Turn(t.role(), t.text())).toList());
+        assertThat(line).isEqualTo("2차: 목표 한 문장 끝에 엄마를 끝까지 보기 — 버릇 고개를 양옆으로 크게 움직임"
+                + " (이유: \"트라우마 때문에 마주하기 어려워서 일부러 돌렸어\") — 아니라고 한 것: 시선: \"렌즈 본 거예요\""
+                + " — 제안: 손을 꽉 쥐고 엄마를 노려보기");
+    }
+
+    /** SOMA-603: 기억 갱신 재료 — 배우 말에 코치가 붙인 분류, 다시 말하지 않을 것에 쌓일 정정. */
+    @Test void practiceLoopRoundLabelsActorWordsAndListsCorrections() throws Exception {
+        var state = StructuredJson.MAPPER.readTree("""
+                {"practice_loop":{"design":"버릇: 고개를 크게 돌림 | 곳1: x",
+                 "statuses":["","배우의 말: 정정\\n피할 것: 시선\\n할 일: 내려놓기","배우의 말: 평가 요청(장점)\\n할 일: 짚어주기"]}}
+                """);
+        var turns = List.of(new PracticeLoopRound.Turn("ai", "a"), new PracticeLoopRound.Turn("actor", "렌즈 본 거예요"),
+                new PracticeLoopRound.Turn("ai", "b"), new PracticeLoopRound.Turn("actor", "평가해 주세요"),
+                new PracticeLoopRound.Turn("ai", "c"));
+        assertThat(PracticeLoopRound.classifiedActorWords(state, turns))
+                .containsExactly("(정정) 렌즈 본 거예요", "(평가 요청) 평가해 주세요");
+        assertThat(PracticeLoopRound.corrections(state, turns)).containsExactly("시선: \"렌즈 본 거예요\"");
+        assertThat(PracticeLoopRound.classifiedActorWords(StructuredJson.MAPPER.readTree("{}"), turns))
+                .containsExactly("렌즈 본 거예요", "평가해 주세요");
+    }
+
+    /** 연습 루프 상태가 없으면 예전 줄을 쓰도록 null 이다. */
+    @Test void practiceLoopRoundIsNullWithoutLoopState() throws Exception {
+        assertThat(PracticeLoopRound.line(1, "제목", "제안", StructuredJson.MAPPER.readTree("{}"), List.of())).isNull();
+    }
+
+    /** 연습 루프의 기억 머리말은 지난 기록을 목표 후보로 쓰게 한다. 다른 경로는 그대로다. */
+    @Test void priorContextHeaderTurnsIntoGoalCandidatesOnlyForThePracticeLoop() {
+        var prior = new PriorContext(java.util.Map.of("goal", "입시"), null, false, List.of(), List.of("1차: 버릇 — 제안: x"));
+        assertThat(CoachPrompt.priorContextBlock(prior, true, true)).contains("이번 연습의 목표 후보를 고르는 데 쓴다")
+                .doesNotContain("지난 기록을 이번 장면의 목표·의도로 확정하지 않는다");
+        assertThat(CoachPrompt.priorContextBlock(prior, true)).contains("지난 기록을 이번 장면의 목표·의도로 확정하지 않는다");
+    }
+
+    @Test void practiceLoopShufflesTheFourHabitLinesPerPractice() {
+        var practice = UUID.fromString("00000000-0000-0000-0000-000000000001");
+        assertThat(DirectVideoPrompts.practiceLoop(practice)).isEqualTo(DirectVideoPrompts.practiceLoop(practice));
+        assertThat(DirectVideoPrompts.practiceLoop(null)).isEqualTo(DirectVideoPrompts.practiceLoop());
+        var names = List.of("감정의 변화: [", "상대와 주고받기: [", "원하는 것과 행동: [", "몸·시선·표정: [");
+        var orders = new java.util.HashSet<String>();
+        for (long i = 1; i <= 24; i++) {
+            String prompt = DirectVideoPrompts.practiceLoop(new UUID(i, i * 31));
+            int stuck = prompt.indexOf("막힌 곳: [");
+            for (String name : names) {
+                assertThat(prompt.indexOf(name)).as(name).isPositive().isLessThan(stuck);
+                assertThat(prompt.indexOf(name)).isEqualTo(prompt.lastIndexOf(name));
+            }
+            orders.add(names.stream().sorted(java.util.Comparator.comparingInt(prompt::indexOf))
+                    .collect(java.util.stream.Collectors.joining()));
+        }
+        assertThat(orders).hasSizeGreaterThan(3);
+    }
+
+    @Test void practiceLoopPicksThePromptByTheClassifiedLanguage() {
+        var englishMemo = new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                StructuredJson.MAPPER.createObjectNode(), "In a garden with crush", "A young girl 17 out to clear her head", "",
+                8000, "그 외", "그 외", null, "open", "", List.of(), PriorContext.EMPTY, "legacy", 0, null, null)
+                .withCoachingState("three_layers_v1", 0, null, "open", "");
+        assertThat(DirectVideoPracticeLoop.replyLanguage(session(), null)).as("메모·답 없음").isNull();
+        assertThat(DirectVideoPracticeLoop.replyLanguage(writtenSession(), "네 그런 편이에요")).isNull();
+        assertThat(DirectVideoPracticeLoop.replyLanguage(englishMemo, null)).as("영어 메모만 있어도 첫 질문부터").isEqualTo(Locale.ENGLISH);
+        assertThat(DirectVideoPracticeLoop.replyLanguage(englishMemo, "그만")).as("종료 말은 건너뛴다").isEqualTo(Locale.ENGLISH);
+        assertThat(DirectVideoPracticeLoop.replyLanguage(englishMemo, "한국어로 해 주세요")).isNull();
+        assertThat(DirectVideoPracticeLoop.replyLanguage(session(), "i want help making it flow better")).isEqualTo(Locale.ENGLISH);
+        assertThat(DirectVideoPracticeLoop.replyLanguage(session(), "もっと自然にしたいです")).isEqualTo(Locale.JAPANESE);
+        assertThat(DirectVideoPracticeLoop.replyLanguage(session(), "\"peaceful\" 부분이 어려워요")).isNull();
+        org.springframework.context.i18n.LocaleContextHolder.setLocale(Locale.ENGLISH);
+        try {
+            assertThat(DirectVideoPracticeLoop.replyLanguage(writtenSession(), null)).as("앱이 영어면 앱 언어").isEqualTo(Locale.ENGLISH);
+        } finally {
+            org.springframework.context.i18n.LocaleContextHolder.resetLocaleContext();
+        }
+
+        var id = UUID.randomUUID();
+        assertThat(DirectVideoPrompts.practiceLoop(id, null)).as("한국어는 한국어판 그대로").isEqualTo(DirectVideoPrompts.practiceLoop(id));
+        assertThat(DirectVideoPrompts.practiceLoop(id, Locale.KOREAN)).isEqualTo(DirectVideoPrompts.practiceLoop(id));
+        String english = DirectVideoPrompts.practiceLoop(id, Locale.ENGLISH);
+        assertThat(english).contains("Every word the actor reads is in natural", "at most 16 coach replies")
+                .doesNotContain("[Output language]");
+        assertThat(DirectVideoPrompts.practiceLoop(id, Locale.JAPANESE)).contains("Every word the actor reads", "[Output language]", "Japanese");
+        // 서버가 읽는 숨은 칸 이름은 영어판에도 한국어로 있다.
+        assertThat(english).contains("<설계>", "버릇: [", "다음 테이크: [", "<상태>", "배우의 말: [", "할 일: [", "마무리2", "끝",
+                "자기 한 줄", "지키며: ", "반대로: ");
+        for (String name : List.of("감정의 변화: [", "상대와 주고받기: [", "원하는 것과 행동: [", "몸·시선·표정: [")) {
+            assertThat(english.indexOf(name)).as(name).isEqualTo(english.lastIndexOf(name)).isPositive();
+        }
+    }
+
+    CoachSessionSnapshot sessionWithDuration(int durationMs) {
+        return new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                StructuredJson.MAPPER.createObjectNode(), "", "", "", durationMs, "그 외", "그 외", null, "open", "", List.of(),
+                PriorContext.EMPTY, "legacy", 0, null, null).withCoachingState("three_layers_v1", 0, null, "open", "");
+    }
+
+    @Test void practiceLoopCutsAVideoTooShortToHoldActingWithoutCallingTheModel() {
+        var loopEngine = practiceLoopEngine();
+        var result = loopEngine.start(sessionWithDuration(1300), UUID.randomUUID());
+        assertThat(result.reply().message()).startsWith("이 영상에서는 연기 장면을 찾지 못했어요.");
+        assertThat(result.session().closeReason()).isEqualTo("interrupted");
+        assertThat(DirectVideoPracticeLoop.wasCut(result.session().coachingState())).isTrue();
+        assertThat(DirectVideoPracticeLoop.note(result.session(), 1)).as("끊은 세션은 노트가 없다").isNull();
+        verify(model, never()).reply(any(), anyList(), anyString());
+        assertThat(DirectVideoPracticeLoop.tooShort(sessionWithDuration(0))).as("길이를 모르면 모델에 맡긴다").isFalse();
+        assertThat(DirectVideoPracticeLoop.tooShort(sessionWithDuration(3000))).isFalse();
+    }
+
+    @Test void practiceLoopCutsWhenTheModelSaysItIsNotAnActingVideo() {
+        var loopEngine = practiceLoopEngine();
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(
+                "<설계>\n영상: 연기 아님: 화면이 검고 음악과 잡음만 들린다\n</설계>\n<코치>\n없음\n</코치>");
+        var result = loopEngine.start(sessionWithDuration(6600), UUID.randomUUID());
+        assertThat(result.reply().message()).isEqualTo("이 영상에서는 연기 장면을 찾지 못했어요.\n연기한 장면이 담긴 영상을 다시 올려 주세요.");
+        assertThat(result.reply().status()).isEqualTo("complete");
+        assertThat(result.session().closeReason()).isEqualTo("interrupted");
+        assertThat(result.session().turns()).extracting(CoachTurnSnapshot::text).noneMatch(text -> text.contains("없음"));
+        assertThat(DirectVideoPracticeLoop.note(result.session(), 1)).isNull();
+
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(
+                "<설계>\n영상: 연기\n버릇: 손이 자주 가슴으로 가요 | 곳1: x | 곳2: y\n다음 테이크: 손 내리기\n</설계>\n<코치>\n손이 자주 가슴으로 가요.\n인물이라 그럴 수도 있어요.\n평소에도 그런 편이에요?\n</코치>");
+        var acting = loopEngine.start(sessionWithDuration(6600), UUID.randomUUID());
+        assertThat(acting.reply().status()).as("짧아도 연기면 코칭한다").isEqualTo("continue");
+        assertThat(DirectVideoPracticeLoop.wasCut(acting.session().coachingState())).isFalse();
+        assertThat(DirectVideoPrompts.practiceLoop()).contains("영상: [연기 / 연기 아님", "애매하면 연기로 본다");
+        assertThat(DirectVideoPrompts.practiceLoopEnglish()).contains("영상: [연기 / 연기 아님", "If unsure, treat it as acting");
+    }
+
+    @Test void audioOnlyActingCanContinueCloseAndCreateAnAudioGroundedNote() {
+        var voice = new DirectVideoModel.Video("files/voice", "gemini://voice", "video/mp4", true);
+        when(model.inspect(any())).thenReturn(new DirectVideoModel.InputInspection(true, null));
+        when(model.upload(any(), eq("video/mp4"), any())).thenReturn(voice);
+        when(model.upload(any(), eq("video/mp4"))).thenReturn(voice);
+        when(model.ready(voice)).thenReturn(true);
+        when(model.reply(eq(voice), anyList(), anyString())).thenReturn("""
+                <설계>
+                영상: 연기: 화면은 검지만 독백 연기가 들린다
+                관찰 근거: 음성만
+                대사 확인: 확인됨
+                확인된 대사: 제발 / 한 번만
+                감정의 변화: 두 부탁에서 애원하는 감정이 들린다 · 뚜렷함 2
+                상대와 주고받기: 없음(화면 확인 안 됨) · 뚜렷함 0
+                원하는 것과 행동: 머물러 주기를 바라며 두 번 애원한다 · 뚜렷함 3
+                몸·시선·표정: 없음(화면 확인 안 됨) · 뚜렷함 0
+                버릇: 부탁이 거절될 때 더 애원해요 | 곳1: 제발 | 곳2: 한 번만
+                다음 테이크: 같은 부탁을 달래듯 말해 보기
+                </설계>
+                <코치>
+                두 부탁에서 더 애원하는 쪽으로 들려요.
+                이 인물의 선택일 수도 있어요.
+                평소에도 그런 편이에요?
+                </코치>
+                """, """
+                <상태>
+                관찰 근거: 음성만
+                대사 확인: 확인됨
+                배우의 말: 자기 한 줄
+                할 일: 마무리2
+                다음 테이크: 반대로: 같은 부탁을 달래듯 말해 보기
+                </상태>
+                나는 부탁이 거절되면 더 애원하는 배우다라고 적어 둘게요.
+                다음 테이크에서는 달래듯 말해 봐도 좋아요.
+                오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요.
+                """);
+        var loopEngine = practiceLoopEngine();
+        var first = loopEngine.start(session(), UUID.randomUUID());
+        assertThat(first.reply().status()).isEqualTo("continue");
+        assertThat(DirectVideoPracticeLoop.wasCut(first.session().coachingState())).isFalse();
+        assertThat(first.session().coachingState().path("practice_loop").path("design").asText())
+                .contains("관찰 근거: 음성만", "없음(화면 확인 안 됨)");
+        assertThat(first.reply().message()).contains("들려요").doesNotContain("<설계>", "표정", "시선", "고개");
+        var done = loopEngine.reply(first.session(), "나는 부탁이 거절되면 더 애원하는 배우다", UUID.randomUUID());
+        assertThat(done.reply().status()).isEqualTo("complete");
+        assertThat(done.session().coachingState().path("practice_loop").path("statuses").toString())
+                .contains("관찰 근거: 음성만");
+        var note = DirectVideoPracticeLoop.note(done.session(), 2);
+        assertThat(note).isNotNull();
+        assertThat(note.nextTake()).isEqualTo("같은 부탁을 달래듯 말해 보기");
+        assertThat(note.toString()).doesNotContain("표정", "시선", "고개");
+        verify(model, never()).classify(anyList(), anyString(), anyList());
+    }
+
+    @Test void audibleNonActingStillCutsCoachingAndDoesNotCreateANote() {
+        var voice = new DirectVideoModel.Video("files/chat", "gemini://chat", "video/mp4", true);
+        when(model.upload(any(), eq("video/mp4"))).thenReturn(voice);
+        when(model.ready(voice)).thenReturn(true);
+        when(model.reply(eq(voice), anyList(), anyString())).thenReturn(
+                "<설계>영상: 연기 아님: 인물 연기 없이 사용법을 설명하는 강의</설계><코치>없음</코치>");
+        var result = practiceLoopEngine().start(session(), UUID.randomUUID());
+        assertThat(result.reply().status()).isEqualTo("complete");
+        assertThat(DirectVideoPracticeLoop.wasCut(result.session().coachingState())).isTrue();
+        assertThat(DirectVideoPracticeLoop.note(result.session(), 1)).isNull();
+        assertThat(result.reply().message()).startsWith("이 영상에서는 연기 장면을 찾지 못했어요.");
+    }
+
+    @Test void bothPromptsSeparateScreenVisibilityFromActingAndLimitAudioOnlyObservations() {
+        String korean = DirectVideoPrompts.practiceLoop();
+        assertThat(korean).contains("화면 유무와 연기 여부는 별개다", "목소리가 있다는 이유만으로 모두 연기는 아니다",
+                "일상 잡담·정보 설명·뉴스·강의", "배경 음악·잡음만", "애매하면 연기로 본다",
+                "없음(화면 확인 안 됨) · 뚜렷함 0", "표정, 시선, 자세, 몸동작", "감정의 변화와 원하는 것과 행동",
+                "숨은 설계, 후속 평가, 반박, 마무리와 노트용 다음 테이크");
+        String english = DirectVideoPrompts.practiceLoopEnglish();
+        assertThat(english).contains("Screen visibility and acting eligibility are separate",
+                "A voice alone does not prove acting", "everyday chat, informational explanation, news or a lecture",
+                "only background music/noise", "If unsure, treat it as acting", "Never invent face, gaze, posture, movement",
+                "follow-up evaluation, pushback, closing and the next-take field used for notes");
+        for (String prompt : List.of(korean, english, DirectVideoPrompts.practiceLoop(UUID.randomUUID()))) {
+            assertThat(prompt).contains("관찰 근거: [", "음성만", "없음(화면 확인 안 됨)");
+            assertThat(prompt.indexOf("관찰 근거: [")).isLessThan(prompt.indexOf("감정의 변화: ["));
+            assertThat(prompt.substring(prompt.indexOf("<상태>\n"))).contains("관찰 근거:");
+        }
+        assertThat(korean).doesNotContain("아래는 연기가 아니다: 화면이 검거나");
+        assertThat(english).doesNotContain("These are not acting: a black screen");
+        assertThat(DirectVideoPrompts.common()).contains("음성 연기는 연기로 다룬다", "관찰할 수 없다고 두며");
+    }
+
+    @Test void practiceLoopPromptLooksBeyondTempo() {
+        assertThat(DirectVideoPrompts.practiceLoop())
+                .contains("감정의 변화: [", "상대와 주고받기: [", "원하는 것과 행동: [", "몸·시선·표정: [",
+                        "소리와 템포는 보지 않는다")
+                .doesNotContain("소리 빠르기: [", "소리 쉬는 곳: [");
+    }
+
+    @Test void practiceLoopNoteUsesTheNextTakeTheCoachSettledOnWhenClosing() throws Exception {
+        var statuses = (com.fasterxml.jackson.databind.node.ArrayNode) StructuredJson.MAPPER.readTree("""
+                ["", "배우의 말: 답\\n할 일: 파고들기\\n다음 테이크: 없음",
+                 "배우의 말: 자기 한 줄\\n할 일: 마무리2\\n다음 테이크: 지키며: 침묵은 그대로 두고 상대를 끝까지 보기"]
+                """);
+        assertThat(DirectVideoPracticeLoop.closingNextTake(statuses)).isEqualTo("침묵은 그대로 두고 상대를 끝까지 보기");
+        assertThat(DirectVideoPracticeLoop.closingNextTake(StructuredJson.MAPPER.readTree("[\"파고들기 · 응답 2번째\"]"))).isEmpty();
+    }
+
     @Test void habitTitleFallsBackToTheDescriptionWhenTheModelWritesACategoryName() {
         String design = "소리 빠르기: 처음부터 끝까지 일정하고 빠른 편이에요. \"손도 막 떨더라고요\"도요.\n소리 말끝: 없음\n"
                 + "버릇: 소리 빠르기 | 곳1: \"손도\" | 곳2: \"살아야\"\n다음 테이크: 문장 사이 쉬기";
         assertThat(DirectVideoPracticeLoop.habit(design)).isEqualTo("처음부터 끝까지 일정하고 빠른 편이에요");
         assertThat(DirectVideoPracticeLoop.habit("버릇: 말끝을 툭 떨어뜨려요 | 곳1: x")).isEqualTo("말끝을 툭 떨어뜨려요");
         assertThat(DirectVideoPracticeLoop.habit("소리 크기: 없음\n버릇: 소리 크기 | 곳1: x")).isEqualTo("소리 크기");
+        assertThat(DirectVideoPracticeLoop.habit("소리 강조: 모든 말에 힘을 줘요. \"x\"\n버릇: 소리 강조 | 곳1: x")).isEqualTo("모든 말에 힘을 줘요");
     }
 
     @Test void markdownReplyIsStoredAndReturnedAsPlainText() {

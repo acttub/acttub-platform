@@ -67,10 +67,8 @@ export function isProposal(kind: NoteKind): boolean {
 export function reportTypeOf(
   report: { report_type?: string } | PracticeNote | null | undefined,
 ): "analysis" | "expression" | "blocked" | "practice_note" {
-  if (!report) return "blocked";
-  if (isNoteV2(report)) return report.format === "legacy" && (report.kind === "analysis" || report.kind === "expression") ? report.kind : "practice_note";
-  const type = ("report_type" in report ? report.report_type : undefined);
-  return type === "analysis" || type === "expression" || type === "practice_note" ? type : "blocked";
+  if (!isNoteV2(report)) return "blocked";
+  return report.format === "legacy" && (report.kind === "analysis" || report.kind === "expression") ? report.kind : "practice_note";
 }
 
 /** 되돌아갈 대화가 없는 노트인가(막힌 대화). 신형 노트에는 이 자리가 없다. */

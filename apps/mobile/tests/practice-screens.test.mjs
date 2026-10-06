@@ -19,7 +19,7 @@ test('practice.start: 새 연습은 보관함의 영상으로 시작하고 준�
   assert.equal(/\/v2\/uploads\/intents|createUploadIntent|completeUpload/.test(upload), false);
 });
 
-test('practice.start: 이론 선택은 1.0.0에서 뺐다', () => {
+test('practice.start: 이론 선택은 0.1.0에서 뺐다', () => {
   assert.equal(/theory/i.test(read('app/upload.tsx')), false);
   assert.equal(/theory: \{/.test(read('locales/ko.ts')), false);
   assert.equal(/theory: \{/.test(read('locales/en.ts')), false);

@@ -458,7 +458,7 @@ class AccountGuestIT {
         return member;
     }
 
-    /** 보관함의 영상 하나. 1.0.0 의 회차는 영상으로 시작한다(practice.start). */
+    /** 보관함의 영상 하나. 0.1.0 의 회차는 영상으로 시작한다(practice.start). */
     private UUID video(UUID owner) {
         UUID id = UUID.randomUUID();
         jdbc.update("""

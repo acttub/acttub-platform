@@ -10,7 +10,7 @@ import com.acttub.actingapi.platform.web.ApiException;
  *
  * <p>여기 있는 이유는 방향이다 — 이 record 가 {@code auth} 에 살면 이것을 받는 여덟 도메인이
  * 전부 {@code auth} 를 import 하게 되고, 그러면 포트를 어디에 선언하든 소비자 → 제공자 간선이
- * 남는다. 6단계에서 {@code SyncOperationBegin} 을 {@code ledger} 로 올려 푼 매듭과 같은 형태다.
+ * 남는다.
  *
  * <p>소비자 여덟은 {@link #id()} 만 쓴다. {@code email}·{@code status} 는 로그인 응답을 만드는
  * {@code auth} 자신을 위한 것이다. {@code guest} 는 게이트가 본다 — 회원과 웹 게스트는 서로 다른

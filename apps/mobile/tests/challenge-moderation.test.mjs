@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { parseEntryLink, entryShareUrl } from '../lib/challenge/deeplink.ts';
+import { entryShareUrl } from '../lib/challenge/deeplink.ts';
 import {
   REPORT_REASONS,
   blockedLabel,
@@ -81,14 +81,6 @@ test('challenge.block: 차단 목록은 이름으로 보이고 이름이 없으�
   assert.equal(blockedLabel({ name: '  ' }), '탈퇴한 사용자');
 });
 
-test('challenge.react: 공유 링크는 참여작 딥링크이고 앱에서 그 참여작을 연다', () => {
-  const url = entryShareUrl('entry-1');
-  assert.match(url, /entry-1/);
-
-  assert.deepEqual(parseEntryLink(url), { entryId: 'entry-1' });
-  assert.deepEqual(parseEntryLink('actingapp://entry/entry-2'), { entryId: 'entry-2' });
-  assert.deepEqual(parseEntryLink('https://www.acttub.com/e/entry-3?utm=x'), { entryId: 'entry-3' });
-  // 우리 주소가 아니면 열지 않는다.
-  assert.equal(parseEntryLink('https://example.com/e/entry-4'), null);
-  assert.equal(parseEntryLink(''), null);
+test('challenge.react: 공유 링크는 참여작 주소다', () => {
+  assert.equal(entryShareUrl('entry-1'), 'https://acttub.com/e/entry-1');
 });

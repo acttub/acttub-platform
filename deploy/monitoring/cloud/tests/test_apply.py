@@ -1,20 +1,98 @@
-"""The actual provider talks only to a disposable HTTP boundary, never Cloud."""
+"""apply.py renders the owned configuration and talks only to a disposable HTTP boundary, never Cloud."""
 import copy
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import io
 import json
 import os
 from pathlib import Path
-import shutil
-import subprocess
+import re
+import sys
 import tempfile
 import threading
 import unittest
+from contextlib import redirect_stdout
+from unittest import mock
 from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+import apply  # noqa: E402
+
+SM = "/api/datasources/proxy/uid/sm-ds/sm"
 
 
-class CloudAPI(BaseHTTPRequestHandler):
+def config(**origins):
+    return {"grafana_url": "https://example.grafana.net", "health_origins": origins or {"dev": "https://dev.example.test", "prod": "https://prod.example.test"},
+            "probe_id": 1, "synthetic_datasource_uid": "cloud-metrics", "site": "home", "disk_mountpoint": "/",
+            "runbook_url": "https://github.com/acttub/acttub-platform/blob/dev/docs/deploy/MONITORING-CLOUD.md"}
+
+
+class RenderTest(unittest.TestCase):
+    def test_two_environments_render_59_rules_three_dashboards_two_checks_with_prod_landing(self):
+        c = config()
+        rules = apply.render_group(c)["rules"]
+        self.assertEqual(len(rules), 59)
+        self.assertEqual(len({r["uid"] for r in rules}), 59)
+        dashboards = apply.render_dashboards(c)
+        self.assertEqual(sorted(dashboards), ["acttub-infrastructure", "acttub-operations", "acttub-service"])
+        for d in dashboards.values():
+            self.assertEqual((d["timezone"], d["time"]["from"]), ("Asia/Seoul", "now-1h"))
+            self.assertEqual(d["templating"]["list"][0]["name"], "environment")
+            self.assertEqual(d["templating"]["list"][0]["current"]["value"], "prod")
+            self.assertNotIn("${", json.dumps(d))
+        self.assertEqual(sorted(apply.render_checks(c)), ["acttub-health-dev", "acttub-health-prod"])
+
+    def test_single_environment_is_a_clean_subset(self):
+        for env, other in (("dev", "prod"), ("prod", "dev")):
+            c = config(**{env: "https://" + env + ".example.test"})
+            rules = apply.render_group(c)["rules"]
+            self.assertEqual(len(rules), 37)
+            self.assertTrue(all(r["labels"]["environment"] in (env, "shared") for r in rules))
+            self.assertEqual(sorted(apply.render_checks(c)), ["acttub-health-" + env])
+            if env == "dev":
+                for d in apply.render_dashboards(c).values():
+                    self.assertNotIn("prod", json.dumps(d))
+            self.assertTrue(all("var-environment=" + env in r["annotations"]["dashboard_url"] for r in rules))
+
+    def test_only_datasource_rules_alert_on_error_or_nodata_and_every_rule_routes_to_slack_hourly(self):
+        for r in apply.render_group(config())["rules"]:
+            special = r["uid"].startswith(("acttub-datasource-", "acttub-cloud-datasource-"))
+            self.assertEqual(r["noDataState"], "Alerting" if special else "KeepLast", r["uid"])
+            self.assertEqual(r["execErrState"], "Alerting" if special else "KeepLast", r["uid"])
+            n = r["notification_settings"]
+            self.assertEqual((n["receiver"], n["group_wait"], n["group_interval"], n["repeat_interval"]), ("acttub-monitoring-slack", "10s", "1m", "1h"))
+            self.assertTrue({"environment", "site", "datasource"} <= set(n["group_by"]))
+
+    def test_slack_annotations_carry_unit_criterion_and_only_explanatory_conditions(self):
+        rules = {r["uid"]: r["annotations"] for r in apply.render_group(config())["rules"]}
+        memory, missing, flag, backup = (rules["acttub-" + k] for k in ("memory-shared", "api-metric-dev", "collect-api-dev", "backup-age-prod"))
+        self.assertEqual((memory["criterion"], memory["observed_value"]), ("10% 미만, 5분 지속", '{{ printf "%.1f" $values.A.Value }}%'))
+        self.assertNotIn("detail", memory)
+        self.assertEqual((missing["criterion"], missing["observed_value"]), ("1개 이상, 2분 지속", '{{ printf "%.0f" $values.A.Value }}개'))
+        self.assertIn("Hikari", missing["detail"])
+        self.assertEqual(flag["criterion"], "2분 지속")
+        self.assertNotIn("observed_value", flag)
+        self.assertEqual(backup["criterion"], "26시간 초과")
+        self.assertEqual({d["unit"] for d in json.loads((ROOT / "rules.json").read_text())} - {"", "%", "초", "건", "회", "개"}, set())
+
+    def test_health_check_accepts_only_the_real_health_contract(self):
+        pattern = apply.render_checks(config())["acttub-health-prod"]["settings"]["http"]["failIfBodyNotMatchesRegexp"][0]
+        ok = '{"status":"ok","services":["summary","coach","report"],"model":"test","keep_alive":false,"commit":"unknown"}'
+        self.assertTrue(re.search(pattern, ok))
+        self.assertFalse(re.search(pattern, '{"status":"down","nested":{"status":"ok"}}'))
+        self.assertFalse(re.search(pattern, '<html>"status":"ok"</html>'))
+
+    def test_bad_configuration_is_rejected(self):
+        for bad in ({"health_origins": {}}, {"health_origins": {"staging": "https://x.test"}}, {"health_origins": {"dev": "https://x.test/"}},
+                    {"probe_id": 0}, {"disk_mountpoint": "/(.*)"}):
+            with self.subTest(bad=bad), tempfile.NamedTemporaryFile("w", suffix=".json") as f:
+                json.dump({**config(), **bad}, f)
+                f.flush()
+                with self.assertRaises(ValueError):
+                    apply.load_config(f.name)
+
+
+class FakeGrafana(BaseHTTPRequestHandler):
     def log_message(self, *_):
         pass
 
@@ -27,259 +105,141 @@ class CloudAPI(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        path = unquote(urlsplit(self.path).path)
-        state = self.server.state
-        if path == "/api/org":
-            return self.reply({"id": 1, "name": "Fixture"})
-        if path == "/api/health":
-            return self.reply({"version": "12.4.0", "database": "ok"})
-        if path == "/api/frontend/settings":
-            return self.reply({"featureToggles": {"alertingSimplifiedRouting": True}})
-        if path.startswith("/api/v1/provisioning/alert-rules/"):
-            uid = path.rsplit("/", 1)[-1]
-            return self.reply(next(r for group in state["groups"].values() for r in group["rules"] if r["uid"] == uid))
-        if path == "/api/v1/provisioning/alert-rules":
-            return self.reply([r for group in state["groups"].values() for r in group["rules"]])
-        if path == "/api/v1/provisioning/contact-points":
-            return self.reply(list(state["contacts"].values()))
-        if path == "/api/v1/provisioning/policies":
-            return self.reply(state["policies"])
-        if path == "/api/v1/check/list":
-            return self.reply(list(state["checks"].values()))
-        if path == "/api/v1/probe/list":
-            return self.reply([{"id": 1, "name": "public-fixture", "public": True}, {"id": 2, "name": "private-fixture", "public": False}])
-        for prefix, resource in [("/api/folders/", "folders"), ("/api/datasources/uid/", "datasources"), ("/api/dashboards/uid/", "dashboards"), ("/api/v1/provisioning/folder/acttub-monitoring/rule-groups/", "groups"), ("/api/v1/check/", "checks")]:
+        s, path = self.server.state, unquote(urlsplit(self.path).path)
+        if self.headers.get("Authorization") != "Bearer test-token":
+            return self.reply({"message": "unauthorized"}, 401)
+        routes = {
+            "/api/datasources": s["datasources"],
+            "/api/v1/provisioning/contact-points": s["contacts"],
+            "/api/v1/provisioning/alert-rules": [r for g in s["groups"].values() for r in g["rules"]],
+            SM + "/check/list": list(s["checks"].values()),
+            SM + "/probe/list": [{"id": 1, "public": True}, {"id": 2, "public": False}],
+        }
+        if path in routes:
+            return self.reply(routes[path])
+        for prefix, table in (("/api/datasources/uid/", "ds_by_uid"), ("/api/folders/", "folders"), ("/api/dashboards/uid/", "dashboards"),
+                              ("/api/v1/provisioning/folder/acttub-monitoring/rule-groups/", "groups"), ("/api/v1/provisioning/templates/", "templates")):
             if path.startswith(prefix):
-                value = state[resource].get(path[len(prefix):])
-                return self.reply(value if value is not None else {"message": "not found"}, 200 if value is not None else 404)
-        return self.reply({"message": "unsupported fixture route " + path}, 404)
+                value = s[table].get(path[len(prefix):])
+                return self.reply(value, 200) if value is not None else self.reply({"message": "not found"}, 404)
+        self.reply({"message": "unsupported " + path}, 404)
 
     def do_POST(self):
-        self.mutate()
+        self.write()
 
     def do_PUT(self):
-        self.mutate()
+        self.write()
 
-    def mutate(self):
-        path = unquote(urlsplit(self.path).path)
+    def write(self):
+        s, path = self.server.state, unquote(urlsplit(self.path).path)
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-        state = self.server.state
-        self.server.writes.append((self.command, path))
+        s["writes"].append((self.command, path))
         if path == "/api/folders":
-            state["folders"][body["uid"]] = dict(body, id=1, version=1)
-            return self.reply(state["folders"][body["uid"]])
-        if path == "/api/datasources" or path.startswith("/api/datasources/uid/"):
-            body.update(id=1, orgId=1, secureJsonFields={})
-            state["datasources"][body["uid"]] = body
-            return self.reply({"datasource": body, "id": 1, "uid": body["uid"], "message": "updated"})
-        if path == "/api/v1/provisioning/contact-points" or path.startswith("/api/v1/provisioning/contact-points/"):
-            body["uid"] = body.get("uid") or "fixture-slack"
-            body["provenance"] = "api"
-            state["contacts"][body["uid"]] = body
-            return self.reply(body, 202)
-        if path.startswith("/api/v1/provisioning/folder/acttub-monitoring/rule-groups/"):
-            for rule in body["rules"]:
-                rule.update(orgID=1, ruleGroup="acttub-monitoring", folderUID="acttub-monitoring", provenance="api")
-            state["groups"][body["title"]] = body
-            return self.reply(body)
-        if path == "/api/dashboards/db":
-            dashboard = body["dashboard"]
-            old = state["dashboards"].get(dashboard["uid"])
-            if old and not body.get("overwrite"):
-                return self.reply({"message": "exists"}, 412)
-            dashboard.update(id=10 + len(state["dashboards"]), version=1 if not old else old["dashboard"]["version"] + 1)
-            state["dashboards"][dashboard["uid"]] = {"dashboard": dashboard, "meta": {"folderUid": body["folderUid"], "url": "/d/" + dashboard["uid"]}}
-            return self.reply({"id": dashboard["id"], "uid": dashboard["uid"], "version": dashboard["version"], "status": "success", "url": "/d/" + dashboard["uid"]})
-        if path in ("/api/v1/check/add", "/api/v1/check/update"):
-            body["id"] = body.get("id") or len(state["checks"]) + 1
-            body["tenantId"] = 1
-            state["checks"][str(body["id"])] = body
-            return self.reply(body)
-        return self.reply({"message": "unsupported fixture mutation " + path}, 400)
+            s["folders"][body["uid"]] = {"uid": body["uid"], "title": body["title"]}
+        elif path == "/api/dashboards/db":
+            d = body["dashboard"]
+            old = s["dashboards"].get(d["uid"])
+            if old and not body["overwrite"] and d["version"] != old["dashboard"]["version"]:
+                return self.reply({"message": "version-mismatch"}, 412)
+            d = dict(d, id=old["dashboard"]["id"] if old else 100 + len(s["dashboards"]), version=(old["dashboard"]["version"] + 1) if old else 1)
+            s["dashboards"][d["uid"]] = {"dashboard": d, "meta": {"folderUid": body["folderUid"]}}
+        elif path.startswith("/api/v1/provisioning/folder/acttub-monitoring/rule-groups/"):
+            body["rules"] = [dict(r, id=i, orgID=1, updated="now") for i, r in enumerate(body["rules"])]
+            s["groups"][path.rsplit("/", 1)[-1]] = body
+        elif path.startswith("/api/v1/provisioning/templates/"):
+            name = path.rsplit("/", 1)[-1]
+            s["templates"][name] = {"name": name, "template": body["template"].strip(), "version": "v%d" % len(s["writes"])}
+        elif path == SM + "/check/add":
+            s["checks"][body["job"]] = dict(body, id=len(s["checks"]) + 1, tenantId=9, created=1.0)
+        elif path == SM + "/check/update":
+            s["checks"][body["job"]] = body
+        else:
+            return self.reply({"message": "unsupported write " + path}, 404)
+        self.reply({"status": "success"})
 
 
-class ApplyBoundaryTest(unittest.TestCase):
+class ApplyTest(unittest.TestCase):
     def setUp(self):
-        self.server = ThreadingHTTPServer(("127.0.0.1", 0), CloudAPI)
-        self.server.state = {key: {} for key in ["folders", "datasources", "dashboards", "contacts", "checks", "groups"]}
-        self.server.state["policies"] = {"receiver": "unrelated", "routes": [{"receiver": "finance", "object_matchers": [["team", "=", "finance"]]}]}
-        self.server.state["contacts"]["unrelated"] = {"uid": "unrelated", "name": "unrelated", "type": "email", "settings": {"addresses": "fixture@example.test"}}
-        self.server.state["dashboards"]["foreign"] = {"dashboard": {"uid": "foreign", "title": "Finance", "version": 7}, "meta": {"folderUid": "finance"}}
-        self.server.state["datasources"]["foreign"] = {"uid": "foreign", "name": "Finance", "type": "prometheus", "url": "http://finance:9090"}
-        self.server.state["datasources"]["cloud-existing"] = {"uid": "cloud-existing", "name": "Cloud Metrics", "type": "prometheus", "url": "https://cloud.example.test"}
-        self.original = copy.deepcopy(self.server.state)
-        self.server.writes = []
-        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
-        self.thread.start()
-        self.temp = tempfile.TemporaryDirectory(prefix="acttub-cloud-api-")
-        self.path = Path(self.temp.name)
-        shutil.copytree(ROOT, self.path, dirs_exist_ok=True, ignore=shutil.ignore_patterns(".terraform", "*.tfstate*", "*.tfplan*", ".validation", "__pycache__", "*.tfvars*"))
-        (self.path / ".terraform").symlink_to(ROOT / ".terraform", target_is_directory=True)
-        origin = "http://127.0.0.1:" + str(self.server.server_port)
-        self.variables = {"grafana_url": origin, "health_origins": {"dev": "https://dev.example.test", "prod": "https://prod.example.test"}, "probe_id": 1, "pdc_network_id": "fixture-pdc", "synthetic_datasource_uid": "cloud-existing"}
-        (self.path / "fixture.tfvars.json").write_text(json.dumps(self.variables))
-        self.env = {k: v for k, v in os.environ.items() if not k.startswith(("TF_VAR_", "GRAFANA_", "TF_LOG"))}
-        self.env.update(GRAFANA_AUTH="fixture-token", GRAFANA_SM_URL=origin, GRAFANA_SM_ACCESS_TOKEN="fixture-sm-token", TF_VAR_slack_webhook_url="https://hooks.slack.com/services/fixture/never/send", TF_IN_AUTOMATION="1")
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), FakeGrafana)
+        self.server.state = {
+            "datasources": [{"uid": "acttub-local-prometheus", "type": "prometheus"}, {"uid": "sm-ds", "type": "synthetic-monitoring-datasource"}],
+            "ds_by_uid": {"acttub-local-prometheus": {"uid": "acttub-local-prometheus"}},
+            "contacts": [{"name": "acttub-monitoring-slack", "uid": "slack"}],
+            "folders": {}, "dashboards": {"foreign": {"dashboard": {"uid": "foreign", "id": 7, "version": 3}, "meta": {"folderUid": "finance"}}},
+            "groups": {}, "templates": {}, "checks": {"other": {"job": "other", "id": 99}}, "writes": [],
+        }
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.work = tempfile.TemporaryDirectory()
+        self.cfg = Path(self.work.name) / "cloud.json"
+        self.cfg.write_text(json.dumps(dict(config(), grafana_url="http://127.0.0.1:%d" % self.server.server_port)))
+        self.env = mock.patch.dict(os.environ, {"GRAFANA_TOKEN": "test-token"})
+        self.env.start()
 
     def tearDown(self):
+        self.env.stop()
         self.server.shutdown()
         self.server.server_close()
-        self.thread.join()
-        self.temp.cleanup()
+        self.work.cleanup()
 
-    def command(self, *args):
-        result = subprocess.run(["python3", str(self.path / "manage.py"), *args], cwd=self.path, env=self.env, text=True, capture_output=True, timeout=120)
-        self.assertNotIn("fixture/never/send", result.stdout + result.stderr)
-        return result
+    def run_cli(self, action):
+        out = io.StringIO()
+        with redirect_stdout(out), mock.patch.object(Path, "mkdir"), mock.patch.object(Path, "write_text"), mock.patch.object(Path, "chmod"):
+            apply.main([action, "--config", str(self.cfg)])
+        return out.getvalue()
 
-    def test_preview_apply_reapply_keeps_unrelated_resources(self):
-        plan = self.command("plan", "--vars", "fixture.tfvars.json", "--plan", "changes.tfplan")
-        self.assertEqual(plan.returncode, 0, plan.stdout + plan.stderr)
-        self.assertEqual(self.server.writes, [], "Preview must be read-only")
-        applied = self.command("apply", "--plan", "changes.tfplan")
-        self.assertEqual(applied.returncode, 0, applied.stdout + applied.stderr + str(self.server.writes))
-        self.assertEqual(len(self.server.state["dashboards"]), 4)
-        self.assertEqual(len(self.server.state["checks"]), 2)
-        self.assertEqual(len(self.server.state["groups"]["acttub-monitoring"]["rules"]), 59)
-        for rule in self.server.state["groups"]["acttub-monitoring"]["rules"]:
-            if rule["uid"].startswith(("acttub-datasource-", "acttub-cloud-datasource-")):
-                self.assertEqual((rule["noDataState"], rule["execErrState"]), ("Alerting", "Alerting"))
-                self.assertIn(rule["for"], ("2m", "2m0s"))
-            else:
-                # promtool proves query absence; the real provider must send
-                # KeepLast to Grafana, whose lifecycle differs from Prometheus.
-                self.assertEqual((rule["noDataState"], rule["execErrState"]), ("KeepLast", "KeepLast"))
-        writes = list(self.server.writes)
-        second = self.command("plan", "--vars", "fixture.tfvars.json", "--plan", "second.tfplan")
-        self.assertEqual(second.returncode, 0, second.stdout + second.stderr)
-        self.assertIn("No changes", second.stdout)
-        reapplied = self.command("apply", "--plan", "second.tfplan")
-        self.assertEqual(reapplied.returncode, 0, reapplied.stdout + reapplied.stderr)
-        self.assertEqual(self.server.writes, writes)
-        self.assertEqual(self.server.state["policies"], self.original["policies"])
-        self.assertEqual(self.server.state["contacts"]["unrelated"], self.original["contacts"]["unrelated"])
-        self.assertEqual(self.server.state["dashboards"]["foreign"], self.original["dashboards"]["foreign"])
-        self.assertEqual(self.server.state["datasources"]["foreign"], self.original["datasources"]["foreign"])
-        self.variables["site"] = "alternate"
-        (self.path / "fixture.tfvars.json").write_text(json.dumps(self.variables))
-        changed = self.command("plan", "--vars", "fixture.tfvars.json", "--plan", "update.tfplan")
-        self.assertEqual(changed.returncode, 0, changed.stdout + changed.stderr)
-        updated = self.command("apply", "--plan", "update.tfplan")
-        self.assertEqual(updated.returncode, 0, updated.stdout + updated.stderr)
-        self.assertEqual(len(self.server.state["checks"]), 2)
-        self.assertEqual(len(self.server.state["dashboards"]), 4)
-        self.assertTrue(all(r["labels"]["site"] == "alternate" for r in self.server.state["groups"]["acttub-monitoring"]["rules"]))
-        self.assertEqual(self.server.state["policies"], self.original["policies"])
+    def test_diff_never_writes(self):
+        output = self.run_cli("diff")
+        self.assertIn('"acttub-health-prod"', output)
+        self.assertEqual(self.server.state["writes"], [])
 
-    def test_dev_only_reapply_then_expand_preserves_identities_and_rejects_shrink(self):
-        self.variables["health_origins"] = {"dev": "https://dev.example.test"}
-        (self.path / "fixture.tfvars.json").write_text(json.dumps(self.variables))
-        plan = self.command("plan", "--vars", "fixture.tfvars.json", "--plan", "dev.tfplan")
-        self.assertEqual(plan.returncode, 0, plan.stdout + plan.stderr)
-        self.assertEqual(self.server.writes, [])
-        applied = self.command("apply", "--plan", "dev.tfplan")
-        self.assertEqual(applied.returncode, 0, applied.stdout + applied.stderr)
-        checks = copy.deepcopy(self.server.state["checks"])
-        self.assertEqual([c["job"] for c in checks.values()], ["acttub-health-dev"])
-        rules = copy.deepcopy(self.server.state["groups"]["acttub-monitoring"]["rules"])
-        self.assertEqual(len(rules), 37)
-        self.assertNotIn("prod", json.dumps(rules))
-        for name in ("service", "operations", "infrastructure"):
-            dashboard = self.server.state["dashboards"]["acttub-" + name]["dashboard"]
-            self.assertNotIn("prod", json.dumps(dashboard))
-            selection = dashboard["templating"]["list"][0]
-            self.assertEqual(selection["query"], "dev")
-            self.assertEqual(selection["current"], {"text": "dev", "value": "dev"})
-            self.assertEqual(selection["options"], [{"text": "dev", "value": "dev", "selected": True}])
+    def test_first_apply_creates_everything_then_nothing_is_left_and_foreign_objects_are_untouched(self):
+        foreign = copy.deepcopy((self.server.state["dashboards"]["foreign"], self.server.state["checks"]["other"]))
+        self.run_cli("apply")
+        s = self.server.state
+        self.assertEqual(len(s["groups"]["acttub-monitoring"]["rules"]), 59)
+        self.assertEqual(sorted(k for k in s["dashboards"] if k != "foreign"), ["acttub-infrastructure", "acttub-operations", "acttub-service"])
+        self.assertEqual(sorted(k for k in s["checks"] if k != "other"), ["acttub-health-dev", "acttub-health-prod"])
+        self.assertEqual((s["dashboards"]["foreign"], s["checks"]["other"]), foreign)
+        self.assertEqual(s["templates"]["acttub-slack"]["template"], (ROOT / "slack.tmpl").read_text().strip())
+        writes = len(s["writes"])
+        self.assertIn("No changes.", self.run_cli("apply"))
+        self.assertEqual(len(s["writes"]), writes)
 
-        writes = list(self.server.writes)
-        second = self.command("plan", "--vars", "fixture.tfvars.json", "--plan", "second.tfplan")
-        self.assertEqual(second.returncode, 0, second.stdout + second.stderr)
-        self.assertIn("No changes", second.stdout)
-        reapplied = self.command("apply", "--plan", "second.tfplan")
-        self.assertEqual(reapplied.returncode, 0, reapplied.stdout + reapplied.stderr)
-        self.assertEqual(self.server.writes, writes)
+    def test_ui_edit_of_an_owned_dashboard_is_reported_and_reverted(self):
+        self.run_cli("apply")
+        self.server.state["dashboards"]["acttub-service"]["dashboard"]["title"] = "edited in UI"
+        self.assertIn('"acttub-service"', self.run_cli("diff"))
+        self.run_cli("apply")
+        self.assertEqual(self.server.state["dashboards"]["acttub-service"]["dashboard"]["title"], "Acttub · 서비스 전체")
 
-        self.variables["health_origins"]["prod"] = "https://prod.example.test"
-        (self.path / "fixture.tfvars.json").write_text(json.dumps(self.variables))
-        expanded = self.command("plan", "--vars", "fixture.tfvars.json", "--plan", "expand.tfplan")
-        self.assertEqual(expanded.returncode, 0, expanded.stdout + expanded.stderr)
-        self.assertEqual(self.server.writes, writes)
-        result = self.command("apply", "--plan", "expand.tfplan")
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(len(self.server.state["checks"]), 2)
-        self.assertEqual(len(self.server.state["dashboards"]), 4)
-        for check_id, check in checks.items():
-            self.assertEqual(self.server.state["checks"][check_id], check)
-        expanded_rules = {r["uid"]: r for r in self.server.state["groups"]["acttub-monitoring"]["rules"]}
-        self.assertEqual(len(expanded_rules), 59)
-        for rule in rules:
-            if rule["labels"]["environment"] == "shared":
-                rule["annotations"]["dashboard_url"] = rule["annotations"]["dashboard_url"].replace("var-environment=dev", "var-environment=prod")
-            self.assertEqual(expanded_rules[rule["uid"]], rule)
-        self.assertEqual(self.server.state["policies"], self.original["policies"])
-        for resource, key in (("contacts", "unrelated"), ("dashboards", "foreign"), ("datasources", "foreign"), ("datasources", "cloud-existing")):
-            self.assertEqual(self.server.state[resource][key], self.original[resource][key])
+    def test_contact_point_not_calling_the_template_is_reported_never_written(self):
+        output = self.run_cli("diff")
+        self.assertTrue(json.loads(output[:output.index("}") + 1])["contact_unwired"])
+        self.server.state["contacts"][0]["settings"] = {"title": apply.TEMPLATE_CALLS[0], "text": apply.TEMPLATE_CALLS[1]}
+        self.run_cli("apply")
+        output = self.run_cli("diff")
+        self.assertFalse(json.loads(output[:output.index("}") + 1])["contact_unwired"])
+        self.assertIn("No changes.", output)
+        self.assertFalse(any("contact-points" in path for _, path in self.server.state["writes"]))
 
-        stable = self.command("plan", "--vars", "fixture.tfvars.json", "--plan", "expanded-stable.tfplan")
-        self.assertEqual(stable.returncode, 0, stable.stdout + stable.stderr)
-        self.assertIn("No changes", stable.stdout)
-        writes = list(self.server.writes)
-        del self.variables["health_origins"]["prod"]
-        (self.path / "fixture.tfvars.json").write_text(json.dumps(self.variables))
-        shrink = self.command("plan", "--vars", "fixture.tfvars.json", "--plan", "shrink.tfplan")
-        self.assertNotEqual(shrink.returncode, 0)
-        self.assertIn("prevent_destroy", shrink.stdout + shrink.stderr)
-        self.assertEqual(self.server.writes, writes)
+    def test_missing_one_time_setup_stops_before_any_write(self):
+        self.server.state["contacts"] = []
+        with self.assertRaisesRegex(RuntimeError, "contact point"):
+            self.run_cli("apply")
+        self.assertEqual(self.server.state["writes"], [])
 
-    def test_invalid_environment_sets_are_rejected_before_provider_writes(self):
-        for origins in ({}, {"staging": "https://staging.example.test"},
-                        {"dev": "https://dev.example.test", "preview": "https://preview.example.test"}):
-            with self.subTest(origins=origins):
-                self.variables["health_origins"] = origins
-                (self.path / "fixture.tfvars.json").write_text(json.dumps(self.variables))
-                result = self.command("plan", "--vars", "fixture.tfvars.json", "--plan", "invalid.tfplan")
-                self.assertNotEqual(result.returncode, 0)
-                self.assertIn("nonempty subset", result.stdout + result.stderr)
-                self.assertEqual(self.server.writes, [])
-                self.assertFalse((self.path / "invalid.tfplan.audit.json").exists())
+    def test_owned_dashboard_in_another_folder_stops_before_any_write(self):
+        self.server.state["dashboards"]["acttub-service"] = {"dashboard": {"uid": "acttub-service", "id": 1, "version": 1}, "meta": {"folderUid": "someone-else"}}
+        with self.assertRaisesRegex(RuntimeError, "outside"):
+            self.run_cli("apply")
+        self.assertEqual(self.server.state["writes"], [])
 
-    def test_dev_selection_keeps_reserved_prod_ownership_guards(self):
-        self.variables["health_origins"] = {"dev": "https://dev.example.test"}
-        (self.path / "fixture.tfvars.json").write_text(json.dumps(self.variables))
-        self.server.state["checks"]["42"] = {"id": 42, "job": "acttub-health-prod"}
-        result = self.command("plan", "--vars", "fixture.tfvars.json", "--plan", "collision.tfplan")
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("Ownership collision: existing external health check", result.stderr)
-        self.assertEqual(self.server.writes, [])
-        self.server.state["checks"].clear()
-        self.server.state["groups"]["foreign"] = {"rules": [{"uid": "acttub-api-errors-prod"}]}
-        result = self.command("plan", "--vars", "fixture.tfvars.json", "--plan", "collision.tfplan")
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("Ownership collision: alert rule UID", result.stderr)
-        self.assertEqual(self.server.writes, [])
-
-    def test_existing_dashboard_without_owned_state_blocks_before_any_write(self):
-        self.server.state["dashboards"]["acttub-service"] = {"dashboard": {"uid": "acttub-service", "title": "Someone else's dashboard"}, "meta": {}}
-        plan = self.command("plan", "--vars", "fixture.tfvars.json", "--plan", "collision.tfplan")
-        self.assertNotEqual(plan.returncode, 0)
-        self.assertIn("Ownership collision", plan.stderr)
-        self.assertEqual(self.server.writes, [])
-
-    def test_drift_after_preview_blocks_apply_before_any_write(self):
-        plan = self.command("plan", "--vars", "fixture.tfvars.json", "--plan", "drift.tfplan")
-        self.assertEqual(plan.returncode, 0, plan.stdout + plan.stderr)
-        self.server.state["contacts"]["interloper"] = {"uid": "interloper", "name": "acttub-monitoring-slack", "type": "email", "settings": {"addresses": "fixture@example.test"}}
-        result = self.command("apply", "--plan", "drift.tfplan")
-        self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(self.server.writes, [])
-
-    def test_private_probe_is_rejected_for_public_availability(self):
-        self.variables["probe_id"] = 2
-        (self.path / "fixture.tfvars.json").write_text(json.dumps(self.variables))
-        result = self.command("plan", "--vars", "fixture.tfvars.json", "--plan", "private.tfplan")
-        self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(self.server.writes, [])
+    def test_dropped_environment_check_is_reported_not_deleted(self):
+        self.run_cli("apply")
+        self.cfg.write_text(json.dumps(dict(json.loads(self.cfg.read_text()), health_origins={"dev": "https://dev.example.test"})))
+        output = self.run_cli("apply")
+        self.assertIn("acttub-health-prod", json.loads(output[:output.index("}") + 1])["checks_unmanaged"])
+        self.assertIn("acttub-health-prod", self.server.state["checks"])
 
 
 if __name__ == "__main__":

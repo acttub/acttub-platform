@@ -3,6 +3,7 @@
  * 테스트한다. 연기를 가르지 않는다 — 잘했는지 말하지 않고 무엇이 진행 중이고 다음이 누구 차례인지만 말한다.
  */
 import type { ReadingAdvance, ReadingMode, SessionStatus } from "@/lib/reading/api-types";
+import { webStorage } from "@/lib/reading/storage";
 
 /** 시작 화면의 녹음 안내. "소리는 어디에도 안 나가요"는 없앴다(처리방침). */
 export const RECORD_NOTICE = "내 차례 녹음은 내 계정에 저장돼요";
@@ -24,12 +25,14 @@ export function sessionStatusLabel(status: SessionStatus): string {
   return status === "in_progress" ? "진행 중" : status === "completed" ? "완료" : "중단";
 }
 
-export function resumeLabel(progress: { done: number; total: number }): string {
-  return `이어서 연습 · ${progress.done} / ${progress.total}`;
+/** 걸린 시간 "mm:ss". 분도 두 자리로 채운다(1시간이 넘으면 "61:01"). */
+export function clockLabel(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 }
 
-export function myCharactersLabel(names: string[]): string {
-  return names.length === 0 ? "배역 미선택" : names.join(", ");
+export function resumeLabel(progress: { done: number; total: number }): string {
+  return `이어서 연습 · ${progress.done} / ${progress.total}`;
 }
 
 /** 가이드(R03.0). 녹음 끔·수동 넘김·quiz 에 맞게 갈라 "항상 자동 녹음·자동 다음"을 약속하지 않는다. */
@@ -50,19 +53,10 @@ export function guideCopy(setup: { mode: ReadingMode; advance: ReadingAdvance; r
 
 const GUIDE_KEY = "acttub.reading.guide_seen";
 
-function store(): Storage | null {
-  if (typeof window === "undefined") return null;
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
-}
-
 /** 가이드는 기기당 처음 한 번만 보여 준다. */
 export function guideSeen(): boolean {
   try {
-    return store()?.getItem(GUIDE_KEY) === "1";
+    return webStorage("localStorage")?.getItem(GUIDE_KEY) === "1";
   } catch {
     return true;
   }
@@ -70,7 +64,7 @@ export function guideSeen(): boolean {
 
 export function markGuideSeen(): void {
   try {
-    store()?.setItem(GUIDE_KEY, "1");
+    webStorage("localStorage")?.setItem(GUIDE_KEY, "1");
   } catch {
     /* 저장이 막힌 환경이면 매번 보여 준다 */
   }

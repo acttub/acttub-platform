@@ -111,9 +111,9 @@ export function mmss(ms: number): string {
 }
 
 /** "K / N · mm:ss" */
-export function formatProgress(run: RunState, elapsedMs: number): string {
+export function formatProgress(run: RunState): string {
   const { done, total } = progressOf(run);
-  return `${done} / ${total} · ${mmss(elapsedMs)}`;
+  return `${done} / ${total} · ${mmss(run.elapsedMs)}`;
 }
 
 function setResult(run: RunState, outcome: LineOutcome, missesDelta: number): RunState {

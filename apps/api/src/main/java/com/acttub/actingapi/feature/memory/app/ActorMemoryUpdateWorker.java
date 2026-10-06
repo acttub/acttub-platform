@@ -3,6 +3,7 @@ package com.acttub.actingapi.feature.memory.app;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -18,7 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * 1.0.0 회차가 끝난 뒤 배우 기억을 뒤에서 갱신한다 ({@code ai_jobs} 종류 {@code memory_update}, practice.memory).
+ * 0.1.0 회차가 끝난 뒤 배우 기억을 뒤에서 갱신한다 ({@code ai_jobs} 종류 {@code memory_update}, practice.memory).
  *
  * <p>대화 응답 안에서 처리하지 않는 이유는 속도다 — 그 화면은 이미 노트를 만드느라 느린데 모델 호출을 하나 더
  * 얹으면 배우가 그만큼 더 기다린다.
@@ -56,6 +57,40 @@ public class ActorMemoryUpdateWorker {
 
     public boolean runOnce() {
         return runOnce(clock.instant());
+    }
+
+    /** 말이 끊긴 열린 회차를 보는 간격. 큐를 비우는 폴(2초)마다 보지 않는다. */
+    static final Duration IDLE_SWEEP_INTERVAL = Duration.ofMinutes(10);
+    private volatile Instant lastIdleSweep = Instant.EPOCH;
+
+    /**
+     * 배우가 두 번 이상 답하고 떠난 열린 회차도 기억에 넣는다(SOMA-603) — 다시 말하지 않을 것을 덧붙이고, 갱신 차례면
+     * 작업을 예약한다. 닫힌 회차는 대화가 닫힐 때 같은 일을 한다.
+     *
+     * @return 이번에 본 회차 수. 간격이 덜 찼으면 0
+     */
+    public int sweepIdle() {
+        Instant now = clock.instant();
+        if (Duration.between(lastIdleSweep, now).compareTo(IDLE_SWEEP_INTERVAL) < 0) {
+            return 0;
+        }
+        lastIdleSweep = now;
+        return sweepIdle(now);
+    }
+
+    /** 간격과 상관없이 지금 본다. */
+    public int sweepIdle(Instant now) {
+        List<ActorMemoryUpdates.Idle> idle = updates.idle(now);
+        for (ActorMemoryUpdates.Idle round : idle) {
+            try {
+                updates.appendAvoid(round.userId(), round.practiceId(), now);
+                updates.schedule(round.userId(), round.practiceId(), now);
+            } catch (RuntimeException failure) {
+                failureReporter.report(
+                        failure, new FailureContext("ActorMemoryUpdateWorker.sweepIdle", round.practiceId()));
+            }
+        }
+        return idle.size();
     }
 
     /** 큐에서 하나 집어 처리한다. 집을 게 없으면 거짓. */

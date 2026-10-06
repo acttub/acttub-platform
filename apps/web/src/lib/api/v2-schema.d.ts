@@ -133,6 +133,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/me/web-attribution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Record Web Attribution
+         * @description 웹 주소에서 받은 안전한 UTM을 현재 계정의 최초 유입 출처로 적는다. 인증과 현재 개인정보
+         *     수집·이용 동의만 필요해 게스트도 프로필 없이 부를 수 있다. source=web_utm,
+         *     platform=web은 서버가 고정한다. 같은 계정에 다시 보내면 처음 값을 유지한 채 204다.
+         *     이 값은 클라이언트 자기 보고 유입이며 광고 플랫폼 귀속과 별개다.
+         */
+        put: operations["record_web_attribution_v2_me_web_attribution_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/me/signup-attribution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Record Signup Attribution
+         * @description 이 기기에서 새로 가입한 계정의 유입 광고(Airbridge 설치 귀속 결과)를 적는다. 계정마다 처음 온
+         *     값만 남고, 다시 보내도 바꾸지 않은 채 204 다 — 재시도에 안전하다. 보호 기능이라 동의와 프로필이
+         *     끝난 회원만 부를 수 있다. 게스트는 403 member_only.
+         */
+        put: operations["record_signup_attribution_v2_me_signup_attribution_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/me/profile": {
         parameters: {
             query?: never;
@@ -361,6 +406,23 @@ export interface paths {
          *     검토로 넘어간다. 같은 대상의 재신고는 먼저 낸 신고(200)다.
          */
         post: operations["create_challenge_report_v2_reports_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/reading/voice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Synthesize a reading line */
+        post: operations["synthesize"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1228,9 +1290,8 @@ export interface paths {
         head?: never;
         /**
          * Update Notification Settings
-         * @description 바꿀 토글만 보내고 토글 셋 전체를 돌려받는다. 분석 완료와 챌린지가 둘 다 꺼지면 서버가 그
-         *     회원의 푸시 토큰을 전부 지운다(토글은 회원 단위다). 저녁 리마인드는 서버가 값만 기억하고
-         *     알람은 폰이 맞춘다.
+         * @description 바꿀 토글만 보내고 토글 셋 전체를 돌려받는다. 셋이 다 꺼지면 서버가 그 회원의 푸시
+         *     토큰을 전부 지운다(토글은 회원 단위다). 저녁 리마인드도 서버가 푸시로 보낸다.
          */
         patch: operations["update_notification_settings_v2_me_notification_settings_patch"];
         trace?: never;
@@ -1279,6 +1340,23 @@ export interface paths {
          *     아직 만들지 않았거나 파기된 영상은 null 이다.
          */
         get: operations["list_videos_v2_videos_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/reading/voice/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Cloud voice status */
+        get: operations["status"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2035,6 +2113,46 @@ export interface components {
             /** Intro */
             intro?: string | null;
         };
+        /** WebAttributionRequest */
+        WebAttributionRequest: {
+            /** Channel */
+            channel: string;
+            /** Medium */
+            medium?: string | null;
+            /** Campaign */
+            campaign?: string | null;
+            /** Content */
+            content?: string | null;
+            /** Term */
+            term?: string | null;
+        };
+        /** SignupAttributionRequest */
+        SignupAttributionRequest: {
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "airbridge";
+            /**
+             * Platform
+             * @enum {string}
+             */
+            platform: "ios" | "android";
+            /** Channel */
+            channel: string;
+            /** Campaign */
+            campaign?: string | null;
+            /** Ad Group */
+            ad_group?: string | null;
+            /** Ad Creative */
+            ad_creative?: string | null;
+            /** Content */
+            content?: string | null;
+            /** Term */
+            term?: string | null;
+            /** Sub Publisher */
+            sub_publisher?: string | null;
+        };
         /**
          * ActingDirection
          * @enum {string}
@@ -2273,6 +2391,22 @@ export interface components {
              * @enum {string}
              */
             status: "received" | "reviewed";
+        };
+        /** SynthesizeRequest */
+        SynthesizeRequest: {
+            /** Text */
+            text?: string;
+            /** Voice */
+            voice?: string;
+        };
+        /** SynthesizeResponse */
+        SynthesizeResponse: {
+            /** Audio Url */
+            audio_url?: string;
+            /** Cached */
+            cached?: boolean;
+            /** Expires In */
+            expires_in?: number;
         };
         /** ReadingRecordingUploadForm */
         ReadingRecordingUploadForm: {
@@ -3429,7 +3563,7 @@ export interface components {
          * ConsentType
          * @enum {string}
          */
-        ConsentType: "terms" | "privacy" | "ai_analysis" | "retention";
+        ConsentType: "terms" | "privacy" | "ai_analysis" | "retention" | "cloud_voice";
         /** SignedInResponse */
         SignedInResponse: {
             /**
@@ -3683,6 +3817,22 @@ export interface components {
             videos: components["schemas"]["Video"][];
             /** Next Cursor */
             next_cursor?: string | null;
+        };
+        /** StatusResponse */
+        StatusResponse: {
+            /** Available */
+            available?: boolean;
+            /**
+             * Free Until
+             * Format: date-time
+             */
+            free_until?: string;
+            /** Consent */
+            consent?: string;
+            /** Daily Limit */
+            daily_limit?: number;
+            /** Daily Used */
+            daily_used?: number;
         };
         /** ReadingScriptCard */
         ReadingScriptCard: {
@@ -4948,6 +5098,68 @@ export interface operations {
             };
         };
     };
+    record_web_attribution_v2_me_web_attribution_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebAttributionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_signup_attribution_v2_me_signup_attribution_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignupAttributionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     save_profile_v2_me_profile_put: {
         parameters: {
             query?: never;
@@ -5358,6 +5570,30 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReportReceipt"];
+                };
+            };
+        };
+    };
+    synthesize: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SynthesizeRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SynthesizeResponse"];
                 };
             };
         };
@@ -7048,6 +7284,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VideoList"];
+                };
+            };
+        };
+    };
+    status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatusResponse"];
                 };
             };
         };

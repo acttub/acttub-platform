@@ -20,7 +20,7 @@ export const ENTRY_FAILED_COPY = {
   body: "지금은 불러오지 못했어요. 앱에서는 볼 수 있을 수도 있어요.",
 } as const;
 
-export const ENTRY_SHARE_DESCRIPTION =
+const ENTRY_SHARE_DESCRIPTION =
   "액터브 챌린지에 올라온 연기 영상이에요. 앱에서 볼 수 있어요.";
 
 /** 제목. 작품에 배역이 있으면 "작품 · 배역 역" 이다. 작성자는 싣지 않는다. */

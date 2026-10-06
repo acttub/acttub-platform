@@ -7,6 +7,7 @@
 import { ApiError, NetworkError } from "@/lib/api/v2/errors";
 import { saveProgress } from "@/lib/api/v2/reading-sessions";
 import type { ProgressRequest, ProgressResponse } from "@/lib/reading/api-types";
+import { webStorage } from "@/lib/reading/storage";
 
 const STORE_KEY = "reading.pending_completions";
 const RETRY_BASE_MS = 2_000;
@@ -31,18 +32,9 @@ type Pending = { body: ProgressRequest; retries: number; cancel: (() => void) | 
 const pending = new Map<string, Pending>();
 const listeners = new Set<() => void>();
 
-function store(): Storage | null {
-  if (typeof window === "undefined") return null;
-  try {
-    return window.sessionStorage;
-  } catch {
-    return null;
-  }
-}
-
 function readStore(): Record<string, ProgressRequest> {
   try {
-    const raw = store()?.getItem(STORE_KEY);
+    const raw = webStorage("sessionStorage")?.getItem(STORE_KEY);
     return raw ? (JSON.parse(raw) as Record<string, ProgressRequest>) : {};
   } catch {
     return {};
@@ -53,8 +45,8 @@ function writeStore(): void {
   try {
     const out: Record<string, ProgressRequest> = {};
     for (const [id, p] of pending) out[id] = p.body;
-    if (Object.keys(out).length === 0) store()?.removeItem(STORE_KEY);
-    else store()?.setItem(STORE_KEY, JSON.stringify(out));
+    if (Object.keys(out).length === 0) webStorage("sessionStorage")?.removeItem(STORE_KEY);
+    else webStorage("sessionStorage")?.setItem(STORE_KEY, JSON.stringify(out));
   } catch {
     /* 저장이 막힌 환경이면 메모리만 */
   }
@@ -131,7 +123,7 @@ export function _resetCompletion(clearStore = true): void {
   listeners.clear();
   if (clearStore) {
     try {
-      store()?.removeItem(STORE_KEY);
+      webStorage("sessionStorage")?.removeItem(STORE_KEY);
     } catch {
       /* 없음 */
     }

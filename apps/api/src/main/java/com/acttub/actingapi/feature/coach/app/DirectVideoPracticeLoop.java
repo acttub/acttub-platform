@@ -7,6 +7,7 @@ import java.util.regex.Pattern;
 
 import com.acttub.actingapi.feature.coach.domain.CoachTurnSnapshot;
 import com.acttub.actingapi.integration.observation.DirectVideoModel;
+import com.acttub.actingapi.platform.web.OutputLanguage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -41,6 +42,105 @@ final class DirectVideoPracticeLoop {
         String message = coach.find() ? coach.group(1) : rest;
         message = STRAY_TAG.matcher(message).replaceAll("");
         return new Parsed(design, status, TRAILING_JAMO.matcher(message).replaceAll("").strip());
+    }
+
+    /**
+     * 이번 응답을 쓸 말. 앱이 한국어가 아닌 말로 요청했으면(Accept-Language, {@link OutputLanguage}) 그 말,
+     * 앱이 한국어면 배우가 채팅이나 연습 메모에 쓴 말({@link #actorLanguage}). 한국어면 {@code null}.
+     * 운영에서 영어로 상황을 적은 배우에게 한국어로 첫 질문을 하자 답하지 않고 떠났다.
+     */
+    static java.util.Locale replyLanguage(CoachSessionSnapshot session, String actorText) {
+        return OutputLanguage.isKorean() ? actorLanguage(session, actorText) : OutputLanguage.current();
+    }
+
+    /**
+     * 배우가 쓰는 말. 이번 답 → 지난 답(최근부터) → 연습 메모 순으로 처음 판단되는 것. 모르면 {@code null}(한국어).
+     * "그만" 같은 종료·짧은 말은 건너뛴다. 배우가 "한국어로"/"in English"라고 하면 그것을 따른다.
+     */
+    static java.util.Locale actorLanguage(CoachSessionSnapshot session, String actorText) {
+        var candidates = new ArrayList<String>();
+        if (actorText != null) candidates.add(actorText);
+        if (session != null) {
+            List<CoachTurnSnapshot> turns = session.turns();
+            for (int i = turns.size() - 1; i >= 0; i--) if (!"ai".equals(turns.get(i).role())) candidates.add(turns.get(i).text());
+            candidates.add(String.join(" ", java.util.stream.Stream.of(session.situation(), session.characterContext(),
+                    session.goal(), session.blockageDetail()).filter(v -> v != null && !blank(v)).toList()));
+        }
+        for (String text : candidates) {
+            if (text == null || text.isBlank() || com.acttub.actingapi.feature.coach.domain.ClosingIntent.isClosing(text)) continue;
+            String lowered = text.toLowerCase(java.util.Locale.ROOT);
+            if (lowered.contains("한국어로") || lowered.contains("in korean")) return null;
+            if (lowered.contains("in english") || lowered.contains("영어로")) return java.util.Locale.ENGLISH;
+            java.util.Locale found = languageOf(text);
+            if (found != UNDECIDED) return found;
+        }
+        return null;
+    }
+
+    private static final java.util.Locale UNDECIDED = java.util.Locale.ROOT;
+
+    /** 글자 수로 가린다. 한글이 있으면 한국어(null), 가나가 있으면 일본어, 로마자 단어가 충분하면 영어. */
+    static java.util.Locale languageOf(String text) {
+        long hangul = text.codePoints().filter(c -> c >= 0xAC00 && c <= 0xD7A3).count();
+        long kana = text.codePoints().filter(c -> c >= 0x3040 && c <= 0x30FF).count();
+        long latin = text.codePoints().filter(c -> (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')).count();
+        if (hangul > 0 && hangul * 3 >= latin) return null;
+        if (kana >= 2) return java.util.Locale.JAPANESE;
+        if (latin >= 8 && hangul == 0) return java.util.Locale.ENGLISH;
+        return UNDECIDED;
+    }
+
+    /** 연기 장면을 담기에는 너무 짧은 영상(밀리초). 이보다 짧으면 모델을 부르지 않고 끊는다. */
+    static final int MIN_ACTING_MS = 3000;
+    static final String NOT_ACTING = "not_acting";
+
+    /**
+     * 첫 응답 전에 영상 길이만으로 끊을지. 운영에서 1.3초 영상으로 코치가 버릇과 대사를 지어냈다.
+     * 길이를 모르면(0) 끊지 않고 모델의 판정({@link #notActing})에 맡긴다.
+     */
+    static boolean tooShort(CoachSessionSnapshot session) {
+        return session.turns().isEmpty() && session.durationMs() > 0 && session.durationMs() < MIN_ACTING_MS;
+    }
+
+    /**
+     * 첫 응답의 {@code <설계>} 첫 칸이 "연기 아님"인지. 실제 영상·음성 내용의 분류는 모델이 하고,
+     * 끊는 것은 서버가 한다. 검은 화면 자체는 차단 근거가 아니며, 실제 들리는 음성 연기는 허용한다.
+     */
+    static boolean notActing(Parsed parsed) {
+        return statusField(parsed.design(), "영상").startsWith("연기 아님");
+    }
+
+    /** 연기 영상이 아니어서 끊을 때 배우에게 보이는 고정 문구. */
+    static String notActingMessage(java.util.Locale language) {
+        boolean korean = language == null || "ko".equals(language.getLanguage());
+        return korean
+                ? "이 영상에서는 연기 장면을 찾지 못했어요.\n연기한 장면이 담긴 영상을 다시 올려 주세요."
+                : "I couldn't find an acting scene in this video.\nPlease upload a video with your acting in it.";
+    }
+
+    /** 끊은 세션 표시. 노트를 만들지 않는 근거다. */
+    static void markNotActing(ObjectNode state, String reason) {
+        ObjectNode loop = state.path(STATE_KEY).isObject() ? (ObjectNode) state.get(STATE_KEY) : state.putObject(STATE_KEY);
+        loop.put(NOT_ACTING, reason);
+    }
+
+    /** 오디오가 완전 무음인 입력의 안내. 연기 여부를 거짓 판정하지 않는다. */
+    static String audioUnavailableMessage(java.util.Locale language) {
+        boolean korean = language == null || "ko".equals(language.getLanguage());
+        return korean
+                ? "영상의 소리가 녹음되지 않았어요.\n소리가 들리는 영상으로 다시 올려 주세요."
+                : "The video's audio is silent.\nPlease upload a video with audible sound.";
+    }
+
+    static void markInputIssue(ObjectNode state, String reason) {
+        ObjectNode loop = state.path(STATE_KEY).isObject() ? (ObjectNode) state.get(STATE_KEY) : state.putObject(STATE_KEY);
+        loop.put("input_issue", reason);
+    }
+
+    /** 비연기 또는 입력 문제로 코칭을 시작하지 않고 끊은 세션인지. */
+    static boolean wasCut(JsonNode state) {
+        return state != null && (!state.path(STATE_KEY).path(NOT_ACTING).asText("").isEmpty()
+                || !state.path(STATE_KEY).path("input_issue").asText("").isEmpty());
     }
 
     /** 이 세션이 연습 루프로 시작됐는지. 루프 전에 열린 세션은 기존 경로로 이어간다. */
@@ -121,8 +221,11 @@ final class DirectVideoPracticeLoop {
     /**
      * 코치가 마무리를 마쳤는지. 상태 줄의 칸 중 하나(이번 응답이 하는 일)가 마무리2 또는 끝이다.
      * 프롬프트 판마다 그 칸의 자리가 다르다("순간2 · 마무리2 · …", "마무리2 · 응답 6번째").
+     * 여러 줄 상태 칸("배우의 말: …" · "할 일: 마무리2")은 {@code 할 일} 줄만 본다.
      */
     static boolean finished(Parsed parsed) {
+        String doing = statusField(parsed.status(), "할 일");
+        if (!doing.isEmpty()) return doing.startsWith("마무리2") || doing.startsWith("끝");
         for (String part : parsed.status().split("·")) {
             String action = part.strip();
             if (action.startsWith("마무리2") || action.startsWith("끝")) return true;
@@ -145,50 +248,140 @@ final class DirectVideoPracticeLoop {
     static ConversationRepository.NewNote note(CoachSessionSnapshot session, long sourceRevision) {
         JsonNode state = session.coachingState();
         JsonNode loop = state == null ? null : state.path(STATE_KEY);
-        if (loop == null || !loop.isObject()) return null;
+        if (loop == null || !loop.isObject() || wasCut(state)) return null;
         String design = loop.path("design").asText("");
         String habit = habit(design);
         String next = first(DESIGN_NEXT, design);
         if (habit.isBlank() && next.isBlank()) return null;
-        var quotes = com.acttub.actingapi.integration.llm.StructuredJson.MAPPER.createArrayNode();
+        var mapper = com.acttub.actingapi.integration.llm.StructuredJson.MAPPER;
+        Round round = round(loop, session.turns());
+        var quotes = mapper.createArrayNode();
+        if (round.selfLine() != null) quotes.addObject().put("quote", round.selfLine()).put("kind", "actor")
+                .put("source_ref", StructuredCoachEngine.turnId(session, round.selfIndex()));
+        if (round.reason() != null) quotes.addObject().put("quote", round.reason()).put("kind", "actor")
+                .put("source_ref", StructuredCoachEngine.turnId(session, round.reasonIndex()));
+        String title = habit.isBlank() ? null : shorten(habit, TITLE_MAX);
+        // 마무리2의 상태 칸에 다시 정한 다음 테이크가 있으면 그것을 쓴다 — 배우가 그 버릇을 지키겠다고 했으면 설계의 "반대쪽"과 다르다.
+        String closingNext = closingNextTake(loop.path("statuses"));
+        if (!closingNext.isBlank()) next = closingNext;
+        String nextTake = next.isBlank() ? null : next;
+        var empty = mapper.createArrayNode();
+        // 배우가 아니라고 한 것(정정·반박)은 노트의 corrections 에 남는다(세션.md, SOMA-602).
+        var corrections = mapper.createArrayNode();
+        round.corrections().forEach(corrections::add);
+        return new ConversationRepository.NewNote("v2", nextTake == null ? "observation" : "action", title, quotes,
+                nextTake, empty, corrections, empty, false, sourceRevision, null);
+    }
+
+    /**
+     * 한 회차에서 배우가 한 말을 세션.md 칸으로 가른다(SOMA-601·602). 모델을 부르지 않고 숨은 상태 칸의 분류를 읽는다.
+     *
+     * @param selfLine 배우의 한 줄. 자기 한 줄로 분류된 말이 우선이고, 없으면 한 줄을 청한 직후의 답(요청·반박 제외)
+     * @param reason 버릇이 나온 이유. 선택 설명으로 분류된 답이 우선이고, 없으면 파고들기 직후의 답(짧은 답 제외)
+     * @param corrections 배우가 아니라고 한 것. "주제: \"원문\"" 꼴
+     * @param goal 이번 목표. 상태 칸의 이번 목표 줄, 없으면 설계의 이번 목표. 없으면 {@code null}
+     */
+    record Round(String selfLine, int selfIndex, String reason, int reasonIndex, List<String> corrections, String goal) {}
+
+    static Round round(JsonNode loop, List<CoachTurnSnapshot> turns) {
+        JsonNode statuses = loop.path("statuses");
+        String design = loop.path("design").asText("");
+        String habit = habit(design);
         String selfLine = null;
-        String selfRef = null;
-        String reason = null;
-        String reasonRef = null;
-        List<CoachTurnSnapshot> turns = session.turns();
+        int selfIndex = -1;
+        String askedLine = null;
+        int askedIndex = -1;
+        String choice = null;
+        int choiceIndex = -1;
+        String probe = null;
+        int probeIndex = -1;
+        List<String> corrections = new ArrayList<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
         String lastAction = "";
         int coachIndex = 0;
         for (int i = 0; i < turns.size(); i++) {
             CoachTurnSnapshot turn = turns.get(i);
             if ("ai".equals(turn.role())) {
-                String status = loop.path("statuses").path(coachIndex++).asText("");
-                lastAction = action(status);
+                lastAction = action(statuses.path(coachIndex++).asText(""));
                 continue;
             }
             String text = turn.text() == null ? "" : turn.text().strip();
             if (text.isEmpty() || VAGUE.matcher(text).matches()
                     || com.acttub.actingapi.feature.coach.domain.ClosingIntent.isClosing(text)) continue;
-            if (lastAction.startsWith("마무리1") && selfLine == null) {
+            // 이 답을 받은 다음 코치 턴의 상태 칸이 배우의 말을 분류해 두었다.
+            String status = statuses.path(coachIndex).asText("");
+            String kind = statusField(status, "배우의 말");
+            if (kind.startsWith("자기 한 줄")) {
                 selfLine = text;
-                selfRef = StructuredCoachEngine.turnId(session, i);
-            } else if (lastAction.startsWith("파고들기")) {
+                selfIndex = i;
+            } else if (kind.startsWith("정정") || kind.startsWith("반박")) {
+                String topic = statusField(status, "피할 것");
+                if (topic.isEmpty() || topic.startsWith("없음")) topic = habit;
+                if (seen.add(text.replaceAll("[\\s!?.~…ㅠㅜ]+", ""))) {
+                    corrections.add((topic.isBlank() ? "" : shorten(topic, 30) + ": ") + "\"" + shorten(text, 80) + "\"");
+                }
+            } else if (lastAction.startsWith("마무리1") && askedLine == null && !request(kind, text)) {
+                // 한 줄을 청한 자리에서 배우가 평가·방법을 청하거나 반박했으면 그 말은 한 줄이 아니다(SOMA-601).
+                askedLine = text;
+                askedIndex = i;
+            } else if (kind.startsWith("선택 설명")) {
+                choice = text;
+                choiceIndex = i;
+            } else if (lastAction.startsWith("파고들기") && !kind.startsWith("짧은 답")) {
                 // 버릇이 언제·왜 나오는지에 대한 배우의 마지막 답.
-                reason = text;
-                reasonRef = StructuredCoachEngine.turnId(session, i);
+                probe = text;
+                probeIndex = i;
             }
         }
-        if (selfLine != null) quotes.addObject().put("quote", selfLine).put("kind", "actor").put("source_ref", selfRef);
-        if (reason != null) quotes.addObject().put("quote", reason).put("kind", "actor").put("source_ref", reasonRef);
-        String title = habit.isBlank() ? null : shorten(habit, TITLE_MAX);
-        String nextTake = next.isBlank() ? null : next;
-        var empty = com.acttub.actingapi.integration.llm.StructuredJson.MAPPER.createArrayNode();
-        return new ConversationRepository.NewNote("v2", nextTake == null ? "observation" : "action", title, quotes,
-                nextTake, empty, empty, empty, false, sourceRevision, null);
+        if (selfLine == null) {
+            selfLine = askedLine;
+            selfIndex = askedIndex;
+        }
+        String reason = choice != null ? choice : probe;
+        int reasonIndex = choice != null ? choiceIndex : probeIndex;
+        return new Round(selfLine, selfIndex, reason, reasonIndex, List.copyOf(corrections), goal(statuses, design));
+    }
+
+    /** 이번 목표. 마지막 상태 칸의 이번 목표 줄, 없으면 설계의 이번 목표. "없음"이나 빈 값이면 {@code null}. */
+    static String goal(JsonNode statuses, String design) {
+        if (statuses != null && statuses.isArray()) {
+            for (int i = statuses.size() - 1; i >= 0; i--) {
+                String value = statusField(statuses.get(i).asText(""), "이번 목표");
+                if (!value.isEmpty() && !value.startsWith("없음")) return value;
+            }
+        }
+        String designed = statusField(design, "이번 목표");
+        return designed.isEmpty() || designed.startsWith("없음") ? null : designed;
+    }
+
+    /** 상태 칸이 분류한 요청·반박·종료. 분류가 없던 옛 대화는 요청을 나타내는 낱말로 가른다. */
+    private static final Pattern REQUEST_WORDS = Pattern.compile(
+            "평가|장점|단점|방법|예시|설명해|어떻게 해야|부족한|짚어 ?주|(?i:how (?:do|should) i|feedback|example)");
+
+    private static boolean request(String kind, String text) {
+        if (kind.startsWith("평가 요청") || kind.startsWith("방법 요청") || kind.startsWith("반박")
+                || kind.startsWith("정정") || kind.startsWith("그만")) return true;
+        return kind.isEmpty() && REQUEST_WORDS.matcher(text).find();
+    }
+
+    private static final Pattern NEXT_TAKE_PREFIX = Pattern.compile("^(?:지키며|반대로)\\s*:\\s*");
+
+    /** 마지막으로 상태 칸에 적힌 다음 테이크("지키며: …", "반대로: …"). 없거나 "없음"이면 빈 문자열. */
+    static String closingNextTake(JsonNode statuses) {
+        if (statuses == null || !statuses.isArray()) return "";
+        for (int i = statuses.size() - 1; i >= 0; i--) {
+            String value = statusField(statuses.get(i).asText(""), "다음 테이크");
+            if (value.isEmpty() || value.startsWith("없음")) continue;
+            return NEXT_TAKE_PREFIX.matcher(value).replaceFirst("").strip();
+        }
+        return "";
     }
 
     /** 상태 줄에서 이번 응답이 한 일. 첫 턴(상태 없음)은 비추기다. */
     private static String action(String status) {
         if (status.isBlank()) return "비추기";
+        String doing = statusField(status, "할 일");
+        if (!doing.isEmpty()) return doing;
         for (String part : status.split("·")) {
             String value = part.strip();
             if (!value.startsWith("응답") && !value.startsWith("순간") && !value.startsWith("장면")
@@ -205,7 +398,7 @@ final class DirectVideoPracticeLoop {
         return (space > max / 2 ? value.substring(0, space) : value.substring(0, cut)).strip() + "…";
     }
 
-    private static final Pattern HABIT_CATEGORY = Pattern.compile("소리\\s*(?:빠르기|말끝|크기|쉬는\\s*곳)|몸");
+    private static final Pattern HABIT_CATEGORY = Pattern.compile("소리\\s*(?:빠르기|말끝|크기|쉬는\\s*곳|강조)|몸");
 
     /** 설계의 버릇. 모델이 설명 대신 항목 이름("소리 빠르기")을 적었으면 그 항목 줄의 설명을 쓴다. */
     static String habit(String design) {
@@ -215,6 +408,17 @@ final class DirectVideoPracticeLoop {
         if (!line.find()) return habit;
         String described = line.group(1).split("[.\"“]", 2)[0].strip();
         return described.isBlank() || described.equals("없음") ? habit : described;
+    }
+
+    /**
+     * 여러 줄 상태 칸의 {@code 키: 값} 줄에서 값을 읽는다. 모델이 양식의 대괄호를 남겨도 벗긴다. 없으면 빈 문자열.
+     * 한 줄 상태("파고들기 · 응답 2번째")에는 이 줄이 없으므로 호출하는 쪽이 기존 해석으로 돌아간다.
+     */
+    static String statusField(String status, String key) {
+        if (status == null || status.isBlank()) return "";
+        Matcher line = Pattern.compile("(?m)^\\s*" + Pattern.quote(key) + "\\s*:\\s*(.*?)\\s*$").matcher(status);
+        if (!line.find()) return "";
+        return line.group(1).replaceAll("^\\[|\\]$", "").strip();
     }
 
     private static String first(Pattern pattern, String text) {

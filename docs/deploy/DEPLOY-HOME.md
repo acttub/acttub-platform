@@ -3,7 +3,7 @@
 dev와 운영의 웹·API·PostgreSQL은 홈서버의 별도 Docker Compose 프로젝트로 배포한다.
 현재 배포 경로는 GHCR → Tailscale SSH → 홈서버다. AWS에는 영상·DB 백업 S3와 이를 사용하는
 환경별 IAM 권한을 유지한다. 기존 AWS 인프라를 재시작하는 복구 경로는 폐기하며, 코드 복구는
-§4, DB와 호스트 복구는 §7을 따른다. 이전 절차와 AWS 구성은 [보관 기록](../archive/soma489/README.md)에 있다.
+§4, DB와 호스트 복구는 §7을 따른다. 이전 절차와 AWS 구성은 [보관 기록](https://github.com/acttub/acttub-platform/blob/c2b76b09/docs/archive/soma489/README.md)에 있다.
 
 ## 1. 구조와 범위
 
@@ -19,12 +19,12 @@ PostgreSQL → 매일 pg_dump → S3 백업 / 영상 → 기존 S3 영상 버킷
 | 서버 디렉터리 | `/svc/acttub/dev` | `/svc/acttub/prod` |
 | DB 볼륨 | `acttub-dev_pgdata` | `acttub-prod_pgdata` |
 | 터널 / 공개 주소 | `acttub-dev` / `https://dev.acttub.com` | `acttub-prod` / `https://acttub.com` |
-| API 메모리 / 웹 메모리 / DB 메모리 | `1536m` / `512m` / `512m` | `2g` / `1g` / `1536m` |
 
-[`compose.yml`](../../deploy/home/compose.yml) 하나를 쓰되 DB·볼륨·시크릿·터널은 공유하지 않는다.
+[`compose.yml`](../../deploy/home/compose.yml) 하나를 쓰되 DB·볼륨·시크릿·터널·자원 상한은 공유하지 않는다.
 호스트 포트는 공개하지 않는다. 영상 S3 버킷과 OAuth의 운영 도메인은 유지한다.
 API 이미지는 `api:<sha>`, 웹 이미지는 빌드 시점의 공개 설정을 담은 `web:<env>-<sha>`, 백업은 `backup:<sha>`다.
-DB는 PostgreSQL 18 계열이며 실제 서버 버전과 이미지 ID는 작업할 때 다시 확인한다.
+DB 이미지는 `compose.yml`이 정하고(버전 규칙은 [CONTRACT §2](../../apps/api/CONTRACT.md#2-기술-스택-확정-변경-금지)),
+실제 서버 버전과 이미지 ID는 작업할 때 다시 확인한다.
 
 ## 2. 서버 준비와 시크릿
 
@@ -42,15 +42,16 @@ DB는 PostgreSQL 18 계열이며 실제 서버 버전과 이미지 ID는 작업�
 | 기존 운영 인증 | `JWT_SECRET`, `ADMIN_OPS_TOKEN`, Apple·Google OAuth client ID를 기존 운영과 대조 |
 | 계정 비밀 | `ACCOUNT_IDENTITY_HASH_KEY`, `ACCOUNT_TOKEN_ENCRYPTION_KEY`. 첫 배포 전에 넣고 바꾸지 않는다. 없으면 배포가 멈춘다 |
 | 웹 공개 주소 | `SITE_URL`. 웹 빌드의 `NEXT_PUBLIC_SITE_URL`과 같은 값. 포트폴리오 공유 링크를 만든다. 없으면 배포가 멈춘다 |
-| 방문자 IP | `CLIENT_IP_TRUSTED_PROXIES`(선택). 보통 비워 둔다. IP 제한은 web이 Cloudflare를 거친 요청만 받는다는 전제 위에 선다. 배포 뒤 한 번 확인한다: 한 회선에서 공개 포트폴리오 조회를 61번 부르면 61번째가 429이고, 직후 다른 회선에서는 404여야 한다 |
+| 방문자 IP | `CLIENT_IP_TRUSTED_PROXIES`(선택). 보통 비워 둔다. 전제는 [CONTRACT §6-13](../../apps/api/CONTRACT.md#6-13-방문자-ip)이다. 배포 뒤 한 번 확인한다: 한 회선에서 공개 포트폴리오 조회를 분당 한도([account.portfolio](../specs/account/portfolio.md#규칙제약))보다 한 번 더 부르면 마지막이 429이고, 직후 다른 회선에서는 404여야 한다 |
 | 운영 절차 | 보관 동의 철회 요청은 [RETENTION-REVOCATION.md](RETENTION-REVOCATION.md)대로 처리한다 |
-| 로그인 제공자 | `AUTH_ENABLED_PROVIDERS`(기본 `google,apple`), 애플 키 셋(`APPLE_TEAM_ID`·`APPLE_KEY_ID`·`APPLE_PRIVATE_KEY`), 카카오·네이버 값은 검수 승인 뒤 |
-| 외부 서비스 | `GEMINI_API_KEY`, `OPENAI_API_KEY`, 모델 설정, `SENTRY_DSN`, `SENTRY_ENVIRONMENT` |
+| 로그인 제공자 | `AUTH_ENABLED_PROVIDERS`, 애플 키 셋(`APPLE_TEAM_ID`·`APPLE_KEY_ID`·`APPLE_PRIVATE_KEY`. 없으면 처음 온 애플 신원의 로그인이 503). 카카오·네이버는 검수 승인 뒤에만 켜고, 그때 두 개발자 콘솔에 연결 끊기 콜백 주소를 등록한다(카카오는 POST·기본 어드민 키, [account.login](../specs/account/login.md#규칙제약)) |
+| 외부 서비스 | `GEMINI_API_KEY`, `OPENAI_API_KEY`, 모델 설정, `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `LANGFUSE_*`(선택. 비우면 LLM 기록만 꺼진다) |
+| 모니터링 | `MONITORING_TOKEN`·`MONITORING_ENVIRONMENT`(선택). 값과 짝은 [수집 구성 「최초 준비」](../../deploy/monitoring/README.md#최초-준비)를 따른다 |
 | 영상 저장소 | 해당 환경의 `S3_BUCKET`, `AWS_REGION`, 그 버킷만 허용하는 AWS 자격증명 |
 | 터널 | 환경별 `TUNNEL_TOKEN`; Cloudflare 서비스 주소는 `http://web:3000` |
 | 백업 | 백업 버킷과 환경별 prefix, AWS 권한, §5의 주기·실제 업로드 확인 |
-| 운영 자원 | `API_MEM_LIMIT=2g`, `WEB_MEM_LIMIT=1g`, `DB_MEM_LIMIT=1536m` |
-| 워커·인증 | 운영 워커는 활성화하며, 격리 복원 검증 중에는 `ANALYSIS_WORKER_ENABLED=false`. 운영에서 `DEVELOPMENT_AUTH_PROVIDER` 비활성 |
+| 운영 자원 | 운영 `.env`에 `.env.example`의 prod 값으로 `API_MEM_LIMIT`·`WEB_MEM_LIMIT`·`DB_MEM_LIMIT`을 적는다. 비우면 dev 크기다 |
+| 워커·인증 | 운영의 워커·정리 작업은 켜 둔다(복원 중에는 [§7](#7-db와-호스트-복구) 2단계의 스위치를 끈다). 운영에서 `DEVELOPMENT_AUTH_PROVIDER` 비활성 |
 
 JWT 서명 키를 유지해야 기존 로그인 세션을 이어받는다. `.env`의 존재나 Compose 기동만으로
 시크릿 이전 완료라고 판정하지 않는다. 값을 로그에 출력하지 않고 필수 키 충족 및 실제 기능으로 확인한다.
@@ -58,7 +59,7 @@ JWT 서명 키를 유지해야 기존 로그인 세션을 이어받는다. `.env
 
 ## 3. Actions와 일상 배포
 
-브랜치와 PR은 [브랜치 전략](../BRANCHING-STRATEGY.md)을 따른다. `main`·`dev`에 직접 push하지 않는다.
+브랜치와 PR은 [브랜치 전략](../BRANCHING-STRATEGY.md#원칙)을 따른다.
 운영 수동 배포는 반드시 `main` ref에서 실행한다. DB 복구 중에는 배포와 새 `main` 머지를
 멈춰 복원할 데이터와 앱 버전의 기준을 고정한다.
 
@@ -89,28 +90,45 @@ docker compose --env-file .env --env-file release.env logs --since 10m --tail 10
 curl -fsS https://acttub.com/health
 ```
 
-dev 배포는 `ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=false`를 릴리스 설정에 기록해 게스트의 영상 분석·재분석 일일 횟수를 제한하지 않는다. 운영 배포는 true로 하루 3회 제한을 유지하며, 설정 미지정 기본값도 true다. 배포 스크립트는 API 컨테이너에 실제 반영된 값을 대조한다.
+배포 워크플로는 `deploy.sh`에 기능 스위치를 `DEPLOY_` 접두사로 넘기고(예: `DEPLOY_THREE_LAYERS_ENABLED`), 스크립트는
+받은 값을 `release.env`에 `ACTTUB_` 이름으로 기록한 뒤 API 컨테이너에 실제 반영된 값을 대조한다. 넘기지 않은 스위치는
+`.env`·`compose.yml`·앱의 기본값을 따른다.
+
+- `ACTTUB_THREE_LAYERS_ENABLED`·`ACTTUB_DIRECT_VIDEO_ENABLED`: 두 환경 모두 true로 넘겨 새 연습(`three_layers_v1`, 입력과 무관, [practice.start](../specs/practice/start.md#규칙제약))을
+  새 코치와 Gemini 직접 코칭에 연결한다([practice.coach 「Gemini 직접 영상 코칭」](../specs/practice/coach.md#gemini-직접-영상-코칭)).
+- `ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED`: dev는 false로 넘겨 게스트의 영상 분석·재분석 일일 한도([practice.analyze](../specs/practice/analyze.md#규칙제약))를
+  걸지 않는다. 운영은 true로 한도를 유지하며, 설정 미지정 기본값도 true다.
 
 ## 4. 코드 배포 복구
 
-DB 스키마와 호환되는 직전 운영 SHA 및 이미지로 `deploy.sh`를 다시 실행한다. 현재 이미지와
+DB 스키마와 호환되는 직전 운영 SHA(직전 운영 태그) 및 이미지로 `deploy.sh`를 다시 실행한다. 현재 이미지와
 `release.env`의 SHA를 먼저 기록한다. 실패했다고 자동으로 직전 이미지가 복구되지는 않는다.
-같은 SHA 재배포는 멱등이지만 DB 마이그레이션이나 사용자 쓰기를 되돌리지는 않는다.
+같은 SHA 재배포는 멱등이다. 마이그레이션은 앱 기동의 일부라([CONTRACT §5-5](../../apps/api/CONTRACT.md#5-5-flyway-가-스키마를-소유한다))
+직전 SHA 재배포도 Git revert도 이미 적용된 DB 마이그레이션이나 사용자 쓰기를 되돌리지 않는다.
+실패한 마이그레이션은 부분 적용도 이력도 남기지 않으므로(`FlywayForwardMigrationTest`) 원인을 고쳐 다시 배포한다.
+§3의 기능 스위치로 켠 경로는 같은 이미지에 그 값을 false로 넘겨 `deploy.sh`를 다시 실행하면 끈다. 다음
+워크플로 배포는 워크플로의 값을 다시 넘긴다. 새 연습 경로(`three_layers_v1`·직접 영상 코칭)를 끄면:
+- 이미 만든 신형 연습·노트는 계속 읽고 다시 분석하지 않는다([practice.start](../specs/practice/start.md#규칙제약)).
+- 분석을 건너뛴 직접 영상 회차는 기존 코치 경로로 이어갈 수 없어 새 영상을 올려야 한다([practice.coach](../specs/practice/coach.md#gemini-직접-영상-코칭)).
+
+이미지를 되돌릴 때는 신형 기록·노트를 읽는 코드(신형 reader)가 있는 이미지로만 되돌린다. 내부 handoff v2는 구버전 API가 만들 수
+없으므로 열린 v2 대화와 끝나지 않은 노트 작업을 먼저 확인한다([practice.note 「적용 범위와 호환」](../specs/practice/note.md#적용-범위와-호환)).
 Git revert는 [브랜치 전략의 운영 롤백](../BRANCHING-STRATEGY.md#운영-롤백)에 따라 `dev` 역병합까지 한다.
 
-코드 복구는 데이터 복구와 다르다. DB를 백업 시점으로 되돌려야 하거나 호스트가 손실됐다면
-§7에 따라 복원할 백업·앱 버전과 데이터 손실 범위를 먼저 정한다.
+코드 복구는 데이터 복구와 다르다. 적용된 마이그레이션과 데이터의 안전성은 따로 판단하고, DB를 백업 시점으로
+되돌려야 하거나 호스트가 손실됐다면 §7에 따라 복원할 백업·앱 버전과 데이터 손실 범위를 먼저 정한다.
 
 ## 5. 자동 백업과 복원 검증
 
-dev·운영 모두 매일 04:00 KST에 `pg_dump -Fc`를 S3의 환경별 경로에 올리고 30일 보관한다.
+dev·운영 모두 매일 `pg_dump -Fc`를 S3의 환경별 경로에 올리고 30일 보관한다.
 백업에는 사용자 데이터와 인증 정보가 포함되므로 S3의 공개 접근을 차단하고 환경별 권한을 둔다.
-S3 lifecycle의 30일 만료 규칙은 AWS 설정이며 컨테이너가 뜬 것만으로 생기지 않는다.
+30일은 S3 lifecycle의 만료 규칙(AWS 설정)이며 컨테이너가 뜬 것만으로 생기지 않는다.
+[account.withdraw](../specs/account/withdraw.md)와 개인정보 처리방침이 이 기간을 인용하므로 바꿀 때 함께 고친다.
 
 백업 이미지는 `backup:<sha>`이며 `release.env`의 `BACKUP_IMAGE`로 고정한다.
 `.env`에 `BACKUP_S3_BUCKET=acttub-db-backups`, `BACKUP_S3_PREFIX=dev/` 또는 `prod/`를 설정한다.
-`BACKUP_SCHEDULE`을 생략하면 `04:00`이다. 백업은 `schedule` 모드로 실행하며 첫 실행, 실패 후,
-성공한 지 26시간이 지났거나 중단 중 예약을 놓쳤을 때 바로 한 번 백업한다.
+실행 시각은 `BACKUP_SCHEDULE`(한국 시간, 생략하면 `compose.yml`의 기본값)이다. 백업은 `schedule` 모드로 실행하며
+기동할 때 아래 health가 실패이거나(첫 실행·실패 후·오래된 성공) 중단 중 예약을 놓쳤으면 바로 한 번 백업한다.
 
 ```bash
 cd /svc/acttub/prod
@@ -122,13 +140,15 @@ docker compose --env-file .env --env-file release.env logs --since 26h --tail 10
 업로드에는 S3의 AES256 서버 암호화와 SHA-256 metadata를 사용하고, HEAD로 크기와 metadata를 대조한다.
 `backup_state` 볼륨의 `/var/lib/acttub-backup/status.json`에는 마지막 성공 시각·객체 주소·해시와 실패 상태가
 남는다. 최근 성공이 26시간 이내이고 백업 목적지가 현재 설정과 같으며 미해결 실패가 없을 때만 health가 성공한다.
+이 26시간은 `backup.py`의 `healthy`와 모니터링 규칙(`rules.json`의 `backup-age`)에 따로 적혀 있어 바꿀 때 둘을 함께 바꾼다.
 실패 시 Docker 재시작과 unhealthy 상태를 확인한다. S3에서 받은 파일은 metadata의 SHA-256과 다시 대조한다.
 
 백업 설정을 바꿨거나 복원 가능성을 검증할 때 즉시 백업을 실행하고 업로드된 객체를
 **S3에서 다시 받아** 격리된 DB에 복원한다.
 덤프 파일이 있거나 업로드 명령이 성공한 것만으로 복원 검증을 통과한 것으로 기록하지 않는다.
 복원한 DB의 스키마·Flyway 이력·행 수·내용과 애플리케이션 기동을 확인한다. 검증 스택은 운영 트래픽과
-분리하고 분석 워커를 끈다. 운영 복사본으로 워커를 돌리면 실제 외부 호출과 영상 삭제가 일어날 수 있다.
+분리하고 [§7](#7-db와-호스트-복구) 2단계의 스위치를 모두 끈다. 운영 복사본으로 그 작업들이 돌면 실제 외부 호출·푸시·
+객체 삭제가 일어난다.
 
 백업 성공 시각·S3 객체 키·SHA-256·복원 결과를 남긴다. 복원이 끝난 전송용 로컬 덤프는 지우되
 유일한 복구본이나 정해진 보존 기간의 S3 백업을 지우지 않는다. 일일 백업만으로는 장애 직전까지의
@@ -140,13 +160,15 @@ docker compose --env-file .env --env-file release.env logs --since 26h --tail 10
 변경한 배포 스크립트·Compose·백업을 가장 좁은 검사부터 확인하고,
 [CI 워크플로](../../.github/workflows/ci.yml)의 해당 잡 범위를 실행한다. Docker 기동·복원 검사와
 실제 서버 검증은 구분해서 기록한다. 서버에서는 이미지 SHA, 터널 경유 `/health`, DB를 읽는 경로,
-백업 업로드·복원, 로그인·업로드·분석을 확인한다. `/health` 200만으로 이 전부가 검증되지는 않는다.
+백업 업로드·복원, 로그인·업로드·분석, 리딩 녹음 업로드(ffmpeg 오디오 변환과 녹음 객체 저장)를 확인한다.
+`/health` 200만으로 이 전부가 검증되지는 않는다.
 
-지속 모니터링의 도입 범위·알림 기준·추가 검증은 [모니터링 명세](MONITORING.md)를 따른다.
+지속 모니터링의 배경과 범위는 [수집 구성](../../deploy/monitoring/README.md#배경과-범위), 알림 기준은
+[`rules.json`](../../deploy/monitoring/cloud/rules.json)을 따른다.
 [수집 구성과 적용 절차](../../deploy/monitoring/README.md)는 앱과 다른 Compose 프로젝트를 사용하고,
 [Cloud 설정 절차](MONITORING-CLOUD.md)는 대시보드·알림·외부 점검을 별도로 적용한다.
-앱 배포가 이 모니터링 프로젝트를 기동하거나 갱신하지 않는다. 저장소의 자동 검증과 실제
-홈서버 설치·Cloud 권한·Slack 알림 수신은 구분해서 확인한다.
+앱 배포가 이 모니터링 프로젝트를 기동하거나 갱신하지 않는다. 저장소의 자동 검증과 실제 운영 검증의 구분은
+[수집 쪽](../../deploy/monitoring/README.md#자동-검증과-남은-운영-검증)과 [Cloud 쪽](MONITORING-CLOUD.md#실제-stack-인수-검증-기록)을 따른다.
 
 ## 7. DB와 호스트 복구
 
@@ -156,12 +178,21 @@ docker compose --env-file .env --env-file release.env logs --since 26h --tail 10
 
 1. 장애 시각, 마지막 정상 배포 SHA, 마지막 성공 백업 객체와 SHA-256을 기록한다. 현재 DB를
    읽을 수 있다면 변경 전에 별도 덤프를 보존한다. 서로 다른 시점의 DB는 행 수만으로 같다고 판정하지 않는다.
-2. 공개 유입을 차단하고 진행 중인 요청·작업이 끝났는지 확인한다. `.env`의 분석 워커를
-   `ANALYSIS_WORKER_ENABLED=false`로 두고 `api`를 재생성해 적용한다. 복원 중에는 `backup`도
-   중지한다. `restore-db.sh`는 API를 다시 올리므로 유입 차단과 워커 비활성 조건을 먼저 갖춘다.
+2. 공개 유입을 차단하고 진행 중인 요청·작업이 끝났는지 확인한다. `.env`에 아래 스위치를 모두 `false`로 두고
+   `api`를 재생성해 적용한다. 옛 시점의 DB로 돌면 실제 사용자에게 바깥 영향을 주는 작업들이다(기본값은 모두 켜짐).
+   복원 중에는 `backup`도 중지한다. `restore-db.sh`는 API를 다시 올리므로 유입 차단과 이 조건을 먼저 갖춘다.
+
+   | 스위치 | 끄는 작업 |
+   |---|---|
+   | `ANALYSIS_WORKER_ENABLED` | 분석·배우 기억 갱신·챌린지 AI 리포트·포스터 워커(모델 호출, 분석 완료 푸시) |
+   | `ACCOUNT_CLEANUP_ENABLED` | 정리 장부의 객체 삭제와 제공자 연결 해제 |
+   | `ACCOUNT_HOUSEKEEPING_ENABLED` | 매일 정리 — 옮기지 않은 게스트 30일 파기, 탈퇴 3년 파기, 정리 장부 실행 |
+   | `CHALLENGE_NOTIFICATION_PUSH_ENABLED` | 챌린지 알림 푸시 |
+   | `EXIT_SURVEY_SYNC_ENABLED` | 이탈 설문의 시트 재전송·연락처 정리 |
+   | `CHALLENGE_SETTLEMENT_ENABLED` | 챌린지 마감 집계·보관 기간 정리(DB만 바꾸지만 복원 검증 중 데이터가 바뀐다) |
 3. S3에서 선택한 백업을 받아 metadata의 SHA-256과 대조하고 격리된 스택에서 먼저 복원한다.
    호스트를 새로 준비해야 하면 §2의 서버·시크릿을 복구하고 같은 앱 버전의 이미지로 스택을 준비한다.
-   검증용 스택에는 운영 터널을 연결하지 않고 분석 워커를 끈다. S3 DB 백업에는 `.env`와
+   검증용 스택에는 운영 터널을 연결하지 않고 2단계의 스위치를 모두 끈다. S3 DB 백업에는 `.env`와
    호스트 설정이 들어 있지 않으므로 이를 별도 보호 사본에서 복구해야 한다.
 4. 검증한 덤프로 환경 DB를 복원한다. 같은 정지 시점의 manifest(행 내용·시퀀스·스키마 지문)가
    있다면 `--expect-manifest`를 함께 전달한다. 운영 복원은 기존 DB를 남기도록 `--keep-old`를 쓴다.
@@ -175,7 +206,7 @@ docker compose --env-file .env --env-file release.env logs --since 26h --tail 10
    새로울 때는 기본적으로 거부한다. 필요한 마이그레이션의 호환성을 격리 복원으로 검증한 경우에만
    `--allow-migrate`를 추가한다. 실패하면 원래 DB로 복구를 시도하며, 원본 복구 실패 시 API를 정지해 둔다.
 5. 스키마·Flyway 이력·데이터와 DB를 읽는 API를 확인한다. 백업을 다시 켜서 실제 S3 업로드가
-   성공했는지 확인하고, 분석 워커를 활성화해 적용한 뒤 공개 유입을 연다. 새 호스트라면
+   성공했는지 확인하고, 2단계에서 끈 스위치를 되돌려 적용한 뒤 공개 유입을 연다. 새 호스트라면
    Cloudflare Tunnel 연결과 Tailscale 배포 경로도 검증한다. 로그인·영상 업로드·분석·코치 응답을
    끝까지 확인하고 백업 시각 이후 손실 또는 별도 복구한 데이터를 기록한다.
 

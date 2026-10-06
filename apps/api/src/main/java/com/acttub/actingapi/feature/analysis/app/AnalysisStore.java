@@ -21,14 +21,6 @@ public interface AnalysisStore {
             String model,
             Instant now);
 
-    default boolean fail(UUID operationId, UUID leaseToken, String errorCode, Instant now) {
-        return fail(operationId, leaseToken, errorCode, null, now);
-    }
-
-    default void release(UUID operationId, UUID leaseToken, Instant now) {
-        release(operationId, leaseToken, null, now);
-    }
-
     List<String> sweepExpiredUploads(Instant now);
 
     int sweepMaxAttempts(Instant now);

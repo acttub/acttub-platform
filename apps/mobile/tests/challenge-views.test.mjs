@@ -3,9 +3,7 @@ import test from 'node:test';
 
 import {
   VIEW_THRESHOLD_MS,
-  bucketOf,
   createViewTracker,
-  entryCounts,
   entryStatusLabel,
   shouldCountView,
 } from '../lib/challenge/views.ts';
@@ -13,7 +11,6 @@ import {
 const signal = (over = {}) => ({
   elapsedMs: 3_500,
   isOwn: false,
-  isPreload: false,
   isRepeat: false,
   alreadySent: false,
   ...over,
@@ -25,9 +22,8 @@ test('challenge.browse: 3초 이상 재생한 사건만 조회수가 된다', ()
   assert.equal(shouldCountView(signal({ elapsedMs: 2_000 })), false);
 });
 
-test('challenge.browse: 본인 재생·미리 불러오기·자동 반복은 세지 않는다', () => {
+test('challenge.browse: 본인 재생·자동 반복은 세지 않는다', () => {
   assert.equal(shouldCountView(signal({ isOwn: true })), false);
-  assert.equal(shouldCountView(signal({ isPreload: true })), false);
   assert.equal(shouldCountView(signal({ isRepeat: true })), false);
 });
 
@@ -60,29 +56,11 @@ test('challenge.browse: 조회수 요청이 실패해도 재생은 그대로다'
   assert.equal(await tracker.onProgress('entry-1', signal()), false);
 });
 
-test('challenge.browse: P03 은 참여작을 한 분류에만 넣고 전체는 셋의 합이다', () => {
-  const entry = (over) => ({ status: 'visible', visibility: 'public', challenge_hidden: false, ...over });
-  const entries = [
-    ...Array.from({ length: 6 }, () => entry({})),
-    entry({ visibility: 'private' }),
-    entry({ visibility: 'private' }),
-    entry({ status: 'hidden_by_report' }),
-  ];
-
-  assert.deepEqual(entryCounts(entries), { all: 9, public: 6, private: 2, under_review: 1 });
-  // 비공개이면서 신고 숨김인 참여작은 확인 중에만 센다.
-  assert.equal(bucketOf(entry({ visibility: 'private', status: 'hidden_by_report' })), 'under_review');
-  // 부모 챌린지가 검토·숨김이면 그 참여작도 확인 중이다.
-  assert.equal(bucketOf(entry({ challenge_hidden: true })), 'under_review');
-  // 삭제된 참여작은 세지 않는다.
-  assert.deepEqual(entryCounts([entry({ status: 'deleted' })]), { all: 0, public: 0, private: 0, under_review: 0 });
-});
-
 test('challenge.browse: P03 카드는 비공개·확인 중을 그대로 말하고 공개는 조회·좋아요를 보여 준다', () => {
-  const base = { status: 'visible', visibility: 'public', challenge_hidden: false, view_count: 12, like_count: 3 };
+  const base = { category: 'public', view_count: 12, like_count: 3 };
 
   assert.match(entryStatusLabel(base), /12/);
   assert.match(entryStatusLabel(base), /3/);
-  assert.match(entryStatusLabel({ ...base, visibility: 'private' }), /비공개/);
-  assert.match(entryStatusLabel({ ...base, status: 'hidden_by_report' }), /확인 중/);
+  assert.match(entryStatusLabel({ ...base, category: 'private' }), /비공개/);
+  assert.match(entryStatusLabel({ ...base, category: 'under_review' }), /확인 중/);
 });

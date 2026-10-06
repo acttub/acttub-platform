@@ -20,8 +20,6 @@ export type VadEvent = 'none' | 'speech_start' | 'speech_end' | 'timeout';
 
 export interface SilenceDetector {
   feed(rms: number, now: number): VadEvent;
-  reset(now: number): void;
-  speaking(): boolean;
 }
 
 /** 웹 현행 상수를 앱에도 그대로(확정 결정 7). */
@@ -67,13 +65,6 @@ export function createSilenceDetector(opts: VadOptions, startedAt: number): Sile
       }
       return 'speech_end';
     },
-    reset(now) {
-      listenStart = now;
-      speaking = false;
-      speechStart = 0;
-      lastLoud = 0;
-    },
-    speaking: () => speaking,
   };
 }
 

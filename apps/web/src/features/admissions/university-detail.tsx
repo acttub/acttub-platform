@@ -20,6 +20,7 @@ import {
 import { useResource } from "@/lib/react/use-resource";
 import { RailLayout } from "@/features/nav/app-rail";
 
+import { ADMISSIONS_GUIDE_LINKS } from "@/features/keyword-pages/guide-links";
 import { answeredAdmissions } from "./answered";
 import { StatusLine } from "./status-line";
 
@@ -41,7 +42,7 @@ export function UniversityDetailPage({
 
   const { payload, today } = answeredAdmissions(admissions, initial);
 
-  const university = payload?.universities[0] ?? null;
+  const university = payload.universities[0] ?? null;
 
   return (
     <RailLayout>
@@ -65,15 +66,11 @@ export function UniversityDetailPage({
             </StatusLine>
           )}
 
-          {admissions.state === "loading" && !initial && (
-            <StatusLine tone="muted">불러오는 중이에요…</StatusLine>
-          )}
-
-          {payload && !university && (
+          {!university && (
             <StatusLine tone="muted">해당 대학을 찾을 수 없어요.</StatusLine>
           )}
 
-          {payload && university && (
+          {university && (
             <>
               <Header university={university} />
 
@@ -99,6 +96,8 @@ export function UniversityDetailPage({
               {university.resources.length > 0 && (
                 <ResourceList resources={university.resources} />
               )}
+
+              <GuideLinks />
 
               <p className="mt-8 text-[12px] font-semibold leading-5 text-[#8b95a1]">
                 {payload.updated_at} 기준 · 각 대학 모집요강 원문을 사람이 직접 읽고
@@ -642,6 +641,27 @@ function ResourceList({ resources }: { resources: AdmissionResource[] }) {
                 </p>
               )}
             </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function GuideLinks() {
+  return (
+    <div className="mt-8 border-t border-[#f2f4f6] pt-6">
+      <p className="text-[15px] font-black text-[#191f28]">실기 준비에 도움 되는 글</p>
+      <ul className="mt-3 space-y-2">
+        {ADMISSIONS_GUIDE_LINKS.map((link) => (
+          <li key={link.href}>
+            <Link
+              href={link.href}
+              prefetch={false}
+              className="text-[14px] font-bold text-[#3182f6] underline underline-offset-4 hover:text-[#1b64da]"
+            >
+              {link.label}
+            </Link>
           </li>
         ))}
       </ul>

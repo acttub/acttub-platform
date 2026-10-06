@@ -25,7 +25,7 @@ public class HttpMonitoringConfiguration {
         String route = context.getPathPattern();
         boolean longRunning = "POST".equals(context.getCarrier().getMethod()) && route != null
                 && (ACTIVE_POST_ROUTES.containsKey(route)
-                // 1.0.0 의 회차 시작·재시도도 분석을 거는 자리다 — 옛 `/v2/practice-sessions/**` 는 내렸다(§6-15).
+                // 0.1.0 의 회차 시작·재시도도 분석을 거는 자리다 — 옛 `/v2/practice-sessions/**` 는 내렸다(§6-15).
                 || route.equals("/v2/practices")
                 || route.equals("/v2/practices/{practice_id}/analyze"));
         return longRunning ? "long_running" : "ordinary";

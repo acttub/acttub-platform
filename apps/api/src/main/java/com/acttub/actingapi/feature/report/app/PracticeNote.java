@@ -3,23 +3,15 @@ package com.acttub.actingapi.feature.report.app;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
-import java.util.function.Consumer;
-import java.util.function.Function;
 
 import com.acttub.actingapi.integration.llm.StructuredJson;
-import com.acttub.actingapi.platform.web.OutputLanguage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
-/** Preserves stored v1 notes while new dialogue handoffs can generate a grounded next take. */
+/** 저장된 노트 JSON 을 알아보고 공개 응답으로 투영한다. 노트 조립은 {@link DialogueNote} 가 한다. */
 public final class PracticeNote {
     public static final String VERSION = "acttub.practice_note.v1";
-    private static final String PROMPT = StructuredJson.instructions(
-            StructuredJson.textResource("/coaching/note-legacy-prompt.txt")
-                    + "\nsummary는 note_data에 이미 있는 문장을 원문 그대로 선택한다. 적합한 문장이 없으면 null이다. title은 focus.label의 원문 또는 연속된 발췌이며, focus가 없으면 이번 대화 기록이다.",
-            "layer3_copy");
 
     private PracticeNote() { }
 
@@ -28,94 +20,6 @@ public final class PracticeNote {
 
     public static boolean isNote(JsonNode value) {
         return value != null && VERSION.equals(value.path("schema_version").asText());
-    }
-
-    static ObjectNode assemble(JsonNode handoff, Function<String, String> generateCopy) {
-        return assemble(handoff, generateCopy, failure -> { });
-    }
-
-    /**
-     * 카피(제목·정리 문장) 생성이 실패해도 노트는 기본 제목으로 저장된다. 그 실패를 삼키지는
-     * 않는다 — {@code onCopyFailure} 가 관측을 맡는다. 폴백 비율을 모르면 3층 품질을 볼 수 없다.
-     */
-    static ObjectNode assemble(JsonNode handoff, Function<String, String> generateCopy,
-            Consumer<RuntimeException> onCopyFailure) {
-        return assembleResult(handoff, generateCopy, onCopyFailure).note();
-    }
-
-    static Generated assembleResult(JsonNode handoff, Function<String, String> generateCopy,
-            Consumer<RuntimeException> onCopyFailure) {
-        if (handoff != null && "acttub.coach_handoff.v2".equals(handoff.path("schema_version").asText())) {
-            return DialogueNote.assembleResult(handoff, generateCopy, onCopyFailure);
-        }
-        require(handoff != null && "acttub.coach_handoff.v1".equals(handoff.path("schema_version").asText()),
-                "versioned handoff required");
-        JsonNode state = handoff.path("coaching_state");
-        require(state.path("revision").asLong(-1) == handoff.path("state_revision").asLong(-2), "handoff revision mismatch");
-        JsonNode context = state.path("context");
-        StructuredJson.validate("coach_context", context);
-        ObjectNode note = StructuredJson.MAPPER.createObjectNode().put("schema_version", VERSION)
-                .put("report_type", "practice_note").put("note_id", UUID.randomUUID().toString())
-                .put("revision", 1).put("session_id", handoff.path("session_id").asText())
-                .put("source_handoff_revision", handoff.path("state_revision").asLong())
-                .put("lifecycle", "saved").put("end_reason", handoff.path("end_reason").asText());
-        note.set("record_ref", handoff.path("record_ref").deepCopy());
-        // scene_context 는 노트 정본과 3층 모델 입력에 보존한다. 공개 응답(publicView)에는 내지 않는다.
-        for (String field : List.of("direction", "scene_context", "focus", "reading", "open_points")) {
-            note.set(field, context.path(field).deepCopy());
-        }
-        note.putNull("practice");
-        JsonNode active = null;
-        for (JsonNode proposal : state.path("proposals")) {
-            StructuredJson.validate("proposal", proposal);
-            if ("active".equals(proposal.path("lifecycle").asText())) {
-                require(active == null, "multiple active proposals");
-                active = proposal;
-            }
-        }
-        if (active != null) {
-            require(active.path("proposal_id").equals(state.path("active_proposal_id")), "active proposal mismatch");
-            require(!note.path("direction").isNull() && !note.path("focus").isNull(), "practice lacks a direction or focus");
-            ObjectNode practice = note.putObject("practice");
-            for (String field : List.of("proposal_id", "selection", "selection_refs", "instruction", "comparison", "keep")) {
-                practice.set(field, active.path(field).deepCopy());
-            }
-        }
-        note.put("mode", active != null ? "action" : !note.path("focus").isNull() ? "observation" : "record_only");
-        if ("record_only".equals(note.path("mode").asText())) { note.putNull("reading"); }
-        note.set("attempts", state.path("attempts").deepCopy());
-        note.set("source_catalog", handoff.path("source_catalog").deepCopy());
-        ObjectNode copy = note.putObject("copy").put("title", defaultTitle(note)).putNull("summary");
-        boolean fallback = false;
-        // Copy failure must not discard a valid conversation or prevent its atomic save.
-        try {
-            JsonNode generated = StructuredJson.parse(generateCopy.apply(note.toString()));
-            StructuredJson.validate("layer3_copy", generated);
-            String title = generated.path("title").asText();
-            require(title.equals(defaultTitle(note)) || note.path("focus").path("label").asText().contains(title),
-                    "title must reuse the recorded focus");
-            copy.put("title", title);
-            JsonNode summary = generated.path("summary");
-            if (!summary.isNull()) {
-                require(containsGroundedText(note, summary), "summary must reuse a recorded sentence and its sources");
-                copy.set("summary", summary.deepCopy());
-            }
-        } catch (RuntimeException failure) {
-            onCopyFailure.accept(failure);
-            fallback = true;
-            copy.put("title", defaultTitle(note)).putNull("summary");
-        }
-        StructuredJson.validate("practice_note", note);
-        validateRefs(note, sources(note));
-        return new Generated(note, fallback);
-    }
-
-    static String prompt() { return PROMPT; }
-
-    static String prompt(JsonNode handoff) {
-        String base = handoff != null && "acttub.coach_handoff.v2".equals(handoff.path("schema_version").asText())
-                ? DialogueNote.PROMPT : PROMPT;
-        return OutputLanguage.apply(base);
     }
 
     /** Explicit projection: internal actor messages, state and source catalog never leak into public JSON. */
@@ -186,41 +90,14 @@ public final class PracticeNote {
         return view;
     }
 
-    private static String defaultTitle(JsonNode note) {
-        String title = note.path("focus").path("label").asText("이번 대화 기록");
-        return title.substring(0, title.offsetByCodePoints(0, Math.min(32, title.codePointCount(0, title.length()))));
-    }
-
     private static void textOrNull(ObjectNode target, String key, JsonNode grounded) {
         if (grounded.isNull()) { target.putNull(key); }
         else { target.put(key, grounded.path("text").asText()); }
-    }
-
-    private static boolean containsGroundedText(JsonNode value, JsonNode candidate) {
-        if (value.equals(candidate)) { return true; }
-        if (value.isContainerNode()) {
-            for (JsonNode child : value) { if (containsGroundedText(child, candidate)) { return true; } }
-        }
-        return false;
     }
 
     private static Map<String, JsonNode> sources(JsonNode note) {
         Map<String, JsonNode> sources = new LinkedHashMap<>();
         note.path("source_catalog").forEach(s -> sources.put(s.path("id").asText(), s));
         return sources;
-    }
-
-    private static void validateRefs(JsonNode node, Map<String, JsonNode> catalog) {
-        if (node.isArray()) { node.forEach(n -> validateRefs(n, catalog)); return; }
-        if (!node.isObject()) { return; }
-        node.properties().forEach(entry -> {
-            if (entry.getKey().endsWith("_refs")) {
-                entry.getValue().forEach(ref -> require(catalog.containsKey(ref.asText()), "note source is missing"));
-            } else if (!entry.getKey().equals("source_catalog")) { validateRefs(entry.getValue(), catalog); }
-        });
-    }
-
-    private static void require(boolean condition, String message) {
-        if (!condition) { throw new IllegalArgumentException(message); }
     }
 }
