@@ -15,6 +15,7 @@ import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.observability.LlmCall;
+import com.acttub.actingapi.platform.observability.LlmPrompt;
 import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.platform.observability.LlmTokens;
 
@@ -58,7 +59,8 @@ final class DirectVideoRouting {
             record.accept(new LlmCall(LlmStep.COACH_ROUTE, practiceId, userId, model.model(),
                     DirectVideoPrompts.classifier() + "\n" + history, output == null ? "" : output,
                     LlmTokens.unknown(), started, Duration.between(started, Instant.now()), error,
-                    LlmCall.metadata("transport", "gemini_text_routing")));
+                    LlmCall.metadata("transport", "gemini_text_routing"))
+                    .withPrompt(new LlmPrompt("coach.direct.classifier", DirectVideoPrompts.classifier())));
         }
     }
 

@@ -14,6 +14,7 @@ import com.acttub.actingapi.platform.observability.FailureContext;
 import com.acttub.actingapi.platform.observability.FailureKind;
 import com.acttub.actingapi.platform.observability.FailureReporter;
 import com.acttub.actingapi.platform.observability.LlmCall;
+import com.acttub.actingapi.platform.observability.LlmPrompt;
 import com.acttub.actingapi.platform.observability.LlmStep;
 import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.acttub.actingapi.platform.observability.LlmTokens;
@@ -60,6 +61,8 @@ public final class DirectVideoCoach {
         }
         String input = "";
         String route = "";
+        // 기록에 잇는 것은 고른 과제 템플릿뿐이다. 앞에 붙는 배우 프로필·이전 맥락은 요청마다 달라 넣지 않는다.
+        LlmPrompt template = null;
         boolean routeFallback = false;
         boolean inspecting = false;
         boolean actorFinished = DialogueProgress.actorFinished(actorText);
@@ -127,14 +130,19 @@ public final class DirectVideoCoach {
             if (loop) {
                 // 종료("그만")도 연습 루프가 해 본 횟수로 닫는다. 서버는 아래에서 세션만 닫는다.
                 route = "practice_loop";
-                task = DirectVideoPrompts.practiceLoop(session.practiceSessionId(),
-                        DirectVideoPracticeLoop.replyLanguage(session, actorText));
+                java.util.Locale language = DirectVideoPracticeLoop.replyLanguage(session, actorText);
+                task = DirectVideoPrompts.practiceLoop(session.practiceSessionId(), language);
+                // 기록에는 칸 순서를 섞기 전 템플릿을 잇는다. 섞인 본문마다 Langfuse 버전이 새로 생기지 않게 한다.
+                boolean korean = language == null || "ko".equals(language.getLanguage());
+                template = korean ? new LlmPrompt("coach.practice-loop", DirectVideoPrompts.practiceLoop())
+                        : new LlmPrompt("coach.practice-loop.en", DirectVideoPrompts.practiceLoopEnglish());
             } else {
                 var selection = routing.select(history, actorText, actorFinished || turnBudget,
                         session.practiceSessionId(), session.userId(), operationId);
                 route = selection.label();
                 routeFallback = selection.fallback();
                 task = selection.prompt();
+                template = new LlmPrompt("coach.direct." + route, task);
             }
             // 연습 루프는 배우가 이번 연습에 적은 것(상황·인물·목표·막힘)도 받는다. 없으면 칸이 없다.
             String prompt = DirectVideoPrompts.withAudioFacts(CoachPrompt.actorProfileBlock(session.actorProfile())
@@ -155,7 +163,7 @@ public final class DirectVideoCoach {
             telemetry.record(new LlmCall(LlmStep.COACH_TURN, session.practiceSessionId(), session.userId(),
                     model.model(), input, message, LlmTokens.unknown(), started, Duration.between(started, Instant.now()),
                     null, LlmCall.metadata("transport", "gemini_direct_video", "route", route,
-                            "route_fallback", Boolean.toString(routeFallback))));
+                            "route_fallback", Boolean.toString(routeFallback))).withPrompt(template));
             if (loop) DirectVideoPracticeLoop.remember(state, parsed);
             if (cut) DirectVideoPracticeLoop.markNotActing(state, "model");
             // Plain coaching prose is not structured evidence or a confirmed actor intention.
@@ -169,7 +177,7 @@ public final class DirectVideoCoach {
             telemetry.record(new LlmCall(LlmStep.COACH_TURN, session.practiceSessionId(), session.userId(),
                     model.model(), input, "", LlmTokens.unknown(), started, Duration.between(started, Instant.now()),
                     failure.getClass().getSimpleName(), LlmCall.metadata("transport", "gemini_direct_video", "route", route,
-                            "route_fallback", Boolean.toString(routeFallback))));
+                            "route_fallback", Boolean.toString(routeFallback))).withPrompt(template));
             throw new CoachReplyUnavailable();
         } finally {
             if (uploaded != null) {

@@ -66,12 +66,18 @@ class CoachingPipelineTest {
                 return out(draft(input, "상대를 붙잡으려는 말인 것이군요."));
             }
         };
-        CoachResult result = engine(model).reply(session().withTurns(List.of(new CoachTurnSnapshot("ai", "어떤 뜻으로 말했어요?"))),
-                "떠나지 말라는 뜻이에요", UUID.randomUUID());
+        var telemetry = new RecordingLlmTelemetry();
+        CoachResult result = new CoachEngine(model, new RecordingFailureReporter(), telemetry, true)
+                .reply(session().withTurns(List.of(new CoachTurnSnapshot("ai", "어떤 뜻으로 말했어요?"))),
+                        "떠나지 말라는 뜻이에요", UUID.randomUUID());
         assertThat(stages).containsExactly("classify", "generate");
         assertThat(result.reply().message()).isEqualTo("상대를 붙잡으려는 말인 것이군요.");
         assertThat(result.session().turns().getLast().text()).isEqualTo(result.reply().message());
         assertThat(result.session().stateRevision()).isEqualTo(1);
+        // 기록에는 라우트별 정적 템플릿이 붙는다 — 언어·프로필 지시를 붙이기 전 본문이다(SOMA-585).
+        assertThat(telemetry.calls()).extracting(call -> call.prompt().name())
+                .containsExactly("coach.pipeline.classifier", "coach.pipeline." + route.id);
+        assertThat(telemetry.calls().getLast().prompt().text()).isEqualTo(CoachingPipeline.prompt(route, false, false));
     }
 
     @Test void videoOnlyOpeningDoesNotInventAnActorTurn() {

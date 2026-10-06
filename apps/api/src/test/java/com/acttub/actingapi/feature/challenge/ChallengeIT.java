@@ -203,14 +203,16 @@ class ChallengeIT {
                 .isEqualTo("challenge_not_found");
     }
 
-    @Test void challengeAccess_requiresAKoreanAppMember() throws Exception {
-        for (String[] context : new String[][]{{"web/0.1.0", "ko"}, {"app/0.1.0", "en"}}) {
-            var response = mvc.perform(get("/v2/challenges").header("Authorization", bearer)
-                    .header("X-Acttub-Client", context[0]).header("Accept-Language", context[1]))
-                    .andReturn().getResponse();
-            assertThat(response.getStatus()).isEqualTo(403);
-            assertThat(json.readTree(response.getContentAsString()).path("detail").asText()).isEqualTo("member_only");
-        }
+    @Test void challengeAccess_requiresAnAppMemberInAnyLanguage() throws Exception {
+        var web = mvc.perform(get("/v2/challenges").header("Authorization", bearer)
+                .header("X-Acttub-Client", "web/0.1.0").header("Accept-Language", "ko"))
+                .andReturn().getResponse();
+        assertThat(web.getStatus()).isEqualTo(403);
+        assertThat(json.readTree(web.getContentAsString()).path("detail").asText()).isEqualTo("member_only");
+        var english = mvc.perform(get("/v2/challenges").header("Authorization", bearer)
+                .header("X-Acttub-Client", "app/0.1.0").header("Accept-Language", "en"))
+                .andReturn().getResponse();
+        assertThat(english.getStatus()).isEqualTo(200);
         jdbc.update("UPDATE user_identities SET provider='guest' WHERE user_id=?", user);
         assertThat(response(get("/v2/challenges"), 403).path("detail").asText()).isEqualTo("member_only");
     }

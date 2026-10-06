@@ -15,6 +15,7 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.memory.app.ActorMemoryUpdateWorker;
+import com.acttub.actingapi.feature.memory.domain.ActorMemoryFields;
 import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.integration.llm.TokenUsage;
@@ -73,6 +74,10 @@ class ActorMemoryIT {
             {"goal":"새 목표","blockage":"문 앞에서 멈춘다","wants":"표정을 봐 달라고 했다",
              "habits":"감정이 올라오면 고개를 돌린다","speech_self":"또박또박 말한다","avoid":"모델이 쓴 것"}
             """;
+    /** 위 가운데 워커가 저장하는 칸 — 칸 목록은 DB 값 목록을 따르므로 새 칸 마이그레이션이 없으면 목표·막히는 지점뿐이다. */
+    private static final List<String> WRITTEN_FIELDS = List.of("goal", "blockage", "wants", "habits").stream()
+            .filter(ActorMemoryFields.EXTRACTED::contains).toList();
+    private static final int WRITTEN = WRITTEN_FIELDS.size();
 
     @DynamicPropertySource
     static void database(DynamicPropertyRegistry registry) {
@@ -115,7 +120,7 @@ class ActorMemoryIT {
 
         assertThat(runWorker()).isTrue();
         assertThat(jdbc.queryForList("SELECT field,value,written_by FROM actor_memories WHERE user_id=?", member))
-                .hasSize(4)
+                .hasSize(WRITTEN)
                 .allSatisfy(row -> assertThat(row.get("written_by")).isEqualTo("agent"));
 
         closeConversation(analyzedPractice(member));
@@ -154,10 +159,15 @@ class ActorMemoryIT {
         assertThat(worker.sweepIdle(java.time.Instant.now())).isEqualTo(1);
 
         assertThat(memoryJobs()).hasSize(1);
+        // 같은 회차를 다시 봐도 작업이 늘지 않는다 — 작업이 생긴 회차는 다시 고르지 않는다.
+        assertThat(worker.sweepIdle(java.time.Instant.now().plusSeconds(3600))).isZero();
+        if (!ActorMemoryFields.contains("avoid")) {
+            // 새 칸 마이그레이션이 없는 배포: 셈과 예약만 바뀐다.
+            assertThat(rows()).isEmpty();
+            return;
+        }
         assertThat(value("avoid")).isEqualTo("- 시선: \"렌즈 본 거예요\"");
         assertThat(writtenBy("avoid")).isEqualTo("agent");
-        // 같은 회차를 다시 봐도 줄이 늘지 않는다 — 작업이 생긴 회차는 다시 고르지 않는다.
-        assertThat(worker.sweepIdle(java.time.Instant.now().plusSeconds(3600))).isZero();
 
         assertThat(runWorker()).isTrue();
         assertThat(rows()).extracting(row -> row.get("field"))
@@ -232,7 +242,7 @@ class ActorMemoryIT {
         closeConversation(analyzedPractice(member));
         assertThat(memoryJobs()).hasSize(2);
         assertThat(runWorker()).isTrue();
-        assertThat(rows()).hasSize(4);
+        assertThat(rows()).hasSize(WRITTEN);
     }
 
     @Test
@@ -256,7 +266,7 @@ class ActorMemoryIT {
         assertThat(rows()).isEmpty();
 
         assertThat(runWorker()).isTrue();
-        assertThat(rows()).hasSize(4);
+        assertThat(rows()).hasSize(WRITTEN);
     }
 
     @Test
@@ -278,7 +288,7 @@ class ActorMemoryIT {
 
         perform(delete("/v2/me/memory/goal"), 204);
         perform(delete("/v2/me/memory/goal"), 204);
-        assertThat(rows()).hasSize(3);
+        assertThat(rows()).hasSize(WRITTEN - 1);
         assertThat(rows().stream().map(row -> row.get("field"))).doesNotContain("goal");
     }
 
