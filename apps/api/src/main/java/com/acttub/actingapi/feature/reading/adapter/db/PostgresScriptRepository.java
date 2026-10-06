@@ -300,7 +300,7 @@ class PostgresScriptRepository implements ScriptRepository {
                 return null;
             }
             // 녹음 행을 지우면서 객체 키를 같은 트랜잭션에서 장부에 남긴다 — 커밋 뒤 저장소가 실패해도 키를 잃지 않는다.
-            List<String> objectKeys = NativeTuples.list(entityManager.createNativeQuery("""
+            List<String> objectKeys = new ArrayList<>(NativeTuples.list(entityManager.createNativeQuery("""
                     WITH removed AS (
                         DELETE FROM reading_recordings r
                         USING reading_sessions rs
@@ -312,7 +312,15 @@ class PostgresScriptRepository implements ScriptRepository {
                     """, Tuple.class)
                     .setParameter("scriptId", scriptId)).stream()
                     .map(row -> row.get("object_key", String.class))
-                    .toList();
+                    .toList());
+            // 원본 파일도 대본과 같은 수명이다(reading.script 「원본 파일」). 같은 장부 종류로 지운다.
+            objectKeys.addAll(NativeTuples.list(entityManager.createNativeQuery("""
+                    WITH removed AS (DELETE FROM script_uploads WHERE script_id=:scriptId RETURNING object_key)
+                    SELECT object_key FROM removed
+                    """, Tuple.class)
+                    .setParameter("scriptId", scriptId)).stream()
+                    .map(row -> row.get("object_key", String.class))
+                    .toList());
             entityManager.createNativeQuery("""
                     DELETE FROM line_memorization m
                     USING script_lines l

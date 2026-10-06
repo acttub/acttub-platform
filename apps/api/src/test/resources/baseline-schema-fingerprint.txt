@@ -533,6 +533,7 @@ COLUMN script_imports.source ord=6 type=text len=- null=NO default=-
 COLUMN script_imports.title ord=5 type=text len=- null=YES default=-
 COLUMN script_imports.total_lines ord=13 type=int4 len=- null=NO default=0
 COLUMN script_imports.updated_at ord=15 type=timestamptz len=- null=NO default=now()
+COLUMN script_imports.upload_id ord=16 type=uuid len=- null=YES default=-
 COLUMN script_imports.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN script_lines.character_id ord=5 type=uuid len=- null=YES default=-
 COLUMN script_lines.created_at ord=7 type=timestamptz len=- null=NO default=now()
@@ -541,6 +542,15 @@ COLUMN script_lines.kind ord=4 type=text len=- null=NO default=-
 COLUMN script_lines.ordinal ord=3 type=int4 len=- null=NO default=-
 COLUMN script_lines.script_id ord=2 type=uuid len=- null=NO default=-
 COLUMN script_lines.text ord=6 type=text len=- null=NO default=-
+COLUMN script_uploads.byte_size ord=4 type=int8 len=- null=NO default=-
+COLUMN script_uploads.created_at ord=8 type=timestamptz len=- null=NO default=now()
+COLUMN script_uploads.expires_at ord=7 type=timestamptz len=- null=NO default=-
+COLUMN script_uploads.id ord=1 type=uuid len=- null=NO default=-
+COLUMN script_uploads.object_key ord=3 type=text len=- null=NO default=-
+COLUMN script_uploads.raw_text ord=5 type=text len=- null=YES default=-
+COLUMN script_uploads.script_id ord=6 type=uuid len=- null=YES default=-
+COLUMN script_uploads.updated_at ord=9 type=timestamptz len=- null=NO default=now()
+COLUMN script_uploads.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN scripts.created_at ord=8 type=timestamptz len=- null=NO default=now()
 COLUMN scripts.id ord=1 type=uuid len=- null=NO default=-
 COLUMN scripts.raw_hash ord=10 type=bpchar len=64 null=YES default=-
@@ -1426,6 +1436,17 @@ CONSTRAINT script_lines script_lines_script_id_fkey FOREIGN KEY (script_id) REFE
 CONSTRAINT script_lines script_lines_script_id_not_null NOT NULL script_id
 CONSTRAINT script_lines script_lines_text_not_null NOT NULL text
 CONSTRAINT script_lines uq_script_lines_script_ordinal UNIQUE (script_id, ordinal)
+CONSTRAINT script_uploads ck_script_uploads_byte_size CHECK ((byte_size > 0))
+CONSTRAINT script_uploads script_uploads_byte_size_not_null NOT NULL byte_size
+CONSTRAINT script_uploads script_uploads_created_at_not_null NOT NULL created_at
+CONSTRAINT script_uploads script_uploads_expires_at_not_null NOT NULL expires_at
+CONSTRAINT script_uploads script_uploads_id_not_null NOT NULL id
+CONSTRAINT script_uploads script_uploads_object_key_not_null NOT NULL object_key
+CONSTRAINT script_uploads script_uploads_pkey PRIMARY KEY (id)
+CONSTRAINT script_uploads script_uploads_updated_at_not_null NOT NULL updated_at
+CONSTRAINT script_uploads script_uploads_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT script_uploads script_uploads_user_id_not_null NOT NULL user_id
+CONSTRAINT script_uploads uq_script_uploads_object_key UNIQUE (object_key)
 CONSTRAINT scripts ck_scripts_source CHECK ((source = ANY (ARRAY['file'::text, 'paste'::text, 'typed'::text, 'sample'::text])))
 CONSTRAINT scripts scripts_created_at_not_null NOT NULL created_at
 CONSTRAINT scripts scripts_id_not_null NOT NULL id
@@ -1611,6 +1632,9 @@ INDEX CREATE INDEX idx_refresh_tokens_user_expires ON public.refresh_tokens USIN
 INDEX CREATE INDEX idx_reports_created ON public.reports USING btree (created_at DESC)
 INDEX CREATE INDEX idx_script_imports_user_raw_hash ON public.script_imports USING btree (user_id, raw_hash)
 INDEX CREATE INDEX idx_script_lines_character ON public.script_lines USING btree (character_id)
+INDEX CREATE INDEX idx_script_uploads_script ON public.script_uploads USING btree (script_id)
+INDEX CREATE INDEX idx_script_uploads_unlinked ON public.script_uploads USING btree (created_at) WHERE (script_id IS NULL)
+INDEX CREATE INDEX idx_script_uploads_user ON public.script_uploads USING btree (user_id)
 INDEX CREATE INDEX idx_scripts_user_raw_hash ON public.scripts USING btree (user_id, raw_hash)
 INDEX CREATE INDEX idx_scripts_user_updated ON public.scripts USING btree (user_id, updated_at DESC)
 INDEX CREATE INDEX idx_sessions_summary ON public.coach_sessions USING btree (summary_id)
@@ -1701,6 +1725,7 @@ INDEX CREATE UNIQUE INDEX reports_session_id_key ON public.reports USING btree (
 INDEX CREATE UNIQUE INDEX script_characters_pkey ON public.script_characters USING btree (id)
 INDEX CREATE UNIQUE INDEX script_imports_pkey ON public.script_imports USING btree (id)
 INDEX CREATE UNIQUE INDEX script_lines_pkey ON public.script_lines USING btree (id)
+INDEX CREATE UNIQUE INDEX script_uploads_pkey ON public.script_uploads USING btree (id)
 INDEX CREATE UNIQUE INDEX scripts_pkey ON public.scripts USING btree (id)
 INDEX CREATE UNIQUE INDEX summaries_pkey ON public.summaries USING btree (id)
 INDEX CREATE UNIQUE INDEX summaries_session_id_key ON public.summaries USING btree (session_id)
@@ -1757,6 +1782,7 @@ INDEX CREATE UNIQUE INDEX uq_script_characters_script_name ON public.script_char
 INDEX CREATE UNIQUE INDEX uq_script_characters_script_order ON public.script_characters USING btree (script_id, sort_order)
 INDEX CREATE UNIQUE INDEX uq_script_imports_user_request ON public.script_imports USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_script_lines_script_ordinal ON public.script_lines USING btree (script_id, ordinal)
+INDEX CREATE UNIQUE INDEX uq_script_uploads_object_key ON public.script_uploads USING btree (object_key)
 INDEX CREATE UNIQUE INDEX uq_scripts_user_request ON public.scripts USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_transcripts_session_ord ON public.transcripts USING btree (session_id, ord)
 INDEX CREATE UNIQUE INDEX uq_upload_intents_user_request ON public.upload_intents USING btree (user_id, request_id) WHERE (request_id IS NOT NULL)
@@ -1833,6 +1859,7 @@ TABLE reports
 TABLE script_characters
 TABLE script_imports
 TABLE script_lines
+TABLE script_uploads
 TABLE scripts
 TABLE summaries
 TABLE transcripts

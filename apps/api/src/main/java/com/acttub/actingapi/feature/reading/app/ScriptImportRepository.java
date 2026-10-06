@@ -27,7 +27,8 @@ public interface ScriptImportRepository {
     Requested request(UUID userId, UUID requestId, String fingerprint, Submission submission, ScriptDraft sample,
             int scriptLimit, int dailyLimit, Instant now);
 
-    record Submission(String title, String rawText, String rawHash, String source) {
+    /** @param uploadId 원본 파일. 대본이 저장되면 그 대본에 연결한다. 글로 넣었으면 {@code null} */
+    record Submission(String title, String rawText, String rawHash, String source, UUID uploadId) {
     }
 
     /**

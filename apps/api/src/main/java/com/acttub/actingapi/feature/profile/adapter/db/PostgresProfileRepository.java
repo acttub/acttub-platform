@@ -895,6 +895,17 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
                     .setParameter("userId", userId));
         }
         List<UUID> cleanups = new ArrayList<>();
+        // 대본 원본 파일은 보관 동의와 무관하게 대본과 함께 지운다(reading.script 「원본 파일」).
+        List<String> sourceKeys = list(entityManager.createNativeQuery("""
+                WITH removed AS (DELETE FROM script_uploads WHERE user_id=:userId RETURNING object_key)
+                SELECT object_key FROM removed
+                """, Tuple.class)
+                .setParameter("userId", userId)).stream()
+                .map(row -> row.get("object_key", String.class))
+                .toList();
+        if (!sourceKeys.isEmpty()) {
+            cleanups.add(this.cleanups.schedule(userId, sourceKeys, now));
+        }
         if (retainRecordings) {
             entityManager.createNativeQuery("""
                     UPDATE reading_recordings

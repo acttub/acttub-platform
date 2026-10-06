@@ -27,16 +27,23 @@ import com.acttub.actingapi.platform.web.Hashing;
 public class ScriptImportService {
 
     private final ScriptImportRepository imports;
+    private final ScriptUploadService uploads;
     private final CanonicalJson canonical;
     private final Clock clock;
 
-    public ScriptImportService(ScriptImportRepository imports, CanonicalJson canonical, Clock clock) {
+    public ScriptImportService(ScriptImportRepository imports, ScriptUploadService uploads, CanonicalJson canonical, Clock clock) {
         this.imports = imports;
+        this.uploads = uploads;
         this.canonical = canonical;
         this.clock = clock;
     }
 
-    public Ticket request(UUID userId, boolean guest, UUID requestId, String title, String rawText, String source) {
+    /** @param uploadId 원본 파일로 넣으면 그 파일에서 뽑은 글을 쓴다({@code rawText} 는 {@code null}) */
+    public Ticket request(UUID userId, boolean guest, UUID requestId, String title, String rawText, UUID uploadId,
+            String source) {
+        if (uploadId != null) {
+            rawText = uploads.text(userId, uploadId);
+        }
         if (ScriptRules.length(rawText) > ScriptRules.TEXT_MAX) {
             throw new ApiException(422, "script_too_long");
         }
@@ -48,7 +55,7 @@ public class ScriptImportService {
         Requested requested;
         try {
             requested = imports.request(userId, requestId, fingerprint(normalizedTitle, rawText, source),
-                    new Submission(normalizedTitle, rawText, ScriptText.hash(rawText), source), sample,
+                    new Submission(normalizedTitle, rawText, ScriptText.hash(rawText), source, uploadId), sample,
                     ScriptRules.scriptLimit(guest), ScriptSplitRules.DAILY_IMPORTS, clock.instant());
         } catch (ScriptRepository.OwnerNotActive closed) {
             throw new ApiException(403, "account_deactivated", closed);

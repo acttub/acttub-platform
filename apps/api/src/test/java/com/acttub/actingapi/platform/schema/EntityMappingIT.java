@@ -126,7 +126,9 @@ class EntityMappingIT {
             // 앱 공지 포스터(V29)는 포스터 저장소의 native SQL(만들기·고치기·고르기)만 쓴다.
             "app_posters",
             // 대본 나누기 요청(V33)은 리딩 저장소의 native SQL(접수·진행·완료)만 쓴다.
-            "script_imports");
+            "script_imports",
+            // 대본 원본 파일(V34)도 리딩 저장소의 native SQL(올릴 자리·읽기·연결·정리)만 쓴다.
+            "script_uploads");
 
     @Test
     @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 38개 활성 엔티티를 포함한다")
