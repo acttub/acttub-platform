@@ -397,8 +397,8 @@ class ReadingRecordingIT {
     }
 
     @Test
-    @DisplayName("reading.recording: STT 없이 올리기 — transcript_source none, transcript·matched NULL, 201. STT 인식 불가 — matched NULL. 정상 인식 뒤 미달 — false. 통과 — true. none 인데 전사가 실리면 422 배열")
-    void readingRecording_transcriptAndMatchFollowTheDevice() throws Exception {
+    @DisplayName("reading.recording: STT 없이 올리기 — transcript_source none, transcript·matched NULL, 201. STT 인식 불가·무발화·1,000자 초과 — matched NULL. 정상 인식 뒤 미달 — false. 통과 — true. matched 는 서버가 전사를 그 줄 원문과 비교해 정하고 기기가 보낸 값은 쓰지 않는다. none 인데 전사가 실리면 422 배열")
+    void readingRecording_theServerMatchesTheTranscriptAgainstTheLine() throws Exception {
         JsonNode none = upload(bearer, session, UUID.randomUUID(), script.dialogue(1), 1, "audio/mp4", M4A, 1000, "none", null, null, 201);
         assertThat(none.path("transcript_source").textValue()).isEqualTo("none");
         assertThat(none.path("transcript").isNull()).isTrue();
@@ -406,19 +406,25 @@ class ReadingRecordingIT {
 
         JsonNode unrecognized = upload(bearer, session, UUID.randomUUID(), script.dialogue(3), 1, "audio/mp4", M4A, 1000, "stt", null, null, 201);
         assertThat(unrecognized.path("transcript_source").textValue()).isEqualTo("stt");
-        assertThat(unrecognized.path("matched").isNull()).as("인식 불가·무발화").isTrue();
+        assertThat(unrecognized.path("matched").isNull()).as("인식 불가").isTrue();
+        JsonNode silent = upload(bearer, session, UUID.randomUUID(), script.dialogue(3), 2, "audio/mp4", M4A, 1000, "stt", " ... ", "false", 201);
+        assertThat(silent.path("matched").isNull()).as("무발화는 기기가 false 를 보내도 NULL").isTrue();
+        JsonNode tooLong = upload(bearer, session, UUID.randomUUID(), script.dialogue(3), 3, "audio/mp4", M4A, 1000, "stt", "가".repeat(1001), "false", 201);
+        assertThat(tooLong.path("matched").isNull()).as("1,000자 초과는 비교하지 않는다").isTrue();
 
-        JsonNode missed = upload(bearer, session, UUID.randomUUID(), script.dialogue(7), 1, "audio/mp4", M4A, 1000, "stt", "안녕하세유", "false", 201);
-        assertThat(missed.path("transcript").textValue()).isEqualTo("안녕하세유");
-        assertThat(missed.path("matched").booleanValue()).isFalse();
+        JsonNode missed = upload(bearer, session, UUID.randomUUID(), script.dialogue(7), 1, "audio/mp4", M4A, 1000, "stt", "안녕하세요", "true", 201);
+        assertThat(missed.path("transcript").textValue()).isEqualTo("안녕하세요");
+        assertThat(missed.path("matched").booleanValue()).as("원문 \"대사 7\"과 다르다 — 기기의 true 를 쓰지 않는다").isFalse();
 
-        JsonNode passed = upload(bearer, session, UUID.randomUUID(), script.dialogue(8), 1, "audio/mp4", M4A, 1000, "stt", "안녕하세요", "true", 201);
-        assertThat(passed.path("matched").booleanValue()).isTrue();
+        JsonNode passed = upload(bearer, session, UUID.randomUUID(), script.dialogue(8), 1, "audio/mp4", M4A, 1000, "stt", "대사 8", "false", 201);
+        assertThat(passed.path("matched").booleanValue()).as("원문 \"대사 8\"과 같다 — 기기의 false 를 쓰지 않는다").isTrue();
+        JsonNode withoutMatched = upload(bearer, session, UUID.randomUUID(), script.dialogue(1), 2, "audio/mp4", M4A, 1000, "stt", "대사 1", null, 201);
+        assertThat(withoutMatched.path("matched").booleanValue()).as("matched 를 싣지 않는 새 앱도 서버가 정한다").isTrue();
         assertThat(jdbc.queryForMap("SELECT transcript,transcript_source,matched FROM reading_recordings WHERE id=?",
                 UUID.fromString(passed.path("id").textValue())))
-                .containsEntry("transcript", "안녕하세요").containsEntry("transcript_source", "stt").containsEntry("matched", true);
+                .containsEntry("transcript", "대사 8").containsEntry("transcript_source", "stt").containsEntry("matched", true);
 
-        JsonNode rejected = upload(bearer, session, UUID.randomUUID(), script.dialogue(1), 2, "audio/mp4", M4A, 1000, "none", "글자", null, 422);
+        JsonNode rejected = upload(bearer, session, UUID.randomUUID(), script.dialogue(1), 3, "audio/mp4", M4A, 1000, "none", "글자", null, 422);
         assertThat(rejected.path("detail").isArray()).isTrue();
     }
 

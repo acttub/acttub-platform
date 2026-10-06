@@ -90,6 +90,12 @@ public final class ReadingLayout {
         return scenes;
     }
 
+    /** 그 줄의 대사 번호(1부터). 대사 줄이 아니거나 이 대본의 줄이 아니면 {@code null}. */
+    public Integer dialogueNo(UUID lineId) {
+        Integer index = indexOf.get(lineId);
+        return index == null ? null : dialogueNos[index];
+    }
+
     /** 대사 번호 구간(양끝 포함)의 이름. */
     public RangeName rangeName(int startNo, int endNo) {
         if (startNo == 1 && endNo == dialogueCount) {

@@ -148,7 +148,8 @@ class ReadingSessionIT {
                 "id", "ordinal", "status", "my_character_ids", "my_character_names", "range", "range_name", "progress",
                 "my_dialogue_count", "recorded_line_count", "elapsed_seconds", "started_at", "ended_at", "script_id", "mode",
                 "advance", "record",
-                "start_line_id", "end_line_id", "current_line_id", "progress_seq", "line_results", "recordings");
+                "start_line_id", "end_line_id", "current_line_id", "progress_seq", "line_results", "recordings",
+                "different_lines");
         assertThat(started.path("status").textValue()).isEqualTo("in_progress");
         assertThat(started.path("current_line_id").textValue()).as("구간의 첫 대사 줄").isEqualTo(script.dialogue(1).toString());
         assertThat(Instant.parse(started.path("started_at").textValue())).as("시각은 앱 시계로 찍는다").isEqualTo(clock.instant());
@@ -261,7 +262,7 @@ class ReadingSessionIT {
         JsonNode saved = json(patch("/v2/reading/sessions/{id}/progress", session).content(progress(1, script.dialogue(3), 45, null)), 200);
 
         assertThat(saved).isEqualTo(mapper.readTree("{\"current_line_id\":\"" + script.dialogue(3)
-                + "\",\"elapsed_seconds\":45,\"progress_seq\":1,\"status\":\"in_progress\"}"));
+                + "\",\"elapsed_seconds\":45,\"progress_seq\":1,\"status\":\"in_progress\",\"different_lines\":[]}"));
         JsonNode detail = json(get("/v2/reading/sessions/{id}", session), 200);
         assertThat(detail.path("status").textValue()).isEqualTo("in_progress");
         assertThat(detail.path("current_line_id").textValue()).isEqualTo(script.dialogue(3).toString());
@@ -283,7 +284,7 @@ class ReadingSessionIT {
 
         JsonNode stale = json(patch("/v2/reading/sessions/{id}/progress", session).content(progress(5, script.dialogue(2), 30, null)), 200);
         assertThat(stale).isEqualTo(mapper.readTree("{\"current_line_id\":\"" + script.dialogue(5)
-                + "\",\"elapsed_seconds\":120,\"progress_seq\":7,\"status\":\"in_progress\"}"));
+                + "\",\"elapsed_seconds\":120,\"progress_seq\":7,\"status\":\"in_progress\",\"different_lines\":[]}"));
         JsonNode same = json(patch("/v2/reading/sessions/{id}/progress", session).content(progress(7, script.dialogue(2), 30, null)), 200);
         assertThat(same.path("current_line_id").textValue()).as("같은 순번도 무시한다").isEqualTo(script.dialogue(5).toString());
 
@@ -307,7 +308,7 @@ class ReadingSessionIT {
         JsonNode completed = json(patch("/v2/reading/sessions/{id}/progress", session)
                 .content("{\"progress_seq\":2,\"elapsed_seconds\":210,\"complete\":true}"), 200);
 
-        assertThat(completed).isEqualTo(mapper.readTree("{\"current_line_id\":null,\"elapsed_seconds\":210,\"progress_seq\":2,\"status\":\"completed\"}"));
+        assertThat(completed).isEqualTo(mapper.readTree("{\"current_line_id\":null,\"elapsed_seconds\":210,\"progress_seq\":2,\"status\":\"completed\",\"different_lines\":[]}"));
         JsonNode detail = json(get("/v2/reading/sessions/{id}", session), 200);
         assertThat(detail.path("status").textValue()).isEqualTo("completed");
         assertThat(Instant.parse(detail.path("ended_at").textValue())).isEqualTo(clock.instant());
@@ -394,6 +395,86 @@ class ReadingSessionIT {
             assertThat(json(patch("/v2/reading/sessions/{id}/progress", session).content(malformed), 422).path("detail").isArray())
                     .as(malformed).isTrue();
         }
+    }
+
+    @Test
+    @DisplayName("reading.session: 말한 것(said)을 보낸 진행 저장 — 서버가 원문과 비교해 결과를 정하고(보낸 outcome 보다 이긴다, 무발화는 남기지 않는다, 같은 말을 다시 보내도 같다) 완료 응답과 회차 상세가 원문과 다르게 말한 대사를 대사 번호·말한 것·어절 표시로 준다")
+    void readingSession_theServerJudgesWhatWasSaidAndReturnsTheDifferentLines() throws Exception {
+        Script lines = saveScript(bearer, List.of(
+                "(웃으며) 여기 있을 줄 알았어.", "말하면 뭐가 달라져.", "나는 정말 몰랐어", "대사 4", "대사 5", "대사 6",
+                "그럼 다 달라져.", "대사 8"));
+        String session = json(post("/v2/reading/scripts/{id}/sessions", lines.id).content(
+                start(UUID.randomUUID(), List.of(lines.nina), "read", lines.dialogue(1), lines.dialogue(8), "silence", true).toString()), 201)
+                .path("id").textValue();
+
+        JsonNode first = json(patch("/v2/reading/sessions/{id}/progress", session).content(progress(1, lines.dialogue(2), 5,
+                List.of(said(lines.dialogue(1), "여기 있을 줄 알았어")))), 200);
+        assertThat(first.path("different_lines")).as("통과한 줄만 있으면 비어 있다").isEqualTo(mapper.readTree("[]"));
+        json(patch("/v2/reading/sessions/{id}/progress", session).content(progress(2, lines.dialogue(4), 12, List.of(
+                said(lines.dialogue(1), "여기 있을 줄 알았어"),
+                said(lines.dialogue(3), "나는 몰랐어")))), 200);
+        json(patch("/v2/reading/sessions/{id}/progress", session).content(progress(3, lines.dialogue(8), 30, List.of(
+                result(lines.dialogue(7), "passed", 0).put("said", "그럼 다 바뀌어"),
+                said(lines.dialogue(8), " ... ")))), 200);
+        JsonNode completed = json(patch("/v2/reading/sessions/{id}/progress", session).content(
+                "{\"progress_seq\":4,\"elapsed_seconds\":34,\"complete\":true}"), 200);
+
+        JsonNode expected = mapper.readTree("""
+                [
+                  {"line_id":"%s","dialogue_no":3,"said":"나는 몰랐어","different_words":[
+                    {"text":"나는","differs":false},{"text":"정말","differs":true},{"text":"몰랐어","differs":false}]},
+                  {"line_id":"%s","dialogue_no":7,"said":"그럼 다 바뀌어","different_words":[
+                    {"text":"그럼","differs":false},{"text":"다","differs":false},{"text":"달라져.","differs":true}]}
+                ]""".formatted(lines.dialogue(3), lines.dialogue(7)));
+        assertThat(completed.path("status").textValue()).isEqualTo("completed");
+        assertThat(completed.path("different_lines")).isEqualTo(expected);
+
+        JsonNode detail = json(get("/v2/reading/sessions/{id}", session), 200);
+        assertThat(detail.path("different_lines")).isEqualTo(expected);
+        assertThat(detail.path("line_results")).as("다시 보낸 줄은 미달을 더하지 않고, 무발화인 8번은 없다").containsExactly(
+                result(lines.dialogue(1), "passed", 0),
+                result(lines.dialogue(3), "unmatched", 1),
+                result(lines.dialogue(7), "unmatched", 1));
+        assertThat(mapper.readTree(jdbc.queryForObject(
+                "SELECT CAST(line_said AS text) FROM reading_sessions WHERE id=?", String.class, UUID.fromString(session))))
+                .isEqualTo(mapper.createObjectNode()
+                        .put(lines.dialogue(1).toString(), "여기 있을 줄 알았어")
+                        .put(lines.dialogue(3).toString(), "나는 몰랐어")
+                        .put(lines.dialogue(7).toString(), "그럼 다 바뀌어"));
+        assertThat(jdbc.queryForObject("SELECT CAST(line_results AS text) FROM reading_sessions WHERE id=?", String.class, UUID.fromString(session)))
+                .as("옛 서버가 읽는 칸에는 said 를 넣지 않는다").doesNotContain("said");
+    }
+
+    @Test
+    @DisplayName("reading.session: said 없이 결과만 보내는 옛 앱 — 그대로 저장되고 unmatched 줄은 말한 것 없이(어절 표시 없음) 다르게 말한 대사에 든다. 진행 중 회차에 옛 순번 — 무시하고 현재 다르게 말한 대사를 준다. said 도 outcome 도 없는 줄 — 422 배열")
+    void readingSession_oldAppsStillReportOutcomes() throws Exception {
+        Script lines = saveScript(bearer, List.of(
+                "대사 1", "대사 2", "나는 정말 몰랐어", "대사 4", "대사 5", "대사 6", "대사 7", "대사 8"));
+        String session = json(post("/v2/reading/scripts/{id}/sessions", lines.id).content(
+                start(UUID.randomUUID(), List.of(lines.nina), "read", lines.dialogue(1), lines.dialogue(8), "silence", true).toString()), 201)
+                .path("id").textValue();
+
+        JsonNode saved = json(patch("/v2/reading/sessions/{id}/progress", session).content(progress(1, lines.dialogue(4), 10,
+                List.of(result(lines.dialogue(1), "passed", 0), result(lines.dialogue(3), "unmatched", 1)))), 200);
+        JsonNode replayed = json(patch("/v2/reading/sessions/{id}/progress", session).content(progress(1, lines.dialogue(2), 10, null)), 200);
+
+        JsonNode expected = mapper.readTree("""
+                [{"line_id":"%s","dialogue_no":3,"said":null,"different_words":[
+                  {"text":"나는","differs":false},{"text":"정말","differs":false},{"text":"몰랐어","differs":false}]}]
+                """.formatted(lines.dialogue(3)));
+        assertThat(saved.path("different_lines")).isEqualTo(expected);
+        assertThat(replayed.path("current_line_id").textValue()).isEqualTo(lines.dialogue(4).toString());
+        assertThat(replayed.path("different_lines")).isEqualTo(expected);
+        assertThat(json(get("/v2/reading/sessions/{id}", session), 200).path("line_results")).containsExactly(
+                result(lines.dialogue(1), "passed", 0), result(lines.dialogue(3), "unmatched", 1));
+
+        JsonNode missing = json(patch("/v2/reading/sessions/{id}/progress", session).content(
+                "{\"progress_seq\":2,\"line_results\":[{\"line_id\":\"" + lines.dialogue(1) + "\",\"misses\":0}]}"), 422);
+        assertThat(missing).isEqualTo(mapper.readTree("""
+                {"detail":[{"type":"missing","loc":["body","line_results",0,"outcome"],"msg":"Field required",
+                            "input":{"line_id":"%s","misses":0}}]}""".formatted(lines.dialogue(1))));
+        assertThat(json(get("/v2/reading/sessions/{id}", session), 200).path("progress_seq").longValue())
+                .as("거절된 저장은 아무것도 바꾸지 않는다").isEqualTo(1);
     }
 
     @Test
@@ -695,6 +776,11 @@ class ReadingSessionIT {
      * 1 니나 · 2 트레플레프 · 3 니나 · 4 아르카디나 · 5 아르카디나 · 6 트레플레프 · 7 니나 · 8 니나.
      */
     private Script saveScript(String authorization) throws Exception {
+        return saveScript(authorization, List.of("대사 1", "대사 2", "대사 3", "대사 4", "대사 5", "대사 6", "대사 7", "대사 8"));
+    }
+
+    /** 같은 배역 순서에 대사 여덟의 글만 바꾼 대본. */
+    private Script saveScript(String authorization, List<String> texts) throws Exception {
         ObjectNode body = mapper.createObjectNode();
         body.put("request_id", UUID.randomUUID().toString());
         body.put("title", "갈매기");
@@ -710,7 +796,7 @@ class ReadingSessionIT {
         lines.addObject().put("ordinal", 2).put("kind", "direction").putNull("character_index").put("text", "(호숫가)");
         for (int index = 0; index < speakers.length; index++) {
             lines.addObject().put("ordinal", index + 3).put("kind", "dialogue").put("character_index", speakers[index])
-                    .put("text", "대사 " + (index + 1));
+                    .put("text", texts.get(index));
         }
         var response = perform(post("/v2/reading/scripts").contentType(MediaType.APPLICATION_JSON).content(body.toString()), authorization);
         assertThat(response.getStatus()).as(response.getContentAsString()).isEqualTo(201);
@@ -807,6 +893,10 @@ class ReadingSessionIT {
             body.set("line_results", mapper.valueToTree(results));
         }
         return body.toString();
+    }
+
+    private ObjectNode said(UUID line, String said) {
+        return mapper.createObjectNode().put("line_id", line.toString()).put("said", said);
     }
 
     private ObjectNode result(UUID line, String outcome, int misses) {

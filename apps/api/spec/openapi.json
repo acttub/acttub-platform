@@ -971,7 +971,7 @@
       "post" : {
         "tags" : [ "v2-reading" ],
         "summary" : "Upload Line Recording",
-        "description" : "내 대사 한 줄의 녹음을 multipart 한 요청으로 올린다: request_id·line_id·attempt_no·audio(파일)·\nduration_ms·transcript_source(stt·none)·transcript?·matched?. 서버가 m4a(AAC)가 아니면 변환해 저장한다.\n같은 request_id 는 같은 행(200), 같은 줄의 더 큰 attempt_no 는 대체(201), 더 작은 번호는 200 현재 값.\n10,000,000바이트·180초 초과 422 recording_too_long, 소리가 들어 있을 수 없는 파일(저장할 m4a 1,000바이트 미만) 422 recording_empty, 총량(회원 1GB·게스트 100MB) 초과 422 recording_quota,\n구간 밖·상대역·지문 줄 422 invalid_line, 지워진 회차 404, 변환 실패 503 audio_conversion_failed.\ncompleted 회차에도 받는다.",
+        "description" : "내 대사 한 줄의 녹음을 multipart 한 요청으로 올린다: request_id·line_id·attempt_no·audio(파일)·\nduration_ms·transcript_source(stt·none)·transcript?·matched?. 서버가 m4a(AAC)가 아니면 변환해 저장한다.\nmatched 는 서버가 transcript 를 그 줄 원문과 비교해 정한다(보낸 matched 는 받기만 한다).\n같은 request_id 는 같은 행(200), 같은 줄의 더 큰 attempt_no 는 대체(201), 더 작은 번호는 200 현재 값.\n10,000,000바이트·180초 초과 422 recording_too_long, 소리가 들어 있을 수 없는 파일(저장할 m4a 1,000바이트 미만) 422 recording_empty, 총량(회원 1GB·게스트 100MB) 초과 422 recording_quota,\n구간 밖·상대역·지문 줄 422 invalid_line, 지워진 회차 404, 변환 실패 503 audio_conversion_failed.\ncompleted 회차에도 받는다.",
         "operationId" : "upload_reading_recording_v2_reading_sessions__session_id__recordings_post",
         "parameters" : [ {
           "name" : "session_id",
@@ -2799,7 +2799,7 @@
       "patch" : {
         "tags" : [ "v2-reading" ],
         "summary" : "Save Reading Progress",
-        "description" : "진행 위치·흐른 시간·줄 결과를 저장한다. progress_seq 가 저장된 값보다 클 때만 반영하고, 작거나 같으면\n무시하고 200 으로 현재 값을 돌려준다. 위치와 줄 결과는 구간 안 대사 줄만 받는다(아니면 422 invalid_line).\n시간은 줄지 않는다. complete=true 면 completed 가 되고 ended_at 이 찍히며 current_line_id 는 null 이다.\ncompleted 회차에는 409 session_closed.",
+        "description" : "진행 위치·흐른 시간·줄 결과를 저장한다. progress_seq 가 저장된 값보다 클 때만 반영하고, 작거나 같으면\n무시하고 200 으로 현재 값을 돌려준다. 위치와 줄 결과는 구간 안 대사 줄만 받는다(아니면 422 invalid_line).\n시간은 줄지 않는다. complete=true 면 completed 가 되고 ended_at 이 찍히며 current_line_id 는 null 이다.\ncompleted 회차에는 409 session_closed. 줄 결과에 said 를 실으면 서버가 원문과 비교해 outcome·misses 를\n정한다(통과 passed·0, 미달 unmatched·1, 무발화·1,000자 초과는 남기지 않음). said 가 없으면 outcome·misses 가\n필수다. different_lines 는 원문과 다르게 말한 대사의 현재 값이다.",
         "operationId" : "save_reading_progress_v2_reading_sessions__session_id__progress_patch",
         "parameters" : [ {
           "name" : "session_id",
@@ -5306,7 +5306,7 @@
           "matched" : {
             "anyOf" : [ {
               "type" : "boolean",
-              "description" : "대조 결과. 인식 불가·무발화면 싣지 않는다"
+              "description" : "옛 앱이 보내는 대조 결과. 받기만 하고 서버가 transcript 로 다시 정한다"
             }, {
               "type" : "null"
             } ],
@@ -5785,6 +5785,60 @@
         "enum" : [ "silence", "manual" ],
         "title" : "ReadingAdvance"
       },
+      "ReadingDifferentLine" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "원문과 다르게 말한 대사 하나 — 구간 안에서 결과가 unmatched 인 줄. different_lines 는 줄 순서다",
+        "properties" : {
+          "line_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Line Id"
+          },
+          "dialogue_no" : {
+            "type" : "integer",
+            "description" : "대본 안 대사 번호(1부터)",
+            "title" : "Dialogue No"
+          },
+          "said" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "말한 것(진행 저장의 said). 기기가 said 없이 결과만 보낸 줄은 null 이고 그때 어절에 표시가 없다"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Said"
+          },
+          "different_words" : {
+            "type" : "array",
+            "description" : "원문을 공백으로 나눈 어절 전부, 원문 순서. 사이에 공백 하나를 넣어 이으면 원문이 된다(연속 공백은 하나로)",
+            "items" : {
+              "$ref" : "#/components/schemas/ReadingDifferentWord"
+            },
+            "title" : "Different Words"
+          }
+        },
+        "required" : [ "dialogue_no", "different_words", "line_id", "said" ],
+        "title" : "ReadingDifferentLine"
+      },
+      "ReadingDifferentWord" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "원문 어절 하나. differs 면 그 어절에 말한 것과 맞지 않는 글자가 있다(빠뜨리거나 바꿔 말함). 띄어쓰기·문장부호·괄호 안 지시는 비교하지 않고, 더 말한 것은 어디에도 표시하지 않는다",
+        "properties" : {
+          "text" : {
+            "type" : "string",
+            "description" : "원문 그대로(문장부호 포함)",
+            "title" : "Text"
+          },
+          "differs" : {
+            "type" : "boolean",
+            "title" : "Differs"
+          }
+        },
+        "required" : [ "differs", "text" ],
+        "title" : "ReadingDifferentWord"
+      },
       "ReadingLineResult" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -5934,9 +5988,16 @@
               "$ref" : "#/components/schemas/ReadingSessionRecording"
             },
             "title" : "Recordings"
+          },
+          "different_lines" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ReadingDifferentLine"
+            },
+            "title" : "Different Lines"
           }
         },
-        "required" : [ "advance", "current_line_id", "elapsed_seconds", "end_line_id", "ended_at", "id", "line_results", "mode", "my_character_ids", "my_character_names", "my_dialogue_count", "ordinal", "progress", "progress_seq", "range", "range_name", "record", "recorded_line_count", "recordings", "script_id", "start_line_id", "started_at", "status" ],
+        "required" : [ "advance", "current_line_id", "different_lines", "elapsed_seconds", "end_line_id", "ended_at", "id", "line_results", "mode", "my_character_ids", "my_character_names", "my_dialogue_count", "ordinal", "progress", "progress_seq", "range", "range_name", "record", "recorded_line_count", "recordings", "script_id", "start_line_id", "started_at", "status" ],
         "title" : "ReadingSession"
       },
       "ReadingSessionProgressCount" : {
@@ -7985,14 +8046,33 @@
             "title" : "Line Id"
           },
           "outcome" : {
-            "$ref" : "#/components/schemas/ReadingLineOutcomeInput"
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/ReadingLineOutcomeInput",
+              "description" : "said 가 없을 때 필수"
+            }, {
+              "type" : "null"
+            } ]
           },
           "misses" : {
-            "type" : "integer",
+            "anyOf" : [ {
+              "type" : "integer",
+              "description" : "said 가 없을 때 필수"
+            }, {
+              "type" : "null"
+            } ],
             "title" : "Misses"
+          },
+          "said" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "기기 음성 인식이 그 줄에서 받아 적은 말. 무발화·1,000자 초과면 결과를 남기지 않는다"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Said"
           }
         },
-        "required" : [ "line_id", "misses", "outcome" ],
+        "required" : [ "line_id" ],
         "title" : "ReadingLineResultInput"
       },
       "ReadingSessionProgressRequest" : {
@@ -8066,9 +8146,16 @@
           },
           "status" : {
             "$ref" : "#/components/schemas/ReadingSessionStatus"
+          },
+          "different_lines" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ReadingDifferentLine"
+            },
+            "title" : "Different Lines"
           }
         },
-        "required" : [ "current_line_id", "elapsed_seconds", "progress_seq", "status" ],
+        "required" : [ "current_line_id", "different_lines", "elapsed_seconds", "progress_seq", "status" ],
         "title" : "ReadingSessionProgress"
       },
       "ReadingScriptCharacterPatch" : {

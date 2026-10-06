@@ -107,6 +107,10 @@ class ReadingLayoutTest {
         assertThat(layout.rangeName(1, 5).kind()).as("대사 다섯이 전체").isEqualTo("all");
         assertThat(layout.progress(1, 5, id(4))).as("넷째 줄이 3번 대사").isEqualTo(new Progress(2, 5));
         assertThat(layout.progress(1, 5, id(7))).as("여덟째 줄이 4번 대사").isEqualTo(new Progress(3, 5));
+        assertThat(layout.dialogueNo(id(4))).as("다르게 말한 대사의 번호도 같은 수").isEqualTo(3);
+        assertThat(layout.dialogueNo(id(8))).isEqualTo(5);
+        assertThat(layout.dialogueNo(id(0))).as("장면 줄").isNull();
+        assertThat(layout.dialogueNo(UUID.randomUUID())).as("다른 대본의 줄").isNull();
     }
 
     @Test
