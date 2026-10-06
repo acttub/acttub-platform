@@ -37,6 +37,7 @@ There is no restriction on using the Service even if the user does not provide t
 - Service usage records, access logs, and device information
 - Cookie-based identifiers and visit records for web usage analysis (Google Analytics)
 - Records of actions performed within the Service, and screen recordings that preserve usage screens in a replayable form (Amplitude)
+- Screen and action records in the mobile app, and the member identification number of members who have completed sign-up (Google Analytics for Firebase)
 - Error logs automatically recorded when an error occurs (Sentry)
 - Ad performance measurement data in the mobile app: app install and launch records, sign-up completion and practice analysis completion records, device information and IP address, advertising identifier (on iOS, only if the user allows "App Tracking"), information about the ad that led to the install, and the member identification number (Airbridge, Meta)
 - First acquisition source of the signed-up account: in the app, the channel, campaign, ad set, and creative names of the ad that led to the install; on the web, the campaign parameters in the visited address (utm values). Advertising identifiers are not stored with the account.
@@ -63,6 +64,6 @@ Users may refuse this consent. However, Sections 1 and 2 above concern informati
 - Contact: acttub0527@gmail.com
 
 **Revision History**
-- **v6** — Added ad performance measurement data in the mobile app (Airbridge, Meta) and the first acquisition source of the signed-up account to the collected items and purposes (Section 4), and added the first acquisition source to the items destroyed upon withdrawal (Section 5).
+- **v6** — Added screen and action records in the mobile app (Google Analytics for Firebase), ad performance measurement data in the mobile app (Airbridge, Meta) and the first acquisition source of the signed-up account to the collected items and purposes (Section 4), and added the first acquisition source to the items destroyed upon withdrawal (Section 5).
 - **v5** — Changed the nature of the document from "Privacy Policy" to **"Consent to the Collection and Use of Personal Information."** Separated the Privacy Policy out as a notice document not subject to consent. Added the six required profile items and the reason each is used for coaching (Section 2); Kakao and Naver login (Section 1); the scope of destruction and pseudonymization upon withdrawal and retention of a hashed identifier (Section 5); and the prohibition on sign-up by anyone under 14 years of age (Section 6).
 - v1–v4 — Published under the name "Privacy Policy."
