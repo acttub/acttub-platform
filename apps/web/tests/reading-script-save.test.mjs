@@ -35,8 +35,8 @@ function scriptDetail() {
     source: "paste",
     // 서버가 순서를 섞어 줘도 order·ordinal 로 세운다.
     characters: [
-      { id: "c-2", name: "태오", order: 1, voice_preset: null, dialogue_count: 2 },
-      { id: "c-1", name: "윤서", order: 0, voice_preset: null, dialogue_count: 2 },
+      { id: "c-2", name: "태오", order: 1, voice_preset: null, voice: "M1", dialogue_count: 2 },
+      { id: "c-1", name: "윤서", order: 0, voice_preset: null, voice: "F1", dialogue_count: 2 },
     ],
     lines: [
       { id: "l-2", ordinal: 2, kind: "dialogue", character_id: "c-1", text: "여기 있을 줄 알았어.", dialogue_no: 1 },
@@ -70,7 +70,10 @@ test("reading.script: 서버가 돌려준 대본은 배역 순서·줄 순서대
   assert.equal(stored.id, "script-1");
   assert.equal(stored.title, "옥상, 밤");
   assert.deepEqual(stored.roles, ["윤서", "태오"]);
-  assert.deepEqual(stored.characters, [{ id: "c-1", name: "윤서", voicePreset: null }, { id: "c-2", name: "태오", voicePreset: null }]);
+  assert.deepEqual(stored.characters, [
+    { id: "c-1", name: "윤서", voicePreset: null, voice: "F1" },
+    { id: "c-2", name: "태오", voicePreset: null, voice: "M1" },
+  ]);
   assert.equal(stored.lastSession, null);
   assert.deepEqual(stored.lines, [
     { type: "direction", text: "바람 소리." },
@@ -81,6 +84,13 @@ test("reading.script: 서버가 돌려준 대본은 배역 순서·줄 순서대
     { type: "dialogue", role: "태오", text: "모레." },
   ]);
   assert.deepEqual(stored.lineIds, ["l-1", "l-2", "l-3", "l-4", "l-5", "l-6"]);
+});
+
+test("reading.cast: 서버 voice 가 이 웹이 모르는 값이면 첫 프리셋 F1 로 읽는다", () => {
+  const detail = scriptDetail();
+  detail.characters[0].voice = "M9";
+  detail.characters[1].voice = "M2";
+  assert.deepEqual(toStoredScript(detail).characters.map((c) => c.voice), ["M2", "F1"]);
 });
 
 test("reading.script: 초안을 저장하면 서버 대본이 지금 대본이 되고 초안과 이전 회차·결과는 버려진다", async () => {
