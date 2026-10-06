@@ -85,7 +85,7 @@ class ReadingRecordingIT {
     private static final AtomicInteger ADDRESSES = new AtomicInteger();
     private static final long TRANSFER_GATE = 546_004L;
     private static final OffsetDateTime PUBLISHED = OffsetDateTime.of(2026, 10, 1, 0, 0, 0, 0, ZoneOffset.UTC);
-    private static final byte[] M4A = "m4a-bytes".getBytes(StandardCharsets.UTF_8);
+    private static final byte[] M4A = java.util.Arrays.copyOf("m4a-bytes".getBytes(StandardCharsets.UTF_8), 2048);
     private static String database;
 
     @DynamicPropertySource
@@ -200,13 +200,13 @@ class ReadingRecordingIT {
         storage.failing.add(firstKey);
 
         UUID second = UUID.randomUUID();
-        JsonNode take2 = upload(bearer, session, second, script.dialogue(1), 2, "audio/mp4", "retake".getBytes(StandardCharsets.UTF_8), 1200,
+        JsonNode take2 = upload(bearer, session, second, script.dialogue(1), 2, "audio/mp4", java.util.Arrays.copyOf("retake".getBytes(StandardCharsets.UTF_8), 2100), 1200,
                 "none", null, null, 201);
 
         String secondKey = "reading/" + member + "/" + session + "/" + script.dialogue(1) + "/" + second + ".m4a";
         assertThat(take2.path("id").textValue()).as("행은 하나다").isEqualTo(take1.path("id").textValue());
         assertThat(take2.path("attempt_no").intValue()).isEqualTo(2);
-        assertThat(take2.path("byte_size").longValue()).isEqualTo(6);
+        assertThat(take2.path("byte_size").longValue()).isEqualTo(2100);
         assertThat(take2.path("playback_url").textValue()).endsWith(secondKey);
         assertThat(count("reading_recordings")).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT object_key FROM reading_recordings", String.class)).isEqualTo(secondKey);
@@ -318,6 +318,22 @@ class ReadingRecordingIT {
                 null, null, 201);
         assertThat(limit.path("byte_size").longValue()).isEqualTo(10_000_000L);
         assertThat(limit.path("duration_ms").intValue()).isEqualTo(180_000);
+    }
+
+    @Test
+    @DisplayName("reading.recording: 소리가 들어 있을 수 없는 파일(258바이트 m4a·변환 결과가 빈 파일) — 422 recording_empty, 행·객체 없음")
+    void readingRecording_rejectsEmptyAudio() throws Exception {
+        assertThat(upload(bearer, session, UUID.randomUUID(), script.dialogue(1), 1, "audio/mp4", new byte[258], 2000, "none",
+                null, null, 422)).isEqualTo(mapper.readTree("{\"detail\":\"recording_empty\"}"));
+        ffmpeg.output.set(new byte[258]);
+        try {
+            assertThat(upload(bearer, session, UUID.randomUUID(), script.dialogue(1), 1, "audio/wav", new byte[44], 2000, "stt",
+                    null, null, 422)).isEqualTo(mapper.readTree("{\"detail\":\"recording_empty\"}"));
+        } finally {
+            ffmpeg.output.set(FakeFfmpeg.OUTPUT);
+        }
+        assertThat(count("reading_recordings")).isZero();
+        assertThat(storage.objects).isEmpty();
     }
 
     @Test
@@ -784,8 +800,9 @@ class ReadingRecordingIT {
     }
 
     static final class FakeFfmpeg implements Ffmpeg.CommandRunner {
-        static final byte[] OUTPUT = "converted-m4a".getBytes(StandardCharsets.UTF_8);
+        static final byte[] OUTPUT = java.util.Arrays.copyOf("converted-m4a".getBytes(StandardCharsets.UTF_8), 3000);
         final AtomicBoolean failing = new AtomicBoolean();
+        final java.util.concurrent.atomic.AtomicReference<byte[]> output = new java.util.concurrent.atomic.AtomicReference<>(OUTPUT);
         final List<List<String>> commands = new java.util.concurrent.CopyOnWriteArrayList<>();
 
         @Override
@@ -794,7 +811,7 @@ class ReadingRecordingIT {
             if (failing.get()) {
                 throw new IOException("ffmpeg exited with status 1");
             }
-            Files.write(Path.of(command.getLast()), OUTPUT);
+            Files.write(Path.of(command.getLast()), output.get());
         }
     }
 
