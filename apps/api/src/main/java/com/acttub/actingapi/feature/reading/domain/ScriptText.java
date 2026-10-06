@@ -28,6 +28,11 @@ public final class ScriptText {
         return collapsed.strip();
     }
 
+    /** 보이지 않는 글자(U+200B·U+FEFF)를 뺀 글. 저장되는 대사·지문·제목에 줄 앞의 보이지 않는 글자가 남지 않게. */
+    public static String visible(String text) {
+        return INVISIBLE.matcher(text).replaceAll("");
+    }
+
     /** 정리한 글의 SHA-256(소문자 16진수 64자). {@code scripts.raw_hash}·{@code script_imports.raw_hash} 의 값. */
     public static String hash(String raw) {
         return Hashing.sha256Hex(normalized(raw));

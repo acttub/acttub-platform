@@ -79,12 +79,13 @@ public final class SplitDraft {
         return new ScriptDraft(title(title, modelTitle, lines), rawText, source, characters, draftLines);
     }
 
+    /** 머리를 뗀 본문. 운영 대본 여섯에 있던 줄 앞 U+200B 같은 보이지 않는 글자도 뗀다. */
     private static String body(String text, String header) {
         String stripped = text.stripLeading();
         if (!header.isEmpty() && stripped.startsWith(header)) {
             stripped = stripped.substring(header.length());
         }
-        return stripped.strip();
+        return ScriptText.visible(stripped).strip();
     }
 
     /** 등장인물 소개 줄에 처음 나타나는 순 → 나머지는 대사 많은 순, 같으면 먼저 말한 순. */
@@ -116,7 +117,7 @@ public final class SplitDraft {
     private static String title(String requested, String modelTitle, List<NumberedLine> lines) {
         String title = requested != null && !requested.isBlank() ? requested.strip()
                 : modelTitle != null ? modelTitle
-                : lines.isEmpty() ? "" : lines.getFirst().text().strip();
+                : lines.isEmpty() ? "" : ScriptText.visible(lines.getFirst().text()).strip();
         return title.codePointCount(0, title.length()) <= TITLE_MAX
                 ? title
                 : title.substring(0, title.offsetByCodePoints(0, TITLE_MAX));

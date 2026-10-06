@@ -36,6 +36,8 @@ import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.acttub.actingapi.platform.observability.LlmTokens;
 import com.acttub.actingapi.platform.schema.AiJobKind;
 import com.acttub.actingapi.platform.schema.ScriptImportFailure;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * 대본 글을 뒤에서 배역·대사로 나눠 저장한다 ({@code ai_jobs} 종류 {@code script_split}, reading.script 「나누기 작업」,
@@ -47,6 +49,7 @@ import com.acttub.actingapi.platform.schema.ScriptImportFailure;
  * 대비 경로는 두지 않기로 했다(계획 「정한 것」 1). 사용자가 팝업에서 기다리므로 작업을 다시 큐에 넣지 않는다.
  */
 public class ScriptSplitWorker {
+    private static final Logger LOG = LoggerFactory.getLogger(ScriptSplitWorker.class);
     static final String KIND = AiJobKind.SCRIPT_SPLIT.dbValue();
     /** 가장 긴 대본(4,256줄)이 조각 29개를 동시에 보내 1분 안에 끝났다. 재시도까지 넉넉히. */
     static final Duration LEASE = Duration.ofMinutes(10);
@@ -233,7 +236,14 @@ public class ScriptSplitWorker {
             throw last;
         }
 
+        /** 비용·속도를 셀 수 있게 호출마다 한 줄 남긴다 — 글은 남기지 않는다. */
         private void record(String instructions, String input, GeneratedText generated, Instant startedAt, RuntimeException failure) {
+            Duration took = Duration.between(startedAt, clock.instant());
+            LOG.info("script split call job={} model={} input_tokens={} output_tokens={} took_ms={} error={}", jobId,
+                    generated == null ? ScriptSplitRules.MODEL : generated.model(),
+                    generated == null || generated.usage() == null ? "-" : generated.usage().prompt(),
+                    generated == null || generated.usage() == null ? "-" : generated.usage().completion(),
+                    took.toMillis(), failure == null ? "-" : failure.getClass().getSimpleName());
             telemetry.record(new LlmCall(
                     LlmStep.SCRIPT_SPLIT,
                     jobId,
@@ -244,7 +254,7 @@ public class ScriptSplitWorker {
                     generated == null || generated.usage() == null ? LlmTokens.unknown() : LlmTokens.of(
                             generated.usage().prompt(), generated.usage().completion(), generated.usage().total()),
                     startedAt,
-                    Duration.between(startedAt, clock.instant()),
+                    took,
                     failure == null ? null : failure.getClass().getSimpleName(),
                     LlmCall.metadata("operation_id", jobId.toString())));
         }

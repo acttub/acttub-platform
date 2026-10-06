@@ -1,0 +1,15 @@
+title	불 꺼진 연습실
+characters	수아, 도윤
+scene		S#1. 연습실 / 밤
+direction		텅 빈 연습실. 형광등 하나만 깜빡인다.
+direction		(가방을 내려놓으며)
+dialogue	수아	아직 안 갔네.
+dialogue	도윤	갈 데가 없어서. 그냥 여기가 제일 편해.
+direction		(피식 웃으며)
+dialogue	수아	너 집 있잖아.
+dialogue	도윤	집은 있는데 방이 없어. 동생이 공부한다고 거실까지 차지했거든.
+scene		S#2. 연습실 옥상 / 밤
+direction		바람 소리. 멀리 사이렌.
+dialogue	수아	내일 오디션, 준비 다 했어?
+direction		(한참 말이 없다가)
+dialogue	도윤	모르겠어.

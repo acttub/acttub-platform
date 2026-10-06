@@ -81,6 +81,23 @@ class SplitDraftTest {
     }
 
     @Test
+    @DisplayName("줄 앞의 U+200B·BOM 은 저장되는 글과 제목에 남지 않는다")
+    void invisibleCharactersDoNotSurvive() {
+        String raw = "\uFEFF\u200B반지하 라디오\n\u200B(낡은 라디오에서 잡음이 난다.)\n\u200B하은: 오빠, 그거 고장 난 거 아니야?";
+        Map<Integer, Row> rows = Map.of(
+                2, new Row(2, Kind.DIRECTION, "", ""),
+                3, new Row(3, Kind.DIALOGUE, "하은", "\u200B하은: "));
+
+        ScriptDraft draft = SplitDraft.assemble(null, raw, "paste", NumberedLine.of(raw), rows, List.of());
+
+        assertThat(draft.title()).isEqualTo("반지하 라디오");
+        assertThat(draft.lines()).containsExactly(
+                new ScriptDraft.Line(1, "direction", null, "반지하 라디오"),
+                new ScriptDraft.Line(2, "direction", null, "(낡은 라디오에서 잡음이 난다.)"),
+                new ScriptDraft.Line(3, "dialogue", 0, "오빠, 그거 고장 난 거 아니야?"));
+    }
+
+    @Test
     @DisplayName("배역 이름은 목록으로 바로잡아 저장하고, 모델이 쓴 제목이 없으면 첫 줄이 제목이다. 배역이 없으면 빈 배역 목록이다")
     void fixesNamesAndFallsBackToFirstLineTitle() {
         String raw = "맥베스: 내일, 또 내일.\n맥베س: 그리고 또 내일.";
