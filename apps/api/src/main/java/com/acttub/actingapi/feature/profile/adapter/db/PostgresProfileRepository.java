@@ -930,6 +930,10 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
         entityManager.createNativeQuery("DELETE FROM scripts WHERE user_id=:userId")
                 .setParameter("userId", userId)
                 .executeUpdate();
+        // 나누기 요청은 원문을 들고 있다. 작업 행은 위 ai_jobs 취소가 닫는다.
+        entityManager.createNativeQuery("DELETE FROM script_imports WHERE user_id=:userId")
+                .setParameter("userId", userId)
+                .executeUpdate();
         return cleanups;
     }
 

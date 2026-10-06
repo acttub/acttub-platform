@@ -4,7 +4,7 @@ package com.acttub.actingapi.integration.llm;
 public class OpenAiStatusException extends IllegalStateException {
     private final int status;
 
-    OpenAiStatusException(int status, String message) {
+    public OpenAiStatusException(int status, String message) {
         super(message);
         this.status = status;
     }

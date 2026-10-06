@@ -12,9 +12,9 @@ import org.springframework.util.AntPathMatcher;
  * 막히고, 게스트는 <b>그 기능의 문서만</b> 본다 — 동의를 시작할 때가 아니라 기능을 처음 쓰는 순간에
  * 받기 때문이다. 선택 문서는 게스트에게 묻지 않고 프로필 게이트도 면제한다.
  *
- * <p>리딩의 문서는 둘이다. 서버가 대본·음성을 분석하지 않으므로 AI 분석 동의는 없다(specs/reading, ADR-031). 배역
- * 나누기·상대역 목소리·침묵 감지·글자 대조는 기기에서 하고, 서버가 음성을 건드리는 유일한 일은 웹 녹음의 형식
- * 변환이다.
+ * <p>리딩의 문서는 둘이다. 서버가 음성을 분석하지 않으므로 AI 분석 동의는 없다(specs/reading, ADR-031). 서버가 대본
+ * 글을 나누는 일(reading.script 「나누기 작업」)은 선택 문서 {@code script_split} 이 따로 맡고, 선택 문서는 게스트에게 묻지
+ * 않으므로 여기 들지 않는다 — 그 기능이 403 {@code script_split_consent_required} 로 직접 거른다.
  */
 public enum GuestFeature {
 
