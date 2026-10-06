@@ -25,7 +25,12 @@ public final class ScriptText {
     public static String normalized(String raw) {
         String nfc = Normalizer.normalize(raw == null ? "" : raw, Normalizer.Form.NFC);
         String collapsed = SPACES.matcher(INVISIBLE.matcher(nfc).replaceAll("")).replaceAll(" ");
-        return collapsed.strip();
+        // 공백류는 이미 ' ' 하나로 접혔다. String.strip() 은 U+001C~U+001F 같은 제어 문자도 떼어 SQL 의 btrim(…, ' ') 과 어긋난다.
+        int start = 0;
+        int end = collapsed.length();
+        while (start < end && collapsed.charAt(start) == ' ') start++;
+        while (end > start && collapsed.charAt(end - 1) == ' ') end--;
+        return collapsed.substring(start, end);
     }
 
     /** 보이지 않는 글자(U+200B·U+FEFF)를 뺀 글. 저장되는 대사·지문·제목에 줄 앞의 보이지 않는 글자가 남지 않게. */

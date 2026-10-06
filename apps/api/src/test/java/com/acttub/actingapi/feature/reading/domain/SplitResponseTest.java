@@ -53,6 +53,15 @@ class SplitResponseTest {
     }
 
     @Test
+    @DisplayName("줄 앞 U+200B 를 모델이 떨어뜨리고 머리를 써도 그 줄을 버리지 않는다")
+    void headerComparisonIgnoresInvisibleCharacters() {
+        List<NumberedLine> sent = List.of(new NumberedLine(1, "\u200B윤서: 여기 있을 줄 알았어."));
+        assertThat(SplitResponse.parse("1\td\t윤서\t윤서: ", sent).rows()).containsKey(1);
+        assertThat(SplitResponse.parse("1\td\t윤서\t\u200B윤서: ", sent).rows()).containsKey(1);
+        assertThat(SplitResponse.parse("1\td\t윤서\t태오: ", sent).rows()).isEmpty();
+    }
+
+    @Test
     void rosterStripsBulletsAndTheJudgmentLine() {
         assertThat(SplitResponse.roster("대본\t예\n- 윤서\n2. 태오\n* 로스\n윤서\n\n")).containsExactly("윤서", "태오", "로스");
     }

@@ -76,17 +76,21 @@ public interface ScriptImportRepository {
      * 나눈 대본을 저장하고 요청과 작업을 성공으로 닫는다. 대본은 요청의 request_id 로 만들어 같은 작업이 다시 돌아도 같은
      * 대본이다.
      *
-     * @return 대본 수 한도에 걸렸으면 {@link Completion#SCRIPT_LIMIT}, 그사이 계정이 닫혔으면 {@link Completion#CANCELLED}
+     * 끝난 요청의 원문은 비운다 — 글은 대본에 있고, 같은 글 판정은 해시만 쓴다.
+     *
+     * @return 대본 수 한도에 걸렸으면 {@link Completion#SCRIPT_LIMIT}, 같은 request_id 의 대본이 다른 지문으로 이미 있으면
+     *         {@link Completion#FINGERPRINT_MISMATCH}, 그사이 계정이 닫혔으면 {@link Completion#CANCELLED}
      */
     Completion complete(UUID jobId, UUID leaseToken, UUID importId, ScriptDraft draft, Instant now);
 
     enum Completion {
         SAVED,
         SCRIPT_LIMIT,
+        FINGERPRINT_MISMATCH,
         CANCELLED
     }
 
-    /** 요청과 작업을 실패로 닫는다. */
+    /** 요청과 작업을 실패로 닫고 원문을 비운다. */
     void fail(UUID jobId, UUID leaseToken, UUID importId, ScriptImportFailure failure, Instant now);
 
     /**

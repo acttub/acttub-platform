@@ -10,7 +10,7 @@ import java.util.Map;
  * 모델의 답을 읽는다 (SOMA-593 7-2 6번·7-14). 답은 {@code 줄번호<TAB>종류<TAB>배역<TAB>떼어낼머리} 한 줄씩이고, 첫 호출은
  * 맨 앞에 {@code 대본<TAB>예|아니오} 한 줄을 더 쓴다.
  *
- * <p>버리는 줄: 보낸 적 없는 줄 번호, 여섯 종류 밖, 떼어낼 머리가 그 줄의 시작과 다른 것, 배역이 빈 대사. 버린 줄은 빠진
+ * <p>버리는 줄: 보낸 적 없는 줄 번호, 여섯 종류 밖, 떼어낼 머리가 그 줄의 시작과 다른 것(보이지 않는 글자는 빼고 견준다), 배역이 빈 대사. 버린 줄은 빠진
  * 줄과 같이 다시 묻는다. 판단 줄이 없거나 깨졌으면 대본으로 본다 — 판단 실패가 넣기를 막지 않게.
  *
  * @param rows 받아들인 줄. 번호 → 판정
@@ -107,7 +107,8 @@ public record SplitResponse(Map<Integer, Row> rows, Boolean script, int rejected
         }
         String speaker = fields.length > 2 ? fields[2].strip() : "";
         String header = fields.length > 3 ? fields[3] : "";
-        if (!header.isBlank() && !original.stripLeading().startsWith(header.stripLeading())) {
+        // 줄 앞 U+200B 를 모델이 떨어뜨리고 머리를 써도 그 줄을 버리지 않는다 — 양쪽에서 보이지 않는 글자를 뺀 뒤 견준다.
+        if (!header.isBlank() && !ScriptText.visible(original).stripLeading().startsWith(ScriptText.visible(header).stripLeading())) {
             return null;
         }
         if (kind == Kind.DIALOGUE && speaker.isEmpty()) {

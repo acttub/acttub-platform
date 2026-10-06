@@ -186,7 +186,8 @@ class ReadingSchemaMigrationTest {
                 "\u110B\u1172\u11AB\u1109\u1165: 여기 있을 줄 알았어.",
                 "\u200B윤서:\t여기\u00A0있을\u3000줄 알았어.\r\n\r\n  태오: 어떻게 알았어.  ",
                 "\uFEFF\u2028제1막\u2029\n\u0085윤서: 안녕",
-                "윤서: 여기 있을 줄 알았어.");
+                "윤서: 여기 있을 줄 알았어.",
+                "윤서: 안녕 \u001F ");
         List<UUID> ids = new ArrayList<>();
         for (String text : texts) {
             UUID id = UUID.randomUUID();
@@ -211,7 +212,7 @@ class ReadingSchemaMigrationTest {
                 ids.get(0), ids.get(2))).hasSize(1);
         assertThat(jdbc.queryForList("SELECT DISTINCT raw_hash FROM scripts WHERE id IN (?,?)", String.class,
                 ids.get(1), ids.get(4))).hasSize(1);
-        assertThat(jdbc.queryForList("SELECT DISTINCT raw_hash FROM scripts", String.class)).hasSize(3);
+        assertThat(jdbc.queryForList("SELECT DISTINCT raw_hash FROM scripts", String.class)).hasSize(4);
         // 이 판 앞으로 되돌린 서버는 이 칸을 모른다 — 그 INSERT 도 통한다.
         jdbc.update("""
                 INSERT INTO scripts(id,user_id,title,raw_text,source,request_id,request_fingerprint)

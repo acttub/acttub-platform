@@ -202,8 +202,11 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
             if (created.outcome() == ScriptRepository.Outcome.OVER_LIMIT) {
                 return Completion.SCRIPT_LIMIT;
             }
+            if (created.outcome() == ScriptRepository.Outcome.FINGERPRINT_MISMATCH) {
+                return Completion.FINGERPRINT_MISMATCH;
+            }
             em.createNativeQuery("""
-                    UPDATE script_imports SET script_id=:scriptId,done_lines=total_lines,updated_at=:now WHERE id=:id
+                    UPDATE script_imports SET script_id=:scriptId,done_lines=total_lines,raw_text='',updated_at=:now WHERE id=:id
                     """).setParameter("scriptId", created.scriptId()).setParameter("now", now.atOffset(ZoneOffset.UTC))
                     .setParameter("id", importId).executeUpdate();
             if (!ledger.succeed(jobId, leaseToken, now)) throw new IllegalStateException("script split job was closed: " + jobId);
@@ -215,7 +218,7 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
     public void fail(UUID jobId, UUID leaseToken, UUID importId, ScriptImportFailure failure, Instant now) {
         transaction.executeWithoutResult(status -> {
             em.createNativeQuery("""
-                    UPDATE script_imports SET failure=:failure,updated_at=:now WHERE id=:id AND script_id IS NULL
+                    UPDATE script_imports SET failure=:failure,raw_text='',updated_at=:now WHERE id=:id AND script_id IS NULL
                     """).setParameter("failure", failure.dbValue()).setParameter("now", now.atOffset(ZoneOffset.UTC))
                     .setParameter("id", importId).executeUpdate();
             ledger.fail(jobId, leaseToken, failure.dbValue(), now);
@@ -228,7 +231,7 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
             List<UUID> closed = ledger.failExpired(KIND, now);
             if (closed.isEmpty()) return 0;
             return em.createNativeQuery("""
-                    UPDATE script_imports SET failure='failed',updated_at=:now
+                    UPDATE script_imports SET failure='failed',raw_text='',updated_at=:now
                     WHERE job_id IN (:jobs) AND script_id IS NULL AND failure IS NULL
                     """).setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("jobs", closed).executeUpdate();
         });

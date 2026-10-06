@@ -238,6 +238,7 @@ class ReadingImportIT {
                         "dialogue|아니에요.", "scene|제2막", "dialogue|(한참 보다가) 그래요.", "dialogue|가요.");
         assertThat(jdbc.queryForObject("SELECT status FROM ai_jobs", String.class)).isEqualTo("succeeded");
         assertThat(jdbc.queryForObject("SELECT raw_text FROM scripts", String.class)).isEqualTo(text);
+        assertThat(jdbc.queryForObject("SELECT raw_text FROM script_imports", String.class)).as("끝난 요청의 원문은 비운다").isEmpty();
         assertThat(worker.runOnce(clock.instant())).as("남은 작업이 없다").isFalse();
     }
 
@@ -457,6 +458,7 @@ class ReadingImportIT {
         assertThat(worker.runOnce(clock.instant())).isTrue();
         assertThat(json(get("/v2/reading/imports/{id}", empty), 200).path("failure").textValue()).isEqualTo("no_characters");
         assertThat(count("scripts")).isZero();
+        assertThat(jdbc.queryForList("SELECT raw_text FROM script_imports", String.class)).containsExactly("", "");
         assertThat(jdbc.queryForList("SELECT status FROM ai_jobs ORDER BY created_at", String.class)).containsExactly("failed", "failed");
         assertThat(failures.reports()).isEmpty();
     }
@@ -590,6 +592,23 @@ class ReadingImportIT {
                 .path("detail").textValue()).isEqualTo("script_limit");
         assertThat(count("script_imports")).isZero();
         assertThat(Model.CALLS).isEmpty();
+    }
+
+    @Test
+    @DisplayName("같은 request_id 로 다른 대본을 이미 저장해 둔 기기의 요청은 저장할 수 없어 failed 로 닫힌다")
+    void fingerprintMismatchAtCompletionFails() throws Exception {
+        UUID requestId = UUID.randomUUID();
+        String importId = json(post("/v2/reading/imports").content(request(requestId, null, "니나: 안녕\n트레플레프: 응", "paste")), 202)
+                .path("import_id").textValue();
+        jdbc.update("""
+                INSERT INTO scripts(id,user_id,title,raw_text,raw_hash,source,request_id,request_fingerprint)
+                VALUES (?,?,'다른 대본','다른 원문',repeat('1',64),'paste',?,?)
+                """, UUID.randomUUID(), member, requestId, "e".repeat(64));
+        assertThat(worker.runOnce(clock.instant())).isTrue();
+        JsonNode failed = json(get("/v2/reading/imports/{id}", importId), 200);
+        assertThat(failed.path("status").textValue()).isEqualTo("failed");
+        assertThat(failed.path("failure").textValue()).isEqualTo("failed");
+        assertThat(count("scripts")).isEqualTo(1);
     }
 
     @Test

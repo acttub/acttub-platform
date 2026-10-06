@@ -31,6 +31,8 @@ class ScriptTextTest {
     void normalizedCollapsesEveryWhitespaceRunToOneSpace() {
         assertThat(ScriptText.normalized(" 가　　나\n\n다 ")).isEqualTo("가 나 다");
         assertThat(ScriptText.normalized(null)).isEmpty();
+        // 제어 문자 U+001F 는 공백류가 아니다 — SQL 의 btrim(…, ' ') 처럼 끝에 남긴다.
+        assertThat(ScriptText.normalized("가 \u001F ")).isEqualTo("가 \u001F");
     }
 
     @Test

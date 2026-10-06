@@ -105,6 +105,8 @@ public class ScriptSplitWorker {
             }
             switch (imports.complete(claimed.id(), token, importId, split.draft(), clock.instant())) {
                 case SCRIPT_LIMIT -> imports.fail(claimed.id(), token, importId, ScriptImportFailure.SCRIPT_LIMIT, clock.instant());
+                // 같은 request_id 로 다른 대본을 이미 저장해 둔 기기다 — 저장할 수 없으니 실패로 닫는다.
+                case FINGERPRINT_MISMATCH -> imports.fail(claimed.id(), token, importId, ScriptImportFailure.FAILED, clock.instant());
                 case SAVED, CANCELLED -> { }
             }
         } catch (LeaseOwnershipException lost) {
