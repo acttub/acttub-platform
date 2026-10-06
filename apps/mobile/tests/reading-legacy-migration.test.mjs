@@ -59,6 +59,17 @@ const OLD_TWO = {
 };
 
 /** 옛 대본을 가진 폰과 리딩 API 흉내. */
+/** 새 대본은 목소리가 모두 자동이라 서버 voice 는 배역 순서대로 이 순환이다. */
+const VOICES = ['F1', 'M1', 'F2', 'M2', 'F3', 'M3', 'F4', 'M4', 'F5', 'M5'];
+
+/** 서버 scenes 모양. 이관 테스트는 장면 경계를 보지 않아 첫·마지막 대사를 잇는 장면 하나로 둔다. */
+function oneScene(lines, id) {
+  const dialogues = lines.filter((l) => l.kind === 'dialogue');
+  if (!dialogues.length) return [];
+  const lineId = (l) => `${id}_l${l.ordinal}`;
+  return [{ no: 1, title: null, start_line_id: lineId(dialogues[0]), end_line_id: lineId(dialogues.at(-1)), dialogue_count: dialogues.length }];
+}
+
 function phone({ scripts = [OLD_ONE, OLD_TWO], limitAfter = Infinity, networkDown = false, memorizationFails = false } = {}) {
   const items = new Map([[LEGACY_SCRIPTS_KEY, JSON.stringify(scripts)]]);
   const disk = new Set(scripts.flatMap((s) => s.recordings.map((r) => r.uri)));
@@ -81,7 +92,7 @@ function phone({ scripts = [OLD_ONE, OLD_TWO], limitAfter = Infinity, networkDow
         id,
         title: body.title,
         source: body.source,
-        characters: body.characters.map((c, i) => ({ id: `${id}_c${i}`, name: c.name, order: i, voice_preset: null, dialogue_count: 0 })),
+        characters: body.characters.map((c, i) => ({ id: `${id}_c${i}`, name: c.name, order: i, voice_preset: null, voice: VOICES[i % VOICES.length], dialogue_count: 0 })),
         lines: body.lines.map((l, i) => ({
           id: `${id}_l${l.ordinal}`,
           ordinal: l.ordinal,
@@ -90,6 +101,7 @@ function phone({ scripts = [OLD_ONE, OLD_TWO], limitAfter = Infinity, networkDow
           text: l.text,
           dialogue_no: null,
         })),
+        scenes: oneScene(body.lines, id),
         recording_count: 0,
         open_session_id: null,
         last_session: null,

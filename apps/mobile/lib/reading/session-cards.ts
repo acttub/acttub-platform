@@ -5,19 +5,14 @@
 import type { ScriptLine } from './parse.ts';
 import { latestRecordings } from './recording-plan.ts';
 import { relativeDay } from './script-cards.ts';
-import { dialogueNumbers, rangeName, rangeTitle } from './session-plan.ts';
-import type { SessionCard, SessionDetail, SessionRecording } from './types.ts';
+import { dialogueNumbers } from './session-plan.ts';
+import type { SessionCard, SessionDetail, SessionProgress, SessionRecording } from './types.ts';
 import { translate as t } from '../i18n.ts';
 
 /** "0:41"·"10:05" — 분은 자리 채움 없이. */
 export function shortTime(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-}
-
-/** 회차 구간 이름 — "장면 2"·"대사 5~12번"·"처음부터 끝까지". */
-export function sessionRangeTitle(lines: ScriptLine[], card: Pick<SessionCard, 'range'>): string {
-  return rangeTitle(rangeName(lines, card.range.start_dialogue_no, card.range.end_dialogue_no), t);
 }
 
 function rolesLabel(card: Pick<SessionCard, 'my_character_names'>): string {
@@ -37,29 +32,12 @@ export function sessionDetailMeta(
   return [rolesLabel(card), relativeDay(card.started_at, now), shortTime(card.elapsed_seconds)].join(' · ');
 }
 
-/** "이어서 연습 · K/N줄" — N 은 구간 대사 수, K 는 현재 줄(대사 번호) 앞까지의 대사 수. */
-export function resumeProgress(card: Pick<SessionCard, 'range'>, currentDialogueNo: number | null): { k: number; n: number } {
-  const n = card.range.end_dialogue_no - card.range.start_dialogue_no + 1;
-  const k = currentDialogueNo === null ? 0 : Math.min(n, Math.max(0, currentDialogueNo - card.range.start_dialogue_no));
-  return { k, n };
-}
-
-/** 진행 중 회차의 K/N. 완료 회차는 null. */
-export function sessionProgress(
-  script: { lines: ScriptLine[]; lineIds: string[] },
-  detail: Pick<SessionDetail, 'status' | 'range' | 'current_line_id'>,
-): { k: number; n: number } | null {
-  if (detail.status === 'completed') return null;
-  const index = detail.current_line_id ? script.lineIds.indexOf(detail.current_line_id) : -1;
-  return resumeProgress(detail, index < 0 ? null : dialogueNumbers(script.lines)[index]);
-}
-
 export type SessionChipTone = 'reading' | 'completed';
 
-/** 상태 칩 — 완료(초록) / 진행 중 · K/N(파랑). K/N 을 아직 모르면 "진행 중"만. */
+/** 상태 칩 — 완료(초록) / 진행 중 · K/N(파랑). K/N 이 없으면 "진행 중"만. */
 export function sessionChip(
   status: SessionCard['status'],
-  progress: { k: number; n: number } | null,
+  progress: SessionProgress | null,
 ): { label: string; tone: SessionChipTone } {
   if (status === 'completed') return { label: t('reading.sessionCompleted'), tone: 'completed' };
   return {

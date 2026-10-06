@@ -16,11 +16,10 @@ import {
   sessionChip,
   sessionDetailMeta,
   sessionLines,
-  sessionProgress,
-  sessionRangeTitle,
   shortTime,
   type SessionLine,
 } from '@/lib/reading/session-cards';
+import { rangeTitle } from '@/lib/reading/session-plan';
 import { directionLabel } from '@/lib/reading/session-results';
 import { deleteSession, fetchSession, getCurrent, setCurrentSession } from '@/lib/reading/store';
 import type { SessionDetail, SessionRecording } from '@/lib/reading/types';
@@ -115,7 +114,7 @@ export default function ReadingSession() {
     );
   }
 
-  const progress = sessionProgress(script, detail);
+  const { progress } = detail;
   const chip = sessionChip(detail.status, progress);
   const tone = CHIP_TONE[chip.tone];
   const playable = recorded.filter((r) => r.recording?.playback_url);
@@ -276,7 +275,7 @@ export default function ReadingSession() {
       />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 120 }]}>
         <View style={styles.head}>
-          <Text style={styles.title}>{sessionRangeTitle(script.lines, detail)}</Text>
+          <Text style={styles.title}>{rangeTitle(detail.range_name, t)}</Text>
           <View style={styles.metaRow}>
             <Text style={styles.meta}>{sessionDetailMeta(detail)}</Text>
             <View style={[styles.chip, { backgroundColor: tone.bg }]}>

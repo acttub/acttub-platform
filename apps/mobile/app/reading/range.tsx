@@ -16,12 +16,10 @@ import {
   defaultMyCharacterIds,
   dialogueNumbers,
   rangeError,
-  rangeName,
   rangeOfDialogueNos,
   rangeOfLineIds,
   rangeTitle,
   recentRanges,
-  sceneRanges,
   sceneTitle,
   snapRangeToDialogues,
   startGate,
@@ -64,7 +62,14 @@ export default function ReadingRange() {
   const script = getCurrent();
   const lines = script?.lines ?? NO_LINES;
   const numbers = useMemo(() => dialogueNumbers(lines), [lines]);
-  const scenes = useMemo(() => sceneRanges(lines), [lines]);
+  const scenes = useMemo(
+    () =>
+      script?.scenes.flatMap((scene) => {
+        const range = rangeOfLineIds(script.lineIds, scene.start_line_id, scene.end_line_id);
+        return range ? [{ ...scene, ...range }] : [];
+      }) ?? [],
+    [script],
+  );
   const dialogues = useMemo(() => lines.map((l, i) => ({ l, i })).filter((x) => x.l.type === 'dialogue'), [lines]);
   const cast = script?.characters ?? [];
   const hasHistory = !!script?.lastSession;
@@ -262,7 +267,7 @@ export default function ReadingRange() {
                 return (
                   <Pressable key={card.id} style={[styles.recentRow, active && styles.rowIn]} onPress={() => pickRange(r)}>
                     <Text style={[styles.rowTitle, styles.recentTitle, active && styles.rowTitleOn]} numberOfLines={1}>
-                      {rangeTitle(rangeName(lines, card.range.start_dialogue_no, card.range.end_dialogue_no), t)}
+                      {rangeTitle(card.range_name, t)}
                     </Text>
                     <Text style={styles.recentMeta}>{t('reading.recentMeta', { count, session: `${t('reading.sessionOrdinal', { n: card.ordinal })} · ${relativeDay(card.started_at, Date.now())}` })}</Text>
                     {active && <Feather name="check" size={18} color={palette.blue} />}
@@ -282,7 +287,7 @@ export default function ReadingRange() {
                     <View style={styles.rowBody}>
                       <Text style={styles.rowTitle}>{sceneTitle(s, t)}</Text>
                       <Text style={styles.rowLine} numberOfLines={1}>
-                        {t('reading.dialogueCount', { count: s.dialogueCount })} · {first?.type === 'dialogue' ? `${first.role} ${first.text}` : first?.text}
+                        {t('reading.dialogueCount', { count: s.dialogue_count })} · {first?.type === 'dialogue' ? `${first.role} ${first.text}` : first?.text}
                       </Text>
                     </View>
                     {active && <Feather name="check" size={18} color={palette.blue} />}

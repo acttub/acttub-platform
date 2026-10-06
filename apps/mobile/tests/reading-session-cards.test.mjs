@@ -5,13 +5,10 @@ import {
   differentlySaid,
   isPlaybackExpired,
   practiceAgainParams,
-  resumeProgress,
   sessionCardMeta,
   sessionChip,
   sessionDetailMeta,
   sessionLines,
-  sessionProgress,
-  sessionRangeTitle,
 } from '../lib/reading/session-cards.ts';
 
 const NOW = Date.parse('2026-09-21T12:00:00+09:00');
@@ -19,7 +16,7 @@ const NOW = Date.parse('2026-09-21T12:00:00+09:00');
 const D = (role, text) => ({ type: 'dialogue', role, text });
 const X = (text) => ({ type: 'direction', text });
 
-// 대사 1~6, 지문 하나. 지문 경계 장면은 5개 미만이 합쳐져 장면 하나뿐이다.
+// 대사 1~6, 지문 둘.
 const SCRIPT = {
   lines: [
     X('옥상, 밤.'),
@@ -79,11 +76,6 @@ const detail = (o = {}) => ({
   ...o,
 });
 
-test('reading.session: 연습 기록 줄은 구간 이름을 장면·대사 번호·처음부터 끝까지로 부른다', () => {
-  assert.equal(sessionRangeTitle(SCRIPT.lines, card()), '처음부터 끝까지');
-  assert.equal(sessionRangeTitle(SCRIPT.lines, card({ range: { start_dialogue_no: 2, end_dialogue_no: 4 } })), '대사 2~4번');
-});
-
 test('reading.session: 연습 기록 줄은 "태오 · 녹음 7개 · 4:12", 회차 상세 머리는 "태오 · 어제 · 4:12"', () => {
   assert.equal(sessionCardMeta(card({ recorded_line_count: 7 })), '태오 · 녹음 7개 · 4:12');
   assert.equal(sessionCardMeta(card({ my_character_names: ['윤서', '태오'], recorded_line_count: 0, elapsed_seconds: 210 })), '윤서·태오 · 녹음 0개 · 3:30');
@@ -91,16 +83,9 @@ test('reading.session: 연습 기록 줄은 "태오 · 녹음 7개 · 4:12", 회
   assert.equal(sessionDetailMeta(card({ started_at: '2026-05-25T09:00:00+09:00', elapsed_seconds: 65 }), NOW), '태오 · 5월 25일 · 1:05');
 });
 
-test('reading.session: "이어서 연습 · K/N" — N은 구간 대사 수, K는 현재 줄 앞까지의 대사 수', () => {
-  assert.deepEqual(resumeProgress(card({ range: { start_dialogue_no: 3, end_dialogue_no: 7 } }), 5), { k: 2, n: 5 });
-  assert.deepEqual(resumeProgress(card({ range: { start_dialogue_no: 3, end_dialogue_no: 7 } }), null), { k: 0, n: 5 });
-  assert.deepEqual(sessionProgress(SCRIPT, detail({ status: 'in_progress', current_line_id: 'l4' })), { k: 3, n: 6 });
-  assert.equal(sessionProgress(SCRIPT, detail({ status: 'completed' })), null);
-});
-
 test('reading.session: 상태 칩은 완료(초록)와 진행 중 · K/N(파랑) 둘이다', () => {
   assert.deepEqual(sessionChip('completed', null), { label: '완료', tone: 'completed' });
-  assert.deepEqual(sessionChip('in_progress', { k: 3, n: 7 }), { label: '진행 중 · 3/7', tone: 'reading' });
+  assert.deepEqual(sessionChip('in_progress', { done: 3, total: 7 }), { label: '진행 중 · 3/7', tone: 'reading' });
   assert.deepEqual(sessionChip('in_progress', null), { label: '진행 중', tone: 'reading' });
 });
 
