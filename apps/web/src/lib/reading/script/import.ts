@@ -166,13 +166,26 @@ export async function runImport(
   onProgress: (progress: ImportProgress) => void,
 ): Promise<{ outcome: ImportOutcome; attempt: ImportAttempt }> {
   let current = attempt;
+  const submit = async () => {
+    if (current.input.kind === "file" && current.uploadId === null) {
+      current = { ...current, uploadId: await uploadFile(current.input.file, deps) };
+    }
+    return deps.startImport(requestBody(current), current.requestId);
+  };
   try {
     if (current.input.kind === "file" && current.uploadId === null) {
       const rejected = checkFile(current.input.file);
       if (rejected) return { outcome: rejected, attempt: current };
-      current = { ...current, uploadId: await uploadFile(current.input.file, deps) };
     }
-    const ticket = await deps.startImport(requestBody(current), current.requestId);
+    let ticket: ImportTicket;
+    try {
+      ticket = await submit();
+    } catch (cause) {
+      // 들고 있던 upload_id 가 그새 대본이 됐다. 원본은 대본 하나에만 붙으므로 파일을 새로 올려 한 번 더 맡긴다.
+      if (!(cause instanceof ApiError && cause.code === "script_upload_used")) throw cause;
+      current = { ...current, uploadId: null, requestId: newRequestId() };
+      ticket = await submit();
+    }
     if (ticket.duplicate_script_id) return { outcome: { kind: "duplicate", scriptId: ticket.duplicate_script_id }, attempt: current };
     if (!ticket.import_id) return { outcome: { kind: "failed", message: IMPORT_FAILED_COPY }, attempt: current };
     return { outcome: await waitForImport(ticket.import_id, deps, onProgress), attempt: current };

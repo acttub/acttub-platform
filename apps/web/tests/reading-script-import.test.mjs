@@ -1,5 +1,5 @@
 // reading.script — 대본 넣기 한 번의 흐름: 파일 올리기 세 단계, 나누기 맡기기, 1초 폴링과 120초 기한, 실패 종류,
-// 플래그를 켠 재요청, 동의 뒤 재요청. 서버 호출은 가짜로 바꿔 순서와 실린 값을 본다.
+// 플래그를 켠 재요청, 동의 뒤 재요청, 이미 대본이 된 원본의 다시 올리기. 서버 호출은 가짜로 바꿔 순서와 실린 값을 본다.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -148,6 +148,7 @@ test("reading.script: 서버 오류 코드는 동의(R2.14)·하루 한도(R2.15
       { kind: "failed", message: "대본이 너무 길어요. 원문 100,000자·줄 3,000개·배역 50명까지 저장할 수 있어요." },
     ],
     [file(), at("putUpload", new Error("S3 PUT failed")), { kind: "failed", message: "네트워크 연결을 확인하고 다시 시도해주세요." }],
+    [file(), at("completeUpload", new ApiError(429, "script_upload_busy", "")), { kind: "failed", message: "잠시 뒤 다시 시도해 주세요." }],
   ];
   for (const [input, overrides, expected] of cases) {
     const { deps } = fakeServer({ overrides });
@@ -253,4 +254,34 @@ test("reading.script: 동의를 저장하지 못하면 다시 맡기지 않고 �
     message: "네트워크 연결을 확인하고 다시 시도해주세요.",
   });
   assert.deepEqual(noDocument.calls, []);
+});
+
+test("reading.script: 들고 있던 upload_id 가 이미 대본이 됐으면(422 script_upload_used) 파일을 새로 올려 새 요청 id 로 한 번 더 맡긴다", async () => {
+  let uploads = 0;
+  let starts = 0;
+  const { deps, calls } = fakeServer({
+    overrides: {
+      createUpload: async (f) => {
+        uploads += 1;
+        calls.push(["createUpload", f.name]);
+        return { upload_id: `upload-${uploads}`, upload_url: "https://s3.example/put", content_type: "application/octet-stream", expires_at: "" };
+      },
+      startImport: async (body, requestId) => {
+        starts += 1;
+        calls.push(["startImport", requestId, body.upload_id]);
+        if (starts === 1) throw new ApiError(422, "script_upload_used", "");
+        return { import_id: "import-1", duplicate_script_id: null };
+      },
+    },
+  });
+  const stale = { ...newAttempt(file()), uploadId: "upload-old" };
+
+  const { outcome, attempt } = await runImport(stale, deps, () => {});
+
+  assert.deepEqual(outcome, { kind: "saved", scriptId: "script-9" });
+  const startCalls = calls.filter((c) => c[0] === "startImport");
+  assert.deepEqual(startCalls.map((c) => c[2]), ["upload-old", "upload-1"]);
+  assert.notEqual(startCalls[1][1], startCalls[0][1]);
+  assert.equal(attempt.uploadId, "upload-1");
+  assert.equal(attempt.requestId, startCalls[1][1]);
 });
