@@ -376,8 +376,12 @@ class PostgresSessionRepository implements SessionRepository {
     }
 
     private ReadingLayout layout(UUID scriptId) {
-        return ReadingLayout.of(NativeTuples.list(entityManager.createNativeQuery(
-                "SELECT id,kind,text FROM script_lines WHERE script_id=:scriptId ORDER BY ordinal", Tuple.class)
+        return ReadingLayout.of(NativeTuples.list(entityManager.createNativeQuery("""
+                SELECT id,kind,CASE WHEN kind='scene' THEN text END AS text
+                FROM script_lines
+                WHERE script_id=:scriptId
+                ORDER BY ordinal
+                """, Tuple.class)
                 .setParameter("scriptId", scriptId)).stream()
                 .map(line -> new ReadingLayout.Line(
                         line.get("id", UUID.class), line.get("kind", String.class), line.get("text", String.class)))

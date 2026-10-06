@@ -2801,7 +2801,7 @@ export interface components {
         ReadingSessionProgressCount: {
             /**
              * Done
-             * @description 지난 대사 수 — 현재 줄의 대사 번호 − 시작 대사 번호. 현재 줄이 대사가 아니면 그 앞 대사의 번호로 센다
+             * @description 지난 대사 수 — 현재 줄(current_line_id, 구간 안 대사 줄)의 대사 번호 − 시작 대사 번호
              */
             done: number;
             /**
