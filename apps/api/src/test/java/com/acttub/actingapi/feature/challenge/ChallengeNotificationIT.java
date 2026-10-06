@@ -239,7 +239,12 @@ class ChallengeNotificationIT {
         response(put("/v2/entries/{id}/like", mine), 200, token(member("낮 팬")));
         jdbc.update("UPDATE push_tokens SET user_id=? WHERE token='ExponentPushToken[me-2]'", other);
         jdbc.update("UPDATE push_tokens SET locale='en' WHERE token='ExponentPushToken[me-1]'");
-        assertThat(pushes.runOnce(clock.instant())).isZero();
+        assertThat(pushes.runOnce(clock.instant())).isEqualTo(1);
+        assertThat(Fakes.SENT).singleElement().satisfies(message -> {
+            assertThat(message.to()).isEqualTo("ExponentPushToken[me-1]");
+            assertThat(message.title()).isEqualTo("Acttub");
+            assertThat(message.body()).isEqualTo("New reactions on your entry");
+        });
 
         clock.advance(Duration.ofHours(1));
         jdbc.update("UPDATE push_tokens SET locale='ko' WHERE token='ExponentPushToken[me-1]'");
