@@ -15,8 +15,12 @@ export const POLL_MS = 1_000;
 /** 앱이 기다리는 끝. 워커가 죽으면 서버는 30분까지 running 이라 그 전에 R2.12 로 끝낸다(68편 실측 최대 36초). */
 export const IMPORT_TIMEOUT_MS = 120_000;
 
-/** 넣을 것 하나. 붙여넣은(쓴) 글이거나, 올려 두고 서버가 글자를 뽑은 파일이다. */
-export type ImportInput = { kind: 'text'; text: string; source: ScriptSource } | { kind: 'file'; uploadId: string };
+export type PickedScriptFile = { uri: string; name: string; size: number };
+
+/** 넣을 것 하나. 붙여넣은(쓴) 글이거나, 올려 둔 파일이다. 파일은 원본이 다시 필요할 때(script_upload_used)를 위해 고른 파일도 든다. */
+export type ImportInput =
+  | { kind: 'text'; text: string; source: ScriptSource }
+  | { kind: 'file'; file: PickedScriptFile; uploadId: string };
 
 /** 같은 입력을 다시 보낼 때 붙이는 것. R2.7 [새로 넣기]·R2.8 [그래도 나누기]. */
 export type ImportFlags = { allowDuplicate?: boolean; skipScriptCheck?: boolean };
@@ -32,6 +36,8 @@ export type ImportStop =
   | { kind: 'no_characters' } // R2.13
   | { kind: 'too_long' } // R2.12
   | { kind: 'script_limit' } // R2.12
+  | { kind: 'busy' } // R2.12, 서버의 읽기 자리가 없다. 올린 파일은 그대로 두고 [다음]에서 다시 읽는다
+  | { kind: 'upload_used' } // 이미 대본이 된 원본. runScriptImport 가 다시 올려 한 번 더 보낸다
   | { kind: 'error'; message: string }; // R2.12 공용
 
 export type ImportResult = { kind: 'saved'; scriptId: string } | ImportStop;
@@ -62,6 +68,8 @@ const STOP_BY_CODE: Record<string, ImportStop> = {
   script_file_unreadable: { kind: 'file_unreadable' },
   script_too_long: { kind: 'too_long' },
   script_limit: { kind: 'script_limit' },
+  script_upload_busy: { kind: 'busy' },
+  script_upload_used: { kind: 'upload_used' },
 };
 
 /** 요청 오류 → 멈춤. 사유 코드가 없는 오류는 요청 계층의 문구 그대로 R2.12 다. */
@@ -125,31 +133,63 @@ function isTransient(error: unknown): boolean {
   return status === null || status === 0 || status === 429 || status >= 500;
 }
 
-export type PickedScriptFile = { uri: string; name: string; size: number };
-
 export type UploadDeps = {
   create: (body: { file_name: string; byte_size: number }) => Promise<ScriptUpload>;
   put: (uploadUrl: string, uri: string, contentType: string) => Promise<void>;
   complete: (uploadId: string) => Promise<void>;
 };
 
+export type UploadResult = { kind: 'uploaded'; uploadId: string } | { kind: 'unread'; uploadId: string } | ImportStop;
+
 /**
  * 고른 파일을 올리고 서버가 글자를 뽑게 한다(올릴 자리 → PUT → 읽기). 50MB 넘는 파일은 올리지 않는다.
- * 형식·글자 문제는 서버가 답한다(R2.4).
+ * 형식·글자 문제는 서버가 답한다(R2.4). 읽기 자리가 없으면(429) 올린 것은 두고 unread 다 — [다음]이 다시 읽는다.
  */
-export async function uploadScriptFile(
-  file: PickedScriptFile,
-  deps: UploadDeps,
-): Promise<{ kind: 'uploaded'; uploadId: string } | ImportStop> {
+export async function uploadScriptFile(file: PickedScriptFile, deps: UploadDeps): Promise<UploadResult> {
   if (isScriptFileTooLarge(file.size)) return { kind: 'file_too_large' };
+  let uploadId: string;
   try {
     const upload = await deps.create({ file_name: file.name, byte_size: file.size });
     await deps.put(upload.upload_url, file.uri, upload.content_type);
-    await deps.complete(upload.upload_id);
-    return { kind: 'uploaded', uploadId: upload.upload_id };
+    uploadId = upload.upload_id;
   } catch (error) {
     return stopOf(error);
   }
+  try {
+    await deps.complete(uploadId);
+    return { kind: 'uploaded', uploadId };
+  } catch (error) {
+    const stop = stopOf(error);
+    return stop.kind === 'busy' ? { kind: 'unread', uploadId } : stop;
+  }
+}
+
+export type ScriptImportDeps = { import: ImportDeps; upload: UploadDeps; newRequestId: () => string };
+
+/**
+ * [다음] 한 번. 파일은 먼저 읽기를 다시 부른다(읽은 원본이면 서버가 바로 204 — 고를 때 읽기 자리가 없던 파일도 여기서 읽힌다).
+ * 원본이 이미 대본이 됐으면(script_upload_used) 고른 파일을 다시 올려 새 upload_id 로 한 번 더 보내고 onUploaded 로 알린다.
+ */
+export async function runScriptImport(
+  input: ImportInput,
+  flags: ImportFlags,
+  deps: ScriptImportDeps,
+  onProgress: (progress: ImportProgress) => void,
+  onUploaded: (uploadId: string) => void,
+): Promise<ImportResult> {
+  if (input.kind === 'text') return runImport(importBody(input, flags, deps.newRequestId()), deps.import, onProgress);
+  try {
+    await deps.upload.complete(input.uploadId);
+  } catch (error) {
+    return stopOf(error);
+  }
+  const result = await runImport(importBody(input, flags, deps.newRequestId()), deps.import, onProgress);
+  if (result.kind !== 'upload_used') return result;
+  const again = await uploadScriptFile(input.file, deps.upload);
+  if (again.kind === 'unread') return { kind: 'busy' };
+  if (again.kind !== 'uploaded') return again;
+  onUploaded(again.uploadId);
+  return runImport(importBody({ ...input, uploadId: again.uploadId }, flags, deps.newRequestId()), deps.import, onProgress);
 }
 
 /** [확인] 하나짜리 알림의 글(R2.4·R2.12·R2.13·R2.15). 동의·중복·대본 아님은 버튼이 다른 팝업이라 null. */
@@ -171,6 +211,10 @@ export function importAlert(stop: ImportStop): { title: string; message: string 
       return { title: t('common.save'), message: t('reading.errorScriptTooLong') };
     case 'script_limit':
       return { title: t('common.save'), message: t('reading.errorScriptLimit') };
+    case 'busy':
+      return { title: t('common.save'), message: t('errors.rateLimited') };
+    case 'upload_used':
+      return { title: t('common.save'), message: t('errors.network') };
     case 'error':
       return { title: t('common.save'), message: stop.message };
   }

@@ -4,15 +4,16 @@
  */
 import { nextTextSource } from './file-input.ts';
 import { SAMPLE_SCRIPT } from './sample.ts';
-import type { ImportInput } from './script-import.ts';
+import type { ImportInput, PickedScriptFile } from './script-import.ts';
 import type { ScriptSource } from './types.ts';
 
 export type ScriptTab = 'file' | 'paste';
 
 export type FileSlot =
   | { kind: 'empty' }
-  | { kind: 'reading'; name: string; size: number }
-  | { kind: 'ready'; name: string; size: number; uploadId: string };
+  | { kind: 'reading'; file: PickedScriptFile }
+  /** 올려 둔 파일. 서버가 아직 못 읽었어도(읽기 자리 없음) 여기 두고 [다음]이 다시 읽는다. */
+  | { kind: 'ready'; file: PickedScriptFile; uploadId: string };
 
 export type ScriptInput = {
   tab: ScriptTab;
@@ -24,8 +25,8 @@ export type ScriptInput = {
 
 export type ScriptInputAction =
   | { type: 'tab'; tab: ScriptTab }
-  | { type: 'fileReading'; name: string; size: number }
-  | { type: 'fileRead'; uploadId: string }
+  | { type: 'fileReading'; file: PickedScriptFile }
+  | { type: 'fileUploaded'; uploadId: string }
   | { type: 'fileFailed' }
   | { type: 'paste'; text: string }
   | { type: 'sample' };
@@ -43,9 +44,9 @@ export function scriptInputReducer(state: ScriptInput, action: ScriptInputAction
     case 'tab':
       return { ...state, tab: action.tab };
     case 'fileReading':
-      return { ...state, file: { kind: 'reading', name: action.name, size: action.size }, triedFile: true };
-    case 'fileRead':
-      return state.file.kind === 'reading' ? { ...state, file: { ...state.file, kind: 'ready', uploadId: action.uploadId } } : state;
+      return { ...state, file: { kind: 'reading', file: action.file }, triedFile: true };
+    case 'fileUploaded':
+      return state.file.kind === 'empty' ? state : { ...state, file: { kind: 'ready', file: state.file.file, uploadId: action.uploadId } };
     case 'fileFailed':
       return { ...state, file: { kind: 'empty' } };
     case 'paste':
@@ -57,7 +58,7 @@ export function scriptInputReducer(state: ScriptInput, action: ScriptInputAction
 
 /** [다음]이 보낼 것. 보고 있는 탭에 보낼 것이 없으면 null(버튼이 꺼진다). */
 export function pendingScript(state: ScriptInput): ImportInput | null {
-  if (state.tab === 'file') return state.file.kind === 'ready' ? { kind: 'file', uploadId: state.file.uploadId } : null;
+  if (state.tab === 'file') return state.file.kind === 'ready' ? { kind: 'file', file: state.file.file, uploadId: state.file.uploadId } : null;
   const text = state.paste.text.trim();
   return text ? { kind: 'text', text, source: state.paste.source ?? 'typed' } : null;
 }

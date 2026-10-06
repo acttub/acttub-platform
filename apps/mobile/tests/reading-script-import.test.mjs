@@ -7,6 +7,7 @@ import {
   importBody,
   retryFlags,
   runImport,
+  runScriptImport,
   scriptSplitDocument,
   uploadScriptFile,
 } from '../lib/reading/script-import.ts';
@@ -126,7 +127,8 @@ test('reading.script(R2.7·R2.8): 같은 글이면 그 대본 id로 멈추고, �
   assert.deepEqual(importBody(TEXT, retryFlags(stop), 'rid-2'), {
     request_id: 'rid-2', allow_duplicate: true, skip_script_check: false, source: 'paste', raw_text: TEXT.text,
   });
-  assert.deepEqual(importBody({ kind: 'file', uploadId: 'up-1' }, retryFlags({ kind: 'not_script' }), 'rid-3'), {
+  const file = { kind: 'file', file: { uri: 'file:///a.pdf', name: 'a.pdf', size: 10 }, uploadId: 'up-1' };
+  assert.deepEqual(importBody(file, retryFlags({ kind: 'not_script' }), 'rid-3'), {
     request_id: 'rid-3', allow_duplicate: false, skip_script_check: true, source: 'file', upload_id: 'up-1',
   });
   assert.equal(retryFlags({ kind: 'daily_limit' }), null);
@@ -229,7 +231,79 @@ test('reading.script(R2.4): 50MB 넘는 파일은 올리지 않고, 서버가 �
   assert.deepEqual(scan.calls, ['create', 'put', 'complete']);
 
   assert.deepEqual(await uploadScriptFile(file, failing('complete', apiError(422, 'script_too_long')).deps), { kind: 'too_long' });
+  assert.deepEqual(await uploadScriptFile(file, failing('complete', apiError(429, 'script_upload_busy')).deps), { kind: 'unread', uploadId: 'up-1' });
+  assert.deepEqual(importAlert({ kind: 'busy' }), { title: '저장', message: '요청이 잠시 몰렸어요. 1분 뒤에 다시 시도해주세요.' });
   const noConsent = failing('create', apiError(403, 'script_split_consent_required'));
   assert.deepEqual(await uploadScriptFile(file, noConsent.deps), { kind: 'consent' });
   assert.deepEqual(noConsent.calls, ['create']);
+});
+
+/** 파일 나누기 서버 흉내: 원본 읽기·올리기·접수를 한 장부에 적는다. used 에 든 upload_id 는 이미 대본이 된 원본이다. */
+function fileServer({ used = [], completeErrors = [] } = {}) {
+  const calls = [];
+  let uploads = 1;
+  const done = { status: 'succeeded', progress: { done_lines: 5, total_lines: 5 }, script_id: 'sc-f', failure: null };
+  const deps = {
+    newRequestId: (() => {
+      let n = 0;
+      return () => `rid-${++n}`;
+    })(),
+    upload: {
+      create: async (body) => {
+        calls.push(['create', body.file_name]);
+        return { upload_id: `up-${++uploads}`, upload_url: 'u', content_type: 'application/octet-stream', expires_at: 'x' };
+      },
+      put: async () => void calls.push(['put']),
+      complete: async (id) => {
+        calls.push(['complete', id]);
+        const error = completeErrors.shift();
+        if (error) throw error;
+      },
+    },
+    import: {
+      start: async (body) => {
+        calls.push(['import', body.upload_id, body.request_id]);
+        if (used.includes(body.upload_id)) throw apiError(422, 'script_upload_used');
+        return { import_id: 'imp-1', duplicate_script_id: null };
+      },
+      get: async (id) => ({ id, ...done }),
+      now: () => 0,
+      sleep: async () => {},
+    },
+  };
+  return { calls, deps };
+}
+
+const PICKED = { uri: 'file:///갈매기.pdf', name: '갈매기 3막.pdf', size: 1000 };
+
+test('reading.script(R2): 파일 [다음]은 원본 읽기를 다시 불러(읽은 원본이면 바로 204) 읽기 자리가 없던 파일도 나눈다', async () => {
+  const { calls, deps } = fileServer();
+  const uploaded = [];
+  const result = await runScriptImport({ kind: 'file', file: PICKED, uploadId: 'up-1' }, {}, deps, () => {}, (id) => uploaded.push(id));
+
+  assert.deepEqual(result, { kind: 'saved', scriptId: 'sc-f' });
+  assert.deepEqual(calls, [['complete', 'up-1'], ['import', 'up-1', 'rid-1']]);
+  assert.deepEqual(uploaded, []);
+
+  const busy = fileServer({ completeErrors: [apiError(429, 'script_upload_busy')] });
+  assert.deepEqual(await runScriptImport({ kind: 'file', file: PICKED, uploadId: 'up-1' }, {}, busy.deps, () => {}, () => {}), { kind: 'busy' });
+  assert.deepEqual(busy.calls, [['complete', 'up-1']], '읽기 자리가 없으면 접수하지 않는다');
+});
+
+test('reading.script(R2): 이미 대본이 된 원본(script_upload_used)이면 고른 파일을 다시 올려 새 upload_id·새 요청 id로 한 번 더 보낸다', async () => {
+  const { calls, deps } = fileServer({ used: ['up-1'] });
+  const uploaded = [];
+
+  const result = await runScriptImport({ kind: 'file', file: PICKED, uploadId: 'up-1' }, { allowDuplicate: true }, deps, () => {}, (id) => uploaded.push(id));
+
+  assert.deepEqual(result, { kind: 'saved', scriptId: 'sc-f' });
+  assert.deepEqual(calls, [
+    ['complete', 'up-1'],
+    ['import', 'up-1', 'rid-1'],
+    ['create', '갈매기 3막.pdf'],
+    ['put'],
+    ['complete', 'up-2'],
+    ['import', 'up-2', 'rid-2'],
+  ]);
+  assert.deepEqual(uploaded, ['up-2']);
 });

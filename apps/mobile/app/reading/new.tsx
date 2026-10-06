@@ -17,18 +17,16 @@ import { TARGET } from '@/lib/spotlight-targets';
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import {
   importAlert,
-  importBody,
   retryFlags,
-  runImport,
+  runScriptImport,
   scriptSplitDocument,
   uploadScriptFile,
-  type ImportDeps,
   type ImportFlags,
   type ImportInput,
   type ImportProgress,
   type ImportStop,
   type PickedScriptFile,
-  type UploadDeps,
+  type ScriptImportDeps,
 } from '@/lib/reading/script-import';
 import {
   formatFileSize,
@@ -56,20 +54,22 @@ const PICKER_TYPES = [
   'application/hwp+zip',
 ];
 
-const IMPORT_DEPS: ImportDeps = {
-  start: (body) => api.importScript(body),
-  get: (id) => api.getScriptImport(id),
-  now: () => Date.now(),
-  sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-};
-
-const UPLOAD_DEPS: UploadDeps = {
-  create: (body) => api.createScriptUpload(body),
-  put: async (url, uri, contentType) => {
-    const upload = await api.startUploadToUrl(url, uri, contentType).result;
-    if (upload.kind !== 'uploaded') throw new Error(t('errors.network'));
+const DEPS: ScriptImportDeps = {
+  import: {
+    start: (body) => api.importScript(body),
+    get: (id) => api.getScriptImport(id),
+    now: () => Date.now(),
+    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   },
-  complete: (id) => api.completeScriptUpload(id),
+  upload: {
+    create: (body) => api.createScriptUpload(body),
+    put: async (url, uri, contentType) => {
+      const upload = await api.startUploadToUrl(url, uri, contentType).result;
+      if (upload.kind !== 'uploaded') throw new Error(t('errors.network'));
+    },
+    complete: (id) => api.completeScriptUpload(id),
+  },
+  newRequestId,
 };
 
 /** 동의 뒤 이어 할 일 — 멈춘 그 요청. 파일은 올리다가, 글은 나누다가 동의를 물었다. */
@@ -126,10 +126,19 @@ export default function ReadingNew() {
 
   const split = async (next: ImportInput, flags: ImportFlags) => {
     setPopup({ kind: 'splitting', progress: null });
-    const result = await runImport(importBody(next, flags, newRequestId()), IMPORT_DEPS, (progress) =>
-      setPopup({ kind: 'splitting', progress }),
+    let input = next;
+    const result = await runScriptImport(
+      next,
+      flags,
+      DEPS,
+      (progress) => setPopup({ kind: 'splitting', progress }),
+      (uploadId) => {
+        if (next.kind === 'file') input = { ...next, uploadId };
+        dispatch({ type: 'fileUploaded', uploadId });
+      },
     );
-    if (result.kind !== 'saved') return showStop(result, { kind: 'import', input: next, flags });
+    if (result.kind === 'file_unreadable' || result.kind === 'file_too_large') dispatch({ type: 'fileFailed' });
+    if (result.kind !== 'saved') return showStop(result, { kind: 'import', input, flags });
     const saved = await loadIntoCurrent(result.scriptId);
     if (!saved) return failWith();
     setPopup(null);
@@ -138,9 +147,13 @@ export default function ReadingNew() {
   };
 
   const upload = async (file: PickedScriptFile) => {
-    dispatch({ type: 'fileReading', name: file.name, size: file.size });
-    const result = await uploadScriptFile(file, UPLOAD_DEPS);
-    if (result.kind === 'uploaded') return dispatch({ type: 'fileRead', uploadId: result.uploadId });
+    dispatch({ type: 'fileReading', file });
+    const result = await uploadScriptFile(file, DEPS.upload);
+    if (result.kind === 'uploaded') return dispatch({ type: 'fileUploaded', uploadId: result.uploadId });
+    if (result.kind === 'unread') {
+      dispatch({ type: 'fileUploaded', uploadId: result.uploadId });
+      return showStop({ kind: 'busy' }, { kind: 'upload', file });
+    }
     dispatch({ type: 'fileFailed' });
     await showStop(result, { kind: 'upload', file });
   };
@@ -201,15 +214,15 @@ export default function ReadingNew() {
                 <ActivityIndicator color={palette.blue} />
                 <Text style={styles.dropTitle}>{t('reading.attachReading')}</Text>
                 <Text style={styles.dropSub} numberOfLines={1}>
-                  {`${input.file.name} · ${formatFileSize(input.file.size)}`}
+                  {`${input.file.file.name} · ${formatFileSize(input.file.file.size)}`}
                 </Text>
               </>
             )}
             {input.file.kind === 'ready' && (
               <>
                 <Feather name="file-text" size={26} color={palette.blue} />
-                <Text style={styles.dropTitle} numberOfLines={1}>{input.file.name}</Text>
-                <Text style={styles.dropSub}>{formatFileSize(input.file.size)}</Text>
+                <Text style={styles.dropTitle} numberOfLines={1}>{input.file.file.name}</Text>
+                <Text style={styles.dropSub}>{formatFileSize(input.file.file.size)}</Text>
                 <View style={styles.replace}>
                   <Feather name="refresh-cw" size={13} color={palette.blueDeep} />
                   <Text style={styles.replaceText}>{t('reading.replaceFile')}</Text>
