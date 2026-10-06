@@ -46,14 +46,19 @@ class PostgresScriptUploadRepository implements ScriptUploadRepository {
 
     @Override
     public Upload find(UUID userId, UUID uploadId) {
-        var rows = list(em.createNativeQuery(
-                "SELECT id,object_key,byte_size,raw_text,script_id FROM script_uploads WHERE id=:id AND user_id=:userId", Tuple.class)
-                .setParameter("id", uploadId).setParameter("userId", userId));
+        // 연결 때 원본 행의 글은 비우므로 연결된 원본의 글은 그 대본의 원문에서 읽는다 — 대본은 이 글로 만들었다.
+        var rows = list(em.createNativeQuery("""
+                SELECT u.id,u.object_key,u.byte_size,COALESCE(u.raw_text,s.raw_text) AS raw_text,u.script_id,
+                       (SELECT i.request_id FROM script_imports i WHERE i.upload_id=u.id AND i.script_id=u.script_id
+                        ORDER BY i.created_at LIMIT 1) AS linked_request_id
+                FROM script_uploads u LEFT JOIN scripts s ON s.id=u.script_id
+                WHERE u.id=:id AND u.user_id=:userId
+                """, Tuple.class).setParameter("id", uploadId).setParameter("userId", userId));
         if (rows.isEmpty()) return null;
         Tuple row = rows.getFirst();
         return new Upload(row.get("id", UUID.class), row.get("object_key", String.class),
                 ((Number) row.get("byte_size")).longValue(), row.get("raw_text", String.class),
-                row.get("script_id", UUID.class) != null);
+                row.get("script_id", UUID.class) != null, row.get("linked_request_id", UUID.class));
     }
 
     @Override

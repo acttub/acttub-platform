@@ -70,7 +70,7 @@ class ScriptUploadServiceTest {
         }
 
         @Override public Upload find(UUID userId, UUID uploadId) {
-            return new Upload(uploadId, "reading-source/" + userId + "/" + uploadId, 10, null, false);
+            return new Upload(uploadId, "reading-source/" + userId + "/" + uploadId, 10, null, false, null);
         }
 
         @Override public void saveText(UUID uploadId, String rawText, Instant now) {

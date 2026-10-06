@@ -18,10 +18,11 @@ public interface ScriptUploadRepository {
     Upload find(UUID userId, UUID uploadId);
 
     /**
-     * @param rawText 뽑은 글. 아직 읽지 않았거나 대본에 연결돼 비웠으면 {@code null}
+     * @param rawText 뽑은 글. 대본에 연결돼 원본 행에서 비웠으면 그 대본의 원문이다(같은 글). 아직 읽지 않았으면 {@code null}
      * @param linked 대본에 연결됐다
+     * @param linkedRequestId 연결한 나누기 요청의 request_id. 연결 전이면 {@code null}
      */
-    record Upload(UUID id, String objectKey, long byteSize, String rawText, boolean linked) {
+    record Upload(UUID id, String objectKey, long byteSize, String rawText, boolean linked, UUID linkedRequestId) {
     }
 
     void saveText(UUID uploadId, String rawText, Instant now);

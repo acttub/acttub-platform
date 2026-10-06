@@ -873,7 +873,10 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   둘 다 Apache-2.0)이고 docx·hwpx 는 zip 안 XML 을 StAX 로 직접 읽는다(DTD·외부 엔티티 끔, 풀린 XML 200MB 상한).
 - 읽기는 트랜잭션 밖에서 객체를 임시 파일로 받아(§5-4) 뽑고 `raw_text` 를 한 문장으로 쓴다. 이미 읽은 행은 다시 받지 않는다.
   크기는 올릴 자리의 서명에 묶여 있고 읽기가 `head` 크기와 다시 견준다. PDF 는 내용 순서로 읽고 내용 캐시를 임시 파일에 둔다.
-- 나누기 접수는 `upload_id` 면 저장된 글을 `raw_text` 로 써서 같은 순서를 탄다. `script_imports.upload_id`(V34)를 함께 적고, 대본을
+- 나누기 접수는 `upload_id` 면 저장된 글을 `raw_text` 로 써서 같은 순서를 탄다. 대본에 연결된 원본은 행의 글을 비웠으므로
+  `PostgresScriptUploadRepository#find` 가 연결된 대본의 `scripts.raw_text` 를 돌려준다(그 글로 만든 대본이라 해시가 같다) — 그래서
+  재전송·같은 글 판정이 글 길과 같다. `allow_duplicate` 이고 연결한 요청(`script_imports.upload_id`·`script_id` 가 같은 행의
+  `request_id`)의 재전송이 아니면 422 `script_upload_used` 다. `script_imports.upload_id`(V34)를 함께 적고, 대본을
   만드는 두 자리(예시 대본의 접수, 워커의 완료)가 같은 트랜잭션에서 `script_uploads.script_id` 를 채우고 뽑은 글(`raw_text`)을 비운다(`linkUpload`).
 - 삭제: 대본 삭제(`PostgresScriptRepository#delete`)와 탈퇴(`PostgresProfileRepository#eraseReading`)가 행을 지우며 객체 키를 같은
   트랜잭션에서 장부 종류 `object_delete` 로 올리고 `next_attempt_at` 은 지운 행의 `expires_at` 최댓값이다(`reading/app/ScriptFileCleanup`,

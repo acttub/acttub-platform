@@ -28,7 +28,7 @@
 |---|---|---|---|
 | `POST /v2/reading/uploads` | `ReadingUploadRequest`(file_name·byte_size) | `ReadingUpload` 201 `{upload_id, upload_url, content_type, expires_at}` — 기기는 `upload_url`에 `Content-Type: content_type`(언제나 `application/octet-stream`)으로 파일을 PUT 한다(15분, 크기는 서명에 묶임) | `script_file_too_large`(50,000,000바이트 초과)·`script_file_unreadable`(확장자가 txt·docx·pdf·hwp·hwpx 밖) 422, `script_split_consent_required` 403, 형태 오류 422 배열(빈 파일 포함), `storage_not_configured` 503 |
 | `POST /v2/reading/uploads/{upload_id}/complete` | `upload_id` | 204 — 서버가 올라온 파일을 받아 글자를 뽑아 둔다. 다시 불러도·대본에 연결된 뒤에도 204(다시 받지 않는다) | `script_upload_not_ready`(아직 다 안 올라옴)·`script_file_unreadable`(글자를 못 뽑음, 받기와 뽑기 45초 초과 포함)·`script_too_long`(뽑은 글 100,000자 초과) 422, `script_upload_busy`(읽기 자리가 10초 안에 안 남) 429, `script_upload_not_found` 404 |
-| `POST /v2/reading/imports` | `ReadingImportRequest`(request_id·title?(200자)·source·allow_duplicate?·skip_script_check?와 raw_text·upload_id 가운데 하나) | `ReadingImportTicket` — 새 작업 202 `{import_id}`, 같은 `request_id` 재전송·같은 글로 진행 중인 작업 200 `{import_id}`, 같은 글의 대본이 이미 있음 200 `{duplicate_script_id}` | `script_split_consent_required` 403, `script_too_long`(원문 100,000자 초과)·`script_limit`·`request_fingerprint_mismatch`·`script_upload_not_ready`(읽기 전)·`script_upload_used`(이미 대본이 된 원본) 422, `script_upload_not_found` 404, `script_split_daily_limit` 429, 형태 오류 422 배열(raw_text·upload_id 둘 다 또는 둘 다 없음 포함), `account_deactivated` 403, 게스트 동의 전 `consent_required` 403 |
+| `POST /v2/reading/imports` | `ReadingImportRequest`(request_id·title?(200자)·source·allow_duplicate?·skip_script_check?와 raw_text·upload_id 가운데 하나) | `ReadingImportTicket` — 새 작업 202 `{import_id}`, 같은 `request_id` 재전송·같은 글로 진행 중인 작업 200 `{import_id}`, 같은 글의 대본이 이미 있음 200 `{duplicate_script_id}` | `script_split_consent_required` 403, `script_too_long`(원문 100,000자 초과)·`script_limit`·`request_fingerprint_mismatch`·`script_upload_not_ready`(읽기 전)·`script_upload_used`(이미 대본이 된 원본으로 `allow_duplicate`) 422, `script_upload_not_found` 404, `script_split_daily_limit` 429, 형태 오류 422 배열(raw_text·upload_id 둘 다 또는 둘 다 없음 포함), `account_deactivated` 403, 게스트 동의 전 `consent_required` 403 |
 | `GET /v2/reading/imports/{import_id}` | `import_id` | `ReadingImport` 200: `status`(pending·running·succeeded·failed), `progress{done_lines,total_lines}`, `script_id`(성공), `failure`(실패: not_script·no_characters·script_too_long·script_limit·failed) | `import_not_found` 404 |
 | `POST /v2/reading/scripts` | `X-Request-Id`(선택, 있으면 본문 `request_id`와 같아야 한다), `ReadingScriptCreateRequest`(request_id·title·source·raw_text·characters·lines). 옛 앱의 기기 나누기 결과 저장, D1에서 걷는다 | `ReadingScript` 201, 같은 요청 재전송 200 | `no_characters`·`invalid_characters`·`script_too_long`·`script_limit`·`request_fingerprint_mismatch` 422, 형태 오류 422 배열, `account_deactivated` 403, 게스트 동의 전 `consent_required` 403 |
 | `GET /v2/reading/scripts` | `q`(선택, 제목·배역 이름) | `ReadingScriptList` 200 | — |
@@ -117,9 +117,11 @@
   원본이 그 대본에 연결되고 뽑은 글은 비운다(글은 대본에 있다), 대본을 지우거나 탈퇴하면 행과 객체를 함께 지운다(객체는 삭제 장부, [영역 표](README.md#리딩-자료의-이관삭제탈퇴)).
   어느 대본에도 연결되지 않은 원본(중복·실패·버림)은 하루 뒤 매시간 도는 정리가 지운다. 진행 중 나누기가 쓰는 원본은 남긴다.
   객체는 행을 지운 뒤 올리기 주소의 시한(15분)이 지나야 장부가 지운다 — 먼저 지우면 그 주소로 다시 올린 객체가 남는다.
-- 원본은 먼저 저장된 대본 하나에만 연결된다. 이미 대본이 된 원본으로 다시 나누면 422 `script_upload_used`이고 앱은 파일을 다시
-  올린다. R2.7 「새로 넣기」는 첫 요청이 중복으로 끝나 원본이 아직 연결 전이라 같은 `upload_id`로 된다. 같은 원본으로 두 요청이
-  동시에 나뉘면 나중 대본에는 원본이 없다.
+- 원본은 먼저 저장된 대본 하나에만 연결된다. 이미 대본이 된 원본으로 다시 나누면 그 대본의 원문으로 글 길과 같은 순서를 타서
+  같은 `request_id`면 그 요청(200), 아니면 같은 글의 대본(200 `duplicate_script_id`, R2.7)이다 — 앱이 응답을 놓치고 같은 파일로
+  [다음]을 다시 눌러도 파일을 다시 올리지 않는다. `allow_duplicate`(R2.7 「새로 넣기」)로 새 대본을 만들려 하면 422
+  `script_upload_used`이고 앱은 파일을 다시 올린다. 첫 요청이 중복으로 끝나 원본이 연결 전이면 「새로 넣기」는 같은 `upload_id`로
+  된다. 같은 원본으로 두 요청이 동시에 나뉘면 나중 대본에는 원본이 없다.
 - 올리기는 나누기와 같은 동의(`script_split`)가 있어야 한다 — 원본 보관도 그 문서가 알린다. 그래서 게스트는 올리지 못한다.
 
 **대본**
@@ -261,7 +263,8 @@
 - raw_text와 upload_id 둘 다·둘 다 없음: 422 배열. 남의 upload_id: 404 script_upload_not_found.
 - 뽑은 글이 내 대본과 같은 파일: 200 duplicate_script_id, 원본은 연결되지 않는다.
 - 대본 삭제: 연결된 원본의 행이 없고, 객체는 올리기 15분이 지난 뒤 장부가 지운다. 탈퇴: 연결 여부와 무관하게 같다.
-- 대본이 된 원본: 읽기 다시 204(받지 않음), `allow_duplicate`로 다시 나누기 422 script_upload_used.
+- 대본이 된 원본: 읽기 다시 204(받지 않음), 새 request_id로 다시 나누기 200 duplicate_script_id(그 대본), 처음 request_id의 재전송
+  200 같은 import_id, `allow_duplicate`로 다시 나누기 422 script_upload_used.
 - 표 칸 하나에 210MB로 풀리는 docx·300,000자 칸의 hwp: TooLong(쌓기 전에 멈춤). 300MB로 풀리는 본문 구역의 hwp: 읽지 못함.
   docx 글상자(mc:AlternateContent): 글이 한 번만 나온다.
 - 받기가 끝나지 않는 저장소: 시간 상한 뒤 422 script_file_unreadable, 그 일이 자리를 쥔 동안 다음 읽기는 429 script_upload_busy.
