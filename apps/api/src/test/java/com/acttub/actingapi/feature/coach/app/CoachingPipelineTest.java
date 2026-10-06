@@ -77,7 +77,7 @@ class CoachingPipelineTest {
         // 기록에는 라우트별 정적 템플릿이 붙는다 — 언어·프로필 지시를 붙이기 전 본문이다(SOMA-585).
         assertThat(telemetry.calls()).extracting(call -> call.prompt().name())
                 .containsExactly("coach.pipeline.classifier", "coach.pipeline." + route.id);
-        assertThat(telemetry.calls().getLast().prompt().text()).isEqualTo(CoachingPipeline.prompt(route, false));
+        assertThat(telemetry.calls().getLast().prompt().text()).isEqualTo(CoachingPipeline.prompt(route, false, false));
     }
 
     @Test void videoOnlyOpeningDoesNotInventAnActorTurn() {
