@@ -9,7 +9,7 @@ import { SCRIPT_ERROR_CODES, type ScriptErrorCode } from './types.ts';
 const MESSAGE_KEY: Record<ScriptErrorCode, string> = {
   script_too_long: 'reading.errorScriptTooLong',
   script_limit: 'reading.errorScriptLimit',
-  no_characters: 'reading.errorNoCharacters',
+  no_characters: 'reading.noCharactersBody',
   invalid_characters: 'reading.errorInvalidCharacters',
   request_fingerprint_mismatch: 'reading.errorFingerprintMismatch',
 };
@@ -30,4 +30,10 @@ export function scriptErrorMessage(error: unknown): string {
   if (code) return t(MESSAGE_KEY[code]);
   if (error instanceof ApiError) return error.message;
   return error instanceof Error && error.message ? error.message : t('errors.generic', { status: '?' });
+}
+
+/** 대본 넣기(R2) 위 저장 실패 알림. 배역을 못 찾았으면 그 알림(R2.13), 나머지는 「저장」 알림(R2.12)이다. */
+export function scriptSaveAlert(error: unknown): { title: string; message: string } {
+  const title = scriptErrorCodeOf(error) === 'no_characters' ? t('reading.noCharactersTitle') : t('common.save');
+  return { title, message: scriptErrorMessage(error) };
 }

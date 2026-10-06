@@ -18,8 +18,7 @@ import type { ScriptLine } from './parse.ts';
 import { createDraft, validateDraft, type ScriptDraft } from './script-draft.ts';
 import type {
   CreateScriptBody,
-  LineMemorization,
-  MemorizationStatus,
+  LineOutcome,
   PatchScriptBody,
   ProgressBody,
   ProgressResponse,
@@ -27,6 +26,7 @@ import type {
   ScriptDetail,
   ScriptLastSession,
   ScriptListResponse,
+  ScriptScene,
   ScriptSource,
   SessionCard,
   SessionDetail,
@@ -45,16 +45,17 @@ export type DevicePrefs = {
 export interface SavedScript extends DevicePrefs {
   id: string;
   title: string;
-  /** 배역 이름(등장 순서). 줄의 role 과 같은 값이다. */
+  /** 배역 이름(대본의 배역 순서). 줄의 role 과 같은 값이다. */
   roles: string[];
   characters: ScriptCharacter[];
   lines: ScriptLine[];
   /** lines 와 같은 순서의 서버 줄 id. 회차·녹음·암기가 이 id 를 가리킨다. */
   lineIds: string[];
+  /** 「장면으로 찾기」 후보(서버가 나눔). */
+  scenes: ScriptScene[];
   dialogueCount: number;
   /** 모든 회차의 녹음 수(서버 집계). */
   recordingCount: number;
-  openSessionId: string | null;
   /** 마지막 회차(그 대본에서 가장 늦게 시작한 회차). 배역 화면의 기본 선택이 이것이다. */
   lastSession: ScriptLastSession | null;
 }
@@ -98,10 +99,6 @@ export type ScriptTransport = {
   saveProgress(sessionId: string, body: ProgressBody): Promise<ProgressResponse>;
   listSessions(scriptId: string): Promise<{ sessions: SessionCard[] }>;
   deleteSession(sessionId: string): Promise<void>;
-  deleteRecording(recordingId: string): Promise<void>;
-  /** 암기 상태(reading.memorization). 조회는 대본 단위, 갱신은 줄 단위. */
-  listMemorization(scriptId: string): Promise<LineMemorization[]>;
-  setMemorization(lineId: string, status: MemorizationStatus): Promise<LineMemorization>;
 };
 
 let transport: ScriptTransport | null = null;
@@ -126,9 +123,6 @@ function server(): ScriptTransport {
     saveProgress: (sessionId, body) => api.saveReadingProgress(sessionId, body),
     listSessions: (scriptId) => api.listReadingSessions(scriptId),
     deleteSession: (sessionId) => api.deleteReadingSession(sessionId),
-    deleteRecording: (recordingId) => api.deleteReadingRecording(recordingId),
-    listMemorization: (scriptId) => api.listLineMemorization(scriptId),
-    setMemorization: (lineId, status) => api.setLineMemorization(lineId, status),
   };
   return transport;
 }
@@ -185,9 +179,9 @@ export function toSavedScript(detail: ScriptDetail, prefs: Partial<DevicePrefs> 
     characters,
     lines: screenLines,
     lineIds: lines.map((l) => l.id),
+    scenes: detail.scenes,
     dialogueCount: screenLines.filter((l) => l.type === 'dialogue').length,
     recordingCount: detail.recording_count,
-    openSessionId: detail.open_session_id,
     lastSession: detail.last_session ?? null,
   };
 }
@@ -200,7 +194,6 @@ export function listScripts(q?: string): Promise<ScriptListResponse> {
 }
 
 let current: SavedScript | null = null;
-let pendingDraft: ScriptDraft | null = null;
 /** 실행 화면이 쓰는 현재 회차(reading.session). 시작·이어하기 때 채우고 실행 화면을 떠나면 비운다. */
 let currentSession: SessionDetail | null = null;
 
@@ -208,11 +201,11 @@ export function getCurrent(): SavedScript | null {
   return current;
 }
 
-/** 메모리의 현재 대본·초안을 비운다. 모듈 변수라 탈퇴로 저장소를 지워도 남기 때문이다. */
+/** 메모리의 현재 대본·회차를 비운다. 모듈 변수라 탈퇴로 저장소를 지워도 남기 때문이다. */
 export function resetReadingState(): void {
   current = null;
-  pendingDraft = null;
   currentSession = null;
+  lastRunReview = null;
 }
 
 export function isMyRole(role: string): boolean {
@@ -245,20 +238,11 @@ export async function updateCurrent(patch: Partial<SavedScript>): Promise<void> 
   await writePrefs(current.id, prefsOf(current));
 }
 
-// ── 초안(확인 화면) ────────────────────────────────────────────────────────────
+// ── 초안(대본 넣기) ────────────────────────────────────────────────────────────
 
 /** 넣은 글로 초안을 만든다. 요청 id 는 여기서 한 번 정해진다. */
 export function newDraft(rawText: string, source: ScriptSource): ScriptDraft {
   return createDraft(rawText, source, newRequestId());
-}
-
-/** 등록 화면이 확인 화면으로 넘기는 초안. 확인 화면을 떠나면 버린다. */
-export function setPendingDraft(draft: ScriptDraft | null): void {
-  pendingDraft = draft;
-}
-
-export function getPendingDraft(): ScriptDraft | null {
-  return pendingDraft;
 }
 
 /**
@@ -269,7 +253,6 @@ export async function saveDraft(draft: ScriptDraft): Promise<SavedScript> {
   const checked = validateDraft(draft);
   if (!checked.ok) throw new Error(checked.code);
   const detail = await server().create(checked.body);
-  pendingDraft = null;
   return openScript(detail);
 }
 
@@ -319,8 +302,8 @@ export function setCurrentSession(session: SessionDetail | null): void {
 }
 
 /**
- * 회차를 시작한다. 요청 id 는 화면이 한 번 만들어 재시도에도 같은 값을 쓴다(같은 회차 하나). 열린 회차가
- * 있으면 서버가 stopped 로 바꾸고 새 회차를 만든다. 시작한 회차가 현재 회차가 된다.
+ * 회차를 시작한다. 요청 id 는 화면이 한 번 만들어 재시도에도 같은 값을 쓴다(같은 회차 하나). 같은 대본의
+ * 진행 중 회차는 그대로 남는다. 시작한 회차가 현재 회차가 된다.
  */
 export async function startSession(scriptId: string, body: StartSessionBody): Promise<SessionDetail> {
   const session = await server().startSession(scriptId, body);
@@ -328,7 +311,6 @@ export async function startSession(scriptId: string, body: StartSessionBody): Pr
   if (current?.id === scriptId) {
     current = {
       ...current,
-      openSessionId: session.status === 'in_progress' ? session.id : current.openSessionId,
       myRoles: current.characters.filter((c) => session.my_character_ids.includes(c.id)).map((c) => c.name),
     };
   }
@@ -357,24 +339,25 @@ export async function listSessions(scriptId: string): Promise<SessionCard[]> {
 export async function deleteSession(sessionId: string): Promise<void> {
   await server().deleteSession(sessionId);
   if (currentSession?.id === sessionId) currentSession = null;
-  if (current?.openSessionId === sessionId) current = { ...current, openSessionId: null };
 }
 
-/** 개별 녹음 삭제. 회차 진행·암기 상태는 그대로다. */
-export async function deleteRecording(recordingId: string): Promise<void> {
-  await server().deleteRecording(recordingId);
+// ── 완료 화면 → 다르게 말한 대사 전체(R9.26) ─────────────────────────────────
+
+/** 완료 화면이 R9.26 에 넘기는 이번 회차의 대조 결과. 구간은 현재 대본의 lines 인덱스, 결과는 줄 id 별이다. */
+export type RunReview = {
+  sessionId: string;
+  startIndex: number;
+  endIndex: number;
+  myRoles: string[];
+  results: Record<string, { outcome: LineOutcome; said: string | null }>;
+};
+
+let lastRunReview: RunReview | null = null;
+
+export function setLastRunReview(review: RunReview | null): void {
+  lastRunReview = review;
 }
 
-/** 그 대본 줄의 암기 상태 행(reading.memorization). 못 읽으면 빈 목록 — 기기 값을 먼저 보여 준다. */
-export async function listMemorization(scriptId: string): Promise<LineMemorization[]> {
-  try {
-    return await server().listMemorization(scriptId);
-  } catch {
-    return [];
-  }
-}
-
-/** 줄 하나의 "외웠어요/아직 헷갈려요". 실패는 호출자(memorization-sync)가 들고 있다가 다시 보낸다. */
-export function setLineMemorization(lineId: string, status: MemorizationStatus): Promise<LineMemorization> {
-  return server().setMemorization(lineId, status);
+export function getLastRunReview(): RunReview | null {
+  return lastRunReview;
 }

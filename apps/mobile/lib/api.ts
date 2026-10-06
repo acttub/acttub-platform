@@ -581,8 +581,8 @@ export const api = {
   },
 
   /**
-   * 회차 시작(reading.session). 열린 회차가 있으면 서버가 같은 트랜잭션에서 stopped 로 바꾸고 새 회차를
-   * 만든다. 같은 request_id 는 같은 회차 하나. 내 배역 없음·남의 배역 422 invalid_characters, 구간 안 내
+   * 회차 시작(reading.session). 같은 대본의 진행 중 회차는 그대로 두고 새 회차를 만든다.
+   * 같은 request_id 는 같은 회차 하나. 내 배역 없음·남의 배역 422 invalid_characters, 구간 안 내
    * 대사 없음·순서 뒤집힘 422 empty_range.
    */
   startReadingSession(scriptId: string, body: StartSessionBody): Promise<SessionDetail> {
@@ -604,7 +604,7 @@ export const api = {
 
   /**
    * 진행 저장. 서버는 progress_seq 가 저장값보다 큰 요청만 반영하고 작거나 같으면 무시하고 현재 값을 200 으로
-   * 돌려준다. completed·stopped 회차는 409 session_closed, 구간 밖·지문 줄은 422 invalid_line.
+   * 돌려준다. completed 회차는 409 session_closed, 구간 밖·지문 줄은 422 invalid_line.
    */
   saveReadingProgress(sessionId: string, body: ProgressBody): Promise<ProgressResponse> {
     return request<ProgressResponse>(
@@ -624,7 +624,7 @@ export const api = {
    * 더 큰 attempt_no 만 같은 줄의 이전 녹음을 대체하고 작은 번호는 200 현재 값이다. 서버가 m4a 가 아니면 변환해
    * 저장하고, 변환 실패는 503 audio_conversion_failed 로 답한다(같은 request_id 로 재시도). 한도는 422
    * recording_too_long·recording_empty·recording_quota, 구간 밖·상대역·지문 줄은 422 invalid_line, 지워진 회차는 404.
-   * 회차의 진행 상태와 분리돼 completed·stopped 회차에도 받는다.
+   * 회차의 진행 상태와 분리돼 completed 회차에도 받는다.
    */
   uploadReadingRecording(
     sessionId: string,
@@ -653,20 +653,6 @@ export const api = {
       `/v2/reading/sessions/${encodeURIComponent(sessionId)}/recordings`,
       { method: 'POST', headers: { 'X-Request-Id': input.request_id }, body: form },
       { timeoutMs: 120_000 },
-    );
-  },
-
-  /** 개별 녹음 삭제. 그 행·객체가 없어지고 회차 진행·암기 상태는 그대로다. */
-  deleteReadingRecording(recordingId: string): Promise<void> {
-    return request<void>(`/v2/reading/recordings/${encodeURIComponent(recordingId)}`, { method: 'DELETE' }, { timeoutMs: 20_000 });
-  },
-
-  /** 그 대본 줄의 암기 상태 행 목록(reading.memorization). 행이 없는 줄은 아직 표시하지 않은 줄이다. */
-  listLineMemorization(scriptId: string): Promise<LineMemorization[]> {
-    return request<LineMemorization[]>(
-      `/v2/reading/scripts/${encodeURIComponent(scriptId)}/memorization`,
-      {},
-      { timeoutMs: 20_000 },
     );
   },
 

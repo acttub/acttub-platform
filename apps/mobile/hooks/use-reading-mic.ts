@@ -21,12 +21,22 @@ export type MicHandle = {
   stop: () => Promise<{ uri: string | null; durationMs: number } | null>;
 };
 
+/** 권한이 없고 다시 물을 수 있으면 OS 팝업으로 묻는다. */
 export async function hasMicPermission(): Promise<boolean> {
   try {
     const current = await getRecordingPermissionsAsync();
     if (current.granted) return true;
     if (!current.canAskAgain) return false;
     return (await requestRecordingPermissionsAsync()).granted;
+  } catch {
+    return false;
+  }
+}
+
+/** 묻지 않고 지금 권한만 본다. */
+export async function micPermissionGranted(): Promise<boolean> {
+  try {
+    return (await getRecordingPermissionsAsync()).granted;
   } catch {
     return false;
   }

@@ -1,13 +1,14 @@
 /**
- * 리딩 실행(R03.1·R03.2, reading.session)의 진행 상태 — 순수 함수. 화면·오디오·서버를 모른다.
+ * 리딩 실행(R9, reading.session)의 진행 상태 — 순수 함수. 화면·오디오·서버를 모른다.
  *
  * 지문·장면은 화면에만 보이고 진행에서 건너뛴다. 진행 "K / N · mm:ss"의 N 은 구간 안 대사 줄 수(모든 배역),
  * K 는 지난 대사 수, 시간은 일시정지를 뺀 흐른 시간이다. 줄별 결과(line_results)는 줄마다 하나이고 마지막
- * 사건이 이긴다. quiz 의 첫 미달은 같은 줄에 머물고("다시·넘어가기"), 2회 미달이면 안내 없이 넘어간다.
+ * 사건이 이긴다. 대조는 흐름에 끼어들지 않는다 — 결과(통과·미달)와 말한 것만 남기고 완료 화면이 쓴다.
  */
 import type { ScriptLine } from './parse.ts';
+import { latestRecordings } from './recording-plan.ts';
 import { dialogueNumbers } from './session-plan.ts';
-import type { LineOutcome, LineResult, ReadingMode } from './types.ts';
+import type { LineOutcome, LineResult, SessionRecording } from './types.ts';
 import type { MaskMode } from './store.ts';
 import { translate as t } from '../i18n.ts';
 
@@ -19,8 +20,10 @@ export type RunConfig = {
   myRoles: string[];
   startIndex: number;
   endIndex: number;
-  mode: ReadingMode;
 };
+
+/** 내 줄 하나의 대조 결과. said 는 말한 것(전사)이고 이어하기로 받은 옛 결과는 null 일 수 있다. */
+export type RunLineResult = { outcome: LineOutcome; misses: number; said: string | null };
 
 export type RunState = RunConfig & {
   /** 현재 줄(lines 인덱스). done 이면 endIndex + 1. */
@@ -29,9 +32,7 @@ export type RunState = RunConfig & {
   /** paused 에서 돌아갈 상태. */
   resumeTo: Exclude<RunStatus, 'paused' | 'done'> | null;
   elapsedMs: number;
-  results: Record<string, { outcome: LineOutcome; misses: number }>;
-  /** quiz 의 첫 미달 — "다시·넘어가기"가 보이는 상태. */
-  pendingMiss: boolean;
+  results: Record<string, RunLineResult>;
   /** 이어하기의 앞 상대 대사 — 이 인덱스 앞까지는 진행 저장을 하지 않는다. */
   leadInUntil: number | null;
 };
@@ -54,7 +55,7 @@ export function createRun(cfg: RunConfig): RunState {
   const start = Math.max(0, cfg.startIndex);
   const end = Math.min(cfg.lines.length - 1, cfg.endIndex);
   const index = nextDialogue(cfg.lines, start, end);
-  const base = { ...cfg, startIndex: start, endIndex: end, resumeTo: null, elapsedMs: 0, results: {}, pendingMiss: false, leadInUntil: null };
+  const base = { ...cfg, startIndex: start, endIndex: end, resumeTo: null, elapsedMs: 0, results: {}, leadInUntil: null };
   if (index < 0) return { ...base, index: end + 1, status: 'done' };
   const run: RunState = { ...base, index, status: 'mine' };
   return { ...run, status: turnOf(run) };
@@ -72,9 +73,9 @@ export function advance(run: RunState, fromIndex?: number): RunState {
   if (run.status === 'done') return run;
   if (fromIndex !== undefined && fromIndex !== run.index) return run;
   const next = nextDialogue(run.lines, run.index + 1, run.endIndex);
-  if (next < 0) return { ...run, index: run.endIndex + 1, status: 'done', resumeTo: null, pendingMiss: false, leadInUntil: null };
+  if (next < 0) return { ...run, index: run.endIndex + 1, status: 'done', resumeTo: null, leadInUntil: null };
   const leadInUntil = run.leadInUntil !== null && next >= run.leadInUntil ? null : run.leadInUntil;
-  const moved: RunState = { ...run, index: next, pendingMiss: false, leadInUntil, resumeTo: null };
+  const moved: RunState = { ...run, index: next, leadInUntil, resumeTo: null };
   return { ...moved, status: turnOf(moved) };
 }
 
@@ -116,43 +117,16 @@ export function formatProgress(run: RunState): string {
   return `${done} / ${total} · ${mmss(run.elapsedMs)}`;
 }
 
-function setResult(run: RunState, outcome: LineOutcome, missesDelta: number): RunState {
+/** 내 줄의 대조 결과를 남긴다. 흐름은 그대로다. 미달은 misses 를 하나 늘린다. */
+export function recordMatch(run: RunState, match: 'pass' | 'miss', said: string): RunState {
+  if (run.status !== 'mine') return run;
   const id = run.lineIds[run.index];
   const prev = run.results[id];
-  const misses = (prev?.misses ?? 0) + missesDelta;
-  return { ...run, results: { ...run.results, [id]: { outcome, misses } } };
+  const misses = (prev?.misses ?? 0) + (match === 'miss' ? 1 : 0);
+  return { ...run, results: { ...run.results, [id]: { outcome: match === 'pass' ? 'passed' : 'unmatched', misses, said } } };
 }
 
-/** quiz 미달. 첫 미달은 같은 줄에 머물고 2회 미달이면 unmatched 로 넘어간다. */
-export function quizMiss(run: RunState): RunState {
-  if (run.status !== 'mine') return run;
-  const marked = setResult(run, 'unmatched', 1);
-  if (!run.pendingMiss) return { ...marked, pendingMiss: true };
-  return advance({ ...marked, pendingMiss: false });
-}
-
-export function quizPass(run: RunState): RunState {
-  if (run.status !== 'mine') return run;
-  return advance(setResult(run, 'passed', 0));
-}
-
-export function quizSkip(run: RunState): RunState {
-  if (run.status !== 'mine') return run;
-  return advance(setResult(run, 'skipped', 0));
-}
-
-/** read 의 대조 미달 — 흐름은 그대로고 결과만 남긴다. */
-export function readMiss(run: RunState): RunState {
-  if (run.status !== 'mine') return run;
-  return setResult(run, 'unmatched', 1);
-}
-
-export function readPass(run: RunState): RunState {
-  if (run.status !== 'mine') return run;
-  return setResult(run, 'passed', 0);
-}
-
-/** 줄 순서로. */
+/** 서버에 보낼 줄별 결과(줄 순서). 말한 것은 녹음 행의 전사로 가므로 여기 넣지 않는다. */
 export function lineResultsOf(run: RunState): LineResult[] {
   return run.lineIds
     .filter((id) => run.results[id])
@@ -160,15 +134,31 @@ export function lineResultsOf(run: RunState): LineResult[] {
 }
 
 /**
- * 가리기 — 현재·이전·다음 대사와 옆 대본 본문에 적용되고 배역 이름·지문·장면은 남긴다. quiz 에서는 내
- * 대사가 언제나 가려진다(일반 가리기보다 우선). "원문 보기"는 그 줄만 잠깐 푼다.
+ * 이어하기 — 서버가 아는 줄별 결과에 녹음의 전사를 붙인다(같은 줄은 가장 큰 attempt_no 가 이긴다). 전사가 없는 줄은
+ * said 가 null 이라 완료 화면이 원문만 보인다.
  */
-export function isHidden(input: { mode: ReadingMode; maskMode: MaskMode; line: ScriptLine; isMine: boolean; revealed?: boolean }): boolean {
+export function resultsFromSession(session: { line_results?: LineResult[] | null; recordings?: Pick<SessionRecording, 'line_id' | 'attempt_no' | 'transcript'>[] | null }): RunState['results'] {
+  const latest = latestRecordings(session.recordings ?? []);
+  const results: RunState['results'] = {};
+  for (const r of session.line_results ?? []) results[r.line_id] = { outcome: r.outcome, misses: r.misses, said: latest.get(r.line_id)?.transcript ?? null };
+  return results;
+}
+
+/** 가리기 — 대사에만 적용되고 배역 이름·지문·장면은 남긴다. */
+export function isHidden(input: { maskMode: MaskMode; line: ScriptLine; isMine: boolean }): boolean {
   if (input.line.type !== 'dialogue') return false;
-  if (input.revealed) return false;
-  if (input.mode === 'quiz' && input.isMine) return true;
   if (input.maskMode === 'all') return true;
   return input.maskMode === 'mine' && input.isMine;
+}
+
+/** 가린 내 지금 줄에 쓰는 보조. 그 줄에만 적용되고 다음 줄로 가면 none 으로 돌아간다. */
+export type LineAid = 'none' | 'first_word' | 'original';
+
+/** 가린 줄에 보여 줄 글. null 이면 아무 글자도 보이지 않는다(막대). first_word 는 첫 어절만 한 번. */
+export function shownText(text: string, hidden: boolean, aid: LineAid): string | null {
+  if (!hidden || aid === 'original') return text;
+  if (aid === 'first_word') return text.trim().split(/\s+/)[0] || null;
+  return null;
 }
 
 /** 이어하기 — current_line 부터 시작하되 그 줄 직전의 상대 대사 하나를 먼저 읽어 흐름을 잡아 준다. */
@@ -182,7 +172,7 @@ export function resumeRun(run: RunState, currentLineId: string): RunState {
     break;
   }
   const index = leadIn >= 0 ? leadIn : at;
-  const next: RunState = { ...run, index, leadInUntil: leadIn >= 0 ? at : null, pendingMiss: false };
+  const next: RunState = { ...run, index, leadInUntil: leadIn >= 0 ? at : null };
   return { ...next, status: turnOf(next) };
 }
 
