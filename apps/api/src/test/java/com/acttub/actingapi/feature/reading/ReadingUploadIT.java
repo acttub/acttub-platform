@@ -28,6 +28,7 @@ import com.acttub.actingapi.feature.auth.app.JwtService;
 import com.acttub.actingapi.feature.profile.app.AccountCleanup;
 import com.acttub.actingapi.feature.reading.app.ScriptSplitWorker;
 import com.acttub.actingapi.feature.reading.app.ScriptUploadService;
+import com.acttub.actingapi.feature.reading.domain.SampleScript;
 import com.acttub.actingapi.integration.llm.GeneratedText;
 import com.acttub.actingapi.integration.llm.GenerationOptions;
 import com.acttub.actingapi.integration.llm.TextGenerator;
@@ -288,6 +289,24 @@ class ReadingUploadIT {
         var foreignRead = perform(post("/v2/reading/uploads/{id}/complete", uploadId), stranger);
         assertThat(foreignRead.getStatus()).isEqualTo(404);
         assertThat(count("script_imports")).isZero();
+    }
+
+    @Test
+    @DisplayName("reading.script 원본: 뽑은 글이 예시 대본이면 나누기 접수는 글 길과 같은 순서(원문 한도 → 예시 → 동의)라 동의를 거둔 뒤에도 "
+            + "모델 없이 바로 succeeded 이고 원본이 그 대본에 연결된다. 올릴 자리는 원본 보관이라 동의가 계속 필요하다")
+    void sampleFileSkipsTheSplitConsent() throws Exception {
+        String uploadId = readFile("예시.txt", "\r\n" + SampleScript.TEXT.replace("\n", "\r\n") + "\r\n");
+        jdbc.update("DELETE FROM user_consents WHERE user_id=? AND document_id=?", member, scriptSplitDocument);
+
+        JsonNode ticket = json(post("/v2/reading/imports").content(fileImport(UUID.randomUUID(), uploadId)), 202, bearer);
+        JsonNode done = json(get("/v2/reading/imports/{id}", ticket.path("import_id").textValue()), 200, bearer);
+        assertThat(done.path("status").textValue()).isEqualTo("succeeded");
+        assertThat(count("ai_jobs")).as("모델을 부르지 않는다").isZero();
+        assertThat(json(get("/v2/reading/scripts/{id}", done.path("script_id").textValue()), 200, bearer).path("title").textValue())
+                .isEqualTo(SampleScript.TITLE);
+        assertThat(jdbc.queryForObject("SELECT script_id FROM script_uploads", String.class)).isEqualTo(done.path("script_id").textValue());
+
+        assertThat(detail(post("/v2/reading/uploads").content(upload("예시.txt", 10)), 403)).isEqualTo("script_split_consent_required");
     }
 
     @Test
