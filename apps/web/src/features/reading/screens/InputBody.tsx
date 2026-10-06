@@ -1,124 +1,61 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { deleteScript, listScripts } from "@/lib/api/v2/reading-scripts";
+import { useRef, useState, type ReactNode } from "react";
+import { deleteScript, getScript, listScripts } from "@/lib/api/v2/reading-scripts";
 import { errorMessage } from "@/lib/api/v2/errors";
 import { hasGuestSession } from "@/lib/auth/token-store";
-import type { ScriptCard, ScriptListResponse } from "@/lib/reading/api-types";
-import { newDraft, resolveDraft, updateDraft, type ScriptDraft } from "@/lib/reading/draft";
-import { ACCEPTED, extractText, FileTooLargeError, OldHwpError, UnsupportedFileError } from "@/lib/reading/script/extract";
+import type { ScriptCard, ScriptDetail, ScriptListResponse } from "@/lib/reading/api-types";
+import { FILE_ACCEPT, type ScriptInput, type TextSource } from "@/lib/reading/script/import";
 import { SAMPLE_SCRIPT } from "@/lib/reading/script/sample";
 import { useResource } from "@/lib/react/use-resource";
 import { activityLabel, COPYRIGHT_NOTICE, listHeadline, myCharactersLabel, statusChip } from "@/features/reading/script-list";
-import { ScriptConfirmPanel } from "@/features/reading/screens/ScriptConfirmPanel";
-import type { ScriptSave } from "@/features/reading/use-script-save";
+import type { ImportDialog, ScriptImporter } from "@/features/reading/use-script-import";
 import { Button, Card, CardTitle, Icon, OptionRow, StatusPill, StepsPill } from "@/features/reading/ui";
 
-type Entry = "paste" | "write" | null;
+type Entry = "file" | "paste" | "write";
 
-export const UNREADABLE_FILE_COPY = "이 파일에서 글자를 읽지 못했어요. 텍스트를 복사해 붙여넣어 주세요.";
 const LIST_FAILED_COPY = "저장한 대본을 불러오지 못했어요.";
 const DELETE_FAILED_COPY = "대본을 지우지 못했어요. 다시 시도해 주세요.";
 
 /**
- * 대본 넣기(D13)의 본문. 파일·붙여넣기·직접 쓰기·예시 가운데 한 길로 대본을 넣으면 기기가 배역과
- * 줄을 나눈다. 폰은 확인 화면(D16)으로 넘기고, 데스크톱은 오른쪽 열에서 확인·저장한다. 아래에는 이
+ * 대본 넣기(D13)의 본문. 파일·붙여넣기·직접 쓰기·예시 가운데 한 길로 대본을 넣고 [다음]을 누르면 서버가 배역과 줄을
+ * 나눠 바로 저장한다. 나누는 동안과 끝난 뒤의 알림은 이 화면 위 대화상자다(R2.4·R2.7·R2.8·R2.11~R2.15). 아래에는 이
  * 게스트가 저장해 둔 최근 대본 목록이 있다(reading.script).
  *
  * 화면 껍데기(Page)는 InputScreen 이 씌운다 — 껍데기가 next/link 를 끌어와 Node 에서 그려 볼 수 없어서,
  * 문구를 보는 테스트(tests/reading-script-screens.test.mjs)는 이 본문만 그린다.
  */
 export function InputBody({
-  initialDraft,
-  save,
-  onConfirm,
+  importer,
   onOpen,
 }: {
-  initialDraft: ScriptDraft | null;
-  /** 데스크톱의 인라인 저장 */
-  save: ScriptSave;
-  /** 폰: 초안을 들고 확인 화면으로 */
-  onConfirm: (draft: ScriptDraft) => void;
-  /** 목록에서 대본을 골랐다 — 대본 상세로 간다 */
+  importer: ScriptImporter;
+  /** 목록이나 중복 알림에서 대본을 골랐다 — 대본 상세로 간다 */
   onOpen: (scriptId: string) => void;
 }) {
-  const [draft, setDraft] = useState<ScriptDraft>(() => initialDraft ?? newDraft("", "typed"));
-  const [entry, setEntry] = useState<Entry>(initialDraft?.raw ? "write" : null);
-  const [busy, setBusy] = useState(false);
-  const [fileError, setFileError] = useState<string | null>(null);
+  const [entry, setEntry] = useState<Entry | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [text, setText] = useState("");
+  const [source, setSource] = useState<TextSource>("typed");
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const hasText = draft.raw.trim().length > 0;
-  const { characters } = resolveDraft(draft);
-  const canConfirm = hasText && characters.some((c) => !c.excluded);
+  const input: ScriptInput | null =
+    entry === "file" ? (file ? { kind: "file", file } : null) : entry && text.trim() ? { kind: "text", text, source } : null;
 
-  /** 새 본문은 새 초안이다 — 이전 본문에서 고친 이름·뺀 배역은 뜻이 없다. */
-  const replaceRaw = (raw: string, source: ScriptDraft["source"]) => setDraft(newDraft(raw, source));
-
-  async function onPickFile(file: File | undefined) {
-    if (!file) return;
-    setBusy(true);
-    setFileError(null);
-    try {
-      const text = await extractText(file);
-      if (!text.trim()) setFileError(UNREADABLE_FILE_COPY);
-      else {
-        replaceRaw(text, "file");
-        setEntry("write");
-      }
-    } catch (e) {
-      if (e instanceof OldHwpError) {
-        setFileError("한글 97 이전 형식이에요. 한글에서 열어 다시 저장하거나 다른 이름으로 저장에서 hwp를 고르면 열려요.");
-      } else if (e instanceof UnsupportedFileError || e instanceof FileTooLargeError) {
-        setFileError(e.message);
-      } else {
-        // 암호 걸린 PDF, 그림만 있는 PDF 등 — 서버에는 아무것도 남지 않는다.
-        setFileError(UNREADABLE_FILE_COPY);
-      }
-    } finally {
-      setBusy(false);
-      if (fileRef.current) fileRef.current.value = "";
-    }
-  }
+  const putText = (next: string, from: TextSource) => {
+    setText(next);
+    setSource(from);
+  };
 
   async function onPaste() {
     setEntry("paste");
     try {
-      const text = await navigator.clipboard.readText();
-      if (text.trim()) replaceRaw(text, "paste");
+      const pasted = await navigator.clipboard.readText();
+      if (pasted.trim()) putText(pasted, "paste");
     } catch {
       /* 권한 없으면 아래 입력칸에 직접 붙여넣는다 */
     }
   }
-
-  const confirmCard = (
-    <Card>
-      <CardTitle title="대본 확인" sub="찾은 배역을 확인하고 저장한 뒤 내 배역을 고릅니다." />
-      {!hasText ? (
-        <div className="rounded-[14px] border border-dashed border-line min-h-[200px] md:min-h-[300px] flex flex-col items-center justify-center gap-2.5 text-center px-6">
-          <span className="w-7 h-7 rounded-full border-2 border-dashed border-ink-5" />
-          <p className="text-[13px] text-ink-4 leading-relaxed">대본을 넣으면 배역과 대사 수가<br />여기에 나타나요.</p>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {/* 데스크톱은 여기서 확인·저장한다. 폰은 확인 화면으로 넘어간다. */}
-          <div className="hidden md:block">
-            <ScriptConfirmPanel draft={draft} onChange={setDraft} />
-          </div>
-          {save.error && <p className="hidden md:block text-[12.5px] text-red">{save.error}</p>}
-          <Button size="lg" className="hidden md:flex" disabled={!canConfirm || save.saving} onClick={() => void save.save(draft)}>
-            {save.saving ? "저장하는 중…" : "저장하고 배역 정하러 가기"}
-          </Button>
-          <p className="md:hidden text-[12.5px] text-ink-sub">
-            배역 {characters.filter((c) => !c.excluded).length}명을 찾았어요. 다음 화면에서 확인하고 저장해요.
-          </p>
-          <Button size="lg" className="md:hidden" disabled={!hasText} onClick={() => onConfirm(draft)}>
-            대본 확인하러 가기
-          </Button>
-        </div>
-      )}
-    </Card>
-  );
 
   return (
     <div className="px-5 pt-5 md:px-0 md:pt-0 flex flex-col gap-4">
@@ -129,56 +66,214 @@ export function InputBody({
       </header>
       <StepsPill states={["on", "off", "off"]} />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
-        <Card>
-          <CardTitle title="대본 넣기" sub="파일을 열거나 복사한 대본을 붙여넣으세요." />
-          <div className="flex flex-col gap-2.5">
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => fileRef.current?.click()}
-              className="rounded-[14px] bg-blue-mist border border-[#cfe0f5] py-5 flex flex-col items-center gap-1 active:bg-blue-soft"
-            >
-              <Icon name="upload" size={22} className="text-blue" />
-              <span className="text-[14px] font-extrabold">{busy ? "읽는 중…" : "파일에서 열기"}</span>
-              <span className="text-[11.5px] text-ink-4">hwp · pdf · docx · txt · 20MB까지</span>
-            </button>
-            <input ref={fileRef} type="file" accept={ACCEPTED} className="hidden" onChange={(e) => onPickFile(e.target.files?.[0])} />
-            {fileError && <p className="text-[12.5px] text-red">{fileError}</p>}
-            <OptionRow icon="clipboard" title="붙여넣기" sub="복사해둔 대본을 바로 넣어요" active={entry === "paste"} onClick={onPaste} />
-            <OptionRow icon="pencil" title="직접 쓰기" sub="빈 칸에서 대본을 입력해요" active={entry === "write"} onClick={() => setEntry("write")} />
-            <OptionRow
-              icon="sparkles"
-              title="예시 대본 불러오기"
-              sub="두 배역의 대사를 바로 펼쳐봐요"
-              onClick={() => {
-                replaceRaw(SAMPLE_SCRIPT, "sample");
-                setEntry("write");
-              }}
-            />
-            {entry && (
-              <textarea
-                value={draft.raw}
-                onChange={(e) => {
-                  // 직접 고친 본문은 typed 다. 예시·파일을 그대로 두면 그 길이 남는다.
-                  const source = draft.source === "sample" || draft.source === "file" ? "typed" : entry === "paste" ? "paste" : "typed";
-                  setDraft(updateDraft({ ...draft, source }, { raw: e.target.value }));
-                }}
-                placeholder={"지수: 오래 기다렸어?\n민준: 아니, 나도 방금 왔어.\n\n(지문은 괄호로)"}
-                spellCheck={false}
-                autoFocus={!draft.raw}
-                className="script-text w-full min-h-[200px] rounded-[14px] bg-surface border border-line p-3.5 text-[14px] leading-relaxed placeholder:text-ink-5 focus:outline-none focus:border-blue resize-y"
-              />
+      <Card>
+        <CardTitle title="대본 넣기" sub="파일로 넣거나 글을 붙여넣으면 화자와 대사를 자동으로 나눠드려요." />
+        <div className="flex flex-col gap-2.5">
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            className={`rounded-[14px] border py-5 flex flex-col items-center gap-1 active:bg-blue-soft ${
+              entry === "file" && file ? "bg-blue-soft border-blue" : "bg-blue-mist border-[#cfe0f5]"
+            }`}
+          >
+            <Icon name="upload" size={22} className="text-blue" />
+            {entry === "file" && file ? (
+              <>
+                <span className="script-text text-[14px] font-extrabold">{file.name}</span>
+                <span className="text-[11.5px] text-ink-4">{fileSizeLabel(file.size)} · 다른 파일로 바꾸기</span>
+              </>
+            ) : (
+              <>
+                <span className="text-[14px] font-extrabold">파일에서 열기</span>
+                <span className="text-[11.5px] text-ink-4">TXT·DOCX·PDF·HWP · 50MB까지</span>
+              </>
             )}
-            <p className="text-[11.5px] text-ink-4 leading-relaxed">배역 찾기는 이 기기 안에서 해요. {COPYRIGHT_NOTICE}</p>
-          </div>
-        </Card>
-        {confirmCard}
-      </div>
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept={FILE_ACCEPT}
+            className="hidden"
+            onChange={(e) => {
+              const picked = e.target.files?.[0];
+              if (picked) {
+                setFile(picked);
+                setEntry("file");
+              }
+              e.target.value = "";
+            }}
+          />
+          <OptionRow icon="clipboard" title="붙여넣기" sub="복사해둔 대본을 바로 넣어요" active={entry === "paste"} onClick={onPaste} />
+          <OptionRow icon="pencil" title="직접 쓰기" sub="빈 칸에서 대본을 입력해요" active={entry === "write"} onClick={() => setEntry("write")} />
+          <OptionRow
+            icon="sparkles"
+            title="예시 대본 불러오기"
+            sub="두 배역의 대사를 바로 펼쳐봐요"
+            onClick={() => {
+              putText(SAMPLE_SCRIPT, "sample");
+              setEntry("write");
+            }}
+          />
+          {(entry === "paste" || entry === "write") && (
+            <textarea
+              value={text}
+              onChange={(e) => putText(e.target.value, entry === "paste" && source !== "sample" ? "paste" : "typed")}
+              placeholder={"지수: 오래 기다렸어?\n민준: 아니, 나도 방금 왔어.\n\n(지문은 괄호로)"}
+              spellCheck={false}
+              autoFocus={!text}
+              className="script-text w-full min-h-[200px] rounded-[14px] bg-surface border border-line p-3.5 text-[14px] leading-relaxed placeholder:text-ink-5 focus:outline-none focus:border-blue resize-y"
+            />
+          )}
+          <Button size="lg" disabled={!input || importer.view.kind === "splitting"} onClick={() => input && importer.start(input)}>
+            다음
+          </Button>
+          <p className="text-[11.5px] text-ink-4 leading-relaxed">{COPYRIGHT_NOTICE}</p>
+        </div>
+      </Card>
 
       <RecentScripts onOpen={onOpen} />
 
-      <p className="text-[11.5px] text-ink-4 pb-6">{COPYRIGHT_NOTICE}</p>
+      <ImportDialogs importer={importer} onOpen={onOpen} />
+    </div>
+  );
+}
+
+function fileSizeLabel(bytes: number): string {
+  return bytes < 1_000_000 ? `${Math.max(1, Math.round(bytes / 1_000))}KB` : `${(bytes / 1_000_000).toFixed(1)}MB`;
+}
+
+/** 확인 하나로 닫는 알림. 문구는 앱 pen 의 R2 장들과 같은 뜻이다. */
+const NOTICE_COPY: Record<Exclude<ImportDialog["kind"], "duplicate" | "not_script" | "consent_required" | "failed">, { title: string; body: string }> = {
+  no_characters: { title: "배역을 찾지 못했어요", body: "대본에 말하는 사람 이름이 있는지 확인하고 다시 넣어 주세요." },
+  daily_limit: { title: "오늘은 대본을 더 넣을 수 없어요", body: "대본은 하루 20번까지 나눌 수 있어요. 내일 다시 넣어 주세요." },
+  split_unavailable: { title: "아직 웹에서는 내 대본을 넣을 수 없어요", body: "예시 대본으로 먼저 해 볼 수 있어요." },
+  file_too_large: { title: "파일을 읽지 못했어요", body: "파일이 너무 커요. 50MB까지 열 수 있어요." },
+  file_unreadable: {
+    title: "파일을 읽지 못했어요",
+    body: "대본을 읽지 못했어요. 스캔한 PDF이거나 지원하지 않는 형식일 수 있어요. 복사해서 붙여넣어 주세요.",
+  },
+};
+
+export function ImportDialogs({ importer, onOpen }: { importer: ScriptImporter; onOpen: (scriptId: string) => void }) {
+  const { view } = importer;
+  if (view.kind === "idle") return null;
+  if (view.kind === "splitting") {
+    const { progress } = view;
+    return (
+      <DialogShell title="대본을 나누고 있어요">
+        <p className="text-[13px] text-ink-sub leading-relaxed">배역과 대사를 찾는 중이에요.</p>
+        {progress && progress.totalLines > 0 && (
+          <p className="text-[13px] font-bold text-blue tabular-nums">
+            {progress.doneLines.toLocaleString("ko-KR")} / {progress.totalLines.toLocaleString("ko-KR")}줄
+          </p>
+        )}
+      </DialogShell>
+    );
+  }
+  const { dialog } = view;
+  const ok = (
+    <Button className="flex-1" onClick={importer.close}>
+      확인
+    </Button>
+  );
+  switch (dialog.kind) {
+    case "duplicate":
+      return (
+        <DialogShell
+          title="이미 넣은 대본이에요"
+          actions={
+            <>
+              <Button variant="secondary" className="flex-1" onClick={() => importer.retry("allowDuplicate")}>
+                새로 넣기
+              </Button>
+              <Button className="flex-1" onClick={() => onOpen(dialog.scriptId)}>
+                그 대본 열기
+              </Button>
+            </>
+          }
+        >
+          <p className="text-[13px] text-ink-sub leading-relaxed">내 대본에 같은 글이 있어요.</p>
+          <DuplicateTitle scriptId={dialog.scriptId} />
+        </DialogShell>
+      );
+    case "not_script":
+      return (
+        <DialogShell
+          title="대본이 아닌 것 같아요"
+          actions={
+            <>
+              <Button variant="secondary" className="flex-1" onClick={() => importer.retry("skipScriptCheck")}>
+                그래도 나누기
+              </Button>
+              <Button className="flex-1" onClick={importer.close}>
+                다시 고르기
+              </Button>
+            </>
+          }
+        >
+          <p className="text-[13px] text-ink-sub leading-relaxed">배역 이름과 대사가 있는 글이 필요해요.</p>
+        </DialogShell>
+      );
+    case "consent_required":
+      return (
+        <DialogShell
+          title="대본을 나누려면 동의가 필요해요"
+          stacked
+          actions={
+            <>
+              <Button onClick={importer.agree}>동의하고 나누기</Button>
+              <Button variant="ghost" onClick={importer.close}>
+                취소
+              </Button>
+            </>
+          }
+        >
+          <p className="text-[13px] text-ink-sub leading-relaxed">동의해야 대본을 넣을 수 있어요.</p>
+          <ul className="flex flex-col gap-1 text-[13px] text-ink-3 leading-relaxed list-disc pl-4">
+            <li>대본 글을 OpenAI로 보내 배역과 대사를 나눠요.</li>
+            <li>넣은 파일은 대본과 함께 보관하고, 대본을 지우면 같이 지워요.</li>
+          </ul>
+          <a href="/terms" target="_blank" rel="noreferrer" className="self-start text-[12.5px] font-semibold text-ink-4 underline underline-offset-2">
+            자세히 보기
+          </a>
+          {dialog.error && (
+            <p role="alert" className="text-[12.5px] text-red">
+              {dialog.error}
+            </p>
+          )}
+        </DialogShell>
+      );
+    case "failed":
+      return (
+        <DialogShell title="저장하지 못했어요" actions={ok}>
+          <p className="text-[13px] text-ink-sub leading-relaxed">{dialog.message}</p>
+        </DialogShell>
+      );
+    default: {
+      const copy = NOTICE_COPY[dialog.kind];
+      return (
+        <DialogShell title={copy.title} actions={ok}>
+          <p className="text-[13px] text-ink-sub leading-relaxed">{copy.body}</p>
+        </DialogShell>
+      );
+    }
+  }
+}
+
+function DuplicateTitle({ scriptId }: { scriptId: string }) {
+  const script = useResource<ScriptDetail>(scriptId, (id, signal) => getScript(id, { signal }), "");
+  if (script.state !== "ready") return null;
+  return <p className="script-text text-[14px] font-black">「{script.data.title}」</p>;
+}
+
+function DialogShell({ title, children, actions, stacked = false }: { title: string; children: ReactNode; actions?: ReactNode; stacked?: boolean }) {
+  return (
+    <div role="dialog" aria-modal="true" aria-label={title} className="fixed inset-0 z-50 bg-black/40 flex items-end md:items-center justify-center p-4">
+      <div className="w-full md:max-w-[420px] bg-surface rounded-[18px] p-5 flex flex-col gap-3">
+        <p className="text-[15px] font-black">{title}</p>
+        {children}
+        {actions && <div className={stacked ? "flex flex-col gap-1" : "flex gap-2"}>{actions}</div>}
+      </div>
     </div>
   );
 }
