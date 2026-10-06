@@ -34,6 +34,8 @@ const modules = {
       if(globalThis.__readingEngineTest.failPresets?.has(preset)) throw new Error('offline');
       return preset;
     }`,
+  '../voice-capability.ts': `const s=globalThis.__readingEngineTest;
+    export async function readAppVoiceSupport(){return s.unsupported ? {unsupported:true,noticed:false} : {unsupported:false};}`,
   './helper.native.js': `const s=globalThis.__readingEngineTest;
     export const loadOnnx=async()=>{ if(s.loadFails) throw new Error('bad model'); return {}; };
     export const loadVoiceStyleFromObjects=styles=>styles[0];
@@ -62,6 +64,7 @@ beforeEach(async () => {
   state.files.clear(); state.players.length=0; state.calls.length=0; state.active=0; state.peak=0; state.gate=null;
   state.failPresets=new Set();
   state.downloads=0; state.downloadGate=null; state.downloadError=null; state.loadFails=false; state.present=false; state.network='wifi';
+  state.unsupported=false;
   await engine.ensureReady();
 });
 
@@ -182,6 +185,14 @@ test('미리 받기: 이미 받아 둔 모델은 미리 불러오지 않고 실�
   state.present=false;
   state.downloadError=new Error('offline');
   await engine.prefetchIfWifi(); // 던지지 않는다
+  assert.equal(engine.isReady(),false);
+});
+
+test('미리 받기: 앱 목소리를 못 쓰는 기기로 표시됐으면 Wi-Fi 여도 받지 않는다', async () => {
+  engine._reset(); state.downloads=0;
+  state.unsupported=true;
+  await engine.prefetchIfWifi();
+  assert.equal(state.downloads,0);
   assert.equal(engine.isReady(),false);
 });
 
