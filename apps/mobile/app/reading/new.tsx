@@ -51,7 +51,11 @@ const PICKER_TYPES = [
   'application/x-hwp',
   'application/haansofthwp',
   'application/vnd.hancom.hwp',
+  'application/vnd.hancom.hwpx',
   'application/hwp+zip',
+  // iOS 는 hwp·hwpx 형식을 모르면(한컴 앱이 없으면) 위 MIME 을 버리고, 안드로이드 파일 앱은 hwp 를 이 값으로 알린다.
+  // 그래서 이 값으로 아무 파일이나 고르게 두고, 받지 않는 확장자는 서버가 거른다(R2.4).
+  'application/octet-stream',
 ];
 
 const DEPS: ScriptImportDeps = {
