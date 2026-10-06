@@ -92,7 +92,7 @@ test('reading.script: 묻다가 연결이 끊겨도 계속 묻고, 없는 작업
   assert.equal(flaky.state.polls, 3);
 
   const gone = fakeServer({ jobs: [apiError(404, 'import_not_found')] });
-  assert.deepEqual(await runImport(importBody(TEXT, {}, 'r'), gone.deps, gone.onProgress), { kind: 'error', message: 'raw import_not_found' });
+  assert.deepEqual(await runImport(importBody(TEXT, {}, 'r'), gone.deps, gone.onProgress), { kind: 'error', message: NETWORK });
   assert.equal(gone.state.polls, 1);
 });
 
@@ -320,4 +320,14 @@ test('reading.script(R2.12): 저장소 PUT 이 실패하면 영상 업로드 문
 
   assert.deepEqual(await uploadScriptFile(file, putFails(new ApiError(403, '영상 업로드에 실패했어요. 네트워크를 확인해주세요.'))), { kind: 'error', message: NETWORK });
   assert.deepEqual(await uploadScriptFile(file, putFails(new Error('The network connection was lost.'))), { kind: 'error', message: NETWORK });
+});
+
+test('reading.script(R2.4): 올린 원본이 없어졌으면(404 script_upload_not_found) 코드 글자 대신 파일 읽기 실패 알림이다', async () => {
+  const gone = fileServer({ completeErrors: [apiError(404, 'script_upload_not_found')] });
+  const stop = await runScriptImport({ kind: 'file', file: PICKED, uploadId: 'up-1' }, {}, gone.deps, () => {}, () => {});
+  assert.deepEqual(stop, { kind: 'file_unreadable' });
+  assert.deepEqual(importAlert(stop), {
+    title: '파일을 읽지 못했어요',
+    message: '대본을 읽지 못했어요. 스캔한 PDF이거나 지원하지 않는 형식일 수 있어요. 복사해서 붙여넣어 주세요.',
+  });
 });

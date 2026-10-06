@@ -70,11 +70,15 @@ const STOP_BY_CODE: Record<string, ImportStop> = {
   script_limit: { kind: 'script_limit' },
   script_upload_busy: { kind: 'busy' },
   script_upload_used: { kind: 'upload_used' },
+  // 404 의 detail 은 코드 글자라 그대로 보이면 안 된다. 원본이 없어졌으면 파일을 다시 고르게, 작업이 없어졌으면 공용 문구.
+  script_upload_not_found: { kind: 'file_unreadable' },
 };
 
 /** 요청 오류 → 멈춤. 사유 코드가 없는 오류는 요청 계층의 문구 그대로 R2.12 다. */
 export function stopOf(error: unknown): ImportStop {
-  return STOP_BY_CODE[errorCode(error) ?? ''] ?? { kind: 'error', message: scriptErrorMessage(error) };
+  const code = errorCode(error) ?? '';
+  if (code === 'import_not_found') return { kind: 'error', message: t('errors.network') };
+  return STOP_BY_CODE[code] ?? { kind: 'error', message: scriptErrorMessage(error) };
 }
 
 const STOP_BY_FAILURE: Record<ScriptImportFailure, () => ImportStop> = {
