@@ -37,6 +37,23 @@ test('reading.cast: 기기 음성 대체는 프리셋마다 정해진 높낮이�
   assert.equal(devicePitchFor('unknown'), 1);
 });
 
+// 아래 기대값은 서버 VoiceAssignmentTest(A1 #508)의 입력·기대값 그대로다. 저장 전 선택이 있어야 shownVoices 가 기기 순환을 탄다.
+const auto = (n) => Array.from({ length: n }, (_, i) => ch(`c${i}`, `배역${i}`, null));
+
+test('reading.cast: 배역 넷에서 둘째를 F3으로 고정하면 F1·F3·M1·F2다(cast.md 검증, 저장 전 선택)', () => {
+  assert.deepEqual(shownVoices(auto(4), { c1: 'F3' }), { c0: 'F1', c1: 'F3', c2: 'M1', c3: 'F2' });
+  assert.equal(autoVoiceOf(auto(4), { c1: 'F3' }, 'c3'), 'F2', '서버 「고정값은 순환에서 빠지니 소린은 셋째(F2) 자리」');
+});
+
+test('reading.cast: 기기 순환은 서버 VoiceAssignment 와 같은 답을 낸다', () => {
+  assert.deepEqual(shownVoices(auto(3), { c0: 'M3' }), { c0: 'M3', c1: 'F1', c2: 'M1' }, '서버 presets(M3, null, null)');
+  const odd = [ch('c0', '니나', 'ELEVEN'), ch('c1', '트레플레프'), ch('c2', '아르카지나')];
+  assert.deepEqual(shownVoices(odd, { c1: 'M2', c2: 'M2' }), { c0: 'F1', c1: 'M2', c2: 'M2' }, '서버 presets(ELEVEN, M2, M2)');
+  const eleven = [...auto(10), ch('c10', '배역10', 'M5')];
+  assert.deepEqual(Object.values(shownVoices(eleven, { c10: null })), ['F1', 'M1', 'F2', 'M2', 'F3', 'M3', 'F4', 'M4', 'F5', 'M5', 'F1'], '서버 자동 열하나');
+  assert.equal(autoVoiceOf(eleven, {}, 'c10'), 'F1', '열한째를 자동으로 돌리면 F1로 돌아간다');
+});
+
 test('reading.cast: 목소리 시트의 「자동 (지금 X)」 — 그 배역을 자동으로 돌리면 받을 목소리', () => {
   assert.equal(autoVoiceOf(SAVED, {}, 'b'), 'M1', '고정값을 풀면 배역 순서 둘째 자리 목소리');
   assert.equal(autoVoiceOf(SAVED, {}, 'c'), 'M1', '이미 자동이면 서버 값');
