@@ -3,7 +3,7 @@
  * ADR-031) 여기에는 서버가 돌려준 대본·회차의 기기 캐시와, 확인 화면까지만 잠시 드는 초안, 완료 화면이
  * 보여 줄 결과가 있다. 모두 sessionStorage 라 탭을 닫으면 사라진다 — 대본·회차는 서버에서 다시 받는다.
  */
-import type { LineResult, ReadingMode, SessionDetail } from "@/lib/reading/api-types";
+import type { DifferentLine, LineResult, ReadingMode, SessionDetail } from "@/lib/reading/api-types";
 import type { ScriptDraft } from "@/lib/reading/draft";
 import type { ScriptLine } from "@/lib/reading/script/parse";
 
@@ -44,8 +44,10 @@ export interface RunStats {
   /** 구간 안 대사 줄 수(모든 배역) — 부분 구간을 대본 전체 완료로 말하지 않는다 */
   lineCount: number;
   myCharacterNames: string[];
-  /** 완료 때의 줄 결과. 다시 볼 대사와 quiz 표기가 여기서 나온다. */
+  /** 완료 때 기기가 정한 줄 결과(quiz). quiz 의 다시 볼 대사와 표기가 여기서 나온다. */
   lineResults: LineResult[];
+  /** read 의 다시 볼 대사 — 완료 응답의 different_lines. 응답을 받지 못했으면 null(완료 화면이 회차 상세에서 다시 읽는다). */
+  differentLines: DifferentLine[] | null;
 }
 
 // 0.1.0 이전의 "rehearsal.script"(서버 저장 전, id 없음)와 키를 달리 해 옛 값을 읽지 않는다.

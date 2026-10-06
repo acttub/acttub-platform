@@ -192,6 +192,19 @@ test("reading.session: 줄 결과는 줄마다 하나이고 마지막 사건이 
   assert.deepEqual(resumed.list(), [{ line_id: "l-1", outcome: "passed", misses: 0 }]);
 });
 
+test("reading.session: read 는 줄 결과에 말한 것만 싣고(비교는 서버) 완료 표기용 결과에는 넣지 않는다", () => {
+  const results = createLineResults();
+  results.say("l-1", "나는 몰랐어");
+  results.say("l-3", "그만해");
+  results.say("l-1", "나는 정말 몰랐어");
+  assert.deepEqual(results.list(), [
+    { line_id: "l-1", said: "나는 정말 몰랐어" },
+    { line_id: "l-3", said: "그만해" },
+  ]);
+  assert.deepEqual(results.outcomes(), []);
+  assert.equal(results.misses("l-1"), 0);
+});
+
 test("reading.session: 완료 표기 — quiz 는 \"맞춘 줄 K / 시도 N · 아직 안 나온 줄 P\"(K=passed, N=passed+unmatched, P=skipped)이고 다시 볼 대사는 unmatched·skipped 줄이다", () => {
   const results = [
     { line_id: "l-1", outcome: "unmatched", misses: 2 },
