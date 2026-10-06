@@ -2,6 +2,8 @@ package com.acttub.actingapi.feature.reading.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Random;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -49,5 +51,44 @@ class LineMatchTest {
     void noSpeech() {
         assertThat(LineMatch.compare("", "여기")).isEqualTo(LineMatch.Result.NO_SPEECH);
         assertThat(LineMatch.compare("   ...", "여기")).isEqualTo(LineMatch.Result.NO_SPEECH);
+    }
+
+    @Test
+    @DisplayName("편집 거리는 표를 채우는 정의와 같다 — 64자 경계를 넘는 여러 블록과 한쪽만 긴 글에서도")
+    void bitParallelDistanceEqualsTheTableDefinition() {
+        assertThat(LineMatch.levenshtein("kitten", "sitting")).isEqualTo(3);
+        assertThat(LineMatch.levenshtein("a".repeat(130), "b" + "a".repeat(128))).isEqualTo(2);
+        Random random = new Random(593);
+        String letters = "ㄱㄴㄷㅏㅓabc";
+        for (int round = 0; round < 2000; round++) {
+            String a = randomText(random, letters, random.nextInt(200));
+            String b = randomText(random, letters, random.nextInt(200));
+            assertThat(LineMatch.levenshtein(a, b)).as(a + " / " + b).isEqualTo(tableDistance(a, b));
+        }
+    }
+
+    private static String randomText(Random random, String letters, int length) {
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < length; i++) {
+            out.append(letters.charAt(random.nextInt(letters.length())));
+        }
+        return out.toString();
+    }
+
+    private static int tableDistance(String a, String b) {
+        int[][] d = new int[a.length() + 1][b.length() + 1];
+        for (int i = 0; i <= a.length(); i++) {
+            d[i][0] = i;
+        }
+        for (int j = 0; j <= b.length(); j++) {
+            d[0][j] = j;
+        }
+        for (int i = 1; i <= a.length(); i++) {
+            for (int j = 1; j <= b.length(); j++) {
+                int substitution = d[i - 1][j - 1] + (a.charAt(i - 1) == b.charAt(j - 1) ? 0 : 1);
+                d[i][j] = Math.min(Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1), substitution);
+            }
+        }
+        return d[a.length()][b.length()];
     }
 }

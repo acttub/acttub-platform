@@ -1,6 +1,9 @@
 package com.acttub.actingapi.feature.reading.domain;
 
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
@@ -73,29 +76,58 @@ public final class LineMatch {
         return out.toString();
     }
 
-    private static int levenshtein(String a, String b) {
+    /**
+     * 편집 거리(UTF-16 단위). 진행 저장 한 번에 300줄 넘게 비교하므로 표를 채우지 않고 비트 병렬(Myers·Hyyrö)로 센다 —
+     * 줄마다 열 하나를 64행씩 한 번에 넘긴다.
+     */
+    static int levenshtein(String a, String b) {
         if (a.isEmpty()) {
             return b.length();
         }
         if (b.isEmpty()) {
             return a.length();
         }
-        int[] previous = new int[b.length() + 1];
-        int[] current = new int[b.length() + 1];
-        for (int j = 0; j <= b.length(); j++) {
-            previous[j] = j;
+        int rows = a.length();
+        int blocks = (rows + 63) / 64;
+        Map<Character, long[]> equal = new HashMap<>();
+        for (int i = 0; i < rows; i++) {
+            equal.computeIfAbsent(a.charAt(i), key -> new long[blocks])[i / 64] |= 1L << (i % 64);
         }
-        for (int i = 1; i <= a.length(); i++) {
-            current[0] = i;
-            char left = a.charAt(i - 1);
-            for (int j = 1; j <= b.length(); j++) {
-                int substitution = previous[j - 1] + (left == b.charAt(j - 1) ? 0 : 1);
-                current[j] = Math.min(Math.min(previous[j] + 1, current[j - 1] + 1), substitution);
+        long[] plus = new long[blocks];
+        long[] minus = new long[blocks];
+        Arrays.fill(plus, -1L);
+        long lastRow = 1L << ((rows - 1) % 64);
+        long[] none = new long[blocks];
+        int score = rows;
+        for (int j = 0; j < b.length(); j++) {
+            long[] eq = equal.getOrDefault(b.charAt(j), none);
+            int carry = 1;
+            for (int block = 0; block < blocks; block++) {
+                long pv = plus[block];
+                long mv = minus[block];
+                long e = eq[block];
+                long xv = e | mv;
+                if (carry < 0) {
+                    e |= 1L;
+                }
+                long xh = (((e & pv) + pv) ^ pv) | e;
+                long ph = mv | ~(xh | pv);
+                long mh = pv & xh;
+                long high = block == blocks - 1 ? lastRow : Long.MIN_VALUE;
+                int out = (ph & high) != 0 ? 1 : (mh & high) != 0 ? -1 : 0;
+                ph <<= 1;
+                mh <<= 1;
+                if (carry < 0) {
+                    mh |= 1L;
+                } else if (carry > 0) {
+                    ph |= 1L;
+                }
+                plus[block] = mh | ~(xv | ph);
+                minus[block] = ph & xv;
+                carry = out;
             }
-            int[] swap = previous;
-            previous = current;
-            current = swap;
+            score += carry;
         }
-        return previous[b.length()];
+        return score;
     }
 }
