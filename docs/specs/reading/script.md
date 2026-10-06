@@ -5,11 +5,12 @@
 - 도입: 0.1.0
 - 결정 기록: ADR-031
 - 화면: R1(내 대본, R1.1~R1.12), R2(대본 넣기, R2.1~R2.13), R3.4(대본 전체), R4.1~R4.8(대본 상세), D13, D16, WR1
-- 테이블: scripts, script_characters, script_lines, script_imports, ai_jobs(종류 script_split)
+- 테이블: scripts, script_characters, script_lines, script_imports, script_uploads, ai_jobs(종류 script_split)
 
 ## 기능
 대본을 파일·붙여넣기·직접 쓰기·예시 가운데 한 길로 넣으면 서버가 글을 받아 LLM(gpt-6-luna)으로 배역과 줄을 나눠
-원문과 함께 바로 저장한다(「나누기 작업」). 앱·웹은 작업 상태를 물어 끝나면 대본으로 간다. 옛 앱이 기기에서 나눈 결과를
+원문과 함께 바로 저장한다(「나누기 작업」). 파일은 기기가 S3 에 직접 올리고 서버가 글자를 뽑으며, 원본은 대본과 같은 수명으로
+보관한다(「원본 파일」). 앱·웹은 작업 상태를 물어 끝나면 대본으로 간다. 옛 앱이 기기에서 나눈 결과를
 보내는 저장 API는 D1까지 그대로 받는다. 저장된 대본은 앱의 대본 탭과 웹의 리딩 첫 화면에 목록으로 보이고, 제목을
 고치거나 대본을 지울 수 있다.
 
@@ -25,7 +26,9 @@
 ## 입력·출력
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
-| `POST /v2/reading/imports` | `ReadingImportRequest`(request_id·title?·raw_text·source) | `ReadingImportTicket` — 새 작업 202 `{import_id}`, 같은 `request_id` 재전송·같은 글로 진행 중인 작업 200 `{import_id}`, 같은 글의 대본이 이미 있음 200 `{duplicate_script_id}` | `script_split_consent_required` 403, `script_too_long`(원문 100,000자 초과)·`script_limit`·`request_fingerprint_mismatch` 422, `script_split_daily_limit` 429, 형태 오류 422 배열, `account_deactivated` 403, 게스트 동의 전 `consent_required` 403 |
+| `POST /v2/reading/uploads` | `ReadingUploadRequest`(file_name·byte_size) | `ReadingUpload` 201 `{upload_id, upload_url, content_type, expires_at}` — 기기는 `upload_url`에 `Content-Type: content_type`(언제나 `application/octet-stream`)으로 파일을 PUT 한다(15분, 크기는 서명에 묶임) | `script_file_too_large`(50,000,000바이트 초과)·`script_file_unreadable`(확장자가 txt·docx·pdf·hwp·hwpx 밖) 422, `script_split_consent_required` 403, 형태 오류 422 배열(빈 파일 포함), `storage_not_configured` 503 |
+| `POST /v2/reading/uploads/{upload_id}/complete` | `upload_id` | 204 — 서버가 올라온 파일을 받아 글자를 뽑아 둔다. 다시 불러도 204(다시 받지 않는다) | `script_upload_not_ready`(아직 다 안 올라옴)·`script_file_unreadable`(글자를 못 뽑음)·`script_too_long`(뽑은 글 100,000자 초과) 422, `script_upload_not_found` 404 |
+| `POST /v2/reading/imports` | `ReadingImportRequest`(request_id·title?·source와 raw_text·upload_id 가운데 하나) | `ReadingImportTicket` — 새 작업 202 `{import_id}`, 같은 `request_id` 재전송·같은 글로 진행 중인 작업 200 `{import_id}`, 같은 글의 대본이 이미 있음 200 `{duplicate_script_id}` | `script_split_consent_required` 403, `script_too_long`(원문 100,000자 초과)·`script_limit`·`request_fingerprint_mismatch`·`script_upload_not_ready`(읽기 전) 422, `script_upload_not_found` 404, `script_split_daily_limit` 429, 형태 오류 422 배열(raw_text·upload_id 둘 다 또는 둘 다 없음 포함), `account_deactivated` 403, 게스트 동의 전 `consent_required` 403 |
 | `GET /v2/reading/imports/{import_id}` | `import_id` | `ReadingImport` 200: `status`(pending·running·succeeded·failed), `progress{done_lines,total_lines}`, `script_id`(성공), `failure`(실패: not_script·no_characters·script_too_long·script_limit·failed) | `import_not_found` 404 |
 | `POST /v2/reading/scripts` | `X-Request-Id`(선택, 있으면 본문 `request_id`와 같아야 한다), `ReadingScriptCreateRequest`(request_id·title·source·raw_text·characters·lines). 옛 앱의 기기 나누기 결과 저장, D1에서 걷는다 | `ReadingScript` 201, 같은 요청 재전송 200 | `no_characters`·`invalid_characters`·`script_too_long`·`script_limit`·`request_fingerprint_mismatch` 422, 형태 오류 422 배열, `account_deactivated` 403, 게스트 동의 전 `consent_required` 403 |
 | `GET /v2/reading/scripts` | `q`(선택, 제목·배역 이름) | `ReadingScriptList` 200 | — |
@@ -81,10 +84,26 @@
   request_id), 지문은 제목·입력 경로·원문). 작업 행은 원문을 들고 있다가 탈퇴 때 지운다. 대본을 지운 뒤 작업 상태의
   `script_id`는 지워진 대본을 가리킨다.
 
+**원본 파일**
+- 파일은 세 단계로 들어온다: 올릴 자리(`POST /v2/reading/uploads`) → 기기가 `upload_url`에 PUT → 읽기(`POST /v2/reading/uploads/{id}/complete`).
+  읽기가 끝나면 `POST /v2/reading/imports`에 `raw_text` 대신 `upload_id`를 싣고(입력 경로 `file`), 그 뒤는 글로 넣은 것과 같다 —
+  같은 글 판정·한도·예시 대본 판별이 뽑은 글에 그대로 적용된다. 읽지 못함(422 `script_file_unreadable`)은 파일을 고른 자리에서
+  바로 알려 R2.4 「파일을 읽지 못했어요 · 대본을 읽지 못했어요. 스캔한 PDF이거나 지원하지 않는 형식일 수 있어요. 복사해서
+  붙여넣어 주세요.」를 띄운다. 50MB 초과(422 `script_file_too_large`, 기기도 올리기 전에 거른다)는 R2.4 「파일이 너무 커요.
+  50MB까지 열 수 있어요.」, 뽑은 글이 100,000자를 넘으면(422 `script_too_long`) R2.12다. 원인은 서버 로그에 남기고 화면은 한 문구다.
+- 받는 형식은 txt·docx·pdf·hwp(한글 5.0 이후)·hwpx이고 앱·웹이 같다. 올릴 자리는 확장자로 거르고, 읽기는 파일 머리로 형식을
+  다시 가른다(확장자와 내용이 다르면 내용을 따른다). txt는 BOM(UTF-8·UTF-16)을 보고, 없으면 UTF-8, 아니면 CP949(EUC-KR 포함)로
+  푼다. 표는 칸을 탭으로, 행을 줄로 잇고(칸이 하나인 표는 문단 그대로), 배역과 대사를 가르는 탭은 공백으로 뭉개지 않는다. PDF는
+  그려진 위치로 줄을 다시 세우지 않고 내용 순서로 읽는다(2단 편집이 섞이지 않는다). 탭·줄바꿈 밖의 제어 문자는 지운다.
+- 읽지 못함: 한글 97(HWP 3.0), 글자 없는 PDF(스캔), 사용자 암호가 걸린 PDF, 깨진 파일, 모르는 형식(doc·odt 등), 빈 문서.
+- 원본은 S3 `reading-source/{user_id}/{upload_id}`에 두고 script_uploads 한 행이 뽑은 글과 함께 든다. 그 글로 대본이 저장되면
+  원본이 그 대본에 연결되고, 대본을 지우거나 탈퇴하면 행과 객체를 함께 지운다(객체는 삭제 장부, [영역 표](README.md#리딩-자료의-이관삭제탈퇴)).
+  어느 대본에도 연결되지 않은 원본(중복·실패·버림)은 하루 뒤 매시간 도는 정리가 지운다. 진행 중 나누기가 쓰는 원본은 남긴다.
+- 올리기는 나누기와 같은 동의(`script_split`)가 있어야 한다 — 원본 보관도 그 문서가 알린다. 그래서 게스트는 올리지 못한다.
+
 **대본**
-- 입력 경로는 넷이다. 파일, 붙여넣기, 직접 쓰기, 예시 대본. 파일에서 글자를 뽑는 일은 아직 기기에서 하고
-  파일 자체는 서버에 올리지 않는다(원본 파일 받기는 후속). 웹은 txt·pdf·docx·hwp를, 앱은 txt·pdf·docx를 연다. hwpx는 둘 다
-  열지 않고, 앱에서 hwp를 열지 못하는 것은 0.1.0이 받아들인다.
+- 입력 경로는 넷이다. 파일, 붙여넣기, 직접 쓰기, 예시 대본. 파일은 서버가 글자를 뽑는다(위 「원본 파일」). 앱(C3)·웹(C4)이
+  옮기기 전의 판은 지금처럼 기기에서 뽑은 글을 `raw_text`로 보낸다(웹 txt·pdf·docx·hwp, 앱 txt·pdf·docx).
 - 웹과 앱은 같은 파서를 쓴다. 콜론(`지수: 대사`), 블록(이름 한 줄 뒤 대사 줄들), 공백(`지수 대사`,
   앞의 둘이 하나도 없을 때만) 세 형식과 괄호·대괄호로 감싼 한 줄 지문을 알아본다. 등장인물 목록
   (등장인물·나오는 사람들·배역)이 있으면 그 목록이 배역의 기준이고, 목록 밖 이름은 대사가 8줄 이상이면서 전체
@@ -133,7 +152,7 @@
   50(전체 배역)까지이고, 서버는 원문뿐 아니라 줄 본문의 총량도 같은 100,000자로 검사한다. 넘으면 422
   script_too_long. 대본 수는 회원 100개, 게스트 20개(예시 대본을 저장한 것도 셈)이고 넘으면 422
   script_limit. 이관으로 회원이 100개를 넘으면 자료는 모두 보존하고 100개 미만이 될 때까지 새 등록만
-  막는다. 파일은 20,000,000바이트까지이며 글자를 뽑기 전에 기기에서 거른다. 글자 대조는 원문과 말한 것 각각 1,000자까지만
+  막는다. 파일은 50,000,000바이트까지이며 기기가 올리기 전에 거르고 서버가 올릴 자리에서 다시 본다. 글자 대조는 원문과 말한 것 각각 1,000자까지만
   하고 넘으면 대조하지 않고 수동 진행을 주며 미달로 기록하지 않는다(대조는 길이의 곱에 비례한다). 긴 대사의
   음성 합성은 나눠 처리하되 줄 id는 그대로다. 숫자는 성능 측정 없이 정한 초기 한도다.
 - 목록은 최근 고친 순이다. 머리에 "전체 N개 · 연습 중 M개"를 두고, 카드에는 제목, 내 배역(마지막 회차의
@@ -164,8 +183,8 @@
   옮긴 결과를 알리는 안내는 두지 않는다. 올리기는 로그인·게이트 뒤에 시도하고 실패한 대본은 다음 실행에 다시 한다.
 
 ## 예외
-- 파일에서 글자를 못 뽑으면(암호 걸린 PDF, 그림만 있는 PDF, 한글 97 형식) 기기가 "이 파일에서 글자를
-  읽지 못했어요. 텍스트를 복사해 붙여넣어 주세요"를 보여 주고 서버에는 아무것도 남지 않는다.
+- 파일에서 글자를 못 뽑으면(암호 걸린 PDF, 그림만 있는 PDF, 한글 97 형식) 읽기가 422 `script_file_unreadable`이고 앱·웹은 R2.4
+  「대본을 읽지 못했어요」를 띄운다. 올린 원본은 대본에 연결되지 않아 하루 뒤 지워진다.
 - 나누기 작업이 failed면 앱은 R2 위에 팝업을 띄우고 넣은 글·파일은 그대로 남긴다: `not_script`는 R2.8 「대본이 아닌 것
   같아요」, `no_characters`는 R2.13 「배역을 찾지 못했어요」, `script_too_long`·`script_limit`·`failed`는 R2.12 저장 실패.
 - 배역이 하나도 안 잡히면 저장하지 않는다. 앱은 R2 위에 "배역을 찾지 못했어요. 대본에 말하는 사람 이름이 있는지
@@ -204,7 +223,18 @@
 - 등장인물 목록이 있는 대본에서 목록 밖 이름이 7줄: 배역이 아니다. 8줄이지만 전체 발화의 0.9%: 배역이 아니다.
   8줄이고 1%: 배역이다.
 - 블록 형식·공백 형식 대본과 제목 조건(첫 줄 30자 이하 + 빈 줄)을 넣으면: 고정된 기대 결과와 같다(공통 검증 자료).
-- 웹에서 hwp를 열면: 글자를 뽑는다. 앱에서 hwp를 고르면: 미지원 안내. hwpx는 둘 다 미지원 안내.
+- 원본 파일(CP949 txt)을 올려 읽고 `upload_id`로 나눔: 올리기 전 읽기 422 script_upload_not_ready, 올린 뒤 204, 다시 읽어도 204(받기
+  한 번), 나누기 202 → succeeded, 대본 입력 경로 file, script_uploads.script_id가 그 대본이다.
+- 올릴 자리: 50,000,000바이트 201, 50,000,001바이트 422 script_file_too_large, `대본.doc`·확장자 없음 422 script_file_unreadable,
+  동의 없음 403, 0바이트 422 배열. 거절은 행을 남기지 않는다.
+- 한글 97 파일 읽기: 422 script_file_unreadable. 100,001자 txt: 422 script_too_long, 100,000자: 204.
+- hwp의 「윤서<TAB>대사」 문단: 탭 그대로. docx·hwpx 표의 「이름 | 대사」 행: 「이름<TAB>대사」. 스캔 PDF·사용자 암호 PDF·잘린
+  PDF·모르는 zip·이진 파일: 읽지 못함. .txt 이름의 PDF: PDF로 읽는다.
+- raw_text와 upload_id 둘 다·둘 다 없음: 422 배열. 남의 upload_id: 404 script_upload_not_found.
+- 뽑은 글이 내 대본과 같은 파일: 200 duplicate_script_id, 원본은 연결되지 않는다.
+- 대본 삭제: 연결된 원본의 행과 객체가 없다. 탈퇴: 연결 여부와 무관하게 원본의 행·객체가 없다.
+- 시계를 25시간 돌려 정리: 하루 지난 미연결 원본(올리지 않은 것 포함)만 행·객체가 없고, 23시간 된 것·대본에 연결된 것·진행 중
+  나누기가 쓰는 것은 남는다. 다시 돌면 지울 것이 없다.
 - 같은 대본 샘플 20편을 웹·앱 파서에 넣으면: 배역·줄 종류·줄 수가 같다(공통 검증 자료).
 - 웹 확인 화면에서 배역 하나를 빼고 저장: 그 이름의 줄이 지문으로 저장된다. 이름을 더하고 저장: 그 이름의
   줄이 대사로 저장된다.
@@ -236,8 +266,8 @@
 - 웹 확인 화면에서 나가기: 행이 없다. 앱 R3에서 뒤로 가기: 대본이 목록에 있다. 삭제 트랜잭션 실패: 행 그대로. 커밋 뒤 객체 삭제 실패: 화면에는 없고 장부에 키가
   남으며 7일 뒤에도 키가 지워지지 않는다.
 - 이관 처리 중에 옛 게스트 토큰으로 등록 요청: 게스트 계정에 새 대본이 생기지 않는다.
-- 암호 걸린 PDF를 고르면: 안내 문구가 보이고 서버 요청이 없다. 20,000,001바이트 파일: 글자를 뽑지 않고
-  안내 문구가 보인다.
+- 암호 걸린 PDF를 고르면: 읽기가 422 script_file_unreadable이고 R2.4가 보인다. 50,000,001바이트 파일: 기기가 올리지 않고 R2.4
+  「파일이 너무 커요」가 보인다.
 - 배역 0개로 저장 API: 422 no_characters.
 - 같은 요청 id·같은 본문으로 두 번 저장: 행 하나이고 두 응답의 대본 id가 같다. 같은 id·다른 본문: 422
   request_fingerprint_mismatch. 대본을 지운 뒤 같은 id로 저장: 새 대본이 생긴다.
@@ -250,7 +280,7 @@
 
 ## 범위 밖
 - 저장 뒤 다시 나누기. 0.1.0에는 없고 새 대본으로 넣는다.
-- 파일 자체의 서버 업로드와 서버 글자 뽑기(txt·docx·pdf·hwp·hwpx). 후속 작업(C2)이 맡는다.
+- 한글 97(HWP 3.0)·doc·odt·스캔 PDF의 글자 읽기(OCR). 붙여넣기로 넣는다.
 - 게스트의 script_split 동의. 법무 결정 전까지 게스트는 나누기 작업을 쓰지 못한다.
 - 나누기 결과를 저장 전에 확인·고치는 화면. 서버에 「초안」 단계를 두지 않는다(계획 「정한 것」 3).
 - 대본의 공유·공개·검색 노출과 대사 본문 검색.
