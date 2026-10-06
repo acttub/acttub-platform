@@ -157,16 +157,22 @@ export default function ReadingNew() {
     else router.replace('/reading/detail');
   };
 
-  const upload = async (file: PickedScriptFile) => {
+  /** 올리고 읽힌 파일이면 [다음]이 보낼 입력을 돌려준다. 실패·읽기 자리 없음은 팝업을 띄우고 null. */
+  const upload = async (file: PickedScriptFile): Promise<ImportInput | null> => {
     dispatch({ type: 'fileReading', file });
     const result = await uploadScriptFile(file, DEPS.upload);
-    if (result.kind === 'uploaded') return dispatch({ type: 'fileUploaded', uploadId: result.uploadId });
+    if (result.kind === 'uploaded') {
+      dispatch({ type: 'fileUploaded', uploadId: result.uploadId });
+      return { kind: 'file', file, uploadId: result.uploadId };
+    }
     if (result.kind === 'unread') {
       dispatch({ type: 'fileUploaded', uploadId: result.uploadId });
-      return showStop({ kind: 'busy' }, { kind: 'upload', file });
+      await showStop({ kind: 'busy' }, { kind: 'upload', file });
+      return null;
     }
     dispatch({ type: 'fileFailed' });
     await showStop(result, { kind: 'upload', file });
+    return null;
   };
 
   const onPickFile = async () => {
@@ -190,8 +196,10 @@ export default function ReadingNew() {
     }
     const { resume } = consent;
     if (resume.kind === 'import') return split(resume.input, resume.flags);
+    // 버튼 이름대로 동의 → 올리기 → 나누기까지 잇는다.
     setPopup(null);
-    await upload(resume.file);
+    const next = await upload(resume.file);
+    if (next) await split(next, {});
   };
 
   const setTab = (tab: ScriptTab) => dispatch({ type: 'tab', tab });
