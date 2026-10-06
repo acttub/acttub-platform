@@ -224,8 +224,8 @@ pen을 고칠 목록이다. 무엇을 어떻게 바꾸는지(문구·수치)는 
 | 영상 업로드 오류 | 크기 초과와 길이 초과 안내 | practice.record |
 | D18·WR3 | 암기 대조의 발화 확정·미달 처리·입력하기, 음성인식·서버 저장 안내 | reading.session |
 | 웹 암기 | 완료 회차에서의 진입, 외운 대사 다시 보기(표시 취소), 원문 듣기와 따라 말하기의 마이크 구분 | reading.memorization |
-| D13 대본 넣기 | 최근 대본 목록, 기기 저장 안내 삭제, 저작권 안내 | reading.script |
-| D16 대본 확인 | 배역 이름 고치기·빼기 | reading.script |
+| D13 대본 넣기 | 최근 대본 목록, 기기 저장 안내 삭제, 저작권 안내, 서버 나누기 팝업(앱 R2.4·R2.7·R2.8·R2.11~R2.15와 같은 뜻) | reading.script |
+| D16 대본 확인 | 없앤다 — 웹도 확인 화면 없이 바로 저장한다 | reading.script |
 | D17 설정 | 내 배역 여러 개, 가리기, 녹음 켬·끔과 소리 안내 삭제, 모델 용량, 구간 선택 | reading.cast, reading.session, reading.recording |
 | D18 실행 | 나가기 확인, 가리기 토글, 녹음 표시, 말한 것 표시 | reading.session, reading.recording |
 | D19 완료 | 다시 볼 대사, 암기 대조 완료 표기 | reading.session |
