@@ -147,7 +147,7 @@ test("reading.script: 서버 오류 코드는 동의(R2.14)·하루 한도(R2.15
       at("completeUpload", new ApiError(422, "script_too_long", "")),
       { kind: "failed", message: "대본이 너무 길어요. 원문 100,000자·줄 3,000개·배역 50명까지 저장할 수 있어요." },
     ],
-    [file(), at("putUpload", new Error("S3 PUT failed")), { kind: "failed", message: "네트워크 연결을 확인하고 다시 시도해주세요." }],
+    [file(), at("putUpload", new Error("영상 업로드에 실패했어요.")), { kind: "failed", message: "네트워크 연결을 확인하고 다시 시도해주세요." }],
     [file(), at("completeUpload", new ApiError(429, "script_upload_busy", "")), { kind: "failed", message: "잠시 뒤 다시 시도해 주세요." }],
   ];
   for (const [input, overrides, expected] of cases) {

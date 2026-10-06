@@ -115,8 +115,12 @@ const ERROR_OUTCOMES: Record<string, ImportOutcome> = {
   script_file_unreadable: { kind: "file_unreadable" },
 };
 
-export function outcomeOfError(cause: unknown): ImportOutcome {
-  if (cause instanceof ApiError && cause.code in ERROR_OUTCOMES) return ERROR_OUTCOMES[cause.code];
+function outcomeOfError(cause: unknown): ImportOutcome {
+  if (!(cause instanceof ApiError)) {
+    // S3 PUT 이 영상 업로드와 같은 업로더를 써서 그 한글 문구("영상을 업로드하지 못했어요")를 든다. 서버 답이 아닌 실패는 R2.12 공용 문구다.
+    return { kind: "failed", message: IMPORT_FAILED_COPY };
+  }
+  if (cause.code in ERROR_OUTCOMES) return ERROR_OUTCOMES[cause.code];
   return { kind: "failed", message: errorMessage(cause, IMPORT_FAILED_COPY) };
 }
 
