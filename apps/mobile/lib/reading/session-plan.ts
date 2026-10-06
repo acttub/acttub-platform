@@ -2,8 +2,7 @@
  * 새 연습(R8, reading.cast · reading.session)의 순수 계산 — 대사 번호, 구간 이름의 글, 구간 당기기, 최근 구간,
  * 내 배역 기본값, 시작 가능 여부, 기기 사전 검사, 시작 요청 본문. 장면 나누기·구간 이름은 서버가 정한다. 화면·서버를 모른다.
  */
-import type { ScriptLine } from './parse.ts';
-import type { RangeName, SessionCard, StartSessionBody } from './types.ts';
+import type { RangeName, ScriptLine, SessionCard, StartSessionBody } from './types.ts';
 
 /** 대사 번호 — 대사 줄만 1부터, 지문·장면은 null(저장하지 않고 줄 순서에서 센다). */
 export function dialogueNumbers(lines: ScriptLine[]): (number | null)[] {

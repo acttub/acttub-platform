@@ -2,11 +2,10 @@
  * 대본 상세의 연습 기록 목록과 회차 상세(R4, reading.session · reading.recording)의 표시 규칙. 수치는 서버 집계다.
  * 회차 상태는 진행 중·완료 둘이다.
  */
-import type { ScriptLine } from './parse.ts';
 import { latestRecordings } from './recording-plan.ts';
 import { relativeDay } from './script-cards.ts';
 import { dialogueNumbers } from './session-plan.ts';
-import type { DifferentLine, SessionCard, SessionDetail, SessionProgress, SessionRecording } from './types.ts';
+import type { DifferentLine, ScriptLine, SessionCard, SessionDetail, SessionProgress, SessionRecording } from './types.ts';
 import { translate as t } from '../i18n.ts';
 
 /** "0:41"·"10:05" — 분은 자리 채움 없이. */

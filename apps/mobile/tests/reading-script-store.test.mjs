@@ -1,26 +1,32 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { NetworkError } from '../lib/api-request.ts';
 import {
   configureScriptTransport,
   deleteScript,
   getCurrent,
   isMyRole,
   loadIntoCurrent,
-  newDraft,
   resetReadingState,
-  saveDraft,
   toSavedScript,
   updateCurrent,
   updateScriptMeta,
 } from '../lib/reading/store.ts';
 
-const RAW = `윤서: 여기 있을 줄 알았어.
-태오: 어떻게 알았어.
-(사이)
-윤서: 너 힘들면 항상 높은 데로 가잖아.
-태오: 그런가.`;
+/** 서버가 나눠 저장한 대본의 줄(저장 본문 모양). */
+const BODY = {
+  title: '옥상, 밤',
+  source: 'paste',
+  characters: [{ name: '윤서' }, { name: '태오' }],
+  lines: [
+    { ordinal: 1, kind: 'scene', character_index: null, text: '제1막' },
+    { ordinal: 2, kind: 'dialogue', character_index: 0, text: '여기 있을 줄 알았어.' },
+    { ordinal: 3, kind: 'dialogue', character_index: 1, text: '어떻게 알았어.' },
+    { ordinal: 4, kind: 'direction', character_index: null, text: '사이' },
+    { ordinal: 5, kind: 'dialogue', character_index: 0, text: '너 힘들면 항상 높은 데로 가잖아.' },
+    { ordinal: 6, kind: 'dialogue', character_index: 1, text: '그런가.' },
+  ],
+};
 
 /** 새 대본은 목소리가 모두 자동이라 서버 voice 는 배역 순서대로 이 순환이다. */
 const VOICES = ['F1', 'M1', 'F2', 'M2', 'F3', 'M3', 'F4', 'M4', 'F5', 'M5'];
@@ -33,9 +39,9 @@ function oneScene(lines, id) {
   return [{ no: 1, title: null, start_line_id: lineId(dialogues[0]), end_line_id: lineId(dialogues.at(-1)), dialogue_count: dialogues.length }];
 }
 
-/** 리딩 API 흉내. request_id 로 멱등하고, 처음 몇 번은 연결이 끊긴다. */
-function fakeServer({ failFirst = 0 } = {}) {
-  const state = { scripts: new Map(), byRequest: new Map(), calls: [], failures: failFirst };
+/** 리딩 API 흉내. seed 는 서버 나누기가 저장을 마친 대본 하나를 넣는다. */
+function fakeServer() {
+  const state = { scripts: new Map(), calls: [] };
   let seq = 0;
   const detailOf = (body, id) => ({
     id,
@@ -71,19 +77,6 @@ function fakeServer({ failFirst = 0 } = {}) {
       if (!d) throw new Error('404');
       return d;
     },
-    create: async (body) => {
-      state.calls.push(['create', body]);
-      if (state.failures > 0) {
-        state.failures -= 1;
-        throw new NetworkError();
-      }
-      const existing = state.byRequest.get(body.request_id);
-      if (existing) return existing;
-      const detail = detailOf(body, `sc_${++seq}`);
-      state.scripts.set(detail.id, detail);
-      state.byRequest.set(body.request_id, detail);
-      return detail;
-    },
     patch: async (id, body) => {
       state.calls.push(['patch', id, body]);
       const d = state.scripts.get(id);
@@ -103,7 +96,12 @@ function fakeServer({ failFirst = 0 } = {}) {
       state.scripts.delete(id);
     },
   };
-  return { state, transport };
+  const seed = () => {
+    const detail = detailOf(BODY, `sc_${++seq}`);
+    state.scripts.set(detail.id, detail);
+    return detail;
+  };
+  return { state, transport, seed };
 }
 
 test.beforeEach(() => {
@@ -111,35 +109,10 @@ test.beforeEach(() => {
   configureScriptTransport(null);
 });
 
-test('reading.script: 저장 도중 연결이 끊기면 같은 요청 id로 다시 보내고 서버 대본은 하나다', async () => {
-  const { state, transport } = fakeServer({ failFirst: 1 });
+test('reading.script: 서버 상세를 화면 모양으로 — 줄은 배역 이름으로, 지문·장면은 배역 없이', async () => {
+  const { transport, seed } = fakeServer();
   configureScriptTransport(transport);
-  const draft = newDraft(RAW, 'paste');
-
-  await assert.rejects(saveDraft(draft), NetworkError);
-  const saved = await saveDraft(draft);
-  const again = await saveDraft(draft);
-
-  const creates = state.calls.filter(([kind]) => kind === 'create').map(([, body]) => body);
-  assert.equal(creates.length, 3);
-  assert.ok(creates.every((b) => b.request_id === draft.requestId), '같은 요청 id');
-  assert.match(draft.requestId, /^[0-9a-f-]{36}$/);
-  assert.equal(state.scripts.size, 1, '행 하나');
-  assert.equal(saved.id, again.id, '두 응답의 대본 id가 같다');
-  assert.equal(getCurrent()?.id, saved.id, '저장한 대본이 현재 대본이 된다');
-});
-
-test('reading.script: 배역 없는 초안은 서버에 보내지 않고 no_characters 로 막는다', async () => {
-  const { state, transport } = fakeServer();
-  configureScriptTransport(transport);
-  await assert.rejects(saveDraft(newDraft('그냥 산문.\n배역 없음.', 'typed')), /no_characters/);
-  assert.equal(state.calls.length, 0);
-});
-
-test('reading.script: 저장 응답을 화면 모양으로 — 줄은 배역 이름으로, 지문·장면은 배역 없이', async () => {
-  const { transport } = fakeServer();
-  configureScriptTransport(transport);
-  const saved = await saveDraft(newDraft(`제1막\n${RAW}`, 'paste'));
+  const saved = await loadIntoCurrent(seed().id);
 
   assert.deepEqual(saved.roles, ['윤서', '태오']);
   assert.deepEqual(saved.lines[0], { type: 'scene', text: '제1막' });
@@ -151,9 +124,9 @@ test('reading.script: 저장 응답을 화면 모양으로 — 줄은 배역 이
 });
 
 test('reading.script: 제목·배역 이름 수정은 제목과 배역(id·이름)만 보내고 줄은 보내지 않는다', async () => {
-  const { state, transport } = fakeServer();
+  const { state, transport, seed } = fakeServer();
   configureScriptTransport(transport);
-  const saved = await saveDraft(newDraft(RAW, 'paste'));
+  const saved = await loadIntoCurrent(seed().id);
 
   const updated = await updateScriptMeta(saved.id, { title: '옥상', characters: [{ id: saved.characters[1].id, name: '태오(형)' }] });
 
@@ -164,13 +137,13 @@ test('reading.script: 제목·배역 이름 수정은 제목과 배역(id·이�
   assert.equal(updated.title, '옥상');
   assert.equal(getCurrent()?.title, '옥상', '현재 대본에도 반영된다');
   assert.deepEqual(getCurrent()?.roles, ['윤서', '태오(형)']);
-  assert.equal(getCurrent()?.lines[1].role, '태오(형)', '줄의 배역 연결은 그대로고 이름만 바뀐다');
+  assert.equal(getCurrent()?.lines[2].role, '태오(형)', '줄의 배역 연결은 그대로고 이름만 바뀐다');
 });
 
 test('reading.script: 대본을 지우면 서버에 삭제를 보내고 현재 대본을 비운다', async () => {
-  const { state, transport } = fakeServer();
+  const { state, transport, seed } = fakeServer();
   configureScriptTransport(transport);
-  const saved = await saveDraft(newDraft(RAW, 'paste'));
+  const saved = await loadIntoCurrent(seed().id);
 
   await deleteScript(saved.id);
 
@@ -180,10 +153,9 @@ test('reading.script: 대본을 지우면 서버에 삭제를 보내고 현재 �
 });
 
 test('reading.script: 목록에서 연 대본은 서버 상세로 현재 대본이 되고 내 배역 판정이 된다', async () => {
-  const { transport } = fakeServer();
+  const { transport, seed } = fakeServer();
   configureScriptTransport(transport);
-  const saved = await saveDraft(newDraft(RAW, 'paste'));
-  resetReadingState();
+  const saved = seed();
   assert.equal(getCurrent(), null);
 
   const opened = await loadIntoCurrent(saved.id);

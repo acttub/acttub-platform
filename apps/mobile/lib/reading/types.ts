@@ -10,6 +10,12 @@ export type ScriptSource = 'file' | 'paste' | 'typed' | 'sample';
 /** 줄의 종류. 대사는 배역 하나에 매달리고 지문·장면은 배역이 없다. */
 export type LineKind = 'dialogue' | 'direction' | 'scene';
 
+/** 화면이 쓰는 대본 줄(서버 줄을 배역 이름으로 풀어 든다). 장면 줄은 구간 선택의 「장면으로 찾기」 경계다. */
+export type DialogueLine = { type: 'dialogue'; role: string; text: string };
+export type DirectionLine = { type: 'direction'; text: string };
+export type SceneLine = { type: 'scene'; text: string };
+export type ScriptLine = DialogueLine | DirectionLine | SceneLine;
+
 /** 대본 카드의 상태 칩. 열린 회차 → reading, 마지막 회차 completed → completed, 그 밖 → no_cast. */
 export type ScriptCardStatus = 'reading' | 'completed' | 'no_cast';
 
@@ -22,7 +28,7 @@ export type CreateScriptLine = {
   text: string;
 };
 
-/** POST /v2/reading/scripts 본문. 같은 request_id·같은 본문은 먼저 만든 대본을 돌려준다. */
+/** POST /v2/reading/scripts 본문(옛 대본 옮기기만 쓴다). 같은 request_id·같은 본문은 먼저 만든 대본을 돌려준다. */
 export type CreateScriptBody = {
   request_id: string;
   title: string;
@@ -30,6 +36,38 @@ export type CreateScriptBody = {
   raw_text: string;
   characters: { name: string }[];
   lines: CreateScriptLine[];
+};
+
+/** POST /v2/reading/uploads 응답. 기기는 upload_url 에 content_type 으로 PUT 한 뒤 complete 를 부른다. */
+export type ScriptUpload = {
+  upload_id: string;
+  upload_url: string;
+  content_type: string;
+  expires_at: string;
+};
+
+/** POST /v2/reading/imports 본문. 글(raw_text)과 올려 둔 파일(upload_id) 가운데 하나만 싣는다. */
+export type ImportScriptBody = {
+  request_id: string;
+  source: ScriptSource;
+  /** 같은 글의 대본이 있어도 새로 나눈다(R2.7 [새로 넣기]). */
+  allow_duplicate: boolean;
+  /** 대본인지 묻지 않고 나눈다(R2.8 [그래도 나누기]). */
+  skip_script_check: boolean;
+} & ({ raw_text: string } | { upload_id: string });
+
+/** 접수 답. 새 작업·진행 중 작업이면 import_id, 같은 글의 대본이 이미 있으면 duplicate_script_id. */
+export type ImportTicket = { import_id: string | null; duplicate_script_id: string | null };
+
+export type ScriptImportFailure = 'not_script' | 'no_characters' | 'script_too_long' | 'script_limit' | 'failed';
+
+/** GET /v2/reading/imports/{id}. */
+export type ScriptImport = {
+  id: string;
+  status: 'pending' | 'running' | 'succeeded' | 'failed';
+  progress: { done_lines: number; total_lines: number };
+  script_id: string | null;
+  failure: ScriptImportFailure | null;
 };
 
 export type ScriptCharacter = {

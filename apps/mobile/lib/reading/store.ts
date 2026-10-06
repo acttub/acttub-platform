@@ -12,12 +12,8 @@
  * CI mobile 잡이 무설치 node --test 라 AsyncStorage·api 는 함수 안에서 lazy require 하고, 테스트는
  * configureScriptTransport 로 가짜 서버를 넣는다.
  */
-import { newRequestId } from '../request-id.ts';
 import { LEGACY_SCRIPTS_KEY } from './legacy-migration.ts';
-import type { ScriptLine } from './parse.ts';
-import { createDraft, validateDraft, type ScriptDraft } from './script-draft.ts';
 import type {
-  CreateScriptBody,
   DifferentLine,
   PatchScriptBody,
   ProgressBody,
@@ -26,8 +22,8 @@ import type {
   ScriptDetail,
   ScriptLastSession,
   ScriptListResponse,
+  ScriptLine,
   ScriptScene,
-  ScriptSource,
   SessionCard,
   SessionDetail,
   StartSessionBody,
@@ -90,7 +86,6 @@ export function recordingFileUris(raw: string | null): string[] {
 export type ScriptTransport = {
   list(q?: string): Promise<ScriptListResponse>;
   get(id: string): Promise<ScriptDetail>;
-  create(body: CreateScriptBody): Promise<ScriptDetail>;
   patch(id: string, body: PatchScriptBody): Promise<ScriptDetail>;
   remove(id: string): Promise<void>;
   /** 회차(reading.session). */
@@ -115,7 +110,6 @@ function server(): ScriptTransport {
   transport = {
     list: (q) => api.listReadingScripts(q),
     get: (id) => api.getReadingScript(id),
-    create: (body) => api.createReadingScript(body),
     patch: (id, body) => api.updateReadingScript(id, body),
     remove: (id) => api.deleteReadingScript(id),
     startSession: (scriptId, body) => api.startReadingSession(scriptId, body),
@@ -236,24 +230,6 @@ export async function updateCurrent(patch: Partial<SavedScript>): Promise<void> 
   if (!current) return;
   current = { ...current, ...patch };
   await writePrefs(current.id, prefsOf(current));
-}
-
-// ── 초안(대본 넣기) ────────────────────────────────────────────────────────────
-
-/** 넣은 글로 초안을 만든다. 요청 id 는 여기서 한 번 정해진다. */
-export function newDraft(rawText: string, source: ScriptSource): ScriptDraft {
-  return createDraft(rawText, source, newRequestId());
-}
-
-/**
- * 초안을 한 요청으로 저장한다. 기기가 먼저 거르고(코드는 Error.message), 서버가 거절하면 ApiError 다.
- * 같은 초안을 다시 보내도 request_id 가 같아 서버는 먼저 만든 대본을 돌려준다.
- */
-export async function saveDraft(draft: ScriptDraft): Promise<SavedScript> {
-  const checked = validateDraft(draft);
-  if (!checked.ok) throw new Error(checked.code);
-  const detail = await server().create(checked.body);
-  return openScript(detail);
 }
 
 /**

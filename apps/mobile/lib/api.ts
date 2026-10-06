@@ -82,12 +82,16 @@ import { practiceGroupFromResponse } from '@/lib/practice/groups';
 import type {
   CreateScriptBody,
   LineMemorization,
+  ImportScriptBody,
+  ImportTicket,
   MemorizationStatus,
   PatchScriptBody,
   ProgressBody,
   ProgressResponse,
   ScriptDetail,
+  ScriptImport,
   ScriptListResponse,
+  ScriptUpload,
   SessionCard,
   SessionDetail,
   SessionRecording,
@@ -546,9 +550,33 @@ export const api = {
   },
 
   /**
-   * 대본 저장(한 요청). 같은 request_id·같은 본문이면 먼저 만든 대본을 돌려주고(200), 다른 본문이면 422
-   * request_fingerprint_mismatch. 한도는 422 script_too_long·script_limit, 배역은 no_characters·invalid_characters.
-   * 연결이 끊기면 요청 계층이 같은 id 로 다시 보낸다.
+   * 대본 원본 파일을 올릴 자리. 50,000,000바이트 초과 422 script_file_too_large, 받지 않는 확장자 422
+   * script_file_unreadable, 동의 없음 403 script_split_consent_required.
+   */
+  createScriptUpload(body: { file_name: string; byte_size: number }): Promise<ScriptUpload> {
+    return request<ScriptUpload>('/v2/reading/uploads', jsonInit(body), { timeoutMs: 20_000 });
+  },
+
+  /** 올린 파일에서 서버가 글자를 뽑는다(다시 불러도 204). 못 뽑으면 422 script_file_unreadable, 100,000자 초과 script_too_long. */
+  completeScriptUpload(uploadId: string): Promise<void> {
+    return request<void>(`/v2/reading/uploads/${encodeURIComponent(uploadId)}/complete`, { method: 'POST' }, { timeoutMs: 60_000 });
+  },
+
+  /**
+   * 서버 나누기 접수. 다시 보내지 않는다 — 하루 한도 429 를 기다려 다시 보내면 알림이 늦고, 끊긴 뒤 [다음]을 다시
+   * 누르면 서버가 같은 글의 진행 중 작업을 돌려준다.
+   */
+  importScript(body: ImportScriptBody): Promise<ImportTicket> {
+    return request<ImportTicket>('/v2/reading/imports', jsonInit(body), { timeoutMs: 20_000 });
+  },
+
+  getScriptImport(importId: string): Promise<ScriptImport> {
+    return request<ScriptImport>(`/v2/reading/imports/${encodeURIComponent(importId)}`, {}, { timeoutMs: 10_000 });
+  },
+
+  /**
+   * 옛 대본 옮기기의 저장(기기가 나눈 줄을 그대로). 같은 request_id·같은 본문이면 먼저 만든 대본을 돌려주고(200),
+   * 다른 본문이면 422 request_fingerprint_mismatch. 연결이 끊기면 요청 계층이 같은 id 로 다시 보낸다.
    */
   createReadingScript(body: CreateScriptBody): Promise<ScriptDetail> {
     return postIdempotent<ScriptDetail>('/v2/reading/scripts', body, {
