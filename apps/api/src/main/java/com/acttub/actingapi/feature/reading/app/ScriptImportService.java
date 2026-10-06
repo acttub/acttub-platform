@@ -40,7 +40,8 @@ public class ScriptImportService {
     public Ticket request(UUID userId, boolean guest, UUID requestId, Submission submission) {
         // PDF 추출기가 매핑 없는 글자로 내는 NUL 은 Postgres text 가 담지 못한다(22021) — 저장·지문·같은 글 판정 전에 뺀다.
         String title = submission.title() == null ? null : submission.title().replace("\u0000", "");
-        String rawText = (submission.uploadId() == null ? submission.rawText() : uploads.text(userId, submission.uploadId()))
+        String rawText = (submission.uploadId() == null ? submission.rawText() : uploads.text(userId, submission.uploadId(), requestId,
+                submission.allowDuplicate()))
                 .replace("\u0000", "");
         String source = submission.source();
         if (ScriptRules.length(rawText) > ScriptRules.TEXT_MAX) {

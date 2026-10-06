@@ -156,10 +156,14 @@ public class ScriptUploadService {
     public record ReadLimits(int concurrency, Duration queueWait, Duration timeout) {
     }
 
-    /** 나누기 요청이 쓸 글. 이미 대본이 된 원본은 다시 쓰지 않는다 — 원본은 대본 하나에만 연결된다. */
-    String text(UUID userId, UUID uploadId) {
+    /**
+     * 나누기 요청이 쓸 글. 이미 대본이 된 원본도 그 글을 돌려줘 같은 글 판정(200 중복)과 재전송이 글 길과 같게 돈다. 다만 그 원본으로
+     * 새 대본을 만들려는 요청({@code allowDuplicate}, 연결한 요청의 재전송이 아닌 것)은 422 {@code script_upload_used} 다 — 원본은
+     * 대본 하나에만 연결된다.
+     */
+    String text(UUID userId, UUID uploadId, UUID requestId, boolean allowDuplicate) {
         Upload upload = require(userId, uploadId);
-        if (upload.linked()) {
+        if (upload.linked() && allowDuplicate && !requestId.equals(upload.linkedRequestId())) {
             throw new ApiException(422, "script_upload_used");
         }
         if (upload.rawText() == null) {

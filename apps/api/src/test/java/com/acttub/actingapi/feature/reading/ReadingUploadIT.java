@@ -189,7 +189,8 @@ class ReadingUploadIT {
 
     @Test
     @DisplayName("reading.script 원본: 올릴 자리 201 → 올리기 전 읽기 422 script_upload_not_ready → 올린 뒤 읽기 204(다시 불러도 204, 받기 한 번) → "
-            + "upload_id 로 나누기 202 → 워커가 저장하면 원본이 그 대본에 연결되고 뽑은 글을 비운다")
+            + "upload_id 로 나누기 202 → 워커가 저장하면 원본이 그 대본에 연결되고 뽑은 글을 비운다. "
+            + "연결된 원본으로 다시 나누면 200 duplicate_script_id, allow_duplicate 면 422 script_upload_used")
     void uploadsReadsAndSplitsAFile() throws Exception {
         byte[] cp949 = SCENE.getBytes(Charset.forName("x-windows-949"));
         JsonNode ticket = json(post("/v2/reading/uploads").content(upload("갈매기.txt", cp949.length)), 201, bearer);
@@ -213,7 +214,8 @@ class ReadingUploadIT {
         assertThat(storage.downloads.get()).as("이미 읽은 파일은 다시 받지 않는다").isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT raw_text FROM script_uploads", String.class)).isEqualTo(SCENE);
 
-        String importId = json(post("/v2/reading/imports").content(fileImport(UUID.randomUUID(), uploadId)), 202, bearer)
+        UUID firstRequest = UUID.randomUUID();
+        String importId = json(post("/v2/reading/imports").content(fileImport(firstRequest, uploadId)), 202, bearer)
                 .path("import_id").textValue();
         assertThat(jdbc.queryForObject("SELECT script_id FROM script_uploads", UUID.class)).as("저장 전에는 연결되지 않는다").isNull();
         assertThat(worker.runOnce(clock.instant())).isTrue();
@@ -231,13 +233,19 @@ class ReadingUploadIT {
                 .as("대본에 연결된 원본은 다시 읽지 않는다").isEqualTo(204);
         assertThat(storage.downloads.get()).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT raw_text FROM script_uploads", String.class)).isNull();
+        assertThat(json(post("/v2/reading/imports").content(fileImport(UUID.randomUUID(), uploadId)), 200, bearer)
+                .path("duplicate_script_id").textValue())
+                .as("연결된 원본으로 다시 [다음]: 파일을 다시 올리지 않고 R2.7(같은 글의 대본)").isEqualTo(scriptId);
+        assertThat(json(post("/v2/reading/imports").content(fileImport(firstRequest, uploadId)), 200, bearer)
+                .path("import_id").textValue()).as("처음 요청의 재전송은 그 요청").isEqualTo(importId);
         Map<String, Object> again = new LinkedHashMap<>();
         again.put("request_id", UUID.randomUUID().toString());
         again.put("upload_id", uploadId);
         again.put("source", "file");
         again.put("allow_duplicate", true);
         assertThat(json(post("/v2/reading/imports").content(mapper.writeValueAsString(again)), 422, bearer).path("detail").textValue())
-                .as("이미 대본이 된 원본으로는 다시 나누지 않는다 — 파일을 다시 올린다").isEqualTo("script_upload_used");
+                .as("「새로 넣기」로 새 대본을 만들려는데 원본이 이미 대본에 붙어 있다 — 파일을 다시 올린다").isEqualTo("script_upload_used");
+        assertThat(count("script_imports")).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT raw_text FROM scripts", String.class)).isEqualTo(SCENE);
     }
 
