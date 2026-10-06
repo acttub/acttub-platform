@@ -10,8 +10,10 @@ import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.DetailRespon
 import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.LineResultInput;
 import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.LineResultResponse;
 import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.ListResponse;
+import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.ProgressCountResponse;
 import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.ProgressRequest;
 import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.ProgressResponse;
+import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.RangeNameResponse;
 import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.RangeResponse;
 import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.RecordingResponse;
 import com.acttub.actingapi.feature.reading.app.SessionRepository.ProgressChange;
@@ -190,11 +192,22 @@ class SessionController {
                 card.myCharacterIds(),
                 card.myCharacterNames(),
                 new RangeResponse(card.startDialogueNo(), card.endDialogueNo()),
+                rangeName(card),
+                progress(card),
                 card.myDialogueCount(),
                 card.recordedLineCount(),
                 card.elapsedSeconds(),
                 card.startedAt(),
                 card.endedAt());
+    }
+
+    private static RangeNameResponse rangeName(SessionViews.SessionCardView card) {
+        var name = card.rangeName();
+        return new RangeNameResponse(name.kind(), name.sceneNo(), name.sceneTitle(), name.start(), name.end());
+    }
+
+    private static ProgressCountResponse progress(SessionViews.SessionCardView card) {
+        return card.progress() == null ? null : new ProgressCountResponse(card.progress().done(), card.progress().total());
     }
 
     private static DetailResponse detail(SessionViews.SessionDetailView view) {
@@ -206,6 +219,8 @@ class SessionController {
                 card.myCharacterIds(),
                 card.myCharacterNames(),
                 new RangeResponse(card.startDialogueNo(), card.endDialogueNo()),
+                rangeName(card),
+                progress(card),
                 card.myDialogueCount(),
                 card.recordedLineCount(),
                 card.elapsedSeconds(),

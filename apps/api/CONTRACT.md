@@ -771,6 +771,20 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - **회차 삭제**는 녹음 행을 지우고 객체 삭제를 같은 트랜잭션에서 장부(`reading_recording_delete`)에 올린다.
 - 마지막 회차는 `ORDER BY started_at DESC, id DESC` 의 첫 행이다(`PostgresScriptRepository`·`PostgresSessionRepository`).
 
+**표시값 — 장면·자동 목소리·구간 이름·진행 K/N (SOMA-593)**
+
+- 규칙은 `domain/ReadingLayout`(대사 번호·장면·구간 이름·K/N)과 `domain/VoiceAssignment`(자동 목소리) 두 곳이고, 서버는
+  그 값을 대본·회차 응답에 싣는다. 뜻은 reading.session(장면·구간 이름·K/N)과 reading.cast(`voice`)다.
+- 저장하지 않고 조회할 때 센다. 대본 상세는 이미 읽은 줄·배역으로 세서 질의가 늘지 않는다. 회차 목록·상세·시작 응답은
+  그 대본의 줄(`id, kind`, 장면 머리 줄만 `text`)을 한 번 더 읽는다 — 목록은 카드 수와 상관없이 한 번이다
+  (`PostgresSessionRepository#layout`).
+- K 는 `current_line_id` 의 대사 번호에서 센다. 시작(`start_line_id`)과 진행 저장이 구간 안 대사 줄만 받으므로 API 로는 늘
+  대사 줄이다. FK 는 줄의 종류를 보지 않아, 대사가 아닌 줄이 들어 있으면 `ReadingLayout` 은 그 앞 대사로 센다.
+- `voice` 는 저장값이 프리셋 목록(M1~M5·F1~F5)에 있을 때만 그 값을 쓰고 아니면 자동 순환 값이다. 저장 검증은 여전히 길이만
+  본다(`ScriptRules.VOICE_PRESET_MAX`).
+- OpenAPI 컴포넌트: `ReadingScriptScene`(`ReadingScript.scenes`), `ReadingScriptCharacter.voice`, `ReadingSessionRangeName`·
+  `ReadingSessionProgressCount`(`ReadingSessionCard`·`ReadingSession` 의 `range_name`·`progress`, `progress` 는 completed 면 null).
+
 **줄 단위 녹음 (SOMA-546 RA3)**
 
 - **유일한 multipart 요청**이다. 칸의 모양 검사는 핸들러가 직접 422 **배열**로 만든다 — JSON 본문의 검증기가 닿지

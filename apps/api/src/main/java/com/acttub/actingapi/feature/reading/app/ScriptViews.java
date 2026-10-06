@@ -4,6 +4,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.reading.domain.ReadingLayout.Scene;
+
 /**
  * 대본을 응답에 실을 모양 — 상세·카드·목록 (reading.script).
  *
@@ -15,6 +17,7 @@ public final class ScriptViews {
     }
 
     /**
+     * @param scenes 「장면으로 찾기」의 장면, 순서대로(reading.session)
      * @param recordingCount 모든 회차의 녹음 수
      * @param openSessionId 가장 최근에 시작한 진행 중 회차의 id. 없으면 {@code null}
      * @param lastSession 마지막 회차. 회차가 없으면 {@code null}
@@ -25,6 +28,7 @@ public final class ScriptViews {
             String source,
             List<CharacterView> characters,
             List<LineView> lines,
+            List<Scene> scenes,
             int recordingCount,
             UUID openSessionId,
             LastSessionView lastSession,
@@ -32,8 +36,11 @@ public final class ScriptViews {
             Instant updatedAt) {
     }
 
-    /** @param voicePreset 상대역 목소리 프리셋 id. {@code null} 이면 자동 */
-    public record CharacterView(UUID id, String name, int order, String voicePreset, int dialogueCount) {
+    /**
+     * @param voicePreset 상대역 목소리 프리셋 id. {@code null} 이면 자동
+     * @param voice 내 배역이 아닐 때 읽을 목소리 — 자동이면 순환으로 정한 값(reading.cast)
+     */
+    public record CharacterView(UUID id, String name, int order, String voicePreset, String voice, int dialogueCount) {
     }
 
     /**
