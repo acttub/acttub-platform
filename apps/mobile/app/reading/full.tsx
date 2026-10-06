@@ -3,7 +3,9 @@ import { ScrollView, StyleSheet, Text, View, Pressable } from 'react-native';
 
 import { palette } from '@/constants/palette';
 import { getCurrent, isMyRole } from '@/lib/reading/store';
+import { translate as t } from '@/lib/i18n';
 
+/** 대본 전체(R3.4). 목소리 정하기의 [전체 보기]와 대본 상세의 「대본 보기」가 같이 연다. 보기만 한다. */
 export default function ReadingFull() {
   const router = useRouter();
   const script = getCurrent();
@@ -11,9 +13,9 @@ export default function ReadingFull() {
   if (!script) {
     return (
       <View style={[styles.root, styles.center]}>
-        <Text style={styles.dim}>대본이 없어요.</Text>
+        <Text style={styles.dim}>{t('reading.noScript')}</Text>
         <Pressable style={styles.pill} onPress={() => router.replace('/reading')}>
-          <Text style={styles.pillText}>내 대본으로</Text>
+          <Text style={styles.pillText}>{t('reading.toMyScripts')}</Text>
         </Pressable>
       </View>
     );

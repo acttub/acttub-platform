@@ -9,6 +9,7 @@
  */
 
 import { spotlightKey, type SpotlightTopic } from './guide-spotlight';
+import { AUTO_ADVANCE_TIP_KEY } from './reading/guide-flag';
 
 /** 연습 루프를 한 바퀴 돌아보는 튜토리얼(SOMA-494). 끝내거나 "나중에"를 누르면 기록한다. */
 const TUTORIAL_KEY = 'acttub.tutorial.seen';
@@ -71,8 +72,8 @@ export function markReadingTutorialSeen(): Promise<void> {
 
 /**
  * 설정의 "가이드 다시 보기"가 부른다. 슬라이드만 다시 열고 마는 게 아니라, 화면에서 누를
- * 자리를 비춰 주던 안내와 연습 한 바퀴 튜토리얼도 되살린다 — "다시 보기"는 처음 안내를
- * 다 다시 본다는 뜻이다.
+ * 자리를 비춰 주던 안내와 연습 한 바퀴 튜토리얼, 리딩의 자동 넘김 안내 팝업(「다시 보지 않기」)도
+ * 되살린다 — "다시 보기"는 처음 안내를 다 다시 본다는 뜻이다.
  */
 export async function resetSpotlights(): Promise<void> {
   try {
@@ -81,6 +82,7 @@ export async function resetSpotlights(): Promise<void> {
       ...SPOTLIGHT_TOPICS.map((topic) => store.removeItem(spotlightKey(topic))),
       store.removeItem(TUTORIAL_KEY),
       store.removeItem(READING_TUTORIAL_KEY),
+      store.removeItem(AUTO_ADVANCE_TIP_KEY),
     ]);
   } catch {
     // no-op
