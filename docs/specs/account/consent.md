@@ -63,6 +63,7 @@
 | AI 분석 동의 | ai_analysis | 필수 |
 | 탈퇴 후 영상·녹음 보관·활용 | retention | 선택 |
 | 대본 리딩 고품질 목소리 | cloud_voice | 선택 |
+| 대본 나누기(대본 글을 OpenAI로 보냄) | script_split | 선택 |
 
 필수 셋의 type은 현재 코드와 같다. privacy 문서는 수집 항목·목적·보유 기간을 적은 개인정보 수집·이용
 동의다. 개인정보 처리방침은 동의를 받는 문서가 아니라 고지라서 결정 대상에 넣지 않고 공개 페이지에
@@ -70,8 +71,10 @@
 광고성 정보 수신 문서는 0.1.0에 두지 않는다. 광고성 발송이 없는데
 동의만 받으면 2년마다 수신 의사를 확인할 의무만 생긴다. 디자인의 동의 화면(A0.1)에는 필수 셋만
 있어 선택 문서 줄을 더해야 한다.
-cloud_voice는 가입·게이트에서 묻지 않고 그 기능을 켤 때 묻는다([reading.cloud-voice](../reading/cloud-voice.md)). 진입에서
-묻게 하면 새 판을 올린 날 모든 회원이 켜지도 않을 기능의 동의 화면을 다시 본다(`ConsentDocument.askedAtEntry`).
+cloud_voice와 script_split은 가입·게이트에서 묻지 않고 그 기능을 쓸 때 묻는다([reading.cloud-voice](../reading/cloud-voice.md),
+[reading.script](../reading/script.md#규칙제약) 「나누기 작업」). 진입에서 묻게 하면 새 판을 올린 날 모든 회원이 쓰지도 않을
+기능의 동의 화면을 다시 본다(`ConsentDocument.askedAtEntry`). script_split 문서는 법무 확인 뒤 발행하며, 발행 전에는 서버가
+나누기를 403으로 막는다.
 
 ## 규칙·제약
 - 필수 문서는 설정에서 내용만 보고 바꿀 수 없다. 필수 동의를 거두는 길은 탈퇴뿐이며 화면에 그렇게

@@ -36,14 +36,14 @@ class PostgresAiJobLedger implements AiJobLedger {
     }
 
     @Override
-    public Claimed claimNext(String kind, UUID leaseToken, Duration lease, Instant now) {
+    public Claimed claimNext(String kind, UUID leaseToken, Duration lease, Instant now, boolean reclaimExpired) {
         return transaction.execute(tx -> {
             List<Tuple> claimed = NativeTuples.list(entityManager.createNativeQuery("""
                     WITH picked AS (
                         SELECT id
                         FROM ai_jobs
                         WHERE kind=:kind
-                          AND status='pending'
+                          AND (status='pending' OR (:reclaim AND status='running' AND lease_expires_at<:now))
                           AND attempt_count<:maxAttempts
                         ORDER BY created_at,id
                         LIMIT 1
@@ -59,6 +59,7 @@ class PostgresAiJobLedger implements AiJobLedger {
                     RETURNING id,user_id,target_id,attempt_count,memory_epoch
                     """, Tuple.class)
                     .setParameter("kind", kind)
+                    .setParameter("reclaim", reclaimExpired)
                     .setParameter("maxAttempts", MAX_ATTEMPTS)
                     .setParameter("leaseToken", leaseToken)
                     .setParameter("leaseExpiresAt", now.plus(lease).atOffset(ZoneOffset.UTC))
@@ -115,6 +116,23 @@ class PostgresAiJobLedger implements AiJobLedger {
                 .setParameter("now", now.atOffset(ZoneOffset.UTC))
                 .setParameter("maxAttempts", MAX_ATTEMPTS)
                 .executeUpdate());
+    }
+
+    @Override
+    public List<UUID> failExpired(String kind, Instant now) {
+        return transaction.execute(tx -> NativeTuples.list(entityManager.createNativeQuery("""
+                UPDATE ai_jobs
+                SET status='failed',failure_reason='max_attempts',
+                    lease_token=NULL,lease_expires_at=NULL,updated_at=:now
+                WHERE kind=:kind
+                  AND status='running'
+                  AND lease_expires_at<:now
+                  AND attempt_count>=:maxAttempts
+                RETURNING id
+                """, Tuple.class)
+                .setParameter("kind", kind)
+                .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                .setParameter("maxAttempts", MAX_ATTEMPTS)).stream().map(row -> row.get("id", UUID.class)).toList());
     }
 
     private boolean close(UUID jobId, UUID leaseToken, String status, String reason, Instant now) {

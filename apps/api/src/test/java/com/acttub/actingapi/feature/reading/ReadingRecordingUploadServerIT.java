@@ -101,7 +101,7 @@ class ReadingRecordingUploadServerIT {
         UUID nina = UUID.randomUUID();
         line = UUID.randomUUID();
         session = UUID.randomUUID();
-        jdbc.update("INSERT INTO scripts(id,user_id,title,raw_text,source,request_id,request_fingerprint) VALUES (?,?,'갈매기','원문','paste',?,?)",
+        jdbc.update("INSERT INTO scripts(id,user_id,title,raw_text,raw_hash,source,request_id,request_fingerprint) VALUES (?,?,'갈매기','원문',repeat('0',64),'paste',?,?)",
                 script, member, UUID.randomUUID(), "a".repeat(64));
         jdbc.update("INSERT INTO script_characters(id,script_id,name,sort_order) VALUES (?,?,'니나',0)", nina, script);
         jdbc.update("INSERT INTO script_lines(id,script_id,ordinal,kind,character_id,text) VALUES (?,?,1,'dialogue',?,'안녕')", line, script, nina);

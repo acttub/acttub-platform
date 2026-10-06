@@ -739,9 +739,9 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 - **경로**는 전부 `/v2/reading/**` 이고 게스트의 기능 표 `READING`(`platform/security/GuestFeature`, §6-9)에 든다.
   회원은 회원의 게이트(§6-5)를 지난다.
-- **스키마(V13)**: `scripts`·`script_characters`·`script_lines`·`reading_sessions`·`reading_recordings`·
-  `line_memorization`. 값 목록은 text + CHECK 이고 Java enum 은 `platform/schema` 에 있다(`ScriptSource`·
-  `ScriptLineKind`·`ReadingMode`·`ReadingAdvance`·`ReadingSessionStatus`·`TranscriptSource`·`MemorizationStatus`).
+- **스키마(V13, V33)**: `scripts`·`script_characters`·`script_lines`·`reading_sessions`·`reading_recordings`·
+  `line_memorization`, 나누기 요청 `script_imports`(V33). 값 목록은 text + CHECK 이고 Java enum 은 `platform/schema` 에 있다(`ScriptSource`·
+  `ScriptLineKind`·`ReadingMode`·`ReadingAdvance`·`ReadingSessionStatus`·`TranscriptSource`·`MemorizationStatus`·`ScriptImportFailure`).
   FK 에 `ON DELETE` 가 없다 — 삭제는 애플리케이션이 표대로 순서를 정해 지운다. `scripts.request_id`·
   `reading_sessions.request_id` 는 (user_id, request_id) 유일이고 이관 충돌 때만 NULL 이다.
   `uq_script_characters_script_name` 은 DEFERRABLE 이다 — 이름 수정이 두 배역의 이름을 맞바꿀 때 문장 사이에서
@@ -826,6 +826,44 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   `recording_count`·녹음 삭제의 소유 확인)에서 자연히 빠진다 — 일반 API 에 보이지 않는 것은 별도 필터가 아니라
   구조가 그렇다.
 - 대본·회차·녹음 삭제, 대체된 녹음, 탈퇴 파기가 모두 같은 장부 종류 `reading_recording_delete` 를 쓴다(§6-8).
+
+**나누기 작업 (SOMA-593 C1)** — 제품 규칙의 정본: [reading.script](../../docs/specs/reading/script.md#규칙제약) 「나누기 작업」
+
+- 코드의 자리: 접수·상태는 `reading/app/ScriptImportService`(원문 한도 → 예시 판별 → 동의(예시가 아닐 때만) → 지문), 저장소 `adapter/db/
+  PostgresScriptImportRepository`(V33 `script_imports`), 워커 `app/ScriptSplitWorker`, 스케줄러 `adapter/sched/ScriptSplitScheduler`,
+  순수 규칙은 `domain/`(`NumberedLine` 줄 번호·조각, `SplitResponse` 답 검사, `CharacterNames` 이름 바로잡기, `SplitDraft` 조립,
+  `SampleScript` 예시, `ScriptText` 같은 글, `ScriptSplitRules` 숫자). 지시문은 `app/ScriptSplitPrompt`.
+- **접수는 `users` 행을 `FOR UPDATE` 로 잡은 한 트랜잭션**에서 재전송 → 같은 글의 대본 → 같은 글의 진행 중 요청 → 대본 수 →
+  하루 한도 순으로 보고 행을 만든다. LLM 길만 `ai_jobs`(kind `script_split`, `target_id` = `script_imports.id`) 행을 함께 만들고,
+  **하루 한도는 그 장부의 오늘(Asia/Seoul) 행 수**다 — 예시·중복은 행이 없어 저절로 세지 않는다. 예시 대본은 같은 트랜잭션에서
+  `ScriptRepository.create` 로 대본까지 만든다.
+- 같은 글의 해시 `scripts.raw_hash`·`script_imports.raw_hash` 는 Java `ScriptText.hash` 가 정본이다. V33 이 기존 행을 같은 식의
+  SQL 로 한 번 채웠고 `ReadingSchemaMigrationTest` 가 두 식의 일치를 실제 Postgres 로 대조한다. 공백류는 로케일에 기대지 않게
+  목록으로 적었다.
+- 워커의 lease 는 30분(최악 경로 = 호출 3시도×93초가 배역 목록·조각 두 묶음(16개씩)·재요청 2판으로 다섯 번 ≈ 24분), 선점·완료·
+  실패는 `AiJobLedger`(§5-7)다. **`script_split` 만 lease 가 지난 `running` 도 다시 집는다**(`claimNext(…, reclaimExpired=true)`) —
+  집은 워커가 죽어도 작업이 영원히 running 으로 남지 않게. 완료가 요청의 request_id 로 멱등이라 두 번 돌아도 대본은 하나다.
+  시도 셋(`MAX_ATTEMPTS`)을 다 쓴 채 lease 가 지난 작업은 스케줄러의 `sweep`(`ScriptSplitWorker.sweep` → `AiJobLedger.failExpired`)이
+  `failed(max_attempts)` 로 닫고 `script_imports.failure=failed` 를 쓴다. 호출 하나는 연결 실패·429·5xx·미완료 답에 두 번 더
+  보내고(1초·2초 뒤) 그래도 안 되면 `failure=failed` + `ledger.fail`(재큐 없음). 모델 호출은 `TextGenerator` 에
+  `GenerationOptions(model=gpt-6-luna, effort=low, maxOutputTokens=128000, timeout=90초)` 로 넘긴다 — 옵션 호출의 기본 20초와 코치
+  기본 모델은 그대로다. 조각은 작업당 16개(`ScriptSplitRules.PARALLEL_CALLS`)까지 동시에 보낸다.
+- 완료는 `ScriptRepository.create(userId, 요청의 request_id, 요청의 지문, draft, 한도)` 라 같은 작업이 다시 돌아도 같은 대본이고,
+  `OVER_LIMIT` 이면 `failure=script_limit`, `FINGERPRINT_MISMATCH`(같은 request_id 의 다른 대본이 이미 있음)면 `failure=failed`,
+  계정이 닫혔으면 `cancelled` 다. 끝난 요청(성공·실패·sweep)은 `raw_text=''` 로 비운다. `script_id` 에 FK 를 두지 않아 대본 삭제가
+  이 표를 모른다.
+- 요청 플래그 `allow_duplicate`(R2.7 「새로 넣기」: 같은 글의 대본·진행 중 요청을 보지 않음)·`skip_script_check`(R2.8 「그래도
+  나누기」: 행에 남겨 워커가 판정 줄을 묻지 않음)는 지문에 든다. 요청 모양은 `raw_text` 에 보이는 글자가 없으면(U+3000·U+200B 만)
+  422 배열, 제목 200자다.
+- 동의 조회는 고품질 목소리와 같은 질의(현재 판 `script_split` 문서의 마지막 결정)다. 예시 대본과 같은 글은 모델을 부르지 않으므로
+  동의를 보지 않고 바로 저장한다(게스트도). `ConsentDocument.askedAtEntry` 가
+  `script_split` 을 제외해 진입 게이트에 나오지 않는다. 게스트는 선택 문서를 결정할 수 없어(`ConsentService`, 403 `member_only`)
+  나누기는 늘 403 `script_split_consent_required` 다.
+- 탈퇴는 `PostgresProfileRepository#eraseReading` 이 `script_imports` 를 행째 지우고 진행 중 작업은 §6-15 의 `ai_jobs` 취소가 닫는다.
+  `LlmStep.SCRIPT_SPLIT` 기록의 묶는 열쇠(`practiceSessionId` 자리)는 작업 id 다.
+- 검증은 `ReadingImportIT`(HTTP·Postgres·장부, 모델만 가짜)와 `reading/domain/*Test`(순수 규칙), `ReadingSchemaMigrationTest`(V33) 다.
+  실제 모델은 `ScriptSplitLiveTest`(`ACTTUB_SPLIT_LIVE_TEST=1` + `OPENAI_API_KEY` 가 있을 때만, 가짜 묶음 `src/test/resources/script-split/`)가
+  본다 — 모델이 판마다 다르게 읽는 자리가 있어 묶음마다 90% 를 하한으로 둔다.
 
 **고품질 목소리 (SOMA-500)** — 제품 규칙의 정본: [reading.cloud-voice](../../docs/specs/reading/cloud-voice.md)(두 경로의 입력·출력·오류, 한도, 동의)
 

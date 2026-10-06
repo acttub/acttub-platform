@@ -124,7 +124,9 @@ class EntityMappingIT {
             // 가입 유입 출처(V26·V28)는 프로필 저장소의 native SQL(최초 저장·이관·탈퇴 파기)만 쓴다.
             "user_signup_attributions",
             // 앱 공지 포스터(V29)는 포스터 저장소의 native SQL(만들기·고치기·고르기)만 쓴다.
-            "app_posters");
+            "app_posters",
+            // 대본 나누기 요청(V33)은 리딩 저장소의 native SQL(접수·진행·완료)만 쓴다.
+            "script_imports");
 
     @Test
     @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 38개 활성 엔티티를 포함한다")
@@ -351,7 +353,7 @@ class EntityMappingIT {
         entityManager.flush();
         // 리딩(V13): 대본 → 배역 → 줄 → 회차 → 녹음·암기 상태 순으로 FK 를 따른다.
         UUID scriptId=UUID.randomUUID(), characterId=UUID.randomUUID(), lineId=UUID.randomUUID(), readingId=UUID.randomUUID();
-        save(ScriptEntity.class,new ScriptEntity(scriptId,userId,"대본","원문",ScriptSource.PASTE,UUID.randomUUID(),"c".repeat(64)));
+        save(ScriptEntity.class,new ScriptEntity(scriptId,userId,"대본","원문","d".repeat(64),ScriptSource.PASTE,UUID.randomUUID(),"c".repeat(64)));
         entityManager.flush();
         save(ScriptCharacterEntity.class,new ScriptCharacterEntity(characterId,scriptId,"니나",0,null));
         entityManager.flush();

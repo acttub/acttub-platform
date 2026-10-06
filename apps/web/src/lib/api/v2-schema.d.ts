@@ -511,6 +511,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/reading/imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Script
+         * @description 대본 글을 받아 서버가 배역·대사로 나누는 작업을 접수한다. 새 요청은 202, 같은 request_id 의 재전송과 같은
+         *     글로 진행 중인 요청은 200 으로 같은 import_id 를 돌려준다. 같은 글이 이미 내 대본이면 200 duplicate_script_id.
+         *     예시 대본과 같은 글은 모델 없이 바로 저장돼 상태가 곧 succeeded 이고 동의도 묻지 않는다(게스트도 된다). 그 밖의
+         *     글은 동의 없음 403 script_split_consent_required,
+         *     원문 100,000자 초과 422 script_too_long, 대본 수 한도 422 script_limit, 하루 20개 초과 429
+         *     script_split_daily_limit, 같은 request_id 에 다른 본문 422 request_fingerprint_mismatch. allow_duplicate(R2.7
+         *     「새로 넣기」)는 같은 글의 대본이 있어도 새로 나누고, skip_script_check(R2.8 「그래도 나누기」)는 대본 여부
+         *     판정을 묻지 않는다. 둘 다 요청 지문에 든다.
+         */
+        post: operations["import_script_v2_reading_imports_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/push-tokens": {
         parameters: {
             query?: never;
@@ -1404,6 +1431,26 @@ export interface paths {
          * @description 그 대본의 줄에 남긴 표시를 줄 순서로. 행이 없는 줄은 아직 표시하지 않은 줄이다. 없는 대본과 남의 대본은 404 script_not_found.
          */
         get: operations["list_script_memorization_v2_reading_scripts__script_id__memorization_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/reading/imports/{import_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Import
+         * @description 나누기 요청의 상태. 1초 간격으로 묻는다. 없는 것과 남의 것은 같은 404 import_not_found 다.
+         */
+        get: operations["get_import_v2_reading_imports__import_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2881,6 +2928,36 @@ export interface components {
              */
             end: number;
         };
+        /** ReadingImportRequest */
+        ReadingImportRequest: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /** Title */
+            title?: string | null;
+            /** Raw Text */
+            raw_text: string;
+            source: components["schemas"]["ReadingScriptSourceInput"];
+            /**
+             * Allow Duplicate
+             * @default false
+             */
+            allow_duplicate: boolean;
+            /**
+             * Skip Script Check
+             * @default false
+             */
+            skip_script_check: boolean;
+        };
+        /** ReadingImportTicket */
+        ReadingImportTicket: {
+            /** Import Id */
+            import_id: string | null;
+            /** Duplicate Script Id */
+            duplicate_script_id: string | null;
+        };
         /** RegisterPushTokenRequest */
         RegisterPushTokenRequest: {
             /** Token */
@@ -3704,7 +3781,7 @@ export interface components {
          * ConsentType
          * @enum {string}
          */
-        ConsentType: "terms" | "privacy" | "ai_analysis" | "retention" | "cloud_voice";
+        ConsentType: "terms" | "privacy" | "ai_analysis" | "retention" | "cloud_voice" | "script_split";
         /** SignedInResponse */
         SignedInResponse: {
             /**
@@ -4062,6 +4139,35 @@ export interface components {
             /** Sessions */
             sessions: components["schemas"]["ReadingSessionCard"][];
         };
+        /** ReadingImport */
+        ReadingImport: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "running" | "succeeded" | "failed";
+            progress: components["schemas"]["ReadingImportProgress"];
+            /** Script Id */
+            script_id: string | null;
+            failure: components["schemas"]["ScriptImportFailure"] | null;
+        };
+        /** ReadingImportProgress */
+        ReadingImportProgress: {
+            /** Done Lines */
+            done_lines: number;
+            /** Total Lines */
+            total_lines: number;
+        };
+        /**
+         * ScriptImportFailure
+         * @enum {string}
+         */
+        ScriptImportFailure: "not_script" | "no_characters" | "script_too_long" | "script_limit" | "failed";
         /** PublicPortfolio */
         PublicPortfolio: {
             /** Name */
@@ -5985,6 +6091,48 @@ export interface operations {
             };
         };
     };
+    import_script_v2_reading_imports_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadingImportRequest"];
+            };
+        };
+        responses: {
+            /** @description 재전송·진행 중(import_id) 또는 같은 글의 대본이 이미 있음(duplicate_script_id) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingImportTicket"];
+                };
+            };
+            /** @description 접수됨 — import_id 로 상태를 묻는다 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingImportTicket"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     register_push_token_v2_push_tokens_post: {
         parameters: {
             query?: never;
@@ -7571,6 +7719,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReadingLineMemorization"][];
+                };
+            };
+        };
+    };
+    get_import_v2_reading_imports__import_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                import_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingImport"];
                 };
             };
         };

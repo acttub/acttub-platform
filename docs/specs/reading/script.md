@@ -5,18 +5,19 @@
 - 도입: 0.1.0
 - 결정 기록: ADR-031
 - 화면: R1(내 대본, R1.1~R1.12), R2(대본 넣기, R2.1~R2.13), R3.4(대본 전체), R4.1~R4.8(대본 상세), D13, D16, WR1
-- 테이블: scripts, script_characters, script_lines
+- 테이블: scripts, script_characters, script_lines, script_imports, ai_jobs(종류 script_split)
 
 ## 기능
-대본을 파일·붙여넣기·직접 쓰기·예시 가운데 한 길로 넣으면 기기가 배역과 줄을 나누고, 그 결과와 원문을
-서버에 저장한다. 앱은 나누기가 끝나면 바로 저장하고, 웹은 배우가 확인 화면에서 확인한 뒤 저장한다. 저장된 대본은
-앱의 대본 탭과 웹의 리딩 첫 화면에 목록으로 보이고, 제목을 고치거나 대본을 지울 수 있다.
+대본을 파일·붙여넣기·직접 쓰기·예시 가운데 한 길로 넣으면 서버가 글을 받아 LLM(gpt-6-luna)으로 배역과 줄을 나눠
+원문과 함께 바로 저장한다(「나누기 작업」). 앱·웹은 작업 상태를 물어 끝나면 대본으로 간다. 옛 앱이 기기에서 나눈 결과를
+보내는 저장 API는 D1까지 그대로 받는다. 저장된 대본은 앱의 대본 탭과 웹의 리딩 첫 화면에 목록으로 보이고, 제목을
+고치거나 대본을 지울 수 있다.
 
 ## 의도
 지금 웹은 탭을 닫으면 대본이 사라지고 앱은 기기에만 남아, 웹에서 넣은 대본을 앱에서 이어 볼 수 없다.
-리딩 회차·녹음·암기 상태가 대본에 매달리므로 대본이 서버에 있어야 그 기록도 따라간다. 배역 추출은
-지금의 기기 파서가 한국 실물 대본(한글 파일 마크업, PDF 줄 파편, 등장인물 목록, 자간 띄운 이름)을
-충분히 다루므로 서버로 옮기지 않는다.
+리딩 회차·녹음·암기 상태가 대본에 매달리므로 대본이 서버에 있어야 그 기록도 따라간다. 배역 나누기는 서버가 한다 —
+운영 사용자 대본 68편 중 기기 규칙 파서가 LLM과 90% 이상 같게 나눈 것은 18편뿐이었고(2026-10-02 실측), 블록 형식·
+장면 머리·머리글에서 대사가 지문이 되거나 지문이 대사로 읽혔다. 규칙은 서버 한 곳에 두어 앱과 웹이 같은 결과를 본다.
 
 ## 목적
 배우가 자기 대본 목록을 어디서 넣었든 앱에서 보고, 넣어 둔 대본으로 바로 리딩을 시작한다.
@@ -24,7 +25,9 @@
 ## 입력·출력
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
-| `POST /v2/reading/scripts` | `X-Request-Id`(선택, 있으면 본문 `request_id`와 같아야 한다), `ReadingScriptCreateRequest`(request_id·title·source·raw_text·characters·lines) | `ReadingScript` 201, 같은 요청 재전송 200 | `no_characters`·`invalid_characters`·`script_too_long`·`script_limit`·`request_fingerprint_mismatch` 422, 형태 오류 422 배열, `account_deactivated` 403, 게스트 동의 전 `consent_required` 403 |
+| `POST /v2/reading/imports` | `ReadingImportRequest`(request_id·title?(200자)·raw_text·source·allow_duplicate?·skip_script_check?) | `ReadingImportTicket` — 새 작업 202 `{import_id}`, 같은 `request_id` 재전송·같은 글로 진행 중인 작업 200 `{import_id}`, 같은 글의 대본이 이미 있음 200 `{duplicate_script_id}` | `script_split_consent_required` 403, `script_too_long`(원문 100,000자 초과)·`script_limit`·`request_fingerprint_mismatch` 422, `script_split_daily_limit` 429, 형태 오류 422 배열, `account_deactivated` 403, 게스트 동의 전 `consent_required` 403 |
+| `GET /v2/reading/imports/{import_id}` | `import_id` | `ReadingImport` 200: `status`(pending·running·succeeded·failed), `progress{done_lines,total_lines}`, `script_id`(성공), `failure`(실패: not_script·no_characters·script_too_long·script_limit·failed) | `import_not_found` 404 |
+| `POST /v2/reading/scripts` | `X-Request-Id`(선택, 있으면 본문 `request_id`와 같아야 한다), `ReadingScriptCreateRequest`(request_id·title·source·raw_text·characters·lines). 옛 앱의 기기 나누기 결과 저장, D1에서 걷는다 | `ReadingScript` 201, 같은 요청 재전송 200 | `no_characters`·`invalid_characters`·`script_too_long`·`script_limit`·`request_fingerprint_mismatch` 422, 형태 오류 422 배열, `account_deactivated` 403, 게스트 동의 전 `consent_required` 403 |
 | `GET /v2/reading/scripts` | `q`(선택, 제목·배역 이름) | `ReadingScriptList` 200 | — |
 | `GET /v2/reading/scripts/{script_id}` | `script_id` | `ReadingScript` 200 | `script_not_found` 404 |
 | `PATCH /v2/reading/scripts/{script_id}` | `script_id`, `ReadingScriptPatch`(title?·characters?) | `ReadingScript` 200 | `invalid_characters` 422, 줄 등 모르는 키 422 배열, `script_not_found` 404, `account_deactivated` 403 |
@@ -34,11 +37,65 @@
 대본 삭제 뒤 녹음 객체를 지우는 삭제 장부의 입구는 [reading.recording](recording.md#입력출력)이다.
 
 ## 상태
-없음 — scripts·script_characters·script_lines에 상태·삭제 표시 컬럼이 없다. 목록의 상태 칩은 회차에서 집계한다(reading.session).
+대본에는 없다 — scripts·script_characters·script_lines에 상태·삭제 표시 컬럼이 없다. 목록의 상태 칩은 회차에서 집계한다(reading.session).
+
+나누기 작업(script_imports)의 상태는 칸이 아니라 조합이다. `script_id`가 있으면 succeeded, `failure`가 있으면 failed, 둘 다
+없으면 ai_jobs 작업의 상태(pending → running)다. pending·running → succeeded | failed 로만 간다. 장부만 닫힌 작업(탈퇴·시도
+소진)은 failure 없이 failed로 보이며 이유는 `failed`다.
 
 ## 규칙·제약
-- 입력 경로는 넷이다. 파일, 붙여넣기, 직접 쓰기, 예시 대본. 파일에서 글자를 뽑는 일은 기기에서 하고
-  파일 자체는 서버에 올리지 않는다. 웹은 txt·pdf·docx·hwp를, 앱은 txt·pdf·docx를 연다. hwpx는 둘 다
+**나누기 작업**
+- 글을 `POST /v2/reading/imports`로 보내면 서버가 작업을 접수하고 워커가 뒤에서 나눈다. 앱·웹은 `GET /v2/reading/imports/{id}`를
+  1초 간격으로 물어 succeeded면 `script_id`로 목소리 정하기(R3)로 가고, failed면 `failure`에 맞는 팝업을 띄운다. 나누는 동안
+  R2.11 「나누는 중」 팝업에 `progress`의 N / M줄을 보인다. [취소]는 없다.
+- 예시 대본이 아닌 글은 선택 동의 `script_split`(대본 글을 OpenAI로 보내는 처리)이 현재 판에 granted여야 한다. 아니면 403
+  script_split_consent_required.
+  동의는 가입·게이트에서 묻지 않고 대본을 넣는 순간 시트로 받는다([account.consent](../account/consent.md#데이터)). 문서는
+  법무 확인 뒤 배포 파일로 발행하며, 문서가 없는 동안은 아무도 동의할 수 없어 이 길이 닫혀 있다(환경 플래그를 두지 않는다).
+  게스트는 선택 문서를 결정할 수 없어 늘 403이다 — 게스트의 동의는 법무 결정이 남아 있다.
+- 서버는 줄 번호를 붙인 원문(빈 줄 제외)을 150줄 조각으로 동시에 gpt-6-luna에 보낸다(`store=false`, 생각 양 low). 조각이 둘
+  이상이면 앞 400줄로 말하는 배역 이름 목록을 먼저 받아 조각마다 붙인다. 모델은 줄마다 종류(대사·지문·장면 머리·제목·
+  등장인물 소개·무시)와 배역, 떼어낼 머리만 답하고 글자는 쓰지 않는다 — 대사 글은 원문에서 머리를 뗀 것이다.
+- 첫 호출(150줄 이하면 나누기 호출, 넘으면 배역 목록 호출)의 첫 줄이 「대본 아니오」면 더 부르지 않고 failed `not_script`다
+  (R2.8). 판단 줄이 없거나 깨졌으면 대본으로 본다. R2.8 [그래도 나누기]는 `skip_script_check: true`로 다시 보낸다 — 판정을
+  묻지 않고 보통처럼 나눈다. 두 플래그는 요청 지문에 들어 같은 `request_id`에 플래그만 달라도 422 `request_fingerprint_mismatch`다.
+- 보낸 적 없는 줄 번호, 여섯 종류 밖, 머리가 줄 시작과 다른 것(보이지 않는 글자는 빼고 견준다), 배역이 빈 대사는 버린다. 버리거나
+  빠진 줄은 150줄씩 묶어 두 번까지 다시 묻고, 그래도 남으면 지문이다. 한 작업이 동시에 보내는 호출은 16개까지다.
+- 배역 이름은 목록 표기로 바로잡는다: 목록에 있으면 그대로 → 띄어쓰기만 다르면 목록 표기 → 다른 글자 종류가 섞였거나
+  한글·영문·숫자 밖 글자가 있으면 그 글자를 빼고 편집 거리 2 이하 → 세 글자 이상이면 편집 거리 1 → 아니면 새 배역. 두 글자 이름은
+  한 글자가 다르면 다른 사람으로 둔다(「기자」와 「여자」).
+- 글에 섞인 NUL(U+0000, PDF 추출기가 매핑 없는 글자로 낸다)은 저장·지문·같은 글 판정 전에 지운다 — DB가 담지 못하는 글자다.
+- 머리는 대사에서만 뗀다(장면 머리 「S#1.」은 줄의 일부다). 모델이 머리를 비웠는데 줄이 그 배역 이름과 구분 부호(`:`·`.`·`]`·`)`·`-`)로
+  시작하면 거기까지가 머리다. 블록 형식(이름 한 줄 뒤 대사 줄들)은 같은 배역의 이어지는 줄에 머리가 없으면 한 대사로 합친다.
+  제목·등장인물·무시 줄은 대본 줄에 넣지 않는다. 제목은 요청의 `title`, 없으면 모델이 제목이라 한 첫 줄, 없으면 첫 줄이다(200자까지).
+- 배역 순서(script_characters.sort_order)는 등장인물 소개 줄에 나온 순, 거기 없는 배역은 대사 많은 순(같으면 먼저 말한 순)이다.
+  R3의 목소리 목록과 R8의 내 배역 칩이 이 순서를 쓴다.
+- 같은 글: 같은 사람의 기존 대본과 원문이 정리 뒤 완전히 같으면(NFC → U+0000·U+200B·U+FEFF 제거 → 공백류 연속을 공백 하나로 →
+  앞뒤 공백 제거) LLM 없이 200 `duplicate_script_id`로 답하고 앱은 R2.7 팝업을 띄운다. 비슷한 글 찾기가 아니고 다른 사람의
+  글과는 비교하지 않는다. 같은 글로 진행 중인 작업이 있으면 새 작업 없이 그 작업의 id를 돌려준다(두 번 누름). 해시는
+  scripts.raw_hash에 저장 때 함께 둔다. R2.7 [새로 넣기]는 `allow_duplicate: true`로 다시 보낸다 — 같은 글의 대본·진행 중
+  작업을 보지 않고 새로 나누며 하루 한도에 센다.
+- 예시 대본(「옥상, 밤」)과 정리 뒤 같은 글은 모델 없이 미리 나눈 결과를 바로 저장하고 상태가 곧 succeeded다. 모델을 부르지
+  않으므로 script_split 동의를 묻지 않는다 — 동의 전 회원도, 게스트(리딩 문서 둘만 결정)도 넣을 수 있고 튜토리얼 R2.10이 이 길로
+  시트 없이 지나간다(R2.14). 불러온 뒤 고친 글은 보통 대본처럼 동의부터 본다.
+- 한도. 한 사람이 하루(한국 날짜)에 모델을 부를 수 있는 작업은 20개이고 넘으면 429 script_split_daily_limit. 중복·예시는 세지
+  않는다. 원문 100,000자 초과는 접수 때 422 script_too_long, 대본 수 한도(회원 100·게스트 20)는 접수 때 422 script_limit이고 저장
+  때 걸리면 failed `script_limit`. 나눈 결과가 줄 3,000·배역 50·본문 총량을 넘으면 failed `script_too_long`.
+- 저장은 대본 저장 규칙 그대로다(scripts·script_characters·script_lines 한 트랜잭션, 요청 id는 작업의 `request_id`). 모델 호출이
+  연결 실패·붐빔·서버 실패·미완료 답에 두 번 다시 보내고도 안 되면 failed `failed`이고 앱은 R2.12 팝업을 띄운다. 기기 파서로
+  대신 나누지 않는다 — OpenAI가 멈추면 그동안 대본을 넣지 못한다(계획 「정한 것」 1). 같은 `request_id`로 다른 대본이 이미
+  저장돼 있으면(옛 저장 API와 섞인 기기) failed `failed`.
+- 집은 워커가 죽으면 30분 lease가 지난 뒤 다른 워커가 다시 집어 끝낸다(저장이 `request_id`로 멱등이라 대본은 하나). 그동안 상태는
+  running이다. 세 번 집고도 끝내지 못한 작업은 failed `failed`로 닫힌다. 앱은 끝없이 기다리지 않게 자기 시간 초과를 둔다(권장 120초,
+  68편 실측 최대 36초).
+- 같은 `request_id`의 재전송은 [요청 재전송](../common.md#요청-재전송) 규칙을 따른다(유일 범위 script_imports의 (user_id,
+  request_id), 지문은 제목·입력 경로·원문·두 플래그). 작업 행은 나누는 동안만 원문을 들고 있고 끝나면(성공·실패) 비운다 — 글은
+  대본에 있고 같은 글 판정은 해시만 쓴다. 행 자체는 탈퇴 때 지운다. 대본을 지운 뒤 작업 상태의 `script_id`는 지워진 대본을
+  가리킨다.
+
+**대본**
+- 입력 경로는 넷이다. 파일, 붙여넣기, 직접 쓰기, 예시 대본. 파일에서 글자를 뽑는 일은 아직 기기에서 하고
+  파일 자체는 서버에 올리지 않는다(원본 파일 받기는 후속). 웹은 txt·pdf·docx·hwp를, 앱은 txt·pdf·docx를 연다. hwpx는 둘 다
   열지 않고, 앱에서 hwp를 열지 못하는 것은 0.1.0이 받아들인다.
 - 웹과 앱은 같은 파서를 쓴다. 콜론(`지수: 대사`), 블록(이름 한 줄 뒤 대사 줄들), 공백(`지수 대사`,
   앞의 둘이 하나도 없을 때만) 세 형식과 괄호·대괄호로 감싼 한 줄 지문을 알아본다. 등장인물 목록
@@ -57,9 +114,9 @@
   배역 이름 고치기·빼기·더하기·합치기가 없으므로 배역이 잘못 잡히면 대본을 지우고 다시 넣는다. 한 사람이 두 배역으로
   잡혀도 둘 다 내 배역으로 고르면 연습할 수 있고 목소리는 R3에서 같게 맞춘다. 웹은 확인 화면(D16)에서 저장 전에 배역
   이름을 고치고, 잘못 잡힌 배역을 빼고(그 배역의 줄은 지문이 된다), 빠진 배역 이름을 더해 다시 나눌 수 있다.
-- 배역 순서(script_characters.sort_order)는 저장 요청의 `characters` 순서다. 앱은 등장인물 목록이 있으면 그 순서로,
-  없으면 대사가 많은 순(같으면 먼저 나온 순)으로 세워 보내고, R3의 목소리 목록과 R8의 내 배역 칩이 이 순서를 쓴다.
-  웹은 먼저 나온 순으로 보낸다.
+- 옛 저장 API의 배역 순서(script_characters.sort_order)는 저장 요청의 `characters` 순서다. 옛 앱은 등장인물 목록이 있으면
+  그 순서로, 없으면 대사가 많은 순(같으면 먼저 나온 순)으로 세워 보낸다. 웹은 먼저 나온 순으로 보낸다. 나누기 작업의 순서는
+  위 「나누기 작업」과 같다.
 - 저장 뒤에는 줄 구조가 고정이다. 앱은 제목만 고친다(내 대본 R1과 대본 상세 R4의 더보기 "제목 수정"이 여는 R1.12
   팝업). 다시 나누려면 새 대본으로 넣는다.
   줄을 다시 나누면 script_lines의 id가 바뀌어 회차·녹음·암기 상태가 가리키는 줄이 사라지기 때문이다.
@@ -83,7 +140,7 @@
   않는다. 이관으로 게스트와 회원의 request_id가 겹치면(UUID라 실질적으로 없음) 서버가 게스트 쪽 값을
   비우고 이관을 진행한다.
 - 예시 대본은 앱·웹에 내장된 글이다. "예시 대본 불러오기"는 그 글을 붙여넣기와 같은 길로 넣고, 저장하면
-  보통 대본이 된다. 서버는 예시를 구분하지 않고 scripts에 user_id가 없는 행을 두지 않는다.
+  보통 대본이 된다. 서버는 저장된 예시를 구분하지 않고 scripts에 user_id가 없는 행을 두지 않는다(나누기 작업만 글로 알아본다).
 - 한도. 대본 하나는 원문 100,000자(유니코드 코드 포인트, 줄바꿈 포함)·줄 3,000(대사·지문·장면 모두)·배역
   50(전체 배역)까지이고, 서버는 원문뿐 아니라 줄 본문의 총량도 같은 100,000자로 검사한다. 넘으면 422
   script_too_long. 대본 수는 회원 100개, 게스트 20개(예시 대본을 저장한 것도 셈)이고 넘으면 422
@@ -121,9 +178,11 @@
 ## 예외
 - 파일에서 글자를 못 뽑으면(암호 걸린 PDF, 그림만 있는 PDF, 한글 97 형식) 기기가 "이 파일에서 글자를
   읽지 못했어요. 텍스트를 복사해 붙여넣어 주세요"를 보여 주고 서버에는 아무것도 남지 않는다.
+- 나누기 작업이 failed면 앱은 R2 위에 팝업을 띄우고 넣은 글·파일은 그대로 남긴다: `not_script`는 R2.8 「대본이 아닌 것
+  같아요」, `no_characters`는 R2.13 「배역을 찾지 못했어요」, `script_too_long`·`script_limit`·`failed`는 R2.12 저장 실패.
 - 배역이 하나도 안 잡히면 저장하지 않는다. 앱은 R2 위에 "배역을 찾지 못했어요. 대본에 말하는 사람 이름이 있는지
   확인하고 다시 넣어 주세요." 팝업(R2.13)을 띄우고 넣은 글·파일은 그대로 남긴다. 웹은 확인 화면에서 배역 이름을 직접
-  적게 한다. 배역 없이 저장 API를 부르면 422 no_characters.
+  적게 한다. 배역 없이 옛 저장 API를 부르면 422 no_characters.
 - 배역이 하나뿐인 대본도 저장·리딩된다. 상대 대사가 없으므로 내 차례만 이어지는 독백이 된다.
 - 한도를 넘으면 422이고 행이 남지 않는다. 앱은 저장 실패를 R2 위 팝업(R2.12)으로 알리고 넣은 글·파일은 그대로 남긴다.
 - 앱은 저장한 뒤에 R3로 가므로 R3에서 뒤로 가도 대본은 남고 목소리는 자동이다. 웹은 확인 화면에서 나가면 아무것도
@@ -133,7 +192,32 @@
 - 옛 대본 올리기가 한도(대본 100개)에 걸리면 걸린 대본은 기기에 남기고 대본을 지워 자리가 나면 다음 실행에 다시 옮긴다.
 
 ## 검증 방법
-- 콜론 형식 대본을 붙여넣고 저장: scripts 1행, script_characters와 script_lines의 수가 기기가 나눈
+- 콜론 형식 대본을 `POST /v2/reading/imports`로 보냄: 202와 import_id, 워커가 모델 한 번으로 나눠 저장하면 GET이
+  succeeded와 script_id를 주고, 대사 글은 머리를 뗀 원문, 배역은 대사 많은 순이다. 「제2막」 줄은 scene이다.
+- 같은 request_id 재전송: 200 같은 import_id. 다른 본문: 422 request_fingerprint_mismatch.
+- 같은 사람이 같은 글(공백만 다른 글, NFD로 온 글, U+200B가 섞인 글 포함)을 다시 보냄: 모델 호출 없이 200
+  duplicate_script_id. 한 글자 다르면 202 새 작업. 다른 사람의 같은 글: 202.
+- 같은 글로 진행 중인 작업이 있을 때 다시 보냄: 200 같은 import_id, ai_jobs 행은 하나.
+- 예시 대본(줄바꿈만 다른 것 포함): 202, GET이 곧 succeeded, 모델 호출 0, ai_jobs 행 0, 대본은 제목 「옥상, 밤」·배역
+  윤서·태오·17줄·대사 8·7.
+- script_split에 동의하지 않은 회원, 게스트, 문서가 발행되지 않은 서버: 모두 403 script_split_consent_required이고 행이 없다.
+  같은 셋이 예시 대본 글을 보냄: 202, 곧 succeeded, 모델 호출 0. 한 글자 고친 예시: 403.
+- 하루 20개를 접수한 뒤 21번째: 429 script_split_daily_limit. 그 뒤 예시·중복은 된다. 한국 자정이 지나면 다시 202.
+  같은 회원의 요청 25개가 동시에 와도 접수는 정확히 20개다.
+- 400줄 대본: 배역 목록 호출 1 + 150줄 조각 3, 조각이 빠뜨린 줄은 두 번 다시 묻고 끝까지 빠진 줄은 지문, 배역 칸의
+  「맥베س」는 목록의 「맥베스」로 저장된다, 배역 순서는 등장인물 소개 순, done_lines가 total_lines(400)와 같다.
+- 첫 호출의 첫 줄이 「대본<TAB>아니오」: 호출 하나로 failed not_script. 모두 지문이라 배역 0명: failed no_characters.
+- 모델이 503·429를 세 번 답함: failed `failed`, Sentry에 external 보고 하나, ai_jobs failure_reason=failed. 한 번 실패 뒤
+  성공: succeeded, 호출 2. 400을 답함: 다시 보내지 않고 failed.
+- 원문 100,001자: 422 script_too_long. 대본 100개인 회원: 422 script_limit. 둘 다 모델 전이고 행이 없다. 보이는 글자가 없는
+  글(U+3000·U+200B만), 201자 제목: 422 배열.
+- R2.7 뒤 `allow_duplicate: true`: 202 새 작업, 대본 둘, 하루 한도에 셈. 같은 request_id에 플래그만 다름: 422 request_fingerprint_mismatch.
+- R2.8 뒤 `skip_script_check: true`: 지시문에 판단 줄이 없고 모델이 「아니오」라 해도 나눠 succeeded.
+- 다른 워커가 집은 채 죽음: 30분 동안 running, 같은 글의 새 요청은 그 작업 id. 31분 뒤 다른 워커가 집어 succeeded(시도 2).
+  시도 셋을 다 쓴 채 lease가 지남: sweep이 failed `failed`로 닫는다.
+- 끝난 요청(성공·실패)의 script_imports.raw_text는 비어 있다.
+- 없는 import_id·남의 import_id: 404 import_not_found. 탈퇴·이관이 먼저 끝난 계정의 접수: 403 account_deactivated.
+- 옛 저장 API로 콜론 형식 대본을 저장: scripts 1행, script_characters와 script_lines의 수가 기기가 나눈
   배역 수·줄 수와 같고, 지문 줄의 character_id는 NULL이다. 앱은 확인 화면 없이 R3로 간다.
 - "제1막"과 "S#2" 줄이 있는 대본: 그 두 줄은 kind가 scene이고 배역이 없다.
 - 등장인물 목록이 있는 대본에서 목록 밖 이름이 7줄: 배역이 아니다. 8줄이지만 전체 발화의 0.9%: 배역이 아니다.
@@ -185,7 +269,8 @@
 
 ## 범위 밖
 - 저장 뒤 다시 나누기. 0.1.0에는 없고 새 대본으로 넣는다.
-- 서버의 배역 추출·대본 분석. 배역 나누기는 기기 파서가 한다(README).
-- 파일 자체의 서버 업로드와 hwpx 열기.
+- 파일 자체의 서버 업로드와 서버 글자 뽑기(txt·docx·pdf·hwp·hwpx). 후속 작업(C2)이 맡는다.
+- 게스트의 script_split 동의. 법무 결정 전까지 게스트는 나누기 작업을 쓰지 못한다.
+- 나누기 결과를 저장 전에 확인·고치는 화면. 서버에 「초안」 단계를 두지 않는다(계획 「정한 것」 3).
 - 대본의 공유·공개·검색 노출과 대사 본문 검색.
 - 목록 카드의 "분석 완료" 칩.

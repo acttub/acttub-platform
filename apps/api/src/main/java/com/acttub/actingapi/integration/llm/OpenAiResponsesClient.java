@@ -7,6 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -34,9 +35,15 @@ public class OpenAiResponsesClient implements TextGenerator {
      */
     private static final String DEFAULT_MODEL = "gpt-5.6-luna";
 
+    /** 옵션 호출의 기본 응답 대기. 코치의 분류·답은 이 안에 든다. */
+    static final Duration BOUNDED_TIMEOUT = Duration.ofSeconds(20);
+
     private final ObjectMapper objectMapper;
     private final OpenAiHttpTransport transport;
-    private OpenAiHttpTransport boundedTransport;
+    private final OpenAiHttpTransport boundedTransport;
+    /** {@link GenerationOptions#timeout()} 을 따로 둔 호출의 전송기 — 대기 시간마다 하나를 만들어 둔다. */
+    private final Function<Duration, OpenAiHttpTransport> timedTransports;
+    private final ConcurrentHashMap<Duration, OpenAiHttpTransport> byTimeout = new ConcurrentHashMap<>();
     private final Sleeper sleeper;
     private final Function<String, String> environment;
 
@@ -45,9 +52,10 @@ public class OpenAiResponsesClient implements TextGenerator {
         this(
                 objectMapper,
                 new RestClientOpenAiTransport(REQUEST_TIMEOUT),
+                new RestClientOpenAiTransport(BOUNDED_TIMEOUT),
+                readTimeout -> new RestClientOpenAiTransport(BOUNDED_TIMEOUT, readTimeout),
                 Sleeper.real(),
                 System::getenv);
-        this.boundedTransport = new RestClientOpenAiTransport(Duration.ofSeconds(20));
     }
 
     OpenAiResponsesClient(
@@ -55,9 +63,20 @@ public class OpenAiResponsesClient implements TextGenerator {
             OpenAiHttpTransport transport,
             Sleeper sleeper,
             Function<String, String> environment) {
+        this(objectMapper, transport, transport, timeout -> transport, sleeper, environment);
+    }
+
+    OpenAiResponsesClient(
+            ObjectMapper objectMapper,
+            OpenAiHttpTransport transport,
+            OpenAiHttpTransport boundedTransport,
+            Function<Duration, OpenAiHttpTransport> timedTransports,
+            Sleeper sleeper,
+            Function<String, String> environment) {
         this.objectMapper = objectMapper;
         this.transport = transport;
-        this.boundedTransport = transport;
+        this.boundedTransport = boundedTransport;
+        this.timedTransports = timedTransports;
         this.sleeper = sleeper;
         this.environment = environment;
     }
@@ -93,7 +112,7 @@ public class OpenAiResponsesClient implements TextGenerator {
         OpenAiHttpResponse response;
         try {
             // Routed stages own their bounded retry/fallback policy; avoid nested 120s retries.
-            response = options == null ? retryingRequest(request) : boundedTransport.exchange(request);
+            response = options == null ? retryingRequest(request) : transportFor(options).exchange(request);
         } catch (IOException failure) {
             throw new OpenAiConnectionException(failure);
         }
@@ -138,6 +157,10 @@ public class OpenAiResponsesClient implements TextGenerator {
         return new GeneratedText(text, tokenUsage(payload), model);
     }
 
+    private OpenAiHttpTransport transportFor(GenerationOptions options) {
+        return options.timeout() == null ? boundedTransport : byTimeout.computeIfAbsent(options.timeout(), timedTransports);
+    }
+
     private OpenAiHttpResponse retryingRequest(OpenAiHttpRequest request) {
         Duration delay = Duration.ofSeconds(1);
         for (int attempt = 0; attempt < ATTEMPTS; attempt++) {
@@ -175,12 +198,12 @@ public class OpenAiResponsesClient implements TextGenerator {
         return value == null ? "" : value.strip();
     }
 
-    private static IllegalStateException apiError(int status, String context) {
+    private static OpenAiStatusException apiError(int status, String context) {
         if (RETRY_STATUSES.contains(status)) {
-            return new IllegalStateException(
+            return new OpenAiStatusException(status,
                     context + ": 지금 AI가 붐빕니다. 잠시 뒤 다시 시도해 주세요.");
         }
-        return new IllegalStateException(
+        return new OpenAiStatusException(status,
                 context + ": OpenAI가 HTTP " + status + "로 응답했습니다.");
     }
 

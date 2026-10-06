@@ -14,12 +14,19 @@ import com.acttub.actingapi.feature.reading.app.RecordingPlayback;
 import com.acttub.actingapi.feature.reading.app.RecordingRepository;
 import com.acttub.actingapi.feature.reading.app.RecordingService;
 import com.acttub.actingapi.feature.reading.app.RecordingStorage;
+import com.acttub.actingapi.feature.reading.app.ScriptImportRepository;
+import com.acttub.actingapi.feature.reading.app.ScriptImportService;
 import com.acttub.actingapi.feature.reading.app.ScriptRepository;
 import com.acttub.actingapi.feature.reading.app.ScriptService;
+import com.acttub.actingapi.feature.reading.app.ScriptSplitWorker;
 import com.acttub.actingapi.feature.reading.app.SessionRepository;
 import com.acttub.actingapi.feature.reading.app.SessionService;
 import com.acttub.actingapi.feature.reading.app.VoiceSynthesizer;
+import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.integration.media.AudioTranscoder;
+import com.acttub.actingapi.platform.ledger.AiJobLedger;
+import com.acttub.actingapi.platform.observability.FailureReporter;
+import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.acttub.actingapi.feature.reading.adapter.voice.GeminiVoiceSynthesizer;
 import com.acttub.actingapi.platform.web.CanonicalJson;
 import com.google.genai.Client;
@@ -61,6 +68,17 @@ class ReadingConfiguration {
     ScriptService scriptService(
             ScriptRepository scripts, ReadingRecordingCleanup cleanup, CanonicalJson canonical, Clock clock) {
         return new ScriptService(scripts, cleanup, canonical, clock);
+    }
+
+    @Bean
+    ScriptImportService scriptImportService(ScriptImportRepository imports, CanonicalJson canonical, Clock clock) {
+        return new ScriptImportService(imports, canonical, clock);
+    }
+
+    @Bean
+    ScriptSplitWorker scriptSplitWorker(AiJobLedger ledger, ScriptImportRepository imports, TextGenerator generator,
+            LlmTelemetry telemetry, FailureReporter failures, Clock clock) {
+        return new ScriptSplitWorker(ledger, imports, generator, telemetry, failures, clock);
     }
 
     @Bean

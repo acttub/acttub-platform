@@ -13,12 +13,17 @@ final class RestClientOpenAiTransport implements OpenAiHttpTransport {
     private final RestClient client;
 
     RestClientOpenAiTransport(Duration timeout) {
+        this(timeout, timeout);
+    }
+
+    /** 연결과 응답 대기를 따로 둔다 — 대본 나누기는 응답만 오래 기다린다. */
+    RestClientOpenAiTransport(Duration connectTimeout, Duration readTimeout) {
         HttpClient httpClient = HttpClient.newBuilder()
-                .connectTimeout(timeout)
+                .connectTimeout(connectTimeout)
                 .build();
         JdkClientHttpRequestFactory requestFactory =
                 new JdkClientHttpRequestFactory(httpClient);
-        requestFactory.setReadTimeout(timeout);
+        requestFactory.setReadTimeout(readTimeout);
         this.client = RestClient.builder()
                 .requestFactory(requestFactory)
                 .build();
