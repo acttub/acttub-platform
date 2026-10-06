@@ -21,6 +21,7 @@ import com.acttub.actingapi.feature.reading.app.SessionViews.RecordingView;
 import com.acttub.actingapi.feature.reading.app.SessionViews.SessionCardView;
 import com.acttub.actingapi.feature.reading.app.SessionViews.SessionDetailView;
 import com.acttub.actingapi.feature.reading.domain.LineResult;
+import com.acttub.actingapi.feature.reading.domain.ReadingLayout;
 import com.acttub.actingapi.feature.reading.domain.SessionPlan;
 import com.acttub.actingapi.platform.persistence.NativeTuples;
 import com.acttub.actingapi.platform.schema.ReadingAdvance;
@@ -161,7 +162,7 @@ class PostgresSessionRepository implements SessionRepository {
     public SessionDetailView find(UUID userId, UUID sessionId) {
         List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery(
                 CARD_SELECT + """
-                       ,rs.script_id,rs.mode,rs.advance,rs.record,rs.start_line_id,rs.end_line_id,rs.current_line_id,
+                       ,rs.script_id,rs.mode,rs.advance,rs.record,rs.start_line_id,rs.end_line_id,
                        rs.progress_seq,CAST(rs.line_results AS text) AS line_results
                 """ + CARD_FROM + """
                 WHERE rs.id=:sessionId
@@ -175,7 +176,7 @@ class PostgresSessionRepository implements SessionRepository {
         }
         Tuple row = rows.getFirst();
         return new SessionDetailView(
-                card(row),
+                card(row, layout(row.get("script_id", UUID.class))),
                 row.get("script_id", UUID.class),
                 ReadingMode.valueOf(row.get("mode", String.class).toUpperCase(Locale.ROOT)).dbValue(),
                 ReadingAdvance.valueOf(row.get("advance", String.class).toUpperCase(Locale.ROOT)).dbValue(),
@@ -197,6 +198,7 @@ class PostgresSessionRepository implements SessionRepository {
         if (!owned) {
             return null;
         }
+        ReadingLayout layout = layout(scriptId);
         return NativeTuples.list(entityManager.createNativeQuery(
                 CARD_SELECT + CARD_FROM + """
                 WHERE rs.script_id=:scriptId
@@ -206,7 +208,7 @@ class PostgresSessionRepository implements SessionRepository {
                 .setParameter("sep", SEPARATOR)
                 .setParameter("scriptId", scriptId)
                 .setParameter("userId", userId)).stream()
-                .map(PostgresSessionRepository::card)
+                .map(row -> card(row, layout))
                 .toList();
     }
 
@@ -327,7 +329,7 @@ class PostgresSessionRepository implements SessionRepository {
 
     /** 카드의 집계 — 회차 번호, 내 배역, 구간의 대사 번호, 내 대사 수, 녹음된 줄 수. */
     private static final String CARD_SELECT = """
-            SELECT rs.id,rs.status,rs.elapsed_seconds,rs.started_at,rs.ended_at,
+            SELECT rs.id,rs.status,rs.elapsed_seconds,rs.started_at,rs.ended_at,rs.current_line_id,
                    (SELECT count(*) FROM reading_sessions o
                     WHERE o.script_id=rs.script_id AND (o.started_at,o.id) <= (rs.started_at,rs.id)) AS ordinal,
                    array_to_string(rs.my_character_ids,:sep) AS my_character_ids,
@@ -350,20 +352,36 @@ class PostgresSessionRepository implements SessionRepository {
             JOIN script_lines el ON el.id=rs.end_line_id
             """;
 
-    private static SessionCardView card(Tuple row) {
+    private static SessionCardView card(Tuple row, ReadingLayout layout) {
+        String status = ReadingSessionStatus.valueOf(row.get("status", String.class).toUpperCase(Locale.ROOT)).dbValue();
+        int startNo = row.get("start_dialogue_no", Number.class).intValue();
+        int endNo = row.get("end_dialogue_no", Number.class).intValue();
         return new SessionCardView(
                 row.get("id", UUID.class),
                 row.get("ordinal", Number.class).intValue(),
-                ReadingSessionStatus.valueOf(row.get("status", String.class).toUpperCase(Locale.ROOT)).dbValue(),
+                status,
                 uuids(row.get("my_character_ids", String.class)),
                 split(row.get("my_character_names", String.class)),
-                row.get("start_dialogue_no", Number.class).intValue(),
-                row.get("end_dialogue_no", Number.class).intValue(),
+                startNo,
+                endNo,
+                layout.rangeName(startNo, endNo),
+                ReadingSessionStatus.IN_PROGRESS.dbValue().equals(status)
+                        ? layout.progress(startNo, endNo, row.get("current_line_id", UUID.class))
+                        : null,
                 row.get("my_dialogue_count", Number.class).intValue(),
                 row.get("recorded_line_count", Number.class).intValue(),
                 row.get("elapsed_seconds", Integer.class),
                 row.get("started_at", Instant.class),
                 row.get("ended_at", Instant.class));
+    }
+
+    private ReadingLayout layout(UUID scriptId) {
+        return ReadingLayout.of(NativeTuples.list(entityManager.createNativeQuery(
+                "SELECT id,kind,text FROM script_lines WHERE script_id=:scriptId ORDER BY ordinal", Tuple.class)
+                .setParameter("scriptId", scriptId)).stream()
+                .map(line -> new ReadingLayout.Line(
+                        line.get("id", UUID.class), line.get("kind", String.class), line.get("text", String.class)))
+                .toList());
     }
 
     /** 줄 순서의 녹음. 재생 주소는 서비스가 조회할 때마다 붙인다 — 여기서는 비어 있다. */

@@ -91,6 +91,9 @@ final class SessionDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<UUID> myCharacterIds,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<String> myCharacterNames,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) RangeResponse range,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) RangeNameResponse rangeName,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true,
+                    description = "진행 K/N. in_progress 일 때만, completed 는 null") ProgressCountResponse progress,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int myDialogueCount,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int recordedLineCount,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int elapsedSeconds,
@@ -104,6 +107,34 @@ final class SessionDtos {
     record RangeResponse(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int startDialogueNo,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int endDialogueNo) {
+    }
+
+    /**
+     * 구간 이름. 화면 글은 기기가 만든다 — {@code all} 「처음부터 끝까지」, {@code scene} 장면 이름(없으면 「장면 N」),
+     * {@code dialogues} 「대사 start~end번」.
+     */
+    @Schema(name = "ReadingSessionRangeName", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record RangeNameResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"all", "scene", "dialogues"},
+                    description = "all 대본 전체 · scene 대본 상세 scenes 의 한 장면과 첫·끝 대사가 정확히 같음 · dialogues 그 밖")
+            String kind,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true,
+                    description = "kind=scene 일 때 그 장면의 no, 아니면 null") Integer sceneNo,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true,
+                    description = "kind=scene 이고 장면에 머리 줄이 있을 때 그 글, 아니면 null") String sceneTitle,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "시작 대사 번호") int start,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "끝 대사 번호") int end) {
+    }
+
+    /** 「진행 중 · K/N」 — K 는 done, N 은 total. */
+    @Schema(name = "ReadingSessionProgressCount", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record ProgressCountResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                    description = "지난 대사 수 — 현재 줄의 대사 번호 − 시작 대사 번호. 현재 줄이 대사가 아니면 그 앞 대사의 번호로 센다")
+            int done,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "구간 안 대사 수(모든 배역)") int total) {
     }
 
     /**
@@ -121,6 +152,9 @@ final class SessionDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<UUID> myCharacterIds,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<String> myCharacterNames,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) RangeResponse range,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) RangeNameResponse rangeName,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true,
+                    description = "진행 K/N. in_progress 일 때만, completed 는 null") ProgressCountResponse progress,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int myDialogueCount,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int recordedLineCount,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int elapsedSeconds,
