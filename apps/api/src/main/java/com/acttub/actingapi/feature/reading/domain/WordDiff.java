@@ -56,12 +56,13 @@ public final class WordDiff {
             return plain(target);
         }
 
-        int[] lcs = new int[(n + 1) * (m + 1)];
+        // 값은 min(n, m) ≤ INPUT_MAX(1,000) 이라 short 에 든다.
+        short[] lcs = new short[(n + 1) * (m + 1)];
         for (int i = n - 1; i >= 0; i--) {
             for (int j = m - 1; j >= 0; j--) {
-                lcs[i * (m + 1) + j] = unitLetter[i] == spoken[j]
+                lcs[i * (m + 1) + j] = (short) (unitLetter[i] == spoken[j]
                         ? lcs[(i + 1) * (m + 1) + j + 1] + 1
-                        : Math.max(lcs[(i + 1) * (m + 1) + j], lcs[i * (m + 1) + j + 1]);
+                        : Math.max(lcs[(i + 1) * (m + 1) + j], lcs[i * (m + 1) + j + 1]));
             }
         }
         boolean[] differs = new boolean[words.size()];

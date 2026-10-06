@@ -17,7 +17,10 @@ import java.util.regex.Pattern;
 public final class LineMatch {
     static final double PASS_THRESHOLD = 0.72;
 
-    /** 원문·말한 것 각각의 상한(코드 포인트). 대조는 두 길이의 곱에 비례한다. */
+    /**
+     * 원문·말한 것 각각의 상한(코드 포인트). 넘으면 비교하지 않는다. 편집 거리는 자모 길이 m·⌈n/64⌉, 다르게 말한 어절은
+     * 두 글자 수의 곱에 비례한다.
+     */
     static final int INPUT_MAX = 1000;
 
     private static final Pattern BRACKETED = Pattern.compile("[(（\\[【][^)）\\]】]*[)）\\]】]");
