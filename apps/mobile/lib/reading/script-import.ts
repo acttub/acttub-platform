@@ -40,7 +40,8 @@ export type ImportStop =
   | { kind: 'upload_used' } // 이미 대본이 된 원본. runScriptImport 가 다시 올려 한 번 더 보낸다
   | { kind: 'error'; message: string }; // R2.12 공용
 
-export type ImportResult = { kind: 'saved'; scriptId: string } | ImportStop;
+/** cancelled 는 화면을 떠나 기다리기를 그만둔 것이다. 화면은 아무것도 바꾸지 않는다. */
+export type ImportResult = { kind: 'saved'; scriptId: string } | { kind: 'cancelled' } | ImportStop;
 
 /** 요청마다 새 request_id 다. 같은 글을 두 번 눌러도 서버가 진행 중인 같은 작업을 돌려준다. */
 export function importBody(input: ImportInput, flags: ImportFlags, requestId: string): ImportScriptBody {
@@ -106,7 +107,9 @@ export async function runImport(
   body: ImportScriptBody,
   deps: ImportDeps,
   onProgress: (progress: ImportProgress) => void,
+  signal?: AbortSignal,
 ): Promise<ImportResult> {
+  if (signal?.aborted) return { kind: 'cancelled' };
   const deadline = deps.now() + IMPORT_TIMEOUT_MS;
   let ticket: ImportTicket;
   try {
@@ -128,6 +131,7 @@ export async function runImport(
     }
     if (deps.now() + POLL_MS > deadline) return STOP_BY_FAILURE.failed();
     await deps.sleep(POLL_MS);
+    if (signal?.aborted) return { kind: 'cancelled' };
   }
 }
 
@@ -185,20 +189,22 @@ export async function runScriptImport(
   deps: ScriptImportDeps,
   onProgress: (progress: ImportProgress) => void,
   onUploaded: (uploadId: string) => void,
+  signal?: AbortSignal,
 ): Promise<ImportResult> {
-  if (input.kind === 'text') return runImport(importBody(input, flags, deps.newRequestId()), deps.import, onProgress);
+  if (signal?.aborted) return { kind: 'cancelled' };
+  if (input.kind === 'text') return runImport(importBody(input, flags, deps.newRequestId()), deps.import, onProgress, signal);
   try {
     await deps.upload.complete(input.uploadId);
   } catch (error) {
     return stopOf(error);
   }
-  const result = await runImport(importBody(input, flags, deps.newRequestId()), deps.import, onProgress);
+  const result = await runImport(importBody(input, flags, deps.newRequestId()), deps.import, onProgress, signal);
   if (result.kind !== 'upload_used') return result;
   const again = await uploadScriptFile(input.file, deps.upload);
   if (again.kind === 'unread') return { kind: 'busy' };
   if (again.kind !== 'uploaded') return again;
   onUploaded(again.uploadId);
-  return runImport(importBody({ ...input, uploadId: again.uploadId }, flags, deps.newRequestId()), deps.import, onProgress);
+  return runImport(importBody({ ...input, uploadId: again.uploadId }, flags, deps.newRequestId()), deps.import, onProgress, signal);
 }
 
 /** [확인] 하나짜리 알림의 글(R2.4·R2.12·R2.13·R2.15). 동의·중복·대본 아님은 버튼이 다른 팝업이라 null. */

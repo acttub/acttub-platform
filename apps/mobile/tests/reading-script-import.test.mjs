@@ -331,3 +331,24 @@ test('reading.script(R2.4): 올린 원본이 없어졌으면(404 script_upload_n
     message: '대본을 읽지 못했어요. 스캔한 PDF이거나 지원하지 않는 형식일 수 있어요. 복사해서 붙여넣어 주세요.',
   });
 });
+
+test('reading.script(R2.11): 화면을 떠나면(signal 끊김) 묻기를 멈추고 cancelled 로 끝난다 — 떠난 뒤 화면을 바꾸지 않게', async () => {
+  const { state, deps, onProgress } = fakeServer({ jobs: [running(3, 61)] });
+  const leave = new AbortController();
+  const sleep = deps.sleep;
+  deps.sleep = async (ms) => {
+    await sleep(ms);
+    if (state.polls === 2) leave.abort();
+  };
+
+  const result = await runImport(importBody(TEXT, {}, 'r'), deps, onProgress, leave.signal);
+
+  assert.deepEqual(result, { kind: 'cancelled' });
+  assert.equal(state.polls, 2);
+
+  const files = fileServer();
+  const gone = new AbortController();
+  gone.abort();
+  assert.deepEqual(await runScriptImport({ kind: 'file', file: PICKED, uploadId: 'up-1' }, {}, files.deps, () => {}, () => {}, gone.signal), { kind: 'cancelled' });
+  assert.deepEqual(files.calls, [], '떠난 뒤에는 아무것도 보내지 않는다');
+});

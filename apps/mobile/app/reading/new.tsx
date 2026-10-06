@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { File } from 'expo-file-system';
-import { useReducer, useState } from 'react';
+import { useEffect, useReducer, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -96,6 +96,13 @@ export default function ReadingNew() {
   const nextTarget = useSpotlightTarget(TARGET.readingNext);
   const tutorialGuide = useTutorialSpotlight('readingNew');
   const pending = pendingScript(input);
+  // 화면을 떠나면 묻기를 멈추고, 떠난 뒤에 끝난 나누기가 다른 화면에서 router.replace 하지 않게 한다.
+  const life = useRef<AbortController | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    life.current = controller;
+    return () => controller.abort();
+  }, []);
 
   // 대본을 다시 읽지 못한 것처럼 원인이 남지 않은 실패는 R2.12 공용 문구다.
   const failWith = (error?: unknown) =>
@@ -125,6 +132,7 @@ export default function ReadingNew() {
   };
 
   const split = async (next: ImportInput, flags: ImportFlags) => {
+    const signal = life.current?.signal;
     setPopup({ kind: 'splitting', progress: null });
     let input = next;
     const result = await runScriptImport(
@@ -136,10 +144,13 @@ export default function ReadingNew() {
         if (next.kind === 'file') input = { ...next, uploadId };
         dispatch({ type: 'fileUploaded', uploadId });
       },
+      signal,
     );
+    if (result.kind === 'cancelled' || signal?.aborted) return;
     if (result.kind === 'file_unreadable' || result.kind === 'file_too_large') dispatch({ type: 'fileFailed' });
     if (result.kind !== 'saved') return showStop(result, { kind: 'import', input, flags });
     const saved = await loadIntoCurrent(result.scriptId);
+    if (signal?.aborted) return;
     if (!saved) return failWith();
     setPopup(null);
     if (saved.characters.length >= 2) router.replace({ pathname: '/reading/roles', params: { from: 'new' } });
