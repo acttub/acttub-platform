@@ -14,6 +14,7 @@ import com.acttub.actingapi.feature.reading.app.RecordingPlayback;
 import com.acttub.actingapi.feature.reading.app.RecordingRepository;
 import com.acttub.actingapi.feature.reading.app.RecordingService;
 import com.acttub.actingapi.feature.reading.app.RecordingStorage;
+import com.acttub.actingapi.feature.reading.app.ScriptFileCleanup;
 import com.acttub.actingapi.feature.reading.app.ScriptFileStorage;
 import com.acttub.actingapi.feature.reading.app.ScriptImportRepository;
 import com.acttub.actingapi.feature.reading.app.ScriptImportService;
@@ -75,7 +76,7 @@ class ReadingConfiguration {
 
     @Bean
     ScriptUploadService scriptUploadService(ScriptUploadRepository uploads, ScriptImportRepository imports,
-            ScriptFileStorage storage, ReadingRecordingCleanup cleanup, Clock clock) {
+            ScriptFileStorage storage, ScriptFileCleanup cleanup, Clock clock) {
         return new ScriptUploadService(uploads, imports, storage, cleanup, clock);
     }
 

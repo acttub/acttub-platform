@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import com.acttub.actingapi.feature.reading.app.ReadingRecordingCleanup;
+import com.acttub.actingapi.feature.reading.app.ScriptFileCleanup;
 import com.acttub.actingapi.feature.reading.app.ScriptUploadRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;
@@ -26,9 +26,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 class PostgresScriptUploadRepository implements ScriptUploadRepository {
     private final EntityManager em;
     private final TransactionTemplate transaction;
-    private final ReadingRecordingCleanup cleanup;
+    private final ScriptFileCleanup cleanup;
 
-    PostgresScriptUploadRepository(EntityManager em, PlatformTransactionManager manager, ReadingRecordingCleanup cleanup) {
+    PostgresScriptUploadRepository(EntityManager em, PlatformTransactionManager manager, ScriptFileCleanup cleanup) {
         this.em = em;
         this.transaction = new TransactionTemplate(manager);
         this.cleanup = cleanup;
@@ -77,17 +77,18 @@ class PostgresScriptUploadRepository implements ScriptUploadRepository {
                         FOR UPDATE OF u SKIP LOCKED
                     ), removed AS (
                         DELETE FROM script_uploads u USING stale WHERE u.id=stale.id
-                        RETURNING u.user_id,u.object_key
+                        RETURNING u.user_id,u.object_key,u.expires_at
                     )
-                    SELECT user_id,object_key FROM removed
+                    SELECT user_id,object_key,expires_at FROM removed
                     """, Tuple.class).setParameter("before", before.atOffset(ZoneOffset.UTC)));
-            Map<UUID, List<String>> keys = new LinkedHashMap<>();
+            Map<UUID, List<Tuple>> byUser = new LinkedHashMap<>();
             for (Tuple row : removed) {
-                keys.computeIfAbsent(row.get("user_id", UUID.class), user -> new ArrayList<>())
-                        .add(row.get("object_key", String.class));
+                byUser.computeIfAbsent(row.get("user_id", UUID.class), user -> new ArrayList<>()).add(row);
             }
             List<UUID> scheduled = new ArrayList<>();
-            keys.forEach((userId, objectKeys) -> scheduled.add(cleanup.schedule(userId, objectKeys, now)));
+            byUser.forEach((userId, rows) -> scheduled.add(cleanup.schedule(userId,
+                    rows.stream().map(row -> row.get("object_key", String.class)).toList(), now,
+                    rows.stream().map(row -> row.get("expires_at", Instant.class)).max(Instant::compareTo).orElseThrow())));
             return scheduled;
         });
     }

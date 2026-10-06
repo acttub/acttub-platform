@@ -14,6 +14,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.reading.app.ReadingRecordingCleanup;
+import com.acttub.actingapi.feature.reading.app.ScriptFileCleanup;
 import com.acttub.actingapi.feature.reading.app.ScriptRepository;
 import com.acttub.actingapi.feature.reading.app.ScriptViews.CharacterView;
 import com.acttub.actingapi.feature.reading.app.ScriptViews.LastSessionView;
@@ -54,14 +55,17 @@ class PostgresScriptRepository implements ScriptRepository {
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
     private final ReadingRecordingCleanup cleanup;
+    private final ScriptFileCleanup sources;
 
     PostgresScriptRepository(
             EntityManager entityManager,
             PlatformTransactionManager transactionManager,
-            ReadingRecordingCleanup cleanup) {
+            ReadingRecordingCleanup cleanup,
+            ScriptFileCleanup sources) {
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
         this.cleanup = cleanup;
+        this.sources = sources;
     }
 
     @Override
@@ -306,7 +310,7 @@ class PostgresScriptRepository implements ScriptRepository {
                 return null;
             }
             // 녹음 행을 지우면서 객체 키를 같은 트랜잭션에서 장부에 남긴다 — 커밋 뒤 저장소가 실패해도 키를 잃지 않는다.
-            List<String> objectKeys = new ArrayList<>(NativeTuples.list(entityManager.createNativeQuery("""
+            List<String> objectKeys = NativeTuples.list(entityManager.createNativeQuery("""
                     WITH removed AS (
                         DELETE FROM reading_recordings r
                         USING reading_sessions rs
@@ -318,15 +322,18 @@ class PostgresScriptRepository implements ScriptRepository {
                     """, Tuple.class)
                     .setParameter("scriptId", scriptId)).stream()
                     .map(row -> row.get("object_key", String.class))
-                    .toList());
-            // 원본 파일도 대본과 같은 수명이다(reading.script 「원본 파일」). 같은 장부 종류로 지운다.
-            objectKeys.addAll(NativeTuples.list(entityManager.createNativeQuery("""
-                    WITH removed AS (DELETE FROM script_uploads WHERE script_id=:scriptId RETURNING object_key)
-                    SELECT object_key FROM removed
+                    .toList();
+            // 원본 파일도 대본과 같은 수명이다(reading.script 「원본 파일」).
+            List<UUID> scheduled = new ArrayList<>();
+            List<Tuple> removedSources = NativeTuples.list(entityManager.createNativeQuery("""
+                    WITH removed AS (DELETE FROM script_uploads WHERE script_id=:scriptId RETURNING object_key,expires_at)
+                    SELECT object_key,expires_at FROM removed
                     """, Tuple.class)
-                    .setParameter("scriptId", scriptId)).stream()
-                    .map(row -> row.get("object_key", String.class))
-                    .toList());
+                    .setParameter("scriptId", scriptId));
+            if (!removedSources.isEmpty()) {
+                scheduled.add(sources.schedule(userId, removedSources.stream().map(row -> row.get("object_key", String.class)).toList(),
+                        now, removedSources.stream().map(row -> row.get("expires_at", Instant.class)).max(Instant::compareTo).orElseThrow()));
+            }
             entityManager.createNativeQuery("""
                     DELETE FROM line_memorization m
                     USING script_lines l
@@ -343,9 +350,8 @@ class PostgresScriptRepository implements ScriptRepository {
             entityManager.createNativeQuery("DELETE FROM scripts WHERE id=:scriptId")
                     .setParameter("scriptId", scriptId)
                     .executeUpdate();
-            return objectKeys.isEmpty()
-                    ? List.of()
-                    : List.of(cleanup.schedule(userId, objectKeys, now));
+            if (!objectKeys.isEmpty()) scheduled.add(cleanup.schedule(userId, objectKeys, now));
+            return scheduled;
         });
     }
 

@@ -25,6 +25,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.acttub.actingapi.feature.auth.app.JwtService;
+import com.acttub.actingapi.feature.profile.app.AccountCleanup;
 import com.acttub.actingapi.feature.reading.app.ScriptSplitWorker;
 import com.acttub.actingapi.feature.reading.app.ScriptUploadService;
 import com.acttub.actingapi.integration.llm.GeneratedText;
@@ -160,6 +161,7 @@ class ReadingUploadIT {
     @Autowired ScriptSplitWorker worker;
     @Autowired ScriptUploadService uploads;
     @Autowired FakeStorage storage;
+    @Autowired AccountCleanup cleanup;
 
     private UUID scriptSplitDocument;
     private UUID member;
@@ -285,7 +287,7 @@ class ReadingUploadIT {
     }
 
     @Test
-    @DisplayName("reading.script 원본: 대본을 지우면 연결된 원본의 행과 객체가 함께 없다. 연결되지 않은 다른 원본은 남는다")
+    @DisplayName("reading.script 원본: 대본을 지우면 연결된 원본의 행이 없고 객체는 올리기 주소 시한이 지난 뒤 정리 장부가 지운다. 연결되지 않은 다른 원본은 남는다")
     void deletingTheScriptDeletesItsSource() throws Exception {
         String uploadId = readFile("갈매기.txt", SCENE);
         String scriptId = split(uploadId);
@@ -294,9 +296,13 @@ class ReadingUploadIT {
 
         assertThat(perform(delete("/v2/reading/scripts/{id}", scriptId), bearer).getStatus()).isEqualTo(204);
 
-        assertThat(storage.objects).containsOnlyKeys("reading-source/" + member + "/" + other);
         assertThat(jdbc.queryForList("SELECT id FROM script_uploads", String.class)).containsExactly(other);
-        assertThat(count("account_cleanup_operations")).as("장부는 커밋 뒤 바로 지우고 비었다").isZero();
+        assertThat(storage.objects).as("올리기 주소(15분)가 살아 있는 동안은 지우지 않는다 — 먼저 지우면 다시 올린 객체가 남는다")
+                .containsKeys(key(uploadId), key(other));
+        clock.set(NOW.plus(Duration.ofMinutes(16)));
+        cleanup.runDue();
+        assertThat(storage.objects).containsOnlyKeys(key(other));
+        assertThat(count("account_cleanup_operations")).isZero();
     }
 
     @Test
@@ -310,6 +316,9 @@ class ReadingUploadIT {
 
         assertThat(withdrawn.getStatus()).as(withdrawn.getContentAsString()).isEqualTo(200);
         assertThat(count("script_uploads")).isZero();
+        assertThat(storage.objects).as("주소 시한 전").hasSize(2);
+        clock.set(NOW.plus(Duration.ofMinutes(16)));
+        cleanup.runDue();
         assertThat(storage.objects).isEmpty();
         assertThat(count("account_cleanup_operations")).isZero();
     }

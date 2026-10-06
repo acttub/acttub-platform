@@ -31,11 +31,11 @@ public class ScriptUploadService {
     private final ScriptUploadRepository uploads;
     private final ScriptImportRepository imports;
     private final ScriptFileStorage storage;
-    private final ReadingRecordingCleanup cleanup;
+    private final ScriptFileCleanup cleanup;
     private final Clock clock;
 
     public ScriptUploadService(ScriptUploadRepository uploads, ScriptImportRepository imports, ScriptFileStorage storage,
-            ReadingRecordingCleanup cleanup, Clock clock) {
+            ScriptFileCleanup cleanup, Clock clock) {
         this.uploads = uploads;
         this.imports = imports;
         this.storage = storage;
