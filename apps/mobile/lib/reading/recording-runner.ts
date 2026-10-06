@@ -65,7 +65,7 @@ export async function enqueueLineRecording(input: LineRecordingInput): Promise<E
     await deleteDeviceFile(input.uri).catch(() => undefined);
     return { kind: 'rejected', reason: 'missing' };
   }
-  const check = checkRecordingFile({ byteSize, durationMs: input.durationMs });
+  const check = checkRecordingFile({ byteSize, durationMs: input.durationMs, contentType: input.contentType });
   if (!check.ok) {
     await deleteDeviceFile(input.uri).catch(() => undefined);
     return { kind: 'rejected', reason: check.reason };

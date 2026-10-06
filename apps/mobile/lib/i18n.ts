@@ -67,7 +67,7 @@ export function currentLanguage(): 'ko' | 'en' {
   return language;
 }
 
-/** 한국어로 쓰는 사람인가 — 연기 입시·대사 챌린지처럼 한국에서만 쓸모 있는 것에 쓴다. */
+/** 한국어로 쓰는 사람인가 — 연기 입시처럼 한국에서만 쓸모 있는 것에 쓴다. */
 export function isKorean(): boolean {
   return language === 'ko';
 }
