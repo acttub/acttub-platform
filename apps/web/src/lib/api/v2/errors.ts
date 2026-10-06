@@ -126,7 +126,7 @@ const CONFLICT_MESSAGES: Record<string, string> = {
 };
 /** 변환(webm → m4a)이 실패했다. 행·객체는 없고 기기가 같은 요청 id 로 다시 시도한다. */
 const AUDIO_CONVERSION_MESSAGE = "녹음을 저장하는 중이에요. 잠시 뒤 다시 시도해요.";
-/** 닫힌 회차(completed·stopped)에 진행 저장을 보냈다. 새 회차를 시작해야 한다. */
+/** 끝난 회차(completed)에 진행 저장을 보냈다. 새 회차를 시작해야 한다. */
 const SESSION_CLOSED_MESSAGE = "이미 끝난 회차예요. 상세에서 새로운 연습을 시작해 주세요.";
 
 /** 연결이 끊겨 답을 받지 못했을 때 화면에 보이는 말. 어느 요청이었는지는 배우에게 뜻이 없다. */

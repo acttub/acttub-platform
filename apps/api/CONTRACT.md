@@ -762,8 +762,9 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 **리딩 회차 (SOMA-546 RA2)**
 
 - **시작**: `reading_sessions` 에는 지문 컬럼이 없어 저장된 속성 여섯과 대본을 비교해 재전송을 가른다.
-  **한 트랜잭션에서 대본 행을 `FOR UPDATE` 로 잡고**(같은 대본의 시작이 여기서 줄을 선다) 열린 회차를 `stopped` 로
-  바꾼 뒤 새 회차를 만든다 — `uq_reading_sessions_open_script` 가 그물이다. `started_at`·`ended_at` 은 앱 시계다.
+  **한 트랜잭션에서 대본 행을 `FOR UPDATE` 로 잡고**(같은 대본의 시작이 여기서 줄을 선다) 새 회차를 만든다. 같은
+  대본의 진행 중 회차는 건드리지 않아 여럿일 수 있고, 대본 상세의 `open_session_id` 는 그중 `started_at DESC, id DESC`
+  첫 회차다. 회차 상태는 `in_progress`·`completed` 둘이다. `started_at`·`ended_at` 은 앱 시계다.
 - **진행 저장**: 시간은 `GREATEST(저장값, 보낸 값)` 로 쓴다. 회차 행을 `FOR UPDATE` 로 잡은 채 하고, 계정 상태를 따로
   보지 않는다 — 이관·삭제가 먼저 끝났으면 행의 주인이 바뀌었거나 행이 없어 회차를 찾지 못하는 것으로 충분하다(응답은
   reading.session 「예외」, 규칙은 common.md 「저장 직전 재확인」).
@@ -1084,7 +1085,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   토큰이 있을 때만 서므로 기본 `spec/openapi.json`에는 실리지 않으며 `AdminEndpointIT`의 조건부 경로 명시
   목록과 직렬화 검사가 이 계약을 지킨다.
 - `GET /v2/admin/reading-sessions?limit=50&status=all&exclude_actors=…`는 `limit` 1~100, 기본 50이고
-  `status`는 `all`·`in_progress`·`completed`·`stopped`다. 응답은 `{sessions, count}`이며 `count`는 지금
+  `status`는 `all`·`in_progress`·`completed`다. 응답은 `{sessions, count}`이며 `count`는 지금
   반환한 묶음의 크기다. 각 행은 `id`(회차 UUID)·`actor`(접두사 없는 8자리 가명)·`script_title`·
   `started_at`·`ended_at`(항상 포함, 없으면 null)·`status`·`mode`(`read`·`quiz`)·`elapsed_seconds`·
   `recording_count`만 가진다. `started_at DESC, id DESC`로 고정 정렬한다. 대본 본문·전사·원본 user id·이메일·

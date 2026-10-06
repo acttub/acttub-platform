@@ -464,10 +464,11 @@ class ReadingScriptIT {
         session(hamletId, member, List.of(ophelia), "completed", clock.instant());
         UUID cherryId = UUID.fromString(cherry);
         UUID ranevskaya = jdbc.queryForObject("SELECT id FROM script_characters WHERE script_id=?", UUID.class, cherryId);
-        session(cherryId, member, List.of(ranevskaya), "stopped", clock.instant());
+        session(cherryId, member, List.of(ranevskaya), "in_progress", clock.instant().minusSeconds(60));
+        UUID cherryLatest = session(cherryId, member, List.of(ranevskaya), "in_progress", clock.instant());
 
         JsonNode practiced = json(get("/v2/reading/scripts"), 200);
-        assertThat(practiced.path("in_progress_count").intValue()).isEqualTo(1);
+        assertThat(practiced.path("in_progress_count").intValue()).as("진행 중 회차가 있는 대본 수").isEqualTo(2);
         Map<String, JsonNode> byId = new LinkedHashMap<>();
         practiced.path("scripts").forEach(row -> byId.put(row.path("id").textValue(), row));
         assertThat(byId.get(seagull).path("status").textValue()).isEqualTo("reading");
@@ -476,7 +477,9 @@ class ReadingScriptIT {
         assertThat(byId.get(seagull).path("last_activity_at").textValue()).isEqualTo(byId.get(seagull).path("last_practiced_at").textValue());
         assertThat(byId.get(hamlet).path("status").textValue()).isEqualTo("completed");
         assertThat(byId.get(hamlet).path("my_character_names")).extracting(JsonNode::textValue).containsExactly("오필리아");
-        assertThat(byId.get(cherry).path("status").textValue()).as("stopped 만 남으면 배역 선택").isEqualTo("no_cast");
+        assertThat(byId.get(cherry).path("status").textValue()).isEqualTo("reading");
+        assertThat(json(get("/v2/reading/scripts/{id}", cherry), 200).path("open_session_id").textValue())
+                .as("가장 최근에 시작한 진행 중 회차").isEqualTo(cherryLatest.toString());
 
         JsonNode detail = json(get("/v2/reading/scripts/{id}", seagull), 200);
         assertThat(detail.path("open_session_id").isNull()).isFalse();

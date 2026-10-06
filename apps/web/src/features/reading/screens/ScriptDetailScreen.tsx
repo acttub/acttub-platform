@@ -90,7 +90,6 @@ export function ScriptDetailScreen({
             <Button size="lg" variant="secondary" className="w-full" onClick={onMemorize}>
               암기하기
             </Button>
-            {openSession && <p className="text-[11.5px] text-ink-4">새로운 연습을 시작하면 지금 진행 중인 회차는 중단으로 바뀌어요.</p>}
             {error && <p className="text-[12.5px] text-red">{error}</p>}
           </div>
         </Card>
