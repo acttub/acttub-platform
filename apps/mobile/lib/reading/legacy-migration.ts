@@ -4,9 +4,8 @@
  * - 옛 대본에는 원문이 없다. 줄에서 "이름: 대사" 꼴로 되살린 글을 원문으로 두고 입력 경로는 paste다.
  * - 옛 암기 표시(memorized 줄 번호)는 새 줄 id에 대응해 memorized로 올린다(reading.memorization).
  * - 대본마다 서버 저장(과 암기 저장)이 확인된 뒤에만 그 로컬 자료를 지운다. 재시도는 같은 요청 id를 쓴다.
- * - 한도(script_limit)에 걸린 대본은 남겨 두고 "대본 N개를 옮기지 못했어요"를 보여 준다. 연결이 끊긴 것도
- *   남겨 다음 실행에 다시 한다.
- * - 옛 녹음(회차 전체 한 파일)은 줄 단위와 맞지 않아 올리지 않고 지운다. 안내 한 줄을 남긴다.
+ * - 한도(script_limit)에 걸린 대본과 연결이 끊겨 못 옮긴 대본은 남겨 두고 다음 실행에 다시 한다.
+ * - 옛 녹음(회차 전체 한 파일)은 줄 단위와 맞지 않아 올리지 않고 지운다. 따로 알리지 않는다.
  *
  * 네이티브 모듈 없이 성립하도록 저장소·API·파일 삭제를 넣어 받는다(local-account-wipe 와 같은 방식).
  */
@@ -16,7 +15,7 @@ import type { CreateScriptBody, MemorizationStatus, ScriptDetail } from './types
 
 /** 옛 저장소 키. 'acttub.' 접두사라 탈퇴 때 함께 지워진다. */
 export const LEGACY_SCRIPTS_KEY = 'acttub.reading.scripts';
-/** 요청 id 장부와 옮긴 결과 안내. 같은 접두사. */
+/** 요청 id 장부. 같은 접두사. */
 export const LEGACY_MIGRATION_KEY = 'acttub.reading.legacyMigration';
 
 /** 옛 앱의 SavedScript 가운데 옮기는 데 필요한 부분. 나머지 필드는 무시한다. */
@@ -40,14 +39,11 @@ export type LegacyMigrationResult = {
   failed: number;
 };
 
-export type LegacyNotice = LegacyMigrationResult & { at: number };
-
 type MigrationState = {
   /** 옛 대본 id → 요청 id. 재시도가 같은 id를 쓰게 한다. */
   requestIds: Record<string, string>;
   /** 다시 보내도 같은 답인 422(한도 제외)로 거절된 대본. 남겨 두되 다시 보내지 않는다. */
   rejected: Record<string, string>;
-  notice: LegacyNotice | null;
 };
 
 type Storage = {
@@ -63,7 +59,6 @@ export type LegacyMigrationDependencies = {
   /** 없는 파일이어도 던지지 않는다. */
   deleteFile: (uri: string) => Promise<void>;
   newRequestId: () => string;
-  now?: () => number;
 };
 
 const UNTITLED = /^(제목 없는 대본|Untitled script)$/;
@@ -108,10 +103,9 @@ async function readState(storage: Storage): Promise<MigrationState> {
     return {
       requestIds: parsed.requestIds ?? {},
       rejected: parsed.rejected ?? {},
-      notice: parsed.notice ?? null,
     };
   } catch {
-    return { requestIds: {}, rejected: {}, notice: null };
+    return { requestIds: {}, rejected: {} };
   }
 }
 
@@ -217,20 +211,5 @@ export async function migrateLegacyScripts(deps: LegacyMigrationDependencies): P
   }
 
   if (remaining.length === 0) await deps.storage.removeItem(LEGACY_SCRIPTS_KEY).catch(() => undefined);
-  if (result.moved + result.limited + result.failed > 0) {
-    state.notice = { ...result, at: (deps.now ?? Date.now)() };
-    await writeState(deps.storage, state).catch(() => undefined);
-  }
   return result;
-}
-
-/** 옮긴 결과 안내(한 번). 없으면 null. */
-export async function readLegacyNotice(storage: Storage): Promise<LegacyNotice | null> {
-  return (await readState(storage)).notice;
-}
-
-export async function dismissLegacyNotice(storage: Storage): Promise<void> {
-  const state = await readState(storage);
-  if (!state.notice) return;
-  await writeState(storage, { ...state, notice: null });
 }

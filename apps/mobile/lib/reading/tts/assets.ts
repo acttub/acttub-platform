@@ -329,3 +329,11 @@ export function assetsPresent(variant: Variant, preset: string): boolean {
   }
   return true;
 }
+
+/** 받아 둔 모델을 지워 공간을 돌려준다 — 앱 목소리를 못 쓰는 기기(voice-capability). 없으면 아무것도 하지 않는다. */
+export function removeDownloadedAssets(variant: Variant): void {
+  try {
+    const dir = dirFor(variant);
+    if (dir.exists) dir.delete();
+  } catch {}
+}
