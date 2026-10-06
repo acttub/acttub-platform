@@ -19,6 +19,9 @@
 --      수집기 정본에는 없다.
 --  10. 가입 코호트 원장('signup_rows', SOMA-591) — 사람 단위 가입 행(가명·기기·첫 업로드 확정 시각).
 --      ops 가 플랫폼(iOS·안드로이드·웹)×유입 소스 퍼널을 같은 기간 코호트로 계산한다. 수집기 정본에는 없다.
+--  11. 업로드 완료 · 연습 미시작 원장('upload_only_rows'). 영상 업로드는 끝냈지만(finalized) 아직 어떤
+--      연습·챌린지에도 연결되지 않은 업로드 한 벌이다. 기존 sessions·activity_rows·퍼널·코칭 지표는
+--      건드리지 않는 순수 additive 데이터다 — 자세한 판정·한계는 그 CTE 바로 위 주석을 본다.
 -- now() 는 트랜잭션 시작 시각이다. 백업 경로는 이것을 백업 시각으로 바꿔 돌렸다.
 WITH b AS (SELECT (now() AT TIME ZONE 'Asia/Seoul')::date AS d),
 -- 분석 기준 셋. '어제'(달력)가 아니라 '최근 24시간'(구르는 창)이다 —
@@ -198,6 +201,28 @@ activity_rows AS (
   JOIN signup_platform sp ON sp.user_id = a.user_id
   WHERE a.created_at <= now()
     AND a.user_id NOT IN (SELECT id FROM team)
+),
+-- ── 업로드 완료 · 연습 미시작 ────────────────────────────────────────
+-- 조회 시점에 연습·챌린지와 연결되지 않은 finalized 업로드다. 기존 연습 지표에 합산하지 않는다.
+-- 신형은 video_id, 구형 이관은 같은 소유자의 object_key, 옛 연습은 upload_intent_id로 확인한다.
+-- videos.object_key는 유일하지 않으므로 후보 중 하나라도 사용되거나 파기됐으면 제외한다.
+-- 업로드 목적과 이미 삭제되어 끊긴 연결 이력은 알 수 없다. 이탈·실패·재생 가능 여부를 단정하지 않는다.
+upload_only_rows AS (
+  SELECT ui.id AS upload_intent_id,
+         COALESCE(ui.finalized_at, ui.created_at) AS created_at,
+         ui.user_id, ui.duration_ms
+  FROM upload_intents ui
+  WHERE ui.status = 'finalized'
+    AND COALESCE(ui.finalized_at, ui.created_at) <= now()
+    AND NOT EXISTS (SELECT 1 FROM practice_sessions ps2 WHERE ps2.upload_intent_id = ui.id)
+    AND NOT EXISTS (
+      SELECT 1 FROM videos v
+      WHERE ((ui.video_id IS NOT NULL AND v.id = ui.video_id)
+          OR (ui.video_id IS NULL AND v.object_key = ui.object_key AND v.user_id = ui.user_id))
+        AND (v.purged_at IS NOT NULL
+          OR EXISTS (SELECT 1 FROM practices p WHERE p.video_id = v.id)
+          OR EXISTS (SELECT 1 FROM challenge_entries ce WHERE ce.video_id = v.id))
+    )
 ),
 scopes AS (
   SELECT b.basis, b.since, p.platform
@@ -743,6 +768,21 @@ SELECT json_build_object(
     FROM signup_device sd
     JOIN signup_platform sp ON sp.user_id = sd.user_id
     WHERE sd.user_id NOT IN (SELECT id FROM team) AND sd.created_at <= now()),
+  -- 업로드만 하고 연습을 시작하지 않은 업로드 원장. 위 upload_only_rows CTE 주석이 판정
+  -- 기준과 사각지대를 적는다. 팀 행도 빼지 않고 is_team=true 로 내보낸다 — 화면이 기본값으로 거른다.
+  'upload_only_rows', (SELECT COALESCE(json_agg(json_build_object(
+      'upload_intent_id', uo.upload_intent_id,
+      'created_at', to_char(date_trunc('minute', uo.created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
+      'actor', '배우 ' || left(md5(uo.user_id::text), 8),
+      'is_team', (uo.user_id IN (SELECT id FROM team)),
+      'platform', sp.platform,
+      'device', sd.device,
+      'duration_ms', uo.duration_ms
+    ) ORDER BY uo.created_at DESC, uo.upload_intent_id DESC), '[]'::json)
+    FROM upload_only_rows uo
+    JOIN users u ON u.id = uo.user_id
+    JOIN signup_device sd ON sd.user_id = uo.user_id
+    JOIN signup_platform sp ON sp.user_id = uo.user_id),
   -- ── 기능별 사용 (SOMA-570) ─────────────────────────────────────────
   -- 전부 팀 제외(team CTE). ⚠️ 자유 글은 싣지 않는다 — 설문 본문·연락처·노트 평가 코멘트·대본·댓글은
   -- 있는지만 센다. 이 JSON 은 수집기를 거쳐 git(ops-data)에 영구히 남는다.

@@ -32,7 +32,7 @@ public class NotificationPushWorker {
         var outgoing = notifications.dispatch(now, GROUPS_PER_RUN);
         if (outgoing.isEmpty()) return 0;
         try {
-            var gone = sender.send(outgoing.stream().map(item -> new PushMessage(item.token(), "액트텁", item.body(), item.data())).toList());
+            var gone = sender.send(outgoing.stream().map(item -> new PushMessage(item.token(), item.title(), item.body(), item.data())).toList());
             notifications.forgetTokens(gone);
         } catch (RuntimeException failure) {
             failures.report(failure, FailureKind.EXTERNAL, new FailureContext("NotificationPushWorker.send"));

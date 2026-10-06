@@ -33,6 +33,12 @@ class ActorMemoryUpdateScheduling implements ConversationClosedListener {
     @Override
     public void onConversationClosed(UUID userId, UUID practiceId) {
         try {
+            updates.appendAvoid(userId, practiceId, clock.instant());
+        } catch (RuntimeException failure) {
+            failureReporter.report(
+                    failure, new FailureContext("ActorMemoryUpdateScheduling.appendAvoid", practiceId));
+        }
+        try {
             updates.schedule(userId, practiceId, clock.instant());
         } catch (RuntimeException failure) {
             failureReporter.report(

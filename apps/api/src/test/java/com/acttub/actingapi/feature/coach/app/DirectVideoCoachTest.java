@@ -207,6 +207,12 @@ class DirectVideoCoachTest {
         verify(model, times(2)).delete(file);
         assertThat(temporary).allSatisfy(path -> assertThat(path).doesNotExist());
         assertThat(telemetry.calls()).hasSize(3);
+        // 기록마다 실제로 보낸 과제 템플릿이 붙는다 — 앞에 붙는 배우 정보는 빠진 정적 본문이다(SOMA-585).
+        assertThat(telemetry.calls()).extracting(call -> call.prompt().name())
+                .containsExactly("coach.direct.opening", "coach.direct.classifier", "coach.direct.intention");
+        assertThat(telemetry.calls().get(1).prompt().text()).isEqualTo(DirectVideoPrompts.classifier());
+        assertThat(telemetry.calls().get(2).prompt().text())
+                .isEqualTo(DirectVideoPrompts.forRoutes(List.of(DirectVideoRoute.INTENTION)));
     }
 
     @Test void explicitEndPreservesExistingHandoffAndNoteContract() {
@@ -356,6 +362,10 @@ class DirectVideoCoachTest {
                         "<상태>순간1 · 과제 · 누적 0줄 0번 · 응답 2번째</상태>\n붙잡게 두 번, 물러나게 한 번 해 보세요."),
                 new DirectVideoModel.Message("user", "해봤어요"));
         assertThat(telemetry.calls()).hasSize(3);
+        assertThat(telemetry.calls()).allSatisfy(call ->
+                assertThat(call.prompt()).isEqualTo(
+                        new com.acttub.actingapi.platform.observability.LlmPrompt(
+                                "coach.practice-loop", DirectVideoPrompts.practiceLoop())));
     }
 
     CoachSessionSnapshot writtenSession() {
@@ -589,6 +599,22 @@ class DirectVideoCoachTest {
         assertThat(line).isEqualTo("2차: 목표 한 문장 끝에 엄마를 끝까지 보기 — 버릇 고개를 양옆으로 크게 움직임"
                 + " (이유: \"트라우마 때문에 마주하기 어려워서 일부러 돌렸어\") — 아니라고 한 것: 시선: \"렌즈 본 거예요\""
                 + " — 제안: 손을 꽉 쥐고 엄마를 노려보기");
+    }
+
+    /** SOMA-603: 기억 갱신 재료 — 배우 말에 코치가 붙인 분류, 다시 말하지 않을 것에 쌓일 정정. */
+    @Test void practiceLoopRoundLabelsActorWordsAndListsCorrections() throws Exception {
+        var state = StructuredJson.MAPPER.readTree("""
+                {"practice_loop":{"design":"버릇: 고개를 크게 돌림 | 곳1: x",
+                 "statuses":["","배우의 말: 정정\\n피할 것: 시선\\n할 일: 내려놓기","배우의 말: 평가 요청(장점)\\n할 일: 짚어주기"]}}
+                """);
+        var turns = List.of(new PracticeLoopRound.Turn("ai", "a"), new PracticeLoopRound.Turn("actor", "렌즈 본 거예요"),
+                new PracticeLoopRound.Turn("ai", "b"), new PracticeLoopRound.Turn("actor", "평가해 주세요"),
+                new PracticeLoopRound.Turn("ai", "c"));
+        assertThat(PracticeLoopRound.classifiedActorWords(state, turns))
+                .containsExactly("(정정) 렌즈 본 거예요", "(평가 요청) 평가해 주세요");
+        assertThat(PracticeLoopRound.corrections(state, turns)).containsExactly("시선: \"렌즈 본 거예요\"");
+        assertThat(PracticeLoopRound.classifiedActorWords(StructuredJson.MAPPER.readTree("{}"), turns))
+                .containsExactly("렌즈 본 거예요", "평가해 주세요");
     }
 
     /** 연습 루프 상태가 없으면 예전 줄을 쓰도록 null 이다. */

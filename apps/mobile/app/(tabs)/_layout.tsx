@@ -9,7 +9,7 @@ import { LegacyArchivePrompt } from '@/components/legacy-archive-prompt';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { palette } from '@/constants/palette';
 import { useUnreadNotifications } from '@/hooks/use-unread-notifications';
-import { isKorean, translate as t } from '@/lib/i18n';
+import { translate as t } from '@/lib/i18n';
 import { TARGET } from '@/lib/spotlight-targets';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -25,8 +25,8 @@ type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
 export default function TabLayout() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  // 읽지 않은 알림 묶음 수 — 챌린지가 열린 사람에게만 읽는다.
-  const unread = useUnreadNotifications(isKorean());
+  // 읽지 않은 알림 묶음 수.
+  const unread = useUnreadNotifications();
   // 첫 가이드가 이 버튼을 비춘다 — 탭바는 홈 화면 밖이라 자리를 재서 남겨 둔다 (SOMA-550).
   const shootTarget = useSpotlightTarget(TARGET.shoot);
 
@@ -97,19 +97,14 @@ export default function TabLayout() {
             ),
           }}
         />
-        {/* 대사 챌린지에 올라오는 대사가 전부 한국어라, 한국어로 쓰는 사람에게만 띄운다 (SOMA-544). */}
         {/* 배지는 읽지 않은 알림 묶음 수다(challenge.notification). */}
         <Tabs.Screen
           name="challenges"
-          options={
-            isKorean()
-              ? {
-                  title: t('tabs.challenge'),
-                  tabBarIcon: icon('trophy-outline', 'trophy'),
-                  tabBarBadge: unread.badge ?? undefined,
-                }
-              : { href: null }
-          }
+          options={{
+            title: t('tabs.challenge'),
+            tabBarIcon: icon('trophy-outline', 'trophy'),
+            tabBarBadge: unread.badge ?? undefined,
+          }}
         />
         <Tabs.Screen name="profile" options={{ title: t('tabs.profile'), tabBarIcon: icon('person-outline', 'person') }} />
       </Tabs>
