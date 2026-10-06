@@ -1236,6 +1236,59 @@
         } ]
       }
     },
+    "/v2/reading/imports" : {
+      "post" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "Import Script",
+        "description" : "대본 글을 받아 서버가 배역·대사로 나누는 작업을 접수한다. 새 요청은 202, 같은 request_id 의 재전송과 같은\n글로 진행 중인 요청은 200 으로 같은 import_id 를 돌려준다. 같은 글이 이미 내 대본이면 200 duplicate_script_id.\n예시 대본과 같은 글은 모델 없이 바로 저장돼 상태가 곧 succeeded 다. 동의 없음 403 script_split_consent_required,\n원문 100,000자 초과 422 script_too_long, 대본 수 한도 422 script_limit, 하루 20개 초과 429\nscript_split_daily_limit, 같은 request_id 에 다른 본문 422 request_fingerprint_mismatch.",
+        "operationId" : "import_script_v2_reading_imports_post",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReadingImportRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "202" : {
+            "description" : "접수됨 — import_id 로 상태를 묻는다",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReadingImportTicket"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "재전송·진행 중(import_id) 또는 같은 글의 대본이 이미 있음(duplicate_script_id)",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReadingImportTicket"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/push-tokens" : {
       "post" : {
         "tags" : [ "v2-push" ],
@@ -3394,6 +3447,39 @@
                   "items" : {
                     "$ref" : "#/components/schemas/ReadingLineMemorization"
                   }
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/reading/imports/{import_id}" : {
+      "get" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "Get Import",
+        "description" : "나누기 요청의 상태. 1초 간격으로 묻는다. 없는 것과 남의 것은 같은 404 import_not_found 다.",
+        "operationId" : "get_import_v2_reading_imports__import_id__get",
+        "parameters" : [ {
+          "name" : "import_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Import Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReadingImport"
                 }
               }
             }
@@ -5893,6 +5979,62 @@
         "required" : [ "end_dialogue_no", "start_dialogue_no" ],
         "title" : "ReadingSessionRange"
       },
+      "ReadingImportRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "request_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Request Id"
+          },
+          "title" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 200
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Title"
+          },
+          "raw_text" : {
+            "type" : "string",
+            "minLength" : 1,
+            "title" : "Raw Text"
+          },
+          "source" : {
+            "$ref" : "#/components/schemas/ReadingScriptSourceInput"
+          }
+        },
+        "required" : [ "raw_text", "request_id", "source" ],
+        "title" : "ReadingImportRequest"
+      },
+      "ReadingImportTicket" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "import_id" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "uuid"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Import Id"
+          },
+          "duplicate_script_id" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "uuid"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Duplicate Script Id"
+          }
+        },
+        "required" : [ "duplicate_script_id", "import_id" ],
+        "title" : "ReadingImportTicket"
+      },
       "RegisterPushTokenRequest" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -7582,7 +7724,7 @@
       },
       "ConsentType" : {
         "type" : "string",
-        "enum" : [ "terms", "privacy", "ai_analysis", "retention", "cloud_voice" ],
+        "enum" : [ "terms", "privacy", "ai_analysis", "retention", "cloud_voice", "script_split" ],
         "title" : "ConsentType"
       },
       "SignedInResponse" : {
@@ -8403,6 +8545,64 @@
         },
         "required" : [ "sessions" ],
         "title" : "ReadingSessionList"
+      },
+      "ReadingImport" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "pending", "running", "succeeded", "failed" ],
+            "title" : "Status"
+          },
+          "progress" : {
+            "$ref" : "#/components/schemas/ReadingImportProgress"
+          },
+          "script_id" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "uuid"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Script Id"
+          },
+          "failure" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/ScriptImportFailure"
+            }, {
+              "type" : "null"
+            } ]
+          }
+        },
+        "required" : [ "failure", "id", "progress", "script_id", "status" ],
+        "title" : "ReadingImport"
+      },
+      "ReadingImportProgress" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "done_lines" : {
+            "type" : "integer",
+            "title" : "Done Lines"
+          },
+          "total_lines" : {
+            "type" : "integer",
+            "title" : "Total Lines"
+          }
+        },
+        "required" : [ "done_lines", "total_lines" ],
+        "title" : "ReadingImportProgress"
+      },
+      "ScriptImportFailure" : {
+        "type" : "string",
+        "enum" : [ "not_script", "no_characters", "script_too_long", "script_limit", "failed" ],
+        "title" : "ScriptImportFailure"
       },
       "PublicPortfolio" : {
         "type" : "object",

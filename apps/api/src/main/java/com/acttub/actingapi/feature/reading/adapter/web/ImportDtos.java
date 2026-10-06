@@ -20,7 +20,7 @@ final class ImportDtos {
     record ImportRequest(
             @NotNull @JsonProperty("request_id") UUID requestId,
             @Schema(nullable = true, maxLength = 200) String title,
-            @NotBlank @JsonProperty("raw_text") String rawText,
+            @NotNull @NotBlank @JsonProperty("raw_text") String rawText,
             @NotNull SourceInput source) {
     }
 
