@@ -35,6 +35,7 @@ import { speechScriptFileName } from './speech-file.ts';
 import { speechKey } from './speech-key.ts';
 import { createSpeechQueue, type SpeechQueue } from './prefetch.ts';
 import { VoicePrepareError } from './voice-errors.ts';
+import { readAppVoiceSupport } from '../voice-capability.ts';
 
 export type ProgressFn = (progress: VoiceProgress) => void;
 
@@ -138,12 +139,13 @@ export function ensureReady(onProgress: ProgressFn = () => {}): Promise<void> {
 /**
  * Wi-Fi 에서 모델을 미리 받아 둔다(배역 화면·대본 저장 뒤). 화면을 막지 않고 실패도 알리지 않는다 — 실패하면
  * 실행 화면이 평소처럼 받거나 묻는다. 이미 받아 뒀으면 아무것도 하지 않는다(메모리 로드는 쓸 때 한다).
- * 진행 중인 준비가 있으면 그것을 나눠 쓴다.
+ * 진행 중인 준비가 있으면 그것을 나눠 쓴다. 앱 목소리를 못 쓰는 기기(voice-capability)는 받지 않는다.
  */
 export async function prefetchIfWifi(): Promise<void> {
   try {
     if (tts || readyPromise) return;
     if (assetsPresent(cfg.variant, cfg.preset)) return;
+    if ((await readAppVoiceSupport()).unsupported) return;
     if ((await currentNetworkType()) !== 'wifi') return;
     if (tts || readyPromise) return;
     await ensureReady();
@@ -217,14 +219,25 @@ export async function play(uri: string): Promise<void> {
   player = current;
   await new Promise<void>((resolve, reject) => {
     let subscription: { remove(): void } | null = null;
-    const finish = () => {
+    // ended: 끝까지 재생돼 끝났다(재생기 사건). 아니면 stop() 이 끊은 것 — 그때는 stop() 이 바로 놓는다.
+    const finish = (ended = false) => {
       subscription?.remove();
       if (finishPlayback === finish) finishPlayback = null;
+      if (ended && player === current) {
+        // 다 쓴 재생기는 바로 놓는다. 남겨 두면 다음 줄까지 상태 갱신이 계속 돌아 메모리가 찬다(0.1.2 안드로이드 OOM).
+        // 사건 처리 도중에 놓지 않도록 한 박자 뒤에.
+        player = null;
+        setTimeout(() => {
+          try {
+            current.remove();
+          } catch {}
+        }, 0);
+      }
       resolve();
     };
     finishPlayback = finish;
     subscription = current.addListener('playbackStatusUpdate', (status) => {
-      if (status.didJustFinish) finish();
+      if (status.didJustFinish) finish(true);
     });
     try {
       current.play();

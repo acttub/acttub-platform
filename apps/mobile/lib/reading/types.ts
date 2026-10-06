@@ -38,6 +38,20 @@ export type ScriptCharacter = {
   order: number;
   /** 상대역 목소리 프리셋 id. null이면 자동(reading.cast). */
   voice_preset: string | null;
+  /** 내 배역이 아닐 때 읽을 목소리(서버가 정함). 고정값이면 그 값, 자동이면 대본 전체 순환의 값이다. */
+  voice: string;
+  dialogue_count: number;
+};
+
+/** 「장면으로 찾기」의 한 줄(서버가 나눔). 대사가 없는 장면은 없다. */
+export type ScriptScene = {
+  /** 1부터. */
+  no: number;
+  /** 막·장 머리 줄의 글. 지문으로 나눈 장면은 null이고 화면이 번호로 부른다. */
+  title: string | null;
+  /** 장면 안 첫·마지막 대사 줄. */
+  start_line_id: string;
+  end_line_id: string;
   dialogue_count: number;
 };
 
@@ -75,7 +89,7 @@ export type ScriptListResponse = {
   in_progress_count: number;
 };
 
-export type ReadingSessionStatus = 'in_progress' | 'completed' | 'stopped';
+export type ReadingSessionStatus = 'in_progress' | 'completed';
 
 /** 대본 상세와 카드가 함께 보는 마지막 회차(그 대본에서 가장 늦게 시작한 회차). */
 export type ScriptLastSession = {
@@ -94,6 +108,7 @@ export type ScriptDetail = {
   source: ScriptSource;
   characters: ScriptCharacter[];
   lines: ScriptLineRecord[];
+  scenes: ScriptScene[];
   recording_count: number;
   open_session_id: string | null;
   last_session: ScriptLastSession | null;
@@ -125,10 +140,20 @@ export type ScriptErrorCode = (typeof SCRIPT_ERROR_CODES)[number];
 
 export type ReadingMode = 'read' | 'quiz';
 export type ReadingAdvance = 'silence' | 'manual';
-export type LineOutcome = 'passed' | 'unmatched' | 'skipped';
 
-/** 줄마다 하나. 마지막 사건이 이긴다. misses 는 미달 횟수. */
-export type LineResult = { line_id: string; outcome: LineOutcome; misses: number };
+/** 진행 저장에 싣는 내 줄 하나의 말한 것(기기 음성 인식 결과). 원문과의 비교·통과 판정은 서버가 한다. */
+export type LineSaid = { line_id: string; said: string };
+
+/**
+ * 원문과 다르게 말한 대사 하나(서버가 비교한 결과, 줄 순서). different_words 는 원문 어절 전부이고 differs 가 노란 표시다.
+ * said 가 null 이면 말한 것 없이 결과만 저장된 줄(옛 앱)이라 표시가 없다.
+ */
+export type DifferentLine = {
+  line_id: string;
+  dialogue_no: number;
+  said: string | null;
+  different_words: { text: string; differs: boolean }[];
+};
 
 /** POST /v2/reading/scripts/{id}/sessions. 속성은 시작할 때 정하고 뒤에 바꾸지 않는다. */
 export type StartSessionBody = {
@@ -141,6 +166,14 @@ export type StartSessionBody = {
   record: boolean;
 };
 
+/** 회차 구간의 이름(서버가 정함). 화면 글(「장면 2」·「대사 5~12번」)은 기기가 번역 키로 만든다. start·end 는 대사 번호. */
+export type RangeName =
+  | { kind: 'all' | 'dialogues'; scene_no: null; scene_title: null; start: number; end: number }
+  | { kind: 'scene'; scene_no: number; scene_title: string | null; start: number; end: number };
+
+/** 진행 중 회차의 K/N. done 은 지난 대사 수, total 은 구간 대사 수. */
+export type SessionProgress = { done: number; total: number };
+
 /** 회차 목록 카드(R00.5). ordinal 은 그 대본에서 시작한 순(집계). */
 export type SessionCard = {
   id: string;
@@ -149,6 +182,9 @@ export type SessionCard = {
   my_character_ids: string[];
   my_character_names: string[];
   range: { start_dialogue_no: number; end_dialogue_no: number };
+  range_name: RangeName;
+  /** in_progress 일 때만. */
+  progress: SessionProgress | null;
   my_dialogue_count: number;
   recorded_line_count: number;
   elapsed_seconds: number;
@@ -165,7 +201,6 @@ export type SessionRecording = {
   byte_size: number;
   transcript: string | null;
   transcript_source: 'stt' | 'none';
-  matched: boolean | null;
   playback_url: string | null;
   playback_expires_at: string | null;
 };
@@ -177,11 +212,11 @@ export type SessionDetail = SessionCard & {
   end_line_id: string;
   advance: ReadingAdvance;
   record: boolean;
-  /** 다음에 할 대사 줄. completed 면 null, stopped 는 중단 위치. */
+  /** 다음에 할 대사 줄. completed 면 null. */
   current_line_id: string | null;
   progress_seq: number;
-  line_results: LineResult[];
   recordings: SessionRecording[];
+  different_lines: DifferentLine[];
 };
 
 /** PATCH /v2/reading/sessions/{id}/progress. seq 가 저장값보다 클 때만 반영된다. */
@@ -189,7 +224,7 @@ export type ProgressBody = {
   progress_seq: number;
   current_line_id?: string | null;
   elapsed_seconds?: number;
-  line_results?: LineResult[];
+  line_results?: LineSaid[];
   complete?: boolean;
 };
 
@@ -198,4 +233,6 @@ export type ProgressResponse = {
   elapsed_seconds: number;
   progress_seq: number;
   status: ReadingSessionStatus;
+  /** 적용됐든 옛 순번이라 무시됐든 지금 서버가 아는 값. 완료 저장의 응답이 완료 화면의 「원문과 다르게 말한 대사」다. */
+  different_lines: DifferentLine[];
 };

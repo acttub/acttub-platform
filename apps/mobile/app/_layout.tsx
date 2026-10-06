@@ -19,7 +19,7 @@ import '@/lib/global-font';
 import { logScreenView } from '@/lib/analytics';
 import { initMetaSdk } from '@/lib/meta-events';
 import { startSignupAttributionListener } from '@/lib/signup-attribution-runtime';
-import { initCrashlytics } from '@/lib/crashlytics';
+import { initCrashlytics, markScreen } from '@/lib/crashlytics';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
 import { challengePushTarget } from '@/lib/challenge/notification-center';
 import {
@@ -369,14 +369,13 @@ function RootNavigator() {
         <Stack.Screen name="archive" options={{ headerShown: false }} />
         <Stack.Screen name="archive-detail" options={{ headerShown: false }} />
         <Stack.Screen name="reading/new" options={{ title: t('reading.titleNew') }} />
-        <Stack.Screen name="reading/confirm" options={{ title: t('reading.titleConfirm') }} />
-        <Stack.Screen name="reading/edit" options={{ title: t('reading.titleEdit'), presentation: 'modal' }} />
         <Stack.Screen name="reading/detail" options={{ title: t('reading.titleDetail') }} />
+        <Stack.Screen name="reading/session" options={{ title: '' }} />
         <Stack.Screen name="reading/full" options={{ title: t('reading.titleFull') }} />
         <Stack.Screen name="reading/roles" options={{ title: t('reading.titleRoles') }} />
         <Stack.Screen name="reading/range" options={{ title: t('reading.titleRange') }} />
         <Stack.Screen name="reading/play" options={{ headerShown: false }} />
-        <Stack.Screen name="reading/memorize" options={{ title: t('reading.titleMemorize') }} />
+        <Stack.Screen name="reading/diff" options={{ title: t('reading.diffTitle') }} />
         {/* 자체 헤더(← 설정 · 제목)를 그린다 — 기본 헤더를 겹치면 라우트 이름 "memory"가 제목으로 나온다. */}
         <Stack.Screen name="memory" options={{ headerShown: false }} />
       </Stack>
@@ -388,7 +387,9 @@ function RootNavigator() {
 function ScreenTracker() {
   const segments = useSegments();
   useEffect(() => {
-    logScreenView('/' + segments.join('/'));
+    const screen = '/' + segments.join('/');
+    logScreenView(screen);
+    markScreen(screen);
   }, [segments]);
   return null;
 }

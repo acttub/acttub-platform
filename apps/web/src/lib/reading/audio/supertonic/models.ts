@@ -82,8 +82,9 @@ export const INDEXER_URL = `${BASE}/onnx/unicode_indexer.json`;
 export const VOICE_PRESETS = ["M1", "M2", "M3", "M4", "M5", "F1", "F2", "F3", "F4", "F5"] as const;
 export type VoicePreset = (typeof VOICE_PRESETS)[number];
 
-/** 자동 배정 순서. 남녀가 번갈아 나오도록 섞어 둔다 — 등장 순서대로 집으면 대개 대화처럼 들린다. */
-export const PRESET_CYCLE: readonly VoicePreset[] = ["F1", "M1", "F2", "M2", "F3", "M3", "F4", "M4", "F5", "M5"];
+export function isVoicePreset(value: string | null | undefined): value is VoicePreset {
+  return typeof value === "string" && (VOICE_PRESETS as readonly string[]).includes(value);
+}
 
 export const voiceStyleUrl = (preset: VoicePreset) => `${BASE}/voice_styles/${preset}.json`;
 

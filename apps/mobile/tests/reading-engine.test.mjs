@@ -34,6 +34,8 @@ const modules = {
       if(globalThis.__readingEngineTest.failPresets?.has(preset)) throw new Error('offline');
       return preset;
     }`,
+  '../voice-capability.ts': `const s=globalThis.__readingEngineTest;
+    export async function readAppVoiceSupport(){return s.unsupported ? {unsupported:true,noticed:false} : {unsupported:false};}`,
   './helper.native.js': `const s=globalThis.__readingEngineTest;
     export const loadOnnx=async()=>{ if(s.loadFails) throw new Error('bad model'); return {}; };
     export const loadVoiceStyleFromObjects=styles=>styles[0];
@@ -62,6 +64,7 @@ beforeEach(async () => {
   state.files.clear(); state.players.length=0; state.calls.length=0; state.active=0; state.peak=0; state.gate=null;
   state.failPresets=new Set();
   state.downloads=0; state.downloadGate=null; state.downloadError=null; state.loadFails=false; state.present=false; state.network='wifi';
+  state.unsupported=false;
   await engine.ensureReady();
 });
 
@@ -185,6 +188,14 @@ test('미리 받기: 이미 받아 둔 모델은 미리 불러오지 않고 실�
   assert.equal(engine.isReady(),false);
 });
 
+test('미리 받기: 앱 목소리를 못 쓰는 기기로 표시됐으면 Wi-Fi 여도 받지 않는다', async () => {
+  engine._reset(); state.downloads=0;
+  state.unsupported=true;
+  await engine.prefetchIfWifi();
+  assert.equal(state.downloads,0);
+  assert.equal(engine.isReady(),false);
+});
+
 test('준비 실패: 모델을 못 불러오면 model_load 로 알린다', async () => {
   engine._reset();
   state.loadFails=true;
@@ -192,4 +203,15 @@ test('준비 실패: 모델을 못 불러오면 model_load 로 알린다', async
   state.loadFails=false;
   await engine.ensureReady();
   assert.equal(engine.isReady(),true);
+});
+
+test('다 재생한 재생기는 바로 놓는다 — 남겨 두면 상태 갱신이 계속 돌아 메모리가 찬다(0.1.2 안드로이드 OOM)', async () => {
+  const playback = engine.play('file:///done.wav');
+  const player = state.players.at(-1);
+  player.listener({ isLoaded: true, didJustFinish: true, duration: 2 });
+  await playback;
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(player.removed, true);
+  // 이미 놓은 뒤 stop() 이 와도 다시 놓지 않고 조용히 지나간다.
+  engine.stop();
 });

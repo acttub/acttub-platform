@@ -1,4 +1,3 @@
-import type { LineMatch } from './match.ts';
 
 /**
  * 대본 리딩 발성·발음 피드백(실험). 내 차례 한 줄의 소리를 기기 안에서만 보고 짧은 칩으로 알린다 — 서버·외부
@@ -40,6 +39,12 @@ export type VoiceMetrics = {
 };
 
 export type VoiceFeedback = { metrics: VoiceMetrics; chips: FeedbackChip[] };
+
+/** 받아쓰기와 대본의 대조 결과. 기기 대조(match.ts)는 서버 비교로 옮겨 지웠고, 이 실험 모듈은 같은 모양을 받기만 한다. */
+type LineMatch =
+  | { kind: 'pass' | 'miss'; closeness: number }
+  | { kind: 'no_speech' }
+  | { kind: 'too_long' };
 
 export type VoiceFeedbackInput = {
   /** 고른 간격의 소리 크기(dBFS). 녹음기 미터링이나 표본에서 만든 것. */
