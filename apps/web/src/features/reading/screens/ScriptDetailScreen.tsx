@@ -11,13 +11,16 @@ import type { SessionCard } from "@/lib/reading/api-types";
 import type { StoredScript } from "@/lib/reading/storage";
 import { recordingSummary } from "@/lib/reading/recording/playback";
 import { Page } from "@/features/reading/page-shell";
-import { resumeProgress, sessionDateLabel } from "@/features/reading/session-cards";
+import { sessionDateLabel } from "@/features/reading/session-cards";
 import { SessionRecordings } from "@/features/reading/screens/SessionRecordings";
 import { myCharactersLabel } from "@/features/reading/script-list";
 import { resumeLabel, sessionStatusLabel } from "@/features/reading/session-copy";
 import { Button, Card, CardTitle, StatusPill, TopBar } from "@/features/reading/ui";
 
 const DELETE_FAILED_COPY = "회차를 지우지 못했어요. 다시 시도해 주세요.";
+
+/** 이어서 연습할 회차. 진행 숫자는 회차 카드의 progress 다. */
+export type OpenSession = { id: string; progress: NonNullable<SessionCard["progress"]> };
 
 export function ScriptDetailScreen({
   script,
@@ -33,8 +36,7 @@ export function ScriptDetailScreen({
 }: {
   script: StoredScript;
   sessions: SessionCard[];
-  /** 열린 회차의 상세(있으면). "이어서 연습"이 쓴다. */
-  openSession: Parameters<typeof resumeProgress>[1] | null;
+  openSession: OpenSession | null;
   resuming: boolean;
   error: string | null;
   onResume: () => void;
@@ -81,7 +83,7 @@ export function ScriptDetailScreen({
           <div className="mt-4 flex flex-col gap-2">
             {openSession && (
               <Button size="lg" className="w-full" disabled={resuming} onClick={onResume}>
-                {resuming ? "회차를 여는 중…" : resumeLabel(resumeProgress(script, openSession))}
+                {resuming ? "회차를 여는 중…" : resumeLabel(openSession.progress)}
               </Button>
             )}
             <Button size="lg" variant={openSession ? "secondary" : "primary"} className="w-full" disabled={resuming} onClick={onNew}>
