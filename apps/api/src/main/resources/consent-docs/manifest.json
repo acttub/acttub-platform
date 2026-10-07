@@ -40,6 +40,14 @@
     "required": false
   },
   {
+    "file": "script_split_v1.md",
+    "type": "script_split",
+    "version": "v1",
+    "locale": "ko",
+    "title": "대본 나누기(선택)",
+    "required": false
+  },
+  {
     "file": "terms_v1_en.md",
     "type": "terms",
     "version": "v1",
@@ -77,6 +85,14 @@
     "version": "v1",
     "locale": "en",
     "title": "Premium reading voice (optional)",
+    "required": false
+  },
+  {
+    "file": "script_split_v1_en.md",
+    "type": "script_split",
+    "version": "v1",
+    "locale": "en",
+    "title": "Script splitting (optional)",
     "required": false
   }
 ]
