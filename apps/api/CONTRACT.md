@@ -1135,6 +1135,20 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   다시 붙이지 않는 경계는 웹의 신규 guest userId와 세션 결합이며, 서버가 생성 시각으로 신규 여부를 추정하지 않는다.
 - 읽는 곳은 ops 사용자 화면이다. 광고 관리자는 가입을 수로만 센다.
 
+### 6-25. 운영용 챌린지 목록
+
+- `GET /v2/admin/challenges?limit=50&exclude_actors=…`는 `limit` 1~100, 기본 50이다. 응답은 `challenges`와
+  그 묶음의 크기인 `count`다. 삭제되지 않은 챌린지를 진행 중(`active`) → 예정(`scheduled`) → 종료(`ended`)
+  순으로, 같은 상태 안에서는 `featured_on` 최신·시작 최신 순으로 싣는다.
+- 각 행은 `id`·`line`·`work`·`character`·`origin`·`host_actor`(`md5(host_user_id)` 앞 8자리, 팀 개설은 null)·
+  `host_is_team`·`duration_days`·`featured_on`·`starts_at`·`ends_at`·`state`·`moderation`·`entries`·
+  `public_entries`·`outside_entries`다. 참여작 수는 삭제를 뺀 값이고, `outside_entries`는 팀 이메일과
+  `exclude_actors` 배우의 참여작을 뺀 값이다.
+- 챌린지는 앱에 공개되는 글이라 대사·작품·인물을 싣는다(§6-21의 참여작 목록과 다르다). 주최자의 user UUID·이메일과
+  참여작 캡션은 싣지 않는다. 이 응답은 live 운영 조회 전용이며, 저장되는 `ops-core`에는 대사를 넣지 않는다.
+- 팀 계정이 연 챌린지도 빼지 않고 `host_is_team`으로 표시한다. 토큰을 먼저 검사하고, 성공 응답은
+  `Cache-Control: private, no-store`다. `POST /v2/admin/challenges`(팀 챌린지 개설)와 같은 경로의 GET이다.
+
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 
 1. **좋아요 카운트는 재집계다.** 증감 방식이 "두 번 눌리면 2 증가" 하던 버그 때문에 의도적으로
