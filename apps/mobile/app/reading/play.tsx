@@ -2,14 +2,14 @@ import Feather from '@expo/vector-icons/Feather';
 import { File, Paths } from 'expo-file-system';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
 import { useAppDialog } from '@/components/app-dialog';
 import { DiffText } from '@/components/diff-text';
 import { logEvent } from '@/lib/analytics';
-import { hasMicPermission, useReadingMic } from '@/hooks/use-reading-mic';
+import { hasMicPermission, micPermissionGranted, useReadingMic } from '@/hooks/use-reading-mic';
 import { detectSttPolicy, useReadingStt } from '@/hooks/use-reading-stt';
 import { deleteDeviceFile } from '@/lib/account-files';
 import { hideAutoAdvanceTip, isAutoAdvanceTipHidden } from '@/lib/reading/guide-flag';
@@ -96,6 +96,8 @@ import { newRequestId } from '@/lib/request-id';
  */
 type Phase =
   | { kind: 'preparing'; progress: VoiceProgress | null }
+  /** 마이크 권한이 없다 — 리딩은 녹음이 필수라 진행하지 않는다(SOMA-626). 「이어서 연습」·「다시 읽기」도 여기서 막힌다. */
+  | { kind: 'need_mic' }
   | { kind: 'voice_failed'; failure: { kind: VoiceErrorKind; neededBytes?: number } }
   /** 앱 목소리를 못 쓰는 기기의 처음 한 번 안내(R9.7). */
   | { kind: 'voice_unsupported' }
@@ -472,7 +474,11 @@ export default function ReadingPlay() {
       const [micOk, tipHidden] = await Promise.all([hasMicPermission(), isAutoAdvanceTipHidden()]);
       if (!mounted.current) return;
       tipHiddenRef.current = tipHidden;
-      if (micOk) setSttMode(await detectSttPolicy());
+      if (!micOk) {
+        setPhase({ kind: 'need_mic' });
+        return;
+      }
+      setSttMode(await detectSttPolicy());
       void prepare();
     })();
     return () => {
@@ -488,6 +494,21 @@ export default function ReadingPlay() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 마이크 안내에서 설정을 열고 켠 뒤 돌아오면 그대로 이어서 준비한다.
+  useEffect(() => {
+    if (phase.kind !== 'need_mic') return;
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') return;
+      void (async () => {
+        if (!(await micPermissionGranted()) || !mounted.current) return;
+        setPhase({ kind: 'preparing', progress: null });
+        setSttMode(await detectSttPolicy());
+        void prepare();
+      })();
+    });
+    return () => sub.remove();
+  }, [phase.kind, prepare]);
 
   useEffect(() => {
     if (phase.kind === 'running' && (engine === 'cloud' || (engine === 'supertonic' && tts.isReady()))) primeSpeech(run?.index ?? 0);
@@ -780,6 +801,22 @@ export default function ReadingPlay() {
         <Text style={styles.dim}>{t('reading.noScript')}</Text>
         <Pressable style={styles.pill} onPress={() => router.replace('/reading')}>
           <Text style={styles.pillText}>{t('reading.toMyScripts')}</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  if (phase.kind === 'need_mic') {
+    return (
+      <View style={[styles.root, styles.center]}>
+        <Feather name="mic-off" size={30} color={palette.amber} />
+        <Text style={styles.doneTitle}>{t('reading.micNeededTitle')}</Text>
+        <Text style={styles.dim}>{t('reading.micNeededBody')}</Text>
+        <Pressable style={styles.primaryWide} onPress={() => void Linking.openSettings()}>
+          <Text style={styles.primaryWideText}>{t('reading.micOpenSettings')}</Text>
+        </Pressable>
+        <Pressable onPress={exitToDetail} hitSlop={8}>
+          <Text style={styles.textButton}>{t('reading.exitLeave')}</Text>
         </Pressable>
       </View>
     );
