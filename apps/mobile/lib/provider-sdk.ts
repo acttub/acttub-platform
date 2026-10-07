@@ -1,6 +1,5 @@
 import { Platform } from 'react-native';
 
-import { translate } from '@/lib/i18n';
 import {
   LOGIN_PROVIDERS,
   type LoginProvider,
@@ -67,7 +66,7 @@ const googleAdapter: ProviderAdapter = {
   isAvailable: async () => google !== null,
   /** signIn 응답 형태가 버전마다 달라(idToken 위치) 방어적으로 추출한다. */
   async signIn() {
-    if (!google) throw new Error(translate('login.googleUnavailable'));
+    if (!google) throw new Error('Google Sign-In native module is missing from this build');
     const { GoogleSignin } = google;
     await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
     const result = (await GoogleSignin.signIn()) as {
@@ -109,7 +108,7 @@ const appleAdapter: ProviderAdapter = {
     return apple.isAvailableAsync().catch(() => false);
   },
   async signIn() {
-    if (!apple) throw new Error(translate('login.appleUnavailable'));
+    if (!apple) throw new Error('Apple Authentication native module is missing from this build');
     let credential: import('expo-apple-authentication').AppleAuthenticationCredential;
     try {
       credential = await apple.signInAsync({
@@ -123,7 +122,7 @@ const appleAdapter: ProviderAdapter = {
       if (code === 'ERR_REQUEST_CANCELED' || code === 'ERR_CANCELED') return null; // 사용자가 취소
       throw err;
     }
-    if (!credential.identityToken) throw new Error(translate('login.appleNoToken'));
+    if (!credential.identityToken) throw new Error('Apple sign-in returned no identity token');
     return {
       provider: 'apple',
       idToken: credential.identityToken,
@@ -149,7 +148,7 @@ function notLinkedAdapter(): ProviderAdapter {
   return {
     isAvailable: async () => false,
     signIn: async () => {
-      throw new Error(translate('login.providerUnsupportedBuild'));
+      throw new Error('This login provider is not linked in this build');
     },
     signOut: async () => undefined,
   };

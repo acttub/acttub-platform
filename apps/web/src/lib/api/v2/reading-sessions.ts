@@ -21,7 +21,7 @@ function sessionPath(sessionId: string): string {
 }
 
 /**
- * 회차 시작. 열린 회차가 있으면 서버가 같은 트랜잭션에서 stopped 로 바꾸고 새 회차를 만든다.
+ * 회차 시작. 같은 대본의 진행 중 회차는 그대로 남는다.
  * 연결이 끊기면 멱등 계층이 같은 요청 id 로 다시 보내 회차가 둘이 되지 않는다.
  */
 export async function createSession(

@@ -21,14 +21,14 @@ export type TutorialMode = 'own' | 'sample';
 /** 어느 루프를 도는가 — AI 연습(영상→질문→노트) 또는 대본 리딩(대본→배역→범위→읽기). */
 export type TutorialTrack = 'practice' | 'reading';
 type PracticeStage = 'upload' | 'analyzing' | 'coach' | 'report';
-type ReadingStage = 'readingNew' | 'readingConfirm' | 'readingRoles' | 'readingRange';
+type ReadingStage = 'readingNew' | 'readingRoles' | 'readingRange';
 export type TutorialStage = PracticeStage | ReadingStage;
 
 /**
  * 대본 리딩은 범위 화면까지 비춘다. 읽기 화면에는 제 첫 안내(R03.0)가 이미 있어 겹치지 않게
  * 거기서 튜토리얼을 마친다.
  */
-export const READING_TUTORIAL_STAGES: ReadingStage[] = ['readingNew', 'readingConfirm', 'readingRoles', 'readingRange'];
+export const READING_TUTORIAL_STAGES: ReadingStage[] = ['readingNew', 'readingRoles', 'readingRange'];
 
 /** 화면 단계가 어느 갈래의 것인지. 다른 갈래를 도는 중이면 그 화면은 비추지 않는다. */
 export function stageTrack(stage: TutorialStage): TutorialTrack {
@@ -64,6 +64,18 @@ export function onTutorialChanged(fn: () => void): () => void {
   };
 }
 
+/**
+ * 목소리 정하기(readingRoles) [저장] 뒤 갈 곳. 등록 흐름은 대본 상세로 간다. 대본 리딩 튜토리얼 중이면 대본 상세엔
+ * 비출 자리가 없으니 그 위에 새 연습을 얹어 readingRange 로 잇는다(뒤로 가면 대본 상세). 그 밖엔 온 곳으로 돌아간다.
+ */
+export function afterVoicesSaved(
+  fromNew: boolean,
+  tutorial: { track: TutorialTrack } | null,
+): 'back' | 'detail' | 'detail_then_range' {
+  if (!fromNew) return 'back';
+  return tutorial?.track === 'reading' ? 'detail_then_range' : 'detail';
+}
+
 /** 화면마다 비출 자리. 문구는 `<text>Title`·`<text>Body` 를 읽는다. */
 export function tutorialSteps(stage: TutorialStage, mode: TutorialMode): SpotlightStep[] {
   switch (stage) {
@@ -94,28 +106,21 @@ export function tutorialSteps(stage: TutorialStage, mode: TutorialMode): Spotlig
     case 'report':
       return [{ target: TARGET.reportNote, text: 'tutorial.reNote' }];
     case 'readingNew':
+      // 예시는 이미 글 칸에 채워져 보이므로 [다음] 한 장이다.
       return mode === 'own'
         ? [
             { target: TARGET.readingDrop, text: 'tutorial.rdDrop' },
             { target: TARGET.readingNext, text: 'tutorial.rdNext' },
           ]
-        : [
-            { target: TARGET.readingText, text: 'tutorial.rdSampleText' },
-            { target: TARGET.readingNext, text: 'tutorial.rdNext' },
-          ];
-    case 'readingConfirm':
-      return [
-        { target: TARGET.readingSummary, text: 'tutorial.rdSummary' },
-        { target: TARGET.readingSave, text: 'tutorial.rdSave' },
-      ];
+        : [{ target: TARGET.readingNext, text: 'tutorial.rdSampleText' }];
     case 'readingRoles':
       return [
-        { target: TARGET.readingRoleList, text: mode === 'sample' ? 'tutorial.rdSampleRoles' : 'tutorial.rdRoles' },
+        { target: TARGET.readingRoleList, text: 'tutorial.rdRoles' },
         { target: TARGET.readingRoleStart, text: 'tutorial.rdRoleStart' },
       ];
     case 'readingRange':
       return [
-        { target: TARGET.readingMode, text: 'tutorial.rdMode' },
+        { target: TARGET.readingRangePick, text: 'tutorial.rdRange' },
         { target: TARGET.readingRangeStart, text: 'tutorial.rdGo' },
       ];
   }

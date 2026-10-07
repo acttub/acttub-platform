@@ -15,8 +15,8 @@ import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { CHALLENGE_FUNNEL_EVENTS, permissionResultParams, videoSourceParams } from '@/lib/challenge/funnel';
-import { isKorean, translate as t } from '@/lib/i18n';
-import { recordModeAfterSwipe, recordModes, type RecordMode } from '@/lib/record-modes';
+import { translate as t } from '@/lib/i18n';
+import { RECORD_MODES, recordModeAfterSwipe, type RecordMode } from '@/lib/record-modes';
 import { saveRecordingToLibrary } from '@/lib/library/library-runner';
 import { VIDEO_MAX_MS, videoErrorMessage } from '@/lib/library/video-checks';
 import { normalizeVideoDurationMs } from '@/lib/upload-input';
@@ -65,7 +65,6 @@ export default function RecordVideoScreen() {
   });
   const { challengeId, line, work } = challengeParams;
   const [loadingToday, setLoadingToday] = useState(false);
-  const modes = useMemo(() => recordModes(isKorean()), []);
   const isChallenge = mode === 'challenge';
   const maxSec = isChallenge ? CHALLENGE_MAX_SEC : MAX_SEC;
   const cameraRef = useRef<CameraView>(null);
@@ -171,16 +170,16 @@ export default function RecordVideoScreen() {
         onPanResponderRelease: (_, g) => {
           if (Math.abs(g.dx) < 40) return;
           const current = (mode ?? 'ai') as RecordMode;
-          void changeMode(recordModeAfterSwipe(modes, current, g.dx < 0 ? 'left' : 'right'));
+          void changeMode(recordModeAfterSwipe(RECORD_MODES, current, g.dx < 0 ? 'left' : 'right'));
         },
       }),
-    [changeMode, mode, modes, picker],
+    [changeMode, mode, picker],
   );
   const showPicker = picker && !recording;
   const slider = showPicker ? (
     <View>
       <RecordModeSlider
-        modes={modes}
+        modes={RECORD_MODES}
         value={(mode ?? 'ai') as RecordMode}
         onChange={(next) => void changeMode(next)}
         disabled={loadingToday}

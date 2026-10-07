@@ -14,6 +14,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.reading.app.ReadingRecordingCleanup;
+import com.acttub.actingapi.feature.reading.app.ScriptFileCleanup;
 import com.acttub.actingapi.feature.reading.app.ScriptRepository;
 import com.acttub.actingapi.feature.reading.app.ScriptViews.CharacterView;
 import com.acttub.actingapi.feature.reading.app.ScriptViews.LastSessionView;
@@ -21,8 +22,11 @@ import com.acttub.actingapi.feature.reading.app.ScriptViews.LineView;
 import com.acttub.actingapi.feature.reading.app.ScriptViews.ScriptCardView;
 import com.acttub.actingapi.feature.reading.app.ScriptViews.ScriptListView;
 import com.acttub.actingapi.feature.reading.app.ScriptViews.ScriptView;
+import com.acttub.actingapi.feature.reading.domain.ReadingLayout;
 import com.acttub.actingapi.feature.reading.domain.ScriptDraft;
 import com.acttub.actingapi.feature.reading.domain.ScriptRules;
+import com.acttub.actingapi.feature.reading.domain.ScriptText;
+import com.acttub.actingapi.feature.reading.domain.VoiceAssignment;
 import com.acttub.actingapi.feature.reading.schema.ScriptCharacterEntity;
 import com.acttub.actingapi.feature.reading.schema.ScriptEntity;
 import com.acttub.actingapi.feature.reading.schema.ScriptLineEntity;
@@ -51,14 +55,17 @@ class PostgresScriptRepository implements ScriptRepository {
     private final EntityManager entityManager;
     private final TransactionTemplate transaction;
     private final ReadingRecordingCleanup cleanup;
+    private final ScriptFileCleanup sources;
 
     PostgresScriptRepository(
             EntityManager entityManager,
             PlatformTransactionManager transactionManager,
-            ReadingRecordingCleanup cleanup) {
+            ReadingRecordingCleanup cleanup,
+            ScriptFileCleanup sources) {
         this.entityManager = entityManager;
         this.transaction = new TransactionTemplate(transactionManager);
         this.cleanup = cleanup;
+        this.sources = sources;
     }
 
     @Override
@@ -90,7 +97,8 @@ class PostgresScriptRepository implements ScriptRepository {
             }
             UUID scriptId = UUID.randomUUID();
             entityManager.persist(new ScriptEntity(
-                    scriptId, userId, draft.title(), draft.rawText(), source(draft.source()), requestId, fingerprint));
+                    scriptId, userId, draft.title(), draft.rawText(), ScriptText.hash(draft.rawText()), source(draft.source()),
+                    requestId, fingerprint));
             List<UUID> characterIds = new ArrayList<>();
             for (int order = 0; order < draft.characterNames().size(); order++) {
                 UUID characterId = UUID.randomUUID();
@@ -120,7 +128,9 @@ class PostgresScriptRepository implements ScriptRepository {
                         JOIN reading_sessions rs ON rs.id=r.reading_session_id
                         WHERE rs.script_id=s.id) AS recording_count,
                        (SELECT rs.id FROM reading_sessions rs
-                        WHERE rs.script_id=s.id AND rs.status='in_progress') AS open_session_id,
+                        WHERE rs.script_id=s.id AND rs.status='in_progress'
+                        ORDER BY rs.started_at DESC,rs.id DESC
+                        LIMIT 1) AS open_session_id,
                        ls.id AS last_session_id,ls.status AS last_status,ls.started_at AS last_started_at,
                        ls.ended_at AS last_ended_at,
                        (SELECT string_agg(CAST(c.id AS text),:sep ORDER BY c.sort_order) FROM script_characters c
@@ -145,12 +155,16 @@ class PostgresScriptRepository implements ScriptRepository {
             return null;
         }
         Tuple row = rows.getFirst();
+        List<LineView> lines = lines(scriptId);
         return new ScriptView(
                 scriptId,
                 row.get("title", String.class),
                 ScriptSource.valueOf(row.get("source", String.class).toUpperCase(Locale.ROOT)).dbValue(),
                 characters(scriptId),
-                lines(scriptId),
+                lines,
+                ReadingLayout.of(lines.stream()
+                        .map(line -> new ReadingLayout.Line(line.id(), line.kind(), line.text()))
+                        .toList()).scenes(),
                 row.get("recording_count", Number.class).intValue(),
                 row.get("open_session_id", UUID.class),
                 lastSession(row),
@@ -309,6 +323,17 @@ class PostgresScriptRepository implements ScriptRepository {
                     .setParameter("scriptId", scriptId)).stream()
                     .map(row -> row.get("object_key", String.class))
                     .toList();
+            // 원본 파일도 대본과 같은 수명이다(reading.script 「원본 파일」).
+            List<UUID> scheduled = new ArrayList<>();
+            List<Tuple> removedSources = NativeTuples.list(entityManager.createNativeQuery("""
+                    WITH removed AS (DELETE FROM script_uploads WHERE script_id=:scriptId RETURNING object_key,expires_at)
+                    SELECT object_key,expires_at FROM removed
+                    """, Tuple.class)
+                    .setParameter("scriptId", scriptId));
+            if (!removedSources.isEmpty()) {
+                scheduled.add(sources.schedule(userId, removedSources.stream().map(row -> row.get("object_key", String.class)).toList(),
+                        now, removedSources.stream().map(row -> row.get("expires_at", Instant.class)).max(Instant::compareTo).orElseThrow()));
+            }
             entityManager.createNativeQuery("""
                     DELETE FROM line_memorization m
                     USING script_lines l
@@ -325,9 +350,8 @@ class PostgresScriptRepository implements ScriptRepository {
             entityManager.createNativeQuery("DELETE FROM scripts WHERE id=:scriptId")
                     .setParameter("scriptId", scriptId)
                     .executeUpdate();
-            return objectKeys.isEmpty()
-                    ? List.of()
-                    : List.of(cleanup.schedule(userId, objectKeys, now));
+            if (!objectKeys.isEmpty()) scheduled.add(cleanup.schedule(userId, objectKeys, now));
+            return scheduled;
         });
     }
 
@@ -350,20 +374,25 @@ class PostgresScriptRepository implements ScriptRepository {
     }
 
     private List<CharacterView> characters(UUID scriptId) {
-        List<CharacterView> characters = new ArrayList<>();
-        for (Tuple row : NativeTuples.list(entityManager.createNativeQuery("""
+        List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
                 SELECT c.id,c.name,c.sort_order,c.voice_preset,
                        (SELECT count(*) FROM script_lines l WHERE l.character_id=c.id) AS dialogue_count
                 FROM script_characters c
                 WHERE c.script_id=:scriptId
                 ORDER BY c.sort_order
                 """, Tuple.class)
-                .setParameter("scriptId", scriptId))) {
+                .setParameter("scriptId", scriptId));
+        List<String> voices = VoiceAssignment.voices(
+                rows.stream().map(row -> row.get("voice_preset", String.class)).toList());
+        List<CharacterView> characters = new ArrayList<>();
+        for (int i = 0; i < rows.size(); i++) {
+            Tuple row = rows.get(i);
             characters.add(new CharacterView(
                     row.get("id", UUID.class),
                     row.get("name", String.class),
                     row.get("sort_order", Integer.class),
                     row.get("voice_preset", String.class),
+                    voices.get(i),
                     row.get("dialogue_count", Number.class).intValue()));
         }
         return characters;
@@ -407,7 +436,7 @@ class PostgresScriptRepository implements ScriptRepository {
                 row.get("last_ended_at", Instant.class));
     }
 
-    /** 열린 회차가 있으면 연습 중, 없고 마지막 회차가 완료면 연습 완료, 그 밖(회차 없음·중단만 남음)은 배역 선택. */
+    /** 진행 중 회차가 하나라도 있으면 연습 중, 없고 마지막 회차가 완료면 연습 완료, 회차가 없으면 배역 선택. */
     private static String chip(boolean open, String lastStatus) {
         if (open) {
             return "reading";

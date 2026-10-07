@@ -67,6 +67,9 @@ class ValueCheckCatalogIT {
         BY_CONSTRAINT.put("ck_reading_sessions_status", ReadingSessionStatus.class);
         BY_CONSTRAINT.put("ck_script_lines_kind", ScriptLineKind.class);
         BY_CONSTRAINT.put("ck_scripts_source", ScriptSource.class);
+        // 나누기 요청(V33). 입력 경로는 대본과 같은 목록이고 실패 종류는 API 값이다.
+        BY_CONSTRAINT.put("ck_script_imports_source", ScriptSource.class);
+        BY_CONSTRAINT.put("ck_script_imports_failure", ScriptImportFailure.class);
         // 연습(V14). 옛 테이블의 값 목록은 그대로 두고 새 테이블이 자기 것을 갖는다.
         BY_CONSTRAINT.put("ck_video_transcripts_status", TranscriptStatus.class);
         BY_CONSTRAINT.put("ck_practices_stage", PracticeStage.class);
@@ -138,7 +141,11 @@ class ValueCheckCatalogIT {
             // 가입 유입 출처(V26·V28)는 컨트롤러의 상수와 source/platform 조합 검사로 거르고 저장소 native SQL만
             // 쓰는 칸이라 Java enum이 없다. 조합·웹 안전 문자열 CHECK는 ANY 값 목록 형태가 아니라 이 검사 대상 밖이다.
             "ck_user_signup_attributions_source",
-            "ck_user_signup_attributions_platform");
+            "ck_user_signup_attributions_platform",
+            // 앱 공지 포스터(V29)의 값 목록은 domain 의 PosterRules 상수가 들고 저장소 native SQL 만 쓴다.
+            "ck_app_posters_frequency",
+            "ck_app_posters_audience",
+            "ck_app_posters_cta_action");
 
     /** {@code CHECK ((col = ANY (ARRAY['a'::text, 'b'::text])))} 에서 값만 뽑는다. */
     private static final Pattern LITERAL = Pattern.compile("'((?:[^']|'')*)'::text");

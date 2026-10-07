@@ -18,7 +18,15 @@ public enum MemoryField implements PgEnum {
     /** 배우가 말하는 자기 화술. */
     SPEECH_SELF("speech_self"),
     /** 영상에서 관찰된 화술. */
-    SPEECH_ACTUAL("speech_actual");
+    SPEECH_ACTUAL("speech_actual"),
+    /** 코치에게 바라는 것 — 평가·방법·봐 달라는 쪽(SOMA-603). */
+    WANTS("wants"),
+    /** 자주 짚인 버릇 — 코치가 짚은 것과 배우가 스스로 본 것, 서술형. */
+    HABITS("habits"),
+    /** 다시 말하지 않을 것 — 배우가 아니라고 한 주제와 원문. 회차가 끝나면 코드가 바로 덧붙인다. */
+    AVOID("avoid"),
+    /** 말투 — 답 길이·직설 선호·존댓말/반말. 배우 화면에는 보이지 않고 코치만 쓴다. */
+    TONE("tone");
 
     private final String dbValue;
 

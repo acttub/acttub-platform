@@ -8,13 +8,11 @@ import {
   exitMessage,
   formatProgress,
   isHidden,
-  lineResultsOf,
   progressOf,
-  quizMiss,
-  quizPass,
-  quizSkip,
-  readMiss,
+  progressPayload,
+  recordSaid,
   resumeRun,
+  shownText,
   tickElapsed,
   turnOf,
 } from '../lib/reading/session-run.ts';
@@ -31,7 +29,6 @@ function run(overrides = {}) {
     myRoles: ['윤서'],
     startIndex: 1,
     endIndex: 7,
-    mode: 'read',
     ...overrides,
   });
 }
@@ -82,47 +79,43 @@ test('reading.session: 흐른 시간은 일시정지를 빼고 잰다', () => {
   assert.equal(formatProgress(r), '0 / 5 · 00:01');
 });
 
-test('reading.session: quiz에서 한 줄을 2회 미달하면 다음 줄로 가고 line_results에 {unmatched, misses 2}', () => {
-  let r = run({ mode: 'quiz' });
-  r = quizMiss(r);
-  assert.equal(r.index, 1, '첫 미달은 같은 줄에 머문다');
-  assert.equal(r.pendingMiss, true, '"다시·넘어가기"가 보인다');
-  r = quizMiss(r);
-  assert.equal(r.index, 2, '2회 미달이면 안내 없이 넘어간다');
-  assert.deepEqual(lineResultsOf(r), [{ line_id: 'l1', outcome: 'unmatched', misses: 2 }]);
-});
-
-test('reading.session: 첫 미달 뒤 통과하면 {passed, misses 1}, 넘어가기는 skipped', () => {
-  let r = run({ mode: 'quiz' });
-  r = quizMiss(r);
-  r = quizPass(r);
-  assert.deepEqual(lineResultsOf(r), [{ line_id: 'l1', outcome: 'passed', misses: 1 }]);
-  assert.equal(r.index, 2);
-  r = advance(r); // 상대 줄
-  r = quizSkip(r);
-  assert.deepEqual(lineResultsOf(r).at(-1), { line_id: 'l4', outcome: 'skipped', misses: 0 });
-});
-
-test('reading.session: read에서 대조 미달은 흐름을 바꾸지 않고 line_results에 unmatched 만 남긴다', () => {
-  let r = run({ mode: 'read' });
-  r = readMiss(r);
+test('reading.session: 내 줄에는 말한 것만 남기고 흐름은 그대로다. 진행 저장은 이번 실행에서 말한 줄만 줄 순서로 line_id·said 를 싣는다', () => {
+  assert.deepEqual(progressPayload(resumeRun(run(), 'l4')).line_results, [], '이어하기는 앞 실행의 줄 결과를 다시 보내지 않는다(서버가 말한 것을 지우지 않게)');
+  let r = run();
+  r = recordSaid(r, '하나');
   assert.equal(r.index, 1);
-  assert.equal(r.pendingMiss, false);
-  assert.deepEqual(lineResultsOf(r), [{ line_id: 'l1', outcome: 'unmatched', misses: 1 }]);
+  r = recordSaid(r, '일');
+  const partner = advance(r);
+  assert.equal(recordSaid(partner, 'x'), partner, '상대 차례에는 남기지 않는다');
+  r = recordSaid(advance(partner), '셋');
+  assert.deepEqual(progressPayload(r), {
+    current_line_id: 'l4',
+    elapsed_seconds: 0,
+    line_results: [
+      { line_id: 'l1', said: '일' },
+      { line_id: 'l4', said: '셋' },
+    ],
+    complete: false,
+  });
 });
 
-test('reading.session: 가리기 — 내 대사만/모든 대사, 배역 이름·지문·장면은 남기고 quiz에서는 내 대사가 언제나 가려진다', () => {
+test('reading.session: 가리기 — 내 대사만/모든 대사, 배역 이름·지문·장면은 남긴다', () => {
   const mine = { line: D('윤서', 'x'), isMine: true };
   const partner = { line: D('태오', 'y'), isMine: false };
   const direction = { line: X('z'), isMine: false };
-  assert.equal(isHidden({ mode: 'read', maskMode: 'none', ...mine }), false);
-  assert.equal(isHidden({ mode: 'read', maskMode: 'mine', ...mine }), true);
-  assert.equal(isHidden({ mode: 'read', maskMode: 'mine', ...partner }), false);
-  assert.equal(isHidden({ mode: 'read', maskMode: 'all', ...partner }), true);
-  assert.equal(isHidden({ mode: 'read', maskMode: 'all', ...direction }), false, '지문은 남긴다');
-  assert.equal(isHidden({ mode: 'quiz', maskMode: 'none', ...mine }), true, 'quiz "모든 대사 보기"에서도 내 대사는 가려진다');
-  assert.equal(isHidden({ mode: 'quiz', maskMode: 'none', ...partner }), false);
-  assert.equal(isHidden({ mode: 'quiz', maskMode: 'none', ...mine, revealed: true }), false, '원문 보기는 현재 줄만 푼다');
+  assert.equal(isHidden({ maskMode: 'none', ...mine }), false);
+  assert.equal(isHidden({ maskMode: 'mine', ...mine }), true);
+  assert.equal(isHidden({ maskMode: 'mine', ...partner }), false);
+  assert.equal(isHidden({ maskMode: 'all', ...partner }), true);
+  assert.equal(isHidden({ maskMode: 'all', ...direction }), false, '지문은 남긴다');
+});
+
+test('reading.session: 가린 줄의 보조 — [첫 단어]는 첫 어절만, [원문 보기]는 전부, 없으면 아무 글자도 없다', () => {
+  assert.equal(shownText('어떻게 알았어.', true, 'none'), null);
+  assert.equal(shownText('어떻게 알았어.', true, 'first_word'), '어떻게');
+  assert.equal(shownText('  어떻게 알았어.', true, 'first_word'), '어떻게');
+  assert.equal(shownText('어떻게 알았어.', true, 'original'), '어떻게 알았어.');
+  assert.equal(shownText('어떻게 알았어.', false, 'none'), '어떻게 알았어.', '안 가린 줄은 그대로');
 });
 
 test('reading.session: 이어하기는 current_line 부터 시작하고 그 줄 직전의 상대 대사 하나를 먼저 읽는다', () => {

@@ -154,8 +154,8 @@ class ReadingScriptIT {
                 .containsEntry("source", "paste").containsEntry("request_id", requestId).containsEntry("fp", 64);
 
         assertThat(saved.fieldNames()).toIterable().containsExactlyInAnyOrder(
-                "id", "title", "source", "characters", "lines", "recording_count", "open_session_id", "last_session",
-                "created_at", "updated_at");
+                "id", "title", "source", "characters", "lines", "scenes", "recording_count", "open_session_id",
+                "last_session", "created_at", "updated_at");
         assertThat(saved.path("title").textValue()).isEqualTo("갈매기");
         assertThat(saved.path("recording_count").intValue()).isZero();
         assertThat(saved.path("open_session_id").isNull()).isTrue();
@@ -165,7 +165,12 @@ class ReadingScriptIT {
         assertThat(saved.path("characters")).extracting(character -> character.path("dialogue_count").intValue())
                 .containsExactly(2, 1);
         assertThat(saved.path("characters").get(0).fieldNames()).toIterable()
-                .containsExactlyInAnyOrder("id", "name", "order", "voice_preset", "dialogue_count");
+                .containsExactlyInAnyOrder("id", "name", "order", "voice_preset", "voice", "dialogue_count");
+        assertThat(saved.path("characters")).extracting(character -> character.path("voice").textValue())
+                .as("자동이면 배역 순서로 F1·M1").containsExactly("F1", "M1");
+        assertThat(saved.path("scenes")).extracting(scene -> scene.path("title").textValue() + ":" + scene.path("dialogue_count").intValue())
+                .as("장면 줄이 경계 — 「제1막」 대사 둘, 「S#2」 대사 하나(머리로 나뉜 장면은 짧아도 합치지 않는다)")
+                .containsExactly("제1막:2", "S#2:1");
         assertThat(saved.path("lines")).extracting(line -> line.path("kind").textValue())
                 .containsExactly("scene", "direction", "dialogue", "dialogue", "scene", "dialogue");
         assertThat(saved.path("lines")).extracting(line -> line.path("dialogue_no").isNull() ? null : line.path("dialogue_no").intValue())
@@ -464,10 +469,11 @@ class ReadingScriptIT {
         session(hamletId, member, List.of(ophelia), "completed", clock.instant());
         UUID cherryId = UUID.fromString(cherry);
         UUID ranevskaya = jdbc.queryForObject("SELECT id FROM script_characters WHERE script_id=?", UUID.class, cherryId);
-        session(cherryId, member, List.of(ranevskaya), "stopped", clock.instant());
+        session(cherryId, member, List.of(ranevskaya), "in_progress", clock.instant().minusSeconds(60));
+        UUID cherryLatest = session(cherryId, member, List.of(ranevskaya), "in_progress", clock.instant());
 
         JsonNode practiced = json(get("/v2/reading/scripts"), 200);
-        assertThat(practiced.path("in_progress_count").intValue()).isEqualTo(1);
+        assertThat(practiced.path("in_progress_count").intValue()).as("진행 중 회차가 있는 대본 수").isEqualTo(2);
         Map<String, JsonNode> byId = new LinkedHashMap<>();
         practiced.path("scripts").forEach(row -> byId.put(row.path("id").textValue(), row));
         assertThat(byId.get(seagull).path("status").textValue()).isEqualTo("reading");
@@ -476,7 +482,9 @@ class ReadingScriptIT {
         assertThat(byId.get(seagull).path("last_activity_at").textValue()).isEqualTo(byId.get(seagull).path("last_practiced_at").textValue());
         assertThat(byId.get(hamlet).path("status").textValue()).isEqualTo("completed");
         assertThat(byId.get(hamlet).path("my_character_names")).extracting(JsonNode::textValue).containsExactly("오필리아");
-        assertThat(byId.get(cherry).path("status").textValue()).as("stopped 만 남으면 배역 선택").isEqualTo("no_cast");
+        assertThat(byId.get(cherry).path("status").textValue()).isEqualTo("reading");
+        assertThat(json(get("/v2/reading/scripts/{id}", cherry), 200).path("open_session_id").textValue())
+                .as("가장 최근에 시작한 진행 중 회차").isEqualTo(cherryLatest.toString());
 
         JsonNode detail = json(get("/v2/reading/scripts/{id}", seagull), 200);
         assertThat(detail.path("open_session_id").isNull()).isFalse();
@@ -882,8 +890,8 @@ class ReadingScriptIT {
     private void seedScripts(UUID owner, int howMany) {
         for (int index = 0; index < howMany; index++) {
             jdbc.update("""
-                    INSERT INTO scripts(id,user_id,title,raw_text,source,request_id,request_fingerprint)
-                    VALUES (?,?,?,'원문','paste',?,?)
+                    INSERT INTO scripts(id,user_id,title,raw_text,raw_hash,source,request_id,request_fingerprint)
+                    VALUES (?,?,?,'원문',repeat('0',64),'paste',?,?)
                     """, UUID.randomUUID(), owner, "대본 " + index, UUID.randomUUID(), "f".repeat(64));
         }
     }

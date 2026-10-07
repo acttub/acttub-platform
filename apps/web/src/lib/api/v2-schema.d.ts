@@ -429,6 +429,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/reading/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Script Upload
+         * @description 대본 원본 파일을 올릴 자리를 내준다. 기기는 upload_url 에 Content-Type: content_type 으로 파일을 PUT 하고
+         *     (주소는 15분, 크기는 byte_size 로 서명에 묶인다) complete 를 부른다. 50,000,000바이트 초과 422
+         *     script_file_too_large, 확장자가 txt·docx·pdf·hwp·hwpx 밖이면 422 script_file_unreadable, 동의 없음 403
+         *     script_split_consent_required, 스토리지 없음 503 storage_not_configured.
+         */
+        post: operations["create_script_upload_v2_reading_uploads_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/reading/uploads/{upload_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Complete Script Upload
+         * @description 올라온 파일을 받아 글자를 뽑아 둔다. 끝나면 204 이고 다시 불러도(대본에 연결된 뒤에도) 204 다. 그 뒤
+         *     POST /v2/reading/imports 에 upload_id 를 싣는다. 아직 안 올라왔으면 422 script_upload_not_ready, 글자를 못
+         *     뽑으면(형식 밖·한글 97·스캔한 PDF·암호·깨진 파일·빈 문서·받기와 뽑기 45초 초과) 422 script_file_unreadable,
+         *     뽑은 글이 100,000자를 넘으면 422 script_too_long, 서버의 읽기 자리(동시 둘)가 10초 안에 나지 않으면 429
+         *     script_upload_busy, 없는 것과 남의 것은 404 script_upload_not_found.
+         */
+        post: operations["complete_script_upload_v2_reading_uploads__upload_id__complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/reading/sessions/{session_id}/recordings": {
         parameters: {
             query?: never;
@@ -442,10 +489,11 @@ export interface paths {
          * Upload Line Recording
          * @description 내 대사 한 줄의 녹음을 multipart 한 요청으로 올린다: request_id·line_id·attempt_no·audio(파일)·
          *     duration_ms·transcript_source(stt·none)·transcript?·matched?. 서버가 m4a(AAC)가 아니면 변환해 저장한다.
+         *     matched 는 서버가 transcript 를 그 줄 원문과 비교해 정한다(보낸 matched 는 받기만 한다).
          *     같은 request_id 는 같은 행(200), 같은 줄의 더 큰 attempt_no 는 대체(201), 더 작은 번호는 200 현재 값.
-         *     10,000,000바이트·180초 초과 422 recording_too_long, 총량(회원 1GB·게스트 100MB) 초과 422 recording_quota,
+         *     10,000,000바이트·180초 초과 422 recording_too_long, 소리가 들어 있을 수 없는 파일(저장할 m4a 1,000바이트 미만) 422 recording_empty, 총량(회원 1GB·게스트 100MB) 초과 422 recording_quota,
          *     구간 밖·상대역·지문 줄 422 invalid_line, 지워진 회차 404, 변환 실패 503 audio_conversion_failed.
-         *     completed·stopped 회차에도 받는다.
+         *     completed 회차에도 받는다.
          */
         post: operations["upload_reading_recording_v2_reading_sessions__session_id__recordings_post"];
         delete?: never;
@@ -497,13 +545,44 @@ export interface paths {
         put?: never;
         /**
          * Start Reading Session
-         * @description 내 배역·방식·구간·넘김·녹음을 정해 회차를 시작한다. 열린 회차가 있으면 같은 트랜잭션에서 stopped 로
-         *     바꾸고 새 회차를 만든다. 같은 request_id 가 다시 오면 먼저 만든 회차를 200 으로 돌려주고, 속성이 다르면
+         * @description 내 배역·방식·구간·넘김·녹음을 정해 회차를 시작한다. 같은 대본의 진행 중 회차는 그대로 남는다(여럿일 수
+         *     있다). 같은 request_id 가 다시 오면 먼저 만든 회차를 200 으로 돌려주고, 속성이 다르면
          *     422 request_fingerprint_mismatch. 내 배역이 없거나 그 대본의 배역이 아니면 422 invalid_characters,
          *     구간의 줄이 그 대본의 대사 줄이 아니면 422 invalid_line, 시작 줄이 끝 줄 뒤이거나 구간 안에 내 대사가
          *     없으면 422 empty_range. current_line_id 는 구간의 첫 대사 줄이다.
          */
         post: operations["start_reading_session_v2_reading_scripts__script_id__sessions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/reading/imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Script
+         * @description 대본 글(raw_text)이나 읽어 둔 원본 파일(upload_id) 하나를 받아 서버가 배역·대사로 나누는 작업을 접수한다.
+         *     upload_id 가 없거나 남의 것이면 404 script_upload_not_found, 아직 읽지 않았으면 422 script_upload_not_ready,
+         *     이미 대본이 된 원본은 그 글로 같은 글 판정을 해 200 duplicate_script_id 이고, allow_duplicate 로 새 대본을
+         *     만들려 하면 422 script_upload_used(파일을 다시 올린다).
+         *     새 요청은 202, 같은 request_id 의 재전송과 같은
+         *     글로 진행 중인 요청은 200 으로 같은 import_id 를 돌려준다. 같은 글이 이미 내 대본이면 200 duplicate_script_id.
+         *     예시 대본과 같은 글은 모델 없이 바로 저장돼 상태가 곧 succeeded 이고 동의도 묻지 않는다(게스트도 된다). 그 밖의
+         *     글은 동의 없음 403 script_split_consent_required,
+         *     원문 100,000자 초과 422 script_too_long, 대본 수 한도 422 script_limit, 하루 20개 초과 429
+         *     script_split_daily_limit, 같은 request_id 에 다른 본문 422 request_fingerprint_mismatch. allow_duplicate(R2.7
+         *     「새로 넣기」)는 같은 글의 대본이 있어도 새로 나누고, skip_script_check(R2.8 「그래도 나누기」)는 대본 여부
+         *     판정을 묻지 않는다. 둘 다 요청 지문에 든다.
+         */
+        post: operations["import_script_v2_reading_imports_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1191,7 +1270,9 @@ export interface paths {
          * @description 진행 위치·흐른 시간·줄 결과를 저장한다. progress_seq 가 저장된 값보다 클 때만 반영하고, 작거나 같으면
          *     무시하고 200 으로 현재 값을 돌려준다. 위치와 줄 결과는 구간 안 대사 줄만 받는다(아니면 422 invalid_line).
          *     시간은 줄지 않는다. complete=true 면 completed 가 되고 ended_at 이 찍히며 current_line_id 는 null 이다.
-         *     completed·stopped 회차에는 409 session_closed.
+         *     completed 회차에는 409 session_closed. 줄 결과에 said 를 실으면 서버가 원문과 비교해 outcome·misses 를
+         *     정한다(통과 passed·0, 미달 unmatched·1, 무발화·1,000자 초과는 남기지 않음). said 가 없으면 outcome·misses 가
+         *     필수다. different_lines 는 원문과 다르게 말한 대사의 현재 값이다.
          */
         patch: operations["save_reading_progress_v2_reading_sessions__session_id__progress_patch"];
         trace?: never;
@@ -1401,6 +1482,26 @@ export interface paths {
          * @description 그 대본의 줄에 남긴 표시를 줄 순서로. 행이 없는 줄은 아직 표시하지 않은 줄이다. 없는 대본과 남의 대본은 404 script_not_found.
          */
         get: operations["list_script_memorization_v2_reading_scripts__script_id__memorization_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/reading/imports/{import_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Import
+         * @description 나누기 요청의 상태. 1초 간격으로 묻는다. 없는 것과 남의 것은 같은 404 import_not_found 다.
+         */
+        get: operations["get_import_v2_reading_imports__import_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1876,6 +1977,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/app/posters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List App Posters
+         * @description 지금 앱 첫 화면에 띄울 수 있는 공지 포스터를 우선순위 큰 것, 최근에 고친 것 순으로 최대 5장.
+         *     켜져 있고 기간 안이며 플랫폼이 맞고 언어가 없거나 같은 것만 낸다. min_app_version 이 있는 포스터는
+         *     app_version 이 그 이상일 때만 낸다(app_version 을 보내지 않으면 빠진다). 빈도·다시 보지 않기·
+         *     대상(audience)의 판정은 앱이 기기 상태로 한다.
+         */
+        get: operations["list_posters_v2_app_posters_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/admissions": {
         parameters: {
             query?: never;
@@ -2234,7 +2358,7 @@ export interface components {
              * Field
              * @enum {string}
              */
-            field: "goal" | "blockage" | "speech_self" | "speech_actual";
+            field: "goal" | "blockage" | "wants" | "habits" | "avoid" | "speech_self" | "speech_actual";
             /** Value */
             value: string;
             /** Written By Actor */
@@ -2408,6 +2532,30 @@ export interface components {
             /** Expires In */
             expires_in?: number;
         };
+        /** ReadingUploadRequest */
+        ReadingUploadRequest: {
+            /** File Name */
+            file_name: string;
+            /** Byte Size */
+            byte_size: number;
+        };
+        /** ReadingUpload */
+        ReadingUpload: {
+            /**
+             * Upload Id
+             * Format: uuid
+             */
+            upload_id: string;
+            /** Upload Url */
+            upload_url: string;
+            /** Content Type */
+            content_type: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+        };
         /** ReadingRecordingUploadForm */
         ReadingRecordingUploadForm: {
             /**
@@ -2539,6 +2687,11 @@ export interface components {
             characters: components["schemas"]["ReadingScriptCharacter"][];
             /** Lines */
             lines: components["schemas"]["ReadingScriptLine"][];
+            /**
+             * Scenes
+             * @description 「장면으로 찾기」의 장면, 순서대로. 장면 줄이 있으면 그 줄이 경계이고 없으면 지문이 경계다(지문 경계의 대사 5개 미만 장면은 이웃에 붙는다). 대사가 없는 장면은 없다
+             */
+            scenes: components["schemas"]["ReadingScriptScene"][];
             /** Recording Count */
             recording_count: number;
             /** Open Session Id */
@@ -2568,6 +2721,11 @@ export interface components {
             order: number;
             /** Voice Preset */
             voice_preset: string | null;
+            /**
+             * Voice
+             * @description 내 배역이 아닐 때 읽을 목소리(M1~M5·F1~F5). voice_preset 이 프리셋이면 그 값, 아니면 대본의 모든 배역을 저장 순서로 세운 자동 순환(F1·M1·F2·M2…, 고정값은 빠짐)의 값이다
+             */
+            voice: string;
             /** Dialogue Count */
             dialogue_count: number;
         };
@@ -2608,11 +2766,35 @@ export interface components {
             /** Dialogue No */
             dialogue_no: number | null;
         };
+        /** ReadingScriptScene */
+        ReadingScriptScene: {
+            /**
+             * No
+             * @description 1부터
+             */
+            no: number;
+            /** Title */
+            title: string | null;
+            /**
+             * Start Line Id
+             * Format: uuid
+             * @description 장면 안 첫 대사 줄
+             */
+            start_line_id: string;
+            /**
+             * End Line Id
+             * Format: uuid
+             * @description 장면 안 마지막 대사 줄
+             */
+            end_line_id: string;
+            /** Dialogue Count */
+            dialogue_count: number;
+        };
         /**
          * ReadingSessionStatus
          * @enum {string}
          */
-        ReadingSessionStatus: "in_progress" | "completed" | "stopped";
+        ReadingSessionStatus: "in_progress" | "completed";
         /**
          * ScriptLineKind
          * @enum {string}
@@ -2662,6 +2844,42 @@ export interface components {
          * @enum {string}
          */
         ReadingAdvance: "silence" | "manual";
+        /**
+         * ReadingDifferentLine
+         * @description 원문과 다르게 말한 대사 하나 — 구간 안에서 결과가 unmatched 인 줄. different_lines 는 줄 순서다
+         */
+        ReadingDifferentLine: {
+            /**
+             * Line Id
+             * Format: uuid
+             */
+            line_id: string;
+            /**
+             * Dialogue No
+             * @description 대본 안 대사 번호(1부터)
+             */
+            dialogue_no: number;
+            /** Said */
+            said: string | null;
+            /**
+             * Different Words
+             * @description 원문을 공백으로 나눈 어절 전부, 원문 순서. 사이에 공백 하나를 넣어 이으면 원문이 된다(연속 공백은 하나로)
+             */
+            different_words: components["schemas"]["ReadingDifferentWord"][];
+        };
+        /**
+         * ReadingDifferentWord
+         * @description 원문 어절 하나. differs 면 그 어절에 말한 것과 맞지 않는 글자가 있다(빠뜨리거나 바꿔 말함). 띄어쓰기·문장부호·괄호 안 지시는 비교하지 않고, 더 말한 것은 어디에도 표시하지 않는다
+         */
+        ReadingDifferentWord: {
+            /**
+             * Text
+             * @description 원문 그대로(문장부호 포함)
+             */
+            text: string;
+            /** Differs */
+            differs: boolean;
+        };
         /** ReadingLineResult */
         ReadingLineResult: {
             /**
@@ -2697,6 +2915,8 @@ export interface components {
             /** My Character Names */
             my_character_names: string[];
             range: components["schemas"]["ReadingSessionRange"];
+            range_name: components["schemas"]["ReadingSessionRangeName"];
+            progress: components["schemas"]["ReadingSessionProgressCount"] | null;
             /** My Dialogue Count */
             my_dialogue_count: number;
             /** Recorded Line Count */
@@ -2737,6 +2957,21 @@ export interface components {
             line_results: components["schemas"]["ReadingLineResult"][];
             /** Recordings */
             recordings: components["schemas"]["ReadingSessionRecording"][];
+            /** Different Lines */
+            different_lines: components["schemas"]["ReadingDifferentLine"][];
+        };
+        /** ReadingSessionProgressCount */
+        ReadingSessionProgressCount: {
+            /**
+             * Done
+             * @description 지난 대사 수 — 현재 줄(current_line_id, 구간 안 대사 줄)의 대사 번호 − 시작 대사 번호
+             */
+            done: number;
+            /**
+             * Total
+             * @description 구간 안 대사 수(모든 배역)
+             */
+            total: number;
         };
         /** ReadingSessionRange */
         ReadingSessionRange: {
@@ -2744,6 +2979,61 @@ export interface components {
             start_dialogue_no: number;
             /** End Dialogue No */
             end_dialogue_no: number;
+        };
+        /** ReadingSessionRangeName */
+        ReadingSessionRangeName: {
+            /**
+             * Kind
+             * @description all 대본 전체 · scene 대본 상세 scenes 의 한 장면과 첫·끝 대사가 정확히 같음 · dialogues 그 밖
+             * @enum {string}
+             */
+            kind: "all" | "scene" | "dialogues";
+            /** Scene No */
+            scene_no: number | null;
+            /** Scene Title */
+            scene_title: string | null;
+            /**
+             * Start
+             * @description 시작 대사 번호
+             */
+            start: number;
+            /**
+             * End
+             * @description 끝 대사 번호
+             */
+            end: number;
+        };
+        /** ReadingImportRequest */
+        ReadingImportRequest: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /** Title */
+            title?: string | null;
+            /** Raw Text */
+            raw_text?: string | null;
+            /** Upload Id */
+            upload_id?: string | null;
+            source: components["schemas"]["ReadingScriptSourceInput"];
+            /**
+             * Allow Duplicate
+             * @default false
+             */
+            allow_duplicate: boolean;
+            /**
+             * Skip Script Check
+             * @default false
+             */
+            skip_script_check: boolean;
+        };
+        /** ReadingImportTicket */
+        ReadingImportTicket: {
+            /** Import Id */
+            import_id: string | null;
+            /** Duplicate Script Id */
+            duplicate_script_id: string | null;
         };
         /** RegisterPushTokenRequest */
         RegisterPushTokenRequest: {
@@ -3521,6 +3811,11 @@ export interface components {
             signup_token: string;
             /** Decisions */
             decisions: components["schemas"]["SignupDecision"][];
+            /**
+             * Age Confirmed
+             * @description "만 14세 이상이에요" 확인. true면 확인 시각을 남긴다. 다음 단계에서 필수가 된다.
+             */
+            age_confirmed?: boolean;
         };
         /** AuthUser */
         AuthUser: {
@@ -3563,7 +3858,7 @@ export interface components {
          * ConsentType
          * @enum {string}
          */
-        ConsentType: "terms" | "privacy" | "ai_analysis" | "retention" | "cloud_voice";
+        ConsentType: "terms" | "privacy" | "ai_analysis" | "retention" | "cloud_voice" | "script_split";
         /** SignedInResponse */
         SignedInResponse: {
             /**
@@ -3697,9 +3992,11 @@ export interface components {
              * Format: uuid
              */
             line_id: string;
-            outcome: components["schemas"]["ReadingLineOutcomeInput"];
+            outcome?: components["schemas"]["ReadingLineOutcomeInput"] | null;
             /** Misses */
-            misses: number;
+            misses?: number | null;
+            /** Said */
+            said?: string | null;
         };
         /** ReadingSessionProgressRequest */
         ReadingSessionProgressRequest: {
@@ -3723,6 +4020,8 @@ export interface components {
             /** Progress Seq */
             progress_seq: number;
             status: components["schemas"]["ReadingSessionStatus"];
+            /** Different Lines */
+            different_lines: components["schemas"]["ReadingDifferentLine"][];
         };
         /** ReadingScriptCharacterPatch */
         ReadingScriptCharacterPatch: {
@@ -3896,6 +4195,8 @@ export interface components {
             /** My Character Names */
             my_character_names: string[];
             range: components["schemas"]["ReadingSessionRange"];
+            range_name: components["schemas"]["ReadingSessionRangeName"];
+            progress: components["schemas"]["ReadingSessionProgressCount"] | null;
             /** My Dialogue Count */
             my_dialogue_count: number;
             /** Recorded Line Count */
@@ -3915,6 +4216,35 @@ export interface components {
             /** Sessions */
             sessions: components["schemas"]["ReadingSessionCard"][];
         };
+        /** ReadingImport */
+        ReadingImport: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "running" | "succeeded" | "failed";
+            progress: components["schemas"]["ReadingImportProgress"];
+            /** Script Id */
+            script_id: string | null;
+            failure: components["schemas"]["ScriptImportFailure"] | null;
+        };
+        /** ReadingImportProgress */
+        ReadingImportProgress: {
+            /** Done Lines */
+            done_lines: number;
+            /** Total Lines */
+            total_lines: number;
+        };
+        /**
+         * ScriptImportFailure
+         * @enum {string}
+         */
+        ScriptImportFailure: "not_script" | "no_characters" | "script_too_long" | "script_limit" | "failed";
         /** PublicPortfolio */
         PublicPortfolio: {
             /** Name */
@@ -4311,6 +4641,60 @@ export interface components {
             /** Providers */
             providers: string[];
         };
+        /**
+         * AppPoster
+         * @description 앱 첫 화면 공지 포스터 한 장. image_url 과 image_asset 은 많아야 하나가 차 있다.
+         */
+        AppPoster: {
+            /**
+             * Slug
+             * @description 기기의 봤음·다시 보지 않기 저장 키
+             */
+            slug: string;
+            /**
+             * Revision
+             * @description 바뀌면 기기의 봤음·다시 보지 않기가 무효
+             */
+            revision: number;
+            /**
+             * Frequency
+             * @enum {string}
+             */
+            frequency: "daily" | "once";
+            /**
+             * Audience
+             * @enum {string}
+             */
+            audience: "all" | "cloud_voice_off";
+            /** Dismissible */
+            dismissible: boolean;
+            /** Badge */
+            badge: string | null;
+            /** Title */
+            title: string;
+            /** Body */
+            body: string | null;
+            /** Image Url */
+            image_url: string | null;
+            /** Image Asset */
+            image_asset: string | null;
+            /** Audio Asset */
+            audio_asset: string | null;
+            /** Cta Label */
+            cta_label: string | null;
+            /**
+             * Cta Action
+             * @enum {string}
+             */
+            cta_action: "none" | "cloud_voice_enable" | "route" | "url";
+            /** Cta Target */
+            cta_target: string | null;
+        };
+        /** AppPosterList */
+        AppPosterList: {
+            /** Posters */
+            posters: components["schemas"]["AppPoster"][];
+        };
         /** AdmissionNotice */
         AdmissionNotice: {
             /** Id */
@@ -4528,6 +4912,8 @@ export interface components {
             verified_at?: string | null;
             /** Note */
             note?: string | null;
+            /** Year */
+            year?: number | null;
         };
         /** AdmissionUniversity */
         AdmissionUniversity: {
@@ -5198,7 +5584,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                field: "goal" | "blockage" | "speech_self" | "speech_actual";
+                field: "goal" | "blockage" | "wants" | "habits" | "avoid" | "speech_self" | "speech_actual";
             };
             cookie?: never;
         };
@@ -5233,7 +5619,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                field: "goal" | "blockage" | "speech_self" | "speech_actual";
+                field: "goal" | "blockage" | "wants" | "habits" | "avoid" | "speech_self" | "speech_actual";
             };
             cookie?: never;
         };
@@ -5598,6 +5984,59 @@ export interface operations {
             };
         };
     };
+    create_script_upload_v2_reading_uploads_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadingUploadRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingUpload"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    complete_script_upload_v2_reading_uploads__upload_id__complete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     upload_reading_recording_v2_reading_sessions__session_id__recordings_post: {
         parameters: {
             query?: never;
@@ -5769,6 +6208,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReadingSession"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_script_v2_reading_imports_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadingImportRequest"];
+            };
+        };
+        responses: {
+            /** @description 재전송·진행 중(import_id) 또는 같은 글의 대본이 이미 있음(duplicate_script_id) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingImportTicket"];
+                };
+            };
+            /** @description 접수됨 — import_id 로 상태를 묻는다 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingImportTicket"];
                 };
             };
             /** @description Validation Error */
@@ -7372,6 +7853,28 @@ export interface operations {
             };
         };
     };
+    get_import_v2_reading_imports__import_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                import_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingImport"];
+                };
+            };
+        };
+    };
     get_public_portfolio_v2_public_portfolios__slug__get: {
         parameters: {
             query?: never;
@@ -7927,6 +8430,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuthProvidersResponse"];
+                };
+            };
+        };
+    };
+    list_posters_v2_app_posters_get: {
+        parameters: {
+            query: {
+                platform: "ios" | "android";
+                /** @description 앱 표시 언어(두 글자). 없으면 언어 없는 포스터만 */
+                locale?: string;
+                /** @description 앱 판(점으로 이은 숫자) */
+                app_version?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppPosterList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

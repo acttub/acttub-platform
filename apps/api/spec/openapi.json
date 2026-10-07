@@ -411,7 +411,7 @@
           "required" : true,
           "schema" : {
             "type" : "string",
-            "enum" : [ "goal", "blockage", "speech_self", "speech_actual" ],
+            "enum" : [ "goal", "blockage", "wants", "habits", "avoid", "speech_self", "speech_actual" ],
             "title" : "Field"
           }
         } ],
@@ -462,7 +462,7 @@
           "required" : true,
           "schema" : {
             "type" : "string",
-            "enum" : [ "goal", "blockage", "speech_self", "speech_actual" ],
+            "enum" : [ "goal", "blockage", "wants", "habits", "avoid", "speech_self", "speech_actual" ],
             "title" : "Field"
           }
         } ],
@@ -967,11 +967,80 @@
         } ]
       }
     },
+    "/v2/reading/uploads" : {
+      "post" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "Create Script Upload",
+        "description" : "대본 원본 파일을 올릴 자리를 내준다. 기기는 upload_url 에 Content-Type: content_type 으로 파일을 PUT 하고\n(주소는 15분, 크기는 byte_size 로 서명에 묶인다) complete 를 부른다. 50,000,000바이트 초과 422\nscript_file_too_large, 확장자가 txt·docx·pdf·hwp·hwpx 밖이면 422 script_file_unreadable, 동의 없음 403\nscript_split_consent_required, 스토리지 없음 503 storage_not_configured.",
+        "operationId" : "create_script_upload_v2_reading_uploads_post",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReadingUploadRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReadingUpload"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/reading/uploads/{upload_id}/complete" : {
+      "post" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "Complete Script Upload",
+        "description" : "올라온 파일을 받아 글자를 뽑아 둔다. 끝나면 204 이고 다시 불러도(대본에 연결된 뒤에도) 204 다. 그 뒤\nPOST /v2/reading/imports 에 upload_id 를 싣는다. 아직 안 올라왔으면 422 script_upload_not_ready, 글자를 못\n뽑으면(형식 밖·한글 97·스캔한 PDF·암호·깨진 파일·빈 문서·받기와 뽑기 45초 초과) 422 script_file_unreadable,\n뽑은 글이 100,000자를 넘으면 422 script_too_long, 서버의 읽기 자리(동시 둘)가 10초 안에 나지 않으면 429\nscript_upload_busy, 없는 것과 남의 것은 404 script_upload_not_found.",
+        "operationId" : "complete_script_upload_v2_reading_uploads__upload_id__complete_post",
+        "parameters" : [ {
+          "name" : "upload_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Upload Id"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Successful Response"
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/reading/sessions/{session_id}/recordings" : {
       "post" : {
         "tags" : [ "v2-reading" ],
         "summary" : "Upload Line Recording",
-        "description" : "내 대사 한 줄의 녹음을 multipart 한 요청으로 올린다: request_id·line_id·attempt_no·audio(파일)·\nduration_ms·transcript_source(stt·none)·transcript?·matched?. 서버가 m4a(AAC)가 아니면 변환해 저장한다.\n같은 request_id 는 같은 행(200), 같은 줄의 더 큰 attempt_no 는 대체(201), 더 작은 번호는 200 현재 값.\n10,000,000바이트·180초 초과 422 recording_too_long, 총량(회원 1GB·게스트 100MB) 초과 422 recording_quota,\n구간 밖·상대역·지문 줄 422 invalid_line, 지워진 회차 404, 변환 실패 503 audio_conversion_failed.\ncompleted·stopped 회차에도 받는다.",
+        "description" : "내 대사 한 줄의 녹음을 multipart 한 요청으로 올린다: request_id·line_id·attempt_no·audio(파일)·\nduration_ms·transcript_source(stt·none)·transcript?·matched?. 서버가 m4a(AAC)가 아니면 변환해 저장한다.\nmatched 는 서버가 transcript 를 그 줄 원문과 비교해 정한다(보낸 matched 는 받기만 한다).\n같은 request_id 는 같은 행(200), 같은 줄의 더 큰 attempt_no 는 대체(201), 더 작은 번호는 200 현재 값.\n10,000,000바이트·180초 초과 422 recording_too_long, 소리가 들어 있을 수 없는 파일(저장할 m4a 1,000바이트 미만) 422 recording_empty, 총량(회원 1GB·게스트 100MB) 초과 422 recording_quota,\n구간 밖·상대역·지문 줄 422 invalid_line, 지워진 회차 404, 변환 실패 503 audio_conversion_failed.\ncompleted 회차에도 받는다.",
         "operationId" : "upload_reading_recording_v2_reading_sessions__session_id__recordings_post",
         "parameters" : [ {
           "name" : "session_id",
@@ -1168,7 +1237,7 @@
       "post" : {
         "tags" : [ "v2-reading" ],
         "summary" : "Start Reading Session",
-        "description" : "내 배역·방식·구간·넘김·녹음을 정해 회차를 시작한다. 열린 회차가 있으면 같은 트랜잭션에서 stopped 로\n바꾸고 새 회차를 만든다. 같은 request_id 가 다시 오면 먼저 만든 회차를 200 으로 돌려주고, 속성이 다르면\n422 request_fingerprint_mismatch. 내 배역이 없거나 그 대본의 배역이 아니면 422 invalid_characters,\n구간의 줄이 그 대본의 대사 줄이 아니면 422 invalid_line, 시작 줄이 끝 줄 뒤이거나 구간 안에 내 대사가\n없으면 422 empty_range. current_line_id 는 구간의 첫 대사 줄이다.",
+        "description" : "내 배역·방식·구간·넘김·녹음을 정해 회차를 시작한다. 같은 대본의 진행 중 회차는 그대로 남는다(여럿일 수\n있다). 같은 request_id 가 다시 오면 먼저 만든 회차를 200 으로 돌려주고, 속성이 다르면\n422 request_fingerprint_mismatch. 내 배역이 없거나 그 대본의 배역이 아니면 422 invalid_characters,\n구간의 줄이 그 대본의 대사 줄이 아니면 422 invalid_line, 시작 줄이 끝 줄 뒤이거나 구간 안에 내 대사가\n없으면 422 empty_range. current_line_id 는 구간의 첫 대사 줄이다.",
         "operationId" : "start_reading_session_v2_reading_scripts__script_id__sessions_post",
         "parameters" : [ {
           "name" : "script_id",
@@ -1216,6 +1285,59 @@
               "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ReadingSession"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/reading/imports" : {
+      "post" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "Import Script",
+        "description" : "대본 글(raw_text)이나 읽어 둔 원본 파일(upload_id) 하나를 받아 서버가 배역·대사로 나누는 작업을 접수한다.\nupload_id 가 없거나 남의 것이면 404 script_upload_not_found, 아직 읽지 않았으면 422 script_upload_not_ready,\n이미 대본이 된 원본은 그 글로 같은 글 판정을 해 200 duplicate_script_id 이고, allow_duplicate 로 새 대본을\n만들려 하면 422 script_upload_used(파일을 다시 올린다).\n새 요청은 202, 같은 request_id 의 재전송과 같은\n글로 진행 중인 요청은 200 으로 같은 import_id 를 돌려준다. 같은 글이 이미 내 대본이면 200 duplicate_script_id.\n예시 대본과 같은 글은 모델 없이 바로 저장돼 상태가 곧 succeeded 이고 동의도 묻지 않는다(게스트도 된다). 그 밖의\n글은 동의 없음 403 script_split_consent_required,\n원문 100,000자 초과 422 script_too_long, 대본 수 한도 422 script_limit, 하루 20개 초과 429\nscript_split_daily_limit, 같은 request_id 에 다른 본문 422 request_fingerprint_mismatch. allow_duplicate(R2.7\n「새로 넣기」)는 같은 글의 대본이 있어도 새로 나누고, skip_script_check(R2.8 「그래도 나누기」)는 대본 여부\n판정을 묻지 않는다. 둘 다 요청 지문에 든다.",
+        "operationId" : "import_script_v2_reading_imports_post",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReadingImportRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "202" : {
+            "description" : "접수됨 — import_id 로 상태를 묻는다",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReadingImportTicket"
+                }
+              }
+            }
+          },
+          "200" : {
+            "description" : "재전송·진행 중(import_id) 또는 같은 글의 대본이 이미 있음(duplicate_script_id)",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReadingImportTicket"
                 }
               }
             }
@@ -2799,7 +2921,7 @@
       "patch" : {
         "tags" : [ "v2-reading" ],
         "summary" : "Save Reading Progress",
-        "description" : "진행 위치·흐른 시간·줄 결과를 저장한다. progress_seq 가 저장된 값보다 클 때만 반영하고, 작거나 같으면\n무시하고 200 으로 현재 값을 돌려준다. 위치와 줄 결과는 구간 안 대사 줄만 받는다(아니면 422 invalid_line).\n시간은 줄지 않는다. complete=true 면 completed 가 되고 ended_at 이 찍히며 current_line_id 는 null 이다.\ncompleted·stopped 회차에는 409 session_closed.",
+        "description" : "진행 위치·흐른 시간·줄 결과를 저장한다. progress_seq 가 저장된 값보다 클 때만 반영하고, 작거나 같으면\n무시하고 200 으로 현재 값을 돌려준다. 위치와 줄 결과는 구간 안 대사 줄만 받는다(아니면 422 invalid_line).\n시간은 줄지 않는다. complete=true 면 completed 가 되고 ended_at 이 찍히며 current_line_id 는 null 이다.\ncompleted 회차에는 409 session_closed. 줄 결과에 said 를 실으면 서버가 원문과 비교해 outcome·misses 를\n정한다(통과 passed·0, 미달 unmatched·1, 무발화·1,000자 초과는 남기지 않음). said 가 없으면 outcome·misses 가\n필수다. different_lines 는 원문과 다르게 말한 대사의 현재 값이다.",
         "operationId" : "save_reading_progress_v2_reading_sessions__session_id__progress_patch",
         "parameters" : [ {
           "name" : "session_id",
@@ -3394,6 +3516,39 @@
                   "items" : {
                     "$ref" : "#/components/schemas/ReadingLineMemorization"
                   }
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
+    "/v2/reading/imports/{import_id}" : {
+      "get" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "Get Import",
+        "description" : "나누기 요청의 상태. 1초 간격으로 묻는다. 없는 것과 남의 것은 같은 404 import_not_found 다.",
+        "operationId" : "get_import_v2_reading_imports__import_id__get",
+        "parameters" : [ {
+          "name" : "import_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Import Id"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReadingImport"
                 }
               }
             }
@@ -4095,6 +4250,67 @@
             }
           }
         }
+      }
+    },
+    "/v2/app/posters" : {
+      "get" : {
+        "tags" : [ "v2-app" ],
+        "summary" : "List App Posters",
+        "description" : "지금 앱 첫 화면에 띄울 수 있는 공지 포스터를 우선순위 큰 것, 최근에 고친 것 순으로 최대 5장.\n켜져 있고 기간 안이며 플랫폼이 맞고 언어가 없거나 같은 것만 낸다. min_app_version 이 있는 포스터는\napp_version 이 그 이상일 때만 낸다(app_version 을 보내지 않으면 빠진다). 빈도·다시 보지 않기·\n대상(audience)의 판정은 앱이 기기 상태로 한다.",
+        "operationId" : "list_posters_v2_app_posters_get",
+        "parameters" : [ {
+          "name" : "platform",
+          "in" : "query",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "ios", "android" ],
+            "title" : "Platform"
+          }
+        }, {
+          "name" : "locale",
+          "in" : "query",
+          "description" : "앱 표시 언어(두 글자). 없으면 언어 없는 포스터만",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "title" : "Locale"
+          }
+        }, {
+          "name" : "app_version",
+          "in" : "query",
+          "description" : "앱 판(점으로 이은 숫자)",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "title" : "App Version"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AppPosterList"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
       }
     },
     "/v2/admissions" : {
@@ -4858,7 +5074,7 @@
         "properties" : {
           "field" : {
             "type" : "string",
-            "enum" : [ "goal", "blockage", "speech_self", "speech_actual" ],
+            "enum" : [ "goal", "blockage", "wants", "habits", "avoid", "speech_self", "speech_actual" ],
             "title" : "Field"
           },
           "value" : {
@@ -5197,6 +5413,50 @@
         },
         "title" : "SynthesizeResponse"
       },
+      "ReadingUploadRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "file_name" : {
+            "type" : "string",
+            "maxLength" : 255,
+            "minLength" : 0,
+            "title" : "File Name"
+          },
+          "byte_size" : {
+            "type" : "integer",
+            "title" : "Byte Size"
+          }
+        },
+        "required" : [ "byte_size", "file_name" ],
+        "title" : "ReadingUploadRequest"
+      },
+      "ReadingUpload" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "upload_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Upload Id"
+          },
+          "upload_url" : {
+            "type" : "string",
+            "title" : "Upload Url"
+          },
+          "content_type" : {
+            "type" : "string",
+            "title" : "Content Type"
+          },
+          "expires_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Expires At"
+          }
+        },
+        "required" : [ "content_type", "expires_at", "upload_id", "upload_url" ],
+        "title" : "ReadingUpload"
+      },
       "ReadingRecordingUploadForm" : {
         "type" : "object",
         "properties" : {
@@ -5245,7 +5505,7 @@
           "matched" : {
             "anyOf" : [ {
               "type" : "boolean",
-              "description" : "대조 결과. 인식 불가·무발화면 싣지 않는다"
+              "description" : "옛 앱이 보내는 대조 결과. 받기만 하고 서버가 transcript 로 다시 정한다"
             }, {
               "type" : "null"
             } ],
@@ -5448,6 +5708,14 @@
             },
             "title" : "Lines"
           },
+          "scenes" : {
+            "type" : "array",
+            "description" : "「장면으로 찾기」의 장면, 순서대로. 장면 줄이 있으면 그 줄이 경계이고 없으면 지문이 경계다(지문 경계의 대사 5개 미만 장면은 이웃에 붙는다). 대사가 없는 장면은 없다",
+            "items" : {
+              "$ref" : "#/components/schemas/ReadingScriptScene"
+            },
+            "title" : "Scenes"
+          },
           "recording_count" : {
             "type" : "integer",
             "title" : "Recording Count"
@@ -5455,7 +5723,8 @@
           "open_session_id" : {
             "anyOf" : [ {
               "type" : "string",
-              "format" : "uuid"
+              "format" : "uuid",
+              "description" : "가장 최근에 시작한 진행 중 회차. 진행 중 회차는 한 대본에 여럿일 수 있다"
             }, {
               "type" : "null"
             } ],
@@ -5479,7 +5748,7 @@
             "title" : "Updated At"
           }
         },
-        "required" : [ "characters", "created_at", "id", "last_session", "lines", "open_session_id", "recording_count", "source", "title", "updated_at" ],
+        "required" : [ "characters", "created_at", "id", "last_session", "lines", "open_session_id", "recording_count", "scenes", "source", "title", "updated_at" ],
         "title" : "ReadingScript"
       },
       "ReadingScriptCharacter" : {
@@ -5507,12 +5776,17 @@
             } ],
             "title" : "Voice Preset"
           },
+          "voice" : {
+            "type" : "string",
+            "description" : "내 배역이 아닐 때 읽을 목소리(M1~M5·F1~F5). voice_preset 이 프리셋이면 그 값, 아니면 대본의 모든 배역을 저장 순서로 세운 자동 순환(F1·M1·F2·M2…, 고정값은 빠짐)의 값이다",
+            "title" : "Voice"
+          },
           "dialogue_count" : {
             "type" : "integer",
             "title" : "Dialogue Count"
           }
         },
-        "required" : [ "dialogue_count", "id", "name", "order", "voice_preset" ],
+        "required" : [ "dialogue_count", "id", "name", "order", "voice", "voice_preset" ],
         "title" : "ReadingScriptCharacter"
       },
       "ReadingScriptLastSession" : {
@@ -5601,9 +5875,47 @@
         "required" : [ "character_id", "dialogue_no", "id", "kind", "ordinal", "text" ],
         "title" : "ReadingScriptLine"
       },
+      "ReadingScriptScene" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "no" : {
+            "type" : "integer",
+            "description" : "1부터",
+            "title" : "No"
+          },
+          "title" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "막·장 머리 줄의 글. 지문으로 나눈 장면과 첫 머리 줄 앞의 대사는 null"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Title"
+          },
+          "start_line_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "description" : "장면 안 첫 대사 줄",
+            "title" : "Start Line Id"
+          },
+          "end_line_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "description" : "장면 안 마지막 대사 줄",
+            "title" : "End Line Id"
+          },
+          "dialogue_count" : {
+            "type" : "integer",
+            "title" : "Dialogue Count"
+          }
+        },
+        "required" : [ "dialogue_count", "end_line_id", "no", "start_line_id", "title" ],
+        "title" : "ReadingScriptScene"
+      },
       "ReadingSessionStatus" : {
         "type" : "string",
-        "enum" : [ "in_progress", "completed", "stopped" ],
+        "enum" : [ "in_progress", "completed" ],
         "title" : "ReadingSessionStatus"
       },
       "ScriptLineKind" : {
@@ -5672,6 +5984,60 @@
         "enum" : [ "silence", "manual" ],
         "title" : "ReadingAdvance"
       },
+      "ReadingDifferentLine" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "원문과 다르게 말한 대사 하나 — 구간 안에서 결과가 unmatched 인 줄. different_lines 는 줄 순서다",
+        "properties" : {
+          "line_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Line Id"
+          },
+          "dialogue_no" : {
+            "type" : "integer",
+            "description" : "대본 안 대사 번호(1부터)",
+            "title" : "Dialogue No"
+          },
+          "said" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "말한 것(진행 저장의 said). 기기가 said 없이 결과만 보낸 줄은 null 이고 그때 어절에 표시가 없다"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Said"
+          },
+          "different_words" : {
+            "type" : "array",
+            "description" : "원문을 공백으로 나눈 어절 전부, 원문 순서. 사이에 공백 하나를 넣어 이으면 원문이 된다(연속 공백은 하나로)",
+            "items" : {
+              "$ref" : "#/components/schemas/ReadingDifferentWord"
+            },
+            "title" : "Different Words"
+          }
+        },
+        "required" : [ "dialogue_no", "different_words", "line_id", "said" ],
+        "title" : "ReadingDifferentLine"
+      },
+      "ReadingDifferentWord" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "원문 어절 하나. differs 면 그 어절에 말한 것과 맞지 않는 글자가 있다(빠뜨리거나 바꿔 말함). 띄어쓰기·문장부호·괄호 안 지시는 비교하지 않고, 더 말한 것은 어디에도 표시하지 않는다",
+        "properties" : {
+          "text" : {
+            "type" : "string",
+            "description" : "원문 그대로(문장부호 포함)",
+            "title" : "Text"
+          },
+          "differs" : {
+            "type" : "boolean",
+            "title" : "Differs"
+          }
+        },
+        "required" : [ "differs", "text" ],
+        "title" : "ReadingDifferentWord"
+      },
       "ReadingLineResult" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -5732,6 +6098,17 @@
           },
           "range" : {
             "$ref" : "#/components/schemas/ReadingSessionRange"
+          },
+          "range_name" : {
+            "$ref" : "#/components/schemas/ReadingSessionRangeName"
+          },
+          "progress" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/ReadingSessionProgressCount",
+              "description" : "진행 K/N. in_progress 일 때만, completed 는 null"
+            }, {
+              "type" : "null"
+            } ]
           },
           "my_dialogue_count" : {
             "type" : "integer",
@@ -5810,10 +6187,35 @@
               "$ref" : "#/components/schemas/ReadingSessionRecording"
             },
             "title" : "Recordings"
+          },
+          "different_lines" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ReadingDifferentLine"
+            },
+            "title" : "Different Lines"
           }
         },
-        "required" : [ "advance", "current_line_id", "elapsed_seconds", "end_line_id", "ended_at", "id", "line_results", "mode", "my_character_ids", "my_character_names", "my_dialogue_count", "ordinal", "progress_seq", "range", "record", "recorded_line_count", "recordings", "script_id", "start_line_id", "started_at", "status" ],
+        "required" : [ "advance", "current_line_id", "different_lines", "elapsed_seconds", "end_line_id", "ended_at", "id", "line_results", "mode", "my_character_ids", "my_character_names", "my_dialogue_count", "ordinal", "progress", "progress_seq", "range", "range_name", "record", "recorded_line_count", "recordings", "script_id", "start_line_id", "started_at", "status" ],
         "title" : "ReadingSession"
+      },
+      "ReadingSessionProgressCount" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "done" : {
+            "type" : "integer",
+            "description" : "지난 대사 수 — 현재 줄(current_line_id, 구간 안 대사 줄)의 대사 번호 − 시작 대사 번호",
+            "title" : "Done"
+          },
+          "total" : {
+            "type" : "integer",
+            "description" : "구간 안 대사 수(모든 배역)",
+            "title" : "Total"
+          }
+        },
+        "required" : [ "done", "total" ],
+        "title" : "ReadingSessionProgressCount"
       },
       "ReadingSessionRange" : {
         "type" : "object",
@@ -5830,6 +6232,129 @@
         },
         "required" : [ "end_dialogue_no", "start_dialogue_no" ],
         "title" : "ReadingSessionRange"
+      },
+      "ReadingSessionRangeName" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "kind" : {
+            "type" : "string",
+            "description" : "all 대본 전체 · scene 대본 상세 scenes 의 한 장면과 첫·끝 대사가 정확히 같음 · dialogues 그 밖",
+            "enum" : [ "all", "scene", "dialogues" ],
+            "title" : "Kind"
+          },
+          "scene_no" : {
+            "anyOf" : [ {
+              "type" : "integer",
+              "description" : "kind=scene 일 때 그 장면의 no, 아니면 null"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Scene No"
+          },
+          "scene_title" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "kind=scene 이고 장면에 머리 줄이 있을 때 그 글, 아니면 null"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Scene Title"
+          },
+          "start" : {
+            "type" : "integer",
+            "description" : "시작 대사 번호",
+            "title" : "Start"
+          },
+          "end" : {
+            "type" : "integer",
+            "description" : "끝 대사 번호",
+            "title" : "End"
+          }
+        },
+        "required" : [ "end", "kind", "scene_no", "scene_title", "start" ],
+        "title" : "ReadingSessionRangeName"
+      },
+      "ReadingImportRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "request_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Request Id"
+          },
+          "title" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 200,
+              "minLength" : 0
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Title"
+          },
+          "raw_text" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "upload_id 가 없을 때 필수"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Raw Text"
+          },
+          "upload_id" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "uuid",
+              "description" : "POST /v2/reading/uploads/{upload_id}/complete 를 마친 원본. raw_text 가 없을 때 필수"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Upload Id"
+          },
+          "source" : {
+            "$ref" : "#/components/schemas/ReadingScriptSourceInput"
+          },
+          "allow_duplicate" : {
+            "type" : "boolean",
+            "default" : false,
+            "title" : "Allow Duplicate"
+          },
+          "skip_script_check" : {
+            "type" : "boolean",
+            "default" : false,
+            "title" : "Skip Script Check"
+          }
+        },
+        "required" : [ "request_id", "source" ],
+        "title" : "ReadingImportRequest"
+      },
+      "ReadingImportTicket" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "import_id" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "uuid"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Import Id"
+          },
+          "duplicate_script_id" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "uuid"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Duplicate Script Id"
+          }
+        },
+        "required" : [ "duplicate_script_id", "import_id" ],
+        "title" : "ReadingImportTicket"
       },
       "RegisterPushTokenRequest" : {
         "type" : "object",
@@ -7445,6 +7970,11 @@
               "$ref" : "#/components/schemas/SignupDecision"
             },
             "title" : "Decisions"
+          },
+          "age_confirmed" : {
+            "type" : "boolean",
+            "description" : "\"만 14세 이상이에요\" 확인. true면 확인 시각을 남긴다. 다음 단계에서 필수가 된다.",
+            "title" : "Age Confirmed"
           }
         },
         "required" : [ "decisions", "signup_token" ],
@@ -7515,7 +8045,7 @@
       },
       "ConsentType" : {
         "type" : "string",
-        "enum" : [ "terms", "privacy", "ai_analysis", "retention", "cloud_voice" ],
+        "enum" : [ "terms", "privacy", "ai_analysis", "retention", "cloud_voice", "script_split" ],
         "title" : "ConsentType"
       },
       "SignedInResponse" : {
@@ -7796,14 +8326,33 @@
             "title" : "Line Id"
           },
           "outcome" : {
-            "$ref" : "#/components/schemas/ReadingLineOutcomeInput"
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/ReadingLineOutcomeInput",
+              "description" : "said 가 없을 때 필수"
+            }, {
+              "type" : "null"
+            } ]
           },
           "misses" : {
-            "type" : "integer",
+            "anyOf" : [ {
+              "type" : "integer",
+              "description" : "said 가 없을 때 필수"
+            }, {
+              "type" : "null"
+            } ],
             "title" : "Misses"
+          },
+          "said" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "기기 음성 인식이 그 줄에서 받아 적은 말. 무발화·1,000자 초과면 결과를 남기지 않는다"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Said"
           }
         },
-        "required" : [ "line_id", "misses", "outcome" ],
+        "required" : [ "line_id" ],
         "title" : "ReadingLineResultInput"
       },
       "ReadingSessionProgressRequest" : {
@@ -7877,9 +8426,16 @@
           },
           "status" : {
             "$ref" : "#/components/schemas/ReadingSessionStatus"
+          },
+          "different_lines" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ReadingDifferentLine"
+            },
+            "title" : "Different Lines"
           }
         },
-        "required" : [ "current_line_id", "elapsed_seconds", "progress_seq", "status" ],
+        "required" : [ "current_line_id", "different_lines", "elapsed_seconds", "progress_seq", "status" ],
         "title" : "ReadingSessionProgress"
       },
       "ReadingScriptCharacterPatch" : {
@@ -8292,6 +8848,17 @@
           "range" : {
             "$ref" : "#/components/schemas/ReadingSessionRange"
           },
+          "range_name" : {
+            "$ref" : "#/components/schemas/ReadingSessionRangeName"
+          },
+          "progress" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/ReadingSessionProgressCount",
+              "description" : "진행 K/N. in_progress 일 때만, completed 는 null"
+            }, {
+              "type" : "null"
+            } ]
+          },
           "my_dialogue_count" : {
             "type" : "integer",
             "title" : "My Dialogue Count"
@@ -8319,7 +8886,7 @@
             "title" : "Ended At"
           }
         },
-        "required" : [ "elapsed_seconds", "ended_at", "id", "my_character_ids", "my_character_names", "my_dialogue_count", "ordinal", "range", "recorded_line_count", "started_at", "status" ],
+        "required" : [ "elapsed_seconds", "ended_at", "id", "my_character_ids", "my_character_names", "my_dialogue_count", "ordinal", "progress", "range", "range_name", "recorded_line_count", "started_at", "status" ],
         "title" : "ReadingSessionCard"
       },
       "ReadingSessionList" : {
@@ -8336,6 +8903,64 @@
         },
         "required" : [ "sessions" ],
         "title" : "ReadingSessionList"
+      },
+      "ReadingImport" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Id"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "pending", "running", "succeeded", "failed" ],
+            "title" : "Status"
+          },
+          "progress" : {
+            "$ref" : "#/components/schemas/ReadingImportProgress"
+          },
+          "script_id" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "uuid"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Script Id"
+          },
+          "failure" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/ScriptImportFailure"
+            }, {
+              "type" : "null"
+            } ]
+          }
+        },
+        "required" : [ "failure", "id", "progress", "script_id", "status" ],
+        "title" : "ReadingImport"
+      },
+      "ReadingImportProgress" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "done_lines" : {
+            "type" : "integer",
+            "title" : "Done Lines"
+          },
+          "total_lines" : {
+            "type" : "integer",
+            "title" : "Total Lines"
+          }
+        },
+        "required" : [ "done_lines", "total_lines" ],
+        "title" : "ReadingImportProgress"
+      },
+      "ScriptImportFailure" : {
+        "type" : "string",
+        "enum" : [ "not_script", "no_characters", "script_too_long", "script_limit", "failed" ],
+        "title" : "ScriptImportFailure"
       },
       "PublicPortfolio" : {
         "type" : "object",
@@ -9260,6 +9885,122 @@
         "required" : [ "providers" ],
         "title" : "AuthProvidersResponse"
       },
+      "AppPoster" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "앱 첫 화면 공지 포스터 한 장. image_url 과 image_asset 은 많아야 하나가 차 있다.",
+        "properties" : {
+          "slug" : {
+            "type" : "string",
+            "description" : "기기의 봤음·다시 보지 않기 저장 키",
+            "title" : "Slug"
+          },
+          "revision" : {
+            "type" : "integer",
+            "description" : "바뀌면 기기의 봤음·다시 보지 않기가 무효",
+            "title" : "Revision"
+          },
+          "frequency" : {
+            "type" : "string",
+            "enum" : [ "daily", "once" ],
+            "title" : "Frequency"
+          },
+          "audience" : {
+            "type" : "string",
+            "enum" : [ "all", "cloud_voice_off" ],
+            "title" : "Audience"
+          },
+          "dismissible" : {
+            "type" : "boolean",
+            "title" : "Dismissible"
+          },
+          "badge" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Badge"
+          },
+          "title" : {
+            "type" : "string",
+            "title" : "Title"
+          },
+          "body" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Body"
+          },
+          "image_url" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "1시간 주소"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Image Url"
+          },
+          "image_asset" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "앱 번들 이미지 이름"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Image Asset"
+          },
+          "audio_asset" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "앱 번들 소리 이름"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Audio Asset"
+          },
+          "cta_label" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Cta Label"
+          },
+          "cta_action" : {
+            "type" : "string",
+            "enum" : [ "none", "cloud_voice_enable", "route", "url" ],
+            "title" : "Cta Action"
+          },
+          "cta_target" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Cta Target"
+          }
+        },
+        "required" : [ "audience", "audio_asset", "badge", "body", "cta_action", "cta_label", "cta_target", "dismissible", "frequency", "image_asset", "image_url", "revision", "slug", "title" ],
+        "title" : "AppPoster"
+      },
+      "AppPosterList" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "posters" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/AppPoster"
+            },
+            "title" : "Posters"
+          }
+        },
+        "required" : [ "posters" ],
+        "title" : "AppPosterList"
+      },
       "AdmissionNotice" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -9860,6 +10601,15 @@
               "type" : "null"
             } ],
             "title" : "Note"
+          },
+          "year" : {
+            "anyOf" : [ {
+              "type" : "integer",
+              "description" : "후기가 다룬 응시 학년도(2026학년도 수시 = 2025년 가을 실기). 글에서 확인 못 하면 비운다."
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Year"
           }
         },
         "required" : [ "category", "text" ],

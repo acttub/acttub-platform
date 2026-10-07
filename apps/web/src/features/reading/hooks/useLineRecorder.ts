@@ -32,7 +32,7 @@ export interface LineRecording {
   pending: number;
   /** 버린 녹음 등의 안내 */
   notice: string | null;
-  /** STT·입력 결과. 줄이 끝날 때 함께 올린다. typed 면 녹음을 버린다. */
+  /** STT·입력 결과. 줄이 끝날 때 함께 올린다. typed 면 녹음을 버린다. matched 는 quiz 의 기기 대조이고 read 는 null 이다. */
   noteTranscript: (lineId: string, text: string, matched: boolean | null, source: "stt" | "typed") => void;
   /** 같은 줄을 다시 말한다(quiz 의 "다시") — 지금 것을 올리고 새 시도를 시작한다 */
   restart: () => void;

@@ -3,11 +3,10 @@
  * 앞 단계 데이터가 없으면 앞 페이지로 돌려보낸다 — read.acttub.com 의 규칙 그대로.
  */
 
-export type Step = "input" | "script" | "setup" | "run" | "done";
+export type Step = "input" | "setup" | "run" | "done";
 
 export const STEP_PATH: Record<Step, string> = {
   input: "/reading",
-  script: "/reading/script",
   setup: "/reading/setup",
   run: "/reading/run",
   done: "/reading/done",
@@ -33,15 +32,11 @@ export function scriptIdFromPath(pathname: string): string | null {
 }
 
 export interface StepState {
-  /** 대본 넣기에서 확인 화면으로 넘긴 초안이 있는가(폰) */
-  hasDraft: boolean;
   /** 서버에 저장된 대본을 들고 있는가 */
   hasScript: boolean;
   /** 시작하거나 이어 하는 회차를 들고 있는가 */
   hasSession: boolean;
   hasStats: boolean;
-  /** 데스크톱은 대본 확인을 대본 넣기 화면 안에 같이 보여 주므로 /reading/script 가 없다 */
-  desktop: boolean;
 }
 
 /**
@@ -51,10 +46,6 @@ export interface StepState {
 export function redirectFor(step: Step, s: StepState): string | null {
   switch (step) {
     case "input":
-      return null;
-    case "script":
-      // 확인 화면은 저장 전 초안을 본다. 데스크톱은 그 초안을 대본 넣기 화면 안에서 본다.
-      if (s.desktop || !s.hasDraft) return STEP_PATH.input;
       return null;
     case "setup":
       return s.hasScript ? null : STEP_PATH.input;

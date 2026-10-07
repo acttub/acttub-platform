@@ -19,11 +19,11 @@ import com.acttub.actingapi.platform.web.ApiException;
  * 줄 단위 녹음의 규칙 — 검사·변환·저장을 한 요청으로 받고, 줄마다 다시 듣게 하고, 지운다 (reading.recording, ADR-031).
  *
  * <p>서버가 음성을 건드리는 유일한 일은 형식 변환이다: m4a(AAC)가 아니면 ffmpeg 로 바꿔 저장하고 내용은 읽지 않는다.
- * 올리기는 회차의 진행 상태와 분리된다 — completed·stopped 회차에도 소유권·줄·한도 검사를 통과하면 받는다.
+ * 올리기는 회차의 진행 상태와 분리된다 — completed 회차에도 소유권·줄·한도 검사를 통과하면 받는다.
  *
  * <p>순서: 한도(크기·길이) → 잠그지 않는 사전 확인(회차·줄·재전송·시도 번호) → 변환 → 객체 올림 → 회차 행을 잠근 최종
  * 저장(총량 포함). 최종 저장이 거절하면 방금 올린 객체는 장부가 지운다(apps/api/CONTRACT.md §5-4 — 바깥 호출은
- * 트랜잭션 밖이다). 여기서 거절하는 것은 규칙이고 본문은 사유 코드 하나다: {@code recording_too_long}·
+ * 트랜잭션 밖이다). 여기서 거절하는 것은 규칙이고 본문은 사유 코드 하나다: {@code recording_too_long}·{@code recording_empty}·
  * {@code recording_quota}·{@code invalid_line}·{@code session_not_found}·{@code recording_not_found}, 변환 실패는
  * 503 {@code audio_conversion_failed}.
  */
@@ -75,6 +75,9 @@ public class RecordingService {
         try {
             stored = RecordingRules.alreadyM4a(upload.contentType()) ? upload.file() : transcode(upload.file());
             long byteSize = Files.size(stored);
+            if (byteSize < RecordingRules.STORED_MIN_BYTES) {
+                throw new ApiException(422, "recording_empty");
+            }
             storage.upload(objectKey, RecordingRules.STORED_CONTENT_TYPE, stored);
             Stored result = recordings.store(userId, sessionId, new NewRecording(
                     upload.requestId(),
@@ -85,8 +88,7 @@ public class RecordingService {
                     byteSize,
                     upload.durationMs(),
                     upload.transcript(),
-                    upload.transcriptSource(),
-                    upload.matched()), RecordingRules.quotaBytes(guest), clock.instant());
+                    upload.transcriptSource()), RecordingRules.quotaBytes(guest), clock.instant());
             // 거절·대체·재전송으로 남은 객체는 장부에 있다 — 커밋 뒤에 바로 한 번 시도한다.
             cleanup.attempt(result.cleanupOperationIds());
             return switch (result.outcome()) {
@@ -147,7 +149,7 @@ public class RecordingService {
      *
      * @param file 임시 파일. 부르는 쪽이 만들고 지운다
      * @param fileSize 올린 원본의 바이트 수(한도 기준)
-     * @param transcriptSource {@code stt}·{@code none}. none 이면 {@code transcript}·{@code matched} 는 {@code null}
+     * @param transcriptSource {@code stt}·{@code none}. none 이면 {@code transcript} 는 {@code null}
      */
     public record Upload(
             UUID requestId,
@@ -158,8 +160,7 @@ public class RecordingService {
             long fileSize,
             int durationMs,
             String transcript,
-            String transcriptSource,
-            Boolean matched) {
+            String transcriptSource) {
     }
 
     /** @param created 이번에 만들었거나 대체했으면 {@code true}, 재전송·작은 시도 번호면 {@code false} */

@@ -24,6 +24,12 @@ import { useResource } from "@/lib/react/use-resource";
 import { RailLayout } from "@/features/nav/app-rail";
 
 import { answeredAdmissions } from "./answered";
+import {
+  latestAdmissionYear,
+  resultYears,
+  yearResultRows,
+  type YearResultRow,
+} from "./by-year";
 import { StatusLine } from "./status-line";
 
 const TYPE_LABEL: Record<string, string> = {
@@ -39,6 +45,8 @@ export function AdmissionsPage({ initial }: { initial: AdmissionsResponse }) {
   );
   const [filters, setFilters] = useState<AdmissionFilters>(EMPTY_FILTERS);
   const [filterOpen, setFilterOpen] = useState(false);
+  /** "notices" = 올해 모집 목록, 숫자 = 그 학년도 입시결과 */
+  const [view, setView] = useState<"notices" | number>("notices");
 
   const { payload, today } = answeredAdmissions(admissions, initial);
 
@@ -56,6 +64,17 @@ export function AdmissionsPage({ initial }: { initial: AdmissionsResponse }) {
     [groups, filters, today],
   );
   const activeCount = activeFilterCount(filters);
+  const latest = useMemo(() => latestAdmissionYear(payload.notices), [payload]);
+  // 결과는 지난 학년도 것만 탭으로 세운다. 올해 결과는 아직 있을 수 없다.
+  const pastYears = useMemo(
+    () =>
+      resultYears(payload.notices).filter((year) => latest === null || year < latest),
+    [payload, latest],
+  );
+  const resultRows = useMemo(
+    () => (typeof view === "number" ? yearResultRows(visible, view) : []),
+    [visible, view],
+  );
 
   /** 필터 축 하나를 켜고 끈다. 같은 축 안에서는 여러 개를 고를 수 있다(OR). */
   const toggle = (
@@ -101,9 +120,15 @@ export function AdmissionsPage({ initial }: { initial: AdmissionsResponse }) {
             정시에서 실기 비중이 다른 학교도 많아요.
           </p>
           <p>
-            아래 목록은 대학마다 전형(수시·정시), 실기 종목, 원서 접수 시기를 한 줄로
-            요약했어요. 대학을 누르면 학과별 실기 과제, 단계별 일정, 먼저 다녀온 사람들의
-            영상까지 볼 수 있어요.
+            아래 목록은 학년도별로 나눠 두었어요. 첫 탭은 {latest ?? "올해"}학년도 모집으로,
+            대학마다 전형(수시·정시), 실기 종목, 원서 접수 시기를 한 줄로 요약했어요. 그 옆
+            탭에서는 지난 학년도 입시결과(경쟁률·학생부 교과 성적)를 대학 입학처 원문 기준으로
+            경쟁률 높은 순으로 볼 수 있어요.
+          </p>
+          <p>
+            대학을 누르면 학과별 실기 과제와 단계별 일정, 학년도별 입시결과, 먼저 응시한
+            사람들의 후기를 응시한 해별로 볼 수 있어요. 올해 요강이 아직 나오지 않은 전형은
+            지난 학년도 요강을 옮기고 그 사실을 따로 표시했어요.
           </p>
           <p>
             모집요강은 해마다 바뀌어요. 여기 정리한 내용은 원문을 사람이 직접 읽고 채운
@@ -276,25 +301,47 @@ export function AdmissionsPage({ initial }: { initial: AdmissionsResponse }) {
             </div>
           )}
 
-          <p className="mt-3 text-[12px] font-bold text-[#8b95a1]">
-            대학 {visible.length}곳
-          </p>
-
-          <div className="mt-2 space-y-3">
-            {visible.map(({ university, notices }) => (
-              <UniversityCard
-                key={university.id}
-                university={university}
-                notices={notices}
-                today={today}
-              />
+          <div
+            role="tablist"
+            aria-label="학년도"
+            className="mt-4 flex gap-1 overflow-x-auto rounded-xl bg-[#f2f4f6] p-1"
+          >
+            <YearTab on={view === "notices"} onClick={() => setView("notices")}>
+              {latest ? `${latest}학년도 모집` : "모집"}
+            </YearTab>
+            {pastYears.map((year) => (
+              <YearTab key={year} on={view === year} onClick={() => setView(year)}>
+                {year}학년도 결과
+              </YearTab>
             ))}
-            {visible.length === 0 && (
-              <p className="py-10 text-center text-sm font-semibold text-[#8b95a1]">
-                조건에 맞는 대학이 없어요.
-              </p>
-            )}
           </div>
+
+          {view === "notices" ? (
+            <>
+              <p className="mt-3 text-[12px] font-bold text-[#8b95a1]">
+                대학 {visible.length}곳
+              </p>
+
+              <div className="mt-2 space-y-3">
+                {visible.map(({ university, notices }) => (
+                  <UniversityCard
+                    key={university.id}
+                    university={university}
+                    notices={notices}
+                    today={today}
+                    latest={latest}
+                  />
+                ))}
+                {visible.length === 0 && (
+                  <p className="py-10 text-center text-sm font-semibold text-[#8b95a1]">
+                    조건에 맞는 대학이 없어요.
+                  </p>
+                )}
+              </div>
+            </>
+          ) : (
+            <YearResults year={view} rows={resultRows} />
+          )}
 
           <p className="mt-8 text-[12px] font-semibold leading-5 text-[#8b95a1]">
             {payload.updated_at} 기준 · 확인한 곳부터 차례로 채우고 있어요
@@ -318,13 +365,23 @@ function UniversityCard({
   university,
   notices,
   today,
+  latest,
 }: {
   university: AdmissionUniversity;
   notices: AdmissionNotice[];
   today: string | null;
+  latest: number | null;
 }) {
   const badge = cardBadge(notices, today);
   const summary = summaryLine(notices);
+  // 올해 요강이 없어 지난 학년도 요강을 옮겨 둔 전형. 카드에서도 밝혀 둔다.
+  const standIns = notices
+    .filter(
+      ({ admission_year }) =>
+        latest !== null && typeof admission_year === "number" && admission_year < latest,
+    )
+    .map(({ track, admission_year }) => `${track ?? "일부 전형"} ${admission_year}학년도 기준`)
+    .filter((label, index, all) => all.indexOf(label) === index);
 
   const departments = notices
     .map((notice) => notice.department ?? "학과 미확인")
@@ -361,6 +418,11 @@ function UniversityCard({
             {summary}
           </p>
         )}
+        {standIns.length > 0 && (
+          <p className="mt-0.5 truncate text-[11px] font-black text-[#b45309]">
+            {standIns.join(" · ")}
+          </p>
+        )}
       </div>
       {badge && (
         <span
@@ -375,6 +437,84 @@ function UniversityCard({
       )}
       <span className="shrink-0 text-[12px] font-black text-[#b0b8c1]">›</span>
     </Link>
+  );
+}
+
+function YearTab({
+  on,
+  onClick,
+  children,
+}: {
+  on: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={on}
+      onClick={onClick}
+      className={`shrink-0 flex-1 whitespace-nowrap rounded-lg px-3 py-2 text-[13px] font-black ${
+        on ? "bg-white text-[#191f28] shadow-sm" : "text-[#8b95a1]"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+/**
+ * 한 학년도의 입시결과를 경쟁률 높은 순으로. 위 필터(지역·전형·계열…)가 그대로 걸린다.
+ * 숫자는 전부 대학 입학처 원문에서 옮긴 것이고, 상세 페이지에 근거를 남겨 둔다.
+ */
+function YearResults({ year, rows }: { year: number; rows: YearResultRow[] }) {
+  return (
+    <section className="mt-3">
+      <p className="text-[12px] font-bold leading-5 text-[#8b95a1]">
+        {year}학년도 전형 {rows.length}개 · 학생부 숫자는 최종등록자 교과 성적이에요.
+        대학을 누르면 원문 근거를 볼 수 있어요.
+      </p>
+      <div className="mt-2 space-y-2">
+        {rows.map(({ university, notice, result }) => {
+          const facts = [
+            result.quota != null && `모집 ${result.quota}`,
+            result.applicants != null && `지원 ${result.applicants.toLocaleString("ko-KR")}`,
+            result.transcript_avg && `학생부 평균 ${result.transcript_avg}`,
+            result.transcript_cut70 && `70%컷 ${result.transcript_cut70}`,
+          ].filter(Boolean);
+          return (
+            <Link
+              key={`${notice.id}-${result.year}`}
+              href={`/admissions/${university.id}`}
+              className="flex items-center gap-3 rounded-2xl border border-[#e5e8eb] bg-white px-4 py-3 hover:border-[#3182f6]"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[14px] font-black text-[#191f28]">
+                  {university.name}
+                </p>
+                <p className="truncate text-[12px] font-semibold text-[#8b95a1]">
+                  {[notice.department, notice.track].filter(Boolean).join(" · ")}
+                </p>
+                {facts.length > 0 && (
+                  <p className="mt-0.5 truncate text-[11px] font-bold text-[#4e5968]">
+                    {facts.join(" · ")}
+                  </p>
+                )}
+              </div>
+              <span className="shrink-0 text-[16px] font-black text-[#191f28]">
+                {result.competition_rate ?? "—"}
+              </span>
+            </Link>
+          );
+        })}
+        {rows.length === 0 && (
+          <p className="py-10 text-center text-sm font-semibold text-[#8b95a1]">
+            조건에 맞는 {year}학년도 입시결과가 없어요.
+          </p>
+        )}
+      </div>
+    </section>
   );
 }
 

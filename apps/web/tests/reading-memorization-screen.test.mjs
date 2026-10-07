@@ -68,7 +68,14 @@ test("reading.memorization: 완료 화면의 다시 볼 대사로 들어오면 �
 });
 
 test("reading.session: 완료 저장이 끝나기 전에는 완료 화면이 \"저장 중\" 을 보이고, 다시 볼 대사에 \"전체보기\" 가 있다", () => {
-  const stats = { mode: "read", elapsedMs: 1000, lineCount: 3, myCharacterNames: ["니나"], lineResults: [{ line_id: "l-1", outcome: "unmatched", misses: 1 }] };
+  const stats = {
+    mode: "read",
+    elapsedMs: 1000,
+    lineCount: 3,
+    myCharacterNames: ["니나"],
+    lineResults: [],
+    differentLines: [{ line_id: "l-1", dialogue_no: 1, said: null, different_words: [] }],
+  };
   const html = renderToStaticMarkup(React.createElement(DoneBody, { script, stats, repeating: false, error: null, saving: true, onRepeat: noop, onChangeSetup: noop, onNewScript: noop, onDetail: noop, onReview: noop }));
   const t = text(html);
   assert.equal(t.includes(SAVING_COPY), true);
@@ -83,7 +90,7 @@ test("reading.session: 완료 화면의 걸린 시간과 실행 화면의 진행
   const { createRehearsal } = await import("../src/lib/reading/rehearsal/machine.ts");
   const state = createRehearsal({ lines: script.lines, myRoles: ["니나"], start: 0, end: 2 });
   for (const [elapsedMs, clock] of [[0, "00:00"], [65_999, "01:05"], [3_661_000, "61:01"]]) {
-    const stats = { mode: "read", elapsedMs, lineCount: 3, myCharacterNames: ["니나"], lineResults: [] };
+    const stats = { mode: "read", elapsedMs, lineCount: 3, myCharacterNames: ["니나"], lineResults: [], differentLines: [] };
     const done = text(renderToStaticMarkup(React.createElement(DoneBody, { script, stats, repeating: false, error: null, saving: false, onRepeat: noop, onChangeSetup: noop, onNewScript: noop, onDetail: noop })));
     assert.equal(done.includes(`${clock}걸린 시간`), true, clock);
     assert.equal(progressLabel(state, elapsedMs), `0 / 3 · ${clock}`);

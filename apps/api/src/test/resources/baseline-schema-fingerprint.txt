@@ -62,6 +62,29 @@ COLUMN anomalies.start_ts ord=4 type=text len=- null=NO default=-
 COLUMN anomalies.summary_id ord=2 type=uuid len=- null=NO default=-
 COLUMN anomalies.what ord=7 type=text len=- null=NO default=-
 COLUMN anomalies.why_odd ord=8 type=text len=- null=NO default=-
+COLUMN app_posters.active ord=4 type=bool len=- null=NO default=false
+COLUMN app_posters.audience ord=12 type=text len=- null=NO default='all'::text
+COLUMN app_posters.audio ord=18 type=text len=- null=YES default=-
+COLUMN app_posters.badge ord=14 type=text len=- null=YES default=-
+COLUMN app_posters.body ord=16 type=text len=- null=YES default=-
+COLUMN app_posters.created_at ord=22 type=timestamptz len=- null=NO default=now()
+COLUMN app_posters.cta_action ord=20 type=text len=- null=NO default='none'::text
+COLUMN app_posters.cta_label ord=19 type=text len=- null=YES default=-
+COLUMN app_posters.cta_target ord=21 type=text len=- null=YES default=-
+COLUMN app_posters.dismissible ord=13 type=bool len=- null=NO default=true
+COLUMN app_posters.ends_at ord=7 type=timestamptz len=- null=YES default=-
+COLUMN app_posters.frequency ord=11 type=text len=- null=NO default='daily'::text
+COLUMN app_posters.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
+COLUMN app_posters.image ord=17 type=text len=- null=YES default=-
+COLUMN app_posters.locale ord=9 type=text len=- null=YES default=-
+COLUMN app_posters.min_app_version ord=10 type=text len=- null=YES default=-
+COLUMN app_posters.platforms ord=8 type=_text len=- null=NO default='{ios,android}'::text[]
+COLUMN app_posters.priority ord=5 type=int4 len=- null=NO default=0
+COLUMN app_posters.revision ord=3 type=int4 len=- null=NO default=1
+COLUMN app_posters.slug ord=2 type=text len=- null=NO default=-
+COLUMN app_posters.starts_at ord=6 type=timestamptz len=- null=YES default=-
+COLUMN app_posters.title ord=15 type=text len=- null=NO default=-
+COLUMN app_posters.updated_at ord=23 type=timestamptz len=- null=NO default=now()
 COLUMN challenge_entries.caption ord=5 type=text len=- null=YES default=-
 COLUMN challenge_entries.challenge_id ord=2 type=uuid len=- null=NO default=-
 COLUMN challenge_entries.content_version ord=6 type=int4 len=- null=NO default=1
@@ -452,6 +475,7 @@ COLUMN reading_sessions.end_line_id ord=8 type=uuid len=- null=NO default=-
 COLUMN reading_sessions.ended_at ord=17 type=timestamptz len=- null=YES default=-
 COLUMN reading_sessions.id ord=1 type=uuid len=- null=NO default=-
 COLUMN reading_sessions.line_results ord=15 type=jsonb len=- null=NO default='[]'::jsonb
+COLUMN reading_sessions.line_said ord=19 type=jsonb len=- null=NO default='{}'::jsonb
 COLUMN reading_sessions.mode ord=6 type=text len=- null=NO default=-
 COLUMN reading_sessions.my_character_ids ord=5 type=_uuid len=- null=NO default=-
 COLUMN reading_sessions.progress_seq ord=14 type=int8 len=- null=NO default=0
@@ -496,6 +520,23 @@ COLUMN script_characters.script_id ord=2 type=uuid len=- null=NO default=-
 COLUMN script_characters.sort_order ord=4 type=int4 len=- null=NO default=-
 COLUMN script_characters.updated_at ord=7 type=timestamptz len=- null=NO default=now()
 COLUMN script_characters.voice_preset ord=5 type=text len=- null=YES default=-
+COLUMN script_imports.created_at ord=15 type=timestamptz len=- null=NO default=now()
+COLUMN script_imports.done_lines ord=13 type=int4 len=- null=NO default=0
+COLUMN script_imports.failure ord=11 type=text len=- null=YES default=-
+COLUMN script_imports.id ord=1 type=uuid len=- null=NO default=-
+COLUMN script_imports.job_id ord=9 type=uuid len=- null=YES default=-
+COLUMN script_imports.raw_hash ord=8 type=bpchar len=64 null=NO default=-
+COLUMN script_imports.raw_text ord=7 type=text len=- null=NO default=-
+COLUMN script_imports.request_fingerprint ord=4 type=bpchar len=64 null=NO default=-
+COLUMN script_imports.request_id ord=3 type=uuid len=- null=NO default=-
+COLUMN script_imports.script_id ord=10 type=uuid len=- null=YES default=-
+COLUMN script_imports.skip_script_check ord=12 type=bool len=- null=NO default=false
+COLUMN script_imports.source ord=6 type=text len=- null=NO default=-
+COLUMN script_imports.title ord=5 type=text len=- null=YES default=-
+COLUMN script_imports.total_lines ord=14 type=int4 len=- null=NO default=0
+COLUMN script_imports.updated_at ord=16 type=timestamptz len=- null=NO default=now()
+COLUMN script_imports.upload_id ord=17 type=uuid len=- null=YES default=-
+COLUMN script_imports.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN script_lines.character_id ord=5 type=uuid len=- null=YES default=-
 COLUMN script_lines.created_at ord=7 type=timestamptz len=- null=NO default=now()
 COLUMN script_lines.id ord=1 type=uuid len=- null=NO default=-
@@ -503,8 +544,18 @@ COLUMN script_lines.kind ord=4 type=text len=- null=NO default=-
 COLUMN script_lines.ordinal ord=3 type=int4 len=- null=NO default=-
 COLUMN script_lines.script_id ord=2 type=uuid len=- null=NO default=-
 COLUMN script_lines.text ord=6 type=text len=- null=NO default=-
+COLUMN script_uploads.byte_size ord=4 type=int8 len=- null=NO default=-
+COLUMN script_uploads.created_at ord=8 type=timestamptz len=- null=NO default=now()
+COLUMN script_uploads.expires_at ord=7 type=timestamptz len=- null=NO default=-
+COLUMN script_uploads.id ord=1 type=uuid len=- null=NO default=-
+COLUMN script_uploads.object_key ord=3 type=text len=- null=NO default=-
+COLUMN script_uploads.raw_text ord=5 type=text len=- null=YES default=-
+COLUMN script_uploads.script_id ord=6 type=uuid len=- null=YES default=-
+COLUMN script_uploads.updated_at ord=9 type=timestamptz len=- null=NO default=now()
+COLUMN script_uploads.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN scripts.created_at ord=8 type=timestamptz len=- null=NO default=now()
 COLUMN scripts.id ord=1 type=uuid len=- null=NO default=-
+COLUMN scripts.raw_hash ord=10 type=bpchar len=64 null=YES default=-
 COLUMN scripts.raw_text ord=4 type=text len=- null=NO default=-
 COLUMN scripts.request_fingerprint ord=7 type=bpchar len=64 null=NO default=-
 COLUMN scripts.request_id ord=6 type=uuid len=- null=YES default=-
@@ -652,7 +703,7 @@ CONSTRAINT actor_memories actor_memories_user_id_fkey FOREIGN KEY (user_id) REFE
 CONSTRAINT actor_memories actor_memories_user_id_not_null NOT NULL user_id
 CONSTRAINT actor_memories actor_memories_value_not_null NOT NULL value
 CONSTRAINT actor_memories actor_memories_written_by_not_null NOT NULL written_by
-CONSTRAINT actor_memories ck_actor_memories_field CHECK ((field = ANY (ARRAY['goal'::text, 'blockage'::text, 'speech_self'::text, 'speech_actual'::text])))
+CONSTRAINT actor_memories ck_actor_memories_field CHECK ((field = ANY (ARRAY['goal'::text, 'blockage'::text, 'speech_self'::text, 'speech_actual'::text, 'wants'::text, 'habits'::text, 'avoid'::text, 'tone'::text])))
 CONSTRAINT actor_memories ck_actor_memories_value_length CHECK ((char_length(value) <= 1000))
 CONSTRAINT actor_memories ck_actor_memories_value_not_blank CHECK ((btrim(value) <> ''::text))
 CONSTRAINT actor_memories ck_actor_memories_written_by CHECK ((written_by = ANY (ARRAY['actor'::text, 'agent'::text])))
@@ -686,7 +737,7 @@ CONSTRAINT ai_jobs ai_jobs_updated_at_not_null NOT NULL updated_at
 CONSTRAINT ai_jobs ai_jobs_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
 CONSTRAINT ai_jobs ai_jobs_user_id_not_null NOT NULL user_id
 CONSTRAINT ai_jobs ck_ai_jobs_attempt_count CHECK ((attempt_count >= 0))
-CONSTRAINT ai_jobs ck_ai_jobs_kind CHECK ((kind = ANY (ARRAY['analyze'::text, 'memory_update'::text, 'challenge_report'::text])))
+CONSTRAINT ai_jobs ck_ai_jobs_kind CHECK ((kind = ANY (ARRAY['analyze'::text, 'memory_update'::text, 'challenge_report'::text, 'script_split'::text])))
 CONSTRAINT ai_jobs ck_ai_jobs_status CHECK ((status = ANY (ARRAY['pending'::text, 'running'::text, 'succeeded'::text, 'failed'::text])))
 CONSTRAINT ai_jobs uq_ai_jobs_user_request UNIQUE (user_id, request_id)
 CONSTRAINT analyses analyses_completed_at_not_null NOT NULL completed_at
@@ -721,6 +772,31 @@ CONSTRAINT anomalies anomalies_what_not_null NOT NULL what
 CONSTRAINT anomalies anomalies_why_odd_not_null NOT NULL why_odd
 CONSTRAINT anomalies ck_anomalies_intent_impact CHECK ((intent_impact = ANY (ARRAY['반전'::text, '약화'::text, '국소'::text])))
 CONSTRAINT anomalies ck_anomalies_severity CHECK ((severity = ANY (ARRAY['high'::text, 'mid'::text, 'low'::text])))
+CONSTRAINT app_posters app_posters_active_not_null NOT NULL active
+CONSTRAINT app_posters app_posters_audience_not_null NOT NULL audience
+CONSTRAINT app_posters app_posters_created_at_not_null NOT NULL created_at
+CONSTRAINT app_posters app_posters_cta_action_not_null NOT NULL cta_action
+CONSTRAINT app_posters app_posters_dismissible_not_null NOT NULL dismissible
+CONSTRAINT app_posters app_posters_frequency_not_null NOT NULL frequency
+CONSTRAINT app_posters app_posters_id_not_null NOT NULL id
+CONSTRAINT app_posters app_posters_pkey PRIMARY KEY (id)
+CONSTRAINT app_posters app_posters_platforms_not_null NOT NULL platforms
+CONSTRAINT app_posters app_posters_priority_not_null NOT NULL priority
+CONSTRAINT app_posters app_posters_revision_not_null NOT NULL revision
+CONSTRAINT app_posters app_posters_slug_not_null NOT NULL slug
+CONSTRAINT app_posters app_posters_title_not_null NOT NULL title
+CONSTRAINT app_posters app_posters_updated_at_not_null NOT NULL updated_at
+CONSTRAINT app_posters ck_app_posters_audience CHECK ((audience = ANY (ARRAY['all'::text, 'cloud_voice_off'::text])))
+CONSTRAINT app_posters ck_app_posters_audio CHECK (((audio IS NULL) OR (audio ~ '^asset:[a-z0-9-]+$'::text) OR (audio ~ '^posters/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(png|jpg|webp)$'::text)))
+CONSTRAINT app_posters ck_app_posters_cta_action CHECK ((cta_action = ANY (ARRAY['none'::text, 'cloud_voice_enable'::text, 'route'::text, 'url'::text])))
+CONSTRAINT app_posters ck_app_posters_cta_target CHECK ((((cta_action <> 'route'::text) OR ((cta_target IS NOT NULL) AND (cta_target ~~ '/%'::text))) AND ((cta_action <> 'url'::text) OR ((cta_target IS NOT NULL) AND (cta_target ~~ 'https://%'::text)))))
+CONSTRAINT app_posters ck_app_posters_frequency CHECK ((frequency = ANY (ARRAY['daily'::text, 'once'::text])))
+CONSTRAINT app_posters ck_app_posters_image CHECK (((image IS NULL) OR (image ~ '^asset:[a-z0-9-]+$'::text) OR (image ~ '^posters/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(png|jpg|webp)$'::text)))
+CONSTRAINT app_posters ck_app_posters_locale CHECK (((locale IS NULL) OR (locale ~ '^[a-z]{2}$'::text)))
+CONSTRAINT app_posters ck_app_posters_min_app_version CHECK (((min_app_version IS NULL) OR (min_app_version ~ '^[0-9]+(\.[0-9]+)*$'::text)))
+CONSTRAINT app_posters ck_app_posters_period CHECK (((starts_at IS NULL) OR (ends_at IS NULL) OR (starts_at < ends_at)))
+CONSTRAINT app_posters ck_app_posters_platforms CHECK (((cardinality(platforms) > 0) AND (platforms <@ ARRAY['ios'::text, 'android'::text])))
+CONSTRAINT app_posters ck_app_posters_revision CHECK ((revision >= 1))
 CONSTRAINT challenge_entries challenge_entries_challenge_id_fkey FOREIGN KEY (challenge_id) REFERENCES challenges(id)
 CONSTRAINT challenge_entries challenge_entries_challenge_id_not_null NOT NULL challenge_id
 CONSTRAINT challenge_entries challenge_entries_content_version_not_null NOT NULL content_version
@@ -927,7 +1003,7 @@ CONSTRAINT community_reports community_reports_status_not_null NOT NULL status
 CONSTRAINT community_reports community_reports_target_id_not_null NOT NULL target_id
 CONSTRAINT community_reports community_reports_target_type_not_null NOT NULL target_type
 CONSTRAINT community_reports uq_community_reports_reporter_target UNIQUE (reporter_id, target_type, target_id)
-CONSTRAINT consent_documents ck_consent_documents_type CHECK ((type = ANY (ARRAY['terms'::text, 'privacy'::text, 'ai_analysis'::text, 'retention'::text, 'cloud_voice'::text])))
+CONSTRAINT consent_documents ck_consent_documents_type CHECK ((type = ANY (ARRAY['terms'::text, 'privacy'::text, 'ai_analysis'::text, 'retention'::text, 'cloud_voice'::text, 'script_split'::text])))
 CONSTRAINT consent_documents consent_documents_body_not_null NOT NULL body
 CONSTRAINT consent_documents consent_documents_id_not_null NOT NULL id
 CONSTRAINT consent_documents consent_documents_locale_not_null NOT NULL locale
@@ -1261,7 +1337,7 @@ CONSTRAINT reading_recordings uq_reading_recordings_user_request UNIQUE (user_id
 CONSTRAINT reading_sessions ck_reading_sessions_advance CHECK ((advance = ANY (ARRAY['silence'::text, 'manual'::text])))
 CONSTRAINT reading_sessions ck_reading_sessions_mode CHECK ((mode = ANY (ARRAY['read'::text, 'quiz'::text])))
 CONSTRAINT reading_sessions ck_reading_sessions_my_characters_not_empty CHECK ((cardinality(my_character_ids) >= 1))
-CONSTRAINT reading_sessions ck_reading_sessions_status CHECK ((status = ANY (ARRAY['in_progress'::text, 'completed'::text, 'stopped'::text])))
+CONSTRAINT reading_sessions ck_reading_sessions_status CHECK ((status = ANY (ARRAY['in_progress'::text, 'completed'::text])))
 CONSTRAINT reading_sessions reading_sessions_advance_not_null NOT NULL advance
 CONSTRAINT reading_sessions reading_sessions_current_line_id_fkey FOREIGN KEY (current_line_id) REFERENCES script_lines(id)
 CONSTRAINT reading_sessions reading_sessions_elapsed_seconds_not_null NOT NULL elapsed_seconds
@@ -1269,6 +1345,7 @@ CONSTRAINT reading_sessions reading_sessions_end_line_id_fkey FOREIGN KEY (end_l
 CONSTRAINT reading_sessions reading_sessions_end_line_id_not_null NOT NULL end_line_id
 CONSTRAINT reading_sessions reading_sessions_id_not_null NOT NULL id
 CONSTRAINT reading_sessions reading_sessions_line_results_not_null NOT NULL line_results
+CONSTRAINT reading_sessions reading_sessions_line_said_not_null NOT NULL line_said
 CONSTRAINT reading_sessions reading_sessions_mode_not_null NOT NULL mode
 CONSTRAINT reading_sessions reading_sessions_my_character_ids_not_null NOT NULL my_character_ids
 CONSTRAINT reading_sessions reading_sessions_pkey PRIMARY KEY (id)
@@ -1331,6 +1408,26 @@ CONSTRAINT script_characters script_characters_sort_order_not_null NOT NULL sort
 CONSTRAINT script_characters script_characters_updated_at_not_null NOT NULL updated_at
 CONSTRAINT script_characters uq_script_characters_script_name UNIQUE (script_id, name) DEFERRABLE
 CONSTRAINT script_characters uq_script_characters_script_order UNIQUE (script_id, sort_order)
+CONSTRAINT script_imports ck_script_imports_failure CHECK ((failure = ANY (ARRAY['not_script'::text, 'no_characters'::text, 'script_too_long'::text, 'script_limit'::text, 'failed'::text])))
+CONSTRAINT script_imports ck_script_imports_outcome CHECK (((script_id IS NULL) OR (failure IS NULL)))
+CONSTRAINT script_imports ck_script_imports_progress CHECK (((done_lines >= 0) AND (total_lines >= 0) AND (done_lines <= total_lines)))
+CONSTRAINT script_imports ck_script_imports_source CHECK ((source = ANY (ARRAY['file'::text, 'paste'::text, 'typed'::text, 'sample'::text])))
+CONSTRAINT script_imports script_imports_created_at_not_null NOT NULL created_at
+CONSTRAINT script_imports script_imports_done_lines_not_null NOT NULL done_lines
+CONSTRAINT script_imports script_imports_id_not_null NOT NULL id
+CONSTRAINT script_imports script_imports_job_id_fkey FOREIGN KEY (job_id) REFERENCES ai_jobs(id)
+CONSTRAINT script_imports script_imports_pkey PRIMARY KEY (id)
+CONSTRAINT script_imports script_imports_raw_hash_not_null NOT NULL raw_hash
+CONSTRAINT script_imports script_imports_raw_text_not_null NOT NULL raw_text
+CONSTRAINT script_imports script_imports_request_fingerprint_not_null NOT NULL request_fingerprint
+CONSTRAINT script_imports script_imports_request_id_not_null NOT NULL request_id
+CONSTRAINT script_imports script_imports_skip_script_check_not_null NOT NULL skip_script_check
+CONSTRAINT script_imports script_imports_source_not_null NOT NULL source
+CONSTRAINT script_imports script_imports_total_lines_not_null NOT NULL total_lines
+CONSTRAINT script_imports script_imports_updated_at_not_null NOT NULL updated_at
+CONSTRAINT script_imports script_imports_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT script_imports script_imports_user_id_not_null NOT NULL user_id
+CONSTRAINT script_imports uq_script_imports_user_request UNIQUE (user_id, request_id)
 CONSTRAINT script_lines ck_script_lines_dialogue_has_character CHECK (((kind = 'dialogue'::text) = (character_id IS NOT NULL)))
 CONSTRAINT script_lines ck_script_lines_kind CHECK ((kind = ANY (ARRAY['dialogue'::text, 'direction'::text, 'scene'::text])))
 CONSTRAINT script_lines script_lines_character_id_fkey FOREIGN KEY (character_id) REFERENCES script_characters(id)
@@ -1343,6 +1440,17 @@ CONSTRAINT script_lines script_lines_script_id_fkey FOREIGN KEY (script_id) REFE
 CONSTRAINT script_lines script_lines_script_id_not_null NOT NULL script_id
 CONSTRAINT script_lines script_lines_text_not_null NOT NULL text
 CONSTRAINT script_lines uq_script_lines_script_ordinal UNIQUE (script_id, ordinal)
+CONSTRAINT script_uploads ck_script_uploads_byte_size CHECK ((byte_size > 0))
+CONSTRAINT script_uploads script_uploads_byte_size_not_null NOT NULL byte_size
+CONSTRAINT script_uploads script_uploads_created_at_not_null NOT NULL created_at
+CONSTRAINT script_uploads script_uploads_expires_at_not_null NOT NULL expires_at
+CONSTRAINT script_uploads script_uploads_id_not_null NOT NULL id
+CONSTRAINT script_uploads script_uploads_object_key_not_null NOT NULL object_key
+CONSTRAINT script_uploads script_uploads_pkey PRIMARY KEY (id)
+CONSTRAINT script_uploads script_uploads_updated_at_not_null NOT NULL updated_at
+CONSTRAINT script_uploads script_uploads_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT script_uploads script_uploads_user_id_not_null NOT NULL user_id
+CONSTRAINT script_uploads uq_script_uploads_object_key UNIQUE (object_key)
 CONSTRAINT scripts ck_scripts_source CHECK ((source = ANY (ARRAY['file'::text, 'paste'::text, 'typed'::text, 'sample'::text])))
 CONSTRAINT scripts scripts_created_at_not_null NOT NULL created_at
 CONSTRAINT scripts scripts_id_not_null NOT NULL id
@@ -1526,7 +1634,12 @@ INDEX CREATE INDEX idx_reading_sessions_user ON public.reading_sessions USING bt
 INDEX CREATE INDEX idx_reading_voice_usage_day ON public.reading_voice_usage USING btree (day)
 INDEX CREATE INDEX idx_refresh_tokens_user_expires ON public.refresh_tokens USING btree (user_id, expires_at)
 INDEX CREATE INDEX idx_reports_created ON public.reports USING btree (created_at DESC)
+INDEX CREATE INDEX idx_script_imports_user_raw_hash ON public.script_imports USING btree (user_id, raw_hash)
 INDEX CREATE INDEX idx_script_lines_character ON public.script_lines USING btree (character_id)
+INDEX CREATE INDEX idx_script_uploads_script ON public.script_uploads USING btree (script_id)
+INDEX CREATE INDEX idx_script_uploads_unlinked ON public.script_uploads USING btree (created_at) WHERE (script_id IS NULL)
+INDEX CREATE INDEX idx_script_uploads_user ON public.script_uploads USING btree (user_id)
+INDEX CREATE INDEX idx_scripts_user_raw_hash ON public.scripts USING btree (user_id, raw_hash)
 INDEX CREATE INDEX idx_scripts_user_updated ON public.scripts USING btree (user_id, updated_at DESC)
 INDEX CREATE INDEX idx_sessions_summary ON public.coach_sessions USING btree (summary_id)
 INDEX CREATE INDEX idx_turns_session ON public.coach_turns USING btree (session_id, turn_index)
@@ -1561,6 +1674,7 @@ INDEX CREATE UNIQUE INDEX actor_memory_entries_pkey ON public.actor_memory_entri
 INDEX CREATE UNIQUE INDEX ai_jobs_pkey ON public.ai_jobs USING btree (id)
 INDEX CREATE UNIQUE INDEX analyses_pkey ON public.analyses USING btree (id)
 INDEX CREATE UNIQUE INDEX anomalies_pkey ON public.anomalies USING btree (id)
+INDEX CREATE UNIQUE INDEX app_posters_pkey ON public.app_posters USING btree (id)
 INDEX CREATE UNIQUE INDEX challenge_entries_pkey ON public.challenge_entries USING btree (id)
 INDEX CREATE UNIQUE INDEX challenges_pkey ON public.challenges USING btree (id)
 INDEX CREATE UNIQUE INDEX coach_conversations_pkey ON public.coach_conversations USING btree (id)
@@ -1613,7 +1727,9 @@ INDEX CREATE UNIQUE INDEX refresh_tokens_token_hash_key ON public.refresh_tokens
 INDEX CREATE UNIQUE INDEX reports_pkey ON public.reports USING btree (id)
 INDEX CREATE UNIQUE INDEX reports_session_id_key ON public.reports USING btree (session_id)
 INDEX CREATE UNIQUE INDEX script_characters_pkey ON public.script_characters USING btree (id)
+INDEX CREATE UNIQUE INDEX script_imports_pkey ON public.script_imports USING btree (id)
 INDEX CREATE UNIQUE INDEX script_lines_pkey ON public.script_lines USING btree (id)
+INDEX CREATE UNIQUE INDEX script_uploads_pkey ON public.script_uploads USING btree (id)
 INDEX CREATE UNIQUE INDEX scripts_pkey ON public.scripts USING btree (id)
 INDEX CREATE UNIQUE INDEX summaries_pkey ON public.summaries USING btree (id)
 INDEX CREATE UNIQUE INDEX summaries_session_id_key ON public.summaries USING btree (session_id)
@@ -1624,6 +1740,7 @@ INDEX CREATE UNIQUE INDEX uq_actor_memories_user_field ON public.actor_memories 
 INDEX CREATE UNIQUE INDEX uq_actor_memory_user_field ON public.actor_memory_entries USING btree (user_id, field)
 INDEX CREATE UNIQUE INDEX uq_ai_jobs_user_request ON public.ai_jobs USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_analyses_practice ON public.analyses USING btree (practice_id)
+INDEX CREATE UNIQUE INDEX uq_app_posters_slug_locale ON public.app_posters USING btree (slug, COALESCE(locale, ''::text))
 INDEX CREATE UNIQUE INDEX uq_challenge_entries_parent ON public.challenge_entries USING btree (id, challenge_id)
 INDEX CREATE UNIQUE INDEX uq_challenge_entries_request ON public.challenge_entries USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_challenge_entries_video ON public.challenge_entries USING btree (challenge_id, video_id) WHERE (status <> 'deleted'::text)
@@ -1664,11 +1781,12 @@ INDEX CREATE UNIQUE INDEX uq_practices_root_ordinal ON public.practices USING bt
 INDEX CREATE UNIQUE INDEX uq_practices_user_request ON public.practices USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_reading_recordings_session_line ON public.reading_recordings USING btree (reading_session_id, line_id)
 INDEX CREATE UNIQUE INDEX uq_reading_recordings_user_request ON public.reading_recordings USING btree (user_id, request_id)
-INDEX CREATE UNIQUE INDEX uq_reading_sessions_open_script ON public.reading_sessions USING btree (script_id) WHERE (status = 'in_progress'::text)
 INDEX CREATE UNIQUE INDEX uq_reading_sessions_user_request ON public.reading_sessions USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_script_characters_script_name ON public.script_characters USING btree (script_id, name)
 INDEX CREATE UNIQUE INDEX uq_script_characters_script_order ON public.script_characters USING btree (script_id, sort_order)
+INDEX CREATE UNIQUE INDEX uq_script_imports_user_request ON public.script_imports USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_script_lines_script_ordinal ON public.script_lines USING btree (script_id, ordinal)
+INDEX CREATE UNIQUE INDEX uq_script_uploads_object_key ON public.script_uploads USING btree (object_key)
 INDEX CREATE UNIQUE INDEX uq_scripts_user_request ON public.scripts USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_transcripts_session_ord ON public.transcripts USING btree (session_id, ord)
 INDEX CREATE UNIQUE INDEX uq_upload_intents_user_request ON public.upload_intents USING btree (user_id, request_id) WHERE (request_id IS NOT NULL)
@@ -1695,6 +1813,7 @@ TABLE actor_memory_entries
 TABLE ai_jobs
 TABLE analyses
 TABLE anomalies
+TABLE app_posters
 TABLE challenge_entries
 TABLE challenges
 TABLE coach_conversations
@@ -1742,7 +1861,9 @@ TABLE reading_voice_usage
 TABLE refresh_tokens
 TABLE reports
 TABLE script_characters
+TABLE script_imports
 TABLE script_lines
+TABLE script_uploads
 TABLE scripts
 TABLE summaries
 TABLE transcripts

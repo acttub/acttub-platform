@@ -377,7 +377,7 @@ Hibernate native query는 위 문장을 `Tuple.class`로 실행하고 `row.get("
 
 | 동작 | 대상 |
 |---|---|
-| **required + `null` 값을 실어 보냄** | `AuthUser.email`, `MeResponse.email`/`.profile`, `Profile` 의 `directions` 를 뺀 전 항목(0.1.0 이전 회원은 `name` 만 차 있다), `SourceHandoffIds.analysis`, `MemoryItem.source_practice_session_id`, `ConsentEntryDocument.current_decision`/`.decided_at`, `Portfolio.intro`, `PortfolioPhoto.url`, `PortfolioShare.slug`/`.url`, `PublicPortfolio.photo_url`/`.gender`/`.intro`, `PublicPortfolioPhoto.url`, `PublicChallengeEntry.character`/`.poster_url`, 연습 노트의 `PracticeNote*`·`PublicPracticeNote` 항목들 |
+| **required + `null` 값을 실어 보냄** | `AuthUser.email`, `MeResponse.email`/`.profile`, `Profile` 의 `directions` 를 뺀 전 항목(0.1.0 이전 회원은 `name` 만 차 있다), `SourceHandoffIds.analysis`, `MemoryItem.source_practice_session_id`, `ConsentEntryDocument.current_decision`/`.decided_at`, `Portfolio.intro`, `PortfolioPhoto.url`, `PortfolioShare.slug`/`.url`, `PublicPortfolio.photo_url`/`.gender`/`.intro`, `PublicPortfolioPhoto.url`, `PublicChallengeEntry.character`/`.poster_url`, 연습 노트의 `PracticeNote*`·`PublicPracticeNote` 항목들, `AppPoster` 의 `badge`·`body`·`image_url`·`image_asset`·`audio_asset`·`cta_label`·`cta_target` |
 | **optional 인데 항상 포함** | `Video.purged_at`/`.playback_url`/`.playback_expires_at`/`.poster_url` |
 
 같은 이름의 필드가 엔드포인트마다 다르게 동작한다. DTO 를 분리하거나 직렬화를 수동 제어한다.
@@ -739,9 +739,9 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 - **경로**는 전부 `/v2/reading/**` 이고 게스트의 기능 표 `READING`(`platform/security/GuestFeature`, §6-9)에 든다.
   회원은 회원의 게이트(§6-5)를 지난다.
-- **스키마(V13)**: `scripts`·`script_characters`·`script_lines`·`reading_sessions`·`reading_recordings`·
-  `line_memorization`. 값 목록은 text + CHECK 이고 Java enum 은 `platform/schema` 에 있다(`ScriptSource`·
-  `ScriptLineKind`·`ReadingMode`·`ReadingAdvance`·`ReadingSessionStatus`·`TranscriptSource`·`MemorizationStatus`).
+- **스키마(V13, V33, V34)**: `scripts`·`script_characters`·`script_lines`·`reading_sessions`·`reading_recordings`·
+  `line_memorization`, 나누기 요청 `script_imports`(V33), 원본 파일 `script_uploads`(V34). 값 목록은 text + CHECK 이고 Java enum 은 `platform/schema` 에 있다(`ScriptSource`·
+  `ScriptLineKind`·`ReadingMode`·`ReadingAdvance`·`ReadingSessionStatus`·`TranscriptSource`·`MemorizationStatus`·`ScriptImportFailure`).
   FK 에 `ON DELETE` 가 없다 — 삭제는 애플리케이션이 표대로 순서를 정해 지운다. `scripts.request_id`·
   `reading_sessions.request_id` 는 (user_id, request_id) 유일이고 이관 충돌 때만 NULL 이다.
   `uq_script_characters_script_name` 은 DEFERRABLE 이다 — 이름 수정이 두 배역의 이름을 맞바꿀 때 문장 사이에서
@@ -762,13 +762,34 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 **리딩 회차 (SOMA-546 RA2)**
 
 - **시작**: `reading_sessions` 에는 지문 컬럼이 없어 저장된 속성 여섯과 대본을 비교해 재전송을 가른다.
-  **한 트랜잭션에서 대본 행을 `FOR UPDATE` 로 잡고**(같은 대본의 시작이 여기서 줄을 선다) 열린 회차를 `stopped` 로
-  바꾼 뒤 새 회차를 만든다 — `uq_reading_sessions_open_script` 가 그물이다. `started_at`·`ended_at` 은 앱 시계다.
+  **한 트랜잭션에서 대본 행을 `FOR UPDATE` 로 잡고**(같은 대본의 시작이 여기서 줄을 선다) 새 회차를 만든다. 같은
+  대본의 진행 중 회차는 건드리지 않아 여럿일 수 있고, 대본 상세의 `open_session_id` 는 그중 `started_at DESC, id DESC`
+  첫 회차다. 회차 상태는 `in_progress`·`completed` 둘이다. `started_at`·`ended_at` 은 앱 시계다.
 - **진행 저장**: 시간은 `GREATEST(저장값, 보낸 값)` 로 쓴다. 회차 행을 `FOR UPDATE` 로 잡은 채 하고, 계정 상태를 따로
   보지 않는다 — 이관·삭제가 먼저 끝났으면 행의 주인이 바뀌었거나 행이 없어 회차를 찾지 못하는 것으로 충분하다(응답은
   reading.session 「예외」, 규칙은 common.md 「저장 직전 재확인」).
+- **대조(SOMA-593 B1)**: 진행 저장의 `said` 는 `domain/LineResult#merge` 가 `domain/LineMatch`(기기에 있던 규칙을
+  옮긴 것)로 판정하고, 말한 것은 `reading_sessions.line_said`(V32, `{line_id: said}`)에 둔다. `line_results` 원소에 넣지
+  않는 것은 전역 `fail-on-unknown-properties`(§6-3) 때문이다 — 옛 이미지로 되돌리면 모르는 키가 든 회차를 읽지 못해 500 이다.
+  원문과 다르게 말한 대사(`domain/DifferentLine`, 어절은 `domain/WordDiff`)는 저장하지 않고 상세 조회·진행 저장마다
+  구간의 대사 줄 원문으로 계산한다. 대사 번호는 표시값과 같은 `ReadingLayout#dialogueNo` 가 센다. 녹음의 `matched` 는 최종 저장 트랜잭션이 그 줄 원문으로 정한다(`RecordingRules#matched`).
 - **회차 삭제**는 녹음 행을 지우고 객체 삭제를 같은 트랜잭션에서 장부(`reading_recording_delete`)에 올린다.
 - 마지막 회차는 `ORDER BY started_at DESC, id DESC` 의 첫 행이다(`PostgresScriptRepository`·`PostgresSessionRepository`).
+
+**표시값 — 장면·자동 목소리·구간 이름·진행 K/N (SOMA-593)**
+
+- 규칙은 `domain/ReadingLayout`(대사 번호·장면·구간 이름·K/N)과 `domain/VoiceAssignment`(자동 목소리) 두 곳이고, 서버는
+  그 값을 대본·회차 응답에 싣는다. 뜻은 reading.session(장면·구간 이름·K/N)과 reading.cast(`voice`)다.
+- 저장하지 않고 조회할 때 센다. 대본 상세는 이미 읽은 줄·배역으로 세서 질의가 늘지 않는다. 회차 목록·상세·시작 응답은
+  그 대본의 줄(`id, kind`, 장면 머리 줄만 `text`)을 한 번 더 읽는다 — 목록은 카드 수와 상관없이 한 번이다
+  (`PostgresSessionRepository#lines`). 상세·시작과 진행 저장은 같은 한 번에 구간 안 대사 줄의 `text` 도 읽는다(다르게
+  말한 대사의 원문).
+- K 는 `current_line_id` 의 대사 번호에서 센다. 시작(`start_line_id`)과 진행 저장이 구간 안 대사 줄만 받으므로 API 로는 늘
+  대사 줄이다. FK 는 줄의 종류를 보지 않아, 대사가 아닌 줄이 들어 있으면 `ReadingLayout` 은 그 앞 대사로 센다.
+- `voice` 는 저장값이 프리셋 목록(M1~M5·F1~F5)에 있을 때만 그 값을 쓰고 아니면 자동 순환 값이다. 저장 검증은 여전히 길이만
+  본다(`ScriptRules.VOICE_PRESET_MAX`).
+- OpenAPI 컴포넌트: `ReadingScriptScene`(`ReadingScript.scenes`), `ReadingScriptCharacter.voice`, `ReadingSessionRangeName`·
+  `ReadingSessionProgressCount`(`ReadingSessionCard`·`ReadingSession` 의 `range_name`·`progress`, `progress` 는 completed 면 null).
 
 **줄 단위 녹음 (SOMA-546 RA3)**
 
@@ -805,6 +826,67 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   `recording_count`·녹음 삭제의 소유 확인)에서 자연히 빠진다 — 일반 API 에 보이지 않는 것은 별도 필터가 아니라
   구조가 그렇다.
 - 대본·회차·녹음 삭제, 대체된 녹음, 탈퇴 파기가 모두 같은 장부 종류 `reading_recording_delete` 를 쓴다(§6-8).
+
+**나누기 작업 (SOMA-593 C1)** — 제품 규칙의 정본: [reading.script](../../docs/specs/reading/script.md#규칙제약) 「나누기 작업」
+
+- 코드의 자리: 접수·상태는 `reading/app/ScriptImportService`(원문 한도 → 예시 판별 → 동의(예시가 아닐 때만) → 지문), 저장소 `adapter/db/
+  PostgresScriptImportRepository`(V33 `script_imports`), 워커 `app/ScriptSplitWorker`, 스케줄러 `adapter/sched/ScriptSplitScheduler`,
+  순수 규칙은 `domain/`(`NumberedLine` 줄 번호·조각, `SplitResponse` 답 검사, `CharacterNames` 이름 바로잡기, `SplitDraft` 조립,
+  `SampleScript` 예시, `ScriptText` 같은 글, `ScriptSplitRules` 숫자). 지시문은 `app/ScriptSplitPrompt`.
+- **접수는 `users` 행을 `FOR UPDATE` 로 잡은 한 트랜잭션**에서 재전송 → 같은 글의 대본 → 같은 글의 진행 중 요청 → 대본 수 →
+  하루 한도 순으로 보고 행을 만든다. LLM 길만 `ai_jobs`(kind `script_split`, `target_id` = `script_imports.id`) 행을 함께 만들고,
+  **하루 한도는 그 장부의 오늘(Asia/Seoul) 행 수**다 — 예시·중복은 행이 없어 저절로 세지 않는다. 예시 대본은 같은 트랜잭션에서
+  `ScriptRepository.create` 로 대본까지 만든다.
+- 같은 글의 해시 `scripts.raw_hash`·`script_imports.raw_hash` 는 Java `ScriptText.hash` 가 정본이다. V33 이 기존 행을 같은 식의
+  SQL 로 한 번 채웠고 `ReadingSchemaMigrationTest` 가 두 식의 일치를 실제 Postgres 로 대조한다. 공백류는 로케일에 기대지 않게
+  목록으로 적었다.
+- 워커의 lease 는 30분(최악 경로 = 호출 3시도×93초가 배역 목록·조각 두 묶음(16개씩)·재요청 2판으로 다섯 번 ≈ 24분), 선점·완료·
+  실패는 `AiJobLedger`(§5-7)다. **`script_split` 만 lease 가 지난 `running` 도 다시 집는다**(`claimNext(…, reclaimExpired=true)`) —
+  집은 워커가 죽어도 작업이 영원히 running 으로 남지 않게. 완료가 요청의 request_id 로 멱등이라 두 번 돌아도 대본은 하나다.
+  시도 셋(`MAX_ATTEMPTS`)을 다 쓴 채 lease 가 지난 작업은 스케줄러의 `sweep`(`ScriptSplitWorker.sweep` → `AiJobLedger.failExpired`)이
+  `failed(max_attempts)` 로 닫고 `script_imports.failure=failed` 를 쓴다. 호출 하나는 연결 실패·429·5xx·미완료 답에 두 번 더
+  보내고(1초·2초 뒤) 그래도 안 되면 `failure=failed` + `ledger.fail`(재큐 없음). 모델 호출은 `TextGenerator` 에
+  `GenerationOptions(model=gpt-6-luna, effort=low, maxOutputTokens=128000, timeout=90초)` 로 넘긴다 — 옵션 호출의 기본 20초와 코치
+  기본 모델은 그대로다. 조각은 작업당 16개(`ScriptSplitRules.PARALLEL_CALLS`)까지 동시에 보낸다.
+- 완료는 `ScriptRepository.create(userId, 요청의 request_id, 요청의 지문, draft, 한도)` 라 같은 작업이 다시 돌아도 같은 대본이고,
+  `OVER_LIMIT` 이면 `failure=script_limit`, `FINGERPRINT_MISMATCH`(같은 request_id 의 다른 대본이 이미 있음)면 `failure=failed`,
+  계정이 닫혔으면 `cancelled` 다. 끝난 요청(성공·실패·sweep)은 `raw_text=''` 로 비운다. `script_id` 에 FK 를 두지 않아 대본 삭제가
+  이 표를 모른다.
+- 요청 플래그 `allow_duplicate`(R2.7 「새로 넣기」: 같은 글의 대본·진행 중 요청을 보지 않음)·`skip_script_check`(R2.8 「그래도
+  나누기」: 행에 남겨 워커가 판정 줄을 묻지 않음)는 지문에 든다. 요청 모양은 `raw_text` 에 보이는 글자가 없으면(U+3000·U+200B 만)
+  422 배열, 제목 200자다.
+- 동의 조회는 고품질 목소리와 같은 질의(현재 판 `script_split` 문서의 마지막 결정)다. 예시 대본과 같은 글은 모델을 부르지 않으므로
+  동의를 보지 않고 바로 저장한다(게스트도). `ConsentDocument.askedAtEntry` 가
+  `script_split` 을 제외해 진입 게이트에 나오지 않는다. 게스트는 선택 문서를 결정할 수 없어(`ConsentService`, 403 `member_only`)
+  나누기는 늘 403 `script_split_consent_required` 다.
+- 탈퇴는 `PostgresProfileRepository#eraseReading` 이 `script_imports` 를 행째 지우고 진행 중 작업은 §6-15 의 `ai_jobs` 취소가 닫는다.
+  `LlmStep.SCRIPT_SPLIT` 기록의 묶는 열쇠(`practiceSessionId` 자리)는 작업 id 다.
+- 검증은 `ReadingImportIT`(HTTP·Postgres·장부, 모델만 가짜)와 `reading/domain/*Test`(순수 규칙), `ReadingSchemaMigrationTest`(V33) 다.
+  실제 모델은 `ScriptSplitLiveTest`(`ACTTUB_SPLIT_LIVE_TEST=1` + `OPENAI_API_KEY` 가 있을 때만, 가짜 묶음 `src/test/resources/script-split/`)가
+  본다 — 모델이 판마다 다르게 읽는 자리가 있어 묶음마다 90% 를 하한으로 둔다.
+
+**원본 파일 (SOMA-593 C2)** — 제품 규칙의 정본: [reading.script](../../docs/specs/reading/script.md#규칙제약) 「원본 파일」
+
+- 코드의 자리: `reading/app/ScriptUploadService`(올릴 자리·읽기·정리), 저장소 `adapter/db/PostgresScriptUploadRepository`(V34
+  `script_uploads`), 스토리지 `adapter/storage/ObjectStorageScriptFiles`, 정리 스케줄러 `adapter/sched/ScriptUploadSweepScheduler`(매시
+  15분, Asia/Seoul), 숫자와 객체 키는 `domain/ScriptFileRules`. 글자 뽑기는 `integration/document/DocumentText`(pdfbox 3.0.8·hwplib 1.1.11,
+  둘 다 Apache-2.0)이고 docx·hwpx 는 zip 안 XML 을 StAX 로 직접 읽는다(DTD·외부 엔티티 끔, 풀린 XML 200MB 상한).
+- 읽기는 트랜잭션 밖에서 객체를 임시 파일로 받아(§5-4) 뽑고 `raw_text` 를 한 문장으로 쓴다. 이미 읽은 행은 다시 받지 않는다.
+  크기는 올릴 자리의 서명에 묶여 있고 읽기가 `head` 크기와 다시 견준다. PDF 는 내용 순서로 읽고 내용 캐시를 임시 파일에 둔다.
+- 나누기 접수는 `upload_id` 면 저장된 글을 `raw_text` 로 써서 같은 순서를 탄다. 대본에 연결된 원본은 행의 글을 비웠으므로
+  `PostgresScriptUploadRepository#find` 가 연결된 대본의 `scripts.raw_text` 를 돌려준다(그 글로 만든 대본이라 해시가 같다) — 그래서
+  재전송·같은 글 판정이 글 길과 같다. `allow_duplicate` 이고 연결한 요청(`script_imports.upload_id`·`script_id` 가 같은 행의
+  `request_id`)의 재전송이 아니면 422 `script_upload_used` 다. `script_imports.upload_id`(V34)를 함께 적고, 대본을
+  만드는 두 자리(예시 대본의 접수, 워커의 완료)가 같은 트랜잭션에서 `script_uploads.script_id` 를 채우고 뽑은 글(`raw_text`)을 비운다(`linkUpload`).
+- 삭제: 대본 삭제(`PostgresScriptRepository#delete`)와 탈퇴(`PostgresProfileRepository#eraseReading`)가 행을 지우며 객체 키를 같은
+  트랜잭션에서 장부 종류 `object_delete` 로 올리고 `next_attempt_at` 은 지운 행의 `expires_at` 최댓값이다(`reading/app/ScriptFileCleanup`,
+  영상과 같은 이유 — 서명 주소가 살아 있는 동안 지우면 다시 올린 객체가 장부 밖에 남는다). 미연결 정리는 `created_at` 하루 전 행을 `FOR UPDATE SKIP
+  LOCKED` 로 500개씩 지우되 pending·running 나누기 작업이 쓰는 행은 남긴다. 스위치는 `SCRIPT_UPLOAD_SWEEP_ENABLED`(기본 켬, 테스트가 끈다).
+- 읽기는 프로세스 전체 세마포어 둘(10초 기다림, 못 얻으면 429 `script_upload_busy`)을 잡고 가상 스레드에서 받기·뽑기를 하며 45초를
+  넘으면 끊고(interrupt, 뽑기는 읽을 때마다 끊김을 본다) 422 `script_file_unreadable` 이다. 자리는 일이 실제로 끝날 때 돌려준다.
+- 뽑기의 자원 상한: 표 칸까지 센 글자 수가 한도의 두 배를 넘으면 멈추고, zip 안 XML 은 풀린 200MB, hwp 는 hwplib 에 넘기기 전에
+  압축 흐름을 상한 스트림으로 풀어 합 100MB 를 넘으면 읽지 않는다(hwplib `HWPReader` 는 상한 없이 풀어 그림까지 힙에 올린다). 게스트는 동의가 없어 행이 없으므로 이관은 이 표를 옮기지 않는다.
+- 검증은 `ReadingUploadIT`(HTTP·Postgres·장부, 스토리지와 모델만 가짜)와 `DocumentTextTest`(형식별 표본) 다.
 
 **고품질 목소리 (SOMA-500)** — 제품 규칙의 정본: [reading.cloud-voice](../../docs/specs/reading/cloud-voice.md)(두 경로의 입력·출력·오류, 한도, 동의)
 
@@ -1084,7 +1166,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   토큰이 있을 때만 서므로 기본 `spec/openapi.json`에는 실리지 않으며 `AdminEndpointIT`의 조건부 경로 명시
   목록과 직렬화 검사가 이 계약을 지킨다.
 - `GET /v2/admin/reading-sessions?limit=50&status=all&exclude_actors=…`는 `limit` 1~100, 기본 50이고
-  `status`는 `all`·`in_progress`·`completed`·`stopped`다. 응답은 `{sessions, count}`이며 `count`는 지금
+  `status`는 `all`·`in_progress`·`completed`다. 응답은 `{sessions, count}`이며 `count`는 지금
   반환한 묶음의 크기다. 각 행은 `id`(회차 UUID)·`actor`(접두사 없는 8자리 가명)·`script_title`·
   `started_at`·`ended_at`(항상 포함, 없으면 null)·`status`·`mode`(`read`·`quiz`)·`elapsed_seconds`·
   `recording_count`만 가진다. `started_at DESC, id DESC`로 고정 정렬한다. 대본 본문·전사·원본 user id·이메일·
@@ -1134,6 +1216,38 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   14개월보다 오래된 `web_utm` 행만 지운다. Airbridge 행의 보존 규칙은 바꾸지 않는다. 만료 뒤 기존 계정에 새 UTM을
   다시 붙이지 않는 경계는 웹의 신규 guest userId와 세션 결합이며, 서버가 생성 시각으로 신규 여부를 추정하지 않는다.
 - 읽는 곳은 ops 사용자 화면이다. 광고 관리자는 가입을 수로만 센다.
+
+### 6-24. 앱 공지 포스터 (SOMA-599)
+
+> 제품 규칙의 정본: [app.poster](../../docs/specs/app/poster.md)(고르는 규칙, 빈도·다시 보지 않기·대상, 운영자 사용법)
+
+- 표는 `app_posters`(V29)다. Schema Entity 없이 `feature/poster/adapter/db/PostgresPosterRepository` 의 native SQL
+  로만 읽고 쓴다(행이 적고 `platforms` 가 `text[]` 라서다, §5-1·`EntityMappingIT` 의 대기 목록). 값 목록(`frequency`·
+  `audience`·`cta_action`)은 Java enum 없이 `PosterRules` 상수와 CHECK 가 같은 선을 긋는다(`ValueCheckCatalogIT` 의
+  `WITHOUT_JAVA_ENUM`).
+- 유일은 `uq_app_posters_slug_locale (slug, COALESCE(locale,''))` 다 — 언어 없음(NULL)도 한 자리를 차지한다.
+  만들기는 `ON CONFLICT DO NOTHING` 의 0행, 고치기는 겹치는 다른 행이 있으면 갱신하지 않는 조건의 0행으로 알고
+  둘 다 422 `duplicate_poster` 다.
+- V29 가 지금 홍보(고품질 목소리 출시)를 `slug=cloud-voice-launch` ko·en 두 줄로 싣는다. 문구는 0.1.2 앱 번역
+  `cloudVoice.promo*` 의 값이다.
+- 앱 경로 `GET /v2/app/posters` 는 게이트(`ConsentGateInterceptor` 의 FULL)를 지난 회원·게스트 모두 받는다. 질의
+  검사는 받는 자리(`PosterController`)에서 하고 틀리면 배열 422 다 — `platform` 빠짐은 `missing`, 값이 틀리면
+  `value_error`. 기간·플랫폼·언어는 SQL 이, 판(`min_app_version`)과 5장 자르기는 `PosterRules.forApp` 이 고른다.
+  판 비교는 점으로 나눈 정수 비교다(`0.1.10 > 0.1.9`).
+- 이미지가 객체 키(`posters/<uuid>.<png|jpg|webp>`)면 기존 스토리지로 1시간 재생 주소를 서명한다. 스토리지가 없거나
+  서명이 실패하면 `image_url` 만 null 이고 목록은 그대로 나간다(서명 실패는 External Failure 로 보고,
+  `ObjectStoragePosterImages`). 소리는 번들 자산(`asset:`)만 내고 객체 키면 null 이다.
+- 운영 경로 `GET·POST /v2/admin/posters`, `PATCH /v2/admin/posters/{id}`, `POST /v2/admin/poster-images` 는 다른
+  `/v2/admin` 과 같이 `ADMIN_OPS_TOKEN` Bearer 를 상수 시간 비교로 보고(401 `Unauthorized`), 토큰이 없는 기동에는
+  경로째 없다(`AdminService.ENABLED_WHEN`) — 그래서 `spec/openapi.json` 에 실리지 않고 `AdminEndpointIT` 의 조건부
+  목록이 센다. 응답은 `Cache-Control: private, no-store` 다. 지우기 경로는 없다(끄기 = `active=false`).
+- 만들기 본문은 닫혀 있다(§6-3). PATCH 는 보낸 칸만 바꾸므로 본문을 JSON 객체로 받아 지금 값 위에 얹고, 모르는
+  칸은 `extra_forbidden`, 형태가 틀린 칸은 그 칸을 가리키는 `value_error` 422 다. `bump_revision: true` 면
+  revision 을 하나 올린다. 둘 다 `updated_at` 을 그 시각으로 둔다.
+- 이미지 올릴 자리는 `{content_type, size_bytes}` 를 받는다. 기존 `ObjectStorage#presignUpload` 가 크기를 서명에
+  넣기 때문이다(스펙 초안의 `{content_type}` 에서 `size_bytes` 를 더했다). PNG·JPEG·WebP 만 받고(415
+  `unsupported_media_type`), 10MB 를 넘으면 413 `upload_too_large`, 주소는 10분이다. 스토리지 설정은 기존 `S3_*` 를
+  그대로 쓰고 없으면 503 `storage_not_configured`(§6-2 의 advice) 다.
 
 ### 6-25. 운영용 챌린지 목록
 

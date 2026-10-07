@@ -216,7 +216,7 @@ test('account.login: 필수 셋에만 동의하면 버튼이 켜진다 — 선�
 });
 
 test('account.login: 전체 동의는 필수 문서만 채운다 — 선택 문서는 비운 채로 둔다', () => {
-  const next = grantAllRequired(signupDocuments, new Map(), new Set());
+  const next = grantAllRequired(signupDocuments, new Map());
 
   assert.deepEqual(
     [...next],
@@ -249,15 +249,10 @@ test('account.login: 안 고른 선택 문서는 거절로 채워 보낸다 — 
   );
 });
 
-test('account.login: 전체 동의는 이미 고른 선택 문서의 결정과 저장이 끝난 문서를 건드리지 않는다', () => {
-  const next = grantAllRequired(
-    signupDocuments,
-    new Map([['retention-1', 'declined']]),
-    new Set(['terms-1']),
-  );
+test('account.login: 전체 동의는 이미 고른 선택 문서의 결정을 건드리지 않는다', () => {
+  const next = grantAllRequired(signupDocuments, new Map([['retention-1', 'declined']]));
 
   assert.equal(next.get('retention-1'), 'declined');
-  assert.equal(next.has('terms-1'), false);
   assert.equal(next.get('privacy-1'), 'granted');
 });
 

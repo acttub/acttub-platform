@@ -1,10 +1,8 @@
-// reading.script — 저장·열기 흐름. 초안을 서버에 저장하면 돌려받은 대본이 화면 모양으로 캐시되고 초안은 버려진다.
+// reading.script — 서버 대본을 화면 모양으로 캐시해 지금 대본으로 드는 흐름.
 import assert from "node:assert/strict";
-import { afterEach, beforeEach, test } from "node:test";
+import { beforeEach, test } from "node:test";
 
 import "./ts-module-loader.mjs";
-
-process.env.NEXT_PUBLIC_API_BASE_URL = "";
 
 // storage 는 sessionStorage 를 쓴다. Node 에는 없으므로 가장 작은 것을 심는다.
 const memory = new Map();
@@ -14,19 +12,9 @@ globalThis.sessionStorage = {
   removeItem: (k) => memory.delete(k),
 };
 
-const { DraftRejectedError, saveScriptDraft } = await import("../src/features/reading/script-save.ts");
-const { newDraft, updateDraft } = await import("../src/lib/reading/draft.ts");
+const { adoptScript } = await import("../src/features/reading/script-save.ts");
 const { storage } = await import("../src/lib/reading/storage.ts");
 const { toStoredScript } = await import("../src/lib/reading/script/from-server.ts");
-const { clearTokens, setTokens } = await import("../src/lib/auth/token-store.ts");
-
-const originalFetch = globalThis.fetch;
-
-function jsonResponse(payload, status = 200) {
-  return new Response(JSON.stringify(payload), { status, headers: { "Content-Type": "application/json" } });
-}
-
-const RAW = "옥상, 밤\n\n(바람 소리.)\n윤서: 여기 있을 줄 알았어.\n태오: 어떻게 알았어.\n제2막\n윤서: 다음 거 언제야.\n태오: 모레.";
 
 function scriptDetail() {
   return {
@@ -35,8 +23,8 @@ function scriptDetail() {
     source: "paste",
     // 서버가 순서를 섞어 줘도 order·ordinal 로 세운다.
     characters: [
-      { id: "c-2", name: "태오", order: 1, voice_preset: null, dialogue_count: 2 },
-      { id: "c-1", name: "윤서", order: 0, voice_preset: null, dialogue_count: 2 },
+      { id: "c-2", name: "태오", order: 1, voice_preset: null, voice: "M1", dialogue_count: 2 },
+      { id: "c-1", name: "윤서", order: 0, voice_preset: null, voice: "F1", dialogue_count: 2 },
     ],
     lines: [
       { id: "l-2", ordinal: 2, kind: "dialogue", character_id: "c-1", text: "여기 있을 줄 알았어.", dialogue_no: 1 },
@@ -56,13 +44,6 @@ function scriptDetail() {
 
 beforeEach(() => {
   memory.clear();
-  clearTokens();
-  setTokens({ access_token: "guest-access", refresh_token: "guest-refresh" });
-});
-
-afterEach(() => {
-  globalThis.fetch = originalFetch;
-  clearTokens();
 });
 
 test("reading.script: 서버가 돌려준 대본은 배역 순서·줄 순서대로 화면 모양이 되고 줄·배역 id 를 함께 든다", () => {
@@ -70,7 +51,10 @@ test("reading.script: 서버가 돌려준 대본은 배역 순서·줄 순서대
   assert.equal(stored.id, "script-1");
   assert.equal(stored.title, "옥상, 밤");
   assert.deepEqual(stored.roles, ["윤서", "태오"]);
-  assert.deepEqual(stored.characters, [{ id: "c-1", name: "윤서", voicePreset: null }, { id: "c-2", name: "태오", voicePreset: null }]);
+  assert.deepEqual(stored.characters, [
+    { id: "c-1", name: "윤서", voicePreset: null, voice: "F1" },
+    { id: "c-2", name: "태오", voicePreset: null, voice: "M1" },
+  ]);
   assert.equal(stored.lastSession, null);
   assert.deepEqual(stored.lines, [
     { type: "direction", text: "바람 소리." },
@@ -83,39 +67,21 @@ test("reading.script: 서버가 돌려준 대본은 배역 순서·줄 순서대
   assert.deepEqual(stored.lineIds, ["l-1", "l-2", "l-3", "l-4", "l-5", "l-6"]);
 });
 
-test("reading.script: 초안을 저장하면 서버 대본이 지금 대본이 되고 초안과 이전 회차·결과는 버려진다", async () => {
+test("reading.cast: 서버 voice 가 이 웹이 모르는 값이면 첫 프리셋 F1 로 읽는다", () => {
+  const detail = scriptDetail();
+  detail.characters[0].voice = "M9";
+  detail.characters[1].voice = "M2";
+  assert.deepEqual(toStoredScript(detail).characters.map((c) => c.voice), ["M2", "F1"]);
+});
+
+test("reading.script: 넣기가 끝난 서버 대본을 들면 지금 대본이 되고 이전 회차·결과는 버려진다", () => {
   storage.saveSession({ id: "s-old" });
   storage.saveStats({ mode: "read", elapsedMs: 1, lineCount: 1, myCharacterNames: [], lineResults: [] });
-  const draft = newDraft(RAW, "paste");
-  storage.saveDraft(draft);
-  const requests = [];
-  globalThis.fetch = async (url, init) => {
-    requests.push({ route: `${init.method} ${url}`, body: JSON.parse(init.body) });
-    return jsonResponse(scriptDetail(), 201);
-  };
 
-  const stored = await saveScriptDraft(draft, "55555555-5555-4555-8555-555555555555");
+  const stored = adoptScript(scriptDetail());
 
-  assert.equal(requests.length, 1);
-  assert.equal(requests[0].route, "POST /v2/reading/scripts");
-  assert.equal(requests[0].body.request_id, "55555555-5555-4555-8555-555555555555");
   assert.equal(stored.id, "script-1");
   assert.deepEqual(storage.loadScript(), stored);
-  assert.equal(storage.loadDraft(), null);
   assert.equal(storage.loadSession(), null);
   assert.equal(storage.loadStats(), null);
 });
-
-test("reading.script: 배역 없는 초안은 서버에 보내지 않고 no_characters 로 막는다", async () => {
-  let fetchCount = 0;
-  globalThis.fetch = async () => {
-    fetchCount += 1;
-    return jsonResponse(scriptDetail(), 201);
-  };
-  const draft = updateDraft(updateDraft(newDraft(RAW, "paste"), { exclude: "윤서" }), { exclude: "태오" });
-
-  await assert.rejects(saveScriptDraft(draft, "66666666-6666-4666-8666-666666666666"), (error) => error instanceof DraftRejectedError && error.code === "no_characters");
-  assert.equal(fetchCount, 0);
-  assert.equal(new DraftRejectedError("no_characters").message, "배역이 하나도 없어요. 배역 이름을 적어 주세요.");
-});
-

@@ -25,7 +25,6 @@ function instance(): RecordingQueue {
         duration_ms: entry.durationMs,
         transcript: entry.transcript,
         transcript_source: entry.transcriptSource,
-        matched: entry.matched,
         audio: { uri: entry.uri, name: fileNameFor(entry.contentType), type: entry.contentType },
       }),
     deleteFile: deleteDeviceFile,
@@ -65,7 +64,7 @@ export async function enqueueLineRecording(input: LineRecordingInput): Promise<E
     await deleteDeviceFile(input.uri).catch(() => undefined);
     return { kind: 'rejected', reason: 'missing' };
   }
-  const check = checkRecordingFile({ byteSize, durationMs: input.durationMs });
+  const check = checkRecordingFile({ byteSize, durationMs: input.durationMs, contentType: input.contentType });
   if (!check.ok) {
     await deleteDeviceFile(input.uri).catch(() => undefined);
     return { kind: 'rejected', reason: check.reason };

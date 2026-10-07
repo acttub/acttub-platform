@@ -31,7 +31,9 @@ public record LlmCall(
         /** 실패 종류만 담는다. 예외 메시지는 인증값을 포함할 수 있다. 성공이면 null. */
         String errorMessage,
         /** 코치 세션·응답 번호·막힘 갈래처럼 걸러 볼 때 쓰는 것들. */
-        Map<String, String> metadata) {
+        Map<String, String> metadata,
+        /** 이 호출이 쓴 정적 프롬프트 템플릿. 모르면 null 이고, 그러면 버전 연결을 하지 않는다. */
+        LlmPrompt prompt) {
 
     public LlmCall {
         Objects.requireNonNull(step, "step");
@@ -41,6 +43,19 @@ public record LlmCall(
         input = input == null ? "" : input;
         output = output == null ? "" : output;
         metadata = metadata == null ? Map.of() : Map.copyOf(metadata);
+    }
+
+    /** 프롬프트를 모르는 호출. 호출부가 프롬프트를 실을 때는 {@link #withPrompt} 로 붙인다. */
+    public LlmCall(LlmStep step, UUID practiceSessionId, UUID userId, String model, String input,
+            String output, LlmTokens tokens, Instant startedAt, Duration took, String errorMessage,
+            Map<String, String> metadata) {
+        this(step, practiceSessionId, userId, model, input, output, tokens, startedAt, took, errorMessage,
+                metadata, null);
+    }
+
+    public LlmCall withPrompt(LlmPrompt value) {
+        return new LlmCall(step, practiceSessionId, userId, model, input, output, tokens, startedAt, took,
+                errorMessage, metadata, value);
     }
 
     public boolean failed() {

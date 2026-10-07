@@ -176,6 +176,49 @@ class OpenAiResponsesClientTest {
         assertThat(busy.requests).hasSize(1);
     }
 
+    @Test
+    void optionsWithTheirOwnTimeoutUseATransportBuiltOnceForThatTimeout() {
+        StubTransport bounded = new StubTransport(response(200, "{\"status\":\"completed\",\"output_text\":\"짧게\"}"));
+        StubTransport slow = new StubTransport(response(200, "{\"status\":\"completed\",\"output_text\":\"길게\"}"),
+                response(200, "{\"status\":\"completed\",\"output_text\":\"또 길게\"}"));
+        List<Duration> built = new ArrayList<>();
+        OpenAiResponsesClient client = new OpenAiResponsesClient(OBJECT_MAPPER, bounded, bounded, timeout -> {
+            built.add(timeout);
+            return slow;
+        }, duration -> {}, name -> "OPENAI_API_KEY".equals(name) ? "k" : null);
+        var patient = new GenerationOptions("gpt-6-luna", "low", 128_000, null, null, Duration.ofSeconds(90));
+
+        assertThat(client.generate("s", "i", new GenerationOptions("gpt-5.6-luna", "low", 512, null, null)).text()).isEqualTo("짧게");
+        assertThat(client.generate("s", "i", patient).text()).isEqualTo("길게");
+        assertThat(client.generate("s", "i", patient).text()).as("같은 대기 시간은 전송기를 다시 만들지 않는다").isEqualTo("또 길게");
+        assertThat(built).containsExactly(Duration.ofSeconds(90));
+        assertThat(slow.requests).hasSize(2);
+        assertThat(slow.requests.getLast().body().path("model").asText()).isEqualTo("gpt-6-luna");
+    }
+
+    @Test
+    void nonSuccessStatusesCarryTheStatusAndOnlyBusyAndServerFailuresAreRetryable() {
+        var options = new GenerationOptions("gpt-6-luna", "low", 512, null, null, Duration.ofSeconds(90));
+        StubTransport transport = new StubTransport(response(503, "{}"), response(429, "{}"), response(400, "{}"));
+        OpenAiResponsesClient client = new OpenAiResponsesClient(OBJECT_MAPPER, transport, transport, timeout -> transport,
+                duration -> {}, name -> "OPENAI_API_KEY".equals(name) ? "k" : null);
+
+        assertThatThrownBy(() -> client.generate("s", "i", options)).isInstanceOfSatisfying(OpenAiStatusException.class, failure -> {
+            assertThat(failure.status()).isEqualTo(503);
+            assertThat(failure.retryable()).isTrue();
+        });
+        assertThatThrownBy(() -> client.generate("s", "i", options)).isInstanceOfSatisfying(OpenAiStatusException.class, failure -> {
+            assertThat(failure.status()).isEqualTo(429);
+            assertThat(failure.retryable()).isTrue();
+        });
+        assertThatThrownBy(() -> client.generate("s", "i", options)).isInstanceOfSatisfying(OpenAiStatusException.class, failure -> {
+            assertThat(failure.status()).isEqualTo(400);
+            assertThat(failure.retryable()).isFalse();
+            assertThat(failure).hasMessage("OpenAI 생성 실패: OpenAI가 HTTP 400로 응답했습니다.");
+        });
+        assertThat(transport.requests).hasSize(3);
+    }
+
     private static OpenAiHttpResponse response(int status, String body) {
         return new OpenAiHttpResponse(status, body);
     }

@@ -20,8 +20,9 @@ import org.hibernate.type.SqlTypes;
  *
  * <p>속성(내 배역·방식·구간·넘김·녹음)은 시작할 때 정하고 뒤에 바꾸지 않는다. {@code current_line_id} 는 다음에
  * 할 대사 줄이고 completed 면 NULL 이다. {@code progress_seq} 는 기기가 1씩 늘리는 순번이라 서버는 저장된 값보다
- * 큰 요청만 반영한다. {@code line_results} 는 줄마다 하나인 {@code {line_id, outcome, misses}} 배열이다.
- * 열린 회차는 대본당 하나다(부분 유일 인덱스 — Hibernate 는 검증하지 않는다).
+ * 큰 요청만 반영한다. {@code line_results} 는 줄마다 하나인 {@code {line_id, outcome, misses}} 배열이고
+ * {@code line_said} 는 서버가 원문과 비교한 줄의 말한 것({@code {line_id: 말한 것}})이다. 한 대본에 진행 중 회차가
+ * 여럿일 수 있다.
  */
 @Entity
 @Table(name = "reading_sessions")
@@ -73,6 +74,10 @@ public class ReadingSessionEntity extends AppGeneratedUuidEntity {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "line_results", nullable = false, columnDefinition = "jsonb")
     private JsonNode lineResults;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "line_said", nullable = false, insertable = false, updatable = false, columnDefinition = "jsonb")
+    private JsonNode lineSaid;
 
     @Column(name = "started_at", nullable = false, insertable = false, updatable = false)
     private Instant startedAt;
@@ -159,6 +164,10 @@ public class ReadingSessionEntity extends AppGeneratedUuidEntity {
 
     public JsonNode getLineResults() {
         return lineResults;
+    }
+
+    public JsonNode getLineSaid() {
+        return lineSaid;
     }
 
     public Instant getStartedAt() {
