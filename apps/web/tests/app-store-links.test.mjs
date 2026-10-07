@@ -10,12 +10,16 @@ const {
   APP_DOWNLOAD_ATTR,
   APP_DOWNLOAD_FINAL_STORE_ATTR,
   APP_DOWNLOAD_STORE_ATTR,
+  APP_STORE_CAMPAIGN_BASE_URL,
+  APP_STORE_CAMPAIGN_TOKEN_MAX_LENGTH,
+  APP_STORE_PROVIDER_TOKEN,
   APP_STORE_URL,
   GOOGLE_PLAY_URL,
   STORE_CAMPAIGN_PARAMS,
   STORE_CAMPAIGN_VALUE_MAX_LENGTH,
   STORE_LINK_SURFACES,
   STORE_ORDER,
+  appStoreCampaignToken,
   buildAppDownloadBootstrapScript,
   detectMobileOs,
   downloadHrefFor,
@@ -69,6 +73,10 @@ test("스토어 주소의 앱 식별자는 모바일 제출 설정과 같다", (
   );
   assert.equal(
     APP_STORE_URL.match(/\/id(\d+)$/)[1],
+    easJson.submit.production.ios.ascAppId,
+  );
+  assert.equal(
+    APP_STORE_CAMPAIGN_BASE_URL.match(/\/id(\d+)$/)[1],
     easJson.submit.production.ios.ascAppId,
   );
 });
@@ -140,11 +148,56 @@ test("인스타그램 source만으로 paid를 추정하지 않고 paid_social이
   );
 });
 
-test("App Store 주소는 UTM이 있어도 그대로이며 ct와 pt를 만들지 않는다", () => {
-  const href = storeHref("app_store", "app_page", PAID_SEARCH);
-  assert.equal(href, APP_STORE_URL);
-  assert.equal(new URL(href).searchParams.get("ct"), null);
-  assert.equal(new URL(href).searchParams.get("pt"), null);
+function appStoreParams(href) {
+  return new URL(href).searchParams;
+}
+
+test("App Store 주소는 App Store Connect 캠페인 링크 형식으로 pt와 ct를 담는다", () => {
+  assert.equal(APP_STORE_PROVIDER_TOKEN, "127135371");
+  assert.equal(
+    storeHref("app_store", "app_page", PAID_SEARCH),
+    "https://apps.apple.com/app/apple-store/id6793056855?pt=127135371&ct=app_launch&mt=8",
+  );
+  const params = appStoreParams(storeHref("app_store", "app_page", PAID_SEARCH));
+  assert.deepEqual([...params.keys()], ["pt", "ct", "mt"]);
+  assert.equal(params.get("fbclid"), null);
+  assert.equal(params.get("utm_source"), null);
+});
+
+test("App Store ct는 utm_campaign을 쓰고, 없으면 Play와 같은 기본 귀속을 쓴다", () => {
+  assert.equal(appStoreCampaignToken("landing_cta"), "acttub_web_landing_cta");
+  assert.equal(
+    appStoreCampaignToken("app_page", "?utm_source=instagram"),
+    "instagram_app_page",
+  );
+  assert.equal(
+    appStoreCampaignToken(
+      "app_page",
+      "?utm_source=filmmakers&utm_medium=community",
+    ),
+    "filmmakers_community",
+  );
+  assert.equal(
+    appStoreCampaignToken(
+      "app_page",
+      "?utm_source=instagram&utm_medium=paid_social&utm_campaign=shagal_web_202610",
+    ),
+    "shagal_web_202610",
+  );
+  assert.equal(
+    appStoreCampaignToken("app_page", "?utm_campaign=%3Cscript%3E&fbclid=x"),
+    "acttub_web_app_page",
+  );
+});
+
+test("App Store ct는 App Store Connect 한도인 30자를 넘지 않는다", () => {
+  const value = "a".repeat(STORE_CAMPAIGN_VALUE_MAX_LENGTH);
+  const token = appStoreCampaignToken("app_page", `?utm_campaign=${value}`);
+  assert.equal(token.length, APP_STORE_CAMPAIGN_TOKEN_MAX_LENGTH);
+  assert.equal(
+    appStoreCampaignToken("landing_app_section", "?utm_source=a_very_long_source_name"),
+    "a_very_long_source_name_landin",
+  );
 });
 
 test("허용 UTM은 /app과 /go 경유에서도 보존되고 금지 쿼리는 제거된다", () => {
@@ -356,7 +409,16 @@ test("bootstrap은 배지의 /go와 /go 최종 링크에서도 같은 UTM 규칙
       search: PAID_SEARCH,
       finalStore: "app_store",
     }).patchedHref,
-    APP_STORE_URL,
+    storeHref("app_store", "app_page", PAID_SEARCH),
+  );
+  assert.equal(
+    runBootstrap({
+      userAgent: IPHONE_UA,
+      maxTouchPoints: 5,
+      surface: "landing_cta",
+      finalStore: "app_store",
+    }).patchedHref,
+    storeHref("app_store", "landing_cta"),
   );
 });
 
