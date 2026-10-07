@@ -1226,6 +1226,8 @@ const en: DeepStringShape<typeof ko> = {
     downloadNow: 'Download',
     voiceFailTitle: 'Couldn’t get the partner voice ready',
     voiceRetry: 'Download again',
+    saidLabel: 'What you just said',
+    noSpeechYet: 'Nothing recognized yet',
     myTurn: 'Your turn',
     listening: 'Listening',
     showOriginal: 'Show the text',

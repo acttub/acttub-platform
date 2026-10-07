@@ -101,15 +101,16 @@ export function ensureReady(onProgress: ProgressFn = () => {}): Promise<void> {
       graphOptimizationLevel: 'all',
       intraOpNumThreads: Math.max(1, cfg.threads),
     };
-    report({ phase: 'load' });
+    report({ phase: 'load', done: 0, total: MODEL_KINDS.length });
     const sessions: any = {};
     try {
-      for (const k of MODEL_KINDS) {
+      for (const [i, k] of MODEL_KINDS.entries()) {
         try {
           sessions[k] = await loadOnnx(assets.modelPaths[k], options);
         } catch (e: any) {
           sessions[k] = await loadOnnx(assets.modelPaths[k], { ...options, executionProviders: ['cpu'] });
         }
+        report({ phase: 'load', done: i + 1, total: MODEL_KINDS.length });
       }
       style = loadVoiceStyleFromObjects([assets.style]);
       styles.set(cfg.preset, style);

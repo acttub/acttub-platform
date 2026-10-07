@@ -146,8 +146,10 @@ test('준비 진행: 먼저 시작한 준비를 나중에 온 화면도 함께 �
   release();
   await Promise.all([first,second]);
   assert.equal(state.downloads,1);
-  assert.deepEqual(early,['download','download','load','ready']);
-  assert.deepEqual(late,['download','download','load','ready']);
+  // 불러오기는 시작(0개)과 모델을 하나 올릴 때마다 알린다(SOMA-631 퍼센트)
+  const loads=2; // 가짜 assets 의 MODEL_KINDS 는 1개다
+  assert.deepEqual(early,['download','download',...Array(loads).fill('load'),'ready']);
+  assert.deepEqual(late,['download','download',...Array(loads).fill('load'),'ready']);
   assert.equal(engine.isReady(),true);
 });
 

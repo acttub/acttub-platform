@@ -16,11 +16,12 @@ test('reading.recording: 인식기 녹음은 기기가 지원할 때만 켠다',
   assert.match(stt, /canPersist/);
 });
 
-test('reading.recording: 인식기 파일은 audioend 를 기다려 가져간다', () => {
+test('reading.recording: 인식기 파일은 떼어 낸 뒤 audioend 를 기다려 가져간다(넘김은 기다리지 않는다, SOMA-631)', () => {
   const stt = read('hooks/use-reading-stt.ts');
-  assert.match(stt, /takeRecordingAsync/);
+  assert.match(stt, /recordings\.detach\(\)/);
+  assert.match(stt, /recordings\.audioEnd\(/);
   const play = read('app/reading/play.tsx');
-  assert.match(play, /await stt\.takeRecordingAsync\(\)/);
+  assert.match(play, /uri = await detached/);
   assert.doesNotMatch(play, /uri = stt\.takeRecordingUri\(\)/);
 });
 

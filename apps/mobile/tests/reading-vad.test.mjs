@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import { DEFAULT_VAD, createSilenceDetector, meteringToRms } from '../lib/reading/vad.ts';
@@ -52,4 +53,25 @@ test('reading.session: 녹음기의 dBFS 미터링을 RMS(0~1)로 바꾼다 — 
   assert.equal(meteringToRms(-160), 1e-8);
   assert.equal(meteringToRms(undefined), 0);
   assert.equal(meteringToRms(Number.NaN), 0);
+});
+
+test('reading.session: 음량 사건이 조용해진 뒤 끊겨도 마지막 값을 0.1초마다 다시 넣어 1.8초 뒤 넘긴다(SOMA-631)', async () => {
+  const { createVolumeFeed } = await import('../lib/reading/vad.ts');
+  let now = 0;
+  const events = [];
+  const feed = createVolumeFeed(createSilenceDetector(DEFAULT_VAD, 0), (e) => events.push([e, now]), () => now);
+  // 안드로이드 인식기: 말하는 동안만 값이 오고, 조용해지면 한 번 낮은 값이 온 뒤 끊긴다
+  for (now = 0; now <= 600; now += 80) feed.volume(0.5);
+  now = 680;
+  feed.volume(0);
+  for (now = 700; now <= 3000; now += 100) feed.tick();
+  assert.deepEqual(events.map(([e]) => e), ['speech_start', 'speech_end']);
+  const endAt = events[1][1];
+  assert.ok(endAt >= 600 + 1800 && endAt <= 600 + 1800 + 100, `1.8초 침묵 직후에 넘긴다(${endAt})`);
+});
+
+test('reading.session: 인식기 듣기는 듣는 동안 0.1초마다 침묵을 다시 잰다', () => {
+  const stt = readFileSync(new URL('../hooks/use-reading-stt.ts', import.meta.url), 'utf8');
+  assert.match(stt, /createVolumeFeed\(/);
+  assert.match(stt, /setInterval\(\(\) => volumeFeed\.current\?\.tick\(\), VAD_TICK_MS\)/);
 });

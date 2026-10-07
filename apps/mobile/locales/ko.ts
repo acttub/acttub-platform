@@ -1214,6 +1214,8 @@ const ko = {
     downloadNow: '내려받기',
     voiceFailTitle: '상대역 목소리를 준비하지 못했어요',
     voiceRetry: '다시 받기',
+    saidLabel: '방금 말한 것',
+    noSpeechYet: '아직 인식된 말이 없어요',
     myTurn: '내 차례',
     listening: '듣는 중',
     showOriginal: '원문 보기',

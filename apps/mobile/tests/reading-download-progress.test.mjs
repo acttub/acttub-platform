@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
 
-import { createDownloadProgress, formatDownloadProgress } from '../lib/reading/tts/download-progress.ts';
+import { createDownloadProgress, formatDownloadProgress, loadPercent } from '../lib/reading/tts/download-progress.ts';
+
+const read = (rel) => readFileSync(path.join(path.resolve(import.meta.dirname, '..'), rel), 'utf8');
 
 const MB = 1024 * 1024;
 const files = [
@@ -114,4 +118,23 @@ test('다운로드 문구: 남은 시간을 모르면 크기만, 1분 안이면 
 test('다운로드 문구: 받은 양은 내림이라 끝나기 전엔 전체와 같아 보이지 않는다', () => {
   const line = formatDownloadProgress({ receivedBytes: 380 * MB - 1, totalBytes: 380 * MB, percent: 99, etaSeconds: null }, tr);
   assert.equal(line, '379 / 380MB');
+});
+
+test('reading.cast: 목소리 불러오기는 모델 4개 + 첫 대사 만들기 5단계를 퍼센트로 보인다(SOMA-631)', () => {
+  assert.equal(loadPercent({ phase: 'load', done: 0, total: 4 }), 0);
+  assert.equal(loadPercent({ phase: 'load', done: 1, total: 4 }), 20);
+  assert.equal(loadPercent({ phase: 'load', done: 4, total: 4 }), 80);
+  // 모델을 다 올리고 첫 대사를 만드는 중
+  assert.equal(loadPercent({ phase: 'ready' }, 4), 80);
+  // 다운로드 중이거나 아직 아무 보고가 없으면 이 숫자를 쓰지 않는다
+  assert.equal(loadPercent({ phase: 'download', receivedBytes: 1, totalBytes: 2, percent: 50, etaSeconds: null }), null);
+  assert.equal(loadPercent(null), null);
+});
+
+test('reading.cast: 엔진이 모델을 하나 올릴 때마다 진행을 알리고, 준비 화면이 퍼센트를 그린다', () => {
+  const engine = read('lib/reading/tts/engine.ts');
+  assert.match(engine, /report\(\{ phase: 'load', done: [^,]+, total: MODEL_KINDS\.length \}\)/);
+  const play = read('app/reading/play.tsx');
+  assert.match(play, /loadPercent\(progress\)/);
+  assert.match(play, /accessibilityRole="progressbar"[^>]*now: percent/s);
 });

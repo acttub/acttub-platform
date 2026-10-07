@@ -55,7 +55,7 @@ import {
 } from '@/lib/reading/store';
 import type { SttPolicy } from '@/lib/reading/stt-policy';
 import { assetsPresent, modelDownloadBytes, removeDownloadedAssets } from '@/lib/reading/tts/assets';
-import { formatDownloadProgress, type VoiceProgress } from '@/lib/reading/tts/download-progress';
+import { formatDownloadProgress, loadPercent, type VoiceProgress } from '@/lib/reading/tts/download-progress';
 import { voiceErrorKind, type VoiceErrorKind } from '@/lib/reading/tts/voice-errors';
 import { hasDeviceVoice, speakWithDevice, stopDeviceVoice } from '@/lib/reading/tts/device-voice';
 import * as tts from '@/lib/reading/tts/engine';
@@ -157,6 +157,8 @@ export default function ReadingPlay() {
   const [aid, setAid] = useState<LineAid>('none');
   const [turnNote, setTurnNote] = useState<TurnNote>(null);
   const [listening, setListening] = useState(false);
+  /** 내 차례에 인식기가 지금까지 알아들은 글(중간 결과). 대사 아래 「방금 말한 것」에 보인다. */
+  const [said, setSaid] = useState('');
   const [notice, setNotice] = useState<Notice>(null);
   const [attempt, setAttempt] = useState(0);
   const [sttMode, setSttMode] = useState<SttPolicy | null>(null);
@@ -296,29 +298,14 @@ export default function ReadingPlay() {
    * 내 차례의 녹음을 거둬 큐에 넣는다(reading.recording). STT 가 켜져 있으면 인식기가 남긴 파일(wav)을, 아니면
    * 녹음기 파일(m4a)을 쓴다. 상대역 재생·일시정지 구간의 소리는 마이크가 닫혀 있어 들어가지 않는다.
    * 너무 길거나 커서 보내지 못한 녹음은 위쪽에 「녹음 N개 저장 못 함」으로 잠깐 알리고 진행은 막지 않는다.
+   *
+   * 인식기 녹음은 여기서 동기로 떼어 내고(다음 줄과 섞이지 않게) 녹음기는 닫는 데까지만 기다린다. 파일이 다
+   * 써지기를 기다리고 큐에 넣는 일은 돌려준 settled 에서 뒤에 한다 — 부르는 쪽은 그걸 기다리지 않고 다음 줄로
+   * 넘긴다(SOMA-631: audioend 대기 때문에 자동 넘김이 느려졌다).
    */
-  const endTurnRecording = useCallback(
-    async (lineId: string, text: string): Promise<void> => {
-      const sttUsed = sttActive.current;
-      let uri: string | null = null;
-      let durationMs = Math.max(0, Date.now() - turnStartedAt.current);
-      let kind: 'recorder' | 'stt_persist' = 'recorder';
-      if (sttUsed) {
-        uri = await stt.takeRecordingAsync();
-        kind = 'stt_persist';
-      }
-      const fromMic = await mic.stop();
-      if (fromMic) {
-        uri = fromMic.uri ?? uri;
-        durationMs = fromMic.durationMs || durationMs;
-        kind = fromMic.uri ? 'recorder' : kind;
-      }
-      if (voiceFeedbackOn.current) collectPronunciation(lineId, sttUsed ? text : '', uri ? { uri, contentType: contentTypeFor(uri, kind) } : null);
-      if (!uri) return;
-      if (!session?.record || recordingClosed.current) {
-        await deleteDeviceFile(uri).catch(() => undefined);
-        return;
-      }
+  const enqueueTurn = useCallback(
+    async (lineId: string, text: string, sttUsed: boolean, uri: string, kind: 'recorder' | 'stt_persist', durationMs: number) => {
+      if (!session) return;
       const attemptNo = nextAttemptNo(attempts.current, lineId);
       attempts.current[lineId] = attemptNo;
       const fields = transcriptFields({ sttUsed, text });
@@ -340,7 +327,40 @@ export default function ReadingPlay() {
         flash({ kind: 'dropped', count: 1 });
       }
     },
-    [collectPronunciation, flash, mic, session, stt],
+    [flash, session],
+  );
+
+  const endTurnRecording = useCallback(
+    async (lineId: string, text: string): Promise<{ settled: Promise<void> }> => {
+      const sttUsed = sttActive.current;
+      const detached = sttUsed ? stt.detachRecording() : Promise.resolve(null);
+      const closed = recordingClosed.current;
+      const startedAt = turnStartedAt.current;
+      const fromMic = await mic.stop();
+      const settled = (async () => {
+        let uri: string | null = null;
+        let durationMs = Math.max(0, Date.now() - startedAt);
+        let kind: 'recorder' | 'stt_persist' = 'recorder';
+        if (sttUsed) {
+          uri = await detached;
+          kind = 'stt_persist';
+        }
+        if (fromMic) {
+          uri = fromMic.uri ?? uri;
+          durationMs = fromMic.durationMs || durationMs;
+          kind = fromMic.uri ? 'recorder' : kind;
+        }
+        if (voiceFeedbackOn.current) collectPronunciation(lineId, sttUsed ? text : '', uri ? { uri, contentType: contentTypeFor(uri, kind) } : null);
+        if (!uri) return;
+        if (!session?.record || closed) {
+          await deleteDeviceFile(uri).catch(() => undefined);
+          return;
+        }
+        await enqueueTurn(lineId, text, sttUsed, uri, kind, durationMs);
+      })().catch(() => undefined);
+      return { settled };
+    },
+    [collectPronunciation, enqueueTurn, mic, session, stt],
   );
 
   const commit = useCallback((next: RunState) => {
@@ -612,6 +632,7 @@ export default function ReadingPlay() {
     if (phase.kind !== 'running' || tipOpen || !run || run.status !== 'mine' || !session) return;
     const from = run.index;
     setAid('none');
+    setSaid('');
     setTurnNote(null);
     let cancelled = false;
     const onEvent = (event: VadEvent) => {
@@ -636,7 +657,7 @@ export default function ReadingPlay() {
       // 녹음이 켜진 회차인데 이 기기의 인식기가 소리를 남기지 못하면 녹음기로 받는다 — 받아쓰기보다 녹음이 먼저다.
       const recordOverStt = !!(session.record && !stt.canPersist());
       if (sttMode?.kind === 'stt' && !recordOverStt) {
-        const ok = stt.start({ onEvent, onInterim: () => undefined }, { persist: !!session.record || (voiceFeedbackOn.current && !!pronunciationServerUrl()) });
+        const ok = stt.start({ onEvent, onInterim: setSaid }, { persist: !!session.record || (voiceFeedbackOn.current && !!pronunciationServerUrl()) });
         sttActive.current = ok;
         opened = ok;
       }
@@ -840,12 +861,27 @@ export default function ReadingPlay() {
         </View>
       );
     }
+    // 모델을 올리는 중·첫 대사를 만드는 중이면 끝난 단계를 퍼센트로 보인다(SOMA-631). 그 앞은 셀 것이 없어 스피너만.
+    const percent = loadPercent(progress);
+    if (percent !== null) {
+      return (
+        <View style={[styles.root, styles.center]}>
+          <View style={styles.downloadCard}>
+            <ActivityIndicator color={palette.blue} />
+            <Text style={styles.loadTitle}>{t('reading.voiceLoadTitle')}</Text>
+            <View style={styles.downloadTrack} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: percent }}>
+              <View style={[styles.downloadFill, { width: `${percent}%` }]} />
+            </View>
+            <Text style={styles.progressLine}>{`${percent}%`}</Text>
+          </View>
+          {dialog}
+        </View>
+      );
+    }
     return (
       <View style={[styles.root, styles.center]}>
         <ActivityIndicator color={palette.blue} />
-        <Text style={styles.loadTitle}>
-          {progress?.phase === 'load' || progress?.phase === 'ready' ? t('reading.voiceLoadTitle') : t('reading.voicePreparing')}
-        </Text>
+        <Text style={styles.loadTitle}>{t('reading.voicePreparing')}</Text>
         {dialog}
       </View>
     );
@@ -1093,6 +1129,13 @@ export default function ReadingPlay() {
             )}
           </View>
         )}
+
+        {isDialogue && myTurn && sttMode?.kind === 'stt' && (
+          <View style={styles.saidBox}>
+            <Text style={styles.saidLabel}>{t('reading.saidLabel')}</Text>
+            <Text style={styles.saidText}>{said || t('reading.noSpeechYet')}</Text>
+          </View>
+        )}
       </ScrollView>
 
       {!!hint && <Text style={styles.hint}>{hint}</Text>}
@@ -1256,6 +1299,9 @@ const styles = StyleSheet.create({
   chip: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   chipText: { color: palette.textMuted, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
   chipTextMine: { color: palette.blueDeep },
+  saidBox: { backgroundColor: palette.bgSubtle, borderRadius: 12, padding: 12, gap: 4 },
+  saidLabel: { color: palette.textFaint, fontFamily: 'Pretendard-SemiBold', fontSize: 11 },
+  saidText: { color: palette.text, fontFamily: 'Pretendard', fontSize: 14, lineHeight: 20 },
   lineText: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 20, lineHeight: 30 },
   firstWordRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   firstWordRest: { flex: 1 },
