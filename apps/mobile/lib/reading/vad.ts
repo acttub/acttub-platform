@@ -68,6 +68,28 @@ export function createSilenceDetector(opts: VadOptions, startedAt: number): Sile
   };
 }
 
+/** 인식기 음량을 다시 넣는 간격(ms). */
+export const VAD_TICK_MS = 100;
+
+/**
+ * 음량이 띄엄띄엄 오는 입력(플랫폼 인식기)용. 안드로이드 인식기는 조용해지면 음량 사건을 보내지 않아, 다음 사건이
+ * 올 때까지 침묵을 재지 못해 넘김이 수 초 늦었다(SOMA-631). volume 으로 받은 마지막 값을 tick 마다 다시 넣는다.
+ */
+export function createVolumeFeed(detector: SilenceDetector, emit: (event: VadEvent) => void, now: () => number = Date.now) {
+  let last = 0;
+  const push = () => {
+    const event = detector.feed(last, now());
+    if (event !== 'none') emit(event);
+  };
+  return {
+    volume(rms: number) {
+      last = rms;
+      push();
+    },
+    tick: push,
+  };
+}
+
 /** 녹음기 미터링(dBFS, 0 이 최대)을 0~1 진폭으로. 값이 없으면 0(조용함). */
 export function meteringToRms(db: number | undefined | null): number {
   if (typeof db !== 'number' || Number.isNaN(db)) return 0;

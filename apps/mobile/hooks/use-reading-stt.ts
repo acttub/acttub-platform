@@ -5,7 +5,7 @@ import { useCallback, useRef } from 'react';
 import { speechLocale } from '@/lib/i18n';
 import { sttPolicy, type SttPolicy } from '@/lib/reading/stt-policy';
 import { createRecordingTracker } from '@/lib/reading/stt-recordings';
-import { DEFAULT_VAD, createSilenceDetector, type SilenceDetector, type VadEvent } from '@/lib/reading/vad';
+import { DEFAULT_VAD, VAD_TICK_MS, createSilenceDetector, createVolumeFeed, type VadEvent } from '@/lib/reading/vad';
 
 /**
  * 플랫폼 STT(reading.session · reading.memorization). 기기 안 처리를 보장할 때만 켠다 — iOS 는
@@ -68,18 +68,24 @@ export function sttCanPersist(): boolean {
 export function useReadingStt(): SttHandle {
   const text = useRef('');
   const active = useRef(false);
-  const detector = useRef<SilenceDetector | null>(null);
+  const volumeFeed = useRef<ReturnType<typeof createVolumeFeed> | null>(null);
+  const ticker = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stopTicking = useCallback(() => {
+    if (ticker.current) clearInterval(ticker.current);
+    ticker.current = null;
+    volumeFeed.current = null;
+  }, []);
   const callbacks = useRef<{ onEvent: (event: VadEvent) => void; onInterim: (text: string) => void } | null>(null);
   const settle = useRef<((text: string) => void) | null>(null);
   const recordings = useRef(createRecordingTracker()).current;
 
-  const finishNow = (value: string) => {
+  const finishNow = useCallback((value: string) => {
     active.current = false;
-    detector.current = null;
+    stopTicking();
     const resolve = settle.current;
     settle.current = null;
     resolve?.(value);
-  };
+  }, [stopTicking]);
 
   useSpeechRecognitionEvent('result', (event) => {
     if (!active.current) return;
@@ -91,9 +97,8 @@ export function useReadingStt(): SttHandle {
     if (event.isFinal && settle.current) finishNow(text.current);
   });
   useSpeechRecognitionEvent('volumechange', (event) => {
-    if (!active.current || !detector.current) return;
-    const vad = detector.current.feed(sttVolumeToRms(event.value), Date.now());
-    if (vad !== 'none') callbacks.current?.onEvent(vad);
+    if (!active.current) return;
+    volumeFeed.current?.volume(sttVolumeToRms(event.value));
   });
   useSpeechRecognitionEvent('audioend', (event) => {
     recordings.audioEnd(event?.uri);
@@ -110,7 +115,9 @@ export function useReadingStt(): SttHandle {
     const persist = !!options?.persist && sttCanPersist();
     recordings.begin(persist);
     callbacks.current = next;
-    detector.current = createSilenceDetector(DEFAULT_VAD, Date.now());
+    stopTicking();
+    volumeFeed.current = createVolumeFeed(createSilenceDetector(DEFAULT_VAD, Date.now()), (vad) => callbacks.current?.onEvent(vad));
+    ticker.current = setInterval(() => volumeFeed.current?.tick(), VAD_TICK_MS);
     try {
       ExpoSpeechRecognitionModule.start({
         lang: speechLocale(),
@@ -126,10 +133,11 @@ export function useReadingStt(): SttHandle {
       return true;
     } catch {
       active.current = false;
+      stopTicking();
       recordings.discard();
       return false;
     }
-  }, [recordings]);
+  }, [recordings, stopTicking]);
 
   const finish = useCallback((): Promise<string> => {
     if (!active.current) return Promise.resolve(text.current);
@@ -146,19 +154,19 @@ export function useReadingStt(): SttHandle {
         if (settle.current === resolve) finishNow(text.current);
       }, 2_500);
     });
-  }, [recordings]);
+  }, [finishNow, recordings]);
 
   const abort = useCallback(() => {
     // 이미 finish 로 멈춘 듣기는 끊지 않는다 — 떼어 낸 녹음 파일을 인식기가 마저 쓰는 중일 수 있다.
     const listening = active.current || settle.current !== null;
     settle.current = null;
     active.current = false;
-    detector.current = null;
+    stopTicking();
     if (!listening) return;
     try {
       ExpoSpeechRecognitionModule.abort();
     } catch {}
-  }, []);
+  }, [stopTicking]);
 
   const takeRecordingUri = useCallback((): string | null => recordings.discard(), [recordings]);
 
