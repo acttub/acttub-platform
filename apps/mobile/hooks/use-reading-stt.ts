@@ -4,6 +4,7 @@ import { useCallback, useRef } from 'react';
 
 import { speechLocale } from '@/lib/i18n';
 import { sttPolicy, type SttPolicy } from '@/lib/reading/stt-policy';
+import { createRecordingTracker } from '@/lib/reading/stt-recordings';
 import { DEFAULT_VAD, createSilenceDetector, type SilenceDetector, type VadEvent } from '@/lib/reading/vad';
 
 /**
@@ -44,18 +45,16 @@ export type SttHandle = {
   /** 듣기를 끝내고 최종 글을 받는다. 못 알아들었으면 빈 글. */
   finish: () => Promise<string>;
   abort: () => void;
-  /** 마지막 듣기가 남긴 파일 uri(persist 였을 때). 가져가면 비운다. 지울 때만 쓴다 — 아직 덜 써졌을 수 있다. */
+  /** 끝나지 않고 닫힌 듣기의 조각 파일 uri(persist 였을 때). 지울 때만 쓴다 — 아직 덜 써졌을 수 있다. */
   takeRecordingUri: () => string | null;
   /**
-   * 녹음 파일을 가져간다. 인식기는 audioend 뒤에야 파일을 다 쓴다 — 안드로이드 연속 인식은 첫 확정 결과에서
-   * finish 가 끝나 audioend 보다 앞설 수 있어, 최대 1.5초 기다린다. 없으면 null.
+   * finish 뒤 이 줄의 녹음을 떼어 낸다(동기로 불러야 다음 줄과 섞이지 않는다). 인식기는 audioend 뒤에야 파일을
+   * 다 쓰므로 그때(최대 1.5초) 파일 uri 로 끝나고, 없으면 null. 기다리는 동안 다음 줄로 넘어가도 된다(SOMA-631).
    */
-  takeRecordingAsync: () => Promise<string | null>;
+  detachRecording: () => Promise<string | null>;
   /** 이 기기에서 인식기가 들은 소리를 파일로 남길 수 있는가(Android 13+·iOS). */
   canPersist: () => boolean;
 };
-
-const AUDIOEND_WAIT_MS = 1_500;
 
 /** 인식기 녹음 지원 여부. 안 되는 기기에서 persist 를 켜면 소리 없는 파일이 남는다. */
 export function sttCanPersist(): boolean {
@@ -72,10 +71,7 @@ export function useReadingStt(): SttHandle {
   const detector = useRef<SilenceDetector | null>(null);
   const callbacks = useRef<{ onEvent: (event: VadEvent) => void; onInterim: (text: string) => void } | null>(null);
   const settle = useRef<((text: string) => void) | null>(null);
-  const recordingUri = useRef<string | null>(null);
-  /** persist 로 시작해 아직 audioend 를 못 받았다. */
-  const awaitingAudioEnd = useRef(false);
-  const audioEndWaiter = useRef<(() => void) | null>(null);
+  const recordings = useRef(createRecordingTracker()).current;
 
   const finishNow = (value: string) => {
     active.current = false;
@@ -100,9 +96,7 @@ export function useReadingStt(): SttHandle {
     if (vad !== 'none') callbacks.current?.onEvent(vad);
   });
   useSpeechRecognitionEvent('audioend', (event) => {
-    if (event?.uri) recordingUri.current = event.uri;
-    awaitingAudioEnd.current = false;
-    audioEndWaiter.current?.();
+    recordings.audioEnd(event?.uri);
   });
   useSpeechRecognitionEvent('end', () => {
     if (active.current || settle.current) finishNow(text.current);
@@ -113,9 +107,8 @@ export function useReadingStt(): SttHandle {
 
   const start = useCallback<SttHandle['start']>((next, options) => {
     text.current = '';
-    recordingUri.current = null;
     const persist = !!options?.persist && sttCanPersist();
-    awaitingAudioEnd.current = persist;
+    recordings.begin(persist);
     callbacks.current = next;
     detector.current = createSilenceDetector(DEFAULT_VAD, Date.now());
     try {
@@ -133,15 +126,16 @@ export function useReadingStt(): SttHandle {
       return true;
     } catch {
       active.current = false;
-      awaitingAudioEnd.current = false;
+      recordings.discard();
       return false;
     }
-  }, []);
+  }, [recordings]);
 
   const finish = useCallback((): Promise<string> => {
     if (!active.current) return Promise.resolve(text.current);
     return new Promise((resolve) => {
       settle.current = resolve;
+      recordings.stopping();
       try {
         ExpoSpeechRecognitionModule.stop();
       } catch {
@@ -152,37 +146,25 @@ export function useReadingStt(): SttHandle {
         if (settle.current === resolve) finishNow(text.current);
       }, 2_500);
     });
-  }, []);
+  }, [recordings]);
 
   const abort = useCallback(() => {
+    // 이미 finish 로 멈춘 듣기는 끊지 않는다 — 떼어 낸 녹음 파일을 인식기가 마저 쓰는 중일 수 있다.
+    const listening = active.current || settle.current !== null;
     settle.current = null;
     active.current = false;
     detector.current = null;
-    awaitingAudioEnd.current = false;
-    audioEndWaiter.current?.();
+    if (!listening) return;
     try {
       ExpoSpeechRecognitionModule.abort();
     } catch {}
   }, []);
 
-  const takeRecordingUri = useCallback((): string | null => {
-    const uri = recordingUri.current;
-    recordingUri.current = null;
-    return uri;
-  }, []);
+  const takeRecordingUri = useCallback((): string | null => recordings.discard(), [recordings]);
 
-  const takeRecordingAsync = useCallback(async (): Promise<string | null> => {
-    if (!recordingUri.current && awaitingAudioEnd.current) {
-      await new Promise<void>((resolve) => {
-        const timer = setTimeout(() => { audioEndWaiter.current = null; resolve(); }, AUDIOEND_WAIT_MS);
-        audioEndWaiter.current = () => { clearTimeout(timer); audioEndWaiter.current = null; resolve(); };
-      });
-    }
-    awaitingAudioEnd.current = false;
-    return takeRecordingUri();
-  }, [takeRecordingUri]);
+  const detachRecording = useCallback((): Promise<string | null> => recordings.detach(), [recordings]);
 
   const canPersist = useCallback(() => sttCanPersist(), []);
 
-  return { start, finish, abort, takeRecordingUri, takeRecordingAsync, canPersist };
+  return { start, finish, abort, takeRecordingUri, detachRecording, canPersist };
 }
