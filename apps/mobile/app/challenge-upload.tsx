@@ -22,6 +22,13 @@ import {
   videoTooLong,
   type EntryAttempt,
 } from '@/lib/challenge/entry';
+import {
+  CHALLENGE_FUNNEL_EVENTS,
+  submitFailedParams,
+  uploadFailedParams,
+  uploadParams,
+  visibilityParams,
+} from '@/lib/challenge/funnel';
 import { CAPTION_MAX, type ChallengeDetail, type EntryVisibility } from '@/lib/challenge/types';
 import { useAuth } from '@/lib/auth';
 import { translate as t } from '@/lib/i18n';
@@ -67,12 +74,18 @@ export default function ChallengeUploadScreen() {
     if (!recorded || !user?.id || params.videoId) return;
     setLocalUri(recorded.uri);
     if (videoTooLong(recorded.durationMs)) {
+      void logEvent(CHALLENGE_FUNNEL_EVENTS.uploadFailed, uploadFailedParams('video_too_long'));
       setError(t('challengeUpload.errTooLong'));
       return;
     }
+    void logEvent(CHALLENGE_FUNNEL_EVENTS.uploadStarted, uploadParams('new'));
     void saveRecordingToLibrary({ uri: recorded.uri, durationMs: recorded.durationMs, owner: user.id }).then((outcome) => {
-      if (outcome.kind === 'queued') setPendingId(outcome.entry.id);
-      else setError(t('challengeUpload.errTooLong'));
+      if (outcome.kind === 'queued') {
+        setPendingId(outcome.entry.id);
+        return;
+      }
+      void logEvent(CHALLENGE_FUNNEL_EVENTS.uploadFailed, uploadFailedParams(outcome.code));
+      setError(t('challengeUpload.errTooLong'));
     });
   }, [params.videoId, user?.id]);
 
@@ -81,11 +94,18 @@ export default function ChallengeUploadScreen() {
     if (!pendingId || videoId) return;
     const check = () => {
       const confirmed = confirmedVideoFor(pendingId);
-      if (confirmed) setVideoId(confirmed);
+      if (!confirmed) return;
+      void logEvent(CHALLENGE_FUNNEL_EVENTS.uploadSucceeded, uploadParams('new'));
+      setVideoId(confirmed);
     };
     check();
     return onLibraryChange(check);
   }, [pendingId, videoId]);
+
+  // 보관함에서 고른 영상은 이미 올라가 있다 — 업로드 단계를 통과한 것으로 센다(SOMA-616).
+  useEffect(() => {
+    if (params.videoId) void logEvent(CHALLENGE_FUNNEL_EVENTS.uploadSucceeded, uploadParams('library'));
+  }, [params.videoId]);
 
   // 보관함에서 고른 영상은 기기 복사본이 있으면 미리보기로 쓴다.
   useEffect(() => {
@@ -101,6 +121,11 @@ export default function ChallengeUploadScreen() {
       .catch(() => setError(t('challenges.notFound')));
   }, [challengeId]);
 
+  const chooseVisibility = (next: EntryVisibility) => {
+    if (next !== visibility) void logEvent(CHALLENGE_FUNNEL_EVENTS.visibilitySelected, visibilityParams(next));
+    setVisibility(next);
+  };
+
   const submit = useCallback(async () => {
     if (!challengeId || lockRef.current || submitting) return;
     if (!visibility) return;
@@ -109,6 +134,7 @@ export default function ChallengeUploadScreen() {
       if (pendingId && user?.id) await flushLibraryUploads(user.id);
       const confirmed = pendingId ? confirmedVideoFor(pendingId) : null;
       if (!confirmed) {
+        void logEvent(CHALLENGE_FUNNEL_EVENTS.uploadFailed, uploadFailedParams('still_uploading'));
         setError(t('challengeUpload.waitingVideo'));
         return;
       }
@@ -127,6 +153,7 @@ export default function ChallengeUploadScreen() {
       setCreated({ id: entry.id, visibility });
     } catch (e) {
       const failure = entryFailure(e);
+      void logEvent(CHALLENGE_FUNNEL_EVENTS.submitFailed, submitFailedParams(failure));
       if (failure.kind === 'fingerprint_mismatch') attemptRef.current = null;
       setError(entryFailureMessage(failure));
     } finally {
@@ -218,14 +245,14 @@ export default function ChallengeUploadScreen() {
           title={t('challengeUpload.optPublic')}
           sub={t('challengeUpload.optPublicSub')}
           selected={visibility === 'public'}
-          onPress={() => setVisibility('public')}
+          onPress={() => chooseVisibility('public')}
         />
         <Option
           icon="lock"
           title={t('challengeUpload.optPrivate')}
           sub={t('challengeUpload.optPrivateSub')}
           selected={visibility === 'private'}
-          onPress={() => setVisibility('private')}
+          onPress={() => chooseVisibility('private')}
         />
 
         {/* 공개를 고르면 표본 활용을 한 줄로 알린다(challenge.ai-report). */}
