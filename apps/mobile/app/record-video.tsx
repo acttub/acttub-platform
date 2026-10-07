@@ -11,8 +11,10 @@ import { RecordModeSlider } from '@/components/record-mode-slider';
 import { palette } from '@/constants/palette';
 import { keepDeviceFile } from '@/lib/account-files';
 import { formatClipDuration } from '@/lib/archive-format';
+import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { CHALLENGE_FUNNEL_EVENTS, permissionResultParams, videoSourceParams } from '@/lib/challenge/funnel';
 import { translate as t } from '@/lib/i18n';
 import { RECORD_MODES, recordModeAfterSwipe, type RecordMode } from '@/lib/record-modes';
 import { saveRecordingToLibrary } from '@/lib/library/library-runner';
@@ -78,6 +80,8 @@ export default function RecordVideoScreen() {
   const { user } = useAuth();
   // 권한 요청은 화면에 들어오자마자 한 번만 — OS 팝업이 곧바로 뜬다.
   const askedRef = useRef(false);
+  // 챌린지 촬영에 들어올 때 이미 권한이 있었는지 한 번만 남긴다(SOMA-616).
+  const permLoggedRef = useRef(false);
 
   useEffect(() => {
     if (!recording) return;
@@ -93,8 +97,19 @@ export default function RecordVideoScreen() {
   const askPermissions = useCallback(async () => {
     const cam = camPerm?.granted ? camPerm : await requestCam();
     const mic = micPerm?.granted ? micPerm : await requestMic();
+    if (isChallenge) {
+      permLoggedRef.current = true;
+      void logEvent(CHALLENGE_FUNNEL_EVENTS.permissionResult, permissionResultParams(cam, mic, true));
+    }
     return cam.granted && mic.granted;
-  }, [camPerm, micPerm, requestCam, requestMic]);
+  }, [camPerm, isChallenge, micPerm, requestCam, requestMic]);
+
+  // 권한이 이미 있어 팝업 없이 들어온 챌린지 촬영도 같은 단계로 센다.
+  useEffect(() => {
+    if (!isChallenge || !ready || permLoggedRef.current) return;
+    permLoggedRef.current = true;
+    void logEvent(CHALLENGE_FUNNEL_EVENTS.permissionResult, permissionResultParams(camPerm, micPerm, false));
+  }, [camPerm, isChallenge, micPerm, ready]);
 
   useEffect(() => {
     if (ready || askedRef.current || !camPerm || !micPerm) return;
@@ -237,14 +252,18 @@ export default function RecordVideoScreen() {
     try {
       // maxDuration 으로 상한에서 네이티브가 스스로 멈춘다 — resolve 되면 결과를 넘긴다.
       const result = await cameraRef.current.recordAsync({ maxDuration: maxSec });
+      if (isChallenge) {
+        void logEvent(CHALLENGE_FUNNEL_EVENTS.videoSource, videoSourceParams('camera', result?.uri ? 'selected' : 'failed'));
+      }
       finishWith(result?.uri ?? null);
     } catch {
       // 촬영이 실패하면 화면만 되돌린다(업로드에서 다시 시도).
+      if (isChallenge) void logEvent(CHALLENGE_FUNNEL_EVENTS.videoSource, videoSourceParams('camera', 'failed'));
       finishWith(null);
     } finally {
       setRecording(false);
     }
-  }, [recording, finishWith, maxSec]);
+  }, [recording, finishWith, isChallenge, maxSec]);
 
   const stopRecording = useCallback(() => {
     if (!cameraRef.current || !recording) return;
@@ -254,6 +273,8 @@ export default function RecordVideoScreen() {
   // 챌린지 모드 "업로드" — 찍는 대신 갤러리에서 골라 그대로 올리기로 간다.
   const pickFromGallery = useCallback(async () => {
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['videos'], quality: 1 });
+    const picked = !result.canceled && !!result.assets[0];
+    if (isChallenge) void logEvent(CHALLENGE_FUNNEL_EVENTS.videoSource, videoSourceParams('gallery', picked ? 'selected' : 'cancelled'));
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
     if (finishedRef.current) return;
@@ -266,7 +287,7 @@ export default function RecordVideoScreen() {
       name: asset.fileName ?? `video-${Date.now()}.mp4`,
     });
     goNext();
-  }, [goNext]);
+  }, [goNext, isChallenge]);
 
   // 권한이 아직 없으면 화면 안에서 직접 묻는다 — 닫기·권한 버튼이 늘 보인다.
   if (!ready) {
