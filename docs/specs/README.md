@@ -13,8 +13,7 @@ git 이력이 보관한다. 동작을 바꾸는 PR이 그 기능의 요구사항
 
 - ERD 결정 기록: 워크트리의 `.scratch/SOMA-528.md`(추적되지 않음),
   ERD 아티팩트 https://claude.ai/code/artifact/7161a549-3af9-4adf-99af-39798fabd10c
-- 화면 정본: https://github.com/acttub/pen 의 `acttub 디자인.pen`
-- 제품 범위·API·DB 규칙은 루트 CLAUDE.md의 조건부 정본을 따른다.
+- 화면 정본(pen)과 제품 범위·API·DB 규칙은 루트 CLAUDE.md의 조건부 정본을 따른다.
 
 ## 읽는 순서
 
