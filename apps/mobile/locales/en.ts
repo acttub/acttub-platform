@@ -449,7 +449,7 @@ const en: DeepStringShape<typeof ko> = {
     watchEntries: 'Watch entries',
     dday: 'D-{{days}}',
     ended: 'Ended',
-    hostTeam: 'Opened by the team',
+    hostTeam: 'Official Acttub line',
     hostMember: 'Opened by {{name}}',
     hostWithdrawn: 'Host left',
     noParticipants: 'No one has joined yet',
