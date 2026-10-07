@@ -85,20 +85,61 @@ export function playInstallReferrer(
 }
 
 /**
+ * App Store Connect가 이 개발자 계정에 발급한 제공자 토큰(`pt`). 공개 캠페인 링크에 그대로
+ * 들어가는 값이라 비밀이 아니다. App Store 캠페인 이름(`ct`)은 이 값과 짝일 때만 앱 분석의
+ * 캠페인 보고서에 잡힌다.
+ */
+export const APP_STORE_PROVIDER_TOKEN = "127135371";
+
+/** App Store 캠페인 링크의 바탕 주소. App Store Connect의 "캠페인 링크 생성"이 주는 형식이다. */
+export const APP_STORE_CAMPAIGN_BASE_URL =
+  "https://apps.apple.com/app/apple-store/id6793056855";
+
+/** App Store Connect 캠페인 이름(`ct`)의 최대 길이. */
+export const APP_STORE_CAMPAIGN_TOKEN_MAX_LENGTH = 30;
+
+/**
+ * App Store 캠페인 이름(`ct`).
+ *
+ * 유입 UTM에 utm_campaign이 있으면 그 값을 쓴다. Meta 광고 관리자와 같은 이름으로 다운로드를
+ * 나눠 보기 위해서다. 없으면 Google Play와 같은 기본 귀속을
+ * `<utm_source 또는 acttub_web>_<utm_medium 또는 surface>` 한 줄로 쓴다. 30자를 넘으면 자른다.
+ * 값은 이미 `isSafeCampaignValue`를 통과한 문자만 쓰므로 따로 인코딩할 문자가 없다.
+ */
+export function appStoreCampaignToken(
+  surface: StoreLinkSurface,
+  search = "",
+): string {
+  const params = storeCampaignParams(search);
+  const token =
+    params.get("utm_campaign") ??
+    `${params.get("utm_source") ?? "acttub_web"}_${params.get("utm_medium") ?? surface}`;
+  return token.slice(0, APP_STORE_CAMPAIGN_TOKEN_MAX_LENGTH);
+}
+
+/** App Store 캠페인 링크. App Store Connect의 "캠페인 링크 생성" 결과와 같은 순서(pt, ct, mt)다. */
+export function appStoreCampaignHref(
+  surface: StoreLinkSurface,
+  search = "",
+): string {
+  return `${APP_STORE_CAMPAIGN_BASE_URL}?pt=${APP_STORE_PROVIDER_TOKEN}&ct=${appStoreCampaignToken(surface, search)}&mt=8`;
+}
+
+/**
  * 스토어로 나가는 주소.
  *
  * 배지 클릭은 `/go/<os>/<surface>` 페이지로드로 Cloudflare에서 센 뒤 이 주소로 이동한다.
  * Google Play에는 현재 주소의 안전한 UTM을 Install Referrer로 넘긴다. 명시적인 UTM이 없으면
- * 기존처럼 `utm_source=acttub_web`, `utm_medium=<surface>`를 쓴다. App Store는 캠페인
- * 토큰(`ct`)이 제공자 토큰(`pt`)과 짝일 때만 기록되는데 우리에겐 그 토큰이 없어서 원래
- * 주소를 그대로 둔다.
+ * 기존처럼 `utm_source=acttub_web`, `utm_medium=<surface>`를 쓴다. App Store에는 제공자
+ * 토큰(`pt`)과 캠페인 이름(`ct`)을 붙인 캠페인 링크를 쓴다. 웹을 거친 iOS 다운로드를 App Store
+ * Connect의 캠페인 보고서에서 광고별로 나눠 보기 위해서다.
  */
 export function storeHref(
   store: AppStore,
   surface: StoreLinkSurface,
   search = "",
 ): string {
-  if (store === "app_store") return APP_STORE_URL;
+  if (store === "app_store") return appStoreCampaignHref(surface, search);
 
   const referrer = playInstallReferrer(surface, search);
   return `${GOOGLE_PLAY_URL}&referrer=${encodeURIComponent(referrer)}`;
@@ -170,7 +211,7 @@ export function buildAppDownloadBootstrapScript(): string {
   return [
     "(function(){",
     'if(window.__acttubAppDownloadBootstrap)return;window.__acttubAppDownloadBootstrap=true;',
-    `var IOS=${JSON.stringify(APP_STORE_URL)},AND=${JSON.stringify(GOOGLE_PLAY_URL)};`,
+    `var IOSC=${JSON.stringify(APP_STORE_CAMPAIGN_BASE_URL)},PT=${JSON.stringify(APP_STORE_PROVIDER_TOKEN)},CTMAX=${APP_STORE_CAMPAIGN_TOKEN_MAX_LENGTH},AND=${JSON.stringify(GOOGLE_PLAY_URL)};`,
     `var ATTR=${JSON.stringify(APP_DOWNLOAD_ATTR)},STORE=${JSON.stringify(APP_DOWNLOAD_STORE_ATTR)},FINAL=${JSON.stringify(APP_DOWNLOAD_FINAL_STORE_ATTR)};`,
     `var KEYS=${JSON.stringify(STORE_CAMPAIGN_PARAMS)},MAX=${STORE_CAMPAIGN_VALUE_MAX_LENGTH};`,
     "function os(u,t){",
@@ -188,7 +229,10 @@ export function buildAppDownloadBootstrapScript(): string {
     "function referrer(s,search){var p=campaign(search);",
     'if(!p.has("utm_source"))p.set("utm_source","acttub_web");',
     'if(!p.has("utm_medium"))p.set("utm_medium",s);return p.toString()}',
-    'function store(k,s,search){return k==="app_store"?IOS:AND+"&referrer="+encodeURIComponent(referrer(s,search))}',
+    "function ct(s,search){var p=campaign(search);",
+    'var t=p.has("utm_campaign")?p.get("utm_campaign"):(p.has("utm_source")?p.get("utm_source"):"acttub_web")+"_"+(p.has("utm_medium")?p.get("utm_medium"):s);',
+    "return t.slice(0,CTMAX)}",
+    'function store(k,s,search){return k==="app_store"?IOSC+"?pt="+PT+"&ct="+ct(s,search)+"&mt=8":AND+"&referrer="+encodeURIComponent(referrer(s,search))}',
     'function go(k,s,search){return "/go/"+(k==="app_store"?"ios":"android")+"/"+s+query(search)}',
     'function href(a){var s=a.getAttribute(ATTR)||"",search=location.search||"";',
     "var finalStore=a.getAttribute(FINAL);if(finalStore)return store(finalStore,s,search);",
