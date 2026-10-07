@@ -440,7 +440,7 @@ const ko = {
     watchEntries: '참여작 보기',
     dday: 'D-{{days}}',
     ended: '종료',
-    hostTeam: '기획팀이 띄운 대사',
+    hostTeam: 'Acttub 공식 대사',
     hostMember: '{{name}} 님이 연 대사',
     hostWithdrawn: '주최자 탈퇴',
     noParticipants: '아직 참여한 배우가 없어요',
