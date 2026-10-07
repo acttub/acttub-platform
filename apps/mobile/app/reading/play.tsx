@@ -55,7 +55,7 @@ import {
 } from '@/lib/reading/store';
 import type { SttPolicy } from '@/lib/reading/stt-policy';
 import { assetsPresent, modelDownloadBytes, removeDownloadedAssets } from '@/lib/reading/tts/assets';
-import { formatDownloadProgress, type VoiceProgress } from '@/lib/reading/tts/download-progress';
+import { formatDownloadProgress, loadPercent, type VoiceProgress } from '@/lib/reading/tts/download-progress';
 import { voiceErrorKind, type VoiceErrorKind } from '@/lib/reading/tts/voice-errors';
 import { hasDeviceVoice, speakWithDevice, stopDeviceVoice } from '@/lib/reading/tts/device-voice';
 import * as tts from '@/lib/reading/tts/engine';
@@ -861,12 +861,27 @@ export default function ReadingPlay() {
         </View>
       );
     }
+    // 모델을 올리는 중·첫 대사를 만드는 중이면 끝난 단계를 퍼센트로 보인다(SOMA-631). 그 앞은 셀 것이 없어 스피너만.
+    const percent = loadPercent(progress);
+    if (percent !== null) {
+      return (
+        <View style={[styles.root, styles.center]}>
+          <View style={styles.downloadCard}>
+            <ActivityIndicator color={palette.blue} />
+            <Text style={styles.loadTitle}>{t('reading.voiceLoadTitle')}</Text>
+            <View style={styles.downloadTrack} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: percent }}>
+              <View style={[styles.downloadFill, { width: `${percent}%` }]} />
+            </View>
+            <Text style={styles.progressLine}>{`${percent}%`}</Text>
+          </View>
+          {dialog}
+        </View>
+      );
+    }
     return (
       <View style={[styles.root, styles.center]}>
         <ActivityIndicator color={palette.blue} />
-        <Text style={styles.loadTitle}>
-          {progress?.phase === 'load' || progress?.phase === 'ready' ? t('reading.voiceLoadTitle') : t('reading.voicePreparing')}
-        </Text>
+        <Text style={styles.loadTitle}>{t('reading.voicePreparing')}</Text>
         {dialog}
       </View>
     );
