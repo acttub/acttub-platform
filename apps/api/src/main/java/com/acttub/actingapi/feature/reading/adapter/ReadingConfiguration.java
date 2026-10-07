@@ -51,7 +51,7 @@ class ReadingConfiguration {
     CloudVoiceSettings cloudVoiceSettings(
             @Value("${GEMINI_TTS_MODEL:}") String model,
             @Value("${GEMINI_API_KEY:}") String apiKey,
-            @Value("${READING_VOICE_FREE_UNTIL:2026-11-30T23:59:59+09:00}") String freeUntil,
+            @Value("${READING_VOICE_FREE_UNTIL:2026-10-31T23:59:59+09:00}") String freeUntil,
             @Value("${READING_VOICE_DAILY_LINE_CAP:300}") int dailyCap,
             @Value("${READING_VOICE_MONTHLY_LINE_CAP:75000}") int monthlyCap) {
         return new CloudVoiceSettings(model, apiKey,

@@ -17,6 +17,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * 공지 포스터 표(V29, app.poster)가 지금 홍보를 첫 포스터로 싣고, 값 규칙을 DB 에서도 지키는지 본다.
+ * 무료 기간은 V35 에서 10월 31일(KST)까지로 줄였다.
  */
 class PosterSchemaMigrationTest {
 
@@ -30,7 +31,7 @@ class PosterSchemaMigrationTest {
     }
 
     @Test
-    @DisplayName("app.poster: 고품질 목소리 출시 홍보가 ko·en 두 줄의 첫 포스터로 들어간다")
+    @DisplayName("app.poster: 고품질 목소리 출시 홍보가 ko·en 두 줄의 첫 포스터로 들어가고 10월 31일에 끝난다")
     void theCloudVoiceLaunchPromotionIsSeeded() {
         List<Map<String, Object>> rows = jdbc.queryForList("""
                 SELECT locale,revision,active,priority,starts_at IS NULL AS open_start,
@@ -42,7 +43,7 @@ class PosterSchemaMigrationTest {
         assertThat(rows).hasSize(2);
         for (Map<String, Object> row : rows) {
             assertThat(row).containsEntry("revision", 1).containsEntry("active", true).containsEntry("priority", 10)
-                    .containsEntry("open_start", true).containsEntry("ends_at", "2026-11-30T15:00:00")
+                    .containsEntry("open_start", true).containsEntry("ends_at", "2026-10-31T15:00:00")
                     .containsEntry("platforms", "ios,android").containsEntry("frequency", "daily")
                     .containsEntry("audience", "cloud_voice_off").containsEntry("dismissible", true)
                     .containsEntry("image", "asset:mascot-reading").containsEntry("audio", "asset:cloud-voice-sample")
@@ -52,16 +53,16 @@ class PosterSchemaMigrationTest {
         }
         Map<String, Object> en = rows.get(0);
         assertThat(en).containsEntry("locale", "en")
-                .containsEntry("badge", "Launch offer · Free until Nov 30")
+                .containsEntry("badge", "Launch offer · Free until Oct 31")
                 .containsEntry("title", "Your scene partner\nreads like a real actor")
                 .containsEntry("body", "Hear scene-partner lines in a more natural AI voice during script reading. "
-                        + "Free for two months.")
+                        + "Free through October.")
                 .containsEntry("cta_label", "Turn on for free");
         Map<String, Object> ko = rows.get(1);
         assertThat(ko).containsEntry("locale", "ko")
-                .containsEntry("badge", "출시 기념 · 11월 30일까지 무료")
+                .containsEntry("badge", "출시 기념 · 10월 31일까지 무료")
                 .containsEntry("title", "상대역이\n진짜 배우처럼 읽어 줘요")
-                .containsEntry("body", "대본 리딩 상대 대사를 더 자연스러운 AI 목소리로. 두 달 동안 무료예요.")
+                .containsEntry("body", "대본 리딩 상대 대사를 더 자연스러운 AI 목소리로. 10월 말까지 무료예요.")
                 .containsEntry("cta_label", "무료로 켜기");
     }
 
