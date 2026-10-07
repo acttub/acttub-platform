@@ -444,6 +444,90 @@ class AdminEndpointIT {
     }
 
     @Test
+    void challengeListShowsLiveChallengesWithTeamFlagAndPseudonymousHost() throws Exception {
+        RecordingInspector.STATEMENTS.get().clear();
+        assertThat(json(mvc.perform(get("/v2/admin/challenges?limit=nope")), 401))
+                .isEqualTo(mapper.readTree("{\"detail\":\"Unauthorized\"}"));
+        assertThat(RecordingInspector.STATEMENTS.get()).isEmpty();
+
+        UUID team = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO challenges (id,line,work,character,duration_days,origin,request_id,request_fingerprint,
+                                        featured_on,starts_at,ends_at)
+                VALUES (?, '팀 대사', '팀 작품', '팀 인물', 7, 'team', ?, ?, ?, ?, ?)
+                """, team, UUID.randomUUID(), "a".repeat(64), NOW.toLocalDate(), NOW.minusHours(1), NOW.plusDays(7));
+        UUID byTeamAccount = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO challenges (id,line,work,duration_days,origin,host_user_id,request_id,request_fingerprint,
+                                        starts_at,ends_at)
+                VALUES (?, '팀 계정 대사', '팀 계정 작품', 7, 'member', ?, ?, ?, ?, ?)
+                """, byTeamAccount, TEAM_USER, UUID.randomUUID(), "b".repeat(64), NOW.minusHours(2), NOW.plusDays(7));
+        UUID ended = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO challenges (id,line,work,duration_days,origin,host_user_id,request_id,request_fingerprint,
+                                        starts_at,ends_at)
+                VALUES (?, '끝난 대사', '끝난 작품', 7, 'member', ?, ?, ?, ?, ?)
+                """, ended, REAL_USER, UUID.randomUUID(), "c".repeat(64), NOW.minusDays(10), NOW.minusDays(3));
+        UUID deleted = insertChallenge("member", NOW.minusMinutes(1));
+
+        insertChallengeEntry(byTeamAccount, REAL_USER, "a.mp4", null, "public", "visible", NOW.minusMinutes(30), null);
+        insertChallengeEntry(byTeamAccount, TEAM_USER, "b.mp4", null, "public", "visible", NOW.minusMinutes(20), null);
+        insertChallengeEntry(byTeamAccount, REAL_USER, "c.mp4", null, "private", "visible", NOW.minusMinutes(10), null);
+        insertChallengeEntry(byTeamAccount, REAL_USER, null, null, "private", "deleted", NOW.minusMinutes(5), NOW.minusMinutes(5));
+
+        var result = mvc.perform(get("/v2/admin/challenges")
+                .header("Authorization", "Bearer admin-secret")).andReturn().getResponse();
+        assertThat(result.getStatus()).isEqualTo(200);
+        assertThat(result.getHeader("Cache-Control")).isEqualTo("private, no-store");
+        JsonNode page = mapper.readTree(result.getContentAsString(StandardCharsets.UTF_8));
+        assertThat(page.path("count").intValue()).isEqualTo(3);
+        JsonNode rows = page.path("challenges");
+        assertThat(rows).hasSize(3);
+
+        JsonNode first = rows.get(0);
+        assertThat(first.fieldNames()).toIterable().containsExactly(
+                "id", "line", "work", "character", "origin", "host_actor", "host_is_team", "duration_days",
+                "featured_on", "starts_at", "ends_at", "state", "moderation", "entries", "public_entries",
+                "outside_entries");
+        assertThat(first.path("id").textValue()).isEqualTo(team.toString());
+        assertThat(first.path("line").textValue()).isEqualTo("팀 대사");
+        assertThat(first.path("origin").textValue()).isEqualTo("team");
+        assertThat(first.path("host_actor").isNull()).isTrue();
+        assertThat(first.path("host_is_team").booleanValue()).isFalse();
+        assertThat(first.path("featured_on").textValue()).isEqualTo(NOW.toLocalDate().toString());
+        assertThat(first.path("state").textValue()).isEqualTo("active");
+        assertThat(first.path("entries").intValue()).isEqualTo(0);
+
+        JsonNode second = rows.get(1);
+        assertThat(second.path("id").textValue()).isEqualTo(byTeamAccount.toString());
+        assertThat(second.path("character").isNull()).isTrue();
+        assertThat(second.path("host_actor").textValue()).isEqualTo(md5(TEAM_USER.toString()).substring(0, 8));
+        assertThat(second.path("host_is_team").booleanValue()).isTrue();
+        assertThat(second.path("entries").intValue()).isEqualTo(3);
+        assertThat(second.path("public_entries").intValue()).isEqualTo(2);
+        assertThat(second.path("outside_entries").intValue()).isEqualTo(2);
+
+        JsonNode third = rows.get(2);
+        assertThat(third.path("id").textValue()).isEqualTo(ended.toString());
+        assertThat(third.path("state").textValue()).isEqualTo("ended");
+        assertThat(third.path("host_is_team").booleanValue()).isFalse();
+
+        assertThat(page.toString()).doesNotContain(
+                deleted.toString(), REAL_USER.toString(), TEAM_USER.toString(),
+                "actor@example.com", "Team@Acttub.com", "a.mp4", "b.mp4");
+
+        String realActor = md5(REAL_USER.toString()).substring(0, 8);
+        JsonNode excluded = authorized("/v2/admin/challenges?exclude_actors=" + realActor, 200);
+        assertThat(excluded.at("/challenges/1/outside_entries").intValue()).isEqualTo(0);
+        assertThat(excluded.at("/challenges/2/host_is_team").booleanValue()).isTrue();
+        assertThat(authorized("/v2/admin/challenges?limit=1", 200).path("challenges")).hasSize(1);
+        assertThat(authorized("/v2/admin/challenges?limit=0", 422).at("/detail/0/type").textValue())
+                .isEqualTo("greater_than_equal");
+        assertThat(authorized("/v2/admin/challenges?limit=101", 422).at("/detail/0/type").textValue())
+                .isEqualTo("less_than_equal");
+    }
+
+    @Test
     void challengeVideoFiltersUseBoundedValidation() throws Exception {
         assertThat(authorized("/v2/admin/challenge-videos?limit=0", 422).at("/detail/0/type").textValue())
                 .isEqualTo("greater_than_equal");
@@ -1682,6 +1766,10 @@ class AdminEndpointIT {
                 .intValue()).isEqualTo(100);
         assertThat(actual.at("/paths/~1v2~1admin~1feedback/get/responses/200/content/application~1json/schema/$ref")
                 .textValue()).isEqualTo("#/components/schemas/AdminFeedbackPage");
+        assertThat(actual.at("/paths/~1v2~1admin~1challenges/get/parameters/0/schema/maximum")
+                .intValue()).isEqualTo(100);
+        assertThat(actual.at("/paths/~1v2~1admin~1challenges/get/responses/200/content/application~1json/schema/$ref")
+                .textValue()).isEqualTo("#/components/schemas/AdminChallengePage");
         assertThat(actual.at("/paths/~1v2~1admin~1challenge-videos/get/parameters/0/schema/maximum")
                 .intValue()).isEqualTo(100);
         assertThat(actual.at("/paths/~1v2~1admin~1challenge-videos/get/responses/200/content/application~1json/schema/$ref")

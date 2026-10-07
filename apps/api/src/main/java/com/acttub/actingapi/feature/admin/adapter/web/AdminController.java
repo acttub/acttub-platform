@@ -25,6 +25,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengePage;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengePlayback;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengeVideoPage;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminFeedbackPage;
@@ -59,6 +60,7 @@ class AdminController {
     private static final int MAX_SESSIONS = 50;
     private static final int MAX_FEEDBACK = 100;
     private static final int MAX_CHALLENGE_VIDEOS = 100;
+    private static final int MAX_CHALLENGES = 100;
     private static final int MAX_READING_SESSIONS = 100;
     /** 한 묶음이 한 트랜잭션이다 — 너무 크면 그 트랜잭션이 길어진다. */
     private static final int MAX_BATCH = 1000;
@@ -102,6 +104,42 @@ class AdminController {
         var result = challenges.createTeam(body.requestId(), new Draft(
                 body.line(), body.work(), body.character(), body.sceneNote(), body.durationDays()), featuredDate(body.featuredOn()));
         return ResponseEntity.status(result.created() ? 201 : 200).body(result.card());
+    }
+
+    @Operation(
+            summary = "List Challenges",
+            description = """
+                    삭제되지 않은 챌린지 전부를 진행 중 → 예정 → 종료 순으로 읽는다. 팀 계정이 연 챌린지도
+                    싣고 host_is_team 으로 표시한다. 챌린지는 앱에 공개되는 글이라 대사·작품·인물을 싣지만
+                    주최자는 가명뿐이다. live 운영 조회 전용이며 저장본(ops-core)에는 대사를 넣지 않는다.""",
+            operationId = "list_challenges_v2_admin_challenges_get",
+            tags = "admin")
+    @ApiResponses({
+        @ApiResponse(
+                responseCode = "200",
+                description = "Successful Response",
+                content = @Content(schema = @Schema(implementation = AdminChallengePage.class))),
+        @ApiResponse(
+                responseCode = "422",
+                description = "Validation Error",
+                content = @Content(schema = @Schema(ref = "#/components/schemas/HTTPValidationError")))
+    })
+    @GetMapping("/challenges")
+    ResponseEntity<AdminChallengePage> listChallenges(
+            @Parameter(schema = @Schema(
+                    type = "integer",
+                    minimum = "1",
+                    maximum = "100",
+                    exclusiveMinimum = false,
+                    exclusiveMaximum = false,
+                    defaultValue = "50"))
+            @RequestParam(name = "limit", defaultValue = "50") String rawLimit,
+            @Parameter(description = "팀으로 볼 배우 가명(8자리 16진)을 쉼표로", schema = @Schema(type = "string"))
+            @RequestParam(name = "exclude_actors", required = false) String rawExcludeActors,
+            @RequestHeader(name = "authorization", defaultValue = "") String authorization) {
+        requireToken(authorization);
+        int limit = bounded(rawLimit, "limit", MAX_CHALLENGES);
+        return privateNoStore(admin.challenges(limit, parseActors(rawExcludeActors)));
     }
 
     @Schema(name = "ChallengeModerationRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)

@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallenge;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengeVideo;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminFeedbackItem;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminReadingSession;
@@ -47,6 +48,15 @@ public interface AdminMetricsRepository {
             List<String> excludeEmails,
             List<String> excludeActors,
             boolean includeTeam);
+
+    /**
+     * 삭제되지 않은 챌린지 전부(팀 계정이 연 것 포함). 진행 중 → 예정 → 종료 순, 같은 상태는 최근 시작 순이다.
+     * 참여작 수는 삭제를 뺀 전체·공개·팀 밖(팀 이메일·exclude_actors 제외) 셋이다.
+     */
+    List<AdminChallenge> challenges(
+            int limit,
+            List<String> excludeEmails,
+            List<String> excludeActors);
 
     /** 공개·비공개 챌린지 참여 영상. 개인 식별자와 원본 저장소 정보는 projection 에 넣지 않는다. */
     List<AdminChallengeVideo> challengeVideos(
