@@ -2,6 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import {
+  router,
   Stack,
   useGlobalSearchParams,
   usePathname,
@@ -20,6 +21,7 @@ import { logScreenView } from '@/lib/analytics';
 import { initMetaSdk } from '@/lib/meta-events';
 import { startSignupAttributionListener } from '@/lib/signup-attribution-runtime';
 import { initCrashlytics, markScreen } from '@/lib/crashlytics';
+import { installNavigationGuard } from '@/lib/navigation-guard';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
 import { challengePushTarget } from '@/lib/challenge/notification-center';
 import {
@@ -54,6 +56,8 @@ void flushPendingPushTokenDeletions();
 // 앞선 실행이 올리던 도중에 죽어 남긴 임시 파일(줄인 사진·영상)을 지운다. 아직 아무것도 올리지
 // 않는 때라 쓰는 중인 파일을 건드리지 않는다.
 void sweepDeviceFiles();
+// 버튼을 연달아 눌러도 같은 화면이 한 번만 열리고, 뒤로 가기는 한 화면만 닫힌다(lib/navigation-guard.ts).
+installNavigationGuard(router);
 
 export const unstable_settings = {
   anchor: '(tabs)',
