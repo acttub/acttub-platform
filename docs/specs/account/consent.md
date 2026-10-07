@@ -73,7 +73,7 @@
 있어 선택 문서 줄을 더해야 한다.
 cloud_voice와 script_split은 가입·게이트에서 묻지 않고 그 기능을 쓸 때 묻는다([reading.cloud-voice](../reading/cloud-voice.md),
 [reading.script](../reading/script.md#규칙제약) 「나누기 작업」). 진입에서 묻게 하면 새 판을 올린 날 모든 회원이 쓰지도 않을
-기능의 동의 화면을 다시 본다(`ConsentDocument.askedAtEntry`). script_split 문서는 법무 확인 뒤 발행하며, 발행 전에는 서버가
+기능의 동의 화면을 다시 본다(`ConsentDocument.askedAtEntry`). script_split 문서가 발행되지 않은 서버는
 나누기를 403으로 막는다.
 
 ## 규칙·제약
