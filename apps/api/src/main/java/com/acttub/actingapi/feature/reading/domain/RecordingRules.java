@@ -14,6 +14,11 @@ public final class RecordingRules {
 
     /** 한 줄 녹음 길이의 상한(밀리초). 넘으면 {@code recording_too_long}. */
     public static final int DURATION_MAX_MS = 180_000;
+    /**
+     * 저장할 m4a 의 최소 크기. 이보다 작으면 소리가 들어 있을 수 없다 — 0.1.2 운영 녹음의 대부분이 머리만 있는
+     * 258바이트 m4a 였다(인식기가 소리를 남기지 못한 기기).
+     */
+    public static final long STORED_MIN_BYTES = 1_000;
 
     /** 회원 계정의 저장 총량(바이트). 넘으면 기존은 보존하고 새 저장만 {@code recording_quota}. */
     public static final long MEMBER_QUOTA_BYTES = 1_000_000_000L;
@@ -28,6 +33,21 @@ public final class RecordingRules {
     public static final String STORED_CONTENT_TYPE = "audio/mp4";
 
     private RecordingRules() {
+    }
+
+    /**
+     * 녹음 행의 대조 결과. 전사가 원문을 통과하면 {@code true}, 미달이면 {@code false}, 전사가 없거나(음성 인식을 하지
+     * 못함) 비교하지 않는 말(무발화·한도 초과)이면 {@code null} 이다.
+     */
+    public static Boolean matched(String transcript, String line) {
+        if (transcript == null) {
+            return null;
+        }
+        return switch (LineMatch.compare(transcript, line)) {
+            case PASS -> true;
+            case MISS -> false;
+            case NO_SPEECH, TOO_LONG -> null;
+        };
     }
 
     public static long quotaBytes(boolean guest) {

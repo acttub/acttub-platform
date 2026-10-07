@@ -53,7 +53,6 @@ function phone({ failures = [], now = 1_000_000 } = {}) {
       durationMs: 3_000,
       transcript: null,
       transcriptSource: 'none',
-      matched: null,
       createdAt: clock.now,
       ...overrides,
     };

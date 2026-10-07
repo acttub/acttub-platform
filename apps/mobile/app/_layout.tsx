@@ -2,6 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import {
+  router,
   Stack,
   useGlobalSearchParams,
   usePathname,
@@ -19,19 +20,19 @@ import '@/lib/global-font';
 import { logScreenView } from '@/lib/analytics';
 import { initMetaSdk } from '@/lib/meta-events';
 import { startSignupAttributionListener } from '@/lib/signup-attribution-runtime';
-import { initCrashlytics } from '@/lib/crashlytics';
+import { initCrashlytics, markScreen } from '@/lib/crashlytics';
+import { installNavigationGuard } from '@/lib/navigation-guard';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
 import { challengePushTarget } from '@/lib/challenge/notification-center';
 import {
   recoveryStatusForConsentGate,
-  routeAllowedDuringConsentGate,
   resolveAnalyzingBootstrapRoute,
   bootstrapSessionKey,
   resolveBootstrapStep,
-  resolvePostConsentRoute,
   type BootstrapRecoveryParams,
 } from '@/lib/app-bootstrap';
 import { sweepDeviceFiles } from '@/lib/account-files';
+import { ReconsentPopup } from '@/components/reconsent-popup';
 import { SpotlightHost } from '@/components/spotlight-guide';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import {
@@ -55,6 +56,8 @@ void flushPendingPushTokenDeletions();
 // 앞선 실행이 올리던 도중에 죽어 남긴 임시 파일(줄인 사진·영상)을 지운다. 아직 아무것도 올리지
 // 않는 때라 쓰는 중인 파일을 건드리지 않는다.
 void sweepDeviceFiles();
+// 버튼을 연달아 눌러도 같은 화면이 한 번만 열리고, 뒤로 가기는 한 화면만 닫힌다(lib/navigation-guard.ts).
+installNavigationGuard(router);
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -86,11 +89,10 @@ function RootNavigator() {
   const signupPending = signup !== null;
   const segments = useSegments();
   const pathname = usePathname();
-  const currentRouteParams = useGlobalSearchParams<BootstrapRecoveryParams>();
   const {
     recoveryKey: currentRecoveryKey,
     practiceId: currentRecoveryPracticeId,
-  } = currentRouteParams;
+  } = useGlobalSearchParams<BootstrapRecoveryParams>();
   const router = useRouter();
   const hasConsentGate = consentEntry.status !== 'allowed';
   const consentGateRef = useRef({
@@ -104,11 +106,16 @@ function RootNavigator() {
     };
   }
   const consentGate = consentGateRef.current.generation;
+  // 재동의 팝업은 결정이 필요하거나 판정을 못 읽었을 때 열리고, 통과하거나 로그아웃하면 닫힌다.
+  // 다시 읽는 중(checking)에는 그대로 둔다 — 팝업 안에서 다시 읽는 동안 스피너로 남고,
+  // 앱을 처음 켤 때의 판정 대기에는 열리지 않는다.
+  const reconsentEligible = status === 'signedIn' && !updateRequired && !signupPending;
+  const [reconsentOpen, setReconsentOpen] = useState(false);
+  useEffect(() => {
+    if (!reconsentEligible || consentEntry.status === 'allowed') setReconsentOpen(false);
+    else if (consentEntry.status !== 'checking') setReconsentOpen(true);
+  }, [reconsentEligible, consentEntry.status]);
   const completedBootstrapRef = useRef<{
-    sessionKey: string;
-    route: Href;
-  } | null>(null);
-  const interruptedRouteRef = useRef<{
     sessionKey: string;
     route: Href;
   } | null>(null);
@@ -218,24 +225,6 @@ function RootNavigator() {
     const inConsent = first === 'consent';
     const inProfileName = first === 'profile-name';
     const inUpdateRequired = first === 'update-required';
-    // 재동의 화면의 "동의하지 않으면 탈퇴할 수 있어요"가 여는 탈퇴 화면만 게이트 밖에 둔다.
-    const inWithdrawDuringConsent = routeAllowedDuringConsentGate(
-      segments as string[],
-    );
-
-    const rememberInterruptedRoute = () => {
-      if (!sessionKey || inLogin || inConsent || inProfileName) return;
-      if (interruptedRouteRef.current?.sessionKey === sessionKey) return;
-      const params = Object.fromEntries(
-        Object.entries(currentRouteParams).filter(([, value]) => value !== undefined),
-      );
-      interruptedRouteRef.current = {
-        sessionKey,
-        route: (Object.keys(params).length > 0
-          ? { pathname, params }
-          : pathname) as Href,
-      };
-    };
 
     if (bootstrap.stage === 'update-gate') {
       completedBootstrapRef.current = null;
@@ -243,25 +232,20 @@ function RootNavigator() {
       return;
     }
     if (bootstrap.stage === 'auth-gate') {
-      if (bootstrap.route === '/login') interruptedRouteRef.current = null;
       if (bootstrap.route === '/login' && !inLogin) {
         router.replace('/login' as Href);
       }
       return;
     }
     if (bootstrap.stage === 'signup-gate') {
-      // 처음 온 신원의 동의 화면. 계정이 아직 없어 돌아갈 중단 화면도 없다.
-      interruptedRouteRef.current = null;
+      // 처음 온 신원의 동의 화면.
       if (!inConsent) router.replace('/consent' as Href);
       return;
     }
     if (bootstrap.stage === 'consent-gate') {
       completedBootstrapRef.current = null;
-      if (inWithdrawDuringConsent) return;
-      rememberInterruptedRoute();
-      if (bootstrap.route === '/consent' && !inConsent) {
-        router.replace('/consent' as Href);
-      }
+      // 재동의 팝업은 지금 화면 위에 뜬다. 로그인 직후(로그인·가입 화면)일 때만 홈을 깐다.
+      if (bootstrap.route && (inLogin || inConsent)) router.replace(bootstrap.route as Href);
       return;
     }
     if (bootstrap.stage === 'profile-gate') {
@@ -275,27 +259,11 @@ function RootNavigator() {
       return;
     }
 
-    const interruptedRoute =
-      interruptedRouteRef.current?.sessionKey === sessionKey
-        ? interruptedRouteRef.current.route
-        : null;
-    const targetRoute = resolvePostConsentRoute(
-      bootstrap.route,
-      interruptedRoute,
-    ) as Href;
-    if (interruptedRoute) interruptedRouteRef.current = null;
-
     const completed = completedBootstrapRef.current;
     if (completed?.sessionKey === sessionKey) {
       if (inLogin || inConsent || inProfileName) {
         router.replace(completed.route);
       }
-      return;
-    }
-
-    if (targetRoute !== bootstrap.route) {
-      router.replace(targetRoute);
-      completedBootstrapRef.current = { sessionKey, route: targetRoute };
       return;
     }
 
@@ -333,7 +301,6 @@ function RootNavigator() {
     pathname,
     currentRecoveryKey,
     currentRecoveryPracticeId,
-    currentRouteParams,
     router,
   ]);
 
@@ -369,58 +336,64 @@ function RootNavigator() {
   if (status === 'loading' && !updateRequired) return null;
 
   return (
-    <Stack>
-      <Stack.Screen name="update-required" options={{ headerShown: false, gestureEnabled: false }} />
-      <Stack.Screen name="login" options={{ headerShown: false }} />
-      <Stack.Screen name="consent" options={{ headerShown: false }} />
-      <Stack.Screen name="profile-name" options={{ headerShown: false }} />
-      <Stack.Screen name="profile-edit" options={{ title: t('profileName.editTitle') }} />
-      <Stack.Screen name="portfolio-edit" options={{ title: t('portfolio.title') }} />
-      <Stack.Screen name="guest-transfer" options={{ title: t('guestTransfer.title') }} />
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="delete-account"
-        options={{ title: t('stack.withdraw'), headerBackTitle: t('stack.backToSettings') }}
-      />
-      <Stack.Screen name="upload" options={{ title: t('stack.upload') }} />
-      <Stack.Screen
-        name="record-video"
-        // 헤더는 여기 한 곳에서 숨긴다 — 화면이 따로 바꾸면 iOS에서 다시 그릴 때마다 뒤집혀 깜빡였다.
-        options={{ title: t('record.screenTitle'), presentation: 'fullScreenModal', headerShown: false }}
-      />
-      <Stack.Screen name="analyzing" options={{ title: t('stack.analyzing') }} />
-      <Stack.Screen name="coach" options={{ title: t('stack.coach') }} />
-      <Stack.Screen name="report" options={{ title: t('stack.report') }} />
-      {/* 아래 둘은 화면 안에 자체 헤더가 있다. 등록해 두지 않으면 기본 헤더가
-          한 겹 더 붙어 '뒤로' 버튼이 두 개로 보인다. */}
-      <Stack.Screen name="admissions/index" options={{ headerShown: false }} />
-      <Stack.Screen name="admissions/[id]" options={{ headerShown: false }} />
-      <Stack.Screen name="challenge-detail" options={{ title: t('challenges.detailTitle') }} />
-      <Stack.Screen name="challenge-play" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
-      <Stack.Screen name="guide" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
-      <Stack.Screen name="challenge-upload" options={{ title: t('challengeUpload.title') }} />
-      <Stack.Screen name="saved-videos" options={{ headerShown: false }} />
-      <Stack.Screen name="line-search" options={{ headerShown: false }} />
-      <Stack.Screen name="line-new" options={{ headerShown: false, presentation: 'modal' }} />
-      <Stack.Screen name="archive" options={{ headerShown: false }} />
-      <Stack.Screen name="archive-detail" options={{ headerShown: false }} />
-      <Stack.Screen name="reading/new" options={{ title: t('reading.titleNew') }} />
-      <Stack.Screen name="reading/confirm" options={{ title: t('reading.titleConfirm') }} />
-      <Stack.Screen name="reading/edit" options={{ title: t('reading.titleEdit'), presentation: 'modal' }} />
-      <Stack.Screen name="reading/detail" options={{ title: t('reading.titleDetail') }} />
-      <Stack.Screen name="reading/full" options={{ title: t('reading.titleFull') }} />
-      <Stack.Screen name="reading/roles" options={{ title: t('reading.titleRoles') }} />
-      <Stack.Screen name="reading/range" options={{ title: t('reading.titleRange') }} />
-      <Stack.Screen name="reading/play" options={{ headerShown: false }} />
-      <Stack.Screen name="reading/memorize" options={{ title: t('reading.titleMemorize') }} />
-    </Stack>
+    <>
+      <Stack>
+        <Stack.Screen name="update-required" options={{ headerShown: false, gestureEnabled: false }} />
+        <Stack.Screen name="login" options={{ headerShown: false }} />
+        <Stack.Screen name="consent" options={{ headerShown: false }} />
+        <Stack.Screen name="profile-name" options={{ headerShown: false }} />
+        <Stack.Screen name="profile-edit" options={{ title: t('profileName.editTitle') }} />
+        <Stack.Screen name="portfolio-edit" options={{ title: t('portfolio.title') }} />
+        <Stack.Screen name="guest-transfer" options={{ title: t('guestTransfer.title') }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="delete-account"
+          options={{ title: t('stack.withdraw'), headerBackTitle: t('stack.backToSettings') }}
+        />
+        <Stack.Screen name="upload" options={{ title: t('stack.upload') }} />
+        <Stack.Screen
+          name="record-video"
+          // 헤더는 여기 한 곳에서 숨긴다 — 화면이 따로 바꾸면 iOS에서 다시 그릴 때마다 뒤집혀 깜빡였다.
+          options={{ title: t('record.screenTitle'), presentation: 'fullScreenModal', headerShown: false }}
+        />
+        <Stack.Screen name="analyzing" options={{ title: t('stack.analyzing') }} />
+        <Stack.Screen name="coach" options={{ title: t('stack.coach') }} />
+        <Stack.Screen name="report" options={{ title: t('stack.report') }} />
+        {/* 아래 둘은 화면 안에 자체 헤더가 있다. 등록해 두지 않으면 기본 헤더가
+            한 겹 더 붙어 '뒤로' 버튼이 두 개로 보인다. */}
+        <Stack.Screen name="admissions/index" options={{ headerShown: false }} />
+        <Stack.Screen name="admissions/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="challenge-detail" options={{ title: t('challenges.detailTitle') }} />
+        <Stack.Screen name="challenge-play" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
+        <Stack.Screen name="guide" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
+        <Stack.Screen name="challenge-upload" options={{ title: t('challengeUpload.title') }} />
+        <Stack.Screen name="saved-videos" options={{ headerShown: false }} />
+        <Stack.Screen name="line-search" options={{ headerShown: false }} />
+        <Stack.Screen name="line-new" options={{ headerShown: false, presentation: 'modal' }} />
+        <Stack.Screen name="archive" options={{ headerShown: false }} />
+        <Stack.Screen name="archive-detail" options={{ headerShown: false }} />
+        <Stack.Screen name="reading/new" options={{ title: t('reading.titleNew') }} />
+        <Stack.Screen name="reading/detail" options={{ title: t('reading.titleDetail') }} />
+        <Stack.Screen name="reading/session" options={{ title: '' }} />
+        <Stack.Screen name="reading/full" options={{ title: t('reading.titleFull') }} />
+        <Stack.Screen name="reading/roles" options={{ title: t('reading.titleRoles') }} />
+        <Stack.Screen name="reading/range" options={{ title: t('reading.titleRange') }} />
+        <Stack.Screen name="reading/play" options={{ headerShown: false }} />
+        <Stack.Screen name="reading/diff" options={{ title: t('reading.diffTitle') }} />
+        {/* 자체 헤더(← 설정 · 제목)를 그린다 — 기본 헤더를 겹치면 라우트 이름 "memory"가 제목으로 나온다. */}
+        <Stack.Screen name="memory" options={{ headerShown: false }} />
+      </Stack>
+      <ReconsentPopup visible={reconsentOpen} />
+    </>
   );
 }
 
 function ScreenTracker() {
   const segments = useSegments();
   useEffect(() => {
-    logScreenView('/' + segments.join('/'));
+    const screen = '/' + segments.join('/');
+    logScreenView(screen);
+    markScreen(screen);
   }, [segments]);
   return null;
 }

@@ -1,40 +1,16 @@
 /**
- * 대본 파일·글 입력의 기기 검사(reading.script). 네이티브 모듈 없이 성립하는 부분만 여기 산다 —
- * 실제 파일 읽기는 extract-file.ts 가 한다.
+ * 대본 파일·글 입력의 기기 검사(reading.script). 파일의 형식과 글자는 서버가 본다 — 기기는 올리기 전에 크기만 거른다.
  */
 import type { ScriptSource } from './types.ts';
 
-/** 파일 한도. 글자를 뽑기 전에 기기에서 거른다. */
-export const SCRIPT_FILE_MAX_BYTES = 20_000_000;
+/** 서버 한도와 같다. 넘는 파일은 올리지 않는다. */
+export const SCRIPT_FILE_MAX_BYTES = 50_000_000;
 
 /** 한 번의 입력으로 이만큼 이상 늘면 붙여넣기로 본다. 사람은 이렇게 빨리 치지 못한다. */
 const PASTE_MIN_CHARS = 30;
 
-export type ScriptFileKind = 'txt' | 'docx' | 'pdf' | 'hwp' | 'unknown';
-
-export type PickedScriptFile = { name: string; mimeType?: string | null; size?: number | null };
-
-export function scriptFileKind(file: Pick<PickedScriptFile, 'name' | 'mimeType'>): ScriptFileKind {
-  const ext = (file.name.split('.').pop() ?? '').toLowerCase();
-  const mime = file.mimeType ?? '';
-  if (ext === 'hwp' || ext === 'hwpx' || mime.includes('hwp')) return 'hwp';
-  if (ext === 'txt' || mime.startsWith('text/')) return 'txt';
-  if (ext === 'docx' || mime.includes('wordprocessingml')) return 'docx';
-  if (ext === 'pdf' || mime.includes('pdf')) return 'pdf';
-  return 'unknown';
-}
-
-export type ScriptFileCheck =
-  | { ok: true; kind: Exclude<ScriptFileKind, 'hwp' | 'unknown'> }
-  /** hwp·hwpx는 앱이 열지 않는다(0.1.0이 받아들인 한계). unsupported 는 그 밖의 형식. */
-  | { ok: false; reason: 'too_large' | 'hwp' | 'unsupported' };
-
-export function checkScriptFile(file: PickedScriptFile): ScriptFileCheck {
-  if (typeof file.size === 'number' && file.size > SCRIPT_FILE_MAX_BYTES) return { ok: false, reason: 'too_large' };
-  const kind = scriptFileKind(file);
-  if (kind === 'hwp') return { ok: false, reason: 'hwp' };
-  if (kind === 'unknown') return { ok: false, reason: 'unsupported' };
-  return { ok: true, kind };
+export function isScriptFileTooLarge(bytes: number): boolean {
+  return bytes > SCRIPT_FILE_MAX_BYTES;
 }
 
 /**

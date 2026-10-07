@@ -43,7 +43,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/v2/me/memory")
 class ActorMemoryController {
     /** pydantic Literal 오류 메시지 형식: 마지막 항목만 or 로 잇는다. */
-    private static final String EXPECTED_FIELDS = "'goal', 'blockage', 'speech_self' or 'speech_actual'";
+    private static final String EXPECTED_FIELDS =
+            "'goal', 'blockage', 'wants', 'habits', 'avoid', 'speech_self' or 'speech_actual'";
 
     private final ActorMemoryService memory;
     private final AccessGate auth;
@@ -67,7 +68,9 @@ class ActorMemoryController {
     ActorMemoryResponse getMemory(HttpServletRequest request) {
         var user = auth.rateLimitedUser(request);
         return new ActorMemoryResponse(
-                memory.list(user.id()).stream().map(ActorMemoryController::item).toList());
+                // 말투는 코치만 쓴다 — 배우 화면에는 내려보내지 않는다(SOMA-603).
+                memory.list(user.id()).stream().filter(row -> ActorMemoryFields.actorVisible(row.field()))
+                        .map(ActorMemoryController::item).toList());
     }
 
     @Operation(
@@ -97,7 +100,7 @@ class ActorMemoryController {
                     schema = @Schema(
                             title = "Field",
                             type = "string",
-                            allowableValues = {"goal", "blockage", "speech_self", "speech_actual"}))
+                            allowableValues = {"goal", "blockage", "wants", "habits", "avoid", "speech_self", "speech_actual"}))
             @PathVariable String field,
             @Valid @RequestBody UpdateActorMemoryRequest body,
             HttpServletRequest request) {
@@ -131,7 +134,7 @@ class ActorMemoryController {
                     schema = @Schema(
                             title = "Field",
                             type = "string",
-                            allowableValues = {"goal", "blockage", "speech_self", "speech_actual"}))
+                            allowableValues = {"goal", "blockage", "wants", "habits", "avoid", "speech_self", "speech_actual"}))
             @PathVariable String field,
             HttpServletRequest request) {
         requireKnown(field);
@@ -156,7 +159,7 @@ class ActorMemoryController {
 
     /** 경로 변수는 인증보다 먼저 판정한다 — FastAPI 도 Literal 을 의존성보다 앞에서 본다. */
     private static void requireKnown(String raw) {
-        if (ActorMemoryFields.contains(raw)) {
+        if (ActorMemoryFields.actorVisible(raw)) {
             return;
         }
         Map<String, Object> error = new LinkedHashMap<>();

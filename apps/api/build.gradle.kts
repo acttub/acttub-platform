@@ -39,6 +39,12 @@ dependencies {
     implementation("com.google.genai:google-genai:1.68.0")
     implementation("com.networknt:json-schema-validator:1.5.6")
 
+    // 대본 원본 파일의 글자 뽑기(reading.script). 둘 다 Apache-2.0. commons-logging 은 spring-jcl 이 같은 API 를 준다.
+    implementation("org.apache.pdfbox:pdfbox:3.0.8") {
+        exclude(group = "commons-logging", module = "commons-logging")
+    }
+    implementation("kr.dogfoot:hwplib:1.1.11")
+
     // 파이썬 observability.py 대응(M5 §D). starter 가 MVC 예외를 자동으로 잡아 보내고
     // BeforeSendCallback 빈을 물어 간다. DSN 이 비면 SDK 스스로 꺼지므로 로컬·테스트는 조용하다.
     implementation("io.sentry:sentry-spring-boot-starter-jakarta:8.53.0")

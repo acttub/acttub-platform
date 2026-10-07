@@ -42,6 +42,19 @@ test("공고를 대학별로 묶는다", () => {
   );
 });
 
+// 올해 요강이 없어 작년 요강을 옮겨 둔 공고는 작년 날짜라 가장 이르다. 오늘을 모르는
+// 프리렌더에서 이 대학들이 목록 맨 위를 차지하면 안 된다.
+test("지난 학년도 공고는 날짜가 일러도 올해 공고 뒤로 간다", () => {
+  const grouped = groupByUniversity({
+    ...payload,
+    notices: [
+      { id: "old", university_id: "cau", admission_year: 2026, apply_start: "2025-12-29" },
+      { id: "now", university_id: "sejong", admission_year: 2027, apply_start: "2026-09-08" },
+    ],
+  });
+  assert.deepEqual(grouped.map((g) => g.university.id), ["sejong", "cau"]);
+});
+
 // 공고가 아직 없는 대학도 목록에서 빠지면 안 된다. 입학처 링크만이라도 보여주는 게
 // 이 화면의 최소 가치다.
 test("공고가 없는 대학도 남는다", () => {

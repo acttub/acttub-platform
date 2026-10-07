@@ -1,12 +1,12 @@
-// reading.cast·reading.session — 회차의 순수 로직. 프리셋 자동 배정, 전체 구간, 진행 저장(순번·앞으로만·재시도·
+// reading.cast·reading.session — 회차의 순수 로직. 상대역 목소리, 전체 구간, 진행 저장(순번·앞으로만·재시도·
 // 일시정지 제외 시간), 줄 결과와 완료 표기, 가리기 규칙, 나가기·안내 문구.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import "./ts-module-loader.mjs";
 
-const { assignPresets, isVoicePreset, voicesFor } = await import("../src/lib/reading/session/cast.ts");
-const { PRESET_CYCLE } = await import("../src/lib/reading/audio/supertonic/models.ts");
+const { voicesFor } = await import("../src/lib/reading/session/cast.ts");
+const { isVoicePreset } = await import("../src/lib/reading/audio/supertonic/models.ts");
 const { fullRange, indexOfLine, myDialogueCount, partnerLineBefore } = await import("../src/lib/reading/session/range.ts");
 const { createElapsedClock, createProgressSync } = await import("../src/lib/reading/session/progress.ts");
 const { createLineResults, quizSummaryLabel, reviewLines } = await import("../src/lib/reading/session/results.ts");
@@ -20,10 +20,10 @@ const script = {
   title: "봄밤",
   roles: ["니나", "트레플레프", "아르카지나", "트리고린"],
   characters: [
-    { id: "c-nina", name: "니나", voicePreset: null },
-    { id: "c-tre", name: "트레플레프", voicePreset: null },
-    { id: "c-ark", name: "아르카지나", voicePreset: null },
-    { id: "c-tri", name: "트리고린", voicePreset: null },
+    { id: "c-nina", name: "니나", voicePreset: null, voice: "F1" },
+    { id: "c-tre", name: "트레플레프", voicePreset: null, voice: "M1" },
+    { id: "c-ark", name: "아르카지나", voicePreset: null, voice: "F2" },
+    { id: "c-tri", name: "트리고린", voicePreset: null, voice: "M2" },
   ],
   lines: [
     { type: "scene", text: "제1막" },
@@ -39,37 +39,23 @@ const script = {
   raw: "",
 };
 
-test("reading.cast: 배역 넷 중 하나를 내 배역으로 하면 나머지 셋이 등장 순서로 F1·M1·F2 다", () => {
-  assert.deepEqual(PRESET_CYCLE, ["F1", "M1", "F2", "M2", "F3", "M3", "F4", "M4", "F5", "M5"]);
-  const presets = assignPresets(script.characters, ["c-nina"]);
-  assert.deepEqual([...presets.entries()], [["c-tre", "F1"], ["c-ark", "M1"], ["c-tri", "F2"]]);
+const presetsOf = (voices) => Object.fromEntries(Object.entries(voices).map(([name, v]) => [name, v.preset]));
+
+test("reading.cast: 상대역은 서버가 정한 voice 로 읽고 내 배역은 표에 들지 않는다", () => {
+  const voices = voicesFor(script, ["c-nina"]);
+  assert.deepEqual(presetsOf(voices), { 트레플레프: "M1", 아르카지나: "F2", 트리고린: "M2" });
+  assert.equal(voices["트레플레프"].device.pitch, 1.0);
 });
 
-test("reading.cast: 내 배역을 바꿔 다시 시작하면 상대역 목록이 달라져 자동 배정도 달라진다", () => {
-  const presets = assignPresets(script.characters, ["c-tre"]);
-  assert.deepEqual([...presets.entries()], [["c-nina", "F1"], ["c-ark", "M1"], ["c-tri", "F2"]]);
+test("reading.cast: 내 배역을 바꿔 다시 시작해도 같은 배역은 같은 목소리다", () => {
+  assert.deepEqual(presetsOf(voicesFor(script, ["c-tre"])), { 니나: "F1", 아르카지나: "F2", 트리고린: "M2" });
+  assert.deepEqual(presetsOf(voicesFor(script, ["c-nina", "c-tri"])), { 트레플레프: "M1", 아르카지나: "F2" });
 });
 
-test("reading.cast: 배역 \"니나\"를 M3 으로 고정하면 니나는 M3, 나머지는 자동 순환이고 고정한 배역은 순환에서 빠진다", () => {
-  const chars = script.characters.map((c) => (c.id === "c-nina" ? { ...c, voicePreset: "M3" } : c));
-  const presets = assignPresets(chars, ["c-tri"]);
-  assert.deepEqual([...presets.entries()], [["c-nina", "M3"], ["c-tre", "F1"], ["c-ark", "M1"]]);
-  // 같은 프리셋을 두 배역에 줄 수 있다.
-  const both = chars.map((c) => (c.id === "c-tre" ? { ...c, voicePreset: "M3" } : c));
-  assert.deepEqual([...assignPresets(both, ["c-tri"]).entries()], [["c-nina", "M3"], ["c-tre", "M3"], ["c-ark", "F1"]]);
-});
-
-test("reading.cast: 기기가 모르는 프리셋 값은 자동으로 다루고, 이름으로 목소리를 찾는 실행 화면용 표도 같은 규칙이다", () => {
+test("reading.cast: 기기 프리셋만 프리셋으로 본다", () => {
   assert.equal(isVoicePreset("M3"), true);
   assert.equal(isVoicePreset("bogus"), false);
   assert.equal(isVoicePreset(null), false);
-  const chars = script.characters.map((c) => (c.id === "c-ark" ? { ...c, voicePreset: "bogus" } : c));
-  assert.deepEqual([...assignPresets(chars, ["c-nina"]).entries()], [["c-tre", "F1"], ["c-ark", "M1"], ["c-tri", "F2"]]);
-
-  const voices = voicesFor({ ...script, characters: chars }, ["c-nina"]);
-  assert.deepEqual(Object.keys(voices), ["트레플레프", "아르카지나", "트리고린"]);
-  assert.equal(voices["트레플레프"].preset, "F1");
-  assert.equal(typeof voices["트레플레프"].device.pitch, "number");
 });
 
 test("reading.session: 웹은 전체 구간으로 시작한다 — 시작·끝은 첫·마지막 대사 줄 id 이고 지문·장면은 구간 안 대사 수에 들지 않는다", () => {
@@ -192,6 +178,19 @@ test("reading.session: 줄 결과는 줄마다 하나이고 마지막 사건이 
   assert.deepEqual(resumed.list(), [{ line_id: "l-1", outcome: "passed", misses: 0 }]);
 });
 
+test("reading.session: read 는 줄 결과에 말한 것만 싣고(비교는 서버) 완료 표기용 결과에는 넣지 않는다", () => {
+  const results = createLineResults();
+  results.say("l-1", "나는 몰랐어");
+  results.say("l-3", "그만해");
+  results.say("l-1", "나는 정말 몰랐어");
+  assert.deepEqual(results.list(), [
+    { line_id: "l-1", said: "나는 정말 몰랐어" },
+    { line_id: "l-3", said: "그만해" },
+  ]);
+  assert.deepEqual(results.outcomes(), []);
+  assert.equal(results.misses("l-1"), 0);
+});
+
 test("reading.session: 완료 표기 — quiz 는 \"맞춘 줄 K / 시도 N · 아직 안 나온 줄 P\"(K=passed, N=passed+unmatched, P=skipped)이고 다시 볼 대사는 unmatched·skipped 줄이다", () => {
   const results = [
     { line_id: "l-1", outcome: "unmatched", misses: 2 },
@@ -232,7 +231,7 @@ test("reading.session: 나가기 확인 문구는 \"지금 나가면 N번 대사
   assert.equal(NO_SPEECH_NOTICE, "다음을 눌러 넘길 수 있어요");
   assert.equal(RECORD_NOTICE, "내 차례 녹음은 내 계정에 저장돼요");
   assert.equal(resumeLabel({ done: 3, total: 10 }), "이어서 연습 · 3 / 10");
-  assert.deepEqual(["in_progress", "completed", "stopped"].map(sessionStatusLabel), ["진행 중", "완료", "중단"]);
+  assert.deepEqual(["in_progress", "completed"].map(sessionStatusLabel), ["진행 중", "완료"]);
 });
 
 test("reading.session: 가이드 문구는 녹음 끔·수동 넘김·암기 대조에 맞게 갈리고 \"항상 자동 녹음·자동 다음\" 을 약속하지 않는다", () => {

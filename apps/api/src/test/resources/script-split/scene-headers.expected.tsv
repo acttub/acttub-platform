@@ -1,0 +1,18 @@
+title	제1막
+characters	지호, 어머니
+scene		제1막
+scene		제1장 부엌
+direction		식탁 위에 식은 국. 어머니가 등을 돌리고 설거지를 한다.
+dialogue	지호	다녀왔습니다.
+dialogue	어머니	밥은.
+dialogue	지호	먹었어요.
+dialogue	어머니	어디서.
+dialogue	지호	(잠시) 편의점에서요.
+direction		어머니가 수도를 잠근다.
+dialogue	어머니	앉아.
+dialogue	지호	피곤해서요.
+dialogue	어머니	앉으라고.
+scene		제2장 마당
+scene		#3. 마당 / 새벽
+direction		지호가 혼자 담배를 피운다. 불빛이 떨린다.
+dialogue	지호	어머니한테 어떻게 말하지.

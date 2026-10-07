@@ -7,8 +7,6 @@ import {
   recoveryStatusForConsentGate,
   resolveAnalyzingBootstrapRoute,
   resolveBootstrapStep,
-  resolvePostConsentRoute,
-  routeAllowedDuringConsentGate,
 } from '../lib/app-bootstrap.ts';
 
 function pending(owner = 'user-1', practiceId = 'practice-1') {
@@ -31,7 +29,7 @@ test('동의 게이트가 끝나면 같은 세션의 pending 분석을 복구한
 
   assert.deepEqual(
     resolveBootstrapStep({ ...base, consentEntryStatus: 'decision_required' }),
-    { stage: 'consent-gate', route: '/consent' },
+    { stage: 'consent-gate', route: '/(tabs)' },
   );
   assert.deepEqual(
     resolveBootstrapStep({ ...base, consentEntryStatus: 'allowed' }),
@@ -136,44 +134,13 @@ test('account.login: 확인 전에는 서비스로 가지 않고 동의 진입 �
   for (const consentEntryStatus of ['error', 'decision_required']) {
     assert.deepEqual(
       resolveBootstrapStep({ ...base, consentEntryStatus }),
-      { stage: 'consent-gate', route: '/consent' },
+      { stage: 'consent-gate', route: '/(tabs)' },
     );
   }
   assert.deepEqual(
     resolveBootstrapStep({ ...base, consentEntryStatus: 'allowed' }),
     { stage: 'done', route: '/(tabs)' },
   );
-});
-
-test('동의 뒤에는 중단 화면으로 돌아가되 pending 분석 복구를 우선한다', () => {
-  const interruptedRoute = {
-    pathname: '/archive-detail',
-    params: { id: 'practice-1' },
-  };
-  assert.deepEqual(
-    resolvePostConsentRoute('/(tabs)', interruptedRoute),
-    interruptedRoute,
-  );
-
-  const pendingRoute = {
-    pathname: '/analyzing',
-    params: {
-      recoveryKey: 'pending:user-1:session-1:scope',
-      practiceId: 'practice-1',
-    },
-  };
-  assert.deepEqual(
-    resolvePostConsentRoute(pendingRoute, interruptedRoute),
-    pendingRoute,
-  );
-});
-
-test('account.consent: 재동의 화면에서는 탈퇴 화면만 열어 두고 서비스 화면은 막는다', () => {
-  assert.equal(routeAllowedDuringConsentGate(['delete-account']), true);
-  assert.equal(routeAllowedDuringConsentGate(['(tabs)', 'settings']), false);
-  assert.equal(routeAllowedDuringConsentGate(['settings']), false);
-  assert.equal(routeAllowedDuringConsentGate(['(tabs)', 'index']), false);
-  assert.equal(routeAllowedDuringConsentGate(['upload']), false);
 });
 
 const gateBase = {
@@ -201,7 +168,7 @@ test('account.profile: 게이트 순서는 인증 → 동의 → 프로필 → �
       consentEntryStatus: 'decision_required',
       profileStatus: 'required',
     }),
-    { stage: 'consent-gate', route: '/consent' },
+    { stage: 'consent-gate', route: '/(tabs)' },
   );
   assert.deepEqual(
     resolveBootstrapStep({

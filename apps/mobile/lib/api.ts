@@ -82,18 +82,23 @@ import { practiceGroupFromResponse } from '@/lib/practice/groups';
 import type {
   CreateScriptBody,
   LineMemorization,
+  ImportScriptBody,
+  ImportTicket,
   MemorizationStatus,
   PatchScriptBody,
   ProgressBody,
   ProgressResponse,
   ScriptDetail,
+  ScriptImport,
   ScriptListResponse,
+  ScriptUpload,
   SessionCard,
   SessionDetail,
   SessionRecording,
   StartSessionBody,
 } from '@/lib/reading/types';
 import type { CloudVoicePreset, CloudVoiceStatus } from '@/lib/reading/cloud-voice';
+import type { PostersResponse } from '@/lib/poster';
 import { currentLanguage, translate } from './i18n.ts';
 
 export { ApiError, NetworkError, RequestAbortError } from '@/lib/api-request';
@@ -109,7 +114,8 @@ import type { SignupAttributionPayload } from '@/lib/signup-attribution';
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://dev.acttub.com';
 // 요청마다 보내는 클라이언트 종류와 판(X-Acttub-Client). 판은 app.json의 version이다.
 // 이 헤더가 없으면 서버는 0.1.0 이전 빌드로 보고 426으로 답한다.
-const CLIENT_HEADER = `app/${Constants.expoConfig?.version ?? '0.0.0'}`;
+export const APP_VERSION = Constants.expoConfig?.version ?? '0.0.0';
+const CLIENT_HEADER = `app/${APP_VERSION}`;
 const requestClient = createApiRequestClient({
   baseUrl: BASE_URL,
   clientHeader: CLIENT_HEADER,
@@ -349,7 +355,8 @@ export const api = {
   signup(signupToken: string, decisions: SignupDecision[]): Promise<TokenPair> {
     return request<TokenPair>(
       '/v2/auth/signup',
-      jsonInit({ signup_token: signupToken, decisions }),
+      // 가입 화면은 만 14세 줄을 체크해야 제출 버튼이 켜지므로 제출이 곧 확인이다.
+      jsonInit({ signup_token: signupToken, decisions, age_confirmed: true }),
       { auth: false, timeoutMs: 30_000 },
     );
   },
@@ -373,6 +380,12 @@ export const api = {
     return request<void>('/v2/consents', jsonInit({ document_id: documentId, action }), {
       requestId: true,
     });
+  },
+
+  /** 앱 첫 화면 공지 포스터(app.poster). 띄울지 마지막 판정은 lib/poster 의 pickPoster 가 한다. */
+  getPosters(params: { platform: 'ios' | 'android'; locale: 'ko' | 'en'; app_version: string }): Promise<PostersResponse> {
+    const query = new URLSearchParams(params);
+    return request(`/v2/app/posters?${query.toString()}`, {}, { auth: true, timeoutMs: 10_000 });
   },
 
   getCloudVoiceStatus(): Promise<CloudVoiceStatus> {
@@ -537,9 +550,33 @@ export const api = {
   },
 
   /**
-   * 대본 저장(한 요청). 같은 request_id·같은 본문이면 먼저 만든 대본을 돌려주고(200), 다른 본문이면 422
-   * request_fingerprint_mismatch. 한도는 422 script_too_long·script_limit, 배역은 no_characters·invalid_characters.
-   * 연결이 끊기면 요청 계층이 같은 id 로 다시 보낸다.
+   * 대본 원본 파일을 올릴 자리. 50,000,000바이트 초과 422 script_file_too_large, 받지 않는 확장자 422
+   * script_file_unreadable, 동의 없음 403 script_split_consent_required.
+   */
+  createScriptUpload(body: { file_name: string; byte_size: number }): Promise<ScriptUpload> {
+    return request<ScriptUpload>('/v2/reading/uploads', jsonInit(body), { timeoutMs: 20_000 });
+  },
+
+  /** 올린 파일에서 서버가 글자를 뽑는다(다시 불러도 204). 못 뽑으면 422 script_file_unreadable, 100,000자 초과 script_too_long. */
+  completeScriptUpload(uploadId: string): Promise<void> {
+    return request<void>(`/v2/reading/uploads/${encodeURIComponent(uploadId)}/complete`, { method: 'POST' }, { timeoutMs: 60_000 });
+  },
+
+  /**
+   * 서버 나누기 접수. 다시 보내지 않는다 — 하루 한도 429 를 기다려 다시 보내면 알림이 늦고, 끊긴 뒤 [다음]을 다시
+   * 누르면 서버가 같은 글의 진행 중 작업을 돌려준다.
+   */
+  importScript(body: ImportScriptBody): Promise<ImportTicket> {
+    return request<ImportTicket>('/v2/reading/imports', jsonInit(body), { timeoutMs: 20_000 });
+  },
+
+  getScriptImport(importId: string): Promise<ScriptImport> {
+    return request<ScriptImport>(`/v2/reading/imports/${encodeURIComponent(importId)}`, {}, { timeoutMs: 10_000 });
+  },
+
+  /**
+   * 옛 대본 옮기기의 저장(기기가 나눈 줄을 그대로). 같은 request_id·같은 본문이면 먼저 만든 대본을 돌려주고(200),
+   * 다른 본문이면 422 request_fingerprint_mismatch. 연결이 끊기면 요청 계층이 같은 id 로 다시 보낸다.
    */
   createReadingScript(body: CreateScriptBody): Promise<ScriptDetail> {
     return postIdempotent<ScriptDetail>('/v2/reading/scripts', body, {
@@ -572,8 +609,8 @@ export const api = {
   },
 
   /**
-   * 회차 시작(reading.session). 열린 회차가 있으면 서버가 같은 트랜잭션에서 stopped 로 바꾸고 새 회차를
-   * 만든다. 같은 request_id 는 같은 회차 하나. 내 배역 없음·남의 배역 422 invalid_characters, 구간 안 내
+   * 회차 시작(reading.session). 같은 대본의 진행 중 회차는 그대로 두고 새 회차를 만든다.
+   * 같은 request_id 는 같은 회차 하나. 내 배역 없음·남의 배역 422 invalid_characters, 구간 안 내
    * 대사 없음·순서 뒤집힘 422 empty_range.
    */
   startReadingSession(scriptId: string, body: StartSessionBody): Promise<SessionDetail> {
@@ -595,7 +632,7 @@ export const api = {
 
   /**
    * 진행 저장. 서버는 progress_seq 가 저장값보다 큰 요청만 반영하고 작거나 같으면 무시하고 현재 값을 200 으로
-   * 돌려준다. completed·stopped 회차는 409 session_closed, 구간 밖·지문 줄은 422 invalid_line.
+   * 돌려준다. completed 회차는 409 session_closed, 구간 밖·지문 줄은 422 invalid_line.
    */
   saveReadingProgress(sessionId: string, body: ProgressBody): Promise<ProgressResponse> {
     return request<ProgressResponse>(
@@ -614,8 +651,8 @@ export const api = {
    * 내 대사 한 줄의 녹음을 multipart 한 요청으로 올린다(reading.recording). 같은 request_id 는 같은 결과(멱등),
    * 더 큰 attempt_no 만 같은 줄의 이전 녹음을 대체하고 작은 번호는 200 현재 값이다. 서버가 m4a 가 아니면 변환해
    * 저장하고, 변환 실패는 503 audio_conversion_failed 로 답한다(같은 request_id 로 재시도). 한도는 422
-   * recording_too_long·recording_quota, 구간 밖·상대역·지문 줄은 422 invalid_line, 지워진 회차는 404.
-   * 회차의 진행 상태와 분리돼 completed·stopped 회차에도 받는다.
+   * recording_too_long·recording_empty·recording_quota, 구간 밖·상대역·지문 줄은 422 invalid_line, 지워진 회차는 404.
+   * 회차의 진행 상태와 분리돼 completed 회차에도 받는다.
    */
   uploadReadingRecording(
     sessionId: string,
@@ -626,7 +663,6 @@ export const api = {
       duration_ms: number;
       transcript: string | null;
       transcript_source: 'stt' | 'none';
-      matched: boolean | null;
       audio: { uri: string; name: string; type: string };
     },
   ): Promise<SessionRecording> {
@@ -637,27 +673,12 @@ export const api = {
     form.append('duration_ms', String(input.duration_ms));
     form.append('transcript_source', input.transcript_source);
     if (input.transcript !== null) form.append('transcript', input.transcript);
-    if (input.matched !== null) form.append('matched', String(input.matched));
     // React Native 의 fetch 는 {uri, name, type} 를 파일 파트로 보낸다. Content-Type 은 경계와 함께 fetch 가 붙인다.
     form.append('audio', { uri: input.audio.uri, name: input.audio.name, type: input.audio.type } as unknown as Blob);
     return request<SessionRecording>(
       `/v2/reading/sessions/${encodeURIComponent(sessionId)}/recordings`,
       { method: 'POST', headers: { 'X-Request-Id': input.request_id }, body: form },
       { timeoutMs: 120_000 },
-    );
-  },
-
-  /** 개별 녹음 삭제. 그 행·객체가 없어지고 회차 진행·암기 상태는 그대로다. */
-  deleteReadingRecording(recordingId: string): Promise<void> {
-    return request<void>(`/v2/reading/recordings/${encodeURIComponent(recordingId)}`, { method: 'DELETE' }, { timeoutMs: 20_000 });
-  },
-
-  /** 그 대본 줄의 암기 상태 행 목록(reading.memorization). 행이 없는 줄은 아직 표시하지 않은 줄이다. */
-  listLineMemorization(scriptId: string): Promise<LineMemorization[]> {
-    return request<LineMemorization[]>(
-      `/v2/reading/scripts/${encodeURIComponent(scriptId)}/memorization`,
-      {},
-      { timeoutMs: 20_000 },
     );
   },
 
@@ -1044,7 +1065,7 @@ export const api = {
   /**
    * 대사 목록. 탭은 인기·최신·종료·내 챌린지이고 q 는 2자 이상일 때만 보낸다(대사·작품·참여작
    * 작성자 이름만 찾는다). 오늘의 챌린지는 featured 로 따로 온다(인기·최신 탭에서만 고정).
-   * 게스트·한국어가 아닌 회원은 403 member_only.
+   * 게스트는 403 member_only.
    */
   listChallenges(
     params: { tab: ChallengeTab; q?: string; cursor?: string } = { tab: 'popular' },

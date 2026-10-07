@@ -311,15 +311,23 @@ export function groupByUniversity(
   payload: AdmissionsResponse,
   today?: string | null,
 ) {
+  const years = payload.notices
+    .map(({ admission_year }) => admission_year)
+    .filter((year): year is number => typeof year === "number");
+  const latest = years.length > 0 ? Math.max(...years) : null;
   return payload.universities
     .map((university) => ({
       university,
       notices: payload.notices
         .filter((notice) => notice.university_id === university.id)
-        .sort((a, b) => sortKey(a, today).localeCompare(sortKey(b, today))),
+        .sort((a, b) =>
+          sortKey(a, today, latest).localeCompare(sortKey(b, today, latest)),
+        ),
     }))
     .sort((a, b) =>
-      groupKey(a.notices, today).localeCompare(groupKey(b.notices, today)),
+      groupKey(a.notices, today, latest).localeCompare(
+        groupKey(b.notices, today, latest),
+      ),
     );
 }
 
@@ -366,22 +374,38 @@ const NO_DATE = "8:9999-99-99";
 
 /**
  * 접수 중·예정 → 날짜 미확인 → 이미 끝난 전형 순. 앞자리 숫자가 그 세 뭉치를 가른다.
+ * 올해 요강이 없어 지난 학년도 요강을 옮겨 둔 공고는 날짜가 지난해라 끝난 뭉치로 보낸다 —
+ * 오늘을 모르는 프리렌더에서 그 공고들이 가장 이른 날짜로 목록 맨 위를 차지하던 자리다.
  */
-function sortKey(notice: AdmissionNotice, today?: string | null): string {
+function sortKey(
+  notice: AdmissionNotice,
+  today?: string | null,
+  latest?: number | null,
+): string {
   const start = notice.apply_start ?? notice.apply_end;
   if (!start) return NO_DATE;
-  if (today && !isOpen(notice, today)) return `9:${start}`;
+  const standIn =
+    typeof latest === "number" &&
+    typeof notice.admission_year === "number" &&
+    notice.admission_year < latest;
+  if (standIn || (today && !isOpen(notice, today))) return `9:${start}`;
   return `1:${start}`;
 }
 
-function groupKey(notices: AdmissionNotice[], today?: string | null): string {
+function groupKey(
+  notices: AdmissionNotice[],
+  today?: string | null,
+  latest?: number | null,
+): string {
   // 초기값을 NO_DATE로 두면 안 된다. 마감된 전형 키("9:")가 NO_DATE("8:")보다 커서
   // 절대 채택되지 않고, 공고가 전부 마감된 대학이 '날짜 미확인'과 같은 자리로 묶인다.
   if (notices.length === 0) return NO_DATE;
   return notices.reduce(
     (earliest, notice) =>
-      sortKey(notice, today) < earliest ? sortKey(notice, today) : earliest,
-    sortKey(notices[0], today),
+      sortKey(notice, today, latest) < earliest
+        ? sortKey(notice, today, latest)
+        : earliest,
+    sortKey(notices[0], today, latest),
   );
 }
 

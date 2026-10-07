@@ -20,12 +20,13 @@ Actor Memory의 자리는 연습 도구의 성능이다(PRD). 현행 규칙(배�
 ## 입력·출력
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
-| `GET /v2/me/memory` | — | `ActorMemoryResponse` 200 | — |
-| `PUT /v2/me/memory/{field}` | field(goal·blockage·speech_self·speech_actual), 필수 `value` 1~1,000자 (`UpdateActorMemoryRequest`) | `ActorMemoryItem` 200(written_by actor) | 1,001자·없는 field 422(배열), `account_deactivated` 403 |
+| `GET /v2/me/memory` | — | `ActorMemoryResponse` 200 (말투 tone 은 빼고 내려보낸다) | — |
+| `PUT /v2/me/memory/{field}` | field(goal·blockage·wants·habits·avoid·speech_self·speech_actual, tone 은 422), 필수 `value` 1~1,000자 (`UpdateActorMemoryRequest`) | `ActorMemoryItem` 200(written_by actor) | 1,001자·없는 field 422(배열), `account_deactivated` 403 |
 | `DELETE /v2/me/memory/{field}` | field | 204, 이미 없어도 204 | 없는 field 422(배열) |
 | `DELETE /v2/me/memory` | — | 204 | — |
 | `GET·DELETE /v2/legacy-me/memory`, `PUT·DELETE /v2/legacy-me/memory/{field}` | 옛 표(actor_memory_entries)의 옛 경로 (`UpdateMemoryRequest`) | `MemoryResponse`·`MemoryItem` 200, 204 | 422(배열) |
-| `ActorMemoryUpdateScheduling.onConversationClosed` | 닫힌 회차(확인 연습 1·3·6·9…회째) | ai_jobs memory_update `pending`, 예약 시점의 memory_epoch | — |
+| `ActorMemoryUpdateScheduling.onConversationClosed` | 닫힌 회차 | avoid 에 정정 덧붙임, 갱신 차례(1·3·6·9…번째)면 ai_jobs memory_update `pending`, 예약 시점의 memory_epoch | — |
+| `ActorMemoryUpdateWorker.sweepIdle` (10분마다) | 배우가 두 번 이상 답하고 30분~24시간 말이 없는 열린 회차, 작업이 아직 없는 것 | 위와 같다 | — |
 | `MemoryWorkerScheduler.poll` (`ANALYSIS_WORKER_POLL_INTERVAL_SEC`, 기본 2초) | `pending` memory_update 작업 | actor_memories 갱신(written_by agent, 배우가 쓴 칸은 건너뜀) | 세대 불일치 `failed`/memory_epoch_stale, 탈퇴 `failed`/account_deactivated, 3회 소진은 분석 워커 정리가 닫는다 |
 
 ## 상태
@@ -44,13 +45,19 @@ users.memory_epoch — 기억 세대.
 memory_update 작업의 전이 (정본: [공통 상태](../common.md#공통-상태))
 
 ## 규칙·제약
-- 항목은 goal·blockage·speech_self·speech_actual 넷이다. 성별·나이 칸은 기억 화면에서 빼고 프로필로 안내한다. (디자인에 반영할 것)
+- 항목(유저.md, SOMA-603): goal(목표)·blockage(막히는 지점)·wants(코치에게 바라는 것)·habits(자주 짚인 버릇, 서술형)·
+  avoid(다시 말하지 않을 것)·tone(말투). tone 은 코치만 쓰고 배우 화면·API 읽기에 내려보내지 않는다. 옛 speech_self·speech_actual 은
+  더 채우지 않고 연습 루프 코치에도 싣지 않지만, 스토어에 나간 앱이 보여 주므로 읽기·쓰기는 남긴다. 성별·나이 칸은 기억 화면에서
+  빼고 프로필로 안내한다.
+- 모델(추출기)은 goal·blockage·wants·habits·tone 만 쓴다. avoid 는 회차가 끝날 때(또는 말이 끊긴 열린 회차를 볼 때) 코드가
+  연습 루프 상태 칸의 정정·반박을 "- 주제: \"원문\"" 줄로 덧붙인다 — 같은 줄은 다시 넣지 않고 12줄을 넘으면 오래된 것부터 뺀다.
+  추출기 재료에는 세션.md 한 줄과, 배우 말마다 코치가 붙인 분류("(평가 요청) …")가 들어간다.
 - 배우가 직접 적거나 고친 값은 written_by = actor이고 워커(memory_update)가 덮지 않는다. 화면에 "내가 적은 값"을 표시한다. 값은
   공백을 정리한 뒤 1~1,000자이고, 다듬고 나서 빈 값은 422(배열, `value must not be blank`)다.
 - 자동 갱신의 근거는 배우 발화·실제 전사·관찰만이다. 코치 제안이나 인물 대사를 배우의 성격으로 바꾸지 않고 개인 심리를 판정하지
   않는다(현행 추출기).
-- 갱신 시점: 첫 확인 연습과 그 뒤 3회마다(1·3·6·9·12…회, 현행). 신형 코칭은 action·observation 노트로 닫힌 회차를 확인 연습으로 세어
-  같은 규칙에 넣는다(record_only는 세지 않는다). 이 집계는 갱신 예약에만 쓰고 배우의 동의·실행 증거로 쓰지 않는다. "연습을 마칠 때마다
+- 갱신 시점: 첫 회차와 그 뒤 3회마다(1·3·6·9·12…번째). 세는 회차는 action·observation 노트가 남은 회차와, 열린 채 남았어도 배우가
+  두 번 이상 답한 회차다(SOMA-603, record_only 는 세지 않는다). 번호는 셈에 드는 회차 가운데 그 회차의 차례다. 이 집계는 갱신 예약에만 쓰고 배우의 동의·실행 증거로 쓰지 않는다. "연습을 마칠 때마다
   적는다"는 카피는 실제 기준에 맞게 고친다. (디자인에 반영할 것) 갱신 예약은 대화가 닫히고 노트까지 남은 뒤이고 같은 회차는 작업
   하나다. 갱신은 회차 상태를 건드리지 않는다 — 기억이 없다고 연습이 망가질 것은 아니다.
 - 이관 때 어느 기억을 남길지는 [account.guest](../account/guest.md#규칙제약)가 정한다. 고른 뒤 세대를 올린다.

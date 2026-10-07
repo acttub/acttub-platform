@@ -144,11 +144,11 @@ test("입시 목록 metadata는 데이터의 대학 수와 canonical을 담는�
 
   assert.equal(
     metadata.title,
-    "연극영화과 입시 정보 — 대학별 모집요강·실기·일정 정리",
+    "연극영화과 입시 정보 — 2027학년도 대학별 모집요강·실기·입시결과",
   );
   assert.equal(
     metadata.description,
-    "전국 연극영화과·연기 전공 66개 대학의 모집요강, 실기 과제, 원서 접수 일정을 한곳에 정리했어요. 최종 확인은 각 대학 입학처 공고로 해주세요.",
+    "전국 연극영화과·연기 전공 66개 대학의 2027학년도 모집요강, 실기 과제, 원서 접수 일정과 2026·2025학년도 입시결과·응시 후기를 한곳에 정리했어요. 최종 확인은 각 대학 입학처 공고로 해주세요.",
   );
   assert.equal(metadata.alternates.canonical, "/admissions");
   assert.equal(metadata.openGraph.url, "https://example.com/admissions");
@@ -159,10 +159,10 @@ test("대학 상세 metadata는 실제 중앙대 공고에서 만든다", () => 
   assert.ok(payload);
   const metadata = buildUniversityAdmissionsMetadata(payload, "https://example.com/");
 
-  assert.equal(metadata.title, "중앙대학교 연기 입시 정보 — 모집요강·실기·일정");
+  assert.equal(metadata.title, "중앙대학교 연기 입시 정보 — 2027학년도 모집요강·입시결과·후기");
   assert.equal(
     metadata.description,
-    "중앙대학교 공연영상창작학부 연극전공 (연기·뮤지컬) 2027학년도 수시 전형의 실기 과제와 접수 일정을 정리했어요. 최종 확인은 대학 입학처 공고로 해주세요.",
+    "중앙대학교 공연영상창작학부 연극전공 (연기·뮤지컬) 2027학년도 수시 전형의 실기 과제와 접수 일정, 2026·2025학년도 입시결과와 응시 후기를 정리했어요. 최종 확인은 대학 입학처 공고로 해주세요.",
   );
   assert.equal(metadata.alternates.canonical, "/admissions/cau");
   assert.equal(metadata.openGraph.url, "https://example.com/admissions/cau");

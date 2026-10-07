@@ -60,11 +60,17 @@ final class SessionDtos {
             @Schema(nullable = true) Boolean complete) {
     }
 
+    /**
+     * 줄 하나의 결과. {@code said} 를 실으면 서버가 원문과 비교해 결과를 정하고 {@code outcome}·{@code misses} 는 무시한다.
+     * {@code said} 가 없으면 {@code outcome}·{@code misses} 가 필수다(옛 앱·웹 암기 대조).
+     */
     @Schema(name = "ReadingLineResultInput", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     record LineResultInput(
             @NotNull @JsonProperty("line_id") UUID lineId,
-            @NotNull OutcomeInput outcome,
-            @NotNull @PositiveOrZero Integer misses) {
+            @Schema(nullable = true, description = "said 가 없을 때 필수") OutcomeInput outcome,
+            @Schema(nullable = true, description = "said 가 없을 때 필수") @PositiveOrZero Integer misses,
+            @Schema(nullable = true, description = "기기 음성 인식이 그 줄에서 받아 적은 말. 무발화·1,000자 초과면 결과를 남기지 않는다")
+            String said) {
     }
 
     /** passed 대조 통과 · unmatched 2회 미달 뒤 넘어감(read 는 1회) · skipped quiz 의 넘어가기. */
@@ -91,6 +97,9 @@ final class SessionDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<UUID> myCharacterIds,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<String> myCharacterNames,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) RangeResponse range,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) RangeNameResponse rangeName,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true,
+                    description = "진행 K/N. in_progress 일 때만, completed 는 null") ProgressCountResponse progress,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int myDialogueCount,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int recordedLineCount,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int elapsedSeconds,
@@ -107,9 +116,37 @@ final class SessionDtos {
     }
 
     /**
+     * 구간 이름. 화면 글은 기기가 만든다 — {@code all} 「처음부터 끝까지」, {@code scene} 장면 이름(없으면 「장면 N」),
+     * {@code dialogues} 「대사 start~end번」.
+     */
+    @Schema(name = "ReadingSessionRangeName", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record RangeNameResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"all", "scene", "dialogues"},
+                    description = "all 대본 전체 · scene 대본 상세 scenes 의 한 장면과 첫·끝 대사가 정확히 같음 · dialogues 그 밖")
+            String kind,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true,
+                    description = "kind=scene 일 때 그 장면의 no, 아니면 null") Integer sceneNo,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true,
+                    description = "kind=scene 이고 장면에 머리 줄이 있을 때 그 글, 아니면 null") String sceneTitle,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "시작 대사 번호") int start,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "끝 대사 번호") int end) {
+    }
+
+    /** 「진행 중 · K/N」 — K 는 done, N 은 total. */
+    @Schema(name = "ReadingSessionProgressCount", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record ProgressCountResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                    description = "지난 대사 수 — 현재 줄(current_line_id, 구간 안 대사 줄)의 대사 번호 − 시작 대사 번호")
+            int done,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "구간 안 대사 수(모든 배역)") int total) {
+    }
+
+    /**
      * 회차 상세. 시작 응답도 이 모양이다.
      *
-     * @param currentLineId 다음에 할 대사 줄. completed 면 {@code null}, stopped 는 중단 위치
+     * @param currentLineId 다음에 할 대사 줄. completed 면 {@code null}
      * @param recordings 줄 순서의 녹음. 재생 주소는 녹음 기능이 채운다
      */
     @Schema(name = "ReadingSession", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
@@ -121,6 +158,9 @@ final class SessionDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<UUID> myCharacterIds,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<String> myCharacterNames,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) RangeResponse range,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) RangeNameResponse rangeName,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true,
+                    description = "진행 K/N. in_progress 일 때만, completed 는 null") ProgressCountResponse progress,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int myDialogueCount,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int recordedLineCount,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int elapsedSeconds,
@@ -135,7 +175,31 @@ final class SessionDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) UUID currentLineId,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long progressSeq,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<LineResultResponse> lineResults,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<RecordingResponse> recordings) {
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<RecordingResponse> recordings,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<DifferentLineResponse> differentLines) {
+    }
+
+    /** 원문과 다르게 말한 대사 하나 — 구간 안에서 결과가 unmatched 인 줄, 줄 순서. 서버가 진행 저장의 said 로 비교한 결과다. */
+    @Schema(name = "ReadingDifferentLine", additionalProperties = Schema.AdditionalPropertiesValue.FALSE,
+            description = "원문과 다르게 말한 대사 하나 — 구간 안에서 결과가 unmatched 인 줄. different_lines 는 줄 순서다")
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    record DifferentLineResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) UUID lineId,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "대본 안 대사 번호(1부터)") int dialogueNo,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true,
+                    description = "말한 것(진행 저장의 said). 기기가 said 없이 결과만 보낸 줄은 null 이고 그때 어절에 표시가 없다")
+            String said,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
+                    description = "원문을 공백으로 나눈 어절 전부, 원문 순서. 사이에 공백 하나를 넣어 이으면 원문이 된다(연속 공백은 하나로)")
+            List<DifferentWordResponse> differentWords) {
+    }
+
+    @Schema(name = "ReadingDifferentWord", additionalProperties = Schema.AdditionalPropertiesValue.FALSE,
+            description = "원문 어절 하나. differs 면 그 어절에 말한 것과 맞지 않는 글자가 있다(빠뜨리거나 바꿔 말함). "
+                    + "띄어쓰기·문장부호·괄호 안 지시는 비교하지 않고, 더 말한 것은 어디에도 표시하지 않는다")
+    record DifferentWordResponse(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "원문 그대로(문장부호 포함)") String text,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean differs) {
     }
 
     /** 줄마다 하나. 마지막 사건이 이긴다. */
@@ -186,7 +250,8 @@ final class SessionDtos {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"stt", "none"})
             @JsonProperty("transcript_source") String transcriptSource,
             @Schema(nullable = true, description = "기기 STT 의 전사") String transcript,
-            @Schema(nullable = true, description = "대조 결과. 인식 불가·무발화면 싣지 않는다") Boolean matched) {
+            @Schema(nullable = true, description = "옛 앱이 보내는 대조 결과. 받기만 하고 서버가 transcript 로 다시 정한다")
+            Boolean matched) {
     }
 
     /** 그 대본의 회차, 최근순. */
@@ -194,13 +259,14 @@ final class SessionDtos {
     record ListResponse(@Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<CardResponse> sessions) {
     }
 
-    /** 진행 저장의 답 — 반영했든 무시했든 현재 값이다. */
+    /** 진행 저장의 답 — 반영했든 무시했든 현재 값이다. 완료 저장의 답이 완료 화면의 다르게 말한 대사를 싣는다. */
     @Schema(name = "ReadingSessionProgress", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     record ProgressResponse(
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) UUID currentLineId,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) int elapsedSeconds,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) long progressSeq,
-            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, implementation = ReadingSessionStatus.class) String status) {
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, implementation = ReadingSessionStatus.class) String status,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) List<DifferentLineResponse> differentLines) {
     }
 }

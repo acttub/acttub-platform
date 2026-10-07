@@ -9,7 +9,7 @@ import { SCRIPT_ERROR_CODES, type ScriptErrorCode } from './types.ts';
 const MESSAGE_KEY: Record<ScriptErrorCode, string> = {
   script_too_long: 'reading.errorScriptTooLong',
   script_limit: 'reading.errorScriptLimit',
-  no_characters: 'reading.errorNoCharacters',
+  no_characters: 'reading.noCharactersBody',
   invalid_characters: 'reading.errorInvalidCharacters',
   request_fingerprint_mismatch: 'reading.errorFingerprintMismatch',
 };
@@ -31,3 +31,4 @@ export function scriptErrorMessage(error: unknown): string {
   if (error instanceof ApiError) return error.message;
   return error instanceof Error && error.message ? error.message : t('errors.generic', { status: '?' });
 }
+

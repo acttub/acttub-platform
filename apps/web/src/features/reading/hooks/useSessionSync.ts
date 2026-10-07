@@ -7,7 +7,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { saveProgress } from "@/lib/api/v2/reading-sessions";
-import type { SessionDetail } from "@/lib/reading/api-types";
+import type { ProgressResponse, SessionDetail } from "@/lib/reading/api-types";
 import type { RehearsalState } from "@/lib/reading/rehearsal/machine";
 import { startCompletionRetry } from "@/lib/reading/session/completion";
 import { createElapsedClock, createProgressSync, type ElapsedClock, type ProgressSync } from "@/lib/reading/session/progress";
@@ -21,14 +21,15 @@ export interface SessionSync {
   elapsedMs: number;
   /** 지금 상태를 저장한다(줄 전환·일시정지·나가기). */
   save: (state: RehearsalState) => void;
-  /** 구간 끝을 지났다. 서버에 complete 를 보내고 완료 응답을 기다린다. */
-  finish: () => Promise<void>;
+  /** 구간 끝을 지났다. 서버에 complete 를 보내고 완료 응답을 기다린다. 받지 못했으면 null. */
+  finish: () => Promise<ProgressResponse | null>;
 }
 
 export function useSessionSync(script: StoredScript, session: SessionDetail): SessionSync {
   // 시계는 렌더 밖에서만 시각을 읽는다(start·pause·elapsedMs). 기본 인자가 Date.now 를 쓴다.
   const clock = useMemo(() => createElapsedClock(undefined, session.elapsed_seconds * 1000), [session.elapsed_seconds]);
-  const results = useMemo(() => createLineResults(session.line_results), [session.line_results]);
+  // read 는 이번에 말한 것만 보낸다. 저장된 결과를 said 없이 다시 보내면 서버가 그 줄의 말한 것을 지운다.
+  const results = useMemo(() => createLineResults(session.mode === "quiz" ? session.line_results : []), [session.mode, session.line_results]);
   const sync: ProgressSync = useMemo(
     () => createProgressSync({ send: (body) => saveProgress(session.id, body), startSeq: session.progress_seq }),
     [session.id, session.progress_seq],
@@ -51,6 +52,7 @@ export function useSessionSync(script: StoredScript, session: SessionDetail): Se
     // 완료 저장이 실패했다(오프라인 등). 같은 본문을 재시도에 넘기고 완료 화면은 "저장 중"을 보인다.
     const body = sync.lastRequest();
     if (answer === null && !sync.closed() && body) startCompletionRetry(session.id, body);
+    return answer;
   };
 
   return { clock, results, elapsedMs, save, finish };

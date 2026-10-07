@@ -7,7 +7,7 @@ import java.util.UUID;
 import com.acttub.actingapi.feature.reading.app.SessionViews.ProgressView;
 import com.acttub.actingapi.feature.reading.app.SessionViews.SessionCardView;
 import com.acttub.actingapi.feature.reading.app.SessionViews.SessionDetailView;
-import com.acttub.actingapi.feature.reading.domain.LineResult;
+import com.acttub.actingapi.feature.reading.domain.LineReport;
 import com.acttub.actingapi.feature.reading.domain.SessionPlan;
 
 /**
@@ -23,7 +23,7 @@ public interface SessionRepository {
     /**
      * 회차를 한 트랜잭션에서 시작한다 — 대본 행을 잠그고, 같은 (user_id, request_id) 가 있으면 그것으로 답하고
      * (속성이 같으면 {@link StartOutcome#REPLAYED}, 다르면 {@link StartOutcome#REQUEST_MISMATCH}), 내 배역·구간을
-     * 확인한 뒤, 열린 회차를 {@code stopped} 로 바꾸고 새 회차를 만든다. 거절이면 아무것도 쓰지 않는다.
+     * 확인한 뒤 새 회차를 만든다. 같은 대본의 진행 중 회차는 그대로 둔다. 거절이면 아무것도 쓰지 않는다.
      *
      * @return 대본이 없거나 남의 것이면 {@code null}
      */
@@ -55,7 +55,8 @@ public interface SessionRepository {
     /**
      * 진행을 저장한다. 회차 행을 잠근 채 — 닫힌 회차면 {@link ProgressOutcome#CLOSED}, {@code progressSeq} 가 저장된
      * 값보다 크지 않으면 아무것도 바꾸지 않고 {@link ProgressOutcome#IGNORED}, 위치·결과의 줄이 구간 안 대사 줄이
-     * 아니면 {@link ProgressOutcome#INVALID_LINE}. 반영하면 시간은 줄지 않고 줄 결과는 마지막 사건이 이긴다.
+     * 아니면 {@link ProgressOutcome#INVALID_LINE}. 반영하면 시간은 줄지 않고 줄 결과는 마지막 사건이 이긴다
+     * ({@link com.acttub.actingapi.feature.reading.domain.LineResult#merge}).
      *
      * @return 없거나 남의 것이면 {@code null}. 그 밖에는 언제나 <b>현재 값</b>을 함께 돌려준다
      */
@@ -67,7 +68,7 @@ public interface SessionRepository {
      * @param complete 구간 끝을 지났다 — completed, ended_at, 위치 NULL
      */
     record ProgressChange(
-            long progressSeq, UUID currentLineId, Integer elapsedSeconds, List<LineResult> lineResults, boolean complete) {
+            long progressSeq, UUID currentLineId, Integer elapsedSeconds, List<LineReport> lineResults, boolean complete) {
     }
 
     /** @param view 거절({@code INVALID_LINE})이면 {@code null}, 그 밖에는 현재 값 */

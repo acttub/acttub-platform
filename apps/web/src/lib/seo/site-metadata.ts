@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import type { KeywordPageContent } from "@/features/keyword-pages/types";
 import { loadAdmissionsStatic } from "@/features/admissions/admissions-static";
+import {
+  latestAdmissionYear,
+  resultYears,
+} from "@/features/admissions/by-year";
 import type { AdmissionsResponse } from "@/lib/api/v2/admissions";
 
 const DEFAULT_SITE_URL = "https://acttub.com";
@@ -155,9 +159,15 @@ export function buildNoindexMetadata(title?: string): Metadata {
 }
 
 export function buildAdmissionsIndexMetadata(siteUrl?: string): Metadata {
-  const title = "연극영화과 입시 정보 — 대학별 모집요강·실기·일정 정리";
-  const count = loadAdmissionsStatic().universities.length;
-  const description = `전국 연극영화과·연기 전공 ${count}개 대학의 모집요강, 실기 과제, 원서 접수 일정을 한곳에 정리했어요. 최종 확인은 각 대학 입학처 공고로 해주세요.`;
+  const payload = loadAdmissionsStatic();
+  const latest = latestAdmissionYear(payload.notices);
+  const past = resultYears(payload.notices)
+    .filter((year) => latest === null || year < latest)
+    .slice(0, 2);
+  const title = `연극영화과 입시 정보 — ${latest}학년도 대학별 모집요강·실기·입시결과`;
+  const description = `전국 연극영화과·연기 전공 ${payload.universities.length}개 대학의 ${latest}학년도 모집요강, 실기 과제, 원서 접수 일정${
+    past.length > 0 ? `과 ${past.join("·")}학년도 입시결과·응시 후기` : ""
+  }를 한곳에 정리했어요. 최종 확인은 각 대학 입학처 공고로 해주세요.`;
 
   return buildPageMetadata({ path: "/admissions", title, description }, siteUrl);
 }
@@ -167,7 +177,10 @@ export function buildUniversityAdmissionsMetadata(
   siteUrl?: string,
 ): Metadata {
   const university = payload.universities[0];
-  const title = `${university.name} 연기 입시 정보 — 모집요강·실기·일정`;
+  const latest = latestAdmissionYear(payload.notices);
+  const title = latest
+    ? `${university.name} 연기 입시 정보 — ${latest}학년도 모집요강·입시결과·후기`
+    : `${university.name} 연기 입시 정보 — 모집요강·입시결과·후기`;
   const departments = [
     ...new Set(payload.notices.map(({ department }) => department).filter(Boolean)),
   ].slice(0, 3);
@@ -177,8 +190,15 @@ export function buildUniversityAdmissionsMetadata(
   const years = payload.notices
     .map(({ admission_year }) => admission_year)
     .filter((year): year is number => typeof year === "number");
+  const past = resultYears(payload.notices).slice(0, 2);
+  const extras = [
+    past.length > 0 ? `${past.join("·")}학년도 입시결과` : "",
+    university.tips?.length ? "응시 후기" : "",
+  ].filter(Boolean);
   const description = payload.notices.length
-    ? `${university.name} ${departments.join(" · ")} ${Math.max(...years)}학년도 ${tracks.join(" · ")} 전형의 실기 과제와 접수 일정을 정리했어요. 최종 확인은 대학 입학처 공고로 해주세요.`
+    ? `${university.name} ${departments.join(" · ")} ${Math.max(...years)}학년도 ${tracks.join(" · ")} 전형의 실기 과제와 접수 일정${
+        extras.length > 0 ? `, ${extras.join("와 ")}` : ""
+      }를 정리했어요. 최종 확인은 대학 입학처 공고로 해주세요.`
     : `${university.name} 연기 전공 입시 정보를 정리했어요. 최종 확인은 대학 입학처 공고로 해주세요.`;
   return buildPageMetadata(
     { path: `/admissions/${university.id}`, title, description },

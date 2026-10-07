@@ -97,6 +97,7 @@ class PostgresConsentRepository implements ConsentRepository {
                              WHEN 'ai_analysis' THEN 3
                              WHEN 'retention' THEN 4
                              WHEN 'cloud_voice' THEN 5
+                             WHEN 'script_split' THEN 6
                          END
                 """, Tuple.class)
                 .setParameter("locale", requestLocale())).stream()

@@ -22,7 +22,6 @@ export type QueuedRecording = {
   durationMs: number;
   transcript: string | null;
   transcriptSource: 'stt' | 'none';
-  matched: boolean | null;
   createdAt: number;
 };
 

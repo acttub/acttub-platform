@@ -14,12 +14,24 @@ import com.acttub.actingapi.feature.reading.app.RecordingPlayback;
 import com.acttub.actingapi.feature.reading.app.RecordingRepository;
 import com.acttub.actingapi.feature.reading.app.RecordingService;
 import com.acttub.actingapi.feature.reading.app.RecordingStorage;
+import com.acttub.actingapi.feature.reading.app.ScriptFileCleanup;
+import com.acttub.actingapi.feature.reading.app.ScriptFileStorage;
+import com.acttub.actingapi.feature.reading.app.ScriptImportRepository;
+import com.acttub.actingapi.feature.reading.app.ScriptImportService;
 import com.acttub.actingapi.feature.reading.app.ScriptRepository;
 import com.acttub.actingapi.feature.reading.app.ScriptService;
+import com.acttub.actingapi.feature.reading.app.ScriptSplitWorker;
+import com.acttub.actingapi.feature.reading.app.ScriptUploadRepository;
+import com.acttub.actingapi.feature.reading.app.ScriptUploadService;
 import com.acttub.actingapi.feature.reading.app.SessionRepository;
 import com.acttub.actingapi.feature.reading.app.SessionService;
 import com.acttub.actingapi.feature.reading.app.VoiceSynthesizer;
+import com.acttub.actingapi.feature.reading.domain.ScriptFileRules;
+import com.acttub.actingapi.integration.llm.TextGenerator;
 import com.acttub.actingapi.integration.media.AudioTranscoder;
+import com.acttub.actingapi.platform.ledger.AiJobLedger;
+import com.acttub.actingapi.platform.observability.FailureReporter;
+import com.acttub.actingapi.platform.observability.LlmTelemetry;
 import com.acttub.actingapi.feature.reading.adapter.voice.GeminiVoiceSynthesizer;
 import com.acttub.actingapi.platform.web.CanonicalJson;
 import com.google.genai.Client;
@@ -39,7 +51,7 @@ class ReadingConfiguration {
     CloudVoiceSettings cloudVoiceSettings(
             @Value("${GEMINI_TTS_MODEL:}") String model,
             @Value("${GEMINI_API_KEY:}") String apiKey,
-            @Value("${READING_VOICE_FREE_UNTIL:2026-11-30T23:59:59+09:00}") String freeUntil,
+            @Value("${READING_VOICE_FREE_UNTIL:2026-10-31T23:59:59+09:00}") String freeUntil,
             @Value("${READING_VOICE_DAILY_LINE_CAP:300}") int dailyCap,
             @Value("${READING_VOICE_MONTHLY_LINE_CAP:75000}") int monthlyCap) {
         return new CloudVoiceSettings(model, apiKey,
@@ -61,6 +73,25 @@ class ReadingConfiguration {
     ScriptService scriptService(
             ScriptRepository scripts, ReadingRecordingCleanup cleanup, CanonicalJson canonical, Clock clock) {
         return new ScriptService(scripts, cleanup, canonical, clock);
+    }
+
+    @Bean
+    ScriptUploadService scriptUploadService(ScriptUploadRepository uploads, ScriptImportRepository imports,
+            ScriptFileStorage storage, ScriptFileCleanup cleanup, Clock clock) {
+        return new ScriptUploadService(uploads, imports, storage, cleanup, clock, new ScriptUploadService.ReadLimits(
+                ScriptFileRules.READ_CONCURRENCY, ScriptFileRules.READ_WAIT, ScriptFileRules.READ_TIMEOUT));
+    }
+
+    @Bean
+    ScriptImportService scriptImportService(ScriptImportRepository imports, ScriptUploadService uploads,
+            CanonicalJson canonical, Clock clock) {
+        return new ScriptImportService(imports, uploads, canonical, clock);
+    }
+
+    @Bean
+    ScriptSplitWorker scriptSplitWorker(AiJobLedger ledger, ScriptImportRepository imports, TextGenerator generator,
+            LlmTelemetry telemetry, FailureReporter failures, Clock clock) {
+        return new ScriptSplitWorker(ledger, imports, generator, telemetry, failures, clock);
     }
 
     @Bean

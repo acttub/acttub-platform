@@ -123,7 +123,7 @@ final class ConsentDtos {
     record ConsentRequest(
             @NotNull @JsonProperty("document_id") String documentId,
             @NotNull ConsentActionInput action,
-            // 게스트의 첫 동의에만 필요하다 — "만 14세 이상이에요" 확인. 회원은 생년월일로 거른다.
+            // 게스트의 첫 동의에만 필요하다 — "만 14세 이상이에요" 확인. 회원은 가입 제출(SignupRequest)에서 확인한다.
             @JsonProperty("age_confirmed") Boolean ageConfirmed) {
     }
 

@@ -156,30 +156,16 @@ export function SpotlightHost() {
   }, [open, holeKey]);
 
   const rootStyle = useAnimatedStyle(() => ({ opacity: shown.value }));
-  // 덮개 넷 — 위·아래는 화면 폭 전체, 왼쪽·오른쪽은 구멍 높이만큼(겹치면 그 자리만 진해진다).
-  const topStyle = useAnimatedStyle(() => ({
-    left: 0,
-    top: 0,
-    width: screen.width,
-    height: Math.max(0, hy.value),
-  }));
-  const bottomStyle = useAnimatedStyle(() => ({
-    left: 0,
-    top: hy.value + hh.value,
-    width: screen.width,
-    height: Math.max(0, screen.height - hy.value - hh.value),
-  }));
-  const leftStyle = useAnimatedStyle(() => ({
-    left: 0,
-    top: hy.value,
-    width: Math.max(0, hx.value),
-    height: hh.value,
-  }));
-  const rightStyle = useAnimatedStyle(() => ({
-    left: hx.value + hw.value,
-    top: hy.value,
-    width: Math.max(0, screen.width - hx.value - hw.value),
-    height: hh.value,
+  // 덮개 하나 — 구멍 둘레에 아주 두꺼운 테두리를 둘러 안쪽 모서리를 고리와 같은 반지름으로 깎는다.
+  // 두께가 화면 대각선보다 크면 구멍이 어디 있든 화면 끝까지 덮인다.
+  const shroudWidth = screen.width + screen.height;
+  const shroudStyle = useAnimatedStyle(() => ({
+    left: hx.value - shroudWidth,
+    top: hy.value - shroudWidth,
+    width: hw.value + shroudWidth * 2,
+    height: hh.value + shroudWidth * 2,
+    borderWidth: shroudWidth,
+    borderRadius: hr.value + shroudWidth,
   }));
   const holeStyle = useAnimatedStyle(() => ({
     left: hx.value,
@@ -229,10 +215,7 @@ export function SpotlightHost() {
       onStartShouldSetResponder={() => true}>
       {hole ? (
         <>
-          <Animated.View style={[styles.shroud, topStyle]} />
-          <Animated.View style={[styles.shroud, bottomStyle]} />
-          <Animated.View style={[styles.shroud, leftStyle]} />
-          <Animated.View style={[styles.shroud, rightStyle]} />
+          <Animated.View style={[styles.shroudRing, shroudStyle]} />
           {/* 비친 자리를 누르면 다음으로. 어두운 곳은 눌러도 아무 일이 없다. */}
           <Animated.View style={[styles.hole, holeStyle]}>
             <Pressable
@@ -298,6 +281,7 @@ function StepDot({ active, done }: { active: boolean; done: boolean }) {
 const styles = StyleSheet.create({
   root: { ...StyleSheet.absoluteFillObject, zIndex: 100, elevation: 100 },
   shroud: { position: 'absolute', backgroundColor: 'rgba(11, 18, 38, 0.82)' },
+  shroudRing: { position: 'absolute', borderColor: 'rgba(11, 18, 38, 0.82)' },
   hole: { position: 'absolute' },
   // 밝은 배경 위에서도 보이게 파랑으로 두른다 — 흰 테두리는 흰 화면에 묻힌다.
   ring: { position: 'absolute', borderWidth: 3, borderColor: palette.blue },
