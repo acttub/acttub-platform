@@ -85,7 +85,7 @@ class ReadingRecordingIT {
     private static final AtomicInteger ADDRESSES = new AtomicInteger();
     private static final long TRANSFER_GATE = 546_004L;
     private static final OffsetDateTime PUBLISHED = OffsetDateTime.of(2026, 10, 1, 0, 0, 0, 0, ZoneOffset.UTC);
-    private static final byte[] M4A = "m4a-bytes".getBytes(StandardCharsets.UTF_8);
+    private static final byte[] M4A = java.util.Arrays.copyOf("m4a-bytes".getBytes(StandardCharsets.UTF_8), 2048);
     private static String database;
 
     @DynamicPropertySource
@@ -200,13 +200,13 @@ class ReadingRecordingIT {
         storage.failing.add(firstKey);
 
         UUID second = UUID.randomUUID();
-        JsonNode take2 = upload(bearer, session, second, script.dialogue(1), 2, "audio/mp4", "retake".getBytes(StandardCharsets.UTF_8), 1200,
+        JsonNode take2 = upload(bearer, session, second, script.dialogue(1), 2, "audio/mp4", java.util.Arrays.copyOf("retake".getBytes(StandardCharsets.UTF_8), 2100), 1200,
                 "none", null, null, 201);
 
         String secondKey = "reading/" + member + "/" + session + "/" + script.dialogue(1) + "/" + second + ".m4a";
         assertThat(take2.path("id").textValue()).as("행은 하나다").isEqualTo(take1.path("id").textValue());
         assertThat(take2.path("attempt_no").intValue()).isEqualTo(2);
-        assertThat(take2.path("byte_size").longValue()).isEqualTo(6);
+        assertThat(take2.path("byte_size").longValue()).isEqualTo(2100);
         assertThat(take2.path("playback_url").textValue()).endsWith(secondKey);
         assertThat(count("reading_recordings")).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT object_key FROM reading_recordings", String.class)).isEqualTo(secondKey);
@@ -321,6 +321,22 @@ class ReadingRecordingIT {
     }
 
     @Test
+    @DisplayName("reading.recording: 소리가 들어 있을 수 없는 파일(258바이트 m4a·변환 결과가 빈 파일) — 422 recording_empty, 행·객체 없음")
+    void readingRecording_rejectsEmptyAudio() throws Exception {
+        assertThat(upload(bearer, session, UUID.randomUUID(), script.dialogue(1), 1, "audio/mp4", new byte[258], 2000, "none",
+                null, null, 422)).isEqualTo(mapper.readTree("{\"detail\":\"recording_empty\"}"));
+        ffmpeg.output.set(new byte[258]);
+        try {
+            assertThat(upload(bearer, session, UUID.randomUUID(), script.dialogue(1), 1, "audio/wav", new byte[44], 2000, "stt",
+                    null, null, 422)).isEqualTo(mapper.readTree("{\"detail\":\"recording_empty\"}"));
+        } finally {
+            ffmpeg.output.set(FakeFfmpeg.OUTPUT);
+        }
+        assertThat(count("reading_recordings")).isZero();
+        assertThat(storage.objects).isEmpty();
+    }
+
+    @Test
     @DisplayName("reading.recording: 총량 1,000,000,000바이트를 넘긴 회원의 새 녹음 — 422 recording_quota, 기존 행 그대로. 게스트 100,000,000바이트 초과도 같다. 이관으로 총량을 넘긴 회원 — 기존은 모두 보이고 새 저장만 422")
     void readingRecording_quotaKeepsTheExistingRowsAndRejectsOnlyNewOnes() throws Exception {
         seedRecording(member, session, script.dialogue(3), 999_999_995L);
@@ -381,8 +397,8 @@ class ReadingRecordingIT {
     }
 
     @Test
-    @DisplayName("reading.recording: STT 없이 올리기 — transcript_source none, transcript·matched NULL, 201. STT 인식 불가 — matched NULL. 정상 인식 뒤 미달 — false. 통과 — true. none 인데 전사가 실리면 422 배열")
-    void readingRecording_transcriptAndMatchFollowTheDevice() throws Exception {
+    @DisplayName("reading.recording: STT 없이 올리기 — transcript_source none, transcript·matched NULL, 201. STT 인식 불가·무발화·1,000자 초과 — matched NULL. 정상 인식 뒤 미달 — false. 통과 — true. matched 는 서버가 전사를 그 줄 원문과 비교해 정하고 기기가 보낸 값은 쓰지 않는다. none 인데 전사가 실리면 422 배열")
+    void readingRecording_theServerMatchesTheTranscriptAgainstTheLine() throws Exception {
         JsonNode none = upload(bearer, session, UUID.randomUUID(), script.dialogue(1), 1, "audio/mp4", M4A, 1000, "none", null, null, 201);
         assertThat(none.path("transcript_source").textValue()).isEqualTo("none");
         assertThat(none.path("transcript").isNull()).isTrue();
@@ -390,19 +406,25 @@ class ReadingRecordingIT {
 
         JsonNode unrecognized = upload(bearer, session, UUID.randomUUID(), script.dialogue(3), 1, "audio/mp4", M4A, 1000, "stt", null, null, 201);
         assertThat(unrecognized.path("transcript_source").textValue()).isEqualTo("stt");
-        assertThat(unrecognized.path("matched").isNull()).as("인식 불가·무발화").isTrue();
+        assertThat(unrecognized.path("matched").isNull()).as("인식 불가").isTrue();
+        JsonNode silent = upload(bearer, session, UUID.randomUUID(), script.dialogue(3), 2, "audio/mp4", M4A, 1000, "stt", " ... ", "false", 201);
+        assertThat(silent.path("matched").isNull()).as("무발화는 기기가 false 를 보내도 NULL").isTrue();
+        JsonNode tooLong = upload(bearer, session, UUID.randomUUID(), script.dialogue(3), 3, "audio/mp4", M4A, 1000, "stt", "가".repeat(1001), "false", 201);
+        assertThat(tooLong.path("matched").isNull()).as("1,000자 초과는 비교하지 않는다").isTrue();
 
-        JsonNode missed = upload(bearer, session, UUID.randomUUID(), script.dialogue(7), 1, "audio/mp4", M4A, 1000, "stt", "안녕하세유", "false", 201);
-        assertThat(missed.path("transcript").textValue()).isEqualTo("안녕하세유");
-        assertThat(missed.path("matched").booleanValue()).isFalse();
+        JsonNode missed = upload(bearer, session, UUID.randomUUID(), script.dialogue(7), 1, "audio/mp4", M4A, 1000, "stt", "안녕하세요", "true", 201);
+        assertThat(missed.path("transcript").textValue()).isEqualTo("안녕하세요");
+        assertThat(missed.path("matched").booleanValue()).as("원문 \"대사 7\"과 다르다 — 기기의 true 를 쓰지 않는다").isFalse();
 
-        JsonNode passed = upload(bearer, session, UUID.randomUUID(), script.dialogue(8), 1, "audio/mp4", M4A, 1000, "stt", "안녕하세요", "true", 201);
-        assertThat(passed.path("matched").booleanValue()).isTrue();
+        JsonNode passed = upload(bearer, session, UUID.randomUUID(), script.dialogue(8), 1, "audio/mp4", M4A, 1000, "stt", "대사 8", "false", 201);
+        assertThat(passed.path("matched").booleanValue()).as("원문 \"대사 8\"과 같다 — 기기의 false 를 쓰지 않는다").isTrue();
+        JsonNode withoutMatched = upload(bearer, session, UUID.randomUUID(), script.dialogue(1), 2, "audio/mp4", M4A, 1000, "stt", "대사 1", null, 201);
+        assertThat(withoutMatched.path("matched").booleanValue()).as("matched 를 싣지 않는 새 앱도 서버가 정한다").isTrue();
         assertThat(jdbc.queryForMap("SELECT transcript,transcript_source,matched FROM reading_recordings WHERE id=?",
                 UUID.fromString(passed.path("id").textValue())))
-                .containsEntry("transcript", "안녕하세요").containsEntry("transcript_source", "stt").containsEntry("matched", true);
+                .containsEntry("transcript", "대사 8").containsEntry("transcript_source", "stt").containsEntry("matched", true);
 
-        JsonNode rejected = upload(bearer, session, UUID.randomUUID(), script.dialogue(1), 2, "audio/mp4", M4A, 1000, "none", "글자", null, 422);
+        JsonNode rejected = upload(bearer, session, UUID.randomUUID(), script.dialogue(1), 3, "audio/mp4", M4A, 1000, "none", "글자", null, 422);
         assertThat(rejected.path("detail").isArray()).isTrue();
     }
 
@@ -778,8 +800,9 @@ class ReadingRecordingIT {
     }
 
     static final class FakeFfmpeg implements Ffmpeg.CommandRunner {
-        static final byte[] OUTPUT = "converted-m4a".getBytes(StandardCharsets.UTF_8);
+        static final byte[] OUTPUT = java.util.Arrays.copyOf("converted-m4a".getBytes(StandardCharsets.UTF_8), 3000);
         final AtomicBoolean failing = new AtomicBoolean();
+        final java.util.concurrent.atomic.AtomicReference<byte[]> output = new java.util.concurrent.atomic.AtomicReference<>(OUTPUT);
         final List<List<String>> commands = new java.util.concurrent.CopyOnWriteArrayList<>();
 
         @Override
@@ -788,7 +811,7 @@ class ReadingRecordingIT {
             if (failing.get()) {
                 throw new IOException("ffmpeg exited with status 1");
             }
-            Files.write(Path.of(command.getLast()), OUTPUT);
+            Files.write(Path.of(command.getLast()), output.get());
         }
     }
 

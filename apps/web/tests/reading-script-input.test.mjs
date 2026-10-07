@@ -1,31 +1,12 @@
-// reading.script — 대본 넣기 화면(D13)의 기기 쪽 규칙: 파일 크기 한도, 미지원 형식, 최근 대본 목록 카드의 표시.
+// reading.script — 대본 넣기 화면(D13)의 저작권 안내와 최근 대본 목록 카드의 표시.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import "./ts-module-loader.mjs";
 
-const { FILE_MAX_BYTES, FileTooLargeError, UnsupportedFileError, extractText } = await import(
-  "../src/lib/reading/script/extract.ts"
-);
 const { COPYRIGHT_NOTICE, activityLabel, listHeadline, myCharactersLabel, statusChip } = await import(
   "../src/features/reading/script-list.ts"
 );
-
-test("reading.script: 20,000,001바이트 파일은 글자를 뽑지 않고 안내하며, 20,000,000바이트는 읽는다", async () => {
-  assert.equal(FILE_MAX_BYTES, 20_000_000);
-  const tooLarge = new File([new Uint8Array(FILE_MAX_BYTES + 1)], "긴대본.txt", { type: "text/plain" });
-  await assert.rejects(extractText(tooLarge), (error) => error instanceof FileTooLargeError);
-  assert.equal(new FileTooLargeError().message, "파일이 너무 커요(20MB까지). 텍스트를 복사해 붙여넣어 주세요.");
-
-  const atLimit = new File([new Uint8Array(FILE_MAX_BYTES).fill(0x61)], "대본.txt", { type: "text/plain" });
-  const text = await extractText(atLimit);
-  assert.equal(text.length, FILE_MAX_BYTES);
-});
-
-test("reading.script: hwpx 는 미지원 안내다 (웹은 txt·pdf·docx·hwp 를 연다)", async () => {
-  const hwpx = new File(["x"], "대본.hwpx");
-  await assert.rejects(extractText(hwpx), (error) => error instanceof UnsupportedFileError && error.message.includes("hwpx"));
-});
 
 test("reading.script: 등록 화면의 저작권 안내 한 줄", () => {
   assert.equal(COPYRIGHT_NOTICE, "연습 목적으로만 보관하고 다른 사람에게 보여 주지 않아요.");

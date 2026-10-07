@@ -118,7 +118,8 @@ export function resolveBootstrapStep(input: BootstrapStepInput): BootstrapStep {
     input.consentEntryStatus === 'error' ||
     input.consentEntryStatus === 'decision_required'
   ) {
-    return { stage: 'consent-gate', route: '/consent' };
+    // 재동의는 화면이 아니라 홈 위 팝업으로 묻는다(_layout의 ReconsentPopup).
+    return { stage: 'consent-gate', route: '/(tabs)' };
   }
   if (input.profileStatus === 'checking') {
     return { stage: 'profile-gate', route: null };
@@ -145,33 +146,4 @@ export function resolveBootstrapStep(input: BootstrapStepInput): BootstrapStep {
     };
   }
   return { stage: 'done', route: '/(tabs)' };
-}
-
-export type InterruptedRoute =
-  | string
-  | {
-      pathname: string;
-      params?: Record<
-        string,
-        string | number | (string | number)[] | null | undefined
-      >;
-    };
-
-export function resolvePostConsentRoute(
-  bootstrapRoute: BootstrapRoute,
-  interruptedRoute: InterruptedRoute | null,
-): BootstrapRoute | InterruptedRoute {
-  return bootstrapRoute === '/(tabs)' && interruptedRoute
-    ? interruptedRoute
-    : bootstrapRoute;
-}
-
-/**
- * 재동의 화면에서 열어 두는 화면은 탈퇴뿐이다. 필수 문서에 거절이 없고 설정은 동의 화면
- * 뒤에 있어서, 동의하지 않는 사람이 떠나는 길이 이것 하나다.
- */
-export function routeAllowedDuringConsentGate(
-  segments: readonly string[],
-): boolean {
-  return segments[0] === 'delete-account';
 }

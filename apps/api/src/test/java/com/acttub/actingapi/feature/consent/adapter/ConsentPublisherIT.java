@@ -75,8 +75,8 @@ class ConsentPublisherIT {
                         + "FROM consent_documents ORDER BY type,locale"))
                 .hasSize(manifestEntryCount())
                 .allSatisfy(row -> {
-                    // 필수 셋과 선택 하나(탈퇴 후 영상·녹음 보관·활용).
-                    assertThat(row.get("required")).isEqualTo(!java.util.Set.of("retention", "cloud_voice").contains(row.get("type")));
+                    // 필수 셋. 나머지(탈퇴 후 보관·고품질 목소리·대본 나누기)는 선택이다.
+                    assertThat(row.get("required")).isEqualTo(!java.util.Set.of("retention", "cloud_voice", "script_split").contains(row.get("type")));
                     assertThat(((Number) row.get("body_length")).intValue()).isPositive();
                 });
         assertThat(jdbc.queryForObject(

@@ -33,8 +33,9 @@ export function loadAdmissionsStatic(): AdmissionsResponse {
  * 읽어 가고도 색인을 거절했다(2026-09-24 "크롤링됨 - 현재 색인 안 됨").
  *
  * 남기는 것은 목록·필터·정렬·카드가 실제로 읽는 값뿐이다 — 대학 이름·지역·캠퍼스·설립형태,
- * 공고의 학과·전형·계열·접수 기간·수능 최저, 실기 종목(category). 팁·결과·일정·과제 설명
- * 같은 상세 전용 값은 대학 상세 페이지가 자기 몫만 싣는다. 클라이언트가 API 응답을 받으면
+ * 공고의 학과·전형·계열·접수 기간·수능 최저, 실기 종목(category), 학년도별 결과 탭이 쓰는
+ * 결과 숫자 여섯 개. 팁·결과 근거·일정·과제 설명 같은 상세 전용 값은 대학 상세 페이지가
+ * 자기 몫만 싣는다. 클라이언트가 API 응답을 받으면
  * 이 값은 전량으로 바뀌므로 목록 동작은 달라지지 않는다(`tests/admissions-list-payload`).
  */
 export function toAdmissionsListPayload(
@@ -78,7 +79,17 @@ export function toAdmissionsListPayload(
       designated_works: [],
       essay_questions: [],
       stages: [],
-      results: [],
+      // 학년도별 결과 탭이 읽는 숫자만. 근거(note·source_url)는 상세 페이지 몫이다.
+      results: notice.results.map((result) => ({
+        year: result.year,
+        ...pickPresent(result, [
+          "quota",
+          "applicants",
+          "competition_rate",
+          "transcript_avg",
+          "transcript_cut70",
+        ] as const),
+      })),
     })),
   };
 }

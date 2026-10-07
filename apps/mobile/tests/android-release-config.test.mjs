@@ -5,9 +5,10 @@ import test from 'node:test';
 
 const appRoot = path.resolve(import.meta.dirname, '..');
 
-test('SOMA-584: 서버 저녁 리마인드를 받는 최소 앱 버전은 0.1.2다', () => {
+test('SOMA-584: 앱 버전은 서버 저녁 리마인드를 받는 최소 버전(0.1.2) 이상이다', () => {
   const app = JSON.parse(readFileSync(new URL('../app.json', import.meta.url), 'utf8'));
-  assert.equal(app.expo.version, '0.1.2');
+  const [major, minor, patch] = app.expo.version.split('.').map(Number);
+  assert.ok(major > 0 || minor > 1 || (minor === 1 && patch >= 2), app.expo.version);
 });
 
 // Play Console "DEX 코드 최적화 낮음" — 릴리스 빌드에 R8(축소·최적화)과 리소스 축소를 켠다 (SOMA-494).

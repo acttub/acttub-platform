@@ -4,33 +4,50 @@
  *  unmatched 2회 미달 뒤 넘어감(read 에서는 1회 미달)
  *  skipped   quiz 의 넘어가기
  * STT 인식 불가·무발화·길이 상한 초과는 넣지 않는다. 다시 볼 대사는 unmatched·skipped 줄이다.
+ * read 는 말한 것(said)만 싣고 서버가 원문과 비교해 결과를 정한다. quiz 는 진행에 대조가 쓰여 기기가 정한다.
  */
 import type { LineOutcome, LineResult } from "@/lib/reading/api-types";
 import type { ScriptLine } from "@/lib/reading/script/parse";
 import { dialogueNumbers } from "@/lib/reading/script/parse";
+import type { RunStats } from "@/lib/reading/storage";
+
+/** 진행 저장에 싣는 줄 하나 — 기기가 정한 결과이거나, 서버가 비교할 말한 것이다. */
+export type LineReport = LineResult | { line_id: string; said: string };
 
 export interface LineResults {
   /** 미달 하나를 더한다. 돌려주는 값은 그 줄의 누적 미달 횟수. 결과는 unmatched 로 둔다(뒤에 통과하면 덮인다). */
   miss(lineId: string): number;
   pass(lineId: string): void;
   skip(lineId: string): void;
+  /** read: 내 차례에 말한 것 */
+  say(lineId: string, said: string): void;
   misses(lineId: string): number;
-  list(): LineResult[];
+  list(): LineReport[];
+  /** 기기가 정한 결과만(quiz 완료 표기) */
+  outcomes(): LineResult[];
 }
 
+const isOutcome = (r: LineReport | undefined): r is LineResult => !!r && "outcome" in r;
+
 export function createLineResults(initial: LineResult[] = []): LineResults {
-  const book = new Map<string, LineResult>(initial.map((r) => [r.line_id, { ...r }]));
-  const set = (lineId: string, outcome: LineOutcome, misses: number) => book.set(lineId, { line_id: lineId, outcome, misses });
+  const book = new Map<string, LineReport>(initial.map((r) => [r.line_id, { ...r }]));
+  const misses = (lineId: string) => {
+    const r = book.get(lineId);
+    return isOutcome(r) ? r.misses : 0;
+  };
+  const set = (lineId: string, outcome: LineOutcome, n: number) => book.set(lineId, { line_id: lineId, outcome, misses: n });
   return {
     miss(lineId) {
-      const n = (book.get(lineId)?.misses ?? 0) + 1;
+      const n = misses(lineId) + 1;
       set(lineId, "unmatched", n);
       return n;
     },
-    pass: (lineId) => set(lineId, "passed", book.get(lineId)?.misses ?? 0),
-    skip: (lineId) => set(lineId, "skipped", book.get(lineId)?.misses ?? 0),
-    misses: (lineId) => book.get(lineId)?.misses ?? 0,
+    pass: (lineId) => set(lineId, "passed", misses(lineId)),
+    skip: (lineId) => set(lineId, "skipped", misses(lineId)),
+    say: (lineId, said) => book.set(lineId, { line_id: lineId, said }),
+    misses,
     list: () => [...book.values()],
+    outcomes: () => [...book.values()].filter(isOutcome),
   };
 }
 
@@ -66,4 +83,20 @@ export function reviewLines(script: { lines: ScriptLine[]; lineIds: string[] }, 
     out.push({ lineId: script.lineIds[i], dialogueNo: nos[i] ?? 0, role: l.role, text: l.text, outcome: r.outcome });
   });
   return out;
+}
+
+/**
+ * 완료 화면의 다시 볼 대사. quiz 는 기기가 정한 결과로, read 는 서버가 비교해 준 different_lines 로 그린다.
+ * read 에서 서버 답을 아직 받지 못했으면 null 이다.
+ */
+export function reviewFor(
+  script: { lines: ScriptLine[]; lineIds: string[] },
+  stats: Pick<RunStats, "mode" | "lineResults" | "differentLines">,
+): ReviewLine[] | null {
+  if (stats.mode === "quiz") return reviewLines(script, stats.lineResults);
+  if (!stats.differentLines) return null;
+  return stats.differentLines.flatMap((d): ReviewLine[] => {
+    const line = script.lines[script.lineIds.indexOf(d.line_id)];
+    return line?.type === "dialogue" ? [{ lineId: d.line_id, dialogueNo: d.dialogue_no, role: line.role, text: line.text, outcome: "unmatched" }] : [];
+  });
 }

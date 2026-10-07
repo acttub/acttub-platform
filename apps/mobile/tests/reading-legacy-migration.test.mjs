@@ -2,13 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { ApiError, NetworkError } from '../lib/api-request.ts';
-import { parseScript } from '../lib/reading/parse.ts';
 import {
   LEGACY_MIGRATION_KEY,
   LEGACY_SCRIPTS_KEY,
-  dismissLegacyNotice,
   migrateLegacyScripts,
-  readLegacyNotice,
   rebuildRawText,
 } from '../lib/reading/legacy-migration.ts';
 
@@ -61,6 +58,17 @@ const OLD_TWO = {
 };
 
 /** 옛 대본을 가진 폰과 리딩 API 흉내. */
+/** 새 대본은 목소리가 모두 자동이라 서버 voice 는 배역 순서대로 이 순환이다. */
+const VOICES = ['F1', 'M1', 'F2', 'M2', 'F3', 'M3', 'F4', 'M4', 'F5', 'M5'];
+
+/** 서버 scenes 모양. 이관 테스트는 장면 경계를 보지 않아 첫·마지막 대사를 잇는 장면 하나로 둔다. */
+function oneScene(lines, id) {
+  const dialogues = lines.filter((l) => l.kind === 'dialogue');
+  if (!dialogues.length) return [];
+  const lineId = (l) => `${id}_l${l.ordinal}`;
+  return [{ no: 1, title: null, start_line_id: lineId(dialogues[0]), end_line_id: lineId(dialogues.at(-1)), dialogue_count: dialogues.length }];
+}
+
 function phone({ scripts = [OLD_ONE, OLD_TWO], limitAfter = Infinity, networkDown = false, memorizationFails = false } = {}) {
   const items = new Map([[LEGACY_SCRIPTS_KEY, JSON.stringify(scripts)]]);
   const disk = new Set(scripts.flatMap((s) => s.recordings.map((r) => r.uri)));
@@ -83,7 +91,7 @@ function phone({ scripts = [OLD_ONE, OLD_TWO], limitAfter = Infinity, networkDow
         id,
         title: body.title,
         source: body.source,
-        characters: body.characters.map((c, i) => ({ id: `${id}_c${i}`, name: c.name, order: i, voice_preset: null, dialogue_count: 0 })),
+        characters: body.characters.map((c, i) => ({ id: `${id}_c${i}`, name: c.name, order: i, voice_preset: null, voice: VOICES[i % VOICES.length], dialogue_count: 0 })),
         lines: body.lines.map((l, i) => ({
           id: `${id}_l${l.ordinal}`,
           ordinal: l.ordinal,
@@ -92,6 +100,7 @@ function phone({ scripts = [OLD_ONE, OLD_TWO], limitAfter = Infinity, networkDow
           text: l.text,
           dialogue_no: null,
         })),
+        scenes: oneScene(body.lines, id),
         recording_count: 0,
         open_session_id: null,
         last_session: null,
@@ -109,12 +118,11 @@ function phone({ scripts = [OLD_ONE, OLD_TWO], limitAfter = Infinity, networkDow
     },
     deleteFile: async (uri) => void disk.delete(uri),
     newRequestId: () => `rid-${server.posts.length + 1}-${Math.random().toString(36).slice(2, 6)}`,
-    now: () => 1_000,
   };
   return { items, disk, server, deps, remaining: () => JSON.parse(items.get(LEGACY_SCRIPTS_KEY) ?? '[]') };
 }
 
-test('reading.script: 옛 대본의 원문은 줄에서 "이름: 대사" 꼴로 되살리고, 다시 나누면 같은 배역·줄이 나온다', () => {
+test('reading.script: 옛 대본의 원문은 줄에서 "이름: 대사" 꼴로 되살린다', () => {
   const raw = rebuildRawText(OLD_ONE);
   assert.equal(
     raw,
@@ -126,10 +134,6 @@ test('reading.script: 옛 대본의 원문은 줄에서 "이름: 대사" 꼴로 
 윤서: 너 힘들면 항상 높은 데로 가잖아.
 태오: 그런가.`,
   );
-  const again = parseScript(raw);
-  assert.equal(again.title, '옥상, 밤');
-  assert.deepEqual(again.roles, OLD_ONE.roles);
-  assert.deepEqual(again.lines, OLD_ONE.lines);
 });
 
 test('reading.script: 옛 대본 둘(하나에 외운 줄 셋)과 녹음 하나가 있는 기기 — 서버에 대본 둘(paste), 외운 줄 셋이 memorized, 기기의 대본·녹음 파일이 없다', async () => {
@@ -155,7 +159,6 @@ test('reading.script: 옛 대본 둘(하나에 외운 줄 셋)과 녹음 하나�
   assert.deepEqual(remaining(), []);
   assert.equal(items.has(LEGACY_SCRIPTS_KEY), false, '다 옮기면 옛 저장소 키가 없다');
   assert.equal(disk.size, 0, '옛 녹음 파일은 올리지 않고 지운다');
-  assert.deepEqual(await readLegacyNotice(deps.storage), { moved: 2, memorized: 3, limited: 0, failed: 0, at: 1_000 });
 });
 
 test('reading.script: 옛 대본 둘 중 하나가 한도에 걸림 — 성공한 대본만 기기에서 지워지고 걸린 대본은 남아 다음 실행에 다시 시도한다', async () => {
@@ -215,13 +218,4 @@ test('reading.script: 옛 대본이 없으면 아무 요청도 보내지 않는�
   const { server, deps } = phone({ scripts: [] });
   assert.deepEqual(await migrateLegacyScripts(deps), { moved: 0, memorized: 0, limited: 0, failed: 0 });
   assert.equal(server.posts.length, 0);
-  assert.equal(await readLegacyNotice(deps.storage), null);
-});
-
-test('reading.script: 옮기기 안내는 한 번 보여 준 뒤 닫을 수 있다', async () => {
-  const { deps } = phone();
-  await migrateLegacyScripts(deps);
-  assert.ok(await readLegacyNotice(deps.storage));
-  await dismissLegacyNotice(deps.storage);
-  assert.equal(await readLegacyNotice(deps.storage), null);
 });

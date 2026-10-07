@@ -53,17 +53,16 @@ export function withDeclinedDefaults(
 }
 
 /**
- * "전체 동의"는 필수 문서만 채운다. 선택 문서는 묶어서 동의받지 않고 그 줄의 두 버튼으로만
- * 결정한다. 저장이 끝난 문서와 이미 고른 선택 문서는 건드리지 않는다.
+ * "전체 동의"는 필수 문서만 채운다. 선택 문서는 묶어서 동의받지 않고 그 줄의 체크로만
+ * 결정한다. 이미 고른 선택 문서는 건드리지 않는다.
  */
 export function grantAllRequired(
   documents: readonly ConsentDocument[],
   choices: ReadonlyMap<string, ConsentChoice>,
-  completedDocumentIds: ReadonlySet<string>,
 ): Map<string, ConsentChoice> {
   const next = new Map(choices);
   for (const document of documents) {
-    if (document.required && !completedDocumentIds.has(document.id)) {
+    if (document.required) {
       next.set(document.id, 'granted');
     }
   }

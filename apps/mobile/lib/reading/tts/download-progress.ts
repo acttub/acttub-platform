@@ -20,7 +20,21 @@ export type DownloadSnapshot = {
 };
 
 /** 엔진이 화면에 알리는 준비 단계. */
-export type VoiceProgress = ({ phase: 'download' } & DownloadSnapshot) | { phase: 'load' } | { phase: 'ready' };
+export type VoiceProgress =
+  | ({ phase: 'download' } & DownloadSnapshot)
+  /** 모델 파일을 메모리에 올리는 중. done 은 다 올린 개수. */
+  | { phase: 'load'; done: number; total: number }
+  | { phase: 'ready' };
+
+/**
+ * 목소리 불러오기(모델 total 개 + 첫 대사 만들기 1단계)의 퍼센트(SOMA-631). 끝난 단계 수로만 센다 — 시간으로
+ * 채우지 않는다. ready 는 모델을 다 올리고 첫 대사를 만드는 중이다. 다운로드 중이거나 보고가 없으면 null.
+ */
+export function loadPercent(progress: VoiceProgress | null, models = 4): number | null {
+  if (progress?.phase === 'load') return Math.floor((progress.done / (progress.total + 1)) * 100);
+  if (progress?.phase === 'ready') return Math.floor((models / (models + 1)) * 100);
+  return null;
+}
 
 export type DownloadProgress = {
   /** 이 파일을 지금까지 받은 바이트(이어받기면 앞부분 포함). */

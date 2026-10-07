@@ -54,7 +54,9 @@ public final class Admissions {
             @Schema(nullable = true) String host,
             @Schema(nullable = true) Integer corroborations,
             @Schema(nullable = true) String verifiedAt,
-            @Schema(nullable = true) String note) {
+            @Schema(nullable = true) String note,
+            @Schema(nullable = true, description = "후기가 다룬 응시 학년도(2026학년도 수시 = 2025년 가을 실기). 글에서 확인 못 하면 비운다.")
+                    Integer year) {
         public AdmissionTip {
             sourceType = sourceType == null ? "personal" : sourceType;
         }

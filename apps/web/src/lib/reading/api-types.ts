@@ -8,16 +8,19 @@
 
 import type { components } from "../api/v2-schema";
 
-/** 대본을 넣은 길. 서버는 예시(sample)를 구분하지 않고 보통 대본으로 둔다. */
-export type ScriptSource = components["schemas"]["ScriptSource"];
-
-/** POST /v2/reading/scripts */
-export type ScriptCreateRequest = components["schemas"]["ReadingScriptCreateRequest"];
-
 /** PATCH /v2/reading/scripts/{id} — 제목·배역 이름·목소리만. 줄은 저장 뒤 고정이다. */
 export type ScriptUpdateRequest = components["schemas"]["ReadingScriptPatch"];
 
 export type ScriptLine = components["schemas"]["ReadingScriptLine"];
+
+/** POST /v2/reading/imports — 글(raw_text)이나 올린 파일(upload_id) 하나로 나누기를 맡긴다 */
+export type ImportRequest = components["schemas"]["ReadingImportRequest"];
+/** 새 작업이면 import_id, 같은 글의 대본이 이미 있으면 duplicate_script_id */
+export type ImportTicket = components["schemas"]["ReadingImportTicket"];
+/** GET /v2/reading/imports/{id} */
+export type ScriptImport = components["schemas"]["ReadingImport"];
+/** POST /v2/reading/uploads — 원본 파일을 올릴 서명 주소 */
+export type ScriptUpload = components["schemas"]["ReadingUpload"];
 
 /**
  * GET /v2/reading/scripts/{id}, POST·PATCH 의 응답.
@@ -41,6 +44,12 @@ export type LineOutcome = components["schemas"]["ReadingLineResult"]["outcome"];
 
 /** 줄마다 하나. 마지막 사건이 이긴다. misses 는 미달 횟수. */
 export type LineResult = components["schemas"]["ReadingLineResult"];
+
+/** 진행 저장에 싣는 줄 결과 — 말한 것 said(서버가 원문과 비교한다) 또는 기기가 정한 outcome·misses */
+export type LineResultInput = components["schemas"]["ReadingLineResultInput"];
+
+/** 원문과 다르게 말한 대사 — 완료 응답과 회차 상세의 different_lines, 줄 순서 */
+export type DifferentLine = components["schemas"]["ReadingDifferentLine"];
 
 /** POST /v2/reading/scripts/{id}/sessions */
 export type SessionCreateRequest = components["schemas"]["ReadingSessionCreateRequest"];

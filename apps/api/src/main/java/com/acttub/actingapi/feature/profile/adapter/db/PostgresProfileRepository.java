@@ -895,6 +895,17 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
                     .setParameter("userId", userId));
         }
         List<UUID> cleanups = new ArrayList<>();
+        // 대본 원본 파일은 보관 동의와 무관하게 대본과 함께 지운다(reading.script 「원본 파일」). 기기가 서명한 주소로 올린
+        // 객체라 주소 시한 뒤에 지운다 — 먼저 지우면 그 뒤에 다시 올린 객체가 장부 밖에 남는다.
+        List<Tuple> sources = list(entityManager.createNativeQuery("""
+                WITH removed AS (DELETE FROM script_uploads WHERE user_id=:userId RETURNING object_key,expires_at)
+                SELECT object_key,expires_at FROM removed
+                """, Tuple.class)
+                .setParameter("userId", userId));
+        if (!sources.isEmpty()) {
+            cleanups.add(this.cleanups.schedule(userId, sources.stream().map(row -> row.get("object_key", String.class)).toList(),
+                    now, sources.stream().map(row -> row.get("expires_at", Instant.class)).max(Instant::compareTo).orElseThrow()));
+        }
         if (retainRecordings) {
             entityManager.createNativeQuery("""
                     UPDATE reading_recordings
@@ -928,6 +939,10 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
                     .executeUpdate();
         }
         entityManager.createNativeQuery("DELETE FROM scripts WHERE user_id=:userId")
+                .setParameter("userId", userId)
+                .executeUpdate();
+        // 나누기 요청은 원문을 들고 있다. 작업 행은 위 ai_jobs 취소가 닫는다.
+        entityManager.createNativeQuery("DELETE FROM script_imports WHERE user_id=:userId")
                 .setParameter("userId", userId)
                 .executeUpdate();
         return cleanups;

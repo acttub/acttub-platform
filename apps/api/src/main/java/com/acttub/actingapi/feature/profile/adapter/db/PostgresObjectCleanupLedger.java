@@ -9,6 +9,7 @@ import com.acttub.actingapi.feature.portfolio.app.PortfolioPhotoCleanup;
 import com.acttub.actingapi.feature.profile.app.AccountCleanup;
 import com.acttub.actingapi.feature.profile.app.AccountCleanupRepository;
 import com.acttub.actingapi.feature.reading.app.ReadingRecordingCleanup;
+import com.acttub.actingapi.feature.reading.app.ScriptFileCleanup;
 import com.acttub.actingapi.feature.video.app.VideoObjectCleanup;
 import com.acttub.actingapi.platform.security.AccountSecrets;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -17,7 +18,7 @@ import org.springframework.stereotype.Repository;
 
 /**
  * 정리 장부({@code account_cleanup_operations})에 행을 올리는 한 자리. 탈퇴·3년 파기·사진 교체(프로필)와
- * 사진 삭제(포트폴리오), 리딩 녹음 객체 삭제(대본·회차 삭제), 영상 삭제·파일만 파기·만료된 미확정 업로드(보관함)가
+ * 사진 삭제(포트폴리오), 리딩 녹음 객체 삭제(대본·회차 삭제), 대본 원본 파일 삭제, 영상 삭제·파일만 파기·만료된 미확정 업로드(보관함)가
  * 같은 문장을 쓴다.
  *
  * <p>⚠ <b>트랜잭션을 열지 않는다.</b> 키를 덮거나 행을 지우는 쪽의 트랜잭션에 참여해야 한다 — 따로
@@ -25,7 +26,7 @@ import org.springframework.stereotype.Repository;
  * {@code executeUpdate} 가 거절한다.
  */
 @Repository
-class PostgresObjectCleanupLedger implements PortfolioPhotoCleanup, ReadingRecordingCleanup, VideoObjectCleanup {
+class PostgresObjectCleanupLedger implements PortfolioPhotoCleanup, ReadingRecordingCleanup, VideoObjectCleanup, ScriptFileCleanup {
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private final EntityManager entityManager;

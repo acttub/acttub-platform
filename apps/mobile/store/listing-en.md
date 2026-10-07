@@ -10,7 +10,7 @@
 Acttub - AI Acting Coach
 
 ## Short description (max 80 characters)
-Film a take, get honest notes, and leave knowing the one thing to fix next
+Film a take, get honest notes, and leave knowing one thing to try next
 
 ## Full description (max 4000 characters)
 Acttub is an AI acting coach for actors who practice alone.
@@ -20,9 +20,9 @@ fine, and you have no idea how it actually landed. Acttub watches the take and t
 
 ■ How it works
 1. Film your scene with the camera in the app, or bring in a take you already have.
-2. The AI reads your performance — expression, emotion, and how clearly the intention comes across.
-3. You get the single biggest thing that got in the way, and one concrete thing to try next.
-4. Run it again. Your takes and notes stack up so you can see what actually changed.
+2. The AI coach watches the take, picks one moment worth working through, and asks you about it.
+3. You answer and think it through together. When you finish, you get a practice note built from what you said, often with one thing to try on the next take.
+4. Run it again. Your takes and notes stay together, session after session.
 
 ■ Made for you if
 · You are preparing self-tapes or auditions with no one around to give real notes
@@ -30,10 +30,10 @@ fine, and you have no idea how it actually landed. Acttub watches the take and t
 · You want a short honest practice you can do every day and look back on
 
 ■ What's inside
-· AI performance analysis — notes on expression, emotion, and delivery
+· AI performance analysis — the coach starts from what is actually in your video
 · Coaching conversation — talk the take through with the coach and leave with a next step
 · Script reading — bring in a script, pick your role, and rehearse with the other lines read aloud
-· Practice history — every take and note in one place, with a 12-week streak view
+· Practice history — every take and note in one place, with this week's practice and your day streak
 · Voice input — answer the coach out loud instead of typing
 
 Your acting, practiced properly, on your own. Start with one take.
@@ -44,8 +44,8 @@ Your acting, practiced properly, on your own. Start with one take.
 1. Home      → "Today's practice, with your AI coach"
 2. Record    → "Pick the scene and film it right here"
 3. Analyzing → "Reading your performance"
-4. Feedback  → "One thing in the way. One thing to try."
-5. History   → "12 weeks of practice at a glance"
+4. Note      → "What you found, in your own words"
+5. History   → "This week's practice and your streak"
 
 ---
 
@@ -55,6 +55,8 @@ Your acting, practiced properly, on your own. Start with one take.
   영어를 기본 언어가 아닌 추가 언어로 올린다.
 - **스크린샷**: 위 캡션은 **영어 화면으로 다시 찍은 스크린샷**에 붙인다. 한국어 화면에
   영어 캡션만 붙이면 심사에서 걸린다. 기기 언어를 영어로 바꾸고 찍어야 한다.
-- **심사 계정**: 구글 로그인만 있어 심사자가 막히면 심사 노트에 데모 계정을 적는다.
-  게스트 진입("로그인 없이 둘러보기")이 있으므로 그 경로를 노트에 적어도 된다.
-- **데이터 보안 설문**: 이미 제출한 한국 기준 답변을 그대로 쓴다. 수집 항목이 달라지지 않았다.
+- **심사 계정**: 로그인이 소셜 로그인뿐이라 심사 노트에 데모 계정을 적는다. 앱의 게스트
+  둘러보기("로그인 없이 둘러보기")는 계정 1.0.0(2026-09-21)에서 없앴다.
+- **데이터 보안 설문**: 이 문서를 쓴 2026-09-20 뒤에 Airbridge(9/29, 설치 경로·광고 성과 측정)와
+  Firebase Crashlytics(10/1, 크래시 기록)가 앱에 더해졌다. 한국 기준 답변을 그대로 쓰지 말고 처리방침
+  (`apps/api/src/main/resources/consent-docs/privacy_policy.md`)의 수탁자 목록과 대조해 다시 맞춘다.

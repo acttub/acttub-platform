@@ -25,3 +25,30 @@ export async function initCrashlytics(): Promise<void> {
     // 모듈이 없는 빌드 — 크래시 수집 없이 간다.
   }
 }
+
+/** 화면이 처리해 사용자에게는 뭉뚱그려 보인 오류의 원인을 남긴다. */
+export function recordHandledError(error: unknown): void {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { getCrashlytics, recordError } = require('@react-native-firebase/crashlytics');
+    recordError(getCrashlytics(), error instanceof Error ? error : new Error(String(error)));
+  } catch {
+    // 모듈이 없는 빌드 — 남기지 않고 간다.
+  }
+}
+
+/**
+ * 지금 화면을 크래시 기록에 남긴다. 메모리 부족처럼 스택만으로는 어디서인지 모르는 크래시가 있어(0.1.2 안드로이드 OOM)
+ * 화면이 바뀔 때마다 마지막 화면(속성)과 지나온 화면(로그)을 붙인다. 경로만 남기고 사용자 정보는 넣지 않는다.
+ */
+export function markScreen(screen: string): void {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { getCrashlytics, log, setAttribute } = require('@react-native-firebase/crashlytics');
+    const crashlytics = getCrashlytics();
+    void setAttribute(crashlytics, 'screen', screen);
+    log(crashlytics, `screen ${screen}`);
+  } catch {
+    // 모듈이 없는 빌드 — 남기지 않고 간다.
+  }
+}

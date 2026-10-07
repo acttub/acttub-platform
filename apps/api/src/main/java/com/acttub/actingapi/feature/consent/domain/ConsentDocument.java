@@ -33,10 +33,10 @@ public record ConsentDocument(
     }
 
     /**
-     * 서비스 진입 때 묻는 문서인가. 대본 리딩 고품질 목소리(ADR-033)는 그 기능을 켤 때만 묻는다 —
-     * 진입에서 묻게 하면 새 판을 올린 날 모든 회원이 켜지도 않을 기능의 동의 화면을 다시 본다.
+     * 서비스 진입 때 묻는 문서인가. 대본 리딩 고품질 목소리(ADR-033)와 대본 나누기(reading.script)는 그 기능을 쓸
+     * 때만 묻는다 — 진입에서 묻게 하면 새 판을 올린 날 모든 회원이 쓰지도 않을 기능의 동의 화면을 다시 본다.
      */
     public boolean askedAtEntry() {
-        return !"cloud_voice".equals(type);
+        return !"cloud_voice".equals(type) && !"script_split".equals(type);
     }
 }

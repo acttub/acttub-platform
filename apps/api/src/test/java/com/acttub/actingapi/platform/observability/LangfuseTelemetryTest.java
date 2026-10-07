@@ -10,7 +10,11 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withException;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -29,6 +33,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
@@ -334,6 +339,186 @@ class LangfuseTelemetryTest {
                     .path("spans").path(0).path("traceId").asText()).as(value)
                     .isEqualTo("11112222333344445555666677778888");
         }
+    }
+
+    // --- 프롬프트 버전 연결 (SOMA-585) -----------------------------------------
+
+    private static final String PROMPTS = "http://langfuse-web:3000/api/public/v2/prompts";
+    private static final String TRACES = "http://langfuse-web:3000/api/public/otel/v1/traces";
+    private static final LlmPrompt LOOP = new LlmPrompt("coach.practice-loop", "템플릿 본문");
+
+    @Test
+    @DisplayName("프롬프트를 실으면 기록에 이름과 버전이 붙는다")
+    void promptVersionIsAttachedToTheObservation() {
+        JsonNode span = span(telemetry(enabledEnvironment())
+                .tracePayload(call(LlmStep.COACH_TURN, null).withPrompt(LOOP), 4));
+
+        assertThat(attributes(span))
+                .containsEntry("langfuse.observation.prompt.name", "coach.practice-loop")
+                .containsEntry("langfuse.observation.metadata.prompt", "coach.practice-loop");
+        // 버전은 정수다 — OTLP/JSON 에서 64비트 정수는 문자열로 싣는다.
+        assertThat(intAttribute(span, "langfuse.observation.prompt.version")).isEqualTo("4");
+    }
+
+    @Test
+    @DisplayName("버전을 모르면 이름만 metadata 로 남기고 연결 속성은 만들지 않는다")
+    void unknownVersionLeavesOnlyTheName() {
+        JsonNode span = span(telemetry(enabledEnvironment())
+                .tracePayload(call(LlmStep.COACH_TURN, null).withPrompt(LOOP), null));
+
+        assertThat(attributes(span))
+                .containsEntry("langfuse.observation.metadata.prompt", "coach.practice-loop")
+                .doesNotContainKeys("langfuse.observation.prompt.name", "langfuse.observation.prompt.version");
+    }
+
+    @Test
+    @DisplayName("같은 환경의 현재 버전이 같은 내용이면 새로 만들지 않고 그 번호를 쓴다")
+    void sameContentReusesTheEnvironmentVersion() {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        var telemetry = new LangfuseTelemetry(MAPPER, environmentWith("production")::get, Runnable::run, builder::build);
+        server.expect(requestTo(PROMPTS + "/coach.practice-loop?label=production"))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header("Authorization", "Basic cGs6c2s="))
+                .andRespond(withSuccess("""
+                        {"name":"coach.practice-loop","version":4,"type":"text","prompt":"템플릿 본문"}
+                        """, MediaType.APPLICATION_JSON));
+        server.expect(requestTo(TRACES))
+                .andExpect(content().string(containsString("\"intValue\":\"4\"")))
+                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+
+        telemetry.record(call(LlmStep.COACH_TURN, null).withPrompt(LOOP));
+
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("같은 환경에 없으면 그 환경 라벨로 새 버전을 등록하고 받은 번호를 쓴다")
+    void missingPromptIsRegisteredWithTheEnvironmentLabel() {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        var telemetry = new LangfuseTelemetry(MAPPER, environmentWith("production")::get, Runnable::run, builder::build);
+        server.expect(requestTo(PROMPTS + "/coach.practice-loop?label=production"))
+                .andRespond(withStatus(HttpStatus.NOT_FOUND));
+        server.expect(requestTo(PROMPTS))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("Authorization", "Basic cGs6c2s="))
+                .andExpect(content().json("""
+                        {"name":"coach.practice-loop","type":"text","prompt":"템플릿 본문","labels":["production"]}
+                        """))
+                .andRespond(withSuccess("""
+                        {"name":"coach.practice-loop","version":1,"type":"text","prompt":"템플릿 본문"}
+                        """, MediaType.APPLICATION_JSON));
+        server.expect(requestTo(TRACES))
+                .andExpect(content().string(containsString("\"intValue\":\"1\"")))
+                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+
+        telemetry.record(call(LlmStep.COACH_TURN, null).withPrompt(LOOP));
+
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("같은 환경의 현재 버전과 내용이 다르면 새 버전을 등록한다")
+    void changedContentBecomesANewVersion() {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        var telemetry = new LangfuseTelemetry(MAPPER, environmentWith("development")::get, Runnable::run, builder::build);
+        server.expect(requestTo(PROMPTS + "/coach.practice-loop?label=development"))
+                .andRespond(withSuccess("""
+                        {"name":"coach.practice-loop","version":7,"type":"text","prompt":"예전 본문"}
+                        """, MediaType.APPLICATION_JSON));
+        server.expect(requestTo(PROMPTS)).andExpect(method(HttpMethod.POST))
+                .andExpect(content().json("{\"labels\":[\"development\"]}"))
+                .andRespond(withSuccess("{\"version\":8}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo(TRACES))
+                .andExpect(content().string(containsString("\"intValue\":\"8\"")))
+                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+
+        telemetry.record(call(LlmStep.COACH_TURN, null).withPrompt(LOOP));
+
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("한 번 알아낸 버전은 다시 묻지 않는다")
+    void resolvedVersionIsCached() {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        var telemetry = new LangfuseTelemetry(MAPPER, environmentWith("production")::get, Runnable::run, builder::build);
+        server.expect(requestTo(PROMPTS + "/coach.practice-loop?label=production"))
+                .andRespond(withSuccess("{\"version\":4,\"prompt\":\"템플릿 본문\"}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo(TRACES)).andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo(TRACES))
+                .andExpect(content().string(containsString("\"intValue\":\"4\"")))
+                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+
+        telemetry.record(call(LlmStep.COACH_TURN, null).withPrompt(LOOP));
+        telemetry.record(call(LlmStep.COACH_TURN, null).withPrompt(LOOP));
+
+        server.verify();
+    }
+
+    /** 프롬프트 저장소가 죽어도 기록은 나가야 한다. 실패를 기억하면 살아난 뒤에도 영영 연결되지 않는다. */
+    @Test
+    @DisplayName("프롬프트 조회가 실패해도 기록은 보내고, 실패는 기억하지 않아 다음에 다시 묻는다")
+    void promptFailureStillSendsTheTraceAndIsRetried(CapturedOutput output) {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        var telemetry = new LangfuseTelemetry(MAPPER, environmentWith("production")::get, Runnable::run, builder::build);
+        server.expect(requestTo(PROMPTS + "/coach.practice-loop?label=production"))
+                .andRespond(withServerError().body("응답에 섞인 민감값 표식"));
+        server.expect(requestTo(TRACES))
+                .andExpect(content().string(not(containsString("langfuse.observation.prompt.version"))))
+                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo(PROMPTS + "/coach.practice-loop?label=production"))
+                .andRespond(withSuccess("{\"version\":4,\"prompt\":\"템플릿 본문\"}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo(TRACES))
+                .andExpect(content().string(containsString("\"intValue\":\"4\"")))
+                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+
+        assertThatCode(() -> telemetry.record(call(LlmStep.COACH_TURN, null).withPrompt(LOOP)))
+                .doesNotThrowAnyException();
+        telemetry.record(call(LlmStep.COACH_TURN, null).withPrompt(LOOP));
+
+        server.verify();
+        assertThat(output.getAll()).contains("프롬프트 버전 확인 실패").doesNotContain("응답에 섞인 민감값 표식");
+    }
+
+    @Test
+    @DisplayName("환경을 안 정하면 default 라벨을 쓰고, 이름의 특수문자는 경로에서 인코딩한다")
+    void missingEnvironmentUsesDefaultLabelAndEncodesTheName() {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        var telemetry = new LangfuseTelemetry(MAPPER, enabledEnvironment()::get, Runnable::run, builder::build);
+        server.expect(requestTo(PROMPTS + "/coach.direct.correction%2Bunsure?label=default"))
+                .andRespond(withSuccess("{\"version\":2,\"prompt\":\"조립본\"}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo(TRACES)).andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+
+        telemetry.record(call(LlmStep.COACH_TURN, null)
+                .withPrompt(new LlmPrompt("coach.direct.correction+unsure", "조립본")));
+
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("프롬프트는 이름과 본문이 있어야 만든다")
+    void promptRequiresNameAndText() {
+        assertThatThrownBy(() -> new LlmPrompt(" ", "본문")).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new LlmPrompt("coach.x", null)).isInstanceOf(NullPointerException.class);
+    }
+
+    private static JsonNode span(JsonNode payload) {
+        return payload.path("resourceSpans").path(0).path("scopeSpans").path(0).path("spans").path(0);
+    }
+
+    private static String intAttribute(JsonNode span, String key) {
+        for (JsonNode entry : span.path("attributes")) {
+            if (key.equals(entry.path("key").asText())) {
+                return entry.path("value").path("intValue").asText(null);
+            }
+        }
+        return null;
     }
 
     private static LangfuseTelemetry telemetry(Map<String, String> environment) {

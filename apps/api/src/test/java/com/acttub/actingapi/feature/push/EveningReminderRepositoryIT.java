@@ -31,7 +31,7 @@ class EveningReminderRepositoryIT {
         UUID eligible = user("eligible", true, "0.1.2", start.minusSeconds(86400));
         user("today-practice", true, "0.1.2", start.plusSeconds(60));
         UUID todayReading = user("today-reading", true, "0.1.2", start.minusSeconds(86400));
-        jdbc.update("INSERT INTO scripts(id,user_id,title,raw_text,source,request_fingerprint,created_at) VALUES (?,?, 't','r','paste',?,?)",
+        jdbc.update("INSERT INTO scripts(id,user_id,title,raw_text,raw_hash,source,request_fingerprint,created_at) VALUES (?,?, 't','r',repeat('0',64),'paste',?,?)",
                 UUID.randomUUID(), todayReading, "f".repeat(64), java.sql.Timestamp.from(start.plusSeconds(120)));
         user("stale", true, "0.1.2", start.minusSeconds(31L * 86400));
         user("toggle-off", false, "0.1.2", start.minusSeconds(86400));

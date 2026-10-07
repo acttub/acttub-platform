@@ -7,14 +7,14 @@
  * 저장 때 최신 값을 보낸다 — 실패한 순번은 버린다(서버가 못 받았으니 겹치지 않는다).
  */
 import { ApiError } from "@/lib/api/v2/errors";
-import type { LineResult, ProgressRequest, ProgressResponse } from "@/lib/reading/api-types";
+import type { LineResultInput, ProgressRequest, ProgressResponse } from "@/lib/reading/api-types";
 
 export interface ProgressSnapshot {
   /** 다음에 할 대사 줄. 완료면 null. */
   currentLineId: string | null;
   /** 누적, 일시정지 제외 */
   elapsedMs: number;
-  lineResults: LineResult[];
+  lineResults: LineResultInput[];
 }
 
 export interface ProgressSync {

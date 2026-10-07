@@ -160,7 +160,7 @@ public final class AdminMetrics {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) OffsetDateTime startedAt,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) OffsetDateTime endedAt,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED,
-                    allowableValues = {"in_progress", "completed", "stopped"})
+                    allowableValues = {"in_progress", "completed"})
             String status,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"read", "quiz"})
             String mode,
