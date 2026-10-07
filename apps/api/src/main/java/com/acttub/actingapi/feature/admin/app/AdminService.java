@@ -8,6 +8,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallenge;
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengePage;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengePlayback;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengeVideo;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengeVideoPage;
@@ -99,6 +101,11 @@ public class AdminService {
     public AdminFeedbackPage feedback(int limit, List<String> excludeActors, boolean includeTeam) {
         var rows = metrics.feedback(limit + 1, excludeEmails, excludeActors, includeTeam);
         return new AdminFeedbackPage(rows.stream().limit(limit).toList(), limit, rows.size() > limit);
+    }
+
+    public AdminChallengePage challenges(int limit, List<String> excludeActors) {
+        List<AdminChallenge> rows = metrics.challenges(limit, excludeEmails, excludeActors);
+        return new AdminChallengePage(rows, rows.size());
     }
 
     public AdminChallengeVideoPage challengeVideos(

@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallenge;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengeVideo;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminFeedbackItem;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminReadingLine;
@@ -254,6 +255,88 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                         row.get("source", String.class),
                         row.get("trigger", String.class),
                         row.get("practice_id", UUID.class)))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<AdminChallenge> challenges(
+            int limit,
+            List<String> excludeEmails,
+            List<String> excludeActors) {
+        return list(entityManager.createNativeQuery("""
+                WITH team AS (
+                    SELECT id FROM users
+                    WHERE lower(COALESCE(email, '')) = ANY(string_to_array(:excludeEmails, ','))
+                       OR left(md5(CAST(id AS text)), 8) = ANY(string_to_array(:excludeActors, ','))
+                ),
+                listed AS (
+                    SELECT
+                        challenge.*,
+                        CASE WHEN challenge.starts_at > now() THEN 'scheduled'
+                             WHEN challenge.ends_at > now() THEN 'active'
+                             ELSE 'ended' END AS state
+                    FROM challenges AS challenge
+                    WHERE challenge.deleted_at IS NULL
+                )
+                SELECT
+                    listed.id,
+                    listed.line,
+                    listed.work,
+                    listed.character,
+                    listed.origin,
+                    CASE WHEN listed.host_user_id IS NULL THEN NULL
+                         ELSE left(md5(CAST(listed.host_user_id AS text)), 8) END AS host_actor,
+                    (listed.host_user_id IS NOT NULL
+                        AND listed.host_user_id IN (SELECT id FROM team)) AS host_is_team,
+                    listed.duration_days,
+                    CAST(listed.featured_on AS text) AS featured_on,
+                    listed.starts_at,
+                    listed.ends_at,
+                    listed.state,
+                    listed.moderation,
+                    COALESCE(stats.entries, 0) AS entries,
+                    COALESCE(stats.public_entries, 0) AS public_entries,
+                    COALESCE(stats.outside_entries, 0) AS outside_entries
+                FROM listed
+                LEFT JOIN (
+                    SELECT
+                        entry.challenge_id,
+                        count(*) AS entries,
+                        count(*) FILTER (WHERE entry.visibility='public') AS public_entries,
+                        count(*) FILTER (WHERE entry.user_id NOT IN (SELECT id FROM team)) AS outside_entries
+                    FROM challenge_entries AS entry
+                    WHERE entry.deleted_at IS NULL AND entry.status<>'deleted'
+                    GROUP BY entry.challenge_id
+                ) AS stats ON stats.challenge_id=listed.id
+                ORDER BY
+                    CASE listed.state WHEN 'active' THEN 0 WHEN 'scheduled' THEN 1 ELSE 2 END,
+                    listed.featured_on DESC NULLS LAST,
+                    listed.starts_at DESC,
+                    listed.id DESC
+                LIMIT :limit
+                """, Tuple.class)
+                .setParameter("excludeEmails", normalizedEmails(excludeEmails))
+                .setParameter("excludeActors", String.join(",", excludeActors))
+                .setParameter("limit", limit)).stream()
+                .map(Tuple.class::cast)
+                .map(row -> new AdminChallenge(
+                        row.get("id", UUID.class),
+                        row.get("line", String.class),
+                        row.get("work", String.class),
+                        row.get("character", String.class),
+                        row.get("origin", String.class),
+                        row.get("host_actor", String.class),
+                        Boolean.TRUE.equals(row.get("host_is_team", Boolean.class)),
+                        ((Number) row.get("duration_days")).intValue(),
+                        row.get("featured_on", String.class),
+                        row.get("starts_at", Instant.class).atOffset(ZoneOffset.UTC),
+                        row.get("ends_at", Instant.class).atOffset(ZoneOffset.UTC),
+                        row.get("state", String.class),
+                        row.get("moderation", String.class),
+                        ((Number) row.get("entries")).intValue(),
+                        ((Number) row.get("public_entries")).intValue(),
+                        ((Number) row.get("outside_entries")).intValue()))
                 .toList();
     }
 
