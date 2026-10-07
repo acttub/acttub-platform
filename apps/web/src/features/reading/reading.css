@@ -1,4 +1,4 @@
-/* 상대역 리딩 화면 토큰 — pen 시안(RN앱 반영.pen A8·W10·D9)의 토스 톤 값. globals.css 가 가져온다.
+/* 상대역 리딩 화면 토큰 — pen 시안(A8·W10·D9)의 토스 톤 값. globals.css 가 가져온다.
    bare 이름(bg-blue, text-ink…)만 정의하므로 Tailwind 기본 팔레트(blue-500 등)와 겹치지 않는다. */
 :root {
   --rd-blue: #3182f6;
