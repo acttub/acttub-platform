@@ -25,9 +25,9 @@ Most of practice happens with nobody in the room. You run the scene, you think i
 HOW IT WORKS
 
 1. Film your scene with the camera in the app, or bring in a take you already have.
-2. The AI reads your performance — expression, emotion, and how clearly the intention comes across.
-3. You get the single biggest thing that got in the way, and one concrete thing to try next.
-4. Run it again. Your takes and notes stack up so you can see what actually changed.
+2. The AI coach watches the take, picks one moment worth working through, and asks you about it.
+3. You answer and think it through together. When you finish, you get a practice note built from what you said, often with one thing to try on the next take.
+4. Run it again. Your takes and notes stay together, session after session.
 
 MADE FOR YOU IF
 
@@ -37,10 +37,10 @@ MADE FOR YOU IF
 
 WHAT'S INSIDE
 
-- AI performance analysis — notes on expression, emotion, and delivery.
+- AI performance analysis — the coach starts from what is actually in your video.
 - Coaching conversation — talk the take through with the coach and leave with a next step.
 - Script reading — bring in a script, pick your role, and rehearse with the other lines read aloud.
-- Practice history — every take and note in one place, with a 12-week streak view.
+- Practice history — every take and note in one place, with this week's practice and your day streak.
 - Voice input — answer the coach out loud instead of typing.
 
 Your acting, practiced properly, on your own. Start with one take.
@@ -58,6 +58,8 @@ Acttub is now in English. The coach reads your take and answers in English, and 
   바꿔가며 각각 저장한다. 한쪽이 비면 제출이 막힌다.
 - **스크린샷**: 기기 언어를 영어로 바꾼 빌드로 다시 찍는다. 한국어 화면을 영어 등재정보에
   올리면 심사에서 걸린다.
-- **심사 계정**: 구글·애플 로그인만 있어 심사자가 막히면 심사 노트에 데모 계정을 적는다.
-  게스트 진입("로그인 없이 둘러보기")이 있으므로 그 경로를 노트에 적어도 된다.
-- **개인정보 라벨**: 수집 항목이 달라지지 않았으므로 지금 값을 그대로 둔다.
+- **심사 계정**: 로그인이 소셜 로그인뿐이라 심사 노트에 데모 계정을 적는다. 앱의 게스트
+  둘러보기("로그인 없이 둘러보기")는 계정 1.0.0(2026-09-21)에서 없앴다.
+- **개인정보 라벨**: 이 문서를 쓴 2026-09-20 뒤에 Airbridge(9/29, 설치 경로·광고 성과 측정)와
+  Firebase Crashlytics(10/1, 크래시 기록)가 앱에 더해졌다. 지금 값을 그대로 두지 말고 처리방침
+  (`apps/api/src/main/resources/consent-docs/privacy_policy.md`)의 수탁자 목록과 대조해 다시 맞춘다.
