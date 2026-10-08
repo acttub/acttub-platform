@@ -86,12 +86,14 @@ test('practice.coach: 도움 버튼은 입력만 준비하고 보내지 않는�
   assert.equal(typeof helpButtonDraft('explain'), 'string');
   assert.notEqual(helpButtonDraft('explain'), '');
   assert.notEqual(helpButtonDraft('later'), '');
-  // "제가 되물을게요"는 배우가 직접 쓰도록 빈 칸을 준다 — 버튼만으로는 보낼 것이 없다.
-  assert.equal(helpButtonDraft('ask_back'), '');
-  assert.equal(
-    canSendAnswer({ text: helpButtonDraft('ask_back'), waiting: false, closed: false, conversationId: 'conv-1' }),
-    false,
-  );
+});
+
+test('practice.coach: 「코치에게 질문」 버튼은 없다 — 질문은 입력칸에 그대로 쓴다(SOMA-634)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const read = (rel) => readFileSync(new URL(rel, import.meta.url), 'utf8');
+  assert.doesNotMatch(read('../app/coach.tsx'), /ask_back|quickAskBack|askingCoach|questionPh/);
+  assert.doesNotMatch(read('../lib/practice/coach.ts'), /ask_back/);
+  assert.doesNotMatch(read('../locales/ko.ts'), /quickAskBack|코치에게 질문"으로/);
 });
 
 test('practice.coach: 충돌·닫힘·분석 미완·지문 불일치를 갈라 본다', () => {

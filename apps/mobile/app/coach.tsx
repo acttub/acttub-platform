@@ -74,7 +74,6 @@ export default function CoachScreen() {
   const messages = useMemo(() => (conversation ? orderedMessages(conversation) : []), [conversation]);
   const [input, setInput] = useState('');
   const inputRef = useRef<TextInput>(null);
-  const [askingCoach, setAskingCoach] = useState(false);
   const [connecting, setConnecting] = useState(true);
   const [waiting, setWaiting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -250,7 +249,6 @@ export default function CoachScreen() {
 
   const pressHelp = (button: HelpButton) => {
     const draft = helpButtonDraft(button);
-    setAskingCoach(button === 'ask_back');
     if (draft) setInput(draft);
     inputRef.current?.focus();
   };
@@ -371,7 +369,7 @@ export default function CoachScreen() {
               <TextInput
                 ref={inputRef}
                 style={styles.input}
-                placeholder={t(askingCoach ? 'coach.questionPh' : 'coach.composerPh')}
+                placeholder={t('coach.composerPh')}
                 placeholderTextColor={palette.checkOff}
                 value={input}
                 onChangeText={setInput}
@@ -384,7 +382,6 @@ export default function CoachScreen() {
               {(
                 [
                   ['explain', t('coach.quickExplain')],
-                  ['ask_back', t('coach.quickAskBack')],
                   ['later', t('coach.quickLater')],
                 ] as const
               ).map(([button, label]) => (

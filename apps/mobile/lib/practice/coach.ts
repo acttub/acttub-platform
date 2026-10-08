@@ -79,16 +79,15 @@ export function orderedMessages(conversation: Pick<CoachConversation, 'messages'
   return [...conversation.messages].sort((a, b) => a.turn_index - b.turn_index);
 }
 
-export type HelpButton = 'explain' | 'ask_back' | 'later';
+export type HelpButton = 'explain' | 'later';
 
 /**
- * 도움 버튼이 준비하는 입력. 버튼만 눌러서는 아무것도 전송되지 않고 응답 횟수도 쓰지 않는다
- * ("제가 되물을게요"는 배우가 직접 쓰도록 빈 칸을 준다).
+ * 도움 버튼이 준비하는 입력. 버튼만 눌러서는 아무것도 전송되지 않고 응답 횟수도 쓰지 않는다.
+ * 코치에게 묻고 싶은 건 입력칸에 그대로 쓴다(「코치에게 질문」 버튼은 없앴다, SOMA-634).
  */
 export function helpButtonDraft(button: HelpButton): string {
   if (button === 'explain') return translate('coach.explainMessage');
-  if (button === 'later') return translate('coach.laterMessage');
-  return '';
+  return translate('coach.laterMessage');
 }
 
 export type CoachFailure =
