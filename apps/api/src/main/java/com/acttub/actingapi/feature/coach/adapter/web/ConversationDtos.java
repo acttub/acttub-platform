@@ -74,7 +74,7 @@ final class ConversationDtos {
                     turn.conversationId(), null, turn.status(), turn.closeReason(), turn.revision(),
                     turn.coachReplyCount(), turn.replyLimit(),
                     turn.turns().stream()
-                            .map(item -> new TurnResponse(item.turnIndex(), item.role(), item.text(), item.createdAt()))
+                            .map(item -> new TurnResponse(item.turnIndex(), item.role(), CoachDisplayText.keepWhole(item.role(), item.text()), item.createdAt()))
                             .toList(),
                     null);
         }
@@ -85,7 +85,7 @@ final class ConversationDtos {
                     view.id(), view.practiceId(), view.status(), view.closeReason(), view.revision(),
                     coachReplies, replyLimit,
                     view.turns().stream()
-                            .map(item -> new TurnResponse(item.turnIndex(), item.role(), item.text(), item.createdAt()))
+                            .map(item -> new TurnResponse(item.turnIndex(), item.role(), CoachDisplayText.keepWhole(item.role(), item.text()), item.createdAt()))
                             .toList(),
                     view.createdAt());
         }
@@ -157,7 +157,7 @@ final class ConversationDtos {
 
         static TurnResultResponse of(ConversationService.Turn turn) {
             return new TurnResultResponse(
-                    ConversationResponse.of(turn), turn.coachMessage(), NoteResponse.of(turn.note()));
+                    ConversationResponse.of(turn), CoachDisplayText.keepWhole("coach", turn.coachMessage()), NoteResponse.of(turn.note()));
         }
     }
 }
