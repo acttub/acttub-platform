@@ -256,13 +256,14 @@ class DirectVideoCoachTest {
         assertThat(DirectVideoPrompts.practiceLoop())
                 .contains("코치 응답 최대 " + ConversationService.THREE_LAYERS_REPLY_LIMIT + "턴",
                         "16턴은 채워야 할 목표가 아니라 상한이다")
-                .doesNotContain("이 세션은 약 5턴이다", "이번이 응답 5번째일 때", "할 일 표", "배우의 말 보기");
+                .doesNotContain("이 세션은 약 5턴이다", "이번이 응답 5번째일 때", "할 일 표", "배우의 말 보기", "마무리1");
         // 상한 직전의 마무리는 이제 코드가 정한다.
         var tally = new PracticeLoopRouter.Tally(2, 0, 0);
         var fifteenth = new PracticeLoopRouter.Before(15, "이어보기", PracticeLoopRouter.Kind.ANSWER, tally, List.of(), false, false, false);
         var sixteenth = new PracticeLoopRouter.Before(16, "이어보기", PracticeLoopRouter.Kind.ANSWER, tally, List.of(), false, false, false);
-        assertThat(PracticeLoopRouter.route(PracticeLoopRouter.Kind.ANSWER, fifteenth)).isEqualTo("마무리1");
-        assertThat(PracticeLoopRouter.route(PracticeLoopRouter.Kind.ANSWER, sixteenth)).isEqualTo("마무리2");
+        assertThat(PracticeLoopRouter.route(PracticeLoopRouter.Kind.ANSWER, fifteenth)).as("15번째도 대화를 이어 간다").isEqualTo("이어보기");
+        assertThat(PracticeLoopRouter.route(PracticeLoopRouter.Kind.ANSWER, sixteenth)).as("16번째는 코치 AI 없이 닫는다")
+                .isEqualTo(PracticeLoopRouter.END);
     }
 
     @Test void practiceLoopStillClosesAtTheServerTurnBudgetEvenWhenTheModelKeepsGoing() {
@@ -372,8 +373,9 @@ class DirectVideoCoachTest {
                 new DirectVideoModel.Message("user", "상대가 떠나면 안 되니까요"));
         assertThat(prompts.getAllValues().get(0)).isEqualTo(DirectVideoPrompts.practiceLoop(first.session().practiceSessionId()));
         assertThat(prompts.getAllValues().get(1)).startsWith(DirectVideoPrompts.practiceLoopTurn())
-                .contains("[이번 응답]\n할 일: 파고들기", "- 파고들기: ").doesNotContain("- 이어보기: ", "할 일 표", "배우의 말 보기");
-        assertThat(prompts.getAllValues().get(2)).contains("할 일: 이어보기", "- 이어보기: ").doesNotContain("- 파고들기: ");
+                .contains("[이번 응답]\n지금 상황: 배우가 첫 질문에 답했다")
+                .doesNotContain("할 일:", "배우의 말:", "지금까지:", "쓰는 법:", "- 파고들기:", "얘기를 이어 가고 있다");
+        assertThat(prompts.getAllValues().get(2)).contains("얘기를 이어 가고 있다").doesNotContain("- 이어보기:", "배우가 첫 질문에 답했다");
         assertThat(histories.getAllValues().get(0)).isEmpty();
         assertThat(histories.getAllValues().get(1)).containsExactly(
                 new DirectVideoModel.Message("model", OPENING),
@@ -448,19 +450,20 @@ class DirectVideoCoachTest {
         assertThat(DirectVideoPracticeLoop.actorMaterial(session())).isEmpty();
     }
 
-    @Test void practiceLoopClosesWhenCoachFinishesOrActorStops() {
+    @Test void practiceLoopClosesWithoutACoachReplyWhenTheActorStopsOrSumsThemselvesUp() {
         var loopEngine = practiceLoopEngine();
-        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"self_line\"]}");
-        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING,
-                "<다음 테이크>\"가\"에서 상대를 끝까지 보기</다음 테이크>\n잡아주길 기다리는 사람이라고 적어 둘게요.\n"
-                        + "다음 테이크에서는 \"가\"에서 상대를 끝까지 봐도 좋아요.\n오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요.");
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING);
         var first = loopEngine.start(session(), UUID.randomUUID());
+        clearInvocations(model, videos);
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"self_line\"]}");
         var done = loopEngine.reply(first.session(), "나는 잡아주길 기다리는 배우인 것 같아요", UUID.randomUUID());
         assertThat(done.reply().status()).isEqualTo("complete");
-        assertThat(done.reply().message()).doesNotContain("<상태>", "<다음 테이크>").startsWith("잡아주길 기다리는");
+        assertThat(done.reply().message()).isEqualTo("오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요.");
         assertThat(done.session().coachingState().path("practice_loop").path("statuses").path(1).asText())
-                .contains("배우의 말: 자기 한 줄", "할 일: 마무리2", "다음 테이크: 반대로: \"가\"에서 상대를 끝까지 보기");
+                .contains("배우의 말: 자기 한 줄", "할 일: 끝", "분류: model");
         StructuredJson.validate("coach_handoff_v2", done.reply().handoff());
+        verify(model, never()).reply(any(), anyList(), anyString());
+        verify(model, never()).upload(any(), anyString());
 
         when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING);
         var opened = loopEngine.start(session(), UUID.randomUUID());
@@ -475,6 +478,42 @@ class DirectVideoCoachTest {
         verify(model, never()).reply(any(), anyList(), anyString());
         verify(model, never()).upload(any(), anyString());
         verifyNoInteractions(videos);
+    }
+
+    @Test void practiceLoopNoteKeepsTheDesignNextTakeWhenTheActorLeftNoLine() throws Exception {
+        var state = (com.fasterxml.jackson.databind.node.ObjectNode) StructuredJson.MAPPER.readTree("""
+                {"practice_loop":{"design":"버릇: 고개를 크게 돌림 | 곳1: x\\n다음 테이크: \\"잡아줘\\"에서 상대를 붙잡으려고 해 봐도 좋아요",
+                 "statuses":["", "배우의 말: 답\\n할 일: 파고들기", "배우의 말: 그만\\n할 일: 끝"]}}
+                """);
+        var turns = List.of(new CoachTurnSnapshot("ai", "첫 말"), new CoachTurnSnapshot("user", "음 잘 모르겠어요 그냥 했어요"),
+                new CoachTurnSnapshot("ai", "그때 상대한테 뭘 받고 싶었어요?"), new CoachTurnSnapshot("user", "그만"),
+                new CoachTurnSnapshot("ai", "오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요."));
+        var note = DirectVideoPracticeLoop.note(session().withTurns(turns).withCoachingState("three_layers_v1", 0, state, "closed", ""), 3);
+        assertThat(note).isNotNull();
+        assertThat(note.title()).isEqualTo("고개를 크게 돌림");
+        assertThat(note.nextTake()).isEqualTo("\"잡아줘\"에서 상대를 붙잡으려고 해 봐도 좋아요");
+    }
+
+    @Test void thinkingNotesAndLongRepliesAreKeptOffTheActorsScreen() {
+        var loopEngine = practiceLoopEngine();
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answer\"]}");
+        String longReply = "차분한 톤과 담담한 표정이 잘 어울려요. \"다 뒤져 있더라\"에서 목소리가 잦아드는 것도 좋고요. 위를 본 건 인물의 습관일까요?";
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING,
+                "<생각>\n배우가 한 말: 붙잡고 싶었다\n끝 질문: 무엇을\n</생각>\n" + longReply);
+        when(model.reply(isNull(), anyList(), anyString())).thenReturn("\"다 뒤져 있더라\"에서 목소리가 잦아들어요.\n위를 본 건 습관인가요?");
+        var first = loopEngine.start(session(), UUID.randomUUID());
+        var second = loopEngine.reply(first.session(), "붙잡길 바랐던 것 같아요", UUID.randomUUID());
+        assertThat(DirectVideoPracticeLoop.displayLength(longReply)).isGreaterThan(DirectVideoPracticeLoop.LONG_REPLY);
+        assertThat(second.reply().message()).isEqualTo("\"다 뒤져 있더라\"에서 목소리가 잦아들어요.\n위를 본 건 습관인가요?");
+        assertThat(second.session().turns()).extracting(CoachTurnSnapshot::text).noneMatch(text -> text.contains("생각"));
+        var shortenCalls = org.mockito.ArgumentCaptor.forClass(List.class);
+        // 첫 응답(60자 넘음)과 둘째 응답 모두 줄이기를 한 번씩 거친다.
+        verify(model, times(2)).reply(isNull(), shortenCalls.capture(), eq(DirectVideoPrompts.practiceLoopShorten(null)));
+        assertThat(shortenCalls.getAllValues().get(0)).containsExactly(new DirectVideoModel.Message("user", OPENING_SHOWN));
+        assertThat(shortenCalls.getAllValues().get(1)).containsExactly(new DirectVideoModel.Message("user", longReply));
+        assertThat(telemetry.calls().getLast().metadata()).containsEntry("shorten_calls", "1");
+        assertThat(DirectVideoPracticeLoop.parse("<생각>\n배우가 한 말: x\n글자 수: 30\n괜찮아요. 왜요?").message())
+                .as("닫는 태그를 빠뜨려도 메모 줄은 걷어낸다").isEqualTo("괜찮아요. 왜요?");
     }
 
     @Test void sessionsOpenedBeforeThePracticeLoopKeepRouting() {
@@ -855,7 +894,7 @@ class DirectVideoCoachTest {
         assertThat(korean).contains("화면 유무와 연기 여부는 별개다", "목소리가 있다는 이유만으로 모두 연기는 아니다",
                 "일상 잡담·정보 설명·뉴스·강의", "배경 음악·잡음만", "애매하면 연기로 본다",
                 "없음(화면 확인 안 됨) · 뚜렷함 0", "표정, 시선, 자세, 몸동작", "감정의 변화와 원하는 것과 행동",
-                "숨은 설계, 후속 평가, 반박, 마무리와 노트용 다음 테이크");
+                "숨은 설계, 후속 평가, 반박과 노트용 다음 테이크");
         String english = DirectVideoPrompts.practiceLoopEnglish();
         assertThat(english).contains("Screen visibility and acting eligibility are separate",
                 "A voice alone does not prove acting", "everyday chat, informational explanation, news or a lecture",
@@ -865,9 +904,8 @@ class DirectVideoCoachTest {
             assertThat(prompt).contains("관찰 근거: [", "음성만", "없음(화면 확인 안 됨)");
             assertThat(prompt.indexOf("관찰 근거: [")).isLessThan(prompt.indexOf("감정의 변화: ["));
         }
-        for (String turn : List.of(DirectVideoPrompts.practiceLoopTurn(), DirectVideoPrompts.practiceLoopTurnEnglish())) {
-            assertThat(turn).contains("관찰 근거", "대사 확인", "음성만", "확인 안 됨");
-        }
+        assertThat(DirectVideoPrompts.practiceLoopTurn()).contains("대사 확인", "확인 안 됨", "소리만 있는 영상");
+        assertThat(DirectVideoPrompts.practiceLoopTurnEnglish()).contains("관찰 근거", "대사 확인", "음성만", "확인 안 됨");
         assertThat(korean).doesNotContain("아래는 연기가 아니다: 화면이 검거나");
         assertThat(english).doesNotContain("These are not acting: a black screen");
         assertThat(DirectVideoPrompts.common()).contains("음성 연기는 연기로 다룬다", "관찰할 수 없다고 두며");
