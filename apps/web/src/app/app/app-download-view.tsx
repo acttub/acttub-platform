@@ -17,12 +17,12 @@ const practiceHref = "/practice/new";
 // 사람을 위한 문장이라, 처음 온 사람에게는 앱이 하는 일을 먼저 보여 준다.
 const APP_PAGE_HIGHLIGHTS: readonly { title: string; body: string }[] = [
   {
-    title: "상대 대사는 AI가 읽어요",
-    body: "대본만 넣으면 상대역 대사를 AI가 소리 내 읽어 줘요. 내 대사는 가려 두고 외워요.",
+    title: "대본 리딩",
+    body: "대본만 넣으면 상대 대사는 AI가 읽어 주고, 내 대사는 가려 두고 외워요.",
   },
   {
-    title: "영상을 올리면 코치가 질문해요",
-    body: "연습 영상을 보고 내가 자주 하는 연기 습관을 짚어 줘요.",
+    title: "연기 코칭",
+    body: "연습 영상을 올리면 코치가 내 연기 습관을 짚고 질문해요.",
   },
   {
     title: "찍은 자리에서 바로",
@@ -55,9 +55,9 @@ export default function AppDownloadView() {
               무료 · iOS · Android
             </p>
             <h1 className="mt-7 break-keep text-4xl font-black leading-[1.1] tracking-[-0.06em] sm:text-6xl">
-              혼자 하는 연기 연습,
+              리딩은 AI 상대역과,
               <br />
-              상대역은 AI가
+              연기는 AI 코치와
             </h1>
             <p className="mt-6 break-keep text-lg font-semibold leading-8 text-[#4e5968]">
               대본을 넣으면 상대 대사는 AI가 읽어 주고,
