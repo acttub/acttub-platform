@@ -2,6 +2,7 @@ import type {
   AdmissionsResponse,
 } from './admissions';
 import { normalizeAdmissions } from './admissions';
+import { normalizeAuditions, type AuditionPostingList } from './auditions';
 
 import Constants from 'expo-constants';
 import {
@@ -1318,5 +1319,15 @@ export const api = {
       { auth: false, timeoutMs: 20_000 },
     );
     return normalizeAdmissions(data);
+  },
+
+  // 오디션 공고 -----------------------------------------------------------------
+  // 공개 정보다(app.audition). 기능이 꺼진 서버는 빈 items를 준다.
+  async auditions(): Promise<AuditionPostingList> {
+    const data = await request<AuditionPostingList>('/v2/auditions', {}, {
+      auth: false,
+      timeoutMs: 20_000,
+    });
+    return normalizeAuditions(data);
   },
 };
