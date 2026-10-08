@@ -363,7 +363,13 @@ class DirectVideoCoachTest {
         var histories = org.mockito.ArgumentCaptor.forClass(List.class);
         var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(model, times(3)).reply(eq(file), histories.capture(), prompts.capture());
-        verify(model, times(2)).classify(anyList(), eq(DirectVideoPrompts.practiceLoopClassifier()), eq(PracticeLoopRouter.SIGNALS));
+        var classified = org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(model, times(2)).classify(classified.capture(), eq(DirectVideoPrompts.practiceLoopClassifier()), eq(PracticeLoopRouter.SIGNALS));
+        assertThat(classified.getAllValues().get(1)).as("분류 AI는 이 세션의 대화 전체를 받는다").containsExactly(
+                new DirectVideoModel.Message("model", OPENING_SHOWN),
+                new DirectVideoModel.Message("user", "붙잡길 바랐던 것 같아요"),
+                new DirectVideoModel.Message("model", "붙잡히고 싶은 마음이 먼저였군요.\n그 마음은 어느 대사에서 가장 커요?"),
+                new DirectVideoModel.Message("user", "상대가 떠나면 안 되니까요"));
         assertThat(prompts.getAllValues().get(0)).isEqualTo(DirectVideoPrompts.practiceLoop(first.session().practiceSessionId()));
         assertThat(prompts.getAllValues().get(1)).startsWith(DirectVideoPrompts.practiceLoopTurn())
                 .contains("[이번 응답]\n할 일: 파고들기", "- 파고들기: ").doesNotContain("- 이어보기: ", "할 일 표", "배우의 말 보기");
