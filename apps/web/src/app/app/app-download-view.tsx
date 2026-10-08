@@ -54,12 +54,12 @@ export default function AppDownloadView() {
             <p className="rounded-full bg-[#3182f6] px-4 py-2 text-sm font-black text-white shadow-sm">
               무료 · iOS · Android
             </p>
-            <h1 className="mt-7 text-4xl font-black leading-[1.1] tracking-[-0.06em] sm:text-6xl">
+            <h1 className="mt-7 break-keep text-4xl font-black leading-[1.1] tracking-[-0.06em] sm:text-6xl">
               혼자 하는 연기 연습,
               <br />
               상대역은 AI가
             </h1>
-            <p className="mt-6 text-lg font-semibold leading-8 text-[#4e5968]">
+            <p className="mt-6 break-keep text-lg font-semibold leading-8 text-[#4e5968]">
               대본을 넣으면 상대 대사는 AI가 읽어 주고,
               <br className="hidden sm:block" /> 연기 영상을 올리면 AI 코치가
               질문해요.
@@ -79,7 +79,7 @@ export default function AppDownloadView() {
                 <h2 className="text-2xl font-black tracking-[-0.04em]">
                   {item.title}
                 </h2>
-                <p className="mt-3 text-base font-semibold leading-7 text-[#4e5968]">
+                <p className="mt-3 break-keep text-base font-semibold leading-7 text-[#4e5968]">
                   {item.body}
                 </p>
               </article>
