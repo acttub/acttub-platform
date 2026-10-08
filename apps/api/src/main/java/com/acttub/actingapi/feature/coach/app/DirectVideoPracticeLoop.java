@@ -24,7 +24,14 @@ final class DirectVideoPracticeLoop {
     private static final Pattern DESIGN = Pattern.compile("(?s)<설계>\\s*(.*?)\\s*</설계>");
     private static final Pattern STATUS = Pattern.compile("(?s)<상태>\\s*(.*?)\\s*</상태>");
     private static final Pattern COACH = Pattern.compile("(?s)<코치>\\s*(.*?)\\s*(?:</코치>|$)");
-    private static final Pattern STRAY_TAG = Pattern.compile("</?(?:설계|상태|코치)>");
+    private static final Pattern STRAY_TAG = Pattern.compile("</?(?:설계|상태|코치|다음 테이크|생각)>");
+    // 둘째 응답부터 코치가 말하기 전에 적는 숨은 메모. 배우 화면·저장 대화에 넣지 않는다.
+    private static final Pattern THINKING = Pattern.compile("(?s)<생각>.*?</생각>");
+    // 닫는 태그를 빠뜨렸을 때 메모의 칸 줄만 걷어낸다.
+    private static final Pattern THINKING_LINE = Pattern.compile(
+            "(?m)^\\s*(?:<생각>|(?:배우가 한 말|배우가 지금 원하는 것|내 대답|끝 질문|글자 수)\\s*:.*)$\\R?");
+    // 마무리2 에서 모델이 건넨 행동을 노트에 남기려고 쓰게 하는 숨은 줄. 배우에게는 보이지 않는다.
+    private static final Pattern NEXT_TAKE_TAG = Pattern.compile("(?s)<다음 테이크>\\s*(.*?)\\s*</다음 테이크>");
     // 모델이 줄 끝에 남기는 날 자모("알려 주세요.ㄴ" 같은). 실험에서 실제로 나왔고 다음 턴에 그대로 따라 한다.
     private static final Pattern TRAILING_JAMO = Pattern.compile("(?m)(?<=[^\\s\\u3131-\\u318E])[\\u3131-\\u318E]+[ \\t]*$");
 
@@ -37,11 +44,59 @@ final class DirectVideoPracticeLoop {
         String text = raw == null ? "" : raw.strip();
         String design = first(DESIGN, text);
         String status = first(STATUS, text);
-        String rest = STATUS.matcher(DESIGN.matcher(text).replaceAll("")).replaceAll("");
+        String rest = NEXT_TAKE_TAG.matcher(STATUS.matcher(DESIGN.matcher(text).replaceAll("")).replaceAll("")).replaceAll("");
+        rest = THINKING.matcher(rest).replaceAll("");
+        if (rest.contains("<생각>")) rest = THINKING_LINE.matcher(rest).replaceAll("");
         Matcher coach = COACH.matcher(rest);
         String message = coach.find() ? coach.group(1) : rest;
         message = STRAY_TAG.matcher(message).replaceAll("");
         return new Parsed(design, status, TRAILING_JAMO.matcher(message).replaceAll("").strip());
+    }
+
+    // 영상 시간으로 구간을 가리키는 말("0:23", "0:03부터 0:46까지", "3초에"). 배우는 시간을 보고 장면을 떠올리지 못한다.
+    private static final String CLOCK = "(?<![\\d:])\\d{1,2}:\\d{2}(?::\\d{2})?(?![\\d:])";
+    private static final Pattern TIMESTAMP = Pattern.compile(CLOCK
+            + "|\\d+(?:\\.\\d+)?\\s*초\\s*(?:부터|에서|쯤에|께|경에|에)|(?i:\\b\\d+\\s*seconds?\\s+in\\b)");
+    private static final List<Pattern> TIMESTAMP_PARTS = List.of(
+            Pattern.compile("\\s*[(\\[]\\s*" + CLOCK + "(?:\\s*[~\\-–]\\s*" + CLOCK + ")?\\s*[)\\]]"),
+            Pattern.compile(CLOCK + "\\s*(?:부터|~|-|–)\\s*" + CLOCK + "\\s*(?:까지)?\\s*(?:의|에서도|에서|에도|에)?\\s*"),
+            Pattern.compile("(?i:(?:from\\s+)?" + CLOCK + "\\s*(?:to|-|–)\\s*" + CLOCK + "\\s*)"),
+            Pattern.compile("(?i:(?:at|around)\\s+)" + CLOCK + "\\s*"),
+            Pattern.compile(CLOCK + "\\s*(?:쯤|경)?\\s*(?:의|에서도|에서|에도|에)?\\s*"));
+
+    /** 코치 말이 길다고 보는 글자 수(공백 포함). 목표는 50자 안쪽이고 이보다 길면 줄이기 호출을 한다. */
+    static final int LONG_REPLY = 60;
+
+    /** 화면에 보이는 글자 수. 줄바꿈과 이어진 공백은 한 칸으로 센다. */
+    static int displayLength(String text) {
+        if (text == null) return 0;
+        String flat = text.strip().replaceAll("\\s+", " ");
+        return flat.codePointCount(0, flat.length());
+    }
+
+    /** 배우에게 보일 말에 영상 시간 표기가 있는지. */
+    static boolean hasTimestamp(String text) {
+        return text != null && TIMESTAMP.matcher(text).find();
+    }
+
+    /** 다시 써도 시간이 남았을 때의 마지막 정리. 시간 부분만 걷어낸다. */
+    static String stripTimestamps(String text) {
+        String value = text;
+        for (Pattern part : TIMESTAMP_PARTS) value = part.matcher(value).replaceAll("");
+        return value.replaceAll("[ \\t]{2,}", " ").replaceAll("(?m)^[ \\t]+", "").strip();
+    }
+
+    /** 시간 표기가 나온 응답을 한 번 다시 쓰게 할 때 지시 끝에 붙이는 말. */
+    static String timestampRetryNote(java.util.Locale language) {
+        boolean korean = language == null || "ko".equals(language.getLanguage());
+        return korean
+                ? "[다시 쓰기]\n방금 쓴 답에 영상 시간(0:23 같은)이 들어갔다. 같은 내용을 다시 쓰되, 시간 없이 확인된 대사나 그때의 동작·표정·소리로 구간을 가리킨다."
+                : "[Rewrite]\nYour last answer pointed to a passage by video time (like 0:23). Write the same content again, pointing to the passage by a confirmed line or by what happens then, with no times.";
+    }
+
+    /** 마무리2 응답의 숨은 다음 테이크 줄. 없으면 빈 문자열. */
+    static String nextTake(String raw) {
+        return raw == null ? "" : first(NEXT_TAKE_TAG, raw);
     }
 
     /**
@@ -187,6 +242,15 @@ final class DirectVideoPracticeLoop {
 
     /** 저장된 표시용 대화에 숨은 칸을 되붙여 모델에 넘길 기록을 만든다. */
     static List<DirectVideoModel.Message> history(List<CoachTurnSnapshot> turns, JsonNode state, String actorText) {
+        return history(turns, state, actorText, true);
+    }
+
+    /**
+     * 모델에 넘길 기록. {@code withStatuses}가 거짓이면 첫 응답의 {@code <설계>}만 되붙인다 — 둘째 응답부터는
+     * 서버가 할 일을 정하므로 지난 상태 칸을 보여 주지 않는다(모델이 상태 칸을 따라 쓰지 않게).
+     */
+    static List<DirectVideoModel.Message> history(List<CoachTurnSnapshot> turns, JsonNode state, String actorText,
+            boolean withStatuses) {
         JsonNode loop = state == null ? null : state.path(STATE_KEY);
         String design = loop == null ? "" : loop.path("design").asText("");
         var history = new ArrayList<DirectVideoModel.Message>();
@@ -199,7 +263,7 @@ final class DirectVideoPracticeLoop {
             String text = turn.text();
             if (coachIndex == 0 && !design.isBlank()) {
                 text = "<설계>\n" + design + "\n</설계>\n<코치>\n" + text + "\n</코치>";
-            } else {
+            } else if (withStatuses) {
                 String status = loop == null ? "" : loop.path("statuses").path(coachIndex).asText("");
                 if (!status.isBlank()) text = "<상태>" + status + "</상태>\n" + text;
             }
@@ -377,8 +441,13 @@ final class DirectVideoPracticeLoop {
         return "";
     }
 
+    /** 설계의 다음 테이크(버릇의 반대쪽). 없으면 빈 문자열. */
+    static String designNextTake(String design) {
+        return first(DESIGN_NEXT, design == null ? "" : design);
+    }
+
     /** 상태 줄에서 이번 응답이 한 일. 첫 턴(상태 없음)은 비추기다. */
-    private static String action(String status) {
+    static String action(String status) {
         if (status.isBlank()) return "비추기";
         String doing = statusField(status, "할 일");
         if (!doing.isEmpty()) return doing;
