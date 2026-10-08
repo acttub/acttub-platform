@@ -4252,6 +4252,26 @@
         }
       }
     },
+    "/v2/auditions" : {
+      "get" : {
+        "tags" : [ "v2-auditions" ],
+        "summary" : "List Auditions",
+        "description" : "지금 지원할 수 있는 오디션 공고 전부를 마감이 가까운 순(마감일 없는 것은 뒤, 그다음 최근 게시)으로.\n마감일이 있으면 오늘(KST)까지, 없으면 게시 45일 안이고 마감 표시가 없는 것만 낸다. 기능이 꺼진\n서버는 빈 items 다. 지원은 항상 source_url 의 원문에서 한다.",
+        "operationId" : "list_auditions_v2_auditions_get",
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AuditionPostingList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v2/app/posters" : {
       "get" : {
         "tags" : [ "v2-app" ],
@@ -9884,6 +9904,112 @@
         },
         "required" : [ "providers" ],
         "title" : "AuthProvidersResponse"
+      },
+      "AuditionPosting" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "description" : "공고의 사실 항목. 지원은 항상 source_url 의 원문에서 한다.",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "description" : "<source>-<원문 번호>. 기기의 찜·봤음 저장 열쇠",
+            "title" : "Id"
+          },
+          "title" : {
+            "type" : "string",
+            "description" : "원문 제목 그대로",
+            "title" : "Title"
+          },
+          "category" : {
+            "type" : "string",
+            "enum" : [ "film", "short_film", "drama", "web_drama", "short_form", "commercial", "music_video", "theater", "musical", "agency_open", "other" ],
+            "title" : "Category"
+          },
+          "source" : {
+            "type" : "string",
+            "enum" : [ "shinsee", "emk", "sejong", "plfil", "otr" ],
+            "title" : "Source"
+          },
+          "source_name" : {
+            "type" : "string",
+            "description" : "화면에 쓰는 출처 이름",
+            "title" : "Source Name"
+          },
+          "pay_text" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "출연료 문구 원문 그대로"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Pay Text"
+          },
+          "apply_start" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "date"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Apply Start"
+          },
+          "apply_end" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "date"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Apply End"
+          },
+          "status_text" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "원문의 상태 문구"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Status Text"
+          },
+          "posted_on" : {
+            "type" : "string",
+            "format" : "date",
+            "title" : "Posted On"
+          },
+          "source_url" : {
+            "type" : "string",
+            "description" : "원문 주소",
+            "title" : "Source Url"
+          }
+        },
+        "required" : [ "apply_end", "apply_start", "category", "id", "pay_text", "posted_on", "source", "source_name", "source_url", "status_text", "title" ],
+        "title" : "AuditionPosting"
+      },
+      "AuditionPostingList" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "items" : {
+            "type" : "array",
+            "description" : "지금 지원할 수 있는 공고. 마감이 가까운 순",
+            "items" : {
+              "$ref" : "#/components/schemas/AuditionPosting"
+            },
+            "title" : "Items"
+          },
+          "collected_at" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "format" : "date-time",
+              "description" : "마지막으로 공고를 모은 시각. 한 번도 모으지 못했으면 null"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Collected At"
+          }
+        },
+        "required" : [ "collected_at", "items" ],
+        "title" : "AuditionPostingList"
       },
       "AppPoster" : {
         "type" : "object",

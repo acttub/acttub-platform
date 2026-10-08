@@ -359,10 +359,11 @@ function RootNavigator() {
         <Stack.Screen name="analyzing" options={{ title: t('stack.analyzing') }} />
         <Stack.Screen name="coach" options={{ title: t('stack.coach') }} />
         <Stack.Screen name="report" options={{ title: t('stack.report') }} />
-        {/* 아래 둘은 화면 안에 자체 헤더가 있다. 등록해 두지 않으면 기본 헤더가
+        {/* 아래 셋은 화면 안에 자체 헤더가 있다. 등록해 두지 않으면 기본 헤더가
             한 겹 더 붙어 '뒤로' 버튼이 두 개로 보인다. */}
         <Stack.Screen name="admissions/index" options={{ headerShown: false }} />
         <Stack.Screen name="admissions/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="auditions/index" options={{ headerShown: false }} />
         <Stack.Screen name="challenge-detail" options={{ title: t('challenges.detailTitle') }} />
         <Stack.Screen name="challenge-play" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
         <Stack.Screen name="guide" options={{ headerShown: false, presentation: 'fullScreenModal' }} />

@@ -1977,6 +1977,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/auditions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Auditions
+         * @description 지금 지원할 수 있는 오디션 공고 전부를 마감이 가까운 순(마감일 없는 것은 뒤, 그다음 최근 게시)으로.
+         *     마감일이 있으면 오늘(KST)까지, 없으면 게시 45일 안이고 마감 표시가 없는 것만 낸다. 기능이 꺼진
+         *     서버는 빈 items 다. 지원은 항상 source_url 의 원문에서 한다.
+         */
+        get: operations["list_auditions_v2_auditions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/app/posters": {
         parameters: {
             query?: never;
@@ -4640,6 +4662,65 @@ export interface components {
         AuthProvidersResponse: {
             /** Providers */
             providers: string[];
+        };
+        /**
+         * AuditionPosting
+         * @description 공고의 사실 항목. 지원은 항상 source_url 의 원문에서 한다.
+         */
+        AuditionPosting: {
+            /**
+             * Id
+             * @description <source>-<원문 번호>. 기기의 찜·봤음 저장 열쇠
+             */
+            id: string;
+            /**
+             * Title
+             * @description 원문 제목 그대로
+             */
+            title: string;
+            /**
+             * Category
+             * @enum {string}
+             */
+            category: "film" | "short_film" | "drama" | "web_drama" | "short_form" | "commercial" | "music_video" | "theater" | "musical" | "agency_open" | "other";
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "shinsee" | "emk" | "sejong" | "plfil" | "otr";
+            /**
+             * Source Name
+             * @description 화면에 쓰는 출처 이름
+             */
+            source_name: string;
+            /** Pay Text */
+            pay_text: string | null;
+            /** Apply Start */
+            apply_start: string | null;
+            /** Apply End */
+            apply_end: string | null;
+            /** Status Text */
+            status_text: string | null;
+            /**
+             * Posted On
+             * Format: date
+             */
+            posted_on: string;
+            /**
+             * Source Url
+             * @description 원문 주소
+             */
+            source_url: string;
+        };
+        /** AuditionPostingList */
+        AuditionPostingList: {
+            /**
+             * Items
+             * @description 지금 지원할 수 있는 공고. 마감이 가까운 순
+             */
+            items: components["schemas"]["AuditionPosting"][];
+            /** Collected At */
+            collected_at: string | null;
         };
         /**
          * AppPoster
@@ -8430,6 +8511,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuthProvidersResponse"];
+                };
+            };
+        };
+    };
+    list_auditions_v2_auditions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditionPostingList"];
                 };
             };
         };

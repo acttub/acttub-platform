@@ -28,6 +28,7 @@ import './continue-practice.test.mjs';
 import './i18n.test.mjs';
 import './tutorial.test.mjs';
 import './admissions.test.mjs';
+import './auditions.test.mjs';
 import './memory-screen.test.mjs';
 import './streak-celebration.test.mjs';
 import './recorded-video.test.mjs';

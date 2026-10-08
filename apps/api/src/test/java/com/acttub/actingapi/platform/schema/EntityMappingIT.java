@@ -128,7 +128,9 @@ class EntityMappingIT {
             // 대본 나누기 요청(V33)은 리딩 저장소의 native SQL(접수·진행·완료)만 쓴다.
             "script_imports",
             // 대본 원본 파일(V34)도 리딩 저장소의 native SQL(올릴 자리·읽기·연결·정리)만 쓴다.
-            "script_uploads");
+            "script_uploads",
+            // 오디션 공고(V36)는 오디션 저장소의 native SQL(upsert·열림 후보·삭제)만 쓴다.
+            "audition_postings");
 
     @Test
     @DisplayName("JPA metamodel은 관계 매핑 없이 정확히 38개 활성 엔티티를 포함한다")
