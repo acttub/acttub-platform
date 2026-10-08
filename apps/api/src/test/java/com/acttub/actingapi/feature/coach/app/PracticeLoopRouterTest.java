@@ -20,13 +20,12 @@ class PracticeLoopRouterTest {
     }
 
     static String route(Kind kind, Before b) {
-        return PracticeLoopRouter.route(kind, b, false);
+        return PracticeLoopRouter.route(kind, b);
     }
 
     @Test void endsAndClosingsComeFirst() {
         var mid = before(4, "이어보기", Kind.ANSWER, 3, 0, 0);
         assertThat(route(Kind.STOP, mid)).isEqualTo("끝");
-        assertThat(PracticeLoopRouter.route(Kind.STOP, mid, true)).as("그만 + 다음 방법").isEqualTo("마무리2");
         assertThat(route(Kind.ANSWER, before(5, "마무리2", Kind.SELF_LINE, 3, 0, 0))).isEqualTo("끝");
         assertThat(route(Kind.SELF_LINE, mid)).isEqualTo("마무리2");
         assertThat(route(Kind.EVALUATION, before(6, "마무리1", Kind.ANSWER, 3, 0, 0))).as("한 줄을 청한 뒤의 답").isEqualTo("마무리2");
@@ -79,12 +78,7 @@ class PracticeLoopRouterTest {
                 .containsExactly("말끝을 흐림");
     }
 
-    @Test void codeRulesCatchOnlyTheObviousAndTheClassifierOutputIsChecked() {
-        assertThat(PracticeLoopRouter.byRule("그만").kind()).isEqualTo(Kind.STOP);
-        assertThat(PracticeLoopRouter.byRule("오늘은 여기까지 할게요").kind()).isEqualTo(Kind.STOP);
-        assertThat(PracticeLoopRouter.byRule("몰라요").kind()).isEqualTo(Kind.SHORT);
-        assertThat(PracticeLoopRouter.byRule("네").by()).isEqualTo("code");
-        assertThat(PracticeLoopRouter.byRule("카메라 렌즈 본 거예요")).isNull();
+    @Test void theClassifierOutputIsChecked() {
         assertThat(PracticeLoopRouter.parse("{\"signals\":[\"answer\",\"correction\"]}").kind()).as("보기 순서가 앞선 것")
                 .isEqualTo(Kind.CORRECTION);
         assertThat(PracticeLoopRouter.parse("{\"signals\":[\"self_line\",\"keep\"]}")).isEqualTo(new Classified(Kind.SELF_LINE, true, "model"));
