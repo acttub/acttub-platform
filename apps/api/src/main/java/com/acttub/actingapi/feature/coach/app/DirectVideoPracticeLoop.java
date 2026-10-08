@@ -24,7 +24,12 @@ final class DirectVideoPracticeLoop {
     private static final Pattern DESIGN = Pattern.compile("(?s)<설계>\\s*(.*?)\\s*</설계>");
     private static final Pattern STATUS = Pattern.compile("(?s)<상태>\\s*(.*?)\\s*</상태>");
     private static final Pattern COACH = Pattern.compile("(?s)<코치>\\s*(.*?)\\s*(?:</코치>|$)");
-    private static final Pattern STRAY_TAG = Pattern.compile("</?(?:설계|상태|코치|다음 테이크)>");
+    private static final Pattern STRAY_TAG = Pattern.compile("</?(?:설계|상태|코치|다음 테이크|생각)>");
+    // 둘째 응답부터 코치가 말하기 전에 적는 숨은 메모. 배우 화면·저장 대화에 넣지 않는다.
+    private static final Pattern THINKING = Pattern.compile("(?s)<생각>.*?</생각>");
+    // 닫는 태그를 빠뜨렸을 때 메모의 칸 줄만 걷어낸다.
+    private static final Pattern THINKING_LINE = Pattern.compile(
+            "(?m)^\\s*(?:<생각>|(?:배우가 한 말|배우가 지금 원하는 것|내 대답|끝 질문|글자 수)\\s*:.*)$\\R?");
     // 마무리2 에서 모델이 건넨 행동을 노트에 남기려고 쓰게 하는 숨은 줄. 배우에게는 보이지 않는다.
     private static final Pattern NEXT_TAKE_TAG = Pattern.compile("(?s)<다음 테이크>\\s*(.*?)\\s*</다음 테이크>");
     // 모델이 줄 끝에 남기는 날 자모("알려 주세요.ㄴ" 같은). 실험에서 실제로 나왔고 다음 턴에 그대로 따라 한다.
@@ -40,6 +45,8 @@ final class DirectVideoPracticeLoop {
         String design = first(DESIGN, text);
         String status = first(STATUS, text);
         String rest = NEXT_TAKE_TAG.matcher(STATUS.matcher(DESIGN.matcher(text).replaceAll("")).replaceAll("")).replaceAll("");
+        rest = THINKING.matcher(rest).replaceAll("");
+        if (rest.contains("<생각>")) rest = THINKING_LINE.matcher(rest).replaceAll("");
         Matcher coach = COACH.matcher(rest);
         String message = coach.find() ? coach.group(1) : rest;
         message = STRAY_TAG.matcher(message).replaceAll("");
@@ -56,6 +63,16 @@ final class DirectVideoPracticeLoop {
             Pattern.compile("(?i:(?:from\\s+)?" + CLOCK + "\\s*(?:to|-|–)\\s*" + CLOCK + "\\s*)"),
             Pattern.compile("(?i:(?:at|around)\\s+)" + CLOCK + "\\s*"),
             Pattern.compile(CLOCK + "\\s*(?:쯤|경)?\\s*(?:의|에서도|에서|에도|에)?\\s*"));
+
+    /** 코치 말이 길다고 보는 글자 수(공백 포함). 목표는 50자 안쪽이고 이보다 길면 줄이기 호출을 한다. */
+    static final int LONG_REPLY = 60;
+
+    /** 화면에 보이는 글자 수. 줄바꿈과 이어진 공백은 한 칸으로 센다. */
+    static int displayLength(String text) {
+        if (text == null) return 0;
+        String flat = text.strip().replaceAll("\\s+", " ");
+        return flat.codePointCount(0, flat.length());
+    }
 
     /** 배우에게 보일 말에 영상 시간 표기가 있는지. */
     static boolean hasTimestamp(String text) {
