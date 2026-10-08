@@ -176,6 +176,22 @@ public final class DirectVideoCoach {
             String message = model.reply(uploaded, history, prompt);
             if (message == null || message.isBlank()) throw new IllegalStateException("empty video coaching reply");
             DirectVideoDialogueEvidence.requireGrounded(uploaded, message, written);
+            // 영상 시간("0:23", "0:03부터 0:46까지")으로 구간을 가리키면 한 번 다시 쓰게 한다. 배우는 시간으로 장면을 떠올리지 못한다.
+            boolean timeRetry = false;
+            if (loop && DirectVideoPracticeLoop.hasTimestamp(DirectVideoPracticeLoop.parse(message).message())) {
+                timeRetry = true;
+                ExternalOperationExecution.externalCall("model");
+                String again = model.reply(uploaded, history, prompt + "\n\n"
+                        + DirectVideoPracticeLoop.timestampRetryNote(DirectVideoPracticeLoop.replyLanguage(session, actorText)));
+                if (again != null && !again.isBlank() && !DirectVideoPracticeLoop.parse(again).message().isBlank()) {
+                    try {
+                        DirectVideoDialogueEvidence.requireGrounded(uploaded, again, written);
+                        message = again;
+                    } catch (IllegalStateException ungrounded) {
+                        // 다시 쓴 답이 근거 검사를 못 넘으면 처음 답을 쓰고 시간만 걷어낸다.
+                    }
+                }
+            }
             var parsed = loop ? DirectVideoPracticeLoop.parse(message) : null;
             if (branch != null) {
                 // 숨은 칸은 모델이 아니라 서버가 쓴다. 모델이 따라 쓴 태그는 parse 가 이미 걷어냈다.
@@ -189,11 +205,17 @@ public final class DirectVideoCoach {
             // 첫 응답에서 모델이 연기 영상이 아니라고 분류했으면 그 코치 문장은 버리고 끊는다.
             boolean cut = loop && session.turns().isEmpty() && DirectVideoPracticeLoop.notActing(parsed);
             if (cut) shown = DirectVideoPracticeLoop.notActingMessage(DirectVideoPracticeLoop.replyLanguage(session, actorText));
+            boolean timeStripped = false;
+            if (loop && DirectVideoPracticeLoop.hasTimestamp(shown)) {
+                shown = DirectVideoPracticeLoop.stripTimestamps(shown);
+                timeStripped = true;
+            }
             if (shown.isBlank()) throw new IllegalStateException("empty video coaching reply");
             telemetry.record(new LlmCall(LlmStep.COACH_TURN, session.practiceSessionId(), session.userId(),
                     model.model(), input, message, LlmTokens.unknown(), started, Duration.between(started, Instant.now()),
                     null, LlmCall.metadata("transport", "gemini_direct_video", "route", route,
-                            "route_fallback", Boolean.toString(branch != null ? "fallback".equals(branch.classified().by()) : routeFallback)))
+                            "route_fallback", Boolean.toString(branch != null ? "fallback".equals(branch.classified().by()) : routeFallback),
+                            "timestamp_retry", Boolean.toString(timeRetry), "timestamp_stripped", Boolean.toString(timeStripped)))
                     .withPrompt(template));
             if (loop) DirectVideoPracticeLoop.remember(state, parsed);
             if (cut) DirectVideoPracticeLoop.markNotActing(state, "model");
