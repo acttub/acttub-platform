@@ -186,6 +186,8 @@ class DirectVideoPracticeIT {
         assertThat(prompts.getAllValues().getFirst()).contains("테스트 배우", "1–3년", "오디션 준비", "영상 근거가 아니다");
         assertThat(prompts.getAllValues().getLast()).contains("5년 이상").doesNotContain("1–3년");
         assertThat(telemetry.calls()).allSatisfy(call -> assertThat(call.input()).doesNotContain("테스트 배우"));
+        // 분류 AI가 "그만"을 그만으로 고른다.
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"stop\"]}");
         var ended = postJson("/v2/coach/reply", Map.of("conversation_id", conversation,
                 "request_id", UUID.randomUUID(), "text", "그만"));
         assertThat(ended.at("/conversation/status").asText()).isEqualTo("closed");
@@ -196,7 +198,7 @@ class DirectVideoPracticeIT {
             assertThat(jdbc.queryForList("SELECT " + parts[1] + "::text FROM " + parts[0], String.class))
                     .allSatisfy(value -> assertThat(value).doesNotContain("테스트 배우", "5년 이상"));
         }
-        // "그만"은 코드가 끝으로 정해 영상을 올리지 않는다(시작·둘째 답 두 번만 올림).
+        // "그만"은 분류 AI가 그만으로 고르고 코드가 끝으로 정해 영상을 올리지 않는다(시작·둘째 답 두 번만 올림).
         verify(model, times(2)).delete(file);
     }
 
