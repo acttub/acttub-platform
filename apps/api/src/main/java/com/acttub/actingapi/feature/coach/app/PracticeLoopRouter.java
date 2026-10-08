@@ -133,33 +133,37 @@ final class PracticeLoopRouter {
     /** 응답 상한. {@link ConversationService#THREE_LAYERS_REPLY_LIMIT}과 같다. */
     static final int LAST_REPLY = ConversationService.THREE_LAYERS_REPLY_LIMIT;
 
-    /** 코치 AI를 부르지 않고 대화를 닫는 할 일. 앱이 노트로 정리한다. */
+    /** 코치 AI를 부르지 않고 대화를 닫는 할 일. 마무리 말 없이 닫고 앱은 바로 노트로 넘어간다. */
     static final String END = "끝";
 
     /**
      * 할 일 표. 위에서부터 먼저 맞는 줄 하나.
      *
-     * <p>마무리(한 줄 청하기·정리 인사)는 없다. 대화가 끝나면 앱이 바로 노트로 넘어가 마지막 코치 말이 거의 보이지 않는다.
-     * 그만·자기 한 줄·응답 상한이면 코치 AI 없이 닫고, 나머지는 계속 대화한다.
+     * <p>예전의 마무리1(한 줄 청하기)·마무리2(정리 인사)·끝은 모두 {@link #END}다. 대화가 끝나면 앱이 바로 노트(3층)로
+     * 넘어가 마지막 코치 말이 거의 보이지 않으므로, 마무리 말을 쓰지 않고 코치 AI 없이 닫는다.
      */
     static String route(Kind kind, Before b) {
         String pointOut = b.habitDropped() ? "짚어주기(다른 쪽)" : "짚어주기";
+        Tally t = b.tally();
         if (kind == Kind.STOP) return END;
-        // 예전 프롬프트로 시작해 마무리까지 간 대화. 한 줄을 청한 뒤의 답이면 그 답이 배우의 한 줄이다.
         if (b.lastDoing().startsWith("마무리") || b.lastDoing().startsWith("끝")) return END;
-        if (b.reply() >= LAST_REPLY) return END;
+        if (b.reply() >= LAST_REPLY - 1) return END;
         if (kind == Kind.SELF_LINE) return END;
         if (kind == Kind.CORRECTION) return "내려놓기";
         if (kind == Kind.PUSHBACK) return "짚어주기(다른 쪽)";
-        if (kind == Kind.METHOD) return "방법 주기";
-        if (kind == Kind.EVALUATION) return b.tally().pointOuts() >= 2 && b.tally().methods() < 2 ? "방법 주기" : pointOut;
-        if (kind == Kind.CHOICE) return "이어보기(선택)";
-        if (kind == Kind.INSIGHT) return "이어보기";
+        if (kind == Kind.METHOD) return t.methods() >= 2 ? END : "방법 주기";
+        if (kind == Kind.EVALUATION) {
+            if (t.pointOuts() < 2) return pointOut;
+            return t.methods() >= 2 ? END : "방법 주기";
+        }
+        if (kind == Kind.CHOICE) return t.habitQuestions() <= 2 ? "이어보기(선택)" : END;
+        if (kind == Kind.INSIGHT) return b.reply() >= 5 ? END : "이어보기";
         if (kind == Kind.SHORT) {
             if (b.lastKind() != Kind.SHORT) return "파고들기(쉬운)";
-            return b.tally().pointOuts() >= 2 ? "파고들기(쉬운)" : pointOut;
+            return t.pointOuts() >= 2 ? END : pointOut;
         }
         if (kind == Kind.QUESTION) return "답하기";
+        if (t.habitQuestions() >= 3) return END;
         return b.lastDoing().startsWith("비추기") ? "파고들기" : "이어보기";
     }
 
