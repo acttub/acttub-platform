@@ -133,30 +133,33 @@ final class PracticeLoopRouter {
     /** 응답 상한. {@link ConversationService#THREE_LAYERS_REPLY_LIMIT}과 같다. */
     static final int LAST_REPLY = ConversationService.THREE_LAYERS_REPLY_LIMIT;
 
-    /** 할 일 표. 위에서부터 먼저 맞는 줄 하나. */
+    /** 코치 AI를 부르지 않고 대화를 닫는 할 일. 앱이 노트로 정리한다. */
+    static final String END = "끝";
+
+    /**
+     * 할 일 표. 위에서부터 먼저 맞는 줄 하나.
+     *
+     * <p>마무리(한 줄 청하기·정리 인사)는 없다. 대화가 끝나면 앱이 바로 노트로 넘어가 마지막 코치 말이 거의 보이지 않는다.
+     * 그만·자기 한 줄·응답 상한이면 코치 AI 없이 닫고, 나머지는 계속 대화한다.
+     */
     static String route(Kind kind, Before b) {
         String pointOut = b.habitDropped() ? "짚어주기(다른 쪽)" : "짚어주기";
-        if (kind == Kind.STOP) return "끝";
-        if (b.lastDoing().startsWith("마무리2") || b.lastDoing().startsWith("끝")) return "끝";
-        if (b.reply() >= LAST_REPLY) return "마무리2";
-        if (kind == Kind.SELF_LINE) return "마무리2";
-        if (b.lastDoing().startsWith("마무리1")) return "마무리2";
-        if (b.reply() >= LAST_REPLY - 1) return "마무리1";
+        if (kind == Kind.STOP) return END;
+        // 예전 프롬프트로 시작해 마무리까지 간 대화. 한 줄을 청한 뒤의 답이면 그 답이 배우의 한 줄이다.
+        if (b.lastDoing().startsWith("마무리") || b.lastDoing().startsWith("끝")) return END;
+        if (b.reply() >= LAST_REPLY) return END;
+        if (kind == Kind.SELF_LINE) return END;
         if (kind == Kind.CORRECTION) return "내려놓기";
         if (kind == Kind.PUSHBACK) return "짚어주기(다른 쪽)";
-        if (kind == Kind.METHOD) return b.tally().methods() >= 2 ? "마무리2" : "방법 주기";
-        if (kind == Kind.EVALUATION) {
-            if (b.tally().pointOuts() < 2) return pointOut;
-            return b.tally().methods() >= 2 ? "마무리1" : "방법 주기";
-        }
-        if (kind == Kind.CHOICE) return b.tally().habitQuestions() <= 2 ? "이어보기(선택)" : "마무리1";
-        if (kind == Kind.INSIGHT) return b.reply() >= 5 ? "마무리1" : "이어보기";
+        if (kind == Kind.METHOD) return "방법 주기";
+        if (kind == Kind.EVALUATION) return b.tally().pointOuts() >= 2 && b.tally().methods() < 2 ? "방법 주기" : pointOut;
+        if (kind == Kind.CHOICE) return "이어보기(선택)";
+        if (kind == Kind.INSIGHT) return "이어보기";
         if (kind == Kind.SHORT) {
             if (b.lastKind() != Kind.SHORT) return "파고들기(쉬운)";
-            return b.tally().pointOuts() >= 2 ? "마무리1" : pointOut;
+            return b.tally().pointOuts() >= 2 ? "파고들기(쉬운)" : pointOut;
         }
         if (kind == Kind.QUESTION) return "답하기";
-        if (b.tally().habitQuestions() >= 3) return "마무리1";
         return b.lastDoing().startsWith("비추기") ? "파고들기" : "이어보기";
     }
 
@@ -167,38 +170,25 @@ final class PracticeLoopRouter {
         return List.copyOf(avoid);
     }
 
-    /** 이번 응답이 마무리2일 때 다음 테이크 쪽. 배우가 그 버릇을 선택이라 했거나 지키겠다고 했으면 지키며. */
-    static boolean keepsHabit(Before b, Classified classified) {
-        return b.choiceExplained() || b.keep() || classified.keep();
-    }
-
     /**
      * 서버가 정한 이번 응답을 모델에 알리는 칸. 공통 지시 맨 아래에 붙는다.
+     * 할 일 이름·배우의 말 종류·횟수는 싣지 않는다 — 모델이 이름을 보고 틀에 맞춰 쓰지 않게, 그 상황의 설명만 준다.
      *
-     * @param selfLine 마무리2에서 옮길 배우의 한 줄. 없으면 {@code null}
-     * @param designNext 설계의 다음 테이크(반대로일 때 건넬 행동)
+     * @param task 할 일 파일에서 고른 한 칸({@code "- 이름: …"}과 그 아래 들여 쓴 줄)
      */
-    static String instruction(java.util.Locale language, String doing, Classified classified, Before b, String goal,
-            List<String> avoid, String observed, String dialogue, String selfLine, String designNext, String task) {
+    static String instruction(java.util.Locale language, String doing, List<String> avoid, String observed,
+            String dialogue, String task) {
         boolean korean = language == null || "ko".equals(language.getLanguage());
         var lines = new ArrayList<String>();
         lines.add(korean ? "[이번 응답]" : "[This reply]");
-        lines.add("할 일: " + doing);
-        lines.add("배우의 말: " + classified.kind().label);
-        lines.add("지금까지: 같은 버릇 질문 " + b.tally().habitQuestions() + "번 · 짚어주기 " + b.tally().pointOuts()
-                + "번 · 방법 주기 " + b.tally().methods() + "번 · 이번이 응답 " + b.reply() + "번째");
-        if (goal != null && !goal.isBlank()) lines.add("이번 목표: " + goal);
-        lines.add("피할 것: " + (avoid.isEmpty() ? "없음" : String.join(", ", avoid)));
+        for (String line : task.split("\n")) {
+            String body = line.startsWith("- " + doing + ":") ? line.substring(("- " + doing + ":").length()) : line;
+            body = body.strip();
+            if (!body.isEmpty()) lines.add(body);
+        }
+        if (!avoid.isEmpty()) lines.add((korean ? "다시 꺼내지 않을 것: " : "Do not bring up again: ") + String.join(", ", avoid));
         if (!observed.isBlank()) lines.add("관찰 근거: " + observed);
         if (!dialogue.isBlank()) lines.add("대사 확인: " + dialogue);
-        if (doing.startsWith("마무리2")) {
-            lines.add("배우의 한 줄: " + (selfLine == null || selfLine.isBlank() ? "없음" : selfLine.strip()));
-            lines.add("다음 테이크: " + (keepsHabit(b, classified) ? "지키며"
-                    : "반대로: " + (designNext == null || designNext.isBlank() ? "없음" : designNext)));
-        }
-        lines.add("");
-        lines.add(korean ? "쓰는 법:" : "How to write it:");
-        lines.add(task);
         return String.join("\n", lines);
     }
 
