@@ -30,7 +30,11 @@
 .adl-hero { padding: 26px 24px 48px; }
 .adl-eyebrow { font-size: 11px; font-weight: 650; letter-spacing: .5px; color: #5c6470; }
 .adl-hero h1 { font-size: 49px; line-height: 1.14; letter-spacing: -3px; font-weight: 850; margin: 16px 0 18px; }
-.adl-hero h1 em { display: block; font-style: normal; color: var(--adl-blue); transform: rotate(-3deg); transform-origin: left center; }
+.adl-hero h1 em { font-style: normal; color: var(--adl-blue); }
+/* 제목 두 줄은 비스듬히 올라와 제자리에 반듯하게 멈춘다. 끝난 뒤에는 기울어진 채 남지 않는다. */
+.adl-hero h1 .adl-l1,
+.adl-hero h1 em { display: block; transform-origin: left bottom; animation: adl-land .75s cubic-bezier(.2, .8, .2, 1) both; }
+.adl-hero h1 em { animation-delay: .22s; }
 .adl-sub { font-size: 15px; color: #5c6470; margin: 0 0 20px; }
 .adl-note { font-size: 11px; color: #75808d; margin: 10px 0 24px; }
 
@@ -136,6 +140,7 @@
 .adl-sticky a { background: var(--adl-blue); color: #fff; text-decoration: none; font-size: 12px; padding: 11px 17px; border-radius: 4px; }
 
 @keyframes adl-wave { to { transform: scaleY(.3); } }
+@keyframes adl-land { from { opacity: 0; transform: translateY(28px) rotate(-5deg); } to { opacity: 1; transform: none; } }
 @keyframes adl-appear { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
 
 @media (min-width: 800px) {
