@@ -196,7 +196,8 @@ class DirectVideoPracticeIT {
             assertThat(jdbc.queryForList("SELECT " + parts[1] + "::text FROM " + parts[0], String.class))
                     .allSatisfy(value -> assertThat(value).doesNotContain("테스트 배우", "5년 이상"));
         }
-        verify(model, times(3)).delete(file);
+        // "그만"은 코드가 끝으로 정해 영상을 올리지 않는다(시작·둘째 답 두 번만 올림).
+        verify(model, times(2)).delete(file);
     }
 
     @Test void migratedPracticeNeverFallsBackToPurgedOrForeignLegacyUpload() {
