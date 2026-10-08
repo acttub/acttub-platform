@@ -16,7 +16,7 @@ import org.junit.jupiter.api.Test;
 class PracticeLoopRouterTest {
 
     static Before before(int reply, String lastDoing, Kind lastKind, int habit, int point, int method) {
-        return new Before(reply, lastDoing, lastKind, new Tally(habit, point, method), List.of(), false, false, false);
+        return new Before(reply, lastDoing, lastKind, new Tally(habit, point, method), List.of(), false, false, false, false);
     }
 
     static String route(Kind kind, Before b) {
@@ -30,13 +30,44 @@ class PracticeLoopRouterTest {
         assertThat(route(Kind.SELF_LINE, mid)).isEqualTo(end);
         assertThat(route(Kind.ANSWER, before(16, "이어보기", Kind.ANSWER, 2, 0, 0))).isEqualTo(end);
         assertThat(route(Kind.CORRECTION, before(15, "이어보기", Kind.ANSWER, 2, 0, 0))).isEqualTo(end);
-        assertThat(route(Kind.EVALUATION, before(6, "마무리1", Kind.ANSWER, 3, 0, 0))).as("예전 마무리1 뒤의 답").isEqualTo(end);
+        assertThat(route(Kind.ANSWER, before(6, "마무리1", Kind.ANSWER, 3, 0, 0))).as("예전 마무리1 뒤의 답").isEqualTo(end);
         assertThat(route(Kind.ANSWER, before(5, "이어보기", Kind.ANSWER, 3, 0, 0))).as("같은 버릇 질문 3번").isEqualTo(end);
         assertThat(route(Kind.CHOICE, before(5, "이어보기", Kind.ANSWER, 3, 0, 0))).isEqualTo(end);
         assertThat(route(Kind.INSIGHT, before(5, "이어보기", Kind.ANSWER, 2, 0, 0))).isEqualTo(end);
         assertThat(route(Kind.SHORT, before(6, "짚어주기", Kind.SHORT, 2, 2, 0))).isEqualTo(end);
-        assertThat(route(Kind.EVALUATION, before(8, "방법 주기", Kind.EVALUATION, 2, 2, 2))).isEqualTo(end);
-        assertThat(route(Kind.METHOD, before(6, "방법 주기", Kind.METHOD, 2, 0, 2))).isEqualTo(end);
+    }
+
+    @Test void whenItIsTimeToCloseButTheActorAskedTheCoachAnswersFirstAndClosesOnTheNextMessage() {
+        String end = PracticeLoopRouter.END;
+        var evalDone = before(8, "방법 주기", Kind.EVALUATION, 2, 2, 2);
+        assertThat(route(Kind.EVALUATION, evalDone)).isEqualTo("짚어주기");
+        assertThat(PracticeLoopRouter.closesNext(Kind.EVALUATION, evalDone)).isTrue();
+        var methodDone = before(6, "방법 주기", Kind.METHOD, 2, 0, 2);
+        assertThat(route(Kind.METHOD, methodDone)).isEqualTo("방법 주기");
+        assertThat(PracticeLoopRouter.closesNext(Kind.METHOD, methodDone)).isTrue();
+        var fifteenth = before(15, "이어보기", Kind.ANSWER, 2, 0, 0);
+        assertThat(route(Kind.QUESTION, fifteenth)).isEqualTo("답하기");
+        assertThat(PracticeLoopRouter.closesNext(Kind.QUESTION, fifteenth)).isTrue();
+        assertThat(route(Kind.EVALUATION, before(6, "마무리1", Kind.ANSWER, 3, 0, 0))).isEqualTo("짚어주기");
+        // 물었더라도 그만·상한은 바로 닫는다.
+        assertThat(route(Kind.QUESTION, before(16, "이어보기", Kind.ANSWER, 2, 0, 0))).isEqualTo(end);
+        assertThat(PracticeLoopRouter.closesNext(Kind.QUESTION, before(16, "이어보기", Kind.ANSWER, 2, 0, 0))).isFalse();
+        // 답한 다음 배우 말은 무엇이든 닫는다.
+        var answered = new Before(9, "짚어주기", Kind.EVALUATION, new Tally(2, 3, 2), List.of(), false, false, false, true);
+        assertThat(route(Kind.QUESTION, answered)).isEqualTo(end);
+        assertThat(route(Kind.ANSWER, answered)).isEqualTo(end);
+        // 닫을 때가 아니면 물음에 그냥 답하고 계속한다.
+        assertThat(PracticeLoopRouter.closesNext(Kind.QUESTION, before(3, "파고들기", Kind.ANSWER, 2, 0, 0))).isFalse();
+    }
+
+    @Test void theCloseNextMarkIsStoredAndReadBack() throws Exception {
+        var classified = new Classified(Kind.EVALUATION, false, "model");
+        String status = PracticeLoopRouter.status("화면·음성", "확인됨", classified, before(8, "방법 주기", Kind.EVALUATION, 2, 2, 2),
+                "짚어주기", null, List.of(), "", true);
+        assertThat(status).contains("다음에 닫기: 예");
+        var loop = StructuredJson.MAPPER.createObjectNode();
+        loop.putArray("statuses").add("").add(status);
+        assertThat(PracticeLoopRouter.before(loop, 2).closeNext()).isTrue();
     }
 
     @Test void correctionsPushbackAndRequestsAreAnsweredInsteadOfQuestionedAgain() {
@@ -46,7 +77,7 @@ class PracticeLoopRouterTest {
         assertThat(route(Kind.METHOD, b)).isEqualTo("방법 주기");
         assertThat(route(Kind.EVALUATION, b)).isEqualTo("짚어주기");
         assertThat(route(Kind.EVALUATION, before(5, "짚어주기", Kind.EVALUATION, 2, 2, 0))).isEqualTo("방법 주기");
-        var dropped = new Before(4, "내려놓기", Kind.CORRECTION, new Tally(2, 0, 0), List.of("고개를 크게 돌림"), true, false, false);
+        var dropped = new Before(4, "내려놓기", Kind.CORRECTION, new Tally(2, 0, 0), List.of("고개를 크게 돌림"), true, false, false, false);
         assertThat(route(Kind.EVALUATION, dropped)).as("정정한 버릇은 다시 짚지 않는다").isEqualTo("짚어주기(다른 쪽)");
     }
 
