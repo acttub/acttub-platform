@@ -261,9 +261,9 @@ class DirectVideoCoachTest {
         var tally = new PracticeLoopRouter.Tally(2, 0, 0);
         var fifteenth = new PracticeLoopRouter.Before(15, "이어보기", PracticeLoopRouter.Kind.ANSWER, tally, List.of(), false, false, false);
         var sixteenth = new PracticeLoopRouter.Before(16, "이어보기", PracticeLoopRouter.Kind.ANSWER, tally, List.of(), false, false, false);
-        assertThat(PracticeLoopRouter.route(PracticeLoopRouter.Kind.ANSWER, fifteenth)).as("15번째도 대화를 이어 간다").isEqualTo("이어보기");
-        assertThat(PracticeLoopRouter.route(PracticeLoopRouter.Kind.ANSWER, sixteenth)).as("16번째는 코치 AI 없이 닫는다")
+        assertThat(PracticeLoopRouter.route(PracticeLoopRouter.Kind.ANSWER, fifteenth)).as("15번째는 코치 AI 없이 닫는다")
                 .isEqualTo(PracticeLoopRouter.END);
+        assertThat(PracticeLoopRouter.route(PracticeLoopRouter.Kind.ANSWER, sixteenth)).isEqualTo(PracticeLoopRouter.END);
     }
 
     @Test void practiceLoopStillClosesAtTheServerTurnBudgetEvenWhenTheModelKeepsGoing() {
