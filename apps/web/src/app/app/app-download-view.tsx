@@ -90,7 +90,6 @@ function HeroDemo() {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(line.them);
       utterance.lang = "ko-KR";
-      utterance.rate = 0.85;
       window.speechSynthesis.speak(utterance);
     }
   };
