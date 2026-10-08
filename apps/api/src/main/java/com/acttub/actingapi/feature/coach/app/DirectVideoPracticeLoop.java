@@ -46,6 +46,37 @@ final class DirectVideoPracticeLoop {
         return new Parsed(design, status, TRAILING_JAMO.matcher(message).replaceAll("").strip());
     }
 
+    // 영상 시간으로 구간을 가리키는 말("0:23", "0:03부터 0:46까지", "3초에"). 배우는 시간을 보고 장면을 떠올리지 못한다.
+    private static final String CLOCK = "(?<![\\d:])\\d{1,2}:\\d{2}(?::\\d{2})?(?![\\d:])";
+    private static final Pattern TIMESTAMP = Pattern.compile(CLOCK
+            + "|\\d+(?:\\.\\d+)?\\s*초\\s*(?:부터|에서|쯤에|께|경에|에)|(?i:\\b\\d+\\s*seconds?\\s+in\\b)");
+    private static final List<Pattern> TIMESTAMP_PARTS = List.of(
+            Pattern.compile("\\s*[(\\[]\\s*" + CLOCK + "(?:\\s*[~\\-–]\\s*" + CLOCK + ")?\\s*[)\\]]"),
+            Pattern.compile(CLOCK + "\\s*(?:부터|~|-|–)\\s*" + CLOCK + "\\s*(?:까지)?\\s*(?:의|에서도|에서|에도|에)?\\s*"),
+            Pattern.compile("(?i:(?:from\\s+)?" + CLOCK + "\\s*(?:to|-|–)\\s*" + CLOCK + "\\s*)"),
+            Pattern.compile("(?i:(?:at|around)\\s+)" + CLOCK + "\\s*"),
+            Pattern.compile(CLOCK + "\\s*(?:쯤|경)?\\s*(?:의|에서도|에서|에도|에)?\\s*"));
+
+    /** 배우에게 보일 말에 영상 시간 표기가 있는지. */
+    static boolean hasTimestamp(String text) {
+        return text != null && TIMESTAMP.matcher(text).find();
+    }
+
+    /** 다시 써도 시간이 남았을 때의 마지막 정리. 시간 부분만 걷어낸다. */
+    static String stripTimestamps(String text) {
+        String value = text;
+        for (Pattern part : TIMESTAMP_PARTS) value = part.matcher(value).replaceAll("");
+        return value.replaceAll("[ \\t]{2,}", " ").replaceAll("(?m)^[ \\t]+", "").strip();
+    }
+
+    /** 시간 표기가 나온 응답을 한 번 다시 쓰게 할 때 지시 끝에 붙이는 말. */
+    static String timestampRetryNote(java.util.Locale language) {
+        boolean korean = language == null || "ko".equals(language.getLanguage());
+        return korean
+                ? "[다시 쓰기]\n방금 쓴 답에 영상 시간(0:23 같은)이 들어갔다. 같은 내용을 다시 쓰되, 시간 없이 확인된 대사나 그때의 동작·표정·소리로 구간을 가리킨다."
+                : "[Rewrite]\nYour last answer pointed to a passage by video time (like 0:23). Write the same content again, pointing to the passage by a confirmed line or by what happens then, with no times.";
+    }
+
     /** 마무리2 응답의 숨은 다음 테이크 줄. 없으면 빈 문자열. */
     static String nextTake(String raw) {
         return raw == null ? "" : first(NEXT_TAKE_TAG, raw);
