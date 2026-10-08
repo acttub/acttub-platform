@@ -277,8 +277,7 @@ public final class DirectVideoCoach {
         var before = PracticeLoopRouter.before(loopState, coachTurns);
         var classified = classify(session, actorText, operationId);
         String design = loopState == null ? "" : loopState.path("design").asText("");
-        String doing = PracticeLoopRouter.route(classified.kind(), before,
-                classified.kind() == PracticeLoopRouter.Kind.STOP && PracticeLoopRouter.asksWrapUp(actorText));
+        String doing = PracticeLoopRouter.route(classified.kind(), before);
         var avoid = PracticeLoopRouter.avoidAfter(before, classified.kind(), DirectVideoPracticeLoop.habit(design));
         String goal = DirectVideoPracticeLoop.goal(loopState == null ? null : loopState.path("statuses"), design);
         String selfLine = classified.kind() == PracticeLoopRouter.Kind.SELF_LINE || before.lastDoing().startsWith("마무리1")
@@ -287,10 +286,8 @@ public final class DirectVideoCoach {
                 DirectVideoPracticeLoop.statusField(design, "대사 확인"), selfLine);
     }
 
-    /** 배우의 말 종류. 확실한 것은 코드 규칙으로, 나머지는 영상 없는 짧은 분류 호출로. 실패하면 보통 답으로 이어간다. */
+    /** 배우의 말 종류. 매번 분류만 하는 AI(영상 없음)에게 묻는다. 실패하면 보통 답으로 이어간다. */
     private PracticeLoopRouter.Classified classify(CoachSessionSnapshot session, String actorText, UUID operationId) {
-        var ruled = PracticeLoopRouter.byRule(actorText);
-        if (ruled != null) return ruled;
         var transcript = new ArrayList<DirectVideoModel.Message>();
         // 이 세션의 대화 전체를 준다. 첫 비추기부터 봐야 정정·반박·선택 설명을 가릴 수 있다(상한 16턴이라 길지 않다).
         for (var turn : session.turns()) {
