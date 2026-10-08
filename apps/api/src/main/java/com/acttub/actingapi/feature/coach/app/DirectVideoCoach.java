@@ -292,9 +292,9 @@ public final class DirectVideoCoach {
         var ruled = PracticeLoopRouter.byRule(actorText);
         if (ruled != null) return ruled;
         var transcript = new ArrayList<DirectVideoModel.Message>();
-        var turns = session.turns();
-        for (int i = Math.max(0, turns.size() - 6); i < turns.size(); i++) {
-            transcript.add(new DirectVideoModel.Message("ai".equals(turns.get(i).role()) ? "model" : "user", turns.get(i).text()));
+        // 이 세션의 대화 전체를 준다. 첫 비추기부터 봐야 정정·반박·선택 설명을 가릴 수 있다(상한 16턴이라 길지 않다).
+        for (var turn : session.turns()) {
+            transcript.add(new DirectVideoModel.Message("ai".equals(turn.role()) ? "model" : "user", turn.text()));
         }
         transcript.add(new DirectVideoModel.Message("user", actorText));
         Instant started = Instant.now();
