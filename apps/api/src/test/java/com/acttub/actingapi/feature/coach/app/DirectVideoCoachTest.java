@@ -384,6 +384,37 @@ class DirectVideoCoachTest {
                 .hasSize(2);
     }
 
+    @Test void practiceLoopRewritesOnceWhenTheCoachPointsByVideoTimeAndStripsWhatIsLeft() {
+        var loopEngine = practiceLoopEngine();
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answer\"]}");
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING,
+                "0:03부터 0:46까지 내내 시선이 아래로 가요.\n그때 속으로는 어땠어요?",
+                "\"됐어\" 하고 돌아설 때 시선이 아래로 가요.\n그때 속으로는 어땠어요?");
+        var first = loopEngine.start(session(), UUID.randomUUID());
+        var second = loopEngine.reply(first.session(), "붙잡길 바랐던 것 같아요", UUID.randomUUID());
+        assertThat(second.reply().message()).isEqualTo("\"됐어\" 하고 돌아설 때 시선이 아래로 가요.\n그때 속으로는 어땠어요?");
+        var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(model, times(3)).reply(eq(file), anyList(), prompts.capture());
+        assertThat(prompts.getAllValues().get(2)).startsWith(prompts.getAllValues().get(1)).contains("[다시 쓰기]", "영상 시간");
+        assertThat(telemetry.calls().getLast().metadata()).containsEntry("timestamp_retry", "true")
+                .containsEntry("timestamp_stripped", "false");
+
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn("(0:23) 말끝이 내려가요.\n00:41에도 같아요. 평소에도 그래요?");
+        var third = loopEngine.reply(second.session(), "음 잘 모르겠는데 그런 것 같기도 해요", UUID.randomUUID());
+        assertThat(third.reply().message()).isEqualTo("말끝이 내려가요.\n같아요. 평소에도 그래요?");
+        assertThat(telemetry.calls().getLast().metadata()).containsEntry("timestamp_stripped", "true");
+    }
+
+    @Test void timestampDetectionLeavesDurationsAndQuotedLinesAlone() {
+        assertThat(DirectVideoPracticeLoop.hasTimestamp("0:23에서 고개를 돌려요")).isTrue();
+        assertThat(DirectVideoPracticeLoop.hasTimestamp("12초에 목소리가 커져요")).isTrue();
+        assertThat(DirectVideoPracticeLoop.hasTimestamp("At 1:05 you look away")).isTrue();
+        assertThat(DirectVideoPracticeLoop.hasTimestamp("2초 정도 쉬어 봐도 좋아요")).isFalse();
+        assertThat(DirectVideoPracticeLoop.hasTimestamp("\"13개였어요\"에서 말이 빨라져요")).isFalse();
+        assertThat(DirectVideoPracticeLoop.stripTimestamps("0:03부터 0:46까지 시선이 아래로 가요.")).isEqualTo("시선이 아래로 가요.");
+        assertThat(DirectVideoPracticeLoop.stripTimestamps("At 1:05 you look away.")).isEqualTo("you look away.");
+    }
+
     CoachSessionSnapshot writtenSession() {
         return new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 StructuredJson.MAPPER.createObjectNode(), "빚 독촉 장면", "태식. 센 척함", ".", 8000, "표현", "화술",
