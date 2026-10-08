@@ -99,9 +99,10 @@ final class PracticeLoopRouter {
      * @param habitDropped 배우가 지금 버릇을 정정·반박해 내려놓았는지
      * @param choiceExplained 배우가 그 버릇을 인물의 선택이라고 설명했는지
      * @param keep 배우가 그 버릇을 지키고 싶다고 했는지
+     * @param closeNext 닫을 때가 됐지만 배우가 물어서 직전 응답에서 먼저 답했는지 — 그러면 이번 말에서 닫는다
      */
     record Before(int reply, String lastDoing, Kind lastKind, Tally tally, List<String> avoid,
-            boolean habitDropped, boolean choiceExplained, boolean keep) {}
+            boolean habitDropped, boolean choiceExplained, boolean keep, boolean closeNext) {}
 
     static Before before(JsonNode loop, int coachTurns) {
         JsonNode statuses = loop == null ? null : loop.path("statuses");
@@ -112,6 +113,7 @@ final class PracticeLoopRouter {
         boolean dropped = false;
         boolean choice = false;
         boolean keep = false;
+        boolean closeNext = false;
         for (int i = 0; i < coachTurns; i++) {
             String status = statuses == null || !statuses.isArray() ? "" : statuses.path(i).asText("");
             String doing = DirectVideoPracticeLoop.action(status);
@@ -122,12 +124,13 @@ final class PracticeLoopRouter {
             if (kind == Kind.CORRECTION || kind == Kind.PUSHBACK) dropped = true;
             if (kind == Kind.CHOICE) choice = true;
             if (DirectVideoPracticeLoop.statusField(status, "지키기").startsWith("예")) keep = true;
+            closeNext = DirectVideoPracticeLoop.statusField(status, "다음에 닫기").startsWith("예");
             String avoided = DirectVideoPracticeLoop.statusField(status, "피할 것");
             if (!avoided.isEmpty() && !avoided.startsWith("없음")) {
                 for (String part : avoided.split("\\s*[,·/]\\s*")) if (!part.isBlank()) avoid.add(part.strip());
             }
         }
-        return new Before(coachTurns + 1, lastDoing, lastKind, tally, List.copyOf(avoid), dropped, choice, keep);
+        return new Before(coachTurns + 1, lastDoing, lastKind, tally, List.copyOf(avoid), dropped, choice, keep, closeNext);
     }
 
     /** 응답 상한. {@link ConversationService#THREE_LAYERS_REPLY_LIMIT}과 같다. */
@@ -143,9 +146,34 @@ final class PracticeLoopRouter {
      * 넘어가 마지막 코치 말이 거의 보이지 않으므로, 마무리 말을 쓰지 않고 코치 AI 없이 닫는다.
      */
     static String route(Kind kind, Before b) {
+        if (kind == Kind.STOP || b.reply() >= LAST_REPLY || b.closeNext()) return END;
+        String doing = table(kind, b);
+        return END.equals(doing) && asked(kind) ? answer(kind, b) : doing;
+    }
+
+    /**
+     * 닫을 때가 됐는데 배우가 물었는지(질문·평가 요청·방법 요청). 그러면 이번엔 답하고 다음 배우 말에서 닫는다.
+     * 그만과 응답 상한은 예외 없이 바로 닫는다. 배우의 물음에 답하지 않고 끝난 사례가 있었다.
+     */
+    static boolean closesNext(Kind kind, Before b) {
+        if (kind == Kind.STOP || b.reply() >= LAST_REPLY || b.closeNext()) return false;
+        return asked(kind) && END.equals(table(kind, b));
+    }
+
+    private static boolean asked(Kind kind) {
+        return kind == Kind.QUESTION || kind == Kind.EVALUATION || kind == Kind.METHOD;
+    }
+
+    private static String answer(Kind kind, Before b) {
+        if (kind == Kind.METHOD) return "방법 주기";
+        if (kind == Kind.EVALUATION) return b.habitDropped() ? "짚어주기(다른 쪽)" : "짚어주기";
+        return "답하기";
+    }
+
+    /** 닫기 예외를 따지기 전의 표. */
+    private static String table(Kind kind, Before b) {
         String pointOut = b.habitDropped() ? "짚어주기(다른 쪽)" : "짚어주기";
         Tally t = b.tally();
-        if (kind == Kind.STOP) return END;
         if (b.lastDoing().startsWith("마무리") || b.lastDoing().startsWith("끝")) return END;
         if (b.reply() >= LAST_REPLY - 1) return END;
         if (kind == Kind.SELF_LINE) return END;
@@ -202,6 +230,11 @@ final class PracticeLoopRouter {
      */
     static String status(String observed, String dialogue, Classified classified, Before b, String doing,
             String goal, List<String> avoid, String nextTake) {
+        return status(observed, dialogue, classified, b, doing, goal, avoid, nextTake, false);
+    }
+
+    static String status(String observed, String dialogue, Classified classified, Before b, String doing,
+            String goal, List<String> avoid, String nextTake, boolean closeNext) {
         Tally after = b.tally().after(doing);
         var lines = new ArrayList<String>();
         if (!observed.isBlank()) lines.add("관찰 근거: " + observed);
@@ -214,6 +247,7 @@ final class PracticeLoopRouter {
         lines.add("할 일: " + doing);
         lines.add("다음 테이크: " + (nextTake == null || nextTake.isBlank() ? "없음" : nextTake));
         if (classified.keep()) lines.add("지키기: 예");
+        if (closeNext) lines.add("다음에 닫기: 예");
         lines.add("분류: " + classified.by());
         return String.join("\n", lines);
     }
