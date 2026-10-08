@@ -24,7 +24,9 @@ final class DirectVideoPracticeLoop {
     private static final Pattern DESIGN = Pattern.compile("(?s)<설계>\\s*(.*?)\\s*</설계>");
     private static final Pattern STATUS = Pattern.compile("(?s)<상태>\\s*(.*?)\\s*</상태>");
     private static final Pattern COACH = Pattern.compile("(?s)<코치>\\s*(.*?)\\s*(?:</코치>|$)");
-    private static final Pattern STRAY_TAG = Pattern.compile("</?(?:설계|상태|코치)>");
+    private static final Pattern STRAY_TAG = Pattern.compile("</?(?:설계|상태|코치|다음 테이크)>");
+    // 마무리2 에서 모델이 건넨 행동을 노트에 남기려고 쓰게 하는 숨은 줄. 배우에게는 보이지 않는다.
+    private static final Pattern NEXT_TAKE_TAG = Pattern.compile("(?s)<다음 테이크>\\s*(.*?)\\s*</다음 테이크>");
     // 모델이 줄 끝에 남기는 날 자모("알려 주세요.ㄴ" 같은). 실험에서 실제로 나왔고 다음 턴에 그대로 따라 한다.
     private static final Pattern TRAILING_JAMO = Pattern.compile("(?m)(?<=[^\\s\\u3131-\\u318E])[\\u3131-\\u318E]+[ \\t]*$");
 
@@ -37,11 +39,16 @@ final class DirectVideoPracticeLoop {
         String text = raw == null ? "" : raw.strip();
         String design = first(DESIGN, text);
         String status = first(STATUS, text);
-        String rest = STATUS.matcher(DESIGN.matcher(text).replaceAll("")).replaceAll("");
+        String rest = NEXT_TAKE_TAG.matcher(STATUS.matcher(DESIGN.matcher(text).replaceAll("")).replaceAll("")).replaceAll("");
         Matcher coach = COACH.matcher(rest);
         String message = coach.find() ? coach.group(1) : rest;
         message = STRAY_TAG.matcher(message).replaceAll("");
         return new Parsed(design, status, TRAILING_JAMO.matcher(message).replaceAll("").strip());
+    }
+
+    /** 마무리2 응답의 숨은 다음 테이크 줄. 없으면 빈 문자열. */
+    static String nextTake(String raw) {
+        return raw == null ? "" : first(NEXT_TAKE_TAG, raw);
     }
 
     /**
@@ -187,6 +194,15 @@ final class DirectVideoPracticeLoop {
 
     /** 저장된 표시용 대화에 숨은 칸을 되붙여 모델에 넘길 기록을 만든다. */
     static List<DirectVideoModel.Message> history(List<CoachTurnSnapshot> turns, JsonNode state, String actorText) {
+        return history(turns, state, actorText, true);
+    }
+
+    /**
+     * 모델에 넘길 기록. {@code withStatuses}가 거짓이면 첫 응답의 {@code <설계>}만 되붙인다 — 둘째 응답부터는
+     * 서버가 할 일을 정하므로 지난 상태 칸을 보여 주지 않는다(모델이 상태 칸을 따라 쓰지 않게).
+     */
+    static List<DirectVideoModel.Message> history(List<CoachTurnSnapshot> turns, JsonNode state, String actorText,
+            boolean withStatuses) {
         JsonNode loop = state == null ? null : state.path(STATE_KEY);
         String design = loop == null ? "" : loop.path("design").asText("");
         var history = new ArrayList<DirectVideoModel.Message>();
@@ -199,7 +215,7 @@ final class DirectVideoPracticeLoop {
             String text = turn.text();
             if (coachIndex == 0 && !design.isBlank()) {
                 text = "<설계>\n" + design + "\n</설계>\n<코치>\n" + text + "\n</코치>";
-            } else {
+            } else if (withStatuses) {
                 String status = loop == null ? "" : loop.path("statuses").path(coachIndex).asText("");
                 if (!status.isBlank()) text = "<상태>" + status + "</상태>\n" + text;
             }
@@ -377,8 +393,13 @@ final class DirectVideoPracticeLoop {
         return "";
     }
 
+    /** 설계의 다음 테이크(버릇의 반대쪽). 없으면 빈 문자열. */
+    static String designNextTake(String design) {
+        return first(DESIGN_NEXT, design == null ? "" : design);
+    }
+
     /** 상태 줄에서 이번 응답이 한 일. 첫 턴(상태 없음)은 비추기다. */
-    private static String action(String status) {
+    static String action(String status) {
         if (status.isBlank()) return "비추기";
         String doing = statusField(status, "할 일");
         if (!doing.isEmpty()) return doing;
