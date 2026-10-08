@@ -63,6 +63,13 @@ final class DirectVideoPrompts {
         for (int k = 0; k < at.size(); k++) lines.set(at.get(k), picked.get(k));
         return String.join("\n", lines);
     }
+    /** 긴 코치 말을 줄이기만 하는 지시. 한국어가 아니면 그 말로 줄이라는 말을 덧붙인다. */
+    static String practiceLoopShorten(java.util.Locale language) {
+        String base = resource("practice-loop-shorten");
+        boolean korean = language == null || "ko".equals(language.getLanguage());
+        return korean ? base : base + com.acttub.actingapi.platform.web.OutputLanguage.directiveFor(language);
+    }
+
     /** 연습 루프 둘째 응답부터 배우의 말 종류를 묻는 분류 지시. 출력은 {@code {"signals":[...]}}. */
     static String practiceLoopClassifier() { return resource("practice-loop-classify"); }
 
