@@ -256,14 +256,14 @@ public final class DirectVideoCoach {
 
     /** 서버가 정한 이번 응답. 상태 칸과 모델에 줄 지시를 만든다. */
     private record Branch(PracticeLoopRouter.Classified classified, PracticeLoopRouter.Before before, String doing,
-            String goal, java.util.List<String> avoid, String observed, String dialogue) {
+            String goal, java.util.List<String> avoid, String observed, String dialogue, boolean closeNext) {
 
         String instruction(java.util.Locale language, String task) {
             return PracticeLoopRouter.instruction(language, doing, avoid, observed, dialogue, task);
         }
 
         String status() {
-            return PracticeLoopRouter.status(observed, dialogue, classified, before, doing, goal, avoid, "");
+            return PracticeLoopRouter.status(observed, dialogue, classified, before, doing, goal, avoid, "", closeNext);
         }
     }
 
@@ -277,7 +277,7 @@ public final class DirectVideoCoach {
         var avoid = PracticeLoopRouter.avoidAfter(before, classified.kind(), DirectVideoPracticeLoop.habit(design));
         String goal = DirectVideoPracticeLoop.goal(loopState == null ? null : loopState.path("statuses"), design);
         return new Branch(classified, before, doing, goal, avoid, DirectVideoPracticeLoop.statusField(design, "관찰 근거"),
-                DirectVideoPracticeLoop.statusField(design, "대사 확인"));
+                DirectVideoPracticeLoop.statusField(design, "대사 확인"), PracticeLoopRouter.closesNext(classified.kind(), before));
     }
 
     /**
