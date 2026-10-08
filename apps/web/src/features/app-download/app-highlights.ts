@@ -1,5 +1,5 @@
-// 앱을 받을 이유. 홈 랜딩이 쓴다. /app 은 처음 온 사람을 위한 카드를 따로 둔다
-// (app/app/app-download-view.tsx 의 APP_PAGE_HIGHLIGHTS).
+// 앱을 받을 이유. 홈 랜딩이 쓴다. /app 은 처음 온 사람을 위한 시연·섹션을 따로 둔다
+// (app/app/app-download-view.tsx).
 //
 // 웹이 못 하는 것만 적는다 — 셋 다 코드에서 확인한 차이다.
 // 1) 영상은 폰으로 찍는다. 앱에서는 옮기는 단계가 없다.
