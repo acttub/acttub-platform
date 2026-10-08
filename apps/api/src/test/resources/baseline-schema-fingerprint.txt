@@ -85,6 +85,19 @@ COLUMN app_posters.slug ord=2 type=text len=- null=NO default=-
 COLUMN app_posters.starts_at ord=6 type=timestamptz len=- null=YES default=-
 COLUMN app_posters.title ord=15 type=text len=- null=NO default=-
 COLUMN app_posters.updated_at ord=23 type=timestamptz len=- null=NO default=now()
+COLUMN audition_postings.apply_end ord=8 type=date len=- null=YES default=-
+COLUMN audition_postings.apply_start ord=7 type=date len=- null=YES default=-
+COLUMN audition_postings.category ord=5 type=text len=- null=NO default=-
+COLUMN audition_postings.first_seen_at ord=12 type=timestamptz len=- null=NO default=-
+COLUMN audition_postings.id ord=1 type=int8 len=- null=NO default=-
+COLUMN audition_postings.last_seen_at ord=13 type=timestamptz len=- null=NO default=-
+COLUMN audition_postings.pay_text ord=6 type=text len=- null=YES default=-
+COLUMN audition_postings.posted_on ord=10 type=date len=- null=NO default=-
+COLUMN audition_postings.source ord=2 type=text len=- null=NO default=-
+COLUMN audition_postings.source_ref ord=3 type=text len=- null=NO default=-
+COLUMN audition_postings.source_url ord=11 type=text len=- null=NO default=-
+COLUMN audition_postings.status_text ord=9 type=text len=- null=YES default=-
+COLUMN audition_postings.title ord=4 type=text len=- null=NO default=-
 COLUMN challenge_entries.caption ord=5 type=text len=- null=YES default=-
 COLUMN challenge_entries.challenge_id ord=2 type=uuid len=- null=NO default=-
 COLUMN challenge_entries.content_version ord=6 type=int4 len=- null=NO default=1
@@ -797,6 +810,20 @@ CONSTRAINT app_posters ck_app_posters_min_app_version CHECK (((min_app_version I
 CONSTRAINT app_posters ck_app_posters_period CHECK (((starts_at IS NULL) OR (ends_at IS NULL) OR (starts_at < ends_at)))
 CONSTRAINT app_posters ck_app_posters_platforms CHECK (((cardinality(platforms) > 0) AND (platforms <@ ARRAY['ios'::text, 'android'::text])))
 CONSTRAINT app_posters ck_app_posters_revision CHECK ((revision >= 1))
+CONSTRAINT audition_postings audition_postings_category_not_null NOT NULL category
+CONSTRAINT audition_postings audition_postings_first_seen_at_not_null NOT NULL first_seen_at
+CONSTRAINT audition_postings audition_postings_id_not_null NOT NULL id
+CONSTRAINT audition_postings audition_postings_last_seen_at_not_null NOT NULL last_seen_at
+CONSTRAINT audition_postings audition_postings_pkey PRIMARY KEY (id)
+CONSTRAINT audition_postings audition_postings_posted_on_not_null NOT NULL posted_on
+CONSTRAINT audition_postings audition_postings_source_not_null NOT NULL source
+CONSTRAINT audition_postings audition_postings_source_ref_not_null NOT NULL source_ref
+CONSTRAINT audition_postings audition_postings_source_url_not_null NOT NULL source_url
+CONSTRAINT audition_postings audition_postings_title_not_null NOT NULL title
+CONSTRAINT audition_postings ck_audition_postings_category CHECK ((category = ANY (ARRAY['film'::text, 'short_film'::text, 'drama'::text, 'web_drama'::text, 'short_form'::text, 'commercial'::text, 'music_video'::text, 'theater'::text, 'musical'::text, 'agency_open'::text, 'other'::text])))
+CONSTRAINT audition_postings ck_audition_postings_source CHECK ((source = ANY (ARRAY['shinsee'::text, 'emk'::text, 'sejong'::text, 'plfil'::text, 'otr'::text])))
+CONSTRAINT audition_postings ck_audition_postings_source_url CHECK ((source_url ~~ 'https://%'::text))
+CONSTRAINT audition_postings uq_audition_postings_source_ref UNIQUE (source, source_ref)
 CONSTRAINT challenge_entries challenge_entries_challenge_id_fkey FOREIGN KEY (challenge_id) REFERENCES challenges(id)
 CONSTRAINT challenge_entries challenge_entries_challenge_id_not_null NOT NULL challenge_id
 CONSTRAINT challenge_entries challenge_entries_content_version_not_null NOT NULL content_version
@@ -1595,6 +1622,8 @@ INDEX CREATE INDEX idx_actor_memory_user ON public.actor_memory_entries USING bt
 INDEX CREATE INDEX idx_ai_jobs_due ON public.ai_jobs USING btree (status, created_at)
 INDEX CREATE INDEX idx_ai_jobs_target ON public.ai_jobs USING btree (target_id, created_at DESC)
 INDEX CREATE INDEX idx_anomalies_summary ON public.anomalies USING btree (summary_id, sort_order)
+INDEX CREATE INDEX idx_audition_postings_apply_end ON public.audition_postings USING btree (apply_end) WHERE (apply_end IS NOT NULL)
+INDEX CREATE INDEX idx_audition_postings_posted_on_without_end ON public.audition_postings USING btree (posted_on) WHERE (apply_end IS NULL)
 INDEX CREATE INDEX idx_coach_sessions_practice ON public.coach_sessions USING btree (practice_session_id, created_at)
 INDEX CREATE INDEX idx_coaching_handoffs_practice_created ON public.coaching_handoffs USING btree (practice_session_id, created_at)
 INDEX CREATE INDEX idx_coaching_handoffs_session_created ON public.coaching_handoffs USING btree (coach_session_id, created_at)
@@ -1675,6 +1704,7 @@ INDEX CREATE UNIQUE INDEX ai_jobs_pkey ON public.ai_jobs USING btree (id)
 INDEX CREATE UNIQUE INDEX analyses_pkey ON public.analyses USING btree (id)
 INDEX CREATE UNIQUE INDEX anomalies_pkey ON public.anomalies USING btree (id)
 INDEX CREATE UNIQUE INDEX app_posters_pkey ON public.app_posters USING btree (id)
+INDEX CREATE UNIQUE INDEX audition_postings_pkey ON public.audition_postings USING btree (id)
 INDEX CREATE UNIQUE INDEX challenge_entries_pkey ON public.challenge_entries USING btree (id)
 INDEX CREATE UNIQUE INDEX challenges_pkey ON public.challenges USING btree (id)
 INDEX CREATE UNIQUE INDEX coach_conversations_pkey ON public.coach_conversations USING btree (id)
@@ -1741,6 +1771,7 @@ INDEX CREATE UNIQUE INDEX uq_actor_memory_user_field ON public.actor_memory_entr
 INDEX CREATE UNIQUE INDEX uq_ai_jobs_user_request ON public.ai_jobs USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_analyses_practice ON public.analyses USING btree (practice_id)
 INDEX CREATE UNIQUE INDEX uq_app_posters_slug_locale ON public.app_posters USING btree (slug, COALESCE(locale, ''::text))
+INDEX CREATE UNIQUE INDEX uq_audition_postings_source_ref ON public.audition_postings USING btree (source, source_ref)
 INDEX CREATE UNIQUE INDEX uq_challenge_entries_parent ON public.challenge_entries USING btree (id, challenge_id)
 INDEX CREATE UNIQUE INDEX uq_challenge_entries_request ON public.challenge_entries USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_challenge_entries_video ON public.challenge_entries USING btree (challenge_id, video_id) WHERE (status <> 'deleted'::text)
@@ -1814,6 +1845,7 @@ TABLE ai_jobs
 TABLE analyses
 TABLE anomalies
 TABLE app_posters
+TABLE audition_postings
 TABLE challenge_entries
 TABLE challenges
 TABLE coach_conversations

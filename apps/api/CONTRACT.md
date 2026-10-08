@@ -1263,6 +1263,42 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - 팀 계정이 연 챌린지도 빼지 않고 `host_is_team`으로 표시한다. 토큰을 먼저 검사하고, 성공 응답은
   `Cache-Control: private, no-store`다. `POST /v2/admin/challenges`(팀 챌린지 개설)와 같은 경로의 GET이다.
 
+### 6-26. 오디션 공고 모아보기 (SOMA-564)
+
+> 제품 규칙의 정본: [app.audition](../../docs/specs/app/audition.md)(열림·삭제 규칙, 저장 칸, 출처와 켜는 설정), 출처 등급은 ADR-034
+
+- 표는 `audition_postings`(V36)다. Schema Entity 없이 `feature/audition/adapter/db/PostgresAuditionRepository` 의 native
+  SQL 로만 읽고 쓴다 — 쓰기가 전부 `ON CONFLICT (source, source_ref) DO UPDATE` upsert 와 조건 삭제라서다(§5-1·§5-2,
+  `EntityMappingIT` 의 대기 목록). PK 는 `bigint` identity 이고 바깥에 나가지 않는다(공개 id 는 `<source>-<source_ref>`).
+  출처·분야 값 목록은 Java enum 없이 `AuditionRules` 의 `SOURCES`·`CATEGORIES` 와 CHECK 가 같은 선을 긋는다
+  (`ValueCheckCatalogIT` 의 `WITHOUT_JAVA_ENUM`, 같은 선인지는 `AuditionSchemaMigrationTest`).
+- upsert 는 칸을 새 값으로 덮고 `last_seen_at` 만 그 시각으로 둔다. `first_seen_at` 은 처음 그대로다. `collected_at` 은 따로
+  저장하지 않고 `max(last_seen_at)` 이다 — 행이 하나도 없으면 null 이다. 그래서 모든 출처가 0건이거나 실패한 수집은
+  `collected_at` 을 옮기지 않는다.
+- 열림은 SQL 이 후보(마감일 ≥ 오늘, 또는 마감일 없음 + 게시 45일 안)를 고르고 `AuditionRules#isOpen` 이 마감 표시까지 보고
+  최종 판정한다. 오늘은 KST 날짜다. **마감 표시**는 상태 문구에서는 `마감|완료|종료` 가 어디 있든, 제목에서는 괄호로 묶인
+  것만(`(완료)`·`[마감]`·`(모집마감)`·`【접수 종료】`) 본다 — 제목의 "10/20 마감" 같은 마감일 안내로 열린 공고가 숨지 않게.
+  정렬은 마감일 오름차순(null 뒤), 게시일 내림차순, id.
+- 삭제는 수집 끝에 한 문장이다: `apply_end < 오늘-30일` 또는 `apply_end IS NULL AND posted_on < 오늘-180일`. 0건이 나온
+  출처는 upsert 를 부르지 않으므로 기존 행은 이 삭제 규칙까지 남는다.
+- 수집은 `AuditionService#collect`, 출처 읽기는 app Port `AuditionSources` 의 `adapter/source/HttpAuditionSources`
+  (JDK `HttpClient`, User-Agent `Mozilla/5.0 (compatible; ActtubBot/1.0; +https://acttub.com)`, 같은 출처 요청 사이 2초,
+  OTR 1~3쪽·플필 `min(totalPage,3)` 쪽·나머지 1쪽)다. 파서는 `AuditionParsers` 의 순수 함수이고 목록 행을 하나도 못 찾으면
+  0건이 아니라 `AuditionSourceFailure`(`ExternalFailure`)다. 출처 하나의 실패는 `FailureKind.EXTERNAL` 로
+  `AuditionService.collect.<source>` 에 보고하고 다음 출처로 간다. 이메일·휴대폰 모양(번호는 앞뒤 숫자 경계)이 제목·출연료·상태·
+  주소 어디든 있으면 그 공고는 저장하지 않는다. 상세 페이지는 열지 않는다(플필 상세의 `__NEXT_DATA__` 에 담당자 연락처가 있다).
+- 파서가 파이썬 수집기(`collect.py`)와 다르게 읽는 것: OTR 의 `[공지사항]`(게시판 운영 고정글)은 버리고, 게시일 칸이 시각
+  (`15:54`)뿐인 오늘 글은 수집일(KST)로 읽는다. 세종문화회관은 국악·합창·무용·관현악 단원 모집도 뺀다. EMK 는 두 게시판에
+  같은 제목으로 겹쳐 올라온 공지를 앞(새것) 하나만 남긴다.
+- 스케줄은 `adapter/sched/AuditionCollectScheduler` — `AUDITION_COLLECT_CRON`(기본 `0 0 7,19 * * *`, Asia/Seoul)과 기동
+  `AUDITION_COLLECT_STARTUP_DELAY_MS`(기본 2분) 뒤 한 번(`collectIfStale`: 한 번도 모으지 않았거나 마지막이 12시간보다
+  오래됐을 때만). 빈은 `AUDITION_ENABLED=true` 일 때만 선다. 꺼진 기동은 수집 자리가 없고 `GET /v2/auditions` 는
+  `{"items":[],"collected_at":null}` 이다. 출처 목록 `AUDITION_SOURCES` 의 모르는 코드는 무시한다.
+- `GET /v2/auditions` 는 로그인 무관이다 — `ConsentGateInterceptor` 의 `OUTSIDE_THE_GATE` 와
+  `AccessTokenFilter#shouldNotFilter` 에 입시(`/v2/admissions`)와 나란히 있다. `X-Acttub-Client` 는 다른 `/v2` 처럼
+  요구한다(426). 날짜 칸은 `YYYY-MM-DD` 문자열(`format: date`)이다. 검증은 `AuditionEndpointIT`·`AuditionDisabledIT`·
+  `AuditionServiceTest`·`AuditionParsersTest`(fixture 는 `src/test/resources/audition`, 실제 목록을 잘라 작성자를 가짜로 바꾼 것).
+
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 
 1. **좋아요 카운트는 재집계다.** 증감 방식이 "두 번 눌리면 2 증가" 하던 버그 때문에 의도적으로

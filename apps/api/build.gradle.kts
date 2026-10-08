@@ -45,6 +45,9 @@ dependencies {
     }
     implementation("kr.dogfoot:hwplib:1.1.11")
 
+    // 오디션 공고 목록 페이지의 표 읽기(app.audition). MIT.
+    implementation("org.jsoup:jsoup:1.23.2")
+
     // 파이썬 observability.py 대응(M5 §D). starter 가 MVC 예외를 자동으로 잡아 보내고
     // BeforeSendCallback 빈을 물어 간다. DSN 이 비면 SDK 스스로 꺼지므로 로컬·테스트는 조용하다.
     implementation("io.sentry:sentry-spring-boot-starter-jakarta:8.53.0")

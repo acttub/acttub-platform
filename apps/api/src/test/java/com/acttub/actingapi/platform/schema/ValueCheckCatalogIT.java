@@ -145,7 +145,11 @@ class ValueCheckCatalogIT {
             // 앱 공지 포스터(V29)의 값 목록은 domain 의 PosterRules 상수가 들고 저장소 native SQL 만 쓴다.
             "ck_app_posters_frequency",
             "ck_app_posters_audience",
-            "ck_app_posters_cta_action");
+            "ck_app_posters_cta_action",
+            // 오디션 공고(V36)의 출처·분야는 domain 의 AuditionRules 목록이 들고 저장소 native SQL 만 쓴다
+            // (같은 선인지는 AuditionSchemaMigrationTest 가 본다).
+            "ck_audition_postings_source",
+            "ck_audition_postings_category");
 
     /** {@code CHECK ((col = ANY (ARRAY['a'::text, 'b'::text])))} 에서 값만 뽑는다. */
     private static final Pattern LITERAL = Pattern.compile("'((?:[^']|'')*)'::text");
