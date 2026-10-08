@@ -1,7 +1,6 @@
 import { useNavigation, usePreventRemove } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -25,7 +24,6 @@ import {
   nextReplyWraps,
   orderedMessages,
   remainingCoachReplies,
-  splitCoachQuestion,
   type HelpButton,
 } from '@/lib/practice/coach';
 import { clearPractice, getPractice, setContinueOrigin } from '@/lib/practice/session-state';
@@ -258,7 +256,6 @@ export default function CoachScreen() {
   };
 
   const latestQuestion = [...messages].reverse().find((m) => m.role === 'coach')?.text ?? null;
-  const latest = splitCoachQuestion(latestQuestion ?? '');
   const askedCount = messages.filter((m) => m.role === 'coach').length;
   const past = messages.slice(0, Math.max(0, messages.length - (latestQuestion ? 1 : 0)));
   const canSend = canSendAnswer({ text: input, waiting, closed, conversationId: conversation?.id ?? null });
@@ -327,16 +324,11 @@ export default function CoachScreen() {
                   <View style={styles.questionHead}>
                     <View style={styles.questionMain}>
                       <Text style={styles.coachLabel}>{t('coach.coachLabel')}</Text>
-                      <Text style={styles.question}>{latest.question}</Text>
+                      {/* 코치 말은 나누지 않고 원문(줄바꿈 포함) 그대로 보인다(SOMA-634). */}
+                      <Text style={styles.question}>{latestQuestion.trim()}</Text>
                     </View>
                     <Image source={require('@/assets/images/mascot-coach.png')} style={styles.mascot} contentFit="contain" />
                   </View>
-                  {latest.hint && (
-                    <View style={styles.hint}>
-                      <Ionicons name="bulb" size={18} color={palette.hintIcon} style={styles.hintIcon} />
-                      <Text style={styles.hintText}>{latest.hint}</Text>
-                    </View>
-                  )}
                 </>
               )}
             </View>
@@ -466,18 +458,8 @@ const styles = StyleSheet.create({
   questionHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   questionMain: { flex: 1, gap: 10 },
   coachLabel: { fontSize: 13, fontWeight: '900', color: palette.flameDeep, letterSpacing: 0.3 },
-  question: { fontSize: 23, fontWeight: '900', color: palette.text, lineHeight: 33, letterSpacing: -0.5 },
+  question: { fontSize: 19, fontWeight: '800', color: palette.text, lineHeight: 29, letterSpacing: -0.4 },
   mascot: { width: 84, height: 98, marginTop: 4 },
-  hint: {
-    flexDirection: 'row',
-    gap: 10,
-    backgroundColor: palette.amberSoft,
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-  },
-  hintIcon: { marginTop: 2 },
-  hintText: { flex: 1, fontSize: 14.5, fontWeight: '600', color: palette.textStrong, lineHeight: 23 },
 
   pastAi: { gap: 4 },
   pastMine: { gap: 4, paddingLeft: 14, borderLeftWidth: 2, borderLeftColor: palette.blueLine },
