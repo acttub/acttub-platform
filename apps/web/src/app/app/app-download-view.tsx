@@ -371,7 +371,8 @@ export default function AppDownloadView() {
           <div>
             <p className="adl-eyebrow">혼자 하는 연기 연습, 액터브</p>
             <h1>
-              혼자여도,<em>대사는 오가요.</em>
+              <span className="adl-l1">혼자여도,</span>
+              <em>대사는 오가요.</em>
             </h1>
             <p className="adl-sub">
               상대 대사는 AI가 읽어 줘요.
