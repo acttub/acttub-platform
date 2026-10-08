@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.regex.Pattern;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
@@ -12,7 +11,7 @@ import com.fasterxml.jackson.databind.JsonNode;
  * 연습 루프 둘째 응답부터의 분기. 배우의 말 종류를 받아 이번 응답의 할 일을 <b>코드가</b> 정한다.
  *
  * <p>예전에는 프롬프트 안의 "배우의 말 보기"와 "할 일 표"를 모델이 매 턴 읽고 스스로 골랐다. 모델은 반박을 못 알아듣거나
- * 같은 버릇을 네다섯 번 묻거나 횟수를 잘못 셌다. 이제 분류는 따로 짧게 묻고({@link #parse}), 할 일·횟수·피할 것은
+ * 같은 버릇을 네다섯 번 묻거나 횟수를 잘못 셌다. 이제 배우의 말은 분류만 하는 AI가 정하고({@link #parse}), 할 일·횟수·피할 것은
  * 여기서 정한다. 모델은 정해진 할 일 하나의 문장만 쓴다.
  *
  * <p>정한 결과는 예전과 같은 모양의 상태 칸({@code 배우의 말:}·{@code 할 일:}·{@code 피할 것:} …)으로 남긴다.
@@ -54,7 +53,7 @@ final class PracticeLoopRouter {
         SIGNALS = List.copyOf(ids);
     }
 
-    /** 분류 결과. {@code by}는 code(규칙) / model(분류 호출) / fallback(분류 실패, 보통 답으로 이어감). */
+    /** 분류 결과. {@code by}는 model(분류 AI) / fallback(분류 실패, 보통 답으로 이어감). */
     record Classified(Kind kind, boolean keep, String by) {}
 
     /** 분류 호출의 응답 {@code {"signals":[...]}}을 읽는다. 여러 개면 보기 순서가 앞선 것. 형식이 틀리면 예외. */
@@ -76,25 +75,6 @@ final class PracticeLoopRouter {
         }
         if (picked == null) throw new IllegalArgumentException("empty practice loop classification");
         return new Classified(picked, keep, "model");
-    }
-
-    // 모델에 묻지 않아도 되는 말. 오탐이 비싸므로 확실한 것만 둔다 — 나머지는 분류 호출이 정한다.
-    private static final Pattern VAGUE = Pattern.compile(
-            "(?:잘\\s*)?(?:모르겠(?:어|어요|다|음)?|몰라(?:요)?|ㅇㅇ|ㅇㅋ|네|넵|응|맞아(?:요)?|아 네)[.!?~\\s]*");
-    private static final Pattern METHOD_WORDS = Pattern.compile("방법|어떻게|예시|정리|(?i:how|example|sum up)");
-
-    /** 코드 규칙으로 정할 수 있으면 그 결과, 아니면 {@code null}(분류 호출로 간다). */
-    static Classified byRule(String actorText) {
-        if (actorText == null) return null;
-        String text = actorText.strip();
-        if (DialogueProgress.actorFinished(text)) return new Classified(Kind.STOP, false, "code");
-        if (VAGUE.matcher(text).matches()) return new Classified(Kind.SHORT, false, "code");
-        return null;
-    }
-
-    /** 그만이라면서 다음 방법이나 정리를 같이 청했는지. 그러면 끝 대신 마무리2. */
-    static boolean asksWrapUp(String actorText) {
-        return actorText != null && METHOD_WORDS.matcher(actorText).find();
     }
 
     /** 지금까지 코치가 한 일의 횟수. */
@@ -153,10 +133,10 @@ final class PracticeLoopRouter {
     /** 응답 상한. {@link ConversationService#THREE_LAYERS_REPLY_LIMIT}과 같다. */
     static final int LAST_REPLY = ConversationService.THREE_LAYERS_REPLY_LIMIT;
 
-    /** 할 일 표. 위에서부터 먼저 맞는 줄 하나. {@code wrapUp}은 그만이라면서 다음 방법이나 정리를 같이 청했는지. */
-    static String route(Kind kind, Before b, boolean wrapUp) {
+    /** 할 일 표. 위에서부터 먼저 맞는 줄 하나. */
+    static String route(Kind kind, Before b) {
         String pointOut = b.habitDropped() ? "짚어주기(다른 쪽)" : "짚어주기";
-        if (kind == Kind.STOP) return wrapUp ? "마무리2" : "끝";
+        if (kind == Kind.STOP) return "끝";
         if (b.lastDoing().startsWith("마무리2") || b.lastDoing().startsWith("끝")) return "끝";
         if (b.reply() >= LAST_REPLY) return "마무리2";
         if (kind == Kind.SELF_LINE) return "마무리2";
