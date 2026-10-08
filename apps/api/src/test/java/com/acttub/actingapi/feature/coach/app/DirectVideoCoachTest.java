@@ -261,8 +261,8 @@ class DirectVideoCoachTest {
         var tally = new PracticeLoopRouter.Tally(2, 0, 0);
         var fifteenth = new PracticeLoopRouter.Before(15, "이어보기", PracticeLoopRouter.Kind.ANSWER, tally, List.of(), false, false, false);
         var sixteenth = new PracticeLoopRouter.Before(16, "이어보기", PracticeLoopRouter.Kind.ANSWER, tally, List.of(), false, false, false);
-        assertThat(PracticeLoopRouter.route(PracticeLoopRouter.Kind.ANSWER, fifteenth, false)).isEqualTo("마무리1");
-        assertThat(PracticeLoopRouter.route(PracticeLoopRouter.Kind.ANSWER, sixteenth, false)).isEqualTo("마무리2");
+        assertThat(PracticeLoopRouter.route(PracticeLoopRouter.Kind.ANSWER, fifteenth)).isEqualTo("마무리1");
+        assertThat(PracticeLoopRouter.route(PracticeLoopRouter.Kind.ANSWER, sixteenth)).isEqualTo("마무리2");
     }
 
     @Test void practiceLoopStillClosesAtTheServerTurnBudgetEvenWhenTheModelKeepsGoing() {
@@ -465,12 +465,13 @@ class DirectVideoCoachTest {
         when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING);
         var opened = loopEngine.start(session(), UUID.randomUUID());
         clearInvocations(model, videos);
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"stop\"]}");
         var stopped = loopEngine.reply(opened.session(), "그만", UUID.randomUUID());
         assertThat(stopped.session().closeReason()).isEqualTo("actor_finished");
         assertThat(stopped.reply().message()).isEqualTo("오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요.");
         assertThat(stopped.session().coachingState().path("practice_loop").path("statuses").path(1).asText())
-                .contains("배우의 말: 그만", "할 일: 끝", "분류: code");
-        verify(model, never()).classify(anyList(), anyString(), anyList());
+                .contains("배우의 말: 그만", "할 일: 끝", "분류: model");
+        verify(model).classify(anyList(), anyString(), anyList());
         verify(model, never()).reply(any(), anyList(), anyString());
         verify(model, never()).upload(any(), anyString());
         verifyNoInteractions(videos);
