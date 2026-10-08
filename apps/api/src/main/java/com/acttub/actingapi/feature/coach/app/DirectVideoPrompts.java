@@ -63,6 +63,43 @@ final class DirectVideoPrompts {
         for (int k = 0; k < at.size(); k++) lines.set(at.get(k), picked.get(k));
         return String.join("\n", lines);
     }
+    /** 연습 루프 둘째 응답부터 배우의 말 종류를 묻는 분류 지시. 출력은 {@code {"signals":[...]}}. */
+    static String practiceLoopClassifier() { return resource("practice-loop-classify"); }
+
+    /** 연습 루프 둘째 응답부터의 공통 지시(첫 응답 지시·분기 표 없음). 할 일 칸은 {@link #practiceLoopTask}가 붙인다. */
+    static String practiceLoopTurn() { return resource("practice-loop-turn"); }
+
+    static String practiceLoopTurnEnglish() { return resource("practice-loop-turn.en"); }
+
+    /** 답할 말에 맞는 둘째 응답부터의 공통 지시. 말을 고르는 규칙은 {@link #practiceLoop(UUID, java.util.Locale)}와 같다. */
+    static String practiceLoopTurn(java.util.Locale language) {
+        boolean korean = language == null || "ko".equals(language.getLanguage());
+        String base = korean ? practiceLoopTurn() : practiceLoopTurnEnglish();
+        if (!korean && !"en".equals(language.getLanguage())) {
+            base = base + com.acttub.actingapi.platform.web.OutputLanguage.directiveFor(language);
+        }
+        return base;
+    }
+
+    /**
+     * 할 일 하나의 쓰는 법. 할 일 파일에서 {@code "- 이름:"}으로 시작하는 줄과 그 아래 들여 쓴 줄만 가져온다.
+     * 이름이 없으면 예외 — 서버가 정한 할 일과 파일이 어긋난 것이다.
+     */
+    static String practiceLoopTask(String doing, java.util.Locale language) {
+        boolean korean = language == null || "ko".equals(language.getLanguage());
+        String tasks = resource(korean ? "practice-loop-tasks" : "practice-loop-tasks.en");
+        var lines = tasks.split("\n", -1);
+        var picked = new ArrayList<String>();
+        for (int i = 0; i < lines.length; i++) {
+            if (!lines[i].startsWith("- " + doing + ":")) continue;
+            picked.add(lines[i]);
+            for (int j = i + 1; j < lines.length && lines[j].startsWith("  "); j++) picked.add(lines[j]);
+            break;
+        }
+        if (picked.isEmpty()) throw new IllegalStateException("practice loop task is missing: " + doing);
+        return String.join("\n", picked);
+    }
+
     static String forRoutes(List<DirectVideoRoute> routes) {
         return common() + "\n\n" + routes.stream().map(route -> resource(route.id))
                 .collect(Collectors.joining("\n\n"));
