@@ -71,15 +71,13 @@ public final class DirectVideoCoach {
                 >= ConversationService.THREE_LAYERS_REPLY_LIMIT - 1;
         // 둘째 응답부터: 배우의 말을 따로 분류하고 할 일·횟수·피할 것을 코드가 정한다(PracticeLoopRouter).
         Branch branch = loop && !session.turns().isEmpty() && actorText != null ? branch(session, actorText, operationId) : null;
-        if (branch != null && "끝".equals(branch.doing())) {
+        if (branch != null && PracticeLoopRouter.END.equals(branch.doing())) {
+            // 그만·자기 한 줄·응답 상한: 코치 AI를 부르지 않고 닫는다. 앱은 바로 노트로 넘어간다.
             String closing = fixedClosing(DirectVideoPracticeLoop.replyLanguage(session, actorText));
-            if (closing != null) {
-                // 끝은 정해진 두 문장이다. 영상을 올리거나 모델을 부르지 않는다.
-                ObjectNode state = nextState(session);
-                DirectVideoPracticeLoop.remember(state, new DirectVideoPracticeLoop.Parsed("", branch.status(""), closing));
-                return StructuredCoachEngine.result(session, actorText, closing, state,
-                        actorFinished ? "actor_finished" : turnBudget ? "turn_budget" : "interrupted");
-            }
+            ObjectNode state = nextState(session);
+            DirectVideoPracticeLoop.remember(state, new DirectVideoPracticeLoop.Parsed("", branch.status(), closing));
+            return StructuredCoachEngine.result(session, actorText, closing, state,
+                    actorFinished ? "actor_finished" : turnBudget ? "turn_budget" : "interrupted");
         }
         if (loop && DirectVideoPracticeLoop.tooShort(session)) {
             // 연기가 담길 수 없는 길이 — 영상을 올리거나 모델을 부르지 않고 끊는다. 노트도 만들지 않는다.
@@ -145,7 +143,7 @@ public final class DirectVideoCoach {
                 history.clear();
                 history.addAll(DirectVideoPracticeLoop.history(session.turns(), state, actorText, false));
                 String design = state.path(DirectVideoPracticeLoop.STATE_KEY).path("design").asText("");
-                task = DirectVideoPrompts.practiceLoopTurn(language) + "\n\n" + branch.instruction(language, design,
+                task = DirectVideoPrompts.practiceLoopTurn(language) + "\n\n" + branch.instruction(language,
                         DirectVideoPrompts.practiceLoopTask(branch.doing(), language));
                 boolean korean = language == null || "ko".equals(language.getLanguage());
                 template = korean ? new LlmPrompt("coach.practice-loop.turn", DirectVideoPrompts.practiceLoopTurn())
@@ -195,8 +193,7 @@ public final class DirectVideoCoach {
             var parsed = loop ? DirectVideoPracticeLoop.parse(message) : null;
             if (branch != null) {
                 // 숨은 칸은 모델이 아니라 서버가 쓴다. 모델이 따라 쓴 태그는 parse 가 이미 걷어냈다.
-                String design = state.path(DirectVideoPracticeLoop.STATE_KEY).path("design").asText("");
-                String status = branch.status(branch.nextTake(DirectVideoPracticeLoop.nextTake(message), design));
+                String status = branch.status();
                 DirectVideoDialogueEvidence.requireGrounded(uploaded, "<상태>\n" + status + "\n</상태>", written);
                 parsed = new DirectVideoPracticeLoop.Parsed("", status, parsed.message());
             }
@@ -211,11 +208,20 @@ public final class DirectVideoCoach {
                 timeStripped = true;
             }
             if (shown.isBlank()) throw new IllegalStateException("empty video coaching reply");
+            // 앱이 코치 말을 아주 큰 글씨로 보여서 50자 안쪽이 목표다. 60자가 넘으면 자르지 않고 줄이기만 하는 호출로 두 번까지 줄인다.
+            int shortened = 0;
+            while (loop && !cut && shortened < 2 && DirectVideoPracticeLoop.displayLength(shown) > DirectVideoPracticeLoop.LONG_REPLY) {
+                String shorter = shorten(shown, DirectVideoPracticeLoop.replyLanguage(session, actorText), uploaded, written, operationId);
+                shortened++;
+                if (shorter == null) break;
+                shown = shorter;
+            }
             telemetry.record(new LlmCall(LlmStep.COACH_TURN, session.practiceSessionId(), session.userId(),
                     model.model(), input, message, LlmTokens.unknown(), started, Duration.between(started, Instant.now()),
                     null, LlmCall.metadata("transport", "gemini_direct_video", "route", route,
                             "route_fallback", Boolean.toString(branch != null ? "fallback".equals(branch.classified().by()) : routeFallback),
-                            "timestamp_retry", Boolean.toString(timeRetry), "timestamp_stripped", Boolean.toString(timeStripped)))
+                            "timestamp_retry", Boolean.toString(timeRetry), "timestamp_stripped", Boolean.toString(timeStripped),
+                            "shorten_calls", Integer.toString(shortened)))
                     .withPrompt(template));
             if (loop) DirectVideoPracticeLoop.remember(state, parsed);
             if (cut) DirectVideoPracticeLoop.markNotActing(state, "model");
@@ -250,24 +256,14 @@ public final class DirectVideoCoach {
 
     /** 서버가 정한 이번 응답. 상태 칸과 모델에 줄 지시를 만든다. */
     private record Branch(PracticeLoopRouter.Classified classified, PracticeLoopRouter.Before before, String doing,
-            String goal, java.util.List<String> avoid, String observed, String dialogue, String selfLine) {
+            String goal, java.util.List<String> avoid, String observed, String dialogue) {
 
-        String instruction(java.util.Locale language, String design, String task) {
-            return PracticeLoopRouter.instruction(language, doing, classified, before, goal, avoid, observed, dialogue,
-                    selfLine, DirectVideoPracticeLoop.designNextTake(design), task);
+        String instruction(java.util.Locale language, String task) {
+            return PracticeLoopRouter.instruction(language, doing, avoid, observed, dialogue, task);
         }
 
-        /** 상태 칸의 다음 테이크. 마무리2만 "지키며: …" / "반대로: …". 모델이 숨은 줄을 빠뜨리면 반대로일 때 설계의 것을 쓴다. */
-        String nextTake(String written, String design) {
-            if (!doing.startsWith("마무리2")) return "";
-            boolean keep = PracticeLoopRouter.keepsHabit(before, classified);
-            String action = written == null || written.isBlank()
-                    ? keep ? "" : DirectVideoPracticeLoop.designNextTake(design) : written.strip();
-            return action.isBlank() ? "" : (keep ? "지키며: " : "반대로: ") + action;
-        }
-
-        String status(String nextTake) {
-            return PracticeLoopRouter.status(observed, dialogue, classified, before, doing, goal, avoid, nextTake);
+        String status() {
+            return PracticeLoopRouter.status(observed, dialogue, classified, before, doing, goal, avoid, "");
         }
     }
 
@@ -280,10 +276,32 @@ public final class DirectVideoCoach {
         String doing = PracticeLoopRouter.route(classified.kind(), before);
         var avoid = PracticeLoopRouter.avoidAfter(before, classified.kind(), DirectVideoPracticeLoop.habit(design));
         String goal = DirectVideoPracticeLoop.goal(loopState == null ? null : loopState.path("statuses"), design);
-        String selfLine = classified.kind() == PracticeLoopRouter.Kind.SELF_LINE || before.lastDoing().startsWith("마무리1")
-                ? actorText : null;
         return new Branch(classified, before, doing, goal, avoid, DirectVideoPracticeLoop.statusField(design, "관찰 근거"),
-                DirectVideoPracticeLoop.statusField(design, "대사 확인"), selfLine);
+                DirectVideoPracticeLoop.statusField(design, "대사 확인"));
+    }
+
+    /**
+     * 긴 코치 말을 줄이기만 하는 호출(영상 없음). 뜻과 마지막 질문은 그대로 두고 50자 안쪽으로 다시 쓰게 한다.
+     * 줄지 않았거나 비었거나 근거 검사를 못 넘으면 {@code null} — 부르는 쪽이 원래 말을 그대로 쓴다.
+     */
+    private String shorten(String text, java.util.Locale language, DirectVideoModel.Video video, String written, UUID operationId) {
+        try {
+            ExternalOperationExecution.externalCall("model");
+            String raw = model.reply(null, java.util.List.of(new DirectVideoModel.Message("user", text)),
+                    DirectVideoPrompts.practiceLoopShorten(language));
+            if (raw == null || raw.isBlank()) return null;
+            String shorter = DirectVideoPracticeLoop.parse(raw).message();
+            if (DirectVideoPracticeLoop.hasTimestamp(shorter)) shorter = DirectVideoPracticeLoop.stripTimestamps(shorter);
+            if (shorter.isBlank() || DirectVideoPracticeLoop.displayLength(shorter) >= DirectVideoPracticeLoop.displayLength(text)) return null;
+            DirectVideoDialogueEvidence.requireGrounded(video, shorter, written);
+            return shorter;
+        } catch (IllegalStateException | IllegalArgumentException rejected) {
+            return null;
+        } catch (RuntimeException failure) {
+            if (Thread.currentThread().isInterrupted()) throw failure;
+            failures.report(failure, FailureKind.EXTERNAL, new FailureContext("DirectVideoCoach.shorten", operationId));
+            return null;
+        }
     }
 
     /** 배우의 말 종류. 매번 분류만 하는 AI(영상 없음)에게 묻는다. 실패하면 보통 답으로 이어간다. */
@@ -316,11 +334,10 @@ public final class DirectVideoCoach {
         }
     }
 
-    /** 끝의 정해진 두 문장. 한국어·영어만 — 그 밖의 말은 모델이 그 말로 쓴다({@code null}). */
+    /** 코치 AI 없이 닫을 때의 정해진 두 문장. 한국어가 아니면 영어. */
     static String fixedClosing(java.util.Locale language) {
         if (language == null || "ko".equals(language.getLanguage())) return "오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요.";
-        if ("en".equals(language.getLanguage())) return "That's it for today. Upload a new take and we'll pick up from here.";
-        return null;
+        return "That's it for today. Upload a new take and we'll pick up from here.";
     }
 
     /** 저장된 상태를 복사해 다음 판으로 올린다. 저장 판이 어긋나면 실패한다. */
