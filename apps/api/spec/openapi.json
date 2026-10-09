@@ -486,6 +486,42 @@
         } ]
       }
     },
+    "/v2/me/discovery" : {
+      "put" : {
+        "tags" : [ "v2-me" ],
+        "summary" : "Record Discovery Answer",
+        "description" : "가입 직후 배우가 답한 \"액터브를 처음 어디서 알게 됐어요?\"를 적는다(SOMA-649). source 가 null 이면\n건너뛴 것이다. detail 은 source=instagram 일 때만, other_text 는 source=other 일 때만(30자 이하)\n받는다. 계정마다 처음 온 값만 남고, 다시 보내도 바꾸지 않은 채 204 다. 동의와 프로필이 끝난 회원만\n부를 수 있다. 게스트는 403 member_only. 이 값은 자기 응답이며 광고 플랫폼 귀속과 별개다.",
+        "operationId" : "record_discovery_answer_v2_me_discovery_put",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/DiscoveryAnswerRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "Successful Response"
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/me/blocks/{user_id}" : {
       "put" : {
         "tags" : [ "v2-challenges" ],
@@ -5122,6 +5158,40 @@
         },
         "required" : [ "field", "source_practice_id", "updated_at", "value", "written_by_actor" ],
         "title" : "ActorMemoryItem"
+      },
+      "DiscoveryAnswerRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "source" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "enum" : [ "instagram", "naver_search", "google_youtube", "app_store_search", "friend", "academy_school", "community", "other" ]
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Source"
+          },
+          "detail" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "enum" : [ "ad", "official_post", "other_post", "unknown" ]
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Detail"
+          },
+          "other_text" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "maxLength" : 30
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Other Text"
+          }
+        },
+        "title" : "DiscoveryAnswerRequest"
       },
       "UserBlockState" : {
         "type" : "object",
