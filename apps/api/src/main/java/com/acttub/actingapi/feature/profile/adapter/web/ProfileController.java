@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.Direction;
+import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.DiscoveryAnswerRequest;
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.MeResponse;
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.NotificationSettingsPatch;
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.NotificationSettingsResponse;
@@ -20,6 +21,7 @@ import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.WebAttributi
 import com.acttub.actingapi.feature.profile.adapter.web.ProfileDtos.WithdrawnResponse;
 import com.acttub.actingapi.feature.profile.app.ProfileService;
 import com.acttub.actingapi.feature.profile.domain.Account;
+import com.acttub.actingapi.feature.profile.domain.DiscoveryAnswer;
 import com.acttub.actingapi.feature.profile.domain.NotificationSettings;
 import com.acttub.actingapi.feature.profile.domain.Profile;
 import com.acttub.actingapi.feature.profile.domain.ProfileName;
@@ -144,6 +146,31 @@ class ProfileController {
             @Valid @RequestBody SignupAttributionRequest body, HttpServletRequest request) {
         var user = auth.gatedUser(request);
         profiles.recordSignupAttribution(user.id(), signupAttribution(body));
+        return ResponseEntity.noContent().build();
+    }
+
+    @Operation(
+            summary = "Record Discovery Answer",
+            description = """
+                    가입 직후 배우가 답한 "액터브를 처음 어디서 알게 됐어요?"를 적는다(SOMA-649). source 가 null 이면
+                    건너뛴 것이다. detail 은 source=instagram 일 때만, other_text 는 source=other 일 때만(30자 이하)
+                    받는다. 계정마다 처음 온 값만 남고, 다시 보내도 바꾸지 않은 채 204 다. 동의와 프로필이 끝난 회원만
+                    부를 수 있다. 게스트는 403 member_only. 이 값은 자기 응답이며 광고 플랫폼 귀속과 별개다.""",
+            operationId = "record_discovery_answer_v2_me_discovery_put",
+            tags = "v2-me",
+            security = @SecurityRequirement(name = "HTTPBearer"))
+    @ApiResponses({
+        @ApiResponse(responseCode = "204", description = "Successful Response"),
+        @ApiResponse(
+                responseCode = "422",
+                description = "Validation Error",
+                content = @Content(schema = @Schema(ref = "#/components/schemas/HTTPValidationError")))
+    })
+    @PutMapping("/discovery")
+    ResponseEntity<Void> recordDiscoveryAnswer(
+            @RequestBody DiscoveryAnswerRequest body, HttpServletRequest request) {
+        var user = auth.gatedUser(request);
+        profiles.recordDiscoveryAnswer(user.id(), discoveryAnswer(body));
         return ResponseEntity.noContent().build();
     }
 
@@ -411,6 +438,46 @@ class ProfileController {
                 attributionValue("content", body.content()),
                 attributionValue("term", body.term()),
                 attributionValue("sub_publisher", body.subPublisher()));
+    }
+
+    private static DiscoveryAnswer discoveryAnswer(DiscoveryAnswerRequest body) {
+        String source = body.source();
+        if (source != null && !DiscoveryAnswer.SOURCES.contains(source)) {
+            throw ApiValidationException.valueError(
+                    List.of("body", "source"),
+                    "source must be one of: " + String.join(", ", DiscoveryAnswer.SOURCES),
+                    source);
+        }
+        String detail = body.detail();
+        if (detail != null) {
+            if (!DiscoveryAnswer.INSTAGRAM.equals(source)) {
+                throw ApiValidationException.valueError(
+                        List.of("body", "detail"), "detail is only allowed when source is instagram", detail);
+            }
+            if (!DiscoveryAnswer.INSTAGRAM_DETAILS.contains(detail)) {
+                throw ApiValidationException.valueError(
+                        List.of("body", "detail"),
+                        "detail must be one of: " + String.join(", ", DiscoveryAnswer.INSTAGRAM_DETAILS),
+                        detail);
+            }
+        }
+        String otherText = body.otherText() == null ? null : body.otherText().strip();
+        if (otherText != null && otherText.isEmpty()) {
+            otherText = null;
+        }
+        if (otherText != null) {
+            if (!DiscoveryAnswer.OTHER.equals(source)) {
+                throw ApiValidationException.valueError(
+                        List.of("body", "other_text"), "other_text is only allowed when source is other", body.otherText());
+            }
+            if (otherText.codePointCount(0, otherText.length()) > DiscoveryAnswer.OTHER_TEXT_MAX_LENGTH) {
+                throw ApiValidationException.valueError(
+                        List.of("body", "other_text"),
+                        "other_text must be at most " + DiscoveryAnswer.OTHER_TEXT_MAX_LENGTH + " characters",
+                        body.otherText());
+            }
+        }
+        return new DiscoveryAnswer(source, detail, otherText);
     }
 
     private static SignupAttribution webAttribution(WebAttributionRequest body) {

@@ -901,7 +901,8 @@ class AdminEndpointIT {
         assertThat(signupRows).hasSize(1);
         JsonNode signupRow = signupRows.get(0);
         assertThat(signupRow.fieldNames()).toIterable().containsExactly(
-                "actor", "signup_at", "platform", "device", "first_upload_at", "experience", "goal", "directions");
+                "actor", "signup_at", "platform", "device", "first_upload_at", "experience", "goal", "directions",
+                "discovery_answered", "discovery_source", "discovery_detail");
         assertThat(signupRow.path("actor").textValue()).isEqualTo("배우 " + md5(REAL_USER.toString()).substring(0, 8));
         assertThat(signupRow.path("signup_at").textValue()).isEqualTo(utc(NOW.minusHours(2).truncatedTo(ChronoUnit.HOURS)));
         assertThat(signupRow.path("platform").textValue()).isEqualTo("웹");
@@ -912,6 +913,10 @@ class AdminEndpointIT {
         assertThat(signupRow.path("experience").isNull()).isTrue();
         assertThat(signupRow.path("goal").isNull()).isTrue();
         assertThat(signupRow.path("directions")).isEqualTo(mapper.readTree("[]"));
+        // 유입 경로 자기 응답이 없는 가입은 false · null · null (SOMA-649)
+        assertThat(signupRow.path("discovery_answered").booleanValue()).isFalse();
+        assertThat(signupRow.path("discovery_source").isNull()).isTrue();
+        assertThat(signupRow.path("discovery_detail").isNull()).isTrue();
 
         assertThat(core.toString()).doesNotContain(
                 "actor@example.com", "Team@Acttub.com", REAL_USER.toString(), TEAM_USER.toString());

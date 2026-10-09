@@ -103,6 +103,7 @@ import type { PostersResponse } from '@/lib/poster';
 import { currentLanguage, translate } from './i18n.ts';
 
 export { ApiError, NetworkError, RequestAbortError } from '@/lib/api-request';
+import type { DiscoveryPayload } from '@/lib/discovery';
 import type { SignupAttributionPayload } from '@/lib/signup-attribution';
 
 /**
@@ -727,6 +728,18 @@ export const api = {
   recordSignupAttribution(payload: SignupAttributionPayload): Promise<void> {
     return request<void>(
       '/v2/me/signup-attribution',
+      { ...jsonInit(payload), method: 'PUT' },
+      { timeoutMs: 15_000 },
+    );
+  },
+
+  /**
+   * 가입 직후 답한 "처음 어디서 알게 됐어요?"를 적는다(SOMA-649). 계정마다 처음 답만 남고 다시 보내도 204 다.
+   * source=null 은 건너뜀이다. 보내는 때는 가입 게이트(app/profile-name.tsx)가 정한다.
+   */
+  recordDiscoveryAnswer(payload: DiscoveryPayload): Promise<void> {
+    return request<void>(
+      '/v2/me/discovery',
       { ...jsonInit(payload), method: 'PUT' },
       { timeoutMs: 15_000 },
     );

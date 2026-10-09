@@ -123,6 +123,8 @@ class EntityMappingIT {
             "note_ratings",
             // 가입 유입 출처(V26·V28)는 프로필 저장소의 native SQL(최초 저장·이관·탈퇴 파기)만 쓴다.
             "user_signup_attributions",
+            // 가입 직후 유입 경로 자기 응답(V38)도 프로필 저장소의 native SQL(최초 저장·이관·탈퇴 파기)만 쓴다.
+            "user_discovery_answers",
             // 앱 공지 포스터(V29)는 포스터 저장소의 native SQL(만들기·고치기·고르기)만 쓴다.
             "app_posters",
             // 대본 나누기 요청(V33)은 리딩 저장소의 native SQL(접수·진행·완료)만 쓴다.

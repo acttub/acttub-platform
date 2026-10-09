@@ -226,6 +226,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/me/discovery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Record Discovery Answer
+         * @description 가입 직후 배우가 답한 "액터브를 처음 어디서 알게 됐어요?"를 적는다(SOMA-649). source 가 null 이면
+         *     건너뛴 것이다. detail 은 source=instagram 일 때만, other_text 는 source=other 일 때만(30자 이하)
+         *     받는다. 계정마다 처음 온 값만 남고, 다시 보내도 바꾸지 않은 채 204 다. 동의와 프로필이 끝난 회원만
+         *     부를 수 있다. 게스트는 403 member_only. 이 값은 자기 응답이며 광고 플랫폼 귀속과 별개다.
+         */
+        put: operations["record_discovery_answer_v2_me_discovery_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/me/blocks/{user_id}": {
         parameters: {
             query?: never;
@@ -2392,6 +2415,15 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /** DiscoveryAnswerRequest */
+        DiscoveryAnswerRequest: {
+            /** Source */
+            source?: ("instagram" | "naver_search" | "google_youtube" | "app_store_search" | "friend" | "academy_school" | "community" | "other") | null;
+            /** Detail */
+            detail?: ("ad" | "official_post" | "other_post" | "unknown") | null;
+            /** Other Text */
+            other_text?: string | null;
         };
         /** UserBlockState */
         UserBlockState: {
@@ -5705,6 +5737,37 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_discovery_answer_v2_me_discovery_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiscoveryAnswerRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             204: {

@@ -1,5 +1,5 @@
 import { Stack, useRouter } from 'expo-router';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -15,6 +15,18 @@ import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { palette } from '@/constants/palette';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { logEvent } from '@/lib/analytics';
+import { api } from '@/lib/api';
+import {
+  DISCOVERY_OTHER_MAX_LENGTH,
+  EMPTY_DISCOVERY,
+  INSTAGRAM_DETAILS,
+  buildDiscoveryPayload,
+  chooseDiscoverySource,
+  chooseInstagramDetail,
+  discoveryOrder,
+  limitOtherText,
+  type DiscoveryState,
+} from '@/lib/discovery';
 import { logMetaEvent } from '@/lib/meta-events';
 import { recordSignupCompleted } from '@/lib/signup-attribution-runtime';
 import { useAuth } from '@/lib/auth';
@@ -74,6 +86,9 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const keyboardHeight = useKeyboardHeight();
+  // 가입 직후 유입 경로(SOMA-649). 가입 게이트에서만 묻는 선택 항목이다. 순서는 화면을 열 때 한 번 섞는다.
+  const [discovery, setDiscovery] = useState<DiscoveryState>(EMPTY_DISCOVERY);
+  const discoverySources = useMemo(() => discoveryOrder(), []);
   const prefilled = useRef(false);
 
   const me = profile.me;
@@ -135,6 +150,9 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
         logMetaEvent('fb_mobile_complete_registration');
         // 이 기기에서 가입을 마친 계정에만 유입 광고를 붙인다(SOMA-588).
         if (me?.id) recordSignupCompleted(me.id);
+        // 처음 어디서 알게 됐는지(SOMA-649). 고르지 않았으면 건너뜀으로 적는다. 저장은 끝났으므로 기다리지 않고,
+        // 실패해도 가입 흐름을 막지 않는다(서버는 처음 답만 남긴다).
+        void api.recordDiscoveryAnswer(buildDiscoveryPayload(discovery)).catch(() => {});
       }
       // 가입 게이트에서는 저장이 곧 게이트 통과라 _layout이 화면을 옮긴다. 편집은 직접 돌아간다.
       if (isEdit) router.back();
@@ -338,6 +356,47 @@ export function ProfileForm({ edit: isEdit }: { edit: boolean }) {
             </View>
           </Field>
 
+          {!isEdit && (
+            <Field label={t('profileName.discoveryLabel')}>
+              <Text style={styles.fieldHint}>{t('profileName.discoveryHint')}</Text>
+              <View style={styles.chips}>
+                {discoverySources.map((source) => (
+                  <Chip
+                    key={source}
+                    label={t(`profileName.discoverySources.${source}`)}
+                    selected={discovery.source === source}
+                    onPress={() => setDiscovery((prev) => chooseDiscoverySource(prev, source))}
+                  />
+                ))}
+              </View>
+              {discovery.source === 'instagram' && (
+                <View style={styles.discoveryFollowUp}>
+                  <Text style={styles.fieldHint}>{t('profileName.discoveryInstagramLabel')}</Text>
+                  <View style={styles.chips}>
+                    {INSTAGRAM_DETAILS.map((detail) => (
+                      <Chip
+                        key={detail}
+                        label={t(`profileName.discoveryInstagramDetails.${detail}`)}
+                        selected={discovery.detail === detail}
+                        onPress={() => setDiscovery((prev) => chooseInstagramDetail(prev, detail))}
+                      />
+                    ))}
+                  </View>
+                </View>
+              )}
+              {discovery.source === 'other' && (
+                <TextInput
+                  style={styles.input}
+                  placeholder={t('profileName.discoveryOtherPlaceholder')}
+                  placeholderTextColor={palette.textFaint}
+                  value={discovery.otherText}
+                  onChangeText={(text) => setDiscovery((prev) => ({ ...prev, otherText: limitOtherText(text) }))}
+                  maxLength={DISCOVERY_OTHER_MAX_LENGTH * 2}
+                />
+              )}
+            </Field>
+          )}
+
           {isEdit && (
             <Field label={t('profileName.bioLabel')}>
               <TextInput
@@ -418,6 +477,7 @@ const styles = StyleSheet.create({
   content: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 40, paddingBottom: 24, gap: 22 },
   title: { fontSize: 24, fontWeight: '800', color: palette.text },
   subtitle: { marginTop: 8, fontSize: 14, lineHeight: 20, color: palette.textDim },
+  discoveryFollowUp: { marginTop: 10, gap: 8 },
   nameInput: {
     borderWidth: 1.5,
     borderColor: palette.blue,
