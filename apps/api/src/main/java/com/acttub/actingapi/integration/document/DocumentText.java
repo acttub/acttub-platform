@@ -14,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -47,6 +48,7 @@ import org.apache.pdfbox.io.RandomAccessReadBufferedFile;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.encryption.InvalidPasswordException;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.apache.pdfbox.text.TextPosition;
 
 /**
  * 문서 파일(txt·docx·hwpx·pdf·hwp)에서 글자만 뽑는다. 대본 원본(reading.script)이 쓴다.
@@ -257,7 +259,7 @@ public final class DocumentText {
             throw new Refused("encrypted");
         }
         try (document) {
-            PDFTextStripper stripper = new PDFTextStripper();
+            PDFTextStripper stripper = new LineOrderStripper();
             stripper.setLineSeparator("\n");
             StringBuilder out = new StringBuilder();
             stripper.writeText(document, new Writer() {
@@ -277,6 +279,43 @@ public final class DocumentText {
                 }
             });
             return out.toString();
+        }
+    }
+
+    /**
+     * 그린 순서(내용 순서)대로 읽되, 같은 높이로 연달아 그린 글자 묶음 안에서 앞 글자 폭의 절반 넘게 왼쪽으로 되돌아간 글자가
+     * 있으면 그 묶음만 가로 위치 순으로 세운다. 운영의 macOS PDF(2026-10-08)가 한 줄의 한글을 먼저, 괄호·부호를 나중에 그려
+     * 「없네( ) , ?」로 읽혔다. 쪽 전체를 위치로 세우면 2단 편집의 두 단이 한 줄로 섞이고(표본 대본집 1,111줄), 문턱이 없으면
+     * 앞 글자와 살짝 겹쳐 그린 따옴표가 앞으로 넘어간다(「않고‘ 크루즈’」).
+     */
+    private static final class LineOrderStripper extends PDFTextStripper {
+        private static final float SAME_LINE = 0.5f;
+
+        @Override
+        protected void writePage() throws IOException {
+            for (List<TextPosition> article : getCharactersByArticle()) {
+                int start = 0;
+                for (int i = 1; i <= article.size(); i++) {
+                    if (i == article.size() || Math.abs(article.get(i).getYDirAdj() - article.get(start).getYDirAdj()) > SAME_LINE) {
+                        List<TextPosition> run = article.subList(start, i);
+                        if (stepsBack(run)) {
+                            run.sort(Comparator.comparingDouble(TextPosition::getXDirAdj));
+                        }
+                        start = i;
+                    }
+                }
+            }
+            super.writePage();
+        }
+
+        private static boolean stepsBack(List<TextPosition> run) {
+            for (int i = 1; i < run.size(); i++) {
+                TextPosition previous = run.get(i - 1);
+                if (run.get(i).getXDirAdj() < previous.getXDirAdj() - Math.max(previous.getWidthDirAdj() / 2, 1f)) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 
