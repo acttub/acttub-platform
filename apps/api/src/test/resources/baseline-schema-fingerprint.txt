@@ -617,6 +617,11 @@ COLUMN user_consents.document_id ord=3 type=uuid len=- null=NO default=-
 COLUMN user_consents.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
 COLUMN user_consents.occurred_at ord=5 type=timestamptz len=- null=NO default=now()
 COLUMN user_consents.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN user_discovery_answers.answered_at ord=5 type=timestamptz len=- null=NO default=now()
+COLUMN user_discovery_answers.detail ord=3 type=text len=- null=YES default=-
+COLUMN user_discovery_answers.other_text ord=4 type=text len=- null=YES default=-
+COLUMN user_discovery_answers.source ord=2 type=text len=- null=YES default=-
+COLUMN user_discovery_answers.user_id ord=1 type=uuid len=- null=NO default=-
 COLUMN user_identities.apple_token_encrypted ord=7 type=text len=- null=YES default=-
 COLUMN user_identities.created_at ord=5 type=timestamptz len=- null=NO default=now()
 COLUMN user_identities.id ord=1 type=uuid len=- null=NO default=gen_random_uuid()
@@ -1540,6 +1545,14 @@ CONSTRAINT user_consents user_consents_occurred_at_not_null NOT NULL occurred_at
 CONSTRAINT user_consents user_consents_pkey PRIMARY KEY (id)
 CONSTRAINT user_consents user_consents_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
 CONSTRAINT user_consents user_consents_user_id_not_null NOT NULL user_id
+CONSTRAINT user_discovery_answers ck_user_discovery_answers_detail CHECK ((detail = ANY (ARRAY['ad'::text, 'official_post'::text, 'other_post'::text, 'unknown'::text])))
+CONSTRAINT user_discovery_answers ck_user_discovery_answers_detail_source CHECK (((detail IS NULL) OR (source = 'instagram'::text)))
+CONSTRAINT user_discovery_answers ck_user_discovery_answers_other_text CHECK (((other_text IS NULL) OR ((source = 'other'::text) AND ((char_length(other_text) >= 1) AND (char_length(other_text) <= 30)))))
+CONSTRAINT user_discovery_answers ck_user_discovery_answers_source CHECK ((source = ANY (ARRAY['instagram'::text, 'naver_search'::text, 'google_youtube'::text, 'app_store_search'::text, 'friend'::text, 'academy_school'::text, 'community'::text, 'other'::text])))
+CONSTRAINT user_discovery_answers user_discovery_answers_answered_at_not_null NOT NULL answered_at
+CONSTRAINT user_discovery_answers user_discovery_answers_pkey PRIMARY KEY (user_id)
+CONSTRAINT user_discovery_answers user_discovery_answers_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+CONSTRAINT user_discovery_answers user_discovery_answers_user_id_not_null NOT NULL user_id
 CONSTRAINT user_identities ck_user_identities_provider CHECK ((provider = ANY (ARRAY['google'::text, 'kakao'::text, 'apple'::text, 'naver'::text, 'guest'::text, 'development'::text])))
 CONSTRAINT user_identities ck_user_identities_uid_or_hash CHECK (((provider_uid IS NOT NULL) OR (uid_hash IS NOT NULL)))
 CONSTRAINT user_identities uq_user_identities_provider_uid UNIQUE (provider, provider_uid)
@@ -1827,6 +1840,7 @@ INDEX CREATE UNIQUE INDEX uq_user_profile_directions_user_direction ON public.us
 INDEX CREATE UNIQUE INDEX uq_video_transcripts_video ON public.video_transcripts USING btree (video_id)
 INDEX CREATE UNIQUE INDEX user_blocks_pkey ON public.user_blocks USING btree (id)
 INDEX CREATE UNIQUE INDEX user_consents_pkey ON public.user_consents USING btree (id)
+INDEX CREATE UNIQUE INDEX user_discovery_answers_pkey ON public.user_discovery_answers USING btree (user_id)
 INDEX CREATE UNIQUE INDEX user_identities_pkey ON public.user_identities USING btree (id)
 INDEX CREATE UNIQUE INDEX user_profile_directions_pkey ON public.user_profile_directions USING btree (id)
 INDEX CREATE UNIQUE INDEX user_profiles_pkey ON public.user_profiles USING btree (user_id)
@@ -1902,6 +1916,7 @@ TABLE transcripts
 TABLE upload_intents
 TABLE user_blocks
 TABLE user_consents
+TABLE user_discovery_answers
 TABLE user_identities
 TABLE user_profile_directions
 TABLE user_profiles
