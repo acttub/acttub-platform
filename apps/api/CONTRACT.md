@@ -997,7 +997,8 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
     코칭 전용 숫자를 통합 수치로 대체하면 안 된다. 운영 개요 소비자는 동일 actor 기준 인원·반복·재방문을 계산한다.
 - **가입 코호트 원장**(`GET /v2/admin/ops-core`의 `signup_rows`, SOMA-591) — 팀을 뺀 가입자 한 명당 한 행이다.
   `actor`(기존 가명)·`signup_at`(시간 단위)·`platform`(`앱`·`웹`)·`device`(가입 기기 분류)·`first_upload_at`
-  (가장 이른 `finalized` 업로드, 분 단위, 없으면 null)만 가진다. 미래 행은 뺀다. 운영 화면은 이를 `activity_rows`·
+  (가장 이른 `finalized` 업로드, 분 단위, 없으면 null)·`experience`·`goal`(가입 프로필 값 이름, 프로필이 없으면 null)·
+  `directions`(`media`·`stage` 정렬 배열, 없으면 `[]`, SOMA-632)만 가진다. 이름·생년월일·소개 글은 싣지 않는다. 미래 행은 뺀다. 운영 화면은 이를 `activity_rows`·
   `signup_attributions`와 가명으로 이어 플랫폼×유입 소스 퍼널을 같은 기간 가입 코호트로 계산한다.
   `signup_attributions`는 기존 키를 유지하면서 `source`와 nullable `medium`을 더 제공한다. 필드가 없는
   구버전 응답을 0명으로 해석하면 안 된다.
