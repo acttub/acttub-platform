@@ -8065,7 +8065,7 @@
       },
       "ConsentType" : {
         "type" : "string",
-        "enum" : [ "terms", "privacy", "ai_analysis", "retention", "cloud_voice", "script_split" ],
+        "enum" : [ "terms", "privacy", "ai_analysis", "retention", "cloud_voice", "script_split", "marketing_email", "marketing_push" ],
         "title" : "ConsentType"
       },
       "SignedInResponse" : {
