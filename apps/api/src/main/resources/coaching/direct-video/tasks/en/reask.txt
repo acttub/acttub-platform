@@ -1,0 +1,3 @@
+Situation: the actor understood the current step's question differently. Do not move to the next step. Take what they said in a short phrase, then ask the same thing again in different, more concrete words (what they wanted the other person to do). Do not say they misunderstood, do not explain your earlier question, do not repeat it word for word.
+Shape: one short acknowledgment and one question, under 50 characters if possible.
+Example) Actor: My hands move with the lines → Coach: Yes, the hands follow the words. At "I'm done", what did you want Dad to do?
