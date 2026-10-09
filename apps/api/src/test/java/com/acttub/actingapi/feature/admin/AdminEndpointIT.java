@@ -901,13 +901,17 @@ class AdminEndpointIT {
         assertThat(signupRows).hasSize(1);
         JsonNode signupRow = signupRows.get(0);
         assertThat(signupRow.fieldNames()).toIterable().containsExactly(
-                "actor", "signup_at", "platform", "device", "first_upload_at");
+                "actor", "signup_at", "platform", "device", "first_upload_at", "experience", "goal", "directions");
         assertThat(signupRow.path("actor").textValue()).isEqualTo("배우 " + md5(REAL_USER.toString()).substring(0, 8));
         assertThat(signupRow.path("signup_at").textValue()).isEqualTo(utc(NOW.minusHours(2).truncatedTo(ChronoUnit.HOURS)));
         assertThat(signupRow.path("platform").textValue()).isEqualTo("웹");
         assertThat(signupRow.path("device").textValue()).isEqualTo("기록 없음");
         assertThat(signupRow.path("first_upload_at").textValue())
                 .isEqualTo(utc(NOW.minusMinutes(30).truncatedTo(ChronoUnit.MINUTES)));
+        // 프로필 행이 없는 가입은 null · [] (SOMA-632)
+        assertThat(signupRow.path("experience").isNull()).isTrue();
+        assertThat(signupRow.path("goal").isNull()).isTrue();
+        assertThat(signupRow.path("directions")).isEqualTo(mapper.readTree("[]"));
 
         assertThat(core.toString()).doesNotContain(
                 "actor@example.com", "Team@Acttub.com", REAL_USER.toString(), TEAM_USER.toString());
@@ -1094,6 +1098,26 @@ class AdminEndpointIT {
                 deletedEntry.toString().substring(0, 8),
                 "챌린지 대사 비밀", "작품 비밀", "챌린지 캡션 비밀", "숨긴 캡션 비밀", "팀 캡션 비밀", "미래 캡션 비밀",
                 "actor@example.com", "Team@Acttub.com", REAL_USER.toString(), TEAM_USER.toString());
+    }
+
+    /** 가입 코호트 원장의 프로필 칸(SOMA-632): 값 이름만 싣고, 방향은 정렬된 배열이며 이름·생년월일·소개 글은 없다. */
+    @Test
+    void opsCoreSignupRowsCarryProfileChoicesWithoutPersonalFields() throws Exception {
+        jdbc.update("""
+                INSERT INTO user_profiles (user_id,name,birth_date,experience,goal,bio)
+                VALUES (?,'홍길동','2001-02-03','exam_prep','audition','소개 글')
+                """, REAL_USER);
+        jdbc.update("INSERT INTO user_profile_directions (user_id,direction) VALUES (?,'stage'),(?,'media')",
+                REAL_USER, REAL_USER);
+
+        JsonNode core = authorized("/v2/admin/ops-core", 200);
+        JsonNode rows = core.path("signup_rows");
+        assertThat(rows).hasSize(1);
+        JsonNode row = rows.get(0);
+        assertThat(row.path("experience").textValue()).isEqualTo("exam_prep");
+        assertThat(row.path("goal").textValue()).isEqualTo("audition");
+        assertThat(row.path("directions")).isEqualTo(mapper.readTree("[\"media\",\"stage\"]"));
+        assertThat(core.toString()).doesNotContain("홍길동", "2001-02-03", "소개 글");
     }
 
     @Test
