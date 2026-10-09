@@ -32,8 +32,13 @@ public class DirectVideoConfiguration {
             com.acttub.actingapi.integration.storage.ObjectStorage storage,
             FailureReporter failures, com.acttub.actingapi.platform.observability.LlmTelemetry telemetry,
             // 연습 루프가 기본이다 — 운영도 핫픽스(#388)로 이미 켜져 있다. false 를 명시하면 분류·과제 조립 경로로 돌아간다(롤백).
-            @Value("${ACTTUB_DIRECT_VIDEO_PRACTICE_LOOP:true}") boolean practiceLoop) {
-        return new com.acttub.actingapi.feature.coach.app.DirectVideoCoach(model, videos, storage, failures, telemetry, practiceLoop);
+            @Value("${ACTTUB_DIRECT_VIDEO_PRACTICE_LOOP:true}") boolean practiceLoop,
+            org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.feature.coach.app.CoachPersonas> personas,
+            // 자문위원 코치 성격 비교(SOMA-622). false 면 모두 기본 성격이다(롤백).
+            @Value("${ACTTUB_COACH_PERSONAS:true}") boolean personasEnabled) {
+        return new com.acttub.actingapi.feature.coach.app.DirectVideoCoach(model, videos, storage, failures, telemetry, practiceLoop,
+                personasEnabled ? personas.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachPersonas.NONE)
+                        : com.acttub.actingapi.feature.coach.app.CoachPersonas.NONE);
     }
 
     @Bean(destroyMethod = "close")
