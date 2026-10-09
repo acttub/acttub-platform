@@ -28,6 +28,7 @@ import {
   type ConsentSettingsRow,
 } from '@/lib/consent-entry';
 import { resetSpotlights } from '@/lib/guide-state';
+import { isMarketingConsent, marketingDecisionNotice } from '@/lib/marketing-consent';
 import { isKorean, translate as t } from '@/lib/i18n';
 import {
   DEFAULT_NOTIFICATION_SETTINGS,
@@ -168,6 +169,11 @@ export default function SettingsScreen() {
         // 결정 시각은 서버가 정한다. 다시 받아 그린다. 목소리 스위치도 같은 동의를 보므로 함께 다시 읽는다.
         await loadConsents().catch(() => undefined);
         void refreshVoice().catch(() => undefined);
+        // 광고성 정보 수신 동의·거부는 처리 결과를 알린다(정보통신망법 제50조 제7항).
+        if (isMarketingConsent(row.type)) {
+          const notice = marketingDecisionNotice([{ type: row.type, decision }], new Date());
+          if (notice) void alert(notice);
+        }
       } catch (err) {
         if (consentChangeFailureAction(err) === 'reload') {
           // 보는 사이 새 판이 나왔다. 목록을 다시 받아 현재 판을 보여 준다.
