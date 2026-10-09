@@ -129,10 +129,21 @@ export function isHidden(input: { maskMode: MaskMode; line: ScriptLine; isMine: 
 /** 가린 내 지금 줄에 쓰는 보조. 그 줄에만 적용되고 다음 줄로 가면 none 으로 돌아간다. */
 export type LineAid = 'none' | 'first_word' | 'original';
 
-/** 가린 줄에 보여 줄 글. null 이면 아무 글자도 보이지 않는다(막대). first_word 는 첫 어절만 한 번. */
+/** 대사 맨 앞의 괄호 지문들(이어진 것 모두). 괄호 모양은 speakable.ts 와 같다. */
+const LEADING_DIRECTIONS = /^(?:[(（[【][^)）\]】]*[)）\]】]\s*)+/;
+
+/**
+ * 가린 줄에 보여 줄 글. null 이면 아무 글자도 보이지 않는다(막대). first_word 는 첫 어절만 한 번 — 대사가 괄호 지문으로
+ * 시작하면 그 지문과 뒤 한 어절이다. 늘 줄 글의 앞부분이라 화면이 나머지를 막대로 잇는다.
+ */
 export function shownText(text: string, hidden: boolean, aid: LineAid): string | null {
   if (!hidden || aid === 'original') return text;
-  if (aid === 'first_word') return text.trim().split(/\s+/)[0] || null;
+  if (aid === 'first_word') {
+    const trimmed = text.trim();
+    const lead = trimmed.match(LEADING_DIRECTIONS)?.[0] ?? '';
+    const word = trimmed.slice(lead.length).split(/\s+/)[0];
+    return (lead + word).trimEnd() || null;
+  }
   return null;
 }
 
