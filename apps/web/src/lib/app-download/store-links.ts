@@ -73,6 +73,72 @@ export function storeCampaignQuery(search: string): string {
   return query ? `?${query}` : "";
 }
 
+/**
+ * `/go/<os>/<surface>/<source>`의 출처 칸. Cloudflare 무료 플랜은 쿼리(UTM)를 집계하지 못해
+ * 경로로만 센다(2026-10-09 실측). 그래서 `utm_source`를 정해진 이름 몇 개로만 줄여 경로에 싣는다.
+ * 원문 값은 경로에 싣지 않는다 — 목록 밖 값은 모두 `other`다.
+ *
+ * `_ad`는 링크에 유료 매체(`utm_medium`)가 명시된 경우만 붙인다. `utm_source=instagram`만으로
+ * 광고라고 추정하지 않는다.
+ */
+export const STORE_LINK_SOURCE_BASES = [
+  "naver",
+  "instagram",
+  "facebook",
+  "google",
+  "kakao",
+  "youtube",
+  "threads",
+  "filmmakers",
+  "email",
+  "other",
+] as const;
+export type StoreLinkSourceBase = (typeof STORE_LINK_SOURCE_BASES)[number];
+
+/** `utm_source` 원문(소문자) → 출처 칸. 목록에 없으면 `other`. */
+export const STORE_LINK_SOURCE_ALIASES: Readonly<Record<string, StoreLinkSourceBase>> = {
+  naver: "naver",
+  instagram: "instagram",
+  ig: "instagram",
+  facebook: "facebook",
+  fb: "facebook",
+  meta: "facebook",
+  google: "google",
+  kakao: "kakao",
+  kakaotalk: "kakao",
+  youtube: "youtube",
+  threads: "threads",
+  filmmakers: "filmmakers",
+  email: "email",
+  newsletter: "email",
+};
+
+/** 이 값이 `utm_medium`이면 유료 링크로 본다. */
+export const STORE_LINK_PAID_MEDIUMS = [
+  "paid_social",
+  "paid",
+  "cpc",
+  "ppc",
+  "paid_search",
+  "display",
+] as const;
+
+export const STORE_LINK_SOURCES = STORE_LINK_SOURCE_BASES.flatMap((base) => [
+  base,
+  `${base}_ad`,
+]) as readonly string[];
+
+/** 현재 주소의 안전한 UTM으로 출처 칸을 정한다. `utm_source`가 없으면 null(칸 없음). */
+export function storeLinkSource(search: string): string | null {
+  const params = storeCampaignParams(search);
+  const source = params.get("utm_source")?.toLowerCase();
+  if (!source) return null;
+  const base = STORE_LINK_SOURCE_ALIASES[source] ?? "other";
+  const medium = params.get("utm_medium")?.toLowerCase() ?? "";
+  const paid = (STORE_LINK_PAID_MEDIUMS as readonly string[]).includes(medium);
+  return paid ? `${base}_ad` : base;
+}
+
 /** Google Play Install Referrer에 넣을 캠페인. 유입 UTM이 비면 기존 웹 표면 귀속을 쓴다. */
 export function playInstallReferrer(
   surface: StoreLinkSurface,
@@ -128,7 +194,7 @@ export function appStoreCampaignHref(
 /**
  * 스토어로 나가는 주소.
  *
- * 배지 클릭은 `/go/<os>/<surface>` 페이지로드로 Cloudflare에서 센 뒤 이 주소로 이동한다.
+ * 배지 클릭은 `/go/<os>/<surface>[/<source>]` 페이지로드로 Cloudflare에서 센 뒤 이 주소로 이동한다.
  * Google Play에는 현재 주소의 안전한 UTM을 Install Referrer로 넘긴다. 명시적인 UTM이 없으면
  * 기존처럼 `utm_source=acttub_web`, `utm_medium=<surface>`를 쓴다. App Store에는 제공자
  * 토큰(`pt`)과 캠페인 이름(`ct`)을 붙인 캠페인 링크를 쓴다. 웹을 거친 iOS 다운로드를 App Store
@@ -152,7 +218,8 @@ export function goHref(
   search = "",
 ): string {
   const os = store === "app_store" ? "ios" : "android";
-  return `/go/${os}/${surface}${storeCampaignQuery(search)}`;
+  const source = storeLinkSource(search);
+  return `/go/${os}/${surface}${source ? `/${source}` : ""}${storeCampaignQuery(search)}`;
 }
 
 /**
@@ -214,6 +281,7 @@ export function buildAppDownloadBootstrapScript(): string {
     `var IOSC=${JSON.stringify(APP_STORE_CAMPAIGN_BASE_URL)},PT=${JSON.stringify(APP_STORE_PROVIDER_TOKEN)},CTMAX=${APP_STORE_CAMPAIGN_TOKEN_MAX_LENGTH},AND=${JSON.stringify(GOOGLE_PLAY_URL)};`,
     `var ATTR=${JSON.stringify(APP_DOWNLOAD_ATTR)},STORE=${JSON.stringify(APP_DOWNLOAD_STORE_ATTR)},FINAL=${JSON.stringify(APP_DOWNLOAD_FINAL_STORE_ATTR)};`,
     `var KEYS=${JSON.stringify(STORE_CAMPAIGN_PARAMS)},MAX=${STORE_CAMPAIGN_VALUE_MAX_LENGTH};`,
+    `var SRC=${JSON.stringify(STORE_LINK_SOURCE_ALIASES)},PAID=${JSON.stringify(STORE_LINK_PAID_MEDIUMS)};`,
     "function os(u,t){",
     'if(/Android/i.test(u))return"android";',
     'if(/iPhone|iPad|iPod/i.test(u))return"ios";',
@@ -233,7 +301,10 @@ export function buildAppDownloadBootstrapScript(): string {
     'var t=p.has("utm_campaign")?p.get("utm_campaign"):(p.has("utm_source")?p.get("utm_source"):"acttub_web")+"_"+(p.has("utm_medium")?p.get("utm_medium"):s);',
     "return t.slice(0,CTMAX)}",
     'function store(k,s,search){return k==="app_store"?IOSC+"?pt="+PT+"&ct="+ct(s,search)+"&mt=8":AND+"&referrer="+encodeURIComponent(referrer(s,search))}',
-    'function go(k,s,search){return "/go/"+(k==="app_store"?"ios":"android")+"/"+s+query(search)}',
+    "function source(search){var p=campaign(search),v=(p.get(\"utm_source\")||\"\").toLowerCase();if(!v)return\"\";",
+    "var b=Object.prototype.hasOwnProperty.call(SRC,v)?SRC[v]:\"other\",m=(p.get(\"utm_medium\")||\"\").toLowerCase();",
+    "return \"/\"+b+(PAID.indexOf(m)>=0?\"_ad\":\"\")}",
+    'function go(k,s,search){return "/go/"+(k==="app_store"?"ios":"android")+"/"+s+source(search)+query(search)}',
     'function href(a){var s=a.getAttribute(ATTR)||"",search=location.search||"";',
     "var finalStore=a.getAttribute(FINAL);if(finalStore)return store(finalStore,s,search);",
     "var fixedStore=a.getAttribute(STORE);if(fixedStore)return go(fixedStore,s,search);",

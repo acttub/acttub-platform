@@ -183,11 +183,11 @@ test("challenge.share: 안전한 UTM은 앱 열기 실패 뒤 /go 또는 /app까
 
   assert.equal(
     openInAppTarget("ios", ENTRY_ID, "https://acttub.com", search).fallback,
-    `/go/ios/entry_share${query}`,
+    `/go/ios/entry_share/instagram_ad${query}`,
   );
   assert.match(
     openInAppTarget("android", ENTRY_ID, "https://acttub.com", search).href,
-    new RegExp(encodeURIComponent(`https://acttub.com/go/android/entry_share${query}`)),
+    new RegExp(encodeURIComponent(`https://acttub.com/go/android/entry_share/instagram_ad${query}`)),
   );
   assert.deepEqual(
     openInAppTarget(null, ENTRY_ID, "https://acttub.com", search),
