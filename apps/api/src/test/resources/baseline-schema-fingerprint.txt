@@ -1030,7 +1030,7 @@ CONSTRAINT community_reports community_reports_status_not_null NOT NULL status
 CONSTRAINT community_reports community_reports_target_id_not_null NOT NULL target_id
 CONSTRAINT community_reports community_reports_target_type_not_null NOT NULL target_type
 CONSTRAINT community_reports uq_community_reports_reporter_target UNIQUE (reporter_id, target_type, target_id)
-CONSTRAINT consent_documents ck_consent_documents_type CHECK ((type = ANY (ARRAY['terms'::text, 'privacy'::text, 'ai_analysis'::text, 'retention'::text, 'cloud_voice'::text, 'script_split'::text])))
+CONSTRAINT consent_documents ck_consent_documents_type CHECK ((type = ANY (ARRAY['terms'::text, 'privacy'::text, 'ai_analysis'::text, 'retention'::text, 'cloud_voice'::text, 'script_split'::text, 'marketing_email'::text, 'marketing_push'::text])))
 CONSTRAINT consent_documents consent_documents_body_not_null NOT NULL body
 CONSTRAINT consent_documents consent_documents_id_not_null NOT NULL id
 CONSTRAINT consent_documents consent_documents_locale_not_null NOT NULL locale

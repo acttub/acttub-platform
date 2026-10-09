@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ConsentRow } from '@/components/consent-row';
@@ -16,6 +16,11 @@ import {
   type ConsentChoice,
 } from '@/lib/consent-entry-submission';
 import { translate as t } from '@/lib/i18n';
+import {
+  entryMarketingDecisions,
+  marketingDecisionNotice,
+  shouldNoticeEntryDecisions,
+} from '@/lib/marketing-consent';
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
@@ -82,7 +87,14 @@ export default function ConsentScreen() {
     setBusy(true);
     setError(null);
     try {
-      await submitSignup(choiceMap);
+      const created = await submitSignup(choiceMap);
+      // 광고성 정보 수신에 동의했으면 처리 결과를 알린다(정보통신망법 제50조 제7항). 가입이 끝나면 이 화면이
+      // 내려가므로 앱 다이얼로그 대신 OS 알림창을 쓴다.
+      const decisions = entryMarketingDecisions(documents, choiceMap);
+      const notice = created && shouldNoticeEntryDecisions(decisions)
+        ? marketingDecisionNotice(decisions, new Date())
+        : null;
+      if (notice) Alert.alert(notice.title, notice.message);
     } catch (cause) {
       if (signupFailureAction(cause) === 'reload_documents') {
         // 보는 사이 새 판이 나왔다. 문서를 다시 받아 화면을 새로 그린다.
