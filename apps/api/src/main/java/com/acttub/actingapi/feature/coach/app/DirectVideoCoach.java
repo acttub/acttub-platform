@@ -204,7 +204,8 @@ public final class DirectVideoCoach {
             var parsed = loop ? DirectVideoPracticeLoop.parse(message) : null;
             if (branch != null) {
                 // 숨은 칸은 모델이 아니라 서버가 쓴다. 모델이 따라 쓴 태그는 parse 가 이미 걷어냈다.
-                String status = branch.status();
+                String status = branch.status(PracticeLoopRouter.WRAP_UP.equals(branch.doing())
+                        ? DirectVideoPracticeLoop.nextTake(message) : "");
                 DirectVideoDialogueEvidence.requireGrounded(uploaded, "<상태>\n" + status + "\n</상태>", written);
                 parsed = new DirectVideoPracticeLoop.Parsed("", status, parsed.message());
             }
@@ -213,6 +214,12 @@ public final class DirectVideoCoach {
             // 첫 응답에서 모델이 연기 영상이 아니라고 분류했으면 그 코치 문장은 버리고 끊는다.
             boolean cut = loop && session.turns().isEmpty() && DirectVideoPracticeLoop.notActing(parsed);
             if (cut) shown = DirectVideoPracticeLoop.notActingMessage(DirectVideoPracticeLoop.replyLanguage(session, actorText));
+            // 첫 응답은 질문 한 문장이다. 앞에 붙인 인사·작품 설명 같은 군말은 걷어낸다.
+            if (loop && !cut && session.turns().isEmpty()) shown = DirectVideoPracticeLoop.onlyFirstQuestion(shown);
+            // 배우가 대안을 말하지 않았는데 정리를 "맞아요, 그거예요"로 시작하면 그 인정 말을 뗀다.
+            if (branch != null && PracticeLoopRouter.WRAP_UP.equals(branch.doing()) && !branch.actorFoundAlternative()) {
+                shown = DirectVideoPracticeLoop.withoutAgreement(shown);
+            }
             boolean timeStripped = false;
             if (loop && DirectVideoPracticeLoop.hasTimestamp(shown)) {
                 shown = DirectVideoPracticeLoop.stripTimestamps(shown);
@@ -282,14 +289,32 @@ public final class DirectVideoCoach {
 
     /** 서버가 정한 이번 응답. 상태 칸과 모델에 줄 지시를 만든다. */
     private record Branch(PracticeLoopRouter.Classified classified, PracticeLoopRouter.Before before, String doing,
-            String goal, java.util.List<String> avoid, String observed, String dialogue, boolean closeNext) {
+            String goal, java.util.List<String> avoid, String observed, String dialogue, boolean closeNext,
+            String actorText, java.util.List<String> materials, String rootField) {
 
         String instruction(java.util.Locale language, String task) {
-            return PracticeLoopRouter.instruction(language, doing, avoid, observed, dialogue, task);
+            // 쉽게 묻기는 이번에 알아낼 것(다음 단계의 목표)을 함께 준다.
+            String withGoal = PracticeLoopRouter.EASY.equals(doing) ? task + "\n  이번에 알아낼 것: " + PracticeLoopRouter.easyGoal(before) : task;
+            // 첫 응답이 찾은 근본 문제와 그 문제를 푸는 길을 매 턴 함께 준다.
+            String root = DirectVideoPrompts.practiceLoopRoot(rootField, language);
+            if (!root.isEmpty()) withGoal = withGoal + "\n\n" + root;
+            return PracticeLoopRouter.instruction(language, doing, avoid, observed, dialogue, withGoal,
+                    PracticeLoopRouter.stageLine(doing, before), materials);
+        }
+
+        /** 배우가 4단계에서 대안을 말했는지(재료에 찾은 대안이 들어갔는지). */
+        boolean actorFoundAlternative() {
+            return materials.stream().anyMatch(line -> line.startsWith("배우가 말한 찾은 대안"));
         }
 
         String status() {
-            return PracticeLoopRouter.status(observed, dialogue, classified, before, doing, goal, avoid, "", closeNext);
+            return status("");
+        }
+
+        /** 정리하기면 숨은 줄의 다음 테이크를 남긴다 — 노트의 다음 촬영이 이것을 쓴다. */
+        String status(String nextTake) {
+            return PracticeLoopRouter.status(observed, dialogue, classified, before, doing, goal, avoid,
+                    nextTake == null ? "" : nextTake.strip(), closeNext, actorText);
         }
     }
 
@@ -297,13 +322,17 @@ public final class DirectVideoCoach {
         var loopState = session.coachingState() == null ? null : session.coachingState().path(DirectVideoPracticeLoop.STATE_KEY);
         int coachTurns = (int) session.turns().stream().filter(t -> "ai".equals(t.role())).count();
         var before = PracticeLoopRouter.before(loopState, coachTurns);
-        var classified = classify(session, actorText, operationId);
+        var classified = PracticeLoopRouter.forRouting(classify(session, actorText, operationId), before);
         String design = loopState == null ? "" : loopState.path("design").asText("");
-        String doing = PracticeLoopRouter.route(classified.kind(), before);
+        int stayed = PracticeLoopRouter.stayed(loopState, coachTurns);
+        String doing = PracticeLoopRouter.route(classified.kind(), before, stayed);
         var avoid = PracticeLoopRouter.avoidAfter(before, classified.kind(), DirectVideoPracticeLoop.habit(design));
         String goal = DirectVideoPracticeLoop.goal(loopState == null ? null : loopState.path("statuses"), design);
         return new Branch(classified, before, doing, goal, avoid, DirectVideoPracticeLoop.statusField(design, "관찰 근거"),
-                DirectVideoPracticeLoop.statusField(design, "대사 확인"), PracticeLoopRouter.closesNext(classified.kind(), before));
+                DirectVideoPracticeLoop.statusField(design, "대사 확인"), PracticeLoopRouter.closesNext(classified.kind(), before),
+                actorText, withTries(materials(design, PracticeLoopRouter.answers(loopState, coachTurns), classified, before, actorText, doing),
+                        doing, stayed, session),
+                DirectVideoPracticeLoop.statusField(design, "근본 문제"));
     }
 
     /**
@@ -328,6 +357,52 @@ public final class DirectVideoCoach {
             failures.report(failure, FailureKind.EXTERNAL, new FailureContext("DirectVideoCoach.shorten", operationId));
             return null;
         }
+    }
+
+    /** 이번 응답의 재료. 관찰 메모에서 버릇·가리는 것·살아 있는 곳·인물을, 상태 칸에서 배우가 단계마다 한 말을 꺼낸다. */
+    /**
+     * 같은 단계에 머물러 다시 물을 때, 이 단계에서 이미 한 코치 말과 이번이 몇 번째인지 준다.
+     * 같은 프롬프트로 같은 질문을 되풀이하지 않게 하려는 것이다.
+     */
+    private static java.util.List<String> withTries(java.util.List<String> materials, String doing, int stayed, CoachSessionSnapshot session) {
+        if (!PracticeLoopRouter.STAYS.contains(doing)) return materials;
+        var coach = session.turns().stream().filter(t -> "ai".equals(t.role())).map(t -> t.text().replaceAll("\\s+", " ")).toList();
+        var lines = new java.util.ArrayList<>(materials);
+        lines.add("이 단계에서 이번이 " + (stayed + 2) + "번째 응답이다. 앞의 코치 말은 배우에게 통하지 않았다. 같은 말, 같은 모양으로 다시 묻지 않는다");
+        for (int i = Math.max(0, coach.size() - stayed - 1); i < coach.size(); i++) lines.add("이 단계에서 이미 한 코치 말: " + coach.get(i));
+        return lines;
+    }
+
+    private static java.util.List<String> materials(String design, java.util.Map<String, String> answers,
+            PracticeLoopRouter.Classified classified, PracticeLoopRouter.Before before, String actorText, String doing) {
+        var lines = new java.util.ArrayList<String>();
+        java.util.function.BiConsumer<String, String> add = (label, value) -> {
+            if (value != null && !value.isBlank() && !value.startsWith("없음")) lines.add(label + ": " + value.strip());
+        };
+        add.accept("정리에서 확인할 대사", DirectVideoPracticeLoop.statusField(design, "확인할 대사"));
+        add.accept("이 배우의 문제", DirectVideoPracticeLoop.statusField(design, "버릇"));
+        add.accept("왜 이 배우의 문제인가", DirectVideoPracticeLoop.statusField(design, "왜 이 배우의 문제인가"));
+        add.accept("버릇이 가리는 것", DirectVideoPracticeLoop.statusField(design, "버릇이 가리는 것"));
+        add.accept("다른 쪽 살아 있는 곳", DirectVideoPracticeLoop.statusField(design, "다른 쪽 살아 있는 곳"));
+        add.accept("인물", DirectVideoPracticeLoop.statusField(design, "인물"));
+        var known = new java.util.LinkedHashMap<>(answers);
+        String field = PracticeLoopRouter.answerField(classified.kind(), before);
+        if (field != null && actorText != null) known.put(field, actorText.strip()); // 방금 답한 단계 답도 재료로
+        known.forEach((label, value) -> add.accept("배우가 말한 " + label, value));
+        add.accept("배우가 방금 한 말", actorText == null ? null : actorText.replaceAll("\\s+", " "));
+        if (classified.kind() == PracticeLoopRouter.Kind.METHOD && PracticeLoopRouter.GAP.equals(doing)) {
+            lines.add("배우가 방법을 물었다. 방법을 말하기 전에, 무엇을 고쳐야 하는지부터 이번 단계로 보여 준다. 다음 질문에서 배우가 방법을 함께 찾는다");
+        }
+        switch (classified.respond()) {
+            case "evaluation" -> lines.add("배우가 답하면서 코치의 판단도 물었다. 첫 문장에서 판단을 먼저 분명히 말하고(괜찮아요 / 조금 어색해요 / 아쉬워요), 이유는 근본 문제에 비춰 짧게 댄 뒤 이번 단계를 한다");
+            case "question" -> lines.add("배우가 답하면서 물은 것이 있다. 첫 문장에서 쉬운 말로 바로 답하고, 이어서 이번 단계를 한다");
+            case "method" -> lines.add("배우가 답하면서 방법도 물었다. 방법은 이번 단계에서 배우와 함께 찾는다. 짧게 받고 이번 단계를 한다");
+            default -> { }
+        }
+        if (PracticeLoopRouter.WRAP_UP.equals(doing) && !known.containsKey("찾은 대안")) {
+            lines.add("배우가 찾은 대안: 아직 없음. \"맞아요, 그거예요\"로 인정하지 말고, 근본 문제를 푸는 길 4단계와 배우의 첫 답을 살리는 행동 하나를 코치가 제안한다");
+        }
+        return lines;
     }
 
     /** 배우의 말 종류. 매번 분류만 하는 AI(영상 없음)에게 묻는다. 실패하면 보통 답으로 이어간다. */
