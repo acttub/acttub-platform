@@ -423,6 +423,55 @@ class DirectVideoCoachTest {
         assertThat(DirectVideoPracticeLoop.stripTimestamps("At 1:05 you look away.")).isEqualTo("you look away.");
     }
 
+    @Test void anEmptyCoachReplyIsRewrittenOnceInsteadOfFailingTheTurn() {
+        var loopEngine = practiceLoopEngine();
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"evaluation\"]}");
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING)
+                .thenThrow(new IllegalStateException("empty video coaching reply"))
+                .thenReturn("발성은 영상으론 알기 어려워요.\n\"잡아줘\"에서 작아진 건 일부러예요?");
+        var first = loopEngine.start(session(), UUID.randomUUID());
+        var second = loopEngine.reply(first.session(), "발성은 어땠어요?", UUID.randomUUID());
+        assertThat(second.reply().message()).isEqualTo("발성은 영상으론 알기 어려워요.\n\"잡아줘\"에서 작아진 건 일부러예요?");
+        var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(model, times(3)).reply(eq(file), anyList(), prompts.capture());
+        assertThat(prompts.getAllValues().get(2)).contains("[다시 쓰기]", "배우에게 보일 코치의 말이 없었다");
+        assertThat(telemetry.calls().getLast().metadata()).containsEntry("empty_retry", "true");
+
+        // 숨은 메모만 쓴 응답도 빈 것으로 보고 다시 쓰게 한다.
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn("<생각>\n내 대답: 답하기\n</생각>", "그때 상대한테 뭘 받고 싶었어요?");
+        var third = loopEngine.reply(second.session(), "음 그냥 그랬어요", UUID.randomUUID());
+        assertThat(third.reply().message()).isEqualTo("그때 상대한테 뭘 받고 싶었어요?");
+    }
+
+    @Test void closeReasonsSayWhyTheCoachClosed() {
+        var loopEngine = practiceLoopEngine();
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING);
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"stop\"]}");
+        var a = loopEngine.start(session(), UUID.randomUUID());
+        assertThat(loopEngine.reply(a.session(), "이제 됐어요 감사합니다", UUID.randomUUID()).session().closeReason())
+                .as("분류 AI가 그만으로 본 말").isEqualTo("actor_finished");
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"self_line\"]}");
+        var b = loopEngine.start(session(), UUID.randomUUID());
+        assertThat(loopEngine.reply(b.session(), "나는 고개로 버티는 배우", UUID.randomUUID()).session().closeReason())
+                .as("물을 것을 다 물음(소진)").isEqualTo("interrupted");
+    }
+
+    @Test void practiceLoopNoteSummaryLeadsWithTheObservedHabitWhenTheActorLeftNoLine() throws Exception {
+        var state = (com.fasterxml.jackson.databind.node.ObjectNode) StructuredJson.MAPPER.readTree("""
+                {"practice_loop":{"design":"버릇: 고개를 크게 돌림 | 곳1: x\\n다음 테이크: 상대를 붙잡으려고 해 봐도 좋아요",
+                 "statuses":["", "배우의 말: 짧은 답\\n할 일: 파고들기(쉬운)", "배우의 말: 답\\n할 일: 이어보기", "배우의 말: 그만\\n할 일: 끝"]}}
+                """);
+        var turns = List.of(new CoachTurnSnapshot("ai", "첫 말"), new CoachTurnSnapshot("user", "네"),
+                new CoachTurnSnapshot("ai", "속으로는 무서웠어요, 화났어요?"), new CoachTurnSnapshot("user", "무서워할 쪽이요"),
+                new CoachTurnSnapshot("ai", "그때 상대한테 뭘 받고 싶었어요?"), new CoachTurnSnapshot("user", "그만"),
+                new CoachTurnSnapshot("ai", "오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요."));
+        var note = DirectVideoPracticeLoop.note(session().withTurns(turns).withCoachingState("three_layers_v1", 0, state, "closed", ""), 4);
+        assertThat(note.summaryQuotes()).hasSize(1);
+        assertThat(note.summaryQuotes().get(0).path("quote").asText()).isEqualTo("고개를 크게 돌림");
+        assertThat(note.summaryQuotes().get(0).path("kind").asText()).isEqualTo("observation");
+        assertThat(note.summaryQuotes().toString()).as("쉬운 질문의 답은 요약에 올리지 않는다").doesNotContain("무서워할 쪽이요");
+    }
+
     CoachSessionSnapshot writtenSession() {
         return new CoachSessionSnapshot(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
                 StructuredJson.MAPPER.createObjectNode(), "빚 독촉 장면", "태식. 센 척함", ".", 8000, "표현", "화술",

@@ -86,6 +86,14 @@ final class DirectVideoPracticeLoop {
         return value.replaceAll("[ \\t]{2,}", " ").replaceAll("(?m)^[ \\t]+", "").strip();
     }
 
+    /** 배우에게 보일 말이 빈 응답을 한 번 다시 쓰게 할 때 지시 끝에 붙이는 말. */
+    static String emptyRetryNote(java.util.Locale language) {
+        boolean korean = language == null || "ko".equals(language.getLanguage());
+        return korean
+                ? "[다시 쓰기]\n방금 답에 배우에게 보일 코치의 말이 없었다. 숨은 메모는 짧게 쓰고 닫은 뒤, 그다음 줄에 배우에게 보일 코치의 말을 반드시 쓴다."
+                : "[Rewrite]\nYour last answer had no words for the actor. Keep any hidden note short and closed, then on the next line write the coach's words for the actor.";
+    }
+
     /** 시간 표기가 나온 응답을 한 번 다시 쓰게 할 때 지시 끝에 붙이는 말. */
     static String timestampRetryNote(java.util.Locale language) {
         boolean korean = language == null || "ko".equals(language.getLanguage());
@@ -322,6 +330,9 @@ final class DirectVideoPracticeLoop {
         var quotes = mapper.createArrayNode();
         if (round.selfLine() != null) quotes.addObject().put("quote", round.selfLine()).put("kind", "actor")
                 .put("source_ref", StructuredCoachEngine.turnId(session, round.selfIndex()));
+        // 배우가 자기 한 줄을 남기지 않았으면 코치가 영상에서 본 버릇을 요약 첫 줄로 둔다. 마지막 답 하나만 남으면 엉뚱하다.
+        if (round.selfLine() == null && !habit.isBlank()) quotes.addObject().put("quote", shorten(habit, 80)).put("kind", "observation")
+                .put("source_ref", StructuredCoachEngine.turnId(session, 0));
         if (round.reason() != null) quotes.addObject().put("quote", round.reason()).put("kind", "actor")
                 .put("source_ref", StructuredCoachEngine.turnId(session, round.reasonIndex()));
         String title = habit.isBlank() ? null : shorten(habit, TITLE_MAX);
@@ -391,7 +402,8 @@ final class DirectVideoPracticeLoop {
             } else if (kind.startsWith("선택 설명")) {
                 choice = text;
                 choiceIndex = i;
-            } else if (lastAction.startsWith("파고들기") && !kind.startsWith("짧은 답")) {
+            } else if (lastAction.startsWith("파고들기") && !lastAction.startsWith("파고들기(") && !kind.startsWith("짧은 답")) {
+                // 고르기만 하면 되는 쉬운 질문(파고들기(쉬운))의 답은 이유가 아니다 — "무서워할 쪽이요"가 요약에 올라갔다.
                 // 버릇이 언제·왜 나오는지에 대한 배우의 마지막 답.
                 probe = text;
                 probeIndex = i;

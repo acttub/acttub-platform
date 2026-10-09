@@ -76,8 +76,11 @@ public final class DirectVideoCoach {
             String closing = fixedClosing(DirectVideoPracticeLoop.replyLanguage(session, actorText));
             ObjectNode state = nextState(session);
             DirectVideoPracticeLoop.remember(state, new DirectVideoPracticeLoop.Parsed("", branch.status(), closing));
+            // 닫힌 사유: 배우가 그만 → user_ended, 응답 상한 → limit, 그 밖(물을 것을 다 물음) → exhausted.
+            boolean stopped = actorFinished || branch.classified().kind() == PracticeLoopRouter.Kind.STOP;
+            boolean ceiling = turnBudget || branch.before().reply() >= PracticeLoopRouter.LAST_REPLY - 1;
             return StructuredCoachEngine.result(session, actorText, closing, state,
-                    actorFinished ? "actor_finished" : turnBudget ? "turn_budget" : "interrupted");
+                    stopped ? "actor_finished" : ceiling ? "turn_budget" : "interrupted");
         }
         if (loop && DirectVideoPracticeLoop.tooShort(session)) {
             // 연기가 담길 수 없는 길이 — 영상을 올리거나 모델을 부르지 않고 끊는다. 노트도 만들지 않는다.
@@ -171,7 +174,15 @@ public final class DirectVideoCoach {
                     + (loop ? DirectVideoPracticeLoop.actorMaterial(session) : "") + task, uploaded);
             input = CoachPrompt.withoutActorName(prompt, session.actorProfile()) + "\n" + history;
             ExternalOperationExecution.externalCall("model");
-            String message = model.reply(uploaded, history, prompt);
+            String message = replyOrNull(uploaded, history, prompt, loop);
+            // 연습 루프에서 배우에게 보일 말이 비었으면(빈 응답, 숨은 메모만 쓴 응답) 한 번 다시 쓰게 한다.
+            boolean emptyRetry = false;
+            if (loop && (message == null || DirectVideoPracticeLoop.parse(message).message().isBlank())) {
+                emptyRetry = true;
+                ExternalOperationExecution.externalCall("model");
+                message = replyOrNull(uploaded, history, prompt + "\n\n"
+                        + DirectVideoPracticeLoop.emptyRetryNote(DirectVideoPracticeLoop.replyLanguage(session, actorText)), loop);
+            }
             if (message == null || message.isBlank()) throw new IllegalStateException("empty video coaching reply");
             DirectVideoDialogueEvidence.requireGrounded(uploaded, message, written);
             // 영상 시간("0:23", "0:03부터 0:46까지")으로 구간을 가리키면 한 번 다시 쓰게 한다. 배우는 시간으로 장면을 떠올리지 못한다.
@@ -221,7 +232,7 @@ public final class DirectVideoCoach {
                     null, LlmCall.metadata("transport", "gemini_direct_video", "route", route,
                             "route_fallback", Boolean.toString(branch != null ? "fallback".equals(branch.classified().by()) : routeFallback),
                             "timestamp_retry", Boolean.toString(timeRetry), "timestamp_stripped", Boolean.toString(timeStripped),
-                            "shorten_calls", Integer.toString(shortened)))
+                            "shorten_calls", Integer.toString(shortened), "empty_retry", Boolean.toString(emptyRetry)))
                     .withPrompt(template));
             if (loop) DirectVideoPracticeLoop.remember(state, parsed);
             if (cut) DirectVideoPracticeLoop.markNotActing(state, "model");
@@ -251,6 +262,21 @@ public final class DirectVideoCoach {
                     failures.report(failure, new FailureContext("DirectVideoCoach.tempCleanup", operationId));
                 }
             }
+        }
+    }
+
+    /**
+     * 코치 AI 호출. 연습 루프에서는 빈 응답("empty video coaching reply")을 오류로 끝내지 않고 {@code null}로 돌려
+     * 한 번 다시 쓰게 한다. 다른 실패는 그대로 던진다.
+     */
+    private String replyOrNull(DirectVideoModel.Video video, java.util.List<DirectVideoModel.Message> history, String prompt,
+            boolean loop) {
+        try {
+            String reply = model.reply(video, history, prompt);
+            return reply == null || reply.isBlank() ? null : reply;
+        } catch (IllegalStateException empty) {
+            if (loop && String.valueOf(empty.getMessage()).contains("empty")) return null;
+            throw empty;
         }
     }
 

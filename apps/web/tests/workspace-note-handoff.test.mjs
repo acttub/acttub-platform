@@ -17,21 +17,22 @@ function block(startMarker, endMarker) {
   return source.slice(start, end);
 }
 
-test("대화가 끝나도 화면을 노트로 자동 전환하지 않는다", () => {
+test("대화가 닫히고 노트가 오면 화면을 노트로 바로 넘긴다", () => {
   const pushAi = block("const pushAi = useCallback", "const openNote = useCallback");
-  // 코치 응답은 대화 자리의 전이만 낸다. 노트 화면으로 넘기는 전이를 여기서 내면
-  // 마지막 인사를 읽기도 전에 화면이 넘어간다.
+  // 코치는 닫을 때 마무리 말을 하지 않으므로 앱처럼 곧장 노트로 간다(SOMA-633).
   // 대화 id 는 응답이 준 것을 그대로 싣는다 — 화면이 그것으로 답을 보낸다.
   assert.match(
     pushAi,
     /dispatch\(\{\s*type: "coachTurnReceived",\s*coachId: turn\.conversation\.id,/,
   );
-  assert.doesNotMatch(pushAi, /noteOpened|noteLoaded/);
+  assert.match(pushAi, /if \(done && turn\.note\) \{\s*dispatch\(\{ type: "noteOpened" \}\);/);
+  assert.match(pushAi, /if \(countStepOnce\(currentSessionId\(\), "result"\)\)/);
+  assert.doesNotMatch(pushAi, /noteLoaded/);
   // 목록 새로고침은 노트가 딸려 온 턴에서만 한다.
   assert.match(pushAi, /if \(turn\.note\) void refreshList\(\);/);
 });
 
-test("노트 전환과 결과 조회 집계는 배우가 누를 때만 일어난다", () => {
+test("정리보기 버튼으로도 노트로 넘기고 결과 조회를 한 번만 센다", () => {
   const openNote = block("const openNote = useCallback", "const restoreCoach = useCallback");
   assert.match(openNote, /dispatch\(\{ type: "noteOpened" \}\)/);
   // 집계는 화면이 든 노트를 읽고, 그것이 있을 때만 나간다. 노트 없이 세면 그 자리에

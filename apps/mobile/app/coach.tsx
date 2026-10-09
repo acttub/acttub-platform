@@ -351,7 +351,7 @@ export default function CoachScreen() {
 
           {closed && (
             <>
-              <Text style={styles.doneText}>{conversation?.close_reason === 'system_failure' || conversation?.close_reason === 'exhausted'
+              <Text style={styles.doneText}>{conversation?.close_reason === 'system_failure'
                 ? t('coach.doneFailure') : practice.note ? t('coach.doneNormal') : t('coach.doneShort')}</Text>
               <Pressable style={styles.retry} onPress={practice.note ? goToNote : finishWithoutNote} accessibilityRole="button">
                 <Text style={styles.retryText}>{practice.note ? t('coach.seeSummary') : t('coach.finishBtn')}</Text>
