@@ -88,23 +88,47 @@ final class DirectVideoPrompts {
         return base;
     }
 
+    /** 할 일 이름과 상황별 프롬프트 파일. 할 일마다 파일 하나다({@code coaching/direct-video/tasks/<말>/<id>.txt}). */
+    private static final java.util.Map<String, String> TASK_FILES = java.util.Map.ofEntries(
+            java.util.Map.entry(PracticeLoopRouter.WANT, "want"),
+            java.util.Map.entry(PracticeLoopRouter.GAP, "gap"),
+            java.util.Map.entry(PracticeLoopRouter.FIND, "find"),
+            java.util.Map.entry(PracticeLoopRouter.EASY, "easy"),
+            java.util.Map.entry(PracticeLoopRouter.REASK, "reask"),
+            java.util.Map.entry(PracticeLoopRouter.PROPOSE, "propose"),
+            java.util.Map.entry(PracticeLoopRouter.WRAP_UP, "wrap-up"),
+            java.util.Map.entry("짚어주기", "point-out"),
+            java.util.Map.entry("짚어주기(다른 쪽)", "point-out-other"),
+            java.util.Map.entry("내려놓기", "let-go"),
+            java.util.Map.entry("답하기", "answer"));
+
     /**
-     * 할 일 하나의 쓰는 법. 할 일 파일에서 {@code "- 이름:"}으로 시작하는 줄과 그 아래 들여 쓴 줄만 가져온다.
-     * 이름이 없으면 예외 — 서버가 정한 할 일과 파일이 어긋난 것이다.
+     * 할 일 하나의 상황별 프롬프트. 한국어는 {@code tasks/ko}, 그 밖의 말은 {@code tasks/en}에서 읽는다.
+     * 파일이 없는 할 일이면 예외 — 서버가 정한 할 일과 파일이 어긋난 것이다.
      */
-    static String practiceLoopTask(String doing, java.util.Locale language) {
+    /** 첫 응답 <설계>의 근본 문제 칸(번호나 이름)으로 고르는 "이 문제를 푸는 길" 파일. */
+    private static final java.util.List<String[]> ROOTS = java.util.List.of(
+            new String[] {"1", "집중", "focus"}, new String[] {"2", "목적", "purpose"}, new String[] {"3", "캐릭터", "character"},
+            new String[] {"4", "상황", "situation"}, new String[] {"5", "관계", "relationship"});
+
+    /** 근본 문제 칸을 읽어 그 길을 돌려준다. 칸이 비었거나 모르는 값이면 빈 문자열(예전 대화). */
+    static String practiceLoopRoot(String rootField, java.util.Locale language) {
+        if (rootField == null || rootField.isBlank()) return "";
+        String value = rootField.strip();
         boolean korean = language == null || "ko".equals(language.getLanguage());
-        String tasks = resource(korean ? "practice-loop-tasks" : "practice-loop-tasks.en");
-        var lines = tasks.split("\n", -1);
-        var picked = new ArrayList<String>();
-        for (int i = 0; i < lines.length; i++) {
-            if (!lines[i].startsWith("- " + doing + ":")) continue;
-            picked.add(lines[i]);
-            for (int j = i + 1; j < lines.length && lines[j].startsWith("  "); j++) picked.add(lines[j]);
-            break;
+        for (String[] root : ROOTS) {
+            if (value.startsWith(root[0]) || value.contains(root[1])) {
+                return resource("roots/" + (korean ? "ko" : "en") + "/" + root[2]);
+            }
         }
-        if (picked.isEmpty()) throw new IllegalStateException("practice loop task is missing: " + doing);
-        return String.join("\n", picked);
+        return "";
+    }
+
+    static String practiceLoopTask(String doing, java.util.Locale language) {
+        String id = TASK_FILES.get(doing);
+        if (id == null) throw new IllegalStateException("practice loop task is missing: " + doing);
+        boolean korean = language == null || "ko".equals(language.getLanguage());
+        return resource("tasks/" + (korean ? "ko" : "en") + "/" + id);
     }
 
     static String forRoutes(List<DirectVideoRoute> routes) {
