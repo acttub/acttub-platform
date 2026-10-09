@@ -16,6 +16,16 @@ GA4는 유입용 서브프로젝트 6개(voice·acti·stage·mono·pick·link)�
 경로 집계는 아래 GA4·Amplitude의 동의 게이트와 별개다.
 랜딩은 `landing_*`, 앱 안내는 `app_page`, 검색 유입 안내는 `keyword_page` surface로 구분한다.
 
+Cloudflare 무료 플랜은 쿼리(UTM)와 존 리퍼러를 집계하지 못한다(2026-10-09 실측). 그래서 링크에
+`utm_source`가 있으면 `/go/<os>/<surface>/<source>`처럼 **출처 칸**을 하나 더 붙여 경로로 센다
+(`store-links.ts`의 `storeLinkSource`). 출처 칸은 `STORE_LINK_SOURCE_BASES`의 정해진 이름만 쓰고
+목록 밖 값은 `other`다. `utm_medium`이 유료 매체(`paid_social`·`cpc` 등)일 때만 `_ad`를 붙인다.
+`utm_source`가 없으면 칸을 붙이지 않는다. 스토어로 넘기는 UTM 쿼리 규칙은 아래와 같다.
+
+팀 브라우저는 `?acttub_team=1`로 한 번 열면 그 기기의 Cloudflare 비컨(`/cdn-cgi/rum`) 전송만
+막는다(`lib/analytics/team-beacon-guard.ts`, `?acttub_team=0`으로 해제). 비컨은 프록시가 자동으로
+넣으므로 사람별로 끌 방법이 이것뿐이다. 표시는 localStorage 한 칸이고 어디로도 보내지 않는다.
+
 ### 다운로드 캠페인 전달
 
 현재 주소의 수동 태깅 UTM 6종(`utm_source`, `utm_medium`, `utm_campaign`, `utm_id`,

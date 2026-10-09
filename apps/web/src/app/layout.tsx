@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Analytics } from "@/features/analytics/analytics";
 import { ConsentSheetHost } from "@/features/consent/consent-sheet";
 import { TransferredNoticeHost } from "@/features/transfer/transferred-notice";
+import { buildTeamBeaconGuardScript } from "@/lib/analytics/team-beacon-guard";
 import { buildRootMetadata } from "@/lib/seo/site-metadata";
 import { PretendardStylesheet } from "./pretendard-stylesheet";
 import "./globals.css";
@@ -37,6 +38,8 @@ export default function RootLayout({
     <html lang="ko" className="h-full antialiased">
       <head>
         <script dangerouslySetInnerHTML={{ __html: INAPP_ESCAPE }} />
+        {/* 팀 브라우저(?acttub_team=1)의 Cloudflare 비컨만 막는다 — lib/analytics/team-beacon-guard.ts */}
+        <script dangerouslySetInnerHTML={{ __html: buildTeamBeaconGuardScript() }} />
       </head>
       <body className="min-h-full flex flex-col">
         <PretendardStylesheet />
