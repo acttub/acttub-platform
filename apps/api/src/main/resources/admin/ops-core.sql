@@ -20,6 +20,7 @@
 --  10. 가입 코호트 원장('signup_rows', SOMA-591) — 사람 단위 가입 행(가명·기기·첫 업로드 확정 시각).
 --      ops 가 플랫폼(iOS·안드로이드·웹)×유입 소스 퍼널을 같은 기간 코호트로 계산한다. 수집기 정본에는 없다.
 --      가입 때 고른 연기 경력·목표·방향(값 이름 그대로)도 싣는다(SOMA-632) — 누가 다시 연습하는지 묶어 본다.
+--      가입 직후 답한 유입 경로(값 이름, SOMA-649)도 싣는다 — Airbridge 귀속이 놓친 몫과 나란히 본다.
 --  11. 업로드 완료 · 연습 미시작 원장('upload_only_rows'). 영상 업로드는 끝냈지만(finalized) 아직 어떤
 --      연습·챌린지에도 연결되지 않은 업로드 한 벌이다. 기존 sessions·activity_rows·퍼널·코칭 지표는
 --      건드리지 않는 순수 additive 데이터다 — 자세한 판정·한계는 그 CTE 바로 위 주석을 본다.
@@ -771,11 +772,17 @@ SELECT json_build_object(
       'goal', up.goal,
       'directions', (SELECT COALESCE(json_agg(d.direction ORDER BY d.direction), '[]'::json)
           FROM user_profile_directions d
-          WHERE d.user_id = sd.user_id)
+          WHERE d.user_id = sd.user_id),
+      -- 가입 직후 답한 "처음 어디서 알게 됐어요?"(SOMA-649). 값 이름만 싣고 '기타' 직접 입력(other_text)은 싣지 않는다.
+      -- 답한 행이 없으면 discovery_answered=false, 건너뛰었으면 answered=true·source=null 이다.
+      'discovery_answered', (da.user_id IS NOT NULL),
+      'discovery_source', da.source,
+      'discovery_detail', da.detail
     ) ORDER BY sd.created_at DESC, sd.user_id), '[]'::json)
     FROM signup_device sd
     JOIN signup_platform sp ON sp.user_id = sd.user_id
     LEFT JOIN user_profiles up ON up.user_id = sd.user_id
+    LEFT JOIN user_discovery_answers da ON da.user_id = sd.user_id
     WHERE sd.user_id NOT IN (SELECT id FROM team) AND sd.created_at <= now()),
   -- 업로드만 하고 연습을 시작하지 않은 업로드 원장. 위 upload_only_rows CTE 주석이 판정
   -- 기준과 사각지대를 적는다. 팀 행도 빼지 않고 is_team=true 로 내보낸다 — 화면이 기본값으로 거른다.
