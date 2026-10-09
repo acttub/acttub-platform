@@ -9,16 +9,22 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.encryption.AccessPermission;
 import org.apache.pdfbox.pdmodel.encryption.StandardProtectionPolicy;
+import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -149,6 +155,32 @@ class DocumentTextTest {
     }
 
     @Test
+    @DisplayName("reading.script 원본: 한 줄의 글자를 먼저 그리고 괄호·부호를 나중에 그린 PDF 는 그 줄만 가로 위치 순으로 세운다")
+    void pdfLineDrawnOutOfOrder() throws IOException {
+        // 운영의 macOS PDF(2026-10-08)는 한 줄의 한글을 먼저, 괄호·쉼표·물음표를 나중에 그려 「없네( ) , ?」로 읽혔다.
+        Path file = pdf("marks-last.pdf", List.of(marksLast("(calmly) so, gone?", 50, 700), marksLast("Who (me)?", 50, 680)));
+        assertThat(read(file)).isEqualTo(new DocumentText.Text("(calmly) so, gone?\nWho (me)?\n"));
+    }
+
+    @Test
+    @DisplayName("reading.script 원본: 2단 편집 PDF 는 단마다 그린 순서대로 — 같은 높이의 두 단을 한 줄로 섞지 않는다")
+    void pdfColumnsStayApart() throws IOException {
+        Path file = pdf("columns.pdf", List.of(inOrder("Left one", 50, 700), inOrder("Left two", 50, 680),
+                inOrder("Right one", 320, 700), inOrder("Right two", 320, 680)));
+        assertThat(read(file)).isEqualTo(new DocumentText.Text("Left one\nLeft two\nRight one\nRight two\n"));
+    }
+
+    @Test
+    @DisplayName("reading.script 원본: 앞 글자와 살짝 겹쳐 그린 글자(따옴표)는 되돌아간 것으로 보지 않는다")
+    void pdfSlightOverlapKeepsOrder() throws IOException {
+        List<Glyph> line = new ArrayList<>(inOrder("go ", 50, 700));
+        Glyph space = line.getLast();
+        line.add(new Glyph("\u2018", space.x() - 1, 700));
+        line.addAll(inOrder("home", space.x() - 1 + width("\u2018"), 700));
+        assertThat(read(pdf("overlap.pdf", List.of(line)))).isEqualTo(new DocumentText.Text("go \u2018home\n"));
+    }
+
+    @Test
     @DisplayName("reading.script 원본: 글자 없는 PDF(스캔)·사용자 암호 PDF·잘린 PDF·한글 97·모르는 zip·이진 파일은 읽지 못함이다")
     void unreadableFiles() throws IOException {
         assertThat(read(resource("scan.pdf"))).isEqualTo(new DocumentText.Unreadable("no_text"));
@@ -206,6 +238,59 @@ class DocumentTextTest {
 
     private static DocumentText.Extracted read(Path file) {
         return DocumentText.read(file, 100_000);
+    }
+
+    private static final PDType1Font HELVETICA = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+    private static final float SIZE = 12;
+
+    /** PDF 에 그리는 글자 하나. 그리는 순서는 목록 순서다. */
+    private record Glyph(String text, float x, float y) {
+    }
+
+    private static float width(String text) throws IOException {
+        return HELVETICA.getStringWidth(text) / 1000 * SIZE;
+    }
+
+    /** 왼쪽부터 차례로 그린다. */
+    private static List<Glyph> inOrder(String text, float x, float y) throws IOException {
+        List<Glyph> glyphs = new ArrayList<>();
+        for (int i = 0; i < text.length(); i++) {
+            String ch = text.substring(i, i + 1);
+            glyphs.add(new Glyph(ch, x, y));
+            x += width(ch);
+        }
+        return glyphs;
+    }
+
+    /** 글자·공백을 먼저, 괄호·부호를 나중에 그린다 — 자리는 inOrder 와 같다. */
+    private static List<Glyph> marksLast(String text, float x, float y) throws IOException {
+        List<Glyph> glyphs = inOrder(text, x, y);
+        List<Glyph> ordered = new ArrayList<>();
+        glyphs.stream().filter(g -> g.text().matches("[\\p{L} ]")).forEach(ordered::add);
+        glyphs.stream().filter(g -> !g.text().matches("[\\p{L} ]")).forEach(ordered::add);
+        return ordered;
+    }
+
+    /** 줄마다 글자를 목록 순서대로 하나씩 그린 한 쪽짜리 PDF. */
+    private Path pdf(String name, List<List<Glyph>> lines) throws IOException {
+        Path file = dir.resolve(name);
+        try (PDDocument document = new PDDocument()) {
+            PDPage page = new PDPage();
+            document.addPage(page);
+            try (PDPageContentStream content = new PDPageContentStream(document, page)) {
+                for (List<Glyph> line : lines) {
+                    for (Glyph glyph : line) {
+                        content.beginText();
+                        content.setFont(HELVETICA, SIZE);
+                        content.newLineAtOffset(glyph.x(), glyph.y());
+                        content.showText(glyph.text());
+                        content.endText();
+                    }
+                }
+            }
+            document.save(file.toFile());
+        }
+        return file;
     }
 
     private static String p(String prefix, String inner) {
