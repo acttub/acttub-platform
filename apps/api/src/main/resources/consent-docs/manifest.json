@@ -48,6 +48,22 @@
     "required": false
   },
   {
+    "file": "marketing_email_v1.md",
+    "type": "marketing_email",
+    "version": "v1",
+    "locale": "ko",
+    "title": "광고성 정보 수신 동의 (이메일)",
+    "required": false
+  },
+  {
+    "file": "marketing_push_v1.md",
+    "type": "marketing_push",
+    "version": "v1",
+    "locale": "ko",
+    "title": "광고성 정보 수신 동의 (앱 푸시)",
+    "required": false
+  },
+  {
     "file": "terms_v1_en.md",
     "type": "terms",
     "version": "v1",
@@ -93,6 +109,22 @@
     "version": "v1",
     "locale": "en",
     "title": "Script splitting (optional)",
+    "required": false
+  },
+  {
+    "file": "marketing_email_v1_en.md",
+    "type": "marketing_email",
+    "version": "v1",
+    "locale": "en",
+    "title": "Advertising information by email",
+    "required": false
+  },
+  {
+    "file": "marketing_push_v1_en.md",
+    "type": "marketing_push",
+    "version": "v1",
+    "locale": "en",
+    "title": "Advertising information by app push",
     "required": false
   }
 ]
