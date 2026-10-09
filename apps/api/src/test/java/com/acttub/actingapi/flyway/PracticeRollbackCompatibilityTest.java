@@ -140,7 +140,7 @@ class PracticeRollbackCompatibilityTest {
         if (expected.remove(consentTypesBefore)) {
             expected.add("CONSTRAINT consent_documents ck_consent_documents_type CHECK ((type = ANY "
                     + "(ARRAY['terms'::text, 'privacy'::text, 'ai_analysis'::text, 'retention'::text, "
-                    + "'cloud_voice'::text, 'script_split'::text])))");
+                    + "'cloud_voice'::text, 'script_split'::text, 'marketing_email'::text, 'marketing_push'::text])))");
         }
         // V31 은 넓히기가 아니라 좁히기다. validate 는 CHECK·인덱스를 보지 않아 옛 서버가 뜨기는 하지만, 옛 서버는 새 연습을
         // 시작할 때 'stopped' 를 써서 이 CHECK 에 걸린다. 그래서 V31 앞의 이미지로는 되돌리지 않는다(V31 머리 주석).
