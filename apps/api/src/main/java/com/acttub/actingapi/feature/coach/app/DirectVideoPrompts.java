@@ -131,6 +131,19 @@ final class DirectVideoPrompts {
         return resource("tasks/" + (korean ? "ko" : "en") + "/" + id);
     }
 
+    /** 성격 id 로 덧붙일 글. 기본 성격·모르는 id·한국어가 아닌 말이면 빈 문자열(SOMA-622). */
+    static String persona(String id, java.util.Locale language) {
+        boolean korean = language == null || "ko".equals(language.getLanguage());
+        if (!korean || !"b1".equals(id)) return "";
+        return resource("personas/" + id);
+    }
+
+    /** 성격을 받은 대화에서 줄이기가 말투를 기본 말투로 되돌리지 않게 하는 한 줄. */
+    static String personaShortenNote(String id, java.util.Locale language) {
+        return persona(id, language).isEmpty() ? ""
+                : "\n- 말투는 원래 말의 말투를 그대로 둔다. 원래 말이 \"~해요.\"로 방향을 줬으면 \"~해 봐도 좋아요\"로 바꾸지 않는다. 쿠션어나 칭찬을 더하지 않는다.";
+    }
+
     static String forRoutes(List<DirectVideoRoute> routes) {
         return common() + "\n\n" + routes.stream().map(route -> resource(route.id))
                 .collect(Collectors.joining("\n\n"));
