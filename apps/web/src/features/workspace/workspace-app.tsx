@@ -534,13 +534,19 @@ function WorkspaceInner() {
       revisionRef.current = turn.conversation.revision;
       const done = isConversationDone(turn);
       setMessages((m) => [...m, { role: "ai", text: turn.message }]);
-      // 노트는 받아 두되 화면은 그대로 둔다 — 마지막 인사를 읽고 배우가 직접 넘어간다.
       dispatch({
         type: "coachTurnReceived",
         coachId: turn.conversation.id,
         done,
         report: turn.note ?? null,
       });
+      // 대화가 닫히고 노트가 왔으면 바로 노트로 넘긴다(앱과 같다). 코치는 닫을 때 마무리 말을 하지 않는다.
+      if (done && turn.note) {
+        dispatch({ type: "noteOpened" });
+        if (countStepOnce(currentSessionId(), "result")) {
+          trackPracticeResultViewed(reportTypeOf(turn.note), dialogueTurnCountRef.current, "current");
+        }
+      }
       if (done) {
         trackPracticeDialogueCompleted(
           dialogueTurnCountRef.current,
@@ -550,10 +556,10 @@ function WorkspaceInner() {
       }
       if (turn.note) void refreshList();
     },
-    [refreshList],
+    [refreshList, countStepOnce, currentSessionId],
   );
 
-  // 대화를 끝낸 뒤 배우가 직접 누를 때만 노트로 넘긴다. 지난 연습을 여는 경로는
+  // 정리보기 버튼(노트에서 대화로 돌아갔다 다시 볼 때, 노트 없이 닫혔다가 늦게 받았을 때)으로 노트로 넘긴다. 지난 연습을 여는 경로는
   // 이미 노트가 목적지라 여기를 거치지 않는다.
   const openNote = useCallback(() => {
     dispatch({ type: "noteOpened" });
