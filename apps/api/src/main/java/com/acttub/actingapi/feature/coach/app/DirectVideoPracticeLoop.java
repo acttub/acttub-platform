@@ -29,7 +29,7 @@ final class DirectVideoPracticeLoop {
     private static final Pattern THINKING = Pattern.compile("(?s)<생각>.*?</생각>");
     // 닫는 태그를 빠뜨렸을 때 메모의 칸 줄만 걷어낸다.
     private static final Pattern THINKING_LINE = Pattern.compile(
-            "(?m)^\\s*(?:<생각>|(?:배우가 한 말|배우가 지금 원하는 것|내 대답|끝 질문|글자 수)\\s*:.*)$\\R?");
+            "(?m)^\\s*(?:<생각>|(?:배우가 한 말|배우가 지금 원하는 것|이번 목표|내 대답|끝 질문|글자 수)\\s*:.*)$\\R?");
     // 마무리2 에서 모델이 건넨 행동을 노트에 남기려고 쓰게 하는 숨은 줄. 배우에게는 보이지 않는다.
     private static final Pattern NEXT_TAKE_TAG = Pattern.compile("(?s)<다음 테이크>\\s*(.*?)\\s*</다음 테이크>");
     // 모델이 줄 끝에 남기는 날 자모("알려 주세요.ㄴ" 같은). 실험에서 실제로 나왔고 다음 턴에 그대로 따라 한다.
@@ -40,12 +40,31 @@ final class DirectVideoPracticeLoop {
     /** 모델 응답 하나를 숨은 칸과 배우에게 보일 본문으로 나눈 것. 없는 칸은 빈 문자열이다. */
     record Parsed(String design, String status, String message) { }
 
+    /** 첫 응답에서 물음표로 끝나는 마지막 줄만 남긴다. 그런 줄이 없으면 그대로 둔다. */
+    static String onlyFirstQuestion(String message) {
+        var lines = message.strip().lines().map(String::strip).filter(line -> !line.isEmpty()).toList();
+        if (lines.size() <= 1) return message.strip();
+        String last = lines.get(lines.size() - 1);
+        return last.endsWith("?") ? last : message.strip();
+    }
+
+    private static final Pattern AGREEMENT = Pattern.compile("^\\s*맞아요[,.!]?\\s*(?:그거예요[.!]?\\s*)?");
+
+    /** 맨 앞의 "맞아요, 그거예요." 같은 인정 말을 뗀다. 뗀 뒤 비면 그대로 둔다. */
+    static String withoutAgreement(String message) {
+        String rest = AGREEMENT.matcher(message).replaceFirst("").strip();
+        return rest.isEmpty() ? message.strip() : rest;
+    }
+
     static Parsed parse(String raw) {
         String text = raw == null ? "" : raw.strip();
         String design = first(DESIGN, text);
         String status = first(STATUS, text);
         String rest = NEXT_TAKE_TAG.matcher(STATUS.matcher(DESIGN.matcher(text).replaceAll("")).replaceAll("")).replaceAll("");
         rest = THINKING.matcher(rest).replaceAll("");
+        // 여는 태그 없이 </생각>만 남았으면 그 앞은 모두 메모다(실험에서 실제로 나왔다).
+        int strayClose = rest.lastIndexOf("</생각>");
+        if (strayClose >= 0) rest = rest.substring(strayClose + "</생각>".length());
         if (rest.contains("<생각>")) rest = THINKING_LINE.matcher(rest).replaceAll("");
         Matcher coach = COACH.matcher(rest);
         String message = coach.find() ? coach.group(1) : rest;
