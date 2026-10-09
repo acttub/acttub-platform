@@ -301,6 +301,16 @@ final class DirectVideoPracticeLoop {
         return history;
     }
 
+    /** 이 대화가 받은 코치 성격(SOMA-622). 자문위원 대화가 아니면 빈 문자열. */
+    static String storedPersona(JsonNode state) {
+        return state == null ? "" : state.path(STATE_KEY).path("persona").asText("");
+    }
+
+    static void rememberPersona(ObjectNode state, String persona) {
+        ObjectNode loop = state.path(STATE_KEY).isObject() ? (ObjectNode) state.get(STATE_KEY) : state.putObject(STATE_KEY);
+        if (loop.path("persona").asText("").isEmpty()) loop.put("persona", persona);
+    }
+
     /** 이번 응답의 숨은 칸을 상태에 쌓는다. statuses 의 순서는 코치 턴의 순서와 같다. */
     static void remember(ObjectNode state, Parsed parsed) {
         ObjectNode loop = state.path(STATE_KEY).isObject() ? (ObjectNode) state.get(STATE_KEY) : state.putObject(STATE_KEY);
