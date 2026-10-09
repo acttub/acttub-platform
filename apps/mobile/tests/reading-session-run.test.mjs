@@ -118,6 +118,16 @@ test('reading.session: 가린 줄의 보조 — [첫 단어]는 첫 어절만, [
   assert.equal(shownText('어떻게 알았어.', false, 'none'), '어떻게 알았어.', '안 가린 줄은 그대로');
 });
 
+test('reading.session: [첫 단어]는 대사 앞 괄호 지문을 통째로 보이고 그 뒤 한 어절까지 보인다', () => {
+  assert.equal(shownText('(무감정한 눈빛으로) 근데 오늘은 그 친구, 없네?', true, 'first_word'), '(무감정한 눈빛으로) 근데');
+  assert.equal(shownText('(웃으며) 그런가.', true, 'first_word'), '(웃으며) 그런가.');
+  assert.equal(shownText('(작게) [돌아서며] 응.', true, 'first_word'), '(작게) [돌아서며] 응.', '이어진 괄호는 모두');
+  assert.equal(shownText('（한참 보다가） 고마워.', true, 'first_word'), '（한참 보다가） 고마워.', '전각 괄호');
+  assert.equal(shownText('(끄덕)', true, 'first_word'), '(끄덕)', '괄호만 있는 대사');
+  assert.equal(shownText('근데 (사이) 없네?', true, 'first_word'), '근데', '중간 괄호는 보통 첫 어절');
+  assert.equal(shownText('(무감정한 눈빛으로 근데', true, 'first_word'), '(무감정한', '닫히지 않은 괄호는 보통 첫 어절');
+});
+
 test('reading.session: 이어하기는 current_line 부터 시작하고 그 줄 직전의 상대 대사 하나를 먼저 읽는다', () => {
   const r = resumeRun(run(), 'l4');
   assert.equal(r.index, 2, '직전 상대 대사(태오 2)');
