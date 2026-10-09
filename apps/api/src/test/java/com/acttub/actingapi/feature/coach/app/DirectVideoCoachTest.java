@@ -337,6 +337,47 @@ class DirectVideoCoachTest {
                 new DirectVideoCoach(model, videos, storage, failures, telemetry, true)));
     }
 
+    @Test void advisorPersonaIsAssignedOnceStoredAndAddedToEveryCoachPrompt() {
+        var asked = new java.util.concurrent.atomic.AtomicInteger();
+        var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
+                model, videos, storage, failures, telemetry, true, s -> { asked.incrementAndGet(); return "b1"; })));
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\"]}");
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING, "\"가\"에서도 상대를 안 봐요. 누구한테 하는 말이에요?");
+        var first = loopEngine.start(session(), UUID.randomUUID());
+        var second = loopEngine.reply(first.session(), "붙잡길 바랐어요", UUID.randomUUID());
+        assertThat(asked).as("성격은 첫 응답 전에 한 번만 정한다").hasValue(1);
+        assertThat(second.session().coachingState().path("practice_loop").path("persona").asText()).isEqualTo("b1");
+        var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(model, times(2)).reply(eq(file), anyList(), prompts.capture());
+        String persona = DirectVideoPrompts.persona("b1", null);
+        assertThat(persona).startsWith("[이 코치의 성격: 무뚝뚝한 현장 연출가]");
+        assertThat(prompts.getAllValues().get(0)).isEqualTo(DirectVideoPrompts.practiceLoop(first.session().practiceSessionId()) + "\n\n" + persona);
+        assertThat(prompts.getAllValues().get(1)).startsWith(DirectVideoPrompts.practiceLoopTurn()).endsWith(persona);
+        assertThat(telemetry.calls()).filteredOn(call -> call.step() == com.acttub.actingapi.platform.observability.LlmStep.COACH_TURN)
+                .allSatisfy(call -> assertThat(call.metadata()).containsEntry("persona", "b1"));
+    }
+
+    @Test void defaultPersonaIsRecordedWithoutChangingThePromptAndOthersGetNothing() {
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING);
+        var advisor = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
+                model, videos, storage, failures, telemetry, true, s -> CoachPersonas.DEFAULT))).start(session(), UUID.randomUUID());
+        assertThat(advisor.session().coachingState().path("practice_loop").path("persona").asText()).isEqualTo("a");
+        verify(model).reply(eq(file), anyList(), eq(DirectVideoPrompts.practiceLoop(advisor.session().practiceSessionId())));
+        var other = practiceLoopEngine().start(session(), UUID.randomUUID());
+        assertThat(other.session().coachingState().path("practice_loop").has("persona")).isFalse();
+        assertThat(DirectVideoPrompts.persona("b1", Locale.ENGLISH)).as("성격 글은 한국어 대화에만 붙는다").isEmpty();
+    }
+
+    @Test void aFailingPersonaLookupFallsBackToTheDefaultCoach() {
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING);
+        var result = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
+                model, videos, storage, failures, telemetry, true, s -> { throw new IllegalStateException("db down"); })))
+                .start(session(), UUID.randomUUID());
+        assertThat(result.reply().message()).isEqualTo(OPENING_SHOWN);
+        assertThat(result.session().coachingState().path("practice_loop").has("persona")).isFalse();
+        assertThat(failures.reports()).hasSize(1);
+    }
+
     @SuppressWarnings("unchecked")
     @Test void practiceLoopShowsOnlyCoachTextAndLetsCodeChooseEachLaterAction() {
         var loopEngine = practiceLoopEngine();
