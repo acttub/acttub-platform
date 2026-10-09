@@ -30,9 +30,17 @@ public final class DirectVideoCoach {
     private final DirectVideoRouting routing;
     // 연습 루프로 대화를 끌고 간다. 첫 응답은 연습 루프 프롬프트, 둘째 응답부터는 코드가 할 일을 정한다. 배포가 정한다.
     private final boolean practiceLoop;
+    // 자문위원 연습만 코치 성격을 번갈아 받는다(SOMA-622). 그 밖의 배우는 늘 기본 성격이다.
+    private final CoachPersonas personas;
 
     public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
             FailureReporter failures, LlmTelemetry telemetry, boolean practiceLoop) {
+        this(model, videos, storage, failures, telemetry, practiceLoop, CoachPersonas.NONE);
+    }
+
+    public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
+            FailureReporter failures, LlmTelemetry telemetry, boolean practiceLoop, CoachPersonas personas) {
+        this.personas = personas == null ? CoachPersonas.NONE : personas;
         this.practiceLoop = practiceLoop;
         this.model = model;
         this.videos = videos;
@@ -51,6 +59,7 @@ public final class DirectVideoCoach {
         DirectVideoModel.Video uploaded = null;
         Instant started = Instant.now();
         boolean loop = practiceLoop && DirectVideoPracticeLoop.applies(session);
+        String persona = loop ? persona(session, operationId) : "";
         var history = new ArrayList<DirectVideoModel.Message>();
         if (loop) {
             history.addAll(DirectVideoPracticeLoop.history(session.turns(), session.coachingState(), actorText));
@@ -134,6 +143,7 @@ public final class DirectVideoCoach {
                             .map(turn -> turn.text()).collect(java.util.stream.Collectors.joining("\n"))
                     + "\n" + (actorText == null ? "" : actorText);
             ObjectNode state = nextState(session);
+            if (!persona.isEmpty()) DirectVideoPracticeLoop.rememberPersona(state, persona);
             if (loop) {
                 DirectVideoDialogueEvidence.discardUngroundedDesign(uploaded, state, written);
                 history.clear();
@@ -147,7 +157,7 @@ public final class DirectVideoCoach {
                 history.addAll(DirectVideoPracticeLoop.history(session.turns(), state, actorText, false));
                 String design = state.path(DirectVideoPracticeLoop.STATE_KEY).path("design").asText("");
                 task = DirectVideoPrompts.practiceLoopTurn(language) + "\n\n" + branch.instruction(language,
-                        DirectVideoPrompts.practiceLoopTask(branch.doing(), language));
+                        DirectVideoPrompts.practiceLoopTask(branch.doing(), language)) + personaBlock(persona, language);
                 boolean korean = language == null || "ko".equals(language.getLanguage());
                 template = korean ? new LlmPrompt("coach.practice-loop.turn", DirectVideoPrompts.practiceLoopTurn())
                         : new LlmPrompt("coach.practice-loop.turn.en", DirectVideoPrompts.practiceLoopTurnEnglish());
@@ -155,7 +165,7 @@ public final class DirectVideoCoach {
                 // 종료("그만")도 연습 루프가 해 본 횟수로 닫는다. 서버는 아래에서 세션만 닫는다.
                 route = "practice_loop";
                 java.util.Locale language = DirectVideoPracticeLoop.replyLanguage(session, actorText);
-                task = DirectVideoPrompts.practiceLoop(session.practiceSessionId(), language);
+                task = DirectVideoPrompts.practiceLoop(session.practiceSessionId(), language) + personaBlock(persona, language);
                 // 기록에는 칸 순서를 섞기 전 템플릿을 잇는다. 섞인 본문마다 Langfuse 버전이 새로 생기지 않게 한다.
                 boolean korean = language == null || "ko".equals(language.getLanguage());
                 template = korean ? new LlmPrompt("coach.practice-loop", DirectVideoPrompts.practiceLoop())
@@ -229,7 +239,7 @@ public final class DirectVideoCoach {
             // 앱이 코치 말을 아주 큰 글씨로 보여서 50자 안쪽이 목표다. 60자가 넘으면 자르지 않고 줄이기만 하는 호출로 두 번까지 줄인다.
             int shortened = 0;
             while (loop && !cut && shortened < 2 && DirectVideoPracticeLoop.displayLength(shown) > DirectVideoPracticeLoop.LONG_REPLY) {
-                String shorter = shorten(shown, DirectVideoPracticeLoop.replyLanguage(session, actorText), uploaded, written, operationId);
+                String shorter = shorten(shown, DirectVideoPracticeLoop.replyLanguage(session, actorText), persona, uploaded, written, operationId);
                 shortened++;
                 if (shorter == null) break;
                 shown = shorter;
@@ -239,7 +249,8 @@ public final class DirectVideoCoach {
                     null, LlmCall.metadata("transport", "gemini_direct_video", "route", route,
                             "route_fallback", Boolean.toString(branch != null ? "fallback".equals(branch.classified().by()) : routeFallback),
                             "timestamp_retry", Boolean.toString(timeRetry), "timestamp_stripped", Boolean.toString(timeStripped),
-                            "shorten_calls", Integer.toString(shortened), "empty_retry", Boolean.toString(emptyRetry)))
+                            "shorten_calls", Integer.toString(shortened), "empty_retry", Boolean.toString(emptyRetry),
+                            "persona", persona))
                     .withPrompt(template));
             if (loop) DirectVideoPracticeLoop.remember(state, parsed);
             if (cut) DirectVideoPracticeLoop.markNotActing(state, "model");
@@ -270,6 +281,27 @@ public final class DirectVideoCoach {
                 }
             }
         }
+    }
+
+    /**
+     * 이 대화의 코치 성격(SOMA-622). 저장된 값이 있으면 그대로, 첫 응답이면 배정을 묻는다.
+     * 배정이 실패하면 기본 성격으로 간다 — 코칭은 멈추지 않는다.
+     */
+    private String persona(CoachSessionSnapshot session, UUID operationId) {
+        String stored = DirectVideoPracticeLoop.storedPersona(session.coachingState());
+        if (!stored.isEmpty() || !session.turns().isEmpty()) return stored;
+        try {
+            String assigned = personas.assign(session);
+            return assigned == null ? "" : assigned.strip();
+        } catch (RuntimeException failure) {
+            failures.report(failure, FailureKind.UNEXPECTED, new FailureContext("DirectVideoCoach.persona", operationId));
+            return "";
+        }
+    }
+
+    private static String personaBlock(String persona, java.util.Locale language) {
+        String text = DirectVideoPrompts.persona(persona, language);
+        return text.isEmpty() ? "" : "\n\n" + text;
     }
 
     /**
@@ -339,11 +371,11 @@ public final class DirectVideoCoach {
      * 긴 코치 말을 줄이기만 하는 호출(영상 없음). 뜻과 마지막 질문은 그대로 두고 50자 안쪽으로 다시 쓰게 한다.
      * 줄지 않았거나 비었거나 근거 검사를 못 넘으면 {@code null} — 부르는 쪽이 원래 말을 그대로 쓴다.
      */
-    private String shorten(String text, java.util.Locale language, DirectVideoModel.Video video, String written, UUID operationId) {
+    private String shorten(String text, java.util.Locale language, String persona, DirectVideoModel.Video video, String written, UUID operationId) {
         try {
             ExternalOperationExecution.externalCall("model");
             String raw = model.reply(null, java.util.List.of(new DirectVideoModel.Message("user", text)),
-                    DirectVideoPrompts.practiceLoopShorten(language));
+                    DirectVideoPrompts.practiceLoopShorten(language) + DirectVideoPrompts.personaShortenNote(persona, language));
             if (raw == null || raw.isBlank()) return null;
             String shorter = DirectVideoPracticeLoop.parse(raw).message();
             if (DirectVideoPracticeLoop.hasTimestamp(shorter)) shorter = DirectVideoPracticeLoop.stripTimestamps(shorter);
