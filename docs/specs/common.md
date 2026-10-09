@@ -21,7 +21,7 @@
 | 게이트 밖 | 로그인·가입 제출·게스트 시작·토큰 갱신·로그아웃·제공자 목록(`/v2/auth/**`), 동의 문서 조회와 제출(`/v2/consents/**`), 내 정보 조회와 탈퇴(`GET`·`DELETE /v2/me`), 푸시 토큰 삭제(`DELETE /v2/push-tokens` — 로그인 없이 받는다, account.notification), 공개 입시 정보(`/v2/admissions/**`), 오디션 공고 목록(`GET /v2/auditions`, app.audition), 공개 조회(`GET /v2/public/**` — 포트폴리오 공유 account.portfolio, 참여작 공유 challenge), 운영 경로(`/v2/admin/**`) |
 | 게스트 전용 | 이관 코드 받기(`/v2/guest/**`) — 필요한 동의 문서가 없다. 회원이 부르면 403 `guest_only` (account.guest) |
 | 동의까지만 | 프로필 저장(`PUT /v2/me/profile`) — 개인정보를 받기 전에 수집 동의가 끝나 있어야 하고, 프로필이 빈 사람이 채우는 자리다 (account.profile) |
-| 개인정보 동의만 | 웹 유입 최초 기록(`PUT /v2/me/web-attribution`) — 회원·게스트 모두 인증과 현재 개인정보 수집·이용 동의가 필요하고 프로필은 보지 않는다. 앱 `PUT /v2/me/signup-attribution`은 기존 회원 전용 보호 기능을 유지한다. |
+| 개인정보 동의만 | 웹 유입 최초 기록(`PUT /v2/me/web-attribution`) — 회원·게스트 모두 인증과 현재 개인정보 수집·이용 동의가 필요하고 프로필은 보지 않는다. 앱 `PUT /v2/me/signup-attribution`과 가입 직후 유입 경로 자기 응답 `PUT /v2/me/discovery`(SOMA-649)는 기존 회원 전용 보호 기능을 유지한다. |
 | 동의 + 프로필 | 그 밖의 모든 `/v2`. 보호 기능이며 게이트를 통과하기 전에는 쓸 수 없다 |
 
 - 개인정보 동의만 보는 웹 유입 경로를 제외하면 위 표는 회원의 규칙이다. 게스트의 규칙은 아래 문단과 account.guest에 있다.
