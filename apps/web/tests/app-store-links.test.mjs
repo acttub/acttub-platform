@@ -18,6 +18,7 @@ const {
   STORE_CAMPAIGN_PARAMS,
   STORE_CAMPAIGN_VALUE_MAX_LENGTH,
   STORE_LINK_SURFACES,
+  STORE_LINK_SOURCES,
   STORE_ORDER,
   appStoreCampaignToken,
   buildAppDownloadBootstrapScript,
@@ -27,6 +28,7 @@ const {
   playInstallReferrer,
   storeCampaignQuery,
   storeHref,
+  storeLinkSource,
 } = await import("../src/lib/app-download/store-links.ts");
 
 const IPHONE_UA =
@@ -204,12 +206,40 @@ test("허용 UTM은 /app과 /go 경유에서도 보존되고 금지 쿼리는 �
   assert.equal(downloadHrefFor(null, "landing_hero", PAID_SEARCH), `/app${PAID_QUERY}`);
   assert.equal(
     goHref("google_play", "app_page", PAID_SEARCH),
-    `/go/android/app_page${PAID_QUERY}`,
+    `/go/android/app_page/instagram_ad${PAID_QUERY}`,
   );
   assert.equal(
     goHref("app_store", "app_page", PAID_SEARCH),
-    `/go/ios/app_page${PAID_QUERY}`,
+    `/go/ios/app_page/instagram_ad${PAID_QUERY}`,
   );
+});
+
+test("/go 출처 칸은 utm_source를 정해진 이름으로 줄이고 유료 매체만 _ad를 붙인다", () => {
+  assert.equal(storeLinkSource(""), null);
+  assert.equal(storeLinkSource("?utm_medium=cpc"), null);
+  assert.equal(storeLinkSource("?utm_source=naver&utm_medium=cpc"), "naver_ad");
+  assert.equal(storeLinkSource("?utm_source=NAVER&utm_medium=CPC"), "naver_ad");
+  assert.equal(storeLinkSource("?utm_source=instagram&utm_medium=social"), "instagram");
+  assert.equal(storeLinkSource("?utm_source=ig"), "instagram");
+  assert.equal(storeLinkSource("?utm_source=meta&utm_medium=paid_social"), "facebook_ad");
+  // 목록 밖 값과 안전하지 않은 값은 경로에 원문으로 싣지 않는다
+  assert.equal(storeLinkSource("?utm_source=some.partner"), "other");
+  assert.equal(storeLinkSource("?utm_source=%3Cscript%3E"), null);
+  assert.equal(goHref("app_store", "landing_cta"), "/go/ios/landing_cta");
+  for (const source of ["naver", "naver_ad", "instagram_ad", "other", "other_ad"]) {
+    assert.ok(STORE_LINK_SOURCES.includes(source), source);
+  }
+  assert.equal(new Set(STORE_LINK_SOURCES).size, STORE_LINK_SOURCES.length);
+});
+
+test("출처 칸 /go 경로는 기존 /go와 같은 이동 컴포넌트와 bootstrap을 쓴다", () => {
+  const sourcePage = readFileSync(
+    path.resolve(import.meta.dirname, "../src/app/go/[os]/[surface]/[source]/page.tsx"),
+    "utf8",
+  );
+  assert.match(sourcePage, /buildAppDownloadBootstrapScript\(\)/);
+  assert.match(sourcePage, /STORE_LINK_SOURCES/);
+  assert.match(sourcePage, /dynamicParams = false/);
 });
 
 test("모든 다운로드 surface가 /go 정적 경로 목록의 단일 정본에 있다", () => {
