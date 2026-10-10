@@ -343,13 +343,35 @@ final class PracticeLoopRouter {
         return b.lastDoing().startsWith(WRAP_UP) && asked(kind);
     }
 
+    /** 정리 뒤에도 한 번 받아 주고 닫을 말: 물음·평가·방법 요청, 그리고 정리에 다른 해석을 낸 반박·정정. */
     private static boolean asked(Kind kind) {
-        return kind == Kind.QUESTION || kind == Kind.EVALUATION || kind == Kind.METHOD;
+        return kind == Kind.QUESTION || kind == Kind.EVALUATION || kind == Kind.METHOD
+                || kind == Kind.PUSHBACK || kind == Kind.CORRECTION;
     }
 
     private static String answerTo(Kind kind, Before b) {
-        if (kind == Kind.EVALUATION) return b.habitDropped() ? "짚어주기(다른 쪽)" : "짚어주기";
+        if (kind == Kind.EVALUATION) return "짚어주기";
         return "답하기";
+    }
+
+    /** 앱·웹의 고정 버튼 문구. 배우가 직접 쓴 말이 아니라서 분류 AI에 묻지 않고 코드가 정한다. */
+    static final java.util.Set<String> EXPLAIN_BUTTON = java.util.Set.of("예시로 설명해 주세요.", "Explain with an example.");
+    static final java.util.Set<String> LATER_BUTTON = java.util.Set.of(
+            "지금은 연습하기 어려워요. 다음에 해볼 방법을 설명해 주세요.", "I can’t practice now. Please explain what I can try later.");
+    static final String BY_BUTTON = "button";
+    static final String BY_LATER = "button_later";
+
+    /**
+     * 고정 버튼 문구면 그 분류, 아니면 {@code null}.
+     * 예시 버튼은 지금 질문을 못 알아들었다는 뜻이라 같은 단계를 보기 둘로 쉽게 다시 묻는다(짧은 답과 같은 길).
+     * 나중에 버튼은 단계와 상관없이 바로 정리한다. 정리 뒤면 둘 다 물음으로 보고 한 번 답한다.
+     */
+    static Classified button(String actorText, Before b) {
+        String text = actorText == null ? "" : actorText.strip();
+        boolean afterWrap = b.lastDoing().startsWith(WRAP_UP);
+        if (EXPLAIN_BUTTON.contains(text)) return new Classified(afterWrap ? Kind.QUESTION : Kind.SHORT, false, BY_BUTTON);
+        if (LATER_BUTTON.contains(text)) return new Classified(Kind.METHOD, false, afterWrap ? BY_BUTTON : BY_LATER);
+        return null;
     }
 
     /** 이번 응답 뒤의 피할 것. 정정·반박이면 지금 버릇을 더한다. */
