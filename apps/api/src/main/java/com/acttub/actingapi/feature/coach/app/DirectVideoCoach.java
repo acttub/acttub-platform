@@ -238,6 +238,14 @@ public final class DirectVideoCoach {
             if (cut) shown = DirectVideoPracticeLoop.notActingMessage(DirectVideoPracticeLoop.replyLanguage(session, actorText));
             // 첫 응답은 질문 한 문장이다. 앞에 붙인 인사·작품 설명 같은 군말은 걷어낸다.
             if (loop && !cut && session.turns().isEmpty()) shown = DirectVideoPracticeLoop.onlyFirstQuestion(shown);
+            if (branch != null) {
+                boolean last = PracticeLoopRouter.WRAP_UP.equals(branch.doing()) || branch.closeNext();
+                // 정리와 정리 뒤 답은 질문하지 않는다. 질문 문장은 떼고, 다 떼면 원래 말을 둔다.
+                // 그 밖의 말은 질문이 둘 이상이면 첫 질문까지만 남긴다.
+                shown = last ? DirectVideoPracticeLoop.withoutQuestions(shown) : DirectVideoPracticeLoop.firstQuestionOnly(shown);
+                // 배우가 방금 한 말을 첫 문장에서 그대로 되풀이하면 뗀다.
+                shown = DirectVideoPracticeLoop.withoutEcho(shown, actorText);
+            }
             // 배우가 대안을 말하지 않았는데 정리를 "맞아요, 그거예요"로 시작하면 그 인정 말을 뗀다.
             if (branch != null && PracticeLoopRouter.WRAP_UP.equals(branch.doing()) && !branch.actorFoundAlternative()) {
                 shown = DirectVideoPracticeLoop.withoutAgreement(shown);
@@ -342,8 +350,9 @@ public final class DirectVideoCoach {
             // 첫 응답이 찾은 근본 문제와 그 문제를 푸는 길을 매 턴 함께 준다.
             String root = DirectVideoPrompts.practiceLoopRoot(rootField, language);
             if (!root.isEmpty()) withGoal = withGoal + "\n\n" + root;
-            return PracticeLoopRouter.instruction(language, doing, avoid, observed, dialogue, withGoal,
-                    PracticeLoopRouter.stageLine(doing, before), materials);
+            // 정리 뒤 한 번 답하는 말이면 단계 질문으로 돌아가지 않는다 — 배우가 답하면 바로 닫히기 때문이다.
+            String stage = closeNext ? lastWordLine(language, classified.kind()) : PracticeLoopRouter.stageLine(doing, before);
+            return PracticeLoopRouter.instruction(language, doing, avoid, observed, dialogue, withGoal, stage, materials);
         }
 
         /** 배우가 4단계에서 대안을 말했는지(재료에 찾은 대안이 들어갔는지). */
@@ -353,6 +362,17 @@ public final class DirectVideoCoach {
 
         String status() {
             return status("");
+        }
+
+        private static String lastWordLine(java.util.Locale language, PracticeLoopRouter.Kind kind) {
+            boolean korean = language == null || "ko".equals(language.getLanguage());
+            boolean disagreed = kind == PracticeLoopRouter.Kind.PUSHBACK || kind == PracticeLoopRouter.Kind.CORRECTION;
+            if (!korean) {
+                return "this is the last thing you say today. Answer in one or two sentences and do not ask any question."
+                        + (disagreed ? " The actor offered a different reading: accept it and suggest checking it in the next take." : "");
+            }
+            return "이번이 오늘 대화의 마지막 말이다. 물은 것에 한두 문장으로 답만 하고 질문하지 않는다. 아래 모양 칸의 \"질문\"은 이번에는 쓰지 않는다."
+                    + (disagreed ? " 배우가 정리에 다른 해석을 냈다. 그 해석을 받아들이고, 다음 테이크에서 그대로 해 보며 확인해 보자고 한다." : "");
         }
 
         /** 정리하기면 숨은 줄의 다음 테이크를 남긴다 — 노트의 다음 촬영이 이것을 쓴다. */
@@ -366,10 +386,13 @@ public final class DirectVideoCoach {
         var loopState = session.coachingState() == null ? null : session.coachingState().path(DirectVideoPracticeLoop.STATE_KEY);
         int coachTurns = (int) session.turns().stream().filter(t -> "ai".equals(t.role())).count();
         var before = PracticeLoopRouter.before(loopState, coachTurns);
-        var classified = PracticeLoopRouter.forRouting(classify(session, actorText, operationId), before);
+        var pressed = PracticeLoopRouter.button(actorText, before);
+        var classified = pressed != null ? pressed : PracticeLoopRouter.forRouting(classify(session, actorText, operationId), before);
         String design = loopState == null ? "" : loopState.path("design").asText("");
         int stayed = PracticeLoopRouter.stayed(loopState, coachTurns);
         String doing = PracticeLoopRouter.route(classified.kind(), before, stayed);
+        // "지금은 연습하기 어려워요" 버튼은 단계와 상관없이 바로 정리한다(그만·상한은 그대로 닫는다).
+        if (PracticeLoopRouter.BY_LATER.equals(classified.by()) && !PracticeLoopRouter.END.equals(doing)) doing = PracticeLoopRouter.WRAP_UP;
         var avoid = PracticeLoopRouter.avoidAfter(before, classified.kind(), DirectVideoPracticeLoop.habit(design));
         String goal = DirectVideoPracticeLoop.goal(loopState == null ? null : loopState.path("statuses"), design);
         return new Branch(classified, before, doing, goal, avoid, DirectVideoPracticeLoop.statusField(design, "관찰 근거"),
