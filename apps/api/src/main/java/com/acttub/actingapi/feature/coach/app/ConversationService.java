@@ -188,7 +188,7 @@ public class ConversationService {
                 saved.revision(),
                 result.reply().message(),
                 saved.coachReplyCount(),
-                replyLimit(loaded.session()),
+                displayLimit(result.session(), saved.coachReplyCount()),
                 turns(after.session()).stream().limit(result.session().turns().size()).toList(),
                 note);
     }
@@ -237,7 +237,7 @@ public class ConversationService {
                 session.stateRevision(),
                 turns.isEmpty() ? "" : turns.getLast().text(),
                 coachReplies(session),
-                replyLimit(session),
+                displayLimit(session, coachReplies(session)),
                 turns,
                 note);
     }
@@ -255,6 +255,21 @@ public class ConversationService {
 
     private static int coachReplies(CoachSessionSnapshot session) {
         return (int) session.turns().stream().filter(turn -> "ai".equals(turn.role())).count();
+    }
+
+    /**
+     * 화면에 보낼 응답 상한. 코치가 정리했거나 정리 뒤 마지막 답을 했으면 다음 배우 말에서 닫히므로
+     * "코치 응답 수 + 1"로 내려 앱이 "다음 답으로 마무리해요"를 띄우게 한다. 서버가 닫는 판단에는 쓰지 않는다.
+     */
+    static int displayLimit(CoachSessionSnapshot session, int coachReplies) {
+        int limit = replyLimit(session);
+        if (session == null || !"open".equals(session.status()) || session.coachingState() == null) return limit;
+        var statuses = session.coachingState().path(DirectVideoPracticeLoop.STATE_KEY).path("statuses");
+        if (!statuses.isArray() || statuses.isEmpty()) return limit;
+        String last = statuses.get(statuses.size() - 1).asText("");
+        boolean closesNext = DirectVideoPracticeLoop.action(last).startsWith(PracticeLoopRouter.WRAP_UP)
+                || DirectVideoPracticeLoop.statusField(last, "다음에 닫기").startsWith("예");
+        return closesNext ? Math.min(limit, coachReplies + 1) : limit;
     }
 
     private static int replyLimit(CoachSessionSnapshot session) {

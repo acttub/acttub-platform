@@ -132,6 +132,57 @@ final class DirectVideoPracticeLoop {
         return letters > 0 && (hangul * 2 < letters || jamo >= 6);
     }
 
+    // 문장 끝(마침표·물음표·느낌표 뒤 공백)과 줄바꿈에서 나눈다. 따옴표 안 대사 끝의 물음표 뒤에는 공백이 아니라 따옴표가 오므로 나뉘지 않는다.
+    private static final Pattern SENTENCE_BREAK = Pattern.compile("(?<=[.?!])[ \\t]+|\\R+");
+
+    private static List<String> sentences(String text) {
+        return java.util.Arrays.stream(SENTENCE_BREAK.split(text.strip())).map(String::strip).filter(s -> !s.isEmpty()).toList();
+    }
+
+    /** 물음표로 끝나는 문장을 뗀다. 다 떼어지면 원래 말을 그대로 둔다. */
+    static String withoutQuestions(String text) {
+        var kept = sentences(text).stream().filter(s -> !s.endsWith("?")).toList();
+        return kept.isEmpty() ? text.strip() : String.join("\n", kept);
+    }
+
+    /**
+     * 질문 문장이 둘 이상이면 첫 질문까지만 남긴다. 뒤 질문은 대개 앞 질문을 바꿔 묻거나 덧붙인 것이다
+     * ("…뭘 해 볼래요? 또는 따지기, 달래기 중 고른다면요?").
+     */
+    static String firstQuestionOnly(String text) {
+        var all = sentences(text);
+        if (all.stream().filter(s -> s.endsWith("?")).count() < 2) return text.strip();
+        var kept = new ArrayList<String>();
+        for (String sentence : all) {
+            kept.add(sentence);
+            if (sentence.endsWith("?")) break;
+        }
+        return String.join("\n", kept);
+    }
+
+    /** 첫 문장이 배우가 방금 한 말을 10자 넘게 그대로 따라 하면 그 문장을 뗀다. 남는 문장이 없으면 그대로 둔다. */
+    static String withoutEcho(String text, String actorText) {
+        var all = sentences(text);
+        if (all.size() < 2 || actorText == null) return text.strip();
+        String first = all.get(0).replaceAll("[\\s\\p{Punct}…]", "");
+        String actor = actorText.replaceAll("[\\s\\p{Punct}…]", "");
+        if (longestCommon(first, actor) <= 10) return text.strip();
+        return String.join("\n", all.subList(1, all.size()));
+    }
+
+    private static int longestCommon(String a, String b) {
+        int best = 0;
+        int[] prev = new int[b.length() + 1];
+        for (int i = 1; i <= a.length(); i++) {
+            int[] cur = new int[b.length() + 1];
+            for (int j = 1; j <= b.length(); j++) {
+                if (a.charAt(i - 1) == b.charAt(j - 1)) { cur[j] = prev[j - 1] + 1; best = Math.max(best, cur[j]); }
+            }
+            prev = cur;
+        }
+        return best;
+    }
+
     /** 깨진 출력을 한 번 다시 쓰게 할 때 지시 끝에 붙이는 말. */
     static String brokenRetryNote(java.util.Locale language) {
         boolean korean = language == null || "ko".equals(language.getLanguage());
