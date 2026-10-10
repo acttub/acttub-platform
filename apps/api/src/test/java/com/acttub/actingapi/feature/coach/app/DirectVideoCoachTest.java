@@ -540,13 +540,18 @@ class DirectVideoCoachTest {
         assertThat(ConversationService.displayLimit(wrapped, 2)).as("정리 직후 앱이 마무리를 예고한다").isEqualTo(3);
         clearInvocations(model);
         when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\",\"pushback\"]}");
-        when(model.reply(eq(file), anyList(), anyString())).thenReturn("그 해석이면 고집으로 밀어붙여도 좋아요. 다음 테이크에서 확인해 봐요. 어때요?");
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(
+                "<다음 테이크>고집대로 밀어붙이며 따져 봐도 좋아요</다음 테이크>\n그 해석이면 고집으로 밀어붙여도 좋아요. 다음 테이크에서 확인해 봐요. 어때요?");
         var answered = loopEngine.reply(wrapped, "근데 이 캐릭터는 고집이 센 캐릭터이긴 하거든", UUID.randomUUID());
         assertThat(answered.reply().status()).isEqualTo("continue");
         assertThat(answered.reply().message()).isEqualTo("그 해석이면 고집으로 밀어붙여도 좋아요.\n다음 테이크에서 확인해 봐요.");
         var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(model).reply(eq(file), anyList(), prompts.capture());
-        assertThat(prompts.getValue()).contains("이번이 오늘 대화의 마지막 말이다", "다른 해석을 냈다").doesNotContain("지금 단계: 4/4");
+        assertThat(prompts.getValue()).contains("이번이 오늘 대화의 마지막 말이다", "다른 해석을 냈다", "배우의 해석을 따른다", "시키지 않는다")
+                .doesNotContain("지금 단계: 4/4");
+        // 노트의 다음 촬영은 배우 해석을 받아 준 행동으로 바뀐다.
+        assertThat(DirectVideoPracticeLoop.closingNextTake(answered.session().coachingState().path("practice_loop").path("statuses")))
+                .isEqualTo("고집대로 밀어붙이며 따져 봐도 좋아요");
         assertThat(answered.session().coachingState().path("practice_loop").path("statuses").toString()).contains("다음에 닫기: 예");
         var next = PracticeLoopRouter.before(answered.session().coachingState().path("practice_loop"), 3);
         assertThat(PracticeLoopRouter.route(PracticeLoopRouter.Kind.ANSWER, next)).as("다음 말에서 닫는다").isEqualTo(PracticeLoopRouter.END);
