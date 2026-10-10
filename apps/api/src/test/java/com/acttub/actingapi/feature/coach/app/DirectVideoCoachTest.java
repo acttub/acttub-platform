@@ -478,6 +478,9 @@ class DirectVideoCoachTest {
         assertThat(DirectVideoPracticeLoop.looksBroken("\"Who knows\"에서 고개가 내려가요. 그때 상대한테 뭘 받고 싶었어요?", null)).isFalse();
         assertThat(DirectVideoPracticeLoop.looksBroken("Then what did you want from her in that scene?", java.util.Locale.ENGLISH)).isFalse();
         assertThat(DirectVideoPracticeLoop.looksBroken("", null)).isFalse();
+        assertThat(DirectVideoPracticeLoop.looksBroken("\u200B", null)).as("보이지 않는 글자만").isTrue();
+        assertThat(DirectVideoPracticeLoop.looksBroken(" \u200B \u200B \u200B ", null)).isTrue();
+        assertThat(DirectVideoPracticeLoop.looksBroken("뭘 받고 싶었어요?\u200B", null)).isFalse();
 
         var loopEngine = practiceLoopEngine();
         when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\"]}");
