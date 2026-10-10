@@ -226,7 +226,8 @@ public final class DirectVideoCoach {
             var parsed = loop ? DirectVideoPracticeLoop.parse(message) : null;
             if (branch != null) {
                 // 숨은 칸은 모델이 아니라 서버가 쓴다. 모델이 따라 쓴 태그는 parse 가 이미 걷어냈다.
-                String status = branch.status(PracticeLoopRouter.WRAP_UP.equals(branch.doing())
+                // 정리의 행동, 또는 정리 뒤 배우 해석을 받아 준 답의 행동을 노트의 다음 촬영으로 남긴다(뒤의 것이 앞의 것을 덮는다).
+                String status = branch.status(PracticeLoopRouter.WRAP_UP.equals(branch.doing()) || branch.acceptsReading()
                         ? DirectVideoPracticeLoop.nextTake(message) : "");
                 DirectVideoDialogueEvidence.requireGrounded(uploaded, "<상태>\n" + status + "\n</상태>", written);
                 parsed = new DirectVideoPracticeLoop.Parsed("", status, parsed.message());
@@ -364,15 +365,25 @@ public final class DirectVideoCoach {
             return status("");
         }
 
+        /** 정리 뒤 배우가 반박·정정으로 다른 해석을 냈고, 이번에 그 해석을 받아 주는 답인지. */
+        boolean acceptsReading() {
+            return closeNext && (classified.kind() == PracticeLoopRouter.Kind.PUSHBACK || classified.kind() == PracticeLoopRouter.Kind.CORRECTION);
+        }
+
         private static String lastWordLine(java.util.Locale language, PracticeLoopRouter.Kind kind) {
             boolean korean = language == null || "ko".equals(language.getLanguage());
             boolean disagreed = kind == PracticeLoopRouter.Kind.PUSHBACK || kind == PracticeLoopRouter.Kind.CORRECTION;
             if (!korean) {
                 return "this is the last thing you say today. Answer in one or two sentences and do not ask any question."
-                        + (disagreed ? " The actor offered a different reading: accept it and suggest checking it in the next take." : "");
+                        + (disagreed ? " The actor offered a different reading. Follow the actor's reading this time; do not go back to your earlier suggestion."
+                        + " Write a hidden first line <다음 테이크>…</다음 테이크> with one action that follows the actor's reading, then say that action as"
+                        + " \"you could try …\" and suggest checking in the next take whether it works. Do not give orders." : "");
             }
             return "이번이 오늘 대화의 마지막 말이다. 물은 것에 한두 문장으로 답만 하고 질문하지 않는다. 아래 모양 칸의 \"질문\"은 이번에는 쓰지 않는다."
-                    + (disagreed ? " 배우가 정리에 다른 해석을 냈다. 그 해석을 받아들이고, 다음 테이크에서 그대로 해 보며 확인해 보자고 한다." : "");
+                    + (disagreed ? " 배우가 정리에 다른 해석을 냈다. 이번에는 배우의 해석을 따른다. 앞서 코치가 한 제안이나 근본 문제로 돌아가지 않는다."
+                    + " 맨 첫 줄에 숨은 줄 <다음 테이크>…</다음 테이크>를 쓰고, 안에는 배우의 해석대로 다음 테이크에서 해 볼 행동 하나를 \"~해 봐도 좋아요\"로 끝나는 한 문장으로 쓴다(노트에 남는다)."
+                    + " 그다음 줄부터 그 행동을 \"~해 봐도 좋아요\"로 말하고, 그게 장면에서 통하는지 다음 테이크에서 확인해 보자고 한다."
+                    + " \"~하세요\", \"~보여 주세요\"처럼 시키지 않는다. 예) 그 해석이면 소리 지르며 따져 봐도 좋아요. 다음 테이크에서 통하는지 확인해 봐요." : "");
         }
 
         /** 정리하기면 숨은 줄의 다음 테이크를 남긴다 — 노트의 다음 촬영이 이것을 쓴다. */
