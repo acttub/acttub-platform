@@ -117,6 +117,8 @@ final class DirectVideoPracticeLoop {
      */
     static boolean looksBroken(String text, java.util.Locale language) {
         if (text == null || text.isBlank()) return false;
+        // 제로폭 공백(U+200B) 같은 보이지 않는 글자만 있으면 isBlank()를 통과해 빈 말풍선이 나간다(10/9 22:46 운영).
+        if (text.replaceAll("[\\p{Cf}\\s]+", "").isEmpty()) return true;
         if (MARKUP_OR_CODE.matcher(text).find()) return true;
         boolean korean = language == null || "ko".equals(language.getLanguage());
         if (!korean) return false;
