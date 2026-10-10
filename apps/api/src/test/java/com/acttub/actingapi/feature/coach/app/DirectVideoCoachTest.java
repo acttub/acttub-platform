@@ -468,6 +468,40 @@ class DirectVideoCoachTest {
         assertThat(DirectVideoPracticeLoop.stripTimestamps("At 1:05 you look away.")).isEqualTo("you look away.");
     }
 
+    @Test void unrelatedModelOutputIsNeverShownAndIsRewrittenOnce() {
+        // 2026-10-09 운영: 생각이 한도까지 차 웹페이지 HTML·게임 코드가 나왔고, 줄이기가 그걸 한국어 한 줄로 만들어 보냈다.
+        assertThat(DirectVideoPracticeLoop.looksBroken("</article>\n<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0\"><title>I can't access my Google account</title>", null)).isTrue();
+        assertThat(DirectVideoPracticeLoop.looksBroken("using System;\nnamespace SinkingTheShip.Player\n{ public class PlayerInputHandler", null)).isTrue();
+        assertThat(DirectVideoPracticeLoop.looksBroken("ㅇㄴㄴㅇㄴㄴㅇㄴㄴㅇㄴㄴ", null)).isTrue();
+        assertThat(DirectVideoPracticeLoop.looksBroken("A group discussion of the play Mamma Mia! Join the Center", null)).isTrue();
+        assertThat(DirectVideoPracticeLoop.looksBroken("아, 그럼 그 장면에선 선생님한테 뭘 하려고 했어요?", null)).isFalse();
+        assertThat(DirectVideoPracticeLoop.looksBroken("\"Who knows\"에서 고개가 내려가요. 그때 상대한테 뭘 받고 싶었어요?", null)).isFalse();
+        assertThat(DirectVideoPracticeLoop.looksBroken("Then what did you want from her in that scene?", java.util.Locale.ENGLISH)).isFalse();
+        assertThat(DirectVideoPracticeLoop.looksBroken("", null)).isFalse();
+        assertThat(DirectVideoPracticeLoop.looksBroken("\u200B", null)).as("보이지 않는 글자만").isTrue();
+        assertThat(DirectVideoPracticeLoop.looksBroken(" \u200B \u200B \u200B ", null)).isTrue();
+        assertThat(DirectVideoPracticeLoop.looksBroken("뭘 받고 싶었어요?\u200B", null)).isFalse();
+
+        var loopEngine = practiceLoopEngine();
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\"]}");
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING,
+                "</article>\n<footer class=\"footer\"><div class=\"container\">Solución en tecnologías de información</div></footer>",
+                "그럼 장면 내내 상대한테 뭘 해 볼래요?");
+        var first = loopEngine.start(session(), UUID.randomUUID());
+        var second = loopEngine.reply(first.session(), "붙잡길 바랐어요", UUID.randomUUID());
+        assertThat(second.reply().message()).isEqualTo("그럼 장면 내내 상대한테 뭘 해 볼래요?");
+        var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(model, times(3)).reply(eq(file), anyList(), prompts.capture());
+        assertThat(prompts.getAllValues().get(2)).contains("[다시 쓰기]", "상관없는 글");
+        assertThat(telemetry.calls().getLast().metadata()).containsEntry("broken_retry", "true");
+        verify(model, never()).reply(isNull(), anyList(), anyString());
+    }
+
+    @Test void theCoachIsNotAskedToCountCharacters() {
+        // 글자 수를 세라는 지시가 있으면 생각이 끝나지 않고 출력 한도까지 차서 빈 답·엉뚱한 글이 나왔다(2026-10-10 재현).
+        assertThat(DirectVideoPrompts.practiceLoopTurn()).doesNotContain("글자 수", "센다");
+    }
+
     @Test void anEmptyCoachReplyIsRewrittenOnceInsteadOfFailingTheTurn() {
         var loopEngine = practiceLoopEngine();
         when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"not_yet\",\"evaluation\"]}");

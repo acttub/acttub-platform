@@ -193,6 +193,18 @@ public final class DirectVideoCoach {
                 message = replyOrNull(uploaded, history, prompt + "\n\n"
                         + DirectVideoPracticeLoop.emptyRetryNote(DirectVideoPracticeLoop.replyLanguage(session, actorText)), loop);
             }
+            // 대화와 상관없는 글(웹페이지·코드·자모)이 나오면 배우에게 보내지 않고 한 번 다시 쓰게 한다.
+            // 다시 써도 깨졌으면 빈 답과 같이 실패로 돌린다 — 엉뚱한 말을 보내느니 다시 보내게 하는 편이 낫다.
+            boolean brokenRetry = false;
+            java.util.Locale replyLanguage = DirectVideoPracticeLoop.replyLanguage(session, actorText);
+            if (loop && message != null && DirectVideoPracticeLoop.looksBroken(DirectVideoPracticeLoop.parse(message).message(), replyLanguage)) {
+                brokenRetry = true;
+                ExternalOperationExecution.externalCall("model");
+                message = replyOrNull(uploaded, history, prompt + "\n\n" + DirectVideoPracticeLoop.brokenRetryNote(replyLanguage), loop);
+                if (message != null && DirectVideoPracticeLoop.looksBroken(DirectVideoPracticeLoop.parse(message).message(), replyLanguage)) {
+                    message = null;
+                }
+            }
             if (message == null || message.isBlank()) throw new IllegalStateException("empty video coaching reply");
             DirectVideoDialogueEvidence.requireGrounded(uploaded, message, written);
             // 영상 시간("0:23", "0:03부터 0:46까지")으로 구간을 가리키면 한 번 다시 쓰게 한다. 배우는 시간으로 장면을 떠올리지 못한다.
@@ -249,7 +261,7 @@ public final class DirectVideoCoach {
                     null, LlmCall.metadata("transport", "gemini_direct_video", "route", route,
                             "route_fallback", Boolean.toString(branch != null ? "fallback".equals(branch.classified().by()) : routeFallback),
                             "timestamp_retry", Boolean.toString(timeRetry), "timestamp_stripped", Boolean.toString(timeStripped),
-                            "shorten_calls", Integer.toString(shortened), "empty_retry", Boolean.toString(emptyRetry),
+                            "shorten_calls", Integer.toString(shortened), "empty_retry", Boolean.toString(emptyRetry), "broken_retry", Boolean.toString(brokenRetry),
                             "persona", persona))
                     .withPrompt(template));
             if (loop) DirectVideoPracticeLoop.remember(state, parsed);
@@ -372,6 +384,8 @@ public final class DirectVideoCoach {
      * 줄지 않았거나 비었거나 근거 검사를 못 넘으면 {@code null} — 부르는 쪽이 원래 말을 그대로 쓴다.
      */
     private String shorten(String text, java.util.Locale language, String persona, DirectVideoModel.Video video, String written, UUID operationId) {
+        // 코치 말로 보이지 않는 글은 줄이지 않는다. 줄이면 엉뚱한 글이 그럴듯한 한국어 한 줄이 되어 버린다.
+        if (DirectVideoPracticeLoop.looksBroken(text, language)) return null;
         try {
             ExternalOperationExecution.externalCall("model");
             String raw = model.reply(null, java.util.List.of(new DirectVideoModel.Message("user", text)),
@@ -380,6 +394,7 @@ public final class DirectVideoCoach {
             String shorter = DirectVideoPracticeLoop.parse(raw).message();
             if (DirectVideoPracticeLoop.hasTimestamp(shorter)) shorter = DirectVideoPracticeLoop.stripTimestamps(shorter);
             if (shorter.isBlank() || DirectVideoPracticeLoop.displayLength(shorter) >= DirectVideoPracticeLoop.displayLength(text)) return null;
+            if (DirectVideoPracticeLoop.looksBroken(shorter, language)) return null;
             DirectVideoDialogueEvidence.requireGrounded(video, shorter, written);
             return shorter;
         } catch (IllegalStateException | IllegalArgumentException rejected) {
