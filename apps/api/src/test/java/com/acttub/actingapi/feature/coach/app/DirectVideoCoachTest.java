@@ -540,17 +540,47 @@ class DirectVideoCoachTest {
         assertThat(ConversationService.displayLimit(wrapped, 2)).as("정리 직후 앱이 마무리를 예고한다").isEqualTo(3);
         clearInvocations(model);
         when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\",\"pushback\"]}");
-        when(model.reply(eq(file), anyList(), anyString())).thenReturn("그 해석이면 고집으로 밀어붙여도 좋아요. 다음 테이크에서 확인해 봐요. 어때요?");
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(
+                "<다음 테이크>고집대로 밀어붙이며 따져 봐도 좋아요</다음 테이크>\n그 해석이면 고집으로 밀어붙여도 좋아요. 다음 테이크에서 확인해 봐요. 어때요?");
         var answered = loopEngine.reply(wrapped, "근데 이 캐릭터는 고집이 센 캐릭터이긴 하거든", UUID.randomUUID());
         assertThat(answered.reply().status()).isEqualTo("continue");
         assertThat(answered.reply().message()).isEqualTo("그 해석이면 고집으로 밀어붙여도 좋아요.\n다음 테이크에서 확인해 봐요.");
         var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(model).reply(eq(file), anyList(), prompts.capture());
-        assertThat(prompts.getValue()).contains("이번이 오늘 대화의 마지막 말이다", "다른 해석을 냈다").doesNotContain("지금 단계: 4/4");
+        assertThat(prompts.getValue()).contains("이번이 오늘 대화의 마지막 말이다", "다른 해석을 냈다", "배우의 해석을 따른다", "시키지 않는다")
+                .doesNotContain("지금 단계: 4/4");
+        // 노트의 다음 촬영은 배우 해석을 받아 준 행동으로 바뀐다.
+        assertThat(DirectVideoPracticeLoop.closingNextTake(answered.session().coachingState().path("practice_loop").path("statuses")))
+                .isEqualTo("고집대로 밀어붙이며 따져 봐도 좋아요");
         assertThat(answered.session().coachingState().path("practice_loop").path("statuses").toString()).contains("다음에 닫기: 예");
         var next = PracticeLoopRouter.before(answered.session().coachingState().path("practice_loop"), 3);
         assertThat(PracticeLoopRouter.route(PracticeLoopRouter.Kind.ANSWER, next)).as("다음 말에서 닫는다").isEqualTo(PracticeLoopRouter.END);
         assertThat(ConversationService.displayLimit(answered.session(), 3)).isEqualTo(4);
+    }
+
+    @Test void afterTheWrapUpAnotherReadingIsFollowedEvenWhenNotClassifiedAsPushback() throws Exception {
+        // dev 시험 10/11: "저는 조용히 협박하는 인물이라고 봤어요"가 반박으로 분류되지 않아 노트가 코치 제안으로 남았다.
+        var loopEngine = practiceLoopEngine();
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING);
+        var first = loopEngine.start(session(), UUID.randomUUID());
+        var state = (com.fasterxml.jackson.databind.node.ObjectNode) first.session().coachingState().deepCopy();
+        var statuses = (com.fasterxml.jackson.databind.node.ArrayNode) state.path("practice_loop").path("statuses");
+        statuses.add("배우의 말: 답\n할 일: 정리하기\n단계: 4\n다음 테이크: 대답할 때까지 상대 눈을 보며 기다려 봐도 좋아요");
+        var turns = new ArrayList<>(first.session().turns());
+        turns.add(new CoachTurnSnapshot("user", "상대 눈을 보며 기다려 볼게요"));
+        turns.add(new CoachTurnSnapshot("ai", "대답을 기다려 봐도 좋아요."));
+        var wrapped = first.session().withTurns(turns).withCoachingState("three_layers_v1", state.path("revision").asLong(), state, "open", "");
+        clearInvocations(model);
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\",\"evaluation\"]}");
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(
+                "<다음 테이크>그 해석이면 소리 없이 낮게 협박해 봐도 좋아요</다음 테이크>\n그 해석이면 소리 없이 낮게 협박해 봐도 좋아요. 다음 테이크에서 통하는지 확인해 봐요.");
+        var answered = loopEngine.reply(wrapped, "근데 저는 조용히 협박하는 게 더 무서운 인물이라고 봤어요", UUID.randomUUID());
+        var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(model).reply(eq(file), anyList(), prompts.capture());
+        assertThat(prompts.getValue()).contains("다른 인물 해석이나 다른 행동을 냈으면", "묻기만 했으면 답만 하고 숨은 줄은 쓰지 않는다");
+        assertThat(answered.reply().message()).doesNotContain("<다음 테이크>");
+        assertThat(DirectVideoPracticeLoop.closingNextTake(answered.session().coachingState().path("practice_loop").path("statuses")))
+                .isEqualTo("소리 없이 낮게 협박해 봐도 좋아요");
     }
 
     @Test void theAppButtonsAreRoutedWithoutTheClassifier() {

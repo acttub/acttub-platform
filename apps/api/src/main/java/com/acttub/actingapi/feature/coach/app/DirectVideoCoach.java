@@ -22,6 +22,10 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /** Gemini transport for the existing durable coach API; no layer-one model; response routing is a separate text call. */
 public final class DirectVideoCoach {
+    /** 노트의 다음 촬영에는 행동만 남긴다 — "그 해석이면 ~"의 앞말을 뗀다(dev 시험 10/11). */
+    private static final java.util.regex.Pattern READING_LEAD =
+            java.util.regex.Pattern.compile("^(?:그|이|말한) ?해석(?:이면|대로라면|대로면|대로)[,]?\\s*");
+
     private final DirectVideoModel model;
     private final CoachVideoSource videos;
     private final ObjectStorage storage;
@@ -226,8 +230,9 @@ public final class DirectVideoCoach {
             var parsed = loop ? DirectVideoPracticeLoop.parse(message) : null;
             if (branch != null) {
                 // 숨은 칸은 모델이 아니라 서버가 쓴다. 모델이 따라 쓴 태그는 parse 가 이미 걷어냈다.
-                String status = branch.status(PracticeLoopRouter.WRAP_UP.equals(branch.doing())
-                        ? DirectVideoPracticeLoop.nextTake(message) : "");
+                // 정리의 행동, 또는 정리 뒤 배우 해석을 받아 준 답의 행동을 노트의 다음 촬영으로 남긴다(뒤의 것이 앞의 것을 덮고, 숨은 줄이 없으면 앞의 것이 남는다).
+                String status = branch.status(PracticeLoopRouter.WRAP_UP.equals(branch.doing()) ? DirectVideoPracticeLoop.nextTake(message)
+                        : branch.acceptsReading() ? READING_LEAD.matcher(DirectVideoPracticeLoop.nextTake(message)).replaceFirst("") : "");
                 DirectVideoDialogueEvidence.requireGrounded(uploaded, "<상태>\n" + status + "\n</상태>", written);
                 parsed = new DirectVideoPracticeLoop.Parsed("", status, parsed.message());
             }
@@ -364,15 +369,33 @@ public final class DirectVideoCoach {
             return status("");
         }
 
+        /**
+         * 정리 뒤 마지막 답인지. 배우가 정리와 다른 해석을 냈으면 모델이 숨은 줄 &lt;다음 테이크&gt;에 배우 해석의 행동을 쓰고,
+         * 그 줄이 있으면 노트의 다음 촬영을 덮는다. 다른 해석인지는 분류(반박·정정·물음·판단 요청)에 기대지 않고 모델이 본다
+         * — "저는 조용히 협박하는 인물이라고 봤어요"는 반박으로 분류되지 않았다(dev 시험 2026-10-11).
+         */
+        boolean acceptsReading() {
+            return closeNext;
+        }
+
         private static String lastWordLine(java.util.Locale language, PracticeLoopRouter.Kind kind) {
             boolean korean = language == null || "ko".equals(language.getLanguage());
             boolean disagreed = kind == PracticeLoopRouter.Kind.PUSHBACK || kind == PracticeLoopRouter.Kind.CORRECTION;
             if (!korean) {
                 return "this is the last thing you say today. Answer in one or two sentences and do not ask any question."
-                        + (disagreed ? " The actor offered a different reading: accept it and suggest checking it in the next take." : "");
+                        + (disagreed ? " The actor offered a different reading." : " If the actor offered a different reading of the character or a different action from your wrap-up:")
+                        + " follow the actor's reading this time and do not go back to your earlier suggestion."
+                        + " Write a hidden first line <다음 테이크>…</다음 테이크> with one action that follows the actor's reading, then say that action as"
+                        + " \"you could try …\" and suggest checking in the next take whether it works. Do not give orders."
+                        + (disagreed ? "" : " If the actor only asked something, just answer and do not write the hidden line.");
             }
             return "이번이 오늘 대화의 마지막 말이다. 물은 것에 한두 문장으로 답만 하고 질문하지 않는다. 아래 모양 칸의 \"질문\"은 이번에는 쓰지 않는다."
-                    + (disagreed ? " 배우가 정리에 다른 해석을 냈다. 그 해석을 받아들이고, 다음 테이크에서 그대로 해 보며 확인해 보자고 한다." : "");
+                    + (disagreed ? " 배우가 정리에 다른 해석을 냈다." : " 배우가 정리와 다른 인물 해석이나 다른 행동을 냈으면(\"저는 ~한 인물이라고 봤어요\", \"~하는 게 맞다고 생각했어요\"):")
+                    + " 이번에는 배우의 해석을 따른다. 앞서 코치가 한 제안이나 근본 문제로 돌아가지 않는다."
+                    + " 맨 첫 줄에 숨은 줄 <다음 테이크>…</다음 테이크>를 쓰고, 안에는 배우의 해석대로 다음 테이크에서 해 볼 행동 하나를 \"~해 봐도 좋아요\"로 끝나는 한 문장으로 쓴다(노트에 남는다. \"그 해석이면\" 같은 앞말 없이 행동만)."
+                    + " 그다음 줄부터 그 행동을 \"~해 봐도 좋아요\"로 말하고, 그게 장면에서 통하는지 다음 테이크에서 확인해 보자고 한다."
+                    + " \"~하세요\", \"~보여 주세요\", \"~해 봐요\"처럼 시키지 않는다. 예) 그 해석이면 소리 지르며 따져 봐도 좋아요. 다음 테이크에서 통하는지 확인해 봐요."
+                    + (disagreed ? "" : " 배우가 묻기만 했으면 답만 하고 숨은 줄은 쓰지 않는다.");
         }
 
         /** 정리하기면 숨은 줄의 다음 테이크를 남긴다 — 노트의 다음 촬영이 이것을 쓴다. */
