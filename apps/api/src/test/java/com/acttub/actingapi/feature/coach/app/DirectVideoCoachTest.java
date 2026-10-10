@@ -497,6 +497,79 @@ class DirectVideoCoachTest {
         verify(model, never()).reply(isNull(), anyList(), anyString());
     }
 
+    @Test void lastWordsAndStageQuestionsAreTrimmedFromLiveSessions() {
+        // 정리·정리 뒤 답: 질문 문장을 뗀다(운영 10/10 03:10, 10/9 18:26, 10/10 08:01, 10/10 21:51, 10/9 18:32).
+        assertThat(DirectVideoPracticeLoop.withoutQuestions("맞아요. 청중을 설득해 봐도 좋아요. \"돈이 최고의야\"에서 누가 끄덕이나 봐요.\n시선이 구체적이라 보였어요. 설득하려고 상대를 한 명씩 붙잡는다면 어떤 행동을 해 볼래요?"))
+                .isEqualTo("맞아요.\n청중을 설득해 봐도 좋아요.\n\"돈이 최고의야\"에서 누가 끄덕이나 봐요.\n시선이 구체적이라 보였어요.");
+        assertThat(DirectVideoPracticeLoop.withoutQuestions("선생님 반응을 살피는 거예요.\n\"맥베스는 비극이죠\" 할 때 뭘 확인하고 싶을까요?"))
+                .isEqualTo("선생님 반응을 살피는 거예요.");
+        assertThat(DirectVideoPracticeLoop.withoutQuestions("조금 어색해요, 상대 반응을 안 봐서요. 그렇게 하면 상대가 미안해할까요?"))
+                .isEqualTo("조금 어색해요, 상대 반응을 안 봐서요.");
+        assertThat(DirectVideoPracticeLoop.withoutQuestions("아쉬운 건 내 울분에만 빠진 거예요. 상대가 헤어지자는 말을 뱉게 하려면 어떤 태도로 대해볼까요?"))
+                .isEqualTo("아쉬운 건 내 울분에만 빠진 거예요.");
+        assertThat(DirectVideoPracticeLoop.withoutQuestions("시선은 자유롭지만 선생님 눈을 꼭 봐야 해요.\n오버하기 말고 선생님을 꼬시는 다른 방법은요?"))
+                .isEqualTo("시선은 자유롭지만 선생님 눈을 꼭 봐야 해요.");
+        assertThat(DirectVideoPracticeLoop.withoutQuestions("그때 뭘 받고 싶었어요?")).as("다 떼어지면 그대로").isEqualTo("그때 뭘 받고 싶었어요?");
+        // 대사 속 물음표에서는 나누지 않는다.
+        assertThat(DirectVideoPracticeLoop.withoutQuestions("\"당신은 누구세요?\"부터 로미오를 보며 말해 봐도 좋아요."))
+                .isEqualTo("\"당신은 누구세요?\"부터 로미오를 보며 말해 봐도 좋아요.");
+        // 단계 말에 질문이 둘이면 첫 질문까지만(10/10 20:10, 10/9 19:14).
+        assertThat(DirectVideoPracticeLoop.firstQuestionOnly("어렵네요. 그럼 상대의 관심을 끌어내려면 장면 내내 뭘 해 볼래요? 또는 따지기, 달래기 중 고른다면요?"))
+                .isEqualTo("어렵네요.\n그럼 상대의 관심을 끌어내려면 장면 내내 뭘 해 볼래요?");
+        assertThat(DirectVideoPracticeLoop.firstQuestionOnly("네.\n상대를 어떻게 만들고 싶어요?\n장면 내내 뭘 해 볼래요?")).isEqualTo("네.\n상대를 어떻게 만들고 싶어요?");
+        assertThat(DirectVideoPracticeLoop.firstQuestionOnly("엄마가 꿈을 인정했을까요, 부담을 느꼈을까요?")).isEqualTo("엄마가 꿈을 인정했을까요, 부담을 느꼈을까요?");
+        // 배우 말 따라 하기(10/10 07:53).
+        assertThat(DirectVideoPracticeLoop.withoutEcho("아니요, 자책하며 고개를 떨구는 것 같아요. 주희의 무엇을 보며 말해 볼래요?",
+                "아니요 난 왜이럴까 자책하며 고개를 떨구는 것 같아요")).isEqualTo("주희의 무엇을 보며 말해 볼래요?");
+        assertThat(DirectVideoPracticeLoop.withoutEcho("네. 상대를 위로하려면, 장면 내내 상대한테 뭘 해 볼래요?", "위로해주고싶어"))
+                .isEqualTo("네. 상대를 위로하려면, 장면 내내 상대한테 뭘 해 볼래요?");
+    }
+
+    @Test void afterTheWrapUpADisagreementIsAcceptedWithoutAQuestionAndTheNextMessageCloses() throws Exception {
+        // 10/9 22:46·10/10 19:00: 정리 뒤 배우가 해석을 반박하자 대꾸 없이 닫혔다.
+        var loopEngine = practiceLoopEngine();
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING);
+        var first = loopEngine.start(session(), UUID.randomUUID());
+        var state = (com.fasterxml.jackson.databind.node.ObjectNode) first.session().coachingState().deepCopy();
+        var statuses = (com.fasterxml.jackson.databind.node.ArrayNode) state.path("practice_loop").path("statuses");
+        statuses.add("배우의 말: 답\n할 일: 정리하기\n단계: 4");
+        var turns = new ArrayList<>(first.session().turns());
+        turns.add(new CoachTurnSnapshot("user", "엄마 눈을 보며 따져 볼게요"));
+        turns.add(new CoachTurnSnapshot("ai", "처음부터 끝까지 엄마를 보며 따져 봐도 좋아요."));
+        var wrapped = first.session().withTurns(turns).withCoachingState("three_layers_v1", state.path("revision").asLong(), state, "open", "");
+        assertThat(ConversationService.displayLimit(wrapped, 2)).as("정리 직후 앱이 마무리를 예고한다").isEqualTo(3);
+        clearInvocations(model);
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\",\"pushback\"]}");
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn("그 해석이면 고집으로 밀어붙여도 좋아요. 다음 테이크에서 확인해 봐요. 어때요?");
+        var answered = loopEngine.reply(wrapped, "근데 이 캐릭터는 고집이 센 캐릭터이긴 하거든", UUID.randomUUID());
+        assertThat(answered.reply().status()).isEqualTo("continue");
+        assertThat(answered.reply().message()).isEqualTo("그 해석이면 고집으로 밀어붙여도 좋아요.\n다음 테이크에서 확인해 봐요.");
+        var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(model).reply(eq(file), anyList(), prompts.capture());
+        assertThat(prompts.getValue()).contains("이번이 오늘 대화의 마지막 말이다", "다른 해석을 냈다").doesNotContain("지금 단계: 4/4");
+        assertThat(answered.session().coachingState().path("practice_loop").path("statuses").toString()).contains("다음에 닫기: 예");
+        var next = PracticeLoopRouter.before(answered.session().coachingState().path("practice_loop"), 3);
+        assertThat(PracticeLoopRouter.route(PracticeLoopRouter.Kind.ANSWER, next)).as("다음 말에서 닫는다").isEqualTo(PracticeLoopRouter.END);
+        assertThat(ConversationService.displayLimit(answered.session(), 3)).isEqualTo(4);
+    }
+
+    @Test void theAppButtonsAreRoutedWithoutTheClassifier() {
+        var loopEngine = practiceLoopEngine();
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING, "붙잡고 싶었어요, 밀어내고 싶었어요?",
+                "<다음 테이크>상대를 끝까지 보며 말하기</다음 테이크>\n처음부터 끝까지 상대를 보며 말해 봐도 좋아요. 해 볼래요?");
+        var first = loopEngine.start(session(), UUID.randomUUID());
+        clearInvocations(model);
+        // 예시 버튼(10/9 19:14): 같은 단계를 보기 둘로 쉽게 다시 묻는다.
+        var easy = loopEngine.reply(first.session(), "예시로 설명해 주세요.", UUID.randomUUID());
+        verify(model, never()).classify(anyList(), anyString(), anyList());
+        assertThat(easy.session().coachingState().path("practice_loop").path("statuses").path(1).asText()).contains("할 일: 쉽게 묻기");
+        // 나중에 버튼: 단계와 상관없이 바로 정리하고, 질문은 뗀다.
+        var later = loopEngine.reply(easy.session(), "지금은 연습하기 어려워요. 다음에 해볼 방법을 설명해 주세요.", UUID.randomUUID());
+        verify(model, never()).classify(anyList(), anyString(), anyList());
+        assertThat(later.session().coachingState().path("practice_loop").path("statuses").path(2).asText()).contains("할 일: 정리하기");
+        assertThat(later.reply().message()).isEqualTo("처음부터 끝까지 상대를 보며 말해 봐도 좋아요.");
+    }
+
     @Test void theCoachIsNotAskedToCountCharacters() {
         // 글자 수를 세라는 지시가 있으면 생각이 끝나지 않고 출력 한도까지 차서 빈 답·엉뚱한 글이 나왔다(2026-10-10 재현).
         assertThat(DirectVideoPrompts.practiceLoopTurn()).doesNotContain("글자 수", "센다");

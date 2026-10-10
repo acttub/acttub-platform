@@ -180,6 +180,19 @@ class PracticeLoopRouterTest {
         assertThat(DirectVideoPrompts.practiceLoopTask(PracticeLoopRouter.PROPOSE, null)).startsWith("역할:");
     }
 
+    @Test void afterTheWrapUpPushbackAndCorrectionAreAnsweredOnce() {
+        var afterWrap = at(4, 6, PracticeLoopRouter.WRAP_UP, Kind.ANSWER);
+        assertThat(route(Kind.PUSHBACK, afterWrap)).isEqualTo("답하기");
+        assertThat(route(Kind.CORRECTION, afterWrap)).isEqualTo("답하기");
+        assertThat(PracticeLoopRouter.closesNext(Kind.PUSHBACK, afterWrap)).isTrue();
+        assertThat(route(Kind.SHORT, afterWrap)).isEqualTo(PracticeLoopRouter.END);
+        assertThat(PracticeLoopRouter.button("예시로 설명해 주세요.", at(2, 2, "비추기", null)).kind()).isEqualTo(Kind.SHORT);
+        assertThat(PracticeLoopRouter.button("예시로 설명해 주세요.", afterWrap).kind()).isEqualTo(Kind.QUESTION);
+        assertThat(PracticeLoopRouter.button("지금은 연습하기 어려워요. 다음에 해볼 방법을 설명해 주세요.", at(2, 2, "비추기", null)).by())
+                .isEqualTo(PracticeLoopRouter.BY_LATER);
+        assertThat(PracticeLoopRouter.button("예시로 설명해 주세요. 그리고 더", at(2, 2, "비추기", null))).isNull();
+    }
+
     @Test void theClassifierOutputIsChecked() {
         assertThat(PracticeLoopRouter.parse("{\"signals\":[\"answered\",\"correction\"]}").kind()).as("보기 순서가 앞선 것")
                 .isEqualTo(Kind.CORRECTION);
