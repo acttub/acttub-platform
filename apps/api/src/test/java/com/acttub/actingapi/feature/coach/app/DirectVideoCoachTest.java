@@ -573,7 +573,7 @@ class DirectVideoCoachTest {
         clearInvocations(model);
         when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\",\"evaluation\"]}");
         when(model.reply(eq(file), anyList(), anyString())).thenReturn(
-                "<다음 테이크>소리 없이 낮게 협박해 봐도 좋아요</다음 테이크>\n그 해석이면 소리 없이 낮게 협박해 봐도 좋아요. 다음 테이크에서 통하는지 확인해 봐요.");
+                "<다음 테이크>그 해석이면 소리 없이 낮게 협박해 봐도 좋아요</다음 테이크>\n그 해석이면 소리 없이 낮게 협박해 봐도 좋아요. 다음 테이크에서 통하는지 확인해 봐요.");
         var answered = loopEngine.reply(wrapped, "근데 저는 조용히 협박하는 게 더 무서운 인물이라고 봤어요", UUID.randomUUID());
         var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(model).reply(eq(file), anyList(), prompts.capture());
