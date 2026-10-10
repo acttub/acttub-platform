@@ -106,6 +106,38 @@ final class DirectVideoPracticeLoop {
     }
 
     /** 배우에게 보일 말이 빈 응답을 한 번 다시 쓰게 할 때 지시 끝에 붙이는 말. */
+    // 모델이 생각을 다 쓰고 한도에 걸리면 대화와 상관없는 웹페이지·코드·자모를 뱉는다(2026-10-09 운영 3건).
+    private static final Pattern MARKUP_OR_CODE = Pattern.compile(
+            "(?i)<!DOCTYPE|</?(?:html|head|body|div|article|footer|section|span|script|style|meta|table)\\b|\\busing System\\b"
+                    + "|\\bnamespace\\s+\\w|\\bpublic\\s+(?:class|static|void)\\b|```|\\{\\s*\"[a-z_]+\"\\s*:");
+
+    /**
+     * 배우에게 보낼 수 없는 출력인지. HTML·코드가 섞였거나, 한국어 대화에서 한글이 글자의 절반이 안 되거나,
+     * 날 자모가 반복되면 깨진 출력으로 본다. 빈 말은 여기서 보지 않는다(빈 답 다시 쓰기가 따로 있다).
+     */
+    static boolean looksBroken(String text, java.util.Locale language) {
+        if (text == null || text.isBlank()) return false;
+        if (MARKUP_OR_CODE.matcher(text).find()) return true;
+        boolean korean = language == null || "ko".equals(language.getLanguage());
+        if (!korean) return false;
+        int hangul = 0, jamo = 0, letters = 0;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c >= '\uAC00' && c <= '\uD7A3') { hangul++; letters++; }
+            else if (c >= '\u3131' && c <= '\u318E') { jamo++; letters++; }
+            else if (Character.isLetter(c)) letters++;
+        }
+        return letters > 0 && (hangul * 2 < letters || jamo >= 6);
+    }
+
+    /** 깨진 출력을 한 번 다시 쓰게 할 때 지시 끝에 붙이는 말. */
+    static String brokenRetryNote(java.util.Locale language) {
+        boolean korean = language == null || "ko".equals(language.getLanguage());
+        return korean
+                ? "[다시 쓰기]\n방금 답은 이 대화와 상관없는 글이었다. 생각은 짧게 끝내고, 배우에게 보일 코치의 말만 짧은 한국어로 쓴다."
+                : "[Rewrite]\nYour last answer was unrelated text. Keep your thinking short and write only the coach's words for the actor.";
+    }
+
     static String emptyRetryNote(java.util.Locale language) {
         boolean korean = language == null || "ko".equals(language.getLanguage());
         return korean
