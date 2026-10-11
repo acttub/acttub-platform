@@ -19,6 +19,7 @@ import { palette } from '@/constants/palette';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { useTutorialSpotlight } from '@/hooks/use-tutorial-spotlight';
+import { useVideoPreviewEvents } from '@/hooks/use-video-preview-events';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -126,6 +127,8 @@ export default function UploadScreen() {
   const player = useVideoPlayer(previewUri, (p) => {
     p.loop = false;
   });
+  // 올린 영상을 사용자가 미리보기에서 실제로 틀어 보는지 센다.
+  useVideoPreviewEvents(player, 'upload', previewUri, { sample, continued: plan.video.kind === 'same' });
 
   // 보관함·촬영·갤러리에서 돌아오면 고른 영상을 받는다.
   useFocusEffect(
