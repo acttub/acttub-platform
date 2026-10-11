@@ -21,6 +21,7 @@ import type { ProfileGateStatus } from '@/lib/app-bootstrap';
 import { runLegacyScriptMigrationOnce } from '@/lib/reading/legacy-migration-runner';
 import { flushPracticeFeedback } from '@/lib/exit-review';
 import { flushNoteRatings } from '@/lib/note-rating';
+import { flushReadingRatings } from '@/lib/reading-rating';
 import { flushLibraryUploads } from '@/lib/library/library-runner';
 import { flushRecordingUploads } from '@/lib/reading/recording-runner';
 import {
@@ -337,9 +338,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (gatePassed) void flushPracticeFeedback();
   }, [gatePassed]);
 
-  // 못 보낸 노트 평가도 같은 요청 id 로 다시 보낸다(practice.note) — 노트마다 마지막 평가 하나다.
+  // 못 보낸 노트·리딩 평가도 같은 요청 id 로 다시 보낸다(practice.note·reading.session) — 노트·회차마다 마지막 평가 하나다.
   useEffect(() => {
-    if (gatePassed) void flushNoteRatings();
+    if (gatePassed) {
+      void flushNoteRatings();
+      void flushReadingRatings();
+    }
   }, [gatePassed]);
 
   useEffect(() => {
