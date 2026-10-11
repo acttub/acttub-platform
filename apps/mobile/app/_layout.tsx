@@ -1,5 +1,5 @@
 import Feather from '@expo/vector-icons/Feather';
-import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { DefaultTheme, ThemeProvider, getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import {
   router,
@@ -23,6 +23,7 @@ import { syncPostHog } from '@/lib/posthog';
 import { startSignupAttributionListener } from '@/lib/signup-attribution-runtime';
 import { initCrashlytics, markScreen } from '@/lib/crashlytics';
 import { installNavigationGuard } from '@/lib/navigation-guard';
+import { tabBackTitle } from '@/lib/tab-back-title';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
 import { challengePushTarget } from '@/lib/challenge/notification-center';
 import {
@@ -350,7 +351,10 @@ function RootNavigator() {
         <Stack.Screen name="profile-edit" options={{ title: t('profileName.editTitle') }} />
         <Stack.Screen name="portfolio-edit" options={{ title: t('portfolio.title') }} />
         <Stack.Screen name="guest-transfer" options={{ title: t('guestTransfer.title') }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="(tabs)"
+          options={({ route }) => ({ headerShown: false, title: tabBackTitle(getFocusedRouteNameFromRoute(route)) })}
+        />
         <Stack.Screen
           name="delete-account"
           options={{ title: t('stack.withdraw'), headerBackTitle: t('stack.backToSettings') }}
