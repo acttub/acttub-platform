@@ -35,10 +35,16 @@ public class DirectVideoConfiguration {
             @Value("${ACTTUB_DIRECT_VIDEO_PRACTICE_LOOP:true}") boolean practiceLoop,
             org.springframework.beans.factory.ObjectProvider<com.acttub.actingapi.feature.coach.app.CoachPersonas> personas,
             // 자문위원 코치 성격 비교(SOMA-622). false 면 모두 기본 성격이다(롤백).
-            @Value("${ACTTUB_COACH_PERSONAS:true}") boolean personasEnabled) {
+            @Value("${ACTTUB_COACH_PERSONAS:true}") boolean personasEnabled,
+            Client client,
+            // 코치 모델 비교(SOMA-657). 새 대화의 SHARE% 는 코치 답을 이 모델로 쓴다. SHARE=0 이면 모두 GEMINI_MODEL(롤백).
+            @Value("${GEMINI_COACH_MODEL_B:gemini-3.8-flash}") String modelB,
+            @Value("${ACTTUB_COACH_MODEL_B_SHARE:50}") int modelBShare) {
+        var alternate = modelB == null || modelB.isBlank() || modelBShare <= 0 ? null : new GeminiDirectVideoModel(client, modelB.strip());
         return new com.acttub.actingapi.feature.coach.app.DirectVideoCoach(model, videos, storage, failures, telemetry, practiceLoop,
                 personasEnabled ? personas.getIfAvailable(() -> com.acttub.actingapi.feature.coach.app.CoachPersonas.NONE)
-                        : com.acttub.actingapi.feature.coach.app.CoachPersonas.NONE);
+                        : com.acttub.actingapi.feature.coach.app.CoachPersonas.NONE,
+                alternate, modelBShare);
     }
 
     @Bean(destroyMethod = "close")
