@@ -17,6 +17,7 @@ import { useCampaignSearch } from "../features/app-download/use-campaign-search"
 import { LANDING_GUIDE_LINKS } from "../features/keyword-pages/guide-links";
 import { preserveWebAttributionFromSearch } from "../lib/analytics/web-attribution";
 import { hasGuestSession } from "../lib/auth/token-store";
+import { wantsLandingIntro } from "../lib/landing-intro";
 
 const COPY = {
   wordmarkAlt: "Acttub",
@@ -128,7 +129,8 @@ export default function LandingClient() {
   const appDownloadHref = useAppDownloadHref("landing_header");
   useEffect(() => {
     // 이미 이 브라우저에서 연습하던 게스트는 랜딩을 건너뛰고 연습으로 보낸다.
-    if (hasGuestSession()) {
+    // 연습 화면 로고처럼 ?intro=1 로 일부러 들어온 경우만 랜딩을 그대로 보여 준다.
+    if (hasGuestSession() && !wantsLandingIntro(window.location.search)) {
       router.replace(
         preserveWebAttributionFromSearch("/home", window.location.search),
       );
