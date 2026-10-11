@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { palette } from '@/constants/palette';
+import { useVideoPreviewEvents } from '@/hooks/use-video-preview-events';
 import { logEvent } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { formatClipDuration, relativeDayLabel } from '@/lib/archive-format';
@@ -90,6 +91,12 @@ export default function ArchiveDetailScreen() {
   const player = useVideoPlayer(source ?? null, (p) => {
     p.loop = true;
   });
+  // 보관함에서 자기 영상을 실제로 틀어 보는지 센다. 서명 주소가 새로 바뀌어도 같은 영상이면 다시 세지 않게 id 로 묶는다.
+  useVideoPreviewEvents(
+    player,
+    'archive',
+    state.kind === 'video' ? state.video.id : state.kind === 'pending' ? state.entry.id : null,
+  );
 
   if (state.kind === 'loading') {
     return (
