@@ -74,3 +74,10 @@ test('대본 파일을 올리는 중·나누는 중에는 화면을 떠날 수 �
   assert.match(screen, /usePreventRemove\(working,/);
   assert.match(screen, /gestureEnabled: !working/);
 });
+
+test('연습 기록에서 빼는 동작은 「삭제」라고 부른다(영상은 보관함에 남는다)', () => {
+  const ko = read('locales/ko.ts');
+  assert.match(ko, /hideConfirm: '삭제',/);
+  assert.match(ko, /hideTitle: '이 연습을 기록에서 삭제할까요\?',/);
+  assert.doesNotMatch(ko, /hideConfirm: '숨기기'/);
+});
