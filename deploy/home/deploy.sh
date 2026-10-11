@@ -16,9 +16,10 @@
 #   3. docker compose up -d --remove-orphans --wait   DEPLOY_WAIT_SECONDS(기본 180) 안에 healthy 가 아니면 실패.
 #      크래시루프는 healthy 가 되지 못해 여기서 시간 초과로 걸린다.
 #   4. web 컨테이너 안에서 GET /health → commit 이 sha 앞 7자와 같은지 대조. 다르면 옛 컨테이너가 답하는 것.
+#   5. 컨테이너가 쓰지 않는 옛 릴리스 이미지를 지운다. 이 단계의 실패는 배포를 실패시키지 않는다.
 #
 # 같은 sha 로 다시 돌리면 release.env 내용이 같아 compose 가 아무것도 바꾸지 않고 초록으로 끝난다(멱등).
-# 롤백은 이전 sha·이미지로 같은 명령을 다시 부르는 것이다.
+# 롤백은 이전 sha·이미지로 같은 명령을 다시 부르는 것이다. 5단계가 지운 이미지는 2단계가 GHCR 에서 다시 받는다.
 #
 # compose 는 반드시 --env-file .env --env-file release.env 로 부른다 — 파일 안 ${API_IMAGE} 치환은
 # --env-file 로 읽은 값만 보고, env_file: 은 컨테이너 환경만 넣는다(compose.yml 머리 주석). 맨손
@@ -167,5 +168,19 @@ if [ -n "$DIRECT_VIDEO_ENABLED" ]; then
     || fail "Gemini 직접 코칭 설정이 반영되지 않았다"
   step "Gemini 직접 코칭 확인: $actual_direct_video"
 fi
+
+# ── 5. 옛 릴리스 이미지 정리 ───────────────────────────────────────────────────
+# 배포마다 sha 태그 이미지가 남아 디스크를 채운다. 이번 이미지와 같은 저장소에서 릴리스 태그(<sha>·<env>-<sha>)만
+# 지우고, smoke.sh 의 로컬 태그(옆 실행이 쓰는 중일 수 있다)는 건드리지 않는다. -f 없는 rm 은 컨테이너가 쓰는
+# 이미지를 거부하므로 같은 데몬의 다른 환경이 띄운 이미지는 남는다. 다른 환경이 pull 한 뒤 up 전에 지워져도
+# up 이 없는 이미지를 다시 받는다.
+step "옛 릴리스 이미지 정리"
+for image in "$API_IMAGE" "$WEB_IMAGE" ${BACKUP_IMAGE:+"$BACKUP_IMAGE"}; do
+  repo="${image%:*}"
+  docker image ls --format '{{.Repository}}:{{.Tag}}' "$repo" 2>/dev/null | while read -r old; do
+    [[ "$old" =~ ^"$repo":([a-z]+-)?[0-9a-f]{7,40}$ ]] && [ "$old" != "$image" ] || continue
+    docker image rm "$old" >/dev/null 2>&1 && echo "  지움 $old" || true
+  done || true
+done
 
 printf '✔ 배포 완료 — %s commit %s\n' "$(basename "$PWD")" "${SHA:0:7}"
