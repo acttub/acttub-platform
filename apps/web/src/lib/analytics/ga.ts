@@ -40,8 +40,12 @@ declare global {
   }
 }
 
-/** 실서비스 호스트인지. `acttub.com` 과 그 서브도메인만 참이다. */
+/**
+ * 실서비스 호스트인지. `acttub.com` 과 그 서브도메인만 참이다. dev 서버는 운영과 같은 측정 ID
+ * 번들을 서빙하므로 `dev.acttub.com` 과 그 하위는 호스트로만 걸러낼 수 있다.
+ */
 export function isMeasuredHost(hostname: string): boolean {
+  if (/(^|\.)dev\.acttub\.com$/.test(hostname)) return false;
   return /(^|\.)acttub\.com$/.test(hostname);
 }
 

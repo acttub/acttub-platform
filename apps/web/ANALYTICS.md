@@ -1,4 +1,4 @@
-# 웹 계측 (Cloudflare · GA4 · Amplitude)
+# 웹 계측 (Cloudflare · GA4 · PostHog)
 
 세 도구를 **역할을 나눠** 쓴다. 하나로 합치지 않는다.
 
@@ -6,14 +6,14 @@
 | --- | --- | --- |
 | **Cloudflare Web Analytics** | 랜딩 대비 다운로드 배지를 얼마나 눌렀나 | 프록시 자동 비컨과 `/go/<os>/<surface>` |
 | **GA4** | 어느 채널·캠페인이 방문과 가입을 만들었나 | `src/lib/analytics/ga.ts` |
-| **Amplitude** | 들어온 사람이 제품 안에서 무엇을 하고 어디서 멈추나 | `src/lib/analytics/amplitude.ts` |
+| **PostHog** | 들어온 사람이 제품 안에서 무엇을 하고 어디서 멈추나 | `src/lib/analytics/posthog.ts` |
 
-GA4는 유입용 서브프로젝트 6개(voice·acti·stage·mono·pick·link)가 같은 측정 ID를 공유하므로 **빼지 않는다.** Amplitude로 대체하려 들면 채널 귀속이 깨진다.
+GA4는 유입용 서브프로젝트 6개(voice·acti·stage·mono·pick·link)가 같은 측정 ID를 공유하므로 **빼지 않는다.** PostHog로 대체하려 들면 채널 귀속이 깨진다.
 
 다운로드 배지는 스토어로 바로 가지 않고 `/go/<os>/<surface>`를 거친다. Cloudflare가 이
 페이지로드를 경로별로 집계하므로 **배지 클릭 수와 랜딩 대비 비율은 Cloudflare에서 본다.**
 `/go`에서는 개인정보나 별도 이벤트 payload를 수집하지 않고 경로별 페이지로드만 센다. 이
-경로 집계는 아래 GA4·Amplitude의 동의 게이트와 별개다.
+경로 집계는 아래 GA4·PostHog의 동의 게이트와 별개다.
 랜딩은 `landing_*`, 앱 안내는 `app_page`, 검색 유입 안내는 `keyword_page` surface로 구분한다.
 
 Cloudflare 무료 플랜은 쿼리(UTM)와 존 리퍼러를 집계하지 못한다(2026-10-09 실측). 그래서 링크에
@@ -73,11 +73,11 @@ ops에서 실제 웹 유입별 가입을 비교하기 위해 `PUT /v2/me/web-att
 
 ## 1. 지켜야 하는 것
 
-`ga.ts` 첫 주석의 원칙이 Amplitude에도 **그대로** 적용된다. 하나라도 풀면 개인정보처리방침과 어긋난다.
+`ga.ts` 첫 주석의 원칙이 PostHog에도 **그대로** 적용된다. 하나라도 풀면 개인정보처리방침과 어긋난다.
 
-### (1) GA4·Amplitude는 동의 전에는 아무것도 저장하지 않는다
+### (1) GA4·PostHog는 동의 전에는 아무것도 저장하지 않는다
 
-GA4는 `consent: denied` 상태에서 쿠키 없이 히트를 보내지만, **Amplitude는 동의 전에는 초기화 자체를 하지 않는다.** 조건은 GA4와 동일하고 하나뿐이다(SOMA-528 결정 I-6, `src/features/consent/analytics-consent.ts`).
+GA4는 `consent: denied` 상태에서 쿠키 없이 히트를 보내지만, **PostHog는 동의 전에는 초기화 자체를 하지 않는다.** 조건은 GA4와 동일하고 하나뿐이다(SOMA-528 결정 I-6, `src/features/consent/analytics-consent.ts`).
 
 > **단일 기준은 서버다.** 이 브라우저에 게스트 토큰이 있고, `GET /v2/consents/entry`의 `privacy` 종류 행이 `current_decision === "granted"`일 때만 켠다.
 
@@ -87,108 +87,83 @@ GA4는 `consent: denied` 상태에서 쿠키 없이 히트를 보내지만, **Am
 - **서버에 묻는 때는 셋이다** — 앱을 시작할 때 한 번, 탭이 다시 보일 때(`visibilitychange`), 동의 제출 직후. 화면을 옮길 때마다 묻지 않는다.
 - **즉시 끄는 때** — 어떤 요청이든 403 `consent_required`를 받아 시트가 열리는 순간(제출 완료를 기다리지 않는다), 게스트가 끝나는 순간(갱신 거절·`account_deactivated`), 새 게스트가 시작되는 순간. 진행 중이던 조회의 답은 버린다. 시트를 닫기만 해도 다시 묻는다 — 빠진 것이 `privacy`가 아니었다면 서버의 답은 여전히 `granted`다.
 - **다른 탭에서 일어난 게스트의 끝·시작도 즉시 끄는 때다. 묻는 때가 아니다.** 그 변화는 `storage` 이벤트로만 오고(`watchGuestSession`), 게스트 토큰 키가 지워지거나 새로 생긴 것만 본다. 같은 게스트의 토큰 회전(값 → 값)과 다른 키의 쓰기는 지나친다 — 다른 탭의 SDK가 이벤트마다 `localStorage`를 쓰므로, 키를 거르지 않으면 그때마다 끄고 다시 묻게 된다. 꺼진 탭은 다시 보일 때 묻는다.
-- **끈다는 것은 실제 중단이다.** GA4는 `analytics_storage: denied`로 되돌리고 `user_id`를 지운다(`revokeAnalyticsConsent`). Amplitude는 `setOptOut(true)`다(`stopAmplitude`) — 식별자만 지우면 이미 켜진 autocapture와 세션 리플레이는 SDK가 스스로 계속 보낸다. opt-out은 그 뒤의 이벤트(autocapture 포함)를 버리고, 리플레이 플러그인은 opt-out을 받아 녹화를 `shutdown()`한다(`@amplitude/plugin-session-replay-browser` 1.33.7의 `onOptOutChanged`, 코어의 `setOptOut` → `timeline.onOptOutChanged`로 확인). 다시 켤 때는 `setOptOut(false)`로 풀고 플러그인이 녹화를 다시 시작한다.
-- 기기 식별(`amplitude.reset()`)은 끌 때마다 끊지 않는다. 탭이 다시 보일 때마다 확인하느라 잠깐 끄는 것까지 새 기기로 세면 같은 게스트가 여럿으로 갈린다. **다른 게스트로 켜질 때** 끊는다(`setAmplitudeUser`).
+- **끈다는 것은 실제 중단이다.** GA4는 `analytics_storage: denied`로 되돌리고 `user_id`를 지운다(`revokeAnalyticsConsent`). PostHog는 `opt_out_capturing()`이다(`stopPostHog`) — 식별자만 지우면 이미 켜진 autocapture와 화면 녹화는 SDK가 스스로 계속 보낸다. opt-out 상태에서는 SDK의 `capture`가 이벤트를 버리고(돌던 녹화의 `$snapshot`도 `capture`를 거친다), 새 녹화는 시작하지 않는다(posthog-js 1.434.14 `session-recording.js`의 `isDisabled = … || consent.isOptedOut()`로 확인). 다만 opt-out은 이미 돌던 녹화기를 멈추지 않아, 그대로 두면 다시 켤 때 꺼진 동안 쌓인 화면이 올라간다. 그래서 `stopSessionRecording()`도 부르고, 켤 때 `startSessionRecording()`(인자 없이 — 샘플링 등 프로젝트 설정은 그대로 따른다)으로 되돌린다. 다시 켤 때는 `opt_in_capturing({ captureEventName: false })`로 푼다. `captureEventName: false`는 기본으로 붙는 `$opt_in` 이벤트를 막는다.
+- **opt-out은 브라우저에 남는다**(`opt_out_capturing_persistence_type` 기본 localStorage). 끈 채 새로고침하면 SDK가 꺼진 채로 init되므로, `startPostHog`는 켤 차례마다 `has_opted_out_capturing()`을 보고 푼다. **순서는 신원 → opt-in이다.** `opt_in_capturing()`은 그 자리에서 `$pageview`를 보내므로(1.434.14 `posthog-core.js` `_captureInitialPageview`), opt-in을 먼저 하면 새 게스트가 연 페이지가 앞 게스트에게 붙는다. 그래서 `startPostHog(userId)` 하나가 신원(필요하면 `reset(true)` → `identify`)을 맞춘 뒤 opt-in한다. `reset()`은 저장된 opt-out도 지우므로, 다른 게스트로 바뀐 경우에는 opt-in이 필요 없다.
+- 기기 식별(`posthog.reset(true)` — distinct id와 device id를 새로 만든다)은 끌 때마다 끊지 않는다. 탭이 다시 보일 때마다 확인하느라 잠깐 끄는 것까지 새 기기로 세면 같은 게스트가 여럿으로 갈린다. **다른 게스트로 켜질 때** 끊는다(`startPostHog`). 앞 게스트는 SDK가 저장해 둔 `$user_id`로 알아본다 — 모듈 변수로 비교하면 새로고침 뒤 첫 게스트 교체를 놓쳐 앞 게스트와 같은 device id로 이어진다(2026-10-11 실제 빌드에서 재현).
 
-이 규칙은 `tests/analytics-consent.test.mjs`(granted → 켬 / declined·revoked·행 없음 → 끔 / 토큰 없음 → 끔 / 조회 실패 → 끔 / 켜진 뒤 403 → 즉시 끔 / 재조회로 어긋남 발견 → 끔), `tests/analytics-cross-tab.test.mjs`(다른 탭의 무관한 키·토큰 회전 → 묻지도 끄지도 않음 / 다른 탭의 게스트 끝·시작 → 묻지 않고 끔 / 탭이 다시 보임 → 물음), `tests/analytics-amplitude.test.mjs`의 "계측 I-6" 항목들이 고정한다.
+이 규칙은 `tests/analytics-consent.test.mjs`(granted → 켬 / declined·revoked·행 없음 → 끔 / 토큰 없음 → 끔 / 조회 실패 → 끔 / 켜진 뒤 403 → 즉시 끔 / 재조회로 어긋남 발견 → 끔), `tests/analytics-cross-tab.test.mjs`(다른 탭의 무관한 키·토큰 회전 → 묻지도 끄지도 않음 / 다른 탭의 게스트 끝·시작 → 묻지 않고 끔 / 탭이 다시 보임 → 물음), `tests/analytics-posthog.test.mjs`의 "계측 I-6"·새로고침 항목들이 고정한다.
 
 동의 전에 쌓인 이벤트는 **버린다.** 큐에 모았다가 동의 후 흘려보내지 않는다. 그렇게 하면 "동의 전에는 수집하지 않는다"는 약속이 "동의 전에는 전송하지 않는다"로 슬쩍 바뀐다.
 
-### (2) autocapture와 세션 리플레이가 켜져 있다
+### (2) autocapture와 화면 녹화가 켜져 있고, 입력값을 가리지 않는다
 
-```ts
-amplitude.add(sessionReplayPlugin({ sampleRate: 1 }));   // init 앞에 붙여야 첫 세션부터 잡힌다
-amplitude.init(API_KEY, undefined, { autocapture: true });
-```
+옵션은 [posthog.ts](src/lib/analytics/posthog.ts)의 `posthog.init` 호출이 정본이다. 요점:
 
-> **`@amplitude/unified` 의 `initAll` 을 쓰지 않는다.** `initAll` 은 analytics·session replay 에
-> 더해 **experiment 와 engagement(가이드·설문)까지 조건 없이 초기화한다** — unified 소스에
-> engagement 를 끄는 옵션이 없다(`unified.js` 의 `add(EngagementPlugin(...))` 이 무조건 실행된다).
->
-> 2026-08-11 로컬 확인에서 `cdn.amplitude.com/engagement-browser/...` 청크 15개+와
-> `gs.amplitude.com/sdk/v1/{config,decide,state}` 호출이 붙는 것을 보고 걷어냈다. Engagement 는
-> 앱 안에 가이드·설문 UI 를 띄울 수 있는 기능이라 쓰지도 않는데 켜 둘 이유가 없고, 방침 v4 에
-> 고지된 경로도 아니다. 걷어내면서 SDK 청크가 gzip **115KB → 90KB** 로 줄었다.
->
-> 지금은 analytics 와 session replay 둘만 명시적으로 붙인다 — Amplitude 의 Next.js 가이드가
-> 쓰는 방식이다. 나중에 experiment 나 가이드가 필요해지면 그때 해당 플러그인만 추가한다.
+- `autocapture: true`, `capture_pageview: "history_change"` — 클릭과 전체 주소 페이지뷰를 SDK가 스스로 보낸다.
+- `session_recording: { maskAllInputs: false }` — 화면 녹화가 입력값을 그대로 담는다. 비밀번호 칸은 SDK가 늘 가린다
+  (posthog-js 1.434.14 `lazy-loaded-session-recorder.js`가 `maskInputOptions`에 `password: true`를 항상 붙인다).
+  코드의 `maskAllInputs`가 프로젝트 설정의 마스킹보다 먼저 적용된다.
+- 쓰지 않는 기능은 끈다 — 설문·제품 투어·대화(`disable_surveys`·`disable_product_tours`·`disable_conversations`),
+  기능 플래그(`advanced_disable_feature_flags`), 오류 수집(`capture_exceptions: false`, 오류는 Sentry), 히트맵·죽은 클릭
+  (`capture_heatmaps`·`capture_dead_clicks: false`). 처리방침에 고지한 수집 경로가 아니다. `disable_web_experiments`는
+  기본값이 이미 true다. `advanced_disable_flags`는 켜지 않는다 — 녹화를 켜는 원격 설정까지 막힌다.
 
-**2026-08-11 최우영 결정으로 자동 수집과 화면 녹화를 전부 켰다.** 그래서 아래가 Amplitude로 나간다 — 방침이 이걸 전부 고지해야 하고, 이 목록이 곧 방침 6항의 수집 항목이다:
+**2026-08-11 최우영 결정으로 자동 수집과 화면 녹화를 전부 켰다.** 그래서 아래가 PostHog로 나간다 — 방침이 이걸 전부 고지해야 하고, 이 목록이 곧 방침 6항의 수집 항목이다:
 
-- **전체 주소** — autocapture 페이지뷰가 `location.href`를 통째로 싣는다: `/practice/history?session=<uuid>`, `/home?session=<uuid>`
+- **전체 주소** — 페이지뷰가 `location.href`를 통째로 싣는다: `/practice/history?session=<uuid>`, `/home?session=<uuid>`
 - **클릭한 요소의 텍스트** — 좌측 레일 항목 제목에는 **사용자가 직접 쓴 상황 텍스트**가 들어간다(`practice-groups.ts`의 `groupTitle`).
-- **화면 녹화 100%** — `sampleRate: 1`. 연습 영상이 재생되는 화면, 장면 3칸, 코치 대화 전문, 연습 노트가 전부 들어간다.
+- **화면 녹화** — 연습 영상이 재생되는 화면, 장면 3칸, 코치 대화 전문, 연습 노트, **입력 중인 값**이 전부 들어간다.
 
 수동으로 쏘는 20개 이벤트는 그대로 §1(7)의 화이트리스트를 지킨다. 자동 수집을 켰다고 **우리가 만드는 payload까지 느슨해지지는 않는다** — 두 경로는 별개다.
 
-⚠️ **마스킹은 설정하지 않았다.** Amplitude Session Replay는 텍스트·입력을 가리는 옵션을 따로 제공한다. 지금 설정은 받은 지침 그대로이고, 마스킹을 넣으려면 여기서부터 손대면 된다.
+⚠️ **입력값 마스킹은 일부러 껐다(사용자 결정).** 옛 기록: Amplitude 때는 마스킹을 따로 설정하지 않았지만 리플레이 SDK의
+기본 마스킹 수준이 `medium`이라 폼 입력값은 전부 가려지고 화면 글자는 담겼다(@amplitude/session-replay-browser 1.48.1
+`config/types.js`의 `DEFAULT_MASK_LEVEL`, 2026-10-11 소스로 확인). PostHog로 옮기면서 입력값도 그대로 녹화하므로
+**이전보다 덜 가린다.** 비밀번호 칸만 SDK가 가린다.
 
 #### 번들러 변경 검증
 
-[package.json](package.json)의 `build`는 세션 리플레이가 동작하는 번들러를 사용한다.
-번들러를 바꿀 때는 아래 런타임 검증을 통과해야 한다. 빌드 성공과 이벤트 수신만으로는
-녹화 청크가 실행되는지 알 수 없다.
+녹화 코드는 우리 번들에 들어가지 않는다. SDK가 녹화를 시작할 때 레코더 스크립트
+(2026-10-11 운영 프로젝트에서 받은 것은 `https://us-assets.i.posthog.com/static/1.434.14/posthog-recorder.js`, 이름은 원격 설정이 정한다)를
+따로 받는다(posthog-js `external-scripts-loader.js`·`request-router.js`). 그래서 번들러를 바꿀 때 볼 것은
+"번들러가 녹화 청크를 깨뜨리는가"가 아니라 "SDK 번들이 레코더를 받아 실행하고 업로드하는가"다.
 
-2026-08-11 검증에서 리플레이 SDK가 **동적 import**로 불러오는 rrweb 레코더 청크
-(`getRecordFunction`)가 Turbopack 빌드에서 `SyntaxError: Invalid or unexpected token`으로
-실패했다. SDK가 예외를 삼키고 null을 돌려주어 녹화가 시작되지 않았다:
-
-```js
-case 3:
-  this.loggerProvider.warn("Failed to load rrweb-record module:", n);
-  return [2, null];      // ← 여기로 빠진다
-```
-
-증상이 고약하다 — 빌드도 배포도 초록이고, 이벤트는 정상으로 들어가고, `AMP_SR_START` 키와 리플레이 ID 까지 멀쩡히 생긴다. **IndexedDB 에 리플레이 버퍼 DB 가 없는 것**(`AMP_diagnostics_*` 하나만 있음)과 `api-sr.amplitude.com` 요청이 0건인 것으로만 구분된다.
-
-2026-08-11 에 같은 코드로 두 번 빌드해 확인했다:
-
-| 번들러 | 콘솔 | 리플레이 업로드 |
-| --- | --- | --- |
-| Turbopack (기본) | `Uncaught SyntaxError` | **0건** |
-| webpack (`--webpack`) | 깨끗 | **`sessions/v2/track` 200 × 6** |
+옛 기록: Amplitude 때는 리플레이 SDK가 동적 import로 불러오는 rrweb 레코더 청크가 2026-08-11 Turbopack 빌드에서
+`SyntaxError`로 깨져 녹화가 조용히 0건이었다. 그래서 [package.json](package.json)의 `build`가 webpack(`--webpack`)을 쓴다.
+PostHog에서는 이 갈래가 다르지만, 번들러를 바꾸면 아래 런타임 검증을 다시 한다. 빌드 성공과 이벤트 수신만으로는
+녹화가 도는지 알 수 없다.
 
 **완료 기준:** 변경한 번들러의 배포 빌드를 현재 판에 동의한 게스트·계측 키가 갖춰진 환경에서
-실행했다. 원격 설정의 캡처 활성화와 샘플 비율을 확인하고, 녹화 청크 로딩·리플레이 버퍼·
-`sessions/v2/track` 업로드 성공을 확인했다. 콘솔 오류와 검증 환경을 함께 기록한다.
+실행했다. PostHog 프로젝트 설정에서 Session replay가 켜져 있는지 확인하고, 레코더 스크립트(`posthog-recorder.js`)
+로드 성공과 `/s/` 업로드 성공을 네트워크 탭에서 확인했다. 콘솔 오류와 검증 환경을 함께 기록한다.
 
-#### ⚠️ 코드의 `sampleRate` 는 서버 원격 설정에 덮인다
+#### ⚠️ 녹화를 켜는 곳은 코드가 아니라 프로젝트 설정이다
 
-**`sessionReplayPlugin`에 넣은 `sampleRate`가 최종 값은 아니다.** SDK 는 기동할 때
-`https://sr-client-cfg.amplitude.com/config/<key>?config_group=browser` 를 받아 그 값을 쓴다.
-Amplitude 가 Admin 에서 정한 개인정보 설정을 존중하도록 그렇게 설계돼 있고, **원격 설정이
-로드에 실패하면 아예 한 세션도 캡처하지 않는다.**
+SDK는 기동할 때 원격 설정(`https://us-assets.i.posthog.com/array/<key>/config`)을 받아 녹화 여부를 정한다.
+**PostHog 프로젝트 설정의 Session replay 켜짐·샘플 비율이 실제 적용값이다.** 녹화가 안 보이면 코드를
+고치기 전에 프로젝트 설정을 먼저 본다. 원격 설정을 못 받으면 녹화는 시작하지 않는다.
 
-2026-08-11 에 이것 때문에 리플레이가 하나도 안 잡혔다. 코드는 100% 인데 서버 응답이:
-
-```json
-"sessionReplay": { "sr_sampling_config": { "capture_enabled": true, "sample_rate": 0.01 } }
-```
-
-**1%** 였다. 100세션에 1개만 녹화되니 테스트 몇 번으로는 영원히 안 보인다.
-
-**녹화가 안 보이면 코드를 고치기 전에 저 URL 을 먼저 찍어봐라.** `capture_enabled` 와
-`sample_rate` 가 실제 적용값이다. 바꾸는 곳은 코드가 아니라 **Amplitude 프로젝트 설정**이다.
+옛 기록: Amplitude 때도 코드의 `sampleRate: 1`이 원격 설정 1%에 덮여 2026-08-11 리플레이가 하나도 안 잡힌 적이 있다.
 
 화면 전환은 autocapture와 별개로 `screen_viewed`도 직접 쏜다 — 이쪽은 주소가 씻긴 값이라 퍼널의 시작점으로 쓸 수 있다.
 
 ### (3) 주소는 경로만, UUID는 가린다
 
-`scrubUrl()`(`src/lib/observability/sentry-shared.ts`)을 재사용한다 — 쿼리·해시를 떼고 경로의 UUID를 `<id>`로 치환한다. 허용 목록이 아니라 제거 방식이라 **새 쿼리가 생겨도 자동으로 걸러진다.** GA4의 `toTrackedQuery`는 캠페인 파라미터를 남겨야 해서 허용 목록을 쓰지만, Amplitude는 캠페인을 볼 필요가 없으므로 더 강한 쪽을 쓴다.
+`scrubUrl()`(`src/lib/observability/sentry-shared.ts`)을 재사용한다 — 쿼리·해시를 떼고 경로의 UUID를 `<id>`로 치환한다. 허용 목록이 아니라 제거 방식이라 **새 쿼리가 생겨도 자동으로 걸러진다.** GA4의 `toTrackedQuery`는 캠페인 파라미터를 남겨야 해서 허용 목록을 쓰지만, PostHog 이벤트는 캠페인을 볼 필요가 없으므로 더 강한 쪽을 쓴다.
 
 ### (4) 환경은 호스트가 아니라 키로 나눈다
 
-GA4는 `isMeasuredHost()`로 로컬 트래픽을 막지만, Amplitude는 그 가드를 두지 않는다. **환경별로 다른 프로젝트 키를 주입해 통계를 나눈다** — Sentry가 `NEXT_PUBLIC_SENTRY_ENV`로 하는 것과 같은 방식이고, 이래야 로컬에서 설치를 확인할 수 있다. 키를 두는 곳은 [§5 「환경 변수」](#환경-변수)다.
+GA4는 `isMeasuredHost()`로 로컬과 `dev.acttub.com`(그 하위 포함) 트래픽을 막지만 — dev와 운영이 같은 측정 ID라 호스트로만 가를 수 있다 — PostHog는 그 가드를 두지 않는다. **환경별로 다른 프로젝트 키를 주입해 통계를 나눈다** — Sentry가 `NEXT_PUBLIC_SENTRY_ENV`로 하는 것과 같은 방식이고, 이래야 로컬에서 설치를 확인할 수 있다. 키를 두는 곳은 [§5 「환경 변수」](#환경-변수)다.
 
-### (5) 켜고 끄는 스위치는 API 키 하나다
+### (5) 켜고 끄는 스위치는 프로젝트 키 하나다
 
-`NEXT_PUBLIC_AMPLITUDE_API_KEY`가 비어 있으면 **아무 일도 일어나지 않는다.** Sentry의 `isSentryEnabled()`와 같은 패턴이다. 별도 feature flag를 만들지 않는다 — 스위치가 둘이면 어느 쪽이 껐는지 헷갈린다.
+`NEXT_PUBLIC_POSTHOG_KEY`가 비어 있으면 **아무 일도 일어나지 않는다.** Sentry의 `isSentryEnabled()`와 같은 패턴이다. 별도 feature flag를 만들지 않는다 — 스위치가 둘이면 어느 쪽이 껐는지 헷갈린다.
 
 > ⚠️ 키를 넣는 순서는 [§5 「켜는 순서」](#켜는-순서--틀리면-되돌릴-수-없다)를 따른다.
 
 ### (6) `user_id`는 백엔드 내부 식별자만
 
-`getStoredUser().id`만 쓴다. 웹에서는 이 브라우저의 게스트 id다. 이메일·표시 이름·소셜 sub는 넣지 않는다. 계측이 꺼질 때 GA4의 `user_id`를 지우고, 다른 게스트로 켜질 때 Amplitude를 `reset()`한다(§1(1)).
+`getStoredUser().id`만 쓴다. 웹에서는 이 브라우저의 게스트 id다. 이메일·표시 이름·소셜 sub는 넣지 않는다. 계측이 꺼질 때 GA4의 `user_id`를 지우고, 다른 게스트로 켜질 때 PostHog를 `reset(true)`한 뒤 `identify`한다(§1(1)).
 
 ### (7) 이벤트 속성은 화이트리스트다
 
@@ -204,7 +179,7 @@ GA4는 `isMeasuredHost()`로 로컬 트래픽을 막지만, Amplitude는 그 가
 
 ## 2. 버킷
 
-`ga.ts`의 `toDurationBucket`은 그대로 재사용하고, 나머지는 `amplitude.ts`에 둔다.
+`ga.ts`의 `toDurationBucket`은 그대로 재사용하고, 나머지는 `posthog.ts`에 둔다.
 
 | 함수 | 구간 |
 | --- | --- |
@@ -220,11 +195,6 @@ GA4는 `isMeasuredHost()`로 로컬 트래픽을 막지만, Amplitude는 그 가
 ## 3. 이벤트 사전 (1차 20개)
 
 이벤트를 더 늘리기 전에 **이 20개로 답이 나오는지 먼저 본다.** 입시 계측은 2차로 미룬다 — 지금 답해야 할 질문(퍼널 이탈·리텐션·대화 품질)에 필요 없다.
-
-> **설치 검증용 임시 이벤트가 따로 있다.** `Viewed Home Page` — `startAmplitude()`의
-> `amplitude.init` 바로 뒤에서 발생한다. 실제 payload는
-> [amplitude.ts](src/lib/analytics/amplitude.ts)의 호출부에서 확인한다. Amplitude Setup 페이지의
-> 라이브 피드에서 수신을 확인한 뒤 제거한다. 제품 질문에 답하는 이벤트가 아니다.
 
 ### A. 연습 퍼널 — "어디서 나가나"
 
@@ -242,7 +212,7 @@ GA4는 `isMeasuredHost()`로 로컬 트래픽을 막지만, Amplitude는 그 가
 `theory_choice`는 0.1.0에서 준비 화면의 이론 선택과 함께 사라졌다(SOMA-546). 옛 이벤트에 남은 값은 그대로 두고 새 이벤트는 이 속성을 만들지 않는다.
 
 
-`error_code`는 회차 응답의 `job.failure_reason`을 웹이 옮긴 값([practice-view.ts](src/features/practice/practice-view.ts)의 `toErrorCode`, 값 목록은 `amplitude.ts`의 `AnalysisErrorCode`)을 그대로 싣는다. 지금 화면은 이 값을 전혀 쓰지 않는다.
+`error_code`는 회차 응답의 `job.failure_reason`을 웹이 옮긴 값([practice-view.ts](src/features/practice/practice-view.ts)의 `toErrorCode`, 값 목록은 `posthog.ts`의 `AnalysisErrorCode`)을 그대로 싣는다. 지금 화면은 이 값을 전혀 쓰지 않는다.
 
 `reason_code`는 HTTP status 숫자 또는 `network`·`aborted` 같은 고정 문자열만. **에러 메시지 원문을 넣지 않는다** — 서버 메시지에 무엇이 실려 올지 보장할 수 없다.
 
@@ -289,7 +259,7 @@ GA4는 `isMeasuredHost()`로 로컬 트래픽을 막지만, Amplitude는 그 가
 | `exit_review_opened` | 후기 창 열림 | `trigger`: `x`\|`leave`\|`back`, `mode` |
 | `exit_review_submitted` | 후기 제출 | `trigger` |
 
-`practice_history_opened`의 `age_days_bucket`이 리텐션의 실질 지표다 — Amplitude의 리텐션 차트가 "재방문"을 세는 것과 별개로, **지난 연습을 실제로 다시 열어보는지**가 이 제품에서 값이 있는 행동이다.
+`practice_history_opened`의 `age_days_bucket`이 리텐션의 실질 지표다 — PostHog의 리텐션 차트가 "재방문"을 세는 것과 별개로, **지난 연습을 실제로 다시 열어보는지**가 이 제품에서 값이 있는 행동이다.
 
 ### D. 동의 — "들어오다 막히나"
 
@@ -297,7 +267,7 @@ GA4는 `isMeasuredHost()`로 로컬 트래픽을 막지만, Amplitude는 그 가
 | --- | --- | --- |
 | `consent_submitted` | 게스트의 기능별 동의 시트 제출 | `result`: `ok`\|`partial_fail` |
 
-웹에는 로그인이 없어 `login_completed`·`login_failed`는 없앴다(SOMA-528). ⚠️ **`consent_submitted`의 `ok`는 계측이 켜진 직후의 첫 이벤트다.** `privacy` 동의가 저장되고 서버가 `granted`라고 답한 뒤에야 Amplitude가 켜지므로 그 전의 이벤트(영상 고르기 등)는 남지 않고, 저장에 실패한 첫 시트의 `partial_fail`도 버려진다. §1(1)의 결과이지 버그가 아니다 — 소급 전송하지 않는다. `privacy`가 없는 두 번째 시트(예: AI 분석 동의만)는 이미 켜진 상태에서 잡힌다.
+웹에는 로그인이 없어 `login_completed`·`login_failed`는 없앴다(SOMA-528). ⚠️ **`consent_submitted`의 `ok`는 계측이 켜진 직후의 첫 이벤트다.** `privacy` 동의가 저장되고 서버가 `granted`라고 답한 뒤에야 PostHog가 켜지므로 그 전의 이벤트(영상 고르기 등)는 남지 않고, 저장에 실패한 첫 시트의 `partial_fail`도 버려진다. §1(1)의 결과이지 버그가 아니다 — 소급 전송하지 않는다. `privacy`가 없는 두 번째 시트(예: AI 분석 동의만)는 이미 켜진 상태에서 잡힌다.
 
 ### E. 화면 — "무엇을 쓰나"
 
@@ -305,7 +275,7 @@ GA4는 `isMeasuredHost()`로 로컬 트래픽을 막지만, Amplitude는 그 가
 | --- | --- | --- |
 | `screen_viewed` | 라우트 변경 | `path` (`scrubUrl` 통과) |
 
-`path`는 경로만 남고 UUID는 `<id>`로 치환된다. GA4의 `page_view`와 중복이지만, Amplitude에서 퍼널·리텐션의 시작점으로 쓰려면 같은 프로젝트 안에 있어야 한다.
+`path`는 경로만 남고 UUID는 `<id>`로 치환된다. GA4의 `page_view`와 중복이지만, PostHog에서 퍼널·리텐션의 시작점으로 쓰려면 같은 프로젝트 안에 있어야 한다.
 
 ---
 
@@ -313,7 +283,7 @@ GA4는 `isMeasuredHost()`로 로컬 트래픽을 막지만, Amplitude는 그 가
 
 이벤트를 추가하려면 **이 문서의 표를 먼저 고친다.** 표에 없는 이벤트를 코드에서 직접 쏘지 않는다.
 
-호출은 전부 `src/lib/analytics/amplitude.ts` 안의 래퍼 함수로만 한다 — `ga.ts`의 "이 파일 밖에서 `gtag`를 직접 부르지 않는다"와 같은 규칙이다. 그래야 속성 화이트리스트를 한 곳에서 강제할 수 있고, 금지 키가 payload에 없다는 테스트도 한 곳만 보면 된다.
+호출은 전부 `src/lib/analytics/posthog.ts` 안의 래퍼 함수로만 한다 — `ga.ts`의 "이 파일 밖에서 `gtag`를 직접 부르지 않는다"와 같은 규칙이다. 그래야 속성 화이트리스트를 한 곳에서 강제할 수 있고, 금지 키가 payload에 없다는 테스트도 한 곳만 보면 된다.
 
 2차 후보(지금은 넣지 않음): 동의 시트를 닫고 나간 횟수, 입시 필터·외부 링크 이탈, 막힘 1·2단계 개별 선택과 되돌리기 횟수.
 
@@ -331,44 +301,39 @@ GA4는 `isMeasuredHost()`로 로컬 트래픽을 막지만, Amplitude는 그 가
 
 | 변수 | 위치 | 값 |
 | --- | --- | --- |
-| `AMPLITUDE_API_KEY_WEB` | GitHub Actions **Environment 변수** (dev / prod 각각) | 환경별로 **다른** Amplitude 프로젝트 키 |
-| `NEXT_PUBLIC_AMPLITUDE_API_KEY` | 빌드 시점 주입 (`deploy.yml`이 위 값을 넣는다) | — |
-| `NEXT_PUBLIC_AMPLITUDE_API_KEY` | 로컬 `apps/web/.env.local` | 확인용. `.env*`는 커밋되지 않는다 |
+| `POSTHOG_KEY_WEB` | GitHub Actions **Environment 변수** (dev / prod 각각) | 환경별로 **다른** PostHog 프로젝트 키 |
+| `NEXT_PUBLIC_POSTHOG_KEY` | 빌드 시점 주입 (`deploy.yml`이 위 값을 넣는다) | — |
+| `NEXT_PUBLIC_POSTHOG_KEY` | 로컬 `apps/web/.env.local` | 확인용. `.env*`는 커밋되지 않는다 |
 
-**Amplitude 프로젝트를 두 개 만들어야 한다.** §1(4)대로 호스트로 거르지 않으므로, dev와 운영에 같은 키를 주면 개발 트래픽이 운영 통계에 그대로 섞인다. Repository 변수가 아니라 **Environment 변수**로 넣어야 환경별로 갈린다.
+**PostHog 프로젝트를 dev와 운영 둘로 나눈다.** §1(4)대로 호스트로 거르지 않으므로, dev와 운영에 같은 키를 주면 개발 트래픽이 운영 통계에 그대로 섞인다. 프로젝트를 하나만 쓸 수 있으면 dev의 변수를 비워 dev 계측을 끈다. Repository 변수가 아니라 **Environment 변수**로 넣어야 환경별로 갈린다.
 
 ### 한도 검토
 
-아래 수치와 규모 계산은 2026-08-11 당시 기록이다. 샘플 비율을 바꾸기 전에는 Amplitude
-프로젝트의 현재 요금제·사용량·원격 샘플 설정을 확인하고 실제 세션 수로 다시 계산한다.
-
-| 항목 | 당시 무료 한도 | 당시 설정에서 예상한 소진 속도 |
-| --- | --- | --- |
-| 세션 리플레이 | 10,000 replay/월 | 100% 로 두면 **모든 세션이 녹화된다. 월 1만 세션에서 한도 도달** (단, 실제 비율은 코드가 아니라 **서버 원격 설정**이 정한다 — 위 ⚠️ 참고) |
-| 이벤트 | 2,000,000 건/월 | autocapture 포함 세션당 대략 30~60건 → 월 3~6만 세션 수준 |
-
-이 계산에서는 리플레이가 이벤트보다 먼저 한도에 닿는다. 비율을 조정할 때는
-`amplitude.ts`의 `sessionReplayPlugin` 옵션과 §1(2)의 서버 원격 설정을 함께 확인한다.
+PostHog 무료 한도(이벤트·녹화 수, 프로젝트 수)는 아직 확인하지 않았다. 키를 넣기 전에 PostHog 프로젝트의
+Billing 화면에서 확인해 여기에 날짜와 함께 적는다. 녹화 비율은 코드가 아니라 프로젝트 설정의 Session replay
+샘플 비율이 정한다(§1(2)).
 
 #### 세션이 무엇인지부터 — 연습 1회도, 사람 1명도 아니다
 
-Amplitude의 세션은 **브라우저 활동 구간**이다. 30분 무활동이면 끊기고 다시 움직이면 새 세션이 된다. 1·2·3층을 다 도는 것과는 무관하다.
+PostHog의 세션은 **브라우저 활동 구간**이다. 30분 무활동이면 끊기고 다시 움직이면 새 세션이 되며, 한 세션은 24시간을 넘지 않는다(posthog-js `sessionid.js`의 기본값). 1·2·3층을 다 도는 것과는 무관하다.
 
 - 들어와서 아무것도 안 하고 나가도 1세션
-- 연습 한 번을 쭉 이어서 하면 보통 1세션 (분석 대기가 길어도 폴링이 활동으로 잡힌다)
+- 연습 한 번을 쭉 이어서 하면 보통 1세션
 - **분석이 250초 걸려 폰을 놓고 30분 뒤 돌아와 노트를 보면 2세션**
 - 한 사람이 한 달에 세 번 오면 3세션
 
-#### 당시 규모 계산 (2026-08-11)
+#### 옛 기록: Amplitude 때의 규모 계산 (2026-08-11)
 
-**동의 게이트가 익명 방문자를 통째로 걸러낸다.** Amplitude는 서버가 게스트의 `privacy` 동의를 `granted`라고 답한 뒤에만 init되므로(당시에는 로그인 + 최신 방침 동의), 랜딩만 보고 나가는 사람은 세션을 만들지 않는다. SOMA-332 기준 최근 30일 광고 링크 클릭이 **3,205건**인데 거의 다 익명 유입이라 리플레이를 한 건도 쓰지 않는다. (SOMA-331이 "코어 GA가 로그인·동의 뒤에만 켜져서 그 이전 유입을 못 센다"고 지적한 것과 같은 구조다 — 귀속에는 불리하고 쿼터에는 유리하다.)
+당시 Amplitude 무료 한도는 리플레이 10,000건/월, 이벤트 2,000,000건/월이었다.
 
-가입자는 **175명**(SOMA-279, 2026-08-03 기준, `ADMIN_OPS_EXCLUDE_EMAILS`로 개발자 제외된 값). 전원이 매달 10번씩 들어와도 **1,750세션 = 한도의 17%**라는 계산이 당시 `sampleRate: 1` 유지의 근거였다.
+**동의 게이트가 익명 방문자를 통째로 걸러낸다.** 계측은 서버가 게스트의 `privacy` 동의를 `granted`라고 답한 뒤에만 init되므로(당시에는 로그인 + 최신 방침 동의), 랜딩만 보고 나가는 사람은 세션을 만들지 않는다. SOMA-332 기준 최근 30일 광고 링크 클릭이 **3,205건**인데 거의 다 익명 유입이라 녹화를 한 건도 쓰지 않는다. (SOMA-331이 "코어 GA가 로그인·동의 뒤에만 켜져서 그 이전 유입을 못 센다"고 지적한 것과 같은 구조다 — 귀속에는 불리하고 쿼터에는 유리하다.)
 
-**다시 계산해야 하는 때는 둘이다.**
-1. **동의 게이트를 풀면** 즉시 위험해진다 — 익명 방문자가 세션을 만들기 시작하면 위 3,205건이 그대로 리플레이가 된다. 게이트는 방침 때문에 두는 것이지만 쿼터 방어도 겸하고 있다.
-2. **가입이 10배 나면**(1,750명 규모) 여유가 사라진다. 그때 `sampleRate`를 0.2~0.3으로 낮추면 표본으로는 충분하다.
+가입자는 **175명**(SOMA-279, 2026-08-03 기준, `ADMIN_OPS_EXCLUDE_EMAILS`로 개발자 제외된 값). 전원이 매달 10번씩 들어와도 **1,750세션 = 당시 리플레이 한도의 17%**라는 계산이 당시 100% 녹화 유지의 근거였다.
+
+**다시 계산해야 하는 때는 둘이다.** PostHog 한도를 확인한 뒤 같은 방식으로 다시 센다.
+1. **동의 게이트를 풀면** 즉시 위험해진다 — 익명 방문자가 세션을 만들기 시작하면 위 3,205건이 그대로 녹화가 된다. 게이트는 방침 때문에 두는 것이지만 쿼터 방어도 겸하고 있다.
+2. **가입이 10배 나면**(1,750명 규모) 여유가 사라진다. 그때 프로젝트 설정의 샘플 비율을 0.2~0.3으로 낮추면 표본으로는 충분하다.
 
 ### 성능
 
-세션 리플레이는 DOM 변화를 계속 기록한다. 이 앱은 화면에서 연습 영상을 재생하므로 부담이 큰 축이다 — 2026-08-11 로컬 검증 중 리플레이가 켜진 탭에서 렌더러가 멈춘 적이 있다(검증용 후크가 함께 걸려 있어 리플레이 단독 탓으로 단정하지는 못한다). **운영에 켠 뒤 실제 기기에서 연습 화면의 반응성을 한 번 봐야 한다.** 무거우면 `sampleRate`를 먼저 낮춘다.
+화면 녹화는 DOM 변화를 계속 기록한다. 이 앱은 화면에서 연습 영상을 재생하므로 부담이 큰 축이다 — 2026-08-11 로컬 검증 중 Amplitude 리플레이가 켜진 탭에서 렌더러가 멈춘 적이 있다(검증용 후크가 함께 걸려 있어 리플레이 단독 탓으로 단정하지는 못한다). **운영에 켠 뒤 실제 기기에서 연습 화면의 반응성을 한 번 봐야 한다.** 무거우면 프로젝트 설정의 샘플 비율을 먼저 낮춘다.

@@ -5,7 +5,7 @@
 #     --build-arg API_ORIGIN=http://api:8080 \
 #     --build-arg NEXT_PUBLIC_SITE_URL=https://dev.acttub.com \
 #     --build-arg NEXT_PUBLIC_SENTRY_DSN=... --build-arg NEXT_PUBLIC_SENTRY_ENV=dev \
-#     --build-arg NEXT_PUBLIC_AMPLITUDE_API_KEY=... --build-arg NEXT_PUBLIC_APP_COMMIT=<sha> \
+#     --build-arg NEXT_PUBLIC_POSTHOG_KEY=... --build-arg NEXT_PUBLIC_APP_COMMIT=<sha> \
 #     --build-arg SENTRY_ORG=... --build-arg SENTRY_PROJECT=... \
 #     --secret id=SENTRY_AUTH_TOKEN,env=SENTRY_AUTH_TOKEN \
 #     -t acttub-web:local .                                  # 빌드 컨텍스트 = 저장소 루트
@@ -46,7 +46,7 @@ ARG API_ORIGIN=http://api:8080
 ARG NEXT_PUBLIC_SITE_URL=
 ARG NEXT_PUBLIC_SENTRY_DSN=
 ARG NEXT_PUBLIC_SENTRY_ENV=
-ARG NEXT_PUBLIC_AMPLITUDE_API_KEY=
+ARG NEXT_PUBLIC_POSTHOG_KEY=
 ARG NEXT_PUBLIC_APP_COMMIT=
 # 소스맵 업로드 대상(공개값). 토큰은 아래 --mount=type=secret 으로만 들어온다.
 ARG SENTRY_ORG=
@@ -56,7 +56,7 @@ ARG SENTRY_PROJECT=
 ENV NEXT_PUBLIC_API_BASE_URL=
 # 커밋 SHA 는 비면 안 된다 — Sentry release 가 빈 문자열이 된다(sentry-shared.ts 의 ?? "unknown" 은 빈 값을
 # 못 잡는다). 빌드 컨텍스트에는 .git 이 없으므로 SHA 를 build-arg 로 받는다. 다른 인자는 비어도 뜻이
-# 있다(사이트 URL 은 acttub.com 기본값, DSN·Amplitude 키는 비면 계측 끔).
+# 있다(사이트 URL 은 acttub.com 기본값, DSN·PostHog 키는 비면 계측 끔).
 RUN test -n "$NEXT_PUBLIC_APP_COMMIT" \
  || { echo "build-arg NEXT_PUBLIC_APP_COMMIT 이 비어 있다 — Sentry release 이름이 된다" >&2; exit 1; }
 WORKDIR /app/apps/web

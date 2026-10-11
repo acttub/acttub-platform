@@ -4,44 +4,23 @@ import { test } from "node:test";
 
 import "./ts-module-loader.mjs";
 
+import { sdk } from "./fixtures/posthog-js.mjs";
+
 // SDK 자체의 네트워크·저장 동작이 아니라 우리 초기화 옵션과 payload만 본다. 모듈 경계에서
-// 최소 API를 바꿔 끼우면 실제 코드가 init/track을 불렀는지를 그대로 관찰할 수 있다.
-const amplitudeMockUrl = `data:text/javascript,${encodeURIComponent(`
-const calls = globalThis.__amplitudeCalls;
-export const init = (...args) => calls.push(["init", ...args]);
-export const add = (...args) => calls.push(["add", ...args]);
-export const track = (...args) => calls.push(["track", ...args]);
-export const setUserId = (...args) => calls.push(["setUserId", ...args]);
-export const reset = (...args) => calls.push(["reset", ...args]);
-export const setOptOut = (...args) => calls.push(["setOptOut", ...args]);
-`)}`;
-
-// 리플레이는 별도 플러그인으로 붙인다. unified 의 initAll 은 engagement 까지 조건 없이
-// 초기화해서 쓰지 않는다 — 그래서 "initAll 을 부르지 않는다"도 아래에서 검사한다.
-const replayMockUrl = `data:text/javascript,${encodeURIComponent(`
-const calls = globalThis.__amplitudeCalls;
-export const sessionReplayPlugin = (options) => {
-  calls.push(["sessionReplayPlugin", options]);
-  return { name: "session-replay" };
-};
-`)}`;
-
-globalThis.__amplitudeCalls = [];
+// SDK를 바꿔 끼우면 실제 코드가 무엇을 내보냈는지를 그대로 관찰할 수 있다.
 registerHooks({
   resolve(specifier, context, nextResolve) {
-    if (specifier === "@amplitude/analytics-browser") {
-      return { url: amplitudeMockUrl, shortCircuit: true };
-    }
-    if (specifier === "@amplitude/plugin-session-replay-browser") {
-      return { url: replayMockUrl, shortCircuit: true };
+    if (specifier === "posthog-js") {
+      return { url: new URL("./fixtures/posthog-js.mjs", import.meta.url).href, shortCircuit: true };
     }
     return nextResolve(specifier, context);
   },
 });
 
-const analytics = await import("../src/lib/analytics/amplitude.ts");
+const analytics = await import("../src/lib/analytics/posthog.ts");
 const {
-  startAmplitude,
+  startPostHog,
+  stopPostHog,
   toAgeDaysBucket,
   toDurationBucket,
   toLengthBucket,
@@ -80,45 +59,70 @@ function withFakeWindow(hostname, run) {
 }
 
 function callsOf(name) {
-  return globalThis.__amplitudeCalls.filter(([method]) => method === name);
+  return sdk.calls.filter(([method]) => method === name);
 }
 
-// API 키 하나가 운영 스위치다. 비어 있을 때 SDK가 이벤트를 내부 큐에 쌓는 것조차 막는다.
-test("API 키가 없으면 init도 track도 하지 않는다", () => {
-  delete process.env.NEXT_PUBLIC_AMPLITUDE_API_KEY;
+/** 이 함수 안에서 SDK 밖으로 나간 이벤트 이름만. */
+function deliveredDuring(run) {
+  const before = sdk.delivered.length;
+  run();
+  return sdk.delivered.slice(before).map(({ event }) => event);
+}
+
+// 키 하나가 운영 스위치다. 비어 있을 때 SDK가 이벤트를 내부 큐에 쌓는 것조차 막는다.
+test("키가 없으면 init도 capture도 하지 않는다", () => {
+  delete process.env.NEXT_PUBLIC_POSTHOG_KEY;
   withFakeWindow("acttub.com", () => {
-    startAmplitude();
+    startPostHog("guest-1");
     trackPracticePrepOpened("new");
   });
 
   assert.equal(callsOf("init").length, 0);
-  assert.equal(callsOf("track").length, 0);
+  assert.equal(callsOf("capture").length, 0);
 });
 
-// 키가 스위치다. 여러 번 불려도 SDK 인스턴스는 하나여야 device_id 와 세션이 갈라지지 않는다.
-test("키가 있으면 계약된 옵션으로 한 번만 초기화하고 검증 이벤트를 보낸다", () => {
-  process.env.NEXT_PUBLIC_AMPLITUDE_API_KEY = "test-key";
-  withFakeWindow("acttub.com", () => {
-    startAmplitude();
-    startAmplitude();
+// opt-out 은 localStorage 에 남는다. 앞 페이지에서 끈 채 새로고침하면 SDK 는 꺼진 채 init 되므로,
+// 켤 차례인 지금 풀지 않으면 동의한 게스트의 이벤트가 조용히 버려진다.
+test("새로고침 뒤 opt-out 이 남아 있어도 켜면 opt-in 하고, $opt_in 이벤트는 보내지 않는다", () => {
+  process.env.NEXT_PUBLIC_POSTHOG_KEY = "test-key";
+  sdk.optedOut = true;
+
+  const delivered = deliveredDuring(() => {
+    withFakeWindow("acttub.com", () => startPostHog("guest-1"));
+    trackPracticePrepOpened("new");
   });
 
-  const initCalls = callsOf("init");
-  assert.equal(initCalls.length, 1);
-  assert.deepEqual(initCalls[0].slice(1), ["test-key", undefined, { autocapture: true }]);
+  assert.deepEqual(delivered, ["$pageview", "practice_prep_opened"]);
+  assert.deepEqual(callsOf("opt_in_capturing"), [["opt_in_capturing", { captureEventName: false }]]);
+});
 
-  // 리플레이는 별도 플러그인이고, init 앞에 붙어야 첫 세션부터 잡힌다.
-  const pluginCalls = callsOf("sessionReplayPlugin");
-  assert.equal(pluginCalls.length, 1);
-  assert.deepEqual(pluginCalls[0][1], { sampleRate: 1 });
-  assert.equal(callsOf("add").length, 1);
-  const order = globalThis.__amplitudeCalls.map(([name]) => name);
-  assert.ok(order.indexOf("add") < order.indexOf("init"));
+// 여러 번 불려도 SDK 인스턴스는 하나여야 device_id 와 세션이 갈라지지 않는다.
+test("키가 있으면 계약된 옵션으로 한 번만 초기화하고 설치 확인용 이벤트는 보내지 않는다", () => {
+  const delivered = deliveredDuring(() => {
+    withFakeWindow("acttub.com", () => startPostHog("guest-1"));
+  });
 
-  // 로드 시점 이벤트는 init 직후에 붙는다 — 클릭 없이 설치가 확인된다.
-  const verification = callsOf("track").find(([, event]) => event === "Viewed Home Page");
-  assert.ok(verification);
-  assert.deepEqual(verification[2], { prompt_version: "BA400.4" });
+  assert.deepEqual(delivered, []);
+  assert.deepEqual(callsOf("init"), [
+    [
+      "init",
+      "test-key",
+      {
+        api_host: "https://us.i.posthog.com",
+        ui_host: "https://us.posthog.com",
+        autocapture: true,
+        capture_pageview: "history_change",
+        session_recording: { maskAllInputs: false },
+        disable_surveys: true,
+        disable_product_tours: true,
+        disable_conversations: true,
+        advanced_disable_feature_flags: true,
+        capture_exceptions: false,
+        capture_heatmaps: false,
+        capture_dead_clicks: false,
+      },
+    ],
+  ]);
 });
 
 // 원본 숫자가 경계에서 한 구간씩 밀리면 퍼널 분포가 조용히 틀어지므로 양쪽 값을 못박는다.
@@ -154,11 +158,11 @@ test("버킷 함수 6개의 경계값을 계약대로 뭉갠다", () => {
 });
 
 test("screen_viewed는 쿼리·해시를 버리고 경로 UUID를 가린다", () => {
-  const before = callsOf("track").length;
+  const before = callsOf("capture").length;
   trackScreenViewed(
     "/practice/1b4e28ba-2fa1-11d2-883f-0016d3cca427?session=secret#note",
   );
-  const screen = callsOf("track").slice(before).find(([, event]) => event === "screen_viewed");
+  const screen = callsOf("capture").slice(before).find(([, event]) => event === "screen_viewed");
 
   assert.ok(screen);
   assert.deepEqual(screen[2], { path: "/practice/<id>" });
@@ -167,11 +171,11 @@ test("screen_viewed는 쿼리·해시를 버리고 경로 UUID를 가린다", ()
 // 이론 선택은 0.1.0 에서 준비 화면과 함께 사라졌다(practice.start). 옛 호출 모양이 남아 있어도
 // 그 속성을 만들지 않는다.
 test("practice_session_created는 theory_choice를 보내지 않는다", () => {
-  globalThis.__amplitudeCalls.length = 0;
+  sdk.calls.length = 0;
 
   trackPracticeSessionCreated(61_000, "분석", "대사 분석", false);
 
-  const payloads = callsOf("track")
+  const payloads = callsOf("capture")
     .filter(([, event]) => event === "practice_session_created")
     .map(([, , payload]) => payload);
   assert.equal(payloads.length, 1);
@@ -180,8 +184,8 @@ test("practice_session_created는 theory_choice를 보내지 않는다", () => {
 });
 
 // 원문을 받는 래퍼에도 일부러 민감한 값을 넣는다. payload에는 분류·버킷만 남아야 한다.
-test("22개 이벤트 래퍼가 계약 속성만 보내고 금지 키를 만들지 않는다", () => {
-  globalThis.__amplitudeCalls.length = 0;
+test("20개 이벤트 래퍼가 계약 속성만 보내고 금지 키를 만들지 않는다", () => {
+  sdk.calls.length = 0;
   const sensitiveText = "배우가 직접 쓴 비밀 장면과 답변";
 
   trackPracticePrepOpened("new");
@@ -213,7 +217,7 @@ test("22개 이벤트 래퍼가 계약 속성만 보내고 금지 키를 만들�
   trackConsentSubmitted("ok");
   trackScreenViewed("/practice/1b4e28ba-2fa1-11d2-883f-0016d3cca427?query=secret");
 
-  const events = callsOf("track").map(([, event, payload]) => ({ event, payload }));
+  const events = callsOf("capture").map(([, event, payload]) => ({ event, payload }));
   assert.equal(events.length, 20);
   assert.deepEqual(
     events.map(({ event }) => event).sort(),
@@ -299,56 +303,68 @@ test("22개 이벤트 래퍼가 계약 속성만 보내고 금지 키를 만들�
   }
 });
 
-// 결정 I-6: 끈다는 것은 실제 중단이다. 식별자만 지우면 이미 켜진 autocapture 와 세션 리플레이는
-// SDK 가 스스로 계속 보낸다. opt-out 은 그 뒤의 이벤트를 버리고, 리플레이 플러그인은 opt-out 을
-// 받아 녹화를 shutdown 한다(plugin-session-replay-browser 의 onOptOutChanged).
-test("계측 I-6: stopAmplitude 는 SDK 를 opt-out 시키고 그 뒤의 이벤트를 보내지 않는다", () => {
-  const { setAmplitudeUser, stopAmplitude } = analytics;
-  process.env.NEXT_PUBLIC_AMPLITUDE_API_KEY = "test-key";
-  withFakeWindow("acttub.com", () => {
-    startAmplitude();
-    setAmplitudeUser("guest-1");
+// 결정 I-6: 끈다는 것은 실제 중단이다. 식별자만 지우면 이미 켜진 autocapture 와 화면 녹화는
+// SDK 가 스스로 계속 보낸다. opt-out 은 이벤트를 버리고, 돌던 녹화기는 따로 멈춰야 한다.
+test("계측 I-6: stopPostHog 는 opt-out 하고 녹화를 멈추며 그 뒤의 이벤트를 보내지 않는다", () => {
+  withFakeWindow("acttub.com", () => startPostHog("guest-1"));
+  assert.equal(sdk.recording, true);
+
+  const delivered = deliveredDuring(() => {
+    stopPostHog();
+    stopPostHog();
+    trackScreenViewed("/home");
   });
-  const optOutsBefore = callsOf("setOptOut").length;
 
-  stopAmplitude();
-  stopAmplitude();
-  const tracksAfterStop = callsOf("track").length;
-  trackScreenViewed("/home");
-
-  assert.deepEqual(callsOf("setOptOut").slice(optOutsBefore), [["setOptOut", true]]);
-  assert.equal(callsOf("track").length, tracksAfterStop);
+  assert.deepEqual(delivered, []);
+  assert.equal(sdk.optedOut, true);
+  assert.equal(sdk.recording, false);
 });
 
-test("계측 I-6: 같은 게스트로 다시 켜면 opt-out 만 풀고 기기 식별은 끊지 않는다", () => {
-  const { setAmplitudeUser } = analytics;
-  const optOutsBefore = callsOf("setOptOut").length;
-  const resetsBefore = callsOf("reset").length;
-  const initsBefore = callsOf("init").length;
-
-  withFakeWindow("acttub.com", () => {
-    startAmplitude();
-    setAmplitudeUser("guest-1");
-  });
-  const tracksBefore = callsOf("track").length;
+function startAs(start, userId) {
+  sdk.delivered.length = 0;
+  withFakeWindow("acttub.com", () => start(userId));
   trackScreenViewed("/home");
+  return sdk.delivered.map(({ event, distinctId, deviceId }) => ({ event, distinctId, deviceId }));
+}
 
-  assert.deepEqual(callsOf("setOptOut").slice(optOutsBefore), [["setOptOut", false]]);
-  assert.equal(callsOf("reset").length, resetsBefore);
-  assert.equal(callsOf("init").length, initsBefore);
-  assert.equal(callsOf("track").length, tracksBefore + 1);
+test("계측 I-6: 같은 게스트로 다시 켜면 기기 식별을 끊지 않고 녹화를 다시 켠다", () => {
+  const device = sdk.deviceId;
+
+  assert.deepEqual(startAs(startPostHog, "guest-1"), [
+    { event: "$pageview", distinctId: "guest-1", deviceId: device },
+    { event: "screen_viewed", distinctId: "guest-1", deviceId: device },
+  ]);
+  assert.equal(sdk.recording, true);
 });
 
-test("계측 I-6: 다른 게스트로 켜지면 앞 게스트의 기기 식별과 잇지 않는다", () => {
-  const { setAmplitudeUser, stopAmplitude } = analytics;
-  const resetsBefore = callsOf("reset").length;
+// opt_in 이 그 자리에서 $pageview 를 보내므로 신원을 먼저 바꾸지 않으면 그 페이지뷰가 앞 게스트에게 붙는다.
+test("계측 I-6: 다른 게스트로 켜지면 첫 페이지뷰부터 새 게스트·새 기기 id 로 보낸다", () => {
+  const device = sdk.deviceId;
+  stopPostHog();
 
-  stopAmplitude();
-  withFakeWindow("acttub.com", () => {
-    startAmplitude();
-    setAmplitudeUser("guest-2");
-  });
+  assert.deepEqual(startAs(startPostHog, "guest-2"), [
+    { event: "screen_viewed", distinctId: "guest-2", deviceId: device + 1 },
+  ]);
+});
 
-  assert.equal(callsOf("reset").length, resetsBefore + 1);
-  assert.deepEqual(callsOf("setUserId").at(-1), ["setUserId", "guest-2"]);
+// 새로고침하면 모듈은 처음부터지만 SDK 는 앞 게스트의 식별과 opt-out 을 저장소에 들고 있다.
+test("계측 I-6: 새로고침 뒤 다른 게스트로 켜져도 새 기기 id 로 끊는다", async () => {
+  const reloaded = await import("../src/lib/analytics/posthog.ts?reload-other-guest");
+  sdk.optedOut = true;
+  const device = sdk.deviceId;
+
+  assert.deepEqual(startAs(reloaded.startPostHog, "guest-3"), [
+    { event: "screen_viewed", distinctId: "guest-3", deviceId: device + 1 },
+  ]);
+});
+
+test("계측 I-6: 새로고침 뒤 같은 게스트로 켜지면 기기 식별을 끊지 않는다", async () => {
+  const reloaded = await import("../src/lib/analytics/posthog.ts?reload-same-guest");
+  sdk.optedOut = true;
+  const device = sdk.deviceId;
+
+  assert.deepEqual(startAs(reloaded.startPostHog, "guest-3"), [
+    { event: "$pageview", distinctId: "guest-3", deviceId: device },
+    { event: "screen_viewed", distinctId: "guest-3", deviceId: device },
+  ]);
 });
