@@ -63,3 +63,9 @@ test('보관함 목록에서 고른 영상은 재생 주소가 없어 상세로 
   // 주소를 받기 전에도 고른 상태로 그린다 — 빈 상자로 돌아가지 않는다
   assert.match(upload, /\{previewUri \|\| uploading \|\| picked \? \(/);
 });
+
+test('코치 화면 위에 「코치 답변 N번 남음」은 보이지 않는다 — 마무리 직전 안내만 남긴다', () => {
+  const coach = read('app/coach.tsx');
+  assert.doesNotMatch(coach, /coach\.remaining/);
+  assert.match(coach, /\{wrapping && <Text style=\{styles\.progressText\}>\{t\('coach\.wrapNext'\)\}<\/Text>\}/);
+});

@@ -736,7 +736,6 @@ const en: DeepStringShape<typeof ko> = {
     answerTooLong: 'Answers can hold up to 300 characters.',
     offline: 'The connection dropped. Please send it again in a moment.',
     continueNew: 'Continue with a new take',
-    remaining: '{{count}} coach replies left',
     wrapNext: 'The next reply wraps things up',
     endWord: 'Stop',
     noPractice: 'No practice in progress. Start a new one from Home.',
@@ -792,6 +791,13 @@ const en: DeepStringShape<typeof ko> = {
     loadFail: "Couldn't load the practice note.",
     nextPractice: 'Next practice',
     finish: 'Finish practice',
+  },
+  noteCheer: {
+    one: 'Great work on today’s take.\nCheering you on for the next one!',
+    two: 'Just looking at it again\nis already a step forward.',
+    three: 'Hesitation is part of acting too.\nYou did well today!',
+    four: 'Showing up again and again is how you grow.\nCan’t wait for your next take!',
+    five: 'One thing found today is enough.\nLet’s take it slow, together.',
   },
   report: {
     rateTitle: 'How was this coaching?',

@@ -23,7 +23,6 @@ import {
   loadCoachSession,
   nextReplyWraps,
   orderedMessages,
-  remainingCoachReplies,
   type HelpButton,
 } from '@/lib/practice/coach';
 import { clearPractice, getPractice, setContinueOrigin } from '@/lib/practice/session-state';
@@ -257,7 +256,6 @@ export default function CoachScreen() {
   const askedCount = messages.filter((m) => m.role === 'coach').length;
   const past = messages.slice(0, Math.max(0, messages.length - (latestQuestion ? 1 : 0)));
   const canSend = canSendAnswer({ text: input, waiting, closed, conversationId: conversation?.id ?? null });
-  const remaining = conversation ? remainingCoachReplies(conversation) : null;
   const wrapping = conversation ? nextReplyWraps(conversation) : false;
 
   return (
@@ -294,9 +292,8 @@ export default function CoachScreen() {
               <View key={i} style={[styles.dot, i < askedCount && styles.dotOn]} />
             ))}
           </View>
-          <Text style={styles.progressText}>
-            {wrapping ? t('coach.wrapNext') : remaining !== null ? t('coach.remaining', { count: remaining }) : ''}
-          </Text>
+          {/* 남은 코치 답변 수는 보이지 않는다 — 마무리 직전에만 알린다. */}
+          {wrapping && <Text style={styles.progressText}>{t('coach.wrapNext')}</Text>}
         </View>
         {past.length > 0 && (
           <Pressable onPress={() => setPastOpen((was) => !was)} accessibilityRole="button" hitSlop={8}>

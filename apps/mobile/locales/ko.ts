@@ -727,7 +727,6 @@ const ko = {
     answerTooLong: '답은 300자까지 쓸 수 있어요.',
     offline: '연결이 끊겼어요. 잠시 뒤 다시 보내 주세요.',
     continueNew: '새 회차로 이어서 하기',
-    remaining: '코치 답변 {{count}}번 남음',
     wrapNext: '다음 답으로 마무리해요',
     endWord: '그만',
     noPractice: '진행 중인 연습이 없어요. 홈에서 새로 시작해주세요.',
@@ -782,6 +781,13 @@ const ko = {
     loadFail: '연습 노트를 불러오지 못했어요.',
     nextPractice: '다음 연습',
     finish: '연습 마치기',
+  },
+  noteCheer: {
+    one: '오늘 촬영도 수고했어요.\n다음 촬영도 응원할게요!',
+    two: '한 번 더 들여다본 것만으로도\n벌써 한 걸음 나아갔어요.',
+    three: '망설인 순간도 연기의 일부예요.\n오늘도 잘 해냈어요!',
+    four: '꾸준히 찍는 사람이 결국 늘어요.\n다음 테이크가 기대돼요!',
+    five: '오늘 찾은 한 가지면 충분해요.\n천천히 같이 가요.',
   },
   report: {
     rateTitle: '이 코칭 어땠어요?',

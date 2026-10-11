@@ -1,11 +1,13 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import { NoteCheer } from '@/components/note-cheer';
 import { palette } from '@/constants/palette';
 import { noteSections, quoteSourceLabel } from '@/lib/practice/note';
 import type { PracticeNote } from '@/lib/practice/types';
 
 /**
  * 연습 노트의 본문 칸들(요약 → 다음 한 가지 → 응원). 방금 끝낸 노트(A13)와 지난 노트(A12)가 같은 모양으로 그린다.
+ * 응원 칸은 고정 문장 대신 마스코트 말풍선(무작위 한마디)으로 그린다(SOMA-662).
  * 칸 사이 간격은 부모의 gap 을 따르도록 감싸지 않고 칸을 그대로 늘어놓는다.
  */
 export function NoteSections({ note }: { note: PracticeNote }) {
@@ -25,8 +27,10 @@ export function NoteSections({ note }: { note: PracticeNote }) {
             ) : (
               <Text style={styles.text}>{section.text}</Text>
             )
+          ) : section.kind === 'cheer' ? (
+            <NoteCheer />
           ) : (
-            <Text style={[styles.text, section.kind === 'next' && styles.next, section.kind === 'cheer' && styles.cheer]}>
+            <Text style={[styles.text, section.kind === 'next' && styles.next]}>
               {section.text}
             </Text>
           )}
@@ -41,7 +45,6 @@ const styles = StyleSheet.create({
   label: { fontSize: 12, fontWeight: '800', color: palette.textDim },
   text: { fontSize: 16, lineHeight: 26, color: palette.text },
   next: { fontSize: 18, fontWeight: '700', lineHeight: 29 },
-  cheer: { fontSize: 14, lineHeight: 23, color: palette.textDim },
   quote: { gap: 4, backgroundColor: palette.bgSubtle, borderRadius: 12, padding: 14 },
   quoteText: { fontSize: 15.5, lineHeight: 25, color: palette.text },
   quoteSource: { fontSize: 11.5, fontWeight: '800', color: palette.textFaint },
