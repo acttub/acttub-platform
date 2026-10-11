@@ -115,6 +115,22 @@ export default function UploadScreen() {
     }, []),
   );
 
+  // 보관함 목록은 재생 주소를 주지 않는다(상세에서만 준다) — 목록에서 고른 영상은 상세로 받아 미리보기를 채운다.
+  useEffect(() => {
+    if (!picked?.videoId || picked.uri || picked.playbackUrl) return;
+    let cancelled = false;
+    api
+      .getVideo(picked.videoId)
+      .then((video) => {
+        if (cancelled || !video.playback_url) return;
+        setPicked((was) => (was && was.videoId === video.id ? { ...was, playbackUrl: video.playback_url ?? null } : was));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [picked?.videoId, picked?.uri, picked?.playbackUrl]);
+
   // 올리는 중이던 영상이 확정되면 그 id로 바꾼다 — 그래야 시작할 수 있다.
   useEffect(() => {
     if (!picked?.pendingId || picked.videoId) return;
@@ -262,7 +278,7 @@ export default function UploadScreen() {
         <ScrollView ref={scrollRef} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
           <Stepper current={videoId || uploading || sample ? 2 : 1} />
 
-          {previewUri || uploading ? (
+          {previewUri || uploading || picked ? (
             <View
               style={styles.pickedBlock}
               ref={sample ? sampleTarget.ref : pickTarget.ref}

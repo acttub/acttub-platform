@@ -53,3 +53,10 @@ test('새 연습 준비: 영상 상자를 누르면 아래 시트에서 보관�
 test('코치 질문 글자는 21pt 다(19pt 는 작았다)', () => {
   assert.match(read('app/coach.tsx'), /question: \{ fontSize: 21,/);
 });
+
+test('보관함 목록에서 고른 영상은 재생 주소가 없어 상세로 받아 미리보기를 채운다(목록은 playback_url 이 null)', () => {
+  const upload = read('app/upload.tsx');
+  assert.match(upload, /api\s*\.getVideo\(picked\.videoId\)/);
+  // 주소를 받기 전에도 고른 상태로 그린다 — 빈 상자로 돌아가지 않는다
+  assert.match(upload, /\{previewUri \|\| uploading \|\| picked \? \(/);
+});
