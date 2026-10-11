@@ -344,7 +344,13 @@ function RootNavigator() {
 
   return (
     <>
-      <Stack screenOptions={{ headerBackVisible: false, headerLeft: () => <HeaderBack /> }}>
+      <Stack
+        screenOptions={{
+          headerBackVisible: false,
+          headerLeft: () => <HeaderBack />,
+          // iOS 26 은 헤더 왼쪽 버튼에 유리 배경을 씌워 꺾쇠가 뭉개져 보인다 — 설정 화면처럼 꺾쇠만 보이게 배경을 끈다.
+          unstable_headerLeftItems: () => [{ type: 'custom', element: <HeaderBack />, hidesSharedBackground: true }],
+        }}>
         <Stack.Screen name="update-required" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="consent" options={{ headerShown: false }} />

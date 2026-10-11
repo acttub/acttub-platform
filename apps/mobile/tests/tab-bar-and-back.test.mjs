@@ -6,13 +6,16 @@ const read = (rel) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8'
 
 test('스택 화면의 뒤로 버튼은 설정 화면과 같은 꺾쇠 버튼이다(네이티브 뒤로 버튼 대신, SOMA-638)', () => {
   const root = read('app/_layout.tsx');
-  assert.match(root, /<Stack\s+screenOptions=\{\{[^}]*headerBackVisible: false[^}]*headerLeft: \(\) => <HeaderBack \/>/);
+  assert.match(root, /headerBackVisible: false/);
+  assert.match(root, /headerLeft: \(\) => <HeaderBack \/>/);
+  // iOS 26 은 헤더 왼쪽 버튼에 유리 배경을 씌운다 — 설정 화면처럼 꺾쇠만 보이게 배경을 끈다.
+  assert.match(root, /unstable_headerLeftItems: \(\) => \[\{ type: 'custom', element: <HeaderBack \/>, hidesSharedBackground: true \}\]/);
   const back = read('components/header-back.tsx');
   assert.match(back, /name="chevron-left" size=\{26\}/);
   assert.match(back, /router\.back\(\)/);
   assert.match(back, /canGoBack\(\)/);
   // 노트 화면은 뒤로 버튼을 두지 않는다(원래대로).
-  assert.match(read('app/report.tsx'), /headerLeft: \(\) => null/);
+  assert.match(read('app/report.tsx'), /headerLeft: \(\) => null, unstable_headerLeftItems: \(\) => \[\]/);
 });
 
 test('탭바: iOS 는 홈 인디케이터 바로 위에 뜬 알약, 안드로이드는 바닥에 붙은 전체 폭 막대', () => {
@@ -21,7 +24,7 @@ test('탭바: iOS 는 홈 인디케이터 바로 위에 뜬 알약, 안드로이
   assert.match(tabs, /bottom: Math\.max\(insets\.bottom - 14, 12\)/);
   // 안드로이드: 좌우·바닥 여백 없음, 둥근 모서리 없음, 시스템 내비게이션 칸만큼 아래를 채운다
   assert.match(tabs, /left: 0,\s*right: 0,\s*bottom: 0,/);
-  assert.match(tabs, /height: 64 \+ insets\.bottom/);
+  assert.match(tabs, /height: 72 \+ insets\.bottom/);
   // 안드로이드는 고른 탭만 아이콘 아래 이름을 보인다(pen 하단 탭 바)
   assert.match(tabs, /!IOS && focused && <Text style=\{\[styles\.tabLabel/);
 });
