@@ -24,6 +24,7 @@ import { startSignupAttributionListener } from '@/lib/signup-attribution-runtime
 import { initCrashlytics, markScreen } from '@/lib/crashlytics';
 import { installNavigationGuard } from '@/lib/navigation-guard';
 import { tabBackTitle } from '@/lib/tab-back-title';
+import { HeaderBack } from '@/components/header-back';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
 import { challengePushTarget } from '@/lib/challenge/notification-center';
 import {
@@ -343,7 +344,7 @@ function RootNavigator() {
 
   return (
     <>
-      <Stack>
+      <Stack screenOptions={{ headerBackVisible: false, headerLeft: () => <HeaderBack /> }}>
         <Stack.Screen name="update-required" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="consent" options={{ headerShown: false }} />

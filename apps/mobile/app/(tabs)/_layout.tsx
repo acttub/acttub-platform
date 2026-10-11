@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs, useRouter } from 'expo-router';
 import React from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
@@ -13,6 +13,8 @@ import { translate as t } from '@/lib/i18n';
 import { TARGET } from '@/lib/spotlight-targets';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
+
+const IOS = Platform.OS === 'ios';
 
 /**
  * 하단 탭 — 홈 / 대본 / [촬영(FAB)] / 챌린지 / 프로필. 글자 없이 아이콘만(pen 탭바).
@@ -34,10 +36,11 @@ export default function TabLayout() {
     router.push({ pathname: '/record-video', params: { mode: 'ai', picker: '1' } });
   };
 
-  const icon = (outline: IoniconName, filled: IoniconName) => {
+  const icon = (outline: IoniconName, filled: IoniconName, label: string) => {
     const TabIcon = ({ color, focused }: { color: string; focused: boolean }) => (
-      <View style={[styles.iconPill, focused && styles.iconPillActive]}>
+      <View style={[styles.iconPill, IOS && focused && styles.iconPillActive]}>
         <Ionicons size={24} name={focused ? filled : outline} color={color} />
+        {!IOS && focused && <Text style={[styles.tabLabel, { color }]}>{label}</Text>}
       </View>
     );
     TabIcon.displayName = `TabIcon(${outline})`;
@@ -51,32 +54,44 @@ export default function TabLayout() {
         screenOptions={{
           tabBarActiveTintColor: palette.blue,
           tabBarInactiveTintColor: palette.textFaint,
-          tabBarStyle: {
-            position: 'absolute',
-            left: 20,
-            right: 20,
-            // iOS 는 홈 인디케이터 칸(34pt)이 이미 넓어 더 띄우면 너무 떠 보인다 — 인디케이터 칸 안쪽으로 붙인다.
-            bottom: Platform.OS === 'ios' ? Math.max(insets.bottom - 4, 12) : insets.bottom + 16,
-            height: 64,
-            borderRadius: 32,
-            backgroundColor: palette.card,
-            borderTopWidth: 0,
-            borderWidth: 1,
-            borderColor: palette.borderSoft,
-            paddingTop: 11,
-            paddingBottom: 11,
-            shadowColor: palette.navy,
-            shadowOpacity: 0.18,
-            shadowRadius: 24,
-            shadowOffset: { width: 0, height: 12 },
-            elevation: 14,
-          },
+          // iOS 는 홈 인디케이터 바로 위에 뜬 알약, 안드로이드는 바닥에 붙은 전체 폭 막대(pen 하단 탭 바, SOMA-638).
+          tabBarStyle: IOS
+            ? {
+                position: 'absolute',
+                left: 20,
+                right: 20,
+                bottom: Math.max(insets.bottom - 14, 12),
+                height: 64,
+                borderRadius: 32,
+                backgroundColor: palette.card,
+                borderTopWidth: 0,
+                borderWidth: 1,
+                borderColor: palette.borderSoft,
+                paddingTop: 11,
+                paddingBottom: 11,
+                shadowColor: palette.navy,
+                shadowOpacity: 0.18,
+                shadowRadius: 24,
+                shadowOffset: { width: 0, height: 12 },
+              }
+            : {
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: 64 + insets.bottom,
+                backgroundColor: palette.card,
+                borderTopWidth: 0,
+                paddingTop: 8,
+                paddingBottom: insets.bottom + 8,
+                elevation: 16,
+              },
           tabBarShowLabel: false,
           headerShown: false,
           tabBarButton: HapticTab,
         }}>
-        <Tabs.Screen name="index" options={{ title: t('tabs.home'), tabBarIcon: icon('home-outline', 'home') }} />
-        <Tabs.Screen name="reading" options={{ title: t('tabs.reading'), tabBarIcon: icon('book-outline', 'book') }} />
+        <Tabs.Screen name="index" options={{ title: t('tabs.home'), tabBarIcon: icon('home-outline', 'home', t('tabs.home')) }} />
+        <Tabs.Screen name="reading" options={{ title: t('tabs.reading'), tabBarIcon: icon('book-outline', 'book', t('tabs.reading')) }} />
         {/* 기록은 탭바에서 빠졌지만(대본으로 교체) 라우트는 남겨 다른 화면에서 접근 가능하게 둔다. */}
         <Tabs.Screen name="history" options={{ href: null }} />
         <Tabs.Screen
@@ -103,11 +118,11 @@ export default function TabLayout() {
           name="challenges"
           options={{
             title: t('tabs.challenge'),
-            tabBarIcon: icon('trophy-outline', 'trophy'),
+            tabBarIcon: icon('trophy-outline', 'trophy', t('tabs.challenge')),
             tabBarBadge: unread.badge ?? undefined,
           }}
         />
-        <Tabs.Screen name="profile" options={{ title: t('tabs.profile'), tabBarIcon: icon('person-outline', 'person') }} />
+        <Tabs.Screen name="profile" options={{ title: t('tabs.profile'), tabBarIcon: icon('person-outline', 'person', t('tabs.profile')) }} />
       </Tabs>
     </>
   );
@@ -116,7 +131,7 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   iconPill: {
     minWidth: 48,
-    height: 34,
+    minHeight: 34,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 17,
@@ -124,6 +139,7 @@ const styles = StyleSheet.create({
   iconPillActive: {
     backgroundColor: palette.blueSoft,
   },
+  tabLabel: { fontSize: 11, fontWeight: '700', marginTop: 2 },
   fabSlot: { flex: 1, alignItems: 'center' },
   fab: {
     width: 58,
