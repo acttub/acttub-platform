@@ -1,9 +1,12 @@
 package com.acttub.actingapi.feature.reading.domain;
 
 import java.time.Duration;
+import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
+
+import com.acttub.actingapi.platform.schema.ScriptImportFailure;
 
 /**
  * 대본 원본 파일의 규칙 (reading.script 「원본 파일」). 기기가 S3 에 직접 올리고 서버가 받아 글자를 뽑는다.
@@ -21,6 +24,16 @@ public final class ScriptFileRules {
 
     /** 어느 대본에도 연결되지 않은 원본은 이만큼 지나면 지운다. */
     public static final Duration UNLINKED_TTL = Duration.ofDays(1);
+
+    /** 읽거나 나누지 못한 원본은 그 원인을 찾아 고치는 데 쓰려고 이만큼 둔다(script_split 동의가 granted 일 때만). */
+    public static final Duration FAILED_TTL = Duration.ofDays(365);
+
+    /**
+     * 나눈 결과가 이 이유로 끝나면 원본을 {@link #FAILED_TTL} 동안 둔다. 대본 한도·대본 수 한도·지문 불일치는 원본 탓이 아니라 하루
+     * 규칙 그대로이고, 모델 호출의 실패({@code failed})는 워커가 따로 둔다.
+     */
+    public static final Set<ScriptImportFailure> KEPT_SPLIT_FAILURES =
+            EnumSet.of(ScriptImportFailure.FAILED, ScriptImportFailure.NOT_SCRIPT, ScriptImportFailure.NO_CHARACTERS);
 
     /** 한 번에 도는 읽기 수. 50MB PDF 하나의 작업 집합이 128MB 아래였다(SOMA-593 C2 측정). */
     public static final int READ_CONCURRENCY = 2;

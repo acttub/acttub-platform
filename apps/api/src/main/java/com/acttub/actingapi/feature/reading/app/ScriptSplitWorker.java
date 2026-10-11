@@ -17,6 +17,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import com.acttub.actingapi.feature.reading.app.ScriptImportRepository.Material;
 import com.acttub.actingapi.feature.reading.domain.LineSpacing;
 import com.acttub.actingapi.feature.reading.domain.NumberedLine;
+import com.acttub.actingapi.feature.reading.domain.ScriptFileRules;
 import com.acttub.actingapi.feature.reading.domain.ScriptDraft;
 import com.acttub.actingapi.feature.reading.domain.ScriptRules;
 import com.acttub.actingapi.feature.reading.domain.ScriptSplitRules;
@@ -102,13 +103,16 @@ public class ScriptSplitWorker {
             }
             Split split = split(claimed.id(), importId, material);
             if (split.failure() != null) {
-                imports.fail(claimed.id(), token, importId, split.failure(), clock.instant());
+                imports.fail(claimed.id(), token, importId, split.failure(),
+                        ScriptFileRules.KEPT_SPLIT_FAILURES.contains(split.failure()), clock.instant());
                 return true;
             }
             switch (imports.complete(claimed.id(), token, importId, split.draft(), clock.instant())) {
-                case SCRIPT_LIMIT -> imports.fail(claimed.id(), token, importId, ScriptImportFailure.SCRIPT_LIMIT, clock.instant());
-                // 같은 request_id 로 다른 대본을 이미 저장해 둔 기기다 — 저장할 수 없으니 실패로 닫는다.
-                case FINGERPRINT_MISMATCH -> imports.fail(claimed.id(), token, importId, ScriptImportFailure.FAILED, clock.instant());
+                case SCRIPT_LIMIT ->
+                        imports.fail(claimed.id(), token, importId, ScriptImportFailure.SCRIPT_LIMIT, false, clock.instant());
+                // 같은 request_id 로 다른 대본을 이미 저장해 둔 기기다 — 저장할 수 없으니 실패로 닫는다. 파일 탓이 아니라 원본은 두지 않는다.
+                case FINGERPRINT_MISMATCH ->
+                        imports.fail(claimed.id(), token, importId, ScriptImportFailure.FAILED, false, clock.instant());
                 case SAVED, CANCELLED -> { }
             }
         } catch (LeaseOwnershipException lost) {
@@ -117,7 +121,7 @@ public class ScriptSplitWorker {
             // 모델 호출의 실패와 쓸 수 없는 답은 바깥 의존의 실패다.
             failures.report(failure, FailureKind.EXTERNAL, new FailureContext("ScriptSplitWorker.run", claimed.id()));
             try {
-                imports.fail(claimed.id(), token, importId, ScriptImportFailure.FAILED, clock.instant());
+                imports.fail(claimed.id(), token, importId, ScriptImportFailure.FAILED, true, clock.instant());
             } catch (LeaseOwnershipException lostWhileFailing) {
                 failures.report(lostWhileFailing, new FailureContext("ScriptSplitWorker.release", claimed.id()));
             }

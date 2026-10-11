@@ -92,8 +92,12 @@ public interface ScriptImportRepository {
         CANCELLED
     }
 
-    /** 요청과 작업을 실패로 닫고 원문을 비운다. */
-    void fail(UUID jobId, UUID leaseToken, UUID importId, ScriptImportFailure failure, Instant now);
+    /**
+     * 요청과 작업을 실패로 닫고 원문을 비운다.
+     *
+     * @param keepFile 원본 파일 탓인 실패다. 원본 파일로 넣은 요청이면 같은 트랜잭션에서 그 원본에 이유를 남기고 동의가 있으면 1년 둔다
+     */
+    void fail(UUID jobId, UUID leaseToken, UUID importId, ScriptImportFailure failure, boolean keepFile, Instant now);
 
     /**
      * 집은 워커가 죽어 lease 가 지났고 시도 수도 소진한 작업을 {@code failed} 로 닫는다 — 앱이 끝없이 기다리지 않게.

@@ -560,7 +560,9 @@ COLUMN script_lines.text ord=6 type=text len=- null=NO default=-
 COLUMN script_uploads.byte_size ord=4 type=int8 len=- null=NO default=-
 COLUMN script_uploads.created_at ord=8 type=timestamptz len=- null=NO default=now()
 COLUMN script_uploads.expires_at ord=7 type=timestamptz len=- null=NO default=-
+COLUMN script_uploads.failure ord=10 type=text len=- null=YES default=-
 COLUMN script_uploads.id ord=1 type=uuid len=- null=NO default=-
+COLUMN script_uploads.kept_until ord=11 type=timestamptz len=- null=YES default=-
 COLUMN script_uploads.object_key ord=3 type=text len=- null=NO default=-
 COLUMN script_uploads.raw_text ord=5 type=text len=- null=YES default=-
 COLUMN script_uploads.script_id ord=6 type=uuid len=- null=YES default=-
@@ -1473,6 +1475,7 @@ CONSTRAINT script_lines script_lines_script_id_not_null NOT NULL script_id
 CONSTRAINT script_lines script_lines_text_not_null NOT NULL text
 CONSTRAINT script_lines uq_script_lines_script_ordinal UNIQUE (script_id, ordinal)
 CONSTRAINT script_uploads ck_script_uploads_byte_size CHECK ((byte_size > 0))
+CONSTRAINT script_uploads ck_script_uploads_kept_failure CHECK (((kept_until IS NULL) OR (failure IS NOT NULL)))
 CONSTRAINT script_uploads script_uploads_byte_size_not_null NOT NULL byte_size
 CONSTRAINT script_uploads script_uploads_created_at_not_null NOT NULL created_at
 CONSTRAINT script_uploads script_uploads_expires_at_not_null NOT NULL expires_at

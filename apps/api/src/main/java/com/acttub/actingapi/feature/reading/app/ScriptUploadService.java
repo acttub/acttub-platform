@@ -130,6 +130,8 @@ public class ScriptUploadService {
             case DocumentText.TooLong tooLong -> throw new ApiException(422, "script_too_long");
             case DocumentText.Unreadable unreadable -> {
                 log.info("script upload {} unreadable: {}", uploadId, unreadable.cause());
+                Instant now = clock.instant();
+                uploads.recordFailure(uploadId, unreadable.cause(), now.plus(ScriptFileRules.FAILED_TTL), now);
                 throw new ApiException(422, "script_file_unreadable");
             }
         }
@@ -172,7 +174,7 @@ public class ScriptUploadService {
         return upload.rawText();
     }
 
-    /** 하루 지난 미연결 원본을 지운다. 매시간 도는 일이 부른다. */
+    /** 하루 지난 미연결 원본과 보관이 끝난 실패 원본을 지운다. 매시간 도는 일이 부른다. */
     public int sweepUnlinked() {
         Instant now = clock.instant();
         List<UUID> scheduled = uploads.sweepUnlinked(now.minus(ScriptFileRules.UNLINKED_TTL), now);

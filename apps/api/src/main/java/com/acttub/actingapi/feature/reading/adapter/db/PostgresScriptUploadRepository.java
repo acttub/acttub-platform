@@ -19,8 +19,8 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 대본 원본 파일 장부의 Postgres 구현 (V34 {@code script_uploads}). 대본에 연결하는 쪽은 나누기 저장소
- * ({@code PostgresScriptImportRepository#linkUpload})이고, 지우는 쪽은 대본 삭제·탈퇴·이 클래스의 미연결 정리다.
+ * 대본 원본 파일 장부의 Postgres 구현 (V34 {@code script_uploads}, V39 {@code failure}·{@code kept_until}). 대본에 연결하는 쪽은
+ * 나누기 저장소({@code PostgresScriptImportRepository#linkUpload})이고, 지우는 쪽은 대본 삭제·탈퇴·이 클래스의 미연결 정리다.
  */
 @Repository
 class PostgresScriptUploadRepository implements ScriptUploadRepository {
@@ -64,9 +64,22 @@ class PostgresScriptUploadRepository implements ScriptUploadRepository {
     @Override
     public void saveText(UUID uploadId, String rawText, Instant now) {
         transaction.executeWithoutResult(status -> em.createNativeQuery("""
-                UPDATE script_uploads SET raw_text=:rawText,updated_at=:now WHERE id=:id
+                UPDATE script_uploads SET raw_text=:rawText,failure=NULL,kept_until=NULL,updated_at=:now WHERE id=:id
                 """).setParameter("rawText", rawText).setParameter("now", now.atOffset(ZoneOffset.UTC))
                 .setParameter("id", uploadId).executeUpdate());
+    }
+
+    @Override
+    public void recordFailure(UUID uploadId, String failure, Instant keptUntil, Instant now) {
+        transaction.executeWithoutResult(status -> em.createNativeQuery("""
+                UPDATE script_uploads u
+                SET failure=:failure,
+                    kept_until=CASE WHEN %s='granted' THEN CAST(:keptUntil AS timestamptz) END,
+                    updated_at=:now
+                WHERE u.id=:id AND u.script_id IS NULL
+                """.formatted(PostgresScriptImportRepository.splitDecision("u.user_id")))
+                .setParameter("failure", failure).setParameter("keptUntil", keptUntil.atOffset(ZoneOffset.UTC))
+                .setParameter("now", now.atOffset(ZoneOffset.UTC)).setParameter("id", uploadId).executeUpdate());
     }
 
     @Override
@@ -75,7 +88,10 @@ class PostgresScriptUploadRepository implements ScriptUploadRepository {
             var removed = list(em.createNativeQuery("""
                     WITH stale AS (
                         SELECT u.id FROM script_uploads u
-                        WHERE u.script_id IS NULL AND u.created_at<:before
+                        WHERE u.script_id IS NULL
+                          AND ((u.kept_until IS NULL AND u.created_at<:before)
+                               OR u.kept_until<:now
+                               OR (u.kept_until IS NOT NULL AND %s IS DISTINCT FROM 'granted'))
                           AND NOT EXISTS (SELECT 1 FROM script_imports i JOIN ai_jobs j ON j.id=i.job_id
                                           WHERE i.upload_id=u.id AND j.status IN ('pending','running'))
                         ORDER BY u.created_at
@@ -86,7 +102,8 @@ class PostgresScriptUploadRepository implements ScriptUploadRepository {
                         RETURNING u.user_id,u.object_key,u.expires_at
                     )
                     SELECT user_id,object_key,expires_at FROM removed
-                    """, Tuple.class).setParameter("before", before.atOffset(ZoneOffset.UTC)));
+                    """.formatted(PostgresScriptImportRepository.latestSplitDecision("u.user_id")), Tuple.class)
+                    .setParameter("before", before.atOffset(ZoneOffset.UTC)).setParameter("now", now.atOffset(ZoneOffset.UTC)));
             Map<UUID, List<Tuple>> byUser = new LinkedHashMap<>();
             for (Tuple row : removed) {
                 byUser.computeIfAbsent(row.get("user_id", UUID.class), user -> new ArrayList<>()).add(row);

@@ -148,7 +148,7 @@ class ScriptSplitLiveTest {
             saved = draft;
             return Completion.SAVED;
         }
-        @Override public void fail(UUID jobId, UUID leaseToken, UUID importId, ScriptImportFailure failure, Instant now) { this.failure = failure; }
+        @Override public void fail(UUID jobId, UUID leaseToken, UUID importId, ScriptImportFailure failure, boolean keepFile, Instant now) { this.failure = failure; }
         @Override public int sweepExpired(Instant now) { return 0; }
     }
 }

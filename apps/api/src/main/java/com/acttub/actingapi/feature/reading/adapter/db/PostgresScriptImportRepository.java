@@ -10,7 +10,9 @@ import java.util.UUID;
 
 import com.acttub.actingapi.feature.reading.app.ScriptImportRepository;
 import com.acttub.actingapi.feature.reading.app.ScriptRepository;
+import com.acttub.actingapi.feature.reading.app.ScriptUploadRepository;
 import com.acttub.actingapi.feature.reading.domain.ScriptDraft;
+import com.acttub.actingapi.feature.reading.domain.ScriptFileRules;
 import com.acttub.actingapi.feature.reading.domain.ScriptRules;
 import com.acttub.actingapi.platform.ledger.AiJobLedger;
 import com.acttub.actingapi.platform.schema.ScriptImportFailure;
@@ -33,29 +35,48 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
     private final EntityManager em;
     private final TransactionTemplate transaction;
     private final ScriptRepository scripts;
+    private final ScriptUploadRepository uploads;
     private final AiJobLedger ledger;
 
     PostgresScriptImportRepository(EntityManager em, PlatformTransactionManager manager, ScriptRepository scripts,
-            AiJobLedger ledger) {
+            ScriptUploadRepository uploads, AiJobLedger ledger) {
         this.em = em;
         this.transaction = new TransactionTemplate(manager);
         this.scripts = scripts;
+        this.uploads = uploads;
         this.ledger = ledger;
+    }
+
+    /**
+     * 그 사용자의 {@code script_split} 현재 판(한국어 행이 신원) 마지막 결정을 내는 SQL 식. 문서가 없거나 결정이 없으면 NULL 이다.
+     * 나누기 접수와 실패 원본 보관의 시작이 같은 판을 보게 한 곳에 둔다.
+     */
+    static String splitDecision(String userColumn) {
+        return """
+                (SELECT c.action FROM user_consents c
+                 WHERE c.user_id=%s
+                   AND c.document_id=(SELECT d.id FROM consent_documents d WHERE d.type='script_split' AND d.locale='ko'
+                                      ORDER BY d.published_at DESC,d.id DESC LIMIT 1)
+                 ORDER BY c.occurred_at DESC,c.id DESC LIMIT 1)""".formatted(userColumn);
+    }
+
+    /**
+     * 판과 상관없이 그 사용자의 가장 최근 {@code script_split} 결정을 내는 SQL 식. 보관 중인 실패 원본은 이것이 granted 가 아닐 때
+     * (동의를 거뒀을 때) 지운다 — 새 판을 냈다고 아직 결정하지 않은 사람의 보관 원본까지 지우지 않게.
+     */
+    static String latestSplitDecision(String userColumn) {
+        return """
+                (SELECT c.action FROM user_consents c JOIN consent_documents d ON d.id=c.document_id
+                 WHERE c.user_id=%s AND d.type='script_split'
+                 ORDER BY c.occurred_at DESC,c.id DESC LIMIT 1)""".formatted(userColumn);
     }
 
     @Override
     public String consent(UUID userId) {
-        var rows = list(em.createNativeQuery("""
-                SELECT last_decision.action
-                FROM (SELECT id FROM consent_documents
-                      WHERE type='script_split' AND locale='ko'
-                      ORDER BY published_at DESC,id DESC LIMIT 1) current_document
-                LEFT JOIN LATERAL (SELECT action FROM user_consents
-                    WHERE user_id=:userId AND document_id=current_document.id
-                    ORDER BY occurred_at DESC,id DESC LIMIT 1) last_decision ON true
-                """, Tuple.class).setParameter("userId", userId));
-        if (rows.isEmpty() || rows.getFirst().get("action", String.class) == null) return "undecided";
-        return "granted".equals(rows.getFirst().get("action", String.class)) ? "granted" : "denied";
+        String action = list(em.createNativeQuery("SELECT " + splitDecision(":userId") + " AS action", Tuple.class)
+                .setParameter("userId", userId)).getFirst().get("action", String.class);
+        if (action == null) return "undecided";
+        return "granted".equals(action) ? "granted" : "denied";
     }
 
     @Override
@@ -218,12 +239,20 @@ class PostgresScriptImportRepository implements ScriptImportRepository {
     }
 
     @Override
-    public void fail(UUID jobId, UUID leaseToken, UUID importId, ScriptImportFailure failure, Instant now) {
+    public void fail(UUID jobId, UUID leaseToken, UUID importId, ScriptImportFailure failure, boolean keepFile, Instant now) {
         transaction.executeWithoutResult(status -> {
-            em.createNativeQuery("""
-                    UPDATE script_imports SET failure=:failure,raw_text='',updated_at=:now WHERE id=:id AND script_id IS NULL
-                    """).setParameter("failure", failure.dbValue()).setParameter("now", now.atOffset(ZoneOffset.UTC))
-                    .setParameter("id", importId).executeUpdate();
+            var failed = list(em.createNativeQuery("""
+                    WITH failed AS (
+                        UPDATE script_imports SET failure=:failure,raw_text='',updated_at=:now WHERE id=:id AND script_id IS NULL
+                        RETURNING upload_id
+                    )
+                    SELECT upload_id FROM failed
+                    """, Tuple.class).setParameter("failure", failure.dbValue()).setParameter("now", now.atOffset(ZoneOffset.UTC))
+                    .setParameter("id", importId));
+            UUID uploadId = failed.isEmpty() ? null : failed.getFirst().get("upload_id", UUID.class);
+            if (uploadId != null && keepFile) {
+                uploads.recordFailure(uploadId, failure.dbValue(), now.plus(ScriptFileRules.FAILED_TTL), now);
+            }
             ledger.fail(jobId, leaseToken, failure.dbValue(), now);
         });
     }
