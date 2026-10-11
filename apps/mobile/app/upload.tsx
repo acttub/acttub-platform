@@ -4,6 +4,7 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import { Stepper } from '@/components/practice-chrome';
+import { VideoSourceSheet } from '@/components/video-source-sheet';
 import { palette } from '@/constants/palette';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
@@ -128,6 +130,13 @@ export default function UploadScreen() {
   const uploading = Boolean(picked?.pendingId && !picked.videoId);
 
   const pickFromLibrary = () => router.push({ pathname: '/archive', params: { pick: '1' } });
+  // 영상 상자를 누르면 뜨는 시트(SOMA-656). 시트가 닫힌 뒤에 다음 화면·사진 선택 창을 연다 — iOS 는 닫히는 모달 위에
+  // 새 창을 띄우지 못한다.
+  const [sourceSheet, setSourceSheet] = useState(false);
+  const fromSheet = (action: () => void) => () => {
+    setSourceSheet(false);
+    setTimeout(action, Platform.OS === 'ios' ? 450 : 0);
+  };
   const record = () => router.push({ pathname: '/record-video', params: { mode: 'ai' } });
 
   const pickFromGallery = async () => {
@@ -272,7 +281,7 @@ export default function UploadScreen() {
                   </View>
                 )}
                 {plan.video.kind !== 'same' && !sample && (
-                  <Pressable style={styles.repick} onPress={pickFromLibrary}>
+                  <Pressable style={styles.repick} onPress={() => setSourceSheet(true)}>
                     <Text style={styles.repickText}>{t('upload.repick')}</Text>
                   </Pressable>
                 )}
@@ -288,24 +297,19 @@ export default function UploadScreen() {
               </View>
             </View>
           ) : (
-            <View style={styles.dropzone} ref={pickTarget.ref} onLayout={pickTarget.onLayout}>
+            <Pressable
+              style={styles.dropzone}
+              ref={pickTarget.ref}
+              onLayout={pickTarget.onLayout}
+              onPress={() => setSourceSheet(true)}
+              accessibilityRole="button"
+              accessibilityLabel={t('start.pickTitle')}>
               <View style={styles.plusCircle}>
                 <Text style={styles.plus}>＋</Text>
               </View>
               <Text style={styles.dropTitle}>{t('start.pickTitle')}</Text>
               <Text style={styles.dropHint}>{t('upload.dropHint')}</Text>
-              <View style={styles.pickActions}>
-                <Pressable style={styles.recordBtn} onPress={pickFromLibrary}>
-                  <Text style={styles.recordBtnText}>{t('start.fromLibrary')}</Text>
-                </Pressable>
-                <Pressable style={styles.galleryBtn} onPress={record}>
-                  <Text style={styles.galleryBtnText}>{t('upload.recordCta')}</Text>
-                </Pressable>
-              </View>
-              <Pressable onPress={() => void pickFromGallery()}>
-                <Text style={styles.galleryLink}>{t('upload.pickGallery')}</Text>
-              </Pressable>
-            </View>
+            </Pressable>
           )}
 
           <View style={styles.sceneCard} ref={sceneTarget.ref} onLayout={sceneTarget.onLayout}>
@@ -366,6 +370,17 @@ export default function UploadScreen() {
           {hint && <Text style={styles.submitHint}>{hint}</Text>}
         </View>
       </View>
+      <VideoSourceSheet
+        visible={sourceSheet}
+        title={t('start.pickTitle')}
+        sub={t('upload.dropHint')}
+        onClose={() => setSourceSheet(false)}
+        options={[
+          { key: 'library', icon: 'archive', title: t('start.fromLibrary'), sub: t('upload.fromLibrarySub'), onPress: fromSheet(pickFromLibrary) },
+          { key: 'record', icon: 'video', title: t('upload.recordCta'), sub: t('upload.recordSub'), onPress: fromSheet(record) },
+          { key: 'gallery', icon: 'image', title: t('upload.pickGallery'), sub: t('upload.gallerySub'), onPress: fromSheet(() => void pickFromGallery()) },
+        ]}
+      />
       {dialog}
       {tutorialGuide.element}
     </SafeAreaView>
@@ -396,12 +411,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  pickActions: { flexDirection: 'row', gap: 10, marginTop: 16, alignSelf: 'stretch' },
-  recordBtn: { flex: 1, backgroundColor: palette.blue, paddingVertical: 13, borderRadius: 12, alignItems: 'center' },
-  recordBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
-  galleryBtn: { flex: 1, backgroundColor: palette.bgSoft, paddingVertical: 13, borderRadius: 12, alignItems: 'center' },
-  galleryBtnText: { color: palette.textDim, fontSize: 15, fontWeight: '600' },
-  galleryLink: { color: palette.blueDeep, fontSize: 13, fontWeight: '700', marginTop: 12 },
   plusCircle: { width: 48, height: 48, borderRadius: 24, backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center' },
   plus: { fontSize: 22, fontWeight: '900', color: palette.blue },
   dropTitle: { fontSize: 15, fontWeight: '900', color: palette.text },

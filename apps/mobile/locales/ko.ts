@@ -667,6 +667,9 @@ const ko = {
     missingRights: '권리 확인에 체크해주세요',
     recordCta: '촬영하기',
     pickGallery: '갤러리에서 고르기',
+    fromLibrarySub: '앱에서 찍어 둔 영상을 골라요',
+    recordSub: '지금 바로 찍어요',
+    gallerySub: '휴대폰에 있는 영상을 골라요',
   },
   blockage: {
     sceneFold: '영상·장면 보기',

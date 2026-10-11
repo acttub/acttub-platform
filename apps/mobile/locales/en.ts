@@ -676,6 +676,9 @@ const en: DeepStringShape<typeof ko> = {
     missingRights: 'Please check the rights confirmation',
     recordCta: 'Record',
     pickGallery: 'Choose from gallery',
+    fromLibrarySub: 'Pick a take you recorded in the app',
+    recordSub: 'Record one right now',
+    gallerySub: 'Pick a video from your phone',
   },
   blockage: {
     sceneFold: 'View video & scene',

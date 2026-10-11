@@ -470,7 +470,7 @@ const styles = StyleSheet.create({
   questionHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   questionMain: { flex: 1, gap: 10 },
   coachLabel: { fontSize: 13, fontWeight: '900', color: palette.flameDeep, letterSpacing: 0.3 },
-  question: { fontSize: 19, fontWeight: '800', color: palette.text, lineHeight: 29, letterSpacing: -0.4 },
+  question: { fontSize: 21, fontWeight: '800', color: palette.text, lineHeight: 31, letterSpacing: -0.4 },
   mascot: { width: 84, height: 98, marginTop: 4 },
 
   pastAi: { gap: 4 },

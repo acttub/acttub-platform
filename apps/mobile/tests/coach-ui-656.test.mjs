@@ -37,3 +37,19 @@ test('코치 입력칸은 한 줄로 시작해 글이 늘면 커지고, 일정 �
   assert.match(input, /maxHeight: 144/);
   assert.doesNotMatch(input, /minHeight: 112/);
 });
+
+test('새 연습 준비: 영상 상자를 누르면 아래 시트에서 보관함·촬영·갤러리를 고른다(상자 안 버튼 없음)', () => {
+  const upload = read('app/upload.tsx');
+  assert.doesNotMatch(upload, /styles\.pickActions|styles\.recordBtn|styles\.galleryLink/);
+  assert.match(upload, /<Pressable\s+style=\{styles\.dropzone\}[^>]*onPress=\{\(\) => setSourceSheet\(true\)\}/);
+  assert.match(upload, /<VideoSourceSheet/);
+  // 세 갈래는 시트의 줄로 간다 — 문구 키는 그대로 쓴다
+  for (const key of ['start.fromLibrary', 'upload.recordCta', 'upload.pickGallery']) assert.match(upload, new RegExp(key.replace('.', '\\.')));
+  const sheet = read('components/video-source-sheet.tsx');
+  assert.match(sheet, /chevron-right/);
+  assert.match(sheet, /onRequestClose=\{onClose\}/);
+});
+
+test('코치 질문 글자는 21pt 다(19pt 는 작았다)', () => {
+  assert.match(read('app/coach.tsx'), /question: \{ fontSize: 21,/);
+});
