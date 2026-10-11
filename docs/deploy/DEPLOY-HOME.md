@@ -77,6 +77,7 @@ Actions가 이미지 세 개를 빌드·게시한 뒤 서버의 배포·복원 �
 처음 만든 GHCR 백업 패키지도 서버가 읽을 수 있는지 확인한다. 복원 도구는 `restore-db.sh`와
 `db-manifest.sql`·`schema-fingerprint.sql`을 함께 전송한다.
 이 스크립트는 앱 이미지 pull → Compose 기동·healthy 대기 → api·web·db의 실제 healthy 상태 확인 → 웹 경유 `/health.commit` 대조를 한다.
+성공하면 컨테이너가 쓰지 않는 옛 릴리스 이미지(`<sha>`·`<env>-<sha>` 태그)를 서버에서 지운다. dev와 운영이 같은 Docker를 쓰므로 한 환경의 배포가 다른 환경의 옛 이미지도 지운다.
 Compose가 짧은 대기 상한에서 성공을 반환해도 필수 컨테이너가 아직 starting이거나 누락됐으면 배포를 실패로 처리한다.
 공개 URL 대조까지 성공해야 터널을 통한 배포를 확인한 것이다. `.env`나 전체 Compose 설정을
 로그에 찍지 말고, 필요한 상태·이미지 ID·릴리스 SHA만 기록한다.
@@ -104,6 +105,7 @@ curl -fsS https://acttub.com/health
 
 DB 스키마와 호환되는 직전 운영 SHA(직전 운영 태그) 및 이미지로 `deploy.sh`를 다시 실행한다. 현재 이미지와
 `release.env`의 SHA를 먼저 기록한다. 실패했다고 자동으로 직전 이미지가 복구되지는 않는다.
+서버에서 지워진 직전 이미지는 `deploy.sh`가 GHCR에서 다시 받는다.
 같은 SHA 재배포는 멱등이다. 마이그레이션은 앱 기동의 일부라([CONTRACT §5-5](../../apps/api/CONTRACT.md#5-5-flyway-가-스키마를-소유한다))
 직전 SHA 재배포도 Git revert도 이미 적용된 DB 마이그레이션이나 사용자 쓰기를 되돌리지 않는다.
 실패한 마이그레이션은 부분 적용도 이력도 남기지 않으므로(`FlywayForwardMigrationTest`) 원인을 고쳐 다시 배포한다.
