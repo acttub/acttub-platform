@@ -727,7 +727,6 @@ const ko = {
     answerTooLong: '답은 300자까지 쓸 수 있어요.',
     offline: '연결이 끊겼어요. 잠시 뒤 다시 보내 주세요.',
     continueNew: '새 회차로 이어서 하기',
-    remaining: '코치 답변 {{count}}번 남음',
     wrapNext: '다음 답으로 마무리해요',
     endWord: '그만',
     noPractice: '진행 중인 연습이 없어요. 홈에서 새로 시작해주세요.',

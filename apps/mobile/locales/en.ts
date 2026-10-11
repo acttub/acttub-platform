@@ -736,7 +736,6 @@ const en: DeepStringShape<typeof ko> = {
     answerTooLong: 'Answers can hold up to 300 characters.',
     offline: 'The connection dropped. Please send it again in a moment.',
     continueNew: 'Continue with a new take',
-    remaining: '{{count}} coach replies left',
     wrapNext: 'The next reply wraps things up',
     endWord: 'Stop',
     noPractice: 'No practice in progress. Start a new one from Home.',
