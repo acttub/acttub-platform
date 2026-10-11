@@ -60,7 +60,8 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 
 /**
  * reading.script 「나누기 작업」을 HTTP·실제 Postgres·{@code ai_jobs} 장부로 본다. 모델만 가짜다 — 지시문과 입력을 기록하고,
- * 콜론 형식 대본을 완벽하게 나누는 답을 기본으로 내며, 테스트가 답을 비틀거나(빠진 줄·틀린 이름·대본 아님) 실패하게 한다.
+ * 콜론·대괄호 형식 대본을 완벽하게 나누는 답과 띄어쓰기 복원 답을 기본으로 내며, 테스트가 답을 비틀거나(빠진 줄·틀린 이름·대본
+ * 아님) 실패하게 한다.
  */
 @SpringBootTest(properties = {
     "JWT_SECRET=test-secret",
@@ -77,6 +78,15 @@ class ReadingImportIT {
     private static final Instant NOW = Instant.parse("2026-10-06T03:00:00Z");
     private static final OffsetDateTime PUBLISHED = OffsetDateTime.of(2026, 10, 1, 0, 0, 0, 0, ZoneOffset.UTC);
     private static final Pattern COLON = Pattern.compile("^(\\S+?):\\s*(.*)$");
+    private static final Pattern BRACKET = Pattern.compile("^\\[(\\S+?)]\\s*(.*)$");
+    /** 글자 인식으로 복사한 대본 — 1·3·4번은 띄어진 줄, 5번은 짧게 띄어진 줄, 2번은 맞게 쓴 줄이다. */
+    private static final String SPACED = """
+            엄 마 의 시 험
+            [엄마] 이번엔 시험 잘 봐야지.
+            [ 엄 마 ] 유 세 아 , 공 부 열 심 히 하 고 있 지 ?
+            [ 유 세 아 ] 응 . 걱 정 하 지 마 .
+            ( 암 전 )
+            """;
     private static final AtomicInteger ADDRESSES = new AtomicInteger();
 
     @TestConfiguration
@@ -91,6 +101,10 @@ class ReadingImportIT {
 
             boolean judging() {
                 return instructions.contains("답의 첫 줄은");
+            }
+
+            boolean spacing() {
+                return instructions.contains("띄어쓰기를 고친다");
             }
 
             List<String[]> lines() {
@@ -120,9 +134,22 @@ class ReadingImportIT {
             return new RecordingFailureReporter();
         }
 
-        /** 콜론 형식을 완벽하게 나누는 답. 괄호 줄은 지문, 「제N막」은 장면, 「등장인물」 줄은 소개다. */
+        /** 띄어쓰기 복원 호출이 돌려주는 줄. 목록에 없는 줄은 그대로 돌려준다. */
+        static final Map<String, String> RESTORED = Map.of(
+                "엄 마 의 시 험", "엄마의 시험",
+                "[ 엄 마 ] 유 세 아 , 공 부 열 심 히 하 고 있 지 ?", "[엄마] 유세아, 공부 열심히 하고 있지?",
+                "[ 유 세 아 ] 응 . 걱 정 하 지 마 .", "[유세아] 응. 걱정하지 마.",
+                "( 암 전 )", "(암전)");
+
+        /** 콜론·대괄호 형식을 완벽하게 나누는 답. 괄호 줄은 지문, 「제N막」은 장면, 「등장인물」 줄은 소개다. */
         static String oracle(Call call) {
             StringBuilder out = new StringBuilder();
+            if (call.spacing()) {
+                for (String[] line : call.lines()) {
+                    out.append(line[0]).append('\t').append(RESTORED.getOrDefault(line[1], line[1])).append('\n');
+                }
+                return out.toString();
+            }
             if (call.judging()) {
                 out.append("대본\t예\n");
             }
@@ -145,6 +172,8 @@ class ReadingImportIT {
             if (text.startsWith("등장인물")) return "c\t\t";
             Matcher matcher = COLON.matcher(text);
             if (matcher.matches()) return "d\t" + matcher.group(1) + "\t" + matcher.group(1) + ": ";
+            Matcher bracket = BRACKET.matcher(text);
+            if (bracket.matches()) return "d\t" + bracket.group(1) + "\t[" + bracket.group(1) + "] ";
             if (text.startsWith("제") && text.endsWith("막")) return "s\t\t";
             return "x\t\t";
         }
@@ -536,6 +565,97 @@ class ReadingImportIT {
         assertThat(worker.runOnce(clock.instant())).isTrue();
         assertThat(json(get("/v2/reading/imports/{id}", rejected), 200).path("failure").textValue()).isEqualTo("failed");
         assertThat(Model.CALLS).as("우리가 잘못 보낸 것은 다시 보내지 않는다").hasSize(1);
+    }
+
+    @Test
+    @DisplayName("reading.script 띄어쓰기 복원: 글자마다 띄어진 줄만 나누기 전에 복원 호출로 보내고, 대본 줄·제목은 고친 글, scripts.raw_text 는 받은 원문 그대로다")
+    void restoresSpacingBeforeSplitting() throws Exception {
+        String importId = json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, SPACED, "paste")), 202)
+                .path("import_id").textValue();
+        assertThat(worker.runOnce(clock.instant())).isTrue();
+
+        assertThat(Model.CALLS).extracting(Model.Call::spacing).containsExactly(true, false);
+        assertThat(Model.CALLS.get(0).input()).isEqualTo("1\t엄 마 의 시 험\n3\t[ 엄 마 ] 유 세 아 , 공 부 열 심 히 하 고 있 지 ?\n"
+                + "4\t[ 유 세 아 ] 응 . 걱 정 하 지 마 .\n5\t( 암 전 )");
+        assertThat(Model.CALLS.get(1).input()).isEqualTo("1\t엄마의 시험\n2\t[엄마] 이번엔 시험 잘 봐야지.\n"
+                + "3\t[엄마] 유세아, 공부 열심히 하고 있지?\n4\t[유세아] 응. 걱정하지 마.\n5\t(암전)");
+
+        JsonNode done = json(get("/v2/reading/imports/{id}", importId), 200);
+        assertThat(done.path("status").textValue()).isEqualTo("succeeded");
+        assertThat(done.path("progress").path("done_lines").intValue()).isEqualTo(5);
+        assertThat(done.path("progress").path("total_lines").intValue()).isEqualTo(5);
+        JsonNode script = json(get("/v2/reading/scripts/{id}", done.path("script_id").textValue()), 200);
+        assertThat(script.path("title").textValue()).isEqualTo("엄마의 시험");
+        assertThat(script.path("characters")).extracting(character -> character.path("name").textValue()).containsExactly("엄마", "유세아");
+        assertThat(script.path("lines")).extracting(line -> line.path("kind").textValue() + "|" + line.path("text").textValue())
+                .containsExactly("direction|엄마의 시험", "dialogue|이번엔 시험 잘 봐야지.", "dialogue|유세아, 공부 열심히 하고 있지?",
+                        "dialogue|응. 걱정하지 마.", "direction|(암전)");
+        assertThat(jdbc.queryForObject("SELECT raw_text FROM scripts", String.class)).isEqualTo(SPACED);
+        assertThat(json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, SPACED, "paste")), 200)
+                .path("duplicate_script_id").textValue()).as("같은 원문은 중복으로 알아본다").isEqualTo(done.path("script_id").textValue());
+        assertThat(failures.reports()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("reading.script 띄어쓰기 복원: 모델이 글자 하나를 바꾼 줄과 빠뜨린 줄은 원문 그대로 나눈다")
+    void keepsOriginalWhenRestorationChangesLetters() throws Exception {
+        Model.answer = call -> call.spacing()
+                ? "1\t엄마의 시험\n3\t[엄마] 유세아, 공부 열심히 하고 있니?\n4\t[유세아] 응. 걱정하지 마.\n"
+                : Model.oracle(call);
+        String scriptId = split(SPACED);
+
+        assertThat(Model.CALLS.get(1).input()).isEqualTo("1\t엄마의 시험\n2\t[엄마] 이번엔 시험 잘 봐야지.\n"
+                + "3\t[ 엄 마 ] 유 세 아 , 공 부 열 심 히 하 고 있 지 ?\n4\t[유세아] 응. 걱정하지 마.\n5\t( 암 전 )");
+        JsonNode script = json(get("/v2/reading/scripts/{id}", scriptId), 200);
+        assertThat(script.path("lines")).extracting(line -> line.path("kind").textValue() + "|" + line.path("text").textValue())
+                .containsExactly("direction|엄마의 시험", "dialogue|이번엔 시험 잘 봐야지.",
+                        "direction|[ 엄 마 ] 유 세 아 , 공 부 열 심 히 하 고 있 지 ?", "dialogue|응. 걱정하지 마.", "direction|( 암 전 )");
+    }
+
+    @Test
+    @DisplayName("reading.script 띄어쓰기 복원: 복원 호출이 503 을 세 번 답해도 작업은 실패하지 않고 원문으로 나눠 succeeded — external 보고 하나")
+    void restorationFailureDoesNotFailTheJob() throws Exception {
+        Model.answer = call -> {
+            if (call.spacing()) throw new OpenAiStatusException(503, "OpenAI 생성 실패: 지금 AI가 붐빕니다. 잠시 뒤 다시 시도해 주세요.");
+            return Model.oracle(call);
+        };
+        String scriptId = split(SPACED);
+
+        assertThat(Model.CALLS).extracting(Model.Call::spacing).containsExactly(true, true, true, false);
+        assertThat(failures.reports()).singleElement().satisfies(report -> {
+            assertThat(report.kind()).isEqualTo(FailureKind.EXTERNAL);
+            assertThat(report.context()).startsWith("ScriptSplitWorker.spacing");
+        });
+        JsonNode script = json(get("/v2/reading/scripts/{id}", scriptId), 200);
+        assertThat(script.path("title").textValue()).isEqualTo("엄 마 의 시 험");
+        assertThat(script.path("lines")).extracting(line -> line.path("kind").textValue() + "|" + line.path("text").textValue())
+                .containsExactly("direction|엄 마 의 시 험", "dialogue|이번엔 시험 잘 봐야지.",
+                        "direction|[ 엄 마 ] 유 세 아 , 공 부 열 심 히 하 고 있 지 ?", "direction|[ 유 세 아 ] 응 . 걱 정 하 지 마 .",
+                        "direction|( 암 전 )");
+    }
+
+    @Test
+    @DisplayName("reading.script 띄어쓰기 복원: 띄어진 줄이 없으면 복원 호출이 없다 — 짧게 띄어진 「( 암 전 )」 혼자로는 부르지 않는다")
+    void noSpacedLineMeansNoRestorationCall() throws Exception {
+        String scriptId = split("[유세아] 응.\n[엄마] 이번엔 시험 잘 봐야지.\n( 암 전 )");
+
+        assertThat(Model.CALLS).extracting(Model.Call::spacing).containsExactly(false);
+        assertThat(Model.CALLS.getFirst().input()).isEqualTo("1\t[유세아] 응.\n2\t[엄마] 이번엔 시험 잘 봐야지.\n3\t( 암 전 )");
+        JsonNode script = json(get("/v2/reading/scripts/{id}", scriptId), 200);
+        assertThat(script.path("lines")).extracting(line -> line.path("kind").textValue() + "|" + line.path("text").textValue())
+                .containsExactly("dialogue|응.", "dialogue|이번엔 시험 잘 봐야지.", "direction|( 암 전 )");
+    }
+
+    @Test
+    @DisplayName("reading.script 띄어쓰기 복원: 맞게 띄어 쓴 「네 쪽 세 번 내 쪽 세 번」만 걸린 대본은 그 줄 하나를 보내고, 그대로 돌아오면 그대로 저장한다")
+    void correctlySpacedShortWordsComeBackUnchanged() throws Exception {
+        String scriptId = split("유세아: 이번엔 누가 먼저 해?\n엄마: 네 쪽 세 번 내 쪽 세 번");
+
+        assertThat(Model.CALLS).extracting(Model.Call::spacing).containsExactly(true, false);
+        assertThat(Model.CALLS.getFirst().input()).isEqualTo("2\t엄마: 네 쪽 세 번 내 쪽 세 번");
+        JsonNode script = json(get("/v2/reading/scripts/{id}", scriptId), 200);
+        assertThat(script.path("lines")).extracting(line -> line.path("kind").textValue() + "|" + line.path("text").textValue())
+                .containsExactly("dialogue|이번엔 누가 먼저 해?", "dialogue|네 쪽 세 번 내 쪽 세 번");
     }
 
     @Test
