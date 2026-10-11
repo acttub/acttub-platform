@@ -83,9 +83,8 @@ test('practice.coach: 닫힌 대화에는 보낼 수 없고 "그만"은 언제�
 });
 
 test('practice.coach: 도움 버튼은 입력만 준비하고 보내지 않는다', () => {
-  assert.equal(typeof helpButtonDraft('explain'), 'string');
-  assert.notEqual(helpButtonDraft('explain'), '');
-  assert.notEqual(helpButtonDraft('later'), '');
+  assert.notEqual(helpButtonDraft('yes'), '');
+  assert.notEqual(helpButtonDraft('no'), '');
 });
 
 test('practice.coach: 「코치에게 질문」 버튼은 없다 — 질문은 입력칸에 그대로 쓴다(SOMA-634)', async () => {

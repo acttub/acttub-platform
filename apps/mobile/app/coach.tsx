@@ -2,7 +2,7 @@ import { useNavigation, usePreventRemove } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import { Image } from 'expo-image';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
@@ -390,8 +390,8 @@ export default function CoachScreen() {
             <View style={styles.quickRow}>
               {(
                 [
-                  ['explain', t('coach.quickExplain')],
-                  ['later', t('coach.quickLater')],
+                  ['yes', t('coach.quickYes')],
+                  ['no', t('coach.quickNo')],
                 ] as const
               ).map(([button, label]) => (
                 <Pressable
@@ -403,6 +403,13 @@ export default function CoachScreen() {
                   <Text style={styles.quickText}>{label}</Text>
                 </Pressable>
               ))}
+              {/* 그만하기 — 확인을 받고 대화를 마쳐 정리를 만든다(아래 링크였던 것을 버튼 줄로 올렸다, SOMA-656). */}
+              <Pressable
+                style={styles.quick}
+                disabled={waiting || connecting || !conversation}
+                onPress={() => void endConversation()} accessibilityRole="button">
+                <Text style={styles.quickText}>{t('coach.quickEnd')}</Text>
+              </Pressable>
             </View>
             <Pressable
               style={[styles.send, !canSend && styles.sendOff]}
@@ -410,9 +417,6 @@ export default function CoachScreen() {
               onPress={() => void sendText(input)}
               accessibilityRole="button">
               <Text style={styles.sendText}>{waiting ? t('coach.thinking') : t('coach.nextQuestion')}</Text>
-            </Pressable>
-            <Pressable style={styles.endBtn} disabled={waiting || connecting} onPress={() => void endConversation()} accessibilityRole="button">
-              <Text style={styles.endHint}>{t('coach.endHint')}</Text>
             </Pressable>
           </View>
         )}
@@ -466,7 +470,7 @@ const styles = StyleSheet.create({
   questionHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   questionMain: { flex: 1, gap: 10 },
   coachLabel: { fontSize: 13, fontWeight: '900', color: palette.flameDeep, letterSpacing: 0.3 },
-  question: { fontSize: 19, fontWeight: '800', color: palette.text, lineHeight: 29, letterSpacing: -0.4 },
+  question: { fontSize: 21, fontWeight: '800', color: palette.text, lineHeight: 31, letterSpacing: -0.4 },
   mascot: { width: 84, height: 98, marginTop: 4 },
 
   pastAi: { gap: 4 },
@@ -498,20 +502,24 @@ const styles = StyleSheet.create({
   composerLabel: { fontSize: 12.5, fontWeight: '800', color: palette.textMuted },
   counter: { fontSize: 11.5, fontWeight: '600', color: palette.checkOff },
   inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+  // 한 줄로 시작해 글이 늘면 커지고, 다섯 줄쯤부터는 칸 안에서 스크롤한다(SOMA-656).
   input: {
     flex: 1,
-    minHeight: 112,
+    minHeight: 48,
+    maxHeight: 144,
     borderRadius: 14,
     borderWidth: 1.5,
     borderColor: palette.blue,
     backgroundColor: palette.bg,
-    paddingVertical: 14,
+    // 줄 간격을 따로 주면 안드로이드가 남는 간격을 글자 위에 몰아 한 줄일 때 글자가 아래로 처진다 — 기본 줄 간격에
+    // 위아래 여백을 같게 둔다. iOS 여러 줄 입력칸은 위에 자체 여백이 더 붙어 그만큼 위 여백을 줄인다.
+    paddingTop: Platform.OS === 'ios' ? 10 : 13,
+    paddingBottom: 13,
     paddingHorizontal: 16,
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
     color: palette.text,
-    lineHeight: 23,
-    textAlignVertical: 'top',
+    textAlignVertical: 'center',
   },
   quickRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   quick: {
@@ -530,6 +538,4 @@ const styles = StyleSheet.create({
   send: { height: 52, borderRadius: 14, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
   sendOff: { backgroundColor: palette.blueLine },
   sendText: { fontSize: 15, fontWeight: '900', color: palette.bg },
-  endHint: { fontSize: 12, fontWeight: '800', color: palette.textFaint, textAlign: 'center' },
-  endBtn: { alignSelf: 'center', paddingVertical: 8, paddingHorizontal: 16 },
 });
