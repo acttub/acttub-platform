@@ -530,6 +530,8 @@ public final class DirectVideoCoach {
         add.accept("버릇이 가리는 것", DirectVideoPracticeLoop.statusField(design, "버릇이 가리는 것"));
         add.accept("다른 쪽 살아 있는 곳", DirectVideoPracticeLoop.statusField(design, "다른 쪽 살아 있는 곳"));
         add.accept("인물", DirectVideoPracticeLoop.statusField(design, "인물"));
+        // 독백(자기 자신·그 자리에 없는 사람에게 하는 말)이면 둘째 응답부터도 "상대"를 전제로 묻지 않게 한다.
+        add.accept("말 거는 대상", DirectVideoPracticeLoop.statusField(design, "말 거는 대상"));
         var known = new java.util.LinkedHashMap<>(answers);
         String field = PracticeLoopRouter.answerField(classified, before);
         if (field != null && actorText != null) known.put(field, actorText.strip()); // 방금 답한 단계 답도 재료로
