@@ -135,7 +135,7 @@ class ConsentEndpointIT {
             assertThat(notices.get(0).path("title").textValue()).isEqualTo("개인정보 처리방침");
             assertThat(notices.get(0).path("body").textValue())
                     .contains("개인정보 처리의 위탁")
-                    .contains("Amplitude, Inc.");
+                    .contains("PostHog, Inc.");
         }
 
         assertThat(jdbc.queryForObject(
