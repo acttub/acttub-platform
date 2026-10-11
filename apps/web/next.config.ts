@@ -34,6 +34,10 @@ const nextConfig: NextConfig = {
     .split(",")
     .map((origin) => origin.trim())
     .filter(Boolean),
+  // rewrites 프록시가 API 응답을 기다리는 시간. Next 기본값은 30초라, 30초를 넘는 코치 답(분류·코치·줄이기 호출이
+  // 이어지면 운영 답의 약 30%)이 앱·웹에 500으로 돌아갔다. API는 끝까지 답을 만들어 저장하므로 서버 기록에는
+  // 남지 않았다(2026-10-11 dev 재현). 앱·웹은 코치 답을 120초까지 기다린다. 60초는 사용자 결정이다.
+  experimental: { proxyTimeout: 60_000 },
   async rewrites() {
     return [
       { source: "/v2/:path*", destination: `${apiOrigin}/v2/:path*` },
