@@ -1,5 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
 import { DefaultTheme, ThemeProvider, getFocusedRouteNameFromRoute } from '@react-navigation/native';
+import type { NativeStackHeaderProps } from '@react-navigation/native-stack';
 import { useFonts } from 'expo-font';
 import {
   router,
@@ -13,7 +14,7 @@ import {
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import 'react-native-reanimated';
 
 import '@/lib/global-font';
@@ -24,6 +25,8 @@ import { startSignupAttributionListener } from '@/lib/signup-attribution-runtime
 import { initCrashlytics, markScreen } from '@/lib/crashlytics';
 import { installNavigationGuard } from '@/lib/navigation-guard';
 import { tabBackTitle } from '@/lib/tab-back-title';
+import { AppHeader } from '@/components/app-header';
+import { HeaderBack } from '@/components/header-back';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
 import { challengePushTarget } from '@/lib/challenge/notification-center';
 import {
@@ -343,7 +346,13 @@ function RootNavigator() {
 
   return (
     <>
-      <Stack>
+      <Stack
+        screenOptions={{
+          headerBackVisible: false,
+          headerLeft: () => <HeaderBack />,
+          // iOS 는 헤더를 직접 그린다 — 네이티브 헤더는 버튼에 유리 배경을 씌워 꺾쇠가 뭉개져 보인다(components/app-header).
+          ...(Platform.OS === 'ios' ? { header: (props: NativeStackHeaderProps) => <AppHeader {...props} /> } : null),
+        }}>
         <Stack.Screen name="update-required" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="consent" options={{ headerShown: false }} />
