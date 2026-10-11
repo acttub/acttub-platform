@@ -179,7 +179,9 @@ export default function ReadingList() {
       {cloudVoice.status?.available && (
         <View style={styles.voiceBar}>
           <Feather name="volume-2" size={16} color={palette.blue} />
-          <Text style={styles.voiceText} numberOfLines={1}>{t('cloudVoice.bannerLabel')}</Text>
+          <Text style={styles.voiceText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+            {t('cloudVoice.bannerLabel')}
+          </Text>
           {!!voiceFreeUntil && (
             <View style={styles.voiceBadge}>
               <Text style={styles.voiceBadgeText}>{t('cloudVoice.bannerFree', { date: voiceFreeUntil })}</Text>
@@ -295,18 +297,18 @@ const styles = StyleSheet.create({
   voiceBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     backgroundColor: palette.blueMist,
     borderWidth: 1,
     borderColor: palette.blueLine,
     borderRadius: 14,
-    paddingLeft: 14,
-    paddingRight: 10,
+    paddingLeft: 12,
+    paddingRight: 8,
     paddingVertical: 8,
   },
-  voiceText: { flexShrink: 1, fontSize: 13.5, fontWeight: '700', color: palette.text },
-  voiceBadge: { backgroundColor: palette.blueSoft, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
-  voiceBadgeText: { fontSize: 11.5, fontWeight: '800', color: palette.blueDeep },
+  voiceText: { flex: 1, fontSize: 13, fontWeight: '700', color: palette.text },
+  voiceBadge: { backgroundColor: palette.blueSoft, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3 },
+  voiceBadgeText: { fontSize: 11, fontWeight: '800', color: palette.blueDeep },
   search: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: palette.bgSoft, borderRadius: 12, paddingHorizontal: 12, height: 46 },
   searchInput: { flex: 1, color: palette.text, fontFamily: 'Pretendard', fontSize: 14, padding: 0 },
   newBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: palette.blue, borderRadius: 12, paddingHorizontal: 14, height: 46 },
