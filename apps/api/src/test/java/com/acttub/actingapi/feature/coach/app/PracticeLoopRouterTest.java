@@ -76,7 +76,29 @@ class PracticeLoopRouterTest {
         var ackThenAsk = PracticeLoopRouter.forRouting(PracticeLoopRouter.parse("{\"signals\":[\"answered\",\"ack\",\"question\"]}"), afterWrap);
         assertThat(PracticeLoopRouter.route(ackThenAsk, afterWrap, 0)).as("맞장구 뒤에 물었으면 답한다").isEqualTo("답하기");
         var answered = new Before(7, "답하기", Kind.QUESTION, new Tally(0, 0, 0), List.of(), false, false, false, true, 4);
-        assertThat(route(Kind.QUESTION, answered)).as("답한 다음 말에서는 닫는다").isEqualTo(PracticeLoopRouter.END);
+        assertThat(route(Kind.ANSWER, answered)).as("답한 다음 말이 물음이 아니면 닫는다").isEqualTo(PracticeLoopRouter.END);
+        assertThat(route(Kind.SHORT, answered)).isEqualTo(PracticeLoopRouter.END);
+        assertThat(PracticeLoopRouter.route(PracticeLoopRouter.parse("{\"signals\":[\"answered\",\"ack\"]}"), answered, 0)).isEqualTo(PracticeLoopRouter.END);
+    }
+
+    @Test void aQuestionAfterTheLastAnswerIsAnsweredBeforeClosing() {
+        // 2026-10-11 17:56 운영: 정리 → "나한테 상대역이 없는데?"에 답함 → "?반응을 어케봐?"에 대꾸 없이 "오늘은 여기까지 해요"로 닫혔다.
+        var answered = new Before(5, "답하기", Kind.QUESTION, new Tally(0, 0, 0), List.of(), false, false, false, true, 4);
+        assertThat(route(Kind.QUESTION, answered)).isEqualTo("답하기");
+        assertThat(PracticeLoopRouter.closesNext(Kind.QUESTION, answered)).as("또 답한 다음 말에서 다시 닫기를 본다").isTrue();
+        assertThat(route(Kind.METHOD, answered)).isEqualTo("답하기");
+        assertThat(route(Kind.EVALUATION, answered)).isEqualTo("짚어주기");
+        assertThat(route(Kind.PUSHBACK, answered)).isEqualTo("답하기");
+        assertThat(route(Kind.CORRECTION, answered)).isEqualTo("답하기");
+        assertThat(route(Kind.MISSED, answered)).as("코치 답을 못 알아들었으면 다시 설명한다").isEqualTo("답하기");
+        var alsoAsked = PracticeLoopRouter.forRouting(PracticeLoopRouter.parse("{\"signals\":[\"answered\",\"question\"]}"), answered);
+        assertThat(PracticeLoopRouter.route(alsoAsked, answered, 0)).as("답하면서 함께 물었어도 답한다").isEqualTo("답하기");
+        assertThat(PracticeLoopRouter.button("예시로 설명해 주세요.", answered).kind()).isEqualTo(Kind.QUESTION);
+        assertThat(PracticeLoopRouter.closesNext(Kind.ANSWER, answered)).isFalse();
+        assertThat(PracticeLoopRouter.closesNext(Kind.STOP, answered)).isFalse();
+        assertThat(route(Kind.STOP, answered)).as("그만은 바로 닫는다").isEqualTo(PracticeLoopRouter.END);
+        var atLimit = new Before(PracticeLoopRouter.LAST_REPLY, "답하기", Kind.QUESTION, new Tally(0, 0, 0), List.of(), false, false, false, true, 4);
+        assertThat(route(Kind.QUESTION, atLimit)).as("상한에서는 물어도 닫는다").isEqualTo(PracticeLoopRouter.END);
     }
 
     @Test void anAnswerThatEndsWithAQuestionStillMovesTheStep() {
