@@ -105,7 +105,7 @@ export type BirthDateCheck =
   | { kind: 'ok'; value: string };
 
 /** 서버의 Period.between(birth, todayKST).getYears()와 같은 만 나이. 둘 다 YYYY-MM-DD다. */
-function fullYearsOn(birthDate: string, today: string): number {
+export function fullYearsOn(birthDate: string, today: string): number {
   const years = Number(today.slice(0, 4)) - Number(birthDate.slice(0, 4));
   return today.slice(5) < birthDate.slice(5) ? years - 1 : years;
 }

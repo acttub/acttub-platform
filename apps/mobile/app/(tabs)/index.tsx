@@ -26,6 +26,7 @@ import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
 import { StreakCelebrationScreen } from '@/components/streak-celebration-screen';
 import { AnnouncementPoster } from '@/components/announcement-poster';
 import { useAuth } from '@/lib/auth';
+import { homeDeadlineSections } from '@/lib/home-sections';
 import { HomeMascot } from '@/components/home-mascot';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { TARGET } from '@/lib/spotlight-targets';
@@ -55,7 +56,7 @@ function recentDate(iso: string): string {
 /** A1. 홈 — 히어로(마스코트) + 지금 바로 연습 + 연속 연습 + 최근 연습 + 입시 마감 + 오디션 마감. */
 export default function HomeScreen() {
   const router = useRouter();
-  const { user, consentEntry } = useAuth();
+  const { user, consentEntry, profile } = useAuth();
   // 재동의 팝업이 떠 있는 동안 홈의 첫 안내들을 띄우지 않는다. 둘 다 홈 위에 덮여 어느 쪽이 위에 올지 정해지지 않는다.
   // 팝업(Modal)이 닫히는 동안 다른 Modal을 띄우면 iOS가 띄우지 못해, 닫힘이 끝난 뒤에 연다
   // (iOS 시뮬레이터에서 400ms는 시트가 안 떴고 700ms는 떴다. 여유를 둔 값이다).
@@ -179,6 +180,8 @@ export default function HomeScreen() {
     () => (admissions && isKorean() ? upcomingNotices(admissions, localDate(), 2) : []),
     [admissions],
   );
+  // 입시생(만 19세 이하)은 입시만, 만 20세 이상 입시생은 둘 다, 나머지는 오디션만 본다(SOMA-654).
+  const sections = homeDeadlineSections(profile.me?.profile, kstDate());
   // 마감일이 있는 공고 중 가까운 둘. 비면(기능 꺼짐·공고 없음) 카드째 숨긴다.
   const auditionDeadlines = useMemo(
     () => (auditions && isKorean() ? urgentAuditions(auditions.items, kstDate(), 2) : []),
@@ -305,7 +308,7 @@ export default function HomeScreen() {
         )}
 
         {/* 입시 마감 — 실기 일정은 놓치면 1년을 기다린다. 임박한 둘만 띄운다. */}
-        {deadlines.length > 0 && (
+        {sections.admissions && deadlines.length > 0 && (
           <>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>{t('home.admissionsTitle')}</Text>
@@ -341,7 +344,7 @@ export default function HomeScreen() {
         )}
 
         {/* 오디션 마감 임박 — 입시 카드와 같은 모양. 누르면 모아보기로 간다(app.audition). */}
-        {auditionDeadlines.length > 0 && (
+        {sections.auditions && auditionDeadlines.length > 0 && (
           <>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>{t('home.auditionsTitle')}</Text>
