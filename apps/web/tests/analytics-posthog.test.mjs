@@ -363,3 +363,41 @@ test("계측 I-6: 다른 게스트로 켜지면 새 기기 id 로 끊고 그 게
   );
 });
 
+
+// 새로고침하면 모듈은 처음부터지만 SDK 는 앞 게스트의 식별을 저장소에 들고 있다. 비교 기준이
+// 모듈 변수라면 앞 게스트와 같은 기기 id 로 새 게스트가 이어진다.
+test("계측 I-6: 새로고침 뒤 다른 게스트로 켜져도 새 기기 id 로 끊는다", async () => {
+  const reloaded = await import("../src/lib/analytics/posthog.ts?reload-other-guest");
+  sdk.distinctId = "guest-2";
+  sdk.optedOut = true;
+  const deviceBefore = sdk.deviceId;
+
+  withFakeWindow("acttub.com", () => {
+    reloaded.startPostHog();
+    reloaded.setPostHogUser("guest-3");
+  });
+  sdk.delivered.length = 0;
+  reloaded.trackScreenViewed("/home");
+
+  assert.deepEqual(sdk.delivered, [
+    { event: "screen_viewed", properties: { path: "/home" }, distinctId: "guest-3", deviceId: deviceBefore + 1 },
+  ]);
+});
+
+test("계측 I-6: 새로고침 뒤 같은 게스트로 켜지면 기기 식별을 끊지 않는다", async () => {
+  const reloaded = await import("../src/lib/analytics/posthog.ts?reload-same-guest");
+  sdk.distinctId = "guest-3";
+  sdk.optedOut = true;
+  const deviceBefore = sdk.deviceId;
+
+  withFakeWindow("acttub.com", () => {
+    reloaded.startPostHog();
+    reloaded.setPostHogUser("guest-3");
+  });
+  sdk.delivered.length = 0;
+  reloaded.trackScreenViewed("/home");
+
+  assert.deepEqual(sdk.delivered, [
+    { event: "screen_viewed", properties: { path: "/home" }, distinctId: "guest-3", deviceId: deviceBefore },
+  ]);
+});

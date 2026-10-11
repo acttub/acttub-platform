@@ -100,20 +100,18 @@ function optIn(): void {
   if (posthog.has_opted_out_capturing()) posthog.opt_in_capturing({ captureEventName: false });
 }
 
-let sentUserId: string | null = null;
-
 /** 기기 너머의 행동을 잇는다. 이메일·표시 이름이 아니라 백엔드 내부 id만 받는다. */
 export function setPostHogUser(userId: string): void {
   if (!started || !measuring) return;
-  // 화면이 바뀔 때마다 같은 값을 다시 보내지 않는다.
-  if (sentUserId === userId) return;
+  // 앞 게스트는 SDK 저장소에서 읽는다. 모듈 변수는 새로고침하면 비어 앞 게스트를 놓친다.
+  const identified = posthog.get_property("$user_id");
+  if (identified === userId) return;
   // 이 브라우저에서 다른 게스트가 시작됐다. 앞 게스트의 기기 식별과 잇지 않는다(device id 도 새로).
-  if (sentUserId !== null) {
+  if (identified) {
     posthog.reset(true);
     optIn();
   }
   posthog.identify(userId);
-  sentUserId = userId;
 }
 
 /**

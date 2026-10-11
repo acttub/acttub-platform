@@ -45,6 +45,9 @@ const posthog = {
   has_opted_out_capturing() {
     return sdk.optedOut;
   },
+  get_property(name) {
+    return name === "$user_id" ? sdk.distinctId : undefined;
+  },
 };
 
 export default posthog;

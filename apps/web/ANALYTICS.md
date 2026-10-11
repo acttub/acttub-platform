@@ -89,7 +89,7 @@ GA4는 `consent: denied` 상태에서 쿠키 없이 히트를 보내지만, **Po
 - **다른 탭에서 일어난 게스트의 끝·시작도 즉시 끄는 때다. 묻는 때가 아니다.** 그 변화는 `storage` 이벤트로만 오고(`watchGuestSession`), 게스트 토큰 키가 지워지거나 새로 생긴 것만 본다. 같은 게스트의 토큰 회전(값 → 값)과 다른 키의 쓰기는 지나친다 — 다른 탭의 SDK가 이벤트마다 `localStorage`를 쓰므로, 키를 거르지 않으면 그때마다 끄고 다시 묻게 된다. 꺼진 탭은 다시 보일 때 묻는다.
 - **끈다는 것은 실제 중단이다.** GA4는 `analytics_storage: denied`로 되돌리고 `user_id`를 지운다(`revokeAnalyticsConsent`). PostHog는 `opt_out_capturing()`이다(`stopPostHog`) — 식별자만 지우면 이미 켜진 autocapture와 화면 녹화는 SDK가 스스로 계속 보낸다. opt-out 상태에서는 SDK의 `capture`가 이벤트를 버리고(돌던 녹화의 `$snapshot`도 `capture`를 거친다), 새 녹화는 시작하지 않는다(posthog-js 1.434.14 `session-recording.js`의 `isDisabled = … || consent.isOptedOut()`로 확인). 다시 켤 때는 `opt_in_capturing({ captureEventName: false })`로 푼다. `opt_in_capturing`이 녹화를 다시 시작하고(`sessionRecording.startIfEnabledOrStop()`), `captureEventName: false`는 기본으로 붙는 `$opt_in` 이벤트를 막는다.
 - **opt-out은 브라우저에 남는다**(`opt_out_capturing_persistence_type` 기본 localStorage). 끈 채 새로고침하면 SDK가 꺼진 채로 init되므로, `startPostHog`는 켤 차례마다 `has_opted_out_capturing()`을 보고 푼다. `reset()`도 저장된 동의를 지우므로 순서는 `reset` → (필요하면) opt-in → `identify`다.
-- 기기 식별(`posthog.reset(true)` — distinct id와 device id를 새로 만든다)은 끌 때마다 끊지 않는다. 탭이 다시 보일 때마다 확인하느라 잠깐 끄는 것까지 새 기기로 세면 같은 게스트가 여럿으로 갈린다. **다른 게스트로 켜질 때** 끊는다(`setPostHogUser`).
+- 기기 식별(`posthog.reset(true)` — distinct id와 device id를 새로 만든다)은 끌 때마다 끊지 않는다. 탭이 다시 보일 때마다 확인하느라 잠깐 끄는 것까지 새 기기로 세면 같은 게스트가 여럿으로 갈린다. **다른 게스트로 켜질 때** 끊는다(`setPostHogUser`). 앞 게스트는 SDK가 저장해 둔 `$user_id`로 알아본다 — 모듈 변수로 비교하면 새로고침 뒤 첫 게스트 교체를 놓쳐 앞 게스트와 같은 device id로 이어진다(2026-10-11 실제 빌드에서 재현).
 
 이 규칙은 `tests/analytics-consent.test.mjs`(granted → 켬 / declined·revoked·행 없음 → 끔 / 토큰 없음 → 끔 / 조회 실패 → 끔 / 켜진 뒤 403 → 즉시 끔 / 재조회로 어긋남 발견 → 끔), `tests/analytics-cross-tab.test.mjs`(다른 탭의 무관한 키·토큰 회전 → 묻지도 끄지도 않음 / 다른 탭의 게스트 끝·시작 → 묻지 않고 끔 / 탭이 다시 보임 → 물음), `tests/analytics-posthog.test.mjs`의 "계측 I-6"·새로고침 항목들이 고정한다.
 
@@ -124,7 +124,7 @@ GA4는 `consent: denied` 상태에서 쿠키 없이 히트를 보내지만, **Po
 #### 번들러 변경 검증
 
 녹화 코드는 우리 번들에 들어가지 않는다. SDK가 녹화를 시작할 때 레코더 스크립트
-(`https://us-assets.i.posthog.com/static/lazy-recorder.js?v=<SDK 버전>`, 원격 설정이 다른 이름을 줄 수 있다)를
+(2026-10-11 운영 프로젝트에서 받은 것은 `https://us-assets.i.posthog.com/static/1.434.14/posthog-recorder.js`, 이름은 원격 설정이 정한다)를
 따로 받는다(posthog-js `external-scripts-loader.js`·`request-router.js`). 그래서 번들러를 바꿀 때 볼 것은
 "번들러가 녹화 청크를 깨뜨리는가"가 아니라 "SDK 번들이 레코더를 받아 실행하고 업로드하는가"다.
 
@@ -134,7 +134,7 @@ PostHog에서는 이 갈래가 다르지만, 번들러를 바꾸면 아래 런�
 녹화가 도는지 알 수 없다.
 
 **완료 기준:** 변경한 번들러의 배포 빌드를 현재 판에 동의한 게스트·계측 키가 갖춰진 환경에서
-실행했다. PostHog 프로젝트 설정에서 Session replay가 켜져 있는지 확인하고, 레코더 스크립트(`lazy-recorder.js`)
+실행했다. PostHog 프로젝트 설정에서 Session replay가 켜져 있는지 확인하고, 레코더 스크립트(`posthog-recorder.js`)
 로드 성공과 `/s/` 업로드 성공을 네트워크 탭에서 확인했다. 콘솔 오류와 검증 환경을 함께 기록한다.
 
 #### ⚠️ 녹화를 켜는 곳은 코드가 아니라 프로젝트 설정이다
