@@ -5,7 +5,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SceneFoldBody, SceneFoldLink, SceneSummary } from '@/components/practice-chrome';
 import { NoteSections } from '@/components/note-sections';
-import { NoteCheer } from '@/components/note-cheer';
 import { ReportRating } from '@/components/report-rating';
 import { palette } from '@/constants/palette';
 import { useAppRating } from '@/hooks/use-app-rating';
@@ -165,9 +164,6 @@ export default function ReportScreen() {
 
             <NoteSections note={note} />
             </View>
-
-            {/* 마스코트 응원 한마디(SOMA-662) */}
-            <NoteCheer />
 
             {/* 노트 평가 — 누르는 순간 서버에 저장하고 한 줄(선택)을 덧붙인다. 이탈 설문과 다른 기능이다.
                 튜토리얼 예시 노트는 서버에 없어 평가를 받지 않는다(SOMA-494). */}

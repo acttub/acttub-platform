@@ -14,10 +14,12 @@ test('응원 한마디는 다섯 개이고 무작위로 하나를 고른다(SOMA
   for (const key of NOTE_CHEER_KEYS) assert.match(ko, new RegExp(`${key.split('.').pop()}: '`));
 });
 
-test('방금 끝난 연습 노트에서 다음 할 일 아래·평가 위에 마스코트 응원 말풍선이 있다', () => {
-  const report = read('app/report.tsx');
-  const cheer = report.indexOf('<NoteCheer');
-  assert.ok(cheer > report.indexOf('<NoteSections note={note} />'));
-  assert.ok(cheer < report.indexOf('<ReportRating'));
+test('연습 노트의 응원 칸은 고정 문장 대신 마스코트 말풍선이다 — 방금 끝난 노트·지난 노트 둘 다(같은 NoteSections)', () => {
+  const sections = read('components/note-sections.tsx');
+  assert.match(sections, /section\.kind === 'cheer' \? \(\s*<NoteCheer \/>/);
+  for (const screen of ['app/report.tsx', 'app/report-detail.tsx']) {
+    const source = read(screen);
+    assert.ok(source.indexOf('<NoteSections note={note} />') < source.indexOf('<ReportRating'), screen);
+  }
   assert.match(read('components/note-cheer.tsx'), /require\('@\/assets\/images\/mascot-cheer\.png'\)/);
 });
