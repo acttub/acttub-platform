@@ -381,15 +381,22 @@ public final class DirectVideoCoach {
         private static String lastWordLine(java.util.Locale language, PracticeLoopRouter.Kind kind) {
             boolean korean = language == null || "ko".equals(language.getLanguage());
             boolean disagreed = kind == PracticeLoopRouter.Kind.PUSHBACK || kind == PracticeLoopRouter.Kind.CORRECTION;
+            // 물음이 아니라 생각을 덧붙인 말(정리 뒤 "그저 화풀이니까 더 크게 화를 내야")이면 답이 아니라 받아 주기다.
+            boolean asked = kind == PracticeLoopRouter.Kind.QUESTION || kind == PracticeLoopRouter.Kind.EVALUATION
+                    || kind == PracticeLoopRouter.Kind.METHOD;
             if (!korean) {
-                return "this is the last thing you say today. Answer in one or two sentences and do not ask any question."
+                return "this is the last thing you say today. "
+                        + (asked || disagreed ? "Answer in one or two sentences" : "Take up what the actor just said in one or two sentences")
+                        + " and do not ask any question."
                         + (disagreed ? " The actor offered a different reading." : " If the actor offered a different reading of the character or a different action from your wrap-up:")
                         + " follow the actor's reading this time and do not go back to your earlier suggestion."
                         + " Write a hidden first line <다음 테이크>…</다음 테이크> with one action that follows the actor's reading, then say that action as"
                         + " \"you could try …\" and suggest checking in the next take whether it works. Do not give orders."
                         + (disagreed ? "" : " If the actor only asked something, just answer and do not write the hidden line.");
             }
-            return "이번이 오늘 대화의 마지막 말이다. 물은 것에 한두 문장으로 답만 하고 질문하지 않는다. 아래 모양 칸의 \"질문\"은 이번에는 쓰지 않는다."
+            return "이번이 오늘 대화의 마지막 말이다. "
+                    + (asked || disagreed ? "물은 것에 한두 문장으로 답만 하고" : "배우가 방금 한 말을 한두 문장으로 받아 주고")
+                    + " 질문하지 않는다. 아래 모양 칸의 \"질문\"은 이번에는 쓰지 않는다."
                     + (disagreed ? " 배우가 정리에 다른 해석을 냈다." : " 배우가 정리와 다른 인물 해석이나 다른 행동을 냈으면(\"저는 ~한 인물이라고 봤어요\", \"~하는 게 맞다고 생각했어요\"):")
                     + " 이번에는 배우의 해석을 따른다. 앞서 코치가 한 제안이나 근본 문제로 돌아가지 않는다."
                     + " 맨 첫 줄에 숨은 줄 <다음 테이크>…</다음 테이크>를 쓰고, 안에는 배우의 해석대로 다음 테이크에서 해 볼 행동 하나를 \"~해 봐도 좋아요\"로 끝나는 한 문장으로 쓴다(노트에 남는다. \"그 해석이면\" 같은 앞말 없이 행동만)."
@@ -413,13 +420,13 @@ public final class DirectVideoCoach {
         var classified = pressed != null ? pressed : PracticeLoopRouter.forRouting(classify(session, actorText, operationId), before);
         String design = loopState == null ? "" : loopState.path("design").asText("");
         int stayed = PracticeLoopRouter.stayed(loopState, coachTurns);
-        String doing = PracticeLoopRouter.route(classified.kind(), before, stayed);
+        String doing = PracticeLoopRouter.route(classified, before, stayed);
         // "지금은 연습하기 어려워요" 버튼은 단계와 상관없이 바로 정리한다(그만·상한은 그대로 닫는다).
         if (PracticeLoopRouter.BY_LATER.equals(classified.by()) && !PracticeLoopRouter.END.equals(doing)) doing = PracticeLoopRouter.WRAP_UP;
         var avoid = PracticeLoopRouter.avoidAfter(before, classified.kind(), DirectVideoPracticeLoop.habit(design));
         String goal = DirectVideoPracticeLoop.goal(loopState == null ? null : loopState.path("statuses"), design);
         return new Branch(classified, before, doing, goal, avoid, DirectVideoPracticeLoop.statusField(design, "관찰 근거"),
-                DirectVideoPracticeLoop.statusField(design, "대사 확인"), PracticeLoopRouter.closesNext(classified.kind(), before),
+                DirectVideoPracticeLoop.statusField(design, "대사 확인"), PracticeLoopRouter.closesNext(classified, before),
                 actorText, withTries(materials(design, PracticeLoopRouter.answers(loopState, coachTurns), classified, before, actorText, doing),
                         doing, stayed, session),
                 DirectVideoPracticeLoop.statusField(design, "근본 문제"));
@@ -479,7 +486,7 @@ public final class DirectVideoCoach {
         add.accept("다른 쪽 살아 있는 곳", DirectVideoPracticeLoop.statusField(design, "다른 쪽 살아 있는 곳"));
         add.accept("인물", DirectVideoPracticeLoop.statusField(design, "인물"));
         var known = new java.util.LinkedHashMap<>(answers);
-        String field = PracticeLoopRouter.answerField(classified.kind(), before);
+        String field = PracticeLoopRouter.answerField(classified, before);
         if (field != null && actorText != null) known.put(field, actorText.strip()); // 방금 답한 단계 답도 재료로
         known.forEach((label, value) -> add.accept("배우가 말한 " + label, value));
         add.accept("배우가 방금 한 말", actorText == null ? null : actorText.replaceAll("\\s+", " "));
@@ -501,7 +508,7 @@ public final class DirectVideoCoach {
     /** 배우의 말 종류. 매번 분류만 하는 AI(영상 없음)에게 묻는다. 실패하면 보통 답으로 이어간다. */
     private PracticeLoopRouter.Classified classify(CoachSessionSnapshot session, String actorText, UUID operationId) {
         var transcript = new ArrayList<DirectVideoModel.Message>();
-        // 이 세션의 대화 전체를 준다. 첫 비추기부터 봐야 정정·반박·선택 설명을 가릴 수 있다(상한 16턴이라 길지 않다).
+        // 이 세션의 대화 전체를 준다. 첫 비추기부터 봐야 정정·반박·선택 설명을 가릴 수 있다(상한 24턴이라 길지 않다).
         for (var turn : session.turns()) {
             transcript.add(new DirectVideoModel.Message("ai".equals(turn.role()) ? "model" : "user", turn.text()));
         }
