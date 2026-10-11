@@ -33,11 +33,16 @@ class PostgresCoachPersonas implements CoachPersonas {
                 .map(String::strip).filter(line -> line.matches("[0-9a-f]{64}")).collect(Collectors.toUnmodifiableSet());
     }
 
+    /**
+     * 코치 응답은 트랜잭션 밖에서 돈다. 공유 EntityManager 는 조회 메서드가 끝나면 바로 닫히므로,
+     * {@code getResultStream()} 으로 받은 스트림은 읽기 전에 결과가 닫혀 매번 실패했다(배정 실패 → 모두 기본 성격).
+     * 결과를 다 받아 오는 {@code getResultList()} 를 쓴다.
+     */
     @Override
     public String assign(CoachSessionSnapshot session) {
         if (session.userId() == null || advisors.isEmpty()) return "";
         Object email = entityManager.createNativeQuery("SELECT email FROM users WHERE id=:id")
-                .setParameter("id", session.userId()).getResultStream().findFirst().orElse(null);
+                .setParameter("id", session.userId()).getResultList().stream().findFirst().orElse(null);
         if (!(email instanceof String text) || !advisors.contains(hash(text))) return "";
         Number prior = (Number) entityManager.createNativeQuery("""
                 SELECT count(*) FROM practices p
