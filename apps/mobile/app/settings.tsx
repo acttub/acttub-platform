@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Stack, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Linking,
@@ -15,7 +15,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
-import { useCloudVoice } from '@/hooks/use-cloud-voice';
 import { loadVoiceFeedbackEnabled, saveVoiceFeedbackEnabled } from '@/lib/reading/voice-feedback-setting';
 import { Markdown } from '@/components/markdown';
 import { palette } from '@/constants/palette';
@@ -29,7 +28,7 @@ import {
 } from '@/lib/consent-entry';
 import { resetSpotlights } from '@/lib/guide-state';
 import { isMarketingConsent, marketingDecisionNotice } from '@/lib/marketing-consent';
-import { isKorean, translate as t } from '@/lib/i18n';
+import { translate as t } from '@/lib/i18n';
 import {
   DEFAULT_NOTIFICATION_SETTINGS,
   loadNotificationSettings,
@@ -80,32 +79,17 @@ export default function SettingsScreen() {
   const [updatingConsentId, setUpdatingConsentId] = useState<string | null>(null);
   const [updatingToggle, setUpdatingToggle] = useState<keyof NotificationSettings | null>(null);
   const { confirm, alert, dialog } = useAppDialog();
-  const cloudVoice = useCloudVoice();
   const [voiceFeedback, setVoiceFeedback] = useState(false);
   useEffect(() => { void loadVoiceFeedbackEnabled().then(setVoiceFeedback); }, []);
   const toggleVoiceFeedback = (value: boolean) => {
     setVoiceFeedback(value);
     void saveVoiceFeedbackEnabled(value).catch(() => setVoiceFeedback(!value));
   };
-  const refreshVoice = cloudVoice.refresh;
-  const cloudVoiceDate = cloudVoice.status?.free_until
-    ? new Date(cloudVoice.status.free_until).toLocaleDateString(isKorean() ? 'ko-KR' : 'en-US', { month: 'long', day: 'numeric' })
-    : '';
 
   const loadConsents = useCallback(async () => {
     setRows(consentSettingsRows(await api.consentEntry()));
   }, []);
 
-  // 목소리 스위치로 동의하면 아래 선택 동의 목록도 다시 받는다 — 처음 읽어 온 때는 빼고.
-  const voiceConsent = cloudVoice.status?.consent ?? null;
-  const seenVoiceConsent = useRef<string | null>(null);
-  useEffect(() => {
-    if (voiceConsent === null) return;
-    if (seenVoiceConsent.current !== null && seenVoiceConsent.current !== voiceConsent) {
-      void loadConsents().catch(() => undefined);
-    }
-    seenVoiceConsent.current = voiceConsent;
-  }, [voiceConsent, loadConsents]);
 
   const loadSettings = useCallback(async () => {
     setLoading(true);
@@ -166,9 +150,8 @@ export default function SettingsScreen() {
       ); // 낙관적 업데이트
       try {
         await api.recordConsent(row.id, decision);
-        // 결정 시각은 서버가 정한다. 다시 받아 그린다. 목소리 스위치도 같은 동의를 보므로 함께 다시 읽는다.
+        // 결정 시각은 서버가 정한다. 다시 받아 그린다.
         await loadConsents().catch(() => undefined);
-        void refreshVoice().catch(() => undefined);
         // 광고성 정보 수신 동의·거부는 처리 결과를 알린다(정보통신망법 제50조 제7항).
         if (isMarketingConsent(row.type)) {
           const notice = marketingDecisionNotice([{ type: row.type, decision }], new Date());
@@ -192,7 +175,7 @@ export default function SettingsScreen() {
         setUpdatingConsentId(null);
       }
     },
-    [updatingConsentId, loadConsents, alert, refreshVoice],
+    [updatingConsentId, loadConsents, alert],
   );
 
   const required = rows.filter((row) => row.required);
@@ -276,28 +259,7 @@ export default function SettingsScreen() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.list}>
-          {cloudVoice.status?.available && (
-            <>
-              <Text style={styles.sectionTitle}>{t('cloudVoice.readingSection')}</Text>
-              <View style={styles.card}>
-                <View style={styles.cardRow}>
-                  <View style={styles.iconCircle}><Feather name="volume-2" size={18} color={palette.flame} /></View>
-                  <View style={styles.cardBody}>
-                    <Text style={styles.cardTitle}>{t('cloudVoice.settingsTitle')}</Text>
-                    <Text style={styles.cardSub}>{t('cloudVoice.settingsBody', { date: cloudVoiceDate })}</Text>
-                  </View>
-                  <Switch
-                    value={cloudVoice.enabled && cloudVoice.status.consent === 'granted'}
-                    onValueChange={(value) => void (value ? cloudVoice.enable('settings') : cloudVoice.disable())}
-                    disabled={cloudVoice.busy}
-                    trackColor={{ true: palette.flame, false: palette.border }}
-                    thumbColor={palette.onAccent}
-                    ios_backgroundColor={palette.border}
-                  />
-                </View>
-              </View>
-            </>
-          )}
+          {/* 고품질 목소리 켜기는 대본 탭 위로 옮겼다(SOMA-664). */}
           {/* 실험 기능 — 발성 피드백. 기본 꺼짐, 기기에만 저장. */}
           <Text style={styles.sectionTitle}>{t('voiceFeedback.settingsSection')}</Text>
           <View style={styles.card}>
@@ -508,7 +470,6 @@ export default function SettingsScreen() {
         </ScrollView>
       )}
       {dialog}
-      {cloudVoice.consentSheet}
     </SafeAreaView>
   );
 }

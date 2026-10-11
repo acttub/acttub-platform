@@ -1,11 +1,12 @@
 import Feather from '@expo/vector-icons/Feather';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
 import { palette } from '@/constants/palette';
+import { useCloudVoice } from '@/hooks/use-cloud-voice';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { hasSeenReadingTutorial, hasSeenSpotlight, markReadingTutorialSeen, markSpotlightSeen } from '@/lib/guide-state';
 import { TutorialIntroSheet, type TutorialChoice } from '@/components/tutorial-intro-sheet';
@@ -18,11 +19,11 @@ import { CHIP_TONE, cardMeta, lastActivityLabel, listHeader, myCharactersLabel, 
 import { scriptErrorMessage } from '@/lib/reading/script-errors';
 import { deleteScript, listScripts, loadIntoCurrent } from '@/lib/reading/store';
 import type { ScriptCard, ScriptListResponse } from '@/lib/reading/types';
-import { translate as t } from '@/lib/i18n';
+import { isKorean, translate as t } from '@/lib/i18n';
 
 /**
  * 내 대본 목록(R00, reading.script). 서버 목록이 정본이다 — 최근 고친 순, 머리 "전체 N개 · 연습 중 M개",
- * 카드마다 제목·내 배역·대사 수·녹음 수·마지막 활동·상태 칩(연습 중·연습 완료·배역 선택). 검색은 서버가
+ * 카드마다 제목·내 배역·대사 수·녹음 수·마지막 활동·상태 칩(연습 중·연습 완료, 배역을 안 골랐으면 없음). 검색은 서버가
  * 제목과 배역 이름만 찾는다. "분석 완료" 칩은 리딩에 분석이 없어 없다.
  */
 const SEARCH_DEBOUNCE_MS = 300;
@@ -33,6 +34,11 @@ const READING_STEPS: SpotlightStep[] = [{ target: TARGET.readingNew, text: 'guid
 export default function ReadingList() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const cloudVoice = useCloudVoice();
+  const refreshVoice = cloudVoice.refresh;
+  const voiceFreeUntil = cloudVoice.status?.free_until
+    ? new Date(cloudVoice.status.free_until).toLocaleDateString(isKorean() ? 'ko-KR' : 'en-US', { month: 'long', day: 'numeric' })
+    : '';
   const { confirm, sheet, alert, dialog } = useAppDialog();
   const [list, setList] = useState<ScriptListResponse | null>(null);
   const [q, setQ] = useState('');
@@ -79,6 +85,8 @@ export default function ReadingList() {
   useFocusEffect(
     useCallback(() => {
       void load(q);
+      // 설정의 동의 목록에서 고품질 목소리 동의를 바꿨을 수 있다 — 스위치를 다시 맞춘다.
+      void refreshVoice().catch(() => undefined);
       // 올 때마다 묻는다 — 설정에서 되살린 뒤 앱을 다시 켜야 보이면 아무도 못 본다.
       // 대본 리딩 튜토리얼 중에 목록으로 돌아왔다면 루프를 벗어난 것이다 — 거기서 끝낸다.
       if (currentTutorial()?.track === 'reading') finishTutorial('left');
@@ -167,6 +175,27 @@ export default function ReadingList() {
         </Pressable>
       </View>
 
+      {/* 고품질 목소리 켜기(SOMA-664, 디자인 R1.2) — 설정 화면에서 옮겨 왔다. 서버가 쓸 수 없다고 하면 숨긴다. */}
+      {cloudVoice.status?.available && (
+        <View style={styles.voiceBar}>
+          <Feather name="volume-2" size={16} color={palette.blue} />
+          <Text style={styles.voiceText} numberOfLines={1}>{t('cloudVoice.bannerLabel')}</Text>
+          {!!voiceFreeUntil && (
+            <View style={styles.voiceBadge}>
+              <Text style={styles.voiceBadgeText}>{t('cloudVoice.bannerFree', { date: voiceFreeUntil })}</Text>
+            </View>
+          )}
+          <Switch
+            value={cloudVoice.enabled && cloudVoice.status.consent === 'granted'}
+            onValueChange={(value) => void (value ? cloudVoice.enable('settings') : cloudVoice.disable())}
+            disabled={cloudVoice.busy}
+            trackColor={{ true: palette.blue, false: palette.border }}
+            thumbColor="#fff"
+            ios_backgroundColor={palette.border}
+          />
+        </View>
+      )}
+
       {error && (
         <View style={styles.errorBox}>
           <Text style={styles.errorText}>{t('reading.listLoadFail')}</Text>
@@ -201,7 +230,7 @@ export default function ReadingList() {
         <View style={styles.list}>
           {scripts.map((s) => {
             const chip = statusChip(s);
-            const tone = CHIP_TONE[chip.tone];
+            const tone = chip ? CHIP_TONE[chip.tone] : null;
             const activity = lastActivityLabel(s);
             return (
               <Pressable key={s.id} style={styles.card} onPress={() => void open(s)} onLongPress={() => more(s)}>
@@ -217,9 +246,11 @@ export default function ReadingList() {
                 </View>
                 <View style={styles.cardRight}>
                   <View style={styles.cardRightTop}>
-                    <View style={[styles.pill, { backgroundColor: tone.bg }]}>
-                      <Text style={[styles.pillText, { color: tone.color }]}>{chip.label}</Text>
-                    </View>
+                    {chip && tone && (
+                      <View style={[styles.pill, { backgroundColor: tone.bg }]}>
+                        <Text style={[styles.pillText, { color: tone.color }]}>{chip.label}</Text>
+                      </View>
+                    )}
                     <Pressable style={styles.moreBtn} hitSlop={8} accessibilityLabel={t('reading.more')} onPress={() => more(s)}>
                       <Feather name="more-horizontal" size={18} color={palette.textDim} />
                     </Pressable>
@@ -232,6 +263,7 @@ export default function ReadingList() {
         </View>
       )}
       {dialog}
+      {cloudVoice.consentSheet}
       <TitleEditDialog
         script={editing}
         onClose={(saved) => {
@@ -260,6 +292,21 @@ const styles = StyleSheet.create({
   content: { padding: 20, paddingTop: 64, gap: 14 },
   h1: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 26 },
   searchRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  voiceBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: palette.blueMist,
+    borderWidth: 1,
+    borderColor: palette.blueLine,
+    borderRadius: 14,
+    paddingLeft: 14,
+    paddingRight: 10,
+    paddingVertical: 8,
+  },
+  voiceText: { flexShrink: 1, fontSize: 13.5, fontWeight: '700', color: palette.text },
+  voiceBadge: { backgroundColor: palette.blueSoft, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
+  voiceBadgeText: { fontSize: 11.5, fontWeight: '800', color: palette.blueDeep },
   search: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: palette.bgSoft, borderRadius: 12, paddingHorizontal: 12, height: 46 },
   searchInput: { flex: 1, color: palette.text, fontFamily: 'Pretendard', fontSize: 14, padding: 0 },
   newBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: palette.blue, borderRadius: 12, paddingHorizontal: 14, height: 46 },
