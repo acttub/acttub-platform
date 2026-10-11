@@ -221,6 +221,24 @@ final class DirectVideoPracticeLoop {
         return raw == null ? "" : first(NEXT_TAKE_TAG, raw);
     }
 
+    private static final Pattern SENTENCE_END = Pattern.compile("(?<=[.!?。])\\s+|\\n+");
+    private static final Pattern ACTION_SENTENCE = Pattern.compile("(?:봐도 좋아요|보세요|봐요)[.!]?$");
+
+    /**
+     * 숨은 {@code <다음 테이크>} 줄이 없을 때 정리 말에서 다음 테이크 행동 문장("~해 봐도 좋아요")을 뽑는다(SOMA-657).
+     * 3.8 Flash는 정리 14번 중 3번 숨은 줄을 빠뜨렸다. 그대로 두면 노트에 처음 설계의 다음 테이크가 남아 코치가 한 말과 달라진다.
+     * "다음 테이크에서 확인해 봐요" 같은 맺음말은 행동이 아니라 고르지 않는다. 없으면 빈 문자열.
+     */
+    static String actionLine(String shown) {
+        if (shown == null || shown.isBlank()) return "";
+        for (String sentence : SENTENCE_END.split(shown.strip())) {
+            String line = sentence.strip();
+            if (line.isEmpty() || line.contains("다음 테이크에서") || line.startsWith("특히")) continue;
+            if (ACTION_SENTENCE.matcher(line).find()) return line.replaceFirst("[.!]$", "");
+        }
+        return "";
+    }
+
     /**
      * 이번 응답을 쓸 말. 앱이 한국어가 아닌 말로 요청했으면(Accept-Language, {@link OutputLanguage}) 그 말,
      * 앱이 한국어면 배우가 채팅이나 연습 메모에 쓴 말({@link #actorLanguage}). 한국어면 {@code null}.
