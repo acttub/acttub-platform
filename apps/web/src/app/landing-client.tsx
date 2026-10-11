@@ -34,22 +34,21 @@ const COPY = {
   hero: {
     launch: "앱 출시",
     free: "AI 연기 코칭 · iOS · Android 무료",
-    titleFirst: "연기 영상 올리면",
-    titleSecond: "앱이 질문해요",
-    subFirst: "연습실에서 찍은 그 자리에서 바로.",
-    subSecond: "말로 답하면 다음 테이크 문장이 남아요.",
+    titleFirst: "혼자 하는 연기 연습,",
+    titleSecond: "질문 받으면서 해요",
+    subFirst: "연기 영상을 올리면 AI 코치가 장면에 대해 물어봐요.",
+    subSecond: "답하다 보면 다음 테이크에서 해 볼 한 문장이 남아요.",
     helper: "기기에 맞는 스토어로 바로 이동해요",
-    web: "앱 없이 웹으로 계속하기 →",
-    desktop: "무료로 사용해보기",
+    web: "앱 없이 바로 해 보기",
+    desktop: "앱 없이 바로 해 보기",
     coaching: "연기 코칭, 어디서 어떻게 받을까요?",
   },
   phone: {
     scene: "이별 통보 직후, 카페에서",
-    time: "관찰 시점 00:12",
+    time: "연습 영상",
     counter: "질문 04 / 07",
     observation: "말을 끝낸 뒤 시선이 아래로 내려가는 순간이 보여요.",
     question: "그때 인물은 무엇을 기다리고 있었나요?",
-    duration: "0:07",
     answer: "확신이 아니라… 상대가 한 번만 더 확인해 주길 바랐어요.",
     typing: "다음 질문 준비 중",
     sentenceLabel: "오늘의 문장",
@@ -94,7 +93,7 @@ const COPY = {
     {
       label: "1 · 입력",
       title: "연기 영상 업로드",
-      description: "MP4/MOV 영상과 장면의 상황, 인물, 숨은 의도를 적어요.",
+      description: "MP4/MOV 영상과 장면의 상황, 인물, 목표를 적어요.",
     },
     {
       label: "2 · 질문",
@@ -239,7 +238,7 @@ export default function LandingClient() {
                 <Link
                   href={practiceHref}
                   prefetch={false}
-                  className="mt-2 inline-block text-sm font-bold text-[#4e5968] underline underline-offset-4"
+                  className="mt-2 flex h-12 w-full items-center justify-center rounded-2xl border border-[#d1d6db] bg-white text-base font-black text-[#191f28] transition active:bg-[#f2f4f6]"
                 >
                   {COPY.hero.web}
                 </Link>
@@ -570,9 +569,6 @@ function PhoneMockup() {
                 }}
               />
             ))}
-          </span>
-          <span className="text-[13px] font-bold text-[#d1d6db]">
-            {COPY.phone.duration}
           </span>
         </div>
         <div
