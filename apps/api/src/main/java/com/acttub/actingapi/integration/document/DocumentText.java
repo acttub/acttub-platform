@@ -1,5 +1,7 @@
 package com.acttub.actingapi.integration.document;
 
+import java.awt.image.BufferedImage;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -12,11 +14,13 @@ import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.Inflater;
@@ -25,6 +29,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
 
+import javax.imageio.ImageIO;
 import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
@@ -47,6 +52,8 @@ import org.apache.pdfbox.io.IOUtils;
 import org.apache.pdfbox.io.RandomAccessReadBufferedFile;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.encryption.InvalidPasswordException;
+import org.apache.pdfbox.rendering.ImageType;
+import org.apache.pdfbox.rendering.PDFRenderer;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.pdfbox.text.TextPosition;
 
@@ -58,6 +65,9 @@ import org.apache.pdfbox.text.TextPosition;
  *
  * <p>PDF 는 그려진 위치로 줄을 다시 세우지 않고 내용 순서대로 읽는다. 공개 희곡과 한글(Hancom PDF) 문서로 잰 결과
  * 위치 정렬은 2단 편집에서 두 단을 한 줄로 섞고, 내용 순서가 더 맞았다(SOMA-593 C2 비교).
+ *
+ * <p>글자가 하나도 없는 PDF(스캔·사진)는 쪽마다 그림으로 그려 서버 안의 tesseract 로 글자를 인식한다 — 그림과 글을 바깥 서비스로
+ * 보내지 않고, 운영 서버 CPU 하나로 11쪽이 약 20초라 같은 45초 상한 안에 든다(SOMA-651).
  */
 public final class DocumentText {
     private static final byte[] OLE2 = {(byte) 0xD0, (byte) 0xCF, 0x11, (byte) 0xE0, (byte) 0xA1, (byte) 0xB1, 0x1A, (byte) 0xE1};
@@ -71,11 +81,17 @@ public final class DocumentText {
     /** hwp 의 압축된 흐름을 모두 풀었을 때의 상한. hwplib 은 상한 없이 풀어 전부 힙에 올린다(그림·첨부 포함). */
     private static final long HWP_MAX_BYTES = 100L * 1024 * 1024;
     private static final Pattern HWPX_SECTION = Pattern.compile("Contents/section(\\d+)\\.xml");
+    /** 글자 인식은 쪽마다 2초 가까이 걸린다(CPU 하나). 이보다 길면 45초 상한 안에 끝나지 않을 수 있어 읽지 않는다. */
+    private static final int OCR_MAX_PAGES = 15;
+    /** 쪽을 그릴 해상도(72dpi 의 3배). 운영과 같은 배포판에서 이 값으로 11쪽 그림 PDF 를 띄어쓰기까지 읽었다. */
+    private static final float OCR_DPI = 216;
+    /** 쪽 하나의 인식 상한. 끊는 건 부르는 쪽의 45초 상한이고, 이 값은 부르는 쪽이 없을 때 프로세스가 남지 않게 한다. */
+    private static final Duration OCR_PAGE_TIMEOUT = Duration.ofSeconds(45);
 
     private DocumentText() {
     }
 
-    /** 뽑은 결과. 글자가 하나도 없으면(스캔한 PDF·빈 문서) 읽지 못한 것이다. */
+    /** 뽑은 결과. 글자가 하나도 없으면(빈 문서, 인식한 글자도 없는 그림 PDF) 읽지 못한 것이다. */
     public sealed interface Extracted {
     }
 
@@ -91,9 +107,14 @@ public final class DocumentText {
     }
 
     public static Extracted read(Path file, int maxCodePoints) {
+        return read(file, maxCodePoints, findExecutable("tesseract"));
+    }
+
+    /** @param tesseract 글자 인식 프로그램의 경로. null 이면 서버에 없다. */
+    static Extracted read(Path file, int maxCodePoints, String tesseract) {
         try {
             String text = switch (sniff(file)) {
-                case PDF -> pdf(file, maxCodePoints);
+                case PDF -> pdf(file, maxCodePoints, tesseract);
                 case HWP -> hwp(file, maxCodePoints);
                 case HWP3 -> throw new Refused("hwp3");
                 case ZIP -> zip(file, maxCodePoints);
@@ -249,7 +270,7 @@ public final class DocumentText {
 
     // ---- pdf ----
 
-    private static String pdf(Path file, int max) throws IOException {
+    private static String pdf(Path file, int max, String tesseract) throws IOException {
         PDDocument document;
         try {
             // 내용 캐시를 힙이 아니라 임시 파일에 둔다 — 50MB PDF 도 힙을 크게 쓰지 않는다.
@@ -278,7 +299,51 @@ public final class DocumentText {
                 public void close() {
                 }
             });
-            return out.toString();
+            // 글자 쪽과 그림 쪽이 섞인 PDF 는 글자 쪽만 읽는다. 그림 쪽 인식까지 하면 시간이 쪽 수만큼 늘어난다.
+            return out.toString().isBlank() ? ocr(document, max, tesseract) : out.toString();
+        }
+    }
+
+    private static String ocr(PDDocument document, int max, String tesseract) throws IOException {
+        int pages = document.getNumberOfPages();
+        if (pages > OCR_MAX_PAGES) throw new Refused("scanned_too_many_pages");
+        if (tesseract == null) throw new Refused("no_ocr");
+        PDFRenderer renderer = new PDFRenderer(document);
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < pages; i++) {
+            stopIfInterrupted();
+            out.append(recognize(tesseract, renderer.renderImageWithDPI(i, OCR_DPI, ImageType.GRAY))).append('\n');
+            if (out.length() > 2L * max + 2) throw new Limit();
+        }
+        return out.toString();
+    }
+
+    /**
+     * 출력은 파이프가 아니라 임시 파일로 받는다 — 파이프를 끝까지 읽는 동안은 끊기지 않지만 {@code waitFor} 는 부르는 쪽이 45초에
+     * 끊을 수 있다.
+     */
+    private static String recognize(String tesseract, BufferedImage page) throws IOException {
+        Path image = Files.createTempFile("ocr-", ".png");
+        Path text = Files.createTempFile("ocr-", ".txt");
+        Process process = null;
+        try {
+            ImageIO.write(page, "png", image.toFile());
+            ProcessBuilder builder = new ProcessBuilder(tesseract, image.toString(), "stdout", "-l", "kor+eng", "--psm", "6")
+                    .redirectOutput(text.toFile())
+                    .redirectError(ProcessBuilder.Redirect.DISCARD);
+            // 동시에 여러 업로드를 읽을 때 한 프로세스가 CPU 를 모두 잡지 않게 한다. 하나로 재도 쪽마다 2초 안이다.
+            builder.environment().put("OMP_THREAD_LIMIT", "1");
+            process = builder.start();
+            if (!process.waitFor(OCR_PAGE_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)) throw new IOException("tesseract timed out");
+            if (process.exitValue() != 0) throw new IOException("tesseract exit " + process.exitValue());
+            return Files.readString(text);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new Refused("interrupted");
+        } finally {
+            if (process != null && process.isAlive()) process.destroyForcibly();
+            Files.deleteIfExists(image);
+            Files.deleteIfExists(text);
         }
     }
 
@@ -493,6 +558,16 @@ public final class DocumentText {
             if (Arrays.equals(bytes, i, i + needle.length, needle, 0, needle.length)) return i;
         }
         return -1;
+    }
+
+    private static String findExecutable(String command) {
+        String path = System.getenv("PATH");
+        if (path == null) return null;
+        for (String directory : path.split(Pattern.quote(File.pathSeparator))) {
+            Path candidate = Path.of(directory, command);
+            if (Files.isRegularFile(candidate) && Files.isExecutable(candidate)) return candidate.toString();
+        }
+        return null;
     }
 
     /** 시간을 넘겨 부르는 쪽이 끊었다(reading.script 읽기의 시간 상한). */
