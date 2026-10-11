@@ -7,7 +7,7 @@ import type { Practice } from "@/lib/practice/api-types";
 import type {
   PracticeStartFailurePoint,
   PracticeUploadProfile,
-} from "@/lib/analytics/amplitude";
+} from "@/lib/analytics/posthog";
 import { hasVideoWebCodecsSupport } from "@/lib/media/compress-video";
 import { prepareVideoUpload } from "@/lib/media/upload-preflight";
 import { newRequestId } from "@/lib/reading/request-id";
@@ -39,7 +39,7 @@ export type PracticeStartFailure = {
   ok: false;
   /**
    * 어디서 엎어졌는지. 사용자에게 보이지는 않고, 어디서 얼마나 깨지는지를 세는
-   * 데 쓴다 — 그래서 그 값의 정본은 이것을 받아 적는 amplitude 에 있다.
+   * 데 쓴다 — 그래서 그 값의 정본은 이것을 받아 적는 posthog.ts 에 있다.
    */
   stage: PracticeStartFailurePoint;
   /** 배우가 스스로 그만둔 것. 이때는 오류를 띄우지 않는다. */

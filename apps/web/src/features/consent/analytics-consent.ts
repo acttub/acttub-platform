@@ -6,7 +6,7 @@ import {
   hasGuestSession,
 } from "@/lib/auth/token-store";
 
-// 계측(GA4 쿠키·Amplitude)을 켜도 되는지를 가리는 관문(SOMA-528 결정 I-6).
+// 계측(GA4 쿠키·PostHog)을 켜도 되는지를 가리는 관문(SOMA-528 결정 I-6).
 //
 // **단일 기준은 서버다.** 이 브라우저에 게스트 토큰이 있고, GET /v2/consents/entry 의
 // privacy 종류 행이 `current_decision === "granted"` 일 때만 켠다. entry 는 현재 판에 대한

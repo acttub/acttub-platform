@@ -1,4 +1,4 @@
-// 계측(GA4 쿠키·Amplitude)을 켜도 되는지의 관문(SOMA-528 결정 I-6 개정). 단일 기준은 서버다 —
+// 계측(GA4 쿠키·PostHog)을 켜도 되는지의 관문(SOMA-528 결정 I-6 개정). 단일 기준은 서버다 —
 // 게스트 토큰이 있고 GET /v2/consents/entry 의 privacy 행이 granted 일 때만 켠다. 토큰이 없거나,
 // 행이 없거나, 값이 다르거나, 조회가 실패하면 끈다. 계측 판단용 localStorage 복제는 두지 않는다.
 import assert from "node:assert/strict";

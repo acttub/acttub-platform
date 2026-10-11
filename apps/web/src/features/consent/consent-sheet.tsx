@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { analyticsConsentGate } from "@/features/analytics/analytics";
 import { ConsentMarkdown } from "@/features/practice/consent-markdown";
-import { trackConsentSubmitted } from "@/lib/analytics/amplitude";
+import { trackConsentSubmitted } from "@/lib/analytics/posthog";
 import {
   registerConsentPrompt,
   type ConsentPromptResult,

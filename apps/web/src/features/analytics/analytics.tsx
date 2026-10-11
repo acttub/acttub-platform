@@ -16,11 +16,11 @@ import {
   trackPageView,
 } from "@/lib/analytics/ga";
 import {
-  setAmplitudeUser,
-  startAmplitude,
-  stopAmplitude,
+  setPostHogUser,
+  startPostHog,
+  stopPostHog,
   trackScreenViewed,
-} from "@/lib/analytics/amplitude";
+} from "@/lib/analytics/posthog";
 import {
   activateWebAttribution,
   captureInitialWebAttribution,
@@ -37,19 +37,19 @@ import { createAnalyticsMeasurementSwitch } from "./measurement-switch";
  * user_id 는 쿠키와 똑같은 조건에서만 붙인다. consent 가 denied 여도 gtag 는 쿠키 없는
  * 히트를 계속 보내므로, 조건 밖에서 설정하면 동의하기 전에 내부 식별자가 구글로 나간다.
  *
- * 끈다는 것은 실제 중단이다. GA4 는 consent 를 denied 로 되돌리고, Amplitude 는 opt-out 으로
- * autocapture 와 세션 리플레이까지 멈춘다.
+ * 끈다는 것은 실제 중단이다. GA4 는 consent 를 denied 로 되돌리고, PostHog 는 opt-out 으로
+ * autocapture 와 화면 녹화까지 멈춘다.
  */
 export const analyticsConsentGate: AnalyticsConsentGate = createAnalyticsConsentGate(
   createAnalyticsMeasurementSwitch({
     grant: grantAnalyticsConsent,
-    startAmplitude,
+    startPostHog,
     setAnalyticsUser,
-    setAmplitudeUser,
+    setPostHogUser,
     activateAttribution: activateWebAttribution,
     revoke: revokeAnalyticsConsent,
     clearAnalyticsUser,
-    stopAmplitude,
+    stopPostHog,
     pauseAttribution: pauseWebAttribution,
   }),
 );

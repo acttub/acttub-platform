@@ -72,7 +72,7 @@ import {
   trackPracticeUploadFailed,
   trackPracticeUploadProfiled,
   trackPracticeVideoSelected,
-} from "@/lib/analytics/amplitude";
+} from "@/lib/analytics/posthog";
 import { ExitReviewModal, useExitReview } from "./exit-review";
 import { feedbackScreen } from "./exit-survey";
 import { BlockageFields } from "../practice/blockage-selection";

@@ -22,6 +22,8 @@ globalThis.Element = window.Element;
 globalThis.HTMLElement = window.HTMLElement;
 globalThis.Text = window.Text;
 globalThis.DocumentFragment = window.DocumentFragment;
+// posthog-js 는 window 가 있으면 모듈을 불러오는 순간 전역 `location` 을 읽는다.
+globalThis.location = window.location;
 
 // React 19.2 에서도 여전히 필요하다. 없으면 act() 가 경고를 내고 큐를 비우지 않는다.
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;

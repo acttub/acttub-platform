@@ -29,7 +29,7 @@ test("practice.start: 웹 새 연습에 이론 선택이 없다", () => {
     false,
   );
   assert.doesNotMatch(source, /theory|Theory|이론/);
-  const analytics = readFileSync(path.join(appRoot, "src/lib/analytics/amplitude.ts"), "utf8");
+  const analytics = readFileSync(path.join(appRoot, "src/lib/analytics/posthog.ts"), "utf8");
   assert.doesNotMatch(analytics, /theory_choice/);
 });
 

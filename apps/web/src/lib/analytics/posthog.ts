@@ -1,5 +1,5 @@
 /**
- * Amplitude 제품 계측. 이 파일 밖에서 `amplitude.track` 을 직접 부르지 않는다.
+ * PostHog 제품 계측. 이 파일 밖에서 `posthog.capture` 를 직접 부르지 않는다.
  *
  * GA4가 유입 채널을 잇는다면, 이쪽은 연습 안에서 어디서 멈추고 다시 오는지를 본다.
  * 같은 화면 전환을 두 도구에 보내더라도 답하려는 질문이 달라서 둘 다 남긴다.
@@ -7,25 +7,18 @@
  * 지켜야 하는 것 셋 — 하나라도 풀면 개인정보처리방침과 어긋난다:
  *
  * 1) **동의 전에는 SDK를 초기화하지 않는다.** 호출부가 게스트의 개인정보 동의를
- *    확인한 뒤 startAmplitude를 부른다. 그 전에 생긴 이벤트는 쌓지 않고 버린다.
+ *    확인한 뒤 startPostHog를 부른다. 그 전에 생긴 이벤트는 쌓지 않고 버린다.
  *
- * 2) **autocapture 와 화면 녹화는 켜져 있다**(2026-08-11 최우영 결정). 그래서 전체 주소·
- *    클릭한 요소의 텍스트·화면 기록이 수탁사로 나간다. 무엇이 나가는지는 방침 v4 6항과
- *    `ANALYTICS.md` §1(2)에 그대로 적혀 있다.
+ * 2) **autocapture 와 화면 녹화는 켜져 있고 입력값을 가리지 않는다.** 그래서 전체 주소·
+ *    클릭한 요소의 텍스트·입력값·화면 기록이 수탁사로 나간다. 무엇이 나가는지는 처리방침
+ *    6항과 `ANALYTICS.md` §1(2)에 그대로 적혀 있다.
  *
  * 3) **속성은 아래 래퍼가 만든 화이트리스트만 보낸다.** 세션 id·파일명·대화 본문을
  *    호출부에서 실수로 넘길 자리가 없도록 원본 숫자와 텍스트는 여기서 버킷과 boolean으로
  *    바꾼다. 오류도 메시지 원문 대신 HTTP 상태나 정해 둔 코드만 남긴다.
- *
- * ⚠️ **`@amplitude/unified` 의 `initAll` 을 쓰지 않는다.** 그건 analytics·session replay 에
- * 더해 **experiment 와 engagement(가이드·설문)까지 조건 없이 초기화한다**(unified 의
- * `initAll` 에 engagement 를 끄는 옵션이 없다). 2026-08-11 로컬 확인에서 CDN 청크 15개+와
- * `gs.amplitude.com` 호출이 붙는 것을 보고 걷어냈다. 지금은 analytics 와 session replay
- * 둘만 명시적으로 붙인다 — Amplitude 의 Next.js 가이드가 쓰는 방식이다.
  */
 
-import * as amplitude from "@amplitude/analytics-browser";
-import { sessionReplayPlugin } from "@amplitude/plugin-session-replay-browser";
+import posthog from "posthog-js";
 import { toDurationBucket } from "./ga";
 import type { UploadStage } from "../api/v2/uploads";
 import { scrubUrl } from "../observability/sentry-shared";
@@ -56,65 +49,84 @@ export type PracticeStartFailurePoint = "preflight" | UploadStage | "session_cre
 
 let started = false;
 // SDK는 한 번만 init하되, 게스트의 끝·재동의 요구 뒤에는 남아 있는 인스턴스로 이벤트를
-// 보내지 않는다. 다시 동의 조건을 만족해 startAmplitude가 불리면 같은 인스턴스를 켠다.
-// `measuring` 은 우리가 직접 쏘는 이벤트만 막는다 — autocapture 와 세션 리플레이는 SDK 가
-// 스스로 보내므로 SDK 의 opt-out 으로 멈춘다. 그 opt-out 은 `started && !measuring` 과 같다.
+// 보내지 않는다. 다시 동의 조건을 만족해 startPostHog가 불리면 같은 인스턴스를 켠다.
+// `measuring` 은 우리가 직접 쏘는 이벤트만 막는다 — autocapture 와 화면 녹화는 SDK 가
+// 스스로 보내므로 SDK 의 opt-out 으로 멈춘다.
 let measuring = false;
 
 /**
- * Amplitude를 켠다. 호출부가 게스트의 개인정보 동의를 확인한 뒤에만 부른다.
+ * PostHog를 켠다. 호출부가 게스트의 개인정보 동의를 확인한 뒤에만 부른다.
  *
- * 켜고 끄는 스위치는 API 키 하나다. 환경별로 다른 키를 넣어 프로젝트를 나눈다 —
+ * 켜고 끄는 스위치는 프로젝트 키 하나다. 환경별로 다른 키를 넣어 프로젝트를 나눈다 —
  * `NEXT_PUBLIC_*`는 빌드 시점에 번들에 새겨지므로, 배포에서 키를 빼면 조용히 아무 일도
  * 일어나지 않는다. 그래서 없을 때 경고를 남긴다.
  */
-export function startAmplitude(): void {
+export function startPostHog(): void {
   if (typeof window === "undefined") return;
-  const apiKey = process.env.NEXT_PUBLIC_AMPLITUDE_API_KEY ?? "";
+  const apiKey = process.env.NEXT_PUBLIC_POSTHOG_KEY ?? "";
   if (!apiKey) {
-    console.warn("Amplitude API key missing — analytics disabled");
+    console.warn("PostHog key missing — analytics disabled");
     return;
   }
 
-  if (started) {
-    if (!measuring) amplitude.setOptOut(false);
-    measuring = true;
-    return;
+  if (!started) {
+    started = true;
+    posthog.init(apiKey, {
+      api_host: "https://us.i.posthog.com",
+      ui_host: "https://us.posthog.com",
+      autocapture: true,
+      // 전체 주소 페이지뷰. 씻긴 경로는 screen_viewed 로 따로 보낸다.
+      capture_pageview: "history_change",
+      // 입력값을 가리지 않는다는 결정(ANALYTICS.md §1(2)). 비밀번호 칸은 SDK 가 늘 가린다.
+      session_recording: { maskAllInputs: false },
+      // 쓰지 않는 기능은 끈다. 처리방침에 고지한 수집 경로가 아니다. 오류는 Sentry 가 맡는다.
+      // advanced_disable_flags 는 켜지 않는다 — 녹화를 켜는 원격 설정까지 막힌다.
+      disable_surveys: true,
+      disable_product_tours: true,
+      disable_conversations: true,
+      advanced_disable_feature_flags: true,
+      capture_exceptions: false,
+      capture_heatmaps: false,
+      capture_dead_clicks: false,
+    });
   }
-  started = true;
+  optIn();
   measuring = true;
-  // 리플레이 플러그인은 init 앞에 붙여야 첫 세션부터 잡힌다.
-  // ⚠️ 여기 sampleRate 는 최종값이 아니다 — Amplitude 프로젝트의 원격 설정이 덮는다.
-  //    실제 적용값은 sr-client-cfg.amplitude.com 응답에서 확인한다(ANALYTICS.md §1(2)).
-  amplitude.add(sessionReplayPlugin({ sampleRate: 1 }));
-  amplitude.init(apiKey, undefined, { autocapture: true });
-  amplitude.track('Viewed Home Page', { prompt_version: 'BA400.4' }); // helps improve this setup flow — safe to remove once you've verified the event lands
+}
+
+// opt-out 은 localStorage 에 남아 새로고침 뒤의 init 도 꺼진 채로 시작한다. reset() 도 저장된
+// 동의를 지운다. 그래서 켤 차례마다 SDK 의 상태를 보고 푼다. 기본 `$opt_in` 이벤트는 보내지 않는다.
+function optIn(): void {
+  if (posthog.has_opted_out_capturing()) posthog.opt_in_capturing({ captureEventName: false });
 }
 
 let sentUserId: string | null = null;
 
 /** 기기 너머의 행동을 잇는다. 이메일·표시 이름이 아니라 백엔드 내부 id만 받는다. */
-export function setAmplitudeUser(userId: string): void {
+export function setPostHogUser(userId: string): void {
   if (!started || !measuring) return;
   // 화면이 바뀔 때마다 같은 값을 다시 보내지 않는다.
   if (sentUserId === userId) return;
-  // 이 브라우저에서 다른 게스트가 시작됐다. 앞 게스트의 기기 식별과 잇지 않는다.
-  if (sentUserId !== null) amplitude.reset();
-  amplitude.setUserId(userId);
+  // 이 브라우저에서 다른 게스트가 시작됐다. 앞 게스트의 기기 식별과 잇지 않는다(device id 도 새로).
+  if (sentUserId !== null) {
+    posthog.reset(true);
+    optIn();
+  }
+  posthog.identify(userId);
   sentUserId = userId;
 }
 
 /**
  * 계측을 실제로 멈춘다(결정 I-6). 식별자만 지우는 것으로는 부족하다 — 이미 켜진 autocapture
- * 와 세션 리플레이는 SDK 가 스스로 보낸다. `setOptOut(true)` 는 그 뒤의 이벤트(autocapture
- * 포함)를 버리고, 리플레이 플러그인은 opt-out 을 받아 녹화를 `shutdown()` 한다
- * (plugin-session-replay-browser 의 onOptOutChanged). 다시 켤 때는 startAmplitude 가 푼다.
+ * 와 화면 녹화는 SDK 가 스스로 보낸다. opt-out 상태에서는 SDK 의 capture 가 이벤트를 버리고
+ * (이미 돌던 녹화의 `$snapshot` 도 capture 를 거친다), 새 녹화는 시작하지 않는다
+ * (session-recording 의 `isDisabled`).
  *
  * 기기 식별은 여기서 끊지 않는다. 탭이 다시 보일 때마다 확인하느라 잠깐 끄는 것까지 새
- * 기기로 세면 같은 게스트가 여럿으로 갈린다. 다른 게스트로 켜질 때 setAmplitudeUser 가 끊는다.
+ * 기기로 세면 같은 게스트가 여럿으로 갈린다. 다른 게스트로 켜질 때 setPostHogUser 가 끊는다.
  */
-export function stopAmplitude(): void {
-  if (started && measuring) amplitude.setOptOut(true);
+export function stopPostHog(): void {
+  if (started && measuring) posthog.opt_out_capturing();
   measuring = false;
 }
 
@@ -198,7 +210,7 @@ function toSafeReasonCode(reason: unknown, depth = 0): SafeReasonCode {
 /** 동의·호스트 가드를 통과한 인스턴스에만 이벤트를 보낸다. */
 function track(eventName: string, properties: Record<string, string | number | boolean> = {}): void {
   if (!started || !measuring) return;
-  amplitude.track(eventName, properties);
+  posthog.capture(eventName, properties);
 }
 
 export function trackPracticePrepOpened(entry: "new" | "reset"): void {

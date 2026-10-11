@@ -320,16 +320,16 @@ test("서버 privacy granted 뒤에만 계측 식별과 귀속 저장을 차례�
   };
   const measurement = createAnalyticsMeasurementSwitch({
     grant: () => order.push("ga-grant"),
-    startAmplitude: () => order.push("amplitude-start"),
+    startPostHog: () => order.push("posthog-start"),
     setAnalyticsUser: (userId) => order.push(`ga-user:${userId}`),
-    setAmplitudeUser: (userId) => order.push(`amplitude-user:${userId}`),
+    setPostHogUser: (userId) => order.push(`posthog-user:${userId}`),
     activateAttribution: async (userId) => {
       order.push(`attribution:${userId}`);
       return true;
     },
     revoke: () => order.push("ga-revoke"),
     clearAnalyticsUser: () => order.push("ga-clear-user"),
-    stopAmplitude: () => order.push("amplitude-stop"),
+    stopPostHog: () => order.push("posthog-stop"),
     pauseAttribution: () => order.push("attribution-pause"),
   });
   const gate = createAnalyticsConsentGate(measurement);
@@ -338,13 +338,13 @@ test("서버 privacy granted 뒤에만 계측 식별과 귀속 저장을 차례�
   assert.deepEqual(order, [
     "ga-revoke",
     "ga-clear-user",
-    "amplitude-stop",
+    "posthog-stop",
     "attribution-pause",
     "privacy-check",
     "ga-grant",
-    "amplitude-start",
+    "posthog-start",
     "ga-user:guest-new",
-    "amplitude-user:guest-new",
+    "posthog-user:guest-new",
     "attribution:guest-new",
   ]);
 });
