@@ -349,9 +349,9 @@ export default function AnalyzingScreen() {
       <Stack.Screen options={{ title: t('analyzing.screenTitle'), headerShadowVisible: false }} />
       <ProgressRow
         label={error ? t('analyzing.stepError') : t('analyzing.stepLoading')}
-        right={<SceneFoldLink open={sceneOpen} onToggle={() => setSceneOpen((was) => !was)} label={t('blockage.sceneFold')} />}
+        right={<SceneFoldLink open={sceneOpen} onToggle={() => setSceneOpen((was) => !was)} label={t('blockage.sceneFold')} track="analyzing" />}
       />
-      <SceneFoldBody open={sceneOpen} videoUri={videoUri} />
+      <SceneFoldBody open={sceneOpen} videoUri={videoUri} track="analyzing" />
       <ScrollView contentContainerStyle={styles.body}>
         {error ? (
           <View style={styles.errorBlock}>
