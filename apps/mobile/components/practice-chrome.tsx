@@ -2,8 +2,11 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useVideoPlayer, VideoView, type VideoSource } from 'expo-video';
 
 import { palette } from '@/constants/palette';
+import { useVideoPreviewEvents } from '@/hooks/use-video-preview-events';
+import { logEvent } from '@/lib/analytics';
 import type { SceneContext } from '@/lib/api';
 import { translate as t, translateList } from '@/lib/i18n';
+import { FOLD_OPEN_EVENT, type PreviewScreen } from '@/lib/video-preview-events';
 
 /**
  * 연습 흐름(막히는 지점 → 분석 → 질문 대화)의 화면들이 공유하는 머리 부분.
@@ -77,14 +80,20 @@ export function SceneFoldLink({
   open,
   onToggle,
   label,
+  track,
 }: {
   open: boolean;
   onToggle: () => void;
   label: string;
+  /** 펼칠 때 어느 화면에서 펼쳤는지 기록한다(video_fold_open). */
+  track?: PreviewScreen;
 }) {
   return (
     <Pressable
-      onPress={onToggle}
+      onPress={() => {
+        if (!open && track) logFoldOpen(track);
+        onToggle();
+      }}
       accessibilityRole="button"
       accessibilityLabel={`${label} ${open ? t('common.fold') : t('common.unfold')}`}
       accessibilityState={{ expanded: open }}
@@ -108,17 +117,23 @@ export function SceneFoldLink({
 export function SceneFoldBody({
   open,
   videoUri,
+  track,
 }: {
   open: boolean;
   videoUri: VideoSource | null;
+  /** 펼친 영상을 실제로 틀었는지 기록한다(video_preview_play·end). */
+  track?: PreviewScreen;
 }) {
   const player = useVideoPlayer(open ? videoUri : null, (p) => {
     p.loop = false;
   });
-  if (!open) return null;
   // 빈 문자열만 '없음' 으로 본다. require() 로 들어온 에셋은 숫자라 truthy 검사로는
   // 걸러지지 않아야 한다.
   const hasVideo = videoUri != null && videoUri !== '';
+  const videoKey = typeof videoUri === 'string' ? videoUri : hasVideo ? 'bundled' : null;
+  // 접었다 다시 펼쳐도 같은 영상이면 다시 세지 않도록, 접힘 여부와 상관없이 같은 값을 준다.
+  useVideoPreviewEvents(player, track ?? 'coach', track && hasVideo ? videoKey : null);
+  if (!open) return null;
   return (
     <View style={styles.foldBody}>
       {hasVideo ? (
@@ -243,3 +258,8 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 });
+
+/** 연습 중 '영상·장면 보기'를 펼친 것을 남긴다. 화면 하나에서 여러 번 펼치면 그때마다 남는다. */
+export function logFoldOpen(screen: PreviewScreen): void {
+  void logEvent(FOLD_OPEN_EVENT, { screen });
+}
