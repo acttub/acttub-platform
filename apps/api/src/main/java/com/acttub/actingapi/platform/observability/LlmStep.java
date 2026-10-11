@@ -23,10 +23,12 @@ public enum LlmStep {
     /** 배우에 대해 적어 둘 것을 뽑는다. */
     MEMORY_EXTRACTION("memory.extraction"),
     /**
-     * 대본 글을 배역·대사로 나눈다 (reading.script). 연습 회차가 없는 유일한 자리라 기록을 묶는 열쇠
+     * 대본 글을 배역·대사로 나눈다 (reading.script). 연습 회차가 없는 자리라 기록을 묶는 열쇠
      * ({@code LlmCall.practiceSessionId})에 나누기 작업({@code ai_jobs}) id 를 넣는다.
      */
-    SCRIPT_SPLIT("script.split");
+    SCRIPT_SPLIT("script.split"),
+    /** 나누기 전에 글자마다 띄어진 줄의 띄어쓰기를 고친다 (reading.script). 묶는 열쇠는 {@link #SCRIPT_SPLIT} 처럼 작업 id 다. */
+    SCRIPT_SPACING("script.spacing");
 
     private final String spanName;
 

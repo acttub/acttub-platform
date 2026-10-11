@@ -15,6 +15,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.acttub.actingapi.feature.reading.app.ScriptImportRepository.Material;
+import com.acttub.actingapi.feature.reading.domain.LineSpacing;
 import com.acttub.actingapi.feature.reading.domain.NumberedLine;
 import com.acttub.actingapi.feature.reading.domain.ScriptDraft;
 import com.acttub.actingapi.feature.reading.domain.ScriptRules;
@@ -43,8 +44,9 @@ import org.slf4j.LoggerFactory;
  * 대본 글을 뒤에서 배역·대사로 나눠 저장한다 ({@code ai_jobs} 종류 {@code script_split}, reading.script 「나누기 작업」,
  * SOMA-593 7-2).
  *
- * <p>줄 번호를 붙인 원문을 150줄 조각으로 동시에 보내고, 조각이 둘 이상이면 앞 400줄로 배역 목록을 먼저 받는다. 첫 호출의
- * 첫 줄이 「대본이 아니다」면 거기서 멈춘다. 버리거나 빠진 줄은 두 번까지 다시 묻고 그래도 남으면 지문이다. 호출 하나는
+ * <p>글자마다 띄어진 줄이 있으면 나누기 전에 그 줄의 띄어쓰기만 모델로 고치고, 고친 줄이 공백 말고 다르거나 호출이 실패하면
+ * 그 줄은 원문으로 둔다. 줄 번호를 붙인 원문을 150줄 조각으로 동시에 보내고, 조각이 둘 이상이면 앞 400줄로 배역 목록을 먼저
+ * 받는다. 첫 호출의 첫 줄이 「대본이 아니다」면 거기서 멈춘다. 버리거나 빠진 줄은 두 번까지 다시 묻고 그래도 남으면 지문이다. 호출 하나는
  * 연결 실패·붐빔·서버 실패·미완료 답에 두 번까지 다시 시도하고, 그래도 안 되면 작업은 {@code failed} 로 끝난다 — 기기 파서
  * 대비 경로는 두지 않기로 했다(계획 「정한 것」 1). 사용자가 팝업에서 기다리므로 작업을 다시 큐에 넣지 않는다.
  */
@@ -140,7 +142,7 @@ public class ScriptSplitWorker {
 
     private Split split(UUID jobId, UUID importId, Material material) {
         Calls calls = new Calls(jobId, material.userId());
-        List<NumberedLine> lines = NumberedLine.of(material.rawText());
+        List<NumberedLine> lines = restoreSpacing(jobId, calls, NumberedLine.of(material.rawText()));
         imports.progress(importId, 0, lines.size());
         List<List<NumberedLine>> chunks = NumberedLine.chunks(lines, ScriptSplitRules.CHUNK_LINES);
         Map<Integer, SplitResponse.Row> rows = new ConcurrentHashMap<>();
@@ -148,7 +150,7 @@ public class ScriptSplitWorker {
         AtomicInteger done = new AtomicInteger();
         boolean judge = !material.skipScriptCheck();
         if (chunks.size() == 1) {
-            SplitResponse first = SplitResponse.parse(calls.ask(ScriptSplitPrompt.split(judge, roster), chunks.getFirst()), chunks.getFirst());
+            SplitResponse first = SplitResponse.parse(calls.ask(ScriptSplitPrompt.split(judge, roster), chunks.getFirst(), LlmStep.SCRIPT_SPLIT), chunks.getFirst());
             if (judge && first.notScript()) {
                 return Split.failed(ScriptImportFailure.NOT_SCRIPT);
             }
@@ -156,14 +158,14 @@ public class ScriptSplitWorker {
             imports.progress(importId, lines.size(), lines.size());
         } else {
             List<NumberedLine> head = lines.subList(0, Math.min(lines.size(), ScriptSplitRules.ROSTER_LINES));
-            String answer = calls.ask(ScriptSplitPrompt.roster(judge), head);
+            String answer = calls.ask(ScriptSplitPrompt.roster(judge), head, LlmStep.SCRIPT_SPLIT);
             if (judge && SplitResponse.parse(answer, List.of()).notScript()) {
                 return Split.failed(ScriptImportFailure.NOT_SCRIPT);
             }
             roster = SplitResponse.roster(answer);
             String instructions = ScriptSplitPrompt.split(false, roster);
             inParallel(chunks, chunk -> {
-                rows.putAll(SplitResponse.parse(calls.ask(instructions, chunk), chunk).rows());
+                rows.putAll(SplitResponse.parse(calls.ask(instructions, chunk, LlmStep.SCRIPT_SPLIT), chunk).rows());
                 imports.progress(importId, done.addAndGet(chunk.size()), lines.size());
             });
         }
@@ -174,7 +176,7 @@ public class ScriptSplitWorker {
                 break;
             }
             inParallel(NumberedLine.chunks(missing, ScriptSplitRules.CHUNK_LINES),
-                    group -> rows.putAll(SplitResponse.parse(calls.ask(instructions, group), group).rows()));
+                    group -> rows.putAll(SplitResponse.parse(calls.ask(instructions, group, LlmStep.SCRIPT_SPLIT), group).rows()));
         }
         ScriptDraft draft = SplitDraft.assemble(material.title(), material.rawText(), material.source(), lines, rows, roster);
         ScriptRules.Rejection rejection = ScriptRules.check(draft);
@@ -186,6 +188,23 @@ public class ScriptSplitWorker {
             case TOO_LONG -> ScriptImportFailure.SCRIPT_TOO_LONG;
             case INVALID_CHARACTERS -> ScriptImportFailure.FAILED;
         });
+    }
+
+    /** 복원은 작업을 실패시키지 않는다 — 고치지 못한 줄은 띄어진 채로 나눈다. */
+    private List<NumberedLine> restoreSpacing(UUID jobId, Calls calls, List<NumberedLine> lines) {
+        List<NumberedLine> targets = LineSpacing.toRestore(lines);
+        if (targets.isEmpty()) {
+            return lines;
+        }
+        Map<Integer, String> restored = new ConcurrentHashMap<>();
+        inParallel(NumberedLine.chunks(targets, ScriptSplitRules.CHUNK_LINES), chunk -> {
+            try {
+                restored.putAll(LineSpacing.parse(calls.ask(ScriptSplitPrompt.spacing(), chunk, LlmStep.SCRIPT_SPACING), chunk));
+            } catch (RuntimeException failure) {
+                failures.report(failure, FailureKind.EXTERNAL, new FailureContext("ScriptSplitWorker.spacing", jobId));
+            }
+        });
+        return LineSpacing.apply(lines, restored);
     }
 
     private interface ChunkTask {
@@ -225,7 +244,7 @@ public class ScriptSplitWorker {
             this.userId = userId;
         }
 
-        String ask(String instructions, List<NumberedLine> chunk) {
+        String ask(String instructions, List<NumberedLine> chunk, LlmStep step) {
             String input = NumberedLine.format(chunk);
             RuntimeException last = null;
             for (int attempt = 0; attempt <= ScriptSplitRules.CALL_RETRIES; attempt++) {
@@ -235,10 +254,10 @@ public class ScriptSplitWorker {
                 Instant startedAt = clock.instant();
                 try {
                     GeneratedText generated = generator.generate(instructions, input, OPTIONS);
-                    record(instructions, input, generated, startedAt, null);
+                    record(step, instructions, input, generated, startedAt, null);
                     return generated.text();
                 } catch (RuntimeException failure) {
-                    record(instructions, input, null, startedAt, failure);
+                    record(step, instructions, input, null, startedAt, failure);
                     if (!retryable(failure)) {
                         throw failure;
                     }
@@ -249,15 +268,16 @@ public class ScriptSplitWorker {
         }
 
         /** 비용·속도를 셀 수 있게 호출마다 로그 한 줄 — 로그에는 글을 남기지 않는다(관측 기록에는 원문이 그대로 실린다). */
-        private void record(String instructions, String input, GeneratedText generated, Instant startedAt, RuntimeException failure) {
+        private void record(LlmStep step, String instructions, String input, GeneratedText generated, Instant startedAt,
+                RuntimeException failure) {
             Duration took = Duration.between(startedAt, clock.instant());
-            LOG.info("script split call job={} model={} input_tokens={} output_tokens={} took_ms={} error={}", jobId,
+            LOG.info("script split call job={} step={} model={} input_tokens={} output_tokens={} took_ms={} error={}", jobId, step.spanName(),
                     generated == null ? ScriptSplitRules.MODEL : generated.model(),
                     generated == null || generated.usage() == null ? "-" : generated.usage().prompt(),
                     generated == null || generated.usage() == null ? "-" : generated.usage().completion(),
                     took.toMillis(), failure == null ? "-" : failure.getClass().getSimpleName());
             telemetry.record(new LlmCall(
-                    LlmStep.SCRIPT_SPLIT,
+                    step,
                     jobId,
                     userId,
                     generated == null ? ScriptSplitRules.MODEL : generated.model(),
