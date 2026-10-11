@@ -118,9 +118,9 @@ final class PracticeLoopRouter {
         return new Classified(Kind.SHORT, false, "model");
     }
 
-    /** 정리한 뒤의 말은 단계가 없으니, 함께 물은 게 있으면 그 물음으로 본다(답해 주고 다음 말에서 닫는다). */
+    /** 정리한 뒤의 말은 단계가 없으니, 함께 물은 게 있으면 그 물음으로 본다(답해 주고 다음 말에서 닫는다). 정리 뒤 답한 다음 말도 같다. */
     static Classified forRouting(Classified c, Before b) {
-        if (!b.lastDoing().startsWith(WRAP_UP) || !c.alsoAsked()) return c;
+        if (!(b.lastDoing().startsWith(WRAP_UP) || b.closeNext()) || !c.alsoAsked()) return c;
         Kind asked = switch (c.respond()) {
             case "evaluation" -> Kind.EVALUATION;
             case "method" -> Kind.METHOD;
@@ -224,7 +224,8 @@ final class PracticeLoopRouter {
     /**
      * 할 일 표. 대화는 다섯 단계로 간다: 1 보여 주기(첫 응답) → 2 원하는 것 묻기 → 3 어긋남 보기 → 4 스스로 찾기 → 정리하기.
      * 배우가 보통으로 답하면 다음 단계로 간다. 물음·정정·반박에는 먼저 답하고 단계는 그대로 둔다.
-     * 정리한 다음 배우 말이 맞장구면 닫고, 그 밖이면 한 번 받아 준 뒤 닫는다. 그만과 상한(24번째)은 바로 닫는다.
+     * 정리한 다음 배우 말이 맞장구면 닫고, 그 밖이면 한 번 받아 준 뒤 닫는다. 받아 준 다음에도 배우가 또 물으면 답하고,
+     * 묻지 않은 말에서 닫는다. 그만과 상한(24번째)은 바로 닫는다.
      */
     static String route(Kind kind, Before b) {
         return route(kind, b, 0);
@@ -255,7 +256,10 @@ final class PracticeLoopRouter {
 
     static String route(Classified c, Before b, int stayed) {
         Kind kind = c.kind();
-        if (kind == Kind.STOP || b.reply() >= LAST_REPLY || b.closeNext()) return END;
+        if (kind == Kind.STOP || b.reply() >= LAST_REPLY) return END;
+        // 정리 뒤 한 번 받아 준 다음 말: 또 물었으면(물음·방법·판단 요청·반박·정정) 답하고, 그 밖이면 닫는다.
+        // 2026-10-11 17:56 운영: 받아 준 뒤 배우가 "?반응을 어케봐?"라고 물었는데 대꾸 없이 "오늘은 여기까지 해요"로 닫혔다.
+        if (b.closeNext()) return asksAgain(c) ? answerTo(kind, b) : END;
         // 정리한 다음 말: 맞장구·짧은 말이면 닫는다. 그 밖(다른 해석, 덧붙인 생각, 물음, 반박)은 한 번 받아 주고 그다음 말에서 닫는다(closesNext).
         if (b.lastDoing().startsWith(WRAP_UP)) return endsAfterWrap(c) ? END : answerTo(kind, b);
         if (b.lastDoing().startsWith("마무리") || b.lastDoing().startsWith("끝")) return END;
@@ -373,14 +377,23 @@ final class PracticeLoopRouter {
     }
 
     /** 예전 판의 "답한 뒤 다음에 닫기". 이제는 단계로 정리에 가므로 쓰지 않는다. */
-    /** 정리한 뒤 배우가 물었으면 이번엔 답하고, 다음 배우 말에서 닫는다. */
+    /** 정리한 뒤 배우가 물었으면 이번엔 답하고, 다음 배우 말에서 닫는다. 그 말에서 또 물었으면 또 답하고 그다음에 닫는다. */
     static boolean closesNext(Kind kind, Before b) {
         return closesNext(new Classified(kind, false, "code"), b);
     }
 
     static boolean closesNext(Classified c, Before b) {
-        if (c.kind() == Kind.STOP || b.reply() >= LAST_REPLY || b.closeNext()) return false;
+        if (c.kind() == Kind.STOP || b.reply() >= LAST_REPLY) return false;
+        if (b.closeNext()) return asksAgain(c);
         return b.lastDoing().startsWith(WRAP_UP) && !endsAfterWrap(c);
+    }
+
+    /** 정리 뒤 받아 준 다음에도 답해야 하는 말: 물음·방법 요청·판단 요청·반박·정정·코치 말을 못 알아들음. */
+    private static boolean asksAgain(Classified c) {
+        return switch (c.kind()) {
+            case QUESTION, METHOD, EVALUATION, PUSHBACK, CORRECTION, MISSED -> true;
+            default -> false;
+        };
     }
 
     /** 정리 뒤 바로 닫을 말: 한두 마디 짧은 말("네", "몰라요")과 새 내용 없는 맞장구·인사("감사합니다, 해 볼게요"). */
@@ -403,11 +416,11 @@ final class PracticeLoopRouter {
     /**
      * 고정 버튼 문구면 그 분류, 아니면 {@code null}.
      * 예시 버튼은 지금 질문을 못 알아들었다는 뜻이라 같은 단계를 보기 둘로 쉽게 다시 묻는다(짧은 답과 같은 길).
-     * 나중에 버튼은 단계와 상관없이 바로 정리한다. 정리 뒤면 둘 다 물음으로 보고 한 번 답한다.
+     * 나중에 버튼은 단계와 상관없이 바로 정리한다. 정리 뒤(받아 준 다음 포함)면 둘 다 물음으로 보고 답한다.
      */
     static Classified button(String actorText, Before b) {
         String text = actorText == null ? "" : actorText.strip();
-        boolean afterWrap = b.lastDoing().startsWith(WRAP_UP);
+        boolean afterWrap = b.lastDoing().startsWith(WRAP_UP) || b.closeNext();
         if (EXPLAIN_BUTTON.contains(text)) return new Classified(afterWrap ? Kind.QUESTION : Kind.SHORT, false, BY_BUTTON);
         if (LATER_BUTTON.contains(text)) return new Classified(Kind.METHOD, false, afterWrap ? BY_BUTTON : BY_LATER);
         return null;
