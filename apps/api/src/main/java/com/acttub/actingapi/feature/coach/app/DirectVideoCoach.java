@@ -224,6 +224,17 @@ public final class DirectVideoCoach {
                     message = null;
                 }
             }
+            // 비교 모델이 다시 써도 비거나 깨졌으면 기본 모델로 한 번 더 쓴다(SOMA-657). 3.8은 같은 입력에서 빈 답이 몰려 나왔다.
+            // 배우에게 오류 화면을 보이느니 몇 초 더 기다리게 하는 편이 낫다.
+            boolean modelFallback = false;
+            if (loop && speaker != model && (message == null || DirectVideoPracticeLoop.parse(message).message().isBlank())) {
+                modelFallback = true;
+                ExternalOperationExecution.externalCall("model");
+                message = replyOrNull(model, uploaded, history, prompt, loop);
+                if (message != null && DirectVideoPracticeLoop.looksBroken(DirectVideoPracticeLoop.parse(message).message(), replyLanguage)) {
+                    message = null;
+                }
+            }
             if (message == null || message.isBlank()) throw new IllegalStateException("empty video coaching reply");
             DirectVideoDialogueEvidence.requireGrounded(uploaded, message, written);
             // 영상 시간("0:23", "0:03부터 0:46까지")으로 구간을 가리키면 한 번 다시 쓰게 한다. 배우는 시간으로 장면을 떠올리지 못한다.
@@ -247,8 +258,11 @@ public final class DirectVideoCoach {
             if (branch != null) {
                 // 숨은 칸은 모델이 아니라 서버가 쓴다. 모델이 따라 쓴 태그는 parse 가 이미 걷어냈다.
                 // 정리의 행동, 또는 정리 뒤 배우 해석을 받아 준 답의 행동을 노트의 다음 촬영으로 남긴다(뒤의 것이 앞의 것을 덮고, 숨은 줄이 없으면 앞의 것이 남는다).
-                String status = branch.status(PracticeLoopRouter.WRAP_UP.equals(branch.doing()) ? DirectVideoPracticeLoop.nextTake(message)
-                        : branch.acceptsReading() ? READING_LEAD.matcher(DirectVideoPracticeLoop.nextTake(message)).replaceFirst("") : "");
+                // 숨은 다음 테이크 줄을 빠뜨렸으면 배우에게 한 정리 말의 행동 문장을 쓴다(SOMA-657). 노트가 코치 말과 어긋나지 않게 한다.
+                String take = DirectVideoPracticeLoop.nextTake(message);
+                if (take.isBlank()) take = DirectVideoPracticeLoop.actionLine(parsed.message());
+                String status = branch.status(PracticeLoopRouter.WRAP_UP.equals(branch.doing()) ? take
+                        : branch.acceptsReading() ? READING_LEAD.matcher(take).replaceFirst("") : "");
                 DirectVideoDialogueEvidence.requireGrounded(uploaded, "<상태>\n" + status + "\n</상태>", written);
                 parsed = new DirectVideoPracticeLoop.Parsed("", status, parsed.message());
             }
@@ -291,7 +305,7 @@ public final class DirectVideoCoach {
                             "route_fallback", Boolean.toString(branch != null ? "fallback".equals(branch.classified().by()) : routeFallback),
                             "timestamp_retry", Boolean.toString(timeRetry), "timestamp_stripped", Boolean.toString(timeStripped),
                             "shorten_calls", Integer.toString(shortened), "empty_retry", Boolean.toString(emptyRetry), "broken_retry", Boolean.toString(brokenRetry),
-                            "persona", persona, "coach_model_arm", arm))
+                            "persona", persona, "coach_model_arm", arm, "model_fallback", Boolean.toString(modelFallback)))
                     .withPrompt(template));
             if (loop) DirectVideoPracticeLoop.remember(state, parsed);
             if (cut) DirectVideoPracticeLoop.markNotActing(state, "model");

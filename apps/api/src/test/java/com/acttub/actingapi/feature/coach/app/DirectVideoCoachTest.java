@@ -695,6 +695,51 @@ class DirectVideoCoachTest {
         assertThat(done.reply().message()).isEqualTo("오늘은 여기까지 해요. 새 테이크를 올리면 이어서 해요.");
     }
 
+    @Test void aWrapUpWithoutTheHiddenNextTakeLineKeepsTheActionTheCoachSaid() {
+        // 2026-10-11 3.8 Flash 재현: 정리 14번 중 3번 숨은 <다음 테이크> 줄이 없었다. 노트에 첫 설계의 다음 테이크가 남으면 코치 말과 어긋난다.
+        assertThat(DirectVideoPracticeLoop.actionLine("맞아요, 그거예요.\n처음부터 끝까지 허미어한테 쏘아붙이며 따져 봐도 좋아요.\n특히 \"비결이 뭐야\"에서요."))
+                .isEqualTo("처음부터 끝까지 허미어한테 쏘아붙이며 따져 봐도 좋아요");
+        assertThat(DirectVideoPracticeLoop.actionLine("표현보다 아바마마가 흔들리는지 살피며 매달려 봐도 좋아요. 다음 테이크에서 확인해 봐요."))
+                .isEqualTo("표현보다 아바마마가 흔들리는지 살피며 매달려 봐도 좋아요");
+        assertThat(DirectVideoPracticeLoop.actionLine("상대를 안 살피면 혼잣말처럼 보여요. 다음 테이크에서 확인해 봐요.")).isEmpty();
+        assertThat(DirectVideoPracticeLoop.actionLine("그럼 장면 내내 상대한테 뭘 해 볼래요?")).isEmpty();
+
+        var loopEngine = practiceLoopEngine();
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING,
+                "\"가\" 할 때 상대를 안 봐요. 그럼 상대가 잡았을까요?",
+                "네. 그럼 장면 내내 상대한테 뭘 해 볼래요?",
+                "맞아요, 그거예요. 처음부터 끝까지 상대를 붙잡아 봐도 좋아요. 특히 \"가\"에서요.");
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn(
+                "{\"signals\":[\"answered\"]}", "{\"signals\":[\"answered\"]}", "{\"signals\":[\"answered\",\"decided\"]}");
+        var first = loopEngine.start(session(), UUID.randomUUID());
+        var shown = loopEngine.reply(first.session(), "붙잡아 줬으면 했어요", UUID.randomUUID());
+        var asked = loopEngine.reply(shown.session(), "아니요, 못 잡았을 것 같아요", UUID.randomUUID());
+        var wrapped = loopEngine.reply(asked.session(), "붙잡아 볼게요", UUID.randomUUID());
+        var statuses = wrapped.session().coachingState().path("practice_loop").path("statuses");
+        assertThat(statuses.path(statuses.size() - 1).asText()).contains("할 일: 정리하기");
+        assertThat(DirectVideoPracticeLoop.closingNextTake(statuses)).isEqualTo("처음부터 끝까지 상대를 붙잡아 봐도 좋아요");
+    }
+
+    @Test void whenTheComparedModelStaysEmptyTheDefaultModelWritesTheReplyInsteadOfAnError() {
+        var compared = mock(DirectVideoModel.class);
+        when(compared.model()).thenReturn("gemini-3.8-flash");
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\"]}");
+        when(compared.reply(eq(file), anyList(), anyString())).thenReturn(OPENING)
+                .thenThrow(new IllegalStateException("empty video coaching reply"))
+                .thenThrow(new IllegalStateException("empty video coaching reply: output limit reached"));
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn("\"가\"에서도 상대를 안 봐요. 누구한테 하는 말이에요?");
+        var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
+                model, videos, storage, failures, telemetry, true, CoachPersonas.NONE, compared, 100)));
+        var first = loopEngine.start(session(), UUID.randomUUID());
+        var second = loopEngine.reply(first.session(), "붙잡길 바랐어요", UUID.randomUUID());
+        assertThat(second.reply().message()).isEqualTo("\"가\"에서도 상대를 안 봐요. 누구한테 하는 말이에요?");
+        verify(compared, times(3)).reply(eq(file), anyList(), anyString());
+        verify(model, times(1)).reply(eq(file), anyList(), anyString());
+        assertThat(telemetry.calls()).filteredOn(call -> call.step() == com.acttub.actingapi.platform.observability.LlmStep.COACH_TURN)
+                .last().satisfies(call -> assertThat(call.metadata()).containsEntry("model_fallback", "true")
+                        .containsEntry("empty_retry", "true").containsEntry("coach_model_arm", "b"));
+    }
+
     @Test void closeReasonsSayWhyTheCoachClosed() {
         var loopEngine = practiceLoopEngine();
         when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING);
