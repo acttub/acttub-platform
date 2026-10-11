@@ -137,7 +137,7 @@ jobs:
   build_web:
     name: 이미지 · web (GHCR)
     needs: guard
-    # 웹 설정(사이트 URL·Sentry·Amplitude)은 선택한 환경의 variables 에서 옵니다.
+    # 웹 설정(사이트 URL·Sentry·PostHog)은 선택한 환경의 variables 에서 옵니다.
     # environment를 지정하면 GitHub가 Deployment 이벤트를 남기고, GitHub for Jira
     # 앱이 이를 Jira로 넘겨 이슈 화면에 배포 이력이 붙습니다.
     environment: ${{ needs.guard.outputs.environment }}
@@ -162,7 +162,7 @@ jobs:
       # deploy/consent-gate.sh — 계측 키가 방침 고지보다 앞서면 멈춥니다.
       - name: 계측 키가 방침 고지보다 앞서지 않는지
         env:
-          AMPLITUDE_KEY: ${{ vars.AMPLITUDE_API_KEY_WEB }}
+          POSTHOG_KEY: ${{ vars.POSTHOG_KEY_WEB }}
         run: deploy/consent-gate.sh
 
       - name: GHCR 로그인
@@ -204,8 +204,8 @@ jobs:
           NEXT_PUBLIC_SENTRY_DSN: ${{ vars.SENTRY_DSN_WEB }}
           NEXT_PUBLIC_SENTRY_ENV: ${{ needs.guard.outputs.environment }}
           # 키가 비면 계측이 꺼진 번들이 나갑니다. dev와 운영에 서로 다른 프로젝트 키를 넣어
-          # 통계를 나눕니다. 개인정보처리방침에 Amplitude 위탁이 발행되기 전에는 비워 둡니다(위 게이트).
-          NEXT_PUBLIC_AMPLITUDE_API_KEY: ${{ vars.AMPLITUDE_API_KEY_WEB }}
+          # 통계를 나눕니다. 개인정보처리방침에 PostHog 위탁이 발행되기 전에는 비워 둡니다(위 게이트).
+          NEXT_PUBLIC_POSTHOG_KEY: ${{ vars.POSTHOG_KEY_WEB }}
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT_WEB }}
           # secret 이 없으면 빈 값이 들어가고 Dockerfile 이 소스맵 업로드를 건너뜁니다(실측: --secret 의
@@ -218,7 +218,7 @@ jobs:
             --build-arg NEXT_PUBLIC_SITE_URL="$NEXT_PUBLIC_SITE_URL" \
             --build-arg NEXT_PUBLIC_SENTRY_DSN="$NEXT_PUBLIC_SENTRY_DSN" \
             --build-arg NEXT_PUBLIC_SENTRY_ENV="$NEXT_PUBLIC_SENTRY_ENV" \
-            --build-arg NEXT_PUBLIC_AMPLITUDE_API_KEY="$NEXT_PUBLIC_AMPLITUDE_API_KEY" \
+            --build-arg NEXT_PUBLIC_POSTHOG_KEY="$NEXT_PUBLIC_POSTHOG_KEY" \
             --build-arg NEXT_PUBLIC_APP_COMMIT="$GITHUB_SHA" \
             --build-arg SENTRY_ORG="$SENTRY_ORG" \
             --build-arg SENTRY_PROJECT="$SENTRY_PROJECT" \

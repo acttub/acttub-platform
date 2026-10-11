@@ -12,7 +12,7 @@
 #
 # 무엇을 판정하나 (SOMA-489 조각 01·02·03·06 수락 조건) — 번호는 아래 본문의 절 번호와 같다
 #   1. apps/api 의 jar 로 API 이미지가 빌드되고 ffmpeg·ffprobe·curl 이 안에 있으며 non-root 로 돈다
-#   2. 저장소 루트를 컨텍스트로 웹 이미지가 build-arg(사이트 URL·Sentry·Amplitude·커밋)를 받아 빌드되고,
+#   2. 저장소 루트를 컨텍스트로 웹 이미지가 build-arg(사이트 URL·Sentry·PostHog·커밋)를 받아 빌드되고,
 #      안에는 standalone·.next/static·public 만 있다 — 소스 트리·.env 가 없고 prebuild 산출물(ort wasm·
 #      Pretendard)이 들어 있으며 non-root 로 돈다
 #   3. 임시 디렉토리에 compose.yml 사본과 테스트용 .env 를 둔다(서버의 프로젝트 디렉토리 흉내)
@@ -151,7 +151,7 @@ build_image "$WEB_IMAGE" -f "$ROOT/apps/web/Dockerfile" \
   --build-arg NEXT_PUBLIC_SITE_URL="$SITE_URL" \
   --build-arg NEXT_PUBLIC_SENTRY_DSN=https://smoke@sentry.invalid/1 \
   --build-arg NEXT_PUBLIC_SENTRY_ENV=smoke \
-  --build-arg NEXT_PUBLIC_AMPLITUDE_API_KEY=smoke-amplitude-key \
+  --build-arg NEXT_PUBLIC_POSTHOG_KEY=smoke-posthog-key \
   --build-arg NEXT_PUBLIC_APP_COMMIT="$COMMIT" \
   "$ROOT"
 
