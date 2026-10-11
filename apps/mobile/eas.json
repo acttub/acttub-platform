@@ -35,7 +35,8 @@
         "EXPO_PUBLIC_API_URL": "https://acttub.com",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "462651930952-625pcnhrjib79r7990fqsdqhsterdij2.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "462651930952-ca5o968kkbucm1qg4ko1u6tepgv3beqf.apps.googleusercontent.com",
-        "AIRBRIDGE_ENVIRONMENT": "production"
+        "AIRBRIDGE_ENVIRONMENT": "production",
+        "EXPO_PUBLIC_POSTHOG_KEY": "phc_yKsf6CHZwoyLTzfUv9PfwFEwWVNR7kqreTVCCWfCq7gH"
       },
       "environment": "production"
     },
@@ -45,7 +46,8 @@
         "EXPO_PUBLIC_API_URL": "https://acttub.com",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "462651930952-625pcnhrjib79r7990fqsdqhsterdij2.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "462651930952-ca5o968kkbucm1qg4ko1u6tepgv3beqf.apps.googleusercontent.com",
-        "AIRBRIDGE_ENVIRONMENT": "production"
+        "AIRBRIDGE_ENVIRONMENT": "production",
+        "EXPO_PUBLIC_POSTHOG_KEY": "phc_yKsf6CHZwoyLTzfUv9PfwFEwWVNR7kqreTVCCWfCq7gH"
       },
       "android": {
         "buildType": "apk"
