@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
 import type { MicButtonProps } from '@/components/mic-button';
-import { SceneFoldBody, SceneFoldLink } from '@/components/practice-chrome';
+import { logFoldOpen, SceneFoldBody } from '@/components/practice-chrome';
 import { palette } from '@/constants/palette';
 import { useKeyboardHeight } from '@/hooks/use-keyboard-height';
 import { translate as t } from '@/lib/i18n';
@@ -267,17 +267,26 @@ export default function CoachScreen() {
       />
 
       <View style={styles.strip}>
-        <View style={styles.stripRow}>
+        {/* 제목 「영상과 장면 보기」를 눌러도 펼친다. 예전에는 오른쪽 작은 ▾ 만 눌려서, 제목을 누른 사람은 아무 일도 안 일어났다. */}
+        <Pressable
+          style={({ pressed }) => [styles.stripRow, pressed && styles.stripRowOn]}
+          onPress={() => {
+            if (!sceneOpen) logFoldOpen('coach');
+            setSceneOpen(!sceneOpen);
+          }}
+          accessibilityRole="button"
+          accessibilityLabel={`${t('coach.stripTitle')} ${sceneOpen ? t('common.fold') : t('common.unfold')}`}
+          accessibilityState={{ expanded: sceneOpen }}>
           <View style={styles.stripText}>
             <Text style={styles.stripTitle}>{t('coach.stripTitle')}</Text>
             <Text style={styles.stripSub} numberOfLines={1}>
               {practice.scene.situation.trim() || t('coach.noScene')}
             </Text>
           </View>
-          <SceneFoldLink open={sceneOpen} onToggle={() => setSceneOpen((was) => !was)} label="" />
-        </View>
+          <Text style={styles.stripArrow}>{sceneOpen ? '▴' : '▾'}</Text>
+        </Pressable>
       </View>
-      <SceneFoldBody open={sceneOpen} videoUri={practice.videoUri || practice.playbackUrl} />
+      <SceneFoldBody open={sceneOpen} videoUri={practice.videoUri || practice.playbackUrl} track="coach" />
       <View style={styles.progressHead}>
         <View style={styles.progressLeft}>
           <View style={styles.dots}>
@@ -419,6 +428,8 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
 
   stripRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  stripRowOn: { opacity: 0.5 },
+  stripArrow: { fontSize: 12, fontWeight: '700', color: palette.textFaint, paddingLeft: 8 },
   stripText: { flex: 1, gap: 2 },
   stripTitle: { fontSize: 13, fontWeight: '900', color: palette.textStrong },
   stripSub: { fontSize: 11.5, fontWeight: '600', color: palette.textFaint },
