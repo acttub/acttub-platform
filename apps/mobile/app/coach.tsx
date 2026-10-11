@@ -390,8 +390,8 @@ export default function CoachScreen() {
             <View style={styles.quickRow}>
               {(
                 [
-                  ['explain', t('coach.quickExplain')],
-                  ['later', t('coach.quickLater')],
+                  ['yes', t('coach.quickYes')],
+                  ['no', t('coach.quickNo')],
                 ] as const
               ).map(([button, label]) => (
                 <Pressable
@@ -403,6 +403,13 @@ export default function CoachScreen() {
                   <Text style={styles.quickText}>{label}</Text>
                 </Pressable>
               ))}
+              {/* 그만하기 — 확인을 받고 대화를 마쳐 정리를 만든다(아래 링크였던 것을 버튼 줄로 올렸다, SOMA-656). */}
+              <Pressable
+                style={styles.quick}
+                disabled={waiting || connecting || !conversation}
+                onPress={() => void endConversation()} accessibilityRole="button">
+                <Text style={styles.quickText}>{t('coach.quickEnd')}</Text>
+              </Pressable>
             </View>
             <Pressable
               style={[styles.send, !canSend && styles.sendOff]}
@@ -410,9 +417,6 @@ export default function CoachScreen() {
               onPress={() => void sendText(input)}
               accessibilityRole="button">
               <Text style={styles.sendText}>{waiting ? t('coach.thinking') : t('coach.nextQuestion')}</Text>
-            </Pressable>
-            <Pressable style={styles.endBtn} disabled={waiting || connecting} onPress={() => void endConversation()} accessibilityRole="button">
-              <Text style={styles.endHint}>{t('coach.endHint')}</Text>
             </Pressable>
           </View>
         )}
@@ -498,14 +502,16 @@ const styles = StyleSheet.create({
   composerLabel: { fontSize: 12.5, fontWeight: '800', color: palette.textMuted },
   counter: { fontSize: 11.5, fontWeight: '600', color: palette.checkOff },
   inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+  // 한 줄로 시작해 글이 늘면 커지고, 다섯 줄쯤부터는 칸 안에서 스크롤한다(SOMA-656).
   input: {
     flex: 1,
-    minHeight: 112,
+    minHeight: 48,
+    maxHeight: 144,
     borderRadius: 14,
     borderWidth: 1.5,
     borderColor: palette.blue,
     backgroundColor: palette.bg,
-    paddingVertical: 14,
+    paddingVertical: 12,
     paddingHorizontal: 16,
     fontSize: 14,
     fontWeight: '600',
@@ -530,6 +536,4 @@ const styles = StyleSheet.create({
   send: { height: 52, borderRadius: 14, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
   sendOff: { backgroundColor: palette.blueLine },
   sendText: { fontSize: 15, fontWeight: '900', color: palette.bg },
-  endHint: { fontSize: 12, fontWeight: '800', color: palette.textFaint, textAlign: 'center' },
-  endBtn: { alignSelf: 'center', paddingVertical: 8, paddingHorizontal: 16 },
 });
