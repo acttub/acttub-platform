@@ -759,6 +759,29 @@ class DirectVideoCoachTest {
                 .as("닫는 태그를 빠뜨려도 메모 줄은 걷어낸다").isEqualTo("괜찮아요. 왜요?");
     }
 
+    @Test void englishThinkingTagsAreKeptOffTheActorsScreen() {
+        // 2026-10-11 00:59 운영: 모델이 <생각> 대신 <thought>를 썼고, 여는 태그만 붙은 답이 배우 화면에 그대로 나갔다.
+        assertThat(DirectVideoPracticeLoop.parse("<thought>\n네. 그럼 상대의 뻔뻔함을 깨부수려면 장면 내내 상대한테 무엇을 해 볼래요?").message())
+                .isEqualTo("네. 그럼 상대의 뻔뻔함을 깨부수려면 장면 내내 상대한테 무엇을 해 볼래요?");
+        assertThat(DirectVideoPracticeLoop.parse("<thought>\n배우가 한 말: 증오를 표출하는 것\n이번 목표: 2단계.\n"
+                + "끝 질문: 그러면 상대가 움찔했을까요?\n</thought>\"나도 사람이에요\"라며 가슴을 쳐요. 상대가 움찔했을까요?").message())
+                .isEqualTo("\"나도 사람이에요\"라며 가슴을 쳐요. 상대가 움찔했을까요?");
+        assertThat(DirectVideoPracticeLoop.parse("<think>메모</think>\n뭘 받고 싶었어요?").message()).isEqualTo("뭘 받고 싶었어요?");
+        assertThat(DirectVideoPracticeLoop.parse("메모만 남음\n</Thought>\n뭘 받고 싶었어요?").message()).isEqualTo("뭘 받고 싶었어요?");
+        assertThat(DirectVideoPracticeLoop.parse("<thought>\n배우가 한 말: x\n</thought>").message()).as("메모만 쓴 답은 빈 답 다시 쓰기로 간다").isEmpty();
+        assertThat(DirectVideoPracticeLoop.looksBroken("<answer>뭘 받고 싶었어요?", null)).as("걷어내지 못한 태그가 남으면 다시 쓴다").isTrue();
+        assertThat(DirectVideoPracticeLoop.looksBroken("상대를 볼 때 <거리>가 멀어요?", null)).isFalse();
+
+        var loopEngine = practiceLoopEngine();
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\"]}");
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING,
+                "<thought>\n네. 그럼 장면 내내 상대한테 뭘 해 볼래요?");
+        var first = loopEngine.start(session(), UUID.randomUUID());
+        var second = loopEngine.reply(first.session(), "안 했을 것 같아요", UUID.randomUUID());
+        assertThat(second.reply().message()).isEqualTo("네. 그럼 장면 내내 상대한테 뭘 해 볼래요?");
+        assertThat(second.session().turns()).extracting(CoachTurnSnapshot::text).noneMatch(text -> text.toLowerCase().contains("thought"));
+    }
+
     @Test void sessionsOpenedBeforeThePracticeLoopKeepRouting() {
         var turns = List.of(new CoachTurnSnapshot("ai", "기존 첫 피드백이에요."));
         var result = practiceLoopEngine().reply(session().withTurns(turns), "겠주려는 거야", UUID.randomUUID());
