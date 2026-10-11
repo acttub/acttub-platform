@@ -2,7 +2,7 @@ import { useNavigation, usePreventRemove } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import { Image } from 'expo-image';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDialog } from '@/components/app-dialog';
@@ -511,13 +511,15 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: palette.blue,
     backgroundColor: palette.bg,
-    paddingVertical: 12,
+    // 줄 간격을 따로 주면 안드로이드가 남는 간격을 글자 위에 몰아 한 줄일 때 글자가 아래로 처진다 — 기본 줄 간격에
+    // 위아래 여백을 같게 둔다. iOS 여러 줄 입력칸은 위에 자체 여백이 더 붙어 그만큼 위 여백을 줄인다.
+    paddingTop: Platform.OS === 'ios' ? 10 : 13,
+    paddingBottom: 13,
     paddingHorizontal: 16,
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
     color: palette.text,
-    lineHeight: 23,
-    textAlignVertical: 'top',
+    textAlignVertical: 'center',
   },
   quickRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   quick: {

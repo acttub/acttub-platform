@@ -36,6 +36,9 @@ test('코치 입력칸은 한 줄로 시작해 글이 늘면 커지고, 일정 �
   assert.match(input, /minHeight: 48/);
   assert.match(input, /maxHeight: 144/);
   assert.doesNotMatch(input, /minHeight: 112/);
+  // 한 줄일 때 글자가 가운데 오게 — 줄 간격을 따로 주지 않고 위아래 여백을 같게
+  assert.doesNotMatch(input, /lineHeight/);
+  assert.match(input, /paddingTop: Platform\.OS === 'ios' \? 10 : 13,\s*paddingBottom: 13,/);
 });
 
 test('새 연습 준비: 영상 상자를 누르면 아래 시트에서 보관함·촬영·갤러리를 고른다(상자 안 버튼 없음)', () => {
