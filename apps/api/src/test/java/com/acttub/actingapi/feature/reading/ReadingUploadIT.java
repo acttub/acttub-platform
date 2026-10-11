@@ -77,6 +77,9 @@ class ReadingUploadIT {
     private static final OffsetDateTime PUBLISHED = OffsetDateTime.of(2026, 10, 1, 0, 0, 0, 0, ZoneOffset.UTC);
     private static final Pattern COLON = Pattern.compile("^(\\S+?):\\s*(.*)$");
     private static final String SCENE = "니나: 저는 갈매기예요.\n트레플레프: 아니, 당신은 배우예요.\n";
+    private static final String ARTICLE = "오늘 서울은 맑고 낮 기온은 21도까지 오르겠습니다.";
+    private static final byte[] HWP97 =
+            java.util.Arrays.copyOf("HWP Document File V3.00 \u001A".getBytes(StandardCharsets.ISO_8859_1), 64);
 
     @TestConfiguration(proxyBeanMethods = false)
     static class Fakes {
@@ -84,7 +87,7 @@ class ReadingUploadIT {
             return new FakeStorage();
         }
 
-        /** 콜론 형식을 완벽하게 나누는 답. 첫 호출에 「대본 예」를 붙인다. */
+        /** 콜론 형식을 완벽하게 나누는 답. 첫 호출에 「대본 예」를, {@link #ARTICLE} 이 든 글이면 「대본 아니오」를 붙인다. */
         @Bean @Primary TextGenerator stubTextGenerator() {
             return new TextGenerator() {
                 @Override public GeneratedText generate(String instructions, String input) {
@@ -92,7 +95,8 @@ class ReadingUploadIT {
                 }
 
                 @Override public GeneratedText generate(String instructions, String input, GenerationOptions options) {
-                    StringBuilder out = new StringBuilder(instructions.contains("답의 첫 줄은") ? "대본\t예\n" : "");
+                    String judgment = input.contains(ARTICLE) ? "대본\t아니오\n" : "대본\t예\n";
+                    StringBuilder out = new StringBuilder(instructions.contains("답의 첫 줄은") ? judgment : "");
                     for (String line : input.split("\n")) {
                         String[] numbered = line.split("\t", 2);
                         Matcher matcher = COLON.matcher(numbered[1]);
@@ -267,7 +271,7 @@ class ReadingUploadIT {
     @Test
     @DisplayName("reading.script 원본: 한글 97 은 422 script_file_unreadable, 100,000자를 넘는 글은 422 script_too_long — 둘 다 글을 남기지 않는다")
     void unreadableAndTooLongFiles() throws Exception {
-        String old = reserveAndPut("옛날.hwp", java.util.Arrays.copyOf("HWP Document File V3.00 \u001A".getBytes(StandardCharsets.ISO_8859_1), 64));
+        String old = reserveAndPut("옛날.hwp", HWP97);
         assertThat(detail(post("/v2/reading/uploads/{id}/complete", old), 422)).isEqualTo("script_file_unreadable");
         String longOne = reserveAndPut("긴 대본.txt", "가".repeat(100_001).getBytes(StandardCharsets.UTF_8));
         assertThat(detail(post("/v2/reading/uploads/{id}/complete", longOne), 422)).isEqualTo("script_too_long");
@@ -383,6 +387,137 @@ class ReadingUploadIT {
         assertThat(storage.objects).doesNotContainKeys(key(stale), key(neverUploaded)).containsKeys(key(linked), key(inFlight), key(fresh));
         assertThat(count("account_cleanup_operations")).isZero();
         assertThat(uploads.sweepUnlinked()).as("다시 돌면 지울 것이 없다").isZero();
+    }
+
+    @Test
+    @DisplayName("reading.script 원본: 읽지 못한 파일(hwp3)과 대본이 아니라고 본 파일(not_script)은 동의가 있으면 이유와 함께 1년 남고, "
+            + "중복으로 끝난 파일은 하루 뒤 지워진다. 2일 뒤 정리에 남고 366일 뒤 정리에 없다. 대본에 연결된 원본은 그대로다")
+    void failedSourcesAreKeptForAYear() throws Exception {
+        String linked = readFile("갈매기.txt", SCENE);
+        split(linked);
+        String duplicate = readFile("다시.txt", SCENE);
+        assertThat(json(post("/v2/reading/imports").content(fileImport(UUID.randomUUID(), duplicate)), 200, bearer)
+                .path("duplicate_script_id").isTextual()).isTrue();
+        String unreadable = reserveAndPut("옛날.hwp", HWP97);
+        assertThat(detail(post("/v2/reading/uploads/{id}/complete", unreadable), 422)).isEqualTo("script_file_unreadable");
+        String article = readFile("기사.txt", ARTICLE + "\n" + ARTICLE + "\n");
+        String importId = json(post("/v2/reading/imports").content(fileImport(UUID.randomUUID(), article)), 202, bearer)
+                .path("import_id").textValue();
+        assertThat(worker.runOnce(clock.instant())).isTrue();
+        assertThat(json(get("/v2/reading/imports/{id}", importId), 200, bearer).path("failure").textValue()).isEqualTo("not_script");
+
+        assertThat(retention(unreadable)).isEqualTo("hwp3 until 2027-10-06T03:00:00Z");
+        assertThat(retention(article)).isEqualTo("not_script until 2027-10-06T03:00:00Z");
+        assertThat(retention(duplicate)).isEqualTo("- until -");
+        assertThat(retention(linked)).isEqualTo("- until -");
+
+        clock.set(NOW.plus(Duration.ofDays(2)));
+        uploads.sweepUnlinked();
+        assertThat(jdbc.queryForList("SELECT id::text FROM script_uploads", String.class))
+                .containsExactlyInAnyOrder(linked, unreadable, article);
+        assertThat(storage.objects).containsOnlyKeys(key(linked), key(unreadable), key(article));
+
+        clock.set(NOW.plus(Duration.ofDays(366)));
+        uploads.sweepUnlinked();
+        assertThat(jdbc.queryForList("SELECT id::text FROM script_uploads", String.class)).containsExactly(linked);
+        assertThat(storage.objects).containsOnlyKeys(key(linked));
+        assertThat(count("account_cleanup_operations")).isZero();
+    }
+
+    @Test
+    @DisplayName("reading.script 원본: script_split 을 거절로 바꾼 뒤 읽지 못한 파일은 이유만 남고 하루 뒤 지워진다. 보관 중이던 실패 원본은 "
+            + "다음 정리(1시간 뒤)에 지워지고 대본에 연결된 원본은 남는다. 실패한 파일을 다시 올려 읽히면 실패 기록이 지워진다")
+    void declinedConsentEndsTheKeep() throws Exception {
+        String linked = readFile("갈매기.txt", SCENE);
+        split(linked);
+        String kept = reserveAndPut("옛날.hwp", HWP97);
+        assertThat(detail(post("/v2/reading/uploads/{id}/complete", kept), 422)).isEqualTo("script_file_unreadable");
+        String text = "니나: 다시 올린 글\n";
+        byte[] readable = (text + " ".repeat(HWP97.length - text.getBytes(StandardCharsets.UTF_8).length)).getBytes(StandardCharsets.UTF_8);
+        String fixed = reserveAndPut("고친 파일.hwp", HWP97);
+        assertThat(detail(post("/v2/reading/uploads/{id}/complete", fixed), 422)).isEqualTo("script_file_unreadable");
+        storage.put(key(fixed), readable);
+        assertThat(perform(post("/v2/reading/uploads/{id}/complete", fixed), bearer).getStatus()).isEqualTo(204);
+        assertThat(retention(fixed)).as("이제 읽히는 파일은 실패 원본이 아니다").isEqualTo("- until -");
+        String later = reserveAndPut("나중.hwp", HWP97);
+
+        // 게이트 fixture 는 DB 의 실제 시각으로 동의를 적어 고정 시계(NOW)의 거절보다 늦다 — 결정 순서를 시계에 맞춘다.
+        jdbc.update("UPDATE user_consents SET occurred_at=? WHERE user_id=?", PUBLISHED, member);
+        Map<String, Object> decline = Map.of("document_id", scriptSplitDocument.toString(), "action", "declined");
+        assertThat(perform(post("/v2/consents").content(mapper.writeValueAsString(decline)), bearer).getStatus()).isEqualTo(201);
+        assertThat(detail(post("/v2/reading/uploads/{id}/complete", later), 422)).isEqualTo("script_file_unreadable");
+        assertThat(retention(kept)).isEqualTo("hwp3 until 2027-10-06T03:00:00Z");
+        assertThat(retention(later)).as("동의가 없으면 이유만 남긴다").isEqualTo("hwp3 until -");
+
+        clock.set(NOW.plus(Duration.ofHours(1)));
+        uploads.sweepUnlinked();
+        assertThat(jdbc.queryForList("SELECT id::text FROM script_uploads", String.class))
+                .containsExactlyInAnyOrder(linked, fixed, later);
+
+        clock.set(NOW.plus(Duration.ofHours(25)));
+        uploads.sweepUnlinked();
+        assertThat(jdbc.queryForList("SELECT id::text FROM script_uploads", String.class)).containsExactly(linked);
+        assertThat(storage.objects).containsOnlyKeys(key(linked));
+    }
+
+    @Test
+    @DisplayName("reading.script 원본: 보관 중에 script_split 새 판을 내도 결정하지 않은 동안은 남고, 새 판을 거절하면 다음 정리에 지워진다")
+    void newVersionKeepsUntilDeclined() throws Exception {
+        String kept = reserveAndPut("옛날.hwp", HWP97);
+        assertThat(detail(post("/v2/reading/uploads/{id}/complete", kept), 422)).isEqualTo("script_file_unreadable");
+        assertThat(retention(kept)).isEqualTo("hwp3 until 2027-10-06T03:00:00Z");
+        UUID secondVersion = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO consent_documents(id,type,version,locale,title,body,required,published_at)
+                VALUES (?,'script_split','v2','ko','script_split 제목','script_split 본문 v2',false,?)
+                """, secondVersion, PUBLISHED.plusDays(4));
+
+        clock.set(NOW.plus(Duration.ofHours(1)));
+        uploads.sweepUnlinked();
+        assertThat(jdbc.queryForList("SELECT id::text FROM script_uploads", String.class)).as("새 판에 아직 결정하지 않았다").containsExactly(kept);
+
+        jdbc.update("UPDATE user_consents SET occurred_at=? WHERE user_id=?", PUBLISHED, member);
+        Map<String, Object> decline = Map.of("document_id", secondVersion.toString(), "action", "declined");
+        assertThat(perform(post("/v2/consents").content(mapper.writeValueAsString(decline)), bearer).getStatus()).isEqualTo(201);
+        clock.set(NOW.plus(Duration.ofHours(2)));
+        uploads.sweepUnlinked();
+        assertThat(count("script_uploads")).isZero();
+        assertThat(storage.objects).isEmpty();
+    }
+
+    @Test
+    @DisplayName("reading.script 원본: 원본으로 넣은 나누기가 같은 request_id 의 다른 대본(옛 저장 API) 때문에 failed 로 닫히면 원본에 이유를 "
+            + "적지 않고 하루 뒤 지워진다 — 파일 탓이 아니다")
+    void fingerprintMismatchDoesNotKeepTheFile() throws Exception {
+        String uploadId = readFile("갈매기.txt", SCENE);
+        UUID requestId = UUID.randomUUID();
+        String importId = json(post("/v2/reading/imports").content(fileImport(requestId, uploadId)), 202, bearer)
+                .path("import_id").textValue();
+        Map<String, Object> saved = new LinkedHashMap<>();
+        saved.put("request_id", requestId.toString());
+        saved.put("title", "옛 기기의 대본");
+        saved.put("source", "paste");
+        saved.put("raw_text", "니나: 안녕하세요");
+        saved.put("characters", List.of(Map.of("name", "니나")));
+        saved.put("lines", List.of(Map.of("ordinal", 1, "kind", "dialogue", "character_index", 0, "text", "안녕하세요")));
+        json(post("/v2/reading/scripts").content(mapper.writeValueAsString(saved)), 201, bearer);
+
+        assertThat(worker.runOnce(clock.instant())).isTrue();
+        assertThat(json(get("/v2/reading/imports/{id}", importId), 200, bearer).path("failure").textValue()).isEqualTo("failed");
+        assertThat(retention(uploadId)).isEqualTo("- until -");
+
+        clock.set(NOW.plus(Duration.ofHours(25)));
+        uploads.sweepUnlinked();
+        assertThat(count("script_uploads")).isZero();
+    }
+
+    /** 실패 이유와 보관 시한. 없으면 {@code -}. */
+    private String retention(String uploadId) {
+        return jdbc.queryForObject("""
+                SELECT coalesce(failure,'-') || ' until '
+                       || coalesce(to_char(kept_until AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"'),'-')
+                FROM script_uploads WHERE id=?::uuid
+                """, String.class, uploadId);
     }
 
     private String key(String uploadId) {

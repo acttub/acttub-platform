@@ -24,7 +24,8 @@ class ScriptUploadServiceTest {
     @Test
     @DisplayName("reading.script 원본: 받기·뽑기가 시간 상한을 넘으면 422 script_file_unreadable, 끊긴 일이 자리를 쥔 동안 다음 읽기는 자리를 기다리다 429 script_upload_busy")
     void readsAreBoundedInTimeAndConcurrency() {
-        ScriptUploadService service = new ScriptUploadService(new Uploads(), null, new StuckStorage(), null,
+        Uploads uploads = new Uploads();
+        ScriptUploadService service = new ScriptUploadService(uploads, null, new StuckStorage(), null,
                 Clock.fixed(Instant.parse("2026-10-06T03:00:00Z"), ZoneOffset.UTC),
                 new ScriptUploadService.ReadLimits(1, Duration.ofMillis(200), Duration.ofMillis(300)));
 
@@ -33,6 +34,8 @@ class ScriptUploadServiceTest {
         assertThat(slow.status()).isEqualTo(422);
         assertThat(slow.getMessage()).isEqualTo("script_file_unreadable");
         assertThat(Duration.ofNanos(System.nanoTime() - started)).isLessThan(Duration.ofSeconds(2));
+        assertThat(uploads.failures).as("끊긴 읽기도 이유를 남기고 1년 보관을 청한다(동의는 저장소가 본다)")
+                .containsExactly("timeout until 2027-10-06T03:00:00Z");
 
         ApiException busy = catchThrowableOfType(ApiException.class, () -> service.read(USER, UUID.randomUUID()));
         assertThat(busy.status()).isEqualTo(429);
@@ -65,6 +68,8 @@ class ScriptUploadServiceTest {
     }
 
     private static final class Uploads implements ScriptUploadRepository {
+        final List<String> failures = new java.util.concurrent.CopyOnWriteArrayList<>();
+
         @Override public void reserve(UUID userId, UUID uploadId, String objectKey, long byteSize, Instant expiresAt, Instant now) {
             throw new UnsupportedOperationException();
         }
@@ -75,6 +80,10 @@ class ScriptUploadServiceTest {
 
         @Override public void saveText(UUID uploadId, String rawText, Instant now) {
             throw new UnsupportedOperationException();
+        }
+
+        @Override public void recordFailure(UUID uploadId, String failure, Instant keptUntil, Instant now) {
+            failures.add(failure + " until " + keptUntil);
         }
 
         @Override public List<UUID> sweepUnlinked(Instant before, Instant now) {
