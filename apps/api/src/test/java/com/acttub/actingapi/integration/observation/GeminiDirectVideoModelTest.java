@@ -67,4 +67,32 @@ class GeminiDirectVideoModelTest {
             assertThat(request.get().path("systemInstruction").path("parts").get(0).path("text").asText()).isEqualTo("분류 지침");
         } finally { server.stop(0); }
     }
+
+    @Test void coachRepliesStopAtTheOutputLimitAndACutReplyCountsAsEmpty() throws Exception {
+        var request = new AtomicReference<JsonNode>();
+        var mapper = new ObjectMapper();
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", exchange -> {
+            request.set(mapper.readTree(exchange.getRequestBody()));
+            byte[] response = """
+                    {"candidates":[{"content":{"parts":[{"text":"<생각>\\n배우가 한 말: 끊긴"}],"role":"model"},"finishReason":"MAX_TOKENS"}]}
+                    """.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, response.length);
+            exchange.getResponseBody().write(response);
+            exchange.close();
+        });
+        server.start();
+        try (var client = Client.builder().apiKey("not-a-real-key").httpOptions(HttpOptions.builder()
+                .baseUrl("http://127.0.0.1:" + server.getAddress().getPort()).build()).build()) {
+            var model = new GeminiDirectVideoModel(client, "gemini-3.8-flash");
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> model.reply(
+                            new DirectVideoModel.Video("files/test", "https://example.test/video", "video/mp4"),
+                            List.of(new DirectVideoModel.Message("user", "배우의 답")), "코칭 지침"))
+                    .isInstanceOf(IllegalStateException.class).hasMessageContaining("empty");
+            JsonNode config = request.get().path("generationConfig");
+            assertThat(config.path("maxOutputTokens").asInt()).isEqualTo(GeminiDirectVideoModel.REPLY_TOKEN_LIMIT).isEqualTo(2048);
+            assertThat(config.path("thinkingConfig").path("thinkingLevel").asText()).isEqualTo("LOW");
+        } finally { server.stop(0); }
+    }
 }
