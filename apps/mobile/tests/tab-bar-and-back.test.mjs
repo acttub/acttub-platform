@@ -8,14 +8,17 @@ test('스택 화면의 뒤로 버튼은 설정 화면과 같은 꺾쇠 버튼이
   const root = read('app/_layout.tsx');
   assert.match(root, /headerBackVisible: false/);
   assert.match(root, /headerLeft: \(\) => <HeaderBack \/>/);
-  // iOS 26 은 헤더 왼쪽 버튼에 유리 배경을 씌운다 — 설정 화면처럼 꺾쇠만 보이게 배경을 끈다.
-  assert.match(root, /unstable_headerLeftItems: \(\) => \[\{ type: 'custom', element: <HeaderBack \/>, hidesSharedBackground: true \}\]/);
+  // iOS 는 네이티브 헤더(버튼마다 유리 배경) 대신 설정 화면처럼 꺾쇠 옆에 제목을 붙인 헤더를 직접 그린다.
+  assert.match(root, /Platform\.OS === 'ios' \? \{ header: \(props: NativeStackHeaderProps\) => <AppHeader \{\.\.\.props\} \/> \}/);
+  const header = read('components/app-header.tsx');
+  assert.match(header, /options\.headerLeft\?\.\(/);
+  assert.match(header, /options\.headerRight\?\.\(/);
   const back = read('components/header-back.tsx');
   assert.match(back, /name="chevron-left" size=\{26\}/);
   assert.match(back, /router\.back\(\)/);
   assert.match(back, /canGoBack\(\)/);
   // 노트 화면은 뒤로 버튼을 두지 않는다(원래대로).
-  assert.match(read('app/report.tsx'), /headerLeft: \(\) => null, unstable_headerLeftItems: \(\) => \[\]/);
+  assert.match(read('app/report.tsx'), /headerLeft: \(\) => null/);
 });
 
 test('탭바: iOS 는 홈 인디케이터 바로 위에 뜬 알약, 안드로이드는 바닥에 붙은 전체 폭 막대', () => {

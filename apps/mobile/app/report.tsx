@@ -122,7 +122,7 @@ export default function ReportScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
-      <Stack.Screen options={{ title: t('note.title'), headerBackVisible: false, headerLeft: () => null, unstable_headerLeftItems: () => [], headerShadowVisible: false }} />
+      <Stack.Screen options={{ title: t('note.title'), headerBackVisible: false, headerLeft: () => null, headerShadowVisible: false }} />
 
       {loading && (
         <View style={styles.center}>
