@@ -358,6 +358,42 @@ class DirectVideoCoachTest {
                 .allSatisfy(call -> assertThat(call.metadata()).containsEntry("persona", "b1"));
     }
 
+    @Test void aComparedCoachModelIsPickedOnceStoredAndWritesEveryCoachReplyButNotTheRouting() {
+        var compared = mock(DirectVideoModel.class);
+        when(compared.model()).thenReturn("gemini-3.8-flash");
+        when(model.model()).thenReturn("gemini-3-flash-preview");
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\"]}");
+        when(compared.reply(eq(file), anyList(), anyString())).thenReturn(OPENING, "\"가\"에서도 상대를 안 봐요. 누구한테 하는 말이에요?");
+        var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
+                model, videos, storage, failures, telemetry, true, CoachPersonas.NONE, compared, 100)));
+        var first = loopEngine.start(session(), UUID.randomUUID());
+        var second = loopEngine.reply(first.session(), "붙잡길 바랐어요", UUID.randomUUID());
+        assertThat(second.session().coachingState().path("practice_loop").path("coach_model").asText()).isEqualTo("b");
+        verify(compared, times(2)).reply(eq(file), anyList(), anyString());
+        verify(model, never()).reply(eq(file), anyList(), anyString());
+        verify(model).classify(anyList(), anyString(), anyList());
+        verify(compared, never()).classify(anyList(), anyString(), anyList());
+        assertThat(telemetry.calls()).filteredOn(call -> call.step() == com.acttub.actingapi.platform.observability.LlmStep.COACH_TURN)
+                .hasSize(2).allSatisfy(call -> {
+                    assertThat(call.model()).isEqualTo("gemini-3.8-flash");
+                    assertThat(call.metadata()).containsEntry("coach_model_arm", "b");
+                });
+    }
+
+    @Test void withoutAComparedModelOrForSessionsStartedBeforeItEveryReplyStaysOnTheDefaultModel() {
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING);
+        var compared = mock(DirectVideoModel.class);
+        var off = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
+                model, videos, storage, failures, telemetry, true, CoachPersonas.NONE, compared, 0))).start(session(), UUID.randomUUID());
+        assertThat(off.session().coachingState().path("practice_loop").path("coach_model").asText()).isEqualTo("a");
+        verify(compared, never()).reply(any(), anyList(), anyString());
+        // 저장값이 b 여도 비교 모델을 끈 배포(롤백)에서는 기본 모델이 이어 쓴다.
+        var stored = StructuredJson.MAPPER.createObjectNode();
+        stored.putObject("practice_loop").put("coach_model", "b");
+        var rolledBack = new DirectVideoCoach(model, videos, storage, failures, telemetry, true);
+        assertThat(rolledBack.coachArm(session().withCoachingState("three_layers_v1", 0, stored, "open", ""))).isEqualTo("b");
+    }
+
     @Test void defaultPersonaIsRecordedWithoutChangingThePromptAndOthersGetNothing() {
         when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING);
         var advisor = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(

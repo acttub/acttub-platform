@@ -406,6 +406,16 @@ final class DirectVideoPracticeLoop {
         if (loop.path("persona").asText("").isEmpty()) loop.put("persona", persona);
     }
 
+    /** 이 대화의 코치 모델 쪽(SOMA-657). "a"는 기본 모델, "b"는 비교 모델. 없으면 빈 문자열. */
+    static String storedCoachModel(JsonNode state) {
+        return state == null ? "" : state.path(STATE_KEY).path("coach_model").asText("");
+    }
+
+    static void rememberCoachModel(ObjectNode state, String arm) {
+        ObjectNode loop = state.path(STATE_KEY).isObject() ? (ObjectNode) state.get(STATE_KEY) : state.putObject(STATE_KEY);
+        if (loop.path("coach_model").asText("").isEmpty()) loop.put("coach_model", arm);
+    }
+
     /** 이번 응답의 숨은 칸을 상태에 쌓는다. statuses 의 순서는 코치 턴의 순서와 같다. */
     static void remember(ObjectNode state, Parsed parsed) {
         ObjectNode loop = state.path(STATE_KEY).isObject() ? (ObjectNode) state.get(STATE_KEY) : state.putObject(STATE_KEY);
