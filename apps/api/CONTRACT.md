@@ -880,8 +880,15 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   만드는 두 자리(예시 대본의 접수, 워커의 완료)가 같은 트랜잭션에서 `script_uploads.script_id` 를 채우고 뽑은 글(`raw_text`)을 비운다(`linkUpload`).
 - 삭제: 대본 삭제(`PostgresScriptRepository#delete`)와 탈퇴(`PostgresProfileRepository#eraseReading`)가 행을 지우며 객체 키를 같은
   트랜잭션에서 장부 종류 `object_delete` 로 올리고 `next_attempt_at` 은 지운 행의 `expires_at` 최댓값이다(`reading/app/ScriptFileCleanup`,
-  영상과 같은 이유 — 서명 주소가 살아 있는 동안 지우면 다시 올린 객체가 장부 밖에 남는다). 미연결 정리는 `created_at` 하루 전 행을 `FOR UPDATE SKIP
-  LOCKED` 로 500개씩 지우되 pending·running 나누기 작업이 쓰는 행은 남긴다. 스위치는 `SCRIPT_UPLOAD_SWEEP_ENABLED`(기본 켬, 테스트가 끈다).
+  영상과 같은 이유 — 서명 주소가 살아 있는 동안 지우면 다시 올린 객체가 장부 밖에 남는다). 미연결 정리는 `kept_until` 이 빈 행은 `created_at`
+  하루 전 것을, 찬 행은 `kept_until` 이 지났거나 판과 상관없이 가장 최근 `script_split` 결정이 granted 가 아닌 것
+  (`PostgresScriptImportRepository#latestSplitDecision`)을 `FOR UPDATE SKIP LOCKED` 로 500개씩
+  지우되 pending·running 나누기 작업이 쓰는 행은 남긴다. 스위치는 `SCRIPT_UPLOAD_SWEEP_ENABLED`(기본 켬, 테스트가 끈다).
+- 실패 원본(V39): 읽기의 `Unreadable` 과 원본 탓인 나누기 실패(워커가 `keepFile` 로 가른다 — `KEPT_SPLIT_FAILURES` 와 모델 호출
+  실패, 지문 불일치·한도는 빠진다)가 `recordFailure` 로 `failure` 를 적고, 같은
+  문장에서 현재 판 결정이 granted 면 `kept_until` 을 채운다(`ck_script_uploads_kept_failure`: 시한은 이유가 있어야 한다). 나누기 실패는
+  `PostgresScriptImportRepository#fail` 의 트랜잭션 안이다. 현재 판 결정의 SQL 은 `PostgresScriptImportRepository#splitDecision` 한 곳이고
+  나누기 접수 게이트(`consent`)도 그것을 쓴다. `saveText` 는 두 칸을 비운다.
 - 읽기는 프로세스 전체 세마포어 둘(10초 기다림, 못 얻으면 429 `script_upload_busy`)을 잡고 가상 스레드에서 받기·뽑기를 하며 45초를
   넘으면 끊고(interrupt, 뽑기는 읽을 때마다 끊김을 본다) 422 `script_file_unreadable` 이다. 자리는 일이 실제로 끝날 때 돌려준다.
 - 뽑기의 자원 상한: 표 칸까지 센 글자 수가 한도의 두 배를 넘으면 멈추고, zip 안 XML 은 풀린 200MB, hwp 는 hwplib 에 넘기기 전에
