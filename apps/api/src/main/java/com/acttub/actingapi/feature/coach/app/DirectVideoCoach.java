@@ -36,6 +36,10 @@ public final class DirectVideoCoach {
     private final boolean practiceLoop;
     // 자문위원 연습만 코치 성격을 번갈아 받는다(SOMA-622). 그 밖의 배우는 늘 기본 성격이다.
     private final CoachPersonas personas;
+    // 코치 모델 비교(SOMA-657). 새 대화의 alternateShare% 는 코치 답을 alternate 모델로 쓴다.
+    // 분류·줄이기·영상 올리기는 늘 기본 모델이다. null 이거나 0 이면 모두 기본 모델(롤백).
+    private final DirectVideoModel alternate;
+    private final int alternateShare;
 
     public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
             FailureReporter failures, LlmTelemetry telemetry, boolean practiceLoop) {
@@ -44,6 +48,14 @@ public final class DirectVideoCoach {
 
     public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
             FailureReporter failures, LlmTelemetry telemetry, boolean practiceLoop, CoachPersonas personas) {
+        this(model, videos, storage, failures, telemetry, practiceLoop, personas, null, 0);
+    }
+
+    public DirectVideoCoach(DirectVideoModel model, CoachVideoSource videos, ObjectStorage storage,
+            FailureReporter failures, LlmTelemetry telemetry, boolean practiceLoop, CoachPersonas personas,
+            DirectVideoModel alternate, int alternateShare) {
+        this.alternate = alternate;
+        this.alternateShare = alternate == null ? 0 : Math.max(0, Math.min(100, alternateShare));
         this.personas = personas == null ? CoachPersonas.NONE : personas;
         this.practiceLoop = practiceLoop;
         this.model = model;
@@ -64,6 +76,8 @@ public final class DirectVideoCoach {
         Instant started = Instant.now();
         boolean loop = practiceLoop && DirectVideoPracticeLoop.applies(session);
         String persona = loop ? persona(session, operationId) : "";
+        String arm = loop ? coachArm(session) : "a";
+        DirectVideoModel speaker = coachModel(arm);
         var history = new ArrayList<DirectVideoModel.Message>();
         if (loop) {
             history.addAll(DirectVideoPracticeLoop.history(session.turns(), session.coachingState(), actorText));
@@ -148,6 +162,7 @@ public final class DirectVideoCoach {
                     + "\n" + (actorText == null ? "" : actorText);
             ObjectNode state = nextState(session);
             if (!persona.isEmpty()) DirectVideoPracticeLoop.rememberPersona(state, persona);
+            if (loop) DirectVideoPracticeLoop.rememberCoachModel(state, arm);
             if (loop) {
                 DirectVideoDialogueEvidence.discardUngroundedDesign(uploaded, state, written);
                 history.clear();
@@ -188,13 +203,13 @@ public final class DirectVideoCoach {
                     + (loop ? DirectVideoPracticeLoop.actorMaterial(session) : "") + task, uploaded);
             input = CoachPrompt.withoutActorName(prompt, session.actorProfile()) + "\n" + history;
             ExternalOperationExecution.externalCall("model");
-            String message = replyOrNull(uploaded, history, prompt, loop);
+            String message = replyOrNull(speaker, uploaded, history, prompt, loop);
             // 연습 루프에서 배우에게 보일 말이 비었으면(빈 응답, 숨은 메모만 쓴 응답) 한 번 다시 쓰게 한다.
             boolean emptyRetry = false;
             if (loop && (message == null || DirectVideoPracticeLoop.parse(message).message().isBlank())) {
                 emptyRetry = true;
                 ExternalOperationExecution.externalCall("model");
-                message = replyOrNull(uploaded, history, prompt + "\n\n"
+                message = replyOrNull(speaker, uploaded, history, prompt + "\n\n"
                         + DirectVideoPracticeLoop.emptyRetryNote(DirectVideoPracticeLoop.replyLanguage(session, actorText)), loop);
             }
             // 대화와 상관없는 글(웹페이지·코드·자모)이 나오면 배우에게 보내지 않고 한 번 다시 쓰게 한다.
@@ -204,7 +219,7 @@ public final class DirectVideoCoach {
             if (loop && message != null && DirectVideoPracticeLoop.looksBroken(DirectVideoPracticeLoop.parse(message).message(), replyLanguage)) {
                 brokenRetry = true;
                 ExternalOperationExecution.externalCall("model");
-                message = replyOrNull(uploaded, history, prompt + "\n\n" + DirectVideoPracticeLoop.brokenRetryNote(replyLanguage), loop);
+                message = replyOrNull(speaker, uploaded, history, prompt + "\n\n" + DirectVideoPracticeLoop.brokenRetryNote(replyLanguage), loop);
                 if (message != null && DirectVideoPracticeLoop.looksBroken(DirectVideoPracticeLoop.parse(message).message(), replyLanguage)) {
                     message = null;
                 }
@@ -216,8 +231,9 @@ public final class DirectVideoCoach {
             if (loop && DirectVideoPracticeLoop.hasTimestamp(DirectVideoPracticeLoop.parse(message).message())) {
                 timeRetry = true;
                 ExternalOperationExecution.externalCall("model");
-                String again = model.reply(uploaded, history, prompt + "\n\n"
-                        + DirectVideoPracticeLoop.timestampRetryNote(DirectVideoPracticeLoop.replyLanguage(session, actorText)));
+                // 다시 쓴 답이 비거나 한도에 걸려 끊기면 처음 답을 쓰고 시간만 걷어낸다.
+                String again = replyOrNull(speaker, uploaded, history, prompt + "\n\n"
+                        + DirectVideoPracticeLoop.timestampRetryNote(DirectVideoPracticeLoop.replyLanguage(session, actorText)), loop);
                 if (again != null && !again.isBlank() && !DirectVideoPracticeLoop.parse(again).message().isBlank()) {
                     try {
                         DirectVideoDialogueEvidence.requireGrounded(uploaded, again, written);
@@ -270,12 +286,12 @@ public final class DirectVideoCoach {
                 shown = shorter;
             }
             telemetry.record(new LlmCall(LlmStep.COACH_TURN, session.practiceSessionId(), session.userId(),
-                    model.model(), input, message, LlmTokens.unknown(), started, Duration.between(started, Instant.now()),
+                    speaker.model(), input, message, LlmTokens.unknown(), started, Duration.between(started, Instant.now()),
                     null, LlmCall.metadata("transport", "gemini_direct_video", "route", route,
                             "route_fallback", Boolean.toString(branch != null ? "fallback".equals(branch.classified().by()) : routeFallback),
                             "timestamp_retry", Boolean.toString(timeRetry), "timestamp_stripped", Boolean.toString(timeStripped),
                             "shorten_calls", Integer.toString(shortened), "empty_retry", Boolean.toString(emptyRetry), "broken_retry", Boolean.toString(brokenRetry),
-                            "persona", persona))
+                            "persona", persona, "coach_model_arm", arm))
                     .withPrompt(template));
             if (loop) DirectVideoPracticeLoop.remember(state, parsed);
             if (cut) DirectVideoPracticeLoop.markNotActing(state, "model");
@@ -288,9 +304,9 @@ public final class DirectVideoCoach {
             failures.report(failure, inspecting ? FailureKind.UNEXPECTED : FailureKind.EXTERNAL,
                     new FailureContext(inspecting ? "DirectVideoCoach.inspect" : "DirectVideoCoach.turn", operationId));
             telemetry.record(new LlmCall(LlmStep.COACH_TURN, session.practiceSessionId(), session.userId(),
-                    model.model(), input, "", LlmTokens.unknown(), started, Duration.between(started, Instant.now()),
+                    speaker.model(), input, "", LlmTokens.unknown(), started, Duration.between(started, Instant.now()),
                     failure.getClass().getSimpleName(), LlmCall.metadata("transport", "gemini_direct_video", "route", route,
-                            "route_fallback", Boolean.toString(routeFallback))).withPrompt(template));
+                            "route_fallback", Boolean.toString(routeFallback), "coach_model_arm", arm)).withPrompt(template));
             throw new CoachReplyUnavailable();
         } finally {
             if (uploaded != null) {
@@ -324,6 +340,21 @@ public final class DirectVideoCoach {
         }
     }
 
+    /**
+     * 이 대화의 코치 모델 쪽(SOMA-657). 저장된 값이 있으면 그대로 쓴다. 첫 응답이면 연습 세션 id 로 정해
+     * 같은 세션은 다시 시도해도 같은 쪽이 나온다. 배포 전에 시작한 대화(저장값 없음)는 기본 모델로 끝낸다.
+     */
+    String coachArm(CoachSessionSnapshot session) {
+        String stored = DirectVideoPracticeLoop.storedCoachModel(session.coachingState());
+        if (!stored.isEmpty()) return stored;
+        if (!session.turns().isEmpty() || alternateShare <= 0 || session.practiceSessionId() == null) return "a";
+        return Math.floorMod(session.practiceSessionId().hashCode(), 100) < alternateShare ? "b" : "a";
+    }
+
+    private DirectVideoModel coachModel(String arm) {
+        return "b".equals(arm) && alternate != null ? alternate : model;
+    }
+
     private static String personaBlock(String persona, java.util.Locale language) {
         String text = DirectVideoPrompts.persona(persona, language);
         return text.isEmpty() ? "" : "\n\n" + text;
@@ -333,10 +364,10 @@ public final class DirectVideoCoach {
      * 코치 AI 호출. 연습 루프에서는 빈 응답("empty video coaching reply")을 오류로 끝내지 않고 {@code null}로 돌려
      * 한 번 다시 쓰게 한다. 다른 실패는 그대로 던진다.
      */
-    private String replyOrNull(DirectVideoModel.Video video, java.util.List<DirectVideoModel.Message> history, String prompt,
-            boolean loop) {
+    private static String replyOrNull(DirectVideoModel speaker, DirectVideoModel.Video video,
+            java.util.List<DirectVideoModel.Message> history, String prompt, boolean loop) {
         try {
-            String reply = model.reply(video, history, prompt);
+            String reply = speaker.reply(video, history, prompt);
             return reply == null || reply.isBlank() ? null : reply;
         } catch (IllegalStateException empty) {
             if (loop && String.valueOf(empty.getMessage()).contains("empty")) return null;
