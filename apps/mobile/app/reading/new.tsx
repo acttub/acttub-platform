@@ -1,5 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { usePreventRemove } from '@react-navigation/native';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { File } from 'expo-file-system';
 import { useEffect, useReducer, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -208,9 +209,14 @@ export default function ReadingNew() {
 
   const setTab = (tab: ScriptTab) => dispatch({ type: 'tab', tab });
   const closable = popup !== null && popup.kind !== 'splitting' && !(popup.kind === 'consent' && popup.busy);
+  // 파일을 올리는 중·나누는 중에는 떠나지 못하게 한다 — 나가면 올리던 파일과 나누기가 버려진다(SOMA-664).
+  // 머리 뒤로 버튼·안드로이드 뒤로 키는 막고, iOS 밀어서 나가기는 끈다.
+  const working = input.file.kind === 'reading' || popup?.kind === 'splitting';
+  usePreventRemove(working, () => undefined);
 
   return (
     <View style={[styles.root, { paddingBottom: keyboard }]}>
+      <Stack.Screen options={{ gestureEnabled: !working }} />
       <View style={styles.content}>
         <Text style={styles.step}>{t('reading.newStep')}</Text>
         <Text style={styles.title}>{t('reading.newHeading')}</Text>

@@ -18,6 +18,8 @@ test('설정과 공지 포스터 소스는 번역 키와 분석 소스를 사용
     assert.doesNotMatch(ko, new RegExp(`${key}:`));
     assert.doesNotMatch(en, new RegExp(`${key}:`));
   }
-  assert.match(settings, /enable\('settings'\)/);
+  // 켜기 스위치는 설정 화면에서 대본 탭 위로 옮겼다(SOMA-664). 출처 이름은 'settings' 그대로 쓴다.
+  assert.match(readFileSync(new URL('../app/(tabs)/reading.tsx', import.meta.url), 'utf8'), /enable\('settings'\)/);
+  assert.doesNotMatch(settings, /useCloudVoice/);
   assert.match(poster, /enable\('promo'\)/);
 });
