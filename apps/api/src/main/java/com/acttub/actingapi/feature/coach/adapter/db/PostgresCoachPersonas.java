@@ -44,18 +44,28 @@ class PostgresCoachPersonas implements CoachPersonas {
         Object email = entityManager.createNativeQuery("SELECT email FROM users WHERE id=:id")
                 .setParameter("id", session.userId()).getResultList().stream().findFirst().orElse(null);
         if (!(email instanceof String text) || !advisors.contains(hash(text))) return "";
-        Number prior = (Number) entityManager.createNativeQuery("""
-                SELECT count(*) FROM practices p
+        // 지난 대화를 성격별로 센다. 배정이 고장 나 있던 #581 배포(10/9 18:45 KST) 이후 대화는 성격이 비어 있지만
+        // 실제로는 모두 기본 성격(a)이었으므로 a 쪽으로 센다. 그 전 대화는 다른 코치라 비교에 넣지 않는다.
+        Object[] counts = (Object[]) entityManager.createNativeQuery("""
+                SELECT count(*) FILTER (WHERE c.state->'practice_loop'->>'persona'='b1'),
+                       count(*) FILTER (WHERE COALESCE(c.state->'practice_loop'->>'persona','')<>'b1')
+                FROM practices p
                 JOIN coach_conversations c ON c.practice_id=p.id
                 WHERE p.user_id=:userId AND p.id<>:practiceId
+                  AND c.created_at >= TIMESTAMPTZ '2026-10-09 09:45:00+00'
                 """).setParameter("userId", session.userId())
                 .setParameter("practiceId", session.practiceSessionId()).getSingleResult();
-        return order(session.userId().hashCode(), prior.longValue());
+        return order(session.userId().hashCode(), ((Number) counts[0]).longValue(), ((Number) counts[1]).longValue());
     }
 
-    /** 시작 성격은 사람마다, 그다음은 대화마다 번갈아. */
-    static String order(int personSeed, long priorConversations) {
-        return ROTATION.get((int) Math.floorMod(Math.floorMod(personSeed, 2) + priorConversations, (long) ROTATION.size()));
+    /**
+     * 덜 받은 성격을 먼저 준다. 배정 고장으로 a만 받은 사람은 b1 이 따라잡을 때까지 b1 을 받고,
+     * 같아지면 사람마다 정한 시작 성격부터 번갈아 받는다.
+     */
+    static String order(int personSeed, long b1Conversations, long otherConversations) {
+        if (b1Conversations < otherConversations) return "b1";
+        if (b1Conversations > otherConversations) return DEFAULT;
+        return ROTATION.get(Math.floorMod(personSeed, 2));
     }
 
     static String hash(String email) {
