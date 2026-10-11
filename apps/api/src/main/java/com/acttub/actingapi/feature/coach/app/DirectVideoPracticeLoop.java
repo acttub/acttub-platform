@@ -24,12 +24,16 @@ final class DirectVideoPracticeLoop {
     private static final Pattern DESIGN = Pattern.compile("(?s)<설계>\\s*(.*?)\\s*</설계>");
     private static final Pattern STATUS = Pattern.compile("(?s)<상태>\\s*(.*?)\\s*</상태>");
     private static final Pattern COACH = Pattern.compile("(?s)<코치>\\s*(.*?)\\s*(?:</코치>|$)");
-    private static final Pattern STRAY_TAG = Pattern.compile("</?(?:설계|상태|코치|다음 테이크|생각)>");
+    // 숨은 메모 태그 이름. 모델이 <생각> 대신 영어 <thought>·<think>로 쓰는 일이 있다(2026-10-11 00:59 운영, 배우 화면에 "<thought>"가 나갔다).
+    private static final String THINKING_NAME = "(?:생각|thought|think|thinking)";
+    private static final Pattern STRAY_TAG = Pattern.compile("(?i)</?(?:설계|상태|코치|다음 테이크|" + THINKING_NAME + ")>");
     // 둘째 응답부터 코치가 말하기 전에 적는 숨은 메모. 배우 화면·저장 대화에 넣지 않는다.
-    private static final Pattern THINKING = Pattern.compile("(?s)<생각>.*?</생각>");
+    private static final Pattern THINKING = Pattern.compile("(?is)<(" + THINKING_NAME + ")>.*?</\\1>");
+    private static final Pattern THINKING_OPEN = Pattern.compile("(?i)<" + THINKING_NAME + ">");
+    private static final Pattern THINKING_CLOSE = Pattern.compile("(?i)</" + THINKING_NAME + ">");
     // 닫는 태그를 빠뜨렸을 때 메모의 칸 줄만 걷어낸다.
     private static final Pattern THINKING_LINE = Pattern.compile(
-            "(?m)^\\s*(?:<생각>|(?:배우가 한 말|배우가 지금 원하는 것|이번 목표|내 대답|끝 질문|글자 수)\\s*:.*)$\\R?");
+            "(?im)^\\s*(?:<" + THINKING_NAME + ">\\s*$|(?:배우가 한 말|배우가 지금 원하는 것|이번 목표|내 대답|끝 질문|글자 수)\\s*:.*$)\\R?");
     // 마무리2 에서 모델이 건넨 행동을 노트에 남기려고 쓰게 하는 숨은 줄. 배우에게는 보이지 않는다.
     private static final Pattern NEXT_TAKE_TAG = Pattern.compile("(?s)<다음 테이크>\\s*(.*?)\\s*</다음 테이크>");
     // 모델이 줄 끝에 남기는 날 자모("알려 주세요.ㄴ" 같은). 실험에서 실제로 나왔고 다음 턴에 그대로 따라 한다.
@@ -63,9 +67,11 @@ final class DirectVideoPracticeLoop {
         String rest = NEXT_TAKE_TAG.matcher(STATUS.matcher(DESIGN.matcher(text).replaceAll("")).replaceAll("")).replaceAll("");
         rest = THINKING.matcher(rest).replaceAll("");
         // 여는 태그 없이 </생각>만 남았으면 그 앞은 모두 메모다(실험에서 실제로 나왔다).
-        int strayClose = rest.lastIndexOf("</생각>");
-        if (strayClose >= 0) rest = rest.substring(strayClose + "</생각>".length());
-        if (rest.contains("<생각>")) rest = THINKING_LINE.matcher(rest).replaceAll("");
+        Matcher close = THINKING_CLOSE.matcher(rest);
+        int strayClose = -1;
+        while (close.find()) strayClose = close.end();
+        if (strayClose >= 0) rest = rest.substring(strayClose);
+        if (THINKING_OPEN.matcher(rest).find()) rest = THINKING_LINE.matcher(rest).replaceAll("");
         Matcher coach = COACH.matcher(rest);
         String message = coach.find() ? coach.group(1) : rest;
         message = STRAY_TAG.matcher(message).replaceAll("");
@@ -111,6 +117,8 @@ final class DirectVideoPracticeLoop {
             "(?i)<!DOCTYPE|</?(?:html|head|body|div|article|footer|section|span|script|style|meta|table)\\b|\\busing System\\b"
                     + "|\\bnamespace\\s+\\w|\\bpublic\\s+(?:class|static|void)\\b|```|\\{\\s*\"[a-z_]+\"\\s*:");
 
+    private static final Pattern LEFTOVER_TAG = Pattern.compile("</?[A-Za-z][A-Za-z0-9_-]*\\s*/?>");
+
     /**
      * 배우에게 보낼 수 없는 출력인지. HTML·코드가 섞였거나, 한국어 대화에서 한글이 글자의 절반이 안 되거나,
      * 날 자모가 반복되면 깨진 출력으로 본다. 빈 말은 여기서 보지 않는다(빈 답 다시 쓰기가 따로 있다).
@@ -120,6 +128,8 @@ final class DirectVideoPracticeLoop {
         // 제로폭 공백(U+200B) 같은 보이지 않는 글자만 있으면 isBlank()를 통과해 빈 말풍선이 나간다(10/9 22:46 운영).
         if (text.replaceAll("[\\p{Cf}\\s]+", "").isEmpty()) return true;
         if (MARKUP_OR_CODE.matcher(text).find()) return true;
+        // 숨은 칸을 걷어낸 뒤에도 꺾쇠 태그(<thought>, <answer> 같은)가 남았으면 배우에게 보내지 않는다.
+        if (LEFTOVER_TAG.matcher(text).find()) return true;
         boolean korean = language == null || "ko".equals(language.getLanguage());
         if (!korean) return false;
         int hangul = 0, jamo = 0, letters = 0;
