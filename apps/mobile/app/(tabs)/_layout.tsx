@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs, useRouter } from 'expo-router';
 import React from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
@@ -55,7 +55,8 @@ export default function TabLayout() {
             position: 'absolute',
             left: 20,
             right: 20,
-            bottom: insets.bottom + 16,
+            // iOS 는 홈 인디케이터 칸(34pt)이 이미 넓어 더 띄우면 너무 떠 보인다 — 인디케이터 칸 안쪽으로 붙인다.
+            bottom: Platform.OS === 'ios' ? Math.max(insets.bottom - 4, 12) : insets.bottom + 16,
             height: 64,
             borderRadius: 32,
             backgroundColor: palette.card,
