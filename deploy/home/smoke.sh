@@ -11,7 +11,7 @@
 # Flyway(빈 Postgres 에서 V1 부터)·배포 스크립트의 대기·대조 논리가 함께 걸린다.
 #
 # 무엇을 판정하나 (SOMA-489 조각 01·02·03·06 수락 조건) — 번호는 아래 본문의 절 번호와 같다
-#   1. apps/api 의 jar 로 API 이미지가 빌드되고 ffmpeg·ffprobe·curl 이 안에 있으며 non-root 로 돈다
+#   1. apps/api 의 jar 로 API 이미지가 빌드되고 ffmpeg·ffprobe·curl·tesseract(한국어) 가 안에 있으며 non-root 로 돈다
 #   2. 저장소 루트를 컨텍스트로 웹 이미지가 build-arg(사이트 URL·Sentry·PostHog·커밋)를 받아 빌드되고,
 #      안에는 standalone·.next/static·public 만 있다 — 소스 트리·.env 가 없고 prebuild 산출물(ort wasm·
 #      Pretendard)이 들어 있으며 non-root 로 돈다
@@ -117,7 +117,7 @@ step "jar 빌드 (apps/api ./gradlew bootJar)"
 step "API 이미지 빌드 → $IMAGE (컨텍스트 apps/api)"
 build_image "$IMAGE" "$API_DIR"
 
-step "이미지 안에 ffmpeg·ffprobe·curl 이 있고 non-root 로 돈다"
+step "이미지 안에 ffmpeg·ffprobe·curl·tesseract(한국어) 가 있고 non-root 로 돈다"
 # ENTRYPOINT 가 java 라 --entrypoint 로 바꿔 부른다. 첫 줄만 보여 준다(head 는 pipefail 과 충돌).
 image_has() {
   local cmd="$1" out; shift
@@ -127,6 +127,10 @@ image_has() {
 image_has ffmpeg -version
 image_has ffprobe -version
 image_has curl --version
+# 그림 PDF 대본의 글자 인식(DocumentText)은 tesseract 가 없으면 조용히 「읽지 못함」으로 돌아간다 — 여기서 잡는다.
+langs="$(docker run --rm --entrypoint tesseract "$IMAGE" --list-langs 2>/dev/null)" || fail "이미지 안에 tesseract 가 없다"
+grep -qx kor <<<"$langs" || fail "이미지 안에 tesseract 한국어 데이터가 없다"
+echo "  tesseract kor"
 # assert_non_root <이미지> → uid 를 찍고 0 이면 fail. api·web 이미지가 같은 검사를 받는다.
 assert_non_root() {
   local uid
