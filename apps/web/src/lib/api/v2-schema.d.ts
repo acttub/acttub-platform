@@ -4,6 +4,32 @@
  */
 
 export interface paths {
+    "/v2/reading/sessions/{session_id}/rating": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Rate Reading Session
+         * @description 회차에 "좋았어요(good)·아쉬웠어요(bad)" 와 한 줄(선택)을 남긴다. 회차 하나에 한 행이고 다시 보내면
+         *     덮어쓴다 — comment 를 빼면 한 줄도 비운다. 한 줄은 앞뒤 공백을 걷은 1~100자이고 넘으면 422
+         *     comment_too_long 이다. 진행 중 회차도 받고, 평가는 회차 상태를 바꾸지 않는다.
+         *
+         *     같은 request_id·같은 본문의 재전송은 200 같은 응답이고, 같은 id 에 다른 본문이면 422
+         *     request_fingerprint_mismatch 다. 없는 회차·남의 회차는 같은 404 session_not_found 다(회차 조회와
+         *     같다).
+         */
+        put: operations["rate_reading_session_v2_reading_sessions__session_id__rating_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/reading/lines/{line_id}/memorization": {
         parameters: {
             query?: never;
@@ -1478,7 +1504,8 @@ export interface paths {
         };
         /**
          * Get Reading Session
-         * @description 없는 것과 남의 것은 같은 404 session_not_found 다.
+         * @description 없는 것과 남의 것은 같은 404 session_not_found 다. my_rating 은 이 사람이 이 회차에 남긴 평가이고
+         *     없으면 null 이다.
          */
         get: operations["get_reading_session_v2_reading_sessions__session_id__get"];
         put?: never;
@@ -2160,6 +2187,36 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ReadingSessionRatingRequest */
+        ReadingSessionRatingRequest: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /**
+             * Rating
+             * @enum {string}
+             */
+            rating: "good" | "bad";
+            /** Comment */
+            comment?: string | null;
+        };
+        /** ReadingSessionRating */
+        ReadingSessionRating: {
+            /**
+             * Rating
+             * @enum {string}
+             */
+            rating: "good" | "bad";
+            /** Comment */
+            comment: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
         /** ReadingMemorizationRequest */
         ReadingMemorizationRequest: {
             status: components["schemas"]["ReadingMemorizationStatusInput"];
@@ -3013,6 +3070,7 @@ export interface components {
             recordings: components["schemas"]["ReadingSessionRecording"][];
             /** Different Lines */
             different_lines: components["schemas"]["ReadingDifferentLine"][];
+            my_rating?: components["schemas"]["ReadingSessionRating"] | null;
         };
         /** ReadingSessionProgressCount */
         ReadingSessionProgressCount: {
@@ -5395,6 +5453,41 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    rate_reading_session_v2_reading_sessions__session_id__rating_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadingSessionRatingRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingSessionRating"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     set_line_memorization_v2_reading_lines__line_id__memorization_put: {
         parameters: {
             query?: never;

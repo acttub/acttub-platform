@@ -571,7 +571,8 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 - **영상 객체**는 옛 예약 장부(`upload_intents`)와 0.1.0 보관함(`videos`)의 키를 함께 모은다 — 보관함 영상의
   **포스터**(`videos.poster_key`, V23)도 함께다. 포스터 워커는 붙일 때 같은 `users` 행을 잡으므로 탈퇴가 키를 모은 뒤에
   붙는 포스터는 없다([practice.library](../../docs/specs/practice/library.md)). 남길지는 [account.withdraw](../../docs/specs/account/withdraw.md#규칙제약)가 정하고 `PostgresProfileRepository#retentionGranted` 가 판정한다.
-- **리딩 자료는 같은 트랜잭션에서 행째 지운다**(`PostgresProfileRepository#eraseReading`, §6-14). 보관 동의가
+- **리딩 자료는 같은 트랜잭션에서 행째 지운다**(`PostgresProfileRepository#eraseReading`, §6-14). 회차 평가
+  (`reading_session_ratings`)도 회차와 함께 행째 지운다 — 노트 평가처럼 한 줄만 비우고 남기지 않는다. 보관 동의가
   있으면 녹음 행을 남기고 `reading_session_id`·`line_id` 를 NULL 로 비운 채 `user_id` 를 유지해 3년 파기가 지우고,
   없으면 행(음성과 **전사**)을 지우고 객체 키를 장부(`reading_recording_delete`)에 올린다. 지우기 전에 그
   사람의 `scripts`·`reading_sessions` 행을 `FOR UPDATE` 로 잡는다 — 리딩의 쓰기가 같은 행을 잡으므로 겹쳐도
@@ -739,9 +740,10 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 - **경로**는 전부 `/v2/reading/**` 이고 게스트의 기능 표 `READING`(`platform/security/GuestFeature`, §6-9)에 든다.
   회원은 회원의 게이트(§6-5)를 지난다.
-- **스키마(V13, V33, V34)**: `scripts`·`script_characters`·`script_lines`·`reading_sessions`·`reading_recordings`·
-  `line_memorization`, 나누기 요청 `script_imports`(V33), 원본 파일 `script_uploads`(V34). 값 목록은 text + CHECK 이고 Java enum 은 `platform/schema` 에 있다(`ScriptSource`·
-  `ScriptLineKind`·`ReadingMode`·`ReadingAdvance`·`ReadingSessionStatus`·`TranscriptSource`·`MemorizationStatus`·`ScriptImportFailure`).
+- **스키마(V13, V33, V34, V40)**: `scripts`·`script_characters`·`script_lines`·`reading_sessions`·`reading_recordings`·
+  `line_memorization`, 나누기 요청 `script_imports`(V33), 원본 파일 `script_uploads`(V34), 회차 평가 `reading_session_ratings`(V40). 값 목록은 text + CHECK 이고 Java enum 은 `platform/schema` 에 있다(`ScriptSource`·
+  `ScriptLineKind`·`ReadingMode`·`ReadingAdvance`·`ReadingSessionStatus`·`TranscriptSource`·`MemorizationStatus`·`ScriptImportFailure`·
+  `ReadingSessionRatingValue`).
   FK 에 `ON DELETE` 가 없다 — 삭제는 애플리케이션이 표대로 순서를 정해 지운다. `scripts.request_id`·
   `reading_sessions.request_id` 는 (user_id, request_id) 유일이고 이관 충돌 때만 NULL 이다.
   `uq_script_characters_script_name` 은 DEFERRABLE 이다 — 이름 수정이 두 배역의 이름을 맞바꿀 때 문장 사이에서
@@ -775,6 +777,17 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   구간의 대사 줄 원문으로 계산한다. 대사 번호는 표시값과 같은 `ReadingLayout#dialogueNo` 가 센다. 녹음의 `matched` 는 최종 저장 트랜잭션이 그 줄 원문으로 정한다(`RecordingRules#matched`).
 - **회차 삭제**는 녹음 행을 지우고 객체 삭제를 같은 트랜잭션에서 장부(`reading_recording_delete`)에 올린다.
 - 마지막 회차는 `ORDER BY started_at DESC, id DESC` 의 첫 행이다(`PostgresScriptRepository`·`PostgresSessionRepository`).
+- **회차 평가**(`reading_session_ratings`, V40, SOMA-661) — 노트 평가(§6-15 `note_ratings`)와 같은 모양이다(행동은
+  [reading.session](../../docs/specs/reading/session.md#규칙제약)). 한 행은 `uq_reading_session_ratings_session_user` 가 지키고,
+  **멱등은 행의 `request_id` 가 한다** — 행이 덮어쓰이므로 지문 칸 없이 저장된 값과 견준다.
+  - 쓰기는 **`users` 행(활성 확인, §6-8) → 대본 행 → 회차 행** 순서로 `FOR UPDATE` 로 잡는다(`reading/adapter/db/
+    PostgresSessionRatingStore`). 대본 삭제가 대본 행을, 회차 삭제가 회차 행을 잡고 평가를 회차보다 먼저 지우므로 겹쳐도
+    지워진 회차에 평가가 남지 않는다(FK 에 `ON DELETE` 가 없어 남으면 회차 삭제가 깨진다).
+  - **삭제**: 회차 삭제(`PostgresSessionRepository#delete`)·대본 삭제(`PostgresScriptRepository#delete`)·탈퇴
+    (`PostgresProfileRepository#eraseReading`)가 회차보다 먼저 행째 지운다. 노트 평가와 달리 사람과 끊어 남기지 않는다 — 매달린
+    회차가 남지 않기 때문이다. **이관**은 `PostgresReadingOwnership` 이 다른 리딩 표와 함께 주인만 바꾼다.
+  - 회차 조회·시작 응답의 `my_rating` 은 `SessionController` 가 평가를 한 번 더 읽어 싣는다. 실 DB 검증은 `ReadingSessionRatingIT` 다.
+  - OpenAPI 컴포넌트: `ReadingSessionRatingRequest`·`ReadingSessionRating`(`ReadingSession.my_rating`, 필수 아님·nullable).
 
 **표시값 — 장면·자동 목소리·구간 이름·진행 K/N (SOMA-593)**
 

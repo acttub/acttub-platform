@@ -43,7 +43,10 @@ class PostgresReadingOwnership implements ReadingOwnership {
                     .setParameter("to", to)
                     .executeUpdate();
         }
-        for (String table : List.of("scripts", "reading_sessions", "reading_recordings", "line_memorization")) {
+        // 회차 평가(V40)는 회차를 따라 회원 것이 된다 — 회원의 회차 조회에 남긴 평가가 그대로 보인다. 회원과 게스트는
+        // 서로의 회차를 가질 수 없어 (session_id, user_id) 가 부딪히지 않는다.
+        for (String table : List.of(
+                "scripts", "reading_sessions", "reading_recordings", "line_memorization", "reading_session_ratings")) {
             entityManager.createNativeQuery("UPDATE " + table + " SET user_id=:to WHERE user_id=:from")
                     .setParameter("to", to)
                     .setParameter("from", from)

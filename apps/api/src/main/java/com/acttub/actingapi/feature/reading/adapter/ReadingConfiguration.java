@@ -23,6 +23,8 @@ import com.acttub.actingapi.feature.reading.app.ScriptService;
 import com.acttub.actingapi.feature.reading.app.ScriptSplitWorker;
 import com.acttub.actingapi.feature.reading.app.ScriptUploadRepository;
 import com.acttub.actingapi.feature.reading.app.ScriptUploadService;
+import com.acttub.actingapi.feature.reading.app.SessionRatingService;
+import com.acttub.actingapi.feature.reading.app.SessionRatingStore;
 import com.acttub.actingapi.feature.reading.app.SessionRepository;
 import com.acttub.actingapi.feature.reading.app.SessionService;
 import com.acttub.actingapi.feature.reading.app.VoiceSynthesizer;
@@ -98,6 +100,11 @@ class ReadingConfiguration {
     SessionService sessionService(
             SessionRepository sessions, ReadingRecordingCleanup cleanup, RecordingPlayback playback, Clock clock) {
         return new SessionService(sessions, cleanup, playback, clock);
+    }
+
+    @Bean
+    SessionRatingService sessionRatingService(SessionRatingStore store, Clock clock) {
+        return new SessionRatingService(store, clock);
     }
 
     @Bean

@@ -85,6 +85,8 @@ class ValueCheckCatalogIT {
         BY_CONSTRAINT.put("ck_practice_feedback_screen", FeedbackScreen.class);
         BY_CONSTRAINT.put("ck_practice_feedback_trigger", FeedbackTrigger.class);
         BY_CONSTRAINT.put("ck_note_ratings_rating", NoteRatingValue.class);
+        // 리딩 회차 평가(V40). 값 이름은 API 값이기도 하다.
+        BY_CONSTRAINT.put("ck_reading_session_ratings_rating", ReadingSessionRatingValue.class);
         BY_CONSTRAINT.put("ck_ai_jobs_kind", AiJobKind.class);
         BY_CONSTRAINT.put("ck_ai_jobs_status", OperationStatus.class);
         BY_CONSTRAINT.put("ck_portfolio_credits_kind", PortfolioCreditKind.class);
