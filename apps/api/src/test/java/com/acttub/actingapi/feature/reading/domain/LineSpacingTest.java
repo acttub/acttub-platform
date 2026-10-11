@@ -64,10 +64,9 @@ class LineSpacingTest {
     }
 
     @Test
-    @DisplayName("reading.script 띄어쓰기 복원: 공백만 바뀐 줄만 받는다 — 글자가 바뀐 줄·보내지 않은 번호·빠진 줄·깨진 줄은 버리고, 줄 안의 탭은 남긴다")
-    void acceptsOnlyWhitespaceChanges() {
+    @DisplayName("reading.script 띄어쓰기 복원: 보낸 번호의 줄만 받고 첫 탭에서만 가른다 — 줄 안의 탭은 남고, 모르는 번호·빠진 줄·깨진 줄은 없다")
+    void readsNumberedAnswerLines() {
         Map<Integer, String> restored = LineSpacing.parse(String.join("\n",
-                "2\t[엄마] 유세아, 공부 열심히 하고 있니?",
                 "4\t(암전)  ",
                 "5\t윤서\t여기 있을 줄 알았어.",
                 "9\t(암전)",
@@ -80,6 +79,45 @@ class LineSpacingTest {
                 Map.entry(5, "윤서\t여기 있을 줄 알았어."));
         assertThat(LineSpacing.parse("2\t[엄마] 유세아, 공부 열심히 하고 있지?\r", SENT))
                 .containsExactly(Map.entry(2, "[엄마] 유세아, 공부 열심히 하고 있지?"));
+    }
+
+    @Test
+    @DisplayName("reading.script 띄어쓰기 복원: 모델이 글자를 바꾸거나 더하거나 빼도 글자는 원문 그대로 두고 답의 띄어쓰기만 옮긴다")
+    void projectsAnswerSpacingOntoOriginalLetters() {
+        List<NumberedLine> sent = List.of(
+                new NumberedLine(1, "아 니 , 괜 찮 아 요 . 그 런 거 에 요 ."),
+                new NumberedLine(2, "그 는 천 천 히 의 자 에 앉 는 다"),
+                new NumberedLine(3, "그 는 관 객 석 에 앉 는 다"),
+                new NumberedLine(4, "[ 엄 마 ] 유 세 아 , 공 부 열 심 히 하 고 있 지 ?"));
+
+        Map<Integer, String> restored = LineSpacing.parse(String.join("\n",
+                "1\t아니, 괜찮아요. 그런 거예요.",
+                "2\t그는 , 천천히 의자에 앉는다.",
+                "3\t그는 객석에 앉는다",
+                "4\t[엄마]  유세아, 공부 열심히 하고 있니?"), sent);
+
+        assertThat(restored).containsExactly(
+                Map.entry(1, "아니, 괜찮아요. 그런 거에요."),
+                Map.entry(2, "그는 천천히 의자에 앉는다"),
+                Map.entry(3, "그는 관객석에 앉는다"),
+                Map.entry(4, "[엄마]  유세아, 공부 열심히 하고 있지?"));
+        for (NumberedLine line : sent) {
+            assertThat(restored.get(line.no()).replaceAll("\\s", "")).as("글자는 원문 그대로")
+                    .isEqualTo(line.text().replaceAll("\\s", ""));
+        }
+    }
+
+    @Test
+    @DisplayName("reading.script 띄어쓰기 복원: 글자가 20% 넘게 다른 답(다른 줄의 글)은 버린다")
+    void rejectsAnswersForAnotherLine() {
+        List<NumberedLine> sent = List.of(
+                new NumberedLine(1, "아 니 , 괜 찮 아 요 . 그 런 거 에 요 ."),
+                new NumberedLine(2, "( 암 전 )"));
+
+        assertThat(LineSpacing.parse(String.join("\n",
+                "1\t[엄마] 유세아, 공부 열심히 하고 있지?",
+                "2\t(암전)"), sent)).containsExactly(Map.entry(2, "(암전)"));
+        assertThat(LineSpacing.parse("2\t", sent)).as("빈 답").isEmpty();
     }
 
     @Test

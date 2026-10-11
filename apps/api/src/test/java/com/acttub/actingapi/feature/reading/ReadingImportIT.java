@@ -597,19 +597,19 @@ class ReadingImportIT {
     }
 
     @Test
-    @DisplayName("reading.script 띄어쓰기 복원: 모델이 글자 하나를 바꾼 줄과 빠뜨린 줄은 원문 그대로 나눈다")
-    void keepsOriginalWhenRestorationChangesLetters() throws Exception {
+    @DisplayName("reading.script 띄어쓰기 복원: 모델이 글자 하나를 바꾼 줄은 원문 글자에 띄어쓰기만 옮기고, 다른 줄의 글을 돌려준 줄과 빠뜨린 줄은 원문 그대로 나눈다")
+    void keepsOriginalLettersWhenRestorationChangesThem() throws Exception {
         Model.answer = call -> call.spacing()
-                ? "1\t엄마의 시험\n3\t[엄마] 유세아, 공부 열심히 하고 있니?\n4\t[유세아] 응. 걱정하지 마.\n"
+                ? "1\t엄마의 시험\n3\t[엄마] 유세아, 공부 열심히 하고 있니?\n4\t[엄마] 유세아, 공부 열심히 하고 있지?\n"
                 : Model.oracle(call);
         String scriptId = split(SPACED);
 
         assertThat(Model.CALLS.get(1).input()).isEqualTo("1\t엄마의 시험\n2\t[엄마] 이번엔 시험 잘 봐야지.\n"
-                + "3\t[ 엄 마 ] 유 세 아 , 공 부 열 심 히 하 고 있 지 ?\n4\t[유세아] 응. 걱정하지 마.\n5\t( 암 전 )");
+                + "3\t[엄마] 유세아, 공부 열심히 하고 있지?\n4\t[ 유 세 아 ] 응 . 걱 정 하 지 마 .\n5\t( 암 전 )");
         JsonNode script = json(get("/v2/reading/scripts/{id}", scriptId), 200);
         assertThat(script.path("lines")).extracting(line -> line.path("kind").textValue() + "|" + line.path("text").textValue())
-                .containsExactly("direction|엄마의 시험", "dialogue|이번엔 시험 잘 봐야지.",
-                        "direction|[ 엄 마 ] 유 세 아 , 공 부 열 심 히 하 고 있 지 ?", "dialogue|응. 걱정하지 마.", "direction|( 암 전 )");
+                .containsExactly("direction|엄마의 시험", "dialogue|이번엔 시험 잘 봐야지.", "dialogue|유세아, 공부 열심히 하고 있지?",
+                        "direction|[ 유 세 아 ] 응 . 걱 정 하 지 마 .", "direction|( 암 전 )");
     }
 
     @Test
