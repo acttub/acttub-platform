@@ -20,6 +20,7 @@ import {
 } from "react";
 import { useSearchParams } from "next/navigation";
 import wordmark from "@/assets/acttub-wordmark.png";
+import { LANDING_INTRO_HREF } from "@/lib/landing-intro";
 import { GUEST_BROWSER_ONLY_NOTICE } from "@/features/consent/guest-notice";
 import { useGuestSession } from "@/features/consent/use-guest-session";
 import {
@@ -1689,7 +1690,11 @@ const SessionRail = memo(function SessionRail({
       className={`flex h-full shrink-0 flex-col border-r border-[#edf0f3] bg-[#f9fafb] ${width}`}
     >
       <div className={`flex h-14 items-center ${open ? "justify-between px-4" : "justify-center"}`}>
-        {open ? <Image src={wordmark} alt="Acttub" priority className="h-5 w-auto" /> : null}
+        {open ? (
+          <Link href={LANDING_INTRO_HREF} aria-label="Acttub 소개 보기" className="shrink-0">
+            <Image src={wordmark} alt="Acttub" priority className="h-5 w-auto" />
+          </Link>
+        ) : null}
         <button
           type="button"
           onClick={onToggle}
