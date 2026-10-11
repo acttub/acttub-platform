@@ -8,9 +8,9 @@
     "required": true
   },
   {
-    "file": "privacy_v6.md",
+    "file": "privacy_v7.md",
     "type": "privacy",
-    "version": "v6",
+    "version": "v7",
     "locale": "ko",
     "title": "개인정보 수집·이용 동의",
     "required": true
@@ -80,9 +80,9 @@
     "required": true
   },
   {
-    "file": "privacy_v6_en.md",
+    "file": "privacy_v7_en.md",
     "type": "privacy",
-    "version": "v6",
+    "version": "v7",
     "locale": "en",
     "title": "Consent to Collection and Use of Personal Information",
     "required": true
