@@ -19,7 +19,6 @@ registerHooks({
 
 const analytics = await import("../src/lib/analytics/posthog.ts");
 const {
-  setPostHogUser,
   startPostHog,
   stopPostHog,
   toAgeDaysBucket,
@@ -74,7 +73,7 @@ function deliveredDuring(run) {
 test("키가 없으면 init도 capture도 하지 않는다", () => {
   delete process.env.NEXT_PUBLIC_POSTHOG_KEY;
   withFakeWindow("acttub.com", () => {
-    startPostHog();
+    startPostHog("guest-1");
     trackPracticePrepOpened("new");
   });
 
@@ -89,18 +88,18 @@ test("새로고침 뒤 opt-out 이 남아 있어도 켜면 opt-in 하고, $opt_i
   sdk.optedOut = true;
 
   const delivered = deliveredDuring(() => {
-    withFakeWindow("acttub.com", () => startPostHog());
+    withFakeWindow("acttub.com", () => startPostHog("guest-1"));
     trackPracticePrepOpened("new");
   });
 
-  assert.deepEqual(delivered, ["practice_prep_opened"]);
+  assert.deepEqual(delivered, ["$pageview", "practice_prep_opened"]);
   assert.deepEqual(callsOf("opt_in_capturing"), [["opt_in_capturing", { captureEventName: false }]]);
 });
 
 // 여러 번 불려도 SDK 인스턴스는 하나여야 device_id 와 세션이 갈라지지 않는다.
 test("키가 있으면 계약된 옵션으로 한 번만 초기화하고 설치 확인용 이벤트는 보내지 않는다", () => {
   const delivered = deliveredDuring(() => {
-    withFakeWindow("acttub.com", () => startPostHog());
+    withFakeWindow("acttub.com", () => startPostHog("guest-1"));
   });
 
   assert.deepEqual(delivered, []);
@@ -305,10 +304,10 @@ test("20개 이벤트 래퍼가 계약 속성만 보내고 금지 키를 만들�
 });
 
 // 결정 I-6: 끈다는 것은 실제 중단이다. 식별자만 지우면 이미 켜진 autocapture 와 화면 녹화는
-// SDK 가 스스로 계속 보낸다. opt-out 상태에서는 SDK 가 capture 를 버리고 녹화를 시작하지 않는다.
-test("계측 I-6: stopPostHog 는 SDK 를 opt-out 시키고 그 뒤의 이벤트를 보내지 않는다", () => {
-  withFakeWindow("acttub.com", () => setPostHogUser("guest-1"));
-  const optOutsBefore = callsOf("opt_out_capturing").length;
+// SDK 가 스스로 계속 보낸다. opt-out 은 이벤트를 버리고, 돌던 녹화기는 따로 멈춰야 한다.
+test("계측 I-6: stopPostHog 는 opt-out 하고 녹화를 멈추며 그 뒤의 이벤트를 보내지 않는다", () => {
+  withFakeWindow("acttub.com", () => startPostHog("guest-1"));
+  assert.equal(sdk.recording, true);
 
   const delivered = deliveredDuring(() => {
     stopPostHog();
@@ -318,86 +317,54 @@ test("계측 I-6: stopPostHog 는 SDK 를 opt-out 시키고 그 뒤의 이벤트
 
   assert.deepEqual(delivered, []);
   assert.equal(sdk.optedOut, true);
-  assert.equal(callsOf("opt_out_capturing").length, optOutsBefore + 1);
+  assert.equal(sdk.recording, false);
 });
 
-test("계측 I-6: 같은 게스트로 다시 켜면 opt-out 만 풀고 기기 식별은 끊지 않는다", () => {
-  const deviceBefore = sdk.deviceId;
-  sdk.calls.length = 0;
-
-  withFakeWindow("acttub.com", () => {
-    startPostHog();
-    setPostHogUser("guest-1");
-  });
+function startAs(start, userId) {
   sdk.delivered.length = 0;
+  withFakeWindow("acttub.com", () => start(userId));
   trackScreenViewed("/home");
+  return sdk.delivered.map(({ event, distinctId, deviceId }) => ({ event, distinctId, deviceId }));
+}
 
-  assert.deepEqual(sdk.delivered, [
-    { event: "screen_viewed", properties: { path: "/home" }, distinctId: "guest-1", deviceId: deviceBefore },
+test("계측 I-6: 같은 게스트로 다시 켜면 기기 식별을 끊지 않고 녹화를 다시 켠다", () => {
+  const device = sdk.deviceId;
+
+  assert.deepEqual(startAs(startPostHog, "guest-1"), [
+    { event: "$pageview", distinctId: "guest-1", deviceId: device },
+    { event: "screen_viewed", distinctId: "guest-1", deviceId: device },
   ]);
-  assert.deepEqual(
-    sdk.calls.map(([name]) => name),
-    ["opt_in_capturing", "capture"],
-  );
+  assert.equal(sdk.recording, true);
 });
 
-// reset() 은 저장된 동의도 지운다. 그래서 순서는 reset → (필요하면) opt-in → identify 다.
-test("계측 I-6: 다른 게스트로 켜지면 새 기기 id 로 끊고 그 게스트로 잇는다", () => {
-  const deviceBefore = sdk.deviceId;
-
+// opt_in 이 그 자리에서 $pageview 를 보내므로 신원을 먼저 바꾸지 않으면 그 페이지뷰가 앞 게스트에게 붙는다.
+test("계측 I-6: 다른 게스트로 켜지면 첫 페이지뷰부터 새 게스트·새 기기 id 로 보낸다", () => {
+  const device = sdk.deviceId;
   stopPostHog();
-  sdk.calls.length = 0;
-  withFakeWindow("acttub.com", () => {
-    startPostHog();
-    setPostHogUser("guest-2");
-  });
-  sdk.delivered.length = 0;
-  trackScreenViewed("/home");
 
-  assert.deepEqual(sdk.delivered, [
-    { event: "screen_viewed", properties: { path: "/home" }, distinctId: "guest-2", deviceId: deviceBefore + 1 },
+  assert.deepEqual(startAs(startPostHog, "guest-2"), [
+    { event: "screen_viewed", distinctId: "guest-2", deviceId: device + 1 },
   ]);
-  assert.deepEqual(
-    sdk.calls.map(([name]) => name),
-    ["opt_in_capturing", "reset", "identify", "capture"],
-  );
 });
 
-
-// 새로고침하면 모듈은 처음부터지만 SDK 는 앞 게스트의 식별을 저장소에 들고 있다. 비교 기준이
-// 모듈 변수라면 앞 게스트와 같은 기기 id 로 새 게스트가 이어진다.
+// 새로고침하면 모듈은 처음부터지만 SDK 는 앞 게스트의 식별과 opt-out 을 저장소에 들고 있다.
 test("계측 I-6: 새로고침 뒤 다른 게스트로 켜져도 새 기기 id 로 끊는다", async () => {
   const reloaded = await import("../src/lib/analytics/posthog.ts?reload-other-guest");
-  sdk.distinctId = "guest-2";
   sdk.optedOut = true;
-  const deviceBefore = sdk.deviceId;
+  const device = sdk.deviceId;
 
-  withFakeWindow("acttub.com", () => {
-    reloaded.startPostHog();
-    reloaded.setPostHogUser("guest-3");
-  });
-  sdk.delivered.length = 0;
-  reloaded.trackScreenViewed("/home");
-
-  assert.deepEqual(sdk.delivered, [
-    { event: "screen_viewed", properties: { path: "/home" }, distinctId: "guest-3", deviceId: deviceBefore + 1 },
+  assert.deepEqual(startAs(reloaded.startPostHog, "guest-3"), [
+    { event: "screen_viewed", distinctId: "guest-3", deviceId: device + 1 },
   ]);
 });
 
 test("계측 I-6: 새로고침 뒤 같은 게스트로 켜지면 기기 식별을 끊지 않는다", async () => {
   const reloaded = await import("../src/lib/analytics/posthog.ts?reload-same-guest");
-  sdk.distinctId = "guest-3";
   sdk.optedOut = true;
-  const deviceBefore = sdk.deviceId;
+  const device = sdk.deviceId;
 
-  withFakeWindow("acttub.com", () => {
-    reloaded.startPostHog();
-    reloaded.setPostHogUser("guest-3");
-  });
-  sdk.delivered.length = 0;
-  reloaded.trackScreenViewed("/home");
-
-  assert.deepEqual(sdk.delivered, [
-    { event: "screen_viewed", properties: { path: "/home" }, distinctId: "guest-3", deviceId: deviceBefore },
+  assert.deepEqual(startAs(reloaded.startPostHog, "guest-3"), [
+    { event: "$pageview", distinctId: "guest-3", deviceId: device },
+    { event: "screen_viewed", distinctId: "guest-3", deviceId: device },
   ]);
 });

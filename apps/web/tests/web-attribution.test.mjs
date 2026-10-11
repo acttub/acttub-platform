@@ -320,9 +320,8 @@ test("서버 privacy granted 뒤에만 계측 식별과 귀속 저장을 차례�
   };
   const measurement = createAnalyticsMeasurementSwitch({
     grant: () => order.push("ga-grant"),
-    startPostHog: () => order.push("posthog-start"),
+    startPostHog: (userId) => order.push(`posthog-start:${userId}`),
     setAnalyticsUser: (userId) => order.push(`ga-user:${userId}`),
-    setPostHogUser: (userId) => order.push(`posthog-user:${userId}`),
     activateAttribution: async (userId) => {
       order.push(`attribution:${userId}`);
       return true;
@@ -342,9 +341,8 @@ test("서버 privacy granted 뒤에만 계측 식별과 귀속 저장을 차례�
     "attribution-pause",
     "privacy-check",
     "ga-grant",
-    "posthog-start",
+    "posthog-start:guest-new",
     "ga-user:guest-new",
-    "posthog-user:guest-new",
     "attribution:guest-new",
   ]);
 });

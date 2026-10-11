@@ -16,7 +16,6 @@ import {
   trackPageView,
 } from "@/lib/analytics/ga";
 import {
-  setPostHogUser,
   startPostHog,
   stopPostHog,
   trackScreenViewed,
@@ -45,8 +44,7 @@ export const analyticsConsentGate: AnalyticsConsentGate = createAnalyticsConsent
     grant: grantAnalyticsConsent,
     startPostHog,
     setAnalyticsUser,
-    setPostHogUser,
-    activateAttribution: activateWebAttribution,
+      activateAttribution: activateWebAttribution,
     revoke: revokeAnalyticsConsent,
     clearAnalyticsUser,
     stopPostHog,

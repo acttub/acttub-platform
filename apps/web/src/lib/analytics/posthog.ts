@@ -55,13 +55,14 @@ let started = false;
 let measuring = false;
 
 /**
- * PostHog를 켠다. 호출부가 게스트의 개인정보 동의를 확인한 뒤에만 부른다.
+ * PostHog를 켠다. 호출부가 게스트의 개인정보 동의를 확인한 뒤에만 부른다. userId 는 이메일·표시
+ * 이름이 아니라 백엔드 내부 id다.
  *
  * 켜고 끄는 스위치는 프로젝트 키 하나다. 환경별로 다른 키를 넣어 프로젝트를 나눈다 —
  * `NEXT_PUBLIC_*`는 빌드 시점에 번들에 새겨지므로, 배포에서 키를 빼면 조용히 아무 일도
  * 일어나지 않는다. 그래서 없을 때 경고를 남긴다.
  */
-export function startPostHog(): void {
+export function startPostHog(userId: string): void {
   if (typeof window === "undefined") return;
   const apiKey = process.env.NEXT_PUBLIC_POSTHOG_KEY ?? "";
   if (!apiKey) {
@@ -90,41 +91,37 @@ export function startPostHog(): void {
       capture_dead_clicks: false,
     });
   }
-  optIn();
+  // 신원을 먼저 맞추고 켠다. opt_in_capturing 은 그 자리에서 $pageview 를 보내므로, 거꾸로 하면
+  // 새 게스트의 첫 페이지뷰가 앞 게스트에게 붙는다.
+  identify(userId);
+  // opt-out 은 localStorage 에 남아 새로고침 뒤의 init 도 꺼진 채로 시작한다. 기본 `$opt_in` 이벤트는 보내지 않는다.
+  if (posthog.has_opted_out_capturing()) posthog.opt_in_capturing({ captureEventName: false });
+  posthog.startSessionRecording();
   measuring = true;
 }
 
-// opt-out 은 localStorage 에 남아 새로고침 뒤의 init 도 꺼진 채로 시작한다. reset() 도 저장된
-// 동의를 지운다. 그래서 켤 차례마다 SDK 의 상태를 보고 푼다. 기본 `$opt_in` 이벤트는 보내지 않는다.
-function optIn(): void {
-  if (posthog.has_opted_out_capturing()) posthog.opt_in_capturing({ captureEventName: false });
-}
-
-/** 기기 너머의 행동을 잇는다. 이메일·표시 이름이 아니라 백엔드 내부 id만 받는다. */
-export function setPostHogUser(userId: string): void {
-  if (!started || !measuring) return;
+function identify(userId: string): void {
   // 앞 게스트는 SDK 저장소에서 읽는다. 모듈 변수는 새로고침하면 비어 앞 게스트를 놓친다.
   const identified = posthog.get_property("$user_id");
   if (identified === userId) return;
   // 이 브라우저에서 다른 게스트가 시작됐다. 앞 게스트의 기기 식별과 잇지 않는다(device id 도 새로).
-  if (identified) {
-    posthog.reset(true);
-    optIn();
-  }
+  if (identified) posthog.reset(true);
   posthog.identify(userId);
 }
 
 /**
  * 계측을 실제로 멈춘다(결정 I-6). 식별자만 지우는 것으로는 부족하다 — 이미 켜진 autocapture
- * 와 화면 녹화는 SDK 가 스스로 보낸다. opt-out 상태에서는 SDK 의 capture 가 이벤트를 버리고
- * (이미 돌던 녹화의 `$snapshot` 도 capture 를 거친다), 새 녹화는 시작하지 않는다
- * (session-recording 의 `isDisabled`).
+ * 와 화면 녹화는 SDK 가 스스로 보낸다. opt-out 상태에서는 SDK 의 capture 가 이벤트를 버린다.
+ * opt-out 만으로는 돌던 녹화기가 멈추지 않아 다시 켤 때 꺼진 동안의 화면이 올라가므로 녹화도 멈춘다.
  *
  * 기기 식별은 여기서 끊지 않는다. 탭이 다시 보일 때마다 확인하느라 잠깐 끄는 것까지 새
- * 기기로 세면 같은 게스트가 여럿으로 갈린다. 다른 게스트로 켜질 때 setPostHogUser 가 끊는다.
+ * 기기로 세면 같은 게스트가 여럿으로 갈린다. 다른 게스트로 켜질 때 startPostHog 가 끊는다.
  */
 export function stopPostHog(): void {
-  if (started && measuring) posthog.opt_out_capturing();
+  if (started && measuring) {
+    posthog.opt_out_capturing();
+    posthog.stopSessionRecording();
+  }
   measuring = false;
 }
 
