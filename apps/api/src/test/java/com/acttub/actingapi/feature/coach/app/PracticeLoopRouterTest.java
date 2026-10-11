@@ -65,8 +65,16 @@ class PracticeLoopRouterTest {
         assertThat(route(Kind.EVALUATION, afterWrap)).isEqualTo("짚어주기");
         assertThat(route(Kind.QUESTION, afterWrap)).isEqualTo("답하기");
         assertThat(PracticeLoopRouter.closesNext(Kind.QUESTION, afterWrap)).isTrue();
-        assertThat(route(Kind.ANSWER, afterWrap)).isEqualTo(PracticeLoopRouter.END);
-        assertThat(PracticeLoopRouter.closesNext(Kind.ANSWER, afterWrap)).isFalse();
+        // 2026-10-11 13:49 운영: 정리 뒤 "그저 화풀이니까 더 크게 화를 내야"(답함)가 대꾸 없이 닫혔다. 이제 한 번 받아 준다.
+        var reading = PracticeLoopRouter.parse("{\"signals\":[\"answered\"]}");
+        assertThat(PracticeLoopRouter.route(reading, afterWrap, 0)).isEqualTo("답하기");
+        assertThat(PracticeLoopRouter.closesNext(reading, afterWrap)).isTrue();
+        var ack = PracticeLoopRouter.parse("{\"signals\":[\"answered\",\"ack\"]}");
+        assertThat(PracticeLoopRouter.route(ack, afterWrap, 0)).as("맞장구는 바로 닫는다").isEqualTo(PracticeLoopRouter.END);
+        assertThat(PracticeLoopRouter.closesNext(ack, afterWrap)).isFalse();
+        assertThat(route(Kind.SHORT, afterWrap)).as("\"네\"처럼 짧은 말도 바로 닫는다").isEqualTo(PracticeLoopRouter.END);
+        var ackThenAsk = PracticeLoopRouter.forRouting(PracticeLoopRouter.parse("{\"signals\":[\"answered\",\"ack\",\"question\"]}"), afterWrap);
+        assertThat(PracticeLoopRouter.route(ackThenAsk, afterWrap, 0)).as("맞장구 뒤에 물었으면 답한다").isEqualTo("답하기");
         var answered = new Before(7, "답하기", Kind.QUESTION, new Tally(0, 0, 0), List.of(), false, false, false, true, 4);
         assertThat(route(Kind.QUESTION, answered)).as("답한 다음 말에서는 닫는다").isEqualTo(PracticeLoopRouter.END);
     }
@@ -101,9 +109,37 @@ class PracticeLoopRouterTest {
         assertThat(route(Kind.CHOICE, at(2, 3, PracticeLoopRouter.WANT, Kind.ANSWER))).isEqualTo(PracticeLoopRouter.GAP);
         assertThat(route(Kind.ANSWER, at(3, 4, PracticeLoopRouter.GAP, Kind.ANSWER))).isEqualTo(PracticeLoopRouter.FIND);
         assertThat(route(Kind.ANSWER, at(4, 5, PracticeLoopRouter.FIND, Kind.ANSWER))).isEqualTo(PracticeLoopRouter.WRAP_UP);
-        assertThat(route(Kind.ANSWER, at(4, 6, PracticeLoopRouter.WRAP_UP, Kind.ANSWER))).as("정리한 다음 말에서 닫는다")
-                .isEqualTo(PracticeLoopRouter.END);
+        assertThat(PracticeLoopRouter.route(PracticeLoopRouter.parse("{\"signals\":[\"answered\",\"ack\"]}"),
+                at(4, 6, PracticeLoopRouter.WRAP_UP, Kind.ANSWER), 0)).as("정리한 다음 맞장구에서 닫는다").isEqualTo(PracticeLoopRouter.END);
         assertThat(PracticeLoopRouter.stageAfter(PracticeLoopRouter.GAP, at(2, 3, PracticeLoopRouter.WANT, Kind.ANSWER))).isEqualTo(3);
+    }
+
+    @Test void findingStepWrapsUpOnlyWhenTheActorDecidedAnAction() {
+        // 2026-10-11 운영 11:11·11:32·01:10: 고민 중·이해 안 됨·전제 반박·피드백 요청도 answered라 바로 정리로 넘어갔다.
+        var find = at(4, 5, PracticeLoopRouter.FIND, Kind.ANSWER);
+        var torn = PracticeLoopRouter.parse("{\"signals\":[\"answered\"]}");
+        assertThat(torn.decided()).isFalse();
+        assertThat(PracticeLoopRouter.route(torn, find, 0)).as("고민 중이면 바꿔 묻는다").isEqualTo(PracticeLoopRouter.REASK);
+        assertThat(PracticeLoopRouter.route(torn, find, 1)).as("또 못 정하면 보기 둘").isEqualTo(PracticeLoopRouter.EASY);
+        assertThat(PracticeLoopRouter.route(torn, find, 2)).as("세 번째는 코치가 제안").isEqualTo(PracticeLoopRouter.PROPOSE);
+        assertThat(PracticeLoopRouter.route(torn, at(4, 8, PracticeLoopRouter.PROPOSE, Kind.ANSWER), 3))
+                .as("제안 뒤에는 정리로 간다(끝없이 머물지 않는다)").isEqualTo(PracticeLoopRouter.WRAP_UP);
+        assertThat(PracticeLoopRouter.route(PracticeLoopRouter.parse("{\"signals\":[\"answered\",\"question\"]}"), find, 0))
+                .as("헷갈려 물으면 먼저 답하고 머문다").isEqualTo("답하기");
+        assertThat(PracticeLoopRouter.route(PracticeLoopRouter.parse("{\"signals\":[\"answered\",\"evaluation\"]}"), find, 0))
+                .as("피드백을 달라면 판단을 주고 머문다").isEqualTo("짚어주기");
+        assertThat(PracticeLoopRouter.stageAfter("짚어주기", find)).isEqualTo(4);
+        assertThat(PracticeLoopRouter.route(PracticeLoopRouter.parse("{\"signals\":[\"answered\",\"method\"]}"), find, 0))
+                .as("방법을 물으면 정리에서 행동을 준다").isEqualTo(PracticeLoopRouter.WRAP_UP);
+        var decided = PracticeLoopRouter.parse("{\"signals\":[\"answered\",\"decided\"]}");
+        assertThat(PracticeLoopRouter.route(decided, find, 0)).isEqualTo(PracticeLoopRouter.WRAP_UP);
+        assertThat(PracticeLoopRouter.answerField(decided, find)).isEqualTo("찾은 대안");
+        assertThat(PracticeLoopRouter.answerField(torn, find)).as("정하지 않은 말은 찾은 대안으로 남기지 않는다").isNull();
+        assertThat(PracticeLoopRouter.route(torn, at(3, 4, PracticeLoopRouter.GAP, Kind.ANSWER), 0)).as("문턱은 4단계에만").isEqualTo(PracticeLoopRouter.FIND);
+        assertThat(PracticeLoopRouter.answerField(torn, at(3, 4, PracticeLoopRouter.GAP, Kind.ANSWER))).isEqualTo("알아챈 것");
+        assertThat(route(Kind.ANSWER, find)).as("판단이 없는 분류(버튼·실패)는 예전처럼 정리").isEqualTo(PracticeLoopRouter.WRAP_UP);
+        assertThat(PracticeLoopRouter.SIGNALS).contains("decided", "ack");
+        assertThat(DirectVideoPrompts.practiceLoopClassifier()).contains("decided:", "ack:");
     }
 
     @Test void questionsCorrectionsAndPushbackAreAnsweredWithoutMovingTheStep() {
@@ -130,8 +166,9 @@ class PracticeLoopRouterTest {
         assertThat(route(Kind.INSIGHT, at(4, 5, PracticeLoopRouter.FIND, Kind.ANSWER))).isEqualTo(PracticeLoopRouter.WRAP_UP);
         assertThat(route(Kind.SELF_LINE, at(3, 4, PracticeLoopRouter.GAP, Kind.ANSWER))).isEqualTo(PracticeLoopRouter.FIND);
         assertThat(route(Kind.STOP, at(2, 3, PracticeLoopRouter.WANT, Kind.ANSWER))).isEqualTo(PracticeLoopRouter.END);
-        assertThat(route(Kind.QUESTION, at(2, 15, "답하기", Kind.QUESTION))).as("15번째는 정리").isEqualTo(PracticeLoopRouter.WRAP_UP);
-        assertThat(route(Kind.QUESTION, at(2, 16, PracticeLoopRouter.WRAP_UP, Kind.QUESTION))).isEqualTo(PracticeLoopRouter.END);
+        int last = PracticeLoopRouter.LAST_REPLY;
+        assertThat(route(Kind.QUESTION, at(2, last - 1, "답하기", Kind.QUESTION))).as("상한 직전은 정리").isEqualTo(PracticeLoopRouter.WRAP_UP);
+        assertThat(route(Kind.QUESTION, at(2, last, PracticeLoopRouter.WRAP_UP, Kind.QUESTION))).isEqualTo(PracticeLoopRouter.END);
         assertThat(route(Kind.ANSWER, at(2, 6, "마무리1", Kind.ANSWER))).as("예전 마무리 뒤").isEqualTo(PracticeLoopRouter.END);
     }
 
