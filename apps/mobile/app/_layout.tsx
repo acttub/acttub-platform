@@ -19,6 +19,7 @@ import 'react-native-reanimated';
 import '@/lib/global-font';
 import { logScreenView } from '@/lib/analytics';
 import { initMetaSdk } from '@/lib/meta-events';
+import { syncPostHog } from '@/lib/posthog';
 import { startSignupAttributionListener } from '@/lib/signup-attribution-runtime';
 import { initCrashlytics, markScreen } from '@/lib/crashlytics';
 import { installNavigationGuard } from '@/lib/navigation-guard';
@@ -106,6 +107,10 @@ function RootNavigator() {
     };
   }
   const consentGate = consentGateRef.current.generation;
+  // 화면을 녹화하는 PostHog 는 현재 판 동의를 마친 동안만 켠다(lib/posthog.ts).
+  useEffect(() => {
+    syncPostHog(consentEntry.status);
+  }, [consentEntry.status]);
   // 재동의 팝업은 결정이 필요하거나 판정을 못 읽었을 때 열리고, 통과하거나 로그아웃하면 닫힌다.
   // 다시 읽는 중(checking)에는 그대로 둔다 — 팝업 안에서 다시 읽는 동안 스피너로 남고,
   // 앱을 처음 켤 때의 판정 대기에는 열리지 않는다.

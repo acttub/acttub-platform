@@ -19,6 +19,9 @@
   라우트에서 타입을 다시 생성하고, 오래된 `.expo/` 산출물을 코드 오류로 해석하지 않습니다.
 - 테스트에 런타임 외부 의존을 추가하면 CI `mobile` 잡처럼 설치 없이 실행 가능한지 확인하고,
   설치가 필요해지면 CI에 반영합니다.
+- 이벤트는 `lib/analytics.ts`로만 보냅니다. Firebase와 PostHog에 같이 갑니다. PostHog(화면 녹화 포함)는 운영 API
+  빌드이고 `EXPO_PUBLIC_POSTHOG_KEY`가 있고(`eas.json`의 production·preview-prod) 현재 판 동의를 마친 동안만 켜집니다.
+  규칙은 `lib/posthog.ts`의 `decidePostHog` 한 곳이고, development build에서는 꺼져 있으므로 녹화는 preview-prod로 확인합니다.
 - lint·typecheck를 실행했다면 의존성 설치와 생성된 Expo 라우트 타입 등 검증 전제를 기록하고,
   CI에 포함된 검사와 추가로 실행한 검사를 구분합니다.
 
