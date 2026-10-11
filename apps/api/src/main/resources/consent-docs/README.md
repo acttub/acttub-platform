@@ -62,9 +62,9 @@
 
 ### 계측 키와 고지의 순서
 
-계측 키(`AMPLITUDE_API_KEY_WEB`)는 그 수탁사를 고지·동의 문서에 **발행한 뒤에** 넣는다. 순서가 뒤집히면 되돌릴 수
-없다 — 고지 없이 이용 기록과 화면 녹화가 수탁사로 넘어간다. 배포 가드 `deploy/consent-gate.sh` 가 키가 있을 때
-**처리방침(`privacy_policy.md`)과 manifest 가 가리키는 한국어 `privacy` 문서 둘 다에** 그 수탁사(Amplitude)가
+계측 키(GitHub 환경 변수 `POSTHOG_KEY_WEB`)는 그 수탁사를 고지·동의 문서에 **발행한 뒤에** 넣는다. 순서가 뒤집히면 되돌릴 수
+없다 — 고지 없이 이용 기록과 화면 녹화가 수탁사로 넘어간다. 배포 가드 `deploy/consent-gate.sh` 가 키(`POSTHOG_KEY`)가 있을 때
+**처리방침(`privacy_policy.md`)과 manifest 가 가리키는 한국어 `privacy` 문서 둘 다에** 그 수탁사(PostHog)가
 적혀 있는지를 배포 시점에 본다. 가드는 마지막 방어선이지 절차가 아니다. 웹이 계측을 켜는 조건은
 [ANALYTICS.md](../../../../../web/ANALYTICS.md) §1(1)이다.
 
