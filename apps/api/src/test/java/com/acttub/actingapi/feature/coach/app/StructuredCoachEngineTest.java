@@ -127,7 +127,7 @@ class StructuredCoachEngineTest {
     }
     @Test void malformedOutputNeverLeaksAndSixteenthReplyCanAlwaysFinish() {
         List<CoachTurnSnapshot> turns = new ArrayList<>();
-        for (int i = 0; i < 15; i++) turns.add(new CoachTurnSnapshot("ai", "확인한 구간이에요."));
+        for (int i = 0; i < ConversationService.THREE_LAYERS_REPLY_LIMIT - 1; i++) turns.add(new CoachTurnSnapshot("ai", "확인한 구간이에요."));
         AtomicInteger calls = new AtomicInteger();
         CoachResult result = engine((system, text) -> {
             calls.incrementAndGet();

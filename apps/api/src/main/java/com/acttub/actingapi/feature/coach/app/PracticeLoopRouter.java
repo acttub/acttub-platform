@@ -48,15 +48,21 @@ final class PracticeLoopRouter {
      * 1) 단계 질문에 답했나: answered / missed / not_yet (반드시 하나)
      * 2) 코치가 먼저 반응해야 할 것: correction / pushback / method / evaluation / question (있을 때만 하나)
      * 3) stop: 그만하겠다는 말
+     * 4) decided: 다음 테이크에 상대에게 할 행동 하나를 배우가 정해서 말했다 / ack: 새 내용 없이 맞장구·인사만 했다
+     *    (2026-10-11 운영: 배우가 "고민이 된다", "이해가 안가요"라고 해도 answered라서 바로 정리로 넘어갔다)
      */
     static final List<String> STEP = List.of("answered", "missed", "not_yet");
     static final List<String> RESPOND = List.of("correction", "pushback", "method", "evaluation", "question");
     static final String STOP_SIGNAL = "stop";
+    static final String DECIDED_SIGNAL = "decided";
+    static final String ACK_SIGNAL = "ack";
     static final List<String> SIGNALS;
     static {
         var ids = new ArrayList<String>(STEP);
         ids.addAll(RESPOND);
         ids.add(STOP_SIGNAL);
+        ids.add(DECIDED_SIGNAL);
+        ids.add(ACK_SIGNAL);
         SIGNALS = List.copyOf(ids);
     }
 
@@ -64,9 +70,14 @@ final class PracticeLoopRouter {
      * 분류 결과. {@code kind}는 코드가 분기에 쓰는 종류, {@code respond}는 단계 질문에 답하면서 함께 물은 것
      * (question / evaluation / method, 없으면 빈 문자열). {@code by}는 model / fallback.
      */
-    record Classified(Kind kind, boolean keep, String by, String respond) {
+    record Classified(Kind kind, boolean keep, String by, String respond, boolean decided, boolean ack) {
         Classified(Kind kind, boolean keep, String by) {
             this(kind, keep, by, "");
+        }
+
+        /** 스스로 찾기 판단이 없는 분류(버튼·예전 상태 칸·분류 실패)는 예전처럼 답이면 행동을 정한 것으로 본다. */
+        Classified(Kind kind, boolean keep, String by, String respond) {
+            this(kind, keep, by, respond, true, false);
         }
 
         boolean alsoAsked() {
@@ -84,10 +95,14 @@ final class PracticeLoopRouter {
         String step = null;
         String respond = null;
         boolean stop = false;
+        boolean decided = false;
+        boolean ack = false;
         for (JsonNode value : root.path("signals")) {
             String id = value.isTextual() ? value.asText() : "";
             if (!SIGNALS.contains(id)) throw new IllegalArgumentException("unknown practice loop classification");
             if (STOP_SIGNAL.equals(id)) stop = true;
+            else if (DECIDED_SIGNAL.equals(id)) decided = true;
+            else if (ACK_SIGNAL.equals(id)) ack = true;
             else if (STEP.contains(id)) { if (step == null) step = id; }
             else if (respond == null || RESPOND.indexOf(id) < RESPOND.indexOf(respond)) respond = id;
         }
@@ -95,7 +110,7 @@ final class PracticeLoopRouter {
         if (step == null && respond == null) throw new IllegalArgumentException("empty practice loop classification");
         if ("correction".equals(respond)) return new Classified(Kind.CORRECTION, false, "model");
         if ("pushback".equals(respond)) return new Classified(Kind.PUSHBACK, false, "model");
-        if ("answered".equals(step)) return new Classified(Kind.ANSWER, false, "model", respond == null ? "" : respond);
+        if ("answered".equals(step)) return new Classified(Kind.ANSWER, false, "model", respond == null ? "" : respond, decided, ack);
         if ("missed".equals(step)) return new Classified(Kind.MISSED, false, "model");
         if ("method".equals(respond)) return new Classified(Kind.METHOD, false, "model");
         if ("evaluation".equals(respond)) return new Classified(Kind.EVALUATION, false, "model");
@@ -209,7 +224,7 @@ final class PracticeLoopRouter {
     /**
      * 할 일 표. 대화는 다섯 단계로 간다: 1 보여 주기(첫 응답) → 2 원하는 것 묻기 → 3 어긋남 보기 → 4 스스로 찾기 → 정리하기.
      * 배우가 보통으로 답하면 다음 단계로 간다. 물음·정정·반박에는 먼저 답하고 단계는 그대로 둔다.
-     * 정리한 다음 배우 말에서 닫는다. 그만과 16번째는 바로 닫는다.
+     * 정리한 다음 배우 말이 맞장구면 닫고, 그 밖이면 한 번 받아 준 뒤 닫는다. 그만과 상한(24번째)은 바로 닫는다.
      */
     static String route(Kind kind, Before b) {
         return route(kind, b, 0);
@@ -235,9 +250,14 @@ final class PracticeLoopRouter {
      *               엇나감은 바꿔 묻기 → 보기 둘 → 코치가 답을 제안, 모름·짧은 답은 보기 둘 → 코치가 답을 제안.
      */
     static String route(Kind kind, Before b, int stayed) {
+        return route(new Classified(kind, false, "code"), b, stayed);
+    }
+
+    static String route(Classified c, Before b, int stayed) {
+        Kind kind = c.kind();
         if (kind == Kind.STOP || b.reply() >= LAST_REPLY || b.closeNext()) return END;
-        // 정리한 다음 말에서 닫는다. 다만 배우가 물었으면 답하고, 그다음 말에서 닫는다(closesNext).
-        if (b.lastDoing().startsWith(WRAP_UP)) return asked(kind) ? answerTo(kind, b) : END;
+        // 정리한 다음 말: 맞장구·짧은 말이면 닫는다. 그 밖(다른 해석, 덧붙인 생각, 물음, 반박)은 한 번 받아 주고 그다음 말에서 닫는다(closesNext).
+        if (b.lastDoing().startsWith(WRAP_UP)) return endsAfterWrap(c) ? END : answerTo(kind, b);
         if (b.lastDoing().startsWith("마무리") || b.lastDoing().startsWith("끝")) return END;
         if (b.reply() >= LAST_REPLY - 1) return WRAP_UP;
         // 코치가 답을 제안했으면, 배우가 받든(네) 다르게 답하든 다음 단계로 간다. 물음·정정은 먼저 받는다.
@@ -245,6 +265,16 @@ final class PracticeLoopRouter {
         // 같은 단계에 두 번 머물렀으면 묻기만 하지 않고 코치가 답을 제안한다.
         if (stayed >= 2 && (kind == Kind.MISSED || kind == Kind.SHORT || kind == Kind.QUESTION || kind == Kind.EVALUATION)) return PROPOSE;
         String pointOut = b.habitDropped() ? "짚어주기(다른 쪽)" : "짚어주기";
+        // 정리로 넘어가는 문턱: 스스로 찾기(4단계)에 답했어도 상대에게 할 행동 하나를 정하지 않았으면(고민 중, 헷갈림, 전제 반박,
+        // 판단 요청) 정리하지 않는다. 물은 것이 있으면 먼저 답하고, 없으면 바꿔 묻기 → 보기 둘 → 코치가 제안 순서로 머문다.
+        if (kind == Kind.ANSWER && b.stage() >= 4 && !c.decided()) {
+            return switch (c.respond()) {
+                case "evaluation" -> pointOut;
+                case "question" -> "답하기";
+                case "method" -> WRAP_UP;
+                default -> stayed >= 2 ? PROPOSE : stayed >= 1 ? EASY : REASK;
+            };
+        }
         return switch (kind) {
             case CORRECTION -> "내려놓기";
             case PUSHBACK -> "짚어주기(다른 쪽)";
@@ -322,6 +352,12 @@ final class PracticeLoopRouter {
         return answered ? ANSWER_FIELDS.get(b.stage()) : null;
     }
 
+    /** 4단계 답은 행동을 정했을 때만 "찾은 대안"으로 남긴다 — 고민·질문을 대안으로 저장하면 정리가 근거 없이 "맞아요"를 붙인다. */
+    static String answerField(Classified c, Before b) {
+        if (b.stage() >= 4 && !c.decided()) return null;
+        return answerField(c.kind(), b);
+    }
+
     /** 지금까지 저장된 단계 답(가장 최근 것). */
     static java.util.Map<String, String> answers(JsonNode loop, int coachTurns) {
         var found = new java.util.LinkedHashMap<String, String>();
@@ -339,14 +375,17 @@ final class PracticeLoopRouter {
     /** 예전 판의 "답한 뒤 다음에 닫기". 이제는 단계로 정리에 가므로 쓰지 않는다. */
     /** 정리한 뒤 배우가 물었으면 이번엔 답하고, 다음 배우 말에서 닫는다. */
     static boolean closesNext(Kind kind, Before b) {
-        if (kind == Kind.STOP || b.reply() >= LAST_REPLY || b.closeNext()) return false;
-        return b.lastDoing().startsWith(WRAP_UP) && asked(kind);
+        return closesNext(new Classified(kind, false, "code"), b);
     }
 
-    /** 정리 뒤에도 한 번 받아 주고 닫을 말: 물음·평가·방법 요청, 그리고 정리에 다른 해석을 낸 반박·정정. */
-    private static boolean asked(Kind kind) {
-        return kind == Kind.QUESTION || kind == Kind.EVALUATION || kind == Kind.METHOD
-                || kind == Kind.PUSHBACK || kind == Kind.CORRECTION;
+    static boolean closesNext(Classified c, Before b) {
+        if (c.kind() == Kind.STOP || b.reply() >= LAST_REPLY || b.closeNext()) return false;
+        return b.lastDoing().startsWith(WRAP_UP) && !endsAfterWrap(c);
+    }
+
+    /** 정리 뒤 바로 닫을 말: 한두 마디 짧은 말("네", "몰라요")과 새 내용 없는 맞장구·인사("감사합니다, 해 볼게요"). */
+    private static boolean endsAfterWrap(Classified c) {
+        return c.kind() == Kind.SHORT || (c.kind() == Kind.ANSWER && c.ack());
     }
 
     private static String answerTo(Kind kind, Before b) {
@@ -448,7 +487,7 @@ final class PracticeLoopRouter {
         if (classified.keep()) lines.add("지키기: 예");
         if (closeNext) lines.add("다음에 닫기: 예");
         lines.add("단계: " + stageAfter(doing, b));
-        String field = answerField(classified.kind(), b);
+        String field = answerField(classified, b);
         if (field != null && actorText != null && !actorText.isBlank()) lines.add(field + ": " + actorText.strip().replaceAll("\\s+", " "));
         lines.add("분류: " + classified.by());
         return String.join("\n", lines);

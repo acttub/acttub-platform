@@ -42,7 +42,7 @@ public class ConversationService {
 
     /** 코치 응답 수의 상한 — 시작 응답을 포함한다(§7-1, §8-5). */
     public static final int LEGACY_REPLY_LIMIT = 8;
-    public static final int THREE_LAYERS_REPLY_LIMIT = 16;
+    public static final int THREE_LAYERS_REPLY_LIMIT = 24;
 
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final String COMPLETE = "complete";
