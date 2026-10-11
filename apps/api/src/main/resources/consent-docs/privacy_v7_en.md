@@ -36,8 +36,8 @@ There is no restriction on using the Service even if the user does not provide t
 - The device's push token for receiving notifications and notification settings
 - Service usage records, access logs, and device information
 - Cookie-based identifiers and visit records for web usage analysis (Google Analytics)
-- Records of actions performed on the web, and screen recordings that preserve usage screens in a replayable form (PostHog)
-- Records of actions performed in the mobile app, screen recordings that preserve app screens in a replayable form, and the member identification number of members who have completed sign-up (PostHog)
+- Records of actions performed on the web, screen recordings that preserve usage screens in a replayable form, and the IP address with the approximate location estimated from it (PostHog)
+- Records of actions performed in the mobile app, screen recordings that preserve app screens in a replayable form, the IP address with the approximate location estimated from it, and the member identification number of members who have completed sign-up (PostHog)
 - Screen and action records in the mobile app, and the member identification number of members who have completed sign-up (Google Analytics for Firebase)
 - Error logs automatically recorded when an error occurs, and the member identification number of signed-up members (Sentry)
 - Crash records left when the mobile app terminates abnormally, and the member identification number of members who have completed sign-up (Firebase Crashlytics)
