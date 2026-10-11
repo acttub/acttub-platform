@@ -60,6 +60,7 @@ import type {
   MyEntriesResponse,
   MyEntryCard,
 } from '@/lib/challenge/types';
+import type { ReadingRating, ReadingRatingBody } from '@/lib/reading/session-rating';
 import type {
   CoachConversation,
   CoachReplyBody,
@@ -1058,6 +1059,15 @@ export const api = {
    * 노트 평가. 노트 하나에 한 행이고 다시 보내면 덮어쓴다(comment 를 빼면 한 줄도 비운다). 같은 request_id·같은
    * 본문의 재전송은 같은 답이다. 없는·남의·노트 없는 회차는 404 note_not_found.
    */
+  /** 리딩 평가(reading.session, SOMA-661) — 리딩 회차 하나에 사람 하나, 다시 보내면 덮어쓴다. */
+  putReadingSessionRating(sessionId: string, body: ReadingRatingBody): Promise<ReadingRating> {
+    return request<ReadingRating>(
+      `/v2/reading/sessions/${encodeURIComponent(sessionId)}/rating`,
+      jsonInit(body, 'PUT'),
+      { timeoutMs: 15_000 },
+    );
+  },
+
   putNoteRating(practiceId: string, body: NoteRatingBody): Promise<NoteRating> {
     return request<NoteRating>(
       `/v2/practices/${encodeURIComponent(practiceId)}/note/rating`,

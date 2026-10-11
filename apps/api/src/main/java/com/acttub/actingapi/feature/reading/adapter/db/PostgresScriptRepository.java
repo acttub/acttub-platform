@@ -342,6 +342,15 @@ class PostgresScriptRepository implements ScriptRepository {
                     """)
                     .setParameter("scriptId", scriptId)
                     .executeUpdate();
+            // 회차 평가(V40)는 회차보다 먼저 지운다. 평가의 쓰기도 이 대본 행을 잡으므로 겹쳐도 남지 않는다.
+            entityManager.createNativeQuery("""
+                    DELETE FROM reading_session_ratings r
+                    USING reading_sessions rs
+                    WHERE rs.id=r.session_id
+                      AND rs.script_id=:scriptId
+                    """)
+                    .setParameter("scriptId", scriptId)
+                    .executeUpdate();
             for (String table : List.of("reading_sessions", "script_lines", "script_characters")) {
                 entityManager.createNativeQuery("DELETE FROM " + table + " WHERE script_id=:scriptId")
                         .setParameter("scriptId", scriptId)

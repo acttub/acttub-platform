@@ -910,7 +910,7 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
     }
 
     /**
-     * 리딩 자료의 파기 (specs/reading 「리딩 자료의 이관·삭제·탈퇴」, account.withdraw). 대본·배역·줄·회차·암기 상태는
+     * 리딩 자료의 파기 (specs/reading 「리딩 자료의 이관·삭제·탈퇴」, account.withdraw). 대본·배역·줄·회차·회차 평가·암기 상태는
      * <b>행째</b> 지운다 — 연습 기록과 달리 사람과 끊어 남기지 않는다. 녹음은 보관 동의자 것만 남긴다: 회차·줄
      * 연결을 비우고 {@code user_id} 를 유지해 3년 파기({@link #purgeRetained})가 지운다. 동의가 없으면 행(음성과
      * 전사)을 지우고 객체 키를 같은 트랜잭션에서 장부({@code reading_recording_delete})에 올린다.
@@ -955,6 +955,15 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
             }
         }
         entityManager.createNativeQuery("DELETE FROM line_memorization WHERE user_id=:userId")
+                .setParameter("userId", userId)
+                .executeUpdate();
+        // 회차 평가(V40)는 회차와 함께 행째 지운다 — 노트 평가와 달리 사람과 끊어 남기지 않는다(회차가 남지 않으므로).
+        // 평가의 쓰기는 같은 users 행을 먼저 잡으므로 늦게 온 평가가 남지 않는다.
+        entityManager.createNativeQuery("""
+                DELETE FROM reading_session_ratings
+                WHERE user_id=:userId
+                   OR session_id IN (SELECT id FROM reading_sessions WHERE user_id=:userId)
+                """)
                 .setParameter("userId", userId)
                 .executeUpdate();
         entityManager.createNativeQuery("DELETE FROM reading_sessions WHERE user_id=:userId")

@@ -35,7 +35,7 @@ async function save(state: ReturnType<typeof parseRatingState>) {
 }
 
 /**
- * 앱 평가 요청 시트 (SOMA-494) — AI 코칭 2번·대본 완주 1번마다(7일 간격·최대 3번) 묻는다.
+ * 앱 평가 요청 시트 (SOMA-494) — AI 코칭 2번·대본 완주 2번마다(7일 간격·최대 3번) 묻는다.
  *
  * `after(event, proceed)`: 사건을 세고, 물을 때가 아니면 곧바로 `proceed` 를 부른다. 물을 때면
  * 시트를 띄우고, 남기기·나중에 어느 쪽이든 닫힌 뒤 `proceed` 를 부른다.

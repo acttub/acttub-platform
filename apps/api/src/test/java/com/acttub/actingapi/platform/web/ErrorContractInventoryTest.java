@@ -363,6 +363,15 @@ class ErrorContractInventoryTest {
                     "feature.reading.ReadingSessionIT"),
             covered("feature.reading.app.SessionService|422|request_fingerprint_mismatch", 1,
                     "feature.reading.ReadingSessionIT"),
+            // 리딩 회차 평가(reading.session, SOMA-661). 노트 평가와 같은 모양이고 404 는 회차 조회와 같다.
+            covered("feature.reading.app.SessionRatingService|404|session_not_found", 1,
+                    "feature.reading.ReadingSessionRatingIT"),
+            covered("feature.reading.app.SessionRatingService|422|comment_too_long", 1,
+                    "feature.reading.ReadingSessionRatingIT"),
+            covered("feature.reading.app.SessionRatingService|422|request_fingerprint_mismatch", 1,
+                    "feature.reading.ReadingSessionRatingIT"),
+            excluded("feature.reading.app.SessionRatingService|403|account_deactivated", 1,
+                    "노트 평가와 같은 자리다 — 게이트가 먼저 같은 403 을 내고, 평가에는 바깥 호출이 없다."),
             // 암기 표시(reading.memorization).
             covered("feature.reading.app.MemorizationService|404|line_not_found", 1,
                     "feature.reading.ReadingMemorizationIT"),

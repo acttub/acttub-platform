@@ -481,6 +481,14 @@ COLUMN reading_recordings.transcript ord=11 type=text len=- null=YES default=-
 COLUMN reading_recordings.transcript_source ord=12 type=text len=- null=NO default=-
 COLUMN reading_recordings.updated_at ord=15 type=timestamptz len=- null=NO default=now()
 COLUMN reading_recordings.user_id ord=2 type=uuid len=- null=NO default=-
+COLUMN reading_session_ratings.comment ord=5 type=text len=- null=YES default=-
+COLUMN reading_session_ratings.created_at ord=7 type=timestamptz len=- null=NO default=now()
+COLUMN reading_session_ratings.id ord=1 type=uuid len=- null=NO default=-
+COLUMN reading_session_ratings.rating ord=4 type=text len=- null=NO default=-
+COLUMN reading_session_ratings.request_id ord=6 type=uuid len=- null=NO default=-
+COLUMN reading_session_ratings.session_id ord=2 type=uuid len=- null=NO default=-
+COLUMN reading_session_ratings.updated_at ord=8 type=timestamptz len=- null=NO default=now()
+COLUMN reading_session_ratings.user_id ord=3 type=uuid len=- null=NO default=-
 COLUMN reading_sessions.advance ord=9 type=text len=- null=NO default=-
 COLUMN reading_sessions.current_line_id ord=12 type=uuid len=- null=YES default=-
 COLUMN reading_sessions.elapsed_seconds ord=13 type=int4 len=- null=NO default=0
@@ -1368,6 +1376,20 @@ CONSTRAINT reading_recordings reading_recordings_user_id_fkey FOREIGN KEY (user_
 CONSTRAINT reading_recordings reading_recordings_user_id_not_null NOT NULL user_id
 CONSTRAINT reading_recordings uq_reading_recordings_session_line UNIQUE (reading_session_id, line_id)
 CONSTRAINT reading_recordings uq_reading_recordings_user_request UNIQUE (user_id, request_id)
+CONSTRAINT reading_session_ratings ck_reading_session_ratings_comment_length CHECK (((char_length(comment) >= 1) AND (char_length(comment) <= 100)))
+CONSTRAINT reading_session_ratings ck_reading_session_ratings_comment_not_blank CHECK ((btrim(comment) <> ''::text))
+CONSTRAINT reading_session_ratings ck_reading_session_ratings_rating CHECK ((rating = ANY (ARRAY['good'::text, 'bad'::text])))
+CONSTRAINT reading_session_ratings reading_session_ratings_created_at_not_null NOT NULL created_at
+CONSTRAINT reading_session_ratings reading_session_ratings_id_not_null NOT NULL id
+CONSTRAINT reading_session_ratings reading_session_ratings_pkey PRIMARY KEY (id)
+CONSTRAINT reading_session_ratings reading_session_ratings_rating_not_null NOT NULL rating
+CONSTRAINT reading_session_ratings reading_session_ratings_request_id_not_null NOT NULL request_id
+CONSTRAINT reading_session_ratings reading_session_ratings_session_id_fkey FOREIGN KEY (session_id) REFERENCES reading_sessions(id)
+CONSTRAINT reading_session_ratings reading_session_ratings_session_id_not_null NOT NULL session_id
+CONSTRAINT reading_session_ratings reading_session_ratings_updated_at_not_null NOT NULL updated_at
+CONSTRAINT reading_session_ratings reading_session_ratings_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
+CONSTRAINT reading_session_ratings reading_session_ratings_user_id_not_null NOT NULL user_id
+CONSTRAINT reading_session_ratings uq_reading_session_ratings_session_user UNIQUE (session_id, user_id)
 CONSTRAINT reading_sessions ck_reading_sessions_advance CHECK ((advance = ANY (ARRAY['silence'::text, 'manual'::text])))
 CONSTRAINT reading_sessions ck_reading_sessions_mode CHECK ((mode = ANY (ARRAY['read'::text, 'quiz'::text])))
 CONSTRAINT reading_sessions ck_reading_sessions_my_characters_not_empty CHECK ((cardinality(my_character_ids) >= 1))
@@ -1674,6 +1696,7 @@ INDEX CREATE INDEX idx_practices_user_created ON public.practices USING btree (u
 INDEX CREATE INDEX idx_practices_video ON public.practices USING btree (video_id)
 INDEX CREATE INDEX idx_push_tokens_user ON public.push_tokens USING btree (user_id)
 INDEX CREATE INDEX idx_reading_recordings_user ON public.reading_recordings USING btree (user_id)
+INDEX CREATE INDEX idx_reading_session_ratings_user ON public.reading_session_ratings USING btree (user_id)
 INDEX CREATE INDEX idx_reading_sessions_script_started ON public.reading_sessions USING btree (script_id, started_at DESC)
 INDEX CREATE INDEX idx_reading_sessions_user ON public.reading_sessions USING btree (user_id)
 INDEX CREATE INDEX idx_reading_voice_usage_day ON public.reading_voice_usage USING btree (day)
@@ -1765,6 +1788,7 @@ INDEX CREATE UNIQUE INDEX practices_pkey ON public.practices USING btree (id)
 INDEX CREATE UNIQUE INDEX push_tokens_pkey ON public.push_tokens USING btree (id)
 INDEX CREATE UNIQUE INDEX push_tokens_token_key ON public.push_tokens USING btree (token)
 INDEX CREATE UNIQUE INDEX reading_recordings_pkey ON public.reading_recordings USING btree (id)
+INDEX CREATE UNIQUE INDEX reading_session_ratings_pkey ON public.reading_session_ratings USING btree (id)
 INDEX CREATE UNIQUE INDEX reading_sessions_pkey ON public.reading_sessions USING btree (id)
 INDEX CREATE UNIQUE INDEX reading_voice_cache_pkey ON public.reading_voice_cache USING btree (hash)
 INDEX CREATE UNIQUE INDEX reading_voice_usage_pkey ON public.reading_voice_usage USING btree (user_id, day)
@@ -1828,6 +1852,7 @@ INDEX CREATE UNIQUE INDEX uq_practices_root_ordinal ON public.practices USING bt
 INDEX CREATE UNIQUE INDEX uq_practices_user_request ON public.practices USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_reading_recordings_session_line ON public.reading_recordings USING btree (reading_session_id, line_id)
 INDEX CREATE UNIQUE INDEX uq_reading_recordings_user_request ON public.reading_recordings USING btree (user_id, request_id)
+INDEX CREATE UNIQUE INDEX uq_reading_session_ratings_session_user ON public.reading_session_ratings USING btree (session_id, user_id)
 INDEX CREATE UNIQUE INDEX uq_reading_sessions_user_request ON public.reading_sessions USING btree (user_id, request_id)
 INDEX CREATE UNIQUE INDEX uq_script_characters_script_name ON public.script_characters USING btree (script_id, name)
 INDEX CREATE UNIQUE INDEX uq_script_characters_script_order ON public.script_characters USING btree (script_id, sort_order)
@@ -1904,6 +1929,7 @@ TABLE practice_sessions
 TABLE practices
 TABLE push_tokens
 TABLE reading_recordings
+TABLE reading_session_ratings
 TABLE reading_sessions
 TABLE reading_voice_cache
 TABLE reading_voice_usage

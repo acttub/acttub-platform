@@ -6,6 +6,59 @@
     "version" : "0.1.0"
   },
   "paths" : {
+    "/v2/reading/sessions/{session_id}/rating" : {
+      "put" : {
+        "tags" : [ "v2-reading" ],
+        "summary" : "Rate Reading Session",
+        "description" : "회차에 \"좋았어요(good)·아쉬웠어요(bad)\" 와 한 줄(선택)을 남긴다. 회차 하나에 한 행이고 다시 보내면\n덮어쓴다 — comment 를 빼면 한 줄도 비운다. 한 줄은 앞뒤 공백을 걷은 1~100자이고 넘으면 422\ncomment_too_long 이다. 진행 중 회차도 받고, 평가는 회차 상태를 바꾸지 않는다.\n\n같은 request_id·같은 본문의 재전송은 200 같은 응답이고, 같은 id 에 다른 본문이면 422\nrequest_fingerprint_mismatch 다. 없는 회차·남의 회차는 같은 404 session_not_found 다(회차 조회와\n같다).",
+        "operationId" : "rate_reading_session_v2_reading_sessions__session_id__rating_put",
+        "parameters" : [ {
+          "name" : "session_id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Session Id"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReadingSessionRatingRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Successful Response",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReadingSessionRating"
+                }
+              }
+            }
+          },
+          "422" : {
+            "description" : "Validation Error",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security" : [ {
+          "HTTPBearer" : [ ]
+        } ]
+      }
+    },
     "/v2/reading/lines/{line_id}/memorization" : {
       "put" : {
         "tags" : [ "v2-reading" ],
@@ -3473,7 +3526,7 @@
       "get" : {
         "tags" : [ "v2-reading" ],
         "summary" : "Get Reading Session",
-        "description" : "없는 것과 남의 것은 같은 404 session_not_found 다.",
+        "description" : "없는 것과 남의 것은 같은 404 session_not_found 다. my_rating 은 이 사람이 이 회차에 남긴 평가이고\n없으면 null 이다.",
         "operationId" : "get_reading_session_v2_reading_sessions__session_id__get",
         "parameters" : [ {
           "name" : "session_id",
@@ -4525,6 +4578,60 @@
   },
   "components" : {
     "schemas" : {
+      "ReadingSessionRatingRequest" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "request_id" : {
+            "type" : "string",
+            "format" : "uuid",
+            "title" : "Request Id"
+          },
+          "rating" : {
+            "type" : "string",
+            "enum" : [ "good", "bad" ],
+            "pattern" : "good|bad",
+            "title" : "Rating"
+          },
+          "comment" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "앞뒤 공백을 걷은 1~100 유니코드 코드 포인트. 비었으면 없는 것이다."
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Comment"
+          }
+        },
+        "required" : [ "rating", "request_id" ],
+        "title" : "ReadingSessionRatingRequest"
+      },
+      "ReadingSessionRating" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "rating" : {
+            "type" : "string",
+            "enum" : [ "good", "bad" ],
+            "title" : "Rating"
+          },
+          "comment" : {
+            "anyOf" : [ {
+              "type" : "string"
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Comment"
+          },
+          "updated_at" : {
+            "type" : "string",
+            "format" : "date-time",
+            "title" : "Updated At"
+          }
+        },
+        "required" : [ "comment", "rating", "updated_at" ],
+        "title" : "ReadingSessionRating"
+      },
       "ReadingMemorizationRequest" : {
         "type" : "object",
         "additionalProperties" : false,
@@ -6284,6 +6391,14 @@
               "$ref" : "#/components/schemas/ReadingDifferentLine"
             },
             "title" : "Different Lines"
+          },
+          "my_rating" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/ReadingSessionRating",
+              "description" : "이 사람이 이 회차에 남긴 평가. 없으면 null"
+            }, {
+              "type" : "null"
+            } ]
           }
         },
         "required" : [ "advance", "current_line_id", "different_lines", "elapsed_seconds", "end_line_id", "ended_at", "id", "line_results", "mode", "my_character_ids", "my_character_names", "my_dialogue_count", "ordinal", "progress", "progress_seq", "range", "range_name", "record", "recorded_line_count", "recordings", "script_id", "start_line_id", "started_at", "status" ],

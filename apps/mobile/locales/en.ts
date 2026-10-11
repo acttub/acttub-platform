@@ -1271,6 +1271,11 @@ const en: DeepStringShape<typeof ko> = {
     pausedBody: 'Tap Continue to redo this line from the start. The microphone turns on then.',
     resume: 'Continue',
     completeTitle: 'Reading complete',
+    rateTitle: 'How was this reading?',
+    rateGood: 'Good',
+    rateBad: 'Not great',
+    ratePh: 'Anything to add? (optional)',
+    rateThanks: 'Thanks! We’ll use this for your next reading.',
     // Practice run (R9.4·R9.7·R9.8~R9.20·R9.23·R9.26)
     deviceVoiceStart: 'Start with device voice',
     voiceUnsupportedTitle: 'This device can’t use\nthe app voice',

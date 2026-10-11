@@ -1259,6 +1259,11 @@ const ko = {
     pausedBody: '이어서를 누르면 이 줄을 처음부터 다시 해요. 마이크는 그때 켜져요.',
     resume: '이어서',
     completeTitle: '리딩 완료',
+    rateTitle: '이번 리딩 어땠나요?',
+    rateGood: '좋았어요',
+    rateBad: '아쉬웠어요',
+    ratePh: '한 줄 더 남겨주실래요? (선택)',
+    rateThanks: '고마워요! 다음 리딩에 반영할게요.',
     // 연습 실행(R9.4·R9.7·R9.8~R9.20·R9.23·R9.26)
     deviceVoiceStart: '기기 목소리로 시작',
     voiceUnsupportedTitle: '이 기기에서는\n앱 목소리를 쓸 수 없어요',

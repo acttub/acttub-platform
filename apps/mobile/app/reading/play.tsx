@@ -76,6 +76,7 @@ import { loadVoiceFeedbackEnabled } from '@/lib/reading/voice-feedback-setting';
 import { VoiceFeedbackSummary, type LineFeedback } from '@/components/voice-feedback-summary';
 import { translate as t } from '@/lib/i18n';
 import { useAppRating } from '@/hooks/use-app-rating';
+import { ReadingRating } from '@/components/reading-rating';
 import { api } from '@/lib/api';
 import { loadCloudVoiceEnabled, shouldUseCloudVoice } from '@/lib/reading/cloud-voice';
 import { synthesizeCloudSpeech } from '@/lib/reading/cloud-voice-runtime';
@@ -998,6 +999,9 @@ export default function ReadingPlay() {
               </Pressable>
             </View>
           ) : null}
+
+          {/* 이번 리딩 어땠나요?(SOMA-661) — 튜토리얼 예시 회차는 서버 회차가 아니라 받지 않는다. */}
+          {!fromTutorialRef.current && <ReadingRating sessionId={session.id} />}
 
           <Pressable style={styles.coachCard} onPress={() => router.replace('/upload')}>
             <Feather name="video" size={18} color={palette.blueDeep} />
