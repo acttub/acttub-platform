@@ -4,7 +4,7 @@
 
 - 도입: 0.1.0
 - 화면: R4.3~R4.6(대본 상세의 연습 기록), R4.9~R4.16(회차 상세), R8(새 연습), R9(리딩 실행), D17, D18, D19, WR2, WR3, WR4
-- 테이블: reading_sessions, script_lines, script_characters
+- 테이블: reading_sessions, script_lines, script_characters, reading_session_ratings(회차 평가, SOMA-661)
 
 ## 기능
 내 배역과 구간을 정해 회차를 시작하면 기기가 상대역 대사를 읽고 내 대사에서 멈춰 기다린다. 내
@@ -25,9 +25,10 @@
 |---|---|---|---|
 | `POST /v2/reading/scripts/{script_id}/sessions` | `X-Request-Id`(선택, 있으면 본문과 같아야 한다), `ReadingSessionCreateRequest`(request_id·my_character_ids·mode·start_line_id·end_line_id·advance·record) | `ReadingSession` 201, 같은 요청 재전송 200 | `invalid_characters`·`invalid_line`·`empty_range`·`request_fingerprint_mismatch` 422, 형태 오류 422 배열, `script_not_found` 404 |
 | `GET /v2/reading/scripts/{script_id}/sessions` | `script_id` | `ReadingSessionList` 200(카드마다 `range_name`·`progress`) | `script_not_found` 404 |
-| `GET /v2/reading/sessions/{session_id}` | `session_id` | `ReadingSession` 200(`range_name`·`progress`, 원문과 다르게 말한 대사 `different_lines` 포함) | `session_not_found` 404 |
+| `GET /v2/reading/sessions/{session_id}` | `session_id` | `ReadingSession` 200(`range_name`·`progress`, 원문과 다르게 말한 대사 `different_lines`, 내 평가 `my_rating` 포함) | `session_not_found` 404 |
 | `GET /v2/reading/scripts/{script_id}`(장면) | `script_id` | `ReadingScript` 200의 `scenes` | `script_not_found` 404 |
 | `PATCH /v2/reading/sessions/{session_id}/progress` | `ReadingSessionProgressRequest`(progress_seq 필수, current_line_id·elapsed_seconds·line_results·complete 선택, 줄 결과는 line_id와 said 또는 outcome·misses) | `ReadingSessionProgress` 200(옛 progress_seq도 현재 값, `different_lines` 포함) | `session_closed` 409, `invalid_line` 422, `session_not_found` 404 |
+| `PUT /v2/reading/sessions/{session_id}/rating` | `ReadingSessionRatingRequest`(request_id·rating 필수, comment 선택) | `ReadingSessionRating`(rating·comment·updated_at) 200, 같은 요청 재전송도 200 같은 응답 | `comment_too_long`·`request_fingerprint_mismatch` 422, 형태 오류 422 배열, `session_not_found` 404 |
 | `DELETE /v2/reading/sessions/{session_id}` | `session_id` | 204, 녹음 객체는 삭제 장부로(reading.recording) | `session_not_found` 404 |
 
 ## 상태
@@ -149,6 +150,16 @@ current_line_id가 남아 있어 이어 할 수 있다.
   집계한다(reading.script). `open_session_id`는 가장 최근에 시작한 in_progress 회차이고 없으면 null이다. 웹과 옛 앱은
   이 회차를 이어하기로 연다. 마지막 회차는 가장 늦게 시작한 회차이고 시작 시각이 같으면 id가 큰 쪽이다.
   시작 시각이 같은 in_progress 회차 사이에서도 같은 순서를 쓴다.
+- 회차 평가(SOMA-661): 끝난 리딩에서 "이번 리딩 어땠나요? / 좋았어요 / 아쉬웠어요" 를 받는다. 누르는 순간 서버에 회차
+  단위로 저장하고(good·bad), 한 줄(선택, 앞뒤 공백을 걷은 1~100자)은 같은 평가에 덧붙는다. 노트 평가
+  ([practice.note](../practice/note.md#규칙제약))와 같은 규칙이다: 회차 하나에 사람 하나가 한 행이고 다시 누르면 값·한 줄·
+  request_id를 덮어쓰며, `comment`를 빼거나 null로 보내면 한 줄도 비운다. rating 밖의 값과 모르는 키는 422(배열)다. 한 줄은
+  코드 포인트로 세고 공백을 걷어 비었으면 NULL이다. 재전송은 [공통 규칙 「요청 재전송」](../common.md#요청-재전송)을 따르고
+  본문은 다듬은 값으로 견준다. 화면의 초기값은 회차 조회의 `my_rating`(없으면 null)이다. 게이트·소유권은 회차 조회와 같고,
+  진행 중 회차도 받는다(나가기로 끝낸 회차에도 물을 수 있다). 평가는 회차 상태·진행·줄 결과를 바꾸지 않는다. 연기를
+  판정하는 값이 아니라 리딩 경험에 대한 배우의 의견이고, 유저 문구에 "평가·점수" 같은 말을 쓰지 않는다. 평가는 회차에
+  매달려 이관·삭제·탈퇴를 회차와 함께 따른다([영역 표](README.md#리딩-자료의-이관삭제탈퇴)) — 노트 평가와 달리 탈퇴 때 사람과
+  끊어 남기지 않는다.
 - 리딩 기록은 대본 상세에서 보고 앱 홈·연습 기록(A1.1)에는 섞지 않는다([practice.library](../practice/library.md#규칙제약)).
   서버는 두 목록을 잇지 않는다. (ERD)
 - 웹 가이드는 기기당 처음 한 번 보여 준다. 플래그는 기기 저장소에 둔다.
@@ -171,7 +182,9 @@ current_line_id가 남아 있어 이어 할 수 있다.
 - 구간에 내 대사가 없음: 422 empty_range. 시작 줄이 끝 줄 뒤: 422 empty_range. 구간의 줄이 그 대본의 대사 줄이
   아님: 422 invalid_line.
 - 진행 저장의 위치·줄 결과가 구간 안 대사 줄이 아님: 422 invalid_line이고 아무것도 바뀌지 않는다.
-- 없는 회차와 남의 회차는 상세·진행 저장·삭제 모두 같은 404 session_not_found다.
+- 없는 회차와 남의 회차는 상세·진행 저장·삭제·평가 모두 같은 404 session_not_found다.
+- 회차 평가: 한 줄 101자는 422 comment_too_long, 같은 request_id에 다른 값은 422 request_fingerprint_mismatch. 게이트를 지난 뒤
+  탈퇴(게스트는 이관)가 끝났으면 403 account_deactivated이고 아무것도 남지 않는다.
 - 이관·탈퇴·회차 삭제가 먼저 끝난 뒤 도착한 진행 저장: 404이고 옛 계정에 아무것도 남지 않는다([저장 직전 재확인](../common.md#저장-직전-재확인)).
 - 대본이 지워진 뒤 회차 조회: 404.
 - 상대역 음성 준비 실패: reading.cast의 예외를 따른다.
@@ -232,6 +245,10 @@ current_line_id가 남아 있어 이어 할 수 있다.
 - 웹 첫 진입: 가이드가 보인다. 두 번째 회차 시작: 가이드가 나오지 않는다.
 - 배경으로 갔다 돌아옴: 일시정지 상태이고 재개를 누르면 같은 줄을 처음부터 한다. 마이크는 재개 뒤 켜진다.
 - 회차 삭제: 그 회차의 reading_recordings 행과 객체가 없고 line_memorization 행은 남는다.
+- 회차 평가: 좋았어요 → reading_session_ratings 1행(good). 아쉬웠어요로 다시 누름 → 같은 행이 bad. 한 줄 "  좋았어요  " →
+  "좋았어요", 공백만 → NULL. 같은 요청 재전송 → 200 같은 응답, 행 그대로. 같은 요청 id 에 다른 값 → 422. 회차 조회 → my_rating 이
+  그 값, 평가 전에는 null. 남의 회차 → 404, 행 없음. 회차 삭제·대본 삭제·탈퇴 → 평가 행도 없다. 게스트 이관 → 회원 것이고 회원의
+  회차 조회에 보인다.
 - 대본 카드 칩: 진행 중 회차가 하나라도 있으면 "연습 중", 회차가 있고 모두 completed면 "연습 완료".
 - 웹 게스트가 회차를 중간까지 하고 앱으로 옮김: 앱 대본 상세에 그 회차가 진행 중으로 보이고 "이어서 연습"이 같은 줄부터
   이어진다.

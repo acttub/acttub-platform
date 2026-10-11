@@ -3,6 +3,7 @@ import { File } from 'expo-file-system';
 
 import { deleteDeviceFile } from '@/lib/account-files';
 import { api } from '@/lib/api';
+import { normalizeWavBytes } from '@/lib/reading/loudness';
 import { checkRecordingFile, fileNameFor } from '@/lib/reading/recording-plan';
 import { createRecordingQueue, type QueuedRecording, type RecordingQueue } from '@/lib/reading/recording-queue';
 
@@ -69,10 +70,27 @@ export async function enqueueLineRecording(input: LineRecordingInput): Promise<E
     await deleteDeviceFile(input.uri).catch(() => undefined);
     return { kind: 'rejected', reason: check.reason };
   }
+  await normalizeRecordingFile(input.uri, input.contentType);
   await instance().enqueue({ ...input, createdAt: Date.now() });
   await notify();
   void flushRecordingUploads();
   return { kind: 'queued' };
+}
+
+/**
+ * 인식기가 남긴 WAV 녹음은 작게 들려(평균 -30~-40dB) 올리기 전에 세기를 맞춘다(SOMA-664). 못 읽거나 WAV 가 아니면
+ * 그대로 올린다 — 소리 크기 때문에 녹음을 잃지 않는다.
+ */
+async function normalizeRecordingFile(uri: string, contentType: string): Promise<void> {
+  if (!/wav/i.test(contentType)) return;
+  try {
+    const file = new File(uri);
+    const bytes = await file.bytes();
+    const louder = normalizeWavBytes(bytes, { maxGain: 6 });
+    if (louder !== bytes) file.write(louder);
+  } catch {
+    // 그대로 둔다
+  }
 }
 
 /** 밀린 녹음을 올린다. 실패한 것은 남아 다음에 다시 시도한다. */

@@ -18,6 +18,7 @@ import {
   upcomingNotices,
   type AdmissionsResponse,
 } from '@/lib/admissions';
+import { kstDate, urgentAuditions, type AuditionPostingList } from '@/lib/auditions';
 import { dateLocale, isKorean, translate as t } from '@/lib/i18n';
 import { SpotlightGuide, type SpotlightStep } from '@/components/spotlight-guide';
 import { TutorialIntroSheet, type TutorialChoice } from '@/components/tutorial-intro-sheet';
@@ -25,6 +26,7 @@ import { finishTutorial } from '@/hooks/use-tutorial-spotlight';
 import { StreakCelebrationScreen } from '@/components/streak-celebration-screen';
 import { AnnouncementPoster } from '@/components/announcement-poster';
 import { useAuth } from '@/lib/auth';
+import { homeDeadlineSections } from '@/lib/home-sections';
 import { HomeMascot } from '@/components/home-mascot';
 import { useSpotlightTarget } from '@/hooks/use-spotlight-target';
 import { TARGET } from '@/lib/spotlight-targets';
@@ -51,10 +53,10 @@ function recentDate(iso: string): string {
   return d.toLocaleDateString(dateLocale(), { month: 'long', day: 'numeric' });
 }
 
-/** A1. 홈 — 히어로(마스코트) + 지금 바로 연습 + 연속 연습 + 최근 연습 + 입시 마감. */
+/** A1. 홈 — 히어로(마스코트) + 지금 바로 연습 + 연속 연습 + 최근 연습 + 입시 마감 + 오디션 마감. */
 export default function HomeScreen() {
   const router = useRouter();
-  const { user, consentEntry } = useAuth();
+  const { user, consentEntry, profile } = useAuth();
   // 재동의 팝업이 떠 있는 동안 홈의 첫 안내들을 띄우지 않는다. 둘 다 홈 위에 덮여 어느 쪽이 위에 올지 정해지지 않는다.
   // 팝업(Modal)이 닫히는 동안 다른 Modal을 띄우면 iOS가 띄우지 못해, 닫힘이 끝난 뒤에 연다
   // (iOS 시뮬레이터에서 400ms는 시트가 안 떴고 700ms는 떴다. 여유를 둔 값이다).
@@ -73,6 +75,7 @@ export default function HomeScreen() {
   // null 이면 기록을 아직 한 번도 못 받은 것이다 — 그때의 연속일(0)로 축하를 판단하면 안 된다.
   const [activityDays, setActivityDays] = useState<{ created_at: string }[] | null>(null);
   const [admissions, setAdmissions] = useState<AdmissionsResponse | null>(null);
+  const [auditions, setAuditions] = useState<AuditionPostingList | null>(null);
   const [celebrateStreak, setCelebrateStreak] = useState<number | null>(null);
   // 처음 한 번만 가이드 — 누를 자리를 비춰 준다. 설정의 "가이드 다시 보기"로 되살릴 수 있다.
   const [guideOpen, setGuideOpen] = useState(false);
@@ -158,6 +161,15 @@ export default function HomeScreen() {
       .catch(() => {
         if (!cancelled) setAdmissions(null);
       });
+    // 오디션 공고도 한국 공고뿐이고(app.audition) 하루 두 번 바뀐다 — 입시와 같이 홈을 열 때 한 번만 읽는다.
+    api
+      .auditions()
+      .then((data) => {
+        if (!cancelled) setAuditions(data);
+      })
+      .catch(() => {
+        if (!cancelled) setAuditions(null);
+      });
     return () => {
       cancelled = true;
     };
@@ -167,6 +179,13 @@ export default function HomeScreen() {
   const deadlines = useMemo(
     () => (admissions && isKorean() ? upcomingNotices(admissions, localDate(), 2) : []),
     [admissions],
+  );
+  // 입시생(만 19세 이하)은 입시만, 만 20세 이상 입시생은 둘 다, 나머지는 오디션만 본다(SOMA-654).
+  const sections = homeDeadlineSections(profile.me?.profile, kstDate());
+  // 마감일이 있는 공고 중 가까운 둘. 비면(기능 꺼짐·공고 없음) 카드째 숨긴다.
+  const auditionDeadlines = useMemo(
+    () => (auditions && isKorean() ? urgentAuditions(auditions.items, kstDate(), 2) : []),
+    [auditions],
   );
 
   const { days } = useMemo(() => buildWeekActivity(activityDays ?? []), [activityDays]);
@@ -289,7 +308,7 @@ export default function HomeScreen() {
         )}
 
         {/* 입시 마감 — 실기 일정은 놓치면 1년을 기다린다. 임박한 둘만 띄운다. */}
-        {deadlines.length > 0 && (
+        {sections.admissions && deadlines.length > 0 && (
           <>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>{t('home.admissionsTitle')}</Text>
@@ -318,6 +337,41 @@ export default function HomeScreen() {
                     </Text>
                   </View>
                   <Text style={styles.admissionLabel}>{remaining.label}</Text>
+                </View>
+              ))}
+            </Pressable>
+          </>
+        )}
+
+        {/* 오디션 마감 임박 — 입시 카드와 같은 모양. 누르면 모아보기로 간다(app.audition). */}
+        {sections.auditions && auditionDeadlines.length > 0 && (
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>{t('home.auditionsTitle')}</Text>
+              <Pressable onPress={() => router.push('/auditions')}>
+                <Text style={styles.sectionLink}>{t('common.viewAll')} ›</Text>
+              </Pressable>
+            </View>
+            <Pressable
+              style={styles.admissionCard}
+              accessibilityRole="button"
+              accessibilityLabel={t('home.auditionsA11y')}
+              onPress={() => router.push('/auditions')}>
+              {auditionDeadlines.map(({ posting, days }, index) => (
+                <View
+                  key={posting.id}
+                  style={[styles.admissionRow, index > 0 && styles.admissionRowNext]}>
+                  <View style={styles.admissionDday}>
+                    <Text style={styles.admissionDdayText}>D-{days === 0 ? 'DAY' : days}</Text>
+                  </View>
+                  <View style={styles.flex}>
+                    <Text style={styles.admissionUni} numberOfLines={1}>
+                      {posting.title}
+                    </Text>
+                    <Text style={styles.admissionDept} numberOfLines={1}>
+                      {posting.source_name}
+                    </Text>
+                  </View>
                 </View>
               ))}
             </Pressable>

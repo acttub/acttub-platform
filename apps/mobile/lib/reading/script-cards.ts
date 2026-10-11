@@ -19,14 +19,15 @@ export function listHeader(list: Pick<ScriptListResponse, 'total_count' | 'in_pr
   return t('reading.listHeader', { total: list.total_count, inProgress: list.in_progress_count });
 }
 
-export function statusChip(card: Pick<ScriptCard, 'status'>): StatusChip {
+/** 카드의 상태 칩. 아직 배역을 고르지 않은 대본은 칩이 없다(SOMA-664). */
+export function statusChip(card: Pick<ScriptCard, 'status'>): StatusChip | null {
   switch (card.status) {
     case 'reading':
       return { label: t('reading.statusPlaying'), tone: 'reading' };
     case 'completed':
       return { label: t('reading.statusDone'), tone: 'completed' };
     default:
-      return { label: t('reading.statusRole'), tone: 'no_cast' };
+      return null;
   }
 }
 

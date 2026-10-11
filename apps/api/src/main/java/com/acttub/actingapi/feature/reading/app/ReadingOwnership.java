@@ -6,7 +6,7 @@ import java.util.UUID;
  * 리딩 자료의 주인 바꾸기 — 웹 게스트의 자료를 앱 회원에게 옮길 때 이관이 부른다 (account.guest, specs/reading
  * 「리딩 자료의 이관·삭제·탈퇴」).
  *
- * <p>대본·회차·녹음·암기 상태의 {@code user_id} 만 바꾸므로 배역·줄·객체가 그대로 따라간다. 게스트와 회원의
+ * <p>대본·회차·녹음·암기 상태·회차 평가의 {@code user_id} 만 바꾸므로 배역·줄·객체가 그대로 따라간다. 게스트와 회원의
  * {@code request_id} 가 겹치면(UUID 라 실질적으로 없다) 게스트 쪽 값을 비운다. <b>부르는 쪽의 트랜잭션에
  * 참여한다</b>(자기 {@code TransactionTemplate} 을 쓰지 않는다, apps/api/CONTRACT.md §6-9).
  *

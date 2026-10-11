@@ -122,7 +122,7 @@ export default function ReportScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
-      <Stack.Screen options={{ title: t('note.title'), headerBackVisible: false, headerShadowVisible: false }} />
+      <Stack.Screen options={{ title: t('note.title'), headerBackVisible: false, headerLeft: () => null, headerShadowVisible: false }} />
 
       {loading && (
         <View style={styles.center}>
@@ -147,9 +147,9 @@ export default function ReportScreen() {
         <>
           <View style={styles.statusRow}>
             <Text style={styles.kind}>{noteKindLabel(note.kind)}</Text>
-            <SceneFoldLink open={sceneOpen} onToggle={() => setSceneOpen((was) => !was)} label={t('blockage.sceneFold')} />
+            <SceneFoldLink open={sceneOpen} onToggle={() => setSceneOpen((was) => !was)} label={t('blockage.sceneFold')} track="report" />
           </View>
-          <SceneFoldBody open={sceneOpen} videoUri={sceneVideo} />
+          <SceneFoldBody open={sceneOpen} videoUri={sceneVideo} track="report" />
           {sceneOpen && (
             <View style={styles.sceneSummary}>
               <SceneSummary scene={practice.scene} blockage={null} />

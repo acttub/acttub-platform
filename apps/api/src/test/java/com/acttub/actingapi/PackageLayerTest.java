@@ -99,7 +99,10 @@ class PackageLayerTest {
             Map.entry("push", Set.of("app", "adapter", "schema")),
             // 앱 공지 포스터(SOMA-599). 값 규칙·판 비교·고르기가 domain 에 산다. 표는 행이 적고 플랫폼이 배열 칸이라
             // Schema Entity 없이 native SQL 로만 읽고 쓴다(EntityMappingIT 의 대기 목록).
-            Map.entry("poster", Set.of("domain", "app", "adapter")));
+            Map.entry("poster", Set.of("domain", "app", "adapter")),
+            // 오디션 공고 모아보기(SOMA-564). 열림·마감 표시·연락처 모양·정렬 규칙이 domain 에 산다. 쓰기가 전부
+            // ON CONFLICT upsert 와 조건 삭제라 Schema Entity 없이 native SQL 로만 읽고 쓴다(EntityMappingIT 의 대기 목록).
+            Map.entry("audition", Set.of("domain", "app", "adapter")));
 
     /**
      * {@code domain}이 알아서는 안 되는 것들. docs/ARCHITECTURE.md의 <b>Domain Model</b>은 "프레임워크를

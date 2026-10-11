@@ -28,6 +28,17 @@ public final class ScriptSplitPrompt {
     private static final String ROSTER = """
             대본 앞부분을 받는다. 말하는 배역 이름 목록을 대본에 쓰인 표기 그대로 한 줄에 하나씩만 답한다. 설명 없이 이름만.""";
 
+    /** 나누기 전의 띄어쓰기 복원 (reading.script 「띄어쓰기 복원」). 서버가 공백을 뺀 글자를 원문과 견주어 받는다. */
+    private static final String SPACING = """
+            너는 대본 글의 띄어쓰기를 고친다. 글자 인식으로 복사해 글자마다 띄어진 줄을 "줄번호<TAB>원문"으로 받는다.
+            받은 줄마다 한 줄씩 "줄번호<TAB>고친 줄" 형식으로만 답한다. 설명·코드블록 없이 결과 줄만 쓴다.
+            - 공백만 고친다. 글자·문장부호·괄호·숫자는 하나도 더하거나 빼거나 바꾸지 않는다.
+            - 잘못 읽힌 듯한 글자도 고치지 않는다(예: "친 구 기"는 "친구기"로 둔다).
+            - 한국어 맞춤법대로 띄어 쓴다. 괄호 안쪽과 문장부호 앞의 공백은 없앤다(예: "( 암 전 )" → "(암전)", "[ 엄 마 ] 유 세 아 , 공 부" → "[엄마] 유세아, 공부").
+            - 이미 맞게 띄어 쓴 줄(예: "네 쪽 세 번 내 쪽 세 번")은 그대로 돌려준다.
+            - 줄 안의 탭은 탭으로 둔다.
+            - 받은 줄 번호를 하나도 빠뜨리지 않는다.""";
+
     private ScriptSplitPrompt() {
     }
 
@@ -54,5 +65,9 @@ public final class ScriptSplitPrompt {
      */
     public static String roster(boolean judge) {
         return judge ? JUDGMENT + "\n" + ROSTER : ROSTER;
+    }
+
+    public static String spacing() {
+        return SPACING;
     }
 }

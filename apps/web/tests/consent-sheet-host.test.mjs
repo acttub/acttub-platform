@@ -4,40 +4,25 @@
 // 다시 묻고, 동의 제출 직후에 다시 묻는다.
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
-import { after, afterEach, before, beforeEach, test } from "node:test";
+import { afterEach, before, beforeEach, test } from "node:test";
 
 import "./ts-module-loader.mjs";
 import { react, window } from "./mount-probe.mjs";
+import { sdk } from "./fixtures/posthog-js.mjs";
 
 process.env.NEXT_PUBLIC_API_BASE_URL = "";
-process.env.NEXT_PUBLIC_AMPLITUDE_API_KEY = "test-amplitude-key";
+process.env.NEXT_PUBLIC_POSTHOG_KEY = "test-posthog-key";
 
-// SDK 의 네트워크가 아니라 우리가 켜고 끄는지만 본다(analytics-amplitude.test.mjs 와 같은 목).
-const amplitudeMockUrl = `data:text/javascript,${encodeURIComponent(`
-const calls = globalThis.__amplitudeCalls;
-export const init = (...args) => calls.push(["init", ...args]);
-export const add = (...args) => calls.push(["add", ...args]);
-export const track = (...args) => calls.push(["track", ...args]);
-export const setUserId = (...args) => calls.push(["setUserId", ...args]);
-export const reset = (...args) => calls.push(["reset", ...args]);
-export const setOptOut = (...args) => calls.push(["setOptOut", ...args]);
-`)}`;
-const replayMockUrl = `data:text/javascript,${encodeURIComponent(`
-export const sessionReplayPlugin = () => ({ name: "session-replay" });
-`)}`;
 // 시트는 관문을 analytics.tsx 에서 가져오고, 그 모듈은 usePathname 을 import 한다.
 const navigationMockUrl = `data:text/javascript,${encodeURIComponent(`
 export const usePathname = () => "/home";
 `)}`;
 
-globalThis.__amplitudeCalls = [];
+// SDK 의 네트워크가 아니라 우리가 켜고 끄는지만 본다(analytics-posthog.test.mjs 와 같은 SDK 대역).
 registerHooks({
   resolve(specifier, context, nextResolve) {
-    if (specifier === "@amplitude/analytics-browser") {
-      return { url: amplitudeMockUrl, shortCircuit: true };
-    }
-    if (specifier === "@amplitude/plugin-session-replay-browser") {
-      return { url: replayMockUrl, shortCircuit: true };
+    if (specifier === "posthog-js") {
+      return { url: new URL("./fixtures/posthog-js.mjs", import.meta.url).href, shortCircuit: true };
     }
     if (specifier === "next/navigation") {
       return { url: navigationMockUrl, shortCircuit: true };
@@ -119,10 +104,9 @@ function serve(pending) {
   return server;
 }
 
-/** 마지막으로 SDK 에 건 opt-out. 켜져 있으면 false(또는 건 적 없음), 꺼졌으면 true. */
+/** SDK 가 지금 opt-out 상태인가. */
 function optedOut() {
-  const last = globalThis.__amplitudeCalls.findLast(([name]) => name === "setOptOut");
-  return last ? last[1] : false;
+  return sdk.optedOut;
 }
 
 /** 목 서버는 마이크로태스크로만 답한다. 매크로태스크 한 번이면 멈출 데까지 다 흘러간다. */
@@ -191,10 +175,6 @@ afterEach(async () => {
   globalThis.fetch = originalFetch;
   clearTokens();
   window.localStorage.clear();
-});
-
-after(() => {
-  delete globalThis.__amplitudeCalls;
 });
 
 test("계측 I-6: 켜진 뒤 실제 403 consent_required 로 시트가 열리면 제출을 기다리지 않고 즉시 끈다", async () => {
@@ -266,7 +246,7 @@ test("계측 I-6: 시트에서 동의를 제출하면 그 직후에 다시 물�
     "GET /v2/consents/entry",
     "POST /v2/example",
   ]);
-  assert.equal(globalThis.__amplitudeCalls.some(([name]) => name === "init"), true);
+  assert.equal(sdk.calls.some(([name]) => name === "init"), true);
   assert.equal(optedOut(), false);
   assert.equal((await blocked.request).status, 201);
 });

@@ -18,6 +18,7 @@ import com.acttub.actingapi.feature.profile.app.ProfileRepository;
 import com.acttub.actingapi.feature.profile.app.SignupAttributionOwnership;
 import com.acttub.actingapi.feature.profile.domain.Account;
 import com.acttub.actingapi.feature.profile.domain.AgeBand;
+import com.acttub.actingapi.feature.profile.domain.DiscoveryAnswer;
 import com.acttub.actingapi.feature.profile.domain.NotificationSettings;
 import com.acttub.actingapi.feature.profile.domain.Profile;
 import com.acttub.actingapi.feature.profile.domain.SignupAttribution;
@@ -367,12 +368,39 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
     }
 
     /**
+     * 처음 답만 남긴다 — {@code ON CONFLICT DO NOTHING}. 유입 광고 기록과 같은 이유로 활성 계정을 먼저 잡는다
+     * ({@link #lockActive}): 탈퇴가 먼저면 쓰지 않는다. 탈퇴는 이 표의 행을 지운다.
+     */
+    @Override
+    public boolean recordDiscoveryAnswer(UUID userId, DiscoveryAnswer answer) {
+        return Boolean.TRUE.equals(transaction.execute(status -> {
+            if (!lockActive(userId)) {
+                return false;
+            }
+            entityManager.createNativeQuery("""
+                    INSERT INTO user_discovery_answers (user_id,source,detail,other_text)
+                    VALUES (:userId,CAST(:source AS text),CAST(:detail AS text),CAST(:otherText AS text))
+                    ON CONFLICT (user_id) DO NOTHING
+                    """)
+                    .setParameter("userId", userId)
+                    .setParameter("source", answer.source())
+                    .setParameter("detail", answer.detail())
+                    .setParameter("otherText", answer.otherText())
+                    .executeUpdate();
+            return true;
+        }));
+    }
+
+    /**
      * 이관으로 닫힐 게스트의 유입 기록을 지운다. 회원이 게스트 뒤에 새로 가입한 계정인지 증명할 신호가 없으므로
      * 회원에게 옮기지 않는다. 기존 회원의 과거 가입 출처를 웹 재방문의 UTM으로 오염시키지 않는 쪽이 안전하다.
      */
     @Override
     public void discardTransferredGuest(UUID guestId) {
         entityManager.createNativeQuery("DELETE FROM user_signup_attributions WHERE user_id=:guestId")
+                .setParameter("guestId", guestId)
+                .executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM user_discovery_answers WHERE user_id=:guestId")
                 .setParameter("guestId", guestId)
                 .executeUpdate();
     }
@@ -690,6 +718,10 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
             entityManager.createNativeQuery("DELETE FROM user_signup_attributions WHERE user_id=:userId")
                     .setParameter("userId", userId)
                     .executeUpdate();
+            // 가입 직후 답한 유입 경로(SOMA-649)도 행째 지운다 — 기타의 직접 입력이 남지 않게.
+            entityManager.createNativeQuery("DELETE FROM user_discovery_answers WHERE user_id=:userId")
+                    .setParameter("userId", userId)
+                    .executeUpdate();
             cleanups.addAll(hashIdentities(userId, now));
 
             // ⚠ 새 코드가 `users.nickname` 을 건드리는 곳은 이 한 줄뿐이다 (SOMA-528 결정 I-3).
@@ -878,7 +910,7 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
     }
 
     /**
-     * 리딩 자료의 파기 (specs/reading 「리딩 자료의 이관·삭제·탈퇴」, account.withdraw). 대본·배역·줄·회차·암기 상태는
+     * 리딩 자료의 파기 (specs/reading 「리딩 자료의 이관·삭제·탈퇴」, account.withdraw). 대본·배역·줄·회차·회차 평가·암기 상태는
      * <b>행째</b> 지운다 — 연습 기록과 달리 사람과 끊어 남기지 않는다. 녹음은 보관 동의자 것만 남긴다: 회차·줄
      * 연결을 비우고 {@code user_id} 를 유지해 3년 파기({@link #purgeRetained})가 지운다. 동의가 없으면 행(음성과
      * 전사)을 지우고 객체 키를 같은 트랜잭션에서 장부({@code reading_recording_delete})에 올린다.
@@ -923,6 +955,15 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
             }
         }
         entityManager.createNativeQuery("DELETE FROM line_memorization WHERE user_id=:userId")
+                .setParameter("userId", userId)
+                .executeUpdate();
+        // 회차 평가(V40)는 회차와 함께 행째 지운다 — 노트 평가와 달리 사람과 끊어 남기지 않는다(회차가 남지 않으므로).
+        // 평가의 쓰기는 같은 users 행을 먼저 잡으므로 늦게 온 평가가 남지 않는다.
+        entityManager.createNativeQuery("""
+                DELETE FROM reading_session_ratings
+                WHERE user_id=:userId
+                   OR session_id IN (SELECT id FROM reading_sessions WHERE user_id=:userId)
+                """)
                 .setParameter("userId", userId)
                 .executeUpdate();
         entityManager.createNativeQuery("DELETE FROM reading_sessions WHERE user_id=:userId")

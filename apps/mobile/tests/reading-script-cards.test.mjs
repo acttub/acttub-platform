@@ -31,11 +31,11 @@ test('reading.script: 목록 머리는 "전체 N개 · 연습 중 M개"다', () 
   assert.equal(listHeader({ total_count: 0, in_progress_count: 0 }), '전체 0개 · 연습 중 0개');
 });
 
-test('reading.script: 상태 칩은 셋뿐이다 — 열린 회차 "연습 중", 마지막 회차 완료 "연습 완료", 그 밖 "배역 선택"', () => {
+test('reading.script: 상태 칩은 둘뿐이다 — 열린 회차 "연습 중", 마지막 회차 완료 "연습 완료". 배역을 아직 안 골랐으면 칩이 없다(SOMA-664)', () => {
   assert.equal(statusChip(card({ status: 'reading' })).label, '연습 중');
   assert.equal(statusChip(card({ status: 'completed' })).label, '연습 완료');
-  assert.equal(statusChip(card({ status: 'no_cast' })).label, '배역 선택');
-  for (const status of ['reading', 'completed', 'no_cast']) {
+  assert.equal(statusChip(card({ status: 'no_cast' })), null);
+  for (const status of ['reading', 'completed']) {
     assert.notEqual(statusChip(card({ status })).label, '분석 완료', '리딩에는 분석이 없다');
   }
 });

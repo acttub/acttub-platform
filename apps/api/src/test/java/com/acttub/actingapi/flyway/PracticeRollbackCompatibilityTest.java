@@ -50,7 +50,8 @@ class PracticeRollbackCompatibilityTest {
             "entry_view_events", "entry_ranking_snapshots", "entry_saves", "entry_comments", "entry_reports",
             "entry_ai_reports", "notifications", "notification_pushes", "note_ratings",
             "reading_voice_cache", "reading_voice_usage", "evening_reminder_sends", "user_signup_attributions",
-            "app_posters", "script_imports", "script_uploads");
+            "app_posters", "script_imports", "script_uploads", "audition_postings", "user_discovery_answers",
+            "reading_session_ratings");
 
     @Test
     @DisplayName("0.1.0 은 옛 표를 한 칸도 바꾸지 않았다 — 예약 장부에 더한 NULL 허용 컬럼 셋과 users 의 둘, "
@@ -101,8 +102,8 @@ class PracticeRollbackCompatibilityTest {
         }
     }
 
-    /** V14~V35 — 연습·챌린지·노트 평가·보관함 포스터·고품질 목소리·저녁 알림·가입 유입 출처·신원 마지막 로그인·앱 공지 포스터·배우 기억 칸 개정·리딩 멈춤 없앰·리딩 말한 것·대본 나누기·대본 원본 파일·고품질 목소리 무료 기간 단축이 더한 마이그레이션의 수. 더 늘면 이 값을 함께 올린다. */
-    private static final int NEW_MIGRATIONS = 22;
+    /** V14~V40 — 연습·챌린지·노트 평가·보관함 포스터·고품질 목소리·저녁 알림·가입 유입 출처·신원 마지막 로그인·앱 공지 포스터·배우 기억 칸 개정·리딩 멈춤 없앰·리딩 말한 것·대본 나누기·대본 원본 파일·고품질 목소리 무료 기간 단축·오디션 공고·광고성 정보 수신 동의·가입 유입 경로 자기 응답·대본 원본 실패 보관·리딩 회차 평가가 더한 마이그레이션의 수. 더 늘면 이 값을 함께 올린다. */
+    private static final int NEW_MIGRATIONS = 27;
 
     private static List<String> fingerprintAt(String target) throws Exception {
         String jdbcUrl = PostgresContainerSupport.createDatabase(
@@ -140,7 +141,7 @@ class PracticeRollbackCompatibilityTest {
         if (expected.remove(consentTypesBefore)) {
             expected.add("CONSTRAINT consent_documents ck_consent_documents_type CHECK ((type = ANY "
                     + "(ARRAY['terms'::text, 'privacy'::text, 'ai_analysis'::text, 'retention'::text, "
-                    + "'cloud_voice'::text, 'script_split'::text])))");
+                    + "'cloud_voice'::text, 'script_split'::text, 'marketing_email'::text, 'marketing_push'::text])))");
         }
         // V31 은 넓히기가 아니라 좁히기다. validate 는 CHECK·인덱스를 보지 않아 옛 서버가 뜨기는 하지만, 옛 서버는 새 연습을
         // 시작할 때 'stopped' 를 써서 이 CHECK 에 걸린다. 그래서 V31 앞의 이미지로는 되돌리지 않는다(V31 머리 주석).

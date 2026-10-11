@@ -31,6 +31,8 @@ public final class ConsentGateInterceptor implements HandlerInterceptor {
             // 푸시 토큰 삭제는 로그아웃의 첫 단계다. 동의가 미결정이어도 로그아웃은 된다.
             route(HttpMethod.DELETE, "/v2/push-tokens"),
             route(null, "/v2/admissions/**"),
+            // 오디션 공고 모아보기(app.audition) — 로그인과 무관한 공개 목록이다.
+            route(HttpMethod.GET, "/v2/auditions"),
             // 포트폴리오 공개 조회 — 받은 링크를 로그인 없이 여는 사람이 본다.
             route(HttpMethod.GET, "/v2/public/**"),
             route(null, "/v2/admin/**"));

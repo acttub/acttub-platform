@@ -88,7 +88,8 @@ class AccessGateTest {
                 {"POST", "/v2/auth/logout"}, {"GET", "/v2/consents/documents"}, {"GET", "/v2/consents/pending"},
                 {"GET", "/v2/consents/entry"}, {"POST", "/v2/consents"}, {"GET", "/v2/me"},
                 {"DELETE", "/v2/me"}, {"DELETE", "/v2/push-tokens"}, {"GET", "/v2/admissions"},
-                {"GET", "/v2/admissions/snu"}, {"GET", "/v2/admin/sessions"}, {"GET", "/health"}}) {
+                {"GET", "/v2/admissions/snu"}, {"GET", "/v2/auditions"}, {"GET", "/v2/admin/sessions"},
+                {"GET", "/health"}}) {
             assertThat(ConsentGateInterceptor.gateFor(open[0], open[1]))
                     .as("%s %s", open[0], open[1]).isEqualTo(Gate.NONE);
         }
@@ -99,6 +100,8 @@ class AccessGateTest {
         // 웹 전용 PUT에만 개인정보 동의 관문을 적용한다. 앱 경로와 다른 메서드는 완화하지 않는다.
         assertThat(ConsentGateInterceptor.gateFor("PUT", "/v2/me/web-attribution")).isEqualTo(Gate.PRIVACY_ONLY);
         assertThat(ConsentGateInterceptor.gateFor("PUT", "/v2/me/signup-attribution")).isEqualTo(Gate.FULL);
+        // 가입 직후 유입 경로 자기 응답(SOMA-649)도 동의·프로필을 끝낸 회원만 쓴다.
+        assertThat(ConsentGateInterceptor.gateFor("PUT", "/v2/me/discovery")).isEqualTo(Gate.FULL);
         assertThat(ConsentGateInterceptor.gateFor("POST", "/v2/me/web-attribution")).isEqualTo(Gate.FULL);
 
         // 그 밖은 전부 보호 기능이다. 표에 적지 않은 새 경로도 닫힌 채로 시작한다.

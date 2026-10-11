@@ -4,40 +4,25 @@
 // 지나친다. 루트에 놓이는 <Analytics /> 를 실제로 띄워 그 배선을 본다.
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
-import { after, afterEach, before, beforeEach, test } from "node:test";
+import { afterEach, before, beforeEach, test } from "node:test";
 
 import "./ts-module-loader.mjs";
 import { mountProbe as mount, react, window } from "./mount-probe.mjs";
+import { sdk } from "./fixtures/posthog-js.mjs";
 
 process.env.NEXT_PUBLIC_API_BASE_URL = "";
-process.env.NEXT_PUBLIC_AMPLITUDE_API_KEY = "test-amplitude-key";
+process.env.NEXT_PUBLIC_POSTHOG_KEY = "test-posthog-key";
 
-// SDK 의 네트워크가 아니라 우리가 켜고 끄는지만 본다(analytics-amplitude.test.mjs 와 같은 목).
-const amplitudeMockUrl = `data:text/javascript,${encodeURIComponent(`
-const calls = globalThis.__amplitudeCalls;
-export const init = (...args) => calls.push(["init", ...args]);
-export const add = (...args) => calls.push(["add", ...args]);
-export const track = (...args) => calls.push(["track", ...args]);
-export const setUserId = (...args) => calls.push(["setUserId", ...args]);
-export const reset = (...args) => calls.push(["reset", ...args]);
-export const setOptOut = (...args) => calls.push(["setOptOut", ...args]);
-`)}`;
-const replayMockUrl = `data:text/javascript,${encodeURIComponent(`
-export const sessionReplayPlugin = () => ({ name: "session-replay" });
-`)}`;
 // 앱 라우터 밖에서는 usePathname 이 돌지 않는다. 화면 하나에 머무는 것으로 둔다.
 const navigationMockUrl = `data:text/javascript,${encodeURIComponent(`
 export const usePathname = () => "/home";
 `)}`;
 
-globalThis.__amplitudeCalls = [];
+// SDK 의 네트워크가 아니라 우리가 켜고 끄는지만 본다(analytics-posthog.test.mjs 와 같은 SDK 대역).
 registerHooks({
   resolve(specifier, context, nextResolve) {
-    if (specifier === "@amplitude/analytics-browser") {
-      return { url: amplitudeMockUrl, shortCircuit: true };
-    }
-    if (specifier === "@amplitude/plugin-session-replay-browser") {
-      return { url: replayMockUrl, shortCircuit: true };
+    if (specifier === "posthog-js") {
+      return { url: new URL("./fixtures/posthog-js.mjs", import.meta.url).href, shortCircuit: true };
     }
     if (specifier === "next/navigation") {
       return { url: navigationMockUrl, shortCircuit: true };
@@ -108,10 +93,9 @@ function becomeVisible() {
   window.document.dispatchEvent(new window.Event("visibilitychange"));
 }
 
-/** 마지막으로 SDK 에 건 opt-out. 켜져 있으면 false(또는 건 적 없음), 꺼졌으면 true. */
+/** SDK 가 지금 opt-out 상태인가. */
 function optedOut() {
-  const last = globalThis.__amplitudeCalls.findLast(([name]) => name === "setOptOut");
-  return last ? last[1] : false;
+  return sdk.optedOut;
 }
 
 /** 계측이 켜진 채로 <Analytics /> 를 띄우고, 그 뒤의 조회만 세도록 기록을 비운다. */
@@ -140,16 +124,12 @@ afterEach(() => {
   window.localStorage.clear();
 });
 
-after(() => {
-  delete globalThis.__amplitudeCalls;
-});
-
 test("계측 I-6: 다른 탭이 무관한 키를 써도 서버에 다시 묻지 않고 계측도 끊기지 않는다", async () => {
   await mountMeasuring();
 
   await react.act(async () => {
-    // 다른 탭의 Amplitude SDK 가 보내지 못한 이벤트를 쌓는 키. 이벤트마다 쓰인다.
-    fromAnotherTab("AMP_unsent_test", null, "[]");
+    // 다른 탭의 PostHog SDK 가 상태를 저장하는 키. 이벤트마다 쓰인다.
+    fromAnotherTab("ph_test-posthog-key_posthog", null, "{}");
     fromAnotherTab("acttub.guest.age_confirmed", null, "1");
   });
 

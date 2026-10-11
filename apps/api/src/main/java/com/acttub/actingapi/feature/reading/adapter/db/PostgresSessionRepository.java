@@ -323,6 +323,10 @@ class PostgresSessionRepository implements SessionRepository {
                     .setParameter("sessionId", sessionId)).stream()
                     .map(row -> row.get("object_key", String.class))
                     .toList();
+            // 회차 평가(V40)는 회차에 매달려 함께 지운다. 평가의 쓰기도 이 회차 행을 잡으므로 겹쳐도 남지 않는다.
+            entityManager.createNativeQuery("DELETE FROM reading_session_ratings WHERE session_id=:sessionId")
+                    .setParameter("sessionId", sessionId)
+                    .executeUpdate();
             entityManager.createNativeQuery("DELETE FROM reading_sessions WHERE id=:sessionId")
                     .setParameter("sessionId", sessionId)
                     .executeUpdate();

@@ -79,30 +79,14 @@ export function orderedMessages(conversation: Pick<CoachConversation, 'messages'
   return [...conversation.messages].sort((a, b) => a.turn_index - b.turn_index);
 }
 
-/**
- * 코치 발화를 화면용으로 나눈다 — 마지막 물음 문장은 크게 보이는 질문, 그 앞의 관찰은 힌트 박스.
- * 코치는 "본 장면 한두 문장 + 질문" 꼴로 말한다. 물음으로 끝나지 않거나 한 문장이면 나누지 않는다.
- */
-export function splitCoachQuestion(text: string): { question: string; hint: string | null } {
-  const trimmed = text.trim();
-  if (!trimmed.endsWith('?')) return { question: trimmed, hint: null };
-  const sentences = trimmed.split(/(?<=[.!?。])\s+/);
-  if (sentences.length < 2) return { question: trimmed, hint: null };
-  const question = sentences[sentences.length - 1];
-  const hint = sentences.slice(0, -1).join(' ').trim();
-  return { question, hint: hint || null };
-}
-
-export type HelpButton = 'explain' | 'ask_back' | 'later';
+export type HelpButton = 'yes' | 'no';
 
 /**
- * 도움 버튼이 준비하는 입력. 버튼만 눌러서는 아무것도 전송되지 않고 응답 횟수도 쓰지 않는다
- * ("제가 되물을게요"는 배우가 직접 쓰도록 빈 칸을 준다).
+ * 빠른 답 버튼(맞아요·아니요)이 준비하는 입력. 버튼만 눌러서는 아무것도 전송되지 않고 응답 횟수도 쓰지 않는다 —
+ * 배우가 덧붙여 쓰고 보낸다(SOMA-656). 코치에게 묻고 싶은 건 입력칸에 그대로 쓴다.
  */
 export function helpButtonDraft(button: HelpButton): string {
-  if (button === 'explain') return translate('coach.explainMessage');
-  if (button === 'later') return translate('coach.laterMessage');
-  return '';
+  return translate(button === 'yes' ? 'coach.yesMessage' : 'coach.noMessage');
 }
 
 export type CoachFailure =

@@ -1,7 +1,11 @@
 package com.acttub.actingapi.integration.document;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -25,6 +29,7 @@ import org.apache.pdfbox.pdmodel.encryption.AccessPermission;
 import org.apache.pdfbox.pdmodel.encryption.StandardProtectionPolicy;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
+import org.apache.pdfbox.pdmodel.graphics.image.LosslessFactory;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -32,7 +37,8 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * 표본 파일에서 뽑은 글을 글자 그대로 본다. 표본: {@code rooftop.docx} 는 macOS textutil 이 RTF(탭·줄바꿈)에서 만든 것,
  * {@code rooftop.hwp} 는 hwplib 1.1.11 로 탭(인라인 컨트롤 9)을 넣어 만든 것, {@code rooftop.pdf}·{@code scan.pdf} 는 Chrome 이
- * 찍은 것(scan 은 캔버스 그림뿐이라 글자가 없다). 표가 든 docx·hwpx 는 구조를 그대로 적어 이 자리에서 만든다.
+ * 찍은 것(scan 은 캔버스 그림뿐이라 글자가 없다), {@code scan-script.pdf} 는 macOS 의 Apple SD Gothic Neo 로 대본 세 줄을 그린
+ * 회색조 그림(1800×2330) 한 장만 PDFBox 로 넣은 것이다. 표가 든 docx·hwpx 는 구조를 그대로 적어 이 자리에서 만든다.
  */
 class DocumentTextTest {
     private static final String ROOFTOP = "옥상, 밤\n윤서\t오늘은 바람이 차네.\n태오\t옥상은 원래 그래.\n(윤서, 난간에 기댄다)\n윤서\t너도 이리 와 봐.\n";
@@ -181,9 +187,46 @@ class DocumentTextTest {
     }
 
     @Test
-    @DisplayName("reading.script 원본: 글자 없는 PDF(스캔)·사용자 암호 PDF·잘린 PDF·한글 97·모르는 zip·이진 파일은 읽지 못함이다")
+    @DisplayName("reading.script \uc6d0\ubcf8: \uadf8\ub9bc PDF \ub294 15\ucabd\uae4c\uc9c0\ub9cc \uae00\uc790 \uc778\uc2dd\uc73c\ub85c \uac04\ub2e4 \u2014 16\ucabd\uc740 \uc778\uc2dd \ud504\ub85c\uadf8\ub7a8\uc744 \ucc3e\uae30 \uc804\uc5d0 \uc77d\uc9c0 \ubabb\ud568, 15\ucabd\uc740 \uc778\uc2dd \ud504\ub85c\uadf8\ub7a8\uc774 \uc5c6\uc5b4 \uc77d\uc9c0 \ubabb\ud568")
+    void imagePdfPageLimit() throws IOException {
+        assertThat(DocumentText.read(imagePdf("sixteen.pdf", 16), 100_000, null))
+                .isEqualTo(new DocumentText.Unreadable("scanned_too_many_pages"));
+        assertThat(DocumentText.read(imagePdf("fifteen.pdf", 15), 100_000, null)).isEqualTo(new DocumentText.Unreadable("no_ocr"));
+    }
+
+    @Test
+    @DisplayName("reading.script \uc6d0\ubcf8: \uae00\uc790 \ucabd\uacfc \uadf8\ub9bc \ucabd\uc774 \uc11e\uc778 PDF \ub294 \uae00\uc790 \ucabd\ub9cc \uc77d\ub294\ub2e4 \u2014 \uae00\uc790 \uc778\uc2dd\uc73c\ub85c \uac00\uc9c0 \uc54a\ub294\ub2e4")
+    void mixedPdfReadsTextPagesOnly() throws IOException {
+        Path file = dir.resolve("mixed.pdf");
+        try (PDDocument document = new PDDocument()) {
+            PDPage text = new PDPage();
+            document.addPage(text);
+            try (PDPageContentStream content = new PDPageContentStream(document, text)) {
+                content.beginText();
+                content.setFont(HELVETICA, SIZE);
+                content.newLineAtOffset(50, 700);
+                content.showText("Mom: Are you studying?");
+                content.endText();
+            }
+            addImagePage(document);
+            document.save(file.toFile());
+        }
+        assertThat(DocumentText.read(file, 100_000, null)).isEqualTo(new DocumentText.Text("Mom: Are you studying?\n\n"));
+    }
+
+    @Test
+    @DisplayName("reading.script \uc6d0\ubcf8: \ucabd\ub9c8\ub2e4 \uadf8\ub9bc\ubfd0\uc778 PDF \ub294 tesseract \ub85c \uae00\uc790\ub97c \uc778\uc2dd\ud574 \ub744\uc5b4\uc4f0\uae30 \uadf8\ub300\ub85c \uc77d\uace0, \ube48 \ud770 \ucabd\ub9cc \uc788\uc73c\uba74 \uc77d\uc9c0 \ubabb\ud568\uc774\ub2e4")
+    void imagePdfIsRecognized() throws IOException {
+        assumeTrue(onPath("tesseract"), "tesseract \uac00 PATH \uc5d0 \uc5c6\ub2e4(\uc6b4\uc601 \uc774\ubbf8\uc9c0\uc5d0\ub294 \uc788\ub2e4)");
+        assertThat(read(resource("scan-script.pdf"))).isInstanceOfSatisfying(DocumentText.Text.class,
+                text -> assertThat(text.value().lines()).contains("[\uc5c4\ub9c8] \uc720\uc138\uc544, \uacf5\ubd80 \uc5f4\uc2ec\ud788 \ud558\uace0 \uc788\uc9c0?"));
+        assertThat(read(imagePdf("blank.pdf", 1))).isEqualTo(new DocumentText.Unreadable("no_text"));
+    }
+
+    @Test
+    @DisplayName("reading.script 원본: 글자 인식 프로그램이 없는 서버의 그림 PDF(스캔)·사용자 암호 PDF·잘린 PDF·한글 97·모르는 zip·이진 파일은 읽지 못함이다")
     void unreadableFiles() throws IOException {
-        assertThat(read(resource("scan.pdf"))).isEqualTo(new DocumentText.Unreadable("no_text"));
+        assertThat(DocumentText.read(resource("scan.pdf"), 100_000, null)).isEqualTo(new DocumentText.Unreadable("no_ocr"));
 
         Path locked = dir.resolve("locked.pdf");
         try (PDDocument document = Loader.loadPDF(resource("rooftop.pdf").toFile())) {
@@ -291,6 +334,35 @@ class DocumentTextTest {
             document.save(file.toFile());
         }
         return file;
+    }
+
+    /** 쪽마다 흰 그림 한 장뿐인 PDF. */
+    private Path imagePdf(String name, int pages) throws IOException {
+        Path file = dir.resolve(name);
+        try (PDDocument document = new PDDocument()) {
+            for (int i = 0; i < pages; i++) addImagePage(document);
+            document.save(file.toFile());
+        }
+        return file;
+    }
+
+    private static void addImagePage(PDDocument document) throws IOException {
+        BufferedImage white = new BufferedImage(200, 200, BufferedImage.TYPE_BYTE_GRAY);
+        Graphics2D graphics = white.createGraphics();
+        graphics.setColor(Color.WHITE);
+        graphics.fillRect(0, 0, 200, 200);
+        graphics.dispose();
+        PDPage page = new PDPage();
+        document.addPage(page);
+        try (PDPageContentStream content = new PDPageContentStream(document, page)) {
+            content.drawImage(LosslessFactory.createFromImage(document, white), 50, 500);
+        }
+    }
+
+    private static boolean onPath(String command) {
+        return Arrays.stream(System.getenv().getOrDefault("PATH", "").split(java.io.File.pathSeparator))
+                .map(directory -> Path.of(directory, command))
+                .anyMatch(candidate -> Files.isRegularFile(candidate) && Files.isExecutable(candidate));
     }
 
     private static String p(String prefix, String inner) {

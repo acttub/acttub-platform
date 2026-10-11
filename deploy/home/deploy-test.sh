@@ -8,6 +8,14 @@ mkdir "$WORK/bin"
 cat > "$WORK/bin/docker" <<'MOCK'
 #!/usr/bin/env bash
 set -euo pipefail
+if [ "$1" = image ]; then
+  case "$2" in
+    ls) [ "${TEST_IMAGE_LS_FAILURE:-false}" != true ] && printf '%s\n' ${TEST_IMAGES:-} ;;
+    rm) echo "image rm $3" >> "$TEST_CALLS"; [ "$3" != "${TEST_IMAGE_IN_USE:-}" ] ;;
+    *) exit 2 ;;
+  esac
+  exit
+fi
 [ "$1" = compose ] || exit 2
 shift
 while [ "${1:-}" = --env-file ]; do shift 2; done
@@ -67,7 +75,7 @@ failure TEST_CONFIG_FAILURE=true
 grep -qx previous-release "$WORK/release.env"
 success
 grep -qx 'pull --policy missing api web' "$WORK/calls"
-! grep -q '^BACKUP_IMAGE=' "$WORK/release.env"
+! grep -q '^BACKUP_IMAGE=' "$WORK/release.env" || exit 1
 : > "$WORK/calls"
 success TEST_BACKUP_ACTIVE=true BACKUP_IMAGE=example/backup:0123456
 grep -qx 'pull --policy missing api web backup' "$WORK/calls"
@@ -78,11 +86,12 @@ for state in starting unhealthy; do
   : > "$WORK/calls"
   failure TEST_API_HEALTH="$state"
   grep -q 'healthy 가 되지 않았다' "$WORK/log"
-  ! grep -q '^exec ' "$WORK/calls"
+  ! grep -q '^exec ' "$WORK/calls" || exit 1
 done
 failure TEST_DB_MISSING=true
 failure TEST_PS_FAILURE=true
-failure TEST_COMMIT=fffffff
+failure TEST_COMMIT=fffffff TEST_IMAGES=example/api:aaaaaaa
+! grep -q '^image rm' "$WORK/calls" || exit 1
 failure TEST_STATUS=503
 success DEPLOY_THREE_LAYERS_ENABLED=true
 grep -qx 'ACTTUB_THREE_LAYERS_ENABLED=true' "$WORK/release.env"
@@ -93,15 +102,23 @@ failure DEPLOY_THREE_LAYERS_ENABLED=true TEST_THREE_LAYERS=false
 success DEPLOY_THREE_LAYERS_ENABLED=false
 grep -qx 'ACTTUB_THREE_LAYERS_ENABLED=false' "$WORK/release.env"
 success
-! grep -q '^ACTTUB_THREE_LAYERS_ENABLED=' "$WORK/release.env"
+! grep -q '^ACTTUB_THREE_LAYERS_ENABLED=' "$WORK/release.env" || exit 1
 success DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=false
 grep -qx 'ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=false' "$WORK/release.env"
 failure DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=false TEST_GUEST_DAILY_LIMIT=true
 success DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=true
 grep -qx 'ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=true' "$WORK/release.env"
 success
-! grep -q '^ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=' "$WORK/release.env"
-echo '✔ deploy.sh: 입력 거부·backup 프로필·compose 실패·health 불일치 검증 통과'
+! grep -q '^ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=' "$WORK/release.env" || exit 1
+# ls 가 다른 저장소를 섞어 돌려줘도 이번 이미지의 저장소에 있는 릴리스 태그만 지우고, 쓰는 중인 이미지의 거부는 무시한다.
+: > "$WORK/calls"
+success TEST_IMAGES='example/api:0123456 example/api:aaaaaaa example/api:soma489-smoke-1 example/web:0123456 example/web:dev-bbbbbbb other/api:ccccccc example/api:ddddddd' \
+  TEST_IMAGE_IN_USE=example/api:ddddddd
+[ "$(grep '^image rm' "$WORK/calls")" = "$(printf 'image rm %s\n' example/api:aaaaaaa example/api:ddddddd example/web:dev-bbbbbbb)" ]
+grep -qx '  지움 example/api:aaaaaaa' "$WORK/log"
+! grep -q 'ddddddd' "$WORK/log" || exit 1
+success TEST_IMAGE_LS_FAILURE=true
+echo '✔ deploy.sh: 입력 거부·backup 프로필·compose 실패·health 불일치·옛 이미지 정리 검증 통과'
 success DEPLOY_THREE_LAYERS_ENABLED=true DEPLOY_DIRECT_VIDEO_ENABLED=true
 grep -qx 'ACTTUB_DIRECT_VIDEO_ENABLED=true' "$WORK/release.env"
 cp "$WORK/release.env" "$WORK/direct-release.env"
@@ -111,4 +128,4 @@ failure DEPLOY_DIRECT_VIDEO_ENABLED=true TEST_DIRECT_VIDEO=false
 success DEPLOY_DIRECT_VIDEO_ENABLED=false
 grep -qx 'ACTTUB_DIRECT_VIDEO_ENABLED=false' "$WORK/release.env"
 success
-! grep -q '^ACTTUB_DIRECT_VIDEO_ENABLED=' "$WORK/release.env"
+! grep -q '^ACTTUB_DIRECT_VIDEO_ENABLED=' "$WORK/release.env" || exit 1

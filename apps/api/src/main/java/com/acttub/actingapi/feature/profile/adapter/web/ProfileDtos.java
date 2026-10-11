@@ -150,6 +150,19 @@ final class ProfileDtos {
     }
 
     /**
+     * 가입 직후 답한 "액터브를 처음 어디서 알게 됐어요?"(SOMA-649). source 가 null 이면 건너뜀.
+     * detail 은 instagram 일 때만, other_text 는 other 일 때만 받는다.
+     */
+    @Schema(name = "DiscoveryAnswerRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    record DiscoveryAnswerRequest(
+            @Schema(nullable = true, allowableValues = {
+                "instagram", "naver_search", "google_youtube", "app_store_search",
+                "friend", "academy_school", "community", "other"}) String source,
+            @Schema(nullable = true, allowableValues = {"ad", "official_post", "other_post", "unknown"}) String detail,
+            @JsonProperty("other_text") @Schema(nullable = true, maxLength = 30) String otherText) {
+    }
+
+    /**
      * 웹이 개인정보 수집·이용 동의 뒤 보관한 안전한 UTM. source/platform은 요청에서 받지 않고 서버가 고정한다.
      */
     @Schema(name = "WebAttributionRequest", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)

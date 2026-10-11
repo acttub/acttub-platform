@@ -45,6 +45,7 @@ DB 이미지는 `compose.yml`이 정하고(버전 규칙은 [CONTRACT §2](../..
 | 방문자 IP | `CLIENT_IP_TRUSTED_PROXIES`(선택). 보통 비워 둔다. 전제는 [CONTRACT §6-13](../../apps/api/CONTRACT.md#6-13-방문자-ip)이다. 배포 뒤 한 번 확인한다: 한 회선에서 공개 포트폴리오 조회를 분당 한도([account.portfolio](../specs/account/portfolio.md#규칙제약))보다 한 번 더 부르면 마지막이 429이고, 직후 다른 회선에서는 404여야 한다 |
 | 운영 절차 | 보관 동의 철회 요청은 [RETENTION-REVOCATION.md](RETENTION-REVOCATION.md)대로 처리한다 |
 | 로그인 제공자 | `AUTH_ENABLED_PROVIDERS`, 애플 키 셋(`APPLE_TEAM_ID`·`APPLE_KEY_ID`·`APPLE_PRIVATE_KEY`. 없으면 처음 온 애플 신원의 로그인이 503). 카카오·네이버는 검수 승인 뒤에만 켜고, 그때 두 개발자 콘솔에 연결 끊기 콜백 주소를 등록한다(카카오는 POST·기본 어드민 키, [account.login](../specs/account/login.md#규칙제약)) |
+| 오디션 공고 | `AUDITION_ENABLED`(기본 false)·`AUDITION_SOURCES`(기본 `shinsee,emk,sejong,otr`, plfil 은 ADR-034 로 기본에서 뺐다)·`AUDITION_COLLECT_CRON`(기본 매일 07:00·19:00 KST). 켜면 API 가 바깥 출처의 목록 페이지에 요청을 보낸다([app.audition](../specs/app/audition.md)) |
 | 외부 서비스 | `GEMINI_API_KEY`, `OPENAI_API_KEY`, 모델 설정, `SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `LANGFUSE_*`(선택. 비우면 LLM 기록만 꺼진다) |
 | 모니터링 | `MONITORING_TOKEN`·`MONITORING_ENVIRONMENT`(선택). 값과 짝은 [수집 구성 「최초 준비」](../../deploy/monitoring/README.md#최초-준비)를 따른다 |
 | 영상 저장소 | 해당 환경의 `S3_BUCKET`, `AWS_REGION`, 그 버킷만 허용하는 AWS 자격증명 |
@@ -76,6 +77,7 @@ Actions가 이미지 세 개를 빌드·게시한 뒤 서버의 배포·복원 �
 처음 만든 GHCR 백업 패키지도 서버가 읽을 수 있는지 확인한다. 복원 도구는 `restore-db.sh`와
 `db-manifest.sql`·`schema-fingerprint.sql`을 함께 전송한다.
 이 스크립트는 앱 이미지 pull → Compose 기동·healthy 대기 → api·web·db의 실제 healthy 상태 확인 → 웹 경유 `/health.commit` 대조를 한다.
+성공하면 컨테이너가 쓰지 않는 옛 릴리스 이미지(`<sha>`·`<env>-<sha>` 태그)를 서버에서 지운다. dev와 운영이 같은 Docker를 쓰므로 한 환경의 배포가 다른 환경의 옛 이미지도 지운다.
 Compose가 짧은 대기 상한에서 성공을 반환해도 필수 컨테이너가 아직 starting이거나 누락됐으면 배포를 실패로 처리한다.
 공개 URL 대조까지 성공해야 터널을 통한 배포를 확인한 것이다. `.env`나 전체 Compose 설정을
 로그에 찍지 말고, 필요한 상태·이미지 ID·릴리스 SHA만 기록한다.
@@ -103,6 +105,7 @@ curl -fsS https://acttub.com/health
 
 DB 스키마와 호환되는 직전 운영 SHA(직전 운영 태그) 및 이미지로 `deploy.sh`를 다시 실행한다. 현재 이미지와
 `release.env`의 SHA를 먼저 기록한다. 실패했다고 자동으로 직전 이미지가 복구되지는 않는다.
+서버에서 지워진 직전 이미지는 `deploy.sh`가 GHCR에서 다시 받는다.
 같은 SHA 재배포는 멱등이다. 마이그레이션은 앱 기동의 일부라([CONTRACT §5-5](../../apps/api/CONTRACT.md#5-5-flyway-가-스키마를-소유한다))
 직전 SHA 재배포도 Git revert도 이미 적용된 DB 마이그레이션이나 사용자 쓰기를 되돌리지 않는다.
 실패한 마이그레이션은 부분 적용도 이력도 남기지 않으므로(`FlywayForwardMigrationTest`) 원인을 고쳐 다시 배포한다.
@@ -192,6 +195,7 @@ docker compose --env-file .env --env-file release.env logs --since 26h --tail 10
    | `CHALLENGE_NOTIFICATION_PUSH_ENABLED` | 챌린지 알림 푸시 |
    | `EXIT_SURVEY_SYNC_ENABLED` | 이탈 설문의 시트 재전송·연락처 정리 |
    | `CHALLENGE_SETTLEMENT_ENABLED` | 챌린지 마감 집계·보관 기간 정리(DB만 바꾸지만 복원 검증 중 데이터가 바뀐다) |
+   | `AUDITION_ENABLED` | 오디션 공고 수집(바깥 출처에 요청, 공고 행 갱신·삭제). 이것만 기본이 꺼짐이다 |
 3. S3에서 선택한 백업을 받아 metadata의 SHA-256과 대조하고 격리된 스택에서 먼저 복원한다.
    호스트를 새로 준비해야 하면 §2의 서버·시크릿을 복구하고 같은 앱 버전의 이미지로 스택을 준비한다.
    검증용 스택에는 운영 터널을 연결하지 않고 2단계의 스위치를 모두 끈다. S3 DB 백업에는 `.env`와

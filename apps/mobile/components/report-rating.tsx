@@ -16,7 +16,51 @@ import { newRequestId } from '@/lib/request-id';
  * 다시 보낸다(lib/note-rating.ts). 초기값은 노트 조회의 my_rating 이다. 이탈 설문과 다른 기능이다.
  */
 export function ReportRating({ practiceId, initial }: { practiceId: string; initial: NoteRating | null | undefined }) {
-  const [rating, setRating] = useState<NoteRatingValue | null>(initial?.rating ?? null);
+  return (
+    <RatingBox<NoteRatingValue>
+      initial={initial ?? null}
+      title={t('report.rateTitle')}
+      options={[
+        ['helpful', 'thumbs-up', t('report.rateGood')],
+        ['not_helpful', 'thumbs-down', t('report.rateBad')],
+      ]}
+      placeholder={t('report.ratePh')}
+      sendLabel={t('report.rateSend')}
+      thanks={t('report.rateThanks')}
+      commentMax={NOTE_RATING_COMMENT_MAX}
+      save={async (requestId, rating, comment) => {
+        const result = await noteRatings.send(practiceId, buildNoteRatingBody({ requestId, rating, comment }));
+        void logEvent('report_rating_submit', { rating, length: comment?.length ?? 0, result });
+        return result;
+      }}
+    />
+  );
+}
+
+/**
+ * 칩 둘 + 선택 한 줄 평가 상자. 칩을 누르는 순간 저장하고(낙관적 표시), 한 줄은 보내면 같은 평가에 덧붙는다.
+ * 저장이 4xx 로 버려지면 앞 선택으로 되돌린다. 노트 평가와 리딩 평가(components/reading-rating)가 같이 쓴다.
+ */
+export function RatingBox<Value extends string>({
+  initial,
+  title,
+  options,
+  placeholder,
+  sendLabel,
+  thanks,
+  commentMax,
+  save: persist,
+}: {
+  initial: { rating: Value; comment: string | null } | null;
+  title: string;
+  options: readonly (readonly [Value, 'thumbs-up' | 'thumbs-down', string])[];
+  placeholder: string;
+  sendLabel: string;
+  thanks: string;
+  commentMax: number;
+  save: (requestId: string, rating: Value, comment: string | null) => Promise<'sent' | 'queued' | 'dropped'>;
+}) {
+  const [rating, setRating] = useState<Value | null>(initial?.rating ?? null);
   // 서버에 붙어 있는(또는 보내는 중인) 한 줄. 칩을 바꿔도 이 한 줄은 그대로 함께 보낸다.
   const [comment, setComment] = useState<string | null>(initial?.comment ?? null);
   const [draft, setDraft] = useState(initial?.comment ?? '');
@@ -24,11 +68,10 @@ export function ReportRating({ practiceId, initial }: { practiceId: string; init
   // 겹쳐 누른 칩의 늦은 실패가 나중 선택을 되돌리지 않게, 마지막 요청만 화면을 바꾼다.
   const latest = useRef<string | null>(null);
 
-  const save = async (next: NoteRatingValue, nextComment: string | null, previous: { rating: NoteRatingValue | null; comment: string | null }) => {
+  const save = async (next: Value, nextComment: string | null, previous: { rating: Value | null; comment: string | null }) => {
     const requestId = newRequestId();
     latest.current = requestId;
-    const result = await noteRatings.send(practiceId, buildNoteRatingBody({ requestId, rating: next, comment: nextComment }));
-    void logEvent('report_rating_submit', { rating: next, length: nextComment?.length ?? 0, result });
+    const result = await persist(requestId, next, nextComment);
     // 4xx 는 다시 보내도 소용없다 — 저장되지 않은 선택을 보여 두지 않는다.
     if (result === 'dropped' && latest.current === requestId) {
       setRating(previous.rating);
@@ -37,7 +80,7 @@ export function ReportRating({ practiceId, initial }: { practiceId: string; init
     }
   };
 
-  const choose = (next: NoteRatingValue) => {
+  const choose = (next: Value) => {
     if (next === rating) return;
     const previous = { rating, comment };
     setRating(next);
@@ -55,14 +98,9 @@ export function ReportRating({ practiceId, initial }: { practiceId: string; init
 
   return (
     <View style={styles.box}>
-      <Text style={styles.title}>{t('report.rateTitle')}</Text>
+      <Text style={styles.title}>{title}</Text>
       <View style={styles.row}>
-        {(
-          [
-            ['helpful', 'thumbs-up', 'report.rateGood'],
-            ['not_helpful', 'thumbs-down', 'report.rateBad'],
-          ] as const
-        ).map(([key, icon, label]) => (
+        {options.map(([key, icon, label]) => (
           <Pressable
             key={key}
             style={[styles.chip, rating === key && styles.chipOn]}
@@ -70,23 +108,23 @@ export function ReportRating({ practiceId, initial }: { practiceId: string; init
             accessibilityRole="button"
             accessibilityState={{ selected: rating === key }}>
             <Feather name={icon} size={15} color={rating === key ? palette.blueDeep : palette.textDim} />
-            <Text style={[styles.chipText, rating === key && styles.chipTextOn]}>{t(label)}</Text>
+            <Text style={[styles.chipText, rating === key && styles.chipTextOn]}>{label}</Text>
           </Pressable>
         ))}
       </View>
-      {rating && thanked && <Text style={styles.thanks}>{t('report.rateThanks')}</Text>}
+      {rating && thanked && <Text style={styles.thanks}>{thanks}</Text>}
       {rating && !thanked && (
         <View style={styles.inputRow}>
           <TextInput
             style={styles.input}
             value={draft}
             onChangeText={setDraft}
-            placeholder={t('report.ratePh')}
+            placeholder={placeholder}
             placeholderTextColor={palette.textFaint}
-            maxLength={NOTE_RATING_COMMENT_MAX}
+            maxLength={commentMax}
           />
           <Pressable style={styles.send} onPress={send} accessibilityRole="button">
-            <Text style={styles.sendText}>{t('report.rateSend')}</Text>
+            <Text style={styles.sendText}>{sendLabel}</Text>
           </Pressable>
         </View>
       )}

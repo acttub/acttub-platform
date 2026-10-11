@@ -2,6 +2,7 @@ import type {
   AdmissionsResponse,
 } from './admissions';
 import { normalizeAdmissions } from './admissions';
+import { normalizeAuditions, type AuditionPostingList } from './auditions';
 
 import Constants from 'expo-constants';
 import {
@@ -59,6 +60,7 @@ import type {
   MyEntriesResponse,
   MyEntryCard,
 } from '@/lib/challenge/types';
+import type { ReadingRating, ReadingRatingBody } from '@/lib/reading/session-rating';
 import type {
   CoachConversation,
   CoachReplyBody,
@@ -102,6 +104,7 @@ import type { PostersResponse } from '@/lib/poster';
 import { currentLanguage, translate } from './i18n.ts';
 
 export { ApiError, NetworkError, RequestAbortError } from '@/lib/api-request';
+import type { DiscoveryPayload } from '@/lib/discovery';
 import type { SignupAttributionPayload } from '@/lib/signup-attribution';
 
 /**
@@ -732,6 +735,18 @@ export const api = {
   },
 
   /**
+   * 가입 직후 답한 "처음 어디서 알게 됐어요?"를 적는다(SOMA-649). 계정마다 처음 답만 남고 다시 보내도 204 다.
+   * source=null 은 건너뜀이다. 보내는 때는 가입 게이트(app/profile-name.tsx)가 정한다.
+   */
+  recordDiscoveryAnswer(payload: DiscoveryPayload): Promise<void> {
+    return request<void>(
+      '/v2/me/discovery',
+      { ...jsonInit(payload), method: 'PUT' },
+      { timeoutMs: 15_000 },
+    );
+  },
+
+  /**
    * 이 단말의 Expo push token 을 내 것으로 등록. 서버가 토큰 기준 upsert 라 멱등하다.
    * 보호 기능이라 동의와 프로필이 끝난 뒤에만 받는다(그 전에는 403).
    */
@@ -1044,6 +1059,15 @@ export const api = {
    * 노트 평가. 노트 하나에 한 행이고 다시 보내면 덮어쓴다(comment 를 빼면 한 줄도 비운다). 같은 request_id·같은
    * 본문의 재전송은 같은 답이다. 없는·남의·노트 없는 회차는 404 note_not_found.
    */
+  /** 리딩 평가(reading.session, SOMA-661) — 리딩 회차 하나에 사람 하나, 다시 보내면 덮어쓴다. */
+  putReadingSessionRating(sessionId: string, body: ReadingRatingBody): Promise<ReadingRating> {
+    return request<ReadingRating>(
+      `/v2/reading/sessions/${encodeURIComponent(sessionId)}/rating`,
+      jsonInit(body, 'PUT'),
+      { timeoutMs: 15_000 },
+    );
+  },
+
   putNoteRating(practiceId: string, body: NoteRatingBody): Promise<NoteRating> {
     return request<NoteRating>(
       `/v2/practices/${encodeURIComponent(practiceId)}/note/rating`,
@@ -1318,5 +1342,15 @@ export const api = {
       { auth: false, timeoutMs: 20_000 },
     );
     return normalizeAdmissions(data);
+  },
+
+  // 오디션 공고 -----------------------------------------------------------------
+  // 공개 정보다(app.audition). 기능이 꺼진 서버는 빈 items를 준다.
+  async auditions(): Promise<AuditionPostingList> {
+    const data = await request<AuditionPostingList>('/v2/auditions', {}, {
+      auth: false,
+      timeoutMs: 20_000,
+    });
+    return normalizeAuditions(data);
   },
 };

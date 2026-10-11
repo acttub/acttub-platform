@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -23,6 +24,11 @@ import {
   type ConsentChoice,
 } from '@/lib/consent-entry-submission';
 import { translate as t } from '@/lib/i18n';
+import {
+  entryMarketingDecisions,
+  marketingDecisionNotice,
+  shouldNoticeEntryDecisions,
+} from '@/lib/marketing-consent';
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
@@ -100,6 +106,14 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
         for (const failed of result.failedDocuments) delete next[failed.id];
         return next;
       });
+    } else if (result.kind === 'verified') {
+      // 광고성 정보 수신에 동의했으면 처리 결과를 알린다(정보통신망법 제50조 제7항). 저장이 확인되면 팝업이
+      // 닫히므로 앱 다이얼로그 대신 OS 알림창을 쓴다.
+      const decisions = entryMarketingDecisions(documents, choiceMap);
+      const notice = shouldNoticeEntryDecisions(decisions)
+        ? marketingDecisionNotice(decisions, new Date())
+        : null;
+      if (notice) Alert.alert(notice.title, notice.message);
     } else if (result.kind === 'verification_failed') {
       setVerificationOnly(true);
       setError(errorMessage(result.cause, t('consent.verifyFail')));
@@ -160,7 +174,11 @@ export function ReconsentPopup({ visible }: { visible: boolean }) {
               <ActivityIndicator color="#FFFFFF" />
             ) : (
               <Text style={styles.ctaText}>
-                {verificationOnly ? t('consent.verifyAgain') : t('consent.cta')}
+                {verificationOnly
+                  ? t('consent.verifyAgain')
+                  : documents.some((d) => d.required)
+                    ? t('consent.cta')
+                    : t('consent.ctaOptionalOnly')}
               </Text>
             )}
           </Pressable>

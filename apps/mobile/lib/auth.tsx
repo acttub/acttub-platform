@@ -21,6 +21,7 @@ import type { ProfileGateStatus } from '@/lib/app-bootstrap';
 import { runLegacyScriptMigrationOnce } from '@/lib/reading/legacy-migration-runner';
 import { flushPracticeFeedback } from '@/lib/exit-review';
 import { flushNoteRatings } from '@/lib/note-rating';
+import { flushReadingRatings } from '@/lib/reading-rating';
 import { flushLibraryUploads } from '@/lib/library/library-runner';
 import { flushRecordingUploads } from '@/lib/reading/recording-runner';
 import {
@@ -123,7 +124,8 @@ type AuthContextValue = {
    * 동의 화면의 "동의하고 계속하기". 통과하면 그 순간 계정이 생기고 로그인된다.
    * 가입 토큰 만료와 이메일 겹침은 던지지 않고 로그인 화면으로 돌려보낸다.
    */
-  submitSignup: (choices: ReadonlyMap<string, ConsentChoice>) => Promise<void>;
+  /** 계정이 만들어졌으면 true. 가입 토큰 만료·이메일 겹침으로 로그인부터 다시 시작하면 false. */
+  submitSignup: (choices: ReadonlyMap<string, ConsentChoice>) => Promise<boolean>;
   /** 보는 사이 새 판이 나왔을 때 가입 화면의 문서를 다시 받는다. */
   reloadSignupDocuments: () => Promise<void>;
   /** 가입 중의 동의 화면에서 나간다. 가입 토큰과 제공자가 준 이름을 버린다. */
@@ -336,9 +338,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (gatePassed) void flushPracticeFeedback();
   }, [gatePassed]);
 
-  // 못 보낸 노트 평가도 같은 요청 id 로 다시 보낸다(practice.note) — 노트마다 마지막 평가 하나다.
+  // 못 보낸 노트·리딩 평가도 같은 요청 id 로 다시 보낸다(practice.note·reading.session) — 노트·회차마다 마지막 평가 하나다.
   useEffect(() => {
-    if (gatePassed) void flushNoteRatings();
+    if (gatePassed) {
+      void flushNoteRatings();
+      void flushReadingRatings();
+    }
   }, [gatePassed]);
 
   useEffect(() => {
@@ -418,11 +423,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const submitSignup = useCallback(
-    async (choices: ReadonlyMap<string, ConsentChoice>) => {
-      if (!signup) return;
+    async (choices: ReadonlyMap<string, ConsentChoice>): Promise<boolean> => {
+      if (!signup) return false;
       if (isSignupExpired(signup, Date.now())) {
         cancelSignup();
-        return;
+        return false;
       }
       let pair: TokenPair;
       try {
@@ -434,9 +439,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (signupFailureAction(cause) !== 'restart_login') throw cause;
         // 가입 토큰 만료는 안내 없이, 이메일 겹침은 팝업과 함께 로그인 버튼부터 다시 시작한다.
         cancelSignup(emailConflictNotice(cause) ?? undefined);
-        return;
+        return false;
       }
       await finishLogin(pair, signup.provider, signup.displayName);
+      return true;
     },
     [cancelSignup, finishLogin, signup],
   );

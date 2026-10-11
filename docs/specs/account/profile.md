@@ -28,6 +28,7 @@
 | `POST /v2/me/photo` | 헤더 `Authorization`(게이트 통과), `PhotoUploadRequest`: `content_type`·`size_bytes` | `PhotoUploadResponse` 201(올릴 주소) | 게스트 `member_only` 403, `unsupported_media_type` 415, `upload_too_large` 413, 422 배열 |
 | `POST /v2/me/photo/complete` | 헤더 `Authorization`(게이트 통과) | `MeResponse` 200 | 게스트 `member_only` 403, `upload_intent_expired`·`upload_not_found`·`upload_size_mismatch` 409 |
 | `DELETE /v2/me/photo` | 헤더 `Authorization`(게이트 통과) | 204. 객체 삭제는 정리 장부로 간다 | 게스트 `member_only` 403 |
+| `PUT /v2/me/discovery` | 헤더 `Authorization`(게이트 통과), `DiscoveryAnswerRequest`: `source`·`detail`·`other_text`(모두 nullable) | 204. 처음 답만 남는다 | 게스트 `member_only` 403, 값·조합 422 배열 |
 
 ## 상태
 - 연습이 없는 계정의 가입 게이트에 만 14세 미만 생년월일 → users 행 없음 (정본: [account.login](login.md#상태))
@@ -98,6 +99,13 @@ user_profile_directions(user_id, direction)에 고른 값마다 한 행씩 둔�
   서버의 10MB 제한과 이미지 검사는 앱을 거치지 않은 올리기를 막는 안전망으로 남기며, 영상 올리기와
   같게 크기는 413, 형식은 415로 답한다. 형식을 먼저 보므로 415가 413보다 먼저다. 받는 형식은
   JPEG·PNG·WebP·HEIC다. 포트폴리오 사진도 이 규칙을 따른다. (account.portfolio)
+- 가입 게이트(편집이 아닐 때만) 맨 아래에 선택 질문 "액터브를 처음 어디서 알게 됐어요?"를 둔다(SOMA-649).
+  선택지는 인스타그램·네이버 검색·구글·유튜브·앱스토어·플레이스토어 검색·친구·지인 추천·연기학원·학교·극단·
+  필름메이커스 같은 커뮤니티·기타이고 화면을 열 때마다 순서를 섞되 기타는 맨 아래다. 인스타그램은 광고로·액터브
+  계정 게시물·다른 사람 게시물·기억 안 나요를 한 번 더 묻고, 기타는 30자까지 직접 적는다. 답하지 않아도 저장에
+  지장이 없다. 프로필 저장이 끝나면 앱이 `PUT /v2/me/discovery` 로 한 번 보내며(고르지 않았으면 source=null 로
+  건너뜀을 남긴다) 실패해도 가입 흐름을 막지 않는다. 계정마다 처음 답만 남고 탈퇴 때 지운다. 설정의 프로필
+  편집에는 없다. 이 값은 배우의 기억(자기 응답)이며 Airbridge 설치 귀속과 같은 뜻이 아니다.
 - 디자인에는 여섯 항목을 고치는 진입점이 없어 설정이나 프로필 탭에 더해야 한다. A4 프로필의
   "포트폴리오 편집"은 다른 기능이다. (account.portfolio)
 

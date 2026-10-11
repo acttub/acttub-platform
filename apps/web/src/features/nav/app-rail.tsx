@@ -25,6 +25,8 @@ const ITEMS: Item[] = [
   { href: "/practice/new", label: "홈", icon: "home", match: ["/practice", "/home"] },
   { href: "/reading", label: "리딩", icon: "book", match: ["/reading"] },
   { href: "/admissions", label: "입시", icon: "school", match: ["/admissions"] },
+  // 오디션 공고(app.audition)는 입시와 같은 공개 정보 화면이라 같은 줄에 둔다. 공개 랜딩에는 두지 않는다.
+  { href: "/auditions", label: "오디션", icon: "film", match: ["/auditions"] },
   { href: "/app", label: "앱", icon: "phone", match: ["/app"] },
 ];
 
@@ -66,7 +68,7 @@ function RailLink({ item, active }: { item: Item; active: boolean }) {
   );
 }
 
-type IconName = "home" | "book" | "school" | "phone";
+type IconName = "home" | "book" | "school" | "film" | "phone";
 
 /**
  * 유니코드 글리프(⌂ ◎ ▢)는 글자마다 실제 크기가 제각각이라 셋을 나란히 두면
@@ -101,6 +103,13 @@ function RailIcon({ name }: { name: IconName }) {
         <>
           <path d="M12 4 2.5 9 12 14l9.5-5L12 4Z" />
           <path d="M6.5 11.4V16c0 1.5 2.5 3 5.5 3s5.5-1.5 5.5-3v-4.6" />
+        </>
+      )}
+      {name === "film" && (
+        <>
+          <rect x="3.5" y="8" width="17" height="12" rx="2" />
+          <path d="m3.8 8 15.4-4.2.6 2.3L4.4 10.3" />
+          <path d="m8.2 6.8 1.6 2.7M13.4 5.4l1.6 2.7" />
         </>
       )}
       {name === "phone" && (

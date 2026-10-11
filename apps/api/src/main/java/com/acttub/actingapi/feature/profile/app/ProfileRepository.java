@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.profile.domain.Account;
+import com.acttub.actingapi.feature.profile.domain.DiscoveryAnswer;
 import com.acttub.actingapi.feature.profile.domain.NotificationSettings;
 import com.acttub.actingapi.feature.profile.domain.Profile;
 import com.acttub.actingapi.feature.profile.domain.SignupAttribution;
@@ -126,6 +127,13 @@ public interface ProfileRepository {
      * @return 계정이 활성이면 {@code true}(새로 적었든 이미 있었든). 없거나 활성이 아니면 {@code false}
      */
     boolean recordSignupAttribution(UUID userId, SignupAttribution attribution);
+
+    /**
+     * 가입 직후 답한 "처음 어디서 알게 됐어요?"를 <b>처음 한 번만</b> 적는다(SOMA-649). 이미 있으면 바꾸지 않는다.
+     *
+     * @return 계정이 활성이면 {@code true}(새로 적었든 이미 있었든). 없거나 활성이 아니면 {@code false}
+     */
+    boolean recordDiscoveryAnswer(UUID userId, DiscoveryAnswer answer);
 
     /**
      * 새로 받은 올리기 자리를 적는다. 앞의 대기 중인 올리기는 덮어쓰되, 그 객체의 삭제를 같은 트랜잭션에서

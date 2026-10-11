@@ -85,6 +85,8 @@ class ValueCheckCatalogIT {
         BY_CONSTRAINT.put("ck_practice_feedback_screen", FeedbackScreen.class);
         BY_CONSTRAINT.put("ck_practice_feedback_trigger", FeedbackTrigger.class);
         BY_CONSTRAINT.put("ck_note_ratings_rating", NoteRatingValue.class);
+        // 리딩 회차 평가(V40). 값 이름은 API 값이기도 하다.
+        BY_CONSTRAINT.put("ck_reading_session_ratings_rating", ReadingSessionRatingValue.class);
         BY_CONSTRAINT.put("ck_ai_jobs_kind", AiJobKind.class);
         BY_CONSTRAINT.put("ck_ai_jobs_status", OperationStatus.class);
         BY_CONSTRAINT.put("ck_portfolio_credits_kind", PortfolioCreditKind.class);
@@ -142,10 +144,17 @@ class ValueCheckCatalogIT {
             // 쓰는 칸이라 Java enum이 없다. 조합·웹 안전 문자열 CHECK는 ANY 값 목록 형태가 아니라 이 검사 대상 밖이다.
             "ck_user_signup_attributions_source",
             "ck_user_signup_attributions_platform",
+            // 가입 직후 유입 경로 자기 응답(V38)의 값 목록은 domain 의 DiscoveryAnswer 상수가 들고 저장소 native SQL 만 쓴다.
+            "ck_user_discovery_answers_source",
+            "ck_user_discovery_answers_detail",
             // 앱 공지 포스터(V29)의 값 목록은 domain 의 PosterRules 상수가 들고 저장소 native SQL 만 쓴다.
             "ck_app_posters_frequency",
             "ck_app_posters_audience",
-            "ck_app_posters_cta_action");
+            "ck_app_posters_cta_action",
+            // 오디션 공고(V36)의 출처·분야는 domain 의 AuditionRules 목록이 들고 저장소 native SQL 만 쓴다
+            // (같은 선인지는 AuditionSchemaMigrationTest 가 본다).
+            "ck_audition_postings_source",
+            "ck_audition_postings_category");
 
     /** {@code CHECK ((col = ANY (ARRAY['a'::text, 'b'::text])))} 에서 값만 뽑는다. */
     private static final Pattern LITERAL = Pattern.compile("'((?:[^']|'')*)'::text");

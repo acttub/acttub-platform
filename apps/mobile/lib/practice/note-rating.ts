@@ -39,32 +39,34 @@ export type NoteRatingStorage = {
   removeItem: (key: string) => Promise<void>;
 };
 
-export type NoteRatingQueueDeps = {
+export type NoteRatingQueueDeps<Body = NoteRatingBody> = {
   storage: NoteRatingStorage;
-  submit: (practiceId: string, body: NoteRatingBody) => Promise<unknown>;
+  submit: (practiceId: string, body: Body) => Promise<unknown>;
+  /** 밀린 요청을 적어 두는 자리. 리딩 평가(reading.session)가 같은 대기열을 다른 자리로 쓴다. */
+  pendingKey?: string;
 };
 
-type PendingRating = { practice_id: string; body: NoteRatingBody };
+type PendingRating<Body = NoteRatingBody> = { practice_id: string; body: Body };
 
 function isPermanent(error: unknown): boolean {
   const status = error !== null && typeof error === 'object' ? (error as { status?: unknown }).status : null;
   return typeof status === 'number' && status >= 400 && status < 500;
 }
 
-async function readPending(storage: NoteRatingStorage): Promise<PendingRating[]> {
+async function readPending<Body>(storage: NoteRatingStorage, key: string): Promise<PendingRating<Body>[]> {
   try {
-    const raw = await storage.getItem(PENDING_KEY);
+    const raw = await storage.getItem(key);
     const parsed = raw ? (JSON.parse(raw) as unknown) : [];
-    return Array.isArray(parsed) ? (parsed as PendingRating[]) : [];
+    return Array.isArray(parsed) ? (parsed as PendingRating<Body>[]) : [];
   } catch {
     return [];
   }
 }
 
-async function writePending(storage: NoteRatingStorage, items: PendingRating[]): Promise<void> {
+async function writePending<Body>(storage: NoteRatingStorage, key: string, items: PendingRating<Body>[]): Promise<void> {
   try {
-    if (items.length === 0) await storage.removeItem(PENDING_KEY);
-    else await storage.setItem(PENDING_KEY, JSON.stringify(items));
+    if (items.length === 0) await storage.removeItem(key);
+    else await storage.setItem(key, JSON.stringify(items));
   } catch {
     // 못 적어도 화면을 막지 않는다.
   }
@@ -74,16 +76,17 @@ async function writePending(storage: NoteRatingStorage, items: PendingRating[]):
  * 보내고, 네트워크·서버 실패면 들고 있다가 다음에 다시 보낸다. 4xx(노트 없음·지문 불일치·형식 오류·탈퇴)는
  * 들고 있어도 소용없어 버린다.
  */
-export function createNoteRatingQueue(dependencies: NoteRatingQueueDeps) {
+export function createNoteRatingQueue<Body = NoteRatingBody>(dependencies: NoteRatingQueueDeps<Body>) {
   const { storage, submit } = dependencies;
+  const key = dependencies.pendingKey ?? PENDING_KEY;
 
   async function forget(practiceId: string): Promise<void> {
-    const items = await readPending(storage);
+    const items = await readPending<Body>(storage, key);
     const rest = items.filter((item) => item.practice_id !== practiceId);
-    if (rest.length !== items.length) await writePending(storage, rest);
+    if (rest.length !== items.length) await writePending(storage, key, rest);
   }
 
-  async function send(practiceId: string, body: NoteRatingBody): Promise<'sent' | 'queued' | 'dropped'> {
+  async function send(practiceId: string, body: Body): Promise<'sent' | 'queued' | 'dropped'> {
     try {
       await submit(practiceId, body);
       // 새 평가가 반영됐으니 그 노트에 밀려 있던 옛 요청은 보내면 안 된다.
@@ -94,17 +97,17 @@ export function createNoteRatingQueue(dependencies: NoteRatingQueueDeps) {
         await forget(practiceId);
         return 'dropped';
       }
-      const items = (await readPending(storage)).filter((item) => item.practice_id !== practiceId);
+      const items = (await readPending<Body>(storage, key)).filter((item) => item.practice_id !== practiceId);
       items.push({ practice_id: practiceId, body });
-      await writePending(storage, items);
+      await writePending(storage, key, items);
       return 'queued';
     }
   }
 
   async function flush(): Promise<{ sent: number; kept: number }> {
-    const items = await readPending(storage);
+    const items = await readPending<Body>(storage, key);
     if (items.length === 0) return { sent: 0, kept: 0 };
-    const keep: PendingRating[] = [];
+    const keep: PendingRating<Body>[] = [];
     let sent = 0;
     for (const item of items) {
       try {
@@ -114,7 +117,7 @@ export function createNoteRatingQueue(dependencies: NoteRatingQueueDeps) {
         if (!isPermanent(error)) keep.push(item);
       }
     }
-    await writePending(storage, keep);
+    await writePending(storage, key, keep);
     return { sent, kept: keep.length };
   }
 

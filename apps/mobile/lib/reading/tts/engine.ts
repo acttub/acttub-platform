@@ -20,6 +20,7 @@ import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 
 import { currentLanguage, translate as t } from '../../i18n.ts';
 import { shouldStopCloudVoiceForSession } from '../cloud-voice.ts';
+import { normalizeFloatSamples } from '../loudness.ts';
 
 import { currentNetworkType } from '../network';
 import { assetsPresent, downloadAssets, downloadVoiceStyle, MODEL_KINDS, type Variant } from './assets';
@@ -208,7 +209,8 @@ async function synthesizeOne(text: string, scriptId: string, preset: string, spe
   // 앱을 쓰는 말로 읽힌다 — 한국어 사용자는 지금과 같다 (SOMA-544).
   // 말속도는 호출마다 바꿀 수 있다(듣고 따라 하기의 천천히 0.7×).
   const { wav } = await tts.call(clean, currentLanguage(), voice, cfg.steps, speed, 0.1);
-  const samples = Float32Array.from(wav);
+  // 기기 목소리는 고품질 목소리보다 작게 나와 세기를 맞춘다(SOMA-664).
+  const samples = normalizeFloatSamples(Float32Array.from(wav), { maxGain: 3 });
   out.write(writeWavFile(samples, tts.sampleRate));
   return out.uri;
 }

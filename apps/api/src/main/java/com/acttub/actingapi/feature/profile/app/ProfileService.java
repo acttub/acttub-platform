@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.acttub.actingapi.feature.profile.domain.Account;
+import com.acttub.actingapi.feature.profile.domain.DiscoveryAnswer;
 import com.acttub.actingapi.feature.profile.domain.KoreanAge;
 import com.acttub.actingapi.feature.profile.domain.NotificationSettings;
 import com.acttub.actingapi.feature.profile.domain.Profile;
@@ -142,6 +143,16 @@ public class ProfileService implements ProfileGate {
      */
     public void recordSignupAttribution(UUID userId, SignupAttribution attribution) {
         if (!profiles.recordSignupAttribution(userId, attribution)) {
+            throw refused(userId);
+        }
+    }
+
+    /**
+     * 가입 직후 답한 "처음 어디서 알게 됐어요?"를 적는다(SOMA-649). 처음 답만 남고 다시 와도 204 다.
+     * 적을 수 없는 계정(없음·탈퇴)은 유입 광고 기록과 같이 거절한다.
+     */
+    public void recordDiscoveryAnswer(UUID userId, DiscoveryAnswer answer) {
+        if (!profiles.recordDiscoveryAnswer(userId, answer)) {
             throw refused(userId);
         }
     }

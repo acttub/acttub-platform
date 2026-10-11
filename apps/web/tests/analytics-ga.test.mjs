@@ -23,6 +23,8 @@ test("실서비스 호스트에서만 계측한다", () => {
 
   assert.equal(isMeasuredHost("localhost"), false);
   assert.equal(isMeasuredHost("127.0.0.1"), false);
+  assert.equal(isMeasuredHost("dev.acttub.com"), false);
+  assert.equal(isMeasuredHost("api.dev.acttub.com"), false);
   assert.equal(isMeasuredHost("dev.acttub.com.evil.com"), false);
   assert.equal(isMeasuredHost("notacttub.com"), false);
 });

@@ -41,11 +41,12 @@ public class AccessTokenFilter extends OncePerRequestFilter {
         // 인증 의존성이 **아예 없는** 경로 — 원본은 Authorization 헤더를 읽지도 않는다
         // (`consents.py:build_router.list_documents`, `admissions.py:build_router`).
         // 이 필터는 "헤더가 있으면 검증"이라 만료 토큰을 전역으로 붙이는 클라이언트가
-        // 동의 문서·입시 정보 같은, 게이트 앞에서 누구나 읽는 콘텐츠에서 401 을 받게 된다.
+        // 동의 문서·입시 정보·오디션 공고 같은, 게이트 앞에서 누구나 읽는 콘텐츠에서 401 을 받게 된다.
         if (path.equals("/v2/consents/documents")
                 || path.equals("/v2/consents/notices")
                 || path.startsWith("/v2/public/")
-                || path.startsWith("/v2/admissions")) {
+                || path.startsWith("/v2/admissions")
+                || path.equals("/v2/auditions")) {
             return true;
         }
         // /v2/admin/* 은 사용자 토큰이 아니라 ADMIN_OPS_TOKEN 을 Authorization 으로 받는다

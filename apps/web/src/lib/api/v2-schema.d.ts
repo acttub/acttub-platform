@@ -4,6 +4,32 @@
  */
 
 export interface paths {
+    "/v2/reading/sessions/{session_id}/rating": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Rate Reading Session
+         * @description 회차에 "좋았어요(good)·아쉬웠어요(bad)" 와 한 줄(선택)을 남긴다. 회차 하나에 한 행이고 다시 보내면
+         *     덮어쓴다 — comment 를 빼면 한 줄도 비운다. 한 줄은 앞뒤 공백을 걷은 1~100자이고 넘으면 422
+         *     comment_too_long 이다. 진행 중 회차도 받고, 평가는 회차 상태를 바꾸지 않는다.
+         *
+         *     같은 request_id·같은 본문의 재전송은 200 같은 응답이고, 같은 id 에 다른 본문이면 422
+         *     request_fingerprint_mismatch 다. 없는 회차·남의 회차는 같은 404 session_not_found 다(회차 조회와
+         *     같다).
+         */
+        put: operations["rate_reading_session_v2_reading_sessions__session_id__rating_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/reading/lines/{line_id}/memorization": {
         parameters: {
             query?: never;
@@ -221,6 +247,29 @@ export interface paths {
          * @description 한 칸을 지운다. 이미 없으면 404 대신 204 — 지우려는 결과는 같다.
          */
         delete: operations["delete_actor_memory_field_v2_me_memory__field__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v2/me/discovery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Record Discovery Answer
+         * @description 가입 직후 배우가 답한 "액터브를 처음 어디서 알게 됐어요?"를 적는다(SOMA-649). source 가 null 이면
+         *     건너뛴 것이다. detail 은 source=instagram 일 때만, other_text 는 source=other 일 때만(30자 이하)
+         *     받는다. 계정마다 처음 온 값만 남고, 다시 보내도 바꾸지 않은 채 204 다. 동의와 프로필이 끝난 회원만
+         *     부를 수 있다. 게스트는 403 member_only. 이 값은 자기 응답이며 광고 플랫폼 귀속과 별개다.
+         */
+        put: operations["record_discovery_answer_v2_me_discovery_put"];
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1455,7 +1504,8 @@ export interface paths {
         };
         /**
          * Get Reading Session
-         * @description 없는 것과 남의 것은 같은 404 session_not_found 다.
+         * @description 없는 것과 남의 것은 같은 404 session_not_found 다. my_rating 은 이 사람이 이 회차에 남긴 평가이고
+         *     없으면 null 이다.
          */
         get: operations["get_reading_session_v2_reading_sessions__session_id__get"];
         put?: never;
@@ -1977,6 +2027,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v2/auditions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Auditions
+         * @description 지금 지원할 수 있는 오디션 공고 전부를 마감이 가까운 순(마감일 없는 것은 뒤, 그다음 최근 게시)으로.
+         *     마감일이 있으면 오늘(KST)까지, 없으면 게시 45일 안이고 마감 표시가 없는 것만 낸다. 기능이 꺼진
+         *     서버는 빈 items 다. 지원은 항상 source_url 의 원문에서 한다.
+         */
+        get: operations["list_auditions_v2_auditions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v2/app/posters": {
         parameters: {
             query?: never;
@@ -2115,6 +2187,36 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ReadingSessionRatingRequest */
+        ReadingSessionRatingRequest: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /**
+             * Rating
+             * @enum {string}
+             */
+            rating: "good" | "bad";
+            /** Comment */
+            comment?: string | null;
+        };
+        /** ReadingSessionRating */
+        ReadingSessionRating: {
+            /**
+             * Rating
+             * @enum {string}
+             */
+            rating: "good" | "bad";
+            /** Comment */
+            comment: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
         /** ReadingMemorizationRequest */
         ReadingMemorizationRequest: {
             status: components["schemas"]["ReadingMemorizationStatusInput"];
@@ -2370,6 +2472,15 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /** DiscoveryAnswerRequest */
+        DiscoveryAnswerRequest: {
+            /** Source */
+            source?: ("instagram" | "naver_search" | "google_youtube" | "app_store_search" | "friend" | "academy_school" | "community" | "other") | null;
+            /** Detail */
+            detail?: ("ad" | "official_post" | "other_post" | "unknown") | null;
+            /** Other Text */
+            other_text?: string | null;
         };
         /** UserBlockState */
         UserBlockState: {
@@ -2959,6 +3070,7 @@ export interface components {
             recordings: components["schemas"]["ReadingSessionRecording"][];
             /** Different Lines */
             different_lines: components["schemas"]["ReadingDifferentLine"][];
+            my_rating?: components["schemas"]["ReadingSessionRating"] | null;
         };
         /** ReadingSessionProgressCount */
         ReadingSessionProgressCount: {
@@ -3858,7 +3970,7 @@ export interface components {
          * ConsentType
          * @enum {string}
          */
-        ConsentType: "terms" | "privacy" | "ai_analysis" | "retention" | "cloud_voice" | "script_split";
+        ConsentType: "terms" | "privacy" | "ai_analysis" | "retention" | "cloud_voice" | "script_split" | "marketing_email" | "marketing_push";
         /** SignedInResponse */
         SignedInResponse: {
             /**
@@ -4642,6 +4754,65 @@ export interface components {
             providers: string[];
         };
         /**
+         * AuditionPosting
+         * @description 공고의 사실 항목. 지원은 항상 source_url 의 원문에서 한다.
+         */
+        AuditionPosting: {
+            /**
+             * Id
+             * @description <source>-<원문 번호>. 기기의 찜·봤음 저장 열쇠
+             */
+            id: string;
+            /**
+             * Title
+             * @description 원문 제목 그대로
+             */
+            title: string;
+            /**
+             * Category
+             * @enum {string}
+             */
+            category: "film" | "short_film" | "drama" | "web_drama" | "short_form" | "commercial" | "music_video" | "theater" | "musical" | "agency_open" | "other";
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "shinsee" | "emk" | "sejong" | "plfil" | "otr";
+            /**
+             * Source Name
+             * @description 화면에 쓰는 출처 이름
+             */
+            source_name: string;
+            /** Pay Text */
+            pay_text: string | null;
+            /** Apply Start */
+            apply_start: string | null;
+            /** Apply End */
+            apply_end: string | null;
+            /** Status Text */
+            status_text: string | null;
+            /**
+             * Posted On
+             * Format: date
+             */
+            posted_on: string;
+            /**
+             * Source Url
+             * @description 원문 주소
+             */
+            source_url: string;
+        };
+        /** AuditionPostingList */
+        AuditionPostingList: {
+            /**
+             * Items
+             * @description 지금 지원할 수 있는 공고. 마감이 가까운 순
+             */
+            items: components["schemas"]["AuditionPosting"][];
+            /** Collected At */
+            collected_at: string | null;
+        };
+        /**
          * AppPoster
          * @description 앱 첫 화면 공지 포스터 한 장. image_url 과 image_asset 은 많아야 하나가 차 있다.
          */
@@ -5282,6 +5453,41 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    rate_reading_session_v2_reading_sessions__session_id__rating_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadingSessionRatingRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingSessionRating"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     set_line_memorization_v2_reading_lines__line_id__memorization_put: {
         parameters: {
             query?: never;
@@ -5624,6 +5830,37 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_discovery_answer_v2_me_discovery_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DiscoveryAnswerRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             204: {
@@ -8430,6 +8667,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuthProvidersResponse"];
+                };
+            };
+        };
+    };
+    list_auditions_v2_auditions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditionPostingList"];
                 };
             };
         };

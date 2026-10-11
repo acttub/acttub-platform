@@ -9,9 +9,10 @@ FROM eclipse-temurin:21-jre-noble
 
 # ffmpeg·ffprobe 는 영상 압축(GeminiVideoCompressor)·음성 추출(AudioExtractor)·영상 청크(VideoRecordChunks)·
 # 리딩 녹음 변환(AudioTranscoder)·길이 측정(VideoDurationProbe)·보관함 포스터(PosterFrameExtractor)가 PATH 에서 찾는다. 문서에 없던 호스트 의존을 이미지에 넣는다.
+# tesseract(한국어 포함)는 글자 없는 그림 PDF 대본의 글자 인식(DocumentText)이 PATH 에서 찾는다.
 # curl 은 compose healthcheck 와 배포 스크립트의 /health 확인이 쓴다.
 RUN apt-get update \
- && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ffmpeg curl \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ffmpeg curl tesseract-ocr tesseract-ocr-kor \
  && rm -rf /var/lib/apt/lists/*
 
 # non-root. 고정 uid 라 볼륨을 붙이더라도 호스트 쪽 소유권을 예측할 수 있다.

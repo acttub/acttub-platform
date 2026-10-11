@@ -76,6 +76,7 @@ import { loadVoiceFeedbackEnabled } from '@/lib/reading/voice-feedback-setting';
 import { VoiceFeedbackSummary, type LineFeedback } from '@/components/voice-feedback-summary';
 import { translate as t } from '@/lib/i18n';
 import { useAppRating } from '@/hooks/use-app-rating';
+import { ReadingRating } from '@/components/reading-rating';
 import { api } from '@/lib/api';
 import { loadCloudVoiceEnabled, shouldUseCloudVoice } from '@/lib/reading/cloud-voice';
 import { synthesizeCloudSpeech } from '@/lib/reading/cloud-voice-runtime';
@@ -999,6 +1000,13 @@ export default function ReadingPlay() {
             </View>
           ) : null}
 
+          {/* 이번 리딩 어땠나요?(SOMA-661) — 튜토리얼 예시 회차는 서버 회차가 아니라 받지 않는다. */}
+          {!fromTutorialRef.current && (
+            <View style={styles.ratingSlot}>
+              <ReadingRating sessionId={session.id} />
+            </View>
+          )}
+
           <Pressable style={styles.coachCard} onPress={() => router.replace('/upload')}>
             <Feather name="video" size={18} color={palette.blueDeep} />
             <View style={styles.coachBody}>
@@ -1268,6 +1276,8 @@ const styles = StyleSheet.create({
   diffNo: { color: palette.textFaint, fontFamily: 'Pretendard-SemiBold', fontSize: 12 },
   diffAll: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2, paddingTop: 2 },
   diffAllText: { color: palette.blueDeep, fontFamily: 'Pretendard-SemiBold', fontSize: 13 },
+  // 완료 화면은 가운데 정렬이라, 평가 상자는 다른 카드처럼 폭을 채운다.
+  ratingSlot: { alignSelf: 'stretch' },
   coachCard: { alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: palette.blueMist, borderColor: palette.blueLine, borderWidth: 1, borderRadius: 14, padding: 14 },
   coachBody: { flex: 1, gap: 2 },
   coachTitle: { color: palette.text, fontFamily: 'Pretendard-Bold', fontSize: 14 },

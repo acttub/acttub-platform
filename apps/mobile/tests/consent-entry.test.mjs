@@ -120,6 +120,7 @@ test('account.consent: 설정을 열면 필수 셋과 선택 하나가 각각 �
   );
   assert.deepEqual(rows[0], {
     id: 'terms-1',
+    type: 'terms',
     title: '서비스 이용약관',
     body: '본문',
     required: true,

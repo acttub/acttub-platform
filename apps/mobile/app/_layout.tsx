@@ -1,5 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
-import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { DefaultTheme, ThemeProvider, getFocusedRouteNameFromRoute } from '@react-navigation/native';
+import type { NativeStackHeaderProps } from '@react-navigation/native-stack';
 import { useFonts } from 'expo-font';
 import {
   router,
@@ -13,15 +14,19 @@ import {
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import 'react-native-reanimated';
 
 import '@/lib/global-font';
 import { logScreenView } from '@/lib/analytics';
 import { initMetaSdk } from '@/lib/meta-events';
+import { syncPostHog } from '@/lib/posthog';
 import { startSignupAttributionListener } from '@/lib/signup-attribution-runtime';
 import { initCrashlytics, markScreen } from '@/lib/crashlytics';
 import { installNavigationGuard } from '@/lib/navigation-guard';
+import { tabBackTitle } from '@/lib/tab-back-title';
+import { AppHeader } from '@/components/app-header';
+import { HeaderBack } from '@/components/header-back';
 import { pendingAnalysisStore } from '@/lib/analysis-storage';
 import { challengePushTarget } from '@/lib/challenge/notification-center';
 import {
@@ -106,6 +111,10 @@ function RootNavigator() {
     };
   }
   const consentGate = consentGateRef.current.generation;
+  // 화면을 녹화하는 PostHog 는 현재 판 동의를 마친 동안만 켠다(lib/posthog.ts).
+  useEffect(() => {
+    syncPostHog(consentEntry.status);
+  }, [consentEntry.status]);
   // 재동의 팝업은 결정이 필요하거나 판정을 못 읽었을 때 열리고, 통과하거나 로그아웃하면 닫힌다.
   // 다시 읽는 중(checking)에는 그대로 둔다 — 팝업 안에서 다시 읽는 동안 스피너로 남고,
   // 앱을 처음 켤 때의 판정 대기에는 열리지 않는다.
@@ -337,7 +346,13 @@ function RootNavigator() {
 
   return (
     <>
-      <Stack>
+      <Stack
+        screenOptions={{
+          headerBackVisible: false,
+          headerLeft: () => <HeaderBack />,
+          // iOS 는 헤더를 직접 그린다 — 네이티브 헤더는 버튼에 유리 배경을 씌워 꺾쇠가 뭉개져 보인다(components/app-header).
+          ...(Platform.OS === 'ios' ? { header: (props: NativeStackHeaderProps) => <AppHeader {...props} /> } : null),
+        }}>
         <Stack.Screen name="update-required" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="consent" options={{ headerShown: false }} />
@@ -345,7 +360,10 @@ function RootNavigator() {
         <Stack.Screen name="profile-edit" options={{ title: t('profileName.editTitle') }} />
         <Stack.Screen name="portfolio-edit" options={{ title: t('portfolio.title') }} />
         <Stack.Screen name="guest-transfer" options={{ title: t('guestTransfer.title') }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="(tabs)"
+          options={({ route }) => ({ headerShown: false, title: tabBackTitle(getFocusedRouteNameFromRoute(route)) })}
+        />
         <Stack.Screen
           name="delete-account"
           options={{ title: t('stack.withdraw'), headerBackTitle: t('stack.backToSettings') }}
@@ -359,10 +377,11 @@ function RootNavigator() {
         <Stack.Screen name="analyzing" options={{ title: t('stack.analyzing') }} />
         <Stack.Screen name="coach" options={{ title: t('stack.coach') }} />
         <Stack.Screen name="report" options={{ title: t('stack.report') }} />
-        {/* 아래 둘은 화면 안에 자체 헤더가 있다. 등록해 두지 않으면 기본 헤더가
+        {/* 아래 셋은 화면 안에 자체 헤더가 있다. 등록해 두지 않으면 기본 헤더가
             한 겹 더 붙어 '뒤로' 버튼이 두 개로 보인다. */}
         <Stack.Screen name="admissions/index" options={{ headerShown: false }} />
         <Stack.Screen name="admissions/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="auditions/index" options={{ headerShown: false }} />
         <Stack.Screen name="challenge-detail" options={{ title: t('challenges.detailTitle') }} />
         <Stack.Screen name="challenge-play" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
         <Stack.Screen name="guide" options={{ headerShown: false, presentation: 'fullScreenModal' }} />

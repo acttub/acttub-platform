@@ -1,6 +1,6 @@
 /**
- * Firebase Analytics 래퍼.
- * 운영 지표 오염 방지를 위해 운영 API 빌드에서만 이벤트를 전송한다(SOMA-439).
+ * 앱 계측의 단일 입구. 이벤트를 Firebase Analytics 와 PostHog(lib/posthog.ts)에 같이 보낸다.
+ * Firebase 는 운영 API 빌드에서만 전송한다(SOMA-439). PostHog 는 거기에 동의 조건이 더 붙는다.
  *
  * 네이티브 모듈(@react-native-firebase/*)은 개발 빌드(EAS/expo run:android)에서만 존재하고,
  * google-services.json이 배치돼 초기화가 성공해야 실제로 이벤트가 전송된다.
@@ -14,6 +14,7 @@
  * 네이티브 모듈이 없거나 초기화 실패한 환경(Expo Go·웹)은 아래 try 가드로 조용히 no-op이 된다.
  */
 import { isProductionApiUrl } from './api-env.ts';
+import { postHog } from './posthog.ts';
 
 let resolved = false;
 let instance: unknown = null;
@@ -36,11 +37,9 @@ function getAnalytics(): unknown {
   return instance;
 }
 
-/** 커스텀/표준 이벤트 로깅. 실패는 삼킨다(분석은 앱 흐름을 막지 않는다). */
-export async function logEvent(
-  name: string,
-  params?: Record<string, string | number | boolean>,
-): Promise<void> {
+type EventParams = Record<string, string | number | boolean>;
+
+async function logFirebaseEvent(name: string, params?: EventParams): Promise<void> {
   const a = getAnalytics();
   if (!a || !mod) return;
   try {
@@ -50,23 +49,32 @@ export async function logEvent(
   }
 }
 
+/** 커스텀/표준 이벤트 로깅. 실패는 삼킨다(분석은 앱 흐름을 막지 않는다). */
+export async function logEvent(name: string, params?: EventParams): Promise<void> {
+  postHog.capture(name, params);
+  await logFirebaseEvent(name, params);
+}
+
 /**
- * 화면 조회 이벤트. GA4 표준 'screen_view' 이벤트로 보낸다.
+ * 화면 조회 이벤트. Firebase 에는 GA4 표준 'screen_view' 이벤트로, PostHog 에는 화면($screen)으로 보낸다.
  * (rnfirebase v22+에서 logScreenView는 deprecated — logEvent로 통합)
  */
 export async function logScreenView(screenName: string): Promise<void> {
-  await logEvent('screen_view', {
+  postHog.screen(screenName);
+  await logFirebaseEvent('screen_view', {
     screen_name: screenName,
     screen_class: screenName,
   });
 }
 
 /**
- * 가입을 마친 회원의 회사 내부 회원 식별 번호를 GA 사용자 ID로 붙인다. 로그아웃·탈퇴면 `null` 로 지운다.
+ * 가입을 마친 회원의 회사 내부 회원 식별 번호를 GA 사용자 ID와 PostHog identify 로 붙인다.
+ * 로그아웃·탈퇴면 `null` 로 지운다(PostHog 는 reset).
  * 화면·동작 기록을 계정과 이어, 가입한 사람이 어느 화면에서 멈추는지 보기 위해서다(SOMA-588).
  * 이름·이메일·광고 정보는 보내지 않는다 — Airbridge 와 같은 내부 번호(me.id)만 쓴다.
  */
 export async function setAnalyticsUserId(userId: string | null): Promise<void> {
+  postHog.setUser(userId);
   const a = getAnalytics();
   if (!a || !mod) return;
   try {

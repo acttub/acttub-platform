@@ -20,6 +20,10 @@ import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.ProgressResp
 import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.RangeNameResponse;
 import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.RangeResponse;
 import com.acttub.actingapi.feature.reading.adapter.web.SessionDtos.RecordingResponse;
+import com.acttub.actingapi.feature.reading.adapter.web.SessionRatingDtos.SessionRatingRequest;
+import com.acttub.actingapi.feature.reading.adapter.web.SessionRatingDtos.SessionRatingResponse;
+import com.acttub.actingapi.feature.reading.app.SessionRatingService;
+import com.acttub.actingapi.feature.reading.app.SessionRatingStore;
 import com.acttub.actingapi.feature.reading.app.SessionRepository.ProgressChange;
 import com.acttub.actingapi.feature.reading.app.SessionService;
 import com.acttub.actingapi.feature.reading.app.SessionViews;
@@ -43,14 +47,17 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 리딩 회차 — 시작·목록·상세·진행 저장·삭제 (reading.cast · reading.session). 전부 보호 기능이고 웹 게스트도 쓴다
+ * 리딩 회차 — 시작·목록·상세·진행 저장·삭제·평가 (reading.cast · reading.session). 전부 보호 기능이고 웹 게스트도 쓴다
  * (게스트의 기능 표 {@code READING}).
+ *
+ * <p>회차 평가({@code PUT …/rating}, SOMA-661)도 같은 자리다 — 게이트·소유권이 회차 조회와 같아야 하기 때문이다.
  *
  * <p>값의 형태(필수 키·타입·값 목록)는 여기서 보고 422 배열로 답한다. 규칙(내 배역·구간·순번·닫힌 회차)은 서비스가 사유
  * 코드 하나로 답한다.
@@ -59,10 +66,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/v2/reading")
 class SessionController {
     private final SessionService sessions;
+    private final SessionRatingService ratings;
     private final AccessGate auth;
 
-    SessionController(SessionService sessions, AccessGate auth) {
+    SessionController(SessionService sessions, SessionRatingService ratings, AccessGate auth) {
         this.sessions = sessions;
+        this.ratings = ratings;
         this.auth = auth;
     }
 
@@ -102,7 +111,8 @@ class SessionController {
                 body.myCharacterIds(), body.mode().name(), body.startLineId(), body.endLineId(),
                 body.advance().name(), body.record());
         SessionService.Started started = sessions.start(userId, scriptId, body.requestId(), plan);
-        return ResponseEntity.status(started.created() ? 201 : 200).body(detail(started.session()));
+        return ResponseEntity.status(started.created() ? 201 : 200)
+                .body(detail(started.session(), ratings.mine(userId, started.session().card().id())));
     }
 
     @Operation(
@@ -124,7 +134,9 @@ class SessionController {
 
     @Operation(
             summary = "Get Reading Session",
-            description = "없는 것과 남의 것은 같은 404 session_not_found 다.",
+            description = """
+                    없는 것과 남의 것은 같은 404 session_not_found 다. my_rating 은 이 사람이 이 회차에 남긴 평가이고
+                    없으면 null 이다.""",
             operationId = "get_reading_session_v2_reading_sessions__session_id__get",
             tags = "v2-reading",
             security = @SecurityRequirement(name = "HTTPBearer"))
@@ -134,7 +146,38 @@ class SessionController {
             content = @Content(schema = @Schema(implementation = DetailResponse.class)))
     @GetMapping("/sessions/{session_id}")
     DetailResponse get(@PathVariable("session_id") UUID sessionId, HttpServletRequest request) {
-        return detail(sessions.find(auth.gatedUser(request).id(), sessionId));
+        UUID userId = auth.gatedUser(request).id();
+        return detail(sessions.find(userId, sessionId), ratings.mine(userId, sessionId));
+    }
+
+    @Operation(
+            summary = "Rate Reading Session",
+            description = """
+                    회차에 "좋았어요(good)·아쉬웠어요(bad)" 와 한 줄(선택)을 남긴다. 회차 하나에 한 행이고 다시 보내면
+                    덮어쓴다 — comment 를 빼면 한 줄도 비운다. 한 줄은 앞뒤 공백을 걷은 1~100자이고 넘으면 422
+                    comment_too_long 이다. 진행 중 회차도 받고, 평가는 회차 상태를 바꾸지 않는다.
+
+                    같은 request_id·같은 본문의 재전송은 200 같은 응답이고, 같은 id 에 다른 본문이면 422
+                    request_fingerprint_mismatch 다. 없는 회차·남의 회차는 같은 404 session_not_found 다(회차 조회와
+                    같다).""",
+            operationId = "rate_reading_session_v2_reading_sessions__session_id__rating_put",
+            tags = "v2-reading",
+            security = @SecurityRequirement(name = "HTTPBearer"))
+    @ApiResponse(
+            responseCode = "200",
+            description = "Successful Response",
+            content = @Content(schema = @Schema(implementation = SessionRatingResponse.class)))
+    @ApiResponse(
+            responseCode = "422",
+            description = "Validation Error",
+            content = @Content(schema = @Schema(ref = "#/components/schemas/HTTPValidationError")))
+    @PutMapping("/sessions/{session_id}/rating")
+    SessionRatingResponse rate(
+            @PathVariable("session_id") UUID sessionId,
+            @Valid @RequestBody SessionRatingRequest body,
+            HttpServletRequest request) {
+        return SessionRatingResponse.of(ratings.rate(
+                auth.gatedUser(request).id(), sessionId, body.requestId(), body.rating(), body.comment()));
     }
 
     @Operation(
@@ -245,7 +288,7 @@ class SessionController {
         return card.progress() == null ? null : new ProgressCountResponse(card.progress().done(), card.progress().total());
     }
 
-    private static DetailResponse detail(SessionViews.SessionDetailView view) {
+    private static DetailResponse detail(SessionViews.SessionDetailView view, SessionRatingStore.Rating rating) {
         SessionViews.SessionCardView card = view.card();
         return new DetailResponse(
                 card.id(),
@@ -279,6 +322,7 @@ class SessionController {
                                 recording.transcriptSource(), recording.matched(), recording.playbackUrl(),
                                 recording.playbackExpiresAt()))
                         .toList(),
-                differentLines(view.differentLines()));
+                differentLines(view.differentLines()),
+                SessionRatingResponse.of(rating));
     }
 }

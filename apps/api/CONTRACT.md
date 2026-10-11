@@ -571,7 +571,8 @@ HTTP 지표의 경로는 라우트 템플릿 등 범위가 정해진 값만 사�
 - **영상 객체**는 옛 예약 장부(`upload_intents`)와 0.1.0 보관함(`videos`)의 키를 함께 모은다 — 보관함 영상의
   **포스터**(`videos.poster_key`, V23)도 함께다. 포스터 워커는 붙일 때 같은 `users` 행을 잡으므로 탈퇴가 키를 모은 뒤에
   붙는 포스터는 없다([practice.library](../../docs/specs/practice/library.md)). 남길지는 [account.withdraw](../../docs/specs/account/withdraw.md#규칙제약)가 정하고 `PostgresProfileRepository#retentionGranted` 가 판정한다.
-- **리딩 자료는 같은 트랜잭션에서 행째 지운다**(`PostgresProfileRepository#eraseReading`, §6-14). 보관 동의가
+- **리딩 자료는 같은 트랜잭션에서 행째 지운다**(`PostgresProfileRepository#eraseReading`, §6-14). 회차 평가
+  (`reading_session_ratings`)도 회차와 함께 행째 지운다 — 노트 평가처럼 한 줄만 비우고 남기지 않는다. 보관 동의가
   있으면 녹음 행을 남기고 `reading_session_id`·`line_id` 를 NULL 로 비운 채 `user_id` 를 유지해 3년 파기가 지우고,
   없으면 행(음성과 **전사**)을 지우고 객체 키를 장부(`reading_recording_delete`)에 올린다. 지우기 전에 그
   사람의 `scripts`·`reading_sessions` 행을 `FOR UPDATE` 로 잡는다 — 리딩의 쓰기가 같은 행을 잡으므로 겹쳐도
@@ -739,9 +740,10 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 - **경로**는 전부 `/v2/reading/**` 이고 게스트의 기능 표 `READING`(`platform/security/GuestFeature`, §6-9)에 든다.
   회원은 회원의 게이트(§6-5)를 지난다.
-- **스키마(V13, V33, V34)**: `scripts`·`script_characters`·`script_lines`·`reading_sessions`·`reading_recordings`·
-  `line_memorization`, 나누기 요청 `script_imports`(V33), 원본 파일 `script_uploads`(V34). 값 목록은 text + CHECK 이고 Java enum 은 `platform/schema` 에 있다(`ScriptSource`·
-  `ScriptLineKind`·`ReadingMode`·`ReadingAdvance`·`ReadingSessionStatus`·`TranscriptSource`·`MemorizationStatus`·`ScriptImportFailure`).
+- **스키마(V13, V33, V34, V40)**: `scripts`·`script_characters`·`script_lines`·`reading_sessions`·`reading_recordings`·
+  `line_memorization`, 나누기 요청 `script_imports`(V33), 원본 파일 `script_uploads`(V34), 회차 평가 `reading_session_ratings`(V40). 값 목록은 text + CHECK 이고 Java enum 은 `platform/schema` 에 있다(`ScriptSource`·
+  `ScriptLineKind`·`ReadingMode`·`ReadingAdvance`·`ReadingSessionStatus`·`TranscriptSource`·`MemorizationStatus`·`ScriptImportFailure`·
+  `ReadingSessionRatingValue`).
   FK 에 `ON DELETE` 가 없다 — 삭제는 애플리케이션이 표대로 순서를 정해 지운다. `scripts.request_id`·
   `reading_sessions.request_id` 는 (user_id, request_id) 유일이고 이관 충돌 때만 NULL 이다.
   `uq_script_characters_script_name` 은 DEFERRABLE 이다 — 이름 수정이 두 배역의 이름을 맞바꿀 때 문장 사이에서
@@ -775,6 +777,17 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   구간의 대사 줄 원문으로 계산한다. 대사 번호는 표시값과 같은 `ReadingLayout#dialogueNo` 가 센다. 녹음의 `matched` 는 최종 저장 트랜잭션이 그 줄 원문으로 정한다(`RecordingRules#matched`).
 - **회차 삭제**는 녹음 행을 지우고 객체 삭제를 같은 트랜잭션에서 장부(`reading_recording_delete`)에 올린다.
 - 마지막 회차는 `ORDER BY started_at DESC, id DESC` 의 첫 행이다(`PostgresScriptRepository`·`PostgresSessionRepository`).
+- **회차 평가**(`reading_session_ratings`, V40, SOMA-661) — 노트 평가(§6-15 `note_ratings`)와 같은 모양이다(행동은
+  [reading.session](../../docs/specs/reading/session.md#규칙제약)). 한 행은 `uq_reading_session_ratings_session_user` 가 지키고,
+  **멱등은 행의 `request_id` 가 한다** — 행이 덮어쓰이므로 지문 칸 없이 저장된 값과 견준다.
+  - 쓰기는 **`users` 행(활성 확인, §6-8) → 대본 행 → 회차 행** 순서로 `FOR UPDATE` 로 잡는다(`reading/adapter/db/
+    PostgresSessionRatingStore`). 대본 삭제가 대본 행을, 회차 삭제가 회차 행을 잡고 평가를 회차보다 먼저 지우므로 겹쳐도
+    지워진 회차에 평가가 남지 않는다(FK 에 `ON DELETE` 가 없어 남으면 회차 삭제가 깨진다).
+  - **삭제**: 회차 삭제(`PostgresSessionRepository#delete`)·대본 삭제(`PostgresScriptRepository#delete`)·탈퇴
+    (`PostgresProfileRepository#eraseReading`)가 회차보다 먼저 행째 지운다. 노트 평가와 달리 사람과 끊어 남기지 않는다 — 매달린
+    회차가 남지 않기 때문이다. **이관**은 `PostgresReadingOwnership` 이 다른 리딩 표와 함께 주인만 바꾼다.
+  - 회차 조회·시작 응답의 `my_rating` 은 `SessionController` 가 평가를 한 번 더 읽어 싣는다. 실 DB 검증은 `ReadingSessionRatingIT` 다.
+  - OpenAPI 컴포넌트: `ReadingSessionRatingRequest`·`ReadingSessionRating`(`ReadingSession.my_rating`, 필수 아님·nullable).
 
 **표시값 — 장면·자동 목소리·구간 이름·진행 K/N (SOMA-593)**
 
@@ -860,7 +873,7 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   `script_split` 을 제외해 진입 게이트에 나오지 않는다. 게스트는 선택 문서를 결정할 수 없어(`ConsentService`, 403 `member_only`)
   나누기는 늘 403 `script_split_consent_required` 다.
 - 탈퇴는 `PostgresProfileRepository#eraseReading` 이 `script_imports` 를 행째 지우고 진행 중 작업은 §6-15 의 `ai_jobs` 취소가 닫는다.
-  `LlmStep.SCRIPT_SPLIT` 기록의 묶는 열쇠(`practiceSessionId` 자리)는 작업 id 다.
+  `LlmStep.SCRIPT_SPLIT`·`SCRIPT_SPACING` 기록의 묶는 열쇠(`practiceSessionId` 자리)는 작업 id 다.
 - 검증은 `ReadingImportIT`(HTTP·Postgres·장부, 모델만 가짜)와 `reading/domain/*Test`(순수 규칙), `ReadingSchemaMigrationTest`(V33) 다.
   실제 모델은 `ScriptSplitLiveTest`(`ACTTUB_SPLIT_LIVE_TEST=1` + `OPENAI_API_KEY` 가 있을 때만, 가짜 묶음 `src/test/resources/script-split/`)가
   본다 — 모델이 판마다 다르게 읽는 자리가 있어 묶음마다 90% 를 하한으로 둔다.
@@ -880,8 +893,15 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   만드는 두 자리(예시 대본의 접수, 워커의 완료)가 같은 트랜잭션에서 `script_uploads.script_id` 를 채우고 뽑은 글(`raw_text`)을 비운다(`linkUpload`).
 - 삭제: 대본 삭제(`PostgresScriptRepository#delete`)와 탈퇴(`PostgresProfileRepository#eraseReading`)가 행을 지우며 객체 키를 같은
   트랜잭션에서 장부 종류 `object_delete` 로 올리고 `next_attempt_at` 은 지운 행의 `expires_at` 최댓값이다(`reading/app/ScriptFileCleanup`,
-  영상과 같은 이유 — 서명 주소가 살아 있는 동안 지우면 다시 올린 객체가 장부 밖에 남는다). 미연결 정리는 `created_at` 하루 전 행을 `FOR UPDATE SKIP
-  LOCKED` 로 500개씩 지우되 pending·running 나누기 작업이 쓰는 행은 남긴다. 스위치는 `SCRIPT_UPLOAD_SWEEP_ENABLED`(기본 켬, 테스트가 끈다).
+  영상과 같은 이유 — 서명 주소가 살아 있는 동안 지우면 다시 올린 객체가 장부 밖에 남는다). 미연결 정리는 `kept_until` 이 빈 행은 `created_at`
+  하루 전 것을, 찬 행은 `kept_until` 이 지났거나 판과 상관없이 가장 최근 `script_split` 결정이 granted 가 아닌 것
+  (`PostgresScriptImportRepository#latestSplitDecision`)을 `FOR UPDATE SKIP LOCKED` 로 500개씩
+  지우되 pending·running 나누기 작업이 쓰는 행은 남긴다. 스위치는 `SCRIPT_UPLOAD_SWEEP_ENABLED`(기본 켬, 테스트가 끈다).
+- 실패 원본(V39): 읽기의 `Unreadable` 과 원본 탓인 나누기 실패(워커가 `keepFile` 로 가른다 — `KEPT_SPLIT_FAILURES` 와 모델 호출
+  실패, 지문 불일치·한도는 빠진다)가 `recordFailure` 로 `failure` 를 적고, 같은
+  문장에서 현재 판 결정이 granted 면 `kept_until` 을 채운다(`ck_script_uploads_kept_failure`: 시한은 이유가 있어야 한다). 나누기 실패는
+  `PostgresScriptImportRepository#fail` 의 트랜잭션 안이다. 현재 판 결정의 SQL 은 `PostgresScriptImportRepository#splitDecision` 한 곳이고
+  나누기 접수 게이트(`consent`)도 그것을 쓴다. `saveText` 는 두 칸을 비운다.
 - 읽기는 프로세스 전체 세마포어 둘(10초 기다림, 못 얻으면 429 `script_upload_busy`)을 잡고 가상 스레드에서 받기·뽑기를 하며 45초를
   넘으면 끊고(interrupt, 뽑기는 읽을 때마다 끊김을 본다) 422 `script_file_unreadable` 이다. 자리는 일이 실제로 끝날 때 돌려준다.
 - 뽑기의 자원 상한: 표 칸까지 센 글자 수가 한도의 두 배를 넘으면 멈추고, zip 안 XML 은 풀린 200MB, hwp 는 hwplib 에 넘기기 전에
@@ -998,7 +1018,8 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 - **가입 코호트 원장**(`GET /v2/admin/ops-core`의 `signup_rows`, SOMA-591) — 팀을 뺀 가입자 한 명당 한 행이다.
   `actor`(기존 가명)·`signup_at`(시간 단위)·`platform`(`앱`·`웹`)·`device`(가입 기기 분류)·`first_upload_at`
   (가장 이른 `finalized` 업로드, 분 단위, 없으면 null)·`experience`·`goal`(가입 프로필 값 이름, 프로필이 없으면 null)·
-  `directions`(`media`·`stage` 정렬 배열, 없으면 `[]`, SOMA-632)만 가진다. 이름·생년월일·소개 글은 싣지 않는다. 미래 행은 뺀다. 운영 화면은 이를 `activity_rows`·
+  `directions`(`media`·`stage` 정렬 배열, 없으면 `[]`, SOMA-632)·`discovery_answered`·`discovery_source`·`discovery_detail`
+  (가입 직후 유입 경로 자기 응답 값 이름, 답이 없으면 false·null·null, SOMA-649)만 가진다. 이름·생년월일·소개 글은 싣지 않는다. 미래 행은 뺀다. 운영 화면은 이를 `activity_rows`·
   `signup_attributions`와 가명으로 이어 플랫폼×유입 소스 퍼널을 같은 기간 가입 코호트로 계산한다.
   `signup_attributions`는 기존 키를 유지하면서 `source`와 nullable `medium`을 더 제공한다. 필드가 없는
   구버전 응답을 0명으로 해석하면 안 된다.
@@ -1203,6 +1224,14 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   서버가 고정한다. 값은 앞뒤 공백을 걷고 선택 값이 비면 NULL이다. 각 값은 1~64자의 ASCII 영문·숫자로 시작하고
   이후 영문·숫자·점·밑줄·하이픈만 허용한다(`^[A-Za-z0-9][A-Za-z0-9._-]*$`). URL·이메일·자유 입력과 모르는 키는
   422다. 웹 UTM은 클라이언트 자기 보고 유입이며 광고 플랫폼 귀속과 같은 뜻이 아니다.
+- 앱의 `PUT /v2/me/discovery` 는 **204** 다(SOMA-649). 가입 직후 배우가 답한 "액터브를 처음 어디서 알게 됐어요?"를
+  적는다. 동의와 프로필을 끝낸 회원만 부른다(게스트 403 `member_only`). 본문은 `source`·`detail`·`other_text` 이고
+  모두 nullable 이다. `source` 는 `instagram`·`naver_search`·`google_youtube`·`app_store_search`·`friend`·
+  `academy_school`·`community`·`other` 중 하나이거나 null(건너뜀)이다. `detail` 은 source=`instagram` 일 때만
+  `ad`·`official_post`·`other_post`·`unknown` 중 하나, `other_text` 는 source=`other` 일 때만 앞뒤 공백을 걷고
+  1~30자다. 그 밖의 조합·값은 422다. 계정마다 처음 온 값만 남고 다시 보내도 바꾸지 않은 채 204다. 탈퇴 때 행째
+  지운다. 자기 응답(기억)이며 광고 플랫폼 귀속과 같은 뜻이 아니다. ops-core `signup_rows` 에는
+  `discovery_answered`·`discovery_source`·`discovery_detail` 만 싣고 `other_text` 는 싣지 않는다.
 - **처음 온 값만 남는다**(`ON CONFLICT DO NOTHING`). 어느 경로든 다시 보내면 바꾸지 않은 채 204 다 — 재시도에
   안전하다. DB는 `airbridge`×`ios|android`, `web_utm`×`web` 조합만 허용한다.
 - 앱은 Airbridge SDK 의 설치 귀속 결과를 그 기기에서 **새로 가입한** 계정에만 한 번 보낸다. 기존 회원이 앱을
@@ -1263,6 +1292,42 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   참여작 캡션은 싣지 않는다. 이 응답은 live 운영 조회 전용이며, 저장되는 `ops-core`에는 대사를 넣지 않는다.
 - 팀 계정이 연 챌린지도 빼지 않고 `host_is_team`으로 표시한다. 토큰을 먼저 검사하고, 성공 응답은
   `Cache-Control: private, no-store`다. `POST /v2/admin/challenges`(팀 챌린지 개설)와 같은 경로의 GET이다.
+
+### 6-26. 오디션 공고 모아보기 (SOMA-564)
+
+> 제품 규칙의 정본: [app.audition](../../docs/specs/app/audition.md)(열림·삭제 규칙, 저장 칸, 출처와 켜는 설정), 출처 등급은 ADR-034
+
+- 표는 `audition_postings`(V36)다. Schema Entity 없이 `feature/audition/adapter/db/PostgresAuditionRepository` 의 native
+  SQL 로만 읽고 쓴다 — 쓰기가 전부 `ON CONFLICT (source, source_ref) DO UPDATE` upsert 와 조건 삭제라서다(§5-1·§5-2,
+  `EntityMappingIT` 의 대기 목록). PK 는 `bigint` identity 이고 바깥에 나가지 않는다(공개 id 는 `<source>-<source_ref>`).
+  출처·분야 값 목록은 Java enum 없이 `AuditionRules` 의 `SOURCES`·`CATEGORIES` 와 CHECK 가 같은 선을 긋는다
+  (`ValueCheckCatalogIT` 의 `WITHOUT_JAVA_ENUM`, 같은 선인지는 `AuditionSchemaMigrationTest`).
+- upsert 는 칸을 새 값으로 덮고 `last_seen_at` 만 그 시각으로 둔다. `first_seen_at` 은 처음 그대로다. `collected_at` 은 따로
+  저장하지 않고 `max(last_seen_at)` 이다 — 행이 하나도 없으면 null 이다. 그래서 모든 출처가 0건이거나 실패한 수집은
+  `collected_at` 을 옮기지 않는다.
+- 열림은 SQL 이 후보(마감일 ≥ 오늘, 또는 마감일 없음 + 게시 45일 안)를 고르고 `AuditionRules#isOpen` 이 마감 표시까지 보고
+  최종 판정한다. 오늘은 KST 날짜다. **마감 표시**는 상태 문구에서는 `마감|완료|종료` 가 어디 있든, 제목에서는 괄호로 묶인
+  것만(`(완료)`·`[마감]`·`(모집마감)`·`【접수 종료】`) 본다 — 제목의 "10/20 마감" 같은 마감일 안내로 열린 공고가 숨지 않게.
+  정렬은 마감일 오름차순(null 뒤), 게시일 내림차순, id.
+- 삭제는 수집 끝에 한 문장이다: `apply_end < 오늘-30일` 또는 `apply_end IS NULL AND posted_on < 오늘-180일`. 0건이 나온
+  출처는 upsert 를 부르지 않으므로 기존 행은 이 삭제 규칙까지 남는다.
+- 수집은 `AuditionService#collect`, 출처 읽기는 app Port `AuditionSources` 의 `adapter/source/HttpAuditionSources`
+  (JDK `HttpClient`, User-Agent `Mozilla/5.0 (compatible; ActtubBot/1.0; +https://acttub.com)`, 같은 출처 요청 사이 2초,
+  OTR 1~3쪽·플필 `min(totalPage,3)` 쪽·나머지 1쪽)다. 파서는 `AuditionParsers` 의 순수 함수이고 목록 행을 하나도 못 찾으면
+  0건이 아니라 `AuditionSourceFailure`(`ExternalFailure`)다. 출처 하나의 실패는 `FailureKind.EXTERNAL` 로
+  `AuditionService.collect.<source>` 에 보고하고 다음 출처로 간다. 이메일·휴대폰 모양(번호는 앞뒤 숫자 경계)이 제목·출연료·상태·
+  주소 어디든 있으면 그 공고는 저장하지 않는다. 상세 페이지는 열지 않는다(플필 상세의 `__NEXT_DATA__` 에 담당자 연락처가 있다).
+- 파서가 파이썬 수집기(`collect.py`)와 다르게 읽는 것: OTR 의 `[공지사항]`(게시판 운영 고정글)은 버리고, 게시일 칸이 시각
+  (`15:54`)뿐인 오늘 글은 수집일(KST)로 읽는다. 세종문화회관은 국악·합창·무용·관현악 단원 모집도 뺀다. EMK 는 두 게시판에
+  같은 제목으로 겹쳐 올라온 공지를 앞(새것) 하나만 남긴다.
+- 스케줄은 `adapter/sched/AuditionCollectScheduler` — `AUDITION_COLLECT_CRON`(기본 `0 0 7,19 * * *`, Asia/Seoul)과 기동
+  `AUDITION_COLLECT_STARTUP_DELAY_MS`(기본 2분) 뒤 한 번(`collectIfStale`: 한 번도 모으지 않았거나 마지막이 12시간보다
+  오래됐을 때만). 빈은 `AUDITION_ENABLED=true` 일 때만 선다. 꺼진 기동은 수집 자리가 없고 `GET /v2/auditions` 는
+  `{"items":[],"collected_at":null}` 이다. 출처 목록 `AUDITION_SOURCES` 의 모르는 코드는 무시한다.
+- `GET /v2/auditions` 는 로그인 무관이다 — `ConsentGateInterceptor` 의 `OUTSIDE_THE_GATE` 와
+  `AccessTokenFilter#shouldNotFilter` 에 입시(`/v2/admissions`)와 나란히 있다. `X-Acttub-Client` 는 다른 `/v2` 처럼
+  요구한다(426). 날짜 칸은 `YYYY-MM-DD` 문자열(`format: date`)이다. 검증은 `AuditionEndpointIT`·`AuditionDisabledIT`·
+  `AuditionServiceTest`·`AuditionParsersTest`(fixture 는 `src/test/resources/audition`, 실제 목록을 잘라 작성자를 가짜로 바꾼 것).
 
 ## 7. 보존 규칙 — 되돌리면 안 되는 결정
 

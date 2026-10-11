@@ -41,6 +41,8 @@ export function createConsentEntrySession(reader: ConsentEntryReader) {
 /** 설정의 동의 목록 한 줄(account.consent). 문서마다 제목·판·시행일·내 결정·결정 시각. */
 export type ConsentSettingsRow = {
   id: string;
+  /** 문서 종류(terms·marketing_email 등). 광고성 정보 수신 동의를 바꾸면 처리 결과를 알린다. */
+  type: string;
   title: string;
   body: string;
   required: boolean;
@@ -77,6 +79,7 @@ export function consentSettingsRows(
 ): ConsentSettingsRow[] {
   return entry.documents.map((document) => ({
     id: document.id,
+    type: document.type,
     title: document.title,
     body: document.body,
     required: document.required,

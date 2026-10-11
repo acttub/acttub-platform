@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   trackExitReviewOpened,
   trackExitReviewSubmitted,
-} from "@/lib/analytics/amplitude";
+} from "@/lib/analytics/posthog";
 import { claimExitSurvey, submitPracticeFeedback } from "@/lib/api/v2/practice-feedback";
 import type { FeedbackScreen } from "@/lib/practice/api-types";
 import { newRequestId } from "@/lib/reading/request-id";
