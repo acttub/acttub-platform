@@ -10,6 +10,7 @@ import {
   READING_TUTORIAL_STAGES,
   stageTrack,
   startTutorial,
+  tutorialIntroChoiceParams,
   tutorialSteps,
 } from '../lib/tutorial.ts';
 import {
@@ -271,4 +272,14 @@ test('예시 코치의 질문마다 채워 둘 샘플 답이 있고, 질문이 �
   assert.equal(sampleAnswerFor(2), null);
   // 샘플 답은 답장 한도(300자) 안이다.
   assert.ok(first.length <= 300 && second.length <= 300);
+});
+
+test('첫 안내 시트 선택 이벤트는 tutorial_step 과 같은 mode 이름으로 세 갈래를 남긴다', () => {
+  assert.deepEqual(tutorialIntroChoiceParams('own', 'practice', 'button'), { mode: 'own', track: 'practice', via: 'button' });
+  assert.deepEqual(tutorialIntroChoiceParams('sample', 'reading', 'button'), { mode: 'sample', track: 'reading', via: 'button' });
+  assert.deepEqual(tutorialIntroChoiceParams('later', 'practice', 'backdrop'), { mode: 'later', track: 'practice', via: 'backdrop' });
+  // GA4 매개변수 이름 규칙: snake_case, 40자 이내.
+  for (const key of Object.keys(tutorialIntroChoiceParams('later', 'reading', 'back'))) {
+    assert.match(key, /^[a-z][a-z0-9_]{0,39}$/);
+  }
 });
