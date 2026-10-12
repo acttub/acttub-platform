@@ -422,6 +422,55 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                 .map(row -> row.get("object_key", String.class));
     }
 
+    /**
+     * ops-core {@code upload_only_rows} 와 같은 판정(finalized · 연습 세션/연습/챌린지 미연결 · 미파기)을 통과한
+     * 업로드 한 벌의 영상 키. 살아 있는 {@code videos} 행이 있어야 한다 — 옛 업로드처럼 영상 행이 없으면
+     * 파기 여부를 알 수 없으므로 재생하지 않는다.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<String> uploadOnlyVideoObjectKey(
+            UUID uploadIntentId,
+            List<String> excludeEmails,
+            List<String> excludeActors) {
+        return list(entityManager.createNativeQuery("""
+                SELECT video.object_key
+                FROM upload_intents AS upload
+                JOIN users AS app_user ON app_user.id=upload.user_id
+                JOIN videos AS video
+                  ON video.user_id=upload.user_id
+                 AND video.purged_at IS NULL
+                 AND ((upload.video_id IS NOT NULL AND video.id=upload.video_id)
+                   OR (upload.video_id IS NULL AND video.object_key=upload.object_key))
+                WHERE upload.id=:uploadIntentId
+                  AND upload.status='finalized'
+                  AND NOT EXISTS (
+                    SELECT 1 FROM practice_sessions AS legacy WHERE legacy.upload_intent_id=upload.id
+                  )
+                  AND NOT EXISTS (
+                    SELECT 1 FROM videos AS candidate
+                    WHERE ((upload.video_id IS NOT NULL AND candidate.id=upload.video_id)
+                        OR (upload.video_id IS NULL AND candidate.object_key=upload.object_key
+                            AND candidate.user_id=upload.user_id))
+                      AND (candidate.purged_at IS NOT NULL
+                        OR EXISTS (SELECT 1 FROM practices AS practice WHERE practice.video_id=candidate.id)
+                        OR EXISTS (SELECT 1 FROM challenge_entries AS entry WHERE entry.video_id=candidate.id))
+                  )
+                  AND NOT (
+                    lower(COALESCE(app_user.email, '')) = ANY(string_to_array(:excludeEmails, ','))
+                    OR left(md5(CAST(upload.user_id AS text)), 8) = ANY(string_to_array(:excludeActors, ','))
+                  )
+                ORDER BY video.created_at DESC
+                LIMIT 1
+                """, Tuple.class)
+                .setParameter("uploadIntentId", uploadIntentId)
+                .setParameter("excludeEmails", normalizedEmails(excludeEmails))
+                .setParameter("excludeActors", String.join(",", excludeActors)))
+                .stream()
+                .findFirst()
+                .map(row -> row.get("object_key", String.class));
+    }
+
     @Override
     @Transactional(readOnly = true)
     public List<AdminReadingSession> readingSessions(

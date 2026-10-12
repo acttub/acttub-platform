@@ -151,6 +151,13 @@ public final class AdminMetrics {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"600"}) int expiresIn) {
     }
 
+    @Schema(name = "AdminUploadPlayback", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+    public record AdminUploadPlayback(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String playbackUrl,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED, allowableValues = {"600"}) int expiresIn) {
+    }
+
     @Schema(name = "AdminReadingSession", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
     public record AdminReadingSession(

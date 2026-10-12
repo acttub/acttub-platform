@@ -61,6 +61,37 @@ class AdminServiceTest {
     }
 
     @Test
+    void uploadOnlyPlaybackUsesRequiredSignerWithSixHundredSecondTtlAndAllExclusions() {
+        AdminMetricsRepository metrics = mock(AdminMetricsRepository.class);
+        AdminPlayback playback = mock(AdminPlayback.class);
+        AdminService service = new AdminService(metrics, playback, "Team@Acttub.com");
+        UUID uploadId = UUID.randomUUID();
+        List<String> actors = List.of("1234abcd");
+        when(metrics.uploadOnlyVideoObjectKey(uploadId, List.of("Team@Acttub.com"), actors))
+                .thenReturn(Optional.of("videos/u/take.mp4"));
+        when(playback.requiredUrl("videos/u/take.mp4", 600)).thenReturn("https://signed.test/upload");
+
+        assertThat(service.uploadOnlyVideoPlayback(uploadId, actors))
+                .isEqualTo(new AdminMetrics.AdminUploadPlayback("https://signed.test/upload", 600));
+    }
+
+    @Test
+    void uploadOnlyPlaybackHidesMissingRowsWithoutSigning() {
+        AdminMetricsRepository metrics = mock(AdminMetricsRepository.class);
+        AdminPlayback playback = mock(AdminPlayback.class);
+        AdminService service = new AdminService(metrics, playback, "");
+        UUID uploadId = UUID.randomUUID();
+        when(metrics.uploadOnlyVideoObjectKey(uploadId, List.of(), List.of())).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.uploadOnlyVideoPlayback(uploadId, List.of()))
+                .isInstanceOfSatisfying(ApiException.class, failure -> {
+                    assertThat(failure.status()).isEqualTo(404);
+                    assertThat(failure.getMessage()).isEqualTo("upload_video_not_found");
+                });
+        verifyNoInteractions(playback);
+    }
+
+    @Test
     void readingPlaybackUsesRequiredSignerWithSixHundredSecondTtl() {
         AdminMetricsRepository metrics = mock(AdminMetricsRepository.class);
         AdminPlayback playback = mock(AdminPlayback.class);

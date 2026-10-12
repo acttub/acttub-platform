@@ -194,7 +194,9 @@ class ErrorContractInventoryTest {
                     "feature.admin.AdminEndpointIT"),
             covered("feature.admin.app.AdminService|404|reading_recording_not_found", 1,
                     "feature.admin.AdminEndpointIT"),
-            covered("feature.admin.app.AdminService|503|playback_unavailable", 2,
+            covered("feature.admin.app.AdminService|404|upload_video_not_found", 1,
+                    "feature.admin.AdminEndpointIT"),
+            covered("feature.admin.app.AdminService|503|playback_unavailable", 3,
                     "feature.admin.AdminEndpointIT"),
             // 앱 공지 포스터(app.poster). 운영 경로는 다른 admin 과 같은 토큰 검사를 지닌다.
             covered("feature.poster.adapter.web.PosterAdminController|401|Unauthorized", 1,

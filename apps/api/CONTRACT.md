@@ -1183,6 +1183,12 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   `Cache-Control: private, no-store`다.
 - 관리자 빈은 토큰이 있을 때만 서므로 커밋된 기본 `spec/openapi.json`에는 이 경로가 없다.
   `AdminEndpointIT`의 조건부 관리자 경로 명시 목록과 응답 스키마 검사가 이 계약을 지킨다.
+- `GET /v2/admin/upload-only-videos/{id}/playback?exclude_actors=…`(SOMA-570)는 ops-core
+  `upload_only_rows[].upload_intent_id` 하나를 받아 `{"playback_url":…,"expires_in":600}`을 반환한다.
+  `upload_only_rows`와 같은 판정(finalized · 연습 세션/연습/챌린지 참여작 미연결 · 미파기)을 통과하고
+  살아 있는 `videos` 행이 있는 업로드만 재생한다. 없음·팀·미완료·연결됨·파기·영상 행 없음은 모두
+  404 `upload_video_not_found`, 스토리지 부재나 서명 실패는 503 `playback_unavailable`이다.
+  토큰 검사·제외 규칙·`Cache-Control: private, no-store`는 챌린지 재생과 같다.
 
 ### 6-22. 운영용 리딩 회차·대본·녹음 조회와 재생
 

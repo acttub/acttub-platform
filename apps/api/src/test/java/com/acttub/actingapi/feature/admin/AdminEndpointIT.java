@@ -581,6 +581,78 @@ class AdminEndpointIT {
     }
 
     @Test
+    void uploadOnlyPlaybackSignsOnlyUnlinkedLiveUploadsAndHidesEverythingElse() throws Exception {
+        RecordingInspector.STATEMENTS.get().clear();
+        assertThat(json(mvc.perform(get("/v2/admin/upload-only-videos/{id}/playback", UUID.randomUUID())
+                .param("exclude_actors", "nothex12")), 401))
+                .isEqualTo(mapper.readTree("{\"detail\":\"Unauthorized\"}"));
+        assertThat(RecordingInspector.STATEMENTS.get()).isEmpty();
+
+        // 재생: 미연결 finalized 업로드(video_id 로 연결된 신형)
+        UUID playable = insertUploadIntent(
+                REAL_USER, "uo-play.mp4", "finalized", NOW.minusMinutes(30), NOW.minusMinutes(29), null, 1000);
+        UUID playableVideo = insertVideo(REAL_USER, "uo-play.mp4", NOW.minusMinutes(29));
+        jdbc.update("UPDATE upload_intents SET video_id=? WHERE id=?", playableVideo, playable);
+        // 재생: video_id 없이 같은 소유자의 object_key 로 찾는 업로드
+        UUID byKey = insertUploadIntent(
+                REAL_USER, "uo-by-key.mp4", "finalized", NOW.minusMinutes(28), NOW.minusMinutes(27), null, 1000);
+        insertVideo(REAL_USER, "uo-by-key.mp4", NOW.minusMinutes(27));
+        // 503: 서명 실패
+        UUID signingFailure = insertUploadIntent(
+                REAL_USER, "uo-signing.fail", "finalized", NOW.minusMinutes(26), NOW.minusMinutes(25), null, 1000);
+        UUID failureVideo = insertVideo(REAL_USER, "uo-signing.fail", NOW.minusMinutes(25));
+        jdbc.update("UPDATE upload_intents SET video_id=? WHERE id=?", failureVideo, signingFailure);
+
+        // 404: 미완료
+        UUID pending = insertUploadIntent(REAL_USER, "uo-pending-play.mp4", "pending", NOW.minusMinutes(24), null, null, null);
+        // 404: 연습에 쓰임
+        UUID linked = insertUploadIntent(
+                REAL_USER, "uo-linked-play.mp4", "finalized", NOW.minusMinutes(23), NOW.minusMinutes(22), null, 1000);
+        UUID linkedVideo = insertVideo(REAL_USER, "uo-linked-play.mp4", NOW.minusMinutes(22));
+        jdbc.update("UPDATE upload_intents SET video_id=? WHERE id=?", linkedVideo, linked);
+        insertPractice1(UUID.randomUUID(), REAL_USER, linkedVideo, "closed", "conversation_closed",
+                "three_layers_v1", NOW.minusMinutes(21));
+        // 404: 구형 연습 세션에 쓰임
+        UUID legacy = insertUploadIntent(
+                REAL_USER, "uo-legacy-play.mp4", "finalized", NOW.minusMinutes(20), NOW.minusMinutes(19), null, 1000);
+        insertVideo(REAL_USER, "uo-legacy-play.mp4", NOW.minusMinutes(19));
+        insertLegacyPracticeSession(REAL_USER, legacy, NOW.minusMinutes(18));
+        // 404: 파기된 영상
+        UUID purged = insertUploadIntent(
+                REAL_USER, "uo-purged-play.mp4", "finalized", NOW.minusMinutes(17), NOW.minusMinutes(16), null, 1000);
+        UUID purgedVideo = insertVideo(REAL_USER, "uo-purged-play.mp4", NOW.minusMinutes(16), NOW.minusMinutes(10));
+        jdbc.update("UPDATE upload_intents SET video_id=? WHERE id=?", purgedVideo, purged);
+        // 404: 영상 행이 없는 옛 업로드
+        UUID noVideo = insertUploadIntent(
+                REAL_USER, "uo-no-video.mp4", "finalized", NOW.minusMinutes(15), NOW.minusMinutes(14), null, 1000);
+        // 404: 팀 계정
+        UUID team = insertUploadIntent(
+                TEAM_USER, "uo-team-play.mp4", "finalized", NOW.minusMinutes(13), NOW.minusMinutes(12), null, 1000);
+        UUID teamVideo = insertVideo(TEAM_USER, "uo-team-play.mp4", NOW.minusMinutes(12));
+        jdbc.update("UPDATE upload_intents SET video_id=? WHERE id=?", teamVideo, team);
+
+        var response = mvc.perform(get("/v2/admin/upload-only-videos/{id}/playback", playable)
+                .header("Authorization", "Bearer admin-secret")).andReturn().getResponse();
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(response.getHeader("Cache-Control")).isEqualTo("private, no-store");
+        assertThat(mapper.readTree(response.getContentAsString())).isEqualTo(mapper.readTree("""
+                {"playback_url":"admin:uo-play.mp4:600","expires_in":600}
+                """));
+        assertThat(authorized("/v2/admin/upload-only-videos/" + byKey + "/playback", 200))
+                .isEqualTo(mapper.readTree("{\"playback_url\":\"admin:uo-by-key.mp4:600\",\"expires_in\":600}"));
+
+        for (UUID hidden : List.of(UUID.randomUUID(), pending, linked, legacy, purged, noVideo, team)) {
+            assertThat(authorized("/v2/admin/upload-only-videos/" + hidden + "/playback", 404))
+                    .isEqualTo(mapper.readTree("{\"detail\":\"upload_video_not_found\"}"));
+        }
+        String actor = md5(REAL_USER.toString()).substring(0, 8);
+        assertThat(authorized("/v2/admin/upload-only-videos/" + playable + "/playback?exclude_actors=" + actor, 404))
+                .isEqualTo(mapper.readTree("{\"detail\":\"upload_video_not_found\"}"));
+        assertThat(authorized("/v2/admin/upload-only-videos/" + signingFailure + "/playback", 503))
+                .isEqualTo(mapper.readTree("{\"detail\":\"playback_unavailable\"}"));
+    }
+
+    @Test
     void readingRoutesRequireAdminTokenBeforeQueryValidationOrDatabaseAccess() throws Exception {
         RecordingInspector.STATEMENTS.get().clear();
         var unauthorized = mvc.perform(get("/v2/admin/reading-sessions?limit=nope&status=nope"))
@@ -1802,6 +1874,7 @@ class AdminEndpointIT {
                 "/v2/admin/challenges", "/v2/admin/challenges/{id}/moderation",
                 "/v2/admin/reports", "/v2/admin/reports/{id}",
                 "/v2/admin/challenge-videos", "/v2/admin/challenge-videos/{id}/playback",
+                "/v2/admin/upload-only-videos/{id}/playback",
                 "/v2/admin/reading-sessions", "/v2/admin/reading-sessions/{id}",
                 "/v2/admin/reading-recordings/{id}/playback",
                 // 앱 공지 포스터(app.poster)의 운영 경로도 같은 토큰 조건을 진다.
@@ -1824,6 +1897,8 @@ class AdminEndpointIT {
                 .textValue()).isEqualTo("#/components/schemas/AdminChallengeVideoPage");
         assertThat(actual.at("/paths/~1v2~1admin~1challenge-videos~1{id}~1playback/get/responses/200/content/application~1json/schema/$ref")
                 .textValue()).isEqualTo("#/components/schemas/AdminChallengePlayback");
+        assertThat(actual.at("/paths/~1v2~1admin~1upload-only-videos~1{id}~1playback/get/responses/200/content/application~1json/schema/$ref")
+                .textValue()).isEqualTo("#/components/schemas/AdminUploadPlayback");
         assertThat(actual.at("/paths/~1v2~1admin~1reading-sessions/get/parameters/0/schema/default")
                 .intValue()).isEqualTo(50);
         assertThat(actual.at("/paths/~1v2~1admin~1reading-sessions/get/parameters/0/schema/maximum")
