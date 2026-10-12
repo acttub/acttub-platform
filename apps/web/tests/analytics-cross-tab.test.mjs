@@ -12,6 +12,8 @@ import { sdk } from "./fixtures/posthog-js.mjs";
 
 process.env.NEXT_PUBLIC_API_BASE_URL = "";
 process.env.NEXT_PUBLIC_POSTHOG_KEY = "test-posthog-key";
+// jsdom 주소가 localhost 라 개발자 PC 가드에 걸린다. 이 스위트는 켜고 끄는 배선만 본다.
+process.env.NEXT_PUBLIC_POSTHOG_LOCAL = "1";
 
 // 앱 라우터 밖에서는 usePathname 이 돌지 않는다. 화면 하나에 머무는 것으로 둔다.
 const navigationMockUrl = `data:text/javascript,${encodeURIComponent(`
