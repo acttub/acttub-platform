@@ -31,3 +31,13 @@ test('탭바: iOS 는 홈 인디케이터 바로 위에 뜬 알약, 안드로이
   // 안드로이드는 고른 탭만 아이콘 아래 이름을 보인다(pen 하단 탭 바)
   assert.match(tabs, /!IOS && focused && <Text style=\{\[styles\.tabLabel/);
 });
+
+test('안드로이드 뒤로 버튼은 돌아갈 곳이 없어도 사라지지 않는다 — 헤더 조각이 붙었다 떨어지면 앱이 꺼진다(SOMA-665)', () => {
+  const back = read('components/header-back.tsx');
+  // 예시 코치 화면처럼 뒤로 가기를 붙잡았다 다시 보내는 화면이 닫히는 사이에 canGoBack 이 바뀌어 버튼이 사라졌다
+  // 생기면, 안드로이드 헤더(react-native-screens)가 같은 조각을 두 번 붙이려다 앱이 꺼졌다. 그래서 안드로이드에서는
+  // 늘 그려 두고 숨기기·눌러도 아무 일 없게만 한다. iOS 는 헤더를 앱이 그려서(AppHeader) 빼도 된다.
+  assert.doesNotMatch(back, /if \(!router\.canGoBack\(\)\) return null;/);
+  assert.match(back, /if \(!canGoBack && Platform\.OS === 'ios'\) return null;/);
+  assert.match(back, /disabled=\{!canGoBack\}/);
+});
