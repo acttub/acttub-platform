@@ -3,6 +3,8 @@ package com.acttub.actingapi.feature.auth.adapter.db;
 import static com.acttub.actingapi.platform.persistence.NativeTuples.list;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Locale;
@@ -318,9 +320,12 @@ public class PostgresAuthRepository implements AuthRepository, AuthenticatedUser
             String device,
             Instant issued) {
         validateHash(hash);
-        transaction.executeWithoutResult(status -> refreshTokens.saveAndFlush(
-                new RefreshTokenEntity(
-                        UUID.randomUUID(), user, hash, device, issued, expires)));
+        transaction.executeWithoutResult(status -> {
+            refreshTokens.saveAndFlush(
+                    new RefreshTokenEntity(
+                            UUID.randomUUID(), user, hash, device, issued, expires));
+            recordActiveDay(user, issued);
+        });
     }
 
     @Override
@@ -371,8 +376,32 @@ public class PostgresAuthRepository implements AuthRepository, AuthenticatedUser
                     now,
                     expires));
             oldEntity.replaceWith(replacement, now);
+            recordActiveDay(old.userId(), now);
             return new Rotation(replacement, false);
         });
+    }
+
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+
+    /**
+     * 토큰을 받거나 갱신한 날(KST)을 접속일로 남긴다(V41, ops 리텐션의 원장). 하루 한 줄이라 두 번째부터는
+     * 아무것도 하지 않는다. 탈퇴한 계정에는 쓰지 않는다 — 탈퇴는 토큰을 폐기한 **뒤에** 이 행을 지우므로
+     * ({@code PostgresProfileRepository#withdraw}) 같은 토큰을 잡은 갱신과 순서가 정해진다.
+     * {@code users} 행은 잠그지 않는다: 갱신은 토큰 행을 먼저 잡고 탈퇴는 {@code users} 행을 먼저 잡으므로
+     * 여기서 {@code users} 를 잠그면 둘이 서로를 기다릴 수 있다.
+     */
+    private void recordActiveDay(UUID user, Instant at) {
+        entityManager.createNativeQuery("""
+                INSERT INTO user_active_days(user_id,day)
+                SELECT id,:day
+                FROM users
+                WHERE id=:userId
+                  AND deactivated_at IS NULL
+                ON CONFLICT DO NOTHING
+                """)
+                .setParameter("userId", user)
+                .setParameter("day", LocalDate.ofInstant(at, KST))
+                .executeUpdate();
     }
 
     @Override
