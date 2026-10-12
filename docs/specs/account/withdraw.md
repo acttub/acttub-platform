@@ -5,7 +5,7 @@
 - 도입: 0.1.0
 - 결정 기록: ADR-029
 - 화면: A5
-- 테이블: users, user_profiles, user_identities, refresh_tokens, push_tokens, actor_memories, videos, reading_recordings, challenge_entries, ai_jobs, portfolios, portfolio_credits, portfolio_photos, guest_transfer_codes, user_consents, user_profile_directions, entry_comments, entry_likes, practice_feedback, account_cleanup_operations(ERD에 추가)
+- 테이블: users, user_profiles, user_identities, refresh_tokens, push_tokens, actor_memories, videos, reading_recordings, challenge_entries, ai_jobs, portfolios, portfolio_credits, portfolio_photos, guest_transfer_codes, user_consents, user_profile_directions, user_active_days, entry_comments, entry_likes, practice_feedback, account_cleanup_operations(ERD에 추가)
 
 ## 기능
 설정에서 탈퇴하면 계정을 쓸 수 없게 하고, 바로 알아보게 하는 정보는 파기하며, 나머지는 사람과
@@ -55,7 +55,7 @@ apple_revoke·kakao_unlink·naver_revoke·reading_recording_delete):
 
 ## 규칙·제약
 - 파기 대상(바로 알아보게 하는 것): users의 이메일, 프로필의 이름·사진·소개, 신원(user_identities의
-  provider_uid와 애플 토큰), 리프레시·푸시 토큰, 살아 있는 이관 코드, 포트폴리오·경력·사진, 가입 유입 광고 기록(`user_signup_attributions`). 소개는
+  provider_uid와 애플 토큰), 리프레시·푸시 토큰, 접속일 기록(`user_active_days`), 살아 있는 이관 코드, 포트폴리오·경력·사진, 가입 유입 광고 기록(`user_signup_attributions`). 소개는
   자유 글이라 실명이 들어갈 수 있어 지운다. 신원 행은 아래 해시만 남긴다. 사진(프로필·포트폴리오) 객체는
   보관 동의와 무관하게 지운다.
 - 제공자 연결 해제: 애플은 로그인 때 저장해 둔 토큰으로 서버가 폐기한다(App Store 필수). 카카오는
