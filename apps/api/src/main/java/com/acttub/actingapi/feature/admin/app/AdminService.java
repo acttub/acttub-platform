@@ -20,6 +20,7 @@ import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminReadingSessionDe
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminReadingSessionPage;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminSession;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminSessions;
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminUploadPlayback;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -58,6 +59,9 @@ public class AdminService {
 
     /** 리딩 녹음 전용 재생 주소의 고정 수명. */
     public static final int READING_PLAYBACK_TTL_SECONDS = 600;
+
+    /** 업로드만 한 영상 전용 재생 주소의 고정 수명. */
+    public static final int UPLOAD_PLAYBACK_TTL_SECONDS = 600;
 
     /** ops 화면이 날짜를 한국 시각으로 끊는다. 수집기 백업 경로의 as_of 와 같은 모양으로 낸다. */
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
@@ -126,6 +130,20 @@ public class AdminService {
                 throw new IllegalStateException("admin playback signer returned no URL");
             }
             return new AdminChallengePlayback(playbackUrl, CHALLENGE_PLAYBACK_TTL_SECONDS);
+        } catch (Exception failure) {
+            throw ApiException.external(503, "playback_unavailable", failure);
+        }
+    }
+
+    public AdminUploadPlayback uploadOnlyVideoPlayback(UUID uploadIntentId, List<String> excludeActors) {
+        String objectKey = metrics.uploadOnlyVideoObjectKey(uploadIntentId, excludeEmails, excludeActors)
+                .orElseThrow(() -> new ApiException(404, "upload_video_not_found"));
+        try {
+            String playbackUrl = playback.requiredUrl(objectKey, UPLOAD_PLAYBACK_TTL_SECONDS);
+            if (playbackUrl == null || playbackUrl.isBlank()) {
+                throw new IllegalStateException("admin playback signer returned no URL");
+            }
+            return new AdminUploadPlayback(playbackUrl, UPLOAD_PLAYBACK_TTL_SECONDS);
         } catch (Exception failure) {
             throw ApiException.external(503, "playback_unavailable", failure);
         }
