@@ -25,6 +25,7 @@ import {
 import {
   CHALLENGE_FUNNEL_EVENTS,
   submitFailedParams,
+  uploadExitParams,
   uploadFailedParams,
   uploadParams,
   visibilityParams,
@@ -61,6 +62,32 @@ export default function ChallengeUploadScreen() {
   const [created, setCreated] = useState<{ id: string; visibility: EntryVisibility } | null>(null);
   const attemptRef = useRef<EntryAttempt | null>(null);
   const lockRef = useRef(false);
+
+  // 제출 없이 떠나면 어디까지 왔는지 남긴다(SOMA-698). 마지막 상태를 ref 에 두고 화면이 정리될 때 보낸다.
+  const exitRef = useRef({
+    openedAt: Date.now(),
+    hasVideo: false,
+    uploading: false,
+    visibility: null as EntryVisibility | null,
+    created: false,
+  });
+  useEffect(() => {
+    exitRef.current = {
+      ...exitRef.current,
+      hasVideo: Boolean(videoId || pendingId),
+      uploading: Boolean(pendingId && !videoId),
+      visibility,
+      created: Boolean(created),
+    };
+  });
+  useEffect(
+    () => () => {
+      const last = exitRef.current;
+      if (last.created) return;
+      void logEvent(CHALLENGE_FUNNEL_EVENTS.uploadExit, uploadExitParams({ ...last, now: Date.now() }));
+    },
+    [],
+  );
 
   const player = useVideoPlayer(localUri, (p) => {
     p.loop = true;

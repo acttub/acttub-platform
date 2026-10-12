@@ -14,6 +14,8 @@ export type PickedVideo = {
   uri: string | null;
   playbackUrl: string | null;
   durationMs: number | null;
+  /** 어디서 왔는지(계측용, SOMA-698). 앱에서 방금 찍은 영상만 'record' 로 표시하고, 없으면 보관함에서 고른 것이다. */
+  source?: 'record';
 };
 
 let picked: PickedVideo | null = null;
