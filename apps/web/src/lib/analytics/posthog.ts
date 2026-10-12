@@ -55,6 +55,32 @@ let started = false;
 let measuring = false;
 
 /**
+ * 이 호스트에서 PostHog를 켜도 되는지. 개발자 PC(localhost·사설 IP·`.local`)는 기본으로 끈다.
+ *
+ * 환경은 원래 키로 나눈다(ANALYTICS.md §1(4)). 그런데 2026-10-11 로컬 `localhost:3100` 에서
+ * 운영 키로 띄운 테스트가 운영 프로젝트에 "업로드 실패" 6명으로 섞였다. 키를 잘못 넣어도
+ * 운영 통계가 흐려지지 않도록 로컬 호스트만 막는다. dev.acttub.com 등 배포된 호스트는 그대로
+ * 키로 가른다. 로컬에서 설치를 확인할 때는 `NEXT_PUBLIC_POSTHOG_LOCAL=1` 과 dev 프로젝트 키를 같이 넣는다.
+ */
+export function isPostHogHost(hostname: string, allowLocal?: string): boolean {
+  if (allowLocal === "1") return true;
+  const host = hostname.toLowerCase();
+  if (host === "" || host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local")) {
+    return false;
+  }
+  if (host === "[::1]" || host === "::1") return false;
+  const v4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (v4) {
+    const [a, b] = [Number(v4[1]), Number(v4[2])];
+    if (a === 127 || a === 10 || a === 0) return false;
+    if (a === 192 && b === 168) return false;
+    if (a === 172 && b >= 16 && b <= 31) return false;
+    if (a === 169 && b === 254) return false;
+  }
+  return true;
+}
+
+/**
  * PostHog를 켠다. 호출부가 게스트의 개인정보 동의를 확인한 뒤에만 부른다. userId 는 이메일·표시
  * 이름이 아니라 백엔드 내부 id다.
  *
@@ -64,6 +90,7 @@ let measuring = false;
  */
 export function startPostHog(userId: string): void {
   if (typeof window === "undefined") return;
+  if (!isPostHogHost(window.location.hostname, process.env.NEXT_PUBLIC_POSTHOG_LOCAL)) return;
   const apiKey = process.env.NEXT_PUBLIC_POSTHOG_KEY ?? "";
   if (!apiKey) {
     console.warn("PostHog key missing — analytics disabled");
