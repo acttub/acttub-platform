@@ -50,6 +50,16 @@ import {
   type SceneDraft,
 } from '@/lib/practice/start';
 import { takeContinueOrigin } from '@/lib/practice/session-state';
+import {
+  PRACTICE_UPLOAD_EVENTS,
+  rightsToggleParams,
+  startBlockReason,
+  startBlockedParams,
+  uploadExitParams,
+  videoPickedParams,
+  videoReadyParams,
+  type PickSource,
+} from '@/lib/practice/upload-events';
 import type { BlockageCategory } from '@/lib/practice/types';
 import { attemptFor, newRequestId, type RequestAttempt } from '@/lib/request-id';
 import { TARGET } from '@/lib/spotlight-targets';
@@ -97,6 +107,31 @@ export default function UploadScreen() {
   const startLockRef = useRef(false);
   const scrollRef = useRef<ScrollView>(null);
 
+  // 어디서 멈추는지 세는 계측(SOMA-698, lib/practice/upload-events). 예시(튜토리얼) 화면은 세지 않는다.
+  const sourceRef = useRef<PickSource | null>(plan.video.kind === 'same' ? 'same' : null);
+  const pendingSinceRef = useRef<number | null>(null);
+  const blockedTapsRef = useRef(0);
+  const startedRef = useRef(false);
+  const exitRef = useRef({ openedAt: Date.now(), hasVideo: false, uploading: false, rights: false });
+  const notePicked = useCallback(
+    (source: PickSource, video: PickedVideo) => {
+      if (sample) return;
+      const needsUpload = Boolean(video.pendingId && !video.videoId);
+      sourceRef.current = source;
+      pendingSinceRef.current = needsUpload ? Date.now() : null;
+      void logEvent(PRACTICE_UPLOAD_EVENTS.videoPicked, videoPickedParams(source, needsUpload, video.durationMs));
+    },
+    [sample],
+  );
+  const noteReady = useCallback(() => {
+    if (sample || pendingSinceRef.current === null) return;
+    void logEvent(
+      PRACTICE_UPLOAD_EVENTS.videoReady,
+      videoReadyParams(sourceRef.current ?? 'library', Date.now() - pendingSinceRef.current),
+    );
+    pendingSinceRef.current = null;
+  }, [sample]);
+
   const previewUri = picked?.uri ?? picked?.playbackUrl ?? null;
   const player = useVideoPlayer(previewUri, (p) => {
     p.loop = false;
@@ -111,8 +146,9 @@ export default function UploadScreen() {
       if (next) {
         setPicked(next);
         setError(null);
+        notePicked(next.source ?? 'library', next);
       }
-    }, []),
+    }, [notePicked]),
   );
 
   // 보관함 목록은 재생 주소를 주지 않는다(상세에서만 준다) — 목록에서 고른 영상은 상세로 받아 미리보기를 채운다.
@@ -136,11 +172,13 @@ export default function UploadScreen() {
     if (!picked?.pendingId || picked.videoId) return;
     const check = () => {
       const videoId = confirmedVideoFor(picked.pendingId as string);
-      if (videoId) setPicked((was) => (was ? { ...was, videoId } : was));
+      if (!videoId) return;
+      noteReady();
+      setPicked((was) => (was ? { ...was, videoId } : was));
     };
     check();
     return onLibraryChange(check);
-  }, [picked?.pendingId, picked?.videoId]);
+  }, [picked?.pendingId, picked?.videoId, noteReady]);
 
   const videoId = plan.video.kind === 'same' ? plan.video.videoId : picked?.videoId ?? null;
   const uploading = Boolean(picked?.pendingId && !picked.videoId);
@@ -166,7 +204,9 @@ export default function UploadScreen() {
       void alert({ title: t('upload.titleNew'), message: videoErrorMessage(outcome.code) });
       return;
     }
-    setPicked({ videoId: null, pendingId: outcome.entry.id, uri: outcome.entry.uri, playbackUrl: null, durationMs });
+    const next = { videoId: null, pendingId: outcome.entry.id, uri: outcome.entry.uri, playbackUrl: null, durationMs };
+    setPicked(next);
+    notePicked('gallery', next);
   };
 
   const start = async () => {
@@ -197,6 +237,7 @@ export default function UploadScreen() {
           setError(t('start.stillUploading'));
           return;
         }
+        noteReady();
         setPicked({ ...picked, videoId: confirmed });
       }
       const resolvedVideoId = plan.video.kind === 'same' ? plan.video.videoId : picked?.videoId ?? confirmedVideoFor(picked?.pendingId ?? '') ?? null;
@@ -213,6 +254,7 @@ export default function UploadScreen() {
       const practice = continueFrom
         ? await api.continuePractice(continueFrom.practiceId, { ...body, request_id: attempt.requestId })
         : await api.createPractice({ ...body, request_id: attempt.requestId } as Parameters<typeof api.createPractice>[0]);
+      startedRef.current = true;
       logEvent('practice_start', { ordinal: practice.ordinal, continued: Boolean(continueFrom) });
       router.replace({ pathname: '/analyzing', params: { practiceId: practice.id } });
     } catch (e) {
@@ -223,6 +265,7 @@ export default function UploadScreen() {
           .then(({ groups }) => inProgressPracticeId(groups, plan.continueFrom?.rootId ?? null))
           .catch(() => null);
         if (open) {
+          startedRef.current = true;
           void alert({ title: t('start.inProgressTitle'), message: t('start.inProgressBody') });
           router.replace({ pathname: '/analyzing', params: { practiceId: open } });
           return;
@@ -260,6 +303,44 @@ export default function UploadScreen() {
   }, [plan.video, picked]);
 
   const ready = sample ? agreedRights : agreedRights && canStart(plan, videoId) && !uploading;
+
+  // 화면을 떠날 때 보낼 마지막 상태. 올리는 중인 영상도 '고른 영상'으로 친다.
+  useEffect(() => {
+    exitRef.current = {
+      ...exitRef.current,
+      hasVideo: canStart(plan, videoId) || uploading,
+      uploading,
+      rights: agreedRights,
+    };
+  });
+  useEffect(
+    () => () => {
+      if (sample || startedRef.current) return;
+      void logEvent(
+        PRACTICE_UPLOAD_EVENTS.screenExit,
+        uploadExitParams({
+          ...exitRef.current,
+          source: sourceRef.current,
+          blockedTaps: blockedTapsRef.current,
+          now: Date.now(),
+        }),
+      );
+    },
+    [sample],
+  );
+  // 준비가 안 된(회색) 질문 받기를 누르면 무엇에 막혔는지 센다.
+  const noteBlocked = () => {
+    if (sample) return;
+    const reason = startBlockReason({ hasVideo: canStart(plan, videoId) || uploading, uploading, rights: agreedRights });
+    if (!reason) return;
+    blockedTapsRef.current += 1;
+    void logEvent(PRACTICE_UPLOAD_EVENTS.startBlocked, startBlockedParams(reason));
+  };
+  const toggleRights = () => {
+    const next = !agreedRights;
+    setAgreedRights(next);
+    if (!sample) void logEvent(PRACTICE_UPLOAD_EVENTS.rightsToggle, rightsToggleParams(next));
+  };
   // 준비가 끝났으면 버튼만 둔다 — 무엇이 모자란지만 알린다.
   const hint = ready
     ? null
@@ -361,7 +442,7 @@ export default function UploadScreen() {
             />
           </View>
 
-          <Pressable style={styles.rightsRow} onPress={() => setAgreedRights((v) => !v)}>
+          <Pressable style={styles.rightsRow} onPress={toggleRights}>
             <View style={[styles.check, agreedRights && styles.checkOn]}>
               {agreedRights && <Text style={styles.checkMark}>✓</Text>}
             </View>
@@ -375,8 +456,10 @@ export default function UploadScreen() {
             ref={startTarget.ref}
             onLayout={startTarget.onLayout}
             style={[styles.submit, (!ready || starting) && styles.submitDisabled]}
-            onPress={() => void start()}
-            disabled={!ready || starting}>
+            onPress={() => (ready ? void start() : noteBlocked())}
+            disabled={starting}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: !ready || starting }}>
             {starting ? (
               <ActivityIndicator color={palette.bg} />
             ) : (
