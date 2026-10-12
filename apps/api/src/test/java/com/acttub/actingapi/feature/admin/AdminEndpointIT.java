@@ -902,7 +902,7 @@ class AdminEndpointIT {
         JsonNode signupRow = signupRows.get(0);
         assertThat(signupRow.fieldNames()).toIterable().containsExactly(
                 "actor", "signup_at", "platform", "device", "first_upload_at", "experience", "goal", "directions",
-                "discovery_answered", "discovery_source", "discovery_detail");
+                "discovery_answered", "discovery_source", "discovery_detail", "active_days");
         assertThat(signupRow.path("actor").textValue()).isEqualTo("배우 " + md5(REAL_USER.toString()).substring(0, 8));
         assertThat(signupRow.path("signup_at").textValue()).isEqualTo(utc(NOW.minusHours(2).truncatedTo(ChronoUnit.HOURS)));
         assertThat(signupRow.path("platform").textValue()).isEqualTo("웹");
@@ -1123,6 +1123,25 @@ class AdminEndpointIT {
         assertThat(row.path("goal").textValue()).isEqualTo("audition");
         assertThat(row.path("directions")).isEqualTo(mapper.readTree("[\"media\",\"stage\"]"));
         assertThat(core.toString()).doesNotContain("홍길동", "2001-02-03", "소개 글");
+    }
+
+    /** 가입 코호트 원장의 접속일(V41): 한국 날짜 문자열을 오래된 순으로 싣고, 기록이 없으면 빈 배열이다. */
+    @Test
+    void opsCoreSignupRowsCarryActiveDaysInOrder() throws Exception {
+        JsonNode empty = authorized("/v2/admin/ops-core", 200).path("signup_rows");
+        assertThat(empty).hasSize(1);
+        assertThat(empty.get(0).path("active_days")).isEqualTo(mapper.readTree("[]"));
+
+        jdbc.update("""
+                INSERT INTO user_active_days (user_id,day)
+                VALUES (?,(now() AT TIME ZONE 'Asia/Seoul')::date),
+                       (?,(now() AT TIME ZONE 'Asia/Seoul')::date - 3)
+                """, REAL_USER, REAL_USER);
+
+        JsonNode days = authorized("/v2/admin/ops-core", 200).path("signup_rows").get(0).path("active_days");
+        assertThat(days).hasSize(2);
+        assertThat(days.get(0).textValue()).matches("\\d{4}-\\d{2}-\\d{2}");
+        assertThat(days.get(0).textValue()).isLessThan(days.get(1).textValue());
     }
 
     @Test

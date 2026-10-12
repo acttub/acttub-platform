@@ -211,6 +211,32 @@ class RefreshRotationIT {
         }
     }
 
+    @Test
+    void issuingAndRotatingRecordOneActiveDayPerKoreanDate() {
+        UUID user = insertUser();
+        // 2026-09-01 16:30Z 는 한국 9/2 01:30 이다 — 접속일은 UTC 가 아니라 한국 날짜로 센다.
+        Instant first = Instant.parse("2026-09-01T16:30:00Z");
+        store.issueRefresh(user, "6".repeat(64), first.plusSeconds(86400L * 30), null, first);
+        store.rotate("6".repeat(64), "7".repeat(64), first.plusSeconds(86400L * 30), null, first.plusSeconds(1800));
+        Instant nextDay = Instant.parse("2026-09-02T23:00:00Z");
+        store.rotate("7".repeat(64), "8".repeat(64), nextDay.plusSeconds(86400L * 30), null, nextDay);
+
+        assertThat(jdbc.queryForList(
+                "SELECT to_char(day,'YYYY-MM-DD') FROM user_active_days WHERE user_id=? ORDER BY day", String.class, user))
+                .containsExactly("2026-09-02", "2026-09-03");
+    }
+
+    @Test
+    void deactivatedAccountsGetNoActiveDay() {
+        UUID user = insertUser();
+        jdbc.update("UPDATE users SET status='deactivated',deactivated_at=now() WHERE id=?", user);
+        Instant now = Instant.parse("2026-09-05T03:00:00Z");
+        store.issueRefresh(user, "9".repeat(64), now.plusSeconds(3600), null, now);
+
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM user_active_days WHERE user_id=?", Integer.class, user)).isZero();
+    }
+
     private UUID insertUser() {
         UUID user = UUID.randomUUID();
         jdbc.update("INSERT INTO users(id,status) VALUES (?,'active')", user);
