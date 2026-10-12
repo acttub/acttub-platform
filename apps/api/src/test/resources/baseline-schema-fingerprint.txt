@@ -618,6 +618,8 @@ COLUMN upload_intents.status ord=3 type=text len=- null=NO default='pending'::te
 COLUMN upload_intents.storage_provider ord=4 type=text len=- null=NO default=-
 COLUMN upload_intents.user_id ord=2 type=uuid len=- null=NO default=-
 COLUMN upload_intents.video_id ord=15 type=uuid len=- null=YES default=-
+COLUMN user_active_days.day ord=2 type=date len=- null=NO default=-
+COLUMN user_active_days.user_id ord=1 type=uuid len=- null=NO default=-
 COLUMN user_blocks.blocked_id ord=3 type=uuid len=- null=NO default=-
 COLUMN user_blocks.blocker_id ord=2 type=uuid len=- null=NO default=-
 COLUMN user_blocks.created_at ord=4 type=timestamptz len=- null=NO default=now()
@@ -1552,6 +1554,10 @@ CONSTRAINT upload_intents upload_intents_storage_provider_not_null NOT NULL stor
 CONSTRAINT upload_intents upload_intents_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id)
 CONSTRAINT upload_intents upload_intents_user_id_not_null NOT NULL user_id
 CONSTRAINT upload_intents upload_intents_video_id_fkey FOREIGN KEY (video_id) REFERENCES videos(id)
+CONSTRAINT user_active_days user_active_days_day_not_null NOT NULL day
+CONSTRAINT user_active_days user_active_days_pkey PRIMARY KEY (user_id, day)
+CONSTRAINT user_active_days user_active_days_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+CONSTRAINT user_active_days user_active_days_user_id_not_null NOT NULL user_id
 CONSTRAINT user_blocks ck_user_blocks_other CHECK ((blocker_id <> blocked_id))
 CONSTRAINT user_blocks uq_user_blocks_pair UNIQUE (blocker_id, blocked_id)
 CONSTRAINT user_blocks user_blocks_blocked_id_fkey FOREIGN KEY (blocked_id) REFERENCES users(id)
@@ -1866,6 +1872,7 @@ INDEX CREATE UNIQUE INDEX uq_user_blocks_pair ON public.user_blocks USING btree 
 INDEX CREATE UNIQUE INDEX uq_user_identities_provider_uid ON public.user_identities USING btree (provider, provider_uid)
 INDEX CREATE UNIQUE INDEX uq_user_profile_directions_user_direction ON public.user_profile_directions USING btree (user_id, direction)
 INDEX CREATE UNIQUE INDEX uq_video_transcripts_video ON public.video_transcripts USING btree (video_id)
+INDEX CREATE UNIQUE INDEX user_active_days_pkey ON public.user_active_days USING btree (user_id, day)
 INDEX CREATE UNIQUE INDEX user_blocks_pkey ON public.user_blocks USING btree (id)
 INDEX CREATE UNIQUE INDEX user_consents_pkey ON public.user_consents USING btree (id)
 INDEX CREATE UNIQUE INDEX user_discovery_answers_pkey ON public.user_discovery_answers USING btree (user_id)
@@ -1943,6 +1950,7 @@ TABLE scripts
 TABLE summaries
 TABLE transcripts
 TABLE upload_intents
+TABLE user_active_days
 TABLE user_blocks
 TABLE user_consents
 TABLE user_discovery_answers

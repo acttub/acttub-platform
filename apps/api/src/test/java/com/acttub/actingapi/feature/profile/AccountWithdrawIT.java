@@ -174,6 +174,8 @@ class AccountWithdrawIT {
         jdbc.update("INSERT INTO guest_transfer_codes(id,user_id,code_hash,expires_at) VALUES (?,?,'hash',now() + interval '10 minutes')",
                 UUID.randomUUID(), member.id());
         storage.put("users/p/profile/photo.jpg", "users/p/profile/pending.jpg", "users/p/portfolio/1.jpg");
+        jdbc.update("INSERT INTO user_active_days(user_id,day) VALUES (?,?) ON CONFLICT DO NOTHING",
+                member.id(), java.sql.Date.valueOf(today().minusDays(3)));
 
         var response = withdraw(member.accessToken());
 
@@ -197,6 +199,7 @@ class AccountWithdrawIT {
                 "SELECT count(*) FROM refresh_tokens WHERE user_id=? AND revoked_at IS NULL", Integer.class, member.id()))
                 .as("리프레시 토큰은 전부 폐기").isZero();
         assertThat(count("push_tokens")).isZero();
+        assertThat(count("user_active_days")).as("접속일은 사람과 끊어 남기지 않고 지운다").isZero();
         assertThat(count("guest_transfer_codes")).isZero();
         assertThat(count("portfolios")).isZero();
         assertThat(count("portfolio_credits")).isZero();
