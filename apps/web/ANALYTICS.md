@@ -155,6 +155,8 @@ SDK는 기동할 때 원격 설정(`https://us-assets.i.posthog.com/array/<key>/
 
 GA4는 `isMeasuredHost()`로 로컬과 `dev.acttub.com`(그 하위 포함) 트래픽을 막지만 — dev와 운영이 같은 측정 ID라 호스트로만 가를 수 있다 — PostHog는 그 가드를 두지 않는다. **환경별로 다른 프로젝트 키를 주입해 통계를 나눈다** — Sentry가 `NEXT_PUBLIC_SENTRY_ENV`로 하는 것과 같은 방식이고, 이래야 로컬에서 설치를 확인할 수 있다. 키를 두는 곳은 [§5 「환경 변수」](#환경-변수)다.
 
+**예외 하나 — 개발자 PC는 호스트로 막는다(2026-10-12).** 2026-10-11 `localhost:3100`에서 운영 키로 띄운 테스트가 운영 프로젝트에 "업로드 실패" 6명으로 섞였다. 그래서 `isPostHogHost()`가 `localhost`·`127.*`·사설 IP(`10.*`·`172.16~31.*`·`192.168.*`)·`.local` 호스트에서는 키가 있어도 켜지 않는다. 배포된 호스트(`dev.acttub.com` 포함)는 그대로 키로 가른다. 로컬에서 설치를 확인할 때만 `.env.local`에 `NEXT_PUBLIC_POSTHOG_LOCAL=1`과 **dev 프로젝트 키**를 같이 넣는다.
+
 ### (5) 켜고 끄는 스위치는 프로젝트 키 하나다
 
 `NEXT_PUBLIC_POSTHOG_KEY`가 비어 있으면 **아무 일도 일어나지 않는다.** Sentry의 `isSentryEnabled()`와 같은 패턴이다. 별도 feature flag를 만들지 않는다 — 스위치가 둘이면 어느 쪽이 껐는지 헷갈린다.
@@ -304,6 +306,7 @@ GA4는 `isMeasuredHost()`로 로컬과 `dev.acttub.com`(그 하위 포함) 트�
 | `POSTHOG_KEY_WEB` | GitHub Actions **Environment 변수** (dev / prod 각각) | 환경별로 **다른** PostHog 프로젝트 키 |
 | `NEXT_PUBLIC_POSTHOG_KEY` | 빌드 시점 주입 (`deploy.yml`이 위 값을 넣는다) | — |
 | `NEXT_PUBLIC_POSTHOG_KEY` | 로컬 `apps/web/.env.local` | 확인용. `.env*`는 커밋되지 않는다 |
+| `NEXT_PUBLIC_POSTHOG_LOCAL` | 로컬 `apps/web/.env.local` | `1`일 때만 로컬 호스트에서 켠다(§1(4) 예외). 운영 키와 같이 쓰지 않는다 |
 
 **PostHog 프로젝트를 dev와 운영 둘로 나눈다.** §1(4)대로 호스트로 거르지 않으므로, dev와 운영에 같은 키를 주면 개발 트래픽이 운영 통계에 그대로 섞인다. 프로젝트를 하나만 쓸 수 있으면 dev의 변수를 비워 dev 계측을 끈다. Repository 변수가 아니라 **Environment 변수**로 넣어야 환경별로 갈린다.
 
