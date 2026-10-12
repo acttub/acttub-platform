@@ -35,6 +35,22 @@ export function stageTrack(stage: TutorialStage): TutorialTrack {
   return (READING_TUTORIAL_STAGES as TutorialStage[]).includes(stage) ? 'reading' : 'practice';
 }
 
+/** 첫 안내 시트를 어떻게 닫았나 — 버튼, 바깥(어두운 배경) 누르기, 안드로이드 뒤로 가기. */
+export type TutorialIntroVia = 'button' | 'backdrop' | 'back';
+
+/**
+ * 첫 안내 시트에서 고른 것을 남기는 이벤트(tutorial_intro_choice)의 매개변수.
+ * mode 는 tutorial_step·tutorial_finish 와 같은 이름이라 GA4 측정기준 하나(mode)로 셋을 같이 본다.
+ * 바깥을 누르거나 뒤로 가서 닫아도 "나중에"(later)로 치되, via 로 버튼과 구분한다.
+ */
+export function tutorialIntroChoiceParams(
+  choice: TutorialMode | 'later',
+  track: TutorialTrack,
+  via: TutorialIntroVia,
+): { mode: TutorialMode | 'later'; track: TutorialTrack; via: TutorialIntroVia } {
+  return { mode: choice, track, via };
+}
+
 let current: { mode: TutorialMode; track: TutorialTrack } | null = null;
 const listeners = new Set<() => void>();
 
