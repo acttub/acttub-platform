@@ -81,6 +81,15 @@ class PracticeLoopRouterTest {
         assertThat(PracticeLoopRouter.route(PracticeLoopRouter.parse("{\"signals\":[\"answered\",\"ack\"]}"), answered, 0)).isEqualTo(PracticeLoopRouter.END);
     }
 
+    @Test void feedbackRequestsAreEvaluationsAndGetALongerAnswer() {
+        // 10/12 시험 세트 d227c8d4·72d19868: "피드백 해주세요", "아니 피드백을 해달라고"에 한 구절 + 질문만 받았다.
+        assertThat(PracticeLoopRouter.parse("{\"signals\":[\"not_yet\",\"evaluation\"]}").kind()).isEqualTo(Kind.EVALUATION);
+        assertThat(route(Kind.EVALUATION, at(2, 3, "짚어주기", Kind.EVALUATION))).isEqualTo("짚어주기");
+        assertThat(DirectVideoPrompts.practiceLoopTask("짚어주기", null)).contains("피드백 틀", "110자");
+        assertThat(DirectVideoPrompts.practiceLoopTask("답하기", null)).contains("100자");
+        assertThat(DirectVideoPracticeLoop.EXPLAIN_REPLY).isGreaterThan(DirectVideoPracticeLoop.LONG_REPLY);
+    }
+
     @Test void aQuestionAfterTheLastAnswerIsAnsweredBeforeClosing() {
         // 2026-10-11 17:56 운영: 정리 → "나한테 상대역이 없는데?"에 답함 → "?반응을 어케봐?"에 대꾸 없이 "오늘은 여기까지 해요"로 닫혔다.
         var answered = new Before(5, "답하기", Kind.QUESTION, new Tally(0, 0, 0), List.of(), false, false, false, true, 4);
@@ -229,7 +238,8 @@ class PracticeLoopRouterTest {
         assertThat(PracticeLoopRouter.route(Kind.MISSED, b, 2)).as("두 번 머물렀으면 코치가 답을 제안").isEqualTo(PracticeLoopRouter.PROPOSE);
         assertThat(PracticeLoopRouter.route(Kind.SHORT, b, 0)).isEqualTo(PracticeLoopRouter.EASY);
         assertThat(PracticeLoopRouter.route(Kind.SHORT, b, 1)).isEqualTo(PracticeLoopRouter.PROPOSE);
-        assertThat(PracticeLoopRouter.route(Kind.QUESTION, b, 2)).isEqualTo(PracticeLoopRouter.PROPOSE);
+        assertThat(PracticeLoopRouter.route(Kind.QUESTION, b, 2)).as("물음은 몇 번째든 답한다").isEqualTo("답하기");
+        assertThat(PracticeLoopRouter.route(Kind.EVALUATION, b, 2)).as("피드백 요청도 몇 번째든 답한다").isEqualTo("짚어주기");
         var proposed = at(2, 5, PracticeLoopRouter.PROPOSE, Kind.SHORT);
         assertThat(PracticeLoopRouter.route(Kind.SHORT, proposed, 3)).as("제안을 받으면 다음 단계").isEqualTo(PracticeLoopRouter.GAP);
         var loop = StructuredJson.MAPPER.readTree("{\"statuses\":[\"\", \"할 일: 다시 묻기\", \"할 일: 쉽게 묻기\"]}");
