@@ -293,7 +293,9 @@ public final class DirectVideoCoach {
             if (shown.isBlank()) throw new IllegalStateException("empty video coaching reply");
             // 앱이 코치 말을 아주 큰 글씨로 보여서 50자 안쪽이 목표다. 60자가 넘으면 자르지 않고 줄이기만 하는 호출로 두 번까지 줄인다.
             int shortened = 0;
-            while (loop && !cut && shortened < 2 && DirectVideoPracticeLoop.displayLength(shown) > DirectVideoPracticeLoop.LONG_REPLY) {
+            // 배우가 설명·피드백을 달라고 한 답은 길게 둔다(줄이면 다시 한 구절 + 질문이 되어 물음에 답하지 못한다).
+            int limit = branch != null && branch.explains() ? DirectVideoPracticeLoop.EXPLAIN_REPLY : DirectVideoPracticeLoop.LONG_REPLY;
+            while (loop && !cut && shortened < 2 && DirectVideoPracticeLoop.displayLength(shown) > limit) {
                 String shorter = shorten(shown, DirectVideoPracticeLoop.replyLanguage(session, actorText), persona, uploaded, written, operationId);
                 shortened++;
                 if (shorter == null) break;
@@ -393,6 +395,16 @@ public final class DirectVideoCoach {
     private record Branch(PracticeLoopRouter.Classified classified, PracticeLoopRouter.Before before, String doing,
             String goal, java.util.List<String> avoid, String observed, String dialogue, boolean closeNext,
             String actorText, java.util.List<String> materials, String rootField) {
+
+        /** 배우가 이유·방법·예시·설명·피드백을 달라고 해서 답하는 말인지. 길이 제한을 늘린다. */
+        boolean explains() {
+            boolean answering = doing.startsWith("답하기") || doing.startsWith("짚어주기");
+            var kind = classified.kind();
+            boolean asked = kind == PracticeLoopRouter.Kind.QUESTION || kind == PracticeLoopRouter.Kind.EVALUATION
+                    || kind == PracticeLoopRouter.Kind.METHOD || classified.alsoAsked();
+            boolean exampleButton = actorText != null && PracticeLoopRouter.EXPLAIN_BUTTON.contains(actorText.strip());
+            return (answering && asked) || exampleButton;
+        }
 
         String instruction(java.util.Locale language, String task) {
             // 쉽게 묻기는 이번에 알아낼 것(다음 단계의 목표)을 함께 준다.
@@ -545,6 +557,9 @@ public final class DirectVideoCoach {
             case "question" -> lines.add("배우가 답하면서 물은 것이 있다. 첫 문장에서 쉬운 말로 바로 답하고, 이어서 이번 단계를 한다");
             case "method" -> lines.add("배우가 답하면서 방법도 물었다. 방법은 이번 단계에서 배우와 함께 찾는다. 짧게 받고 이번 단계를 한다");
             default -> { }
+        }
+        if (actorText != null && PracticeLoopRouter.EXPLAIN_BUTTON.contains(actorText.strip())) {
+            lines.add("배우가 \"예시로 설명해 주세요\"를 눌렀다. 묻기 전에, 지금 질문에 답한 예를 이 장면에 맞게 한 문장으로 먼저 든다. 그다음 질문한다");
         }
         if (PracticeLoopRouter.WRAP_UP.equals(doing) && !known.containsKey("찾은 대안")) {
             lines.add("배우가 찾은 대안: 아직 없음. \"맞아요, 그거예요\"로 인정하지 말고, 근본 문제를 푸는 길 4단계와 배우의 첫 답을 살리는 행동 하나를 코치가 제안한다");
