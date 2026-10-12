@@ -4,7 +4,7 @@
 
 - 도입: 0.1.0
 - 화면: A0, A0.1
-- 테이블: users, user_identities, refresh_tokens, consent_documents, user_consents
+- 테이블: users, user_identities, refresh_tokens, consent_documents, user_consents, user_active_days
 
 ## 기능
 구글·애플·카카오·네이버 간편 로그인만 제공하며 로그인은 앱에만 있다. 웹은 로그인 없이 게스트로
@@ -62,6 +62,10 @@
   소진된다. 소진된 토큰이 다시 오면 탈취로 보고 그 회원의 세션을 전부 끊는다.
 - 만료되거나 폐기된 지 30일이 지난 refresh_tokens 행은 하루 한 번 지운다. 그 전까지는 소진된
   토큰의 재사용 탐지와 문제 추적에 쓴다.
+- 리프레시 토큰을 받거나 갱신하면 그날(한국 날짜)을 user_active_days에 한 줄 남긴다(같은 날은 한 줄). 운영 리텐션
+  (가입·첫 접속 코호트가 며칠·몇 주 뒤에도 들어왔나)의 원장이며 화면에는 보이지 않는다. 탈퇴한 계정에는 쓰지 않고,
+  탈퇴·게스트 옮기기 때 지운다([account.withdraw](withdraw.md#규칙제약)). 도입(V41) 전의 날은 그때 남아 있던
+  토큰의 발급일로 약 30일만 채워져 있다.
 
 ## 규칙·제약
 - 계정을 찾는 순서가 계약이다. ① 제공자와 제공자 ID로 찾는다. ② 없으면 제공자가 검증했다고
