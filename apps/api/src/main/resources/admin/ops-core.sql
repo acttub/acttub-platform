@@ -24,6 +24,9 @@
 --  11. 업로드 완료 · 연습 미시작 원장('upload_only_rows'). 영상 업로드는 끝냈지만(finalized) 아직 어떤
 --      연습·챌린지에도 연결되지 않은 업로드 한 벌이다. 기존 sessions·activity_rows·퍼널·코칭 지표는
 --      건드리지 않는 순수 additive 데이터다 — 자세한 판정·한계는 그 CTE 바로 위 주석을 본다.
+--  12. 가입 코호트 원장의 접속일('signup_rows[].active_days') — 그 사람이 서비스에 들어온 한국 날짜 목록(V41
+--      user_active_days). ops 리텐션이 가입·첫 접속 코호트가 며칠·몇 주 뒤에도 들어왔는지 센다. 날짜만 싣고
+--      시각은 싣지 않는다. V41 이전 기록은 남아 있던 토큰으로 약 30일만 채워져 있다. 수집기 정본에는 없다.
 -- now() 는 트랜잭션 시작 시각이다. 백업 경로는 이것을 백업 시각으로 바꿔 돌렸다.
 WITH b AS (SELECT (now() AT TIME ZONE 'Asia/Seoul')::date AS d),
 -- 분석 기준 셋. '어제'(달력)가 아니라 '최근 24시간'(구르는 창)이다 —
@@ -777,7 +780,11 @@ SELECT json_build_object(
       -- 답한 행이 없으면 discovery_answered=false, 건너뛰었으면 answered=true·source=null 이다.
       'discovery_answered', (da.user_id IS NOT NULL),
       'discovery_source', da.source,
-      'discovery_detail', da.detail
+      'discovery_detail', da.detail,
+      -- 들어온 날(KST, V41). 오래된 날부터. 기록이 없으면 [] 다.
+      'active_days', (SELECT COALESCE(json_agg(to_char(ad.day, 'YYYY-MM-DD') ORDER BY ad.day), '[]'::json)
+          FROM user_active_days ad
+          WHERE ad.user_id = sd.user_id AND ad.day <= (SELECT d FROM b))
     ) ORDER BY sd.created_at DESC, sd.user_id), '[]'::json)
     FROM signup_device sd
     JOIN signup_platform sp ON sp.user_id = sd.user_id
