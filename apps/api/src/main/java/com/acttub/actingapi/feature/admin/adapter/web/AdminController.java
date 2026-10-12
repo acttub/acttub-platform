@@ -30,6 +30,7 @@ import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengePlaybac
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengeVideoPage;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminFeedbackPage;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminReadingPlayback;
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminUploadPlayback;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminReadingSessionDetail;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminReadingSessionPage;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminSessions;
@@ -351,6 +352,28 @@ class AdminController {
             @RequestHeader(name = "authorization", defaultValue = "") String authorization) {
         requireToken(authorization);
         return privateNoStore(admin.challengeVideoPlayback(id, parseActors(rawExcludeActors)));
+    }
+
+    @Operation(
+            summary = "Upload-only Video Playback",
+            description = """
+                    ops-core upload_only_rows 의 upload_intent_id 하나를 받아 600초 재생 URL을 만든다.
+                    finalized 이고 연습 세션·연습·챌린지 참여작에 쓰이지 않았으며 파기되지 않은 영상만 재생한다.
+                    팀 이메일·exclude_actors, 없음·미완료·연결됨·파기된 업로드는 존재를 구분하지 않고 404다.""",
+            operationId = "upload_only_video_playback_v2_admin_upload_only_videos__id__playback_get",
+            tags = "admin")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Successful Response",
+            content = @Content(schema = @Schema(implementation = AdminUploadPlayback.class)))
+    @GetMapping("/upload-only-videos/{id}/playback")
+    ResponseEntity<AdminUploadPlayback> uploadOnlyVideoPlayback(
+            @PathVariable UUID id,
+            @Parameter(description = "제외할 배우 가명(8자리 16진)을 쉼표로", schema = @Schema(type = "string"))
+            @RequestParam(name = "exclude_actors", required = false) String rawExcludeActors,
+            @RequestHeader(name = "authorization", defaultValue = "") String authorization) {
+        requireToken(authorization);
+        return privateNoStore(admin.uploadOnlyVideoPlayback(id, parseActors(rawExcludeActors)));
     }
 
     @Operation(
