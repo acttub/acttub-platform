@@ -267,7 +267,8 @@ final class PracticeLoopRouter {
         // 코치가 답을 제안했으면, 배우가 받든(네) 다르게 답하든 다음 단계로 간다. 물음·정정은 먼저 받는다.
         if (b.lastDoing().startsWith(PROPOSE) && kind != Kind.CORRECTION && kind != Kind.PUSHBACK && kind != Kind.METHOD) return next(b.stage());
         // 같은 단계에 두 번 머물렀으면 묻기만 하지 않고 코치가 답을 제안한다.
-        if (stayed >= 2 && (kind == Kind.MISSED || kind == Kind.SHORT || kind == Kind.QUESTION || kind == Kind.EVALUATION)) return PROPOSE;
+        // 배우가 묻거나 피드백을 달라는 말에는 몇 번째든 답한다 — 제안으로 대신하면 물음에 답하지 않은 게 된다(10/12 시험 세트: 물음 34개 중 20개만 답함).
+        if (stayed >= 2 && (kind == Kind.MISSED || kind == Kind.SHORT)) return PROPOSE;
         String pointOut = b.habitDropped() ? "짚어주기(다른 쪽)" : "짚어주기";
         // 정리로 넘어가는 문턱: 스스로 찾기(4단계)에 답했어도 상대에게 할 행동 하나를 정하지 않았으면(고민 중, 헷갈림, 전제 반박,
         // 판단 요청) 정리하지 않는다. 물은 것이 있으면 먼저 답하고, 없으면 바꿔 묻기 → 보기 둘 → 코치가 제안 순서로 머문다.

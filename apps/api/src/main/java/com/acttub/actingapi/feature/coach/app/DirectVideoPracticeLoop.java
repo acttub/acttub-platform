@@ -91,6 +91,8 @@ final class DirectVideoPracticeLoop {
 
     /** 코치 말이 길다고 보는 글자 수(공백 포함). 목표는 50자 안쪽이고 이보다 길면 줄이기 호출을 한다. */
     static final int LONG_REPLY = 60;
+    /** 배우가 이유·방법·예시·설명·피드백을 달라고 했을 때의 길이. 이때는 50자에 맞추려고 답을 줄이지 않는다. */
+    static final int EXPLAIN_REPLY = 120;
 
     /** 화면에 보이는 글자 수. 줄바꿈과 이어진 공백은 한 칸으로 센다. */
     static int displayLength(String text) {
