@@ -71,6 +71,15 @@ public interface AdminMetricsRepository {
             List<String> excludeEmails,
             List<String> excludeActors);
 
+    /**
+     * 업로드만 하고 아직 연습·챌린지에 쓰이지 않은 업로드(ops-core {@code upload_only_rows})의 오브젝트 키.
+     * 없음·팀·미완료·연결됨·파기된 영상은 모두 빈 값이다.
+     */
+    Optional<String> uploadOnlyVideoObjectKey(
+            UUID uploadIntentId,
+            List<String> excludeEmails,
+            List<String> excludeActors);
+
     /** 활성 계정의 리딩 회차 목록. 자유 본문과 저장소 키는 projection 에 넣지 않는다. */
     List<AdminReadingSession> readingSessions(
             int limit,
