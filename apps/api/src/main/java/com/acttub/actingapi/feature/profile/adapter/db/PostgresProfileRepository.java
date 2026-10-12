@@ -400,6 +400,10 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
         entityManager.createNativeQuery("DELETE FROM user_signup_attributions WHERE user_id=:guestId")
                 .setParameter("guestId", guestId)
                 .executeUpdate();
+        // 닫힌 게스트의 접속일(V41)은 회원에게 옮기지 않는다 — 게스트로 들어온 날은 그 계정의 날이 아니다.
+        entityManager.createNativeQuery("DELETE FROM user_active_days WHERE user_id=:guestId")
+                .setParameter("guestId", guestId)
+                .executeUpdate();
         entityManager.createNativeQuery("DELETE FROM user_discovery_answers WHERE user_id=:guestId")
                 .setParameter("guestId", guestId)
                 .executeUpdate();
@@ -754,6 +758,12 @@ class PostgresProfileRepository implements ProfileRepository, SignupAttributionO
                       AND revoked_at IS NULL
                     """)
                     .setParameter("now", now.atOffset(ZoneOffset.UTC))
+                    .setParameter("userId", userId)
+                    .executeUpdate();
+            // 접속일(V41)은 사람과 끊어 남기지 않고 지운다 — 처리방침의 "탈퇴 후 남기는 것"에 없다.
+            // ⚠ 토큰을 폐기한 **뒤에** 지운다. 같은 토큰을 잡고 있던 갱신은 위 UPDATE 가 기다린 뒤 커밋되므로
+            // 이 문장이 그 갱신이 남긴 줄까지 본다.
+            entityManager.createNativeQuery("DELETE FROM user_active_days WHERE user_id=:userId")
                     .setParameter("userId", userId)
                     .executeUpdate();
             entityManager.createNativeQuery("""
