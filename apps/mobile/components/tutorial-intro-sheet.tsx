@@ -12,8 +12,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { easing, motion } from '@/constants/motion';
 import { palette } from '@/constants/palette';
+import { logEvent } from '@/lib/analytics';
 import { translate as t } from '@/lib/i18n';
-import type { TutorialMode, TutorialTrack } from '@/lib/tutorial';
+import {
+  tutorialIntroChoiceParams,
+  type TutorialIntroVia,
+  type TutorialMode,
+  type TutorialTrack,
+} from '@/lib/tutorial';
 
 export type TutorialChoice = TutorialMode | 'later';
 
@@ -45,6 +51,22 @@ export function TutorialIntroSheet({
   visibleRef.current = visible;
   const unmountIfHidden = () => {
     if (!visibleRef.current) setMounted(false);
+  };
+
+  // 몇 명이 시트를 봤고 그중 무엇을 골랐는지 센다. "나중에"는 다른 기록이 남지 않아 여기서만 보인다.
+  // 고른 것은 열릴 때마다 한 번만 남긴다 — 닫히는 동안 배경을 또 눌러도 두 번 세지 않는다.
+  const chosenRef = useRef(false);
+  useEffect(() => {
+    if (!visible) return;
+    chosenRef.current = false;
+    void logEvent('tutorial_intro_shown', { track });
+  }, [visible, track]);
+  const choose = (value: TutorialChoice, via: TutorialIntroVia) => {
+    if (!chosenRef.current) {
+      chosenRef.current = true;
+      void logEvent('tutorial_intro_choice', tutorialIntroChoiceParams(value, track, via));
+    }
+    onChoose(value);
   };
 
   useEffect(() => {
@@ -83,7 +105,7 @@ export function TutorialIntroSheet({
         .easing(easing.enter)}>
       <Pressable
         style={({ pressed }) => [styles.choice, index === 0 && styles.choicePrimary, pressed && styles.pressed]}
-        onPress={() => onChoose(value)}
+        onPress={() => choose(value, 'button')}
         accessibilityRole="button"
         accessibilityLabel={label}>
         <View style={[styles.choiceIcon, index === 0 && styles.choiceIconPrimary]}>
@@ -99,9 +121,9 @@ export function TutorialIntroSheet({
   );
 
   return (
-    <Modal transparent visible animationType="none" statusBarTranslucent onRequestClose={() => onChoose('later')}>
+    <Modal transparent visible animationType="none" statusBarTranslucent onRequestClose={() => choose('later', 'back')}>
       <Animated.View style={[styles.backdrop, backdropStyle]}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={() => onChoose('later')} accessibilityLabel={t('tutorial.later')} />
+        <Pressable style={StyleSheet.absoluteFill} onPress={() => choose('later', 'backdrop')} accessibilityLabel={t('tutorial.later')} />
       </Animated.View>
       <Animated.View
         style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) + 8 }, sheetStyle]}
@@ -115,7 +137,7 @@ export function TutorialIntroSheet({
           {choice(t(`${copy}.ownTitle`), t(`${copy}.ownSub`), track === 'reading' ? 'file-text' : 'video', 'own', 0)}
           {choice(t(`${copy}.sampleTitle`), t(`${copy}.sampleSub`), track === 'reading' ? 'book-open' : 'play-circle', 'sample', 1)}
         </View>
-        <Pressable onPress={() => onChoose('later')} hitSlop={12} accessibilityRole="button" style={styles.later}>
+        <Pressable onPress={() => choose('later', 'button')} hitSlop={12} accessibilityRole="button" style={styles.later}>
           <Text style={styles.laterText}>{t('tutorial.later')}</Text>
         </Pressable>
       </Animated.View>
