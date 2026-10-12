@@ -207,6 +207,7 @@ export default function RecordVideoScreen() {
             uri: pending.uri,
             playbackUrl: null,
             durationMs: video?.durationMs ?? null,
+            source: 'record',
           });
         }
         router.replace('/upload');
