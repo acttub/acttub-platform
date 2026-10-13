@@ -52,8 +52,9 @@ public final class AdminMetrics {
     }
 
     /**
-     * 자문위원 계정의 코치 대화 한 건(SOMA-622). 사람은 가명(md5(user_id) 앞 8자리)으로만 내고,
-     * 이메일·user id·영상 주소는 싣지 않는다. persona 는 코치 성격 배정(a·b1)이고, 배정 기록이 없으면 null 이다.
+     * 자문위원 계정의 코치 대화 한 건(SOMA-622). 사람은 가명(md5(user_id) 앞 8자리)과 자문위원 목록의 이메일
+     * 해시(advisors.txt 에 이미 공개된 값)로만 내고, 이메일·user id·영상 주소는 싣지 않는다. ops 는 이 해시로
+     * 자기 쪽(비공개 저장소)에서 이름을 붙인다. persona 는 코치 성격 배정(a·b1)이고, 배정 기록이 없으면 null 이다.
      */
     @Schema(name = "AdminAdvisorSession", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
@@ -61,6 +62,7 @@ public final class AdminMetrics {
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String coachSessionId,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) OffsetDateTime createdAt,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String actor,
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String advisorHash,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String persona,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String status,
             @Schema(requiredMode = Schema.RequiredMode.REQUIRED, nullable = true) String closeReason,
