@@ -108,7 +108,7 @@ success() { run_deploy "$@" || { cat "$WORK/log"; exit 1; }; }
 failure() { if run_deploy "$@"; then cat "$WORK/log"; echo "deploy.sh 가 잘못된 입력/실패를 허용했다: $*"; exit 1; fi; }
 # containers <서비스> → 그 서비스의 가짜 컨테이너 ID 목록(한 줄)
 containers() { (cd "$WORK/state" && for f in *; do [ -f "$f" ] && [ "$(sed -n 1p "$f")" = "$1" ] && printf '%s ' "$f"; done; true); }
-active() { sed -n "s/^upstream $1_active .*server \([^: ]*\):.*/\1/p" "$WORK/proxy/active.conf"; }
+active() { sed -n "s/^map [$]host [$]$1_upstream { default \([^: ;]*\):.*/\1/p" "$WORK/proxy/active.conf"; }
 
 failure SHA=not-a-sha
 failure API_IMAGE=$'example/api:tag\nADMIN_OPS_TOKEN=oops'
@@ -211,7 +211,7 @@ grep -qx 'rm api4' "$WORK/calls"
 [ "$(containers api)" = "api16 " ]
 [ "$(containers web)" = "web17 " ]
 # active.conf 가 없는 컨테이너를 가리켜도(손으로 고침·중단) 응답 중인 healthy 컨테이너를 지우지 않고 옆에 띄운다.
-printf 'upstream api_active { zone api_active 64k; server proj-api-999:8080 resolve; }\nupstream web_active { zone web_active 64k; server proj-web-999:3000 resolve; }\n' > "$WORK/proxy/active.conf"
+printf 'map $host $api_upstream { default proj-api-999:8080; }\nmap $host $web_upstream { default proj-web-999:3000; }\n' > "$WORK/proxy/active.conf"
 : > "$WORK/calls"
 success TEST_HASH=h4b
 grep -qx 'up -d --no-deps --no-recreate --scale api=2 api' "$WORK/calls"

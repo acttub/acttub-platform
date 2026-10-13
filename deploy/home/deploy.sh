@@ -80,7 +80,7 @@ hash_of() { docker inspect -f '{{index .Config.Labels "com.docker.compose.config
 # compose 가 지금 설정으로 만들 컨테이너의 해시 — 도는 컨테이너의 라벨과 같으면 바뀐 것이 없다.
 want_hash() { local out; out="$(compose config --hash "$1")" && printf '%s\n' "${out##* }"; }
 # proxy 가 지금 넘겨주는 컨테이너 이름(web|api). active.conf 가 없으면 빈 값.
-active_name() { [ ! -f "$ACTIVE" ] || sed -n "s/^upstream $1_active .*server \([^: ]*\):.*/\1/p" "$ACTIVE"; }
+active_name() { [ ! -f "$ACTIVE" ] || sed -n "s/^map [$]host [$]$1_upstream { default \([^: ;]*\):.*/\1/p" "$ACTIVE"; }
 nginx_cmd() { compose exec -T proxy nginx -c /etc/nginx/acttub/nginx.conf "$@"; }
 
 # write_active <web 컨테이너 이름> <api 컨테이너 이름> — 임시 파일에 쓰고 mv 로 바꾼다(reload 가 반쯤 쓴 파일을 읽지 않게).
@@ -89,8 +89,8 @@ write_active() {
   tmp="$(mktemp proxy/active.conf.XXXXXX)" || return 1
   printf '%s\n' \
     "# deploy.sh 가 배포마다 쓴다 — 손으로 고치지 않는다. proxy 가 넘겨줄 지금 판의 컨테이너(nginx.conf 가 include)." \
-    "upstream web_active { zone web_active 64k; server $1:3000 resolve; }" \
-    "upstream api_active { zone api_active 64k; server $2:8080 resolve; }" > "$tmp" \
+    "map \$host \$web_upstream { default $1:3000; }" \
+    "map \$host \$api_upstream { default $2:8080; }" > "$tmp" \
     && chmod 644 "$tmp" && mv -f "$tmp" "$ACTIVE"
 }
 
