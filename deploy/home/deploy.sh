@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# 홈서버 배포 스크립트(SOMA-489). 서버의 프로젝트 디렉토리(/svc/acttub/<env>)에서 실행한다 —
-# 거기에 compose.yml 과 사람이 채운 .env 가 있고, 이 스크립트가 release.env 를 쓴다.
+# 홈서버 배포 스크립트(SOMA-489, 무중단 SOMA-700). 서버의 프로젝트 디렉토리(/svc/acttub/<env>)에서 실행한다 —
+# 거기에 compose.yml·proxy/nginx.conf 와 사람이 채운 .env 가 있고, 이 스크립트가 release.env·proxy/active.conf 를 쓴다.
 #
 #   cd /svc/acttub/dev
 #   ./deploy.sh <sha> <api 이미지> <web 이미지> [backup 이미지]
@@ -8,18 +8,27 @@
 #   값은 환경변수 SHA·API_IMAGE·WEB_IMAGE·BACKUP_IMAGE 로 줘도 된다(인자가 우선) — 워크플로가 ssh 로 넘길 때 어느 쪽이든 되게.
 #   sha 는 7~40자 16진수.
 #
-# 하는 일 — 어느 단계든 실패하면 exit≠0 이고, 기동 실패는 compose ps·로그를 찍는다
+# 하는 일 — 어느 단계든 실패하면 exit≠0 이다. 새 판으로 넘어간 것을 확인하기 전의 실패는 새 컨테이너를 지우고
+# release.env 를 되돌린다 — 옛 판이 계속 응답한다.
 #   1. 입력과 compose 를 점검한 뒤 release.env 를 새로 쓴다: API_IMAGE·WEB_IMAGE·BACKUP_IMAGE(선택)·RENDER_GIT_COMMIT·SENTRY_RELEASE.
 #      사람이 관리하는 .env 는 읽기만 한다. 어느 프로필을 띄울지(cloudflared=edge·backup)도 .env 의
 #      COMPOSE_PROFILES 가 정하고 이 스크립트는 그대로 따른다.
 #   2. docker compose pull        DEPLOY_PULL_POLICY=always(기본)|missing — 로컬 태그로 스모크할 때 missing
-#   3. docker compose up -d --remove-orphans --wait   DEPLOY_WAIT_SECONDS(기본 180) 안에 healthy 가 아니면 실패.
-#      크래시루프는 healthy 가 되지 못해 여기서 시간 초과로 걸린다.
-#   4. web 컨테이너 안에서 GET /health → commit 이 sha 앞 7자와 같은지 대조. 다르면 옛 컨테이너가 답하는 것.
-#   5. 컨테이너가 쓰지 않는 옛 릴리스 이미지를 지운다. 이 단계의 실패는 배포를 실패시키지 않는다.
+#   3. db 를 띄운다. api·web 은 맨손 compose up 으로 건드리지 않는다 — Compose 는 옛 컨테이너를 먼저 내리고 새 것을 띄운다.
+#   4. 설정이 바뀐 api·web 만 새 컨테이너를 옛 것 옆에 띄우고(--scale 2 --no-recreate) healthy 를 기다린다.
+#      DEPLOY_WAIT_SECONDS(기본 180) 안에 healthy 가 아니면 실패. 크래시루프는 여기서 시간 초과로 걸린다.
+#   5. proxy/active.conf 를 새 컨테이너로 쓰고 proxy(nginx)를 reload 한다 — web·api 가 한 번에 넘어간다.
+#   6. proxy 안에서 GET /health(proxy → web → proxy → api 전체 길)의 commit 이 sha 앞 7자와 같은지 본다. 다르면 proxy 를
+#      옛 컨테이너로 되돌리고 실패.
+#   7. 터널(cloudflared, edge 프로필)을 맞춘다. 평소에는 바뀔 것이 없다.
+#   8. 옛 nginx worker 가 처리 중이던 요청을 다 끝내면(최대 DRAIN_SECONDS) 옛 api·web 을 멈추고 지운다.
+#   9. backup 프로필을 맞추고 compose 에서 빠진 서비스의 컨테이너를 지운다(--remove-orphans).
+#  10. 기능 스위치가 api 컨테이너에 실제로 들어갔는지 대조한다.
+#  11. 컨테이너가 쓰지 않는 옛 릴리스 이미지를 지운다. 이 단계의 실패는 배포를 실패시키지 않는다.
 #
-# 같은 sha 로 다시 돌리면 release.env 내용이 같아 compose 가 아무것도 바꾸지 않고 초록으로 끝난다(멱등).
-# 롤백은 이전 sha·이미지로 같은 명령을 다시 부르는 것이다. 5단계가 지운 이미지는 2단계가 GHCR 에서 다시 받는다.
+# 같은 sha 로 다시 돌리면 바뀐 컨테이너가 없어 아무것도 다시 만들지 않는다(멱등). .env 만 고쳤을 때도 같은 sha 로
+# 다시 돌리면 바뀐 서비스만 같은 길로 갈아 끼운다 — 맨손 compose up 으로 적용하면 그 서비스는 끊긴다.
+# 롤백은 이전 sha·이미지로 같은 명령을 다시 부르는 것이다. 11단계가 지운 이미지는 2단계가 GHCR 에서 다시 받는다.
 #
 # compose 는 반드시 --env-file .env --env-file release.env 로 부른다 — 파일 안 ${API_IMAGE} 치환은
 # --env-file 로 읽은 값만 보고, env_file: 은 컨테이너 환경만 넣는다(compose.yml 머리 주석). 맨손
@@ -35,6 +44,9 @@ WAIT_SECONDS="${DEPLOY_WAIT_SECONDS:-180}"
 THREE_LAYERS_ENABLED="${DEPLOY_THREE_LAYERS_ENABLED:-}"
 DIRECT_VIDEO_ENABLED="${DEPLOY_DIRECT_VIDEO_ENABLED:-}"
 GUEST_DAILY_LIMIT_ENABLED="${DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED:-}"
+# 옛 nginx worker 를 기다리는 상한. proxy/nginx.conf 의 worker_shutdown_timeout(120s)에 여유를 더한다.
+DRAIN_SECONDS=130
+ACTIVE=proxy/active.conf
 
 step() { printf '▶ %s\n' "$*"; }
 fail() { printf '✗ %s\n' "$*" >&2; exit 1; }
@@ -53,6 +65,7 @@ case "$THREE_LAYERS_ENABLED" in ''|true|false) ;; *) fail "DEPLOY_THREE_LAYERS_E
 case "$DIRECT_VIDEO_ENABLED" in ''|true|false) ;; *) fail "DEPLOY_DIRECT_VIDEO_ENABLED 는 true 또는 false" ;; esac
 [[ "$WAIT_SECONDS" =~ ^[1-9][0-9]*$ ]] || fail "DEPLOY_WAIT_SECONDS 는 양의 초 단위 정수: '$WAIT_SECONDS'"
 [ -f compose.yml ] || fail "compose.yml 이 없다 — 프로젝트 디렉토리(/svc/acttub/<env>)에서 실행한다: $PWD"
+[ -f proxy/nginx.conf ] || fail "proxy/nginx.conf 가 없다 — 워크플로가 compose.yml 과 함께 보낸다: $PWD"
 [ -f .env ] || fail ".env 가 없다 — 사람이 채우는 파일이다(deploy/home/.env.example): $PWD"
 command -v docker >/dev/null || fail "docker 가 없다"
 docker compose version >/dev/null 2>&1 || fail "docker compose 가 없다"
@@ -60,18 +73,72 @@ docker compose version >/dev/null 2>&1 || fail "docker compose 가 없다"
 RELEASE_FILE=release.env
 compose() { docker compose --env-file .env --env-file "$RELEASE_FILE" "$@"; }
 
-# 프로필은 .env 의 COMPOSE_PROFILES 가 정한다. 그 줄이 없으면 compose 는 말없이 web·api·db 만 띄우므로(터널 없음)
+# 컨테이너 하나의 health(healthcheck 가 없으면 상태)·이름·설정 해시.
+state_of() { docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$1"; }
+name_of() { local n; n="$(docker inspect -f '{{.Name}}' "$1")" && printf '%s\n' "${n#/}"; }
+hash_of() { docker inspect -f '{{index .Config.Labels "com.docker.compose.config-hash"}}' "$1"; }
+# compose 가 지금 설정으로 만들 컨테이너의 해시 — 도는 컨테이너의 라벨과 같으면 바뀐 것이 없다.
+want_hash() { local out; out="$(compose config --hash "$1")" && printf '%s\n' "${out##* }"; }
+# proxy 가 지금 넘겨주는 컨테이너 이름(web|api). active.conf 가 없으면 빈 값.
+active_name() { [ ! -f "$ACTIVE" ] || sed -n "s/^upstream $1_active .*server \([^: ]*\):.*/\1/p" "$ACTIVE"; }
+nginx_cmd() { compose exec -T proxy nginx -c /etc/nginx/acttub/nginx.conf "$@"; }
+
+# write_active <web 컨테이너 이름> <api 컨테이너 이름> — 임시 파일에 쓰고 mv 로 바꾼다(reload 가 반쯤 쓴 파일을 읽지 않게).
+write_active() {
+  local tmp
+  tmp="$(mktemp proxy/active.conf.XXXXXX)" || return 1
+  printf '%s\n' \
+    "# deploy.sh 가 배포마다 쓴다 — 손으로 고치지 않는다. proxy 가 넘겨줄 지금 판의 컨테이너(nginx.conf 가 include)." \
+    "upstream web_active { zone web_active 64k; server $1:3000 resolve; }" \
+    "upstream api_active { zone api_active 64k; server $2:8080 resolve; }" > "$tmp" \
+    && chmod 644 "$tmp" && mv -f "$tmp" "$ACTIVE"
+}
+
+# 실패하면 EXIT 에서 phase 에 맞게 되돌린다. rolling·switched 는 새 컨테이너를 지우고 release.env 를 되돌린다(undo).
+# committed 뒤의 실패(터널·옛 컨테이너 정리·backup)는 새 판이 이미 응답하므로 되돌리지 않는다.
+phase=prepare
+release_tmp=""
+created=""
+old_api="" new_api="" old_web="" new_web=""
+undo() {
+  local id
+  printf '▶ 되돌리기 — 새 컨테이너를 지우고 옛 판을 그대로 둔다\n' >&2
+  if [ "$phase" = switched ] && [ -n "$old_web" ] && [ -n "$old_api" ]; then
+    if write_active "$(name_of "$old_web")" "$(name_of "$old_api")" && nginx_cmd -s reload; then
+      echo "  proxy 를 옛 컨테이너로 되돌렸다" >&2
+    else
+      echo "⚠ proxy 를 옛 컨테이너로 되돌리지 못했다 — proxy/active.conf 와 compose ps 를 본다" >&2
+    fi
+  fi
+  for id in $created; do
+    echo "── $(name_of "$id") 로그 끝 ──" >&2
+    docker logs --tail 60 "$id" 2>&1 | sed 's/^/  /' >&2
+    docker rm -f "$id" >/dev/null
+  done
+  [ ! -f release.env.prev ] || mv -f release.env.prev release.env
+  compose ps >&2
+}
+on_exit() {
+  local status=$?
+  set +e
+  [ -z "$release_tmp" ] || rm -f "$release_tmp"
+  if [ "$status" -ne 0 ] && { [ "$phase" = rolling ] || [ "$phase" = switched ]; }; then undo; fi
+  exit "$status"
+}
+trap on_exit EXIT
+
+# 프로필은 .env 의 COMPOSE_PROFILES 가 정한다. 그 줄이 없으면 compose 는 말없이 web·api·db·proxy 만 띄우므로(터널 없음)
 # 여기서 한 줄 경고한다 — 스모크의 테스트용 .env 는 일부러 그 줄이 없어 이 경고가 나온다.
 grep -q '^COMPOSE_PROFILES=.' .env \
-  || echo "⚠ .env 에 COMPOSE_PROFILES 가 없다 — cloudflared(edge)·backup 없이 web·api·db 만 뜬다" >&2
+  || echo "⚠ .env 에 COMPOSE_PROFILES 가 없다 — cloudflared(edge)·backup 없이 web·api·db·proxy 만 뜬다" >&2
 
 # ── 1. release.env ─────────────────────────────────────────────────────────────
 # 임시 파일에 쓰고 mv 로 바꾼다 — 도중에 죽어도 반쯤 쓰인 release.env 가 남지 않는다.
 # RENDER_GIT_COMMIT 은 /health 의 commit(HealthController, 앞 7자), SENTRY_RELEASE 는 Sentry 릴리스 태그.
 # 이름이 RENDER_* 인 것은 기존 앱 설정과의 호환성을 유지하기 위해서다.
 step "release.env 쓰기 — commit ${SHA:0:7}, api $API_IMAGE, web $WEB_IMAGE"
-RELEASE_FILE="$(mktemp ./release.env.XXXXXX)"
-trap 'rm -f "$RELEASE_FILE"' EXIT
+release_tmp="$(mktemp ./release.env.XXXXXX)"
+RELEASE_FILE="$release_tmp"
 cat > "$RELEASE_FILE" <<EOF
 # deploy.sh 가 배포마다 새로 쓴다 — 손으로 고치지 않는다. 컨테이너 환경(env_file)과 compose 치환(--env-file) 둘 다 읽는다.
 API_IMAGE=$API_IMAGE
@@ -86,65 +153,158 @@ EOF
 [ -z "$GUEST_DAILY_LIMIT_ENABLED" ] || printf 'ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=%s\n' "$GUEST_DAILY_LIMIT_ENABLED" >> "$RELEASE_FILE"
 # --no-env-resolution 은 첫 배포의 아직 없는 release.env 를 읽지 않고 치환과 활성 프로필만 검증한다.
 services="$(compose config --no-env-resolution --services)" || fail "compose 설정 검증에 실패했다"
+grep -qx proxy <<< "$services" || fail "compose.yml 에 proxy 서비스가 없다 — deploy.sh 와 compose.yml 은 같은 커밋의 것이어야 한다"
 release_services=(api web)
 if grep -qx backup <<< "$services"; then
   [ -n "$BACKUP_IMAGE" ] || fail "backup 프로필에는 4번째 인자 또는 BACKUP_IMAGE 가 필요하다"
   release_services+=(backup)
 fi
+tunnel=false backup_service=""
+if grep -qx cloudflared <<< "$services"; then tunnel=true; fi
+if grep -qx backup <<< "$services"; then backup_service=backup; fi
+# 새 판으로 넘어가기 전에 실패하면 이 사본으로 되돌린다(undo).
+if [ -f release.env ]; then cp -p release.env release.env.prev; else rm -f release.env.prev; fi
 mv -f "$RELEASE_FILE" release.env
-trap - EXIT
+release_tmp=""
 RELEASE_FILE=release.env
 
 # ── 2. 이미지 확보 ─────────────────────────────────────────────────────────────
-# 이번 릴리스의 api·web 과 활성화된 backup 이미지만 당긴다. db(postgres:18-alpine)·cloudflared 는 여기서 당기지 않는다 — always 로
-# 당기면 상류 태그가 움직인 날 앱 배포에 db 재생성이 섞인다. 없을 때는 아래 up 이 받는다(up 의 기본 pull 정책이
-# missing). 그 둘을 올리는 것은 compose.yml 의 태그를 바꾸거나 `compose pull db` 를 손으로 하는 별개의 일이다.
+# 이번 릴리스의 api·web 과 활성화된 backup 이미지만 당긴다. db(postgres:18-alpine)·cloudflared·proxy 는 여기서 당기지 않는다 —
+# always 로 당기면 상류 태그가 움직인 날 앱 배포에 그 컨테이너의 재생성이 섞인다. 없을 때는 아래 up 이 받는다(up 의 기본
+# pull 정책이 missing). 그것들을 올리는 것은 compose.yml 의 태그를 바꾸는 별개의 일이고, 그 배포는 그 컨테이너를 다시 만든다.
+phase=rolling
 step "이미지 확보 (compose pull --policy $PULL_POLICY ${release_services[*]})"
 compose pull --policy "$PULL_POLICY" "${release_services[@]}" \
   || fail "이미지를 받지 못했다 — 태그가 GHCR 에 있는지, missing 정책이면 로컬에 있는지 본다"
 
-# ── 3. up → healthy ────────────────────────────────────────────────────────────
-# --wait 는 모든 컨테이너가 healthy(healthcheck 없으면 running)가 될 때까지 기다리고, 상한을 넘기거나
-# 컨테이너가 죽으면 exit 1 이다. 바뀐 서비스만 재생성된다 — release.env 값이 그대로면 아무것도 안 한다.
-step "compose up -d --remove-orphans --wait (최대 ${WAIT_SECONDS}초)"
-if ! compose up -d --remove-orphans --wait --wait-timeout "$WAIT_SECONDS"; then
-  compose ps || true
-  compose logs --no-color --tail 60 api || true
-  compose logs --no-color --tail 30 web || true
-  fail "compose up 이 실패했거나 ${WAIT_SECONDS}초 안에 healthy 가 되지 않았다 — 위 ps·로그를 본다"
+# ── 3. db ──────────────────────────────────────────────────────────────────────
+step "db (compose up -d --no-deps --wait db, 최대 ${WAIT_SECONDS}초)"
+compose up -d --no-deps --wait --wait-timeout "$WAIT_SECONDS" db || fail "db 가 ${WAIT_SECONDS}초 안에 healthy 가 되지 않았다"
+
+# ── 4. 바뀐 api·web 을 옛 것 옆에 띄운다 ───────────────────────────────────────
+# roll <서비스> → rolled_old(지금 proxy 가 넘겨주는 컨테이너)·rolled_new(넘길 컨테이너). 설정이 그대로면 둘이 같다.
+roll() {
+  local svc="$1" want ids id target keep=""
+  want="$(want_hash "$svc")" || fail "$svc 의 설정 해시를 구하지 못했다"
+  ids="$(compose ps -a -q "$svc")" || fail "$svc 컨테이너 목록을 읽지 못했다"
+  target="$(active_name "$svc")"
+  # 옛 판은 proxy 가 넘겨주는 healthy 컨테이너다. active.conf 가 없거나(이 방식의 첫 배포) 가리키는 컨테이너가 없으면
+  # healthy 인 첫 컨테이너 — 응답하는 컨테이너를 찌꺼기로 지우지 않는다.
+  for id in $ids; do
+    [ "$(state_of "$id")" = healthy ] || continue
+    [ -n "$keep" ] || keep="$id"
+    if [ "$(name_of "$id")" = "$target" ]; then keep="$id"; break; fi
+  done
+  # 그 밖의 컨테이너는 요청을 받지 않는다(죽었거나 중단된 배포가 남긴 것). 지워야 --scale 이 하나만 더 만든다.
+  for id in $ids; do
+    [ "$id" = "$keep" ] || docker rm -f "$id" >/dev/null || fail "남은 $svc 컨테이너를 지우지 못했다: $id"
+  done
+  rolled_old="$keep" rolled_new="$keep"
+  if [ -n "$keep" ] && [ "$(hash_of "$keep")" = "$want" ]; then
+    echo "  $svc 그대로 — $(name_of "$keep")"
+    return 0
+  fi
+  if [ -n "$keep" ]; then
+    compose up -d --no-deps --no-recreate --scale "$svc=2" "$svc" || fail "$svc 새 컨테이너를 만들지 못했다"
+  else
+    # 넘겨받을 healthy 컨테이너가 없다(첫 배포·죽은 판) — 겹치지 않고 바로 만든다.
+    compose up -d --no-deps "$svc" || fail "$svc 컨테이너를 만들지 못했다"
+  fi
+  rolled_new="$(compose ps -a -q "$svc" | grep -vx -- "${keep:-none}" || true)"
+  [ "$(printf '%s\n' "$rolled_new" | grep -c .)" = 1 ] || fail "$svc 의 새 컨테이너를 하나로 가려내지 못했다: $rolled_new"
+  created="$created $rolled_new"
+  echo "  $svc 새 컨테이너 $(name_of "$rolled_new")${keep:+ (옛 $(name_of "$keep") 는 그대로 응답)}"
+}
+
+step "설정이 바뀐 api·web 을 옛 것 옆에 띄운다"
+roll api; old_api="$rolled_old" new_api="$rolled_new"
+roll web; old_web="$rolled_old" new_web="$rolled_new"
+
+wait_healthy() {
+  local deadline=$((SECONDS + WAIT_SECONDS)) id st
+  for id in "$@"; do
+    while :; do
+      st="$(state_of "$id")" || return 1
+      [ "$st" != healthy ] || break
+      case "$st" in unhealthy|exited|dead) return 1 ;; esac
+      [ "$SECONDS" -lt "$deadline" ] || return 1
+      sleep 2
+    done
+  done
+}
+if [ -n "$created" ]; then
+  step "새 컨테이너 healthy 대기 (최대 ${WAIT_SECONDS}초)"
+  # shellcheck disable=SC2086 # created 는 공백으로 가른 컨테이너 ID 목록이다.
+  wait_healthy $created || fail "새 컨테이너가 ${WAIT_SECONDS}초 안에 healthy 가 되지 않았다 — 옛 판을 그대로 둔다"
 fi
 
-# 일부 Compose 실행은 짧은 --wait-timeout 만료에도 0을 반환한다. 아직 starting 인 API에
-# /health 를 보내 연결 오류로 오인하지 않도록 실제 필수 서비스 상태도 확인한다.
-readiness="$(compose ps --all --format '{{.Service}} {{.Health}}' api web db)" \
-  || fail "배포 컨테이너의 healthy 상태를 읽지 못했다"
-for service in api web db; do
-  if ! grep -qx "$service healthy" <<< "$readiness"; then
-    compose ps || true
-    fail "${WAIT_SECONDS}초 안에 healthy 가 되지 않았다 ($service) — compose 상태를 본다"
-  fi
+# ── 5. proxy 를 새 컨테이너로 넘긴다 ───────────────────────────────────────────
+step "proxy 넘기기 — web $(name_of "$new_web"), api $(name_of "$new_api")"
+# active.conf 를 쓰는 순간부터는 실패하면 옛 컨테이너로 다시 써야 한다(undo). 남겨 두면 다음 배포가 엉뚱한 컨테이너를 옛 판으로 본다.
+phase=switched
+write_active "$(name_of "$new_web")" "$(name_of "$new_api")" || fail "proxy/active.conf 를 쓰지 못했다"
+old_workers=""
+proxy_id="$(compose ps -q proxy)"
+if [ -n "$proxy_id" ] && [ "$(state_of "$proxy_id")" = healthy ] && [ "$(hash_of "$proxy_id")" = "$(want_hash proxy)" ]; then
+  # reload 뒤에도 옛 worker 는 이미 받은 요청을 옛 판으로 보낸다. 그것들이 끝나야 옛 컨테이너를 멈출 수 있다(8단계).
+  old_workers="$(compose exec -T proxy pgrep -f 'nginx: worker process' | tr '\n' ' ')" || fail "proxy 의 nginx worker 를 읽지 못했다"
+  nginx_cmd -t -q || fail "proxy 설정 검사(nginx -t)가 실패했다"
+  nginx_cmd -s reload || fail "proxy reload 가 실패했다"
+else
+  # 처음이거나 proxy 의 이미지·설정이 바뀌었다 — 다시 만드는 동안은 끊긴다.
+  compose up -d --no-deps --wait --wait-timeout "$WAIT_SECONDS" proxy || fail "proxy 가 ${WAIT_SECONDS}초 안에 healthy 가 되지 않았다"
+fi
+
+# ── 6. /health 의 commit 대조 (proxy 경유) ──────────────────────────────────────
+# 호스트 포트를 publish 하지 않으므로 proxy 컨테이너 안에서 부른다. proxy → web(rewrites) → proxy → api 라 터널이 보는 길과
+# 같다. reload 는 신호만 보내고 돌아오므로 새 worker 가 받을 때까지 잠깐 다시 묻는다.
+step "proxy 경유 GET /health 의 commit 대조 (기대 ${SHA:0:7})"
+got="" body=""
+for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+  body="$(compose exec -T proxy wget -q -O - http://127.0.0.1:3000/health 2>/dev/null)" || body=""
+  got="$(sed -n 's/.*"commit":"\([^"]*\)".*/\1/p' <<< "$body")"
+  [ "$got" != "${SHA:0:7}" ] || break
+  sleep 0.5
+done
+echo "  ${body:-응답 없음}"
+[ "$got" = "${SHA:0:7}" ] \
+  || fail "proxy 경유 /health 의 commit(${got:-없음})이 배포한 sha(${SHA:0:7})와 다르다 — 옛 판으로 되돌린다. 아래 새 컨테이너 로그를 본다"
+phase=committed
+rm -f release.env.prev
+
+# ── 7. 터널 ────────────────────────────────────────────────────────────────────
+# 옛 컨테이너를 내리기 전에 맞춘다 — cloudflared 의 망이 바뀌는 배포(SOMA-700 첫 배포)에서는 옛 cloudflared 가 옛 web 으로
+# 직접 가고, 다시 만들어진 cloudflared 가 proxy 로 간다.
+if [ "$tunnel" = true ]; then
+  step "터널 맞추기 (compose up -d --no-deps --wait cloudflared)"
+  compose up -d --no-deps --wait --wait-timeout "$WAIT_SECONDS" cloudflared \
+    || fail "cloudflared 가 ${WAIT_SECONDS}초 안에 healthy 가 되지 않았다 — web·api 는 이미 새 판이다"
+fi
+
+# ── 8. 옛 판 내리기 ────────────────────────────────────────────────────────────
+if [ -n "$old_workers" ]; then
+  step "옛 nginx worker 가 처리 중인 요청을 끝내기를 기다린다 (최대 ${DRAIN_SECONDS}초)"
+  drain_deadline=$((SECONDS + DRAIN_SECONDS))
+  while compose exec -T proxy sh -c "for p in $old_workers; do kill -0 \$p 2>/dev/null && exit 0; done; exit 1"; do
+    if [ "$SECONDS" -ge "$drain_deadline" ]; then
+      echo "⚠ 옛 nginx worker 가 ${DRAIN_SECONDS}초 안에 끝나지 않았다 — 옛 컨테이너를 그대로 멈춘다" >&2
+      break
+    fi
+    sleep 1
+  done
+fi
+for id in $([ "$old_api" = "$new_api" ] || echo "$old_api") $([ "$old_web" = "$new_web" ] || echo "$old_web"); do
+  step "옛 컨테이너 내리기 — $(name_of "$id")"
+  { docker stop "$id" >/dev/null && docker rm "$id" >/dev/null; } || fail "옛 컨테이너를 내리지 못했다: $id — web·api 는 이미 새 판이다"
 done
 
-# ── 4. /health 의 commit 대조 (web 경유) ───────────────────────────────────────
-# 호스트 포트를 publish 하지 않으므로 컨테이너 안에서 부른다. 런타임 웹 이미지에는 curl 이 없어 node 의
-# fetch 로 간다(compose healthcheck 와 같다). web → rewrites → api 경로 그대로라 사용자가 보는 것과 같다.
-# 첫 줄 "<상태> <commit>", 그 뒤 본문.
-step "web 경유 GET /health 의 commit 대조 (기대 ${SHA:0:7})"
-out="$(compose exec -T web node --input-type=module -e '
-  const r = await fetch("http://127.0.0.1:3000/health");
-  const text = await r.text();
-  let commit = "";
-  try { commit = String(JSON.parse(text).commit ?? ""); } catch {}
-  process.stdout.write(`${r.status} ${commit}\n${text}`);
-')" || fail "web 컨테이너 안에서 GET /health 를 부르지 못했다"
-status_line="${out%%$'\n'*}"
-status="${status_line%% *}"
-got="${status_line#* }"
-echo "  $status ${out#*$'\n'}"
-[ "$status" = "200" ] || fail "web 경유 /health 가 $status 를 줬다"
-[ "$got" = "${SHA:0:7}" ] \
-  || fail "/health 의 commit($got)이 배포한 sha(${SHA:0:7})와 다르다 — 옛 컨테이너가 답하고 있다. compose ps 로 api 의 생성 시각과 이미지를 본다"
+# ── 9. backup·남은 컨테이너 ────────────────────────────────────────────────────
+step "backup·고아 컨테이너 맞추기 (compose up -d --no-deps --remove-orphans --wait db${backup_service:+ $backup_service})"
+# shellcheck disable=SC2086 # backup_service 는 비었거나 서비스 이름 하나다.
+compose up -d --no-deps --remove-orphans --wait --wait-timeout "$WAIT_SECONDS" db $backup_service \
+  || fail "backup 이 ${WAIT_SECONDS}초 안에 healthy 가 되지 않았다 — web·api 는 이미 새 판이다"
 
+# ── 10. 기능 스위치 대조 ────────────────────────────────────────────────────────
 if [ -n "$THREE_LAYERS_ENABLED" ]; then
   actual_three_layers="$(compose exec -T api printenv ACTTUB_THREE_LAYERS_ENABLED)" \
     || fail "새 연습 경로의 컨테이너 설정을 읽지 못했다"
@@ -169,7 +329,7 @@ if [ -n "$DIRECT_VIDEO_ENABLED" ]; then
   step "Gemini 직접 코칭 확인: $actual_direct_video"
 fi
 
-# ── 5. 옛 릴리스 이미지 정리 ───────────────────────────────────────────────────
+# ── 11. 옛 릴리스 이미지 정리 ──────────────────────────────────────────────────
 # 배포마다 sha 태그 이미지가 남아 디스크를 채운다. 이번 이미지와 같은 저장소에서 릴리스 태그(<sha>·<env>-<sha>)만
 # 지우고, smoke.sh 의 로컬 태그(옆 실행이 쓰는 중일 수 있다)는 건드리지 않는다. -f 없는 rm 은 컨테이너가 쓰는
 # 이미지를 거부하므로 같은 데몬의 다른 환경이 띄운 이미지는 남는다. 다른 환경이 pull 한 뒤 up 전에 지워져도

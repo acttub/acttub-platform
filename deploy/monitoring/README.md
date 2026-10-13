@@ -65,7 +65,8 @@ Prometheus는 **30초**마다 수집하고(`manage.py`가 렌더하는 `scrape_i
 
 앱의 `api`만 자기 프로젝트의 `default`와 `scrape`에 참가한다. 선택한 환경의 앱이 만든
 `acttub-<env>_scrape`를 모니터링이 외부 네트워크로 참조한다.
-API 별칭은 각각 `acttub-dev-api`·`acttub-prod-api`이고 DB·웹·터널·백업은 기존 기본망을 유지한다.
+API 별칭은 각각 `acttub-dev-api`·`acttub-prod-api`이다. DB·백업은 기본망, 웹은 `front`, 터널은 `edge` 망에 있다(앞단 proxy의
+망 별칭, [`deploy/home/compose.yml`](../home/compose.yml)).
 일반 앱 기동에 모니터링 네트워크나 토큰을 요구하지 않는다. 환경 전체를 철거할 때는 먼저
 모니터링을 내려 수집망에서 분리한다. 모니터링을 내릴 때 `down -v`를 사용하지 않는다.
 
