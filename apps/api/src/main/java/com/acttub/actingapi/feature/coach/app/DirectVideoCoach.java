@@ -291,10 +291,14 @@ public final class DirectVideoCoach {
                 timeStripped = true;
             }
             if (shown.isBlank()) throw new IllegalStateException("empty video coaching reply");
-            // 앱이 코치 말을 아주 큰 글씨로 보여서 50자 안쪽이 목표다. 60자가 넘으면 자르지 않고 줄이기만 하는 호출로 두 번까지 줄인다.
+            // 앱이 코치 말을 아주 큰 글씨로 보여서 50자 안쪽이 목표다. 상한(공용 60자)을 넘으면 자르지 않고 줄이기만 하는 호출로 두 번까지 줄인다.
+            // 자문위원 프롬프트는 사람마다 길이 상한을 따로 둔다(SOMA-622). 없으면 공용 상한 60자다.
+            int replyLimit = loop ? DirectVideoPrompts.personaReplyLimit(persona, DirectVideoPracticeLoop.replyLanguage(session, actorText))
+                    : DirectVideoPracticeLoop.LONG_REPLY;
             int shortened = 0;
             // 배우가 설명·피드백을 달라고 한 답은 길게 둔다(줄이면 다시 한 구절 + 질문이 되어 물음에 답하지 못한다).
-            int limit = branch != null && branch.explains() ? DirectVideoPracticeLoop.EXPLAIN_REPLY : DirectVideoPracticeLoop.LONG_REPLY;
+            // 자문위원 프롬프트의 사람별 상한(SOMA-622)과 함께 쓸 때는 둘 중 큰 쪽을 쓴다.
+            int limit = branch != null && branch.explains() ? Math.max(DirectVideoPracticeLoop.EXPLAIN_REPLY, replyLimit) : replyLimit;
             while (loop && !cut && shortened < 2 && DirectVideoPracticeLoop.displayLength(shown) > limit) {
                 String shorter = shorten(shown, DirectVideoPracticeLoop.replyLanguage(session, actorText), persona, uploaded, written, operationId);
                 shortened++;

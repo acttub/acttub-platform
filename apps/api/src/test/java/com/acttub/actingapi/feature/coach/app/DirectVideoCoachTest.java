@@ -358,6 +358,41 @@ class DirectVideoCoachTest {
                 .allSatisfy(call -> assertThat(call.metadata()).containsEntry("persona", "b1"));
     }
 
+    @Test void eachAdvisorGetsTheirOwnPromptOnEveryCoachCallAndALongerReplyLimit() {
+        var loopEngine = new CoachEngine(oldGenerator, failures, telemetry, true, Optional.of(new DirectVideoCoach(
+                model, videos, storage, failures, telemetry, true, s -> "park-seunga")));
+        when(model.classify(anyList(), anyString(), anyList())).thenReturn("{\"signals\":[\"answered\"]}");
+        // 90자쯤의 말: 공용 상한(60자)은 넘지만 이 사람의 상한(100자) 안쪽이라 줄이지 않는다.
+        String reply = "\"소소한 행복\"에서도, \"너 왜 자꾸\"에서도 상대 마음을 떠보는 말로 안 들려요.\n오래된 연인이라도 이 말은 마음을 묻는 말이라서요.\n그럼 상대가 대답해 줬을까요?";
+        when(model.reply(eq(file), anyList(), anyString())).thenReturn(OPENING, reply);
+        var first = loopEngine.start(session(), UUID.randomUUID());
+        var second = loopEngine.reply(first.session(), "같이 즐기고 싶었어요", UUID.randomUUID());
+        assertThat(second.session().coachingState().path("practice_loop").path("persona").asText()).isEqualTo("park-seunga");
+        var prompts = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(model, times(2)).reply(eq(file), anyList(), prompts.capture());
+        String own = DirectVideoPrompts.persona("park-seunga", null);
+        assertThat(own).startsWith("[이 배우에게 맞춘 코칭]").doesNotContain("[길이]");
+        assertThat(prompts.getAllValues().get(0)).isEqualTo(DirectVideoPrompts.practiceLoop(first.session().practiceSessionId()) + "\n\n" + own);
+        assertThat(prompts.getAllValues().get(1)).startsWith(DirectVideoPrompts.practiceLoopTurn()).endsWith(own);
+        assertThat(second.reply().message()).isEqualTo(reply);
+        assertThat(telemetry.calls()).filteredOn(call -> call.step() == com.acttub.actingapi.platform.observability.LlmStep.COACH_TURN)
+                .allSatisfy(call -> assertThat(call.metadata()).containsEntry("persona", "park-seunga").containsEntry("shorten_calls", "0"));
+    }
+
+    @Test void advisorPromptsLoadByLanguageAndUnknownIdsGetNothing() {
+        assertThat(DirectVideoPrompts.personaReplyLimit("park-seunga", null)).isEqualTo(100);
+        assertThat(DirectVideoPrompts.personaReplyLimit("cho-taemin", null)).isEqualTo(70);
+        assertThat(DirectVideoPrompts.personaReplyLimit("a", null)).isEqualTo(DirectVideoPracticeLoop.LONG_REPLY);
+        assertThat(DirectVideoPrompts.personaReplyLimit("b1", null)).isEqualTo(DirectVideoPracticeLoop.LONG_REPLY);
+        assertThat(DirectVideoPrompts.persona("kwon-ohryong", Locale.ENGLISH)).startsWith("[Coaching tailored to this actor]").doesNotContain("[length]");
+        assertThat(DirectVideoPrompts.personaReplyLimit("kwon-ohryong", Locale.ENGLISH)).isEqualTo(160);
+        assertThat(DirectVideoPrompts.persona("cha-jeonghun", Locale.ENGLISH)).as("영어 글이 없으면 붙이지 않는다").isEmpty();
+        assertThat(DirectVideoPrompts.persona("../b1", null)).isEmpty();
+        assertThat(DirectVideoPrompts.persona("nobody", null)).isEmpty();
+        assertThat(DirectVideoPrompts.personaShortenNote("park-seunga", null)).contains("90자");
+        assertThat(DirectVideoPrompts.personaShortenNote("a", null)).isEmpty();
+    }
+
     @Test void aComparedCoachModelIsPickedOnceStoredAndWritesEveryCoachReplyButNotTheRouting() {
         var compared = mock(DirectVideoModel.class);
         when(compared.model()).thenReturn("gemini-3.8-flash");
