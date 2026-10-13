@@ -21,7 +21,7 @@ class AdminServiceTest {
     void challengePlaybackUsesMockSignerWithFixedTtlAndAllExclusions() {
         AdminMetricsRepository metrics = mock(AdminMetricsRepository.class);
         AdminPlayback playback = mock(AdminPlayback.class);
-        AdminService service = new AdminService(metrics, playback, "Team@Acttub.com");
+        AdminService service = new AdminService(metrics, playback, "Team@Acttub.com", "");
         UUID entryId = UUID.randomUUID();
         List<String> actors = List.of("1234abcd");
         when(metrics.challengeVideoObjectKey(entryId, List.of("Team@Acttub.com"), actors))
@@ -37,7 +37,7 @@ class AdminServiceTest {
     void challengePlaybackUsesTheSameNotFoundForMissingOrExcludedRows() {
         AdminMetricsRepository metrics = mock(AdminMetricsRepository.class);
         AdminPlayback playback = mock(AdminPlayback.class);
-        AdminService service = new AdminService(metrics, playback, "team@acttub.com");
+        AdminService service = new AdminService(metrics, playback, "team@acttub.com", "");
         UUID entryId = UUID.randomUUID();
         when(metrics.challengeVideoObjectKey(entryId, List.of("team@acttub.com"), List.of()))
                 .thenReturn(Optional.empty());
@@ -64,7 +64,7 @@ class AdminServiceTest {
     void uploadOnlyPlaybackUsesRequiredSignerWithSixHundredSecondTtlAndAllExclusions() {
         AdminMetricsRepository metrics = mock(AdminMetricsRepository.class);
         AdminPlayback playback = mock(AdminPlayback.class);
-        AdminService service = new AdminService(metrics, playback, "Team@Acttub.com");
+        AdminService service = new AdminService(metrics, playback, "Team@Acttub.com", "");
         UUID uploadId = UUID.randomUUID();
         List<String> actors = List.of("1234abcd");
         when(metrics.uploadOnlyVideoObjectKey(uploadId, List.of("Team@Acttub.com"), actors))
@@ -79,7 +79,7 @@ class AdminServiceTest {
     void uploadOnlyPlaybackHidesMissingRowsWithoutSigning() {
         AdminMetricsRepository metrics = mock(AdminMetricsRepository.class);
         AdminPlayback playback = mock(AdminPlayback.class);
-        AdminService service = new AdminService(metrics, playback, "");
+        AdminService service = new AdminService(metrics, playback, "", "");
         UUID uploadId = UUID.randomUUID();
         when(metrics.uploadOnlyVideoObjectKey(uploadId, List.of(), List.of())).thenReturn(Optional.empty());
 
@@ -95,7 +95,7 @@ class AdminServiceTest {
     void readingPlaybackUsesRequiredSignerWithSixHundredSecondTtl() {
         AdminMetricsRepository metrics = mock(AdminMetricsRepository.class);
         AdminPlayback playback = mock(AdminPlayback.class);
-        AdminService service = new AdminService(metrics, playback, "Team@Acttub.com");
+        AdminService service = new AdminService(metrics, playback, "Team@Acttub.com", "");
         UUID recordingId = UUID.randomUUID();
         List<String> actors = List.of("1234abcd");
         when(metrics.readingRecordingObjectKey(recordingId, List.of("Team@Acttub.com"), actors))
@@ -112,7 +112,7 @@ class AdminServiceTest {
     void readingPlaybackUsesTheSameNotFoundForMissingOrExcludedRows() {
         AdminMetricsRepository metrics = mock(AdminMetricsRepository.class);
         AdminPlayback playback = mock(AdminPlayback.class);
-        AdminService service = new AdminService(metrics, playback, "team@acttub.com");
+        AdminService service = new AdminService(metrics, playback, "team@acttub.com", "");
         UUID recordingId = UUID.randomUUID();
         when(metrics.readingRecordingObjectKey(recordingId, List.of("team@acttub.com"), List.of()))
                 .thenReturn(Optional.empty());
@@ -129,7 +129,7 @@ class AdminServiceTest {
     void readingPlaybackMapsSigningFailureToServiceUnavailable() {
         AdminMetricsRepository metrics = mock(AdminMetricsRepository.class);
         AdminPlayback playback = mock(AdminPlayback.class);
-        AdminService service = new AdminService(metrics, playback, "");
+        AdminService service = new AdminService(metrics, playback, "", "");
         UUID recordingId = UUID.randomUUID();
         IllegalStateException cause = new IllegalStateException("signing failed");
         when(metrics.readingRecordingObjectKey(recordingId, List.of(), List.of()))
@@ -147,7 +147,7 @@ class AdminServiceTest {
     private static void assertPlaybackUnavailable(RuntimeException cause) {
         AdminMetricsRepository metrics = mock(AdminMetricsRepository.class);
         AdminPlayback playback = mock(AdminPlayback.class);
-        AdminService service = new AdminService(metrics, playback, "");
+        AdminService service = new AdminService(metrics, playback, "", "");
         UUID entryId = UUID.randomUUID();
         when(metrics.challengeVideoObjectKey(entryId, List.of(), List.of()))
                 .thenReturn(Optional.of("challenge/take.mp4"));
@@ -159,5 +159,28 @@ class AdminServiceTest {
                     assertThat(failure.getMessage()).isEqualTo("playback_unavailable");
                     assertThat(failure.getCause()).isSameAs(cause);
                 });
+    }
+
+    /** 자문위원 목록은 코치 성격 배정과 같은 파일을 읽는다. 해시 모양인 줄만 쓰고, 빈 경로면 아무도 없다. */
+    @Test
+    void advisorListReadsTheSharedPersonaFileAndSkipsCommentsAndBlankPaths() {
+        assertThat(AdminService.advisorEmailHashes(AdminService.ADVISORS_RESOURCE))
+                .isNotEmpty()
+                .allMatch(hash -> hash.matches("[0-9a-f]{64}"));
+        assertThat(AdminService.advisorEmailHashes("")).isEmpty();
+        assertThatThrownBy(() -> AdminService.advisorEmailHashes("/admin/no-such-advisors.txt"))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void advisorSessionsWithoutAnAdvisorListReportZeroAccountsAndPassAnEmptySet() {
+        AdminMetricsRepository metrics = mock(AdminMetricsRepository.class);
+        AdminService service = new AdminService(metrics, mock(AdminPlayback.class), "", "");
+        when(metrics.advisorSessions(100, java.util.Set.of())).thenReturn(List.of());
+
+        AdminMetrics.AdminAdvisorSessions page = service.advisorSessions(100);
+
+        assertThat(page.sessions()).isEmpty();
+        assertThat(page.advisorAccounts()).isZero();
     }
 }
