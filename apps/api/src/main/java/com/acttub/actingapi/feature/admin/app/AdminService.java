@@ -98,7 +98,10 @@ public class AdminService {
         this.advisorEmailHashes = advisorEmailHashes(advisorsResource);
     }
 
-    /** 빈 경로면 자문위원이 없다. 주석(#)·빈 줄·해시 모양이 아닌 줄은 건너뛴다(PostgresCoachPersonas 와 같다). */
+    /**
+     * 빈 경로면 자문위원이 없다. 한 줄은 해시 하나이거나 "해시 사람-id" 다(자문위원별 프롬프트로 바뀌며 id 가 붙는다).
+     * 앞 64자 해시만 쓰고, 주석(#)·빈 줄·이 모양이 아닌 줄은 건너뛴다.
+     */
     static Set<String> advisorEmailHashes(String resource) {
         if (resource == null || resource.isBlank()) {
             return Set.of();
@@ -109,7 +112,8 @@ public class AdminService {
             }
             return new String(input.readAllBytes(), StandardCharsets.UTF_8).lines()
                     .map(String::strip)
-                    .filter(line -> line.matches("[0-9a-f]{64}"))
+                    .filter(line -> line.matches("[0-9a-f]{64}(\\s+[a-z][a-z-]*)?"))
+                    .map(line -> line.substring(0, 64))
                     .collect(Collectors.toUnmodifiableSet());
         } catch (IOException error) {
             throw new IllegalStateException("cannot read advisor list: " + resource, error);
