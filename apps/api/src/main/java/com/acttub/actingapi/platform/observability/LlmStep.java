@@ -28,7 +28,11 @@ public enum LlmStep {
      */
     SCRIPT_SPLIT("script.split"),
     /** 나누기 전에 글자마다 띄어진 줄의 띄어쓰기를 고친다 (reading.script). 묶는 열쇠는 {@link #SCRIPT_SPLIT} 처럼 작업 id 다. */
-    SCRIPT_SPACING("script.spacing");
+    SCRIPT_SPACING("script.spacing"),
+    /**
+     * 지난 연습 노트의 해볼 한 가지를 저녁 리마인드 한 줄로 줄인다 (SOMA-704). 묶는 열쇠는 노트가 나온 회차 id 다.
+     */
+    REMINDER_LINE("reminder.line");
 
     private final String spanName;
 
