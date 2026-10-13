@@ -46,15 +46,17 @@ public record PriorContext(
     }
 
     /**
-     * 직접 영상 코치(연습 루프)에 넘기는 사본. 자주 짚인 버릇({@code habits})과 옛 화법 두 칸을 뺀다.
+     * 직접 영상 코치(연습 루프)에 넘기는 사본. 자주 짚인 버릇({@code habits})·막히는 지점({@code blockage})과 옛 화법 두 칸을 뺀다.
      *
      * <p>이 칸들은 대부분 지난 코치의 짐작이다. 운영 기억에 "혼자 감정에 빠져 대사를 읊는 모습이 관찰됐다"처럼
      * 코치 진단이 배우의 사실로 저장돼 있었고, 다음 연습의 코치가 그것을 읽고 같은 진단으로 끌려갔다(2026-10-13 운영
-     * DB·로컬 재생). 근본 문제는 이번 영상에서만 고른다. 배우가 아니라고 한 것({@code avoid})·목표·바라는 것·말투는 남긴다.
+     * DB·로컬 재생). 막히는 지점 기억도 대부분 모델이 쓴 칸이라 같은 진단이 섞여 있었다. 이번 연습에서 배우가 고른 막힌 곳은
+     * 따로 들어간다. 근본 문제는 이번 영상에서만 고른다. 배우가 아니라고 한 것({@code avoid})·목표·바라는 것·말투는 남긴다.
      */
     public PriorContext withoutCoachGuesses() {
         Map<String, String> kept = new LinkedHashMap<>(memory);
         kept.remove("habits");
+        kept.remove("blockage");
         kept.remove("speech_self");
         kept.remove("speech_actual");
         return new PriorContext(kept, earlierConversation, fromSamePractice, pendingTakes, sceneHistory);
