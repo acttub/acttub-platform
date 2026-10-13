@@ -147,6 +147,34 @@ class AuditionParsersTest {
         }
     }
 
+    @Test
+    @DisplayName("줄은 있는데 날짜·번호 칸 모양이 바뀌어 한 줄도 못 읽으면 External Failure 다(조용한 0건 금지)")
+    void fieldFormatChangeIsAnExternalFailure() {
+        for (Runnable parse : List.<Runnable>of(
+                () -> AuditionParsers.shinsee(
+                        fixture("shinsee.html").replaceAll("(\\d{4})\\.(\\d{1,2})\\.(\\d{1,2})", "$1/$2/$3")),
+                () -> AuditionParsers.emk(fixture("emk.xml").replace("redirect=", "content_id=")),
+                () -> AuditionParsers.sejong(
+                        fixture("sejong.html").replaceAll("class=\"line\">(\\d{4})-(\\d{2})-(\\d{2})",
+                                "class=\"line\">$1.$2.$3")),
+                () -> AuditionParsers.plfil(fixture("plfil.html").replace("\"createdAt\"", "\"created_at\""),
+                        new ObjectMapper()),
+                () -> AuditionParsers.otr(
+                        fixture("otr.html").replaceAll("<span>(\\d{4})-(\\d{2})-(\\d{2})</span>", "<span>$1.$2.$3</span>")
+                                .replaceAll("<span>(\\d{1,2}):(\\d{2})</span>", "<span>$1시 $2분</span>"),
+                        TODAY))) {
+            assertThatThrownBy(parse::run).isInstanceOf(ExternalFailure.class)
+                    .hasMessageContaining("unreadable");
+        }
+    }
+
+    @Test
+    @DisplayName("걸러서 0건인 것은 고장이 아니다 — 세종에 배우 공고가 없는 날, EMK 에 '오디션' 글이 없는 날")
+    void filteredEmptyIsNotAFailure() {
+        assertThat(AuditionParsers.sejong(fixture("sejong.html").replaceAll("오디션|아역", "안내"))).isEmpty();
+        assertThat(AuditionParsers.emk(fixture("emk.xml").replace("오디션", "공지"))).isEmpty();
+    }
+
     private static AuditionPosting byRef(List<AuditionPosting> postings, String ref) {
         return postings.stream().filter(p -> p.sourceRef().equals(ref)).findFirst().orElseThrow();
     }
