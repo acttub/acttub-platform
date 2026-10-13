@@ -36,7 +36,11 @@ public interface AdminMetricsRepository {
      * 이메일 SHA-256(소문자·앞뒤 공백 제거)이 {@code advisorEmailHashes} 에 든 계정의 코치 대화, 최신순.
      * 해시가 비면 아무것도 읽지 않는다.
      */
-    List<AdminMetrics.AdminAdvisorSession> advisorSessions(int limit, java.util.Set<String> advisorEmailHashes);
+    List<AdvisorSessionRow> advisorSessions(int limit, java.util.Set<String> advisorEmailHashes);
+
+    /** 자문단 대화 한 건과 그 영상의 오브젝트 키(지워졌거나 없으면 null). 재생 주소는 서비스가 만든다. */
+    record AdvisorSessionRow(AdminMetrics.AdminAdvisorSession session, String objectKey) {
+    }
 
     /**
      * ops 코어 지표 한 벌 — {@code resources/admin/ops-core.sql} 이 만든 JSON 문자열 그대로.
