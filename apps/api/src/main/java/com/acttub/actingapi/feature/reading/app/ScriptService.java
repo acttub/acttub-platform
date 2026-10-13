@@ -23,7 +23,7 @@ import com.acttub.actingapi.platform.web.Hashing;
 
 /**
  * 대본의 규칙 — 기기가 나눈 대본을 한 요청으로 저장하고, 목록·상세를 보이고, 제목·배역 이름과 줄의 배역·종류·글을
- * 고치고(줄 id 는 그대로), 행째 지운다 (reading.script, ADR-031·ADR-044).
+ * 고치고(줄 id 는 그대로), 행째 지운다 (reading.script, ADR-031·ADR-035).
  *
  * <p>값의 형태(필수 키·타입·값 목록·배역 자리)는 요청을 받는 자리가 보고 422 배열로 답한다. 여기서 거절하는
  * 것은 <b>규칙</b>이고 본문은 사유 코드 하나다: 배역 없음({@code no_characters}), 비거나 겹치는 이름
