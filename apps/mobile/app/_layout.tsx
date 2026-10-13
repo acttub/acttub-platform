@@ -242,6 +242,9 @@ function RootNavigator() {
     }
     if (bootstrap.stage === 'auth-gate') {
       if (bootstrap.route === '/login' && !inLogin) {
+        // 탈퇴·로그아웃 뒤 맨 위 화면만 바꾸면 아래에 홈·설정이 남아, 로그인 화면에서 뒤로 가면 그 화면이 나왔다
+        // 다시 로그인으로 바뀌기를 되풀이하다 안드로이드에서 앱이 꺼졌다(SOMA-703). 쌓인 화면을 다 닫고 바꾼다.
+        if (router.canDismiss()) router.dismissAll();
         router.replace('/login' as Href);
       }
       return;
