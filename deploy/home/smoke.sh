@@ -400,13 +400,16 @@ fi
 # ── 11. 무중단 재배포 (SOMA-700) ───────────────────────────────────────────────
 # 터널 자리(edge 망의 web = proxy)에서 keep-alive 부하를 건 채 다른 sha 로 배포한다. 이미지는 같고 태그만 바꿔 api·web 둘 다
 # 새 판이 된다. 실패한 요청이 하나도 없어야 하고, 옛 판·새 판이 둘 다 응답했어야(전환이 부하 한가운데서 일어남) 한다.
+# 부하는 초당 수십 건으로 둔다. proxy 는 요청마다 연결을 새로 맺어(keepalive_timeout 0) 요청 하나가 연결 넷을 만들고, 닫힌
+# 연결은 커널 연결 추적표에 120초 남는다 — 초당 수백 건이면 표(Docker Desktop 65,536)가 차 DNS 패킷까지 버려진다(실측).
+# 기존 방식(제자리 재생성)의 끊김은 이 부하로도 수천 건으로 드러난다.
 NEXT_COMMIT="$(printf '%s' "$COMMIT" | tr '0-9a-f' '1-9a-f0')"
 IMAGE_NEXT="$IMAGE-next" WEB_IMAGE_NEXT="$WEB_IMAGE-next"
 docker tag "$IMAGE" "$IMAGE_NEXT"
 docker tag "$WEB_IMAGE" "$WEB_IMAGE_NEXT"
 LOAD_JS="$(cat <<'JS'
 const http = require("node:http");
-const agent = new http.Agent({ keepAlive: true, maxSockets: 8 });
+const agent = new http.Agent({ keepAlive: true, maxSockets: 4 });
 const counts = {}, errors = [];
 let stop = false;
 process.on("SIGTERM", () => { stop = true; });
@@ -427,10 +430,10 @@ const loop = async () => {
   while (!stop) {
     const out = await get();
     if (/^[0-9a-f]{7}$/.test(out)) counts[out] = (counts[out] ?? 0) + 1; else errors.push(out);
-    await new Promise((r) => setTimeout(r, 20));
+    await new Promise((r) => setTimeout(r, 50));
   }
 };
-Promise.all(Array.from({ length: 8 }, loop)).then(() => {
+Promise.all(Array.from({ length: 4 }, loop)).then(() => {
   const total = Object.values(counts).reduce((a, b) => a + b, 0) + errors.length;
   console.log(`total=${total} failed=${errors.length} ${JSON.stringify({ counts, errors: errors.slice(0, 10) })}`);
   process.exit(0);
