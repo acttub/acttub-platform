@@ -176,7 +176,8 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                     coach.character_context,
                     coach.goal,
                     coach.persona,
-                    left(md5(CAST(coach.user_id AS text)), 8) AS actor
+                    left(md5(CAST(coach.user_id AS text)), 8) AS actor,
+                    advisor.hash AS advisor_hash
                 FROM (
                     SELECT
                         conversation.id,
@@ -210,7 +211,10 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                 ) AS coach
                 JOIN users AS app_user
                   ON app_user.id = coach.user_id
-                WHERE encode(sha256(convert_to(lower(btrim(app_user.email)), 'UTF8')), 'hex') IN (%s)
+                CROSS JOIN LATERAL (
+                    SELECT encode(sha256(convert_to(lower(btrim(app_user.email)), 'UTF8')), 'hex') AS hash
+                ) AS advisor
+                WHERE advisor.hash IN (%s)
                 ORDER BY coach.created_at DESC, coach.id
                 LIMIT :limit
                 """.formatted(namedParameters("hash", hashes.size()));
@@ -228,6 +232,7 @@ class PostgresAdminMetricsRepository implements AdminMetricsRepository {
                             id.toString(),
                             row.get("created_at", Instant.class).atOffset(ZoneOffset.UTC),
                             row.get("actor", String.class),
+                            row.get("advisor_hash", String.class),
                             row.get("persona", String.class),
                             row.get("status", String.class),
                             row.get("close_reason", String.class),
