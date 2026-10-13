@@ -251,6 +251,9 @@ class AdminEndpointIT {
         JsonNode newest = sessions.get(0);
         assertThat(newest.path("coach_session_id").textValue()).isEqualTo(newerConversation.toString());
         assertThat(newest.path("actor").textValue()).isEqualTo(actor);
+        assertThat(newest.path("advisor_hash").textValue())
+                .as("시험 목록의 sha256(\"advisor@example.com\")")
+                .isEqualTo("11d6d7223550b8edd504d86e14a4db458c8356ba1a5fceab66f5d2e387470d71");
         assertThat(newest.path("persona").textValue()).isEqualTo("b1");
         assertThat(newest.path("status").textValue()).isEqualTo("open");
         assertThat(newest.path("turns")).isEqualTo(mapper.readTree("""
