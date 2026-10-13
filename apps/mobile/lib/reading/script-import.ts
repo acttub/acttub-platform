@@ -22,8 +22,14 @@ export type ImportInput =
   | { kind: 'text'; text: string; source: ScriptSource }
   | { kind: 'file'; file: PickedScriptFile; uploadId: string };
 
-/** 같은 입력을 다시 보낼 때 붙이는 것. R2.7 [새로 넣기]·R2.8 [그래도 나누기]. */
-export type ImportFlags = { allowDuplicate?: boolean; skipScriptCheck?: boolean };
+/**
+ * 요청에 붙이는 것. 다시 보낼 때(R2.7 [새로 넣기]·R2.8 [그래도 나누기])도 그대로 따라간다 — 배우가 적은 제목(SOMA-669)이
+ * 다시 보낸 요청에서 빠지지 않게 같은 묶음에 둔다.
+ */
+export type ImportFlags = { allowDuplicate?: boolean; skipScriptCheck?: boolean; title?: string };
+
+/** 서버가 받는 제목 길이. 넘으면 422 라 기기가 자른다. */
+export const TITLE_MAX = 200;
 
 /** 나누기가 저장까지 가지 못한 이유. 화면 팝업 하나에 대응한다. */
 export type ImportStop =
@@ -45,10 +51,12 @@ export type ImportResult = { kind: 'saved'; scriptId: string } | { kind: 'cancel
 
 /** 요청마다 새 request_id 다. 같은 글을 두 번 눌러도 서버가 진행 중인 같은 작업을 돌려준다. */
 export function importBody(input: ImportInput, flags: ImportFlags, requestId: string): ImportScriptBody {
+  const title = Array.from(flags.title?.trim() ?? '').slice(0, TITLE_MAX).join('');
   const common = {
     request_id: requestId,
     allow_duplicate: flags.allowDuplicate ?? false,
     skip_script_check: flags.skipScriptCheck ?? false,
+    ...(title ? { title } : {}),
   };
   return input.kind === 'text'
     ? { ...common, source: input.source, raw_text: input.text }
