@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/palette';
@@ -65,6 +65,18 @@ export default function ReadingRoles() {
       run.current += 1;
       engine.stop();
     };
+  }, []);
+
+  // 앱을 내리면 미리 듣기를 멈춘다 — 리딩처럼 화면 밖에서는 소리를 내지 않는다(SOMA-670).
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') {
+        previewRun.current += 1;
+        engine.stop();
+        setPreviewing(null);
+      }
+    });
+    return () => sub.remove();
   }, []);
 
   const effective = useMemo(

@@ -55,7 +55,7 @@ class PracticeRollbackCompatibilityTest {
 
     @Test
     @DisplayName("0.1.0 은 옛 표를 한 칸도 바꾸지 않았다 — 예약 장부에 더한 NULL 허용 컬럼 셋과 users 의 둘, "
-            + "리딩 회차의 멈춤을 없앤 V31·말한 것을 더한 V32·대본의 NULL 허용 같은 글 해시(V33) 말고는 V13 의 모양 그대로다")
+            + "리딩 회차의 멈춤을 없앤 V31·말한 것을 더한 V32·대본의 NULL 허용 같은 글 해시(V33)·배역의 NULL 허용 성별·나이대(V42) 말고는 V13 의 모양 그대로다")
     void expandingToOneZeroLeavesEveryLegacyTableUntouched() throws Exception {
         List<String> before = fingerprintAt(BEFORE_ONE_ZERO);
         List<String> after = fingerprintAt(null);
@@ -102,8 +102,8 @@ class PracticeRollbackCompatibilityTest {
         }
     }
 
-    /** V14~V41 — 연습·챌린지·노트 평가·보관함 포스터·고품질 목소리·저녁 알림·가입 유입 출처·신원 마지막 로그인·앱 공지 포스터·배우 기억 칸 개정·리딩 멈춤 없앰·리딩 말한 것·대본 나누기·대본 원본 파일·고품질 목소리 무료 기간 단축·오디션 공고·광고성 정보 수신 동의·가입 유입 경로 자기 응답·대본 원본 실패 보관·리딩 회차 평가·접속일이 더한 마이그레이션의 수. 더 늘면 이 값을 함께 올린다. */
-    private static final int NEW_MIGRATIONS = 28;
+    /** V14~V42 — 연습·챌린지·노트 평가·보관함 포스터·고품질 목소리·저녁 알림·가입 유입 출처·신원 마지막 로그인·앱 공지 포스터·배우 기억 칸 개정·리딩 멈춤 없앰·리딩 말한 것·대본 나누기·대본 원본 파일·고품질 목소리 무료 기간 단축·오디션 공고·광고성 정보 수신 동의·가입 유입 경로 자기 응답·대본 원본 실패 보관·리딩 회차 평가·접속일·배역 성별·나이대가 더한 마이그레이션의 수. 더 늘면 이 값을 함께 올린다. */
+    private static final int NEW_MIGRATIONS = 29;
 
     private static List<String> fingerprintAt(String target) throws Exception {
         String jdbcUrl = PostgresContainerSupport.createDatabase(
@@ -171,7 +171,13 @@ class PracticeRollbackCompatibilityTest {
                         + "USING btree (user_id, request_id) WHERE (request_id IS NOT NULL)",
                 // V33 의 같은 글 해시. NULL 허용이라 이 칸을 모르는 옛 서버의 INSERT 도 통한다.
                 "COLUMN scripts.raw_hash ord=10 type=bpchar len=64 null=YES default=-",
-                "INDEX CREATE INDEX idx_scripts_user_raw_hash ON public.scripts USING btree (user_id, raw_hash)"));
+                "INDEX CREATE INDEX idx_scripts_user_raw_hash ON public.scripts USING btree (user_id, raw_hash)",
+                // V42 의 배역 성별·나이대(SOMA-670). NULL 허용이라 이 칸을 모르는 옛 서버의 INSERT 도 통한다.
+                "COLUMN script_characters.gender ord=8 type=text len=- null=YES default=-",
+                "COLUMN script_characters.age_band ord=9 type=text len=- null=YES default=-",
+                "CONSTRAINT script_characters ck_script_characters_gender CHECK ((gender = ANY (ARRAY['m'::text, 'f'::text])))",
+                "CONSTRAINT script_characters ck_script_characters_age_band CHECK ((age_band = ANY "
+                        + "(ARRAY['child'::text, 'young'::text, 'adult'::text, 'senior'::text])))"));
         return expected.stream().sorted().toList();
     }
 

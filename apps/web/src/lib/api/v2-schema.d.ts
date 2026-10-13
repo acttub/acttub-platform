@@ -2858,9 +2858,13 @@ export interface components {
             voice_preset: string | null;
             /**
              * Voice
-             * @description 내 배역이 아닐 때 읽을 목소리(M1~M5·F1~F5). voice_preset 이 프리셋이면 그 값, 아니면 대본의 모든 배역을 저장 순서로 세운 자동 순환(F1·M1·F2·M2…, 고정값은 빠짐)의 값이다
+             * @description 내 배역이 아닐 때 읽을 목소리(M1~M5·F1~F5). voice_preset 이 프리셋이면 그 값, 아니면 자동 값이다 — 대본의 모든 배역을 저장 순서로 돌며 고정값과 앞서 준 값을 뺀 채, 성별을 알면 성별·나이대의 선호 목록에서, 모르면 F1·M1·F2·M2… 순환에서 고른다(reading.cast)
              */
             voice: string;
+            /** Gender */
+            gender: ("m" | "f") | null;
+            /** Age Band */
+            age_band: ("child" | "young" | "adult" | "senior") | null;
             /** Dialogue Count */
             dialogue_count: number;
         };

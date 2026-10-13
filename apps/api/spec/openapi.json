@@ -6037,15 +6037,35 @@
           },
           "voice" : {
             "type" : "string",
-            "description" : "내 배역이 아닐 때 읽을 목소리(M1~M5·F1~F5). voice_preset 이 프리셋이면 그 값, 아니면 대본의 모든 배역을 저장 순서로 세운 자동 순환(F1·M1·F2·M2…, 고정값은 빠짐)의 값이다",
+            "description" : "내 배역이 아닐 때 읽을 목소리(M1~M5·F1~F5). voice_preset 이 프리셋이면 그 값, 아니면 자동 값이다 — 대본의 모든 배역을 저장 순서로 돌며 고정값과 앞서 준 값을 뺀 채, 성별을 알면 성별·나이대의 선호 목록에서, 모르면 F1·M1·F2·M2… 순환에서 고른다(reading.cast)",
             "title" : "Voice"
+          },
+          "gender" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "대본에서 읽은 배역의 성별(m 남·f 여). 나누기 작업이 모델 답에서 채우고, 모르거나 다른 경로로 만든 대본이면 null",
+              "enum" : [ "m", "f" ]
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Gender"
+          },
+          "age_band" : {
+            "anyOf" : [ {
+              "type" : "string",
+              "description" : "대본에서 읽은 배역의 나이대(child 어린이·young 10~20대·adult 30~50대·senior 노년). 모르면 null",
+              "enum" : [ "child", "young", "adult", "senior" ]
+            }, {
+              "type" : "null"
+            } ],
+            "title" : "Age Band"
           },
           "dialogue_count" : {
             "type" : "integer",
             "title" : "Dialogue Count"
           }
         },
-        "required" : [ "dialogue_count", "id", "name", "order", "voice", "voice_preset" ],
+        "required" : [ "age_band", "dialogue_count", "gender", "id", "name", "order", "voice", "voice_preset" ],
         "title" : "ReadingScriptCharacter"
       },
       "ReadingScriptLastSession" : {

@@ -165,7 +165,9 @@ class ReadingScriptIT {
         assertThat(saved.path("characters")).extracting(character -> character.path("dialogue_count").intValue())
                 .containsExactly(2, 1);
         assertThat(saved.path("characters").get(0).fieldNames()).toIterable()
-                .containsExactlyInAnyOrder("id", "name", "order", "voice_preset", "voice", "dialogue_count");
+                .containsExactlyInAnyOrder("id", "name", "order", "voice_preset", "voice", "gender", "age_band", "dialogue_count");
+        assertThat(saved.path("characters")).as("SOMA-670: 기기가 나눈 대본은 성별·나이대를 모른다")
+                .allMatch(character -> character.path("gender").isNull() && character.path("age_band").isNull());
         assertThat(saved.path("characters")).extracting(character -> character.path("voice").textValue())
                 .as("자동이면 배역 순서로 F1·M1").containsExactly("F1", "M1");
         assertThat(saved.path("scenes")).extracting(scene -> scene.path("title").textValue() + ":" + scene.path("dialogue_count").intValue())

@@ -338,6 +338,9 @@ class ReadingImportIT {
         assertThat(script.path("title").textValue()).isEqualTo("옥상, 밤");
         assertThat(script.path("source").textValue()).isEqualTo("sample");
         assertThat(script.path("characters")).extracting(character -> character.path("dialogue_count").intValue()).containsExactly(8, 7);
+        assertThat(script.path("characters")).as("SOMA-670: 모델을 거치지 않은 대본은 성별·나이대가 null")
+                .allMatch(character -> character.has("gender") && character.path("gender").isNull()
+                        && character.has("age_band") && character.path("age_band").isNull());
         assertThat(script.path("lines")).hasSize(17);
         assertThat(worker.runOnce(clock.instant())).isFalse();
     }
@@ -809,6 +812,49 @@ class ReadingImportIT {
         assertThat(json(post("/v2/reading/imports").content(request(UUID.randomUUID(), "제".repeat(201), "니나: 안녕", "paste")), 422).path("detail").isArray()).isTrue();
         assertThat(count("script_imports")).isZero();
         assertThat(json(post("/v2/reading/imports").content(request(UUID.randomUUID(), null, "니나: 안녕", "email")), 422).path("detail").isArray()).isTrue();
+    }
+
+    @Test
+    @DisplayName("SOMA-670: 짧은 대본은 나누기 호출 하나의 답 끝 「배역」 블록으로 성별·나이대를 받아 저장하고, 상세가 gender·age_band 와 그에 맞는 자동 목소리를 준다")
+    void shortScriptStoresTraitsFromTheTrailingCastBlock() throws Exception {
+        Model.answer = call -> call.spacing() ? Model.oracle(call)
+                : Model.oracle(call) + "배역\n윤서\tf\tyoung\n태오\tm\tyoung\n할머니\tf\tsenior\n";
+
+        String scriptId = split("윤서: 여기 있을 줄 알았어.\n태오: 어떻게 알았어.\n할머니: 밥 먹자.\n");
+
+        assertThat(Model.CALLS).as("호출을 늘리지 않는다").hasSize(1);
+        assertThat(Model.CALLS.getFirst().instructions()).contains("맨 끝에 \"배역\" 한 줄을 쓰고");
+        assertThat(jdbc.queryForList("SELECT name,gender,age_band FROM script_characters ORDER BY sort_order"))
+                .extracting(row -> row.get("name") + "|" + row.get("gender") + "|" + row.get("age_band"))
+                .containsExactly("윤서|f|young", "태오|m|young", "할머니|f|senior");
+        JsonNode script = json(get("/v2/reading/scripts/{id}", scriptId), 200);
+        assertThat(script.path("characters")).extracting(character -> character.path("name").textValue() + "|"
+                        + character.path("gender").textValue() + "|" + character.path("age_band").textValue() + "|"
+                        + character.path("voice").textValue())
+                .containsExactly("윤서|f|young|F2", "태오|m|young|M1", "할머니|f|senior|F5");
+    }
+
+    @Test
+    @DisplayName("SOMA-670: 긴 대본은 배역 목록 호출의 「이름<TAB>성별<TAB>나이대」로 받고, 모르는 칸·목록에 없는 배역은 null 이다")
+    void longScriptStoresTraitsFromTheRoster() throws Exception {
+        StringBuilder text = new StringBuilder();
+        for (int line = 1; line <= 160; line++) {
+            text.append(line % 2 == 0 ? "맥베스: 대사 " : "뱅코우: 대사 ").append(line).append('\n');
+        }
+        text.append("마녀: 마지막 대사\n");
+        Model.answer = call -> call.roster() ? "대본\t예\n맥베스\tm\tadult\n뱅코우\t?\tsenior\n" : Model.oracle(call);
+
+        String scriptId = split(text.toString());
+
+        assertThat(Model.CALLS.getFirst().roster()).isTrue();
+        assertThat(Model.CALLS.getFirst().instructions()).contains("\"이름<TAB>성별<TAB>나이대\"");
+        assertThat(Model.CALLS.subList(1, Model.CALLS.size())).extracting(Model.Call::instructions)
+                .as("조각 호출은 「배역」 블록을 묻지 않는다").noneMatch(instructions -> instructions.contains("맨 끝에 \"배역\""));
+        JsonNode script = json(get("/v2/reading/scripts/{id}", scriptId), 200);
+        assertThat(script.path("characters")).extracting(character -> character.path("name").textValue() + "|"
+                        + character.path("gender").textValue() + "|" + character.path("age_band").textValue() + "|"
+                        + character.path("voice").textValue())
+                .as("대사 수가 같으면 먼저 말한 순 — 성별 모르는 뱅코우·마녀는 순환(F1, 다음 M1)").containsExactly("뱅코우|null|senior|F1", "맥베스|m|adult|M3", "마녀|null|null|M1");
     }
 
     /** 글을 접수하고 워커를 한 번 돌려 만든 대본 id. */

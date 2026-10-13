@@ -6,6 +6,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import com.acttub.actingapi.feature.reading.domain.VoiceAssignment.Cast;
+import com.acttub.actingapi.platform.schema.CharacterAgeBand;
+import com.acttub.actingapi.platform.schema.CharacterGender;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -47,6 +50,83 @@ class VoiceAssignmentTest {
     void theRotationWrapsAfterTenPresets() {
         assertThat(VoiceAssignment.voices(Collections.nCopies(11, null)))
                 .containsExactly("F1", "M1", "F2", "M2", "F3", "M3", "F4", "M4", "F5", "M5", "F1");
+    }
+
+    @Test
+    @DisplayName("SOMA-670: 성별·나이대를 아는 자동 배역은 그 선호 목록의 첫 프리셋을 받는다")
+    void genderAndAgePickTheFirstPreferredPreset() {
+        assertThat(VoiceAssignment.assign(List.of(
+                auto(M, CharacterAgeBand.ADULT), auto(F, CharacterAgeBand.YOUNG), auto(M, CharacterAgeBand.SENIOR),
+                auto(F, CharacterAgeBand.SENIOR), auto(M, CharacterAgeBand.YOUNG), auto(F, CharacterAgeBand.ADULT))))
+                .containsExactly("M3", "F2", "M5", "F5", "M1", "F1");
+    }
+
+    @Test
+    @DisplayName("SOMA-670: 어린이는 청년과 같은 목록이고, 나이대를 모르면 성별의 기본 목록이다")
+    void childUsesTheYoungListAndUnknownAgeUsesTheDefaultList() {
+        assertThat(VoiceAssignment.assign(List.of(auto(M, CharacterAgeBand.CHILD), auto(F, CharacterAgeBand.CHILD))))
+                .containsExactly("M1", "F2");
+        assertThat(VoiceAssignment.assign(List.of(auto(M, null), auto(F, null), auto(M, null), auto(F, null))))
+                .containsExactly("M1", "F1", "M3", "F2");
+    }
+
+    @Test
+    @DisplayName("SOMA-670: 같은 대본에서 이미 쓴 프리셋은 건너뛰고, 고정한 프리셋도 쓴 것으로 센다")
+    void usedAndPinnedPresetsAreSkipped() {
+        assertThat(VoiceAssignment.assign(List.of(auto(M, CharacterAgeBand.ADULT), auto(M, CharacterAgeBand.ADULT))))
+                .containsExactly("M3", "M4");
+        assertThat(VoiceAssignment.assign(List.of(auto(M, CharacterAgeBand.ADULT), pinned("M3"))))
+                .as("고정값은 뒤에 있어도 먼저 쓴 것으로 센다").containsExactly("M4", "M3");
+    }
+
+    @Test
+    @DisplayName("SOMA-670: 그 성별 프리셋을 다 쓰면 목록의 첫 값을 다시 쓴다")
+    void exhaustedGenderFallsBackToTheFirstOfItsList() {
+        assertThat(VoiceAssignment.assign(Collections.nCopies(6, auto(M, CharacterAgeBand.ADULT))))
+                .containsExactly("M3", "M4", "M2", "M1", "M5", "M3");
+        assertThat(VoiceAssignment.assign(List.of(pinned("F1"), pinned("F2"), pinned("F3"), pinned("F4"), pinned("F5"),
+                auto(F, CharacterAgeBand.SENIOR)))).last().isEqualTo("F5");
+    }
+
+    @Test
+    @DisplayName("SOMA-670: 성별을 모르는 배역은 F1·M1·F2·M2 순환을 돌되 이미 쓴 프리셋은 건너뛴다")
+    void unknownGenderRotatesAndSkipsUsedPresets() {
+        assertThat(VoiceAssignment.assign(List.of(auto(M, CharacterAgeBand.YOUNG), auto(null, null), auto(null, null))))
+                .containsExactly("M1", "F1", "F2");
+        assertThat(VoiceAssignment.assign(List.of(auto(null, null), auto(F, null))))
+                .as("순환이 가져간 F1 을 성별 목록도 건너뛴다").containsExactly("F1", "F2");
+        assertThat(VoiceAssignment.assign(List.of(pinned("M1"), auto(null, CharacterAgeBand.ADULT), auto(null, null))))
+                .as("나이대만 알면 성별을 모르는 것과 같다").containsExactly("M1", "F1", "F2");
+    }
+
+    @Test
+    @DisplayName("SOMA-670: 순환도 다 쓰면 건너뛰지 않고 순환 자리의 값을 다시 쓴다")
+    void unknownGenderRepeatsTheRotationWhenEverythingIsUsed() {
+        List<Cast> cast = new java.util.ArrayList<>();
+        for (String preset : List.of("F1", "M1", "F2", "M2", "F3", "M3", "F4", "M4", "F5", "M5")) {
+            cast.add(pinned(preset));
+        }
+        cast.add(auto(null, null));
+        cast.add(auto(null, null));
+        assertThat(VoiceAssignment.assign(cast).subList(10, 12)).containsExactly("F1", "M1");
+    }
+
+    @Test
+    @DisplayName("SOMA-670: 기기가 모르는 고정값은 쓴 것으로 세지 않고 그 배역은 자동이다")
+    void unknownPinnedValuesAreAutoAndNotCounted() {
+        assertThat(VoiceAssignment.assign(List.of(new Cast("ELEVEN", M, CharacterAgeBand.ADULT), auto(M, CharacterAgeBand.ADULT))))
+                .containsExactly("M3", "M4");
+    }
+
+    private static final CharacterGender M = CharacterGender.MALE;
+    private static final CharacterGender F = CharacterGender.FEMALE;
+
+    private static Cast auto(CharacterGender gender, CharacterAgeBand ageBand) {
+        return new Cast(null, gender, ageBand);
+    }
+
+    private static Cast pinned(String preset) {
+        return new Cast(preset, null, null);
     }
 
     private static List<String> presets(String... values) {

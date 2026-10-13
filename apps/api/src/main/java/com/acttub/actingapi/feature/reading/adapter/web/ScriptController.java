@@ -276,7 +276,7 @@ class ScriptController {
                 view.source(),
                 view.characters().stream().map(character -> new CharacterResponse(
                         character.id(), character.name(), character.order(), character.voicePreset(),
-                        character.voice(), character.dialogueCount())).toList(),
+                        character.voice(), character.gender(), character.ageBand(), character.dialogueCount())).toList(),
                 view.lines().stream().map(line -> new LineResponse(
                         line.id(), line.ordinal(), line.kind(), line.characterId(), line.text(), line.dialogueNo()))
                         .toList(),
