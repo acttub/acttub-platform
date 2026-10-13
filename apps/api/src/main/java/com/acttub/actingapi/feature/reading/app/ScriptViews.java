@@ -38,9 +38,12 @@ public final class ScriptViews {
 
     /**
      * @param voicePreset 상대역 목소리 프리셋 id. {@code null} 이면 자동
-     * @param voice 내 배역이 아닐 때 읽을 목소리 — 자동이면 순환으로 정한 값(reading.cast)
+     * @param voice 내 배역이 아닐 때 읽을 목소리 — 자동이면 성별·나이대와 순환으로 정한 값(reading.cast)
+     * @param gender 나누기 모델이 읽은 성별 {@code m}·{@code f}. 모르면 {@code null}
+     * @param ageBand 나누기 모델이 읽은 나이대 {@code child}·{@code young}·{@code adult}·{@code senior}. 모르면 {@code null}
      */
-    public record CharacterView(UUID id, String name, int order, String voicePreset, String voice, int dialogueCount) {
+    public record CharacterView(UUID id, String name, int order, String voicePreset, String voice, String gender,
+            String ageBand, int dialogueCount) {
     }
 
     /**

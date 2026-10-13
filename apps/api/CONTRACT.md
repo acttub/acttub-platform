@@ -744,10 +744,10 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
 
 - **경로**는 전부 `/v2/reading/**` 이고 게스트의 기능 표 `READING`(`platform/security/GuestFeature`, §6-9)에 든다.
   회원은 회원의 게이트(§6-5)를 지난다.
-- **스키마(V13, V33, V34, V40)**: `scripts`·`script_characters`·`script_lines`·`reading_sessions`·`reading_recordings`·
+- **스키마(V13, V33, V34, V40, V42)**: `scripts`·`script_characters`(V42 가 성별·나이대 `gender`·`age_band` 를 더함)·`script_lines`·`reading_sessions`·`reading_recordings`·
   `line_memorization`, 나누기 요청 `script_imports`(V33), 원본 파일 `script_uploads`(V34), 회차 평가 `reading_session_ratings`(V40). 값 목록은 text + CHECK 이고 Java enum 은 `platform/schema` 에 있다(`ScriptSource`·
   `ScriptLineKind`·`ReadingMode`·`ReadingAdvance`·`ReadingSessionStatus`·`TranscriptSource`·`MemorizationStatus`·`ScriptImportFailure`·
-  `ReadingSessionRatingValue`).
+  `ReadingSessionRatingValue`·`CharacterGender`·`CharacterAgeBand`).
   FK 에 `ON DELETE` 가 없다 — 삭제는 애플리케이션이 표대로 순서를 정해 지운다. `scripts.request_id`·
   `reading_sessions.request_id` 는 (user_id, request_id) 유일이고 이관 충돌 때만 NULL 이다.
   `uq_script_characters_script_name` 은 DEFERRABLE 이다 — 이름 수정이 두 배역의 이름을 맞바꿀 때 문장 사이에서
@@ -807,9 +807,14 @@ IP 로 거는 제한(로그인·가입 제출·갱신, 게스트 만들기, 옮�
   말한 대사의 원문).
 - K 는 `current_line_id` 의 대사 번호에서 센다. 시작(`start_line_id`)과 진행 저장이 구간 안 대사 줄만 받으므로 API 로는 늘
   대사 줄이다. FK 는 줄의 종류를 보지 않아, 대사가 아닌 줄이 들어 있으면 `ReadingLayout` 은 그 앞 대사로 센다.
-- `voice` 는 저장값이 프리셋 목록(M1~M5·F1~F5)에 있을 때만 그 값을 쓰고 아니면 자동 순환 값이다. 저장 검증은 여전히 길이만
-  본다(`ScriptRules.VOICE_PRESET_MAX`).
-- OpenAPI 컴포넌트: `ReadingScriptScene`(`ReadingScript.scenes`), `ReadingScriptCharacter.voice`, `ReadingSessionRangeName`·
+- `voice` 는 저장값이 프리셋 목록(M1~M5·F1~F5)에 있을 때만 그 값을 쓰고 아니면 자동 값이다. 저장 검증은 여전히 길이만
+  본다(`ScriptRules.VOICE_PRESET_MAX`). 자동 값(SOMA-670)은 `VoiceAssignment.assign` 이 배역의 `gender`·`age_band`(V42,
+  NULL 허용, CHECK `ck_script_characters_gender`·`ck_script_characters_age_band`)로 정한다 — 성별·나이대의 선호 목록에서 고정값과
+  앞서 준 값을 건너뛰고, 성별을 모르면 건너뛰는 순환이다(표는 reading.cast). 앱이 같은 규칙을 그대로 따라 한다.
+  성별·나이대는 나누기 작업만 쓴다: `ScriptSplitWorker` 가 배역 목록 답(`SplitResponse.rosterTraits`)이나 한 조각 대본의 답 끝
+  「배역」 블록(`SplitResponse.traits`)을 읽고 `SplitDraft` 가 이름을 맞춰 `ScriptDraft.characterTraits` 로 넘기면
+  `PostgresScriptRepository#create` 가 저장한다. 다른 경로의 대본은 NULL 이고 PATCH 로 고치는 칸은 없다.
+- OpenAPI 컴포넌트: `ReadingScriptScene`(`ReadingScript.scenes`), `ReadingScriptCharacter.voice`·`gender`·`age_band`(둘은 nullable), `ReadingSessionRangeName`·
   `ReadingSessionProgressCount`(`ReadingSessionCard`·`ReadingSession` 의 `range_name`·`progress`, `progress` 는 completed 면 null).
 
 **줄 단위 녹음 (SOMA-546 RA3)**

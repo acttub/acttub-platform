@@ -26,7 +26,10 @@ import com.acttub.actingapi.feature.reading.domain.ReadingLayout;
 import com.acttub.actingapi.feature.reading.domain.ScriptDraft;
 import com.acttub.actingapi.feature.reading.domain.ScriptRules;
 import com.acttub.actingapi.feature.reading.domain.ScriptText;
+import com.acttub.actingapi.feature.reading.domain.CharacterTraits;
 import com.acttub.actingapi.feature.reading.domain.VoiceAssignment;
+import com.acttub.actingapi.platform.schema.CharacterAgeBand;
+import com.acttub.actingapi.platform.schema.CharacterGender;
 import com.acttub.actingapi.feature.reading.schema.ScriptCharacterEntity;
 import com.acttub.actingapi.feature.reading.schema.ScriptEntity;
 import com.acttub.actingapi.feature.reading.schema.ScriptLineEntity;
@@ -103,8 +106,9 @@ class PostgresScriptRepository implements ScriptRepository {
             for (int order = 0; order < draft.characterNames().size(); order++) {
                 UUID characterId = UUID.randomUUID();
                 characterIds.add(characterId);
+                CharacterTraits traits = draft.characterTraits().get(order);
                 entityManager.persist(new ScriptCharacterEntity(
-                        characterId, scriptId, draft.characterNames().get(order), order, null));
+                        characterId, scriptId, draft.characterNames().get(order), order, null, traits.gender(), traits.ageBand()));
             }
             for (ScriptDraft.Line line : draft.lines()) {
                 entityManager.persist(new ScriptLineEntity(
@@ -439,15 +443,17 @@ class PostgresScriptRepository implements ScriptRepository {
 
     private List<CharacterView> characters(UUID scriptId) {
         List<Tuple> rows = NativeTuples.list(entityManager.createNativeQuery("""
-                SELECT c.id,c.name,c.sort_order,c.voice_preset,
+                SELECT c.id,c.name,c.sort_order,c.voice_preset,c.gender,c.age_band,
                        (SELECT count(*) FROM script_lines l WHERE l.character_id=c.id) AS dialogue_count
                 FROM script_characters c
                 WHERE c.script_id=:scriptId
                 ORDER BY c.sort_order
                 """, Tuple.class)
                 .setParameter("scriptId", scriptId));
-        List<String> voices = VoiceAssignment.voices(
-                rows.stream().map(row -> row.get("voice_preset", String.class)).toList());
+        List<String> voices = VoiceAssignment.assign(rows.stream().map(row -> new VoiceAssignment.Cast(
+                row.get("voice_preset", String.class),
+                CharacterGender.of(row.get("gender", String.class)),
+                CharacterAgeBand.of(row.get("age_band", String.class)))).toList());
         List<CharacterView> characters = new ArrayList<>();
         for (int i = 0; i < rows.size(); i++) {
             Tuple row = rows.get(i);
@@ -457,6 +463,8 @@ class PostgresScriptRepository implements ScriptRepository {
                     row.get("sort_order", Integer.class),
                     row.get("voice_preset", String.class),
                     voices.get(i),
+                    row.get("gender", String.class),
+                    row.get("age_band", String.class),
                     row.get("dialogue_count", Number.class).intValue()));
         }
         return characters;

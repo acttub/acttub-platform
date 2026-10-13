@@ -69,3 +69,33 @@ test('reading.cast: [저장]은 저장된 값과 달라진 배역만 보낸다',
     { id: 'b', voice_preset: null },
   ]);
 });
+
+// SOMA-670: 서버가 대본에서 뽑은 성별·나이대로 자동 목소리를 고른다. 앱은 저장 전 선택을 미리 보이려고 같은 규칙을 센다.
+const cg = (id, gender, age_band, voice_preset = null) => ({ id, name: id, order: 0, voice_preset, voice: 'F1', dialogue_count: 1, gender, age_band });
+
+test('reading.cast: 성별·나이대가 있으면 그에 맞는 목소리를 겹치지 않게 고른다(SOMA-670)', () => {
+  const cast = [cg('grandpa', 'm', 'senior'), cg('girl', 'f', 'young'), cg('mom', 'f', 'adult'), cg('boy', 'm', 'young'), cg('grandma', 'f', 'senior')];
+  assert.deepEqual(shownVoices(cast, { grandpa: null, girl: null, mom: null, boy: null, grandma: 'F5' }), {
+    grandpa: 'M5', girl: 'F2', mom: 'F1', boy: 'M1', grandma: 'F5',
+  });
+  // 고정한 목소리는 쓴 것으로 친다 — 노년 할머니가 F5 를 쥐었으니 다른 노년 여성은 다음 후보 F3.
+  const two = [cg('a', 'f', 'senior', 'F5'), cg('b', 'f', 'senior', 'M2')];
+  assert.equal(autoVoiceOf(two, {}, 'b'), 'F3');
+  // 아이는 청년 목록을 쓴다(자동으로 돌렸을 때 받을 목소리).
+  assert.equal(autoVoiceOf([cg('kid', 'm', 'child', 'M4')], {}, 'kid'), 'M1');
+  // 나이를 모르면 성별 기본 목록.
+  assert.equal(autoVoiceOf([cg('x', 'm', null, 'M4')], {}, 'x'), 'M1');
+});
+
+test('reading.cast: 같은 성별 목소리를 다 쓰면 목록 첫 목소리를 다시 쓴다', () => {
+  const men = Array.from({ length: 6 }, (_, i) => cg(`m${i}`, 'm', 'adult', i === 0 ? 'F1' : null));
+  assert.deepEqual(Object.values(shownVoices(men, { m0: null })), ['M3', 'M4', 'M2', 'M1', 'M5', 'M3']);
+});
+
+test('reading.cast: 성별을 모르면 예전 순환이되, 이미 쓴 목소리는 건너뛴다', () => {
+  const mixed = [cg('a', 'f', 'young', 'M2'), cg('b', null, null), cg('c', null, null)];
+  // a 가 F2 를 쓰므로 순환은 F1, M1 (F2 를 건너뛸 차례가 아님) → b F1, c M1.
+  assert.deepEqual(shownVoices(mixed, { a: null }), { a: 'F2', b: 'F1', c: 'M1' });
+  const pinnedF1 = [cg('a', null, null, 'F1'), cg('b', null, null, 'M2')];
+  assert.equal(autoVoiceOf(pinnedF1, {}, 'b'), 'M1', '고정한 F1 은 건너뛴다');
+});

@@ -15,6 +15,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.acttub.actingapi.feature.reading.app.ScriptImportRepository.Material;
+import com.acttub.actingapi.feature.reading.domain.CharacterTraits;
 import com.acttub.actingapi.feature.reading.domain.LineSpacing;
 import com.acttub.actingapi.feature.reading.domain.NumberedLine;
 import com.acttub.actingapi.feature.reading.domain.ScriptFileRules;
@@ -47,7 +48,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p>글자마다 띄어진 줄이 있으면 나누기 전에 그 줄의 띄어쓰기만 모델로 고치고, 고친 줄이 공백 말고 다르거나 호출이 실패하면
  * 그 줄은 원문으로 둔다. 줄 번호를 붙인 원문을 150줄 조각으로 동시에 보내고, 조각이 둘 이상이면 앞 400줄로 배역 목록을 먼저
- * 받는다. 첫 호출의 첫 줄이 「대본이 아니다」면 거기서 멈춘다. 버리거나 빠진 줄은 두 번까지 다시 묻고 그래도 남으면 지문이다. 호출 하나는
+ * 받는다(배역마다 성별·나이대도 — 조각이 하나면 그 호출의 답 끝 「배역」 블록으로, SOMA-670). 첫 호출의 첫 줄이 「대본이 아니다」면 거기서 멈춘다. 버리거나 빠진 줄은 두 번까지 다시 묻고 그래도 남으면 지문이다. 호출 하나는
  * 연결 실패·붐빔·서버 실패·미완료 답에 두 번까지 다시 시도하고, 그래도 안 되면 작업은 {@code failed} 로 끝난다 — 기기 파서
  * 대비 경로는 두지 않기로 했다(계획 「정한 것」 1). 사용자가 팝업에서 기다리므로 작업을 다시 큐에 넣지 않는다.
  */
@@ -151,14 +152,16 @@ public class ScriptSplitWorker {
         List<List<NumberedLine>> chunks = NumberedLine.chunks(lines, ScriptSplitRules.CHUNK_LINES);
         Map<Integer, SplitResponse.Row> rows = new ConcurrentHashMap<>();
         List<String> roster = List.of();
+        Map<String, CharacterTraits> traits = Map.of();
         AtomicInteger done = new AtomicInteger();
         boolean judge = !material.skipScriptCheck();
         if (chunks.size() == 1) {
-            SplitResponse first = SplitResponse.parse(calls.ask(ScriptSplitPrompt.split(judge, roster), chunks.getFirst(), LlmStep.SCRIPT_SPLIT), chunks.getFirst());
+            SplitResponse first = SplitResponse.parse(calls.ask(ScriptSplitPrompt.split(judge, roster, true), chunks.getFirst(), LlmStep.SCRIPT_SPLIT), chunks.getFirst());
             if (judge && first.notScript()) {
                 return Split.failed(ScriptImportFailure.NOT_SCRIPT);
             }
             rows.putAll(first.rows());
+            traits = first.traits();
             imports.progress(importId, lines.size(), lines.size());
         } else {
             List<NumberedLine> head = lines.subList(0, Math.min(lines.size(), ScriptSplitRules.ROSTER_LINES));
@@ -166,7 +169,8 @@ public class ScriptSplitWorker {
             if (judge && SplitResponse.parse(answer, List.of()).notScript()) {
                 return Split.failed(ScriptImportFailure.NOT_SCRIPT);
             }
-            roster = SplitResponse.roster(answer);
+            traits = SplitResponse.rosterTraits(answer);
+            roster = List.copyOf(traits.keySet());
             String instructions = ScriptSplitPrompt.split(false, roster);
             inParallel(chunks, chunk -> {
                 rows.putAll(SplitResponse.parse(calls.ask(instructions, chunk, LlmStep.SCRIPT_SPLIT), chunk).rows());
@@ -182,7 +186,7 @@ public class ScriptSplitWorker {
             inParallel(NumberedLine.chunks(missing, ScriptSplitRules.CHUNK_LINES),
                     group -> rows.putAll(SplitResponse.parse(calls.ask(instructions, group, LlmStep.SCRIPT_SPLIT), group).rows()));
         }
-        ScriptDraft draft = SplitDraft.assemble(material.title(), material.rawText(), material.source(), lines, rows, roster);
+        ScriptDraft draft = SplitDraft.assemble(material.title(), material.rawText(), material.source(), lines, rows, roster, traits);
         ScriptRules.Rejection rejection = ScriptRules.check(draft);
         if (rejection == null) {
             return Split.of(draft);
