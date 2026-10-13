@@ -22,4 +22,20 @@ class EveningReminderTest {
                     .as("%s", locale).isEqualTo("오늘 연습 아직이에요");
         }
     }
+
+    /** 실험이 켜지면 문구는 그대로이고 data 에 갈래만 붙는다. kind 는 앱이 읽으므로 그대로다. */
+    @Test void experimentMessagesKeepKindAndAddVariant() {
+        var a = EveningReminder.message(new PushTarget("t", "ko"), EveningReminderExperiment.Variant.A);
+        assertThat(a.title()).isEqualTo("오늘 연습 아직이에요");
+        assertThat(a.data()).containsEntry("kind", "evening_reminder").containsEntry("variant", "a")
+                .containsEntry("personalized", "false");
+
+        var b = EveningReminder.personal(new PushTarget("t", "ko"), "상대가 흔들리는지 보면서 한 번 더 찍어 봐요.");
+        assertThat(b.title()).isEqualTo("지난번에 정한 거, 오늘 해 볼까요?");
+        assertThat(b.body()).isEqualTo("상대가 흔들리는지 보면서 한 번 더 찍어 봐요.");
+        assertThat(b.data()).containsEntry("kind", "evening_reminder").containsEntry("variant", "b")
+                .containsEntry("personalized", "true");
+        assertThat(EveningReminder.personal(new PushTarget("t", "en"), "One more take?").title())
+                .isEqualTo("Try what you planned last time?");
+    }
 }
