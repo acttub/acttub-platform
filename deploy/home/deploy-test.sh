@@ -32,6 +32,8 @@ case "${1:-}" in
     if [ "${3:-}" = api ]; then
       if [ "${5:-}" = ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED ]; then
         printf '%s\n' "${TEST_GUEST_DAILY_LIMIT:-${DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED:-true}}"
+      elif [ "${5:-}" = ACTTUB_EVENING_REMINDER_PERSONAL_AB_ENABLED ]; then
+        printf '%s\n' "${TEST_REMINDER_AB:-${DEPLOY_EVENING_REMINDER_AB_ENABLED:-false}}"
       elif [ "${5:-}" = ACTTUB_DIRECT_VIDEO_ENABLED ]; then
         printf '%s\n' "${TEST_DIRECT_VIDEO:-${DEPLOY_DIRECT_VIDEO_ENABLED:-false}}"
       else
@@ -54,7 +56,7 @@ printf 'COMPOSE_PROFILES=edge\n' > "$WORK/.env"
 run_deploy() {
   (cd "$WORK" && env PATH="$WORK/bin:$PATH" TEST_CALLS="$WORK/calls" \
     SHA=0123456789abcdef API_IMAGE=example/api:0123456 WEB_IMAGE=example/web:0123456 \
-    BACKUP_IMAGE= DEPLOY_PULL_POLICY=missing DEPLOY_WAIT_SECONDS=180 DEPLOY_THREE_LAYERS_ENABLED= DEPLOY_DIRECT_VIDEO_ENABLED= DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED= "$@" \
+    BACKUP_IMAGE= DEPLOY_PULL_POLICY=missing DEPLOY_WAIT_SECONDS=180 DEPLOY_THREE_LAYERS_ENABLED= DEPLOY_DIRECT_VIDEO_ENABLED= DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED= DEPLOY_EVENING_REMINDER_AB_ENABLED= "$@" \
     "$ROOT/deploy/home/deploy.sh") > "$WORK/log" 2>&1
 }
 success() { run_deploy "$@" || { cat "$WORK/log"; exit 1; }; }
@@ -110,6 +112,14 @@ success DEPLOY_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=true
 grep -qx 'ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=true' "$WORK/release.env"
 success
 ! grep -q '^ACTTUB_GUEST_DAILY_ANALYSIS_LIMIT_ENABLED=' "$WORK/release.env" || exit 1
+success DEPLOY_EVENING_REMINDER_AB_ENABLED=true
+grep -qx 'ACTTUB_EVENING_REMINDER_PERSONAL_AB_ENABLED=true' "$WORK/release.env"
+failure DEPLOY_EVENING_REMINDER_AB_ENABLED=true TEST_REMINDER_AB=false
+failure DEPLOY_EVENING_REMINDER_AB_ENABLED=maybe
+success DEPLOY_EVENING_REMINDER_AB_ENABLED=false
+grep -qx 'ACTTUB_EVENING_REMINDER_PERSONAL_AB_ENABLED=false' "$WORK/release.env"
+success
+! grep -q '^ACTTUB_EVENING_REMINDER_PERSONAL_AB_ENABLED=' "$WORK/release.env" || exit 1
 # ls 가 다른 저장소를 섞어 돌려줘도 이번 이미지의 저장소에 있는 릴리스 태그만 지우고, 쓰는 중인 이미지의 거부는 무시한다.
 : > "$WORK/calls"
 success TEST_IMAGES='example/api:0123456 example/api:aaaaaaa example/api:soma489-smoke-1 example/web:0123456 example/web:dev-bbbbbbb other/api:ccccccc example/api:ddddddd' \
