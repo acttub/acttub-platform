@@ -167,6 +167,11 @@ class AdminServiceTest {
         assertThat(AdminService.advisorEmailHashes(AdminService.ADVISORS_RESOURCE))
                 .isNotEmpty()
                 .allMatch(hash -> hash.matches("[0-9a-f]{64}"));
+        assertThat(AdminService.advisorEmailHashes("/admin/test-advisors.txt"))
+                .as("해시만 있는 줄과 '해시 사람-id' 줄을 같이 읽고, 모양이 틀린 줄은 버린다")
+                .containsExactlyInAnyOrder(
+                        "11d6d7223550b8edd504d86e14a4db458c8356ba1a5fceab66f5d2e387470d71",
+                        "e".repeat(64));
         assertThat(AdminService.advisorEmailHashes("")).isEmpty();
         assertThatThrownBy(() -> AdminService.advisorEmailHashes("/admin/no-such-advisors.txt"))
                 .isInstanceOf(IllegalStateException.class);
