@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminAdvisorSession;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminAdvisorSessions;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallenge;
 import com.acttub.actingapi.feature.admin.app.AdminMetrics.AdminChallengePage;
@@ -120,11 +121,17 @@ public class AdminService {
         }
     }
 
-    /** 자문위원 계정의 코치 대화만, 최신순. 영상 주소는 만들지 않는다. */
+    /** 자문위원 계정의 코치 대화만, 최신순. 영상은 세션 목록과 같은 1시간 재생 주소를 붙인다. */
     public AdminAdvisorSessions advisorSessions(int limit) {
-        return new AdminAdvisorSessions(
-                List.copyOf(metrics.advisorSessions(limit, advisorEmailHashes)),
-                advisorEmailHashes.size());
+        List<AdminAdvisorSession> sessions = new ArrayList<>();
+        for (AdminMetricsRepository.AdvisorSessionRow row : metrics.advisorSessions(limit, advisorEmailHashes)) {
+            AdminAdvisorSession s = row.session();
+            sessions.add(new AdminAdvisorSession(
+                    s.coachSessionId(), s.createdAt(), s.actor(), s.advisorHash(), s.persona(), s.status(),
+                    s.closeReason(), s.situation(), s.characterContext(), s.goal(), s.turns(),
+                    row.objectKey() == null ? null : playback.url(row.objectKey(), PLAYBACK_TTL_SECONDS)));
+        }
+        return new AdminAdvisorSessions(List.copyOf(sessions), advisorEmailHashes.size(), PLAYBACK_TTL_SECONDS);
     }
 
     public AdminSessions sessions(int limit) {
