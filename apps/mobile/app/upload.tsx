@@ -425,6 +425,13 @@ export default function UploadScreen() {
           )}
 
           <View style={styles.sceneCard} ref={sceneTarget.ref} onLayout={sceneTarget.onLayout}>
+            {/* 질문 받기를 누른 뒤 — 적은 내용을 보내는 중이라는 걸 카드 맨 위에서 바로 보인다(SOMA-671). */}
+            {locked && (
+              <View style={styles.sendingBar} accessibilityLiveRegion="polite">
+                <ActivityIndicator size="small" color={palette.blue} />
+                <Text style={styles.sendingText}>{t('upload.sending')}</Text>
+              </View>
+            )}
             {!plan.continueFrom && !sample && (
               <>
                 <Text style={styles.sceneTitle}>
@@ -570,6 +577,16 @@ const styles = StyleSheet.create({
   errorText: { color: palette.danger, fontSize: 13, fontWeight: '700' },
 
 
+  sendingBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: palette.blueSoft,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  sendingText: { flex: 1, fontSize: 13.5, fontWeight: '800', color: palette.blueDeep },
   sceneCard: { backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.borderSoft, borderRadius: 18, padding: 16, gap: 12 },
   sceneTitle: { fontSize: 15, fontWeight: '900', color: palette.text },
   sceneOptional: { fontWeight: '700', color: palette.textFaint },
@@ -589,13 +606,13 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   inputTall: { minHeight: 72 },
-  inputLocked: { opacity: 0.5 },
+  inputLocked: { opacity: 0.4 },
 
   blockGap: { marginTop: 8 },
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 2 },
   chip: { borderRadius: 9999, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bgSoft, paddingVertical: 10, paddingHorizontal: 16 },
   chipOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
-  chipLocked: { opacity: 0.5 },
+  chipLocked: { opacity: 0.4 },
   chipText: { fontSize: 14, fontWeight: '700', color: palette.textDim },
   chipTextOn: { color: palette.blueDeep },
 

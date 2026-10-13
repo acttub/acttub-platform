@@ -95,3 +95,11 @@ test('practice.history: 연습 기록은 영상 목록처럼 왼쪽에 큰 16:9 
   assert.match(src, /styles\.rowTitle\} numberOfLines=\{2\}/);
   assert.match(src, /<Text style=\{styles\.thumbBadgeText\}>\{row\.count\}<\/Text>/);
 });
+
+test('practice.upload: 질문 받기를 누르면 카드 위에 「보내는 중」 띠가 뜨고 입력이 더 진하게 흐려진다', () => {
+  const src = read('app/upload.tsx');
+  assert.match(src, /\{locked && \(\s*<View style=\{styles\.sendingBar\}/);
+  assert.match(src, /t\('upload\.sending'\)/);
+  assert.match(src, /inputLocked: \{ opacity: 0\.4 \}/);
+  assert.match(read('locales/ko.ts'), /sending: '보내는 중이에요/);
+});
