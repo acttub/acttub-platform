@@ -1,5 +1,6 @@
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useIsFocused } from '@react-navigation/native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -44,8 +45,10 @@ import {
   emptyBlockageDraft,
   fingerprintOf,
   inProgressPracticeId,
+  PRACTICE_TITLE_MAX,
   sceneOverflow,
   startFailure,
+  titleOverflow,
   type BlockageDraft,
   type SceneDraft,
 } from '@/lib/practice/start';
@@ -66,6 +69,7 @@ import { TARGET } from '@/lib/spotlight-targets';
 import { sampleVideoUri } from '@/lib/tutorial-loop';
 import { SAMPLE_PRACTICE_ID, sampleScene } from '@/lib/tutorial-sample';
 import { normalizeVideoDurationMs } from '@/lib/upload-input';
+import { limitVideoBuffer, sourceWhileFocused } from '@/lib/video-memory';
 
 /**
  * A8·A8.1·A9.x 새 연습 준비(practice.start · practice.resume).
@@ -95,6 +99,8 @@ export default function UploadScreen() {
   );
   const [scene] = useState<SceneDraft>(() => (sample ? sampleScene() : plan.scene));
   const [blockage, setBlockage] = useState<BlockageDraft>(emptyBlockageDraft);
+  // 묶음 제목(SOMA-671). 이어하기는 원래 묶음 제목을 그대로 쓰므로 새 연습에서만 받는다.
+  const [title, setTitle] = useState('');
   const [agreedRights, setAgreedRights] = useState(sample);
   const pickTarget = useSpotlightTarget(TARGET.uploadPick);
   const sampleTarget = useSpotlightTarget(TARGET.uploadSample);
@@ -133,8 +139,10 @@ export default function UploadScreen() {
   }, [sample]);
 
   const previewUri = picked?.uri ?? picked?.playbackUrl ?? null;
-  const player = useVideoPlayer(previewUri, (p) => {
+  const focused = useIsFocused();
+  const player = useVideoPlayer(sourceWhileFocused(previewUri, focused), (p) => {
     p.loop = false;
+    limitVideoBuffer(p);
   });
   // 올린 영상을 사용자가 미리보기에서 실제로 틀어 보는지 센다.
   useVideoPreviewEvents(player, 'upload', previewUri, { sample, continued: plan.video.kind === 'same' });
@@ -225,6 +233,10 @@ export default function UploadScreen() {
       setError(t('start.noteTooLong'));
       return;
     }
+    if (titleOverflow(title)) {
+      setError(t('upload.titleTooLong'));
+      return;
+    }
     startLockRef.current = true;
     setStarting(true);
     setError(null);
@@ -244,7 +256,7 @@ export default function UploadScreen() {
       const continueFrom = plan.continueFrom;
       const body = continueFrom
         ? buildContinueBody({ requestId: 'pending', videoId: continueVideoId(plan, resolvedVideoId), scene, blockage })
-        : buildStartBody({ requestId: 'pending', videoId: resolvedVideoId as string, scene, blockage });
+        : buildStartBody({ requestId: 'pending', videoId: resolvedVideoId as string, scene, blockage, title });
       if (!continueFrom && !resolvedVideoId) {
         setError(t('start.stillUploading'));
         return;
@@ -302,6 +314,8 @@ export default function UploadScreen() {
     };
   }, [plan.video, picked]);
 
+  // 질문 받기를 누른 뒤에는 보낸 내용이 바뀌지 않게 입력을 잠근다(SOMA-671).
+  const locked = starting;
   const ready = sample ? agreedRights : agreedRights && canStart(plan, videoId) && !uploading;
 
   // 화면을 떠날 때 보낼 마지막 상태. 올리는 중인 영상도 '고른 영상'으로 친다.
@@ -342,12 +356,13 @@ export default function UploadScreen() {
     if (!sample) void logEvent(PRACTICE_UPLOAD_EVENTS.rightsToggle, rightsToggleParams(next));
   };
   // 준비가 끝났으면 버튼만 둔다 — 무엇이 모자란지만 알린다.
+  // 올리는 중이면 영상은 이미 고른 것이다 — 「영상을 채워주세요」가 아니라 올리는 중이라고 말한다(SOMA-671).
   const hint = ready
     ? null
-    : !sample && !canStart(plan, videoId)
-      ? t('upload.missingVideo')
-      : !sample && uploading
-        ? t('start.stillUploading')
+    : !sample && uploading
+      ? t('start.stillUploading')
+      : !sample && !canStart(plan, videoId)
+        ? t('upload.missingVideo')
         : t('upload.missingRights');
 
   return (
@@ -410,7 +425,25 @@ export default function UploadScreen() {
           )}
 
           <View style={styles.sceneCard} ref={sceneTarget.ref} onLayout={sceneTarget.onLayout}>
-            <Text style={styles.sceneTitle}>
+            {!plan.continueFrom && !sample && (
+              <>
+                <Text style={styles.sceneTitle}>
+                  {t('upload.titleLabel')}
+                  <Text style={styles.sceneOptional}>{t('upload.sceneOptional')}</Text>
+                </Text>
+                <TextInput
+                  style={[styles.input, locked && styles.inputLocked]}
+                  placeholder={t('upload.titlePh')}
+                  placeholderTextColor={palette.checkOff}
+                  value={title}
+                  onChangeText={setTitle}
+                  maxLength={PRACTICE_TITLE_MAX}
+                  editable={!locked}
+                  returnKeyType="done"
+                />
+              </>
+            )}
+            <Text style={[styles.sceneTitle, !plan.continueFrom && !sample && styles.blockGap]}>
               {t('blockage.helpTitle')}
               <Text style={styles.sceneOptional}>{t('upload.sceneOptional')}</Text>
             </Text>
@@ -420,6 +453,7 @@ export default function UploadScreen() {
                   key={category}
                   label={t(`blockage.helpLabel.${category}`)}
                   selected={blockage.category === category}
+                  disabled={locked}
                   onPress={() =>
                     setBlockage((was) => ({ ...was, category: was.category === category ? null : category, detail: null }))
                   }
@@ -432,12 +466,13 @@ export default function UploadScreen() {
               <Text style={styles.sceneOptional}>{t('upload.sceneOptional')}</Text>
             </Text>
             <TextInput
-              style={[styles.input, styles.inputTall]}
+              style={[styles.input, styles.inputTall, locked && styles.inputLocked]}
               placeholder={t('blockage.freePh')}
               placeholderTextColor={palette.checkOff}
               value={blockage.note}
               onChangeText={(note) => setBlockage((was) => ({ ...was, note }))}
               maxLength={BLOCKAGE_NOTE_MAX}
+              editable={!locked}
               multiline
             />
           </View>
@@ -463,7 +498,10 @@ export default function UploadScreen() {
             {starting ? (
               <ActivityIndicator color={palette.bg} />
             ) : (
-              <Text style={styles.submitText}>{plan.prefilled ? t('upload.submitRetake') : t('upload.submitNew')}</Text>
+              <Text style={styles.submitText}>
+                {/* 영상이 아직 올라가는 중이면 무엇을 기다리는지 버튼이 말한다(SOMA-671). */}
+                {uploading ? t('upload.submitUploading') : plan.prefilled ? t('upload.submitRetake') : t('upload.submitNew')}
+              </Text>
             )}
           </Pressable>
           {hint && <Text style={styles.submitHint}>{hint}</Text>}
@@ -486,9 +524,14 @@ export default function UploadScreen() {
   );
 }
 
-function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+function Chip({ label, selected, disabled, onPress }: { label: string; selected: boolean; disabled?: boolean; onPress: () => void }) {
   return (
-    <Pressable style={[styles.chip, selected && styles.chipOn]} onPress={onPress} accessibilityRole="button" accessibilityState={{ selected }}>
+    <Pressable
+      style={[styles.chip, selected && styles.chipOn, disabled && styles.chipLocked]}
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityState={{ selected, disabled }}>
       <Text style={[styles.chipText, selected && styles.chipTextOn]}>{label}</Text>
     </Pressable>
   );
@@ -546,11 +589,13 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   inputTall: { minHeight: 72 },
+  inputLocked: { opacity: 0.5 },
 
   blockGap: { marginTop: 8 },
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 2 },
   chip: { borderRadius: 9999, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.bgSoft, paddingVertical: 10, paddingHorizontal: 16 },
   chipOn: { backgroundColor: palette.blueSoft, borderColor: palette.blue },
+  chipLocked: { opacity: 0.5 },
   chipText: { fontSize: 14, fontWeight: '700', color: palette.textDim },
   chipTextOn: { color: palette.blueDeep },
 

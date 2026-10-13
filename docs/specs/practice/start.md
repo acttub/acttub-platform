@@ -21,7 +21,7 @@
 ## 입력·출력
 | 입구 | 입력 | 출력 | 오류 |
 |---|---|---|---|
-| `POST /v2/practices` | `X-Request-Id`(본문 request_id와 같아야 한다), `X-Acttub-Contract`, 필수 `request_id`·`video_id`, 선택 `scene`·`blockage` (`PracticeCreateRequest`) | `Practice` 201, 같은 요청 id 재전송도 같은 회차 | `video_not_ready` 422, `request_fingerprint_mismatch` 422, `guest_daily_analysis_limit` 429, `consent_required` 403, 값 모양 오류 422(배열) |
+| `POST /v2/practices` | `X-Request-Id`(본문 request_id와 같아야 한다), `X-Acttub-Contract`, 필수 `request_id`·`video_id`, 선택 `scene`·`blockage`·`title` (`PracticeCreateRequest`) | `Practice` 201(`poster_url` 포함, [practice.library](library.md#규칙제약)), 같은 요청 id 재전송도 같은 회차 | `video_not_ready` 422, `request_fingerprint_mismatch` 422, `guest_daily_analysis_limit` 429, `consent_required` 403, 값 모양 오류 422(배열) |
 | `POST /v2/practices/{practice_id}/analyze` (닫힌 회차 재시도) | `X-Request-Id`, 필수 `request_id` (`PracticeAnalyzeRequest`) | `Practice` 201, 새 analyze 작업 | `analysis_not_failed` 409, `practice_in_progress` 409, `guest_daily_analysis_limit` 429, `practice_not_found` 404 |
 
 ## 상태
@@ -46,6 +46,11 @@ practices.stage — 회차 진행 상태의 정본이다.
 - 회차와 분석 작업은 "시작"을 눌러 영상이 확정돼 있을 때 함께 만든다 — 하나만 생기지 않는다. 요청 id는 (user_id, request_id)
   유일이고 재전송은 [공통 규칙 「요청 재전송」](../common.md#요청-재전송)을 따른다. 설정 화면만 다녀가면 아무것도 남지 않는다.
 - 첫 회차는 root_id = 자기 id, ordinal = 1이다. 묶음 속성은 첫 행에 둔다([practice.library](library.md#상태)).
+- 시작 때 묶음 제목(`title`, 선택, 200자)을 함께 적을 수 있다(SOMA-671). 앞뒤 공백을 떼어 첫 행의 title에 저장하고, 비었거나
+  공백뿐이면 없는 것(null)이다 — 화면이 대체 규칙으로 채운다(practice.library). 시작 뒤에 바꾸는 길은 묶음 속성 수정
+  (`PATCH /v2/practices/{root_id}/group`)이다. 이어하기(practice.resume)는 제목을 받지 않고 묶음 제목을 바꾸지 않는다. 제목은
+  요청 지문에 든다 — 같은 요청 id에 제목만 다르거나 빠져도 422 request_fingerprint_mismatch다(제목이 없는 요청의 지문은 이 변경
+  전과 같다).
 - Scene Context(상황·인물·목표)는 셋 모두 선택이고 각 300자까지다. 비우면 빈 문자열로 저장하고 시작 뒤에는 바꾸지 않는다.
   코치가 대화에서 장면을 물어도 그 답은 Scene Context가 되지 않는다.
 - 앱 준비 화면(P3.1)은 상황·인물·목표 칸과 막힘 세부 칩을 보이지 않는다(SOMA-656). 앱은 큰 갈래 칩(대사 분석·연기 표현·그 외 —
@@ -71,7 +76,7 @@ practices.stage — 회차 진행 상태의 정본이다.
 - 같은 요청 id 재전송: 같은 회차 하나. 이중 탭도 같다.
 - 게스트의 하루 4번째 시작: 429 guest_daily_analysis_limit, 회차·작업이 생기지 않는다.
 - 만들다 실패: 회차도 작업도 없다.
-- 상황·인물·목표 301자, 막힘 서술 501자: 422. 같은 요청 id·다른 본문: 422 request_fingerprint_mismatch.
+- 상황·인물·목표 301자, 막힘 서술 501자, 제목 201자: 422(배열). 같은 요청 id·다른 본문: 422 request_fingerprint_mismatch.
 
 ## 검증 방법
 - 플래그 켬·헤더 three_layers_v1·영상만 고르고 시작: practices 1행(root_id = 자기, ordinal 1, stage analyzing, 막힘 그 외/그 외, 상황·인물·목표
@@ -84,6 +89,8 @@ practices.stage — 회차 진행 상태의 정본이다.
 - 게스트 4번째: 429 guest_daily_analysis_limit. 자정(한국 시간) 뒤: 된다.
 - 트랜잭션을 실패시킴: practices·ai_jobs 둘 다 없다.
 - 상황 300자: 200. 301자: 422. 막힘 서술 500자: 200. 501자: 422.
+- 제목을 적고 시작: 앞뒤 공백을 뗀 값이 첫 행 title이고 묶음 목록의 title이다. 공백뿐인 제목: null. 200자: 된다. 201자: 422(배열).
+  같은 요청 id·다른 제목: 422 request_fingerprint_mismatch. 그 묶음을 이어하기: 묶음 제목 그대로, 이어하기 본문의 title은 422(배열).
 - 시작 뒤 상황 수정 API: 없다(속성 불변). 대화에서 장면을 답함: practices의 상황은 그대로다.
 - 분석 최종 실패: stage closed. 그 회차 재시도: 새 ai_jobs, stage analyzing. 다른 진행 중 회차가 있으면 재시도: 409 practice_in_progress.
 - 하루 3회를 쓴 게스트가 아직 분석 중인 회차를 재시도: 429가 아니라 409 analysis_not_failed.

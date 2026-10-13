@@ -89,6 +89,8 @@ class PracticeCompatibilityIT {
         assertThat(detail.path("analysis_status").textValue())
                 .as("구형 관찰은 상태만 낸다 — 못 본 구간이 있으면 partial").isEqualTo("partial");
         assertThat(detail.path("situation").textValue()).isEqualTo("문 앞에서 돌아선다");
+        assertThat(detail.has("poster_url")).as("옛 회차도 같은 모양이다").isTrue();
+        assertThat(detail.path("poster_url").isNull()).isTrue();
 
         assertThat(json(get("/v2/practices/{id}/status", second), 200).path("stage").textValue())
                 .isEqualTo("conversing");

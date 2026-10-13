@@ -25,10 +25,10 @@
 | `PATCH /v2/videos/{video_id}` | 필수 `favorite` (`VideoPatch`) | `Video` 200 | `video_not_found` 404 |
 | `DELETE /v2/videos/{video_id}` | video_id | 204 | `video_in_use` 422, `video_not_found` 404 |
 | `POST /v2/videos/{video_id}/purge-file` | video_id | `Video` 200(이미 파기됐어도 200) | `video_not_found` 404 |
-| `GET /v2/practices` | `filter`(all·favorite·recent30) | `PracticeGroupList` 200(묶음마다 회차 요약·진행 중 회차 id) | 필터 값 오류 422(배열) |
-| `GET /v2/practices/{practice_id}` | practice_id | `Practice` 200 | `practice_not_found` 404 |
+| `GET /v2/practices` | `filter`(all·favorite·recent30) | `PracticeGroupList` 200(묶음마다 회차 요약·진행 중 회차 id, 회차마다 `poster_url`) | 필터 값 오류 422(배열) |
+| `GET /v2/practices/{practice_id}` | practice_id | `Practice` 200(`poster_url` 포함) | `practice_not_found` 404 |
 | `PATCH /v2/practices/{root_id}/group` | 첫 회차 id, `favorite`·`hidden`·`title` 중 보낸 것만 (`PracticeGroupPatch`) | `PracticeGroup` 200 | `practice_not_found` 404 |
-| `VideoPosterScheduler.poll` (`VIDEO_POSTER_POLL_INTERVAL_MS`, 기본 10초) | 포스터가 빈 영상 | 첫 장면 JPEG(poster_key), 목록·상세·즐겨찾기 응답의 `poster_url` | 실패는 보고만 하고 다음 주기에 다시 집는다. 세 번 집힌 영상은 더 고르지 않는다 |
+| `VideoPosterScheduler.poll` (`VIDEO_POSTER_POLL_INTERVAL_MS`, 기본 10초) | 포스터가 빈 영상 | 첫 장면 JPEG(poster_key), 보관함 목록·상세·즐겨찾기 응답과 회차(`Practice`) 응답의 `poster_url` | 실패는 보고만 하고 다음 주기에 다시 집는다. 세 번 집힌 영상은 더 고르지 않는다 |
 
 ## 상태
 practices.hidden_at — 묶음 숨김. 첫 회차 행(root)에만 있다.
@@ -38,7 +38,8 @@ practices.hidden_at — 묶음 숨김. 첫 회차 행(root)에만 있다.
 | 보임(hidden_at 없음) | 첫 회차 생성, `hidden: false` | practice.start, practice.library |
 | 숨김(hidden_at 있음) | `hidden: true`, 이미 숨김이면 처음 시각을 둔다 | practice.library |
 
-- 불변 조건: 묶음 속성(제목·태그·즐겨찾기·숨김)은 첫 회차 행(root)에만 두고, API로 바꾸는 것은 즐겨찾기·숨김·제목이다. 숨김은
+- 불변 조건: 묶음 속성(제목·태그·즐겨찾기·숨김)은 첫 회차 행(root)에만 두고, API로 바꾸는 것은 즐겨찾기·숨김·제목이다(제목은 시작 때도
+  적을 수 있다 — [practice.start](start.md#규칙제약)). 숨김은
   노트·대화·기억·영상을 바꾸지 않는다. legacy_hidden_at은 옛 앱의 세션 숨김을 옮길 때만 회차 행에 차고 API로 바꾸지 않는다.
 - 끝 상태: 없음(오간다).
 
@@ -72,6 +73,9 @@ practices.hidden_at — 묶음 숨김. 첫 회차 행(root)에만 있다.
   사이 영상이 지워졌거나 파기됐거나 주인이 바뀌었거나 계정이 활성이 아니면 붙이지 않고 지운다(주인이 바뀐 영상은 다음 주기에 다시 만든다).
   `poster_url`은 재생 주소와 같은 10분 서명 주소이고, 아직 없거나 파기됐거나 스토리지가 없는 기동이면 null이다. 화면은 null을
   "미리보기 없음"으로 그린다. 실패해도 목록은 `poster_url` 없이 열린다.
+- 회차의 포스터(SOMA-671): `Practice`(묶음 목록·묶음 수정·회차 상세·시작·이어하기·재시도 응답)도 그 회차 영상의 `poster_url`을
+  싣는다. 보관함과 같은 10분 서명 주소이고 같은 키(videos.poster_key)다. 아직 없거나 그 영상 파일을 파기했거나 스토리지가 없는
+  기동이면 null이고, 옛 표에만 있는 회차(호환 읽기)도 같은 규칙이다. 상태 폴링(`PracticeStatus`)에는 없다.
 - 홈(A1)의 최근 연습은 숨기지 않은 묶음 3개, 연속 연습 일수는 회차 시작 날짜(한국 시간)로 센다.
 - 웹에는 영상 보관함 진입이 없다. 지난 연습 목록(D4·D8)만 있으며 보관함 화면은 더한다. (디자인에 반영할 것)
 - 게스트도 웹에서 보관함·기록을 본다. 이관 뒤 회원 앱에 같은 것이 보인다.
@@ -93,6 +97,8 @@ practices.hidden_at — 묶음 숨김. 첫 회차 행(root)에만 있다.
 - 묶음 숨김: 첫 행 hidden_at이 차고 목록에서 사라지며 노트·대화·기억 행은 그대로다. 영상은 보관함에 남는다. 묶음 즐겨찾기: 첫 행 favorite.
 - 최근 30일 필터·월별 묶기: 회차 시작 날짜 기준으로 맞다. 홈 최근 연습: 숨기지 않은 묶음 3개. 리딩 회차가 있어도 기록에는 섞이지 않는다.
 - 서명 URL 만료 뒤 재생: 재조회해 새 URL.
+- 회차의 포스터: 포스터가 없는 영상의 회차는 목록·상세·시작 응답의 `poster_url`이 null. 포스터가 생기면 목록·묶음 수정·상세·이어하기
+  응답에 서명 주소가 온다. 그 영상을 파일만 파기: 키가 남아도 null.
 - 연습 기록의 묶음 제목: 마지막 회차 노트 제목. 노트 없는 묶음: 상황 문장. 둘 다 없음: "제목 없는 연습".
 - 홈의 연속 연습 일수: 어제·오늘 회차가 있으면 2일. 한국 시간 자정을 넘긴 회차는 다음 날로 센다.
 - 웹 게스트가 영상 둘·묶음 하나를 만들고 앱으로 옮김: 앱 보관함·기록에 그대로 보인다.

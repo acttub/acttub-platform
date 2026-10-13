@@ -47,12 +47,14 @@ class PostgresPracticeRepository implements PracticeRepository {
             SELECT p.id,p.root_id,p.ordinal,p.video_id,p.stage,p.close_reason,p.experience_version,
                    p.situation,p.character_context,p.goal,p.blockage_kind,p.sub_branch,p.blockage_detail,
                    p.created_at,
+                   CASE WHEN v.purged_at IS NULL THEN v.poster_key END AS poster_key,
                    a.status AS analysis_status,
                    c.id AS conversation_id,c.status AS conversation_status,
                    (SELECT count(*) FROM coach_messages m WHERE m.conversation_id=c.id) AS conversation_count,
                    n.id AS note_id,n.title AS note_title,n.kind AS note_kind,
                    j.id AS job_id,j.status AS job_status,j.failure_reason,j.attempt_count
             FROM practices p
+            LEFT JOIN videos v ON v.id=p.video_id
             LEFT JOIN analyses a ON a.practice_id=p.id
             LEFT JOIN coach_conversations c ON c.practice_id=p.id
             LEFT JOIN coach_notes n ON n.conversation_id=c.id
@@ -162,7 +164,7 @@ class PostgresPracticeRepository implements PracticeRepository {
             insertPractice(id, rootId, ordinal, userId,
                     new NewPractice(practice.requestId(), practice.fingerprint(), video, practice.experienceVersion(),
                             practice.situation(), practice.characterContext(), practice.goal(),
-                            practice.blockageKind(), practice.subBranch(), practice.blockageNote()),
+                            practice.blockageKind(), practice.subBranch(), practice.blockageNote(), null),
                     now);
             insertAnalyzeJob(userId, id, practice.requestId(), practice.fingerprint(), now);
             return new Started(StartOutcome.CREATED, find(userId, id));
@@ -251,6 +253,7 @@ class PostgresPracticeRepository implements PracticeRepository {
                 SELECT p.id,p.root_id,p.ordinal,p.video_id,p.stage,p.close_reason,p.experience_version,
                        p.situation,p.character_context,p.goal,p.blockage_kind,p.sub_branch,p.blockage_detail,
                        p.created_at,
+                       CASE WHEN v.purged_at IS NULL THEN v.poster_key END AS poster_key,
                        a.status AS analysis_status,
                        c.id AS conversation_id,c.status AS conversation_status,
                        (SELECT count(*) FROM coach_messages m WHERE m.conversation_id=c.id) AS conversation_count,
@@ -264,6 +267,7 @@ class PostgresPracticeRepository implements PracticeRepository {
                         WHERE gp.root_id=p.root_id) AS last_conversation_at
                 FROM practices p
                 JOIN practices root ON root.id=p.root_id
+                LEFT JOIN videos v ON v.id=p.video_id
                 LEFT JOIN analyses a ON a.practice_id=p.id
                 LEFT JOIN coach_conversations c ON c.practice_id=p.id
                 LEFT JOIN coach_notes n ON n.conversation_id=c.id
@@ -504,9 +508,10 @@ class PostgresPracticeRepository implements PracticeRepository {
         entityManager.createNativeQuery("""
                 INSERT INTO practices(id,user_id,video_id,root_id,ordinal,stage,experience_version,request_id,
                                       request_fingerprint,situation,character_context,goal,blockage_kind,sub_branch,
-                                      blockage_detail,created_at,updated_at)
+                                      blockage_detail,title,created_at,updated_at)
                 VALUES (:id,:userId,:videoId,:rootId,:ordinal,'analyzing',:experienceVersion,:requestId,:fingerprint,
-                        :situation,:characterContext,:goal,:blockageKind,:subBranch,:blockageNote,:now,:now)
+                        :situation,:characterContext,:goal,:blockageKind,:subBranch,:blockageNote,
+                        CAST(:title AS text),:now,:now)
                 """)
                 .setParameter("id", id)
                 .setParameter("userId", userId)
@@ -522,6 +527,7 @@ class PostgresPracticeRepository implements PracticeRepository {
                 .setParameter("blockageKind", practice.blockageKind())
                 .setParameter("subBranch", practice.subBranch())
                 .setParameter("blockageNote", practice.blockageNote())
+                .setParameter("title", practice.title())
                 .setParameter("now", now.atOffset(ZoneOffset.UTC))
                 .executeUpdate();
     }
@@ -560,6 +566,8 @@ class PostgresPracticeRepository implements PracticeRepository {
                 row.get("root_id", UUID.class),
                 row.get("ordinal", Integer.class),
                 row.get("video_id", UUID.class),
+                row.get("poster_key", String.class),
+                null,
                 row.get("stage", String.class),
                 row.get("close_reason", String.class),
                 row.get("experience_version", String.class),

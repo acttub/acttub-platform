@@ -19,6 +19,7 @@ registerHooks({
 
 const analytics = await import("../src/lib/analytics/posthog.ts");
 const {
+  isPostHogHost,
   startPostHog,
   stopPostHog,
   toAgeDaysBucket,
@@ -79,6 +80,26 @@ test("키가 없으면 init도 capture도 하지 않는다", () => {
 
   assert.equal(callsOf("init").length, 0);
   assert.equal(callsOf("capture").length, 0);
+});
+
+// 2026-10-11 개발자 PC(localhost:3100)에서 운영 키로 띄운 테스트가 운영 통계에 섞였다.
+test("개발자 PC 호스트에서는 키가 있어도 init 하지 않는다", () => {
+  process.env.NEXT_PUBLIC_POSTHOG_KEY = "test-key";
+  const before = callsOf("init").length;
+  for (const host of ["localhost", "127.0.0.1", "192.168.0.12", "10.0.0.5", "172.20.1.1", "my-mac.local"]) {
+    withFakeWindow(host, () => startPostHog("guest-1"));
+  }
+  assert.equal(callsOf("init").length, before);
+  delete process.env.NEXT_PUBLIC_POSTHOG_KEY;
+});
+
+test("배포 호스트는 켜고, 로컬은 NEXT_PUBLIC_POSTHOG_LOCAL=1 일 때만 켠다", () => {
+  assert.equal(isPostHogHost("acttub.com"), true);
+  assert.equal(isPostHogHost("dev.acttub.com"), true);
+  assert.equal(isPostHogHost("172.32.0.1"), true);
+  assert.equal(isPostHogHost("localhost"), false);
+  assert.equal(isPostHogHost("localhost", "1"), true);
+  assert.equal(isPostHogHost("192.168.0.12", "0"), false);
 });
 
 // opt-out 은 localStorage 에 남는다. 앞 페이지에서 끈 채 새로고침하면 SDK 는 꺼진 채 init 되므로,

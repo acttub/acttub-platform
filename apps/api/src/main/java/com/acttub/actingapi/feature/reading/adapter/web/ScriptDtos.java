@@ -61,6 +61,17 @@ final class ScriptDtos {
         scene
     }
 
+    /**
+     * 줄 하나의 종류·배역·글을 고친다(SOMA-669). 보낸 항목만 바꾼다. 대사가 아니게 바꾸면 배역은 저절로 빠지고,
+     * 대사로 바꾸면 {@code character_id} 가 있어야 한다(원래 대사였으면 빼도 된다).
+     */
+    @Schema(name = "ReadingScriptLinePatch", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    record LinePatchRequest(
+            @Schema(nullable = true) LineKindInput kind,
+            @Schema(nullable = true) @JsonProperty("character_id") UUID characterId,
+            @Schema(nullable = true, maxLength = 5000) String text) {
+    }
+
     /** 제목과 배역의 이름·목소리만 고친다. 보낸 항목만 바꾸고 줄은 받지 않는다. */
     @Schema(name = "ReadingScriptPatch", additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     record PatchRequest(

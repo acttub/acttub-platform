@@ -21,7 +21,9 @@ export const ACTTUB_CLIENT = "web/0.1.0";
 // PostHog도 같은 방식이다(src/lib/analytics/posthog.ts).
 //   NEXT_PUBLIC_POSTHOG_KEY  비어 있으면 계측을 켜지 않고 콘솔에 경고를 남긴다.
 //                            환경별로 다른 프로젝트 키를 넣어 통계를 나눈다.
-// 로컬에서 확인하려면 apps/web/.env.local 에 넣는다(.env* 는 커밋되지 않는다).
+//   NEXT_PUBLIC_POSTHOG_LOCAL  1 일 때만 localhost·사설 IP 에서도 켠다. 기본은 꺼짐.
+// 로컬에서 확인하려면 apps/web/.env.local 에 dev 프로젝트 키와 NEXT_PUBLIC_POSTHOG_LOCAL=1 을 넣는다
+// (.env* 는 커밋되지 않는다).
 
 // 백엔드 uploads.py의 MAX_UPLOAD_BYTES(100MB)와 동일해야 한다.
 export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;

@@ -682,7 +682,8 @@ export interface paths {
         /**
          * Start Practice
          * @description 보관함의 영상으로 새 묶음의 첫 회차를 만든다 — 회차 하나와 분석 작업 하나가 한 트랜잭션이다.
-         *     상황·인물·목표와 막힘은 모두 선택이고 시작 뒤에는 바꾸지 않는다. 영상이 없거나 남의 것이거나
+         *     상황·인물·목표와 막힘은 모두 선택이고 시작 뒤에는 바꾸지 않는다. 제목(선택, 200자)을 적으면 앞뒤
+         *     공백을 떼어 묶음 제목이 되고 공백뿐이면 없는 것이다 — 뒤에 바꾸는 길은 묶음 속성 수정이다. 영상이 없거나 남의 것이거나
          *     파일이 파기됐으면 422 video_not_ready, 게스트가 하루 세 번을 넘기면 429
          *     guest_daily_analysis_limit, 같은 요청 id 에 다른 본문이면 422 request_fingerprint_mismatch 다.
          */
@@ -1350,10 +1351,33 @@ export interface paths {
         head?: never;
         /**
          * Update Script
-         * @description 제목과 배역의 이름·목소리만 고친다. 줄은 불변이다. 이름은 앞뒤 공백을 정리하고 비어 있거나 같은
+         * @description 제목과 배역의 이름·목소리만 고친다. 줄은 받지 않는다(줄은 /lines/{line_id} 로 고친다). 이름은 앞뒤 공백을 정리하고 비어 있거나 같은
          *     대본 안에서 겹치면 422 invalid_characters. voice_preset 은 키가 있을 때만 바꾸며 null 은 "자동"이다.
          */
         patch: operations["update_script_v2_reading_scripts__script_id__patch"];
+        trace?: never;
+    };
+    "/v2/reading/scripts/{script_id}/lines/{line_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Script Line
+         * @description 줄 하나의 종류·배역·글을 고친다(나누기가 틀린 줄을 바로잡는다). 줄 id·순서는 그대로라 회차·녹음·외운 줄의
+         *     연결이 남는다. 대사면 이 대본의 배역이 있어야 하고 지문·장면이면 배역이 없다 — 어기면 422 invalid_line.
+         *     대사가 아니게 바꾸면 배역은 저절로 빠진다. 없는 줄은 404 line_not_found, 없는·남의 대본은 404
+         *     script_not_found. 고친 대본 전체를 돌려준다.
+         */
+        patch: operations["update_script_line_v2_reading_scripts__script_id__lines__line_id__patch"];
         trace?: never;
     };
     "/v2/practices/{root_id}/group": {
@@ -3180,6 +3204,8 @@ export interface components {
             video_id: string;
             scene?: components["schemas"]["PracticeScene"] | null;
             blockage?: components["schemas"]["PracticeBlockage"] | null;
+            /** Title */
+            title?: string | null;
         };
         /** PracticeScene */
         PracticeScene: {
@@ -3206,6 +3232,8 @@ export interface components {
             ordinal: number;
             /** Video Id */
             video_id: string | null;
+            /** Poster Url */
+            poster_url?: string | null;
             /** Stage */
             stage: string;
             /** Close Reason */
@@ -4153,6 +4181,14 @@ export interface components {
             title?: string | null;
             /** Characters */
             characters?: components["schemas"]["ReadingScriptCharacterPatch"][];
+        };
+        /** ReadingScriptLinePatch */
+        ReadingScriptLinePatch: {
+            kind?: components["schemas"]["ReadingScriptLineKindInput"] | null;
+            /** Character Id */
+            character_id?: string | null;
+            /** Text */
+            text?: string | null;
         };
         /** PracticeGroupPatch */
         PracticeGroupPatch: {
@@ -7749,6 +7785,42 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ReadingScriptPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadingScript"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_script_line_v2_reading_scripts__script_id__lines__line_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                script_id: string;
+                line_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReadingScriptLinePatch"];
             };
         };
         responses: {

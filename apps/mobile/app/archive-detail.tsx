@@ -1,5 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useIsFocused } from '@react-navigation/native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -27,6 +28,7 @@ import type { Video } from '@/lib/library/types';
 import type { QueuedVideo } from '@/lib/library/upload-queue';
 import { videoErrorMessage } from '@/lib/library/video-checks';
 import { setPickedVideo } from '@/lib/practice/picked-video';
+import { limitVideoBuffer, sourceWhileFocused } from '@/lib/video-memory';
 
 /**
  * A2.3 보관함 영상(practice.library) — 위엔 영상(서명 재생 주소, 만료 시 재조회; 기기 복사본이 있으면 그것), 아래엔
@@ -88,8 +90,10 @@ export default function ArchiveDetailScreen() {
 
   const source =
     state.kind === 'pending' ? state.entry.uri : state.kind === 'video' ? videoPlaybackSource(state.video, state.localUri) : null;
-  const player = useVideoPlayer(source ?? null, (p) => {
+  const focused = useIsFocused();
+  const player = useVideoPlayer(sourceWhileFocused(source ?? null, focused), (p) => {
     p.loop = true;
+    limitVideoBuffer(p);
   });
   // 보관함에서 자기 영상을 실제로 틀어 보는지 센다. 서명 주소가 새로 바뀌어도 같은 영상이면 다시 세지 않게 id 로 묶는다.
   useVideoPreviewEvents(

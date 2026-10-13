@@ -1,4 +1,5 @@
 import Feather from '@expo/vector-icons/Feather';
+import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -9,7 +10,7 @@ import { palette } from '@/constants/palette';
 import { api } from '@/lib/api';
 import { formatKoreanDate } from '@/lib/format';
 import { translate as t } from '@/lib/i18n';
-import { filterGroups, groupTitle } from '@/lib/practice/groups';
+import { filterGroups, groupPoster, groupTitle } from '@/lib/practice/groups';
 import type { PracticeGroup, PracticeGroupFilter } from '@/lib/practice/types';
 
 type Row = {
@@ -17,7 +18,11 @@ type Row = {
   /** 월별로 묶는 기준 — 묶음의 마지막 회차 시각. */
   at: string;
   title: string;
+  /** 첫 장면 사진(SOMA-671). 없으면 원래 아이콘이다. */
+  poster: { uri: string; cacheKey: string } | null;
   meta: string;
+  /** 썸네일 오른쪽 아래 배지 — 묶음의 회차 수. */
+  count: string;
   onPress: () => void;
   onLongPress?: () => void;
   chips: string[];
@@ -110,7 +115,9 @@ export default function HistoryScreen() {
         id: `g:${group.root_id}`,
         at: group.last_practiced_at ?? '',
         title: groupTitle(group),
-        meta: `${dayLabel(group.last_practiced_at ?? '')} · ${t('history.countTimes', { count: group.ordinal_count })}`,
+        poster: groupPoster(group),
+        meta: dayLabel(group.last_practiced_at ?? ''),
+        count: t('history.countTimes', { count: group.ordinal_count }),
         chips: group.tags ?? [],
         onPress: () => openGroup(group.root_id),
         onLongPress: () => onGroupMenu(group),
@@ -194,11 +201,19 @@ export default function HistoryScreen() {
                 onPress={row.onPress}
                 onLongPress={row.onLongPress}
                 accessibilityRole="button">
-                <View style={styles.iconCircle}>
-                  <Feather name="video" size={17} color={palette.blue} />
+                {/* 영상 목록처럼 왼쪽에 큰 첫 장면 사진, 오른쪽 아래에 회차 수(SOMA-671). 사진이 없으면 아이콘. */}
+                <View style={styles.thumb}>
+                  {row.poster ? (
+                    <Image source={{ uri: row.poster.uri, cacheKey: row.poster.cacheKey }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
+                  ) : (
+                    <Feather name="video" size={22} color={palette.blue} />
+                  )}
+                  <View style={styles.thumbBadge}>
+                    <Text style={styles.thumbBadgeText}>{row.count}</Text>
+                  </View>
                 </View>
                 <View style={styles.rowBody}>
-                  <Text style={styles.rowTitle} numberOfLines={1}>
+                  <Text style={styles.rowTitle} numberOfLines={2}>
                     {row.title}
                   </Text>
                   <Text style={styles.rowMeta} numberOfLines={1}>
@@ -214,7 +229,6 @@ export default function HistoryScreen() {
                     </View>
                   )}
                 </View>
-                <Feather name="chevron-right" size={18} color={palette.checkOff} />
               </Pressable>
             ))}
           </View>
@@ -282,22 +296,31 @@ const styles = StyleSheet.create({
   monthHeader: { fontSize: 14, fontWeight: '800', color: palette.textFaint, marginTop: 18, marginBottom: 4 },
   row: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 12,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: palette.borderSoft,
+    paddingVertical: 10,
   },
-  iconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  thumb: {
+    width: '44%',
+    aspectRatio: 16 / 9,
+    borderRadius: 12,
     backgroundColor: palette.blueSoft,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
-  rowBody: { flex: 1, gap: 3 },
-  rowTitle: { fontSize: 15, fontWeight: '700', color: palette.text },
+  thumbBadge: {
+    position: 'absolute',
+    right: 6,
+    bottom: 6,
+    borderRadius: 6,
+    backgroundColor: 'rgba(0,0,0,0.72)',
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+  },
+  thumbBadgeText: { fontSize: 11.5, fontWeight: '800', color: '#fff' },
+  rowBody: { flex: 1, gap: 4, paddingTop: 2 },
+  rowTitle: { fontSize: 15, fontWeight: '700', color: palette.text, lineHeight: 21 },
   rowMeta: { fontSize: 12.5, color: palette.textFaint },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 3 },
   chip: { borderRadius: 9999, backgroundColor: palette.bgSoft, paddingVertical: 3, paddingHorizontal: 9 },

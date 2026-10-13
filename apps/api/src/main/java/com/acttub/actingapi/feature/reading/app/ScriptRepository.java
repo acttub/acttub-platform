@@ -70,6 +70,30 @@ public interface ScriptRepository {
     }
 
     /**
+     * 줄 하나의 종류·배역·글을 그 자리에서 고친다(SOMA-669). 줄 id·순서는 그대로라 회차·녹음·외운 줄의 연결이
+     * 끊기지 않는다. 고친 뒤 종류가 대사면 배역이 있어야 하고(이 대본의 배역), 지문·장면이면 배역이 없다.
+     *
+     * @return 규칙 위반이면 그 이유, 없으면 {@link LineEditOutcome#UPDATED}. 없는 대본이면 {@code null}
+     */
+    LineEditOutcome editLine(UUID userId, UUID scriptId, UUID lineId, LinePatch patch);
+
+    /**
+     * @param kind {@code null} 이면 그대로. 대사가 아니게 바뀌면 배역은 저절로 빠진다
+     * @param characterId {@code null} 이면 그대로(대사로 남거나 바뀔 때만 의미가 있다)
+     * @param text {@code null} 이면 그대로. 앞뒤 공백은 이미 정리돼 있고 비어 있지 않다
+     */
+    record LinePatch(String kind, UUID characterId, String text) {
+    }
+
+    enum LineEditOutcome {
+        UPDATED,
+        /** 이 대본에 없는 줄. */
+        LINE_NOT_FOUND,
+        /** 대사인데 배역이 없음, 이 대본에 없는 배역, 지문·장면에 배역. */
+        INVALID_LINE
+    }
+
+    /**
      * 배역·줄·회차·녹음·암기 상태와 함께 행째 지우고, 녹음 객체의 삭제를 <b>같은 트랜잭션에서</b> 정리 장부에
      * 올린다({@link ReadingRecordingCleanup}).
      *
