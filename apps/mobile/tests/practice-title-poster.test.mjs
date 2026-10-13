@@ -88,3 +88,10 @@ test('practice.upload: 올리는 중이면 안내도 「올리는 중」이다 �
   const src = read('app/upload.tsx');
   assert.match(src, /: !sample && uploading\s*\? t\('start\.stillUploading'\)\s*: !sample && !canStart\(plan, videoId\)/);
 });
+
+test('practice.history: 연습 기록은 영상 목록처럼 왼쪽에 큰 16:9 사진, 두 줄 제목, 사진 위 회차 배지다', () => {
+  const src = read('app/(tabs)/history.tsx');
+  assert.match(src, /aspectRatio: 16 \/ 9/);
+  assert.match(src, /styles\.rowTitle\} numberOfLines=\{2\}/);
+  assert.match(src, /<Text style=\{styles\.thumbBadgeText\}>\{row\.count\}<\/Text>/);
+});
